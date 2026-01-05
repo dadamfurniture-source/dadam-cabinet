@@ -4967,7 +4967,7 @@ function autoCalculateELModules() {
       </div>
       <div class="ai-input-area">
         <button id="ai-voice-btn" onclick="toggleVoiceInput()" class="ai-voice-btn" title="음성 입력">🎤</button>
-        <input type="text" id="ai-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter')sendAIMessage()">
+        <textarea id="ai-input" placeholder="메시지를 입력하세요... (Shift+Enter: 줄바꿈)" rows="1" onkeydown="handleAIInput(event)"></textarea>
         <button onclick="sendAIMessage()" class="ai-send-btn">전송</button>
       </div>
     </div>
@@ -5096,6 +5096,16 @@ function autoCalculateELModules() {
         padding: 10px 16px;
         font-size: 14px;
         outline: none;
+        resize: none;
+        min-height: 20px;
+        max-height: 100px;
+        line-height: 1.4;
+        font-family: inherit;
+      }
+      .typing-text {
+        margin-left: 8px;
+        font-size: 12px;
+        color: #888;
       }
       #ai-input:focus {
         border-color: #667eea;
@@ -5179,6 +5189,20 @@ function toggleAIPanel() {
 // AI 세션 ID
 let aiSessionId = null;
 
+// AI 입력 핸들러 (Shift+Enter 줄바꿈 지원)
+function handleAIInput(event) {
+  const textarea = event.target;
+  
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    sendAIMessage();
+  }
+  
+  // 자동 높이 조절
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+}
+
 // AI 메시지 전송
 async function sendAIMessage() {
   const input = document.getElementById('ai-input');
@@ -5192,7 +5216,7 @@ async function sendAIMessage() {
   const messagesDiv = document.getElementById('ai-messages');
   const typingDiv = document.createElement('div');
   typingDiv.className = 'ai-typing';
-  typingDiv.innerHTML = '<span></span><span></span><span></span>';
+  typingDiv.innerHTML = '<span></span><span></span><span></span><span class="typing-text">AI가 계산 중...</span>';
   messagesDiv.appendChild(typingDiv);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
@@ -5219,7 +5243,8 @@ async function sendAIMessage() {
     }
   } catch (err) {
     typingDiv.remove();
-    addAIMessage('서버 연결 오류가 발생했습니다.', 'bot');
+    console.error('API Error:', err);
+    addAIMessage('⚠️ 서버 연결 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.\n(오류: ' + err.message + ')', 'bot');
   }
 }
 
