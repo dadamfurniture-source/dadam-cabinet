@@ -4960,7 +4960,15 @@ function autoCalculateELModules() {
     <div id="ai-panel" class="ai-panel-hidden">
       <div class="ai-header">
         <span>🤖 다담 AI 어시스턴트</span>
-        <button onclick="toggleAIPanel()" class="ai-close">✕</button>
+        <div class="ai-header-btns">
+          <button onclick="clearHistory()" class="ai-clear-btn" title="대화 삭제">🗑️</button>
+          <button onclick="toggleAIPanel()" class="ai-close">✕</button>
+        </div>
+      </div>
+      <div class="ai-quick-btns">
+        <button onclick="quickQuestion('냉장고장')">🧊 냉장고장</button>
+        <button onclick="quickQuestion('싱크대')">🚰 싱크대</button>
+        <button onclick="quickQuestion('붙박이장')">👔 붙박이장</button>
       </div>
       <div id="ai-messages" class="ai-messages">
         <div class="ai-msg ai-bot">안녕하세요! 가구 설계에 도움이 필요하시면 말씀해주세요.</div>
@@ -5043,6 +5051,68 @@ function autoCalculateELModules() {
         justify-content: space-between;
         align-items: center;
         font-weight: 600;
+      }
+      .ai-header-btns {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .ai-clear-btn {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      .ai-clear-btn:hover {
+        background: rgba(255,255,255,0.3);
+      }
+      .ai-quick-btns {
+        display: flex;
+        gap: 8px;
+        padding: 10px 15px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #eee;
+        flex-wrap: wrap;
+      }
+      .ai-quick-btns button {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        border-radius: 16px;
+        background: white;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .ai-quick-btns button:hover {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+      }
+      .ai-msg {
+        position: relative;
+      }
+      .ai-bot {
+        padding-right: 35px;
+      }
+      .msg-copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        opacity: 0.5;
+        font-size: 14px;
+        padding: 2px;
+      }
+      .msg-copy-btn:hover {
+        opacity: 1;
+      }
+      .msg-content {
+        display: inline;
       }
       .ai-close {
         background: none;
@@ -5248,7 +5318,7 @@ async function sendAIMessage() {
   }
 }
 
-function addAIMessage(text, type) {
+function addAIMessage(text, type, skipSave = false) {
   const messagesDiv = document.getElementById('ai-messages');
   const msgDiv = document.createElement('div');
   msgDiv.className = `ai-msg ai-${type}`;
@@ -5260,14 +5330,74 @@ function addAIMessage(text, type) {
       .replace(/\*(.*?)\*/g, '<em>$1</em>')              // *italic*
       .replace(/\n/g, '<br>')                            // 줄바꿈
       .replace(/- /g, '• ');                             // 리스트
-    msgDiv.innerHTML = html;
+    
+    // 복사 버튼 추가
+    msgDiv.innerHTML = `
+      <div class="msg-content">${html}</div>
+      <button class="msg-copy-btn" onclick="copyMessage(this)" title="복사">📋</button>
+    `;
   } else {
     msgDiv.textContent = text;
   }
   
   messagesDiv.appendChild(msgDiv);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  
+  // 히스토리 저장 (skipSave가 아닐 때만)
+  if (!skipSave) {
+    saveToHistory(text, type);
+  }
 }
+
+// 메시지 복사
+function copyMessage(btn) {
+  const content = btn.parentElement.querySelector('.msg-content');
+  const text = content.innerText || content.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✅';
+    setTimeout(() => btn.textContent = '📋', 1500);
+  });
+}
+
+// 히스토리 저장
+function saveToHistory(text, type) {
+  let history = JSON.parse(localStorage.getItem('dadamChatHistory') || '[]');
+  history.push({ text, type, time: Date.now() });
+  // 최대 50개만 유지
+  if (history.length > 50) history = history.slice(-50);
+  localStorage.setItem('dadamChatHistory', JSON.stringify(history));
+}
+
+// 히스토리 불러오기
+function loadHistory() {
+  const history = JSON.parse(localStorage.getItem('dadamChatHistory') || '[]');
+  history.forEach(msg => addAIMessage(msg.text, msg.type, true));
+}
+
+// 히스토리 삭제
+function clearHistory() {
+  if (confirm('대화 기록을 삭제하시겠습니까?')) {
+    localStorage.removeItem('dadamChatHistory');
+    document.getElementById('ai-messages').innerHTML = '';
+    addAIMessage('안녕하세요! 가구 설계에 도움이 필요하시면 말씀해주세요.', 'bot');
+  }
+}
+
+// 빠른 질문
+function quickQuestion(type) {
+  const questions = {
+    '냉장고장': 'LG 384L 냉장고로 2400mm 냉장고장 레이아웃 계산해줘',
+    '싱크대': '3000mm 싱크대 레이아웃 계산해줘',
+    '붙박이장': '2400mm 붙박이장 3통으로 설계해줘'
+  };
+  document.getElementById('ai-input').value = questions[type] || '';
+  document.getElementById('ai-input').focus();
+}
+
+// 페이지 로드시 히스토리 불러오기
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(loadHistory, 500);
+});
 
 // 현재 설계 컨텍스트 가져오기
 function getCurrentDesignContext() {
