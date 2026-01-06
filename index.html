@@ -4,384 +4,351 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>다담가구 - AI가 설계하는 프리미엄 맞춤 가구</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    :root {
-      --white: #FAFAFA; --cream: #F8F7F4; --warm: #EBE8E2;
-      --gray: #8B8680; --charcoal: #2D2A26; --black: #1A1918; --gold: #B8956C;
-    }
-    body { font-family: 'Pretendard', -apple-system, system-ui, sans-serif; background: var(--white); color: var(--charcoal); line-height: 1.7; }
-    h1, h2, h3, h4 { font-family: 'Playfair Display', 'Noto Serif KR', serif; font-weight: 500; }
-    a { text-decoration: none; color: inherit; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C}
+    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.7}
+    h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
+    a{text-decoration:none;color:inherit}
 
-    .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 0 48px; height: 80px; display: flex; align-items: center; justify-content: space-between; transition: all 0.5s; }
-    .nav.scrolled { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .nav-logo { display: flex; align-items: center; gap: 8px; color: white; transition: color 0.5s; }
-    .nav.scrolled .nav-logo { color: var(--charcoal); }
-    .nav-logo svg { width: 32px; height: 32px; }
-    .nav-logo span { font-family: 'Playfair Display', serif; font-size: 24px; }
-    .nav-menu { display: flex; gap: 32px; }
-    .nav-menu a { color: white; font-size: 14px; letter-spacing: 0.5px; transition: all 0.3s; cursor: pointer; }
-    .nav.scrolled .nav-menu a { color: var(--charcoal); }
-    .nav-menu a:hover { opacity: 0.7; }
-    .nav-icons { display: flex; align-items: center; gap: 24px; color: white; transition: color 0.5s; }
-    .nav.scrolled .nav-icons { color: var(--charcoal); }
-    .nav-icons button { background: none; border: none; color: inherit; cursor: pointer; padding: 4px; }
-    .nav-ai-btn { padding: 8px 20px !important; background: linear-gradient(135deg, #B8956C 0%, #D4AF37 50%, #B8956C 100%); background-size: 200% 200%; border-radius: 25px; color: white !important; font-weight: 500; animation: shimmer 3s ease-in-out infinite; }
-    @keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    /* Shared Button Styles */
+    .btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;letter-spacing:2px;text-transform:uppercase;transition:all .3s}
+    .btn-outline{padding:16px 32px;border:1px solid rgba(255,255,255,.5);color:#fff}
+    .btn-outline:hover{background:#fff;color:var(--charcoal)}
+    .btn-solid{padding:16px 32px;background:var(--charcoal);color:#fff}
+    .btn-solid:hover{background:var(--gold)}
 
-    .hero { position: relative; height: 100vh; overflow: hidden; }
-    .hero-slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1s; }
-    .hero-slide.active { opacity: 1; }
-    .hero-slide img { width: 100%; height: 100%; object-fit: cover; }
-    .hero-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
-    .hero-content { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 48px; }
-    .hero-text { max-width: 600px; color: white; }
-    .hero-text h1 { font-size: 64px; line-height: 1.1; margin-bottom: 24px; }
-    .hero-text h1 span { color: var(--gold); }
-    .hero-text p { font-size: 18px; opacity: 0.8; margin-bottom: 8px; }
-    .hero-btn { display: inline-flex; align-items: center; gap: 8px; margin-top: 32px; padding: 16px 32px; border: 1px solid rgba(255,255,255,0.5); color: white; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; transition: all 0.3s; cursor: pointer; background: none; }
-    .hero-btn:hover { background: white; color: var(--charcoal); }
-    .hero-controls { position: absolute; bottom: 48px; left: 48px; display: flex; gap: 8px; }
-    .hero-dot { width: 48px; height: 4px; background: rgba(255,255,255,0.3); border: none; cursor: pointer; overflow: hidden; position: relative; }
-    .hero-dot.active::after { content: ''; position: absolute; inset: 0; background: white; animation: progress 6s linear; }
-    @keyframes progress { from { width: 0; } to { width: 100%; } }
-    .hero-arrows { position: absolute; bottom: 48px; right: 48px; display: flex; gap: 8px; }
-    .hero-arrow { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.3); background: none; color: white; cursor: pointer; transition: all 0.3s; }
-    .hero-arrow:hover { background: white; color: var(--charcoal); }
-    .hero-counter { position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.6); font-size: 14px; letter-spacing: 4px; }
-    .hero-counter span { color: white; }
+    /* Navigation */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:80px;display:flex;align-items:center;justify-content:space-between;transition:all .5s}
+    .nav.scrolled{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .nav-logo{display:flex;align-items:center;gap:8px;color:#fff;transition:color .5s}
+    .nav.scrolled .nav-logo{color:var(--charcoal)}
+    .nav-logo svg{width:32px;height:32px}
+    .nav-logo span{font-family:'Playfair Display',serif;font-size:24px}
+    .nav-menu{display:flex;gap:32px}
+    .nav-menu a{color:#fff;font-size:14px;letter-spacing:.5px;transition:all .3s}
+    .nav.scrolled .nav-menu a{color:var(--charcoal)}
+    .nav-menu a:hover{opacity:.7}
+    .nav-icons{display:flex;align-items:center;gap:24px;color:#fff;transition:color .5s}
+    .nav.scrolled .nav-icons{color:var(--charcoal)}
+    .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
 
-    .products { padding: 80px 48px; background: white; }
-    .products h2 { text-align: center; font-size: 36px; margin-bottom: 48px; }
-    .products-grid { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; }
-    .products-grid::-webkit-scrollbar { display: none; }
-    .product-card { flex-shrink: 0; width: 320px; aspect-ratio: 4/3; position: relative; overflow: hidden; }
-    .product-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.7s; }
-    .product-card:hover img { transform: scale(1.05); }
-    .product-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); }
-    .product-card-text { position: absolute; bottom: 24px; left: 24px; color: white; }
-    .product-card-text p { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7; }
-    .product-card-text h3 { font-size: 24px; margin-top: 4px; }
+    /* Hero */
+    .hero{position:relative;height:100vh;overflow:hidden}
+    .hero-slide{position:absolute;inset:0;opacity:0;transition:opacity 1s}
+    .hero-slide.active{opacity:1}
+    .hero-slide img{width:100%;height:100%;object-fit:cover}
+    .hero-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+    .hero-content{position:absolute;inset:0;display:flex;align-items:center;padding:0 48px}
+    .hero-text{max-width:600px;color:#fff}
+    .hero-text h1{font-size:64px;line-height:1.1;margin-bottom:24px}
+    .hero-text h1 span{color:var(--gold)}
+    .hero-text p{font-size:18px;opacity:.8;margin-bottom:8px}
+    .hero-text .btn{margin-top:32px}
+    .hero-controls{position:absolute;bottom:48px;left:48px;display:flex;gap:8px}
+    .hero-dot{width:48px;height:4px;background:rgba(255,255,255,.3);border:none;cursor:pointer;overflow:hidden;position:relative}
+    .hero-dot.active::after{content:'';position:absolute;inset:0;background:#fff;animation:progress 6s linear}
+    @keyframes progress{from{width:0}to{width:100%}}
+    .hero-arrows{position:absolute;bottom:48px;right:48px;display:flex;gap:8px}
+    .hero-arrow{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.3);background:none;color:#fff;cursor:pointer;transition:all .3s}
+    .hero-arrow:hover{background:#fff;color:var(--charcoal)}
+    .hero-counter{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:14px;letter-spacing:4px}
+    .hero-counter span{color:#fff}
 
-    .dadam-home { position: relative; height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: white; }
-    .dadam-home-bg { position: absolute; inset: 0; }
-    .dadam-home-bg img { width: 100%; height: 100%; object-fit: cover; }
-    .dadam-home-bg::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
-    .dadam-home-content { position: relative; z-index: 1; }
-    .dadam-home h2 { font-size: 48px; margin-bottom: 16px; }
-    .dadam-home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 64px; max-width: 800px; position: relative; z-index: 1; margin-top: 32px; }
-    .dadam-home-item { cursor: pointer; }
-    .dadam-home-item h3 { font-size: 24px; margin-bottom: 16px; }
-    .dadam-home-item .open { display: flex; align-items: center; justify-content: center; gap: 16px; color: rgba(255,255,255,0.5); transition: color 0.3s; }
-    .dadam-home-item:hover .open { color: white; }
-    .dadam-home-item .open span { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
-    .dadam-home-item .open::before, .dadam-home-item .open::after { content: ''; width: 32px; height: 1px; background: currentColor; }
-    .dadam-home-item p { margin-top: 16px; font-size: 14px; opacity: 0.5; }
+    /* Section Common */
+    .section{padding:80px 48px}
+    .section-title{text-align:center;font-size:36px;margin-bottom:48px}
 
-    .brand-story { padding: 80px 48px; background: var(--cream); }
-    .brand-story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; max-width: 1400px; margin: 0 auto; align-items: center; }
-    .brand-story-img { aspect-ratio: 4/3; overflow: hidden; }
-    .brand-story-img img { width: 100%; height: 100%; object-fit: cover; }
-    .brand-story-text p.label { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; }
-    .brand-story-text h2 { font-size: 48px; margin-bottom: 8px; }
-    .brand-story-text .subtitle { color: var(--gray); margin-bottom: 32px; }
-    .brand-story-text .desc { color: var(--gray); line-height: 1.8; margin-bottom: 32px; }
-    .brand-story-btn { display: inline-flex; align-items: center; gap: 8px; padding: 16px 32px; background: var(--charcoal); color: white; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; transition: background 0.3s; }
-    .brand-story-btn:hover { background: var(--gold); }
+    /* Products */
+    .products-grid{display:flex;gap:16px;overflow-x:auto;padding-bottom:16px;scrollbar-width:none}
+    .products-grid::-webkit-scrollbar{display:none}
+    .product-card{flex-shrink:0;width:320px;aspect-ratio:4/3;position:relative;overflow:hidden}
+    .product-card img{width:100%;height:100%;object-fit:cover;transition:transform .7s}
+    .product-card:hover img{transform:scale(1.05)}
+    .product-card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
+    .product-card-text{position:absolute;bottom:24px;left:24px;color:#fff}
+    .product-card-text p{font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.7}
+    .product-card-text h3{font-size:24px;margin-top:4px}
 
-    .instagram { padding: 80px 48px; background: white; }
-    .instagram-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 48px; }
-    .instagram-header-left { display: flex; align-items: center; gap: 16px; }
-    .instagram-header-left svg { width: 24px; height: 24px; }
-    .instagram-header a { color: var(--gray); font-size: 14px; }
-    .instagram-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    .instagram-item { aspect-ratio: 1; overflow: hidden; position: relative; }
-    .instagram-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
-    .instagram-item:hover img { transform: scale(1.05); }
+    /* Dadam Home */
+    .dadam-home{position:relative;height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff}
+    .dadam-home-bg{position:absolute;inset:0}
+    .dadam-home-bg img{width:100%;height:100%;object-fit:cover}
+    .dadam-home-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.6)}
+    .dadam-home-content{position:relative;z-index:1}
+    .dadam-home h2{font-size:48px;margin-bottom:16px}
+    .dadam-home-content>p{opacity:.7;margin-bottom:48px}
+    .dadam-home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:64px;max-width:800px}
+    .dadam-home-item h3{font-size:24px;margin-bottom:16px}
+    .dadam-home-item .open{display:flex;align-items:center;justify-content:center;gap:16px;color:rgba(255,255,255,.5);transition:color .3s}
+    .dadam-home-item:hover .open{color:#fff}
+    .dadam-home-item .open span{font-size:12px;letter-spacing:2px;text-transform:uppercase}
+    .dadam-home-item .open::before,.dadam-home-item .open::after{content:'';width:32px;height:1px;background:currentColor}
+    .dadam-home-item p{margin-top:16px;font-size:14px;opacity:.5}
 
-    .cta { padding: 80px 48px; background: var(--charcoal); text-align: center; color: white; }
-    .cta h2 { font-size: 48px; margin-bottom: 24px; }
-    .cta p { opacity: 0.6; margin-bottom: 40px; }
-    .cta-buttons { display: flex; gap: 16px; justify-content: center; }
-    .cta-btn { padding: 16px 40px; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; transition: all 0.3s; cursor: pointer; border: none; }
-    .cta-btn.primary { background: white; color: var(--charcoal); }
-    .cta-btn.primary:hover { background: var(--gold); color: white; }
-    .cta-btn.outline { border: 1px solid rgba(255,255,255,0.3); color: white; background: none; }
-    .cta-btn.outline:hover { background: white; color: var(--charcoal); }
+    /* Brand Story */
+    .brand-story{background:var(--cream)}
+    .brand-story-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;max-width:1400px;margin:0 auto;align-items:center}
+    .brand-story-img{aspect-ratio:4/3;overflow:hidden}
+    .brand-story-img img{width:100%;height:100%;object-fit:cover}
+    .brand-story-text .label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+    .brand-story-text h2{font-size:48px;margin-bottom:8px}
+    .brand-story-text .subtitle{color:var(--gray);margin-bottom:32px}
+    .brand-story-text .desc{color:var(--gray);line-height:1.8;margin-bottom:32px}
 
-    .footer { padding: 80px 48px; background: var(--charcoal); color: white; }
-    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; max-width: 1400px; margin: 0 auto; }
-    .footer-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }
-    .footer-brand svg { width: 32px; height: 32px; }
-    .footer-brand span { font-family: 'Playfair Display', serif; font-size: 24px; }
-    .footer-desc { color: rgba(255,255,255,0.6); font-size: 14px; line-height: 1.8; max-width: 400px; margin-bottom: 32px; }
-    .footer-contact { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .footer-contact-item { display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,0.6); font-size: 14px; }
-    .footer-contact-item svg { width: 16px; height: 16px; color: var(--gold); }
-    .footer h4 { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 24px; font-family: inherit; font-weight: normal; }
-    .footer-links { list-style: none; }
-    .footer-links li { margin-bottom: 12px; }
-    .footer-links a { color: rgba(255,255,255,0.6); font-size: 14px; transition: color 0.3s; cursor: pointer; }
-    .footer-links a:hover { color: white; }
-    .footer-bottom { border-top: 1px solid rgba(255,255,255,0.1); margin-top: 48px; padding-top: 24px; display: flex; justify-content: space-between; color: rgba(255,255,255,0.4); font-size: 12px; }
+    /* Instagram */
+    .instagram-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:48px}
+    .instagram-header-left{display:flex;align-items:center;gap:16px}
+    .instagram-header-left svg{width:24px;height:24px}
+    .instagram-header a{color:var(--gray);font-size:14px}
+    .instagram-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .instagram-item{aspect-ratio:1;overflow:hidden;position:relative}
+    .instagram-item img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+    .instagram-item:hover img{transform:scale(1.05)}
+    .instagram-item::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .3s}
+    .instagram-item:hover::after{background:rgba(0,0,0,.3)}
 
-    .ai-overlay { position: fixed; inset: 0; z-index: 9999; background: var(--black); display: none; overflow-y: auto; }
-    .ai-overlay.active { display: block; animation: fadeIn 0.4s ease; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .ai-bg-container { position: fixed; inset: 0; z-index: 0; }
-    .ai-bg-image { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; }
-    .ai-bg-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(26,25,24,0.7) 0%, rgba(26,25,24,0.5) 30%, rgba(26,25,24,0.6) 70%, rgba(26,25,24,0.9) 100%); }
-    .ai-bg-glow { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(184,149,108,0.15) 0%, transparent 70%); animation: pulse-glow 8s ease-in-out infinite; }
-    @keyframes pulse-glow { 0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); } 50% { opacity: 0.8; transform: translateX(-50%) scale(1.1); } }
-    .ai-orb { position: relative; width: 70px; height: 70px; border-radius: 50%; background: conic-gradient(from 0deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #a55eea, #ff6b6b); animation: orb-spin 4s linear infinite; filter: blur(1px); }
-    .ai-orb::before { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: var(--black); }
-    .ai-orb::after { content: ''; position: absolute; inset: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9) 0%, rgba(200,220,255,0.4) 30%, transparent 60%); animation: orb-pulse 3s ease-in-out infinite; }
-    @keyframes orb-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    @keyframes orb-pulse { 0%, 100% { opacity: 0.8; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
-    .orb-glow { position: absolute; inset: -15px; border-radius: 50%; background: conic-gradient(from 0deg, rgba(255,107,107,0.4), rgba(254,202,87,0.4), rgba(72,219,251,0.4), rgba(255,159,243,0.4), rgba(165,94,234,0.4), rgba(255,107,107,0.4)); filter: blur(15px); animation: orb-spin 6s linear infinite reverse; }
-    .ai-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 0 48px; height: 80px; display: flex; align-items: center; justify-content: space-between; background: rgba(26,25,24,0.8); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(184,149,108,0.1); }
-    .ai-nav .nav-logo { color: white; cursor: pointer; }
-    .ai-nav .nav-menu a { color: rgba(255,255,255,0.7); }
-    .ai-nav .nav-menu a:hover { color: white; }
-    .nav-back { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); font-size: 14px; cursor: pointer; background: none; border: none; transition: color 0.3s; }
-    .nav-back:hover { color: white; }
-    .ai-main-container { position: relative; z-index: 1; min-height: 100vh; padding-top: 80px; display: flex; flex-direction: column; align-items: center; padding-bottom: 40px; }
-    .ai-chat-area { width: 100%; max-width: 600px; margin: 25px auto 20px; padding: 0 24px; }
-    .ai-messages { background: rgba(255,255,255,0.03); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; max-height: 250px; overflow-y: auto; }
-    .ai-messages::-webkit-scrollbar { width: 6px; }
-    .ai-messages::-webkit-scrollbar-thumb { background: rgba(184,149,108,0.3); border-radius: 3px; }
-    .msg { margin-bottom: 20px; animation: msgFade 0.5s ease; }
-    @keyframes msgFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .msg-bot { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
-    .msg-avatar { width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, var(--gold) 0%, #D4AF37 100%); display: flex; align-items: center; justify-content: center; font-size: 20px; }
-    .msg-bot .msg-content { color: rgba(255,255,255,0.9); font-size: 14px; line-height: 1.7; padding: 14px 18px; background: rgba(255,255,255,0.05); border-radius: 16px; }
-    .msg-user { display: flex; justify-content: flex-end; }
-    .msg-user .msg-content { color: white; font-size: 15px; padding: 14px 20px; background: linear-gradient(135deg, var(--gold) 0%, #D4AF37 100%); border-radius: 18px; border-bottom-right-radius: 4px; max-width: 70%; }
-    .typing { display: flex; gap: 16px; align-items: flex-start; }
-    .typing .msg-content { display: flex; align-items: center; gap: 8px; padding: 16px 24px; background: rgba(255,255,255,0.05); border-radius: 18px; }
-    .typing span { width: 8px; height: 8px; background: var(--gold); border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; }
-    .typing span:nth-child(2) { animation-delay: 0.2s; }
-    .typing span:nth-child(3) { animation-delay: 0.4s; }
-    .typing-text { color: rgba(255,255,255,0.5); font-size: 13px; margin-left: 8px; }
-    @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
-    .category-section { width: 100%; max-width: 900px; padding: 0 24px; margin-bottom: 40px; }
-    .category-title { text-align: center; margin-bottom: 32px; }
-    .category-title h2 { color: white; font-size: 28px; margin-bottom: 8px; }
-    .category-title p { color: rgba(255,255,255,0.5); font-size: 14px; }
-    .category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .category-card { position: relative; background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 32px 24px; text-align: center; cursor: pointer; transition: all 0.4s; overflow: hidden; }
-    .category-card:hover { transform: translateY(-8px); border-color: rgba(184,149,108,0.3); }
-    .category-card.selected { border-color: var(--gold); background: rgba(184,149,108,0.1); }
-    .category-card.selected .card-icon { background: linear-gradient(135deg, var(--gold) 0%, #D4AF37 100%); }
-    .category-card.selected .card-title { color: var(--gold); }
-    .card-icon { width: 72px; height: 72px; margin: 0 auto 20px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 32px; transition: all 0.4s; }
-    .card-title { color: white; font-size: 18px; font-weight: 500; margin-bottom: 8px; }
-    .card-desc { color: rgba(255,255,255,0.4); font-size: 13px; }
-    .upload-area { display: none; margin-top: 16px; }
-    .category-card.selected .upload-area { display: block; animation: msgFade 0.3s ease; }
-    .upload-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, var(--gold) 0%, #D4AF37 100%); border: none; border-radius: 12px; color: white; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .upload-btn:hover { transform: scale(1.02); }
-    .upload-btn svg { width: 18px; height: 18px; }
-    .file-input { display: none; }
-    .uploaded-preview { margin-top: 12px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; display: none; }
-    .uploaded-preview.show { display: flex; align-items: center; gap: 10px; }
-    .uploaded-preview img { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; }
-    .uploaded-preview span { color: rgba(255,255,255,0.7); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .uploaded-preview button { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; }
-    .input-section { width: 100%; max-width: 800px; padding: 0 24px; margin-top: auto; }
-    .input-container { background: rgba(255,255,255,0.03); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 20px 24px; }
-    .input-wrapper { display: flex; gap: 16px; align-items: flex-end; }
-    .input-box { flex: 1; }
-    #chat-input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px 24px; font-size: 15px; color: white; outline: none; resize: none; min-height: 56px; max-height: 150px; line-height: 1.5; font-family: inherit; }
-    #chat-input:focus { border-color: rgba(184,149,108,0.5); background: rgba(255,255,255,0.08); }
-    #chat-input::placeholder { color: rgba(255,255,255,0.3); }
-    .send-btn { width: 56px; height: 56px; border-radius: 16px; border: none; background: linear-gradient(135deg, var(--gold) 0%, #D4AF37 100%); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .send-btn:hover { transform: scale(1.05); }
-    .send-btn svg { width: 22px; height: 22px; }
-    .input-hint { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 12px; }
+    /* CTA */
+    .cta{background:var(--charcoal);text-align:center;color:#fff}
+    .cta h2{font-size:48px;margin-bottom:24px}
+    .cta p{opacity:.6;margin-bottom:40px}
+    .cta-buttons{display:flex;gap:16px;justify-content:center}
+    .cta-btn{padding:16px 40px;font-size:14px;letter-spacing:2px;text-transform:uppercase;transition:all .3s}
+    .cta-btn.primary{background:#fff;color:var(--charcoal)}
+    .cta-btn.primary:hover{background:var(--gold);color:#fff}
+    .cta-btn.outline{border:1px solid rgba(255,255,255,.3);color:#fff}
+    .cta-btn.outline:hover{background:#fff;color:var(--charcoal)}
 
-    @media (max-width: 768px) {
-      .nav { padding: 0 24px; }
-      .nav-menu { display: none; }
-      .hero-text h1 { font-size: 40px; }
-      .hero-content { padding: 0 24px; }
-      .products { padding: 48px 24px; }
-      .dadam-home-grid { grid-template-columns: 1fr; gap: 32px; }
-      .brand-story { padding: 48px 24px; }
-      .brand-story-grid { grid-template-columns: 1fr; }
-      .instagram { padding: 48px 24px; }
-      .instagram-grid { grid-template-columns: repeat(2, 1fr); }
-      .cta { padding: 48px 24px; }
-      .cta h2 { font-size: 32px; }
-      .cta-buttons { flex-direction: column; }
-      .footer { padding: 48px 24px; }
-      .footer-grid { grid-template-columns: 1fr; }
-      .ai-nav { padding: 0 20px; }
-      .ai-nav .nav-menu { display: none; }
-      .category-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-      .category-card { padding: 24px 16px; }
-      .card-icon { width: 56px; height: 56px; font-size: 24px; }
-      .card-title { font-size: 15px; }
+    /* Footer */
+    .footer{padding:80px 48px;background:var(--charcoal);color:#fff}
+    .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:48px;max-width:1400px;margin:0 auto}
+    .footer-brand{display:flex;align-items:center;gap:8px;margin-bottom:24px}
+    .footer-brand svg{width:32px;height:32px}
+    .footer-brand span{font-family:'Playfair Display',serif;font-size:24px}
+    .footer-desc{color:rgba(255,255,255,.6);font-size:14px;line-height:1.8;max-width:400px;margin-bottom:32px}
+    .footer-contact{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .footer-contact-item{display:flex;align-items:center;gap:12px;color:rgba(255,255,255,.6);font-size:14px}
+    .footer-contact-item svg{width:16px;height:16px;color:var(--gold)}
+    .footer h4{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:24px;font-family:inherit;font-weight:400}
+    .footer-links{list-style:none}
+    .footer-links li{margin-bottom:12px}
+    .footer-links a{color:rgba(255,255,255,.6);font-size:14px;transition:color .3s}
+    .footer-links a:hover{color:#fff}
+    .footer-bottom{border-top:1px solid rgba(255,255,255,.1);margin-top:48px;padding-top:24px;display:flex;justify-content:space-between;color:rgba(255,255,255,.4);font-size:12px}
+    .footer-box{margin-top:32px;padding:16px;border:1px solid rgba(184,149,108,.3)}
+    .footer-box p:first-child{color:var(--gold);font-size:14px;font-weight:500}
+    .footer-box p:last-child{color:rgba(255,255,255,.4);font-size:12px;margin-top:4px}
+
+    /* Responsive */
+    @media(max-width:768px){
+      .nav{padding:0 24px}
+      .nav-menu{display:none}
+      .hero-text h1{font-size:40px}
+      .hero-content{padding:0 24px}
+      .section{padding:48px 24px}
+      .dadam-home-grid{grid-template-columns:1fr;gap:32px}
+      .brand-story-grid{grid-template-columns:1fr}
+      .instagram-grid{grid-template-columns:repeat(2,1fr)}
+      .cta h2{font-size:32px}
+      .cta-buttons{flex-direction:column}
+      .footer{padding:48px 24px}
+      .footer-grid{grid-template-columns:1fr}
     }
   </style>
 </head>
 <body>
+  <!-- SVG Symbols -->
+  <svg style="display:none">
+    <symbol id="icon-logo" viewBox="0 0 40 40"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></symbol>
+    <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+    <symbol id="icon-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+    <symbol id="icon-mail" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></symbol>
+    <symbol id="icon-location" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="icon-instagram" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1"/></symbol>
+  </svg>
+
+  <!-- Navigation -->
   <nav class="nav" id="nav">
     <a href="#" class="nav-logo">
-      <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
+      <svg fill="currentColor"><use href="#icon-logo"/></svg>
       <span>다담</span>
     </a>
     <div class="nav-menu">
-      <a>About us</a>
-      <a>Collection</a>
-      <a>Products</a>
-      <a class="nav-ai-btn" onclick="openAIDesign()">✨ AI Design</a>
-      <a>Stories</a>
-      <a>Showroom</a>
-      <a>Service</a>
+      <a href="#">About us</a>
+      <a href="#">Collection</a>
+      <a href="#">Products</a>
+      <a href="#">AI Design</a>
+      <a href="#">Stories</a>
+      <a href="#">Showroom</a>
+      <a href="#">Service</a>
     </div>
     <div class="nav-icons">
-      <button><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-      <button><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-      <button style="display:flex;align-items:center;gap:4px;font-size:14px;">KR<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-user"/></svg></button>
+      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-search"/></svg></button>
+      <button style="display:flex;align-items:center;gap:4px;font-size:14px">KR<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-down"/></svg></button>
     </div>
   </nav>
 
+  <!-- Hero Section -->
   <section class="hero">
     <div class="hero-slide active">
-      <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1920" alt="">
+      <img src="app/portfolio/kitchen-n1-1.jpg" alt="DADAM KITCHEN">
       <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1>DADAM <span>KITCHEN</span></h1>
+          <p>AI가 설계하고 장인이 완성하는</p>
+          <p style="opacity:.6">더욱 완벽해진 다담 키친을 만나보세요.</p>
+          <a href="#" class="btn btn-outline">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
+        </div>
+      </div>
     </div>
     <div class="hero-slide">
-      <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1920" alt="">
-      <div class="hero-overlay"></div>
-    </div>
-    <div class="hero-slide">
-      <img src="https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=1920" alt="">
+      <img src="app/portfolio/kitchen-n7-1.jpg" alt="Premium Collection" loading="lazy">
       <div class="hero-overlay"></div>
       <div class="hero-content">
         <div class="hero-text">
           <h1>Premium <span>Collection</span></h1>
           <p>다담과 AI의 공간에 대한 철학을 담아 완성한</p>
-          <p style="opacity:0.6;">하이엔드 프리미엄 공간</p>
-          <button class="hero-btn" onclick="openAIDesign()">AI 설계 시작 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></button>
+          <p style="opacity:.6">하이엔드 프리미엄 공간</p>
+          <a href="#" class="btn btn-outline">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
+        </div>
+      </div>
+    </div>
+    <div class="hero-slide">
+      <img src="app/portfolio/kitchen-n2-1.jpg" alt="Custom Design" loading="lazy">
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1>Custom <span>Design</span></h1>
+          <p>AI와 장인 크리에이티브 디렉터가 만나 선보이는</p>
+          <p style="opacity:.6">새로운 공간 디자인 제안</p>
+          <a href="#" class="btn btn-outline">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
         </div>
       </div>
     </div>
     <div class="hero-controls">
-      <button class="hero-dot active"></button>
-      <button class="hero-dot"></button>
-      <button class="hero-dot"></button>
+      <button class="hero-dot active" data-slide="0"></button>
+      <button class="hero-dot" data-slide="1"></button>
+      <button class="hero-dot" data-slide="2"></button>
     </div>
     <div class="hero-counter"><span id="currentSlide">01</span> / 03</div>
     <div class="hero-arrows">
-      <button class="hero-arrow" id="prevBtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <button class="hero-arrow" id="nextBtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+      <button class="hero-arrow" id="prevBtn"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-left"/></svg></button>
+      <button class="hero-arrow" id="nextBtn"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-right"/></svg></button>
     </div>
   </section>
 
-  <section class="products">
-    <h2>Products</h2>
+  <!-- Products Section -->
+  <section class="section" style="background:#fff">
+    <h2 class="section-title">Our products</h2>
     <div class="products-grid">
-      <div class="product-card"><img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600" alt=""><div class="product-card-overlay"></div><div class="product-card-text"><p>Kitchen</p><h3>싱크대</h3></div></div>
-      <div class="product-card"><img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600" alt=""><div class="product-card-overlay"></div><div class="product-card-text"><p>Wardrobe</p><h3>붙박이장</h3></div></div>
-      <div class="product-card"><img src="https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?w=600" alt=""><div class="product-card-overlay"></div><div class="product-card-text"><p>Refrigerator</p><h3>냉장고장</h3></div></div>
-      <div class="product-card"><img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600" alt=""><div class="product-card-overlay"></div><div class="product-card-text"><p>Storage</p><h3>수납장</h3></div></div>
-      <div class="product-card"><img src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600" alt=""><div class="product-card-overlay"></div><div class="product-card-text"><p>Living</p><h3>거실장</h3></div></div>
+      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n1-2.jpg" alt="Kitchen" loading="lazy"><div class="product-card-overlay"></div><div class="product-card-text"><p>Kitchen</p><h3>키친</h3></div></a>
+      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n6-1.jpg" alt="Storage" loading="lazy"><div class="product-card-overlay"></div><div class="product-card-text"><p>Storage</p><h3>수납장</h3></div></a>
+      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n3-2.jpg" alt="Built-in" loading="lazy"><div class="product-card-overlay"></div><div class="product-card-text"><p>Built-in</p><h3>붙박이장</h3></div></a>
+      <a href="#" class="product-card"><img src="app/portfolio/funiture-n4-1.jpg" alt="Furniture" loading="lazy"><div class="product-card-overlay"></div><div class="product-card-text"><p>Furniture</p><h3>가구</h3></div></a>
+      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n7-2.jpg" alt="Interior" loading="lazy"><div class="product-card-overlay"></div><div class="product-card-text"><p>Interior</p><h3>인테리어</h3></div></a>
     </div>
   </section>
 
+  <!-- Dadam in Home -->
   <section class="dadam-home">
-    <div class="dadam-home-bg"><img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1920" alt=""></div>
+    <div class="dadam-home-bg"><img src="app/portfolio/kitchen-n7-1.jpg" alt="다담 인테리어" loading="lazy"></div>
     <div class="dadam-home-content">
       <h2>DADAM in home</h2>
-      <p style="opacity:0.7;margin-bottom:16px;">인테리어 트렌드 with 다담</p>
+      <p>인테리어 트렌드 with 다담</p>
       <div class="dadam-home-grid">
-        <div class="dadam-home-item"><h3>시공사례</h3><div class="open"><span>open</span></div><p>고객이 선택한 다담!<br>직접 확인해보세요</p></div>
-        <div class="dadam-home-item" onclick="openAIDesign()"><h3>AI 설계</h3><div class="open"><span>open</span></div><p>AI와 함께하는<br>스마트한 인테리어</p></div>
-        <div class="dadam-home-item"><h3>쇼룸</h3><div class="open"><span>open</span></div><p>다담 쇼룸에서<br>직접 만나보세요</p></div>
+        <a href="#" class="dadam-home-item"><h3>시공사례</h3><div class="open"><span>open</span></div><p>고객이 선택한 다담!<br>직접 확인해보세요</p></a>
+        <a href="#" class="dadam-home-item"><h3>AI 설계</h3><div class="open"><span>open</span></div><p>AI와 함께하는<br>스마트한 인테리어</p></a>
+        <a href="#" class="dadam-home-item"><h3>쇼룸</h3><div class="open"><span>open</span></div><p>다담 쇼룸에서<br>직접 만나보세요</p></a>
       </div>
     </div>
   </section>
 
-  <section class="brand-story">
+  <!-- Brand Story -->
+  <section class="section brand-story">
     <div class="brand-story-grid">
-      <div class="brand-story-img"><img src="https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=800" alt=""></div>
+      <div class="brand-story-img"><img src="app/portfolio/kitchen-n4-1.jpg" alt="다담 스토리" loading="lazy"></div>
       <div class="brand-story-text">
         <p class="label">Brand Story</p>
-        <h2>장인의 손끝에서</h2>
-        <p class="subtitle">AI 기술을 더하다</p>
-        <p class="desc">30년 경력의 가구 장인과 최첨단 AI 기술이 만나 탄생한 다담가구. 고객의 공간을 정밀하게 분석하고, 최적의 가구 설계를 제안합니다. 프리미엄 자재와 정교한 시공으로 오래도록 함께할 가구를 만들어 드립니다.</p>
-        <a href="#" class="brand-story-btn">View More</a>
+        <h2>스마트 디자인</h2>
+        <p class="subtitle">다담 x AI 인테리어</p>
+        <p class="desc">다담가구는 AI 기술과 30년 장인정신을 결합하여 고객 맞춤형 프리미엄 가구를 제작합니다. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.</p>
+        <a href="#" class="btn btn-solid">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
       </div>
     </div>
   </section>
 
-  <section class="instagram">
+  <!-- Instagram Grid -->
+  <section class="section" style="background:#fff">
     <div class="instagram-header">
-      <div class="instagram-header-left">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-        <h3 style="font-size:18px;">@dadam_furniture</h3>
-      </div>
-      <a href="#">View all</a>
+      <div class="instagram-header-left"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-instagram"/></svg><span>@dadam_furniture</span></div>
+      <a href="#">팔로우하기 →</a>
     </div>
     <div class="instagram-grid">
-      <div class="instagram-item"><img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400" alt=""></div>
-      <div class="instagram-item"><img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400" alt=""></div>
-      <div class="instagram-item"><img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400" alt=""></div>
-      <div class="instagram-item"><img src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400" alt=""></div>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-3.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-4.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-2.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-3.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-3.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-4.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n3-3.jpg" alt="" loading="lazy"></a>
+      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n4-1.jpg" alt="" loading="lazy"></a>
     </div>
   </section>
 
-  <section class="cta">
+  <!-- CTA Section -->
+  <section class="section cta">
     <h2>무료 상담 신청</h2>
     <p>AI 설계 시스템으로 최적의 맞춤 가구를 만나보세요</p>
     <div class="cta-buttons">
-      <button class="cta-btn primary">견적 문의</button>
-      <button class="cta-btn outline" onclick="openAIDesign()">AI 설계 시작</button>
+      <a href="#" class="cta-btn primary">견적 문의</a>
+      <a href="#" class="cta-btn outline">AI 설계 시작</a>
     </div>
   </section>
 
+  <!-- Footer -->
   <footer class="footer">
     <div class="footer-grid">
       <div>
-        <div class="footer-brand">
-          <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
-          <span>다담</span>
-        </div>
+        <div class="footer-brand"><svg fill="currentColor"><use href="#icon-logo"/></svg><span>다담</span></div>
         <p class="footer-desc">AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.</p>
         <div class="footer-contact">
-          <div class="footer-contact-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>02-1234-5678</div>
-          <div class="footer-contact-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>info@dadam.co.kr</div>
-          <div class="footer-contact-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>서울시 강남구 논현동 123-45</div>
-          <div class="footer-contact-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>평일 09:00 - 18:00</div>
+          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-phone"/></svg>02-1234-5678</div>
+          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-mail"/></svg>info@dadam.co.kr</div>
+          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-location"/></svg>서울시 강남구 논현동 123-45</div>
+          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-clock"/></svg>평일 09:00 - 18:00</div>
         </div>
       </div>
       <div>
         <h4>Menu</h4>
         <ul class="footer-links">
-          <li><a>About us</a></li>
-          <li><a>Collection</a></li>
-          <li><a>Products</a></li>
-          <li><a onclick="openAIDesign()">AI Design</a></li>
-          <li><a>Stories</a></li>
-          <li><a>Showroom</a></li>
-          <li><a>Service</a></li>
+          <li><a href="#">About us</a></li>
+          <li><a href="#">Collection</a></li>
+          <li><a href="#">Products</a></li>
+          <li><a href="#">AI Design</a></li>
+          <li><a href="#">Stories</a></li>
+          <li><a href="#">Showroom</a></li>
+          <li><a href="#">Service</a></li>
         </ul>
       </div>
       <div>
         <h4>Support</h4>
         <ul class="footer-links">
-          <li><a>자주 묻는 질문</a></li>
-          <li><a>이용 약관</a></li>
-          <li><a>개인정보처리방침</a></li>
+          <li><a href="#">자주 묻는 질문</a></li>
+          <li><a href="#">이용 약관</a></li>
+          <li><a href="#">개인정보처리방침</a></li>
         </ul>
-        <div style="margin-top:32px;padding:16px;border:1px solid rgba(184,149,108,0.3);">
-          <p style="color:#B8956C;font-size:14px;font-weight:500;">평생 A/S 보장</p>
-          <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:4px;">다담과 함께하는 최상의 사후관리</p>
-        </div>
+        <div class="footer-box"><p>평생 A/S 보장</p><p>다담과 함께하는 최상의 사후관리</p></div>
       </div>
     </div>
     <div class="footer-bottom">
@@ -390,177 +357,14 @@
     </div>
   </footer>
 
-  <div id="ai-overlay" class="ai-overlay">
-    <div class="ai-bg-container">
-      <img src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=1920" alt="" class="ai-bg-image">
-      <div class="ai-bg-overlay"></div>
-      <div class="ai-bg-glow"></div>
-    </div>
-    <nav class="ai-nav">
-      <div class="nav-logo" onclick="closeAIDesign()">
-        <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
-        <span>다담</span>
-      </div>
-      <div class="nav-menu">
-        <a onclick="closeAIDesign()">About us</a>
-        <a onclick="closeAIDesign()">Collection</a>
-        <a onclick="closeAIDesign()">Products</a>
-        <a class="nav-ai-btn">✨ AI Design</a>
-        <a onclick="closeAIDesign()">Stories</a>
-        <a onclick="closeAIDesign()">Showroom</a>
-        <a onclick="closeAIDesign()">Service</a>
-      </div>
-      <button class="nav-back" onclick="closeAIDesign()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-        돌아가기
-      </button>
-    </nav>
-    <div class="ai-main-container">
-      <div class="ai-chat-area">
-        <div id="ai-messages" class="ai-messages">
-          <div class="msg msg-bot">
-            <div class="ai-orb"><div class="orb-glow"></div></div>
-            <div class="msg-content"><strong>설치하고 싶은 품목을 선택하신 후, 사진 파일을 업로드 해주세요.</strong><br>공간 사진을 분석하여 최적의 가구 설계를 제안해드립니다.</div>
-          </div>
-        </div>
-      </div>
-      <div class="category-section">
-        <div class="category-title"><h2>품목 선택</h2><p>설계하고 싶은 가구를 선택해주세요</p></div>
-        <div class="category-grid">
-          <div class="category-card" onclick="selectCategory(this,'sink')"><div class="card-icon">🚰</div><div class="card-title">싱크대</div><div class="card-desc">주방 싱크대 설계</div><div class="upload-area"><button class="upload-btn" onclick="triggerUpload(event,'sink')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>사진 업로드</button><input type="file" class="file-input" id="file-sink" accept="image/*" onchange="handleFile(this,'sink')"><div class="uploaded-preview" id="preview-sink"><img src="" alt=""><span></span><button onclick="removeFile(event,'sink')">✕</button></div></div></div>
-          <div class="category-card" onclick="selectCategory(this,'wardrobe')"><div class="card-icon">👔</div><div class="card-title">붙박이장</div><div class="card-desc">맞춤 수납 옷장</div><div class="upload-area"><button class="upload-btn" onclick="triggerUpload(event,'wardrobe')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>사진 업로드</button><input type="file" class="file-input" id="file-wardrobe" accept="image/*" onchange="handleFile(this,'wardrobe')"><div class="uploaded-preview" id="preview-wardrobe"><img src="" alt=""><span></span><button onclick="removeFile(event,'wardrobe')">✕</button></div></div></div>
-          <div class="category-card" onclick="selectCategory(this,'fridge')"><div class="card-icon">🧊</div><div class="card-title">냉장고장</div><div class="card-desc">냉장고 수납장</div><div class="upload-area"><button class="upload-btn" onclick="triggerUpload(event,'fridge')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>사진 업로드</button><input type="file" class="file-input" id="file-fridge" accept="image/*" onchange="handleFile(this,'fridge')"><div class="uploaded-preview" id="preview-fridge"><img src="" alt=""><span></span><button onclick="removeFile(event,'fridge')">✕</button></div></div></div>
-          <div class="category-card" onclick="selectCategory(this,'shoe')"><div class="card-icon">👟</div><div class="card-title">신발장</div><div class="card-desc">현관 신발 수납</div><div class="upload-area"><button class="upload-btn" onclick="triggerUpload(event,'shoe')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>사진 업로드</button><input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFile(this,'shoe')"><div class="uploaded-preview" id="preview-shoe"><img src="" alt=""><span></span><button onclick="removeFile(event,'shoe')">✕</button></div></div></div>
-          <div class="category-card" onclick="selectCategory(this,'vanity')"><div class="card-icon">💄</div><div class="card-title">화장대</div><div class="card-desc">드레스룸 화장대</div><div class="upload-area"><button class="upload-btn" onclick="triggerUpload(event,'vanity')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>사진 업로드</button><input type="file" class="file-input" id="file-vanity" accept="image/*" onchange="handleFile(this,'vanity')"><div class="uploaded-preview" id="preview-vanity"><img src="" alt=""><span></span><button onclick="removeFile(event,'vanity')">✕</button></div></div></div>
-          <div class="category-card" onclick="selectCategory(this,'display')"><div class="card-icon">🏺</div><div class="card-title">장식장</div><div class="card-desc">거실 장식 수납</div><div class="upload-area"><button class="upload-btn" onclick="triggerUpload(event,'display')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>사진 업로드</button><input type="file" class="file-input" id="file-display" accept="image/*" onchange="handleFile(this,'display')"><div class="uploaded-preview" id="preview-display"><img src="" alt=""><span></span><button onclick="removeFile(event,'display')">✕</button></div></div></div>
-        </div>
-      </div>
-      <div class="input-section">
-        <div class="input-container">
-          <div class="input-wrapper">
-            <div class="input-box"><textarea id="chat-input" placeholder="추가 요청사항을 입력하세요... (예: 전체 높이 2400mm, LG 384L 냉장고)" rows="1" onkeydown="handleInput(event)"></textarea></div>
-            <button class="send-btn" onclick="sendMessage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg></button>
-          </div>
-          <div class="input-hint"><span>Shift + Enter로 줄바꿈</span><span>품목 선택 → 사진 업로드 → 추가 정보 입력</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <script>
-    window.addEventListener('scroll', () => {
-      const nav = document.getElementById('nav');
-      if (window.scrollY > 50) nav.classList.add('scrolled');
-      else nav.classList.remove('scrolled');
-    });
-
-    let currentSlide = 0;
-    const slides = document.querySelectorAll('.hero-slide');
-    const dots = document.querySelectorAll('.hero-dot');
-    const counter = document.getElementById('currentSlide');
-    let slideInterval;
-
-    function goToSlide(index) {
-      slides[currentSlide].classList.remove('active');
-      dots[currentSlide].classList.remove('active');
-      currentSlide = index;
-      if (currentSlide >= slides.length) currentSlide = 0;
-      if (currentSlide < 0) currentSlide = slides.length - 1;
-      slides[currentSlide].classList.add('active');
-      dots[currentSlide].classList.add('active');
-      counter.textContent = String(currentSlide + 1).padStart(2, '0');
-      resetInterval();
-    }
-
-    function nextSlide() { goToSlide(currentSlide + 1); }
-    function prevSlide() { goToSlide(currentSlide - 1); }
-    function resetInterval() { clearInterval(slideInterval); slideInterval = setInterval(nextSlide, 6000); }
-
-    document.getElementById('nextBtn').addEventListener('click', nextSlide);
-    document.getElementById('prevBtn').addEventListener('click', prevSlide);
-    dots.forEach((dot, i) => dot.addEventListener('click', () => goToSlide(i)));
-    slideInterval = setInterval(nextSlide, 6000);
-
-    let sessionId = 'session_' + Date.now();
-    let selectedCategory = null;
-    let uploadedFiles = {};
-    const categoryNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장', shoe: '신발장', vanity: '화장대', display: '장식장' };
-
-    function openAIDesign() { document.getElementById('ai-overlay').classList.add('active'); document.body.style.overflow = 'hidden'; }
-    function closeAIDesign() { document.getElementById('ai-overlay').classList.remove('active'); document.body.style.overflow = ''; }
-
-    function selectCategory(card, category) {
-      document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      selectedCategory = category;
-      if (!uploadedFiles[category]) addMessage(categoryNames[category] + '을(를) 선택하셨습니다. 설치할 공간의 사진을 업로드해주세요.', 'bot');
-    }
-
-    function triggerUpload(e, category) { e.stopPropagation(); document.getElementById('file-' + category).click(); }
-
-    function handleFile(input, category) {
-      const file = input.files[0];
-      if (!file) return;
-      uploadedFiles[category] = file;
-      const preview = document.getElementById('preview-' + category);
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        preview.querySelector('img').src = e.target.result;
-        preview.querySelector('span').textContent = file.name;
-        preview.classList.add('show');
-      };
-      reader.readAsDataURL(file);
-      addMessage(categoryNames[category] + ' 사진이 업로드되었습니다. 추가 요청사항이 있으시면 입력해주세요.', 'bot');
-    }
-
-    function removeFile(e, category) {
-      e.stopPropagation();
-      delete uploadedFiles[category];
-      document.getElementById('file-' + category).value = '';
-      document.getElementById('preview-' + category).classList.remove('show');
-    }
-
-    function handleInput(e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-      e.target.style.height = 'auto';
-      e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
-    }
-
-    async function sendMessage() {
-      const input = document.getElementById('chat-input');
-      const msg = input.value.trim();
-      if (!msg && !selectedCategory) { addMessage('먼저 품목을 선택해주세요.', 'bot'); return; }
-      if (msg) { input.value = ''; input.style.height = 'auto'; addMessage(msg, 'user'); }
-      let contextMsg = selectedCategory ? '[' + categoryNames[selectedCategory] + ' 설계 요청] ' : '';
-      if (Object.keys(uploadedFiles).length > 0) contextMsg += '[사진 첨부됨] ';
-      contextMsg += msg || '설계를 시작해주세요.';
-      const messagesDiv = document.getElementById('ai-messages');
-      const typingDiv = document.createElement('div');
-      typingDiv.className = 'msg typing';
-      typingDiv.innerHTML = '<div class="msg-avatar">✨</div><div class="msg-content"><span></span><span></span><span></span><span class="typing-text">AI가 분석 중...</span></div>';
-      messagesDiv.appendChild(typingDiv);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-      try {
-        const response = await fetch('https://dadam.app.n8n.cloud/webhook/chat', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: contextMsg, session_id: sessionId, category: selectedCategory, hasImage: Object.keys(uploadedFiles).length > 0 })
-        });
-        const data = await response.json();
-        typingDiv.remove();
-        if (data.session_id) sessionId = data.session_id;
-        addMessage(data.output || data.message || data.error || '응답을 받지 못했습니다.', 'bot');
-      } catch (err) { typingDiv.remove(); addMessage('서버 연결 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'bot'); }
-    }
-
-    function addMessage(text, type) {
-      const messagesDiv = document.getElementById('ai-messages');
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'msg msg-' + type;
-      let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>').replace(/- /g, '• ');
-      msgDiv.innerHTML = type === 'bot' ? '<div class="msg-avatar">✨</div><div class="msg-content">' + html + '</div>' : '<div class="msg-content">' + html + '</div>';
-      messagesDiv.appendChild(msgDiv);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
+    const nav=document.getElementById('nav'),slides=document.querySelectorAll('.hero-slide'),dots=document.querySelectorAll('.hero-dot'),counter=document.getElementById('currentSlide');let cur=0,interval;
+    const go=i=>{slides[cur].classList.remove('active');dots[cur].classList.remove('active');cur=i>=slides.length?0:i<0?slides.length-1:i;slides[cur].classList.add('active');dots[cur].classList.add('active');counter.textContent=String(cur+1).padStart(2,'0');clearInterval(interval);interval=setInterval(()=>go(cur+1),6e3)};
+    window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>50));
+    document.getElementById('nextBtn').addEventListener('click',()=>go(cur+1));
+    document.getElementById('prevBtn').addEventListener('click',()=>go(cur-1));
+    dots.forEach((d,i)=>d.addEventListener('click',()=>go(i)));
+    interval=setInterval(()=>go(cur+1),6e3);
   </script>
 </body>
 </html>
