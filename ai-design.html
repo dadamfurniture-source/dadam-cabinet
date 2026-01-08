@@ -89,7 +89,11 @@
     .category-card:hover{border-color:var(--gold);transform:translateY(-2px)}
     .category-card:active{transform:scale(0.98)}
     .category-card.has-image{border-color:var(--gold)}
-    .category-card.has-image::after{content:'✓';position:absolute;top:8px;right:8px;width:22px;height:22px;background:var(--gold);color:#fff;border-radius:50%;font-size:12px;display:flex;align-items:center;justify-content:center}
+    .category-card .check-badge{position:absolute;top:8px;right:8px;width:22px;height:22px;background:var(--gold);color:#fff;border-radius:50%;font-size:12px;display:none;align-items:center;justify-content:center}
+    .category-card.has-image .check-badge{display:flex}
+    .category-card .remove-btn{position:absolute;top:8px;left:8px;width:24px;height:24px;background:rgba(239,68,68,.9);color:#fff;border:none;border-radius:50%;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;transition:all .2s;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+    .category-card.has-image .remove-btn{display:flex}
+    .category-card .remove-btn:hover{background:#dc2626;transform:scale(1.1)}
     .category-icon{font-size:32px;margin-bottom:8px;display:block}
     .category-name{font-size:14px;font-weight:600;color:var(--charcoal);margin-bottom:2px}
     .category-desc{font-size:10px;color:var(--gray)}
@@ -396,36 +400,48 @@
     
     <div class="category-grid">
       <div class="category-card" data-category="sink" onclick="selectCategory('sink')">
+        <button class="remove-btn" onclick="removeImage('sink', event)" title="삭제">✕</button>
+        <div class="check-badge">✓</div>
         <img class="category-preview" id="preview-sink" src="" alt="">
         <span class="category-icon">🍳</span>
         <div class="category-name">싱크대</div>
         <div class="category-desc">주방 싱크대 & 상하부장</div>
       </div>
       <div class="category-card" data-category="wardrobe" onclick="selectCategory('wardrobe')">
+        <button class="remove-btn" onclick="removeImage('wardrobe', event)" title="삭제">✕</button>
+        <div class="check-badge">✓</div>
         <img class="category-preview" id="preview-wardrobe" src="" alt="">
         <span class="category-icon">👔</span>
         <div class="category-name">붙박이장</div>
         <div class="category-desc">옷장 & 수납 시스템</div>
       </div>
       <div class="category-card" data-category="fridge" onclick="selectCategory('fridge')">
+        <button class="remove-btn" onclick="removeImage('fridge', event)" title="삭제">✕</button>
+        <div class="check-badge">✓</div>
         <img class="category-preview" id="preview-fridge" src="" alt="">
         <span class="category-icon">🧊</span>
         <div class="category-name">냉장고장</div>
         <div class="category-desc">냉장고장 & 키큰장</div>
       </div>
       <div class="category-card" data-category="vanity" onclick="selectCategory('vanity')">
+        <button class="remove-btn" onclick="removeImage('vanity', event)" title="삭제">✕</button>
+        <div class="check-badge">✓</div>
         <img class="category-preview" id="preview-vanity" src="" alt="">
         <span class="category-icon">💄</span>
         <div class="category-name">화장대</div>
         <div class="category-desc">드레서 & 화장대</div>
       </div>
       <div class="category-card" data-category="shoe" onclick="selectCategory('shoe')">
+        <button class="remove-btn" onclick="removeImage('shoe', event)" title="삭제">✕</button>
+        <div class="check-badge">✓</div>
         <img class="category-preview" id="preview-shoe" src="" alt="">
         <span class="category-icon">👟</span>
         <div class="category-name">신발장</div>
         <div class="category-desc">현관 신발장 & 수납</div>
       </div>
       <div class="category-card" data-category="storage" onclick="selectCategory('storage')">
+        <button class="remove-btn" onclick="removeImage('storage', event)" title="삭제">✕</button>
+        <div class="check-badge">✓</div>
         <img class="category-preview" id="preview-storage" src="" alt="">
         <span class="category-icon">📦</span>
         <div class="category-name">자유 수납장</div>
@@ -626,6 +642,35 @@
       const countEl = document.getElementById('selectedCount');
       countEl.querySelector('span').textContent = count;
       countEl.classList.toggle('hidden', count === 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Remove Uploaded Image
+    // ═══════════════════════════════════════════════════════════════
+    function removeImage(category, event) {
+      event.stopPropagation(); // 카드 클릭 이벤트 전파 방지
+      
+      if (!state.uploadedImages[category]) return;
+      
+      // state에서 삭제
+      delete state.uploadedImages[category];
+      
+      // UI 업데이트
+      const card = document.querySelector(`[data-category="${category}"]`);
+      card.classList.remove('has-image');
+      
+      const preview = document.getElementById(`preview-${category}`);
+      preview.src = '';
+      
+      // 파일 input 초기화
+      const fileInput = document.getElementById(`file-${category}`);
+      fileInput.value = '';
+      
+      updateSelectedCount();
+      updateButtons();
+      
+      showToast(`${categoryInfo[category].name} 이미지가 삭제되었습니다.`, 'info');
+      addChatMessage(`${categoryInfo[category].icon} ${categoryInfo[category].name} 이미지가 삭제되었습니다.`, false);
     }
 
     // ═══════════════════════════════════════════════════════════════
