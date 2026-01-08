@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 설계 - 다담가구</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C}
+    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.7}
+    h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
+    a{text-decoration:none;color:inherit}
+
+    /* Navigation */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:80px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .nav-logo{display:flex;align-items:center;gap:8px;color:var(--charcoal)}
+    .nav-logo svg{width:32px;height:32px}
+    .nav-logo span{font-family:'Playfair Display',serif;font-size:24px}
+    .nav-menu{display:flex;gap:32px}
+    .nav-menu a{color:var(--charcoal);font-size:14px;letter-spacing:.5px;transition:all .3s}
+    .nav-menu a:hover{opacity:.7}
+    .nav-menu a.active{color:var(--gold);font-weight:500}
+    .nav-icons{display:flex;align-items:center;gap:24px;color:var(--charcoal)}
+    .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
+
+    /* Hero Section */
+    .hero{padding:140px 48px 60px;background:linear-gradient(135deg,var(--cream) 0%,var(--white) 100%);text-align:center}
+    .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;background:rgba(184,149,108,.1);border-radius:24px;color:var(--gold);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px}
+    .hero-badge svg{width:16px;height:16px}
+    .hero h1{font-size:48px;margin-bottom:16px}
+    .hero h1 span{color:var(--gold)}
+    .hero p{color:var(--gray);font-size:18px;max-width:600px;margin:0 auto}
+
+    /* Main Chat Container */
+    .chat-section{padding:40px 48px 80px;background:var(--white)}
+    .chat-container{max-width:900px;margin:0 auto;display:grid;grid-template-columns:280px 1fr;gap:32px;min-height:600px}
+
+    /* Sidebar */
+    .chat-sidebar{background:var(--cream);border-radius:16px;padding:24px;display:flex;flex-direction:column}
+    .sidebar-title{font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);margin-bottom:16px}
+    .quick-prompts{display:flex;flex-direction:column;gap:8px;flex:1}
+    .quick-prompt{padding:14px 16px;background:var(--white);border:1px solid var(--warm);border-radius:10px;font-size:13px;color:var(--charcoal);cursor:pointer;transition:all .3s;text-align:left}
+    .quick-prompt:hover{border-color:var(--gold);background:rgba(184,149,108,.05)}
+    .quick-prompt span{display:block;font-size:11px;color:var(--gray);margin-top:4px}
+    .sidebar-info{margin-top:auto;padding-top:24px;border-top:1px solid var(--warm)}
+    .sidebar-info p{font-size:12px;color:var(--gray);line-height:1.6}
+    .sidebar-info svg{width:14px;height:14px;vertical-align:middle;margin-right:4px}
+
+    /* Chat Area */
+    .chat-area{display:flex;flex-direction:column;background:var(--white);border:1px solid var(--warm);border-radius:16px;overflow:hidden}
+    .chat-header{padding:20px 24px;border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:12px}
+    .chat-header-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--gold),#D4A574);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .chat-header-icon svg{width:20px;height:20px;color:#fff}
+    .chat-header-text h3{font-size:16px;font-family:inherit;font-weight:500}
+    .chat-header-text p{font-size:12px;color:var(--gray)}
+    .chat-status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray)}
+    .chat-status::before{content:'';width:8px;height:8px;background:#4CAF50;border-radius:50%}
+
+    /* Messages Area */
+    .chat-messages{flex:1;padding:24px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;min-height:400px;max-height:500px}
+    .message{display:flex;gap:12px;max-width:85%}
+    .message.user{flex-direction:row-reverse;margin-left:auto}
+    .message-avatar{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .message.ai .message-avatar{background:linear-gradient(135deg,var(--gold),#D4A574)}
+    .message.ai .message-avatar svg{width:18px;height:18px;color:#fff}
+    .message.user .message-avatar{background:var(--charcoal)}
+    .message.user .message-avatar svg{width:18px;height:18px;color:#fff}
+    .message-content{padding:14px 18px;border-radius:14px;font-size:14px;line-height:1.7}
+    .message.ai .message-content{background:var(--cream);border-bottom-left-radius:4px}
+    .message.user .message-content{background:var(--charcoal);color:#fff;border-bottom-right-radius:4px}
+    .message-time{font-size:10px;color:var(--gray);margin-top:6px}
+    .message.user .message-time{text-align:right}
+
+    /* Typing Indicator */
+    .typing-indicator{display:flex;gap:4px;padding:14px 18px;background:var(--cream);border-radius:14px;border-bottom-left-radius:4px;width:fit-content}
+    .typing-indicator span{width:8px;height:8px;background:var(--gray);border-radius:50%;animation:typing 1.4s infinite}
+    .typing-indicator span:nth-child(2){animation-delay:.2s}
+    .typing-indicator span:nth-child(3){animation-delay:.4s}
+    @keyframes typing{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+    /* Welcome Message */
+    .welcome-message{text-align:center;padding:40px 20px}
+    .welcome-icon{width:64px;height:64px;background:linear-gradient(135deg,var(--gold),#D4A574);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
+    .welcome-icon svg{width:32px;height:32px;color:#fff}
+    .welcome-message h3{font-size:20px;margin-bottom:8px}
+    .welcome-message p{color:var(--gray);font-size:14px;max-width:300px;margin:0 auto}
+
+    /* Input Area */
+    .chat-input{padding:20px 24px;border-top:1px solid var(--warm);background:var(--cream)}
+    .input-wrapper{display:flex;gap:12px;align-items:flex-end}
+    .input-field{flex:1;position:relative}
+    .input-field textarea{width:100%;padding:14px 18px;border:1px solid var(--warm);border-radius:12px;font-size:14px;font-family:inherit;resize:none;background:var(--white);transition:all .3s;min-height:50px;max-height:120px}
+    .input-field textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,149,108,.1)}
+    .input-field textarea::placeholder{color:var(--gray)}
+    .send-btn{width:50px;height:50px;background:var(--charcoal);border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s}
+    .send-btn:hover{background:var(--gold)}
+    .send-btn:disabled{background:var(--warm);cursor:not-allowed}
+    .send-btn svg{width:20px;height:20px;color:#fff}
+    .input-hint{font-size:11px;color:var(--gray);margin-top:8px;display:flex;align-items:center;gap:16px}
+    .input-hint span{display:flex;align-items:center;gap:4px}
+
+    /* Footer */
+    .footer{padding:60px 48px;background:var(--charcoal);color:#fff}
+    .footer-content{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+    .footer-brand{display:flex;align-items:center;gap:8px}
+    .footer-brand svg{width:28px;height:28px}
+    .footer-brand span{font-family:'Playfair Display',serif;font-size:20px}
+    .footer-links{display:flex;gap:32px}
+    .footer-links a{color:rgba(255,255,255,.6);font-size:14px;transition:color .3s}
+    .footer-links a:hover{color:#fff}
+    .footer-copy{text-align:center;margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.4)}
+
+    /* Responsive */
+    @media(max-width:768px){
+      .nav{padding:0 24px}
+      .nav-menu{display:none}
+      .hero{padding:120px 24px 40px}
+      .hero h1{font-size:32px}
+      .chat-section{padding:24px}
+      .chat-container{grid-template-columns:1fr;gap:24px}
+      .chat-sidebar{display:none}
+      .footer{padding:40px 24px}
+      .footer-content{flex-direction:column;gap:24px;text-align:center}
+      .footer-links{flex-wrap:wrap;justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <!-- SVG Symbols -->
+  <svg style="display:none">
+    <symbol id="icon-logo" viewBox="0 0 40 40"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></symbol>
+    <symbol id="icon-ai" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5A2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5-2.5a2.5 2.5 0 0 0-2.5-2.5z"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
+    <symbol id="icon-sparkle" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></symbol>
+    <symbol id="icon-kitchen" viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM6 4h5v8H6V4zm12 16H6v-6h12v6zm0-8h-5V4h5v8z"/></symbol>
+    <symbol id="icon-wardrobe" viewBox="0 0 24 24"><path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm7 2v16h2V4h-2zm-6 8h5v2H5v-2zm8 0h5v2h-5v-2z"/></symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+  </svg>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">
+      <svg fill="currentColor"><use href="#icon-logo"/></svg>
+      <span>다담</span>
+    </a>
+    <div class="nav-menu">
+      <a href="index.html">About us</a>
+      <a href="index.html">Collection</a>
+      <a href="index.html">Products</a>
+      <a href="ai-design.html" class="active">AI Design</a>
+      <a href="index.html">Stories</a>
+      <a href="index.html">Showroom</a>
+      <a href="index.html">Service</a>
+    </div>
+    <div class="nav-icons">
+      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-user"/></svg></button>
+      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-search"/></svg></button>
+      <button style="display:flex;align-items:center;gap:4px;font-size:14px">KR<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-down"/></svg></button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-badge">
+      <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-sparkle"/></svg>
+      AI-Powered Design
+    </div>
+    <h1>AI <span>설계</span> 시스템</h1>
+    <p>인공지능과 대화하며 나만의 맞춤 가구를 설계해보세요.<br>30년 장인의 노하우가 담긴 AI가 최적의 솔루션을 제안합니다.</p>
+  </section>
+
+  <!-- Chat Section -->
+  <section class="chat-section">
+    <div class="chat-container">
+      <!-- Sidebar -->
+      <aside class="chat-sidebar">
+        <p class="sidebar-title">빠른 시작</p>
+        <div class="quick-prompts">
+          <button class="quick-prompt" onclick="sendQuickPrompt('주방 싱크대를 새로 설계하고 싶어요. 공간은 3m x 2m 입니다.')">
+            🍳 주방 싱크대 설계
+            <span>공간에 맞는 최적의 레이아웃</span>
+          </button>
+          <button class="quick-prompt" onclick="sendQuickPrompt('붙박이장을 설계해주세요. 방 크기는 3.5m x 3m이고 옷 수납이 많이 필요해요.')">
+            👔 붙박이장 설계
+            <span>수납 공간 최적화</span>
+          </button>
+          <button class="quick-prompt" onclick="sendQuickPrompt('냉장고장과 키큰장을 포함한 주방 가구 세트를 설계해주세요.')">
+            🏠 주방 가구 세트
+            <span>통합 주방 솔루션</span>
+          </button>
+          <button class="quick-prompt" onclick="sendQuickPrompt('현대적인 미니멀 스타일의 수납장을 추천해주세요.')">
+            ✨ 스타일 추천
+            <span>트렌드에 맞는 디자인</span>
+          </button>
+        </div>
+        <div class="sidebar-info">
+          <p>
+            <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-info"/></svg>
+            AI 설계 시스템은 고객님의 공간과 요구사항을 분석하여 최적의 가구 배치와 디자인을 제안합니다.
+          </p>
+        </div>
+      </aside>
+
+      <!-- Chat Area -->
+      <div class="chat-area">
+        <div class="chat-header">
+          <div class="chat-header-icon">
+            <svg><use href="#icon-ai"/></svg>
+          </div>
+          <div class="chat-header-text">
+            <h3>다담 AI 설계사</h3>
+            <p>맞춤 가구 설계 전문 AI</p>
+          </div>
+          <div class="chat-status">온라인</div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="welcome-message">
+            <div class="welcome-icon">
+              <svg><use href="#icon-ai"/></svg>
+            </div>
+            <h3>안녕하세요! 다담 AI입니다</h3>
+            <p>어떤 가구를 설계해드릴까요? 공간 크기, 스타일, 용도 등을 알려주시면 맞춤 설계를 도와드릴게요.</p>
+          </div>
+        </div>
+
+        <div class="chat-input">
+          <div class="input-wrapper">
+            <div class="input-field">
+              <textarea id="messageInput" placeholder="메시지를 입력하세요..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+            </div>
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+              <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send"/></svg>
+            </button>
+          </div>
+          <div class="input-hint">
+            <span>Enter로 전송</span>
+            <span>Shift + Enter로 줄바꿈</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <a href="index.html" class="footer-brand">
+        <svg fill="currentColor"><use href="#icon-logo"/></svg>
+        <span>다담</span>
+      </a>
+      <div class="footer-links">
+        <a href="index.html">홈</a>
+        <a href="#">제품</a>
+        <a href="#">시공사례</a>
+        <a href="#">쇼룸</a>
+        <a href="#">고객센터</a>
+      </div>
+    </div>
+    <p class="footer-copy">© 2024 다담가구. All rights reserved.</p>
+  </footer>
+
+  <script>
+    const N8N_WEBHOOK_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    let isFirstMessage = true;
+
+    // Auto-resize textarea
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    function handleKeyDown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function getCurrentTime() {
+      return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function addMessage(content, isUser = false) {
+      // Remove welcome message on first interaction
+      if (isFirstMessage) {
+        const welcome = chatMessages.querySelector('.welcome-message');
+        if (welcome) welcome.remove();
+        isFirstMessage = false;
+      }
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
+      
+      const avatarSvg = isUser 
+        ? '<use href="#icon-user"/>' 
+        : '<use href="#icon-ai"/>';
+      
+      messageDiv.innerHTML = `
+        <div class="message-avatar">
+          <svg fill="${isUser ? 'none' : 'currentColor'}" stroke="${isUser ? 'currentColor' : 'none'}" stroke-width="2">${avatarSvg}</svg>
+        </div>
+        <div>
+          <div class="message-content">${formatMessage(content)}</div>
+          <div class="message-time">${getCurrentTime()}</div>
+        </div>
+      `;
+      
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function formatMessage(text) {
+      // Convert line breaks to <br> and basic markdown
+      return text
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    }
+
+    function showTypingIndicator() {
+      const typingDiv = document.createElement('div');
+      typingDiv.className = 'message ai';
+      typingDiv.id = 'typingIndicator';
+      typingDiv.innerHTML = `
+        <div class="message-avatar">
+          <svg fill="currentColor"><use href="#icon-ai"/></svg>
+        </div>
+        <div class="typing-indicator">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      `;
+      chatMessages.appendChild(typingDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const typing = document.getElementById('typingIndicator');
+      if (typing) typing.remove();
+    }
+
+    async function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      // Disable input while sending
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+
+      // Add user message
+      addMessage(message, true);
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+
+      // Show typing indicator
+      showTypingIndicator();
+
+      try {
+        const response = await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: message })
+        });
+
+        removeTypingIndicator();
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        const data = await response.json();
+        
+        // Handle different response formats
+        let aiResponse = '';
+        if (typeof data === 'string') {
+          aiResponse = data;
+        } else if (data.response) {
+          aiResponse = data.response;
+        } else if (data.output) {
+          aiResponse = data.output;
+        } else if (data.message) {
+          aiResponse = data.message;
+        } else if (data.text) {
+          aiResponse = data.text;
+        } else {
+          aiResponse = JSON.stringify(data);
+        }
+
+        addMessage(aiResponse, false);
+
+      } catch (error) {
+        removeTypingIndicator();
+        console.error('Error:', error);
+        addMessage('죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', false);
+      }
+
+      // Re-enable input
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+      messageInput.focus();
+    }
+
+    function sendQuickPrompt(prompt) {
+      messageInput.value = prompt;
+      sendMessage();
+    }
+  </script>
+</body>
+</html>

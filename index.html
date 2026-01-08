@@ -186,7 +186,7 @@
       <a href="#">About us</a>
       <a href="#">Collection</a>
       <a href="#">Products</a>
-      <a href="#">AI Design</a>
+      <a href="ai-design.html">AI Design</a>
       <a href="#">Stories</a>
       <a href="#">Showroom</a>
       <a href="#">Service</a>
@@ -268,7 +268,7 @@
       <p>인테리어 트렌드 with 다담</p>
       <div class="dadam-home-grid">
         <a href="#" class="dadam-home-item"><h3>시공사례</h3><div class="open"><span>open</span></div><p>고객이 선택한 다담!<br>직접 확인해보세요</p></a>
-        <a href="#" class="dadam-home-item"><h3>AI 설계</h3><div class="open"><span>open</span></div><p>AI와 함께하는<br>스마트한 인테리어</p></a>
+        <a href="ai-design.html" class="dadam-home-item"><h3>AI 설계</h3><div class="open"><span>open</span></div><p>AI와 함께하는<br>스마트한 인테리어</p></a>
         <a href="#" class="dadam-home-item"><h3>쇼룸</h3><div class="open"><span>open</span></div><p>다담 쇼룸에서<br>직접 만나보세요</p></a>
       </div>
     </div>
@@ -312,7 +312,7 @@
     <p>AI 설계 시스템으로 최적의 맞춤 가구를 만나보세요</p>
     <div class="cta-buttons">
       <a href="#" class="cta-btn primary">견적 문의</a>
-      <a href="#" class="cta-btn outline">AI 설계 시작</a>
+      <a href="ai-design.html" class="cta-btn outline">AI 설계 시작</a>
     </div>
   </section>
 
@@ -324,7 +324,7 @@
         <p class="footer-desc">AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.</p>
         <div class="footer-contact">
           <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-phone"/></svg>02-1234-5678</div>
-          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-mail"/></svg>info@dadam.co.kr</div>
+          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-mail"/></svg><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0960676f66496d686d6864276a6627627b">[email&#160;protected]</a></div>
           <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-location"/></svg>서울시 강남구 논현동 123-45</div>
           <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-clock"/></svg>평일 09:00 - 18:00</div>
         </div>
@@ -335,7 +335,7 @@
           <li><a href="#">About us</a></li>
           <li><a href="#">Collection</a></li>
           <li><a href="#">Products</a></li>
-          <li><a href="#">AI Design</a></li>
+          <li><a href="ai-design.html">AI Design</a></li>
           <li><a href="#">Stories</a></li>
           <li><a href="#">Showroom</a></li>
           <li><a href="#">Service</a></li>
@@ -357,14 +357,8 @@
     </div>
   </footer>
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     const nav=document.getElementById('nav'),slides=document.querySelectorAll('.hero-slide'),dots=document.querySelectorAll('.hero-dot'),counter=document.getElementById('currentSlide');let cur=0,interval;
     const go=i=>{slides[cur].classList.remove('active');dots[cur].classList.remove('active');cur=i>=slides.length?0:i<0?slides.length-1:i;slides[cur].classList.add('active');dots[cur].classList.add('active');counter.textContent=String(cur+1).padStart(2,'0');clearInterval(interval);interval=setInterval(()=>go(cur+1),6e3)};
     window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>50));
-    document.getElementById('nextBtn').addEventListener('click',()=>go(cur+1));
-    document.getElementById('prevBtn').addEventListener('click',()=>go(cur-1));
-    dots.forEach((d,i)=>d.addEventListener('click',()=>go(i)));
-    interval=setInterval(()=>go(cur+1),6e3);
-  </script>
-</body>
-</html>
+    document.getElementById('nextBtn').addEventListener('click',()=>go
