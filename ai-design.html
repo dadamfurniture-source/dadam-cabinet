@@ -45,6 +45,14 @@
     .quick-prompt{padding:14px 16px;background:var(--white);border:1px solid var(--warm);border-radius:10px;font-size:13px;color:var(--charcoal);cursor:pointer;transition:all .3s;text-align:left}
     .quick-prompt:hover{border-color:var(--gold);background:rgba(184,149,108,.05)}
     .quick-prompt span{display:block;font-size:11px;color:var(--gray);margin-top:4px}
+    
+    /* Interior AI Button - NEW */
+    .quick-prompt.interior-ai{background:linear-gradient(135deg,var(--gold),#D4A574);color:#fff;border:none}
+    .quick-prompt.interior-ai:hover{background:linear-gradient(135deg,#D4A574,var(--gold));transform:translateY(-2px);box-shadow:0 4px 12px rgba(184,149,108,.3)}
+    .quick-prompt.interior-ai span{color:rgba(255,255,255,.8)}
+    
+    .sidebar-divider{height:1px;background:var(--warm);margin:12px 0}
+    
     .sidebar-info{margin-top:auto;padding-top:24px;border-top:1px solid var(--warm)}
     .sidebar-info p{font-size:12px;color:var(--gray);line-height:1.6}
     .sidebar-info svg{width:14px;height:14px;vertical-align:middle;margin-right:4px}
@@ -102,6 +110,81 @@
     .input-hint{font-size:11px;color:var(--gray);margin-top:8px;display:flex;align-items:center;gap:16px}
     .input-hint span{display:flex;align-items:center;gap:4px}
 
+    /* ═══════════════════════════════════════════════════════════════
+       INTERIOR AI MODAL - NEW
+       ═══════════════════════════════════════════════════════════════ */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+    .modal-overlay.active{display:flex}
+    
+    .interior-modal{background:var(--white);border-radius:20px;width:100%;max-width:1100px;max-height:90vh;overflow:hidden;display:grid;grid-template-columns:1fr 1.2fr;box-shadow:0 25px 50px rgba(0,0,0,.25)}
+    
+    .modal-left{padding:32px;background:var(--cream);display:flex;flex-direction:column;gap:24px;overflow-y:auto}
+    .modal-header{display:flex;align-items:center;justify-content:space-between}
+    .modal-header h2{font-size:24px;display:flex;align-items:center;gap:12px}
+    .modal-header h2 span{background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:10px;padding:4px 10px;border-radius:12px;font-family:sans-serif;font-weight:600}
+    .modal-close{width:36px;height:36px;border:none;background:var(--warm);border-radius:10px;cursor:pointer;font-size:20px;color:var(--gray);transition:all .3s}
+    .modal-close:hover{background:var(--charcoal);color:#fff}
+    
+    /* Upload Zone */
+    .upload-zone{border:2px dashed var(--warm);border-radius:16px;padding:32px;text-align:center;cursor:pointer;transition:all .3s}
+    .upload-zone:hover,.upload-zone.dragover{border-color:var(--gold);background:rgba(184,149,108,.05)}
+    .upload-zone.has-image{padding:12px}
+    .upload-zone img{max-width:100%;max-height:200px;border-radius:12px;object-fit:cover}
+    .upload-zone p{color:var(--gray);font-size:14px;margin-top:12px}
+    .upload-icon{font-size:48px;margin-bottom:12px}
+    
+    /* Style Selection */
+    .style-section h3{font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+    .style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .style-btn{padding:14px 12px;background:var(--white);border:1px solid var(--warm);border-radius:12px;cursor:pointer;transition:all .3s;text-align:center}
+    .style-btn:hover{border-color:var(--gold)}
+    .style-btn.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+    .style-btn .icon{font-size:20px;margin-bottom:4px}
+    .style-btn .name{font-size:13px;font-weight:500}
+    .style-btn .desc{font-size:10px;color:var(--gray);margin-top:2px}
+    .style-btn.active .desc{color:rgba(255,255,255,.7)}
+    
+    /* Additional Request */
+    .additional-section textarea{width:100%;padding:14px;border:1px solid var(--warm);border-radius:12px;font-size:14px;font-family:inherit;resize:none;min-height:80px;background:var(--white)}
+    .additional-section textarea:focus{outline:none;border-color:var(--gold)}
+    
+    /* Generate Button */
+    .generate-btn{width:100%;padding:18px;background:var(--charcoal);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:500;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:10px}
+    .generate-btn:hover:not(:disabled){background:var(--gold)}
+    .generate-btn:disabled{opacity:.6;cursor:not-allowed}
+    .generate-btn .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    
+    /* Modal Right - Results */
+    .modal-right{padding:32px;background:var(--white);display:flex;flex-direction:column;overflow-y:auto}
+    .result-header{display:flex;align-items:center;gap:8px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--warm)}
+    .result-header h3{font-size:18px}
+    
+    .result-placeholder{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--gray)}
+    .result-placeholder .icon{font-size:64px;margin-bottom:16px;opacity:.5}
+    .result-placeholder h4{font-size:18px;color:var(--charcoal);margin-bottom:8px}
+    .result-placeholder p{font-size:14px;max-width:280px}
+    
+    .result-content{display:none;flex-direction:column;gap:20px}
+    .result-content.active{display:flex}
+    
+    .image-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .image-compare .label{font-size:11px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+    .image-compare img{width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--warm)}
+    .image-compare .after img{border-color:var(--gold)}
+    
+    .generated-image{margin-top:8px}
+    .generated-image img{width:100%;border-radius:16px;cursor:pointer;transition:transform .3s}
+    .generated-image img:hover{transform:scale(1.02)}
+    
+    .analysis-box{background:var(--cream);border-radius:14px;padding:20px}
+    .analysis-box h4{font-size:14px;color:var(--gold);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .analysis-box p{font-size:13px;color:var(--charcoal);line-height:1.7}
+    .analysis-box+.analysis-box{margin-top:12px}
+    
+    .download-btn{padding:14px;background:var(--gold);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:500;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:auto}
+    .download-btn:hover{background:var(--charcoal)}
+
     /* Footer */
     .footer{padding:60px 48px;background:var(--charcoal);color:#fff}
     .footer-content{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
@@ -114,6 +197,10 @@
     .footer-copy{text-align:center;margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.4)}
 
     /* Responsive */
+    @media(max-width:900px){
+      .interior-modal{grid-template-columns:1fr;max-height:95vh}
+      .modal-right{max-height:50vh}
+    }
     @media(max-width:768px){
       .nav{padding:0 24px}
       .nav-menu{display:none}
@@ -125,6 +212,7 @@
       .footer{padding:40px 24px}
       .footer-content{flex-direction:column;gap:24px;text-align:center}
       .footer-links{flex-wrap:wrap;justify-content:center}
+      .style-grid{grid-template-columns:repeat(2,1fr)}
     }
   </style>
 </head>
@@ -182,6 +270,14 @@
       <aside class="chat-sidebar">
         <p class="sidebar-title">빠른 시작</p>
         <div class="quick-prompts">
+          <!-- ★ NEW: Interior AI Button -->
+          <button class="quick-prompt interior-ai" onclick="openInteriorModal()">
+            🎨 인테리어 리디자인
+            <span>AI로 공간을 새롭게 변신</span>
+          </button>
+          
+          <div class="sidebar-divider"></div>
+          
           <button class="quick-prompt" onclick="sendQuickPrompt('주방 싱크대를 새로 설계하고 싶어요. 공간은 3m x 2m 입니다.')">
             🍳 주방 싱크대 설계
             <span>공간에 맞는 최적의 레이아웃</span>
@@ -248,6 +344,122 @@
     </div>
   </section>
 
+  <!-- ═══════════════════════════════════════════════════════════════
+       INTERIOR AI MODAL - NEW
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="interiorModal">
+    <div class="interior-modal">
+      <!-- Left Panel - Input -->
+      <div class="modal-left">
+        <div class="modal-header">
+          <h2>🎨 인테리어 AI <span>DALL-E 3</span></h2>
+          <button class="modal-close" onclick="closeInteriorModal()">×</button>
+        </div>
+        
+        <!-- Image Upload -->
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <div class="upload-icon">📷</div>
+          <p><strong>방 사진을 업로드하세요</strong><br>클릭 또는 드래그 앤 드롭</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none">
+        
+        <!-- Style Selection -->
+        <div class="style-section">
+          <h3>디자인 스타일</h3>
+          <div class="style-grid">
+            <button class="style-btn active" data-style="모던">
+              <div class="icon">🏢</div>
+              <div class="name">모던</div>
+              <div class="desc">깔끔한 현대적</div>
+            </button>
+            <button class="style-btn" data-style="스칸디나비안">
+              <div class="icon">🌲</div>
+              <div class="name">스칸디나비안</div>
+              <div class="desc">따뜻한 북유럽</div>
+            </button>
+            <button class="style-btn" data-style="인더스트리얼">
+              <div class="icon">🏭</div>
+              <div class="name">인더스트리얼</div>
+              <div class="desc">빈티지 감성</div>
+            </button>
+            <button class="style-btn" data-style="미니멀리스트">
+              <div class="icon">◻️</div>
+              <div class="name">미니멀</div>
+              <div class="desc">극도로 단순</div>
+            </button>
+            <button class="style-btn" data-style="자팬디">
+              <div class="icon">🎋</div>
+              <div class="name">자팬디</div>
+              <div class="desc">일본+북유럽</div>
+            </button>
+            <button class="style-btn" data-style="럭셔리">
+              <div class="icon">✨</div>
+              <div class="name">럭셔리</div>
+              <div class="desc">고급스러운</div>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Additional Request -->
+        <div class="additional-section">
+          <h3 style="font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">추가 요청</h3>
+          <textarea id="additionalRequest" placeholder="추가 요청사항을 입력하세요... (예: 식물을 많이 넣어주세요)"></textarea>
+        </div>
+        
+        <!-- Generate Button -->
+        <button class="generate-btn" id="generateBtn" onclick="generateInteriorDesign()">
+          ✨ 디자인 생성하기
+        </button>
+      </div>
+      
+      <!-- Right Panel - Results -->
+      <div class="modal-right">
+        <div class="result-header">
+          <h3>🖼️ 결과 미리보기</h3>
+        </div>
+        
+        <!-- Placeholder -->
+        <div class="result-placeholder" id="resultPlaceholder">
+          <div class="icon">🏠</div>
+          <h4>인테리어 AI</h4>
+          <p>방 사진을 업로드하고 원하는 스타일을 선택한 후 생성 버튼을 눌러주세요</p>
+        </div>
+        
+        <!-- Results -->
+        <div class="result-content" id="resultContent">
+          <div class="image-compare">
+            <div class="before">
+              <div class="label">Before</div>
+              <img id="beforeImage" src="" alt="Before">
+            </div>
+            <div class="after">
+              <div class="label">After</div>
+              <img id="afterImage" src="" alt="After">
+            </div>
+          </div>
+          
+          <div class="generated-image">
+            <img id="generatedImage" src="" alt="Generated Design" onclick="window.open(this.src, '_blank')">
+          </div>
+          
+          <div class="analysis-box">
+            <h4>📊 방 분석</h4>
+            <p id="roomAnalysis"></p>
+          </div>
+          
+          <div class="analysis-box">
+            <h4>💡 디자인 제안</h4>
+            <p id="designSuggestions"></p>
+          </div>
+          
+          <a class="download-btn" id="downloadBtn" href="" target="_blank" download>
+            📥 이미지 다운로드
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <footer class="footer">
     <div class="footer-content">
@@ -267,13 +479,15 @@
   </footer>
 
   <script>
+    // ═══════════════════════════════════════════════════════════════
+    // 기존 캐비넷 AI 채팅 기능
+    // ═══════════════════════════════════════════════════════════════
     const N8N_WEBHOOK_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     let isFirstMessage = true;
 
-    // Auto-resize textarea
     messageInput.addEventListener('input', function() {
       this.style.height = 'auto';
       this.style.height = Math.min(this.scrollHeight, 120) + 'px';
@@ -291,7 +505,6 @@
     }
 
     function addMessage(content, isUser = false) {
-      // Remove welcome message on first interaction
       if (isFirstMessage) {
         const welcome = chatMessages.querySelector('.welcome-message');
         if (welcome) welcome.remove();
@@ -320,7 +533,6 @@
     }
 
     function formatMessage(text) {
-      // Convert line breaks to <br> and basic markdown
       return text
         .replace(/\n/g, '<br>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -354,51 +566,26 @@
       const message = messageInput.value.trim();
       if (!message) return;
 
-      // Disable input while sending
       messageInput.disabled = true;
       sendBtn.disabled = true;
-
-      // Add user message
       addMessage(message, true);
       messageInput.value = '';
       messageInput.style.height = 'auto';
-
-      // Show typing indicator
       showTypingIndicator();
 
       try {
         const response = await fetch(N8N_WEBHOOK_URL, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: message })
         });
 
         removeTypingIndicator();
 
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
+        if (!response.ok) throw new Error('Network response was not ok');
 
         const data = await response.json();
-        
-        // Handle different response formats
-        let aiResponse = '';
-        if (typeof data === 'string') {
-          aiResponse = data;
-        } else if (data.response) {
-          aiResponse = data.response;
-        } else if (data.output) {
-          aiResponse = data.output;
-        } else if (data.message) {
-          aiResponse = data.message;
-        } else if (data.text) {
-          aiResponse = data.text;
-        } else {
-          aiResponse = JSON.stringify(data);
-        }
-
+        let aiResponse = data.response || data.output || data.message || data.text || JSON.stringify(data);
         addMessage(aiResponse, false);
 
       } catch (error) {
@@ -407,7 +594,6 @@
         addMessage('죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', false);
       }
 
-      // Re-enable input
       messageInput.disabled = false;
       sendBtn.disabled = false;
       messageInput.focus();
@@ -416,6 +602,154 @@
     function sendQuickPrompt(prompt) {
       messageInput.value = prompt;
       sendMessage();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 인테리어 AI 기능 (NEW)
+    // ═══════════════════════════════════════════════════════════════
+    const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design';
+    
+    let interiorState = {
+      roomImage: null,
+      roomImagePreview: null,
+      imageType: 'image/jpeg',
+      selectedStyle: '모던'
+    };
+
+    // Modal 열기/닫기
+    function openInteriorModal() {
+      document.getElementById('interiorModal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeInteriorModal() {
+      document.getElementById('interiorModal').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    // 모달 외부 클릭시 닫기
+    document.getElementById('interiorModal').addEventListener('click', function(e) {
+      if (e.target === this) closeInteriorModal();
+    });
+
+    // ESC 키로 닫기
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeInteriorModal();
+    });
+
+    // 이미지 업로드
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+
+    uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        handleImageUpload(file);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) {
+        handleImageUpload(e.target.files[0]);
+      }
+    });
+
+    function handleImageUpload(file) {
+      interiorState.imageType = file.type || 'image/jpeg';
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Full = e.target.result;
+        interiorState.roomImagePreview = base64Full;
+        interiorState.roomImage = base64Full.split(',')[1];
+        
+        uploadZone.innerHTML = `
+          <img src="${base64Full}" alt="Uploaded room">
+          <p>클릭하여 다른 이미지 선택</p>
+        `;
+        uploadZone.classList.add('has-image');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 스타일 선택
+    document.querySelectorAll('.style-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        interiorState.selectedStyle = this.dataset.style;
+      });
+    });
+
+    // 디자인 생성
+    async function generateInteriorDesign() {
+      if (!interiorState.roomImage) {
+        alert('방 이미지를 먼저 업로드해주세요.');
+        return;
+      }
+
+      const generateBtn = document.getElementById('generateBtn');
+      const resultPlaceholder = document.getElementById('resultPlaceholder');
+      const resultContent = document.getElementById('resultContent');
+
+      // 로딩 상태
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<div class="spinner"></div> 생성 중...';
+      resultPlaceholder.innerHTML = `
+        <div class="icon" style="animation: spin 2s linear infinite">⏳</div>
+        <h4>디자인 생성 중...</h4>
+        <p>AI가 방을 분석하고 새로운 디자인을 만들고 있습니다. 약 30초 정도 소요됩니다.</p>
+      `;
+
+      try {
+        const response = await fetch(N8N_INTERIOR_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_image: interiorState.roomImage,
+            image_type: interiorState.imageType,
+            design_style: interiorState.selectedStyle,
+            additional_request: document.getElementById('additionalRequest').value
+          })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+
+        // 결과 표시
+        document.getElementById('beforeImage').src = interiorState.roomImagePreview;
+        document.getElementById('afterImage').src = data.generated_image?.url || '';
+        document.getElementById('generatedImage').src = data.generated_image?.url || '';
+        document.getElementById('roomAnalysis').textContent = data.room_analysis || '분석 결과 없음';
+        document.getElementById('designSuggestions').textContent = data.design_suggestions || '제안 없음';
+        document.getElementById('downloadBtn').href = data.generated_image?.url || '#';
+
+        resultPlaceholder.style.display = 'none';
+        resultContent.classList.add('active');
+
+      } catch (error) {
+        console.error('Error:', error);
+        resultPlaceholder.innerHTML = `
+          <div class="icon">⚠️</div>
+          <h4>오류 발생</h4>
+          <p>디자인 생성 중 오류가 발생했습니다. 다시 시도해주세요.</p>
+        `;
+      }
+
+      generateBtn.disabled = false;
+      generateBtn.innerHTML = '✨ 디자인 생성하기';
     }
   </script>
 </body>
