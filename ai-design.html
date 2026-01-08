@@ -582,16 +582,22 @@
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        const data = await response.json();
+        // 수정된 코드
+let data = await response.json();
 
-        // 결과 표시
+// 배열이면 첫 번째 항목 추출
+if (Array.isArray(data)) {
+  data = data[0];
+}
+
+// 결과 표시
         const previewUrl = state.uploadedImages[state.selectedCategory]?.preview;
         document.getElementById('beforeImage').src = previewUrl;
         document.getElementById('afterImage').src = data.generated_image?.url || '';
         document.getElementById('mainResultImage').src = data.generated_image?.url || '';
         document.getElementById('roomAnalysis').textContent = data.room_analysis || '분석 결과 없음';
         document.getElementById('designSuggestions').textContent = data.design_suggestions || '제안 없음';
-
+        
         state.generatedImageUrl = data.generated_image?.url;
 
         loading.classList.remove('active');
