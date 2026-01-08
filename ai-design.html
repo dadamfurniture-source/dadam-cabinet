@@ -180,17 +180,37 @@
     .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
     .result-card img{width:100%;height:220px;object-fit:cover;display:block}
     
-    /* Wall Analysis in Result */
+    /* Wall Analysis in Result - 상세 버전 */
     .wall-analysis-box{background:var(--white);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
     .wall-analysis-box h4{font-size:13px;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
     .wall-analysis-box h4 .badge{font-size:10px;padding:2px 8px;background:var(--charcoal);color:#fff;border-radius:8px;font-family:sans-serif}
-    .wall-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+    
+    .dimension-display{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(184,149,108,.08),rgba(212,184,150,.08));border-radius:12px}
+    .dimension-item{text-align:center}
+    .dimension-item .value{font-size:20px;font-weight:700;color:var(--charcoal)}
+    .dimension-item .unit{font-size:11px;color:var(--gold);font-weight:600}
+    .dimension-item .label{font-size:10px;color:var(--gray);margin-top:2px}
+    
+    .wall-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
     .wall-info-item{background:var(--cream);padding:10px 12px;border-radius:10px}
     .wall-info-item .label{font-size:10px;color:var(--gray);margin-bottom:4px}
     .wall-info-item .value{font-size:13px;font-weight:600;color:var(--charcoal)}
-    .wall-features{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    
+    .install-zone{background:linear-gradient(90deg,var(--gold),var(--gold-light));color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:12px}
+    .install-zone .title{font-size:11px;opacity:.8;margin-bottom:4px}
+    .install-zone .dims{font-size:15px;font-weight:700}
+    
+    .obstacles-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+    .obstacle-tag{padding:6px 10px;background:var(--cream);border-radius:8px;font-size:11px;color:var(--charcoal);display:flex;align-items:center;gap:4px}
+    .obstacle-tag.warning{background:#fef3c7;color:#92400e}
+    
+    .wall-features{display:flex;flex-wrap:wrap;gap:6px}
     .wall-feature{padding:4px 10px;background:var(--cream);border-radius:8px;font-size:10px;color:var(--gray)}
     .wall-feature.detected{background:var(--gold);color:#fff}
+    
+    .bg-refresh-box{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:10px;padding:12px;margin-top:12px}
+    .bg-refresh-box h5{font-size:11px;color:#166534;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .bg-refresh-item{font-size:11px;color:#15803d;padding:4px 0}
 
     .result-analysis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .analysis-card{background:var(--white);border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
@@ -572,6 +592,161 @@
     const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
     const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design';
     const N8N_WALL_ANALYSIS_URL = 'https://dadam.app.n8n.cloud/webhook/wall-analysis';
+
+    // ═══════════════════════════════════════════════════════════════
+    // 상세 공간 분석 프롬프트 (Claude Vision용)
+    // ═══════════════════════════════════════════════════════════════
+    const DETAILED_ANALYSIS_PROMPT = `당신은 전문 3D 건축 모델러이자 인테리어 측량 전문가입니다. 
+이 공간 이미지를 정밀 분석하여 맞춤 가구 설치를 위한 상세 정보를 추출하세요.
+
+## 분석 지침
+
+### 1. 기준 사물을 통한 치수 추정
+- 표준 문 높이: 2,100mm, 폭: 900mm
+- 표준 창문 높이: 1,200mm
+- 표준 콘센트 높이: 바닥에서 300mm
+- 표준 스위치 높이: 바닥에서 1,200mm
+- 표준 천장 높이: 2,400mm (아파트 기준)
+- 에어컨 실내기 폭: 약 800-1,000mm
+
+### 2. 분석 항목
+- 각 벽면의 예상 가로 길이 (mm 단위)
+- 천장 높이 추정
+- 장애물(문, 창문, 콘센트, 배관, 에어컨 등) 정확한 위치
+- 가구 설치 가능 영역 (시작점~끝점)
+- 벽면 상태 (벽지 상태, 습기, 균열 등)
+- 바닥 재질 및 상태
+
+### 3. JSON 응답 형식
+{
+  "space_analysis": {
+    "layout_type": "일자형/ㄱ자형/ㄷ자형",
+    "estimated_dimensions": {
+      "total_width_mm": 숫자,
+      "ceiling_height_mm": 숫자,
+      "depth_mm": 숫자
+    },
+    "reference_objects": [
+      {"type": "문/창문/콘센트/에어컨", "estimated_size": "폭x높이mm", "position": "좌측/중앙/우측"}
+    ]
+  },
+  "walls": [
+    {
+      "position": "left/front/right",
+      "estimated_width_mm": 숫자,
+      "installable_zone": {
+        "start_mm": 시작위치,
+        "end_mm": 끝위치,
+        "available_width_mm": 설치가능폭,
+        "max_height_mm": 최대높이
+      },
+      "obstacles": [
+        {"type": "문/창문/콘센트/배관", "position_mm": 위치, "size_mm": "폭x높이", "clearance_required_mm": 필요여유공간}
+      ],
+      "condition": {
+        "wall_state": "양호/보수필요/습기손상",
+        "wallpaper": "있음/없음/제거상태",
+        "notes": "상세 메모"
+      }
+    }
+  ],
+  "floor": {
+    "material": "마루/타일/장판",
+    "condition": "양호/보수필요",
+    "color_tone": "밝음/중간/어두움"
+  },
+  "installation_constraints": {
+    "recommended_cabinet_width_mm": 추천폭,
+    "recommended_cabinet_height_mm": 추천높이,
+    "recommended_cabinet_depth_mm": 추천깊이,
+    "side_clearance_mm": 좌우여유,
+    "top_clearance_mm": 상단여유,
+    "avoid_zones": ["피해야할 영역 설명"]
+  },
+  "background_condition": {
+    "wall_needs_refresh": true/false,
+    "floor_needs_refresh": true/false,
+    "suggested_wall_style": "화이트 무광/그레이 톤/우드 패널 등",
+    "suggested_floor_style": "밝은 원목/헤링본/그레이 타일 등"
+  },
+  "analysis_confidence": "high/medium/low",
+  "additional_notes": "추가 관찰 사항"
+}`;
+
+    // ═══════════════════════════════════════════════════════════════
+    // DALL-E 배경 보정 프롬프트 생성
+    // ═══════════════════════════════════════════════════════════════
+    function generateDesignPrompt(category, style, wallAnalysis) {
+      const info = categoryInfo[category];
+      
+      let basePrompt = `Professional interior design photo of a modern Korean apartment with ${info.name} (${category}) installation. Style: ${style}.`;
+      
+      // 배경 보정 지시
+      let backgroundPrompt = `
+BACKGROUND REQUIREMENTS:
+- Clean, pristine walls with smooth matte finish
+- Fresh, modern wallpaper or paint (light gray or warm white tones)
+- Pristine flooring - light oak hardwood or modern laminate
+- No visible damage, stains, or imperfections
+- Soft natural lighting from windows
+- Minimalist, clutter-free space`;
+
+      // 벽 분석 결과 반영
+      if (wallAnalysis) {
+        const dims = wallAnalysis.space_analysis?.estimated_dimensions;
+        const constraints = wallAnalysis.installation_constraints;
+        const bgCond = wallAnalysis.background_condition;
+        
+        if (dims) {
+          basePrompt += ` Room dimensions approximately ${dims.total_width_mm/1000}m wide, ${dims.ceiling_height_mm/1000}m ceiling height.`;
+        }
+        
+        if (constraints) {
+          basePrompt += ` Cabinet dimensions: ${constraints.recommended_cabinet_width_mm}mm wide, ${constraints.recommended_cabinet_height_mm}mm tall, ${constraints.recommended_cabinet_depth_mm}mm deep.`;
+        }
+        
+        if (bgCond?.suggested_wall_style) {
+          backgroundPrompt += `\n- Wall style: ${bgCond.suggested_wall_style}`;
+        }
+        if (bgCond?.suggested_floor_style) {
+          backgroundPrompt += `\n- Floor style: ${bgCond.suggested_floor_style}`;
+        }
+      }
+
+      // 카테고리별 특화 프롬프트
+      const categoryPrompts = {
+        sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
+        wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, internal LED lighting, mix of hanging space and shelves.`,
+        fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
+        vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
+        shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
+        storage: `Custom storage solution with adjustable shelves, clean doors, organized interior compartments.`
+      };
+
+      const fullPrompt = `${basePrompt}
+
+${categoryPrompts[category] || ''}
+
+${backgroundPrompt}
+
+STYLE DETAILS for ${style}:
+${getStyleDetails(style)}
+
+QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K quality, perfect lighting, architectural visualization.`;
+
+      return fullPrompt;
+    }
+
+    function getStyleDetails(style) {
+      const styles = {
+        '모던': 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes.',
+        '스칸디나비안': 'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere.',
+        '인더스트리얼': 'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures.',
+        '미니멀': 'Essential elements only, maximum whitespace, handleless design, flush surfaces, monochromatic palette, zen-like simplicity.',
+        '럭셔리': 'Premium materials, gold/brass accents, rich textures, marble elements, sophisticated lighting, high-end finishes.'
+      };
+      return styles[style] || styles['모던'];
+    }
     
     // ═══════════════════════════════════════════════════════════════
     // State
@@ -747,10 +922,10 @@
         await sleep(500);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 2: 벽 구조 분석 (Claude Vision)
+        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
         // ═══════════════════════════════════════════════════════════
         updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
-        document.getElementById('loadingTitle').textContent = `🧱 벽 구조 분석 중...`;
+        document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
 
         try {
           const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
@@ -758,7 +933,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               room_image: imageData.base64,
-              image_type: imageData.type
+              image_type: imageData.type,
+              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
+              category: category
             })
           });
 
@@ -774,34 +951,14 @@
         }
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 반영)
+        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
         // ═══════════════════════════════════════════════════════════
         updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
         document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
 
-        // 벽 분석 결과를 프롬프트에 반영
-        let additionalContext = `${info.name} 리디자인`;
-        if (wallAnalysis) {
-          additionalContext += `. 공간 구조: ${wallAnalysis.layout_type || '일자형'}`;
-          if (wallAnalysis.recommended_cabinet_walls?.length > 0) {
-            additionalContext += `. 캐비넷 배치 추천 위치: ${wallAnalysis.recommended_cabinet_walls.join(', ')}`;
-          }
-          if (wallAnalysis.obstacles?.length > 0) {
-            additionalContext += `. 주의할 장애물: ${wallAnalysis.obstacles.join(', ')}`;
-          }
-          if (wallAnalysis.walls?.length > 0) {
-            const wallFeatures = wallAnalysis.walls.map(w => {
-              const features = [];
-              if (w.features?.has_window) features.push('창문');
-              if (w.features?.has_door) features.push('문');
-              if (w.features?.has_pipe) features.push('배관');
-              return features.length > 0 ? `${w.position}벽(${features.join(',')})` : null;
-            }).filter(Boolean);
-            if (wallFeatures.length > 0) {
-              additionalContext += `. 벽면 특성: ${wallFeatures.join(', ')}`;
-            }
-          }
-        }
+        // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
+        const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
+        console.log('Design Prompt:', designPrompt);
 
         try {
           const response = await fetch(N8N_INTERIOR_URL, {
@@ -811,7 +968,7 @@
               room_image: imageData.base64,
               image_type: imageData.type,
               design_style: state.selectedStyle,
-              additional_request: additionalContext
+              additional_request: designPrompt
             })
           });
 
@@ -871,7 +1028,7 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // RENDER RESULT PAGES (with Wall Analysis)
+    // RENDER RESULT PAGES (상세 분석 결과 포함)
     // ═══════════════════════════════════════════════════════════════
     function renderResultPages() {
       const pagesContainer = document.getElementById('resultPages');
@@ -890,41 +1047,120 @@
         const info = categoryInfo[result.category];
         const wa = result.wallAnalysis;
 
-        // Wall Analysis HTML
+        // 상세 Wall Analysis HTML
         let wallAnalysisHTML = '';
         if (wa) {
-          const features = [];
-          if (wa.walls) {
-            wa.walls.forEach(wall => {
-              if (wall.features?.has_window) features.push('🪟 창문');
-              if (wall.features?.has_door) features.push('🚪 문');
-              if (wall.features?.has_outlet) features.push('🔌 콘센트');
-              if (wall.features?.has_pipe) features.push('🔧 배관');
+          // 치수 정보
+          const dims = wa.space_analysis?.estimated_dimensions || wa.estimated_dimensions || {};
+          const constraints = wa.installation_constraints || {};
+          const bgCond = wa.background_condition || {};
+          
+          // 기본 레이아웃 타입 (이전 버전 호환)
+          const layoutType = wa.space_analysis?.layout_type || wa.layout_type || '-';
+          
+          // 추정 치수
+          const totalWidth = dims.total_width_mm || '-';
+          const ceilingHeight = dims.ceiling_height_mm || '-';
+          const depth = dims.depth_mm || constraints.recommended_cabinet_depth_mm || '-';
+          
+          // 설치 가능 영역
+          const installWidth = constraints.recommended_cabinet_width_mm || '-';
+          const installHeight = constraints.recommended_cabinet_height_mm || '-';
+          const installDepth = constraints.recommended_cabinet_depth_mm || '-';
+          
+          // 장애물 목록
+          let obstaclesHTML = '';
+          const walls = wa.walls || [];
+          walls.forEach(wall => {
+            if (wall.obstacles && wall.obstacles.length > 0) {
+              wall.obstacles.forEach(obs => {
+                const icon = getObstacleIcon(obs.type);
+                obstaclesHTML += `<span class="obstacle-tag ${obs.clearance_required_mm > 100 ? 'warning' : ''}">${icon} ${obs.type} (${obs.position_mm || obs.size_mm || ''})</span>`;
+              });
+            }
+            // 이전 버전 호환
+            if (wall.features) {
+              if (wall.features.has_window) obstaclesHTML += `<span class="obstacle-tag">🪟 창문</span>`;
+              if (wall.features.has_door) obstaclesHTML += `<span class="obstacle-tag">🚪 문</span>`;
+              if (wall.features.has_outlet) obstaclesHTML += `<span class="obstacle-tag">🔌 콘센트</span>`;
+              if (wall.features.has_pipe) obstaclesHTML += `<span class="obstacle-tag warning">🔧 배관</span>`;
+            }
+          });
+          
+          // 피해야 할 영역
+          if (wa.obstacles && wa.obstacles.length > 0) {
+            wa.obstacles.forEach(obs => {
+              obstaclesHTML += `<span class="obstacle-tag">${obs}</span>`;
             });
+          }
+          
+          // 배경 보정 권장 사항
+          let bgRefreshHTML = '';
+          if (bgCond.wall_needs_refresh || bgCond.floor_needs_refresh) {
+            bgRefreshHTML = `
+              <div class="bg-refresh-box">
+                <h5>✨ 배경 보정 적용됨</h5>
+                ${bgCond.wall_needs_refresh ? `<div class="bg-refresh-item">🎨 벽면: ${bgCond.suggested_wall_style || '깔끔한 화이트 톤'}</div>` : ''}
+                ${bgCond.floor_needs_refresh ? `<div class="bg-refresh-item">🪵 바닥: ${bgCond.suggested_floor_style || '밝은 원목 마루'}</div>` : ''}
+              </div>
+            `;
           }
 
           wallAnalysisHTML = `
             <div class="wall-analysis-box">
-              <h4>📐 공간 분석 결과 <span class="badge">Claude Vision</span></h4>
+              <h4>📐 상세 공간 분석 <span class="badge">Claude Vision AI</span></h4>
+              
+              <!-- 추정 치수 -->
+              <div class="dimension-display">
+                <div class="dimension-item">
+                  <div class="value">${formatDimension(totalWidth)}</div>
+                  <div class="unit">mm</div>
+                  <div class="label">전체 폭</div>
+                </div>
+                <div class="dimension-item">
+                  <div class="value">${formatDimension(ceilingHeight)}</div>
+                  <div class="unit">mm</div>
+                  <div class="label">천장 높이</div>
+                </div>
+                <div class="dimension-item">
+                  <div class="value">${formatDimension(depth)}</div>
+                  <div class="unit">mm</div>
+                  <div class="label">설치 깊이</div>
+                </div>
+              </div>
+              
+              <!-- 설치 가능 영역 -->
+              <div class="install-zone">
+                <div class="title">🎯 권장 설치 치수</div>
+                <div class="dims">${formatDimension(installWidth)} × ${formatDimension(installHeight)} × ${formatDimension(installDepth)} mm</div>
+              </div>
+              
+              <!-- 기본 정보 -->
               <div class="wall-info-grid">
                 <div class="wall-info-item">
                   <div class="label">레이아웃</div>
-                  <div class="value">${wa.layout_type || '-'}</div>
+                  <div class="value">${layoutType}</div>
                 </div>
                 <div class="wall-info-item">
-                  <div class="label">추천 배치</div>
-                  <div class="value">${wa.recommended_cabinet_walls?.join(', ') || '-'}</div>
+                  <div class="label">좌우 여유</div>
+                  <div class="value">${constraints.side_clearance_mm || 10}mm</div>
                 </div>
                 <div class="wall-info-item">
-                  <div class="label">장애물</div>
-                  <div class="value">${wa.obstacles?.length > 0 ? wa.obstacles.join(', ') : '없음'}</div>
+                  <div class="label">상단 여유</div>
+                  <div class="value">${constraints.top_clearance_mm || 10}mm</div>
                 </div>
               </div>
-              ${features.length > 0 ? `
-                <div class="wall-features">
-                  ${[...new Set(features)].map(f => `<span class="wall-feature detected">${f}</span>`).join('')}
+              
+              <!-- 장애물 -->
+              ${obstaclesHTML ? `
+                <div style="margin-top:12px">
+                  <div style="font-size:11px;color:var(--gray);margin-bottom:6px">⚠️ 감지된 장애물</div>
+                  <div class="obstacles-list">${obstaclesHTML}</div>
                 </div>
               ` : ''}
+              
+              <!-- 배경 보정 -->
+              ${bgRefreshHTML}
             </div>
           `;
         }
@@ -984,6 +1220,22 @@
       }
 
       state.currentPage = 0;
+    }
+
+    function formatDimension(value) {
+      if (!value || value === '-') return '-';
+      if (typeof value === 'number') {
+        return value.toLocaleString();
+      }
+      return value;
+    }
+
+    function getObstacleIcon(type) {
+      const icons = {
+        '문': '🚪', '창문': '🪟', '콘센트': '🔌', '배관': '🔧',
+        '에어컨': '❄️', '스위치': '💡', '환기구': '🌀', '기둥': '🏛️'
+      };
+      return icons[type] || '⚠️';
     }
 
     // ═══════════════════════════════════════════════════════════════
