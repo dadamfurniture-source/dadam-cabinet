@@ -2,7 +2,10 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2D2A26">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>다담가구 - AI가 설계하는 프리미엄 맞춤 가구</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,18 +13,21 @@
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C}
-    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.7}
+    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.7;-webkit-tap-highlight-color:transparent}
     h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
     a{text-decoration:none;color:inherit}
+    button{-webkit-tap-highlight-color:transparent}
 
     /* Shared Button Styles */
-    .btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;letter-spacing:2px;text-transform:uppercase;transition:all .3s}
+    .btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;letter-spacing:2px;text-transform:uppercase;transition:all .3s;-webkit-tap-highlight-color:transparent}
     .btn-outline{padding:16px 32px;border:1px solid rgba(255,255,255,.5);color:#fff}
     .btn-outline:hover{background:#fff;color:var(--charcoal)}
     .btn-solid{padding:16px 32px;background:var(--charcoal);color:#fff}
     .btn-solid:hover{background:var(--gold)}
 
-    /* Navigation */
+    /* ═══════════════════════════════════════════════════════════════
+       NAVIGATION
+       ═══════════════════════════════════════════════════════════════ */
     .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:80px;display:flex;align-items:center;justify-content:space-between;transition:all .5s}
     .nav.scrolled{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.1)}
     .nav-logo{display:flex;align-items:center;gap:8px;color:#fff;transition:color .5s}
@@ -36,8 +42,28 @@
     .nav.scrolled .nav-icons{color:var(--charcoal)}
     .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
 
-    /* Hero */
-    .hero{position:relative;height:100vh;overflow:hidden}
+    /* Hamburger Menu Button */
+    .hamburger{display:none;flex-direction:column;gap:5px;padding:10px;cursor:pointer;background:none;border:none;z-index:101}
+    .hamburger span{width:24px;height:2px;background:#fff;border-radius:2px;transition:all .3s}
+    .nav.scrolled .hamburger span{background:var(--charcoal)}
+    .hamburger.active span{background:var(--charcoal)}
+    .hamburger.active span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
+    .hamburger.active span:nth-child(2){opacity:0}
+    .hamburger.active span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+
+    /* Mobile Menu Overlay */
+    .mobile-menu{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--white);z-index:99;padding:100px 24px 24px;display:none;flex-direction:column;gap:8px;overflow-y:auto}
+    .mobile-menu.active{display:flex}
+    .mobile-menu a{padding:18px 20px;font-size:18px;border-radius:12px;transition:background .3s;color:var(--charcoal)}
+    .mobile-menu a:hover,.mobile-menu a:active{background:var(--cream);color:var(--gold)}
+    .mobile-menu-footer{margin-top:auto;padding-top:24px;border-top:1px solid var(--warm)}
+    .mobile-menu-contact{display:flex;flex-direction:column;gap:12px;color:var(--gray);font-size:14px}
+    .mobile-menu-contact a{padding:8px 0;display:flex;align-items:center;gap:10px}
+
+    /* ═══════════════════════════════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════════════════════════════ */
+    .hero{position:relative;height:100vh;min-height:600px;overflow:hidden}
     .hero-slide{position:absolute;inset:0;opacity:0;transition:opacity 1s}
     .hero-slide.active{opacity:1}
     .hero-slide img{width:100%;height:100%;object-fit:cover}
@@ -49,23 +75,27 @@
     .hero-text p{font-size:18px;opacity:.8;margin-bottom:8px}
     .hero-text .btn{margin-top:32px}
     .hero-controls{position:absolute;bottom:48px;left:48px;display:flex;gap:8px}
-    .hero-dot{width:48px;height:4px;background:rgba(255,255,255,.3);border:none;cursor:pointer;overflow:hidden;position:relative}
+    .hero-dot{width:48px;height:4px;background:rgba(255,255,255,.3);border:none;cursor:pointer;overflow:hidden;position:relative;-webkit-tap-highlight-color:transparent}
     .hero-dot.active::after{content:'';position:absolute;inset:0;background:#fff;animation:progress 6s linear}
     @keyframes progress{from{width:0}to{width:100%}}
     .hero-arrows{position:absolute;bottom:48px;right:48px;display:flex;gap:8px}
-    .hero-arrow{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.3);background:none;color:#fff;cursor:pointer;transition:all .3s}
-    .hero-arrow:hover{background:#fff;color:var(--charcoal)}
+    .hero-arrow{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.3);background:none;color:#fff;cursor:pointer;transition:all .3s;-webkit-tap-highlight-color:transparent}
+    .hero-arrow:hover,.hero-arrow:active{background:#fff;color:var(--charcoal)}
     .hero-counter{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:14px;letter-spacing:4px}
     .hero-counter span{color:#fff}
 
-    /* Section Common */
+    /* ═══════════════════════════════════════════════════════════════
+       SECTION COMMON
+       ═══════════════════════════════════════════════════════════════ */
     .section{padding:80px 48px}
     .section-title{text-align:center;font-size:36px;margin-bottom:48px}
 
-    /* Products */
-    .products-grid{display:flex;gap:16px;overflow-x:auto;padding-bottom:16px;scrollbar-width:none}
+    /* ═══════════════════════════════════════════════════════════════
+       PRODUCTS
+       ═══════════════════════════════════════════════════════════════ */
+    .products-grid{display:flex;gap:16px;overflow-x:auto;padding-bottom:16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
     .products-grid::-webkit-scrollbar{display:none}
-    .product-card{flex-shrink:0;width:320px;aspect-ratio:4/3;position:relative;overflow:hidden}
+    .product-card{flex-shrink:0;width:320px;aspect-ratio:4/3;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent}
     .product-card img{width:100%;height:100%;object-fit:cover;transition:transform .7s}
     .product-card:hover img{transform:scale(1.05)}
     .product-card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
@@ -73,8 +103,10 @@
     .product-card-text p{font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.7}
     .product-card-text h3{font-size:24px;margin-top:4px}
 
-    /* Dadam Home */
-    .dadam-home{position:relative;height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff}
+    /* ═══════════════════════════════════════════════════════════════
+       DADAM HOME
+       ═══════════════════════════════════════════════════════════════ */
+    .dadam-home{position:relative;min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:60px 24px}
     .dadam-home-bg{position:absolute;inset:0}
     .dadam-home-bg img{width:100%;height:100%;object-fit:cover}
     .dadam-home-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.6)}
@@ -82,14 +114,17 @@
     .dadam-home h2{font-size:48px;margin-bottom:16px}
     .dadam-home-content>p{opacity:.7;margin-bottom:48px}
     .dadam-home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:64px;max-width:800px}
+    .dadam-home-item{-webkit-tap-highlight-color:transparent}
     .dadam-home-item h3{font-size:24px;margin-bottom:16px}
     .dadam-home-item .open{display:flex;align-items:center;justify-content:center;gap:16px;color:rgba(255,255,255,.5);transition:color .3s}
-    .dadam-home-item:hover .open{color:#fff}
+    .dadam-home-item:hover .open,.dadam-home-item:active .open{color:#fff}
     .dadam-home-item .open span{font-size:12px;letter-spacing:2px;text-transform:uppercase}
     .dadam-home-item .open::before,.dadam-home-item .open::after{content:'';width:32px;height:1px;background:currentColor}
     .dadam-home-item p{margin-top:16px;font-size:14px;opacity:.5}
 
-    /* Brand Story */
+    /* ═══════════════════════════════════════════════════════════════
+       BRAND STORY
+       ═══════════════════════════════════════════════════════════════ */
     .brand-story{background:var(--cream)}
     .brand-story-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;max-width:1400px;margin:0 auto;align-items:center}
     .brand-story-img{aspect-ratio:4/3;overflow:hidden}
@@ -99,30 +134,36 @@
     .brand-story-text .subtitle{color:var(--gray);margin-bottom:32px}
     .brand-story-text .desc{color:var(--gray);line-height:1.8;margin-bottom:32px}
 
-    /* Instagram */
-    .instagram-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:48px}
+    /* ═══════════════════════════════════════════════════════════════
+       INSTAGRAM
+       ═══════════════════════════════════════════════════════════════ */
+    .instagram-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:48px;flex-wrap:wrap;gap:16px}
     .instagram-header-left{display:flex;align-items:center;gap:16px}
     .instagram-header-left svg{width:24px;height:24px}
     .instagram-header a{color:var(--gray);font-size:14px}
     .instagram-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-    .instagram-item{aspect-ratio:1;overflow:hidden;position:relative}
+    .instagram-item{aspect-ratio:1;overflow:hidden;position:relative;-webkit-tap-highlight-color:transparent}
     .instagram-item img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
     .instagram-item:hover img{transform:scale(1.05)}
     .instagram-item::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .3s}
     .instagram-item:hover::after{background:rgba(0,0,0,.3)}
 
-    /* CTA */
+    /* ═══════════════════════════════════════════════════════════════
+       CTA
+       ═══════════════════════════════════════════════════════════════ */
     .cta{background:var(--charcoal);text-align:center;color:#fff}
     .cta h2{font-size:48px;margin-bottom:24px}
     .cta p{opacity:.6;margin-bottom:40px}
-    .cta-buttons{display:flex;gap:16px;justify-content:center}
-    .cta-btn{padding:16px 40px;font-size:14px;letter-spacing:2px;text-transform:uppercase;transition:all .3s}
+    .cta-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+    .cta-btn{padding:16px 40px;font-size:14px;letter-spacing:2px;text-transform:uppercase;transition:all .3s;-webkit-tap-highlight-color:transparent}
     .cta-btn.primary{background:#fff;color:var(--charcoal)}
-    .cta-btn.primary:hover{background:var(--gold);color:#fff}
+    .cta-btn.primary:hover,.cta-btn.primary:active{background:var(--gold);color:#fff}
     .cta-btn.outline{border:1px solid rgba(255,255,255,.3);color:#fff}
-    .cta-btn.outline:hover{background:#fff;color:var(--charcoal)}
+    .cta-btn.outline:hover,.cta-btn.outline:active{background:#fff;color:var(--charcoal)}
 
-    /* Footer */
+    /* ═══════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════ */
     .footer{padding:80px 48px;background:var(--charcoal);color:#fff}
     .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:48px;max-width:1400px;margin:0 auto}
     .footer-brand{display:flex;align-items:center;gap:8px;margin-bottom:24px}
@@ -131,31 +172,192 @@
     .footer-desc{color:rgba(255,255,255,.6);font-size:14px;line-height:1.8;max-width:400px;margin-bottom:32px}
     .footer-contact{display:grid;grid-template-columns:1fr 1fr;gap:16px}
     .footer-contact-item{display:flex;align-items:center;gap:12px;color:rgba(255,255,255,.6);font-size:14px}
-    .footer-contact-item svg{width:16px;height:16px;color:var(--gold)}
+    .footer-contact-item svg{width:16px;height:16px;color:var(--gold);flex-shrink:0}
     .footer h4{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:24px;font-family:inherit;font-weight:400}
     .footer-links{list-style:none}
     .footer-links li{margin-bottom:12px}
     .footer-links a{color:rgba(255,255,255,.6);font-size:14px;transition:color .3s}
     .footer-links a:hover{color:#fff}
-    .footer-bottom{border-top:1px solid rgba(255,255,255,.1);margin-top:48px;padding-top:24px;display:flex;justify-content:space-between;color:rgba(255,255,255,.4);font-size:12px}
+    .footer-bottom{border-top:1px solid rgba(255,255,255,.1);margin-top:48px;padding-top:24px;display:flex;justify-content:space-between;color:rgba(255,255,255,.4);font-size:12px;flex-wrap:wrap;gap:8px}
     .footer-box{margin-top:32px;padding:16px;border:1px solid rgba(184,149,108,.3)}
     .footer-box p:first-child{color:var(--gold);font-size:14px;font-weight:500}
     .footer-box p:last-child{color:rgba(255,255,255,.4);font-size:12px;margin-top:4px}
 
-    /* Responsive */
+    /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE - TABLET (1024px)
+       ═══════════════════════════════════════════════════════════════ */
+    @media(max-width:1024px){
+      .nav{padding:0 32px;height:72px}
+      .nav-menu{gap:24px}
+      .nav-menu a{font-size:13px}
+      .hero-content{padding:0 32px}
+      .hero-text h1{font-size:52px}
+      .section{padding:64px 32px}
+      .section-title{font-size:32px;margin-bottom:40px}
+      .dadam-home h2{font-size:40px}
+      .dadam-home-grid{gap:40px}
+      .brand-story-text h2{font-size:40px}
+      .cta h2{font-size:40px}
+      .footer{padding:64px 32px}
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE - MOBILE (768px)
+       ═══════════════════════════════════════════════════════════════ */
     @media(max-width:768px){
-      .nav{padding:0 24px}
+      .nav{padding:0 16px;height:64px}
+      .nav-logo svg{width:28px;height:28px}
+      .nav-logo span{font-size:20px}
       .nav-menu{display:none}
-      .hero-text h1{font-size:40px}
-      .hero-content{padding:0 24px}
-      .section{padding:48px 24px}
-      .dadam-home-grid{grid-template-columns:1fr;gap:32px}
-      .brand-story-grid{grid-template-columns:1fr}
-      .instagram-grid{grid-template-columns:repeat(2,1fr)}
-      .cta h2{font-size:32px}
-      .cta-buttons{flex-direction:column}
-      .footer{padding:48px 24px}
-      .footer-grid{grid-template-columns:1fr}
+      .nav-icons>button:not(.hamburger){display:none}
+      .hamburger{display:flex}
+
+      .hero{min-height:100vh}
+      .hero-content{padding:0 20px;align-items:flex-end;padding-bottom:140px}
+      .hero-text{max-width:100%}
+      .hero-text h1{font-size:36px;margin-bottom:16px}
+      .hero-text p{font-size:15px;margin-bottom:4px}
+      .hero-text .btn{margin-top:24px;padding:14px 28px;font-size:13px}
+      .hero-controls{bottom:32px;left:20px;gap:6px}
+      .hero-dot{width:32px;height:3px}
+      .hero-arrows{bottom:32px;right:20px;gap:6px}
+      .hero-arrow{width:40px;height:40px}
+      .hero-counter{bottom:100px;font-size:12px}
+
+      .section{padding:48px 16px}
+      .section-title{font-size:28px;margin-bottom:32px}
+
+      .products-grid{gap:12px;padding:0 16px 16px;margin:0 -16px}
+      .product-card{width:260px}
+      .product-card-text{bottom:16px;left:16px}
+      .product-card-text h3{font-size:20px}
+
+      .dadam-home{min-height:auto;padding:80px 20px}
+      .dadam-home h2{font-size:32px;margin-bottom:12px}
+      .dadam-home-content>p{margin-bottom:40px;font-size:14px}
+      .dadam-home-grid{grid-template-columns:1fr;gap:32px;max-width:280px}
+      .dadam-home-item h3{font-size:20px;margin-bottom:12px}
+      .dadam-home-item .open{gap:12px}
+      .dadam-home-item .open::before,.dadam-home-item .open::after{width:24px}
+      .dadam-home-item p{font-size:13px;margin-top:12px}
+
+      .brand-story-grid{grid-template-columns:1fr;gap:32px}
+      .brand-story-img{aspect-ratio:16/10}
+      .brand-story-text .label{font-size:11px;margin-bottom:12px}
+      .brand-story-text h2{font-size:32px}
+      .brand-story-text .subtitle{margin-bottom:24px}
+      .brand-story-text .desc{font-size:14px;margin-bottom:24px}
+      .brand-story-text .btn{padding:14px 28px;font-size:13px}
+
+      .instagram-header{margin-bottom:24px}
+      .instagram-header-left{gap:10px}
+      .instagram-header-left svg{width:20px;height:20px}
+      .instagram-header-left span{font-size:14px}
+      .instagram-header a{font-size:13px}
+      .instagram-grid{grid-template-columns:repeat(2,1fr);gap:6px}
+
+      .cta h2{font-size:28px;margin-bottom:16px}
+      .cta p{font-size:14px;margin-bottom:32px}
+      .cta-buttons{flex-direction:column;gap:12px;padding:0 20px}
+      .cta-btn{width:100%;text-align:center;justify-content:center;padding:14px 32px}
+
+      .footer{padding:48px 16px}
+      .footer-grid{grid-template-columns:1fr;gap:40px}
+      .footer-brand svg{width:28px;height:28px}
+      .footer-brand span{font-size:20px}
+      .footer-desc{font-size:13px;margin-bottom:24px}
+      .footer-contact{grid-template-columns:1fr;gap:12px}
+      .footer-contact-item{font-size:13px}
+      .footer h4{margin-bottom:16px}
+      .footer-links a{font-size:13px}
+      .footer-bottom{flex-direction:column;text-align:center;gap:4px;margin-top:32px;padding-top:20px}
+      .footer-box{margin-top:24px;padding:14px}
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE - SMALL MOBILE (480px)
+       ═══════════════════════════════════════════════════════════════ */
+    @media(max-width:480px){
+      .nav{height:56px}
+      .nav-logo svg{width:24px;height:24px}
+      .nav-logo span{font-size:18px}
+
+      .hero-content{padding-bottom:120px}
+      .hero-text h1{font-size:28px}
+      .hero-text p{font-size:14px}
+      .hero-text .btn{padding:12px 24px;font-size:12px}
+      .hero-controls{bottom:24px;left:16px}
+      .hero-arrows{bottom:24px;right:16px}
+      .hero-arrow{width:36px;height:36px}
+      .hero-counter{bottom:80px;font-size:11px}
+
+      .section{padding:40px 12px}
+      .section-title{font-size:24px;margin-bottom:24px}
+
+      .products-grid{padding:0 12px 12px;margin:0 -12px;gap:10px}
+      .product-card{width:220px}
+      .product-card-text{bottom:12px;left:12px}
+      .product-card-text p{font-size:10px}
+      .product-card-text h3{font-size:18px}
+
+      .dadam-home{padding:60px 16px}
+      .dadam-home h2{font-size:26px}
+      .dadam-home-item h3{font-size:18px}
+
+      .brand-story-text h2{font-size:26px}
+      .brand-story-text .desc{font-size:13px}
+
+      .instagram-grid{gap:4px}
+
+      .cta{padding:40px 12px}
+      .cta h2{font-size:24px}
+      .cta p{font-size:13px}
+      .cta-btn{padding:12px 24px;font-size:12px}
+
+      .footer{padding:40px 12px}
+      .footer-desc{font-size:12px}
+      .footer-contact-item{font-size:12px;gap:8px}
+      .footer-links a{font-size:12px}
+      .footer-bottom{font-size:10px}
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       LANDSCAPE MODE FIX
+       ═══════════════════════════════════════════════════════════════ */
+    @media(max-height:500px) and (orientation:landscape){
+      .hero{min-height:100vh}
+      .hero-content{padding-bottom:80px}
+      .hero-text h1{font-size:28px;margin-bottom:12px}
+      .hero-controls,.hero-arrows{bottom:16px}
+      .hero-counter{bottom:60px}
+      .dadam-home{min-height:auto;padding:40px 24px}
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TOUCH DEVICE OPTIMIZATION
+       ═══════════════════════════════════════════════════════════════ */
+    @media(hover:none){
+      .product-card:hover img{transform:none}
+      .product-card:active img{transform:scale(1.02)}
+      .instagram-item:hover img{transform:none}
+      .instagram-item:hover::after{background:transparent}
+      .hero-arrow:hover{background:none;color:#fff}
+      .hero-arrow:active{background:#fff;color:var(--charcoal)}
+      .dadam-home-item:hover .open{color:rgba(255,255,255,.5)}
+      .dadam-home-item:active .open{color:#fff}
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       SAFE AREA (iPhone X+)
+       ═══════════════════════════════════════════════════════════════ */
+    @supports(padding:max(0px)){
+      .nav{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+      .hero-content{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+      .hero-controls{left:max(20px,env(safe-area-inset-left))}
+      .hero-arrows{right:max(20px,env(safe-area-inset-right))}
+      .section{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+      .footer{padding-bottom:max(48px,env(safe-area-inset-bottom))}
+      .mobile-menu{padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right));padding-bottom:max(24px,env(safe-area-inset-bottom))}
     }
   </style>
 </head>
@@ -194,46 +396,52 @@
     <div class="nav-icons">
       <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-user"/></svg></button>
       <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-search"/></svg></button>
-      <button style="display:flex;align-items:center;gap:4px;font-size:14px">KR<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-down"/></svg></button>
+      <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
   </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#">About us</a>
+    <a href="#">Collection</a>
+    <a href="#">Products</a>
+    <a href="ai-design.html">AI Design</a>
+    <a href="#">Stories</a>
+    <a href="#">Showroom</a>
+    <a href="#">Service</a>
+    <div class="mobile-menu-footer">
+      <div class="mobile-menu-contact">
+        <a href="tel:02-1234-5678">📞 02-1234-5678</a>
+        <a href="#">📍 서울시 강남구 논현동</a>
+      </div>
+    </div>
+  </div>
 
   <!-- Hero Section -->
   <section class="hero">
     <div class="hero-slide active">
-      <img src="app/portfolio/kitchen-n1-1.jpg" alt="DADAM KITCHEN">
+      <img src="app/portfolio/kitchen-n1-1.jpg" alt="다담 프리미엄 주방">
       <div class="hero-overlay"></div>
-      <div class="hero-content">
-        <div class="hero-text">
-          <h1>DADAM <span>KITCHEN</span></h1>
-          <p>AI가 설계하고 장인이 완성하는</p>
-          <p style="opacity:.6">더욱 완벽해진 다담 키친을 만나보세요.</p>
-          <a href="#" class="btn btn-outline">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
-        </div>
-      </div>
     </div>
     <div class="hero-slide">
-      <img src="app/portfolio/kitchen-n7-1.jpg" alt="Premium Collection" loading="lazy">
+      <img src="app/portfolio/kitchen-n3-1.jpg" alt="AI 맞춤 설계">
       <div class="hero-overlay"></div>
-      <div class="hero-content">
-        <div class="hero-text">
-          <h1>Premium <span>Collection</span></h1>
-          <p>다담과 AI의 공간에 대한 철학을 담아 완성한</p>
-          <p style="opacity:.6">하이엔드 프리미엄 공간</p>
-          <a href="#" class="btn btn-outline">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
-        </div>
-      </div>
     </div>
     <div class="hero-slide">
-      <img src="app/portfolio/kitchen-n2-1.jpg" alt="Custom Design" loading="lazy">
+      <img src="app/portfolio/kitchen-n4-1.jpg" alt="프리미엄 인테리어">
       <div class="hero-overlay"></div>
-      <div class="hero-content">
-        <div class="hero-text">
-          <h1>Custom <span>Design</span></h1>
-          <p>AI와 장인 크리에이티브 디렉터가 만나 선보이는</p>
-          <p style="opacity:.6">새로운 공간 디자인 제안</p>
-          <a href="#" class="btn btn-outline">See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
-        </div>
+    </div>
+
+    <div class="hero-content">
+      <div class="hero-text">
+        <h1>AI가 설계하는<br><span>프리미엄</span> 맞춤 가구</h1>
+        <p>30년 장인정신과 AI 기술의 만남</p>
+        <p>완벽한 공간을 위한 최선의 선택</p>
+        <a href="ai-design.html" class="btn btn-outline">AI 설계 시작하기<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow"/></svg></a>
       </div>
     </div>
     <div class="hero-controls">
@@ -324,7 +532,7 @@
         <p class="footer-desc">AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.</p>
         <div class="footer-contact">
           <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-phone"/></svg>02-1234-5678</div>
-          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-mail"/></svg><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0960676f66496d686d6864276a6627627b">[email&#160;protected]</a></div>
+          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-mail"/></svg>info@dadam.com</div>
           <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-location"/></svg>서울시 강남구 논현동 123-45</div>
           <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-clock"/></svg>평일 09:00 - 18:00</div>
         </div>
@@ -357,8 +565,99 @@
     </div>
   </footer>
 
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-    const nav=document.getElementById('nav'),slides=document.querySelectorAll('.hero-slide'),dots=document.querySelectorAll('.hero-dot'),counter=document.getElementById('currentSlide');let cur=0,interval;
-    const go=i=>{slides[cur].classList.remove('active');dots[cur].classList.remove('active');cur=i>=slides.length?0:i<0?slides.length-1:i;slides[cur].classList.add('active');dots[cur].classList.add('active');counter.textContent=String(cur+1).padStart(2,'0');clearInterval(interval);interval=setInterval(()=>go(cur+1),6e3)};
-    window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>50));
-    document.getElementById('nextBtn').addEventListener('click',()=>go
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // 모바일 메뉴
+    // ═══════════════════════════════════════════════════════════════
+    function toggleMobileMenu() {
+      const hamburger = document.querySelector('.hamburger');
+      const mobileMenu = document.getElementById('mobileMenu');
+      const nav = document.getElementById('nav');
+      
+      hamburger.classList.toggle('active');
+      mobileMenu.classList.toggle('active');
+      
+      if (mobileMenu.classList.contains('active')) {
+        document.body.style.overflow = 'hidden';
+        nav.classList.add('scrolled');
+      } else {
+        document.body.style.overflow = '';
+        if (window.scrollY <= 50) {
+          nav.classList.remove('scrolled');
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 히어로 슬라이더
+    // ═══════════════════════════════════════════════════════════════
+    const nav = document.getElementById('nav');
+    const slides = document.querySelectorAll('.hero-slide');
+    const dots = document.querySelectorAll('.hero-dot');
+    const counter = document.getElementById('currentSlide');
+    let cur = 0;
+    let interval;
+
+    const go = i => {
+      slides[cur].classList.remove('active');
+      dots[cur].classList.remove('active');
+      cur = i >= slides.length ? 0 : i < 0 ? slides.length - 1 : i;
+      slides[cur].classList.add('active');
+      dots[cur].classList.add('active');
+      counter.textContent = String(cur + 1).padStart(2, '0');
+      clearInterval(interval);
+      interval = setInterval(() => go(cur + 1), 6000);
+    };
+
+    // 스크롤 이벤트
+    window.addEventListener('scroll', () => {
+      if (!document.getElementById('mobileMenu').classList.contains('active')) {
+        nav.classList.toggle('scrolled', scrollY > 50);
+      }
+    });
+
+    // 슬라이더 버튼
+    document.getElementById('nextBtn').addEventListener('click', () => go(cur + 1));
+    document.getElementById('prevBtn').addEventListener('click', () => go(cur - 1));
+    
+    // 슬라이더 닷
+    dots.forEach((dot, i) => dot.addEventListener('click', () => go(i)));
+
+    // 터치 스와이프 지원
+    let touchStartX = 0;
+    let touchEndX = 0;
+    const heroSection = document.querySelector('.hero');
+
+    heroSection.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    heroSection.addEventListener('touchend', e => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, { passive: true });
+
+    function handleSwipe() {
+      const diff = touchStartX - touchEndX;
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) {
+          go(cur + 1); // 왼쪽 스와이프 -> 다음
+        } else {
+          go(cur - 1); // 오른쪽 스와이프 -> 이전
+        }
+      }
+    }
+
+    // 자동 슬라이드 시작
+    interval = setInterval(() => go(cur + 1), 6000);
+
+    // 뒤로가기 시 모바일 메뉴 닫기
+    window.addEventListener('popstate', () => {
+      const mobileMenu = document.getElementById('mobileMenu');
+      if (mobileMenu.classList.contains('active')) {
+        toggleMobileMenu();
+      }
+    });
+  </script>
+</body>
+</html>
