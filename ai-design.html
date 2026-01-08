@@ -9,210 +9,198 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C}
+    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C;--gold-light:#D4B896}
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.7}
     h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
     a{text-decoration:none;color:inherit}
 
     /* Navigation */
-    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:80px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:72px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
     .nav-logo{display:flex;align-items:center;gap:8px;color:var(--charcoal)}
-    .nav-logo svg{width:32px;height:32px}
-    .nav-logo span{font-family:'Playfair Display',serif;font-size:24px}
-    .nav-menu{display:flex;gap:32px}
-    .nav-menu a{color:var(--charcoal);font-size:14px;letter-spacing:.5px;transition:all .3s}
+    .nav-logo svg{width:28px;height:28px}
+    .nav-logo span{font-family:'Playfair Display',serif;font-size:22px}
+    .nav-menu{display:flex;gap:28px}
+    .nav-menu a{color:var(--charcoal);font-size:13px;letter-spacing:.5px;transition:all .3s}
     .nav-menu a:hover{opacity:.7}
     .nav-menu a.active{color:var(--gold);font-weight:500}
-    .nav-icons{display:flex;align-items:center;gap:24px;color:var(--charcoal)}
+    .nav-icons{display:flex;align-items:center;gap:20px;color:var(--charcoal)}
     .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
 
-    /* Hero Section */
-    .hero{padding:140px 48px 60px;background:linear-gradient(135deg,var(--cream) 0%,var(--white) 100%);text-align:center}
-    .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;background:rgba(184,149,108,.1);border-radius:24px;color:var(--gold);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px}
-    .hero-badge svg{width:16px;height:16px}
-    .hero h1{font-size:48px;margin-bottom:16px}
+    /* Hero - Compact */
+    .hero{padding:100px 48px 32px;background:linear-gradient(180deg,var(--cream) 0%,var(--white) 100%);text-align:center}
+    .hero-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;background:rgba(184,149,108,.12);border-radius:20px;color:var(--gold);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px}
+    .hero h1{font-size:36px;margin-bottom:10px}
     .hero h1 span{color:var(--gold)}
-    .hero p{color:var(--gray);font-size:18px;max-width:600px;margin:0 auto}
+    .hero p{color:var(--gray);font-size:15px}
 
-    /* Main Chat Container */
-    .chat-section{padding:40px 48px 80px;background:var(--white)}
-    .chat-container{max-width:900px;margin:0 auto;display:grid;grid-template-columns:280px 1fr;gap:32px;min-height:600px}
-
-    /* Sidebar */
-    .chat-sidebar{background:var(--cream);border-radius:16px;padding:24px;display:flex;flex-direction:column}
-    .sidebar-title{font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);margin-bottom:16px}
-    .quick-prompts{display:flex;flex-direction:column;gap:8px;flex:1}
-    .quick-prompt{padding:14px 16px;background:var(--white);border:1px solid var(--warm);border-radius:10px;font-size:13px;color:var(--charcoal);cursor:pointer;transition:all .3s;text-align:left}
-    .quick-prompt:hover{border-color:var(--gold);background:rgba(184,149,108,.05)}
-    .quick-prompt span{display:block;font-size:11px;color:var(--gray);margin-top:4px}
-    
-    /* Interior AI Button - NEW */
-    .quick-prompt.interior-ai{background:linear-gradient(135deg,var(--gold),#D4A574);color:#fff;border:none}
-    .quick-prompt.interior-ai:hover{background:linear-gradient(135deg,#D4A574,var(--gold));transform:translateY(-2px);box-shadow:0 4px 12px rgba(184,149,108,.3)}
-    .quick-prompt.interior-ai span{color:rgba(255,255,255,.8)}
-    
-    .sidebar-divider{height:1px;background:var(--warm);margin:12px 0}
-    
-    .sidebar-info{margin-top:auto;padding-top:24px;border-top:1px solid var(--warm)}
-    .sidebar-info p{font-size:12px;color:var(--gray);line-height:1.6}
-    .sidebar-info svg{width:14px;height:14px;vertical-align:middle;margin-right:4px}
-
-    /* Chat Area */
-    .chat-area{display:flex;flex-direction:column;background:var(--white);border:1px solid var(--warm);border-radius:16px;overflow:hidden}
-    .chat-header{padding:20px 24px;border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:12px}
-    .chat-header-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--gold),#D4A574);border-radius:10px;display:flex;align-items:center;justify-content:center}
-    .chat-header-icon svg{width:20px;height:20px;color:#fff}
-    .chat-header-text h3{font-size:16px;font-family:inherit;font-weight:500}
-    .chat-header-text p{font-size:12px;color:var(--gray)}
-    .chat-status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray)}
-    .chat-status::before{content:'';width:8px;height:8px;background:#4CAF50;border-radius:50%}
-
-    /* Messages Area */
-    .chat-messages{flex:1;padding:24px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;min-height:400px;max-height:500px}
-    .message{display:flex;gap:12px;max-width:85%}
-    .message.user{flex-direction:row-reverse;margin-left:auto}
-    .message-avatar{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .message.ai .message-avatar{background:linear-gradient(135deg,var(--gold),#D4A574)}
-    .message.ai .message-avatar svg{width:18px;height:18px;color:#fff}
-    .message.user .message-avatar{background:var(--charcoal)}
-    .message.user .message-avatar svg{width:18px;height:18px;color:#fff}
-    .message-content{padding:14px 18px;border-radius:14px;font-size:14px;line-height:1.7}
-    .message.ai .message-content{background:var(--cream);border-bottom-left-radius:4px}
-    .message.user .message-content{background:var(--charcoal);color:#fff;border-bottom-right-radius:4px}
-    .message-time{font-size:10px;color:var(--gray);margin-top:6px}
-    .message.user .message-time{text-align:right}
-
-    /* Typing Indicator */
-    .typing-indicator{display:flex;gap:4px;padding:14px 18px;background:var(--cream);border-radius:14px;border-bottom-left-radius:4px;width:fit-content}
-    .typing-indicator span{width:8px;height:8px;background:var(--gray);border-radius:50%;animation:typing 1.4s infinite}
-    .typing-indicator span:nth-child(2){animation-delay:.2s}
-    .typing-indicator span:nth-child(3){animation-delay:.4s}
-    @keyframes typing{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
-
-    /* Welcome Message */
-    .welcome-message{text-align:center;padding:40px 20px}
-    .welcome-icon{width:64px;height:64px;background:linear-gradient(135deg,var(--gold),#D4A574);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
-    .welcome-icon svg{width:32px;height:32px;color:#fff}
-    .welcome-message h3{font-size:20px;margin-bottom:8px}
-    .welcome-message p{color:var(--gray);font-size:14px;max-width:300px;margin:0 auto}
-
-    /* Input Area */
-    .chat-input{padding:20px 24px;border-top:1px solid var(--warm);background:var(--cream)}
-    .input-wrapper{display:flex;gap:12px;align-items:flex-end}
-    .input-field{flex:1;position:relative}
-    .input-field textarea{width:100%;padding:14px 18px;border:1px solid var(--warm);border-radius:12px;font-size:14px;font-family:inherit;resize:none;background:var(--white);transition:all .3s;min-height:50px;max-height:120px}
-    .input-field textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,149,108,.1)}
-    .input-field textarea::placeholder{color:var(--gray)}
-    .send-btn{width:50px;height:50px;background:var(--charcoal);border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s}
-    .send-btn:hover{background:var(--gold)}
-    .send-btn:disabled{background:var(--warm);cursor:not-allowed}
-    .send-btn svg{width:20px;height:20px;color:#fff}
-    .input-hint{font-size:11px;color:var(--gray);margin-top:8px;display:flex;align-items:center;gap:16px}
-    .input-hint span{display:flex;align-items:center;gap:4px}
+    /* Main Container */
+    .main-container{max-width:1100px;margin:0 auto;padding:0 24px 60px}
 
     /* ═══════════════════════════════════════════════════════════════
-       INTERIOR AI MODAL - NEW
+       COMPACT AI CHAT BOX
        ═══════════════════════════════════════════════════════════════ */
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
-    .modal-overlay.active{display:flex}
+    .chat-box{background:var(--white);border:1px solid var(--warm);border-radius:16px;overflow:hidden;margin-bottom:32px;box-shadow:0 4px 20px rgba(0,0,0,.04)}
     
-    .interior-modal{background:var(--white);border-radius:20px;width:100%;max-width:1100px;max-height:90vh;overflow:hidden;display:grid;grid-template-columns:1fr 1.2fr;box-shadow:0 25px 50px rgba(0,0,0,.25)}
+    .chat-header{padding:14px 20px;background:var(--cream);display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--warm)}
+    .chat-header-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),#D4A574);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .chat-header-icon svg{width:18px;height:18px;color:#fff}
+    .chat-header-text h3{font-size:15px;font-family:inherit;font-weight:600}
+    .chat-header-text p{font-size:11px;color:var(--gray)}
+    .chat-status{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray)}
+    .chat-status::before{content:'';width:7px;height:7px;background:#4CAF50;border-radius:50%}
+
+    .chat-messages{height:160px;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--white)}
     
-    .modal-left{padding:32px;background:var(--cream);display:flex;flex-direction:column;gap:24px;overflow-y:auto}
-    .modal-header{display:flex;align-items:center;justify-content:space-between}
-    .modal-header h2{font-size:24px;display:flex;align-items:center;gap:12px}
-    .modal-header h2 span{background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:10px;padding:4px 10px;border-radius:12px;font-family:sans-serif;font-weight:600}
-    .modal-close{width:36px;height:36px;border:none;background:var(--warm);border-radius:10px;cursor:pointer;font-size:20px;color:var(--gray);transition:all .3s}
-    .modal-close:hover{background:var(--charcoal);color:#fff}
+    .message{display:flex;gap:10px;max-width:80%}
+    .message.user{flex-direction:row-reverse;margin-left:auto}
+    .message-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .message.ai .message-avatar{background:linear-gradient(135deg,var(--gold),#D4A574)}
+    .message.ai .message-avatar svg{width:14px;height:14px;color:#fff}
+    .message.user .message-avatar{background:var(--charcoal)}
+    .message.user .message-avatar svg{width:14px;height:14px;color:#fff}
+    .message-content{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6}
+    .message.ai .message-content{background:var(--cream);border-bottom-left-radius:4px}
+    .message.user .message-content{background:var(--charcoal);color:#fff;border-bottom-right-radius:4px}
+
+    .welcome-msg{text-align:center;padding:20px;color:var(--gray);font-size:13px}
+    .welcome-msg strong{color:var(--charcoal);display:block;margin-bottom:4px}
+
+    .chat-input{padding:14px 20px;border-top:1px solid var(--warm);background:var(--cream);display:flex;gap:10px}
+    .chat-input input{flex:1;padding:10px 14px;border:1px solid var(--warm);border-radius:10px;font-size:13px;background:var(--white)}
+    .chat-input input:focus{outline:none;border-color:var(--gold)}
+    .chat-input button{width:40px;height:40px;background:var(--charcoal);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .3s}
+    .chat-input button:hover{background:var(--gold)}
+    .chat-input button svg{width:16px;height:16px;color:#fff}
+
+    /* ═══════════════════════════════════════════════════════════════
+       CATEGORY GRID (2x3)
+       ═══════════════════════════════════════════════════════════════ */
+    .section-title{font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;text-align:center}
     
-    /* Upload Zone */
-    .upload-zone{border:2px dashed var(--warm);border-radius:16px;padding:32px;text-align:center;cursor:pointer;transition:all .3s}
-    .upload-zone:hover,.upload-zone.dragover{border-color:var(--gold);background:rgba(184,149,108,.05)}
-    .upload-zone.has-image{padding:12px}
-    .upload-zone img{max-width:100%;max-height:200px;border-radius:12px;object-fit:cover}
-    .upload-zone p{color:var(--gray);font-size:14px;margin-top:12px}
-    .upload-icon{font-size:48px;margin-bottom:12px}
+    .category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:40px}
     
-    /* Style Selection */
-    .style-section h3{font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-    .style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    .style-btn{padding:14px 12px;background:var(--white);border:1px solid var(--warm);border-radius:12px;cursor:pointer;transition:all .3s;text-align:center}
-    .style-btn:hover{border-color:var(--gold)}
-    .style-btn.active{background:var(--gold);color:#fff;border-color:var(--gold)}
-    .style-btn .icon{font-size:20px;margin-bottom:4px}
-    .style-btn .name{font-size:13px;font-weight:500}
-    .style-btn .desc{font-size:10px;color:var(--gray);margin-top:2px}
-    .style-btn.active .desc{color:rgba(255,255,255,.7)}
+    .category-card{background:var(--white);border:2px solid var(--warm);border-radius:16px;padding:24px 16px;text-align:center;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+    .category-card:hover{border-color:var(--gold);transform:translateY(-4px);box-shadow:0 8px 24px rgba(184,149,108,.15)}
+    .category-card.active{border-color:var(--gold);background:linear-gradient(135deg,rgba(184,149,108,.08),rgba(212,181,150,.08))}
+    .category-card.has-image{border-color:var(--gold)}
     
-    /* Additional Request */
-    .additional-section textarea{width:100%;padding:14px;border:1px solid var(--warm);border-radius:12px;font-size:14px;font-family:inherit;resize:none;min-height:80px;background:var(--white)}
-    .additional-section textarea:focus{outline:none;border-color:var(--gold)}
+    .category-icon{font-size:36px;margin-bottom:10px;display:block}
+    .category-name{font-size:15px;font-weight:600;color:var(--charcoal);margin-bottom:4px}
+    .category-desc{font-size:11px;color:var(--gray)}
     
-    /* Generate Button */
-    .generate-btn{width:100%;padding:18px;background:var(--charcoal);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:500;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:10px}
-    .generate-btn:hover:not(:disabled){background:var(--gold)}
-    .generate-btn:disabled{opacity:.6;cursor:not-allowed}
-    .generate-btn .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+    .category-upload-hint{position:absolute;bottom:0;left:0;right:0;padding:8px;background:var(--gold);color:#fff;font-size:11px;transform:translateY(100%);transition:transform .3s}
+    .category-card:hover .category-upload-hint{transform:translateY(0)}
+    .category-card.has-image .category-upload-hint{background:var(--charcoal)}
+    
+    .category-preview{width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:none}
+    .category-card.has-image .category-preview{display:block}
+    .category-card.has-image .category-icon{display:none}
+
+    /* Hidden File Inputs */
+    .file-input{display:none}
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESULT AREA
+       ═══════════════════════════════════════════════════════════════ */
+    .result-section{background:var(--cream);border-radius:20px;padding:32px;min-height:400px}
+    
+    .result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+    .result-header h2{font-size:20px;display:flex;align-items:center;gap:10px}
+    .result-header h2 span{font-size:11px;padding:4px 12px;background:var(--gold);color:#fff;border-radius:12px;font-family:sans-serif}
+    
+    .result-actions{display:flex;gap:10px}
+    .result-btn{padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;transition:all .3s;display:flex;align-items:center;gap:6px}
+    .result-btn.download{background:var(--charcoal);color:#fff;border:none}
+    .result-btn.download:hover{background:var(--gold)}
+    .result-btn.share{background:transparent;color:var(--charcoal);border:1px solid var(--charcoal)}
+    .result-btn.share:hover{background:var(--charcoal);color:#fff}
+    .result-btn:disabled{opacity:.5;cursor:not-allowed}
+
+    /* Result Placeholder */
+    .result-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px;color:var(--gray)}
+    .result-placeholder .icon{font-size:64px;margin-bottom:16px;opacity:.4}
+    .result-placeholder h3{font-size:18px;color:var(--charcoal);margin-bottom:8px;font-family:inherit}
+    .result-placeholder p{font-size:14px;max-width:320px}
+    .result-placeholder.hidden{display:none}
+
+    /* Result Content */
+    .result-content{display:none}
+    .result-content.active{display:block}
+
+    .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+    
+    .result-card{background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+    .result-card-header{padding:12px 16px;background:var(--white);border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:8px}
+    .result-card-header .dot{width:8px;height:8px;border-radius:50%}
+    .result-card-header .dot.before{background:#ef4444}
+    .result-card-header .dot.after{background:#10b981}
+    .result-card-header span{font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
+    .result-card img{width:100%;height:280px;object-fit:cover;display:block}
+    
+    .result-main-image{grid-column:1/-1;background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+    .result-main-image img{width:100%;max-height:500px;object-fit:contain;display:block;cursor:pointer;transition:transform .3s}
+    .result-main-image img:hover{transform:scale(1.02)}
+
+    .result-analysis{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .analysis-card{background:var(--white);border-radius:14px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+    .analysis-card h4{font-size:13px;color:var(--gold);margin-bottom:8px;display:flex;align-items:center;gap:6px;font-family:inherit}
+    .analysis-card p{font-size:13px;color:var(--charcoal);line-height:1.7}
+
+    /* Loading State */
+    .result-loading{display:none;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center}
+    .result-loading.active{display:flex}
+    .result-loading .spinner{width:48px;height:48px;border:3px solid var(--warm);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:20px}
     @keyframes spin{to{transform:rotate(360deg)}}
-    
-    /* Modal Right - Results */
-    .modal-right{padding:32px;background:var(--white);display:flex;flex-direction:column;overflow-y:auto}
-    .result-header{display:flex;align-items:center;gap:8px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--warm)}
-    .result-header h3{font-size:18px}
-    
-    .result-placeholder{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--gray)}
-    .result-placeholder .icon{font-size:64px;margin-bottom:16px;opacity:.5}
-    .result-placeholder h4{font-size:18px;color:var(--charcoal);margin-bottom:8px}
-    .result-placeholder p{font-size:14px;max-width:280px}
-    
-    .result-content{display:none;flex-direction:column;gap:20px}
-    .result-content.active{display:flex}
-    
-    .image-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .image-compare .label{font-size:11px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-    .image-compare img{width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--warm)}
-    .image-compare .after img{border-color:var(--gold)}
-    
-    .generated-image{margin-top:8px}
-    .generated-image img{width:100%;border-radius:16px;cursor:pointer;transition:transform .3s}
-    .generated-image img:hover{transform:scale(1.02)}
-    
-    .analysis-box{background:var(--cream);border-radius:14px;padding:20px}
-    .analysis-box h4{font-size:14px;color:var(--gold);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-    .analysis-box p{font-size:13px;color:var(--charcoal);line-height:1.7}
-    .analysis-box+.analysis-box{margin-top:12px}
-    
-    .download-btn{padding:14px;background:var(--gold);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:500;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:auto}
-    .download-btn:hover{background:var(--charcoal)}
+    .result-loading h3{font-size:18px;color:var(--charcoal);margin-bottom:8px}
+    .result-loading p{font-size:14px;color:var(--gray)}
+
+    /* Generate Button */
+    .generate-section{text-align:center;margin-bottom:32px}
+    .generate-btn{padding:16px 48px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;transition:all .3s;display:inline-flex;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(184,149,108,.3)}
+    .generate-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 24px rgba(184,149,108,.4)}
+    .generate-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .generate-btn .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+
+    /* Style Selector */
+    .style-selector{display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+    .style-chip{padding:8px 16px;background:var(--white);border:1px solid var(--warm);border-radius:20px;font-size:12px;cursor:pointer;transition:all .3s}
+    .style-chip:hover{border-color:var(--gold)}
+    .style-chip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
 
     /* Footer */
-    .footer{padding:60px 48px;background:var(--charcoal);color:#fff}
-    .footer-content{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+    .footer{padding:48px;background:var(--charcoal);color:#fff;margin-top:60px}
+    .footer-content{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
     .footer-brand{display:flex;align-items:center;gap:8px}
-    .footer-brand svg{width:28px;height:28px}
-    .footer-brand span{font-family:'Playfair Display',serif;font-size:20px}
-    .footer-links{display:flex;gap:32px}
-    .footer-links a{color:rgba(255,255,255,.6);font-size:14px;transition:color .3s}
+    .footer-brand svg{width:24px;height:24px}
+    .footer-brand span{font-family:'Playfair Display',serif;font-size:18px}
+    .footer-links{display:flex;gap:24px}
+    .footer-links a{color:rgba(255,255,255,.6);font-size:13px;transition:color .3s}
     .footer-links a:hover{color:#fff}
-    .footer-copy{text-align:center;margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.4)}
+    .footer-copy{text-align:center;margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.1);font-size:11px;color:rgba(255,255,255,.4)}
+
+    /* Toast Notification */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--charcoal);color:#fff;padding:14px 24px;border-radius:12px;font-size:14px;z-index:1000;transition:transform .3s;display:flex;align-items:center;gap:10px}
+    .toast.show{transform:translateX(-50%) translateY(0)}
+    .toast.success{background:#10b981}
+    .toast.error{background:#ef4444}
 
     /* Responsive */
-    @media(max-width:900px){
-      .interior-modal{grid-template-columns:1fr;max-height:95vh}
-      .modal-right{max-height:50vh}
-    }
     @media(max-width:768px){
-      .nav{padding:0 24px}
+      .nav{padding:0 20px;height:64px}
       .nav-menu{display:none}
-      .hero{padding:120px 24px 40px}
-      .hero h1{font-size:32px}
-      .chat-section{padding:24px}
-      .chat-container{grid-template-columns:1fr;gap:24px}
-      .chat-sidebar{display:none}
-      .footer{padding:40px 24px}
-      .footer-content{flex-direction:column;gap:24px;text-align:center}
+      .hero{padding:84px 20px 24px}
+      .hero h1{font-size:28px}
+      .main-container{padding:0 16px 40px}
+      .category-grid{grid-template-columns:repeat(2,1fr);gap:12px}
+      .category-card{padding:20px 12px}
+      .category-icon{font-size:28px}
+      .result-section{padding:20px;border-radius:16px}
+      .result-grid{grid-template-columns:1fr}
+      .result-card img{height:200px}
+      .result-analysis{grid-template-columns:1fr}
+      .footer{padding:32px 20px}
+      .footer-content{flex-direction:column;gap:20px;text-align:center}
       .footer-links{flex-wrap:wrap;justify-content:center}
-      .style-grid{grid-template-columns:repeat(2,1fr)}
     }
   </style>
 </head>
@@ -220,15 +208,14 @@
   <!-- SVG Symbols -->
   <svg style="display:none">
     <symbol id="icon-logo" viewBox="0 0 40 40"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></symbol>
-    <symbol id="icon-ai" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5A2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5-2.5a2.5 2.5 0 0 0-2.5-2.5z"/></symbol>
+    <symbol id="icon-ai" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/></symbol>
     <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
     <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
     <symbol id="icon-sparkle" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></symbol>
-    <symbol id="icon-kitchen" viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM6 4h5v8H6V4zm12 16H6v-6h12v6zm0-8h-5V4h5v8z"/></symbol>
-    <symbol id="icon-wardrobe" viewBox="0 0 24 24"><path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm7 2v16h2V4h-2zm-6 8h5v2H5v-2zm8 0h5v2h-5v-2z"/></symbol>
-    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></symbol>
-    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+    <symbol id="icon-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></symbol>
     <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   </svg>
 
   <!-- Navigation -->
@@ -247,218 +234,191 @@
       <a href="index.html">Service</a>
     </div>
     <div class="nav-icons">
-      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-user"/></svg></button>
-      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-search"/></svg></button>
-      <button style="display:flex;align-items:center;gap:4px;font-size:14px">KR<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-down"/></svg></button>
+      <button><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-user"/></svg></button>
+      <button><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-search"/></svg></button>
+      <button style="display:flex;align-items:center;gap:4px;font-size:13px">KR<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-chevron-down"/></svg></button>
     </div>
   </nav>
 
-  <!-- Hero Section -->
+  <!-- Hero - Compact -->
   <section class="hero">
     <div class="hero-badge">
-      <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-sparkle"/></svg>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-sparkle"/></svg>
       AI-Powered Design
     </div>
     <h1>AI <span>설계</span> 시스템</h1>
-    <p>인공지능과 대화하며 나만의 맞춤 가구를 설계해보세요.<br>30년 장인의 노하우가 담긴 AI가 최적의 솔루션을 제안합니다.</p>
+    <p>사진 한 장으로 새로운 공간을 디자인하세요</p>
   </section>
 
-  <!-- Chat Section -->
-  <section class="chat-section">
-    <div class="chat-container">
-      <!-- Sidebar -->
-      <aside class="chat-sidebar">
-        <p class="sidebar-title">빠른 시작</p>
-        <div class="quick-prompts">
-          <!-- ★ NEW: Interior AI Button -->
-          <button class="quick-prompt interior-ai" onclick="openInteriorModal()">
-            🎨 인테리어 리디자인
-            <span>AI로 공간을 새롭게 변신</span>
-          </button>
-          
-          <div class="sidebar-divider"></div>
-          
-          <button class="quick-prompt" onclick="sendQuickPrompt('주방 싱크대를 새로 설계하고 싶어요. 공간은 3m x 2m 입니다.')">
-            🍳 주방 싱크대 설계
-            <span>공간에 맞는 최적의 레이아웃</span>
-          </button>
-          <button class="quick-prompt" onclick="sendQuickPrompt('붙박이장을 설계해주세요. 방 크기는 3.5m x 3m이고 옷 수납이 많이 필요해요.')">
-            👔 붙박이장 설계
-            <span>수납 공간 최적화</span>
-          </button>
-          <button class="quick-prompt" onclick="sendQuickPrompt('냉장고장과 키큰장을 포함한 주방 가구 세트를 설계해주세요.')">
-            🏠 주방 가구 세트
-            <span>통합 주방 솔루션</span>
-          </button>
-          <button class="quick-prompt" onclick="sendQuickPrompt('현대적인 미니멀 스타일의 수납장을 추천해주세요.')">
-            ✨ 스타일 추천
-            <span>트렌드에 맞는 디자인</span>
-          </button>
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- Compact AI Chat Box -->
+    <div class="chat-box">
+      <div class="chat-header">
+        <div class="chat-header-icon">
+          <svg><use href="#icon-ai"/></svg>
         </div>
-        <div class="sidebar-info">
-          <p>
-            <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-info"/></svg>
-            AI 설계 시스템은 고객님의 공간과 요구사항을 분석하여 최적의 가구 배치와 디자인을 제안합니다.
-          </p>
+        <div class="chat-header-text">
+          <h3>다담 AI 설계사</h3>
+          <p>맞춤 가구 설계 전문 AI</p>
         </div>
-      </aside>
-
-      <!-- Chat Area -->
-      <div class="chat-area">
-        <div class="chat-header">
-          <div class="chat-header-icon">
-            <svg><use href="#icon-ai"/></svg>
-          </div>
-          <div class="chat-header-text">
-            <h3>다담 AI 설계사</h3>
-            <p>맞춤 가구 설계 전문 AI</p>
-          </div>
-          <div class="chat-status">온라인</div>
-        </div>
-
-        <div class="chat-messages" id="chatMessages">
-          <div class="welcome-message">
-            <div class="welcome-icon">
-              <svg><use href="#icon-ai"/></svg>
-            </div>
-            <h3>안녕하세요! 다담 AI입니다</h3>
-            <p>어떤 가구를 설계해드릴까요? 공간 크기, 스타일, 용도 등을 알려주시면 맞춤 설계를 도와드릴게요.</p>
-          </div>
-        </div>
-
-        <div class="chat-input">
-          <div class="input-wrapper">
-            <div class="input-field">
-              <textarea id="messageInput" placeholder="메시지를 입력하세요..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
-            </div>
-            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
-              <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send"/></svg>
-            </button>
-          </div>
-          <div class="input-hint">
-            <span>Enter로 전송</span>
-            <span>Shift + Enter로 줄바꿈</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════════════════
-       INTERIOR AI MODAL - NEW
-       ═══════════════════════════════════════════════════════════════ -->
-  <div class="modal-overlay" id="interiorModal">
-    <div class="interior-modal">
-      <!-- Left Panel - Input -->
-      <div class="modal-left">
-        <div class="modal-header">
-          <h2>🎨 인테리어 AI <span>DALL-E 3</span></h2>
-          <button class="modal-close" onclick="closeInteriorModal()">×</button>
-        </div>
-        
-        <!-- Image Upload -->
-        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-          <div class="upload-icon">📷</div>
-          <p><strong>방 사진을 업로드하세요</strong><br>클릭 또는 드래그 앤 드롭</p>
-        </div>
-        <input type="file" id="fileInput" accept="image/*" style="display:none">
-        
-        <!-- Style Selection -->
-        <div class="style-section">
-          <h3>디자인 스타일</h3>
-          <div class="style-grid">
-            <button class="style-btn active" data-style="모던">
-              <div class="icon">🏢</div>
-              <div class="name">모던</div>
-              <div class="desc">깔끔한 현대적</div>
-            </button>
-            <button class="style-btn" data-style="스칸디나비안">
-              <div class="icon">🌲</div>
-              <div class="name">스칸디나비안</div>
-              <div class="desc">따뜻한 북유럽</div>
-            </button>
-            <button class="style-btn" data-style="인더스트리얼">
-              <div class="icon">🏭</div>
-              <div class="name">인더스트리얼</div>
-              <div class="desc">빈티지 감성</div>
-            </button>
-            <button class="style-btn" data-style="미니멀리스트">
-              <div class="icon">◻️</div>
-              <div class="name">미니멀</div>
-              <div class="desc">극도로 단순</div>
-            </button>
-            <button class="style-btn" data-style="자팬디">
-              <div class="icon">🎋</div>
-              <div class="name">자팬디</div>
-              <div class="desc">일본+북유럽</div>
-            </button>
-            <button class="style-btn" data-style="럭셔리">
-              <div class="icon">✨</div>
-              <div class="name">럭셔리</div>
-              <div class="desc">고급스러운</div>
-            </button>
-          </div>
-        </div>
-        
-        <!-- Additional Request -->
-        <div class="additional-section">
-          <h3 style="font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">추가 요청</h3>
-          <textarea id="additionalRequest" placeholder="추가 요청사항을 입력하세요... (예: 식물을 많이 넣어주세요)"></textarea>
-        </div>
-        
-        <!-- Generate Button -->
-        <button class="generate-btn" id="generateBtn" onclick="generateInteriorDesign()">
-          ✨ 디자인 생성하기
-        </button>
+        <div class="chat-status">온라인</div>
       </div>
       
-      <!-- Right Panel - Results -->
-      <div class="modal-right">
-        <div class="result-header">
-          <h3>🖼️ 결과 미리보기</h3>
-        </div>
-        
-        <!-- Placeholder -->
-        <div class="result-placeholder" id="resultPlaceholder">
-          <div class="icon">🏠</div>
-          <h4>인테리어 AI</h4>
-          <p>방 사진을 업로드하고 원하는 스타일을 선택한 후 생성 버튼을 눌러주세요</p>
-        </div>
-        
-        <!-- Results -->
-        <div class="result-content" id="resultContent">
-          <div class="image-compare">
-            <div class="before">
-              <div class="label">Before</div>
-              <img id="beforeImage" src="" alt="Before">
-            </div>
-            <div class="after">
-              <div class="label">After</div>
-              <img id="afterImage" src="" alt="After">
-            </div>
-          </div>
-          
-          <div class="generated-image">
-            <img id="generatedImage" src="" alt="Generated Design" onclick="window.open(this.src, '_blank')">
-          </div>
-          
-          <div class="analysis-box">
-            <h4>📊 방 분석</h4>
-            <p id="roomAnalysis"></p>
-          </div>
-          
-          <div class="analysis-box">
-            <h4>💡 디자인 제안</h4>
-            <p id="designSuggestions"></p>
-          </div>
-          
-          <a class="download-btn" id="downloadBtn" href="" target="_blank" download>
-            📥 이미지 다운로드
-          </a>
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome-msg">
+          <strong>👋 안녕하세요! 다담 AI입니다</strong>
+          아래에서 원하는 가구 카테고리를 선택하고 사진을 업로드해주세요.
         </div>
       </div>
+      
+      <div class="chat-input">
+        <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter')sendMessage()">
+        <button onclick="sendMessage()">
+          <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send"/></svg>
+        </button>
+      </div>
     </div>
-  </div>
+
+    <!-- Category Grid (2x3) -->
+    <p class="section-title">카테고리 선택</p>
+    <div class="category-grid">
+      <div class="category-card" data-category="sink" onclick="selectCategory('sink')">
+        <img class="category-preview" id="preview-sink" src="" alt="">
+        <span class="category-icon">🍳</span>
+        <div class="category-name">싱크대</div>
+        <div class="category-desc">주방 싱크대 & 상하부장</div>
+        <div class="category-upload-hint">📷 클릭하여 사진 업로드</div>
+      </div>
+      <div class="category-card" data-category="wardrobe" onclick="selectCategory('wardrobe')">
+        <img class="category-preview" id="preview-wardrobe" src="" alt="">
+        <span class="category-icon">👔</span>
+        <div class="category-name">붙박이장</div>
+        <div class="category-desc">옷장 & 수납 시스템</div>
+        <div class="category-upload-hint">📷 클릭하여 사진 업로드</div>
+      </div>
+      <div class="category-card" data-category="fridge" onclick="selectCategory('fridge')">
+        <img class="category-preview" id="preview-fridge" src="" alt="">
+        <span class="category-icon">🧊</span>
+        <div class="category-name">냉장고장</div>
+        <div class="category-desc">냉장고장 & 키큰장</div>
+        <div class="category-upload-hint">📷 클릭하여 사진 업로드</div>
+      </div>
+      <div class="category-card" data-category="vanity" onclick="selectCategory('vanity')">
+        <img class="category-preview" id="preview-vanity" src="" alt="">
+        <span class="category-icon">💄</span>
+        <div class="category-name">화장대</div>
+        <div class="category-desc">드레서 & 화장대</div>
+        <div class="category-upload-hint">📷 클릭하여 사진 업로드</div>
+      </div>
+      <div class="category-card" data-category="shoe" onclick="selectCategory('shoe')">
+        <img class="category-preview" id="preview-shoe" src="" alt="">
+        <span class="category-icon">👟</span>
+        <div class="category-name">신발장</div>
+        <div class="category-desc">현관 신발장 & 수납</div>
+        <div class="category-upload-hint">📷 클릭하여 사진 업로드</div>
+      </div>
+      <div class="category-card" data-category="storage" onclick="selectCategory('storage')">
+        <img class="category-preview" id="preview-storage" src="" alt="">
+        <span class="category-icon">📦</span>
+        <div class="category-name">자유 수납장</div>
+        <div class="category-desc">다용도 수납 가구</div>
+        <div class="category-upload-hint">📷 클릭하여 사진 업로드</div>
+      </div>
+    </div>
+
+    <!-- Hidden File Inputs -->
+    <input type="file" class="file-input" id="file-sink" accept="image/*" onchange="handleFileUpload('sink', this)">
+    <input type="file" class="file-input" id="file-wardrobe" accept="image/*" onchange="handleFileUpload('wardrobe', this)">
+    <input type="file" class="file-input" id="file-fridge" accept="image/*" onchange="handleFileUpload('fridge', this)">
+    <input type="file" class="file-input" id="file-vanity" accept="image/*" onchange="handleFileUpload('vanity', this)">
+    <input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFileUpload('shoe', this)">
+    <input type="file" class="file-input" id="file-storage" accept="image/*" onchange="handleFileUpload('storage', this)">
+
+    <!-- Style Selector -->
+    <div class="style-selector">
+      <div class="style-chip active" data-style="모던" onclick="selectStyle(this)">🏢 모던</div>
+      <div class="style-chip" data-style="스칸디나비안" onclick="selectStyle(this)">🌲 스칸디나비안</div>
+      <div class="style-chip" data-style="인더스트리얼" onclick="selectStyle(this)">🏭 인더스트리얼</div>
+      <div class="style-chip" data-style="미니멀" onclick="selectStyle(this)">◻️ 미니멀</div>
+      <div class="style-chip" data-style="럭셔리" onclick="selectStyle(this)">✨ 럭셔리</div>
+    </div>
+
+    <!-- Generate Button -->
+    <div class="generate-section">
+      <button class="generate-btn" id="generateBtn" onclick="generateDesign()" disabled>
+        ✨ AI 디자인 생성하기
+      </button>
+    </div>
+
+    <!-- Result Section -->
+    <section class="result-section">
+      <div class="result-header">
+        <h2>🖼️ 리디자인 결과 <span>DALL-E 3</span></h2>
+        <div class="result-actions">
+          <button class="result-btn download" id="downloadBtn" onclick="downloadImage()" disabled>
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-download"/></svg>
+            다운로드
+          </button>
+          <button class="result-btn share" id="shareBtn" onclick="shareResult()" disabled>
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-share"/></svg>
+            공유하기
+          </button>
+        </div>
+      </div>
+
+      <!-- Placeholder -->
+      <div class="result-placeholder" id="resultPlaceholder">
+        <div class="icon">🎨</div>
+        <h3>디자인 결과가 여기에 표시됩니다</h3>
+        <p>위에서 카테고리를 선택하고 사진을 업로드한 후 생성 버튼을 눌러주세요</p>
+      </div>
+
+      <!-- Loading -->
+      <div class="result-loading" id="resultLoading">
+        <div class="spinner"></div>
+        <h3>AI가 디자인 중입니다...</h3>
+        <p>약 20-30초 정도 소요됩니다</p>
+      </div>
+
+      <!-- Result Content -->
+      <div class="result-content" id="resultContent">
+        <div class="result-grid">
+          <div class="result-card">
+            <div class="result-card-header">
+              <div class="dot before"></div>
+              <span>Before - 원본</span>
+            </div>
+            <img id="beforeImage" src="" alt="Before">
+          </div>
+          <div class="result-card">
+            <div class="result-card-header">
+              <div class="dot after"></div>
+              <span>After - AI 리디자인</span>
+            </div>
+            <img id="afterImage" src="" alt="After">
+          </div>
+          
+          <div class="result-main-image">
+            <img id="mainResultImage" src="" alt="Generated Design" onclick="window.open(this.src, '_blank')">
+          </div>
+          
+          <div class="result-analysis">
+            <div class="analysis-card">
+              <h4>📊 공간 분석</h4>
+              <p id="roomAnalysis">분석 결과가 여기에 표시됩니다.</p>
+            </div>
+            <div class="analysis-card">
+              <h4>💡 디자인 제안</h4>
+              <p id="designSuggestions">제안 사항이 여기에 표시됩니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
 
   <!-- Footer -->
   <footer class="footer">
@@ -478,249 +438,145 @@
     <p class="footer-copy">© 2024 다담가구. All rights reserved.</p>
   </footer>
 
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
   <script>
     // ═══════════════════════════════════════════════════════════════
-    // 기존 캐비넷 AI 채팅 기능
+    // 상태 관리
     // ═══════════════════════════════════════════════════════════════
-    const N8N_WEBHOOK_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
-    const chatMessages = document.getElementById('chatMessages');
-    const messageInput = document.getElementById('messageInput');
-    const sendBtn = document.getElementById('sendBtn');
-    let isFirstMessage = true;
-
-    messageInput.addEventListener('input', function() {
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
-
-    function handleKeyDown(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    }
-
-    function getCurrentTime() {
-      return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    function addMessage(content, isUser = false) {
-      if (isFirstMessage) {
-        const welcome = chatMessages.querySelector('.welcome-message');
-        if (welcome) welcome.remove();
-        isFirstMessage = false;
-      }
-
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
-      
-      const avatarSvg = isUser 
-        ? '<use href="#icon-user"/>' 
-        : '<use href="#icon-ai"/>';
-      
-      messageDiv.innerHTML = `
-        <div class="message-avatar">
-          <svg fill="${isUser ? 'none' : 'currentColor'}" stroke="${isUser ? 'currentColor' : 'none'}" stroke-width="2">${avatarSvg}</svg>
-        </div>
-        <div>
-          <div class="message-content">${formatMessage(content)}</div>
-          <div class="message-time">${getCurrentTime()}</div>
-        </div>
-      `;
-      
-      chatMessages.appendChild(messageDiv);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function formatMessage(text) {
-      return text
-        .replace(/\n/g, '<br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>');
-    }
-
-    function showTypingIndicator() {
-      const typingDiv = document.createElement('div');
-      typingDiv.className = 'message ai';
-      typingDiv.id = 'typingIndicator';
-      typingDiv.innerHTML = `
-        <div class="message-avatar">
-          <svg fill="currentColor"><use href="#icon-ai"/></svg>
-        </div>
-        <div class="typing-indicator">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      `;
-      chatMessages.appendChild(typingDiv);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function removeTypingIndicator() {
-      const typing = document.getElementById('typingIndicator');
-      if (typing) typing.remove();
-    }
-
-    async function sendMessage() {
-      const message = messageInput.value.trim();
-      if (!message) return;
-
-      messageInput.disabled = true;
-      sendBtn.disabled = true;
-      addMessage(message, true);
-      messageInput.value = '';
-      messageInput.style.height = 'auto';
-      showTypingIndicator();
-
-      try {
-        const response = await fetch(N8N_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: message })
-        });
-
-        removeTypingIndicator();
-
-        if (!response.ok) throw new Error('Network response was not ok');
-
-        const data = await response.json();
-        let aiResponse = data.response || data.output || data.message || data.text || JSON.stringify(data);
-        addMessage(aiResponse, false);
-
-      } catch (error) {
-        removeTypingIndicator();
-        console.error('Error:', error);
-        addMessage('죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', false);
-      }
-
-      messageInput.disabled = false;
-      sendBtn.disabled = false;
-      messageInput.focus();
-    }
-
-    function sendQuickPrompt(prompt) {
-      messageInput.value = prompt;
-      sendMessage();
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 인테리어 AI 기능 (NEW)
-    // ═══════════════════════════════════════════════════════════════
+    const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
     const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design';
     
-    let interiorState = {
-      roomImage: null,
-      roomImagePreview: null,
-      imageType: 'image/jpeg',
-      selectedStyle: '모던'
+    const state = {
+      selectedCategory: null,
+      selectedStyle: '모던',
+      uploadedImages: {},
+      currentImage: null,
+      currentImageType: 'image/jpeg',
+      generatedImageUrl: null
     };
 
-    // Modal 열기/닫기
-    function openInteriorModal() {
-      document.getElementById('interiorModal').classList.add('active');
-      document.body.style.overflow = 'hidden';
+    const categoryNames = {
+      sink: '싱크대',
+      wardrobe: '붙박이장',
+      fridge: '냉장고장',
+      vanity: '화장대',
+      shoe: '신발장',
+      storage: '자유 수납장'
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // 카테고리 선택 & 파일 업로드
+    // ═══════════════════════════════════════════════════════════════
+    function selectCategory(category) {
+      // 이미 이미지가 있으면 선택만, 없으면 파일 선택 창 열기
+      const card = document.querySelector(`[data-category="${category}"]`);
+      
+      if (state.uploadedImages[category]) {
+        // 이미지가 있으면 해당 카테고리 선택
+        setActiveCategory(category);
+      } else {
+        // 이미지가 없으면 파일 선택
+        document.getElementById(`file-${category}`).click();
+      }
     }
 
-    function closeInteriorModal() {
-      document.getElementById('interiorModal').classList.remove('active');
-      document.body.style.overflow = '';
+    function setActiveCategory(category) {
+      // 모든 카드에서 active 제거
+      document.querySelectorAll('.category-card').forEach(c => c.classList.remove('active'));
+      
+      // 선택된 카드에 active 추가
+      const card = document.querySelector(`[data-category="${category}"]`);
+      card.classList.add('active');
+      
+      state.selectedCategory = category;
+      state.currentImage = state.uploadedImages[category]?.base64;
+      state.currentImageType = state.uploadedImages[category]?.type || 'image/jpeg';
+      
+      updateGenerateButton();
+      addChatMessage(`${categoryNames[category]} 카테고리가 선택되었습니다. "${state.selectedStyle}" 스타일로 리디자인해드릴게요!`, false);
     }
 
-    // 모달 외부 클릭시 닫기
-    document.getElementById('interiorModal').addEventListener('click', function(e) {
-      if (e.target === this) closeInteriorModal();
-    });
-
-    // ESC 키로 닫기
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeInteriorModal();
-    });
-
-    // 이미지 업로드
-    const uploadZone = document.getElementById('uploadZone');
-    const fileInput = document.getElementById('fileInput');
-
-    uploadZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      uploadZone.classList.add('dragover');
-    });
-
-    uploadZone.addEventListener('dragleave', () => {
-      uploadZone.classList.remove('dragover');
-    });
-
-    uploadZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      uploadZone.classList.remove('dragover');
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) {
-        handleImageUpload(file);
-      }
-    });
-
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) {
-        handleImageUpload(e.target.files[0]);
-      }
-    });
-
-    function handleImageUpload(file) {
-      interiorState.imageType = file.type || 'image/jpeg';
+    function handleFileUpload(category, input) {
+      const file = input.files[0];
+      if (!file) return;
       
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64Full = e.target.result;
-        interiorState.roomImagePreview = base64Full;
-        interiorState.roomImage = base64Full.split(',')[1];
+        const base64Data = base64Full.split(',')[1];
         
-        uploadZone.innerHTML = `
-          <img src="${base64Full}" alt="Uploaded room">
-          <p>클릭하여 다른 이미지 선택</p>
-        `;
-        uploadZone.classList.add('has-image');
+        // 상태 저장
+        state.uploadedImages[category] = {
+          base64: base64Data,
+          preview: base64Full,
+          type: file.type || 'image/jpeg'
+        };
+        
+        // 미리보기 표시
+        const preview = document.getElementById(`preview-${category}`);
+        preview.src = base64Full;
+        
+        // 카드 상태 업데이트
+        const card = document.querySelector(`[data-category="${category}"]`);
+        card.classList.add('has-image');
+        
+        // 해당 카테고리 선택
+        setActiveCategory(category);
+        
+        showToast(`${categoryNames[category]} 이미지가 업로드되었습니다!`, 'success');
       };
       reader.readAsDataURL(file);
     }
 
+    // ═══════════════════════════════════════════════════════════════
     // 스타일 선택
-    document.querySelectorAll('.style-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        interiorState.selectedStyle = this.dataset.style;
-      });
-    });
+    // ═══════════════════════════════════════════════════════════════
+    function selectStyle(el) {
+      document.querySelectorAll('.style-chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      state.selectedStyle = el.dataset.style;
+    }
 
-    // 디자인 생성
-    async function generateInteriorDesign() {
-      if (!interiorState.roomImage) {
-        alert('방 이미지를 먼저 업로드해주세요.');
+    // ═══════════════════════════════════════════════════════════════
+    // 생성 버튼 상태
+    // ═══════════════════════════════════════════════════════════════
+    function updateGenerateButton() {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = !state.currentImage;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AI 디자인 생성
+    // ═══════════════════════════════════════════════════════════════
+    async function generateDesign() {
+      if (!state.currentImage) {
+        showToast('먼저 카테고리를 선택하고 사진을 업로드해주세요.', 'error');
         return;
       }
 
       const generateBtn = document.getElementById('generateBtn');
-      const resultPlaceholder = document.getElementById('resultPlaceholder');
-      const resultContent = document.getElementById('resultContent');
+      const placeholder = document.getElementById('resultPlaceholder');
+      const loading = document.getElementById('resultLoading');
+      const content = document.getElementById('resultContent');
 
       // 로딩 상태
       generateBtn.disabled = true;
       generateBtn.innerHTML = '<div class="spinner"></div> 생성 중...';
-      resultPlaceholder.innerHTML = `
-        <div class="icon" style="animation: spin 2s linear infinite">⏳</div>
-        <h4>디자인 생성 중...</h4>
-        <p>AI가 방을 분석하고 새로운 디자인을 만들고 있습니다. 약 30초 정도 소요됩니다.</p>
-      `;
+      placeholder.classList.add('hidden');
+      content.classList.remove('active');
+      loading.classList.add('active');
 
       try {
         const response = await fetch(N8N_INTERIOR_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            room_image: interiorState.roomImage,
-            image_type: interiorState.imageType,
-            design_style: interiorState.selectedStyle,
-            additional_request: document.getElementById('additionalRequest').value
+            room_image: state.currentImage,
+            image_type: state.currentImageType,
+            design_style: state.selectedStyle,
+            additional_request: `${categoryNames[state.selectedCategory]} 리디자인`
           })
         });
 
@@ -729,28 +585,160 @@
         const data = await response.json();
 
         // 결과 표시
-        document.getElementById('beforeImage').src = interiorState.roomImagePreview;
+        const previewUrl = state.uploadedImages[state.selectedCategory]?.preview;
+        document.getElementById('beforeImage').src = previewUrl;
         document.getElementById('afterImage').src = data.generated_image?.url || '';
-        document.getElementById('generatedImage').src = data.generated_image?.url || '';
+        document.getElementById('mainResultImage').src = data.generated_image?.url || '';
         document.getElementById('roomAnalysis').textContent = data.room_analysis || '분석 결과 없음';
         document.getElementById('designSuggestions').textContent = data.design_suggestions || '제안 없음';
-        document.getElementById('downloadBtn').href = data.generated_image?.url || '#';
 
-        resultPlaceholder.style.display = 'none';
-        resultContent.classList.add('active');
+        state.generatedImageUrl = data.generated_image?.url;
+
+        loading.classList.remove('active');
+        content.classList.add('active');
+
+        // 버튼 활성화
+        document.getElementById('downloadBtn').disabled = false;
+        document.getElementById('shareBtn').disabled = false;
+
+        addChatMessage(`${categoryNames[state.selectedCategory]} 리디자인이 완료되었습니다! "${state.selectedStyle}" 스타일로 변환되었어요. 아래에서 결과를 확인해주세요.`, false);
+        showToast('디자인 생성 완료!', 'success');
 
       } catch (error) {
         console.error('Error:', error);
-        resultPlaceholder.innerHTML = `
+        loading.classList.remove('active');
+        placeholder.classList.remove('hidden');
+        placeholder.innerHTML = `
           <div class="icon">⚠️</div>
-          <h4>오류 발생</h4>
-          <p>디자인 생성 중 오류가 발생했습니다. 다시 시도해주세요.</p>
+          <h3>오류가 발생했습니다</h3>
+          <p>다시 시도해주세요. 문제가 지속되면 고객센터로 문의해주세요.</p>
         `;
+        showToast('디자인 생성 중 오류가 발생했습니다.', 'error');
       }
 
       generateBtn.disabled = false;
-      generateBtn.innerHTML = '✨ 디자인 생성하기';
+      generateBtn.innerHTML = '✨ AI 디자인 생성하기';
+      updateGenerateButton();
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 다운로드 & 공유
+    // ═══════════════════════════════════════════════════════════════
+    function downloadImage() {
+      if (!state.generatedImageUrl) return;
+      
+      const link = document.createElement('a');
+      link.href = state.generatedImageUrl;
+      link.target = '_blank';
+      link.download = `dadam-${state.selectedCategory}-${state.selectedStyle}-design.png`;
+      link.click();
+      
+      showToast('이미지 다운로드가 시작됩니다.', 'success');
+    }
+
+    async function shareResult() {
+      if (!state.generatedImageUrl) return;
+
+      const shareData = {
+        title: '다담가구 AI 리디자인',
+        text: `${categoryNames[state.selectedCategory]}를 "${state.selectedStyle}" 스타일로 리디자인했어요!`,
+        url: state.generatedImageUrl
+      };
+
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+          showToast('공유되었습니다!', 'success');
+        } else {
+          // 클립보드에 복사
+          await navigator.clipboard.writeText(state.generatedImageUrl);
+          showToast('이미지 URL이 클립보드에 복사되었습니다.', 'success');
+        }
+      } catch (error) {
+        // 클립보드 복사 시도
+        try {
+          await navigator.clipboard.writeText(state.generatedImageUrl);
+          showToast('이미지 URL이 클립보드에 복사되었습니다.', 'success');
+        } catch (e) {
+          showToast('공유하기에 실패했습니다.', 'error');
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 채팅 기능 (간소화)
+    // ═══════════════════════════════════════════════════════════════
+    function addChatMessage(content, isUser = false) {
+      const chatMessages = document.getElementById('chatMessages');
+      
+      // 환영 메시지 제거
+      const welcome = chatMessages.querySelector('.welcome-msg');
+      if (welcome) welcome.remove();
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
+      
+      messageDiv.innerHTML = `
+        <div class="message-avatar">
+          <svg fill="${isUser ? 'none' : 'currentColor'}" stroke="${isUser ? 'currentColor' : 'none'}" stroke-width="2">
+            <use href="#icon-${isUser ? 'user' : 'ai'}"/>
+          </svg>
+        </div>
+        <div class="message-content">${content}</div>
+      `;
+      
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // 최대 5개 메시지만 유지
+      const messages = chatMessages.querySelectorAll('.message');
+      if (messages.length > 5) {
+        messages[0].remove();
+      }
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
+      if (!message) return;
+
+      addChatMessage(message, true);
+      input.value = '';
+
+      try {
+        const response = await fetch(N8N_CHAT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await response.json();
+        const aiResponse = data.response || data.output || data.message || data.text || '응답을 처리할 수 없습니다.';
+        addChatMessage(aiResponse, false);
+      } catch (error) {
+        addChatMessage('죄송합니다. 일시적인 오류가 발생했습니다.', false);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 토스트 알림
+    // ═══════════════════════════════════════════════════════════════
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `toast ${type} show`;
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 초기화
+    // ═══════════════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', () => {
+      updateGenerateButton();
+    });
   </script>
 </body>
 </html>
