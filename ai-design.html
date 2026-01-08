@@ -59,7 +59,7 @@
     .chat-header-text p{font-size:11px;color:var(--gray)}
     .chat-status{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray)}
     .chat-status::before{content:'';width:7px;height:7px;background:#4CAF50;border-radius:50%}
-    .chat-messages{height:120px;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--white)}
+    .chat-messages{height:100px;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--white)}
     .message{display:flex;gap:10px;max-width:85%}
     .message.user{flex-direction:row-reverse;margin-left:auto}
     .message-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -83,14 +83,11 @@
     .section-title{font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;text-align:center}
     .section-subtitle{text-align:center;color:var(--gold);font-size:12px;margin-top:-12px;margin-bottom:16px}
 
-    /* ═══════════════════════════════════════════════════════════════
-       CATEGORY GRID - 다중 선택 가능
-       ═══════════════════════════════════════════════════════════════ */
+    /* Category Grid */
     .category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
     .category-card{background:var(--white);border:2px solid var(--warm);border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
     .category-card:hover{border-color:var(--gold);transform:translateY(-2px)}
     .category-card:active{transform:scale(0.98)}
-    .category-card.selected{border-color:var(--gold);background:linear-gradient(135deg,rgba(184,149,108,.08),rgba(212,181,150,.08))}
     .category-card.has-image{border-color:var(--gold)}
     .category-card.has-image::after{content:'✓';position:absolute;top:8px;right:8px;width:22px;height:22px;background:var(--gold);color:#fff;border-radius:50%;font-size:12px;display:flex;align-items:center;justify-content:center}
     .category-icon{font-size:32px;margin-bottom:8px;display:block}
@@ -106,66 +103,34 @@
     .selected-count.hidden{display:none}
 
     /* Style Selector */
-    .style-selector{display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;padding:0 10px}
+    .style-selector{display:flex;justify-content:center;gap:10px;margin-bottom:24px;flex-wrap:wrap;padding:0 10px}
     .style-chip{padding:10px 16px;background:var(--white);border:1px solid var(--warm);border-radius:20px;font-size:13px;cursor:pointer;transition:all .3s;white-space:nowrap}
     .style-chip:hover{border-color:var(--gold)}
     .style-chip:active{transform:scale(0.95)}
     .style-chip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
 
-    /* Action Buttons */
-    .action-buttons{display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap;padding:0 16px}
-    .action-btn{flex:1;max-width:280px;padding:16px 24px;border:none;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:8px}
-    .action-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
-    .action-btn .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+    /* Single Generate Button */
+    .generate-section{text-align:center;margin-bottom:32px}
+    .generate-btn{width:100%;max-width:400px;padding:18px 32px;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;transition:all .3s;display:inline-flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#fff;box-shadow:0 4px 20px rgba(184,149,108,.3)}
+    .generate-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 28px rgba(184,149,108,.4)}
+    .generate-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .generate-btn .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
 
-    .analyze-btn{background:var(--charcoal);color:#fff}
-    .analyze-btn:hover:not(:disabled){background:#3d3a36;transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.2)}
-    
-    .generate-btn{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#fff;box-shadow:0 4px 16px rgba(184,149,108,.3)}
-    .generate-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 24px rgba(184,149,108,.4)}
+    /* Progress Steps */
+    .progress-steps{display:none;margin-bottom:24px;padding:20px;background:var(--cream);border-radius:16px}
+    .progress-steps.active{display:block}
+    .step-list{display:flex;justify-content:space-between;position:relative;margin-bottom:16px}
+    .step-list::before{content:'';position:absolute;top:15px;left:10%;right:10%;height:2px;background:var(--warm)}
+    .step{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;z-index:1}
+    .step-icon{width:32px;height:32px;border-radius:50%;background:var(--warm);display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .3s}
+    .step.active .step-icon{background:var(--gold);color:#fff}
+    .step.done .step-icon{background:#10b981;color:#fff}
+    .step-label{font-size:11px;color:var(--gray);text-align:center}
+    .step.active .step-label{color:var(--charcoal);font-weight:600}
+    .progress-text{text-align:center;font-size:13px;color:var(--charcoal)}
 
-    /* Progress Bar */
-    .progress-container{display:none;margin-bottom:24px;padding:0 20px}
-    .progress-container.active{display:block}
-    .progress-bar{height:8px;background:var(--warm);border-radius:4px;overflow:hidden}
-    .progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:4px;transition:width .3s;width:0%}
-    .progress-text{text-align:center;font-size:13px;color:var(--gray);margin-top:8px}
-
-    /* ═══════════════════════════════════════════════════════════════
-       WALL ANALYSIS SECTION
-       ═══════════════════════════════════════════════════════════════ */
-    .wall-analysis-section{background:var(--white);border:2px solid var(--warm);border-radius:20px;padding:24px;margin-bottom:32px;display:none}
-    .wall-analysis-section.active{display:block}
-    
-    .wall-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--warm)}
-    .wall-header h2{font-size:18px;display:flex;align-items:center;gap:10px}
-    .wall-header .badge{padding:4px 12px;background:var(--charcoal);color:#fff;border-radius:12px;font-size:11px;font-family:sans-serif}
-    
-    .layout-type-display{text-align:center;padding:20px;background:linear-gradient(135deg,rgba(184,149,108,.1),rgba(212,184,150,.1));border-radius:14px;margin-bottom:20px}
-    .layout-type-display .type{font-size:28px;font-weight:700;color:var(--charcoal)}
-    .layout-type-display .label{font-size:12px;color:var(--gray);margin-top:4px}
-    
-    .wall-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-    .wall-card{background:var(--cream);border-radius:12px;padding:16px}
-    .wall-card h4{font-size:13px;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:6px;font-family:inherit}
-    .wall-card p{font-size:13px;color:var(--charcoal);line-height:1.6}
-    .walls-list{display:flex;flex-direction:column;gap:8px}
-    .wall-item{background:var(--white);border-radius:10px;padding:12px;border-left:4px solid var(--gold)}
-    .wall-item .position{font-weight:600;color:var(--charcoal);font-size:12px;text-transform:uppercase;margin-bottom:6px}
-    .wall-item .features{display:flex;flex-wrap:wrap;gap:4px}
-    .wall-item .feature{padding:3px 8px;background:var(--cream);border-radius:8px;font-size:10px;color:var(--gray)}
-    .wall-item .feature.active{background:var(--gold);color:#fff}
-    .recommendations-card{background:var(--charcoal);color:#fff;border-radius:12px;padding:16px}
-    .recommendations-card h4{color:var(--gold);margin-bottom:10px}
-    .recommendations-card ul{list-style:none}
-    .recommendations-card li{padding:5px 0;font-size:12px;border-bottom:1px solid rgba(255,255,255,.1)}
-    .recommendations-card li:last-child{border:none}
-    .recommendations-card li::before{content:'✓';color:var(--gold);margin-right:8px}
-
-    /* ═══════════════════════════════════════════════════════════════
-       RESULT SECTION - 페이지 형태
-       ═══════════════════════════════════════════════════════════════ */
+    /* Result Section */
     .result-section{background:var(--cream);border-radius:20px;padding:24px;min-height:300px}
     
     .result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
@@ -193,13 +158,12 @@
     .page-info{font-size:14px;color:var(--gray);min-width:60px;text-align:center}
     .page-info span{color:var(--charcoal);font-weight:600}
 
-    /* Result Pages Container */
+    /* Result Pages */
     .result-pages{position:relative;overflow:hidden}
     .result-page{display:none}
     .result-page.active{display:block;animation:fadeIn .3s ease}
     @keyframes fadeIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
 
-    /* Page Category Label */
     .page-category{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:var(--white);border-radius:12px;margin-bottom:16px;font-size:14px;font-weight:600;color:var(--charcoal);box-shadow:0 2px 8px rgba(0,0,0,.06)}
     .page-category .icon{font-size:20px}
 
@@ -212,6 +176,18 @@
     .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
     .result-card img{width:100%;height:220px;object-fit:cover;display:block}
     
+    /* Wall Analysis in Result */
+    .wall-analysis-box{background:var(--white);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+    .wall-analysis-box h4{font-size:13px;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .wall-analysis-box h4 .badge{font-size:10px;padding:2px 8px;background:var(--charcoal);color:#fff;border-radius:8px;font-family:sans-serif}
+    .wall-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+    .wall-info-item{background:var(--cream);padding:10px 12px;border-radius:10px}
+    .wall-info-item .label{font-size:10px;color:var(--gray);margin-bottom:4px}
+    .wall-info-item .value{font-size:13px;font-weight:600;color:var(--charcoal)}
+    .wall-features{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .wall-feature{padding:4px 10px;background:var(--cream);border-radius:8px;font-size:10px;color:var(--gray)}
+    .wall-feature.detected{background:var(--gold);color:#fff}
+
     .result-analysis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .analysis-card{background:var(--white);border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
     .analysis-card h4{font-size:12px;color:var(--gold);margin-bottom:6px;display:flex;align-items:center;gap:6px;font-family:inherit}
@@ -247,9 +223,7 @@
     .toast.success{background:#10b981}
     .toast.error{background:#ef4444}
 
-    /* ═══════════════════════════════════════════════════════════════
-       RESPONSIVE
-       ═══════════════════════════════════════════════════════════════ */
+    /* Responsive */
     @media(max-width:1024px){
       .nav{padding:0 32px}
       .hero{padding:100px 32px 28px}
@@ -269,7 +243,7 @@
       .main-container{padding:0 12px 40px}
       
       .chat-box{margin-bottom:20px}
-      .chat-messages{height:100px}
+      .chat-messages{height:80px}
       
       .category-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
       .category-card{padding:14px 10px}
@@ -281,17 +255,15 @@
       .style-selector{gap:8px;overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start;padding:0 12px 8px;-webkit-overflow-scrolling:touch}
       .style-chip{padding:8px 14px;font-size:12px;flex-shrink:0}
       
-      .action-buttons{flex-direction:column;gap:10px}
-      .action-btn{max-width:100%;padding:14px 20px;font-size:14px}
+      .generate-btn{padding:16px 24px;font-size:15px}
       
-      .wall-analysis-section{padding:16px}
-      .layout-type-display .type{font-size:24px}
-      .wall-grid{grid-template-columns:1fr}
+      .step-label{font-size:10px}
       
       .result-section{padding:16px}
       .result-grid{grid-template-columns:1fr}
       .result-card img{height:180px}
       .result-analysis{grid-template-columns:1fr}
+      .wall-info-grid{grid-template-columns:1fr 1fr}
       
       .page-nav{gap:8px}
       .page-arrow{width:36px;height:36px}
@@ -311,11 +283,12 @@
       .category-desc{display:none}
       .category-preview{height:50px}
       .result-card img{height:150px}
+      .wall-info-grid{grid-template-columns:1fr}
     }
 
     @media(hover:none){
       .category-card:hover{transform:none}
-      .action-btn:hover:not(:disabled){transform:none}
+      .generate-btn:hover:not(:disabled){transform:none}
     }
 
     @supports(padding:max(0px)){
@@ -381,7 +354,7 @@
       AI-Powered Design
     </div>
     <h1>AI <span>설계</span> 시스템</h1>
-    <p>여러 공간을 한 번에 디자인하세요</p>
+    <p>사진 한 장으로 맞춤 가구를 디자인하세요</p>
   </section>
 
   <!-- Main Container -->
@@ -402,7 +375,7 @@
       <div class="chat-messages" id="chatMessages">
         <div class="welcome-msg">
           <strong>👋 안녕하세요!</strong>
-          여러 카테고리를 선택하고 각각 사진을 업로드해주세요.
+          카테고리를 선택하고 사진을 업로드해주세요.
         </div>
       </div>
       <div class="chat-input">
@@ -477,57 +450,40 @@
       <div class="style-chip" data-style="럭셔리" onclick="selectStyle(this)">✨ 럭셔리</div>
     </div>
 
-    <!-- Action Buttons -->
-    <div class="action-buttons">
-      <button class="action-btn analyze-btn" id="analyzeBtn" onclick="analyzeAllWalls()" disabled>
-        🧱 전체 벽 구조 분석
-      </button>
-      <button class="action-btn generate-btn" id="generateBtn" onclick="generateAllDesigns()" disabled>
-        ✨ AI 디자인 생성
+    <!-- Single Generate Button -->
+    <div class="generate-section">
+      <button class="generate-btn" id="generateBtn" onclick="startGeneration()" disabled>
+        ✨ AI 디자인 생성하기
       </button>
     </div>
 
-    <!-- Progress Bar -->
-    <div class="progress-container" id="progressContainer">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
+    <!-- Progress Steps -->
+    <div class="progress-steps" id="progressSteps">
+      <div class="step-list">
+        <div class="step" id="step1">
+          <div class="step-icon">1</div>
+          <div class="step-label">이미지 분석</div>
+        </div>
+        <div class="step" id="step2">
+          <div class="step-icon">2</div>
+          <div class="step-label">벽 구조 파악</div>
+        </div>
+        <div class="step" id="step3">
+          <div class="step-icon">3</div>
+          <div class="step-label">디자인 생성</div>
+        </div>
+        <div class="step" id="step4">
+          <div class="step-icon">4</div>
+          <div class="step-label">완료</div>
+        </div>
       </div>
-      <p class="progress-text" id="progressText">처리 중...</p>
+      <p class="progress-text" id="progressText">준비 중...</p>
     </div>
-
-    <!-- Wall Analysis Section -->
-    <section class="wall-analysis-section" id="wallAnalysisSection">
-      <div class="wall-header">
-        <h2>📐 벽 구조 분석 결과 <span class="badge">Claude Vision</span></h2>
-      </div>
-      <div class="layout-type-display">
-        <div class="type" id="layoutType">-</div>
-        <div class="label">공간 레이아웃</div>
-      </div>
-      <div class="wall-grid">
-        <div class="wall-card">
-          <h4>🧱 벽면 정보</h4>
-          <div class="walls-list" id="wallsList"></div>
-        </div>
-        <div class="wall-card recommendations-card">
-          <h4>💡 캐비넷 배치 추천</h4>
-          <ul id="recommendationsList"></ul>
-        </div>
-        <div class="wall-card">
-          <h4>⚠️ 장애물 / 주의사항</h4>
-          <p id="obstaclesList">-</p>
-        </div>
-        <div class="wall-card">
-          <h4>📝 추가 분석</h4>
-          <p id="analysisNotes">-</p>
-        </div>
-      </div>
-    </section>
 
     <!-- Result Section -->
     <section class="result-section">
       <div class="result-header">
-        <h2>🖼️ 리디자인 결과 <span>DALL-E 3</span></h2>
+        <h2>🖼️ 리디자인 결과 <span>AI Generated</span></h2>
         <div class="result-actions">
           <button class="result-btn download" id="downloadBtn" onclick="downloadCurrentImage()" disabled>
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-download"/></svg>
@@ -556,14 +512,14 @@
       <div class="result-placeholder" id="resultPlaceholder">
         <div class="icon">🎨</div>
         <h3>디자인 결과가 여기에 표시됩니다</h3>
-        <p>여러 카테고리를 선택하고 사진을 업로드한 후 생성 버튼을 눌러주세요</p>
+        <p>카테고리를 선택하고 사진을 업로드한 후 생성 버튼을 눌러주세요</p>
       </div>
 
       <!-- Loading -->
       <div class="result-loading" id="resultLoading">
         <div class="spinner"></div>
-        <h3 id="loadingTitle">AI가 디자인 중...</h3>
-        <p id="loadingText">약 20-30초 소요</p>
+        <h3 id="loadingTitle">AI가 분석 중...</h3>
+        <p id="loadingText">잠시만 기다려주세요</p>
       </div>
 
       <!-- Result Pages Container -->
@@ -606,8 +562,8 @@
     // ═══════════════════════════════════════════════════════════════
     const state = {
       selectedStyle: '모던',
-      uploadedImages: {},  // { category: { base64, preview, type } }
-      results: [],         // [{ category, beforeUrl, afterUrl, analysis, suggestions }]
+      uploadedImages: {},
+      results: [],
       currentPage: 0
     };
 
@@ -632,7 +588,7 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Category Selection & File Upload
+    // Category & File Upload
     // ═══════════════════════════════════════════════════════════════
     function selectCategory(category) {
       document.getElementById(`file-${category}`).click();
@@ -653,7 +609,6 @@
           type: file.type || 'image/jpeg'
         };
         
-        // Update UI
         document.getElementById(`preview-${category}`).src = base64Full;
         document.querySelector(`[data-category="${category}"]`).classList.add('has-image');
         
@@ -687,123 +642,28 @@
     // ═══════════════════════════════════════════════════════════════
     function updateButtons() {
       const hasImages = Object.keys(state.uploadedImages).length > 0;
-      document.getElementById('analyzeBtn').disabled = !hasImages;
       document.getElementById('generateBtn').disabled = !hasImages;
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Progress Bar
+    // Progress Steps
     // ═══════════════════════════════════════════════════════════════
-    function showProgress(current, total, text) {
-      const container = document.getElementById('progressContainer');
-      const fill = document.getElementById('progressFill');
-      const textEl = document.getElementById('progressText');
-      
-      container.classList.add('active');
-      fill.style.width = `${(current / total) * 100}%`;
-      textEl.textContent = text;
-    }
-
-    function hideProgress() {
-      document.getElementById('progressContainer').classList.remove('active');
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // WALL ANALYSIS (First uploaded image)
-    // ═══════════════════════════════════════════════════════════════
-    async function analyzeAllWalls() {
-      const categories = Object.keys(state.uploadedImages);
-      if (categories.length === 0) {
-        showToast('이미지를 먼저 업로드해주세요.', 'error');
-        return;
+    function updateStep(stepNum, status, text) {
+      // status: 'active', 'done', ''
+      for (let i = 1; i <= 4; i++) {
+        const step = document.getElementById(`step${i}`);
+        step.classList.remove('active', 'done');
+        if (i < stepNum) step.classList.add('done');
+        if (i === stepNum) step.classList.add(status);
       }
-
-      const btn = document.getElementById('analyzeBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> 분석 중...';
-
-      // Analyze first image for wall structure
-      const firstCategory = categories[0];
-      const imageData = state.uploadedImages[firstCategory];
-
-      try {
-        const response = await fetch(N8N_WALL_ANALYSIS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            room_image: imageData.base64,
-            image_type: imageData.type
-          })
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        let data = await response.json();
-        if (Array.isArray(data)) data = data[0];
-
-        displayWallAnalysis(data);
-        document.getElementById('wallAnalysisSection').classList.add('active');
-        document.getElementById('wallAnalysisSection').scrollIntoView({ behavior: 'smooth' });
-        
-        showToast('벽 구조 분석 완료!', 'success');
-        addChatMessage(`벽 구조 분석 완료! ${data.layout_type || '공간'} 형태입니다.`, false);
-
-      } catch (error) {
-        console.error('Wall Analysis Error:', error);
-        showToast('벽 분석 중 오류가 발생했습니다.', 'error');
-      }
-
-      btn.disabled = false;
-      btn.innerHTML = '🧱 전체 벽 구조 분석';
-      updateButtons();
-    }
-
-    function displayWallAnalysis(data) {
-      document.getElementById('layoutType').textContent = data.layout_type || '분석 불가';
-      
-      const wallsList = document.getElementById('wallsList');
-      if (data.walls && data.walls.length > 0) {
-        wallsList.innerHTML = data.walls.map(wall => {
-          const features = wall.features || {};
-          return `
-            <div class="wall-item">
-              <div class="position">${getWallPositionKR(wall.position)} 벽면</div>
-              <div class="features">
-                <span class="feature ${features.has_window ? 'active' : ''}">🪟 창문</span>
-                <span class="feature ${features.has_door ? 'active' : ''}">🚪 문</span>
-                <span class="feature ${features.has_outlet ? 'active' : ''}">🔌 콘센트</span>
-                <span class="feature ${features.has_pipe ? 'active' : ''}">🔧 배관</span>
-              </div>
-            </div>
-          `;
-        }).join('');
-      } else {
-        wallsList.innerHTML = '<p style="color:#999;font-size:12px;">벽면 정보 없음</p>';
-      }
-      
-      const recommendationsList = document.getElementById('recommendationsList');
-      if (data.recommended_cabinet_walls && data.recommended_cabinet_walls.length > 0) {
-        recommendationsList.innerHTML = data.recommended_cabinet_walls.map(wall => 
-          `<li>${getWallPositionKR(wall)} 벽면에 캐비넷 배치 추천</li>`
-        ).join('');
-      } else {
-        recommendationsList.innerHTML = '<li>추천 정보 없음</li>';
-      }
-      
-      document.getElementById('obstaclesList').textContent = data.obstacles?.length > 0 
-        ? data.obstacles.join(', ') : '발견된 장애물 없음';
-      document.getElementById('analysisNotes').textContent = data.analysis_notes || '추가 분석 정보 없음';
-    }
-
-    function getWallPositionKR(position) {
-      const map = { 'left': '좌측', 'front': '정면', 'right': '우측', 'back': '후면' };
-      return map[position?.toLowerCase()] || position || '알 수 없음';
+      document.getElementById('progressText').textContent = text;
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // GENERATE ALL DESIGNS
+    // MAIN GENERATION FLOW
+    // 이미지 업로드 → 벽 분석 → DALL-E3 생성 (분석 결과 반영)
     // ═══════════════════════════════════════════════════════════════
-    async function generateAllDesigns() {
+    async function startGeneration() {
       const categories = Object.keys(state.uploadedImages);
       if (categories.length === 0) {
         showToast('이미지를 먼저 업로드해주세요.', 'error');
@@ -811,12 +671,14 @@
       }
 
       const btn = document.getElementById('generateBtn');
+      const progressSteps = document.getElementById('progressSteps');
       const placeholder = document.getElementById('resultPlaceholder');
       const loading = document.getElementById('resultLoading');
       const pagesContainer = document.getElementById('resultPages');
 
       btn.disabled = true;
       btn.innerHTML = '<div class="spinner"></div> 생성 중...';
+      progressSteps.classList.add('active');
       placeholder.classList.add('hidden');
       pagesContainer.innerHTML = '';
       loading.classList.add('active');
@@ -827,10 +689,74 @@
       for (let i = 0; i < categories.length; i++) {
         const category = categories[i];
         const imageData = state.uploadedImages[category];
-        
-        showProgress(i + 1, total, `${categoryInfo[category].name} 디자인 생성 중... (${i + 1}/${total})`);
-        document.getElementById('loadingTitle').textContent = `${categoryInfo[category].icon} ${categoryInfo[category].name} 디자인 중...`;
-        document.getElementById('loadingText').textContent = `${i + 1} / ${total} 처리 중`;
+        const info = categoryInfo[category];
+
+        let wallAnalysis = null;
+
+        // ═══════════════════════════════════════════════════════════
+        // STEP 1: 이미지 분석 시작
+        // ═══════════════════════════════════════════════════════════
+        updateStep(1, 'active', `${info.icon} ${info.name} 이미지 분석 중... (${i + 1}/${total})`);
+        document.getElementById('loadingTitle').textContent = `${info.icon} 이미지 분석 중...`;
+        document.getElementById('loadingText').textContent = `${i + 1} / ${total}`;
+        await sleep(500);
+
+        // ═══════════════════════════════════════════════════════════
+        // STEP 2: 벽 구조 분석 (Claude Vision)
+        // ═══════════════════════════════════════════════════════════
+        updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
+        document.getElementById('loadingTitle').textContent = `🧱 벽 구조 분석 중...`;
+
+        try {
+          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              room_image: imageData.base64,
+              image_type: imageData.type
+            })
+          });
+
+          if (wallResponse.ok) {
+            let wallData = await wallResponse.json();
+            if (Array.isArray(wallData)) wallData = wallData[0];
+            wallAnalysis = wallData;
+            console.log('Wall Analysis:', wallAnalysis);
+          }
+        } catch (error) {
+          console.warn('Wall analysis failed, continuing without:', error);
+          // 벽 분석 실패해도 디자인 생성은 계속 진행
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 반영)
+        // ═══════════════════════════════════════════════════════════
+        updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
+        document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
+
+        // 벽 분석 결과를 프롬프트에 반영
+        let additionalContext = `${info.name} 리디자인`;
+        if (wallAnalysis) {
+          additionalContext += `. 공간 구조: ${wallAnalysis.layout_type || '일자형'}`;
+          if (wallAnalysis.recommended_cabinet_walls?.length > 0) {
+            additionalContext += `. 캐비넷 배치 추천 위치: ${wallAnalysis.recommended_cabinet_walls.join(', ')}`;
+          }
+          if (wallAnalysis.obstacles?.length > 0) {
+            additionalContext += `. 주의할 장애물: ${wallAnalysis.obstacles.join(', ')}`;
+          }
+          if (wallAnalysis.walls?.length > 0) {
+            const wallFeatures = wallAnalysis.walls.map(w => {
+              const features = [];
+              if (w.features?.has_window) features.push('창문');
+              if (w.features?.has_door) features.push('문');
+              if (w.features?.has_pipe) features.push('배관');
+              return features.length > 0 ? `${w.position}벽(${features.join(',')})` : null;
+            }).filter(Boolean);
+            if (wallFeatures.length > 0) {
+              additionalContext += `. 벽면 특성: ${wallFeatures.join(', ')}`;
+            }
+          }
+        }
 
         try {
           const response = await fetch(N8N_INTERIOR_URL, {
@@ -840,7 +766,7 @@
               room_image: imageData.base64,
               image_type: imageData.type,
               design_style: state.selectedStyle,
-              additional_request: `${categoryInfo[category].name} 리디자인`
+              additional_request: additionalContext
             })
           });
 
@@ -854,7 +780,8 @@
             beforeUrl: imageData.preview,
             afterUrl: data.generated_image?.url || '',
             analysis: data.room_analysis || '분석 결과 없음',
-            suggestions: data.design_suggestions || '제안 없음'
+            suggestions: data.design_suggestions || '제안 없음',
+            wallAnalysis: wallAnalysis
           });
 
         } catch (error) {
@@ -864,32 +791,42 @@
             beforeUrl: imageData.preview,
             afterUrl: '',
             analysis: '생성 실패',
-            suggestions: error.message
+            suggestions: error.message,
+            wallAnalysis: wallAnalysis
           });
         }
       }
 
-      hideProgress();
+      // ═══════════════════════════════════════════════════════════
+      // STEP 4: 완료
+      // ═══════════════════════════════════════════════════════════
+      updateStep(4, 'done', '✅ 모든 디자인 생성 완료!');
+
       loading.classList.remove('active');
-      
-      // Render result pages
       renderResultPages();
-      
+
       btn.disabled = false;
-      btn.innerHTML = '✨ AI 디자인 생성';
+      btn.innerHTML = '✨ AI 디자인 생성하기';
       updateButtons();
 
       document.getElementById('downloadBtn').disabled = false;
       document.getElementById('shareBtn').disabled = false;
 
       showToast(`${state.results.length}개 디자인 생성 완료!`, 'success');
-      addChatMessage(`🎉 ${state.results.length}개의 공간 디자인이 완료되었습니다! 결과를 확인해보세요.`, false);
+      addChatMessage(`🎉 ${state.results.length}개의 공간 디자인이 완료되었습니다!`, false);
 
-      document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => {
+        progressSteps.classList.remove('active');
+        document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
+      }, 1500);
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // RENDER RESULT PAGES
+    // RENDER RESULT PAGES (with Wall Analysis)
     // ═══════════════════════════════════════════════════════════════
     function renderResultPages() {
       const pagesContainer = document.getElementById('resultPages');
@@ -900,19 +837,60 @@
 
       if (state.results.length === 0) return;
 
-      // Create pages
       state.results.forEach((result, index) => {
         const page = document.createElement('div');
         page.className = `result-page ${index === 0 ? 'active' : ''}`;
         page.dataset.index = index;
 
         const info = categoryInfo[result.category];
+        const wa = result.wallAnalysis;
+
+        // Wall Analysis HTML
+        let wallAnalysisHTML = '';
+        if (wa) {
+          const features = [];
+          if (wa.walls) {
+            wa.walls.forEach(wall => {
+              if (wall.features?.has_window) features.push('🪟 창문');
+              if (wall.features?.has_door) features.push('🚪 문');
+              if (wall.features?.has_outlet) features.push('🔌 콘센트');
+              if (wall.features?.has_pipe) features.push('🔧 배관');
+            });
+          }
+
+          wallAnalysisHTML = `
+            <div class="wall-analysis-box">
+              <h4>📐 공간 분석 결과 <span class="badge">Claude Vision</span></h4>
+              <div class="wall-info-grid">
+                <div class="wall-info-item">
+                  <div class="label">레이아웃</div>
+                  <div class="value">${wa.layout_type || '-'}</div>
+                </div>
+                <div class="wall-info-item">
+                  <div class="label">추천 배치</div>
+                  <div class="value">${wa.recommended_cabinet_walls?.join(', ') || '-'}</div>
+                </div>
+                <div class="wall-info-item">
+                  <div class="label">장애물</div>
+                  <div class="value">${wa.obstacles?.length > 0 ? wa.obstacles.join(', ') : '없음'}</div>
+                </div>
+              </div>
+              ${features.length > 0 ? `
+                <div class="wall-features">
+                  ${[...new Set(features)].map(f => `<span class="wall-feature detected">${f}</span>`).join('')}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
 
         page.innerHTML = `
           <div class="page-category">
             <span class="icon">${info.icon}</span>
             ${info.name}
           </div>
+          
+          ${wallAnalysisHTML}
           
           <div class="result-grid">
             <div class="result-card">
@@ -948,15 +926,12 @@
         pagesContainer.appendChild(page);
       });
 
-      // Update page navigation
+      // Page navigation
       if (state.results.length > 1) {
         pageNav.classList.remove('hidden');
-        
-        // Create dots
         pageIndicator.innerHTML = state.results.map((_, i) => 
           `<div class="page-dot ${i === 0 ? 'active' : ''}" onclick="goToPage(${i})"></div>`
         ).join('');
-        
         document.getElementById('totalPages').textContent = state.results.length;
         updatePageNav();
       } else {
@@ -967,7 +942,7 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // PAGE NAVIGATION
+    // Page Navigation
     // ═══════════════════════════════════════════════════════════════
     function changePage(delta) {
       const newPage = state.currentPage + delta;
@@ -978,17 +953,12 @@
 
     function goToPage(index) {
       state.currentPage = index;
-      
-      // Update active page
       document.querySelectorAll('.result-page').forEach((page, i) => {
         page.classList.toggle('active', i === index);
       });
-      
-      // Update dots
       document.querySelectorAll('.page-dot').forEach((dot, i) => {
         dot.classList.toggle('active', i === index);
       });
-      
       updatePageNav();
     }
 
@@ -1007,7 +977,6 @@
         showToast('다운로드할 이미지가 없습니다.', 'error');
         return;
       }
-      
       const link = document.createElement('a');
       link.href = result.afterUrl;
       link.target = '_blank';
@@ -1019,7 +988,6 @@
     async function shareResult() {
       const result = state.results[state.currentPage];
       if (!result?.afterUrl) return;
-      
       try {
         if (navigator.share) {
           await navigator.share({
@@ -1093,7 +1061,7 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Keyboard Navigation
+    // Keyboard & Touch
     // ═══════════════════════════════════════════════════════════════
     document.addEventListener('keydown', (e) => {
       if (state.results.length > 1) {
@@ -1102,9 +1070,6 @@
       }
     });
 
-    // ═══════════════════════════════════════════════════════════════
-    // Touch Swipe for Pages
-    // ═══════════════════════════════════════════════════════════════
     let touchStartX = 0;
     document.getElementById('resultPages').addEventListener('touchstart', (e) => {
       touchStartX = e.changedTouches[0].screenX;
@@ -1112,9 +1077,7 @@
 
     document.getElementById('resultPages').addEventListener('touchend', (e) => {
       const diff = touchStartX - e.changedTouches[0].screenX;
-      if (Math.abs(diff) > 50) {
-        changePage(diff > 0 ? 1 : -1);
-      }
+      if (Math.abs(diff) > 50) changePage(diff > 0 ? 1 : -1);
     }, { passive: true });
 
     // ═══════════════════════════════════════════════════════════════
