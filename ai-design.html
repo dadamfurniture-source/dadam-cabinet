@@ -1078,7 +1078,7 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // RENDER RESULT PAGES (상세 분석 결과 포함)
+    // RENDER RESULT PAGES (간소화 - 토글 이미지만)
     // ═══════════════════════════════════════════════════════════════
     function renderResultPages() {
       const pagesContainer = document.getElementById('resultPages');
@@ -1095,125 +1095,6 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         page.dataset.index = index;
 
         const info = categoryInfo[result.category];
-        const wa = result.wallAnalysis;
-
-        // 상세 Wall Analysis HTML
-        let wallAnalysisHTML = '';
-        if (wa) {
-          // 치수 정보
-          const dims = wa.space_analysis?.estimated_dimensions || wa.estimated_dimensions || {};
-          const constraints = wa.installation_constraints || {};
-          const bgCond = wa.background_condition || {};
-          
-          // 기본 레이아웃 타입 (이전 버전 호환)
-          const layoutType = wa.space_analysis?.layout_type || wa.layout_type || '-';
-          
-          // 추정 치수
-          const totalWidth = dims.total_width_mm || '-';
-          const ceilingHeight = dims.ceiling_height_mm || '-';
-          const depth = dims.depth_mm || constraints.recommended_cabinet_depth_mm || '-';
-          
-          // 설치 가능 영역
-          const installWidth = constraints.recommended_cabinet_width_mm || '-';
-          const installHeight = constraints.recommended_cabinet_height_mm || '-';
-          const installDepth = constraints.recommended_cabinet_depth_mm || '-';
-          
-          // 장애물 목록
-          let obstaclesHTML = '';
-          const walls = wa.walls || [];
-          walls.forEach(wall => {
-            if (wall.obstacles && wall.obstacles.length > 0) {
-              wall.obstacles.forEach(obs => {
-                const icon = getObstacleIcon(obs.type);
-                obstaclesHTML += `<span class="obstacle-tag ${obs.clearance_required_mm > 100 ? 'warning' : ''}">${icon} ${obs.type} (${obs.position_mm || obs.size_mm || ''})</span>`;
-              });
-            }
-            // 이전 버전 호환
-            if (wall.features) {
-              if (wall.features.has_window) obstaclesHTML += `<span class="obstacle-tag">🪟 창문</span>`;
-              if (wall.features.has_door) obstaclesHTML += `<span class="obstacle-tag">🚪 문</span>`;
-              if (wall.features.has_outlet) obstaclesHTML += `<span class="obstacle-tag">🔌 콘센트</span>`;
-              if (wall.features.has_pipe) obstaclesHTML += `<span class="obstacle-tag warning">🔧 배관</span>`;
-            }
-          });
-          
-          // 피해야 할 영역
-          if (wa.obstacles && wa.obstacles.length > 0) {
-            wa.obstacles.forEach(obs => {
-              obstaclesHTML += `<span class="obstacle-tag">${obs}</span>`;
-            });
-          }
-          
-          // 배경 보정 권장 사항
-          let bgRefreshHTML = '';
-          if (bgCond.wall_needs_refresh || bgCond.floor_needs_refresh) {
-            bgRefreshHTML = `
-              <div class="bg-refresh-box">
-                <h5>✨ 배경 보정 적용됨</h5>
-                ${bgCond.wall_needs_refresh ? `<div class="bg-refresh-item">🎨 벽면: ${bgCond.suggested_wall_style || '깔끔한 화이트 톤'}</div>` : ''}
-                ${bgCond.floor_needs_refresh ? `<div class="bg-refresh-item">🪵 바닥: ${bgCond.suggested_floor_style || '밝은 원목 마루'}</div>` : ''}
-              </div>
-            `;
-          }
-
-          wallAnalysisHTML = `
-            <div class="wall-analysis-box">
-              <h4>📐 상세 공간 분석 <span class="badge">Claude Vision AI</span></h4>
-              
-              <!-- 추정 치수 -->
-              <div class="dimension-display">
-                <div class="dimension-item">
-                  <div class="value">${formatDimension(totalWidth)}</div>
-                  <div class="unit">mm</div>
-                  <div class="label">전체 폭</div>
-                </div>
-                <div class="dimension-item">
-                  <div class="value">${formatDimension(ceilingHeight)}</div>
-                  <div class="unit">mm</div>
-                  <div class="label">천장 높이</div>
-                </div>
-                <div class="dimension-item">
-                  <div class="value">${formatDimension(depth)}</div>
-                  <div class="unit">mm</div>
-                  <div class="label">설치 깊이</div>
-                </div>
-              </div>
-              
-              <!-- 설치 가능 영역 -->
-              <div class="install-zone">
-                <div class="title">🎯 권장 설치 치수</div>
-                <div class="dims">${formatDimension(installWidth)} × ${formatDimension(installHeight)} × ${formatDimension(installDepth)} mm</div>
-              </div>
-              
-              <!-- 기본 정보 -->
-              <div class="wall-info-grid">
-                <div class="wall-info-item">
-                  <div class="label">레이아웃</div>
-                  <div class="value">${layoutType}</div>
-                </div>
-                <div class="wall-info-item">
-                  <div class="label">좌우 여유</div>
-                  <div class="value">${constraints.side_clearance_mm || 10}mm</div>
-                </div>
-                <div class="wall-info-item">
-                  <div class="label">상단 여유</div>
-                  <div class="value">${constraints.top_clearance_mm || 10}mm</div>
-                </div>
-              </div>
-              
-              <!-- 장애물 -->
-              ${obstaclesHTML ? `
-                <div style="margin-top:12px">
-                  <div style="font-size:11px;color:var(--gray);margin-bottom:6px">⚠️ 감지된 장애물</div>
-                  <div class="obstacles-list">${obstaclesHTML}</div>
-                </div>
-              ` : ''}
-              
-              <!-- 배경 보정 -->
-              ${bgRefreshHTML}
-            </div>
-          `;
-        }
 
         page.innerHTML = `
           <div class="page-category">
@@ -1225,7 +1106,7 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           <div class="render-image-container">
             <div class="render-header">
               <span class="render-status" id="status_${index}">📷 원본 이미지</span>
-              <span class="render-hint">👆 클릭하여 전환: 원본 → 도어 닫힘 → 도어 열림</span>
+              <span class="render-hint">👆 클릭: 원본 → 도어닫힘 → 도어열림</span>
             </div>
             <img class="render-main-image" 
                  id="renderImg_${index}"
@@ -1236,14 +1117,6 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
                  data-open="${result.afterUrlOpen || ''}"
                  data-state="original"
                  onclick="toggleImage(${index})">
-          </div>
-          
-          <!-- 분석 결과 -->
-          <div class="result-analysis">
-            <div class="analysis-card">
-              <h4>📊 적용 정보</h4>
-              <p>${typeof result.analysis === 'object' ? JSON.stringify(result.analysis, null, 2) : result.analysis}</p>
-            </div>
           </div>
         `;
 
