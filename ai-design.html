@@ -590,7 +590,7 @@
     // API URLs
     // ═══════════════════════════════════════════════════════════════
     const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
-    const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design';
+    const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
     //const N8N_WALL_ANALYSIS_URL = 'https://dadam.app.n8n.cloud/webhook/wall-analysis';
 
     // ═══════════════════════════════════════════════════════════════
@@ -922,12 +922,33 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         await sleep(500);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 2: 벽 구조 분석 (새 워크플로우에서 통합 처리)
+        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
         // ═══════════════════════════════════════════════════════════
         updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
         document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
-        await sleep(300);
-        // 벽 분석은 이제 interior-design API에서 통합 처리됨
+
+        try {
+          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              room_image: imageData.base64,
+              image_type: imageData.type,
+              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
+              category: category
+            })
+          });
+
+          if (wallResponse.ok) {
+            let wallData = await wallResponse.json();
+            if (Array.isArray(wallData)) wallData = wallData[0];
+            wallAnalysis = wallData;
+            console.log('Wall Analysis:', wallAnalysis);
+          }
+        } catch (error) {
+          console.warn('Wall analysis failed, continuing without:', error);
+          // 벽 분석 실패해도 디자인 생성은 계속 진행
+        }
 
         // ═══════════════════════════════════════════════════════════
         // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
@@ -955,19 +976,14 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
 
           let data = await response.json();
           if (Array.isArray(data)) data = data[0];
-          
-          // 새 워크플로우 응답 형식 처리
-          const generatedImageUrl = data.generated_image?.data_url || data.generated_image?.url || '';
-          const roomAnalysis = data.room_analysis?.summary || data.room_analysis || '분석 결과 없음';
-          const designSuggestions = JSON.stringify(data.design_recommendation) || data.design_suggestions || '제안 없음';
 
           state.results.push({
             category,
             beforeUrl: imageData.preview,
-            afterUrl: generatedImageUrl,
-            analysis: roomAnalysis,
-            suggestions: designSuggestions,
-            wallAnalysis: data.room_analysis || wallAnalysis
+            afterUrl: data.generated_image?.url || '',
+            analysis: data.room_analysis || '분석 결과 없음',
+            suggestions: data.design_suggestions || '제안 없음',
+            wallAnalysis: wallAnalysis
           });
 
         } catch (error) {
