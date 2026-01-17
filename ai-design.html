@@ -180,6 +180,24 @@
     .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
     .result-card img{width:100%;height:220px;object-fit:cover;display:block}
     
+    /* Single Image Toggle - 풀 너비 + 클릭 토글 */
+    .result-single-image{margin-bottom:20px}
+    .image-toggle-container{background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+    .toggle-header{padding:14px 20px;background:linear-gradient(135deg,var(--cream),var(--white));border-bottom:1px solid var(--warm);display:flex;justify-content:space-between;align-items:center}
+    .toggle-label{font-size:14px;font-weight:600;color:#6366f1;transition:color .3s}
+    .toggle-hint{font-size:11px;color:var(--gray)}
+    .image-wrapper{position:relative;cursor:pointer;overflow:hidden}
+    .image-wrapper img{width:100%;height:auto;max-height:70vh;object-fit:contain;display:block;transition:opacity .15s, transform .15s}
+    .image-wrapper:hover img{transform:scale(1.01)}
+    .image-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.6);color:#fff;padding:10px 20px;border-radius:30px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none}
+    .image-wrapper:hover .image-overlay{opacity:1}
+    
+    /* 원본 이미지 비교 */
+    .result-comparison{margin-bottom:16px}
+    .comparison-item{background:var(--cream);border-radius:12px;padding:14px}
+    .comparison-item h5{font-size:12px;color:var(--gray);margin-bottom:0}
+    .comparison-item img{max-height:200px;object-fit:contain}
+    
     /* Wall Analysis in Result - 상세 버전 */
     .wall-analysis-box{background:var(--white);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
     .wall-analysis-box h4{font-size:13px;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -922,17 +940,43 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         await sleep(500);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 2: Supabase RAG 검색 (n8n 워크플로우 내부에서 처리)
+        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
         // ═══════════════════════════════════════════════════════════
-        updateStep(2, 'active', `${info.icon} 설계 규칙 검색 중...`);
-        document.getElementById('loadingTitle').textContent = `📚 RAG 설계 규칙 검색...`;
-        await sleep(300);
+        updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
+        document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
+
+        try {
+          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              room_image: imageData.base64,
+              image_type: imageData.type,
+              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
+              category: category
+            })
+          });
+
+          if (wallResponse.ok) {
+            let wallData = await wallResponse.json();
+            if (Array.isArray(wallData)) wallData = wallData[0];
+            wallAnalysis = wallData;
+            console.log('Wall Analysis:', wallAnalysis);
+          }
+        } catch (error) {
+          console.warn('Wall analysis failed, continuing without:', error);
+          // 벽 분석 실패해도 디자인 생성은 계속 진행
+        }
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 3: Gemini 디자인 생성 (닫힌 도어 + 열린 도어)
+        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
         // ═══════════════════════════════════════════════════════════
         updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
         document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
+
+        // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
+        const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
+        console.log('Design Prompt:', designPrompt);
 
         try {
           const response = await fetch(N8N_INTERIOR_URL, {
@@ -1185,22 +1229,31 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           
           ${wallAnalysisHTML}
           
-          <div class="result-grid">
-            <div class="result-card">
-              <div class="result-card-header">
-                <div class="dot before"></div>
-                <span>Before - 원본</span>
+          <div class="result-single-image">
+            <div class="image-toggle-container" id="toggleContainer_${index}">
+              <div class="toggle-header">
+                <span class="toggle-label" id="toggleLabel_${index}">🚪 도어 닫힘</span>
+                <span class="toggle-hint">클릭하여 도어 열기/닫기</span>
               </div>
-              <img src="${result.beforeUrl}" alt="Before">
+              <div class="image-wrapper" onclick="toggleDoorImage(${index})">
+                <img id="mainImage_${index}" 
+                     src="${result.afterUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>❌</text></svg>'}" 
+                     alt="AI Generated"
+                     data-closed="${result.afterUrl || ''}"
+                     data-open="${result.afterUrlOpen || ''}"
+                     data-state="closed"
+                     style="width: 100%; cursor: pointer; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <div class="image-overlay" id="overlay_${index}">
+                  <span>🔄 클릭하여 전환</span>
+                </div>
+              </div>
             </div>
-            <div class="result-card">
-              <div class="result-card-header">
-                <div class="dot after"></div>
-                <span>After - AI 리디자인</span>
-              </div>
-              <img src="${result.afterUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>❌</text></svg>'}" alt="After" 
-                   onclick="${result.afterUrl ? `window.open('${result.afterUrl}', '_blank')` : ''}"
-                   style="cursor: ${result.afterUrl ? 'pointer' : 'default'}">
+          </div>
+          
+          <div class="result-comparison">
+            <div class="comparison-item">
+              <h5>📷 원본 이미지</h5>
+              <img src="${result.beforeUrl}" alt="Original" style="width:100%;border-radius:8px;margin-top:8px;">
             </div>
           </div>
           
@@ -1367,6 +1420,47 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
       toast.textContent = message;
       toast.className = `toast ${type} show`;
       setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Door Image Toggle (닫힌/열린 도어 전환)
+    // ═══════════════════════════════════════════════════════════════
+    function toggleDoorImage(index) {
+      const img = document.getElementById(`mainImage_${index}`);
+      const label = document.getElementById(`toggleLabel_${index}`);
+      const overlay = document.getElementById(`overlay_${index}`);
+      
+      if (!img) return;
+      
+      const closedUrl = img.dataset.closed;
+      const openUrl = img.dataset.open;
+      const currentState = img.dataset.state;
+      
+      if (!openUrl) {
+        showToast('열린 도어 이미지가 없습니다', 'warning');
+        return;
+      }
+      
+      // 토글 애니메이션
+      img.style.opacity = '0.5';
+      img.style.transform = 'scale(0.98)';
+      
+      setTimeout(() => {
+        if (currentState === 'closed') {
+          img.src = openUrl;
+          img.dataset.state = 'open';
+          label.textContent = '🚪 도어 열림';
+          label.style.color = '#10b981';
+        } else {
+          img.src = closedUrl;
+          img.dataset.state = 'closed';
+          label.textContent = '🚪 도어 닫힘';
+          label.style.color = '#6366f1';
+        }
+        
+        img.style.opacity = '1';
+        img.style.transform = 'scale(1)';
+      }, 150);
     }
 
     // ═══════════════════════════════════════════════════════════════
