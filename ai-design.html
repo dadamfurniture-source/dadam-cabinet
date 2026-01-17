@@ -183,6 +183,31 @@
     .result-card img{width:100%;height:auto;max-height:500px;object-fit:contain;display:block;background:#f5f5f5}
     .result-img-large{max-height:600px !important}
     
+    /* ✅ 이미지 토글 컨테이너 */
+    .image-toggle-container{position:relative;cursor:pointer;overflow:hidden;border-radius:14px;box-shadow:0 4px 24px rgba(184,149,108,.2);border:2px solid var(--gold)}
+    .image-toggle-container:hover .toggle-hint{opacity:1}
+    .image-toggle-container:active{transform:scale(0.995)}
+    .toggle-image-wrapper{position:relative;width:100%;background:#f5f5f5}
+    .toggle-image{width:100%;height:auto;max-height:70vh;object-fit:contain;display:block;transition:opacity 0.4s ease}
+    .toggle-image.hidden{position:absolute;top:0;left:0;opacity:0;pointer-events:none}
+    .toggle-image.visible{position:relative;opacity:1}
+    
+    /* 토글 상태 표시 헤더 */
+    .toggle-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:linear-gradient(135deg,var(--charcoal),#1a1a2e);color:#fff}
+    .toggle-status{display:flex;align-items:center;gap:10px}
+    .toggle-status .dot{width:12px;height:12px;border-radius:50%;transition:all 0.3s}
+    .toggle-status .dot.before{background:#ef4444}
+    .toggle-status .dot.after{background:#10b981}
+    .toggle-status .label{font-size:13px;font-weight:600;letter-spacing:1px}
+    .toggle-hint{font-size:11px;color:rgba(255,255,255,0.7);display:flex;align-items:center;gap:6px;opacity:0.7;transition:opacity 0.3s}
+    .toggle-hint svg{width:16px;height:16px}
+    
+    /* 토글 인디케이터 (하단) */
+    .toggle-indicator{display:flex;justify-content:center;gap:8px;padding:12px;background:var(--cream)}
+    .toggle-dot{width:10px;height:10px;border-radius:50%;background:var(--warm);cursor:pointer;transition:all 0.3s}
+    .toggle-dot.active{background:var(--gold);width:24px;border-radius:5px}
+    .toggle-dot:hover{background:var(--gold-light)}
+    
     /* 간소화된 분석 요약 바 */
     .result-summary-bar{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--white);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.05);margin-top:16px}
     .result-summary-bar .summary-item{display:flex;align-items:center;gap:8px;flex:1}
@@ -302,6 +327,12 @@
       .result-summary-bar .summary-divider{width:100%;height:1px}
       .wall-info-grid{grid-template-columns:1fr 1fr}
       
+      /* 토글 모바일 스타일 */
+      .toggle-image{max-height:50vh}
+      .toggle-header{padding:12px 16px}
+      .toggle-status .label{font-size:12px}
+      .toggle-hint{font-size:10px}
+      
       .page-nav{gap:8px}
       .page-arrow{width:36px;height:36px}
       
@@ -323,6 +354,12 @@
       .result-img-large{max-height:350px !important}
       .result-summary-bar .summary-text{font-size:12px}
       .wall-info-grid{grid-template-columns:1fr}
+      
+      /* 토글 480px 스타일 */
+      .toggle-image{max-height:40vh}
+      .toggle-header{padding:10px 12px;flex-direction:column;gap:8px;align-items:flex-start}
+      .toggle-hint{display:none}
+      .toggle-indicator{padding:10px}
     }
 
     @media(hover:none){
@@ -1285,31 +1322,38 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           `;
         }
 
-        // ✅ 상세 분석 제거, 이미지 크게 표시
+        // ✅ 클릭으로 Before/After 토글되는 이미지
+        const toggleId = `toggle-${index}`;
+        
         page.innerHTML = `
           <div class="page-category">
             <span class="icon">${info.icon}</span>
             ${info.name}
           </div>
           
-          <!-- ✅ 이미지 크게 표시 -->
-          <div class="result-grid result-grid-large">
-            <div class="result-card">
-              <div class="result-card-header">
-                <div class="dot before"></div>
-                <span>BEFORE - 원본</span>
+          <!-- ✅ 클릭하면 Before ↔ After 전환 -->
+          <div class="image-toggle-container" onclick="toggleResultImage('${toggleId}')" id="${toggleId}">
+            <div class="toggle-header">
+              <div class="toggle-status">
+                <div class="dot before" id="${toggleId}-dot-before"></div>
+                <div class="dot after" id="${toggleId}-dot-after" style="opacity:0.3"></div>
+                <span class="label" id="${toggleId}-label">BEFORE - 원본</span>
               </div>
-              <img src="${result.beforeUrl}" alt="Before" class="result-img-large">
+              <div class="toggle-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                </svg>
+                클릭하여 전환
+              </div>
             </div>
-            <div class="result-card result-card-highlight">
-              <div class="result-card-header">
-                <div class="dot after"></div>
-                <span>AFTER - AI 리디자인</span>
-              </div>
-              <img src="${result.afterUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>❌</text></svg>'}" alt="After" 
-                   onclick="${result.afterUrl ? `window.open('${result.afterUrl}', '_blank')` : ''}"
-                   style="cursor: ${result.afterUrl ? 'pointer' : 'default'}"
-                   class="result-img-large">
+            <div class="toggle-image-wrapper">
+              <img src="${result.beforeUrl}" alt="Before" class="toggle-image visible" id="${toggleId}-before">
+              <img src="${result.afterUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>⏳</text></svg>'}" 
+                   alt="After" class="toggle-image hidden" id="${toggleId}-after">
+            </div>
+            <div class="toggle-indicator">
+              <div class="toggle-dot active" id="${toggleId}-indicator-before" onclick="event.stopPropagation(); setToggleState('${toggleId}', 'before')"></div>
+              <div class="toggle-dot" id="${toggleId}-indicator-after" onclick="event.stopPropagation(); setToggleState('${toggleId}', 'after')"></div>
             </div>
           </div>
           
@@ -1359,6 +1403,57 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         '에어컨': '❄️', '스위치': '💡', '환기구': '🌀', '기둥': '🏛️'
       };
       return icons[type] || '⚠️';
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ 이미지 토글 기능 (Before ↔ After)
+    // ═══════════════════════════════════════════════════════════════
+    const toggleStates = {}; // 각 토글 컨테이너의 상태 저장
+    
+    function toggleResultImage(toggleId) {
+      const currentState = toggleStates[toggleId] || 'before';
+      const newState = currentState === 'before' ? 'after' : 'before';
+      setToggleState(toggleId, newState);
+    }
+    
+    function setToggleState(toggleId, newState) {
+      toggleStates[toggleId] = newState;
+      
+      const beforeImg = document.getElementById(`${toggleId}-before`);
+      const afterImg = document.getElementById(`${toggleId}-after`);
+      const label = document.getElementById(`${toggleId}-label`);
+      const dotBefore = document.getElementById(`${toggleId}-dot-before`);
+      const dotAfter = document.getElementById(`${toggleId}-dot-after`);
+      const indicatorBefore = document.getElementById(`${toggleId}-indicator-before`);
+      const indicatorAfter = document.getElementById(`${toggleId}-indicator-after`);
+      
+      if (newState === 'after') {
+        // After 이미지 표시
+        beforeImg.classList.remove('visible');
+        beforeImg.classList.add('hidden');
+        afterImg.classList.remove('hidden');
+        afterImg.classList.add('visible');
+        
+        label.textContent = 'AFTER - AI 리디자인';
+        dotBefore.style.opacity = '0.3';
+        dotAfter.style.opacity = '1';
+        
+        indicatorBefore.classList.remove('active');
+        indicatorAfter.classList.add('active');
+      } else {
+        // Before 이미지 표시
+        afterImg.classList.remove('visible');
+        afterImg.classList.add('hidden');
+        beforeImg.classList.remove('hidden');
+        beforeImg.classList.add('visible');
+        
+        label.textContent = 'BEFORE - 원본';
+        dotBefore.style.opacity = '1';
+        dotAfter.style.opacity = '0.3';
+        
+        indicatorAfter.classList.remove('active');
+        indicatorBefore.classList.add('active');
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════
