@@ -586,15 +586,12 @@
   <div class="toast" id="toast"></div>
 
   <script>
-  <script>
     // ═══════════════════════════════════════════════════════════════
-    // API 설정 (n8n 없이 직접 호출 - CORS 문제 없음!)
+    // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
     // ═══════════════════════════════════════════════════════════════
-    const GEMINI_API_KEY = 'AIzaSyAoSxxK7kLSBPOz_5TfNfdlLoP_6_z8QWs';
-    const GEMINI_IMAGE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent';
-    
-    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY0MzQ4ODEsImV4cCI6MjA2MjAxMDg4MX0.kmJTdn6bhcrKZN-yd8xQzMhPnKcvpSaKz_e30uxFpFE';
+    const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+    const N8N_INTERIOR_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
+    const N8N_WALL_ANALYSIS_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
 
     // ═══════════════════════════════════════════════════════════════
     // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -886,10 +883,6 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     // MAIN GENERATION FLOW
     // 이미지 업로드 → 벽 분석 → DALL-E3 생성 (분석 결과 반영)
     // ═══════════════════════════════════════════════════════════════
-
-    // ═══════════════════════════════════════════════════════════════
-    // 메인 생성 함수 (n8n 없이 직접 API 호출)
-    // ═══════════════════════════════════════════════════════════════
     async function startGeneration() {
       const categories = Object.keys(state.uploadedImages);
       if (categories.length === 0) {
@@ -918,133 +911,117 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         const imageData = state.uploadedImages[category];
         const info = categoryInfo[category];
 
+        let wallAnalysis = null;
+
         // ═══════════════════════════════════════════════════════════
-        // STEP 1: 이미지 분석
+        // STEP 1: 이미지 분석 시작
         // ═══════════════════════════════════════════════════════════
         updateStep(1, 'active', `${info.icon} ${info.name} 이미지 분석 중... (${i + 1}/${total})`);
         document.getElementById('loadingTitle').textContent = `${info.icon} 이미지 분석 중...`;
         document.getElementById('loadingText').textContent = `${i + 1} / ${total}`;
+        await sleep(500);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 2: Supabase RAG 검색 (설계 규칙)
+        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
         // ═══════════════════════════════════════════════════════════
-        updateStep(2, 'active', `📚 설계 규칙 검색 중...`);
-        document.getElementById('loadingTitle').textContent = `📚 Supabase RAG 검색...`;
-
-        let ragRules = { background: '', modules: '', doors: '', count: 0 };
-        
-        try {
-          const triggers = getTriggersByCategory(category);
-          console.log('RAG Triggers:', triggers);
-          
-          const ragResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/quick_trigger_search`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({
-              query_triggers: triggers,
-              filter_category: category,
-              limit_count: 25
-            })
-          });
-
-          if (ragResponse.ok) {
-            const ragResults = await ragResponse.json();
-            ragRules = classifyRagResults(ragResults);
-            console.log('RAG Rules loaded:', ragRules.count, 'rules');
-          }
-        } catch (error) {
-          console.warn('RAG search failed, using defaults:', error);
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // STEP 3: Gemini 이미지 생성 - 닫힌 도어
-        // ═══════════════════════════════════════════════════════════
-        updateStep(3, 'active', `${info.icon} AI 디자인 생성 중 (닫힌 도어)...`);
-        document.getElementById('loadingTitle').textContent = `✨ 닫힌 도어 이미지 생성...`;
-
-        let closedDoorImage = null;
-        let openDoorImage = null;
+        updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
+        document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
 
         try {
-          const closedPrompt = buildClosedDoorPrompt(category, state.selectedStyle, ragRules);
-          console.log('Closed Door Prompt:', closedPrompt.substring(0, 200) + '...');
-
-          const closedResponse = await fetch(`${GEMINI_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
+          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { inline_data: { mime_type: 'image/jpeg', data: imageData.base64 } },
-                  { text: closedPrompt }
-                ]
-              }],
-              generationConfig: {
-                responseModalities: ['TEXT', 'IMAGE'],
-                temperature: 0.7
-              }
+              room_image: imageData.base64,
+              image_type: imageData.type,
+              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
+              category: category
             })
           });
 
-          if (!closedResponse.ok) {
-            const errorText = await closedResponse.text();
-            throw new Error(`Gemini API Error: ${closedResponse.status} - ${errorText.substring(0, 200)}`);
+          if (wallResponse.ok) {
+            let wallData = await wallResponse.json();
+            if (Array.isArray(wallData)) wallData = wallData[0];
+            wallAnalysis = wallData;
+            console.log('Wall Analysis:', wallAnalysis);
           }
+        } catch (error) {
+          console.warn('Wall analysis failed, continuing without:', error);
+          // 벽 분석 실패해도 디자인 생성은 계속 진행
+        }
 
-          const closedData = await closedResponse.json();
-          closedDoorImage = extractImageFromGemini(closedData);
-          console.log('Closed door image generated:', !!closedDoorImage);
+        // ═══════════════════════════════════════════════════════════
+        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
+        // ═══════════════════════════════════════════════════════════
+        updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
+        document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
 
-          // ═══════════════════════════════════════════════════════════
-          // STEP 3.5: Gemini 이미지 생성 - 열린 도어
-          // ═══════════════════════════════════════════════════════════
-          if (closedDoorImage) {
-            updateStep(3, 'active', `${info.icon} AI 디자인 생성 중 (열린 도어)...`);
-            document.getElementById('loadingTitle').textContent = `✨ 열린 도어 이미지 생성...`;
-            document.getElementById('loadingText').textContent = `동일 제품에서 도어만 열기`;
+        // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
+        const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
+        console.log('Design Prompt:', designPrompt);
 
-            const openPrompt = buildOpenDoorPrompt();
+        try {
+          const response = await fetch(N8N_INTERIOR_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              room_image: imageData.base64,
+              image_type: imageData.type,
+              category: category,
+              design_style: state.selectedStyle
+            })
+          });
 
-            const openResponse = await fetch(`${GEMINI_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { inline_data: { mime_type: 'image/png', data: closedDoorImage } },
-                    { text: openPrompt }
-                  ]
-                }],
-                generationConfig: {
-                  responseModalities: ['TEXT', 'IMAGE'],
-                  temperature: 0.4
-                }
-              })
-            });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            if (openResponse.ok) {
-              const openData = await openResponse.json();
-              openDoorImage = extractImageFromGemini(openData);
-              console.log('Open door image generated:', !!openDoorImage);
+          let data = await response.json();
+          if (Array.isArray(data)) data = data[0];
+          
+          console.log('n8n Response:', data);
+
+          // 새 워크플로우 응답에서 이미지 추출 (닫힌 도어 + 열린 도어)
+          let afterImageUrl = '';
+          let afterImageUrlOpen = '';
+          
+          if (data.generated_image) {
+            // 닫힌 도어 이미지
+            if (data.generated_image.closed && data.generated_image.closed.base64) {
+              const mimeType = data.generated_image.closed.mime_type || 'image/png';
+              afterImageUrl = `data:${mimeType};base64,${data.generated_image.closed.base64}`;
+            } 
+            // 이전 형식 호환
+            else if (data.generated_image.base64) {
+              const mimeType = data.generated_image.mime_type || 'image/png';
+              afterImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
+            }
+            else if (data.generated_image.url) {
+              afterImageUrl = data.generated_image.url;
+            }
+            
+            // 열린 도어 이미지
+            if (data.generated_image.open && data.generated_image.open.base64) {
+              const mimeType = data.generated_image.open.mime_type || 'image/png';
+              afterImageUrlOpen = `data:${mimeType};base64,${data.generated_image.open.base64}`;
             }
           }
+
+          // 분석 결과 포맷팅
+          let analysisText = data.message || '분석 완료';
+          if (data.rag_rules_count) {
+            analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${data.style || state.selectedStyle} 스타일`;
+          }
+
+          // 제안 텍스트
+          let suggestionText = `${info.name} - 동일 제품 도어 열림/닫힘`;
 
           state.results.push({
             category,
             beforeUrl: imageData.preview,
-            afterUrl: closedDoorImage ? `data:image/png;base64,${closedDoorImage}` : '',
-            afterUrlOpen: openDoorImage ? `data:image/png;base64,${openDoorImage}` : '',
-            analysis: `RAG 규칙 ${ragRules.count}개 적용 | ${state.selectedStyle} 스타일`,
-            suggestions: `${info.name} - 동일 제품 도어 열림/닫힘`,
-            ragRules: ragRules,
-            wallAnalysis: {
-              space_analysis: { layout_type: info.name },
-              estimated_dimensions: { total_width_mm: '-', ceiling_height_mm: '-' }
-            }
+            afterUrl: afterImageUrl,
+            afterUrlOpen: afterImageUrlOpen,
+            analysis: analysisText,
+            suggestions: suggestionText,
+            wallAnalysis: data.room_analysis || wallAnalysis
           });
 
         } catch (error) {
@@ -1053,10 +1030,9 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
             category,
             beforeUrl: imageData.preview,
             afterUrl: '',
-            afterUrlOpen: '',
             analysis: '생성 실패',
             suggestions: error.message,
-            wallAnalysis: null
+            wallAnalysis: wallAnalysis
           });
         }
       }
@@ -1083,139 +1059,6 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         progressSteps.classList.remove('active');
         document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
       }, 1500);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 헬퍼 함수: RAG 트리거 키워드
-    // ═══════════════════════════════════════════════════════════════
-    function getTriggersByCategory(category) {
-      const triggerMap = {
-        sink: ['상부장', '하부장', '걸레받이', '도어규격', '몰딩', '후드장', '개수대', '배경보정', '벽면마감', '천장마감', '바닥마감'],
-        wardrobe: ['붙박이장', '좌대', '상몰딩', '짧은옷', '긴옷', '서랍', '스마트바', '도어규격', '배경보정', '벽면마감', '천장마감', '바닥마감'],
-        fridge: ['냉장고장', '상부장', '좌대', '상몰딩', 'EL장', '홈카페', '배경보정', '벽면마감', '천장마감', '바닥마감'],
-        vanity: ['세면대', '상부장', '하부장', '거울장', '배경보정', '벽면마감', '바닥마감'],
-        shoe: ['신발장', '선반', '도어규격', '배경보정', '벽면마감', '바닥마감'],
-        storage: ['수납장', '선반', '도어규격', '배경보정', '벽면마감', '바닥마감']
-      };
-      return triggerMap[category] || triggerMap.sink;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 헬퍼 함수: RAG 결과 분류
-    // ═══════════════════════════════════════════════════════════════
-    function classifyRagResults(results) {
-      const bg = [], modules = [], doors = [];
-      
-      if (Array.isArray(results)) {
-        results.forEach(rule => {
-          if (rule.rule_type === 'background') {
-            bg.push(`- ${rule.content}`);
-          } else if (rule.rule_type === 'module') {
-            modules.push(`- ${rule.trigger}: ${rule.content}${rule.value_target ? ` [목표: ${rule.value_target}${rule.unit || 'mm'}]` : ''}`);
-          } else if (rule.rule_type === 'door') {
-            doors.push(`- ${rule.content}`);
-          }
-        });
-      }
-
-      return {
-        background: bg.length > 0 ? bg.join('\n') : getDefaultBackgroundRules(),
-        modules: modules.length > 0 ? modules.join('\n') : '- 기본 규격 적용',
-        doors: doors.length > 0 ? doors.join('\n') : '- 도어 너비: 350~600mm, 목표 450mm',
-        count: results?.length || 0
-      };
-    }
-
-    function getDefaultBackgroundRules() {
-      return `- 벽면: 핑크색 단열재, 노출 석고보드 → 깔끔한 화이트 페인트 (#FFFFFF)
-- 천장: 미완성, 노출 배선 → 화이트 평천장 + LED 다운라이트
-- 바닥: 콘크리트, 미완성 → 라이트 오크 원목마루
-- 배관: 노출 수도관, 전선관 → 벽체 내부로 완전 은폐`;
-    }
-
-    function getCategoryKorean(category) {
-      const names = {
-        sink: '주방 싱크대', wardrobe: '붙박이장', fridge: '냉장고장',
-        vanity: '세면대장', shoe: '신발장', storage: '수납장'
-      };
-      return names[category] || '주방 싱크대';
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 닫힌 도어 프롬프트
-    // ═══════════════════════════════════════════════════════════════
-    function buildClosedDoorPrompt(category, style, ragRules) {
-      const categoryKor = getCategoryKorean(category);
-      
-      return `[TASK] Generate a photorealistic interior visualization of a Korean ${categoryKor} with ALL DOORS COMPLETELY CLOSED.
-
-[STYLE] ${style} 스타일 적용
-
-[BACKGROUND CORRECTION - MANDATORY]
-${ragRules.background}
-
-[MODULE SPECIFICATIONS]
-${ragRules.modules}
-
-[DOOR SPECIFICATIONS]
-${ragRules.doors}
-- ⚠️ CRITICAL: ALL DOORS MUST BE COMPLETELY CLOSED
-- Show clean, uniform door fronts
-- No gaps between doors
-- All handles aligned horizontally
-
-[CAMERA & LIGHTING]
-- Eye-level perspective (1500mm height from floor)
-- 3/4 angle view showing front and one side
-- Soft natural daylight from left + warm LED accent (3000K)
-
-[OUTPUT REQUIREMENTS]
-- Photorealistic 3D rendering quality
-- Professional interior photography style
-- Korean apartment interior setting`;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 열린 도어 프롬프트
-    // ═══════════════════════════════════════════════════════════════
-    function buildOpenDoorPrompt() {
-      return `[TASK] Edit this cabinet image to show ALL DOORS OPENED at 90 degrees.
-
-[CRITICAL - KEEP EXACTLY THE SAME]
-- Cabinet design, colors, materials, and style
-- Camera angle, perspective, and framing
-- Lighting direction and intensity
-- Background (walls, floor, ceiling finishes)
-
-[ONLY CHANGE - OPEN THE DOORS]
-- All hinged cabinet doors: swing open 90° outward
-- All drawer fronts: pulled out 30-50%
-- Show interior organization (dishes, pots, containers)
-
-[OUTPUT]
-- Same photorealistic quality as input
-- Professional interior photography style`;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Gemini 응답에서 이미지 추출
-    // ═══════════════════════════════════════════════════════════════
-    function extractImageFromGemini(response) {
-      try {
-        const candidates = response.candidates || [];
-        if (candidates.length > 0) {
-          const parts = candidates[0].content?.parts || [];
-          for (const part of parts) {
-            if (part.inlineData || part.inline_data) {
-              const inlineData = part.inlineData || part.inline_data;
-              return inlineData.data;
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Error extracting image:', e);
-      }
-      return null;
     }
 
     function sleep(ms) {
