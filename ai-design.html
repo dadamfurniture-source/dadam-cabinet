@@ -922,43 +922,17 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         await sleep(500);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
+        // STEP 2: Supabase RAG 검색 (n8n 워크플로우 내부에서 처리)
         // ═══════════════════════════════════════════════════════════
-        updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
-        document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
-
-        try {
-          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              room_image: imageData.base64,
-              image_type: imageData.type,
-              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
-              category: category
-            })
-          });
-
-          if (wallResponse.ok) {
-            let wallData = await wallResponse.json();
-            if (Array.isArray(wallData)) wallData = wallData[0];
-            wallAnalysis = wallData;
-            console.log('Wall Analysis:', wallAnalysis);
-          }
-        } catch (error) {
-          console.warn('Wall analysis failed, continuing without:', error);
-          // 벽 분석 실패해도 디자인 생성은 계속 진행
-        }
+        updateStep(2, 'active', `${info.icon} 설계 규칙 검색 중...`);
+        document.getElementById('loadingTitle').textContent = `📚 RAG 설계 규칙 검색...`;
+        await sleep(300);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
+        // STEP 3: Gemini 디자인 생성 (닫힌 도어 + 열린 도어)
         // ═══════════════════════════════════════════════════════════
         updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
         document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
-
-        // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
-        const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
-        console.log('Design Prompt:', designPrompt);
 
         try {
           const response = await fetch(N8N_INTERIOR_URL, {
