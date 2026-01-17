@@ -591,7 +591,7 @@
     // ═══════════════════════════════════════════════════════════════
     const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
     const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
-    //const N8N_WALL_ANALYSIS_URL = 'https://dadam.app.n8n.cloud/webhook/wall-analysis';
+    const N8N_WALL_ANALYSIS_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
 
     // ═══════════════════════════════════════════════════════════════
     // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -976,14 +976,54 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
 
           let data = await response.json();
           if (Array.isArray(data)) data = data[0];
+          
+          console.log('n8n Response:', data);
+
+          // n8n 응답에서 이미지 URL 추출 (base64 또는 URL)
+          let afterImageUrl = '';
+          if (data.generated_image) {
+            if (data.generated_image.url) {
+              afterImageUrl = data.generated_image.url;
+            } else if (data.generated_image.base64) {
+              // Base64를 Data URL로 변환
+              const mimeType = data.generated_image.mime_type || 'image/png';
+              afterImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
+            }
+          }
+
+          // room_analysis 포맷팅
+          let analysisText = '분석 결과 없음';
+          if (data.room_analysis) {
+            const ra = data.room_analysis;
+            analysisText = `공간 크기: ${ra.width_mm || '-'}mm × ${ra.height_mm || '-'}mm`;
+            if (ra.obstacles && ra.obstacles.length > 0) {
+              analysisText += ` | 장애물: ${ra.obstacles.join(', ')}`;
+            }
+            if (ra.wall_color) {
+              analysisText += ` | 벽 색상: ${ra.wall_color}`;
+            }
+          }
+
+          // furniture_recommendation 포맷팅
+          let suggestionText = '제안 없음';
+          if (data.furniture_recommendation) {
+            const fr = data.furniture_recommendation;
+            suggestionText = `추천 모듈: 총 ${fr.total_width_mm || '-'}mm`;
+            if (fr.door_width_mm) {
+              suggestionText += ` | 도어 너비: ${fr.door_width_mm}mm × ${fr.door_count || '-'}개`;
+            }
+            if (fr.modules && fr.modules.length > 0) {
+              suggestionText += ` | 구성: ${fr.modules.map(m => m.type).join(', ')}`;
+            }
+          }
 
           state.results.push({
             category,
             beforeUrl: imageData.preview,
-            afterUrl: data.generated_image?.url || '',
-            analysis: data.room_analysis || '분석 결과 없음',
-            suggestions: data.design_suggestions || '제안 없음',
-            wallAnalysis: wallAnalysis
+            afterUrl: afterImageUrl,
+            analysis: analysisText,
+            suggestions: suggestionText,
+            wallAnalysis: data.room_analysis || wallAnalysis
           });
 
         } catch (error) {
@@ -1195,11 +1235,11 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           <div class="result-analysis">
             <div class="analysis-card">
               <h4>📊 공간 분석</h4>
-              <p>${result.analysis}</p>
+              <p>${typeof result.analysis === 'object' ? JSON.stringify(result.analysis, null, 2) : result.analysis}</p>
             </div>
             <div class="analysis-card">
               <h4>💡 디자인 제안</h4>
-              <p>${result.suggestions}</p>
+              <p>${typeof result.suggestions === 'object' ? JSON.stringify(result.suggestions, null, 2) : result.suggestions}</p>
             </div>
           </div>
         `;
