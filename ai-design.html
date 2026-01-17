@@ -171,17 +171,17 @@
     .page-category{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:var(--white);border-radius:12px;margin-bottom:16px;font-size:14px;font-weight:600;color:var(--charcoal);box-shadow:0 2px 8px rgba(0,0,0,.06)}
     .page-category .icon{font-size:20px}
 
-    .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-    .result-grid-large{gap:20px;margin-bottom:20px}
-    .result-card{background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+    .result-grid{display:flex;flex-direction:column;gap:20px;margin-bottom:16px}
+    .result-grid-large{gap:24px;margin-bottom:24px}
+    .result-card{background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05);width:100%}
     .result-card-highlight{box-shadow:0 4px 24px rgba(184,149,108,.3);border:2px solid var(--gold)}
-    .result-card-header{padding:10px 14px;background:var(--white);border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:6px}
-    .result-card-header .dot{width:8px;height:8px;border-radius:50%}
+    .result-card-header{padding:12px 16px;background:var(--white);border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:8px}
+    .result-card-header .dot{width:10px;height:10px;border-radius:50%}
     .result-card-header .dot.before{background:#ef4444}
     .result-card-header .dot.after{background:#10b981}
-    .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
-    .result-card img{width:100%;height:220px;object-fit:cover;display:block}
-    .result-img-large{height:360px !important}
+    .result-card-header span{font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
+    .result-card img{width:100%;height:auto;max-height:500px;object-fit:contain;display:block;background:#f5f5f5}
+    .result-img-large{max-height:600px !important}
     
     /* 간소화된 분석 요약 바 */
     .result-summary-bar{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--white);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.05);margin-top:16px}
@@ -294,9 +294,9 @@
       .step-label{font-size:10px}
       
       .result-section{padding:16px}
-      .result-grid{grid-template-columns:1fr}
-      .result-card img{height:180px}
-      .result-img-large{height:280px !important}
+      .result-grid{flex-direction:column}
+      .result-card img{max-height:400px}
+      .result-img-large{max-height:450px !important}
       .result-analysis{grid-template-columns:1fr}
       .result-summary-bar{flex-direction:column;gap:12px;padding:14px}
       .result-summary-bar .summary-divider{width:100%;height:1px}
@@ -319,8 +319,8 @@
       .category-name{font-size:12px}
       .category-desc{display:none}
       .category-preview{height:50px}
-      .result-card img{height:150px}
-      .result-img-large{height:220px !important}
+      .result-card img{max-height:300px}
+      .result-img-large{max-height:350px !important}
       .result-summary-bar .summary-text{font-size:12px}
       .wall-info-grid{grid-template-columns:1fr}
     }
@@ -607,6 +607,60 @@
     const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
     const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
     const N8N_WALL_ANALYSIS_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
+
+    // ═══════════════════════════════════════════════════════════════
+    // ★ 다담가구 설계 규칙 (index-v33 기준)
+    // ═══════════════════════════════════════════════════════════════
+    const DADAM_DESIGN_RULES = {
+      // 공통 도어 규칙
+      door: {
+        targetWidth: 450,   // 목표 도어 너비
+        maxWidth: 600,      // 최대 도어 너비
+        minWidth: 350,      // 최소 도어 너비
+        minRemainder: 4,    // 최소 잔여
+        maxRemainder: 10    // 최대 잔여
+      },
+      // 싱크대 규칙
+      sink: {
+        upperHeight: 720,     // 상부장 높이
+        lowerHeight: 870,     // 하부장 높이
+        moldingHeight: 60,    // 상몰딩 높이
+        kickboardHeight: 150, // 걸레받이 높이
+        upperDepth: 350,      // 상부장 깊이
+        lowerDepth: 600,      // 하부장 깊이
+        doorColorUpper: '화이트',
+        doorColorLower: '화이트',
+        topThickness: 12      // 상판 두께
+      },
+      // 붙박이장 규칙
+      wardrobe: {
+        pedestalHeight: 60,   // 좌대 높이
+        moldingHeight: 15,    // 상몰딩 높이
+        targetDoorWidth: 480, // 목표 도어 너비
+        depth: 650,           // 깊이
+        smartbarWidth: 30,    // 스마트바 너비
+        tolerance: 10,        // 시공 여유공간
+        // 모듈 타입
+        moduleTypes: {
+          short: '짧은옷(2단)',
+          long: '긴옷(1단)',
+          shelf: '선반형'
+        }
+      },
+      // 냉장고장 규칙
+      fridge: {
+        maxUpperHeight: 400,  // 상부장 최대 높이
+        pedestalHeight: 60,   // 좌대 높이
+        legHeight: 60,        // 다리발 높이
+        lowerBodyHeight: 810, // 하부장 모듈 높이
+        moduleDepth: 550,     // 모듈 기본 깊이
+        installDepth: 700,    // 설치 필요 깊이
+        topGap: 15,           // 냉장고 상단 간격
+        moldingHeight: 50,    // 상몰딩 기본 높이
+        elWidth: 600,         // 키큰장/EL장 기본 폭
+        homecafeWidth: 600    // 홈카페장 기본 폭
+      }
+    };
 
     // ═══════════════════════════════════════════════════════════════
     // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -977,16 +1031,24 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         console.log('Category being sent:', category);  // ✅ 디버그 로그
 
         try {
+          // ✅ 카테고리별 설계 규칙 가져오기
+          const categoryRules = DADAM_DESIGN_RULES[category] || DADAM_DESIGN_RULES.sink;
+          
           const response = await fetch(N8N_INTERIOR_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               room_image: imageData.base64,
               image_type: imageData.type,
-              category: category,  // ✅ 카테고리 추가!
-              style: state.selectedStyle,  // ✅ 스타일 추가!
+              category: category,
+              style: state.selectedStyle,
               design_style: state.selectedStyle,
-              additional_request: designPrompt
+              additional_request: designPrompt,
+              // ✅ 다담가구 설계 규칙 전달
+              design_rules: {
+                door: DADAM_DESIGN_RULES.door,
+                category_rules: categoryRules
+              }
             })
           });
 
