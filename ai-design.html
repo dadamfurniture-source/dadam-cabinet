@@ -171,58 +171,14 @@
     .page-category{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:var(--white);border-radius:12px;margin-bottom:16px;font-size:14px;font-weight:600;color:var(--charcoal);box-shadow:0 2px 8px rgba(0,0,0,.06)}
     .page-category .icon{font-size:20px}
 
-    .result-grid{display:flex;flex-direction:column;gap:20px;margin-bottom:16px}
-    .result-grid-large{gap:24px;margin-bottom:24px}
-    .result-card{background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05);width:100%}
-    .result-card-highlight{box-shadow:0 4px 24px rgba(184,149,108,.3);border:2px solid var(--gold)}
-    .result-card-header{padding:12px 16px;background:var(--white);border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:8px}
-    .result-card-header .dot{width:10px;height:10px;border-radius:50%}
+    .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+    .result-card{background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+    .result-card-header{padding:10px 14px;background:var(--white);border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:6px}
+    .result-card-header .dot{width:8px;height:8px;border-radius:50%}
     .result-card-header .dot.before{background:#ef4444}
     .result-card-header .dot.after{background:#10b981}
-    .result-card-header span{font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
-    .result-card img{width:100%;height:auto;max-height:500px;object-fit:contain;display:block;background:#f5f5f5}
-    .result-img-large{max-height:600px !important}
-    
-    /* ✅ 이미지 토글 컨테이너 (3단계: 원본 → 도어닫힘 → 내부구조) */
-    .image-toggle-container{position:relative;cursor:pointer;overflow:hidden;border-radius:14px;box-shadow:0 4px 24px rgba(184,149,108,.2);border:2px solid var(--gold)}
-    .image-toggle-container:hover .toggle-hint{opacity:1}
-    .image-toggle-container:active{transform:scale(0.995)}
-    .toggle-image-wrapper{position:relative;width:100%;background:#f5f5f5}
-    .toggle-image{width:100%;height:auto;max-height:70vh;object-fit:contain;display:block;transition:opacity 0.4s ease}
-    .toggle-image.hidden{position:absolute;top:0;left:0;opacity:0;pointer-events:none}
-    .toggle-image.visible{position:relative;opacity:1}
-    
-    /* 토글 상태 표시 헤더 */
-    .toggle-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:linear-gradient(135deg,var(--charcoal),#1a1a2e);color:#fff}
-    .toggle-status{display:flex;align-items:center;gap:10px}
-    .toggle-status .dots{display:flex;gap:6px}
-    .toggle-status .dot{width:10px;height:10px;border-radius:50%;transition:all 0.3s;opacity:0.3}
-    .toggle-status .dot.active{opacity:1;transform:scale(1.2)}
-    .toggle-status .dot.before{background:#ef4444}
-    .toggle-status .dot.closed{background:#10b981}
-    .toggle-status .dot.internal{background:#8b5cf6}
-    .toggle-status .label{font-size:13px;font-weight:600;letter-spacing:1px}
-    .toggle-hint{font-size:11px;color:rgba(255,255,255,0.7);display:flex;align-items:center;gap:6px;opacity:0.7;transition:opacity 0.3s}
-    .toggle-hint svg{width:16px;height:16px}
-    
-    /* 토글 인디케이터 (하단 3개) */
-    .toggle-indicator{display:flex;justify-content:center;align-items:center;gap:12px;padding:14px;background:var(--cream)}
-    .toggle-indicator-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 12px;border-radius:8px;transition:all 0.3s}
-    .toggle-indicator-item:hover{background:rgba(184,149,108,0.1)}
-    .toggle-indicator-item.active{background:rgba(184,149,108,0.2)}
-    .toggle-indicator-item .ind-dot{width:12px;height:12px;border-radius:50%;transition:all 0.3s}
-    .toggle-indicator-item.active .ind-dot{width:20px;border-radius:6px}
-    .toggle-indicator-item .ind-dot.before{background:#ef4444}
-    .toggle-indicator-item .ind-dot.closed{background:#10b981}
-    .toggle-indicator-item .ind-dot.internal{background:#8b5cf6}
-    .toggle-indicator-item .ind-label{font-size:9px;color:var(--gray);font-weight:600}
-    
-    /* 간소화된 분석 요약 바 */
-    .result-summary-bar{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--white);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.05);margin-top:16px}
-    .result-summary-bar .summary-item{display:flex;align-items:center;gap:8px;flex:1}
-    .result-summary-bar .summary-icon{font-size:16px}
-    .result-summary-bar .summary-text{font-size:13px;color:var(--charcoal);line-height:1.4}
-    .result-summary-bar .summary-divider{width:1px;height:24px;background:var(--warm)}
+    .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
+    .result-card img{width:100%;height:220px;object-fit:cover;display:block}
     
     /* Wall Analysis in Result - 상세 버전 */
     .wall-analysis-box{background:var(--white);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
@@ -328,19 +284,10 @@
       .step-label{font-size:10px}
       
       .result-section{padding:16px}
-      .result-grid{flex-direction:column}
-      .result-card img{max-height:400px}
-      .result-img-large{max-height:450px !important}
+      .result-grid{grid-template-columns:1fr}
+      .result-card img{height:180px}
       .result-analysis{grid-template-columns:1fr}
-      .result-summary-bar{flex-direction:column;gap:12px;padding:14px}
-      .result-summary-bar .summary-divider{width:100%;height:1px}
       .wall-info-grid{grid-template-columns:1fr 1fr}
-      
-      /* 토글 모바일 스타일 */
-      .toggle-image{max-height:50vh}
-      .toggle-header{padding:12px 16px}
-      .toggle-status .label{font-size:12px}
-      .toggle-hint{font-size:10px}
       
       .page-nav{gap:8px}
       .page-arrow{width:36px;height:36px}
@@ -359,16 +306,8 @@
       .category-name{font-size:12px}
       .category-desc{display:none}
       .category-preview{height:50px}
-      .result-card img{max-height:300px}
-      .result-img-large{max-height:350px !important}
-      .result-summary-bar .summary-text{font-size:12px}
+      .result-card img{height:150px}
       .wall-info-grid{grid-template-columns:1fr}
-      
-      /* 토글 480px 스타일 */
-      .toggle-image{max-height:40vh}
-      .toggle-header{padding:10px 12px;flex-direction:column;gap:8px;align-items:flex-start}
-      .toggle-hint{display:none}
-      .toggle-indicator{padding:10px}
     }
 
     @media(hover:none){
@@ -647,66 +586,15 @@
   <div class="toast" id="toast"></div>
 
   <script>
+  <script>
     // ═══════════════════════════════════════════════════════════════
-    // API URLs
+    // API 설정 (n8n 없이 직접 호출 - CORS 문제 없음!)
     // ═══════════════════════════════════════════════════════════════
-    const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
-    const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
-    const N8N_WALL_ANALYSIS_URL = 'https://dadam.app.n8n.cloud/webhook/interior-design-v3';
-
-    // ═══════════════════════════════════════════════════════════════
-    // ★ 다담가구 설계 규칙 (index-v33 기준)
-    // ═══════════════════════════════════════════════════════════════
-    const DADAM_DESIGN_RULES = {
-      // 공통 도어 규칙
-      door: {
-        targetWidth: 450,   // 목표 도어 너비
-        maxWidth: 600,      // 최대 도어 너비
-        minWidth: 350,      // 최소 도어 너비
-        minRemainder: 4,    // 최소 잔여
-        maxRemainder: 10    // 최대 잔여
-      },
-      // 싱크대 규칙
-      sink: {
-        upperHeight: 720,     // 상부장 높이
-        lowerHeight: 870,     // 하부장 높이
-        moldingHeight: 60,    // 상몰딩 높이
-        kickboardHeight: 150, // 걸레받이 높이
-        upperDepth: 350,      // 상부장 깊이
-        lowerDepth: 600,      // 하부장 깊이
-        doorColorUpper: '화이트',
-        doorColorLower: '화이트',
-        topThickness: 12      // 상판 두께
-      },
-      // 붙박이장 규칙
-      wardrobe: {
-        pedestalHeight: 60,   // 좌대 높이
-        moldingHeight: 15,    // 상몰딩 높이
-        targetDoorWidth: 480, // 목표 도어 너비
-        depth: 650,           // 깊이
-        smartbarWidth: 30,    // 스마트바 너비
-        tolerance: 10,        // 시공 여유공간
-        // 모듈 타입
-        moduleTypes: {
-          short: '짧은옷(2단)',
-          long: '긴옷(1단)',
-          shelf: '선반형'
-        }
-      },
-      // 냉장고장 규칙
-      fridge: {
-        maxUpperHeight: 400,  // 상부장 최대 높이
-        pedestalHeight: 60,   // 좌대 높이
-        legHeight: 60,        // 다리발 높이
-        lowerBodyHeight: 810, // 하부장 모듈 높이
-        moduleDepth: 550,     // 모듈 기본 깊이
-        installDepth: 700,    // 설치 필요 깊이
-        topGap: 15,           // 냉장고 상단 간격
-        moldingHeight: 50,    // 상몰딩 기본 높이
-        elWidth: 600,         // 키큰장/EL장 기본 폭
-        homecafeWidth: 600    // 홈카페장 기본 폭
-      }
-    };
+    const GEMINI_API_KEY = 'AIzaSyAoSxxK7kLSBPOz_5TfNfdlLoP_6_z8QWs';
+    const GEMINI_IMAGE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent';
+    
+    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY0MzQ4ODEsImV4cCI6MjA2MjAxMDg4MX0.kmJTdn6bhcrKZN-yd8xQzMhPnKcvpSaKz_e30uxFpFE';
 
     // ═══════════════════════════════════════════════════════════════
     // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -998,6 +886,10 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     // MAIN GENERATION FLOW
     // 이미지 업로드 → 벽 분석 → DALL-E3 생성 (분석 결과 반영)
     // ═══════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════
+    // 메인 생성 함수 (n8n 없이 직접 API 호출)
+    // ═══════════════════════════════════════════════════════════════
     async function startGeneration() {
       const categories = Object.keys(state.uploadedImages);
       if (categories.length === 0) {
@@ -1026,148 +918,133 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         const imageData = state.uploadedImages[category];
         const info = categoryInfo[category];
 
-        let wallAnalysis = null;
-
         // ═══════════════════════════════════════════════════════════
-        // STEP 1: 이미지 분석 시작
+        // STEP 1: 이미지 분석
         // ═══════════════════════════════════════════════════════════
         updateStep(1, 'active', `${info.icon} ${info.name} 이미지 분석 중... (${i + 1}/${total})`);
         document.getElementById('loadingTitle').textContent = `${info.icon} 이미지 분석 중...`;
         document.getElementById('loadingText').textContent = `${i + 1} / ${total}`;
-        await sleep(500);
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
+        // STEP 2: Supabase RAG 검색 (설계 규칙)
         // ═══════════════════════════════════════════════════════════
-        updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
-        document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
+        updateStep(2, 'active', `📚 설계 규칙 검색 중...`);
+        document.getElementById('loadingTitle').textContent = `📚 Supabase RAG 검색...`;
 
+        let ragRules = { background: '', modules: '', doors: '', count: 0 };
+        
         try {
-          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
+          const triggers = getTriggersByCategory(category);
+          console.log('RAG Triggers:', triggers);
+          
+          const ragResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/quick_trigger_search`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
             body: JSON.stringify({
-              room_image: imageData.base64,
-              image_type: imageData.type,
-              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
-              category: category
+              query_triggers: triggers,
+              filter_category: category,
+              limit_count: 25
             })
           });
 
-          if (wallResponse.ok) {
-            let wallData = await wallResponse.json();
-            if (Array.isArray(wallData)) wallData = wallData[0];
-            wallAnalysis = wallData;
-            console.log('Wall Analysis:', wallAnalysis);
+          if (ragResponse.ok) {
+            const ragResults = await ragResponse.json();
+            ragRules = classifyRagResults(ragResults);
+            console.log('RAG Rules loaded:', ragRules.count, 'rules');
           }
         } catch (error) {
-          console.warn('Wall analysis failed, continuing without:', error);
-          // 벽 분석 실패해도 디자인 생성은 계속 진행
+          console.warn('RAG search failed, using defaults:', error);
         }
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
+        // STEP 3: Gemini 이미지 생성 - 닫힌 도어
         // ═══════════════════════════════════════════════════════════
-        updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
-        document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
+        updateStep(3, 'active', `${info.icon} AI 디자인 생성 중 (닫힌 도어)...`);
+        document.getElementById('loadingTitle').textContent = `✨ 닫힌 도어 이미지 생성...`;
 
-        // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
-        const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
-        console.log('Design Prompt:', designPrompt);
-        console.log('Category being sent:', category);  // ✅ 디버그 로그
+        let closedDoorImage = null;
+        let openDoorImage = null;
 
         try {
-          // ✅ 카테고리별 설계 규칙 가져오기
-          const categoryRules = DADAM_DESIGN_RULES[category] || DADAM_DESIGN_RULES.sink;
-          
-          const response = await fetch(N8N_INTERIOR_URL, {
+          const closedPrompt = buildClosedDoorPrompt(category, state.selectedStyle, ragRules);
+          console.log('Closed Door Prompt:', closedPrompt.substring(0, 200) + '...');
+
+          const closedResponse = await fetch(`${GEMINI_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              room_image: imageData.base64,
-              image_type: imageData.type,
-              category: category,
-              style: state.selectedStyle,
-              design_style: state.selectedStyle,
-              additional_request: designPrompt,
-              // ✅ 다담가구 설계 규칙 전달
-              design_rules: {
-                door: DADAM_DESIGN_RULES.door,
-                category_rules: categoryRules
+              contents: [{
+                parts: [
+                  { inline_data: { mime_type: 'image/jpeg', data: imageData.base64 } },
+                  { text: closedPrompt }
+                ]
+              }],
+              generationConfig: {
+                responseModalities: ['TEXT', 'IMAGE'],
+                temperature: 0.7
               }
             })
           });
 
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          let data = await response.json();
-          if (Array.isArray(data)) data = data[0];
-          
-          console.log('n8n Response:', data);
-
-          // ✅ 이미지 1: 도어 닫힌 완성 이미지
-          let afterImageUrl = '';
-          if (data.generated_image) {
-            if (data.generated_image.url) {
-              afterImageUrl = data.generated_image.url;
-            } else if (data.generated_image.base64) {
-              const mimeType = data.generated_image.mime_type || 'image/png';
-              afterImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
-            }
+          if (!closedResponse.ok) {
+            const errorText = await closedResponse.text();
+            throw new Error(`Gemini API Error: ${closedResponse.status} - ${errorText.substring(0, 200)}`);
           }
 
-          // ✅ 이미지 2: 내부 구조 이미지 (도어 없음)
-          let internalImageUrl = '';
-          if (data.internal_image) {
-            if (data.internal_image.url) {
-              internalImageUrl = data.internal_image.url;
-            } else if (data.internal_image.base64) {
-              const mimeType = data.internal_image.mime_type || 'image/png';
-              internalImageUrl = `data:${mimeType};base64,${data.internal_image.base64}`;
-            }
-          }
+          const closedData = await closedResponse.json();
+          closedDoorImage = extractImageFromGemini(closedData);
+          console.log('Closed door image generated:', !!closedDoorImage);
 
-          // room_analysis 포맷팅
-          let analysisText = '분석 결과 없음';
-          if (data.room_analysis) {
-            const ra = data.room_analysis;
-            analysisText = `공간 크기: ${ra.width_mm || '-'}mm × ${ra.height_mm || '-'}mm`;
-            if (ra.obstacles && ra.obstacles.length > 0) {
-              analysisText += ` | 장애물: ${ra.obstacles.join(', ')}`;
-            }
-            if (ra.wall_color) {
-              analysisText += ` | 벽 색상: ${ra.wall_color}`;
-            }
-          }
+          // ═══════════════════════════════════════════════════════════
+          // STEP 3.5: Gemini 이미지 생성 - 열린 도어
+          // ═══════════════════════════════════════════════════════════
+          if (closedDoorImage) {
+            updateStep(3, 'active', `${info.icon} AI 디자인 생성 중 (열린 도어)...`);
+            document.getElementById('loadingTitle').textContent = `✨ 열린 도어 이미지 생성...`;
+            document.getElementById('loadingText').textContent = `동일 제품에서 도어만 열기`;
 
-          // 배경 보정 정보
-          let correctionText = '';
-          if (data.background_correction && data.background_correction.fixes && data.background_correction.fixes.length > 0) {
-            correctionText = `🔧 보정: ${data.background_correction.fixes.join(', ')}`;
-          }
+            const openPrompt = buildOpenDoorPrompt();
 
-          // furniture_recommendation 포맷팅
-          let suggestionText = '제안 없음';
-          if (data.furniture_recommendation) {
-            const fr = data.furniture_recommendation;
-            suggestionText = `추천 모듈: 총 ${fr.total_width_mm || '-'}mm`;
-            if (fr.door_width_mm) {
-              suggestionText += ` | 도어 너비: ${fr.door_width_mm}mm × ${fr.door_count || '-'}개`;
-            }
-            if (fr.modules && fr.modules.length > 0) {
-              suggestionText += ` | 구성: ${fr.modules.map(m => m.type).join(', ')}`;
+            const openResponse = await fetch(`${GEMINI_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { inline_data: { mime_type: 'image/png', data: closedDoorImage } },
+                    { text: openPrompt }
+                  ]
+                }],
+                generationConfig: {
+                  responseModalities: ['TEXT', 'IMAGE'],
+                  temperature: 0.4
+                }
+              })
+            });
+
+            if (openResponse.ok) {
+              const openData = await openResponse.json();
+              openDoorImage = extractImageFromGemini(openData);
+              console.log('Open door image generated:', !!openDoorImage);
             }
           }
 
           state.results.push({
             category,
             beforeUrl: imageData.preview,
-            afterUrl: afterImageUrl,
-            internalUrl: internalImageUrl,  // ✅ 내부 구조 이미지 추가
-            correctionInfo: correctionText,
-            analysis: analysisText,
-            suggestions: suggestionText,
-            wallAnalysis: data.room_analysis || wallAnalysis
+            afterUrl: closedDoorImage ? `data:image/png;base64,${closedDoorImage}` : '',
+            afterUrlOpen: openDoorImage ? `data:image/png;base64,${openDoorImage}` : '',
+            analysis: `RAG 규칙 ${ragRules.count}개 적용 | ${state.selectedStyle} 스타일`,
+            suggestions: `${info.name} - 동일 제품 도어 열림/닫힘`,
+            ragRules: ragRules,
+            wallAnalysis: {
+              space_analysis: { layout_type: info.name },
+              estimated_dimensions: { total_width_mm: '-', ceiling_height_mm: '-' }
+            }
           });
 
         } catch (error) {
@@ -1176,9 +1053,10 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
             category,
             beforeUrl: imageData.preview,
             afterUrl: '',
+            afterUrlOpen: '',
             analysis: '생성 실패',
             suggestions: error.message,
-            wallAnalysis: wallAnalysis
+            wallAnalysis: null
           });
         }
       }
@@ -1205,6 +1083,139 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         progressSteps.classList.remove('active');
         document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
       }, 1500);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 헬퍼 함수: RAG 트리거 키워드
+    // ═══════════════════════════════════════════════════════════════
+    function getTriggersByCategory(category) {
+      const triggerMap = {
+        sink: ['상부장', '하부장', '걸레받이', '도어규격', '몰딩', '후드장', '개수대', '배경보정', '벽면마감', '천장마감', '바닥마감'],
+        wardrobe: ['붙박이장', '좌대', '상몰딩', '짧은옷', '긴옷', '서랍', '스마트바', '도어규격', '배경보정', '벽면마감', '천장마감', '바닥마감'],
+        fridge: ['냉장고장', '상부장', '좌대', '상몰딩', 'EL장', '홈카페', '배경보정', '벽면마감', '천장마감', '바닥마감'],
+        vanity: ['세면대', '상부장', '하부장', '거울장', '배경보정', '벽면마감', '바닥마감'],
+        shoe: ['신발장', '선반', '도어규격', '배경보정', '벽면마감', '바닥마감'],
+        storage: ['수납장', '선반', '도어규격', '배경보정', '벽면마감', '바닥마감']
+      };
+      return triggerMap[category] || triggerMap.sink;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 헬퍼 함수: RAG 결과 분류
+    // ═══════════════════════════════════════════════════════════════
+    function classifyRagResults(results) {
+      const bg = [], modules = [], doors = [];
+      
+      if (Array.isArray(results)) {
+        results.forEach(rule => {
+          if (rule.rule_type === 'background') {
+            bg.push(`- ${rule.content}`);
+          } else if (rule.rule_type === 'module') {
+            modules.push(`- ${rule.trigger}: ${rule.content}${rule.value_target ? ` [목표: ${rule.value_target}${rule.unit || 'mm'}]` : ''}`);
+          } else if (rule.rule_type === 'door') {
+            doors.push(`- ${rule.content}`);
+          }
+        });
+      }
+
+      return {
+        background: bg.length > 0 ? bg.join('\n') : getDefaultBackgroundRules(),
+        modules: modules.length > 0 ? modules.join('\n') : '- 기본 규격 적용',
+        doors: doors.length > 0 ? doors.join('\n') : '- 도어 너비: 350~600mm, 목표 450mm',
+        count: results?.length || 0
+      };
+    }
+
+    function getDefaultBackgroundRules() {
+      return `- 벽면: 핑크색 단열재, 노출 석고보드 → 깔끔한 화이트 페인트 (#FFFFFF)
+- 천장: 미완성, 노출 배선 → 화이트 평천장 + LED 다운라이트
+- 바닥: 콘크리트, 미완성 → 라이트 오크 원목마루
+- 배관: 노출 수도관, 전선관 → 벽체 내부로 완전 은폐`;
+    }
+
+    function getCategoryKorean(category) {
+      const names = {
+        sink: '주방 싱크대', wardrobe: '붙박이장', fridge: '냉장고장',
+        vanity: '세면대장', shoe: '신발장', storage: '수납장'
+      };
+      return names[category] || '주방 싱크대';
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 닫힌 도어 프롬프트
+    // ═══════════════════════════════════════════════════════════════
+    function buildClosedDoorPrompt(category, style, ragRules) {
+      const categoryKor = getCategoryKorean(category);
+      
+      return `[TASK] Generate a photorealistic interior visualization of a Korean ${categoryKor} with ALL DOORS COMPLETELY CLOSED.
+
+[STYLE] ${style} 스타일 적용
+
+[BACKGROUND CORRECTION - MANDATORY]
+${ragRules.background}
+
+[MODULE SPECIFICATIONS]
+${ragRules.modules}
+
+[DOOR SPECIFICATIONS]
+${ragRules.doors}
+- ⚠️ CRITICAL: ALL DOORS MUST BE COMPLETELY CLOSED
+- Show clean, uniform door fronts
+- No gaps between doors
+- All handles aligned horizontally
+
+[CAMERA & LIGHTING]
+- Eye-level perspective (1500mm height from floor)
+- 3/4 angle view showing front and one side
+- Soft natural daylight from left + warm LED accent (3000K)
+
+[OUTPUT REQUIREMENTS]
+- Photorealistic 3D rendering quality
+- Professional interior photography style
+- Korean apartment interior setting`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 열린 도어 프롬프트
+    // ═══════════════════════════════════════════════════════════════
+    function buildOpenDoorPrompt() {
+      return `[TASK] Edit this cabinet image to show ALL DOORS OPENED at 90 degrees.
+
+[CRITICAL - KEEP EXACTLY THE SAME]
+- Cabinet design, colors, materials, and style
+- Camera angle, perspective, and framing
+- Lighting direction and intensity
+- Background (walls, floor, ceiling finishes)
+
+[ONLY CHANGE - OPEN THE DOORS]
+- All hinged cabinet doors: swing open 90° outward
+- All drawer fronts: pulled out 30-50%
+- Show interior organization (dishes, pots, containers)
+
+[OUTPUT]
+- Same photorealistic quality as input
+- Professional interior photography style`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Gemini 응답에서 이미지 추출
+    // ═══════════════════════════════════════════════════════════════
+    function extractImageFromGemini(response) {
+      try {
+        const candidates = response.candidates || [];
+        if (candidates.length > 0) {
+          const parts = candidates[0].content?.parts || [];
+          for (const part of parts) {
+            if (part.inlineData || part.inline_data) {
+              const inlineData = part.inlineData || part.inline_data;
+              return inlineData.data;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error extracting image:', e);
+      }
+      return null;
     }
 
     function sleep(ms) {
@@ -1349,80 +1360,42 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           `;
         }
 
-        // ✅ 클릭으로 Before/After 토글되는 이미지
-        const toggleId = `toggle-${index}`;
-        
-        // 내부 구조 이미지 유무 확인
-        const hasInternalImage = !!result.internalUrl;
-        
         page.innerHTML = `
           <div class="page-category">
             <span class="icon">${info.icon}</span>
             ${info.name}
           </div>
           
-          <!-- ✅ 3단계 토글: 원본 → 도어닫힘 → 내부구조 -->
-          <div class="image-toggle-container" onclick="toggleResultImage3('${toggleId}')" id="${toggleId}" data-has-internal="${hasInternalImage}">
-            <div class="toggle-header">
-              <div class="toggle-status">
-                <div class="dots">
-                  <div class="dot before active" id="${toggleId}-dot-before"></div>
-                  <div class="dot closed" id="${toggleId}-dot-closed"></div>
-                  ${hasInternalImage ? `<div class="dot internal" id="${toggleId}-dot-internal"></div>` : ''}
-                </div>
-                <span class="label" id="${toggleId}-label">📷 BEFORE - 원본</span>
+          ${wallAnalysisHTML}
+          
+          <div class="result-grid">
+            <div class="result-card">
+              <div class="result-card-header">
+                <div class="dot before"></div>
+                <span>Before - 원본</span>
               </div>
-              <div class="toggle-hint">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
-                </svg>
-                클릭하여 전환
-              </div>
+              <img src="${result.beforeUrl}" alt="Before">
             </div>
-            <div class="toggle-image-wrapper">
-              <img src="${result.beforeUrl}" alt="Before" class="toggle-image visible" id="${toggleId}-img-before">
-              <img src="${result.afterUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>⏳</text></svg>'}" 
-                   alt="도어 닫힘" class="toggle-image hidden" id="${toggleId}-img-closed">
-              ${hasInternalImage ? `
-              <img src="${result.internalUrl}" 
-                   alt="내부 구조" class="toggle-image hidden" id="${toggleId}-img-internal">
-              ` : ''}
-            </div>
-            <div class="toggle-indicator">
-              <div class="toggle-indicator-item active" id="${toggleId}-ind-before" onclick="event.stopPropagation(); setToggleState3('${toggleId}', 'before')">
-                <div class="ind-dot before"></div>
-                <span class="ind-label">원본</span>
+            <div class="result-card">
+              <div class="result-card-header">
+                <div class="dot after"></div>
+                <span>After - AI 리디자인</span>
               </div>
-              <div class="toggle-indicator-item" id="${toggleId}-ind-closed" onclick="event.stopPropagation(); setToggleState3('${toggleId}', 'closed')">
-                <div class="ind-dot closed"></div>
-                <span class="ind-label">도어닫힘</span>
-              </div>
-              ${hasInternalImage ? `
-              <div class="toggle-indicator-item" id="${toggleId}-ind-internal" onclick="event.stopPropagation(); setToggleState3('${toggleId}', 'internal')">
-                <div class="ind-dot internal"></div>
-                <span class="ind-label">내부구조</span>
-              </div>
-              ` : ''}
+              <img src="${result.afterUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>❌</text></svg>'}" alt="After" 
+                   onclick="${result.afterUrl ? `window.open('${result.afterUrl}', '_blank')` : ''}"
+                   style="cursor: ${result.afterUrl ? 'pointer' : 'default'}">
             </div>
           </div>
           
-          <!-- ✅ 분석 요약 -->
-          <div class="result-summary-bar">
-            <div class="summary-item">
-              <span class="summary-icon">📐</span>
-              <span class="summary-text">${typeof result.analysis === 'object' ? JSON.stringify(result.analysis) : result.analysis}</span>
+          <div class="result-analysis">
+            <div class="analysis-card">
+              <h4>📊 공간 분석</h4>
+              <p>${typeof result.analysis === 'object' ? JSON.stringify(result.analysis, null, 2) : result.analysis}</p>
             </div>
-            <div class="summary-divider"></div>
-            <div class="summary-item">
-              <span class="summary-icon">✨</span>
-              <span class="summary-text">${typeof result.suggestions === 'object' ? JSON.stringify(result.suggestions) : result.suggestions}</span>
+            <div class="analysis-card">
+              <h4>💡 디자인 제안</h4>
+              <p>${typeof result.suggestions === 'object' ? JSON.stringify(result.suggestions, null, 2) : result.suggestions}</p>
             </div>
-            ${result.correctionInfo ? `
-            <div class="summary-divider"></div>
-            <div class="summary-item">
-              <span class="summary-text" style="color:var(--gold)">${result.correctionInfo}</span>
-            </div>
-            ` : ''}
           </div>
         `;
 
@@ -1458,85 +1431,6 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         '에어컨': '❄️', '스위치': '💡', '환기구': '🌀', '기둥': '🏛️'
       };
       return icons[type] || '⚠️';
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // ✅ 이미지 토글 기능 (3단계: 원본 → 도어닫힘 → 내부구조)
-    // ═══════════════════════════════════════════════════════════════
-    const toggleStates = {}; // 각 토글 컨테이너의 상태 저장
-    const TOGGLE_SEQUENCE = ['before', 'closed', 'internal'];
-    const TOGGLE_LABELS = {
-      'before': '📷 BEFORE - 원본',
-      'closed': '✅ AFTER - 도어 닫힘',
-      'internal': '🔍 INTERNAL - 내부 구조'
-    };
-    
-    // 3단계 토글 (클릭시 순환)
-    function toggleResultImage3(toggleId) {
-      const container = document.getElementById(toggleId);
-      const hasInternal = container.dataset.hasInternal === 'true';
-      const sequence = hasInternal ? TOGGLE_SEQUENCE : ['before', 'closed'];
-      
-      const currentState = toggleStates[toggleId] || 'before';
-      const currentIndex = sequence.indexOf(currentState);
-      const nextIndex = (currentIndex + 1) % sequence.length;
-      const newState = sequence[nextIndex];
-      
-      setToggleState3(toggleId, newState);
-    }
-    
-    // 특정 상태로 설정
-    function setToggleState3(toggleId, newState) {
-      toggleStates[toggleId] = newState;
-      
-      const container = document.getElementById(toggleId);
-      const hasInternal = container.dataset.hasInternal === 'true';
-      
-      // 모든 이미지 숨기기
-      ['before', 'closed', 'internal'].forEach(state => {
-        const img = document.getElementById(`${toggleId}-img-${state}`);
-        if (img) {
-          img.classList.remove('visible');
-          img.classList.add('hidden');
-        }
-      });
-      
-      // 선택된 이미지 표시
-      const selectedImg = document.getElementById(`${toggleId}-img-${newState}`);
-      if (selectedImg) {
-        selectedImg.classList.remove('hidden');
-        selectedImg.classList.add('visible');
-      }
-      
-      // 라벨 업데이트
-      const label = document.getElementById(`${toggleId}-label`);
-      if (label) {
-        label.textContent = TOGGLE_LABELS[newState] || newState;
-      }
-      
-      // 헤더 dots 업데이트
-      ['before', 'closed', 'internal'].forEach(state => {
-        const dot = document.getElementById(`${toggleId}-dot-${state}`);
-        if (dot) {
-          dot.classList.toggle('active', state === newState);
-        }
-      });
-      
-      // 인디케이터 업데이트
-      ['before', 'closed', 'internal'].forEach(state => {
-        const ind = document.getElementById(`${toggleId}-ind-${state}`);
-        if (ind) {
-          ind.classList.toggle('active', state === newState);
-        }
-      });
-    }
-    
-    // 기존 2단계 토글 함수 (호환성)
-    function toggleResultImage(toggleId) {
-      toggleResultImage3(toggleId);
-    }
-    function setToggleState(toggleId, newState) {
-      setToggleState3(toggleId, newState === 'after' ? 'closed' : newState);
     }
 
     // ═══════════════════════════════════════════════════════════════
