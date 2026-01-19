@@ -180,17 +180,28 @@
     .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
     .result-card img{width:100%;height:220px;object-fit:cover;display:block}
     
-    /* ═══ 풀 너비 렌더링 이미지 + 토글 ═══ */
-    .render-image-container{background:var(--charcoal);border-radius:16px;overflow:hidden;margin-bottom:16px}
-    .render-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:linear-gradient(90deg,#1a1a2e,#16213e)}
+    /* ═══ 인스타그램 스타일 이미지 뷰어 + 화살표 네비게이션 ═══ */
+    .render-image-container{background:#fff;border-radius:16px;overflow:hidden;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.1);position:relative}
+    .render-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #eee}
     .render-status{font-size:14px;font-weight:600;color:#f59e0b;transition:color .3s}
-    .render-status.closed{color:#60a5fa}
-    .render-status.open{color:#34d399}
+    .render-status.closed{color:#3b82f6}
+    .render-status.open{color:#10b981}
     .render-status.original{color:#f59e0b}
-    .render-hint{font-size:11px;color:rgba(255,255,255,.5)}
-    .render-main-image{width:100%;max-height:450px;object-fit:contain;display:block;cursor:pointer;transition:transform .2s,opacity .15s;background:#111}
-    .render-main-image:hover{transform:scale(1.005)}
-    .render-main-image:active{opacity:.9}
+    .render-hint{font-size:11px;color:#999}
+    .render-image-wrapper{position:relative;width:100%;padding-top:80%;background:#fafafa;overflow:hidden}
+    .render-main-image{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;transition:opacity .2s}
+    
+    /* 좌우 화살표 버튼 */
+    .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;color:#333;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .2s;z-index:10}
+    .nav-arrow:hover{background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+    .nav-arrow.left{left:12px}
+    .nav-arrow.right{right:12px}
+    .nav-arrow:active{transform:translateY(-50%) scale(0.95)}
+    
+    /* 이미지 인디케이터 (점) */
+    .image-indicators{display:flex;justify-content:center;gap:6px;padding:12px}
+    .indicator-dot{width:8px;height:8px;border-radius:50%;background:#ddd;transition:all .2s;cursor:pointer}
+    .indicator-dot.active{background:#333;width:20px;border-radius:4px}
     
     /* Wall Analysis in Result - 상세 버전 */
     .wall-analysis-box{background:var(--white);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
@@ -491,10 +502,9 @@
 
     <!-- Style Selector -->
     <div class="style-selector">
-      <div class="style-chip active" data-style="모던" onclick="selectStyle(this)">🏢 모던</div>
+      <div class="style-chip active" data-style="모던미니멀" onclick="selectStyle(this)">◻️ 모던미니멀</div>
       <div class="style-chip" data-style="스칸디나비안" onclick="selectStyle(this)">🌲 스칸디나비안</div>
       <div class="style-chip" data-style="인더스트리얼" onclick="selectStyle(this)">🏭 인더스트리얼</div>
-      <div class="style-chip" data-style="미니멀" onclick="selectStyle(this)">◻️ 미니멀</div>
       <div class="style-chip" data-style="럭셔리" onclick="selectStyle(this)">✨ 럭셔리</div>
     </div>
 
@@ -764,7 +774,7 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     // State
     // ═══════════════════════════════════════════════════════════════
     const state = {
-      selectedStyle: '모던',
+      selectedStyle: '모던미니멀',
       uploadedImages: {},
       results: [],
       currentPage: 0
@@ -1102,21 +1112,30 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
             ${info.name}
           </div>
           
-          <!-- 메인 이미지 (풀 너비 + 3단계 토글: 원본→닫힘→열림) -->
+          <!-- 인스타그램 스타일 이미지 뷰어 -->
           <div class="render-image-container">
             <div class="render-header">
-              <span class="render-status" id="status_${index}">📷 원본 이미지</span>
-              <span class="render-hint">👆 클릭: 원본 → 도어닫힘 → 도어열림</span>
+              <span class="render-status" id="status_${index}">📷 원본</span>
+              <span class="render-hint">◀ ▶ 화살표로 이미지 전환</span>
             </div>
-            <img class="render-main-image" 
-                 id="renderImg_${index}"
-                 src="${result.beforeUrl}" 
-                 alt="이미지"
-                 data-original="${result.beforeUrl}"
-                 data-closed="${result.afterUrl || ''}"
-                 data-open="${result.afterUrlOpen || ''}"
-                 data-state="original"
-                 onclick="toggleImage(${index})">
+            <div class="render-image-wrapper">
+              <button class="nav-arrow left" onclick="prevImage(${index})">◀</button>
+              <img class="render-main-image" 
+                   id="renderImg_${index}"
+                   src="${result.beforeUrl}" 
+                   alt="이미지"
+                   data-original="${result.beforeUrl}"
+                   data-closed="${result.afterUrl || ''}"
+                   data-open="${result.afterUrlOpen || ''}"
+                   data-state="original"
+                   data-index="0">
+              <button class="nav-arrow right" onclick="nextImage(${index})">▶</button>
+            </div>
+            <div class="image-indicators">
+              <div class="indicator-dot active" onclick="goToImage(${index}, 0)"></div>
+              <div class="indicator-dot" onclick="goToImage(${index}, 1)"></div>
+              <div class="indicator-dot" onclick="goToImage(${index}, 2)"></div>
+            </div>
           </div>
         `;
 
@@ -1274,58 +1293,90 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🖼️ 이미지 토글 (원본 → 닫힘 → 열림 → 원본...)
+    // 🖼️ 이미지 화살표 네비게이션 (원본 ↔ 닫힘 ↔ 열림)
     // ═══════════════════════════════════════════════════════════════
-    function toggleImage(index) {
-      const img = document.getElementById(`renderImg_${index}`);
-      const status = document.getElementById(`status_${index}`);
+    function goToImage(pageIndex, imageIndex) {
+      const img = document.getElementById(`renderImg_${pageIndex}`);
+      const status = document.getElementById(`status_${pageIndex}`);
       if (!img) return;
       
-      const originalUrl = img.dataset.original;
-      const closedUrl = img.dataset.closed;
-      const openUrl = img.dataset.open;
-      const currentState = img.dataset.state;
+      const images = [
+        { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
+        { url: img.dataset.closed, state: 'closed', label: '🚪 도어 닫힘', color: '#3b82f6' },
+        { url: img.dataset.open, state: 'open', label: '🚪 도어 열림', color: '#10b981' }
+      ];
       
-      // 토글 애니메이션
+      // 이미지가 없으면 스킵
+      if (!images[imageIndex].url) {
+        showToast('해당 이미지가 없습니다', 'warning');
+        return;
+      }
+      
+      // 이미지 변경
       img.style.opacity = '0.5';
-      img.style.transform = 'scale(0.98)';
-      
       setTimeout(() => {
-        if (currentState === 'original') {
-          // 원본 → 닫힌 도어
-          if (closedUrl) {
-            img.src = closedUrl;
-            img.dataset.state = 'closed';
-            status.textContent = '🚪 도어 닫힘';
-            status.className = 'render-status closed';
-          } else {
-            showToast('렌더링 이미지가 없습니다', 'warning');
-          }
-        } else if (currentState === 'closed') {
-          // 닫힌 도어 → 열린 도어
-          if (openUrl) {
-            img.src = openUrl;
-            img.dataset.state = 'open';
-            status.textContent = '🚪 도어 열림';
-            status.className = 'render-status open';
-          } else {
-            // 열린 이미지 없으면 원본으로
-            img.src = originalUrl;
-            img.dataset.state = 'original';
-            status.textContent = '📷 원본 이미지';
-            status.className = 'render-status original';
-          }
-        } else {
-          // 열린 도어 → 원본
-          img.src = originalUrl;
-          img.dataset.state = 'original';
-          status.textContent = '📷 원본 이미지';
-          status.className = 'render-status original';
-        }
-        
+        img.src = images[imageIndex].url;
+        img.dataset.state = images[imageIndex].state;
+        img.dataset.index = imageIndex;
+        status.textContent = images[imageIndex].label;
+        status.style.color = images[imageIndex].color;
         img.style.opacity = '1';
-        img.style.transform = 'scale(1)';
+        
+        // 인디케이터 업데이트
+        updateIndicators(pageIndex, imageIndex);
       }, 100);
+    }
+    
+    function nextImage(pageIndex) {
+      const img = document.getElementById(`renderImg_${pageIndex}`);
+      if (!img) return;
+      let currentIndex = parseInt(img.dataset.index) || 0;
+      let nextIndex = currentIndex + 1;
+      
+      // 다음 유효한 이미지 찾기
+      const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
+      while (nextIndex < 3 && !images[nextIndex]) {
+        nextIndex++;
+      }
+      if (nextIndex >= 3) nextIndex = 0; // 처음으로
+      
+      goToImage(pageIndex, nextIndex);
+    }
+    
+    function prevImage(pageIndex) {
+      const img = document.getElementById(`renderImg_${pageIndex}`);
+      if (!img) return;
+      let currentIndex = parseInt(img.dataset.index) || 0;
+      let prevIndex = currentIndex - 1;
+      
+      // 이전 유효한 이미지 찾기
+      const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
+      while (prevIndex >= 0 && !images[prevIndex]) {
+        prevIndex--;
+      }
+      if (prevIndex < 0) {
+        // 마지막 유효한 이미지로
+        prevIndex = 2;
+        while (prevIndex >= 0 && !images[prevIndex]) {
+          prevIndex--;
+        }
+      }
+      
+      goToImage(pageIndex, prevIndex);
+    }
+    
+    function updateIndicators(pageIndex, activeIndex) {
+      const container = document.querySelector(`.result-page[data-index="${pageIndex}"] .image-indicators`);
+      if (!container) return;
+      const dots = container.querySelectorAll('.indicator-dot');
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('active', i === activeIndex);
+      });
+    }
+
+    // 이전 toggleImage 함수 유지 (클릭 시에도 동작)
+    function toggleImage(index) {
+      nextImage(index);
     }
 
     // ═══════════════════════════════════════════════════════════════
