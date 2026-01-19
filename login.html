@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --cream: #F8F7F4;
+            --charcoal: #2D2A26;
+            --gold: #B8956C;
+            --white: #FFFFFF;
+            --gray: #8B8680;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Serif KR', serif;
+            background-color: var(--cream);
+            color: var(--charcoal);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .split-screen {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            background: var(--charcoal);
+            position: relative;
+            overflow: hidden;
+            display: none;
+        }
+
+        .left-panel img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.6;
+        }
+
+        .left-panel::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.8));
+        }
+
+        .brand-overlay {
+            position: absolute;
+            bottom: 60px;
+            left: 60px;
+            color: var(--white);
+            z-index: 2;
+        }
+
+        .brand-overlay h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .brand-overlay p {
+            font-size: 16px;
+            opacity: 0.8;
+            letter-spacing: 1px;
+            line-height: 1.6;
+        }
+
+        .right-panel {
+            flex: 1;
+            background: var(--cream);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            position: relative;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .home-link {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            color: var(--gray);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .home-link:hover {
+            color: var(--charcoal);
+        }
+
+        .logo-mobile {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
+            color: var(--charcoal);
+            text-align: center;
+            margin-bottom: 40px;
+            display: block;
+        }
+
+        h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .subtitle {
+            color: var(--gray);
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--gray);
+            margin-bottom: 8px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #ddd;
+            font-family: 'Noto Serif KR', serif;
+            font-size: 16px;
+            color: var(--charcoal);
+            transition: border-color 0.3s;
+            outline: none;
+        }
+
+        input:focus {
+            border-bottom-color: var(--gold);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 16px;
+            background: var(--charcoal);
+            color: var(--white);
+            border: none;
+            font-family: 'Noto Serif KR', serif;
+            font-size: 14px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 20px;
+            text-transform: uppercase;
+        }
+
+        .btn-submit:hover {
+            background: var(--gold);
+        }
+
+        .switch-mode {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 14px;
+            color: var(--gray);
+        }
+
+        .switch-btn {
+            color: var(--charcoal);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+            text-decoration: underline;
+            margin-left: 5px;
+        }
+
+        .error-msg {
+            color: #d32f2f;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .left-panel {
+                display: block;
+            }
+
+            .logo-mobile {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="split-screen">
+        <div class="left-panel">
+            <!-- Placeholder image, ideally replaced with one from the project -->
+            <img src="app/portfolio/kitchen-n6-2.jpg" alt="Luxury Interior"
+                onerror="this.src='https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?q=80&w=1974&auto=format&fit=crop'">
+            <div class="brand-overlay">
+                <h1>DADAM</h1>
+                <p>AI 기술로 완성하는<br>당신만의 프리미엄 공간</p>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <a href="index.html" class="home-link">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                메인으로 돌아가기
+            </a>
+
+            <div class="auth-container">
+                <div class="logo-mobile">DADAM</div>
+
+                <!-- Login Form -->
+                <form id="login-form">
+                    <h2>Welcome Back</h2>
+                    <p class="subtitle">다담가구 멤버십 서비스를 이용해보세요</p>
+
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="login-email" required placeholder="name@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="login-password" required placeholder="••••••••">
+                        <div class="error-msg" id="login-error"></div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">로그인</button>
+
+                    <div class="switch-mode">
+                        계정이 없으신가요?
+                        <button type="button" class="switch-btn" onclick="toggleMode()">회원가입</button>
+                    </div>
+                </form>
+
+                <!-- Signup Form (Hidden by default) -->
+                <form id="signup-form" style="display: none;">
+                    <h2>Create Account</h2>
+                    <p class="subtitle">다담가구의 새로운 가족이 되어주세요</p>
+
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="signup-email" required placeholder="name@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="signup-password" required placeholder="최소 6자 이상">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Confirm Password</label>
+                        <input type="password" id="signup-password-confirm" required placeholder="••••••••">
+                        <div class="error-msg" id="signup-error"></div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">회원가입</button>
+
+                    <div class="switch-mode">
+                        이미 계정이 있으신가요?
+                        <button type="button" class="switch-btn" onclick="toggleMode()">로그인</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { login, signup } from './js/auth.js';
+
+        // Login Handler
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                await login(email, password);
+            } catch (error) {
+                document.getElementById('login-error').textContent = "로그인 정보를 확인해주세요.";
+                document.getElementById('login-error').style.display = 'block';
+            }
+        });
+
+        // Signup Handler
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const pass = document.getElementById('signup-password').value;
+            const confirm = document.getElementById('signup-password-confirm').value;
+            const errorDiv = document.getElementById('signup-error');
+
+            if (pass !== confirm) {
+                errorDiv.textContent = "비밀번호가 일치하지 않습니다.";
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            if (pass.length < 6) {
+                errorDiv.textContent = "비밀번호는 6자 이상이어야 합니다.";
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                await signup(email, pass);
+            } catch (error) {
+                errorDiv.textContent = "회원가입 처리 중 오류가 발생했습니다.";
+                errorDiv.style.display = 'block';
+            }
+        });
+
+        // Toggle Mode
+        window.toggleMode = function () {
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+
+            if (loginForm.style.display === 'none') {
+                loginForm.style.display = 'block';
+                signupForm.style.display = 'none';
+            } else {
+                loginForm.style.display = 'none';
+                signupForm.style.display = 'block';
+            }
+
+            // Clear errors
+            document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+        }
+    </script>
+</body>
+
+</html>

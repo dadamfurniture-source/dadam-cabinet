@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>내 프로필 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --cream: #F8F7F4;
+            --charcoal: #2D2A26;
+            --gold: #B8956C;
+            --white: #FFFFFF;
+            --gray: #8B8680;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Serif KR', serif;
+            background-color: var(--cream);
+            color: var(--charcoal);
+            min-height: 100vh;
+        }
+
+        /* Navigation (Simplified copy of main nav style) */
+        .nav {
+            padding: 24px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--charcoal);
+            color: var(--white);
+        }
+
+        .nav-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 24px;
+            text-decoration: none;
+            color: var(--white);
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 80px auto;
+            padding: 0 24px;
+        }
+
+        .profile-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .profile-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .profile-header p {
+            color: var(--gray);
+        }
+
+        .card {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 2px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+        }
+
+        .info-group {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--gray);
+            margin-bottom: 8px;
+        }
+
+        .value {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--charcoal);
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: var(--charcoal);
+            color: var(--white);
+            font-size: 12px;
+            border-radius: 99px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 16px 32px;
+            background: var(--charcoal);
+            color: var(--white);
+            text-decoration: none;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: var(--gold);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--charcoal);
+            color: var(--charcoal);
+        }
+
+        .btn-outline:hover {
+            background: var(--charcoal);
+            color: var(--white);
+        }
+
+        .pro-upgrade-card {
+            background: var(--charcoal);
+            color: var(--white);
+            text-align: center;
+        }
+
+        .pro-upgrade-card h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .pro-upgrade-card p {
+            opacity: 0.8;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        .pro-upgrade-card .btn {
+            background: var(--white);
+            color: var(--charcoal);
+        }
+
+        .pro-upgrade-card .btn:hover {
+            background: var(--gold);
+            color: var(--white);
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="nav">
+        <a href="index.html" class="nav-logo">DADAM</a>
+        <a href="index.html" style="color:white; text-decoration:none; font-size:14px;">메인으로</a>
+    </nav>
+
+    <div class="container">
+        <div class="profile-header">
+            <h1>My Profile</h1>
+            <p>회원님의 정보를 확인하고 관리하세요</p>
+        </div>
+
+        <!-- User Info Card -->
+        <div class="card">
+            <div class="info-group">
+                <div class="label">이메일 (Email)</div>
+                <div class="value" id="user-email">Loading...</div>
+            </div>
+            <div class="info-group">
+                <div class="label">회원 등급 (Membership Level)</div>
+                <div class="value" id="user-role">Loading...</div>
+            </div>
+            <div class="info-group" style="text-align: right;">
+                <button id="logout-btn" class="btn btn-outline">로그아웃</button>
+            </div>
+        </div>
+
+        <!-- Upgrade to Professional Section -->
+        <div class="card pro-upgrade-card" id="pro-upgrade-section">
+            <h3>전문가 서비스 신청</h3>
+            <p>
+                건축가, 인테리어 디자이너이신가요?<br>
+                전문가로 인증하시면 다담가구의 전용 설계 툴과<br>
+                B2B 특별 혜택을 누리실 수 있습니다.
+            </p>
+            <button id="upgrade-btn" class="btn">전문가로 전환하기</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { logout, upgradeToProfessional, auth } from './js/auth.js';
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // Attach event listeners
+        document.getElementById('logout-btn').addEventListener('click', logout);
+        document.getElementById('upgrade-btn').addEventListener('click', upgradeToProfessional);
+
+        // Redirect if not logged in
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+            }
+        });
+    </script>
+</body>
+
+</html>
