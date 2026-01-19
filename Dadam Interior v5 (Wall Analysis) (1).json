@@ -1,0 +1,454 @@
+{
+  "name": "Dadam Interior v5 (Wall Analysis)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dadam-interior-v4",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1b2d26af-76b5-4c06-91f5-54ba1c4ce342",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        18272,
+        4560
+      ],
+      "webhookId": "c409630f-2f2c-4fcc-a00d-736eb9cfa9f6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Input v2 - Material Code Detection\n// Copy this entire code to n8n \"Parse Input\" node's jsCode\n// ═══════════════════════════════════════════════════════════════\n\nconst body = $input.first().json.body || $input.first().json;\n\nconst category = body.category || 'sink';\nconst style = body.design_style || body.style || 'modern';\nconst roomImage = body.room_image || '';\nconst imageType = body.image_type || 'image/jpeg';\n\n// Trigger map - KEEP KOREAN for Supabase RAG compatibility\nconst triggerMap = {\n  sink: ['상부장', '하부장', '걸레받이', '도어규격', '몰딩', '배경보정', '벽면마감', '천장마감', '바닥마감'],\n  wardrobe: ['붙박이장', '좌대', '상몰딩', '짧은옷', '긴옷', '서랍', '스마트바', '배경보정', '벽면마감'],\n  fridge: ['냉장고장', '상부장', 'EL장', '홈카페', '배경보정', '벽면마감', '천장마감', '바닥마감']\n};\n\n// ═══════════════════════════════════════════════════════════════\n// Material Code Detection Function\n// ═══════════════════════════════════════════════════════════════\nfunction detectMaterialCodes(styleText) {\n  if (!styleText) return [];\n  \n  const materialPatterns = [\n    /YPG-\\d+/gi,     // Prestige Glass\n    /YPA-\\d+/gi,     // Prestige Acryl\n    /YPW-\\d+/gi,     // Prestige PP\n    /SM-\\d+/gi,      // Supreme PET Matt\n    /SG-\\d+/gi,      // Supreme PET Glossy\n    /CP-\\d+/gi,      // Supreme PP Calacatta\n    /PW-\\d+/gi,      // Supreme PP Wood\n    /LC-\\d+/gi,      // Supreme PP Concrete\n    /PL-\\d+/gi,      // Supreme PP Leather\n    /PM-\\d+/gi,      // Prestige PET Matt\n    /PE-\\d+/gi,      // Prestige PET Emboss\n    /AM-\\d+/gi,      // Prestige Acryl Matt\n    /LP-\\d+/gi,      // Lux Pearl\n    /HS\\d+/gi,       // Deco PVC Solid\n    /HC\\d+/gi,       // Deco PVC Solid (Antibacterial)\n    /HP\\d+/gi,       // Deco PVC Solid\n    /HW\\d+/gi,       // Deco PVC Wood\n    /MFB-\\d+/gi,     // Prime MFB\n    /LS-\\d+/gi,      // Prime UV\n  ];\n  \n  const detectedCodes = [];\n  for (const pattern of materialPatterns) {\n    const matches = styleText.match(pattern);\n    if (matches) {\n      detectedCodes.push(...matches.map(m => m.toUpperCase()));\n    }\n  }\n  return [...new Set(detectedCodes)];\n}\n\n// ═══════════════════════════════════════════════════════════════\n// Color/Style Keyword Detection (Korean + English)\n// ═══════════════════════════════════════════════════════════════\nfunction detectColorKeywords(styleText) {\n  if (!styleText) return [];\n  \n  const colorPatterns = [\n    // Korean keywords (for Supabase matching)\n    '화이트', '그레이', '블랙', '아이보리', '베이지', '브라운',\n    '오크', '월넛', '체리', '애쉬',\n    '네이비', '블루', '그린', '핑크', '레드', '옐로우',\n    '무광', '유광', '펄', '매트', '글로시',\n    '마블', '스톤', '콘크리트', '우드', '가죽', '레더',\n    '비스포크', '뉴트로', '플레이', '북유럽', '모던', '미니멀',\n    // English keywords\n    'white', 'grey', 'gray', 'black', 'ivory', 'beige', 'brown',\n    'oak', 'walnut', 'matte', 'glossy', 'pearl',\n    'marble', 'stone', 'wood', 'bespoke', 'modern', 'minimal'\n  ];\n  \n  const detected = [];\n  const lowerStyle = styleText.toLowerCase();\n  for (const keyword of colorPatterns) {\n    if (styleText.includes(keyword) || lowerStyle.includes(keyword.toLowerCase())) {\n      detected.push(keyword);\n    }\n  }\n  return [...new Set(detected)];\n}\n\n// Execute detection\nconst materialCodes = detectMaterialCodes(style);\nconst colorKeywords = detectColorKeywords(style);\n\n// Combine triggers (existing + material codes + color keywords)\nlet triggers = [...(triggerMap[category] || triggerMap.sink)];\n\nif (materialCodes.length > 0) {\n  triggers = [...triggers, ...materialCodes];\n}\n\nif (colorKeywords.length > 0) {\n  triggers = [...triggers, ...colorKeywords.slice(0, 5)];\n}\n\nreturn {\n  category,\n  style,\n  roomImage,\n  imageType,\n  triggers,\n  materialCodes,\n  colorKeywords,\n  hasMaterialRequest: materialCodes.length > 0 || colorKeywords.length > 0\n};"
+      },
+      "id": "f344d5ac-186e-4393-b15f-bb96b44967e9",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18464,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://vvqrvgcgnlfpiqqndsve.supabase.co/rest/v1/rpc/quick_trigger_search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY0MzQ4ODEsImV4cCI6MjA2MjAxMDg4MX0.kmJTdn6bhcrKZN-yd8xQzMhPnKcvpSaKz_e30uxFpFE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query_triggers",
+              "value": "={{ $json.triggers }}"
+            },
+            {
+              "name": "filter_category",
+              "value": "={{ $json.category }}"
+            },
+            {
+              "name": "limit_count",
+              "value": "25"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "27618e50-46b7-4411-96c9-2b8a7567528e",
+      "name": "Supabase RAG Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        18672,
+        4560
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iBCdp1o3SKSNXOP0",
+          "name": "Supabase Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Build Prompts v10 - Material Color Integration + Gemini Body\n// Fixed: Renamed 'input' to 'wallInput' to avoid conflict\n// Added: geminiClosedBody for Gemini API\n// ═══════════════════════════════════════════════════════════════\n\nconst wallInput = $('Parse Wall Data').first().json;\nconst ragResults = wallInput.ragResults || [];\nconst wallData = wallInput.wallData;\nconst furniturePlacement = wallInput.furniturePlacement;\n\n// ═══════════════════════════════════════════════════════════════\n// RAG Result Classification (Material type added)\n// ═══════════════════════════════════════════════════════════════\nconst bg = [], modules = [], doors = [], materials = [], materialKeywords = [];\n\nif (Array.isArray(ragResults)) {\n  ragResults.forEach(rule => {\n    const ruleType = rule.rule_type || rule.chunk_type || '';\n    \n    if (ruleType === 'background') {\n      bg.push(`- ${rule.content}`);\n    } else if (ruleType === 'module') {\n      modules.push(`- ${rule.triggers ? rule.triggers[0] : ''}: ${rule.content}`);\n    } else if (ruleType === 'door') {\n      doors.push(`- ${rule.triggers ? rule.triggers[0] : ''}: ${rule.content}`);\n    } else if (ruleType === 'material') {\n      materials.push(rule);\n    } else if (ruleType === 'material_keyword') {\n      materialKeywords.push(rule);\n    }\n  });\n}\n\n// Default background rules\nif (bg.length === 0) {\n  bg.push('- Clean, bright walls');\n  bg.push('- Natural light coming into the space');\n  bg.push('- Minimal interior design');\n}\n\n// ═══════════════════════════════════════════════════════════════\n// Material Color Section Builder Function\n// ═══════════════════════════════════════════════════════════════\nfunction buildMaterialColorSection(mats, matKeywords) {\n  if (mats.length === 0 && matKeywords.length === 0) {\n    return '';\n  }\n  \n  let section = `\n═══════════════════════════════════════════════════════════════\n[MATERIAL COLOR SPECIFICATION]\n═══════════════════════════════════════════════════════════════`;\n  \n  if (mats.length > 0) {\n    section += `\\n\\n>> SPECIFIED MATERIALS:\\n`;\n    \n    for (const mat of mats) {\n      const code = mat.triggers ? mat.triggers[0] : mat.id;\n      section += `\\n[${code}]\\n`;\n      \n      const colorMatch = mat.content.match(/Color:\\s*([^\\n]+)/);\n      const renderMatch = mat.content.match(/Render:\\s*([^\\n]+)/);\n      const finishMatch = mat.content.match(/Finish:\\s*([^\\n]+)/);\n      \n      if (colorMatch) section += `  Color: ${colorMatch[1].trim()}\\n`;\n      if (finishMatch) section += `  Finish: ${finishMatch[1].trim()}\\n`;\n      if (renderMatch) section += `  Render: ${renderMatch[1].trim()}\\n`;\n      \n      if (mat.metadata && mat.metadata.hex) {\n        section += `  HEX: ${mat.metadata.hex}\\n`;\n      }\n    }\n  }\n  \n  if (matKeywords.length > 0) {\n    section += `\\n\\n>> RECOMMENDED OPTIONS:\\n`;\n    for (const kw of matKeywords) {\n      const lines = kw.content.split('\\n').slice(0, 10).join('\\n');\n      section += `${lines}\\n`;\n    }\n  }\n  \n  section += `\n═══════════════════════════════════════════════════════════════\n[CRITICAL - COLOR RENDERING RULES]\n- ALL cabinet doors MUST use the EXACT specified color\n- Apply correct finish: matte / glossy / pearl\n- Maintain CONSISTENT color across ALL doors\n- Match HEX code precisely if provided\n- Wood grain direction: VERTICAL for doors\n═══════════════════════════════════════════════════════════════`;\n  \n  return section;\n}\n\nconst materialSection = buildMaterialColorSection(materials, materialKeywords);\n\n// ═══════════════════════════════════════════════════════════════\n// Style Definition\n// ═══════════════════════════════════════════════════════════════\nconst modernMinimalStyle = `\n[STYLE: Modern Minimal]\n- Colors: White, Gray, Wood tones (Light Oak, Walnut)\n- Surface: Matte or low-gloss finish\n- Lines: Straight lines, clean design without clutter\n- Handles: Hidden handles (Push-open, 45-degree cut, J-type handle, Smart bar)\n- Hardware: Minimized, no exposed hardware\n- Details: Flush doors (doors flush with frame)`;\n\n// ═══════════════════════════════════════════════════════════════\n// Wall Measurement Section\n// ═══════════════════════════════════════════════════════════════\nconst wallMeasurementSection = wallData ? `\n[WALL MEASUREMENTS - FROM ANALYSIS]\n- Wall Width: ${wallData.wall_width_mm}mm (${(wallData.wall_width_mm/1000).toFixed(1)}m)\n- Wall Height: ${wallData.wall_height_mm}mm (${(wallData.wall_height_mm/1000).toFixed(1)}m)\n- Tile Type: ${wallData.tile_type} (${wallData.tile_size_mm?.width || 300}x${wallData.tile_size_mm?.height || 600}mm)\n- Analysis Confidence: ${wallData.confidence}\n\n[UTILITY POSITIONS]\n- Water Supply: ${wallData.water_supply_position || 'center'} from left\n- Exhaust Duct: ${wallData.exhaust_duct_position || 'not detected'}\n- Electrical Outlets: ${JSON.stringify(wallData.electrical_outlets || [])}\n` : `\n[WALL MEASUREMENTS - DEFAULT]\n- Wall Width: 3000mm (3.0m)\n- Wall Height: 2400mm (2.4m)\n- Using default measurements\n`;\n\n// ═══════════════════════════════════════════════════════════════\n// Furniture Placement Section\n// ═══════════════════════════════════════════════════════════════\nconst furniturePlacementSection = furniturePlacement ? `\n[FURNITURE PLACEMENT]\n${furniturePlacement}\n` : '';\n\n// ═══════════════════════════════════════════════════════════════\n// Final Prompt Assembly\n// ═══════════════════════════════════════════════════════════════\nconst closedPrompt = `[TASK: KOREAN BUILT-IN FURNITURE RENDERING - PHOTOREALISTIC]\n\nGenerate a photorealistic image of Korean-style built-in furniture (${wallInput.category}) based on the uploaded room photo.\n\n${wallMeasurementSection}\n\n${furniturePlacementSection}\n\n${modernMinimalStyle}\n\n${materialSection}\n\n[BACKGROUND CORRECTION RULES]\n${bg.join('\\n')}\n\n[MODULE CONSTRUCTION RULES]\n${modules.length > 0 ? modules.join('\\n') : '- Follow standard Korean built-in furniture specifications'}\n\n[DOOR SPECIFICATIONS]\n${doors.length > 0 ? doors.join('\\n') : '- Full door coverage, no open shelving visible'}\n\n[CRITICAL REQUIREMENTS]\n1. PHOTOREALISTIC quality - must look like a real photograph\n2. EXACT camera angle from original photo - same perspective, same viewpoint\n3. Furniture MUST fit within wall dimensions precisely\n4. ALL doors must be CLOSED (no open doors or drawers)\n5. Background (walls, floor, ceiling) should be CLEAN and MODERN\n6. Maintain existing windows, doors, and architectural features\n7. Natural lighting consistent with original photo\n8. No people, pets, or moving objects in the image\n\n[OUTPUT]\n- Single photorealistic image\n- High resolution, professional quality\n- Interior design magazine style\n`;\n\nconst openPromptBase = `Based on the closed door image, open all doors and drawers to show organized contents inside.`;\n\n// ═══════════════════════════════════════════════════════════════\n// Gemini API Body Builder\n// ═══════════════════════════════════════════════════════════════\nconst geminiClosedBody = {\n  contents: [\n    {\n      parts: [\n        {\n          text: closedPrompt\n        },\n        {\n          inline_data: {\n            mime_type: wallInput.imageType || 'image/jpeg',\n            data: wallInput.roomImage\n          }\n        }\n      ]\n    }\n  ],\n  generationConfig: {\n    responseModalities: [\"image\", \"text\"],\n    temperature: 0.4\n  }\n};\n\n// ═══════════════════════════════════════════════════════════════\n// Return Output\n// ═══════════════════════════════════════════════════════════════\nreturn {\n  closedPrompt,\n  openPromptBase,\n  geminiClosedBody,\n  category: wallInput.category,\n  style: wallInput.style,\n  ragCount: ragResults.length,\n  wallData: wallData,\n  materialCount: materials.length,\n  appliedMaterials: materials.map(m => m.triggers ? m.triggers[0] : m.id),\n  hasMaterialSpec: materials.length > 0,\n  keywordCount: materialKeywords.length,\n  roomImage: wallInput.roomImage,\n  imageType: wallInput.imageType\n};"
+      },
+      "id": "adb71a30-7cd7-4ba2-bb0e-0b99267009a9",
+      "name": "Build Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19808,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyDqrzcEJJROw9PwdEFx87QxiYyfbW3awfU",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiClosedBody }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "847e207f-6cd1-405d-b4b6-42e6a081762e",
+      "name": "Gemini Closed Door",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20016,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Closed + Prep Open v3 - 품목별 내용물 + 도어 일관성\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Prompts').first().json;\nconst response = $input.first().json;\n\nlet closedImage = null;\nlet textResponse = '';\n\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        const inlineData = part.inlineData || part.inline_data;\n        closedImage = inlineData.data;\n      }\n      if (part.text) {\n        textResponse = part.text;\n      }\n    }\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\n// 품목별 내용물 정의\nconst categoryContents = {\n  wardrobe: `\n- 행거에 걸린 셔츠, 블라우스, 재킷, 코트\n- 접힌 스웨터, 니트, 티셔츠\n- 청바지, 면바지 등 하의류\n- 서랍 속 속옷, 양말 정리함\n- 가방, 모자, 스카프 액세서리`,\n  \n  sink: `\n- 그릇, 접시, 밥공기, 국그릇\n- 컵, 머그잔, 유리잔\n- 냄비, 프라이팬, 조리도구\n- 양념통, 오일병\n- 도마, 주걱, 국자`,\n  \n  fridge: `\n- 커피머신, 전자레인지\n- 토스터, 믹서기\n- 식료품, 시리얼\n- 컵, 머그잔`,\n  \n  vanity: `\n- 화장품, 스킨케어 제품\n- 메이크업 브러시, 파우치\n- 향수, 로션\n- 헤어드라이어`,\n  \n  shoe: `\n- 운동화, 스니커즈\n- 구두, 로퍼, 힐\n- 샌들, 슬리퍼\n- 부츠`,\n  \n  storage: `\n- 책, 잡지, 문서\n- 수납박스, 바구니\n- 이불, 침구류\n- 여행가방`\n};\n\nconst contents = categoryContents[input.category] || categoryContents.storage;\n\n// 열린 도어 프롬프트 (도어 일관성 + 품목별 내용물)\nconst openPrompt = `[TASK] 이 가구 이미지에서 모든 도어를 열린 상태로 변경하세요.\n\n[CRITICAL - 절대 변경 금지]\n- 도어 개수: 현재 이미지에 보이는 도어 개수 정확히 유지\n- 도어 위치: 각 도어의 위치 그대로 유지  \n- 도어 크기/비율: 각 도어의 너비와 높이 비율 완전히 동일\n- 도어 색상/재질: 변경 금지\n- 가구 전체 크기와 형태: 변경 금지\n- 카메라 앵글, 원근감, 시점: 완전히 동일\n- 배경 (벽, 바닥, 천장, 조명): 동일\n\n[변경할 것 - 도어 상태만]\n- 각 여닫이 도어: 현재 위치에서 90도 바깥으로 회전하여 열림\n- 각 서랍: 현재 위치에서 30-40% 당겨진 상태\n\n[CRITICAL - 도어 구조 유지 규칙]\n- 절대 도어를 추가하거나 제거하지 마세요\n- 절대 도어를 합치거나 분할하지 마세요\n- 닫힌 상태의 도어 분할선/경계선을 정확히 따르세요\n- 각 도어는 독립적으로 열려야 합니다\n\n[내부 수납물 - ${input.category}]\n${contents}\n\n[금지사항]\n- 붙박이장에 식기류 금지 (옷만 표시)\n- 싱크대에 의류 금지 (주방용품만 표시)\n\n[출력 품질]\n- 닫힌 이미지와 도어 구조 100% 일치\n- 포토리얼리스틱 인테리어 사진 품질`;\n\n// Gemini Open Door API 요청 본문 생성\nconst geminiOpenBody = {\n  contents: [{\n    parts: [\n      { inline_data: { mime_type: \"image/png\", data: closedImage }},\n      { text: openPrompt }\n    ]\n  }],\n  generationConfig: {\n    responseModalities: [\"TEXT\", \"IMAGE\"],\n    temperature: 0.3\n  }\n};\n\nreturn [{\n  ...input,\n  closedImage,\n  textResponse,\n  openPrompt,\n  hasClosedImage: !!closedImage,\n  geminiOpenBody: JSON.stringify(geminiOpenBody)\n}];"
+      },
+      "id": "2c483bfc-c36a-4471-8b12-554b36a1c317",
+      "name": "Parse Closed + Prep Open",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20208,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-image",
+              "leftValue": "={{ $json.hasClosedImage }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "702f565d-e4ea-4c11-b6a7-07fe568391b1",
+      "name": "Has Closed Image?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        20416,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyDqrzcEJJROw9PwdEFx87QxiYyfbW3awfU",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiOpenBody }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "c1932560-cb36-491f-b645-0eaa47cf4eca",
+      "name": "Gemini Open Door",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20608,
+        4448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Format Response (Both) - 닫힌 도어 + 열린 도어 이미지 포맷\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Parse Closed + Prep Open').first().json;\nconst openResponse = $input.first().json;\n\nlet openImage = null;\n\n// 열린 도어 이미지 추출\ntry {\n  const candidates = openResponse.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inline_data?.data) {\n        openImage = part.inline_data.data;\n        break;\n      }\n      // 다른 형식 호환\n      if (part.inlineData?.data) {\n        openImage = part.inlineData.data;\n        break;\n      }\n    }\n  }\n} catch (e) {\n  console.log('Open image parse error:', e.message);\n}\n\nreturn [{\n  success: true,\n  message: \"이미지 생성 완료\",\n  category: input.category,\n  style: input.style,\n  rag_rules_count: input.ragCount || 0,\n  generated_image: {\n    closed: {\n      base64: input.closedImage,\n      mime_type: \"image/png\"\n    },\n    open: {\n      base64: openImage,\n      mime_type: \"image/png\"\n    }\n  }\n}];\n"
+      },
+      "id": "1b20bcfa-bcba-4ede-b932-445cb956fe99",
+      "name": "Format Response (Both)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20816,
+        4448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Parse Closed + Prep Open').first().json;\n\nreturn [{\n  success: true,\n  message: \"이미지 생성 완료 (닫힌 도어만)\",\n  category: input.category,\n  style: input.style,\n  rag_rules_count: input.ragCount || 0,\n  generated_image: {\n    closed: {\n      base64: input.closedImage,\n      mime_type: \"image/png\"\n    },\n    open: null\n  }\n}];\n"
+      },
+      "id": "89bb9bcc-6785-41c4-81a6-00dd9991516a",
+      "name": "Format Response (Closed Only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20608,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "5c8cbedd-d08b-4de9-ab45-9a4b0cb742e9",
+      "name": "Respond (Both Images)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        21008,
+        4448
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "73e069ca-6633-4977-a8e3-7607d82bf521",
+      "name": "Respond (Closed Only)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        20816,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Wall Analysis - Tile-Based Wall Measurement\n// 타일 기반 벽 구조 분석 (Vision API 사용)\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Parse Input').first().json;\nconst ragResults = $input.first().json || [];\n\n// 타일 규격 참조 테이블 (Tile size reference table)\nconst tileReference = {\n  subway_small: { width: 75, height: 150, name: \"Small Subway Tile\" },\n  subway_medium: { width: 100, height: 200, name: \"Medium Subway Tile\" },\n  subway_large: { width: 100, height: 300, name: \"Large Subway Tile\" },\n  standard_wall: { width: 300, height: 600, name: \"Standard Wall Tile\" },\n  large_wall: { width: 400, height: 800, name: \"Large Wall Tile\" },\n  porcelain_large: { width: 600, height: 1200, name: \"Large Porcelain\" },\n  porcelain_xl: { width: 800, height: 1600, name: \"XL Porcelain\" }\n};\n\n// Vision 분석 프롬프트 (Wall analysis prompt)\nconst wallAnalysisPrompt = `[TASK: WALL STRUCTURE ANALYSIS USING TILE MEASUREMENT]\n\nAnalyze this room photo to calculate wall dimensions using tiles as a measuring reference.\n\n[STEP 1: IDENTIFY TILE TYPE]\nLook at the wall tiles and identify the tile size:\n- Subway Tile Small: 75×150mm (vertical orientation common)\n- Subway Tile Medium: 100×200mm\n- Subway Tile Large: 100×300mm\n- Standard Wall Tile: 300×600mm (most common in Korean kitchens)\n- Large Wall Tile: 400×800mm\n- Large Porcelain: 600×1200mm\n- XL Porcelain: 800×1600mm\n\nIf no tiles visible, use these references:\n- Standard door width: 900mm\n- Standard door height: 2100mm\n- Standard window height: 1200mm\n- Electrical outlet height from floor: 300mm\n- Light switch height: 1200mm\n\n[STEP 2: COUNT TILES]\nCount the number of tiles:\n- Horizontal tile count (across the wall width)\n- Vertical tile count (floor to ceiling or to upper cabinet)\n\n[STEP 3: CALCULATE DIMENSIONS]\nCalculate wall dimensions:\n- Wall Width (mm) = Tile Width × Horizontal Count\n- Wall Height (mm) = Tile Height × Vertical Count\n\n[STEP 4: IDENTIFY PIPE LOCATIONS]\nLocate utility positions (measure from left edge of wall):\n- Water supply pipe position (mm from left)\n- Exhaust duct position (mm from left)\n- Electrical outlet positions\n\n[STEP 5: OUTPUT FORMAT]\nRespond in this exact JSON format only:\n{\n  \"tile_detected\": true/false,\n  \"tile_type\": \"standard_wall\",\n  \"tile_size_mm\": { \"width\": 300, \"height\": 600 },\n  \"tile_count\": { \"horizontal\": 10, \"vertical\": 4 },\n  \"wall_dimensions_mm\": {\n    \"width\": 3000,\n    \"height\": 2400\n  },\n  \"utility_positions_mm\": {\n    \"water_supply_from_left\": 800,\n    \"exhaust_duct_from_left\": 2200,\n    \"electrical_outlets\": [300, 1500, 2700]\n  },\n  \"reference_used\": \"tile\" or \"door\" or \"outlet\",\n  \"confidence\": \"high\" or \"medium\" or \"low\",\n  \"notes\": \"Any relevant observations\"\n}\n\nIMPORTANT: Output ONLY the JSON, no additional text.`;\n\n// Gemini Vision API 요청 본문 (API request body)\nconst geminiAnalysisBody = {\n  contents: [{\n    parts: [\n      { inline_data: { mime_type: input.imageType || \"image/jpeg\", data: input.roomImage }},\n      { text: wallAnalysisPrompt }\n    ]\n  }],\n  generationConfig: {\n    temperature: 0.2,\n    maxOutputTokens: 1024\n  }\n};\n\nreturn [{\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  triggers: input.triggers,\n  ragResults,\n  tileReference,\n  wallAnalysisPrompt,\n  geminiAnalysisBody: JSON.stringify(geminiAnalysisBody)\n}];"
+      },
+      "id": "00755be9-a2ce-42bf-a26e-30fa7c8f42a0",
+      "name": "Wall Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18864,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyDqrzcEJJROw9PwdEFx87QxiYyfbW3awfU",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiAnalysisBody }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "bb6129fb-224f-4d2b-840e-ebe453d64958",
+      "name": "Gemini Wall Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        19040,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Wall Data - Extract wall measurements\n// 벽 분석 결과 파싱\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Wall Analysis').first().json;\nconst response = $input.first().json;\n\nlet wallData = {\n  tile_detected: false,\n  tile_type: \"unknown\",\n  tile_size_mm: { width: 300, height: 600 },\n  tile_count: { horizontal: 0, vertical: 0 },\n  wall_width_mm: 3000,  // 기본값 (default fallback)\n  wall_height_mm: 2400, // 기본값 (default fallback)\n  water_supply_position: null,\n  exhaust_duct_position: null,\n  electrical_outlets: [],\n  confidence: \"low\",\n  reference_used: \"default\",\n  notes: \"\"\n};\n\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.text) {\n        // JSON 추출 (Extract JSON from response)\n        const jsonMatch = part.text.match(/\\{[\\s\\S]*\\}/);\n        if (jsonMatch) {\n          const parsed = JSON.parse(jsonMatch[0]);\n          \n          wallData = {\n            tile_detected: parsed.tile_detected || false,\n            tile_type: parsed.tile_type || \"unknown\",\n            tile_size_mm: parsed.tile_size_mm || { width: 300, height: 600 },\n            tile_count: parsed.tile_count || { horizontal: 0, vertical: 0 },\n            wall_width_mm: parsed.wall_dimensions_mm?.width || 3000,\n            wall_height_mm: parsed.wall_dimensions_mm?.height || 2400,\n            water_supply_position: parsed.utility_positions_mm?.water_supply_from_left || null,\n            exhaust_duct_position: parsed.utility_positions_mm?.exhaust_duct_from_left || null,\n            electrical_outlets: parsed.utility_positions_mm?.electrical_outlets || [],\n            confidence: parsed.confidence || \"low\",\n            reference_used: parsed.reference_used || \"unknown\",\n            notes: parsed.notes || \"\"\n          };\n        }\n      }\n    }\n  }\n} catch (e) {\n  console.log('Wall data parse error:', e.message);\n}\n\n// 가구 배치 계산 (Calculate furniture placement)\nconst furniturePlacement = {\n  // 싱크대 위치: 수도관 기준 (Sink position: based on water supply)\n  sink_center_mm: wallData.water_supply_position || Math.round(wallData.wall_width_mm * 0.3),\n  \n  // 후드/가스대 위치: 배기관 기준 (Hood position: based on exhaust duct)\n  hood_center_mm: wallData.exhaust_duct_position || Math.round(wallData.wall_width_mm * 0.7),\n  \n  // 상부장 높이: 벽 높이 기준 (Upper cabinet: based on wall height)\n  upper_cabinet_bottom_mm: wallData.wall_height_mm - 720, // 상부장 하단\n  \n  // 하부장: 표준 높이 (Lower cabinet: standard height)\n  lower_cabinet_height_mm: 870,\n  \n  // 작업대 높이 (Countertop height from floor)\n  countertop_height_mm: 870\n};\n\nreturn [{\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  triggers: input.triggers,\n  ragResults: input.ragResults,\n  wallData,\n  furniturePlacement,\n  analysisSuccess: wallData.confidence !== \"low\"\n}];"
+      },
+      "id": "67e0ff2f-22ed-4f70-8629-1b1fc472a5b3",
+      "name": "Parse Wall Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19296,
+        4560
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input": {
+      "main": [
+        [
+          {
+            "node": "Supabase RAG Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase RAG Search": {
+      "main": [
+        [
+          {
+            "node": "Wall Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompts": {
+      "main": [
+        [
+          {
+            "node": "Gemini Closed Door",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Closed Door": {
+      "main": [
+        [
+          {
+            "node": "Parse Closed + Prep Open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Closed + Prep Open": {
+      "main": [
+        [
+          {
+            "node": "Has Closed Image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Closed Image?": {
+      "main": [
+        [
+          {
+            "node": "Gemini Open Door",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Response (Closed Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Open Door": {
+      "main": [
+        [
+          {
+            "node": "Format Response (Both)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response (Both)": {
+      "main": [
+        [
+          {
+            "node": "Respond (Both Images)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response (Closed Only)": {
+      "main": [
+        [
+          {
+            "node": "Respond (Closed Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wall Analysis": {
+      "main": [
+        [
+          {
+            "node": "Gemini Wall Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Wall Vision": {
+      "main": [
+        [
+          {
+            "node": "Parse Wall Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Wall Data": {
+      "main": [
+        [
+          {
+            "node": "Build Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "availableInMCP": false
+  },
+  "versionId": "639ada6f-e98e-4929-a83b-f4db6807892f",
+  "meta": {
+    "instanceId": "244e14704bf7bd5d7ea20567a9c92fb83222642504dc698a01d22d41bd5f300d"
+  },
+  "id": "NK3jfPhTHsWjMH66",
+  "tags": []
+}
