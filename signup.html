@@ -251,8 +251,16 @@
 
     let supabase = null;
 
-    if (SUPABASE_ANON_KEY) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Supabase 클라이언트 초기화
+    try {
+      if (typeof window.supabase !== 'undefined' && SUPABASE_ANON_KEY) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase 초기화 성공');
+      } else {
+        console.error('Supabase 라이브러리가 로드되지 않았습니다.');
+      }
+    } catch (e) {
+      console.error('Supabase 초기화 오류:', e);
     }
 
     // DOM 요소
