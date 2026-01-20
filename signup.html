@@ -247,12 +247,20 @@
   <script>
     // Supabase 설정
     const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_VyfTnq1Jb1HTQK5dg-oCIQ_qG1r01ng'; // Supabase 대시보드에서 anon key를 입력하세요
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcwMTcyMDcsImV4cCI6MjA1MjU5MzIwN30.gJxycFUYNyhliCU8T9thxCq-2SgE9cIqUvpbjjJFcMs';
 
     let supabase = null;
 
-    if (SUPABASE_ANON_KEY) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Supabase 클라이언트 초기화
+    try {
+      if (typeof window.supabase !== 'undefined' && SUPABASE_ANON_KEY) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase 초기화 성공');
+      } else {
+        console.error('Supabase 라이브러리가 로드되지 않았습니다.');
+      }
+    } catch (e) {
+      console.error('Supabase 초기화 오류:', e);
     }
 
     // DOM 요소
@@ -400,7 +408,7 @@
       try {
         await supabase.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: window.location.origin + '/index.html' },
+          options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
       } catch (err) {
         showError('Google 로그인 중 오류가 발생했습니다.');
@@ -417,7 +425,7 @@
       try {
         await supabase.auth.signInWithOAuth({
           provider: 'kakao',
-          options: { redirectTo: window.location.origin + '/index.html' },
+          options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
       } catch (err) {
         showError('카카오 로그인 중 오류가 발생했습니다.');
@@ -434,7 +442,7 @@
       try {
         await supabase.auth.signInWithOAuth({
           provider: 'naver',
-          options: { redirectTo: window.location.origin + '/index.html' },
+          options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
       } catch (err) {
         showError('네이버 로그인 중 오류가 발생했습니다.');
@@ -451,7 +459,7 @@
       try {
         await supabase.auth.signInWithOAuth({
           provider: 'apple',
-          options: { redirectTo: window.location.origin + '/index.html' },
+          options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
       } catch (err) {
         showError('Apple 로그인 중 오류가 발생했습니다.');

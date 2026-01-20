@@ -162,9 +162,130 @@
     .btn-add-lower { border-color: var(--lower-color); color: var(--lower-color); }
     .btn-add-tall { border-color: var(--tall-color); color: var(--tall-color); }
     @media (max-width: 800px) { .ws-layout { grid-template-columns: 1fr; } }
+
+    /* 인증 오버레이 */
+    .auth-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .auth-modal {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      max-width: 400px;
+    }
+    .auth-modal h2 { font-size: 24px; margin-bottom: 16px; }
+    .auth-modal p { color: #666; margin-bottom: 24px; }
+    .auth-modal .btn-login {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .auth-modal .btn-login:hover { opacity: 0.9; }
+
+    /* 상단 툴바 */
+    .top-toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .toolbar-left { display: flex; align-items: center; gap: 16px; }
+    .toolbar-logo { font-weight: 700; font-size: 16px; color: #333; text-decoration: none; }
+    .toolbar-user { font-size: 13px; color: #666; }
+    .toolbar-right { display: flex; gap: 8px; }
+    .btn-toolbar {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid #ddd;
+      background: white;
+      transition: all 0.2s;
+    }
+    .btn-toolbar:hover { background: #f5f5f5; }
+    .btn-toolbar.primary {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+    .btn-toolbar.primary:hover { opacity: 0.9; }
+    .btn-toolbar.success {
+      background: var(--success-color);
+      color: white;
+      border-color: var(--success-color);
+    }
+
+    /* 저장 상태 표시 */
+    .save-status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .save-status.saving { background: #fef3c7; color: #92400e; }
+    .save-status.saved { background: #dcfce7; color: #166534; }
+    .save-status.error { background: #fee2e2; color: #dc2626; }
+
+    /* 바디 패딩 조정 */
+    body.has-toolbar { padding-top: 70px; }
+
+    .hidden { display: none !important; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="has-toolbar">
+<!-- 인증 오버레이 (로그인 안됨) -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-modal">
+    <h2>🔒 전문가 전용 기능</h2>
+    <p>상세 설계 도구는 전문가 등급 회원만 이용할 수 있습니다.<br>로그인 후 전문가 등급을 신청해주세요.</p>
+    <button class="btn-login" onclick="location.href='login.html'">로그인하기</button>
+  </div>
+</div>
+
+<!-- 상단 툴바 -->
+<div class="top-toolbar" id="topToolbar">
+  <div class="toolbar-left">
+    <a href="dashboard.html" class="toolbar-logo">🪑 다담가구</a>
+    <span class="toolbar-user" id="toolbarUser">로딩중...</span>
+    <span class="save-status saved hidden" id="saveStatus">
+      <span id="saveStatusIcon">✓</span>
+      <span id="saveStatusText">저장됨</span>
+    </span>
+  </div>
+  <div class="toolbar-right">
+    <button class="btn-toolbar" onclick="loadDesignList()">📂 불러오기</button>
+    <button class="btn-toolbar primary" onclick="saveDesign()">💾 저장하기</button>
+    <button class="btn-toolbar success" onclick="submitDesign()">📤 제출하기</button>
+  </div>
+</div>
+
 <div class="app-container">
   <h1>다담 캐비넷 에이전트</h1>
   <div class="subtitle">통합 가구 설계 및 자동 자재 산출 솔루션 (v33.0 - 자재추출 시스템 개선)</div>
@@ -7676,6 +7797,435 @@ function downloadNestingPDF() {
 function printNestingSheets() {
   window.print();
 }
+
+// ============================================================
+// Supabase 인증 및 데이터 저장 시스템
+// ============================================================
+const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcwMTcyMDcsImV4cCI6MjA1MjU5MzIwN30.gJxycFUYT9thxCq-2SgE9cIqUvpbjjJFcMs';
+
+// n8n Webhook URL (설정 필요)
+const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
+
+let supabaseClient = null;
+let currentUser = null;
+let userProfile = null;
+let currentDesignId = null;
+let autoSaveTimer = null;
+let hasUnsavedChanges = false;
+
+// Supabase 초기화 및 인증 확인
+async function initAuth() {
+  if (typeof window.supabase === 'undefined') {
+    console.error('Supabase 라이브러리가 로드되지 않았습니다.');
+    return;
+  }
+
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+
+  if (!session) {
+    showAuthOverlay();
+    return;
+  }
+
+  currentUser = session.user;
+  await loadUserProfile();
+}
+
+// 사용자 프로필 로드
+async function loadUserProfile() {
+  const { data, error } = await supabaseClient
+    .from('user_profiles')
+    .select('*')
+    .eq('id', currentUser.id)
+    .single();
+
+  if (error || !data) {
+    console.error('프로필 로드 실패:', error);
+    showAuthOverlay();
+    return;
+  }
+
+  userProfile = data;
+
+  // 전문가/관리자만 접근 가능
+  if (userProfile.role !== 'expert' && userProfile.role !== 'admin') {
+    document.getElementById('authOverlay').innerHTML = `
+      <div class="auth-modal">
+        <h2>⭐ 전문가 등급 필요</h2>
+        <p>상세 설계 도구는 전문가 등급 회원만 이용할 수 있습니다.<br>대시보드에서 전문가 등급을 신청해주세요.</p>
+        <button class="btn-login" onclick="location.href='dashboard.html'">대시보드로 이동</button>
+      </div>
+    `;
+    return;
+  }
+
+  // 인증 성공 - UI 업데이트
+  hideAuthOverlay();
+  document.getElementById('toolbarUser').textContent = currentUser.email;
+
+  // URL에서 설계 ID 확인 (수정 모드)
+  const urlParams = new URLSearchParams(window.location.search);
+  const designId = urlParams.get('id');
+  if (designId) {
+    await loadDesign(designId);
+  }
+
+  // 자동 저장 설정 (5분마다)
+  setupAutoSave();
+}
+
+// 인증 오버레이 표시/숨김
+function showAuthOverlay() {
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('topToolbar').classList.add('hidden');
+}
+
+function hideAuthOverlay() {
+  document.getElementById('authOverlay').classList.add('hidden');
+  document.getElementById('topToolbar').classList.remove('hidden');
+}
+
+// 설계 저장
+async function saveDesign() {
+  if (!currentUser || !supabaseClient) {
+    alert('로그인이 필요합니다.');
+    return;
+  }
+
+  if (selectedItems.length === 0) {
+    alert('저장할 설계 내용이 없습니다.');
+    return;
+  }
+
+  updateSaveStatus('saving', '저장 중...');
+
+  try {
+    // 설계 데이터 준비
+    const designData = window.DadamAgent.exportDesign();
+    const designName = prompt('설계 이름을 입력하세요:', currentDesignId ? '기존 설계' : `설계_${new Date().toLocaleDateString('ko-KR')}`);
+
+    if (!designName) {
+      updateSaveStatus('saved', '저장됨');
+      return;
+    }
+
+    // 신규 또는 업데이트
+    if (currentDesignId) {
+      // 기존 설계 업데이트
+      const { error } = await supabaseClient
+        .from('designs')
+        .update({
+          name: designName,
+          total_items: selectedItems.length,
+          total_modules: selectedItems.reduce((sum, item) => sum + (item.modules?.length || 0), 0),
+          app_version: APP_CONFIG.version,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentDesignId);
+
+      if (error) throw error;
+
+      // 기존 아이템 삭제 후 재삽입
+      await supabaseClient
+        .from('design_items')
+        .delete()
+        .eq('design_id', currentDesignId);
+
+      await saveDesignItems(currentDesignId);
+
+    } else {
+      // 신규 설계 생성
+      const { data: newDesign, error } = await supabaseClient
+        .from('designs')
+        .insert({
+          user_id: currentUser.id,
+          name: designName,
+          status: 'draft',
+          total_items: selectedItems.length,
+          total_modules: selectedItems.reduce((sum, item) => sum + (item.modules?.length || 0), 0),
+          app_version: APP_CONFIG.version
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      currentDesignId = newDesign.id;
+      await saveDesignItems(currentDesignId);
+
+      // URL 업데이트
+      window.history.replaceState({}, '', `?id=${currentDesignId}`);
+    }
+
+    // n8n Webhook 호출 (설정된 경우)
+    if (N8N_WEBHOOK_URL) {
+      await sendToN8N(designData);
+    }
+
+    hasUnsavedChanges = false;
+    updateSaveStatus('saved', '저장됨');
+
+  } catch (error) {
+    console.error('저장 실패:', error);
+    updateSaveStatus('error', '저장 실패');
+    alert('저장 중 오류가 발생했습니다: ' + error.message);
+  }
+}
+
+// 설계 아이템 저장
+async function saveDesignItems(designId) {
+  const itemsToInsert = selectedItems.map((item, index) => ({
+    design_id: designId,
+    category: item.category || item.categoryId,
+    name: item.name,
+    unique_id: item.uniqueId,
+    width: item.w,
+    height: item.h,
+    depth: item.d,
+    specs: item.specs || {},
+    modules: item.modules || [],
+    item_order: index
+  }));
+
+  const { error } = await supabaseClient
+    .from('design_items')
+    .insert(itemsToInsert);
+
+  if (error) throw error;
+}
+
+// 설계 불러오기
+async function loadDesign(designId) {
+  try {
+    // 설계 메타 정보
+    const { data: design, error: designError } = await supabaseClient
+      .from('designs')
+      .select('*')
+      .eq('id', designId)
+      .eq('user_id', currentUser.id)
+      .single();
+
+    if (designError || !design) {
+      throw new Error('설계를 찾을 수 없습니다.');
+    }
+
+    // 설계 아이템
+    const { data: items, error: itemsError } = await supabaseClient
+      .from('design_items')
+      .select('*')
+      .eq('design_id', designId)
+      .order('item_order');
+
+    if (itemsError) throw itemsError;
+
+    // 데이터 복원
+    currentDesignId = designId;
+    selectedItems = items.map(item => ({
+      uniqueId: item.unique_id || Date.now(),
+      category: item.category,
+      categoryId: item.category,
+      name: item.name,
+      w: item.width,
+      h: item.height,
+      d: item.depth,
+      specs: item.specs || { ...DEFAULT_SPECS },
+      modules: item.modules || []
+    }));
+
+    // UI 업데이트
+    updateUI();
+    updateSaveStatus('saved', '불러옴');
+
+  } catch (error) {
+    console.error('불러오기 실패:', error);
+    alert('설계를 불러오는 중 오류가 발생했습니다: ' + error.message);
+  }
+}
+
+// 설계 목록 불러오기
+async function loadDesignList() {
+  try {
+    const { data: designs, error } = await supabaseClient
+      .from('designs')
+      .select('id, name, status, total_items, created_at, updated_at')
+      .eq('user_id', currentUser.id)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+
+    if (designs.length === 0) {
+      alert('저장된 설계가 없습니다.');
+      return;
+    }
+
+    // 간단한 선택 UI
+    let listHtml = '저장된 설계 목록:\n\n';
+    designs.forEach((d, i) => {
+      const date = new Date(d.updated_at).toLocaleDateString('ko-KR');
+      listHtml += `${i + 1}. ${d.name} (${d.total_items}개 가구, ${date})\n`;
+    });
+    listHtml += '\n불러올 설계 번호를 입력하세요:';
+
+    const choice = prompt(listHtml);
+    if (!choice) return;
+
+    const idx = parseInt(choice) - 1;
+    if (idx >= 0 && idx < designs.length) {
+      if (hasUnsavedChanges) {
+        if (!confirm('저장하지 않은 변경사항이 있습니다. 계속하시겠습니까?')) return;
+      }
+      window.location.href = `?id=${designs[idx].id}`;
+    }
+
+  } catch (error) {
+    console.error('목록 로드 실패:', error);
+    alert('설계 목록을 불러오는 중 오류가 발생했습니다.');
+  }
+}
+
+// 설계 제출 (검토 요청)
+async function submitDesign() {
+  if (!currentDesignId) {
+    alert('먼저 설계를 저장해주세요.');
+    return;
+  }
+
+  if (!confirm('설계를 제출하시겠습니까?\n제출 후에도 수정이 가능합니다.')) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('designs')
+      .update({
+        status: 'submitted',
+        submitted_at: new Date().toISOString()
+      })
+      .eq('id', currentDesignId);
+
+    if (error) throw error;
+
+    // n8n으로 제출 알림
+    if (N8N_WEBHOOK_URL) {
+      const designData = window.DadamAgent.exportDesign();
+      await sendToN8N({ ...designData, action: 'submit', designId: currentDesignId });
+    }
+
+    alert('설계가 제출되었습니다.');
+
+  } catch (error) {
+    console.error('제출 실패:', error);
+    alert('제출 중 오류가 발생했습니다: ' + error.message);
+  }
+}
+
+// n8n Webhook 전송
+async function sendToN8N(data) {
+  if (!N8N_WEBHOOK_URL) return;
+
+  try {
+    const response = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        userId: currentUser.id,
+        userEmail: currentUser.email,
+        designId: currentDesignId,
+        appVersion: APP_CONFIG.version,
+        data: data
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('n8n Webhook 응답 오류:', response.status);
+    }
+  } catch (error) {
+    console.warn('n8n Webhook 전송 실패:', error);
+  }
+}
+
+// 저장 상태 UI 업데이트
+function updateSaveStatus(status, text) {
+  const statusEl = document.getElementById('saveStatus');
+  const iconEl = document.getElementById('saveStatusIcon');
+  const textEl = document.getElementById('saveStatusText');
+
+  statusEl.classList.remove('hidden', 'saving', 'saved', 'error');
+  statusEl.classList.add(status);
+
+  if (status === 'saving') {
+    iconEl.textContent = '⏳';
+  } else if (status === 'saved') {
+    iconEl.textContent = '✓';
+  } else if (status === 'error') {
+    iconEl.textContent = '✕';
+  }
+
+  textEl.textContent = text;
+}
+
+// 자동 저장 설정
+function setupAutoSave() {
+  // 변경 감지
+  const originalUpdateUI = window.updateUI;
+  window.updateUI = function() {
+    if (originalUpdateUI) originalUpdateUI.apply(this, arguments);
+    hasUnsavedChanges = true;
+    updateSaveStatus('saving', '수정됨');
+  };
+
+  // 5분마다 자동 저장
+  autoSaveTimer = setInterval(() => {
+    if (hasUnsavedChanges && currentDesignId) {
+      console.log('자동 저장 실행...');
+      // 자동 저장은 조용히 실행
+      saveDesignQuiet();
+    }
+  }, 5 * 60 * 1000);
+
+  // 페이지 떠날 때 경고
+  window.addEventListener('beforeunload', (e) => {
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+}
+
+// 조용한 저장 (프롬프트 없이)
+async function saveDesignQuiet() {
+  if (!currentUser || !supabaseClient || !currentDesignId) return;
+
+  try {
+    await supabaseClient
+      .from('designs')
+      .update({
+        total_items: selectedItems.length,
+        total_modules: selectedItems.reduce((sum, item) => sum + (item.modules?.length || 0), 0),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', currentDesignId);
+
+    await supabaseClient
+      .from('design_items')
+      .delete()
+      .eq('design_id', currentDesignId);
+
+    await saveDesignItems(currentDesignId);
+
+    hasUnsavedChanges = false;
+    updateSaveStatus('saved', '자동 저장됨');
+
+  } catch (error) {
+    console.error('자동 저장 실패:', error);
+  }
+}
+
+// 페이지 로드 시 인증 초기화
+document.addEventListener('DOMContentLoaded', initAuth);
 
 </script>
 </body>
