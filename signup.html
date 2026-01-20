@@ -249,12 +249,12 @@
     const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcwMTcyMDcsImV4cCI6MjA1MjU5MzIwN30.gJxycFUYNyhliCU8T9thxCq-2SgE9cIqUvpbjjJFcMs';
 
-    let supabase = null;
+    let supabaseClient = null;
 
     // Supabase 클라이언트 초기화
     try {
       if (typeof window.supabase !== 'undefined' && SUPABASE_ANON_KEY) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log('Supabase 초기화 성공');
       } else {
         console.error('Supabase 라이브러리가 로드되지 않았습니다.');
@@ -345,7 +345,7 @@
       e.preventDefault();
       hideMessages();
 
-      if (!supabase) {
+      if (!supabaseClient) {
         showError('Supabase가 설정되지 않았습니다. 관리자에게 문의하세요.');
         return;
       }
@@ -368,7 +368,7 @@
       setLoading(true);
 
       try {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabaseClient.auth.signUp({
           email: emailInput.value.trim(),
           password: passwordInput.value,
           options: {
@@ -400,13 +400,13 @@
 
     // Google 회원가입
     async function signInWithGoogle() {
-      if (!supabase) {
+      if (!supabaseClient) {
         showError('Supabase가 설정되지 않았습니다.');
         return;
       }
 
       try {
-        await supabase.auth.signInWithOAuth({
+        await supabaseClient.auth.signInWithOAuth({
           provider: 'google',
           options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
@@ -417,13 +417,13 @@
 
     // 카카오 회원가입
     async function signInWithKakao() {
-      if (!supabase) {
+      if (!supabaseClient) {
         showError('Supabase가 설정되지 않았습니다.');
         return;
       }
 
       try {
-        await supabase.auth.signInWithOAuth({
+        await supabaseClient.auth.signInWithOAuth({
           provider: 'kakao',
           options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
@@ -434,13 +434,13 @@
 
     // 네이버 회원가입 (커스텀 OIDC)
     async function signInWithNaver() {
-      if (!supabase) {
+      if (!supabaseClient) {
         showError('Supabase가 설정되지 않았습니다.');
         return;
       }
 
       try {
-        await supabase.auth.signInWithOAuth({
+        await supabaseClient.auth.signInWithOAuth({
           provider: 'naver',
           options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
@@ -451,13 +451,13 @@
 
     // Apple 회원가입
     async function signInWithApple() {
-      if (!supabase) {
+      if (!supabaseClient) {
         showError('Supabase가 설정되지 않았습니다.');
         return;
       }
 
       try {
-        await supabase.auth.signInWithOAuth({
+        await supabaseClient.auth.signInWithOAuth({
           provider: 'apple',
           options: { redirectTo: window.location.origin + '/dashboard.html' },
         });
