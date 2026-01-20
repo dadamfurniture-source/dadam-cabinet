@@ -329,7 +329,7 @@
         if (data.user) {
           showSuccess('로그인 성공! 잠시 후 이동합니다...');
           setTimeout(() => {
-            window.location.href = 'index.html';
+            window.location.href = 'dashboard.html';
           }, 1000);
         }
       } catch (err) {
@@ -352,7 +352,7 @@
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: window.location.origin + '/index.html',
+            redirectTo: window.location.origin + '/dashboard.html',
           },
         });
 
@@ -377,7 +377,7 @@
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'kakao',
           options: {
-            redirectTo: window.location.origin + '/index.html',
+            redirectTo: window.location.origin + '/dashboard.html',
           },
         });
 
@@ -404,7 +404,7 @@
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'naver', // 커스텀 provider 이름
           options: {
-            redirectTo: window.location.origin + '/index.html',
+            redirectTo: window.location.origin + '/dashboard.html',
           },
         });
 
@@ -429,7 +429,7 @@
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'apple',
           options: {
-            redirectTo: window.location.origin + '/index.html',
+            redirectTo: window.location.origin + '/dashboard.html',
           },
         });
 
@@ -448,7 +448,7 @@
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         // 이미 로그인된 상태면 메인으로 리다이렉트
-        window.location.href = 'index.html';
+        window.location.href = 'dashboard.html';
       }
     }
 
