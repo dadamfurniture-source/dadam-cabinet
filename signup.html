@@ -408,7 +408,7 @@
       try {
         await supabaseClient.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: window.location.origin + '/dashboard.html' },
+          options: { redirectTo: window.location.origin + '/index.html' },
         });
       } catch (err) {
         showError('Google 로그인 중 오류가 발생했습니다.');
@@ -425,7 +425,7 @@
       try {
         await supabaseClient.auth.signInWithOAuth({
           provider: 'kakao',
-          options: { redirectTo: window.location.origin + '/dashboard.html' },
+          options: { redirectTo: window.location.origin + '/index.html' },
         });
       } catch (err) {
         showError('카카오 로그인 중 오류가 발생했습니다.');
@@ -442,7 +442,7 @@
       try {
         await supabaseClient.auth.signInWithOAuth({
           provider: 'naver',
-          options: { redirectTo: window.location.origin + '/dashboard.html' },
+          options: { redirectTo: window.location.origin + '/index.html' },
         });
       } catch (err) {
         showError('네이버 로그인 중 오류가 발생했습니다.');
@@ -459,7 +459,7 @@
       try {
         await supabaseClient.auth.signInWithOAuth({
           provider: 'apple',
-          options: { redirectTo: window.location.origin + '/dashboard.html' },
+          options: { redirectTo: window.location.origin + '/index.html' },
         });
       } catch (err) {
         showError('Apple 로그인 중 오류가 발생했습니다.');
