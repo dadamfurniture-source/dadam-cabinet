@@ -98,6 +98,10 @@
     .btn-google:hover{background:var(--cream)}
     .btn-kakao{background:#FEE500;border:none;color:#191919}
     .btn-kakao:hover{background:#FDD800}
+    .btn-naver{background:#03C75A;border:none;color:#fff}
+    .btn-naver:hover{background:#02b351}
+    .btn-apple{background:#000;border:none;color:#fff}
+    .btn-apple:hover{background:#333}
 
     /* Footer */
     .form-footer{margin-top:32px;text-align:center;font-size:14px;color:var(--gray)}
@@ -382,6 +386,58 @@
         }
       } catch (err) {
         showError('카카오 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 네이버 로그인 (커스텀 OIDC)
+    async function signInWithNaver() {
+      if (!supabase) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      hideMessages();
+
+      try {
+        // 네이버는 Supabase에서 커스텀 OIDC로 설정해야 합니다
+        // Supabase 대시보드 > Authentication > Providers > Add custom provider
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'naver', // 커스텀 provider 이름
+          options: {
+            redirectTo: window.location.origin + '/index.html',
+          },
+        });
+
+        if (error) {
+          showError('네이버 로그인 중 오류가 발생했습니다. 설정을 확인해주세요.');
+        }
+      } catch (err) {
+        showError('네이버 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // Apple 로그인
+    async function signInWithApple() {
+      if (!supabase) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      hideMessages();
+
+      try {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'apple',
+          options: {
+            redirectTo: window.location.origin + '/index.html',
+          },
+        });
+
+        if (error) {
+          showError('Apple 로그인 중 오류가 발생했습니다.');
+        }
+      } catch (err) {
+        showError('Apple 로그인 중 오류가 발생했습니다.');
       }
     }
 

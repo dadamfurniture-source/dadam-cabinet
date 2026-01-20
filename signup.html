@@ -66,6 +66,10 @@
     .btn-google:hover{background:var(--cream)}
     .btn-kakao{background:#FEE500;border:none;color:#191919}
     .btn-kakao:hover{background:#FDD800}
+    .btn-naver{background:#03C75A;border:none;color:#fff}
+    .btn-naver:hover{background:#02b351}
+    .btn-apple{background:#000;border:none;color:#fff}
+    .btn-apple:hover{background:#333}
 
     /* Divider */
     .divider{display:flex;align-items:center;gap:16px;margin-bottom:32px}
@@ -417,6 +421,40 @@
         });
       } catch (err) {
         showError('카카오 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 네이버 회원가입 (커스텀 OIDC)
+    async function signInWithNaver() {
+      if (!supabase) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      try {
+        await supabase.auth.signInWithOAuth({
+          provider: 'naver',
+          options: { redirectTo: window.location.origin + '/index.html' },
+        });
+      } catch (err) {
+        showError('네이버 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // Apple 회원가입
+    async function signInWithApple() {
+      if (!supabase) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      try {
+        await supabase.auth.signInWithOAuth({
+          provider: 'apple',
+          options: { redirectTo: window.location.origin + '/index.html' },
+        });
+      } catch (err) {
+        showError('Apple 로그인 중 오류가 발생했습니다.');
       }
     }
   </script>
