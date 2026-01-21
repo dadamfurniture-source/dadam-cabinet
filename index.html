@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C}
@@ -41,6 +42,24 @@
     .nav-icons{display:flex;align-items:center;gap:24px;color:#fff;transition:color .5s}
     .nav.scrolled .nav-icons{color:var(--charcoal)}
     .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
+
+    /* User Menu */
+    .user-menu{position:relative}
+    .user-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:rgba(255,255,255,.1);border:none;color:inherit;cursor:pointer;transition:all .3s}
+    .nav.scrolled .user-btn{background:var(--cream)}
+    .user-btn:hover{background:rgba(255,255,255,.2)}
+    .nav.scrolled .user-btn:hover{background:var(--warm)}
+    .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+    .user-name{font-size:13px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;min-width:180px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);opacity:0;visibility:hidden;transform:translateY(-10px);transition:all .3s;z-index:200}
+    .user-menu:hover .user-dropdown,.user-dropdown:hover{opacity:1;visibility:visible;transform:translateY(0)}
+    .user-dropdown a,.user-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;font-size:14px;color:var(--charcoal);background:none;border:none;cursor:pointer;transition:background .2s;text-align:left}
+    .user-dropdown a:hover,.user-dropdown button:hover{background:var(--cream)}
+    .user-dropdown a:first-child{border-radius:12px 12px 0 0}
+    .user-dropdown button:last-child{border-radius:0 0 12px 12px;border-top:1px solid var(--warm);color:var(--gray)}
+    .user-dropdown svg{width:18px;height:18px;color:var(--gray)}
+    .login-btn{padding:8px 16px;background:transparent;border:1px solid currentColor;border-radius:8px;font-size:13px;transition:all .3s}
+    .login-btn:hover{background:var(--gold);border-color:var(--gold);color:#fff}
 
     /* Hamburger Menu Button */
     .hamburger{display:none;flex-direction:column;gap:5px;padding:10px;cursor:pointer;background:none;border:none;z-index:101}
@@ -394,7 +413,21 @@
       <a href="#">Service</a>
     </div>
     <div class="nav-icons">
-      <a href="login.html" title="로그인" style="padding:4px"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-user"/></svg></a>
+      <!-- 비로그인 상태 -->
+      <a href="login.html" id="loginLink" class="login-btn">로그인</a>
+      <!-- 로그인 상태 -->
+      <div class="user-menu" id="userMenu" style="display:none">
+        <button class="user-btn">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <span class="user-name" id="userName">사용자</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="user-dropdown">
+          <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
+          <a href="#" id="aiDesignLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>AI 설계</a>
+          <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
+        </div>
+      </div>
       <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-search"/></svg></button>
       <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
         <span></span>
@@ -413,7 +446,9 @@
     <a href="#">Stories</a>
     <a href="#">Showroom</a>
     <a href="#">Service</a>
-    <a href="login.html" style="background:var(--charcoal);color:#fff;text-align:center;margin-top:16px">로그인 / 회원가입</a>
+    <a href="login.html" id="mobileLoginLink" style="background:var(--charcoal);color:#fff;text-align:center;margin-top:16px">로그인 / 회원가입</a>
+    <a href="mypage.html" id="mobileMypage" style="display:none;background:var(--gold);color:#fff;text-align:center;margin-top:16px">마이페이지</a>
+    <a href="#" id="mobileLogout" onclick="logout();return false;" style="display:none;text-align:center;color:var(--gray)">로그아웃</a>
     <div class="mobile-menu-footer">
       <div class="mobile-menu-contact">
         <a href="tel:02-1234-5678">📞 02-1234-5678</a>
@@ -659,6 +694,75 @@
         toggleMobileMenu();
       }
     });
+
+    // ═══════════════════════════════════════════════════════════════
+    // 로그인 상태 체크 및 UI 업데이트
+    // ═══════════════════════════════════════════════════════════════
+    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+
+    let supabaseClient = null;
+
+    async function checkAuthState() {
+      try {
+        if (typeof window.supabase !== 'undefined') {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          const { data: { session } } = await supabaseClient.auth.getSession();
+
+          if (session) {
+            const user = session.user;
+            const meta = user.user_metadata || {};
+            const name = meta.name || meta.full_name || user.email.split('@')[0];
+            const tier = meta.tier || 'standard';
+
+            // 데스크톱 메뉴 업데이트
+            document.getElementById('loginLink').style.display = 'none';
+            document.getElementById('userMenu').style.display = 'block';
+            document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+            document.getElementById('userName').textContent = name;
+
+            // AI 설계 링크 업데이트 (Expert는 detaildesign으로)
+            const aiDesignLink = document.getElementById('aiDesignLink');
+            if (tier === 'expert' || tier === 'business') {
+              aiDesignLink.href = 'detaildesign.html';
+              aiDesignLink.querySelector('svg').nextSibling.textContent = '상세 설계';
+            } else {
+              aiDesignLink.href = 'ai-design.html';
+            }
+
+            // 모바일 메뉴 업데이트
+            document.getElementById('mobileLoginLink').style.display = 'none';
+            document.getElementById('mobileMypage').style.display = 'block';
+            document.getElementById('mobileLogout').style.display = 'block';
+
+            // 히어로 AI 설계 버튼 (Expert는 detaildesign으로)
+            const heroBtn = document.querySelector('.hero-text .btn');
+            if (heroBtn && (tier === 'expert' || tier === 'business')) {
+              heroBtn.href = 'detaildesign.html';
+            }
+
+            // 네비게이션 AI Design 링크
+            const navAiLink = document.querySelector('.nav-menu a[href="ai-design.html"]');
+            if (navAiLink && (tier === 'expert' || tier === 'business')) {
+              navAiLink.href = 'detaildesign.html';
+              navAiLink.textContent = 'Detail Design';
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Auth check error:', e);
+      }
+    }
+
+    async function logout() {
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+        window.location.reload();
+      }
+    }
+
+    // 페이지 로드 시 실행
+    checkAuthState();
   </script>
 </body>
 </html>
