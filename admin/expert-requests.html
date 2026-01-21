@@ -826,6 +826,7 @@
 
             try {
                 // 신청 상태 업데이트
+                // DB 트리거가 자동으로 profiles.tier를 업데이트하고 로그를 기록함
                 const { error } = await supabaseClient
                     .from('expert_requests')
                     .update({
@@ -839,10 +840,8 @@
 
                 if (error) throw error;
 
-                // 승인된 경우 사용자 등급 업데이트 필요
-                // (실제로는 Edge Function이나 서버에서 처리해야 함)
                 if (status === 'approved') {
-                    alert('승급이 승인되었습니다.\n\n참고: 사용자의 실제 등급 변경은\nSupabase Dashboard에서 직접 수행하거나\nEdge Function을 통해 구현해야 합니다.');
+                    alert('승급이 승인되었습니다.\n사용자의 등급이 자동으로 변경되었습니다.');
                 } else {
                     alert('승급 신청이 거절되었습니다.');
                 }

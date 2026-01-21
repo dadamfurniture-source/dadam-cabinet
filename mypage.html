@@ -275,7 +275,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           최근 설계
         </h2>
-        <a href="#" class="btn-link">전체보기 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
+        <a href="my-designs.html" class="btn-link">전체보기 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
       </div>
       <div class="design-list" id="designList">
         <div class="empty-state">
@@ -295,6 +295,61 @@
       </div>
     </div>
   </main>
+
+  <!-- Profile Edit Modal -->
+  <div class="modal" id="editModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>프로필 수정</h3>
+        <button class="modal-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="editForm" onsubmit="submitEditProfile(event)">
+          <div class="form-group">
+            <label>이름 *</label>
+            <input type="text" id="editName" required placeholder="이름을 입력하세요">
+          </div>
+          <div class="form-group">
+            <label>연락처</label>
+            <input type="tel" id="editPhone" placeholder="010-0000-0000">
+          </div>
+          <div class="form-group">
+            <label>거주지역 (시/도)</label>
+            <select id="editSido" onchange="updateGugun()">
+              <option value="">선택하세요</option>
+              <option value="서울특별시">서울특별시</option>
+              <option value="부산광역시">부산광역시</option>
+              <option value="대구광역시">대구광역시</option>
+              <option value="인천광역시">인천광역시</option>
+              <option value="광주광역시">광주광역시</option>
+              <option value="대전광역시">대전광역시</option>
+              <option value="울산광역시">울산광역시</option>
+              <option value="세종특별자치시">세종특별자치시</option>
+              <option value="경기도">경기도</option>
+              <option value="강원도">강원도</option>
+              <option value="충청북도">충청북도</option>
+              <option value="충청남도">충청남도</option>
+              <option value="전라북도">전라북도</option>
+              <option value="전라남도">전라남도</option>
+              <option value="경상북도">경상북도</option>
+              <option value="경상남도">경상남도</option>
+              <option value="제주특별자치도">제주특별자치도</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>거주지역 (시/군/구)</label>
+            <select id="editGugun">
+              <option value="">시/도를 먼저 선택하세요</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-edit" onclick="closeEditModal()">취소</button>
+        <button type="submit" form="editForm" class="btn-upgrade">저장</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Expert Upgrade Modal -->
   <div class="modal" id="upgradeModal">
@@ -444,6 +499,45 @@
 
       // 기존 승급 신청 확인
       await checkExistingUpgradeRequest();
+
+      // 통계 로드
+      await loadUserStats();
+    }
+
+    // 사용자 통계 로드
+    async function loadUserStats() {
+      try {
+        // 상담 요청 수 조회
+        const { data: consultations, error: consultError } = await supabaseClient
+          .from('consultations')
+          .select('id, status')
+          .eq('user_id', currentUser.id);
+
+        if (!consultError && consultations) {
+          const totalConsults = consultations.length;
+          const completedConsults = consultations.filter(c => c.status === 'completed').length;
+
+          document.getElementById('statConsults').textContent = totalConsults;
+          document.getElementById('statCompleted').textContent = completedConsults;
+        }
+
+        // 설계 수 조회 (designs 테이블이 있는 경우)
+        try {
+          const { data: designs, error: designError } = await supabaseClient
+            .from('designs')
+            .select('id')
+            .eq('user_id', currentUser.id);
+
+          if (!designError && designs) {
+            document.getElementById('statDesigns').textContent = designs.length;
+          }
+        } catch (e) {
+          console.log('designs 테이블 없음');
+        }
+
+      } catch (error) {
+        console.log('통계 로드 실패:', error.message);
+      }
     }
 
     // 기존 승급 신청 확인
@@ -488,10 +582,141 @@
       return new Date(dateStr).toLocaleDateString('ko-KR');
     }
 
-    // 프로필 수정
-    function openEditProfile() {
-      alert('프로필 수정 기능은 준비 중입니다.');
+    // 지역 데이터
+    const gugunData = {
+      '서울특별시': ['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
+      '부산광역시': ['강서구','금정구','기장군','남구','동구','동래구','부산진구','북구','사상구','사하구','서구','수영구','연제구','영도구','중구','해운대구'],
+      '대구광역시': ['남구','달서구','달성군','동구','북구','서구','수성구','중구'],
+      '인천광역시': ['강화군','계양구','남동구','동구','미추홀구','부평구','서구','연수구','옹진군','중구'],
+      '광주광역시': ['광산구','남구','동구','북구','서구'],
+      '대전광역시': ['대덕구','동구','서구','유성구','중구'],
+      '울산광역시': ['남구','동구','북구','울주군','중구'],
+      '세종특별자치시': ['세종시'],
+      '경기도': ['가평군','고양시','과천시','광명시','광주시','구리시','군포시','김포시','남양주시','동두천시','부천시','성남시','수원시','시흥시','안산시','안성시','안양시','양주시','양평군','여주시','연천군','오산시','용인시','의왕시','의정부시','이천시','파주시','평택시','포천시','하남시','화성시'],
+      '강원도': ['강릉시','고성군','동해시','삼척시','속초시','양구군','양양군','영월군','원주시','인제군','정선군','철원군','춘천시','태백시','평창군','홍천군','화천군','횡성군'],
+      '충청북도': ['괴산군','단양군','보은군','영동군','옥천군','음성군','제천시','증평군','진천군','청주시','충주시'],
+      '충청남도': ['계룡시','공주시','금산군','논산시','당진시','보령시','부여군','서산시','서천군','아산시','예산군','천안시','청양군','태안군','홍성군'],
+      '전라북도': ['고창군','군산시','김제시','남원시','무주군','부안군','순창군','완주군','익산시','임실군','장수군','전주시','정읍시','진안군'],
+      '전라남도': ['강진군','고흥군','곡성군','광양시','구례군','나주시','담양군','목포시','무안군','보성군','순천시','신안군','여수시','영광군','영암군','완도군','장성군','장흥군','진도군','함평군','해남군','화순군'],
+      '경상북도': ['경산시','경주시','고령군','구미시','군위군','김천시','문경시','봉화군','상주시','성주군','안동시','영덕군','영양군','영주시','영천시','예천군','울릉군','울진군','의성군','청도군','청송군','칠곡군','포항시'],
+      '경상남도': ['거제시','거창군','고성군','김해시','남해군','밀양시','사천시','산청군','양산시','의령군','진주시','창녕군','창원시','통영시','하동군','함안군','함양군','합천군'],
+      '제주특별자치도': ['서귀포시','제주시']
+    };
+
+    // 구/군 업데이트
+    function updateGugun() {
+      const sido = document.getElementById('editSido').value;
+      const gugunSelect = document.getElementById('editGugun');
+      gugunSelect.innerHTML = '<option value="">선택하세요</option>';
+
+      if (sido && gugunData[sido]) {
+        gugunData[sido].forEach(gugun => {
+          const option = document.createElement('option');
+          option.value = gugun;
+          option.textContent = gugun;
+          gugunSelect.appendChild(option);
+        });
+      }
     }
+
+    // 프로필 수정 모달 열기
+    function openEditProfile() {
+      const meta = currentUser.user_metadata || {};
+
+      // 현재 값 채우기
+      document.getElementById('editName').value = meta.name || meta.full_name || '';
+      document.getElementById('editPhone').value = meta.phone || '';
+
+      // 시/도 선택
+      const sidoSelect = document.getElementById('editSido');
+      if (meta.sido) {
+        sidoSelect.value = meta.sido;
+        updateGugun();
+        // 구/군 선택
+        if (meta.gugun) {
+          document.getElementById('editGugun').value = meta.gugun;
+        }
+      }
+
+      document.getElementById('editModal').classList.add('active');
+    }
+
+    // 프로필 수정 모달 닫기
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('active');
+    }
+
+    // 프로필 수정 제출
+    async function submitEditProfile(e) {
+      e.preventDefault();
+
+      const name = document.getElementById('editName').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const sido = document.getElementById('editSido').value;
+      const gugun = document.getElementById('editGugun').value;
+
+      if (!name) {
+        alert('이름을 입력해주세요.');
+        return;
+      }
+
+      try {
+        // 1. auth.users의 user_metadata 업데이트
+        const { error: authError } = await supabaseClient.auth.updateUser({
+          data: {
+            name: name,
+            phone: phone,
+            sido: sido,
+            gugun: gugun
+          }
+        });
+
+        if (authError) throw authError;
+
+        // 2. profiles 테이블도 업데이트 (있는 경우)
+        try {
+          await supabaseClient
+            .from('profiles')
+            .update({
+              name: name,
+              phone: phone,
+              sido: sido,
+              gugun: gugun,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+        } catch (profileError) {
+          console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
+        }
+
+        // 세션 새로고침
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          currentUser = session.user;
+        }
+
+        alert('프로필이 수정되었습니다.');
+        closeEditModal();
+
+        // UI 업데이트
+        document.getElementById('profileName').textContent = name;
+        document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
+        document.getElementById('infoName').textContent = name;
+        document.getElementById('infoPhone').textContent = phone || '미등록';
+        document.getElementById('infoLocation').textContent = sido && gugun ? `${sido} ${gugun}` : (sido || '미등록');
+
+      } catch (error) {
+        console.error('프로필 수정 오류:', error);
+        alert('프로필 수정 중 오류가 발생했습니다: ' + error.message);
+      }
+    }
+
+    // 모달 외부 클릭 시 닫기 (editModal)
+    document.getElementById('editModal').addEventListener('click', (e) => {
+      if (e.target.id === 'editModal') {
+        closeEditModal();
+      }
+    });
 
     // Expert 업그레이드 모달 열기
     function requestUpgrade() {
