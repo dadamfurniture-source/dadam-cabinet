@@ -7,7 +7,12 @@ export const translations = {
             ai_design: "AI Design",
             stories: "Stories",
             showroom: "Showroom",
-            service: "Service"
+            service: "Service",
+            consultation: "상담 신청",
+            login: "로그인",
+            mypage: "마이페이지",
+            logout: "로그아웃",
+            detail_design: "상세 설계"
         },
         hero: {
             slide1: {
@@ -32,11 +37,11 @@ export const translations = {
         },
         products: {
             title: "Our products",
-            kitchen: { en: "Kitchen", ko: "키친" },
-            storage: { en: "Storage", ko: "수납장" },
-            builtin: { en: "Built-in", ko: "붙박이장" },
-            furniture: { en: "Furniture", ko: "가구" },
-            interior: { en: "Interior", ko: "인테리어" }
+            kitchen: "키친",
+            storage: "수납장",
+            builtin: "붙박이장",
+            furniture: "가구",
+            interior: "인테리어"
         },
         home: {
             title: "DADAM in home",
@@ -120,7 +125,12 @@ export const translations = {
             ai_design: "AI Design",
             stories: "Stories",
             showroom: "Showroom",
-            service: "Service"
+            service: "Service",
+            consultation: "Consultation",
+            login: "Log In",
+            mypage: "My Page",
+            logout: "Log Out",
+            detail_design: "Detail Design"
         },
         hero: {
             slide1: {
@@ -145,11 +155,11 @@ export const translations = {
         },
         products: {
             title: "Our products",
-            kitchen: { en: "Kitchen", ko: "Kitchen" },
-            storage: { en: "Storage", ko: "Storage" },
-            builtin: { en: "Built-in", ko: "Built-in" },
-            furniture: { en: "Furniture", ko: "Furniture" },
-            interior: { en: "Interior", ko: "Interior" }
+            kitchen: "Kitchen",
+            storage: "Storage",
+            builtin: "Built-in",
+            furniture: "Furniture",
+            interior: "Interior"
         },
         home: {
             title: "DADAM in home",

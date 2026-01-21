@@ -1,0 +1,10 @@
+{
+  "name": "dadam-cabinet",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Static HTML site - no build required' && exit 0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

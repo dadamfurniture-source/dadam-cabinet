@@ -2,373 +2,905 @@
 <html lang="ko">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>로그인 - 다담가구</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --cream: #F8F7F4;
-            --charcoal: #2D2A26;
-            --gold: #B8956C;
-            --white: #FFFFFF;
-            --gray: #8B8680;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2D2A26">
+  <title>로그인 - 다담가구</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    :root {
+      --white: #FAFAFA;
+      --cream: #F8F7F4;
+      --warm: #EBE8E2;
+      --gray: #8B8680;
+      --charcoal: #2D2A26;
+      --black: #1A1918;
+      --gold: #B8956C
+    }
 
-        body {
-            font-family: 'Noto Serif KR', serif;
-            background-color: var(--cream);
-            color: var(--charcoal);
-            height: 100vh;
-            display: flex;
-            overflow: hidden;
-        }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--charcoal);
+      line-height: 1.7;
+      min-height: 100vh;
+      display: flex
+    }
 
-        .split-screen {
-            display: flex;
-            width: 100%;
-            height: 100%;
-        }
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Playfair Display', 'Noto Serif KR', serif;
+      font-weight: 500
+    }
 
-        .left-panel {
-            flex: 1;
-            background: var(--charcoal);
-            position: relative;
-            overflow: hidden;
-            display: none;
-        }
+    a {
+      text-decoration: none;
+      color: inherit
+    }
 
-        .left-panel img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.6;
-        }
+    /* Layout */
+    .login-container {
+      display: flex;
+      width: 100%;
+      min-height: 100vh
+    }
 
-        .left-panel::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.8));
-        }
+    /* Left Brand Section */
+    .brand-section {
+      display: none;
+      width: 50%;
+      position: relative;
+      overflow: hidden;
+      background: var(--charcoal)
+    }
 
-        .brand-overlay {
-            position: absolute;
-            bottom: 60px;
-            left: 60px;
-            color: var(--white);
-            z-index: 2;
-        }
+    .brand-bg {
+      position: absolute;
+      inset: 0;
+      opacity: .2
+    }
 
-        .brand-overlay h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
+    .brand-bg::before {
+      content: '';
+      position: absolute;
+      top: 25%;
+      left: 25%;
+      width: 400px;
+      height: 400px;
+      background: var(--gold);
+      border-radius: 50%;
+      filter: blur(120px)
+    }
 
-        .brand-overlay p {
-            font-size: 16px;
-            opacity: 0.8;
-            letter-spacing: 1px;
-            line-height: 1.6;
-        }
+    .brand-bg::after {
+      content: '';
+      position: absolute;
+      bottom: 25%;
+      right: 25%;
+      width: 300px;
+      height: 300px;
+      background: var(--gold);
+      border-radius: 50%;
+      filter: blur(100px)
+    }
 
-        .right-panel {
-            flex: 1;
-            background: var(--cream);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-            position: relative;
-        }
+    .brand-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 64px;
+      color: #fff;
+      height: 100%
+    }
 
-        .auth-container {
-            width: 100%;
-            max-width: 400px;
-        }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 48px
+    }
 
-        .home-link {
-            position: absolute;
-            top: 40px;
-            right: 40px;
-            color: var(--gray);
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+    .brand-logo svg {
+      width: 40px;
+      height: 40px
+    }
 
-        .home-link:hover {
-            color: var(--charcoal);
-        }
+    .brand-logo span {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px
+    }
 
-        .logo-mobile {
-            font-family: 'Playfair Display', serif;
-            font-size: 32px;
-            color: var(--charcoal);
-            text-align: center;
-            margin-bottom: 40px;
-            display: block;
-        }
+    .brand-content h1 {
+      font-size: 42px;
+      line-height: 1.3;
+      margin-bottom: 24px
+    }
 
-        h2 {
-            font-family: 'Playfair Display', serif;
-            font-size: 32px;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
+    .brand-content h1 span {
+      color: var(--gold)
+    }
 
-        .subtitle {
-            color: var(--gray);
-            margin-bottom: 40px;
-            font-size: 14px;
-        }
+    .brand-content>p {
+      color: rgba(255, 255, 255, .6);
+      font-size: 18px;
+      margin-bottom: 48px;
+      max-width: 400px
+    }
 
-        .form-group {
-            margin-bottom: 24px;
-        }
+    .brand-features {
+      display: flex;
+      gap: 16px;
+      color: rgba(255, 255, 255, .4);
+      font-size: 14px
+    }
 
-        label {
-            display: block;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--gray);
-            margin-bottom: 8px;
-        }
+    .brand-features span {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
 
-        input {
-            width: 100%;
-            padding: 12px 0;
-            background: transparent;
-            border: none;
-            border-bottom: 1px solid #ddd;
-            font-family: 'Noto Serif KR', serif;
-            font-size: 16px;
-            color: var(--charcoal);
-            transition: border-color 0.3s;
-            outline: none;
-        }
+    .brand-features svg {
+      width: 16px;
+      height: 16px;
+      color: var(--gold)
+    }
 
-        input:focus {
-            border-bottom-color: var(--gold);
-        }
+    /* Right Form Section */
+    .form-section {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px
+    }
 
-        .btn-submit {
-            width: 100%;
-            padding: 16px;
-            background: var(--charcoal);
-            color: var(--white);
-            border: none;
-            font-family: 'Noto Serif KR', serif;
-            font-size: 14px;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: background 0.3s;
-            margin-top: 20px;
-            text-transform: uppercase;
-        }
+    .form-container {
+      width: 100%;
+      max-width: 420px
+    }
 
-        .btn-submit:hover {
-            background: var(--gold);
-        }
+    /* Mobile Logo */
+    .mobile-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 32px
+    }
 
-        .switch-mode {
-            margin-top: 30px;
-            text-align: center;
-            font-size: 14px;
-            color: var(--gray);
-        }
+    .mobile-logo svg {
+      width: 32px;
+      height: 32px
+    }
 
-        .switch-btn {
-            color: var(--charcoal);
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-family: inherit;
-            font-weight: 500;
-            text-decoration: underline;
-            margin-left: 5px;
-        }
+    .mobile-logo span {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px
+    }
 
-        .error-msg {
-            color: #d32f2f;
-            font-size: 12px;
-            margin-top: 8px;
-            display: none;
-        }
+    /* Form Header */
+    .form-header {
+      margin-bottom: 32px
+    }
 
-        @media (min-width: 768px) {
-            .left-panel {
-                display: block;
-            }
+    .form-header h2 {
+      font-size: 32px;
+      margin-bottom: 8px
+    }
 
-            .logo-mobile {
-                display: none;
-            }
-        }
-    </style>
+    .form-header p {
+      color: var(--gray)
+    }
+
+    .form-header a {
+      color: var(--gold)
+    }
+
+    .form-header a:hover {
+      text-decoration: underline
+    }
+
+    /* Error Message */
+    .error-message {
+      display: none;
+      padding: 16px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 12px;
+      color: #DC2626;
+      font-size: 14px;
+      margin-bottom: 24px
+    }
+
+    .error-message.show {
+      display: block
+    }
+
+    /* Success Message */
+    .success-message {
+      display: none;
+      padding: 16px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: 12px;
+      color: #16A34A;
+      font-size: 14px;
+      margin-bottom: 24px
+    }
+
+    .success-message.show {
+      display: block
+    }
+
+    /* Form */
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px
+    }
+
+    .form-group label {
+      font-size: 14px;
+      font-weight: 500
+    }
+
+    .input-wrapper {
+      position: relative
+    }
+
+    .input-wrapper svg {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      color: var(--gray)
+    }
+
+    .input-wrapper input {
+      width: 100%;
+      padding: 16px 16px 16px 48px;
+      background: #fff;
+      border: 1px solid var(--warm);
+      border-radius: 12px;
+      font-size: 16px;
+      color: var(--charcoal);
+      transition: all .3s
+    }
+
+    .input-wrapper input:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(184, 149, 108, .15)
+    }
+
+    .input-wrapper input::placeholder {
+      color: rgba(139, 134, 128, .5)
+    }
+
+    .input-wrapper .toggle-password {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--gray);
+      cursor: pointer;
+      padding: 4px
+    }
+
+    .input-wrapper .toggle-password:hover {
+      color: var(--charcoal)
+    }
+
+    /* Remember & Forgot */
+    .form-options {
+      display: flex;
+      justify-content: space-between;
+      align-items: center
+    }
+
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--gray)
+    }
+
+    .remember-me input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--gold)
+    }
+
+    .forgot-link {
+      font-size: 14px;
+      color: var(--gold)
+    }
+
+    .forgot-link:hover {
+      text-decoration: underline
+    }
+
+    /* Submit Button */
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background: var(--charcoal);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background .3s
+    }
+
+    .btn-submit:hover {
+      background: var(--gold)
+    }
+
+    .btn-submit:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    .btn-submit svg {
+      width: 18px;
+      height: 18px
+    }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 32px 0
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--warm)
+    }
+
+    .divider span {
+      font-size: 14px;
+      color: var(--gray)
+    }
+
+    /* Social Buttons */
+    .social-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px
+    }
+
+    .btn-social {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: all .3s
+    }
+
+    .btn-social:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    .btn-social svg {
+      width: 20px;
+      height: 20px
+    }
+
+    .btn-google {
+      background: #fff;
+      border: 1px solid var(--warm);
+      color: var(--charcoal)
+    }
+
+    .btn-google:hover {
+      background: var(--cream)
+    }
+
+    .btn-kakao {
+      background: #FEE500;
+      border: none;
+      color: #191919
+    }
+
+    .btn-kakao:hover {
+      background: #FDD800
+    }
+
+    .btn-naver {
+      background: #03C75A;
+      border: none;
+      color: #fff
+    }
+
+    .btn-naver:hover {
+      background: #02b351
+    }
+
+    .btn-apple {
+      background: #000;
+      border: none;
+      color: #fff
+    }
+
+    .btn-apple:hover {
+      background: #333
+    }
+
+    /* Footer */
+    .form-footer {
+      margin-top: 32px;
+      text-align: center;
+      font-size: 14px;
+      color: var(--gray)
+    }
+
+    .form-footer a {
+      color: var(--gold)
+    }
+
+    .form-footer a:hover {
+      text-decoration: underline
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, .3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    /* Responsive */
+    @media(min-width:1024px) {
+      .brand-section {
+        display: flex
+      }
+
+      .form-section {
+        width: 50%
+      }
+
+      .mobile-logo {
+        display: none
+      }
+    }
+
+    @media(max-width:480px) {
+      .form-section {
+        padding: 24px 16px
+      }
+
+      .form-header h2 {
+        font-size: 28px
+      }
+
+      .btn-submit,
+      .btn-social {
+        padding: 14px
+      }
+    }
+  </style>
 </head>
 
 <body>
-
-    <div class="split-screen">
-        <div class="left-panel">
-            <!-- Placeholder image, ideally replaced with one from the project -->
-            <img src="app/portfolio/kitchen-n6-2.jpg" alt="Luxury Interior"
-                onerror="this.src='https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?q=80&w=1974&auto=format&fit=crop'">
-            <div class="brand-overlay">
-                <h1>DADAM</h1>
-                <p>AI 기술로 완성하는<br>당신만의 프리미엄 공간</p>
-            </div>
+  <div class="login-container">
+    <!-- Left: Brand Section -->
+    <div class="brand-section">
+      <div class="brand-bg"></div>
+      <div class="brand-content">
+        <a href="index.html" class="brand-logo">
+          <svg viewBox="0 0 40 40" fill="currentColor">
+            <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+          </svg>
+          <span>다담</span>
+        </a>
+        <h1>AI가 설계하는<br><span>프리미엄</span> 맞춤 가구</h1>
+        <p>30년 장인정신과 AI 기술의 만남.<br>완벽한 공간을 위한 최선의 선택.</p>
+        <div class="brand-features">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>AI 설계 시스템</span>
+          <span>•</span>
+          <span>30년 경력 장인</span>
+          <span>•</span>
+          <span>평생 A/S</span>
         </div>
-
-        <div class="right-panel">
-            <a href="index.html" class="home-link" data-i18n="common.back_home">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                메인으로 돌아가기
-            </a>
-
-            <div class="auth-container">
-                <div class="logo-mobile">DADAM</div>
-
-                <!-- Login Form -->
-                <form id="login-form">
-                    <h2 data-i18n="login.welcome">Welcome Back</h2>
-                    <p class="subtitle" data-i18n="login.subtitle">다담가구 멤버십 서비스를 이용해보세요</p>
-
-                    <div class="form-group">
-                        <label data-i18n="login.email">Email</label>
-                        <input type="email" id="login-email" required placeholder="name@example.com">
-                    </div>
-
-                    <div class="form-group">
-                        <label data-i18n="login.password">Password</label>
-                        <input type="password" id="login-password" required placeholder="••••••••">
-                        <div class="error-msg" id="login-error"></div>
-                    </div>
-
-                    <button type="submit" class="btn-submit" data-i18n="login.btn">로그인</button>
-
-                    <div class="switch-mode">
-                        <span data-i18n="login.no_account">계정이 없으신가요?</span>
-                        <button type="button" class="switch-btn" onclick="toggleMode()"
-                            data-i18n="login.signup_link">회원가입</button>
-                    </div>
-                </form>
-
-                <!-- Signup Form (Hidden by default) -->
-                <form id="signup-form" style="display: none;">
-                    <h2 data-i18n="login.create_account">Create Account</h2>
-                    <p class="subtitle" data-i18n="login.create_subtitle">다담가구의 새로운 가족이 되어주세요</p>
-
-                    <div class="form-group">
-                        <label data-i18n="login.email">Email</label>
-                        <input type="email" id="signup-email" required placeholder="name@example.com">
-                    </div>
-
-                    <div class="form-group">
-                        <label data-i18n="login.password">Password</label>
-                        <input type="password" id="signup-password" required placeholder="최소 6자 이상">
-                    </div>
-
-                    <div class="form-group">
-                        <label data-i18n="login.confirm_password">Confirm Password</label>
-                        <input type="password" id="signup-password-confirm" required placeholder="••••••••">
-                        <div class="error-msg" id="signup-error"></div>
-                    </div>
-
-                    <button type="submit" class="btn-submit" data-i18n="login.signup_btn">회원가입</button>
-
-                    <div class="switch-mode">
-                        <span data-i18n="login.have_account">이미 계정이 있으신가요?</span>
-                        <button type="button" class="switch-btn" onclick="toggleMode()"
-                            data-i18n="login.login_link">로그인</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+      </div>
     </div>
 
-    <script type="module">
-        import './js/i18n.js';
-        import { login, signup } from './js/auth.js';
+    <!-- Right: Form Section -->
+    <div class="form-section">
+      <div class="form-container">
+        <!-- Mobile Logo -->
+        <a href="index.html" class="mobile-logo">
+          <svg viewBox="0 0 40 40" fill="currentColor">
+            <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+          </svg>
+          <span>다담</span>
+        </a>
 
-        // Login Handler
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
+        <!-- Form Header -->
+        <div class="form-header">
+          <h2 data-i18n="login.btn">로그인</h2>
+          <p><span data-i18n="login.no_account">계정이 없으신가요?</span> <a href="signup.html"
+              data-i18n="login.signup_link">회원가입</a></p>
+        </div>
 
-            try {
-                await login(email, password);
-            } catch (error) {
-                document.getElementById('login-error').textContent = "로그인 정보를 확인해주세요.";
-                document.getElementById('login-error').style.display = 'block';
-            }
+        <!-- Error/Success Messages -->
+        <div class="error-message" id="errorMsg"></div>
+        <div class="success-message" id="successMsg"></div>
+
+        <!-- Login Form -->
+        <form class="login-form" id="loginForm">
+          <div class="form-group">
+            <label for="email" data-i18n="login.email">이메일</label>
+            <div class="input-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+              <input type="email" id="email" placeholder="example@email.com" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="password" data-i18n="login.password">비밀번호</label>
+            <div class="input-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <input type="password" id="password" placeholder="········" required>
+              <button type="button" class="toggle-password" onclick="togglePassword()">
+                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-options">
+            <label class="remember-me">
+              <input type="checkbox" id="remember">
+              <span>로그인 유지</span>
+            </label>
+            <a href="forgot-password.html" class="forgot-link">비밀번호 찾기</a>
+          </div>
+
+          <button type="submit" class="btn-submit" id="submitBtn">
+            <span data-i18n="login.btn">로그인</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14m-7-7 7 7-7 7" />
+            </svg>
+          </button>
+        </form>
+
+        <!-- Divider -->
+        <div class="divider"><span>또는</span></div>
+
+        <!-- Social Login -->
+        <div class="social-buttons">
+          <button type="button" class="btn-social btn-google" onclick="signInWithGoogle()">
+            <svg viewBox="0 0 24 24">
+              <path fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+              <path fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+            </svg>
+            Google로 계속하기
+          </button>
+          <button type="button" class="btn-social btn-kakao" onclick="signInWithKakao()">
+            <svg viewBox="0 0 24 24" fill="#191919">
+              <path
+                d="M12 3C6.48 3 2 6.58 2 11c0 2.85 1.93 5.35 4.84 6.75-.22.81-.8 2.93-.92 3.38-.14.54.2.53.42.39.17-.11 2.72-1.84 3.83-2.59.59.09 1.2.13 1.83.13 5.52 0 10-3.58 10-8s-4.48-8-10-8z" />
+            </svg>
+            카카오로 계속하기
+          </button>
+        </div>
+
+        <!-- Footer -->
+        <p class="form-footer">
+          로그인하면 <a href="terms.html">이용약관</a> 및 <a href="privacy.html">개인정보처리방침</a>에 동의하게 됩니다.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Supabase 설정
+    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+
+    let supabaseClient = null;
+
+    // Supabase 클라이언트 초기화
+    try {
+      if (typeof window.supabase !== 'undefined' && SUPABASE_ANON_KEY) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase 초기화 성공');
+      } else {
+        console.error('Supabase 라이브러리가 로드되지 않았습니다.');
+      }
+    } catch (e) {
+      console.error('Supabase 초기화 오류:', e);
+    }
+
+    // DOM 요소
+    const loginForm = document.getElementById('loginForm');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const successMsg = document.getElementById('successMsg');
+
+    // 비밀번호 표시/숨김 토글
+    function togglePassword() {
+      const input = document.getElementById('password');
+      const icon = document.getElementById('eyeIcon');
+
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+      } else {
+        input.type = 'password';
+        icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+      }
+    }
+
+    // 에러 메시지 표시
+    function showError(message) {
+      errorMsg.textContent = message;
+      errorMsg.classList.add('show');
+      successMsg.classList.remove('show');
+    }
+
+    // 성공 메시지 표시
+    function showSuccess(message) {
+      successMsg.textContent = message;
+      successMsg.classList.add('show');
+      errorMsg.classList.remove('show');
+    }
+
+    // 메시지 숨기기
+    function hideMessages() {
+      errorMsg.classList.remove('show');
+      successMsg.classList.remove('show');
+    }
+
+    // 로딩 상태 설정
+    function setLoading(isLoading) {
+      submitBtn.disabled = isLoading;
+      if (isLoading) {
+        submitBtn.innerHTML = '<div class="spinner"></div><span>로그인 중...</span>';
+      } else {
+        submitBtn.innerHTML = '<span>로그인</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>';
+      }
+    }
+
+    // 이메일/비밀번호 로그인
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMessages();
+
+      if (!supabaseClient) {
+        showError('Supabase가 설정되지 않았습니다. 관리자에게 문의하세요.');
+        return;
+      }
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      if (!email || !password) {
+        showError('이메일과 비밀번호를 입력해주세요.');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password,
         });
 
-        // Signup Handler
-        document.getElementById('signup-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('signup-email').value;
-            const pass = document.getElementById('signup-password').value;
-            const confirm = document.getElementById('signup-password-confirm').value;
-            const errorDiv = document.getElementById('signup-error');
-
-            if (pass !== confirm) {
-                errorDiv.textContent = "비밀번호가 일치하지 않습니다.";
-                errorDiv.style.display = 'block';
-                return;
-            }
-
-            if (pass.length < 6) {
-                errorDiv.textContent = "비밀번호는 6자 이상이어야 합니다.";
-                errorDiv.style.display = 'block';
-                return;
-            }
-
-            try {
-                await signup(email, pass);
-            } catch (error) {
-                errorDiv.textContent = "회원가입 처리 중 오류가 발생했습니다.";
-                errorDiv.style.display = 'block';
-            }
-        });
-
-        // Toggle Mode
-        window.toggleMode = function () {
-            const loginForm = document.getElementById('login-form');
-            const signupForm = document.getElementById('signup-form');
-
-            if (loginForm.style.display === 'none') {
-                loginForm.style.display = 'block';
-                signupForm.style.display = 'none';
-            } else {
-                loginForm.style.display = 'none';
-                signupForm.style.display = 'block';
-            }
-
-            // Clear errors
-            document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            showError('이메일 또는 비밀번호가 올바르지 않습니다.');
+          } else if (error.message.includes('Email not confirmed')) {
+            showError('이메일 인증이 필요합니다. 메일함을 확인해주세요.');
+          } else {
+            showError(error.message);
+          }
+          return;
         }
-    </script>
+
+        if (data.user) {
+          showSuccess('로그인 성공! 잠시 후 이동합니다...');
+          setTimeout(() => {
+            window.location.href = 'index.html';
+          }, 1000);
+        }
+      } catch (err) {
+        showError('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Google 로그인
+    async function signInWithGoogle() {
+      if (!supabaseClient) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      hideMessages();
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin + '/index.html',
+          },
+        });
+
+        if (error) {
+          showError('Google 로그인 중 오류가 발생했습니다.');
+        }
+      } catch (err) {
+        showError('Google 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 카카오 로그인
+    async function signInWithKakao() {
+      if (!supabaseClient) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      hideMessages();
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'kakao',
+          options: {
+            redirectTo: window.location.origin + '/index.html',
+          },
+        });
+
+        if (error) {
+          showError('카카오 로그인 중 오류가 발생했습니다.');
+        }
+      } catch (err) {
+        showError('카카오 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 네이버 로그인 (커스텀 OIDC)
+    async function signInWithNaver() {
+      if (!supabaseClient) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      hideMessages();
+
+      try {
+        // 네이버는 Supabase에서 커스텀 OIDC로 설정해야 합니다
+        // Supabase 대시보드 > Authentication > Providers > Add custom provider
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'naver', // 커스텀 provider 이름
+          options: {
+            redirectTo: window.location.origin + '/index.html',
+          },
+        });
+
+        if (error) {
+          showError('네이버 로그인 중 오류가 발생했습니다. 설정을 확인해주세요.');
+        }
+      } catch (err) {
+        showError('네이버 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // Apple 로그인
+    async function signInWithApple() {
+      if (!supabaseClient) {
+        showError('Supabase가 설정되지 않았습니다.');
+        return;
+      }
+
+      hideMessages();
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'apple',
+          options: {
+            redirectTo: window.location.origin + '/index.html',
+          },
+        });
+
+        if (error) {
+          showError('Apple 로그인 중 오류가 발생했습니다.');
+        }
+      } catch (err) {
+        showError('Apple 로그인 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 페이지 로드 시 세션 확인
+    async function checkSession() {
+      if (!supabaseClient) return;
+
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        // 이미 로그인된 상태면 메인으로 리다이렉트
+        window.location.href = 'index.html';
+      }
+    }
+
+    checkSession();
+  </script>
+  <script type="module" src="js/i18n.js"></script>
 </body>
 
 </html>
