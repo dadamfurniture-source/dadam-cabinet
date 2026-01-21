@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 대시보드 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100vh;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px 0;
+            z-index: 1000;
+        }
+
+        .sidebar-logo {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .sidebar-logo span {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-menu li a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: #aaa;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .nav-menu li a:hover,
+        .nav-menu li a.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .nav-menu li a.active {
+            border-left: 3px solid #007bff;
+        }
+
+        .nav-icon {
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            padding: 0 20px;
+        }
+
+        .sidebar-footer a {
+            display: block;
+            padding: 10px;
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            color: #aaa;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .sidebar-footer a:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 250px;
+            padding: 20px 30px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .header h2 {
+            font-size: 1.5rem;
+            color: #333;
+        }
+
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .admin-avatar {
+            width: 40px;
+            height: 40px;
+            background: #007bff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+        }
+
+        .admin-name {
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .admin-role {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-card .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+
+        .stat-card.users .stat-icon {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .stat-card.expert .stat-icon {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .stat-card.consultations .stat-icon {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .stat-card.pending .stat-icon {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            margin-top: 10px;
+        }
+
+        .stat-change.positive {
+            color: #388e3c;
+        }
+
+        .stat-change.negative {
+            color: #c2185b;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Card */
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .card-header h3 {
+            font-size: 1.1rem;
+            color: #333;
+        }
+
+        .card-header a {
+            font-size: 0.85rem;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Recent Table */
+        .recent-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .recent-table th,
+        .recent-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .recent-table th {
+            font-weight: 500;
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .recent-table td {
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge.standard { background: #e0e0e0; color: #616161; }
+        .badge.expert { background: #fff3e0; color: #f57c00; }
+        .badge.business { background: #e8f5e9; color: #388e3c; }
+        .badge.pending { background: #fff3e0; color: #f57c00; }
+        .badge.approved { background: #e8f5e9; color: #388e3c; }
+        .badge.rejected { background: #ffebee; color: #c62828; }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .quick-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s;
+        }
+
+        .quick-action-btn:hover {
+            background: #f5f5f5;
+            border-color: #ddd;
+        }
+
+        .quick-action-btn .action-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .quick-action-btn .action-text h4 {
+            font-size: 0.95rem;
+            margin-bottom: 3px;
+        }
+
+        .quick-action-btn .action-text p {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        /* Activity Feed */
+        .activity-item {
+            display: flex;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.user { background: #e3f2fd; color: #1976d2; }
+        .activity-icon.tier { background: #fff3e0; color: #f57c00; }
+        .activity-icon.consultation { background: #e8f5e9; color: #388e3c; }
+
+        .activity-content p {
+            font-size: 0.9rem;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .activity-content span {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        /* Access Denied */
+        .access-denied {
+            display: none;
+            text-align: center;
+            padding: 100px 20px;
+        }
+
+        .access-denied h2 {
+            font-size: 1.5rem;
+            color: #c62828;
+            margin-bottom: 15px;
+        }
+
+        .access-denied p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .access-denied a {
+            color: #007bff;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-logo">
+            <h1>다담가구</h1>
+            <span>관리자 패널</span>
+        </div>
+
+        <ul class="nav-menu">
+            <li>
+                <a href="index.html" class="active">
+                    <span class="nav-icon">📊</span>
+                    대시보드
+                </a>
+            </li>
+            <li>
+                <a href="users.html">
+                    <span class="nav-icon">👥</span>
+                    회원 관리
+                </a>
+            </li>
+            <li>
+                <a href="expert-requests.html">
+                    <span class="nav-icon">⭐</span>
+                    Expert 승급 관리
+                </a>
+            </li>
+            <li>
+                <a href="consultations.html">
+                    <span class="nav-icon">💬</span>
+                    상담 관리
+                </a>
+            </li>
+            <li>
+                <a href="logs.html">
+                    <span class="nav-icon">📋</span>
+                    활동 로그
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <a href="../index.html">← 메인 사이트로</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Access Denied Message -->
+        <div class="access-denied" id="accessDenied">
+            <h2>접근 권한이 없습니다</h2>
+            <p>관리자만 접근할 수 있는 페이지입니다.</p>
+            <a href="../index.html">메인 페이지로 돌아가기</a>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboardContent" style="display: none;">
+            <!-- Header -->
+            <header class="header">
+                <h2>대시보드</h2>
+                <div class="admin-info">
+                    <div>
+                        <div class="admin-name" id="adminName">관리자</div>
+                        <div class="admin-role" id="adminRole">Super Admin</div>
+                    </div>
+                    <div class="admin-avatar" id="adminAvatar">A</div>
+                </div>
+            </header>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card users">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-value" id="totalUsers">-</div>
+                    <div class="stat-label">전체 회원</div>
+                    <div class="stat-change positive" id="newUsersToday">오늘 +0명</div>
+                </div>
+
+                <div class="stat-card expert">
+                    <div class="stat-icon">⭐</div>
+                    <div class="stat-value" id="expertUsers">-</div>
+                    <div class="stat-label">Expert 회원</div>
+                    <div class="stat-change" id="pendingUpgrades">승급 대기 0건</div>
+                </div>
+
+                <div class="stat-card consultations">
+                    <div class="stat-icon">💬</div>
+                    <div class="stat-value" id="totalConsultations">-</div>
+                    <div class="stat-label">상담 신청</div>
+                    <div class="stat-change" id="thisMonthConsultations">이번 달 0건</div>
+                </div>
+
+                <div class="stat-card pending">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-value" id="pendingItems">-</div>
+                    <div class="stat-label">처리 대기</div>
+                    <div class="stat-change">즉시 확인 필요</div>
+                </div>
+            </div>
+
+            <!-- Content Grid -->
+            <div class="content-grid">
+                <!-- Recent Users -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>최근 가입 회원</h3>
+                        <a href="users.html">전체 보기 →</a>
+                    </div>
+                    <div class="card-body">
+                        <table class="recent-table">
+                            <thead>
+                                <tr>
+                                    <th>이름</th>
+                                    <th>이메일</th>
+                                    <th>등급</th>
+                                    <th>가입일</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentUsers">
+                                <tr>
+                                    <td colspan="4" class="loading">로딩 중...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div>
+                    <!-- Quick Actions -->
+                    <div class="card" style="margin-bottom: 20px;">
+                        <div class="card-header">
+                            <h3>빠른 작업</h3>
+                        </div>
+                        <div class="card-body quick-actions">
+                            <a href="expert-requests.html" class="quick-action-btn">
+                                <div class="action-icon" style="background: #fff3e0; color: #f57c00;">⭐</div>
+                                <div class="action-text">
+                                    <h4>Expert 승급 검토</h4>
+                                    <p id="pendingExpertCount">대기 중 0건</p>
+                                </div>
+                            </a>
+                            <a href="consultations.html" class="quick-action-btn">
+                                <div class="action-icon" style="background: #e8f5e9; color: #388e3c;">💬</div>
+                                <div class="action-text">
+                                    <h4>상담 요청 확인</h4>
+                                    <p id="pendingConsultCount">대기 중 0건</p>
+                                </div>
+                            </a>
+                            <a href="users.html?filter=new" class="quick-action-btn">
+                                <div class="action-icon" style="background: #e3f2fd; color: #1976d2;">👤</div>
+                                <div class="action-text">
+                                    <h4>신규 회원 확인</h4>
+                                    <p id="newMemberCount">오늘 0명</p>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>최근 활동</h3>
+                            <a href="logs.html">전체 보기 →</a>
+                        </div>
+                        <div class="card-body" id="recentActivity">
+                            <div class="loading">로딩 중...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Supabase 설정
+        const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+
+        let supabaseClient = null;
+        let currentUser = null;
+
+        // 관리자 이메일 목록 (실제로는 admin_roles 테이블에서 확인)
+        const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initAdmin();
+        });
+
+        async function initAdmin() {
+            if (typeof window.supabase === 'undefined') {
+                console.error('Supabase not loaded');
+                showAccessDenied();
+                return;
+            }
+
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // 세션 확인
+            const { data: { session } } = await supabaseClient.auth.getSession();
+
+            if (!session) {
+                showAccessDenied();
+                return;
+            }
+
+            currentUser = session.user;
+
+            // 관리자 권한 확인 (간단한 이메일 기반 확인)
+            if (!ADMIN_EMAILS.includes(currentUser.email)) {
+                // TODO: admin_roles 테이블에서 확인
+                showAccessDenied();
+                return;
+            }
+
+            // 대시보드 표시
+            document.getElementById('dashboardContent').style.display = 'block';
+
+            // 관리자 정보 표시
+            const meta = currentUser.user_metadata || {};
+            document.getElementById('adminName').textContent = meta.name || currentUser.email;
+            document.getElementById('adminAvatar').textContent = (meta.name || currentUser.email).charAt(0).toUpperCase();
+
+            // 데이터 로드
+            await loadDashboardData();
+        }
+
+        function showAccessDenied() {
+            document.getElementById('accessDenied').style.display = 'block';
+            document.getElementById('dashboardContent').style.display = 'none';
+        }
+
+        async function loadDashboardData() {
+            try {
+                // 사용자 통계 로드 (auth.users는 직접 접근 불가, 대안 필요)
+                // 실제로는 서버 함수나 별도 테이블 사용
+                await loadUserStats();
+                await loadRecentUsers();
+                await loadRecentActivity();
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        async function loadUserStats() {
+            // 임시 데이터 (실제로는 서버에서 가져옴)
+            // auth.users는 클라이언트에서 직접 쿼리 불가
+            // Edge Function이나 별도 통계 테이블 필요
+
+            document.getElementById('totalUsers').textContent = '-';
+            document.getElementById('expertUsers').textContent = '-';
+            document.getElementById('totalConsultations').textContent = '-';
+            document.getElementById('pendingItems').textContent = '-';
+
+            // Expert 승급 대기 건수
+            try {
+                const { data: expertRequests, error } = await supabaseClient
+                    .from('expert_requests')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('status', 'pending');
+
+                if (!error && expertRequests !== null) {
+                    document.getElementById('pendingExpertCount').textContent = `대기 중 ${expertRequests.length || 0}건`;
+                }
+            } catch (e) {
+                console.log('expert_requests 테이블이 아직 없습니다.');
+            }
+
+            // 상담 대기 건수
+            try {
+                const { data: consultations, error } = await supabaseClient
+                    .from('consultations')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('status', 'pending');
+
+                if (!error && consultations !== null) {
+                    document.getElementById('pendingConsultCount').textContent = `대기 중 ${consultations.length || 0}건`;
+                }
+            } catch (e) {
+                console.log('consultations 테이블이 아직 없습니다.');
+            }
+        }
+
+        async function loadRecentUsers() {
+            const tbody = document.getElementById('recentUsers');
+
+            // auth.users에서 직접 목록을 가져올 수 없음
+            // 실제로는 profiles 테이블이나 서버 함수 필요
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #888; padding: 30px;">
+                        회원 목록을 보려면 <a href="users.html" style="color: #007bff;">회원 관리</a> 페이지를 이용하세요.<br>
+                        <small>(Supabase Edge Function 설정 필요)</small>
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function loadRecentActivity() {
+            const container = document.getElementById('recentActivity');
+
+            try {
+                const { data: logs, error } = await supabaseClient
+                    .from('admin_logs')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (error) throw error;
+
+                if (!logs || logs.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; color: #888; padding: 20px;">
+                            아직 활동 기록이 없습니다.
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = logs.map(log => `
+                    <div class="activity-item">
+                        <div class="activity-icon ${getActivityIconClass(log.action_type)}">
+                            ${getActivityIcon(log.action_type)}
+                        </div>
+                        <div class="activity-content">
+                            <p>${log.description || log.action_type}</p>
+                            <span>${formatDate(log.created_at)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #888; padding: 20px;">
+                        활동 로그 테이블이 아직 생성되지 않았습니다.<br>
+                        <small>admin-schema.sql을 Supabase에서 실행하세요.</small>
+                    </div>
+                `;
+            }
+        }
+
+        function getActivityIcon(actionType) {
+            const icons = {
+                'user_update': '👤',
+                'tier_change': '⭐',
+                'consultation_update': '💬',
+                'login': '🔑'
+            };
+            return icons[actionType] || '📝';
+        }
+
+        function getActivityIconClass(actionType) {
+            const classes = {
+                'user_update': 'user',
+                'tier_change': 'tier',
+                'consultation_update': 'consultation'
+            };
+            return classes[actionType] || 'user';
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return '방금 전';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
+            if (diff < 604800000) return `${Math.floor(diff / 86400000)}일 전`;
+
+            return date.toLocaleDateString('ko-KR');
+        }
+    </script>
+</body>
+</html>
