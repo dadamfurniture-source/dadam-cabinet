@@ -476,6 +476,12 @@
                     활동 로그
                 </a>
             </li>
+            <li>
+                <a href="settings.html">
+                    <span class="nav-icon">⚙️</span>
+                    설정
+                </a>
+            </li>
         </ul>
 
         <div class="sidebar-footer">
@@ -682,57 +688,122 @@
         }
 
         async function loadUserStats() {
-            // 임시 데이터 (실제로는 서버에서 가져옴)
-            // auth.users는 클라이언트에서 직접 쿼리 불가
-            // Edge Function이나 별도 통계 테이블 필요
+            let pendingExpert = 0;
+            let pendingConsult = 0;
 
-            document.getElementById('totalUsers').textContent = '-';
-            document.getElementById('expertUsers').textContent = '-';
-            document.getElementById('totalConsultations').textContent = '-';
-            document.getElementById('pendingItems').textContent = '-';
+            // profile_stats 뷰에서 사용자 통계 로드
+            try {
+                const { data: stats, error } = await supabaseClient
+                    .from('profile_stats')
+                    .select('*')
+                    .single();
+
+                if (!error && stats) {
+                    document.getElementById('totalUsers').textContent = stats.total_users || 0;
+                    document.getElementById('expertUsers').textContent = (stats.expert_users || 0) + (stats.business_users || 0);
+                    document.getElementById('newUsersToday').textContent = `오늘 +${stats.today_signups || 0}명`;
+                } else {
+                    // 뷰가 없으면 profiles 테이블에서 직접 조회
+                    const { data: profiles, count } = await supabaseClient
+                        .from('profiles')
+                        .select('tier', { count: 'exact' });
+
+                    if (profiles) {
+                        const expertCount = profiles.filter(p => p.tier === 'expert' || p.tier === 'business').length;
+                        document.getElementById('totalUsers').textContent = count || profiles.length;
+                        document.getElementById('expertUsers').textContent = expertCount;
+                    }
+                }
+            } catch (e) {
+                console.log('프로필 통계 로드 실패:', e.message);
+                document.getElementById('totalUsers').textContent = '-';
+                document.getElementById('expertUsers').textContent = '-';
+            }
 
             // Expert 승급 대기 건수
             try {
                 const { data: expertRequests, error } = await supabaseClient
                     .from('expert_requests')
-                    .select('id', { count: 'exact', head: true })
+                    .select('id')
                     .eq('status', 'pending');
 
-                if (!error && expertRequests !== null) {
-                    document.getElementById('pendingExpertCount').textContent = `대기 중 ${expertRequests.length || 0}건`;
+                if (!error && expertRequests) {
+                    pendingExpert = expertRequests.length;
+                    document.getElementById('pendingExpertCount').textContent = `대기 중 ${pendingExpert}건`;
+                    document.getElementById('pendingUpgrades').textContent = `승급 대기 ${pendingExpert}건`;
                 }
             } catch (e) {
                 console.log('expert_requests 테이블이 아직 없습니다.');
             }
 
-            // 상담 대기 건수
+            // 상담 통계
             try {
-                const { data: consultations, error } = await supabaseClient
+                const { data: allConsult } = await supabaseClient.from('consultations').select('id');
+                const { data: pendingConsultations } = await supabaseClient
                     .from('consultations')
-                    .select('id', { count: 'exact', head: true })
+                    .select('id')
                     .eq('status', 'pending');
 
-                if (!error && consultations !== null) {
-                    document.getElementById('pendingConsultCount').textContent = `대기 중 ${consultations.length || 0}건`;
+                if (allConsult) {
+                    document.getElementById('totalConsultations').textContent = allConsult.length;
+                }
+                if (pendingConsultations) {
+                    pendingConsult = pendingConsultations.length;
+                    document.getElementById('pendingConsultCount').textContent = `대기 중 ${pendingConsult}건`;
+                    document.getElementById('thisMonthConsultations').textContent = `대기 ${pendingConsult}건`;
                 }
             } catch (e) {
                 console.log('consultations 테이블이 아직 없습니다.');
+                document.getElementById('totalConsultations').textContent = '-';
             }
+
+            // 총 대기 건수
+            document.getElementById('pendingItems').textContent = pendingExpert + pendingConsult;
         }
 
         async function loadRecentUsers() {
             const tbody = document.getElementById('recentUsers');
 
-            // auth.users에서 직접 목록을 가져올 수 없음
-            // 실제로는 profiles 테이블이나 서버 함수 필요
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" style="text-align: center; color: #888; padding: 30px;">
-                        회원 목록을 보려면 <a href="users.html" style="color: #007bff;">회원 관리</a> 페이지를 이용하세요.<br>
-                        <small>(Supabase Edge Function 설정 필요)</small>
-                    </td>
-                </tr>
-            `;
+            try {
+                const { data: users, error } = await supabaseClient
+                    .from('profiles')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (error) throw error;
+
+                if (!users || users.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #888; padding: 30px;">
+                                아직 가입한 회원이 없습니다.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = users.map(user => `
+                    <tr>
+                        <td>${user.name || '-'}</td>
+                        <td>${user.email || '-'}</td>
+                        <td><span class="badge ${user.tier || 'standard'}">${(user.tier || 'standard').charAt(0).toUpperCase() + (user.tier || 'standard').slice(1)}</span></td>
+                        <td>${formatDate(user.created_at)}</td>
+                    </tr>
+                `).join('');
+
+            } catch (e) {
+                console.log('profiles 테이블 조회 실패:', e.message);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #888; padding: 30px;">
+                            profiles 테이블이 없습니다.<br>
+                            <small>database/profiles-schema.sql을 실행하세요.</small>
+                        </td>
+                    </tr>
+                `;
+            }
         }
 
         async function loadRecentActivity() {

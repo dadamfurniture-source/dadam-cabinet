@@ -534,6 +534,12 @@
                     활동 로그
                 </a>
             </li>
+            <li>
+                <a href="settings.html">
+                    <span class="nav-icon">⚙️</span>
+                    설정
+                </a>
+            </li>
         </ul>
 
         <div class="sidebar-footer">
@@ -736,54 +742,72 @@
             const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
 
             try {
-                // Supabase Admin API를 통해 사용자 목록을 가져오려면
-                // Edge Function 또는 서버 사이드 코드가 필요합니다.
-                // 클라이언트에서 auth.users 테이블에 직접 접근할 수 없습니다.
+                // profiles 테이블에서 사용자 목록 조회
+                let query = supabaseClient
+                    .from('profiles')
+                    .select('*', { count: 'exact' })
+                    .order('created_at', { ascending: false })
+                    .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
 
-                // 대안 1: profiles 테이블을 별도로 만들어 사용
-                // 대안 2: Supabase Edge Function 사용
-                // 대안 3: 서버리스 함수 (Cloudflare Workers 등) 사용
+                if (tierFilter) {
+                    query = query.eq('tier', tierFilter);
+                }
+                if (providerFilter) {
+                    query = query.eq('provider', providerFilter);
+                }
 
-                // 임시: 현재 로그인한 사용자 정보만 표시
-                const mockUsers = [
-                    {
-                        id: currentUser.id,
-                        email: currentUser.email,
-                        user_metadata: currentUser.user_metadata,
-                        app_metadata: currentUser.app_metadata,
-                        created_at: currentUser.created_at
-                    }
-                ];
+                const { data: profiles, error, count } = await query;
 
-                usersData = mockUsers;
-                renderUsers(mockUsers);
+                if (error) throw error;
 
-                document.getElementById('totalCount').textContent = `전체 ${mockUsers.length}명`;
+                // 검색어 필터링 (클라이언트 사이드)
+                let filtered = profiles || [];
+                if (searchQuery) {
+                    filtered = filtered.filter(p =>
+                        (p.name && p.name.toLowerCase().includes(searchQuery)) ||
+                        (p.email && p.email.toLowerCase().includes(searchQuery))
+                    );
+                }
 
-                // 안내 메시지 추가
-                tbody.innerHTML += `
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 40px; background: #fffde7;">
-                            <strong>전체 회원 목록을 보려면 추가 설정이 필요합니다.</strong><br><br>
-                            Supabase에서 auth.users 테이블을 직접 조회할 수 없습니다.<br>
-                            다음 방법 중 하나를 선택하세요:<br><br>
-                            1. <strong>profiles 테이블 생성</strong> - 회원가입 시 자동으로 사용자 정보 저장<br>
-                            2. <strong>Edge Function 사용</strong> - 서버 사이드에서 Admin API 호출<br>
-                            3. <strong>Supabase Dashboard</strong>에서 직접 회원 관리
-                        </td>
-                    </tr>
-                `;
+                totalUsers = count || filtered.length;
+                usersData = filtered;
+
+                document.getElementById('totalCount').textContent = `전체 ${totalUsers}명`;
+
+                const totalPages = Math.ceil(totalUsers / pageSize) || 1;
+                document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+                document.getElementById('prevBtn').disabled = currentPage <= 1;
+                document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+
+                renderUsers(filtered);
 
             } catch (error) {
                 console.error('Error loading users:', error);
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="empty-state">
-                            <h4>사용자 목록을 불러올 수 없습니다</h4>
-                            <p>${error.message}</p>
-                        </td>
-                    </tr>
-                `;
+
+                // profiles 테이블이 없는 경우 안내 메시지 표시
+                if (error.message.includes('profiles') || error.code === '42P01') {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 40px; background: #fffde7;">
+                                <strong>profiles 테이블이 없습니다.</strong><br><br>
+                                database/profiles-schema.sql 파일을<br>
+                                Supabase SQL Editor에서 실행하세요.<br><br>
+                                <a href="https://supabase.com/dashboard" target="_blank" style="color: #007bff;">
+                                    Supabase Dashboard 열기 →
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="empty-state">
+                                <h4>사용자 목록을 불러올 수 없습니다</h4>
+                                <p>${error.message}</p>
+                            </td>
+                        </tr>
+                    `;
+                }
             }
         }
 
@@ -803,11 +827,11 @@
             }
 
             tbody.innerHTML = users.map(user => {
-                const meta = user.user_metadata || {};
-                const tier = meta.tier || 'standard';
-                const provider = getProvider(user);
-                const location = meta.sido && meta.gugun ? `${meta.sido} ${meta.gugun}` : '-';
-                const initial = (meta.name || user.email || '?').charAt(0).toUpperCase();
+                // profiles 테이블 구조에 맞게 수정
+                const tier = user.tier || 'standard';
+                const provider = user.provider || 'email';
+                const location = user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '-';
+                const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
 
                 return `
                     <tr>
@@ -815,7 +839,7 @@
                             <div class="user-info">
                                 <div class="user-avatar">${initial}</div>
                                 <div class="user-details">
-                                    <h4>${meta.name || '이름 없음'}</h4>
+                                    <h4>${user.name || '이름 없음'}</h4>
                                     <span>${user.email}</span>
                                 </div>
                             </div>
@@ -839,10 +863,7 @@
         }
 
         function getProvider(user) {
-            const appMeta = user.app_metadata || {};
-            if (appMeta.provider === 'google') return 'google';
-            if (appMeta.provider === 'kakao') return 'kakao';
-            return 'email';
+            return user.provider || 'email';
         }
 
         function getProviderLabel(provider) {
@@ -875,17 +896,17 @@
             if (!user) return;
 
             selectedUserId = userId;
-            const meta = user.user_metadata || {};
 
+            // profiles 테이블 구조에 맞게 수정
             document.getElementById('modalEmail').value = user.email || '';
-            document.getElementById('modalName').value = meta.name || '';
-            document.getElementById('modalPhone').value = meta.phone || '';
-            document.getElementById('modalTier').value = meta.tier || 'standard';
+            document.getElementById('modalName').value = user.name || '';
+            document.getElementById('modalPhone').value = user.phone || '';
+            document.getElementById('modalTier').value = user.tier || 'standard';
             document.getElementById('modalLocation').value =
-                meta.sido && meta.gugun ? `${meta.sido} ${meta.gugun}` : '';
-            document.getElementById('modalReferral').value = meta.referral || '';
+                user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '';
+            document.getElementById('modalReferral').value = user.referral || '';
             document.getElementById('modalCreatedAt').value = formatDate(user.created_at);
-            document.getElementById('modalMemo').value = '';
+            document.getElementById('modalMemo').value = user.admin_memo || '';
 
             document.getElementById('userModal').classList.add('active');
         }
@@ -901,12 +922,27 @@
             const newTier = document.getElementById('modalTier').value;
             const memo = document.getElementById('modalMemo').value;
 
-            // 실제로 사용자 메타데이터를 업데이트하려면 Admin API가 필요합니다.
-            // 클라이언트에서는 자신의 정보만 업데이트 가능합니다.
+            try {
+                // profiles 테이블 업데이트
+                const { error } = await supabaseClient
+                    .from('profiles')
+                    .update({
+                        tier: newTier,
+                        admin_memo: memo,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', selectedUserId);
 
-            alert('사용자 정보 수정은 Supabase Dashboard에서 직접 수행하거나,\nEdge Function을 통해 구현해야 합니다.');
+                if (error) throw error;
 
-            closeModal();
+                alert('회원 정보가 수정되었습니다.');
+                closeModal();
+                await loadUsers();
+
+            } catch (error) {
+                console.error('Error updating user:', error);
+                alert('수정 중 오류가 발생했습니다: ' + error.message);
+            }
         }
 
         function prevPage() {
