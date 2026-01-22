@@ -1239,6 +1239,72 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     // ═══════════════════════════════════════════════════════════════
     // Chat
     // ═══════════════════════════════════════════════════════════════
+    const CHAT_HISTORY_KEY = 'dadam_chat_history';
+    const MAX_CHAT_HISTORY = 50;
+
+    // 대화 기록을 localStorage에 저장
+    function saveChatHistory() {
+      const chatMessages = document.getElementById('chatMessages');
+      const messages = chatMessages.querySelectorAll('.message');
+      const history = [];
+
+      messages.forEach(msg => {
+        const isUser = msg.classList.contains('user');
+        const content = msg.querySelector('.message-content')?.innerHTML || '';
+        if (content) {
+          history.push({ content, isUser, timestamp: Date.now() });
+        }
+      });
+
+      // 최대 개수 제한
+      const limitedHistory = history.slice(-MAX_CHAT_HISTORY);
+      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(limitedHistory));
+    }
+
+    // localStorage에서 대화 기록 복원
+    function loadChatHistory() {
+      try {
+        const saved = localStorage.getItem(CHAT_HISTORY_KEY);
+        if (!saved) return;
+
+        const history = JSON.parse(saved);
+        if (!Array.isArray(history) || history.length === 0) return;
+
+        const chatMessages = document.getElementById('chatMessages');
+        const welcome = chatMessages.querySelector('.welcome-msg');
+        if (welcome) welcome.remove();
+
+        history.forEach(item => {
+          const messageDiv = document.createElement('div');
+          messageDiv.className = `message ${item.isUser ? 'user' : 'ai'}`;
+          messageDiv.innerHTML = `
+            <div class="message-avatar">
+              <svg fill="${item.isUser ? 'none' : 'currentColor'}" stroke="${item.isUser ? 'currentColor' : 'none'}" stroke-width="2">
+                <use href="#icon-${item.isUser ? 'user' : 'ai'}"/>
+              </svg>
+            </div>
+            <div class="message-content">${item.content}</div>
+          `;
+          chatMessages.appendChild(messageDiv);
+        });
+
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      } catch (e) {
+        console.error('대화 기록 복원 실패:', e);
+      }
+    }
+
+    // 대화 기록 삭제 기능
+    function clearChatHistory() {
+      localStorage.removeItem(CHAT_HISTORY_KEY);
+      const chatMessages = document.getElementById('chatMessages');
+      chatMessages.innerHTML = `
+        <div class="welcome-msg">
+          <p>안녕하세요! AI 디자인 상담사입니다.<br>주방 가구에 대해 궁금한 점을 물어보세요.</p>
+        </div>
+      `;
+    }
+
     function addChatMessage(content, isUser = false) {
       const chatMessages = document.getElementById('chatMessages');
       const welcome = chatMessages.querySelector('.welcome-msg');
@@ -1258,7 +1324,10 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
       chatMessages.scrollTop = chatMessages.scrollHeight;
 
       const messages = chatMessages.querySelectorAll('.message');
-      if (messages.length > 3) messages[0].remove();
+      if (messages.length > 50) messages[0].remove();
+
+      // localStorage에 대화 기록 저장
+      saveChatHistory();
     }
 
     async function sendMessage() {
@@ -1402,7 +1471,10 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
     // ═══════════════════════════════════════════════════════════════
     // Init
     // ═══════════════════════════════════════════════════════════════
-    document.addEventListener('DOMContentLoaded', updateButtons);
+    document.addEventListener('DOMContentLoaded', () => {
+      updateButtons();
+      loadChatHistory();
+    });
   </script>
 </body>
 </html>
