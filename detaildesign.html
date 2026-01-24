@@ -2235,7 +2235,6 @@ function renderWorkspaceContent(item) {
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${item.w} x H ${item.h} x D ${item.d}</span></div>
       <div style="display:flex;gap:8px;">
         <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
-        <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
       </div>
     </div>
     <div class="ws-layout">
@@ -2799,7 +2798,6 @@ function renderWardrobeWorkspace(item) {
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${W} x H ${H} x D ${D}</span></div>
       <div style="display:flex;gap:8px;">
         <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
-        <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
       </div>
     </div>
     <div class="ws-layout">
@@ -8256,7 +8254,7 @@ async function saveDesignItems(designId) {
     design_id: designId,
     category: item.category || item.categoryId,
     name: item.name,
-    unique_id: item.uniqueId,
+    unique_id: Math.floor(item.uniqueId),  // bigint 호환을 위해 정수로 변환
     width: item.w,
     height: item.h,
     depth: item.d,
