@@ -121,15 +121,17 @@
     .form-hint{font-size:12px;color:var(--gray);margin-top:6px}
     .modal-footer{display:flex;justify-content:flex-end;gap:12px;padding:24px;border-top:1px solid var(--warm)}
 
-    /* Upgrade Status Banner */
-    .upgrade-status{padding:16px 20px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px}
-    .upgrade-status.pending{background:#fff3e0;color:#f57c00}
-    .upgrade-status.approved{background:#e8f5e9;color:#388e3c}
-    .upgrade-status.rejected{background:#ffebee;color:#c62828}
-    .upgrade-status svg{width:24px;height:24px;flex-shrink:0}
-    .upgrade-status .status-text{flex:1}
-    .upgrade-status .status-title{font-weight:600;margin-bottom:2px}
-    .upgrade-status .status-desc{font-size:13px;opacity:.8}
+    /* Tier Toggle Switch */
+    .tier-toggle{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--cream);border-radius:12px}
+    .tier-label{font-size:13px;font-weight:500;color:var(--gray);transition:color .3s}
+    .tier-label.active{color:var(--charcoal)}
+    .tier-label.expert{color:var(--expert)}
+    .toggle-switch{position:relative;width:50px;height:26px;cursor:pointer}
+    .toggle-switch input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--warm);border-radius:26px;transition:all .3s}
+    .toggle-slider:before{position:absolute;content:"";height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:all .3s;box-shadow:0 2px 4px rgba(0,0,0,.2)}
+    .toggle-switch input:checked+.toggle-slider{background:var(--expert)}
+    .toggle-switch input:checked+.toggle-slider:before{transform:translateX(24px)}
 
     /* Responsive */
     @media(max-width:768px){
@@ -178,7 +180,14 @@
       </div>
       <div class="profile-actions">
         <button class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
-        <button class="btn-upgrade" id="btnUpgrade" onclick="requestUpgrade()">Expert 업그레이드</button>
+        <div class="tier-toggle" id="tierToggleContainer">
+          <span class="tier-label" id="labelStandard">Standard</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="tierToggle" onchange="toggleTier()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="tier-label expert" id="labelExpert">Expert</span>
+        </div>
       </div>
     </div>
 
@@ -275,7 +284,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           최근 설계
         </h2>
-        <a href="#" class="btn-link">전체보기 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
+        <a href="my-designs.html" class="btn-link">전체보기 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
       </div>
       <div class="design-list" id="designList">
         <div class="empty-state">
@@ -286,70 +295,59 @@
       </div>
     </section>
 
-    <!-- Upgrade Status (shown if request exists) -->
-    <div class="upgrade-status pending" id="upgradeStatus" style="display:none">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-      <div class="status-text">
-        <div class="status-title" id="upgradeStatusTitle">Expert 승급 심사 중</div>
-        <div class="status-desc" id="upgradeStatusDesc">관리자 확인 후 승인됩니다.</div>
-      </div>
-    </div>
   </main>
 
-  <!-- Expert Upgrade Modal -->
-  <div class="modal" id="upgradeModal">
+  <!-- Profile Edit Modal -->
+  <div class="modal" id="editModal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Expert 등급 신청</h3>
-        <button class="modal-close" onclick="closeUpgradeModal()">&times;</button>
+        <h3>프로필 수정</h3>
+        <button class="modal-close" onclick="closeEditModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="margin-bottom:20px;color:var(--gray);font-size:14px;line-height:1.6">
-          Expert 등급은 인테리어 전문가, 시공업체 대표님을 위한 등급입니다.<br>
-          상세 설계 도구, 자재 자동 산출 등 고급 기능을 이용하실 수 있습니다.
-        </p>
-        <form id="upgradeForm" onsubmit="submitUpgradeRequest(event)">
+        <form id="editForm" onsubmit="submitEditProfile(event)">
           <div class="form-group">
-            <label>회사/상호명 *</label>
-            <input type="text" id="companyName" required placeholder="예: 다담인테리어">
+            <label>이름 *</label>
+            <input type="text" id="editName" required placeholder="이름을 입력하세요">
           </div>
           <div class="form-group">
-            <label>업종 *</label>
-            <select id="businessType" required>
+            <label>연락처</label>
+            <input type="tel" id="editPhone" placeholder="010-0000-0000">
+          </div>
+          <div class="form-group">
+            <label>거주지역 (시/도)</label>
+            <select id="editSido" onchange="updateGugun()">
               <option value="">선택하세요</option>
-              <option value="interior">인테리어 디자인</option>
-              <option value="construction">시공/설치</option>
-              <option value="furniture">가구 제작</option>
-              <option value="architecture">건축/설계</option>
-              <option value="other">기타</option>
+              <option value="서울특별시">서울특별시</option>
+              <option value="부산광역시">부산광역시</option>
+              <option value="대구광역시">대구광역시</option>
+              <option value="인천광역시">인천광역시</option>
+              <option value="광주광역시">광주광역시</option>
+              <option value="대전광역시">대전광역시</option>
+              <option value="울산광역시">울산광역시</option>
+              <option value="세종특별자치시">세종특별자치시</option>
+              <option value="경기도">경기도</option>
+              <option value="강원도">강원도</option>
+              <option value="충청북도">충청북도</option>
+              <option value="충청남도">충청남도</option>
+              <option value="전라북도">전라북도</option>
+              <option value="전라남도">전라남도</option>
+              <option value="경상북도">경상북도</option>
+              <option value="경상남도">경상남도</option>
+              <option value="제주특별자치도">제주특별자치도</option>
             </select>
           </div>
           <div class="form-group">
-            <label>경력 연수 *</label>
-            <select id="careerYears" required>
-              <option value="">선택하세요</option>
-              <option value="1">1년 미만</option>
-              <option value="3">1~3년</option>
-              <option value="5">3~5년</option>
-              <option value="10">5~10년</option>
-              <option value="15">10년 이상</option>
+            <label>거주지역 (시/군/구)</label>
+            <select id="editGugun">
+              <option value="">시/도를 먼저 선택하세요</option>
             </select>
-          </div>
-          <div class="form-group">
-            <label>사업자등록번호</label>
-            <input type="text" id="businessNumber" placeholder="000-00-00000 (선택사항)">
-            <div class="form-hint">사업자등록번호가 있으면 심사가 빨라집니다.</div>
-          </div>
-          <div class="form-group">
-            <label>포트폴리오 링크</label>
-            <input type="url" id="portfolioUrl" placeholder="https://... (선택사항)">
-            <div class="form-hint">홈페이지, 블로그, 인스타그램 등</div>
           </div>
         </form>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-edit" onclick="closeUpgradeModal()">취소</button>
-        <button type="submit" form="upgradeForm" class="btn-upgrade">신청하기</button>
+        <button type="button" class="btn-edit" onclick="closeEditModal()">취소</button>
+        <button type="submit" form="editForm" class="btn-upgrade">저장</button>
       </div>
     </div>
   </div>
@@ -426,61 +424,114 @@
 
       // 등급
       const tier = meta.tier || 'standard';
+      updateTierDisplay(tier);
+
+      // 통계 로드
+      await loadUserStats();
+    }
+
+    // 사용자 통계 로드
+    async function loadUserStats() {
+      try {
+        // 상담 요청 수 조회
+        const { data: consultations, error: consultError } = await supabaseClient
+          .from('consultations')
+          .select('id, status')
+          .eq('user_id', currentUser.id);
+
+        if (!consultError && consultations) {
+          const totalConsults = consultations.length;
+          const completedConsults = consultations.filter(c => c.status === 'completed').length;
+
+          document.getElementById('statConsults').textContent = totalConsults;
+          document.getElementById('statCompleted').textContent = completedConsults;
+        }
+
+        // 설계 수 조회 (designs 테이블이 있는 경우)
+        try {
+          const { data: designs, error: designError } = await supabaseClient
+            .from('designs')
+            .select('id')
+            .eq('user_id', currentUser.id);
+
+          if (!designError && designs) {
+            document.getElementById('statDesigns').textContent = designs.length;
+          }
+        } catch (e) {
+          console.log('designs 테이블 없음');
+        }
+
+      } catch (error) {
+        console.log('통계 로드 실패:', error.message);
+      }
+    }
+
+    // 등급 표시 업데이트
+    function updateTierDisplay(tier) {
       const tierEl = document.getElementById('profileTier');
       tierEl.className = 'profile-tier tier-' + tier;
       tierEl.textContent = tier === 'expert' ? 'Expert' : tier === 'business' ? 'Business' : 'Standard';
 
-      // Expert 이상이면 업그레이드 버튼 숨김
-      if (tier === 'expert' || tier === 'business') {
-        document.getElementById('btnUpgrade').style.display = 'none';
-      }
+      // 토글 상태 설정
+      const toggle = document.getElementById('tierToggle');
+      toggle.checked = (tier === 'expert' || tier === 'business');
 
-      // Expert 등급이면 AI 설계 링크를 detaildesign으로 변경
-      if (tier === 'expert' || tier === 'business') {
-        const actionDesign = document.getElementById('actionDesign');
-        actionDesign.href = 'detaildesign.html';
-        actionDesign.querySelector('span').textContent = '상세 설계 도구';
-      }
+      // 라벨 활성화 표시
+      document.getElementById('labelStandard').classList.toggle('active', tier === 'standard');
+      document.getElementById('labelExpert').classList.toggle('active', tier === 'expert' || tier === 'business');
 
-      // 기존 승급 신청 확인
-      await checkExistingUpgradeRequest();
+      // Business tier는 토글 비활성화 (변경 불가)
+      if (tier === 'business') {
+        toggle.disabled = true;
+        document.getElementById('tierToggleContainer').style.opacity = '0.6';
+        document.getElementById('tierToggleContainer').title = 'Business 등급은 변경할 수 없습니다';
+      }
     }
 
-    // 기존 승급 신청 확인
-    async function checkExistingUpgradeRequest() {
+    // 등급 토글
+    async function toggleTier() {
+      const toggle = document.getElementById('tierToggle');
+      const newTier = toggle.checked ? 'expert' : 'standard';
+
       try {
-        const { data: requests, error } = await supabaseClient
-          .from('expert_requests')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
+        // 1. auth.users metadata 업데이트
+        const { error: authError } = await supabaseClient.auth.updateUser({
+          data: { tier: newTier }
+        });
 
-        if (error) throw error;
+        if (authError) throw authError;
 
-        if (requests && requests.length > 0) {
-          const request = requests[0];
-          const statusEl = document.getElementById('upgradeStatus');
-          const titleEl = document.getElementById('upgradeStatusTitle');
-          const descEl = document.getElementById('upgradeStatusDesc');
-
-          if (request.status === 'pending') {
-            statusEl.className = 'upgrade-status pending';
-            titleEl.textContent = 'Expert 승급 심사 중';
-            descEl.textContent = '관리자 확인 후 승인됩니다. 신청일: ' + formatDate(request.created_at);
-            statusEl.style.display = 'flex';
-            document.getElementById('btnUpgrade').style.display = 'none';
-          } else if (request.status === 'rejected') {
-            statusEl.className = 'upgrade-status rejected';
-            titleEl.textContent = 'Expert 승급 신청이 반려되었습니다';
-            descEl.textContent = request.admin_memo || '다시 신청하실 수 있습니다.';
-            statusEl.style.display = 'flex';
-            // 재신청 가능
-            document.getElementById('btnUpgrade').textContent = '다시 신청하기';
-          }
+        // 2. profiles 테이블 업데이트
+        try {
+          await supabaseClient
+            .from('profiles')
+            .update({ tier: newTier, updated_at: new Date().toISOString() })
+            .eq('id', currentUser.id);
+        } catch (profileError) {
+          console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
         }
-      } catch (e) {
-        console.log('승급 신청 확인 실패 (테이블이 없을 수 있음):', e.message);
+
+        // 3. 세션 새로고침
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          currentUser = session.user;
+        }
+
+        // 4. UI 업데이트
+        updateTierDisplay(newTier);
+
+        // 알림
+        if (newTier === 'expert') {
+          alert('Expert 등급으로 변경되었습니다.\nAI 설계 페이지에서 상세 설계 도구를 이용할 수 있습니다.');
+        } else {
+          alert('Standard 등급으로 변경되었습니다.');
+        }
+
+      } catch (error) {
+        console.error('등급 변경 오류:', error);
+        alert('등급 변경 중 오류가 발생했습니다: ' + error.message);
+        // 실패 시 토글 원복
+        toggle.checked = !toggle.checked;
       }
     }
 
@@ -488,81 +539,139 @@
       return new Date(dateStr).toLocaleDateString('ko-KR');
     }
 
-    // 프로필 수정
+    // 지역 데이터
+    const gugunData = {
+      '서울특별시': ['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
+      '부산광역시': ['강서구','금정구','기장군','남구','동구','동래구','부산진구','북구','사상구','사하구','서구','수영구','연제구','영도구','중구','해운대구'],
+      '대구광역시': ['남구','달서구','달성군','동구','북구','서구','수성구','중구'],
+      '인천광역시': ['강화군','계양구','남동구','동구','미추홀구','부평구','서구','연수구','옹진군','중구'],
+      '광주광역시': ['광산구','남구','동구','북구','서구'],
+      '대전광역시': ['대덕구','동구','서구','유성구','중구'],
+      '울산광역시': ['남구','동구','북구','울주군','중구'],
+      '세종특별자치시': ['세종시'],
+      '경기도': ['가평군','고양시','과천시','광명시','광주시','구리시','군포시','김포시','남양주시','동두천시','부천시','성남시','수원시','시흥시','안산시','안성시','안양시','양주시','양평군','여주시','연천군','오산시','용인시','의왕시','의정부시','이천시','파주시','평택시','포천시','하남시','화성시'],
+      '강원도': ['강릉시','고성군','동해시','삼척시','속초시','양구군','양양군','영월군','원주시','인제군','정선군','철원군','춘천시','태백시','평창군','홍천군','화천군','횡성군'],
+      '충청북도': ['괴산군','단양군','보은군','영동군','옥천군','음성군','제천시','증평군','진천군','청주시','충주시'],
+      '충청남도': ['계룡시','공주시','금산군','논산시','당진시','보령시','부여군','서산시','서천군','아산시','예산군','천안시','청양군','태안군','홍성군'],
+      '전라북도': ['고창군','군산시','김제시','남원시','무주군','부안군','순창군','완주군','익산시','임실군','장수군','전주시','정읍시','진안군'],
+      '전라남도': ['강진군','고흥군','곡성군','광양시','구례군','나주시','담양군','목포시','무안군','보성군','순천시','신안군','여수시','영광군','영암군','완도군','장성군','장흥군','진도군','함평군','해남군','화순군'],
+      '경상북도': ['경산시','경주시','고령군','구미시','군위군','김천시','문경시','봉화군','상주시','성주군','안동시','영덕군','영양군','영주시','영천시','예천군','울릉군','울진군','의성군','청도군','청송군','칠곡군','포항시'],
+      '경상남도': ['거제시','거창군','고성군','김해시','남해군','밀양시','사천시','산청군','양산시','의령군','진주시','창녕군','창원시','통영시','하동군','함안군','함양군','합천군'],
+      '제주특별자치도': ['서귀포시','제주시']
+    };
+
+    // 구/군 업데이트
+    function updateGugun() {
+      const sido = document.getElementById('editSido').value;
+      const gugunSelect = document.getElementById('editGugun');
+      gugunSelect.innerHTML = '<option value="">선택하세요</option>';
+
+      if (sido && gugunData[sido]) {
+        gugunData[sido].forEach(gugun => {
+          const option = document.createElement('option');
+          option.value = gugun;
+          option.textContent = gugun;
+          gugunSelect.appendChild(option);
+        });
+      }
+    }
+
+    // 프로필 수정 모달 열기
     function openEditProfile() {
-      alert('프로필 수정 기능은 준비 중입니다.');
+      const meta = currentUser.user_metadata || {};
+
+      // 현재 값 채우기
+      document.getElementById('editName').value = meta.name || meta.full_name || '';
+      document.getElementById('editPhone').value = meta.phone || '';
+
+      // 시/도 선택
+      const sidoSelect = document.getElementById('editSido');
+      if (meta.sido) {
+        sidoSelect.value = meta.sido;
+        updateGugun();
+        // 구/군 선택
+        if (meta.gugun) {
+          document.getElementById('editGugun').value = meta.gugun;
+        }
+      }
+
+      document.getElementById('editModal').classList.add('active');
     }
 
-    // Expert 업그레이드 모달 열기
-    function requestUpgrade() {
-      document.getElementById('upgradeModal').classList.add('active');
+    // 프로필 수정 모달 닫기
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('active');
     }
 
-    // Expert 업그레이드 모달 닫기
-    function closeUpgradeModal() {
-      document.getElementById('upgradeModal').classList.remove('active');
-    }
-
-    // Expert 업그레이드 신청 제출
-    async function submitUpgradeRequest(e) {
+    // 프로필 수정 제출
+    async function submitEditProfile(e) {
       e.preventDefault();
 
-      const companyName = document.getElementById('companyName').value.trim();
-      const businessType = document.getElementById('businessType').value;
-      const careerYears = parseInt(document.getElementById('careerYears').value);
-      const businessNumber = document.getElementById('businessNumber').value.trim();
-      const portfolioUrl = document.getElementById('portfolioUrl').value.trim();
+      const name = document.getElementById('editName').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const sido = document.getElementById('editSido').value;
+      const gugun = document.getElementById('editGugun').value;
 
-      if (!companyName || !businessType || !careerYears) {
-        alert('필수 항목을 모두 입력해주세요.');
+      if (!name) {
+        alert('이름을 입력해주세요.');
         return;
       }
 
       try {
-        const meta = currentUser.user_metadata || {};
+        // 1. auth.users의 user_metadata 업데이트
+        const { error: authError } = await supabaseClient.auth.updateUser({
+          data: {
+            name: name,
+            phone: phone,
+            sido: sido,
+            gugun: gugun
+          }
+        });
 
-        const { error } = await supabaseClient
-          .from('expert_requests')
-          .insert({
-            user_id: currentUser.id,
-            user_email: currentUser.email,
-            user_name: meta.name || meta.full_name || null,
-            current_tier: meta.tier || 'standard',
-            requested_tier: 'expert',
-            company_name: companyName,
-            business_type: businessType,
-            career_years: careerYears,
-            business_number: businessNumber || null,
-            portfolio_url: portfolioUrl || null,
-            status: 'pending'
-          });
+        if (authError) throw authError;
 
-        if (error) throw error;
+        // 2. profiles 테이블도 업데이트 (있는 경우)
+        try {
+          await supabaseClient
+            .from('profiles')
+            .update({
+              name: name,
+              phone: phone,
+              sido: sido,
+              gugun: gugun,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+        } catch (profileError) {
+          console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
+        }
 
-        alert('Expert 등급 신청이 완료되었습니다.\n관리자 확인 후 승인됩니다.');
-        closeUpgradeModal();
+        // 세션 새로고침
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          currentUser = session.user;
+        }
 
-        // 상태 업데이트
-        document.getElementById('upgradeStatus').className = 'upgrade-status pending';
-        document.getElementById('upgradeStatusTitle').textContent = 'Expert 승급 심사 중';
-        document.getElementById('upgradeStatusDesc').textContent = '관리자 확인 후 승인됩니다.';
-        document.getElementById('upgradeStatus').style.display = 'flex';
-        document.getElementById('btnUpgrade').style.display = 'none';
+        alert('프로필이 수정되었습니다.');
+        closeEditModal();
+
+        // UI 업데이트
+        document.getElementById('profileName').textContent = name;
+        document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
+        document.getElementById('infoName').textContent = name;
+        document.getElementById('infoPhone').textContent = phone || '미등록';
+        document.getElementById('infoLocation').textContent = sido && gugun ? `${sido} ${gugun}` : (sido || '미등록');
 
       } catch (error) {
-        console.error('Error:', error);
-        if (error.message.includes('expert_requests')) {
-          alert('승급 신청 기능을 사용하려면 관리자에게 문의하세요.\n(데이터베이스 설정 필요)');
-        } else {
-          alert('신청 중 오류가 발생했습니다: ' + error.message);
-        }
+        console.error('프로필 수정 오류:', error);
+        alert('프로필 수정 중 오류가 발생했습니다: ' + error.message);
       }
     }
 
-    // 모달 외부 클릭 시 닫기
-    document.getElementById('upgradeModal').addEventListener('click', (e) => {
-      if (e.target.id === 'upgradeModal') {
-        closeUpgradeModal();
+    // 모달 외부 클릭 시 닫기 (editModal)
+    document.getElementById('editModal').addEventListener('click', (e) => {
+      if (e.target.id === 'editModal') {
+        closeEditModal();
       }
     });
 

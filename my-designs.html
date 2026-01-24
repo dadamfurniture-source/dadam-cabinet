@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2D2A26">
+  <title>내 설계 - 다담가구</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C;--expert:#6366F1;--business:#059669}
+    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--cream);color:var(--charcoal);line-height:1.7;min-height:100vh}
+    h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
+    a{text-decoration:none;color:inherit}
+
+    /* Header */
+    .header{position:sticky;top:0;background:rgba(248,247,244,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--warm);z-index:100;padding:16px 24px}
+    .header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:24px}
+    .logo svg{width:32px;height:32px}
+    .header-nav{display:flex;align-items:center;gap:24px}
+    .header-nav a{font-size:14px;color:var(--gray);transition:color .3s}
+    .header-nav a:hover,.header-nav a.active{color:var(--charcoal)}
+
+    /* Main */
+    .main{max-width:1200px;margin:0 auto;padding:40px 24px}
+
+    /* Page Header */
+    .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
+    .page-title{font-size:28px}
+    .btn{padding:12px 24px;border:none;border-radius:10px;font-size:14px;cursor:pointer;transition:all .3s;font-family:inherit}
+    .btn-primary{background:var(--charcoal);color:#fff}
+    .btn-primary:hover{background:var(--gold)}
+
+    /* Stats */
+    .stats-row{display:flex;gap:20px;margin-bottom:32px;flex-wrap:wrap}
+    .stat-card{background:#fff;padding:20px 24px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.04);display:flex;align-items:center;gap:16px;flex:1;min-width:180px}
+    .stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+    .stat-icon svg{width:24px;height:24px}
+    .stat-icon.purple{background:rgba(99,102,241,.1);color:var(--expert)}
+    .stat-icon.gold{background:rgba(184,149,108,.15);color:var(--gold)}
+    .stat-icon.green{background:rgba(5,150,105,.1);color:var(--business)}
+    .stat-value{font-size:28px;font-weight:600}
+    .stat-label{font-size:13px;color:var(--gray)}
+
+    /* Filters */
+    .filters{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+    .filter-btn{padding:10px 20px;border:1px solid var(--warm);border-radius:8px;background:#fff;font-size:14px;cursor:pointer;transition:all .3s;font-family:inherit}
+    .filter-btn:hover,.filter-btn.active{background:var(--charcoal);color:#fff;border-color:var(--charcoal)}
+    .filter-btn .count{margin-left:6px;opacity:.7}
+
+    /* Design Grid */
+    .design-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px}
+
+    /* Design Card */
+    .design-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.04);transition:all .3s;cursor:pointer}
+    .design-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+    .card-image{position:relative;height:200px;background:var(--warm);overflow:hidden}
+    .card-image img{width:100%;height:100%;object-fit:cover}
+    .card-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--gray)}
+    .card-placeholder svg{width:48px;height:48px;opacity:.5}
+    .card-badge{position:absolute;top:12px;left:12px;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500}
+    .badge-draft{background:var(--warm);color:var(--charcoal)}
+    .badge-completed{background:rgba(5,150,105,.1);color:var(--business)}
+    .card-favorite{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .3s}
+    .card-favorite:hover{background:#fff;transform:scale(1.1)}
+    .card-favorite.active{color:#e53935}
+    .card-favorite svg{width:20px;height:20px}
+    .card-body{padding:20px}
+    .card-title{font-size:16px;font-weight:500;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+    .card-meta{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--gray)}
+    .card-type{display:flex;align-items:center;gap:4px}
+    .card-date{margin-left:auto}
+    .card-actions{display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--warm)}
+    .card-actions button{flex:1;padding:10px;border:1px solid var(--warm);border-radius:8px;background:#fff;font-size:13px;cursor:pointer;transition:all .3s;font-family:inherit}
+    .card-actions button:hover{background:var(--charcoal);color:#fff;border-color:var(--charcoal)}
+    .card-actions button.delete:hover{background:#e53935;border-color:#e53935}
+
+    /* Empty State */
+    .empty-state{text-align:center;padding:80px 24px;background:#fff;border-radius:16px}
+    .empty-state svg{width:80px;height:80px;color:var(--gray);opacity:.5;margin-bottom:24px}
+    .empty-state h3{font-size:20px;margin-bottom:12px}
+    .empty-state p{color:var(--gray);margin-bottom:24px}
+
+    /* Loading */
+    .loading{display:flex;align-items:center;justify-content:center;padding:80px}
+    .spinner{width:40px;height:40px;border:3px solid var(--warm);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Modal */
+    .modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
+    .modal.active{display:flex}
+    .modal-content{background:#fff;border-radius:20px;width:90%;max-width:600px;max-height:90vh;overflow:hidden}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--warm)}
+    .modal-header h3{font-size:1.2rem}
+    .modal-close{background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--gray)}
+    .modal-body{padding:24px;max-height:calc(90vh - 140px);overflow-y:auto}
+    .modal-footer{display:flex;justify-content:flex-end;gap:12px;padding:20px 24px;border-top:1px solid var(--warm)}
+
+    /* Detail View */
+    .detail-images{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px}
+    .detail-images img{width:100%;border-radius:8px;cursor:pointer}
+    .detail-images img:hover{opacity:.9}
+    .detail-info{display:flex;flex-direction:column;gap:12px}
+    .detail-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--warm)}
+    .detail-row:last-child{border-bottom:none}
+    .detail-label{color:var(--gray);font-size:14px}
+    .detail-value{font-weight:500}
+
+    /* Responsive */
+    @media(max-width:768px){
+      .page-header{flex-direction:column;gap:16px;align-items:flex-start}
+      .stats-row{flex-direction:column}
+      .stat-card{min-width:100%}
+      .design-grid{grid-template-columns:1fr}
+      .detail-images{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <a href="index.html" class="logo">
+        <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
+        <span>다담</span>
+      </a>
+      <nav class="header-nav">
+        <a href="index.html">홈</a>
+        <a href="ai-design.html">AI 설계</a>
+        <a href="mypage.html">마이페이지</a>
+        <a href="my-designs.html" class="active">내 설계</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <!-- Loading State -->
+    <div class="loading" id="loadingState">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Content -->
+    <div id="mainContent" style="display:none">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1 class="page-title">내 설계</h1>
+        <a href="ai-design.html" class="btn btn-primary">+ 새 설계</a>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-label">전체 설계</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
+          <div>
+            <div class="stat-value" id="statFavorite">0</div>
+            <div class="stat-label">즐겨찾기</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div>
+            <div class="stat-value" id="statCompleted">0</div>
+            <div class="stat-label">완료됨</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">전체<span class="count" id="countAll">0</span></button>
+        <button class="filter-btn" data-filter="draft">임시저장<span class="count" id="countDraft">0</span></button>
+        <button class="filter-btn" data-filter="completed">완료<span class="count" id="countCompleted">0</span></button>
+        <button class="filter-btn" data-filter="favorite">즐겨찾기<span class="count" id="countFavorite">0</span></button>
+      </div>
+
+      <!-- Design Grid -->
+      <div class="design-grid" id="designGrid">
+        <!-- Design cards will be inserted here -->
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <h3>아직 저장된 설계가 없습니다</h3>
+        <p>AI 설계 도구로 첫 번째 설계를 만들어보세요.</p>
+        <a href="ai-design.html" class="btn btn-primary">AI 설계 시작하기</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- Detail Modal -->
+  <div class="modal" id="detailModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="detailTitle">설계 상세</h3>
+        <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-images" id="detailImages">
+          <!-- Images will be inserted here -->
+        </div>
+        <div class="detail-info" id="detailInfo">
+          <!-- Info will be inserted here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeDetailModal()">닫기</button>
+        <button class="btn btn-primary" id="detailDownload">다운로드</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Supabase 설정
+    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+
+    let supabaseClient = null;
+    let currentUser = null;
+    let allDesigns = [];
+    let currentFilter = 'all';
+
+    // 초기화
+    async function init() {
+      try {
+        if (typeof window.supabase !== 'undefined') {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+      } catch (e) {
+        console.error('Supabase 초기화 오류:', e);
+      }
+
+      if (!supabaseClient) {
+        alert('서비스에 연결할 수 없습니다.');
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const { data: { session } } = await supabaseClient.auth.getSession();
+
+      if (!session) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      currentUser = session.user;
+      await loadDesigns();
+
+      // 필터 버튼 이벤트
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          renderDesigns();
+        });
+      });
+    }
+
+    // 설계 목록 로드
+    async function loadDesigns() {
+      try {
+        const { data: designs, error } = await supabaseClient
+          .from('designs')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        allDesigns = designs || [];
+        updateStats();
+        renderDesigns();
+
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+
+      } catch (error) {
+        console.error('설계 로드 오류:', error);
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+
+        // 테이블이 없는 경우 빈 상태 표시
+        if (error.message.includes('designs')) {
+          showEmptyState();
+        }
+      }
+    }
+
+    // 통계 업데이트
+    function updateStats() {
+      const total = allDesigns.length;
+      const favorites = allDesigns.filter(d => d.is_favorite).length;
+      const completed = allDesigns.filter(d => d.status === 'completed').length;
+      const drafts = allDesigns.filter(d => d.status === 'draft').length;
+
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statFavorite').textContent = favorites;
+      document.getElementById('statCompleted').textContent = completed;
+
+      document.getElementById('countAll').textContent = total;
+      document.getElementById('countDraft').textContent = drafts;
+      document.getElementById('countCompleted').textContent = completed;
+      document.getElementById('countFavorite').textContent = favorites;
+    }
+
+    // 설계 렌더링
+    function renderDesigns() {
+      const grid = document.getElementById('designGrid');
+      const emptyState = document.getElementById('emptyState');
+
+      let filtered = allDesigns;
+
+      if (currentFilter === 'draft') {
+        filtered = allDesigns.filter(d => d.status === 'draft');
+      } else if (currentFilter === 'completed') {
+        filtered = allDesigns.filter(d => d.status === 'completed');
+      } else if (currentFilter === 'favorite') {
+        filtered = allDesigns.filter(d => d.is_favorite);
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      grid.innerHTML = filtered.map(design => renderDesignCard(design)).join('');
+    }
+
+    // 설계 카드 렌더링
+    function renderDesignCard(design) {
+      const thumbnail = design.thumbnail_url || (design.generated_images?.[0]?.url) || '';
+      const statusLabel = design.status === 'completed' ? '완료' : '임시저장';
+      const statusClass = design.status === 'completed' ? 'badge-completed' : 'badge-draft';
+      const typeLabels = {
+        'kitchen': '주방/싱크대',
+        'wardrobe': '옷장/드레스룸',
+        'vanity': '세면대',
+        'storage': '수납장',
+        'fridge': '냉장고장',
+        'shoe': '신발장'
+      };
+
+      return `
+        <div class="design-card" onclick="viewDesign('${design.id}')">
+          <div class="card-image">
+            ${thumbnail ?
+              `<img src="${thumbnail}" alt="${design.title}">` :
+              `<div class="card-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`
+            }
+            <span class="card-badge ${statusClass}">${statusLabel}</span>
+            <div class="card-favorite ${design.is_favorite ? 'active' : ''}" onclick="toggleFavorite(event, '${design.id}')">
+              <svg viewBox="0 0 24 24" fill="${design.is_favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">${design.title || '제목 없음'}</h3>
+            <div class="card-meta">
+              <span class="card-type">${typeLabels[design.design_type] || design.design_type || '기타'}</span>
+              <span class="card-date">${formatDate(design.created_at)}</span>
+            </div>
+            <div class="card-actions" onclick="event.stopPropagation()">
+              <button onclick="viewDesign('${design.id}')">상세보기</button>
+              <button class="delete" onclick="deleteDesign('${design.id}')">삭제</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 날짜 포맷
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+
+    // 즐겨찾기 토글
+    async function toggleFavorite(event, designId) {
+      event.stopPropagation();
+
+      const design = allDesigns.find(d => d.id === designId);
+      if (!design) return;
+
+      const newValue = !design.is_favorite;
+
+      try {
+        const { error } = await supabaseClient
+          .from('designs')
+          .update({ is_favorite: newValue })
+          .eq('id', designId);
+
+        if (error) throw error;
+
+        design.is_favorite = newValue;
+        updateStats();
+        renderDesigns();
+
+      } catch (error) {
+        console.error('즐겨찾기 오류:', error);
+        alert('오류가 발생했습니다.');
+      }
+    }
+
+    // 설계 상세 보기
+    function viewDesign(designId) {
+      const design = allDesigns.find(d => d.id === designId);
+      if (!design) return;
+
+      document.getElementById('detailTitle').textContent = design.title || '설계 상세';
+
+      // 이미지
+      const imagesContainer = document.getElementById('detailImages');
+      const images = design.generated_images || [];
+      if (images.length > 0) {
+        imagesContainer.innerHTML = images.map(img =>
+          `<img src="${img.url || img}" alt="설계 이미지">`
+        ).join('');
+      } else if (design.original_image) {
+        imagesContainer.innerHTML = `<img src="${design.original_image}" alt="원본 이미지">`;
+      } else {
+        imagesContainer.innerHTML = '<p style="color:var(--gray);text-align:center;grid-column:1/-1">이미지 없음</p>';
+      }
+
+      // 정보
+      const typeLabels = {
+        'kitchen': '주방/싱크대',
+        'wardrobe': '옷장/드레스룸',
+        'vanity': '세면대',
+        'storage': '수납장',
+        'fridge': '냉장고장',
+        'shoe': '신발장'
+      };
+      const styleLabels = {
+        'modern': '모던',
+        'scandinavian': '스칸디나비안',
+        'industrial': '인더스트리얼',
+        'luxury': '럭셔리'
+      };
+
+      document.getElementById('detailInfo').innerHTML = `
+        <div class="detail-row">
+          <span class="detail-label">유형</span>
+          <span class="detail-value">${typeLabels[design.design_type] || design.design_type || '-'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">스타일</span>
+          <span class="detail-value">${styleLabels[design.style] || design.style || '-'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">상태</span>
+          <span class="detail-value">${design.status === 'completed' ? '완료' : '임시저장'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">생성일</span>
+          <span class="detail-value">${formatDate(design.created_at)}</span>
+        </div>
+        ${design.description ? `
+        <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <span class="detail-label">설명</span>
+          <span class="detail-value" style="font-weight:400">${design.description}</span>
+        </div>
+        ` : ''}
+      `;
+
+      document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    // 설계 삭제
+    async function deleteDesign(designId) {
+      if (!confirm('이 설계를 삭제하시겠습니까?\n삭제된 설계는 복구할 수 없습니다.')) {
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient
+          .from('designs')
+          .delete()
+          .eq('id', designId);
+
+        if (error) throw error;
+
+        allDesigns = allDesigns.filter(d => d.id !== designId);
+        updateStats();
+        renderDesigns();
+
+        alert('설계가 삭제되었습니다.');
+
+      } catch (error) {
+        console.error('삭제 오류:', error);
+        alert('삭제 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 빈 상태 표시
+    function showEmptyState() {
+      document.getElementById('designGrid').innerHTML = '';
+      document.getElementById('emptyState').style.display = 'block';
+    }
+
+    // 모달 외부 클릭
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+      if (e.target.id === 'detailModal') {
+        closeDetailModal();
+      }
+    });
+
+    // 초기화
+    init();
+  </script>
+</body>
+</html>

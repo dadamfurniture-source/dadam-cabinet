@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C;--gold-light:#D4B896}
@@ -608,6 +609,33 @@
   <div class="toast" id="toast"></div>
 
   <script>
+    // ═══════════════════════════════════════════════════════════════
+    // Expert 등급 사용자는 상세 설계 페이지로 리디렉트
+    // ═══════════════════════════════════════════════════════════════
+    (async function checkTierAndRedirect() {
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+
+      try {
+        if (typeof window.supabase !== 'undefined') {
+          const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          const { data: { session } } = await supabaseClient.auth.getSession();
+
+          if (session) {
+            const tier = session.user.user_metadata?.tier || 'standard';
+
+            // Expert 또는 Business 등급은 상세 설계 페이지로 이동
+            if (tier === 'expert' || tier === 'business') {
+              window.location.href = 'detaildesign.html';
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Tier check skipped:', e.message);
+      }
+    })();
+
     // ═══════════════════════════════════════════════════════════════
     // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
     // ═══════════════════════════════════════════════════════════════
