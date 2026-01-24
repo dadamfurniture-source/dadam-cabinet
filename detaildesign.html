@@ -197,10 +197,42 @@
     }
     .auth-modal .btn-login:hover { opacity: 0.9; }
 
+    /* 상단 네비게이션 */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:1001;padding:0 48px;height:64px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .nav-logo{display:flex;align-items:center;gap:8px;color:#2D2A26;text-decoration:none}
+    .nav-logo svg{width:28px;height:28px}
+    .nav-logo span{font-family:'Playfair Display',serif;font-size:20px}
+    .nav-menu{display:flex;gap:28px}
+    .nav-menu a{color:#2D2A26;font-size:13px;letter-spacing:.5px;transition:all .3s;text-decoration:none}
+    .nav-menu a:hover{opacity:.7}
+    .nav-menu a.active{color:#B8956C;font-weight:500}
+    .nav-icons{display:flex;align-items:center;gap:20px;color:#2D2A26}
+    .user-menu{position:relative}
+    .user-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:#F8F7F4;border:none;color:inherit;cursor:pointer;transition:all .3s}
+    .user-btn:hover{background:#EBE8E2}
+    .user-avatar{width:28px;height:28px;border-radius:50%;background:#B8956C;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+    .user-name{font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;min-width:180px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);opacity:0;visibility:hidden;transform:translateY(-10px);transition:all .3s;z-index:200}
+    .user-menu:hover .user-dropdown{opacity:1;visibility:visible;transform:translateY(0)}
+    .user-dropdown a,.user-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;font-size:14px;color:#2D2A26;background:none;border:none;cursor:pointer;transition:background .2s;text-align:left;text-decoration:none}
+    .user-dropdown a:hover,.user-dropdown button:hover{background:#F8F7F4}
+    .user-dropdown svg{width:18px;height:18px;color:#8B8680}
+    .hamburger{display:none;flex-direction:column;gap:5px;padding:8px;cursor:pointer;background:none;border:none}
+    .hamburger span{width:24px;height:2px;background:#2D2A26;border-radius:2px;transition:all .3s}
+    .mobile-menu{position:fixed;top:64px;left:0;right:0;bottom:0;background:#fff;z-index:1000;padding:24px;display:none;flex-direction:column;gap:8px}
+    .mobile-menu.active{display:flex}
+    .mobile-menu a{padding:16px 20px;font-size:16px;border-radius:12px;transition:background .3s;text-decoration:none;color:#2D2A26}
+    .mobile-menu a:hover,.mobile-menu a.active{background:#F8F7F4;color:#B8956C}
+    @media(max-width:768px){
+      .nav{padding:0 16px;height:56px}
+      .nav-menu{display:none}
+      .hamburger{display:flex}
+    }
+
     /* 상단 툴바 */
     .top-toolbar {
       position: fixed;
-      top: 0;
+      top: 64px;
       left: 0;
       right: 0;
       background: white;
@@ -212,6 +244,7 @@
       z-index: 1000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
+    @media(max-width:768px){.top-toolbar{top:56px}}
     .toolbar-left { display: flex; align-items: center; gap: 16px; }
     .toolbar-logo { font-weight: 700; font-size: 16px; color: #333; text-decoration: none; }
     .toolbar-user { font-size: 13px; color: #666; }
@@ -252,14 +285,57 @@
     .save-status.saved { background: #dcfce7; color: #166534; }
     .save-status.error { background: #fee2e2; color: #dc2626; }
 
-    /* 바디 패딩 조정 */
-    body.has-toolbar { padding-top: 70px; }
+    /* 바디 패딩 조정 (네비게이션 64px + 툴바 50px) */
+    body.has-toolbar { padding-top: 120px; }
+    @media(max-width:768px){body.has-toolbar{padding-top:112px}}
 
     .hidden { display: none !important; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="has-toolbar">
+<!-- Navigation -->
+<nav class="nav">
+  <a href="index.html" class="nav-logo">
+    <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
+    <span>다담</span>
+  </a>
+  <div class="nav-menu">
+    <a href="index.html">홈</a>
+    <a href="ai-design.html">AI 설계</a>
+    <a href="consultation.html">상담 신청</a>
+  </div>
+  <div class="nav-icons">
+    <div class="user-menu" id="navUserMenu">
+      <button class="user-btn">
+        <div class="user-avatar" id="navUserAvatar">?</div>
+        <span class="user-name" id="navUserName">사용자</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="user-dropdown">
+        <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
+        <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>내 설계</a>
+        <button onclick="logoutNav()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
+      </div>
+    </div>
+    <button class="hamburger" onclick="toggleMobileMenu()">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">홈</a>
+  <a href="ai-design.html">AI 설계</a>
+  <a href="consultation.html">상담 신청</a>
+  <a href="mypage.html">마이페이지</a>
+  <a href="my-designs.html">내 설계</a>
+  <a href="#" onclick="logoutNav();return false;" style="color:#8B8680;margin-top:16px;border-top:1px solid #EBE8E2;padding-top:24px">로그아웃</a>
+</div>
+
 <!-- 인증 오버레이 (로그인 안됨) -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-modal">
@@ -8024,6 +8100,11 @@ async function loadUserProfile() {
   hideAuthOverlay();
   document.getElementById('toolbarUser').textContent = currentUser.email;
 
+  // 네비게이션 사용자 정보 표시
+  const name = userProfile.name || currentUser.email.split('@')[0];
+  document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
+  document.getElementById('navUserName').textContent = name;
+
   // URL에서 설계 ID 확인 (수정 모드)
   const urlParams = new URLSearchParams(window.location.search);
   const designId = urlParams.get('id');
@@ -8044,6 +8125,21 @@ function showAuthOverlay() {
 function hideAuthOverlay() {
   document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('topToolbar').classList.remove('hidden');
+}
+
+// 모바일 메뉴 토글
+function toggleMobileMenu() {
+  const hamburger = document.querySelector('.hamburger');
+  const mobileMenu = document.getElementById('mobileMenu');
+  hamburger.classList.toggle('active');
+  mobileMenu.classList.toggle('active');
+}
+
+// 네비게이션 로그아웃
+async function logoutNav() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  window.location.href = 'index.html';
 }
 
 // 설계 저장
