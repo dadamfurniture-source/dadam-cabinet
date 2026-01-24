@@ -16,17 +16,42 @@
     h1,h2,h3{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
     a{text-decoration:none;color:inherit}
 
-    /* Header */
-    .header{position:sticky;top:0;background:rgba(248,247,244,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--warm);z-index:100;padding:16px 24px}
-    .header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-    .logo{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:24px}
-    .logo svg{width:32px;height:32px}
-    .header-nav{display:flex;align-items:center;gap:24px}
-    .header-nav a{font-size:14px;color:var(--gray);transition:color .3s}
-    .header-nav a:hover{color:var(--charcoal)}
+    /* Navigation */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:72px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .nav-logo{display:flex;align-items:center;gap:8px;color:var(--charcoal)}
+    .nav-logo svg{width:32px;height:32px}
+    .nav-logo span{font-family:'Playfair Display',serif;font-size:24px}
+    .nav-menu{display:flex;gap:32px}
+    .nav-menu a{color:var(--charcoal);font-size:14px;letter-spacing:.5px;transition:all .3s}
+    .nav-menu a:hover{color:var(--gold)}
+    .nav-menu a.active{color:var(--gold);font-weight:500}
+    .nav-icons{display:flex;align-items:center;gap:24px;color:var(--charcoal)}
+    .login-btn{padding:8px 16px;background:transparent;border:1px solid var(--charcoal);border-radius:8px;font-size:13px;transition:all .3s}
+    .login-btn:hover{background:var(--gold);border-color:var(--gold);color:#fff}
+    .user-menu{position:relative;display:none}
+    .user-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:var(--cream);border:none;color:inherit;cursor:pointer;transition:all .3s}
+    .user-btn:hover{background:var(--warm)}
+    .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+    .user-name{font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;min-width:180px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);opacity:0;visibility:hidden;transform:translateY(-10px);transition:all .3s;z-index:200}
+    .user-menu:hover .user-dropdown{opacity:1;visibility:visible;transform:translateY(0)}
+    .user-dropdown a,.user-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;font-size:14px;color:var(--charcoal);background:none;border:none;cursor:pointer;transition:background .2s;text-align:left}
+    .user-dropdown a:hover,.user-dropdown button:hover{background:var(--cream)}
+    .user-dropdown svg{width:18px;height:18px;color:var(--gray)}
+    .hamburger{display:none;flex-direction:column;gap:5px;padding:10px;cursor:pointer;background:none;border:none}
+    .hamburger span{width:24px;height:2px;background:var(--charcoal);border-radius:2px;transition:all .3s}
+    .mobile-menu{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--white);z-index:99;padding:100px 24px 24px;display:none;flex-direction:column;gap:8px}
+    .mobile-menu.active{display:flex}
+    .mobile-menu a{padding:18px 20px;font-size:18px;border-radius:12px;color:var(--charcoal)}
+    .mobile-menu a:hover{background:var(--cream);color:var(--gold)}
+    @media(max-width:768px){
+      .nav{padding:0 20px;height:64px}
+      .nav-menu{display:none}
+      .hamburger{display:flex}
+    }
 
     /* Main */
-    .main{max-width:700px;margin:0 auto;padding:60px 24px}
+    .main{max-width:700px;margin:0 auto;padding:112px 24px 60px}
 
     /* Page Header */
     .page-header{text-align:center;margin-bottom:48px}
@@ -95,20 +120,45 @@
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-inner">
-      <a href="index.html" class="logo">
-        <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
-        <span>다담</span>
-      </a>
-      <nav class="header-nav">
-        <a href="index.html">홈</a>
-        <a href="ai-design.html">AI 설계</a>
-        <a href="login.html" id="loginLink">로그인</a>
-      </nav>
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">
+      <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
+      <span>다담</span>
+    </a>
+    <div class="nav-menu">
+      <a href="index.html">홈</a>
+      <a href="ai-design.html">AI 설계</a>
+      <a href="consultation.html" class="active">상담 신청</a>
     </div>
-  </header>
+    <div class="nav-icons">
+      <a href="login.html" class="login-btn" id="loginLink">로그인</a>
+      <div class="user-menu" id="userMenu">
+        <button class="user-btn">
+          <div class="user-avatar" id="navUserAvatar">?</div>
+          <span class="user-name" id="navUserName">사용자</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="user-dropdown">
+          <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
+          <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
+        </div>
+      </div>
+      <button class="hamburger" onclick="toggleMobileMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html">홈</a>
+    <a href="ai-design.html">AI 설계</a>
+    <a href="consultation.html" style="background:var(--cream)">상담 신청</a>
+    <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
+  </div>
 
   <!-- Main -->
   <main class="main">
@@ -271,10 +321,32 @@
         document.getElementById('email').value = currentUser.email || '';
         document.getElementById('phone').value = meta.phone || '';
 
-        // 헤더 변경
-        document.getElementById('loginLink').textContent = '마이페이지';
-        document.getElementById('loginLink').href = 'mypage.html';
+        // 네비게이션 - 로그인 버튼 숨기고 사용자 메뉴 표시
+        document.getElementById('loginLink').style.display = 'none';
+        document.getElementById('userMenu').style.display = 'block';
+
+        const name = meta.name || meta.full_name || currentUser.email.split('@')[0];
+        document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
+        document.getElementById('navUserName').textContent = name;
+
+        // 모바일 메뉴 로그인 링크 변경
+        const mobileLoginLink = document.getElementById('mobileLoginLink');
+        mobileLoginLink.textContent = '마이페이지';
+        mobileLoginLink.href = 'mypage.html';
       }
+    }
+
+    function toggleMobileMenu() {
+      const hamburger = document.querySelector('.hamburger');
+      const mobileMenu = document.getElementById('mobileMenu');
+      hamburger.classList.toggle('active');
+      mobileMenu.classList.toggle('active');
+    }
+
+    async function logout() {
+      if (!supabaseClient) return;
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
     }
 
     function selectType(el, type) {

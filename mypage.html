@@ -16,19 +16,53 @@
     h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
     a{text-decoration:none;color:inherit}
 
-    /* Header */
-    .header{position:sticky;top:0;background:rgba(248,247,244,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--warm);z-index:100;padding:16px 24px}
-    .header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-    .logo{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:24px}
-    .logo svg{width:32px;height:32px}
-    .header-nav{display:flex;align-items:center;gap:24px}
-    .header-nav a{font-size:14px;color:var(--gray);transition:color .3s}
-    .header-nav a:hover{color:var(--charcoal)}
-    .btn-logout{padding:8px 16px;background:var(--charcoal);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;transition:background .3s}
-    .btn-logout:hover{background:var(--gold)}
+    /* Navigation */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:72px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .nav-logo{display:flex;align-items:center;gap:8px;color:var(--charcoal)}
+    .nav-logo svg{width:32px;height:32px}
+    .nav-logo span{font-family:'Playfair Display',serif;font-size:24px}
+    .nav-menu{display:flex;gap:32px}
+    .nav-menu a{color:var(--charcoal);font-size:14px;letter-spacing:.5px;transition:all .3s}
+    .nav-menu a:hover{color:var(--gold)}
+    .nav-menu a.active{color:var(--gold);font-weight:500}
+    .nav-icons{display:flex;align-items:center;gap:24px;color:var(--charcoal)}
+    .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
+
+    /* User Menu */
+    .user-menu{position:relative}
+    .user-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:var(--cream);border:none;color:inherit;cursor:pointer;transition:all .3s}
+    .user-btn:hover{background:var(--warm)}
+    .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+    .user-name{font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;min-width:180px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);opacity:0;visibility:hidden;transform:translateY(-10px);transition:all .3s;z-index:200}
+    .user-menu:hover .user-dropdown,.user-dropdown:hover{opacity:1;visibility:visible;transform:translateY(0)}
+    .user-dropdown a,.user-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;font-size:14px;color:var(--charcoal);background:none;border:none;cursor:pointer;transition:background .2s;text-align:left}
+    .user-dropdown a:hover,.user-dropdown button:hover{background:var(--cream)}
+    .user-dropdown a:first-child{border-radius:12px 12px 0 0}
+    .user-dropdown button:last-child{border-radius:0 0 12px 12px;border-top:1px solid var(--warm);color:var(--gray)}
+    .user-dropdown svg{width:18px;height:18px;color:var(--gray)}
+
+    /* Hamburger */
+    .hamburger{display:none;flex-direction:column;gap:5px;padding:10px;cursor:pointer;background:none;border:none}
+    .hamburger span{width:24px;height:2px;background:var(--charcoal);border-radius:2px;transition:all .3s}
+    .hamburger.active span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
+    .hamburger.active span:nth-child(2){opacity:0}
+    .hamburger.active span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+
+    /* Mobile Menu */
+    .mobile-menu{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--white);z-index:99;padding:100px 24px 24px;display:none;flex-direction:column;gap:8px;overflow-y:auto}
+    .mobile-menu.active{display:flex}
+    .mobile-menu a{padding:18px 20px;font-size:18px;border-radius:12px;transition:background .3s;color:var(--charcoal)}
+    .mobile-menu a:hover{background:var(--cream);color:var(--gold)}
+
+    @media(max-width:768px){
+      .nav{padding:0 20px;height:64px}
+      .nav-menu{display:none}
+      .hamburger{display:flex}
+    }
 
     /* Main */
-    .main{max-width:1000px;margin:0 auto;padding:40px 24px}
+    .main{max-width:1000px;margin:0 auto;padding:112px 24px 40px}
 
     /* Profile Header */
     .profile-header{display:flex;align-items:center;gap:24px;margin-bottom:40px;padding:32px;background:#fff;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,.05)}
@@ -137,10 +171,10 @@
     @media(max-width:768px){
       .profile-header{flex-direction:column;text-align:center}
       .profile-actions{justify-content:center}
-      .header-nav{gap:16px}
+      .main{padding:100px 20px 40px}
     }
     @media(max-width:480px){
-      .main{padding:24px 16px}
+      .main{padding:88px 16px 24px}
       .profile-avatar{width:80px;height:80px;font-size:28px}
       .profile-name{font-size:24px}
       .stats-grid{grid-template-columns:1fr 1fr}
@@ -148,20 +182,47 @@
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-inner">
-      <a href="index.html" class="logo">
-        <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
-        <span>다담</span>
-      </a>
-      <nav class="header-nav">
-        <a href="index.html">홈</a>
-        <a href="ai-design.html">AI 설계</a>
-        <button class="btn-logout" onclick="logout()">로그아웃</button>
-      </nav>
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">
+      <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
+      <span>다담</span>
+    </a>
+    <div class="nav-menu">
+      <a href="index.html">홈</a>
+      <a href="ai-design.html">AI 설계</a>
+      <a href="consultation.html">상담 신청</a>
     </div>
-  </header>
+    <div class="nav-icons">
+      <div class="user-menu" id="userMenu">
+        <button class="user-btn">
+          <div class="user-avatar" id="navUserAvatar">?</div>
+          <span class="user-name" id="navUserName">사용자</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="user-dropdown">
+          <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
+          <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>내 설계</a>
+          <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
+        </div>
+      </div>
+      <button class="hamburger" onclick="toggleMobileMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html">홈</a>
+    <a href="ai-design.html">AI 설계</a>
+    <a href="consultation.html">상담 신청</a>
+    <a href="mypage.html" style="background:var(--cream)">마이페이지</a>
+    <a href="my-designs.html">내 설계</a>
+    <a href="#" onclick="logout();return false;" style="color:var(--gray);margin-top:16px;border-top:1px solid var(--warm);padding-top:24px">로그아웃</a>
+  </div>
 
   <!-- Loading State -->
   <div class="loading" id="loadingState">
@@ -402,6 +463,10 @@
       document.getElementById('profileName').textContent = name;
       document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
       document.getElementById('infoName').textContent = name;
+
+      // 네비게이션 사용자 정보
+      document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('navUserName').textContent = name;
 
       // 이메일
       document.getElementById('profileEmail').textContent = user.email;
@@ -674,6 +739,14 @@
         closeEditModal();
       }
     });
+
+    // 모바일 메뉴 토글
+    function toggleMobileMenu() {
+      const hamburger = document.querySelector('.hamburger');
+      const mobileMenu = document.getElementById('mobileMenu');
+      hamburger.classList.toggle('active');
+      mobileMenu.classList.toggle('active');
+    }
 
     // 로그아웃
     async function logout() {
