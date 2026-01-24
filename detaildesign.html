@@ -7836,33 +7836,36 @@ async function initAuth() {
 
 // 사용자 프로필 로드
 async function loadUserProfile() {
-  const { data, error } = await supabaseClient
-    .from('user_profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
+  // profiles 테이블에서 조회 (또는 auth.users metadata 사용)
+  try {
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
 
-  if (error || !data) {
-    console.error('프로필 로드 실패:', error);
-    showAuthOverlay();
-    return;
+    if (!error && data) {
+      userProfile = data;
+    } else {
+      // profiles 테이블이 없거나 조회 실패 시 auth.users metadata 사용
+      userProfile = {
+        id: currentUser.id,
+        email: currentUser.email,
+        tier: currentUser.user_metadata?.tier || 'standard',
+        name: currentUser.user_metadata?.name || currentUser.email.split('@')[0]
+      };
+    }
+  } catch (e) {
+    // 폴백: auth.users metadata 사용
+    userProfile = {
+      id: currentUser.id,
+      email: currentUser.email,
+      tier: currentUser.user_metadata?.tier || 'standard',
+      name: currentUser.user_metadata?.name || currentUser.email.split('@')[0]
+    };
   }
 
-  userProfile = data;
-
-  // 전문가/관리자만 접근 가능
-  if (userProfile.role !== 'expert' && userProfile.role !== 'admin') {
-    document.getElementById('authOverlay').innerHTML = `
-      <div class="auth-modal">
-        <h2>⭐ 전문가 등급 필요</h2>
-        <p>상세 설계 도구는 전문가 등급 회원만 이용할 수 있습니다.<br>대시보드에서 전문가 등급을 신청해주세요.</p>
-        <button class="btn-login" onclick="location.href='dashboard.html'">대시보드로 이동</button>
-      </div>
-    `;
-    return;
-  }
-
-  // 인증 성공 - UI 업데이트
+  // 인증 성공 - UI 업데이트 (등급 제한 제거 - ai-design.html에서 리디렉트 처리)
   hideAuthOverlay();
   document.getElementById('toolbarUser').textContent = currentUser.email;
 
