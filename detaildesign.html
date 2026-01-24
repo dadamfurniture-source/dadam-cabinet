@@ -272,7 +272,7 @@
 <!-- 상단 툴바 -->
 <div class="top-toolbar" id="topToolbar">
   <div class="toolbar-left">
-    <a href="dashboard.html" class="toolbar-logo">🪑 다담가구</a>
+    <a href="index.html" class="toolbar-logo">🪑 다담가구</a>
     <span class="toolbar-user" id="toolbarUser">로딩중...</span>
     <span class="save-status saved hidden" id="saveStatus">
       <span id="saveStatusIcon">✓</span>
@@ -2137,7 +2137,7 @@ function renderWorkspaceContent(item) {
     <div class="ws-header">
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${item.w} x H ${item.h} x D ${item.d}</span></div>
       <div style="display:flex;gap:8px;">
-        <button style="background:linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,0.4);" onclick="showDesignCompleteReport()" title="설계 완료 및 자재 보고서">✅ 설계 완료</button>
+        <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
         <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
       </div>
     </div>
@@ -2701,7 +2701,7 @@ function renderWardrobeWorkspace(item) {
     <div class="ws-header">
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${W} x H ${H} x D ${D}</span></div>
       <div style="display:flex;gap:8px;">
-        <button style="background:linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,0.4);" onclick="showDesignCompleteReport()" title="설계 완료 및 자재 보고서">✅ 설계 완료</button>
+        <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
         <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
       </div>
     </div>
@@ -4298,7 +4298,7 @@ function renderFridgeWorkspace(item) {
     <div class="ws-header">
       <div class="ws-title">🧊 ${item.labelName || item.name} <span class="ws-info-badge">${W} × ${H} × ${D}</span></div>
       <div style="display:flex;gap:8px;">
-        <button style="background:linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,0.4);" onclick="showDesignCompleteReport()" title="설계 완료 및 자재 보고서">✅ 설계 완료</button>
+        <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
         <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
         <button class="btn-back" onclick="goBackToStep1()">← 목록</button>
       </div>
@@ -6414,21 +6414,171 @@ function saveDesignToFile() {
 }
 
 // ============================================================
+// AI 디자인 생성 시스템
+// ============================================================
+async function generateAIDesign() {
+  // 1. 설계 데이터 추출
+  const design = window.DadamAgent.exportDesign();
+
+  if (!design.items || design.items.length === 0) {
+    alert('AI 디자인을 생성할 설계가 없습니다.\n먼저 캐비넷을 추가해주세요.');
+    return;
+  }
+
+  // 2. 로딩 UI 표시
+  showAIGeneratingModal();
+
+  try {
+    // 3. n8n 워크플로우 호출
+    const response = await fetch(N8N_AI_DESIGN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        design_data: design,
+        user_id: currentUser?.id,
+        action: 'generate_design_image',
+        items: design.items.map(item => ({
+          category: item.category,
+          name: item.name,
+          width: item.w,
+          height: item.h,
+          depth: item.d,
+          specs: item.specs,
+          modules: item.modules
+        }))
+      })
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    let data = await response.json();
+    if (Array.isArray(data)) data = data[0];
+
+    // 4. 결과 표시
+    showAIDesignResult(data);
+
+  } catch (error) {
+    console.error('AI 디자인 생성 오류:', error);
+    alert('AI 디자인 생성 중 오류가 발생했습니다.\n' + error.message);
+  } finally {
+    hideAIGeneratingModal();
+  }
+}
+
+// AI 생성 로딩 모달 표시
+function showAIGeneratingModal() {
+  // 기존 모달 제거
+  const existing = document.getElementById('aiGeneratingModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'aiGeneratingModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:40px 60px;text-align:center;max-width:400px;">
+      <div style="width:60px;height:60px;margin:0 auto 20px;border:4px solid #EBE8E2;border-top-color:#6366F1;border-radius:50%;animation:spin 1s linear infinite;"></div>
+      <h3 style="font-size:18px;margin:0 0 12px;color:#2D2A26;">🎨 AI 디자인 생성 중...</h3>
+      <p style="color:#8B8680;margin:0;font-size:14px;">설계 데이터를 분석하고 있습니다</p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// AI 생성 로딩 모달 숨기기
+function hideAIGeneratingModal() {
+  const modal = document.getElementById('aiGeneratingModal');
+  if (modal) modal.remove();
+}
+
+// AI 디자인 결과 표시
+function showAIDesignResult(data) {
+  // 기존 모달 제거
+  const existing = document.querySelector('.ai-design-result-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'ai-design-result-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:20px;max-width:800px;width:90%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #EBE8E2;">
+        <h3 style="margin:0;font-size:18px;color:#2D2A26;">🎨 AI 디자인 결과</h3>
+        <button onclick="this.closest('.ai-design-result-modal').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#8B8680;line-height:1;">&times;</button>
+      </div>
+      <div style="padding:24px;overflow-y:auto;flex:1;">
+        ${data.generated_image ? `
+          <img src="data:image/png;base64,${data.generated_image.base64 || data.generated_image}"
+               style="width:100%;border-radius:12px;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+        ` : data.image_url ? `
+          <img src="${data.image_url}"
+               style="width:100%;border-radius:12px;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+        ` : ''}
+        <div style="background:#F8F7F4;padding:16px;border-radius:12px;color:#2D2A26;line-height:1.7;">
+          ${data.analysis || data.message || data.output || '디자인이 생성되었습니다.'}
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #EBE8E2;">
+        ${(data.generated_image || data.image_url) ? `
+          <button onclick="downloadAIDesignImage()" style="padding:12px 24px;background:#6366F1;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">💾 이미지 저장</button>
+        ` : ''}
+        <button onclick="this.closest('.ai-design-result-modal').remove()" style="padding:12px 24px;background:#EBE8E2;color:#2D2A26;border:none;border-radius:10px;font-size:14px;cursor:pointer;">닫기</button>
+      </div>
+    </div>
+  `;
+
+  // 결과 데이터 저장 (다운로드용)
+  window._aiDesignResult = data;
+
+  document.body.appendChild(modal);
+
+  // 모달 외부 클릭시 닫기
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+// AI 디자인 이미지 다운로드
+function downloadAIDesignImage() {
+  const data = window._aiDesignResult;
+  if (!data) return;
+
+  let imageUrl;
+  if (data.generated_image) {
+    const base64 = data.generated_image.base64 || data.generated_image;
+    imageUrl = `data:image/png;base64,${base64}`;
+  } else if (data.image_url) {
+    imageUrl = data.image_url;
+  }
+
+  if (imageUrl) {
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = `ai-design-${new Date().toISOString().slice(0,10)}.png`;
+    a.click();
+  }
+}
+
+// ============================================================
 // 설계 완료 보고서 (통합 자재 추출 시스템 V2)
+// 재단 추출 기능 임시 비활성화 - AI 디자인 생성으로 대체
 // ============================================================
 function showDesignCompleteReport() {
+  // AI 디자인 생성 함수로 리다이렉트
+  generateAIDesign();
+
+  /* ===== 재단 추출 기능 임시 비활성화 =====
   const design = window.DadamAgent.exportDesign();
   console.log('===== 설계 완료 보고서 생성 =====');
   console.log('설계 데이터:', design);
   console.log('아이템 수:', design.items?.length);
-  
+
   if (design.items && design.items.length > 0) {
     design.items.forEach((item, idx) => {
       console.log(`아이템[${idx}]:`, item.category, 'W=', item.w, 'H=', item.h);
       console.log(`  modules (${item.modules?.length || 0}개):`, item.modules);
     });
   }
-  
+
   if (!design.items || design.items.length === 0) {
     alert('설계 데이터가 없습니다. 먼저 설계를 완료하세요.');
     return;
@@ -6439,7 +6589,7 @@ function showDesignCompleteReport() {
   const matResult = materialExtractor.extract(design);
   console.log('자재 추출 결과:', matResult);
   console.log('추출된 자재 수:', matResult.materials?.length);
-  
+
   // 모듈이 없어도 보고서는 보여줌
   if (!matResult.materials.length) {
     console.warn('⚠️ 추출된 자재가 없습니다!');
@@ -6448,10 +6598,10 @@ function showDesignCompleteReport() {
 
   // 부자재 추출
   const hwResult = hardwareExtractor.extract(design);
-  
+
   // 탭 콘텐츠 생성
   const tabContent = generateReportTabs(matResult, hwResult, design);
-  
+
   // 전역 데이터 저장 (다운로드용)
   window._reportData = {
     design,
@@ -6461,8 +6611,9 @@ function showDesignCompleteReport() {
     cncMaterial: materialExtractor.toCNC(matResult.materials),
     csvHardware: hardwareExtractor.toCSV(hwResult.hardware)
   };
-  
+
   showReportModal(tabContent);
+  ===== 재단 추출 기능 임시 비활성화 ===== */
 }
 
 // 보고서 탭 생성
@@ -7807,6 +7958,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // n8n Webhook URL (설정 필요)
 const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 
+// AI 디자인 생성 API URL
+const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
+const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+
 let supabaseClient = null;
 let currentUser = null;
 let userProfile = null;
@@ -8227,9 +8382,111 @@ async function saveDesignQuiet() {
   }
 }
 
+// ============================================================
+// AI 채팅 시스템
+// ============================================================
+function toggleAIChat() {
+  const panel = document.getElementById('aiChatPanel');
+  const btn = document.getElementById('aiChatToggle');
+  if (panel.style.display === 'none' || !panel.style.display) {
+    panel.style.display = 'flex';
+    btn.innerHTML = '✕';
+    btn.style.background = '#2D2A26';
+  } else {
+    panel.style.display = 'none';
+    btn.innerHTML = '💬 AI 상담';
+    btn.style.background = 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)';
+  }
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+
+  // 사용자 메시지 표시
+  addChatMessage(message, true);
+  input.value = '';
+
+  // 로딩 표시
+  const loadingId = 'loading-' + Date.now();
+  addChatMessage('<div style="display:flex;align-items:center;gap:8px;"><span class="chat-loading"></span> 응답 중...</div>', false, loadingId);
+
+  // 현재 설계 데이터 포함
+  const design = window.DadamAgent?.exportDesign() || { items: [] };
+
+  try {
+    const response = await fetch(N8N_CHAT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        context: {
+          page: 'detaildesign',
+          designData: design,
+          itemCount: design.items?.length || 0
+        }
+      })
+    });
+
+    // 로딩 메시지 제거
+    const loadingMsg = document.getElementById(loadingId);
+    if (loadingMsg) loadingMsg.remove();
+
+    const data = await response.json();
+    addChatMessage(data.response || data.output || '응답을 처리할 수 없습니다.', false);
+  } catch (error) {
+    // 로딩 메시지 제거
+    const loadingMsg = document.getElementById(loadingId);
+    if (loadingMsg) loadingMsg.remove();
+    addChatMessage('죄송합니다. 연결 오류가 발생했습니다.', false);
+  }
+}
+
+function addChatMessage(text, isUser, msgId) {
+  const container = document.getElementById('chatMessages');
+  const msg = document.createElement('div');
+  if (msgId) msg.id = msgId;
+  msg.className = `chat-msg ${isUser ? 'user' : 'ai'}`;
+  msg.innerHTML = text;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
 // 페이지 로드 시 인증 초기화
 document.addEventListener('DOMContentLoaded', initAuth);
 
 </script>
+
+<!-- AI 채팅 토글 버튼 -->
+<button id="aiChatToggle" onclick="toggleAIChat()" style="position:fixed;bottom:24px;right:24px;z-index:1000;padding:14px 24px;background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:#fff;border:none;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(99,102,241,0.4);transition:all .3s;">
+  💬 AI 상담
+</button>
+
+<!-- AI 채팅 패널 -->
+<div id="aiChatPanel" style="display:none;position:fixed;bottom:90px;right:24px;width:360px;height:500px;background:#fff;border-radius:20px;box-shadow:0 10px 50px rgba(0,0,0,0.2);flex-direction:column;z-index:1000;overflow:hidden;">
+  <div style="padding:18px 20px;background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:#fff;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-weight:600;font-size:15px;">🤖 다담 AI 설계 상담</span>
+    <button onclick="toggleAIChat()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div id="chatMessages" style="flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+    <div class="chat-msg ai">
+      안녕하세요! 설계에 대해 궁금한 점이 있으시면 물어보세요.<br>
+      현재 설계를 분석하여 개선 제안도 드릴 수 있습니다.
+    </div>
+  </div>
+  <div style="display:flex;padding:12px 16px;border-top:1px solid #EBE8E2;gap:10px;">
+    <input type="text" id="chatInput" placeholder="질문을 입력하세요..." style="flex:1;padding:12px 16px;border:1px solid #EBE8E2;border-radius:10px;font-size:14px;outline:none;" onkeypress="if(event.key==='Enter')sendChatMessage()">
+    <button onclick="sendChatMessage()" style="padding:12px 20px;background:#6366F1;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">전송</button>
+  </div>
+</div>
+
+<style>
+.chat-msg{padding:12px 16px;border-radius:14px;max-width:85%;line-height:1.5;font-size:14px;}
+.chat-msg.ai{background:#F8F7F4;color:#2D2A26;align-self:flex-start;}
+.chat-msg.user{background:#2D2A26;color:#fff;align-self:flex-end;}
+.chat-loading{width:20px;height:20px;border:2px solid #EBE8E2;border-top-color:#6366F1;border-radius:50%;animation:spin 1s linear infinite;display:inline-block;}
+</style>
+
 </body>
 </html>
