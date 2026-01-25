@@ -1826,7 +1826,11 @@ function updateUI() {
       </div>
     ` : '';
 
-    const imageHtml = item.image ? `<img src="${item.image}" alt="preview">` : `<div style="font-size:20px;">📷</div><div>사진</div>`;
+    const imageHtml = item.image === 'loading'
+      ? `<div style="font-size:14px;">⏳</div><div>업로드중...</div>`
+      : item.image
+        ? `<img src="${item.image}" alt="preview" onerror="this.outerHTML='<div>❌ 오류</div>'">`
+        : `<div style="font-size:20px;">📷</div><div>사진</div>`;
 
     const card = document.createElement('div');
     card.className = 'item-input-card';
@@ -1879,15 +1883,33 @@ function updateItemValue(uniqueId, field, value) {
   }
 }
 
-function handleItemPhoto(uniqueId, event) {
+async function handleItemPhoto(uniqueId, event) {
   const file = event.target.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const target = selectedItems.find(item => item.uniqueId === uniqueId);
-      if (target) { target.image = e.target.result; updateUI(); }
-    };
-    reader.readAsDataURL(file);
+  if (!file) return;
+
+  if (!currentUser) {
+    alert('이미지 업로드를 위해 로그인이 필요합니다.');
+    return;
+  }
+
+  const target = selectedItems.find(item => item.uniqueId === uniqueId);
+  if (!target) return;
+
+  // 로딩 표시
+  target.image = 'loading';
+  updateUI();
+
+  try {
+    const imageUrl = await uploadImageToStorage(file, currentUser.id);
+    target.image = imageUrl;
+    target.imageUrl = imageUrl;
+    updateUI();
+    hasUnsavedChanges = true;
+  } catch (error) {
+    console.error('이미지 업로드 실패:', error);
+    alert(error.message || '이미지 업로드에 실패했습니다.');
+    target.image = null;
+    updateUI();
   }
 }
 
@@ -8070,6 +8092,49 @@ const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
 const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
+// 이미지를 Supabase Storage에 업로드 (계정당 15개 제한)
+async function uploadImageToStorage(file, userId) {
+  if (!supabaseClient) {
+    throw new Error('Supabase 연결이 필요합니다.');
+  }
+
+  // 사용자 폴더 내 이미지 개수 확인
+  const { data: existingImages, error: listError } = await supabaseClient
+    .storage
+    .from('design-images')
+    .list(userId);
+
+  if (listError) {
+    console.error('이미지 목록 조회 실패:', listError);
+  }
+
+  if (existingImages && existingImages.length >= 20) {
+    throw new Error('이미지는 계정당 최대 20개까지 저장할 수 있습니다.\n기존 이미지를 삭제하고 다시 시도해주세요.');
+  }
+
+  // 파일명 생성 (userId/timestamp.ext)
+  const ext = file.name.split('.').pop();
+  const fileName = `${userId}/${Date.now()}.${ext}`;
+
+  const { data, error } = await supabaseClient
+    .storage
+    .from('design-images')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) throw error;
+
+  // 공개 URL 반환
+  const { data: urlData } = supabaseClient
+    .storage
+    .from('design-images')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+}
+
 let supabaseClient = null;
 let currentUser = null;
 let userProfile = null;
@@ -8271,7 +8336,7 @@ async function saveDesignItems(designId) {
     width: item.w,
     height: item.h,
     depth: item.d,
-    specs: item.specs || {},
+    specs: { ...(item.specs || {}), imageUrl: (item.imageUrl || item.image) !== 'loading' ? (item.imageUrl || item.image || null) : null },
     modules: item.modules || [],
     item_order: index
   }));
@@ -8318,7 +8383,9 @@ async function loadDesign(designId) {
       h: item.height,
       d: item.depth,
       specs: item.specs || { ...DEFAULT_SPECS },
-      modules: item.modules || []
+      modules: item.modules || [],
+      image: item.specs?.imageUrl || item.specs?.image || null,
+      imageUrl: item.specs?.imageUrl || item.specs?.image || null
     }));
 
     // UI 업데이트
