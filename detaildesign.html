@@ -8271,7 +8271,7 @@ async function saveDesignItems(designId) {
     width: item.w,
     height: item.h,
     depth: item.d,
-    specs: item.specs || {},
+    specs: { ...(item.specs || {}), image: item.image || null },
     modules: item.modules || [],
     item_order: index
   }));
@@ -8318,7 +8318,8 @@ async function loadDesign(designId) {
       h: item.height,
       d: item.depth,
       specs: item.specs || { ...DEFAULT_SPECS },
-      modules: item.modules || []
+      modules: item.modules || [],
+      image: item.specs?.image || null
     }));
 
     // UI 업데이트
