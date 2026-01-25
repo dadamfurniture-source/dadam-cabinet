@@ -754,6 +754,65 @@ let selectedItems = [];
 // ============================================================
 
 /**
+ * debounce 유틸리티 - 연속 호출 시 마지막 호출만 실행
+ * 렌더링 성능 최적화를 위해 사용
+ */
+function debounce(func, wait = 50) {
+  let timeoutId = null;
+  return function(...args) {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      func.apply(this, args);
+      timeoutId = null;
+    }, wait);
+  };
+}
+
+/**
+ * throttle 유틸리티 - 지정 시간 동안 최대 1회만 실행
+ */
+function throttle(func, limit = 100) {
+  let inThrottle = false;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+}
+
+/**
+ * 포커스 복원 함수 - 렌더링 후 입력 필드 포커스 복원
+ */
+function _restoreFocus(container, focusInfo) {
+  if (!focusInfo) return;
+
+  // requestAnimationFrame으로 DOM 업데이트 후 포커스 복원
+  requestAnimationFrame(() => {
+    // onchange 또는 onblur 속성으로 같은 요소 찾기
+    let targetEl = null;
+    if (focusInfo.onchange) {
+      targetEl = container.querySelector(`input[onchange="${focusInfo.onchange}"]`);
+    } else if (focusInfo.onblur) {
+      targetEl = container.querySelector(`input[onblur="${focusInfo.onblur}"]`);
+    }
+
+    if (targetEl) {
+      targetEl.focus();
+      // 선택 영역 복원 (숫자 입력 필드)
+      if (focusInfo.selectionStart !== null && targetEl.type !== 'number') {
+        try {
+          targetEl.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
+        } catch (e) {
+          // 일부 input 타입은 setSelectionRange를 지원하지 않음
+        }
+      }
+    }
+  });
+}
+
+/**
  * 아이템 조회 헬퍼
  */
 function getItem(itemUniqueId) {
@@ -1950,18 +2009,56 @@ function renderBookmarks() {
   }
 }
 
+// 렌더링 debounce를 위한 타이머 저장소
+const _renderTimers = new Map();
+
 function renderWorkspaceContent(item) {
+  if (!item || !item.uniqueId) return;
+
+  // ★ 성능 최적화: 동일 아이템에 대한 연속 렌더링 요청을 debounce
+  const itemId = item.uniqueId;
+  if (_renderTimers.has(itemId)) {
+    clearTimeout(_renderTimers.get(itemId));
+  }
+
+  _renderTimers.set(itemId, setTimeout(() => {
+    _renderTimers.delete(itemId);
+    _renderWorkspaceContentImpl(item);
+  }, 30)); // 30ms debounce
+}
+
+// 실제 렌더링 구현
+function _renderWorkspaceContentImpl(item) {
   const ws = document.getElementById('designWorkspace');
-  
+  if (!ws) return;
+
+  // ★ 포커스 복원을 위한 정보 저장
+  const activeEl = document.activeElement;
+  let focusInfo = null;
+  if (activeEl && activeEl.tagName === 'INPUT' && ws.contains(activeEl)) {
+    focusInfo = {
+      type: activeEl.type,
+      value: activeEl.value,
+      selectionStart: activeEl.selectionStart,
+      selectionEnd: activeEl.selectionEnd,
+      // 요소 식별을 위한 속성들
+      onchange: activeEl.getAttribute('onchange'),
+      onblur: activeEl.getAttribute('onblur'),
+      parentClass: activeEl.closest('.dim-group, .spec-field, .effective-space-group')?.className
+    };
+  }
+
   // ★ 붙박이장인 경우 별도 렌더링
   if (item.categoryId === 'wardrobe') {
     renderWardrobeWorkspace(item);
+    _restoreFocus(ws, focusInfo);
     return;
   }
-  
+
   // ★ 냉장고장인 경우 별도 렌더링
   if (item.categoryId === 'fridge') {
     renderFridgeWorkspace(item);
+    _restoreFocus(ws, focusInfo);
     return;
   }
   
@@ -2385,6 +2482,9 @@ function renderWorkspaceContent(item) {
       </div>
     </div>
   `;
+
+  // ★ 포커스 복원
+  _restoreFocus(ws, focusInfo);
 }
 
 // ============================================================
