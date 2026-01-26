@@ -253,6 +253,42 @@
     }
     .checkbox-label input { margin: 0; transform: scale(0.9); }
 
+    /* 최적화: Wardrobe 모듈 카드 스타일 */
+    .wm-card { display: flex; gap: 8px; padding: 10px; align-items: flex-start; }
+    .wm-left { display: flex; flex-direction: column; gap: 3px; min-width: 50px; }
+    .wm-move-btns { display: flex; gap: 2px; margin-bottom: 2px; }
+    .wm-type-btn { font-size: 8px; padding: 3px 2px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); }
+    .wm-type-btn.short { color: var(--tall-color); }
+    .wm-type-btn.short.active { border-color: var(--tall-color); background: #ecfdf5; }
+    .wm-type-btn.long { color: var(--sink-color); }
+    .wm-type-btn.long.active { border-color: var(--sink-color); background: #eff6ff; }
+    .wm-type-btn.shelf { color: var(--lower-color); }
+    .wm-type-btn.shelf.active { border-color: var(--lower-color); background: #fffbeb; }
+    .wm-center { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+    .wm-header { display: flex; align-items: center; gap: 6px; }
+    .wm-icon { font-size: 14px; }
+    .wm-name { font-weight: 600; color: #333; font-size: 13px; }
+    .wm-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; }
+    .wm-badge.short { background: #ecfdf5; color: var(--tall-color); }
+    .wm-badge.long { background: #eff6ff; color: var(--sink-color); }
+    .wm-badge.shelf { background: #fffbeb; color: var(--lower-color); }
+    .wm-section { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 5px; }
+    .wm-section.upper { background: #ecfdf5; border: 1px solid var(--tall-color); }
+    .wm-section.lower { background: #eff6ff; border: 1px solid var(--sink-color); }
+    .wm-section.full { background: #f0f7ff; border: 1px solid var(--primary-color); }
+    .wm-section-label { font-size: 10px; font-weight: 700; min-width: 38px; }
+    .wm-section.upper .wm-section-label { color: var(--tall-color); }
+    .wm-section.lower .wm-section-label { color: var(--sink-color); }
+    .wm-section.full .wm-section-label { color: var(--primary-color); }
+    .wm-dim-label { font-size: 10px; color: var(--text-muted); }
+    .wm-dim-input { width: 52px; padding: 3px 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .wm-sett-btn { padding: 2px 5px; font-size: 9px; background: #6366f1; color: white; border: none; border-radius: 3px; cursor: pointer; margin-left: auto; }
+    .wm-drawer-toggle { display: flex; flex-direction: column; align-items: center; padding: 3px 5px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; }
+    .wm-drawer-label { font-size: 8px; color: var(--text-muted); margin-bottom: 2px; }
+    .wm-drawer-btns { display: flex; gap: 1px; }
+    .wm-drawer-btn { padding: 1px 3px; font-size: 8px; border-radius: 2px; cursor: pointer; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-muted); }
+    .wm-drawer-btn.active { border-color: var(--sink-color); background: #eff6ff; color: var(--sink-color); }
+
     @media (max-width: 800px) { .ws-layout { grid-template-columns: 1fr; } }
 
     /* 인증 오버레이 */
@@ -918,32 +954,11 @@ function createNumberInput(value, onchange, style = 'width:60px;') {
 }
 
 // ============================================================
-// 최적화: 통합 모듈 조작 함수들
+// 최적화: 공통 모듈 조작 함수들
 // ============================================================
 
 /**
- * 모듈 이동 (통합 함수 - wardrobe, fridge 등 공용)
- */
-function moveModule(itemUniqueId, modId, direction) {
-  const item = getItem(itemUniqueId);
-  if (!item || !item.modules) return;
-
-  const modules = item.modules.sort((a, b) => (a.order || 0) - (b.order || 0));
-  const idx = modules.findIndex(m => m.id === modId);
-  if (idx === -1) return;
-  if (direction === -1 && idx === 0) return;
-  if (direction === 1 && idx === modules.length - 1) return;
-
-  const swapIdx = idx + direction;
-  const tempOrder = modules[idx].order;
-  modules[idx].order = modules[swapIdx].order;
-  modules[swapIdx].order = tempOrder;
-
-  renderWorkspaceContent(item);
-}
-
-/**
- * 모듈 옵션 토글 (체크박스용)
+ * 모듈 옵션 토글 (체크박스용 - 기존 toggleOption과 병행)
  */
 function toggleModuleOption(itemUniqueId, modId, field, checked) {
   const mod = getModule(itemUniqueId, modId);
@@ -2952,82 +2967,78 @@ function renderWardrobeWorkspace(item) {
     // 카운터 박스 스타일 (압축형)
     const cBoxStyle = 'display:flex;flex-direction:column;align-items:center;padding:4px 6px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;';
     const cBtnStyle = 'width:20px;height:20px;border:1px solid #ddd;background:#fff;border-radius:3px;cursor:pointer;font-size:12px;line-height:1;';
-    const settBtnStyle = 'padding:2px 5px;font-size:9px;background:#6366f1;color:white;border:none;border-radius:3px;cursor:pointer;margin-left:auto;';
-    const dimInputStyle = 'width:52px;padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:11px;font-weight:500;';
-    const dimLabelStyle = 'font-size:10px;color:#666;';
-
     // 서랍 타입 토글 (압축형)
     const drawerToggle = `
-      <div style="display:flex;flex-direction:column;align-items:center;padding:3px 5px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;">
-        <div style="font-size:8px;color:#666;margin-bottom:2px;">서랍형</div>
-        <div style="display:flex;gap:1px;">
-          <button onclick="toggleWardrobeDrawerType(${item.uniqueId}, ${mod.id}, false)" style="padding:1px 3px;font-size:8px;border:1px solid ${!isExternalDrawer ? '#3b82f6' : '#ddd'};background:${!isExternalDrawer ? '#eff6ff' : '#fff'};border-radius:2px;cursor:pointer;color:${!isExternalDrawer ? '#3b82f6' : '#666'};">내부</button>
-          <button onclick="toggleWardrobeDrawerType(${item.uniqueId}, ${mod.id}, true)" style="padding:1px 3px;font-size:8px;border:1px solid ${isExternalDrawer ? '#3b82f6' : '#ddd'};background:${isExternalDrawer ? '#eff6ff' : '#fff'};border-radius:2px;cursor:pointer;color:${isExternalDrawer ? '#3b82f6' : '#666'};">외부</button>
+      <div class="wm-drawer-toggle">
+        <div class="wm-drawer-label">서랍형</div>
+        <div class="wm-drawer-btns">
+          <button class="wm-drawer-btn ${!isExternalDrawer ? 'active' : ''}" data-action="setDrawerType" data-item="${item.uniqueId}" data-mod="${mod.id}" data-value="false">내부</button>
+          <button class="wm-drawer-btn ${isExternalDrawer ? 'active' : ''}" data-action="setDrawerType" data-item="${item.uniqueId}" data-mod="${mod.id}" data-value="true">외부</button>
         </div>
       </div>
     `;
 
     return `
-      <div class="module-card" data-module-id="${mod.id}" style="display:flex;gap:8px;padding:10px;align-items:flex-start;">
+      <div class="module-card wm-card" data-module-id="${mod.id}">
         <!-- 좌측: 이동 + 타입 -->
-        <div style="display:flex;flex-direction:column;gap:3px;min-width:50px;">
-          <div style="display:flex;gap:2px;margin-bottom:2px;">
-            <button class="btn-move" onclick="moveWardrobeModule(${item.uniqueId}, ${mod.id}, 'up')" ${idx === 0 ? 'disabled' : ''} style="width:22px;height:22px;font-size:10px;">▲</button>
-            <button class="btn-move" onclick="moveWardrobeModule(${item.uniqueId}, ${mod.id}, 'down')" ${idx === totalCount - 1 ? 'disabled' : ''} style="width:22px;height:22px;font-size:10px;">▼</button>
+        <div class="wm-left">
+          <div class="wm-move-btns">
+            <button class="btn-move" data-action="moveWdrb" data-item="${item.uniqueId}" data-mod="${mod.id}" data-dir="up" ${idx === 0 ? 'disabled' : ''}>▲</button>
+            <button class="btn-move" data-action="moveWdrb" data-item="${item.uniqueId}" data-mod="${mod.id}" data-dir="down" ${idx === totalCount - 1 ? 'disabled' : ''}>▼</button>
           </div>
-          <button onclick="setWardrobeModuleType(${item.uniqueId}, ${mod.id}, 'short')" style="font-size:8px;padding:3px 2px;border:1px solid ${moduleType === 'short' ? '#10b981' : '#ddd'};background:${moduleType === 'short' ? '#ecfdf5' : '#fff'};border-radius:3px;cursor:pointer;color:${moduleType === 'short' ? '#10b981' : '#666'};">짧은옷</button>
-          <button onclick="setWardrobeModuleType(${item.uniqueId}, ${mod.id}, 'long')" style="font-size:8px;padding:3px 2px;border:1px solid ${moduleType === 'long' ? '#3b82f6' : '#ddd'};background:${moduleType === 'long' ? '#eff6ff' : '#fff'};border-radius:3px;cursor:pointer;color:${moduleType === 'long' ? '#3b82f6' : '#666'};">긴옷</button>
-          <button onclick="setWardrobeModuleType(${item.uniqueId}, ${mod.id}, 'shelf')" style="font-size:8px;padding:3px 2px;border:1px solid ${moduleType === 'shelf' ? '#f59e0b' : '#ddd'};background:${moduleType === 'shelf' ? '#fffbeb' : '#fff'};border-radius:3px;cursor:pointer;color:${moduleType === 'shelf' ? '#f59e0b' : '#666'};">선반형</button>
+          <button class="wm-type-btn short ${moduleType === 'short' ? 'active' : ''}" data-action="setWdrbType" data-item="${item.uniqueId}" data-mod="${mod.id}" data-type="short">짧은옷</button>
+          <button class="wm-type-btn long ${moduleType === 'long' ? 'active' : ''}" data-action="setWdrbType" data-item="${item.uniqueId}" data-mod="${mod.id}" data-type="long">긴옷</button>
+          <button class="wm-type-btn shelf ${moduleType === 'shelf' ? 'active' : ''}" data-action="setWdrbType" data-item="${item.uniqueId}" data-mod="${mod.id}" data-type="shelf">선반형</button>
         </div>
 
         <!-- 중앙: 모듈 정보 -->
-        <div style="flex:1;display:flex;flex-direction:column;gap:5px;">
+        <div class="wm-center">
           <!-- 헤더 -->
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:14px;">🚪</span>
-            <span style="font-weight:600;color:#333;font-size:13px;">${mod.name}</span>
-            <span style="font-size:9px;padding:1px 5px;background:${moduleType === 'short' ? '#ecfdf5' : moduleType === 'long' ? '#eff6ff' : '#fffbeb'};color:${moduleType === 'short' ? '#10b981' : moduleType === 'long' ? '#3b82f6' : '#f59e0b'};border-radius:3px;">${moduleType === 'short' ? '짧은옷' : moduleType === 'long' ? '긴옷' : '선반'}</span>
-            <label style="font-size:10px;color:#666;display:flex;align-items:center;gap:2px;margin-left:auto;"><input type="checkbox" ${mod.hasMirror ? 'checked' : ''} onchange="toggleWardrobeOption(${item.uniqueId}, ${mod.id}, 'hasMirror', this.checked)" style="transform:scale(0.85);"> 거울</label>
-            <button class="btn-delete-module" onclick="removeWardrobeModule(${item.uniqueId}, ${mod.id})" style="width:20px;height:20px;font-size:12px;">×</button>
+          <div class="wm-header">
+            <span class="wm-icon">🚪</span>
+            <span class="wm-name">${mod.name}</span>
+            <span class="wm-badge ${moduleType}">${moduleType === 'short' ? '짧은옷' : moduleType === 'long' ? '긴옷' : '선반'}</span>
+            <label class="checkbox-label" style="margin-left:auto;"><input type="checkbox" ${mod.hasMirror ? 'checked' : ''} data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="hasMirror"> 거울</label>
+            <button class="btn-delete-module" data-action="removeWdrb" data-item="${item.uniqueId}" data-mod="${mod.id}">×</button>
           </div>
 
           ${isDivided ? `
           <!-- 상부장/하부장 분리형 -->
           <div style="display:flex;flex-direction:column;gap:4px;">
             <!-- 상부장 -->
-            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#ecfdf5;border:1px solid #10b981;border-radius:5px;">
-              <span style="font-size:10px;color:#10b981;font-weight:700;min-width:38px;">상부장</span>
-              <span style="${dimLabelStyle}">W</span>
-              <input type="number" value="${mod.w}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'w', this.value)" style="${dimInputStyle}">
-              <span style="${dimLabelStyle}">H</span>
-              <input type="number" value="${mod.upperH || halfH}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'upperH', this.value)" style="${dimInputStyle}">
-              <span style="${dimLabelStyle}">D</span>
-              <input type="number" value="${mod.d}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'd', this.value)" style="${dimInputStyle}">
-              ${moduleType !== 'short' ? `<button onclick="openWardrobeSectionSettings(${item.uniqueId}, ${mod.id}, 'upper')" style="${settBtnStyle}">⚙️</button>` : ''}
+            <div class="wm-section upper">
+              <span class="wm-section-label">상부장</span>
+              <span class="wm-dim-label">W</span>
+              <input type="number" class="wm-dim-input" value="${mod.w}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="w">
+              <span class="wm-dim-label">H</span>
+              <input type="number" class="wm-dim-input" value="${mod.upperH || halfH}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="upperH">
+              <span class="wm-dim-label">D</span>
+              <input type="number" class="wm-dim-input" value="${mod.d}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="d">
+              ${moduleType !== 'short' ? `<button class="wm-sett-btn" onclick="openWardrobeSectionSettings(${item.uniqueId}, ${mod.id}, 'upper')">⚙️</button>` : ''}
             </div>
             <!-- 하부장 -->
-            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#eff6ff;border:1px solid #3b82f6;border-radius:5px;">
-              <span style="font-size:10px;color:#3b82f6;font-weight:700;min-width:38px;">하부장</span>
-              <span style="${dimLabelStyle}">W</span>
-              <input type="number" value="${mod.w}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'w', this.value)" style="${dimInputStyle}">
-              <span style="${dimLabelStyle}">H</span>
-              <input type="number" value="${mod.lowerH || halfH}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'lowerH', this.value)" style="${dimInputStyle}">
-              <span style="${dimLabelStyle}">D</span>
-              <input type="number" value="${mod.d}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'd', this.value)" style="${dimInputStyle}">
-              <button onclick="openWardrobeSectionSettings(${item.uniqueId}, ${mod.id}, 'lower')" style="${settBtnStyle}">⚙️</button>
+            <div class="wm-section lower">
+              <span class="wm-section-label">하부장</span>
+              <span class="wm-dim-label">W</span>
+              <input type="number" class="wm-dim-input" value="${mod.w}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="w">
+              <span class="wm-dim-label">H</span>
+              <input type="number" class="wm-dim-input" value="${mod.lowerH || halfH}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="lowerH">
+              <span class="wm-dim-label">D</span>
+              <input type="number" class="wm-dim-input" value="${mod.d}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="d">
+              <button class="wm-sett-btn" onclick="openWardrobeSectionSettings(${item.uniqueId}, ${mod.id}, 'lower')">⚙️</button>
             </div>
           </div>
           ` : `
           <!-- 긴옷 단일형 -->
-          <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#f0f7ff;border:1px solid #4a7dff;border-radius:5px;">
-            <span style="font-size:10px;color:#4a7dff;font-weight:700;min-width:38px;">긴옷장</span>
-            <span style="${dimLabelStyle}">W</span>
-            <input type="number" value="${mod.w}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'w', this.value)" style="${dimInputStyle}">
-            <span style="${dimLabelStyle}">H</span>
-            <input type="number" value="${mod.h || effectiveH}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'h', this.value)" style="${dimInputStyle}">
-            <span style="${dimLabelStyle}">D</span>
-            <input type="number" value="${mod.d}" onchange="updateWardrobeModuleDim(${item.uniqueId}, ${mod.id}, 'd', this.value)" style="${dimInputStyle}">
-            <button onclick="openWardrobeSectionSettings(${item.uniqueId}, ${mod.id}, 'full')" style="${settBtnStyle}">⚙️</button>
+          <div class="wm-section full">
+            <span class="wm-section-label">긴옷장</span>
+            <span class="wm-dim-label">W</span>
+            <input type="number" class="wm-dim-input" value="${mod.w}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="w">
+            <span class="wm-dim-label">H</span>
+            <input type="number" class="wm-dim-input" value="${mod.h || effectiveH}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="h">
+            <span class="wm-dim-label">D</span>
+            <input type="number" class="wm-dim-input" value="${mod.d}" data-item="${item.uniqueId}" data-mod="${mod.id}" data-field="d">
+            <button class="wm-sett-btn" onclick="openWardrobeSectionSettings(${item.uniqueId}, ${mod.id}, 'full')">⚙️</button>
           </div>
           `}
         </div>
@@ -8922,9 +8933,6 @@ function setupEventDelegation() {
     const modId = parseInt(mod);
 
     switch(action) {
-      case 'move':
-        moveModule(itemId, modId, parseInt(delta));
-        break;
       case 'adjust':
         adjustModuleValue(itemId, modId, field, parseInt(delta));
         break;
@@ -8934,14 +8942,18 @@ function setupEventDelegation() {
       case 'toggle':
         toggleModuleOption(itemId, modId, field, btn.checked !== undefined ? btn.checked : !btn.classList.contains('active'));
         break;
-      case 'delete':
-        if (confirm('이 모듈을 삭제하시겠습니까?')) {
-          const targetItem = getItem(itemId);
-          if (targetItem) {
-            targetItem.modules = targetItem.modules.filter(m => m.id !== modId);
-            renderWorkspaceContent(targetItem);
-          }
-        }
+      // Wardrobe 전용 액션
+      case 'moveWdrb':
+        moveWardrobeModule(itemId, modId, btn.dataset.dir);
+        break;
+      case 'setWdrbType':
+        setWardrobeModuleType(itemId, modId, btn.dataset.type);
+        break;
+      case 'removeWdrb':
+        removeWardrobeModule(itemId, modId);
+        break;
+      case 'setDrawerType':
+        toggleWardrobeDrawerType(itemId, modId, btn.dataset.value === 'true');
         break;
     }
   });
