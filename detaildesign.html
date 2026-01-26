@@ -161,6 +161,98 @@
     .btn-add-upper { border-color: var(--upper-color); color: var(--upper-color); }
     .btn-add-lower { border-color: var(--lower-color); color: var(--lower-color); }
     .btn-add-tall { border-color: var(--tall-color); color: var(--tall-color); }
+
+    /* 최적화: 공통 버튼 스타일 */
+    .btn-toggle {
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
+      transition: all 0.15s;
+    }
+    .btn-toggle:hover { opacity: 0.8; }
+    .btn-toggle.active { border-color: currentColor; }
+    .btn-toggle.green { color: var(--tall-color); }
+    .btn-toggle.green.active { background: #ecfdf5; border-color: var(--tall-color); }
+    .btn-toggle.blue { color: var(--sink-color); }
+    .btn-toggle.blue.active { background: #eff6ff; border-color: var(--sink-color); }
+    .btn-toggle.orange { color: var(--lower-color); }
+    .btn-toggle.orange.active { background: #fef3c7; border-color: var(--lower-color); }
+    .btn-toggle.purple { color: #8b5cf6; }
+    .btn-toggle.purple.active { background: #f3e8ff; border-color: #8b5cf6; }
+
+    .btn-adjust {
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      background: var(--card-bg);
+      cursor: pointer;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .btn-adjust:hover { background: #f0f0f0; }
+    .btn-adjust:active { background: #e0e0e0; }
+
+    .btn-purple-gradient {
+      background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(99,102,241,0.4);
+      transition: all 0.2s;
+    }
+    .btn-purple-gradient:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .adjust-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+    }
+    .adjust-control .value {
+      min-width: 20px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .toggle-group {
+      display: flex;
+      gap: 2px;
+    }
+
+    .spec-input-sm {
+      width: 50px;
+      padding: 3px 4px;
+      font-size: 11px;
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      text-align: center;
+    }
+    .spec-input-sm:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .checkbox-label input { margin: 0; transform: scale(0.9); }
+
     @media (max-width: 800px) { .ws-layout { grid-template-columns: 1fr; } }
 
     /* 인증 오버레이 */
@@ -313,6 +405,7 @@
     .hidden { display: none !important; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-utils.js"></script>
 </head>
 <body class="has-toolbar">
 <!-- Navigation -->
@@ -881,6 +974,135 @@ function createButton(label, onclick, className = '', style = '') {
  */
 function createNumberInput(value, onchange, style = 'width:60px;') {
   return `<input type="number" value="${value}" onchange="${onchange}" style="${style}">`;
+}
+
+// ============================================================
+// 최적화: 통합 모듈 조작 함수들
+// ============================================================
+
+/**
+ * 모듈 이동 (통합 함수 - wardrobe, fridge 등 공용)
+ */
+function moveModule(itemUniqueId, modId, direction) {
+  const item = getItem(itemUniqueId);
+  if (!item || !item.modules) return;
+
+  const modules = item.modules.sort((a, b) => (a.order || 0) - (b.order || 0));
+  const idx = modules.findIndex(m => m.id === modId);
+  if (idx === -1) return;
+  if (direction === -1 && idx === 0) return;
+  if (direction === 1 && idx === modules.length - 1) return;
+
+  const swapIdx = idx + direction;
+  const tempOrder = modules[idx].order;
+  modules[idx].order = modules[swapIdx].order;
+  modules[swapIdx].order = tempOrder;
+
+  renderWorkspaceContent(item);
+}
+
+/**
+ * 모듈 옵션 토글 (체크박스용)
+ */
+function toggleModuleOption(itemUniqueId, modId, field, checked) {
+  const mod = getModule(itemUniqueId, modId);
+  if (mod) {
+    mod[field] = checked;
+    renderWorkspaceContent(getItem(itemUniqueId));
+  }
+}
+
+/**
+ * 모듈 값 조절 (+/- 버튼용)
+ */
+function adjustModuleValue(itemUniqueId, modId, field, delta, min = 0) {
+  const mod = getModule(itemUniqueId, modId);
+  if (mod) {
+    mod[field] = Math.max(min, (mod[field] || 0) + delta);
+    renderWorkspaceContent(getItem(itemUniqueId));
+  }
+}
+
+/**
+ * 모듈 타입 설정
+ */
+function setModuleType(itemUniqueId, modId, typeField, value) {
+  const mod = getModule(itemUniqueId, modId);
+  if (mod) {
+    mod[typeField] = value;
+    renderWorkspaceContent(getItem(itemUniqueId));
+  }
+}
+
+/**
+ * 아이템 스펙 토글
+ */
+function toggleItemSpec(itemUniqueId, field) {
+  const item = getItem(itemUniqueId);
+  if (item && item.specs) {
+    item.specs[field] = !item.specs[field];
+    renderWorkspaceContent(item);
+  }
+}
+
+// ============================================================
+// 최적화: 렌더링 헬퍼 함수들
+// ============================================================
+
+/**
+ * 토글 버튼 그룹 렌더링
+ * @param {number} itemId - 아이템 ID
+ * @param {number} modId - 모듈 ID
+ * @param {Array} options - [{value, label}] 배열
+ * @param {string} currentValue - 현재 선택된 값
+ * @param {string} colorClass - 색상 클래스 (green, blue, orange, purple)
+ * @param {string} typeField - 타입 필드명
+ */
+function renderToggleButtons(itemId, modId, options, currentValue, colorClass, typeField = 'type') {
+  return `<div class="toggle-group">${options.map(opt =>
+    `<button class="btn-toggle ${colorClass} ${currentValue === opt.value ? 'active' : ''}"
+       data-action="setType" data-item="${itemId}" data-mod="${modId}"
+       data-field="${typeField}" data-value="${opt.value}">${opt.label}</button>`
+  ).join('')}</div>`;
+}
+
+/**
+ * 조절 컨트롤 렌더링 (+/- 버튼)
+ * @param {number} itemId - 아이템 ID
+ * @param {number} modId - 모듈 ID
+ * @param {string} field - 필드명
+ * @param {number} value - 현재 값
+ * @param {string} label - 라벨 (선택)
+ */
+function renderAdjustControl(itemId, modId, field, value, label = '') {
+  return `<div class="adjust-control">
+    ${label ? `<span>${label}</span>` : ''}
+    <button class="btn-adjust" data-action="adjust" data-item="${itemId}"
+      data-mod="${modId}" data-field="${field}" data-delta="-1">−</button>
+    <span class="value">${value}</span>
+    <button class="btn-adjust" data-action="adjust" data-item="${itemId}"
+      data-mod="${modId}" data-field="${field}" data-delta="1">+</button>
+  </div>`;
+}
+
+/**
+ * 체크박스 렌더링
+ */
+function renderCheckbox(itemId, modId, field, checked, label) {
+  return `<label class="checkbox-label">
+    <input type="checkbox" ${checked ? 'checked' : ''}
+      data-action="toggle" data-item="${itemId}" data-mod="${modId}" data-field="${field}">
+    ${label}
+  </label>`;
+}
+
+/**
+ * 숫자 입력 필드 렌더링
+ */
+function renderNumberInput(itemId, modId, field, value, width = '50px') {
+  return `<input type="number" class="spec-input-sm" value="${value}"
+    data-item="${itemId}" data-mod="${modId}" data-field="${field}"
+    style="width:${width}">`;
 }
 
 // ============================================================
@@ -2353,7 +2575,7 @@ function _renderWorkspaceContentImpl(item) {
     <div class="ws-header">
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${item.w} x H ${item.h} x D ${item.d}</span></div>
       <div style="display:flex;gap:8px;">
-        <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
       </div>
     </div>
     <div class="ws-layout">
@@ -2919,7 +3141,7 @@ function renderWardrobeWorkspace(item) {
     <div class="ws-header">
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${W} x H ${H} x D ${D}</span></div>
       <div style="display:flex;gap:8px;">
-        <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
       </div>
     </div>
     <div class="ws-layout">
@@ -4515,7 +4737,7 @@ function renderFridgeWorkspace(item) {
     <div class="ws-header">
       <div class="ws-title">🧊 ${item.labelName || item.name} <span class="ws-info-badge">${W} × ${H} × ${D}</span></div>
       <div style="display:flex;gap:8px;">
-        <button style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
         <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
         <button class="btn-back" onclick="goBackToStep1()">← 목록</button>
       </div>
@@ -8182,8 +8404,7 @@ function printNestingSheets() {
 // ============================================================
 // Supabase 인증 및 데이터 저장 시스템
 // ============================================================
-const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+// (Supabase 설정은 js/supabase-utils.js에서 관리)
 
 // n8n Webhook URL (설정 필요)
 const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
@@ -8192,47 +8413,9 @@ const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
 const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
-// 이미지를 Supabase Storage에 업로드 (계정당 15개 제한)
+// 이미지를 Supabase Storage에 업로드 (SupabaseUtils 위임)
 async function uploadImageToStorage(file, userId) {
-  if (!supabaseClient) {
-    throw new Error('Supabase 연결이 필요합니다.');
-  }
-
-  // 사용자 폴더 내 이미지 개수 확인
-  const { data: existingImages, error: listError } = await supabaseClient
-    .storage
-    .from('design-images')
-    .list(userId);
-
-  if (listError) {
-    console.error('이미지 목록 조회 실패:', listError);
-  }
-
-  if (existingImages && existingImages.length >= 20) {
-    throw new Error('이미지는 계정당 최대 20개까지 저장할 수 있습니다.\n기존 이미지를 삭제하고 다시 시도해주세요.');
-  }
-
-  // 파일명 생성 (userId/timestamp.ext)
-  const ext = file.name.split('.').pop();
-  const fileName = `${userId}/${Date.now()}.${ext}`;
-
-  const { data, error } = await supabaseClient
-    .storage
-    .from('design-images')
-    .upload(fileName, file, {
-      cacheControl: '3600',
-      upsert: false
-    });
-
-  if (error) throw error;
-
-  // 공개 URL 반환
-  const { data: urlData } = supabaseClient
-    .storage
-    .from('design-images')
-    .getPublicUrl(fileName);
-
-  return urlData.publicUrl;
+  return SupabaseUtils.uploadImage(file, userId);
 }
 
 let supabaseClient = null;
@@ -8242,23 +8425,20 @@ let currentDesignId = null;
 let autoSaveTimer = null;
 let hasUnsavedChanges = false;
 
-// Supabase 초기화 및 인증 확인
+// Supabase 초기화 및 인증 확인 (SupabaseUtils 통합)
 async function initAuth() {
-  if (typeof window.supabase === 'undefined') {
-    console.error('Supabase 라이브러리가 로드되지 않았습니다.');
-    return;
-  }
+  // SupabaseUtils 사용 (js/supabase-utils.js)
+  const session = await SupabaseUtils.init();
 
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  const { data: { session } } = await supabaseClient.auth.getSession();
+  // 로컬 참조 동기화 (하위 호환성)
+  supabaseClient = SupabaseUtils.client;
 
   if (!session) {
     showAuthOverlay();
     return;
   }
 
-  currentUser = session.user;
+  currentUser = SupabaseUtils.currentUser;
   await loadUserProfile();
 }
 
@@ -8334,9 +8514,7 @@ function toggleMobileMenu() {
 
 // 네비게이션 로그아웃
 async function logoutNav() {
-  if (!supabaseClient) return;
-  await supabaseClient.auth.signOut();
-  window.location.href = 'index.html';
+  await SupabaseUtils.signOut('index.html');
 }
 
 // 설계 저장
@@ -8826,8 +9004,91 @@ function addChatMessage(text, isUser, msgId) {
   container.scrollTop = container.scrollHeight;
 }
 
-// 페이지 로드 시 인증 초기화
-document.addEventListener('DOMContentLoaded', initAuth);
+// ============================================================
+// 최적화: 이벤트 위임 핸들러
+// ============================================================
+
+function setupEventDelegation() {
+  const workspace = document.getElementById('step2-content');
+  if (!workspace) return;
+
+  // 클릭 이벤트 위임
+  workspace.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    const { action, item, mod, field, delta, value } = btn.dataset;
+    const itemId = parseInt(item);
+    const modId = parseInt(mod);
+
+    switch(action) {
+      case 'move':
+        moveModule(itemId, modId, parseInt(delta));
+        break;
+      case 'adjust':
+        adjustModuleValue(itemId, modId, field, parseInt(delta));
+        break;
+      case 'setType':
+        setModuleType(itemId, modId, field, value);
+        break;
+      case 'toggle':
+        toggleModuleOption(itemId, modId, field, btn.checked !== undefined ? btn.checked : !btn.classList.contains('active'));
+        break;
+      case 'delete':
+        if (confirm('이 모듈을 삭제하시겠습니까?')) {
+          const targetItem = getItem(itemId);
+          if (targetItem) {
+            targetItem.modules = targetItem.modules.filter(m => m.id !== modId);
+            renderWorkspaceContent(targetItem);
+          }
+        }
+        break;
+    }
+  });
+
+  // Change 이벤트 위임 (input, select)
+  workspace.addEventListener('change', (e) => {
+    const input = e.target;
+    if (!input.dataset.item) return;
+
+    const { item, mod, field } = input.dataset;
+    const itemId = parseInt(item);
+    const modId = mod ? parseInt(mod) : null;
+    const value = input.type === 'checkbox' ? input.checked : input.value;
+
+    if (modId) {
+      updateModuleField(itemId, modId, field, value);
+    } else if (field) {
+      updateItemSpec(itemId, field, value);
+    }
+  });
+
+  // Input 이벤트 위임 (실시간 업데이트)
+  workspace.addEventListener('input', (e) => {
+    const input = e.target;
+    if (!input.dataset.item || input.type === 'checkbox') return;
+
+    // 디바운스 처리
+    clearTimeout(input._debounceTimer);
+    input._debounceTimer = setTimeout(() => {
+      const { item, mod, field } = input.dataset;
+      const itemId = parseInt(item);
+      const modId = mod ? parseInt(mod) : null;
+
+      if (modId) {
+        updateModuleField(itemId, modId, field, input.value, false);
+      } else if (field) {
+        updateItemSpec(itemId, field, input.value, false);
+      }
+    }, 300);
+  });
+}
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', () => {
+  initAuth();
+  setupEventDelegation();
+});
 
 </script>
 
