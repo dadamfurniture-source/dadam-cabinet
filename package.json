@@ -3,8 +3,38 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "echo 'Static HTML site - no build required' && exit 0"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --ext .js,.ts,.tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext .js,.ts,.tsx --fix",
+    "format": "prettier --write \"**/*.{js,ts,tsx,json,css,md,html}\"",
+    "format:check": "prettier --check \"**/*.{js,ts,tsx,json,css,md,html}\"",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run lint && npm run format:check && npm run typecheck",
+    "validate:html": "html-validate \"*.html\" \"admin/*.html\"",
+    "check:links": "linkinator \"*.html\" --skip \"^(?!http)\" --timeout 10000"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "next": "^14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.0.4",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "html-validate": "^8.9.0",
+    "linkinator": "^6.0.4",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  }
 }
