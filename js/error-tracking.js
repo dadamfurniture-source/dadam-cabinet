@@ -3,6 +3,8 @@
  * 클라이언트 에러 수집 및 모니터링
  */
 
+/* global Sentry */
+
 (function () {
   'use strict';
 

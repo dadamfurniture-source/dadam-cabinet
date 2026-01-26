@@ -180,16 +180,16 @@ class StateManager {
    * @returns {Object|null} 업데이트된 모듈 또는 null
    */
   updateModule(itemId, modId, updates, options = {}) {
-    const module = this.getModule(itemId, modId);
-    if (!module) return null;
+    const targetModule = this.getModule(itemId, modId);
+    if (!targetModule) return null;
 
-    Object.assign(module, updates);
+    Object.assign(targetModule, updates);
     this.markChanged();
 
     if (!options.skipRender) {
-      eventBus.emit(Events.MODULE_UPDATED, { itemId, module, updates, options });
+      eventBus.emit(Events.MODULE_UPDATED, { itemId, module: targetModule, updates, options });
     }
-    return module;
+    return targetModule;
   }
 
   /**
