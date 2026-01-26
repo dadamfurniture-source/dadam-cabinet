@@ -13,6 +13,7 @@
 export function debounce(func, wait = 100, immediate = false) {
   let timeout;
   return function executedFunction(...args) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const context = this;
     const later = () => {
       timeout = null;
@@ -34,6 +35,7 @@ export function debounce(func, wait = 100, immediate = false) {
 export function throttle(func, limit = 100) {
   let inThrottle;
   return function executedFunction(...args) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const context = this;
     if (!inThrottle) {
       func.apply(context, args);
