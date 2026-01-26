@@ -15,22 +15,46 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+.env*.local
+
+# Secrets & Credentials (절대 커밋 금지)
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account.json
+firebase-adminsdk*.json
 
 # Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-*
 
 # OS
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
 
 # Misc
 *.log
 .vercel
+.turbo
+.cache
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Sentry
+.sentryclirc

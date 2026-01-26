@@ -1,0 +1,165 @@
+/**
+ * Image Optimization Styles
+ * Lazy loading, placeholder, 반응형 이미지 스타일
+ */
+
+/* Lazy Loading 기본 스타일 */
+.lazy {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.lazy-loaded {
+  opacity: 1;
+}
+
+/* 이미지 플레이스홀더 */
+.img-placeholder {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: placeholder-shimmer 1.5s infinite;
+}
+
+@keyframes placeholder-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* LQIP (Low Quality Image Placeholder) */
+.lqip {
+  filter: blur(10px);
+  transform: scale(1.1);
+  transition: filter 0.3s, transform 0.3s;
+}
+
+.lqip.lazy-loaded {
+  filter: blur(0);
+  transform: scale(1);
+}
+
+/* 반응형 이미지 컨테이너 */
+.img-responsive-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* 16:9 비율 */
+.img-responsive-container.ratio-16-9 {
+  padding-bottom: 56.25%;
+}
+
+/* 4:3 비율 */
+.img-responsive-container.ratio-4-3 {
+  padding-bottom: 75%;
+}
+
+/* 1:1 비율 */
+.img-responsive-container.ratio-1-1 {
+  padding-bottom: 100%;
+}
+
+.img-responsive-container img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* object-fit 옵션 */
+.img-contain {
+  object-fit: contain !important;
+}
+
+.img-cover {
+  object-fit: cover !important;
+}
+
+.img-fill {
+  object-fit: fill !important;
+}
+
+/* 이미지 로딩 오류 */
+.img-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  color: #999;
+  font-size: 14px;
+}
+
+.img-error::before {
+  content: '이미지를 불러올 수 없습니다';
+}
+
+/* 포트폴리오 갤러리 최적화 */
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.portfolio-item {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.portfolio-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.portfolio-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 이미지 줌 효과 */
+.img-zoom-container {
+  overflow: hidden;
+}
+
+.img-zoom-container img {
+  transition: transform 0.3s ease;
+}
+
+.img-zoom-container:hover img {
+  transform: scale(1.05);
+}
+
+/* 다크모드 이미지 조정 */
+@media (prefers-color-scheme: dark) {
+  .img-placeholder {
+    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+  }
+}
+
+/* 프린트 시 이미지 최적화 */
+@media print {
+  .lazy {
+    opacity: 1 !important;
+  }
+
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+}
+
+/* 고해상도 디스플레이 (Retina) */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .img-retina {
+    /* 2x 이미지 사용 시 적용 */
+  }
+}
