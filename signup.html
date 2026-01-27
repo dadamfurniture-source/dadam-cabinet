@@ -9,6 +9,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Sentry SDK for Error Tracking -->
+  <script src="https://browser.sentry-cdn.com/7.94.1/bundle.tracing.min.js" crossorigin="anonymous"></script>
+  <script>
+    window.SENTRY_DSN = '';
+    window.APP_ENV = window.location.hostname === 'localhost' ? 'development' : 'production';
+    window.APP_VERSION = '1.0.0';
+  </script>
+  <script src="js/error-tracking.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C;--expert:#6366F1;--business:#059669}

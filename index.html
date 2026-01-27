@@ -14,6 +14,14 @@
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Sentry SDK for Error Tracking -->
+  <script src="https://browser.sentry-cdn.com/7.94.1/bundle.tracing.min.js" crossorigin="anonymous"></script>
+  <script>
+    window.SENTRY_DSN = ''; // Sentry 프로젝트 DSN 입력
+    window.APP_ENV = window.location.hostname === 'localhost' ? 'development' : 'production';
+    window.APP_VERSION = '1.0.0';
+  </script>
+  <script src="js/error-tracking.js"></script>
   <style>
     * {
       margin: 0;

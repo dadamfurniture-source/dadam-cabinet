@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
+  <!-- Sentry SDK for Error Tracking -->
+  <script src="https://browser.sentry-cdn.com/7.94.1/bundle.tracing.min.js" crossorigin="anonymous"></script>
+  <script>
+    window.SENTRY_DSN = '';
+    window.APP_ENV = window.location.hostname === 'localhost' ? 'development' : 'production';
+    window.APP_VERSION = '1.0.0';
+  </script>
+  <script src="js/error-tracking.js"></script>
   <style>
     :root {
       /* 기본 색상 */
