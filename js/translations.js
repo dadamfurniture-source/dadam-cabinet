@@ -1,238 +1,240 @@
 export const translations = {
-    ko: {
-        nav: {
-            about: "About us",
-            collection: "Collection",
-            products: "Products",
-            ai_design: "AI Design",
-            stories: "Stories",
-            showroom: "Showroom",
-            service: "Service",
-            consultation: "상담 신청",
-            login: "로그인",
-            mypage: "마이페이지",
-            logout: "로그아웃",
-            detail_design: "상세 설계"
-        },
-        hero: {
-            slide1: {
-                title_main: "DADAM",
-                title_sub: "KITCHEN",
-                desc1: "AI가 설계하고 장인이 완성하는",
-                desc2: "더욱 완벽해진 다담 키친을 만나보세요."
-            },
-            slide2: {
-                title_main: "Premium",
-                title_sub: "Collection",
-                desc1: "다담과 AI의 공간에 대한 철학을 담아 완성한",
-                desc2: "하이엔드 프리미엄 공간"
-            },
-            slide3: {
-                title_main: "Custom",
-                title_sub: "Design",
-                desc1: "AI와 장인 크리에이티브 디렉터가 만나 선보이는",
-                desc2: "새로운 공간 디자인 제안"
-            },
-            see_more: "See more"
-        },
-        products: {
-            title: "Our products",
-            kitchen: "키친",
-            storage: "수납장",
-            builtin: "붙박이장",
-            furniture: "가구",
-            interior: "인테리어"
-        },
-        home: {
-            title: "DADAM in home",
-            subtitle: "인테리어 트렌드 with 다담",
-            cases: {
-                title: "시공사례",
-                desc: "고객이 선택한 다담!<br>직접 확인해보세요"
-            },
-            ai: {
-                title: "AI 설계",
-                desc: "AI와 함께하는<br>스마트한 인테리어"
-            },
-            showroom: {
-                title: "쇼룸",
-                desc: "다담 쇼룸에서<br>직접 만나보세요"
-            },
-            open: "open"
-        },
-        brand: {
-            label: "Brand Story",
-            title: "스마트 디자인",
-            subtitle: "다담 x AI 인테리어",
-            desc: "다담가구는 AI 기술과 30년 장인정신을 결합하여 고객 맞춤형 프리미엄 가구를 제작합니다. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다."
-        },
-        instagram: {
-            follow: "팔로우하기 →"
-        },
-        cta: {
-            title: "무료 상담 신청",
-            desc: "AI 설계 시스템으로 최적의 맞춤 가구를 만나보세요",
-            inquiry: "견적 문의",
-            start: "AI 설계 시작"
-        },
-        footer: {
-            desc: "AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.",
-            menu: "Menu",
-            support: "Support",
-            faq: "자주 묻는 질문",
-            terms: "이용 약관",
-            privacy: "개인정보처리방침",
-            as_title: "평생 A/S 보장",
-            as_desc: "다담과 함께하는 최상의 사후관리",
-            copy: "© 2024 다담가구. All rights reserved.",
-            info: "사업자등록번호: 123-45-67890 | 대표: 홍길동"
-        },
-        login: {
-            welcome: "Welcome Back",
-            subtitle: "다담가구 멤버십 서비스를 이용해보세요",
-            email: "Email",
-            password: "Password",
-            btn: "로그인",
-            no_account: "계정이 없으신가요?",
-            signup_link: "회원가입",
-            create_account: "Create Account",
-            create_subtitle: "다담가구의 새로운 가족이 되어주세요",
-            confirm_password: "Confirm Password",
-            signup_btn: "회원가입",
-            have_account: "이미 계정이 있으신가요?",
-            login_link: "로그인"
-        },
-        profile: {
-            title: "My Profile",
-            subtitle: "회원님의 정보를 확인하고 관리하세요",
-            email: "이메일 (Email)",
-            level: "회원 등급 (Membership Level)",
-            logout: "로그아웃",
-            pro_title: "전문가 서비스 신청",
-            pro_desc: "건축가, 인테리어 디자이너이신가요?<br>전문가로 인증하시면 다담가구의 전용 설계 툴과<br>B2B 특별 혜택을 누리실 수 있습니다.",
-            pro_btn: "전문가로 전환하기"
-        },
-        common: {
-            back_home: "메인으로 돌아가기",
-            back_main: "메인으로"
-        }
+  ko: {
+    nav: {
+      about: 'About us',
+      collection: 'Collection',
+      products: 'Products',
+      ai_design: 'AI Design',
+      stories: 'Stories',
+      showroom: 'Showroom',
+      service: 'Service',
+      consultation: '상담 신청',
+      login: '로그인',
+      mypage: '마이페이지',
+      logout: '로그아웃',
+      detail_design: '상세 설계',
     },
-    en: {
-        nav: {
-            about: "About us",
-            collection: "Collection",
-            products: "Products",
-            ai_design: "AI Design",
-            stories: "Stories",
-            showroom: "Showroom",
-            service: "Service",
-            consultation: "Consultation",
-            login: "Log In",
-            mypage: "My Page",
-            logout: "Log Out",
-            detail_design: "Detail Design"
-        },
-        hero: {
-            slide1: {
-                title_main: "DADAM",
-                title_sub: "KITCHEN",
-                desc1: "Designed by AI, Completed by Craftsmen",
-                desc2: "Experience the perfected Dadam Kitchen."
-            },
-            slide2: {
-                title_main: "Premium",
-                title_sub: "Collection",
-                desc1: "Completed with Dadam and AI's philosophy on space",
-                desc2: "High-end Premium Space"
-            },
-            slide3: {
-                title_main: "Custom",
-                title_sub: "Design",
-                desc1: "Presented by AI and Master Creative Directors",
-                desc2: "New Space Design Proposal"
-            },
-            see_more: "See more"
-        },
-        products: {
-            title: "Our products",
-            kitchen: "Kitchen",
-            storage: "Storage",
-            builtin: "Built-in",
-            furniture: "Furniture",
-            interior: "Interior"
-        },
-        home: {
-            title: "DADAM in home",
-            subtitle: "Interior Trends with Dadam",
-            cases: {
-                title: "Case Studies",
-                desc: "Check out why customers choose Dadam!"
-            },
-            ai: {
-                title: "AI Design",
-                desc: "Smart interior design<br>with AI"
-            },
-            showroom: {
-                title: "Showroom",
-                desc: "Visit Dadam Showroom<br>in person"
-            },
-            open: "open"
-        },
-        brand: {
-            label: "Brand Story",
-            title: "Smart Design",
-            subtitle: "Dadam x AI Interior",
-            desc: "Dadam Furniture combines AI technology with 30 years of craftsmanship to create premium custom furniture. We create perfect spaces with the finest materials and precise construction."
-        },
-        instagram: {
-            follow: "Follow →"
-        },
-        cta: {
-            title: "Free Consultation",
-            desc: "Meet optimized custom furniture with AI design system",
-            inquiry: "Get a Quote",
-            start: "Start AI Design"
-        },
-        footer: {
-            desc: "Premium custom furniture born from the meeting of AI technology and 30 years of craftsmanship. We create perfect spaces with the finest materials and precise construction.",
-            menu: "Menu",
-            support: "Support",
-            faq: "FAQ",
-            terms: "Terms of Use",
-            privacy: "Privacy Policy",
-            as_title: "Lifetime A/S",
-            as_desc: "Best after-sales service with Dadam",
-            copy: "© 2024 Dadam Furniture. All rights reserved.",
-            info: "Registration No: 123-45-67890 | CEO: Gil-dong Hong"
-        },
-        login: {
-            welcome: "Welcome Back",
-            subtitle: "Enjoy Dadam Furniture Membership Services",
-            email: "Email",
-            password: "Password",
-            btn: "Log In",
-            no_account: "No account?",
-            signup_link: "Sign Up",
-            create_account: "Create Account",
-            create_subtitle: "Become a new family member of Dadam Furniture",
-            confirm_password: "Confirm Password",
-            signup_btn: "Sign Up",
-            have_account: "Already have an account?",
-            login_link: "Log In"
-        },
-        profile: {
-            title: "My Profile",
-            subtitle: "Check and manage your information",
-            email: "Email",
-            level: "Membership Level",
-            logout: "Log Out",
-            pro_title: "Apply for Professional Service",
-            pro_desc: "Are you an architect or interior designer?<br>Verify as a professional to enjoy Dadam's exclusive design tools and B2B benefits.",
-            pro_btn: "Switch to Professional"
-        },
-        common: {
-            back_home: "Back to Main",
-            back_main: "Main"
-        }
-    }
+    hero: {
+      slide1: {
+        title_main: 'DADAM',
+        title_sub: 'KITCHEN',
+        desc1: 'AI가 설계하고 장인이 완성하는',
+        desc2: '더욱 완벽해진 다담 키친을 만나보세요.',
+      },
+      slide2: {
+        title_main: 'Premium',
+        title_sub: 'Collection',
+        desc1: '다담과 AI의 공간에 대한 철학을 담아 완성한',
+        desc2: '하이엔드 프리미엄 공간',
+      },
+      slide3: {
+        title_main: 'Custom',
+        title_sub: 'Design',
+        desc1: 'AI와 장인 크리에이티브 디렉터가 만나 선보이는',
+        desc2: '새로운 공간 디자인 제안',
+      },
+      see_more: 'See more',
+    },
+    products: {
+      title: 'Our products',
+      kitchen: '키친',
+      storage: '수납장',
+      builtin: '붙박이장',
+      furniture: '가구',
+      interior: '인테리어',
+    },
+    home: {
+      title: 'DADAM in home',
+      subtitle: '인테리어 트렌드 with 다담',
+      cases: {
+        title: '시공사례',
+        desc: '고객이 선택한 다담!<br>직접 확인해보세요',
+      },
+      ai: {
+        title: 'AI 설계',
+        desc: 'AI와 함께하는<br>스마트한 인테리어',
+      },
+      showroom: {
+        title: '쇼룸',
+        desc: '다담 쇼룸에서<br>직접 만나보세요',
+      },
+      open: 'open',
+    },
+    brand: {
+      label: 'Brand Story',
+      title: '스마트 디자인',
+      subtitle: '다담 x AI 인테리어',
+      desc: '다담가구는 AI 기술과 30년 장인정신을 결합하여 고객 맞춤형 프리미엄 가구를 제작합니다. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.',
+    },
+    instagram: {
+      follow: '팔로우하기 →',
+    },
+    cta: {
+      title: '무료 상담 신청',
+      desc: 'AI 설계 시스템으로 최적의 맞춤 가구를 만나보세요',
+      inquiry: '견적 문의',
+      start: 'AI 설계 시작',
+    },
+    footer: {
+      desc: 'AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.',
+      menu: 'Menu',
+      support: 'Support',
+      faq: '자주 묻는 질문',
+      terms: '이용 약관',
+      privacy: '개인정보처리방침',
+      as_title: '평생 A/S 보장',
+      as_desc: '다담과 함께하는 최상의 사후관리',
+      copy: '© 2024 다담가구. All rights reserved.',
+      info: '사업자등록번호: 123-45-67890 | 대표: 홍길동',
+    },
+    login: {
+      welcome: 'Welcome Back',
+      subtitle: '다담가구 멤버십 서비스를 이용해보세요',
+      email: 'Email',
+      password: 'Password',
+      btn: '로그인',
+      no_account: '계정이 없으신가요?',
+      signup_link: '회원가입',
+      create_account: 'Create Account',
+      create_subtitle: '다담가구의 새로운 가족이 되어주세요',
+      confirm_password: 'Confirm Password',
+      signup_btn: '회원가입',
+      have_account: '이미 계정이 있으신가요?',
+      login_link: '로그인',
+    },
+    profile: {
+      title: 'My Profile',
+      subtitle: '회원님의 정보를 확인하고 관리하세요',
+      email: '이메일 (Email)',
+      level: '회원 등급 (Membership Level)',
+      logout: '로그아웃',
+      pro_title: '전문가 서비스 신청',
+      pro_desc:
+        '건축가, 인테리어 디자이너이신가요?<br>전문가로 인증하시면 다담가구의 전용 설계 툴과<br>B2B 특별 혜택을 누리실 수 있습니다.',
+      pro_btn: '전문가로 전환하기',
+    },
+    common: {
+      back_home: '메인으로 돌아가기',
+      back_main: '메인으로',
+    },
+  },
+  en: {
+    nav: {
+      about: 'About us',
+      collection: 'Collection',
+      products: 'Products',
+      ai_design: 'AI Design',
+      stories: 'Stories',
+      showroom: 'Showroom',
+      service: 'Service',
+      consultation: 'Consultation',
+      login: 'Log In',
+      mypage: 'My Page',
+      logout: 'Log Out',
+      detail_design: 'Detail Design',
+    },
+    hero: {
+      slide1: {
+        title_main: 'DADAM',
+        title_sub: 'KITCHEN',
+        desc1: 'Designed by AI, Completed by Craftsmen',
+        desc2: 'Experience the perfected Dadam Kitchen.',
+      },
+      slide2: {
+        title_main: 'Premium',
+        title_sub: 'Collection',
+        desc1: "Completed with Dadam and AI's philosophy on space",
+        desc2: 'High-end Premium Space',
+      },
+      slide3: {
+        title_main: 'Custom',
+        title_sub: 'Design',
+        desc1: 'Presented by AI and Master Creative Directors',
+        desc2: 'New Space Design Proposal',
+      },
+      see_more: 'See more',
+    },
+    products: {
+      title: 'Our products',
+      kitchen: 'Kitchen',
+      storage: 'Storage',
+      builtin: 'Built-in',
+      furniture: 'Furniture',
+      interior: 'Interior',
+    },
+    home: {
+      title: 'DADAM in home',
+      subtitle: 'Interior Trends with Dadam',
+      cases: {
+        title: 'Case Studies',
+        desc: 'Check out why customers choose Dadam!',
+      },
+      ai: {
+        title: 'AI Design',
+        desc: 'Smart interior design<br>with AI',
+      },
+      showroom: {
+        title: 'Showroom',
+        desc: 'Visit Dadam Showroom<br>in person',
+      },
+      open: 'open',
+    },
+    brand: {
+      label: 'Brand Story',
+      title: 'Smart Design',
+      subtitle: 'Dadam x AI Interior',
+      desc: 'Dadam Furniture combines AI technology with 30 years of craftsmanship to create premium custom furniture. We create perfect spaces with the finest materials and precise construction.',
+    },
+    instagram: {
+      follow: 'Follow →',
+    },
+    cta: {
+      title: 'Free Consultation',
+      desc: 'Meet optimized custom furniture with AI design system',
+      inquiry: 'Get a Quote',
+      start: 'Start AI Design',
+    },
+    footer: {
+      desc: 'Premium custom furniture born from the meeting of AI technology and 30 years of craftsmanship. We create perfect spaces with the finest materials and precise construction.',
+      menu: 'Menu',
+      support: 'Support',
+      faq: 'FAQ',
+      terms: 'Terms of Use',
+      privacy: 'Privacy Policy',
+      as_title: 'Lifetime A/S',
+      as_desc: 'Best after-sales service with Dadam',
+      copy: '© 2024 Dadam Furniture. All rights reserved.',
+      info: 'Registration No: 123-45-67890 | CEO: Gil-dong Hong',
+    },
+    login: {
+      welcome: 'Welcome Back',
+      subtitle: 'Enjoy Dadam Furniture Membership Services',
+      email: 'Email',
+      password: 'Password',
+      btn: 'Log In',
+      no_account: 'No account?',
+      signup_link: 'Sign Up',
+      create_account: 'Create Account',
+      create_subtitle: 'Become a new family member of Dadam Furniture',
+      confirm_password: 'Confirm Password',
+      signup_btn: 'Sign Up',
+      have_account: 'Already have an account?',
+      login_link: 'Log In',
+    },
+    profile: {
+      title: 'My Profile',
+      subtitle: 'Check and manage your information',
+      email: 'Email',
+      level: 'Membership Level',
+      logout: 'Log Out',
+      pro_title: 'Apply for Professional Service',
+      pro_desc:
+        "Are you an architect or interior designer?<br>Verify as a professional to enjoy Dadam's exclusive design tools and B2B benefits.",
+      pro_btn: 'Switch to Professional',
+    },
+    common: {
+      back_home: 'Back to Main',
+      back_main: 'Main',
+    },
+  },
 };

@@ -193,7 +193,10 @@ export function createSelect(name, options, attrs = {}) {
     .join(' ');
 
   const optionsHtml = options
-    .map((opt) => `<option value="${opt.value}" ${opt.selected ? 'selected' : ''}>${opt.label}</option>`)
+    .map(
+      (opt) =>
+        `<option value="${opt.value}" ${opt.selected ? 'selected' : ''}>${opt.label}</option>`
+    )
     .join('');
 
   return `<select name="${name}" ${attrStr}>${optionsHtml}</select>`;
@@ -279,7 +282,13 @@ export function showToast(message, type = 'info', duration = 3000) {
     animation: slideIn 0.3s ease;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     background-color: ${
-      type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6'
+      type === 'success'
+        ? '#10b981'
+        : type === 'error'
+          ? '#ef4444'
+          : type === 'warning'
+            ? '#f59e0b'
+            : '#3b82f6'
     };
   `;
 

@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { Sparkles, ArrowRight, Filter } from 'lucide-react'
+import { useState } from 'react';
+import Link from 'next/link';
+import { Sparkles, ArrowRight, Filter } from 'lucide-react';
 
 const categories = [
   { id: 'all', label: '전체' },
@@ -12,7 +12,7 @@ const categories = [
   { id: 'study', label: '서재' },
   { id: 'bedroom', label: '침실' },
   { id: 'builtin', label: '전체 빌트인' },
-]
+];
 
 const portfolioItems = [
   {
@@ -116,14 +116,15 @@ const portfolioItems = [
     description: '파우더룸과 연결된 럭셔리 드레스룸 시스템',
     tags: ['AI 설계', '드레스룸', '파우더룸'],
   },
-]
+];
 
 export default function PortfolioPage() {
-  const [activeCategory, setActiveCategory] = useState('all')
+  const [activeCategory, setActiveCategory] = useState('all');
 
-  const filteredItems = activeCategory === 'all'
-    ? portfolioItems
-    : portfolioItems.filter(item => item.category === activeCategory)
+  const filteredItems =
+    activeCategory === 'all'
+      ? portfolioItems
+      : portfolioItems.filter((item) => item.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-dadam-white">
@@ -143,8 +144,8 @@ export default function PortfolioPage() {
               <span className="text-dadam-gold">장인이 완성한</span> 작품들
             </h1>
             <p className="mt-6 text-lg text-dadam-gray max-w-2xl">
-              다담가구의 AI 설계 시스템과 30년 경력 장인의 손끝에서 탄생한
-              프리미엄 맞춤 가구 프로젝트들을 만나보세요.
+              다담가구의 AI 설계 시스템과 30년 경력 장인의 손끝에서 탄생한 프리미엄 맞춤 가구
+              프로젝트들을 만나보세요.
             </p>
           </div>
         </div>
@@ -206,10 +207,7 @@ export default function PortfolioPage() {
                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                     <div className="flex flex-wrap gap-2 mb-3">
                       {item.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-1 bg-white/20 rounded text-xs"
-                        >
+                        <span key={tag} className="px-2 py-1 bg-white/20 rounded text-xs">
                           {tag}
                         </span>
                       ))}
@@ -228,7 +226,9 @@ export default function PortfolioPage() {
 
                 {/* Info card */}
                 <div className="p-6 bg-white border-t border-dadam-warm group-hover:opacity-0 transition-opacity duration-300">
-                  <p className="text-xs text-dadam-gray mb-1">{item.location} · {item.size}</p>
+                  <p className="text-xs text-dadam-gray mb-1">
+                    {item.location} · {item.size}
+                  </p>
                   <h3 className="font-serif text-lg text-dadam-charcoal">{item.title}</h3>
                   <p className="text-sm text-dadam-gold mt-1">{item.categoryLabel}</p>
                 </div>
@@ -238,9 +238,7 @@ export default function PortfolioPage() {
 
           {/* Load more */}
           <div className="text-center mt-16">
-            <button className="btn-outline">
-              더 많은 프로젝트 보기
-            </button>
+            <button className="btn-outline">더 많은 프로젝트 보기</button>
           </div>
         </div>
       </section>
@@ -273,20 +271,22 @@ export default function PortfolioPage() {
             <span className="gradient-text">다담가구와 함께</span> 완성하세요
           </h2>
           <p className="mt-6 text-dadam-gray">
-            지금 바로 AI 설계 상담을 시작하고,
-            당신만의 특별한 가구를 만나보세요.
+            지금 바로 AI 설계 상담을 시작하고, 당신만의 특별한 가구를 만나보세요.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/ai-design" className="btn-primary">
               <Sparkles className="w-4 h-4 mr-2" />
               AI 설계 상담
             </Link>
-            <Link href="/quote" className="btn-outline border-white/30 text-white hover:bg-white hover:text-dadam-charcoal">
+            <Link
+              href="/quote"
+              className="btn-outline border-white/30 text-white hover:bg-white hover:text-dadam-charcoal"
+            >
               무료 견적 받기
             </Link>
           </div>
         </div>
       </section>
     </div>
-  )
+  );
 }

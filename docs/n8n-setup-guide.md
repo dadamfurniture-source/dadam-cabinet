@@ -20,6 +20,7 @@
    - Authentication: None (또는 Header Auth 권장)
 
 4. Webhook URL 복사 후 `detaildesign.html`에 설정:
+
 ```javascript
 const N8N_WEBHOOK_URL = 'https://your-n8n-domain.com/webhook/design-save';
 ```
@@ -69,6 +70,7 @@ const N8N_WEBHOOK_URL = 'https://your-n8n-domain.com/webhook/design-save';
    - Service Role Key: (Supabase 대시보드 → Settings → API)
 
 2. **designs 테이블 Insert 노드**
+
    ```
    Operation: Insert
    Table: designs
@@ -103,20 +105,24 @@ const design = items[0].json;
 
 // 설계 요약 텍스트 생성
 let summary = `설계 유형: `;
-const categories = design.data.items.map(i => i.name).join(', ');
+const categories = design.data.items.map((i) => i.name).join(', ');
 summary += categories + '. ';
 
-design.data.items.forEach(item => {
+design.data.items.forEach((item) => {
   summary += `${item.name}: ${item.w}x${item.h}x${item.d}mm. `;
   if (item.modules && item.modules.length > 0) {
     summary += `모듈 ${item.modules.length}개. `;
   }
 });
 
-return [{ json: {
-  designId: design.designId,
-  summary: summary
-}}];
+return [
+  {
+    json: {
+      designId: design.designId,
+      summary: summary,
+    },
+  },
+];
 ```
 
 #### OpenAI 임베딩 노드

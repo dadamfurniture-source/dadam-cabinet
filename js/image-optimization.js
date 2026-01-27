@@ -24,10 +24,7 @@
 
     init() {
       if ('IntersectionObserver' in window) {
-        this.observer = new IntersectionObserver(
-          this.onIntersection.bind(this),
-          this.options
-        );
+        this.observer = new IntersectionObserver(this.onIntersection.bind(this), this.options);
         this.observe();
       } else {
         // Fallback: 모든 이미지 즉시 로드

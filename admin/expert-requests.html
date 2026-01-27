@@ -1,703 +1,744 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Expert 승급 관리 - 다담가구 관리자</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #f5f5f5;
-            min-height: 100vh;
-        }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+      }
 
-        /* Sidebar */
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        z-index: 1000;
+      }
+
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .sidebar-logo h1 {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+
+      .sidebar-logo span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+
+      .nav-menu {
+        list-style: none;
+      }
+
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+
+      .nav-icon {
+        width: 20px;
+        text-align: center;
+      }
+
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        padding: 0 20px;
+      }
+
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+      }
+
+      .sidebar-footer a:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .header h2 {
+        font-size: 1.5rem;
+        color: #333;
+      }
+
+      /* Stats */
+      .stats-row {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 25px;
+      }
+
+      .stat-box {
+        background: white;
+        padding: 20px 25px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .stat-box .icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+      }
+
+      .stat-box.pending .icon {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .stat-box.approved .icon {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+      .stat-box.rejected .icon {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .stat-box .value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #333;
+      }
+
+      .stat-box .label {
+        font-size: 0.85rem;
+        color: #888;
+      }
+
+      /* Filters */
+      .filters {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .filter-group label {
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      .filter-group select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        font-family: inherit;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.3s;
+      }
+
+      .btn-primary {
+        background: #007bff;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+      .btn-success:hover {
+        background: #1e7e34;
+      }
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+      .btn-danger:hover {
+        background: #c82333;
+      }
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+      }
+
+      /* Card */
+      .card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+
+      .card-body {
+        padding: 0;
+      }
+
+      /* Request Cards */
+      .request-list {
+        padding: 20px;
+      }
+
+      .request-card {
+        border: 1px solid #eee;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        transition: all 0.3s;
+      }
+
+      .request-card:hover {
+        border-color: #ddd;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+
+      .request-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+      }
+
+      .request-user {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .user-avatar {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #666;
+      }
+
+      .user-details h4 {
+        font-size: 1rem;
+        margin-bottom: 3px;
+      }
+
+      .user-details span {
+        font-size: 0.85rem;
+        color: #888;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+
+      .badge.pending {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .badge.approved {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+      .badge.rejected {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .request-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+        padding: 15px;
+        background: #fafafa;
+        border-radius: 8px;
+      }
+
+      .info-item label {
+        display: block;
+        font-size: 0.8rem;
+        color: #888;
+        margin-bottom: 3px;
+      }
+
+      .info-item p {
+        font-size: 0.95rem;
+        color: #333;
+      }
+
+      .request-actions {
+        display: flex;
+        gap: 10px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #888;
+      }
+
+      .empty-state h4 {
+        margin-bottom: 10px;
+        color: #666;
+      }
+
+      /* Access Denied */
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+
+      .access-denied h2 {
+        font-size: 1.5rem;
+        color: #c62828;
+        margin-bottom: 15px;
+      }
+
+      /* Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .modal-header h3 {
+        font-size: 1.2rem;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #888;
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        color: #333;
+        font-weight: 500;
+      }
+
+      .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.95rem;
+        font-family: inherit;
+        resize: vertical;
+      }
+
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 20px;
+        border-top: 1px solid #eee;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
         .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 250px;
-            height: 100vh;
-            background: #1a1a2e;
-            color: white;
-            padding: 20px 0;
-            z-index: 1000;
+          transform: translateX(-100%);
         }
 
-        .sidebar-logo {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 20px;
-        }
-
-        .sidebar-logo h1 {
-            font-size: 1.3rem;
-            font-weight: 700;
-        }
-
-        .sidebar-logo span {
-            font-size: 0.8rem;
-            color: #888;
-        }
-
-        .nav-menu {
-            list-style: none;
-        }
-
-        .nav-menu li a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 20px;
-            color: #aaa;
-            text-decoration: none;
-            transition: all 0.3s;
-        }
-
-        .nav-menu li a:hover,
-        .nav-menu li a.active {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-
-        .nav-menu li a.active {
-            border-left: 3px solid #007bff;
-        }
-
-        .nav-icon {
-            width: 20px;
-            text-align: center;
-        }
-
-        .sidebar-footer {
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-            padding: 0 20px;
-        }
-
-        .sidebar-footer a {
-            display: block;
-            padding: 10px;
-            text-align: center;
-            background: rgba(255,255,255,0.1);
-            color: #aaa;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 0.9rem;
-        }
-
-        .sidebar-footer a:hover {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
-
-        /* Main Content */
         .main-content {
-            margin-left: 250px;
-            padding: 20px 30px;
+          margin-left: 0;
         }
 
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .header h2 {
-            font-size: 1.5rem;
-            color: #333;
-        }
-
-        /* Stats */
         .stats-row {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 25px;
+          flex-wrap: wrap;
         }
 
         .stat-box {
-            background: white;
-            padding: 20px 25px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            display: flex;
-            align-items: center;
-            gap: 15px;
+          flex: 1 1 calc(50% - 10px);
         }
+      }
 
-        .stat-box .icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
+      @media (max-width: 768px) {
+        .stat-box {
+          flex: 1 1 100%;
         }
-
-        .stat-box.pending .icon { background: #fff3e0; color: #f57c00; }
-        .stat-box.approved .icon { background: #e8f5e9; color: #388e3c; }
-        .stat-box.rejected .icon { background: #ffebee; color: #c62828; }
-
-        .stat-box .value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #333;
-        }
-
-        .stat-box .label {
-            font-size: 0.85rem;
-            color: #888;
-        }
-
-        /* Filters */
-        .filters {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .filter-group label {
-            font-size: 0.9rem;
-            color: #666;
-        }
-
-        .filter-group select {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            font-family: inherit;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.3s;
-        }
-
-        .btn-primary { background: #007bff; color: white; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-success:hover { background: #1e7e34; }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-danger:hover { background: #c82333; }
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
-
-        /* Card */
-        .card {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        .card-body {
-            padding: 0;
-        }
-
-        /* Request Cards */
-        .request-list {
-            padding: 20px;
-        }
-
-        .request-card {
-            border: 1px solid #eee;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 15px;
-            transition: all 0.3s;
-        }
-
-        .request-card:hover {
-            border-color: #ddd;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        .request-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 15px;
-        }
-
-        .request-user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: #e0e0e0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: #666;
-        }
-
-        .user-details h4 {
-            font-size: 1rem;
-            margin-bottom: 3px;
-        }
-
-        .user-details span {
-            font-size: 0.85rem;
-            color: #888;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        .badge.pending { background: #fff3e0; color: #f57c00; }
-        .badge.approved { background: #e8f5e9; color: #388e3c; }
-        .badge.rejected { background: #ffebee; color: #c62828; }
-
-        .request-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-            padding: 15px;
-            background: #fafafa;
-            border-radius: 8px;
-        }
-
-        .info-item label {
-            display: block;
-            font-size: 0.8rem;
-            color: #888;
-            margin-bottom: 3px;
-        }
-
-        .info-item p {
-            font-size: 0.95rem;
-            color: #333;
-        }
-
-        .request-actions {
-            display: flex;
-            gap: 10px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #888;
-        }
-
-        .empty-state h4 {
-            margin-bottom: 10px;
-            color: #666;
-        }
-
-        /* Access Denied */
-        .access-denied {
-            display: none;
-            text-align: center;
-            padding: 100px 20px;
-        }
-
-        .access-denied h2 {
-            font-size: 1.5rem;
-            color: #c62828;
-            margin-bottom: 15px;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .modal-header h3 {
-            font-size: 1.2rem;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #888;
-        }
-
-        .modal-body {
-            padding: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .form-group textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 0.95rem;
-            font-family: inherit;
-            resize: vertical;
-        }
-
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            padding: 20px;
-            border-top: 1px solid #eee;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .stats-row {
-                flex-wrap: wrap;
-            }
-
-            .stat-box {
-                flex: 1 1 calc(50% - 10px);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .stat-box {
-                flex: 1 1 100%;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Sidebar -->
     <nav class="sidebar">
-        <div class="sidebar-logo">
-            <h1>다담가구</h1>
-            <span>관리자 패널</span>
-        </div>
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
 
-        <ul class="nav-menu">
-            <li>
-                <a href="index.html">
-                    <span class="nav-icon">📊</span>
-                    대시보드
-                </a>
-            </li>
-            <li>
-                <a href="users.html">
-                    <span class="nav-icon">👥</span>
-                    회원 관리
-                </a>
-            </li>
-            <li>
-                <a href="expert-requests.html" class="active">
-                    <span class="nav-icon">⭐</span>
-                    Expert 승급 관리
-                </a>
-            </li>
-            <li>
-                <a href="consultations.html">
-                    <span class="nav-icon">💬</span>
-                    상담 관리
-                </a>
-            </li>
-            <li>
-                <a href="logs.html">
-                    <span class="nav-icon">📋</span>
-                    활동 로그
-                </a>
-            </li>
-            <li>
-                <a href="settings.html">
-                    <span class="nav-icon">⚙️</span>
-                    설정
-                </a>
-            </li>
-        </ul>
+      <ul class="nav-menu">
+        <li>
+          <a href="index.html">
+            <span class="nav-icon">📊</span>
+            대시보드
+          </a>
+        </li>
+        <li>
+          <a href="users.html">
+            <span class="nav-icon">👥</span>
+            회원 관리
+          </a>
+        </li>
+        <li>
+          <a href="expert-requests.html" class="active">
+            <span class="nav-icon">⭐</span>
+            Expert 승급 관리
+          </a>
+        </li>
+        <li>
+          <a href="consultations.html">
+            <span class="nav-icon">💬</span>
+            상담 관리
+          </a>
+        </li>
+        <li>
+          <a href="logs.html">
+            <span class="nav-icon">📋</span>
+            활동 로그
+          </a>
+        </li>
+        <li>
+          <a href="settings.html">
+            <span class="nav-icon">⚙️</span>
+            설정
+          </a>
+        </li>
+      </ul>
 
-        <div class="sidebar-footer">
-            <a href="../index.html">← 메인 사이트로</a>
-        </div>
+      <div class="sidebar-footer">
+        <a href="../index.html">← 메인 사이트로</a>
+      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Access Denied Message -->
-        <div class="access-denied" id="accessDenied">
-            <h2>접근 권한이 없습니다</h2>
-            <p>관리자만 접근할 수 있는 페이지입니다.</p>
-            <a href="../index.html">메인 페이지로 돌아가기</a>
+      <!-- Access Denied Message -->
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <!-- Expert Requests Content -->
+      <div id="pageContent" style="display: none">
+        <!-- Header -->
+        <header class="header">
+          <h2>Expert 승급 관리</h2>
+        </header>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-box pending">
+            <div class="icon">⏳</div>
+            <div>
+              <div class="value" id="pendingCount">0</div>
+              <div class="label">대기 중</div>
+            </div>
+          </div>
+          <div class="stat-box approved">
+            <div class="icon">✓</div>
+            <div>
+              <div class="value" id="approvedCount">0</div>
+              <div class="label">승인됨</div>
+            </div>
+          </div>
+          <div class="stat-box rejected">
+            <div class="icon">✕</div>
+            <div>
+              <div class="value" id="rejectedCount">0</div>
+              <div class="label">거절됨</div>
+            </div>
+          </div>
         </div>
 
-        <!-- Expert Requests Content -->
-        <div id="pageContent" style="display: none;">
-            <!-- Header -->
-            <header class="header">
-                <h2>Expert 승급 관리</h2>
-            </header>
-
-            <!-- Stats -->
-            <div class="stats-row">
-                <div class="stat-box pending">
-                    <div class="icon">⏳</div>
-                    <div>
-                        <div class="value" id="pendingCount">0</div>
-                        <div class="label">대기 중</div>
-                    </div>
-                </div>
-                <div class="stat-box approved">
-                    <div class="icon">✓</div>
-                    <div>
-                        <div class="value" id="approvedCount">0</div>
-                        <div class="label">승인됨</div>
-                    </div>
-                </div>
-                <div class="stat-box rejected">
-                    <div class="icon">✕</div>
-                    <div>
-                        <div class="value" id="rejectedCount">0</div>
-                        <div class="label">거절됨</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Filters -->
-            <div class="filters">
-                <div class="filter-group">
-                    <label>상태:</label>
-                    <select id="statusFilter" onchange="loadRequests()">
-                        <option value="">전체</option>
-                        <option value="pending" selected>대기 중</option>
-                        <option value="approved">승인됨</option>
-                        <option value="rejected">거절됨</option>
-                    </select>
-                </div>
-                <button class="btn btn-secondary" onclick="loadRequests()">새로고침</button>
-            </div>
-
-            <!-- Request List -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="request-list" id="requestList">
-                        <div class="empty-state">
-                            <h4>로딩 중...</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <!-- Filters -->
+        <div class="filters">
+          <div class="filter-group">
+            <label>상태:</label>
+            <select id="statusFilter" onchange="loadRequests()">
+              <option value="">전체</option>
+              <option value="pending" selected>대기 중</option>
+              <option value="approved">승인됨</option>
+              <option value="rejected">거절됨</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadRequests()">새로고침</button>
         </div>
+
+        <!-- Request List -->
+        <div class="card">
+          <div class="card-body">
+            <div class="request-list" id="requestList">
+              <div class="empty-state">
+                <h4>로딩 중...</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Review Modal -->
     <div class="modal" id="reviewModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">승급 신청 검토</h3>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>관리자 메모 / 사유</label>
-                    <textarea id="adminMemo" rows="4" placeholder="승인 또는 거절 사유를 입력하세요..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal()">취소</button>
-                <button class="btn btn-danger" onclick="submitReview('rejected')" id="rejectBtn">거절</button>
-                <button class="btn btn-success" onclick="submitReview('approved')" id="approveBtn">승인</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modalTitle">승급 신청 검토</h3>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>관리자 메모 / 사유</label>
+            <textarea id="adminMemo" rows="4" placeholder="승인 또는 거절 사유를 입력하세요..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+          <button class="btn btn-danger" onclick="submitReview('rejected')" id="rejectBtn">거절</button>
+          <button class="btn btn-success" onclick="submitReview('approved')" id="approveBtn">승인</button>
+        </div>
+      </div>
     </div>
 
     <script>
-        // Supabase 설정
-        const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+      // Supabase 설정
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
 
-        let supabaseClient = null;
-        let currentUser = null;
-        let selectedRequestId = null;
+      let supabaseClient = null;
+      let currentUser = null;
+      let selectedRequestId = null;
 
-        // 관리자 이메일 목록
-        const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+      // 관리자 이메일 목록
+      const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initAdmin();
-        });
+      document.addEventListener('DOMContentLoaded', async () => {
+        await initAdmin();
+      });
 
-        async function initAdmin() {
-            if (typeof window.supabase === 'undefined') {
-                showAccessDenied();
-                return;
-            }
-
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-            const { data: { session } } = await supabaseClient.auth.getSession();
-
-            if (!session) {
-                showAccessDenied();
-                return;
-            }
-
-            currentUser = session.user;
-
-            if (!ADMIN_EMAILS.includes(currentUser.email)) {
-                showAccessDenied();
-                return;
-            }
-
-            document.getElementById('pageContent').style.display = 'block';
-            await loadStats();
-            await loadRequests();
+      async function initAdmin() {
+        if (typeof window.supabase === 'undefined') {
+          showAccessDenied();
+          return;
         }
 
-        function showAccessDenied() {
-            document.getElementById('accessDenied').style.display = 'block';
-            document.getElementById('pageContent').style.display = 'none';
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+
+        if (!session) {
+          showAccessDenied();
+          return;
         }
 
-        async function loadStats() {
-            try {
-                // 상태별 개수 조회
-                const { data: pending } = await supabaseClient
-                    .from('expert_requests')
-                    .select('id', { count: 'exact' })
-                    .eq('status', 'pending');
+        currentUser = session.user;
 
-                const { data: approved } = await supabaseClient
-                    .from('expert_requests')
-                    .select('id', { count: 'exact' })
-                    .eq('status', 'approved');
-
-                const { data: rejected } = await supabaseClient
-                    .from('expert_requests')
-                    .select('id', { count: 'exact' })
-                    .eq('status', 'rejected');
-
-                document.getElementById('pendingCount').textContent = pending?.length || 0;
-                document.getElementById('approvedCount').textContent = approved?.length || 0;
-                document.getElementById('rejectedCount').textContent = rejected?.length || 0;
-            } catch (error) {
-                console.log('통계 로드 실패:', error.message);
-            }
+        if (!ADMIN_EMAILS.includes(currentUser.email)) {
+          showAccessDenied();
+          return;
         }
 
-        async function loadRequests() {
-            const container = document.getElementById('requestList');
-            container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
+        document.getElementById('pageContent').style.display = 'block';
+        await loadStats();
+        await loadRequests();
+      }
 
-            const statusFilter = document.getElementById('statusFilter').value;
+      function showAccessDenied() {
+        document.getElementById('accessDenied').style.display = 'block';
+        document.getElementById('pageContent').style.display = 'none';
+      }
 
-            try {
-                let query = supabaseClient
-                    .from('expert_requests')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+      async function loadStats() {
+        try {
+          // 상태별 개수 조회
+          const { data: pending } = await supabaseClient
+            .from('expert_requests')
+            .select('id', { count: 'exact' })
+            .eq('status', 'pending');
 
-                if (statusFilter) {
-                    query = query.eq('status', statusFilter);
-                }
+          const { data: approved } = await supabaseClient
+            .from('expert_requests')
+            .select('id', { count: 'exact' })
+            .eq('status', 'approved');
 
-                const { data: requests, error } = await query;
+          const { data: rejected } = await supabaseClient
+            .from('expert_requests')
+            .select('id', { count: 'exact' })
+            .eq('status', 'rejected');
 
-                if (error) throw error;
+          document.getElementById('pendingCount').textContent = pending?.length || 0;
+          document.getElementById('approvedCount').textContent = approved?.length || 0;
+          document.getElementById('rejectedCount').textContent = rejected?.length || 0;
+        } catch (error) {
+          console.log('통계 로드 실패:', error.message);
+        }
+      }
 
-                if (!requests || requests.length === 0) {
-                    container.innerHTML = `
+      async function loadRequests() {
+        const container = document.getElementById('requestList');
+        container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
+
+        const statusFilter = document.getElementById('statusFilter').value;
+
+        try {
+          let query = supabaseClient.from('expert_requests').select('*').order('created_at', { ascending: false });
+
+          if (statusFilter) {
+            query = query.eq('status', statusFilter);
+          }
+
+          const { data: requests, error } = await query;
+
+          if (error) throw error;
+
+          if (!requests || requests.length === 0) {
+            container.innerHTML = `
                         <div class="empty-state">
                             <h4>승급 신청이 없습니다</h4>
                             <p>아직 접수된 Expert 승급 신청이 없습니다.</p>
                         </div>
                     `;
-                    return;
-                }
+            return;
+          }
 
-                container.innerHTML = requests.map(req => renderRequestCard(req)).join('');
-
-            } catch (error) {
-                console.error('Error loading requests:', error);
-                container.innerHTML = `
+          container.innerHTML = requests.map((req) => renderRequestCard(req)).join('');
+        } catch (error) {
+          console.error('Error loading requests:', error);
+          container.innerHTML = `
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
                         <p>${error.message}</p>
@@ -708,25 +749,28 @@
                         </p>
                     </div>
                 `;
-            }
         }
+      }
 
-        function renderRequestCard(req) {
-            const initial = (req.user_name || req.user_email || '?').charAt(0).toUpperCase();
-            const statusLabel = {
-                'pending': '대기 중',
-                'approved': '승인됨',
-                'rejected': '거절됨'
-            };
+      function renderRequestCard(req) {
+        const initial = (req.user_name || req.user_email || '?').charAt(0).toUpperCase();
+        const statusLabel = {
+          pending: '대기 중',
+          approved: '승인됨',
+          rejected: '거절됨',
+        };
 
-            const actionsHtml = req.status === 'pending' ? `
+        const actionsHtml =
+          req.status === 'pending'
+            ? `
                 <button class="btn btn-success btn-sm" onclick="openReviewModal('${req.id}', 'approve')">승인</button>
                 <button class="btn btn-danger btn-sm" onclick="openReviewModal('${req.id}', 'reject')">거절</button>
-            ` : `
+            `
+            : `
                 <button class="btn btn-secondary btn-sm" onclick="viewDetails('${req.id}')">상세 보기</button>
             `;
 
-            return `
+        return `
                 <div class="request-card">
                     <div class="request-header">
                         <div class="request-user">
@@ -764,18 +808,26 @@
                             <label>신청일</label>
                             <p>${formatDate(req.created_at)}</p>
                         </div>
-                        ${req.portfolio_url ? `
+                        ${
+                          req.portfolio_url
+                            ? `
                         <div class="info-item">
                             <label>포트폴리오</label>
                             <p><a href="${req.portfolio_url}" target="_blank">바로가기</a></p>
                         </div>
-                        ` : ''}
-                        ${req.admin_memo ? `
+                        `
+                            : ''
+                        }
+                        ${
+                          req.admin_memo
+                            ? `
                         <div class="info-item" style="grid-column: 1 / -1;">
                             <label>관리자 메모</label>
                             <p>${req.admin_memo}</p>
                         </div>
-                        ` : ''}
+                        `
+                            : ''
+                        }
                     </div>
 
                     <div class="request-actions">
@@ -783,90 +835,89 @@
                     </div>
                 </div>
             `;
-        }
+      }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('ko-KR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
-
-        function openReviewModal(requestId, action) {
-            selectedRequestId = requestId;
-
-            if (action === 'approve') {
-                document.getElementById('modalTitle').textContent = 'Expert 승급 승인';
-                document.getElementById('approveBtn').style.display = 'inline-block';
-                document.getElementById('rejectBtn').style.display = 'none';
-            } else {
-                document.getElementById('modalTitle').textContent = 'Expert 승급 거절';
-                document.getElementById('approveBtn').style.display = 'none';
-                document.getElementById('rejectBtn').style.display = 'inline-block';
-            }
-
-            document.getElementById('adminMemo').value = '';
-            document.getElementById('reviewModal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('reviewModal').classList.remove('active');
-            selectedRequestId = null;
-        }
-
-        async function submitReview(status) {
-            if (!selectedRequestId) return;
-
-            const memo = document.getElementById('adminMemo').value;
-
-            try {
-                // 신청 상태 업데이트
-                // DB 트리거가 자동으로 profiles.tier를 업데이트하고 로그를 기록함
-                const { error } = await supabaseClient
-                    .from('expert_requests')
-                    .update({
-                        status: status,
-                        admin_memo: memo,
-                        reviewed_by: currentUser.id,
-                        reviewed_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', selectedRequestId);
-
-                if (error) throw error;
-
-                if (status === 'approved') {
-                    alert('승급이 승인되었습니다.\n사용자의 등급이 자동으로 변경되었습니다.');
-                } else {
-                    alert('승급 신청이 거절되었습니다.');
-                }
-
-                closeModal();
-                await loadStats();
-                await loadRequests();
-
-            } catch (error) {
-                console.error('Error updating request:', error);
-                alert('처리 중 오류가 발생했습니다: ' + error.message);
-            }
-        }
-
-        function viewDetails(requestId) {
-            // 상세 보기 (추후 구현)
-            alert('상세 보기 기능은 추후 구현 예정입니다.');
-        }
-
-        // 모달 외부 클릭 시 닫기
-        document.getElementById('reviewModal').addEventListener('click', (e) => {
-            if (e.target.id === 'reviewModal') {
-                closeModal();
-            }
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
         });
+      }
+
+      function openReviewModal(requestId, action) {
+        selectedRequestId = requestId;
+
+        if (action === 'approve') {
+          document.getElementById('modalTitle').textContent = 'Expert 승급 승인';
+          document.getElementById('approveBtn').style.display = 'inline-block';
+          document.getElementById('rejectBtn').style.display = 'none';
+        } else {
+          document.getElementById('modalTitle').textContent = 'Expert 승급 거절';
+          document.getElementById('approveBtn').style.display = 'none';
+          document.getElementById('rejectBtn').style.display = 'inline-block';
+        }
+
+        document.getElementById('adminMemo').value = '';
+        document.getElementById('reviewModal').classList.add('active');
+      }
+
+      function closeModal() {
+        document.getElementById('reviewModal').classList.remove('active');
+        selectedRequestId = null;
+      }
+
+      async function submitReview(status) {
+        if (!selectedRequestId) return;
+
+        const memo = document.getElementById('adminMemo').value;
+
+        try {
+          // 신청 상태 업데이트
+          // DB 트리거가 자동으로 profiles.tier를 업데이트하고 로그를 기록함
+          const { error } = await supabaseClient
+            .from('expert_requests')
+            .update({
+              status: status,
+              admin_memo: memo,
+              reviewed_by: currentUser.id,
+              reviewed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedRequestId);
+
+          if (error) throw error;
+
+          if (status === 'approved') {
+            alert('승급이 승인되었습니다.\n사용자의 등급이 자동으로 변경되었습니다.');
+          } else {
+            alert('승급 신청이 거절되었습니다.');
+          }
+
+          closeModal();
+          await loadStats();
+          await loadRequests();
+        } catch (error) {
+          console.error('Error updating request:', error);
+          alert('처리 중 오류가 발생했습니다: ' + error.message);
+        }
+      }
+
+      function viewDetails(requestId) {
+        // 상세 보기 (추후 구현)
+        alert('상세 보기 기능은 추후 구현 예정입니다.');
+      }
+
+      // 모달 외부 클릭 시 닫기
+      document.getElementById('reviewModal').addEventListener('click', (e) => {
+        if (e.target.id === 'reviewModal') {
+          closeModal();
+        }
+      });
     </script>
-</body>
+  </body>
 </html>

@@ -1,695 +1,2010 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#B8956C">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>AI 설계 - 다담가구</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C;--gold-light:#D4B896}
-    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.7;-webkit-tap-highlight-color:transparent}
-    h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
-    a{text-decoration:none;color:inherit}
-    button{-webkit-tap-highlight-color:transparent}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#B8956C" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>AI 설계 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+        --gold-light: #d4b896;
+      }
+      body {
+        font-family:
+          'Pretendard',
+          -apple-system,
+          BlinkMacSystemFont,
+          system-ui,
+          sans-serif;
+        background: var(--white);
+        color: var(--charcoal);
+        line-height: 1.7;
+        -webkit-tap-highlight-color: transparent;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-family: 'Playfair Display', 'Noto Serif KR', serif;
+        font-weight: 500;
+      }
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
+      button {
+        -webkit-tap-highlight-color: transparent;
+      }
 
-    /* Navigation */
-    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:72px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
-    .nav-logo{display:flex;align-items:center;gap:8px;color:var(--charcoal)}
-    .nav-logo svg{width:28px;height:28px}
-    .nav-logo span{font-family:'Playfair Display',serif;font-size:22px}
-    .nav-menu{display:flex;gap:28px}
-    .nav-menu a{color:var(--charcoal);font-size:13px;letter-spacing:.5px;transition:all .3s}
-    .nav-menu a:hover{opacity:.7}
-    .nav-menu a.active{color:var(--gold);font-weight:500}
-    .nav-icons{display:flex;align-items:center;gap:20px;color:var(--charcoal)}
-    .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
-    .login-btn{padding:8px 20px;background:var(--charcoal);color:#fff;border-radius:20px;font-size:13px;transition:all .3s}
-    .login-btn:hover{background:var(--gold)}
-    .user-menu{position:relative}
-    .user-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:var(--cream);border:none;color:inherit;cursor:pointer;transition:all .3s}
-    .user-btn:hover{background:var(--warm)}
-    .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
-    .user-name{font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;min-width:180px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);opacity:0;visibility:hidden;transform:translateY(-10px);transition:all .3s;z-index:200}
-    .user-menu:hover .user-dropdown{opacity:1;visibility:visible;transform:translateY(0)}
-    .user-dropdown a,.user-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;font-size:14px;color:var(--charcoal);background:none;border:none;cursor:pointer;transition:background .2s;text-align:left}
-    .user-dropdown a:hover,.user-dropdown button:hover{background:var(--cream)}
-    .user-dropdown svg{width:18px;height:18px;color:var(--gray)}
+      /* Navigation */
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        padding: 0 48px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--charcoal);
+      }
+      .nav-logo svg {
+        width: 28px;
+        height: 28px;
+      }
+      .nav-logo span {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+      }
+      .nav-menu {
+        display: flex;
+        gap: 28px;
+      }
+      .nav-menu a {
+        color: var(--charcoal);
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        transition: all 0.3s;
+      }
+      .nav-menu a:hover {
+        opacity: 0.7;
+      }
+      .nav-menu a.active {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .nav-icons {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        color: var(--charcoal);
+      }
+      .nav-icons button {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        padding: 4px;
+      }
+      .login-btn {
+        padding: 8px 20px;
+        background: var(--charcoal);
+        color: #fff;
+        border-radius: 20px;
+        font-size: 13px;
+        transition: all 0.3s;
+      }
+      .login-btn:hover {
+        background: var(--gold);
+      }
+      .user-menu {
+        position: relative;
+      }
+      .user-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        background: var(--cream);
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .user-btn:hover {
+        background: var(--warm);
+      }
+      .user-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--gold);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: #fff;
+      }
+      .user-name {
+        font-size: 13px;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .user-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 180px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.3s;
+        z-index: 200;
+      }
+      .user-menu:hover .user-dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      .user-dropdown a,
+      .user-dropdown button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 14px;
+        color: var(--charcoal);
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: background 0.2s;
+        text-align: left;
+      }
+      .user-dropdown a:hover,
+      .user-dropdown button:hover {
+        background: var(--cream);
+      }
+      .user-dropdown svg {
+        width: 18px;
+        height: 18px;
+        color: var(--gray);
+      }
 
-    .hamburger{display:none;flex-direction:column;gap:5px;padding:8px;cursor:pointer;background:none;border:none}
-    .hamburger span{width:24px;height:2px;background:var(--charcoal);border-radius:2px;transition:all .3s}
-    .hamburger.active span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
-    .hamburger.active span:nth-child(2){opacity:0}
-    .hamburger.active span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+      .hamburger {
+        display: none;
+        flex-direction: column;
+        gap: 5px;
+        padding: 8px;
+        cursor: pointer;
+        background: none;
+        border: none;
+      }
+      .hamburger span {
+        width: 24px;
+        height: 2px;
+        background: var(--charcoal);
+        border-radius: 2px;
+        transition: all 0.3s;
+      }
+      .hamburger.active span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+      }
+      .hamburger.active span:nth-child(2) {
+        opacity: 0;
+      }
+      .hamburger.active span:nth-child(3) {
+        transform: rotate(-45deg) translate(5px, -5px);
+      }
 
-    .mobile-menu{position:fixed;top:64px;left:0;right:0;bottom:0;background:var(--white);z-index:99;padding:24px;display:none;flex-direction:column;gap:8px}
-    .mobile-menu.active{display:flex}
-    .mobile-menu a{padding:16px 20px;font-size:16px;border-radius:12px;transition:background .3s}
-    .mobile-menu a:hover,.mobile-menu a.active{background:var(--cream);color:var(--gold)}
+      .mobile-menu {
+        position: fixed;
+        top: 64px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--white);
+        z-index: 99;
+        padding: 24px;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .mobile-menu.active {
+        display: flex;
+      }
+      .mobile-menu a {
+        padding: 16px 20px;
+        font-size: 16px;
+        border-radius: 12px;
+        transition: background 0.3s;
+      }
+      .mobile-menu a:hover,
+      .mobile-menu a.active {
+        background: var(--cream);
+        color: var(--gold);
+      }
 
-    /* Hero */
-    .hero{padding:100px 48px 32px;background:linear-gradient(180deg,var(--cream) 0%,var(--white) 100%);text-align:center}
-    .hero-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;background:rgba(184,149,108,.12);border-radius:20px;color:var(--gold);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px}
-    .hero h1{font-size:36px;margin-bottom:10px}
-    .hero h1 span{color:var(--gold)}
-    .hero p{color:var(--gray);font-size:15px}
+      /* Hero */
+      .hero {
+        padding: 100px 48px 32px;
+        background: linear-gradient(180deg, var(--cream) 0%, var(--white) 100%);
+        text-align: center;
+      }
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 16px;
+        background: rgba(184, 149, 108, 0.12);
+        border-radius: 20px;
+        color: var(--gold);
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+      }
+      .hero h1 {
+        font-size: 36px;
+        margin-bottom: 10px;
+      }
+      .hero h1 span {
+        color: var(--gold);
+      }
+      .hero p {
+        color: var(--gray);
+        font-size: 15px;
+      }
 
-    .main-container{max-width:1100px;margin:0 auto;padding:0 24px 60px}
+      .main-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 24px 60px;
+      }
 
-    /* Chat Box */
-    .chat-box{background:var(--white);border:1px solid var(--warm);border-radius:16px;overflow:hidden;margin-bottom:32px;box-shadow:0 4px 20px rgba(0,0,0,.04)}
-    .chat-header{padding:14px 20px;background:var(--cream);display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--warm)}
-    .chat-header-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),#D4A574);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .chat-header-icon svg{width:18px;height:18px;color:#fff}
-    .chat-header-text h3{font-size:15px;font-family:inherit;font-weight:600}
-    .chat-header-text p{font-size:11px;color:var(--gray)}
-    .chat-status{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray)}
-    .chat-status::before{content:'';width:7px;height:7px;background:#4CAF50;border-radius:50%}
-    .chat-messages{height:100px;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--white)}
-    .message{display:flex;gap:10px;max-width:85%}
-    .message.user{flex-direction:row-reverse;margin-left:auto}
-    .message-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .message.ai .message-avatar{background:linear-gradient(135deg,var(--gold),#D4A574)}
-    .message.ai .message-avatar svg{width:14px;height:14px;color:#fff}
-    .message.user .message-avatar{background:var(--charcoal)}
-    .message.user .message-avatar svg{width:14px;height:14px;color:#fff}
-    .message-content{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6}
-    .message.ai .message-content{background:var(--cream);border-bottom-left-radius:4px}
-    .message.user .message-content{background:var(--charcoal);color:#fff;border-bottom-right-radius:4px}
-    .welcome-msg{text-align:center;padding:16px;color:var(--gray);font-size:13px}
-    .welcome-msg strong{color:var(--charcoal);display:block;margin-bottom:4px}
-    .chat-input{padding:14px 20px;border-top:1px solid var(--warm);background:var(--cream);display:flex;gap:10px}
-    .chat-input input{flex:1;padding:12px 14px;border:1px solid var(--warm);border-radius:10px;font-size:16px;background:var(--white)}
-    .chat-input input:focus{outline:none;border-color:var(--gold)}
-    .chat-input button{width:44px;height:44px;background:var(--charcoal);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .3s;flex-shrink:0}
-    .chat-input button:hover{background:var(--gold)}
-    .chat-input button svg{width:18px;height:18px;color:#fff}
+      /* Chat Box */
+      .chat-box {
+        background: var(--white);
+        border: 1px solid var(--warm);
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 32px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      }
+      .chat-header {
+        padding: 14px 20px;
+        background: var(--cream);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid var(--warm);
+      }
+      .chat-header-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, var(--gold), #d4a574);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .chat-header-icon svg {
+        width: 18px;
+        height: 18px;
+        color: #fff;
+      }
+      .chat-header-text h3 {
+        font-size: 15px;
+        font-family: inherit;
+        font-weight: 600;
+      }
+      .chat-header-text p {
+        font-size: 11px;
+        color: var(--gray);
+      }
+      .chat-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--gray);
+      }
+      .chat-status::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        background: #4caf50;
+        border-radius: 50%;
+      }
+      .chat-messages {
+        height: 100px;
+        padding: 16px 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: var(--white);
+      }
+      .message {
+        display: flex;
+        gap: 10px;
+        max-width: 85%;
+      }
+      .message.user {
+        flex-direction: row-reverse;
+        margin-left: auto;
+      }
+      .message-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .message.ai .message-avatar {
+        background: linear-gradient(135deg, var(--gold), #d4a574);
+      }
+      .message.ai .message-avatar svg {
+        width: 14px;
+        height: 14px;
+        color: #fff;
+      }
+      .message.user .message-avatar {
+        background: var(--charcoal);
+      }
+      .message.user .message-avatar svg {
+        width: 14px;
+        height: 14px;
+        color: #fff;
+      }
+      .message-content {
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .message.ai .message-content {
+        background: var(--cream);
+        border-bottom-left-radius: 4px;
+      }
+      .message.user .message-content {
+        background: var(--charcoal);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+      }
+      .welcome-msg {
+        text-align: center;
+        padding: 16px;
+        color: var(--gray);
+        font-size: 13px;
+      }
+      .welcome-msg strong {
+        color: var(--charcoal);
+        display: block;
+        margin-bottom: 4px;
+      }
+      .chat-input {
+        padding: 14px 20px;
+        border-top: 1px solid var(--warm);
+        background: var(--cream);
+        display: flex;
+        gap: 10px;
+      }
+      .chat-input input {
+        flex: 1;
+        padding: 12px 14px;
+        border: 1px solid var(--warm);
+        border-radius: 10px;
+        font-size: 16px;
+        background: var(--white);
+      }
+      .chat-input input:focus {
+        outline: none;
+        border-color: var(--gold);
+      }
+      .chat-input button {
+        width: 44px;
+        height: 44px;
+        background: var(--charcoal);
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+        flex-shrink: 0;
+      }
+      .chat-input button:hover {
+        background: var(--gold);
+      }
+      .chat-input button svg {
+        width: 18px;
+        height: 18px;
+        color: #fff;
+      }
 
-    /* Section Title */
-    .section-title{font-size:14px;color:var(--gray);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;text-align:center}
-    .section-subtitle{text-align:center;color:var(--gold);font-size:12px;margin-top:-12px;margin-bottom:16px}
+      /* Section Title */
+      .section-title {
+        font-size: 14px;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+      .section-subtitle {
+        text-align: center;
+        color: var(--gold);
+        font-size: 12px;
+        margin-top: -12px;
+        margin-bottom: 16px;
+      }
 
-    /* Category Grid */
-    .category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
-    .category-card{background:var(--white);border:2px solid var(--warm);border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
-    .category-card:hover{border-color:var(--gold);transform:translateY(-2px)}
-    .category-card:active{transform:scale(0.98)}
-    .category-card.has-image{border-color:var(--gold)}
-    .category-card .check-badge{position:absolute;top:8px;right:8px;width:22px;height:22px;background:var(--gold);color:#fff;border-radius:50%;font-size:12px;display:none;align-items:center;justify-content:center}
-    .category-card.has-image .check-badge{display:flex}
-    .category-card .remove-btn{position:absolute;top:8px;left:8px;width:24px;height:24px;background:rgba(239,68,68,.9);color:#fff;border:none;border-radius:50%;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;transition:all .2s;box-shadow:0 2px 6px rgba(0,0,0,.2)}
-    .category-card.has-image .remove-btn{display:flex}
-    .category-card .remove-btn:hover{background:#dc2626;transform:scale(1.1)}
-    .category-icon{font-size:32px;margin-bottom:8px;display:block}
-    .category-name{font-size:14px;font-weight:600;color:var(--charcoal);margin-bottom:2px}
-    .category-desc{font-size:10px;color:var(--gray)}
-    .category-preview{width:100%;height:70px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:none}
-    .category-card.has-image .category-preview{display:block}
-    .category-card.has-image .category-icon{display:none}
-    .file-input{display:none}
+      /* Category Grid */
+      .category-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .category-card {
+        background: var(--white);
+        border: 2px solid var(--warm);
+        border-radius: 16px;
+        padding: 20px 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+      }
+      .category-card:hover {
+        border-color: var(--gold);
+        transform: translateY(-2px);
+      }
+      .category-card:active {
+        transform: scale(0.98);
+      }
+      .category-card.has-image {
+        border-color: var(--gold);
+      }
+      .category-card .check-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 22px;
+        height: 22px;
+        background: var(--gold);
+        color: #fff;
+        border-radius: 50%;
+        font-size: 12px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .category-card.has-image .check-badge {
+        display: flex;
+      }
+      .category-card .remove-btn {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        width: 24px;
+        height: 24px;
+        background: rgba(239, 68, 68, 0.9);
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        font-size: 14px;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transition: all 0.2s;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      }
+      .category-card.has-image .remove-btn {
+        display: flex;
+      }
+      .category-card .remove-btn:hover {
+        background: #dc2626;
+        transform: scale(1.1);
+      }
+      .category-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+        display: block;
+      }
+      .category-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--charcoal);
+        margin-bottom: 2px;
+      }
+      .category-desc {
+        font-size: 10px;
+        color: var(--gray);
+      }
+      .category-preview {
+        width: 100%;
+        height: 70px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        display: none;
+      }
+      .category-card.has-image .category-preview {
+        display: block;
+      }
+      .category-card.has-image .category-icon {
+        display: none;
+      }
+      .file-input {
+        display: none;
+      }
 
-    /* Selected Count Badge */
-    .selected-count{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--gold);color:#fff;border-radius:20px;font-size:13px;margin-bottom:20px}
-    .selected-count.hidden{display:none}
+      /* Selected Count Badge */
+      .selected-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: var(--gold);
+        color: #fff;
+        border-radius: 20px;
+        font-size: 13px;
+        margin-bottom: 20px;
+      }
+      .selected-count.hidden {
+        display: none;
+      }
 
-    /* Style Selector */
-    .style-selector{display:flex;justify-content:center;gap:10px;margin-bottom:24px;flex-wrap:wrap;padding:0 10px}
-    .style-chip{padding:10px 16px;background:var(--white);border:1px solid var(--warm);border-radius:20px;font-size:13px;cursor:pointer;transition:all .3s;white-space:nowrap}
-    .style-chip:hover{border-color:var(--gold)}
-    .style-chip:active{transform:scale(0.95)}
-    .style-chip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+      /* Style Selector */
+      .style-selector {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        padding: 0 10px;
+      }
+      .style-chip {
+        padding: 10px 16px;
+        background: var(--white);
+        border: 1px solid var(--warm);
+        border-radius: 20px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s;
+        white-space: nowrap;
+      }
+      .style-chip:hover {
+        border-color: var(--gold);
+      }
+      .style-chip:active {
+        transform: scale(0.95);
+      }
+      .style-chip.active {
+        background: var(--gold);
+        color: #fff;
+        border-color: var(--gold);
+      }
 
-    /* Single Generate Button */
-    .generate-section{text-align:center;margin-bottom:32px}
-    .generate-btn{width:100%;max-width:400px;padding:18px 32px;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;transition:all .3s;display:inline-flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#fff;box-shadow:0 4px 20px rgba(184,149,108,.3)}
-    .generate-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 28px rgba(184,149,108,.4)}
-    .generate-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
-    .generate-btn .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
+      /* Single Generate Button */
+      .generate-section {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      .generate-btn {
+        width: 100%;
+        max-width: 400px;
+        padding: 18px 32px;
+        border: none;
+        border-radius: 14px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: linear-gradient(135deg, var(--gold), var(--gold-light));
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(184, 149, 108, 0.3);
+      }
+      .generate-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 28px rgba(184, 149, 108, 0.4);
+      }
+      .generate-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .generate-btn .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-    /* Progress Steps */
-    .progress-steps{display:none;margin-bottom:24px;padding:20px;background:var(--cream);border-radius:16px}
-    .progress-steps.active{display:block}
-    .step-list{display:flex;justify-content:space-between;position:relative;margin-bottom:16px}
-    .step-list::before{content:'';position:absolute;top:15px;left:10%;right:10%;height:2px;background:var(--warm)}
-    .step{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;z-index:1}
-    .step-icon{width:32px;height:32px;border-radius:50%;background:var(--warm);display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .3s}
-    .step.active .step-icon{background:var(--gold);color:#fff}
-    .step.done .step-icon{background:#10b981;color:#fff}
-    .step-label{font-size:11px;color:var(--gray);text-align:center}
-    .step.active .step-label{color:var(--charcoal);font-weight:600}
-    .progress-text{text-align:center;font-size:13px;color:var(--charcoal)}
+      /* Progress Steps */
+      .progress-steps {
+        display: none;
+        margin-bottom: 24px;
+        padding: 20px;
+        background: var(--cream);
+        border-radius: 16px;
+      }
+      .progress-steps.active {
+        display: block;
+      }
+      .step-list {
+        display: flex;
+        justify-content: space-between;
+        position: relative;
+        margin-bottom: 16px;
+      }
+      .step-list::before {
+        content: '';
+        position: absolute;
+        top: 15px;
+        left: 10%;
+        right: 10%;
+        height: 2px;
+        background: var(--warm);
+      }
+      .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        position: relative;
+        z-index: 1;
+      }
+      .step-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--warm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        transition: all 0.3s;
+      }
+      .step.active .step-icon {
+        background: var(--gold);
+        color: #fff;
+      }
+      .step.done .step-icon {
+        background: #10b981;
+        color: #fff;
+      }
+      .step-label {
+        font-size: 11px;
+        color: var(--gray);
+        text-align: center;
+      }
+      .step.active .step-label {
+        color: var(--charcoal);
+        font-weight: 600;
+      }
+      .progress-text {
+        text-align: center;
+        font-size: 13px;
+        color: var(--charcoal);
+      }
 
-    /* Result Section */
-    .result-section{background:var(--cream);border-radius:20px;padding:24px;min-height:300px}
-    
-    .result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
-    .result-header h2{font-size:18px;display:flex;align-items:center;gap:10px}
-    .result-header h2 span{font-size:11px;padding:4px 10px;background:var(--gold);color:#fff;border-radius:10px;font-family:sans-serif}
-    .result-actions{display:flex;gap:8px}
-    .result-btn{padding:10px 14px;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;transition:all .3s;display:flex;align-items:center;gap:6px}
-    .result-btn.download{background:var(--charcoal);color:#fff;border:none}
-    .result-btn.download:hover{background:var(--gold)}
-    .result-btn.share{background:transparent;color:var(--charcoal);border:1px solid var(--charcoal)}
-    .result-btn.share:hover{background:var(--charcoal);color:#fff}
-    .result-btn:disabled{opacity:.5;cursor:not-allowed}
+      /* Result Section */
+      .result-section {
+        background: var(--cream);
+        border-radius: 20px;
+        padding: 24px;
+        min-height: 300px;
+      }
 
-    /* Page Navigation */
-    .page-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:20px}
-    .page-nav.hidden{display:none}
-    .page-arrow{width:40px;height:40px;border-radius:50%;border:1px solid var(--warm);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s}
-    .page-arrow:hover:not(:disabled){background:var(--gold);border-color:var(--gold);color:#fff}
-    .page-arrow:disabled{opacity:.4;cursor:not-allowed}
-    .page-arrow svg{width:20px;height:20px}
-    .page-indicator{display:flex;gap:8px;align-items:center}
-    .page-dot{width:10px;height:10px;border-radius:50%;background:var(--warm);cursor:pointer;transition:all .3s}
-    .page-dot.active{background:var(--gold);width:24px;border-radius:5px}
-    .page-dot:hover{background:var(--gold)}
-    .page-info{font-size:14px;color:var(--gray);min-width:60px;text-align:center}
-    .page-info span{color:var(--charcoal);font-weight:600}
+      .result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .result-header h2 {
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .result-header h2 span {
+        font-size: 11px;
+        padding: 4px 10px;
+        background: var(--gold);
+        color: #fff;
+        border-radius: 10px;
+        font-family: sans-serif;
+      }
+      .result-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .result-btn {
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .result-btn.download {
+        background: var(--charcoal);
+        color: #fff;
+        border: none;
+      }
+      .result-btn.download:hover {
+        background: var(--gold);
+      }
+      .result-btn.share {
+        background: transparent;
+        color: var(--charcoal);
+        border: 1px solid var(--charcoal);
+      }
+      .result-btn.share:hover {
+        background: var(--charcoal);
+        color: #fff;
+      }
+      .result-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-    /* Result Pages */
-    .result-pages{position:relative;overflow:hidden}
-    .result-page{display:none}
-    .result-page.active{display:block;animation:fadeIn .3s ease}
-    @keyframes fadeIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+      /* Page Navigation */
+      .page-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .page-nav.hidden {
+        display: none;
+      }
+      .page-arrow {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px solid var(--warm);
+        background: var(--white);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+      }
+      .page-arrow:hover:not(:disabled) {
+        background: var(--gold);
+        border-color: var(--gold);
+        color: #fff;
+      }
+      .page-arrow:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .page-arrow svg {
+        width: 20px;
+        height: 20px;
+      }
+      .page-indicator {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .page-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--warm);
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .page-dot.active {
+        background: var(--gold);
+        width: 24px;
+        border-radius: 5px;
+      }
+      .page-dot:hover {
+        background: var(--gold);
+      }
+      .page-info {
+        font-size: 14px;
+        color: var(--gray);
+        min-width: 60px;
+        text-align: center;
+      }
+      .page-info span {
+        color: var(--charcoal);
+        font-weight: 600;
+      }
 
-    .page-category{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:var(--white);border-radius:12px;margin-bottom:16px;font-size:14px;font-weight:600;color:var(--charcoal);box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .page-category .icon{font-size:20px}
+      /* Result Pages */
+      .result-pages {
+        position: relative;
+        overflow: hidden;
+      }
+      .result-page {
+        display: none;
+      }
+      .result-page.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateX(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
 
-    .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-    .result-card{background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05)}
-    .result-card-header{padding:10px 14px;background:var(--white);border-bottom:1px solid var(--warm);display:flex;align-items:center;gap:6px}
-    .result-card-header .dot{width:8px;height:8px;border-radius:50%}
-    .result-card-header .dot.before{background:#ef4444}
-    .result-card-header .dot.after{background:#10b981}
-    .result-card-header span{font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
-    .result-card img{width:100%;height:220px;object-fit:cover;display:block}
-    
-    /* ═══ 인스타그램 스타일 이미지 뷰어 + 화살표 네비게이션 ═══ */
-    .render-image-container{background:#fff;border-radius:16px;overflow:hidden;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.1);position:relative}
-    .render-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #eee}
-    .render-status{font-size:14px;font-weight:600;color:#f59e0b;transition:color .3s}
-    .render-status.closed{color:#3b82f6}
-    .render-status.open{color:#10b981}
-    .render-status.original{color:#f59e0b}
-    .render-hint{font-size:11px;color:#999}
-    .render-image-wrapper{position:relative;width:100%;padding-top:80%;background:#fafafa;overflow:hidden}
-    .render-main-image{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;transition:opacity .2s}
-    
-    /* 좌우 화살표 버튼 */
-    .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;color:#333;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .2s;z-index:10}
-    .nav-arrow:hover{background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2)}
-    .nav-arrow.left{left:12px}
-    .nav-arrow.right{right:12px}
-    .nav-arrow:active{transform:translateY(-50%) scale(0.95)}
-    
-    /* 이미지 인디케이터 (점) */
-    .image-indicators{display:flex;justify-content:center;gap:6px;padding:12px}
-    .indicator-dot{width:8px;height:8px;border-radius:50%;background:#ddd;transition:all .2s;cursor:pointer}
-    .indicator-dot.active{background:#333;width:20px;border-radius:4px}
-    
-    /* Wall Analysis in Result - 상세 버전 */
-    .wall-analysis-box{background:var(--white);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
-    .wall-analysis-box h4{font-size:13px;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
-    .wall-analysis-box h4 .badge{font-size:10px;padding:2px 8px;background:var(--charcoal);color:#fff;border-radius:8px;font-family:sans-serif}
-    
-    .dimension-display{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(184,149,108,.08),rgba(212,184,150,.08));border-radius:12px}
-    .dimension-item{text-align:center}
-    .dimension-item .value{font-size:20px;font-weight:700;color:var(--charcoal)}
-    .dimension-item .unit{font-size:11px;color:var(--gold);font-weight:600}
-    .dimension-item .label{font-size:10px;color:var(--gray);margin-top:2px}
-    
-    .wall-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
-    .wall-info-item{background:var(--cream);padding:10px 12px;border-radius:10px}
-    .wall-info-item .label{font-size:10px;color:var(--gray);margin-bottom:4px}
-    .wall-info-item .value{font-size:13px;font-weight:600;color:var(--charcoal)}
-    
-    .install-zone{background:linear-gradient(90deg,var(--gold),var(--gold-light));color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:12px}
-    .install-zone .title{font-size:11px;opacity:.8;margin-bottom:4px}
-    .install-zone .dims{font-size:15px;font-weight:700}
-    
-    .obstacles-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-    .obstacle-tag{padding:6px 10px;background:var(--cream);border-radius:8px;font-size:11px;color:var(--charcoal);display:flex;align-items:center;gap:4px}
-    .obstacle-tag.warning{background:#fef3c7;color:#92400e}
-    
-    .wall-features{display:flex;flex-wrap:wrap;gap:6px}
-    .wall-feature{padding:4px 10px;background:var(--cream);border-radius:8px;font-size:10px;color:var(--gray)}
-    .wall-feature.detected{background:var(--gold);color:#fff}
-    
-    .bg-refresh-box{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:10px;padding:12px;margin-top:12px}
-    .bg-refresh-box h5{font-size:11px;color:#166534;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-    .bg-refresh-item{font-size:11px;color:#15803d;padding:4px 0}
+      .page-category {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--white);
+        border-radius: 12px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--charcoal);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      }
+      .page-category .icon {
+        font-size: 20px;
+      }
 
-    .result-analysis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .analysis-card{background:var(--white);border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-    .analysis-card h4{font-size:12px;color:var(--gold);margin-bottom:6px;display:flex;align-items:center;gap:6px;font-family:inherit}
-    .analysis-card p{font-size:12px;color:var(--charcoal);line-height:1.6}
+      .result-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .result-card {
+        background: var(--white);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .result-card-header {
+        padding: 10px 14px;
+        background: var(--white);
+        border-bottom: 1px solid var(--warm);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .result-card-header .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .result-card-header .dot.before {
+        background: #ef4444;
+      }
+      .result-card-header .dot.after {
+        background: #10b981;
+      }
+      .result-card-header span {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .result-card img {
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        display: block;
+      }
 
-    /* Placeholder & Loading */
-    .result-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px;color:var(--gray)}
-    .result-placeholder .icon{font-size:56px;margin-bottom:16px;opacity:.4}
-    .result-placeholder h3{font-size:17px;color:var(--charcoal);margin-bottom:8px;font-family:inherit}
-    .result-placeholder p{font-size:13px;max-width:300px}
-    .result-placeholder.hidden{display:none}
+      /* ═══ 인스타그램 스타일 이미지 뷰어 + 화살표 네비게이션 ═══ */
+      .render-image-container {
+        background: #fff;
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        position: relative;
+      }
+      .render-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: #fff;
+        border-bottom: 1px solid #eee;
+      }
+      .render-status {
+        font-size: 14px;
+        font-weight: 600;
+        color: #f59e0b;
+        transition: color 0.3s;
+      }
+      .render-status.closed {
+        color: #3b82f6;
+      }
+      .render-status.open {
+        color: #10b981;
+      }
+      .render-status.original {
+        color: #f59e0b;
+      }
+      .render-hint {
+        font-size: 11px;
+        color: #999;
+      }
+      .render-image-wrapper {
+        position: relative;
+        width: 100%;
+        padding-top: 80%;
+        background: #fafafa;
+        overflow: hidden;
+      }
+      .render-main-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: opacity 0.2s;
+      }
 
-    .result-loading{display:none;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center}
-    .result-loading.active{display:flex}
-    .result-loading .spinner{width:48px;height:48px;border:3px solid var(--warm);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:20px}
-    .result-loading h3{font-size:17px;color:var(--charcoal);margin-bottom:8px}
-    .result-loading p{font-size:13px;color:var(--gray)}
+      /* 좌우 화살표 버튼 */
+      .nav-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 44px;
+        height: 44px;
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: #333;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        transition: all 0.2s;
+        z-index: 10;
+      }
+      .nav-arrow:hover {
+        background: #fff;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+      .nav-arrow.left {
+        left: 12px;
+      }
+      .nav-arrow.right {
+        right: 12px;
+      }
+      .nav-arrow:active {
+        transform: translateY(-50%) scale(0.95);
+      }
 
-    /* Footer */
-    .footer{padding:48px;background:var(--charcoal);color:#fff;margin-top:60px}
-    .footer-content{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
-    .footer-brand{display:flex;align-items:center;gap:8px}
-    .footer-brand svg{width:24px;height:24px}
-    .footer-brand span{font-family:'Playfair Display',serif;font-size:18px}
-    .footer-links{display:flex;gap:24px}
-    .footer-links a{color:rgba(255,255,255,.6);font-size:13px;transition:color .3s}
-    .footer-links a:hover{color:#fff}
-    .footer-copy{text-align:center;margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.1);font-size:11px;color:rgba(255,255,255,.4)}
+      /* 이미지 인디케이터 (점) */
+      .image-indicators {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        padding: 12px;
+      }
+      .indicator-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ddd;
+        transition: all 0.2s;
+        cursor: pointer;
+      }
+      .indicator-dot.active {
+        background: #333;
+        width: 20px;
+        border-radius: 4px;
+      }
 
-    /* Toast */
-    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--charcoal);color:#fff;padding:14px 24px;border-radius:12px;font-size:14px;z-index:1000;transition:transform .3s;max-width:90%}
-    .toast.show{transform:translateX(-50%) translateY(0)}
-    .toast.success{background:#10b981}
-    .toast.error{background:#ef4444}
+      /* Wall Analysis in Result - 상세 버전 */
+      .wall-analysis-box {
+        background: var(--white);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .wall-analysis-box h4 {
+        font-size: 13px;
+        color: var(--gold);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .wall-analysis-box h4 .badge {
+        font-size: 10px;
+        padding: 2px 8px;
+        background: var(--charcoal);
+        color: #fff;
+        border-radius: 8px;
+        font-family: sans-serif;
+      }
 
-    /* Responsive */
-    @media(max-width:1024px){
-      .nav{padding:0 32px}
-      .hero{padding:100px 32px 28px}
-      .main-container{padding:0 20px 50px}
-    }
+      .dimension-display {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+        padding: 16px;
+        background: linear-gradient(135deg, rgba(184, 149, 108, 0.08), rgba(212, 184, 150, 0.08));
+        border-radius: 12px;
+      }
+      .dimension-item {
+        text-align: center;
+      }
+      .dimension-item .value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--charcoal);
+      }
+      .dimension-item .unit {
+        font-size: 11px;
+        color: var(--gold);
+        font-weight: 600;
+      }
+      .dimension-item .label {
+        font-size: 10px;
+        color: var(--gray);
+        margin-top: 2px;
+      }
 
-    @media(max-width:768px){
-      .nav{padding:0 16px;height:64px}
-      .nav-logo span{font-size:20px}
-      .nav-menu{display:none}
-      .hamburger{display:flex}
-      
-      .hero{padding:84px 16px 20px}
-      .hero h1{font-size:28px}
-      .hero p{font-size:14px}
-      
-      .main-container{padding:0 12px 40px}
-      
-      .chat-box{margin-bottom:20px}
-      .chat-messages{height:80px}
-      
-      .category-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
-      .category-card{padding:14px 10px}
-      .category-icon{font-size:26px}
-      .category-name{font-size:13px}
-      .category-desc{font-size:9px}
-      .category-preview{height:60px}
-      
-      .style-selector{gap:8px;overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start;padding:0 12px 8px;-webkit-overflow-scrolling:touch}
-      .style-chip{padding:8px 14px;font-size:12px;flex-shrink:0}
-      
-      .generate-btn{padding:16px 24px;font-size:15px}
-      
-      .step-label{font-size:10px}
-      
-      .result-section{padding:16px}
-      .result-grid{grid-template-columns:1fr}
-      .result-card img{height:180px}
-      .result-analysis{grid-template-columns:1fr}
-      .wall-info-grid{grid-template-columns:1fr 1fr}
-      
-      .page-nav{gap:8px}
-      .page-arrow{width:36px;height:36px}
-      
-      .footer{padding:32px 16px}
-      .footer-content{flex-direction:column;gap:20px;text-align:center}
-      .footer-links{flex-wrap:wrap;justify-content:center}
-    }
+      .wall-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .wall-info-item {
+        background: var(--cream);
+        padding: 10px 12px;
+        border-radius: 10px;
+      }
+      .wall-info-item .label {
+        font-size: 10px;
+        color: var(--gray);
+        margin-bottom: 4px;
+      }
+      .wall-info-item .value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--charcoal);
+      }
 
-    @media(max-width:480px){
-      .nav{height:56px}
-      .hero{padding:72px 12px 16px}
-      .hero h1{font-size:24px}
-      .category-grid{gap:8px}
-      .category-icon{font-size:22px}
-      .category-name{font-size:12px}
-      .category-desc{display:none}
-      .category-preview{height:50px}
-      .result-card img{height:150px}
-      .wall-info-grid{grid-template-columns:1fr}
-    }
+      .install-zone {
+        background: linear-gradient(90deg, var(--gold), var(--gold-light));
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+      }
+      .install-zone .title {
+        font-size: 11px;
+        opacity: 0.8;
+        margin-bottom: 4px;
+      }
+      .install-zone .dims {
+        font-size: 15px;
+        font-weight: 700;
+      }
 
-    @media(hover:none){
-      .category-card:hover{transform:none}
-      .generate-btn:hover:not(:disabled){transform:none}
-    }
+      .obstacles-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .obstacle-tag {
+        padding: 6px 10px;
+        background: var(--cream);
+        border-radius: 8px;
+        font-size: 11px;
+        color: var(--charcoal);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .obstacle-tag.warning {
+        background: #fef3c7;
+        color: #92400e;
+      }
 
-    @supports(padding:max(0px)){
-      .nav{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
-      .main-container{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
-      .toast{bottom:max(24px,env(safe-area-inset-bottom))}
-    }
-  </style>
-</head>
-<body>
-  <!-- SVG Symbols -->
-  <svg style="display:none">
-    <symbol id="icon-logo" viewBox="0 0 40 40"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></symbol>
-    <symbol id="icon-ai" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/></symbol>
-    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
-    <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
-    <symbol id="icon-sparkle" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></symbol>
-    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
-    <symbol id="icon-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></symbol>
-    <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
-    <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
-  </svg>
+      .wall-features {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .wall-feature {
+        padding: 4px 10px;
+        background: var(--cream);
+        border-radius: 8px;
+        font-size: 10px;
+        color: var(--gray);
+      }
+      .wall-feature.detected {
+        background: var(--gold);
+        color: #fff;
+      }
 
-  <!-- Navigation -->
-  <nav class="nav">
-    <a href="index.html" class="nav-logo">
-      <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
-      <span>다담</span>
-    </a>
-    <div class="nav-menu">
-      <a href="index.html">홈</a>
-      <a href="ai-design.html" class="active">AI 설계</a>
-      <a href="consultation.html">상담 신청</a>
-    </div>
-    <div class="nav-icons">
-      <!-- 비로그인 상태 -->
-      <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-      <!-- 로그인 상태 -->
-      <div class="user-menu" id="userMenu" style="display:none">
-        <button class="user-btn">
-          <div class="user-avatar" id="navUserAvatar">?</div>
-          <span class="user-name" id="navUserName">사용자</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="user-dropdown">
-          <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
-          <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>내 설계</a>
-          <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
-        </div>
-      </div>
-      <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </div>
-  </nav>
+      .bg-refresh-box {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border: 1px solid #86efac;
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 12px;
+      }
+      .bg-refresh-box h5 {
+        font-size: 11px;
+        color: #166534;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .bg-refresh-item {
+        font-size: 11px;
+        color: #15803d;
+        padding: 4px 0;
+      }
 
-  <!-- Mobile Menu -->
-  <div class="mobile-menu" id="mobileMenu">
-    <a href="index.html">홈</a>
-    <a href="ai-design.html" class="active" style="background:var(--cream)">AI 설계</a>
-    <a href="consultation.html">상담 신청</a>
-    <a href="mypage.html">마이페이지</a>
-    <a href="my-designs.html">내 설계</a>
-    <a href="login.html" id="mobileLoginLink" style="background:var(--charcoal);color:#fff;text-align:center;margin-top:16px">로그인 / 회원가입</a>
-    <a href="#" id="mobileLogoutLink" onclick="logout();return false;" style="display:none;color:var(--gray);margin-top:16px;border-top:1px solid var(--warm);padding-top:24px">로그아웃</a>
-  </div>
+      .result-analysis {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .analysis-card {
+        background: var(--white);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      }
+      .analysis-card h4 {
+        font-size: 12px;
+        color: var(--gold);
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: inherit;
+      }
+      .analysis-card p {
+        font-size: 12px;
+        color: var(--charcoal);
+        line-height: 1.6;
+      }
 
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-badge">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-sparkle"/></svg>
-      AI-Powered Design
-    </div>
-    <h1>AI <span>설계</span> 시스템</h1>
-    <p>사진 한 장으로 맞춤 가구를 디자인하세요</p>
-  </section>
+      /* Placeholder & Loading */
+      .result-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--gray);
+      }
+      .result-placeholder .icon {
+        font-size: 56px;
+        margin-bottom: 16px;
+        opacity: 0.4;
+      }
+      .result-placeholder h3 {
+        font-size: 17px;
+        color: var(--charcoal);
+        margin-bottom: 8px;
+        font-family: inherit;
+      }
+      .result-placeholder p {
+        font-size: 13px;
+        max-width: 300px;
+      }
+      .result-placeholder.hidden {
+        display: none;
+      }
 
-  <!-- Main Container -->
-  <main class="main-container">
-    
-    <!-- AI Chat Box -->
-    <div class="chat-box">
-      <div class="chat-header">
-        <div class="chat-header-icon">
-          <svg><use href="#icon-ai"/></svg>
-        </div>
-        <div class="chat-header-text">
-          <h3>다담 AI 설계사</h3>
-          <p>맞춤 가구 설계 전문 AI</p>
-        </div>
-        <div class="chat-status">온라인</div>
-      </div>
-      <div class="chat-messages" id="chatMessages">
-        <div class="welcome-msg">
-          <strong>👋 안녕하세요!</strong>
-          카테고리를 선택하고 사진을 업로드해주세요.
-        </div>
-      </div>
-      <div class="chat-input">
-        <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter')sendMessage()">
-        <button onclick="sendMessage()" aria-label="전송">
-          <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send"/></svg>
-        </button>
-      </div>
-    </div>
+      .result-loading {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        text-align: center;
+      }
+      .result-loading.active {
+        display: flex;
+      }
+      .result-loading .spinner {
+        width: 48px;
+        height: 48px;
+        border: 3px solid var(--warm);
+        border-top-color: var(--gold);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+      }
+      .result-loading h3 {
+        font-size: 17px;
+        color: var(--charcoal);
+        margin-bottom: 8px;
+      }
+      .result-loading p {
+        font-size: 13px;
+        color: var(--gray);
+      }
 
-    <!-- Category Grid -->
-    <p class="section-title">카테고리 선택</p>
-    <p class="section-subtitle">💡 여러 개 선택 가능 - 클릭하여 사진 업로드</p>
-    
-    <div style="text-align:center">
-      <div class="selected-count hidden" id="selectedCount">📷 <span>0</span>개 이미지 업로드됨</div>
-    </div>
-    
-    <div class="category-grid">
-      <div class="category-card" data-category="sink" onclick="selectCategory('sink')">
-        <button class="remove-btn" onclick="removeImage('sink', event)" title="삭제">✕</button>
-        <div class="check-badge">✓</div>
-        <img class="category-preview" id="preview-sink" src="" alt="">
-        <span class="category-icon">🍳</span>
-        <div class="category-name">싱크대</div>
-        <div class="category-desc">주방 싱크대 & 상하부장</div>
-      </div>
-      <div class="category-card" data-category="wardrobe" onclick="selectCategory('wardrobe')">
-        <button class="remove-btn" onclick="removeImage('wardrobe', event)" title="삭제">✕</button>
-        <div class="check-badge">✓</div>
-        <img class="category-preview" id="preview-wardrobe" src="" alt="">
-        <span class="category-icon">👔</span>
-        <div class="category-name">붙박이장</div>
-        <div class="category-desc">옷장 & 수납 시스템</div>
-      </div>
-      <div class="category-card" data-category="fridge" onclick="selectCategory('fridge')">
-        <button class="remove-btn" onclick="removeImage('fridge', event)" title="삭제">✕</button>
-        <div class="check-badge">✓</div>
-        <img class="category-preview" id="preview-fridge" src="" alt="">
-        <span class="category-icon">🧊</span>
-        <div class="category-name">냉장고장</div>
-        <div class="category-desc">냉장고장 & 키큰장</div>
-      </div>
-      <div class="category-card" data-category="vanity" onclick="selectCategory('vanity')">
-        <button class="remove-btn" onclick="removeImage('vanity', event)" title="삭제">✕</button>
-        <div class="check-badge">✓</div>
-        <img class="category-preview" id="preview-vanity" src="" alt="">
-        <span class="category-icon">💄</span>
-        <div class="category-name">화장대</div>
-        <div class="category-desc">드레서 & 화장대</div>
-      </div>
-      <div class="category-card" data-category="shoe" onclick="selectCategory('shoe')">
-        <button class="remove-btn" onclick="removeImage('shoe', event)" title="삭제">✕</button>
-        <div class="check-badge">✓</div>
-        <img class="category-preview" id="preview-shoe" src="" alt="">
-        <span class="category-icon">👟</span>
-        <div class="category-name">신발장</div>
-        <div class="category-desc">현관 신발장 & 수납</div>
-      </div>
-      <div class="category-card" data-category="storage" onclick="selectCategory('storage')">
-        <button class="remove-btn" onclick="removeImage('storage', event)" title="삭제">✕</button>
-        <div class="check-badge">✓</div>
-        <img class="category-preview" id="preview-storage" src="" alt="">
-        <span class="category-icon">📦</span>
-        <div class="category-name">자유 수납장</div>
-        <div class="category-desc">다용도 수납 가구</div>
-      </div>
-    </div>
+      /* Footer */
+      .footer {
+        padding: 48px;
+        background: var(--charcoal);
+        color: #fff;
+        margin-top: 60px;
+      }
+      .footer-content {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .footer-brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .footer-brand svg {
+        width: 24px;
+        height: 24px;
+      }
+      .footer-brand span {
+        font-family: 'Playfair Display', serif;
+        font-size: 18px;
+      }
+      .footer-links {
+        display: flex;
+        gap: 24px;
+      }
+      .footer-links a {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 13px;
+        transition: color 0.3s;
+      }
+      .footer-links a:hover {
+        color: #fff;
+      }
+      .footer-copy {
+        text-align: center;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.4);
+      }
 
-    <!-- Hidden File Inputs -->
-    <input type="file" class="file-input" id="file-sink" accept="image/*" onchange="handleFileUpload('sink', this)">
-    <input type="file" class="file-input" id="file-wardrobe" accept="image/*" onchange="handleFileUpload('wardrobe', this)">
-    <input type="file" class="file-input" id="file-fridge" accept="image/*" onchange="handleFileUpload('fridge', this)">
-    <input type="file" class="file-input" id="file-vanity" accept="image/*" onchange="handleFileUpload('vanity', this)">
-    <input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFileUpload('shoe', this)">
-    <input type="file" class="file-input" id="file-storage" accept="image/*" onchange="handleFileUpload('storage', this)">
+      /* Toast */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        background: var(--charcoal);
+        color: #fff;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        z-index: 1000;
+        transition: transform 0.3s;
+        max-width: 90%;
+      }
+      .toast.show {
+        transform: translateX(-50%) translateY(0);
+      }
+      .toast.success {
+        background: #10b981;
+      }
+      .toast.error {
+        background: #ef4444;
+      }
 
-    <!-- Style Selector -->
-    <div class="style-selector">
-      <div class="style-chip active" data-style="모던미니멀" onclick="selectStyle(this)">◻️ 모던미니멀</div>
-      <div class="style-chip" data-style="스칸디나비안" onclick="selectStyle(this)">🌲 스칸디나비안</div>
-      <div class="style-chip" data-style="인더스트리얼" onclick="selectStyle(this)">🏭 인더스트리얼</div>
-      <div class="style-chip" data-style="럭셔리" onclick="selectStyle(this)">✨ 럭셔리</div>
-    </div>
+      /* Responsive */
+      @media (max-width: 1024px) {
+        .nav {
+          padding: 0 32px;
+        }
+        .hero {
+          padding: 100px 32px 28px;
+        }
+        .main-container {
+          padding: 0 20px 50px;
+        }
+      }
 
-    <!-- Single Generate Button -->
-    <div class="generate-section">
-      <button class="generate-btn" id="generateBtn" onclick="startGeneration()" disabled>
-        ✨ AI 디자인 생성하기
-      </button>
-    </div>
+      @media (max-width: 768px) {
+        .nav {
+          padding: 0 16px;
+          height: 64px;
+        }
+        .nav-logo span {
+          font-size: 20px;
+        }
+        .nav-menu {
+          display: none;
+        }
+        .hamburger {
+          display: flex;
+        }
 
-    <!-- Progress Steps -->
-    <div class="progress-steps" id="progressSteps">
-      <div class="step-list">
-        <div class="step" id="step1">
-          <div class="step-icon">1</div>
-          <div class="step-label">이미지 분석</div>
-        </div>
-        <div class="step" id="step2">
-          <div class="step-icon">2</div>
-          <div class="step-label">벽 구조 파악</div>
-        </div>
-        <div class="step" id="step3">
-          <div class="step-icon">3</div>
-          <div class="step-label">디자인 생성</div>
-        </div>
-        <div class="step" id="step4">
-          <div class="step-icon">4</div>
-          <div class="step-label">완료</div>
-        </div>
-      </div>
-      <p class="progress-text" id="progressText">준비 중...</p>
-    </div>
+        .hero {
+          padding: 84px 16px 20px;
+        }
+        .hero h1 {
+          font-size: 28px;
+        }
+        .hero p {
+          font-size: 14px;
+        }
 
-    <!-- Result Section -->
-    <section class="result-section">
-      <div class="result-header">
-        <h2>🖼️ 리디자인 결과 <span>AI Generated</span></h2>
-        <div class="result-actions">
-          <button class="result-btn download" id="downloadBtn" onclick="downloadCurrentImage()" disabled>
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-download"/></svg>
-            다운로드
-          </button>
-          <button class="result-btn share" id="shareBtn" onclick="shareResult()" disabled>
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-share"/></svg>
-            공유
-          </button>
-        </div>
-      </div>
+        .main-container {
+          padding: 0 12px 40px;
+        }
 
-      <!-- Page Navigation -->
-      <div class="page-nav hidden" id="pageNav">
-        <button class="page-arrow" id="prevPage" onclick="changePage(-1)">
-          <svg><use href="#icon-chevron-left"/></svg>
-        </button>
-        <div class="page-indicator" id="pageIndicator"></div>
-        <div class="page-info"><span id="currentPage">1</span> / <span id="totalPages">1</span></div>
-        <button class="page-arrow" id="nextPage" onclick="changePage(1)">
-          <svg><use href="#icon-chevron-right"/></svg>
-        </button>
-      </div>
+        .chat-box {
+          margin-bottom: 20px;
+        }
+        .chat-messages {
+          height: 80px;
+        }
 
-      <!-- Placeholder -->
-      <div class="result-placeholder" id="resultPlaceholder">
-        <div class="icon">🎨</div>
-        <h3>디자인 결과가 여기에 표시됩니다</h3>
-        <p>카테고리를 선택하고 사진을 업로드한 후 생성 버튼을 눌러주세요</p>
-      </div>
+        .category-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+          margin-bottom: 20px;
+        }
+        .category-card {
+          padding: 14px 10px;
+        }
+        .category-icon {
+          font-size: 26px;
+        }
+        .category-name {
+          font-size: 13px;
+        }
+        .category-desc {
+          font-size: 9px;
+        }
+        .category-preview {
+          height: 60px;
+        }
 
-      <!-- Loading -->
-      <div class="result-loading" id="resultLoading">
-        <div class="spinner"></div>
-        <h3 id="loadingTitle">AI가 분석 중...</h3>
-        <p id="loadingText">잠시만 기다려주세요</p>
-      </div>
+        .style-selector {
+          gap: 8px;
+          overflow-x: auto;
+          flex-wrap: nowrap;
+          justify-content: flex-start;
+          padding: 0 12px 8px;
+          -webkit-overflow-scrolling: touch;
+        }
+        .style-chip {
+          padding: 8px 14px;
+          font-size: 12px;
+          flex-shrink: 0;
+        }
 
-      <!-- Result Pages Container -->
-      <div class="result-pages" id="resultPages"></div>
-    </section>
+        .generate-btn {
+          padding: 16px 24px;
+          font-size: 15px;
+        }
 
-  </main>
+        .step-label {
+          font-size: 10px;
+        }
 
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="footer-content">
-      <a href="index.html" class="footer-brand">
-        <svg fill="currentColor"><use href="#icon-logo"/></svg>
+        .result-section {
+          padding: 16px;
+        }
+        .result-grid {
+          grid-template-columns: 1fr;
+        }
+        .result-card img {
+          height: 180px;
+        }
+        .result-analysis {
+          grid-template-columns: 1fr;
+        }
+        .wall-info-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .page-nav {
+          gap: 8px;
+        }
+        .page-arrow {
+          width: 36px;
+          height: 36px;
+        }
+
+        .footer {
+          padding: 32px 16px;
+        }
+        .footer-content {
+          flex-direction: column;
+          gap: 20px;
+          text-align: center;
+        }
+        .footer-links {
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .nav {
+          height: 56px;
+        }
+        .hero {
+          padding: 72px 12px 16px;
+        }
+        .hero h1 {
+          font-size: 24px;
+        }
+        .category-grid {
+          gap: 8px;
+        }
+        .category-icon {
+          font-size: 22px;
+        }
+        .category-name {
+          font-size: 12px;
+        }
+        .category-desc {
+          display: none;
+        }
+        .category-preview {
+          height: 50px;
+        }
+        .result-card img {
+          height: 150px;
+        }
+        .wall-info-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (hover: none) {
+        .category-card:hover {
+          transform: none;
+        }
+        .generate-btn:hover:not(:disabled) {
+          transform: none;
+        }
+      }
+
+      @supports (padding: max(0px)) {
+        .nav {
+          padding-left: max(16px, env(safe-area-inset-left));
+          padding-right: max(16px, env(safe-area-inset-right));
+        }
+        .main-container {
+          padding-left: max(12px, env(safe-area-inset-left));
+          padding-right: max(12px, env(safe-area-inset-right));
+        }
+        .toast {
+          bottom: max(24px, env(safe-area-inset-bottom));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- SVG Symbols -->
+    <svg style="display: none">
+      <symbol id="icon-logo" viewBox="0 0 40 40">
+        <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+      </symbol>
+      <symbol id="icon-ai" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"
+        />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </symbol>
+      <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></symbol>
+      <symbol id="icon-sparkle" viewBox="0 0 24 24">
+        <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" />
+      </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+      </symbol>
+      <symbol id="icon-share" viewBox="0 0 24 24">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" />
+      </symbol>
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" />
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" />
+      </symbol>
+    </svg>
+
+    <!-- Navigation -->
+    <nav class="nav">
+      <a href="index.html" class="nav-logo">
+        <svg viewBox="0 0 40 40" fill="currentColor">
+          <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+        </svg>
         <span>다담</span>
       </a>
-      <div class="footer-links">
+      <div class="nav-menu">
         <a href="index.html">홈</a>
-        <a href="#">제품</a>
-        <a href="#">시공사례</a>
-        <a href="#">쇼룸</a>
-        <a href="#">고객센터</a>
+        <a href="ai-design.html" class="active">AI 설계</a>
+        <a href="consultation.html">상담 신청</a>
       </div>
+      <div class="nav-icons">
+        <!-- 비로그인 상태 -->
+        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
+        <!-- 로그인 상태 -->
+        <div class="user-menu" id="userMenu" style="display: none">
+          <button class="user-btn">
+            <div class="user-avatar" id="navUserAvatar">?</div>
+            <span class="user-name" id="navUserName">사용자</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div class="user-dropdown">
+            <a href="mypage.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" /></svg
+              >마이페이지</a
+            >
+            <a href="my-designs.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" /></svg
+              >내 설계</a
+            >
+            <button onclick="logout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" /></svg
+              >로그아웃
+            </button>
+          </div>
+        </div>
+        <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="index.html">홈</a>
+      <a href="ai-design.html" class="active" style="background: var(--cream)">AI 설계</a>
+      <a href="consultation.html">상담 신청</a>
+      <a href="mypage.html">마이페이지</a>
+      <a href="my-designs.html">내 설계</a>
+      <a
+        href="login.html"
+        id="mobileLoginLink"
+        style="background: var(--charcoal); color: #fff; text-align: center; margin-top: 16px"
+        >로그인 / 회원가입</a
+      >
+      <a
+        href="#"
+        id="mobileLogoutLink"
+        onclick="
+          logout();
+          return false;
+        "
+        style="
+          display: none;
+          color: var(--gray);
+          margin-top: 16px;
+          border-top: 1px solid var(--warm);
+          padding-top: 24px;
+        "
+        >로그아웃</a
+      >
     </div>
-    <p class="footer-copy">© 2024 다담가구. All rights reserved.</p>
-  </footer>
 
-  <!-- Toast -->
-  <div class="toast" id="toast"></div>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-badge">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <use href="#icon-sparkle" />
+        </svg>
+        AI-Powered Design
+      </div>
+      <h1>AI <span>설계</span> 시스템</h1>
+      <p>사진 한 장으로 맞춤 가구를 디자인하세요</p>
+    </section>
 
-  <script>
-    // ═══════════════════════════════════════════════════════════════
-    // Supabase 초기화 및 인증 상태 확인
-    // ═══════════════════════════════════════════════════════════════
-    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
-    let supabaseClient = null;
+    <!-- Main Container -->
+    <main class="main-container">
+      <!-- AI Chat Box -->
+      <div class="chat-box">
+        <div class="chat-header">
+          <div class="chat-header-icon">
+            <svg><use href="#icon-ai" /></svg>
+          </div>
+          <div class="chat-header-text">
+            <h3>다담 AI 설계사</h3>
+            <p>맞춤 가구 설계 전문 AI</p>
+          </div>
+          <div class="chat-status">온라인</div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="welcome-msg">
+            <strong>👋 안녕하세요!</strong>
+            카테고리를 선택하고 사진을 업로드해주세요.
+          </div>
+        </div>
+        <div class="chat-input">
+          <input
+            type="text"
+            id="messageInput"
+            placeholder="메시지를 입력하세요..."
+            onkeydown="if (event.key === 'Enter') sendMessage();"
+          />
+          <button onclick="sendMessage()" aria-label="전송">
+            <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send" /></svg>
+          </button>
+        </div>
+      </div>
 
-    (async function initAuth() {
-      try {
-        if (typeof window.supabase !== 'undefined') {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          const { data: { session } } = await supabaseClient.auth.getSession();
+      <!-- Category Grid -->
+      <p class="section-title">카테고리 선택</p>
+      <p class="section-subtitle">💡 여러 개 선택 가능 - 클릭하여 사진 업로드</p>
 
-          if (session) {
-            const user = session.user;
-            const meta = user.user_metadata || {};
-            const tier = meta.tier || 'standard';
+      <div style="text-align: center">
+        <div class="selected-count hidden" id="selectedCount">📷 <span>0</span>개 이미지 업로드됨</div>
+      </div>
 
-            // 네비게이션 사용자 정보 표시
-            document.getElementById('loginLink').style.display = 'none';
-            document.getElementById('userMenu').style.display = 'block';
-            document.getElementById('mobileLoginLink').style.display = 'none';
-            document.getElementById('mobileLogoutLink').style.display = 'block';
+      <div class="category-grid">
+        <div class="category-card" data-category="sink" onclick="selectCategory('sink')">
+          <button class="remove-btn" onclick="removeImage('sink', event)" title="삭제">✕</button>
+          <div class="check-badge">✓</div>
+          <img class="category-preview" id="preview-sink" src="" alt="" />
+          <span class="category-icon">🍳</span>
+          <div class="category-name">싱크대</div>
+          <div class="category-desc">주방 싱크대 & 상하부장</div>
+        </div>
+        <div class="category-card" data-category="wardrobe" onclick="selectCategory('wardrobe')">
+          <button class="remove-btn" onclick="removeImage('wardrobe', event)" title="삭제">✕</button>
+          <div class="check-badge">✓</div>
+          <img class="category-preview" id="preview-wardrobe" src="" alt="" />
+          <span class="category-icon">👔</span>
+          <div class="category-name">붙박이장</div>
+          <div class="category-desc">옷장 & 수납 시스템</div>
+        </div>
+        <div class="category-card" data-category="fridge" onclick="selectCategory('fridge')">
+          <button class="remove-btn" onclick="removeImage('fridge', event)" title="삭제">✕</button>
+          <div class="check-badge">✓</div>
+          <img class="category-preview" id="preview-fridge" src="" alt="" />
+          <span class="category-icon">🧊</span>
+          <div class="category-name">냉장고장</div>
+          <div class="category-desc">냉장고장 & 키큰장</div>
+        </div>
+        <div class="category-card" data-category="vanity" onclick="selectCategory('vanity')">
+          <button class="remove-btn" onclick="removeImage('vanity', event)" title="삭제">✕</button>
+          <div class="check-badge">✓</div>
+          <img class="category-preview" id="preview-vanity" src="" alt="" />
+          <span class="category-icon">💄</span>
+          <div class="category-name">화장대</div>
+          <div class="category-desc">드레서 & 화장대</div>
+        </div>
+        <div class="category-card" data-category="shoe" onclick="selectCategory('shoe')">
+          <button class="remove-btn" onclick="removeImage('shoe', event)" title="삭제">✕</button>
+          <div class="check-badge">✓</div>
+          <img class="category-preview" id="preview-shoe" src="" alt="" />
+          <span class="category-icon">👟</span>
+          <div class="category-name">신발장</div>
+          <div class="category-desc">현관 신발장 & 수납</div>
+        </div>
+        <div class="category-card" data-category="storage" onclick="selectCategory('storage')">
+          <button class="remove-btn" onclick="removeImage('storage', event)" title="삭제">✕</button>
+          <div class="check-badge">✓</div>
+          <img class="category-preview" id="preview-storage" src="" alt="" />
+          <span class="category-icon">📦</span>
+          <div class="category-name">자유 수납장</div>
+          <div class="category-desc">다용도 수납 가구</div>
+        </div>
+      </div>
 
-            const name = meta.name || meta.full_name || user.email.split('@')[0];
-            document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
-            document.getElementById('navUserName').textContent = name;
+      <!-- Hidden File Inputs -->
+      <input type="file" class="file-input" id="file-sink" accept="image/*" onchange="handleFileUpload('sink', this)" />
+      <input
+        type="file"
+        class="file-input"
+        id="file-wardrobe"
+        accept="image/*"
+        onchange="handleFileUpload('wardrobe', this)"
+      />
+      <input
+        type="file"
+        class="file-input"
+        id="file-fridge"
+        accept="image/*"
+        onchange="handleFileUpload('fridge', this)"
+      />
+      <input
+        type="file"
+        class="file-input"
+        id="file-vanity"
+        accept="image/*"
+        onchange="handleFileUpload('vanity', this)"
+      />
+      <input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFileUpload('shoe', this)" />
+      <input
+        type="file"
+        class="file-input"
+        id="file-storage"
+        accept="image/*"
+        onchange="handleFileUpload('storage', this)"
+      />
 
-            // Expert 또는 Business 등급은 상세 설계 페이지로 이동
-            if (tier === 'expert' || tier === 'business') {
-              window.location.href = 'detaildesign.html';
-              return;
+      <!-- Style Selector -->
+      <div class="style-selector">
+        <div class="style-chip active" data-style="모던미니멀" onclick="selectStyle(this)">◻️ 모던미니멀</div>
+        <div class="style-chip" data-style="스칸디나비안" onclick="selectStyle(this)">🌲 스칸디나비안</div>
+        <div class="style-chip" data-style="인더스트리얼" onclick="selectStyle(this)">🏭 인더스트리얼</div>
+        <div class="style-chip" data-style="럭셔리" onclick="selectStyle(this)">✨ 럭셔리</div>
+      </div>
+
+      <!-- Single Generate Button -->
+      <div class="generate-section">
+        <button class="generate-btn" id="generateBtn" onclick="startGeneration()" disabled>
+          ✨ AI 디자인 생성하기
+        </button>
+      </div>
+
+      <!-- Progress Steps -->
+      <div class="progress-steps" id="progressSteps">
+        <div class="step-list">
+          <div class="step" id="step1">
+            <div class="step-icon">1</div>
+            <div class="step-label">이미지 분석</div>
+          </div>
+          <div class="step" id="step2">
+            <div class="step-icon">2</div>
+            <div class="step-label">벽 구조 파악</div>
+          </div>
+          <div class="step" id="step3">
+            <div class="step-icon">3</div>
+            <div class="step-label">디자인 생성</div>
+          </div>
+          <div class="step" id="step4">
+            <div class="step-icon">4</div>
+            <div class="step-label">완료</div>
+          </div>
+        </div>
+        <p class="progress-text" id="progressText">준비 중...</p>
+      </div>
+
+      <!-- Result Section -->
+      <section class="result-section">
+        <div class="result-header">
+          <h2>🖼️ 리디자인 결과 <span>AI Generated</span></h2>
+          <div class="result-actions">
+            <button class="result-btn download" id="downloadBtn" onclick="downloadCurrentImage()" disabled>
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <use href="#icon-download" />
+              </svg>
+              다운로드
+            </button>
+            <button class="result-btn share" id="shareBtn" onclick="shareResult()" disabled>
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <use href="#icon-share" />
+              </svg>
+              공유
+            </button>
+          </div>
+        </div>
+
+        <!-- Page Navigation -->
+        <div class="page-nav hidden" id="pageNav">
+          <button class="page-arrow" id="prevPage" onclick="changePage(-1)">
+            <svg><use href="#icon-chevron-left" /></svg>
+          </button>
+          <div class="page-indicator" id="pageIndicator"></div>
+          <div class="page-info"><span id="currentPage">1</span> / <span id="totalPages">1</span></div>
+          <button class="page-arrow" id="nextPage" onclick="changePage(1)">
+            <svg><use href="#icon-chevron-right" /></svg>
+          </button>
+        </div>
+
+        <!-- Placeholder -->
+        <div class="result-placeholder" id="resultPlaceholder">
+          <div class="icon">🎨</div>
+          <h3>디자인 결과가 여기에 표시됩니다</h3>
+          <p>카테고리를 선택하고 사진을 업로드한 후 생성 버튼을 눌러주세요</p>
+        </div>
+
+        <!-- Loading -->
+        <div class="result-loading" id="resultLoading">
+          <div class="spinner"></div>
+          <h3 id="loadingTitle">AI가 분석 중...</h3>
+          <p id="loadingText">잠시만 기다려주세요</p>
+        </div>
+
+        <!-- Result Pages Container -->
+        <div class="result-pages" id="resultPages"></div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-content">
+        <a href="index.html" class="footer-brand">
+          <svg fill="currentColor"><use href="#icon-logo" /></svg>
+          <span>다담</span>
+        </a>
+        <div class="footer-links">
+          <a href="index.html">홈</a>
+          <a href="#">제품</a>
+          <a href="#">시공사례</a>
+          <a href="#">쇼룸</a>
+          <a href="#">고객센터</a>
+        </div>
+      </div>
+      <p class="footer-copy">© 2024 다담가구. All rights reserved.</p>
+    </footer>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+      // ═══════════════════════════════════════════════════════════════
+      // Supabase 초기화 및 인증 상태 확인
+      // ═══════════════════════════════════════════════════════════════
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+      let supabaseClient = null;
+
+      (async function initAuth() {
+        try {
+          if (typeof window.supabase !== 'undefined') {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            const {
+              data: { session },
+            } = await supabaseClient.auth.getSession();
+
+            if (session) {
+              const user = session.user;
+              const meta = user.user_metadata || {};
+              const tier = meta.tier || 'standard';
+
+              // 네비게이션 사용자 정보 표시
+              document.getElementById('loginLink').style.display = 'none';
+              document.getElementById('userMenu').style.display = 'block';
+              document.getElementById('mobileLoginLink').style.display = 'none';
+              document.getElementById('mobileLogoutLink').style.display = 'block';
+
+              const name = meta.name || meta.full_name || user.email.split('@')[0];
+              document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
+              document.getElementById('navUserName').textContent = name;
+
+              // Expert 또는 Business 등급은 상세 설계 페이지로 이동
+              if (tier === 'expert' || tier === 'business') {
+                window.location.href = 'detaildesign.html';
+                return;
+              }
             }
           }
+        } catch (e) {
+          console.log('Auth check error:', e.message);
         }
-      } catch (e) {
-        console.log('Auth check error:', e.message);
+      })();
+
+      // 로그아웃 함수
+      async function logout() {
+        if (!supabaseClient) return;
+        await supabaseClient.auth.signOut();
+        window.location.href = 'index.html';
       }
-    })();
 
-    // 로그아웃 함수
-    async function logout() {
-      if (!supabaseClient) return;
-      await supabaseClient.auth.signOut();
-      window.location.href = 'index.html';
-    }
+      // ═══════════════════════════════════════════════════════════════
+      // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
+      // ═══════════════════════════════════════════════════════════════
+      const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+      const N8N_INTERIOR_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
+      const N8N_WALL_ANALYSIS_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
 
-    // ═══════════════════════════════════════════════════════════════
-    // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
-    // ═══════════════════════════════════════════════════════════════
-    const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
-    const N8N_INTERIOR_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
-    const N8N_WALL_ANALYSIS_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
-
-    // ═══════════════════════════════════════════════════════════════
-    // 상세 공간 분석 프롬프트 (Claude Vision용)
-    // ═══════════════════════════════════════════════════════════════
-    const DETAILED_ANALYSIS_PROMPT = `당신은 전문 3D 건축 모델러이자 인테리어 측량 전문가입니다. 
+      // ═══════════════════════════════════════════════════════════════
+      // 상세 공간 분석 프롬프트 (Claude Vision용)
+      // ═══════════════════════════════════════════════════════════════
+      const DETAILED_ANALYSIS_PROMPT = `당신은 전문 3D 건축 모델러이자 인테리어 측량 전문가입니다. 
 이 공간 이미지를 정밀 분석하여 맞춤 가구 설치를 위한 상세 정보를 추출하세요.
 
 ## 분석 지침
@@ -766,16 +2081,16 @@
   "additional_notes": "추가 관찰 사항"
 }`;
 
-    // ═══════════════════════════════════════════════════════════════
-    // DALL-E 배경 보정 프롬프트 생성
-    // ═══════════════════════════════════════════════════════════════
-    function generateDesignPrompt(category, style, wallAnalysis) {
-      const info = categoryInfo[category];
-      
-      let basePrompt = `Professional interior design photo of a modern Korean apartment with ${info.name} (${category}) installation. Style: ${style}.`;
-      
-      // 배경 보정 지시
-      let backgroundPrompt = `
+      // ═══════════════════════════════════════════════════════════════
+      // DALL-E 배경 보정 프롬프트 생성
+      // ═══════════════════════════════════════════════════════════════
+      function generateDesignPrompt(category, style, wallAnalysis) {
+        const info = categoryInfo[category];
+
+        let basePrompt = `Professional interior design photo of a modern Korean apartment with ${info.name} (${category}) installation. Style: ${style}.`;
+
+        // 배경 보정 지시
+        let backgroundPrompt = `
 BACKGROUND REQUIREMENTS:
 - Clean, pristine walls with smooth matte finish
 - Fresh, modern wallpaper or paint (light gray or warm white tones)
@@ -784,39 +2099,39 @@ BACKGROUND REQUIREMENTS:
 - Soft natural lighting from windows
 - Minimalist, clutter-free space`;
 
-      // 벽 분석 결과 반영
-      if (wallAnalysis) {
-        const dims = wallAnalysis.space_analysis?.estimated_dimensions;
-        const constraints = wallAnalysis.installation_constraints;
-        const bgCond = wallAnalysis.background_condition;
-        
-        if (dims) {
-          basePrompt += ` Room dimensions approximately ${dims.total_width_mm/1000}m wide, ${dims.ceiling_height_mm/1000}m ceiling height.`;
-        }
-        
-        if (constraints) {
-          basePrompt += ` Cabinet dimensions: ${constraints.recommended_cabinet_width_mm}mm wide, ${constraints.recommended_cabinet_height_mm}mm tall, ${constraints.recommended_cabinet_depth_mm}mm deep.`;
-        }
-        
-        if (bgCond?.suggested_wall_style) {
-          backgroundPrompt += `\n- Wall style: ${bgCond.suggested_wall_style}`;
-        }
-        if (bgCond?.suggested_floor_style) {
-          backgroundPrompt += `\n- Floor style: ${bgCond.suggested_floor_style}`;
-        }
-      }
+        // 벽 분석 결과 반영
+        if (wallAnalysis) {
+          const dims = wallAnalysis.space_analysis?.estimated_dimensions;
+          const constraints = wallAnalysis.installation_constraints;
+          const bgCond = wallAnalysis.background_condition;
 
-      // 카테고리별 특화 프롬프트
-      const categoryPrompts = {
-        sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
-        wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, internal LED lighting, mix of hanging space and shelves.`,
-        fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
-        vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
-        shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
-        storage: `Custom storage solution with adjustable shelves, clean doors, organized interior compartments.`
-      };
+          if (dims) {
+            basePrompt += ` Room dimensions approximately ${dims.total_width_mm / 1000}m wide, ${dims.ceiling_height_mm / 1000}m ceiling height.`;
+          }
 
-      const fullPrompt = `${basePrompt}
+          if (constraints) {
+            basePrompt += ` Cabinet dimensions: ${constraints.recommended_cabinet_width_mm}mm wide, ${constraints.recommended_cabinet_height_mm}mm tall, ${constraints.recommended_cabinet_depth_mm}mm deep.`;
+          }
+
+          if (bgCond?.suggested_wall_style) {
+            backgroundPrompt += `\n- Wall style: ${bgCond.suggested_wall_style}`;
+          }
+          if (bgCond?.suggested_floor_style) {
+            backgroundPrompt += `\n- Floor style: ${bgCond.suggested_floor_style}`;
+          }
+        }
+
+        // 카테고리별 특화 프롬프트
+        const categoryPrompts = {
+          sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
+          wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, internal LED lighting, mix of hanging space and shelves.`,
+          fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
+          vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
+          shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
+          storage: `Custom storage solution with adjustable shelves, clean doors, organized interior compartments.`,
+        };
+
+        const fullPrompt = `${basePrompt}
 
 ${categoryPrompts[category] || ''}
 
@@ -827,357 +2142,362 @@ ${getStyleDetails(style)}
 
 QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K quality, perfect lighting, architectural visualization.`;
 
-      return fullPrompt;
-    }
+        return fullPrompt;
+      }
 
-    function getStyleDetails(style) {
-      const styles = {
-        '모던': 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes.',
-        '스칸디나비안': 'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere.',
-        '인더스트리얼': 'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures.',
-        '미니멀': 'Essential elements only, maximum whitespace, handleless design, flush surfaces, monochromatic palette, zen-like simplicity.',
-        '럭셔리': 'Premium materials, gold/brass accents, rich textures, marble elements, sophisticated lighting, high-end finishes.'
-      };
-      return styles[style] || styles['모던'];
-    }
-    
-    // ═══════════════════════════════════════════════════════════════
-    // State
-    // ═══════════════════════════════════════════════════════════════
-    const state = {
-      selectedStyle: '모던미니멀',
-      uploadedImages: {},
-      results: [],
-      currentPage: 0
-    };
-
-    const categoryInfo = {
-      sink: { name: '싱크대', icon: '🍳' },
-      wardrobe: { name: '붙박이장', icon: '👔' },
-      fridge: { name: '냉장고장', icon: '🧊' },
-      vanity: { name: '화장대', icon: '💄' },
-      shoe: { name: '신발장', icon: '👟' },
-      storage: { name: '자유 수납장', icon: '📦' }
-    };
-
-    // ═══════════════════════════════════════════════════════════════
-    // Mobile Menu
-    // ═══════════════════════════════════════════════════════════════
-    function toggleMobileMenu() {
-      const hamburger = document.querySelector('.hamburger');
-      const mobileMenu = document.getElementById('mobileMenu');
-      hamburger.classList.toggle('active');
-      mobileMenu.classList.toggle('active');
-      document.body.style.overflow = mobileMenu.classList.contains('active') ? 'hidden' : '';
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Category & File Upload
-    // ═══════════════════════════════════════════════════════════════
-    function selectCategory(category) {
-      document.getElementById(`file-${category}`).click();
-    }
-
-    function handleFileUpload(category, input) {
-      const file = input.files[0];
-      if (!file) return;
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64Full = e.target.result;
-        const base64Data = base64Full.split(',')[1];
-        
-        state.uploadedImages[category] = {
-          base64: base64Data,
-          preview: base64Full,
-          type: file.type || 'image/jpeg'
+      function getStyleDetails(style) {
+        const styles = {
+          모던: 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes.',
+          스칸디나비안:
+            'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere.',
+          인더스트리얼:
+            'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures.',
+          미니멀:
+            'Essential elements only, maximum whitespace, handleless design, flush surfaces, monochromatic palette, zen-like simplicity.',
+          럭셔리:
+            'Premium materials, gold/brass accents, rich textures, marble elements, sophisticated lighting, high-end finishes.',
         };
-        
-        document.getElementById(`preview-${category}`).src = base64Full;
-        document.querySelector(`[data-category="${category}"]`).classList.add('has-image');
-        
+        return styles[style] || styles['모던'];
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // State
+      // ═══════════════════════════════════════════════════════════════
+      const state = {
+        selectedStyle: '모던미니멀',
+        uploadedImages: {},
+        results: [],
+        currentPage: 0,
+      };
+
+      const categoryInfo = {
+        sink: { name: '싱크대', icon: '🍳' },
+        wardrobe: { name: '붙박이장', icon: '👔' },
+        fridge: { name: '냉장고장', icon: '🧊' },
+        vanity: { name: '화장대', icon: '💄' },
+        shoe: { name: '신발장', icon: '👟' },
+        storage: { name: '자유 수납장', icon: '📦' },
+      };
+
+      // ═══════════════════════════════════════════════════════════════
+      // Mobile Menu
+      // ═══════════════════════════════════════════════════════════════
+      function toggleMobileMenu() {
+        const hamburger = document.querySelector('.hamburger');
+        const mobileMenu = document.getElementById('mobileMenu');
+        hamburger.classList.toggle('active');
+        mobileMenu.classList.toggle('active');
+        document.body.style.overflow = mobileMenu.classList.contains('active') ? 'hidden' : '';
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Category & File Upload
+      // ═══════════════════════════════════════════════════════════════
+      function selectCategory(category) {
+        document.getElementById(`file-${category}`).click();
+      }
+
+      function handleFileUpload(category, input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64Full = e.target.result;
+          const base64Data = base64Full.split(',')[1];
+
+          state.uploadedImages[category] = {
+            base64: base64Data,
+            preview: base64Full,
+            type: file.type || 'image/jpeg',
+          };
+
+          document.getElementById(`preview-${category}`).src = base64Full;
+          document.querySelector(`[data-category="${category}"]`).classList.add('has-image');
+
+          updateSelectedCount();
+          updateButtons();
+
+          showToast(`${categoryInfo[category].name} 이미지 업로드 완료!`, 'success');
+          addChatMessage(
+            `${categoryInfo[category].icon} ${categoryInfo[category].name} 이미지가 추가되었습니다.`,
+            false
+          );
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function updateSelectedCount() {
+        const count = Object.keys(state.uploadedImages).length;
+        const countEl = document.getElementById('selectedCount');
+        countEl.querySelector('span').textContent = count;
+        countEl.classList.toggle('hidden', count === 0);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Remove Uploaded Image
+      // ═══════════════════════════════════════════════════════════════
+      function removeImage(category, event) {
+        event.stopPropagation(); // 카드 클릭 이벤트 전파 방지
+
+        if (!state.uploadedImages[category]) return;
+
+        // state에서 삭제
+        delete state.uploadedImages[category];
+
+        // UI 업데이트
+        const card = document.querySelector(`[data-category="${category}"]`);
+        card.classList.remove('has-image');
+
+        const preview = document.getElementById(`preview-${category}`);
+        preview.src = '';
+
+        // 파일 input 초기화
+        const fileInput = document.getElementById(`file-${category}`);
+        fileInput.value = '';
+
         updateSelectedCount();
         updateButtons();
-        
-        showToast(`${categoryInfo[category].name} 이미지 업로드 완료!`, 'success');
-        addChatMessage(`${categoryInfo[category].icon} ${categoryInfo[category].name} 이미지가 추가되었습니다.`, false);
-      };
-      reader.readAsDataURL(file);
-    }
 
-    function updateSelectedCount() {
-      const count = Object.keys(state.uploadedImages).length;
-      const countEl = document.getElementById('selectedCount');
-      countEl.querySelector('span').textContent = count;
-      countEl.classList.toggle('hidden', count === 0);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Remove Uploaded Image
-    // ═══════════════════════════════════════════════════════════════
-    function removeImage(category, event) {
-      event.stopPropagation(); // 카드 클릭 이벤트 전파 방지
-      
-      if (!state.uploadedImages[category]) return;
-      
-      // state에서 삭제
-      delete state.uploadedImages[category];
-      
-      // UI 업데이트
-      const card = document.querySelector(`[data-category="${category}"]`);
-      card.classList.remove('has-image');
-      
-      const preview = document.getElementById(`preview-${category}`);
-      preview.src = '';
-      
-      // 파일 input 초기화
-      const fileInput = document.getElementById(`file-${category}`);
-      fileInput.value = '';
-      
-      updateSelectedCount();
-      updateButtons();
-      
-      showToast(`${categoryInfo[category].name} 이미지가 삭제되었습니다.`, 'info');
-      addChatMessage(`${categoryInfo[category].icon} ${categoryInfo[category].name} 이미지가 삭제되었습니다.`, false);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Style Selection
-    // ═══════════════════════════════════════════════════════════════
-    function selectStyle(el) {
-      document.querySelectorAll('.style-chip').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
-      state.selectedStyle = el.dataset.style;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Button State
-    // ═══════════════════════════════════════════════════════════════
-    function updateButtons() {
-      const hasImages = Object.keys(state.uploadedImages).length > 0;
-      document.getElementById('generateBtn').disabled = !hasImages;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Progress Steps
-    // ═══════════════════════════════════════════════════════════════
-    function updateStep(stepNum, status, text) {
-      // status: 'active', 'done', ''
-      for (let i = 1; i <= 4; i++) {
-        const step = document.getElementById(`step${i}`);
-        step.classList.remove('active', 'done');
-        if (i < stepNum) step.classList.add('done');
-        if (i === stepNum) step.classList.add(status);
-      }
-      document.getElementById('progressText').textContent = text;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // MAIN GENERATION FLOW
-    // 이미지 업로드 → 벽 분석 → DALL-E3 생성 (분석 결과 반영)
-    // ═══════════════════════════════════════════════════════════════
-    async function startGeneration() {
-      const categories = Object.keys(state.uploadedImages);
-      if (categories.length === 0) {
-        showToast('이미지를 먼저 업로드해주세요.', 'error');
-        return;
+        showToast(`${categoryInfo[category].name} 이미지가 삭제되었습니다.`, 'info');
+        addChatMessage(`${categoryInfo[category].icon} ${categoryInfo[category].name} 이미지가 삭제되었습니다.`, false);
       }
 
-      const btn = document.getElementById('generateBtn');
-      const progressSteps = document.getElementById('progressSteps');
-      const placeholder = document.getElementById('resultPlaceholder');
-      const loading = document.getElementById('resultLoading');
-      const pagesContainer = document.getElementById('resultPages');
+      // ═══════════════════════════════════════════════════════════════
+      // Style Selection
+      // ═══════════════════════════════════════════════════════════════
+      function selectStyle(el) {
+        document.querySelectorAll('.style-chip').forEach((c) => c.classList.remove('active'));
+        el.classList.add('active');
+        state.selectedStyle = el.dataset.style;
+      }
 
-      btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> 생성 중...';
-      progressSteps.classList.add('active');
-      placeholder.classList.add('hidden');
-      pagesContainer.innerHTML = '';
-      loading.classList.add('active');
+      // ═══════════════════════════════════════════════════════════════
+      // Button State
+      // ═══════════════════════════════════════════════════════════════
+      function updateButtons() {
+        const hasImages = Object.keys(state.uploadedImages).length > 0;
+        document.getElementById('generateBtn').disabled = !hasImages;
+      }
 
-      state.results = [];
-      const total = categories.length;
+      // ═══════════════════════════════════════════════════════════════
+      // Progress Steps
+      // ═══════════════════════════════════════════════════════════════
+      function updateStep(stepNum, status, text) {
+        // status: 'active', 'done', ''
+        for (let i = 1; i <= 4; i++) {
+          const step = document.getElementById(`step${i}`);
+          step.classList.remove('active', 'done');
+          if (i < stepNum) step.classList.add('done');
+          if (i === stepNum) step.classList.add(status);
+        }
+        document.getElementById('progressText').textContent = text;
+      }
 
-      for (let i = 0; i < categories.length; i++) {
-        const category = categories[i];
-        const imageData = state.uploadedImages[category];
-        const info = categoryInfo[category];
+      // ═══════════════════════════════════════════════════════════════
+      // MAIN GENERATION FLOW
+      // 이미지 업로드 → 벽 분석 → DALL-E3 생성 (분석 결과 반영)
+      // ═══════════════════════════════════════════════════════════════
+      async function startGeneration() {
+        const categories = Object.keys(state.uploadedImages);
+        if (categories.length === 0) {
+          showToast('이미지를 먼저 업로드해주세요.', 'error');
+          return;
+        }
 
-        let wallAnalysis = null;
+        const btn = document.getElementById('generateBtn');
+        const progressSteps = document.getElementById('progressSteps');
+        const placeholder = document.getElementById('resultPlaceholder');
+        const loading = document.getElementById('resultLoading');
+        const pagesContainer = document.getElementById('resultPages');
 
-        // ═══════════════════════════════════════════════════════════
-        // STEP 1: 이미지 분석 시작
-        // ═══════════════════════════════════════════════════════════
-        updateStep(1, 'active', `${info.icon} ${info.name} 이미지 분석 중... (${i + 1}/${total})`);
-        document.getElementById('loadingTitle').textContent = `${info.icon} 이미지 분석 중...`;
-        document.getElementById('loadingText').textContent = `${i + 1} / ${total}`;
-        await sleep(500);
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner"></div> 생성 중...';
+        progressSteps.classList.add('active');
+        placeholder.classList.add('hidden');
+        pagesContainer.innerHTML = '';
+        loading.classList.add('active');
 
-        // ═══════════════════════════════════════════════════════════
-        // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
-        // ═══════════════════════════════════════════════════════════
-        updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
-        document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
+        state.results = [];
+        const total = categories.length;
 
-        try {
-          const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              room_image: imageData.base64,
-              image_type: imageData.type,
-              analysis_prompt: DETAILED_ANALYSIS_PROMPT,
-              category: category
-            })
-          });
+        for (let i = 0; i < categories.length; i++) {
+          const category = categories[i];
+          const imageData = state.uploadedImages[category];
+          const info = categoryInfo[category];
 
-          if (wallResponse.ok) {
-            let wallData = await wallResponse.json();
-            if (Array.isArray(wallData)) wallData = wallData[0];
-            wallAnalysis = wallData;
-            console.log('Wall Analysis:', wallAnalysis);
+          let wallAnalysis = null;
+
+          // ═══════════════════════════════════════════════════════════
+          // STEP 1: 이미지 분석 시작
+          // ═══════════════════════════════════════════════════════════
+          updateStep(1, 'active', `${info.icon} ${info.name} 이미지 분석 중... (${i + 1}/${total})`);
+          document.getElementById('loadingTitle').textContent = `${info.icon} 이미지 분석 중...`;
+          document.getElementById('loadingText').textContent = `${i + 1} / ${total}`;
+          await sleep(500);
+
+          // ═══════════════════════════════════════════════════════════
+          // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
+          // ═══════════════════════════════════════════════════════════
+          updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
+          document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
+
+          try {
+            const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                room_image: imageData.base64,
+                image_type: imageData.type,
+                analysis_prompt: DETAILED_ANALYSIS_PROMPT,
+                category: category,
+              }),
+            });
+
+            if (wallResponse.ok) {
+              let wallData = await wallResponse.json();
+              if (Array.isArray(wallData)) wallData = wallData[0];
+              wallAnalysis = wallData;
+              console.log('Wall Analysis:', wallAnalysis);
+            }
+          } catch (error) {
+            console.warn('Wall analysis failed, continuing without:', error);
+            // 벽 분석 실패해도 디자인 생성은 계속 진행
           }
-        } catch (error) {
-          console.warn('Wall analysis failed, continuing without:', error);
-          // 벽 분석 실패해도 디자인 생성은 계속 진행
+
+          // ═══════════════════════════════════════════════════════════
+          // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
+          // ═══════════════════════════════════════════════════════════
+          updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
+          document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
+
+          // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
+          const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
+          console.log('Design Prompt:', designPrompt);
+
+          try {
+            const response = await fetch(N8N_INTERIOR_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                room_image: imageData.base64,
+                image_type: imageData.type,
+                category: category,
+                design_style: state.selectedStyle,
+              }),
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            let data = await response.json();
+            if (Array.isArray(data)) data = data[0];
+
+            console.log('n8n Response:', data);
+
+            // 새 워크플로우 응답에서 이미지 추출 (닫힌 도어 + 열린 도어)
+            let afterImageUrl = '';
+            let afterImageUrlOpen = '';
+
+            if (data.generated_image) {
+              // 닫힌 도어 이미지
+              if (data.generated_image.closed && data.generated_image.closed.base64) {
+                const mimeType = data.generated_image.closed.mime_type || 'image/png';
+                afterImageUrl = `data:${mimeType};base64,${data.generated_image.closed.base64}`;
+              }
+              // 이전 형식 호환
+              else if (data.generated_image.base64) {
+                const mimeType = data.generated_image.mime_type || 'image/png';
+                afterImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
+              } else if (data.generated_image.url) {
+                afterImageUrl = data.generated_image.url;
+              }
+
+              // 열린 도어 이미지
+              if (data.generated_image.open && data.generated_image.open.base64) {
+                const mimeType = data.generated_image.open.mime_type || 'image/png';
+                afterImageUrlOpen = `data:${mimeType};base64,${data.generated_image.open.base64}`;
+              }
+            }
+
+            // 분석 결과 포맷팅
+            let analysisText = data.message || '분석 완료';
+            if (data.rag_rules_count) {
+              analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${data.style || state.selectedStyle} 스타일`;
+            }
+
+            // 제안 텍스트
+            let suggestionText = `${info.name} - 동일 제품 도어 열림/닫힘`;
+
+            state.results.push({
+              category,
+              beforeUrl: imageData.preview,
+              afterUrl: afterImageUrl,
+              afterUrlOpen: afterImageUrlOpen,
+              analysis: analysisText,
+              suggestions: suggestionText,
+              wallAnalysis: data.room_analysis || wallAnalysis,
+            });
+          } catch (error) {
+            console.error(`Error generating ${category}:`, error);
+            state.results.push({
+              category,
+              beforeUrl: imageData.preview,
+              afterUrl: '',
+              analysis: '생성 실패',
+              suggestions: error.message,
+              wallAnalysis: wallAnalysis,
+            });
+          }
         }
 
         // ═══════════════════════════════════════════════════════════
-        // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
+        // STEP 4: 완료
         // ═══════════════════════════════════════════════════════════
-        updateStep(3, 'active', `${info.icon} AI 디자인 생성 중...`);
-        document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
+        updateStep(4, 'done', '✅ 모든 디자인 생성 완료!');
 
-        // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
-        const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
-        console.log('Design Prompt:', designPrompt);
+        loading.classList.remove('active');
+        renderResultPages();
 
-        try {
-          const response = await fetch(N8N_INTERIOR_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              room_image: imageData.base64,
-              image_type: imageData.type,
-              category: category,
-              design_style: state.selectedStyle
-            })
-          });
+        btn.disabled = false;
+        btn.innerHTML = '✨ AI 디자인 생성하기';
+        updateButtons();
 
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        document.getElementById('downloadBtn').disabled = false;
+        document.getElementById('shareBtn').disabled = false;
 
-          let data = await response.json();
-          if (Array.isArray(data)) data = data[0];
-          
-          console.log('n8n Response:', data);
+        showToast(`${state.results.length}개 디자인 생성 완료!`, 'success');
+        addChatMessage(`🎉 ${state.results.length}개의 공간 디자인이 완료되었습니다!`, false);
 
-          // 새 워크플로우 응답에서 이미지 추출 (닫힌 도어 + 열린 도어)
-          let afterImageUrl = '';
-          let afterImageUrlOpen = '';
-          
-          if (data.generated_image) {
-            // 닫힌 도어 이미지
-            if (data.generated_image.closed && data.generated_image.closed.base64) {
-              const mimeType = data.generated_image.closed.mime_type || 'image/png';
-              afterImageUrl = `data:${mimeType};base64,${data.generated_image.closed.base64}`;
-            } 
-            // 이전 형식 호환
-            else if (data.generated_image.base64) {
-              const mimeType = data.generated_image.mime_type || 'image/png';
-              afterImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
-            }
-            else if (data.generated_image.url) {
-              afterImageUrl = data.generated_image.url;
-            }
-            
-            // 열린 도어 이미지
-            if (data.generated_image.open && data.generated_image.open.base64) {
-              const mimeType = data.generated_image.open.mime_type || 'image/png';
-              afterImageUrlOpen = `data:${mimeType};base64,${data.generated_image.open.base64}`;
-            }
-          }
-
-          // 분석 결과 포맷팅
-          let analysisText = data.message || '분석 완료';
-          if (data.rag_rules_count) {
-            analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${data.style || state.selectedStyle} 스타일`;
-          }
-
-          // 제안 텍스트
-          let suggestionText = `${info.name} - 동일 제품 도어 열림/닫힘`;
-
-          state.results.push({
-            category,
-            beforeUrl: imageData.preview,
-            afterUrl: afterImageUrl,
-            afterUrlOpen: afterImageUrlOpen,
-            analysis: analysisText,
-            suggestions: suggestionText,
-            wallAnalysis: data.room_analysis || wallAnalysis
-          });
-
-        } catch (error) {
-          console.error(`Error generating ${category}:`, error);
-          state.results.push({
-            category,
-            beforeUrl: imageData.preview,
-            afterUrl: '',
-            analysis: '생성 실패',
-            suggestions: error.message,
-            wallAnalysis: wallAnalysis
-          });
-        }
+        setTimeout(() => {
+          progressSteps.classList.remove('active');
+          document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
+        }, 1500);
       }
 
-      // ═══════════════════════════════════════════════════════════
-      // STEP 4: 완료
-      // ═══════════════════════════════════════════════════════════
-      updateStep(4, 'done', '✅ 모든 디자인 생성 완료!');
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
 
-      loading.classList.remove('active');
-      renderResultPages();
+      // ═══════════════════════════════════════════════════════════════
+      // RENDER RESULT PAGES (간소화 - 토글 이미지만)
+      // ═══════════════════════════════════════════════════════════════
+      function renderResultPages() {
+        const pagesContainer = document.getElementById('resultPages');
+        const pageNav = document.getElementById('pageNav');
+        const pageIndicator = document.getElementById('pageIndicator');
 
-      btn.disabled = false;
-      btn.innerHTML = '✨ AI 디자인 생성하기';
-      updateButtons();
+        pagesContainer.innerHTML = '';
 
-      document.getElementById('downloadBtn').disabled = false;
-      document.getElementById('shareBtn').disabled = false;
+        if (state.results.length === 0) return;
 
-      showToast(`${state.results.length}개 디자인 생성 완료!`, 'success');
-      addChatMessage(`🎉 ${state.results.length}개의 공간 디자인이 완료되었습니다!`, false);
+        state.results.forEach((result, index) => {
+          const page = document.createElement('div');
+          page.className = `result-page ${index === 0 ? 'active' : ''}`;
+          page.dataset.index = index;
 
-      setTimeout(() => {
-        progressSteps.classList.remove('active');
-        document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
-      }, 1500);
-    }
+          const info = categoryInfo[result.category];
 
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // RENDER RESULT PAGES (간소화 - 토글 이미지만)
-    // ═══════════════════════════════════════════════════════════════
-    function renderResultPages() {
-      const pagesContainer = document.getElementById('resultPages');
-      const pageNav = document.getElementById('pageNav');
-      const pageIndicator = document.getElementById('pageIndicator');
-
-      pagesContainer.innerHTML = '';
-
-      if (state.results.length === 0) return;
-
-      state.results.forEach((result, index) => {
-        const page = document.createElement('div');
-        page.className = `result-page ${index === 0 ? 'active' : ''}`;
-        page.dataset.index = index;
-
-        const info = categoryInfo[result.category];
-
-        page.innerHTML = `
+          page.innerHTML = `
           <div class="page-category">
             <span class="icon">${info.icon}</span>
             ${info.name}
@@ -1210,114 +2530,120 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           </div>
         `;
 
-        pagesContainer.appendChild(page);
-      });
+          pagesContainer.appendChild(page);
+        });
 
-      // Page navigation
-      if (state.results.length > 1) {
-        pageNav.classList.remove('hidden');
-        pageIndicator.innerHTML = state.results.map((_, i) => 
-          `<div class="page-dot ${i === 0 ? 'active' : ''}" onclick="goToPage(${i})"></div>`
-        ).join('');
-        document.getElementById('totalPages').textContent = state.results.length;
-        updatePageNav();
-      } else {
-        pageNav.classList.add('hidden');
-      }
-
-      state.currentPage = 0;
-    }
-
-    function formatDimension(value) {
-      if (!value || value === '-') return '-';
-      if (typeof value === 'number') {
-        return value.toLocaleString();
-      }
-      return value;
-    }
-
-    function getObstacleIcon(type) {
-      const icons = {
-        '문': '🚪', '창문': '🪟', '콘센트': '🔌', '배관': '🔧',
-        '에어컨': '❄️', '스위치': '💡', '환기구': '🌀', '기둥': '🏛️'
-      };
-      return icons[type] || '⚠️';
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Page Navigation
-    // ═══════════════════════════════════════════════════════════════
-    function changePage(delta) {
-      const newPage = state.currentPage + delta;
-      if (newPage >= 0 && newPage < state.results.length) {
-        goToPage(newPage);
-      }
-    }
-
-    function goToPage(index) {
-      state.currentPage = index;
-      document.querySelectorAll('.result-page').forEach((page, i) => {
-        page.classList.toggle('active', i === index);
-      });
-      document.querySelectorAll('.page-dot').forEach((dot, i) => {
-        dot.classList.toggle('active', i === index);
-      });
-      updatePageNav();
-    }
-
-    function updatePageNav() {
-      document.getElementById('currentPage').textContent = state.currentPage + 1;
-      document.getElementById('prevPage').disabled = state.currentPage === 0;
-      document.getElementById('nextPage').disabled = state.currentPage === state.results.length - 1;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Download & Share
-    // ═══════════════════════════════════════════════════════════════
-    function downloadCurrentImage() {
-      const result = state.results[state.currentPage];
-      if (!result?.afterUrl) {
-        showToast('다운로드할 이미지가 없습니다.', 'error');
-        return;
-      }
-      const link = document.createElement('a');
-      link.href = result.afterUrl;
-      link.target = '_blank';
-      link.download = `dadam-${result.category}-design.png`;
-      link.click();
-      showToast('이미지 다운로드 시작', 'success');
-    }
-
-    async function shareResult() {
-      const result = state.results[state.currentPage];
-      if (!result?.afterUrl) return;
-      try {
-        if (navigator.share) {
-          await navigator.share({
-            title: `다담가구 AI 리디자인 - ${categoryInfo[result.category].name}`,
-            text: `${categoryInfo[result.category].name}를 "${state.selectedStyle}" 스타일로 리디자인했어요!`,
-            url: result.afterUrl
-          });
+        // Page navigation
+        if (state.results.length > 1) {
+          pageNav.classList.remove('hidden');
+          pageIndicator.innerHTML = state.results
+            .map((_, i) => `<div class="page-dot ${i === 0 ? 'active' : ''}" onclick="goToPage(${i})"></div>`)
+            .join('');
+          document.getElementById('totalPages').textContent = state.results.length;
+          updatePageNav();
         } else {
-          await navigator.clipboard.writeText(result.afterUrl);
-          showToast('URL이 복사되었습니다.', 'success');
+          pageNav.classList.add('hidden');
         }
-      } catch (e) {
-        showToast('공유하기 실패', 'error');
+
+        state.currentPage = 0;
       }
-    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Chat
-    // ═══════════════════════════════════════════════════════════════
-    function addChatMessage(content, isUser = false) {
-      const chatMessages = document.getElementById('chatMessages');
-      const welcome = chatMessages.querySelector('.welcome-msg');
-      if (welcome) welcome.remove();
+      function formatDimension(value) {
+        if (!value || value === '-') return '-';
+        if (typeof value === 'number') {
+          return value.toLocaleString();
+        }
+        return value;
+      }
 
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
-      messageDiv.innerHTML = `
+      function getObstacleIcon(type) {
+        const icons = {
+          문: '🚪',
+          창문: '🪟',
+          콘센트: '🔌',
+          배관: '🔧',
+          에어컨: '❄️',
+          스위치: '💡',
+          환기구: '🌀',
+          기둥: '🏛️',
+        };
+        return icons[type] || '⚠️';
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Page Navigation
+      // ═══════════════════════════════════════════════════════════════
+      function changePage(delta) {
+        const newPage = state.currentPage + delta;
+        if (newPage >= 0 && newPage < state.results.length) {
+          goToPage(newPage);
+        }
+      }
+
+      function goToPage(index) {
+        state.currentPage = index;
+        document.querySelectorAll('.result-page').forEach((page, i) => {
+          page.classList.toggle('active', i === index);
+        });
+        document.querySelectorAll('.page-dot').forEach((dot, i) => {
+          dot.classList.toggle('active', i === index);
+        });
+        updatePageNav();
+      }
+
+      function updatePageNav() {
+        document.getElementById('currentPage').textContent = state.currentPage + 1;
+        document.getElementById('prevPage').disabled = state.currentPage === 0;
+        document.getElementById('nextPage').disabled = state.currentPage === state.results.length - 1;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Download & Share
+      // ═══════════════════════════════════════════════════════════════
+      function downloadCurrentImage() {
+        const result = state.results[state.currentPage];
+        if (!result?.afterUrl) {
+          showToast('다운로드할 이미지가 없습니다.', 'error');
+          return;
+        }
+        const link = document.createElement('a');
+        link.href = result.afterUrl;
+        link.target = '_blank';
+        link.download = `dadam-${result.category}-design.png`;
+        link.click();
+        showToast('이미지 다운로드 시작', 'success');
+      }
+
+      async function shareResult() {
+        const result = state.results[state.currentPage];
+        if (!result?.afterUrl) return;
+        try {
+          if (navigator.share) {
+            await navigator.share({
+              title: `다담가구 AI 리디자인 - ${categoryInfo[result.category].name}`,
+              text: `${categoryInfo[result.category].name}를 "${state.selectedStyle}" 스타일로 리디자인했어요!`,
+              url: result.afterUrl,
+            });
+          } else {
+            await navigator.clipboard.writeText(result.afterUrl);
+            showToast('URL이 복사되었습니다.', 'success');
+          }
+        } catch (e) {
+          showToast('공유하기 실패', 'error');
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Chat
+      // ═══════════════════════════════════════════════════════════════
+      function addChatMessage(content, isUser = false) {
+        const chatMessages = document.getElementById('chatMessages');
+        const welcome = chatMessages.querySelector('.welcome-msg');
+        if (welcome) welcome.remove();
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
+        messageDiv.innerHTML = `
         <div class="message-avatar">
           <svg fill="${isUser ? 'none' : 'currentColor'}" stroke="${isUser ? 'currentColor' : 'none'}" stroke-width="2">
             <use href="#icon-${isUser ? 'user' : 'ai'}"/>
@@ -1325,155 +2651,163 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         </div>
         <div class="message-content">${content}</div>
       `;
-      chatMessages.appendChild(messageDiv);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
 
-      const messages = chatMessages.querySelectorAll('.message');
-      if (messages.length > 3) messages[0].remove();
-    }
-
-    async function sendMessage() {
-      const input = document.getElementById('messageInput');
-      const message = input.value.trim();
-      if (!message) return;
-
-      addChatMessage(message, true);
-      input.value = '';
-
-      try {
-        const response = await fetch(N8N_CHAT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message })
-        });
-        const data = await response.json();
-        addChatMessage(data.response || data.output || '응답을 처리할 수 없습니다.', false);
-      } catch (error) {
-        addChatMessage('일시적인 오류가 발생했습니다.', false);
+        const messages = chatMessages.querySelectorAll('.message');
+        if (messages.length > 3) messages[0].remove();
       }
-    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Toast
-    // ═══════════════════════════════════════════════════════════════
-    function showToast(message, type = 'info') {
-      const toast = document.getElementById('toast');
-      toast.textContent = message;
-      toast.className = `toast ${type} show`;
-      setTimeout(() => toast.classList.remove('show'), 3000);
-    }
+      async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const message = input.value.trim();
+        if (!message) return;
 
-    // ═══════════════════════════════════════════════════════════════
-    // 🖼️ 이미지 화살표 네비게이션 (원본 ↔ 닫힘 ↔ 열림)
-    // ═══════════════════════════════════════════════════════════════
-    function goToImage(pageIndex, imageIndex) {
-      const img = document.getElementById(`renderImg_${pageIndex}`);
-      const status = document.getElementById(`status_${pageIndex}`);
-      if (!img) return;
-      
-      const images = [
-        { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
-        { url: img.dataset.closed, state: 'closed', label: '🚪 도어 닫힘', color: '#3b82f6' },
-        { url: img.dataset.open, state: 'open', label: '🚪 도어 열림', color: '#10b981' }
-      ];
-      
-      // 이미지가 없으면 스킵
-      if (!images[imageIndex].url) {
-        showToast('해당 이미지가 없습니다', 'warning');
-        return;
+        addChatMessage(message, true);
+        input.value = '';
+
+        try {
+          const response = await fetch(N8N_CHAT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+          });
+          const data = await response.json();
+          addChatMessage(data.response || data.output || '응답을 처리할 수 없습니다.', false);
+        } catch (error) {
+          addChatMessage('일시적인 오류가 발생했습니다.', false);
+        }
       }
-      
-      // 이미지 변경
-      img.style.opacity = '0.5';
-      setTimeout(() => {
-        img.src = images[imageIndex].url;
-        img.dataset.state = images[imageIndex].state;
-        img.dataset.index = imageIndex;
-        status.textContent = images[imageIndex].label;
-        status.style.color = images[imageIndex].color;
-        img.style.opacity = '1';
-        
-        // 인디케이터 업데이트
-        updateIndicators(pageIndex, imageIndex);
-      }, 100);
-    }
-    
-    function nextImage(pageIndex) {
-      const img = document.getElementById(`renderImg_${pageIndex}`);
-      if (!img) return;
-      let currentIndex = parseInt(img.dataset.index) || 0;
-      let nextIndex = currentIndex + 1;
-      
-      // 다음 유효한 이미지 찾기
-      const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
-      while (nextIndex < 3 && !images[nextIndex]) {
-        nextIndex++;
+
+      // ═══════════════════════════════════════════════════════════════
+      // Toast
+      // ═══════════════════════════════════════════════════════════════
+      function showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = `toast ${type} show`;
+        setTimeout(() => toast.classList.remove('show'), 3000);
       }
-      if (nextIndex >= 3) nextIndex = 0; // 처음으로
-      
-      goToImage(pageIndex, nextIndex);
-    }
-    
-    function prevImage(pageIndex) {
-      const img = document.getElementById(`renderImg_${pageIndex}`);
-      if (!img) return;
-      let currentIndex = parseInt(img.dataset.index) || 0;
-      let prevIndex = currentIndex - 1;
-      
-      // 이전 유효한 이미지 찾기
-      const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
-      while (prevIndex >= 0 && !images[prevIndex]) {
-        prevIndex--;
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🖼️ 이미지 화살표 네비게이션 (원본 ↔ 닫힘 ↔ 열림)
+      // ═══════════════════════════════════════════════════════════════
+      function goToImage(pageIndex, imageIndex) {
+        const img = document.getElementById(`renderImg_${pageIndex}`);
+        const status = document.getElementById(`status_${pageIndex}`);
+        if (!img) return;
+
+        const images = [
+          { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
+          { url: img.dataset.closed, state: 'closed', label: '🚪 도어 닫힘', color: '#3b82f6' },
+          { url: img.dataset.open, state: 'open', label: '🚪 도어 열림', color: '#10b981' },
+        ];
+
+        // 이미지가 없으면 스킵
+        if (!images[imageIndex].url) {
+          showToast('해당 이미지가 없습니다', 'warning');
+          return;
+        }
+
+        // 이미지 변경
+        img.style.opacity = '0.5';
+        setTimeout(() => {
+          img.src = images[imageIndex].url;
+          img.dataset.state = images[imageIndex].state;
+          img.dataset.index = imageIndex;
+          status.textContent = images[imageIndex].label;
+          status.style.color = images[imageIndex].color;
+          img.style.opacity = '1';
+
+          // 인디케이터 업데이트
+          updateIndicators(pageIndex, imageIndex);
+        }, 100);
       }
-      if (prevIndex < 0) {
-        // 마지막 유효한 이미지로
-        prevIndex = 2;
+
+      function nextImage(pageIndex) {
+        const img = document.getElementById(`renderImg_${pageIndex}`);
+        if (!img) return;
+        let currentIndex = parseInt(img.dataset.index) || 0;
+        let nextIndex = currentIndex + 1;
+
+        // 다음 유효한 이미지 찾기
+        const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
+        while (nextIndex < 3 && !images[nextIndex]) {
+          nextIndex++;
+        }
+        if (nextIndex >= 3) nextIndex = 0; // 처음으로
+
+        goToImage(pageIndex, nextIndex);
+      }
+
+      function prevImage(pageIndex) {
+        const img = document.getElementById(`renderImg_${pageIndex}`);
+        if (!img) return;
+        let currentIndex = parseInt(img.dataset.index) || 0;
+        let prevIndex = currentIndex - 1;
+
+        // 이전 유효한 이미지 찾기
+        const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
         while (prevIndex >= 0 && !images[prevIndex]) {
           prevIndex--;
         }
+        if (prevIndex < 0) {
+          // 마지막 유효한 이미지로
+          prevIndex = 2;
+          while (prevIndex >= 0 && !images[prevIndex]) {
+            prevIndex--;
+          }
+        }
+
+        goToImage(pageIndex, prevIndex);
       }
-      
-      goToImage(pageIndex, prevIndex);
-    }
-    
-    function updateIndicators(pageIndex, activeIndex) {
-      const container = document.querySelector(`.result-page[data-index="${pageIndex}"] .image-indicators`);
-      if (!container) return;
-      const dots = container.querySelectorAll('.indicator-dot');
-      dots.forEach((dot, i) => {
-        dot.classList.toggle('active', i === activeIndex);
+
+      function updateIndicators(pageIndex, activeIndex) {
+        const container = document.querySelector(`.result-page[data-index="${pageIndex}"] .image-indicators`);
+        if (!container) return;
+        const dots = container.querySelectorAll('.indicator-dot');
+        dots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === activeIndex);
+        });
+      }
+
+      // 이전 toggleImage 함수 유지 (클릭 시에도 동작)
+      function toggleImage(index) {
+        nextImage(index);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Keyboard & Touch
+      // ═══════════════════════════════════════════════════════════════
+      document.addEventListener('keydown', (e) => {
+        if (state.results.length > 1) {
+          if (e.key === 'ArrowLeft') changePage(-1);
+          if (e.key === 'ArrowRight') changePage(1);
+        }
       });
-    }
 
-    // 이전 toggleImage 함수 유지 (클릭 시에도 동작)
-    function toggleImage(index) {
-      nextImage(index);
-    }
+      let touchStartX = 0;
+      document.getElementById('resultPages').addEventListener(
+        'touchstart',
+        (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+        },
+        { passive: true }
+      );
 
-    // ═══════════════════════════════════════════════════════════════
-    // Keyboard & Touch
-    // ═══════════════════════════════════════════════════════════════
-    document.addEventListener('keydown', (e) => {
-      if (state.results.length > 1) {
-        if (e.key === 'ArrowLeft') changePage(-1);
-        if (e.key === 'ArrowRight') changePage(1);
-      }
-    });
+      document.getElementById('resultPages').addEventListener(
+        'touchend',
+        (e) => {
+          const diff = touchStartX - e.changedTouches[0].screenX;
+          if (Math.abs(diff) > 50) changePage(diff > 0 ? 1 : -1);
+        },
+        { passive: true }
+      );
 
-    let touchStartX = 0;
-    document.getElementById('resultPages').addEventListener('touchstart', (e) => {
-      touchStartX = e.changedTouches[0].screenX;
-    }, { passive: true });
-
-    document.getElementById('resultPages').addEventListener('touchend', (e) => {
-      const diff = touchStartX - e.changedTouches[0].screenX;
-      if (Math.abs(diff) > 50) changePage(diff > 0 ? 1 : -1);
-    }, { passive: true });
-
-    // ═══════════════════════════════════════════════════════════════
-    // Init
-    // ═══════════════════════════════════════════════════════════════
-    document.addEventListener('DOMContentLoaded', updateButtons);
-  </script>
-</body>
+      // ═══════════════════════════════════════════════════════════════
+      // Init
+      // ═══════════════════════════════════════════════════════════════
+      document.addEventListener('DOMContentLoaded', updateButtons);
+    </script>
+  </body>
 </html>

@@ -1,334 +1,557 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>활동 로그 - 다담가구 관리자</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f5f5f5; min-height: 100vh; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+      }
 
-        /* Sidebar */
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        z-index: 1000;
+      }
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+      .sidebar-logo h1 {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+      .sidebar-logo span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+      .nav-menu {
+        list-style: none;
+      }
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+      .nav-icon {
+        width: 20px;
+        text-align: center;
+      }
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        padding: 0 20px;
+      }
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+      }
+      .sidebar-footer a:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+      }
+      .header h2 {
+        font-size: 1.5rem;
+        color: #333;
+      }
+
+      /* Filters */
+      .filters {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .filter-group label {
+        font-size: 0.9rem;
+        color: #666;
+        white-space: nowrap;
+      }
+      .filter-group input,
+      .filter-group select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        font-family: inherit;
+      }
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.3s;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      /* Card */
+      .card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .card-body {
+        padding: 0;
+      }
+
+      /* Log List */
+      .log-list {
+        padding: 0;
+      }
+      .log-item {
+        display: flex;
+        gap: 16px;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        transition: background 0.2s;
+      }
+      .log-item:hover {
+        background: #fafafa;
+      }
+      .log-item:last-child {
+        border-bottom: none;
+      }
+
+      .log-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+      }
+      .log-icon.user {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+      .log-icon.tier {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .log-icon.consultation {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+      .log-icon.system {
+        background: #f3e5f5;
+        color: #7b1fa2;
+      }
+      .log-icon.login {
+        background: #e0f7fa;
+        color: #00838f;
+      }
+
+      .log-content {
+        flex: 1;
+      }
+      .log-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .log-action {
+        font-weight: 500;
+        color: #333;
+      }
+      .log-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        background: #e0e0e0;
+        color: #616161;
+      }
+      .log-description {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 8px;
+        line-height: 1.5;
+      }
+      .log-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 0.8rem;
+        color: #888;
+      }
+      .log-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .log-changes {
+        margin-top: 10px;
+        padding: 12px;
+        background: #f5f5f5;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-family: monospace;
+      }
+      .log-changes .old {
+        color: #c62828;
+        text-decoration: line-through;
+      }
+      .log-changes .new {
+        color: #2e7d32;
+      }
+
+      /* Pagination */
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 20px;
+        border-top: 1px solid #eee;
+      }
+      .pagination button {
+        padding: 8px 15px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .pagination button:hover:not(:disabled) {
+        background: #f5f5f5;
+      }
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pagination span {
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #888;
+      }
+      .empty-state h4 {
+        margin-bottom: 10px;
+        color: #666;
+      }
+
+      /* Access Denied */
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+      .access-denied h2 {
+        font-size: 1.5rem;
+        color: #c62828;
+        margin-bottom: 15px;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
         .sidebar {
-            position: fixed; left: 0; top: 0; width: 250px; height: 100vh;
-            background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000;
+          transform: translateX(-100%);
         }
-        .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
-        .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
-        .sidebar-logo span { font-size: 0.8rem; color: #888; }
-        .nav-menu { list-style: none; }
-        .nav-menu li a {
-            display: flex; align-items: center; gap: 12px; padding: 12px 20px;
-            color: #aaa; text-decoration: none; transition: all 0.3s;
+        .main-content {
+          margin-left: 0;
         }
-        .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
-        .nav-menu li a.active { border-left: 3px solid #007bff; }
-        .nav-icon { width: 20px; text-align: center; }
-        .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
-        .sidebar-footer a {
-            display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1);
-            color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem;
-        }
-        .sidebar-footer a:hover { background: rgba(255,255,255,0.2); color: white; }
-
-        /* Main Content */
-        .main-content { margin-left: 250px; padding: 20px 30px; }
-
-        /* Header */
-        .header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #ddd;
-        }
-        .header h2 { font-size: 1.5rem; color: #333; }
-
-        /* Filters */
+      }
+      @media (max-width: 768px) {
         .filters {
-            display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;
-            background: white; padding: 20px; border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+          flex-direction: column;
         }
-        .filter-group { display: flex; align-items: center; gap: 8px; }
-        .filter-group label { font-size: 0.9rem; color: #666; white-space: nowrap; }
-        .filter-group input, .filter-group select {
-            padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px;
-            font-size: 0.9rem; font-family: inherit;
+        .filter-group {
+          width: 100%;
         }
-        .btn {
-            padding: 8px 16px; border: none; border-radius: 5px; font-size: 0.9rem;
-            cursor: pointer; font-family: inherit; transition: all 0.3s;
+        .filter-group input,
+        .filter-group select {
+          flex: 1;
         }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-secondary { background: #6c757d; color: white; }
-
-        /* Card */
-        .card {
-            background: white; border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        .card-body { padding: 0; }
-
-        /* Log List */
-        .log-list { padding: 0; }
-        .log-item {
-            display: flex; gap: 16px; padding: 20px; border-bottom: 1px solid #eee;
-            transition: background 0.2s;
-        }
-        .log-item:hover { background: #fafafa; }
-        .log-item:last-child { border-bottom: none; }
-
-        .log-icon {
-            width: 44px; height: 44px; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem; flex-shrink: 0;
-        }
-        .log-icon.user { background: #e3f2fd; color: #1976d2; }
-        .log-icon.tier { background: #fff3e0; color: #f57c00; }
-        .log-icon.consultation { background: #e8f5e9; color: #388e3c; }
-        .log-icon.system { background: #f3e5f5; color: #7b1fa2; }
-        .log-icon.login { background: #e0f7fa; color: #00838f; }
-
-        .log-content { flex: 1; }
-        .log-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-        .log-action { font-weight: 500; color: #333; }
-        .log-badge {
-            padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;
-            background: #e0e0e0; color: #616161;
-        }
-        .log-description { font-size: 0.9rem; color: #666; margin-bottom: 8px; line-height: 1.5; }
-        .log-meta { display: flex; gap: 16px; font-size: 0.8rem; color: #888; }
-        .log-meta span { display: flex; align-items: center; gap: 4px; }
-
-        .log-changes {
-            margin-top: 10px; padding: 12px; background: #f5f5f5; border-radius: 6px;
-            font-size: 0.85rem; font-family: monospace;
-        }
-        .log-changes .old { color: #c62828; text-decoration: line-through; }
-        .log-changes .new { color: #2e7d32; }
-
-        /* Pagination */
-        .pagination {
-            display: flex; justify-content: center; align-items: center; gap: 10px;
-            padding: 20px; border-top: 1px solid #eee;
-        }
-        .pagination button {
-            padding: 8px 15px; border: 1px solid #ddd; background: white;
-            border-radius: 5px; cursor: pointer; font-family: inherit;
-        }
-        .pagination button:hover:not(:disabled) { background: #f5f5f5; }
-        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .pagination span { font-size: 0.9rem; color: #666; }
-
-        /* Empty State */
-        .empty-state { text-align: center; padding: 60px 20px; color: #888; }
-        .empty-state h4 { margin-bottom: 10px; color: #666; }
-
-        /* Access Denied */
-        .access-denied { display: none; text-align: center; padding: 100px 20px; }
-        .access-denied h2 { font-size: 1.5rem; color: #c62828; margin-bottom: 15px; }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar { transform: translateX(-100%); }
-            .main-content { margin-left: 0; }
-        }
-        @media (max-width: 768px) {
-            .filters { flex-direction: column; }
-            .filter-group { width: 100%; }
-            .filter-group input, .filter-group select { flex: 1; }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Sidebar -->
     <nav class="sidebar">
-        <div class="sidebar-logo">
-            <h1>다담가구</h1>
-            <span>관리자 패널</span>
-        </div>
-        <ul class="nav-menu">
-            <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
-            <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
-            <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
-            <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
-            <li><a href="logs.html" class="active"><span class="nav-icon">📋</span>활동 로그</a></li>
-            <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
-        </ul>
-        <div class="sidebar-footer">
-            <a href="../index.html">← 메인 사이트로</a>
-        </div>
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu">
+        <li>
+          <a href="index.html"><span class="nav-icon">📊</span>대시보드</a>
+        </li>
+        <li>
+          <a href="users.html"><span class="nav-icon">👥</span>회원 관리</a>
+        </li>
+        <li>
+          <a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a>
+        </li>
+        <li>
+          <a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a>
+        </li>
+        <li>
+          <a href="logs.html" class="active"><span class="nav-icon">📋</span>활동 로그</a>
+        </li>
+        <li>
+          <a href="settings.html"><span class="nav-icon">⚙️</span>설정</a>
+        </li>
+      </ul>
+      <div class="sidebar-footer">
+        <a href="../index.html">← 메인 사이트로</a>
+      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <div class="access-denied" id="accessDenied">
-            <h2>접근 권한이 없습니다</h2>
-            <p>관리자만 접근할 수 있는 페이지입니다.</p>
-            <a href="../index.html">메인 페이지로 돌아가기</a>
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <h2>활동 로그</h2>
+          <span id="totalCount">전체 0건</span>
+        </header>
+
+        <!-- Filters -->
+        <div class="filters">
+          <div class="filter-group">
+            <label>기간:</label>
+            <input type="date" id="startDate" />
+            <span>~</span>
+            <input type="date" id="endDate" />
+          </div>
+          <div class="filter-group">
+            <label>유형:</label>
+            <select id="actionFilter">
+              <option value="">전체</option>
+              <option value="user_update">회원 수정</option>
+              <option value="tier_change">등급 변경</option>
+              <option value="consultation_update">상담 처리</option>
+              <option value="expert_request">승급 처리</option>
+              <option value="login">로그인</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="loadLogs()">검색</button>
+          <button class="btn btn-secondary" onclick="resetFilters()">초기화</button>
         </div>
 
-        <div id="pageContent" style="display: none;">
-            <header class="header">
-                <h2>활동 로그</h2>
-                <span id="totalCount">전체 0건</span>
-            </header>
-
-            <!-- Filters -->
-            <div class="filters">
-                <div class="filter-group">
-                    <label>기간:</label>
-                    <input type="date" id="startDate">
-                    <span>~</span>
-                    <input type="date" id="endDate">
-                </div>
-                <div class="filter-group">
-                    <label>유형:</label>
-                    <select id="actionFilter">
-                        <option value="">전체</option>
-                        <option value="user_update">회원 수정</option>
-                        <option value="tier_change">등급 변경</option>
-                        <option value="consultation_update">상담 처리</option>
-                        <option value="expert_request">승급 처리</option>
-                        <option value="login">로그인</option>
-                    </select>
-                </div>
-                <button class="btn btn-primary" onclick="loadLogs()">검색</button>
-                <button class="btn btn-secondary" onclick="resetFilters()">초기화</button>
+        <!-- Log List -->
+        <div class="card">
+          <div class="card-body">
+            <div class="log-list" id="logList">
+              <div class="empty-state"><h4>로딩 중...</h4></div>
             </div>
-
-            <!-- Log List -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="log-list" id="logList">
-                        <div class="empty-state"><h4>로딩 중...</h4></div>
-                    </div>
-                </div>
-                <div class="pagination">
-                    <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
-                    <span id="pageInfo">1 / 1</span>
-                    <button onclick="nextPage()" id="nextBtn" disabled>다음</button>
-                </div>
-            </div>
+          </div>
+          <div class="pagination">
+            <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
+            <span id="pageInfo">1 / 1</span>
+            <button onclick="nextPage()" id="nextBtn" disabled>다음</button>
+          </div>
         </div>
+      </div>
     </main>
 
     <script>
-        const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
 
-        let supabaseClient = null;
-        let currentUser = null;
-        let currentPage = 1;
-        const pageSize = 20;
-        let totalLogs = 0;
+      let supabaseClient = null;
+      let currentUser = null;
+      let currentPage = 1;
+      const pageSize = 20;
+      let totalLogs = 0;
 
-        const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+      const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
 
-        const ACTION_LABELS = {
-            'user_update': '회원 수정',
-            'tier_change': '등급 변경',
-            'consultation_update': '상담 처리',
-            'expert_request': '승급 처리',
-            'login': '로그인',
-            'system': '시스템'
-        };
+      const ACTION_LABELS = {
+        user_update: '회원 수정',
+        tier_change: '등급 변경',
+        consultation_update: '상담 처리',
+        expert_request: '승급 처리',
+        login: '로그인',
+        system: '시스템',
+      };
 
-        const ACTION_ICONS = {
-            'user_update': { class: 'user', icon: '👤' },
-            'tier_change': { class: 'tier', icon: '⭐' },
-            'consultation_update': { class: 'consultation', icon: '💬' },
-            'expert_request': { class: 'tier', icon: '🎖️' },
-            'login': { class: 'login', icon: '🔑' },
-            'system': { class: 'system', icon: '⚙️' }
-        };
+      const ACTION_ICONS = {
+        user_update: { class: 'user', icon: '👤' },
+        tier_change: { class: 'tier', icon: '⭐' },
+        consultation_update: { class: 'consultation', icon: '💬' },
+        expert_request: { class: 'tier', icon: '🎖️' },
+        login: { class: 'login', icon: '🔑' },
+        system: { class: 'system', icon: '⚙️' },
+      };
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initAdmin();
-            // 기본 날짜 설정 (최근 30일)
-            const today = new Date();
-            const thirtyDaysAgo = new Date(today);
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            document.getElementById('endDate').value = today.toISOString().split('T')[0];
-            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-        });
+      document.addEventListener('DOMContentLoaded', async () => {
+        await initAdmin();
+        // 기본 날짜 설정 (최근 30일)
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+      });
 
-        async function initAdmin() {
-            if (typeof window.supabase === 'undefined') {
-                showAccessDenied();
-                return;
-            }
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session || !ADMIN_EMAILS.includes(session.user.email)) {
-                showAccessDenied();
-                return;
-            }
-            currentUser = session.user;
-            document.getElementById('pageContent').style.display = 'block';
-            await loadLogs();
+      async function initAdmin() {
+        if (typeof window.supabase === 'undefined') {
+          showAccessDenied();
+          return;
         }
-
-        function showAccessDenied() {
-            document.getElementById('accessDenied').style.display = 'block';
-            document.getElementById('pageContent').style.display = 'none';
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        if (!session || !ADMIN_EMAILS.includes(session.user.email)) {
+          showAccessDenied();
+          return;
         }
+        currentUser = session.user;
+        document.getElementById('pageContent').style.display = 'block';
+        await loadLogs();
+      }
 
-        async function loadLogs() {
-            const container = document.getElementById('logList');
-            container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
+      function showAccessDenied() {
+        document.getElementById('accessDenied').style.display = 'block';
+        document.getElementById('pageContent').style.display = 'none';
+      }
 
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            const actionFilter = document.getElementById('actionFilter').value;
+      async function loadLogs() {
+        const container = document.getElementById('logList');
+        container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
 
-            try {
-                let query = supabaseClient
-                    .from('admin_logs')
-                    .select('*', { count: 'exact' })
-                    .order('created_at', { ascending: false })
-                    .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const actionFilter = document.getElementById('actionFilter').value;
 
-                if (startDate) {
-                    query = query.gte('created_at', startDate + 'T00:00:00');
-                }
-                if (endDate) {
-                    query = query.lte('created_at', endDate + 'T23:59:59');
-                }
-                if (actionFilter) {
-                    query = query.eq('action_type', actionFilter);
-                }
+        try {
+          let query = supabaseClient
+            .from('admin_logs')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
 
-                const { data: logs, error, count } = await query;
+          if (startDate) {
+            query = query.gte('created_at', startDate + 'T00:00:00');
+          }
+          if (endDate) {
+            query = query.lte('created_at', endDate + 'T23:59:59');
+          }
+          if (actionFilter) {
+            query = query.eq('action_type', actionFilter);
+          }
 
-                if (error) throw error;
+          const { data: logs, error, count } = await query;
 
-                totalLogs = count || 0;
-                document.getElementById('totalCount').textContent = `전체 ${totalLogs}건`;
+          if (error) throw error;
 
-                const totalPages = Math.ceil(totalLogs / pageSize) || 1;
-                document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
-                document.getElementById('prevBtn').disabled = currentPage <= 1;
-                document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+          totalLogs = count || 0;
+          document.getElementById('totalCount').textContent = `전체 ${totalLogs}건`;
 
-                if (!logs || logs.length === 0) {
-                    container.innerHTML = `
+          const totalPages = Math.ceil(totalLogs / pageSize) || 1;
+          document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+          document.getElementById('prevBtn').disabled = currentPage <= 1;
+          document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+
+          if (!logs || logs.length === 0) {
+            container.innerHTML = `
                         <div class="empty-state">
                             <h4>활동 로그가 없습니다</h4>
                             <p>조건에 맞는 로그가 없습니다.</p>
                         </div>
                     `;
-                    return;
-                }
+            return;
+          }
 
-                container.innerHTML = logs.map(log => renderLogItem(log)).join('');
-
-            } catch (e) {
-                console.error('Error:', e);
-                container.innerHTML = `
+          container.innerHTML = logs.map((log) => renderLogItem(log)).join('');
+        } catch (e) {
+          console.error('Error:', e);
+          container.innerHTML = `
                     <div class="empty-state">
                         <h4>로그를 불러올 수 없습니다</h4>
                         <p>${e.message}</p>
@@ -338,25 +561,25 @@
                         </p>
                     </div>
                 `;
-            }
         }
+      }
 
-        function renderLogItem(log) {
-            const actionInfo = ACTION_ICONS[log.action_type] || ACTION_ICONS['system'];
-            const actionLabel = ACTION_LABELS[log.action_type] || log.action_type;
+      function renderLogItem(log) {
+        const actionInfo = ACTION_ICONS[log.action_type] || ACTION_ICONS['system'];
+        const actionLabel = ACTION_LABELS[log.action_type] || log.action_type;
 
-            let changesHtml = '';
-            if (log.old_value || log.new_value) {
-                changesHtml = `
+        let changesHtml = '';
+        if (log.old_value || log.new_value) {
+          changesHtml = `
                     <div class="log-changes">
                         ${log.old_value ? `<span class="old">${JSON.stringify(log.old_value)}</span>` : ''}
                         ${log.old_value && log.new_value ? ' → ' : ''}
                         ${log.new_value ? `<span class="new">${JSON.stringify(log.new_value)}</span>` : ''}
                     </div>
                 `;
-            }
+        }
 
-            return `
+        return `
                 <div class="log-item">
                     <div class="log-icon ${actionInfo.class}">${actionInfo.icon}</div>
                     <div class="log-content">
@@ -374,45 +597,45 @@
                     </div>
                 </div>
             `;
-        }
+      }
 
-        function formatDateTime(dateStr) {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleString('ko-KR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
+      function formatDateTime(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
 
-        function resetFilters() {
-            const today = new Date();
-            const thirtyDaysAgo = new Date(today);
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            document.getElementById('endDate').value = today.toISOString().split('T')[0];
-            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-            document.getElementById('actionFilter').value = '';
-            currentPage = 1;
-            loadLogs();
-        }
+      function resetFilters() {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+        document.getElementById('actionFilter').value = '';
+        currentPage = 1;
+        loadLogs();
+      }
 
-        function prevPage() {
-            if (currentPage > 1) {
-                currentPage--;
-                loadLogs();
-            }
+      function prevPage() {
+        if (currentPage > 1) {
+          currentPage--;
+          loadLogs();
         }
+      }
 
-        function nextPage() {
-            const totalPages = Math.ceil(totalLogs / pageSize);
-            if (currentPage < totalPages) {
-                currentPage++;
-                loadLogs();
-            }
+      function nextPage() {
+        const totalPages = Math.ceil(totalLogs / pageSize);
+        if (currentPage < totalPages) {
+          currentPage++;
+          loadLogs();
         }
+      }
     </script>
-</body>
+  </body>
 </html>

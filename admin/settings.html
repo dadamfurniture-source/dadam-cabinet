@@ -1,415 +1,692 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>설정 - 다담가구 관리자</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f5f5f5; min-height: 100vh; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+      }
 
-        /* Sidebar */
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        z-index: 1000;
+      }
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+      .sidebar-logo h1 {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+      .sidebar-logo span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+      .nav-menu {
+        list-style: none;
+      }
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+      .nav-icon {
+        width: 20px;
+        text-align: center;
+      }
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        padding: 0 20px;
+      }
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+      }
+      .header h2 {
+        font-size: 1.5rem;
+        color: #333;
+      }
+
+      /* Settings Sections */
+      .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 24px;
+      }
+
+      .settings-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .settings-card-header {
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .settings-card-header .icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+      }
+      .settings-card-header .icon.blue {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+      .settings-card-header .icon.orange {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .settings-card-header .icon.green {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+      .settings-card-header .icon.purple {
+        background: #f3e5f5;
+        color: #7b1fa2;
+      }
+      .settings-card-header h3 {
+        font-size: 1.1rem;
+        font-weight: 500;
+      }
+      .settings-card-body {
+        padding: 20px;
+      }
+
+      /* Form Elements */
+      .form-group {
+        margin-bottom: 20px;
+      }
+      .form-group:last-child {
+        margin-bottom: 0;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #333;
+      }
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-family: inherit;
+        transition: border-color 0.3s;
+      }
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: #007bff;
+      }
+      .form-group input:disabled {
+        background: #f5f5f5;
+        color: #888;
+      }
+      .form-hint {
+        font-size: 0.8rem;
+        color: #888;
+        margin-top: 6px;
+      }
+
+      /* Toggle Switch */
+      .toggle-group {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .toggle-group:last-child {
+        border-bottom: none;
+      }
+      .toggle-label {
+        font-size: 0.95rem;
+      }
+      .toggle-label small {
+        display: block;
+        font-size: 0.8rem;
+        color: #888;
+        margin-top: 2px;
+      }
+      .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 26px;
+      }
+      .toggle-slider:before {
+        position: absolute;
+        content: '';
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      .toggle-switch input:checked + .toggle-slider {
+        background-color: #007bff;
+      }
+      .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+      }
+
+      /* Admin List */
+      .admin-list {
+        margin-top: 16px;
+      }
+      .admin-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        background: #f9f9f9;
+        border-radius: 8px;
+        margin-bottom: 8px;
+      }
+      .admin-item:last-child {
+        margin-bottom: 0;
+      }
+      .admin-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .admin-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #007bff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+      .admin-details h4 {
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+      .admin-details span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+      .role-badge {
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+      .role-badge.super {
+        background: #ffebee;
+        color: #c62828;
+      }
+      .role-badge.admin {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+      .role-badge.manager {
+        background: #fff3e0;
+        color: #ef6c00;
+      }
+      .role-badge.support {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      /* Buttons */
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.3s;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+      }
+      .btn-block {
+        width: 100%;
+      }
+
+      /* Add Admin Form */
+      .add-admin-form {
+        display: none;
+        padding: 16px;
+        background: #f5f5f5;
+        border-radius: 8px;
+        margin-top: 16px;
+      }
+      .add-admin-form.show {
+        display: block;
+      }
+      .add-admin-form .form-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .add-admin-form .form-row > * {
+        flex: 1;
+      }
+
+      /* Access Denied */
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+      .access-denied h2 {
+        font-size: 1.5rem;
+        color: #c62828;
+        margin-bottom: 15px;
+      }
+
+      /* Alert */
+      .alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .alert.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .alert.error {
+        background: #ffebee;
+        color: #c62828;
+      }
+      .alert.info {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
         .sidebar {
-            position: fixed; left: 0; top: 0; width: 250px; height: 100vh;
-            background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000;
+          transform: translateX(-100%);
         }
-        .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
-        .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
-        .sidebar-logo span { font-size: 0.8rem; color: #888; }
-        .nav-menu { list-style: none; }
-        .nav-menu li a {
-            display: flex; align-items: center; gap: 12px; padding: 12px 20px;
-            color: #aaa; text-decoration: none; transition: all 0.3s;
+        .main-content {
+          margin-left: 0;
         }
-        .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
-        .nav-menu li a.active { border-left: 3px solid #007bff; }
-        .nav-icon { width: 20px; text-align: center; }
-        .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
-        .sidebar-footer a {
-            display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1);
-            color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem;
+        .settings-grid {
+          grid-template-columns: 1fr;
         }
-
-        /* Main Content */
-        .main-content { margin-left: 250px; padding: 20px 30px; }
-
-        /* Header */
-        .header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #ddd;
-        }
-        .header h2 { font-size: 1.5rem; color: #333; }
-
-        /* Settings Sections */
-        .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; }
-
-        .settings-card {
-            background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        .settings-card-header {
-            padding: 20px; border-bottom: 1px solid #eee;
-            display: flex; align-items: center; gap: 12px;
-        }
-        .settings-card-header .icon {
-            width: 40px; height: 40px; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
-        }
-        .settings-card-header .icon.blue { background: #e3f2fd; color: #1976d2; }
-        .settings-card-header .icon.orange { background: #fff3e0; color: #f57c00; }
-        .settings-card-header .icon.green { background: #e8f5e9; color: #388e3c; }
-        .settings-card-header .icon.purple { background: #f3e5f5; color: #7b1fa2; }
-        .settings-card-header h3 { font-size: 1.1rem; font-weight: 500; }
-        .settings-card-body { padding: 20px; }
-
-        /* Form Elements */
-        .form-group { margin-bottom: 20px; }
-        .form-group:last-child { margin-bottom: 0; }
-        .form-group label {
-            display: block; margin-bottom: 8px; font-size: 0.9rem;
-            font-weight: 500; color: #333;
-        }
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px;
-            font-size: 0.95rem; font-family: inherit; transition: border-color 0.3s;
-        }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-            outline: none; border-color: #007bff;
-        }
-        .form-group input:disabled { background: #f5f5f5; color: #888; }
-        .form-hint { font-size: 0.8rem; color: #888; margin-top: 6px; }
-
-        /* Toggle Switch */
-        .toggle-group {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 0; border-bottom: 1px solid #eee;
-        }
-        .toggle-group:last-child { border-bottom: none; }
-        .toggle-label { font-size: 0.95rem; }
-        .toggle-label small { display: block; font-size: 0.8rem; color: #888; margin-top: 2px; }
-        .toggle-switch {
-            position: relative; width: 50px; height: 26px;
-        }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .toggle-slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc; transition: 0.3s; border-radius: 26px;
-        }
-        .toggle-slider:before {
-            position: absolute; content: ""; height: 20px; width: 20px;
-            left: 3px; bottom: 3px; background-color: white;
-            transition: 0.3s; border-radius: 50%;
-        }
-        .toggle-switch input:checked + .toggle-slider { background-color: #007bff; }
-        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); }
-
-        /* Admin List */
-        .admin-list { margin-top: 16px; }
-        .admin-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 12px; background: #f9f9f9; border-radius: 8px; margin-bottom: 8px;
-        }
-        .admin-item:last-child { margin-bottom: 0; }
-        .admin-info { display: flex; align-items: center; gap: 12px; }
-        .admin-avatar {
-            width: 36px; height: 36px; border-radius: 50%; background: #007bff;
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: 600; font-size: 0.9rem;
-        }
-        .admin-details h4 { font-size: 0.95rem; font-weight: 500; }
-        .admin-details span { font-size: 0.8rem; color: #888; }
-        .role-badge {
-            padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 500;
-        }
-        .role-badge.super { background: #ffebee; color: #c62828; }
-        .role-badge.admin { background: #e3f2fd; color: #1565c0; }
-        .role-badge.manager { background: #fff3e0; color: #ef6c00; }
-        .role-badge.support { background: #e8f5e9; color: #2e7d32; }
-
-        /* Buttons */
-        .btn {
-            padding: 10px 20px; border: none; border-radius: 6px; font-size: 0.9rem;
-            cursor: pointer; font-family: inherit; transition: all 0.3s;
-        }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
-        .btn-block { width: 100%; }
-
-        /* Add Admin Form */
-        .add-admin-form {
-            display: none; padding: 16px; background: #f5f5f5; border-radius: 8px; margin-top: 16px;
-        }
-        .add-admin-form.show { display: block; }
-        .add-admin-form .form-row { display: flex; gap: 12px; margin-bottom: 12px; }
-        .add-admin-form .form-row > * { flex: 1; }
-
-        /* Access Denied */
-        .access-denied { display: none; text-align: center; padding: 100px 20px; }
-        .access-denied h2 { font-size: 1.5rem; color: #c62828; margin-bottom: 15px; }
-
-        /* Alert */
-        .alert {
-            padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;
-            display: flex; align-items: center; gap: 10px;
-        }
-        .alert.success { background: #e8f5e9; color: #2e7d32; }
-        .alert.error { background: #ffebee; color: #c62828; }
-        .alert.info { background: #e3f2fd; color: #1565c0; }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar { transform: translateX(-100%); }
-            .main-content { margin-left: 0; }
-            .settings-grid { grid-template-columns: 1fr; }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Sidebar -->
     <nav class="sidebar">
-        <div class="sidebar-logo">
-            <h1>다담가구</h1>
-            <span>관리자 패널</span>
-        </div>
-        <ul class="nav-menu">
-            <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
-            <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
-            <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
-            <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
-            <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
-            <li><a href="settings.html" class="active"><span class="nav-icon">⚙️</span>설정</a></li>
-        </ul>
-        <div class="sidebar-footer">
-            <a href="../index.html">← 메인 사이트로</a>
-        </div>
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu">
+        <li>
+          <a href="index.html"><span class="nav-icon">📊</span>대시보드</a>
+        </li>
+        <li>
+          <a href="users.html"><span class="nav-icon">👥</span>회원 관리</a>
+        </li>
+        <li>
+          <a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a>
+        </li>
+        <li>
+          <a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a>
+        </li>
+        <li>
+          <a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a>
+        </li>
+        <li>
+          <a href="settings.html" class="active"><span class="nav-icon">⚙️</span>설정</a>
+        </li>
+      </ul>
+      <div class="sidebar-footer">
+        <a href="../index.html">← 메인 사이트로</a>
+      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <div class="access-denied" id="accessDenied">
-            <h2>접근 권한이 없습니다</h2>
-            <p>관리자만 접근할 수 있는 페이지입니다.</p>
-            <a href="../index.html">메인 페이지로 돌아가기</a>
-        </div>
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
 
-        <div id="pageContent" style="display: none;">
-            <header class="header">
-                <h2>설정</h2>
-            </header>
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <h2>설정</h2>
+        </header>
 
-            <div id="alertContainer"></div>
+        <div id="alertContainer"></div>
 
-            <div class="settings-grid">
-                <!-- Admin Management -->
-                <div class="settings-card">
-                    <div class="settings-card-header">
-                        <div class="icon blue">👑</div>
-                        <h3>관리자 계정</h3>
-                    </div>
-                    <div class="settings-card-body">
-                        <p style="font-size: 0.9rem; color: #666; margin-bottom: 16px;">
-                            관리자 권한을 가진 계정을 관리합니다.
-                        </p>
-
-                        <div class="admin-list" id="adminList">
-                            <!-- Admin items will be loaded here -->
-                        </div>
-
-                        <button class="btn btn-primary btn-block" style="margin-top: 16px;" onclick="toggleAddAdmin()">
-                            + 관리자 추가
-                        </button>
-
-                        <div class="add-admin-form" id="addAdminForm">
-                            <div class="form-row">
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <input type="email" id="newAdminEmail" placeholder="이메일 주소">
-                                </div>
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <select id="newAdminRole">
-                                        <option value="support">Support</option>
-                                        <option value="manager">Manager</option>
-                                        <option value="admin">Admin</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-success btn-sm" onclick="addAdmin()">추가</button>
-                                <button class="btn btn-secondary btn-sm" onclick="toggleAddAdmin()">취소</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Notification Settings -->
-                <div class="settings-card">
-                    <div class="settings-card-header">
-                        <div class="icon orange">🔔</div>
-                        <h3>알림 설정</h3>
-                    </div>
-                    <div class="settings-card-body">
-                        <div class="toggle-group">
-                            <div class="toggle-label">
-                                신규 회원가입 알림
-                                <small>새 회원이 가입하면 알림</small>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="notifyNewUser" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="toggle-group">
-                            <div class="toggle-label">
-                                Expert 승급 신청 알림
-                                <small>승급 신청이 접수되면 알림</small>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="notifyExpertRequest" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="toggle-group">
-                            <div class="toggle-label">
-                                상담 신청 알림
-                                <small>새 상담 신청이 접수되면 알림</small>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="notifyConsultation" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="form-hint" style="margin-top: 12px;">
-                            * 알림 기능은 이메일 또는 슬랙 웹훅으로 구현됩니다. (Edge Function 필요)
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Site Settings -->
-                <div class="settings-card">
-                    <div class="settings-card-header">
-                        <div class="icon green">🌐</div>
-                        <h3>사이트 설정</h3>
-                    </div>
-                    <div class="settings-card-body">
-                        <div class="form-group">
-                            <label>사이트명</label>
-                            <input type="text" id="siteName" value="다담가구" disabled>
-                        </div>
-                        <div class="form-group">
-                            <label>관리자 이메일</label>
-                            <input type="email" id="adminEmail" value="dadamfurniture@gmail.com" disabled>
-                        </div>
-                        <div class="form-group">
-                            <label>연락처</label>
-                            <input type="tel" id="contactPhone" placeholder="02-1234-5678">
-                        </div>
-                        <button class="btn btn-primary" onclick="saveSiteSettings()">저장</button>
-                    </div>
-                </div>
-
-                <!-- Database Info -->
-                <div class="settings-card">
-                    <div class="settings-card-header">
-                        <div class="icon purple">🗄️</div>
-                        <h3>데이터베이스 정보</h3>
-                    </div>
-                    <div class="settings-card-body">
-                        <div class="form-group">
-                            <label>Supabase 프로젝트</label>
-                            <input type="text" value="vvqrvgcgnlfpiqqndsve" disabled>
-                        </div>
-                        <div class="form-group">
-                            <label>필요한 테이블</label>
-                            <div style="font-size: 0.9rem; color: #666; line-height: 1.8;">
-                                <div id="tableStatus">로딩 중...</div>
-                            </div>
-                        </div>
-                        <div class="form-hint">
-                            테이블이 없으면 database/ 폴더의 SQL 파일을 Supabase SQL Editor에서 실행하세요.
-                        </div>
-                    </div>
-                </div>
+        <div class="settings-grid">
+          <!-- Admin Management -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="icon blue">👑</div>
+              <h3>관리자 계정</h3>
             </div>
+            <div class="settings-card-body">
+              <p style="font-size: 0.9rem; color: #666; margin-bottom: 16px">관리자 권한을 가진 계정을 관리합니다.</p>
+
+              <div class="admin-list" id="adminList">
+                <!-- Admin items will be loaded here -->
+              </div>
+
+              <button class="btn btn-primary btn-block" style="margin-top: 16px" onclick="toggleAddAdmin()">
+                + 관리자 추가
+              </button>
+
+              <div class="add-admin-form" id="addAdminForm">
+                <div class="form-row">
+                  <div class="form-group" style="margin-bottom: 0">
+                    <input type="email" id="newAdminEmail" placeholder="이메일 주소" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0">
+                    <select id="newAdminRole">
+                      <option value="support">Support</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px">
+                  <button class="btn btn-success btn-sm" onclick="addAdmin()">추가</button>
+                  <button class="btn btn-secondary btn-sm" onclick="toggleAddAdmin()">취소</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notification Settings -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="icon orange">🔔</div>
+              <h3>알림 설정</h3>
+            </div>
+            <div class="settings-card-body">
+              <div class="toggle-group">
+                <div class="toggle-label">
+                  신규 회원가입 알림
+                  <small>새 회원이 가입하면 알림</small>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="notifyNewUser" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-group">
+                <div class="toggle-label">
+                  Expert 승급 신청 알림
+                  <small>승급 신청이 접수되면 알림</small>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="notifyExpertRequest" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-group">
+                <div class="toggle-label">
+                  상담 신청 알림
+                  <small>새 상담 신청이 접수되면 알림</small>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="notifyConsultation" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-hint" style="margin-top: 12px">
+                * 알림 기능은 이메일 또는 슬랙 웹훅으로 구현됩니다. (Edge Function 필요)
+              </div>
+            </div>
+          </div>
+
+          <!-- Site Settings -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="icon green">🌐</div>
+              <h3>사이트 설정</h3>
+            </div>
+            <div class="settings-card-body">
+              <div class="form-group">
+                <label>사이트명</label>
+                <input type="text" id="siteName" value="다담가구" disabled />
+              </div>
+              <div class="form-group">
+                <label>관리자 이메일</label>
+                <input type="email" id="adminEmail" value="dadamfurniture@gmail.com" disabled />
+              </div>
+              <div class="form-group">
+                <label>연락처</label>
+                <input type="tel" id="contactPhone" placeholder="02-1234-5678" />
+              </div>
+              <button class="btn btn-primary" onclick="saveSiteSettings()">저장</button>
+            </div>
+          </div>
+
+          <!-- Database Info -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="icon purple">🗄️</div>
+              <h3>데이터베이스 정보</h3>
+            </div>
+            <div class="settings-card-body">
+              <div class="form-group">
+                <label>Supabase 프로젝트</label>
+                <input type="text" value="vvqrvgcgnlfpiqqndsve" disabled />
+              </div>
+              <div class="form-group">
+                <label>필요한 테이블</label>
+                <div style="font-size: 0.9rem; color: #666; line-height: 1.8">
+                  <div id="tableStatus">로딩 중...</div>
+                </div>
+              </div>
+              <div class="form-hint">
+                테이블이 없으면 database/ 폴더의 SQL 파일을 Supabase SQL Editor에서 실행하세요.
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
     </main>
 
     <script>
-        const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
 
-        let supabaseClient = null;
-        let currentUser = null;
+      let supabaseClient = null;
+      let currentUser = null;
 
-        // 관리자 이메일 목록 (하드코딩 - 실제로는 admin_roles 테이블에서 관리)
-        const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+      // 관리자 이메일 목록 (하드코딩 - 실제로는 admin_roles 테이블에서 관리)
+      const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
 
-        const ROLE_LABELS = {
-            'super_admin': 'Super Admin',
-            'admin': 'Admin',
-            'manager': 'Manager',
-            'support': 'Support'
-        };
+      const ROLE_LABELS = {
+        super_admin: 'Super Admin',
+        admin: 'Admin',
+        manager: 'Manager',
+        support: 'Support',
+      };
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initAdmin();
-        });
+      document.addEventListener('DOMContentLoaded', async () => {
+        await initAdmin();
+      });
 
-        async function initAdmin() {
-            if (typeof window.supabase === 'undefined') {
-                showAccessDenied();
-                return;
-            }
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session || !ADMIN_EMAILS.includes(session.user.email)) {
-                showAccessDenied();
-                return;
-            }
-            currentUser = session.user;
-            document.getElementById('pageContent').style.display = 'block';
-            await loadAdminList();
-            await checkTables();
+      async function initAdmin() {
+        if (typeof window.supabase === 'undefined') {
+          showAccessDenied();
+          return;
         }
-
-        function showAccessDenied() {
-            document.getElementById('accessDenied').style.display = 'block';
-            document.getElementById('pageContent').style.display = 'none';
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        if (!session || !ADMIN_EMAILS.includes(session.user.email)) {
+          showAccessDenied();
+          return;
         }
+        currentUser = session.user;
+        document.getElementById('pageContent').style.display = 'block';
+        await loadAdminList();
+        await checkTables();
+      }
 
-        function showAlert(message, type = 'info') {
-            const container = document.getElementById('alertContainer');
-            container.innerHTML = `<div class="alert ${type}">${message}</div>`;
-            setTimeout(() => { container.innerHTML = ''; }, 5000);
-        }
+      function showAccessDenied() {
+        document.getElementById('accessDenied').style.display = 'block';
+        document.getElementById('pageContent').style.display = 'none';
+      }
 
-        async function loadAdminList() {
-            const container = document.getElementById('adminList');
+      function showAlert(message, type = 'info') {
+        const container = document.getElementById('alertContainer');
+        container.innerHTML = `<div class="alert ${type}">${message}</div>`;
+        setTimeout(() => {
+          container.innerHTML = '';
+        }, 5000);
+      }
 
-            try {
-                const { data: admins, error } = await supabaseClient
-                    .from('admin_roles')
-                    .select('*')
-                    .order('created_at', { ascending: true });
+      async function loadAdminList() {
+        const container = document.getElementById('adminList');
 
-                if (error) throw error;
+        try {
+          const { data: admins, error } = await supabaseClient
+            .from('admin_roles')
+            .select('*')
+            .order('created_at', { ascending: true });
 
-                if (!admins || admins.length === 0) {
-                    container.innerHTML = `
+          if (error) throw error;
+
+          if (!admins || admins.length === 0) {
+            container.innerHTML = `
                         <div style="text-align: center; padding: 20px; color: #888;">
                             <p>등록된 관리자가 없습니다.</p>
                             <p style="font-size: 0.85rem;">아래 버튼을 눌러 관리자를 추가하세요.</p>
                         </div>
                     `;
-                    return;
-                }
+            return;
+          }
 
-                container.innerHTML = admins.map(admin => `
+          container.innerHTML = admins
+            .map(
+              (admin) => `
                     <div class="admin-item">
                         <div class="admin-info">
                             <div class="admin-avatar">${(admin.user_id || '?').charAt(0).toUpperCase()}</div>
@@ -420,12 +697,13 @@
                         </div>
                         <span class="role-badge ${admin.role}">${ROLE_LABELS[admin.role] || admin.role}</span>
                     </div>
-                `).join('');
-
-            } catch (e) {
-                console.log('admin_roles 테이블 조회 실패:', e.message);
-                // 테이블이 없는 경우 하드코딩된 목록 표시
-                container.innerHTML = `
+                `
+            )
+            .join('');
+        } catch (e) {
+          console.log('admin_roles 테이블 조회 실패:', e.message);
+          // 테이블이 없는 경우 하드코딩된 목록 표시
+          container.innerHTML = `
                     <div class="admin-item">
                         <div class="admin-info">
                             <div class="admin-avatar">D</div>
@@ -440,64 +718,71 @@
                         admin_roles 테이블이 없습니다. database/admin-schema.sql을 실행하세요.
                     </div>
                 `;
-            }
+        }
+      }
+
+      async function checkTables() {
+        const tables = ['profiles', 'expert_requests', 'consultations', 'admin_logs', 'admin_roles'];
+        const results = [];
+
+        for (const table of tables) {
+          try {
+            const { error } = await supabaseClient.from(table).select('id').limit(1);
+            results.push({ name: table, exists: !error });
+          } catch (e) {
+            results.push({ name: table, exists: false });
+          }
         }
 
-        async function checkTables() {
-            const tables = ['profiles', 'expert_requests', 'consultations', 'admin_logs', 'admin_roles'];
-            const results = [];
-
-            for (const table of tables) {
-                try {
-                    const { error } = await supabaseClient.from(table).select('id').limit(1);
-                    results.push({ name: table, exists: !error });
-                } catch (e) {
-                    results.push({ name: table, exists: false });
-                }
-            }
-
-            const container = document.getElementById('tableStatus');
-            container.innerHTML = results.map(r => `
+        const container = document.getElementById('tableStatus');
+        container.innerHTML = results
+          .map(
+            (r) => `
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                     <span style="color: ${r.exists ? '#2e7d32' : '#c62828'};">${r.exists ? '✓' : '✗'}</span>
                     <span>${r.name}</span>
                     ${!r.exists ? '<span style="font-size: 0.75rem; color: #888;">(없음)</span>' : ''}
                 </div>
-            `).join('');
+            `
+          )
+          .join('');
+      }
+
+      function toggleAddAdmin() {
+        const form = document.getElementById('addAdminForm');
+        form.classList.toggle('show');
+        if (!form.classList.contains('show')) {
+          document.getElementById('newAdminEmail').value = '';
+          document.getElementById('newAdminRole').value = 'support';
+        }
+      }
+
+      async function addAdmin() {
+        const email = document.getElementById('newAdminEmail').value.trim();
+        const role = document.getElementById('newAdminRole').value;
+
+        if (!email) {
+          showAlert('이메일을 입력하세요.', 'error');
+          return;
         }
 
-        function toggleAddAdmin() {
-            const form = document.getElementById('addAdminForm');
-            form.classList.toggle('show');
-            if (!form.classList.contains('show')) {
-                document.getElementById('newAdminEmail').value = '';
-                document.getElementById('newAdminRole').value = 'support';
-            }
-        }
+        // 참고: 실제로는 user_id로 저장해야 함. 이메일로 user_id를 찾는 것은 Admin API 필요
+        showAlert(
+          '관리자 추가는 Supabase Dashboard에서 직접 admin_roles 테이블에 추가하거나, Edge Function을 통해 구현해야 합니다.',
+          'info'
+        );
+        toggleAddAdmin();
+      }
 
-        async function addAdmin() {
-            const email = document.getElementById('newAdminEmail').value.trim();
-            const role = document.getElementById('newAdminRole').value;
+      function saveSiteSettings() {
+        // 설정 저장 로직 (실제로는 settings 테이블에 저장)
+        showAlert('설정이 저장되었습니다. (시뮬레이션)', 'success');
+      }
 
-            if (!email) {
-                showAlert('이메일을 입력하세요.', 'error');
-                return;
-            }
-
-            // 참고: 실제로는 user_id로 저장해야 함. 이메일로 user_id를 찾는 것은 Admin API 필요
-            showAlert('관리자 추가는 Supabase Dashboard에서 직접 admin_roles 테이블에 추가하거나, Edge Function을 통해 구현해야 합니다.', 'info');
-            toggleAddAdmin();
-        }
-
-        function saveSiteSettings() {
-            // 설정 저장 로직 (실제로는 settings 테이블에 저장)
-            showAlert('설정이 저장되었습니다. (시뮬레이션)', 'success');
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            return new Date(dateStr).toLocaleDateString('ko-KR');
-        }
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('ko-KR');
+      }
     </script>
-</body>
+  </body>
 </html>

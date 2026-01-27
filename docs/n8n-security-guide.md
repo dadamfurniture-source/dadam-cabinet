@@ -35,9 +35,9 @@ const response = await fetch(N8N_WEBHOOK_URL, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-API-Key': 'your-secret-api-key-here'
+    'X-API-Key': 'your-secret-api-key-here',
   },
-  body: JSON.stringify(data)
+  body: JSON.stringify(data),
 });
 ```
 
@@ -61,9 +61,9 @@ const response = await fetch(N8N_WEBHOOK_URL, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   },
-  body: JSON.stringify(data)
+  body: JSON.stringify(data),
 });
 ```
 
@@ -87,9 +87,9 @@ const response = await fetch(N8N_WEBHOOK_URL, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Basic ${credentials}`
+    Authorization: `Basic ${credentials}`,
   },
-  body: JSON.stringify(data)
+  body: JSON.stringify(data),
 });
 ```
 
@@ -114,7 +114,9 @@ async function signRequest(payload, secretKey) {
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
-const payload = { /* your data */ };
+const payload = {
+  /* your data */
+};
 const signature = await signRequest(payload, 'your-secret-key');
 
 const response = await fetch(N8N_WEBHOOK_URL, {
@@ -122,9 +124,9 @@ const response = await fetch(N8N_WEBHOOK_URL, {
   headers: {
     'Content-Type': 'application/json',
     'X-Signature': signature,
-    'X-Timestamp': Date.now().toString()
+    'X-Timestamp': Date.now().toString(),
   },
-  body: JSON.stringify(payload)
+  body: JSON.stringify(payload),
 });
 ```
 
@@ -173,7 +175,7 @@ export default {
     const ALLOWED_ORIGINS = [
       'https://dadamfurniture.com',
       'https://www.dadamfurniture.com',
-      'http://localhost:3000'
+      'http://localhost:3000',
     ];
 
     const origin = request.headers.get('Origin');
@@ -189,7 +191,8 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': origin,
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization',
+          'Access-Control-Allow-Headers':
+            'Content-Type, X-API-Key, Authorization',
           'Access-Control-Max-Age': '86400',
         },
       });
@@ -244,18 +247,20 @@ Rules > Rate Limiting Rules
 
 ```javascript
 // Rate Limit 검사 (Redis 또는 메모리 사용)
-const clientIP = $input.first().headers['cf-connecting-ip'] ||
-                 $input.first().headers['x-forwarded-for'];
+const clientIP =
+  $input.first().headers['cf-connecting-ip'] ||
+  $input.first().headers['x-forwarded-for'];
 const cacheKey = `ratelimit:${clientIP}`;
 
 // 간단한 구현 (프로덕션에서는 Redis 권장)
-const rateLimits = globalThis._rateLimits || (globalThis._rateLimits = new Map());
+const rateLimits =
+  globalThis._rateLimits || (globalThis._rateLimits = new Map());
 const now = Date.now();
 const windowMs = 60000; // 1분
 const maxRequests = 30;
 
 const requests = rateLimits.get(cacheKey) || [];
-const recentRequests = requests.filter(t => t > now - windowMs);
+const recentRequests = requests.filter((t) => t > now - windowMs);
 
 if (recentRequests.length >= maxRequests) {
   throw new Error('Rate limit exceeded. Please try again later.');
@@ -298,10 +303,12 @@ function validateDesignPayload(payload) {
   if (!payload.userId) errors.push('userId is required');
   if (!payload.designId) errors.push('designId is required');
   if (!payload.data) errors.push('data is required');
-  if (!Array.isArray(payload.data?.items)) errors.push('data.items must be an array');
+  if (!Array.isArray(payload.data?.items))
+    errors.push('data.items must be an array');
 
   // UUID 형식 검증
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (payload.userId && !uuidRegex.test(payload.userId)) {
     errors.push('userId must be a valid UUID');
   }
@@ -313,9 +320,18 @@ function validateDesignPayload(payload) {
       if (!item.uniqueId) errors.push(`items[${index}].uniqueId is required`);
 
       // 카테고리 유효성
-      const validCategories = ['sink', 'wardrobe', 'fridge', 'vanity', 'shoe', 'storage'];
+      const validCategories = [
+        'sink',
+        'wardrobe',
+        'fridge',
+        'vanity',
+        'shoe',
+        'storage',
+      ];
       if (!validCategories.includes(item.category)) {
-        errors.push(`items[${index}].category must be one of: ${validCategories.join(', ')}`);
+        errors.push(
+          `items[${index}].category must be one of: ${validCategories.join(', ')}`
+        );
       }
 
       // 크기 범위 검증
@@ -367,8 +383,8 @@ return [{ json: sanitizedPayload }];
 
 ### 4.3 SQL Injection 방지
 
-Supabase 노드 사용 시 파라미터화된 쿼리를 자동으로 사용합니다.
-직접 SQL을 작성할 경우:
+Supabase 노드 사용 시 파라미터화된 쿼리를 자동으로 사용합니다. 직접 SQL을 작성할
+경우:
 
 ```javascript
 // 잘못된 예 (취약)
@@ -448,11 +464,11 @@ async function sendSecurityAlert(event) {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*이벤트:* ${event.type}\n*IP:* ${event.ip}\n*시간:* ${event.timestamp}\n*상세:* ${event.details}`
-          }
-        }
-      ]
-    })
+            text: `*이벤트:* ${event.type}\n*IP:* ${event.ip}\n*시간:* ${event.timestamp}\n*상세:* ${event.details}`,
+          },
+        },
+      ],
+    }),
   });
 }
 ```
@@ -486,11 +502,11 @@ RATE_LIMIT_WINDOW_MS=60000
 
 ### 6.2 키 로테이션 정책
 
-| 키 유형 | 로테이션 주기 | 방법 |
-|--------|-------------|------|
-| API Key | 90일 | 새 키 생성 → 클라이언트 업데이트 → 이전 키 폐기 |
-| HMAC Secret | 180일 | 양방향 동시 업데이트 |
-| Service Role Key | 365일 | Supabase 대시보드에서 재생성 |
+| 키 유형          | 로테이션 주기 | 방법                                            |
+| ---------------- | ------------- | ----------------------------------------------- |
+| API Key          | 90일          | 새 키 생성 → 클라이언트 업데이트 → 이전 키 폐기 |
+| HMAC Secret      | 180일         | 양방향 동시 업데이트                            |
+| Service Role Key | 365일         | Supabase 대시보드에서 재생성                    |
 
 ---
 
@@ -503,7 +519,8 @@ RATE_LIMIT_WINDOW_MS=60000
 
 class N8NService {
   constructor(config = {}) {
-    this.baseUrl = config.baseUrl || 'https://dadam-proxy.dadamfurniture.workers.dev';
+    this.baseUrl =
+      config.baseUrl || 'https://dadam-proxy.dadamfurniture.workers.dev';
     this.apiKey = config.apiKey || null;
     this.timeout = config.timeout || 30000;
   }
@@ -607,7 +624,7 @@ async function callN8NWithRetry(fn, maxRetries = 3) {
 
       // 지수 백오프
       const delay = Math.pow(2, attempt) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
@@ -651,6 +668,6 @@ try {
 
 ## 문서 버전
 
-| 버전 | 날짜 | 변경 내용 |
-|------|------|---------|
-| 1.0 | 2026-01-26 | 최초 작성 |
+| 버전 | 날짜       | 변경 내용 |
+| ---- | ---------- | --------- |
+| 1.0  | 2026-01-26 | 최초 작성 |

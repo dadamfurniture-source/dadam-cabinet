@@ -1,2129 +1,2196 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#2D2A26" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>다담가구 - AI가 설계하는 프리미엄 맞춤 가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#2D2A26">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>다담가구 - AI가 설계하는 프리미엄 맞춤 가구</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
-    rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box
-    }
+      :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+      }
 
-    :root {
-      --white: #FAFAFA;
-      --cream: #F8F7F4;
-      --warm: #EBE8E2;
-      --gray: #8B8680;
-      --charcoal: #2D2A26;
-      --black: #1A1918;
-      --gold: #B8956C
-    }
+      body {
+        font-family:
+          'Pretendard',
+          -apple-system,
+          BlinkMacSystemFont,
+          system-ui,
+          sans-serif;
+        background: var(--white);
+        color: var(--charcoal);
+        line-height: 1.7;
+        -webkit-tap-highlight-color: transparent;
+      }
 
-    body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      background: var(--white);
-      color: var(--charcoal);
-      line-height: 1.7;
-      -webkit-tap-highlight-color: transparent
-    }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-family: 'Playfair Display', 'Noto Serif KR', serif;
+        font-weight: 500;
+      }
 
-    h1,
-    h2,
-    h3,
-    h4 {
-      font-family: 'Playfair Display', 'Noto Serif KR', serif;
-      font-weight: 500
-    }
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
 
-    a {
-      text-decoration: none;
-      color: inherit
-    }
+      button {
+        -webkit-tap-highlight-color: transparent;
+      }
 
-    button {
-      -webkit-tap-highlight-color: transparent
-    }
+      /* Shared Button Styles */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        transition: all 0.3s;
+        -webkit-tap-highlight-color: transparent;
+      }
 
-    /* Shared Button Styles */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      transition: all .3s;
-      -webkit-tap-highlight-color: transparent
-    }
+      .btn-outline {
+        padding: 16px 32px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        color: #fff;
+      }
 
-    .btn-outline {
-      padding: 16px 32px;
-      border: 1px solid rgba(255, 255, 255, .5);
-      color: #fff
-    }
+      .btn-outline:hover {
+        background: #fff;
+        color: var(--charcoal);
+      }
 
-    .btn-outline:hover {
-      background: #fff;
-      color: var(--charcoal)
-    }
+      .btn-solid {
+        padding: 16px 32px;
+        background: var(--charcoal);
+        color: #fff;
+      }
 
-    .btn-solid {
-      padding: 16px 32px;
-      background: var(--charcoal);
-      color: #fff
-    }
+      .btn-solid:hover {
+        background: var(--gold);
+      }
 
-    .btn-solid:hover {
-      background: var(--gold)
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
+      /* ═══════════════════════════════════════════════════════════════
        NAVIGATION
        ═══════════════════════════════════════════════════════════════ */
-    .nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      padding: 0 48px;
-      height: 80px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: all .5s
-    }
-
-    .nav.scrolled {
-      background: rgba(255, 255, 255, .95);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, .1)
-    }
-
-    .nav-logo {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #fff;
-      transition: color .5s
-    }
-
-    .nav.scrolled .nav-logo {
-      color: var(--charcoal)
-    }
-
-    .nav-logo svg {
-      width: 32px;
-      height: 32px
-    }
-
-    .nav-logo span {
-      font-family: 'Playfair Display', serif;
-      font-size: 24px
-    }
-
-    .nav-menu {
-      display: flex;
-      gap: 32px
-    }
-
-    .nav-menu a {
-      color: #fff;
-      font-size: 14px;
-      letter-spacing: .5px;
-      transition: all .3s
-    }
-
-    .nav.scrolled .nav-menu a {
-      color: var(--charcoal)
-    }
-
-    .nav-menu a:hover {
-      opacity: .7
-    }
-
-    .nav-icons {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      color: #fff;
-      transition: color .5s
-    }
-
-    .nav.scrolled .nav-icons {
-      color: var(--charcoal)
-    }
-
-    .nav-icons button {
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      padding: 4px
-    }
-
-    /* User Menu */
-    .user-menu {
-      position: relative
-    }
-
-    .user-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      background: rgba(255, 255, 255, .1);
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      transition: all .3s
-    }
-
-    .nav.scrolled .user-btn {
-      background: var(--cream)
-    }
-
-    .user-btn:hover {
-      background: rgba(255, 255, 255, .2)
-    }
-
-    .nav.scrolled .user-btn:hover {
-      background: var(--warm)
-    }
-
-    .user-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--gold);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 600;
-      color: #fff
-    }
-
-    .user-name {
-      font-size: 13px;
-      max-width: 80px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap
-    }
-
-    .user-dropdown {
-      position: absolute;
-      top: calc(100% + 8px);
-      right: 0;
-      min-width: 180px;
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, .15);
-      opacity: 0;
-      visibility: hidden;
-      transform: translateY(-10px);
-      transition: all .3s;
-      z-index: 200
-    }
-
-    .user-menu:hover .user-dropdown,
-    .user-dropdown:hover {
-      opacity: 1;
-      visibility: visible;
-      transform: translateY(0)
-    }
-
-    .user-dropdown a,
-    .user-dropdown button {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      padding: 12px 16px;
-      font-size: 14px;
-      color: var(--charcoal);
-      background: none;
-      border: none;
-      cursor: pointer;
-      transition: background .2s;
-      text-align: left
-    }
-
-    .user-dropdown a:hover,
-    .user-dropdown button:hover {
-      background: var(--cream)
-    }
-
-    .user-dropdown a:first-child {
-      border-radius: 12px 12px 0 0
-    }
-
-    .user-dropdown button:last-child {
-      border-radius: 0 0 12px 12px;
-      border-top: 1px solid var(--warm);
-      color: var(--gray)
-    }
-
-    .user-dropdown svg {
-      width: 18px;
-      height: 18px;
-      color: var(--gray)
-    }
-
-    .login-btn {
-      padding: 8px 16px;
-      background: transparent;
-      border: 1px solid currentColor;
-      border-radius: 8px;
-      font-size: 13px;
-      transition: all .3s
-    }
-
-    .login-btn:hover {
-      background: var(--gold);
-      border-color: var(--gold);
-      color: #fff
-    }
-
-    /* Hamburger Menu Button */
-    .hamburger {
-      display: none;
-      flex-direction: column;
-      gap: 5px;
-      padding: 10px;
-      cursor: pointer;
-      background: none;
-      border: none;
-      z-index: 101
-    }
-
-    .hamburger span {
-      width: 24px;
-      height: 2px;
-      background: #fff;
-      border-radius: 2px;
-      transition: all .3s
-    }
-
-    .nav.scrolled .hamburger span {
-      background: var(--charcoal)
-    }
-
-    .hamburger.active span {
-      background: var(--charcoal)
-    }
-
-    .hamburger.active span:nth-child(1) {
-      transform: rotate(45deg) translate(5px, 5px)
-    }
-
-    .hamburger.active span:nth-child(2) {
-      opacity: 0
-    }
-
-    .hamburger.active span:nth-child(3) {
-      transform: rotate(-45deg) translate(5px, -5px)
-    }
-
-    /* Mobile Menu Overlay */
-    .mobile-menu {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--white);
-      z-index: 99;
-      padding: 100px 24px 24px;
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      overflow-y: auto
-    }
-
-    .mobile-menu.active {
-      display: flex
-    }
-
-    .mobile-menu a {
-      padding: 18px 20px;
-      font-size: 18px;
-      border-radius: 12px;
-      transition: background .3s;
-      color: var(--charcoal)
-    }
-
-    .mobile-menu a:hover,
-    .mobile-menu a:active {
-      background: var(--cream);
-      color: var(--gold)
-    }
-
-    .mobile-menu-footer {
-      margin-top: auto;
-      padding-top: 24px;
-      border-top: 1px solid var(--warm)
-    }
-
-    .mobile-menu-contact {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      color: var(--gray);
-      font-size: 14px
-    }
-
-    .mobile-menu-contact a {
-      padding: 8px 0;
-      display: flex;
-      align-items: center;
-      gap: 10px
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       HERO
-       ═══════════════════════════════════════════════════════════════ */
-    .hero {
-      position: relative;
-      height: 100vh;
-      min-height: 600px;
-      overflow: hidden
-    }
-
-    .hero-slide {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      transition: opacity 1s
-    }
-
-    .hero-slide.active {
-      opacity: 1
-    }
-
-    .hero-slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover
-    }
-
-    .hero-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, .4)
-    }
-
-    .hero-content {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      padding: 0 48px
-    }
-
-    .hero-text {
-      max-width: 600px;
-      color: #fff
-    }
-
-    .hero-text h1 {
-      font-size: 64px;
-      line-height: 1.1;
-      margin-bottom: 24px
-    }
-
-    .hero-text h1 span {
-      color: var(--gold)
-    }
-
-    .hero-text p {
-      font-size: 18px;
-      opacity: .8;
-      margin-bottom: 8px
-    }
-
-    .hero-text .btn {
-      margin-top: 32px
-    }
-
-    .hero-controls {
-      position: absolute;
-      bottom: 48px;
-      left: 48px;
-      display: flex;
-      gap: 8px
-    }
-
-    .hero-dot {
-      width: 48px;
-      height: 4px;
-      background: rgba(255, 255, 255, .3);
-      border: none;
-      cursor: pointer;
-      overflow: hidden;
-      position: relative;
-      -webkit-tap-highlight-color: transparent
-    }
-
-    .hero-dot.active::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: #fff;
-      animation: progress 6s linear
-    }
-
-    @keyframes progress {
-      from {
-        width: 0
-      }
-
-      to {
-        width: 100%
-      }
-    }
-
-    .hero-arrows {
-      position: absolute;
-      bottom: 48px;
-      right: 48px;
-      display: flex;
-      gap: 8px
-    }
-
-    .hero-arrow {
-      width: 48px;
-      height: 48px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid rgba(255, 255, 255, .3);
-      background: none;
-      color: #fff;
-      cursor: pointer;
-      transition: all .3s;
-      -webkit-tap-highlight-color: transparent
-    }
-
-    .hero-arrow:hover,
-    .hero-arrow:active {
-      background: #fff;
-      color: var(--charcoal)
-    }
-
-    .hero-counter {
-      position: absolute;
-      bottom: 48px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: rgba(255, 255, 255, .6);
-      font-size: 14px;
-      letter-spacing: 4px
-    }
-
-    .hero-counter span {
-      color: #fff
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       SECTION COMMON
-       ═══════════════════════════════════════════════════════════════ */
-    .section {
-      padding: 80px 48px
-    }
-
-    .section-title {
-      text-align: center;
-      font-size: 36px;
-      margin-bottom: 48px
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       PRODUCTS
-       ═══════════════════════════════════════════════════════════════ */
-    .products-grid {
-      display: flex;
-      gap: 16px;
-      overflow-x: auto;
-      padding-bottom: 16px;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch
-    }
-
-    .products-grid::-webkit-scrollbar {
-      display: none
-    }
-
-    .product-card {
-      flex-shrink: 0;
-      width: 320px;
-      aspect-ratio: 4/3;
-      position: relative;
-      overflow: hidden;
-      -webkit-tap-highlight-color: transparent
-    }
-
-    .product-card img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform .7s
-    }
-
-    .product-card:hover img {
-      transform: scale(1.05)
-    }
-
-    .product-card-overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to top, rgba(0, 0, 0, .7), transparent)
-    }
-
-    .product-card-text {
-      position: absolute;
-      bottom: 24px;
-      left: 24px;
-      color: #fff
-    }
-
-    .product-card-text p {
-      font-size: 12px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      opacity: .7
-    }
-
-    .product-card-text h3 {
-      font-size: 24px;
-      margin-top: 4px
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       DADAM HOME
-       ═══════════════════════════════════════════════════════════════ */
-    .dadam-home {
-      position: relative;
-      min-height: 80vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      color: #fff;
-      padding: 60px 24px
-    }
-
-    .dadam-home-bg {
-      position: absolute;
-      inset: 0
-    }
-
-    .dadam-home-bg img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover
-    }
-
-    .dadam-home-bg::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, .6)
-    }
-
-    .dadam-home-content {
-      position: relative;
-      z-index: 1
-    }
-
-    .dadam-home h2 {
-      font-size: 48px;
-      margin-bottom: 16px
-    }
-
-    .dadam-home-content>p {
-      opacity: .7;
-      margin-bottom: 48px
-    }
-
-    .dadam-home-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 64px;
-      max-width: 800px
-    }
-
-    .dadam-home-item {
-      -webkit-tap-highlight-color: transparent
-    }
-
-    .dadam-home-item h3 {
-      font-size: 24px;
-      margin-bottom: 16px
-    }
-
-    .dadam-home-item .open {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      color: rgba(255, 255, 255, .5);
-      transition: color .3s
-    }
-
-    .dadam-home-item:hover .open,
-    .dadam-home-item:active .open {
-      color: #fff
-    }
-
-    .dadam-home-item .open span {
-      font-size: 12px;
-      letter-spacing: 2px;
-      text-transform: uppercase
-    }
-
-    .dadam-home-item .open::before,
-    .dadam-home-item .open::after {
-      content: '';
-      width: 32px;
-      height: 1px;
-      background: currentColor
-    }
-
-    .dadam-home-item p {
-      margin-top: 16px;
-      font-size: 14px;
-      opacity: .5
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       BRAND STORY
-       ═══════════════════════════════════════════════════════════════ */
-    .brand-story {
-      background: var(--cream)
-    }
-
-    .brand-story-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      max-width: 1400px;
-      margin: 0 auto;
-      align-items: center
-    }
-
-    .brand-story-img {
-      aspect-ratio: 4/3;
-      overflow: hidden
-    }
-
-    .brand-story-img img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover
-    }
-
-    .brand-story-text .label {
-      font-size: 12px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 16px
-    }
-
-    .brand-story-text h2 {
-      font-size: 48px;
-      margin-bottom: 8px
-    }
-
-    .brand-story-text .subtitle {
-      color: var(--gray);
-      margin-bottom: 32px
-    }
-
-    .brand-story-text .desc {
-      color: var(--gray);
-      line-height: 1.8;
-      margin-bottom: 32px
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       INSTAGRAM
-       ═══════════════════════════════════════════════════════════════ */
-    .instagram-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 48px;
-      flex-wrap: wrap;
-      gap: 16px
-    }
-
-    .instagram-header-left {
-      display: flex;
-      align-items: center;
-      gap: 16px
-    }
-
-    .instagram-header-left svg {
-      width: 24px;
-      height: 24px
-    }
-
-    .instagram-header a {
-      color: var(--gray);
-      font-size: 14px
-    }
-
-    .instagram-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px
-    }
-
-    .instagram-item {
-      aspect-ratio: 1;
-      overflow: hidden;
-      position: relative;
-      -webkit-tap-highlight-color: transparent
-    }
-
-    .instagram-item img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform .5s
-    }
-
-    .instagram-item:hover img {
-      transform: scale(1.05)
-    }
-
-    .instagram-item::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0);
-      transition: background .3s
-    }
-
-    .instagram-item:hover::after {
-      background: rgba(0, 0, 0, .3)
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       CTA
-       ═══════════════════════════════════════════════════════════════ */
-    .cta {
-      background: var(--charcoal);
-      text-align: center;
-      color: #fff
-    }
-
-    .cta h2 {
-      font-size: 48px;
-      margin-bottom: 24px
-    }
-
-    .cta p {
-      opacity: .6;
-      margin-bottom: 40px
-    }
-
-    .cta-buttons {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap
-    }
-
-    .cta-btn {
-      padding: 16px 40px;
-      font-size: 14px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      transition: all .3s;
-      -webkit-tap-highlight-color: transparent
-    }
-
-    .cta-btn.primary {
-      background: #fff;
-      color: var(--charcoal)
-    }
-
-    .cta-btn.primary:hover,
-    .cta-btn.primary:active {
-      background: var(--gold);
-      color: #fff
-    }
-
-    .cta-btn.outline {
-      border: 1px solid rgba(255, 255, 255, .3);
-      color: #fff
-    }
-
-    .cta-btn.outline:hover,
-    .cta-btn.outline:active {
-      background: #fff;
-      color: var(--charcoal)
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       FOOTER
-       ═══════════════════════════════════════════════════════════════ */
-    .footer {
-      padding: 80px 48px;
-      background: var(--charcoal);
-      color: #fff
-    }
-
-    .footer-grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr;
-      gap: 48px;
-      max-width: 1400px;
-      margin: 0 auto
-    }
-
-    .footer-brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 24px
-    }
-
-    .footer-brand svg {
-      width: 32px;
-      height: 32px
-    }
-
-    .footer-brand span {
-      font-family: 'Playfair Display', serif;
-      font-size: 24px
-    }
-
-    .footer-desc {
-      color: rgba(255, 255, 255, .6);
-      font-size: 14px;
-      line-height: 1.8;
-      max-width: 400px;
-      margin-bottom: 32px
-    }
-
-    .footer-contact {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px
-    }
-
-    .footer-contact-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: rgba(255, 255, 255, .6);
-      font-size: 14px
-    }
-
-    .footer-contact-item svg {
-      width: 16px;
-      height: 16px;
-      color: var(--gold);
-      flex-shrink: 0
-    }
-
-    .footer h4 {
-      font-size: 12px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, .4);
-      margin-bottom: 24px;
-      font-family: inherit;
-      font-weight: 400
-    }
-
-    .footer-links {
-      list-style: none
-    }
-
-    .footer-links li {
-      margin-bottom: 12px
-    }
-
-    .footer-links a {
-      color: rgba(255, 255, 255, .6);
-      font-size: 14px;
-      transition: color .3s
-    }
-
-    .footer-links a:hover {
-      color: #fff
-    }
-
-    .footer-bottom {
-      border-top: 1px solid rgba(255, 255, 255, .1);
-      margin-top: 48px;
-      padding-top: 24px;
-      display: flex;
-      justify-content: space-between;
-      color: rgba(255, 255, 255, .4);
-      font-size: 12px;
-      flex-wrap: wrap;
-      gap: 8px
-    }
-
-    .footer-box {
-      margin-top: 32px;
-      padding: 16px;
-      border: 1px solid rgba(184, 149, 108, .3)
-    }
-
-    .footer-box p:first-child {
-      color: var(--gold);
-      font-size: 14px;
-      font-weight: 500
-    }
-
-    .footer-box p:last-child {
-      color: rgba(255, 255, 255, .4);
-      font-size: 12px;
-      margin-top: 4px
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       RESPONSIVE - TABLET (1024px)
-       ═══════════════════════════════════════════════════════════════ */
-    @media(max-width:1024px) {
       .nav {
-        padding: 0 32px;
-        height: 72px
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        padding: 0 48px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.5s;
       }
 
-      .nav-menu {
-        gap: 24px
+      .nav.scrolled {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       }
 
-      .nav-menu a {
-        font-size: 13px
+      .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #fff;
+        transition: color 0.5s;
       }
 
-      .hero-content {
-        padding: 0 32px
-      }
-
-      .hero-text h1 {
-        font-size: 52px
-      }
-
-      .section {
-        padding: 64px 32px
-      }
-
-      .section-title {
-        font-size: 32px;
-        margin-bottom: 40px
-      }
-
-      .dadam-home h2 {
-        font-size: 40px
-      }
-
-      .dadam-home-grid {
-        gap: 40px
-      }
-
-      .brand-story-text h2 {
-        font-size: 40px
-      }
-
-      .cta h2 {
-        font-size: 40px
-      }
-
-      .footer {
-        padding: 64px 32px
-      }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       RESPONSIVE - MOBILE (768px)
-       ═══════════════════════════════════════════════════════════════ */
-    @media(max-width:768px) {
-      .nav {
-        padding: 0 16px;
-        height: 64px
+      .nav.scrolled .nav-logo {
+        color: var(--charcoal);
       }
 
       .nav-logo svg {
-        width: 28px;
-        height: 28px
+        width: 32px;
+        height: 32px;
       }
 
       .nav-logo span {
-        font-size: 20px
+        font-family: 'Playfair Display', serif;
+        font-size: 24px;
       }
 
       .nav-menu {
-        display: none
+        display: flex;
+        gap: 32px;
       }
 
-      .nav-icons>button:not(.hamburger) {
-        display: none
+      .nav-menu a {
+        color: #fff;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        transition: all 0.3s;
       }
 
+      .nav.scrolled .nav-menu a {
+        color: var(--charcoal);
+      }
+
+      .nav-menu a:hover {
+        opacity: 0.7;
+      }
+
+      .nav-icons {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        color: #fff;
+        transition: color 0.5s;
+      }
+
+      .nav.scrolled .nav-icons {
+        color: var(--charcoal);
+      }
+
+      .nav-icons button {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        padding: 4px;
+      }
+
+      /* User Menu */
+      .user-menu {
+        position: relative;
+      }
+
+      .user-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .nav.scrolled .user-btn {
+        background: var(--cream);
+      }
+
+      .user-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .nav.scrolled .user-btn:hover {
+        background: var(--warm);
+      }
+
+      .user-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--gold);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: #fff;
+      }
+
+      .user-name {
+        font-size: 13px;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .user-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 180px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.3s;
+        z-index: 200;
+      }
+
+      .user-menu:hover .user-dropdown,
+      .user-dropdown:hover {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+
+      .user-dropdown a,
+      .user-dropdown button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 14px;
+        color: var(--charcoal);
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: background 0.2s;
+        text-align: left;
+      }
+
+      .user-dropdown a:hover,
+      .user-dropdown button:hover {
+        background: var(--cream);
+      }
+
+      .user-dropdown a:first-child {
+        border-radius: 12px 12px 0 0;
+      }
+
+      .user-dropdown button:last-child {
+        border-radius: 0 0 12px 12px;
+        border-top: 1px solid var(--warm);
+        color: var(--gray);
+      }
+
+      .user-dropdown svg {
+        width: 18px;
+        height: 18px;
+        color: var(--gray);
+      }
+
+      .login-btn {
+        padding: 8px 16px;
+        background: transparent;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        font-size: 13px;
+        transition: all 0.3s;
+      }
+
+      .login-btn:hover {
+        background: var(--gold);
+        border-color: var(--gold);
+        color: #fff;
+      }
+
+      /* Hamburger Menu Button */
       .hamburger {
-        display: flex
+        display: none;
+        flex-direction: column;
+        gap: 5px;
+        padding: 10px;
+        cursor: pointer;
+        background: none;
+        border: none;
+        z-index: 101;
       }
 
+      .hamburger span {
+        width: 24px;
+        height: 2px;
+        background: #fff;
+        border-radius: 2px;
+        transition: all 0.3s;
+      }
+
+      .nav.scrolled .hamburger span {
+        background: var(--charcoal);
+      }
+
+      .hamburger.active span {
+        background: var(--charcoal);
+      }
+
+      .hamburger.active span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+      }
+
+      .hamburger.active span:nth-child(2) {
+        opacity: 0;
+      }
+
+      .hamburger.active span:nth-child(3) {
+        transform: rotate(-45deg) translate(5px, -5px);
+      }
+
+      /* Mobile Menu Overlay */
+      .mobile-menu {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--white);
+        z-index: 99;
+        padding: 100px 24px 24px;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        overflow-y: auto;
+      }
+
+      .mobile-menu.active {
+        display: flex;
+      }
+
+      .mobile-menu a {
+        padding: 18px 20px;
+        font-size: 18px;
+        border-radius: 12px;
+        transition: background 0.3s;
+        color: var(--charcoal);
+      }
+
+      .mobile-menu a:hover,
+      .mobile-menu a:active {
+        background: var(--cream);
+        color: var(--gold);
+      }
+
+      .mobile-menu-footer {
+        margin-top: auto;
+        padding-top: 24px;
+        border-top: 1px solid var(--warm);
+      }
+
+      .mobile-menu-contact {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: var(--gray);
+        font-size: 14px;
+      }
+
+      .mobile-menu-contact a {
+        padding: 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════════════════════════════ */
       .hero {
-        min-height: 100vh
+        position: relative;
+        height: 100vh;
+        min-height: 600px;
+        overflow: hidden;
+      }
+
+      .hero-slide {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        transition: opacity 1s;
+      }
+
+      .hero-slide.active {
+        opacity: 1;
+      }
+
+      .hero-slide img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .hero-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
       }
 
       .hero-content {
-        padding: 0 20px;
-        align-items: flex-end;
-        padding-bottom: 140px
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 48px;
       }
 
       .hero-text {
-        max-width: 100%
+        max-width: 600px;
+        color: #fff;
       }
 
       .hero-text h1 {
-        font-size: 36px;
-        margin-bottom: 16px
+        font-size: 64px;
+        line-height: 1.1;
+        margin-bottom: 24px;
+      }
+
+      .hero-text h1 span {
+        color: var(--gold);
       }
 
       .hero-text p {
-        font-size: 15px;
-        margin-bottom: 4px
+        font-size: 18px;
+        opacity: 0.8;
+        margin-bottom: 8px;
       }
 
       .hero-text .btn {
-        margin-top: 24px;
-        padding: 14px 28px;
-        font-size: 13px
+        margin-top: 32px;
       }
 
       .hero-controls {
-        bottom: 32px;
-        left: 20px;
-        gap: 6px
+        position: absolute;
+        bottom: 48px;
+        left: 48px;
+        display: flex;
+        gap: 8px;
       }
 
       .hero-dot {
-        width: 32px;
-        height: 3px
+        width: 48px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+        border: none;
+        cursor: pointer;
+        overflow: hidden;
+        position: relative;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .hero-dot.active::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #fff;
+        animation: progress 6s linear;
+      }
+
+      @keyframes progress {
+        from {
+          width: 0;
+        }
+
+        to {
+          width: 100%;
+        }
       }
 
       .hero-arrows {
-        bottom: 32px;
-        right: 20px;
-        gap: 6px
+        position: absolute;
+        bottom: 48px;
+        right: 48px;
+        display: flex;
+        gap: 8px;
       }
 
       .hero-arrow {
-        width: 40px;
-        height: 40px
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: none;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.3s;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .hero-arrow:hover,
+      .hero-arrow:active {
+        background: #fff;
+        color: var(--charcoal);
       }
 
       .hero-counter {
-        bottom: 100px;
-        font-size: 12px
+        position: absolute;
+        bottom: 48px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+        letter-spacing: 4px;
       }
 
+      .hero-counter span {
+        color: #fff;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       SECTION COMMON
+       ═══════════════════════════════════════════════════════════════ */
       .section {
-        padding: 48px 16px
+        padding: 80px 48px;
       }
 
       .section-title {
-        font-size: 28px;
-        margin-bottom: 32px
+        text-align: center;
+        font-size: 36px;
+        margin-bottom: 48px;
       }
 
+      /* ═══════════════════════════════════════════════════════════════
+       PRODUCTS
+       ═══════════════════════════════════════════════════════════════ */
       .products-grid {
-        gap: 12px;
-        padding: 0 16px 16px;
-        margin: 0 -16px
+        display: flex;
+        gap: 16px;
+        overflow-x: auto;
+        padding-bottom: 16px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .products-grid::-webkit-scrollbar {
+        display: none;
       }
 
       .product-card {
-        width: 260px
+        flex-shrink: 0;
+        width: 320px;
+        aspect-ratio: 4/3;
+        position: relative;
+        overflow: hidden;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .product-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.7s;
+      }
+
+      .product-card:hover img {
+        transform: scale(1.05);
+      }
+
+      .product-card-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
       }
 
       .product-card-text {
-        bottom: 16px;
-        left: 16px
+        position: absolute;
+        bottom: 24px;
+        left: 24px;
+        color: #fff;
+      }
+
+      .product-card-text p {
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        opacity: 0.7;
       }
 
       .product-card-text h3 {
-        font-size: 20px
+        font-size: 24px;
+        margin-top: 4px;
       }
 
+      /* ═══════════════════════════════════════════════════════════════
+       DADAM HOME
+       ═══════════════════════════════════════════════════════════════ */
       .dadam-home {
-        min-height: auto;
-        padding: 80px 20px
+        position: relative;
+        min-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #fff;
+        padding: 60px 24px;
+      }
+
+      .dadam-home-bg {
+        position: absolute;
+        inset: 0;
+      }
+
+      .dadam-home-bg img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .dadam-home-bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+      }
+
+      .dadam-home-content {
+        position: relative;
+        z-index: 1;
       }
 
       .dadam-home h2 {
-        font-size: 32px;
-        margin-bottom: 12px
+        font-size: 48px;
+        margin-bottom: 16px;
       }
 
-      .dadam-home-content>p {
-        margin-bottom: 40px;
-        font-size: 14px
+      .dadam-home-content > p {
+        opacity: 0.7;
+        margin-bottom: 48px;
       }
 
       .dadam-home-grid {
-        grid-template-columns: 1fr;
-        gap: 32px;
-        max-width: 280px
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 64px;
+        max-width: 800px;
+      }
+
+      .dadam-home-item {
+        -webkit-tap-highlight-color: transparent;
       }
 
       .dadam-home-item h3 {
-        font-size: 20px;
-        margin-bottom: 12px
+        font-size: 24px;
+        margin-bottom: 16px;
       }
 
       .dadam-home-item .open {
-        gap: 12px
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        color: rgba(255, 255, 255, 0.5);
+        transition: color 0.3s;
+      }
+
+      .dadam-home-item:hover .open,
+      .dadam-home-item:active .open {
+        color: #fff;
+      }
+
+      .dadam-home-item .open span {
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
       }
 
       .dadam-home-item .open::before,
       .dadam-home-item .open::after {
-        width: 24px
+        content: '';
+        width: 32px;
+        height: 1px;
+        background: currentColor;
       }
 
       .dadam-home-item p {
-        font-size: 13px;
-        margin-top: 12px
+        margin-top: 16px;
+        font-size: 14px;
+        opacity: 0.5;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       BRAND STORY
+       ═══════════════════════════════════════════════════════════════ */
+      .brand-story {
+        background: var(--cream);
       }
 
       .brand-story-grid {
-        grid-template-columns: 1fr;
-        gap: 32px
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        max-width: 1400px;
+        margin: 0 auto;
+        align-items: center;
       }
 
       .brand-story-img {
-        aspect-ratio: 16/10
+        aspect-ratio: 4/3;
+        overflow: hidden;
+      }
+
+      .brand-story-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
 
       .brand-story-text .label {
-        font-size: 11px;
-        margin-bottom: 12px
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 16px;
       }
 
       .brand-story-text h2 {
-        font-size: 32px
+        font-size: 48px;
+        margin-bottom: 8px;
       }
 
       .brand-story-text .subtitle {
-        margin-bottom: 24px
+        color: var(--gray);
+        margin-bottom: 32px;
       }
 
       .brand-story-text .desc {
-        font-size: 14px;
-        margin-bottom: 24px
+        color: var(--gray);
+        line-height: 1.8;
+        margin-bottom: 32px;
       }
 
-      .brand-story-text .btn {
-        padding: 14px 28px;
-        font-size: 13px
-      }
-
+      /* ═══════════════════════════════════════════════════════════════
+       INSTAGRAM
+       ═══════════════════════════════════════════════════════════════ */
       .instagram-header {
-        margin-bottom: 24px
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 48px;
+        flex-wrap: wrap;
+        gap: 16px;
       }
 
       .instagram-header-left {
-        gap: 10px
+        display: flex;
+        align-items: center;
+        gap: 16px;
       }
 
       .instagram-header-left svg {
-        width: 20px;
-        height: 20px
-      }
-
-      .instagram-header-left span {
-        font-size: 14px
+        width: 24px;
+        height: 24px;
       }
 
       .instagram-header a {
-        font-size: 13px
-      }
-
-      .instagram-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px
-      }
-
-      .cta h2 {
-        font-size: 28px;
-        margin-bottom: 16px
-      }
-
-      .cta p {
+        color: var(--gray);
         font-size: 14px;
-        margin-bottom: 32px
-      }
-
-      .cta-buttons {
-        flex-direction: column;
-        gap: 12px;
-        padding: 0 20px
-      }
-
-      .cta-btn {
-        width: 100%;
-        text-align: center;
-        justify-content: center;
-        padding: 14px 32px
-      }
-
-      .footer {
-        padding: 48px 16px
-      }
-
-      .footer-grid {
-        grid-template-columns: 1fr;
-        gap: 40px
-      }
-
-      .footer-brand svg {
-        width: 28px;
-        height: 28px
-      }
-
-      .footer-brand span {
-        font-size: 20px
-      }
-
-      .footer-desc {
-        font-size: 13px;
-        margin-bottom: 24px
-      }
-
-      .footer-contact {
-        grid-template-columns: 1fr;
-        gap: 12px
-      }
-
-      .footer-contact-item {
-        font-size: 13px
-      }
-
-      .footer h4 {
-        margin-bottom: 16px
-      }
-
-      .footer-links a {
-        font-size: 13px
-      }
-
-      .footer-bottom {
-        flex-direction: column;
-        text-align: center;
-        gap: 4px;
-        margin-top: 32px;
-        padding-top: 20px
-      }
-
-      .footer-box {
-        margin-top: 24px;
-        padding: 14px
-      }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       RESPONSIVE - SMALL MOBILE (480px)
-       ═══════════════════════════════════════════════════════════════ */
-    @media(max-width:480px) {
-      .nav {
-        height: 56px
-      }
-
-      .nav-logo svg {
-        width: 24px;
-        height: 24px
-      }
-
-      .nav-logo span {
-        font-size: 18px
-      }
-
-      .hero-content {
-        padding-bottom: 120px
-      }
-
-      .hero-text h1 {
-        font-size: 28px
-      }
-
-      .hero-text p {
-        font-size: 14px
-      }
-
-      .hero-text .btn {
-        padding: 12px 24px;
-        font-size: 12px
-      }
-
-      .hero-controls {
-        bottom: 24px;
-        left: 16px
-      }
-
-      .hero-arrows {
-        bottom: 24px;
-        right: 16px
-      }
-
-      .hero-arrow {
-        width: 36px;
-        height: 36px
-      }
-
-      .hero-counter {
-        bottom: 80px;
-        font-size: 11px
-      }
-
-      .section {
-        padding: 40px 12px
-      }
-
-      .section-title {
-        font-size: 24px;
-        margin-bottom: 24px
-      }
-
-      .products-grid {
-        padding: 0 12px 12px;
-        margin: 0 -12px;
-        gap: 10px
-      }
-
-      .product-card {
-        width: 220px
-      }
-
-      .product-card-text {
-        bottom: 12px;
-        left: 12px
-      }
-
-      .product-card-text p {
-        font-size: 10px
-      }
-
-      .product-card-text h3 {
-        font-size: 18px
-      }
-
-      .dadam-home {
-        padding: 60px 16px
-      }
-
-      .dadam-home h2 {
-        font-size: 26px
-      }
-
-      .dadam-home-item h3 {
-        font-size: 18px
-      }
-
-      .brand-story-text h2 {
-        font-size: 26px
-      }
-
-      .brand-story-text .desc {
-        font-size: 13px
       }
 
       .instagram-grid {
-        gap: 4px
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
       }
 
-      .cta {
-        padding: 40px 12px
+      .instagram-item {
+        aspect-ratio: 1;
+        overflow: hidden;
+        position: relative;
+        -webkit-tap-highlight-color: transparent;
       }
 
-      .cta h2 {
-        font-size: 24px
-      }
-
-      .cta p {
-        font-size: 13px
-      }
-
-      .cta-btn {
-        padding: 12px 24px;
-        font-size: 12px
-      }
-
-      .footer {
-        padding: 40px 12px
-      }
-
-      .footer-desc {
-        font-size: 12px
-      }
-
-      .footer-contact-item {
-        font-size: 12px;
-        gap: 8px
-      }
-
-      .footer-links a {
-        font-size: 12px
-      }
-
-      .footer-bottom {
-        font-size: 10px
-      }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       LANDSCAPE MODE FIX
-       ═══════════════════════════════════════════════════════════════ */
-    @media(max-height:500px) and (orientation:landscape) {
-      .hero {
-        min-height: 100vh
-      }
-
-      .hero-content {
-        padding-bottom: 80px
-      }
-
-      .hero-text h1 {
-        font-size: 28px;
-        margin-bottom: 12px
-      }
-
-      .hero-controls,
-      .hero-arrows {
-        bottom: 16px
-      }
-
-      .hero-counter {
-        bottom: 60px
-      }
-
-      .dadam-home {
-        min-height: auto;
-        padding: 40px 24px
-      }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       TOUCH DEVICE OPTIMIZATION
-       ═══════════════════════════════════════════════════════════════ */
-    @media(hover:none) {
-      .product-card:hover img {
-        transform: none
-      }
-
-      .product-card:active img {
-        transform: scale(1.02)
+      .instagram-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.5s;
       }
 
       .instagram-item:hover img {
-        transform: none
+        transform: scale(1.05);
+      }
+
+      .instagram-item::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0);
+        transition: background 0.3s;
       }
 
       .instagram-item:hover::after {
-        background: transparent
+        background: rgba(0, 0, 0, 0.3);
       }
 
-      .hero-arrow:hover {
-        background: none;
-        color: #fff
+      /* ═══════════════════════════════════════════════════════════════
+       CTA
+       ═══════════════════════════════════════════════════════════════ */
+      .cta {
+        background: var(--charcoal);
+        text-align: center;
+        color: #fff;
       }
 
-      .hero-arrow:active {
+      .cta h2 {
+        font-size: 48px;
+        margin-bottom: 24px;
+      }
+
+      .cta p {
+        opacity: 0.6;
+        margin-bottom: 40px;
+      }
+
+      .cta-buttons {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .cta-btn {
+        padding: 16px 40px;
+        font-size: 14px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        transition: all 0.3s;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .cta-btn.primary {
         background: #fff;
-        color: var(--charcoal)
+        color: var(--charcoal);
       }
 
-      .dadam-home-item:hover .open {
-        color: rgba(255, 255, 255, .5)
+      .cta-btn.primary:hover,
+      .cta-btn.primary:active {
+        background: var(--gold);
+        color: #fff;
       }
 
-      .dadam-home-item:active .open {
-        color: #fff
+      .cta-btn.outline {
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #fff;
       }
-    }
 
-    /* ═══════════════════════════════════════════════════════════════
+      .cta-btn.outline:hover,
+      .cta-btn.outline:active {
+        background: #fff;
+        color: var(--charcoal);
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════ */
+      .footer {
+        padding: 80px 48px;
+        background: var(--charcoal);
+        color: #fff;
+      }
+
+      .footer-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 48px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .footer-brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+
+      .footer-brand svg {
+        width: 32px;
+        height: 32px;
+      }
+
+      .footer-brand span {
+        font-family: 'Playfair Display', serif;
+        font-size: 24px;
+      }
+
+      .footer-desc {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+        line-height: 1.8;
+        max-width: 400px;
+        margin-bottom: 32px;
+      }
+
+      .footer-contact {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .footer-contact-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+      }
+
+      .footer-contact-item svg {
+        width: 16px;
+        height: 16px;
+        color: var(--gold);
+        flex-shrink: 0;
+      }
+
+      .footer h4 {
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.4);
+        margin-bottom: 24px;
+        font-family: inherit;
+        font-weight: 400;
+      }
+
+      .footer-links {
+        list-style: none;
+      }
+
+      .footer-links li {
+        margin-bottom: 12px;
+      }
+
+      .footer-links a {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+        transition: color 0.3s;
+      }
+
+      .footer-links a:hover {
+        color: #fff;
+      }
+
+      .footer-bottom {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        margin-top: 48px;
+        padding-top: 24px;
+        display: flex;
+        justify-content: space-between;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .footer-box {
+        margin-top: 32px;
+        padding: 16px;
+        border: 1px solid rgba(184, 149, 108, 0.3);
+      }
+
+      .footer-box p:first-child {
+        color: var(--gold);
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .footer-box p:last-child {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE - TABLET (1024px)
+       ═══════════════════════════════════════════════════════════════ */
+      @media (max-width: 1024px) {
+        .nav {
+          padding: 0 32px;
+          height: 72px;
+        }
+
+        .nav-menu {
+          gap: 24px;
+        }
+
+        .nav-menu a {
+          font-size: 13px;
+        }
+
+        .hero-content {
+          padding: 0 32px;
+        }
+
+        .hero-text h1 {
+          font-size: 52px;
+        }
+
+        .section {
+          padding: 64px 32px;
+        }
+
+        .section-title {
+          font-size: 32px;
+          margin-bottom: 40px;
+        }
+
+        .dadam-home h2 {
+          font-size: 40px;
+        }
+
+        .dadam-home-grid {
+          gap: 40px;
+        }
+
+        .brand-story-text h2 {
+          font-size: 40px;
+        }
+
+        .cta h2 {
+          font-size: 40px;
+        }
+
+        .footer {
+          padding: 64px 32px;
+        }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE - MOBILE (768px)
+       ═══════════════════════════════════════════════════════════════ */
+      @media (max-width: 768px) {
+        .nav {
+          padding: 0 16px;
+          height: 64px;
+        }
+
+        .nav-logo svg {
+          width: 28px;
+          height: 28px;
+        }
+
+        .nav-logo span {
+          font-size: 20px;
+        }
+
+        .nav-menu {
+          display: none;
+        }
+
+        .nav-icons > button:not(.hamburger) {
+          display: none;
+        }
+
+        .hamburger {
+          display: flex;
+        }
+
+        .hero {
+          min-height: 100vh;
+        }
+
+        .hero-content {
+          padding: 0 20px;
+          align-items: flex-end;
+          padding-bottom: 140px;
+        }
+
+        .hero-text {
+          max-width: 100%;
+        }
+
+        .hero-text h1 {
+          font-size: 36px;
+          margin-bottom: 16px;
+        }
+
+        .hero-text p {
+          font-size: 15px;
+          margin-bottom: 4px;
+        }
+
+        .hero-text .btn {
+          margin-top: 24px;
+          padding: 14px 28px;
+          font-size: 13px;
+        }
+
+        .hero-controls {
+          bottom: 32px;
+          left: 20px;
+          gap: 6px;
+        }
+
+        .hero-dot {
+          width: 32px;
+          height: 3px;
+        }
+
+        .hero-arrows {
+          bottom: 32px;
+          right: 20px;
+          gap: 6px;
+        }
+
+        .hero-arrow {
+          width: 40px;
+          height: 40px;
+        }
+
+        .hero-counter {
+          bottom: 100px;
+          font-size: 12px;
+        }
+
+        .section {
+          padding: 48px 16px;
+        }
+
+        .section-title {
+          font-size: 28px;
+          margin-bottom: 32px;
+        }
+
+        .products-grid {
+          gap: 12px;
+          padding: 0 16px 16px;
+          margin: 0 -16px;
+        }
+
+        .product-card {
+          width: 260px;
+        }
+
+        .product-card-text {
+          bottom: 16px;
+          left: 16px;
+        }
+
+        .product-card-text h3 {
+          font-size: 20px;
+        }
+
+        .dadam-home {
+          min-height: auto;
+          padding: 80px 20px;
+        }
+
+        .dadam-home h2 {
+          font-size: 32px;
+          margin-bottom: 12px;
+        }
+
+        .dadam-home-content > p {
+          margin-bottom: 40px;
+          font-size: 14px;
+        }
+
+        .dadam-home-grid {
+          grid-template-columns: 1fr;
+          gap: 32px;
+          max-width: 280px;
+        }
+
+        .dadam-home-item h3 {
+          font-size: 20px;
+          margin-bottom: 12px;
+        }
+
+        .dadam-home-item .open {
+          gap: 12px;
+        }
+
+        .dadam-home-item .open::before,
+        .dadam-home-item .open::after {
+          width: 24px;
+        }
+
+        .dadam-home-item p {
+          font-size: 13px;
+          margin-top: 12px;
+        }
+
+        .brand-story-grid {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+
+        .brand-story-img {
+          aspect-ratio: 16/10;
+        }
+
+        .brand-story-text .label {
+          font-size: 11px;
+          margin-bottom: 12px;
+        }
+
+        .brand-story-text h2 {
+          font-size: 32px;
+        }
+
+        .brand-story-text .subtitle {
+          margin-bottom: 24px;
+        }
+
+        .brand-story-text .desc {
+          font-size: 14px;
+          margin-bottom: 24px;
+        }
+
+        .brand-story-text .btn {
+          padding: 14px 28px;
+          font-size: 13px;
+        }
+
+        .instagram-header {
+          margin-bottom: 24px;
+        }
+
+        .instagram-header-left {
+          gap: 10px;
+        }
+
+        .instagram-header-left svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        .instagram-header-left span {
+          font-size: 14px;
+        }
+
+        .instagram-header a {
+          font-size: 13px;
+        }
+
+        .instagram-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 6px;
+        }
+
+        .cta h2 {
+          font-size: 28px;
+          margin-bottom: 16px;
+        }
+
+        .cta p {
+          font-size: 14px;
+          margin-bottom: 32px;
+        }
+
+        .cta-buttons {
+          flex-direction: column;
+          gap: 12px;
+          padding: 0 20px;
+        }
+
+        .cta-btn {
+          width: 100%;
+          text-align: center;
+          justify-content: center;
+          padding: 14px 32px;
+        }
+
+        .footer {
+          padding: 48px 16px;
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr;
+          gap: 40px;
+        }
+
+        .footer-brand svg {
+          width: 28px;
+          height: 28px;
+        }
+
+        .footer-brand span {
+          font-size: 20px;
+        }
+
+        .footer-desc {
+          font-size: 13px;
+          margin-bottom: 24px;
+        }
+
+        .footer-contact {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        .footer-contact-item {
+          font-size: 13px;
+        }
+
+        .footer h4 {
+          margin-bottom: 16px;
+        }
+
+        .footer-links a {
+          font-size: 13px;
+        }
+
+        .footer-bottom {
+          flex-direction: column;
+          text-align: center;
+          gap: 4px;
+          margin-top: 32px;
+          padding-top: 20px;
+        }
+
+        .footer-box {
+          margin-top: 24px;
+          padding: 14px;
+        }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE - SMALL MOBILE (480px)
+       ═══════════════════════════════════════════════════════════════ */
+      @media (max-width: 480px) {
+        .nav {
+          height: 56px;
+        }
+
+        .nav-logo svg {
+          width: 24px;
+          height: 24px;
+        }
+
+        .nav-logo span {
+          font-size: 18px;
+        }
+
+        .hero-content {
+          padding-bottom: 120px;
+        }
+
+        .hero-text h1 {
+          font-size: 28px;
+        }
+
+        .hero-text p {
+          font-size: 14px;
+        }
+
+        .hero-text .btn {
+          padding: 12px 24px;
+          font-size: 12px;
+        }
+
+        .hero-controls {
+          bottom: 24px;
+          left: 16px;
+        }
+
+        .hero-arrows {
+          bottom: 24px;
+          right: 16px;
+        }
+
+        .hero-arrow {
+          width: 36px;
+          height: 36px;
+        }
+
+        .hero-counter {
+          bottom: 80px;
+          font-size: 11px;
+        }
+
+        .section {
+          padding: 40px 12px;
+        }
+
+        .section-title {
+          font-size: 24px;
+          margin-bottom: 24px;
+        }
+
+        .products-grid {
+          padding: 0 12px 12px;
+          margin: 0 -12px;
+          gap: 10px;
+        }
+
+        .product-card {
+          width: 220px;
+        }
+
+        .product-card-text {
+          bottom: 12px;
+          left: 12px;
+        }
+
+        .product-card-text p {
+          font-size: 10px;
+        }
+
+        .product-card-text h3 {
+          font-size: 18px;
+        }
+
+        .dadam-home {
+          padding: 60px 16px;
+        }
+
+        .dadam-home h2 {
+          font-size: 26px;
+        }
+
+        .dadam-home-item h3 {
+          font-size: 18px;
+        }
+
+        .brand-story-text h2 {
+          font-size: 26px;
+        }
+
+        .brand-story-text .desc {
+          font-size: 13px;
+        }
+
+        .instagram-grid {
+          gap: 4px;
+        }
+
+        .cta {
+          padding: 40px 12px;
+        }
+
+        .cta h2 {
+          font-size: 24px;
+        }
+
+        .cta p {
+          font-size: 13px;
+        }
+
+        .cta-btn {
+          padding: 12px 24px;
+          font-size: 12px;
+        }
+
+        .footer {
+          padding: 40px 12px;
+        }
+
+        .footer-desc {
+          font-size: 12px;
+        }
+
+        .footer-contact-item {
+          font-size: 12px;
+          gap: 8px;
+        }
+
+        .footer-links a {
+          font-size: 12px;
+        }
+
+        .footer-bottom {
+          font-size: 10px;
+        }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       LANDSCAPE MODE FIX
+       ═══════════════════════════════════════════════════════════════ */
+      @media (max-height: 500px) and (orientation: landscape) {
+        .hero {
+          min-height: 100vh;
+        }
+
+        .hero-content {
+          padding-bottom: 80px;
+        }
+
+        .hero-text h1 {
+          font-size: 28px;
+          margin-bottom: 12px;
+        }
+
+        .hero-controls,
+        .hero-arrows {
+          bottom: 16px;
+        }
+
+        .hero-counter {
+          bottom: 60px;
+        }
+
+        .dadam-home {
+          min-height: auto;
+          padding: 40px 24px;
+        }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+       TOUCH DEVICE OPTIMIZATION
+       ═══════════════════════════════════════════════════════════════ */
+      @media (hover: none) {
+        .product-card:hover img {
+          transform: none;
+        }
+
+        .product-card:active img {
+          transform: scale(1.02);
+        }
+
+        .instagram-item:hover img {
+          transform: none;
+        }
+
+        .instagram-item:hover::after {
+          background: transparent;
+        }
+
+        .hero-arrow:hover {
+          background: none;
+          color: #fff;
+        }
+
+        .hero-arrow:active {
+          background: #fff;
+          color: var(--charcoal);
+        }
+
+        .dadam-home-item:hover .open {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .dadam-home-item:active .open {
+          color: #fff;
+        }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
        SAFE AREA (iPhone X+)
        ═══════════════════════════════════════════════════════════════ */
-    @supports(padding:max(0px)) {
-      .nav {
-        padding-left: max(16px, env(safe-area-inset-left));
-        padding-right: max(16px, env(safe-area-inset-right))
+      @supports (padding: max(0px)) {
+        .nav {
+          padding-left: max(16px, env(safe-area-inset-left));
+          padding-right: max(16px, env(safe-area-inset-right));
+        }
+
+        .hero-content {
+          padding-left: max(20px, env(safe-area-inset-left));
+          padding-right: max(20px, env(safe-area-inset-right));
+        }
+
+        .hero-controls {
+          left: max(20px, env(safe-area-inset-left));
+        }
+
+        .hero-arrows {
+          right: max(20px, env(safe-area-inset-right));
+        }
+
+        .section {
+          padding-left: max(16px, env(safe-area-inset-left));
+          padding-right: max(16px, env(safe-area-inset-right));
+        }
+
+        .footer {
+          padding-bottom: max(48px, env(safe-area-inset-bottom));
+        }
+
+        .mobile-menu {
+          padding-left: max(24px, env(safe-area-inset-left));
+          padding-right: max(24px, env(safe-area-inset-right));
+          padding-bottom: max(24px, env(safe-area-inset-bottom));
+        }
       }
+    </style>
+  </head>
 
-      .hero-content {
-        padding-left: max(20px, env(safe-area-inset-left));
-        padding-right: max(20px, env(safe-area-inset-right))
-      }
+  <body>
+    <!-- SVG Symbols -->
+    <svg style="display: none">
+      <symbol id="icon-logo" viewBox="0 0 40 40">
+        <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+      </symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h14m-7-7 7 7-7 7" />
+      </symbol>
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6" />
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6" />
+      </symbol>
+      <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+        <path d="m6 9 6 6 6-6" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.35-4.35" />
+      </symbol>
+      <symbol id="icon-phone" viewBox="0 0 24 24">
+        <path
+          d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+        />
+      </symbol>
+      <symbol id="icon-mail" viewBox="0 0 24 24">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+      </symbol>
+      <symbol id="icon-location" viewBox="0 0 24 24">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </symbol>
+      <symbol id="icon-instagram" viewBox="0 0 24 24">
+        <rect x="2" y="2" width="20" height="20" rx="5" />
+        <circle cx="12" cy="12" r="4" />
+        <circle cx="18" cy="6" r="1" />
+      </symbol>
+    </svg>
 
-      .hero-controls {
-        left: max(20px, env(safe-area-inset-left))
-      }
-
-      .hero-arrows {
-        right: max(20px, env(safe-area-inset-right))
-      }
-
-      .section {
-        padding-left: max(16px, env(safe-area-inset-left));
-        padding-right: max(16px, env(safe-area-inset-right))
-      }
-
-      .footer {
-        padding-bottom: max(48px, env(safe-area-inset-bottom))
-      }
-
-      .mobile-menu {
-        padding-left: max(24px, env(safe-area-inset-left));
-        padding-right: max(24px, env(safe-area-inset-right));
-        padding-bottom: max(24px, env(safe-area-inset-bottom))
-      }
-    }
-  </style>
-</head>
-
-<body>
-  <!-- SVG Symbols -->
-  <svg style="display:none">
-    <symbol id="icon-logo" viewBox="0 0 40 40">
-      <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
-    </symbol>
-    <symbol id="icon-arrow" viewBox="0 0 24 24">
-      <path d="M5 12h14m-7-7 7 7-7 7" />
-    </symbol>
-    <symbol id="icon-chevron-left" viewBox="0 0 24 24">
-      <path d="m15 18-6-6 6-6" />
-    </symbol>
-    <symbol id="icon-chevron-right" viewBox="0 0 24 24">
-      <path d="m9 18 6-6-6-6" />
-    </symbol>
-    <symbol id="icon-chevron-down" viewBox="0 0 24 24">
-      <path d="m6 9 6 6 6-6" />
-    </symbol>
-    <symbol id="icon-user" viewBox="0 0 24 24">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </symbol>
-    <symbol id="icon-search" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </symbol>
-    <symbol id="icon-phone" viewBox="0 0 24 24">
-      <path
-        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-    </symbol>
-    <symbol id="icon-mail" viewBox="0 0 24 24">
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-      <polyline points="22,6 12,13 2,6" />
-    </symbol>
-    <symbol id="icon-location" viewBox="0 0 24 24">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </symbol>
-    <symbol id="icon-clock" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </symbol>
-    <symbol id="icon-instagram" viewBox="0 0 24 24">
-      <rect x="2" y="2" width="20" height="20" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="18" cy="6" r="1" />
-    </symbol>
-  </svg>
-
-  <!-- Navigation -->
-  <nav class="nav" id="nav">
-    <a href="#" class="nav-logo">
-      <svg fill="currentColor">
-        <use href="#icon-logo" />
-      </svg>
-      <span>다담</span>
-    </a>
-    <div class="nav-menu">
-      <a href="#" data-i18n="nav.about">About us</a>
-      <a href="#" data-i18n="nav.collection">Collection</a>
-      <a href="#" data-i18n="nav.products">Products</a>
-      <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
-      <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
-      <a href="#" data-i18n="nav.showroom">Showroom</a>
-      <a href="#" data-i18n="nav.service">Service</a>
-    </div>
-    <div class="nav-icons">
-      <!-- 비로그인 상태 -->
-      <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-      <!-- 로그인 상태 -->
-      <div class="user-menu" id="userMenu" style="display:none">
-        <button class="user-btn">
-          <div class="user-avatar" id="userAvatar">?</div>
-          <span class="user-name" id="userName">사용자</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M6 9l6 6 6-6" />
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+      <a href="#" class="nav-logo">
+        <svg fill="currentColor">
+          <use href="#icon-logo" />
+        </svg>
+        <span>다담</span>
+      </a>
+      <div class="nav-menu">
+        <a href="#" data-i18n="nav.about">About us</a>
+        <a href="#" data-i18n="nav.collection">Collection</a>
+        <a href="#" data-i18n="nav.products">Products</a>
+        <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
+        <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
+        <a href="#" data-i18n="nav.showroom">Showroom</a>
+        <a href="#" data-i18n="nav.service">Service</a>
+      </div>
+      <div class="nav-icons">
+        <!-- 비로그인 상태 -->
+        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
+        <!-- 로그인 상태 -->
+        <div class="user-menu" id="userMenu" style="display: none">
+          <button class="user-btn">
+            <div class="user-avatar" id="userAvatar">?</div>
+            <span class="user-name" id="userName">사용자</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div class="user-dropdown">
+            <a href="mypage.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" /></svg
+              >마이페이지</a
+            >
+            <a href="#" id="aiDesignLink"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" /></svg
+              >AI 설계</a
+            >
+            <button onclick="logout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" /></svg
+              >로그아웃
+            </button>
+          </div>
+        </div>
+        <button
+          id="lang-toggle"
+          style="font-family: inherit; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 4px"
+        >
+          KO
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <use href="#icon-chevron-down" />
           </svg>
         </button>
-        <div class="user-dropdown">
-          <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>마이페이지</a>
-          <a href="#" id="aiDesignLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>AI 설계</a>
-          <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>로그아웃</button>
+        <button>
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <use href="#icon-search" />
+          </svg>
+        </button>
+        <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="#">About us</a>
+      <a href="#">Collection</a>
+      <a href="#">Products</a>
+      <a href="ai-design.html">AI Design</a>
+      <a href="consultation.html">상담 신청</a>
+      <a href="#">Showroom</a>
+      <a href="#">Service</a>
+      <a
+        href="login.html"
+        id="mobileLoginLink"
+        style="background: var(--charcoal); color: #fff; text-align: center; margin-top: 16px"
+        >로그인 / 회원가입</a
+      >
+      <a
+        href="mypage.html"
+        id="mobileMypage"
+        style="display: none; background: var(--gold); color: #fff; text-align: center; margin-top: 16px"
+        >마이페이지</a
+      >
+      <a
+        href="#"
+        id="mobileLogout"
+        onclick="
+          logout();
+          return false;
+        "
+        style="display: none; text-align: center; color: var(--gray)"
+        >로그아웃</a
+      >
+      <div class="mobile-menu-footer">
+        <div class="mobile-menu-contact">
+          <a href="tel:02-1234-5678">📞 02-1234-5678</a>
+          <a href="#">📍 서울시 강남구 논현동</a>
         </div>
       </div>
-      <button id="lang-toggle"
-        style="font-family: inherit; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
-        KO
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-          <use href="#icon-chevron-down" />
-        </svg>
-      </button>
-      <button><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-          <use href="#icon-search" />
-        </svg></button>
-      <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
     </div>
-  </nav>
 
-  <!-- Mobile Menu -->
-  <div class="mobile-menu" id="mobileMenu">
-    <a href="#">About us</a>
-    <a href="#">Collection</a>
-    <a href="#">Products</a>
-    <a href="ai-design.html">AI Design</a>
-    <a href="consultation.html">상담 신청</a>
-    <a href="#">Showroom</a>
-    <a href="#">Service</a>
-    <a href="login.html" id="mobileLoginLink"
-      style="background:var(--charcoal);color:#fff;text-align:center;margin-top:16px">로그인 / 회원가입</a>
-    <a href="mypage.html" id="mobileMypage"
-      style="display:none;background:var(--gold);color:#fff;text-align:center;margin-top:16px">마이페이지</a>
-    <a href="#" id="mobileLogout" onclick="logout();return false;"
-      style="display:none;text-align:center;color:var(--gray)">로그아웃</a>
-    <div class="mobile-menu-footer">
-      <div class="mobile-menu-contact">
-        <a href="tel:02-1234-5678">📞 02-1234-5678</a>
-        <a href="#">📍 서울시 강남구 논현동</a>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-slide active">
+        <img src="app/portfolio/kitchen-n1-1.jpg" alt="다담 프리미엄 주방" />
+        <div class="hero-overlay"></div>
       </div>
-    </div>
-  </div>
-
-  <!-- Hero Section -->
-  <section class="hero">
-    <div class="hero-slide active">
-      <img src="app/portfolio/kitchen-n1-1.jpg" alt="다담 프리미엄 주방">
-      <div class="hero-overlay"></div>
-    </div>
-    <div class="hero-slide">
-      <img src="app/portfolio/kitchen-n3-2.jpg" alt="AI 맞춤 설계">
-      <div class="hero-overlay"></div>
-    </div>
-    <div class="hero-slide">
-      <img src="app/portfolio/kitchen-n4-1.jpg" alt="프리미엄 인테리어">
-      <div class="hero-overlay"></div>
-    </div>
-
-    <div class="hero-content">
-      <div class="hero-text">
-        <h1><span data-i18n="hero.slide1.title_main">DADAM</span> <span data-i18n="hero.slide1.title_sub">KITCHEN</span>
-        </h1>
-        <p data-i18n="hero.slide1.desc1">AI가 설계하고 장인이 완성하는</p>
-        <p data-i18n="hero.slide1.desc2">더욱 완벽해진 다담 키친을 만나보세요.</p>
-        <a href="ai-design.html" class="btn btn-outline" data-i18n="cta.start">AI 설계 시작하기<svg width="16" height="16"
-            fill="none" stroke="currentColor" stroke-width="2">
-            <use href="#icon-arrow" />
-          </svg></a>
+      <div class="hero-slide">
+        <img src="app/portfolio/kitchen-n3-2.jpg" alt="AI 맞춤 설계" />
+        <div class="hero-overlay"></div>
       </div>
-    </div>
-    <div class="hero-controls">
-      <button class="hero-dot active" data-slide="0"></button>
-      <button class="hero-dot" data-slide="1"></button>
-      <button class="hero-dot" data-slide="2"></button>
-    </div>
-    <div class="hero-counter"><span id="currentSlide">01</span> / 03</div>
-    <div class="hero-arrows">
-      <button class="hero-arrow" id="prevBtn"><svg width="20" height="20" fill="none" stroke="currentColor"
-          stroke-width="2">
-          <use href="#icon-chevron-left" />
-        </svg></button>
-      <button class="hero-arrow" id="nextBtn"><svg width="20" height="20" fill="none" stroke="currentColor"
-          stroke-width="2">
-          <use href="#icon-chevron-right" />
-        </svg></button>
-    </div>
-  </section>
+      <div class="hero-slide">
+        <img src="app/portfolio/kitchen-n4-1.jpg" alt="프리미엄 인테리어" />
+        <div class="hero-overlay"></div>
+      </div>
 
-  <!-- Products Section -->
-  <section class="section" style="background:#fff">
-    <h2 class="section-title" data-i18n="products.title">Our products</h2>
-    <div class="products-grid">
-      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n1-2.jpg" alt="Kitchen" loading="lazy">
-        <div class="product-card-overlay"></div>
-        <div class="product-card-text">
-          <p>Kitchen</p>
-          <h3 data-i18n="products.kitchen">키친</h3>
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1>
+            <span data-i18n="hero.slide1.title_main">DADAM</span> <span data-i18n="hero.slide1.title_sub">KITCHEN</span>
+          </h1>
+          <p data-i18n="hero.slide1.desc1">AI가 설계하고 장인이 완성하는</p>
+          <p data-i18n="hero.slide1.desc2">더욱 완벽해진 다담 키친을 만나보세요.</p>
+          <a href="ai-design.html" class="btn btn-outline" data-i18n="cta.start"
+            >AI 설계 시작하기<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <use href="#icon-arrow" /></svg
+          ></a>
         </div>
-      </a>
-      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n6-1.jpg" alt="Storage" loading="lazy">
-        <div class="product-card-overlay"></div>
-        <div class="product-card-text">
-          <p>Storage</p>
-          <h3 data-i18n="products.storage">수납장</h3>
-        </div>
-      </a>
-      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n3-2.jpg" alt="Built-in" loading="lazy">
-        <div class="product-card-overlay"></div>
-        <div class="product-card-text">
-          <p>Built-in</p>
-          <h3 data-i18n="products.builtin">붙박이장</h3>
-        </div>
-      </a>
-      <a href="#" class="product-card"><img src="app/portfolio/funiture-n4-1.jpg" alt="Furniture" loading="lazy">
-        <div class="product-card-overlay"></div>
-        <div class="product-card-text">
-          <p>Furniture</p>
-          <h3 data-i18n="products.furniture">가구</h3>
-        </div>
-      </a>
-      <a href="#" class="product-card"><img src="app/portfolio/kitchen-n7-2.jpg" alt="Interior" loading="lazy">
-        <div class="product-card-overlay"></div>
-        <div class="product-card-text">
-          <p>Interior</p>
-          <h3 data-i18n="products.interior">인테리어</h3>
-        </div>
-      </a>
-    </div>
-  </section>
+      </div>
+      <div class="hero-controls">
+        <button class="hero-dot active" data-slide="0"></button>
+        <button class="hero-dot" data-slide="1"></button>
+        <button class="hero-dot" data-slide="2"></button>
+      </div>
+      <div class="hero-counter"><span id="currentSlide">01</span> / 03</div>
+      <div class="hero-arrows">
+        <button class="hero-arrow" id="prevBtn">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <use href="#icon-chevron-left" />
+          </svg>
+        </button>
+        <button class="hero-arrow" id="nextBtn">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <use href="#icon-chevron-right" />
+          </svg>
+        </button>
+      </div>
+    </section>
 
-  <!-- Dadam in Home -->
-  <section class="dadam-home">
-    <div class="dadam-home-bg"><img src="app/portfolio/kitchen-n7-1.jpg" alt="다담 인테리어" loading="lazy"></div>
-    <div class="dadam-home-content">
-      <h2 data-i18n="home.title">DADAM in home</h2>
-      <p data-i18n="home.subtitle">인테리어 트렌드 with 다담</p>
-      <div class="dadam-home-grid">
-        <a href="#" class="dadam-home-item">
-          <h3 data-i18n="home.cases.title">시공사례</h3>
-          <div class="open"><span data-i18n="home.open">open</span></div>
-          <p data-i18n="home.cases.desc">고객이 선택한 다담!<br>직접 확인해보세요</p>
+    <!-- Products Section -->
+    <section class="section" style="background: #fff">
+      <h2 class="section-title" data-i18n="products.title">Our products</h2>
+      <div class="products-grid">
+        <a href="#" class="product-card"
+          ><img src="app/portfolio/kitchen-n1-2.jpg" alt="Kitchen" loading="lazy" />
+          <div class="product-card-overlay"></div>
+          <div class="product-card-text">
+            <p>Kitchen</p>
+            <h3 data-i18n="products.kitchen">키친</h3>
+          </div>
         </a>
-        <a href="ai-design.html" class="dadam-home-item">
-          <h3 data-i18n="home.ai.title">AI 설계</h3>
-          <div class="open"><span data-i18n="home.open">open</span></div>
-          <p data-i18n="home.ai.desc">AI와 함께하는<br>스마트한 인테리어</p>
+        <a href="#" class="product-card"
+          ><img src="app/portfolio/kitchen-n6-1.jpg" alt="Storage" loading="lazy" />
+          <div class="product-card-overlay"></div>
+          <div class="product-card-text">
+            <p>Storage</p>
+            <h3 data-i18n="products.storage">수납장</h3>
+          </div>
         </a>
-        <a href="#" class="dadam-home-item">
-          <h3 data-i18n="home.showroom.title">쇼룸</h3>
-          <div class="open"><span data-i18n="home.open">open</span></div>
-          <p data-i18n="home.showroom.desc">다담 쇼룸에서<br>직접 만나보세요</p>
+        <a href="#" class="product-card"
+          ><img src="app/portfolio/kitchen-n3-2.jpg" alt="Built-in" loading="lazy" />
+          <div class="product-card-overlay"></div>
+          <div class="product-card-text">
+            <p>Built-in</p>
+            <h3 data-i18n="products.builtin">붙박이장</h3>
+          </div>
+        </a>
+        <a href="#" class="product-card"
+          ><img src="app/portfolio/funiture-n4-1.jpg" alt="Furniture" loading="lazy" />
+          <div class="product-card-overlay"></div>
+          <div class="product-card-text">
+            <p>Furniture</p>
+            <h3 data-i18n="products.furniture">가구</h3>
+          </div>
+        </a>
+        <a href="#" class="product-card"
+          ><img src="app/portfolio/kitchen-n7-2.jpg" alt="Interior" loading="lazy" />
+          <div class="product-card-overlay"></div>
+          <div class="product-card-text">
+            <p>Interior</p>
+            <h3 data-i18n="products.interior">인테리어</h3>
+          </div>
         </a>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Brand Story -->
-  <section class="section brand-story">
-    <div class="brand-story-grid">
-      <div class="brand-story-img"><img src="app/portfolio/kitchen-n4-1.jpg" alt="다담 스토리" loading="lazy"></div>
-      <div class="brand-story-text">
-        <p class="label" data-i18n="brand.label">Brand Story</p>
-        <h2 data-i18n="brand.title">스마트 디자인</h2>
-        <p class="subtitle" data-i18n="brand.subtitle">다담 x AI 인테리어</p>
-        <p class="desc" data-i18n="brand.desc">다담가구는 AI 기술과 30년 장인정신을 결합하여 고객 맞춤형 프리미엄 가구를 제작합니다. 최고급 자재와 정교한 시공으로 완벽한
-          공간을 만들어 드립니다.</p>
-        <a href="#" class="btn btn-solid" data-i18n="hero.see_more">See more<svg width="16" height="16" fill="none"
-            stroke="currentColor" stroke-width="2">
-            <use href="#icon-arrow" />
-          </svg></a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Instagram Grid -->
-  <section class="section" style="background:#fff">
-    <div class="instagram-header">
-      <div class="instagram-header-left"><svg fill="none" stroke="currentColor" stroke-width="2">
-          <use href="#icon-instagram" />
-        </svg><span>@dadam_furniture</span></div>
-      <a href="#" data-i18n="instagram.follow">팔로우하기 →</a>
-    </div>
-    <div class="instagram-grid">
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-3.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-4.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-2.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-3.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-3.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-4.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n3-3.jpg" alt="" loading="lazy"></a>
-      <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n4-1.jpg" alt="" loading="lazy"></a>
-    </div>
-  </section>
-
-  <!-- CTA Section -->
-  <section class="section cta">
-    <h2 data-i18n="cta.title">무료 상담 신청</h2>
-    <p data-i18n="cta.desc">AI 설계 시스템으로 최적의 맞춤 가구를 만나보세요</p>
-    <div class="cta-buttons">
-      <a href="#" class="cta-btn primary" data-i18n="cta.inquiry">견적 문의</a>
-      <a href="ai-design.html" class="cta-btn outline" data-i18n="cta.start">AI 설계 시작</a>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="footer-grid">
-      <div>
-        <div class="footer-brand"><svg fill="currentColor">
-            <use href="#icon-logo" />
-          </svg><span>다담</span></div>
-        <p class="footer-desc">AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을 만들어 드립니다.</p>
-        <div class="footer-contact">
-          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2">
-              <use href="#icon-phone" />
-            </svg>02-1234-5678</div>
-          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2">
-              <use href="#icon-mail" />
-            </svg>info@dadam.com</div>
-          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2">
-              <use href="#icon-location" />
-            </svg>서울시 강남구 논현동 123-45</div>
-          <div class="footer-contact-item"><svg fill="none" stroke="currentColor" stroke-width="2">
-              <use href="#icon-clock" />
-            </svg>평일 09:00 - 18:00</div>
+    <!-- Dadam in Home -->
+    <section class="dadam-home">
+      <div class="dadam-home-bg"><img src="app/portfolio/kitchen-n7-1.jpg" alt="다담 인테리어" loading="lazy" /></div>
+      <div class="dadam-home-content">
+        <h2 data-i18n="home.title">DADAM in home</h2>
+        <p data-i18n="home.subtitle">인테리어 트렌드 with 다담</p>
+        <div class="dadam-home-grid">
+          <a href="#" class="dadam-home-item">
+            <h3 data-i18n="home.cases.title">시공사례</h3>
+            <div class="open"><span data-i18n="home.open">open</span></div>
+            <p data-i18n="home.cases.desc">고객이 선택한 다담!<br />직접 확인해보세요</p>
+          </a>
+          <a href="ai-design.html" class="dadam-home-item">
+            <h3 data-i18n="home.ai.title">AI 설계</h3>
+            <div class="open"><span data-i18n="home.open">open</span></div>
+            <p data-i18n="home.ai.desc">AI와 함께하는<br />스마트한 인테리어</p>
+          </a>
+          <a href="#" class="dadam-home-item">
+            <h3 data-i18n="home.showroom.title">쇼룸</h3>
+            <div class="open"><span data-i18n="home.open">open</span></div>
+            <p data-i18n="home.showroom.desc">다담 쇼룸에서<br />직접 만나보세요</p>
+          </a>
         </div>
       </div>
-      <div>
-        <h4 data-i18n="footer.menu">Menu</h4>
-        <ul class="footer-links">
-          <li><a href="#" data-i18n="nav.about">About us</a></li>
-          <li><a href="#" data-i18n="nav.collection">Collection</a></li>
-          <li><a href="#" data-i18n="nav.products">Products</a></li>
-          <li><a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a></li>
-          <li><a href="#" data-i18n="nav.stories">Stories</a></li>
-          <li><a href="#" data-i18n="nav.showroom">Showroom</a></li>
-          <li><a href="#" data-i18n="nav.service">Service</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4 data-i18n="footer.support">Support</h4>
-        <ul class="footer-links">
-          <li><a href="#" data-i18n="footer.faq">자주 묻는 질문</a></li>
-          <li><a href="#" data-i18n="footer.terms">이용 약관</a></li>
-          <li><a href="#" data-i18n="footer.privacy">개인정보처리방침</a></li>
-        </ul>
-        <div class="footer-box">
-          <p data-i18n="footer.as_title">평생 A/S 보장</p>
-          <p data-i18n="footer.as_desc">다담과 함께하는 최상의 사후관리</p>
+    </section>
+
+    <!-- Brand Story -->
+    <section class="section brand-story">
+      <div class="brand-story-grid">
+        <div class="brand-story-img"><img src="app/portfolio/kitchen-n4-1.jpg" alt="다담 스토리" loading="lazy" /></div>
+        <div class="brand-story-text">
+          <p class="label" data-i18n="brand.label">Brand Story</p>
+          <h2 data-i18n="brand.title">스마트 디자인</h2>
+          <p class="subtitle" data-i18n="brand.subtitle">다담 x AI 인테리어</p>
+          <p class="desc" data-i18n="brand.desc">
+            다담가구는 AI 기술과 30년 장인정신을 결합하여 고객 맞춤형 프리미엄 가구를 제작합니다. 최고급 자재와 정교한
+            시공으로 완벽한 공간을 만들어 드립니다.
+          </p>
+          <a href="#" class="btn btn-solid" data-i18n="hero.see_more"
+            >See more<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <use href="#icon-arrow" /></svg
+          ></a>
         </div>
       </div>
-    </div>
-    <div class="footer-bottom">
-      <p>© 2024 다담가구. All rights reserved.</p>
-      <p>사업자등록번호: 123-45-67890 | 대표: 홍길동</p>
-    </div>
-  </footer>
+    </section>
 
-  <script>
-    // ═══════════════════════════════════════════════════════════════
-    // 모바일 메뉴
-    // ═══════════════════════════════════════════════════════════════
-    function toggleMobileMenu() {
-      const hamburger = document.querySelector('.hamburger');
-      const mobileMenu = document.getElementById('mobileMenu');
-      const nav = document.getElementById('nav');
+    <!-- Instagram Grid -->
+    <section class="section" style="background: #fff">
+      <div class="instagram-header">
+        <div class="instagram-header-left">
+          <svg fill="none" stroke="currentColor" stroke-width="2">
+            <use href="#icon-instagram" /></svg
+          ><span>@dadam_furniture</span>
+        </div>
+        <a href="#" data-i18n="instagram.follow">팔로우하기 →</a>
+      </div>
+      <div class="instagram-grid">
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-3.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-4.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-2.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-3.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-3.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-4.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n3-3.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n4-1.jpg" alt="" loading="lazy" /></a>
+      </div>
+    </section>
 
-      hamburger.classList.toggle('active');
-      mobileMenu.classList.toggle('active');
+    <!-- CTA Section -->
+    <section class="section cta">
+      <h2 data-i18n="cta.title">무료 상담 신청</h2>
+      <p data-i18n="cta.desc">AI 설계 시스템으로 최적의 맞춤 가구를 만나보세요</p>
+      <div class="cta-buttons">
+        <a href="#" class="cta-btn primary" data-i18n="cta.inquiry">견적 문의</a>
+        <a href="ai-design.html" class="cta-btn outline" data-i18n="cta.start">AI 설계 시작</a>
+      </div>
+    </section>
 
-      if (mobileMenu.classList.contains('active')) {
-        document.body.style.overflow = 'hidden';
-        nav.classList.add('scrolled');
-      } else {
-        document.body.style.overflow = '';
-        if (window.scrollY <= 50) {
-          nav.classList.remove('scrolled');
-        }
-      }
-    }
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand">
+            <svg fill="currentColor">
+              <use href="#icon-logo" /></svg
+            ><span>다담</span>
+          </div>
+          <p class="footer-desc">
+            AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을
+            만들어 드립니다.
+          </p>
+          <div class="footer-contact">
+            <div class="footer-contact-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2">
+                <use href="#icon-phone" /></svg
+              >02-1234-5678
+            </div>
+            <div class="footer-contact-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2">
+                <use href="#icon-mail" /></svg
+              >info@dadam.com
+            </div>
+            <div class="footer-contact-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2">
+                <use href="#icon-location" /></svg
+              >서울시 강남구 논현동 123-45
+            </div>
+            <div class="footer-contact-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2">
+                <use href="#icon-clock" /></svg
+              >평일 09:00 - 18:00
+            </div>
+          </div>
+        </div>
+        <div>
+          <h4 data-i18n="footer.menu">Menu</h4>
+          <ul class="footer-links">
+            <li><a href="#" data-i18n="nav.about">About us</a></li>
+            <li><a href="#" data-i18n="nav.collection">Collection</a></li>
+            <li><a href="#" data-i18n="nav.products">Products</a></li>
+            <li><a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a></li>
+            <li><a href="#" data-i18n="nav.stories">Stories</a></li>
+            <li><a href="#" data-i18n="nav.showroom">Showroom</a></li>
+            <li><a href="#" data-i18n="nav.service">Service</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 data-i18n="footer.support">Support</h4>
+          <ul class="footer-links">
+            <li><a href="#" data-i18n="footer.faq">자주 묻는 질문</a></li>
+            <li><a href="#" data-i18n="footer.terms">이용 약관</a></li>
+            <li><a href="#" data-i18n="footer.privacy">개인정보처리방침</a></li>
+          </ul>
+          <div class="footer-box">
+            <p data-i18n="footer.as_title">평생 A/S 보장</p>
+            <p data-i18n="footer.as_desc">다담과 함께하는 최상의 사후관리</p>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2024 다담가구. All rights reserved.</p>
+        <p>사업자등록번호: 123-45-67890 | 대표: 홍길동</p>
+      </div>
+    </footer>
 
-    // ═══════════════════════════════════════════════════════════════
-    // 히어로 슬라이더
-    // ═══════════════════════════════════════════════════════════════
-    const nav = document.getElementById('nav');
-    const slides = document.querySelectorAll('.hero-slide');
-    const dots = document.querySelectorAll('.hero-dot');
-    const counter = document.getElementById('currentSlide');
-    let cur = 0;
-    let interval;
+    <script>
+      // ═══════════════════════════════════════════════════════════════
+      // 모바일 메뉴
+      // ═══════════════════════════════════════════════════════════════
+      function toggleMobileMenu() {
+        const hamburger = document.querySelector('.hamburger');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const nav = document.getElementById('nav');
 
-    const go = i => {
-      slides[cur].classList.remove('active');
-      dots[cur].classList.remove('active');
-      cur = i >= slides.length ? 0 : i < 0 ? slides.length - 1 : i;
-      slides[cur].classList.add('active');
-      dots[cur].classList.add('active');
-      counter.textContent = String(cur + 1).padStart(2, '0');
-      clearInterval(interval);
-      interval = setInterval(() => go(cur + 1), 6000);
-    };
+        hamburger.classList.toggle('active');
+        mobileMenu.classList.toggle('active');
 
-    // 스크롤 이벤트
-    window.addEventListener('scroll', () => {
-      if (!document.getElementById('mobileMenu').classList.contains('active')) {
-        nav.classList.toggle('scrolled', scrollY > 50);
-      }
-    });
-
-    // 슬라이더 버튼
-    document.getElementById('nextBtn').addEventListener('click', () => go(cur + 1));
-    document.getElementById('prevBtn').addEventListener('click', () => go(cur - 1));
-
-    // 슬라이더 닷
-    dots.forEach((dot, i) => dot.addEventListener('click', () => go(i)));
-
-    // 터치 스와이프 지원
-    let touchStartX = 0;
-    let touchEndX = 0;
-    const heroSection = document.querySelector('.hero');
-
-    heroSection.addEventListener('touchstart', e => {
-      touchStartX = e.changedTouches[0].screenX;
-    }, { passive: true });
-
-    heroSection.addEventListener('touchend', e => {
-      touchEndX = e.changedTouches[0].screenX;
-      handleSwipe();
-    }, { passive: true });
-
-    function handleSwipe() {
-      const diff = touchStartX - touchEndX;
-      if (Math.abs(diff) > 50) {
-        if (diff > 0) {
-          go(cur + 1); // 왼쪽 스와이프 -> 다음
+        if (mobileMenu.classList.contains('active')) {
+          document.body.style.overflow = 'hidden';
+          nav.classList.add('scrolled');
         } else {
-          go(cur - 1); // 오른쪽 스와이프 -> 이전
-        }
-      }
-    }
-
-    // 자동 슬라이드 시작
-    interval = setInterval(() => go(cur + 1), 6000);
-
-    // 뒤로가기 시 모바일 메뉴 닫기
-    window.addEventListener('popstate', () => {
-      const mobileMenu = document.getElementById('mobileMenu');
-      if (mobileMenu.classList.contains('active')) {
-        toggleMobileMenu();
-      }
-    });
-
-    // ═══════════════════════════════════════════════════════════════
-    // 로그인 상태 체크 및 UI 업데이트
-    // ═══════════════════════════════════════════════════════════════
-    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
-
-    let supabaseClient = null;
-
-    async function checkAuthState() {
-      try {
-        if (typeof window.supabase !== 'undefined') {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          const { data: { session } } = await supabaseClient.auth.getSession();
-
-          if (session) {
-            const user = session.user;
-            const meta = user.user_metadata || {};
-            const name = meta.name || meta.full_name || user.email.split('@')[0];
-            const tier = meta.tier || 'standard';
-
-            // 데스크톱 메뉴 업데이트
-            document.getElementById('loginLink').style.display = 'none';
-            document.getElementById('userMenu').style.display = 'block';
-            document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
-            document.getElementById('userName').textContent = name;
-
-            // AI 설계 링크 업데이트 (Expert는 detaildesign으로)
-            const aiDesignLink = document.getElementById('aiDesignLink');
-            if (tier === 'expert' || tier === 'business') {
-              aiDesignLink.href = 'detaildesign.html';
-              aiDesignLink.querySelector('svg').nextSibling.textContent = '상세 설계';
-            } else {
-              aiDesignLink.href = 'ai-design.html';
-            }
-
-            // 모바일 메뉴 업데이트
-            document.getElementById('mobileLoginLink').style.display = 'none';
-            document.getElementById('mobileMypage').style.display = 'block';
-            document.getElementById('mobileLogout').style.display = 'block';
-
-            // 히어로 AI 설계 버튼 (Expert는 detaildesign으로)
-            const heroBtn = document.querySelector('.hero-text .btn');
-            if (heroBtn && (tier === 'expert' || tier === 'business')) {
-              heroBtn.href = 'detaildesign.html';
-            }
-
-            // 네비게이션 AI Design 링크
-            const navAiLink = document.querySelector('.nav-menu a[href="ai-design.html"]');
-            if (navAiLink && (tier === 'expert' || tier === 'business')) {
-              navAiLink.href = 'detaildesign.html';
-              navAiLink.textContent = 'Detail Design';
-            }
+          document.body.style.overflow = '';
+          if (window.scrollY <= 50) {
+            nav.classList.remove('scrolled');
           }
         }
-      } catch (e) {
-        console.error('Auth check error:', e);
       }
-    }
 
-    async function logout() {
-      if (supabaseClient) {
-        await supabaseClient.auth.signOut();
-        window.location.reload();
+      // ═══════════════════════════════════════════════════════════════
+      // 히어로 슬라이더
+      // ═══════════════════════════════════════════════════════════════
+      const nav = document.getElementById('nav');
+      const slides = document.querySelectorAll('.hero-slide');
+      const dots = document.querySelectorAll('.hero-dot');
+      const counter = document.getElementById('currentSlide');
+      let cur = 0;
+      let interval;
+
+      const go = (i) => {
+        slides[cur].classList.remove('active');
+        dots[cur].classList.remove('active');
+        cur = i >= slides.length ? 0 : i < 0 ? slides.length - 1 : i;
+        slides[cur].classList.add('active');
+        dots[cur].classList.add('active');
+        counter.textContent = String(cur + 1).padStart(2, '0');
+        clearInterval(interval);
+        interval = setInterval(() => go(cur + 1), 6000);
+      };
+
+      // 스크롤 이벤트
+      window.addEventListener('scroll', () => {
+        if (!document.getElementById('mobileMenu').classList.contains('active')) {
+          nav.classList.toggle('scrolled', scrollY > 50);
+        }
+      });
+
+      // 슬라이더 버튼
+      document.getElementById('nextBtn').addEventListener('click', () => go(cur + 1));
+      document.getElementById('prevBtn').addEventListener('click', () => go(cur - 1));
+
+      // 슬라이더 닷
+      dots.forEach((dot, i) => dot.addEventListener('click', () => go(i)));
+
+      // 터치 스와이프 지원
+      let touchStartX = 0;
+      let touchEndX = 0;
+      const heroSection = document.querySelector('.hero');
+
+      heroSection.addEventListener(
+        'touchstart',
+        (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+        },
+        { passive: true }
+      );
+
+      heroSection.addEventListener(
+        'touchend',
+        (e) => {
+          touchEndX = e.changedTouches[0].screenX;
+          handleSwipe();
+        },
+        { passive: true }
+      );
+
+      function handleSwipe() {
+        const diff = touchStartX - touchEndX;
+        if (Math.abs(diff) > 50) {
+          if (diff > 0) {
+            go(cur + 1); // 왼쪽 스와이프 -> 다음
+          } else {
+            go(cur - 1); // 오른쪽 스와이프 -> 이전
+          }
+        }
       }
-    }
 
-    // 페이지 로드 시 실행
-    checkAuthState();
-  </script>
-  <script type="module" src="js/i18n.js"></script>
-</body>
+      // 자동 슬라이드 시작
+      interval = setInterval(() => go(cur + 1), 6000);
 
+      // 뒤로가기 시 모바일 메뉴 닫기
+      window.addEventListener('popstate', () => {
+        const mobileMenu = document.getElementById('mobileMenu');
+        if (mobileMenu.classList.contains('active')) {
+          toggleMobileMenu();
+        }
+      });
+
+      // ═══════════════════════════════════════════════════════════════
+      // 로그인 상태 체크 및 UI 업데이트
+      // ═══════════════════════════════════════════════════════════════
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+
+      let supabaseClient = null;
+
+      async function checkAuthState() {
+        try {
+          if (typeof window.supabase !== 'undefined') {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            const {
+              data: { session },
+            } = await supabaseClient.auth.getSession();
+
+            if (session) {
+              const user = session.user;
+              const meta = user.user_metadata || {};
+              const name = meta.name || meta.full_name || user.email.split('@')[0];
+              const tier = meta.tier || 'standard';
+
+              // 데스크톱 메뉴 업데이트
+              document.getElementById('loginLink').style.display = 'none';
+              document.getElementById('userMenu').style.display = 'block';
+              document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+              document.getElementById('userName').textContent = name;
+
+              // AI 설계 링크 업데이트 (Expert는 detaildesign으로)
+              const aiDesignLink = document.getElementById('aiDesignLink');
+              if (tier === 'expert' || tier === 'business') {
+                aiDesignLink.href = 'detaildesign.html';
+                aiDesignLink.querySelector('svg').nextSibling.textContent = '상세 설계';
+              } else {
+                aiDesignLink.href = 'ai-design.html';
+              }
+
+              // 모바일 메뉴 업데이트
+              document.getElementById('mobileLoginLink').style.display = 'none';
+              document.getElementById('mobileMypage').style.display = 'block';
+              document.getElementById('mobileLogout').style.display = 'block';
+
+              // 히어로 AI 설계 버튼 (Expert는 detaildesign으로)
+              const heroBtn = document.querySelector('.hero-text .btn');
+              if (heroBtn && (tier === 'expert' || tier === 'business')) {
+                heroBtn.href = 'detaildesign.html';
+              }
+
+              // 네비게이션 AI Design 링크
+              const navAiLink = document.querySelector('.nav-menu a[href="ai-design.html"]');
+              if (navAiLink && (tier === 'expert' || tier === 'business')) {
+                navAiLink.href = 'detaildesign.html';
+                navAiLink.textContent = 'Detail Design';
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Auth check error:', e);
+        }
+      }
+
+      async function logout() {
+        if (supabaseClient) {
+          await supabaseClient.auth.signOut();
+          window.location.reload();
+        }
+      }
+
+      // 페이지 로드 시 실행
+      checkAuthState();
+    </script>
+    <script type="module" src="js/i18n.js"></script>
+  </body>
 </html>

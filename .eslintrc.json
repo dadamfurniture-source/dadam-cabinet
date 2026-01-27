@@ -21,11 +21,7 @@
       "jsx": true
     }
   },
-  "plugins": [
-    "@typescript-eslint",
-    "react",
-    "react-hooks"
-  ],
+  "plugins": ["@typescript-eslint", "react", "react-hooks"],
   "settings": {
     "react": {
       "version": "detect"
@@ -41,12 +37,7 @@
     "prefer-const": "warn",
     "no-var": "error"
   },
-  "ignorePatterns": [
-    "node_modules/",
-    ".next/",
-    "out/",
-    "*.min.js"
-  ],
+  "ignorePatterns": ["node_modules/", ".next/", "out/", "*.min.js"],
   "overrides": [
     {
       "files": ["*.js"],

@@ -1,449 +1,748 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>상담 관리 - 다담가구 관리자</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f5f5f5; min-height: 100vh; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+      }
 
-        /* Sidebar */
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        z-index: 1000;
+      }
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+      .sidebar-logo h1 {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+      .sidebar-logo span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+      .nav-menu {
+        list-style: none;
+      }
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+      .nav-icon {
+        width: 20px;
+        text-align: center;
+      }
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        padding: 0 20px;
+      }
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+      }
+      .sidebar-footer a:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+      }
+      .header h2 {
+        font-size: 1.5rem;
+        color: #333;
+      }
+
+      /* Stats Tabs */
+      .stats-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 25px;
+        flex-wrap: wrap;
+      }
+      .stat-tab {
+        padding: 12px 20px;
+        background: white;
+        border-radius: 8px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .stat-tab:hover {
+        border-color: #ddd;
+      }
+      .stat-tab.active {
+        border-color: #007bff;
+        background: #e3f2fd;
+      }
+      .stat-tab .count {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+      .stat-tab .label {
+        font-size: 0.85rem;
+        color: #666;
+      }
+      .stat-tab.pending .count {
+        color: #f57c00;
+      }
+      .stat-tab.confirmed .count {
+        color: #1976d2;
+      }
+      .stat-tab.completed .count {
+        color: #388e3c;
+      }
+      .stat-tab.cancelled .count {
+        color: #c62828;
+      }
+
+      /* Filters */
+      .filters {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .filter-group label {
+        font-size: 0.9rem;
+        color: #666;
+      }
+      .filter-group select,
+      .filter-group input {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        font-family: inherit;
+      }
+      .search-input {
+        min-width: 200px;
+      }
+
+      /* Buttons */
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.3s;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+      .btn-success:hover {
+        background: #1e7e34;
+      }
+      .btn-warning {
+        background: #ffc107;
+        color: #333;
+      }
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+      }
+
+      /* Card */
+      .card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .card-body {
+        padding: 0;
+      }
+
+      /* Consultation List */
+      .consultation-list {
+        padding: 20px;
+      }
+      .consultation-card {
+        border: 1px solid #eee;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        transition: all 0.3s;
+      }
+      .consultation-card:hover {
+        border-color: #ddd;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+
+      .consultation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+      }
+      .consultation-user {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .user-avatar {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #666;
+      }
+      .user-details h4 {
+        font-size: 1rem;
+        margin-bottom: 3px;
+      }
+      .user-details span {
+        font-size: 0.85rem;
+        color: #888;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .badge.pending {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .badge.confirmed {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+      .badge.completed {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+      .badge.cancelled {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .type-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        background: #f5f5f5;
+        color: #666;
+        margin-left: 10px;
+      }
+
+      .consultation-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+        padding: 15px;
+        background: #fafafa;
+        border-radius: 8px;
+      }
+      .info-item label {
+        display: block;
+        font-size: 0.8rem;
+        color: #888;
+        margin-bottom: 3px;
+      }
+      .info-item p {
+        font-size: 0.95rem;
+        color: #333;
+      }
+
+      .consultation-description {
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        font-size: 0.9rem;
+        color: #555;
+        line-height: 1.6;
+      }
+
+      .consultation-actions {
+        display: flex;
+        gap: 10px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+        flex-wrap: wrap;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #888;
+      }
+      .empty-state h4 {
+        margin-bottom: 10px;
+        color: #666;
+      }
+
+      /* Access Denied */
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+      .access-denied h2 {
+        font-size: 1.5rem;
+        color: #c62828;
+        margin-bottom: 15px;
+      }
+
+      /* Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.active {
+        display: flex;
+      }
+      .modal-content {
+        background: white;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+      }
+      .modal-header h3 {
+        font-size: 1.2rem;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #888;
+      }
+      .modal-body {
+        padding: 20px;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        color: #333;
+        font-weight: 500;
+      }
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.95rem;
+        font-family: inherit;
+      }
+      .form-group textarea {
+        resize: vertical;
+      }
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 20px;
+        border-top: 1px solid #eee;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
         .sidebar {
-            position: fixed; left: 0; top: 0; width: 250px; height: 100vh;
-            background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000;
+          transform: translateX(-100%);
         }
-        .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
-        .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
-        .sidebar-logo span { font-size: 0.8rem; color: #888; }
-        .nav-menu { list-style: none; }
-        .nav-menu li a {
-            display: flex; align-items: center; gap: 12px; padding: 12px 20px;
-            color: #aaa; text-decoration: none; transition: all 0.3s;
+        .main-content {
+          margin-left: 0;
         }
-        .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
-        .nav-menu li a.active { border-left: 3px solid #007bff; }
-        .nav-icon { width: 20px; text-align: center; }
-        .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
-        .sidebar-footer a {
-            display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1);
-            color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem;
-        }
-        .sidebar-footer a:hover { background: rgba(255,255,255,0.2); color: white; }
-
-        /* Main Content */
-        .main-content { margin-left: 250px; padding: 20px 30px; }
-
-        /* Header */
-        .header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #ddd;
-        }
-        .header h2 { font-size: 1.5rem; color: #333; }
-
-        /* Stats Tabs */
+      }
+      @media (max-width: 768px) {
         .stats-tabs {
-            display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap;
+          flex-direction: column;
         }
         .stat-tab {
-            padding: 12px 20px; background: white; border-radius: 8px;
-            border: 2px solid transparent; cursor: pointer; transition: all 0.3s;
-            display: flex; align-items: center; gap: 10px;
+          justify-content: center;
         }
-        .stat-tab:hover { border-color: #ddd; }
-        .stat-tab.active { border-color: #007bff; background: #e3f2fd; }
-        .stat-tab .count { font-size: 1.3rem; font-weight: 700; }
-        .stat-tab .label { font-size: 0.85rem; color: #666; }
-        .stat-tab.pending .count { color: #f57c00; }
-        .stat-tab.confirmed .count { color: #1976d2; }
-        .stat-tab.completed .count { color: #388e3c; }
-        .stat-tab.cancelled .count { color: #c62828; }
-
-        /* Filters */
-        .filters { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-        .filter-group { display: flex; align-items: center; gap: 8px; }
-        .filter-group label { font-size: 0.9rem; color: #666; }
-        .filter-group select, .filter-group input {
-            padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px;
-            font-size: 0.9rem; font-family: inherit;
-        }
-        .search-input { min-width: 200px; }
-
-        /* Buttons */
-        .btn {
-            padding: 8px 16px; border: none; border-radius: 5px; font-size: 0.9rem;
-            cursor: pointer; font-family: inherit; transition: all 0.3s;
-        }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-success:hover { background: #1e7e34; }
-        .btn-warning { background: #ffc107; color: #333; }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
-
-        /* Card */
-        .card {
-            background: white; border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        .card-body { padding: 0; }
-
-        /* Consultation List */
-        .consultation-list { padding: 20px; }
-        .consultation-card {
-            border: 1px solid #eee; border-radius: 10px; padding: 20px;
-            margin-bottom: 15px; transition: all 0.3s;
-        }
-        .consultation-card:hover { border-color: #ddd; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-
-        .consultation-header {
-            display: flex; justify-content: space-between; align-items: flex-start;
-            margin-bottom: 15px;
-        }
-        .consultation-user { display: flex; align-items: center; gap: 12px; }
-        .user-avatar {
-            width: 45px; height: 45px; border-radius: 50%; background: #e0e0e0;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; color: #666;
-        }
-        .user-details h4 { font-size: 1rem; margin-bottom: 3px; }
-        .user-details span { font-size: 0.85rem; color: #888; }
-
-        .badge {
-            display: inline-block; padding: 5px 12px; border-radius: 20px;
-            font-size: 0.8rem; font-weight: 500;
-        }
-        .badge.pending { background: #fff3e0; color: #f57c00; }
-        .badge.confirmed { background: #e3f2fd; color: #1976d2; }
-        .badge.completed { background: #e8f5e9; color: #388e3c; }
-        .badge.cancelled { background: #ffebee; color: #c62828; }
-
-        .type-badge {
-            display: inline-block; padding: 3px 8px; border-radius: 4px;
-            font-size: 0.75rem; background: #f5f5f5; color: #666; margin-left: 10px;
-        }
-
-        .consultation-info {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px; margin-bottom: 15px; padding: 15px; background: #fafafa; border-radius: 8px;
-        }
-        .info-item label { display: block; font-size: 0.8rem; color: #888; margin-bottom: 3px; }
-        .info-item p { font-size: 0.95rem; color: #333; }
-
-        .consultation-description {
-            padding: 15px; background: #f9f9f9; border-radius: 8px;
-            margin-bottom: 15px; font-size: 0.9rem; color: #555; line-height: 1.6;
-        }
-
-        .consultation-actions {
-            display: flex; gap: 10px; padding-top: 15px; border-top: 1px solid #eee;
-            flex-wrap: wrap;
-        }
-
-        /* Empty State */
-        .empty-state { text-align: center; padding: 60px 20px; color: #888; }
-        .empty-state h4 { margin-bottom: 10px; color: #666; }
-
-        /* Access Denied */
-        .access-denied { display: none; text-align: center; padding: 100px 20px; }
-        .access-denied h2 { font-size: 1.5rem; color: #c62828; margin-bottom: 15px; }
-
-        /* Modal */
-        .modal {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;
-        }
-        .modal.active { display: flex; }
-        .modal-content {
-            background: white; border-radius: 10px; width: 90%; max-width: 500px;
-            max-height: 90vh; overflow-y: auto;
-        }
-        .modal-header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 20px; border-bottom: 1px solid #eee;
-        }
-        .modal-header h3 { font-size: 1.2rem; }
-        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #888; }
-        .modal-body { padding: 20px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-size: 0.9rem; color: #333; font-weight: 500; }
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 5px;
-            font-size: 0.95rem; font-family: inherit;
-        }
-        .form-group textarea { resize: vertical; }
-        .modal-footer {
-            display: flex; justify-content: flex-end; gap: 10px;
-            padding: 20px; border-top: 1px solid #eee;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar { transform: translateX(-100%); }
-            .main-content { margin-left: 0; }
-        }
-        @media (max-width: 768px) {
-            .stats-tabs { flex-direction: column; }
-            .stat-tab { justify-content: center; }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Sidebar -->
     <nav class="sidebar">
-        <div class="sidebar-logo">
-            <h1>다담가구</h1>
-            <span>관리자 패널</span>
-        </div>
-        <ul class="nav-menu">
-            <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
-            <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
-            <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
-            <li><a href="consultations.html" class="active"><span class="nav-icon">💬</span>상담 관리</a></li>
-            <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
-            <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
-        </ul>
-        <div class="sidebar-footer">
-            <a href="../index.html">← 메인 사이트로</a>
-        </div>
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu">
+        <li>
+          <a href="index.html"><span class="nav-icon">📊</span>대시보드</a>
+        </li>
+        <li>
+          <a href="users.html"><span class="nav-icon">👥</span>회원 관리</a>
+        </li>
+        <li>
+          <a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a>
+        </li>
+        <li>
+          <a href="consultations.html" class="active"><span class="nav-icon">💬</span>상담 관리</a>
+        </li>
+        <li>
+          <a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a>
+        </li>
+        <li>
+          <a href="settings.html"><span class="nav-icon">⚙️</span>설정</a>
+        </li>
+      </ul>
+      <div class="sidebar-footer">
+        <a href="../index.html">← 메인 사이트로</a>
+      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <div class="access-denied" id="accessDenied">
-            <h2>접근 권한이 없습니다</h2>
-            <p>관리자만 접근할 수 있는 페이지입니다.</p>
-            <a href="../index.html">메인 페이지로 돌아가기</a>
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <h2>상담 관리</h2>
+        </header>
+
+        <!-- Stats Tabs -->
+        <div class="stats-tabs">
+          <div class="stat-tab active" onclick="filterByStatus('')" data-status="">
+            <span class="count" id="totalCount">0</span>
+            <span class="label">전체</span>
+          </div>
+          <div class="stat-tab pending" onclick="filterByStatus('pending')" data-status="pending">
+            <span class="count" id="pendingCount">0</span>
+            <span class="label">대기</span>
+          </div>
+          <div class="stat-tab confirmed" onclick="filterByStatus('confirmed')" data-status="confirmed">
+            <span class="count" id="confirmedCount">0</span>
+            <span class="label">확정</span>
+          </div>
+          <div class="stat-tab completed" onclick="filterByStatus('completed')" data-status="completed">
+            <span class="count" id="completedCount">0</span>
+            <span class="label">완료</span>
+          </div>
+          <div class="stat-tab cancelled" onclick="filterByStatus('cancelled')" data-status="cancelled">
+            <span class="count" id="cancelledCount">0</span>
+            <span class="label">취소</span>
+          </div>
         </div>
 
-        <div id="pageContent" style="display: none;">
-            <header class="header">
-                <h2>상담 관리</h2>
-            </header>
-
-            <!-- Stats Tabs -->
-            <div class="stats-tabs">
-                <div class="stat-tab active" onclick="filterByStatus('')" data-status="">
-                    <span class="count" id="totalCount">0</span>
-                    <span class="label">전체</span>
-                </div>
-                <div class="stat-tab pending" onclick="filterByStatus('pending')" data-status="pending">
-                    <span class="count" id="pendingCount">0</span>
-                    <span class="label">대기</span>
-                </div>
-                <div class="stat-tab confirmed" onclick="filterByStatus('confirmed')" data-status="confirmed">
-                    <span class="count" id="confirmedCount">0</span>
-                    <span class="label">확정</span>
-                </div>
-                <div class="stat-tab completed" onclick="filterByStatus('completed')" data-status="completed">
-                    <span class="count" id="completedCount">0</span>
-                    <span class="label">완료</span>
-                </div>
-                <div class="stat-tab cancelled" onclick="filterByStatus('cancelled')" data-status="cancelled">
-                    <span class="count" id="cancelledCount">0</span>
-                    <span class="label">취소</span>
-                </div>
-            </div>
-
-            <!-- Filters -->
-            <div class="filters">
-                <div class="filter-group">
-                    <input type="text" class="search-input" placeholder="이름, 이메일로 검색..."
-                           id="searchInput" onkeyup="handleSearch(event)">
-                </div>
-                <div class="filter-group">
-                    <label>유형:</label>
-                    <select id="typeFilter" onchange="loadConsultations()">
-                        <option value="">전체</option>
-                        <option value="ai-design">AI 설계</option>
-                        <option value="detail-design">상세 설계</option>
-                        <option value="estimate">견적 상담</option>
-                        <option value="other">기타</option>
-                    </select>
-                </div>
-                <button class="btn btn-secondary" onclick="loadConsultations()">새로고침</button>
-            </div>
-
-            <!-- Consultation List -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="consultation-list" id="consultationList">
-                        <div class="empty-state"><h4>로딩 중...</h4></div>
-                    </div>
-                </div>
-            </div>
+        <!-- Filters -->
+        <div class="filters">
+          <div class="filter-group">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="이름, 이메일로 검색..."
+              id="searchInput"
+              onkeyup="handleSearch(event)"
+            />
+          </div>
+          <div class="filter-group">
+            <label>유형:</label>
+            <select id="typeFilter" onchange="loadConsultations()">
+              <option value="">전체</option>
+              <option value="ai-design">AI 설계</option>
+              <option value="detail-design">상세 설계</option>
+              <option value="estimate">견적 상담</option>
+              <option value="other">기타</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadConsultations()">새로고침</button>
         </div>
+
+        <!-- Consultation List -->
+        <div class="card">
+          <div class="card-body">
+            <div class="consultation-list" id="consultationList">
+              <div class="empty-state"><h4>로딩 중...</h4></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Confirm Modal -->
     <div class="modal" id="confirmModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>상담 일정 확정</h3>
-                <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>확정 일시</label>
-                    <input type="datetime-local" id="confirmedDateTime">
-                </div>
-                <div class="form-group">
-                    <label>담당자 메모</label>
-                    <textarea id="confirmMemo" rows="3" placeholder="고객에게 전달할 안내사항..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('confirmModal')">취소</button>
-                <button class="btn btn-primary" onclick="confirmConsultation()">일정 확정</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>상담 일정 확정</h3>
+          <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>확정 일시</label>
+            <input type="datetime-local" id="confirmedDateTime" />
+          </div>
+          <div class="form-group">
+            <label>담당자 메모</label>
+            <textarea id="confirmMemo" rows="3" placeholder="고객에게 전달할 안내사항..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('confirmModal')">취소</button>
+          <button class="btn btn-primary" onclick="confirmConsultation()">일정 확정</button>
+        </div>
+      </div>
     </div>
 
     <!-- Complete Modal -->
     <div class="modal" id="completeModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>상담 완료 처리</h3>
-                <button class="modal-close" onclick="closeModal('completeModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>상담 결과 메모</label>
-                    <textarea id="completeMemo" rows="4" placeholder="상담 결과를 기록하세요..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('completeModal')">취소</button>
-                <button class="btn btn-success" onclick="completeConsultation()">완료 처리</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>상담 완료 처리</h3>
+          <button class="modal-close" onclick="closeModal('completeModal')">&times;</button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>상담 결과 메모</label>
+            <textarea id="completeMemo" rows="4" placeholder="상담 결과를 기록하세요..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('completeModal')">취소</button>
+          <button class="btn btn-success" onclick="completeConsultation()">완료 처리</button>
+        </div>
+      </div>
     </div>
 
     <script>
-        const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
 
-        let supabaseClient = null;
-        let currentUser = null;
-        let selectedConsultationId = null;
-        let currentStatusFilter = '';
+      let supabaseClient = null;
+      let currentUser = null;
+      let selectedConsultationId = null;
+      let currentStatusFilter = '';
 
-        const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
-        const TYPE_LABELS = {
-            'ai-design': 'AI 설계',
-            'detail-design': '상세 설계',
-            'estimate': '견적 상담',
-            'other': '기타'
-        };
-        const STATUS_LABELS = {
-            'pending': '대기',
-            'confirmed': '확정',
-            'completed': '완료',
-            'cancelled': '취소'
-        };
+      const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+      const TYPE_LABELS = {
+        'ai-design': 'AI 설계',
+        'detail-design': '상세 설계',
+        estimate: '견적 상담',
+        other: '기타',
+      };
+      const STATUS_LABELS = {
+        pending: '대기',
+        confirmed: '확정',
+        completed: '완료',
+        cancelled: '취소',
+      };
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initAdmin();
+      document.addEventListener('DOMContentLoaded', async () => {
+        await initAdmin();
+      });
+
+      async function initAdmin() {
+        if (typeof window.supabase === 'undefined') {
+          showAccessDenied();
+          return;
+        }
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        if (!session || !ADMIN_EMAILS.includes(session.user.email)) {
+          showAccessDenied();
+          return;
+        }
+        currentUser = session.user;
+        document.getElementById('pageContent').style.display = 'block';
+        await loadStats();
+        await loadConsultations();
+      }
+
+      function showAccessDenied() {
+        document.getElementById('accessDenied').style.display = 'block';
+        document.getElementById('pageContent').style.display = 'none';
+      }
+
+      async function loadStats() {
+        try {
+          const { data, error } = await supabaseClient.from('consultations').select('status');
+          if (error) throw error;
+
+          const counts = { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+          data.forEach((c) => {
+            counts.total++;
+            if (counts[c.status] !== undefined) counts[c.status]++;
+          });
+
+          document.getElementById('totalCount').textContent = counts.total;
+          document.getElementById('pendingCount').textContent = counts.pending;
+          document.getElementById('confirmedCount').textContent = counts.confirmed;
+          document.getElementById('completedCount').textContent = counts.completed;
+          document.getElementById('cancelledCount').textContent = counts.cancelled;
+        } catch (e) {
+          console.log('통계 로드 실패:', e.message);
+        }
+      }
+
+      function filterByStatus(status) {
+        currentStatusFilter = status;
+        document.querySelectorAll('.stat-tab').forEach((tab) => {
+          tab.classList.toggle('active', tab.dataset.status === status);
         });
+        loadConsultations();
+      }
 
-        async function initAdmin() {
-            if (typeof window.supabase === 'undefined') {
-                showAccessDenied();
-                return;
-            }
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session || !ADMIN_EMAILS.includes(session.user.email)) {
-                showAccessDenied();
-                return;
-            }
-            currentUser = session.user;
-            document.getElementById('pageContent').style.display = 'block';
-            await loadStats();
-            await loadConsultations();
-        }
+      async function loadConsultations() {
+        const container = document.getElementById('consultationList');
+        container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
 
-        function showAccessDenied() {
-            document.getElementById('accessDenied').style.display = 'block';
-            document.getElementById('pageContent').style.display = 'none';
-        }
+        const typeFilter = document.getElementById('typeFilter').value;
+        const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
 
-        async function loadStats() {
-            try {
-                const { data, error } = await supabaseClient.from('consultations').select('status');
-                if (error) throw error;
+        try {
+          let query = supabaseClient.from('consultations').select('*').order('created_at', { ascending: false });
 
-                const counts = { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
-                data.forEach(c => {
-                    counts.total++;
-                    if (counts[c.status] !== undefined) counts[c.status]++;
-                });
+          if (currentStatusFilter) query = query.eq('status', currentStatusFilter);
+          if (typeFilter) query = query.eq('consultation_type', typeFilter);
 
-                document.getElementById('totalCount').textContent = counts.total;
-                document.getElementById('pendingCount').textContent = counts.pending;
-                document.getElementById('confirmedCount').textContent = counts.confirmed;
-                document.getElementById('completedCount').textContent = counts.completed;
-                document.getElementById('cancelledCount').textContent = counts.cancelled;
-            } catch (e) {
-                console.log('통계 로드 실패:', e.message);
-            }
-        }
+          const { data, error } = await query;
+          if (error) throw error;
 
-        function filterByStatus(status) {
-            currentStatusFilter = status;
-            document.querySelectorAll('.stat-tab').forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.status === status);
-            });
-            loadConsultations();
-        }
+          let filtered = data || [];
+          if (searchQuery) {
+            filtered = filtered.filter(
+              (c) =>
+                (c.name && c.name.toLowerCase().includes(searchQuery)) ||
+                (c.email && c.email.toLowerCase().includes(searchQuery))
+            );
+          }
 
-        async function loadConsultations() {
-            const container = document.getElementById('consultationList');
-            container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
-
-            const typeFilter = document.getElementById('typeFilter').value;
-            const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
-
-            try {
-                let query = supabaseClient
-                    .from('consultations')
-                    .select('*')
-                    .order('created_at', { ascending: false });
-
-                if (currentStatusFilter) query = query.eq('status', currentStatusFilter);
-                if (typeFilter) query = query.eq('consultation_type', typeFilter);
-
-                const { data, error } = await query;
-                if (error) throw error;
-
-                let filtered = data || [];
-                if (searchQuery) {
-                    filtered = filtered.filter(c =>
-                        (c.name && c.name.toLowerCase().includes(searchQuery)) ||
-                        (c.email && c.email.toLowerCase().includes(searchQuery))
-                    );
-                }
-
-                if (filtered.length === 0) {
-                    container.innerHTML = `
+          if (filtered.length === 0) {
+            container.innerHTML = `
                         <div class="empty-state">
                             <h4>상담 신청이 없습니다</h4>
                             <p>조건에 맞는 상담 신청이 없습니다.</p>
                         </div>
                     `;
-                    return;
-                }
+            return;
+          }
 
-                container.innerHTML = filtered.map(c => renderConsultationCard(c)).join('');
-            } catch (e) {
-                console.error('Error:', e);
-                container.innerHTML = `
+          container.innerHTML = filtered.map((c) => renderConsultationCard(c)).join('');
+        } catch (e) {
+          console.error('Error:', e);
+          container.innerHTML = `
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
                         <p>${e.message}</p>
@@ -452,31 +751,31 @@
                         </p>
                     </div>
                 `;
-            }
         }
+      }
 
-        function renderConsultationCard(c) {
-            const initial = (c.name || c.email || '?').charAt(0).toUpperCase();
-            const typeLabel = TYPE_LABELS[c.consultation_type] || c.consultation_type || '미지정';
-            const statusLabel = STATUS_LABELS[c.status] || c.status;
+      function renderConsultationCard(c) {
+        const initial = (c.name || c.email || '?').charAt(0).toUpperCase();
+        const typeLabel = TYPE_LABELS[c.consultation_type] || c.consultation_type || '미지정';
+        const statusLabel = STATUS_LABELS[c.status] || c.status;
 
-            let actionsHtml = '';
-            if (c.status === 'pending') {
-                actionsHtml = `
+        let actionsHtml = '';
+        if (c.status === 'pending') {
+          actionsHtml = `
                     <button class="btn btn-primary btn-sm" onclick="openConfirmModal('${c.id}')">일정 확정</button>
                     <button class="btn btn-danger btn-sm" onclick="cancelConsultation('${c.id}')">취소</button>
                 `;
-            } else if (c.status === 'confirmed') {
-                actionsHtml = `
+        } else if (c.status === 'confirmed') {
+          actionsHtml = `
                     <button class="btn btn-success btn-sm" onclick="openCompleteModal('${c.id}')">완료 처리</button>
                     <button class="btn btn-warning btn-sm" onclick="openConfirmModal('${c.id}')">일정 변경</button>
                     <button class="btn btn-danger btn-sm" onclick="cancelConsultation('${c.id}')">취소</button>
                 `;
-            } else {
-                actionsHtml = `<button class="btn btn-secondary btn-sm" disabled>처리 완료</button>`;
-            }
+        } else {
+          actionsHtml = `<button class="btn btn-secondary btn-sm" disabled>처리 완료</button>`;
+        }
 
-            return `
+        return `
                 <div class="consultation-card">
                     <div class="consultation-header">
                         <div class="consultation-user">
@@ -501,141 +800,153 @@
                             <label>신청일</label>
                             <p>${formatDate(c.created_at)}</p>
                         </div>
-                        ${c.confirmed_at ? `
+                        ${
+                          c.confirmed_at
+                            ? `
                         <div class="info-item">
                             <label>확정 일시</label>
                             <p>${formatDateTime(c.confirmed_at)}</p>
                         </div>
-                        ` : ''}
+                        `
+                            : ''
+                        }
                     </div>
-                    ${c.description ? `
+                    ${
+                      c.description
+                        ? `
                     <div class="consultation-description">${c.description}</div>
-                    ` : ''}
-                    ${c.admin_memo ? `
+                    `
+                        : ''
+                    }
+                    ${
+                      c.admin_memo
+                        ? `
                     <div class="consultation-description" style="background:#fff3e0;">
                         <strong>관리자 메모:</strong> ${c.admin_memo}
                     </div>
-                    ` : ''}
+                    `
+                        : ''
+                    }
                     <div class="consultation-actions">${actionsHtml}</div>
                 </div>
             `;
+      }
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('ko-KR');
+      }
+
+      function formatDateTime(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleString('ko-KR');
+      }
+
+      function handleSearch(e) {
+        if (e.key === 'Enter') loadConsultations();
+      }
+
+      function openConfirmModal(id) {
+        selectedConsultationId = id;
+        document.getElementById('confirmedDateTime').value = '';
+        document.getElementById('confirmMemo').value = '';
+        document.getElementById('confirmModal').classList.add('active');
+      }
+
+      function openCompleteModal(id) {
+        selectedConsultationId = id;
+        document.getElementById('completeMemo').value = '';
+        document.getElementById('completeModal').classList.add('active');
+      }
+
+      function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        selectedConsultationId = null;
+      }
+
+      async function confirmConsultation() {
+        if (!selectedConsultationId) return;
+        const dateTime = document.getElementById('confirmedDateTime').value;
+        const memo = document.getElementById('confirmMemo').value;
+
+        if (!dateTime) {
+          alert('확정 일시를 선택해주세요.');
+          return;
         }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            return new Date(dateStr).toLocaleDateString('ko-KR');
+        try {
+          const { error } = await supabaseClient
+            .from('consultations')
+            .update({
+              status: 'confirmed',
+              confirmed_at: dateTime,
+              admin_memo: memo,
+              assigned_to: currentUser.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedConsultationId);
+
+          if (error) throw error;
+          alert('상담 일정이 확정되었습니다.');
+          closeModal('confirmModal');
+          await loadStats();
+          await loadConsultations();
+        } catch (e) {
+          alert('오류: ' + e.message);
         }
+      }
 
-        function formatDateTime(dateStr) {
-            if (!dateStr) return '-';
-            return new Date(dateStr).toLocaleString('ko-KR');
+      async function completeConsultation() {
+        if (!selectedConsultationId) return;
+        const memo = document.getElementById('completeMemo').value;
+
+        try {
+          const { error } = await supabaseClient
+            .from('consultations')
+            .update({
+              status: 'completed',
+              admin_memo: memo,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedConsultationId);
+
+          if (error) throw error;
+          alert('상담이 완료 처리되었습니다.');
+          closeModal('completeModal');
+          await loadStats();
+          await loadConsultations();
+        } catch (e) {
+          alert('오류: ' + e.message);
         }
+      }
 
-        function handleSearch(e) {
-            if (e.key === 'Enter') loadConsultations();
+      async function cancelConsultation(id) {
+        if (!confirm('정말 이 상담을 취소하시겠습니까?')) return;
+
+        try {
+          const { error } = await supabaseClient
+            .from('consultations')
+            .update({
+              status: 'cancelled',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', id);
+
+          if (error) throw error;
+          alert('상담이 취소되었습니다.');
+          await loadStats();
+          await loadConsultations();
+        } catch (e) {
+          alert('오류: ' + e.message);
         }
+      }
 
-        function openConfirmModal(id) {
-            selectedConsultationId = id;
-            document.getElementById('confirmedDateTime').value = '';
-            document.getElementById('confirmMemo').value = '';
-            document.getElementById('confirmModal').classList.add('active');
-        }
-
-        function openCompleteModal(id) {
-            selectedConsultationId = id;
-            document.getElementById('completeMemo').value = '';
-            document.getElementById('completeModal').classList.add('active');
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
-            selectedConsultationId = null;
-        }
-
-        async function confirmConsultation() {
-            if (!selectedConsultationId) return;
-            const dateTime = document.getElementById('confirmedDateTime').value;
-            const memo = document.getElementById('confirmMemo').value;
-
-            if (!dateTime) {
-                alert('확정 일시를 선택해주세요.');
-                return;
-            }
-
-            try {
-                const { error } = await supabaseClient
-                    .from('consultations')
-                    .update({
-                        status: 'confirmed',
-                        confirmed_at: dateTime,
-                        admin_memo: memo,
-                        assigned_to: currentUser.id,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', selectedConsultationId);
-
-                if (error) throw error;
-                alert('상담 일정이 확정되었습니다.');
-                closeModal('confirmModal');
-                await loadStats();
-                await loadConsultations();
-            } catch (e) {
-                alert('오류: ' + e.message);
-            }
-        }
-
-        async function completeConsultation() {
-            if (!selectedConsultationId) return;
-            const memo = document.getElementById('completeMemo').value;
-
-            try {
-                const { error } = await supabaseClient
-                    .from('consultations')
-                    .update({
-                        status: 'completed',
-                        admin_memo: memo,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', selectedConsultationId);
-
-                if (error) throw error;
-                alert('상담이 완료 처리되었습니다.');
-                closeModal('completeModal');
-                await loadStats();
-                await loadConsultations();
-            } catch (e) {
-                alert('오류: ' + e.message);
-            }
-        }
-
-        async function cancelConsultation(id) {
-            if (!confirm('정말 이 상담을 취소하시겠습니까?')) return;
-
-            try {
-                const { error } = await supabaseClient
-                    .from('consultations')
-                    .update({
-                        status: 'cancelled',
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', id);
-
-                if (error) throw error;
-                alert('상담이 취소되었습니다.');
-                await loadStats();
-                await loadConsultations();
-            } catch (e) {
-                alert('오류: ' + e.message);
-            }
-        }
-
-        // 모달 외부 클릭 시 닫기
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) closeModal(modal.id);
-            });
+      // 모달 외부 클릭 시 닫기
+      document.querySelectorAll('.modal').forEach((modal) => {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal(modal.id);
         });
+      });
     </script>
-</body>
+  </body>
 </html>

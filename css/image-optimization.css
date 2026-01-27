@@ -33,7 +33,9 @@
 .lqip {
   filter: blur(10px);
   transform: scale(1.1);
-  transition: filter 0.3s, transform 0.3s;
+  transition:
+    filter 0.3s,
+    transform 0.3s;
 }
 
 .lqip.lazy-loaded {
@@ -110,7 +112,9 @@
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .portfolio-item:hover {

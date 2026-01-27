@@ -306,12 +306,26 @@ export interface StateManager {
   addItem(item: Partial<DesignItem>): DesignItem;
   removeItem(uniqueId: number): boolean;
   getItem(uniqueId: number): DesignItem | undefined;
-  updateItem(uniqueId: number, updates: Partial<DesignItem>, options?: { skipRender?: boolean }): DesignItem | null;
-  updateItemSpec(uniqueId: number, key: string, value: unknown, options?: { skipRender?: boolean }): DesignItem | null;
+  updateItem(
+    uniqueId: number,
+    updates: Partial<DesignItem>,
+    options?: { skipRender?: boolean }
+  ): DesignItem | null;
+  updateItemSpec(
+    uniqueId: number,
+    key: string,
+    value: unknown,
+    options?: { skipRender?: boolean }
+  ): DesignItem | null;
   getModule(itemId: number, modId: number): Module | undefined;
   addModule(itemId: number, module: Partial<Module>): Module | null;
   removeModule(itemId: number, modId: number): boolean;
-  updateModule(itemId: number, modId: number, updates: Partial<Module>, options?: { skipRender?: boolean }): Module | null;
+  updateModule(
+    itemId: number,
+    modId: number,
+    updates: Partial<Module>,
+    options?: { skipRender?: boolean }
+  ): Module | null;
   moveModule(itemId: number, modId: number, direction: number): boolean;
   getAllItems(): DesignItem[];
   getItemsByCategory(category: CategoryId): DesignItem[];
@@ -329,9 +343,18 @@ export interface SupabaseService {
   signInWithEmail(email: string, password: string): Promise<ApiResponse<AuthSession>>;
   signInWithOAuth(provider: 'google' | 'kakao', redirectTo?: string): Promise<void>;
   signOut(redirectUrl?: string): Promise<void>;
-  saveDesign(designId: string, name: string, items: DesignItem[], appVersion?: string): Promise<ApiResponse<Design>>;
+  saveDesign(
+    designId: string,
+    name: string,
+    items: DesignItem[],
+    appVersion?: string
+  ): Promise<ApiResponse<Design>>;
   loadDesign(designId: string): Promise<ApiResponse<{ design: Design; items: DesignItem[] }>>;
-  getMyDesigns(options?: { limit?: number; offset?: number; status?: DesignStatus }): Promise<ApiResponse<Design[]>>;
+  getMyDesigns(options?: {
+    limit?: number;
+    offset?: number;
+    status?: DesignStatus;
+  }): Promise<ApiResponse<Design[]>>;
   deleteDesign(designId: string): Promise<ApiResponse<void>>;
   uploadImage(file: File, userId?: string): Promise<ApiResponse<{ path: string; url: string }>>;
 }
@@ -341,7 +364,12 @@ export interface DadamSupabaseUtils {
   signOut(redirectUrl?: string): Promise<void>;
   loadProfile(): Promise<UserProfile | null>;
   uploadImage(file: File, userId: string): Promise<string | null>;
-  saveDesign(designId: string, name: string, items: DesignItem[], appVersion: string): Promise<boolean>;
+  saveDesign(
+    designId: string,
+    name: string,
+    items: DesignItem[],
+    appVersion: string
+  ): Promise<boolean>;
   loadDesign(designId: string): Promise<{ design: Design; items: DesignItem[] } | null>;
   getMyDesigns(options?: { limit?: number; offset?: number }): Promise<Design[]>;
   deleteDesign(designId: string): Promise<boolean>;
@@ -349,21 +377,58 @@ export interface DadamSupabaseUtils {
 }
 
 export interface DadamUtilsInterface {
-  debounce<T extends (...args: unknown[]) => unknown>(func: T, wait?: number, immediate?: boolean): T;
+  debounce<T extends (...args: unknown[]) => unknown>(
+    func: T,
+    wait?: number,
+    immediate?: boolean
+  ): T;
   throttle<T extends (...args: unknown[]) => unknown>(func: T, limit?: number): T;
   saveFocusState(): { element: Element; name: string; id: string } | null;
   restoreFocusState(state: { name?: string; id?: string } | null): void;
-  svgRect(x: number, y: number, w: number, h: number, fill?: string, stroke?: string, strokeWidth?: number): string;
-  svgText(x: number, y: number, content: string, options?: { fontSize?: number; fill?: string; anchor?: string }): string;
-  svgLine(x1: number, y1: number, x2: number, y2: number, stroke?: string, strokeWidth?: number): string;
-  createButton(label: string, action: string, dataAttrs?: Record<string, string>, className?: string): string;
-  createNumberInput(name: string, value: number, options?: { min?: number; max?: number; step?: number }): string;
+  svgRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    fill?: string,
+    stroke?: string,
+    strokeWidth?: number
+  ): string;
+  svgText(
+    x: number,
+    y: number,
+    content: string,
+    options?: { fontSize?: number; fill?: string; anchor?: string }
+  ): string;
+  svgLine(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    stroke?: string,
+    strokeWidth?: number
+  ): string;
+  createButton(
+    label: string,
+    action: string,
+    dataAttrs?: Record<string, string>,
+    className?: string
+  ): string;
+  createNumberInput(
+    name: string,
+    value: number,
+    options?: { min?: number; max?: number; step?: number }
+  ): string;
   formatNumber(num: number): string;
   safeParseInt(value: unknown, defaultValue?: number): number;
   safeParseFloat(value: unknown, defaultValue?: number): number;
   generateUUID(): string;
   deepClone<T>(obj: T): T;
-  showToast(message: string, type?: 'info' | 'success' | 'error' | 'warning', duration?: number): void;
+  showToast(
+    message: string,
+    type?: 'info' | 'success' | 'error' | 'warning',
+    duration?: number
+  ): void;
 }
 
 export interface DadamConstantsInterface {
@@ -397,10 +462,18 @@ export interface SupabaseClient {
   auth: {
     getSession(): Promise<{ data: { session: AuthSession | null } }>;
     getUser(): Promise<{ data: { user: { id: string; email: string } | null } }>;
-    signInWithPassword(credentials: { email: string; password: string }): Promise<{ data: { session: AuthSession } | null; error: ApiError | null }>;
-    signInWithOAuth(options: { provider: string; options?: { redirectTo?: string } }): Promise<void>;
+    signInWithPassword(credentials: {
+      email: string;
+      password: string;
+    }): Promise<{ data: { session: AuthSession } | null; error: ApiError | null }>;
+    signInWithOAuth(options: {
+      provider: string;
+      options?: { redirectTo?: string };
+    }): Promise<void>;
     signOut(): Promise<void>;
-    onAuthStateChange(callback: (event: string, session: AuthSession | null) => void): { data: { subscription: { unsubscribe(): void } } };
+    onAuthStateChange(callback: (event: string, session: AuthSession | null) => void): {
+      data: { subscription: { unsubscribe(): void } };
+    };
   };
   from(table: string): SupabaseQueryBuilder;
   storage: {
@@ -422,7 +495,11 @@ export interface SupabaseQueryBuilder {
 }
 
 export interface SupabaseStorageBuilder {
-  upload(path: string, file: File, options?: { cacheControl?: string; upsert?: boolean }): Promise<{ data: { path: string } | null; error: ApiError | null }>;
+  upload(
+    path: string,
+    file: File,
+    options?: { cacheControl?: string; upsert?: boolean }
+  ): Promise<{ data: { path: string } | null; error: ApiError | null }>;
   getPublicUrl(path: string): { data: { publicUrl: string } };
 }
 

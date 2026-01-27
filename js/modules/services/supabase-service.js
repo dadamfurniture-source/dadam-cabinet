@@ -24,9 +24,7 @@ class SupabaseService {
 
     const supabaseUrl = url || API_ENDPOINTS.SUPABASE_URL;
     const supabaseKey =
-      anonKey ||
-      (typeof window !== 'undefined' && window.SUPABASE_ANON_KEY) ||
-      'your-anon-key';
+      anonKey || (typeof window !== 'undefined' && window.SUPABASE_ANON_KEY) || 'your-anon-key';
 
     if (typeof window !== 'undefined' && window.supabase) {
       this.client = window.supabase.createClient(supabaseUrl, supabaseKey);

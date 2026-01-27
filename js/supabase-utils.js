@@ -5,7 +5,8 @@
 
 const SUPABASE_CONFIG = {
   url: 'https://vvqrvgcgnlfpiqqndsve.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ'
+  anonKey:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ',
 };
 
 const SupabaseUtils = {
@@ -24,7 +25,9 @@ const SupabaseUtils = {
     }
 
     this.client = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
-    const { data: { session } } = await this.client.auth.getSession();
+    const {
+      data: { session },
+    } = await this.client.auth.getSession();
 
     if (session) {
       this.currentUser = session.user;
@@ -65,7 +68,7 @@ const SupabaseUtils = {
           id: this.currentUser.id,
           email: this.currentUser.email,
           tier: this.currentUser.user_metadata?.tier || 'standard',
-          name: this.currentUser.user_metadata?.name || this.currentUser.email.split('@')[0]
+          name: this.currentUser.user_metadata?.name || this.currentUser.email.split('@')[0],
         };
       }
     } catch (e) {
@@ -74,7 +77,7 @@ const SupabaseUtils = {
         id: this.currentUser.id,
         email: this.currentUser.email,
         tier: this.currentUser.user_metadata?.tier || 'standard',
-        name: this.currentUser.user_metadata?.name || this.currentUser.email.split('@')[0]
+        name: this.currentUser.user_metadata?.name || this.currentUser.email.split('@')[0],
       };
     }
 
@@ -93,8 +96,7 @@ const SupabaseUtils = {
     }
 
     // 사용자 폴더 내 이미지 개수 확인
-    const { data: existingImages, error: listError } = await this.client
-      .storage
+    const { data: existingImages, error: listError } = await this.client.storage
       .from('design-images')
       .list(userId);
 
@@ -103,28 +105,24 @@ const SupabaseUtils = {
     }
 
     if (existingImages && existingImages.length >= 20) {
-      throw new Error('이미지는 계정당 최대 20개까지 저장할 수 있습니다.\n기존 이미지를 삭제하고 다시 시도해주세요.');
+      throw new Error(
+        '이미지는 계정당 최대 20개까지 저장할 수 있습니다.\n기존 이미지를 삭제하고 다시 시도해주세요.'
+      );
     }
 
     // 파일명 생성 (userId/timestamp.ext)
     const ext = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}.${ext}`;
 
-    const { data, error } = await this.client
-      .storage
-      .from('design-images')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    const { data, error } = await this.client.storage.from('design-images').upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
 
     if (error) throw error;
 
     // 공개 URL 반환
-    const { data: urlData } = this.client
-      .storage
-      .from('design-images')
-      .getPublicUrl(fileName);
+    const { data: urlData } = this.client.storage.from('design-images').getPublicUrl(fileName);
 
     return urlData.publicUrl;
   },
@@ -155,17 +153,14 @@ const SupabaseUtils = {
           total_items: totalItems,
           total_modules: totalModules,
           app_version: appVersion,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', designId);
 
       if (error) throw error;
 
       // 기존 아이템 삭제 후 재삽입
-      await this.client
-        .from('design_items')
-        .delete()
-        .eq('design_id', designId);
+      await this.client.from('design_items').delete().eq('design_id', designId);
 
       await this.saveDesignItems(designId, items);
 
@@ -180,7 +175,7 @@ const SupabaseUtils = {
           status: 'draft',
           total_items: totalItems,
           total_modules: totalModules,
-          app_version: appVersion
+          app_version: appVersion,
         })
         .select()
         .single();
@@ -209,15 +204,14 @@ const SupabaseUtils = {
       depth: item.d,
       specs: {
         ...(item.specs || {}),
-        imageUrl: (item.imageUrl || item.image) !== 'loading' ? (item.imageUrl || item.image || null) : null
+        imageUrl:
+          (item.imageUrl || item.image) !== 'loading' ? item.imageUrl || item.image || null : null,
       },
       modules: item.modules || [],
-      item_order: index
+      item_order: index,
     }));
 
-    const { error } = await this.client
-      .from('design_items')
-      .insert(itemsToInsert);
+    const { error } = await this.client.from('design_items').insert(itemsToInsert);
 
     if (error) throw error;
   },
@@ -292,10 +286,7 @@ const SupabaseUtils = {
     }
 
     // 아이템 먼저 삭제
-    await this.client
-      .from('design_items')
-      .delete()
-      .eq('design_id', designId);
+    await this.client.from('design_items').delete().eq('design_id', designId);
 
     // 설계 삭제
     const { error } = await this.client
@@ -320,13 +311,13 @@ const SupabaseUtils = {
       .from('designs')
       .update({
         status: 'submitted',
-        submitted_at: new Date().toISOString()
+        submitted_at: new Date().toISOString(),
       })
       .eq('id', designId)
       .eq('user_id', this.currentUser.id);
 
     if (error) throw error;
-  }
+  },
 };
 
 // 전역 객체로 노출

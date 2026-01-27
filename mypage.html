@@ -1,763 +1,1666 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#2D2A26">
-  <title>마이페이지 - 다담가구</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    :root{--white:#FAFAFA;--cream:#F8F7F4;--warm:#EBE8E2;--gray:#8B8680;--charcoal:#2D2A26;--black:#1A1918;--gold:#B8956C;--expert:#6366F1;--business:#059669}
-    body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--cream);color:var(--charcoal);line-height:1.7;min-height:100vh}
-    h1,h2,h3,h4{font-family:'Playfair Display','Noto Serif KR',serif;font-weight:500}
-    a{text-decoration:none;color:inherit}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>마이페이지 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+        --expert: #6366f1;
+        --business: #059669;
+      }
+      body {
+        font-family:
+          'Pretendard',
+          -apple-system,
+          BlinkMacSystemFont,
+          system-ui,
+          sans-serif;
+        background: var(--cream);
+        color: var(--charcoal);
+        line-height: 1.7;
+        min-height: 100vh;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-family: 'Playfair Display', 'Noto Serif KR', serif;
+        font-weight: 500;
+      }
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
 
-    /* Navigation */
-    .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 48px;height:72px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
-    .nav-logo{display:flex;align-items:center;gap:8px;color:var(--charcoal)}
-    .nav-logo svg{width:32px;height:32px}
-    .nav-logo span{font-family:'Playfair Display',serif;font-size:24px}
-    .nav-menu{display:flex;gap:32px}
-    .nav-menu a{color:var(--charcoal);font-size:14px;letter-spacing:.5px;transition:all .3s}
-    .nav-menu a:hover{color:var(--gold)}
-    .nav-menu a.active{color:var(--gold);font-weight:500}
-    .nav-icons{display:flex;align-items:center;gap:24px;color:var(--charcoal)}
-    .nav-icons button{background:none;border:none;color:inherit;cursor:pointer;padding:4px}
+      /* Navigation */
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        padding: 0 48px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--charcoal);
+      }
+      .nav-logo svg {
+        width: 32px;
+        height: 32px;
+      }
+      .nav-logo span {
+        font-family: 'Playfair Display', serif;
+        font-size: 24px;
+      }
+      .nav-menu {
+        display: flex;
+        gap: 32px;
+      }
+      .nav-menu a {
+        color: var(--charcoal);
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        transition: all 0.3s;
+      }
+      .nav-menu a:hover {
+        color: var(--gold);
+      }
+      .nav-menu a.active {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .nav-icons {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        color: var(--charcoal);
+      }
+      .nav-icons button {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        padding: 4px;
+      }
 
-    /* User Menu */
-    .user-menu{position:relative}
-    .user-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:var(--cream);border:none;color:inherit;cursor:pointer;transition:all .3s}
-    .user-btn:hover{background:var(--warm)}
-    .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
-    .user-name{font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;min-width:180px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);opacity:0;visibility:hidden;transform:translateY(-10px);transition:all .3s;z-index:200}
-    .user-menu:hover .user-dropdown,.user-dropdown:hover{opacity:1;visibility:visible;transform:translateY(0)}
-    .user-dropdown a,.user-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;font-size:14px;color:var(--charcoal);background:none;border:none;cursor:pointer;transition:background .2s;text-align:left}
-    .user-dropdown a:hover,.user-dropdown button:hover{background:var(--cream)}
-    .user-dropdown a:first-child{border-radius:12px 12px 0 0}
-    .user-dropdown button:last-child{border-radius:0 0 12px 12px;border-top:1px solid var(--warm);color:var(--gray)}
-    .user-dropdown svg{width:18px;height:18px;color:var(--gray)}
+      /* User Menu */
+      .user-menu {
+        position: relative;
+      }
+      .user-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        background: var(--cream);
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .user-btn:hover {
+        background: var(--warm);
+      }
+      .user-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--gold);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: #fff;
+      }
+      .user-name {
+        font-size: 13px;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .user-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 180px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.3s;
+        z-index: 200;
+      }
+      .user-menu:hover .user-dropdown,
+      .user-dropdown:hover {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      .user-dropdown a,
+      .user-dropdown button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 14px;
+        color: var(--charcoal);
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: background 0.2s;
+        text-align: left;
+      }
+      .user-dropdown a:hover,
+      .user-dropdown button:hover {
+        background: var(--cream);
+      }
+      .user-dropdown a:first-child {
+        border-radius: 12px 12px 0 0;
+      }
+      .user-dropdown button:last-child {
+        border-radius: 0 0 12px 12px;
+        border-top: 1px solid var(--warm);
+        color: var(--gray);
+      }
+      .user-dropdown svg {
+        width: 18px;
+        height: 18px;
+        color: var(--gray);
+      }
 
-    /* Hamburger */
-    .hamburger{display:none;flex-direction:column;gap:5px;padding:10px;cursor:pointer;background:none;border:none}
-    .hamburger span{width:24px;height:2px;background:var(--charcoal);border-radius:2px;transition:all .3s}
-    .hamburger.active span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
-    .hamburger.active span:nth-child(2){opacity:0}
-    .hamburger.active span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+      /* Hamburger */
+      .hamburger {
+        display: none;
+        flex-direction: column;
+        gap: 5px;
+        padding: 10px;
+        cursor: pointer;
+        background: none;
+        border: none;
+      }
+      .hamburger span {
+        width: 24px;
+        height: 2px;
+        background: var(--charcoal);
+        border-radius: 2px;
+        transition: all 0.3s;
+      }
+      .hamburger.active span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+      }
+      .hamburger.active span:nth-child(2) {
+        opacity: 0;
+      }
+      .hamburger.active span:nth-child(3) {
+        transform: rotate(-45deg) translate(5px, -5px);
+      }
 
-    /* Mobile Menu */
-    .mobile-menu{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--white);z-index:99;padding:100px 24px 24px;display:none;flex-direction:column;gap:8px;overflow-y:auto}
-    .mobile-menu.active{display:flex}
-    .mobile-menu a{padding:18px 20px;font-size:18px;border-radius:12px;transition:background .3s;color:var(--charcoal)}
-    .mobile-menu a:hover{background:var(--cream);color:var(--gold)}
+      /* Mobile Menu */
+      .mobile-menu {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--white);
+        z-index: 99;
+        padding: 100px 24px 24px;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        overflow-y: auto;
+      }
+      .mobile-menu.active {
+        display: flex;
+      }
+      .mobile-menu a {
+        padding: 18px 20px;
+        font-size: 18px;
+        border-radius: 12px;
+        transition: background 0.3s;
+        color: var(--charcoal);
+      }
+      .mobile-menu a:hover {
+        background: var(--cream);
+        color: var(--gold);
+      }
 
-    @media(max-width:768px){
-      .nav{padding:0 20px;height:64px}
-      .nav-menu{display:none}
-      .hamburger{display:flex}
-    }
+      @media (max-width: 768px) {
+        .nav {
+          padding: 0 20px;
+          height: 64px;
+        }
+        .nav-menu {
+          display: none;
+        }
+        .hamburger {
+          display: flex;
+        }
+      }
 
-    /* Main */
-    .main{max-width:1000px;margin:0 auto;padding:112px 24px 40px}
+      /* Main */
+      .main {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 112px 24px 40px;
+      }
 
-    /* Profile Header */
-    .profile-header{display:flex;align-items:center;gap:24px;margin-bottom:40px;padding:32px;background:#fff;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,.05)}
-    .profile-avatar{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--charcoal));display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff;font-family:'Playfair Display',serif}
-    .profile-info{flex:1}
-    .profile-name{font-size:28px;margin-bottom:4px}
-    .profile-email{color:var(--gray);font-size:14px;margin-bottom:12px}
-    .profile-tier{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500}
-    .tier-standard{background:var(--warm);color:var(--charcoal)}
-    .tier-expert{background:var(--expert);color:#fff}
-    .tier-business{background:var(--business);color:#fff}
-    .profile-actions{display:flex;gap:12px}
-    .btn-edit{padding:10px 20px;background:var(--charcoal);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;transition:background .3s}
-    .btn-edit:hover{background:var(--gold)}
-    .btn-upgrade{padding:10px 20px;background:linear-gradient(135deg,var(--expert),var(--gold));color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;transition:transform .3s}
-    .btn-upgrade:hover{transform:scale(1.02)}
+      /* Profile Header */
+      .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        margin-bottom: 40px;
+        padding: 32px;
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      }
+      .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--gold), var(--charcoal));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        color: #fff;
+        font-family: 'Playfair Display', serif;
+      }
+      .profile-info {
+        flex: 1;
+      }
+      .profile-name {
+        font-size: 28px;
+        margin-bottom: 4px;
+      }
+      .profile-email {
+        color: var(--gray);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      .profile-tier {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .tier-standard {
+        background: var(--warm);
+        color: var(--charcoal);
+      }
+      .tier-expert {
+        background: var(--expert);
+        color: #fff;
+      }
+      .tier-business {
+        background: var(--business);
+        color: #fff;
+      }
+      .profile-actions {
+        display: flex;
+        gap: 12px;
+      }
+      .btn-edit {
+        padding: 10px 20px;
+        background: var(--charcoal);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      .btn-edit:hover {
+        background: var(--gold);
+      }
+      .btn-upgrade {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, var(--expert), var(--gold));
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 0.3s;
+      }
+      .btn-upgrade:hover {
+        transform: scale(1.02);
+      }
 
-    /* Stats */
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:40px}
-    .stat-card{background:#fff;padding:24px;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
-    .stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
-    .stat-icon svg{width:24px;height:24px}
-    .stat-icon.purple{background:rgba(99,102,241,.1);color:var(--expert)}
-    .stat-icon.gold{background:rgba(184,149,108,.15);color:var(--gold)}
-    .stat-icon.green{background:rgba(5,150,105,.1);color:var(--business)}
-    .stat-value{font-size:32px;font-weight:600;margin-bottom:4px}
-    .stat-label{font-size:14px;color:var(--gray)}
+      /* Stats */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 40px;
+      }
+      .stat-card {
+        background: #fff;
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+      }
+      .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+      }
+      .stat-icon svg {
+        width: 24px;
+        height: 24px;
+      }
+      .stat-icon.purple {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--expert);
+      }
+      .stat-icon.gold {
+        background: rgba(184, 149, 108, 0.15);
+        color: var(--gold);
+      }
+      .stat-icon.green {
+        background: rgba(5, 150, 105, 0.1);
+        color: var(--business);
+      }
+      .stat-value {
+        font-size: 32px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .stat-label {
+        font-size: 14px;
+        color: var(--gray);
+      }
 
-    /* Sections */
-    .section{background:#fff;border-radius:20px;padding:32px;margin-bottom:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
-    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-    .section-title{font-size:20px;display:flex;align-items:center;gap:12px}
-    .section-title svg{width:24px;height:24px;color:var(--gold)}
-    .btn-link{font-size:14px;color:var(--gold);display:flex;align-items:center;gap:4px}
-    .btn-link:hover{text-decoration:underline}
+      /* Sections */
+      .section {
+        background: #fff;
+        border-radius: 20px;
+        padding: 32px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+      .section-title {
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .section-title svg {
+        width: 24px;
+        height: 24px;
+        color: var(--gold);
+      }
+      .btn-link {
+        font-size: 14px;
+        color: var(--gold);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .btn-link:hover {
+        text-decoration: underline;
+      }
 
-    /* Info List */
-    .info-list{display:flex;flex-direction:column;gap:16px}
-    .info-item{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--warm)}
-    .info-item:last-child{border-bottom:none}
-    .info-label{font-size:14px;color:var(--gray)}
-    .info-value{font-size:15px;font-weight:500}
+      /* Info List */
+      .info-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .info-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--warm);
+      }
+      .info-item:last-child {
+        border-bottom: none;
+      }
+      .info-label {
+        font-size: 14px;
+        color: var(--gray);
+      }
+      .info-value {
+        font-size: 15px;
+        font-weight: 500;
+      }
 
-    /* Design List */
-    .design-list{display:flex;flex-direction:column;gap:12px}
-    .design-item{display:flex;align-items:center;gap:16px;padding:16px;background:var(--cream);border-radius:12px;transition:background .3s}
-    .design-item:hover{background:var(--warm)}
-    .design-thumb{width:60px;height:60px;border-radius:8px;background:var(--warm);display:flex;align-items:center;justify-content:center}
-    .design-thumb svg{width:28px;height:28px;color:var(--gray)}
-    .design-info{flex:1}
-    .design-name{font-weight:500;margin-bottom:4px}
-    .design-meta{font-size:13px;color:var(--gray)}
-    .design-status{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500}
-    .status-draft{background:var(--warm);color:var(--charcoal)}
-    .status-submitted{background:rgba(99,102,241,.1);color:var(--expert)}
-    .status-completed{background:rgba(5,150,105,.1);color:var(--business)}
+      /* Design List */
+      .design-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .design-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: var(--cream);
+        border-radius: 12px;
+        transition: background 0.3s;
+      }
+      .design-item:hover {
+        background: var(--warm);
+      }
+      .design-thumb {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        background: var(--warm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .design-thumb svg {
+        width: 28px;
+        height: 28px;
+        color: var(--gray);
+      }
+      .design-info {
+        flex: 1;
+      }
+      .design-name {
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .design-meta {
+        font-size: 13px;
+        color: var(--gray);
+      }
+      .design-status {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .status-draft {
+        background: var(--warm);
+        color: var(--charcoal);
+      }
+      .status-submitted {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--expert);
+      }
+      .status-completed {
+        background: rgba(5, 150, 105, 0.1);
+        color: var(--business);
+      }
 
-    /* Empty State */
-    .empty-state{text-align:center;padding:48px 24px;color:var(--gray)}
-    .empty-state svg{width:64px;height:64px;margin-bottom:16px;opacity:.5}
-    .empty-state p{margin-bottom:16px}
-    .btn-primary{padding:12px 24px;background:var(--charcoal);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;transition:background .3s}
-    .btn-primary:hover{background:var(--gold)}
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 48px 24px;
+        color: var(--gray);
+      }
+      .empty-state svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+      }
+      .empty-state p {
+        margin-bottom: 16px;
+      }
+      .btn-primary {
+        padding: 12px 24px;
+        background: var(--charcoal);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      .btn-primary:hover {
+        background: var(--gold);
+      }
 
-    /* Quick Actions */
-    .quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
-    .action-card{display:flex;flex-direction:column;align-items:center;padding:24px;background:var(--cream);border-radius:12px;text-align:center;transition:all .3s;cursor:pointer}
-    .action-card:hover{background:var(--warm);transform:translateY(-2px)}
-    .action-card svg{width:32px;height:32px;margin-bottom:12px;color:var(--gold)}
-    .action-card span{font-size:14px;font-weight:500}
+      /* Quick Actions */
+      .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+      }
+      .action-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px;
+        background: var(--cream);
+        border-radius: 12px;
+        text-align: center;
+        transition: all 0.3s;
+        cursor: pointer;
+      }
+      .action-card:hover {
+        background: var(--warm);
+        transform: translateY(-2px);
+      }
+      .action-card svg {
+        width: 32px;
+        height: 32px;
+        margin-bottom: 12px;
+        color: var(--gold);
+      }
+      .action-card span {
+        font-size: 14px;
+        font-weight: 500;
+      }
 
-    /* Loading */
-    .loading{display:flex;align-items:center;justify-content:center;min-height:60vh}
-    .spinner{width:40px;height:40px;border:3px solid var(--warm);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
+      /* Loading */
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--warm);
+        border-top-color: var(--gold);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-    /* Modal */
-    .modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
-    .modal.active{display:flex}
-    .modal-content{background:#fff;border-radius:20px;width:90%;max-width:500px;max-height:90vh;overflow-y:auto}
-    .modal-header{display:flex;justify-content:space-between;align-items:center;padding:24px;border-bottom:1px solid var(--warm)}
-    .modal-header h3{font-size:1.3rem}
-    .modal-close{background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--gray)}
-    .modal-body{padding:24px}
-    .form-group{margin-bottom:20px}
-    .form-group label{display:block;margin-bottom:8px;font-size:14px;color:var(--charcoal);font-weight:500}
-    .form-group input,.form-group select,.form-group textarea{width:100%;padding:12px;border:1px solid var(--warm);border-radius:10px;font-size:15px;font-family:inherit;transition:border-color .3s}
-    .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--gold)}
-    .form-group textarea{resize:vertical;min-height:80px}
-    .form-hint{font-size:12px;color:var(--gray);margin-top:6px}
-    .modal-footer{display:flex;justify-content:flex-end;gap:12px;padding:24px;border-top:1px solid var(--warm)}
+      /* Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.active {
+        display: flex;
+      }
+      .modal-content {
+        background: #fff;
+        border-radius: 20px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px;
+        border-bottom: 1px solid var(--warm);
+      }
+      .modal-header h3 {
+        font-size: 1.3rem;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--gray);
+      }
+      .modal-body {
+        padding: 24px;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--charcoal);
+        font-weight: 500;
+      }
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--warm);
+        border-radius: 10px;
+        font-size: 15px;
+        font-family: inherit;
+        transition: border-color 0.3s;
+      }
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: var(--gold);
+      }
+      .form-group textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      .form-hint {
+        font-size: 12px;
+        color: var(--gray);
+        margin-top: 6px;
+      }
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 24px;
+        border-top: 1px solid var(--warm);
+      }
 
-    /* Tier Toggle Switch */
-    .tier-toggle{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--cream);border-radius:12px}
-    .tier-label{font-size:13px;font-weight:500;color:var(--gray);transition:color .3s}
-    .tier-label.active{color:var(--charcoal)}
-    .tier-label.expert{color:var(--expert)}
-    .toggle-switch{position:relative;width:50px;height:26px;cursor:pointer}
-    .toggle-switch input{opacity:0;width:0;height:0}
-    .toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--warm);border-radius:26px;transition:all .3s}
-    .toggle-slider:before{position:absolute;content:"";height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:all .3s;box-shadow:0 2px 4px rgba(0,0,0,.2)}
-    .toggle-switch input:checked+.toggle-slider{background:var(--expert)}
-    .toggle-switch input:checked+.toggle-slider:before{transform:translateX(24px)}
+      /* Tier Toggle Switch */
+      .tier-toggle {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--cream);
+        border-radius: 12px;
+      }
+      .tier-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--gray);
+        transition: color 0.3s;
+      }
+      .tier-label.active {
+        color: var(--charcoal);
+      }
+      .tier-label.expert {
+        color: var(--expert);
+      }
+      .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+        cursor: pointer;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--warm);
+        border-radius: 26px;
+        transition: all 0.3s;
+      }
+      .toggle-slider:before {
+        position: absolute;
+        content: '';
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: all 0.3s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+      .toggle-switch input:checked + .toggle-slider {
+        background: var(--expert);
+      }
+      .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+      }
 
-    /* Responsive */
-    @media(max-width:768px){
-      .profile-header{flex-direction:column;text-align:center}
-      .profile-actions{justify-content:center}
-      .main{padding:100px 20px 40px}
-    }
-    @media(max-width:480px){
-      .main{padding:88px 16px 24px}
-      .profile-avatar{width:80px;height:80px;font-size:28px}
-      .profile-name{font-size:24px}
-      .stats-grid{grid-template-columns:1fr 1fr}
-    }
-  </style>
-</head>
-<body>
-  <!-- Navigation -->
-  <nav class="nav">
-    <a href="index.html" class="nav-logo">
-      <svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg>
-      <span>다담</span>
-    </a>
-    <div class="nav-menu">
+      /* Responsive */
+      @media (max-width: 768px) {
+        .profile-header {
+          flex-direction: column;
+          text-align: center;
+        }
+        .profile-actions {
+          justify-content: center;
+        }
+        .main {
+          padding: 100px 20px 40px;
+        }
+      }
+      @media (max-width: 480px) {
+        .main {
+          padding: 88px 16px 24px;
+        }
+        .profile-avatar {
+          width: 80px;
+          height: 80px;
+          font-size: 28px;
+        }
+        .profile-name {
+          font-size: 24px;
+        }
+        .stats-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="nav">
+      <a href="index.html" class="nav-logo">
+        <svg viewBox="0 0 40 40" fill="currentColor">
+          <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+        </svg>
+        <span>다담</span>
+      </a>
+      <div class="nav-menu">
+        <a href="index.html">홈</a>
+        <a href="ai-design.html">AI 설계</a>
+        <a href="consultation.html">상담 신청</a>
+      </div>
+      <div class="nav-icons">
+        <div class="user-menu" id="userMenu">
+          <button class="user-btn">
+            <div class="user-avatar" id="navUserAvatar">?</div>
+            <span class="user-name" id="navUserName">사용자</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div class="user-dropdown">
+            <a href="mypage.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" /></svg
+              >마이페이지</a
+            >
+            <a href="my-designs.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" /></svg
+              >내 설계</a
+            >
+            <button onclick="logout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" /></svg
+              >로그아웃
+            </button>
+          </div>
+        </div>
+        <button class="hamburger" onclick="toggleMobileMenu()">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
       <a href="index.html">홈</a>
       <a href="ai-design.html">AI 설계</a>
       <a href="consultation.html">상담 신청</a>
-    </div>
-    <div class="nav-icons">
-      <div class="user-menu" id="userMenu">
-        <button class="user-btn">
-          <div class="user-avatar" id="navUserAvatar">?</div>
-          <span class="user-name" id="navUserName">사용자</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="user-dropdown">
-          <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
-          <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>내 설계</a>
-          <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
-        </div>
-      </div>
-      <button class="hamburger" onclick="toggleMobileMenu()">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </div>
-  </nav>
-
-  <!-- Mobile Menu -->
-  <div class="mobile-menu" id="mobileMenu">
-    <a href="index.html">홈</a>
-    <a href="ai-design.html">AI 설계</a>
-    <a href="consultation.html">상담 신청</a>
-    <a href="mypage.html" style="background:var(--cream)">마이페이지</a>
-    <a href="my-designs.html">내 설계</a>
-    <a href="#" onclick="logout();return false;" style="color:var(--gray);margin-top:16px;border-top:1px solid var(--warm);padding-top:24px">로그아웃</a>
-  </div>
-
-  <!-- Loading State -->
-  <div class="loading" id="loadingState">
-    <div class="spinner"></div>
-  </div>
-
-  <!-- Main Content -->
-  <main class="main" id="mainContent" style="display:none">
-    <!-- Profile Header -->
-    <div class="profile-header">
-      <div class="profile-avatar" id="profileAvatar">?</div>
-      <div class="profile-info">
-        <h1 class="profile-name" id="profileName">로딩 중...</h1>
-        <p class="profile-email" id="profileEmail">-</p>
-        <span class="profile-tier tier-standard" id="profileTier">Standard</span>
-      </div>
-      <div class="profile-actions">
-        <button class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
-        <div class="tier-toggle" id="tierToggleContainer">
-          <span class="tier-label" id="labelStandard">Standard</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="tierToggle" onchange="toggleTier()">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="tier-label expert" id="labelExpert">Expert</span>
-        </div>
-      </div>
+      <a href="mypage.html" style="background: var(--cream)">마이페이지</a>
+      <a href="my-designs.html">내 설계</a>
+      <a
+        href="#"
+        onclick="
+          logout();
+          return false;
+        "
+        style="color: var(--gray); margin-top: 16px; border-top: 1px solid var(--warm); padding-top: 24px"
+        >로그아웃</a
+      >
     </div>
 
-    <!-- Stats -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon purple">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        </div>
-        <div class="stat-value" id="statDesigns">0</div>
-        <div class="stat-label">저장된 설계</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon gold">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        </div>
-        <div class="stat-value" id="statConsults">0</div>
-        <div class="stat-label">상담 요청</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <div class="stat-value" id="statCompleted">0</div>
-        <div class="stat-label">완료된 프로젝트</div>
-      </div>
+    <!-- Loading State -->
+    <div class="loading" id="loadingState">
+      <div class="spinner"></div>
     </div>
 
-    <!-- Quick Actions -->
-    <section class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          빠른 메뉴
-        </h2>
-      </div>
-      <div class="quick-actions">
-        <a href="ai-design.html" class="action-card" id="actionDesign">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          <span>AI 설계 시작</span>
-        </a>
-        <a href="consultation.html" class="action-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <span>상담 요청</span>
-        </a>
-        <div class="action-card" onclick="location.href='#'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          <span>포트폴리오</span>
+    <!-- Main Content -->
+    <main class="main" id="mainContent" style="display: none">
+      <!-- Profile Header -->
+      <div class="profile-header">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <div class="profile-info">
+          <h1 class="profile-name" id="profileName">로딩 중...</h1>
+          <p class="profile-email" id="profileEmail">-</p>
+          <span class="profile-tier tier-standard" id="profileTier">Standard</span>
         </div>
-        <div class="action-card" onclick="location.href='#'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>설정</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Account Info -->
-    <section class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          계정 정보
-        </h2>
-        <a href="#" class="btn-link" onclick="openEditProfile()">수정 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
-      </div>
-      <div class="info-list">
-        <div class="info-item">
-          <span class="info-label">이름</span>
-          <span class="info-value" id="infoName">-</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">이메일</span>
-          <span class="info-value" id="infoEmail">-</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">연락처</span>
-          <span class="info-value" id="infoPhone">-</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">거주지역</span>
-          <span class="info-value" id="infoLocation">-</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">가입일</span>
-          <span class="info-value" id="infoJoined">-</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Recent Designs -->
-    <section class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          최근 설계
-        </h2>
-        <a href="my-designs.html" class="btn-link">전체보기 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
-      </div>
-      <div class="design-list" id="designList">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          <p>아직 저장된 설계가 없습니다.</p>
-          <button class="btn-primary" onclick="location.href='ai-design.html'">첫 설계 시작하기</button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- Profile Edit Modal -->
-  <div class="modal" id="editModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>프로필 수정</h3>
-        <button class="modal-close" onclick="closeEditModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form id="editForm" onsubmit="submitEditProfile(event)">
-          <div class="form-group">
-            <label>이름 *</label>
-            <input type="text" id="editName" required placeholder="이름을 입력하세요">
+        <div class="profile-actions">
+          <button class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
+          <div class="tier-toggle" id="tierToggleContainer">
+            <span class="tier-label" id="labelStandard">Standard</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="tierToggle" onchange="toggleTier()" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="tier-label expert" id="labelExpert">Expert</span>
           </div>
-          <div class="form-group">
-            <label>연락처</label>
-            <input type="tel" id="editPhone" placeholder="010-0000-0000">
-          </div>
-          <div class="form-group">
-            <label>거주지역 (시/도)</label>
-            <select id="editSido" onchange="updateGugun()">
-              <option value="">선택하세요</option>
-              <option value="서울특별시">서울특별시</option>
-              <option value="부산광역시">부산광역시</option>
-              <option value="대구광역시">대구광역시</option>
-              <option value="인천광역시">인천광역시</option>
-              <option value="광주광역시">광주광역시</option>
-              <option value="대전광역시">대전광역시</option>
-              <option value="울산광역시">울산광역시</option>
-              <option value="세종특별자치시">세종특별자치시</option>
-              <option value="경기도">경기도</option>
-              <option value="강원도">강원도</option>
-              <option value="충청북도">충청북도</option>
-              <option value="충청남도">충청남도</option>
-              <option value="전라북도">전라북도</option>
-              <option value="전라남도">전라남도</option>
-              <option value="경상북도">경상북도</option>
-              <option value="경상남도">경상남도</option>
-              <option value="제주특별자치도">제주특별자치도</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>거주지역 (시/군/구)</label>
-            <select id="editGugun">
-              <option value="">시/도를 먼저 선택하세요</option>
-            </select>
-          </div>
-        </form>
+        </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-edit" onclick="closeEditModal()">취소</button>
-        <button type="submit" form="editForm" class="btn-upgrade">저장</button>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </div>
+          <div class="stat-value" id="statDesigns">0</div>
+          <div class="stat-label">저장된 설계</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div class="stat-value" id="statConsults">0</div>
+          <div class="stat-label">상담 요청</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <div class="stat-value" id="statCompleted">0</div>
+          <div class="stat-label">완료된 프로젝트</div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            빠른 메뉴
+          </h2>
+        </div>
+        <div class="quick-actions">
+          <a href="ai-design.html" class="action-card" id="actionDesign">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+            <span>AI 설계 시작</span>
+          </a>
+          <a href="consultation.html" class="action-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span>상담 요청</span>
+          </a>
+          <div class="action-card" onclick="location.href = '#'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <span>포트폴리오</span>
+          </div>
+          <div class="action-card" onclick="location.href = '#'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+            <span>설정</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Account Info -->
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            계정 정보
+          </h2>
+          <a href="#" class="btn-link" onclick="openEditProfile()"
+            >수정
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14m-7-7 7 7-7 7" /></svg
+          ></a>
+        </div>
+        <div class="info-list">
+          <div class="info-item">
+            <span class="info-label">이름</span>
+            <span class="info-value" id="infoName">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">이메일</span>
+            <span class="info-value" id="infoEmail">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">연락처</span>
+            <span class="info-value" id="infoPhone">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">거주지역</span>
+            <span class="info-value" id="infoLocation">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">가입일</span>
+            <span class="info-value" id="infoJoined">-</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Designs -->
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            최근 설계
+          </h2>
+          <a href="my-designs.html" class="btn-link"
+            >전체보기
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14m-7-7 7 7-7 7" /></svg
+          ></a>
+        </div>
+        <div class="design-list" id="designList">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+            <p>아직 저장된 설계가 없습니다.</p>
+            <button class="btn-primary" onclick="location.href = 'ai-design.html'">첫 설계 시작하기</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Profile Edit Modal -->
+    <div class="modal" id="editModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>프로필 수정</h3>
+          <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="editForm" onsubmit="submitEditProfile(event)">
+            <div class="form-group">
+              <label>이름 *</label>
+              <input type="text" id="editName" required placeholder="이름을 입력하세요" />
+            </div>
+            <div class="form-group">
+              <label>연락처</label>
+              <input type="tel" id="editPhone" placeholder="010-0000-0000" />
+            </div>
+            <div class="form-group">
+              <label>거주지역 (시/도)</label>
+              <select id="editSido" onchange="updateGugun()">
+                <option value="">선택하세요</option>
+                <option value="서울특별시">서울특별시</option>
+                <option value="부산광역시">부산광역시</option>
+                <option value="대구광역시">대구광역시</option>
+                <option value="인천광역시">인천광역시</option>
+                <option value="광주광역시">광주광역시</option>
+                <option value="대전광역시">대전광역시</option>
+                <option value="울산광역시">울산광역시</option>
+                <option value="세종특별자치시">세종특별자치시</option>
+                <option value="경기도">경기도</option>
+                <option value="강원도">강원도</option>
+                <option value="충청북도">충청북도</option>
+                <option value="충청남도">충청남도</option>
+                <option value="전라북도">전라북도</option>
+                <option value="전라남도">전라남도</option>
+                <option value="경상북도">경상북도</option>
+                <option value="경상남도">경상남도</option>
+                <option value="제주특별자치도">제주특별자치도</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>거주지역 (시/군/구)</label>
+              <select id="editGugun">
+                <option value="">시/도를 먼저 선택하세요</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-edit" onclick="closeEditModal()">취소</button>
+          <button type="submit" form="editForm" class="btn-upgrade">저장</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <script>
-    // Supabase 설정
-    const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+    <script>
+      // Supabase 설정
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
 
-    let supabaseClient = null;
-    let currentUser = null;
+      let supabaseClient = null;
+      let currentUser = null;
 
-    // Supabase 초기화
-    try {
-      if (typeof window.supabase !== 'undefined') {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }
-    } catch (e) {
-      console.error('Supabase 초기화 오류:', e);
-    }
-
-    // 페이지 로드
-    async function init() {
-      if (!supabaseClient) {
-        alert('서비스에 연결할 수 없습니다.');
-        window.location.href = 'login.html';
-        return;
-      }
-
-      const { data: { session } } = await supabaseClient.auth.getSession();
-
-      if (!session) {
-        window.location.href = 'login.html';
-        return;
-      }
-
-      currentUser = session.user;
-      await loadUserProfile();
-    }
-
-    // 사용자 프로필 로드
-    async function loadUserProfile() {
-      const user = currentUser;
-      const meta = user.user_metadata || {};
-
-      // 프로필 표시
-      document.getElementById('loadingState').style.display = 'none';
-      document.getElementById('mainContent').style.display = 'block';
-
-      // 이름
-      const name = meta.name || meta.full_name || user.email.split('@')[0];
-      document.getElementById('profileName').textContent = name;
-      document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
-      document.getElementById('infoName').textContent = name;
-
-      // 네비게이션 사용자 정보
-      document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
-      document.getElementById('navUserName').textContent = name;
-
-      // 이메일
-      document.getElementById('profileEmail').textContent = user.email;
-      document.getElementById('infoEmail').textContent = user.email;
-
-      // 연락처
-      document.getElementById('infoPhone').textContent = meta.phone || '미등록';
-
-      // 지역
-      const location = meta.sido && meta.gugun ? `${meta.sido} ${meta.gugun}` : (meta.sido || '미등록');
-      document.getElementById('infoLocation').textContent = location;
-
-      // 가입일
-      const joinedDate = new Date(user.created_at).toLocaleDateString('ko-KR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      document.getElementById('infoJoined').textContent = joinedDate;
-
-      // 등급
-      const tier = meta.tier || 'standard';
-      updateTierDisplay(tier);
-
-      // 통계 로드
-      await loadUserStats();
-    }
-
-    // 사용자 통계 로드
-    async function loadUserStats() {
+      // Supabase 초기화
       try {
-        // 상담 요청 수 조회
-        const { data: consultations, error: consultError } = await supabaseClient
-          .from('consultations')
-          .select('id, status')
-          .eq('user_id', currentUser.id);
+        if (typeof window.supabase !== 'undefined') {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+      } catch (e) {
+        console.error('Supabase 초기화 오류:', e);
+      }
 
-        if (!consultError && consultations) {
-          const totalConsults = consultations.length;
-          const completedConsults = consultations.filter(c => c.status === 'completed').length;
-
-          document.getElementById('statConsults').textContent = totalConsults;
-          document.getElementById('statCompleted').textContent = completedConsults;
+      // 페이지 로드
+      async function init() {
+        if (!supabaseClient) {
+          alert('서비스에 연결할 수 없습니다.');
+          window.location.href = 'login.html';
+          return;
         }
 
-        // 설계 수 조회 (designs 테이블이 있는 경우)
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+
+        if (!session) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        currentUser = session.user;
+        await loadUserProfile();
+      }
+
+      // 사용자 프로필 로드
+      async function loadUserProfile() {
+        const user = currentUser;
+        const meta = user.user_metadata || {};
+
+        // 프로필 표시
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+
+        // 이름
+        const name = meta.name || meta.full_name || user.email.split('@')[0];
+        document.getElementById('profileName').textContent = name;
+        document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
+        document.getElementById('infoName').textContent = name;
+
+        // 네비게이션 사용자 정보
+        document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
+        document.getElementById('navUserName').textContent = name;
+
+        // 이메일
+        document.getElementById('profileEmail').textContent = user.email;
+        document.getElementById('infoEmail').textContent = user.email;
+
+        // 연락처
+        document.getElementById('infoPhone').textContent = meta.phone || '미등록';
+
+        // 지역
+        const location = meta.sido && meta.gugun ? `${meta.sido} ${meta.gugun}` : meta.sido || '미등록';
+        document.getElementById('infoLocation').textContent = location;
+
+        // 가입일
+        const joinedDate = new Date(user.created_at).toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        document.getElementById('infoJoined').textContent = joinedDate;
+
+        // 등급
+        const tier = meta.tier || 'standard';
+        updateTierDisplay(tier);
+
+        // 통계 로드
+        await loadUserStats();
+      }
+
+      // 사용자 통계 로드
+      async function loadUserStats() {
         try {
-          const { data: designs, error: designError } = await supabaseClient
-            .from('designs')
-            .select('id')
+          // 상담 요청 수 조회
+          const { data: consultations, error: consultError } = await supabaseClient
+            .from('consultations')
+            .select('id, status')
             .eq('user_id', currentUser.id);
 
-          if (!designError && designs) {
-            document.getElementById('statDesigns').textContent = designs.length;
+          if (!consultError && consultations) {
+            const totalConsults = consultations.length;
+            const completedConsults = consultations.filter((c) => c.status === 'completed').length;
+
+            document.getElementById('statConsults').textContent = totalConsults;
+            document.getElementById('statCompleted').textContent = completedConsults;
           }
-        } catch (e) {
-          console.log('designs 테이블 없음');
-        }
 
-      } catch (error) {
-        console.log('통계 로드 실패:', error.message);
-      }
-    }
+          // 설계 수 조회 (designs 테이블이 있는 경우)
+          try {
+            const { data: designs, error: designError } = await supabaseClient
+              .from('designs')
+              .select('id')
+              .eq('user_id', currentUser.id);
 
-    // 등급 표시 업데이트
-    function updateTierDisplay(tier) {
-      const tierEl = document.getElementById('profileTier');
-      tierEl.className = 'profile-tier tier-' + tier;
-      tierEl.textContent = tier === 'expert' ? 'Expert' : tier === 'business' ? 'Business' : 'Standard';
-
-      // 토글 상태 설정
-      const toggle = document.getElementById('tierToggle');
-      toggle.checked = (tier === 'expert' || tier === 'business');
-
-      // 라벨 활성화 표시
-      document.getElementById('labelStandard').classList.toggle('active', tier === 'standard');
-      document.getElementById('labelExpert').classList.toggle('active', tier === 'expert' || tier === 'business');
-
-      // Business tier는 토글 비활성화 (변경 불가)
-      if (tier === 'business') {
-        toggle.disabled = true;
-        document.getElementById('tierToggleContainer').style.opacity = '0.6';
-        document.getElementById('tierToggleContainer').title = 'Business 등급은 변경할 수 없습니다';
-      }
-    }
-
-    // 등급 토글
-    async function toggleTier() {
-      const toggle = document.getElementById('tierToggle');
-      const newTier = toggle.checked ? 'expert' : 'standard';
-
-      try {
-        // 1. auth.users metadata 업데이트
-        const { error: authError } = await supabaseClient.auth.updateUser({
-          data: { tier: newTier }
-        });
-
-        if (authError) throw authError;
-
-        // 2. profiles 테이블 업데이트
-        try {
-          await supabaseClient
-            .from('profiles')
-            .update({ tier: newTier, updated_at: new Date().toISOString() })
-            .eq('id', currentUser.id);
-        } catch (profileError) {
-          console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
-        }
-
-        // 3. 세션 새로고침
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) {
-          currentUser = session.user;
-        }
-
-        // 4. UI 업데이트
-        updateTierDisplay(newTier);
-
-        // 알림
-        if (newTier === 'expert') {
-          alert('Expert 등급으로 변경되었습니다.\nAI 설계 페이지에서 상세 설계 도구를 이용할 수 있습니다.');
-        } else {
-          alert('Standard 등급으로 변경되었습니다.');
-        }
-
-      } catch (error) {
-        console.error('등급 변경 오류:', error);
-        alert('등급 변경 중 오류가 발생했습니다: ' + error.message);
-        // 실패 시 토글 원복
-        toggle.checked = !toggle.checked;
-      }
-    }
-
-    function formatDate(dateStr) {
-      return new Date(dateStr).toLocaleDateString('ko-KR');
-    }
-
-    // 지역 데이터
-    const gugunData = {
-      '서울특별시': ['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
-      '부산광역시': ['강서구','금정구','기장군','남구','동구','동래구','부산진구','북구','사상구','사하구','서구','수영구','연제구','영도구','중구','해운대구'],
-      '대구광역시': ['남구','달서구','달성군','동구','북구','서구','수성구','중구'],
-      '인천광역시': ['강화군','계양구','남동구','동구','미추홀구','부평구','서구','연수구','옹진군','중구'],
-      '광주광역시': ['광산구','남구','동구','북구','서구'],
-      '대전광역시': ['대덕구','동구','서구','유성구','중구'],
-      '울산광역시': ['남구','동구','북구','울주군','중구'],
-      '세종특별자치시': ['세종시'],
-      '경기도': ['가평군','고양시','과천시','광명시','광주시','구리시','군포시','김포시','남양주시','동두천시','부천시','성남시','수원시','시흥시','안산시','안성시','안양시','양주시','양평군','여주시','연천군','오산시','용인시','의왕시','의정부시','이천시','파주시','평택시','포천시','하남시','화성시'],
-      '강원도': ['강릉시','고성군','동해시','삼척시','속초시','양구군','양양군','영월군','원주시','인제군','정선군','철원군','춘천시','태백시','평창군','홍천군','화천군','횡성군'],
-      '충청북도': ['괴산군','단양군','보은군','영동군','옥천군','음성군','제천시','증평군','진천군','청주시','충주시'],
-      '충청남도': ['계룡시','공주시','금산군','논산시','당진시','보령시','부여군','서산시','서천군','아산시','예산군','천안시','청양군','태안군','홍성군'],
-      '전라북도': ['고창군','군산시','김제시','남원시','무주군','부안군','순창군','완주군','익산시','임실군','장수군','전주시','정읍시','진안군'],
-      '전라남도': ['강진군','고흥군','곡성군','광양시','구례군','나주시','담양군','목포시','무안군','보성군','순천시','신안군','여수시','영광군','영암군','완도군','장성군','장흥군','진도군','함평군','해남군','화순군'],
-      '경상북도': ['경산시','경주시','고령군','구미시','군위군','김천시','문경시','봉화군','상주시','성주군','안동시','영덕군','영양군','영주시','영천시','예천군','울릉군','울진군','의성군','청도군','청송군','칠곡군','포항시'],
-      '경상남도': ['거제시','거창군','고성군','김해시','남해군','밀양시','사천시','산청군','양산시','의령군','진주시','창녕군','창원시','통영시','하동군','함안군','함양군','합천군'],
-      '제주특별자치도': ['서귀포시','제주시']
-    };
-
-    // 구/군 업데이트
-    function updateGugun() {
-      const sido = document.getElementById('editSido').value;
-      const gugunSelect = document.getElementById('editGugun');
-      gugunSelect.innerHTML = '<option value="">선택하세요</option>';
-
-      if (sido && gugunData[sido]) {
-        gugunData[sido].forEach(gugun => {
-          const option = document.createElement('option');
-          option.value = gugun;
-          option.textContent = gugun;
-          gugunSelect.appendChild(option);
-        });
-      }
-    }
-
-    // 프로필 수정 모달 열기
-    function openEditProfile() {
-      const meta = currentUser.user_metadata || {};
-
-      // 현재 값 채우기
-      document.getElementById('editName').value = meta.name || meta.full_name || '';
-      document.getElementById('editPhone').value = meta.phone || '';
-
-      // 시/도 선택
-      const sidoSelect = document.getElementById('editSido');
-      if (meta.sido) {
-        sidoSelect.value = meta.sido;
-        updateGugun();
-        // 구/군 선택
-        if (meta.gugun) {
-          document.getElementById('editGugun').value = meta.gugun;
-        }
-      }
-
-      document.getElementById('editModal').classList.add('active');
-    }
-
-    // 프로필 수정 모달 닫기
-    function closeEditModal() {
-      document.getElementById('editModal').classList.remove('active');
-    }
-
-    // 프로필 수정 제출
-    async function submitEditProfile(e) {
-      e.preventDefault();
-
-      const name = document.getElementById('editName').value.trim();
-      const phone = document.getElementById('editPhone').value.trim();
-      const sido = document.getElementById('editSido').value;
-      const gugun = document.getElementById('editGugun').value;
-
-      if (!name) {
-        alert('이름을 입력해주세요.');
-        return;
-      }
-
-      try {
-        // 1. auth.users의 user_metadata 업데이트
-        const { error: authError } = await supabaseClient.auth.updateUser({
-          data: {
-            name: name,
-            phone: phone,
-            sido: sido,
-            gugun: gugun
+            if (!designError && designs) {
+              document.getElementById('statDesigns').textContent = designs.length;
+            }
+          } catch (e) {
+            console.log('designs 테이블 없음');
           }
-        });
+        } catch (error) {
+          console.log('통계 로드 실패:', error.message);
+        }
+      }
 
-        if (authError) throw authError;
+      // 등급 표시 업데이트
+      function updateTierDisplay(tier) {
+        const tierEl = document.getElementById('profileTier');
+        tierEl.className = 'profile-tier tier-' + tier;
+        tierEl.textContent = tier === 'expert' ? 'Expert' : tier === 'business' ? 'Business' : 'Standard';
 
-        // 2. profiles 테이블도 업데이트 (있는 경우)
+        // 토글 상태 설정
+        const toggle = document.getElementById('tierToggle');
+        toggle.checked = tier === 'expert' || tier === 'business';
+
+        // 라벨 활성화 표시
+        document.getElementById('labelStandard').classList.toggle('active', tier === 'standard');
+        document.getElementById('labelExpert').classList.toggle('active', tier === 'expert' || tier === 'business');
+
+        // Business tier는 토글 비활성화 (변경 불가)
+        if (tier === 'business') {
+          toggle.disabled = true;
+          document.getElementById('tierToggleContainer').style.opacity = '0.6';
+          document.getElementById('tierToggleContainer').title = 'Business 등급은 변경할 수 없습니다';
+        }
+      }
+
+      // 등급 토글
+      async function toggleTier() {
+        const toggle = document.getElementById('tierToggle');
+        const newTier = toggle.checked ? 'expert' : 'standard';
+
         try {
-          await supabaseClient
-            .from('profiles')
-            .update({
+          // 1. auth.users metadata 업데이트
+          const { error: authError } = await supabaseClient.auth.updateUser({
+            data: { tier: newTier },
+          });
+
+          if (authError) throw authError;
+
+          // 2. profiles 테이블 업데이트
+          try {
+            await supabaseClient
+              .from('profiles')
+              .update({ tier: newTier, updated_at: new Date().toISOString() })
+              .eq('id', currentUser.id);
+          } catch (profileError) {
+            console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
+          }
+
+          // 3. 세션 새로고침
+          const {
+            data: { session },
+          } = await supabaseClient.auth.getSession();
+          if (session) {
+            currentUser = session.user;
+          }
+
+          // 4. UI 업데이트
+          updateTierDisplay(newTier);
+
+          // 알림
+          if (newTier === 'expert') {
+            alert('Expert 등급으로 변경되었습니다.\nAI 설계 페이지에서 상세 설계 도구를 이용할 수 있습니다.');
+          } else {
+            alert('Standard 등급으로 변경되었습니다.');
+          }
+        } catch (error) {
+          console.error('등급 변경 오류:', error);
+          alert('등급 변경 중 오류가 발생했습니다: ' + error.message);
+          // 실패 시 토글 원복
+          toggle.checked = !toggle.checked;
+        }
+      }
+
+      function formatDate(dateStr) {
+        return new Date(dateStr).toLocaleDateString('ko-KR');
+      }
+
+      // 지역 데이터
+      const gugunData = {
+        서울특별시: [
+          '강남구',
+          '강동구',
+          '강북구',
+          '강서구',
+          '관악구',
+          '광진구',
+          '구로구',
+          '금천구',
+          '노원구',
+          '도봉구',
+          '동대문구',
+          '동작구',
+          '마포구',
+          '서대문구',
+          '서초구',
+          '성동구',
+          '성북구',
+          '송파구',
+          '양천구',
+          '영등포구',
+          '용산구',
+          '은평구',
+          '종로구',
+          '중구',
+          '중랑구',
+        ],
+        부산광역시: [
+          '강서구',
+          '금정구',
+          '기장군',
+          '남구',
+          '동구',
+          '동래구',
+          '부산진구',
+          '북구',
+          '사상구',
+          '사하구',
+          '서구',
+          '수영구',
+          '연제구',
+          '영도구',
+          '중구',
+          '해운대구',
+        ],
+        대구광역시: ['남구', '달서구', '달성군', '동구', '북구', '서구', '수성구', '중구'],
+        인천광역시: ['강화군', '계양구', '남동구', '동구', '미추홀구', '부평구', '서구', '연수구', '옹진군', '중구'],
+        광주광역시: ['광산구', '남구', '동구', '북구', '서구'],
+        대전광역시: ['대덕구', '동구', '서구', '유성구', '중구'],
+        울산광역시: ['남구', '동구', '북구', '울주군', '중구'],
+        세종특별자치시: ['세종시'],
+        경기도: [
+          '가평군',
+          '고양시',
+          '과천시',
+          '광명시',
+          '광주시',
+          '구리시',
+          '군포시',
+          '김포시',
+          '남양주시',
+          '동두천시',
+          '부천시',
+          '성남시',
+          '수원시',
+          '시흥시',
+          '안산시',
+          '안성시',
+          '안양시',
+          '양주시',
+          '양평군',
+          '여주시',
+          '연천군',
+          '오산시',
+          '용인시',
+          '의왕시',
+          '의정부시',
+          '이천시',
+          '파주시',
+          '평택시',
+          '포천시',
+          '하남시',
+          '화성시',
+        ],
+        강원도: [
+          '강릉시',
+          '고성군',
+          '동해시',
+          '삼척시',
+          '속초시',
+          '양구군',
+          '양양군',
+          '영월군',
+          '원주시',
+          '인제군',
+          '정선군',
+          '철원군',
+          '춘천시',
+          '태백시',
+          '평창군',
+          '홍천군',
+          '화천군',
+          '횡성군',
+        ],
+        충청북도: [
+          '괴산군',
+          '단양군',
+          '보은군',
+          '영동군',
+          '옥천군',
+          '음성군',
+          '제천시',
+          '증평군',
+          '진천군',
+          '청주시',
+          '충주시',
+        ],
+        충청남도: [
+          '계룡시',
+          '공주시',
+          '금산군',
+          '논산시',
+          '당진시',
+          '보령시',
+          '부여군',
+          '서산시',
+          '서천군',
+          '아산시',
+          '예산군',
+          '천안시',
+          '청양군',
+          '태안군',
+          '홍성군',
+        ],
+        전라북도: [
+          '고창군',
+          '군산시',
+          '김제시',
+          '남원시',
+          '무주군',
+          '부안군',
+          '순창군',
+          '완주군',
+          '익산시',
+          '임실군',
+          '장수군',
+          '전주시',
+          '정읍시',
+          '진안군',
+        ],
+        전라남도: [
+          '강진군',
+          '고흥군',
+          '곡성군',
+          '광양시',
+          '구례군',
+          '나주시',
+          '담양군',
+          '목포시',
+          '무안군',
+          '보성군',
+          '순천시',
+          '신안군',
+          '여수시',
+          '영광군',
+          '영암군',
+          '완도군',
+          '장성군',
+          '장흥군',
+          '진도군',
+          '함평군',
+          '해남군',
+          '화순군',
+        ],
+        경상북도: [
+          '경산시',
+          '경주시',
+          '고령군',
+          '구미시',
+          '군위군',
+          '김천시',
+          '문경시',
+          '봉화군',
+          '상주시',
+          '성주군',
+          '안동시',
+          '영덕군',
+          '영양군',
+          '영주시',
+          '영천시',
+          '예천군',
+          '울릉군',
+          '울진군',
+          '의성군',
+          '청도군',
+          '청송군',
+          '칠곡군',
+          '포항시',
+        ],
+        경상남도: [
+          '거제시',
+          '거창군',
+          '고성군',
+          '김해시',
+          '남해군',
+          '밀양시',
+          '사천시',
+          '산청군',
+          '양산시',
+          '의령군',
+          '진주시',
+          '창녕군',
+          '창원시',
+          '통영시',
+          '하동군',
+          '함안군',
+          '함양군',
+          '합천군',
+        ],
+        제주특별자치도: ['서귀포시', '제주시'],
+      };
+
+      // 구/군 업데이트
+      function updateGugun() {
+        const sido = document.getElementById('editSido').value;
+        const gugunSelect = document.getElementById('editGugun');
+        gugunSelect.innerHTML = '<option value="">선택하세요</option>';
+
+        if (sido && gugunData[sido]) {
+          gugunData[sido].forEach((gugun) => {
+            const option = document.createElement('option');
+            option.value = gugun;
+            option.textContent = gugun;
+            gugunSelect.appendChild(option);
+          });
+        }
+      }
+
+      // 프로필 수정 모달 열기
+      function openEditProfile() {
+        const meta = currentUser.user_metadata || {};
+
+        // 현재 값 채우기
+        document.getElementById('editName').value = meta.name || meta.full_name || '';
+        document.getElementById('editPhone').value = meta.phone || '';
+
+        // 시/도 선택
+        const sidoSelect = document.getElementById('editSido');
+        if (meta.sido) {
+          sidoSelect.value = meta.sido;
+          updateGugun();
+          // 구/군 선택
+          if (meta.gugun) {
+            document.getElementById('editGugun').value = meta.gugun;
+          }
+        }
+
+        document.getElementById('editModal').classList.add('active');
+      }
+
+      // 프로필 수정 모달 닫기
+      function closeEditModal() {
+        document.getElementById('editModal').classList.remove('active');
+      }
+
+      // 프로필 수정 제출
+      async function submitEditProfile(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('editName').value.trim();
+        const phone = document.getElementById('editPhone').value.trim();
+        const sido = document.getElementById('editSido').value;
+        const gugun = document.getElementById('editGugun').value;
+
+        if (!name) {
+          alert('이름을 입력해주세요.');
+          return;
+        }
+
+        try {
+          // 1. auth.users의 user_metadata 업데이트
+          const { error: authError } = await supabaseClient.auth.updateUser({
+            data: {
               name: name,
               phone: phone,
               sido: sido,
               gugun: gugun,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', currentUser.id);
-        } catch (profileError) {
-          console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
+            },
+          });
+
+          if (authError) throw authError;
+
+          // 2. profiles 테이블도 업데이트 (있는 경우)
+          try {
+            await supabaseClient
+              .from('profiles')
+              .update({
+                name: name,
+                phone: phone,
+                sido: sido,
+                gugun: gugun,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', currentUser.id);
+          } catch (profileError) {
+            console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
+          }
+
+          // 세션 새로고침
+          const {
+            data: { session },
+          } = await supabaseClient.auth.getSession();
+          if (session) {
+            currentUser = session.user;
+          }
+
+          alert('프로필이 수정되었습니다.');
+          closeEditModal();
+
+          // UI 업데이트
+          document.getElementById('profileName').textContent = name;
+          document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
+          document.getElementById('infoName').textContent = name;
+          document.getElementById('infoPhone').textContent = phone || '미등록';
+          document.getElementById('infoLocation').textContent = sido && gugun ? `${sido} ${gugun}` : sido || '미등록';
+        } catch (error) {
+          console.error('프로필 수정 오류:', error);
+          alert('프로필 수정 중 오류가 발생했습니다: ' + error.message);
         }
+      }
 
-        // 세션 새로고침
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) {
-          currentUser = session.user;
+      // 모달 외부 클릭 시 닫기 (editModal)
+      document.getElementById('editModal').addEventListener('click', (e) => {
+        if (e.target.id === 'editModal') {
+          closeEditModal();
         }
+      });
 
-        alert('프로필이 수정되었습니다.');
-        closeEditModal();
-
-        // UI 업데이트
-        document.getElementById('profileName').textContent = name;
-        document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
-        document.getElementById('infoName').textContent = name;
-        document.getElementById('infoPhone').textContent = phone || '미등록';
-        document.getElementById('infoLocation').textContent = sido && gugun ? `${sido} ${gugun}` : (sido || '미등록');
-
-      } catch (error) {
-        console.error('프로필 수정 오류:', error);
-        alert('프로필 수정 중 오류가 발생했습니다: ' + error.message);
+      // 모바일 메뉴 토글
+      function toggleMobileMenu() {
+        const hamburger = document.querySelector('.hamburger');
+        const mobileMenu = document.getElementById('mobileMenu');
+        hamburger.classList.toggle('active');
+        mobileMenu.classList.toggle('active');
       }
-    }
 
-    // 모달 외부 클릭 시 닫기 (editModal)
-    document.getElementById('editModal').addEventListener('click', (e) => {
-      if (e.target.id === 'editModal') {
-        closeEditModal();
+      // 로그아웃
+      async function logout() {
+        if (!supabaseClient) return;
+
+        await supabaseClient.auth.signOut();
+        window.location.href = 'index.html';
       }
-    });
 
-    // 모바일 메뉴 토글
-    function toggleMobileMenu() {
-      const hamburger = document.querySelector('.hamburger');
-      const mobileMenu = document.getElementById('mobileMenu');
-      hamburger.classList.toggle('active');
-      mobileMenu.classList.toggle('active');
-    }
-
-    // 로그아웃
-    async function logout() {
-      if (!supabaseClient) return;
-
-      await supabaseClient.auth.signOut();
-      window.location.href = 'index.html';
-    }
-
-    // 초기화
-    init();
-  </script>
-</body>
+      // 초기화
+      init();
+    </script>
+  </body>
 </html>

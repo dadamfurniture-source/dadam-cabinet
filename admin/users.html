@@ -1,792 +1,818 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>회원 관리 - 다담가구 관리자</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #f5f5f5;
-            min-height: 100vh;
-        }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+      }
 
-        /* Sidebar */
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        z-index: 1000;
+      }
+
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .sidebar-logo h1 {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+
+      .sidebar-logo span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+
+      .nav-menu {
+        list-style: none;
+      }
+
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+
+      .nav-icon {
+        width: 20px;
+        text-align: center;
+      }
+
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        padding: 0 20px;
+      }
+
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+      }
+
+      .sidebar-footer a:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .header h2 {
+        font-size: 1.5rem;
+        color: #333;
+      }
+
+      /* Filters */
+      .filters {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .filter-group label {
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      .filter-group select,
+      .filter-group input {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        font-family: inherit;
+      }
+
+      .search-input {
+        min-width: 250px;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.3s;
+      }
+
+      .btn-primary {
+        background: #007bff;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+      }
+
+      /* Card */
+      .card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .card-header h3 {
+        font-size: 1.1rem;
+        color: #333;
+      }
+
+      .card-body {
+        padding: 0;
+      }
+
+      /* Table */
+      .users-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .users-table th,
+      .users-table td {
+        padding: 15px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+      }
+
+      .users-table th {
+        font-weight: 500;
+        color: #888;
+        font-size: 0.85rem;
+        background: #fafafa;
+      }
+
+      .users-table td {
+        font-size: 0.9rem;
+        color: #333;
+      }
+
+      .users-table tr:hover {
+        background: #f9f9f9;
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #666;
+      }
+
+      .user-details h4 {
+        font-size: 0.95rem;
+        font-weight: 500;
+        margin-bottom: 2px;
+      }
+
+      .user-details span {
+        font-size: 0.8rem;
+        color: #888;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .badge.standard {
+        background: #e0e0e0;
+        color: #616161;
+      }
+      .badge.expert {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .badge.business {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+
+      .provider-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+      }
+
+      .provider-badge.google {
+        background: #fce8e8;
+        color: #c62828;
+      }
+      .provider-badge.kakao {
+        background: #fff9c4;
+        color: #f57f17;
+      }
+      .provider-badge.email {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+
+      .actions {
+        display: flex;
+        gap: 5px;
+      }
+
+      /* Pagination */
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 20px;
+      }
+
+      .pagination button {
+        padding: 8px 15px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .pagination button:hover:not(:disabled) {
+        background: #f5f5f5;
+      }
+
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .pagination span {
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      /* Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .modal-header h3 {
+        font-size: 1.2rem;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #888;
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        color: #333;
+        font-weight: 500;
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 0.95rem;
+        font-family: inherit;
+      }
+
+      .form-group input:disabled,
+      .form-group select:disabled {
+        background: #f5f5f5;
+        color: #888;
+      }
+
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 20px;
+        border-top: 1px solid #eee;
+      }
+
+      /* Access Denied */
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+
+      .access-denied h2 {
+        font-size: 1.5rem;
+        color: #c62828;
+        margin-bottom: 15px;
+      }
+
+      .access-denied p {
+        color: #666;
+        margin-bottom: 20px;
+      }
+
+      .access-denied a {
+        color: #007bff;
+      }
+
+      /* Loading */
+      .loading {
+        text-align: center;
+        padding: 60px 20px;
+        color: #888;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #888;
+      }
+
+      .empty-state h4 {
+        margin-bottom: 10px;
+        color: #666;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
         .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 250px;
-            height: 100vh;
-            background: #1a1a2e;
-            color: white;
-            padding: 20px 0;
-            z-index: 1000;
+          transform: translateX(-100%);
         }
 
-        .sidebar-logo {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 20px;
-        }
-
-        .sidebar-logo h1 {
-            font-size: 1.3rem;
-            font-weight: 700;
-        }
-
-        .sidebar-logo span {
-            font-size: 0.8rem;
-            color: #888;
-        }
-
-        .nav-menu {
-            list-style: none;
-        }
-
-        .nav-menu li a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 20px;
-            color: #aaa;
-            text-decoration: none;
-            transition: all 0.3s;
-        }
-
-        .nav-menu li a:hover,
-        .nav-menu li a.active {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-
-        .nav-menu li a.active {
-            border-left: 3px solid #007bff;
-        }
-
-        .nav-icon {
-            width: 20px;
-            text-align: center;
-        }
-
-        .sidebar-footer {
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-            padding: 0 20px;
-        }
-
-        .sidebar-footer a {
-            display: block;
-            padding: 10px;
-            text-align: center;
-            background: rgba(255,255,255,0.1);
-            color: #aaa;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 0.9rem;
-        }
-
-        .sidebar-footer a:hover {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
-
-        /* Main Content */
         .main-content {
-            margin-left: 250px;
-            padding: 20px 30px;
+          margin-left: 0;
         }
+      }
 
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .header h2 {
-            font-size: 1.5rem;
-            color: #333;
-        }
-
-        /* Filters */
+      @media (max-width: 768px) {
         .filters {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .filter-group label {
-            font-size: 0.9rem;
-            color: #666;
-        }
-
-        .filter-group select,
-        .filter-group input {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            font-family: inherit;
+          flex-direction: column;
         }
 
         .search-input {
-            min-width: 250px;
+          min-width: 100%;
         }
 
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.3s;
-        }
-
-        .btn-primary {
-            background: #007bff;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #0056b3;
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 0.8rem;
-        }
-
-        /* Card */
-        .card {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .card-header h3 {
-            font-size: 1.1rem;
-            color: #333;
-        }
-
-        .card-body {
-            padding: 0;
-        }
-
-        /* Table */
         .users-table {
-            width: 100%;
-            border-collapse: collapse;
+          display: block;
+          overflow-x: auto;
         }
-
-        .users-table th,
-        .users-table td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .users-table th {
-            font-weight: 500;
-            color: #888;
-            font-size: 0.85rem;
-            background: #fafafa;
-        }
-
-        .users-table td {
-            font-size: 0.9rem;
-            color: #333;
-        }
-
-        .users-table tr:hover {
-            background: #f9f9f9;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #e0e0e0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: #666;
-        }
-
-        .user-details h4 {
-            font-size: 0.95rem;
-            font-weight: 500;
-            margin-bottom: 2px;
-        }
-
-        .user-details span {
-            font-size: 0.8rem;
-            color: #888;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        .badge.standard { background: #e0e0e0; color: #616161; }
-        .badge.expert { background: #fff3e0; color: #f57c00; }
-        .badge.business { background: #e8f5e9; color: #388e3c; }
-
-        .provider-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.7rem;
-        }
-
-        .provider-badge.google { background: #fce8e8; color: #c62828; }
-        .provider-badge.kakao { background: #fff9c4; color: #f57f17; }
-        .provider-badge.email { background: #e3f2fd; color: #1565c0; }
-
-        .actions {
-            display: flex;
-            gap: 5px;
-        }
-
-        /* Pagination */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            padding: 20px;
-        }
-
-        .pagination button {
-            padding: 8px 15px;
-            border: 1px solid #ddd;
-            background: white;
-            border-radius: 5px;
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        .pagination button:hover:not(:disabled) {
-            background: #f5f5f5;
-        }
-
-        .pagination button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .pagination span {
-            font-size: 0.9rem;
-            color: #666;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .modal-header h3 {
-            font-size: 1.2rem;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #888;
-        }
-
-        .modal-body {
-            padding: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 0.95rem;
-            font-family: inherit;
-        }
-
-        .form-group input:disabled,
-        .form-group select:disabled {
-            background: #f5f5f5;
-            color: #888;
-        }
-
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            padding: 20px;
-            border-top: 1px solid #eee;
-        }
-
-        /* Access Denied */
-        .access-denied {
-            display: none;
-            text-align: center;
-            padding: 100px 20px;
-        }
-
-        .access-denied h2 {
-            font-size: 1.5rem;
-            color: #c62828;
-            margin-bottom: 15px;
-        }
-
-        .access-denied p {
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        .access-denied a {
-            color: #007bff;
-        }
-
-        /* Loading */
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-            color: #888;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #888;
-        }
-
-        .empty-state h4 {
-            margin-bottom: 10px;
-            color: #666;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .filters {
-                flex-direction: column;
-            }
-
-            .search-input {
-                min-width: 100%;
-            }
-
-            .users-table {
-                display: block;
-                overflow-x: auto;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Sidebar -->
     <nav class="sidebar">
-        <div class="sidebar-logo">
-            <h1>다담가구</h1>
-            <span>관리자 패널</span>
-        </div>
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
 
-        <ul class="nav-menu">
-            <li>
-                <a href="index.html">
-                    <span class="nav-icon">📊</span>
-                    대시보드
-                </a>
-            </li>
-            <li>
-                <a href="users.html" class="active">
-                    <span class="nav-icon">👥</span>
-                    회원 관리
-                </a>
-            </li>
-            <li>
-                <a href="expert-requests.html">
-                    <span class="nav-icon">⭐</span>
-                    Expert 승급 관리
-                </a>
-            </li>
-            <li>
-                <a href="consultations.html">
-                    <span class="nav-icon">💬</span>
-                    상담 관리
-                </a>
-            </li>
-            <li>
-                <a href="logs.html">
-                    <span class="nav-icon">📋</span>
-                    활동 로그
-                </a>
-            </li>
-            <li>
-                <a href="settings.html">
-                    <span class="nav-icon">⚙️</span>
-                    설정
-                </a>
-            </li>
-        </ul>
+      <ul class="nav-menu">
+        <li>
+          <a href="index.html">
+            <span class="nav-icon">📊</span>
+            대시보드
+          </a>
+        </li>
+        <li>
+          <a href="users.html" class="active">
+            <span class="nav-icon">👥</span>
+            회원 관리
+          </a>
+        </li>
+        <li>
+          <a href="expert-requests.html">
+            <span class="nav-icon">⭐</span>
+            Expert 승급 관리
+          </a>
+        </li>
+        <li>
+          <a href="consultations.html">
+            <span class="nav-icon">💬</span>
+            상담 관리
+          </a>
+        </li>
+        <li>
+          <a href="logs.html">
+            <span class="nav-icon">📋</span>
+            활동 로그
+          </a>
+        </li>
+        <li>
+          <a href="settings.html">
+            <span class="nav-icon">⚙️</span>
+            설정
+          </a>
+        </li>
+      </ul>
 
-        <div class="sidebar-footer">
-            <a href="../index.html">← 메인 사이트로</a>
-        </div>
+      <div class="sidebar-footer">
+        <a href="../index.html">← 메인 사이트로</a>
+      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Access Denied Message -->
-        <div class="access-denied" id="accessDenied">
-            <h2>접근 권한이 없습니다</h2>
-            <p>관리자만 접근할 수 있는 페이지입니다.</p>
-            <a href="../index.html">메인 페이지로 돌아가기</a>
+      <!-- Access Denied Message -->
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <!-- Users Content -->
+      <div id="usersContent" style="display: none">
+        <!-- Header -->
+        <header class="header">
+          <h2>회원 관리</h2>
+          <span id="totalCount">전체 0명</span>
+        </header>
+
+        <!-- Filters -->
+        <div class="filters">
+          <div class="filter-group">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="이름, 이메일로 검색..."
+              id="searchInput"
+              onkeyup="handleSearch(event)"
+            />
+          </div>
+          <div class="filter-group">
+            <label>등급:</label>
+            <select id="tierFilter" onchange="loadUsers()">
+              <option value="">전체</option>
+              <option value="standard">Standard</option>
+              <option value="expert">Expert</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>가입 방식:</label>
+            <select id="providerFilter" onchange="loadUsers()">
+              <option value="">전체</option>
+              <option value="email">이메일</option>
+              <option value="google">Google</option>
+              <option value="kakao">Kakao</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadUsers()">새로고침</button>
         </div>
 
-        <!-- Users Content -->
-        <div id="usersContent" style="display: none;">
-            <!-- Header -->
-            <header class="header">
-                <h2>회원 관리</h2>
-                <span id="totalCount">전체 0명</span>
-            </header>
+        <!-- Users Table -->
+        <div class="card">
+          <div class="card-body">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th>회원 정보</th>
+                  <th>등급</th>
+                  <th>지역</th>
+                  <th>가입 방식</th>
+                  <th>가입일</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <tr>
+                  <td colspan="6" class="loading">로딩 중...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-            <!-- Filters -->
-            <div class="filters">
-                <div class="filter-group">
-                    <input type="text"
-                           class="search-input"
-                           placeholder="이름, 이메일로 검색..."
-                           id="searchInput"
-                           onkeyup="handleSearch(event)">
-                </div>
-                <div class="filter-group">
-                    <label>등급:</label>
-                    <select id="tierFilter" onchange="loadUsers()">
-                        <option value="">전체</option>
-                        <option value="standard">Standard</option>
-                        <option value="expert">Expert</option>
-                        <option value="business">Business</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>가입 방식:</label>
-                    <select id="providerFilter" onchange="loadUsers()">
-                        <option value="">전체</option>
-                        <option value="email">이메일</option>
-                        <option value="google">Google</option>
-                        <option value="kakao">Kakao</option>
-                    </select>
-                </div>
-                <button class="btn btn-secondary" onclick="loadUsers()">새로고침</button>
-            </div>
-
-            <!-- Users Table -->
-            <div class="card">
-                <div class="card-body">
-                    <table class="users-table">
-                        <thead>
-                            <tr>
-                                <th>회원 정보</th>
-                                <th>등급</th>
-                                <th>지역</th>
-                                <th>가입 방식</th>
-                                <th>가입일</th>
-                                <th>관리</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <tr>
-                                <td colspan="6" class="loading">로딩 중...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Pagination -->
-                <div class="pagination">
-                    <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
-                    <span id="pageInfo">1 / 1</span>
-                    <button onclick="nextPage()" id="nextBtn" disabled>다음</button>
-                </div>
-            </div>
+          <!-- Pagination -->
+          <div class="pagination">
+            <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
+            <span id="pageInfo">1 / 1</span>
+            <button onclick="nextPage()" id="nextBtn" disabled>다음</button>
+          </div>
         </div>
+      </div>
     </main>
 
     <!-- User Detail Modal -->
     <div class="modal" id="userModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>회원 상세 정보</h3>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>이메일</label>
-                    <input type="email" id="modalEmail" disabled>
-                </div>
-                <div class="form-group">
-                    <label>이름</label>
-                    <input type="text" id="modalName" disabled>
-                </div>
-                <div class="form-group">
-                    <label>전화번호</label>
-                    <input type="text" id="modalPhone" disabled>
-                </div>
-                <div class="form-group">
-                    <label>등급</label>
-                    <select id="modalTier">
-                        <option value="standard">Standard</option>
-                        <option value="expert">Expert</option>
-                        <option value="business">Business</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>지역</label>
-                    <input type="text" id="modalLocation" disabled>
-                </div>
-                <div class="form-group">
-                    <label>유입 경로</label>
-                    <input type="text" id="modalReferral" disabled>
-                </div>
-                <div class="form-group">
-                    <label>가입일</label>
-                    <input type="text" id="modalCreatedAt" disabled>
-                </div>
-                <div class="form-group">
-                    <label>관리자 메모</label>
-                    <textarea id="modalMemo" rows="3" placeholder="관리자 메모를 입력하세요..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
-                <button class="btn btn-primary" onclick="saveUserChanges()">변경 저장</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>회원 상세 정보</h3>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>이메일</label>
+            <input type="email" id="modalEmail" disabled />
+          </div>
+          <div class="form-group">
+            <label>이름</label>
+            <input type="text" id="modalName" disabled />
+          </div>
+          <div class="form-group">
+            <label>전화번호</label>
+            <input type="text" id="modalPhone" disabled />
+          </div>
+          <div class="form-group">
+            <label>등급</label>
+            <select id="modalTier">
+              <option value="standard">Standard</option>
+              <option value="expert">Expert</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>지역</label>
+            <input type="text" id="modalLocation" disabled />
+          </div>
+          <div class="form-group">
+            <label>유입 경로</label>
+            <input type="text" id="modalReferral" disabled />
+          </div>
+          <div class="form-group">
+            <label>가입일</label>
+            <input type="text" id="modalCreatedAt" disabled />
+          </div>
+          <div class="form-group">
+            <label>관리자 메모</label>
+            <textarea id="modalMemo" rows="3" placeholder="관리자 메모를 입력하세요..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
+          <button class="btn btn-primary" onclick="saveUserChanges()">변경 저장</button>
+        </div>
+      </div>
     </div>
 
     <script>
-        // Supabase 설정
-        const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
+      // Supabase 설정
+      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
+      const SUPABASE_ANON_KEY =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
 
-        let supabaseClient = null;
-        let currentUser = null;
-        let selectedUserId = null;
+      let supabaseClient = null;
+      let currentUser = null;
+      let selectedUserId = null;
 
-        // 관리자 이메일 목록
-        const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+      // 관리자 이메일 목록
+      const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
 
-        // 페이지네이션
-        let currentPage = 1;
-        const pageSize = 20;
-        let totalUsers = 0;
+      // 페이지네이션
+      let currentPage = 1;
+      const pageSize = 20;
+      let totalUsers = 0;
 
-        // 임시 사용자 데이터 (실제로는 서버에서 가져옴)
-        let usersData = [];
+      // 임시 사용자 데이터 (실제로는 서버에서 가져옴)
+      let usersData = [];
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initAdmin();
-        });
+      document.addEventListener('DOMContentLoaded', async () => {
+        await initAdmin();
+      });
 
-        async function initAdmin() {
-            if (typeof window.supabase === 'undefined') {
-                showAccessDenied();
-                return;
-            }
-
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-            const { data: { session } } = await supabaseClient.auth.getSession();
-
-            if (!session) {
-                showAccessDenied();
-                return;
-            }
-
-            currentUser = session.user;
-
-            if (!ADMIN_EMAILS.includes(currentUser.email)) {
-                showAccessDenied();
-                return;
-            }
-
-            document.getElementById('usersContent').style.display = 'block';
-            await loadUsers();
+      async function initAdmin() {
+        if (typeof window.supabase === 'undefined') {
+          showAccessDenied();
+          return;
         }
 
-        function showAccessDenied() {
-            document.getElementById('accessDenied').style.display = 'block';
-            document.getElementById('usersContent').style.display = 'none';
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+
+        if (!session) {
+          showAccessDenied();
+          return;
         }
 
-        async function loadUsers() {
-            const tbody = document.getElementById('usersTableBody');
-            tbody.innerHTML = '<tr><td colspan="6" class="loading">로딩 중...</td></tr>';
+        currentUser = session.user;
 
-            const tierFilter = document.getElementById('tierFilter').value;
-            const providerFilter = document.getElementById('providerFilter').value;
-            const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+        if (!ADMIN_EMAILS.includes(currentUser.email)) {
+          showAccessDenied();
+          return;
+        }
 
-            try {
-                // profiles 테이블에서 사용자 목록 조회
-                let query = supabaseClient
-                    .from('profiles')
-                    .select('*', { count: 'exact' })
-                    .order('created_at', { ascending: false })
-                    .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
+        document.getElementById('usersContent').style.display = 'block';
+        await loadUsers();
+      }
 
-                if (tierFilter) {
-                    query = query.eq('tier', tierFilter);
-                }
-                if (providerFilter) {
-                    query = query.eq('provider', providerFilter);
-                }
+      function showAccessDenied() {
+        document.getElementById('accessDenied').style.display = 'block';
+        document.getElementById('usersContent').style.display = 'none';
+      }
 
-                const { data: profiles, error, count } = await query;
+      async function loadUsers() {
+        const tbody = document.getElementById('usersTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">로딩 중...</td></tr>';
 
-                if (error) throw error;
+        const tierFilter = document.getElementById('tierFilter').value;
+        const providerFilter = document.getElementById('providerFilter').value;
+        const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
 
-                // 검색어 필터링 (클라이언트 사이드)
-                let filtered = profiles || [];
-                if (searchQuery) {
-                    filtered = filtered.filter(p =>
-                        (p.name && p.name.toLowerCase().includes(searchQuery)) ||
-                        (p.email && p.email.toLowerCase().includes(searchQuery))
-                    );
-                }
+        try {
+          // profiles 테이블에서 사용자 목록 조회
+          let query = supabaseClient
+            .from('profiles')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
 
-                totalUsers = count || filtered.length;
-                usersData = filtered;
+          if (tierFilter) {
+            query = query.eq('tier', tierFilter);
+          }
+          if (providerFilter) {
+            query = query.eq('provider', providerFilter);
+          }
 
-                document.getElementById('totalCount').textContent = `전체 ${totalUsers}명`;
+          const { data: profiles, error, count } = await query;
 
-                const totalPages = Math.ceil(totalUsers / pageSize) || 1;
-                document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
-                document.getElementById('prevBtn').disabled = currentPage <= 1;
-                document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+          if (error) throw error;
 
-                renderUsers(filtered);
+          // 검색어 필터링 (클라이언트 사이드)
+          let filtered = profiles || [];
+          if (searchQuery) {
+            filtered = filtered.filter(
+              (p) =>
+                (p.name && p.name.toLowerCase().includes(searchQuery)) ||
+                (p.email && p.email.toLowerCase().includes(searchQuery))
+            );
+          }
 
-            } catch (error) {
-                console.error('Error loading users:', error);
+          totalUsers = count || filtered.length;
+          usersData = filtered;
 
-                // profiles 테이블이 없는 경우 안내 메시지 표시
-                if (error.message.includes('profiles') || error.code === '42P01') {
-                    tbody.innerHTML = `
+          document.getElementById('totalCount').textContent = `전체 ${totalUsers}명`;
+
+          const totalPages = Math.ceil(totalUsers / pageSize) || 1;
+          document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+          document.getElementById('prevBtn').disabled = currentPage <= 1;
+          document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+
+          renderUsers(filtered);
+        } catch (error) {
+          console.error('Error loading users:', error);
+
+          // profiles 테이블이 없는 경우 안내 메시지 표시
+          if (error.message.includes('profiles') || error.code === '42P01') {
+            tbody.innerHTML = `
                         <tr>
                             <td colspan="6" style="text-align: center; padding: 40px; background: #fffde7;">
                                 <strong>profiles 테이블이 없습니다.</strong><br><br>
@@ -798,8 +824,8 @@
                             </td>
                         </tr>
                     `;
-                } else {
-                    tbody.innerHTML = `
+          } else {
+            tbody.innerHTML = `
                         <tr>
                             <td colspan="6" class="empty-state">
                                 <h4>사용자 목록을 불러올 수 없습니다</h4>
@@ -807,15 +833,15 @@
                             </td>
                         </tr>
                     `;
-                }
-            }
+          }
         }
+      }
 
-        function renderUsers(users) {
-            const tbody = document.getElementById('usersTableBody');
+      function renderUsers(users) {
+        const tbody = document.getElementById('usersTableBody');
 
-            if (!users || users.length === 0) {
-                tbody.innerHTML = `
+        if (!users || users.length === 0) {
+          tbody.innerHTML = `
                     <tr>
                         <td colspan="6" class="empty-state">
                             <h4>회원이 없습니다</h4>
@@ -823,17 +849,18 @@
                         </td>
                     </tr>
                 `;
-                return;
-            }
+          return;
+        }
 
-            tbody.innerHTML = users.map(user => {
-                // profiles 테이블 구조에 맞게 수정
-                const tier = user.tier || 'standard';
-                const provider = user.provider || 'email';
-                const location = user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '-';
-                const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
+        tbody.innerHTML = users
+          .map((user) => {
+            // profiles 테이블 구조에 맞게 수정
+            const tier = user.tier || 'standard';
+            const provider = user.provider || 'email';
+            const location = user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '-';
+            const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
 
-                return `
+            return `
                     <tr>
                         <td>
                             <div class="user-info">
@@ -859,113 +886,112 @@
                         </td>
                     </tr>
                 `;
-            }).join('');
-        }
+          })
+          .join('');
+      }
 
-        function getProvider(user) {
-            return user.provider || 'email';
-        }
+      function getProvider(user) {
+        return user.provider || 'email';
+      }
 
-        function getProviderLabel(provider) {
-            const labels = {
-                'google': 'Google',
-                'kakao': 'Kakao',
-                'email': 'Email'
-            };
-            return labels[provider] || provider;
-        }
+      function getProviderLabel(provider) {
+        const labels = {
+          google: 'Google',
+          kakao: 'Kakao',
+          email: 'Email',
+        };
+        return labels[provider] || provider;
+      }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('ko-KR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-            });
-        }
-
-        function handleSearch(event) {
-            if (event.key === 'Enter') {
-                loadUsers();
-            }
-        }
-
-        function viewUser(userId) {
-            const user = usersData.find(u => u.id === userId);
-            if (!user) return;
-
-            selectedUserId = userId;
-
-            // profiles 테이블 구조에 맞게 수정
-            document.getElementById('modalEmail').value = user.email || '';
-            document.getElementById('modalName').value = user.name || '';
-            document.getElementById('modalPhone').value = user.phone || '';
-            document.getElementById('modalTier').value = user.tier || 'standard';
-            document.getElementById('modalLocation').value =
-                user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '';
-            document.getElementById('modalReferral').value = user.referral || '';
-            document.getElementById('modalCreatedAt').value = formatDate(user.created_at);
-            document.getElementById('modalMemo').value = user.admin_memo || '';
-
-            document.getElementById('userModal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('userModal').classList.remove('active');
-            selectedUserId = null;
-        }
-
-        async function saveUserChanges() {
-            if (!selectedUserId) return;
-
-            const newTier = document.getElementById('modalTier').value;
-            const memo = document.getElementById('modalMemo').value;
-
-            try {
-                // profiles 테이블 업데이트
-                const { error } = await supabaseClient
-                    .from('profiles')
-                    .update({
-                        tier: newTier,
-                        admin_memo: memo,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', selectedUserId);
-
-                if (error) throw error;
-
-                alert('회원 정보가 수정되었습니다.');
-                closeModal();
-                await loadUsers();
-
-            } catch (error) {
-                console.error('Error updating user:', error);
-                alert('수정 중 오류가 발생했습니다: ' + error.message);
-            }
-        }
-
-        function prevPage() {
-            if (currentPage > 1) {
-                currentPage--;
-                loadUsers();
-            }
-        }
-
-        function nextPage() {
-            const totalPages = Math.ceil(totalUsers / pageSize);
-            if (currentPage < totalPages) {
-                currentPage++;
-                loadUsers();
-            }
-        }
-
-        // 모달 외부 클릭 시 닫기
-        document.getElementById('userModal').addEventListener('click', (e) => {
-            if (e.target.id === 'userModal') {
-                closeModal();
-            }
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
         });
+      }
+
+      function handleSearch(event) {
+        if (event.key === 'Enter') {
+          loadUsers();
+        }
+      }
+
+      function viewUser(userId) {
+        const user = usersData.find((u) => u.id === userId);
+        if (!user) return;
+
+        selectedUserId = userId;
+
+        // profiles 테이블 구조에 맞게 수정
+        document.getElementById('modalEmail').value = user.email || '';
+        document.getElementById('modalName').value = user.name || '';
+        document.getElementById('modalPhone').value = user.phone || '';
+        document.getElementById('modalTier').value = user.tier || 'standard';
+        document.getElementById('modalLocation').value = user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '';
+        document.getElementById('modalReferral').value = user.referral || '';
+        document.getElementById('modalCreatedAt').value = formatDate(user.created_at);
+        document.getElementById('modalMemo').value = user.admin_memo || '';
+
+        document.getElementById('userModal').classList.add('active');
+      }
+
+      function closeModal() {
+        document.getElementById('userModal').classList.remove('active');
+        selectedUserId = null;
+      }
+
+      async function saveUserChanges() {
+        if (!selectedUserId) return;
+
+        const newTier = document.getElementById('modalTier').value;
+        const memo = document.getElementById('modalMemo').value;
+
+        try {
+          // profiles 테이블 업데이트
+          const { error } = await supabaseClient
+            .from('profiles')
+            .update({
+              tier: newTier,
+              admin_memo: memo,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedUserId);
+
+          if (error) throw error;
+
+          alert('회원 정보가 수정되었습니다.');
+          closeModal();
+          await loadUsers();
+        } catch (error) {
+          console.error('Error updating user:', error);
+          alert('수정 중 오류가 발생했습니다: ' + error.message);
+        }
+      }
+
+      function prevPage() {
+        if (currentPage > 1) {
+          currentPage--;
+          loadUsers();
+        }
+      }
+
+      function nextPage() {
+        const totalPages = Math.ceil(totalUsers / pageSize);
+        if (currentPage < totalPages) {
+          currentPage++;
+          loadUsers();
+        }
+      }
+
+      // 모달 외부 클릭 시 닫기
+      document.getElementById('userModal').addEventListener('click', (e) => {
+        if (e.target.id === 'userModal') {
+          closeModal();
+        }
+      });
     </script>
-</body>
+  </body>
 </html>
