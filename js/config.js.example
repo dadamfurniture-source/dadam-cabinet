@@ -14,17 +14,6 @@ window.DADAM_CONFIG = {
     anonKey: 'your-supabase-anon-key-here',
   },
 
-  // Firebase 설정 (선택적)
-  firebase: {
-    apiKey: 'your-firebase-api-key',
-    authDomain: 'your-project.firebaseapp.com',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project.firebasestorage.app',
-    messagingSenderId: 'your-sender-id',
-    appId: 'your-app-id',
-    measurementId: 'G-XXXXXXXXXX',
-  },
-
   // 기타 설정
   app: {
     name: '다담가구',
