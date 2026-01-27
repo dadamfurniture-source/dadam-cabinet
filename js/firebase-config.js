@@ -1,13 +1,24 @@
-// Firebase Config
-const firebaseConfig = {
-  apiKey: 'AIzaSyAoTwIn902CXROs0arz_AlOYjgSAmVC6N4',
-  authDomain: 'dadamfurniture-6370f.firebaseapp.com',
-  projectId: 'dadamfurniture-6370f',
-  storageBucket: 'dadamfurniture-6370f.firebasestorage.app',
-  messagingSenderId: '187442540337',
-  appId: '1:187442540337:web:dbf3570776dc1beb134a10',
-  measurementId: 'G-DS44RZH7VS',
+/**
+ * Firebase 설정
+ *
+ * 주의: js/config.js 파일이 먼저 로드되어야 합니다.
+ * 설정값은 window.DADAM_CONFIG.firebase에서 가져옵니다.
+ */
+
+// 설정은 window.DADAM_CONFIG에서 가져옴 (js/config.js에서 정의)
+const firebaseConfig = window.DADAM_CONFIG?.firebase || {
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: '',
+  measurementId: '',
 };
+
+if (!window.DADAM_CONFIG?.firebase?.apiKey) {
+  console.error('Firebase 설정이 없습니다. js/config.js 파일을 확인하세요.');
+}
 
 // Initialize Firebase
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';

@@ -38,7 +38,8 @@ function updateUIForUser(user, role) {
   // Defines UI elements that might exist on various pages
   const loginLink = document.getElementById('nav-login-link');
   if (loginLink) {
-    loginLink.innerHTML = `<span>프로필</span>`;
+    // XSS 방지: innerHTML 대신 textContent 사용
+    loginLink.textContent = '프로필';
     loginLink.href = 'profile.html';
   }
 
@@ -70,7 +71,8 @@ function updateUIForUser(user, role) {
 function updateUIForGuest() {
   const loginLink = document.getElementById('nav-login-link');
   if (loginLink) {
-    loginLink.innerHTML = `<span>로그인</span>`;
+    // XSS 방지: innerHTML 대신 textContent 사용
+    loginLink.textContent = '로그인';
     loginLink.href = 'login.html';
   }
 }
