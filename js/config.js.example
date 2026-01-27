@@ -1,0 +1,22 @@
+/**
+ * 애플리케이션 설정 파일
+ *
+ * 사용법:
+ * 1. 이 파일을 js/config.js로 복사하세요
+ * 2. 실제 API 키 값을 입력하세요
+ * 3. js/config.js는 절대 git에 커밋하지 마세요
+ */
+
+window.DADAM_CONFIG = {
+  // Supabase 설정
+  supabase: {
+    url: 'https://your-project.supabase.co',
+    anonKey: 'your-supabase-anon-key-here',
+  },
+
+  // 기타 설정
+  app: {
+    name: '다담가구',
+    version: '1.0.0',
+  },
+};

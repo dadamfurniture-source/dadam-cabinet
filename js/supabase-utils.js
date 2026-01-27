@@ -1,12 +1,28 @@
 /**
  * Supabase 공유 유틸리티
  * 모든 HTML 페이지에서 공통으로 사용하는 Supabase 기능
+ *
+ * 주의: js/config.js 파일이 먼저 로드되어야 합니다.
+ * <script src="js/config.js"></script>
+ * <script src="js/supabase-utils.js"></script>
  */
 
+// 설정은 window.DADAM_CONFIG에서 가져옴 (js/config.js에서 정의)
 const SUPABASE_CONFIG = {
-  url: 'https://vvqrvgcgnlfpiqqndsve.supabase.co',
-  anonKey:
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ',
+  get url() {
+    if (!window.DADAM_CONFIG?.supabase?.url) {
+      console.error('Supabase URL이 설정되지 않았습니다. js/config.js 파일을 확인하세요.');
+      return '';
+    }
+    return window.DADAM_CONFIG.supabase.url;
+  },
+  get anonKey() {
+    if (!window.DADAM_CONFIG?.supabase?.anonKey) {
+      console.error('Supabase Anon Key가 설정되지 않았습니다. js/config.js 파일을 확인하세요.');
+      return '';
+    }
+    return window.DADAM_CONFIG.supabase.anonKey;
+  },
 };
 
 const SupabaseUtils = {

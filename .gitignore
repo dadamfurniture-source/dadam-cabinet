@@ -8,6 +8,7 @@ node_modules/
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # Environment variables (보안상 절대 커밋하지 마세요)
 .env
@@ -25,6 +26,7 @@ dist/
 credentials.json
 service-account.json
 firebase-adminsdk*.json
+js/config.js
 
 # Debug
 npm-debug.log*

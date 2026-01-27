@@ -29,7 +29,8 @@ export class I18n {
         if (element.tagName === 'INPUT' && element.getAttribute('placeholder')) {
           element.placeholder = value;
         } else {
-          element.innerHTML = value;
+          // XSS 방지: innerHTML 대신 textContent 사용
+          element.textContent = value;
         }
       }
     });
@@ -37,12 +38,12 @@ export class I18n {
     // Update Toggle Button Text
     const toggleBtn = document.getElementById('lang-toggle');
     if (toggleBtn) {
-      toggleBtn.innerHTML = `
-                ${lang.toUpperCase()} 
-                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                    <use href="#icon-chevron-down" />
-                </svg>
-            `;
+      // XSS 방지: DOM API 사용
+      const textSpan = toggleBtn.querySelector('span') || document.createElement('span');
+      textSpan.textContent = lang.toUpperCase();
+      if (!toggleBtn.contains(textSpan)) {
+        toggleBtn.insertBefore(textSpan, toggleBtn.firstChild);
+      }
     }
   }
 
