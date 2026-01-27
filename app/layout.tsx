@@ -1,5 +1,20 @@
 import type { Metadata } from 'next';
+import { Playfair_Display, Noto_Serif_KR } from 'next/font/google';
 import './globals.css';
+
+const playfairDisplay = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-playfair',
+  display: 'swap',
+});
+
+const notoSerifKR = Noto_Serif_KR({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-noto-serif',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: '다담가구 - AI가 설계하는 프리미엄 맞춤 가구',
@@ -9,15 +24,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="ko" className={`${playfairDisplay.variable} ${notoSerifKR.variable}`}>
       <body className="font-sans antialiased bg-dadam-white text-dadam-charcoal">{children}</body>
     </html>
   );
