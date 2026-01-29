@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2D2A26" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -13,6 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       * {
@@ -1725,7 +1726,7 @@
             <use href="#icon-chevron-down" />
           </svg>
         </button>
-        <button>
+        <button aria-label="검색">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
             <use href="#icon-search" />
           </svg>
@@ -1806,18 +1807,18 @@
         </div>
       </div>
       <div class="hero-controls">
-        <button class="hero-dot active" data-slide="0"></button>
-        <button class="hero-dot" data-slide="1"></button>
-        <button class="hero-dot" data-slide="2"></button>
+        <button class="hero-dot active" data-slide="0" aria-label="슬라이드 1"></button>
+        <button class="hero-dot" data-slide="1" aria-label="슬라이드 2"></button>
+        <button class="hero-dot" data-slide="2" aria-label="슬라이드 3"></button>
       </div>
       <div class="hero-counter"><span id="currentSlide">01</span> / 03</div>
       <div class="hero-arrows">
-        <button class="hero-arrow" id="prevBtn">
+        <button class="hero-arrow" id="prevBtn" aria-label="이전 슬라이드">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
             <use href="#icon-chevron-left" />
           </svg>
         </button>
-        <button class="hero-arrow" id="nextBtn">
+        <button class="hero-arrow" id="nextBtn" aria-label="다음 슬라이드">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
             <use href="#icon-chevron-right" />
           </svg>
@@ -1929,14 +1930,14 @@
         <a href="#" data-i18n="instagram.follow">팔로우하기 →</a>
       </div>
       <div class="instagram-grid">
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-3.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n1-4.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-2.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n6-3.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-3.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n7-4.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n3-3.jpg" alt="" loading="lazy" /></a>
-        <a href="#" class="instagram-item"><img src="app/portfolio/kitchen-n4-1.jpg" alt="" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 1"><img src="app/portfolio/kitchen-n1-3.jpg" alt="다담 주방 인테리어" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 2"><img src="app/portfolio/kitchen-n1-4.jpg" alt="다담 주방 인테리어" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 3"><img src="app/portfolio/kitchen-n6-2.jpg" alt="다담 수납장" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 4"><img src="app/portfolio/kitchen-n6-3.jpg" alt="다담 수납장" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 5"><img src="app/portfolio/kitchen-n7-3.jpg" alt="다담 인테리어" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 6"><img src="app/portfolio/kitchen-n7-4.jpg" alt="다담 인테리어" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 7"><img src="app/portfolio/kitchen-n3-3.jpg" alt="다담 붙박이장" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 8"><img src="app/portfolio/kitchen-n4-1.jpg" alt="다담 프리미엄 가구" loading="lazy" /></a>
       </div>
     </section>
 
@@ -2122,16 +2123,14 @@
       // ═══════════════════════════════════════════════════════════════
       // 로그인 상태 체크 및 UI 업데이트
       // ═══════════════════════════════════════════════════════════════
-      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-      const SUPABASE_ANON_KEY =
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
-
       let supabaseClient = null;
 
       async function checkAuthState() {
         try {
-          if (typeof window.supabase !== 'undefined') {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          // config.js에서 설정 로드
+          if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
+            const { url, anonKey } = window.DADAM_CONFIG.supabase;
+            supabaseClient = window.supabase.createClient(url, anonKey);
             const {
               data: { session },
             } = await supabaseClient.auth.getSession();
