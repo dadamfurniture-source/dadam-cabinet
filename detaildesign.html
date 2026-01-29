@@ -9079,31 +9079,40 @@
 
         try {
           // 3. n8n 워크플로우 호출
+          const requestBody = {
+            design_data: design,
+            user_id: currentUser?.id,
+            action: 'generate_design_image',
+            items: design.items.map((item) => ({
+              category: item.category,
+              name: item.name,
+              width: item.w,
+              height: item.h,
+              depth: item.d,
+              specs: item.specs,
+              modules: item.modules,
+            })),
+          };
+
+          console.log('AI 디자인 요청:', { url: N8N_AI_DESIGN_URL, body: requestBody });
+
           const response = await fetch(N8N_AI_DESIGN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              design_data: design,
-              user_id: currentUser?.id,
-              action: 'generate_design_image',
-              items: design.items.map((item) => ({
-                category: item.category,
-                name: item.name,
-                width: item.w,
-                height: item.h,
-                depth: item.d,
-                specs: item.specs,
-                modules: item.modules,
-              })),
-            }),
+            body: JSON.stringify(requestBody),
           });
-
-          if (!response.ok) throw new Error(`서버 오류: HTTP ${response.status}`);
 
           // 응답 텍스트 먼저 확인
           const responseText = await response.text();
+          console.log('AI 디자인 응답:', { status: response.status, text: responseText.substring(0, 500) });
+
+          if (!response.ok) {
+            const errorDetail = responseText ? `\n응답: ${responseText.substring(0, 200)}` : '';
+            throw new Error(`서버 오류: HTTP ${response.status}${errorDetail}`);
+          }
+
           if (!responseText || responseText.trim() === '') {
-            throw new Error('AI 서버에서 빈 응답을 받았습니다.\nn8n 워크플로우를 확인해주세요.');
+            throw new Error('AI 서버에서 빈 응답을 받았습니다.\nn8n 워크플로우가 활성화되어 있는지 확인해주세요.');
           }
 
           // JSON 파싱 시도
