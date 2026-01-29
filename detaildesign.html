@@ -9063,7 +9063,7 @@
       }
 
       // ============================================================
-      // AI 디자인 생성 시스템
+      // AI 디자인 생성 시스템 (설계 데이터 기반 - Fast Generation)
       // ============================================================
       async function generateAIDesign() {
         // 1. 설계 데이터 추출
@@ -9078,20 +9078,20 @@
         showAIGeneratingModal();
 
         try {
-          // 3. n8n 워크플로우 호출
+          // 3. n8n 워크플로우 호출 (설계 데이터 기반)
           const response = await fetch(N8N_AI_DESIGN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               design_data: design,
-              user_id: currentUser?.id,
-              action: 'generate_design_image',
+              style: 'modern minimal',
               items: design.items.map((item) => ({
-                category: item.category,
+                categoryId: item.categoryId || item.category,
+                category: item.categoryId || item.category,
                 name: item.name,
-                width: item.w,
-                height: item.h,
-                depth: item.d,
+                w: parseInt(item.w) || 0,
+                h: parseInt(item.h) || 0,
+                d: parseInt(item.d) || 0,
                 specs: item.specs,
                 modules: item.modules,
               })),
@@ -9116,7 +9116,11 @@
             throw new Error('AI 서버 응답을 처리할 수 없습니다.\n응답: ' + responseText.substring(0, 100));
           }
 
-          // 4. 결과 표시
+          // 4. 결과 확인 및 표시
+          if (data.success === false) {
+            throw new Error(data.error || data.message || '이미지 생성에 실패했습니다.');
+          }
+
           showAIDesignResult(data);
         } catch (error) {
           console.error('AI 디자인 생성 오류:', error);
@@ -10647,8 +10651,8 @@
       // n8n Webhook URL (설정 필요)
       const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 
-      // AI 디자인 생성 API URL
-      const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
+      // AI 디자인 생성 API URL (설계 데이터 기반 - Fast Generation)
+      const N8N_AI_DESIGN_URL = 'https://dadam.app.n8n.cloud/webhook/design-to-image';
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
       // ═══════════════════════════════════════════════════════════════
