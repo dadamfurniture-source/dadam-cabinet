@@ -1,0 +1,185 @@
+{
+  "name": "Dadam Design Data v1 (Fast Generation)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "design-to-image",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-design",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [400, 300],
+      "webhookId": "design-to-image-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Design Data & Build Prompt\n// 설계 데이터를 분석하여 이미지 생성 프롬프트 생성\n// ═══════════════════════════════════════════════════════════════\n\nconst body = $input.first().json.body || $input.first().json;\n\n// 설계 데이터 추출\nconst designData = body.design_data || body;\nconst items = body.items || designData.items || [];\nconst style = body.style || 'modern minimal';\n\nif (items.length === 0) {\n  return [{\n    error: true,\n    message: '설계 데이터가 없습니다.',\n    prompt: null\n  }];\n}\n\n// ═══════════════════════════════════════════════════════════════\n// 카테고리별 한글-영문 매핑\n// ═══════════════════════════════════════════════════════════════\nconst categoryMap = {\n  sink: { en: 'Kitchen Cabinet', ko: '싱크대', room: 'kitchen' },\n  wardrobe: { en: 'Built-in Wardrobe', ko: '붙박이장', room: 'bedroom' },\n  fridge: { en: 'Refrigerator Cabinet', ko: '냉장고장', room: 'kitchen' },\n  shoerack: { en: 'Shoe Cabinet', ko: '신발장', room: 'entrance' },\n  vanity: { en: 'Vanity Cabinet', ko: '화장대', room: 'bedroom' },\n  storage: { en: 'Storage Cabinet', ko: '수납장', room: 'living room' },\n  island: { en: 'Kitchen Island', ko: '아일랜드', room: 'kitchen' }\n};\n\n// ═══════════════════════════════════════════════════════════════\n// 설계 데이터를 텍스트로 변환\n// ═══════════════════════════════════════════════════════════════\nfunction buildItemDescription(item) {\n  const cat = categoryMap[item.categoryId || item.category] || { en: 'Cabinet', ko: '캐비넷', room: 'room' };\n  \n  let desc = `\\n[${cat.en}]\\n`;\n  desc += `- Dimensions: ${item.w}mm (W) x ${item.h}mm (H) x ${item.d}mm (D)\\n`;\n  \n  // 스펙 정보\n  if (item.specs) {\n    const specs = item.specs;\n    if (specs.upperH) desc += `- Upper Cabinet Height: ${specs.upperH}mm\\n`;\n    if (specs.lowerH) desc += `- Lower Cabinet Height: ${specs.lowerH}mm\\n`;\n    if (specs.legH) desc += `- Leg Height: ${specs.legH}mm\\n`;\n    if (specs.handleType) desc += `- Handle Type: ${specs.handleType}\\n`;\n    if (specs.sinkBowl) desc += `- Sink Bowl: ${specs.sinkBowl}\\n`;\n  }\n  \n  // 모듈 정보\n  if (item.modules && item.modules.length > 0) {\n    const upperModules = item.modules.filter(m => m.section === 'upper' || m.type?.includes('upper'));\n    const lowerModules = item.modules.filter(m => m.section === 'lower' || m.type?.includes('lower'));\n    \n    if (upperModules.length > 0) {\n      desc += `- Upper Modules: ${upperModules.length} units\\n`;\n      upperModules.forEach((m, i) => {\n        desc += `  [${i+1}] ${m.w}mm wide, ${m.doorType || 'swing door'}\\n`;\n      });\n    }\n    \n    if (lowerModules.length > 0) {\n      desc += `- Lower Modules: ${lowerModules.length} units\\n`;\n      lowerModules.forEach((m, i) => {\n        const type = m.moduleType || m.type || 'door';\n        desc += `  [${i+1}] ${m.w}mm wide, ${type}\\n`;\n      });\n    }\n  }\n  \n  return desc;\n}\n\n// 모든 아이템 설명 생성\nconst itemDescriptions = items.map(buildItemDescription).join('\\n');\n\n// 메인 카테고리 결정 (첫 번째 아이템 기준)\nconst mainCategory = categoryMap[items[0].categoryId || items[0].category] || { en: 'Cabinet', room: 'room' };\n\n// ═══════════════════════════════════════════════════════════════\n// 최종 프롬프트 생성\n// ═══════════════════════════════════════════════════════════════\nconst imagePrompt = `[TASK: PHOTOREALISTIC KOREAN BUILT-IN FURNITURE RENDERING]\n\nGenerate a photorealistic interior photograph of a modern Korean ${mainCategory.room} featuring custom built-in furniture.\n\n═══════════════════════════════════════════════════════════════\n[FURNITURE SPECIFICATIONS - FROM DESIGN DATA]\n═══════════════════════════════════════════════════════════════\n${itemDescriptions}\n\n═══════════════════════════════════════════════════════════════\n[STYLE: ${style.toUpperCase()}]\n═══════════════════════════════════════════════════════════════\n- Color Palette: White, Light Gray, Natural Wood (Light Oak or Walnut)\n- Surface Finish: Matte or low-gloss (no shiny reflections)\n- Door Style: Flat panel, flush with frame\n- Handle Type: Hidden handles (push-open, J-channel, or 45-degree cut)\n- Hardware: Minimized, no exposed hinges or hardware\n\n═══════════════════════════════════════════════════════════════\n[ROOM ENVIRONMENT]\n═══════════════════════════════════════════════════════════════\n- Room Type: Modern Korean ${mainCategory.room}\n- Wall: Clean white or light gray walls\n- Floor: Light wood flooring or neutral tile\n- Ceiling: White, 2400mm height\n- Lighting: Soft natural light from left side + subtle ambient lighting\n- Window: Optional, if present show daylight\n\n═══════════════════════════════════════════════════════════════\n[CAMERA & COMPOSITION]\n═══════════════════════════════════════════════════════════════\n- Angle: Front-facing view, slightly angled (10-15 degrees)\n- Height: Eye level (approximately 1500mm from floor)\n- Distance: Show entire furniture piece with some room context\n- Focal Length: 24-35mm equivalent (wide but not distorted)\n\n═══════════════════════════════════════════════════════════════\n[CRITICAL REQUIREMENTS]\n═══════════════════════════════════════════════════════════════\n1. PHOTOREALISTIC quality - must look like a real photograph\n2. ALL doors must be CLOSED (no open doors or drawers)\n3. Furniture dimensions must appear proportionally correct\n4. Clean, uncluttered background\n5. No people, pets, or moving objects\n6. Interior design magazine quality\n7. Korean apartment style interior\n\n[OUTPUT: Single high-resolution photorealistic image]`;\n\n// Gemini API 요청 본문\nconst geminiBody = {\n  contents: [{\n    parts: [{ text: imagePrompt }]\n  }],\n  generationConfig: {\n    responseModalities: [\"image\", \"text\"],\n    temperature: 0.4\n  }\n};\n\nreturn [{\n  error: false,\n  prompt: imagePrompt,\n  geminiBody: JSON.stringify(geminiBody),\n  category: mainCategory.en,\n  room: mainCategory.room,\n  itemCount: items.length,\n  totalWidth: items.reduce((sum, i) => sum + (parseInt(i.w) || 0), 0),\n  style: style\n}];"
+      },
+      "id": "parse-design",
+      "name": "Parse Design Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-error",
+      "name": "Has Valid Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=AIzaSyDqrzcEJJROw9PwdEFx87QxiYyfbW3awfU",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiBody }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "gemini-generate",
+      "name": "Gemini Image Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Gemini Response & Format Output\n// ═══════════════════════════════════════════════════════════════\n\nconst input = $('Parse Design Data').first().json;\nconst response = $input.first().json;\n\nlet generatedImage = null;\nlet textResponse = '';\n\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      // 이미지 데이터 추출\n      if (part.inlineData || part.inline_data) {\n        const inlineData = part.inlineData || part.inline_data;\n        generatedImage = inlineData.data;\n      }\n      // 텍스트 응답 추출\n      if (part.text) {\n        textResponse = part.text;\n      }\n    }\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\nif (!generatedImage) {\n  return [{\n    success: false,\n    error: 'Image generation failed',\n    message: textResponse || 'No image returned from API',\n    category: input.category,\n    prompt_used: input.prompt?.substring(0, 500)\n  }];\n}\n\nreturn [{\n  success: true,\n  message: '이미지 생성 완료',\n  category: input.category,\n  room: input.room,\n  item_count: input.itemCount,\n  style: input.style,\n  generated_image: {\n    base64: generatedImage,\n    mime_type: 'image/png'\n  },\n  prompt_summary: input.prompt?.substring(0, 300) + '...'\n}];"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, error: $json.message || 'Invalid design data' } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Design Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Design Data": {
+      "main": [
+        [
+          {
+            "node": "Has Valid Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Data?": {
+      "main": [
+        [
+          {
+            "node": "Gemini Image Generation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Image Generation": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionTimeout": 180,
+    "maxExecutionTimeout": 300
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
