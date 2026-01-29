@@ -26,7 +26,6 @@ dist/
 credentials.json
 service-account.json
 firebase-adminsdk*.json
-js/config.js
 
 # Debug
 npm-debug.log*

@@ -685,20 +685,17 @@
     </div>
 
     <script>
-      // Supabase 설정
-      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-      const SUPABASE_ANON_KEY =
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
-
+      // Supabase 설정 - config.js에서 가져옴
       let supabaseClient = null;
 
       // Supabase 클라이언트 초기화
       try {
-        if (typeof window.supabase !== 'undefined' && SUPABASE_ANON_KEY) {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          supabaseClient = window.supabase.createClient(url, anonKey);
           console.log('Supabase 초기화 성공');
         } else {
-          console.error('Supabase 라이브러리가 로드되지 않았습니다.');
+          console.error('Supabase 설정이 로드되지 않았습니다. js/config.js를 확인하세요.');
         }
       } catch (e) {
         console.error('Supabase 초기화 오류:', e);

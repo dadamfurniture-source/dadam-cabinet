@@ -1946,17 +1946,15 @@
 
     <script>
       // ═══════════════════════════════════════════════════════════════
-      // Supabase 초기화 및 인증 상태 확인
+      // Supabase 초기화 및 인증 상태 확인 - config.js에서 가져옴
       // ═══════════════════════════════════════════════════════════════
-      const SUPABASE_URL = 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-      const SUPABASE_ANON_KEY =
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ';
       let supabaseClient = null;
 
       (async function initAuth() {
         try {
-          if (typeof window.supabase !== 'undefined') {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
+            const { url, anonKey } = window.DADAM_CONFIG.supabase;
+            supabaseClient = window.supabase.createClient(url, anonKey);
             const {
               data: { session },
             } = await supabaseClient.auth.getSession();
