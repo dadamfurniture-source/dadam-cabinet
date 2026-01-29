@@ -10650,6 +10650,75 @@
       const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
+      // ═══════════════════════════════════════════════════════════════
+      // 채팅 기록 저장/불러오기 (Supabase)
+      // ═══════════════════════════════════════════════════════════════
+
+      // 세션 ID 생성/가져오기 (비로그인 사용자용)
+      function getChatSessionId() {
+        let sessionId = sessionStorage.getItem('chat_session_id');
+        if (!sessionId) {
+          sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          sessionStorage.setItem('chat_session_id', sessionId);
+        }
+        return sessionId;
+      }
+
+      // 메시지 저장
+      async function saveChatMessage(content, role) {
+        if (!supabaseClient) return;
+
+        try {
+          const userId = currentUser?.id || null;
+          const sessionId = userId ? null : getChatSessionId();
+
+          await supabaseClient.from('chat_messages').insert({
+            user_id: userId,
+            session_id: sessionId,
+            role: role,
+            content: content,
+            page_source: 'detail-design'
+          });
+        } catch (error) {
+          console.log('메시지 저장 실패:', error.message);
+        }
+      }
+
+      // 대화 기록 불러오기
+      async function loadChatHistory() {
+        if (!supabaseClient) return;
+
+        try {
+          const userId = currentUser?.id;
+          const sessionId = getChatSessionId();
+
+          let query = supabaseClient
+            .from('chat_messages')
+            .select('*')
+            .eq('page_source', 'detail-design')
+            .order('created_at', { ascending: true })
+            .limit(50);
+
+          if (userId) {
+            query = query.eq('user_id', userId);
+          } else {
+            query = query.eq('session_id', sessionId);
+          }
+
+          const { data, error } = await query;
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            data.forEach(msg => {
+              addChatMessage(msg.content, msg.role === 'user', null, false);
+            });
+          }
+        } catch (error) {
+          console.log('대화 기록 불러오기 실패:', error.message);
+        }
+      }
+
       // 이미지를 Supabase Storage에 업로드 (SupabaseUtils 위임)
       async function uploadImageToStorage(file, userId) {
         return SupabaseUtils.uploadImage(file, userId);
@@ -10724,6 +10793,9 @@
 
         // 자동 저장 설정 (5분마다)
         setupAutoSave();
+
+        // 이전 대화 기록 불러오기
+        loadChatHistory();
       }
 
       // 인증 오버레이 표시/숨김
@@ -11192,7 +11264,7 @@
         const message = input.value.trim();
         if (!message) return;
 
-        // 사용자 메시지 표시
+        // 사용자 메시지 표시 및 저장
         addChatMessage(message, true);
         input.value = '';
 
@@ -11201,7 +11273,8 @@
         addChatMessage(
           '<div style="display:flex;align-items:center;gap:8px;"><span class="chat-loading"></span> 응답 중...</div>',
           false,
-          loadingId
+          loadingId,
+          false
         );
 
         // 현재 설계 데이터 포함
@@ -11226,7 +11299,8 @@
           if (loadingMsg) loadingMsg.remove();
 
           const data = await response.json();
-          addChatMessage(data.response || data.output || '응답을 처리할 수 없습니다.', false);
+          const aiResponse = data.response || data.output || '응답을 처리할 수 없습니다.';
+          addChatMessage(aiResponse, false);
         } catch (error) {
           // 로딩 메시지 제거
           const loadingMsg = document.getElementById(loadingId);
@@ -11235,7 +11309,7 @@
         }
       }
 
-      function addChatMessage(text, isUser, msgId) {
+      function addChatMessage(text, isUser, msgId, shouldSave = true) {
         const container = document.getElementById('chatMessages');
         const msg = document.createElement('div');
         if (msgId) msg.id = msgId;
@@ -11243,6 +11317,11 @@
         msg.innerHTML = text;
         container.appendChild(msg);
         container.scrollTop = container.scrollHeight;
+
+        // DB에 저장 (shouldSave가 true일 때만)
+        if (shouldSave && !msgId) {
+          saveChatMessage(text, isUser ? 'user' : 'assistant');
+        }
       }
 
       // ============================================================

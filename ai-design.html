@@ -1997,6 +1997,90 @@
       // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
       // ═══════════════════════════════════════════════════════════════
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+
+      // ═══════════════════════════════════════════════════════════════
+      // 채팅 기록 저장/불러오기 (Supabase)
+      // ═══════════════════════════════════════════════════════════════
+
+      // 세션 ID 생성/가져오기 (비로그인 사용자용)
+      function getChatSessionId() {
+        let sessionId = sessionStorage.getItem('chat_session_id');
+        if (!sessionId) {
+          sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          sessionStorage.setItem('chat_session_id', sessionId);
+        }
+        return sessionId;
+      }
+
+      // 메시지 저장
+      async function saveChatMessage(content, role) {
+        if (!supabaseClient) return;
+
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          const userId = session?.user?.id || null;
+          const sessionId = userId ? null : getChatSessionId();
+
+          await supabaseClient.from('chat_messages').insert({
+            user_id: userId,
+            session_id: sessionId,
+            role: role,
+            content: content,
+            page_source: 'ai-design'
+          });
+        } catch (error) {
+          console.log('메시지 저장 실패:', error.message);
+        }
+      }
+
+      // 대화 기록 불러오기
+      async function loadChatHistory() {
+        if (!supabaseClient) return;
+
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          const userId = session?.user?.id;
+          const sessionId = getChatSessionId();
+
+          let query = supabaseClient
+            .from('chat_messages')
+            .select('*')
+            .eq('page_source', 'ai-design')
+            .order('created_at', { ascending: true })
+            .limit(50);
+
+          if (userId) {
+            query = query.eq('user_id', userId);
+          } else {
+            query = query.eq('session_id', sessionId);
+          }
+
+          const { data, error } = await query;
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            const chatMessages = document.getElementById('chatMessages');
+            const welcome = chatMessages.querySelector('.welcome-msg');
+            if (welcome) welcome.remove();
+
+            data.forEach(msg => {
+              addChatMessage(msg.content, msg.role === 'user', false);
+            });
+          }
+        } catch (error) {
+          console.log('대화 기록 불러오기 실패:', error.message);
+        }
+      }
+
+      // 페이지 로드 후 대화 기록 불러오기
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          if (supabaseClient) {
+            loadChatHistory();
+          }
+        }, 500);
+      });
       const N8N_INTERIOR_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
       const N8N_WALL_ANALYSIS_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
 
@@ -2635,7 +2719,7 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
       // ═══════════════════════════════════════════════════════════════
       // Chat
       // ═══════════════════════════════════════════════════════════════
-      function addChatMessage(content, isUser = false) {
+      function addChatMessage(content, isUser = false, shouldSave = true) {
         const chatMessages = document.getElementById('chatMessages');
         const welcome = chatMessages.querySelector('.welcome-msg');
         if (welcome) welcome.remove();
@@ -2653,8 +2737,14 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
+        // 최근 20개 메시지만 화면에 유지
         const messages = chatMessages.querySelectorAll('.message');
-        if (messages.length > 3) messages[0].remove();
+        if (messages.length > 20) messages[0].remove();
+
+        // DB에 저장 (shouldSave가 true일 때만)
+        if (shouldSave) {
+          saveChatMessage(content, isUser ? 'user' : 'assistant');
+        }
       }
 
       async function sendMessage() {
@@ -2672,7 +2762,8 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
             body: JSON.stringify({ message }),
           });
           const data = await response.json();
-          addChatMessage(data.response || data.output || '응답을 처리할 수 없습니다.', false);
+          const aiResponse = data.response || data.output || '응답을 처리할 수 없습니다.';
+          addChatMessage(aiResponse, false);
         } catch (error) {
           addChatMessage('일시적인 오류가 발생했습니다.', false);
         }
