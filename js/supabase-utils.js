@@ -100,47 +100,252 @@ const SupabaseUtils = {
     return this.userProfile;
   },
 
+  // ============================================================
+  // 이미지 관리 (현장 사진 / AI 생성 이미지 구분)
+  // 계정당 20개 제한, 초과 시 가장 오래된 이미지 자동 삭제
+  // ============================================================
+
+  MAX_IMAGES_PER_USER: 20,
+
   /**
-   * 이미지를 Supabase Storage에 업로드 (계정당 20개 제한)
+   * 현장 사진 이미지 업로드 (계정당 20개 제한, 초과 시 자동 삭제)
+   * @param {File} file - 업로드할 파일
+   * @param {string} userId - 사용자 ID
+   * @returns {Promise<Object>} { publicUrl, imageId }
+   */
+  async uploadSitePhoto(file, userId) {
+    return this.uploadImageWithType(file, userId, 'site_photo');
+  },
+
+  /**
+   * AI 생성 이미지 저장 (계정당 20개 제한, 초과 시 자동 삭제)
+   * @param {string} base64Data - Base64 인코딩된 이미지 데이터
+   * @param {string} userId - 사용자 ID
+   * @param {Object} options - 추가 옵션 { designId, doorState, metadata }
+   * @returns {Promise<Object>} { publicUrl, imageId }
+   */
+  async saveAIGeneratedImage(base64Data, userId, options = {}) {
+    if (!this.client) {
+      throw new Error('Supabase 연결이 필요합니다.');
+    }
+
+    // 이미지 개수 확인 및 자동 삭제
+    await this.ensureImageLimit(userId);
+
+    // Base64를 Blob으로 변환
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    // 파일명 생성 (userId/ai_generated/timestamp.png)
+    const timestamp = Date.now();
+    const storagePath = `${userId}/ai_generated/${timestamp}.png`;
+
+    // Storage에 업로드
+    const { data, error } = await this.client.storage
+      .from('design-images')
+      .upload(storagePath, blob, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: 'image/png',
+      });
+
+    if (error) throw error;
+
+    // 공개 URL 가져오기
+    const { data: urlData } = this.client.storage.from('design-images').getPublicUrl(storagePath);
+    const publicUrl = urlData.publicUrl;
+
+    // 메타데이터 테이블에 저장
+    const { data: imageRecord, error: dbError } = await this.client
+      .from('user_images')
+      .insert({
+        user_id: userId,
+        image_type: 'ai_generated',
+        storage_path: storagePath,
+        public_url: publicUrl,
+        file_name: `${timestamp}.png`,
+        file_size_bytes: blob.size,
+        mime_type: 'image/png',
+        design_id: options.designId || null,
+        door_state: options.doorState || null,
+        metadata: options.metadata || {},
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('이미지 메타데이터 저장 실패:', dbError);
+    }
+
+    return {
+      publicUrl,
+      imageId: imageRecord?.id || null,
+      storagePath,
+    };
+  },
+
+  /**
+   * 이미지 업로드 (타입 지정)
+   * @param {File} file - 업로드할 파일
+   * @param {string} userId - 사용자 ID
+   * @param {string} imageType - 'site_photo' 또는 'ai_generated'
+   * @returns {Promise<Object>} { publicUrl, imageId }
+   */
+  async uploadImageWithType(file, userId, imageType) {
+    if (!this.client) {
+      throw new Error('Supabase 연결이 필요합니다.');
+    }
+
+    // 이미지 개수 확인 및 자동 삭제
+    await this.ensureImageLimit(userId);
+
+    // 파일명 생성 (userId/site_photo/timestamp.ext)
+    const ext = file.name.split('.').pop();
+    const timestamp = Date.now();
+    const storagePath = `${userId}/${imageType}/${timestamp}.${ext}`;
+
+    const { data, error } = await this.client.storage
+      .from('design-images')
+      .upload(storagePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    // 공개 URL 가져오기
+    const { data: urlData } = this.client.storage.from('design-images').getPublicUrl(storagePath);
+    const publicUrl = urlData.publicUrl;
+
+    // 메타데이터 테이블에 저장
+    const { data: imageRecord, error: dbError } = await this.client
+      .from('user_images')
+      .insert({
+        user_id: userId,
+        image_type: imageType,
+        storage_path: storagePath,
+        public_url: publicUrl,
+        file_name: file.name,
+        file_size_bytes: file.size,
+        mime_type: file.type || 'image/jpeg',
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('이미지 메타데이터 저장 실패:', dbError);
+    }
+
+    return {
+      publicUrl,
+      imageId: imageRecord?.id || null,
+      storagePath,
+    };
+  },
+
+  /**
+   * 이미지 개수 제한 확인 및 초과 시 가장 오래된 이미지 자동 삭제
+   * @param {string} userId - 사용자 ID
+   */
+  async ensureImageLimit(userId) {
+    if (!this.client) return;
+
+    // 현재 이미지 개수 확인 (메타데이터 테이블 기준)
+    const { data: images, error } = await this.client
+      .from('user_images')
+      .select('id, storage_path, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('이미지 목록 조회 실패:', error);
+      return;
+    }
+
+    // 제한 초과 시 가장 오래된 이미지 삭제
+    if (images && images.length >= this.MAX_IMAGES_PER_USER) {
+      const oldestImage = images[0];
+      console.log(`이미지 개수 제한(${this.MAX_IMAGES_PER_USER}개) 도달. 가장 오래된 이미지 삭제:`, oldestImage.storage_path);
+
+      await this.deleteImage(oldestImage.id, oldestImage.storage_path);
+    }
+  },
+
+  /**
+   * 이미지 삭제 (Storage + 메타데이터)
+   * @param {string} imageId - 이미지 메타데이터 ID
+   * @param {string} storagePath - Storage 경로
+   */
+  async deleteImage(imageId, storagePath) {
+    if (!this.client) return;
+
+    // Storage에서 삭제
+    if (storagePath) {
+      const { error: storageError } = await this.client.storage
+        .from('design-images')
+        .remove([storagePath]);
+
+      if (storageError) {
+        console.error('Storage 이미지 삭제 실패:', storageError);
+      }
+    }
+
+    // 메타데이터 테이블에서 삭제
+    if (imageId) {
+      const { error: dbError } = await this.client
+        .from('user_images')
+        .delete()
+        .eq('id', imageId);
+
+      if (dbError) {
+        console.error('이미지 메타데이터 삭제 실패:', dbError);
+      }
+    }
+  },
+
+  /**
+   * 사용자의 이미지 목록 조회
+   * @param {string} userId - 사용자 ID
+   * @param {Object} options - { imageType: 'site_photo' | 'ai_generated' | null }
+   * @returns {Promise<Array>} 이미지 목록
+   */
+  async getUserImages(userId, options = {}) {
+    if (!this.client) return [];
+
+    let query = this.client
+      .from('user_images')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (options.imageType) {
+      query = query.eq('image_type', options.imageType);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('이미지 목록 조회 실패:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+
+  /**
+   * 레거시 호환: 기존 uploadImage 함수 (현장 사진으로 처리)
    * @param {File} file - 업로드할 파일
    * @param {string} userId - 사용자 ID
    * @returns {Promise<string>} 공개 URL
    */
   async uploadImage(file, userId) {
-    if (!this.client) {
-      throw new Error('Supabase 연결이 필요합니다.');
-    }
-
-    // 사용자 폴더 내 이미지 개수 확인
-    const { data: existingImages, error: listError } = await this.client.storage
-      .from('design-images')
-      .list(userId);
-
-    if (listError) {
-      console.error('이미지 목록 조회 실패:', listError);
-    }
-
-    if (existingImages && existingImages.length >= 20) {
-      throw new Error(
-        '이미지는 계정당 최대 20개까지 저장할 수 있습니다.\n기존 이미지를 삭제하고 다시 시도해주세요.'
-      );
-    }
-
-    // 파일명 생성 (userId/timestamp.ext)
-    const ext = file.name.split('.').pop();
-    const fileName = `${userId}/${Date.now()}.${ext}`;
-
-    const { data, error } = await this.client.storage.from('design-images').upload(fileName, file, {
-      cacheControl: '3600',
-      upsert: false,
-    });
-
-    if (error) throw error;
-
-    // 공개 URL 반환
-    const { data: urlData } = this.client.storage.from('design-images').getPublicUrl(fileName);
-
-    return urlData.publicUrl;
+    const result = await this.uploadSitePhoto(file, userId);
+    return result.publicUrl;
   },
 
   // ============================================================
