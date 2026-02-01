@@ -59,3 +59,13 @@ coverage/
 
 # Sentry
 .sentryclirc
+
+# Logs
+logs/
+
+# Temp
+.tmp/
+temp/
+
+# Cloned reference project
+dadam-cabinet/

@@ -1,0 +1,19 @@
+{
+  "name": "dadam-design",
+  "version": "1.0.0",
+  "description": "다담AI 가구 설계 에이전트 스킬 - 방 사진을 분석하여 맞춤형 가구 이미지를 생성합니다",
+  "author": "다담가구",
+  "triggers": [
+    "다담", "dadam", "가구 설계", "AI 설계",
+    "싱크대", "붙박이장", "냉장고장", "신발장", "화장대",
+    "kitchen cabinet", "wardrobe", "furniture design",
+    "방 사진", "room design", "인테리어"
+  ],
+  "tools": [
+    "supabase_rag_search",
+    "gemini_wall_analysis",
+    "gemini_generate_image"
+  ],
+  "mcpServer": "dadam",
+  "entrypoint": "index.md"
+}
