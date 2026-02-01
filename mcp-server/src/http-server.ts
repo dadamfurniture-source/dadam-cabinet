@@ -127,14 +127,22 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
         if (parsed) {
           wallData = { ...wallData, ...parsed };
 
-          // 배관 위치 간편 접근용 필드 설정
+          // 배관 위치 간편 접근용 필드 설정 (감지된 경우에만)
           if (parsed.utility_positions) {
-            wallData.water_pipe_x = parsed.utility_positions.water_supply?.from_origin_mm
-              || parsed.utility_positions.water_supply?.from_left_mm || 800;
-            wallData.exhaust_duct_x = parsed.utility_positions.exhaust_duct?.from_origin_mm
-              || parsed.utility_positions.exhaust_duct?.from_left_mm || 2200;
-            wallData.gas_pipe_x = parsed.utility_positions.gas_pipe?.from_origin_mm
-              || parsed.utility_positions.gas_line?.from_origin_mm || 2000;
+            const waterSupply = parsed.utility_positions.water_supply;
+            const exhaustDuct = parsed.utility_positions.exhaust_duct;
+            const gasPipe = parsed.utility_positions.gas_pipe || parsed.utility_positions.gas_line;
+
+            // 감지된 경우에만 값 설정 (감지 못하면 undefined 유지)
+            if (waterSupply?.detected) {
+              wallData.water_pipe_x = waterSupply.from_origin_mm || waterSupply.from_left_mm;
+            }
+            if (exhaustDuct?.detected) {
+              wallData.exhaust_duct_x = exhaustDuct.from_origin_mm || exhaustDuct.from_left_mm;
+            }
+            if (gasPipe?.detected) {
+              wallData.gas_pipe_x = gasPipe.from_origin_mm || gasPipe.from_left_mm;
+            }
           }
 
           console.log(`[API] Wall analysis complete: ${wallData.wall_width_mm}x${wallData.wall_height_mm}mm`);
@@ -577,10 +585,10 @@ function getDefaultWallData(): WallAnalysis {
     tile_size_mm: { width: 300, height: 600 },
     wall_width_mm: 3000,
     wall_height_mm: 2400,
-    // 배관 위치 기본값 (일반적인 한국 주방 레이아웃)
-    water_pipe_x: 800,       // 싱크대 위치 (왼쪽에서 800mm)
-    exhaust_duct_x: 2200,    // 후드 위치 (왼쪽에서 2200mm)
-    gas_pipe_x: 2000,        // 가스레인지 위치 (왼쪽에서 2000mm)
+    // 배관 위치는 벽 분석에서 감지 (감지 못하면 undefined)
+    water_pipe_x: undefined,
+    exhaust_duct_x: undefined,
+    gas_pipe_x: undefined,
     confidence: 'low',
   };
 }
@@ -608,22 +616,36 @@ const WALL_ANALYSIS_PROMPT = `[TASK: KOREAN KITCHEN WALL ANALYSIS]
 Output JSON only:
 {
   "reference_wall": {
-    "origin_point": "open_edge or far_from_hood",
-    "origin_reason": "1: 틔어진 끝선 or 2: 양쪽 막힘 - 후드 반대편 기준"
+    "origin_point": "open_edge 또는 far_from_hood",
+    "origin_reason": "선택 이유 설명"
   },
   "tile_measurement": {
     "detected": true/false,
     "tile_size_mm": { "width": 300, "height": 600 },
-    "tile_count": { "horizontal": 10, "vertical": 4 }
+    "tile_count": { "horizontal": "타일 가로 개수", "vertical": "타일 세로 개수" }
   },
-  "wall_dimensions_mm": { "width": 3000, "height": 2400 },
+  "wall_dimensions_mm": { "width": "계산된 벽 너비", "height": "계산된 벽 높이" },
   "utility_positions": {
-    "water_supply": { "detected": true/false, "from_origin_mm": 800, "from_floor_mm": 500 },
-    "exhaust_duct": { "detected": true/false, "from_origin_mm": 2200, "from_floor_mm": 2100 },
-    "gas_pipe": { "detected": true/false, "from_origin_mm": 2000, "from_floor_mm": 800 }
+    "water_supply": {
+      "detected": true/false,
+      "from_origin_mm": "기준점에서 거리 (감지된 경우)",
+      "from_floor_mm": "바닥에서 높이 (감지된 경우)"
+    },
+    "exhaust_duct": {
+      "detected": true/false,
+      "from_origin_mm": "기준점에서 거리 (감지된 경우)",
+      "from_floor_mm": "바닥에서 높이 (감지된 경우)"
+    },
+    "gas_pipe": {
+      "detected": true/false,
+      "from_origin_mm": "기준점에서 거리 (감지된 경우)",
+      "from_floor_mm": "바닥에서 높이 (감지된 경우)"
+    }
   },
   "confidence": "high/medium/low"
-}`;
+}
+
+※ 배관이 감지되지 않으면 detected: false로 설정하고 위치 값은 생략`;
 
 interface CabinetSpecs {
   total_width_mm?: number;
@@ -707,10 +729,63 @@ function buildClosedDoorPrompt(
   const hoodType = specs.hood_type || '';
   const cooktopType = specs.cooktop_type || '';
 
-  // 배관 위치 정보
-  const waterPos = wallData.water_pipe_x || 800;
-  const exhaustPos = wallData.exhaust_duct_x || 2200;
-  const gasPos = wallData.gas_pipe_x || 2000;
+  // 배관 위치 정보 (감지된 경우에만 값 있음)
+  const waterPos = wallData.water_pipe_x;
+  const exhaustPos = wallData.exhaust_duct_x;
+  const gasPos = wallData.gas_pipe_x;
+
+  // 배관 위치 프롬프트 생성
+  let utilityPlacementPrompt = '';
+
+  if (waterPos || exhaustPos || gasPos) {
+    // 하나라도 감지된 경우: 감지된 위치 기반 배치
+    utilityPlacementPrompt = `
+═══════════════════════════════════════════════════════════════
+[SECTION 2: 배관 위치 기반 설비 배치]
+═══════════════════════════════════════════════════════════════`;
+
+    if (waterPos) {
+      utilityPlacementPrompt += `
+수도 배관 감지됨 (기준점에서 약 ${waterPos}mm):
+→ 싱크볼 중심을 이 위치에 맞춰 설치
+→ 수전(Faucet)을 싱크볼 위에 설치`;
+    }
+
+    if (exhaustPos) {
+      utilityPlacementPrompt += `
+후드 배기구멍 감지됨 (기준점에서 약 ${exhaustPos}mm):
+→ 레인지후드를 이 위치 아래에 설치
+→ 쿡탑/가스레인지를 후드 바로 아래에 설치`;
+    }
+
+    if (gasPos) {
+      utilityPlacementPrompt += `
+가스 배관 감지됨 (기준점에서 약 ${gasPos}mm):
+→ 가스레인지/쿡탑을 이 위치 근처에 설치`;
+    }
+  } else {
+    // 아무것도 감지되지 않은 경우: AI가 적절한 위치 결정
+    utilityPlacementPrompt = `
+═══════════════════════════════════════════════════════════════
+[SECTION 2: 설비 배치 - AI 자동 결정]
+═══════════════════════════════════════════════════════════════
+배관 위치가 명확히 감지되지 않았습니다.
+이미지를 분석하여 다음 원칙에 따라 적절한 위치에 설비를 배치하세요:
+
+싱크볼 & 수전:
+→ 물이 튀어도 되는 작업 공간 근처
+→ 창문이 있다면 창문 앞 (자연광 활용)
+→ 일반적으로 주방의 한쪽 끝에 배치
+
+레인지후드 & 쿡탑:
+→ 환기가 용이한 위치 (외벽 근처 선호)
+→ 싱크대와 적절한 거리 유지 (작업 동선 고려)
+→ 상부장이 없거나 후드 설치 가능한 공간
+
+전체 레이아웃:
+→ 한국 주방의 일반적인 동선: 냉장고 → 싱크대 → 조리대 → 쿡탑
+→ 자연스럽고 기능적인 배치 우선`;
+  }
 
   return `[MOST IMPORTANT - READ FIRST]
 This is a PHOTO generation task, NOT a technical drawing.
@@ -734,20 +809,7 @@ CLEAN UP (깔끔하게 보정):
 - 찢어진 벽지, 곰팡이 → 새 벽지로 교체
 - 공사 자재, 먼지 → 제거하여 깔끔한 상태로
 - 바닥 보호 비닐, 테이프 → 제거하고 마감된 바닥으로
-
-═══════════════════════════════════════════════════════════════
-[SECTION 2: 배관 위치 기반 설비 배치]
-═══════════════════════════════════════════════════════════════
-수도 배관 위치 (기준점에서 약 ${waterPos}mm):
-→ 싱크볼 중심을 이 위치에 맞춰 설치
-→ 수전(Faucet)을 싱크볼 위에 설치
-
-후드 배기구멍 위치 (기준점에서 약 ${exhaustPos}mm):
-→ 레인지후드를 이 위치 아래에 설치
-→ 쿡탑/가스레인지를 후드 바로 아래에 설치
-
-가스 배관 위치 (기준점에서 약 ${gasPos}mm):
-→ 가스레인지/쿡탑 설치 시 참고
+${utilityPlacementPrompt}
 
 ═══════════════════════════════════════════════════════════════
 [SECTION 3: 캐비닛 디자인]

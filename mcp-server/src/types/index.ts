@@ -169,9 +169,9 @@ export interface WallAnalysis {
 
   // 배관 위치 (배관 기반 설비 배치용)
   utility_positions?: UtilityPositions;
-  water_pipe_x?: number;      // 수도 배관 X 위치 (간편 접근용)
-  exhaust_duct_x?: number;    // 후드 배기구 X 위치 (간편 접근용)
-  gas_pipe_x?: number;        // 가스 배관 X 위치 (간편 접근용)
+  water_pipe_x?: number | undefined;      // 수도 배관 X 위치 (감지된 경우에만)
+  exhaust_duct_x?: number | undefined;    // 후드 배기구 X 위치 (감지된 경우에만)
+  gas_pipe_x?: number | undefined;        // 가스 배관 X 위치 (감지된 경우에만)
 
   furniture_placement?: FurniturePlacement;
   reference_used?: string;
