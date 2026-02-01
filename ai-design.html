@@ -604,35 +604,167 @@
         display: none;
       }
 
-      /* Style Selector */
-      .style-selector {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-        margin-bottom: 24px;
-        flex-wrap: wrap;
-        padding: 0 10px;
-      }
-      .style-chip {
-        padding: 10px 16px;
-        background: var(--white);
-        border: 1px solid var(--warm);
+      /* Theme Selection Section */
+      .theme-section {
+        background: var(--cream);
         border-radius: 20px;
-        font-size: 13px;
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .theme-section-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .theme-section-number {
+        width: 24px;
+        height: 24px;
+        background: var(--charcoal);
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .theme-section-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--charcoal);
+      }
+
+      /* Style Theme Grid */
+      .style-theme-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .style-theme-card {
+        background: var(--white);
+        border: 2px solid transparent;
+        border-radius: 12px;
+        padding: 14px 8px;
+        text-align: center;
         cursor: pointer;
         transition: all 0.3s;
-        white-space: nowrap;
       }
-      .style-chip:hover {
+      .style-theme-card:hover {
+        border-color: var(--gold-light);
+        transform: translateY(-2px);
+      }
+      .style-theme-card.selected {
         border-color: var(--gold);
+        background: linear-gradient(180deg, rgba(184, 149, 108, 0.1) 0%, var(--white) 100%);
       }
-      .style-chip:active {
-        transform: scale(0.95);
+      .style-theme-icon {
+        width: 36px;
+        height: 36px;
+        margin: 0 auto 8px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
       }
-      .style-chip.active {
-        background: var(--gold);
-        color: #fff;
-        border-color: var(--gold);
+      .style-theme-card h4 {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 2px;
+        font-family: inherit;
+      }
+      .style-theme-card p {
+        font-size: 9px;
+        color: var(--gray);
+        line-height: 1.3;
+      }
+      .style-modern .style-theme-icon { background: #f5f5f5; }
+      .style-scandi .style-theme-icon { background: #e8f0e8; }
+      .style-industrial .style-theme-icon { background: #e5e5e5; }
+      .style-classic .style-theme-icon { background: #f5ebe0; }
+      .style-luxury .style-theme-icon { background: #1a1a1a; color: #d4af37; }
+
+      /* Color Palette Grid */
+      .color-palette-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+      }
+      .color-palette-card {
+        background: var(--white);
+        border: 2px solid transparent;
+        border-radius: 10px;
+        padding: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .color-palette-card:hover {
+        transform: scale(1.05);
+      }
+      .color-palette-card.selected {
+        border-color: var(--charcoal);
+      }
+      .color-swatch {
+        height: 40px;
+        border-radius: 6px;
+        margin-bottom: 4px;
+      }
+      .color-palette-card h5 {
+        font-size: 10px;
+        font-weight: 500;
+        text-align: center;
+        font-family: inherit;
+        color: var(--charcoal);
+      }
+
+      /* Selected Theme Summary */
+      .theme-summary {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 16px;
+        background: var(--white);
+        border-radius: 12px;
+        margin-top: 16px;
+      }
+      .theme-summary-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .theme-summary-label {
+        font-size: 11px;
+        color: var(--gray);
+      }
+      .theme-summary-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--charcoal);
+      }
+      .theme-summary-swatch {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 1px solid var(--warm);
+      }
+      .theme-summary-divider {
+        width: 1px;
+        height: 24px;
+        background: var(--warm);
+      }
+
+      @media (max-width: 768px) {
+        .style-theme-grid { grid-template-columns: repeat(3, 1fr); }
+        .color-palette-grid { grid-template-columns: repeat(4, 1fr); }
+        .theme-summary { flex-wrap: wrap; gap: 12px; }
+        .theme-summary-divider { display: none; }
+      }
+      @media (max-width: 480px) {
+        .style-theme-grid { grid-template-columns: repeat(2, 1fr); }
+        .color-palette-grid { grid-template-columns: repeat(3, 1fr); }
+        .style-theme-card p { display: none; }
       }
 
       /* Single Generate Button */
@@ -1834,12 +1966,114 @@
         onchange="handleFileUpload('storage', this)"
       />
 
-      <!-- Style Selector -->
-      <div class="style-selector">
-        <div class="style-chip active" data-style="모던미니멀" onclick="selectStyle(this)">◻️ 모던미니멀</div>
-        <div class="style-chip" data-style="스칸디나비안" onclick="selectStyle(this)">🌲 스칸디나비안</div>
-        <div class="style-chip" data-style="인더스트리얼" onclick="selectStyle(this)">🏭 인더스트리얼</div>
-        <div class="style-chip" data-style="럭셔리" onclick="selectStyle(this)">✨ 럭셔리</div>
+      <!-- Theme Selection Section -->
+      <div class="theme-section">
+        <!-- Style Theme -->
+        <div class="theme-section-header">
+          <span class="theme-section-number">1</span>
+          <span class="theme-section-title">스타일 테마</span>
+        </div>
+        <div class="style-theme-grid">
+          <div class="style-theme-card style-modern selected" data-style="modern-minimal" onclick="selectStyleTheme(this)">
+            <div class="style-theme-icon">◻️</div>
+            <h4>모던 미니멀</h4>
+            <p>깔끔하고 현대적</p>
+          </div>
+          <div class="style-theme-card style-scandi" data-style="scandinavian" onclick="selectStyleTheme(this)">
+            <div class="style-theme-icon">🌲</div>
+            <h4>스칸디나비안</h4>
+            <p>따뜻한 원목</p>
+          </div>
+          <div class="style-theme-card style-industrial" data-style="industrial" onclick="selectStyleTheme(this)">
+            <div class="style-theme-icon">⚙️</div>
+            <h4>인더스트리얼</h4>
+            <p>빈티지 메탈</p>
+          </div>
+          <div class="style-theme-card style-classic" data-style="classic" onclick="selectStyleTheme(this)">
+            <div class="style-theme-icon">🏛️</div>
+            <h4>클래식</h4>
+            <p>우아한 전통</p>
+          </div>
+          <div class="style-theme-card style-luxury" data-style="luxury" onclick="selectStyleTheme(this)">
+            <div class="style-theme-icon">⭐</div>
+            <h4>럭셔리</h4>
+            <p>고급스러운</p>
+          </div>
+        </div>
+
+        <!-- Color Palette -->
+        <div class="theme-section-header">
+          <span class="theme-section-number">2</span>
+          <span class="theme-section-title">컬러 팔레트</span>
+        </div>
+        <div class="color-palette-grid">
+          <div class="color-palette-card selected" data-color="pure-white" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #FFF 0%, #F5F5F5 100%); border: 1px solid #eee;"></div>
+            <h5>퓨어 화이트</h5>
+          </div>
+          <div class="color-palette-card" data-color="warm-white" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #FDF8F3 0%, #F5EDE3 100%);"></div>
+            <h5>웜 화이트</h5>
+          </div>
+          <div class="color-palette-card" data-color="light-gray" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #E8E8E8 0%, #D5D5D5 100%);"></div>
+            <h5>라이트 그레이</h5>
+          </div>
+          <div class="color-palette-card" data-color="charcoal" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #5A5A5A 0%, #3A3A3A 100%);"></div>
+            <h5>차콜</h5>
+          </div>
+          <div class="color-palette-card" data-color="natural-oak" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #D4B896 0%, #B8956C 100%);"></div>
+            <h5>내추럴 오크</h5>
+          </div>
+          <div class="color-palette-card" data-color="walnut" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #6D4C41 0%, #4E342E 100%);"></div>
+            <h5>월넛</h5>
+          </div>
+          <div class="color-palette-card" data-color="sage-green" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #A8BF9A 0%, #8FA07A 100%);"></div>
+            <h5>세이지 그린</h5>
+          </div>
+          <div class="color-palette-card" data-color="navy" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #34495E 0%, #2C3E50 100%);"></div>
+            <h5>네이비</h5>
+          </div>
+          <div class="color-palette-card" data-color="dusty-pink" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #E0B4B4 0%, #C89696 100%);"></div>
+            <h5>더스티 핑크</h5>
+          </div>
+          <div class="color-palette-card" data-color="cream" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #FAF6ED 0%, #EDE5D0 100%);"></div>
+            <h5>크림</h5>
+          </div>
+          <div class="color-palette-card" data-color="olive" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #7A8B4A 0%, #5C6B2E 100%);"></div>
+            <h5>올리브</h5>
+          </div>
+          <div class="color-palette-card" data-color="black" onclick="selectColorPalette(this)">
+            <div class="color-swatch" style="background: linear-gradient(135deg, #2A2A2A 0%, #0A0A0A 100%);"></div>
+            <h5>블랙</h5>
+          </div>
+        </div>
+
+        <!-- Selection Summary -->
+        <div class="theme-summary">
+          <div class="theme-summary-item">
+            <div>
+              <div class="theme-summary-label">스타일</div>
+              <div class="theme-summary-value" id="selectedStyleName">모던 미니멀</div>
+            </div>
+          </div>
+          <div class="theme-summary-divider"></div>
+          <div class="theme-summary-item">
+            <div class="theme-summary-swatch" id="selectedColorSwatch" style="background: #fff;"></div>
+            <div>
+              <div class="theme-summary-label">컬러</div>
+              <div class="theme-summary-value" id="selectedColorName">퓨어 화이트</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Single Generate Button -->
@@ -2081,8 +2315,9 @@
           }
         }, 500);
       });
-      const N8N_INTERIOR_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
-      const N8N_WALL_ANALYSIS_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
+      // 프로덕션 API URL (Cloudflare Worker 프록시)
+      const API_BASE_URL = 'https://dadam-proxy.dadamfurniture.workers.dev';
+      const N8N_INTERIOR_URL = API_BASE_URL + '/webhook/dadam-interior-v4';
 
       // ═══════════════════════════════════════════════════════════════
       // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -2169,12 +2404,27 @@
       // ═══════════════════════════════════════════════════════════════
       function generateDesignPrompt(category, style, wallAnalysis) {
         const info = categoryInfo[category];
+        const themeData = styleThemes[style] || styleThemes['modern-minimal'];
+        const colorData = colorPalettes[state.selectedColor] || colorPalettes['pure-white'];
 
-        let basePrompt = `Professional interior design photo of a modern Korean apartment with ${info.name} (${category}) installation. Style: ${style}.`;
+        let basePrompt = `[MOST IMPORTANT - READ FIRST]
+This is a PHOTO generation task, NOT a technical drawing.
+DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS.
+
+[TASK: KOREAN INTERIOR DESIGN - PHOTOREALISTIC]
+Professional interior design photo of a modern Korean apartment with ${info.name} (${category}) installation.
+
+[STYLE: ${themeData.name}]
+${themeData.keywords}
+Atmosphere: ${themeData.atmosphere}
+
+[COLOR SCHEME]
+Primary cabinet color: ${colorData.name} (${colorData.hex})
+${colorData.prompt}`;
 
         // 배경 보정 지시
         let backgroundPrompt = `
-BACKGROUND REQUIREMENTS:
+[BACKGROUND REQUIREMENTS]
 - Clean, pristine walls with smooth matte finish
 - Fresh, modern wallpaper or paint (light gray or warm white tones)
 - Pristine flooring - light oak hardwood or modern laminate
@@ -2189,11 +2439,11 @@ BACKGROUND REQUIREMENTS:
           const bgCond = wallAnalysis.background_condition;
 
           if (dims) {
-            basePrompt += ` Room dimensions approximately ${dims.total_width_mm / 1000}m wide, ${dims.ceiling_height_mm / 1000}m ceiling height.`;
+            basePrompt += `\n\n[SPACE DIMENSIONS]\nRoom: ${dims.total_width_mm / 1000}m wide, ${dims.ceiling_height_mm / 1000}m ceiling height.`;
           }
 
           if (constraints) {
-            basePrompt += ` Cabinet dimensions: ${constraints.recommended_cabinet_width_mm}mm wide, ${constraints.recommended_cabinet_height_mm}mm tall, ${constraints.recommended_cabinet_depth_mm}mm deep.`;
+            basePrompt += `\nCabinet: ${constraints.recommended_cabinet_width_mm}mm wide, ${constraints.recommended_cabinet_height_mm}mm tall, ${constraints.recommended_cabinet_depth_mm}mm deep.`;
           }
 
           if (bgCond?.suggested_wall_style) {
@@ -2216,41 +2466,96 @@ BACKGROUND REQUIREMENTS:
 
         const fullPrompt = `${basePrompt}
 
+[FURNITURE DETAILS]
 ${categoryPrompts[category] || ''}
 
 ${backgroundPrompt}
 
-STYLE DETAILS for ${style}:
+[STYLE DETAILS]
 ${getStyleDetails(style)}
 
-QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K quality, perfect lighting, architectural visualization.`;
+[STRICTLY FORBIDDEN]
+❌ NO dimension labels or measurements
+❌ NO text, numbers, or characters
+❌ NO watermarks or logos
+❌ NO people or pets
+
+[OUTPUT]
+Ultra-realistic 3D rendering, professional interior photography, 8K quality, perfect lighting, architectural visualization.
+Clean photorealistic Korean apartment interior photograph.
+Magazine quality, professional lighting.`;
 
         return fullPrompt;
       }
 
       function getStyleDetails(style) {
         const styles = {
-          모던: 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes.',
-          스칸디나비안:
-            'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere.',
-          인더스트리얼:
-            'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures.',
-          미니멀:
-            'Essential elements only, maximum whitespace, handleless design, flush surfaces, monochromatic palette, zen-like simplicity.',
-          럭셔리:
-            'Premium materials, gold/brass accents, rich textures, marble elements, sophisticated lighting, high-end finishes.',
+          'modern-minimal': 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes, handleless design, flush surfaces.',
+          'scandinavian': 'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere, warmth and comfort.',
+          'industrial': 'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures, urban loft aesthetic.',
+          'classic': 'Traditional design, crown molding, paneled doors, brass hardware, timeless elegance, refined craftsmanship, sophisticated details.',
+          'luxury': 'Premium materials, gold/brass accents, rich textures, marble elements, sophisticated lighting, high-end finishes, opulent atmosphere.',
         };
-        return styles[style] || styles['모던'];
+        return styles[style] || styles['modern-minimal'];
       }
 
       // ═══════════════════════════════════════════════════════════════
       // State
       // ═══════════════════════════════════════════════════════════════
       const state = {
-        selectedStyle: '모던미니멀',
+        selectedStyle: 'modern-minimal',
+        selectedStyleName: '모던 미니멀',
+        selectedColor: 'pure-white',
+        selectedColorName: '퓨어 화이트',
+        selectedColorHex: '#FFFFFF',
         uploadedImages: {},
         results: [],
         currentPage: 0,
+      };
+
+      // 스타일 테마 데이터
+      const styleThemes = {
+        'modern-minimal': {
+          name: '모던 미니멀',
+          keywords: 'clean lines, minimal design, hidden handles, matte finish, geometric shapes',
+          atmosphere: 'serene, uncluttered, contemporary'
+        },
+        'scandinavian': {
+          name: '스칸디나비안',
+          keywords: 'light wood tones, natural textures, functional design, hygge comfort',
+          atmosphere: 'warm, cozy, bright, natural light'
+        },
+        'industrial': {
+          name: '인더스트리얼',
+          keywords: 'raw materials, metal accents, exposed elements, dark tones, vintage fixtures',
+          atmosphere: 'urban, edgy, bold, masculine'
+        },
+        'classic': {
+          name: '클래식',
+          keywords: 'traditional design, crown molding, paneled doors, brass hardware, timeless elegance',
+          atmosphere: 'sophisticated, refined, traditional'
+        },
+        'luxury': {
+          name: '럭셔리',
+          keywords: 'premium materials, gold/brass accents, marble, rich textures, high-end finishes',
+          atmosphere: 'opulent, glamorous, prestigious'
+        }
+      };
+
+      // 컬러 팔레트 데이터
+      const colorPalettes = {
+        'pure-white': { name: '퓨어 화이트', hex: '#FFFFFF', prompt: 'pure white matte finish, clean and bright' },
+        'warm-white': { name: '웜 화이트', hex: '#FAF7F0', prompt: 'warm white with subtle cream undertones' },
+        'light-gray': { name: '라이트 그레이', hex: '#E5E5E5', prompt: 'light gray, soft and sophisticated' },
+        'charcoal': { name: '차콜', hex: '#36454F', prompt: 'charcoal gray, deep and modern' },
+        'natural-oak': { name: '내추럴 오크', hex: '#C4A77D', prompt: 'natural oak wood grain, light and airy' },
+        'walnut': { name: '월넛', hex: '#5D4037', prompt: 'walnut wood color, rich and warm' },
+        'sage-green': { name: '세이지 그린', hex: '#9CAF88', prompt: 'sage green, peaceful and organic' },
+        'navy': { name: '네이비', hex: '#1E3A5F', prompt: 'deep navy blue, elegant and classic' },
+        'dusty-pink': { name: '더스티 핑크', hex: '#D4A5A5', prompt: 'dusty pink, soft and romantic' },
+        'cream': { name: '크림', hex: '#F5F5DC', prompt: 'cream ivory, warm and classic' },
+        'olive': { name: '올리브', hex: '#6B7B3A', prompt: 'olive green, natural and earthy' },
+        'black': { name: '블랙', hex: '#1A1A1A', prompt: 'matte black, bold and dramatic' }
       };
 
       const categoryInfo = {
@@ -2347,12 +2652,48 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // Style Selection
+      // Style Theme Selection
       // ═══════════════════════════════════════════════════════════════
-      function selectStyle(el) {
-        document.querySelectorAll('.style-chip').forEach((c) => c.classList.remove('active'));
-        el.classList.add('active');
-        state.selectedStyle = el.dataset.style;
+      function selectStyleTheme(el) {
+        document.querySelectorAll('.style-theme-card').forEach((c) => c.classList.remove('selected'));
+        el.classList.add('selected');
+
+        const styleKey = el.dataset.style;
+        const themeData = styleThemes[styleKey];
+
+        state.selectedStyle = styleKey;
+        state.selectedStyleName = themeData?.name || styleKey;
+
+        // Summary 업데이트
+        const summaryEl = document.getElementById('selectedStyleName');
+        if (summaryEl) summaryEl.textContent = state.selectedStyleName;
+
+        console.log('Style selected:', state.selectedStyle, state.selectedStyleName);
+        showToast(`스타일: ${state.selectedStyleName} 선택됨`, 'success');
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Color Palette Selection
+      // ═══════════════════════════════════════════════════════════════
+      function selectColorPalette(el) {
+        document.querySelectorAll('.color-palette-card').forEach((c) => c.classList.remove('selected'));
+        el.classList.add('selected');
+
+        const colorKey = el.dataset.color;
+        const colorData = colorPalettes[colorKey];
+
+        state.selectedColor = colorKey;
+        state.selectedColorName = colorData?.name || colorKey;
+        state.selectedColorHex = colorData?.hex || '#FFFFFF';
+
+        // Summary 업데이트
+        const summaryEl = document.getElementById('selectedColorName');
+        if (summaryEl) summaryEl.textContent = state.selectedColorName;
+        const swatchEl = document.getElementById('selectedColorSwatch');
+        if (swatchEl) swatchEl.style.background = state.selectedColorHex;
+
+        console.log('Color selected:', state.selectedColor, state.selectedColorName);
+        showToast(`컬러: ${state.selectedColorName} 선택됨`, 'success');
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -2420,33 +2761,12 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           await sleep(500);
 
           // ═══════════════════════════════════════════════════════════
-          // STEP 2: 벽 구조 분석 (Claude Vision) - 상세 분석
+          // STEP 2: 스타일/컬러 적용 (벽 분석 생략 - 테마 기반 생성)
           // ═══════════════════════════════════════════════════════════
-          updateStep(2, 'active', `${info.icon} 벽 구조 분석 중...`);
-          document.getElementById('loadingTitle').textContent = `🧱 상세 공간 분석 중...`;
-
-          try {
-            const wallResponse = await fetch(N8N_WALL_ANALYSIS_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                room_image: imageData.base64,
-                image_type: imageData.type,
-                analysis_prompt: DETAILED_ANALYSIS_PROMPT,
-                category: category,
-              }),
-            });
-
-            if (wallResponse.ok) {
-              let wallData = await wallResponse.json();
-              if (Array.isArray(wallData)) wallData = wallData[0];
-              wallAnalysis = wallData;
-              console.log('Wall Analysis:', wallAnalysis);
-            }
-          } catch (error) {
-            console.warn('Wall analysis failed, continuing without:', error);
-            // 벽 분석 실패해도 디자인 생성은 계속 진행
-          }
+          updateStep(2, 'active', `${info.icon} 스타일 적용 중...`);
+          document.getElementById('loadingTitle').textContent = `🎨 테마 스타일 적용 중...`;
+          console.log('Selected Style:', state.selectedStyle, 'Color:', state.selectedColor);
+          await sleep(300);
 
           // ═══════════════════════════════════════════════════════════
           // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
@@ -2459,6 +2779,10 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
           console.log('Design Prompt:', designPrompt);
 
           try {
+            // 스타일 및 컬러 데이터 준비
+            const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
+            const colorData = colorPalettes[state.selectedColor] || colorPalettes['pure-white'];
+
             const response = await fetch(N8N_INTERIOR_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -2467,6 +2791,13 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
                 image_type: imageData.type,
                 category: category,
                 design_style: state.selectedStyle,
+                style_name: themeData.name,
+                style_keywords: themeData.keywords,
+                style_atmosphere: themeData.atmosphere,
+                color_name: colorData.name,
+                color_hex: colorData.hex,
+                color_prompt: colorData.prompt,
+                design_prompt: designPrompt,
               }),
             });
 
@@ -2475,13 +2806,19 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
             let data = await response.json();
             if (Array.isArray(data)) data = data[0];
 
-            console.log('n8n Response:', data);
+            console.log('API Response:', data);
 
-            // 새 워크플로우 응답에서 이미지 추출 (닫힌 도어 + 열린 도어)
+            // 이미지 추출 (로컬 서버 및 n8n 형식 모두 지원)
             let afterImageUrl = '';
             let afterImageUrlOpen = '';
 
-            if (data.generated_image) {
+            // 로컬 서버 형식: { generatedImage: { base64, mimeType } }
+            if (data.generatedImage && data.generatedImage.base64) {
+              const mimeType = data.generatedImage.mimeType || 'image/jpeg';
+              afterImageUrl = `data:${mimeType};base64,${data.generatedImage.base64}`;
+            }
+            // n8n 형식: { generated_image: { closed: { base64 }, open: { base64 } } }
+            else if (data.generated_image) {
               // 닫힌 도어 이미지
               if (data.generated_image.closed && data.generated_image.closed.base64) {
                 const mimeType = data.generated_image.closed.mime_type || 'image/png';
@@ -2503,9 +2840,9 @@ QUALITY: Ultra-realistic 3D rendering, professional interior photography, 8K qua
             }
 
             // 분석 결과 포맷팅
-            let analysisText = data.message || '분석 완료';
+            let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 | ${colorData.name || state.selectedColor} 컬러`;
             if (data.rag_rules_count) {
-              analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${data.style || state.selectedStyle} 스타일`;
+              analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${themeData.name} 스타일 | ${colorData.name} 컬러`;
             }
 
             // 제안 텍스트
