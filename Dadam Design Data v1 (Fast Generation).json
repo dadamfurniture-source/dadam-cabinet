@@ -335,7 +335,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
