@@ -472,23 +472,27 @@ function buildClosedDoorPrompt(
   const hoodType = specs.hood_type || '';
   const cooktopType = specs.cooktop_type || '';
 
-  return `[TASK: KOREAN BUILT-IN KITCHEN - PHOTOREALISTIC RENDERING]
+  return `[MOST IMPORTANT - READ FIRST]
+This is a PHOTO generation task, NOT a technical drawing.
+DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS TO THE IMAGE.
+The output must be a CLEAN photograph with NO annotations whatsoever.
 
-Create a photorealistic interior photo of a modern Korean built-in ${category} cabinet system.
+[TASK: KOREAN BUILT-IN KITCHEN - PHOTOREALISTIC PHOTO]
 
-[CABINET SPECIFICATIONS - EXACT MATCH REQUIRED]
-- Total width: ${totalWidth}mm (${(totalWidth/1000).toFixed(1)}m)
-- Total height: ${totalHeight}mm
-- Upper cabinet: ${upperCount}개, height ${upperHeight}mm
-- Lower cabinet: ${lowerCount}개, height ${lowerHeight}mm
-- Depth: ${depth}mm
-- Leg/kickboard height: ${legHeight}mm
-${upperLayout ? `\n[UPPER CABINET LAYOUT - LEFT TO RIGHT]\n${upperLayout}` : ''}
-${lowerLayout ? `\n[LOWER CABINET LAYOUT - LEFT TO RIGHT]\n${lowerLayout}` : ''}
+[PRESERVE FROM REFERENCE IMAGE]
+- KEEP the EXACT same camera angle and perspective
+- KEEP the EXACT same room background (walls, floor, ceiling, windows)
+- KEEP the EXACT same lighting conditions
+- ONLY REPLACE the cabinet/furniture area with new design
 
-[MATERIALS & COLORS - MUST MATCH]
-- Door color: ${doorColor}
-- Door finish: ${doorFinish} (matte/satin)
+[CABINET DESIGN - FOR PROPORTION REFERENCE ONLY, DO NOT DISPLAY]
+Upper cabinets: ${upperCount} units
+Lower cabinets: ${lowerCount} units
+${upperLayout ? `Upper layout: ${upperLayout}` : ''}
+${lowerLayout ? `Lower layout: ${lowerLayout}` : ''}
+
+[MATERIALS & COLORS]
+- Door: ${doorColor}, ${doorFinish} finish
 - Countertop: ${countertop}
 - Handle: ${handleType}
 ${sinkType ? `- Sink: ${sinkType}` : ''}
@@ -496,28 +500,21 @@ ${hoodType ? `- Hood: ${hoodType}` : ''}
 ${cooktopType ? `- Cooktop: ${cooktopType}` : ''}
 
 [STYLE: ${style}]
-- Modern Korean minimalist apartment kitchen
-- Clean, seamless door panels
-- Integrated handles or push-open system
-- Premium quality finish
+Modern Korean minimalist kitchen with clean seamless door panels.
 
-[COMPOSITION]
-- Frontal or slight angle view
-- Show full cabinet system from floor to ceiling
-- Natural daylight from window
-- Clean white/light gray walls
-
-[MUST AVOID - CRITICAL]
-- NO dimension labels or measurements on image
-- NO text, numbers, or annotations
-- NO arrows or dimension lines
-- NO watermarks or logos
-- NO people or pets
-- NO clutter or mess
+[STRICTLY FORBIDDEN - WILL REJECT IF VIOLATED]
+❌ NO dimension labels or measurements
+❌ NO text, numbers, or characters
+❌ NO arrows, lines, or technical markings
+❌ NO rulers, scales, or size indicators
+❌ NO watermarks or logos
+❌ NO annotations of any kind
+❌ NO people or pets
 
 [OUTPUT]
-Single photorealistic image, magazine quality, interior design photograph style.
-ALL cabinet doors must be CLOSED.`;
+Clean photorealistic interior photograph.
+Magazine quality, professional lighting.
+All cabinet doors CLOSED.`;
 }
 
 function buildOpenDoorPrompt(category: string): string {
@@ -530,20 +527,26 @@ function buildOpenDoorPrompt(category: string): string {
 
   return `[TASK] Open all doors in this furniture image.
 
-[DO NOT CHANGE]
-- Door count, positions, sizes
-- Colors, materials
-- Camera angle, perspective
-- Background
+[CRITICAL - PRESERVE EXACTLY]
+- KEEP the EXACT same camera angle and perspective
+- KEEP the EXACT same room background (walls, floor, ceiling, windows)
+- KEEP the EXACT same lighting conditions
+- KEEP the EXACT same door count, positions, sizes
+- KEEP the EXACT same colors and materials
 
-[CHANGE ONLY]
-- Swing doors: open 90 degrees
+[CHANGE ONLY - DOOR STATE]
+- Swing doors: open 90 degrees outward
 - Drawers: pull out 30-40%
 
 [INTERIOR CONTENTS - ${category}]
 ${contents[category] || contents.storage}
 
-[OUTPUT: Photorealistic image with doors open]`;
+[ABSOLUTELY FORBIDDEN]
+- NEVER add dimension labels, measurements, or text
+- NEVER change the background or room elements
+- NEVER change the camera angle
+
+[OUTPUT: Photorealistic image with doors open, same background]`;
 }
 
 function buildDesignToImagePrompt(
@@ -555,30 +558,34 @@ function buildDesignToImagePrompt(
   const width = specs.total_width_mm || 3000;
   const height = specs.total_height_mm || 2400;
 
-  return `[TASK: PHOTOREALISTIC KOREAN ${category.toUpperCase()}]
+  return `[MOST IMPORTANT - READ FIRST]
+This is a PHOTO generation task, NOT a technical drawing.
+DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS TO THE IMAGE.
+The output must be a CLEAN photograph with NO annotations whatsoever.
+
+[TASK: PHOTOREALISTIC KOREAN ${category.toUpperCase()}]
 
 Generate a photorealistic interior photograph of a modern Korean ${category}.
 
-[DIMENSIONS]
-- Total: ${width}mm (W) x ${height}mm (H)
-- Items: ${items.length}
-
 [STYLE: ${style}]
-- Modern Korean minimalist
-- Flat panel doors
-- Concealed hinges
+Modern Korean minimalist with flat panel doors and concealed hinges.
 
-[ROOM]
-- Modern Korean apartment
-- White walls, light wood floor
-- Natural lighting
+[ROOM SETTING]
+Modern Korean apartment with white walls, light wood floor, natural lighting.
 
-[CRITICAL]
-1. PHOTOREALISTIC quality
-2. ALL DOORS CLOSED
-3. Magazine-quality composition
+[STRICTLY FORBIDDEN - WILL REJECT IF VIOLATED]
+❌ NO dimension labels or measurements
+❌ NO text, numbers, or characters
+❌ NO arrows, lines, or technical markings
+❌ NO rulers, scales, or size indicators
+❌ NO watermarks or logos
+❌ NO annotations of any kind
+❌ NO people or pets
 
-[OUTPUT: High-resolution photorealistic image]`;
+[OUTPUT]
+Clean photorealistic interior photograph.
+Magazine quality, professional lighting.
+All cabinet doors CLOSED.`;
 }
 
 // ─────────────────────────────────────────────────────────────────
