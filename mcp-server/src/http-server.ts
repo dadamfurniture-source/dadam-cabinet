@@ -52,6 +52,11 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
     const roomImage = body.room_image || '';
     const imageType = body.image_type || 'image/jpeg';
 
+    // 설계 데이터 추출
+    const cabinetSpecs = body.cabinet_specs || {};
+    const modules = body.modules || {};
+    const items = body.items || body.design_data?.items || [];
+
     if (!roomImage) {
       return res.status(400).json({
         success: false,
@@ -63,6 +68,11 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
     const triggers = getTriggers(category, style);
 
     console.log(`[API] Category: ${category}, Style: ${style}`);
+    console.log(`[API] Cabinet specs: ${JSON.stringify(cabinetSpecs)}`);
+    console.log(`[API] Modules: upper=${modules.upper_count || modules.upper?.length || 0}, lower=${modules.lower_count || modules.lower?.length || 0}`);
+    console.log(`[API] Upper modules: ${JSON.stringify(modules.upper || [])}`);
+    console.log(`[API] Lower modules: ${JSON.stringify(modules.lower || [])}`);
+    console.log(`[API] Items: ${JSON.stringify(items.slice(0, 2))}...`);
 
     // 2. RAG 검색
     console.log('[API] Searching RAG rules...');
@@ -103,8 +113,8 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
       console.log('[API] Wall analysis failed, using defaults');
     }
 
-    // 4. 프롬프트 조립
-    const closedPrompt = buildClosedDoorPrompt(category, style, wallData, classifiedRules);
+    // 4. 프롬프트 조립 (설계 데이터 포함)
+    const closedPrompt = buildClosedDoorPrompt(category, style, wallData, classifiedRules, cabinetSpecs, modules);
 
     // 5. 닫힌 도어 이미지 생성
     console.log('[API] Generating closed door image...');
@@ -142,14 +152,20 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
       console.log('[API] Open door generation failed, returning closed only');
     }
 
-    // 7. 응답 반환
+    // 7. 응답 반환 (프론트엔드 호환 형식)
     res.json({
       success: true,
       message: '이미지 생성 완료',
       category,
       style,
       rag_rules_count: ragRules.length,
+      // 프론트엔드 호환: data.generated_image.base64
       generated_image: {
+        base64: closedImage,
+        mime_type: 'image/png',
+      },
+      // 상세 이미지 (열린/닫힌 도어)
+      generated_images: {
         closed: {
           base64: closedImage,
           mime_type: 'image/png',
@@ -377,43 +393,131 @@ Output JSON only:
   "confidence": "high/medium/low"
 }`;
 
+interface CabinetSpecs {
+  total_width_mm?: number;
+  total_height_mm?: number;
+  upper_cabinet_height?: number;
+  lower_cabinet_height?: number;
+  depth_mm?: number;
+  leg_height?: number;
+  molding_height?: number;
+  door_color_upper?: string;
+  door_color_lower?: string;
+  door_finish_upper?: string;
+  door_finish_lower?: string;
+  countertop_color?: string;
+  handle_type?: string;
+  sink_type?: string;
+  faucet_type?: string;
+  hood_type?: string;
+  cooktop_type?: string;
+}
+
+interface ModulesData {
+  upper?: Array<{ name?: string; width?: number; height?: number }>;
+  lower?: Array<{ name?: string; width?: number; height?: number }>;
+  upper_count?: number;
+  lower_count?: number;
+}
+
 function buildClosedDoorPrompt(
   category: string,
   style: string,
   wallData: WallAnalysis,
-  rules: ClassifiedRules
+  rules: ClassifiedRules,
+  cabinetSpecs?: CabinetSpecs,
+  modules?: ModulesData
 ): string {
-  return `[TASK: KOREAN BUILT-IN KITCHEN RENDERING - PHOTOREALISTIC]
+  // 설계 데이터에서 치수 추출
+  const specs = cabinetSpecs || {};
+  const totalWidth = specs.total_width_mm || wallData.wall_width_mm;
+  const totalHeight = specs.total_height_mm || wallData.wall_height_mm;
+  const upperHeight = specs.upper_cabinet_height || 720;
+  const lowerHeight = specs.lower_cabinet_height || 870;
+  const depth = specs.depth_mm || 600;
+  const legHeight = specs.leg_height || 150;
 
-Generate a photorealistic image of Korean-style built-in ${category} furniture.
+  // 모듈 개수 및 레이아웃
+  const upperCount = modules?.upper_count || modules?.upper?.length || 0;
+  const lowerCount = modules?.lower_count || modules?.lower?.length || 0;
 
-[WALL MEASUREMENTS]
-- Wall Width: ${wallData.wall_width_mm}mm
-- Wall Height: ${wallData.wall_height_mm}mm
+  // 개별 모듈 크기 문자열 생성
+  let upperLayout = '';
+  let lowerLayout = '';
+
+  if (modules?.upper && Array.isArray(modules.upper) && modules.upper.length > 0) {
+    upperLayout = modules.upper.map((m: Record<string, unknown>) => {
+      const w = m.width || m.w || 600;
+      const name = m.name || m.type || 'cabinet';
+      return `${name}(${w}mm)`;
+    }).join(' → ');
+  }
+
+  if (modules?.lower && Array.isArray(modules.lower) && modules.lower.length > 0) {
+    lowerLayout = modules.lower.map((m: Record<string, unknown>) => {
+      const w = m.width || m.w || 600;
+      const name = m.name || m.type || 'cabinet';
+      return `${name}(${w}mm)`;
+    }).join(' → ');
+  }
+
+  // 마감재 정보
+  const doorColor = specs.door_color_upper || specs.door_color_lower || '화이트';
+  const doorFinish = specs.door_finish_upper || specs.door_finish_lower || '무광';
+  const countertop = specs.countertop_color || '스노우 화이트';
+  const handleType = specs.handle_type || '푸시오픈';
+
+  // 주방 기기
+  const sinkType = specs.sink_type || '';
+  const hoodType = specs.hood_type || '';
+  const cooktopType = specs.cooktop_type || '';
+
+  return `[TASK: KOREAN BUILT-IN KITCHEN - PHOTOREALISTIC RENDERING]
+
+Create a photorealistic interior photo of a modern Korean built-in ${category} cabinet system.
+
+[CABINET SPECIFICATIONS - EXACT MATCH REQUIRED]
+- Total width: ${totalWidth}mm (${(totalWidth/1000).toFixed(1)}m)
+- Total height: ${totalHeight}mm
+- Upper cabinet: ${upperCount}개, height ${upperHeight}mm
+- Lower cabinet: ${lowerCount}개, height ${lowerHeight}mm
+- Depth: ${depth}mm
+- Leg/kickboard height: ${legHeight}mm
+${upperLayout ? `\n[UPPER CABINET LAYOUT - LEFT TO RIGHT]\n${upperLayout}` : ''}
+${lowerLayout ? `\n[LOWER CABINET LAYOUT - LEFT TO RIGHT]\n${lowerLayout}` : ''}
+
+[MATERIALS & COLORS - MUST MATCH]
+- Door color: ${doorColor}
+- Door finish: ${doorFinish} (matte/satin)
+- Countertop: ${countertop}
+- Handle: ${handleType}
+${sinkType ? `- Sink: ${sinkType}` : ''}
+${hoodType ? `- Hood: ${hoodType}` : ''}
+${cooktopType ? `- Cooktop: ${cooktopType}` : ''}
 
 [STYLE: ${style}]
-- Modern Korean minimalist
-- Matte or low-gloss finish
-- Hidden handles (push-open)
-- Flush doors
+- Modern Korean minimalist apartment kitchen
+- Clean, seamless door panels
+- Integrated handles or push-open system
+- Premium quality finish
 
-[BACKGROUND RULES]
-${rules.background.join('\n')}
+[COMPOSITION]
+- Frontal or slight angle view
+- Show full cabinet system from floor to ceiling
+- Natural daylight from window
+- Clean white/light gray walls
 
-[MODULE RULES]
-${rules.modules.length > 0 ? rules.modules.join('\n') : '- Standard Korean built-in specifications'}
+[MUST AVOID - CRITICAL]
+- NO dimension labels or measurements on image
+- NO text, numbers, or annotations
+- NO arrows or dimension lines
+- NO watermarks or logos
+- NO people or pets
+- NO clutter or mess
 
-[DOOR SPECS]
-${rules.doors.length > 0 ? rules.doors.join('\n') : '- Full door coverage, all doors CLOSED'}
-
-[CRITICAL]
-1. PHOTOREALISTIC quality
-2. EXACT camera angle from original photo
-3. ALL doors CLOSED
-4. Clean, finished background
-5. No people or clutter
-
-[OUTPUT: Single photorealistic image]`;
+[OUTPUT]
+Single photorealistic image, magazine quality, interior design photograph style.
+ALL cabinet doors must be CLOSED.`;
 }
 
 function buildOpenDoorPrompt(category: string): string {
