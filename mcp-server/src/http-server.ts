@@ -152,28 +152,28 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
       console.log('[API] Open door generation failed, returning closed only');
     }
 
-    // 7. 응답 반환 (프론트엔드 호환 형식)
+    // 7. 응답 반환 (ai-design.html 호환 형식)
     res.json({
       success: true,
       message: '이미지 생성 완료',
       category,
       style,
       rag_rules_count: ragRules.length,
-      // 프론트엔드 호환: data.generated_image.base64
+      // ai-design.html 호환: generated_image.closed.base64, generated_image.open.base64
       generated_image: {
-        base64: closedImage,
-        mime_type: 'image/png',
-      },
-      // 상세 이미지 (열린/닫힌 도어)
-      generated_images: {
+        // 닫힌 도어 이미지
         closed: {
           base64: closedImage,
           mime_type: 'image/png',
         },
+        // 열린 도어 이미지
         open: openImage ? {
           base64: openImage,
           mime_type: 'image/png',
         } : null,
+        // 레거시 호환 (detaildesign.html 기존 코드용)
+        base64: closedImage,
+        mime_type: 'image/png',
       },
     });
 
