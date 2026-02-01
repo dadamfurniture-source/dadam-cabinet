@@ -10837,8 +10837,8 @@
       const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 
       // AI 디자인 생성 API URL (설계 데이터 기반 - Fast Generation)
-      // Cloudflare Proxy 경유 (CORS 해결)
-      const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev/webhook/design-to-image';
+      // 직접 n8n URL 사용 (Cloudflare Proxy가 경로를 제대로 전달하지 않음)
+      const N8N_AI_DESIGN_URL = 'https://dadam.app.n8n.cloud/webhook/design-to-image';
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
       // ═══════════════════════════════════════════════════════════════
