@@ -9393,10 +9393,10 @@
 
         document.body.appendChild(modal);
 
-        // 모달 외부 클릭시 닫기
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) modal.remove();
-        });
+        // 모달 외부 클릭시 닫기 - 비활성화 (이미지 확인 중 실수로 닫히는 것 방지)
+        // modal.addEventListener('click', (e) => {
+        //   if (e.target === modal) modal.remove();
+        // });
       }
 
       // AI 디자인 이미지 다운로드
