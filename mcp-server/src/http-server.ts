@@ -792,10 +792,10 @@ This is a PHOTO generation task, NOT a technical drawing.
 DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS TO THE IMAGE.
 The output must be a CLEAN photograph with NO annotations whatsoever.
 
-[TASK: KOREAN BUILT-IN KITCHEN - PHOTOREALISTIC PHOTO]
+[TASK: KOREAN BUILT-IN KITCHEN (싱크대) - PHOTOREALISTIC PHOTO]
 
 ═══════════════════════════════════════════════════════════════
-[SECTION 1: 공간 구조 유지 + 배경 보정]
+[SECTION 1: 공간 구조 유지 + 마감 보정]
 ═══════════════════════════════════════════════════════════════
 PRESERVE (반드시 유지):
 - 카메라 앵글과 시점
@@ -803,24 +803,45 @@ PRESERVE (반드시 유지):
 - 창문, 문, 천장의 위치
 - 조명 조건
 
-CLEAN UP (깔끔하게 보정):
-- 노출된 전선 → 제거 또는 벽 안으로 숨김
+FINISH & CLEAN UP (미완성 부분 자연스럽게 마감):
+- 노출된 전선 → 벽 안으로 숨기고 깔끔하게 마감
 - 시멘트 벽, 미장 안 된 벽 → 깔끔한 벽지/페인트로 마감
-- 찢어진 벽지, 곰팡이 → 새 벽지로 교체
-- 공사 자재, 먼지 → 제거하여 깔끔한 상태로
-- 바닥 보호 비닐, 테이프 → 제거하고 마감된 바닥으로
+- 찢어진 벽지, 곰팡이, 때 → 새 벽지로 깨끗하게 마감
+- 공사 자재, 먼지, 잡동사니 → 제거하여 깔끔한 상태로
+- 바닥 보호 비닐, 테이프 → 제거하고 완성된 바닥재로 마감
+- 미완성 천장, 몰딩 → 자연스럽게 마감 처리
+- 창틀, 문틀 미완성 부분 → 깔끔하게 마감
 ${utilityPlacementPrompt}
 
 ═══════════════════════════════════════════════════════════════
-[SECTION 3: 캐비닛 디자인]
+[SECTION 3: 필수 설비 - 반드시 배치] ★★★ 중요
+═══════════════════════════════════════════════════════════════
+다음 설비는 반드시 이미지에 포함되어야 합니다:
+
+【싱크볼 & 수전】 - 필수
+- 싱크볼: 적절한 위치에 반드시 배치
+- 수전(Faucet): 싱크볼 정중앙 위에 배치
+- 싱크볼 아래(개수대 하부): 배관과 수도 분배기만 보이도록
+  → 잡동사니, 쓰레기통, 세제 등 제거 (깔끔한 배관만)
+
+【쿡탑】 - 필수
+- 인덕션 또는 가스레인지: 적절한 위치에 반드시 배치
+- 쿡탑 위에 레인지후드 배치
+
+═══════════════════════════════════════════════════════════════
+[SECTION 4: 캐비닛 디자인]
 ═══════════════════════════════════════════════════════════════
 Upper cabinets: ${upperCount} units
 Lower cabinets: ${lowerCount} units
 ${upperLayout ? `Upper layout: ${upperLayout}` : ''}
 ${lowerLayout ? `Lower layout: ${lowerLayout}` : ''}
 
+도어 타입 구분:
+- 여닫이 도어 (Swing door): 힌지로 여는 일반 도어
+- 서랍 도어 (Drawer): 앞으로 당기는 서랍
+
 ═══════════════════════════════════════════════════════════════
-[SECTION 4: 사용자 선택 테마/컬러 적용] ★ 중요
+[SECTION 5: 사용자 선택 테마/컬러 적용] ★ 중요
 ═══════════════════════════════════════════════════════════════
 [STYLE: ${style}]
 ${styleKeywords ? styleKeywords : 'Modern Korean minimalist kitchen with clean seamless door panels.'}
@@ -834,13 +855,13 @@ ${colorPrompt ? `- 색상 스타일: ${colorPrompt}` : ''}
 ※ 반드시 위 사용자 선택 컬러로 모든 캐비닛 도어를 렌더링할 것
 
 ═══════════════════════════════════════════════════════════════
-[SECTION 5: 추가 마감재]
+[SECTION 6: 추가 마감재]
 ═══════════════════════════════════════════════════════════════
 - Countertop: ${countertop}
 - Handle: ${handleType}
-${sinkType ? `- Sink: ${sinkType}` : ''}
-${hoodType ? `- Hood: ${hoodType}` : ''}
-${cooktopType ? `- Cooktop: ${cooktopType}` : ''}
+${sinkType ? `- Sink: ${sinkType}` : '- Sink: 스테인리스 싱크볼'}
+${hoodType ? `- Hood: ${hoodType}` : '- Hood: 슬림형 레인지후드'}
+${cooktopType ? `- Cooktop: ${cooktopType}` : '- Cooktop: 3구 인덕션'}
 
 ═══════════════════════════════════════════════════════════════
 [STRICTLY FORBIDDEN]
@@ -850,19 +871,79 @@ ${cooktopType ? `- Cooktop: ${cooktopType}` : ''}
 ❌ NO arrows, lines, or technical markings
 ❌ NO watermarks or logos
 ❌ NO people or pets
+❌ NO 싱크볼/쿡탑 누락 (반드시 포함!)
 
 ═══════════════════════════════════════════════════════════════
 [OUTPUT]
 ═══════════════════════════════════════════════════════════════
-Clean photorealistic interior photograph.
+Clean photorealistic interior photograph of Korean kitchen (싱크대).
 Magazine quality, professional lighting.
-Construction mess cleaned up, walls finished nicely.
+All unfinished areas naturally completed.
+Sink bowl with centered faucet - MUST INCLUDE.
+Cooktop (induction/gas) with hood - MUST INCLUDE.
+Under sink: clean pipes and water distributor only.
 All cabinet doors CLOSED with user-selected color.`;
 }
 
 function buildOpenDoorPrompt(category: string): string {
+  // 싱크대(sink) 전용 프롬프트
+  if (category === 'sink') {
+    return `[TASK] 싱크대 도어 열기 - 닫힌 이미지 기반
+
+[CRITICAL - 닫힌 이미지를 정확히 반영]
+- KEEP the EXACT same camera angle and perspective
+- KEEP the EXACT same room background (walls, floor, ceiling, windows)
+- KEEP the EXACT same lighting conditions
+- KEEP the EXACT same door count, positions, sizes, colors, materials
+- KEEP the EXACT same sink bowl, faucet, cooktop, hood positions
+
+[DOOR TYPE 구분하여 열기] ★★★ 중요
+닫힌 이미지의 도어 타입을 정확히 파악하여 동일하게 열어야 함:
+
+여닫이 도어 (Swing door):
+→ 힌지를 기준으로 바깥쪽으로 90도 열기
+→ 도어가 옆으로 회전하여 열림
+
+서랍 도어 (Drawer):
+→ 앞쪽으로 30-40% 당겨서 열기
+→ 서랍 레일을 따라 직선으로 열림
+
+※ 여닫이 도어를 서랍처럼 열거나, 서랍을 여닫이처럼 열면 안됨!
+
+[싱크볼 하부 (개수대 아래) - 도어 열렸을 때 보이는 내용]
+반드시 포함:
+- 배수관 (P트랩 또는 S트랩)
+- 급수관 (냉/온수 배관)
+- 수도 분배기 (앵글밸브)
+
+반드시 제외 (없어야 함):
+❌ 쓰레기통
+❌ 세제, 청소용품
+❌ 비닐봉지, 잡동사니
+❌ 기타 수납물품
+
+→ 깔끔한 배관만 보이도록!
+
+[일반 캐비닛 내부 - 도어 열렸을 때]
+- 그릇, 접시, 컵
+- 냄비, 프라이팬
+- 조리도구
+- 정리된 수납 상태
+
+[ABSOLUTELY FORBIDDEN]
+- NEVER add dimension labels, measurements, or text
+- NEVER change the background or room elements
+- NEVER change the camera angle
+- NEVER change door types (swing↔drawer 변경 금지)
+
+[OUTPUT]
+Photorealistic kitchen image with doors open.
+Door types match exactly with closed image.
+Under sink: only clean pipes and valves visible.`;
+  }
+
+  // 다른 카테고리용 기본 프롬프트
   const contents: Record<string, string> = {
-    sink: '그릇, 접시, 컵, 냄비, 조리도구',
     wardrobe: '셔츠, 재킷, 바지, 서랍 속 옷',
     fridge: '커피머신, 토스터, 식료품',
     storage: '책, 수납박스, 바구니',
@@ -877,9 +958,9 @@ function buildOpenDoorPrompt(category: string): string {
 - KEEP the EXACT same door count, positions, sizes
 - KEEP the EXACT same colors and materials
 
-[CHANGE ONLY - DOOR STATE]
-- Swing doors: open 90 degrees outward
-- Drawers: pull out 30-40%
+[DOOR TYPE 구분하여 열기]
+여닫이 도어 (Swing door): 힌지 기준 바깥쪽 90도 열기
+서랍 도어 (Drawer): 앞으로 30-40% 당기기
 
 [INTERIOR CONTENTS - ${category}]
 ${contents[category] || contents.storage}
