@@ -10,6 +10,7 @@ import {
   searchRagRules,
   geminiVisionAnalysis,
   geminiImageGeneration,
+  geminiChat,
   extractTextFromGeminiResponse,
   extractImageFromGeminiResponse,
   extractJsonFromText,
@@ -221,6 +222,90 @@ app.post('/webhook/design-to-image', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
+// AI 채팅 API
+// n8n /webhook/chat 대체
+// ─────────────────────────────────────────────────────────────────
+
+app.post('/webhook/chat', async (req, res) => {
+  console.log('[API] /webhook/chat called');
+
+  try {
+    const body = req.body;
+    const message = body.message || '';
+    const context = body.context || {};
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: 'message is required',
+      });
+    }
+
+    // 시스템 프롬프트 구성
+    const systemPrompt = buildChatSystemPrompt(context);
+
+    console.log(`[API] Chat message: "${message.substring(0, 50)}..."`);
+
+    // Gemini 채팅 호출
+    const response = await geminiChat(message, systemPrompt);
+    const aiResponse = extractTextFromGeminiResponse(response);
+
+    if (!aiResponse) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate response',
+      });
+    }
+
+    console.log('[API] Chat response generated');
+
+    res.json({
+      success: true,
+      response: aiResponse,
+      output: aiResponse,
+    });
+
+  } catch (error) {
+    console.error('[API] Chat error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      response: '죄송합니다. 응답 생성 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+function buildChatSystemPrompt(context: Record<string, unknown>): string {
+  const page = context.page || 'unknown';
+  const itemCount = context.itemCount || 0;
+  const designData = context.designData as Record<string, unknown> | undefined;
+
+  let designContext = '';
+  if (designData && designData.items) {
+    const items = designData.items as unknown[];
+    designContext = `현재 설계에 ${items.length}개의 가구 아이템이 있습니다.`;
+  }
+
+  return `당신은 다담AI 가구 설계 어시스턴트입니다.
+한국어로 친절하고 전문적으로 답변해주세요.
+
+[역할]
+- 한국형 빌트인 가구(싱크대, 붙박이장, 냉장고장 등) 설계 전문가
+- 사용자의 가구 배치, 치수, 스타일 질문에 답변
+- 설계 팁과 추천 제공
+
+[현재 상황]
+- 페이지: ${page}
+- 아이템 수: ${itemCount}
+${designContext}
+
+[응답 가이드라인]
+- 간결하고 명확하게 답변
+- 구체적인 치수나 규격이 필요하면 한국 표준 기준 제시
+- 질문이 불분명하면 확인 질문을 먼저 함`;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────
 
@@ -404,6 +489,7 @@ app.listen(PORT, () => {
   console.log('║  Endpoints:                                               ║');
   console.log('║    POST /webhook/dadam-interior-v4                        ║');
   console.log('║    POST /webhook/design-to-image                          ║');
+  console.log('║    POST /webhook/chat                                     ║');
   console.log('║    GET  /health                                           ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
 });

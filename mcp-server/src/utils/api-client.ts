@@ -185,3 +185,31 @@ export function extractJsonFromText(text: string): Record<string, unknown> | nul
     return null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Gemini Chat (Text-only)
+// ─────────────────────────────────────────────────────────────────
+
+export async function geminiChat(
+  message: string,
+  systemPrompt?: string
+): Promise<GeminiResponse> {
+  const config = getConfig();
+
+  const parts: GeminiRequest['contents'][0]['parts'] = [];
+
+  if (systemPrompt) {
+    parts.push({ text: systemPrompt });
+  }
+  parts.push({ text: message });
+
+  const request: GeminiRequest = {
+    contents: [{ parts }],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 2048,
+    },
+  };
+
+  return geminiGenerate(config.gemini.models.vision, request);
+}
