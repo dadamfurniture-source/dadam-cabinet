@@ -9065,6 +9065,58 @@
       // ============================================================
       // AI 디자인 생성 시스템 (설계 데이터 기반 - Fast Generation)
       // ============================================================
+
+      // 스타일 추출 헬퍼 함수
+      function extractStyleFromSpecs(specs) {
+        if (!specs) return 'modern minimal white';
+        const styles = [];
+
+        // 마감재 스타일
+        if (specs.doorFinishUpper === '무광' || specs.doorFinishLower === '무광') {
+          styles.push('matte');
+        } else if (specs.doorFinishUpper === '유광') {
+          styles.push('glossy');
+        }
+
+        // 색상 스타일
+        const colorMap = {
+          '화이트': 'white', '그레이': 'gray', '블랙': 'black',
+          '아이보리': 'ivory', '오크': 'oak', '월넛': 'walnut'
+        };
+        if (specs.doorColorUpper && colorMap[specs.doorColorUpper]) {
+          styles.push(colorMap[specs.doorColorUpper]);
+        }
+
+        // 핸들 스타일
+        if (specs.handle?.includes('푸시') || specs.handle?.includes('push')) {
+          styles.push('handleless');
+        }
+
+        return `modern minimal korean ${styles.join(' ')}`.trim();
+      }
+
+      // 모듈 위치 계산 헬퍼 함수
+      function calculateModulePositions(modules, section) {
+        let currentPos = 0;
+        return modules
+          .filter(m => m.pos === section || m.type === section)
+          .map(m => {
+            const moduleWithPos = {
+              ...m,
+              position_from_left_mm: currentPos,
+              width_mm: parseInt(m.w) || 0,
+              height_mm: parseInt(m.h) || 0,
+              depth_mm: parseInt(m.d) || 0,
+              is_drawer: m.isDrawer || false,
+              door_count: m.doorCount || 1,
+              has_sink: m.moduleType === 'sink' || m.name?.includes('싱크'),
+              has_cooktop: m.moduleType === 'cooktop' || m.name?.includes('쿡탑') || m.name?.includes('인덕션'),
+            };
+            currentPos += parseInt(m.w) || 0;
+            return moduleWithPos;
+          });
+      }
+
       async function generateAIDesign() {
         // 1. 설계 데이터 추출
         const design = window.DadamAgent.exportDesign();
@@ -9078,13 +9130,98 @@
         showAIGeneratingModal();
 
         try {
-          // 3. n8n 워크플로우 호출 (설계 데이터 기반)
+          // 3. 첫 번째 아이템 기준으로 상세 사양 추출
+          const mainItem = design.items[0];
+          const specs = mainItem.specs || {};
+          const modules = mainItem.modules || [];
+
+          // 4. 카테고리 및 스타일 결정
+          const category = mainItem.categoryId || mainItem.category || 'sink';
+          const style = extractStyleFromSpecs(specs);
+
+          // 5. 상세 캐비넷 사양 구성
+          const cabinetSpecs = {
+            // 기본 치수
+            total_width_mm: parseInt(mainItem.w) || 0,
+            total_height_mm: parseInt(mainItem.h) || 0,
+            depth_mm: parseInt(mainItem.d) || 0,
+
+            // 높이 세부 사항
+            upper_cabinet_height: specs.upperH || 720,
+            lower_cabinet_height: specs.lowerH || 870,
+            molding_height: specs.moldingH || 60,
+            leg_height: specs.sinkLegHeight || specs.legH || 150,
+            countertop_thickness: specs.topThickness || 20,
+
+            // 색상 및 마감
+            door_color_upper: specs.doorColorUpper || '화이트',
+            door_color_lower: specs.doorColorLower || '화이트',
+            door_finish_upper: specs.doorFinishUpper || '무광',
+            door_finish_lower: specs.doorFinishLower || '무광',
+            countertop_color: specs.topColor || '스노우',
+
+            // 하드웨어
+            handle_type: specs.handle || 'push-open',
+
+            // 가전 (싱크대/아일랜드)
+            sink_type: specs.sink || null,
+            faucet_type: specs.faucet || null,
+            hood_type: specs.hood || null,
+            cooktop_type: specs.cooktop || null,
+
+            // 마감 (좌우)
+            finish_left_type: specs.finishLeftType || 'Molding',
+            finish_left_width: specs.finishLeftWidth || 60,
+            finish_right_type: specs.finishRightType || 'Molding',
+            finish_right_width: specs.finishRightWidth || 60,
+          };
+
+          // 6. 모듈 레이아웃 구성
+          const upperModules = calculateModulePositions(modules, 'upper');
+          const lowerModules = calculateModulePositions(modules, 'lower');
+
+          // 싱크대/쿡탑 위치 찾기
+          const sinkModule = lowerModules.find(m => m.has_sink);
+          const cooktopModule = lowerModules.find(m => m.has_cooktop);
+
+          if (sinkModule) {
+            cabinetSpecs.sink_position_mm = sinkModule.position_from_left_mm;
+          }
+          if (cooktopModule) {
+            cabinetSpecs.cooktop_position_mm = cooktopModule.position_from_left_mm;
+          }
+
+          console.log('AI 디자인 생성 요청:', {
+            category,
+            style,
+            cabinetSpecs,
+            upperModules: upperModules.length,
+            lowerModules: lowerModules.length
+          });
+
+          // 7. n8n 워크플로우 호출 (강화된 페이로드)
           const response = await fetch(N8N_AI_DESIGN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              // 기본 정보
+              category: category,
+              style: style,
+              design_style: style,
+
+              // 상세 캐비넷 사양
+              cabinet_specs: cabinetSpecs,
+
+              // 모듈 레이아웃
+              modules: {
+                upper: upperModules,
+                lower: lowerModules,
+                upper_count: upperModules.length,
+                lower_count: lowerModules.length,
+              },
+
+              // 레거시 호환 (기존 Parse Design Data 노드)
               design_data: design,
-              style: 'modern minimal',
               items: design.items.map((item) => ({
                 categoryId: item.categoryId || item.category,
                 category: item.categoryId || item.category,
@@ -10652,7 +10789,8 @@
       const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 
       // AI 디자인 생성 API URL (설계 데이터 기반 - Fast Generation)
-      const N8N_AI_DESIGN_URL = 'https://dadam.app.n8n.cloud/webhook/design-to-image';
+      // Cloudflare Proxy 경유 (CORS 해결)
+      const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev/webhook/design-to-image';
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
       // ═══════════════════════════════════════════════════════════════
