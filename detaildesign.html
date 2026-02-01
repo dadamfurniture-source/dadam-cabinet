@@ -9347,42 +9347,86 @@
         const existing = document.querySelector('.ai-design-result-modal');
         if (existing) existing.remove();
 
+        // 이미지 URL 추출
+        let closedImageUrl = '';
+        let openImageUrl = '';
+
+        if (data.generated_image) {
+          // 닫힌 도어 이미지
+          if (data.generated_image.closed && data.generated_image.closed.base64) {
+            const mimeType = data.generated_image.closed.mime_type || 'image/png';
+            closedImageUrl = `data:${mimeType};base64,${data.generated_image.closed.base64}`;
+          } else if (data.generated_image.base64) {
+            const mimeType = data.generated_image.mime_type || 'image/png';
+            closedImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
+          }
+          // 열린 도어 이미지
+          if (data.generated_image.open && data.generated_image.open.base64) {
+            const mimeType = data.generated_image.open.mime_type || 'image/png';
+            openImageUrl = `data:${mimeType};base64,${data.generated_image.open.base64}`;
+          }
+        } else if (data.image_url) {
+          closedImageUrl = data.image_url;
+        }
+
+        const hasOpenImage = !!openImageUrl;
+
         const modal = document.createElement('div');
         modal.className = 'ai-design-result-modal';
         modal.style.cssText =
           'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
         modal.innerHTML = `
-    <div style="background:#fff;border-radius:20px;max-width:800px;width:90%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+    <div style="background:#fff;border-radius:20px;max-width:900px;width:95%;max-height:95vh;overflow:hidden;display:flex;flex-direction:column;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #EBE8E2;">
         <h3 style="margin:0;font-size:18px;color:#2D2A26;">🎨 AI 디자인 결과</h3>
         <button onclick="this.closest('.ai-design-result-modal').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#8B8680;line-height:1;">&times;</button>
       </div>
       <div style="padding:24px;overflow-y:auto;flex:1;">
-        ${
-          data.generated_image
-            ? `
-          <img src="data:image/png;base64,${data.generated_image.base64 || data.generated_image}"
-               style="width:100%;border-radius:12px;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
-        `
-            : data.image_url
-              ? `
-          <img src="${data.image_url}"
-               style="width:100%;border-radius:12px;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
-        `
-              : ''
-        }
+        ${closedImageUrl ? `
+        <!-- 이미지 뷰어 -->
+        <div style="position:relative;margin-bottom:16px;">
+          <!-- 상태 표시 -->
+          <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;">
+            <span id="aiResultStatus" style="background:#6366F1;color:#fff;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:500;">
+              🚪 닫힌 도어
+            </span>
+          </div>
+
+          <!-- 이미지 컨테이너 -->
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            ${hasOpenImage ? `<button onclick="aiResultPrevImage()" style="position:absolute;left:8px;z-index:10;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15);">◀</button>` : ''}
+            <img id="aiResultImage"
+                 src="${closedImageUrl}"
+                 data-closed="${closedImageUrl}"
+                 data-open="${openImageUrl}"
+                 data-state="closed"
+                 style="width:100%;max-height:60vh;object-fit:contain;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+            ${hasOpenImage ? `<button onclick="aiResultNextImage()" style="position:absolute;right:8px;z-index:10;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15);">▶</button>` : ''}
+          </div>
+
+          ${hasOpenImage ? `
+          <!-- 인디케이터 -->
+          <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;">
+            <div id="aiDot0" onclick="aiResultGoToImage(0)" style="width:10px;height:10px;border-radius:50%;background:#6366F1;cursor:pointer;transition:all 0.2s;"></div>
+            <div id="aiDot1" onclick="aiResultGoToImage(1)" style="width:10px;height:10px;border-radius:50%;background:#D1D5DB;cursor:pointer;transition:all 0.2s;"></div>
+          </div>
+          <div style="text-align:center;margin-top:8px;font-size:12px;color:#8B8680;">
+            ◀ ▶ 화살표로 닫힌 도어 / 열린 도어 전환
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
         <div style="background:#F8F7F4;padding:16px;border-radius:12px;color:#2D2A26;line-height:1.7;">
           ${data.analysis || data.message || data.output || '디자인이 생성되었습니다.'}
+          ${data.rag_rules_count ? `<br><small style="color:#8B8680;">RAG 규칙 ${data.rag_rules_count}개 적용</small>` : ''}
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #EBE8E2;">
-        ${
-          data.generated_image || data.image_url
-            ? `
-          <button onclick="downloadAIDesignImage()" style="padding:12px 24px;background:#6366F1;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">💾 이미지 저장</button>
-        `
-            : ''
-        }
+        ${closedImageUrl ? `
+          <button onclick="downloadAIDesignImage('closed')" style="padding:12px 24px;background:#6366F1;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">💾 닫힌 도어 저장</button>
+          ${hasOpenImage ? `<button onclick="downloadAIDesignImage('open')" style="padding:12px 24px;background:#10B981;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">💾 열린 도어 저장</button>` : ''}
+        ` : ''}
         <button onclick="this.closest('.ai-design-result-modal').remove()" style="padding:12px 24px;background:#EBE8E2;color:#2D2A26;border:none;border-radius:10px;font-size:14px;cursor:pointer;">닫기</button>
       </div>
     </div>
@@ -9390,6 +9434,7 @@
 
         // 결과 데이터 저장 (다운로드용)
         window._aiDesignResult = data;
+        window._aiDesignImages = { closed: closedImageUrl, open: openImageUrl };
 
         document.body.appendChild(modal);
 
@@ -9399,24 +9444,59 @@
         // });
       }
 
-      // AI 디자인 이미지 다운로드
-      function downloadAIDesignImage() {
-        const data = window._aiDesignResult;
-        if (!data) return;
+      // AI 결과 이미지 네비게이션
+      function aiResultGoToImage(index) {
+        const img = document.getElementById('aiResultImage');
+        const status = document.getElementById('aiResultStatus');
+        if (!img) return;
 
-        let imageUrl;
-        if (data.generated_image) {
-          const base64 = data.generated_image.base64 || data.generated_image;
-          imageUrl = `data:image/png;base64,${base64}`;
-        } else if (data.image_url) {
-          imageUrl = data.image_url;
+        const closedUrl = img.dataset.closed;
+        const openUrl = img.dataset.open;
+
+        if (index === 0) {
+          img.src = closedUrl;
+          img.dataset.state = 'closed';
+          status.innerHTML = '🚪 닫힌 도어';
+          status.style.background = '#6366F1';
+        } else if (index === 1 && openUrl) {
+          img.src = openUrl;
+          img.dataset.state = 'open';
+          status.innerHTML = '🚪 열린 도어';
+          status.style.background = '#10B981';
         }
 
-        if (imageUrl) {
-          const a = document.createElement('a');
-          a.href = imageUrl;
-          a.download = `ai-design-${new Date().toISOString().slice(0, 10)}.png`;
-          a.click();
+        // 인디케이터 업데이트
+        document.getElementById('aiDot0').style.background = index === 0 ? '#6366F1' : '#D1D5DB';
+        document.getElementById('aiDot1').style.background = index === 1 ? '#10B981' : '#D1D5DB';
+      }
+
+      function aiResultNextImage() {
+        const img = document.getElementById('aiResultImage');
+        if (!img) return;
+        const currentState = img.dataset.state;
+        aiResultGoToImage(currentState === 'closed' ? 1 : 0);
+      }
+
+      function aiResultPrevImage() {
+        const img = document.getElementById('aiResultImage');
+        if (!img) return;
+        const currentState = img.dataset.state;
+        aiResultGoToImage(currentState === 'closed' ? 1 : 0);
+      }
+
+      // AI 디자인 이미지 다운로드
+      function downloadAIDesignImage(type = 'closed') {
+        const images = window._aiDesignImages;
+        if (!images) return;
+
+        const imageUrl = type === 'open' ? images.open : images.closed;
+        if (!imageUrl) return;
+
+        const suffix = type === 'open' ? '-open' : '-closed';
+        const a = document.createElement('a');
+        a.href = imageUrl;
+        a.download = `ai-design${suffix}-${new Date().toISOString().slice(0, 10)}.png`;
+        a.click();
         }
       }
 
