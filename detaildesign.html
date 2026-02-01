@@ -9117,6 +9117,30 @@
           });
       }
 
+      // 이미지 URL을 base64로 변환하는 함수
+      async function fetchImageAsBase64(imageUrl) {
+        try {
+          const response = await fetch(imageUrl);
+          if (!response.ok) throw new Error('이미지 로드 실패');
+
+          const blob = await response.blob();
+          const mimeType = blob.type || 'image/jpeg';
+
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result.split(',')[1]; // data:image/...;base64, 제거
+              resolve({ base64, type: mimeType });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('이미지 변환 실패:', error);
+          return null;
+        }
+      }
+
       async function generateAIDesign() {
         // 1. 설계 데이터 추출
         const design = window.DadamAgent.exportDesign();
@@ -9191,19 +9215,43 @@
             cabinetSpecs.cooktop_position_mm = cooktopModule.position_from_left_mm;
           }
 
+          // 7. 현장 사진 확인 및 변환
+          let roomImageData = null;
+          const sitePhotoUrl = mainItem.imageUrl || mainItem.image;
+
+          if (sitePhotoUrl && sitePhotoUrl !== 'loading') {
+            console.log('현장 사진 발견:', sitePhotoUrl);
+            roomImageData = await fetchImageAsBase64(sitePhotoUrl);
+            if (roomImageData) {
+              console.log('현장 사진 변환 성공:', roomImageData.type);
+            }
+          }
+
+          // 8. 엔드포인트 결정 (이미지 유무에 따라)
+          // 이미지가 있으면 메인 워크플로우 (Wall Analysis 포함), 없으면 design-to-image
+          const apiEndpoint = roomImageData
+            ? 'https://dadam-proxy.dadamfurniture.workers.dev'  // 메인 워크플로우
+            : N8N_AI_DESIGN_URL;  // design-to-image 워크플로우
+
           console.log('AI 디자인 생성 요청:', {
             category,
             style,
             cabinetSpecs,
             upperModules: upperModules.length,
-            lowerModules: lowerModules.length
+            lowerModules: lowerModules.length,
+            hasRoomImage: !!roomImageData,
+            endpoint: apiEndpoint
           });
 
-          // 7. n8n 워크플로우 호출 (강화된 페이로드)
-          const response = await fetch(N8N_AI_DESIGN_URL, {
+          // 9. n8n 워크플로우 호출 (강화된 페이로드)
+          const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              // 현장 사진 (있는 경우)
+              room_image: roomImageData?.base64 || '',
+              image_type: roomImageData?.type || 'image/jpeg',
+
               // 기본 정보
               category: category,
               style: style,
@@ -10789,8 +10837,8 @@
       const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
 
       // AI 디자인 생성 API URL (설계 데이터 기반 - Fast Generation)
-      // Cloudflare Proxy 경유 (CORS 해결)
-      const N8N_AI_DESIGN_URL = 'https://dadam-proxy.dadamfurniture.workers.dev/webhook/design-to-image';
+      // 직접 n8n URL 사용 (Cloudflare Proxy가 경로를 제대로 전달하지 않음)
+      const N8N_AI_DESIGN_URL = 'https://dadam.app.n8n.cloud/webhook/design-to-image';
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
       // ═══════════════════════════════════════════════════════════════
