@@ -110,20 +110,30 @@ export interface TileCount {
 
 export interface UtilityPosition {
   detected: boolean;
-  from_left_mm: number;
-  from_left_percent: number;
-  height_mm?: number;
-  description: string;
+  from_origin_mm: number;      // 기준점(0mm)에서의 거리
+  from_floor_mm?: number;      // 바닥에서의 높이
+  from_left_mm?: number;       // 레거시 호환
+  from_left_percent?: number;  // 레거시 호환
+  height_mm?: number;          // 레거시 호환
+  description?: string;
+}
+
+export interface ReferenceWall {
+  origin_point: 'open_edge' | 'far_from_hood' | 'left_edge';
+  origin_reason: string;
 }
 
 export interface UtilityPositions {
   water_supply?: UtilityPosition;
   exhaust_duct?: UtilityPosition;
-  gas_line?: UtilityPosition;
+  gas_pipe?: UtilityPosition;   // gas_line에서 변경
+  gas_line?: UtilityPosition;   // 레거시 호환
   electrical_outlets?: Array<{
-    from_left_mm: number;
-    height_mm: number;
-    type: string;
+    from_origin_mm: number;
+    from_floor_mm: number;
+    from_left_mm?: number;      // 레거시 호환
+    height_mm?: number;         // 레거시 호환
+    type?: string;
   }>;
 }
 
@@ -135,17 +145,34 @@ export interface FurniturePlacement {
 }
 
 export interface WallAnalysis {
+  // 기준벽 정보
+  reference_wall?: ReferenceWall;
+
+  // 타일 측정
   tile_detected: boolean;
   tile_type: string;
   tile_size_mm: TileSize;
   tile_count?: TileCount;
+  tile_measurement?: {
+    detected: boolean;
+    tile_size_mm: TileSize;
+    tile_count: TileCount;
+  };
+
+  // 벽 치수
   wall_dimensions_mm?: {
     width: number;
     height: number;
   };
   wall_width_mm: number;
   wall_height_mm: number;
+
+  // 배관 위치 (배관 기반 설비 배치용)
   utility_positions?: UtilityPositions;
+  water_pipe_x?: number;      // 수도 배관 X 위치 (간편 접근용)
+  exhaust_duct_x?: number;    // 후드 배기구 X 위치 (간편 접근용)
+  gas_pipe_x?: number;        // 가스 배관 X 위치 (간편 접근용)
+
   furniture_placement?: FurniturePlacement;
   reference_used?: string;
   confidence: 'high' | 'medium' | 'low';

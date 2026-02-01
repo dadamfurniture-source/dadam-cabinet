@@ -16,6 +16,12 @@ import {
   extractJsonFromText,
 } from './utils/api-client.js';
 import type { WallAnalysis, DesignRule, RuleType } from './types/index.js';
+import {
+  searchInteriorImages,
+  getCategoryQuery,
+  trackDownload,
+  type UnsplashImage,
+} from './services/unsplash-service.js';
 
 // 환경 변수 로드
 config();
@@ -52,10 +58,23 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
     const roomImage = body.room_image || '';
     const imageType = body.image_type || 'image/jpeg';
 
+    // 테마/컬러 데이터 (프론트엔드에서 전달)
+    const styleKeywords = body.style_keywords || '';
+    const styleAtmosphere = body.style_atmosphere || '';
+    const colorName = body.color_name || '';
+    const colorHex = body.color_hex || '';
+    const colorPrompt = body.color_prompt || '';
+
     // 설계 데이터 추출
     const cabinetSpecs = body.cabinet_specs || {};
     const modules = body.modules || {};
     const items = body.items || body.design_data?.items || [];
+
+    // 테마/컬러 정보를 cabinetSpecs에 병합
+    if (colorName) {
+      cabinetSpecs.door_color_upper = colorName;
+      cabinetSpecs.door_color_lower = colorName;
+    }
 
     if (!roomImage) {
       return res.status(400).json({
@@ -68,6 +87,7 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
     const triggers = getTriggers(category, style);
 
     console.log(`[API] Category: ${category}, Style: ${style}`);
+    console.log(`[API] Theme: ${styleKeywords}, Color: ${colorName} (${colorHex})`);
     console.log(`[API] Cabinet specs: ${JSON.stringify(cabinetSpecs)}`);
     console.log(`[API] Modules: upper=${modules.upper_count || modules.upper?.length || 0}, lower=${modules.lower_count || modules.lower?.length || 0}`);
     console.log(`[API] Upper modules: ${JSON.stringify(modules.upper || [])}`);
@@ -106,15 +126,27 @@ app.post('/webhook/dadam-interior-v4', async (req, res) => {
         const parsed = extractJsonFromText(wallText) as WallAnalysis | null;
         if (parsed) {
           wallData = { ...wallData, ...parsed };
+
+          // 배관 위치 간편 접근용 필드 설정
+          if (parsed.utility_positions) {
+            wallData.water_pipe_x = parsed.utility_positions.water_supply?.from_origin_mm
+              || parsed.utility_positions.water_supply?.from_left_mm || 800;
+            wallData.exhaust_duct_x = parsed.utility_positions.exhaust_duct?.from_origin_mm
+              || parsed.utility_positions.exhaust_duct?.from_left_mm || 2200;
+            wallData.gas_pipe_x = parsed.utility_positions.gas_pipe?.from_origin_mm
+              || parsed.utility_positions.gas_line?.from_origin_mm || 2000;
+          }
+
           console.log(`[API] Wall analysis complete: ${wallData.wall_width_mm}x${wallData.wall_height_mm}mm`);
+          console.log(`[API] Utility positions - Water: ${wallData.water_pipe_x}mm, Hood: ${wallData.exhaust_duct_x}mm, Gas: ${wallData.gas_pipe_x}mm`);
         }
       }
     } catch (error) {
       console.log('[API] Wall analysis failed, using defaults');
     }
 
-    // 4. 프롬프트 조립 (설계 데이터 포함)
-    const closedPrompt = buildClosedDoorPrompt(category, style, wallData, classifiedRules, cabinetSpecs, modules);
+    // 4. 프롬프트 조립 (설계 데이터 + 테마/컬러 포함)
+    const closedPrompt = buildClosedDoorPrompt(category, style, wallData, classifiedRules, cabinetSpecs, modules, styleKeywords, styleAtmosphere, colorPrompt);
 
     // 5. 닫힌 도어 이미지 생성
     console.log('[API] Generating closed door image...');
@@ -291,6 +323,172 @@ app.post('/webhook/chat', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// 테마 갤러리 API: 인테리어 테마 이미지 조회
+// ─────────────────────────────────────────────────────────────────
+
+app.get('/api/themes/images', async (req, res) => {
+  console.log('[API] /api/themes/images called');
+
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const perPage = parseInt(req.query.per_page as string) || 20;
+    const query = (req.query.query as string) || 'korean interior kitchen';
+    const category = req.query.category as string;
+
+    // 카테고리가 제공되면 해당 쿼리 사용
+    const searchQuery = category ? getCategoryQuery(category) : query;
+
+    console.log(`[API] Theme search: "${searchQuery}" (page ${page}, per_page ${perPage})`);
+
+    const result = await searchInteriorImages(searchQuery, page, perPage);
+
+    res.json(result);
+  } catch (error) {
+    console.error('[API] Theme images error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch theme images',
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 테마 기반 AI 이미지 생성
+// ─────────────────────────────────────────────────────────────────
+
+app.post('/api/themes/generate', async (req, res) => {
+  console.log('[API] /api/themes/generate called');
+
+  try {
+    const body = req.body;
+    const style = body.style || 'modern-minimal';
+    const styleKeywords = body.styleKeywords || '';
+    const styleAtmosphere = body.styleAtmosphere || '';
+    const color = body.color || 'pure-white';
+    const colorPrompt = body.colorPrompt || 'pure white matte finish';
+    const colorHex = body.colorHex || '#FFFFFF';
+    const cabinetSpecs = body.cabinetSpecs || {};
+
+    console.log(`[API] Generating design: style=${style}, color=${color}`);
+
+    // 스타일+컬러 기반 프롬프트 생성
+    const prompt = buildStyleColorPrompt(style, styleKeywords, styleAtmosphere, colorPrompt, cabinetSpecs);
+
+    // Gemini 이미지 생성 (참조 이미지 없이)
+    console.log('[API] Generating AI image...');
+    const response = await geminiImageGeneration(prompt);
+    const generatedImage = extractImageFromGeminiResponse(response);
+
+    if (!generatedImage) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate image',
+      });
+    }
+
+    console.log('[API] Style-based image generated successfully');
+
+    res.json({
+      success: true,
+      generatedImage: {
+        base64: generatedImage,
+        mimeType: 'image/png',
+      },
+    });
+  } catch (error) {
+    console.error('[API] Theme generate error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * 스타일+컬러 기반 프롬프트 빌더
+ */
+function buildStyleColorPrompt(
+  style: string,
+  styleKeywords: string,
+  styleAtmosphere: string,
+  colorPrompt: string,
+  cabinetSpecs?: CabinetSpecs
+): string {
+  const specs = cabinetSpecs || {};
+
+  let specsSection = '';
+  if (Object.keys(specs).length > 0) {
+    specsSection = `
+[CABINET SPECIFICATIONS]
+${specs.total_width_mm ? `- Total width: ${specs.total_width_mm}mm` : ''}
+${specs.total_height_mm ? `- Total height: ${specs.total_height_mm}mm` : ''}
+${specs.countertop_color ? `- Countertop: ${specs.countertop_color}` : ''}
+${specs.handle_type ? `- Handle: ${specs.handle_type}` : ''}`;
+  }
+
+  return `[MOST IMPORTANT - READ FIRST]
+This is a PHOTO generation task, NOT a technical drawing.
+DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS TO THE IMAGE.
+The output must be a CLEAN photograph with NO annotations whatsoever.
+
+[TASK: KOREAN APARTMENT KITCHEN - PHOTOREALISTIC PHOTOGRAPH]
+Generate a photorealistic interior photograph of a modern Korean apartment kitchen.
+
+[INTERIOR STYLE: ${style.toUpperCase().replace('-', ' ')}]
+Style keywords: ${styleKeywords}
+Atmosphere: ${styleAtmosphere}
+
+[DOOR COLOR & FINISH]
+Cabinet door color: ${colorPrompt}
+- Apply this color consistently to all cabinet doors (upper and lower)
+- Matte or satin finish preferred
+- Seamless flat panel doors with concealed hinges
+
+[KITCHEN LAYOUT]
+- Korean I-shaped or L-shaped kitchen layout
+- Upper cabinets: wall-mounted, reaching near ceiling
+- Lower cabinets: base cabinets with countertop
+- Integrated sink and cooktop area
+- Clean countertop surface (engineered stone or similar)
+
+[ROOM SETTING]
+- Modern Korean apartment (typical 30-40 pyeong apartment)
+- Ceiling height: approximately 2.3-2.4m
+- Natural lighting from window (if visible)
+- Light-colored walls (white or light gray)
+- Light wood or tile flooring
+
+[APPLIANCES & FIXTURES]
+- Built-in or under-counter refrigerator space
+- Recessed or slim range hood
+- Modern single-lever faucet
+- Undermount or integrated sink
+${specsSection}
+
+[CAMERA ANGLE]
+- Eye-level perspective, slightly angled
+- Show full kitchen from one end
+- Professional interior photography composition
+
+[STRICTLY FORBIDDEN - WILL REJECT IF VIOLATED]
+- NO dimension labels, measurements, or rulers
+- NO text, numbers, letters, or characters anywhere
+- NO arrows, lines, or technical markings
+- NO watermarks, logos, or brand names
+- NO people, pets, or moving objects
+- NO food items or cooking utensils on counters
+- NO annotations of any kind
+
+[OUTPUT REQUIREMENTS]
+- Photorealistic quality (must look like a real photograph)
+- Magazine-quality interior design photography
+- Professional lighting with natural feel
+- All cabinet doors CLOSED
+- Clean, uncluttered countertops
+- High resolution, sharp details`;
+}
+
 function buildChatSystemPrompt(context: Record<string, unknown>): string {
   const page = context.page || 'unknown';
   const itemCount = context.itemCount || 0;
@@ -370,25 +568,59 @@ function classifyRules(rules: DesignRule[]): ClassifiedRules {
 
 function getDefaultWallData(): WallAnalysis {
   return {
+    reference_wall: {
+      origin_point: 'left_edge',
+      origin_reason: '기본값: 왼쪽 끝선 기준',
+    },
     tile_detected: false,
     tile_type: 'standard_wall',
     tile_size_mm: { width: 300, height: 600 },
     wall_width_mm: 3000,
     wall_height_mm: 2400,
+    // 배관 위치 기본값 (일반적인 한국 주방 레이아웃)
+    water_pipe_x: 800,       // 싱크대 위치 (왼쪽에서 800mm)
+    exhaust_duct_x: 2200,    // 후드 위치 (왼쪽에서 2200mm)
+    gas_pipe_x: 2000,        // 가스레인지 위치 (왼쪽에서 2000mm)
     confidence: 'low',
   };
 }
 
-const WALL_ANALYSIS_PROMPT = `Analyze this room photo for wall dimensions and utility positions.
+const WALL_ANALYSIS_PROMPT = `[TASK: KOREAN KITCHEN WALL ANALYSIS]
+
+[STEP 1: 기준벽 및 기준점(0mm) 설정]
+기준점 설정 우선순위:
+1순위: 벽이 없이 틔어져 있는 끝선 (개방된 공간 쪽)
+2순위: 양쪽이 막혀 있다면 → 후드에서 먼 쪽 끝선을 기준점으로 설정
+
+※ 해당 기준점을 0mm로 설정하고, 반대 방향으로 거리 측정
+
+[STEP 2: 타일을 자(Ruler)로 활용한 치수 측정]
+- 벽 타일이 있는 경우: 타일 1장 = 가로 300mm × 세로 600mm (한국 표준 규격)
+- 타일 개수를 세어 전체 벽면 크기 계산
+- 타일이 없는 경우: 표준 한국 아파트 천장 높이 2400mm 기준으로 추정
+
+[STEP 3: 배관 및 설비 위치 식별]
+기준점(0mm)에서의 거리를 계산:
+- 수도 배관 (급수/배수): 싱크볼 설치 위치 결정용
+- 후드 배기구멍: 후드 및 쿡탑 설치 위치 결정용
+- 가스 배관: 가스레인지/쿡탑 설치 위치 결정용
+
 Output JSON only:
 {
-  "tile_detected": true/false,
-  "tile_type": "standard_wall",
-  "tile_size_mm": { "width": 300, "height": 600 },
+  "reference_wall": {
+    "origin_point": "open_edge or far_from_hood",
+    "origin_reason": "1: 틔어진 끝선 or 2: 양쪽 막힘 - 후드 반대편 기준"
+  },
+  "tile_measurement": {
+    "detected": true/false,
+    "tile_size_mm": { "width": 300, "height": 600 },
+    "tile_count": { "horizontal": 10, "vertical": 4 }
+  },
   "wall_dimensions_mm": { "width": 3000, "height": 2400 },
   "utility_positions": {
-    "water_supply": { "detected": true/false, "from_left_mm": 800 },
-    "exhaust_duct": { "detected": true/false, "from_left_mm": 2200 }
+    "water_supply": { "detected": true/false, "from_origin_mm": 800, "from_floor_mm": 500 },
+    "exhaust_duct": { "detected": true/false, "from_origin_mm": 2200, "from_floor_mm": 2100 },
+    "gas_pipe": { "detected": true/false, "from_origin_mm": 2000, "from_floor_mm": 800 }
   },
   "confidence": "high/medium/low"
 }`;
@@ -426,7 +658,10 @@ function buildClosedDoorPrompt(
   wallData: WallAnalysis,
   rules: ClassifiedRules,
   cabinetSpecs?: CabinetSpecs,
-  modules?: ModulesData
+  modules?: ModulesData,
+  styleKeywords?: string,
+  styleAtmosphere?: string,
+  colorPrompt?: string
 ): string {
   // 설계 데이터에서 치수 추출
   const specs = cabinetSpecs || {};
@@ -472,6 +707,11 @@ function buildClosedDoorPrompt(
   const hoodType = specs.hood_type || '';
   const cooktopType = specs.cooktop_type || '';
 
+  // 배관 위치 정보
+  const waterPos = wallData.water_pipe_x || 800;
+  const exhaustPos = wallData.exhaust_duct_x || 2200;
+  const gasPos = wallData.gas_pipe_x || 2000;
+
   return `[MOST IMPORTANT - READ FIRST]
 This is a PHOTO generation task, NOT a technical drawing.
 DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS TO THE IMAGE.
@@ -479,42 +719,83 @@ The output must be a CLEAN photograph with NO annotations whatsoever.
 
 [TASK: KOREAN BUILT-IN KITCHEN - PHOTOREALISTIC PHOTO]
 
-[PRESERVE FROM REFERENCE IMAGE]
-- KEEP the EXACT same camera angle and perspective
-- KEEP the EXACT same room background (walls, floor, ceiling, windows)
-- KEEP the EXACT same lighting conditions
-- ONLY REPLACE the cabinet/furniture area with new design
+═══════════════════════════════════════════════════════════════
+[SECTION 1: 공간 구조 유지 + 배경 보정]
+═══════════════════════════════════════════════════════════════
+PRESERVE (반드시 유지):
+- 카메라 앵글과 시점
+- 방의 전체적인 구조와 레이아웃
+- 창문, 문, 천장의 위치
+- 조명 조건
 
-[CABINET DESIGN - FOR PROPORTION REFERENCE ONLY, DO NOT DISPLAY]
+CLEAN UP (깔끔하게 보정):
+- 노출된 전선 → 제거 또는 벽 안으로 숨김
+- 시멘트 벽, 미장 안 된 벽 → 깔끔한 벽지/페인트로 마감
+- 찢어진 벽지, 곰팡이 → 새 벽지로 교체
+- 공사 자재, 먼지 → 제거하여 깔끔한 상태로
+- 바닥 보호 비닐, 테이프 → 제거하고 마감된 바닥으로
+
+═══════════════════════════════════════════════════════════════
+[SECTION 2: 배관 위치 기반 설비 배치]
+═══════════════════════════════════════════════════════════════
+수도 배관 위치 (기준점에서 약 ${waterPos}mm):
+→ 싱크볼 중심을 이 위치에 맞춰 설치
+→ 수전(Faucet)을 싱크볼 위에 설치
+
+후드 배기구멍 위치 (기준점에서 약 ${exhaustPos}mm):
+→ 레인지후드를 이 위치 아래에 설치
+→ 쿡탑/가스레인지를 후드 바로 아래에 설치
+
+가스 배관 위치 (기준점에서 약 ${gasPos}mm):
+→ 가스레인지/쿡탑 설치 시 참고
+
+═══════════════════════════════════════════════════════════════
+[SECTION 3: 캐비닛 디자인]
+═══════════════════════════════════════════════════════════════
 Upper cabinets: ${upperCount} units
 Lower cabinets: ${lowerCount} units
 ${upperLayout ? `Upper layout: ${upperLayout}` : ''}
 ${lowerLayout ? `Lower layout: ${lowerLayout}` : ''}
 
-[MATERIALS & COLORS]
-- Door: ${doorColor}, ${doorFinish} finish
+═══════════════════════════════════════════════════════════════
+[SECTION 4: 사용자 선택 테마/컬러 적용] ★ 중요
+═══════════════════════════════════════════════════════════════
+[STYLE: ${style}]
+${styleKeywords ? styleKeywords : 'Modern Korean minimalist kitchen with clean seamless door panels.'}
+${styleAtmosphere ? `Atmosphere: ${styleAtmosphere}` : ''}
+
+[DOOR COLOR - 사용자 선택]
+- 도어 색상: ${doorColor}
+- 마감: ${doorFinish}
+${colorPrompt ? `- 색상 스타일: ${colorPrompt}` : ''}
+
+※ 반드시 위 사용자 선택 컬러로 모든 캐비닛 도어를 렌더링할 것
+
+═══════════════════════════════════════════════════════════════
+[SECTION 5: 추가 마감재]
+═══════════════════════════════════════════════════════════════
 - Countertop: ${countertop}
 - Handle: ${handleType}
 ${sinkType ? `- Sink: ${sinkType}` : ''}
 ${hoodType ? `- Hood: ${hoodType}` : ''}
 ${cooktopType ? `- Cooktop: ${cooktopType}` : ''}
 
-[STYLE: ${style}]
-Modern Korean minimalist kitchen with clean seamless door panels.
-
-[STRICTLY FORBIDDEN - WILL REJECT IF VIOLATED]
+═══════════════════════════════════════════════════════════════
+[STRICTLY FORBIDDEN]
+═══════════════════════════════════════════════════════════════
 ❌ NO dimension labels or measurements
 ❌ NO text, numbers, or characters
 ❌ NO arrows, lines, or technical markings
-❌ NO rulers, scales, or size indicators
 ❌ NO watermarks or logos
-❌ NO annotations of any kind
 ❌ NO people or pets
 
+═══════════════════════════════════════════════════════════════
 [OUTPUT]
+═══════════════════════════════════════════════════════════════
 Clean photorealistic interior photograph.
 Magazine quality, professional lighting.
-All cabinet doors CLOSED.`;
+Construction mess cleaned up, walls finished nicely.
+All cabinet doors CLOSED with user-selected color.`;
 }
 
 function buildOpenDoorPrompt(category: string): string {
@@ -601,6 +882,8 @@ app.listen(PORT, () => {
   console.log('║    POST /webhook/dadam-interior-v4                        ║');
   console.log('║    POST /webhook/design-to-image                          ║');
   console.log('║    POST /webhook/chat                                     ║');
+  console.log('║    GET  /api/themes/images                                ║');
+  console.log('║    POST /api/themes/generate                              ║');
   console.log('║    GET  /health                                           ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
 });
