@@ -686,39 +686,6 @@
       .style-classic .style-theme-icon { background: #f5ebe0; }
       .style-luxury .style-theme-icon { background: #1a1a1a; color: #d4af37; }
 
-      /* Color Palette Grid */
-      .color-palette-grid {
-        display: grid;
-        grid-template-columns: repeat(6, 1fr);
-        gap: 8px;
-      }
-      .color-palette-card {
-        background: var(--white);
-        border: 2px solid transparent;
-        border-radius: 10px;
-        padding: 6px;
-        cursor: pointer;
-        transition: all 0.3s;
-      }
-      .color-palette-card:hover {
-        transform: scale(1.05);
-      }
-      .color-palette-card.selected {
-        border-color: var(--charcoal);
-      }
-      .color-swatch {
-        height: 40px;
-        border-radius: 6px;
-        margin-bottom: 4px;
-      }
-      .color-palette-card h5 {
-        font-size: 10px;
-        font-weight: 500;
-        text-align: center;
-        font-family: inherit;
-        color: var(--charcoal);
-      }
-
       /* Selected Theme Summary */
       .theme-summary {
         display: flex;
@@ -743,27 +710,12 @@
         font-weight: 600;
         color: var(--charcoal);
       }
-      .theme-summary-swatch {
-        width: 20px;
-        height: 20px;
-        border-radius: 4px;
-        border: 1px solid var(--warm);
-      }
-      .theme-summary-divider {
-        width: 1px;
-        height: 24px;
-        background: var(--warm);
-      }
-
       @media (max-width: 768px) {
         .style-theme-grid { grid-template-columns: repeat(3, 1fr); }
-        .color-palette-grid { grid-template-columns: repeat(4, 1fr); }
         .theme-summary { flex-wrap: wrap; gap: 12px; }
-        .theme-summary-divider { display: none; }
       }
       @media (max-width: 480px) {
         .style-theme-grid { grid-template-columns: repeat(2, 1fr); }
-        .color-palette-grid { grid-template-columns: repeat(3, 1fr); }
         .style-theme-card p { display: none; }
       }
 
@@ -2001,76 +1953,12 @@
           </div>
         </div>
 
-        <!-- Color Palette -->
-        <div class="theme-section-header">
-          <span class="theme-section-number">2</span>
-          <span class="theme-section-title">컬러 팔레트</span>
-        </div>
-        <div class="color-palette-grid">
-          <div class="color-palette-card selected" data-color="pure-white" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #FFF 0%, #F5F5F5 100%); border: 1px solid #eee;"></div>
-            <h5>퓨어 화이트</h5>
-          </div>
-          <div class="color-palette-card" data-color="warm-white" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #FDF8F3 0%, #F5EDE3 100%);"></div>
-            <h5>웜 화이트</h5>
-          </div>
-          <div class="color-palette-card" data-color="light-gray" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #E8E8E8 0%, #D5D5D5 100%);"></div>
-            <h5>라이트 그레이</h5>
-          </div>
-          <div class="color-palette-card" data-color="charcoal" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #5A5A5A 0%, #3A3A3A 100%);"></div>
-            <h5>차콜</h5>
-          </div>
-          <div class="color-palette-card" data-color="natural-oak" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #D4B896 0%, #B8956C 100%);"></div>
-            <h5>내추럴 오크</h5>
-          </div>
-          <div class="color-palette-card" data-color="walnut" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #6D4C41 0%, #4E342E 100%);"></div>
-            <h5>월넛</h5>
-          </div>
-          <div class="color-palette-card" data-color="sage-green" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #A8BF9A 0%, #8FA07A 100%);"></div>
-            <h5>세이지 그린</h5>
-          </div>
-          <div class="color-palette-card" data-color="navy" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #34495E 0%, #2C3E50 100%);"></div>
-            <h5>네이비</h5>
-          </div>
-          <div class="color-palette-card" data-color="dusty-pink" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #E0B4B4 0%, #C89696 100%);"></div>
-            <h5>더스티 핑크</h5>
-          </div>
-          <div class="color-palette-card" data-color="cream" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #FAF6ED 0%, #EDE5D0 100%);"></div>
-            <h5>크림</h5>
-          </div>
-          <div class="color-palette-card" data-color="olive" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #7A8B4A 0%, #5C6B2E 100%);"></div>
-            <h5>올리브</h5>
-          </div>
-          <div class="color-palette-card" data-color="black" onclick="selectColorPalette(this)">
-            <div class="color-swatch" style="background: linear-gradient(135deg, #2A2A2A 0%, #0A0A0A 100%);"></div>
-            <h5>블랙</h5>
-          </div>
-        </div>
-
         <!-- Selection Summary -->
         <div class="theme-summary">
           <div class="theme-summary-item">
             <div>
-              <div class="theme-summary-label">스타일</div>
+              <div class="theme-summary-label">선택된 스타일</div>
               <div class="theme-summary-value" id="selectedStyleName">모던 미니멀</div>
-            </div>
-          </div>
-          <div class="theme-summary-divider"></div>
-          <div class="theme-summary-item">
-            <div class="theme-summary-swatch" id="selectedColorSwatch" style="background: #fff;"></div>
-            <div>
-              <div class="theme-summary-label">컬러</div>
-              <div class="theme-summary-value" id="selectedColorName">퓨어 화이트</div>
             </div>
           </div>
         </div>
@@ -2405,7 +2293,6 @@
       function generateDesignPrompt(category, style, wallAnalysis) {
         const info = categoryInfo[category];
         const themeData = styleThemes[style] || styleThemes['modern-minimal'];
-        const colorData = colorPalettes[state.selectedColor] || colorPalettes['pure-white'];
 
         let basePrompt = `[MOST IMPORTANT - READ FIRST]
 This is a PHOTO generation task, NOT a technical drawing.
@@ -2416,11 +2303,7 @@ Professional interior design photo of a modern Korean apartment with ${info.name
 
 [STYLE: ${themeData.name}]
 ${themeData.keywords}
-Atmosphere: ${themeData.atmosphere}
-
-[COLOR SCHEME]
-Primary cabinet color: ${colorData.name} (${colorData.hex})
-${colorData.prompt}`;
+Atmosphere: ${themeData.atmosphere}`;
 
         // 배경 보정 지시
         let backgroundPrompt = `
@@ -2505,9 +2388,6 @@ Magazine quality, professional lighting.`;
       const state = {
         selectedStyle: 'modern-minimal',
         selectedStyleName: '모던 미니멀',
-        selectedColor: 'pure-white',
-        selectedColorName: '퓨어 화이트',
-        selectedColorHex: '#FFFFFF',
         uploadedImages: {},
         results: [],
         currentPage: 0,
@@ -2540,22 +2420,6 @@ Magazine quality, professional lighting.`;
           keywords: 'premium materials, gold/brass accents, marble, rich textures, high-end finishes',
           atmosphere: 'opulent, glamorous, prestigious'
         }
-      };
-
-      // 컬러 팔레트 데이터
-      const colorPalettes = {
-        'pure-white': { name: '퓨어 화이트', hex: '#FFFFFF', prompt: 'pure white matte finish, clean and bright' },
-        'warm-white': { name: '웜 화이트', hex: '#FAF7F0', prompt: 'warm white with subtle cream undertones' },
-        'light-gray': { name: '라이트 그레이', hex: '#E5E5E5', prompt: 'light gray, soft and sophisticated' },
-        'charcoal': { name: '차콜', hex: '#36454F', prompt: 'charcoal gray, deep and modern' },
-        'natural-oak': { name: '내추럴 오크', hex: '#C4A77D', prompt: 'natural oak wood grain, light and airy' },
-        'walnut': { name: '월넛', hex: '#5D4037', prompt: 'walnut wood color, rich and warm' },
-        'sage-green': { name: '세이지 그린', hex: '#9CAF88', prompt: 'sage green, peaceful and organic' },
-        'navy': { name: '네이비', hex: '#1E3A5F', prompt: 'deep navy blue, elegant and classic' },
-        'dusty-pink': { name: '더스티 핑크', hex: '#D4A5A5', prompt: 'dusty pink, soft and romantic' },
-        'cream': { name: '크림', hex: '#F5F5DC', prompt: 'cream ivory, warm and classic' },
-        'olive': { name: '올리브', hex: '#6B7B3A', prompt: 'olive green, natural and earthy' },
-        'black': { name: '블랙', hex: '#1A1A1A', prompt: 'matte black, bold and dramatic' }
       };
 
       const categoryInfo = {
@@ -2673,30 +2537,6 @@ Magazine quality, professional lighting.`;
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // Color Palette Selection
-      // ═══════════════════════════════════════════════════════════════
-      function selectColorPalette(el) {
-        document.querySelectorAll('.color-palette-card').forEach((c) => c.classList.remove('selected'));
-        el.classList.add('selected');
-
-        const colorKey = el.dataset.color;
-        const colorData = colorPalettes[colorKey];
-
-        state.selectedColor = colorKey;
-        state.selectedColorName = colorData?.name || colorKey;
-        state.selectedColorHex = colorData?.hex || '#FFFFFF';
-
-        // Summary 업데이트
-        const summaryEl = document.getElementById('selectedColorName');
-        if (summaryEl) summaryEl.textContent = state.selectedColorName;
-        const swatchEl = document.getElementById('selectedColorSwatch');
-        if (swatchEl) swatchEl.style.background = state.selectedColorHex;
-
-        console.log('Color selected:', state.selectedColor, state.selectedColorName);
-        showToast(`컬러: ${state.selectedColorName} 선택됨`, 'success');
-      }
-
-      // ═══════════════════════════════════════════════════════════════
       // Button State
       // ═══════════════════════════════════════════════════════════════
       function updateButtons() {
@@ -2765,7 +2605,7 @@ Magazine quality, professional lighting.`;
           // ═══════════════════════════════════════════════════════════
           updateStep(2, 'active', `${info.icon} 스타일 적용 중...`);
           document.getElementById('loadingTitle').textContent = `🎨 테마 스타일 적용 중...`;
-          console.log('Selected Style:', state.selectedStyle, 'Color:', state.selectedColor);
+          console.log('Selected Style:', state.selectedStyle);
           await sleep(300);
 
           // ═══════════════════════════════════════════════════════════
@@ -2779,9 +2619,8 @@ Magazine quality, professional lighting.`;
           console.log('Design Prompt:', designPrompt);
 
           try {
-            // 스타일 및 컬러 데이터 준비
+            // 스타일 데이터 준비
             const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
-            const colorData = colorPalettes[state.selectedColor] || colorPalettes['pure-white'];
 
             const response = await fetch(N8N_INTERIOR_URL, {
               method: 'POST',
@@ -2794,9 +2633,6 @@ Magazine quality, professional lighting.`;
                 style_name: themeData.name,
                 style_keywords: themeData.keywords,
                 style_atmosphere: themeData.atmosphere,
-                color_name: colorData.name,
-                color_hex: colorData.hex,
-                color_prompt: colorData.prompt,
                 design_prompt: designPrompt,
               }),
             });
@@ -2840,9 +2676,9 @@ Magazine quality, professional lighting.`;
             }
 
             // 분석 결과 포맷팅
-            let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 | ${colorData.name || state.selectedColor} 컬러`;
+            let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 적용`;
             if (data.rag_rules_count) {
-              analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${themeData.name} 스타일 | ${colorData.name} 컬러`;
+              analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${themeData.name} 스타일`;
             }
 
             // 제안 텍스트
