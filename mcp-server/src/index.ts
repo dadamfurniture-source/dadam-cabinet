@@ -10,9 +10,12 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { supabaseRagTool, handleSupabaseRag } from './tools/supabase-rag.js';
-import { geminiVisionTool, handleGeminiVision } from './tools/gemini-vision.js';
-import { geminiImageTool, handleGeminiImage } from './tools/gemini-image.js';
+// 도구 등록 (import 시 자동 등록)
+import './tools/supabase-rag.tool.js';
+import './tools/gemini-vision.tool.js';
+import './tools/gemini-image.tool.js';
+
+import { getToolDefinitions, executeTool } from './tools/registry.js';
 
 // ─────────────────────────────────────────────────────────────────
 // Server Initialization
@@ -31,48 +34,18 @@ const server = new Server(
 );
 
 // ─────────────────────────────────────────────────────────────────
-// Tool Definitions
-// ─────────────────────────────────────────────────────────────────
-
-const tools = [
-  supabaseRagTool,
-  geminiVisionTool,
-  geminiImageTool,
-];
-
-// ─────────────────────────────────────────────────────────────────
 // Request Handlers
 // ─────────────────────────────────────────────────────────────────
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return { tools };
+  return { tools: getToolDefinitions() };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
-    switch (name) {
-      case 'supabase_rag_search':
-        return await handleSupabaseRag(args);
-
-      case 'gemini_wall_analysis':
-        return await handleGeminiVision(args);
-
-      case 'gemini_generate_image':
-        return await handleGeminiImage(args);
-
-      default:
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Unknown tool: ${name}`,
-            },
-          ],
-          isError: true,
-        };
-    }
+    return await executeTool(name, args);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {

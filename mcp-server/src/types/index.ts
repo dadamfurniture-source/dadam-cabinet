@@ -110,12 +110,13 @@ export interface TileCount {
 
 export interface UtilityPosition {
   detected: boolean;
-  from_origin_mm: number;      // 기준점(0mm)에서의 거리
-  from_floor_mm?: number;      // 바닥에서의 높이
-  from_left_mm?: number;       // 레거시 호환
-  from_left_percent?: number;  // 레거시 호환
-  height_mm?: number;          // 레거시 호환
-  description?: string;
+  from_origin_mm: number;         // 기준점(0mm)에서의 거리
+  from_origin_percent?: number;   // 기준점에서의 거리 (%)
+  from_floor_mm?: number;         // 바닥에서의 높이
+  from_left_mm?: number;          // 레거시 호환
+  from_left_percent?: number;     // 레거시 호환
+  height_mm?: number;             // 레거시 호환
+  description?: string;           // 시각적 특징 설명
 }
 
 export interface ReferenceWall {
@@ -138,10 +139,18 @@ export interface UtilityPositions {
 }
 
 export interface FurniturePlacement {
+  // 위치 문자열 (프롬프트용)
   sink_position?: string;
   cooktop_position?: string;
   range_hood_position?: string;
   layout_direction?: string;
+  // 구체적인 좌표 (mm)
+  sink_center_mm?: number;
+  cooktop_center_mm?: number;
+  // 캐비닛 높이 계산값
+  upper_cabinet_bottom_mm?: number;   // 상부장 하단 높이
+  lower_cabinet_height_mm?: number;   // 하부장 높이 (표준 870mm)
+  countertop_height_mm?: number;      // 작업대 높이
 }
 
 export interface WallAnalysis {
@@ -302,3 +311,42 @@ export type TileReferenceMap = Record<string, TileReference>;
 export type ColorMap = Record<string, string>;
 export type FinishMap = Record<string, string>;
 export type HandleMap = Record<string, string>;
+
+// ─────────────────────────────────────────────────────────────────
+// Few-Shot Learning 참조 이미지 타입
+// ─────────────────────────────────────────────────────────────────
+
+export type ReferenceImageCategory =
+  | 'water_pipe'      // 급수 배관
+  | 'exhaust_duct'    // 배기 덕트
+  | 'gas_pipe'        // 가스 배관
+  | 'outlet'          // 전기 콘센트
+  | 'tile';           // 타일 종류
+
+export interface ReferenceImage {
+  id: string;
+  category: ReferenceImageCategory;
+  subcategory?: string;
+  storage_path: string;
+  original_filename?: string;
+  ground_truth: Record<string, unknown>;
+  name: string;
+  description?: string;
+  visual_features: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ImageInput {
+  data: string;           // Base64 이미지 데이터
+  mime_type: string;      // MIME 타입 (image/jpeg, image/png)
+  role?: 'target' | 'reference';  // 역할: 분석 대상 또는 참조
+  label?: string;         // 라벨 (참조 이미지 이름)
+}
+
+export interface WallAnalysisV2Input {
+  image: string;                    // Base64 분석 대상 이미지
+  image_type?: string;              // MIME 타입 (기본: image/jpeg)
+  use_reference_images?: boolean;   // 참조 이미지 사용 여부 (기본: true)
+  reference_categories?: ReferenceImageCategory[];  // 사용할 참조 카테고리
+}
