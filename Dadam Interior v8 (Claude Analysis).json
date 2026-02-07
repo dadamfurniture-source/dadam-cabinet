@@ -1,0 +1,298 @@
+{
+  "name": "Dadam Interior v8 (Claude Analysis)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dadam-interior-v4",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [18272, 4560],
+      "webhookId": "c409630f-2f2c-4fcc-a00d-736eb9cfa9f6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Input v3\n// ═══════════════════════════════════════════════════════════════\nconst body = $input.first().json.body || $input.first().json;\n\nconst category = body.category || 'sink';\nconst style = body.design_style || body.style || 'modern';\nconst roomImage = body.room_image || '';\nconst imageType = body.image_type || 'image/jpeg';\n\nreturn {\n  category,\n  style,\n  roomImage,\n  imageType\n};"
+      },
+      "id": "parse-input-001",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [18464, 4560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Build Claude Analysis Request\n// Claude API를 사용한 정밀 배관 분석\n// ═══════════════════════════════════════════════════════════════\nconst input = $input.first().json;\n\nconst analysisPrompt = `당신은 한국 주방 시공 현장의 배관 위치를 분석하는 전문가입니다.\n\n이 이미지를 분석하여 다음 설비의 위치를 정확하게 찾아주세요.\n\n[분석 대상]\n1. 급수 배관 (Water Supply Pipe)\n   - 특징: 빨간색/파란색 배관, 흰색 분배기 박스, PVC 배관\n   - 보통 위치: 벽면 하단, 바닥에서 200-400mm 높이\n\n2. 배기 덕트 (Exhaust Duct)\n   - 특징: 알루미늄 플렉시블 덕트 (은색), 원형 구멍, 환기구\n   - 보통 위치: 천장 근처, 상부 벽면\n\n3. 가스 배관 (Gas Pipe)\n   - 특징: 노란색 배관, 가스 밸브, 가스 콕\n   - 보통 위치: 벽면 하단, 바닥에서 300-500mm 높이\n\n4. 전기 콘센트 (Electrical Outlets)\n   - 특징: 흰색 플라스틱 박스, 콘센트 커버\n   - 보통 위치: 카운터 높이 (바닥에서 1000-1200mm)\n\n[위치 측정 방법]\n- 이미지의 가로를 0%~100%로 봅니다\n- 0% = 이미지 맨 왼쪽\n- 100% = 이미지 맨 오른쪽\n- 각 설비의 중심점이 몇 % 위치에 있는지 측정하세요\n\n[출력 형식 - 반드시 JSON만 출력]\n{\n  \"image_analysis\": {\n    \"wall_structure\": {\n      \"lower_tile\": \"타일 색상 및 높이\",\n      \"upper_wall\": \"상부 벽면 마감\",\n      \"estimated_width_mm\": 3000,\n      \"estimated_height_mm\": 2400\n    },\n    \"water_supply\": {\n      \"detected\": true,\n      \"position_percent\": 38,\n      \"position_description\": \"이미지 왼쪽에서 약 38% 지점\",\n      \"visual_features\": \"흰색 배관 박스, PVC 연결부\",\n      \"height_from_floor\": \"약 350mm\",\n      \"confidence\": \"high\"\n    },\n    \"exhaust_duct\": {\n      \"detected\": true,\n      \"position_percent\": 72,\n      \"position_description\": \"이미지 왼쪽에서 약 72% 지점\",\n      \"visual_features\": \"알루미늄 플렉시블 덕트, 은색\",\n      \"height_from_floor\": \"천장 근처\",\n      \"confidence\": \"high\"\n    },\n    \"gas_pipe\": {\n      \"detected\": false,\n      \"position_percent\": null,\n      \"visual_features\": null,\n      \"confidence\": \"low\"\n    },\n    \"electrical_outlets\": [\n      {\n        \"position_percent\": 45,\n        \"height\": \"카운터 높이\"\n      }\n    ],\n    \"construction_debris\": [\n      \"작업대\",\n      \"공구\",\n      \"시멘트 포대\"\n    ]\n  },\n  \"furniture_placement_recommendation\": {\n    \"sink_center_percent\": 38,\n    \"cooktop_center_percent\": 72,\n    \"layout_direction\": \"left_to_right\"\n  }\n}\n\n중요: JSON 형식만 출력하세요. 다른 설명은 불필요합니다.`;\n\nconst claudeRequestBody = {\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 2048,\n  messages: [\n    {\n      role: 'user',\n      content: [\n        {\n          type: 'image',\n          source: {\n            type: 'base64',\n            media_type: input.imageType || 'image/jpeg',\n            data: input.roomImage\n          }\n        },\n        {\n          type: 'text',\n          text: analysisPrompt\n        }\n      ]\n    }\n  ]\n};\n\nreturn {\n  claudeRequestBody: JSON.stringify(claudeRequestBody),\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType\n};"
+      },
+      "id": "build-claude-001",
+      "name": "Build Claude Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [18656, 4560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "YOUR_ANTHROPIC_API_KEY" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.claudeRequestBody }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "claude-analysis-001",
+      "name": "Claude Pipe Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [18848, 4560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Claude Analysis Result\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Claude Request').first().json;\nconst response = $input.first().json;\n\nlet analysisResult = {\n  water_supply_percent: 30,\n  exhaust_duct_percent: 70,\n  gas_pipe_percent: null,\n  confidence: 'low',\n  wall_width_mm: 3000,\n  wall_height_mm: 2400\n};\n\ntry {\n  const content = response.content || [];\n  for (const block of content) {\n    if (block.type === 'text' && block.text) {\n      const jsonMatch = block.text.match(/\\{[\\s\\S]*\\}/);\n      if (jsonMatch) {\n        const parsed = JSON.parse(jsonMatch[0]);\n        \n        analysisResult = {\n          water_supply_percent: parsed.image_analysis?.water_supply?.position_percent || parsed.furniture_placement_recommendation?.sink_center_percent || 30,\n          water_supply_features: parsed.image_analysis?.water_supply?.visual_features || '',\n          water_supply_confidence: parsed.image_analysis?.water_supply?.confidence || 'low',\n          \n          exhaust_duct_percent: parsed.image_analysis?.exhaust_duct?.position_percent || parsed.furniture_placement_recommendation?.cooktop_center_percent || 70,\n          exhaust_duct_features: parsed.image_analysis?.exhaust_duct?.visual_features || '',\n          exhaust_duct_confidence: parsed.image_analysis?.exhaust_duct?.confidence || 'low',\n          \n          gas_pipe_percent: parsed.image_analysis?.gas_pipe?.detected ? parsed.image_analysis.gas_pipe.position_percent : null,\n          \n          wall_width_mm: parsed.image_analysis?.wall_structure?.estimated_width_mm || 3000,\n          wall_height_mm: parsed.image_analysis?.wall_structure?.estimated_height_mm || 2400,\n          \n          construction_debris: parsed.image_analysis?.construction_debris || [],\n          \n          confidence: (parsed.image_analysis?.water_supply?.confidence === 'high' && parsed.image_analysis?.exhaust_duct?.confidence === 'high') ? 'high' : 'medium'\n        };\n      }\n    }\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\nreturn [{\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  analysisResult,\n  analysisMethod: 'claude'\n}];"
+      },
+      "id": "parse-claude-001",
+      "name": "Parse Claude Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [19040, 4560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Build Background Cleanup Prompt\n// ═══════════════════════════════════════════════════════════════\nconst input = $input.first().json;\nconst analysis = input.analysisResult;\n\nconst debrisList = analysis.construction_debris?.length > 0 \n  ? analysis.construction_debris.join(', ')\n  : '공사 잔해, 공구, 임시 물건';\n\nconst cleanupPrompt = `[TASK: BACKGROUND CLEANUP - STRUCTURE PRESERVATION]\n\n★★★ ABSOLUTE RULES ★★★\n\n[MUST PRESERVE - 절대 변경 금지]\n1. 벽면 위치와 각도\n2. 바닥 위치와 레벨\n3. 천장 높이와 위치\n4. 창문/문 위치와 크기\n5. 카메라 앵글과 시점\n6. 조명 방향\n\n[MUST REMOVE - 제거 대상]\n${debrisList}\n- 사람\n- 옷걸이와 옷\n- 임시 작업대\n- 공구와 장비\n- 시멘트 포대\n- 모든 공사 잔해\n\n[MUST IMPROVE - 마감 처리]\n1. 벽면: 깨끗하게 정리 (기존 타일 패턴 유지)\n2. 바닥: 깨끗한 타일 또는 마감재\n3. 천장: 깨끗한 흰색\n\n[KEEP VISIBLE - 유지할 설비]\n- 급수 배관 위치: ${analysis.water_supply_percent}% 지점\n- 배기 덕트 위치: ${analysis.exhaust_duct_percent}% 지점\n${analysis.gas_pipe_percent ? '- 가스 배관 위치: ' + analysis.gas_pipe_percent + '% 지점' : ''}\n\n[OUTPUT]\n- 깨끗한 빈 공간\n- 가구 설치 준비 완료 상태\n- 배관 위치는 유지`;\n\nconst geminiCleanupBody = {\n  contents: [{\n    parts: [\n      { text: cleanupPrompt },\n      { inline_data: { mime_type: input.imageType || 'image/jpeg', data: input.roomImage }}\n    ]\n  }],\n  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }\n};\n\nreturn {\n  geminiCleanupBody: JSON.stringify(geminiCleanupBody),\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  analysisResult: analysis\n};"
+      },
+      "id": "build-cleanup-001",
+      "name": "Build Cleanup Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [19232, 4560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiCleanupBody }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "gemini-cleanup-001",
+      "name": "Gemini Background Cleanup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [19424, 4560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Background + Build Furniture Prompt (Claude 분석 결과 사용)\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Cleanup Prompt').first().json;\nconst response = $input.first().json;\nconst analysis = input.analysisResult;\n\nlet cleanedBackground = null;\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        cleanedBackground = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\n// 위치 설명 함수\nfunction describePosition(percent) {\n  if (percent <= 20) return '맨 왼쪽 영역';\n  if (percent <= 40) return '왼쪽 영역';\n  if (percent <= 60) return '중앙 영역';\n  if (percent <= 80) return '오른쪽 영역';\n  return '맨 오른쪽 영역';\n}\n\nconst waterPercent = analysis.water_supply_percent;\nconst exhaustPercent = analysis.exhaust_duct_percent;\nconst waterDesc = describePosition(waterPercent);\nconst exhaustDesc = describePosition(exhaustPercent);\n\nconst furniturePrompt = `[TASK: FURNITURE PLACEMENT - CLAUDE ANALYZED POSITIONS]\n\n★★★ 배경 보존 필수 ★★★\n이 이미지는 정리된 배경입니다.\n배경을 절대 수정하지 말고, 가구만 추가하세요.\n\n═══════════════════════════════════════════════════════════════\n★★★ CLAUDE AI 분석 결과 기반 정밀 배치 ★★★\n═══════════════════════════════════════════════════════════════\n\n[분석 신뢰도: ${analysis.confidence}]\n\n┌─────────────────────────────────────────────────────────────┐\n│ 0%          25%          50%          75%          100%    │\n│ ├───────────┼────────────┼────────────┼───────────┤        │\n│      ${waterPercent < 50 ? '▼' : ' '}                              ${exhaustPercent > 50 ? '▼' : ' '}              │\n│   급수배관(${waterPercent}%)                    배기덕트(${exhaustPercent}%)         │\n└─────────────────────────────────────────────────────────────┘\n\n[기준점 1: 급수배관 → 싱크볼 중심]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Claude 분석 위치: 이미지 왼쪽에서 ${waterPercent}% 지점\n📍 영역: ${waterDesc}\n📍 감지 특징: ${analysis.water_supply_features || '배관 박스'}\n📍 신뢰도: ${analysis.water_supply_confidence || 'medium'}\n\n→ 싱크볼(SINK BOWL) 중심을 정확히 ${waterPercent}% 지점에 배치\n→ 수전(FAUCET)은 싱크볼 뒤쪽 중앙에 배치\n→ 싱크 캐비닛은 싱크볼 중심으로 좌우 대칭\n\n⚠️ 싱크볼이 ${waterPercent}% 위치에 없으면 실패!\n\n[기준점 2: 배기덕트 → 쿡탑 중심]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Claude 분석 위치: 이미지 왼쪽에서 ${exhaustPercent}% 지점\n📍 영역: ${exhaustDesc}\n📍 감지 특징: ${analysis.exhaust_duct_features || '알루미늄 덕트'}\n📍 신뢰도: ${analysis.exhaust_duct_confidence || 'medium'}\n\n→ 쿡탑(COOKTOP) 중심을 정확히 ${exhaustPercent}% 지점에 배치\n→ 레인지후드(RANGE HOOD)는 쿡탑 바로 위, 같은 중심선\n→ 쿡탑 캐비닛은 쿡탑 중심으로 좌우 대칭\n\n⚠️ 쿡탑이 ${exhaustPercent}% 위치에 없으면 실패!\n\n[주방 구성요소 - 필수 포함]\n✓ 싱크볼 (Sink Bowl) - 스테인리스, ${waterPercent}% 위치\n✓ 수전 (Faucet) - 싱크볼 뒤쪽\n✓ 쿡탑 (Cooktop) - ${exhaustPercent}% 위치\n✓ 레인지후드 (Range Hood) - 쿡탑 위\n✓ 하부장 (Lower Cabinet) - 높이 870mm\n✓ 상부장 (Upper Cabinet) - 벽면 부착\n✓ 걸레받이 (Toe Kick) - 하부장 아래\n\n[스타일: Modern Minimal]\n- 색상: 화이트, 그레이, 우드톤\n- 마감: 무광\n- 손잡이: 히든 (푸시오픈)\n\n[검증 체크리스트]\n☑ 싱크볼 중심 = ${waterPercent}% ?\n☑ 수전이 싱크볼 뒤에 있는가?\n☑ 쿡탑 중심 = ${exhaustPercent}% ?\n☑ 레인지후드가 쿡탑 위에 있는가?\n\n[금지 사항]\n❌ 배경/벽/바닥 변경 금지\n❌ 텍스트/라벨/치수 금지\n❌ 싱크볼/수전 누락 금지\n❌ 쿡탑 위치 이탈 금지`;\n\nconst geminiFurnitureBody = {\n  contents: [{\n    parts: [\n      { text: furniturePrompt },\n      { inline_data: { mime_type: 'image/png', data: cleanedBackground }}\n    ]\n  }],\n  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.4 }\n};\n\nreturn [{\n  cleanedBackground,\n  hasCleanedBackground: !!cleanedBackground,\n  geminiFurnitureBody: JSON.stringify(geminiFurnitureBody),\n  category: input.category,\n  style: input.style,\n  analysisResult: analysis\n}];"
+      },
+      "id": "parse-bg-furniture-001",
+      "name": "Parse BG + Build Furniture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [19616, 4560]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "has-bg", "leftValue": "={{ $json.hasCleanedBackground }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-bg-001",
+      "name": "Has Cleaned BG?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [19808, 4560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiFurnitureBody }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "gemini-furniture-001",
+      "name": "Gemini Furniture",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [20000, 4448]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Furniture + Prep Open\nconst input = $('Parse BG + Build Furniture').first().json;\nconst response = $input.first().json;\nconst analysis = input.analysisResult;\n\nlet closedImage = null;\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        closedImage = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nconst openPrompt = `[TASK: OPEN DOORS AND DRAWERS]\n\n★★★ 배경과 가구 위치 유지 ★★★\n\n[변경 금지]\n- 배경 (벽, 바닥, 천장)\n- 가구 위치, 크기, 색상\n- 카메라 앵글\n- 조명\n\n[변경 사항]\n- 여닫이 도어: 90도 바깥으로 열기\n- 서랍: 30-40% 당기기\n- 내부 수납품 보이게\n\n[내부 수납품]\n- 그릇, 접시, 컵\n- 냄비, 프라이팬\n- 양념통, 조미료\n\n[출력]\n- 동일한 가구, 도어만 열린 상태\n- 포토리얼리스틱 품질`;\n\nconst geminiOpenBody = {\n  contents: [{\n    parts: [\n      { inline_data: { mime_type: 'image/png', data: closedImage }},\n      { text: openPrompt }\n    ]\n  }],\n  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }\n};\n\nreturn [{\n  cleanedBackground: input.cleanedBackground,\n  closedImage,\n  hasClosedImage: !!closedImage,\n  geminiOpenBody: JSON.stringify(geminiOpenBody),\n  category: input.category,\n  style: input.style,\n  analysisResult: analysis\n}];"
+      },
+      "id": "parse-furniture-open-001",
+      "name": "Parse Furniture + Prep Open",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20192, 4448]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "has-closed", "leftValue": "={{ $json.hasClosedImage }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-closed-001",
+      "name": "Has Closed Image?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [20384, 4448]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.geminiOpenBody }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "gemini-open-001",
+      "name": "Gemini Open Door",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [20576, 4336]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Parse Furniture + Prep Open').first().json;\nconst openResponse = $input.first().json;\nconst analysis = input.analysisResult;\n\nlet openImage = null;\ntry {\n  const candidates = openResponse.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inline_data?.data) { openImage = part.inline_data.data; break; }\n      if (part.inlineData?.data) { openImage = part.inlineData.data; break; }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nreturn [{\n  success: true,\n  message: 'Claude 분석 + 2단계 이미지 생성 완료',\n  processing: 'claude-analysis + 2-stage-generation',\n  category: input.category,\n  style: input.style,\n  pipe_analysis: {\n    method: 'claude',\n    water_supply_percent: analysis.water_supply_percent,\n    exhaust_duct_percent: analysis.exhaust_duct_percent,\n    confidence: analysis.confidence\n  },\n  generated_image: {\n    background: { base64: input.cleanedBackground, mime_type: 'image/png', description: 'Stage 1: Cleaned background' },\n    closed: { base64: input.closedImage, mime_type: 'image/png', description: 'Stage 2: Furniture added (closed)' },\n    open: { base64: openImage, mime_type: 'image/png', description: 'Stage 3: Doors open' }\n  }\n}];"
+      },
+      "id": "format-all-001",
+      "name": "Format Response (All)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20768, 4336]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Parse Furniture + Prep Open').first().json;\nconst analysis = input.analysisResult;\n\nreturn [{\n  success: true,\n  message: 'Claude 분석 + 이미지 생성 완료 (닫힌 도어만)',\n  processing: 'claude-analysis + 2-stage-generation',\n  category: input.category,\n  style: input.style,\n  pipe_analysis: {\n    method: 'claude',\n    water_supply_percent: analysis.water_supply_percent,\n    exhaust_duct_percent: analysis.exhaust_duct_percent,\n    confidence: analysis.confidence\n  },\n  generated_image: {\n    background: { base64: input.cleanedBackground, mime_type: 'image/png', description: 'Stage 1: Cleaned background' },\n    closed: { base64: input.closedImage, mime_type: 'image/png', description: 'Stage 2: Furniture added (closed)' },\n    open: null\n  }\n}];"
+      },
+      "id": "format-closed-001",
+      "name": "Format Response (Closed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20576, 4560]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Build Cleanup Prompt').first().json;\nreturn [{\n  success: false,\n  message: '배경 정리 실패',\n  error: 'Background cleanup failed',\n  category: input.category\n}];"
+      },
+      "id": "format-error-001",
+      "name": "Format Response (Error)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20000, 4672]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} },
+      "id": "respond-all-001",
+      "name": "Respond (All)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [20960, 4336]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} },
+      "id": "respond-closed-001",
+      "name": "Respond (Closed)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [20768, 4560]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} },
+      "id": "respond-error-001",
+      "name": "Respond (Error)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [20192, 4672]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Parse Input", "type": "main", "index": 0 }]]
+    },
+    "Parse Input": {
+      "main": [[{ "node": "Build Claude Request", "type": "main", "index": 0 }]]
+    },
+    "Build Claude Request": {
+      "main": [[{ "node": "Claude Pipe Analysis", "type": "main", "index": 0 }]]
+    },
+    "Claude Pipe Analysis": {
+      "main": [[{ "node": "Parse Claude Result", "type": "main", "index": 0 }]]
+    },
+    "Parse Claude Result": {
+      "main": [[{ "node": "Build Cleanup Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Cleanup Prompt": {
+      "main": [[{ "node": "Gemini Background Cleanup", "type": "main", "index": 0 }]]
+    },
+    "Gemini Background Cleanup": {
+      "main": [[{ "node": "Parse BG + Build Furniture", "type": "main", "index": 0 }]]
+    },
+    "Parse BG + Build Furniture": {
+      "main": [[{ "node": "Has Cleaned BG?", "type": "main", "index": 0 }]]
+    },
+    "Has Cleaned BG?": {
+      "main": [
+        [{ "node": "Gemini Furniture", "type": "main", "index": 0 }],
+        [{ "node": "Format Response (Error)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini Furniture": {
+      "main": [[{ "node": "Parse Furniture + Prep Open", "type": "main", "index": 0 }]]
+    },
+    "Parse Furniture + Prep Open": {
+      "main": [[{ "node": "Has Closed Image?", "type": "main", "index": 0 }]]
+    },
+    "Has Closed Image?": {
+      "main": [
+        [{ "node": "Gemini Open Door", "type": "main", "index": 0 }],
+        [{ "node": "Format Response (Closed)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini Open Door": {
+      "main": [[{ "node": "Format Response (All)", "type": "main", "index": 0 }]]
+    },
+    "Format Response (All)": {
+      "main": [[{ "node": "Respond (All)", "type": "main", "index": 0 }]]
+    },
+    "Format Response (Closed)": {
+      "main": [[{ "node": "Respond (Closed)", "type": "main", "index": 0 }]]
+    },
+    "Format Response (Error)": {
+      "main": [[{ "node": "Respond (Error)", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "availableInMCP": false },
+  "versionId": "v8-claude-001",
+  "meta": { "instanceId": "244e14704bf7bd5d7ea20567a9c92fb83222642504dc698a01d22d41bd5f300d" },
+  "id": "NK3jfPhTHsWjMH66",
+  "tags": []
+}
