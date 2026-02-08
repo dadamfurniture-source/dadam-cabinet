@@ -3,12 +3,7 @@
     "dadam": {
       "command": "node",
       "args": ["dist/index.js"],
-      "cwd": "mcp-server",
-      "env": {
-        "SUPABASE_URL": "https://vvqrvgcgnlfpiqqndsve.supabase.co",
-        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ",
-        "GEMINI_API_KEY": "AIzaSyCowlXFi6SDlJZ2cPAeGqCZYXIvlayz9I0"
-      }
+      "cwd": "mcp-server"
     }
   }
 }

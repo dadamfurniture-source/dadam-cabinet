@@ -8,6 +8,11 @@ import {
   geminiMultiImageAnalysis,
   extractTextFromGeminiResponse,
 } from '../clients/gemini.client.js';
+import {
+  claudeVisionAnalysis,
+  claudeMultiImageAnalysis,
+  extractTextFromClaudeResponse,
+} from '../clients/claude.client.js';
 import { extractJsonFromText } from '../utils/json-extractor.js';
 import { getReferenceImagesByCategory, loadStorageImage } from '../clients/supabase.client.js';
 import { buildFewShotPrompt, WALL_ANALYSIS_ZERO_SHOT_PROMPT } from '../prompts/wall-analysis-fewshot.js';
@@ -21,6 +26,8 @@ import type {
 
 const log = createLogger('wall-analysis');
 
+export type AnalysisProvider = 'gemini' | 'claude';
+
 const DEFAULT_REFERENCE_CATEGORIES: ReferenceImageCategory[] = [
   'water_pipe', 'exhaust_duct', 'gas_pipe',
 ];
@@ -30,6 +37,7 @@ export interface WallAnalysisParams {
   imageType: string;
   useReferenceImages?: boolean;
   referenceCategories?: ReferenceImageCategory[];
+  provider?: AnalysisProvider;
 }
 
 export async function analyzeWall(params: WallAnalysisParams): Promise<WallAnalysis> {
@@ -38,12 +46,13 @@ export async function analyzeWall(params: WallAnalysisParams): Promise<WallAnaly
     imageType,
     useReferenceImages = true,
     referenceCategories = DEFAULT_REFERENCE_CATEGORIES,
+    provider = detectDefaultProvider(),
   } = params;
 
   let wallData: WallAnalysis = getDefaultWallData();
 
   try {
-    const parsed = await performWallAnalysis(image, imageType, useReferenceImages, referenceCategories);
+    const parsed = await performWallAnalysis(image, imageType, useReferenceImages, referenceCategories, provider);
     wallData = { ...wallData, ...parsed };
 
     // 배관 위치 간편 접근용 필드 설정
@@ -80,13 +89,21 @@ export async function analyzeWall(params: WallAnalysisParams): Promise<WallAnaly
   return wallData;
 }
 
+function detectDefaultProvider(): AnalysisProvider {
+  if (process.env.ANTHROPIC_API_KEY) return 'claude';
+  return 'gemini';
+}
+
 async function performWallAnalysis(
   image: string,
   imageType: string,
   useReferenceImages: boolean,
-  referenceCategories: ReferenceImageCategory[]
+  referenceCategories: ReferenceImageCategory[],
+  provider: AnalysisProvider
 ): Promise<WallAnalysis> {
   let wallData: WallAnalysis | null = null;
+
+  log.info({ provider }, 'Using analysis provider');
 
   if (useReferenceImages) {
     log.info('Attempting Few-Shot analysis with reference images');
@@ -98,21 +115,39 @@ async function performWallAnalysis(
     if (referenceImages.length > 0) {
       log.info({ refCount: referenceImages.length }, 'Using reference images');
       const prompt = buildFewShotPrompt(referenceImages, images.length - 1);
-      const response = await geminiMultiImageAnalysis(images, prompt);
-      const text = extractTextFromGeminiResponse(response);
-      if (text) {
-        wallData = extractJsonFromText(text) as WallAnalysis | null;
+
+      if (provider === 'claude') {
+        const response = await claudeMultiImageAnalysis(images, prompt);
+        const text = extractTextFromClaudeResponse(response);
+        if (text) {
+          wallData = extractJsonFromText(text) as WallAnalysis | null;
+        }
+      } else {
+        const response = await geminiMultiImageAnalysis(images, prompt);
+        const text = extractTextFromGeminiResponse(response);
+        if (text) {
+          wallData = extractJsonFromText(text) as WallAnalysis | null;
+        }
       }
     }
   }
 
   // 폴백: Zero-Shot
   if (!wallData) {
-    log.info('Falling back to Zero-Shot analysis');
-    const response = await geminiVisionAnalysis(image, imageType, WALL_ANALYSIS_ZERO_SHOT_PROMPT);
-    const text = extractTextFromGeminiResponse(response);
-    if (text) {
-      wallData = extractJsonFromText(text) as WallAnalysis | null;
+    log.info({ provider }, 'Falling back to Zero-Shot analysis');
+
+    if (provider === 'claude') {
+      const response = await claudeVisionAnalysis(image, imageType, WALL_ANALYSIS_ZERO_SHOT_PROMPT);
+      const text = extractTextFromClaudeResponse(response);
+      if (text) {
+        wallData = extractJsonFromText(text) as WallAnalysis | null;
+      }
+    } else {
+      const response = await geminiVisionAnalysis(image, imageType, WALL_ANALYSIS_ZERO_SHOT_PROMPT);
+      const text = extractTextFromGeminiResponse(response);
+      if (text) {
+        wallData = extractJsonFromText(text) as WallAnalysis | null;
+      }
     }
   }
 

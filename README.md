@@ -1,21 +1,63 @@
 # 다담AI 에이전트 프로젝트
 
-> n8n 워크플로우 → Claude Code 스킬 + MCP 기반 에이전트 전환 프로젝트
+> AI 기반 맞춤형 가구 설계 자동화 시스템
 
 ## 프로젝트 개요
 
-다담AI는 방 사진을 분석하여 맞춤형 AI 가구 이미지를 생성하는 서비스입니다.
-기존 n8n 워크플로우 기반 시스템을 Claude Code 스킬 + MCP 서버 기반으로 전환합니다.
+다담AI는 고객의 방 사진을 분석하여 맞춤형 AI 가구 디자인 이미지를 생성하는 서비스입니다.
 
-### 전환 목표
+### 사업 파이프라인 (최종 목표)
 
-| 항목 | 기존 (AS-IS) | 신규 (TO-BE) |
-|------|-------------|-------------|
-| 워크플로우 엔진 | n8n Cloud | Claude Code + MCP |
-| 비즈니스 로직 | JavaScript (n8n 노드) | TypeScript |
-| 프롬프트 관리 | JSON 하드코딩 | 모듈화된 템플릿 |
-| 테스트 | 불가 | 단위/통합 테스트 |
-| 버전 관리 | 어려움 | Git 완전 추적 |
+```
+고객 방 사진 → AI 디자인 이미지 → 설계 데이터 → BOM 추출 → 재단 도면 → 조립 도면 → 설치 도면 → 일정관리
+```
+
+---
+
+## 아키텍처
+
+### 확정 아키텍처 (v2)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│  [고객용 프론트엔드]                                               │
+│  HTML Pages (ai-design, detaildesign, etc.)                      │
+│         │                                                        │
+│         ▼                                                        │
+│  [Cloudflare Workers Proxy]                                      │
+│         │                                                        │
+│         ▼                                                        │
+│  [n8n Cloud] ─── 고객 대면 워크플로우 (운영)                        │
+│         │                                                        │
+│         ├─→ Claude API ─→ 벽면/배관 분석                           │
+│         ├─→ Supabase RAG ─→ 설계 규칙 검색                        │
+│         ├─→ Gemini API ─→ 이미지 생성                              │
+│         └─→ Supabase ─→ 데이터 저장                               │
+│                                                                  │
+│  ─────────────────── 분리선 ───────────────────                   │
+│                                                                  │
+│  [내부 AI 에이전트] (Claude Code + MCP 서버)                       │
+│         │                                                        │
+│         ├─→ MCP 도구: RAG 검색, 벽면 분석, 이미지 생성              │
+│         ├─→ [신규] BOM 추출 도구                                   │
+│         ├─→ [신규] 재단 계산 도구                                   │
+│         └─→ [신규] 도면 생성 도구                                   │
+│                                                                  │
+│  [Supabase] ── DB, Auth, Storage, Vector Search (공용)            │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 역할 분담
+
+| 역할 | 시스템 | 설명 |
+|------|--------|------|
+| **고객 대면** | n8n Cloud | 안정적인 운영 워크플로우 (v8) |
+| **내부/신규 기능** | MCP 서버 | 개발/테스트, BOM/도면 등 신규 기능 |
+| **AI 분석** | Claude API | 벽면/배관 분석 (n8n + MCP 공통) |
+| **이미지 생성** | Gemini API | 가구 디자인 이미지 생성 |
+| **데이터** | Supabase | DB, Auth, Storage, Vector Search |
 
 ---
 
@@ -23,45 +65,34 @@
 
 ```
 dadamagent/
-├── .claude/
-│   ├── settings.json               # Claude Code 설정
-│   └── skills/dadam-design/        # 다담AI 스킬
-│       ├── skill.json              # 스킬 메타데이터
-│       ├── index.md                # 스킬 사용 가이드
-│       ├── prompts/
-│       │   └── prompt-builder.ts   # 프롬프트 빌더
-│       └── utils/
-│           ├── parse-input.ts      # 입력 파싱
-│           └── color-map.ts        # 색상/자재 매핑
-│
-├── .mcp.json                       # MCP 서버 설정
-│
-├── mcp-server/                     # MCP 서버
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── .env                        # 환경 변수 (API 키)
-│   ├── .env.example
-│   ├── dist/                       # 빌드 결과물
+├── .claude/skills/dadam-design/   # Claude Code 스킬
+├── .github/workflows/             # CI/CD
+├── mcp-server/                    # MCP 서버 (내부 AI 에이전트)
 │   ├── src/
-│   │   ├── index.ts                # MCP 서버 진입점
-│   │   ├── types/index.ts          # 타입 정의
-│   │   ├── tools/
-│   │   │   ├── supabase-rag.ts     # RAG 검색 도구
-│   │   │   ├── gemini-vision.ts    # 벽 분석 도구
-│   │   │   └── gemini-image.ts     # 이미지 생성 도구
-│   │   └── utils/
-│   │       ├── config.ts           # 설정 로드
-│   │       └── api-client.ts       # API 클라이언트
-│   └── tests/
-│       └── test-tools.ts           # 통합 테스트
-│
-├── docs/
-│   ├── n8n-workflow-analysis.md    # n8n 워크플로우 분석
-│   └── renovation-plan.md          # 개편 계획서
-│
-├── dadam-cabinet/                  # 기존 프로젝트 (참조용)
-│
-└── README.md                       # 이 문서
+│   │   ├── index.ts               # MCP 서버 진입점
+│   │   ├── http-server.ts         # HTTP API 서버
+│   │   ├── clients/               # API 클라이언트 (Claude, Gemini, Supabase)
+│   │   ├── services/              # 비즈니스 로직
+│   │   ├── tools/                 # MCP 도구 정의
+│   │   ├── prompts/               # 프롬프트 템플릿
+│   │   ├── routes/                # HTTP 라우트
+│   │   └── utils/                 # 유틸리티
+│   └── .env                       # 환경 변수 (API 키)
+├── admin/                         # 관리자 HTML 페이지
+├── css/                           # 스타일시트
+├── database/                      # Supabase 스키마
+├── docs/                          # 문서
+├── js/                            # 프론트엔드 JS 모듈
+├── lib/                           # 공유 라이브러리
+├── sql/                           # SQL 스크립트
+├── types/                         # 공유 타입
+├── workflows/                     # n8n 워크플로우 JSON
+│   ├── v8-claude-analysis.json    # 운영 버전
+│   ├── v1-fast-generation.json    # Design Data 워크플로우
+│   └── archive/                   # 이전 버전 (v5, v6, v7)
+├── __tests__/                     # 테스트
+├── [HTML 페이지들]                 # 프론트엔드 (index, ai-design, detaildesign 등)
+└── [설정 파일들]                    # package.json, tsconfig 등
 ```
 
 ---
@@ -72,7 +103,6 @@ dadamagent/
 
 설계 규칙 RAG 검색
 
-**입력:**
 ```json
 {
   "triggers": ["상부장", "하부장", "도어규격"],
@@ -81,35 +111,24 @@ dadamagent/
 }
 ```
 
-**출력:**
-- 배경 처리 규칙
-- 모듈 구성 규칙
-- 도어 사양
-- 자재 정보
-
 ### 2. gemini_wall_analysis
 
-벽 구조 및 유틸리티 위치 분석
+벽 구조 및 유틸리티 위치 분석 (Claude 또는 Gemini 선택 가능)
 
-**입력:**
 ```json
 {
   "image": "<base64 이미지>",
-  "image_type": "image/jpeg"
+  "image_type": "image/jpeg",
+  "provider": "claude"
 }
 ```
 
-**출력:**
-- 벽 치수 (타일 기반 계산)
-- 급수 분배기 위치 → 싱크대 배치
-- 배기 덕트 위치 → 가스대/후드 배치
-- 가스 배관 위치
+- `provider`: `"claude"` (기본, ANTHROPIC_API_KEY 있을 때) 또는 `"gemini"`
 
 ### 3. gemini_generate_image
 
 AI 가구 이미지 생성
 
-**입력:**
 ```json
 {
   "prompt": "<생성 프롬프트>",
@@ -118,15 +137,11 @@ AI 가구 이미지 생성
 }
 ```
 
-**출력:**
-- 생성된 이미지 (Base64)
-- 텍스트 응답
-
 ---
 
 ## 설치 및 실행
 
-### 1. 의존성 설치
+### 1. MCP 서버 설치
 
 ```bash
 cd mcp-server
@@ -135,13 +150,18 @@ npm install
 
 ### 2. 환경 변수 설정
 
-`.env` 파일에 API 키 설정:
+`mcp-server/.env` 파일에 API 키 설정:
 
 ```bash
-SUPABASE_URL=https://vvqrvgcgnlfpiqqndsve.supabase.co
-SUPABASE_ANON_KEY=<your_supabase_anon_key>
-GEMINI_API_KEY=<your_gemini_api_key>
+cp .env.example .env
+# .env 파일 편집하여 API 키 입력
 ```
+
+필수 환경 변수:
+- `SUPABASE_URL` - Supabase 프로젝트 URL
+- `SUPABASE_ANON_KEY` - Supabase anon key
+- `GEMINI_API_KEY` - Google Gemini API key
+- `ANTHROPIC_API_KEY` - Anthropic Claude API key (벽면 분석용)
 
 ### 3. 빌드
 
@@ -149,72 +169,20 @@ GEMINI_API_KEY=<your_gemini_api_key>
 npm run build
 ```
 
-### 4. 테스트
+### 4. 실행
 
 ```bash
-npx tsx tests/test-tools.ts
-```
-
-예상 결과:
-```
-═══════════════════════════════════════════════════════════
-Test Summary:
-  Supabase RAG: ✅ PASS
-  Gemini API:   ✅ PASS
-═══════════════════════════════════════════════════════════
-```
-
-### 5. MCP 서버 실행
-
-```bash
+# MCP 서버 (Claude Code 연동용)
 npm start
+
+# HTTP API 서버 (프론트엔드 연동용)
+npm run start:http
 ```
 
----
+### 5. 헬스 체크
 
-## Claude Code 연동
-
-### MCP 서버 활성화
-
-`.mcp.json` 파일이 프로젝트 루트에 설정되어 있습니다.
-Claude Code 시작 시 `dadam` MCP 서버가 자동으로 사용 가능합니다.
-
-### 스킬 사용
-
-다담AI 스킬은 다음 트리거로 활성화됩니다:
-- "다담", "dadam", "가구 설계", "AI 설계"
-- "싱크대", "붙박이장", "냉장고장", "신발장", "화장대"
-- "kitchen cabinet", "wardrobe", "furniture design"
-
----
-
-## 워크플로우
-
-### 방 사진 → AI 가구 설계
-
-```
-1. 입력 파싱
-   └─ 카테고리, 스타일, 자재코드 추출
-
-2. RAG 검색 (supabase_rag_search)
-   └─ 설계 규칙 25개 조회
-
-3. 벽 분석 (gemini_wall_analysis)
-   └─ 타일 기반 치수 계산
-   └─ 유틸리티 위치 감지
-
-4. 프롬프트 조립
-   └─ 벽 측정 섹션
-   └─ 유틸리티 배치 섹션
-   └─ 스타일/자재 섹션
-
-5. 이미지 생성 (gemini_generate_image)
-   └─ 닫힌 도어 이미지
-   └─ 열린 도어 이미지
-
-6. 응답 반환
-   └─ closed: Base64 이미지
-   └─ open: Base64 이미지
+```bash
+curl http://localhost:3200/health
 ```
 
 ---
@@ -232,58 +200,22 @@ Claude Code 시작 시 `dadam` MCP 서버가 자동으로 사용 가능합니다
 
 ---
 
-## 자재코드 지원
-
-지원하는 자재코드 패턴:
-- `YPG-xxx` - Prestige Glass
-- `SM-xxx` - Supreme PET Matt
-- `SG-xxx` - Supreme PET Glossy
-- `PW-xxx` - Supreme PP Wood
-- `CP-xxx` - Supreme PP Calacatta
-- 등 19개 패턴
-
----
-
-## 색상 지원
-
-| 한글 | 영문 변환 |
-|------|----------|
-| 화이트 | pure white (#FFFFFF) |
-| 그레이 | warm gray (#9E9E9E) |
-| 블랙 | matte black (#2D2D2D) |
-| 오크 | natural oak wood grain |
-| 월넛 | dark walnut wood grain |
-
----
-
-## 진행 상태
+## 개발 로드맵
 
 | Phase | 상태 | 설명 |
 |-------|------|------|
-| Phase 1 | ✅ 완료 | MCP 서버 기반 구축 |
-| Phase 2 | ✅ 완료 | 프롬프트 모듈화, 스킬 개발 |
-| Phase 3 | ✅ 완료 | 환경 설정, API 테스트 |
-| Phase 4 | 🔄 진행 중 | MCP 서버 연동 |
-| Phase 5 | ⏳ 대기 | 프론트엔드 연동 |
-| Phase 6 | ⏳ 대기 | 배포 및 n8n 전환 |
-
----
-
-## 다음 단계
-
-1. **HTTP 엔드포인트 추가** - 프론트엔드에서 직접 호출 가능한 REST API
-2. **프론트엔드 연동** - ai-design.html, detaildesign.html의 API 호출 수정
-3. **배포** - 프로덕션 환경 구성
-4. **n8n 비활성화** - 기존 워크플로우 종료
+| Phase 1 | 🔄 진행 중 | 아키텍처 정리, 코드베이스 클린업 |
+| Phase 2 | ⏳ 대기 | 설계 데이터 구조화 (JSON) |
+| Phase 3 | ⏳ 대기 | BOM (자재 목록) 추출 |
+| Phase 4 | ⏳ 대기 | 재단 도면 생성 |
+| Phase 5 | ⏳ 대기 | 조립/설치 도면 및 일정관리 |
 
 ---
 
 ## 참고 문서
 
-- [n8n 워크플로우 분석](./docs/n8n-workflow-analysis.md)
-- [개편 계획서](./docs/renovation-plan.md)
+- [아키텍처 계획서](./docs/renovation-plan.md)
 - [MCP 공식 문서](https://modelcontextprotocol.io/)
-- [Claude Code 문서](https://docs.anthropic.com/claude-code)
 
 ---
 

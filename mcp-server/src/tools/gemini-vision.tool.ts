@@ -6,18 +6,20 @@ import { z } from 'zod';
 import { registerTool } from './registry.js';
 import { mcpSuccess, mcpError } from '../utils/response-builder.js';
 import { analyzeWall } from '../services/wall-analysis.service.js';
+import type { AnalysisProvider } from '../services/wall-analysis.service.js';
 
 const inputSchema = z.object({
   image: z.string(),
   image_type: z.string().optional().default('image/jpeg'),
   use_reference_images: z.boolean().optional().default(true),
   reference_categories: z.array(z.string()).optional().default(['water_pipe', 'exhaust_duct', 'gas_pipe']),
+  provider: z.enum(['gemini', 'claude']).optional(),
 });
 
 registerTool(
   {
     name: 'gemini_wall_analysis',
-    description: 'Gemini Vision으로 방 사진의 벽 구조를 분석합니다. 타일 기반 벽 치수 계산, 급수/배기/가스 배관 위치를 감지합니다.',
+    description: 'AI Vision으로 방 사진의 벽 구조를 분석합니다. 타일 기반 벽 치수 계산, 급수/배기/가스 배관 위치를 감지합니다. Claude 또는 Gemini 선택 가능.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -41,6 +43,11 @@ registerTool(
           description: '사용할 참조 카테고리',
           default: ['water_pipe', 'exhaust_duct', 'gas_pipe'],
         },
+        provider: {
+          type: 'string',
+          enum: ['gemini', 'claude'],
+          description: 'AI 분석 프로바이더 (기본: ANTHROPIC_API_KEY가 있으면 claude, 없으면 gemini)',
+        },
       },
       required: ['image'],
     },
@@ -52,13 +59,14 @@ registerTool(
     }
 
     try {
-      const { image, image_type, use_reference_images, reference_categories } = parsed.data;
+      const { image, image_type, use_reference_images, reference_categories, provider } = parsed.data;
 
       const wallData = await analyzeWall({
         image,
         imageType: image_type,
         useReferenceImages: use_reference_images,
         referenceCategories: reference_categories as any,
+        provider: provider as AnalysisProvider | undefined,
       });
 
       return mcpSuccess({
