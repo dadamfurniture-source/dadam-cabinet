@@ -7,9 +7,11 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { validateCategory, validateBase64Image, validateMimeType } from '../middleware/input-validator.js';
+import type { Category } from '../types/index.js';
 import { searchAndClassifyRules } from '../services/rag-search.service.js';
 import { analyzeWall } from '../services/wall-analysis.service.js';
 import { generateClosedAndOpenDoorImages } from '../services/image-generation.service.js';
+import { extractDesignData } from '../services/design-data.service.js';
 
 const log = createLogger('route:interior');
 const router = Router();
@@ -19,7 +21,7 @@ router.post('/webhook/dadam-interior-v4', async (req: Request, res: Response, ne
     const body = req.body;
 
     // 1. 입력 검증 및 파싱
-    const category = validateCategory(body.category);
+    const category = validateCategory(body.category) as Category;
     const style = body.design_style || body.style || 'modern';
     const roomImage = validateBase64Image(body.room_image, 'room_image');
     const imageType = validateMimeType(body.image_type);
@@ -63,7 +65,17 @@ router.post('/webhook/dadam-interior-v4', async (req: Request, res: Response, ne
       imageType
     );
 
-    // 5. 응답 (ai-design.html 호환 형식)
+    // 5. 구조화된 설계 데이터 추출
+    const designData = extractDesignData({
+      category,
+      style,
+      wallData,
+      classified: ragResult.classified,
+      cabinetSpecs,
+      modules,
+    });
+
+    // 6. 응답 (ai-design.html 호환 형식)
     res.json({
       success: true,
       message: '이미지 생성 완료',
@@ -83,6 +95,7 @@ router.post('/webhook/dadam-interior-v4', async (req: Request, res: Response, ne
         base64: closedImage,
         mime_type: 'image/png',
       },
+      design_data: designData,
     });
   } catch (error) {
     next(error);

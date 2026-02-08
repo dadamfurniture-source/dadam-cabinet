@@ -305,6 +305,75 @@ export interface TileReference {
 export type TileReferenceMap = Record<string, TileReference>;
 
 // ─────────────────────────────────────────────────────────────────
+// 구조화된 설계 데이터 (Phase 2)
+// ─────────────────────────────────────────────────────────────────
+
+export interface CabinetUnit {
+  position_mm: number;
+  width_mm: number;
+  type: string;       // 'standard', 'sink', 'cooktop', 'drawer', 'corner'
+  door_count: number;
+  is_drawer: boolean;
+  has_sink?: boolean;
+  has_cooktop?: boolean;
+}
+
+export interface StructuredDesignData {
+  category: Category;
+  style: string;
+
+  wall: {
+    width_mm: number;
+    height_mm: number;
+    tile_type: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+
+  utilities: {
+    water_supply: { detected: boolean; position_mm: number };
+    exhaust_duct: { detected: boolean; position_mm: number };
+    gas_pipe: { detected: boolean; position_mm: number };
+  };
+
+  layout: {
+    direction: string;
+    total_width_mm: number;
+    depth_mm: number;
+  };
+
+  cabinets: {
+    upper: CabinetUnit[];
+    lower: CabinetUnit[];
+    upper_height_mm: number;
+    lower_height_mm: number;
+    leg_height_mm: number;
+    molding_height_mm: number;
+  };
+
+  equipment: {
+    sink?: { position_mm: number; width_mm: number; type: string };
+    cooktop?: { position_mm: number; width_mm: number; type: string; burner_count?: number };
+    hood?: { position_mm: number; width_mm: number; type: string };
+    faucet?: { type: string };
+  };
+
+  materials: {
+    door_color: string;
+    door_finish: string;
+    countertop: string;
+    material_codes: string[];
+    handle_type: string;
+  };
+
+  rag_rules_applied: {
+    background: string[];
+    modules: string[];
+    doors: string[];
+    material_codes: string[];
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
 // 색상/자재 매핑 타입
 // ─────────────────────────────────────────────────────────────────
 

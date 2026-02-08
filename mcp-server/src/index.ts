@@ -17,6 +17,7 @@ import {
 import './tools/supabase-rag.tool.js';
 import './tools/gemini-vision.tool.js';
 import './tools/gemini-image.tool.js';
+import './tools/design-data.tool.js';
 
 import { getToolDefinitions, executeTool } from './tools/registry.js';
 
