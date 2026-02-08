@@ -102,6 +102,12 @@ This is a PHOTO generation task, NOT a technical drawing.
 DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS TO THE IMAGE.
 The output must be a CLEAN photograph with NO annotations whatsoever.
 
+★★★ CRITICAL REQUIREMENT - 절대 누락 금지 ★★★
+싱크대(SINK CABINET)에는 반드시 다음이 포함되어야 합니다:
+1. 싱크볼 (SINK BOWL) - 스테인리스 또는 화강석 싱크볼
+2. 수전 (FAUCET) - 싱크볼 중앙 뒤쪽에 설치된 수도꼭지
+이 두 가지가 없으면 싱크대가 아닙니다. 절대 누락하지 마세요!
+
 [TASK: KOREAN BUILT-IN KITCHEN (싱크대) - PHOTOREALISTIC PHOTO]
 
 ═══════════════════════════════════════════════════════════════
@@ -124,17 +130,24 @@ FINISH & CLEAN UP (미완성 부분 자연스럽게 마감):
 ${utilityPlacementPrompt}
 
 ═══════════════════════════════════════════════════════════════
-[SECTION 3: 필수 설비 - 반드시 배치] ★★★ 중요
+[SECTION 3: 필수 설비 - 반드시 배치] ★★★ 최우선 중요 ★★★
 ═══════════════════════════════════════════════════════════════
-다음 설비는 반드시 이미지에 포함되어야 합니다:
+아래 설비가 없으면 이미지를 거부합니다. 반드시 포함하세요!
 
-【싱크볼 & 수전】 - 필수
-- 싱크볼: 적절한 위치에 반드시 배치
-- 수전(Faucet): 싱크볼 정중앙 위에 배치
-- 싱크볼 아래(개수대 하부): 배관과 수도 분배기만 보이도록
-  → 잡동사니, 쓰레기통, 세제 등 제거 (깔끔한 배관만)
+【싱크볼 & 수전】 - 필수 (MANDATORY - 없으면 거부)
+┌─────────────────────────────────────────────────────────────┐
+│ 1. 싱크볼 (SINK BOWL)                                        │
+│    - 하부장 상판에 매립된 스테인리스/화강석 싱크볼            │
+│    - 크기: 가로 600-800mm 정도의 사각형 또는 원형 싱크        │
+│                                                              │
+│ 2. 수전 (FAUCET/TAP)                                         │
+│    - 싱크볼 뒤쪽 중앙에 설치된 수도꼭지                      │
+│    - 스테인리스 또는 크롬 마감의 현대적 디자인               │
+│    - 단일 레버 또는 투핸들 타입                              │
+└─────────────────────────────────────────────────────────────┘
+※ 싱크볼 아래(개수대 하부): 배관과 수도 분배기만 (잡동사니 금지)
 
-【쿡탑】 - 필수
+【쿡탑 & 레인지후드】 - 필수 (MANDATORY)
 - 인덕션 또는 가스레인지: 적절한 위치에 반드시 배치
 - 쿡탑 위에 레인지후드 배치
 
@@ -186,13 +199,18 @@ ${cooktopType ? `- Cooktop: ${cooktopType}` : '- Cooktop: 3구 인덕션'}
 ❌ NO 싱크볼/쿡탑 누락 (반드시 포함!)
 
 ═══════════════════════════════════════════════════════════════
-[OUTPUT]
+[OUTPUT] - 필수 체크리스트
 ═══════════════════════════════════════════════════════════════
 Clean photorealistic interior photograph of Korean kitchen (싱크대).
 Magazine quality, professional lighting.
 All unfinished areas naturally completed.
-Sink bowl with centered faucet - MUST INCLUDE.
-Cooktop (induction/gas) with hood - MUST INCLUDE.
+
+✓ MUST INCLUDE (없으면 실패):
+  □ 싱크볼 (SINK BOWL) - 하부장에 매립된 싱크
+  □ 수전 (FAUCET) - 싱크볼 뒤쪽 중앙의 수도꼭지
+  □ 쿡탑 (COOKTOP) - 인덕션 또는 가스레인지
+  □ 레인지후드 (RANGE HOOD) - 쿡탑 위
+
 Under sink: clean pipes and water distributor only.
 All cabinet doors CLOSED with user-selected color.`;
 }
@@ -231,27 +249,25 @@ function buildUtilityPlacementSection(wallData: WallAnalysis): string {
     return section;
   }
 
-  // 아무것도 감지되지 않은 경우
-  const placement = wallData.furniture_placement;
-  const sinkPos = placement?.sink_center_mm || Math.round(wallData.wall_width_mm * 0.3);
-  const cooktopPos = placement?.cooktop_center_mm || Math.round(wallData.wall_width_mm * 0.7);
-  const layoutDir = placement?.layout_direction || 'sink_left_cooktop_right';
-
+  // 아무것도 감지되지 않은 경우: AI가 적절한 위치 결정
   return `
 ═══════════════════════════════════════════════════════════════
-[SECTION 2: 설비 배치 - 계산된 기본 좌표]
+[SECTION 2: 설비 배치 - AI 자동 결정]
 ═══════════════════════════════════════════════════════════════
-배관 위치가 감지되지 않아 벽 너비 기준으로 배치 좌표를 계산했습니다.
+배관 위치가 명확히 감지되지 않았습니다.
+이미지를 분석하여 다음 원칙에 따라 적절한 위치에 설비를 배치하세요:
 
-싱크볼 배치 (기준점에서 ${sinkPos}mm):
-→ 싱크볼 중심을 ${sinkPos}mm 위치에 설치
-→ 수전(Faucet)을 싱크볼 정중앙 위에 설치
-→ 싱크볼 아래: 배관과 수도 분배기만 (잡동사니 제거)
+싱크볼 & 수전:
+→ 물이 튀어도 되는 작업 공간 근처
+→ 창문이 있다면 창문 앞 (자연광 활용)
+→ 일반적으로 주방의 한쪽 끝에 배치
 
-쿡탑 & 레인지후드 배치 (기준점에서 ${cooktopPos}mm):
-→ 쿡탑(인덕션/가스레인지) 중심을 ${cooktopPos}mm 위치에 설치
-→ 레인지후드를 쿡탑 바로 위에 설치
+레인지후드 & 쿡탑:
+→ 환기가 용이한 위치 (외벽 근처 선호)
+→ 싱크대와 적절한 거리 유지 (작업 동선 고려)
+→ 상부장이 없거나 후드 설치 가능한 공간
 
-레이아웃: ${layoutDir === 'sink_left_cooktop_right' ? '싱크 왼쪽 ← → 쿡탑 오른쪽' : '쿡탑 왼쪽 ← → 싱크 오른쪽'}
-동선: 냉장고 → 싱크대 → 조리대 → 쿡탑`;
+전체 레이아웃:
+→ 한국 주방의 일반적인 동선: 냉장고 → 싱크대 → 조리대 → 쿡탑
+→ 자연스럽고 기능적인 배치 우선`;
 }

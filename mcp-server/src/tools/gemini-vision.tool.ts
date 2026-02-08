@@ -11,7 +11,7 @@ const inputSchema = z.object({
   image: z.string(),
   image_type: z.string().optional().default('image/jpeg'),
   use_reference_images: z.boolean().optional().default(true),
-  reference_categories: z.array(z.string()).optional().default(['water_pipe', 'exhaust_duct', 'gas_pipe', 'outlet']),
+  reference_categories: z.array(z.string()).optional().default(['water_pipe', 'exhaust_duct', 'gas_pipe']),
 });
 
 registerTool(
@@ -39,7 +39,7 @@ registerTool(
           type: 'array',
           items: { type: 'string' },
           description: '사용할 참조 카테고리',
-          default: ['water_pipe', 'exhaust_duct', 'gas_pipe', 'outlet'],
+          default: ['water_pipe', 'exhaust_duct', 'gas_pipe'],
         },
       },
       required: ['image'],

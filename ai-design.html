@@ -588,6 +588,335 @@
         display: none;
       }
 
+      /* Category Buttons (New Layout) */
+      .category-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin-bottom: 24px;
+      }
+      .category-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 18px;
+        background: var(--white);
+        border: 2px solid var(--warm);
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+        font-family: inherit;
+      }
+      .category-btn:hover {
+        border-color: var(--gold);
+        transform: translateY(-1px);
+      }
+      .category-btn.has-image {
+        border-color: var(--gold);
+        background: linear-gradient(135deg, #fff9f0, #fff);
+      }
+      .category-btn .btn-icon {
+        font-size: 18px;
+      }
+      .category-btn .btn-text {
+        font-weight: 500;
+        color: var(--charcoal);
+      }
+      .category-btn .btn-check {
+        display: none;
+        color: var(--gold);
+        font-weight: bold;
+      }
+      .category-btn.has-image .btn-check {
+        display: inline;
+      }
+
+      /* Image Preview Section (Slider) */
+      .image-preview-section {
+        background: var(--cream);
+        border-radius: 20px;
+        padding: 20px;
+        margin-bottom: 24px;
+        display: none;
+      }
+      .image-preview-section.active {
+        display: block;
+      }
+      .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .preview-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .preview-count {
+        background: var(--gold);
+        color: #fff;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+      }
+
+      /* Slider */
+      .preview-slider {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .slider-arrow {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--white);
+        border: 1px solid var(--warm);
+        cursor: pointer;
+        font-size: 16px;
+        transition: all 0.2s;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .slider-arrow:hover {
+        background: var(--gold);
+        color: #fff;
+        border-color: var(--gold);
+      }
+      .slider-arrow:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .slider-arrow:disabled:hover {
+        background: var(--white);
+        color: inherit;
+        border-color: var(--warm);
+      }
+      .slider-container {
+        flex: 1;
+        overflow: hidden;
+        border-radius: 16px;
+      }
+      .slider-track {
+        display: flex;
+        transition: transform 0.3s ease;
+      }
+      .slide-item {
+        min-width: 100%;
+        position: relative;
+      }
+      .slide-image-container {
+        position: relative;
+        width: 100%;
+        height: 400px;
+        background: #f5f5f5;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .slide-image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .slide-label {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: rgba(0,0,0,0.7);
+        color: #fff;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+      }
+      .slide-remove-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 32px;
+        height: 32px;
+        background: rgba(239, 68, 68, 0.9);
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      }
+      .slide-remove-btn:hover {
+        background: #dc2626;
+        transform: scale(1.1);
+      }
+
+      /* Slider Indicators */
+      .slider-indicators {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      .indicator-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        background: var(--warm);
+        border: none;
+        border-radius: 15px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+      }
+      .indicator-item:hover {
+        background: var(--gold-light);
+      }
+      .indicator-item.active {
+        background: var(--gold);
+        color: #fff;
+      }
+      .current-category {
+        text-align: center;
+        margin-top: 12px;
+        font-size: 14px;
+        color: var(--gray);
+      }
+
+      /* Position Marking Section */
+      .position-marking-section {
+        background: linear-gradient(135deg, #e3f2fd, #fff);
+        border: 2px solid #2196f3;
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-top: 16px;
+        display: none;
+      }
+      .position-marking-section.active {
+        display: block;
+      }
+      .marking-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1565c0;
+      }
+      .marking-buttons {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .marking-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        border: 2px solid #ddd;
+        border-radius: 20px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        transition: all 0.2s;
+      }
+      .marking-btn:hover {
+        border-color: #2196f3;
+        background: #e3f2fd;
+      }
+      .marking-btn.active {
+        border-color: #2196f3;
+        background: #2196f3;
+        color: #fff;
+      }
+      .marking-btn.water {
+        --marker-color: #2196f3;
+      }
+      .marking-btn.exhaust {
+        --marker-color: #ff9800;
+      }
+      .marking-btn.water.active {
+        background: #2196f3;
+        border-color: #1565c0;
+      }
+      .marking-btn.exhaust.active {
+        background: #ff9800;
+        border-color: #e65100;
+      }
+      .marking-btn .marker-icon {
+        font-size: 16px;
+      }
+      .clear-markers-btn {
+        padding: 10px 16px;
+        border: 2px solid #ef5350;
+        border-radius: 20px;
+        background: #fff;
+        color: #ef5350;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        transition: all 0.2s;
+        margin-left: auto;
+      }
+      .clear-markers-btn:hover {
+        background: #ef5350;
+        color: #fff;
+      }
+
+      /* Position Markers on Image */
+      .position-marker {
+        position: absolute;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        transform: translate(-50%, -50%);
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        border: 3px solid #fff;
+        z-index: 10;
+        transition: transform 0.2s;
+      }
+      .position-marker:hover {
+        transform: translate(-50%, -50%) scale(1.15);
+      }
+      .position-marker.water {
+        background: #2196f3;
+      }
+      .position-marker.exhaust {
+        background: #ff9800;
+      }
+      .marker-tooltip {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .position-marker:hover .marker-tooltip {
+        opacity: 1;
+      }
+
       /* Selected Count Badge */
       .selected-count {
         display: inline-flex;
@@ -717,183 +1046,6 @@
       @media (max-width: 480px) {
         .style-theme-grid { grid-template-columns: repeat(2, 1fr); }
         .style-theme-card p { display: none; }
-      }
-
-      /* ═══════════════════════════════════════════════════════════════
-         Position Marking System - 수동 배관/덕트 위치 마킹
-         ═══════════════════════════════════════════════════════════════ */
-      .position-marking-section {
-        background: var(--cream);
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 24px;
-        display: none;
-      }
-      .position-marking-section.active {
-        display: block;
-      }
-      .marking-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-      }
-      .marking-title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--charcoal);
-      }
-      .marking-title .icon {
-        width: 32px;
-        height: 32px;
-        background: var(--gold);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-      }
-      .marking-instruction {
-        font-size: 13px;
-        color: var(--gray);
-        margin-bottom: 16px;
-        line-height: 1.6;
-      }
-      .marking-buttons {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-      }
-      .marking-btn {
-        flex: 1;
-        min-width: 140px;
-        padding: 12px 16px;
-        border: 2px solid transparent;
-        border-radius: 10px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-      }
-      .marking-btn.water {
-        background: #e3f2fd;
-        color: #1565c0;
-        border-color: #90caf9;
-      }
-      .marking-btn.water.active {
-        background: #1565c0;
-        color: #fff;
-        border-color: #1565c0;
-      }
-      .marking-btn.exhaust {
-        background: #ffebee;
-        color: #c62828;
-        border-color: #ef9a9a;
-      }
-      .marking-btn.exhaust.active {
-        background: #c62828;
-        color: #fff;
-        border-color: #c62828;
-      }
-      .marking-btn.clear {
-        background: var(--warm);
-        color: var(--gray);
-        flex: 0;
-        min-width: auto;
-        padding: 12px;
-      }
-      .marking-btn.clear:hover {
-        background: #ddd;
-      }
-      .marking-status {
-        display: flex;
-        gap: 16px;
-        font-size: 12px;
-        color: var(--gray);
-        flex-wrap: wrap;
-      }
-      .marking-status-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .marking-status-item .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-      }
-      .marking-status-item .dot.water { background: #1565c0; }
-      .marking-status-item .dot.exhaust { background: #c62828; }
-      .marking-status-item.set { color: var(--charcoal); font-weight: 500; }
-
-      /* Image Preview with Markers */
-      .category-preview-container {
-        position: relative;
-        width: 100%;
-        height: 100%;
-      }
-      .category-preview {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        opacity: 0;
-        transition: opacity 0.3s;
-      }
-      .category-card.has-image .category-preview {
-        opacity: 1;
-      }
-      .position-marker {
-        position: absolute;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: bold;
-        color: #fff;
-        cursor: pointer;
-        z-index: 10;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        animation: markerPulse 2s infinite;
-      }
-      .position-marker.water {
-        background: #1565c0;
-        border: 3px solid #fff;
-      }
-      .position-marker.exhaust {
-        background: #c62828;
-        border: 3px solid #fff;
-      }
-      @keyframes markerPulse {
-        0%, 100% { transform: translate(-50%, -50%) scale(1); }
-        50% { transform: translate(-50%, -50%) scale(1.1); }
-      }
-      .position-marker::after {
-        content: '';
-        position: absolute;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        border: 2px solid currentColor;
-        opacity: 0.5;
-        animation: markerRing 2s infinite;
-      }
-      @keyframes markerRing {
-        0% { transform: scale(0.8); opacity: 0.5; }
-        100% { transform: scale(1.5); opacity: 0; }
       }
 
       /* Single Generate Button */
@@ -1718,6 +1870,38 @@
           height: 60px;
         }
 
+        /* Category Buttons Mobile */
+        .category-buttons {
+          gap: 8px;
+        }
+        .category-btn {
+          padding: 10px 14px;
+          font-size: 13px;
+        }
+        .category-btn .btn-icon {
+          font-size: 16px;
+        }
+
+        /* Image Preview Section Mobile */
+        .image-preview-section {
+          padding: 16px;
+        }
+        .slide-image-container {
+          height: 300px;
+        }
+        .slider-arrow {
+          width: 36px;
+          height: 36px;
+          font-size: 14px;
+        }
+        .slider-indicators {
+          gap: 6px;
+        }
+        .indicator-item {
+          padding: 5px 10px;
+          font-size: 11px;
+        }
+
         .style-selector {
           gap: 8px;
           overflow-x: auto;
@@ -1804,6 +1988,32 @@
         .category-preview {
           height: 50px;
         }
+
+        /* Category Buttons 480px */
+        .category-btn {
+          padding: 8px 12px;
+          font-size: 12px;
+        }
+        .category-btn .btn-text {
+          display: none;
+        }
+        .category-btn .btn-icon {
+          font-size: 18px;
+        }
+
+        /* Image Preview Section 480px */
+        .slide-image-container {
+          height: 250px;
+        }
+        .slider-arrow {
+          width: 32px;
+          height: 32px;
+        }
+        .preview-header {
+          flex-direction: column;
+          gap: 8px;
+        }
+
         .result-card img {
           height: 150px;
         }
@@ -2004,66 +2214,99 @@
         </div>
       </div>
 
-      <!-- Category Grid -->
+      <!-- Category Buttons (New Layout) -->
       <p class="section-title">카테고리 선택</p>
-      <p class="section-subtitle">💡 여러 개 선택 가능 - 클릭하여 사진 업로드</p>
+      <p class="section-subtitle">클릭하여 사진 업로드 (여러 개 선택 가능)</p>
 
-      <div style="text-align: center">
-        <div class="selected-count hidden" id="selectedCount">📷 <span>0</span>개 이미지 업로드됨</div>
+      <div class="category-buttons">
+        <button class="category-btn" data-category="sink" onclick="selectCategory('sink')">
+          <span class="btn-icon">🍳</span>
+          <span class="btn-text">싱크대</span>
+          <span class="btn-check">✓</span>
+        </button>
+        <button class="category-btn" data-category="wardrobe" onclick="selectCategory('wardrobe')">
+          <span class="btn-icon">👔</span>
+          <span class="btn-text">붙박이장</span>
+          <span class="btn-check">✓</span>
+        </button>
+        <button class="category-btn" data-category="fridge" onclick="selectCategory('fridge')">
+          <span class="btn-icon">🧊</span>
+          <span class="btn-text">냉장고장</span>
+          <span class="btn-check">✓</span>
+        </button>
+        <button class="category-btn" data-category="vanity" onclick="selectCategory('vanity')">
+          <span class="btn-icon">💄</span>
+          <span class="btn-text">화장대</span>
+          <span class="btn-check">✓</span>
+        </button>
+        <button class="category-btn" data-category="shoe" onclick="selectCategory('shoe')">
+          <span class="btn-icon">👟</span>
+          <span class="btn-text">신발장</span>
+          <span class="btn-check">✓</span>
+        </button>
+        <button class="category-btn" data-category="storage" onclick="selectCategory('storage')">
+          <span class="btn-icon">📦</span>
+          <span class="btn-text">수납장</span>
+          <span class="btn-check">✓</span>
+        </button>
       </div>
 
-      <div class="category-grid">
-        <div class="category-card" data-category="sink" onclick="selectCategory('sink')">
-          <button class="remove-btn" onclick="removeImage('sink', event)" title="삭제">✕</button>
-          <div class="check-badge">✓</div>
-          <div class="category-preview-container" id="preview-container-sink" onclick="handleImageClick('sink', event)">
-            <img class="category-preview" id="preview-sink" src="" alt="" />
-            <!-- Position markers will be added here dynamically -->
+      <!-- Image Preview Section (Slider) -->
+      <div class="image-preview-section" id="imagePreviewSection">
+        <div class="preview-header">
+          <span class="preview-title">업로드 이미지</span>
+          <span class="preview-count" id="previewCount">0개</span>
+        </div>
+
+        <div class="preview-slider" id="previewSlider">
+          <button class="slider-arrow left" id="sliderPrev" onclick="slideImage(-1)">◀</button>
+
+          <div class="slider-container">
+            <div class="slider-track" id="sliderTrack">
+              <!-- 슬라이드 아이템들이 동적으로 추가됨 -->
+            </div>
           </div>
-          <span class="category-icon">🍳</span>
-          <div class="category-name">싱크대</div>
-          <div class="category-desc">주방 싱크대 & 상하부장</div>
+
+          <button class="slider-arrow right" id="sliderNext" onclick="slideImage(1)">▶</button>
         </div>
-        <div class="category-card" data-category="wardrobe" onclick="selectCategory('wardrobe')">
-          <button class="remove-btn" onclick="removeImage('wardrobe', event)" title="삭제">✕</button>
-          <div class="check-badge">✓</div>
-          <img class="category-preview" id="preview-wardrobe" src="" alt="" />
-          <span class="category-icon">👔</span>
-          <div class="category-name">붙박이장</div>
-          <div class="category-desc">옷장 & 수납 시스템</div>
+
+        <div class="slider-indicators" id="sliderIndicators">
+          <!-- 인디케이터 동적 생성 -->
         </div>
-        <div class="category-card" data-category="fridge" onclick="selectCategory('fridge')">
-          <button class="remove-btn" onclick="removeImage('fridge', event)" title="삭제">✕</button>
-          <div class="check-badge">✓</div>
-          <img class="category-preview" id="preview-fridge" src="" alt="" />
-          <span class="category-icon">🧊</span>
-          <div class="category-name">냉장고장</div>
-          <div class="category-desc">냉장고장 & 키큰장</div>
+
+        <div class="current-category" id="currentCategory">
+          카테고리를 선택하고 이미지를 업로드하세요
         </div>
-        <div class="category-card" data-category="vanity" onclick="selectCategory('vanity')">
-          <button class="remove-btn" onclick="removeImage('vanity', event)" title="삭제">✕</button>
-          <div class="check-badge">✓</div>
-          <img class="category-preview" id="preview-vanity" src="" alt="" />
-          <span class="category-icon">💄</span>
-          <div class="category-name">화장대</div>
-          <div class="category-desc">드레서 & 화장대</div>
+
+        <!-- Position Marking Section (Sink Only) -->
+        <div class="position-marking-section" id="positionMarkingSection">
+          <div class="marking-header">
+            📍 배관 위치 직접 표시 (이미지 클릭)
+          </div>
+          <div class="marking-buttons">
+            <button class="marking-btn water" id="markWaterBtn" onclick="toggleMarkingMode('water')">
+              <span class="marker-icon">💧</span>
+              <span>급수 배관</span>
+            </button>
+            <button class="marking-btn exhaust" id="markExhaustBtn" onclick="toggleMarkingMode('exhaust')">
+              <span class="marker-icon">💨</span>
+              <span>배기 덕트</span>
+            </button>
+            <button class="clear-markers-btn" onclick="clearMarkers()">
+              🗑️ 마커 초기화
+            </button>
+          </div>
         </div>
-        <div class="category-card" data-category="shoe" onclick="selectCategory('shoe')">
-          <button class="remove-btn" onclick="removeImage('shoe', event)" title="삭제">✕</button>
-          <div class="check-badge">✓</div>
-          <img class="category-preview" id="preview-shoe" src="" alt="" />
-          <span class="category-icon">👟</span>
-          <div class="category-name">신발장</div>
-          <div class="category-desc">현관 신발장 & 수납</div>
-        </div>
-        <div class="category-card" data-category="storage" onclick="selectCategory('storage')">
-          <button class="remove-btn" onclick="removeImage('storage', event)" title="삭제">✕</button>
-          <div class="check-badge">✓</div>
-          <img class="category-preview" id="preview-storage" src="" alt="" />
-          <span class="category-icon">📦</span>
-          <div class="category-name">자유 수납장</div>
-          <div class="category-desc">다용도 수납 가구</div>
-        </div>
+      </div>
+
+      <!-- Hidden: Original Category Grid (kept for compatibility with preview elements) -->
+      <div style="display: none;">
+        <img id="preview-sink" src="" alt="" />
+        <img id="preview-wardrobe" src="" alt="" />
+        <img id="preview-fridge" src="" alt="" />
+        <img id="preview-vanity" src="" alt="" />
+        <img id="preview-shoe" src="" alt="" />
+        <img id="preview-storage" src="" alt="" />
       </div>
 
       <!-- Hidden File Inputs -->
@@ -2097,41 +2340,6 @@
         accept="image/*"
         onchange="handleFileUpload('storage', this)"
       />
-
-      <!-- Position Marking Section (싱크대 카테고리 전용) -->
-      <div class="position-marking-section" id="positionMarkingSection">
-        <div class="marking-header">
-          <div class="marking-title">
-            <span class="icon">📍</span>
-            배관 위치 직접 표시 (선택사항)
-          </div>
-        </div>
-        <div class="marking-instruction">
-          AI가 배관 위치를 자동으로 인식하지만, 직접 표시하면 더 정확한 가구 배치가 가능합니다.<br>
-          버튼을 선택한 후 이미지를 클릭하여 위치를 표시하세요.
-        </div>
-        <div class="marking-buttons">
-          <button class="marking-btn water" id="markWaterBtn" onclick="toggleMarkingMode('water')">
-            💧 급수 배관
-          </button>
-          <button class="marking-btn exhaust" id="markExhaustBtn" onclick="toggleMarkingMode('exhaust')">
-            💨 배기 덕트
-          </button>
-          <button class="marking-btn clear" onclick="clearAllMarkers()" title="모두 지우기">
-            🗑️
-          </button>
-        </div>
-        <div class="marking-status" id="markingStatus">
-          <div class="marking-status-item" id="waterStatus">
-            <span class="dot water"></span>
-            <span>급수 배관: 미설정</span>
-          </div>
-          <div class="marking-status-item" id="exhaustStatus">
-            <span class="dot exhaust"></span>
-            <span>배기 덕트: 미설정</span>
-          </div>
-        </div>
-      </div>
 
       <!-- Theme Selection Section -->
       <div class="theme-section">
@@ -2418,8 +2626,9 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (n8n 클라우드)
-      const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/dadam-interior-v4';
+      // 프로덕션 API URL (ngrok 터널)
+      const API_BASE_URL = 'https://noneligible-untransparent-emerita.ngrok-free.dev';
+      const N8N_INTERIOR_URL = API_BASE_URL + '/webhook/dadam-interior-v4';
 
       // ═══════════════════════════════════════════════════════════════
       // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -2605,10 +2814,17 @@ Magazine quality, professional lighting.`;
         uploadedImages: {},
         results: [],
         currentPage: 0,
-        // 수동 위치 마킹 상태
-        manualPositions: {},  // { category: { water_pipe: {x, y}, exhaust_duct: {x, y} } }
-        markingMode: null,    // null, 'water', 'exhaust'
-        activeMarkingCategory: null,  // 현재 마킹 중인 카테고리
+        // 배관 위치 마킹
+        markingMode: null,  // 'water' | 'exhaust' | null
+        manualPositions: {
+          // sink: { water: {x, y}, exhaust: {x, y} }
+        },
+      };
+
+      // 슬라이더 상태
+      const sliderState = {
+        currentIndex: 0,
+        items: []  // [{category, imageData}]
       };
 
       // 스타일 테마 데이터
@@ -2650,6 +2866,334 @@ Magazine quality, professional lighting.`;
       };
 
       // ═══════════════════════════════════════════════════════════════
+      // Image Preview Slider
+      // ═══════════════════════════════════════════════════════════════
+
+      // 프리뷰 섹션 표시
+      function showPreviewSection() {
+        const section = document.getElementById('imagePreviewSection');
+        if (sliderState.items.length > 0) {
+          section.classList.add('active');
+        } else {
+          section.classList.remove('active');
+        }
+      }
+
+      // 슬라이더에 이미지 추가
+      function addToSlider(category, imageData) {
+        // 이미 존재하는 카테고리인지 확인
+        const existingIndex = sliderState.items.findIndex(item => item.category === category);
+
+        if (existingIndex >= 0) {
+          // 기존 이미지 업데이트
+          sliderState.items[existingIndex].imageData = imageData;
+        } else {
+          // 새 이미지 추가
+          sliderState.items.push({
+            category,
+            imageData
+          });
+        }
+
+        renderSlider();
+        showPreviewSection();
+
+        // 새로 추가된/업데이트된 이미지로 이동
+        const targetIndex = existingIndex >= 0 ? existingIndex : sliderState.items.length - 1;
+        goToSlide(targetIndex);
+      }
+
+      // 슬라이더에서 이미지 제거
+      function removeFromSlider(category) {
+        const index = sliderState.items.findIndex(item => item.category === category);
+        if (index >= 0) {
+          sliderState.items.splice(index, 1);
+
+          // 현재 인덱스 조정
+          if (sliderState.currentIndex >= sliderState.items.length) {
+            sliderState.currentIndex = Math.max(0, sliderState.items.length - 1);
+          }
+
+          renderSlider();
+          showPreviewSection();
+        }
+      }
+
+      // 슬라이더 렌더링
+      function renderSlider() {
+        const track = document.getElementById('sliderTrack');
+        const indicators = document.getElementById('sliderIndicators');
+        const countEl = document.getElementById('previewCount');
+        const currentCategoryEl = document.getElementById('currentCategory');
+
+        if (sliderState.items.length === 0) {
+          track.innerHTML = '';
+          indicators.innerHTML = '';
+          countEl.textContent = '0개';
+          currentCategoryEl.textContent = '카테고리를 선택하고 이미지를 업로드하세요';
+          return;
+        }
+
+        // 슬라이드 트랙 렌더링
+        track.innerHTML = sliderState.items.map((item, index) => {
+          const info = categoryInfo[item.category];
+          const isSink = item.category === 'sink';
+          return `
+            <div class="slide-item" data-index="${index}" data-category="${item.category}">
+              <div class="slide-image-container" ${isSink ? `onclick="handleSlideClick('${item.category}', event)" style="cursor: crosshair;"` : ''}>
+                <span class="slide-label">${info.icon} ${info.name}</span>
+                <button class="slide-remove-btn" onclick="removeImageFromSlider('${item.category}', event)" title="삭제">✕</button>
+                <img class="slide-image" src="${item.imageData.preview}" alt="${info.name}" />
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // 인디케이터 렌더링
+        indicators.innerHTML = sliderState.items.map((item, index) => {
+          const info = categoryInfo[item.category];
+          return `
+            <button class="indicator-item ${index === sliderState.currentIndex ? 'active' : ''}"
+                    onclick="goToSlide(${index})">
+              ${info.icon} ${info.name}
+            </button>
+          `;
+        }).join('');
+
+        // 카운트 업데이트
+        countEl.textContent = `${sliderState.items.length}개`;
+
+        // 현재 카테고리 표시
+        if (sliderState.items.length > 0) {
+          const currentItem = sliderState.items[sliderState.currentIndex];
+          const info = categoryInfo[currentItem.category];
+          currentCategoryEl.textContent = `${info.icon} ${info.name} (${sliderState.currentIndex + 1}/${sliderState.items.length})`;
+        }
+
+        updateSliderPosition();
+        updateSliderArrows();
+        updateMarkingSection();
+
+        // 현재 슬라이드에 마커 렌더링
+        if (sliderState.items.length > 0) {
+          const currentItem = sliderState.items[sliderState.currentIndex];
+          renderMarkers(currentItem.category);
+        }
+      }
+
+      // 슬라이드 이동
+      function slideImage(direction) {
+        const newIndex = sliderState.currentIndex + direction;
+        if (newIndex >= 0 && newIndex < sliderState.items.length) {
+          goToSlide(newIndex);
+        }
+      }
+
+      // 특정 슬라이드로 이동
+      function goToSlide(index) {
+        if (index < 0 || index >= sliderState.items.length) return;
+
+        sliderState.currentIndex = index;
+        updateSliderPosition();
+        updateIndicators();
+        updateSliderArrows();
+        updateCurrentCategoryDisplay();
+        updateMarkingSection();
+
+        // 현재 슬라이드에 마커 렌더링
+        const currentItem = sliderState.items[sliderState.currentIndex];
+        if (currentItem) {
+          renderMarkers(currentItem.category);
+        }
+      }
+
+      // 슬라이더 위치 업데이트
+      function updateSliderPosition() {
+        const track = document.getElementById('sliderTrack');
+        if (track) {
+          track.style.transform = `translateX(-${sliderState.currentIndex * 100}%)`;
+        }
+      }
+
+      // 인디케이터 업데이트
+      function updateIndicators() {
+        const indicators = document.querySelectorAll('.indicator-item');
+        indicators.forEach((indicator, index) => {
+          indicator.classList.toggle('active', index === sliderState.currentIndex);
+        });
+      }
+
+      // 화살표 버튼 상태 업데이트
+      function updateSliderArrows() {
+        const prevBtn = document.getElementById('sliderPrev');
+        const nextBtn = document.getElementById('sliderNext');
+
+        if (prevBtn) {
+          prevBtn.disabled = sliderState.currentIndex <= 0;
+        }
+        if (nextBtn) {
+          nextBtn.disabled = sliderState.currentIndex >= sliderState.items.length - 1;
+        }
+      }
+
+      // 현재 카테고리 표시 업데이트
+      function updateCurrentCategoryDisplay() {
+        const currentCategoryEl = document.getElementById('currentCategory');
+        if (sliderState.items.length > 0 && currentCategoryEl) {
+          const currentItem = sliderState.items[sliderState.currentIndex];
+          const info = categoryInfo[currentItem.category];
+          currentCategoryEl.textContent = `${info.icon} ${info.name} (${sliderState.currentIndex + 1}/${sliderState.items.length})`;
+        }
+      }
+
+      // 슬라이더에서 이미지 제거 (버튼 클릭)
+      function removeImageFromSlider(category, event) {
+        event.stopPropagation();
+        removeImage(category, event);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Position Marking (Sink Only)
+      // ═══════════════════════════════════════════════════════════════
+
+      // 마킹 모드 토글
+      function toggleMarkingMode(type) {
+        const waterBtn = document.getElementById('markWaterBtn');
+        const exhaustBtn = document.getElementById('markExhaustBtn');
+
+        if (state.markingMode === type) {
+          // 같은 버튼 다시 클릭 시 모드 해제
+          state.markingMode = null;
+          waterBtn.classList.remove('active');
+          exhaustBtn.classList.remove('active');
+          showToast('마킹 모드 해제', 'info');
+        } else {
+          // 새 모드 활성화
+          state.markingMode = type;
+          waterBtn.classList.toggle('active', type === 'water');
+          exhaustBtn.classList.toggle('active', type === 'exhaust');
+
+          const label = type === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
+          showToast(`${label} 위치를 이미지에 클릭하세요`, 'info');
+        }
+      }
+
+      // 슬라이드 이미지 클릭 시 마커 추가
+      function handleSlideClick(category, event) {
+        if (!state.markingMode) return;
+        if (category !== 'sink') return;  // 싱크대만 마킹 가능
+
+        const container = event.currentTarget;
+        const rect = container.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+
+        // 위치 저장
+        if (!state.manualPositions[category]) {
+          state.manualPositions[category] = {};
+        }
+        state.manualPositions[category][state.markingMode] = { x, y };
+
+        // 마커 렌더링
+        renderMarkers(category);
+
+        const label = state.markingMode === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
+        showToast(`${label} 위치 저장됨`, 'success');
+
+        // 마킹 모드 해제
+        state.markingMode = null;
+        document.getElementById('markWaterBtn').classList.remove('active');
+        document.getElementById('markExhaustBtn').classList.remove('active');
+      }
+
+      // 마커 렌더링
+      function renderMarkers(category) {
+        const slideItem = document.querySelector(`.slide-item[data-index="${sliderState.currentIndex}"]`);
+        if (!slideItem) return;
+
+        const container = slideItem.querySelector('.slide-image-container');
+        if (!container) return;
+
+        // 기존 마커 제거
+        container.querySelectorAll('.position-marker').forEach(m => m.remove());
+
+        // 새 마커 추가
+        const positions = state.manualPositions[category];
+        if (!positions) return;
+
+        if (positions.water) {
+          const marker = createMarker('water', positions.water, '급수 배관');
+          container.appendChild(marker);
+        }
+
+        if (positions.exhaust) {
+          const marker = createMarker('exhaust', positions.exhaust, '배기 덕트');
+          container.appendChild(marker);
+        }
+      }
+
+      // 마커 엘리먼트 생성
+      function createMarker(type, position, label) {
+        const marker = document.createElement('div');
+        marker.className = `position-marker ${type}`;
+        marker.style.left = `${position.x}%`;
+        marker.style.top = `${position.y}%`;
+        marker.innerHTML = `
+          ${type === 'water' ? '💧' : '💨'}
+          <span class="marker-tooltip">${label}</span>
+        `;
+        marker.onclick = (e) => {
+          e.stopPropagation();
+          removeMarker(type);
+        };
+        return marker;
+      }
+
+      // 개별 마커 제거
+      function removeMarker(type) {
+        const currentItem = sliderState.items[sliderState.currentIndex];
+        if (!currentItem || currentItem.category !== 'sink') return;
+
+        if (state.manualPositions[currentItem.category]) {
+          delete state.manualPositions[currentItem.category][type];
+        }
+
+        renderMarkers(currentItem.category);
+        const label = type === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
+        showToast(`${label} 마커 삭제됨`, 'info');
+      }
+
+      // 모든 마커 초기화
+      function clearMarkers() {
+        const currentItem = sliderState.items[sliderState.currentIndex];
+        if (!currentItem || currentItem.category !== 'sink') return;
+
+        state.manualPositions[currentItem.category] = {};
+        renderMarkers(currentItem.category);
+        showToast('모든 마커가 삭제되었습니다', 'info');
+      }
+
+      // 마킹 섹션 표시/숨김 (싱크대일 때만 표시)
+      function updateMarkingSection() {
+        const section = document.getElementById('positionMarkingSection');
+        if (!section) return;
+
+        const currentItem = sliderState.items[sliderState.currentIndex];
+
+        if (currentItem && currentItem.category === 'sink') {
+          section.classList.add('active');
+        } else {
+          section.classList.remove('active');
+          // 마킹 모드 해제
+          state.markingMode = null;
+          const waterBtn = document.getElementById('markWaterBtn');
+          const exhaustBtn = document.getElementById('markExhaustBtn');
+          if (waterBtn) waterBtn.classList.remove('active');
+          if (exhaustBtn) exhaustBtn.classList.remove('active');
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // Mobile Menu
       // ═══════════════════════════════════════════════════════════════
       function toggleMobileMenu() {
@@ -2676,24 +3220,30 @@ Magazine quality, professional lighting.`;
           const base64Full = e.target.result;
           const base64Data = base64Full.split(',')[1];
 
-          state.uploadedImages[category] = {
+          const imageData = {
             base64: base64Data,
             preview: base64Full,
             type: file.type || 'image/jpeg',
           };
 
-          document.getElementById(`preview-${category}`).src = base64Full;
-          document.querySelector(`[data-category="${category}"]`).classList.add('has-image');
+          state.uploadedImages[category] = imageData;
 
-          updateSelectedCount();
-          updateButtons();
-
-          // 싱크대 카테고리일 경우 위치 마킹 섹션 표시
-          if (category === 'sink') {
-            const markingSection = document.getElementById('positionMarkingSection');
-            markingSection.classList.add('active');
-            state.activeMarkingCategory = 'sink';
+          // 호환성을 위해 기존 preview 엘리먼트 업데이트
+          const previewEl = document.getElementById(`preview-${category}`);
+          if (previewEl) {
+            previewEl.src = base64Full;
           }
+
+          // 카테고리 버튼에 has-image 클래스 추가
+          const categoryBtn = document.querySelector(`.category-btn[data-category="${category}"]`);
+          if (categoryBtn) {
+            categoryBtn.classList.add('has-image');
+          }
+
+          // 슬라이더에 이미지 추가
+          addToSlider(category, imageData);
+
+          updateButtons();
 
           showToast(`${categoryInfo[category].name} 이미지 업로드 완료!`, 'success');
           addChatMessage(
@@ -2704,230 +3254,49 @@ Magazine quality, professional lighting.`;
         reader.readAsDataURL(file);
       }
 
-      function updateSelectedCount() {
-        const count = Object.keys(state.uploadedImages).length;
-        const countEl = document.getElementById('selectedCount');
-        countEl.querySelector('span').textContent = count;
-        countEl.classList.toggle('hidden', count === 0);
-      }
-
       // ═══════════════════════════════════════════════════════════════
       // Remove Uploaded Image
       // ═══════════════════════════════════════════════════════════════
       function removeImage(category, event) {
-        event.stopPropagation(); // 카드 클릭 이벤트 전파 방지
+        if (event) {
+          event.stopPropagation(); // 클릭 이벤트 전파 방지
+        }
 
         if (!state.uploadedImages[category]) return;
 
         // state에서 삭제
         delete state.uploadedImages[category];
 
-        // 마킹 데이터도 삭제
+        // 마킹 위치 데이터도 삭제
         if (state.manualPositions[category]) {
           delete state.manualPositions[category];
         }
 
-        // UI 업데이트
-        const card = document.querySelector(`[data-category="${category}"]`);
-        card.classList.remove('has-image');
+        // 카테고리 버튼 UI 업데이트
+        const categoryBtn = document.querySelector(`.category-btn[data-category="${category}"]`);
+        if (categoryBtn) {
+          categoryBtn.classList.remove('has-image');
+        }
 
+        // 호환성을 위해 기존 preview 엘리먼트 업데이트
         const preview = document.getElementById(`preview-${category}`);
-        preview.src = '';
+        if (preview) {
+          preview.src = '';
+        }
 
         // 파일 input 초기화
         const fileInput = document.getElementById(`file-${category}`);
-        fileInput.value = '';
-
-        // 마커 제거
-        clearMarkersForCategory(category);
-
-        // 싱크대일 경우 마킹 섹션 숨기기
-        if (category === 'sink') {
-          const markingSection = document.getElementById('positionMarkingSection');
-          markingSection.classList.remove('active');
-          state.markingMode = null;
-          state.activeMarkingCategory = null;
-          updateMarkingButtons();
-          updateMarkingStatus();
+        if (fileInput) {
+          fileInput.value = '';
         }
 
-        updateSelectedCount();
+        // 슬라이더에서 제거
+        removeFromSlider(category);
+
         updateButtons();
 
         showToast(`${categoryInfo[category].name} 이미지가 삭제되었습니다.`, 'info');
         addChatMessage(`${categoryInfo[category].icon} ${categoryInfo[category].name} 이미지가 삭제되었습니다.`, false);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Position Marking Functions - 수동 배관 위치 마킹
-      // ═══════════════════════════════════════════════════════════════
-
-      // 마킹 모드 토글
-      function toggleMarkingMode(mode) {
-        if (state.markingMode === mode) {
-          // 같은 버튼 다시 클릭 시 모드 해제
-          state.markingMode = null;
-          showToast('마킹 모드가 해제되었습니다.', 'info');
-        } else {
-          state.markingMode = mode;
-          const modeText = mode === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
-          showToast(`${modeText} 위치를 이미지에서 클릭하세요!`, 'success');
-        }
-        updateMarkingButtons();
-      }
-
-      // 마킹 버튼 상태 업데이트
-      function updateMarkingButtons() {
-        const waterBtn = document.getElementById('markWaterBtn');
-        const exhaustBtn = document.getElementById('markExhaustBtn');
-
-        waterBtn.classList.toggle('active', state.markingMode === 'water');
-        exhaustBtn.classList.toggle('active', state.markingMode === 'exhaust');
-      }
-
-      // 이미지 클릭 핸들러
-      function handleImageClick(category, event) {
-        // 마킹 모드가 아니면 아무것도 하지 않음
-        if (!state.markingMode) return;
-
-        // 이미지가 없으면 리턴
-        if (!state.uploadedImages[category]) return;
-
-        event.stopPropagation(); // 파일 선택 방지
-
-        const container = document.getElementById(`preview-container-${category}`);
-        const rect = container.getBoundingClientRect();
-
-        // 클릭 위치를 퍼센트로 계산
-        const x = ((event.clientX - rect.left) / rect.width) * 100;
-        const y = ((event.clientY - rect.top) / rect.height) * 100;
-
-        // 위치 저장
-        if (!state.manualPositions[category]) {
-          state.manualPositions[category] = {};
-        }
-
-        const positionKey = state.markingMode === 'water' ? 'water_pipe' : 'exhaust_duct';
-        state.manualPositions[category][positionKey] = {
-          x: Math.round(x * 10) / 10,
-          y: Math.round(y * 10) / 10
-        };
-
-        // 마커 렌더링
-        renderMarker(category, positionKey, x, y);
-
-        // 상태 업데이트
-        updateMarkingStatus();
-
-        // 토스트 표시
-        const positionName = state.markingMode === 'water' ? '급수 배관' : '배기 덕트';
-        showToast(`${positionName} 위치가 설정되었습니다! (${Math.round(x)}%, ${Math.round(y)}%)`, 'success');
-
-        // 마킹 모드 해제
-        state.markingMode = null;
-        updateMarkingButtons();
-      }
-
-      // 마커 렌더링
-      function renderMarker(category, type, x, y) {
-        const container = document.getElementById(`preview-container-${category}`);
-        if (!container) return;
-
-        // 기존 같은 타입 마커 제거
-        const existingMarker = container.querySelector(`.position-marker.${type === 'water_pipe' ? 'water' : 'exhaust'}`);
-        if (existingMarker) {
-          existingMarker.remove();
-        }
-
-        // 새 마커 생성
-        const marker = document.createElement('div');
-        marker.className = `position-marker ${type === 'water_pipe' ? 'water' : 'exhaust'}`;
-        marker.style.left = `${x}%`;
-        marker.style.top = `${y}%`;
-        marker.textContent = type === 'water_pipe' ? '💧' : '💨';
-        marker.title = type === 'water_pipe' ? '급수 배관 위치' : '배기 덕트 위치';
-
-        // 클릭 시 해당 마커 삭제
-        marker.onclick = (e) => {
-          e.stopPropagation();
-          removeMarker(category, type);
-        };
-
-        container.appendChild(marker);
-      }
-
-      // 마커 삭제
-      function removeMarker(category, type) {
-        const container = document.getElementById(`preview-container-${category}`);
-        if (!container) return;
-
-        const marker = container.querySelector(`.position-marker.${type === 'water_pipe' ? 'water' : 'exhaust'}`);
-        if (marker) {
-          marker.remove();
-        }
-
-        // state에서도 삭제
-        if (state.manualPositions[category]) {
-          delete state.manualPositions[category][type];
-          if (Object.keys(state.manualPositions[category]).length === 0) {
-            delete state.manualPositions[category];
-          }
-        }
-
-        updateMarkingStatus();
-        const positionName = type === 'water_pipe' ? '급수 배관' : '배기 덕트';
-        showToast(`${positionName} 마커가 삭제되었습니다.`, 'info');
-      }
-
-      // 카테고리별 모든 마커 제거
-      function clearMarkersForCategory(category) {
-        const container = document.getElementById(`preview-container-${category}`);
-        if (!container) return;
-
-        const markers = container.querySelectorAll('.position-marker');
-        markers.forEach(m => m.remove());
-      }
-
-      // 모든 마커 제거
-      function clearAllMarkers() {
-        const category = state.activeMarkingCategory;
-        if (!category) return;
-
-        clearMarkersForCategory(category);
-
-        if (state.manualPositions[category]) {
-          delete state.manualPositions[category];
-        }
-
-        updateMarkingStatus();
-        showToast('모든 마커가 삭제되었습니다.', 'info');
-      }
-
-      // 마킹 상태 업데이트
-      function updateMarkingStatus() {
-        const category = state.activeMarkingCategory;
-        const positions = category ? state.manualPositions[category] : null;
-
-        const waterStatus = document.getElementById('waterStatus');
-        const exhaustStatus = document.getElementById('exhaustStatus');
-
-        if (positions?.water_pipe) {
-          waterStatus.classList.add('set');
-          waterStatus.querySelector('span:last-child').textContent =
-            `급수 배관: ${positions.water_pipe.x}%, ${positions.water_pipe.y}%`;
-        } else {
-          waterStatus.classList.remove('set');
-          waterStatus.querySelector('span:last-child').textContent = '급수 배관: 미설정';
-        }
-
-        if (positions?.exhaust_duct) {
-          exhaustStatus.classList.add('set');
-          exhaustStatus.querySelector('span:last-child').textContent =
-            `배기 덕트: ${positions.exhaust_duct.x}%, ${positions.exhaust_duct.y}%`;
-        } else {
-          exhaustStatus.classList.remove('set');
-          exhaustStatus.querySelector('span:last-child').textContent = '배기 덕트: 미설정';
-        }
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -3049,8 +3418,6 @@ Magazine quality, professional lighting.`;
                 style_keywords: themeData.keywords,
                 style_atmosphere: themeData.atmosphere,
                 design_prompt: designPrompt,
-                // 수동 위치 마킹 데이터 (있을 경우)
-                manual_positions: state.manualPositions[category] || null,
               }),
             });
 
