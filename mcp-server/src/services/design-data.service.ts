@@ -165,6 +165,16 @@ function mapEquipment(
     equipment.faucet = {
       type: specs?.faucet_type ?? 'single_lever',
     };
+  } else if (category === 'vanity') {
+    equipment.sink = {
+      position_mm: placement.sink_center_mm ?? Math.round((specs?.total_width_mm ?? 1200) / 2),
+      width_mm: 500,
+      type: specs?.sink_type ?? 'vessel',
+    };
+
+    equipment.faucet = {
+      type: specs?.faucet_type ?? 'single_lever',
+    };
   }
 
   return equipment;

@@ -66,7 +66,7 @@ describe('buildClosedDoorPrompt', () => {
       rules: { background: [], modules: [], doors: [], materials: [], materialKeywords: [] },
     });
 
-    expect(prompt).toContain('계산된 기본 좌표');
+    expect(prompt).toContain('배관 위치가 명확히 감지되지 않았습니다');
   });
 
   it('should include module layout when provided', () => {

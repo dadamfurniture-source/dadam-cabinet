@@ -3,36 +3,9 @@
 // 기존: http-server.ts 783~996줄
 // ═══════════════════════════════════════════════════════════════
 
-import type { WallAnalysis } from '../../types/index.js';
+import type { WallAnalysis, CabinetSpecs, ModulesData } from '../../types/index.js';
 import type { ClassifiedRules } from '../../mappers/rule-classifier.js';
 import { buildMaterialColorSection } from '../sections/material-color.section.js';
-
-export interface CabinetSpecs {
-  total_width_mm?: number;
-  total_height_mm?: number;
-  upper_cabinet_height?: number;
-  lower_cabinet_height?: number;
-  depth_mm?: number;
-  leg_height?: number;
-  molding_height?: number;
-  door_color_upper?: string;
-  door_color_lower?: string;
-  door_finish_upper?: string;
-  door_finish_lower?: string;
-  countertop_color?: string;
-  handle_type?: string;
-  sink_type?: string;
-  faucet_type?: string;
-  hood_type?: string;
-  cooktop_type?: string;
-}
-
-export interface ModulesData {
-  upper?: Array<{ name?: string; type?: string; width?: number; w?: number; height?: number }>;
-  lower?: Array<{ name?: string; type?: string; width?: number; w?: number; height?: number }>;
-  upper_count?: number;
-  lower_count?: number;
-}
 
 export interface ClosedDoorPromptParams {
   category: string;

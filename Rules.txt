@@ -1,0 +1,147 @@
+Rules
+(Default unit: mm)
+
+Material Dimensions
+
+Width × Height = 1220 × 2440 (fixed)
+
+Body Material
+
+15T PB
+
+18T PB
+
+Door Material
+
+18T MDF
+
+Back Panel Material
+
+2.7T MDF
+
+Cabinet Construction Rules
+
+Input Values
+
+Parameter	Default Value
+Depth	550
+Height	800
+Width		600
+Panel Dimensions
+
+Side Panel:
+Height = cabinet height
+Width = cabinet depth
+
+Bottom Panel:
+Width = cabinet width − (body material × 2)
+Height = cabinet depth
+
+Band:
+Width = 60
+Height = cabinet width − (body material × 2)
+
+Back Panel:
+Width = cabinet width − 1
+Height = cabinet height − 1
+
+Required Materials per Cabinet
+
+To make one cabinet, you need:
+
+2 side panels
+
+1 bottom panel
+
+2 bands
+
+1 back panel
+
+
+Furniture Layout Rules
+
+Input: Space Dimensions
+(Default parameters)
+
+
+Width (W)
+
+
+Depth (D)
+
+
+Height (H)
+
+
+
+Additional Rules: Molding
+
+
+Width: Allow a clearance of 45–120 mm within the space.
+
+
+Height: Allow a clearance of 10–60 mm.
+
+
+Depth: Allow a clearance of around 20 mm.
+
+
+
+For Sink Cabinets
+Choose one of the two starting positions:
+
+
+From left end wall
+
+
+From right end wall
+
+
+Additional inputs:
+
+
+Distance to water pipe
+
+
+Water pipe size
+
+
+Distance to vent
+
+
+Vent size
+
+
+Leg height setting
+
+
+Sink Configuration Rules
+
+
+The sink cabinet and gas stove cabinet must each be made once as default, unless otherwise specified.
+
+
+The remaining space should be evenly divided.
+
+
+The sink cabinet should be placed where the water pipe is located.
+
+
+The gas stove cabinet should be placed near the vent.
+
+
+
+For Built-in Wardrobes
+
+
+Each unit (section) is based on a width of 750–1050 mm.
+
+
+Half-units (0.5 sections) are allowed.
+
+
+The total width should be evenly divided among units.
+
+
+Each section includes one internal shelf by default.
+

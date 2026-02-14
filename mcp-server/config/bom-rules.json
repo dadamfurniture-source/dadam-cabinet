@@ -1,0 +1,47 @@
+{
+  "materials": {
+    "sheet_size": { "width": 1220, "height": 2440 },
+    "body": { "thickness": 18, "type": "PB", "label": "18T PB" },
+    "door": { "thickness": 18, "type": "MDF", "label": "18T MDF" },
+    "back_panel": { "thickness": 2.7, "type": "MDF", "label": "2.7T MDF" },
+    "edge_band": { "thickness": 1 },
+    "countertop": { "thickness": 30 }
+  },
+  "cabinet_defaults": {
+    "width": 600,
+    "height": 800,
+    "depth": 550
+  },
+  "construction": {
+    "side_panel_qty": 2,
+    "bottom_panel_qty": 1,
+    "band_qty": 2,
+    "band_width": 60,
+    "back_panel_qty": 1,
+    "back_panel_clearance": 1,
+    "door_gap": 4,
+    "shelf_depth_reduction": 20
+  },
+  "upper_cabinet": {
+    "depth_ratio": 0.55,
+    "top_panel": true
+  },
+  "hardware": {
+    "hinges_per_door": 2,
+    "hinge_type": "soft-close",
+    "slide_type": "soft-close"
+  },
+  "molding_clearance": {
+    "width_min": 45,
+    "width_max": 120,
+    "height_min": 10,
+    "height_max": 60,
+    "depth": 20
+  },
+  "wardrobe": {
+    "unit_width_min": 750,
+    "unit_width_max": 1050,
+    "allow_half_units": true,
+    "shelf_per_section": 1
+  }
+}

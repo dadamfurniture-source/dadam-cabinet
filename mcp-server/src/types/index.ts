@@ -65,6 +65,10 @@ export interface ModulesData {
 export interface ModuleInfo {
   width_mm?: number;
   w?: number;
+  width?: number;          // 프롬프트 빌더 호환
+  height?: number;         // 프롬프트 빌더 호환
+  name?: string;           // 프롬프트 빌더 호환 (표시용)
+  type?: string;           // 프롬프트 빌더 호환 (표시용)
   door_count?: number;
   doorCount?: number;
   is_drawer?: boolean;
@@ -371,6 +375,50 @@ export interface StructuredDesignData {
     doors: string[];
     material_codes: string[];
   };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BOM (Bill of Materials) 타입
+// ─────────────────────────────────────────────────────────────────
+
+export type BomPartCategory =
+  | 'panel'        // 패널 (도어, 측판, 선반)
+  | 'board'        // 본체 판재 (상판, 하판, 뒷판)
+  | 'hardware'     // 하드웨어 (경첩, 레일, 핸들)
+  | 'countertop'   // 상판 (카운터탑)
+  | 'equipment'    // 설비 (싱크볼, 쿡탑, 후드)
+  | 'accessory'    // 부자재 (몰딩, 다리, 필러)
+  | 'finish';      // 마감재 (엣지밴딩, 시트지)
+
+export interface BomItem {
+  id: string;
+  part_category: BomPartCategory;
+  name: string;              // 부품명 (예: "상부장1 도어")
+  material: string;          // 자재 (예: "화이트 무광 MDF")
+  width_mm: number;
+  height_mm: number;
+  depth_mm: number;          // 두께 또는 깊이
+  quantity: number;
+  unit: string;              // "ea" | "mm" | "set"
+  cabinet_ref?: string;      // 소속 캐비닛 (예: "lower_0", "upper_2")
+  notes?: string;
+}
+
+export interface BomSummary {
+  total_items: number;
+  total_panels: number;
+  total_hardware: number;
+  total_equipment: number;
+  categories: Record<BomPartCategory, number>;  // 카테고리별 수량
+  sheet_estimate?: number;  // 원판(1220×2440) 예상 사용량
+}
+
+export interface BomResult {
+  category: Category;
+  style: string;
+  items: BomItem[];
+  summary: BomSummary;
+  generated_at: string;
 }
 
 // ─────────────────────────────────────────────────────────────────

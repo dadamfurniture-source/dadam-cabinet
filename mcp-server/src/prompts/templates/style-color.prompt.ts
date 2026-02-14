@@ -3,7 +3,7 @@
 // 기존: http-server.ts 421~500줄
 // ═══════════════════════════════════════════════════════════════
 
-import type { CabinetSpecs } from './closed-door.prompt.js';
+import type { CabinetSpecs } from '../../types/index.js';
 
 export function buildStyleColorPrompt(
   style: string,
