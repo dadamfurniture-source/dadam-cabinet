@@ -100,7 +100,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
@@ -166,7 +166,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
@@ -256,7 +256,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCP4pCny0iIRCaztNTa9Eg33mb0NoIzJNw",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
