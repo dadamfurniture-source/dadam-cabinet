@@ -1793,6 +1793,110 @@
       window.DadamAgent = AIAgentInterface;
 
       // ============================================================
+      // FurnitureOptionCatalog - Supabase 옵션 카탈로그
+      // ============================================================
+      const FurnitureOptionCatalog = {
+        options: {},   // { door_color: [...], handle: [...], ... }
+        loaded: false,
+
+        async load() {
+          try {
+            const client = typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client;
+            if (!client) { this._loadFallback(); return; }
+            const { data, error } = await client
+              .from('furniture_options').select('*')
+              .eq('is_active', true).order('sort_order');
+            if (error) throw error;
+            this.options = {};
+            for (const opt of data) {
+              if (!this.options[opt.category]) this.options[opt.category] = [];
+              this.options[opt.category].push(opt);
+            }
+            this.loaded = true;
+            console.log('[Catalog] Loaded', data.length, 'options from Supabase');
+          } catch (e) {
+            console.warn('[Catalog] Load failed, using hardcoded fallback:', e.message);
+            this._loadFallback();
+          }
+        },
+
+        _loadFallback() {
+          this.options = {
+            door_color: [
+              { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f5', prompt_description: 'pure white', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '그레이', name_en: 'gray', color_hex: '#9e9e9e', prompt_description: 'gray', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '베이지', name_en: 'beige', color_hex: '#d4c4b0', prompt_description: 'warm beige', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '월넛', name_en: 'walnut', color_hex: '#5d4037', prompt_description: 'dark walnut wood', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '오크', name_en: 'oak', color_hex: '#c4a35a', prompt_description: 'natural oak wood', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '네이비', name_en: 'navy', color_hex: '#1a237e', prompt_description: 'navy blue', applicable_to: ['sink'] },
+              { name_ko: '블랙', name_en: 'black', color_hex: '#2c2c2c', prompt_description: 'matte black', applicable_to: ['sink','wardrobe','fridge'] },
+            ],
+            door_finish: [
+              { name_ko: '무광', name_en: 'matte', prompt_description: 'matte finish', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '유광', name_en: 'glossy', prompt_description: 'glossy finish', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '엠보', name_en: 'embossed', prompt_description: 'embossed texture', applicable_to: ['sink','wardrobe'] },
+            ],
+            handle: [
+              { name_ko: '찬넬 (목찬넬)', name_en: 'channel', prompt_description: 'wooden channel handle', applicable_to: ['sink'] },
+              { name_ko: 'C찬넬', name_en: 'c-channel', prompt_description: 'C-channel recessed handle', applicable_to: ['sink'] },
+              { name_ko: '스마트바', name_en: 'smartbar', prompt_description: 'aluminum smart bar handle', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '푸쉬 도어', name_en: 'push-open', prompt_description: 'handleless push-to-open doors', applicable_to: ['sink','wardrobe'] },
+            ],
+            sink: [
+              { name_ko: '사각볼 850', name_en: 'square-850', prompt_description: 'stainless steel rectangular sink bowl 850mm' },
+              { name_ko: '사각볼 800', name_en: 'square-800', prompt_description: 'stainless steel rectangular sink bowl 800mm' },
+              { name_ko: '라운드볼', name_en: 'round', prompt_description: 'stainless steel round sink bowl' },
+            ],
+            faucet: [
+              { name_ko: '거위목 수전', name_en: 'gooseneck', prompt_description: 'gooseneck faucet' },
+              { name_ko: 'ㄱ자 수전', name_en: 'l-shaped', prompt_description: 'L-shaped faucet' },
+              { name_ko: '일반 수전', name_en: 'standard', prompt_description: 'standard faucet' },
+            ],
+            hood: [
+              { name_ko: '히든 후드', name_en: 'hidden', prompt_description: 'built-in concealed range hood (hidden inside upper cabinet, NOT visible externally)' },
+              { name_ko: '침니 후드', name_en: 'chimney', prompt_description: 'chimney range hood' },
+              { name_ko: '슬라이딩 후드', name_en: 'sliding', prompt_description: 'slide-out range hood' },
+            ],
+            cooktop: [
+              { name_ko: '인덕션', name_en: 'induction', prompt_description: 'induction cooktop with smooth black glass surface' },
+              { name_ko: '가스쿡탑', name_en: 'gas', prompt_description: 'gas cooktop with burners' },
+              { name_ko: '하이라이트', name_en: 'highlight', prompt_description: 'electric highlight cooktop' },
+            ],
+            countertop: [
+              { name_ko: '스노우', name_en: 'snow white', color_hex: '#FAFAFA', prompt_description: 'snow white engineered stone countertop' },
+              { name_ko: '마블화이트', name_en: 'marble white', color_hex: '#F0F0F0', prompt_description: 'white marble countertop' },
+              { name_ko: '그레이마블', name_en: 'gray marble', color_hex: '#B0B0B0', prompt_description: 'gray marble countertop' },
+              { name_ko: '차콜', name_en: 'charcoal', color_hex: '#404040', prompt_description: 'charcoal dark countertop' },
+            ],
+          };
+          this.loaded = true;
+        },
+
+        getOptions(category, furnitureType) {
+          const opts = this.options[category] || [];
+          if (!furnitureType) return opts;
+          return opts.filter(o => !o.applicable_to?.length || o.applicable_to.includes(furnitureType));
+        },
+
+        buildOptionsHtml(category, selectedValue, furnitureType) {
+          return this.getOptions(category, furnitureType)
+            .map(o => `<option value="${o.name_ko}" ${o.name_ko === selectedValue ? 'selected' : ''}>${o.name_ko}</option>`)
+            .join('');
+        },
+
+        getPromptDescription(category, nameKo) {
+          return (this.options[category] || []).find(o => o.name_ko === nameKo)?.prompt_description || nameKo;
+        },
+
+        getImageUrl(category, nameKo) {
+          return (this.options[category] || []).find(o => o.name_ko === nameKo)?.image_public_url || null;
+        }
+      };
+
+      // 초기 폴백 로드 (Supabase 연결 전에도 렌더링 가능하도록)
+      FurnitureOptionCatalog._loadFallback();
+
+      // ============================================================
       // 전역 변수 및 상수
       // ============================================================
       const CATEGORIES = [
@@ -4648,15 +4752,15 @@
 
         <div class="spec-group-title">2. Hardware</div>
         <div class="spec-row">
-          <div class="spec-field"><label>손잡이</label><select><option>찬넬 (목찬넬)</option><option>C찬넬</option><option>스마트바</option><option>푸쉬 도어</option></select></div>
-          <div class="spec-field"><label>씽크볼</label><select><option>사각볼 850</option><option>사각볼 800</option><option>라운드볼</option></select></div>
+          <div class="spec-field"><label>손잡이</label><select onchange="updateSpec(${item.uniqueId}, 'handle', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('handle', item.specs.handle, 'sink')}</select></div>
+          <div class="spec-field"><label>씽크볼</label><select onchange="updateSpec(${item.uniqueId}, 'sink', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('sink', item.specs.sink)}</select></div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>수전</label><select><option>거위목 수전</option><option>ㄱ자 수전</option><option>일반 수전</option></select></div>
-          <div class="spec-field"><label>후드</label><select><option>히든 후드</option><option>침니 후드</option><option>슬라이딩 후드</option></select></div>
+          <div class="spec-field"><label>수전</label><select onchange="updateSpec(${item.uniqueId}, 'faucet', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('faucet', item.specs.faucet)}</select></div>
+          <div class="spec-field"><label>후드</label><select onchange="updateSpec(${item.uniqueId}, 'hood', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('hood', item.specs.hood)}</select></div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>쿡탑</label><select><option>인덕션</option><option>가스쿡탑</option><option>하이라이트</option></select></div>
+          <div class="spec-field"><label>쿡탑</label><select onchange="updateSpec(${item.uniqueId}, 'cooktop', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('cooktop', item.specs.cooktop)}</select></div>
           <div class="spec-field"><label>식기세척기</label>
             <select onchange="onDishwasherChange(${item.uniqueId}, this.value)">
               <option value="None" ${item.specs.dishwasher === 'None' ? 'selected' : ''}>없음</option>
@@ -4674,12 +4778,12 @@
         </div>
 
         <div class="spec-group-title">3. Colors (도어)</div>
-        <div class="spec-row"><div class="spec-field"><label>상부장 도어</label><div class="color-select-row"><select><option>무광</option><option>유광</option></select><select><option>화이트</option><option>그레이</option><option>베이지</option><option>네이비</option><option>블랙</option></select></div></div></div>
-        <div class="spec-row"><div class="spec-field"><label>하부장 도어</label><div class="color-select-row"><select><option>무광</option><option>유광</option></select><select><option>화이트</option><option>그레이</option><option>베이지</option><option>네이비</option><option>블랙</option></select></div></div></div>
+        <div class="spec-row"><div class="spec-field"><label>상부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'sink')}</select><select onchange="updateSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'sink')}</select></div></div></div>
+        <div class="spec-row"><div class="spec-field"><label>하부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${item.uniqueId}, 'doorFinishLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishLower, 'sink')}</select><select onchange="updateSpec(${item.uniqueId}, 'doorColorLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorLower, 'sink')}</select></div></div></div>
 
         <div class="spec-group-title">4. Countertop (상판)</div>
         <div class="spec-row">
-          <div class="spec-field"><label>상판 색상</label><input type="text" value="${item.specs.topColor}"></div>
+          <div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${item.uniqueId}, 'topColor', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop', item.specs.topColor)}</select></div>
           <div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}"></div>
         </div>
         <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape]})</label>${topSizeInputs}</div></div>
@@ -5241,8 +5345,8 @@
         <div class="spec-row">
           <div class="spec-field"><label>도어 색상</label>
             <div class="color-select-row">
-              <select><option>무광</option><option>유광</option></select>
-              <select><option>화이트</option><option>그레이</option><option>베이지</option><option>월넛</option><option>오크</option></select>
+              <select onchange="updateWardrobeSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'wardrobe')}</select>
+              <select onchange="updateWardrobeSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'wardrobe')}</select>
             </div>
           </div>
         </div>
@@ -9166,28 +9270,20 @@
         return `modern minimal korean ${styles.join(' ')}`.trim();
       }
 
-      // 이미지 생성용 상세 프롬프트 생성
+      // 이미지 생성용 상세 프롬프트 생성 (카탈로그 prompt_description 활용)
       function buildDesignPrompt(specs, cabinetSpecs) {
-        const colorMapKo = {
-          '화이트': 'pure white', '그레이': 'gray', '블랙': 'matte black',
-          '아이보리': 'warm ivory', '오크': 'natural oak wood', '월넛': 'dark walnut wood',
-          '스노우': 'snow white', '마블화이트': 'white marble', '그레이마블': 'gray marble',
-          '차콜': 'charcoal'
-        };
-        const finishMapKo = { '무광': 'matte finish', '유광': 'glossy finish', '엠보': 'embossed texture' };
-        const handleMapKo = {
-          'push-open': 'handleless push-to-open doors (no visible handles)',
-          '라인핸들': 'thin line handles',
-          '봉핸들': 'bar handles',
-          'J핸들': 'J-shaped handles'
-        };
+        const cat = FurnitureOptionCatalog;
 
-        const upperColor = colorMapKo[cabinetSpecs.door_color_upper] || cabinetSpecs.door_color_upper;
-        const lowerColor = colorMapKo[cabinetSpecs.door_color_lower] || cabinetSpecs.door_color_lower;
-        const upperFinish = finishMapKo[cabinetSpecs.door_finish_upper] || cabinetSpecs.door_finish_upper;
-        const lowerFinish = finishMapKo[cabinetSpecs.door_finish_lower] || cabinetSpecs.door_finish_lower;
-        const topColor = colorMapKo[cabinetSpecs.countertop_color] || cabinetSpecs.countertop_color;
-        const handleDesc = handleMapKo[cabinetSpecs.handle_type] || cabinetSpecs.handle_type;
+        const upperColor = cat.getPromptDescription('door_color', cabinetSpecs.door_color_upper);
+        const lowerColor = cat.getPromptDescription('door_color', cabinetSpecs.door_color_lower);
+        const upperFinish = cat.getPromptDescription('door_finish', cabinetSpecs.door_finish_upper);
+        const lowerFinish = cat.getPromptDescription('door_finish', cabinetSpecs.door_finish_lower);
+        const topColor = cat.getPromptDescription('countertop', cabinetSpecs.countertop_color);
+        const handleDesc = cat.getPromptDescription('handle', cabinetSpecs.handle_type);
+        const hoodDesc = cat.getPromptDescription('hood', cabinetSpecs.hood_type);
+        const cooktopDesc = cat.getPromptDescription('cooktop', cabinetSpecs.cooktop_type);
+        const sinkDesc = cat.getPromptDescription('sink', cabinetSpecs.sink_type);
+        const faucetDesc = cat.getPromptDescription('faucet', cabinetSpecs.faucet_type);
 
         const lines = [];
         lines.push(`Korean built-in kitchen cabinet, photorealistic interior photograph.`);
@@ -9197,7 +9293,16 @@
         lines.push(`Hardware: ${handleDesc}.`);
 
         if (cabinetSpecs.hood_type) {
-          lines.push(`Range hood: built-in concealed hood (hidden inside upper cabinet, NOT visible externally).`);
+          lines.push(`Range hood: ${hoodDesc}.`);
+        }
+        if (cabinetSpecs.cooktop_type) {
+          lines.push(`Cooktop: ${cooktopDesc}.`);
+        }
+        if (cabinetSpecs.sink_type) {
+          lines.push(`Sink: ${sinkDesc}.`);
+        }
+        if (cabinetSpecs.faucet_type) {
+          lines.push(`Faucet: ${faucetDesc}.`);
         }
 
         const negatives = [];
@@ -9333,6 +9438,31 @@
             cabinetSpecs.cooktop_position_mm = cooktopModule.position_from_left_mm;
           }
 
+          // 6-2. 레퍼런스 이미지 URL + prompt_description 수집
+          const referenceImages = {};
+          const materialDescriptions = {};
+          const optMappings = [
+            { spec: 'doorColorUpper', cat: 'door_color', descKey: 'upper_door_color' },
+            { spec: 'doorColorLower', cat: 'door_color', descKey: 'lower_door_color' },
+            { spec: 'doorFinishUpper', cat: 'door_finish', descKey: 'upper_door_finish' },
+            { spec: 'doorFinishLower', cat: 'door_finish', descKey: 'lower_door_finish' },
+            { spec: 'handle', cat: 'handle', descKey: 'handle' },
+            { spec: 'topColor', cat: 'countertop', descKey: 'countertop' },
+            { spec: 'hood', cat: 'hood', descKey: 'hood' },
+            { spec: 'cooktop', cat: 'cooktop', descKey: 'cooktop' },
+            { spec: 'sink', cat: 'sink', descKey: 'sink' },
+            { spec: 'faucet', cat: 'faucet', descKey: 'faucet' },
+          ];
+          for (const m of optMappings) {
+            const val = specs[m.spec];
+            if (val) {
+              const url = FurnitureOptionCatalog.getImageUrl(m.cat, val);
+              const desc = FurnitureOptionCatalog.getPromptDescription(m.cat, val);
+              if (url) referenceImages[m.spec] = { url, prompt_description: desc };
+              materialDescriptions[m.descKey] = desc;
+            }
+          }
+
           // 7. 현장 사진 확인 및 변환
           let roomImageData = null;
           const sitePhotoUrl = mainItem.imageUrl || mainItem.image;
@@ -9386,6 +9516,10 @@
 
               // 상세 캐비넷 사양
               cabinet_specs: cabinetSpecs,
+
+              // 레퍼런스 이미지 + 자재 설명
+              reference_images: referenceImages,
+              material_descriptions: materialDescriptions,
 
               // 모듈 레이아웃
               modules: {
@@ -11132,6 +11266,9 @@
       async function initAuth() {
         // SupabaseUtils 사용 (js/supabase-utils.js)
         const session = await SupabaseUtils.init();
+
+        // 카탈로그 로드 (Supabase 연결 후)
+        FurnitureOptionCatalog.load().catch(e => console.warn('[Catalog] async load error:', e));
 
         // 로컬 참조 동기화 (하위 호환성)
         supabaseClient = SupabaseUtils.client;
