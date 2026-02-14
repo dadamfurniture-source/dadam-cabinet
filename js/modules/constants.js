@@ -179,11 +179,11 @@ export const WARDROBE_SECTION_TYPES = [
   { id: 'mixed', name: '혼합', icon: '🔀' },
 ];
 
-// API 엔드포인트 (Cloudflare Proxy 경유 - CORS 해결)
+// API 엔드포인트 (n8n Cloud 직접 호출)
 export const API_ENDPOINTS = {
-  N8N_CHAT: 'https://dadam-proxy.dadamfurniture.workers.dev/webhook/chat',
-  N8N_AI_DESIGN: 'https://dadam-proxy.dadamfurniture.workers.dev/webhook/design-to-image',
-  N8N_WALL_ANALYSIS: 'https://dadam-proxy.dadamfurniture.workers.dev/webhook/dadam-interior-v4',
+  N8N_CHAT: 'https://dadam.app.n8n.cloud/webhook/chat',
+  N8N_AI_DESIGN: 'https://dadam.app.n8n.cloud/webhook/design-to-image',
+  N8N_WALL_ANALYSIS: 'https://dadam.app.n8n.cloud/webhook/dadam-interior-v4',
   SUPABASE_URL: 'https://vvqrvgcgnlfpiqqndsve.supabase.co',
 };
 
