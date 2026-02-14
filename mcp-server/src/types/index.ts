@@ -467,3 +467,87 @@ export interface WallAnalysisV2Input {
   use_reference_images?: boolean;   // 참조 이미지 사용 여부 (기본: true)
   reference_categories?: ReferenceImageCategory[];  // 사용할 참조 카테고리
 }
+
+// ─────────────────────────────────────────────────────────────────
+// 2D 도면 좌표 타입 (Drawing Coordinates)
+// ─────────────────────────────────────────────────────────────────
+
+// 기본 도형
+export interface Rect { x: number; y: number; width: number; height: number; }
+export interface Line { x1: number; y1: number; x2: number; y2: number; }
+export interface Point { x: number; y: number; }
+export interface DimensionLine { start: Point; end: Point; value: number; unit: string; label?: string; }
+
+// 서브 타입
+export interface CabinetRect extends Rect { ref: string; type: string; }
+export interface DoorRect extends Rect { ref: string; door_index: number; is_drawer: boolean; }
+export interface HardwarePoint extends Point { type: 'hinge' | 'handle' | 'rail'; ref: string; }
+export interface PanelRect extends Rect { name: string; thickness: number; material: string; }
+
+// 공통 뷰
+export interface FrontView {
+  cabinets: CabinetRect[];
+  doors: DoorRect[];
+  hardware: HardwarePoint[];
+  countertop?: Rect;
+  molding?: Rect;
+  baseboard?: Rect;
+  dimensions: DimensionLine[];
+}
+
+export interface SideView {
+  outer: Rect;
+  panels: PanelRect[];
+  countertop?: Rect;
+  dimensions: DimensionLine[];
+}
+
+export interface PlanView {
+  lower_cabinets: Rect[];
+  upper_cabinets: Rect[];
+  countertop?: Rect;
+  dimensions: DimensionLine[];
+}
+
+// 제작 서브 레이아웃
+export interface PanelDetail {
+  bom_id: string;
+  name: string;
+  material: string;
+  rect: Rect;
+  dimensions: DimensionLine[];
+}
+
+export interface ManufacturingLayout {
+  panel_details: PanelDetail[];
+  edge_banding_marks: Line[];
+  bom_references: { rect_ref: string; bom_id: string }[];
+}
+
+// 설치 서브 레이아웃
+export interface UtilityMark extends Point { type: 'water' | 'exhaust' | 'gas' | 'outlet'; label: string; }
+export interface EquipmentZone extends Rect { type: string; label: string; }
+
+export interface InstallationLayout {
+  wall: Rect;
+  tile_grid?: { origin: Point; tile_w: number; tile_h: number; cols: number; rows: number; };
+  utilities: UtilityMark[];
+  equipment: EquipmentZone[];
+  clearance_zones: Rect[];
+}
+
+// 최종 출력 타입
+export interface DrawingData {
+  common: {
+    front_view: FrontView;
+    side_view: SideView;
+    plan_view: PlanView;
+  };
+  manufacturing: ManufacturingLayout;
+  installation: InstallationLayout;
+  metadata: {
+    category: Category;
+    style: string;
+    generated_at: string;
+  };
+}

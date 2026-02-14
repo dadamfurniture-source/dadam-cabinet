@@ -20,6 +20,7 @@ import './tools/gemini-image.tool.js';
 import './tools/design-data.tool.js';
 import './tools/bom.tool.js';
 import './tools/bom-rules.tool.js';
+import './tools/drawing.tool.js';
 
 import { getToolDefinitions, executeTool } from './tools/registry.js';
 
