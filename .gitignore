@@ -10,6 +10,9 @@ build/
 dist/
 *.tsbuildinfo
 
+# n8n import files (API 키 포함)
+n8n/v8-import.json
+
 # Environment variables (보안상 절대 커밋하지 마세요)
 .env
 .env.local
