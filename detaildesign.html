@@ -9166,6 +9166,53 @@
         return `modern minimal korean ${styles.join(' ')}`.trim();
       }
 
+      // 이미지 생성용 상세 프롬프트 생성
+      function buildDesignPrompt(specs, cabinetSpecs) {
+        const colorMapKo = {
+          '화이트': 'pure white', '그레이': 'gray', '블랙': 'matte black',
+          '아이보리': 'warm ivory', '오크': 'natural oak wood', '월넛': 'dark walnut wood',
+          '스노우': 'snow white', '마블화이트': 'white marble', '그레이마블': 'gray marble',
+          '차콜': 'charcoal'
+        };
+        const finishMapKo = { '무광': 'matte finish', '유광': 'glossy finish', '엠보': 'embossed texture' };
+        const handleMapKo = {
+          'push-open': 'handleless push-to-open doors (no visible handles)',
+          '라인핸들': 'thin line handles',
+          '봉핸들': 'bar handles',
+          'J핸들': 'J-shaped handles'
+        };
+
+        const upperColor = colorMapKo[cabinetSpecs.door_color_upper] || cabinetSpecs.door_color_upper;
+        const lowerColor = colorMapKo[cabinetSpecs.door_color_lower] || cabinetSpecs.door_color_lower;
+        const upperFinish = finishMapKo[cabinetSpecs.door_finish_upper] || cabinetSpecs.door_finish_upper;
+        const lowerFinish = finishMapKo[cabinetSpecs.door_finish_lower] || cabinetSpecs.door_finish_lower;
+        const topColor = colorMapKo[cabinetSpecs.countertop_color] || cabinetSpecs.countertop_color;
+        const handleDesc = handleMapKo[cabinetSpecs.handle_type] || cabinetSpecs.handle_type;
+
+        const lines = [];
+        lines.push(`Korean built-in kitchen cabinet, photorealistic interior photograph.`);
+        lines.push(`Upper cabinets: ${upperColor} ${upperFinish} doors.`);
+        lines.push(`Lower cabinets: ${lowerColor} ${lowerFinish} doors.`);
+        lines.push(`Countertop: ${topColor} surface.`);
+        lines.push(`Hardware: ${handleDesc}.`);
+
+        if (cabinetSpecs.hood_type) {
+          lines.push(`Range hood: built-in concealed hood (hidden inside upper cabinet, NOT visible externally).`);
+        }
+
+        const negatives = [];
+        negatives.push('NO exposed hood duct');
+        negatives.push('NO hood ventilation pipe');
+        negatives.push('NO external ductwork');
+        negatives.push('NO visible exhaust pipe on wall or ceiling');
+        negatives.push('NO silver/metallic duct tube');
+
+        return {
+          prompt: lines.join(' '),
+          negative_prompt: negatives.join(', ')
+        };
+      }
+
       // 모듈 위치 계산 헬퍼 함수
       function calculateModulePositions(modules, section) {
         let currentPos = 0;
@@ -9304,9 +9351,14 @@
             ? 'https://dadam.app.n8n.cloud/webhook/dadam-interior-v4'  // 메인 워크플로우 (Wall Analysis)
             : N8N_AI_DESIGN_URL;  // design-to-image 워크플로우
 
+          // 8-1. 상세 프롬프트 생성
+          const designPrompt = buildDesignPrompt(specs, cabinetSpecs);
+
           console.log('AI 디자인 생성 요청:', {
             category,
             style,
+            prompt: designPrompt.prompt,
+            negative_prompt: designPrompt.negative_prompt,
             cabinetSpecs,
             upperModules: upperModules.length,
             lowerModules: lowerModules.length,
@@ -9327,6 +9379,10 @@
               category: category,
               style: style,
               design_style: style,
+
+              // 상세 디자인 프롬프트
+              prompt: designPrompt.prompt,
+              negative_prompt: designPrompt.negative_prompt,
 
               // 상세 캐비넷 사양
               cabinet_specs: cabinetSpecs,
