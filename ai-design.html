@@ -2626,9 +2626,8 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (Cloudflare Tunnel)
-      const API_BASE_URL = 'https://api.dadamfurniture.com';
-      const N8N_INTERIOR_URL = API_BASE_URL + '/webhook/dadam-interior-v4';
+      // 프로덕션 API URL (n8n Cloud 직접 호출)
+      const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/dadam-interior-v4';
 
       // ═══════════════════════════════════════════════════════════════
       // 상세 공간 분석 프롬프트 (Claude Vision용)
