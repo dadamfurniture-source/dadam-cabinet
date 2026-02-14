@@ -16,23 +16,28 @@ function findNode(name) {
 // ============================================================
 const parseInput = findNode('Parse Input');
 if (parseInput) {
-  // Append reference_images and material_descriptions to the return
+  // Replace the entire return block to include all new fields
   const origCode = parseInput.parameters.jsCode;
-  if (origCode && !origCode.includes('referenceImages')) {
-    parseInput.parameters.jsCode = origCode.replace(
-      /return\s*\{/,
-      `const referenceImages = body.reference_images || {};
-const materialDescriptions = body.material_descriptions || {};
+  // Find the return statement and replace it completely
+  parseInput.parameters.jsCode = origCode.replace(
+    /\/\/ 클라이언트 프롬프트[\s\S]*$/,
+    `// 클라이언트 프롬프트 (상세 옵션 기반)
+  const clientPrompt = body.prompt || '';
+  const negativePrompt = body.negative_prompt || '';
+  const cabinetSpecs = body.cabinet_specs || {};
+  const referenceImages = body.reference_images || {};
+  const materialDescriptions = body.material_descriptions || {};
+  const modules = body.modules || {};
 
-return {`
-    ).replace(
-      /clientPrompt, negativePrompt, cabinetSpecs/,
-      'clientPrompt, negativePrompt, cabinetSpecs, referenceImages, materialDescriptions'
-    );
-    console.log('✅ Parse Input updated (added referenceImages, materialDescriptions)');
-  } else {
-    console.log('⏭️ Parse Input already has referenceImages');
-  }
+  return {
+    category, style, roomImage, imageType, triggers,
+    materialCodes, colorKeywords,
+    hasMaterialRequest: materialCodes.length > 0 || colorKeywords.length > 0,
+    clientPrompt, negativePrompt, cabinetSpecs,
+    referenceImages, materialDescriptions, modules
+  };`
+  );
+  console.log('✅ Parse Input updated (added referenceImages, materialDescriptions, modules)');
 } else {
   console.log('❌ Parse Input not found');
 }
@@ -163,7 +168,8 @@ return {
   negativePrompt: input.negativePrompt || '',
   cabinetSpecs: input.cabinetSpecs || {},
   referenceImages: input.referenceImages || {},
-  materialDescriptions: input.materialDescriptions || {}
+  materialDescriptions: input.materialDescriptions || {},
+  modules: input.modules || {}
 };`;
   console.log('✅ Build Claude Request updated');
 } else {
@@ -257,7 +263,8 @@ return [{
   negativePrompt: input.negativePrompt || '',
   cabinetSpecs: input.cabinetSpecs || {},
   referenceImages: input.referenceImages || {},
-  materialDescriptions: input.materialDescriptions || {}
+  materialDescriptions: input.materialDescriptions || {},
+  modules: input.modules || {}
 }];`;
   console.log('✅ Parse Claude Result updated');
 } else {
@@ -358,7 +365,8 @@ return {
   negativePrompt: input.negativePrompt || '',
   cabinetSpecs: input.cabinetSpecs || {},
   referenceImages: input.referenceImages || {},
-  materialDescriptions: input.materialDescriptions || {}
+  materialDescriptions: input.materialDescriptions || {},
+  modules: input.modules || {}
 };`;
   console.log('✅ Build Cleanup Prompt updated');
 } else {
@@ -384,6 +392,7 @@ const negativePrompt = input.negativePrompt || '';
 const cabinetSpecs = input.cabinetSpecs || {};
 const referenceImages = input.referenceImages || {};
 const materialDescriptions = input.materialDescriptions || {};
+const modules = input.modules || {};
 
 let cleanedBackground = null;
 try {
@@ -487,6 +496,83 @@ Confidence: \${analysis.exhaust_duct_confidence || 'medium'}
 ✓ Lower Cabinet - height 870mm
 ✓ Upper Cabinet - flush with ceiling (NO gap between ceiling and upper cabinet)
 ✓ Toe Kick - below lower cabinet\`;
+
+// ─── Add precise dimension specs from cabinetSpecs ───
+if (cabinetSpecs.total_width_mm) {
+  let dimLines = [];
+  dimLines.push('Total cabinet width: ' + cabinetSpecs.total_width_mm + 'mm');
+  if (cabinetSpecs.total_height_mm) dimLines.push('Total height: ' + cabinetSpecs.total_height_mm + 'mm');
+  if (cabinetSpecs.depth_mm) dimLines.push('Depth: ' + cabinetSpecs.depth_mm + 'mm');
+  dimLines.push('Upper cabinet height: ' + (cabinetSpecs.upper_cabinet_height || 720) + 'mm');
+  dimLines.push('Lower cabinet height: ' + (cabinetSpecs.lower_cabinet_height || 870) + 'mm');
+  dimLines.push('Countertop thickness: ' + (cabinetSpecs.countertop_thickness || 20) + 'mm');
+  dimLines.push('Toe kick height: ' + (cabinetSpecs.leg_height || 150) + 'mm');
+  dimLines.push('Top molding height: ' + (cabinetSpecs.molding_height || 60) + 'mm');
+
+  furniturePrompt += \`
+
+═══════════════════════════════════════════════════════════════
+★★★ PRECISE CABINET DIMENSIONS ★★★
+═══════════════════════════════════════════════════════════════
+\${dimLines.join('\\n')}
+
+[Height breakdown from floor to ceiling]
+Floor → Toe kick (\${cabinetSpecs.leg_height || 150}mm) → Lower cabinet (\${cabinetSpecs.lower_cabinet_height || 870}mm) → Countertop (\${cabinetSpecs.countertop_thickness || 20}mm) → Backsplash gap → Upper cabinet (\${cabinetSpecs.upper_cabinet_height || 720}mm) → Top molding (\${cabinetSpecs.molding_height || 60}mm) → Ceiling\`;
+}
+
+// ─── Add module layout info ───
+const upperMods = modules.upper || [];
+const lowerMods = modules.lower || [];
+if (lowerMods.length > 0 || upperMods.length > 0) {
+  let modLines = [];
+
+  if (lowerMods.length > 0) {
+    modLines.push('[Lower Modules - left to right] (' + lowerMods.length + ' modules)');
+    for (const m of lowerMods) {
+      let desc = '  ' + (m.position_from_left_mm || 0) + 'mm: ';
+      desc += (m.name || 'Cabinet') + ' (W' + (m.width_mm || m.w || 0) + 'mm)';
+      if (m.has_sink) desc += ' ← SINK HERE';
+      if (m.has_cooktop) desc += ' ← COOKTOP HERE';
+      if (m.is_drawer) desc += ' [drawer]';
+      else desc += ' [' + (m.door_count || 1) + '-door]';
+      modLines.push(desc);
+    }
+  }
+
+  if (upperMods.length > 0) {
+    modLines.push('[Upper Modules - left to right] (' + upperMods.length + ' modules)');
+    for (const m of upperMods) {
+      let desc = '  ' + (m.position_from_left_mm || 0) + 'mm: ';
+      desc += (m.name || 'Cabinet') + ' (W' + (m.width_mm || m.w || 0) + 'mm)';
+      if (m.is_drawer) desc += ' [drawer]';
+      else desc += ' [' + (m.door_count || 1) + '-door]';
+      modLines.push(desc);
+    }
+  }
+
+  // Sink/Cooktop exact positions in mm
+  if (cabinetSpecs.sink_position_mm !== undefined) {
+    modLines.push('Sink center at: ' + cabinetSpecs.sink_position_mm + 'mm from left edge');
+  }
+  if (cabinetSpecs.cooktop_position_mm !== undefined) {
+    modLines.push('Cooktop center at: ' + cabinetSpecs.cooktop_position_mm + 'mm from left edge');
+  }
+
+  // Finish (left/right filler/molding)
+  if (cabinetSpecs.finish_left_type && cabinetSpecs.finish_left_type !== 'None') {
+    modLines.push('Left finish: ' + cabinetSpecs.finish_left_type + ' ' + (cabinetSpecs.finish_left_width || 60) + 'mm');
+  }
+  if (cabinetSpecs.finish_right_type && cabinetSpecs.finish_right_type !== 'None') {
+    modLines.push('Right finish: ' + cabinetSpecs.finish_right_type + ' ' + (cabinetSpecs.finish_right_width || 60) + 'mm');
+  }
+
+  furniturePrompt += \`
+
+★★★ MODULE LAYOUT (exact widths & positions) ★★★
+\${modLines.join('\\n')}
+
+→ Maintain these WIDTH PROPORTIONS when rendering each cabinet door/drawer\`;
+}
 
 // Add client color/material specs
 if (colorSpecLines.length > 0) {
