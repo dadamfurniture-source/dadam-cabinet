@@ -329,6 +329,9 @@
       #step2-content {
         display: none;
       }
+      #step3-content {
+        display: none;
+      }
       .bookmark-tabs {
         display: flex;
         gap: 4px;
@@ -1660,6 +1663,23 @@
         </div>
         <div class="bookmark-tabs" id="bookmarkTabs"></div>
         <div class="design-workspace" id="designWorkspace"></div>
+      </div>
+      <div id="step3-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="section-label" style="margin:0;">BOM 산출 결과</div>
+          <button class="btn-back" onclick="backToStep2()">← 설계 수정하기</button>
+        </div>
+        <div id="step3-report-area">
+          <!-- BOM 보고서가 여기에 렌더링됨 -->
+        </div>
+        <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;margin-top:20px;padding:15px;background:#f9f9f9;border-radius:12px;">
+          <div style="display:flex;gap:8px;">
+            <button onclick="downloadReportExcel()" style="background:linear-gradient(135deg, #4caf50 0%, #388e3c 100%);color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">📊 엑셀 다운로드</button>
+            <button onclick="downloadReportCSV()" style="background:linear-gradient(135deg, #2196f3 0%, #1976d2 100%);color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">📄 CSV 다운로드</button>
+            <button onclick="downloadReportCNC()" style="background:linear-gradient(135deg, #ff9800 0%, #f57c00 100%);color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">🔧 CNC 파일</button>
+          </div>
+          <button onclick="proceedToBOM()" style="background:linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">🔄 재산출</button>
+        </div>
       </div>
     </div>
 
@@ -4164,6 +4184,54 @@
         updateUI();
       }
 
+      function goToStep3() {
+        document.getElementById('step2-content').style.display = 'none';
+        document.getElementById('step3-content').style.display = 'block';
+        document.getElementById('step-dot-2').classList.remove('active');
+        document.getElementById('step-dot-3').classList.add('active');
+      }
+
+      function backToStep2() {
+        document.getElementById('step3-content').style.display = 'none';
+        document.getElementById('step2-content').style.display = 'block';
+        document.getElementById('step-dot-3').classList.remove('active');
+        document.getElementById('step-dot-2').classList.add('active');
+      }
+
+      function proceedToBOM() {
+        // 1. AI 결과 모달 닫기
+        const modal = document.querySelector('.ai-design-result-modal');
+        if (modal) modal.remove();
+
+        // 2. 설계 데이터 추출
+        const design = window.DadamAgent.exportDesign();
+        if (!design.items || design.items.length === 0) {
+          alert('설계 데이터가 없습니다.');
+          return;
+        }
+
+        // 3. Step 3로 이동
+        goToStep3();
+
+        // 4. 자재 추출
+        const matResult = materialExtractor.extract(design);
+        const hwResult = hardwareExtractor.extract(design);
+
+        // 5. 전역 데이터 저장 (다운로드용)
+        window._reportData = {
+          design,
+          materials: matResult,
+          hardware: hwResult,
+          csvMaterial: materialExtractor.toCSV(matResult.materials),
+          cncMaterial: materialExtractor.toCNC(matResult.materials),
+          csvHardware: hardwareExtractor.toCSV(hwResult.hardware)
+        };
+
+        // 6. 탭 콘텐츠 생성 후 Step 3 영역에 렌더링
+        const tabContent = generateReportTabs(matResult, hwResult, design);
+        document.getElementById('step3-report-area').innerHTML = tabContent;
+      }
+
       function renderBookmarks() {
         const tabsContainer = document.getElementById('bookmarkTabs');
         tabsContainer.innerHTML = '';
@@ -4559,6 +4627,7 @@
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${item.w} x H ${item.h} x D ${item.d}</span></div>
       <div style="display:flex;gap:8px;">
         <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>
       </div>
     </div>
     <div class="ws-layout">
@@ -5131,6 +5200,7 @@
       <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${W} x H ${H} x D ${D}</span></div>
       <div style="display:flex;gap:8px;">
         <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>
       </div>
     </div>
     <div class="ws-layout">
@@ -6850,6 +6920,7 @@
       <div class="ws-title">🧊 ${item.labelName || item.name} <span class="ws-info-badge">${W} × ${H} × ${D}</span></div>
       <div style="display:flex;gap:8px;">
         <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>
         <button style="background:var(--primary-color);color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" onclick="saveDesignToFile()">💾 저장</button>
         <button class="btn-back" onclick="goBackToStep1()">← 목록</button>
       </div>
@@ -9427,6 +9498,7 @@
           <button onclick="downloadAIDesignImage('closed')" style="padding:12px 24px;background:#6366F1;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">💾 닫힌 도어 저장</button>
           ${hasOpenImage ? `<button onclick="downloadAIDesignImage('open')" style="padding:12px 24px;background:#10B981;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;">💾 열린 도어 저장</button>` : ''}
         ` : ''}
+        <button onclick="proceedToBOM()" style="padding:12px 24px;background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:bold;">📋 BOM 산출하기 →</button>
         <button onclick="this.closest('.ai-design-result-modal').remove()" style="padding:12px 24px;background:#EBE8E2;color:#2D2A26;border:none;border-radius:10px;font-size:14px;cursor:pointer;">닫기</button>
       </div>
     </div>
@@ -9504,8 +9576,7 @@
       // 재단 추출 기능 임시 비활성화 - AI 디자인 생성으로 대체
       // ============================================================
       function showDesignCompleteReport() {
-        // AI 디자인 생성 함수로 리다이렉트
-        generateAIDesign();
+        proceedToBOM();
 
         /* ===== 재단 추출 기능 임시 비활성화 =====
   const design = window.DadamAgent.exportDesign();
