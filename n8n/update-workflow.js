@@ -454,6 +454,31 @@ if (materialLines.length === 0 && cabinetSpecs) {
 const waterPercent = analysis.water_supply_percent;
 const exhaustPercent = analysis.exhaust_duct_percent;
 
+// ─── Build numeric module data text supplement ───
+let moduleDataText = '';
+if (layoutData && layoutData.totalW_mm) {
+  const lines = [];
+  lines.push('Total wall: ' + layoutData.totalW_mm + 'mm W x ' + layoutData.totalH_mm + 'mm H');
+  if (layoutData.upper?.modules?.length) {
+    lines.push('Upper cabinets (' + layoutData.upper.modules.length + ' modules):');
+    layoutData.upper.modules.forEach((m, i) => {
+      const wMM = Math.round(m.w * layoutData.totalW_mm);
+      lines.push('  U' + (i+1) + ': ' + wMM + 'mm wide, ' + m.doorCount + (m.type === 'drawer' ? ' drawer(s)' : ' door(s)') + (m.name ? ' [' + m.name + ']' : ''));
+    });
+  }
+  if (layoutData.lower?.modules?.length) {
+    lines.push('Lower cabinets (' + layoutData.lower.modules.length + ' modules):');
+    layoutData.lower.modules.forEach((m, i) => {
+      const wMM = Math.round(m.w * layoutData.totalW_mm);
+      let suffix = '';
+      if (m.hasSink) suffix += ' (SINK)';
+      if (m.hasCooktop) suffix += ' (COOKTOP)';
+      lines.push('  L' + (i+1) + ': ' + wMM + 'mm wide, ' + m.doorCount + (m.type === 'drawer' ? ' drawer(s)' : ' door(s)') + suffix + (m.name ? ' [' + m.name + ']' : ''));
+    });
+  }
+  moduleDataText = lines.join('\\n');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ─── LAYOUT BLUEPRINT MODE (수치 기반 레이아웃) ───
 // ═══════════════════════════════════════════════════════════════
@@ -498,6 +523,8 @@ Your job is to render photorealistic built-in kitchen furniture that EXACTLY mat
 - Sink area aligned with water supply at \${waterPercent}% from left
 - Cooktop area aligned with exhaust duct at \${exhaustPercent}% from left
 
+\${moduleDataText ? '[EXACT MODULE DIMENSIONS - numeric supplement to blueprint]\\n' + moduleDataText : ''}
+
 [PHOTOREALISTIC QUALITY]
 - Add realistic shadows, reflections, and ambient lighting
 - Apply proper material textures (wood grain, stone pattern, stainless steel)
@@ -526,6 +553,8 @@ This image is a cleaned background. Do NOT modify the background. Only add furni
 
 [Materials]
 \${materialLines.length > 0 ? materialLines.join('\\n') : 'Modern minimal white matte finish'}
+
+\${moduleDataText ? '[MODULE DIMENSIONS]\\n' + moduleDataText : ''}
 
 [PROHIBITED]
 ❌ Do NOT modify background

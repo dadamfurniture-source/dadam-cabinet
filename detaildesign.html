@@ -3644,6 +3644,7 @@
           w,
           h,
           d,
+          doorCount: is2D ? 2 : 1,
           isDrawer: false,
           isEL: false,
           isFixed: false,
@@ -9619,7 +9620,7 @@
       function calculateModulePositions(modules, section) {
         let currentPos = 0;
         return modules
-          .filter(m => m.pos === section || m.type === section)
+          .filter(m => m.pos === section)
           .map(m => {
             const moduleWithPos = {
               ...m,
