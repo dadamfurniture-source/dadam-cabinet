@@ -1,0 +1,182 @@
+{
+  "_version": "1.0.0",
+  "_description": "다담AI 이미지 생성 Rules - Gemini 프롬프트 구성에 사용",
+  "_updated": "2026-02-15",
+
+  "cleanup": {
+    "description": "Stage 1: 현장 사진 → 깨끗한 배경 변환",
+    "preserve": [
+      "Wall position and angle",
+      "Floor position and level",
+      "Ceiling height and position",
+      "Window/door position and size",
+      "Camera angle and viewpoint",
+      "Lighting direction"
+    ],
+    "remove": [
+      "People",
+      "Clothes and hangers",
+      "Temporary workbenches",
+      "Tools and equipment",
+      "Cement bags",
+      "All construction debris"
+    ],
+    "wire_removal": [
+      "Remove all exposed wires",
+      "Remove wall-surface wiring",
+      "Remove ceiling-exposed wires",
+      "Fill wire areas with matching wall/ceiling material"
+    ],
+    "unfinished_repair": [
+      "Unfinished walls: repair with surrounding material/color",
+      "Unfinished ceiling: match surrounding ceiling color (white)",
+      "Exposed drywall: match surrounding finish material",
+      "Exposed cement/concrete: blend with surrounding tile or paint",
+      "Missing tiles: fill with matching tile pattern"
+    ],
+    "exhaust_area_finishing": [
+      "Duct surrounding walls: smooth paint (white or matching wall color)",
+      "Duct surrounding stains/dust: fully remove"
+    ],
+    "improvement": [
+      "Lower wall: maintain existing tile pattern, clean finish",
+      "Upper wall: smooth with matching color",
+      "Floor: clean tile or finished material",
+      "Ceiling: clean white, preserve lighting"
+    ],
+    "plumbing_visibility": [
+      "Water supply: show clean pipe connection cap only",
+      "Exhaust duct: smooth surrounding wall/ceiling finish",
+      "Gas pipe: show clean gas valve only (if detected)"
+    ],
+    "generation_config": {
+      "temperature": 0.3,
+      "response_modalities": ["image", "text"]
+    }
+  },
+
+  "rendering": {
+    "description": "Stage 2: 깨끗한 배경 + 블루프린트 → 포토리얼리스틱 가구 렌더링",
+
+    "blueprint_legend": {
+      "colored_rectangle": "one cabinet module at exact position and size",
+      "proportions": "mathematically computed from real mm measurements",
+      "horizontal_lines": "drawers",
+      "vertical_lines": "door divisions",
+      "dark_bottom_strip": "toe kick",
+      "thin_middle_strip": "countertop",
+      "stainless_rectangle_on_countertop": "sink bowl position",
+      "black_rectangle_on_countertop": "cooktop position",
+      "dark_gray_top_strip": "crown molding",
+      "handle_bars": "door/drawer handles (match handle type)"
+    },
+
+    "rules": [
+      "PRESERVE the cleaned background EXACTLY - do NOT modify walls, floor, or ceiling",
+      "Place furniture ONLY where the blueprint shows colored rectangles",
+      "Match the EXACT proportions and positions from the blueprint",
+      "Each module's WIDTH RATIO must match the blueprint precisely",
+      "Upper cabinets must be flush with ceiling (as shown in blueprint)",
+      "Drawers and doors must match the count shown in blueprint",
+      "Handles must match the type specified in materials",
+      "Sink and cooktop positions must match blueprint exactly"
+    ],
+
+    "photorealistic_quality": [
+      "Add realistic shadows, reflections, and ambient lighting",
+      "Apply proper material textures (wood grain, stone pattern, stainless steel)",
+      "Show realistic edge profiles and panel gaps (2-3mm between doors)",
+      "Natural lighting from windows/ceiling as visible in the background",
+      "Subtle shadow under upper cabinets onto backsplash",
+      "Slight reflection on glossy surfaces, matte diffusion on matte surfaces",
+      "Realistic toe kick shadow on floor"
+    ],
+
+    "prohibited": [
+      "Do NOT change positions or proportions from the blueprint",
+      "Do NOT modify the background/wall/floor",
+      "No text, labels, or dimension markings",
+      "NO exposed hood duct or ventilation pipe",
+      "NO visible exhaust pipe or silver/metallic duct tube",
+      "NO floating or detached furniture elements",
+      "NO unrealistic scale (doors too wide, drawers too tall)"
+    ],
+
+    "generation_config": {
+      "temperature": 0.3,
+      "response_modalities": ["image", "text"]
+    }
+  },
+
+  "inpainting": {
+    "description": "Stage 2-B: 마스크 기반 인페인팅 - 구조 유지 + 텍스처만 AI 보정",
+
+    "mask_explanation": {
+      "white_areas": "furniture surfaces to be textured (doors, countertop, molding, toe kick)",
+      "black_areas": "background to be preserved exactly as-is (walls, floor, ceiling, backsplash)"
+    },
+
+    "rules": [
+      "ONLY modify white (furniture) areas in the mask",
+      "Black areas must remain COMPLETELY UNCHANGED pixel-for-pixel",
+      "Apply photorealistic material textures to white areas ONLY",
+      "Preserve the exact shape and boundaries of white areas",
+      "Do NOT extend furniture beyond the masked region",
+      "Add realistic lighting, shadows, and reflections within masked areas",
+      "Blend edges naturally where white meets black (anti-aliasing)"
+    ],
+
+    "texture_application": [
+      "Door panels: apply wood grain or solid color with proper finish (matte/glossy/embossed)",
+      "Countertop: apply stone/engineered stone texture with edge profile",
+      "Toe kick: dark recessed shadow appearance",
+      "Molding: subtle crown molding profile with appropriate color",
+      "Handle areas: metallic texture with reflections"
+    ],
+
+    "prohibited": [
+      "Do NOT modify any black (background) area",
+      "Do NOT change furniture positions or proportions",
+      "Do NOT add furniture outside the mask",
+      "Do NOT remove or alter the structural layout",
+      "NO text, labels, or markings"
+    ],
+
+    "generation_config": {
+      "temperature": 0.2,
+      "response_modalities": ["image", "text"]
+    }
+  },
+
+  "fallback": {
+    "description": "블루프린트 없이 텍스트만으로 가구 배치 (하위 호환)",
+    "rules": [
+      "Place sink at water supply position",
+      "Place cooktop at exhaust duct position",
+      "Upper cabinets flush with ceiling",
+      "Do NOT modify background",
+      "NO exposed duct or pipe",
+      "No text or labels"
+    ]
+  },
+
+  "material_color_map": {
+    "화이트": "pure white",
+    "그레이": "gray",
+    "블랙": "matte black",
+    "오크": "natural oak wood",
+    "월넛": "dark walnut wood",
+    "스노우": "snow white",
+    "마블화이트": "white marble",
+    "그레이마블": "gray marble",
+    "차콜": "charcoal",
+    "베이지": "beige",
+    "네이비": "navy blue"
+  },
+
+  "material_finish_map": {
+    "무광": "matte",
+    "유광": "glossy",
+    "엠보": "embossed"
+  }
+}

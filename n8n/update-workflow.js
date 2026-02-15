@@ -3,8 +3,14 @@ const path = require('path');
 
 const inputFile = path.join(__dirname, 'Dadam Interior v8 (Claude Analysis).json');
 const outputFile = path.join(__dirname, 'Dadam Interior v8 (Claude Analysis) - updated.json');
+const rulesFile = path.join(__dirname, 'image-gen-rules.json');
 
 const workflow = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
+
+// ─── Load externalized rules ───
+const rules = JSON.parse(fs.readFileSync(rulesFile, 'utf8'));
+const RULES_JSON = JSON.stringify(rules);
+console.log(`📜 Loaded image-gen-rules.json v${rules._version}`);
 
 // Helper: find node by name
 function findNode(name) {
@@ -12,13 +18,11 @@ function findNode(name) {
 }
 
 // ============================================================
-// 0. Parse Input - add reference_images, material_descriptions extraction
+// 0. Parse Input - extract all fields including mask_image
 // ============================================================
 const parseInput = findNode('Parse Input');
 if (parseInput) {
-  // Replace the entire return block to include all new fields
   const origCode = parseInput.parameters.jsCode;
-  // Find the return statement and replace it completely
   parseInput.parameters.jsCode = origCode.replace(
     /\/\/ 클라이언트 프롬프트[\s\S]*$/,
     `// 클라이언트 프롬프트 (상세 옵션 기반)
@@ -30,6 +34,7 @@ if (parseInput) {
   const modules = body.modules || {};
   const layoutImage = body.layout_image || '';
   const layoutData = body.layout_data || {};
+  const maskImage = body.mask_image || '';
   const manualPositions = body.manual_positions || null;
   const hasManualPositions = body.has_manual_positions || false;
 
@@ -39,17 +44,17 @@ if (parseInput) {
     hasMaterialRequest: materialCodes.length > 0 || colorKeywords.length > 0,
     clientPrompt, negativePrompt, cabinetSpecs,
     referenceImages, materialDescriptions, modules,
-    layoutImage, layoutData,
+    layoutImage, layoutData, maskImage,
     manualPositions, hasManualPositions
   };`
   );
-  console.log('✅ Parse Input updated (added referenceImages, materialDescriptions, modules)');
+  console.log('✅ Parse Input updated (+maskImage)');
 } else {
   console.log('❌ Parse Input not found');
 }
 
 // ============================================================
-// 1. Build Claude Request - add clientPrompt, negativePrompt, cabinetSpecs passthrough
+// 1. Build Claude Request - passthrough all fields
 // ============================================================
 const buildClaudeRequest = findNode('Build Claude Request');
 if (buildClaudeRequest) {
@@ -177,15 +182,16 @@ return {
   materialDescriptions: input.materialDescriptions || {},
   modules: input.modules || {},
   layoutImage: input.layoutImage || '',
-  layoutData: input.layoutData || {}
+  layoutData: input.layoutData || {},
+  maskImage: input.maskImage || ''
 };`;
-  console.log('✅ Build Claude Request updated');
+  console.log('✅ Build Claude Request updated (+maskImage passthrough)');
 } else {
   console.log('❌ Build Claude Request not found');
 }
 
 // ============================================================
-// 2. Parse Claude Result - add clientPrompt, negativePrompt, cabinetSpecs passthrough
+// 2. Parse Claude Result - passthrough all fields
 // ============================================================
 const parseClaudeResult = findNode('Parse Claude Result');
 if (parseClaudeResult) {
@@ -257,7 +263,7 @@ if (hasManual) {
     analysisResult.exhaust_duct_confidence = 'manual';
   }
   analysisResult.source = 'manual';
-  analysisResult.confidence = 'high'; // 사용자 표시는 항상 신뢰도 high
+  analysisResult.confidence = 'high';
 }
 
 return [{
@@ -274,21 +280,31 @@ return [{
   materialDescriptions: input.materialDescriptions || {},
   modules: input.modules || {},
   layoutImage: input.layoutImage || '',
-  layoutData: input.layoutData || {}
+  layoutData: input.layoutData || {},
+  maskImage: input.maskImage || ''
 }];`;
-  console.log('✅ Parse Claude Result updated');
+  console.log('✅ Parse Claude Result updated (+maskImage passthrough)');
 } else {
   console.log('❌ Parse Claude Result not found');
 }
 
 // ============================================================
-// 3. Build Cleanup Prompt - add clientPrompt, negativePrompt, cabinetSpecs passthrough
+// 3. Build Cleanup Prompt - rules from JSON + maskImage passthrough
 // ============================================================
 const buildCleanupPrompt = findNode('Build Cleanup Prompt');
 if (buildCleanupPrompt) {
+  // Embed cleanup rules from external JSON
+  const cleanupRules = rules.cleanup;
+  const preserveList = cleanupRules.preserve.map((r, i) => `${i + 1}. ${r}`).join('\n');
+  const removeList = cleanupRules.remove.map(r => `- ${r}`).join('\n');
+  const wireList = cleanupRules.wire_removal.map(r => `- ${r}`).join('\n');
+  const repairList = cleanupRules.unfinished_repair.map(r => `- ${r}`).join('\n');
+  const exhaustList = cleanupRules.exhaust_area_finishing.map(r => `- ${r}`).join('\n');
+  const improveList = cleanupRules.improvement.map((r, i) => `${i + 1}. ${r}`).join('\n');
+  const plumbingList = cleanupRules.plumbing_visibility.map(r => `- ${r}`).join('\n');
+
   buildCleanupPrompt.parameters.jsCode = `// ═══════════════════════════════════════════════════════════════
-// Build Background Cleanup Prompt v2
-// 전선 제거 + 미마감 부분 보정 추가
+// Build Background Cleanup Prompt v3 - Rules from image-gen-rules.json
 // ═══════════════════════════════════════════════════════════════
 const input = $input.first().json;
 const analysis = input.analysisResult;
@@ -302,57 +318,34 @@ const cleanupPrompt = \`[TASK: BACKGROUND CLEANUP - STRUCTURE PRESERVATION]
 ★★★ ABSOLUTE RULES ★★★
 
 [MUST PRESERVE - 절대 변경 금지]
-1. 벽면 위치와 각도
-2. 바닥 위치와 레벨
-3. 천장 높이와 위치
-4. 창문/문 위치와 크기
-5. 카메라 앵글과 시점
-6. 조명 방향
+${preserveList}
 
 [MUST REMOVE - 제거 대상]
 \${debrisList}
-- 사람
-- 옷걸이와 옷
-- 임시 작업대
-- 공구와 장비
-- 시멘트 포대
-- 모든 공사 잔해
+${removeList}
 
-★★★ 전선 제거 - WIRE REMOVAL ★★★
-- 노출된 전선 모두 제거
-- 벽면에 드러난 배선 제거
-- 천장의 노출 전선 제거
-- 전선이 있던 자리는 주변 벽면/천장과 동일하게 보정
+★★★ WIRE REMOVAL ★★★
+${wireList}
 
-★★★ 미마감 부분 보정 - UNFINISHED AREA REPAIR ★★★
-- 마감되지 않은 벽면: 주변의 비슷한 소재/색상으로 자연스럽게 보정
-- 마감되지 않은 천장: 주변 천장과 동일한 색상(흰색)으로 보정
-- 석고보드 노출 부분: 주변 마감재와 동일하게 처리
-- 시멘트/콘크리트 노출: 주변 타일이나 페인트로 자연스럽게 연결
-- 타일이 빠진 부분: 주변 타일 패턴과 동일하게 채우기
+★★★ UNFINISHED AREA REPAIR ★★★
+${repairList}
 
-★★★ 배기덕트 주변 마감 - EXHAUST DUCT AREA FINISHING ★★★
-- 덕트 주변 벽면: 매끄럽게 페인트 처리 (흰색 또는 주변 벽 색상)
-- 덕트 주변 얼룩/먼지: 완전히 제거
+★★★ EXHAUST DUCT AREA FINISHING ★★★
+${exhaustList}
 
 [MUST IMPROVE - 마감 처리]
-1. 벽면 하단: 기존 타일 패턴 유지하며 깨끗하게
-2. 벽면 상단: 주변과 동일한 색상으로 매끄럽게
-3. 바닥: 깨끗한 타일 또는 마감재
-4. 천장: 깨끗한 흰색, 조명 유지
+${improveList}
 
-[KEEP VISIBLE - 유지할 설비 (깔끔하게 마감된 상태로)]
-- 급수 배관 위치: \${analysis.water_supply_percent}% 지점
-  → 깔끔한 벽면에 배관 연결부만 표시 (캡 씌운 상태)
-- 배기 덕트 위치: \${analysis.exhaust_duct_percent}% 지점
-  → 덕트 주변 벽면/천장은 매끄럽게 마감
-\${analysis.gas_pipe_percent ? '- 가스 배관 위치: ' + analysis.gas_pipe_percent + '% 지점 (깔끔한 가스 밸브만 표시)' : ''}
+[KEEP VISIBLE - 유지할 설비]
+- Water supply at \${analysis.water_supply_percent}% from left → clean pipe cap only
+- Exhaust duct at \${analysis.exhaust_duct_percent}% from left → smooth surrounding finish
+\${analysis.gas_pipe_percent ? '- Gas pipe at ' + analysis.gas_pipe_percent + '% from left → clean gas valve only' : ''}
 
 [OUTPUT]
-- 깨끗하게 마감된 빈 공간
-- 전선 없음
-- 미마감 부분 없음
-- 가구 설치 준비 완료 상태\`;
+- Cleanly finished empty space
+- No exposed wires
+- No unfinished areas
+- Ready for furniture installation\`;
 
 const geminiCleanupBody = {
   contents: [{
@@ -361,7 +354,7 @@ const geminiCleanupBody = {
       { inline_data: { mime_type: input.imageType || 'image/jpeg', data: input.roomImage }}
     ]
   }],
-  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }
+  generationConfig: { responseModalities: ['image', 'text'], temperature: ${cleanupRules.generation_config.temperature} }
 };
 
 return {
@@ -378,28 +371,48 @@ return {
   materialDescriptions: input.materialDescriptions || {},
   modules: input.modules || {},
   layoutImage: input.layoutImage || '',
-  layoutData: input.layoutData || {}
+  layoutData: input.layoutData || {},
+  maskImage: input.maskImage || ''
 };`;
-  console.log('✅ Build Cleanup Prompt updated');
+  console.log('✅ Build Cleanup Prompt updated (rules from JSON + maskImage)');
 } else {
   console.log('❌ Build Cleanup Prompt not found');
 }
 
 // ============================================================
-// 4. Parse BG + Build Furniture - Layout Blueprint + Photorealistic Enhancement
+// 4. Parse BG + Build Furniture - Rules from JSON + mask inpainting
 // ============================================================
 const parseBGBuildFurniture = findNode('Parse BG + Build Furniture');
 if (parseBGBuildFurniture) {
+  // Embed rendering rules from external JSON
+  const renderRules = rules.rendering;
+  const legendText = Object.entries(renderRules.blueprint_legend)
+    .map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}`)
+    .join('\n');
+  const rulesText = renderRules.rules.map((r, i) => `${i + 1}. ${r}`).join('\n');
+  const qualityText = renderRules.photorealistic_quality.map(r => `- ${r}`).join('\n');
+  const prohibitedText = renderRules.prohibited.map(r => `❌ ${r}`).join('\n');
+
+  // Inpainting rules
+  const inpaintRules = rules.inpainting;
+  const inpaintRulesText = inpaintRules.rules.map((r, i) => `${i + 1}. ${r}`).join('\n');
+  const inpaintTextureText = inpaintRules.texture_application.map(r => `- ${r}`).join('\n');
+  const inpaintProhibitedText = inpaintRules.prohibited.map(r => `❌ ${r}`).join('\n');
+
+  // Fallback rules
+  const fallbackRulesText = rules.fallback.rules.map(r => `- ${r}`).join('\n');
+
+  // Material maps for fallback
+  const colorMapJSON = JSON.stringify(rules.material_color_map);
+  const finishMapJSON = JSON.stringify(rules.material_finish_map);
+
   parseBGBuildFurniture.parameters.jsCode = `// ═══════════════════════════════════════════════════════════════
-// Parse Background + Build Furniture (수치 기반 레이아웃 블루프린트 방식)
-// 레이아웃 결정: 프론트엔드 Canvas (100% 코드 계산)
-// Gemini 역할: 포토리얼리스틱 텍스처/조명 보정만 담당
+// Parse BG + Build Furniture v3 - Rules from image-gen-rules.json + Mask Inpainting
 // ═══════════════════════════════════════════════════════════════
 const input = $('Build Cleanup Prompt').first().json;
 const response = $input.first().json;
 const analysis = input.analysisResult;
 
-// Client design data
 const clientPrompt = input.clientPrompt || '';
 const negativePrompt = input.negativePrompt || '';
 const cabinetSpecs = input.cabinetSpecs || {};
@@ -408,6 +421,7 @@ const materialDescriptions = input.materialDescriptions || {};
 const modules = input.modules || {};
 const layoutImage = input.layoutImage || '';
 const layoutData = input.layoutData || {};
+const maskImage = input.maskImage || '';
 
 // ─── Parse cleaned background from Gemini Stage 1 ───
 let cleanedBackground = null;
@@ -437,14 +451,8 @@ if (md.faucet) materialLines.push('Faucet: ' + md.faucet);
 
 // Fallback if no materialDescriptions
 if (materialLines.length === 0 && cabinetSpecs) {
-  const colorMap = {
-    '화이트': 'pure white', '그레이': 'gray', '블랙': 'matte black',
-    '오크': 'natural oak wood', '월넛': 'dark walnut wood',
-    '스노우': 'snow white', '마블화이트': 'white marble',
-    '그레이마블': 'gray marble', '차콜': 'charcoal',
-    '베이지': 'beige', '네이비': 'navy blue'
-  };
-  const finishMap = { '무광': 'matte', '유광': 'glossy', '엠보': 'embossed' };
+  const colorMap = ${colorMapJSON};
+  const finishMap = ${finishMapJSON};
   const t = (m, k) => m[k] || k || '';
   if (cabinetSpecs.door_color_upper) materialLines.push('Upper doors: ' + t(colorMap, cabinetSpecs.door_color_upper) + ' ' + t(finishMap, cabinetSpecs.door_finish_upper));
   if (cabinetSpecs.door_color_lower) materialLines.push('Lower doors: ' + t(colorMap, cabinetSpecs.door_color_lower) + ' ' + t(finishMap, cabinetSpecs.door_finish_lower));
@@ -454,7 +462,7 @@ if (materialLines.length === 0 && cabinetSpecs) {
 const waterPercent = analysis.water_supply_percent;
 const exhaustPercent = analysis.exhaust_duct_percent;
 
-// ─── Build numeric module data text supplement ───
+// ─── Build numeric module data text ───
 let moduleDataText = '';
 if (layoutData && layoutData.totalW_mm) {
   const lines = [];
@@ -480,13 +488,47 @@ if (layoutData && layoutData.totalW_mm) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ─── LAYOUT BLUEPRINT MODE (수치 기반 레이아웃) ───
+// ─── RENDERING MODE SELECTION ───
+// Mode A: Blueprint + Background → Full rendering (기존)
+// Mode B: Blueprint + Background + Mask → Inpainting (신규)
 // ═══════════════════════════════════════════════════════════════
 
 let furniturePrompt;
+const useInpainting = !!(maskImage && layoutImage);
 
-if (layoutImage) {
-  // ★ 블루프린트 모드: Canvas에서 생성된 정확한 레이아웃을 참조하여 포토리얼리스틱 렌더링
+if (useInpainting) {
+  // ★ MODE B: 마스크 기반 인페인팅 (구조 유지 + 텍스처만 AI 보정)
+  furniturePrompt = \`[TASK: MASK-BASED INPAINTING - TEXTURE ENHANCEMENT ONLY]
+
+You are given:
+1. COMPOSITE IMAGE - furniture layout already composited on cleaned room (first image)
+2. INPAINTING MASK - white areas = furniture surfaces to enhance, black areas = DO NOT TOUCH (second image)
+3. REFERENCE MATERIALS - texture/color samples (optional, following images)
+
+★★★ INPAINTING RULES ★★★
+
+${inpaintRulesText}
+
+[MASK MEANING]
+- WHITE areas (furniture surfaces): ${inpaintRules.mask_explanation.white_areas}
+- BLACK areas (background): ${inpaintRules.mask_explanation.black_areas}
+
+[TEXTURE APPLICATION - Apply to white areas only]
+${inpaintTextureText}
+
+[MATERIALS TO APPLY]
+\${materialLines.join('\\n')}
+
+\${moduleDataText ? '[MODULE DIMENSIONS]\\n' + moduleDataText : ''}
+
+[PHOTOREALISTIC QUALITY]
+${qualityText}
+
+[PROHIBITED]
+${inpaintProhibitedText}\`;
+
+} else if (layoutImage) {
+  // ★ MODE A: 블루프린트 기반 전체 렌더링 (기존 방식)
   furniturePrompt = \`[TASK: PHOTOREALISTIC RENDERING FROM LAYOUT BLUEPRINT]
 
 You are given 3 images:
@@ -499,22 +541,10 @@ You are given 3 images:
 Your job is to render photorealistic built-in kitchen furniture that EXACTLY matches the LAYOUT BLUEPRINT.
 
 [WHAT THE BLUEPRINT SHOWS - FOLLOW EXACTLY]
-- Each colored rectangle = one cabinet module at its exact position and size
-- The PROPORTIONS between modules are mathematically computed from real mm measurements
-- Horizontal lines inside a module = drawers
-- Vertical lines inside a module = door divisions
-- Dark strip at bottom = toe kick
-- Thin strip between upper and lower = countertop
-- Stainless steel rectangle on countertop = sink bowl position
-- Black rectangle on countertop = cooktop position
-- Dark gray strip at top = crown molding
+${legendText}
 
 [RENDERING RULES]
-1. PRESERVE the cleaned background EXACTLY - do NOT modify walls, floor, or ceiling
-2. Place furniture ONLY where the blueprint shows colored rectangles
-3. Match the EXACT proportions and positions from the blueprint
-4. Each module's WIDTH RATIO must match the blueprint precisely
-5. Upper cabinets must be flush with ceiling (as shown in blueprint)
+${rulesText}
 
 [MATERIALS & TEXTURES TO APPLY]
 \${materialLines.join('\\n')}
@@ -523,24 +553,16 @@ Your job is to render photorealistic built-in kitchen furniture that EXACTLY mat
 - Sink area aligned with water supply at \${waterPercent}% from left
 - Cooktop area aligned with exhaust duct at \${exhaustPercent}% from left
 
-\${moduleDataText ? '[EXACT MODULE DIMENSIONS - numeric supplement to blueprint]\\n' + moduleDataText : ''}
+\${moduleDataText ? '[EXACT MODULE DIMENSIONS]\\n' + moduleDataText : ''}
 
 [PHOTOREALISTIC QUALITY]
-- Add realistic shadows, reflections, and ambient lighting
-- Apply proper material textures (wood grain, stone pattern, stainless steel)
-- Show realistic edge profiles and panel gaps
-- Natural lighting from windows/ceiling as visible in the background
-- Subtle shadow under upper cabinets onto backsplash
+${qualityText}
 
 [PROHIBITED]
-❌ Do NOT change positions or proportions from the blueprint
-❌ Do NOT modify the background/wall/floor
-❌ No text, labels, or dimension markings
-❌ NO exposed hood duct or ventilation pipe
-❌ NO visible exhaust pipe or silver/metallic duct tube\`;
+${prohibitedText}\`;
 
 } else {
-  // ★ 폴백: 블루프린트 없이 기존 텍스트 기반 프롬프트 (하위 호환)
+  // ★ FALLBACK: 블루프린트 없이 텍스트 기반 (하위 호환)
   furniturePrompt = \`[TASK: FURNITURE PLACEMENT - CLAUDE ANALYZED POSITIONS]
 
 ★★★ PRESERVE BACKGROUND ★★★
@@ -556,10 +578,8 @@ This image is a cleaned background. Do NOT modify the background. Only add furni
 
 \${moduleDataText ? '[MODULE DIMENSIONS]\\n' + moduleDataText : ''}
 
-[PROHIBITED]
-❌ Do NOT modify background
-❌ NO exposed duct or pipe
-❌ No text/labels\`;
+[RULES]
+${fallbackRulesText}\`;
 }
 
 // Add client prompt
@@ -575,19 +595,30 @@ if (negativePrompt) {
 // ─── Build Gemini parts[] ───
 const geminiParts = [];
 
-// 1. Text prompt (항상 첫 번째)
+// 1. Text prompt
 geminiParts.push({ text: furniturePrompt });
 
-// 2. Cleaned background image (첫 번째 이미지)
-geminiParts.push({ inline_data: { mime_type: 'image/png', data: cleanedBackground } });
-
-// 3. Layout blueprint image (두 번째 이미지 - 수치 기반 레이아웃)
-if (layoutImage) {
-  geminiParts.push({ text: '[LAYOUT BLUEPRINT - Follow this exact layout. Every rectangle position and proportion is computed from precise mm measurements.]' });
+if (useInpainting) {
+  // ★ MODE B: 인페인팅 - 합성 이미지 + 마스크
+  // 합성 이미지 (텍스처 렌더링된 레이아웃) = layoutImage
+  geminiParts.push({ text: '[COMPOSITE IMAGE - Furniture already positioned. Enhance textures in white mask areas only.]' });
   geminiParts.push({ inline_data: { mime_type: 'image/png', data: layoutImage } });
+
+  // 마스크 이미지 (가구=흰색, 배경=검정)
+  geminiParts.push({ text: '[INPAINTING MASK - White = modify (furniture surfaces), Black = preserve (background)]' });
+  geminiParts.push({ inline_data: { mime_type: 'image/png', data: maskImage } });
+
+} else {
+  // ★ MODE A: 기존 방식 - 배경 + 블루프린트
+  geminiParts.push({ inline_data: { mime_type: 'image/png', data: cleanedBackground } });
+
+  if (layoutImage) {
+    geminiParts.push({ text: '[LAYOUT BLUEPRINT - Follow this exact layout. Every rectangle position and proportion is computed from precise mm measurements.]' });
+    geminiParts.push({ inline_data: { mime_type: 'image/png', data: layoutImage } });
+  }
 }
 
-// 4. Reference material images (최대 3개, 우선순위)
+// Reference material images (최대 3개)
 const fetchPriority = ['doorColorUpper', 'topColor', 'handle'];
 const fetchedRefImages = [];
 for (const key of fetchPriority) {
@@ -608,9 +639,11 @@ for (const img of fetchedRefImages) {
   geminiParts.push({ inline_data: { mime_type: 'image/jpeg', data: img.base64 } });
 }
 
+const genTemp = useInpainting ? ${inpaintRules.generation_config.temperature} : ${renderRules.generation_config.temperature};
+
 const geminiFurnitureBody = {
   contents: [{ parts: geminiParts }],
-  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }
+  generationConfig: { responseModalities: ['image', 'text'], temperature: genTemp }
 };
 
 return [{
@@ -621,9 +654,11 @@ return [{
   style: input.style,
   analysisResult: analysis,
   hasLayoutBlueprint: !!layoutImage,
+  hasMaskImage: !!maskImage,
+  renderingMode: useInpainting ? 'inpainting' : (layoutImage ? 'blueprint' : 'fallback'),
   referenceImageCount: fetchedRefImages.length
 }];`;
-  console.log('✅ Parse BG + Build Furniture updated');
+  console.log('✅ Parse BG + Build Furniture updated (rules from JSON + mask inpainting)');
 } else {
   console.log('❌ Parse BG + Build Furniture not found');
 }
@@ -631,3 +666,5 @@ return [{
 // Save the updated workflow
 fs.writeFileSync(outputFile, JSON.stringify(workflow, null, 2), 'utf8');
 console.log('\n✅ Updated file saved to:', outputFile);
+console.log(`📜 Rules version: ${rules._version}`);
+console.log('🎨 Rendering modes: blueprint | inpainting | fallback');

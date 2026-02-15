@@ -1823,13 +1823,13 @@
         _loadFallback() {
           this.options = {
             door_color: [
-              { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f5', prompt_description: 'pure white', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '그레이', name_en: 'gray', color_hex: '#9e9e9e', prompt_description: 'gray', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '베이지', name_en: 'beige', color_hex: '#d4c4b0', prompt_description: 'warm beige', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '월넛', name_en: 'walnut', color_hex: '#5d4037', prompt_description: 'dark walnut wood', applicable_to: ['sink','wardrobe'] },
-              { name_ko: '오크', name_en: 'oak', color_hex: '#c4a35a', prompt_description: 'natural oak wood', applicable_to: ['sink','wardrobe'] },
-              { name_ko: '네이비', name_en: 'navy', color_hex: '#1a237e', prompt_description: 'navy blue', applicable_to: ['sink'] },
-              { name_ko: '블랙', name_en: 'black', color_hex: '#2c2c2c', prompt_description: 'matte black', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f5', prompt_description: 'pure white', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '그레이', name_en: 'gray', color_hex: '#9e9e9e', prompt_description: 'gray', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '베이지', name_en: 'beige', color_hex: '#d4c4b0', prompt_description: 'warm beige', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '월넛', name_en: 'walnut', color_hex: '#5d4037', prompt_description: 'dark walnut wood', applicable_to: ['sink','wardrobe'], texture_url: null },
+              { name_ko: '오크', name_en: 'oak', color_hex: '#c4a35a', prompt_description: 'natural oak wood', applicable_to: ['sink','wardrobe'], texture_url: null },
+              { name_ko: '네이비', name_en: 'navy', color_hex: '#1a237e', prompt_description: 'navy blue', applicable_to: ['sink'], texture_url: null },
+              { name_ko: '블랙', name_en: 'black', color_hex: '#2c2c2c', prompt_description: 'matte black', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
             ],
             door_finish: [
               { name_ko: '무광', name_en: 'matte', prompt_description: 'matte finish', applicable_to: ['sink','wardrobe','fridge'] },
@@ -1863,10 +1863,10 @@
               { name_ko: '하이라이트', name_en: 'highlight', prompt_description: 'electric highlight cooktop' },
             ],
             countertop: [
-              { name_ko: '스노우', name_en: 'snow white', color_hex: '#FAFAFA', prompt_description: 'snow white engineered stone countertop' },
-              { name_ko: '마블화이트', name_en: 'marble white', color_hex: '#F0F0F0', prompt_description: 'white marble countertop' },
-              { name_ko: '그레이마블', name_en: 'gray marble', color_hex: '#B0B0B0', prompt_description: 'gray marble countertop' },
-              { name_ko: '차콜', name_en: 'charcoal', color_hex: '#404040', prompt_description: 'charcoal dark countertop' },
+              { name_ko: '스노우', name_en: 'snow white', color_hex: '#FAFAFA', prompt_description: 'snow white engineered stone countertop', texture_url: null },
+              { name_ko: '마블화이트', name_en: 'marble white', color_hex: '#F0F0F0', prompt_description: 'white marble countertop', texture_url: null },
+              { name_ko: '그레이마블', name_en: 'gray marble', color_hex: '#B0B0B0', prompt_description: 'gray marble countertop', texture_url: null },
+              { name_ko: '차콜', name_en: 'charcoal', color_hex: '#404040', prompt_description: 'charcoal dark countertop', texture_url: null },
             ],
           };
           this.loaded = true;
@@ -1894,6 +1894,10 @@
 
         getColorHex(category, nameKo) {
           return (this.options[category] || []).find(o => o.name_ko === nameKo)?.color_hex || null;
+        },
+
+        getTextureUrl(category, nameKo) {
+          return (this.options[category] || []).find(o => o.name_ko === nameKo)?.texture_url || null;
         }
       };
 
@@ -1901,11 +1905,52 @@
       FurnitureOptionCatalog._loadFallback();
 
       // ============================================================
-      // LayoutRenderer - 수치 기반 Canvas 레이아웃 렌더러
+      // LayoutRenderer - 수치 기반 Canvas 레이아웃 렌더러 (v2: 텍스처 + 마스크)
       // mm 데이터 → 정규화 비율 → Canvas 픽셀 → base64 PNG
+      // Stage 1: 프로그래밍 구조 렌더링 (텍스처 패턴 + 3D 패널 효과)
+      // Stage 2: AI 인페인팅용 마스크 생성 (가구 표면 = 흰색, 나머지 = 검정)
       // ============================================================
       const LayoutRenderer = {
-        // 수치 데이터 → 정규화 좌표 (0~1) 변환
+        _textureCache: {},   // { url: HTMLImageElement } - 로드된 텍스처 캐시
+        _loadingPromises: {}, // 진행 중인 로드 방지
+
+        // ─── 텍스처 이미지 프리로드 ───
+        async _loadTexture(url) {
+          if (!url) return null;
+          if (this._textureCache[url]) return this._textureCache[url];
+          if (this._loadingPromises[url]) return this._loadingPromises[url];
+
+          this._loadingPromises[url] = new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              this._textureCache[url] = img;
+              delete this._loadingPromises[url];
+              resolve(img);
+            };
+            img.onerror = () => {
+              delete this._loadingPromises[url];
+              resolve(null); // 실패 시 null → 폴백 색상 사용
+            };
+            img.src = url;
+          });
+          return this._loadingPromises[url];
+        },
+
+        // ─── 모든 필요한 텍스처 프리로드 ───
+        async _preloadTextures(specs) {
+          const urls = [];
+          const upperTex = FurnitureOptionCatalog.getTextureUrl('door_color', specs.doorColorUpper);
+          const lowerTex = FurnitureOptionCatalog.getTextureUrl('door_color', specs.doorColorLower);
+          const countertopTex = FurnitureOptionCatalog.getTextureUrl('countertop', specs.topColor);
+          if (upperTex) urls.push(upperTex);
+          if (lowerTex) urls.push(lowerTex);
+          if (countertopTex) urls.push(countertopTex);
+          await Promise.all(urls.map(u => this._loadTexture(u)));
+          return { upperTex, lowerTex, countertopTex };
+        },
+
+        // ─── 수치 데이터 → 정규화 좌표 (0~1) 변환 ───
         computeLayout(cabinetSpecs, upperModules, lowerModules) {
           const totalW = cabinetSpecs.total_width_mm || 3600;
           const totalH = cabinetSpecs.total_height_mm || 2400;
@@ -1960,8 +2005,25 @@
           return layout;
         },
 
-        // 레이아웃 → Canvas 렌더링 → base64 PNG
+        // ─── 메인 렌더링 (async: 텍스처 지원) ───
+        // 동기 폴백: 텍스처 없이 즉시 렌더링 (기존 호환)
         render(cabinetSpecs, upperModules, lowerModules, specs) {
+          return this._renderInternal(cabinetSpecs, upperModules, lowerModules, specs, {}, false);
+        },
+
+        // 비동기 텍스처 렌더링 (프리미엄 프리뷰용)
+        async renderWithTextures(cabinetSpecs, upperModules, lowerModules, specs) {
+          const texUrls = await this._preloadTextures(specs);
+          return this._renderInternal(cabinetSpecs, upperModules, lowerModules, specs, texUrls, false);
+        },
+
+        // ─── 마스크 렌더링 (가구=흰색, 나머지=검정) ───
+        renderMask(cabinetSpecs, upperModules, lowerModules, specs) {
+          return this._renderInternal(cabinetSpecs, upperModules, lowerModules, specs, {}, true);
+        },
+
+        // ─── 내부 렌더링 엔진 ───
+        _renderInternal(cabinetSpecs, upperModules, lowerModules, specs, texUrls, isMask) {
           const layout = this.computeLayout(cabinetSpecs, upperModules, lowerModules);
 
           const canvasW = 1024;
@@ -1972,170 +2034,471 @@
           canvas.height = canvasH;
           const ctx = canvas.getContext('2d');
 
+          // 픽셀 변환 헬퍼
+          const pxY = (n) => Math.round(n * canvasH);
+          const pxX = (n) => Math.round(n * canvasW);
+
+          if (isMask) {
+            // 마스크 모드: 배경 검정
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvasW, canvasH);
+          } else {
+            ctx.clearRect(0, 0, canvasW, canvasH);
+          }
+
           // 카탈로그에서 색상 가져오기
           const upperColor = FurnitureOptionCatalog.getColorHex('door_color', specs.doorColorUpper) || '#f5f5f5';
           const lowerColor = FurnitureOptionCatalog.getColorHex('door_color', specs.doorColorLower) || '#f5f5f5';
           const countertopColor = FurnitureOptionCatalog.getColorHex('countertop', specs.topColor) || '#FAFAFA';
 
-          // 픽셀 변환 헬퍼
-          const pxY = (n) => Math.round(n * canvasH);
-          const pxX = (n) => Math.round(n * canvasW);
+          // 텍스처 패턴 생성 헬퍼
+          const getPattern = (texUrl, fallbackColor) => {
+            if (isMask) return '#ffffff';
+            const img = texUrl ? this._textureCache[texUrl] : null;
+            if (img) {
+              try { return ctx.createPattern(img, 'repeat') || fallbackColor; }
+              catch (e) { return fallbackColor; }
+            }
+            return fallbackColor;
+          };
 
-          // 배경 투명
-          ctx.clearRect(0, 0, canvasW, canvasH);
+          const upperFill = getPattern(texUrls.upperTex, upperColor);
+          const lowerFill = getPattern(texUrls.lowerTex, lowerColor);
+          const countertopFill = getPattern(texUrls.countertopTex, countertopColor);
 
-          // ─── 몰딩 ───
-          ctx.fillStyle = '#d0d0d0';
-          ctx.fillRect(0, pxY(layout.molding.y), canvasW, pxY(layout.molding.h));
-          this._drawBorder(ctx, 0, pxY(layout.molding.y), canvasW, pxY(layout.molding.h));
+          // ═══ 몰딩 ═══
+          const moldY = pxY(layout.molding.y), moldH = pxY(layout.molding.h);
+          if (isMask) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, moldY, canvasW, moldH);
+          } else {
+            // 몰딩 그라디언트 (약간 입체감)
+            const moldGrad = ctx.createLinearGradient(0, moldY, 0, moldY + moldH);
+            moldGrad.addColorStop(0, '#e0e0e0');
+            moldGrad.addColorStop(0.5, '#c8c8c8');
+            moldGrad.addColorStop(1, '#b8b8b8');
+            ctx.fillStyle = moldGrad;
+            ctx.fillRect(0, moldY, canvasW, moldH);
+            this._drawBorder(ctx, 0, moldY, canvasW, moldH);
+          }
 
-          // ─── 상부장 모듈 ───
+          // ═══ 상부장 모듈 ═══
           const upperY = pxY(layout.upper.y);
           const upperH = pxY(layout.upper.h);
           if (layout.upper.modules.length > 0) {
             for (const mod of layout.upper.modules) {
               const x = pxX(mod.x), w = pxX(mod.w);
-              // 도어 채우기
-              ctx.fillStyle = upperColor;
-              ctx.fillRect(x, upperY, w, upperH);
-              this._drawBorder(ctx, x, upperY, w, upperH);
-              // 도어 분할선
-              this._drawDoorLines(ctx, mod, x, upperY, w, upperH);
+              if (isMask) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x, upperY, w, upperH);
+              } else {
+                ctx.fillStyle = upperFill;
+                ctx.fillRect(x, upperY, w, upperH);
+                this._drawPanelEffect(ctx, x, upperY, w, upperH, upperColor);
+                this._drawDoorLines(ctx, mod, x, upperY, w, upperH);
+                // 도어별 손잡이
+                this._drawHandles(ctx, mod, x, upperY, w, upperH, specs.handle);
+              }
             }
           } else {
-            // 모듈 정보 없으면 전체 블록
-            ctx.fillStyle = upperColor;
+            ctx.fillStyle = isMask ? '#ffffff' : upperFill;
             ctx.fillRect(0, upperY, canvasW, upperH);
-            this._drawBorder(ctx, 0, upperY, canvasW, upperH);
+            if (!isMask) this._drawPanelEffect(ctx, 0, upperY, canvasW, upperH, upperColor);
           }
 
-          // ─── 백스플래시 (벽면 노출) ───
+          // ═══ 백스플래시 (벽면 노출) ═══
           const bsY = pxY(layout.backsplash.y);
           const bsH = pxY(layout.backsplash.h);
-          if (bsH > 0) {
-            ctx.fillStyle = 'rgba(245, 245, 245, 0.3)';
+          if (bsH > 0 && !isMask) {
+            // 타일 패턴 (격자 느낌)
+            ctx.fillStyle = 'rgba(240, 240, 240, 0.5)';
             ctx.fillRect(0, bsY, canvasW, bsH);
+            ctx.strokeStyle = 'rgba(220, 220, 220, 0.6)';
+            ctx.lineWidth = 0.5;
+            const tileSize = 24;
+            for (let tx = 0; tx < canvasW; tx += tileSize) {
+              ctx.beginPath(); ctx.moveTo(tx, bsY); ctx.lineTo(tx, bsY + bsH); ctx.stroke();
+            }
+            for (let ty = bsY; ty < bsY + bsH; ty += tileSize) {
+              ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(canvasW, ty); ctx.stroke();
+            }
+          }
+          // 마스크: 백스플래시는 검정 (벽이므로 인페인트 불필요)
+
+          // ═══ 상판 ═══
+          const ctY = pxY(layout.countertop.y);
+          const ctH = Math.max(pxY(layout.countertop.h), 4);
+          if (isMask) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, ctY, canvasW, ctH);
+          } else {
+            ctx.fillStyle = countertopFill;
+            ctx.fillRect(0, ctY, canvasW, ctH);
+            // 상판 엣지 하이라이트
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(0, ctY, canvasW, 1);
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(0, ctY + ctH - 1, canvasW, 1);
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, ctY, canvasW, ctH);
           }
 
-          // ─── 상판 ───
-          const ctY = pxY(layout.countertop.y);
-          const ctH = Math.max(pxY(layout.countertop.h), 4); // 최소 4px
-          ctx.fillStyle = countertopColor;
-          ctx.fillRect(0, ctY, canvasW, ctH);
-          ctx.strokeStyle = '#999';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(0, ctY, canvasW, ctH);
-
-          // ─── 하부장 모듈 ───
+          // ═══ 하부장 모듈 ═══
           const lowerY = pxY(layout.lower.y);
           const lowerH = pxY(layout.lower.h);
           if (layout.lower.modules.length > 0) {
             for (const mod of layout.lower.modules) {
               const x = pxX(mod.x), w = pxX(mod.w);
-              ctx.fillStyle = lowerColor;
-              ctx.fillRect(x, lowerY, w, lowerH);
-              this._drawBorder(ctx, x, lowerY, w, lowerH);
 
-              // 서랍 vs 도어
-              if (mod.type === 'drawer') {
-                this._drawDrawerLines(ctx, x, lowerY, w, lowerH);
+              if (isMask) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x, lowerY, w, lowerH);
               } else {
-                this._drawDoorLines(ctx, mod, x, lowerY, w, lowerH);
+                ctx.fillStyle = lowerFill;
+                ctx.fillRect(x, lowerY, w, lowerH);
+                this._drawPanelEffect(ctx, x, lowerY, w, lowerH, lowerColor);
+
+                if (mod.type === 'drawer') {
+                  this._drawDrawerLines(ctx, x, lowerY, w, lowerH, specs.handle);
+                } else {
+                  this._drawDoorLines(ctx, mod, x, lowerY, w, lowerH);
+                  this._drawHandles(ctx, mod, x, lowerY, w, lowerH, specs.handle);
+                }
               }
 
-              // 싱크볼 표시
+              // 싱크볼 (마스크에서는 흰색)
               if (mod.hasSink) {
-                const sw = w * 0.65, sh = lowerH * 0.08;
-                const sx = x + (w - sw) / 2, sy = ctY - sh - 2;
-                ctx.fillStyle = '#b0b8c0';
-                this._roundRect(ctx, sx, sy, sw, sh, 3);
-                ctx.fill();
-                ctx.strokeStyle = '#8890a0';
-                ctx.lineWidth = 1;
-                this._roundRect(ctx, sx, sy, sw, sh, 3);
-                ctx.stroke();
-                // 수전
-                const faucetX = x + w / 2, faucetY = sy - 12;
-                ctx.fillStyle = '#a0a0a0';
-                ctx.fillRect(faucetX - 2, faucetY, 4, 14);
-                ctx.fillRect(faucetX - 8, faucetY, 16, 3);
+                if (isMask) {
+                  // 싱크도 가구 표면 영역으로 포함
+                } else {
+                  this._drawSink(ctx, mod, x, w, ctY, lowerH, specs);
+                }
               }
 
-              // 쿡탑 표시
+              // 쿡탑 (마스크에서는 흰색)
               if (mod.hasCooktop) {
-                const cw = w * 0.6, ch = lowerH * 0.06;
-                const cx = x + (w - cw) / 2, cy = ctY - ch - 2;
-                ctx.fillStyle = '#1a1a1a';
-                this._roundRect(ctx, cx, cy, cw, ch, 3);
-                ctx.fill();
-                // 버너 원형 4개
-                ctx.strokeStyle = '#555';
-                ctx.lineWidth = 1;
-                const spacing = cw / 5;
-                for (let i = 1; i <= 4; i++) {
-                  ctx.beginPath();
-                  ctx.arc(cx + spacing * i, cy + ch / 2, ch * 0.3, 0, Math.PI * 2);
-                  ctx.stroke();
+                if (isMask) {
+                  // 쿡탑도 가구 표면 영역으로 포함
+                } else {
+                  this._drawCooktop(ctx, mod, x, w, ctY, lowerH, specs);
                 }
               }
             }
           } else {
-            ctx.fillStyle = lowerColor;
+            ctx.fillStyle = isMask ? '#ffffff' : lowerFill;
             ctx.fillRect(0, lowerY, canvasW, lowerH);
-            this._drawBorder(ctx, 0, lowerY, canvasW, lowerH);
+            if (!isMask) this._drawPanelEffect(ctx, 0, lowerY, canvasW, lowerH, lowerColor);
           }
 
-          // ─── 토킥 ───
+          // ═══ 토킥 ═══
           const tkY = pxY(layout.toeKick.y);
           const tkH = pxY(layout.toeKick.h);
-          ctx.fillStyle = '#2a2a2a';
-          ctx.fillRect(0, tkY, canvasW, tkH);
+          if (isMask) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, tkY, canvasW, tkH);
+          } else {
+            const tkGrad = ctx.createLinearGradient(0, tkY, 0, tkY + tkH);
+            tkGrad.addColorStop(0, '#333');
+            tkGrad.addColorStop(1, '#1a1a1a');
+            ctx.fillStyle = tkGrad;
+            ctx.fillRect(0, tkY, canvasW, tkH);
+          }
 
-          // ─── 치수 라벨 (우측) ───
-          this._drawDimensionLabels(ctx, layout, canvasW, canvasH);
+          // ═══ 치수 라벨 (마스크에는 표시 안함) ═══
+          if (!isMask) {
+            this._drawDimensionLabels(ctx, layout, canvasW, canvasH);
+          }
 
-          // PNG로 내보내기 (base64)
           const dataUrl = canvas.toDataURL('image/png');
           return dataUrl.split(',')[1];
         },
 
-        // 헬퍼: 테두리
+        // ─── 3D 패널 효과 (베벨 + 그림자) ───
+        _drawPanelEffect(ctx, x, y, w, h, baseColor) {
+          // 인셋 패딩 (도어 패널 느낌)
+          const pad = 3;
+          // 상단 하이라이트
+          ctx.fillStyle = 'rgba(255,255,255,0.25)';
+          ctx.fillRect(x + pad, y + pad, w - pad * 2, 2);
+          // 좌측 하이라이트
+          ctx.fillRect(x + pad, y + pad, 2, h - pad * 2);
+          // 하단 그림자
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
+          ctx.fillRect(x + pad, y + h - pad - 2, w - pad * 2, 2);
+          // 우측 그림자
+          ctx.fillRect(x + w - pad - 2, y + pad, 2, h - pad * 2);
+          // 테두리
+          this._drawBorder(ctx, x, y, w, h);
+        },
+
+        // ─── 손잡이 렌더링 ───
+        _drawHandles(ctx, mod, x, y, w, h, handleType) {
+          const count = mod.doorCount || 1;
+          const doorW = w / count;
+          const handleH = Math.min(h * 0.12, 40);
+          const handleW = 3;
+
+          for (let i = 0; i < count; i++) {
+            const doorX = x + doorW * i;
+            let hx, hy;
+
+            if (handleType === '푸쉬 도어' || handleType === 'push-open') {
+              continue; // 핸들리스
+            }
+
+            if (handleType === '스마트바' || handleType === 'smartbar') {
+              // 상단 가로 바
+              const barW = doorW * 0.6;
+              hx = doorX + (doorW - barW) / 2;
+              hy = y + 6;
+              ctx.fillStyle = '#aaa';
+              ctx.fillRect(hx, hy, barW, 3);
+              ctx.fillStyle = 'rgba(255,255,255,0.3)';
+              ctx.fillRect(hx, hy, barW, 1);
+              continue;
+            }
+
+            // 기본 세로 핸들 (찬넬 / C찬넬)
+            // 도어 중앙부에 세로 핸들
+            if (count > 1) {
+              // 2도어: 중앙 경계 부근
+              hx = (i === 0) ? doorX + doorW - 12 : doorX + 8;
+            } else {
+              hx = doorX + doorW / 2;
+            }
+            hy = y + (h - handleH) / 2;
+
+            // 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(hx + 1, hy + 1, handleW, handleH);
+            // 핸들 본체
+            const hGrad = ctx.createLinearGradient(hx, hy, hx + handleW, hy);
+            hGrad.addColorStop(0, '#c0c0c0');
+            hGrad.addColorStop(0.5, '#e8e8e8');
+            hGrad.addColorStop(1, '#a0a0a0');
+            ctx.fillStyle = hGrad;
+            ctx.fillRect(hx, hy, handleW, handleH);
+          }
+        },
+
+        // ─── 싱크볼 (개선) ───
+        _drawSink(ctx, mod, modX, modW, countertopY, lowerH, specs) {
+          const sw = modW * 0.65, sh = lowerH * 0.09;
+          const sx = modX + (modW - sw) / 2;
+          const sy = countertopY - sh - 1;
+
+          // 싱크 본체 (스테인리스 그라디언트)
+          const sGrad = ctx.createLinearGradient(sx, sy, sx, sy + sh);
+          sGrad.addColorStop(0, '#c8cdd2');
+          sGrad.addColorStop(0.3, '#b8bfc6');
+          sGrad.addColorStop(0.7, '#a8b0b8');
+          sGrad.addColorStop(1, '#98a0a8');
+          ctx.fillStyle = sGrad;
+          this._roundRect(ctx, sx, sy, sw, sh, 4);
+          ctx.fill();
+
+          // 싱크 내부 홈
+          const innerPad = 4;
+          ctx.fillStyle = 'rgba(0,0,0,0.08)';
+          this._roundRect(ctx, sx + innerPad, sy + innerPad, sw - innerPad * 2, sh - innerPad * 2, 2);
+          ctx.fill();
+
+          // 배수구
+          const drainX = sx + sw / 2, drainY = sy + sh * 0.6;
+          ctx.beginPath();
+          ctx.arc(drainX, drainY, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#707880';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(drainX, drainY, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#505860';
+          ctx.fill();
+
+          // 테두리
+          ctx.strokeStyle = '#8890a0';
+          ctx.lineWidth = 1;
+          this._roundRect(ctx, sx, sy, sw, sh, 4);
+          ctx.stroke();
+
+          // 수전 (거위목 스타일)
+          const faucetX = modX + modW / 2;
+          const faucetBaseY = sy - 2;
+
+          // 수전 베이스
+          ctx.fillStyle = '#b0b0b0';
+          ctx.fillRect(faucetX - 4, faucetBaseY - 4, 8, 6);
+
+          // 수전 기둥
+          const fGrad = ctx.createLinearGradient(faucetX - 3, 0, faucetX + 3, 0);
+          fGrad.addColorStop(0, '#a0a0a0');
+          fGrad.addColorStop(0.5, '#d0d0d0');
+          fGrad.addColorStop(1, '#909090');
+          ctx.fillStyle = fGrad;
+          ctx.fillRect(faucetX - 2, faucetBaseY - 18, 4, 16);
+
+          // 수전 목 (곡선)
+          ctx.strokeStyle = '#b8b8b8';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(faucetX, faucetBaseY - 18);
+          ctx.quadraticCurveTo(faucetX + 12, faucetBaseY - 22, faucetX + 10, faucetBaseY - 12);
+          ctx.stroke();
+
+          // 수전 하이라이트
+          ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(faucetX - 1, faucetBaseY - 16);
+          ctx.lineTo(faucetX - 1, faucetBaseY - 4);
+          ctx.stroke();
+        },
+
+        // ─── 쿡탑 (개선) ───
+        _drawCooktop(ctx, mod, modX, modW, countertopY, lowerH, specs) {
+          const cw = modW * 0.65, ch = lowerH * 0.07;
+          const cx = modX + (modW - cw) / 2;
+          const cy = countertopY - ch - 1;
+
+          // 쿡탑 글래스 표면
+          const cGrad = ctx.createLinearGradient(cx, cy, cx, cy + ch);
+          cGrad.addColorStop(0, '#1a1a1a');
+          cGrad.addColorStop(0.5, '#2a2a2a');
+          cGrad.addColorStop(1, '#111');
+          ctx.fillStyle = cGrad;
+          this._roundRect(ctx, cx, cy, cw, ch, 4);
+          ctx.fill();
+
+          // 글래스 반사
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+          this._roundRect(ctx, cx + 2, cy + 1, cw - 4, ch / 2, 3);
+          ctx.fill();
+
+          // 버너 원형 4개 (동심원)
+          const spacing = cw / 5;
+          const burnerR = ch * 0.32;
+          for (let i = 1; i <= 4; i++) {
+            const bx = cx + spacing * i, by = cy + ch / 2;
+            // 외부 링
+            ctx.strokeStyle = 'rgba(100,100,100,0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(bx, by, burnerR, 0, Math.PI * 2);
+            ctx.stroke();
+            // 내부 링
+            ctx.strokeStyle = 'rgba(80,80,80,0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(bx, by, burnerR * 0.55, 0, Math.PI * 2);
+            ctx.stroke();
+            // 중앙 점
+            ctx.beginPath();
+            ctx.arc(bx, by, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(60,60,60,0.8)';
+            ctx.fill();
+          }
+
+          // 테두리
+          ctx.strokeStyle = 'rgba(60,60,60,0.5)';
+          ctx.lineWidth = 1;
+          this._roundRect(ctx, cx, cy, cw, ch, 4);
+          ctx.stroke();
+        },
+
+        // ─── 헬퍼: 테두리 ───
         _drawBorder(ctx, x, y, w, h) {
-          ctx.strokeStyle = '#888';
+          ctx.strokeStyle = 'rgba(0,0,0,0.2)';
           ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
         },
 
-        // 헬퍼: 도어 분할선
+        // ─── 헬퍼: 도어 분할선 ───
         _drawDoorLines(ctx, mod, x, y, w, h) {
           const count = mod.doorCount || 1;
           if (count <= 1) return;
-          ctx.strokeStyle = '#888';
-          ctx.lineWidth = 1;
           const doorW = w / count;
           for (let i = 1; i < count; i++) {
+            const lx = x + doorW * i;
+            // 그림자 (오른쪽)
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(x + doorW * i + 0.5, y);
-            ctx.lineTo(x + doorW * i + 0.5, y + h);
+            ctx.moveTo(lx + 1, y + 2);
+            ctx.lineTo(lx + 1, y + h - 2);
+            ctx.stroke();
+            // 주 분할선
+            ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(lx + 0.5, y);
+            ctx.lineTo(lx + 0.5, y + h);
+            ctx.stroke();
+            // 하이라이트 (왼쪽)
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(lx - 0.5, y + 2);
+            ctx.lineTo(lx - 0.5, y + h - 2);
             ctx.stroke();
           }
         },
 
-        // 헬퍼: 서랍 수평선
-        _drawDrawerLines(ctx, x, y, w, h) {
-          ctx.strokeStyle = '#888';
-          ctx.lineWidth = 1;
-          const drawerCount = Math.max(Math.round(h / 60), 2); // 약 60px당 1서랍
+        // ─── 헬퍼: 서랍 수평선 ───
+        _drawDrawerLines(ctx, x, y, w, h, handleType) {
+          const drawerCount = Math.max(Math.round(h / 60), 2);
           const dh = h / drawerCount;
           for (let i = 1; i < drawerCount; i++) {
+            const ly = y + dh * i;
+            // 그림자
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(x + 4, y + dh * i + 0.5);
-            ctx.lineTo(x + w - 4, y + dh * i + 0.5);
+            ctx.moveTo(x + 4, ly + 1);
+            ctx.lineTo(x + w - 4, ly + 1);
             ctx.stroke();
+            // 주 분할선
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x + 4, ly + 0.5);
+            ctx.lineTo(x + w - 4, ly + 0.5);
+            ctx.stroke();
+            // 하이라이트
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x + 4, ly - 0.5);
+            ctx.lineTo(x + w - 4, ly - 0.5);
+            ctx.stroke();
+          }
+
+          // 서랍 손잡이 (각 서랍 중앙)
+          if (handleType === '푸쉬 도어' || handleType === 'push-open') return;
+          for (let i = 0; i < drawerCount; i++) {
+            const dy = y + dh * i;
+            const centerX = x + w / 2;
+            const centerY = dy + dh / 2;
+
+            if (handleType === '스마트바' || handleType === 'smartbar') {
+              // 가로 스마트바
+              const barW = w * 0.4;
+              ctx.fillStyle = '#aaa';
+              ctx.fillRect(centerX - barW / 2, centerY - 1.5, barW, 3);
+              ctx.fillStyle = 'rgba(255,255,255,0.3)';
+              ctx.fillRect(centerX - barW / 2, centerY - 1.5, barW, 1);
+            } else {
+              // 기본 가로 핸들
+              const barW = Math.min(w * 0.25, 60);
+              const hGrad = ctx.createLinearGradient(0, centerY - 1.5, 0, centerY + 1.5);
+              hGrad.addColorStop(0, '#d0d0d0');
+              hGrad.addColorStop(1, '#a0a0a0');
+              ctx.fillStyle = hGrad;
+              ctx.fillRect(centerX - barW / 2, centerY - 1.5, barW, 3);
+            }
           }
         },
 
-        // 헬퍼: 둥근 사각형
+        // ─── 헬퍼: 둥근 사각형 ───
         _roundRect(ctx, x, y, w, h, r) {
           ctx.beginPath();
           ctx.moveTo(x + r, y);
@@ -2150,18 +2513,13 @@
           ctx.closePath();
         },
 
-        // 헬퍼: 치수 라벨 (우측 여백에 mm 표기)
+        // ─── 헬퍼: 치수 라벨 ───
         _drawDimensionLabels(ctx, layout, canvasW, canvasH) {
           ctx.font = '11px Arial';
           ctx.fillStyle = '#e74c3c';
           ctx.textAlign = 'left';
           const lx = canvasW - 80;
 
-          const sections = [
-            { label: layout.totalH_mm - (layout.totalH_mm * layout.toeKick.h | 0) + '' , section: 'upper' },
-          ];
-
-          // 각 구간 높이 라벨
           const labels = [
             { name: 'molding', text: Math.round(layout.totalH_mm * layout.molding.h) + '' },
             { name: 'upper', text: Math.round(layout.totalH_mm * layout.upper.h) + '' },
@@ -2187,7 +2545,7 @@
           ctx.fillText(layout.totalW_mm + 'mm', canvasW / 2, canvasH - 6);
         },
 
-        // 정규화 레이아웃 데이터를 JSON으로 반환 (n8n에서 활용)
+        // ─── 정규화 레이아웃 데이터 JSON ───
         getLayoutData(cabinetSpecs, upperModules, lowerModules) {
           return this.computeLayout(cabinetSpecs, upperModules, lowerModules);
         }
@@ -9762,15 +10120,29 @@
           }
 
           // 6-3. LayoutRenderer로 수치 기반 레이아웃 블루프린트 생성
+          //   - 텍스처 렌더링 (async) + 마스크 생성 (AI 인페인팅용)
           let layoutImageBase64 = null;
           let layoutData = null;
+          let maskImageBase64 = null;
           try {
-            layoutImageBase64 = LayoutRenderer.render(cabinetSpecs, upperModules, lowerModules, specs);
+            // 텍스처 포함 렌더링 시도 (실패 시 동기 폴백)
+            try {
+              layoutImageBase64 = await LayoutRenderer.renderWithTextures(cabinetSpecs, upperModules, lowerModules, specs);
+              console.log('[LayoutRenderer] 텍스처 렌더링 완료');
+            } catch (texErr) {
+              console.warn('[LayoutRenderer] 텍스처 렌더링 실패, 기본 렌더링 사용:', texErr.message);
+              layoutImageBase64 = LayoutRenderer.render(cabinetSpecs, upperModules, lowerModules, specs);
+            }
             layoutData = LayoutRenderer.getLayoutData(cabinetSpecs, upperModules, lowerModules);
-            console.log('[LayoutRenderer] 블루프린트 생성 완료:', {
+
+            // 마스크 이미지 생성 (가구 표면=흰색, 나머지=검정 → AI 인페인팅용)
+            maskImageBase64 = LayoutRenderer.renderMask(cabinetSpecs, upperModules, lowerModules, specs);
+
+            console.log('[LayoutRenderer] 블루프린트 + 마스크 생성 완료:', {
               canvasSize: Math.round(1024 / layoutData.aspectRatio) + 'x1024',
               upperModules: layoutData.upper.modules.length,
               lowerModules: layoutData.lower.modules.length,
+              hasMask: !!maskImageBase64,
             });
           } catch (e) {
             console.warn('[LayoutRenderer] 블루프린트 생성 실패:', e.message);
@@ -9807,6 +10179,7 @@
             lowerModules: lowerModules.length,
             hasRoomImage: !!roomImageData,
             hasLayoutImage: !!layoutImageBase64,
+            hasMaskImage: !!maskImageBase64,
             layoutData: layoutData,
             endpoint: apiEndpoint
           });
@@ -9836,9 +10209,12 @@
               reference_images: referenceImages,
               material_descriptions: materialDescriptions,
 
-              // 수치 기반 레이아웃 블루프린트 (Canvas 렌더링)
+              // 수치 기반 레이아웃 블루프린트 (Canvas 렌더링 + 텍스처)
               layout_image: layoutImageBase64 || '',
               layout_data: layoutData || {},
+
+              // AI 인페인팅용 마스크 (가구 표면=흰색, 나머지=검정)
+              mask_image: maskImageBase64 || '',
 
               // 모듈 레이아웃
               modules: {
