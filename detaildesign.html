@@ -1890,11 +1890,308 @@
 
         getImageUrl(category, nameKo) {
           return (this.options[category] || []).find(o => o.name_ko === nameKo)?.image_public_url || null;
+        },
+
+        getColorHex(category, nameKo) {
+          return (this.options[category] || []).find(o => o.name_ko === nameKo)?.color_hex || null;
         }
       };
 
       // 초기 폴백 로드 (Supabase 연결 전에도 렌더링 가능하도록)
       FurnitureOptionCatalog._loadFallback();
+
+      // ============================================================
+      // LayoutRenderer - 수치 기반 Canvas 레이아웃 렌더러
+      // mm 데이터 → 정규화 비율 → Canvas 픽셀 → base64 PNG
+      // ============================================================
+      const LayoutRenderer = {
+        // 수치 데이터 → 정규화 좌표 (0~1) 변환
+        computeLayout(cabinetSpecs, upperModules, lowerModules) {
+          const totalW = cabinetSpecs.total_width_mm || 3600;
+          const totalH = cabinetSpecs.total_height_mm || 2400;
+
+          const moldingH = cabinetSpecs.molding_height || 60;
+          const upperH = cabinetSpecs.upper_cabinet_height || 720;
+          const lowerH = cabinetSpecs.lower_cabinet_height || 870;
+          const toeKickH = cabinetSpecs.leg_height || 150;
+          const countertopH = cabinetSpecs.countertop_thickness || 20;
+          const backsplashH = totalH - moldingH - upperH - lowerH - toeKickH - countertopH;
+
+          const ny = (mm) => mm / totalH;
+          const nx = (mm) => mm / totalW;
+
+          let y = 0;
+          const layout = {
+            aspectRatio: totalW / totalH,
+            totalW_mm: totalW,
+            totalH_mm: totalH,
+            molding:     { y: y, h: ny(moldingH) },
+            upper:       { y: (y += ny(moldingH)), h: ny(upperH), modules: [] },
+            backsplash:  { y: (y += ny(upperH)), h: ny(Math.max(backsplashH, 0)) },
+            countertop:  { y: (y += ny(Math.max(backsplashH, 0))), h: ny(countertopH) },
+            lower:       { y: (y += ny(countertopH)), h: ny(lowerH), modules: [] },
+            toeKick:     { y: (y += ny(lowerH)), h: ny(toeKickH) },
+          };
+
+          // 상부 모듈 정규화
+          for (const m of (upperModules || [])) {
+            layout.upper.modules.push({
+              x: nx(m.position_from_left_mm || 0),
+              w: nx(m.width_mm || parseInt(m.w) || 0),
+              type: m.is_drawer ? 'drawer' : 'door',
+              doorCount: m.door_count || 1,
+              name: m.name || '',
+            });
+          }
+
+          // 하부 모듈 정규화
+          for (const m of (lowerModules || [])) {
+            layout.lower.modules.push({
+              x: nx(m.position_from_left_mm || 0),
+              w: nx(m.width_mm || parseInt(m.w) || 0),
+              type: m.is_drawer ? 'drawer' : 'door',
+              doorCount: m.door_count || 1,
+              hasSink: m.has_sink || false,
+              hasCooktop: m.has_cooktop || false,
+              name: m.name || '',
+            });
+          }
+
+          return layout;
+        },
+
+        // 레이아웃 → Canvas 렌더링 → base64 PNG
+        render(cabinetSpecs, upperModules, lowerModules, specs) {
+          const layout = this.computeLayout(cabinetSpecs, upperModules, lowerModules);
+
+          const canvasW = 1024;
+          const canvasH = Math.round(canvasW / layout.aspectRatio);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = canvasW;
+          canvas.height = canvasH;
+          const ctx = canvas.getContext('2d');
+
+          // 카탈로그에서 색상 가져오기
+          const upperColor = FurnitureOptionCatalog.getColorHex('door_color', specs.doorColorUpper) || '#f5f5f5';
+          const lowerColor = FurnitureOptionCatalog.getColorHex('door_color', specs.doorColorLower) || '#f5f5f5';
+          const countertopColor = FurnitureOptionCatalog.getColorHex('countertop', specs.topColor) || '#FAFAFA';
+
+          // 픽셀 변환 헬퍼
+          const pxY = (n) => Math.round(n * canvasH);
+          const pxX = (n) => Math.round(n * canvasW);
+
+          // 배경 투명
+          ctx.clearRect(0, 0, canvasW, canvasH);
+
+          // ─── 몰딩 ───
+          ctx.fillStyle = '#d0d0d0';
+          ctx.fillRect(0, pxY(layout.molding.y), canvasW, pxY(layout.molding.h));
+          this._drawBorder(ctx, 0, pxY(layout.molding.y), canvasW, pxY(layout.molding.h));
+
+          // ─── 상부장 모듈 ───
+          const upperY = pxY(layout.upper.y);
+          const upperH = pxY(layout.upper.h);
+          if (layout.upper.modules.length > 0) {
+            for (const mod of layout.upper.modules) {
+              const x = pxX(mod.x), w = pxX(mod.w);
+              // 도어 채우기
+              ctx.fillStyle = upperColor;
+              ctx.fillRect(x, upperY, w, upperH);
+              this._drawBorder(ctx, x, upperY, w, upperH);
+              // 도어 분할선
+              this._drawDoorLines(ctx, mod, x, upperY, w, upperH);
+            }
+          } else {
+            // 모듈 정보 없으면 전체 블록
+            ctx.fillStyle = upperColor;
+            ctx.fillRect(0, upperY, canvasW, upperH);
+            this._drawBorder(ctx, 0, upperY, canvasW, upperH);
+          }
+
+          // ─── 백스플래시 (벽면 노출) ───
+          const bsY = pxY(layout.backsplash.y);
+          const bsH = pxY(layout.backsplash.h);
+          if (bsH > 0) {
+            ctx.fillStyle = 'rgba(245, 245, 245, 0.3)';
+            ctx.fillRect(0, bsY, canvasW, bsH);
+          }
+
+          // ─── 상판 ───
+          const ctY = pxY(layout.countertop.y);
+          const ctH = Math.max(pxY(layout.countertop.h), 4); // 최소 4px
+          ctx.fillStyle = countertopColor;
+          ctx.fillRect(0, ctY, canvasW, ctH);
+          ctx.strokeStyle = '#999';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(0, ctY, canvasW, ctH);
+
+          // ─── 하부장 모듈 ───
+          const lowerY = pxY(layout.lower.y);
+          const lowerH = pxY(layout.lower.h);
+          if (layout.lower.modules.length > 0) {
+            for (const mod of layout.lower.modules) {
+              const x = pxX(mod.x), w = pxX(mod.w);
+              ctx.fillStyle = lowerColor;
+              ctx.fillRect(x, lowerY, w, lowerH);
+              this._drawBorder(ctx, x, lowerY, w, lowerH);
+
+              // 서랍 vs 도어
+              if (mod.type === 'drawer') {
+                this._drawDrawerLines(ctx, x, lowerY, w, lowerH);
+              } else {
+                this._drawDoorLines(ctx, mod, x, lowerY, w, lowerH);
+              }
+
+              // 싱크볼 표시
+              if (mod.hasSink) {
+                const sw = w * 0.65, sh = lowerH * 0.08;
+                const sx = x + (w - sw) / 2, sy = ctY - sh - 2;
+                ctx.fillStyle = '#b0b8c0';
+                this._roundRect(ctx, sx, sy, sw, sh, 3);
+                ctx.fill();
+                ctx.strokeStyle = '#8890a0';
+                ctx.lineWidth = 1;
+                this._roundRect(ctx, sx, sy, sw, sh, 3);
+                ctx.stroke();
+                // 수전
+                const faucetX = x + w / 2, faucetY = sy - 12;
+                ctx.fillStyle = '#a0a0a0';
+                ctx.fillRect(faucetX - 2, faucetY, 4, 14);
+                ctx.fillRect(faucetX - 8, faucetY, 16, 3);
+              }
+
+              // 쿡탑 표시
+              if (mod.hasCooktop) {
+                const cw = w * 0.6, ch = lowerH * 0.06;
+                const cx = x + (w - cw) / 2, cy = ctY - ch - 2;
+                ctx.fillStyle = '#1a1a1a';
+                this._roundRect(ctx, cx, cy, cw, ch, 3);
+                ctx.fill();
+                // 버너 원형 4개
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
+                const spacing = cw / 5;
+                for (let i = 1; i <= 4; i++) {
+                  ctx.beginPath();
+                  ctx.arc(cx + spacing * i, cy + ch / 2, ch * 0.3, 0, Math.PI * 2);
+                  ctx.stroke();
+                }
+              }
+            }
+          } else {
+            ctx.fillStyle = lowerColor;
+            ctx.fillRect(0, lowerY, canvasW, lowerH);
+            this._drawBorder(ctx, 0, lowerY, canvasW, lowerH);
+          }
+
+          // ─── 토킥 ───
+          const tkY = pxY(layout.toeKick.y);
+          const tkH = pxY(layout.toeKick.h);
+          ctx.fillStyle = '#2a2a2a';
+          ctx.fillRect(0, tkY, canvasW, tkH);
+
+          // ─── 치수 라벨 (우측) ───
+          this._drawDimensionLabels(ctx, layout, canvasW, canvasH);
+
+          // PNG로 내보내기 (base64)
+          const dataUrl = canvas.toDataURL('image/png');
+          return dataUrl.split(',')[1];
+        },
+
+        // 헬퍼: 테두리
+        _drawBorder(ctx, x, y, w, h) {
+          ctx.strokeStyle = '#888';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+        },
+
+        // 헬퍼: 도어 분할선
+        _drawDoorLines(ctx, mod, x, y, w, h) {
+          const count = mod.doorCount || 1;
+          if (count <= 1) return;
+          ctx.strokeStyle = '#888';
+          ctx.lineWidth = 1;
+          const doorW = w / count;
+          for (let i = 1; i < count; i++) {
+            ctx.beginPath();
+            ctx.moveTo(x + doorW * i + 0.5, y);
+            ctx.lineTo(x + doorW * i + 0.5, y + h);
+            ctx.stroke();
+          }
+        },
+
+        // 헬퍼: 서랍 수평선
+        _drawDrawerLines(ctx, x, y, w, h) {
+          ctx.strokeStyle = '#888';
+          ctx.lineWidth = 1;
+          const drawerCount = Math.max(Math.round(h / 60), 2); // 약 60px당 1서랍
+          const dh = h / drawerCount;
+          for (let i = 1; i < drawerCount; i++) {
+            ctx.beginPath();
+            ctx.moveTo(x + 4, y + dh * i + 0.5);
+            ctx.lineTo(x + w - 4, y + dh * i + 0.5);
+            ctx.stroke();
+          }
+        },
+
+        // 헬퍼: 둥근 사각형
+        _roundRect(ctx, x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.lineTo(x + w - r, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+          ctx.lineTo(x + w, y + h - r);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          ctx.lineTo(x + r, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+          ctx.lineTo(x, y + r);
+          ctx.quadraticCurveTo(x, y, x + r, y);
+          ctx.closePath();
+        },
+
+        // 헬퍼: 치수 라벨 (우측 여백에 mm 표기)
+        _drawDimensionLabels(ctx, layout, canvasW, canvasH) {
+          ctx.font = '11px Arial';
+          ctx.fillStyle = '#e74c3c';
+          ctx.textAlign = 'left';
+          const lx = canvasW - 80;
+
+          const sections = [
+            { label: layout.totalH_mm - (layout.totalH_mm * layout.toeKick.h | 0) + '' , section: 'upper' },
+          ];
+
+          // 각 구간 높이 라벨
+          const labels = [
+            { name: 'molding', text: Math.round(layout.totalH_mm * layout.molding.h) + '' },
+            { name: 'upper', text: Math.round(layout.totalH_mm * layout.upper.h) + '' },
+            { name: 'countertop', text: Math.round(layout.totalH_mm * layout.countertop.h) + '' },
+            { name: 'lower', text: Math.round(layout.totalH_mm * layout.lower.h) + '' },
+            { name: 'toeKick', text: Math.round(layout.totalH_mm * layout.toeKick.h) + '' },
+          ];
+
+          for (const l of labels) {
+            const sec = layout[l.name];
+            const midY = Math.round((sec.y + sec.h / 2) * canvasH);
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(lx - 4, midY - 8, 78, 16);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(l.text + 'mm', lx, midY + 4);
+          }
+
+          // 전체 너비 라벨 (하단)
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(canvasW / 2 - 40, canvasH - 20, 80, 18);
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.fillText(layout.totalW_mm + 'mm', canvasW / 2, canvasH - 6);
+        },
+
+        // 정규화 레이아웃 데이터를 JSON으로 반환 (n8n에서 활용)
+        getLayoutData(cabinetSpecs, upperModules, lowerModules) {
+          return this.computeLayout(cabinetSpecs, upperModules, lowerModules);
+        }
+      };
 
       // ============================================================
       // 전역 변수 및 상수
@@ -9463,6 +9760,21 @@
             }
           }
 
+          // 6-3. LayoutRenderer로 수치 기반 레이아웃 블루프린트 생성
+          let layoutImageBase64 = null;
+          let layoutData = null;
+          try {
+            layoutImageBase64 = LayoutRenderer.render(cabinetSpecs, upperModules, lowerModules, specs);
+            layoutData = LayoutRenderer.getLayoutData(cabinetSpecs, upperModules, lowerModules);
+            console.log('[LayoutRenderer] 블루프린트 생성 완료:', {
+              canvasSize: Math.round(1024 / layoutData.aspectRatio) + 'x1024',
+              upperModules: layoutData.upper.modules.length,
+              lowerModules: layoutData.lower.modules.length,
+            });
+          } catch (e) {
+            console.warn('[LayoutRenderer] 블루프린트 생성 실패:', e.message);
+          }
+
           // 7. 현장 사진 확인 및 변환
           let roomImageData = null;
           const sitePhotoUrl = mainItem.imageUrl || mainItem.image;
@@ -9493,6 +9805,8 @@
             upperModules: upperModules.length,
             lowerModules: lowerModules.length,
             hasRoomImage: !!roomImageData,
+            hasLayoutImage: !!layoutImageBase64,
+            layoutData: layoutData,
             endpoint: apiEndpoint
           });
 
@@ -9520,6 +9834,10 @@
               // 레퍼런스 이미지 + 자재 설명
               reference_images: referenceImages,
               material_descriptions: materialDescriptions,
+
+              // 수치 기반 레이아웃 블루프린트 (Canvas 렌더링)
+              layout_image: layoutImageBase64 || '',
+              layout_data: layoutData || {},
 
               // 모듈 레이아웃
               modules: {

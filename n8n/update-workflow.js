@@ -28,13 +28,16 @@ if (parseInput) {
   const referenceImages = body.reference_images || {};
   const materialDescriptions = body.material_descriptions || {};
   const modules = body.modules || {};
+  const layoutImage = body.layout_image || '';
+  const layoutData = body.layout_data || {};
 
   return {
     category, style, roomImage, imageType, triggers,
     materialCodes, colorKeywords,
     hasMaterialRequest: materialCodes.length > 0 || colorKeywords.length > 0,
     clientPrompt, negativePrompt, cabinetSpecs,
-    referenceImages, materialDescriptions, modules
+    referenceImages, materialDescriptions, modules,
+    layoutImage, layoutData
   };`
   );
   console.log('✅ Parse Input updated (added referenceImages, materialDescriptions, modules)');
@@ -169,7 +172,9 @@ return {
   cabinetSpecs: input.cabinetSpecs || {},
   referenceImages: input.referenceImages || {},
   materialDescriptions: input.materialDescriptions || {},
-  modules: input.modules || {}
+  modules: input.modules || {},
+  layoutImage: input.layoutImage || '',
+  layoutData: input.layoutData || {}
 };`;
   console.log('✅ Build Claude Request updated');
 } else {
@@ -264,7 +269,9 @@ return [{
   cabinetSpecs: input.cabinetSpecs || {},
   referenceImages: input.referenceImages || {},
   materialDescriptions: input.materialDescriptions || {},
-  modules: input.modules || {}
+  modules: input.modules || {},
+  layoutImage: input.layoutImage || '',
+  layoutData: input.layoutData || {}
 }];`;
   console.log('✅ Parse Claude Result updated');
 } else {
@@ -366,7 +373,9 @@ return {
   cabinetSpecs: input.cabinetSpecs || {},
   referenceImages: input.referenceImages || {},
   materialDescriptions: input.materialDescriptions || {},
-  modules: input.modules || {}
+  modules: input.modules || {},
+  layoutImage: input.layoutImage || '',
+  layoutData: input.layoutData || {}
 };`;
   console.log('✅ Build Cleanup Prompt updated');
 } else {
@@ -374,13 +383,14 @@ return {
 }
 
 // ============================================================
-// 4. Parse BG + Build Furniture - add color specs, hood duct prohibition, client prompt
+// 4. Parse BG + Build Furniture - Layout Blueprint + Photorealistic Enhancement
 // ============================================================
 const parseBGBuildFurniture = findNode('Parse BG + Build Furniture');
 if (parseBGBuildFurniture) {
   parseBGBuildFurniture.parameters.jsCode = `// ═══════════════════════════════════════════════════════════════
-// Parse Background + Build Furniture Prompt (Claude 분석 결과 사용)
-// + Client Design Options + Reference Images from Catalog
+// Parse Background + Build Furniture (수치 기반 레이아웃 블루프린트 방식)
+// 레이아웃 결정: 프론트엔드 Canvas (100% 코드 계산)
+// Gemini 역할: 포토리얼리스틱 텍스처/조명 보정만 담당
 // ═══════════════════════════════════════════════════════════════
 const input = $('Build Cleanup Prompt').first().json;
 const response = $input.first().json;
@@ -393,7 +403,10 @@ const cabinetSpecs = input.cabinetSpecs || {};
 const referenceImages = input.referenceImages || {};
 const materialDescriptions = input.materialDescriptions || {};
 const modules = input.modules || {};
+const layoutImage = input.layoutImage || '';
+const layoutData = input.layoutData || {};
 
+// ─── Parse cleaned background from Gemini Stage 1 ───
 let cleanedBackground = null;
 try {
   const candidates = response.candidates || [];
@@ -407,234 +420,142 @@ try {
   }
 } catch (e) { console.log('Parse error:', e.message); }
 
-// Position description function
-function describePosition(percent) {
-  if (percent <= 20) return 'far left area';
-  if (percent <= 40) return 'left area';
-  if (percent <= 60) return 'center area';
-  if (percent <= 80) return 'right area';
-  return 'far right area';
+// ─── Build material description lines ───
+let materialLines = [];
+const md = materialDescriptions || {};
+if (md.upper_door_color) materialLines.push('Upper cabinet doors: ' + md.upper_door_color + (md.upper_door_finish ? ', ' + md.upper_door_finish : ''));
+if (md.lower_door_color) materialLines.push('Lower cabinet doors: ' + md.lower_door_color + (md.lower_door_finish ? ', ' + md.lower_door_finish : ''));
+if (md.countertop) materialLines.push('Countertop: ' + md.countertop);
+if (md.handle) materialLines.push('Handles: ' + md.handle);
+if (md.hood) materialLines.push('Range hood: ' + md.hood);
+if (md.cooktop) materialLines.push('Cooktop: ' + md.cooktop);
+if (md.sink) materialLines.push('Sink: ' + md.sink);
+if (md.faucet) materialLines.push('Faucet: ' + md.faucet);
+
+// Fallback if no materialDescriptions
+if (materialLines.length === 0 && cabinetSpecs) {
+  const colorMap = {
+    '화이트': 'pure white', '그레이': 'gray', '블랙': 'matte black',
+    '오크': 'natural oak wood', '월넛': 'dark walnut wood',
+    '스노우': 'snow white', '마블화이트': 'white marble',
+    '그레이마블': 'gray marble', '차콜': 'charcoal',
+    '베이지': 'beige', '네이비': 'navy blue'
+  };
+  const finishMap = { '무광': 'matte', '유광': 'glossy', '엠보': 'embossed' };
+  const t = (m, k) => m[k] || k || '';
+  if (cabinetSpecs.door_color_upper) materialLines.push('Upper doors: ' + t(colorMap, cabinetSpecs.door_color_upper) + ' ' + t(finishMap, cabinetSpecs.door_finish_upper));
+  if (cabinetSpecs.door_color_lower) materialLines.push('Lower doors: ' + t(colorMap, cabinetSpecs.door_color_lower) + ' ' + t(finishMap, cabinetSpecs.door_finish_lower));
+  if (cabinetSpecs.countertop_color) materialLines.push('Countertop: ' + t(colorMap, cabinetSpecs.countertop_color));
 }
 
 const waterPercent = analysis.water_supply_percent;
 const exhaustPercent = analysis.exhaust_duct_percent;
-const waterDesc = describePosition(waterPercent);
-const exhaustDesc = describePosition(exhaustPercent);
 
-// ─── Use materialDescriptions from catalog (already translated) ───
-let colorSpecLines = [];
-if (materialDescriptions && Object.keys(materialDescriptions).length > 0) {
-  const md = materialDescriptions;
-  if (md.upper_door_color) colorSpecLines.push('Upper cabinets: ' + md.upper_door_color + (md.upper_door_finish ? ' ' + md.upper_door_finish : '') + ' doors.');
-  if (md.lower_door_color) colorSpecLines.push('Lower cabinets: ' + md.lower_door_color + (md.lower_door_finish ? ' ' + md.lower_door_finish : '') + ' doors.');
-  if (md.countertop) colorSpecLines.push('Countertop: ' + md.countertop + ' surface.');
-  if (md.handle) colorSpecLines.push('Hardware: ' + md.handle + '.');
-  if (md.hood) colorSpecLines.push('Range hood: ' + md.hood + '.');
-  if (md.cooktop) colorSpecLines.push('Cooktop: ' + md.cooktop + '.');
-  if (md.sink) colorSpecLines.push('Sink: ' + md.sink + '.');
-  if (md.faucet) colorSpecLines.push('Faucet: ' + md.faucet + '.');
-} else if (cabinetSpecs && Object.keys(cabinetSpecs).length > 0) {
-  // Fallback: translate from cabinetSpecs using hardcoded maps
-  const colorMapKo = {
-    '화이트': 'pure white', '그레이': 'gray', '블랙': 'matte black',
-    '아이보리': 'warm ivory', '오크': 'natural oak wood', '월넛': 'dark walnut wood',
-    '스노우': 'snow white', '마블화이트': 'white marble', '그레이마블': 'gray marble',
-    '차콜': 'charcoal', '베이지': 'beige', '네이비': 'navy blue'
-  };
-  const finishMapKo = { '무광': 'matte finish', '유광': 'glossy finish', '엠보': 'embossed texture' };
-  const t = (m, k) => m[k] || k || '';
+// ═══════════════════════════════════════════════════════════════
+// ─── LAYOUT BLUEPRINT MODE (수치 기반 레이아웃) ───
+// ═══════════════════════════════════════════════════════════════
 
-  const uc = t(colorMapKo, cabinetSpecs.door_color_upper);
-  const uf = t(finishMapKo, cabinetSpecs.door_finish_upper);
-  const lc = t(colorMapKo, cabinetSpecs.door_color_lower);
-  const lf = t(finishMapKo, cabinetSpecs.door_finish_lower);
-  const tc = t(colorMapKo, cabinetSpecs.countertop_color);
+let furniturePrompt;
 
-  if (uc) colorSpecLines.push('Upper cabinets: ' + uc + (uf ? ' ' + uf : '') + ' doors.');
-  if (lc) colorSpecLines.push('Lower cabinets: ' + lc + (lf ? ' ' + lf : '') + ' doors.');
-  if (tc) colorSpecLines.push('Countertop: ' + tc + ' surface.');
-}
+if (layoutImage) {
+  // ★ 블루프린트 모드: Canvas에서 생성된 정확한 레이아웃을 참조하여 포토리얼리스틱 렌더링
+  furniturePrompt = \`[TASK: PHOTOREALISTIC RENDERING FROM LAYOUT BLUEPRINT]
 
-// ─── Build furniture prompt ───
-let furniturePrompt = \`[TASK: FURNITURE PLACEMENT - CLAUDE ANALYZED POSITIONS]
+You are given 3 images:
+1. CLEANED ROOM BACKGROUND - the empty room (first image)
+2. LAYOUT BLUEPRINT - precise cabinet layout with exact positions, proportions, and colors (second image)
+3. REFERENCE MATERIALS - texture/color samples (optional, following images)
 
-★★★ PRESERVE BACKGROUND ★★★
-This image is a cleaned background.
-Do NOT modify the background. Only add furniture.
+★★★ CRITICAL INSTRUCTIONS ★★★
 
-═══════════════════════════════════════════════════════════════
-★★★ PRECISE PLACEMENT BASED ON CLAUDE AI ANALYSIS ★★★
-═══════════════════════════════════════════════════════════════
+Your job is to render photorealistic built-in kitchen furniture that EXACTLY matches the LAYOUT BLUEPRINT.
 
-[Analysis Confidence: \${analysis.confidence}]
+[WHAT THE BLUEPRINT SHOWS - FOLLOW EXACTLY]
+- Each colored rectangle = one cabinet module at its exact position and size
+- The PROPORTIONS between modules are mathematically computed from real mm measurements
+- Horizontal lines inside a module = drawers
+- Vertical lines inside a module = door divisions
+- Dark strip at bottom = toe kick
+- Thin strip between upper and lower = countertop
+- Stainless steel rectangle on countertop = sink bowl position
+- Black rectangle on countertop = cooktop position
+- Dark gray strip at top = crown molding
 
-[Reference Point 1: Water Supply → Sink Bowl Center]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Position: \${waterPercent}% from left (\${waterDesc})
-Features: \${analysis.water_supply_features || 'pipe box'}
-Confidence: \${analysis.water_supply_confidence || 'medium'}
+[RENDERING RULES]
+1. PRESERVE the cleaned background EXACTLY - do NOT modify walls, floor, or ceiling
+2. Place furniture ONLY where the blueprint shows colored rectangles
+3. Match the EXACT proportions and positions from the blueprint
+4. Each module's WIDTH RATIO must match the blueprint precisely
+5. Upper cabinets must be flush with ceiling (as shown in blueprint)
 
-→ Place SINK BOWL center at exactly \${waterPercent}% position
-→ FAUCET behind sink bowl center
-→ Sink cabinet centered on sink bowl
+[MATERIALS & TEXTURES TO APPLY]
+\${materialLines.join('\\n')}
 
-[Reference Point 2: Exhaust Duct → Cooktop Center]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Position: \${exhaustPercent}% from left (\${exhaustDesc})
-Features: \${analysis.exhaust_duct_features || 'aluminum duct'}
-Confidence: \${analysis.exhaust_duct_confidence || 'medium'}
+[PLUMBING REFERENCE POINTS]
+- Sink area aligned with water supply at \${waterPercent}% from left
+- Cooktop area aligned with exhaust duct at \${exhaustPercent}% from left
 
-→ Place COOKTOP center at exactly \${exhaustPercent}% position
-→ RANGE HOOD directly above cooktop, same center line
-→ Cooktop cabinet centered on cooktop
-
-[Kitchen Components - Required]
-✓ Sink Bowl - stainless steel, \${waterPercent}% position
-✓ Faucet - behind sink bowl
-✓ Cooktop - \${exhaustPercent}% position
-✓ Range Hood - above cooktop
-✓ Lower Cabinet - height 870mm
-✓ Upper Cabinet - flush with ceiling (NO gap between ceiling and upper cabinet)
-✓ Toe Kick - below lower cabinet\`;
-
-// ─── Add precise dimension specs from cabinetSpecs ───
-if (cabinetSpecs.total_width_mm) {
-  let dimLines = [];
-  dimLines.push('Total cabinet width: ' + cabinetSpecs.total_width_mm + 'mm');
-  if (cabinetSpecs.total_height_mm) dimLines.push('Total height: ' + cabinetSpecs.total_height_mm + 'mm');
-  if (cabinetSpecs.depth_mm) dimLines.push('Depth: ' + cabinetSpecs.depth_mm + 'mm');
-  dimLines.push('Upper cabinet height: ' + (cabinetSpecs.upper_cabinet_height || 720) + 'mm');
-  dimLines.push('Lower cabinet height: ' + (cabinetSpecs.lower_cabinet_height || 870) + 'mm');
-  dimLines.push('Countertop thickness: ' + (cabinetSpecs.countertop_thickness || 20) + 'mm');
-  dimLines.push('Toe kick height: ' + (cabinetSpecs.leg_height || 150) + 'mm');
-  dimLines.push('Top molding height: ' + (cabinetSpecs.molding_height || 60) + 'mm');
-
-  furniturePrompt += \`
-
-═══════════════════════════════════════════════════════════════
-★★★ PRECISE CABINET DIMENSIONS ★★★
-═══════════════════════════════════════════════════════════════
-\${dimLines.join('\\n')}
-
-[Height breakdown from floor to ceiling]
-Floor → Toe kick (\${cabinetSpecs.leg_height || 150}mm) → Lower cabinet (\${cabinetSpecs.lower_cabinet_height || 870}mm) → Countertop (\${cabinetSpecs.countertop_thickness || 20}mm) → Backsplash gap → Upper cabinet (\${cabinetSpecs.upper_cabinet_height || 720}mm) → Top molding (\${cabinetSpecs.molding_height || 60}mm) → Ceiling\`;
-}
-
-// ─── Add module layout info ───
-const upperMods = modules.upper || [];
-const lowerMods = modules.lower || [];
-if (lowerMods.length > 0 || upperMods.length > 0) {
-  let modLines = [];
-
-  if (lowerMods.length > 0) {
-    modLines.push('[Lower Modules - left to right] (' + lowerMods.length + ' modules)');
-    for (const m of lowerMods) {
-      let desc = '  ' + (m.position_from_left_mm || 0) + 'mm: ';
-      desc += (m.name || 'Cabinet') + ' (W' + (m.width_mm || m.w || 0) + 'mm)';
-      if (m.has_sink) desc += ' ← SINK HERE';
-      if (m.has_cooktop) desc += ' ← COOKTOP HERE';
-      if (m.is_drawer) desc += ' [drawer]';
-      else desc += ' [' + (m.door_count || 1) + '-door]';
-      modLines.push(desc);
-    }
-  }
-
-  if (upperMods.length > 0) {
-    modLines.push('[Upper Modules - left to right] (' + upperMods.length + ' modules)');
-    for (const m of upperMods) {
-      let desc = '  ' + (m.position_from_left_mm || 0) + 'mm: ';
-      desc += (m.name || 'Cabinet') + ' (W' + (m.width_mm || m.w || 0) + 'mm)';
-      if (m.is_drawer) desc += ' [drawer]';
-      else desc += ' [' + (m.door_count || 1) + '-door]';
-      modLines.push(desc);
-    }
-  }
-
-  // Sink/Cooktop exact positions in mm
-  if (cabinetSpecs.sink_position_mm !== undefined) {
-    modLines.push('Sink center at: ' + cabinetSpecs.sink_position_mm + 'mm from left edge');
-  }
-  if (cabinetSpecs.cooktop_position_mm !== undefined) {
-    modLines.push('Cooktop center at: ' + cabinetSpecs.cooktop_position_mm + 'mm from left edge');
-  }
-
-  // Finish (left/right filler/molding)
-  if (cabinetSpecs.finish_left_type && cabinetSpecs.finish_left_type !== 'None') {
-    modLines.push('Left finish: ' + cabinetSpecs.finish_left_type + ' ' + (cabinetSpecs.finish_left_width || 60) + 'mm');
-  }
-  if (cabinetSpecs.finish_right_type && cabinetSpecs.finish_right_type !== 'None') {
-    modLines.push('Right finish: ' + cabinetSpecs.finish_right_type + ' ' + (cabinetSpecs.finish_right_width || 60) + 'mm');
-  }
-
-  furniturePrompt += \`
-
-★★★ MODULE LAYOUT (exact widths & positions) ★★★
-\${modLines.join('\\n')}
-
-→ Maintain these WIDTH PROPORTIONS when rendering each cabinet door/drawer\`;
-}
-
-// Add client color/material specs
-if (colorSpecLines.length > 0) {
-  furniturePrompt += \`
-
-★★★ CLIENT SPECIFIED COLORS & MATERIALS ★★★
-\${colorSpecLines.join('\\n')}\`;
-} else {
-  furniturePrompt += \`
-
-[Style: Modern Minimal]
-- Colors: white, gray, wood tone
-- Finish: matte
-- Handle: hidden (push-open)\`;
-}
-
-// Add client prompt if provided
-if (clientPrompt) {
-  furniturePrompt += \`
-
-★★★ ADDITIONAL CLIENT REQUIREMENTS ★★★
-\${clientPrompt}\`;
-}
-
-furniturePrompt += \`
-
-★★★ UPPER CABINET RULES ★★★
-- Upper cabinet top MUST be flush with ceiling
-- NO gap between ceiling and upper cabinet
-- Upper cabinet height: from ceiling down to above counter
-
-[Verification Checklist]
-☑ Sink bowl center = \${waterPercent}% ?
-☑ Faucet behind sink bowl?
-☑ Cooktop center = \${exhaustPercent}% ?
-☑ Range hood above cooktop?
-☑ Upper cabinet flush with ceiling? (no gap)
+[PHOTOREALISTIC QUALITY]
+- Add realistic shadows, reflections, and ambient lighting
+- Apply proper material textures (wood grain, stone pattern, stainless steel)
+- Show realistic edge profiles and panel gaps
+- Natural lighting from windows/ceiling as visible in the background
+- Subtle shadow under upper cabinets onto backsplash
 
 [PROHIBITED]
-❌ Do NOT modify background/wall/floor
-❌ No text/labels/dimensions
-❌ Do NOT omit sink bowl/faucet
-❌ Do NOT misplace cooktop
+❌ Do NOT change positions or proportions from the blueprint
+❌ Do NOT modify the background/wall/floor
+❌ No text, labels, or dimension markings
 ❌ NO exposed hood duct or ventilation pipe
-❌ NO external ductwork on wall or ceiling
 ❌ NO visible exhaust pipe or silver/metallic duct tube\`;
 
-// Add negative prompt if provided
-if (negativePrompt) {
-  furniturePrompt += \`
+} else {
+  // ★ 폴백: 블루프린트 없이 기존 텍스트 기반 프롬프트 (하위 호환)
+  furniturePrompt = \`[TASK: FURNITURE PLACEMENT - CLAUDE ANALYZED POSITIONS]
 
-[NEGATIVE PROMPT - MUST AVOID]
-\${negativePrompt}\`;
+★★★ PRESERVE BACKGROUND ★★★
+This image is a cleaned background. Do NOT modify the background. Only add furniture.
+
+[Placement Reference Points]
+- Sink at \${waterPercent}% from left (water supply position)
+- Cooktop at \${exhaustPercent}% from left (exhaust duct position)
+- Upper cabinet flush with ceiling
+
+[Materials]
+\${materialLines.length > 0 ? materialLines.join('\\n') : 'Modern minimal white matte finish'}
+
+[PROHIBITED]
+❌ Do NOT modify background
+❌ NO exposed duct or pipe
+❌ No text/labels\`;
 }
 
-// ─── Build Gemini parts with reference images ───
-const geminiParts = [
-  { text: furniturePrompt },
-  { inline_data: { mime_type: 'image/png', data: cleanedBackground } }
-];
+// Add client prompt
+if (clientPrompt) {
+  furniturePrompt += '\\n\\n[ADDITIONAL REQUIREMENTS]\\n' + clientPrompt;
+}
 
-// Fetch reference images and add to parts (max 3, prioritized)
+// Add negative prompt
+if (negativePrompt) {
+  furniturePrompt += '\\n\\n[MUST AVOID]\\n' + negativePrompt;
+}
+
+// ─── Build Gemini parts[] ───
+const geminiParts = [];
+
+// 1. Text prompt (항상 첫 번째)
+geminiParts.push({ text: furniturePrompt });
+
+// 2. Cleaned background image (첫 번째 이미지)
+geminiParts.push({ inline_data: { mime_type: 'image/png', data: cleanedBackground } });
+
+// 3. Layout blueprint image (두 번째 이미지 - 수치 기반 레이아웃)
+if (layoutImage) {
+  geminiParts.push({ text: '[LAYOUT BLUEPRINT - Follow this exact layout. Every rectangle position and proportion is computed from precise mm measurements.]' });
+  geminiParts.push({ inline_data: { mime_type: 'image/png', data: layoutImage } });
+}
+
+// 4. Reference material images (최대 3개, 우선순위)
 const fetchPriority = ['doorColorUpper', 'topColor', 'handle'];
 const fetchedRefImages = [];
 for (const key of fetchPriority) {
@@ -646,19 +567,18 @@ for (const key of fetchPriority) {
         const b64 = Buffer.from(buf).toString('base64');
         fetchedRefImages.push({ key, base64: b64, description: referenceImages[key].prompt_description });
       }
-    } catch (e) { /* skip failed fetches */ }
+    } catch (e) { /* skip */ }
   }
 }
 
-// Add reference images to Gemini parts
 for (const img of fetchedRefImages) {
-  geminiParts.push({ text: '[REFERENCE MATERIAL: ' + img.description + ' - Match this color/texture exactly]' });
+  geminiParts.push({ text: '[REFERENCE MATERIAL: ' + img.description + ' - Match this color/texture]' });
   geminiParts.push({ inline_data: { mime_type: 'image/jpeg', data: img.base64 } });
 }
 
 const geminiFurnitureBody = {
   contents: [{ parts: geminiParts }],
-  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.4 }
+  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }
 };
 
 return [{
@@ -668,6 +588,7 @@ return [{
   category: input.category,
   style: input.style,
   analysisResult: analysis,
+  hasLayoutBlueprint: !!layoutImage,
   referenceImageCount: fetchedRefImages.length
 }];`;
   console.log('✅ Parse BG + Build Furniture updated');
