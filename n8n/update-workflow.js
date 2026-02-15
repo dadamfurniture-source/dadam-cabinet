@@ -30,6 +30,8 @@ if (parseInput) {
   const modules = body.modules || {};
   const layoutImage = body.layout_image || '';
   const layoutData = body.layout_data || {};
+  const manualPositions = body.manual_positions || null;
+  const hasManualPositions = body.has_manual_positions || false;
 
   return {
     category, style, roomImage, imageType, triggers,
@@ -37,7 +39,8 @@ if (parseInput) {
     hasMaterialRequest: materialCodes.length > 0 || colorKeywords.length > 0,
     clientPrompt, negativePrompt, cabinetSpecs,
     referenceImages, materialDescriptions, modules,
-    layoutImage, layoutData
+    layoutImage, layoutData,
+    manualPositions, hasManualPositions
   };`
   );
   console.log('✅ Parse Input updated (added referenceImages, materialDescriptions, modules)');

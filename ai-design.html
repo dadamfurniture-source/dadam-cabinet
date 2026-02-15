@@ -3417,6 +3417,13 @@ Magazine quality, professional lighting.`;
                 style_keywords: themeData.keywords,
                 style_atmosphere: themeData.atmosphere,
                 design_prompt: designPrompt,
+                // 배관/덕트 수동 마커 위치
+                manual_positions: state.manualPositions[category] ? {
+                  water_pipe: state.manualPositions[category].water || null,
+                  exhaust_duct: state.manualPositions[category].exhaust || null,
+                } : null,
+                has_manual_positions: !!(state.manualPositions[category]
+                  && (state.manualPositions[category].water || state.manualPositions[category].exhaust)),
               }),
             });
 
