@@ -2526,6 +2526,8 @@
               }
             }
           }
+          // 스타일 데이터 Supabase 로드
+          loadStylesFromSupabase();
         } catch (e) {
           console.log('Auth check error:', e.message);
         }
@@ -2628,6 +2630,20 @@
       });
       // 프로덕션 API URL (n8n Cloud 직접 호출)
       const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/dadam-interior-v4';
+
+      // Supabase 세션 토큰을 포함한 헤더 생성
+      async function getAuthHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (supabaseClient) {
+          try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          } catch (e) { /* 토큰 없어도 요청은 진행 */ }
+        }
+        return headers;
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // 상세 공간 분석 프롬프트 (Claude Vision용)
@@ -2826,34 +2842,89 @@ Magazine quality, professional lighting.`;
         items: []  // [{category, imageData}]
       };
 
-      // 스타일 테마 데이터
-      const styleThemes = {
+      // 스타일 테마 데이터 (Supabase에서 동적 로드, 하드코딩 fallback)
+      let styleThemes = {
         'modern-minimal': {
           name: '모던 미니멀',
           keywords: 'clean lines, minimal design, hidden handles, matte finish, geometric shapes',
-          atmosphere: 'serene, uncluttered, contemporary'
+          atmosphere: 'serene, uncluttered, contemporary',
+          mood_prompt: 'clean contemporary minimalist aesthetic, sharp straight lines, flat surfaces, monochrome palette with subtle warm undertone, uncluttered and serene',
+          door_color_name: '화이트', door_color_hex: '#f5f5f5', door_finish: 'matte',
+          countertop_prompt: 'pure white engineered stone countertop with subtle quartz flecks, polished surface, clean bullnose edge',
+          handle_prompt: 'handleless push-to-open, flat surface, 3mm shadow gap between doors only',
+          accent_prompt: 'matte black faucet, minimal white backsplash, no decorative items on countertop',
         },
         'scandinavian': {
           name: '스칸디나비안',
           keywords: 'light wood tones, natural textures, functional design, hygge comfort',
-          atmosphere: 'warm, cozy, bright, natural light'
+          atmosphere: 'warm, cozy, bright, natural light',
+          mood_prompt: 'warm minimalist Scandinavian aesthetic, clean lines, natural materials, cozy but uncluttered, hygge comfort with soft natural light',
+          door_color_name: '화이트', door_color_hex: '#f8fafc', door_finish: 'matte',
+          countertop_prompt: 'light oak butcher block countertop, visible natural wood grain, matte oiled finish',
+          handle_prompt: 'handleless push-to-open, flat surface, 3mm shadow gap between doors only',
+          accent_prompt: 'matte black faucet, white subway tile backsplash, open shelf with ceramic pots and wooden cutting board',
         },
         'industrial': {
           name: '인더스트리얼',
           keywords: 'raw materials, metal accents, exposed elements, dark tones, vintage fixtures',
-          atmosphere: 'urban, edgy, bold, masculine'
+          atmosphere: 'urban, edgy, bold, masculine',
+          mood_prompt: 'urban industrial aesthetic, raw and bold, dark tones with metal accents, exposed elements, vintage fixtures with modern function',
+          door_color_name: '블랙', door_color_hex: '#2c2c2c', door_finish: 'matte',
+          countertop_prompt: 'dark charcoal concrete-look engineered stone countertop, subtle aggregate texture, matte honed finish',
+          handle_prompt: 'matte black iron bar handle, square profile, 160mm center-to-center',
+          accent_prompt: 'matte black industrial faucet, dark grout subway tile backsplash, exposed shelf bracket in black iron',
         },
         'classic': {
           name: '클래식',
           keywords: 'traditional design, crown molding, paneled doors, brass hardware, timeless elegance',
-          atmosphere: 'sophisticated, refined, traditional'
+          atmosphere: 'sophisticated, refined, traditional',
+          mood_prompt: 'sophisticated traditional Korean-European blend, elegant crown molding, warm neutral palette, timeless refined details',
+          door_color_name: '아이보리', door_color_hex: '#f5ebe0', door_finish: 'matte',
+          countertop_prompt: 'white marble-look engineered stone countertop with subtle grey veining, polished ogee edge',
+          handle_prompt: 'antique brass cup pull handle, 96mm center-to-center, warm brushed finish',
+          accent_prompt: 'warm brass faucet, cream ceramic backsplash with subtle pattern, glass-front upper cabinet doors',
         },
         'luxury': {
           name: '럭셔리',
           keywords: 'premium materials, gold/brass accents, marble, rich textures, high-end finishes',
-          atmosphere: 'opulent, glamorous, prestigious'
+          atmosphere: 'opulent, glamorous, prestigious',
+          mood_prompt: 'premium high-end luxury aesthetic, rich materials, gold and brass accents, marble and stone, opulent glamorous atmosphere',
+          door_color_name: '네이비', door_color_hex: '#1e3a5f', door_finish: 'high-gloss',
+          countertop_prompt: 'Calacatta gold marble-look countertop, dramatic white with gold-toned veining, high-polish mirror finish',
+          handle_prompt: 'brushed gold bar handle, slender rectangular profile, 224mm center-to-center',
+          accent_prompt: 'brushed gold faucet, full-height marble backsplash, integrated LED under-cabinet lighting, crystal pendant over island',
         }
       };
+
+      // Supabase에서 스타일 데이터 로드
+      async function loadStylesFromSupabase() {
+        try {
+          if (!supabaseClient) return;
+          const { data, error } = await supabaseClient
+            .from('styles').select('*')
+            .eq('is_active', true).order('sort_order');
+          if (error || !data || data.length === 0) return;
+          const loaded = {};
+          for (const s of data) {
+            loaded[s.slug] = {
+              name: s.name,
+              keywords: '', atmosphere: '',
+              mood_prompt: s.mood_prompt || '',
+              door_color_name: s.door_color_name || '',
+              door_color_hex: s.door_color_hex || '',
+              door_finish: s.door_finish || 'matte',
+              countertop_prompt: s.countertop_prompt || '',
+              handle_prompt: s.handle_prompt || '',
+              accent_prompt: s.accent_prompt || '',
+              thumbnail_url: s.thumbnail_url || '',
+            };
+          }
+          styleThemes = loaded;
+          console.log('[Styles] Loaded', data.length, 'styles from Supabase');
+        } catch (e) {
+          console.warn('[Styles] Supabase load failed, using fallback:', e.message);
+        }
+      }
 
       const categoryInfo = {
         sink: { name: '싱크대', icon: '🍳' },
@@ -3401,13 +3472,28 @@ Magazine quality, professional lighting.`;
           const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
           console.log('Design Prompt:', designPrompt);
 
+          // ── sink 카테고리: 앵커 포인트 필수 검증 ──
+          if (category === 'sink') {
+            const pos = state.manualPositions[category];
+            if (!pos || !pos.water || !pos.exhaust) {
+              showToast('💧 급수 배관과 💨 배기 덕트 위치를 먼저 표시해주세요.', 'error');
+              btn.disabled = false;
+              btn.innerHTML = '✨ AI 디자인 생성';
+              progressSteps.classList.remove('active');
+              loading.classList.remove('active');
+              placeholder.classList.remove('hidden');
+              return;
+            }
+          }
+
           try {
             // 스타일 데이터 준비
             const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
 
+            const authHeaders = await getAuthHeaders();
             const response = await fetch(N8N_INTERIOR_URL, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: authHeaders,
               body: JSON.stringify({
                 room_image: imageData.base64,
                 image_type: imageData.type,
@@ -3417,6 +3503,14 @@ Magazine quality, professional lighting.`;
                 style_keywords: themeData.keywords,
                 style_atmosphere: themeData.atmosphere,
                 design_prompt: designPrompt,
+                // v3 스타일 상세 프롬프트 데이터
+                style_mood_prompt: themeData.mood_prompt || '',
+                style_door_color: themeData.door_color_name || '',
+                style_door_hex: themeData.door_color_hex || '',
+                style_door_finish: themeData.door_finish || '',
+                style_countertop_prompt: themeData.countertop_prompt || '',
+                style_handle_prompt: themeData.handle_prompt || '',
+                style_accent_prompt: themeData.accent_prompt || '',
                 // 배관/덕트 수동 마커 위치
                 manual_positions: state.manualPositions[category] ? {
                   water_pipe: state.manualPositions[category].water || null,
@@ -3719,9 +3813,10 @@ Magazine quality, professional lighting.`;
         input.value = '';
 
         try {
+          const chatAuthHeaders = await getAuthHeaders();
           const response = await fetch(N8N_CHAT_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: chatAuthHeaders,
             body: JSON.stringify({ message }),
           });
           const data = await response.json();

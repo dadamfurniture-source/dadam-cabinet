@@ -1799,74 +1799,112 @@
         options: {},   // { door_color: [...], handle: [...], ... }
         loaded: false,
 
+        // materials 테이블 카테고리 → 기존 카테고리 매핑
+        _categoryMap: { 'door': 'door_color', 'door_finish': 'door_finish' },
+
         async load() {
           try {
             const client = typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client;
             if (!client) { this._loadFallback(); return; }
+
+            // materials 테이블에서 로드 (v3 동적 프롬프트)
             const { data, error } = await client
-              .from('furniture_options').select('*')
+              .from('materials').select('*')
               .eq('is_active', true).order('sort_order');
+
             if (error) throw error;
+            if (!data || data.length === 0) {
+              // materials 테이블이 비어있으면 기존 furniture_options 시도
+              const { data: foData, error: foError } = await client
+                .from('furniture_options').select('*')
+                .eq('is_active', true).order('sort_order');
+              if (foError) throw foError;
+              this._loadFromFurnitureOptions(foData || []);
+              return;
+            }
+
             this.options = {};
-            for (const opt of data) {
-              if (!this.options[opt.category]) this.options[opt.category] = [];
-              this.options[opt.category].push(opt);
+            for (const m of data) {
+              // materials 카테고리를 기존 카테고리로 변환 (door → door_color)
+              const cat = this._categoryMap[m.category] || m.category;
+              if (!this.options[cat]) this.options[cat] = [];
+              this.options[cat].push({
+                name_ko: m.color_name,
+                name_en: m.color_name_en || '',
+                color_hex: m.color_hex || null,
+                prompt_description: m.texture_prompt,
+                texture_prompt: m.texture_prompt,
+                applicable_to: m.applicable_to || [],
+                texture_url: m.thumbnail_url || null,
+                image_public_url: m.thumbnail_url || null,
+                finish: m.finish || null,
+              });
             }
             this.loaded = true;
-            console.log('[Catalog] Loaded', data.length, 'options from Supabase');
+            console.log('[Catalog] Loaded', data.length, 'materials from Supabase (v3)');
           } catch (e) {
             console.warn('[Catalog] Load failed, using hardcoded fallback:', e.message);
             this._loadFallback();
           }
         },
 
+        _loadFromFurnitureOptions(data) {
+          this.options = {};
+          for (const opt of data) {
+            if (!this.options[opt.category]) this.options[opt.category] = [];
+            this.options[opt.category].push(opt);
+          }
+          this.loaded = true;
+          console.log('[Catalog] Loaded', data.length, 'options from furniture_options (legacy)');
+        },
+
         _loadFallback() {
           this.options = {
             door_color: [
-              { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f5', prompt_description: 'pure white', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
-              { name_ko: '그레이', name_en: 'gray', color_hex: '#9e9e9e', prompt_description: 'gray', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
-              { name_ko: '베이지', name_en: 'beige', color_hex: '#d4c4b0', prompt_description: 'warm beige', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
-              { name_ko: '월넛', name_en: 'walnut', color_hex: '#5d4037', prompt_description: 'dark walnut wood', applicable_to: ['sink','wardrobe'], texture_url: null },
-              { name_ko: '오크', name_en: 'oak', color_hex: '#c4a35a', prompt_description: 'natural oak wood', applicable_to: ['sink','wardrobe'], texture_url: null },
-              { name_ko: '네이비', name_en: 'navy', color_hex: '#1a237e', prompt_description: 'navy blue', applicable_to: ['sink'], texture_url: null },
-              { name_ko: '블랙', name_en: 'black', color_hex: '#2c2c2c', prompt_description: 'matte black', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f5', prompt_description: 'pure white, smooth flat surface with zero wood grain, dead matte finish with no reflection, uniform solid color', texture_prompt: 'pure white, smooth flat surface with zero wood grain, dead matte finish with no reflection, uniform solid color', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '그레이', name_en: 'gray', color_hex: '#9e9e9e', prompt_description: 'neutral medium gray, smooth flat surface with zero wood grain, matte finish, uniform solid color', texture_prompt: 'neutral medium gray, smooth flat surface with zero wood grain, matte finish, uniform solid color without warm or cool cast', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '베이지', name_en: 'beige', color_hex: '#d4c4b0', prompt_description: 'warm beige with subtle sand undertone, smooth flat surface, soft matte finish', texture_prompt: 'warm beige with subtle sand undertone, smooth flat surface with zero wood grain, soft matte finish, uniform solid color', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '월넛', name_en: 'walnut', color_hex: '#5d4037', prompt_description: 'dark walnut wood grain laminate, realistic horizontal wood grain pattern, rich brown tones', texture_prompt: 'dark walnut wood grain laminate, realistic horizontal wood grain pattern, rich brown tones, matte natural wood finish', applicable_to: ['sink','wardrobe'], texture_url: null },
+              { name_ko: '오크', name_en: 'oak', color_hex: '#c4a35a', prompt_description: 'natural light oak wood grain laminate, visible straight grain pattern, warm honey tones', texture_prompt: 'natural light oak wood grain laminate, visible straight grain pattern, warm honey tones, matte oiled wood finish', applicable_to: ['sink','wardrobe'], texture_url: null },
+              { name_ko: '네이비', name_en: 'navy', color_hex: '#1a237e', prompt_description: 'deep navy blue, smooth flat surface with zero wood grain, dead matte finish', texture_prompt: 'deep navy blue, smooth flat surface with zero wood grain, dead matte finish with no reflection, rich saturated color', applicable_to: ['sink'], texture_url: null },
+              { name_ko: '블랙', name_en: 'black', color_hex: '#2c2c2c', prompt_description: 'matte black, smooth flat surface with zero wood grain, dead matte finish', texture_prompt: 'matte black, smooth flat surface with zero wood grain, dead matte finish absorbing light, deep solid black', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
             ],
             door_finish: [
-              { name_ko: '무광', name_en: 'matte', prompt_description: 'matte finish', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '유광', name_en: 'glossy', prompt_description: 'glossy finish', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '엠보', name_en: 'embossed', prompt_description: 'embossed texture', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '무광', name_en: 'matte', prompt_description: 'dead matte finish with zero reflection, smooth flat surface', texture_prompt: 'dead matte finish with zero reflection, smooth flat surface, no sheen under any lighting angle', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '유광', name_en: 'glossy', prompt_description: 'high-gloss mirror-like finish with sharp reflections', texture_prompt: 'high-gloss mirror-like finish with sharp reflections, smooth polished surface, visible light bounce', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '엠보', name_en: 'embossed', prompt_description: 'textured embossed surface with subtle tactile pattern', texture_prompt: 'textured embossed surface with subtle tactile pattern, low sheen satin finish, visible micro-texture under raking light', applicable_to: ['sink','wardrobe'] },
             ],
             handle: [
-              { name_ko: '찬넬 (목찬넬)', name_en: 'channel', prompt_description: 'wooden channel handle', applicable_to: ['sink'] },
-              { name_ko: 'C찬넬', name_en: 'c-channel', prompt_description: 'C-channel recessed handle', applicable_to: ['sink'] },
-              { name_ko: '스마트바', name_en: 'smartbar', prompt_description: 'aluminum smart bar handle', applicable_to: ['sink','wardrobe'] },
-              { name_ko: '푸쉬 도어', name_en: 'push-open', prompt_description: 'handleless push-to-open doors', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '찬넬 (목찬넬)', name_en: 'channel', prompt_description: 'routed wooden channel handle at door top edge, 52mm front depth x 40mm underside grip, shadow gap underneath', texture_prompt: 'routed wooden channel handle at door top edge, 52mm front depth x 40mm underside grip, shadow gap underneath, same finish as door face', applicable_to: ['sink'] },
+              { name_ko: 'C찬넬', name_en: 'c-channel', prompt_description: 'aluminum C-channel recessed handle, anodized silver finish, slim integrated profile', texture_prompt: 'aluminum C-channel recessed handle at door top edge, anodized silver finish, slim integrated profile creating shadow line', applicable_to: ['sink'] },
+              { name_ko: '스마트바', name_en: 'smartbar', prompt_description: 'aluminum smart bar handle, slim rectangular cross-section, matte silver', texture_prompt: 'aluminum smart bar handle, slim rectangular cross-section, matte silver anodized finish, 128mm center-to-center mounting', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '푸쉬 도어', name_en: 'push-open', prompt_description: 'handleless push-to-open, completely flat door surface, no visible hardware', texture_prompt: 'handleless push-to-open mechanism, completely flat door surface, no visible hardware, 3mm shadow gap between doors', applicable_to: ['sink','wardrobe'] },
             ],
             sink: [
-              { name_ko: '사각볼 850', name_en: 'square-850', prompt_description: 'stainless steel rectangular sink bowl 850mm' },
-              { name_ko: '사각볼 800', name_en: 'square-800', prompt_description: 'stainless steel rectangular sink bowl 800mm' },
-              { name_ko: '라운드볼', name_en: 'round', prompt_description: 'stainless steel round sink bowl' },
+              { name_ko: '사각볼 850', name_en: 'square-850', prompt_description: 'stainless steel rectangular undermount sink bowl 850mm wide, brushed satin finish', texture_prompt: 'stainless steel rectangular undermount sink bowl 850mm wide, brushed satin finish, sharp square corners, single deep basin' },
+              { name_ko: '사각볼 800', name_en: 'square-800', prompt_description: 'stainless steel rectangular undermount sink bowl 800mm wide, brushed satin finish', texture_prompt: 'stainless steel rectangular undermount sink bowl 800mm wide, brushed satin finish, sharp square corners, single deep basin' },
+              { name_ko: '라운드볼', name_en: 'round', prompt_description: 'stainless steel round undermount sink bowl 480mm diameter, brushed satin finish', texture_prompt: 'stainless steel round undermount sink bowl 480mm diameter, brushed satin finish, smooth curved basin' },
             ],
             faucet: [
-              { name_ko: '거위목 수전', name_en: 'gooseneck', prompt_description: 'gooseneck faucet' },
-              { name_ko: 'ㄱ자 수전', name_en: 'l-shaped', prompt_description: 'L-shaped faucet' },
-              { name_ko: '일반 수전', name_en: 'standard', prompt_description: 'standard faucet' },
+              { name_ko: '거위목 수전', name_en: 'gooseneck', prompt_description: 'tall gooseneck kitchen faucet, arched spout, single lever pull-down sprayer', texture_prompt: 'tall gooseneck kitchen faucet, arched spout, chrome or matte black finish, single lever pull-down sprayer' },
+              { name_ko: 'ㄱ자 수전', name_en: 'l-shaped', prompt_description: 'L-shaped angular kitchen faucet, 90-degree bent spout, chrome finish', texture_prompt: 'L-shaped angular kitchen faucet, 90-degree bent spout, chrome finish, single lever control' },
+              { name_ko: '일반 수전', name_en: 'standard', prompt_description: 'standard straight kitchen faucet, simple upright spout, chrome finish', texture_prompt: 'standard straight kitchen faucet, simple upright spout, chrome finish, single lever control' },
             ],
             hood: [
-              { name_ko: '히든 후드', name_en: 'hidden', prompt_description: 'built-in concealed range hood (hidden inside upper cabinet, NOT visible externally)' },
-              { name_ko: '침니 후드', name_en: 'chimney', prompt_description: 'chimney range hood' },
-              { name_ko: '슬라이딩 후드', name_en: 'sliding', prompt_description: 'slide-out range hood' },
+              { name_ko: '히든 후드', name_en: 'hidden', prompt_description: 'built-in concealed range hood hidden inside upper cabinet, NOT visible externally', texture_prompt: 'built-in concealed range hood hidden inside upper cabinet, NOT visible externally, cabinet door covers the hood completely' },
+              { name_ko: '침니 후드', name_en: 'chimney', prompt_description: 'wall-mounted chimney range hood, stainless steel canopy with vertical duct cover', texture_prompt: 'wall-mounted chimney range hood, stainless steel canopy with vertical duct cover to ceiling, modern pyramid shape' },
+              { name_ko: '슬라이딩 후드', name_en: 'sliding', prompt_description: 'slide-out range hood under upper cabinet, thin profile, pull-out visor panel', texture_prompt: 'slide-out range hood under upper cabinet, thin profile, pull-out visor panel, stainless steel or matching cabinet finish' },
             ],
             cooktop: [
-              { name_ko: '인덕션', name_en: 'induction', prompt_description: 'induction cooktop with smooth black glass surface' },
-              { name_ko: '가스쿡탑', name_en: 'gas', prompt_description: 'gas cooktop with burners' },
-              { name_ko: '하이라이트', name_en: 'highlight', prompt_description: 'electric highlight cooktop' },
+              { name_ko: '인덕션', name_en: 'induction', prompt_description: 'flush-mount induction cooktop with smooth black ceramic glass surface', texture_prompt: 'flush-mount induction cooktop with smooth black ceramic glass surface, white printed zone markings, touch controls at front edge' },
+              { name_ko: '가스쿡탑', name_en: 'gas', prompt_description: 'built-in gas cooktop with cast iron grates, stainless steel surface', texture_prompt: 'built-in gas cooktop with cast iron grates, stainless steel surface, 3 or 4 burners with metal knob controls' },
+              { name_ko: '하이라이트', name_en: 'highlight', prompt_description: 'electric radiant highlight cooktop with smooth black ceramic glass surface', texture_prompt: 'electric radiant highlight cooktop with smooth black ceramic glass surface, glowing red heating zones, touch controls' },
             ],
             countertop: [
-              { name_ko: '스노우', name_en: 'snow white', color_hex: '#FAFAFA', prompt_description: 'snow white engineered stone countertop', texture_url: null },
-              { name_ko: '마블화이트', name_en: 'marble white', color_hex: '#F0F0F0', prompt_description: 'white marble countertop', texture_url: null },
-              { name_ko: '그레이마블', name_en: 'gray marble', color_hex: '#B0B0B0', prompt_description: 'gray marble countertop', texture_url: null },
-              { name_ko: '차콜', name_en: 'charcoal', color_hex: '#404040', prompt_description: 'charcoal dark countertop', texture_url: null },
+              { name_ko: '스노우', name_en: 'snow white', color_hex: '#FAFAFA', prompt_description: 'pure white engineered quartz countertop with subtle micro-flecks, polished surface', texture_prompt: 'pure white engineered quartz countertop with subtle micro-flecks, polished surface, clean bullnose edge profile, 20mm overhang', texture_url: null },
+              { name_ko: '마블화이트', name_en: 'marble white', color_hex: '#F0F0F0', prompt_description: 'white marble-look engineered stone countertop with delicate grey veining', texture_prompt: 'white marble-look engineered stone countertop with delicate grey veining, polished surface, natural stone appearance, bullnose edge', texture_url: null },
+              { name_ko: '그레이마블', name_en: 'gray marble', color_hex: '#B0B0B0', prompt_description: 'gray marble-look engineered stone countertop with dramatic veining', texture_prompt: 'gray marble-look engineered stone countertop with dramatic white and charcoal veining, polished surface, bullnose edge', texture_url: null },
+              { name_ko: '차콜', name_en: 'charcoal', color_hex: '#404040', prompt_description: 'dark charcoal engineered stone countertop, matte honed finish', texture_prompt: 'dark charcoal engineered stone countertop, near-black with subtle aggregate texture, matte honed finish, bullnose edge', texture_url: null },
             ],
           };
           this.loaded = true;
@@ -1886,6 +1924,11 @@
 
         getPromptDescription(category, nameKo) {
           return (this.options[category] || []).find(o => o.name_ko === nameKo)?.prompt_description || nameKo;
+        },
+
+        getTexturePrompt(category, nameKo) {
+          const opt = (this.options[category] || []).find(o => o.name_ko === nameKo);
+          return opt?.texture_prompt || opt?.prompt_description || nameKo;
         },
 
         getImageUrl(category, nameKo) {
@@ -9926,26 +9969,27 @@
         return `modern minimal korean ${styles.join(' ')}`.trim();
       }
 
-      // 이미지 생성용 상세 프롬프트 생성 (카탈로그 prompt_description 활용)
+      // 이미지 생성용 상세 프롬프트 생성 (v3: texture_prompt 활용)
       function buildDesignPrompt(specs, cabinetSpecs) {
         const cat = FurnitureOptionCatalog;
 
-        const upperColor = cat.getPromptDescription('door_color', cabinetSpecs.door_color_upper);
-        const lowerColor = cat.getPromptDescription('door_color', cabinetSpecs.door_color_lower);
-        const upperFinish = cat.getPromptDescription('door_finish', cabinetSpecs.door_finish_upper);
-        const lowerFinish = cat.getPromptDescription('door_finish', cabinetSpecs.door_finish_lower);
-        const topColor = cat.getPromptDescription('countertop', cabinetSpecs.countertop_color);
-        const handleDesc = cat.getPromptDescription('handle', cabinetSpecs.handle_type);
-        const hoodDesc = cat.getPromptDescription('hood', cabinetSpecs.hood_type);
-        const cooktopDesc = cat.getPromptDescription('cooktop', cabinetSpecs.cooktop_type);
-        const sinkDesc = cat.getPromptDescription('sink', cabinetSpecs.sink_type);
-        const faucetDesc = cat.getPromptDescription('faucet', cabinetSpecs.faucet_type);
+        // v3: getTexturePrompt로 상세 질감 프롬프트 사용
+        const upperColor = cat.getTexturePrompt('door_color', cabinetSpecs.door_color_upper);
+        const lowerColor = cat.getTexturePrompt('door_color', cabinetSpecs.door_color_lower);
+        const upperFinish = cat.getTexturePrompt('door_finish', cabinetSpecs.door_finish_upper);
+        const lowerFinish = cat.getTexturePrompt('door_finish', cabinetSpecs.door_finish_lower);
+        const topDesc = cat.getTexturePrompt('countertop', cabinetSpecs.countertop_color);
+        const handleDesc = cat.getTexturePrompt('handle', cabinetSpecs.handle_type);
+        const hoodDesc = cat.getTexturePrompt('hood', cabinetSpecs.hood_type);
+        const cooktopDesc = cat.getTexturePrompt('cooktop', cabinetSpecs.cooktop_type);
+        const sinkDesc = cat.getTexturePrompt('sink', cabinetSpecs.sink_type);
+        const faucetDesc = cat.getTexturePrompt('faucet', cabinetSpecs.faucet_type);
 
         const lines = [];
         lines.push(`Korean built-in kitchen cabinet, photorealistic interior photograph.`);
-        lines.push(`Upper cabinets: ${upperColor} ${upperFinish} doors.`);
-        lines.push(`Lower cabinets: ${lowerColor} ${lowerFinish} doors.`);
-        lines.push(`Countertop: ${topColor} surface.`);
+        lines.push(`Upper cabinet doors: ${upperColor}, ${upperFinish}.`);
+        lines.push(`Lower cabinet doors: ${lowerColor}, ${lowerFinish}.`);
+        lines.push(`Countertop: ${topDesc}.`);
         lines.push(`Hardware: ${handleDesc}.`);
 
         if (cabinetSpecs.hood_type) {
@@ -10114,8 +10158,9 @@
             if (val) {
               const url = FurnitureOptionCatalog.getImageUrl(m.cat, val);
               const desc = FurnitureOptionCatalog.getPromptDescription(m.cat, val);
+              const texPrompt = FurnitureOptionCatalog.getTexturePrompt(m.cat, val);
               if (url) referenceImages[m.spec] = { url, prompt_description: desc };
-              materialDescriptions[m.descKey] = desc;
+              materialDescriptions[m.descKey] = texPrompt;
             }
           }
 
