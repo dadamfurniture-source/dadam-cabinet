@@ -9,6 +9,7 @@ import { createLogger } from './utils/logger.js';
 import { corsMiddleware } from './middleware/cors-config.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { requireAuth } from './middleware/auth.js';
 
 // Routes
 import healthRoute from './routes/health.route.js';
@@ -16,6 +17,9 @@ import interiorRoute from './routes/interior.route.js';
 import designToImageRoute from './routes/design-to-image.route.js';
 import chatRoute from './routes/chat.route.js';
 import themesRoute from './routes/themes.route.js';
+import agentRoute from './routes/agent.route.js';
+import designsRoute from './routes/designs.route.js';
+import imagesRoute from './routes/images.route.js';
 
 // 환경 변수 로드
 config();
@@ -35,6 +39,14 @@ app.use(interiorRoute);
 app.use(designToImageRoute);
 app.use(chatRoute);
 app.use(themesRoute);
+app.use(agentRoute);
+app.use(designsRoute);
+app.use(imagesRoute);
+
+// 인증 확인 엔드포인트
+app.post('/api/auth/verify', requireAuth, (req, res) => {
+  res.json({ success: true, user: req.user });
+});
 
 // 에러 핸들러 (마지막에 등록)
 app.use(errorHandler);
@@ -48,6 +60,9 @@ app.listen(PORT, () => {
   log.info('  POST /webhook/chat');
   log.info('  GET  /api/themes/images');
   log.info('  POST /api/themes/generate');
+  log.info('  POST /api/agent/chat/stream (SSE)');
+  log.info('  CRUD /api/designs (auth required)');
+  log.info('  CRUD /api/images  (auth required)');
   log.info('  GET  /health');
 });
 

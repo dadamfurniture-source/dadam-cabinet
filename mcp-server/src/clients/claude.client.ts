@@ -5,6 +5,11 @@
 
 import { createLogger } from '../utils/logger.js';
 import { fetchWithRetry } from './base-http.client.js';
+import type {
+  ClaudeAgentMessage,
+  ClaudeAgentResponse,
+  ClaudeToolDefinition,
+} from '../agent/types.js';
 
 const log = createLogger('claude-client');
 
@@ -181,4 +186,52 @@ export function extractTextFromClaudeResponse(response: ClaudeResponse): string 
   } catch {
     return null;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Agent tool_use API 지원 (multi-turn)
+// ─────────────────────────────────────────────────────────────────
+
+export interface ClaudeAgentCallParams {
+  system: string;
+  messages: ClaudeAgentMessage[];
+  tools: ClaudeToolDefinition[];
+  max_tokens?: number;
+  temperature?: number;
+}
+
+export async function claudeAgentCall(params: ClaudeAgentCallParams): Promise<ClaudeAgentResponse> {
+  const apiKey = getApiKey();
+
+  const body = {
+    model: CLAUDE_MODEL,
+    max_tokens: params.max_tokens ?? 4096,
+    temperature: params.temperature ?? 0.3,
+    system: params.system,
+    messages: params.messages,
+    tools: params.tools,
+  };
+
+  log.debug({ model: CLAUDE_MODEL, messageCount: params.messages.length, toolCount: params.tools.length }, 'Agent API call');
+
+  const response = await fetchWithRetry('claude', CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': CLAUDE_API_VERSION,
+    },
+    body: JSON.stringify(body),
+    timeout: 120000,
+  });
+
+  const result = await response.json() as ClaudeAgentResponse;
+
+  log.info({
+    stopReason: result.stop_reason,
+    inputTokens: result.usage?.input_tokens,
+    outputTokens: result.usage?.output_tokens,
+  }, 'Agent API response');
+
+  return result;
 }

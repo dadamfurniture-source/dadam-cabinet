@@ -226,6 +226,123 @@ export interface ErrorResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Supabase DB 테이블 타입 (designs, design_items, user_images)
+// ─────────────────────────────────────────────────────────────────
+
+export interface Design {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  status: 'draft' | 'submitted' | 'completed' | 'archived';
+  total_items: number;
+  total_modules: number;
+  estimated_price: number | null;
+  final_price: number | null;
+  customer_satisfaction: number | null;
+  revision_count: number;
+  app_version: string | null;
+  created_at: string;
+  updated_at: string;
+  submitted_at: string | null;
+  completed_at: string | null;
+}
+
+export interface DesignCreateInput {
+  name: string;
+  user_id: string;
+  description?: string | null;
+  status?: Design['status'];
+  total_items?: number;
+  total_modules?: number;
+  app_version?: string | null;
+}
+
+export interface DesignUpdateInput {
+  name?: string;
+  description?: string | null;
+  status?: Design['status'];
+  total_items?: number;
+  total_modules?: number;
+  estimated_price?: number | null;
+  final_price?: number | null;
+  customer_satisfaction?: number | null;
+  app_version?: string | null;
+}
+
+export interface DesignItemDB {
+  id: string;
+  design_id: string;
+  category: string;
+  name: string | null;
+  unique_id: number | null;
+  width: number | null;
+  height: number | null;
+  depth: number | null;
+  specs: Record<string, unknown>;
+  modules: unknown[];
+  customer_notes: string | null;
+  item_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DesignItemCreateInput {
+  design_id: string;
+  category: string;
+  name?: string | null;
+  unique_id?: number | null;
+  width?: number | null;
+  height?: number | null;
+  depth?: number | null;
+  specs?: Record<string, unknown>;
+  modules?: unknown[];
+  customer_notes?: string | null;
+  item_order?: number;
+}
+
+export type UserImageType = 'site_photo' | 'ai_generated';
+
+export interface UserImage {
+  id: string;
+  user_id: string;
+  image_type: UserImageType | null;
+  storage_path: string;
+  public_url: string;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  design_id: string | null;
+  door_state: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserImageCreateInput {
+  user_id: string;
+  image_type?: UserImageType | null;
+  storage_path: string;
+  public_url: string;
+  file_name?: string | null;
+  file_size_bytes?: number | null;
+  mime_type?: string | null;
+  design_id?: string | null;
+  door_state?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Express Request 확장 (인증)
+// ─────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: string;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Gemini API 타입
 // ─────────────────────────────────────────────────────────────────
 
@@ -428,6 +545,47 @@ export interface BomResult {
 export type ColorMap = Record<string, string>;
 export type FinishMap = Record<string, string>;
 export type HandleMap = Record<string, string>;
+
+// ─────────────────────────────────────────────────────────────────
+// 가구 이미지 + LoRA 모델 타입
+// ─────────────────────────────────────────────────────────────────
+
+export interface FurnitureImage {
+  id: string;
+  category: string;
+  subcategory: string | null;
+  style: string | null;
+  material: string | null;
+  color_hex: string | null;
+  description: string | null;
+  image_url: string;
+  storage_path: string;
+  thumbnail_url: string | null;
+  tags: string[];
+  source: string;
+  is_training: boolean;
+  lora_model_id: string | null;
+  width_px: number | null;
+  height_px: number | null;
+  file_size_bytes: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoraModel {
+  id: string;
+  category: string;
+  model_id: string;
+  model_version: string | null;
+  trigger_word: string;
+  training_images_count: number | null;
+  training_steps: number | null;
+  training_cost_usd: number | null;
+  status: 'training' | 'ready' | 'deprecated';
+  replicate_training_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
 
 // ─────────────────────────────────────────────────────────────────
 // Few-Shot Learning 참조 이미지 타입

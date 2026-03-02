@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>LoRA 모델 검증 - 생성 결과</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #eee; }
+.header {
+  position: sticky; top: 0; z-index: 100; background: #1a1a2e;
+  padding: 16px 24px; border-bottom: 2px solid #333;
+}
+.header h1 { font-size: 20px; margin-bottom: 8px; }
+.header .desc { font-size: 13px; color: #888; }
+.category-section {
+  padding: 20px 24px; border-bottom: 1px solid #222;
+}
+.category-title {
+  font-size: 18px; font-weight: bold; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 12px;
+}
+.trigger-word {
+  font-size: 12px; background: #4a4aff; color: #fff;
+  padding: 3px 10px; border-radius: 4px; font-family: monospace;
+}
+.category-meta { font-size: 12px; color: #666; margin-bottom: 16px; }
+.samples {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  max-width: 1200px;
+}
+.sample-card {
+  background: #1a1a2a; border-radius: 10px; overflow: hidden;
+  border: 2px solid #333; cursor: pointer; transition: all 0.2s;
+}
+.sample-card:hover { border-color: #4a4aff; transform: translateY(-2px); }
+.sample-card img {
+  width: 100%; height: auto; display: block; background: #222;
+}
+.sample-card .prompt-text {
+  padding: 10px 14px; font-size: 11px; color: #999; line-height: 1.5;
+}
+.sample-card .prompt-label {
+  font-size: 10px; color: #4a4aff; font-weight: bold; margin-bottom: 4px;
+}
+.modal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.95); justify-content: center; align-items: center;
+}
+.modal.show { display: flex; }
+.modal img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+.modal .close {
+  position: absolute; top: 20px; right: 30px;
+  font-size: 32px; cursor: pointer; color: #fff;
+}
+.summary {
+  padding: 20px 24px; background: #111; border-top: 2px solid #333;
+}
+.summary h2 { font-size: 16px; margin-bottom: 12px; }
+.summary-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.summary-item {
+  background: #1a1a2a; padding: 10px; border-radius: 8px; text-align: center;
+}
+.summary-item .cat { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+.summary-item .status { font-size: 20px; }
+.summary-item .time { font-size: 10px; color: #888; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>LoRA Model Verification Results</h1>
+  <div class="desc">8개 카테고리 x 2 프롬프트 = 16장 샘플 | Flux LoRA (1000 steps) | Replicate</div>
+</div>
+
+<div id="content"></div>
+
+<div class="modal" id="modal">
+  <span class="close" onclick="closeModal()">&times;</span>
+  <img id="modalImg" />
+</div>
+
+<script>
+const CATEGORIES = [
+  {
+    id: 'wardrobe', label: '붙박이장 (Wardrobe)', trigger: 'DADAM_WARDROBE',
+    prompts: [
+      'modern Korean built-in wardrobe, white matte finish, sliding doors, LED indirect lighting, minimalist interior design',
+      'luxury Korean bedroom closet, wood grain texture, full-length mirror door, organized interior shelving, warm lighting'
+    ]
+  },
+  {
+    id: 'shoe_cabinet', label: '신발장 (Shoe Cabinet)', trigger: 'DADAM_SHOE_CABINET',
+    prompts: [
+      'modern Korean built-in shoe cabinet, white finish, entrance hallway, slim design, ventilation slots',
+      'luxury entryway shoe storage, matte gray finish, LED accent lighting, full-height design'
+    ]
+  },
+  {
+    id: 'vanity', label: '화장대 (Vanity)', trigger: 'DADAM_VANITY',
+    prompts: [
+      'modern Korean bathroom vanity, white ceramic basin, wall-mounted cabinet, LED mirror lighting',
+      'luxury Korean vanity unit, marble top, undermount sink, soft-close drawers, warm indirect lighting'
+    ]
+  },
+  {
+    id: 'fridge_cabinet', label: '냉장고장 (Fridge Cabinet)', trigger: 'DADAM_FRIDGE_CABINET',
+    prompts: [
+      'modern Korean built-in refrigerator cabinet, white panel finish, integrated design, seamless kitchen look',
+      'luxury kitchen fridge enclosure, wood grain panel, built-in microwave niche, organized storage'
+    ]
+  },
+  {
+    id: 'l_shaped_sink', label: 'ㄱ자 싱크대 (L-shaped Sink)', trigger: 'DADAM_L_SHAPED_SINK',
+    prompts: [
+      'modern Korean L-shaped kitchen sink cabinet, white quartz countertop, undermount sink, minimalist faucet',
+      'luxury Korean L-shaped kitchen, gray tone cabinets, waterfall island edge, indirect lighting'
+    ]
+  },
+  {
+    id: 'peninsula_sink', label: '반도형 싱크대 (Peninsula Sink)', trigger: 'DADAM_PENINSULA_SINK',
+    prompts: [
+      'modern Korean peninsula kitchen with sink, white cabinets, breakfast bar, pendant lighting',
+      'luxury peninsula kitchen, two-tone cabinets, integrated sink, bar seating area, warm lighting'
+    ]
+  },
+  {
+    id: 'island_kitchen', label: '아일랜드 키친 (Island Kitchen)', trigger: 'DADAM_ISLAND_KITCHEN',
+    prompts: [
+      'modern Korean island kitchen, all white design, large center island, indirect LED lighting',
+      'luxury Korean island kitchen, marble countertop, waterfall edge, pendant lights, wood accent'
+    ]
+  },
+  {
+    id: 'storage_cabinet', label: '수납장 (Storage Cabinet)', trigger: 'DADAM_STORAGE_CABINET',
+    prompts: [
+      'modern Korean built-in storage cabinet, white finish, glass door display section, open shelving',
+      'luxury living room storage unit, wood and white combination, media center, bookshelf section'
+    ]
+  }
+];
+
+const content = document.getElementById('content');
+
+for (const cat of CATEGORIES) {
+  const section = document.createElement('div');
+  section.className = 'category-section';
+  section.innerHTML = `
+    <div class="category-title">
+      ${cat.label}
+      <span class="trigger-word">${cat.trigger}</span>
+    </div>
+    <div class="category-meta">Model: dadamfurniture-source/dadam-${cat.id.replace(/_/g, '-')} | 1000 steps</div>
+    <div class="samples">
+      ${cat.prompts.map((p, i) => `
+        <div class="sample-card" onclick="openModal('mcp-server/tmp/lora-verification/${cat.id}/sample_${i+1}.png')">
+          <img src="mcp-server/tmp/lora-verification/${cat.id}/sample_${i+1}.png" loading="lazy" alt="${cat.id} sample ${i+1}" />
+          <div class="prompt-text">
+            <div class="prompt-label">Prompt #${i+1}</div>
+            ${cat.trigger} ${p}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  content.appendChild(section);
+}
+
+function openModal(src) {
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modalImg').src = src;
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+</script>
+</body>
+</html>

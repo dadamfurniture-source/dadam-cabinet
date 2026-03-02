@@ -8,291 +8,519 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-001",
+      "id": "17761ae9-264a-4d53-9c26-b41df715bb14",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [18272, 4560],
+      "position": [
+        16448,
+        14672
+      ],
       "webhookId": "c409630f-2f2c-4fcc-a00d-736eb9cfa9f6"
     },
     {
       "parameters": {
-        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Input v4 - Manual Position 지원 추가\n// ═══════════════════════════════════════════════════════════════\nconst body = $input.first().json.body || $input.first().json;\n\nconst category = body.category || 'sink';\nconst style = body.design_style || body.style || 'modern';\nconst roomImage = body.room_image || '';\nconst imageType = body.image_type || 'image/jpeg';\n\n// 사용자가 직접 표시한 위치 (있을 경우)\nconst manualPositions = body.manual_positions || null;\n\n// 클라이언트 프롬프트 (상세 옵션 기반)\nconst clientPrompt = body.prompt || '';\nconst negativePrompt = body.negative_prompt || '';\nconst cabinetSpecs = body.cabinet_specs || {};\n\nreturn {\n  category,\n  style,\n  roomImage,\n  imageType,\n  manualPositions,\n  hasManualPositions: !!(manualPositions && (manualPositions.water_pipe || manualPositions.exhaust_duct)),\n  clientPrompt,\n  negativePrompt,\n  cabinetSpecs\n};"
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Input + Build Claude Analysis Request v3\n// ═══════════════════════════════════════════════════════════════\nconst body = $input.first().json.body || $input.first().json;\n\n// ── Parse Input ──────────────────────────────────────────────\nconst category = body.category || 'sink';\nconst style = body.design_style || body.style || 'modern';\nconst roomImage = body.room_image || '';\nconst imageType = body.image_type || 'image/jpeg';\n\n// Normalize manual positions to 0-1000 grid\nfunction normalizePosition(pos) {\n  if (!pos) return null;\n  const scale = (pos.x <= 100 && (!pos.y || pos.y <= 100)) ? 10 : 1;\n  return {\n    x: Math.round((pos.x || 0) * scale),\n    y: pos.y != null ? Math.round(pos.y * scale) : null\n  };\n}\n\nconst rawManualPositions = body.manual_positions || null;\nlet manualPositions = null;\nif (rawManualPositions) {\n  manualPositions = {};\n  if (rawManualPositions.water_pipe) {\n    manualPositions.water_pipe = normalizePosition(rawManualPositions.water_pipe);\n  }\n  if (rawManualPositions.exhaust_duct) {\n    manualPositions.exhaust_duct = normalizePosition(rawManualPositions.exhaust_duct);\n  }\n}\n\nconst clientPrompt = body.prompt || '';\nconst negativePrompt = body.negative_prompt || '';\nconst cabinetSpecs = body.cabinet_specs || {};\n\n// Blueprint data from LayoutRenderer v2\nconst layoutImage = body.layout_image || '';\nconst layoutData = body.layout_data || null;\nconst maskImage = body.mask_image || '';\nconst modules = body.modules || null;\nconst referenceImages = body.reference_images || [];\nconst materialDescriptions = body.material_descriptions || [];\n\nconst hasManualPositions = !!(manualPositions && (manualPositions.water_pipe || manualPositions.exhaust_duct));\nconst hasBlueprint = !!(layoutImage && layoutImage.length > 100);\nconst hasMask = !!(maskImage && maskImage.length > 100);\nconst hasModules = !!(modules && ((modules.upper && modules.upper.length > 0) || (modules.lower && modules.lower.length > 0)));\n\n// ── Build Claude Request ─────────────────────────────────────\nconst analysisPrompt = `You are an expert at analyzing plumbing and utility positions on Korean kitchen construction site walls.\n\nAnalyze this image and locate the following utilities precisely using a VIRTUAL 2D COORDINATE SYSTEM.\n\n## Coordinate System\n- Use a normalized 0-1000 grid for both X and Y axes.\n- X axis: 0 = left edge of wall, 1000 = right edge of wall.\n- Y axis: 0 = top edge of wall (ceiling), 1000 = bottom edge of wall (floor).\n- Provide center point (x, y) and bounding_box (x, y, w, h) for each detected utility.\n\n## Detection Targets\n\n1. **Water Supply Pipe**\n   - Features: Red/blue PVC pipes, white distribution box, pipe caps, copper or plastic connectors\n   - Typical location: Lower wall, 200-400mm from floor (Y: 750-950 in grid)\n\n2. **Exhaust Duct**\n   - Features: Silver/aluminum flexible duct, round wall hole, ventilation grille\n   - Typical location: Near ceiling, upper wall (Y: 30-200 in grid)\n\n3. **Gas Pipe**\n   - Features: Yellow pipe, gas valve, gas cock\n   - Typical location: Lower wall, 300-500mm from floor\n\n4. **Electrical Outlets**\n   - Features: White plastic box, outlet cover\n   - Typical location: Counter height (1000-1200mm from floor)\n\n## Output Format - ONLY output valid JSON, no other text.\n\n{\n  \"wall_boundaries\": {\n    \"width_mm\": <estimated wall width in mm>,\n    \"height_mm\": <estimated wall height in mm>,\n    \"mm_per_unit_x\": <width_mm / 1000>,\n    \"mm_per_unit_y\": <height_mm / 1000>,\n    \"wall_structure\": {\n      \"lower_tile\": \"<tile color and approximate height>\",\n      \"upper_wall\": \"<upper wall finish description>\"\n    }\n  },\n  \"utilities\": {\n    \"water_supply\": {\n      \"detected\": true,\n      \"center\": { \"x\": 310, \"y\": 880 },\n      \"center_mm\": { \"x_mm\": 992, \"y_mm\": 2112 },\n      \"bounding_box\": { \"x\": 280, \"y\": 850, \"w\": 60, \"h\": 80 },\n      \"visual_features\": \"white PVC distribution box with pipe connections\",\n      \"confidence\": \"high\"\n    },\n    \"exhaust_duct\": {\n      \"detected\": true,\n      \"center\": { \"x\": 720, \"y\": 85 },\n      \"center_mm\": { \"x_mm\": 2304, \"y_mm\": 204 },\n      \"bounding_box\": { \"x\": 690, \"y\": 50, \"w\": 60, \"h\": 70 },\n      \"visual_features\": \"silver aluminum flexible duct with round wall hole\",\n      \"confidence\": \"high\"\n    },\n    \"gas_pipe\": {\n      \"detected\": false,\n      \"center\": null,\n      \"center_mm\": null,\n      \"visual_features\": null,\n      \"confidence\": \"low\"\n    },\n    \"electrical_outlets\": [\n      {\n        \"center\": { \"x\": 450, \"y\": 550 },\n        \"height_description\": \"counter height\"\n      }\n    ]\n  },\n  \"construction_debris\": [\"workbench\", \"tools\", \"cement bags\"],\n  \"furniture_placement_recommendation\": {\n    \"sink_center_x\": 310,\n    \"cooktop_center_x\": 720,\n    \"layout_direction\": \"left_to_right\"\n  }\n}\n\nIMPORTANT: Output ONLY valid JSON. No explanations or commentary.`;\n\nconst claudeRequestBody = {\n  model: 'claude-sonnet-4-5-20250929',\n  max_tokens: 3072,\n  temperature: 0.1,\n  messages: [\n    {\n      role: 'user',\n      content: [\n        {\n          type: 'image',\n          source: {\n            type: 'base64',\n            media_type: imageType,\n            data: roomImage\n          }\n        },\n        {\n          type: 'text',\n          text: analysisPrompt\n        }\n      ]\n    }\n  ]\n};\n\nreturn {\n  claudeRequestBody: JSON.stringify(claudeRequestBody),\n  category,\n  style,\n  roomImage,\n  imageType,\n  manualPositions,\n  hasManualPositions,\n  clientPrompt,\n  negativePrompt,\n  cabinetSpecs,\n  layoutImage,\n  layoutData,\n  maskImage,\n  modules,\n  referenceImages,\n  materialDescriptions,\n  hasBlueprint,\n  hasMask,\n  hasModules\n};"
       },
-      "id": "parse-input-001",
-      "name": "Parse Input",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [18464, 4560]
-    },
-    {
-      "parameters": {
-        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Build Claude Analysis Request\n// Claude API를 사용한 정밀 배관 분석\n// ═══════════════════════════════════════════════════════════════\nconst input = $input.first().json;\n\nconst analysisPrompt = `당신은 한국 주방 시공 현장의 배관 위치를 분석하는 전문가입니다.\n\n이 이미지를 분석하여 다음 설비의 위치를 정확하게 찾아주세요.\n\n[분석 대상]\n1. 급수 배관 (Water Supply Pipe)\n   - 특징: 빨간색/파란색 배관, 흰색 분배기 박스, PVC 배관\n   - 보통 위치: 벽면 하단, 바닥에서 200-400mm 높이\n\n2. 배기 덕트 (Exhaust Duct)\n   - 특징: 알루미늄 플렉시블 덕트 (은색), 원형 구멍, 환기구\n   - 보통 위치: 천장 근처, 상부 벽면\n\n3. 가스 배관 (Gas Pipe)\n   - 특징: 노란색 배관, 가스 밸브, 가스 콕\n   - 보통 위치: 벽면 하단, 바닥에서 300-500mm 높이\n\n4. 전기 콘센트 (Electrical Outlets)\n   - 특징: 흰색 플라스틱 박스, 콘센트 커버\n   - 보통 위치: 카운터 높이 (바닥에서 1000-1200mm)\n\n[위치 측정 방법]\n- 이미지의 가로를 0%~100%로 봅니다\n- 0% = 이미지 맨 왼쪽\n- 100% = 이미지 맨 오른쪽\n- 각 설비의 중심점이 몇 % 위치에 있는지 측정하세요\n\n[출력 형식 - 반드시 JSON만 출력]\n{\n  \"image_analysis\": {\n    \"wall_structure\": {\n      \"lower_tile\": \"타일 색상 및 높이\",\n      \"upper_wall\": \"상부 벽면 마감\",\n      \"estimated_width_mm\": 3000,\n      \"estimated_height_mm\": 2400\n    },\n    \"water_supply\": {\n      \"detected\": true,\n      \"position_percent\": 38,\n      \"position_description\": \"이미지 왼쪽에서 약 38% 지점\",\n      \"visual_features\": \"흰색 배관 박스, PVC 연결부\",\n      \"height_from_floor\": \"약 350mm\",\n      \"confidence\": \"high\"\n    },\n    \"exhaust_duct\": {\n      \"detected\": true,\n      \"position_percent\": 72,\n      \"position_description\": \"이미지 왼쪽에서 약 72% 지점\",\n      \"visual_features\": \"알루미늄 플렉시블 덕트, 은색\",\n      \"height_from_floor\": \"천장 근처\",\n      \"confidence\": \"high\"\n    },\n    \"gas_pipe\": {\n      \"detected\": false,\n      \"position_percent\": null,\n      \"visual_features\": null,\n      \"confidence\": \"low\"\n    },\n    \"electrical_outlets\": [\n      {\n        \"position_percent\": 45,\n        \"height\": \"카운터 높이\"\n      }\n    ],\n    \"construction_debris\": [\n      \"작업대\",\n      \"공구\",\n      \"시멘트 포대\"\n    ]\n  },\n  \"furniture_placement_recommendation\": {\n    \"sink_center_percent\": 38,\n    \"cooktop_center_percent\": 72,\n    \"layout_direction\": \"left_to_right\"\n  }\n}\n\n중요: JSON 형식만 출력하세요. 다른 설명은 불필요합니다.`;\n\nconst claudeRequestBody = {\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 2048,\n  messages: [\n    {\n      role: 'user',\n      content: [\n        {\n          type: 'image',\n          source: {\n            type: 'base64',\n            media_type: input.imageType || 'image/jpeg',\n            data: input.roomImage\n          }\n        },\n        {\n          type: 'text',\n          text: analysisPrompt\n        }\n      ]\n    }\n  ]\n};\n\nreturn {\n  claudeRequestBody: JSON.stringify(claudeRequestBody),\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  manualPositions: input.manualPositions,\n  hasManualPositions: input.hasManualPositions\n};"
-      },
-      "id": "build-claude-001",
+      "id": "fe58ed1f-37d4-49cd-a7ae-b783eefb2af1",
       "name": "Build Claude Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [18656, 4560]
+      "position": [
+        16640,
+        14672
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "YOUR_ANTHROPIC_API_KEY" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ $json.claudeRequestBody }}",
-        "options": { "timeout": 120000 }
+        "options": {
+          "timeout": 120000
+        }
       },
-      "id": "claude-analysis-001",
+      "id": "90d544fb-cc85-4543-bd2c-147da56d3ec8",
       "name": "Claude Pipe Analysis",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [18848, 4560]
+      "position": [
+        17024,
+        14672
+      ],
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "OLJx1spogEV0pdgi",
+          "name": "Anthropic API"
+        },
+        "anthropicApi": {
+          "id": "4SOf8Uv7fx6PzUxC",
+          "name": "Anthropic account 2"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Claude Analysis Result v2 - Manual Position 우선 적용\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Claude Request').first().json;\nconst response = $input.first().json;\n\n// 수동 위치가 있는지 확인\nconst manualPos = input.manualPositions;\nconst hasManual = input.hasManualPositions;\n\nlet analysisResult = {\n  water_supply_percent: 30,\n  exhaust_duct_percent: 70,\n  gas_pipe_percent: null,\n  confidence: 'low',\n  wall_width_mm: 3000,\n  wall_height_mm: 2400,\n  source: 'default'\n};\n\n// 1. 먼저 Claude 분석 결과 파싱 시도\ntry {\n  const content = response.content || [];\n  for (const block of content) {\n    if (block.type === 'text' && block.text) {\n      const jsonMatch = block.text.match(/\\{[\\s\\S]*\\}/);\n      if (jsonMatch) {\n        const parsed = JSON.parse(jsonMatch[0]);\n        \n        analysisResult = {\n          water_supply_percent: parsed.image_analysis?.water_supply?.position_percent || parsed.furniture_placement_recommendation?.sink_center_percent || 30,\n          water_supply_features: parsed.image_analysis?.water_supply?.visual_features || '',\n          water_supply_confidence: parsed.image_analysis?.water_supply?.confidence || 'low',\n          \n          exhaust_duct_percent: parsed.image_analysis?.exhaust_duct?.position_percent || parsed.furniture_placement_recommendation?.cooktop_center_percent || 70,\n          exhaust_duct_features: parsed.image_analysis?.exhaust_duct?.visual_features || '',\n          exhaust_duct_confidence: parsed.image_analysis?.exhaust_duct?.confidence || 'low',\n          \n          gas_pipe_percent: parsed.image_analysis?.gas_pipe?.detected ? parsed.image_analysis.gas_pipe.position_percent : null,\n          \n          wall_width_mm: parsed.image_analysis?.wall_structure?.estimated_width_mm || 3000,\n          wall_height_mm: parsed.image_analysis?.wall_structure?.estimated_height_mm || 2400,\n          \n          construction_debris: parsed.image_analysis?.construction_debris || [],\n          \n          confidence: (parsed.image_analysis?.water_supply?.confidence === 'high' && parsed.image_analysis?.exhaust_duct?.confidence === 'high') ? 'high' : 'medium',\n          source: 'claude'\n        };\n      }\n    }\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\n// 2. 수동 위치가 있으면 덮어쓰기 (최우선 적용!)\nif (hasManual) {\n  if (manualPos.water_pipe) {\n    analysisResult.water_supply_percent = manualPos.water_pipe.x;\n    analysisResult.water_supply_features = '사용자 직접 표시';\n    analysisResult.water_supply_confidence = 'manual';\n  }\n  if (manualPos.exhaust_duct) {\n    analysisResult.exhaust_duct_percent = manualPos.exhaust_duct.x;\n    analysisResult.exhaust_duct_features = '사용자 직접 표시';\n    analysisResult.exhaust_duct_confidence = 'manual';\n  }\n  analysisResult.source = 'manual';\n  analysisResult.confidence = 'high'; // 사용자 표시는 항상 신뢰도 high\n}\n\nreturn [{\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  analysisResult,\n  analysisMethod: hasManual ? 'manual' : 'claude'\n}];"
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Manual Positions v4 - No Claude API (manual anchor points only)\n// Backward-compatible: water_supply_percent, exhaust_duct_percent\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Claude Request').first().json;\n\nconst manualPos = input.manualPositions;\nconst hasManual = input.hasManualPositions;\n\n// Default 2D coordinate frame\nlet coordinateFrame = {\n  wall_boundaries: {\n    width_mm: 3000, height_mm: 2400,\n    mm_per_unit_x: 3.0, mm_per_unit_y: 2.4,\n    wall_structure: null\n  },\n  utilities: {\n    water_supply: {\n      detected: false,\n      center: { x: 300, y: 880 },\n      center_mm: null,\n      bounding_box: null,\n      visual_features: '',\n      confidence: 'low'\n    },\n    exhaust_duct: {\n      detected: false,\n      center: { x: 700, y: 85 },\n      center_mm: null,\n      bounding_box: null,\n      visual_features: '',\n      confidence: 'low'\n    },\n    gas_pipe: {\n      detected: false,\n      center: null,\n      center_mm: null,\n      visual_features: '',\n      confidence: 'low'\n    }\n  }\n};\n\nlet analysisResult = {\n  water_supply_percent: 30,\n  exhaust_duct_percent: 70,\n  gas_pipe_percent: null,\n  confidence: 'low',\n  wall_width_mm: 3000,\n  wall_height_mm: 2400,\n  construction_debris: [],\n  source: 'manual'\n};\n\n// Manual positions (the only data source — Claude API removed)\nif (hasManual) {\n  if (manualPos.water_pipe) {\n    const scale = (manualPos.water_pipe.x <= 100 && (!manualPos.water_pipe.y || manualPos.water_pipe.y <= 100)) ? 10 : 1;\n    const mx = Math.round((manualPos.water_pipe.x || 0) * scale);\n    const my = manualPos.water_pipe.y ? Math.round(manualPos.water_pipe.y * scale) : 880;\n    coordinateFrame.utilities.water_supply.center = { x: mx, y: my };\n    coordinateFrame.utilities.water_supply.detected = true;\n    coordinateFrame.utilities.water_supply.confidence = 'manual';\n    analysisResult.water_supply_percent = Math.round(mx / 10);\n    analysisResult.water_supply_confidence = 'manual';\n    analysisResult.water_supply_features = 'User-marked position';\n  }\n  if (manualPos.exhaust_duct) {\n    const scale = (manualPos.exhaust_duct.x <= 100 && (!manualPos.exhaust_duct.y || manualPos.exhaust_duct.y <= 100)) ? 10 : 1;\n    const mx = Math.round((manualPos.exhaust_duct.x || 0) * scale);\n    const my = manualPos.exhaust_duct.y ? Math.round(manualPos.exhaust_duct.y * scale) : 85;\n    coordinateFrame.utilities.exhaust_duct.center = { x: mx, y: my };\n    coordinateFrame.utilities.exhaust_duct.detected = true;\n    coordinateFrame.utilities.exhaust_duct.confidence = 'manual';\n    analysisResult.exhaust_duct_percent = Math.round(mx / 10);\n    analysisResult.exhaust_duct_confidence = 'manual';\n    analysisResult.exhaust_duct_features = 'User-marked position';\n  }\n  analysisResult.confidence = 'high';\n}\n\n// Generate backward-compatible fields\nconst wsCenter = coordinateFrame.utilities.water_supply.center;\nconst edCenter = coordinateFrame.utilities.exhaust_duct.center;\n\nif (!analysisResult.water_supply_confidence) {\n  analysisResult.water_supply_percent = Math.round((wsCenter ? wsCenter.x : 300) / 10);\n}\nif (!analysisResult.exhaust_duct_confidence) {\n  analysisResult.exhaust_duct_percent = Math.round((edCenter ? edCenter.x : 700) / 10);\n}\n\nanalysisResult.water_supply_features = analysisResult.water_supply_features || '';\nanalysisResult.water_supply_confidence = analysisResult.water_supply_confidence || 'low';\nanalysisResult.exhaust_duct_features = analysisResult.exhaust_duct_features || '';\nanalysisResult.exhaust_duct_confidence = analysisResult.exhaust_duct_confidence || 'low';\nanalysisResult.wall_width_mm = coordinateFrame.wall_boundaries.width_mm;\nanalysisResult.wall_height_mm = coordinateFrame.wall_boundaries.height_mm;\n\n// Validation warnings\nconst wsX = wsCenter ? wsCenter.x : 300;\nconst wsY = wsCenter ? wsCenter.y : 880;\nconst edX = edCenter ? edCenter.x : 700;\nconst edY = edCenter ? edCenter.y : 85;\n\nconst warnings = [];\nif (coordinateFrame.utilities.water_supply.detected && wsY < 500) {\n  warnings.push('Water supply detected unusually high (y=' + wsY + '). Expected lower wall (y>500).');\n}\nif (coordinateFrame.utilities.exhaust_duct.detected && edY > 250) {\n  warnings.push('Exhaust duct detected unusually low (y=' + edY + '). Expected near ceiling (y<250).');\n}\nif (Math.abs(wsX - edX) < 100) {\n  warnings.push('Water supply and exhaust duct very close (dx=' + Math.abs(wsX - edX) + '). Verify positions.');\n}\n\nreturn [{\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  analysisResult,\n  coordinateFrame,\n  validationWarnings: warnings,\n  analysisMethod: 'manual',\n  clientPrompt: input.clientPrompt || '',\n  negativePrompt: input.negativePrompt || '',\n  cabinetSpecs: input.cabinetSpecs || {},\n  layoutImage: input.layoutImage,\n  layoutData: input.layoutData,\n  maskImage: input.maskImage,\n  modules: input.modules,\n  referenceImages: input.referenceImages,\n  materialDescriptions: input.materialDescriptions,\n  hasBlueprint: input.hasBlueprint,\n  hasMask: input.hasMask,\n  hasModules: input.hasModules\n}];"
       },
-      "id": "parse-claude-001",
+      "id": "ce185d85-f8a0-402d-9eff-d272cd66fb3a",
       "name": "Parse Claude Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [19040, 4560]
+      "position": [
+        17216,
+        14672
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Build Background Cleanup Prompt v2\n// 전선 제거 + 미마감 부분 보정 추가\n// ═══════════════════════════════════════════════════════════════\nconst input = $input.first().json;\nconst analysis = input.analysisResult;\n\nconst debrisList = analysis.construction_debris?.length > 0 \n  ? analysis.construction_debris.join(', ')\n  : '공사 잔해, 공구, 임시 물건';\n\nconst cleanupPrompt = `[TASK: BACKGROUND CLEANUP - STRUCTURE PRESERVATION]\n\n★★★ ABSOLUTE RULES ★★★\n\n[MUST PRESERVE - 절대 변경 금지]\n1. 벽면 위치와 각도\n2. 바닥 위치와 레벨\n3. 천장 높이와 위치\n4. 창문/문 위치와 크기\n5. 카메라 앵글과 시점\n6. 조명 방향\n\n[MUST REMOVE - 제거 대상]\n${debrisList}\n- 사람\n- 옷걸이와 옷\n- 임시 작업대\n- 공구와 장비\n- 시멘트 포대\n- 모든 공사 잔해\n\n★★★ 전선 제거 - WIRE REMOVAL ★★★\n- 노출된 전선 모두 제거\n- 벽면에 드러난 배선 제거\n- 천장의 노출 전선 제거\n- 전선이 있던 자리는 주변 벽면/천장과 동일하게 보정\n\n★★★ 미마감 부분 보정 - UNFINISHED AREA REPAIR ★★★\n- 마감되지 않은 벽면: 주변의 비슷한 소재/색상으로 자연스럽게 보정\n- 마감되지 않은 천장: 주변 천장과 동일한 색상(흰색)으로 보정\n- 석고보드 노출 부분: 주변 마감재와 동일하게 처리\n- 시멘트/콘크리트 노출: 주변 타일이나 페인트로 자연스럽게 연결\n- 타일이 빠진 부분: 주변 타일 패턴과 동일하게 채우기\n\n★★★ 배기덕트 주변 마감 - EXHAUST DUCT AREA FINISHING ★★★\n- 덕트 주변 벽면: 매끄럽게 페인트 처리 (흰색 또는 주변 벽 색상)\n- 덕트 주변 얼룩/먼지: 완전히 제거\n\n[MUST IMPROVE - 마감 처리]\n1. 벽면 하단: 기존 타일 패턴 유지하며 깨끗하게\n2. 벽면 상단: 주변과 동일한 색상으로 매끄럽게\n3. 바닥: 깨끗한 타일 또는 마감재\n4. 천장: 깨끗한 흰색, 조명 유지\n\n[KEEP VISIBLE - 유지할 설비 (깔끔하게 마감된 상태로)]\n- 급수 배관 위치: ${analysis.water_supply_percent}% 지점\n  → 깔끔한 벽면에 배관 연결부만 표시 (캡 씌운 상태)\n- 배기 덕트 위치: ${analysis.exhaust_duct_percent}% 지점\n  → 덕트 주변 벽면/천장은 매끄럽게 마감\n${analysis.gas_pipe_percent ? '- 가스 배관 위치: ' + analysis.gas_pipe_percent + '% 지점 (깔끔한 가스 밸브만 표시)' : ''}\n\n[OUTPUT]\n- 깨끗하게 마감된 빈 공간\n- 전선 없음\n- 미마감 부분 없음\n- 가구 설치 준비 완료 상태`;\n\nconst geminiCleanupBody = {\n  contents: [{\n    parts: [\n      { text: cleanupPrompt },\n      { inline_data: { mime_type: input.imageType || 'image/jpeg', data: input.roomImage }}\n    ]\n  }],\n  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }\n};\n\nreturn {\n  geminiCleanupBody: JSON.stringify(geminiCleanupBody),\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  analysisResult: analysis,\n  clientPrompt: input.clientPrompt || '',\n  negativePrompt: input.negativePrompt || '',\n  cabinetSpecs: input.cabinetSpecs || {}\n};"
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Build Background Cleanup Prompt v3 - English + Duct Removal Enforcement\n// ═══════════════════════════════════════════════════════════════\nconst input = $input.first().json;\nconst analysis = input.analysisResult;\nconst cf = input.coordinateFrame;\n\nconst debrisList = analysis.construction_debris && analysis.construction_debris.length > 0\n  ? analysis.construction_debris.join(', ')\n  : 'construction debris, tools, temporary items, cement bags';\n\n// Exhaust duct bbox for targeted removal\nconst ductBbox = cf && cf.utilities && cf.utilities.exhaust_duct ? cf.utilities.exhaust_duct.bounding_box : null;\nconst ductCenter = (cf && cf.utilities && cf.utilities.exhaust_duct && cf.utilities.exhaust_duct.center)\n  || { x: analysis.exhaust_duct_percent * 10, y: 85 };\nconst ductBboxStr = ductBbox\n  ? 'Region: x=' + ductBbox.x + '-' + (ductBbox.x + ductBbox.w) + ', y=' + ductBbox.y + '-' + (ductBbox.y + ductBbox.h) + ' (on 0-1000 grid)'\n  : 'Approximate center: x=' + ductCenter.x + ', y=' + ductCenter.y + ' (on 0-1000 grid)';\n\nconst cleanupPrompt = `[TASK: BACKGROUND CLEANUP - STRUCTURE PRESERVATION]\n\n★★★ PRIORITY #1 — EXHAUST DUCT REMOVAL (MANDATORY) ★★★\n═══════════════════════════════════════════════════════════════\nThe silver/aluminum exhaust duct MUST be COMPLETELY removed.\n${ductBboxStr}\n\nRULE 1: Remove ALL silver/aluminum flexible duct material.\nRULE 2: Remove the round wall hole or ventilation grille behind the duct.\nRULE 3: Fill the duct area with clean, smooth wall surface matching surroundings.\nRULE 4: No trace of duct, wall hole, or mounting hardware may remain.\nRULE 5: The area where the duct was MUST look like an unbroken, smooth wall.\n\n⛔ FAILURE CONDITION: If ANY silver duct, wall hole, or ventilation grille remains visible in the output, the result is FAILED. This is the single most important rule.\n═══════════════════════════════════════════════════════════════\n\n★★★ ABSOLUTE PRESERVATION RULES ★★★\nThese elements must NOT change in any way:\n1. Wall positions and angles\n2. Floor position and level\n3. Ceiling height and position\n4. Window/door positions and sizes\n5. Camera angle and perspective\n6. Lighting direction\n\n★★★ REMOVAL TARGETS ★★★\n- ${debrisList}\n- People\n- Clothes and hangers\n- Temporary workbenches\n- Power tools and equipment\n- All construction waste\n- ALL exposed wiring on walls and ceiling\n- ALL unfinished/raw surfaces (exposed drywall, cement, missing tiles)\n\n★★★ EXHAUST DUCT — REMOVE COMPLETELY (REMINDER #2) ★★★\nThe silver flexible duct near the ceiling MUST be erased entirely.\nReplace with smooth, clean wall/ceiling matching the surroundings.\nNo silver, no hole, no grille — just clean wall.\n\n★★★ WALL FINISHING ★★★\n- Exposed drywall/gypsum board → Match surrounding finish (paint or tile)\n- Exposed cement/concrete → Continue adjacent tile pattern or paint color\n- Missing tiles → Fill with matching tile pattern from adjacent area\n- Ceiling gaps/holes → Clean white ceiling finish\n- Wire channels/exposed wiring → Smooth wall surface\n\n★★★ KEEP VISIBLE (Clean state only) ★★★\n- Water supply pipe at ${analysis.water_supply_percent}% from left:\n  → Keep ONLY the pipe cap/connection point on a clean wall surface\n  → This marks where the sink will be installed\n${analysis.gas_pipe_percent ? '- Gas pipe at ' + analysis.gas_pipe_percent + '% from left: Keep gas valve only in clean state' : ''}\n\n★★★ EXHAUST DUCT — MUST BE GONE (REMINDER #3) ★★★\nDouble-check: Is there any silver/metallic duct material remaining? If yes, remove it.\n\n★★★ EXHAUST DUCT — FINAL CHECK (REMINDER #4) ★★★\nBefore outputting: scan the entire image for any remaining silver/aluminum material near the ceiling. Remove it completely.\n\n★★★ EXHAUST DUCT — ABSOLUTE ZERO TOLERANCE (REMINDER #5) ★★★\nThe output image must contain ZERO silver/metallic duct-like objects anywhere. Period.\n\n[OUTPUT REQUIREMENTS]\n- Clean, finished empty space ready for furniture installation\n- No exposed wires\n- No unfinished surfaces\n- No silver duct or wall holes anywhere\n- Smooth, consistent wall and ceiling finishes\n- Water supply cap preserved as position marker`;\n\nconst geminiCleanupBody = {\n  contents: [{\n    parts: [\n      { text: cleanupPrompt },\n      { inline_data: { mime_type: input.imageType || 'image/jpeg', data: input.roomImage } }\n    ]\n  }],\n  generationConfig: {\n    responseModalities: [\"image\", \"text\"],\n    temperature: 0.4\n  }\n};\n\nreturn {\n  geminiCleanupBody: JSON.stringify(geminiCleanupBody),\n  category: input.category,\n  style: input.style,\n  roomImage: input.roomImage,\n  imageType: input.imageType,\n  analysisResult: analysis,\n  coordinateFrame: input.coordinateFrame,\n  clientPrompt: input.clientPrompt || '',\n  negativePrompt: input.negativePrompt || '',\n  cabinetSpecs: input.cabinetSpecs || {},\n  layoutImage: input.layoutImage,\n  layoutData: input.layoutData,\n  maskImage: input.maskImage,\n  modules: input.modules,\n  referenceImages: input.referenceImages,\n  materialDescriptions: input.materialDescriptions,\n  hasBlueprint: input.hasBlueprint,\n  hasMask: input.hasMask,\n  hasModules: input.hasModules\n};"
       },
-      "id": "build-cleanup-001",
+      "id": "ec477a49-68d5-42f4-b18f-5d32933e3f07",
       "name": "Build Cleanup Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [19232, 4560]
+      "position": [
+        17408,
+        14672
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=YOUR_GEMINI_API_KEY",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={{ $vars.GEMINI_API_KEY }}",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ $json.geminiCleanupBody }}",
-        "options": { "timeout": 120000 }
+        "options": {
+          "timeout": 120000
+        }
       },
-      "id": "gemini-cleanup-001",
+      "id": "bf1ccd3c-cdec-464c-8baa-23ba54749c33",
       "name": "Gemini Background Cleanup",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [19424, 4560]
+      "position": [
+        17600,
+        14672
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Background + Build Furniture Prompt (Claude 분석 결과 사용)\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Cleanup Prompt').first().json;\nconst response = $input.first().json;\nconst analysis = input.analysisResult;\nconst clientPrompt = input.clientPrompt || '';\nconst negativePrompt = input.negativePrompt || '';\nconst cabinetSpecs = input.cabinetSpecs || {};\n\nlet cleanedBackground = null;\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        cleanedBackground = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\n// 위치 설명 함수\nfunction describePosition(percent) {\n  if (percent <= 20) return '맨 왼쪽 영역';\n  if (percent <= 40) return '왼쪽 영역';\n  if (percent <= 60) return '중앙 영역';\n  if (percent <= 80) return '오른쪽 영역';\n  return '맨 오른쪽 영역';\n}\n\nconst waterPercent = analysis.water_supply_percent;\nconst exhaustPercent = analysis.exhaust_duct_percent;\nconst waterDesc = describePosition(waterPercent);\nconst exhaustDesc = describePosition(exhaustPercent);\n\nconst furniturePrompt = `[TASK: FURNITURE PLACEMENT - CLAUDE ANALYZED POSITIONS]\n\n★★★ 배경 보존 필수 ★★★\n이 이미지는 정리된 배경입니다.\n배경을 절대 수정하지 말고, 가구만 추가하세요.\n\n═══════════════════════════════════════════════════════════════\n★★★ CLAUDE AI 분석 결과 기반 정밀 배치 ★★★\n═══════════════════════════════════════════════════════════════\n\n[분석 신뢰도: ${analysis.confidence}]\n\n┌─────────────────────────────────────────────────────────────┐\n│ 0%          25%          50%          75%          100%    │\n│ ├───────────┼────────────┼────────────┼───────────┤        │\n│      ${waterPercent < 50 ? '▼' : ' '}                              ${exhaustPercent > 50 ? '▼' : ' '}              │\n│   급수배관(${waterPercent}%)                    배기덕트(${exhaustPercent}%)         │\n└─────────────────────────────────────────────────────────────┘\n\n[기준점 1: 급수배관 → 싱크볼 중심]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Claude 분석 위치: 이미지 왼쪽에서 ${waterPercent}% 지점\n📍 영역: ${waterDesc}\n📍 감지 특징: ${analysis.water_supply_features || '배관 박스'}\n📍 신뢰도: ${analysis.water_supply_confidence || 'medium'}\n\n→ 싱크볼(SINK BOWL) 중심을 정확히 ${waterPercent}% 지점에 배치\n→ 수전(FAUCET)은 싱크볼 뒤쪽 중앙에 배치\n→ 싱크 캐비닛은 싱크볼 중심으로 좌우 대칭\n\n⚠️ 싱크볼이 ${waterPercent}% 위치에 없으면 실패!\n\n[기준점 2: 배기덕트 → 쿡탑 중심]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Claude 분석 위치: 이미지 왼쪽에서 ${exhaustPercent}% 지점\n📍 영역: ${exhaustDesc}\n📍 감지 특징: ${analysis.exhaust_duct_features || '알루미늄 덕트'}\n📍 신뢰도: ${analysis.exhaust_duct_confidence || 'medium'}\n\n→ 쿡탑(COOKTOP) 중심을 정확히 ${exhaustPercent}% 지점에 배치\n→ 레인지후드(RANGE HOOD)는 쿡탑 바로 위, 같은 중심선\n→ 쿡탑 캐비닛은 쿡탑 중심으로 좌우 대칭\n\n⚠️ 쿡탑이 ${exhaustPercent}% 위치에 없으면 실패!\n\n[주방 구성요소 - 필수 포함]\n✓ 싱크볼 (Sink Bowl) - 스테인리스, ${waterPercent}% 위치\n✓ 수전 (Faucet) - 싱크볼 뒤쪽\n✓ 쿡탑 (Cooktop) - ${exhaustPercent}% 위치\n✓ 레인지후드 (Range Hood) - 쿡탑 위\n✓ 하부장 (Lower Cabinet) - 높이 870mm\n✓ 상부장 (Upper Cabinet) - 천장에 붙여서 설치 (천장과 상부장 사이 틈 없음)\n✓ 걸레받이 (Toe Kick) - 하부장 아래\n\n★★★ 상부장 필수 규칙 ★★★\n- 상부장 상단은 반드시 천장에 밀착\n- 천장과 상부장 사이에 틈이 있으면 안됨\n- 상부장 높이: 천장에서 카운터 상단까지 연결\n\n[스타일: Modern Minimal]\n${clientPrompt ? '\\n[CLIENT DESIGN SPECIFICATIONS]\\n' + clientPrompt + '\\n' : ''}\n${cabinetSpecs.door_color_upper ? '- Upper door color: ' + cabinetSpecs.door_color_upper + ' ' + (cabinetSpecs.door_finish_upper || 'matte') : '- Colors: white, gray, wood tones'}\n${cabinetSpecs.door_color_lower ? '- Lower door color: ' + cabinetSpecs.door_color_lower + ' ' + (cabinetSpecs.door_finish_lower || 'matte') : ''}\n${cabinetSpecs.countertop_color ? '- Countertop color: ' + cabinetSpecs.countertop_color : ''}\n${cabinetSpecs.handle_type ? '- Handle: ' + cabinetSpecs.handle_type : '- Handle: hidden (push-to-open)'}\n\n[검증 체크리스트]\n☑ 싱크볼 중심 = ${waterPercent}% ?\n☑ 수전이 싱크볼 뒤에 있는가?\n☑ 쿡탑 중심 = ${exhaustPercent}% ?\n☑ 레인지후드가 쿡탑 위에 있는가?\n☑ 상부장이 천장에 밀착되어 있는가? (틈 없음)\n\n[금지 사항]\n❌ 배경/벽/바닥 변경 금지\n❌ 텍스트/라벨/치수 금지\n❌ 싱크볼/수전 누락 금지\n❌ 쿡탑 위치 이탈 금지\n❌ NO exposed hood duct pipes or external ductwork visible\n❌ NO silver/metallic ventilation pipes on wall or ceiling\n❌ Range hood must be built-in concealed type (hidden inside upper cabinet)\n${negativePrompt ? '\\n[ADDITIONAL RESTRICTIONS]\\n' + negativePrompt : ''}`;\n\nconst geminiFurnitureBody = {\n  contents: [{\n    parts: [\n      { text: furniturePrompt },\n      { inline_data: { mime_type: 'image/png', data: cleanedBackground }}\n    ]\n  }],\n  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.4 }\n};\n\nreturn [{\n  cleanedBackground,\n  hasCleanedBackground: !!cleanedBackground,\n  geminiFurnitureBody: JSON.stringify(geminiFurnitureBody),\n  category: input.category,\n  style: input.style,\n  analysisResult: analysis\n}];"
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Background + Build Furniture Prompt v5 - Gemini Image API\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Build Cleanup Prompt').first().json;\nconst response = $input.first().json;\nconst analysis = input.analysisResult;\nconst cf = input.coordinateFrame;\nconst clientPrompt = input.clientPrompt || '';\nconst negativePrompt = input.negativePrompt || '';\nconst cabinetSpecs = input.cabinetSpecs || {};\nconst category = input.category;\n\n// Blueprint data\nconst layoutImage = input.layoutImage || '';\nlet layoutData = input.layoutData || null;\nconst maskImage = input.maskImage || '';\nlet modules = input.modules || null;\nconst referenceImages = input.referenceImages || [];\nconst materialDescriptions = input.materialDescriptions || [];\nlet hasBlueprint = input.hasBlueprint;\nconst hasMask = input.hasMask;\nlet hasModules = input.hasModules;\n\n// Parse cleaned background from Gemini response\nlet cleanedBackground = null;\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        cleanedBackground = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nconst waterPercent = analysis.water_supply_percent;\nconst exhaustPercent = analysis.exhaust_duct_percent;\nconst wb = cf && cf.wall_boundaries ? cf.wall_boundaries : { width_mm: 3000, height_mm: 2400, mm_per_unit_x: 3.0, mm_per_unit_y: 2.4 };\n\n// 2D coordinates\nconst wsCenter = cf && cf.utilities && cf.utilities.water_supply && cf.utilities.water_supply.center\n  ? cf.utilities.water_supply.center : { x: waterPercent * 10, y: 880 };\nconst edCenter = cf && cf.utilities && cf.utilities.exhaust_duct && cf.utilities.exhaust_duct.center\n  ? cf.utilities.exhaust_duct.center : { x: exhaustPercent * 10, y: 85 };\n\n// mm values\nconst wsMm = {\n  x: Math.round(wsCenter.x * (wb.mm_per_unit_x || wb.width_mm / 1000)),\n  y: Math.round(wsCenter.y * (wb.mm_per_unit_y || wb.height_mm / 1000))\n};\nconst edMm = {\n  x: Math.round(edCenter.x * (wb.mm_per_unit_x || wb.width_mm / 1000)),\n  y: Math.round(edCenter.y * (wb.mm_per_unit_y || wb.height_mm / 1000))\n};\n\nconst styleLabel = input.style || 'Modern Minimal';\nlet furniturePrompt;\nlet geminiFurnitureBody;\n\n// ═══════════════════════════════════════════════════════════════\n// AUTO-GENERATE Blueprint data when not provided (ai-design.html)\n// ═══════════════════════════════════════════════════════════════\nif (!hasBlueprint && !hasModules && (category === 'sink' || category === 'island')) {\n\n  const totalW = wb.width_mm || 3000;\n  const totalH = wb.height_mm || 2400;\n  const sinkPct = waterPercent / 100;\n  const cooktopPct = exhaustPercent / 100;\n\n  // Standard dimensions (Korean built-in standard)\n  const UPPER_H = 720, LOWER_H = 870, MOLDING = 60;\n  const COUNTERTOP = 20, TOE_KICK = 150;\n  const SINK_W = 800, COOKTOP_W = 600;\n\n  // Module distribution algorithm\n  function distributeModules(totalWidth, sinkCenterMm, cooktopCenterMm) {\n    const sinkLeft = Math.max(0, sinkCenterMm - SINK_W / 2);\n    const cooktopLeft = Math.max(0, cooktopCenterMm - COOKTOP_W / 2);\n\n    let anchors = [];\n    if (sinkCenterMm <= cooktopCenterMm) {\n      anchors = [\n        { left: sinkLeft, w: SINK_W, hasSink: true, hasCooktop: false },\n        { left: cooktopLeft, w: COOKTOP_W, hasSink: false, hasCooktop: true }\n      ];\n    } else {\n      anchors = [\n        { left: cooktopLeft, w: COOKTOP_W, hasSink: false, hasCooktop: true },\n        { left: sinkLeft, w: SINK_W, hasSink: true, hasCooktop: false }\n      ];\n    }\n\n    // Overlap correction\n    if (anchors[1].left < anchors[0].left + anchors[0].w) {\n      anchors[1].left = anchors[0].left + anchors[0].w;\n    }\n    // Wall overflow correction\n    if (anchors[1].left + anchors[1].w > totalWidth) {\n      anchors[1].left = totalWidth - anchors[1].w;\n    }\n\n    // Fill gaps\n    const result = [];\n    let cursor = 0;\n\n    for (const anchor of anchors) {\n      const gap = anchor.left - cursor;\n      if (gap >= 300) fillGap(result, cursor, gap);\n      result.push({\n        width_mm: anchor.w,\n        type: 'door',\n        door_count: anchor.w >= 700 ? 2 : 1,\n        hasSink: anchor.hasSink,\n        hasCooktop: anchor.hasCooktop\n      });\n      cursor = anchor.left + anchor.w;\n    }\n    const remaining = totalWidth - cursor;\n    if (remaining >= 300) fillGap(result, cursor, remaining);\n\n    return result;\n  }\n\n  function fillGap(arr, startMm, gapMm) {\n    let remaining = gapMm;\n    while (remaining >= 300) {\n      let w;\n      if (remaining >= 1800) w = 900;\n      else if (remaining >= 1200) w = 600;\n      else if (remaining >= 900) w = Math.min(900, remaining);\n      else if (remaining >= 600) w = remaining;\n      else w = remaining;\n      w = Math.min(w, remaining);\n      if (w < 300) break;\n      arr.push({\n        width_mm: w,\n        type: 'door',\n        door_count: w >= 700 ? 2 : 1,\n        hasSink: false, hasCooktop: false\n      });\n      remaining -= w;\n    }\n  }\n\n  // Generate modules\n  const sinkCenterMm = Math.round(sinkPct * totalW);\n  const cooktopCenterMm = Math.round(cooktopPct * totalW);\n  const lowerModules = distributeModules(totalW, sinkCenterMm, cooktopCenterMm);\n  const upperModules = lowerModules.map(m => ({\n    width_mm: m.width_mm,\n    type: m.type,\n    door_count: m.door_count,\n    hasSink: false, hasCooktop: false\n  }));\n\n  // Generate layoutData (normalized coordinates)\n  const ny = (mm) => mm / totalH;\n  const moldingY = ny(MOLDING);\n  const upperY = moldingY;\n  const upperH = ny(UPPER_H);\n  const backsplashY = upperY + upperH;\n  const backsplashH = 1.0 - ny(MOLDING + UPPER_H + COUNTERTOP + LOWER_H + TOE_KICK);\n  const countertopY = backsplashY + backsplashH;\n  const lowerY = countertopY + ny(COUNTERTOP);\n  const lowerH = ny(LOWER_H);\n\n  function buildLayoutModules(mods) {\n    let accW = 0;\n    return mods.map(m => {\n      const w = m.width_mm / totalW;\n      const mod = { x: accW, w };\n      accW += w;\n      return mod;\n    });\n  }\n\n  layoutData = {\n    totalW_mm: totalW, totalH_mm: totalH,\n    upper: { y: upperY, h: upperH, modules: buildLayoutModules(upperModules) },\n    lower: { y: lowerY, h: lowerH, modules: buildLayoutModules(lowerModules) },\n    countertop: { y: countertopY },\n    toeKick: { h: ny(TOE_KICK) }\n  };\n\n  modules = { upper: upperModules, lower: lowerModules };\n  hasBlueprint = true;\n  hasModules = true;\n\n  // Default cabinet specs for ai-design.html\n  if (!cabinetSpecs.door_color_upper) cabinetSpecs.door_color_upper = '화이트';\n  if (!cabinetSpecs.door_color_lower) cabinetSpecs.door_color_lower = '화이트';\n  if (!cabinetSpecs.door_finish_upper) cabinetSpecs.door_finish_upper = '무광';\n  if (!cabinetSpecs.door_finish_lower) cabinetSpecs.door_finish_lower = '무광';\n  if (!cabinetSpecs.countertop_color) cabinetSpecs.countertop_color = '스노우';\n  if (!cabinetSpecs.handle_type) cabinetSpecs.handle_type = 'hidden (push-to-open)';\n}\n\n// ═══════════════════════════════════════════════════════════════\n// BLUEPRINT MODE — 1-image (cleaned BG) + text layout description\n// Gemini uses text + image input, so blueprint\n// positions are conveyed via detailed text description.\n// ═══════════════════════════════════════════════════════════════\nif (hasBlueprint) {\n\n  // --- Material color/finish Korean→English translation ---\n  const colorMap = {\n    '화이트':'pure white', '그레이':'gray', '블랙':'matte black',\n    '오크':'natural oak wood', '월넛':'dark walnut wood', '스노우':'snow white',\n    '마블화이트':'white marble', '그레이마블':'gray marble', '차콜':'charcoal',\n    '베이지':'beige', '네이비':'navy blue'\n  };\n  const finishMap = { '무광':'matte', '유광':'glossy', '엠보':'embossed' };\n\n  function translateColor(korean) {\n    if (!korean) return '';\n    return colorMap[korean] || korean;\n  }\n  function translateFinish(korean) {\n    if (!korean) return 'matte';\n    return finishMap[korean] || korean;\n  }\n\n  // --- Build precise module layout text from modules + layoutData ---\n  const ld = layoutData;\n  const totalW = ld && ld.totalW_mm ? ld.totalW_mm : (wb.width_mm || 3000);\n  const totalH = wb.height_mm || 2400;\n  let layoutText = '[PRECISE CABINET LAYOUT — MUST FOLLOW EXACTLY]\\n';\n  layoutText += 'Wall: ' + totalW + 'mm wide × ' + totalH + 'mm tall\\n\\n';\n\n  if (hasModules && modules) {\n    // Upper cabinets\n    if (modules.upper && modules.upper.length > 0) {\n      const upperTop = ld && ld.upper ? (ld.upper.y * 100).toFixed(1) : '2.5';\n      const upperBottom = ld && ld.upper ? ((ld.upper.y + ld.upper.h) * 100).toFixed(1) : '32.5';\n      layoutText += '[UPPER CABINETS] top ' + upperTop + '%~' + upperBottom + '% of wall height, left to right:\\n';\n      let accX = 0;\n      modules.upper.forEach((m, i) => {\n        const wNorm = ld && ld.upper && ld.upper.modules && ld.upper.modules[i]\n          ? ld.upper.modules[i].w : (m.width_mm || 600) / totalW;\n        const wMm = m.width_mm || Math.round(wNorm * totalW);\n        const xStart = (accX * 100).toFixed(1);\n        accX += wNorm;\n        const xEnd = (accX * 100).toFixed(1);\n        const typeStr = m.type || 'door';\n        const doorCount = m.door_count || m.doorCount || 1;\n        layoutText += '  ' + (i+1) + '. x: ' + xStart + '~' + xEnd + '%, ' + wMm + 'mm wide, ' + doorCount + '-' + typeStr + ' cabinet\\n';\n      });\n      layoutText += '  (total upper: ' + modules.upper.length + ' modules, flush with ceiling)\\n\\n';\n    }\n    // Lower cabinets\n    if (modules.lower && modules.lower.length > 0) {\n      const lowerTop = ld && ld.lower ? (ld.lower.y * 100).toFixed(1) : '65.8';\n      const lowerBottom = ld && ld.lower ? ((ld.lower.y + ld.lower.h) * 100).toFixed(1) : '100';\n      layoutText += '[LOWER CABINETS] bottom ' + lowerTop + '%~' + lowerBottom + '% of wall height, left to right:\\n';\n      let accX = 0;\n      modules.lower.forEach((m, i) => {\n        const wNorm = ld && ld.lower && ld.lower.modules && ld.lower.modules[i]\n          ? ld.lower.modules[i].w : (m.width_mm || 600) / totalW;\n        const wMm = m.width_mm || Math.round(wNorm * totalW);\n        const xStart = (accX * 100).toFixed(1);\n        accX += wNorm;\n        const xEnd = (accX * 100).toFixed(1);\n        const typeStr = m.type || 'door';\n        const doorCount = m.door_count || m.doorCount || 1;\n        let extras = '';\n        if (m.hasSink || m.has_sink) extras += ' [SINK at center]';\n        if (m.hasCooktop || m.has_cooktop) extras += ' [COOKTOP at center]';\n        layoutText += '  ' + (i+1) + '. x: ' + xStart + '~' + xEnd + '%, ' + wMm + 'mm wide, ' + doorCount + '-' + typeStr + extras + '\\n';\n      });\n      layoutText += '\\n';\n    }\n  }\n\n  // Countertop and toe kick positions from layoutData\n  if (ld && ld.countertop) {\n    layoutText += 'Countertop: thin strip at ' + (ld.countertop.y * 100).toFixed(1) + '% height\\n';\n  }\n  if (ld && ld.toeKick) {\n    layoutText += 'Toe kick: dark strip at very bottom (~' + (ld.toeKick.h * 100).toFixed(0) + '%)\\n';\n  }\n\n  // --- Translate cabinet spec colors ---\n  const upperColor = translateColor(cabinetSpecs.door_color_upper);\n  const upperFinish = translateFinish(cabinetSpecs.door_finish_upper);\n  const lowerColor = translateColor(cabinetSpecs.door_color_lower);\n  const lowerFinish = translateFinish(cabinetSpecs.door_finish_lower);\n  const countertopColor = translateColor(cabinetSpecs.countertop_color);\n  const handleType = cabinetSpecs.handle_type || 'hidden (push-to-open)';\n\n  // --- Material description text ---\n  let materialText = '';\n  if (upperColor) materialText += 'Upper doors: ' + upperColor + ' ' + upperFinish + '\\n';\n  if (lowerColor) materialText += 'Lower doors: ' + lowerColor + ' ' + lowerFinish + '\\n';\n  if (countertopColor) materialText += 'Countertop: ' + countertopColor + '\\n';\n  materialText += 'Handle: ' + handleType + '\\n';\n  if (materialDescriptions && materialDescriptions.length > 0) {\n    materialText += 'Additional: ' + materialDescriptions.join(', ') + '\\n';\n  }\n\n  furniturePrompt = '[TASK: BLUEPRINT-GUIDED PHOTOREALISTIC FURNITURE RENDERING]\\n\\n' +\n    'This image is a cleaned background photo. PRESERVE EXACTLY — do NOT modify walls, floor, ceiling, or lighting.\\n' +\n    'Place furniture according to the PRECISE CABINET LAYOUT below.\\n\\n' +\n    layoutText + '\\n' +\n    '[UTILITY ANCHOR POINTS]\\n' +\n    'Water supply pipe at ' + waterPercent + '% from left → Sink module MUST align here\\n' +\n    'Exhaust duct at ' + exhaustPercent + '% from left → Cooktop module MUST align here\\n\\n' +\n    '★★★ RENDERING RULES (MANDATORY) ★★★\\n' +\n    '1. PRESERVE the cleaned background EXACTLY — do NOT modify walls, floor, or ceiling\\n' +\n    '2. Place furniture ONLY where the layout description specifies\\n' +\n    '3. Match the EXACT proportions and positions from the layout\\n' +\n    '4. Each module\\'s WIDTH RATIO must match the layout precisely\\n' +\n    '5. Upper cabinets must be flush with ceiling\\n' +\n    '6. Drawers and doors must match the count specified\\n' +\n    '7. Handles must match the type specified in materials\\n' +\n    '8. Sink and cooktop positions must match the layout exactly\\n\\n' +\n    '★★★ PHOTOREALISTIC QUALITY ★★★\\n' +\n    '- Add realistic shadows, reflections, and ambient lighting\\n' +\n    '- Apply proper material textures (wood grain, stone pattern, stainless steel)\\n' +\n    '- Show realistic edge profiles and panel gaps (2-3mm between doors)\\n' +\n    '- Natural lighting from windows/ceiling as visible in the background\\n' +\n    '- Subtle shadow under upper cabinets onto backsplash\\n' +\n    '- Slight reflection on glossy surfaces, matte diffusion on matte surfaces\\n' +\n    '- Realistic toe kick shadow on floor\\n\\n' +\n    '★★★ RANGE HOOD — BUILT-IN CONCEALED TYPE ONLY ★★★\\n' +\n    'The range hood MUST be fully concealed inside the upper cabinet.\\n' +\n    'NO exposed hood duct pipes or external ductwork visible.\\n' +\n    'NO silver/metallic ventilation pipes on wall or ceiling.\\n\\n' +\n    '[MATERIALS]\\n' + materialText + '\\n' +\n    '[STYLE: ' + styleLabel + ']\\n' +\n    (clientPrompt ? '[CLIENT SPECIFICATIONS]\\n' + clientPrompt + '\\n' : '') +\n    '[PROHIBITED]\\n' +\n    '- Do NOT change positions or proportions from the layout\\n' +\n    '- Do NOT modify the background/wall/floor\\n' +\n    '- No text, labels, or dimension markings\\n' +\n    '- NO exposed hood duct or ventilation pipe\\n' +\n    '- NO visible exhaust pipe or silver/metallic duct tube\\n' +\n    '- NO floating or detached furniture elements\\n' +\n    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\\n' + negativePrompt : '');\n\n  geminiFurnitureBody = {\n    contents: [{\n      parts: [\n        { text: furniturePrompt },\n        { inline_data: { mime_type: 'image/png', data: cleanedBackground } }\n      ]\n    }],\n    generationConfig: {\n      responseModalities: [\"image\", \"text\"],\n      temperature: 0.4\n    }\n  };\n\n// ═══════════════════════════════════════════════════════════════\n// FALLBACK MODE — text-only (existing behavior, no blueprint)\n// ═══════════════════════════════════════════════════════════════\n} else {\n\n  furniturePrompt = '[TASK: FURNITURE PLACEMENT — AI-ANALYZED UTILITY POSITIONS]\\n\\n' +\n    '★★★ CRITICAL: DO NOT MODIFY THE BACKGROUND ★★★\\n' +\n    'This image is a cleaned background. Do NOT alter walls, floor, ceiling, or lighting.\\n' +\n    'ONLY add kitchen furniture and appliances.\\n\\n' +\n    '═══════════════════════════════════════════════════════════════\\n' +\n    '★★★ PLACEMENT COORDINATES ★★★\\n' +\n    '═══════════════════════════════════════════════════════════════\\n\\n' +\n    'Wall dimensions: ' + wb.width_mm + 'mm × ' + wb.height_mm + 'mm\\n\\n' +\n    '[ANCHOR POINT 1: Water Supply → Sink Center]\\n' +\n    '  Grid position: x=' + wsCenter.x + '/1000, y=' + wsCenter.y + '/1000\\n' +\n    '  Millimeters:   ' + wsMm.x + 'mm from left, ' + wsMm.y + 'mm from top\\n' +\n    '  Percentage:    ' + waterPercent + '% from left edge\\n' +\n    '  → Place SINK BOWL center exactly at ' + waterPercent + '% from left\\n\\n' +\n    '[ANCHOR POINT 2: Exhaust Duct → Cooktop Center]\\n' +\n    '  Grid position: x=' + edCenter.x + '/1000, y=' + edCenter.y + '/1000\\n' +\n    '  Millimeters:   ' + edMm.x + 'mm from left, ' + edMm.y + 'mm from top\\n' +\n    '  Percentage:    ' + exhaustPercent + '% from left edge\\n' +\n    '  → Place COOKTOP center exactly at ' + exhaustPercent + '% from left\\n\\n' +\n    '★★★ RANGE HOOD — BUILT-IN CONCEALED TYPE ONLY ★★★\\n' +\n    'The range hood MUST be fully concealed inside the upper cabinet.\\n' +\n    'NO exposed hood duct pipes or external ductwork visible.\\n\\n' +\n    '[REQUIRED COMPONENTS]\\n' +\n    '✓ Sink Bowl — stainless steel, at ' + waterPercent + '% position\\n' +\n    '✓ Faucet — behind sink bowl\\n' +\n    '✓ Cooktop — at ' + exhaustPercent + '% position\\n' +\n    '✓ Range Hood — BUILT-IN CONCEALED inside upper cabinet\\n' +\n    '✓ Lower Cabinets — height 870mm from floor\\n' +\n    '✓ Upper Cabinets — FLUSH with ceiling (NO gap)\\n' +\n    '✓ Toe Kick — below lower cabinets\\n\\n' +\n    '[STYLE: ' + styleLabel + ']\\n' +\n    (clientPrompt ? '[CLIENT SPECIFICATIONS]\\n' + clientPrompt + '\\n' : '') +\n    (cabinetSpecs.door_color_upper ? '- Upper door color: ' + cabinetSpecs.door_color_upper + ' ' + (cabinetSpecs.door_finish_upper || 'matte') + '\\n' : '- Colors: white, gray, wood tones\\n') +\n    (cabinetSpecs.door_color_lower ? '- Lower door color: ' + cabinetSpecs.door_color_lower + ' ' + (cabinetSpecs.door_finish_lower || 'matte') + '\\n' : '') +\n    (cabinetSpecs.countertop_color ? '- Countertop: ' + cabinetSpecs.countertop_color + '\\n' : '') +\n    (cabinetSpecs.handle_type ? '- Handle: ' + cabinetSpecs.handle_type + '\\n' : '- Handle: hidden (push-to-open)\\n') +\n    '\\n[PROHIBITED]\\n' +\n    '- Do NOT modify background/walls/floor\\n' +\n    '- Do NOT add text, labels, or dimensions\\n' +\n    '- NO exposed/chimney/wall-mount range hood\\n' +\n    '- NO gap between upper cabinets and ceiling\\n' +\n    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\\n' + negativePrompt : '');\n\n  geminiFurnitureBody = {\n    contents: [{\n      parts: [\n        { text: furniturePrompt },\n        { inline_data: { mime_type: 'image/png', data: cleanedBackground } }\n      ]\n    }],\n    generationConfig: {\n      responseModalities: [\"image\", \"text\"],\n      temperature: 0.4\n    }\n  };\n}\n\nreturn [{\n  cleanedBackground,\n  hasCleanedBackground: !!cleanedBackground,\n  geminiFurnitureBody: JSON.stringify(geminiFurnitureBody),\n  category: input.category,\n  style: input.style,\n  analysisResult: analysis,\n  coordinateFrame: cf,\n  hasBlueprint: !!hasBlueprint,\n  hasMask: !!hasMask,\n  hasModules: !!hasModules,\n  renderingMode: hasBlueprint ? 'blueprint' : 'fallback',\n  layoutData: layoutData\n}];"
       },
-      "id": "parse-bg-furniture-001",
+      "id": "3efa5750-20ea-42bb-8d3a-900993c0c097",
       "name": "Parse BG + Build Furniture",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [19616, 4560]
+      "position": [
+        17792,
+        14672
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [{ "id": "has-bg", "leftValue": "={{ $json.hasCleanedBackground }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-bg",
+              "leftValue": "={{ $json.hasCleanedBackground }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "check-bg-001",
+      "id": "a5c79812-9e21-461f-8c02-e3390f5fca53",
       "name": "Has Cleaned BG?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [19808, 4560]
+      "position": [
+        17984,
+        14672
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=YOUR_GEMINI_API_KEY",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={{ $vars.GEMINI_API_KEY }}",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ $json.geminiFurnitureBody }}",
-        "options": { "timeout": 120000 }
+        "options": {
+          "timeout": 120000
+        }
       },
-      "id": "gemini-furniture-001",
+      "id": "f2278f1a-534b-4650-9949-b92564847384",
       "name": "Gemini Furniture",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [20000, 4448]
+      "position": [
+        18176,
+        14560
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Parse Furniture + Prep Open\nconst input = $('Parse BG + Build Furniture').first().json;\nconst response = $input.first().json;\nconst analysis = input.analysisResult;\n\nlet closedImage = null;\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        closedImage = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nconst openPrompt = `[TASK: OPEN DOORS AND DRAWERS]\n\n★★★ 배경과 가구 위치 유지 ★★★\n\n[변경 금지]\n- 배경 (벽, 바닥, 천장)\n- 가구 위치, 크기, 색상\n- 카메라 앵글\n- 조명\n\n[변경 사항]\n- 여닫이 도어: 90도 바깥으로 열기\n- 서랍: 30-40% 당기기\n- 내부 수납품 보이게\n\n[내부 수납품]\n- 그릇, 접시, 컵\n- 냄비, 프라이팬\n- 양념통, 조미료\n\n[출력]\n- 동일한 가구, 도어만 열린 상태\n- 포토리얼리스틱 품질`;\n\nconst geminiOpenBody = {\n  contents: [{\n    parts: [\n      { inline_data: { mime_type: 'image/png', data: closedImage }},\n      { text: openPrompt }\n    ]\n  }],\n  generationConfig: { responseModalities: ['image', 'text'], temperature: 0.3 }\n};\n\nreturn [{\n  cleanedBackground: input.cleanedBackground,\n  closedImage,\n  hasClosedImage: !!closedImage,\n  geminiOpenBody: JSON.stringify(geminiOpenBody),\n  category: input.category,\n  style: input.style,\n  analysisResult: analysis\n}];"
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// Parse Furniture + Prep Open Door v4 - Gemini Image API\n// ═══════════════════════════════════════════════════════════════\nconst input = $('Parse BG + Build Furniture').first().json;\nconst response = $input.first().json;\nconst analysis = input.analysisResult;\nconst cf = input.coordinateFrame;\n\n// Parse furniture image from Gemini response\nlet closedImage = null;\ntry {\n  const candidates = response.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        closedImage = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nconst openPrompt = '[TASK: OPEN DOORS AND DRAWERS]\\n\\n' +\n  '★★★ PRESERVE EVERYTHING — ONLY OPEN DOORS ★★★\\n\\n' +\n  '[DO NOT CHANGE]\\n' +\n  '- Background (walls, floor, ceiling)\\n' +\n  '- Furniture position, size, and color\\n' +\n  '- Camera angle\\n' +\n  '- Lighting\\n' +\n  '- Range hood must remain CONCEALED inside upper cabinet (no exposed ductwork)\\n\\n' +\n  '[CHANGES TO MAKE]\\n' +\n  '- Hinged doors: Open outward to approximately 90 degrees\\n' +\n  '- Drawers: Pull out 30-40%\\n' +\n  '- Show interior storage items\\n\\n' +\n  '[INTERIOR ITEMS TO SHOW]\\n' +\n  '- Plates, bowls, cups in upper cabinets\\n' +\n  '- Pots, pans, cooking utensils in lower cabinets\\n' +\n  '- Spice containers, condiments\\n\\n' +\n  '★★★ DUCT CONCEALMENT CHECK ★★★\\n' +\n  'Verify: The range hood area must still show NO exposed duct pipes.\\n' +\n  'The upper cabinet above the cooktop must appear as a normal cabinet, even when open.\\n' +\n  'No silver/metallic pipes visible anywhere.\\n\\n' +\n  '[OUTPUT]\\n' +\n  '- Same furniture, doors open\\n' +\n  '- Photorealistic quality\\n' +\n  '- Interior items visible\\n' +\n  '- No exposed ductwork';\n\nconst geminiOpenBody = {\n  contents: [{\n    parts: [\n      { inline_data: { mime_type: 'image/png', data: closedImage } },\n      { text: openPrompt }\n    ]\n  }],\n  generationConfig: {\n    responseModalities: [\"image\", \"text\"],\n    temperature: 0.3\n  }\n};\n\nreturn [{\n  cleanedBackground: input.cleanedBackground,\n  closedImage,\n  hasClosedImage: !!closedImage,\n  geminiOpenBody: JSON.stringify(geminiOpenBody),\n  category: input.category,\n  style: input.style,\n  analysisResult: analysis,\n  coordinateFrame: cf,\n  hasBlueprint: input.hasBlueprint || false,\n  hasMask: input.hasMask || false,\n  renderingMode: input.renderingMode || 'fallback',\n  layoutData: input.layoutData || null\n}];"
       },
-      "id": "parse-furniture-open-001",
+      "id": "ac0b0696-59c5-41df-a533-3fae442d175b",
       "name": "Parse Furniture + Prep Open",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [20192, 4448]
+      "position": [
+        18368,
+        14560
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [{ "id": "has-closed", "leftValue": "={{ $json.hasClosedImage }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-closed",
+              "leftValue": "={{ $json.hasClosedImage }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "check-closed-001",
+      "id": "add79fa9-217e-41a7-9ebc-682c1c2241b2",
       "name": "Has Closed Image?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [20384, 4448]
+      "position": [
+        18560,
+        14560
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=YOUR_GEMINI_API_KEY",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={{ $vars.GEMINI_API_KEY }}",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ $json.geminiOpenBody }}",
-        "options": { "timeout": 120000 }
+        "options": {
+          "timeout": 120000
+        }
       },
-      "id": "gemini-open-001",
+      "id": "c5b8fae7-0cde-400a-968e-8e17e8857d48",
       "name": "Gemini Open Door",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [20576, 4336]
+      "position": [
+        18752,
+        14448
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const input = $('Parse Furniture + Prep Open').first().json;\nconst openResponse = $input.first().json;\nconst analysis = input.analysisResult;\n\nlet openImage = null;\ntry {\n  const candidates = openResponse.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inline_data?.data) { openImage = part.inline_data.data; break; }\n      if (part.inlineData?.data) { openImage = part.inlineData.data; break; }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nreturn [{\n  success: true,\n  message: 'Claude 분석 + 2단계 이미지 생성 완료',\n  processing: 'claude-analysis + 2-stage-generation',\n  category: input.category,\n  style: input.style,\n  pipe_analysis: {\n    method: 'claude',\n    water_supply_percent: analysis.water_supply_percent,\n    exhaust_duct_percent: analysis.exhaust_duct_percent,\n    confidence: analysis.confidence\n  },\n  generated_image: {\n    background: { base64: input.cleanedBackground, mime_type: 'image/png', description: 'Stage 1: Cleaned background' },\n    closed: { base64: input.closedImage, mime_type: 'image/png', description: 'Stage 2: Furniture added (closed)' },\n    open: { base64: openImage, mime_type: 'image/png', description: 'Stage 3: Doors open' }\n  }\n}];"
+        "jsCode": "const input = $('Parse Furniture + Prep Open').first().json;\nconst openResponse = $input.first().json;\nconst analysis = input.analysisResult;\nconst cf = input.coordinateFrame;\n\n// Parse open door image from Gemini response\nlet openImage = null;\ntry {\n  const candidates = openResponse.candidates || [];\n  if (candidates.length > 0) {\n    const parts = candidates[0].content?.parts || [];\n    for (const part of parts) {\n      if (part.inlineData || part.inline_data) {\n        openImage = (part.inlineData || part.inline_data).data;\n      }\n    }\n  }\n} catch (e) { console.log('Parse error:', e.message); }\n\nreturn [{\n  success: true,\n  message: 'Claude analysis + 3-stage image generation complete',\n  processing: 'manual-analysis + gemini-3-stage-generation',\n  category: input.category,\n  style: input.style,\n  pipe_analysis: {\n    method: 'manual',\n    water_supply_percent: analysis.water_supply_percent,\n    exhaust_duct_percent: analysis.exhaust_duct_percent,\n    confidence: analysis.confidence,\n    coordinate_frame: cf || null,\n    rendering_mode: input.renderingMode || 'fallback',\n    has_blueprint: input.hasBlueprint || false,\n    has_mask: input.hasMask || false,\n    layout_data: input.layoutData || null\n  },\n  generated_image: {\n    background: { base64: input.cleanedBackground, mime_type: 'image/png', description: 'Stage 1: Cleaned background' },\n    closed: { base64: input.closedImage, mime_type: 'image/png', description: 'Stage 2: Furniture added (closed)' },\n    open: { base64: openImage, mime_type: 'image/png', description: 'Stage 3: Doors open' }\n  }\n}];"
       },
-      "id": "format-all-001",
+      "id": "9fdb96d4-acff-4c07-9d0c-ddfa5eab3402",
       "name": "Format Response (All)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [20768, 4336]
+      "position": [
+        18944,
+        14448
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const input = $('Parse Furniture + Prep Open').first().json;\nconst analysis = input.analysisResult;\n\nreturn [{\n  success: true,\n  message: 'Claude 분석 + 이미지 생성 완료 (닫힌 도어만)',\n  processing: 'claude-analysis + 2-stage-generation',\n  category: input.category,\n  style: input.style,\n  pipe_analysis: {\n    method: 'claude',\n    water_supply_percent: analysis.water_supply_percent,\n    exhaust_duct_percent: analysis.exhaust_duct_percent,\n    confidence: analysis.confidence\n  },\n  generated_image: {\n    background: { base64: input.cleanedBackground, mime_type: 'image/png', description: 'Stage 1: Cleaned background' },\n    closed: { base64: input.closedImage, mime_type: 'image/png', description: 'Stage 2: Furniture added (closed)' },\n    open: null\n  }\n}];"
+        "jsCode": "const input = $('Parse Furniture + Prep Open').first().json;\nconst analysis = input.analysisResult;\nconst cf = input.coordinateFrame;\n\nreturn [{\n  success: true,\n  message: 'Claude analysis + image generation complete (closed doors only)',\n  processing: 'manual-analysis + gemini-2-stage-generation',\n  category: input.category,\n  style: input.style,\n  pipe_analysis: {\n    method: 'manual',\n    water_supply_percent: analysis.water_supply_percent,\n    exhaust_duct_percent: analysis.exhaust_duct_percent,\n    confidence: analysis.confidence,\n    coordinate_frame: cf || null,\n    rendering_mode: input.renderingMode || 'fallback',\n    has_blueprint: input.hasBlueprint || false,\n    has_mask: input.hasMask || false,\n    layout_data: input.layoutData || null\n  },\n  generated_image: {\n    background: { base64: input.cleanedBackground, mime_type: 'image/png', description: 'Stage 1: Cleaned background' },\n    closed: { base64: input.closedImage, mime_type: 'image/png', description: 'Stage 2: Furniture added (closed)' },\n    open: null\n  }\n}];"
       },
-      "id": "format-closed-001",
+      "id": "41d36d4d-994c-48d9-ac0e-e1c6566721f4",
       "name": "Format Response (Closed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [20576, 4560]
+      "position": [
+        18752,
+        14672
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const input = $('Build Cleanup Prompt').first().json;\nreturn [{\n  success: false,\n  message: '배경 정리 실패',\n  error: 'Background cleanup failed',\n  category: input.category\n}];"
+        "jsCode": "const input = $('Build Cleanup Prompt').first().json;\nreturn [{json: {\n  success: false,\n  message: 'Background cleanup failed',\n  error_detail: 'Background cleanup failed - Gemini could not generate cleaned image',\n  category: input.category\n}}];"
       },
-      "id": "format-error-001",
+      "id": "6a13ecc3-c8c6-42c1-a04a-70d5656dc560",
       "name": "Format Response (Error)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [20000, 4672]
+      "position": [
+        18176,
+        14784
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} },
-      "id": "respond-all-001",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "1b4146b4-64c6-4a1a-ab30-8be9a595bce4",
       "name": "Respond (All)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [20960, 4336]
+      "position": [
+        19136,
+        14448
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} },
-      "id": "respond-closed-001",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "d6f7f4b7-863c-4ffc-966d-173e54c6e7f3",
       "name": "Respond (Closed)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [20768, 4560]
+      "position": [
+        18944,
+        14672
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} },
-      "id": "respond-error-001",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "915a89b0-3fe7-4abe-a750-274532d29952",
       "name": "Respond (Error)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [20192, 4672]
+      "position": [
+        18368,
+        14784
+      ]
     }
   ],
   "pinData": {},
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Parse Input", "type": "main", "index": 0 }]]
-    },
-    "Parse Input": {
-      "main": [[{ "node": "Build Claude Request", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Claude Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Claude Request": {
-      "main": [[{ "node": "Claude Pipe Analysis", "type": "main", "index": 0 }]]
-    },
-    "Claude Pipe Analysis": {
-      "main": [[{ "node": "Parse Claude Result", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Claude Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Claude Result": {
-      "main": [[{ "node": "Build Cleanup Prompt", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Cleanup Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Cleanup Prompt": {
-      "main": [[{ "node": "Gemini Background Cleanup", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Gemini Background Cleanup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Gemini Background Cleanup": {
-      "main": [[{ "node": "Parse BG + Build Furniture", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse BG + Build Furniture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse BG + Build Furniture": {
-      "main": [[{ "node": "Has Cleaned BG?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Has Cleaned BG?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Has Cleaned BG?": {
       "main": [
-        [{ "node": "Gemini Furniture", "type": "main", "index": 0 }],
-        [{ "node": "Format Response (Error)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Gemini Furniture",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Response (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Gemini Furniture": {
-      "main": [[{ "node": "Parse Furniture + Prep Open", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Furniture + Prep Open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Furniture + Prep Open": {
-      "main": [[{ "node": "Has Closed Image?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Has Closed Image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Has Closed Image?": {
       "main": [
-        [{ "node": "Gemini Open Door", "type": "main", "index": 0 }],
-        [{ "node": "Format Response (Closed)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Gemini Open Door",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Response (Closed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Gemini Open Door": {
-      "main": [[{ "node": "Format Response (All)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Format Response (All)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Response (All)": {
-      "main": [[{ "node": "Respond (All)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond (All)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Response (Closed)": {
-      "main": [[{ "node": "Respond (Closed)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond (Closed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Response (Error)": {
-      "main": [[{ "node": "Respond (Error)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
-  "settings": { "availableInMCP": false },
-  "versionId": "v8-claude-001",
-  "meta": { "instanceId": "244e14704bf7bd5d7ea20567a9c92fb83222642504dc698a01d22d41bd5f300d" },
-  "id": "NK3jfPhTHsWjMH66",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "f86e8a5b-5848-487f-b4b7-d80a97a2e9cb",
+  "meta": {
+    "instanceId": "244e14704bf7bd5d7ea20567a9c92fb83222642504dc698a01d22d41bd5f300d"
+  },
+  "id": "4Nw23tbPb3Gg18gV",
   "tags": []
 }

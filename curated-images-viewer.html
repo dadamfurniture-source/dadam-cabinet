@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>LoRA 학습 이미지 큐레이션 뷰어</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', sans-serif; background: #111; color: #eee; }
+.header {
+  position: sticky; top: 0; z-index: 100; background: #1a1a2e;
+  padding: 16px 24px; border-bottom: 2px solid #333;
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+}
+.header h1 { font-size: 20px; white-space: nowrap; }
+.header .stats { font-size: 14px; color: #888; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab {
+  padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  background: #2a2a3e; border: 1px solid #444; font-size: 13px;
+  transition: all 0.2s;
+}
+.tab:hover { background: #3a3a5e; }
+.tab.active { background: #4a4aff; border-color: #6a6aff; color: #fff; }
+.tab .count { font-size: 11px; color: #aaa; margin-left: 4px; }
+.tab.active .count { color: #ddd; }
+
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px; padding: 20px;
+}
+.card {
+  background: #1e1e2e; border-radius: 10px; overflow: hidden;
+  border: 2px solid transparent; cursor: pointer;
+  transition: all 0.2s;
+}
+.card:hover { border-color: #4a4aff; transform: translateY(-2px); }
+.card.excluded { opacity: 0.3; border-color: #f44; }
+.card img {
+  width: 100%; height: 180px; object-fit: cover;
+  background: #2a2a2a; display: block;
+}
+.card .info { padding: 8px 10px; }
+.card .info .style {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: bold; margin-bottom: 4px;
+}
+.card .info .desc { font-size: 11px; color: #999; line-height: 1.4; max-height: 40px; overflow: hidden; }
+.card .info .meta { font-size: 10px; color: #666; margin-top: 4px; }
+.style-modern { background: #2196F3; color: #fff; }
+.style-luxury { background: #FFD700; color: #333; }
+.style-nordic { background: #4CAF50; color: #fff; }
+.style-natural { background: #8BC34A; color: #333; }
+.style-classic { background: #9C27B0; color: #fff; }
+.style-industrial { background: #607D8B; color: #fff; }
+
+.source-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 10px; margin-left: 4px;
+}
+.source-design_draft { background: #ff9800; color: #fff; }
+.source-crawl { background: #555; color: #ccc; }
+
+.modal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.9); justify-content: center; align-items: center;
+}
+.modal.show { display: flex; }
+.modal img { max-width: 90vw; max-height: 85vh; border-radius: 8px; }
+.modal .close { position: absolute; top: 20px; right: 30px; font-size: 32px; cursor: pointer; color: #fff; }
+.modal .modal-info { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.8); padding: 12px 24px; border-radius: 8px; max-width: 80vw;
+  font-size: 13px; text-align: center;
+}
+
+.controls { display: flex; gap: 12px; align-items: center; }
+.controls label { font-size: 13px; cursor: pointer; }
+.size-slider { width: 100px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>LoRA Training Images</h1>
+  <div class="stats" id="stats">Loading...</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="controls">
+    <label>Size: <input type="range" class="size-slider" min="150" max="400" value="220" id="sizeSlider"></label>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="modal" id="modal">
+  <span class="close" onclick="closeModal()">&times;</span>
+  <img id="modalImg" />
+  <div class="modal-info" id="modalInfo"></div>
+</div>
+
+<script>
+let DATA = {};
+let currentCategory = 'all';
+
+async function loadData() {
+  const resp = await fetch('mcp-server/tmp/curated-data.json');
+  DATA = await resp.json();
+
+  const total = Object.values(DATA).reduce((a, v) => a + v.length, 0);
+  document.getElementById('stats').textContent = `${total}장 선별됨 (is_training=true)`;
+
+  // tabs
+  const tabs = document.getElementById('tabs');
+  const allTab = createTab('all', 'All', total);
+  tabs.appendChild(allTab);
+  for (const [cat, imgs] of Object.entries(DATA)) {
+    tabs.appendChild(createTab(cat, cat.replace(/_/g, ' '), imgs.length));
+  }
+
+  renderGrid();
+}
+
+function createTab(id, label, count) {
+  const div = document.createElement('div');
+  div.className = 'tab' + (id === 'all' ? ' active' : '');
+  div.innerHTML = `${label}<span class="count">${count}</span>`;
+  div.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    div.classList.add('active');
+    currentCategory = id;
+    renderGrid();
+  };
+  return div;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  const images = currentCategory === 'all'
+    ? Object.entries(DATA).flatMap(([cat, imgs]) => imgs.map(i => ({...i, _cat: cat})))
+    : DATA[currentCategory]?.map(i => ({...i, _cat: currentCategory})) || [];
+
+  for (const img of images) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const sizeKB = img.file_size_bytes ? (img.file_size_bytes / 1024).toFixed(0) + 'KB' : '?';
+    card.innerHTML = `
+      <img src="${img.image_url}" loading="lazy" alt="${img.style}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22180%22><rect fill=%22%23333%22 width=%22200%22 height=%22180%22/><text fill=%22%23999%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22>Error</text></svg>'" />
+      <div class="info">
+        <span class="style style-${img.style}">${img.style}</span>
+        <span class="source-badge source-${img.source}">${img.source === 'design_draft' ? 'DRAFT' : 'CRAWL'}</span>
+        <div class="desc">${img.description || ''}</div>
+        <div class="meta">${img._cat} | ${sizeKB}</div>
+      </div>
+    `;
+    card.onclick = () => openModal(img);
+    grid.appendChild(card);
+  }
+}
+
+function openModal(img) {
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modalImg').src = img.image_url;
+  document.getElementById('modalInfo').innerHTML = `
+    <strong>${img._cat}</strong> |
+    <span class="style style-${img.style}" style="padding:2px 8px;border-radius:4px">${img.style}</span> |
+    ${img.source === 'design_draft' ? '<span style="color:#ff9800">DRAFT</span>' : 'CRAWL'}<br>
+    <span style="color:#aaa">${img.description || ''}</span>
+  `;
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+document.getElementById('sizeSlider').addEventListener('input', e => {
+  document.getElementById('grid').style.gridTemplateColumns = `repeat(auto-fill, minmax(${e.target.value}px, 1fr))`;
+});
+
+loadData();
+</script>
+</body>
+</html>

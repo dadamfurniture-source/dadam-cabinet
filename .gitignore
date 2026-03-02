@@ -68,7 +68,10 @@ logs/
 
 # Temp
 .tmp/
+tmp/
 temp/
+mcp-server/tmp/
+mcp-server/output-svg/
 
 # Cloned reference project
 dadam-cabinet/

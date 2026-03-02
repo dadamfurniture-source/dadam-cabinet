@@ -54,6 +54,12 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class AuthenticationError extends AppError {
+  constructor(message = 'Authentication required') {
+    super(message, 401, 'AUTHENTICATION_ERROR');
+  }
+}
+
 export class RateLimitError extends AppError {
   constructor(message = 'Too many requests') {
     super(message, 429, 'RATE_LIMIT');

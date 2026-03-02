@@ -10,7 +10,7 @@ const ALLOWED_ORIGINS = process.env.CORS_ORIGINS
 
 export const corsMiddleware = cors({
   origin: ALLOWED_ORIGINS || true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400,
 });
