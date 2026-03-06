@@ -2,7 +2,7 @@
 // Uses compressedPrompt (<500 chars) from Build All Prompts
 // n8n Cloud + Gemini image gen requires short prompts (>~600 chars causes IMAGE_OTHER)
 const input = $input.first().json;
-const GEMINI_KEY = 'AIzaSyAa26blkL3jkmkMoHFseCNvo5SyR6ZIpNo';
+const GEMINI_KEY = '%%GEMINI_API_KEY%%';
 
 const imgData = input.cleanedBackground || '';
 const imgType = input.imageType || 'image/jpeg';

@@ -49,7 +49,7 @@ if (closedImage) {
   try {
     const geminiRes = await this.helpers.request({
       method: 'POST',
-      uri: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=AIzaSyAa26blkL3jkmkMoHFseCNvo5SyR6ZIpNo',
+      uri: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=%%GEMINI_API_KEY%%',
       body: {
         contents: [{ parts: [
           { text: correctionPrompt },

@@ -26,7 +26,11 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const N8N_API_KEY = process.env.N8N_API_KEY;
 const N8N_BASE_URL = process.env.N8N_BASE_URL || 'https://dadam.app.n8n.cloud/api/v1';
 const V5_ID = 'KUuawjm7m3nS0qHH';
-const GEMINI_KEY = 'AIzaSyAa26blkL3jkmkMoHFseCNvo5SyR6ZIpNo';
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_KEY) {
+  console.error('ERROR: GEMINI_API_KEY not found in .env');
+  process.exit(1);
+}
 
 if (!N8N_API_KEY) {
   console.error('ERROR: N8N_API_KEY not found');
@@ -35,7 +39,10 @@ if (!N8N_API_KEY) {
 
 // ─── Load v10 node code files ───
 function loadNodeCode(filename) {
-  return readFileSync(resolve(__dirname, 'v10-nodes', filename), 'utf-8');
+  let code = readFileSync(resolve(__dirname, 'v10-nodes', filename), 'utf-8');
+  // Replace API key placeholders with actual keys from .env
+  code = code.replace(/%%GEMINI_API_KEY%%/g, GEMINI_KEY);
+  return code;
 }
 
 const BUILD_ALL_PROMPTS_CODE = loadNodeCode('build-all-prompts.js');
@@ -264,7 +271,7 @@ async function main() {
   // 0. Fetch current workflow
   console.log('0. Fetching v5 workflow...');
   const res = await n8nFetch(`/workflows/${V5_ID}`);
-  const wf = await res.json();
+  let wf = await res.json();
   console.log(`   "${wf.name}" (${wf.nodes.length} nodes)\n`);
 
   // 1. Backup
@@ -437,6 +444,15 @@ async function main() {
     openDoorNode.parameters.body = '={{ $json.geminiOpenBody }}';
     console.log('   ✓ Gemini Open Door: body → geminiOpenBody');
   }
+
+  // ─── Step 7b: Sanitize ALL Gemini API keys across entire workflow ───
+  console.log('7b. Sanitizing Gemini API keys...');
+  let wfStr = JSON.stringify(wf);
+  // Replace any AIzaSy* key pattern in the entire workflow
+  const oldKeyCount = (wfStr.match(/AIzaSy[A-Za-z0-9_-]{30,}/g) || []).length;
+  wfStr = wfStr.replace(/AIzaSy[A-Za-z0-9_-]{30,}/g, GEMINI_KEY);
+  wf = JSON.parse(wfStr);
+  console.log('   ✓ Replaced ' + oldKeyCount + ' API key occurrences');
   console.log('');
 
   // ═══ VALIDATION ═══
@@ -464,6 +480,8 @@ async function main() {
     'Has gas pipe fallback': PARSE_WALL_DATA_CODE.includes('gas_pipe'),
     'Wall analysis has origin': WALL_ANALYSIS_CODE.includes('origin'),
     'Wall analysis has confidence': WALL_ANALYSIS_CODE.includes('confidence'),
+    'No old API key': !JSON.stringify(wf).includes('AIzaSyAa26blkL3jkmkMoHFseCNvo5SyR6ZIpNo'),
+    'API key from env': GEMINI_FURNITURE_CODE.includes(GEMINI_KEY),
   };
 
   let allPassed = true;
