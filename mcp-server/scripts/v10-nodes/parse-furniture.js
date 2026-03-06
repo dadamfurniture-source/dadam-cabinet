@@ -24,10 +24,11 @@ if (closedImage) {
       '4. SINK: Stainless steel sink bowl MUST be visible on the countertop.\n' +
       '5. FAUCET: Clear, detailed faucet \u2014 tall arched spout, single lever, chrome or matte black.\n' +
       '6. COOKTOP: Built-in cooktop MUST be visible on the countertop near the range hood area.\n' +
-      '7. RANGE HOOD: Fully concealed inside upper cabinet. NO exposed duct pipe or silver/metallic pipe.\n' +
-      '8. DRAWER CABINET: Cabinet below cooktop must be a drawer unit (2-3 stacked drawers).\n' +
-      '9. TILES: All backsplash tiles fully grouted with clean edges.\n' +
-      '10. UPPER CABINETS: Must be flush with ceiling \u2014 NO gap at top.\n';
+      '7. RANGE HOOD: Fully concealed inside upper cabinet. NO exposed duct pipe, silver tube, or aluminum duct visible anywhere.\n' +
+      '8. DUCT REMOVAL: Remove ALL exposed duct pipes, silver aluminum tubes, ventilation pipes. Wall must show clean tiles only.\n' +
+      '9. DRAWER CABINET: Cabinet below cooktop must be a drawer unit (2-3 stacked drawers).\n' +
+      '10. TILES: All backsplash tiles fully grouted with clean edges.\n' +
+      '11. UPPER CABINETS: Must be flush with ceiling \u2014 NO gap at top.\n';
   } else if (category === 'wardrobe') {
     correctionPrompt +=
       '4. DOOR UNIFORMITY: All doors must be same width ratio and aligned.\n' +

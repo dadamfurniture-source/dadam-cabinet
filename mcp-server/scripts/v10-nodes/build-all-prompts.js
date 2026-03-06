@@ -227,9 +227,9 @@ if (isKitchen) {
       'This photo shows a room ready for furniture installation. PRESERVE the background EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n' +
       'Place furniture according to the PRECISE CABINET LAYOUT below.\n\n' +
       layoutText + '\n' +
-      '[UTILITY ANCHOR POINTS]\n' +
-      'Water supply pipe at ' + waterPercent + '% from left \u2192 Sink module MUST align here\n' +
-      'Exhaust duct at ' + exhaustPercent + '% from left \u2192 Cooktop module MUST align here\n\n' +
+      '[UTILITY ANCHOR POINTS \u2014 \uC704\uCE58 \uACE0\uC815]\n' +
+      '\u2605 \uAE09\uC218\uBC30\uAD00(Water supply) at ' + waterPercent + '% \u2192 \uAC1C\uC218\uB300(Sink) \uBC18\uB4DC\uC2DC \uC774 \uC704\uCE58\uC5D0 \uBC30\uCE58\n' +
+      '\u2605 \uBC30\uAE30\uB355\uD2B8(Exhaust duct) at ' + exhaustPercent + '% \u2192 \uAC00\uC2A4\uB300(Cooktop) + \uB808\uC778\uC9C0\uD6C4\uB4DC \uBC18\uB4DC\uC2DC \uC774 \uC704\uCE58\uC5D0 \uBC30\uCE58\n\n' +
       '\u2605\u2605\u2605 RENDERING RULES (MANDATORY) \u2605\u2605\u2605\n' +
       '1. PRESERVE the background EXACTLY \u2014 do NOT modify walls, floor, or ceiling\n' +
       '2. Place furniture ONLY where the layout description specifies\n' +
@@ -246,9 +246,10 @@ if (isKitchen) {
       '- Natural lighting from windows/ceiling as visible in the background\n' +
       '- Subtle shadow under upper cabinets onto backsplash\n' +
       '- Realistic toe kick shadow on floor\n\n' +
-      '\u2605\u2605\u2605 RANGE HOOD \u2014 BUILT-IN CONCEALED TYPE ONLY \u2605\u2605\u2605\n' +
+      '\u2605\u2605\u2605 \uBC30\uAE30\uB355\uD2B8 \uC644\uC804 \uC81C\uAC70 + \uB808\uC778\uC9C0\uD6C4\uB4DC \uC740\uD3D0 \u2605\u2605\u2605\n' +
       'The range hood MUST be fully concealed inside the upper cabinet.\n' +
-      'NO exposed hood duct pipes or external ductwork visible.\n\n' +
+      'REMOVE all exposed duct pipes, silver aluminum tubes, ventilation pipes from the image.\n' +
+      'The wall behind cabinets must show clean tiles or wall surface \u2014 NO pipe or duct visible.\n\n' +
       '[MATERIALS]\n' + materialText + '\n' +
       '[STYLE: ' + styleLabel + ']\n' +
       (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
@@ -256,7 +257,7 @@ if (isKitchen) {
       '- Do NOT change positions or proportions from the layout\n' +
       '- Do NOT modify the background/wall/floor\n' +
       '- No text, labels, or dimension markings\n' +
-      '- NO exposed hood duct or ventilation pipe\n' +
+      '- NO exposed duct pipe, silver tube, aluminum duct, ventilation pipe\n' +
       '- NO floating or detached furniture elements\n' +
       '- Sink cabinet door MUST be completely closed\n' +
       (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
@@ -271,17 +272,16 @@ if (isKitchen) {
       'This photo shows a room. Do NOT alter walls, floor, ceiling, or lighting.\n' +
       'ONLY add kitchen furniture and appliances.\n\n' +
       'Wall dimensions: ' + wallW + 'mm \u00D7 ' + wallH + 'mm\n\n' +
-      '[ANCHOR POINT 1: Water Supply \u2192 Sink Center]\n' +
-      '  Millimeters: ' + waterMm + 'mm from left\n' +
-      '  Percentage:  ' + waterPercent + '% from left edge\n' +
-      '  \u2192 Place SINK BOWL center exactly at ' + waterPercent + '% from left\n\n' +
-      '[ANCHOR POINT 2: Exhaust Duct \u2192 Cooktop Center]\n' +
-      '  Millimeters: ' + exhaustMm + 'mm from left\n' +
-      '  Percentage:  ' + exhaustPercent + '% from left edge\n' +
-      '  \u2192 Place COOKTOP center exactly at ' + exhaustPercent + '% from left\n\n' +
-      '\u2605\u2605\u2605 RANGE HOOD \u2014 BUILT-IN CONCEALED TYPE ONLY \u2605\u2605\u2605\n' +
+      '[\uAE09\uC218\uBC30\uAD00 \u2192 \uAC1C\uC218\uB300(Sink) \uC704\uCE58]\n' +
+      '  ' + waterMm + 'mm (' + waterPercent + '%) from left\n' +
+      '  \u2192 \uAC1C\uC218\uB300(Sink bowl) \uC911\uC2EC\uC744 \uBC18\uB4DC\uC2DC ' + waterPercent + '% \uC704\uCE58\uC5D0 \uBC30\uCE58\n\n' +
+      '[\uBC30\uAE30\uB355\uD2B8 \u2192 \uAC00\uC2A4\uB300(Cooktop) \uC704\uCE58]\n' +
+      '  ' + exhaustMm + 'mm (' + exhaustPercent + '%) from left\n' +
+      '  \u2192 \uAC00\uC2A4\uB300(Cooktop) + \uB808\uC778\uC9C0\uD6C4\uB4DC \uC911\uC2EC\uC744 \uBC18\uB4DC\uC2DC ' + exhaustPercent + '% \uC704\uCE58\uC5D0 \uBC30\uCE58\n\n' +
+      '\u2605\u2605\u2605 \uBC30\uAE30\uB355\uD2B8 \uC644\uC804 \uC81C\uAC70 + \uB808\uC778\uC9C0\uD6C4\uB4DC \uC740\uD3D0 \u2605\u2605\u2605\n' +
       'The range hood MUST be fully concealed inside the upper cabinet.\n' +
-      'NO exposed hood duct pipes or external ductwork visible.\n\n' +
+      'REMOVE all exposed duct pipes, silver aluminum tubes, ventilation pipes.\n' +
+      'Wall behind cabinets must show clean tiles \u2014 NO pipe or duct visible.\n\n' +
       '[REQUIRED COMPONENTS]\n' +
       '\u2713 Sink Bowl \u2014 stainless steel, at ' + waterPercent + '% position\n' +
       '\u2713 Faucet \u2014 behind sink bowl\n' +
@@ -296,6 +296,7 @@ if (isKitchen) {
       '[PROHIBITED]\n' +
       '- Do NOT modify background/walls/floor\n' +
       '- No text, labels, or dimensions\n' +
+      '- NO exposed duct pipe, silver tube, aluminum duct, ventilation pipe\n' +
       '- NO exposed/chimney/wall-mount range hood\n' +
       '- NO gap between upper cabinets and ceiling\n' +
       '- Sink cabinet door MUST be completely closed\n' +
@@ -495,13 +496,13 @@ if (isKitchen && hasBlueprint && hasModules && modules) {
     return m.width_mm + '';
   }).join(', ');
   compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
-    wallW + 'x' + wallH + 'mm wall. Sink ' + waterPercent + '%, hood ' + exhaustPercent + '%.\n' +
+    wallW + 'x' + wallH + 'mm wall. Sink at ' + waterPercent + '%, cooktop at ' + exhaustPercent + '%.\n' +
     modules.upper.length + ' upper flush ceiling. ' + modules.lower.length + ' lower (' + lCompact + ').\n' +
     ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Concealed hood.';
 } else if (isKitchen) {
   compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
-    wallW + 'x' + wallH + 'mm wall. Sink ' + waterPercent + '%, hood ' + exhaustPercent + '%.\n' +
-    ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Flush upper cabinets. Concealed hood.';
+    wallW + 'x' + wallH + 'mm wall. Sink at ' + waterPercent + '%, cooktop at ' + exhaustPercent + '%.\n' +
+    ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Concealed hood.';
 } else if (category === 'wardrobe') {
   compressedPrompt = 'Place ' + doorDesc + ' built-in wardrobe on this photo. PRESERVE background EXACTLY.\n' +
     'Wall: ' + wallW + 'x' + wallH + 'mm. Full-width floor-to-ceiling wardrobe with hinged doors.\n' +
