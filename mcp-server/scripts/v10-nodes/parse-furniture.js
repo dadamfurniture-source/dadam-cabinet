@@ -79,7 +79,7 @@ const geminiOpenBody = {
   }],
   generationConfig: {
     responseModalities: ['TEXT', 'IMAGE'],
-    temperature: 0.3
+    temperature: 0.1
   }
 };
 
