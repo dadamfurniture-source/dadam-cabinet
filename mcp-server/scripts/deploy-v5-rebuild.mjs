@@ -47,6 +47,7 @@ function loadNodeCode(filename) {
 
 const BUILD_ALL_PROMPTS_CODE = loadNodeCode('build-all-prompts.js');
 const GEMINI_FURNITURE_CODE = loadNodeCode('gemini-furniture.js');
+const VALIDATE_FIX_CODE = loadNodeCode('validate-fix.js');
 const PARSE_FURNITURE_CODE = loadNodeCode('parse-furniture.js');
 const FORMAT_RESPONSE_BOTH_CODE = loadNodeCode('format-response-both.js');
 const FORMAT_RESPONSE_CLOSED_CODE = loadNodeCode('format-response-closed.js');
@@ -409,6 +410,39 @@ async function main() {
     console.log(`   ✓ Gemini Furniture: httpRequest → Code node (${GEMINI_FURNITURE_CODE.length} chars)`);
   }
 
+  // Insert or update "Validate & Fix" Code node (between Gemini Furniture and Parse Furniture)
+  let validateFixNode = findNode('Validate & Fix');
+  if (!validateFixNode) {
+    const furnitureNode = findNode('Gemini Furniture');
+    const vfPosition = furnitureNode
+      ? [furnitureNode.position[0] + 200, furnitureNode.position[1]]
+      : [1600, 300];
+    validateFixNode = {
+      parameters: { jsCode: VALIDATE_FIX_CODE, mode: 'runOnceForAllItems' },
+      id: randomUUID(),
+      name: 'Validate & Fix',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: vfPosition,
+    };
+    wf.nodes.push(validateFixNode);
+    console.log(`   ✓ Validate & Fix: NEW node inserted (${VALIDATE_FIX_CODE.length} chars)`);
+
+    // Shift downstream nodes 200px right to make room
+    const shiftAfter = ['Parse Furniture + Build Open', 'Parse Closed + Prep Open',
+      'Has Closed Image?', 'Gemini Open Door', 'Format Response (Both)',
+      'Format Response (Closed Only)', 'Respond (Both Images)', 'Respond (Closed Only)'];
+    for (const n of wf.nodes) {
+      if (shiftAfter.includes(n.name)) {
+        n.position = [n.position[0] + 200, n.position[1]];
+      }
+    }
+  } else {
+    validateFixNode.parameters.jsCode = VALIDATE_FIX_CODE;
+    validateFixNode.parameters.mode = 'runOnceForAllItems';
+    console.log(`   ✓ Validate & Fix: updated (${VALIDATE_FIX_CODE.length} chars)`);
+  }
+
   // Update "Parse Closed + Prep Open" → "Parse Furniture + Build Open"
   const parseClosedNode = findNode('Parse Closed + Prep Open') || findNode('Parse Furniture + Build Open');
   if (parseClosedNode) {
@@ -473,6 +507,9 @@ async function main() {
       main: [[{ node: 'Gemini Furniture', type: 'main', index: 0 }]]
     },
     'Gemini Furniture': {
+      main: [[{ node: 'Validate & Fix', type: 'main', index: 0 }]]
+    },
+    'Validate & Fix': {
       main: [[{ node: 'Parse Furniture + Build Open', type: 'main', index: 0 }]]
     },
     'Parse Furniture + Build Open': {
@@ -533,11 +570,14 @@ async function main() {
     'Has Blueprint mode': BUILD_ALL_PROMPTS_CODE.includes('BLUEPRINT'),
     'Has 6 categories': BUILD_ALL_PROMPTS_CODE.includes('shoe_cabinet') && BUILD_ALL_PROMPTS_CODE.includes('vanity'),
     'Has Korean open prompt': BUILD_ALL_PROMPTS_CODE.includes('ABSOLUTELY FORBIDDEN'),
-    'Has Correction': PARSE_FURNITURE_CODE.includes('correctionPrompt'),
+    'Has Validate & Fix node': nodeNames.includes('Validate & Fix'),
+    'Validate has loop': VALIDATE_FIX_CODE.includes('MAX_RETRIES'),
+    'Validate has text-only': VALIDATE_FIX_CODE.includes('gemini-2.5-flash:'),
+    'Parse has no correction': !PARSE_FURNITURE_CODE.includes('correctionPrompt'),
     'Has duct removal': BUILD_ALL_PROMPTS_CODE.includes('REMOVE all exposed duct'),
     'Has supply→sink anchor': BUILD_ALL_PROMPTS_CODE.includes('Water supply) at') && BUILD_ALL_PROMPTS_CODE.includes('(Sink)'),
     'Has duct→cooktop anchor': BUILD_ALL_PROMPTS_CODE.includes('Exhaust duct) at') && BUILD_ALL_PROMPTS_CODE.includes('(Cooktop)'),
-    'Correction has duct removal': PARSE_FURNITURE_CODE.includes('DUCT REMOVAL'),
+    'Validate has duct check': VALIDATE_FIX_CODE.includes('DUCT_REMOVAL'),
     'Gemini Furniture is Code': wf.nodes.find(n => n.name === 'Gemini Furniture')?.type === 'n8n-nodes-base.code',
     'Format has 3 images': FORMAT_RESPONSE_BOTH_CODE.includes('background'),
     'No manual_positions': !BUILD_ALL_PROMPTS_CODE.includes('manualPositions'),
@@ -559,7 +599,7 @@ async function main() {
     if (!passed) allPassed = false;
   }
 
-  console.log(`\n   Node count: ${wf.nodes.length} (target: 14)`);
+  console.log(`\n   Node count: ${wf.nodes.length} (target: 15)`);
   console.log(`   Nodes: ${nodeNames.join(' → ')}`);
 
   if (!allPassed) {
