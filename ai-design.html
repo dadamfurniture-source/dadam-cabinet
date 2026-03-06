@@ -790,133 +790,6 @@
         color: var(--gray);
       }
 
-      /* Position Marking Section */
-      .position-marking-section {
-        background: linear-gradient(135deg, #e3f2fd, #fff);
-        border: 2px solid #2196f3;
-        border-radius: 16px;
-        padding: 16px 20px;
-        margin-top: 16px;
-        display: none;
-      }
-      .position-marking-section.active {
-        display: block;
-      }
-      .marking-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
-        font-size: 14px;
-        font-weight: 600;
-        color: #1565c0;
-      }
-      .marking-buttons {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      .marking-btn {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 16px;
-        border: 2px solid #ddd;
-        border-radius: 20px;
-        background: #fff;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: inherit;
-        transition: all 0.2s;
-      }
-      .marking-btn:hover {
-        border-color: #2196f3;
-        background: #e3f2fd;
-      }
-      .marking-btn.active {
-        border-color: #2196f3;
-        background: #2196f3;
-        color: #fff;
-      }
-      .marking-btn.water {
-        --marker-color: #2196f3;
-      }
-      .marking-btn.exhaust {
-        --marker-color: #ff9800;
-      }
-      .marking-btn.water.active {
-        background: #2196f3;
-        border-color: #1565c0;
-      }
-      .marking-btn.exhaust.active {
-        background: #ff9800;
-        border-color: #e65100;
-      }
-      .marking-btn .marker-icon {
-        font-size: 16px;
-      }
-      .clear-markers-btn {
-        padding: 10px 16px;
-        border: 2px solid #ef5350;
-        border-radius: 20px;
-        background: #fff;
-        color: #ef5350;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: inherit;
-        transition: all 0.2s;
-        margin-left: auto;
-      }
-      .clear-markers-btn:hover {
-        background: #ef5350;
-        color: #fff;
-      }
-
-      /* Position Markers on Image */
-      .position-marker {
-        position: absolute;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        transform: translate(-50%, -50%);
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        border: 3px solid #fff;
-        z-index: 10;
-        transition: transform 0.2s;
-      }
-      .position-marker:hover {
-        transform: translate(-50%, -50%) scale(1.15);
-      }
-      .position-marker.water {
-        background: #2196f3;
-      }
-      .position-marker.exhaust {
-        background: #ff9800;
-      }
-      .marker-tooltip {
-        position: absolute;
-        bottom: calc(100% + 8px);
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.8);
-        color: #fff;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 11px;
-        white-space: nowrap;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.2s;
-      }
-      .position-marker:hover .marker-tooltip {
-        opacity: 1;
-      }
-
       /* Selected Count Badge */
       .selected-count {
         display: inline-flex;
@@ -2278,25 +2151,6 @@
           카테고리를 선택하고 이미지를 업로드하세요
         </div>
 
-        <!-- Position Marking Section (Sink Only) -->
-        <div class="position-marking-section" id="positionMarkingSection">
-          <div class="marking-header">
-            📍 배관 위치 직접 표시 (이미지 클릭)
-          </div>
-          <div class="marking-buttons">
-            <button class="marking-btn water" id="markWaterBtn" onclick="toggleMarkingMode('water')">
-              <span class="marker-icon">💧</span>
-              <span>급수 배관</span>
-            </button>
-            <button class="marking-btn exhaust" id="markExhaustBtn" onclick="toggleMarkingMode('exhaust')">
-              <span class="marker-icon">💨</span>
-              <span>배기 덕트</span>
-            </button>
-            <button class="clear-markers-btn" onclick="clearMarkers()">
-              🗑️ 마커 초기화
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- Hidden: Original Category Grid (kept for compatibility with preview elements) -->
@@ -2829,11 +2683,6 @@ Magazine quality, professional lighting.`;
         uploadedImages: {},
         results: [],
         currentPage: 0,
-        // 배관 위치 마킹
-        markingMode: null,  // 'water' | 'exhaust' | null
-        manualPositions: {
-          // sink: { water: {x, y}, exhaust: {x, y} }
-        },
       };
 
       // 슬라이더 상태
@@ -3007,10 +2856,9 @@ Magazine quality, professional lighting.`;
         // 슬라이드 트랙 렌더링
         track.innerHTML = sliderState.items.map((item, index) => {
           const info = categoryInfo[item.category];
-          const isSink = item.category === 'sink';
           return `
             <div class="slide-item" data-index="${index}" data-category="${item.category}">
-              <div class="slide-image-container" ${isSink ? `onclick="handleSlideClick('${item.category}', event)" style="cursor: crosshair;"` : ''}>
+              <div class="slide-image-container">
                 <span class="slide-label">${info.icon} ${info.name}</span>
                 <button class="slide-remove-btn" onclick="removeImageFromSlider('${item.category}', event)" title="삭제">✕</button>
                 <img class="slide-image" src="${item.imageData.preview}" alt="${info.name}" />
@@ -3042,13 +2890,6 @@ Magazine quality, professional lighting.`;
 
         updateSliderPosition();
         updateSliderArrows();
-        updateMarkingSection();
-
-        // 현재 슬라이드에 마커 렌더링
-        if (sliderState.items.length > 0) {
-          const currentItem = sliderState.items[sliderState.currentIndex];
-          renderMarkers(currentItem.category);
-        }
       }
 
       // 슬라이드 이동
@@ -3068,13 +2909,6 @@ Magazine quality, professional lighting.`;
         updateIndicators();
         updateSliderArrows();
         updateCurrentCategoryDisplay();
-        updateMarkingSection();
-
-        // 현재 슬라이드에 마커 렌더링
-        const currentItem = sliderState.items[sliderState.currentIndex];
-        if (currentItem) {
-          renderMarkers(currentItem.category);
-        }
       }
 
       // 슬라이더 위치 업데이트
@@ -3120,147 +2954,6 @@ Magazine quality, professional lighting.`;
       function removeImageFromSlider(category, event) {
         event.stopPropagation();
         removeImage(category, event);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Position Marking (Sink Only)
-      // ═══════════════════════════════════════════════════════════════
-
-      // 마킹 모드 토글
-      function toggleMarkingMode(type) {
-        const waterBtn = document.getElementById('markWaterBtn');
-        const exhaustBtn = document.getElementById('markExhaustBtn');
-
-        if (state.markingMode === type) {
-          // 같은 버튼 다시 클릭 시 모드 해제
-          state.markingMode = null;
-          waterBtn.classList.remove('active');
-          exhaustBtn.classList.remove('active');
-          showToast('마킹 모드 해제', 'info');
-        } else {
-          // 새 모드 활성화
-          state.markingMode = type;
-          waterBtn.classList.toggle('active', type === 'water');
-          exhaustBtn.classList.toggle('active', type === 'exhaust');
-
-          const label = type === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
-          showToast(`${label} 위치를 이미지에 클릭하세요`, 'info');
-        }
-      }
-
-      // 슬라이드 이미지 클릭 시 마커 추가
-      function handleSlideClick(category, event) {
-        if (!state.markingMode) return;
-        if (category !== 'sink') return;  // 싱크대만 마킹 가능
-
-        const container = event.currentTarget;
-        const rect = container.getBoundingClientRect();
-        const x = ((event.clientX - rect.left) / rect.width) * 100;
-        const y = ((event.clientY - rect.top) / rect.height) * 100;
-
-        // 위치 저장
-        if (!state.manualPositions[category]) {
-          state.manualPositions[category] = {};
-        }
-        state.manualPositions[category][state.markingMode] = { x, y };
-
-        // 마커 렌더링
-        renderMarkers(category);
-
-        const label = state.markingMode === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
-        showToast(`${label} 위치 저장됨`, 'success');
-
-        // 마킹 모드 해제
-        state.markingMode = null;
-        document.getElementById('markWaterBtn').classList.remove('active');
-        document.getElementById('markExhaustBtn').classList.remove('active');
-      }
-
-      // 마커 렌더링
-      function renderMarkers(category) {
-        const slideItem = document.querySelector(`.slide-item[data-index="${sliderState.currentIndex}"]`);
-        if (!slideItem) return;
-
-        const container = slideItem.querySelector('.slide-image-container');
-        if (!container) return;
-
-        // 기존 마커 제거
-        container.querySelectorAll('.position-marker').forEach(m => m.remove());
-
-        // 새 마커 추가
-        const positions = state.manualPositions[category];
-        if (!positions) return;
-
-        if (positions.water) {
-          const marker = createMarker('water', positions.water, '급수 배관');
-          container.appendChild(marker);
-        }
-
-        if (positions.exhaust) {
-          const marker = createMarker('exhaust', positions.exhaust, '배기 덕트');
-          container.appendChild(marker);
-        }
-      }
-
-      // 마커 엘리먼트 생성
-      function createMarker(type, position, label) {
-        const marker = document.createElement('div');
-        marker.className = `position-marker ${type}`;
-        marker.style.left = `${position.x}%`;
-        marker.style.top = `${position.y}%`;
-        marker.innerHTML = `
-          ${type === 'water' ? '💧' : '💨'}
-          <span class="marker-tooltip">${label}</span>
-        `;
-        marker.onclick = (e) => {
-          e.stopPropagation();
-          removeMarker(type);
-        };
-        return marker;
-      }
-
-      // 개별 마커 제거
-      function removeMarker(type) {
-        const currentItem = sliderState.items[sliderState.currentIndex];
-        if (!currentItem || currentItem.category !== 'sink') return;
-
-        if (state.manualPositions[currentItem.category]) {
-          delete state.manualPositions[currentItem.category][type];
-        }
-
-        renderMarkers(currentItem.category);
-        const label = type === 'water' ? '💧 급수 배관' : '💨 배기 덕트';
-        showToast(`${label} 마커 삭제됨`, 'info');
-      }
-
-      // 모든 마커 초기화
-      function clearMarkers() {
-        const currentItem = sliderState.items[sliderState.currentIndex];
-        if (!currentItem || currentItem.category !== 'sink') return;
-
-        state.manualPositions[currentItem.category] = {};
-        renderMarkers(currentItem.category);
-        showToast('모든 마커가 삭제되었습니다', 'info');
-      }
-
-      // 마킹 섹션 표시/숨김 (싱크대일 때만 표시)
-      function updateMarkingSection() {
-        const section = document.getElementById('positionMarkingSection');
-        if (!section) return;
-
-        const currentItem = sliderState.items[sliderState.currentIndex];
-
-        if (currentItem && currentItem.category === 'sink') {
-          section.classList.add('active');
-        } else {
-          section.classList.remove('active');
-          // 마킹 모드 해제
-          state.markingMode = null;
-          const waterBtn = document.getElementById('markWaterBtn');
-          const exhaustBtn = document.getElementById('markExhaustBtn');
-          if (waterBtn) waterBtn.classList.remove('active');
-          if (exhaustBtn) exhaustBtn.classList.remove('active');
-        }
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -3336,11 +3029,6 @@ Magazine quality, professional lighting.`;
 
         // state에서 삭제
         delete state.uploadedImages[category];
-
-        // 마킹 위치 데이터도 삭제
-        if (state.manualPositions[category]) {
-          delete state.manualPositions[category];
-        }
 
         // 카테고리 버튼 UI 업데이트
         const categoryBtn = document.querySelector(`.category-btn[data-category="${category}"]`);
@@ -3472,20 +3160,6 @@ Magazine quality, professional lighting.`;
           const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
           console.log('Design Prompt:', designPrompt);
 
-          // ── sink 카테고리: 앵커 포인트 필수 검증 ──
-          if (category === 'sink') {
-            const pos = state.manualPositions[category];
-            if (!pos || !pos.water || !pos.exhaust) {
-              showToast('💧 급수 배관과 💨 배기 덕트 위치를 먼저 표시해주세요.', 'error');
-              btn.disabled = false;
-              btn.innerHTML = '✨ AI 디자인 생성';
-              progressSteps.classList.remove('active');
-              loading.classList.remove('active');
-              placeholder.classList.remove('hidden');
-              return;
-            }
-          }
-
           try {
             // 스타일 데이터 준비
             const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
@@ -3511,13 +3185,6 @@ Magazine quality, professional lighting.`;
                 style_countertop_prompt: themeData.countertop_prompt || '',
                 style_handle_prompt: themeData.handle_prompt || '',
                 style_accent_prompt: themeData.accent_prompt || '',
-                // 배관/덕트 수동 마커 위치
-                manual_positions: state.manualPositions[category] ? {
-                  water_pipe: state.manualPositions[category].water || null,
-                  exhaust_duct: state.manualPositions[category].exhaust || null,
-                } : null,
-                has_manual_positions: !!(state.manualPositions[category]
-                  && (state.manualPositions[category].water || state.manualPositions[category].exhaust)),
               }),
             });
 
@@ -3561,9 +3228,6 @@ Magazine quality, professional lighting.`;
 
             // 분석 결과 포맷팅
             let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 적용`;
-            if (data.rag_rules_count) {
-              analysisText = `RAG 규칙 ${data.rag_rules_count}개 적용 | ${themeData.name} 스타일`;
-            }
 
             // 제안 텍스트
             let suggestionText = `${info.name} - 동일 제품 도어 열림/닫힘`;
