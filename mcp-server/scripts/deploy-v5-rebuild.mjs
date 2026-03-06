@@ -75,45 +75,72 @@ return {
   styleAccentPrompt: body.style_accent_prompt || ''
 };`;
 
-// ─── Updated Wall Analysis (enhanced pipe/duct detection) ───
+// ─── Updated Wall Analysis (v11: enhanced pipe/duct detection with Korean visual cues) ───
 const WALL_ANALYSIS_CODE = `const input = $('Parse Input').first().json;
 
-const wallAnalysisPrompt = \`[TASK: KOREAN KITCHEN WALL STRUCTURE & UTILITY ANALYSIS]
+const wallAnalysisPrompt = \`[TASK: 한국 주방 벽면 구조 및 설비 분석]
 
-Analyze this Korean construction site photo to measure wall dimensions and locate all utility pipes.
+이 한국 주방 공사 현장 사진에서 벽 치수와 모든 배관/설비 위치를 정확히 감지하세요.
 
-[STEP 1: ORIGIN POINT]
-Measurement origin (0mm) = LEFT edge of the target wall.
+═══════════════════════════════════════════════════════════
+[STEP 1: 기준점(0mm) 설정]
+═══════════════════════════════════════════════════════════
+기준점 설정 우선순위:
+1순위: 벽이 틔어져 있는 끝선 (개방된 공간 쪽) = 0mm
+2순위: 양쪽 다 막혀 있다면 → 배기구에서 먼 쪽 = 0mm
+※ 기준점에서 반대 방향으로 mm 측정
 
-[STEP 2: TILE MEASUREMENT]
-Common Korean tile sizes (WxH):
-- Standard Wall: 300x600mm (most common)
-- Subway Large: 100x300mm
-- Porcelain Large: 600x1200mm
-If no tiles: use door frame (900mm wide, 2100mm tall) as reference.
-Count tiles horizontally and vertically to calculate wall dimensions.
+═══════════════════════════════════════════════════════════
+[STEP 2: 타일을 자(Ruler)로 활용한 치수 측정]
+═══════════════════════════════════════════════════════════
+타일 종류별 크기 (가로×세로):
+- Standard Wall (한국 표준): 300×600mm ★ 가장 일반적
+- Subway Large: 100×300mm
+- Porcelain Large: 600×1200mm
+타일 없는 경우 참조:
+- 표준 문 너비: 900mm / 높이: 2100mm
+- 콘센트 높이: 바닥에서 약 300mm
+- 한국 아파트 천장 높이: 2300-2400mm
 
-[STEP 3: UTILITY DETECTION - CRITICAL]
+═══════════════════════════════════════════════════════════
+[STEP 3: 배관 및 설비 감지 — 핵심 단계]
+═══════════════════════════════════════════════════════════
 
->> WATER SUPPLY (급수 배관) - determines SINK position
-- Red/blue PEX pipes or white distributor box with valves
-- Location: bottom of wall, 200-500mm from floor
-- Look for pipe stubs protruding from wall
+★★★ 각 설비마다 "detected"와 "confidence" 반드시 판단!
+★★★ 시각적으로 명확히 보이면 "high", 흐릿하면 "medium", 추측이면 "low"
 
->> EXHAUST DUCT (배기 덕트) - determines COOKTOP + RANGE HOOD position
-- Flexible silver/aluminum duct pipe or circular/rectangular hole in wall
-- Location: TOP of wall, 1800-2200mm from floor
-- May have metal flange or cap
+──── 급수 배관 (WATER SUPPLY) → 싱크볼 위치 결정 ────
+시각적 특징 (하나 이상 보이면 감지):
+• 빨간색 + 파란색 PEX 배관 (온수/냉수) — 벽에서 돌출
+• 흰색/베이지색 분배기(매니폴드) 박스 + 조절 밸브
+• 벽 하단부 보호캡으로 막힌 배관 마감
+• 위치: 벽 하단, 바닥에서 200-500mm
+• 보통 벽면 좌측 30-40% 지점에 위치
 
->> GAS PIPE (가스 배관) - backup indicator for cooktop position
-- Yellow-painted metal pipe with gas valve
-- Often near exhaust duct (within 300mm horizontally)
+──── 배기 덕트 (EXHAUST DUCT) → 레인지후드 + 쿡탑 위치 결정 ────
+시각적 특징 (하나 이상 보이면 감지):
+• 은색/알루미늄 유연 덕트 파이프 (주름진 원통형)
+• 벽 상단의 원형 또는 사각형 구멍 (지름 100-150mm)
+• 금속 플랜지, 캡, 또는 환기 그릴
+• 위치: 벽 상단부, 바닥에서 1800-2200mm
+• 보통 벽면 우측 60-80% 지점에 위치
 
->> ELECTRICAL OUTLETS
-- White plastic outlets on wall
+──── 가스 배관 (GAS PIPE) → 쿡탑 위치 백업 지표 ────
+시각적 특징:
+• 노란색으로 도색된 금속 파이프
+• 가스 밸브/콕 (돌려서 잠그는 형태)
+• 위치: 벽 중하단부, 배기 덕트와 수평 300mm 이내
+• 보통 배기 덕트 바로 아래쪽에 위치
 
-[OUTPUT - JSON ONLY, NO OTHER TEXT]
+──── 전기 콘센트 (ELECTRICAL OUTLETS) ────
+• 흰색 플라스틱 콘센트 / 고전압용 콘센트 (오븐, 식기세척기)
+
+═══════════════════════════════════════════════════════════
+[OUTPUT — JSON ONLY, NO OTHER TEXT]
+═══════════════════════════════════════════════════════════
 {
+  "origin_point": "left_open_edge",
+  "origin_reason": "좌측이 개방되어 있어 기준점으로 설정",
   "tile_detected": true,
   "tile_type": "standard_wall",
   "tile_size_mm": { "width": 300, "height": 600 },
@@ -121,10 +148,17 @@ Count tiles horizontally and vertically to calculate wall dimensions.
   "wall_dimensions_mm": { "width": 3000, "height": 2400 },
   "utility_positions_mm": {
     "water_supply_from_left": 800,
+    "water_supply_from_floor": 350,
     "water_supply_confidence": "high",
+    "water_supply_description": "빨간/파란 PEX 배관 2개, 분배기 박스 있음",
     "exhaust_duct_from_left": 2200,
+    "exhaust_duct_from_floor": 2000,
     "exhaust_duct_confidence": "high",
+    "exhaust_duct_description": "알루미늄 덕트, 원형 구멍 150mm",
     "gas_pipe_from_left": 2100,
+    "gas_pipe_from_floor": 500,
+    "gas_pipe_confidence": "medium",
+    "gas_pipe_description": "노란색 가스관, 밸브 있음",
     "electrical_outlets": [300, 1500, 2700]
   },
   "confidence": "high",
@@ -162,7 +196,7 @@ return [{
   geminiAnalysisBody: JSON.stringify(geminiAnalysisBody)
 }];`;
 
-// ─── Updated Parse Wall Data (AI-only, gas pipe fallback) ───
+// ─── Updated Parse Wall Data (v11: confidence-smart fallback + description) ───
 const PARSE_WALL_DATA_CODE = `const input = $('Wall Analysis').first().json;
 const response = $input.first().json;
 
@@ -171,9 +205,13 @@ let wallData = {
   tile_size_mm: { width: 300, height: 600 },
   tile_count: { horizontal: 0, vertical: 0 },
   wall_width_mm: 3000, wall_height_mm: 2400,
+  origin_point: "left_edge", origin_reason: "",
   water_supply_position: null, water_supply_confidence: "low",
+  water_supply_description: "",
   exhaust_duct_position: null, exhaust_duct_confidence: "low",
-  gas_pipe_position: null,
+  exhaust_duct_description: "",
+  gas_pipe_position: null, gas_pipe_confidence: "low",
+  gas_pipe_description: "",
   electrical_outlets: [], confidence: "low",
   notes: ""
 };
@@ -187,6 +225,7 @@ try {
         const jsonMatch = part.text.match(/\\{[\\s\\S]*\\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
+          const u = parsed.utility_positions_mm || {};
           wallData = {
             tile_detected: parsed.tile_detected || false,
             tile_type: parsed.tile_type || "unknown",
@@ -194,12 +233,18 @@ try {
             tile_count: parsed.tile_count || { horizontal: 0, vertical: 0 },
             wall_width_mm: parsed.wall_dimensions_mm?.width || 3000,
             wall_height_mm: parsed.wall_dimensions_mm?.height || 2400,
-            water_supply_position: parsed.utility_positions_mm?.water_supply_from_left || null,
-            water_supply_confidence: parsed.utility_positions_mm?.water_supply_confidence || "low",
-            exhaust_duct_position: parsed.utility_positions_mm?.exhaust_duct_from_left || null,
-            exhaust_duct_confidence: parsed.utility_positions_mm?.exhaust_duct_confidence || "low",
-            gas_pipe_position: parsed.utility_positions_mm?.gas_pipe_from_left || null,
-            electrical_outlets: parsed.utility_positions_mm?.electrical_outlets || [],
+            origin_point: parsed.origin_point || "left_edge",
+            origin_reason: parsed.origin_reason || "",
+            water_supply_position: u.water_supply_from_left || null,
+            water_supply_confidence: u.water_supply_confidence || "low",
+            water_supply_description: u.water_supply_description || "",
+            exhaust_duct_position: u.exhaust_duct_from_left || null,
+            exhaust_duct_confidence: u.exhaust_duct_confidence || "low",
+            exhaust_duct_description: u.exhaust_duct_description || "",
+            gas_pipe_position: u.gas_pipe_from_left || null,
+            gas_pipe_confidence: u.gas_pipe_confidence || "low",
+            gas_pipe_description: u.gas_pipe_description || "",
+            electrical_outlets: u.electrical_outlets || [],
             confidence: parsed.confidence || "low",
             notes: parsed.notes || ""
           };
@@ -209,11 +254,29 @@ try {
   }
 } catch (e) {}
 
+// Smart fallback: use high-confidence sources first
+const ww = wallData.wall_width_mm;
+
+// Sink: water_supply → default 30%
+const sinkMm = wallData.water_supply_position || Math.round(ww * 0.3);
+
+// Hood: exhaust_duct (high/medium) → gas_pipe (high/medium) → default 70%
+let hoodMm;
+if (wallData.exhaust_duct_position && wallData.exhaust_duct_confidence !== "low") {
+  hoodMm = wallData.exhaust_duct_position;
+} else if (wallData.gas_pipe_position && wallData.gas_pipe_confidence !== "low") {
+  hoodMm = wallData.gas_pipe_position;
+} else if (wallData.exhaust_duct_position) {
+  hoodMm = wallData.exhaust_duct_position;
+} else if (wallData.gas_pipe_position) {
+  hoodMm = wallData.gas_pipe_position;
+} else {
+  hoodMm = Math.round(ww * 0.7);
+}
+
 const furniturePlacement = {
-  sink_center_mm: wallData.water_supply_position || Math.round(wallData.wall_width_mm * 0.3),
-  hood_center_mm: wallData.exhaust_duct_position
-    || wallData.gas_pipe_position
-    || Math.round(wallData.wall_width_mm * 0.7),
+  sink_center_mm: sinkMm,
+  hood_center_mm: hoodMm,
   upper_cabinet_bottom_mm: wallData.wall_height_mm - 720,
   lower_cabinet_height_mm: 870,
   countertop_height_mm: 870
@@ -478,8 +541,11 @@ async function main() {
     'Has position anchors': BUILD_ALL_PROMPTS_CODE.includes('Sink ') && BUILD_ALL_PROMPTS_CODE.includes('hood '),
     'Has cleanup instruction': BUILD_ALL_PROMPTS_CODE.includes('Clean floor'),
     'Has gas pipe fallback': PARSE_WALL_DATA_CODE.includes('gas_pipe'),
-    'Wall analysis has origin': WALL_ANALYSIS_CODE.includes('origin'),
+    'Wall analysis has origin': WALL_ANALYSIS_CODE.includes('origin_point'),
     'Wall analysis has confidence': WALL_ANALYSIS_CODE.includes('confidence'),
+    'Wall analysis Korean cues': WALL_ANALYSIS_CODE.includes('PEX') && WALL_ANALYSIS_CODE.includes('알루미늄'),
+    'Wall analysis description': WALL_ANALYSIS_CODE.includes('description'),
+    'Parse has smart fallback': PARSE_WALL_DATA_CODE.includes('exhaust_duct_confidence'),
     'No old API key': !JSON.stringify(wf).includes('AIzaSyAa26blkL3jkmkMoHFseCNvo5SyR6ZIpNo'),
     'API key from env': GEMINI_FURNITURE_CODE.includes(GEMINI_KEY),
   };
