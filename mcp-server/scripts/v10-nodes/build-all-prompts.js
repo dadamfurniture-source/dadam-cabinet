@@ -493,32 +493,32 @@ if (isKitchen && hasBlueprint && hasModules && modules) {
     if (m.hasCooktop || m.has_cooktop) return 'cooktop';
     return m.width_mm + '';
   }).join(', ');
-  compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
     wallW + 'x' + wallH + 'mm wall. Sink ' + waterPercent + '%, hood ' + exhaustPercent + '%.\n' +
     modules.upper.length + ' upper flush ceiling. ' + modules.lower.length + ' lower (' + lCompact + ').\n' +
     ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Concealed hood.';
 } else if (isKitchen) {
-  compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
     wallW + 'x' + wallH + 'mm wall. Sink ' + waterPercent + '%, hood ' + exhaustPercent + '%.\n' +
     ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Flush upper cabinets. Concealed hood.';
 } else if (category === 'wardrobe') {
-  compressedPrompt = 'Place ' + doorDesc + ' built-in wardrobe. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' built-in wardrobe on this photo. PRESERVE background EXACTLY.\n' +
     'Wall: ' + wallW + 'x' + wallH + 'mm. Full-width floor-to-ceiling wardrobe with hinged doors.\n' +
     handleType + '. ' + styleLabel + '. Photorealistic. All doors closed.';
 } else if (category === 'shoe_cabinet') {
-  compressedPrompt = 'Place ' + doorDesc + ' shoe cabinet. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' shoe cabinet on this photo. PRESERVE background EXACTLY.\n' +
     'Wall: ' + wallW + 'x' + wallH + 'mm. Slim profile 300-400mm depth. Floor-to-ceiling.\n' +
     handleType + '. ' + styleLabel + '. Photorealistic. All doors closed.';
 } else if (category === 'vanity') {
-  compressedPrompt = 'Place ' + doorDesc + ' bathroom vanity. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' bathroom vanity on this photo. PRESERVE background EXACTLY.\n' +
     'Wall: ' + wallW + 'x' + wallH + 'mm. Vanity with sink at ' + waterPercent + '% from left. Mirror cabinet above.\n' +
     ctDesc + ' countertop. ' + styleLabel + '. Photorealistic. Faucet chrome finish.';
 } else if (category === 'fridge_cabinet' || category === 'fridge') {
-  compressedPrompt = 'Place ' + doorDesc + ' refrigerator surround cabinet. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' refrigerator surround cabinet on this photo. PRESERVE background EXACTLY.\n' +
     'Wall: ' + wallW + 'x' + wallH + 'mm. Center opening for fridge, tall storage on sides, bridge above.\n' +
     handleType + '. ' + styleLabel + '. Photorealistic. All doors closed.';
 } else {
-  compressedPrompt = 'Place ' + doorDesc + ' storage cabinet. Clean floor. PRESERVE walls and ceiling.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' storage cabinet on this photo. PRESERVE background EXACTLY.\n' +
     'Wall: ' + wallW + 'x' + wallH + 'mm. Floor-to-ceiling built-in with multiple door sections.\n' +
     handleType + '. ' + styleLabel + '. Photorealistic. All doors closed.';
 }

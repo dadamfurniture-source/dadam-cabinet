@@ -539,7 +539,7 @@ async function main() {
     'Format has 3 images': FORMAT_RESPONSE_BOTH_CODE.includes('background'),
     'No manual_positions': !BUILD_ALL_PROMPTS_CODE.includes('manualPositions'),
     'Has position anchors': BUILD_ALL_PROMPTS_CODE.includes('Sink ') && BUILD_ALL_PROMPTS_CODE.includes('hood '),
-    'Has cleanup instruction': BUILD_ALL_PROMPTS_CODE.includes('Clean floor'),
+    'Has PRESERVE background': BUILD_ALL_PROMPTS_CODE.includes('PRESERVE background EXACTLY'),
     'Has gas pipe fallback': PARSE_WALL_DATA_CODE.includes('gas_pipe'),
     'Wall analysis has origin': WALL_ANALYSIS_CODE.includes('origin_point'),
     'Wall analysis has confidence': WALL_ANALYSIS_CODE.includes('confidence'),
