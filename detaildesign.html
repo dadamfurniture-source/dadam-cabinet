@@ -6123,9 +6123,9 @@
           name: '짧은옷(2단)',
           pos: 'wardrobe',
           w: 900,
-          h: effectiveH, // 긴옷용 전체 높이
-          upperH: halfH, // 상부장 높이
-          lowerH: halfH, // 하부장 높이
+          h: effectiveH,
+          upperH: halfH,
+          lowerH: halfH,
           d: parseFloat(item.d) || 650,
           moduleType: 'short',
           isDivided: true,
@@ -6133,7 +6133,10 @@
           shelfCount: 0,
           shelfCountUpper: 0,
           shelfCountLower: 0,
+          rodCountUpper: 0,
+          rodCountLower: 0,
           hasMirror: false,
+          isExternalDrawer: false,
         });
         renderWorkspaceContent(item);
       }
@@ -6198,6 +6201,9 @@
         if (!item) return;
         const mod = item.modules.find((m) => m.id === modId);
         if (mod) {
+          // 이미 같은 타입이면 무시
+          if (mod.moduleType === type) { console.log('[setWdrbType] same type, skip'); return; }
+
           mod.moduleType = type;
           // 타입에 따른 이름 변경
           const typeNames = { short: '짧은옷(2단)', long: '긴옷(1단)', shelf: '선반형' };
@@ -6210,19 +6216,22 @@
           const effectiveH = totalH - pedestalH - moldingH;
           const halfH = Math.floor(effectiveH / 2);
 
-          // ★ 타입별 기본값 설정
+          // ★ 타입별 기본값 설정 — 전체 초기화 후 타입별 값 적용
           if (type === 'short') {
-            // 짧은옷(2단): 상부장/하부장 2등분
+            // 짧은옷(2단): 상부장/하부장 2등분, 상하 옷봉만
             mod.isDivided = true;
             mod.h = effectiveH;
             mod.upperH = halfH;
             mod.lowerH = halfH;
-            mod.drawerCount = mod.drawerCount || 0;
-            mod.shelfCountUpper = mod.shelfCountUpper || 0;
-            mod.shelfCountLower = mod.shelfCountLower || 0;
+            mod.drawerCount = 0;
             mod.shelfCount = 0;
+            mod.shelfCountUpper = 0;
+            mod.shelfCountLower = 0;
+            mod.rodCountUpper = 0;
+            mod.rodCountLower = 0;
+            mod.isExternalDrawer = false;
           } else if (type === 'long') {
-            // 긴옷(1단): 서랍 기본값 1, 선반 기본값 1
+            // 긴옷(1단): 옷봉1 + 선반1 + 서랍1
             mod.isDivided = false;
             mod.h = effectiveH;
             mod.upperH = 0;
@@ -6231,16 +6240,22 @@
             mod.shelfCount = 1;
             mod.shelfCountUpper = 0;
             mod.shelfCountLower = 0;
+            mod.rodCountUpper = 0;
+            mod.rodCountLower = 0;
+            mod.isExternalDrawer = false;
           } else if (type === 'shelf') {
-            // 선반형: 상부장/하부장 2등분, 선반 기본값 상부2 + 하부2 = 4
+            // 선반형: 상부장/하부장 2등분, 선반 상부2 + 하부2
             mod.isDivided = true;
             mod.h = effectiveH;
             mod.upperH = halfH;
             mod.lowerH = halfH;
-            mod.drawerCount = mod.drawerCount || 0;
+            mod.drawerCount = 0;
+            mod.shelfCount = 0;
             mod.shelfCountUpper = 2;
             mod.shelfCountLower = 2;
-            mod.shelfCount = 0;
+            mod.rodCountUpper = 0;
+            mod.rodCountLower = 0;
+            mod.isExternalDrawer = false;
           }
 
           renderWorkspaceContent(item);
@@ -10234,6 +10249,9 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              // 설계 ID (저장된 경우)
+              design_id: currentDesignId || null,
+
               // 현장 사진 (있는 경우)
               room_image: roomImageData?.base64 || '',
               image_type: roomImageData?.type || 'image/jpeg',
@@ -10420,7 +10438,6 @@
 
         <div style="background:#F8F7F4;padding:16px;border-radius:12px;color:#2D2A26;line-height:1.7;">
           ${data.analysis || data.message || data.output || '디자인이 생성되었습니다.'}
-          ${data.rag_rules_count ? `<br><small style="color:#8B8680;">RAG 규칙 ${data.rag_rules_count}개 적용</small>` : ''}
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #EBE8E2;">
