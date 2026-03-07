@@ -12629,8 +12629,8 @@
           if (!btn) return;
 
           const { action, item, mod, field, delta, value } = btn.dataset;
-          const itemId = parseInt(item);
-          const modId = parseInt(mod);
+          const itemId = parseFloat(item);
+          const modId = parseFloat(mod);
 
           switch (action) {
             case 'adjust':
@@ -12669,8 +12669,8 @@
           if (!input.dataset.item) return;
 
           const { item, mod, field } = input.dataset;
-          const itemId = parseInt(item);
-          const modId = mod ? parseInt(mod) : null;
+          const itemId = parseFloat(item);
+          const modId = mod ? parseFloat(mod) : null;
           const value = input.type === 'checkbox' ? input.checked : input.value;
 
           if (modId) {
@@ -12689,8 +12689,8 @@
           clearTimeout(input._debounceTimer);
           input._debounceTimer = setTimeout(() => {
             const { item, mod, field } = input.dataset;
-            const itemId = parseInt(item);
-            const modId = mod ? parseInt(mod) : null;
+            const itemId = parseFloat(item);
+            const modId = mod ? parseFloat(mod) : null;
 
             if (modId) {
               updateModuleField(itemId, modId, field, input.value, false);
