@@ -9213,7 +9213,7 @@
               this.add(materials, `${name}-상부장`, '뒷판', 'MDF', 2.7, W - 20, upperH - 1, 1, '-');
               const shelfUpper = mod.shelfCountUpper || 0;
               if (shelfUpper > 0) {
-                this.add(materials, `${name}-상부장`, '선반', 'PB', T, W - T * 2, modD - 34, shelfUpper, '1면(전)');
+                this.add(materials, `${name}-상부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfUpper, '1면(전)');
               }
 
               // --- 하부장 ---
@@ -9223,7 +9223,7 @@
               this.add(materials, `${name}-하부장`, '뒷판', 'MDF', 2.7, W - 20, lowerH - 1, 1, '-');
               const shelfLower = mod.shelfCountLower || 0;
               if (shelfLower > 0) {
-                this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - 34, shelfLower, '1면(전)');
+                this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfLower, '1면(전)');
               }
 
               // 서랍 (하부장)
@@ -9259,7 +9259,7 @@
 
               const shelfCount = mod.shelfCount || 1;
               if (shelfCount > 0) {
-                this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 34, shelfCount, '1면(전)');
+                this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfCount, '1면(전)');
               }
               if (drawerCount > 0) {
                 const DRAWER_H = 300;
