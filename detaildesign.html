@@ -10917,17 +10917,18 @@
   `;
       }
 
-      // 규격별 집계 함수
+      // 규격별 집계 함수 (자재+두께+가로+세로+엣지 기준으로 합산)
       function aggregateMaterials(materials) {
         const map = new Map();
         materials.forEach(m => {
-          const key = `${m.part}|${m.material}|${m.thickness}|${m.w}|${m.h}|${m.edge}`;
+          const key = `${m.material}|${m.thickness}|${m.w}|${m.h}|${m.edge}`;
           if (map.has(key)) {
             const agg = map.get(key);
             agg.qty += m.qty;
+            if (!agg.parts.includes(m.part)) agg.parts.push(m.part);
             if (!agg.modules.includes(m.module)) agg.modules.push(m.module);
           } else {
-            map.set(key, { ...m, qty: m.qty, modules: [m.module] });
+            map.set(key, { ...m, qty: m.qty, parts: [m.part], modules: [m.module] });
           }
         });
         return [...map.values()].sort((a, b) =>
@@ -10961,8 +10962,11 @@
 
       // 본체 자재 탭
       function generateBodyMaterialTab(materials) {
+        const epKeywords = ['걸레받이', '휠라', '목찬넬', '상몰딩', '몰딩', '덧대'];
         const bodyParts = materials.filter(
-          (m) => !['도어', '걸레받이', '휠라', '목찬넬', '상몰딩'].some((p) => m.part.includes(p))
+          (m) => !m.part.includes('도어') &&
+                 !epKeywords.some((p) => m.part.includes(p)) &&
+                 m.module !== 'EP' && !m.module.includes('EP')
         );
 
         if (bodyParts.length === 0)
@@ -11027,7 +11031,7 @@
           specTableHTML += `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f9'};">
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
-        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.part}</td>
+        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.parts.join(', ')}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.thickness}T</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:right;">${m.w}</td>
@@ -11114,7 +11118,7 @@
           specTableHTML += `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#fff8e1'};">
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
-        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.part}</td>
+        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.parts.join(', ')}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.thickness}T</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:right;font-weight:600;">${m.w}</td>
@@ -11151,7 +11155,7 @@
       // EP 자재 탭
       function generateEPMaterialTab(materials) {
         const epParts = materials.filter((m) =>
-          ['걸레받이', '휠라', '목찬넬', '상몰딩', 'EP'].some((p) => m.module.includes(p) || m.part.includes(p))
+          ['걸레받이', '휠라', '목찬넬', '상몰딩', '몰딩', '덧대', 'EP'].some((p) => m.module.includes(p) || m.part.includes(p))
         );
 
         if (epParts.length === 0)
@@ -11212,7 +11216,7 @@
           specTableHTML += `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#e8f5e9'};">
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
-        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.part}</td>
+        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.parts.join(', ')}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.thickness}T</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:right;">${m.w}</td>
