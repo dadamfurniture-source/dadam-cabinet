@@ -11237,13 +11237,30 @@
   `;
       }
 
+      // 부자재 규격별 집계
+      function aggregateHardware(hardware) {
+        const map = new Map();
+        hardware.forEach(h => {
+          const key = `${h.category}|${h.item}|${h.spec || ''}|${h.manufacturer || ''}|${h.unit}`;
+          if (map.has(key)) {
+            const agg = map.get(key);
+            agg.qty += h.qty;
+            if (h.note && !agg.notes.includes(h.note)) agg.notes.push(h.note);
+          } else {
+            map.set(key, { ...h, qty: h.qty, notes: h.note ? [h.note] : [] });
+          }
+        });
+        return [...map.values()].sort((a, b) => a.category.localeCompare(b.category) || a.item.localeCompare(b.item));
+      }
+
       // 부자재 탭
       function generateHardwareTab(hwResult) {
         if (!hwResult.hardware || hwResult.hardware.length === 0) {
           return '<p style="color:#666;text-align:center;padding:40px;">부자재 정보가 없습니다.</p>';
         }
 
-        let tableHTML = `
+        // 모듈별 테이블
+        let moduleTableHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
       <thead style="background:#fce4ec;">
         <tr>
@@ -11260,7 +11277,7 @@
       <tbody>`;
 
         hwResult.hardware.forEach((h, i) => {
-          tableHTML += `
+          moduleTableHTML += `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#fce4ec'};">
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
         <td style="border:1px solid #ddd;padding:8px;">${h.category}</td>
@@ -11272,14 +11289,51 @@
         <td style="border:1px solid #ddd;padding:8px;font-size:11px;color:#666;">${h.note || ''}</td>
       </tr>`;
         });
+        moduleTableHTML += '</tbody></table>';
 
-        tableHTML += '</tbody></table>';
+        // 규격별 테이블
+        const aggHW = aggregateHardware(hwResult.hardware);
+        let specTableHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead style="background:#fce4ec;">
+        <tr>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">No</th>
+          <th style="border:1px solid #ddd;padding:10px;">분류</th>
+          <th style="border:1px solid #ddd;padding:10px;">품목</th>
+          <th style="border:1px solid #ddd;padding:10px;">제조사</th>
+          <th style="border:1px solid #ddd;padding:10px;">스펙</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">수량</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">단위</th>
+          <th style="border:1px solid #ddd;padding:10px;">비고</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+        aggHW.forEach((h, i) => {
+          specTableHTML += `
+      <tr style="background:${i % 2 === 0 ? '#fff' : '#fce4ec'};">
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+        <td style="border:1px solid #ddd;padding:8px;">${h.category}</td>
+        <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${h.item}</td>
+        <td style="border:1px solid #ddd;padding:8px;">${h.manufacturer || '-'}</td>
+        <td style="border:1px solid #ddd;padding:8px;">${h.spec || '-'}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;color:#c2185b;">${h.qty}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${h.unit}</td>
+        <td style="border:1px solid #ddd;padding:8px;font-size:11px;color:#666;">${h.notes.join(', ')}</td>
+      </tr>`;
+        });
+        specTableHTML += '</tbody></table>';
 
         return `
-    <div style="margin-bottom:10px;">
+    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:14px;font-weight:bold;color:#333;">🔩 부자재 목록 (${hwResult.hardware.length}개 품목)</span>
+      <div style="display:flex;gap:4px;">
+        <button onclick="switchBomView('hw','module',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#1976d2;color:#fff;font-weight:bold;">품목별</button>
+        <button onclick="switchBomView('hw','spec',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#e0e0e0;color:#666;font-weight:normal;">규격별 (${aggHW.length})</button>
+      </div>
     </div>
-    <div style="max-height:400px;overflow-y:auto;">${tableHTML}</div>
+    <div id="hw-module-view" style="max-height:400px;overflow-y:auto;">${moduleTableHTML}</div>
+    <div id="hw-spec-view" style="display:none;max-height:400px;overflow-y:auto;">${specTableHTML}</div>
   `;
       }
 
