@@ -9322,11 +9322,41 @@
 
           console.log('[Wardrobe] 모듈 합계 너비:', totalW);
 
-          // EP (상몰딩)
-          if (moldingH > 0 && totalW > 0) {
+          // ===== EP (마감재) =====
+          const finishLeftType = specs.finishLeftType || 'Molding';
+          const finishLeftW = parseFloat(specs.finishLeftWidth) || 60;
+          const finishRightType = specs.finishRightType || 'Molding';
+          const finishRightW = parseFloat(specs.finishRightWidth) || 60;
+
+          // 상몰딩 (60 이상만 산출, 미만은 무몰딩)
+          if (moldingH >= 60 && totalW > 0) {
             this.add(materials, 'EP', '상몰딩', 'MDF', 18, totalW, moldingH, 1, '2면(장)');
           }
-          // 좌대 (모듈별)
+
+          // 좌측 몰딩
+          if (finishLeftType !== 'None' && finishLeftW > 0) {
+            this.add(materials, 'EP', '좌측몰딩', 'MDF', 18, finishLeftW, bodyH, 1, '2면(장)');
+            // 20mm 이상이면 30mm 덧대 EP 추가
+            if (finishLeftW >= 20) {
+              this.add(materials, 'EP', '좌측몰딩 덧대', 'MDF', 18, 30, bodyH, 1, '2면(장)');
+            }
+          }
+
+          // 우측 몰딩
+          if (finishRightType !== 'None' && finishRightW > 0) {
+            this.add(materials, 'EP', '우측몰딩', 'MDF', 18, finishRightW, bodyH, 1, '2면(장)');
+            // 20mm 이상이면 30mm 덧대 EP 추가
+            if (finishRightW >= 20) {
+              this.add(materials, 'EP', '우측몰딩 덧대', 'MDF', 18, 30, bodyH, 1, '2면(장)');
+            }
+          }
+
+          // 좌대 EP (전면 걸레받이)
+          if (pedestalH > 0 && totalW > 0) {
+            this.add(materials, 'EP', '좌대 걸레받이', 'MDF', 18, totalW, pedestalH - 5, 1, '2면(장)');
+          }
+
+          // 좌대 (모듈별 본체)
           if (pedestalH > 0) {
             modules.forEach((mod, idx) => {
               const modW = parseFloat(mod.w) || 900;
