@@ -176,22 +176,28 @@ spacing = usableH / (선반갯수 + 1)
 
 ### EP (마감재)
 
+#### 공통 규칙
+- **세로 고정**: 모든 몰딩 EP = **2440mm**
+- **초과 규칙**: 실제 길이가 2440 초과 시 → 2440mm **2장**
+
 #### 상몰딩
-- **moldingH >= 60**: 상몰딩 산출 (MDF 18T, totalW × moldingH)
+- **moldingH >= 60**: 상몰딩 산출 (MDF 18T, moldingH × 2440)
 - **moldingH < 60**: 무몰딩 → 상몰딩 미산출
+- totalW > 2440 → 2장
 
 #### 좌우 몰딩
 | 부품 | 자재 | 두께 | 가로 | 세로 | 수량 | 조건 |
 |------|------|------|------|------|------|------|
-| 좌측몰딩 | MDF | 18T | finishLeftW | bodyH | 1 | finishLeftType ≠ None |
-| 좌측몰딩 덧대 | MDF | 18T | 30 | bodyH | 1 | finishLeftW >= 20 |
-| 우측몰딩 | MDF | 18T | finishRightW | bodyH | 1 | finishRightType ≠ None |
-| 우측몰딩 덧대 | MDF | 18T | 30 | bodyH | 1 | finishRightW >= 20 |
+| 좌측몰딩 | MDF | 18T | finishLeftW | 2440 | 1~2 | finishLeftType ≠ None |
+| 좌측몰딩 덧대 | MDF | 18T | 30 | 2440 | 1~2 | finishLeftW >= 20 |
+| 우측몰딩 | MDF | 18T | finishRightW | 2440 | 1~2 | finishRightType ≠ None |
+| 우측몰딩 덧대 | MDF | 18T | 30 | 2440 | 1~2 | finishRightW >= 20 |
+- bodyH > 2440 → 각 2장
 
 #### 좌대 EP
 | 부품 | 자재 | 두께 | 가로 | 세로 | 수량 | 비고 |
 |------|------|------|------|------|------|------|
-| 좌대 걸레받이 | MDF | 18T | totalW | pedestalH - 5 | 1 | 전면 마감 |
+| 좌대 걸레받이 | MDF | 18T | pedestalH - 5 | 2440 | 1~2 | totalW > 2440 → 2장 |
 
 ### 좌대 (모듈별 본체)
 | 부품 | 자재 | 두께 | 가로 | 세로 | 수량 | 비고 |

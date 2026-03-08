@@ -9328,32 +9328,34 @@
           const finishRightType = specs.finishRightType || 'Molding';
           const finishRightW = parseFloat(specs.finishRightWidth) || 60;
 
+          // 몰딩 EP 세로 고정 2440, 초과 시 2장
+          const EP_H = 2440;
+          const epQty = (len) => len > EP_H ? 2 : 1;
+
           // 상몰딩 (60 이상만 산출, 미만은 무몰딩)
           if (moldingH >= 60 && totalW > 0) {
-            this.add(materials, 'EP', '상몰딩', 'MDF', 18, totalW, moldingH, 1, '2면(장)');
+            this.add(materials, 'EP', '상몰딩', 'MDF', 18, moldingH, EP_H, epQty(totalW), '2면(장)');
           }
 
           // 좌측 몰딩
           if (finishLeftType !== 'None' && finishLeftW > 0) {
-            this.add(materials, 'EP', '좌측몰딩', 'MDF', 18, finishLeftW, bodyH, 1, '2면(장)');
-            // 20mm 이상이면 30mm 덧대 EP 추가
+            this.add(materials, 'EP', '좌측몰딩', 'MDF', 18, finishLeftW, EP_H, epQty(bodyH), '2면(장)');
             if (finishLeftW >= 20) {
-              this.add(materials, 'EP', '좌측몰딩 덧대', 'MDF', 18, 30, bodyH, 1, '2면(장)');
+              this.add(materials, 'EP', '좌측몰딩 덧대', 'MDF', 18, 30, EP_H, epQty(bodyH), '2면(장)');
             }
           }
 
           // 우측 몰딩
           if (finishRightType !== 'None' && finishRightW > 0) {
-            this.add(materials, 'EP', '우측몰딩', 'MDF', 18, finishRightW, bodyH, 1, '2면(장)');
-            // 20mm 이상이면 30mm 덧대 EP 추가
+            this.add(materials, 'EP', '우측몰딩', 'MDF', 18, finishRightW, EP_H, epQty(bodyH), '2면(장)');
             if (finishRightW >= 20) {
-              this.add(materials, 'EP', '우측몰딩 덧대', 'MDF', 18, 30, bodyH, 1, '2면(장)');
+              this.add(materials, 'EP', '우측몰딩 덧대', 'MDF', 18, 30, EP_H, epQty(bodyH), '2면(장)');
             }
           }
 
           // 좌대 EP (전면 걸레받이)
           if (pedestalH > 0 && totalW > 0) {
-            this.add(materials, 'EP', '좌대 걸레받이', 'MDF', 18, totalW, pedestalH - 5, 1, '2면(장)');
+            this.add(materials, 'EP', '좌대 걸레받이', 'MDF', 18, pedestalH - 5, EP_H, epQty(totalW), '2면(장)');
           }
 
           // 좌대 (모듈별 본체)
