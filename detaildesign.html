@@ -2656,7 +2656,7 @@
         curtainBoxW: 0,
         curtainBoxH: 0,
         wardrobePedestal: 60, // 좌대 높이 (기본 60mm)
-        wardrobeMoldingH: 15, // 상몰딩 높이 (기본 15mm)
+        wardrobeMoldingH: 20, // 상몰딩 높이 (기본 20mm)
         // ★ 냉장고장 전용 설정 (규칙 기반)
         fridgeBrand: 'LG',
         fridgeUpperH: 415, // 상부장 높이 (고정)
@@ -6052,7 +6052,7 @@
 
         <div class="spec-group-title">4. Finish Settings (마감)</div>
         <div class="spec-row">
-          <div class="spec-field"><label>상몰딩 높이(mm)</label><input type="number" value="${item.specs.wardrobeMoldingH || 15}" onblur="updateWardrobeSpec(${item.uniqueId}, 'wardrobeMoldingH', this.value)"></div>
+          <div class="spec-field"><label>상몰딩 높이(mm)</label><input type="number" value="${item.specs.wardrobeMoldingH || 20}" onblur="updateWardrobeSpec(${item.uniqueId}, 'wardrobeMoldingH', this.value)"></div>
         </div>
         <div class="spec-row">
           <div class="spec-field"><label>좌측 마감</label><select onchange="updateWardrobeFinishType(${item.uniqueId}, 'Left', this.value)"><option value="Molding" ${item.specs.finishLeftType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishLeftType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishLeftType === 'None' ? 'selected' : ''}>없음</option></select></div>
@@ -9611,14 +9611,34 @@
         // 손잡이 추출
         extractHandles(item, hardware) {
           const specs = item.specs || {};
-          const handleType = specs.handle || '찬넬';
+          const category = item.categoryId || item.category;
           let totalDoors = 0;
 
           (item.modules || []).forEach((mod) => {
             totalDoors += mod.doorCount || 0;
           });
 
-          if (totalDoors > 0) {
+          if (totalDoors === 0) return;
+
+          // 붙박이장: handleType (push/smartbar/round)
+          if (category === 'wardrobe') {
+            const ht = specs.handleType || 'push';
+            const nameMap = { push: '푸쉬', smartbar: '스마트바', round: '라운드' };
+            // 푸쉬: 도어당 1EA, 스마트바: 모듈당 1EA, 라운드: 모듈당 1EA
+            const totalModules = (item.modules || []).length;
+            const qty = ht === 'push' ? totalDoors : totalModules;
+            hardware.push({
+              category: '손잡이',
+              item: nameMap[ht] || ht,
+              manufacturer: '-',
+              spec: ht === 'smartbar' ? '30mm' : '-',
+              qty: qty,
+              unit: 'EA',
+              note: item.category,
+            });
+          } else {
+            // 기타 카테고리
+            const handleType = specs.handle || '찬넬';
             hardware.push({
               category: '손잡이',
               item: handleType.includes('스마트바')
@@ -9694,17 +9714,7 @@
             totalDoors += mod.doorCount || 0;
           });
 
-          if (totalDoors > 0) {
-            hardware.push({
-              category: '기타',
-              item: '도어 댐퍼',
-              manufacturer: '-',
-              spec: '-',
-              qty: totalDoors * 2,
-              unit: 'EA',
-              note: `도어 ${totalDoors}개 × 2`,
-            });
-          }
+          // 도어 댐퍼 미사용 (사내 규정)
         }
 
         // 요약
