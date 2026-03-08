@@ -9229,12 +9229,16 @@
               // 서랍
               const DRAWER_MOD_H = 350;
               if (drawerCount > 0) {
-                // 공통 서랍 자재 (외부/내부 모두)
-                this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42, 180, drawerCount * 2, '1면(전)');
-                this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
-                this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
-
-                if (!isExternalDrawer) {
+                if (isExternalDrawer) {
+                  // 외부 서랍 자재
+                  this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+                } else {
+                  // 내부 서랍 자재 (전후판 -120 추가)
+                  this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42 - 120, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
                   // 내부 서랍모듈 프레임
                   this.add(materials, `${name}`, '내부서랍 상판', 'PB', T, W - 30, 520, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '1면(전)');
@@ -9273,12 +9277,16 @@
               }
               const DRAWER_MOD_H_LONG = 350;
               if (drawerCount > 0) {
-                // 공통 서랍 자재
-                this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42, 180, drawerCount * 2, '1면(전)');
-                this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
-                this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
-
-                if (!isExternalDrawer) {
+                if (isExternalDrawer) {
+                  // 외부 서랍 자재
+                  this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+                } else {
+                  // 내부 서랍 자재 (전후판 -120 추가)
+                  this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42 - 120, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+                  this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
                   // 내부 서랍모듈 프레임
                   this.add(materials, `${name}`, '내부서랍 상판', 'PB', T, W - 30, 520, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '1면(전)');
