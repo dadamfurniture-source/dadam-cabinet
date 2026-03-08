@@ -90,6 +90,7 @@ spacing = usableH / (선반갯수 + 1)
 - 서랍 모듈 높이: **350mm** (1개당)
 - 최대: 5개 (drawerCount: 0~5)
 - 서랍 손잡이: 중앙에 30mm 바 핸들
+- 서랍 전후판 가로 > 600mm → **하단 보강재** 440 × 60 × 서랍수 추가
 
 ### 외부 서랍 (isExternalDrawer=true)
 
