@@ -6791,11 +6791,22 @@
           return { type: 'short', name: '짧은옷(2단)', isDivided: true };
         };
 
-        if (handleType === 'smartbar') {
-          // ★ 스마트바 모드: 도어 균등분배 (최우선)
+        // ★ 붙박이장 전용: 3통 반(7 doors) 기본 설정
+        const WARDROBE_TARGET_DOORS = 7; // 3.5통 = 3×2D + 1×1D
+        const WARDROBE_DOOR_MIN = 300; // 붙박이장 최소 도어 너비
+        const WARDROBE_DOOR_MAX = 600; // 붙박이장 최대 도어 너비
 
-          // 1. 총 도어 수 결정 (목표 480mm 기준)
-          const totalDoors = Math.round(effectiveW / TARGET_DOOR_WIDTH);
+        if (handleType === 'smartbar') {
+          // ★ 스마트바 모드: 3.5통(7 doors) 기본
+
+          // 1. 총 도어 수 결정 (3.5통 기본, 너비에 따라 조정)
+          const calcSmartbarDoorW = (doors) => {
+            const mods = Math.floor(doors / 2) + (doors % 2);
+            return Math.floor((effectiveW - mods * SMARTBAR_WIDTH) / doors);
+          };
+          let totalDoors = WARDROBE_TARGET_DOORS;
+          while (calcSmartbarDoorW(totalDoors) < WARDROBE_DOOR_MIN && totalDoors > 2) totalDoors--;
+          while (calcSmartbarDoorW(totalDoors) > WARDROBE_DOOR_MAX) totalDoors++;
 
           if (totalDoors <= 0) {
             alert('공간이 너무 작습니다.');
@@ -6885,37 +6896,36 @@
             console.warn(`시공 여유공간 초과: ${remainder}mm (허용: ${TOLERANCE}mm)`);
           }
         } else {
-          // ★ 일반 모드: 기존 분배규칙 적용
-          const result = distributeModules(effectiveW);
+          // ★ 일반 모드: 붙박이장 전용 3.5통(7 doors) 기본
+          let targetDoors = WARDROBE_TARGET_DOORS;
+          let doorW = Math.floor(effectiveW / targetDoors);
 
-          // ★ 모듈 구성 분석: 600mm 기준으로 2D/1D 판별
-          let modules2D = 0;
-          let modules1D = 0;
-          const MODULE_2D_THRESHOLD = 600; // 600mm 이상이면 2D
+          // 도어 너비 범위에 따라 도어 수 조정
+          while (doorW < WARDROBE_DOOR_MIN && targetDoors > 2) {
+            targetDoors--;
+            doorW = Math.floor(effectiveW / targetDoors);
+          }
+          while (doorW > WARDROBE_DOOR_MAX) {
+            targetDoors++;
+            doorW = Math.floor(effectiveW / targetDoors);
+          }
 
-          result.modules.forEach((m) => {
-            if (m.w >= MODULE_2D_THRESHOLD) modules2D++;
-            else modules1D++;
-          });
+          // 짝수 정렬 (미관)
+          doorW = Math.floor(doorW / 2) * 2;
 
-          // 2D/1D 모듈 인덱스 추적
-          let idx2D = 0;
-          let idx1D = 0;
+          const modules2DCount = Math.floor(targetDoors / 2);
+          const modules1DCount = targetDoors % 2;
 
-          result.modules.forEach((m, idx) => {
-            const is2D = m.w >= MODULE_2D_THRESHOLD;
-            const currentIdx = is2D ? idx2D++ : idx1D++;
-
-            // ★ 새로운 규칙 적용
-            const typeDefaults = getModuleTypeDefaults(modules2D, modules1D, currentIdx, is2D);
-
+          // 2D 모듈 생성
+          for (let i = 0; i < modules2DCount; i++) {
+            const typeDefaults = getModuleTypeDefaults(modules2DCount, modules1DCount, i, true);
             item.modules.push({
-              id: Date.now() + idx,
+              id: Date.now() + i,
               type: 'wardrobe',
               name: typeDefaults.name,
               pos: 'wardrobe',
-              w: m.w,
-              doorCount: is2D ? 2 : 1, // ★ 2D/1D에 따른 도어 수
+              w: doorW * 2,
+              doorCount: 2,
               h: effectiveH,
               upperH: halfH,
               lowerH: halfH,
@@ -6929,9 +6939,34 @@
               hasMirror: false,
               isExternalDrawer: false,
             });
-          });
+          }
 
-          console.log(`붙박이장 자동계산: 2D=${modules2D}개, 1D=${modules1D}개`);
+          // 1D 모듈 생성 (있으면)
+          if (modules1DCount > 0) {
+            const typeDefaults = getModuleTypeDefaults(modules2DCount, modules1DCount, 0, false);
+            item.modules.push({
+              id: Date.now() + modules2DCount,
+              type: 'wardrobe',
+              name: typeDefaults.name,
+              pos: 'wardrobe',
+              w: doorW,
+              doorCount: 1,
+              h: effectiveH,
+              upperH: halfH,
+              lowerH: halfH,
+              d: D,
+              moduleType: typeDefaults.type,
+              isDivided: typeDefaults.isDivided,
+              drawerCount: 0,
+              shelfCount: 0,
+              shelfCountUpper: typeDefaults.type === 'shelf' ? 2 : 0,
+              shelfCountLower: typeDefaults.type === 'shelf' ? 2 : 0,
+              hasMirror: false,
+              isExternalDrawer: false,
+            });
+          }
+
+          console.log(`붙박이장 자동계산: ${modules2DCount}×2D + ${modules1DCount}×1D = ${targetDoors}doors (${modules2DCount + modules1DCount * 0.5}통)`);
         }
 
         renderWorkspaceContent(item);
