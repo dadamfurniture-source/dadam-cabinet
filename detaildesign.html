@@ -11058,7 +11058,7 @@
 
       // 도어 자재 탭
       function generateDoorMaterialTab(materials) {
-        const doorParts = materials.filter((m) => m.part.includes('도어'));
+        const doorParts = materials.filter((m) => m.part.includes('도어') && m.material !== 'PB');
 
         if (doorParts.length === 0)
           return '<p style="color:#666;text-align:center;padding:40px;">도어 자재가 없습니다.</p>';
@@ -11156,6 +11156,7 @@
       function generateEPMaterialTab(materials) {
         const epParts = materials.filter((m) =>
           ['걸레받이', '휠라', '목찬넬', '상몰딩', '몰딩', '덧대', 'EP'].some((p) => m.module.includes(p) || m.part.includes(p))
+          && m.material !== 'PB'
         );
 
         if (epParts.length === 0)
