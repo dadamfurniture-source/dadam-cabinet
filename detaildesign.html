@@ -9200,10 +9200,13 @@
 
             if (isDivided) {
               // ===== 상하분리형 (short/shelf): 상부장·하부장 각각 독립 캐비닛 =====
-              const upperH = parseFloat(mod.upperH) || Math.floor(bodyH / 2);
-              const lowerH = parseFloat(mod.lowerH) || Math.floor(bodyH / 2);
+              const DRAWER_MOD_H = 350;
+              const externalDrawerH = (isExternalDrawer && drawerCount > 0) ? drawerCount * DRAWER_MOD_H : 0;
+              const availableH = bodyH - externalDrawerH;
+              const upperH = parseFloat(mod.upperH) || Math.floor(availableH / 2);
+              const lowerH = parseFloat(mod.lowerH) || Math.floor(availableH / 2);
 
-              console.log(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, upperH=${upperH}, lowerH=${lowerH}, D=${modD}, doors=${doorCount}`);
+              console.log(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, upperH=${upperH}, lowerH=${lowerH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
               // --- 상부장 ---
               this.add(materials, `${name}-상부장`, '측판', 'PB', T, modD, upperH, 2, '4면', 'sakuri(15→3mm)');
@@ -9226,7 +9229,6 @@
               }
 
               // 서랍
-              const DRAWER_MOD_H = 350;
               if (drawerCount > 0) {
                 const drawerFBW = isExternalDrawer ? W - 30 - 42 : W - 30 - 42 - 120;
                 if (isExternalDrawer) {
@@ -9274,9 +9276,11 @@
 
             } else {
               // ===== 긴옷(long): 단일 캐비닛 =====
-              const modH = parseFloat(mod.h) || bodyH;
+              const DRAWER_MOD_H_LONG = 350;
+              const externalDrawerH = (isExternalDrawer && drawerCount > 0) ? drawerCount * DRAWER_MOD_H_LONG : 0;
+              const modH = (parseFloat(mod.h) || bodyH) - externalDrawerH;
 
-              console.log(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, H=${modH}, D=${modD}, doors=${doorCount}`);
+              console.log(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, H=${modH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
               this.add(materials, `${name}`, '측판', 'PB', T, modD, modH, 2, '4면', 'sakuri(15→3mm)');
               this.add(materials, `${name}`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
@@ -9287,7 +9291,6 @@
               if (shelfCount > 0) {
                 this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfCount, '1면(전)');
               }
-              const DRAWER_MOD_H_LONG = 350;
               if (drawerCount > 0) {
                 const drawerFBW = isExternalDrawer ? W - 30 - 42 : W - 30 - 42 - 120;
                 if (isExternalDrawer) {
@@ -9605,6 +9608,27 @@
 
         // 레일 추출
         extractRails(item, hardware) {
+          const category = item.categoryId || item.category;
+
+          // 붙박이장: 모듈별 drawerCount 기준
+          if (category === 'wardrobe') {
+            (item.modules || []).forEach((mod) => {
+              const drawerCount = mod.drawerCount || 0;
+              if (drawerCount <= 0) return;
+              hardware.push({
+                category: '레일',
+                item: '문주 언더레일',
+                manufacturer: '문주',
+                spec: '450mm',
+                qty: drawerCount,
+                unit: 'SET',
+                note: mod.name || mod.type,
+              });
+            });
+            return;
+          }
+
+          // 기타 카테고리
           (item.modules || []).forEach((mod) => {
             if (!mod.isDrawer) return;
             const depth = mod.d || 550;
