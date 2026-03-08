@@ -6024,10 +6024,9 @@
         <div class="spec-row">
           <div class="spec-field"><label>손잡이</label>
             <select onchange="updateWardrobeSpec(${item.uniqueId}, 'handleType', this.value)">
-              <option value="bar" ${(item.specs.handleType || 'bar') === 'bar' ? 'selected' : ''}>일자 손잡이</option>
-              <option value="cchannel" ${item.specs.handleType === 'cchannel' ? 'selected' : ''}>C찬넬</option>
-              <option value="push" ${item.specs.handleType === 'push' ? 'selected' : ''}>푸쉬 도어</option>
+              <option value="push" ${(item.specs.handleType || 'push') === 'push' ? 'selected' : ''}>푸쉬</option>
               <option value="smartbar" ${item.specs.handleType === 'smartbar' ? 'selected' : ''}>스마트바</option>
+              <option value="round" ${item.specs.handleType === 'round' ? 'selected' : ''}>라운드</option>
             </select>
           </div>
           <div class="spec-field"><label>레일</label><select><option>소프트클로징</option><option>일반 레일</option><option>풀익스텐션</option></select></div>
@@ -9578,8 +9577,8 @@
 
             hardware.push({
               category: '경첩',
-              item: '컨실드 경첩 110°',
-              manufacturer: '블룸',
+              item: '문주 110도 약압 경첩',
+              manufacturer: '문주',
               spec: `${hingesPerDoor}구`,
               qty: hingesPerDoor * doorCount,
               unit: 'EA',
