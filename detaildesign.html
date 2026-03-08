@@ -9226,12 +9226,21 @@
                 this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfLower, '1면(전)');
               }
 
-              // 서랍 (하부장)
+              // 서랍
+              const DRAWER_MOD_H = 350;
               if (drawerCount > 0) {
-                const DRAWER_H = 300;
-                if (isExternalDrawer) {
-                  this.add(materials, `${name}-하부장`, '서랍측판', 'PB', T, modD - 30, DRAWER_H, drawerCount * 2, '1면(전)');
-                  this.add(materials, `${name}-하부장`, '서랍전판', 'MDF', 18, W - 4, DRAWER_H, drawerCount, '4면');
+                // 공통 서랍 자재 (외부/내부 모두)
+                this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42, 180, drawerCount * 2, '1면(전)');
+                this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+                this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+
+                if (!isExternalDrawer) {
+                  // 내부 서랍모듈 프레임
+                  this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 지판', 'PB', T, W - 30 - 120, 500, 1, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 밴드', 'PB', T, W - 30 - 120, 70, 2, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 좌우몰딩', 'PB', T, 350, 60, 2, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 도어', 'PB', 15, W - 30 - 120 - 6, 298, 1, '4면');
                 }
               }
 
@@ -9240,7 +9249,7 @@
                 const doorW = Math.floor(W / doorCount) - 4;
                 const doorH = pedestalH + bodyH - 20;
                 if (isExternalDrawer && drawerCount > 0) {
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * 300, doorCount, '4면');
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * DRAWER_MOD_H, doorCount, '4면');
                 } else {
                   this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH, doorCount, '4면');
                 }
@@ -9261,17 +9270,32 @@
               if (shelfCount > 0) {
                 this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfCount, '1면(전)');
               }
+              const DRAWER_MOD_H_LONG = 350;
               if (drawerCount > 0) {
-                const DRAWER_H = 300;
-                this.add(materials, `${name}`, '서랍측판', 'PB', T, modD - 30, DRAWER_H, drawerCount * 2, '1면(전)');
-                this.add(materials, `${name}`, '서랍전판', 'MDF', 18, W - 4, DRAWER_H, drawerCount, '4면');
+                // 공통 서랍 자재
+                this.add(materials, `${name}`, '서랍전후판', 'PB', T, W - 30 - 42, 180, drawerCount * 2, '1면(전)');
+                this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+                this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+
+                if (!isExternalDrawer) {
+                  // 내부 서랍모듈 프레임
+                  this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 지판', 'PB', T, W - 30 - 120, 500, 1, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 밴드', 'PB', T, W - 30 - 120, 70, 2, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 좌우몰딩', 'PB', T, 350, 60, 2, '1면(전)');
+                  this.add(materials, `${name}`, '내부서랍 도어', 'PB', 15, W - 30 - 120 - 6, 298, 1, '4면');
+                }
               }
 
               // 도어 (좌대+bodyH-20 통일 — 짧은옷/긴옷 모두 동일 높이)
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
                 const doorH = pedestalH + bodyH - 20;
-                this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH, doorCount, '4면');
+                if (isExternalDrawer && drawerCount > 0) {
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * DRAWER_MOD_H_LONG, doorCount, '4면');
+                } else {
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH, doorCount, '4면');
+                }
               }
             }
           });
