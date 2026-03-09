@@ -11177,13 +11177,13 @@
                 planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">${vPfx}  └ <strong>세로재단</strong>: ${cutDesc}</div>`;
 
                 const remParts = [];
-                if (strip.remainW > 0 && strip.remainW <= 70) {
+                if (strip.remainW >= 60 && strip.remainW <= 70) {
                   thinList.push({ w: strip.remainW, h: strip.height, type: '세로자투리' });
                 } else if (strip.remainW > 70) {
                   remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.remainW}×${strip.height}</span>`);
                   remnants.push({ w: strip.remainW, h: strip.height });
                 }
-                if (trackH > 0 && trackH <= 70) {
+                if (trackH >= 60 && trackH <= 70) {
                   thinList.push({ w: PANEL_W, h: trackH, type: '가로자투리' });
                 } else if (trackH > 70) {
                   remParts.push(`남은판 ${PANEL_W}×${trackH}`);
@@ -11192,7 +11192,7 @@
                   planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">${vPfx}  → 재단후: ${remParts.join(' | ')}</div>`;
                 }
               });
-              if (panel.panelRemain > 0 && panel.panelRemain <= 70) {
+              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) {
                 thinList.push({ w: PANEL_W, h: panel.panelRemain, type: '가로자투리' });
               } else if (panel.panelRemain > 70) {
                 remnants.push({ w: PANEL_W, h: panel.panelRemain });
@@ -11217,13 +11217,13 @@
                 planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">${vPfx}  └ <strong>가로재단</strong>: ${cutDesc}</div>`;
 
                 const remParts = [];
-                if (strip.remainH > 0 && strip.remainH <= 70) {
+                if (strip.remainH >= 60 && strip.remainH <= 70) {
                   thinList.push({ w: strip.width, h: strip.remainH, type: '가로자투리' });
                 } else if (strip.remainH > 70) {
                   remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.width}×${strip.remainH}</span>`);
                   remnants.push({ w: strip.width, h: strip.remainH });
                 }
-                if (trackW > 0 && trackW <= 70) {
+                if (trackW >= 60 && trackW <= 70) {
                   thinList.push({ w: trackW, h: PANEL_H, type: '세로자투리' });
                 } else if (trackW > 70) {
                   remParts.push(`남은판 ${trackW}×${PANEL_H}`);
@@ -11232,7 +11232,7 @@
                   planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">${vPfx}  → 재단후: ${remParts.join(' | ')}</div>`;
                 }
               });
-              if (panel.panelRemain > 0 && panel.panelRemain <= 70) {
+              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) {
                 thinList.push({ w: panel.panelRemain, h: PANEL_H, type: '세로자투리' });
               } else if (panel.panelRemain > 70) {
                 remnants.push({ w: panel.panelRemain, h: PANEL_H });
@@ -11247,7 +11247,7 @@
               const thinStr = thinList.map(t => `${t.w}×${t.h}`).join(', ');
               const thinTotalLen = thinList.reduce((s, t) => s + Math.max(t.w, t.h), 0);
               totalThinLen += thinTotalLen * panel.stack;
-              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#2e7d32;">└─ 🪵 자투리(≤70mm): ${thinStr} — 밴드/보강재 활용 가능</div>`;
+              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#2e7d32;">└─ 🪵 자투리(60~70mm): ${thinStr} — 밴드/보강재 활용 가능</div>`;
             }
 
             planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | 방향: ${dirLabel}${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
@@ -11277,7 +11277,7 @@
         planHTML += ` | 생산 ${totalProduced}/${totalNeeded}개`;
         if (totalProduced >= totalNeeded) planHTML += ` | <span style="color:#2e7d32;">✅ 전체 자재 추출 완료</span>`;
         else planHTML += ` | <span style="color:#c62828;">❌ 미배치 ${totalNeeded - totalProduced}개</span>`;
-        if (totalThinLen > 0) planHTML += `<br><span style="color:#2e7d32;">🪵 자투리(≤70mm) 총 길이: ${totalThinLen}mm — 밴드/보강재 활용</span>`;
+        if (totalThinLen > 0) planHTML += `<br><span style="color:#2e7d32;">🪵 자투리(60~70mm) 총 길이: ${totalThinLen}mm — 밴드/보강재 활용</span>`;
         planHTML += `</div>`;
 
         return `
@@ -11289,7 +11289,7 @@
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
-      💡 방향 자동최적화: 가로→세로 vs 세로→가로 중 효율 높은 방향 선택 | ≤70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
+      💡 방향 자동최적화: 가로→세로 vs 세로→가로 중 효율 높은 방향 선택 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
     </div>
     <div id="cnc-module-view" style="max-height:500px;overflow-y:auto;">${tableHTML}</div>
     <div id="cnc-spec-view" style="display:none;max-height:500px;overflow-y:auto;">${planHTML}</div>
@@ -11338,7 +11338,7 @@
       function chooseCutDirection(needs, PW, PH) {
         const h = designLayoutH(needs, PW, PH);
         const v = designLayoutV(needs, PW, PH);
-        // 우선순위: 배치수 → 자투리(≤70mm) 길이합 → 활용면적
+        // 우선순위: 배치수 → 자투리(60~70mm) 길이합 → 활용면적
         if (v.totalPieces !== h.totalPieces) return v.totalPieces > h.totalPieces ? v : h;
         if (v.thinLen !== h.thinLen) return v.thinLen > h.thinLen ? v : h;
         if (v.usedArea !== h.usedArea) return v.usedArea > h.usedArea ? v : h;
@@ -11399,9 +11399,9 @@
         pieceCounts.forEach(c => totalPieces += c);
         let thinLen = 0;
         for (const s of strips) {
-          if (s.remainW > 0 && s.remainW <= 70) thinLen += s.height;
+          if (s.remainW >= 60 && s.remainW <= 70) thinLen += s.height;
         }
-        if (availH > 0 && availH <= 70) thinLen += PW;
+        if (availH >= 60 && availH <= 70) thinLen += PW;
 
         return { dir: 'H', strips, pieceCounts, usedArea, remainH: availH, totalPieces, thinLen };
       }
@@ -11460,9 +11460,9 @@
         pieceCounts.forEach(c => totalPieces += c);
         let thinLen = 0;
         for (const s of strips) {
-          if (s.remainH > 0 && s.remainH <= 70) thinLen += s.width;
+          if (s.remainH >= 60 && s.remainH <= 70) thinLen += s.width;
         }
-        if (availW > 0 && availW <= 70) thinLen += PH;
+        if (availW >= 60 && availW <= 70) thinLen += PH;
 
         return { dir: 'V', strips, pieceCounts, usedArea, remainW: availW, totalPieces, thinLen };
       }
