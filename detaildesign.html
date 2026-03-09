@@ -10871,6 +10871,9 @@
         // 5. 부자재 탭
         const hardwareTab = generateHardwareTab(hwResult);
 
+        // 6. CNC 재단 목록 탭
+        const cncTab = generateCNCTab(matResult.materials);
+
         return `
     <div style="margin-bottom:15px;">
       <div style="font-size:20px;font-weight:bold;color:#1976d2;margin-bottom:5px;">📋 설계 완료 보고서</div>
@@ -10882,12 +10885,14 @@
       <button class="report-tab" onclick="switchReportTab(this, 'door')" style="padding:10px 20px;border:none;background:#e3f2fd;color:#1976d2;font-weight:bold;cursor:pointer;border-radius:8px 8px 0 0;margin-left:4px;">🚪 도어</button>
       <button class="report-tab" onclick="switchReportTab(this, 'ep')" style="padding:10px 20px;border:none;background:#e3f2fd;color:#1976d2;font-weight:bold;cursor:pointer;border-radius:8px 8px 0 0;margin-left:4px;">📐 EP</button>
       <button class="report-tab" onclick="switchReportTab(this, 'hardware')" style="padding:10px 20px;border:none;background:#e3f2fd;color:#1976d2;font-weight:bold;cursor:pointer;border-radius:8px 8px 0 0;margin-left:4px;">🔩 부자재</button>
+      <button class="report-tab" onclick="switchReportTab(this, 'cnc')" style="padding:10px 20px;border:none;background:#e3f2fd;color:#1976d2;font-weight:bold;cursor:pointer;border-radius:8px 8px 0 0;margin-left:4px;">✂️ CNC 재단</button>
     </div>
     <div id="report-content-summary" class="report-content">${summaryTab}</div>
     <div id="report-content-body" class="report-content" style="display:none;">${bodyTab}</div>
     <div id="report-content-door" class="report-content" style="display:none;">${doorTab}</div>
     <div id="report-content-ep" class="report-content" style="display:none;">${epTab}</div>
     <div id="report-content-hardware" class="report-content" style="display:none;">${hardwareTab}</div>
+    <div id="report-content-cnc" class="report-content" style="display:none;">${cncTab}</div>
   `;
       }
 
@@ -11004,6 +11009,110 @@
         <li>뒷판 자재: MDF 2.7T 기준 (홈카페/오픈장은 18T)</li>
       </ul>
     </div>
+  `;
+      }
+
+      // CNC 재단 목록 탭
+      function generateCNCTab(materials) {
+        // 70mm 이하 얇은 부품(밴드, 보강재 등) 제외
+        const cncParts = materials.filter(m => m.w > 70 && m.h > 70);
+
+        if (cncParts.length === 0)
+          return '<p style="color:#666;text-align:center;padding:40px;">CNC 재단 대상 자재가 없습니다.</p>';
+
+        // 자재+두께+가로+세로 기준으로 합산 (엣지도 보존)
+        const map = new Map();
+        cncParts.forEach(m => {
+          const key = `${m.material}|${m.thickness}|${m.w}|${m.h}`;
+          if (map.has(key)) {
+            const agg = map.get(key);
+            agg.qty += m.qty;
+            if (!agg.parts.includes(m.part)) agg.parts.push(m.part);
+            // 엣지 병합
+            if (m.edge && m.edge !== '-' && !agg.edges.includes(m.edge)) agg.edges.push(m.edge);
+          } else {
+            map.set(key, {
+              material: m.material,
+              thickness: m.thickness,
+              w: m.w,
+              h: m.h,
+              qty: m.qty,
+              parts: [m.part],
+              edges: (m.edge && m.edge !== '-') ? [m.edge] : []
+            });
+          }
+        });
+
+        // 정렬: 자재 → 두께 → 가로(큰 순) → 세로(큰 순)
+        const sorted = [...map.values()].sort((a, b) =>
+          a.material.localeCompare(b.material) || a.thickness - b.thickness || b.w - a.w || b.h - a.h
+        );
+
+        // 자재+두께 그룹별 소계
+        const groups = new Map();
+        sorted.forEach(m => {
+          const gk = `${m.material} ${m.thickness}T`;
+          if (!groups.has(gk)) groups.set(gk, []);
+          groups.get(gk).push(m);
+        });
+
+        const totalCuts = sorted.reduce((sum, m) => sum + Math.ceil(m.qty / 5), 0);
+
+        let tableHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead style="background:#fce4ec;">
+        <tr>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">No</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">자재</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">두께</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:right;">가로</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:right;">세로</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">총수량</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">겹침(최대5)</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">재단횟수</th>
+          <th style="border:1px solid #ddd;padding:10px;">용도</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">엣지</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+        let no = 0;
+        groups.forEach((items, groupName) => {
+          // 그룹 헤더
+          tableHTML += `
+      <tr style="background:#f8bbd0;">
+        <td colspan="10" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#c2185b;">📦 ${groupName} (${items.length}종)</td>
+      </tr>`;
+          items.forEach(m => {
+            no++;
+            const stack = Math.min(m.qty, 5);
+            const cuts = Math.ceil(m.qty / 5);
+            tableHTML += `
+      <tr style="background:${no % 2 === 0 ? '#fff' : '#f9f9f9'};">
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${no}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.thickness}T</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:right;">${m.w}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:right;">${m.h}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;color:#1976d2;">${m.qty}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${stack}장</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;color:#c2185b;">${cuts}회</td>
+        <td style="border:1px solid #ddd;padding:8px;font-size:11px;">${m.parts.join(', ')}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;font-size:11px;">${m.edges.length > 0 ? m.edges.join(', ') : '-'}</td>
+      </tr>`;
+          });
+        });
+
+        tableHTML += '</tbody></table>';
+
+        return `
+    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:14px;font-weight:bold;color:#333;">✂️ CNC 재단 목록 (${sorted.length}종, 총 ${totalCuts}회 재단)</span>
+    </div>
+    <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
+      💡 동일 규격은 최대 5장까지 겹쳐서 재단 가능 | 70mm 이하 부품(밴드, 보강재 등) 제외
+    </div>
+    <div style="max-height:400px;overflow-y:auto;">${tableHTML}</div>
   `;
       }
 
