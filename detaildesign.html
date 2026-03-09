@@ -9032,9 +9032,9 @@
                 this.add(materials, `하부장-${name}`, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '1면(전)');
               }
 
-              // 서랍 도어 (각 서랍 전면)
+              // 서랍 도어 (각 서랍 전면) — 1개일 때 250mm 기본
               const drawerDoorW = W - 4;
-              const drawerDoorH = Math.floor((totalDrawerH - 20) / drawerCount);
+              const drawerDoorH = drawerCount === 1 ? 250 : Math.floor((totalDrawerH - 20) / drawerCount);
               this.add(materials, `하부장-${name}`, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerCount, '4면');
 
               // 여닫이 도어 (서랍 아래)
