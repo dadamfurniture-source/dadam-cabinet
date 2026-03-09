@@ -11105,47 +11105,92 @@
 
         tableHTML += '</tbody></table>';
 
-        // ===== 원판 배치 계획 =====
+        // ===== 원판 배치 계획 (겹침 재단 + 나머지 활용) =====
         const PANEL_W = 1220, PANEL_H = 2440;
         let planHTML = '';
         let totalPanels = 0;
+        let totalProduced = 0;
+        let totalNeeded = 0;
 
         groups.forEach((items, groupName) => {
-          const plan = calcCuttingPlan(items, PANEL_W, PANEL_H);
-          totalPanels += plan.length;
+          const groupNeeded = items.reduce((s, m) => s + m.qty, 0);
+          totalNeeded += groupNeeded;
+          const { panels, unallocated } = calcCuttingPlan(items, PANEL_W, PANEL_H);
+          const groupPanelCount = panels.reduce((s, p) => s + p.stack, 0);
+          totalPanels += groupPanelCount;
+
+          // 그룹별 생산 수량 집계
+          let groupProduced = 0;
+          panels.forEach(panel => {
+            panel.strips.forEach(strip => {
+              strip.pieces.forEach(p => { groupProduced += p.count * panel.stack; });
+            });
+          });
+          totalProduced += groupProduced;
 
           planHTML += `<div style="margin-bottom:20px;">`;
-          planHTML += `<div style="font-weight:bold;color:#c2185b;font-size:13px;margin-bottom:8px;">📦 ${groupName} — 원판 ${plan.length}장 필요</div>`;
+          planHTML += `<div style="font-weight:bold;color:#c2185b;font-size:13px;margin-bottom:8px;">📦 ${groupName} — 원판 ${groupPanelCount}장 (${panels.length}종 배치, ${groupProduced}/${groupNeeded}개 생산)</div>`;
 
-          plan.forEach(panel => {
+          panels.forEach(panel => {
             const usedPct = ((panel.usedArea / (PANEL_W * PANEL_H)) * 100).toFixed(1);
+            const stackLabel = panel.stack > 1 ? `${panel.stack}장 겹침` : '1장';
+
             planHTML += `<div style="margin:8px 0;padding:10px;background:#f5f5f5;border-radius:8px;border-left:4px solid #c2185b;">`;
-            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#666;font-weight:normal;">(${PANEL_W}×${PANEL_H})</span></div>`;
+            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span></div>`;
 
             panel.strips.forEach((strip, si) => {
               const isLast = si === panel.strips.length - 1 && panel.remainH <= 70;
               const prefix = isLast ? '└─' : '├─';
-              const pcsStr = strip.pieces.map(p => `${p.part} ${p.w}×${p.h}`).join(' + ');
+
+              const mainPcs = strip.pieces.filter(p => !p.fromRemainder);
+              const remPcs = strip.pieces.filter(p => p.fromRemainder);
+
+              let pcsStr = mainPcs.map(p => {
+                const total = p.count * panel.stack;
+                return `${p.part} ${p.w}×${p.h} ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
+              }).join(' + ');
+
+              if (remPcs.length > 0) {
+                pcsStr += ' + ' + remPcs.map(p => {
+                  const total = p.count * panel.stack;
+                  return '<span style="color:#2e7d32;">[잔여] ' + p.part + ' ' + p.w + '×' + p.h + ' ×' + p.count + (panel.stack > 1 ? '(→' + total + ')' : '') + '</span>';
+                }).join(' + ');
+              }
+
               planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
-              planHTML += `${prefix} <strong>${si + 1}단</strong> (높이 ${strip.height}): ${pcsStr}`;
+              planHTML += `${prefix} <strong>${si + 1}단</strong> (H:${strip.height}): ${pcsStr}`;
               if (strip.remainW > 70) {
-                planHTML += ` → <span style="color:#e65100;">나머지 ${strip.remainW}×${strip.height}</span>`;
+                planHTML += ` → <span style="color:#e65100;">잔여 ${strip.remainW}×${strip.height}</span>`;
               }
               planHTML += `</div>`;
             });
 
             if (panel.remainH > 70) {
-              planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;color:#2e7d32;">`;
+              planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;color:#e65100;">`;
               planHTML += `└─ 하단 잔여: ${PANEL_W} × ${panel.remainH}mm`;
               planHTML += `</div>`;
             }
 
-            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}%</div>`;
+            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}%${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
             planHTML += `</div>`;
           });
 
+          // 미배치 부품 경고
+          if (unallocated.length > 0) {
+            planHTML += `<div style="padding:8px;background:#ffebee;border-radius:6px;font-size:12px;color:#c62828;">`;
+            planHTML += `⚠️ 미배치: ` + unallocated.map(u => `${u.parts.join(',')} ${u.w}×${u.h} ×${u.remain}`).join(', ');
+            planHTML += `</div>`;
+          }
+
           planHTML += `</div>`;
         });
+
+        // 전체 요약
+        planHTML += `<div style="padding:12px;background:#e8f5e9;border-radius:8px;border:1px solid #c8e6c9;font-size:13px;">`;
+        planHTML += `<strong>📋 요약:</strong> 총 원판 ${totalPanels}장 | 생산 ${totalProduced}/${totalNeeded}개`;
+        if (totalProduced >= totalNeeded) planHTML += ` | <span style="color:#2e7d32;">✅ 전체 자재 추출 완료</span>`;
+        else planHTML += ` | <span style="color:#c62828;">❌ 미배치 ${totalNeeded - totalProduced}개</span>`;
+        planHTML += `</div>`;
 
         return `
     <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
@@ -11156,75 +11201,120 @@
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
-      💡 동일 규격은 최대 5장까지 겹쳐서 재단 가능 | 70mm 이하 부품(밴드, 보강재 등) 제외 | 원판 기준: ${PANEL_W}×${PANEL_H}mm
+      💡 겹침 재단: 동일 배치를 최대 5장 겹쳐 재단 | 나머지 영역에 작은 부품 자동 배치 | 원판: ${PANEL_W}×${PANEL_H}mm
     </div>
     <div id="cnc-module-view" style="max-height:500px;overflow-y:auto;">${tableHTML}</div>
     <div id="cnc-spec-view" style="display:none;max-height:500px;overflow-y:auto;">${planHTML}</div>
   `;
       }
 
-      // 원판 배치 계산 (Strip-based First Fit Decreasing)
-      function calcCuttingPlan(items, panelW, panelH) {
-        // 개별 부품으로 풀기
-        const pieces = [];
-        items.forEach(item => {
-          for (let q = 0; q < item.qty; q++) {
-            let w = item.w, h = item.h;
-            // 패널에 맞도록 회전
-            if (w > panelW && h <= panelW) [w, h] = [h, w];
-            if (h > panelH && w <= panelH) [w, h] = [h, w];
-            pieces.push({ w, h, part: item.parts.join(', ') });
-          }
-        });
-
-        // 높이 큰 순 → 너비 큰 순 정렬
-        pieces.sort((a, b) => b.h - a.h || b.w - a.w);
+      // 원판 배치 계산 (겹침 재단 + 나머지 활용)
+      function calcCuttingPlan(items, PW, PH) {
+        const needs = items.map((item, i) => ({
+          idx: i, w: item.w, h: item.h,
+          parts: item.parts, edges: item.edges,
+          remain: item.qty
+        }));
 
         const panels = [];
-        const placed = new Array(pieces.length).fill(false);
+        let safety = 0;
 
-        while (placed.includes(false)) {
-          const panel = { id: panels.length + 1, strips: [], usedArea: 0 };
-          let availH = panelH;
-          let addedAny = false;
+        while (needs.some(n => n.remain > 0) && safety++ < 30) {
+          const layout = designLayout(needs, PW, PH);
+          if (layout.totalPieces === 0) break;
 
-          while (availH > 70) {
-            // 남은 높이에 들어가는 가장 큰 부품 찾기
-            let stripH = 0;
-            for (let i = 0; i < pieces.length; i++) {
-              if (!placed[i] && pieces[i].h <= availH) { stripH = pieces[i].h; break; }
-            }
-            if (stripH === 0) break;
+          // 겹침 수 결정: min(5, 각 부품의 남은수량/배치수)
+          let stack = 5;
+          layout.pieceCounts.forEach((count, idx) => {
+            stack = Math.min(stack, Math.floor(needs[idx].remain / count));
+          });
+          stack = Math.max(1, stack);
 
-            const strip = { height: stripH, pieces: [], usedW: 0 };
+          // 수량 차감
+          layout.pieceCounts.forEach((count, idx) => {
+            needs[idx].remain -= count * stack;
+          });
 
-            // 해당 단(strip)에 좌→우로 부품 채우기
-            for (let i = 0; i < pieces.length; i++) {
-              if (placed[i]) continue;
-              const p = pieces[i];
-              if (p.h <= stripH && p.w <= panelW - strip.usedW) {
-                strip.pieces.push({ ...p });
-                strip.usedW += p.w;
-                panel.usedArea += p.w * p.h;
-                placed[i] = true;
-                addedAny = true;
-              }
-            }
-
-            if (strip.pieces.length === 0) break;
-            strip.remainW = panelW - strip.usedW;
-            panel.strips.push(strip);
-            availH -= stripH;
-          }
-
-          panel.remainH = availH;
-          panels.push(panel);
-
-          // 무한루프 방지: 어떤 부품도 배치 못했으면 나머지 포기
-          if (!addedAny) break;
+          panels.push({
+            id: panels.length + 1,
+            stack,
+            strips: layout.strips,
+            usedArea: layout.usedArea,
+            remainH: layout.remainH
+          });
         }
 
-        return panels;
+        return { panels, unallocated: needs.filter(n => n.remain > 0) };
+      }
+
+      // 단일 원판 레이아웃 설계 (Strip 패킹 + 나머지 활용)
+      function designLayout(needs, PW, PH) {
+        const pieceCounts = new Map();
+        let usedArea = 0;
+        const strips = [];
+        let availH = PH;
+
+        while (availH > 70) {
+          // 남은 높이에 맞는 가장 큰 부품 찾기
+          let stripH = 0;
+          for (const n of needs) {
+            const avail = n.remain - (pieceCounts.get(n.idx) || 0);
+            if (avail > 0 && n.h <= availH) { stripH = n.h; break; }
+          }
+          if (stripH === 0) break;
+
+          const strip = { height: stripH, pieces: [], usedW: 0 };
+
+          // 메인 배치: 큰 부품부터 좌→우로 채우기
+          for (const n of needs) {
+            const placed = pieceCounts.get(n.idx) || 0;
+            const avail = n.remain - placed;
+            if (avail <= 0 || n.h > stripH || n.w > PW - strip.usedW) continue;
+
+            const fitCount = Math.min(avail, Math.floor((PW - strip.usedW) / n.w));
+            if (fitCount <= 0) continue;
+
+            strip.pieces.push({
+              idx: n.idx, w: n.w, h: n.h,
+              part: n.parts.join(', '), count: fitCount
+            });
+            strip.usedW += n.w * fitCount;
+            pieceCounts.set(n.idx, placed + fitCount);
+            usedArea += n.w * n.h * fitCount;
+          }
+
+          if (strip.pieces.length === 0) break;
+
+          // 나머지 폭 활용: 작은 부품 추가 배치
+          if (PW - strip.usedW > 70) {
+            for (const n of needs) {
+              const placed = pieceCounts.get(n.idx) || 0;
+              const avail = n.remain - placed;
+              if (avail <= 0 || n.h > stripH || n.w > PW - strip.usedW) continue;
+
+              const fitCount = Math.min(avail, Math.floor((PW - strip.usedW) / n.w));
+              if (fitCount <= 0) continue;
+
+              strip.pieces.push({
+                idx: n.idx, w: n.w, h: n.h,
+                part: n.parts.join(', '), count: fitCount,
+                fromRemainder: true
+              });
+              strip.usedW += n.w * fitCount;
+              pieceCounts.set(n.idx, placed + fitCount);
+              usedArea += n.w * n.h * fitCount;
+            }
+          }
+
+          strip.remainW = PW - strip.usedW;
+          strips.push(strip);
+          availH -= stripH;
+        }
+
+        let totalPieces = 0;
+        pieceCounts.forEach(c => totalPieces += c);
+
+        return { strips, pieceCounts, usedArea, remainH: availH, totalPieces };
       }
 
       // 규격별 집계 함수 (자재+두께+가로+세로+엣지 기준으로 합산)
