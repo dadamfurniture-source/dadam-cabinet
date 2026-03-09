@@ -619,6 +619,8 @@
         padding: 1px 4px;
         border-radius: 3px;
       }
+      .essential-modules-row { display:flex; gap:8px; align-items:center; font-size:11px; margin-bottom:4px; }
+      .essential-label { color:#6b7280; font-weight:600; white-space:nowrap; }
       .btn-module-settings { background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:12px; padding:1px 5px; margin-left:4px; }
       .btn-module-settings:hover { background:#f3f4f6; border-color:#9ca3af; }
       .sink-type-popup-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:10000; display:flex; align-items:center; justify-content:center; }
@@ -2682,6 +2684,9 @@
         fridgeGap: 50, // 냉장고 좌우 여유 간격
         fridgeModuleD: 550, // 모듈 기본 깊이
         fridgeInstallD: 700, // 설치 필요 깊이
+        // ★ 싱크대 필수장 체크 상태
+        essentialLower: { sink: true, cook: true, lt: true },
+        essentialUpper: { hood: true },
       };
 
       // ★ 냉장고장 규칙 상수 (업데이트)
@@ -4098,9 +4103,64 @@
        *    - 도어개수/2 → 몫*2D + 나머지*1D
        */
 
+      // ★ 필수장 체크 상태 토글
+      function toggleEssential(itemUniqueId, section, type, checked) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        const key = section === 'upper' ? 'essentialUpper' : 'essentialLower';
+        if (!item.specs[key]) item.specs[key] = {};
+        item.specs[key][type] = checked;
+      }
+
+      // ★ 자동계산 전 필수장 주입
+      function injectEssentialModules(item, section) {
+        const specLowerH = parseFloat(item.specs.lowerH) || 870;
+        const lowerBodyH = specLowerH - 60; // 다리발 제외
+        const specUpperH = parseFloat(item.specs.upperH) || 720;
+        const upperBodyH = specUpperH - 20;
+
+        const ESSENTIAL_DEFS = {
+          sink:  { type: 'sink',    name: '개수대',  pos: 'lower', w: 1000, d: 600, isDrawer: false, matchFn: m => m.type === 'sink' },
+          cook:  { type: 'cook',    name: '가스대',  pos: 'lower', w: 600,  d: 550, isDrawer: false, matchFn: m => m.type === 'cook' },
+          lt:    { type: 'storage', name: 'LT망장',  pos: 'lower', w: 200,  d: 550, isDrawer: true,  matchFn: m => m.type === 'storage' && m.name === 'LT망장' },
+          hood:  { type: 'hood',    name: '후드장',  pos: 'upper', w: 800,  d: 295, isDrawer: false, matchFn: m => m.type === 'hood' },
+        };
+
+        const essentialMap = section === 'upper' ? item.specs.essentialUpper : item.specs.essentialLower;
+        if (!essentialMap) return;
+
+        const sectionModules = item.modules.filter(m => m.pos === section);
+
+        Object.entries(essentialMap).forEach(([key, checked]) => {
+          if (!checked) return;
+          const def = ESSENTIAL_DEFS[key];
+          if (!def || def.pos !== section) return;
+          // 이미 존재하면 건너뜀
+          if (sectionModules.some(def.matchFn)) return;
+          const h = section === 'upper' ? upperBodyH - 20 : lowerBodyH;
+          item.modules.push({
+            id: Date.now() + Math.random(),
+            type: def.type,
+            name: def.name,
+            pos: def.pos,
+            w: def.w,
+            h: h,
+            d: def.d,
+            isDrawer: def.isDrawer,
+            isEL: false,
+            isFixed: true,
+          });
+        });
+      }
+
       function runAutoCalcSection(itemUniqueId, section) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;
+
+        // ★ 싱크대: 자동계산 전 필수장 주입
+        if (item.categoryId === 'sink') {
+          injectEssentialModules(item, section);
+        }
 
         if (section === 'upper') {
           item.prevUpperModules = JSON.parse(JSON.stringify(item.modules.filter((m) => m.pos === 'upper')));
@@ -5183,6 +5243,10 @@
                 <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'upper')">⚡ 자동계산</button>
               </div>
             </div>
+            ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
+              <span class="essential-label">필수장:</span>
+              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialUpper?.hood !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'upper','hood',this.checked)"> 🌀 후드장</label>
+            </div>` : ''}
           </div>
           <div class="module-list ${upperModules.length === 0 ? 'empty-list' : ''}">${upperModulesHtml}</div>
         </div>
@@ -5201,6 +5265,12 @@
                 <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'lower')">⚡ 자동계산</button>
               </div>
             </div>
+            ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
+              <span class="essential-label">필수장:</span>
+              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialLower?.sink !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'lower','sink',this.checked)"> 🚰 개수대</label>
+              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialLower?.cook !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'lower','cook',this.checked)"> 🔥 가스대</label>
+              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialLower?.lt !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'lower','lt',this.checked)"> 🔧 LT망장</label>
+            </div>` : ''}
           </div>
           <div class="module-list ${lowerModules.length === 0 ? 'empty-list' : ''}">${lowerModulesHtml}</div>
         </div>
