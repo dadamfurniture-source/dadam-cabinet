@@ -11122,6 +11122,8 @@
         let totalPanels = 0;
         let totalProduced = 0;
         let totalNeeded = 0;
+        let totalHPanels = 0, totalVPanels = 0;
+        let totalThinLen = 0;
 
         groups.forEach((items, groupName) => {
           const groupNeeded = items.reduce((s, m) => s + m.qty, 0);
@@ -11145,67 +11147,110 @@
           panels.forEach(panel => {
             const usedPct = ((panel.usedArea / (PANEL_W * PANEL_H)) * 100).toFixed(1);
             const stackLabel = panel.stack > 1 ? `${panel.stack}장 겹침` : '1장';
+            const dirLabel = panel.dir === 'H' ? '가로→세로' : '세로→가로';
+            const dirColor = panel.dir === 'H' ? '#1976d2' : '#7b1fa2';
+            if (panel.dir === 'H') totalHPanels += panel.stack; else totalVPanels += panel.stack;
 
-            planHTML += `<div style="margin:8px 0;padding:10px;background:#f5f5f5;border-radius:8px;border-left:4px solid #c2185b;">`;
-            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span></div>`;
+            planHTML += `<div style="margin:8px 0;padding:10px;background:#f5f5f5;border-radius:8px;border-left:4px solid ${dirColor};">`;
+            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span> <span style="color:${dirColor};font-size:11px;border:1px solid ${dirColor};border-radius:3px;padding:1px 4px;">${dirLabel}</span></div>`;
 
-            let trackH = PANEL_H; // 남은 판 높이 추적
-            const remnants = []; // 모든 잔여 조각 수집
+            const remnants = [];
+            const thinList = [];
 
-            panel.strips.forEach((strip, si) => {
-              trackH -= strip.height;
-              const isLast = si === panel.strips.length - 1 && trackH <= 70;
-              const prefix = isLast ? '└' : '├';
+            if (panel.dir === 'H') {
+              // ===== 가로→세로 방향 =====
+              let trackH = PANEL_H;
+              panel.strips.forEach((strip, si) => {
+                trackH -= strip.height;
+                const isLast = si === panel.strips.length - 1 && trackH <= 70;
+                const prefix = isLast ? '└' : '├';
+                const vPfx = isLast ? ' ' : '│';
 
-              // 1) 가로재단: strip 분리
-              planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
-              planHTML += `${prefix}─ <strong>${si + 1}단 가로재단</strong>: ${strip.height}mm 절단 → <span style="color:#1976d2;">${PANEL_W}×${strip.height} strip</span>`;
-              planHTML += `</div>`;
+                planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
+                planHTML += `${prefix}─ <strong>${si + 1}단 가로재단</strong>: ${strip.height}mm 절단 → <span style="color:#1976d2;">${PANEL_W}×${strip.height} strip</span></div>`;
 
-              // 2) 세로재단: strip에서 부품 분리
-              const allPcs = strip.pieces;
-              const usedW = allPcs.reduce((sum, p) => sum + p.w * p.count, 0);
-              let cutDesc = allPcs.map(p => {
-                const total = p.count * panel.stack;
-                const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
-                return `${label}${p.part} ${p.w}mm ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
-              }).join(', ');
+                const cutDesc = strip.pieces.map(p => {
+                  const total = p.count * panel.stack;
+                  const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
+                  return `${label}${p.part} ${p.w}mm ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
+                }).join(', ');
+                planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">${vPfx}  └ <strong>세로재단</strong>: ${cutDesc}</div>`;
 
-              const vertPrefix = isLast ? ' ' : '│';
-              planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">`;
-              planHTML += `${vertPrefix}  └ <strong>세로재단</strong>: ${cutDesc}`;
-              planHTML += `</div>`;
-
-              // 3) 재단 후 남은 자재 상태
-              const remParts = [];
-              if (strip.remainW > 70) {
-                remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.remainW}×${strip.height}</span>`);
-                remnants.push({ w: strip.remainW, h: strip.height });
+                const remParts = [];
+                if (strip.remainW > 0 && strip.remainW <= 70) {
+                  thinList.push({ w: strip.remainW, h: strip.height, type: '세로자투리' });
+                } else if (strip.remainW > 70) {
+                  remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.remainW}×${strip.height}</span>`);
+                  remnants.push({ w: strip.remainW, h: strip.height });
+                }
+                if (trackH > 0 && trackH <= 70) {
+                  thinList.push({ w: PANEL_W, h: trackH, type: '가로자투리' });
+                } else if (trackH > 70) {
+                  remParts.push(`남은판 ${PANEL_W}×${trackH}`);
+                }
+                if (remParts.length > 0) {
+                  planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">${vPfx}  → 재단후: ${remParts.join(' | ')}</div>`;
+                }
+              });
+              if (panel.panelRemain > 0 && panel.panelRemain <= 70) {
+                thinList.push({ w: PANEL_W, h: panel.panelRemain, type: '가로자투리' });
+              } else if (panel.panelRemain > 70) {
+                remnants.push({ w: PANEL_W, h: panel.panelRemain });
               }
-              if (trackH > 70) {
-                remParts.push(`남은판 ${PANEL_W}×${trackH}`);
-              }
-              if (remParts.length > 0) {
-                planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">`;
-                planHTML += `${vertPrefix}  → 재단후: ${remParts.join(' | ')}`;
-                planHTML += `</div>`;
-              }
-            });
+            } else {
+              // ===== 세로→가로 방향 =====
+              let trackW = PANEL_W;
+              panel.strips.forEach((strip, si) => {
+                trackW -= strip.width;
+                const isLast = si === panel.strips.length - 1 && trackW <= 70;
+                const prefix = isLast ? '└' : '├';
+                const vPfx = isLast ? ' ' : '│';
 
-            // 하단 잔여
-            if (panel.remainH > 70) {
-              remnants.push({ w: PANEL_W, h: panel.remainH });
+                planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
+                planHTML += `${prefix}─ <strong>${si + 1}단 세로재단</strong>: ${strip.width}mm 절단 → <span style="color:#7b1fa2;">${strip.width}×${PANEL_H} strip</span></div>`;
+
+                const cutDesc = strip.pieces.map(p => {
+                  const total = p.count * panel.stack;
+                  const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
+                  return `${label}${p.part} ${p.h}mm ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
+                }).join(', ');
+                planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">${vPfx}  └ <strong>가로재단</strong>: ${cutDesc}</div>`;
+
+                const remParts = [];
+                if (strip.remainH > 0 && strip.remainH <= 70) {
+                  thinList.push({ w: strip.width, h: strip.remainH, type: '가로자투리' });
+                } else if (strip.remainH > 70) {
+                  remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.width}×${strip.remainH}</span>`);
+                  remnants.push({ w: strip.width, h: strip.remainH });
+                }
+                if (trackW > 0 && trackW <= 70) {
+                  thinList.push({ w: trackW, h: PANEL_H, type: '세로자투리' });
+                } else if (trackW > 70) {
+                  remParts.push(`남은판 ${trackW}×${PANEL_H}`);
+                }
+                if (remParts.length > 0) {
+                  planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">${vPfx}  → 재단후: ${remParts.join(' | ')}</div>`;
+                }
+              });
+              if (panel.panelRemain > 0 && panel.panelRemain <= 70) {
+                thinList.push({ w: panel.panelRemain, h: PANEL_H, type: '세로자투리' });
+              } else if (panel.panelRemain > 70) {
+                remnants.push({ w: panel.panelRemain, h: PANEL_H });
+              }
             }
 
-            // 잔여 조각 종합
             if (remnants.length > 0) {
               const remStr = remnants.map(r => `${r.w}×${r.h}`).join(', ');
-              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#e65100;">`;
-              planHTML += `└─ 📐 잔여 조각: ${remStr}`;
-              planHTML += `</div>`;
+              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#e65100;">└─ 📐 잔여 조각: ${remStr}</div>`;
+            }
+            if (thinList.length > 0) {
+              const thinStr = thinList.map(t => `${t.w}×${t.h}`).join(', ');
+              const thinTotalLen = thinList.reduce((s, t) => s + Math.max(t.w, t.h), 0);
+              totalThinLen += thinTotalLen * panel.stack;
+              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#2e7d32;">└─ 🪵 자투리(≤70mm): ${thinStr} — 밴드/보강재 활용 가능</div>`;
             }
 
-            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}%${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
+            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | 방향: ${dirLabel}${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
             planHTML += `</div>`;
           });
 
@@ -11221,9 +11266,18 @@
 
         // 전체 요약
         planHTML += `<div style="padding:12px;background:#e8f5e9;border-radius:8px;border:1px solid #c8e6c9;font-size:13px;">`;
-        planHTML += `<strong>📋 요약:</strong> 총 원판 ${totalPanels}장 | 생산 ${totalProduced}/${totalNeeded}개`;
+        planHTML += `<strong>📋 요약:</strong> 총 원판 ${totalPanels}장`;
+        if (totalHPanels > 0 && totalVPanels > 0) {
+          planHTML += ` (<span style="color:#1976d2;">가로→세로 ${totalHPanels}장</span> + <span style="color:#7b1fa2;">세로→가로 ${totalVPanels}장</span>)`;
+        } else if (totalVPanels > 0) {
+          planHTML += ` (<span style="color:#7b1fa2;">세로→가로 ${totalVPanels}장</span>)`;
+        } else {
+          planHTML += ` (<span style="color:#1976d2;">가로→세로 ${totalHPanels}장</span>)`;
+        }
+        planHTML += ` | 생산 ${totalProduced}/${totalNeeded}개`;
         if (totalProduced >= totalNeeded) planHTML += ` | <span style="color:#2e7d32;">✅ 전체 자재 추출 완료</span>`;
         else planHTML += ` | <span style="color:#c62828;">❌ 미배치 ${totalNeeded - totalProduced}개</span>`;
+        if (totalThinLen > 0) planHTML += `<br><span style="color:#2e7d32;">🪵 자투리(≤70mm) 총 길이: ${totalThinLen}mm — 밴드/보강재 활용</span>`;
         planHTML += `</div>`;
 
         return `
@@ -11235,14 +11289,14 @@
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
-      💡 겹침 재단: 동일 배치를 최대 5장 겹쳐 재단 | 나머지 영역에 작은 부품 자동 배치 | 원판: ${PANEL_W}×${PANEL_H}mm
+      💡 방향 자동최적화: 가로→세로 vs 세로→가로 중 효율 높은 방향 선택 | ≤70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
     </div>
     <div id="cnc-module-view" style="max-height:500px;overflow-y:auto;">${tableHTML}</div>
     <div id="cnc-spec-view" style="display:none;max-height:500px;overflow-y:auto;">${planHTML}</div>
   `;
       }
 
-      // 원판 배치 계산 (겹침 재단 + 나머지 활용)
+      // 원판 배치 계산 (방향 자동최적화 + 겹침 재단 + 나머지 활용)
       function calcCuttingPlan(items, PW, PH) {
         const needs = items.map((item, i) => ({
           idx: i, w: item.w, h: item.h,
@@ -11254,17 +11308,15 @@
         let safety = 0;
 
         while (needs.some(n => n.remain > 0) && safety++ < 30) {
-          const layout = designLayout(needs, PW, PH);
+          const layout = chooseCutDirection(needs, PW, PH);
           if (layout.totalPieces === 0) break;
 
-          // 겹침 수 결정: min(5, 각 부품의 남은수량/배치수)
           let stack = 5;
           layout.pieceCounts.forEach((count, idx) => {
             stack = Math.min(stack, Math.floor(needs[idx].remain / count));
           });
           stack = Math.max(1, stack);
 
-          // 수량 차감
           layout.pieceCounts.forEach((count, idx) => {
             needs[idx].remain -= count * stack;
           });
@@ -11272,24 +11324,35 @@
           panels.push({
             id: panels.length + 1,
             stack,
+            dir: layout.dir,
             strips: layout.strips,
             usedArea: layout.usedArea,
-            remainH: layout.remainH
+            panelRemain: layout.dir === 'H' ? layout.remainH : layout.remainW
           });
         }
 
         return { panels, unallocated: needs.filter(n => n.remain > 0) };
       }
 
-      // 단일 원판 레이아웃 설계 (Strip 패킹 + 나머지 활용)
-      function designLayout(needs, PW, PH) {
+      // 방향 자동선택: H(가로→세로) vs V(세로→가로) 비교
+      function chooseCutDirection(needs, PW, PH) {
+        const h = designLayoutH(needs, PW, PH);
+        const v = designLayoutV(needs, PW, PH);
+        // 우선순위: 배치수 → 자투리(≤70mm) 길이합 → 활용면적
+        if (v.totalPieces !== h.totalPieces) return v.totalPieces > h.totalPieces ? v : h;
+        if (v.thinLen !== h.thinLen) return v.thinLen > h.thinLen ? v : h;
+        if (v.usedArea !== h.usedArea) return v.usedArea > h.usedArea ? v : h;
+        return h;
+      }
+
+      // 가로→세로 레이아웃 (가로재단으로 strip 분리 → 세로재단으로 부품 분리)
+      function designLayoutH(needs, PW, PH) {
         const pieceCounts = new Map();
         let usedArea = 0;
         const strips = [];
         let availH = PH;
 
         while (availH > 70) {
-          // 남은 높이에 맞는 가장 큰 부품 찾기
           let stripH = 0;
           for (const n of needs) {
             const avail = n.remain - (pieceCounts.get(n.idx) || 0);
@@ -11299,19 +11362,13 @@
 
           const strip = { height: stripH, pieces: [], usedW: 0 };
 
-          // 메인 배치: 큰 부품부터 좌→우로 채우기
           for (const n of needs) {
             const placed = pieceCounts.get(n.idx) || 0;
             const avail = n.remain - placed;
             if (avail <= 0 || n.h > stripH || n.w > PW - strip.usedW) continue;
-
             const fitCount = Math.min(avail, Math.floor((PW - strip.usedW) / n.w));
             if (fitCount <= 0) continue;
-
-            strip.pieces.push({
-              idx: n.idx, w: n.w, h: n.h,
-              part: n.parts.join(', '), count: fitCount
-            });
+            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount });
             strip.usedW += n.w * fitCount;
             pieceCounts.set(n.idx, placed + fitCount);
             usedArea += n.w * n.h * fitCount;
@@ -11319,21 +11376,14 @@
 
           if (strip.pieces.length === 0) break;
 
-          // 나머지 폭 활용: 작은 부품 추가 배치
           if (PW - strip.usedW > 70) {
             for (const n of needs) {
               const placed = pieceCounts.get(n.idx) || 0;
               const avail = n.remain - placed;
               if (avail <= 0 || n.h > stripH || n.w > PW - strip.usedW) continue;
-
               const fitCount = Math.min(avail, Math.floor((PW - strip.usedW) / n.w));
               if (fitCount <= 0) continue;
-
-              strip.pieces.push({
-                idx: n.idx, w: n.w, h: n.h,
-                part: n.parts.join(', '), count: fitCount,
-                fromRemainder: true
-              });
+              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount, fromRemainder: true });
               strip.usedW += n.w * fitCount;
               pieceCounts.set(n.idx, placed + fitCount);
               usedArea += n.w * n.h * fitCount;
@@ -11347,8 +11397,74 @@
 
         let totalPieces = 0;
         pieceCounts.forEach(c => totalPieces += c);
+        let thinLen = 0;
+        for (const s of strips) {
+          if (s.remainW > 0 && s.remainW <= 70) thinLen += s.height;
+        }
+        if (availH > 0 && availH <= 70) thinLen += PW;
 
-        return { strips, pieceCounts, usedArea, remainH: availH, totalPieces };
+        return { dir: 'H', strips, pieceCounts, usedArea, remainH: availH, totalPieces, thinLen };
+      }
+
+      // 세로→가로 레이아웃 (세로재단으로 strip 분리 → 가로재단으로 부품 분리)
+      function designLayoutV(needs, PW, PH) {
+        const pieceCounts = new Map();
+        let usedArea = 0;
+        const strips = [];
+        let availW = PW;
+
+        while (availW > 70) {
+          let stripW = 0;
+          for (const n of needs) {
+            const avail = n.remain - (pieceCounts.get(n.idx) || 0);
+            if (avail > 0 && n.w <= availW) { stripW = n.w; break; }
+          }
+          if (stripW === 0) break;
+
+          const strip = { width: stripW, pieces: [], usedH: 0 };
+
+          for (const n of needs) {
+            const placed = pieceCounts.get(n.idx) || 0;
+            const avail = n.remain - placed;
+            if (avail <= 0 || n.w > stripW || n.h > PH - strip.usedH) continue;
+            const fitCount = Math.min(avail, Math.floor((PH - strip.usedH) / n.h));
+            if (fitCount <= 0) continue;
+            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount });
+            strip.usedH += n.h * fitCount;
+            pieceCounts.set(n.idx, placed + fitCount);
+            usedArea += n.w * n.h * fitCount;
+          }
+
+          if (strip.pieces.length === 0) break;
+
+          if (PH - strip.usedH > 70) {
+            for (const n of needs) {
+              const placed = pieceCounts.get(n.idx) || 0;
+              const avail = n.remain - placed;
+              if (avail <= 0 || n.w > stripW || n.h > PH - strip.usedH) continue;
+              const fitCount = Math.min(avail, Math.floor((PH - strip.usedH) / n.h));
+              if (fitCount <= 0) continue;
+              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount, fromRemainder: true });
+              strip.usedH += n.h * fitCount;
+              pieceCounts.set(n.idx, placed + fitCount);
+              usedArea += n.w * n.h * fitCount;
+            }
+          }
+
+          strip.remainH = PH - strip.usedH;
+          strips.push(strip);
+          availW -= stripW;
+        }
+
+        let totalPieces = 0;
+        pieceCounts.forEach(c => totalPieces += c);
+        let thinLen = 0;
+        for (const s of strips) {
+          if (s.remainH > 0 && s.remainH <= 70) thinLen += s.width;
+        }
+        if (availW > 0 && availW <= 70) thinLen += PH;
+
+        return { dir: 'V', strips, pieceCounts, usedArea, remainW: availW, totalPieces, thinLen };
       }
 
       // 규격별 집계 함수 (자재+두께+가로+세로+엣지 기준으로 합산)
