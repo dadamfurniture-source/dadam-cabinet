@@ -11124,6 +11124,8 @@
         let totalNeeded = 0;
         let totalHPanels = 0, totalVPanels = 0;
         let totalThinLen = 0;
+        const allRemnants = [];   // 전체 잔재 수집
+        const allThinStrips = []; // 전체 자투리(60~70mm) 수집
 
         groups.forEach((items, groupName) => {
           const groupNeeded = items.reduce((s, m) => s + m.qty, 0);
@@ -11244,12 +11246,14 @@
             if (remnants.length > 0) {
               const remStr = remnants.map(r => `${r.w}×${r.h}`).join(', ');
               planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#e65100;">└─ 📐 잔여 조각: ${remStr}</div>`;
+              remnants.forEach(r => allRemnants.push({ w: r.w, h: r.h, qty: panel.stack, group: groupName, panelId: panel.id }));
             }
             if (thinList.length > 0) {
               const thinStr = thinList.map(t => `${t.w}×${t.h}`).join(', ');
               const thinTotalLen = thinList.reduce((s, t) => s + Math.max(t.w, t.h), 0);
               totalThinLen += thinTotalLen * panel.stack;
               planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#2e7d32;">└─ 🪵 자투리(60~70mm): ${thinStr} — 밴드/보강재 활용 가능</div>`;
+              thinList.forEach(t => allThinStrips.push({ w: t.w, h: t.h, qty: panel.stack, group: groupName, panelId: panel.id, type: t.type }));
             }
 
             planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | ${dirLabel}${rotLabel} | 재단 ${totalCuts}회${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
@@ -11265,6 +11269,63 @@
 
           planHTML += `</div>`;
         });
+
+        // ===== 잔재 종합 정리 =====
+        if (allRemnants.length > 0 || allThinStrips.length > 0) {
+          planHTML += `<div style="margin:16px 0;padding:12px;background:#fff8e1;border-radius:8px;border:1px solid #ffe082;">`;
+          planHTML += `<div style="font-weight:bold;font-size:13px;margin-bottom:8px;color:#e65100;">📦 재단 잔재 종합</div>`;
+
+          // 잔재(>70mm) 동일 규격 합산
+          if (allRemnants.length > 0) {
+            const remMap = new Map();
+            allRemnants.forEach(r => {
+              const key = `${r.group}|${r.w}×${r.h}`;
+              const existing = remMap.get(key);
+              if (existing) { existing.qty += r.qty; }
+              else { remMap.set(key, { group: r.group, w: r.w, h: r.h, qty: r.qty }); }
+            });
+            const remList = [...remMap.values()].sort((a, b) => (b.w * b.h) - (a.w * a.h));
+            const totalRemArea = remList.reduce((s, r) => s + r.w * r.h * r.qty, 0);
+
+            planHTML += `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px;color:#bf360c;">📐 잔여 조각 (>70mm)</div>`;
+            planHTML += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;">`;
+            planHTML += `<tr style="background:#fff3e0;"><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #ffe082;">자재</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">가로</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">세로</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">수량</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">면적(㎠)</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #ffe082;">활용</th></tr>`;
+            remList.forEach(r => {
+              const area = r.w * r.h * r.qty;
+              const reuse = (r.w >= 200 && r.h >= 200) ? '재활용 가능' : (Math.min(r.w, r.h) >= 60 && Math.min(r.w, r.h) <= 70) ? '밴드 가능' : '폐기';
+              const reuseColor = reuse === '재활용 가능' ? '#2e7d32' : reuse === '밴드 가능' ? '#1976d2' : '#999';
+              planHTML += `<tr><td style="padding:3px 6px;border-bottom:1px solid #f5f5f5;">${r.group}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${r.w}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${r.h}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${r.qty}장</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${(area / 100).toFixed(0)}</td><td style="padding:3px 6px;border-bottom:1px solid #f5f5f5;color:${reuseColor};font-weight:bold;">${reuse}</td></tr>`;
+            });
+            planHTML += `<tr style="background:#fff3e0;font-weight:bold;"><td colspan="4" style="padding:3px 6px;">합계 ${remList.reduce((s, r) => s + r.qty, 0)}장</td><td style="padding:3px 6px;text-align:right;">${(totalRemArea / 100).toFixed(0)}㎠</td><td></td></tr>`;
+            planHTML += `</table>`;
+          }
+
+          // 자투리(60~70mm) 합산
+          if (allThinStrips.length > 0) {
+            const thinMap = new Map();
+            allThinStrips.forEach(t => {
+              const key = `${t.group}|${t.w}×${t.h}`;
+              const existing = thinMap.get(key);
+              if (existing) { existing.qty += t.qty; }
+              else { thinMap.set(key, { group: t.group, w: t.w, h: t.h, qty: t.qty, type: t.type }); }
+            });
+            const thinList = [...thinMap.values()].sort((a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h));
+
+            planHTML += `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px;color:#2e7d32;">🪵 자투리 (60~70mm) — 밴드/보강재 활용</div>`;
+            planHTML += `<table style="width:100%;border-collapse:collapse;font-size:11px;">`;
+            planHTML += `<tr style="background:#e8f5e9;"><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #c8e6c9;">자재</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #c8e6c9;">가로</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #c8e6c9;">세로</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #c8e6c9;">수량</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #c8e6c9;">길이합(mm)</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #c8e6c9;">종류</th></tr>`;
+            let totalLen = 0;
+            thinList.forEach(t => {
+              const len = Math.max(t.w, t.h) * t.qty;
+              totalLen += len;
+              planHTML += `<tr><td style="padding:3px 6px;border-bottom:1px solid #f5f5f5;">${t.group}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${t.w}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${t.h}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${t.qty}장</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${len}</td><td style="padding:3px 6px;border-bottom:1px solid #f5f5f5;">${t.type}</td></tr>`;
+            });
+            planHTML += `<tr style="background:#e8f5e9;font-weight:bold;"><td colspan="4" style="padding:3px 6px;">합계 ${thinList.reduce((s, t) => s + t.qty, 0)}장</td><td style="padding:3px 6px;text-align:right;">${totalLen}mm</td><td></td></tr>`;
+            planHTML += `</table>`;
+          }
+
+          planHTML += `</div>`;
+        }
 
         // 전체 요약
         planHTML += `<div style="padding:12px;background:#e8f5e9;border-radius:8px;border:1px solid #c8e6c9;font-size:13px;">`;
