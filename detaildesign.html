@@ -8900,7 +8900,7 @@
             // 뒷판 (사쿠리홈에 끼움 W-20)
             this.add(materials, `상부장-${name}`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
             // 밴드(보강목) 2개
-            this.add(materials, `상부장-${name}`, '밴드(보강목)', 'PB', T, W - T * 2, 50, 2, '2면(장)');
+            this.add(materials, `상부장-${name}`, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
             // 밴드(처짐방지목) - W>=700이면 2개
             const bandQty = W >= 700 ? 2 : 1;
             this.add(materials, `상부장-${name}`, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, bandQty, '2면(장)');
@@ -8933,7 +8933,7 @@
             // 지판 (사쿠리 반영 D-18)
             this.add(materials, `하부장-${name}`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
             // 밴드 2개
-            this.add(materials, `하부장-${name}`, '밴드', 'PB', T, 50, W - T * 2, 2, '2면(장)');
+            this.add(materials, `하부장-${name}`, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
             // 뒷판 (사쿠리홈에 끼움 W-20)
             this.add(materials, `하부장-${name}`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
             // 밴드(처짐방지목) - 목찬넬이면 -70, W>=800이면 2개
@@ -8984,7 +8984,17 @@
 
           // ===== EP (마감재) =====
           const totalLowerW = lowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+          const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const effectiveW = totalLowerW || item.w - 120;
+          const moldingH = parseFloat(specs.moldingH) || 60;
+          const lowerH = (specs.lowerH || 870) - legH;
+          const totalH = parseFloat(item.h) || 2400;
+
+          // 상몰딩 (moldingH >= 20이면 산출)
+          if (moldingH >= 20 && (totalUpperW || effectiveW) > 0) {
+            const moldingW = totalUpperW || effectiveW;
+            this.add(materials, 'EP', '상몰딩', 'MDF', 18, moldingH, moldingW, 1, '2면(장)');
+          }
 
           // 걸레받이
           this.add(materials, 'EP', '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
@@ -8995,13 +9005,15 @@
             this.add(materials, 'EP', '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '-');
           }
 
-          // 휠라 (좌/우)
-          const lowerH = (specs.lowerH || 870) - legH;
-          if (specs.finishLeftType === 'Filler' && specs.finishLeftWidth > 0) {
-            this.add(materials, 'EP', '휠라(좌)', 'MDF', 18, specs.finishLeftWidth, lowerH, 1, '2면(장)');
+          // 좌측 마감 (몰딩/휠라/EP)
+          if (specs.finishLeftType !== 'None' && specs.finishLeftWidth > 0) {
+            const finishName = specs.finishLeftType === 'Filler' ? '휠라(좌)' : specs.finishLeftType === 'EP' ? 'EP(좌)' : '몰딩(좌)';
+            this.add(materials, 'EP', finishName, 'MDF', 18, specs.finishLeftWidth, totalH - legH, 1, '2면(장)');
           }
-          if (specs.finishRightType === 'Filler' && specs.finishRightWidth > 0) {
-            this.add(materials, 'EP', '휠라(우)', 'MDF', 18, specs.finishRightWidth, lowerH, 1, '2면(장)');
+          // 우측 마감 (몰딩/휠라/EP)
+          if (specs.finishRightType !== 'None' && specs.finishRightWidth > 0) {
+            const finishName = specs.finishRightType === 'Filler' ? '휠라(우)' : specs.finishRightType === 'EP' ? 'EP(우)' : '몰딩(우)';
+            this.add(materials, 'EP', finishName, 'MDF', 18, specs.finishRightWidth, totalH - legH, 1, '2면(장)');
           }
         }
 
