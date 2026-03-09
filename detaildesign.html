@@ -11014,8 +11014,19 @@
 
       // CNC 재단 목록 탭
       function generateCNCTab(materials) {
-        // 70mm 이하 얇은 부품(밴드, 보강재 등) 제외
+        // 70mm 이하 얇은 부품(밴드, 보강재 등) 분리
         const cncParts = materials.filter(m => m.w > 70 && m.h > 70);
+        // 소부품(보강목, 덧대 등) 수집 — 잔재에서 추출 대상
+        const smallParts = materials.filter(m => (m.w <= 70 || m.h <= 70) && m.w > 0 && m.h > 0);
+        const smallByGroup = new Map();
+        smallParts.forEach(m => {
+          const gKey = `${m.material} ${m.thickness}T`;
+          if (!smallByGroup.has(gKey)) smallByGroup.set(gKey, []);
+          const list = smallByGroup.get(gKey);
+          const existing = list.find(s => s.part === m.part && s.w === m.w && s.h === m.h);
+          if (existing) { existing.qty += m.qty; existing.remain += m.qty; }
+          else { list.push({ part: m.part, module: m.module || '', w: m.w, h: m.h, qty: m.qty, remain: m.qty }); }
+        });
 
         if (cncParts.length === 0)
           return '<p style="color:#666;text-align:center;padding:40px;">CNC 재단 대상 자재가 없습니다.</p>';
@@ -11292,8 +11303,20 @@
             planHTML += `<tr style="background:#fff3e0;"><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #ffe082;">자재</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">가로</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">세로</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">수량</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #ffe082;">면적(㎠)</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #ffe082;">활용</th></tr>`;
             remList.forEach(r => {
               const area = r.w * r.h * r.qty;
-              const reuse = (r.w >= 200 && r.h >= 200) ? '재활용 가능' : (Math.min(r.w, r.h) >= 60 && Math.min(r.w, r.h) <= 70) ? '밴드 가능' : '폐기';
-              const reuseColor = reuse === '재활용 가능' ? '#2e7d32' : reuse === '밴드 가능' ? '#1976d2' : '#999';
+              // 잔재에서 추출 가능한 소부품 확인
+              const smalls = smallByGroup.get(r.group) || [];
+              const fittable = smalls.filter(sp => {
+                const cA = Math.floor(r.w / sp.w) * Math.floor(r.h / sp.h);
+                const cB = Math.floor(r.w / sp.h) * Math.floor(r.h / sp.w);
+                return Math.max(cA, cB) > 0;
+              });
+              let reuse, reuseColor;
+              if (fittable.length > 0) {
+                reuse = fittable.map(f => f.part).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+                reuseColor = '#1565c0';
+              } else if (r.w >= 200 && r.h >= 200) { reuse = '재활용 가능'; reuseColor = '#2e7d32'; }
+              else if (Math.min(r.w, r.h) >= 60 && Math.min(r.w, r.h) <= 70) { reuse = '밴드 가능'; reuseColor = '#1976d2'; }
+              else { reuse = '폐기'; reuseColor = '#999'; }
               planHTML += `<tr><td style="padding:3px 6px;border-bottom:1px solid #f5f5f5;">${r.group}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${r.w}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${r.h}</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${r.qty}장</td><td style="padding:3px 6px;text-align:right;border-bottom:1px solid #f5f5f5;">${(area / 100).toFixed(0)}</td><td style="padding:3px 6px;border-bottom:1px solid #f5f5f5;color:${reuseColor};font-weight:bold;">${reuse}</td></tr>`;
             });
             planHTML += `<tr style="background:#fff3e0;font-weight:bold;"><td colspan="4" style="padding:3px 6px;">합계 ${remList.reduce((s, r) => s + r.qty, 0)}장</td><td style="padding:3px 6px;text-align:right;">${(totalRemArea / 100).toFixed(0)}㎠</td><td></td></tr>`;
@@ -11322,6 +11345,101 @@
             });
             planHTML += `<tr style="background:#e8f5e9;font-weight:bold;"><td colspan="4" style="padding:3px 6px;">합계 ${thinList.reduce((s, t) => s + t.qty, 0)}장</td><td style="padding:3px 6px;text-align:right;">${totalLen}mm</td><td></td></tr>`;
             planHTML += `</table>`;
+          }
+
+          // ===== 잔재→보강목/덧대 추출 최적화 =====
+          if (smallByGroup.size > 0 && allRemnants.length > 0) {
+            // 잔재를 면적 큰 순으로 정렬 (복사본)
+            const remForAlloc = [];
+            const remAggMap = new Map();
+            allRemnants.forEach(r => {
+              const key = `${r.group}|${r.w}×${r.h}`;
+              const ex = remAggMap.get(key);
+              if (ex) { ex.qty += r.qty; }
+              else { const obj = { group: r.group, w: r.w, h: r.h, qty: r.qty }; remAggMap.set(key, obj); remForAlloc.push(obj); }
+            });
+            remForAlloc.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+
+            const allocResults = []; // { remnant, parts: [{part,w,h,produced}] }
+            let totalAllocated = 0;
+
+            remForAlloc.forEach(rem => {
+              const smalls = smallByGroup.get(rem.group);
+              if (!smalls || smalls.every(s => s.remain <= 0)) return;
+
+              const parts = [];
+              // 큰 부품부터 배치 (면적 순)
+              smalls.filter(s => s.remain > 0).sort((a, b) => (b.w * b.h) - (a.w * a.h)).forEach(sp => {
+                // 잔재 1장당 재단 가능 수량 (2방향 중 최대)
+                const cntA = Math.floor(rem.w / sp.w) * Math.floor(rem.h / sp.h);
+                const cntB = Math.floor(rem.w / sp.h) * Math.floor(rem.h / sp.w);
+                const perSheet = Math.max(cntA, cntB);
+                if (perSheet <= 0) return;
+
+                const canProduce = perSheet * rem.qty;
+                const willProduce = Math.min(canProduce, sp.remain);
+                if (willProduce > 0) {
+                  sp.remain -= willProduce;
+                  totalAllocated += willProduce;
+                  parts.push({ part: sp.part, w: sp.w, h: sp.h, produced: willProduce, perSheet });
+                }
+              });
+
+              if (parts.length > 0) {
+                allocResults.push({ w: rem.w, h: rem.h, qty: rem.qty, group: rem.group, parts });
+              }
+            });
+
+            if (allocResults.length > 0 || smallByGroup.size > 0) {
+              planHTML += `<div style="font-size:12px;font-weight:bold;margin:10px 0 4px;color:#1565c0;">🔧 잔재 → 보강목/덧대 추출</div>`;
+
+              if (allocResults.length > 0) {
+                planHTML += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;">`;
+                planHTML += `<tr style="background:#e3f2fd;"><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #90caf9;">잔재(자재)</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #90caf9;">잔재규격</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #90caf9;">잔재수</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid #90caf9;">추출부품</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #90caf9;">부품규격</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #90caf9;">장당</th><th style="padding:3px 6px;text-align:right;border-bottom:1px solid #90caf9;">추출수량</th></tr>`;
+                allocResults.forEach(alloc => {
+                  alloc.parts.forEach((p, pi) => {
+                    const rowBg = pi === 0 ? '' : 'background:#f8fbff;';
+                    planHTML += `<tr style="${rowBg}">`;
+                    if (pi === 0) {
+                      planHTML += `<td style="padding:3px 6px;border-bottom:1px solid #e3f2fd;" rowspan="${alloc.parts.length}">${alloc.group}</td>`;
+                      planHTML += `<td style="padding:3px 6px;text-align:right;border-bottom:1px solid #e3f2fd;" rowspan="${alloc.parts.length}">${alloc.w}×${alloc.h}</td>`;
+                      planHTML += `<td style="padding:3px 6px;text-align:right;border-bottom:1px solid #e3f2fd;" rowspan="${alloc.parts.length}">${alloc.qty}장</td>`;
+                    }
+                    planHTML += `<td style="padding:3px 6px;border-bottom:1px solid #e3f2fd;">${p.part}</td>`;
+                    planHTML += `<td style="padding:3px 6px;text-align:right;border-bottom:1px solid #e3f2fd;">${p.w}×${p.h}</td>`;
+                    planHTML += `<td style="padding:3px 6px;text-align:right;border-bottom:1px solid #e3f2fd;">${p.perSheet}개</td>`;
+                    planHTML += `<td style="padding:3px 6px;text-align:right;border-bottom:1px solid #e3f2fd;color:#1565c0;font-weight:bold;">${p.produced}개</td>`;
+                    planHTML += `</tr>`;
+                  });
+                });
+                planHTML += `<tr style="background:#e3f2fd;font-weight:bold;"><td colspan="6" style="padding:3px 6px;">잔재에서 추출 합계</td><td style="padding:3px 6px;text-align:right;color:#1565c0;">${totalAllocated}개</td></tr>`;
+                planHTML += `</table>`;
+              }
+
+              // 미충족 잔량 (별도 원판 재단 필요)
+              const stillNeeded = [];
+              smallByGroup.forEach((smalls, gKey) => {
+                smalls.forEach(s => {
+                  stillNeeded.push({ group: gKey, part: s.part, w: s.w, h: s.h, total: s.qty, remain: s.remain, allocated: s.qty - s.remain });
+                });
+              });
+
+              if (stillNeeded.some(s => s.remain > 0)) {
+                planHTML += `<div style="font-size:11px;margin-top:4px;padding:6px 8px;background:#fff3e0;border-radius:4px;border:1px solid #ffe082;">`;
+                planHTML += `<strong style="color:#e65100;">⚠️ 별도 재단 필요:</strong> `;
+                planHTML += stillNeeded.filter(s => s.remain > 0).map(s =>
+                  `${s.part} ${s.w}×${s.h} <strong>${s.remain}개</strong> (${s.group})`
+                ).join(', ');
+                planHTML += `</div>`;
+              }
+
+              // 전체 소부품 충족 현황
+              const totalSmall = stillNeeded.reduce((s, n) => s + n.total, 0);
+              const totalFilled = stillNeeded.reduce((s, n) => s + n.allocated, 0);
+              if (totalFilled > 0) {
+                planHTML += `<div style="font-size:11px;margin-top:4px;color:#1565c0;">✅ 보강목/덧대 ${totalSmall}개 중 <strong>${totalFilled}개</strong> 잔재 활용 (${(totalFilled / totalSmall * 100).toFixed(0)}%)</div>`;
+              }
+            }
           }
 
           planHTML += `</div>`;
