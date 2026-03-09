@@ -2687,6 +2687,7 @@
         // ★ 싱크대 필수장 체크 상태
         essentialLower: { sink: true, cook: true, lt: true },
         essentialUpper: { hood: true },
+        upperDoorOverlap: 15, // 상부장 도어 오버랩 (기본 15mm)
       };
 
       // ★ 냉장고장 규칙 상수 (업데이트)
@@ -5155,6 +5156,7 @@
           <div class="spec-field"><label>하부장 높이</label><input type="number" value="${item.specs.lowerH}" onblur="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
         </div>
         <div class="spec-row">
+          <div class="spec-field"><label>상부 도어 오버랩</label><input type="number" value="${item.specs.upperDoorOverlap}" onblur="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
           <div class="spec-field"><label>다리발 높이</label>
             <select id="legHeight-${item.uniqueId}" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)">
               <option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120mm</option>
@@ -8976,11 +8978,12 @@
             this.add(materials, `상부장-${name}`, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, bandQty, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34)
             this.add(materials, `상부장-${name}`, '선반', 'PB', T, W - T * 2, modD - 34, 2, '1면(전)');
-            // 도어 (H + 20)
+            // 도어 (H + overlap)
             const doorCount = mod.doorCount || 1;
             if (doorCount > 0) {
+              const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
-              this.add(materials, `상부장-${name}`, '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
+              this.add(materials, `상부장-${name}`, '도어', 'MDF', 18, doorW, H + overlap, doorCount, '4면');
             }
           });
 
@@ -9563,7 +9566,8 @@
             if (doorCount === 0) return;
 
             let doorH;
-            if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - 20) + 20;
+            const upperOverlap = parseFloat(specs.upperDoorOverlap) || 15;
+            if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - 20) + upperOverlap;
             else if (mod.pos === 'lower') doorH = (mod.h || specs.lowerH - specs.sinkLegHeight) - 30;
             else doorH = mod.h || 700;
 
