@@ -6816,10 +6816,12 @@
         else if (mod.type === 'cook') currentType = 'cook';
         else if (mod.type === 'hood') currentType = 'hood';
         else if (mod.type === 'storage' && mod.name === 'LT망장') currentType = 'lt';
+        else if (mod.isDrawer) currentType = 'drawer';
 
         // 타입 목록 (pos에 따라 필터링)
         const allTypes = [
           { value: 'storage', icon: '📦', name: '일반 수납장', desc: '일반 수납장 (하부장/상부장)', pos: ['lower','upper'] },
+          { value: 'drawer', icon: '🗄️', name: '서랍장', desc: '서랍장 (하부장)', pos: ['lower'] },
           { value: 'sink', icon: '🚰', name: '개수대', desc: 'W:1000 D:600 고정모듈', pos: ['lower'] },
           { value: 'cook', icon: '🔥', name: '가스대', desc: 'W:600 D:550 고정모듈', pos: ['lower'] },
           { value: 'lt', icon: '🔧', name: 'LT망장', desc: 'W:200 D:550 서랍 고정모듈', pos: ['lower'] },
@@ -6876,6 +6878,12 @@
             mod.type = 'storage';
             mod.name = mod.pos === 'upper' ? '상부장' : '하부장';
             mod.isDrawer = false;
+            mod.isFixed = false;
+            break;
+          case 'drawer':
+            mod.type = 'storage';
+            mod.name = '서랍장';
+            mod.isDrawer = true;
             mod.isFixed = false;
             break;
           case 'sink':
