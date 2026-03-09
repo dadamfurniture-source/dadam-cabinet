@@ -11160,13 +11160,11 @@
               // 1) 가로재단: strip 분리
               planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
               planHTML += `${prefix}─ <strong>${si + 1}단 가로재단</strong>: ${strip.height}mm 절단 → <span style="color:#1976d2;">${PANEL_W}×${strip.height} strip</span>`;
-              if (trackH > 70) {
-                planHTML += ` <span style="color:#888;font-size:11px;">| 남은 판: ${PANEL_W}×${trackH}</span>`;
-              }
               planHTML += `</div>`;
 
               // 2) 세로재단: strip에서 부품 분리
               const allPcs = strip.pieces;
+              const usedW = allPcs.reduce((sum, p) => sum + p.w * p.count, 0);
               let cutDesc = allPcs.map(p => {
                 const total = p.count * panel.stack;
                 const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
@@ -11176,13 +11174,22 @@
               const vertPrefix = isLast ? ' ' : '│';
               planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">`;
               planHTML += `${vertPrefix}  └ <strong>세로재단</strong>: ${cutDesc}`;
+              planHTML += `</div>`;
 
-              // strip 잔여 (세로재단 후 남은 폭)
+              // 3) 재단 후 남은 자재 상태
+              const remParts = [];
               if (strip.remainW > 70) {
-                planHTML += ` → <span style="color:#e65100;">잔여 ${strip.remainW}×${strip.height}</span>`;
+                remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.remainW}×${strip.height}</span>`);
                 remnants.push({ w: strip.remainW, h: strip.height });
               }
-              planHTML += `</div>`;
+              if (trackH > 70) {
+                remParts.push(`남은판 ${PANEL_W}×${trackH}`);
+              }
+              if (remParts.length > 0) {
+                planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">`;
+                planHTML += `${vertPrefix}  → 재단후: ${remParts.join(' | ')}`;
+                planHTML += `</div>`;
+              }
             });
 
             // 하단 잔여
