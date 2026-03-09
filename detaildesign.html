@@ -11148,11 +11148,13 @@
             const usedPct = ((panel.usedArea / (PANEL_W * PANEL_H)) * 100).toFixed(1);
             const stackLabel = panel.stack > 1 ? `${panel.stack}장 겹침` : '1장';
             const dirLabel = panel.dir === 'H' ? '가로→세로' : '세로→가로';
+            const rotLabel = panel.rotated ? ' 회전' : '';
             const dirColor = panel.dir === 'H' ? '#1976d2' : '#7b1fa2';
             if (panel.dir === 'H') totalHPanels += panel.stack; else totalVPanels += panel.stack;
+            const totalCuts = panel.strips.length + panel.strips.reduce((s, st) => s + st.pieces.reduce((ss, p) => ss + p.count, 0), 0);
 
             planHTML += `<div style="margin:8px 0;padding:10px;background:#f5f5f5;border-radius:8px;border-left:4px solid ${dirColor};">`;
-            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span> <span style="color:${dirColor};font-size:11px;border:1px solid ${dirColor};border-radius:3px;padding:1px 4px;">${dirLabel}</span></div>`;
+            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span> <span style="color:${dirColor};font-size:11px;border:1px solid ${dirColor};border-radius:3px;padding:1px 4px;">${dirLabel}${rotLabel}</span>${rotLabel ? ' <span style="color:#e65100;font-size:10px;">↻ w↔h 교환</span>' : ''} <span style="color:#888;font-size:10px;">재단${totalCuts}회</span></div>`;
 
             const remnants = [];
             const thinList = [];
@@ -11250,7 +11252,7 @@
               planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#2e7d32;">└─ 🪵 자투리(60~70mm): ${thinStr} — 밴드/보강재 활용 가능</div>`;
             }
 
-            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | 방향: ${dirLabel}${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
+            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | ${dirLabel}${rotLabel} | 재단 ${totalCuts}회${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
             planHTML += `</div>`;
           });
 
@@ -11289,7 +11291,7 @@
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
-      💡 방향 자동최적화: 가로→세로 vs 세로→가로 중 효율 높은 방향 선택 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
+      💡 방향 자동최적화: H/V × 정방향/회전 4가지 중 최적 선택 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
     </div>
     <div id="cnc-module-view" style="max-height:500px;overflow-y:auto;">${tableHTML}</div>
     <div id="cnc-spec-view" style="display:none;max-height:500px;overflow-y:auto;">${planHTML}</div>
@@ -11325,6 +11327,7 @@
             id: panels.length + 1,
             stack,
             dir: layout.dir,
+            rotated: layout.rotated || false,
             strips: layout.strips,
             usedArea: layout.usedArea,
             panelRemain: layout.dir === 'H' ? layout.remainH : layout.remainW
@@ -11334,15 +11337,28 @@
         return { panels, unallocated: needs.filter(n => n.remain > 0) };
       }
 
-      // 방향 자동선택: H(가로→세로) vs V(세로→가로) 비교
+      // 방향 자동선택: H/V × 정방향/회전 = 4가지 중 최적 선택
       function chooseCutDirection(needs, PW, PH) {
+        // 정방향 (w×h 그대로)
         const h = designLayoutH(needs, PW, PH);
         const v = designLayoutV(needs, PW, PH);
-        // 우선순위: 배치수 → 자투리(60~70mm) 길이합 → 활용면적
-        if (v.totalPieces !== h.totalPieces) return v.totalPieces > h.totalPieces ? v : h;
-        if (v.thinLen !== h.thinLen) return v.thinLen > h.thinLen ? v : h;
-        if (v.usedArea !== h.usedArea) return v.usedArea > h.usedArea ? v : h;
-        return h;
+        h.rotated = false; v.rotated = false;
+
+        // 회전 배치 (w↔h 교환: 더 넓은 면을 strip 방향으로 활용)
+        const rotNeeds = needs.map(n => ({ ...n, w: n.h, h: n.w }));
+        const hr = designLayoutH(rotNeeds, PW, PH);
+        const vr = designLayoutV(rotNeeds, PW, PH);
+        hr.rotated = true; vr.rotated = true;
+
+        // 우선순위: 배치수 → 자투리(60~70mm) 길이합 → 활용면적 → strip수(적을수록=재단횟수↓)
+        const candidates = [h, v, hr, vr];
+        candidates.sort((a, b) => {
+          if (b.totalPieces !== a.totalPieces) return b.totalPieces - a.totalPieces;
+          if (b.thinLen !== a.thinLen) return b.thinLen - a.thinLen;
+          if (b.usedArea !== a.usedArea) return b.usedArea - a.usedArea;
+          return a.strips.length - b.strips.length;
+        });
+        return candidates[0];
       }
 
       // 가로→세로 레이아웃 (가로재단으로 strip 분리 → 세로재단으로 부품 분리)
