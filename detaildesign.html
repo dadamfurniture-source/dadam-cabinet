@@ -11056,7 +11056,7 @@
           groups.get(gk).push(m);
         });
 
-        const totalCuts = sorted.reduce((sum, m) => sum + Math.ceil(m.qty / 5), 0);
+        // totalCuts는 테이블 렌더 후 totalHCuts + totalVCuts로 계산
 
         let tableHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -11068,8 +11068,9 @@
           <th style="border:1px solid #ddd;padding:10px;text-align:right;">가로</th>
           <th style="border:1px solid #ddd;padding:10px;text-align:right;">세로</th>
           <th style="border:1px solid #ddd;padding:10px;text-align:center;">총수량</th>
-          <th style="border:1px solid #ddd;padding:10px;text-align:center;">겹침(최대5)</th>
-          <th style="border:1px solid #ddd;padding:10px;text-align:center;">재단횟수</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">겹침</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">가로재단</th>
+          <th style="border:1px solid #ddd;padding:10px;text-align:center;">세로재단</th>
           <th style="border:1px solid #ddd;padding:10px;">용도</th>
           <th style="border:1px solid #ddd;padding:10px;text-align:center;">엣지</th>
         </tr>
@@ -11077,16 +11078,25 @@
       <tbody>`;
 
         let no = 0;
+        let totalHCuts = 0, totalVCuts = 0;
         groups.forEach((items, groupName) => {
           // 그룹 헤더
           tableHTML += `
       <tr style="background:#f8bbd0;">
-        <td colspan="10" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#c2185b;">📦 ${groupName} (${items.length}종)</td>
+        <td colspan="11" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#c2185b;">📦 ${groupName} (${items.length}종)</td>
       </tr>`;
           items.forEach(m => {
             no++;
             const stack = Math.min(m.qty, 5);
-            const cuts = Math.ceil(m.qty / 5);
+            const rounds = Math.ceil(m.qty / 5);
+            // 가로재단: 세로(H)방향 절단 → 스트립 분리 (1회 × rounds)
+            const hCuts = rounds;
+            // 세로재단: 가로(W)방향 절단 → 부품 분리 (부품수 × rounds)
+            // 한 스트립에서 동일 부품 몇 개 나오는지 계산
+            const perStrip = Math.floor(1220 / m.w) || 1;
+            const vCuts = rounds * Math.min(perStrip, Math.ceil(m.qty / rounds));
+            totalHCuts += hCuts;
+            totalVCuts += vCuts;
             tableHTML += `
       <tr style="background:${no % 2 === 0 ? '#fff' : '#f9f9f9'};">
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${no}</td>
@@ -11096,7 +11106,8 @@
         <td style="border:1px solid #ddd;padding:8px;text-align:right;">${m.h}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;color:#1976d2;">${m.qty}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${stack}장</td>
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;color:#c2185b;">${cuts}회</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;color:#e65100;">${hCuts}회</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;color:#c2185b;font-weight:bold;">${vCuts}회</td>
         <td style="border:1px solid #ddd;padding:8px;font-size:11px;">${m.parts.join(', ')}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;font-size:11px;">${m.edges.length > 0 ? m.edges.join(', ') : '-'}</td>
       </tr>`;
@@ -11200,7 +11211,7 @@
 
         return `
     <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:14px;font-weight:bold;color:#333;">✂️ CNC 재단 목록 (${sorted.length}종, 총 ${totalCuts}회 재단)</span>
+      <span style="font-size:14px;font-weight:bold;color:#333;">✂️ CNC 재단 목록 (${sorted.length}종, 가로 ${totalHCuts}회 + 세로 ${totalVCuts}회)</span>
       <div style="display:flex;gap:4px;">
         <button onclick="switchBomView('cnc','module',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#1976d2;color:#fff;font-weight:bold;">규격 목록</button>
         <button onclick="switchBomView('cnc','spec',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#e0e0e0;color:#666;font-weight:normal;">원판 배치 (${totalPanels}장)</button>
