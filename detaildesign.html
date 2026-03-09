@@ -11150,41 +11150,51 @@
             planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span></div>`;
 
             let trackH = PANEL_H; // 남은 판 높이 추적
+            const remnants = []; // 모든 잔여 조각 수집
+
             panel.strips.forEach((strip, si) => {
               trackH -= strip.height;
               const isLast = si === panel.strips.length - 1 && trackH <= 70;
-              const prefix = isLast ? '└─' : '├─';
+              const prefix = isLast ? '└' : '├';
 
-              const mainPcs = strip.pieces.filter(p => !p.fromRemainder);
-              const remPcs = strip.pieces.filter(p => p.fromRemainder);
-
-              let pcsStr = mainPcs.map(p => {
-                const total = p.count * panel.stack;
-                return `${p.part} ${p.w}×${p.h} ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
-              }).join(' + ');
-
-              if (remPcs.length > 0) {
-                pcsStr += ' + ' + remPcs.map(p => {
-                  const total = p.count * panel.stack;
-                  return '<span style="color:#2e7d32;">[잔여] ' + p.part + ' ' + p.w + '×' + p.h + ' ×' + p.count + (panel.stack > 1 ? '(→' + total + ')' : '') + '</span>';
-                }).join(' + ');
-              }
-
+              // 1) 가로재단: strip 분리
               planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
-              planHTML += `${prefix} <strong>${si + 1}단</strong> (H:${strip.height}): ${pcsStr}`;
-              if (strip.remainW > 70) {
-                planHTML += ` → <span style="color:#e65100;">잔여 ${strip.remainW}×${strip.height}</span>`;
-              }
-              // 재단 후 남은 판 크기 표시
+              planHTML += `${prefix}─ <strong>${si + 1}단 가로재단</strong>: ${strip.height}mm 절단 → <span style="color:#1976d2;">${PANEL_W}×${strip.height} strip</span>`;
               if (trackH > 70) {
                 planHTML += ` <span style="color:#888;font-size:11px;">| 남은 판: ${PANEL_W}×${trackH}</span>`;
               }
               planHTML += `</div>`;
+
+              // 2) 세로재단: strip에서 부품 분리
+              const allPcs = strip.pieces;
+              let cutDesc = allPcs.map(p => {
+                const total = p.count * panel.stack;
+                const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
+                return `${label}${p.part} ${p.w}mm ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
+              }).join(', ');
+
+              const vertPrefix = isLast ? ' ' : '│';
+              planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">`;
+              planHTML += `${vertPrefix}  └ <strong>세로재단</strong>: ${cutDesc}`;
+
+              // strip 잔여 (세로재단 후 남은 폭)
+              if (strip.remainW > 70) {
+                planHTML += ` → <span style="color:#e65100;">잔여 ${strip.remainW}×${strip.height}</span>`;
+                remnants.push({ w: strip.remainW, h: strip.height });
+              }
+              planHTML += `</div>`;
             });
 
+            // 하단 잔여
             if (panel.remainH > 70) {
-              planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;color:#e65100;">`;
-              planHTML += `└─ 하단 잔여: ${PANEL_W} × ${panel.remainH}mm`;
+              remnants.push({ w: PANEL_W, h: panel.remainH });
+            }
+
+            // 잔여 조각 종합
+            if (remnants.length > 0) {
+              const remStr = remnants.map(r => `${r.w}×${r.h}`).join(', ');
+              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#e65100;">`;
+              planHTML += `└─ 📐 잔여 조각: ${remStr}`;
               planHTML += `</div>`;
             }
 
