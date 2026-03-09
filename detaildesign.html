@@ -5199,7 +5199,7 @@
         <div class="spec-group-title">4. Countertop (상판)</div>
         <div class="spec-row">
           <div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${item.uniqueId}, 'topColor', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop', item.specs.topColor)}</select></div>
-          <div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}"></div>
+          <div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}" onblur="updateSpecValue(${item.uniqueId}, 'topThickness', this.value)"></div>
         </div>
         <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape]})</label>${topSizeInputs}</div></div>
 
@@ -6736,6 +6736,13 @@
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) {
           item.specs[field] = value;
+
+          // ★ 싱크대: 다리발 높이 등 치수 관련 select 변경 시 모듈 동기화
+          if (item.categoryId === 'sink' && ['sinkLegHeight'].includes(field)) {
+            item.specs[field] = parseFloat(value) || value;
+            syncModuleHeights(item);
+          }
+
           renderWorkspaceContent(item);
         }
       }
@@ -6769,6 +6776,12 @@
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) {
           item.specs[field] = parseFloat(value) || value;
+
+          // ★ 싱크대: 치수 설정 변경 시 모듈 높이 동기화
+          if (item.categoryId === 'sink' && ['upperH', 'lowerH', 'sinkLegHeight'].includes(field)) {
+            syncModuleHeights(item);
+          }
+
           // 스크롤 위치 저장 후 렌더링
           const specPanel = document.querySelector('.spec-panel');
           const scrollTop = specPanel ? specPanel.scrollTop : 0;
@@ -6777,6 +6790,22 @@
           const newSpecPanel = document.querySelector('.spec-panel');
           if (newSpecPanel) newSpecPanel.scrollTop = scrollTop;
         }
+      }
+
+      // ★ 싱크대 모듈 높이를 현재 설정값에 동기화
+      function syncModuleHeights(item) {
+        const specs = item.specs || {};
+        const upperH = parseFloat(specs.upperH) || 720;
+        const lowerH = parseFloat(specs.lowerH) || 870;
+        const legH = parseFloat(specs.sinkLegHeight) || 150;
+
+        (item.modules || []).forEach(mod => {
+          if (mod.pos === 'upper' && mod.type !== 'hood') {
+            mod.h = upperH - 20;
+          } else if (mod.pos === 'lower' && mod.type !== 'tall') {
+            mod.h = lowerH - legH;
+          }
+        });
       }
 
       function updateModuleDim(itemUniqueId, moduleId, dim, value) {
