@@ -11141,7 +11141,8 @@
         groups.forEach((items, groupName) => {
           const groupNeeded = items.reduce((s, m) => s + m.qty, 0);
           totalNeeded += groupNeeded;
-          const { panels, unallocated } = calcCuttingPlan(items, PANEL_W, PANEL_H);
+          const groupSmalls = smallByGroup.get(groupName) || [];
+          const { panels, unallocated } = calcCuttingPlan(items, PANEL_W, PANEL_H, groupSmalls);
           const groupPanelCount = panels.reduce((s, p) => s + p.stack, 0);
           totalPanels += groupPanelCount;
 
@@ -11267,7 +11268,8 @@
               thinList.forEach(t => allThinStrips.push({ w: t.w, h: t.h, qty: panel.stack, group: groupName, panelId: panel.id, type: t.type }));
             }
 
-            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | ${dirLabel}${rotLabel} | 재단 ${totalCuts}회${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}</div>`;
+            const smallInfo = panel.smallYield > 0 ? ` | <span style="color:#1565c0;">소부품 ${panel.smallYield}개 추출가능</span>` : '';
+            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | ${dirLabel}${rotLabel} | 재단 ${totalCuts}회${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}${smallInfo}</div>`;
             planHTML += `</div>`;
           });
 
@@ -11470,7 +11472,7 @@
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
-      💡 방향 자동최적화: H/V × 정방향/회전 4가지 중 최적 선택 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
+      💡 방향 자동최적화: H/V × 정방향/회전 4가지 중 최적 선택 | 잔재→보강목/덧대 추출 반영 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
     </div>
     <div id="cnc-module-view" style="max-height:500px;overflow-y:auto;">${tableHTML}</div>
     <div id="cnc-spec-view" style="display:none;max-height:500px;overflow-y:auto;">${planHTML}</div>
@@ -11478,7 +11480,7 @@
       }
 
       // 원판 배치 계산 (방향 자동최적화 + 겹침 재단 + 나머지 활용)
-      function calcCuttingPlan(items, PW, PH) {
+      function calcCuttingPlan(items, PW, PH, groupSmalls) {
         const needs = items.map((item, i) => ({
           idx: i, w: item.w, h: item.h,
           parts: item.parts, edges: item.edges,
@@ -11489,7 +11491,7 @@
         let safety = 0;
 
         while (needs.some(n => n.remain > 0) && safety++ < 30) {
-          const layout = chooseCutDirection(needs, PW, PH);
+          const layout = chooseCutDirection(needs, PW, PH, groupSmalls);
           if (layout.totalPieces === 0) break;
 
           let stack = 5;
@@ -11509,7 +11511,8 @@
             rotated: layout.rotated || false,
             strips: layout.strips,
             usedArea: layout.usedArea,
-            panelRemain: layout.dir === 'H' ? layout.remainH : layout.remainW
+            panelRemain: layout.dir === 'H' ? layout.remainH : layout.remainW,
+            smallYield: layout.smallYield || 0
           });
         }
 
@@ -11517,7 +11520,7 @@
       }
 
       // 방향 자동선택: H/V × 정방향/회전 = 4가지 중 최적 선택
-      function chooseCutDirection(needs, PW, PH) {
+      function chooseCutDirection(needs, PW, PH, groupSmalls) {
         // 정방향 (w×h 그대로)
         const h = designLayoutH(needs, PW, PH);
         const v = designLayoutV(needs, PW, PH);
@@ -11529,15 +11532,62 @@
         const vr = designLayoutV(rotNeeds, PW, PH);
         hr.rotated = true; vr.rotated = true;
 
-        // 우선순위: 배치수 → 자투리(60~70mm) 길이합 → 활용면적 → strip수(적을수록=재단횟수↓)
+        // 각 방향별 잔재에서 소부품 추출 가능 수량 산출
         const candidates = [h, v, hr, vr];
+        candidates.forEach(c => {
+          c.smallYield = calcSmallYield(c, PW, PH, groupSmalls);
+        });
+
+        // 우선순위: 배치수 → 소부품추출수 → 자투리길이 → 활용면적 → strip수(↓)
         candidates.sort((a, b) => {
           if (b.totalPieces !== a.totalPieces) return b.totalPieces - a.totalPieces;
+          if (b.smallYield !== a.smallYield) return b.smallYield - a.smallYield;
           if (b.thinLen !== a.thinLen) return b.thinLen - a.thinLen;
           if (b.usedArea !== a.usedArea) return b.usedArea - a.usedArea;
           return a.strips.length - b.strips.length;
         });
         return candidates[0];
+      }
+
+      // 잔재에서 소부품(보강목/덧대/좌대) 추출 가능 수량 시뮬레이션
+      function calcSmallYield(layout, PW, PH, smalls) {
+        if (!smalls || smalls.length === 0) return 0;
+
+        // 이 레이아웃의 잔재 조각 수집
+        const rems = [];
+        if (layout.dir === 'H') {
+          layout.strips.forEach(s => {
+            if (s.remainW > 70) rems.push({ w: s.remainW, h: s.height });
+          });
+          if (layout.remainH > 70) rems.push({ w: PW, h: layout.remainH });
+        } else {
+          layout.strips.forEach(s => {
+            if (s.remainH > 70) rems.push({ w: s.width, h: s.remainH });
+          });
+          if (layout.remainW > 70) rems.push({ w: layout.remainW, h: PH });
+        }
+
+        if (rems.length === 0) return 0;
+
+        // 탐욕법: 필요 수량 한도 내에서 추출 시뮬레이션
+        const needs = smalls.map(s => ({ w: s.w, h: s.h, tmpRemain: s.qty }));
+        let total = 0;
+
+        for (const rem of rems) {
+          for (const sp of needs) {
+            if (sp.tmpRemain <= 0) continue;
+            const cntA = Math.floor(rem.w / sp.w) * Math.floor(rem.h / sp.h);
+            const cntB = Math.floor(rem.w / sp.h) * Math.floor(rem.h / sp.w);
+            const can = Math.max(cntA, cntB);
+            const use = Math.min(can, sp.tmpRemain);
+            if (use > 0) {
+              total += use;
+              sp.tmpRemain -= use;
+            }
+          }
+        }
+
+        return total;
       }
 
       // 가로→세로 레이아웃 (가로재단으로 strip 분리 → 세로재단으로 부품 분리)
