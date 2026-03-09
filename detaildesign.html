@@ -1533,6 +1533,7 @@
         display: none !important;
       }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/supabase-utils.js"></script>
@@ -11137,6 +11138,9 @@
         let totalThinLen = 0;
         const allRemnants = [];   // 전체 잔재 수집
         const allThinStrips = []; // 전체 자투리(60~70mm) 수집
+        const panelDetails = [];  // 엑셀 다운로드용 패널 상세
+        let cncAllocResults = []; // 엑셀용 소부품 추출 결과
+        let cncStillNeeded = [];  // 엑셀용 미충족 목록
 
         groups.forEach((items, groupName) => {
           const groupNeeded = items.reduce((s, m) => s + m.qty, 0);
@@ -11271,6 +11275,14 @@
             const smallInfo = panel.smallYield > 0 ? ` | <span style="color:#1565c0;">소부품 ${panel.smallYield}개 추출가능</span>` : '';
             planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | ${dirLabel}${rotLabel} | 재단 ${totalCuts}회${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}${smallInfo}</div>`;
             planHTML += `</div>`;
+
+            // 엑셀용 패널 상세 수집
+            panelDetails.push({
+              group: groupName, id: panel.id, stack: panel.stack,
+              dir: panel.dir === 'H' ? '가로→세로' : '세로→가로',
+              rotated: panel.rotated ? 'Y' : 'N',
+              strips: panel.strips, remnants, thinList
+            });
           });
 
           // 미배치 부품 경고
@@ -11392,6 +11404,8 @@
               }
             });
 
+            cncAllocResults = allocResults; // 엑셀용 캡처
+
             if (allocResults.length > 0 || smallByGroup.size > 0) {
               planHTML += `<div style="font-size:12px;font-weight:bold;margin:10px 0 4px;color:#1565c0;">🔧 잔재 → 보강목/덧대 추출</div>`;
 
@@ -11425,6 +11439,8 @@
                   stillNeeded.push({ group: gKey, part: s.part, w: s.w, h: s.h, total: s.qty, remain: s.remain, allocated: s.qty - s.remain });
                 });
               });
+
+              cncStillNeeded = stillNeeded; // 엑셀용 캡처
 
               if (stillNeeded.some(s => s.remain > 0)) {
                 planHTML += `<div style="font-size:11px;margin-top:4px;padding:6px 8px;background:#fff3e0;border-radius:4px;border:1px solid #ffe082;">`;
@@ -11463,12 +11479,24 @@
         if (totalThinLen > 0) planHTML += `<br><span style="color:#2e7d32;">🪵 자투리(60~70mm) 총 길이: ${totalThinLen}mm — 밴드/보강재 활용</span>`;
         planHTML += `</div>`;
 
+        // 엑셀 다운로드용 데이터 저장
+        window._cncData = {
+          sorted,
+          panelDetails,
+          allRemnants,
+          allThinStrips,
+          allocResults: cncAllocResults,
+          stillNeeded: cncStillNeeded,
+          summary: { totalPanels, totalHPanels, totalVPanels, totalProduced, totalNeeded, totalThinLen }
+        };
+
         return `
     <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:14px;font-weight:bold;color:#333;">✂️ CNC 재단 목록 (${sorted.length}종, 가로 ${totalHCuts}회 + 세로 ${totalVCuts}회)</span>
       <div style="display:flex;gap:4px;">
         <button onclick="switchBomView('cnc','module',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#1976d2;color:#fff;font-weight:bold;">규격 목록</button>
         <button onclick="switchBomView('cnc','spec',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#e0e0e0;color:#666;font-weight:normal;">원판 배치 (${totalPanels}장)</button>
+        <button onclick="downloadBOMExcel()" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#2e7d32;color:#fff;font-weight:bold;">📊 엑셀 다운로드</button>
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
@@ -12233,6 +12261,185 @@
         downloadBlob(blob, filename);
 
         showToast('📊 엑셀 파일이 다운로드되었습니다.');
+      }
+
+      // BOM 엑셀 다운로드 (SheetJS 다중 시트)
+      function downloadBOMExcel() {
+        if (!window._cncData || !window._reportData) {
+          showToast('BOM 데이터가 없습니다. 먼저 BOM 산출을 실행하세요.');
+          return;
+        }
+        if (typeof XLSX === 'undefined') {
+          showToast('SheetJS 라이브러리를 로드할 수 없습니다. 네트워크를 확인하세요.');
+          return;
+        }
+
+        try {
+          const cnc = window._cncData;
+          const rpt = window._reportData;
+          const wb = XLSX.utils.book_new();
+
+          // === 시트 1: CNC 규격목록 ===
+          const s1Data = [['No', '자재', '두께(T)', '가로(mm)', '세로(mm)', '총수량', '겹침(최대5)', '재단횟수', '용도', '엣지']];
+          cnc.sorted.forEach((m, i) => {
+            const stack = Math.min(m.qty, 5);
+            const rounds = Math.ceil(m.qty / 5);
+            const perStrip = Math.floor(1220 / m.w) || 1;
+            const hCuts = rounds;
+            const vCuts = rounds * Math.min(perStrip, Math.ceil(m.qty / rounds));
+            s1Data.push([
+              i + 1, m.material, m.thickness, m.w, m.h, m.qty,
+              stack, hCuts + vCuts,
+              m.parts.join(', '),
+              m.edges.length > 0 ? m.edges.join(', ') : '-'
+            ]);
+          });
+          const ws1 = XLSX.utils.aoa_to_sheet(s1Data);
+          ws1['!cols'] = [{wch:5},{wch:12},{wch:8},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10},{wch:30},{wch:15}];
+          XLSX.utils.book_append_sheet(wb, ws1, 'CNC 규격목록');
+
+          // === 시트 2: 원판 배치 ===
+          // panelDetails에서 flat rows로 변환
+          const s2Data = [['자재그룹','원판#','겹침장수','방향','회전','strip#','1차재단(mm)','부품명','부품규격(mm)','수량','잔여활용','strip잔여(mm)']];
+          (cnc.panelDetails || []).forEach(pd => {
+            const isH = (pd.dir === '가로→세로');
+            (pd.strips || []).forEach((strip, si) => {
+              // strip별 1차재단 치수
+              const firstCut = isH ? (strip.height || 0) : (strip.width || 0);
+              // strip 잔여
+              const stripRem = isH ? (strip.remainW || 0) : (strip.remainH || 0);
+              const stripDimH = isH ? strip.height : 0;
+              const stripDimW = isH ? 0 : strip.width;
+              const remStr = stripRem > 0 ? (isH ? stripRem + 'x' + (strip.height||0) : (strip.width||0) + 'x' + stripRem) : '';
+
+              (strip.pieces || []).forEach((p, pi) => {
+                const total = (p.count || 0) * (pd.stack || 1);
+                s2Data.push([
+                  pi === 0 && si === 0 ? pd.group : '',
+                  pi === 0 && si === 0 ? pd.id : '',
+                  pi === 0 && si === 0 ? pd.stack : '',
+                  pi === 0 && si === 0 ? pd.dir : '',
+                  pi === 0 && si === 0 ? pd.rotated : '',
+                  pi === 0 ? (si + 1) : '',
+                  pi === 0 ? firstCut : '',
+                  p.part || '',
+                  (p.w || 0) + 'x' + (p.h || 0),
+                  total,
+                  p.fromRemainder ? '잔여활용' : '',
+                  pi === 0 ? remStr : ''
+                ]);
+              });
+            });
+          });
+          const ws2 = XLSX.utils.aoa_to_sheet(s2Data);
+          ws2['!cols'] = [{wch:14},{wch:7},{wch:9},{wch:11},{wch:6},{wch:7},{wch:12},{wch:18},{wch:14},{wch:7},{wch:10},{wch:14}];
+          XLSX.utils.book_append_sheet(wb, ws2, '원판 배치');
+
+          // === 시트 3: 잔재·소부품 ===
+          const s3Data = [];
+
+          // 섹션 A - 잔여 조각
+          s3Data.push(['[A] 잔여 조각 (>70mm)', '', '', '', '', '']);
+          s3Data.push(['자재', '가로(mm)', '세로(mm)', '수량', '면적(㎠)', '활용']);
+          if (cnc.allRemnants && cnc.allRemnants.length > 0) {
+            const remMap = new Map();
+            cnc.allRemnants.forEach(r => {
+              const key = r.group + '|' + r.w + 'x' + r.h;
+              const ex = remMap.get(key);
+              if (ex) ex.qty += r.qty;
+              else remMap.set(key, { group: r.group, w: r.w, h: r.h, qty: r.qty });
+            });
+            [...remMap.values()].sort((a, b) => (b.w * b.h) - (a.w * a.h)).forEach(r => {
+              const area = Math.round(r.w * r.h * r.qty / 100);
+              let reuse = (r.w >= 200 && r.h >= 200) ? '재활용 가능' : '폐기';
+              if (Math.min(r.w, r.h) >= 60 && Math.min(r.w, r.h) <= 70) reuse = '밴드 가능';
+              s3Data.push([r.group, r.w, r.h, r.qty, area, reuse]);
+            });
+          }
+          s3Data.push(['', '', '', '', '', '']);
+
+          // 섹션 B - 자투리
+          s3Data.push(['[B] 자투리 (60~70mm)', '', '', '', '', '']);
+          s3Data.push(['자재', '가로(mm)', '세로(mm)', '수량', '길이합(mm)', '종류']);
+          if (cnc.allThinStrips && cnc.allThinStrips.length > 0) {
+            const thinMap = new Map();
+            cnc.allThinStrips.forEach(t => {
+              const key = t.group + '|' + t.w + 'x' + t.h;
+              const ex = thinMap.get(key);
+              if (ex) ex.qty += t.qty;
+              else thinMap.set(key, { group: t.group, w: t.w, h: t.h, qty: t.qty, type: t.type });
+            });
+            [...thinMap.values()].sort((a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h)).forEach(t => {
+              s3Data.push([t.group, t.w, t.h, t.qty, Math.max(t.w, t.h) * t.qty, t.type]);
+            });
+          }
+          s3Data.push(['', '', '', '', '', '']);
+
+          // 섹션 C - 소부품 추출
+          if (cnc.allocResults && cnc.allocResults.length > 0) {
+            s3Data.push(['[C] 소부품 추출 (잔재 활용)', '', '', '', '', '', '']);
+            s3Data.push(['잔재자재', '잔재규격', '잔재수', '추출부품', '부품규격', '장당', '추출수량']);
+            cnc.allocResults.forEach(alloc => {
+              alloc.parts.forEach((p, pi) => {
+                s3Data.push([
+                  pi === 0 ? alloc.group : '',
+                  pi === 0 ? alloc.w + 'x' + alloc.h : '',
+                  pi === 0 ? alloc.qty : '',
+                  p.part, p.w + 'x' + p.h, p.perSheet, p.produced
+                ]);
+              });
+            });
+            s3Data.push(['', '', '', '', '', '', '']);
+          }
+
+          // 섹션 D - 미충족
+          const unmet = (cnc.stillNeeded || []).filter(s => s.remain > 0);
+          if (unmet.length > 0) {
+            s3Data.push(['[D] 미충족 (별도 재단 필요)', '', '', '', '']);
+            s3Data.push(['부품명', '규격', '자재', '필요', '미충족']);
+            unmet.forEach(s => {
+              s3Data.push([s.part, s.w + 'x' + s.h, s.group, s.total, s.remain]);
+            });
+          }
+
+          const ws3 = XLSX.utils.aoa_to_sheet(s3Data);
+          ws3['!cols'] = [{wch:14},{wch:12},{wch:12},{wch:10},{wch:12},{wch:10},{wch:10}];
+          XLSX.utils.book_append_sheet(wb, ws3, '잔재·소부품');
+
+          // === 시트 4: 전체 자재 ===
+          const s4Data = [['모듈','부품','자재','두께(T)','가로(mm)','세로(mm)','수량','엣지','비고']];
+          rpt.materials.materials.forEach(m => {
+            s4Data.push([m.module, m.part, m.material, m.thickness, m.w, m.h, m.qty, m.edge || '-', m.note || '']);
+          });
+          const ws4 = XLSX.utils.aoa_to_sheet(s4Data);
+          ws4['!cols'] = [{wch:12},{wch:15},{wch:10},{wch:8},{wch:10},{wch:10},{wch:6},{wch:12},{wch:15}];
+          XLSX.utils.book_append_sheet(wb, ws4, '전체 자재');
+
+          // === 시트 5: 부자재 ===
+          const hwList = (rpt.hardware && rpt.hardware.hardware) || [];
+          if (hwList.length > 0) {
+            const s5Data = [['분류','품목','스펙','수량','단위','비고']];
+            hwList.forEach(h => {
+              s5Data.push([h.category, h.item, h.spec || '', h.qty, h.unit, h.note || '']);
+            });
+            const ws5 = XLSX.utils.aoa_to_sheet(s5Data);
+            ws5['!cols'] = [{wch:12},{wch:20},{wch:20},{wch:8},{wch:8},{wch:20}];
+            XLSX.utils.book_append_sheet(wb, ws5, '부자재');
+          }
+
+          // Blob 기반 다운로드 (브라우저 호환성)
+          const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([wbOut], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const dateStr = new Date().toISOString().slice(0, 10);
+          const item = rpt.design.items[0];
+          const filename = 'BOM_' + (item.category || item.name || 'report') + '_' + dateStr + '.xlsx';
+          downloadBlob(blob, filename);
+
+          showToast('📊 BOM 엑셀(.xlsx) ' + (cnc.panelDetails || []).length + '패널 포함 다운로드 완료');
+        } catch (e) {
+          console.error('BOM Excel error:', e);
+          showToast('엑셀 생성 오류: ' + e.message);
+        }
       }
 
       // CSV 다운로드
