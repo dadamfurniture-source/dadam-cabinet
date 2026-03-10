@@ -3561,29 +3561,36 @@
       /**
        * 포커스 복원 함수 - 렌더링 후 입력 필드 포커스 복원
        */
-      function _restoreFocus(container, focusInfo) {
-        if (!focusInfo) return;
+      function _restoreFocus(container, focusInfo, scrollInfo) {
+        if (!focusInfo && !scrollInfo) return;
 
-        // requestAnimationFrame으로 DOM 업데이트 후 포커스 복원
+        // requestAnimationFrame으로 DOM 업데이트 후 포커스/스크롤 복원
         requestAnimationFrame(() => {
-          // onchange 또는 onblur 속성으로 같은 요소 찾기
-          let targetEl = null;
-          if (focusInfo.onchange) {
-            targetEl = container.querySelector(`input[onchange="${focusInfo.onchange}"]`);
-          } else if (focusInfo.onblur) {
-            targetEl = container.querySelector(`input[onblur="${focusInfo.onblur}"]`);
-          }
+          // 포커스 복원
+          if (focusInfo) {
+            let targetEl = null;
+            if (focusInfo.onchange) {
+              targetEl = container.querySelector(`input[onchange="${focusInfo.onchange}"]`);
+            } else if (focusInfo.onblur) {
+              targetEl = container.querySelector(`input[onblur="${focusInfo.onblur}"]`);
+            }
 
-          if (targetEl) {
-            targetEl.focus();
-            // 선택 영역 복원 (숫자 입력 필드)
-            if (focusInfo.selectionStart !== null && targetEl.type !== 'number') {
-              try {
-                targetEl.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
-              } catch (e) {
-                // 일부 input 타입은 setSelectionRange를 지원하지 않음
+            if (targetEl) {
+              targetEl.focus();
+              if (focusInfo.selectionStart !== null && targetEl.type !== 'number') {
+                try {
+                  targetEl.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
+                } catch (e) {}
               }
             }
+          }
+
+          // ★ 스크롤 위치 복원
+          if (scrollInfo) {
+            const sp = container.querySelector('.spec-panel');
+            const mp = container.querySelector('.module-panel');
+            if (sp) sp.scrollTop = scrollInfo.specPanel || 0;
+            if (mp) mp.scrollTop = scrollInfo.modulePanel || 0;
           }
         });
       }
@@ -4824,24 +4831,31 @@
             value: activeEl.value,
             selectionStart: activeEl.selectionStart,
             selectionEnd: activeEl.selectionEnd,
-            // 요소 식별을 위한 속성들
             onchange: activeEl.getAttribute('onchange'),
             onblur: activeEl.getAttribute('onblur'),
             parentClass: activeEl.closest('.dim-group, .spec-field, .effective-space-group')?.className,
           };
         }
 
+        // ★ 스크롤 위치 저장 (DOM 교체 전)
+        const _sp = ws.querySelector('.spec-panel');
+        const _mp = ws.querySelector('.module-panel');
+        const scrollInfo = {
+          specPanel: _sp ? _sp.scrollTop : 0,
+          modulePanel: _mp ? _mp.scrollTop : 0,
+        };
+
         // ★ 붙박이장인 경우 별도 렌더링
         if (item.categoryId === 'wardrobe') {
           renderWardrobeWorkspace(item);
-          _restoreFocus(ws, focusInfo);
+          _restoreFocus(ws, focusInfo, scrollInfo);
           return;
         }
 
         // ★ 냉장고장인 경우 별도 렌더링
         if (item.categoryId === 'fridge') {
           renderFridgeWorkspace(item);
-          _restoreFocus(ws, focusInfo);
+          _restoreFocus(ws, focusInfo, scrollInfo);
           return;
         }
 
@@ -5340,8 +5354,8 @@
     </div>
   `;
 
-        // ★ 포커스 복원
-        _restoreFocus(ws, focusInfo);
+        // ★ 포커스 + 스크롤 복원
+        _restoreFocus(ws, focusInfo, scrollInfo);
       }
 
       // ============================================================
@@ -6793,7 +6807,8 @@
 
           // ★ 싱크대: 다리발 높이 등 치수 관련 select 변경 시 모듈 동기화
           if (item.categoryId === 'sink' && ['sinkLegHeight'].includes(field)) {
-            item.specs[field] = parseFloat(value) || value;
+            const num = parseFloat(value);
+            item.specs[field] = isNaN(num) ? value : num;
             syncModuleHeights(item);
           }
 
@@ -6818,31 +6833,21 @@
         item.specs[`finish${side}Type`] = value;
         item.specs[`finish${side}Width`] = defaultWidth;
 
-        // 스크롤 위치 저장 후 렌더링
-        const specPanel = document.querySelector('.spec-panel');
-        const scrollTop = specPanel ? specPanel.scrollTop : 0;
         renderWorkspaceContent(item);
-        const newSpecPanel = document.querySelector('.spec-panel');
-        if (newSpecPanel) newSpecPanel.scrollTop = scrollTop;
       }
 
       function updateSpecValue(itemUniqueId, field, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) {
-          item.specs[field] = parseFloat(value) || value;
+          const num = parseFloat(value);
+          item.specs[field] = isNaN(num) ? value : num;
 
           // ★ 싱크대: 치수 설정 변경 시 모듈 높이 동기화
           if (item.categoryId === 'sink' && ['upperH', 'lowerH', 'sinkLegHeight'].includes(field)) {
             syncModuleHeights(item);
           }
 
-          // 스크롤 위치 저장 후 렌더링
-          const specPanel = document.querySelector('.spec-panel');
-          const scrollTop = specPanel ? specPanel.scrollTop : 0;
           renderWorkspaceContent(item);
-          // 스크롤 위치 복원
-          const newSpecPanel = document.querySelector('.spec-panel');
-          if (newSpecPanel) newSpecPanel.scrollTop = scrollTop;
         }
       }
 
