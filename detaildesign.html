@@ -3561,38 +3561,36 @@
       /**
        * 포커스 복원 함수 - 렌더링 후 입력 필드 포커스 복원
        */
-      function _restoreFocus(container, focusInfo, scrollInfo) {
-        if (!focusInfo && !scrollInfo) return;
+      function _restoreFocus(container, focusInfo) {
+        if (!focusInfo) return;
 
-        // requestAnimationFrame으로 DOM 업데이트 후 포커스/스크롤 복원
+        // requestAnimationFrame으로 DOM 업데이트 후 포커스 복원
         requestAnimationFrame(() => {
-          // 포커스 복원
-          if (focusInfo) {
-            let targetEl = null;
-            if (focusInfo.onchange) {
-              targetEl = container.querySelector(`input[onchange="${focusInfo.onchange}"]`);
-            } else if (focusInfo.onblur) {
-              targetEl = container.querySelector(`input[onblur="${focusInfo.onblur}"]`);
-            }
-
-            if (targetEl) {
-              targetEl.focus();
-              if (focusInfo.selectionStart !== null && targetEl.type !== 'number') {
-                try {
-                  targetEl.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
-                } catch (e) {}
-              }
-            }
+          let targetEl = null;
+          if (focusInfo.onchange) {
+            targetEl = container.querySelector(`input[onchange="${focusInfo.onchange}"]`);
+          } else if (focusInfo.onblur) {
+            targetEl = container.querySelector(`input[onblur="${focusInfo.onblur}"]`);
           }
 
-          // ★ 스크롤 위치 복원
-          if (scrollInfo) {
-            const sp = container.querySelector('.spec-panel');
-            const mp = container.querySelector('.module-panel');
-            if (sp) sp.scrollTop = scrollInfo.specPanel || 0;
-            if (mp) mp.scrollTop = scrollInfo.modulePanel || 0;
+          if (targetEl) {
+            targetEl.focus();
+            if (focusInfo.selectionStart !== null && targetEl.type !== 'number') {
+              try {
+                targetEl.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
+              } catch (e) {}
+            }
           }
         });
+      }
+
+      // ★ 스크롤 위치 동기 복원 (DOM 교체 직후 즉시 실행)
+      function _restoreScroll(container, scrollInfo) {
+        if (!scrollInfo) return;
+        const sp = container.querySelector('.spec-panel');
+        const mp = container.querySelector('.module-panel');
+        if (sp) sp.scrollTop = scrollInfo.specPanel || 0;
+        if (mp) mp.scrollTop = scrollInfo.modulePanel || 0;
       }
 
       /**
@@ -4848,14 +4846,16 @@
         // ★ 붙박이장인 경우 별도 렌더링
         if (item.categoryId === 'wardrobe') {
           renderWardrobeWorkspace(item);
-          _restoreFocus(ws, focusInfo, scrollInfo);
+          _restoreScroll(ws, scrollInfo);
+          _restoreFocus(ws, focusInfo);
           return;
         }
 
         // ★ 냉장고장인 경우 별도 렌더링
         if (item.categoryId === 'fridge') {
           renderFridgeWorkspace(item);
-          _restoreFocus(ws, focusInfo, scrollInfo);
+          _restoreScroll(ws, scrollInfo);
+          _restoreFocus(ws, focusInfo);
           return;
         }
 
@@ -5354,8 +5354,9 @@
     </div>
   `;
 
-        // ★ 포커스 + 스크롤 복원
-        _restoreFocus(ws, focusInfo, scrollInfo);
+        // ★ 스크롤 동기 복원 + 포커스 비동기 복원
+        _restoreScroll(ws, scrollInfo);
+        _restoreFocus(ws, focusInfo);
       }
 
       // ============================================================
