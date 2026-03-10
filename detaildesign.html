@@ -4003,7 +4003,7 @@
        * @param {number} defaultD - 기본 깊이
        * @param {number} fixedDoorWidth - 고정 도어 너비 (전달시 해당 너비 그대로 사용)
        */
-      function fillGapWithModules(gap, section, defaultH, defaultD, fixedDoorWidth = null) {
+      function fillGapWithModules(gap, section, defaultH, defaultD, fixedDoorWidth = null, edgeMode = 'none') {
         const newModules = [];
         const namePrefix = section === 'upper' ? '상부장' : '하부장';
 
@@ -4031,27 +4031,51 @@
           doorCount = result.doorCount;
         }
 
-        // 모듈 생성 (도어개수/2 → 몫*2D + 나머지*1D)
-        const quotient = Math.floor(doorCount / 2);
-        const mod1D = doorCount % 2;
-
         let dx = gap.start;
 
-        // 2D 모듈 (몫 개) - 모두 동일한 도어 너비 × 2
-        for (let i = 0; i < quotient; i++) {
-          const w = doorWidth * 2;
-          newModules.push(createModule(section, namePrefix, w, defaultH, defaultD, true, dx));
-          dx += w;
-        }
+        // ★ 상부장 대칭 배치: 1D 가장자리 + 2D 중앙
+        // edgeMode: 'both' = 양쪽 1D, 'left' = 왼쪽 1D만, 'right' = 오른쪽 1D만
+        if (edgeMode !== 'none' && doorCount >= 3) {
+          const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
+          const hasRight = (edgeMode === 'both' || edgeMode === 'right');
+          const edgeDoors = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0);
+          const centerDoors = doorCount - edgeDoors;
+          const center2D = Math.floor(centerDoors / 2);
+          const centerMod1D = centerDoors % 2;
 
-        // 1D 모듈 (나머지 개) - 동일한 도어 너비
-        if (mod1D > 0) {
-          const w = doorWidth;
-          newModules.push(createModule(section, namePrefix, w, defaultH, defaultD, false, dx));
-          dx += w;
+          // 왼쪽 1D
+          if (hasLeft) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+          // 중앙 2D
+          for (let i = 0; i < center2D; i++) {
+            newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+            dx += doorWidth * 2;
+          }
+          // 중앙 잔여 1D (홀수 도어 시)
+          if (centerMod1D > 0) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+          // 오른쪽 1D
+          if (hasRight) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+        } else {
+          // 하부장 또는 기본: 2D 먼저 + 1D 나중
+          const quotient = Math.floor(doorCount / 2);
+          const mod1D = doorCount % 2;
+          for (let i = 0; i < quotient; i++) {
+            newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+            dx += doorWidth * 2;
+          }
+          if (mod1D > 0) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
         }
-
-        // ★ 잔여 공간은 시공 여유로 처리 (모듈 너비에 추가하지 않음)
 
         return newModules;
       }
@@ -4190,11 +4214,10 @@
         const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const startBound = fL;
         const endBound = startBound + effectiveW;
-        const SINK_UPPER_TOLERANCE = 50; // 개수대 중앙 기준 허용 편차(mm)
 
-        // ★ Step 1: 하부장 위치 맵 생성
+        // ★ Step 1: 하부장 위치 맵 생성 (후드 위치 결정용)
         const lowerModules = item.modules.filter((m) => m.pos === 'lower');
-        const lowerPosMap = {}; // type → { x, w, centerX }
+        const lowerPosMap = {};
         let lowerCursor = startBound;
         lowerModules.forEach((m) => {
           const mw = parseFloat(m.w) || 0;
@@ -4204,28 +4227,21 @@
           lowerCursor += mw;
         });
 
-        // ★ Step 2: 위치 기반 고정 모듈 배치
+        // ★ Step 2: 후드장만 고정 모듈로 배치 (가스대 위 중앙 정렬)
         let fixedOccupied = [];
-
-        // (A) 후드장 → 가스대 위 중앙 정렬
         const existingHood = item.modules.find((m) => m.pos === 'upper' && m.type === 'hood' && m.isFixed);
         if (existingHood) {
           const hoodW = parseFloat(existingHood.w) || 800;
-          let hoodX = startBound; // 기본 위치
+          let hoodX = startBound;
           if (lowerPosMap.cook) {
             hoodX = lowerPosMap.cook.centerX - hoodW / 2;
             hoodX = Math.max(startBound, Math.min(endBound - hoodW, hoodX));
           }
-          fixedOccupied.push({
-            ...existingHood,
-            x: hoodX,
-            endX: hoodX + hoodW,
-            pos: 'upper',
-          });
+          fixedOccupied.push({ ...existingHood, x: hoodX, endX: hoodX + hoodW, pos: 'upper' });
           console.log(`[AutoCalc] 후드장: 가스대중앙=${lowerPosMap.cook?.centerX || 'N/A'}, 후드X=${hoodX}`);
         }
 
-        // (B) 기타 고정 모듈 (후드 제외)
+        // 기타 고정 모듈 (후드 제외)
         const upperModules = item.modules.filter((m) => m.pos === 'upper');
         let otherCursor = startBound;
         upperModules.forEach((m) => {
@@ -4236,82 +4252,39 @@
           otherCursor += mw;
         });
 
-        // (C) 개수대 위 2D 상부장 (개수대 중앙 정렬, ±50mm)
-        if (lowerPosMap.sink) {
-          const sink = lowerPosMap.sink;
-          const sinkCenterX = sink.centerX;
-          const upperW = sink.w;
-          const idealX = sinkCenterX - upperW / 2;
-
-          const rangeMin = Math.max(startBound, idealX - SINK_UPPER_TOLERANCE);
-          const rangeMax = Math.min(endBound - upperW, idealX + SINK_UPPER_TOLERANCE);
-
-          let bestX = Math.max(rangeMin, Math.min(rangeMax, idealX));
-          const hasOverlap = (x) => fixedOccupied.some(f =>
-            Math.max(x, f.x) < Math.min(x + upperW, f.endX));
-
-          if (hasOverlap(bestX)) {
-            let candidates = [];
-            fixedOccupied.forEach(f => {
-              candidates.push(f.endX);
-              candidates.push(f.x - upperW);
-            });
-            candidates = candidates
-              .filter(x => x >= rangeMin && x <= rangeMax && x >= startBound && x + upperW <= endBound)
-              .filter(x => !hasOverlap(x))
-              .sort((a, b) => Math.abs(a + upperW/2 - sinkCenterX) - Math.abs(b + upperW/2 - sinkCenterX));
-            if (candidates.length > 0) bestX = candidates[0];
-          }
-
-          const alreadyExists = fixedOccupied.some(f =>
-            Math.abs((f.x + f.w / 2) - sinkCenterX) < 10);
-          if (!alreadyExists) {
-            fixedOccupied.push({
-              id: Date.now() + Math.random(),
-              type: 'storage',
-              name: '상부장(2D)',
-              pos: 'upper',
-              w: upperW,
-              h: upperBodyH,
-              d: 295,
-              doorCount: 2,
-              isDrawer: false,
-              isEL: false,
-              isFixed: false,
-              x: bestX,
-              endX: bestX + upperW,
-              _sinkUpper: true,
-            });
-            console.log(`[AutoCalc] 개수대 위 상부장: 개수대중앙=${sinkCenterX}, 상부장X=${bestX}, 편차=${Math.round(bestX + upperW/2 - sinkCenterX)}mm`);
-          }
-        }
-
-        // ★ Step 3: 공간 검증
+        // ★ Step 3: 공간 검증 → Gap 계산 → 도어 너비 결정
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
-        const availableW = effectiveW - fixedTotalW;
-
-        if (availableW < 0) {
+        if (effectiveW - fixedTotalW < 0) {
           alert('고정 모듈이 유효 공간을 초과합니다.');
           return;
         }
 
-        // ★ Step 4: 겹침 조정 및 Gap 계산
         fixedOccupied = adjustFixedPositions(fixedOccupied, startBound, endBound);
         const gaps = calculateGaps(fixedOccupied, startBound, endBound);
 
-        // ★ Step 5: 나머지 공간 모듈 생성
+        // 전체 가용 공간에 대한 균일 도어 너비 결정
         const totalAvailable = gaps.reduce((sum, g) => sum + g.width, 0);
         const calcResult = distributeModules(totalAvailable);
         const doorWidth = calcResult.doorWidth || DOOR_TARGET_WIDTH;
 
+        // ★ Step 4: 대칭 분배 (1D 양쪽 가장자리 + 2D 중앙)
         item.modules = item.modules.filter((m) => m.pos !== 'upper');
         let newModules = [];
 
-        gaps.forEach((gap) => {
-          newModules = newModules.concat(fillGapWithModules(gap, 'upper', upperBodyH, 295, doorWidth));
-        });
+        if (gaps.length === 1) {
+          // 단일 공간 (후드 없음): 전체 대칭 분배
+          newModules = fillGapWithModules(gaps[0], 'upper', upperBodyH, 295, doorWidth, 'both');
+        } else {
+          // 복수 공간 (후드 있음): 가장 왼쪽=왼1D, 가장 오른쪽=오른1D, 중간=2D
+          gaps.forEach((gap, idx) => {
+            let edgeMode = 'none';
+            if (idx === 0) edgeMode = 'left';
+            else if (idx === gaps.length - 1) edgeMode = 'right';
+            newModules = newModules.concat(fillGapWithModules(gap, 'upper', upperBodyH, 295, doorWidth, edgeMode));
+          });
+        }
 
-        // 고정/위치지정 모듈 추가
+        // 고정 모듈 추가 (후드 등)
         fixedOccupied.forEach((fixed) => {
           newModules.push({
             id: fixed.id || Date.now() + Math.random(),
@@ -4324,7 +4297,7 @@
             doorCount: fixed.doorCount,
             isDrawer: fixed.isDrawer || false,
             isEL: fixed.isEL || false,
-            isFixed: fixed._sinkUpper ? false : true,
+            isFixed: true,
             isBase: fixed.isBase || false,
             _x: fixed.x,
           });
@@ -4332,7 +4305,7 @@
 
         // 정렬 및 저장
         newModules.sort((a, b) => a._x - b._x);
-        newModules.forEach((m) => { delete m._x; delete m._sinkUpper; });
+        newModules.forEach((m) => delete m._x);
         if (!isRefLeft) newModules.reverse();
 
         item.modules = item.modules.concat(newModules);
