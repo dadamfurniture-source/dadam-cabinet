@@ -4154,7 +4154,7 @@
         const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
         const lowerBodyH = specLowerH - specLegH; // 다리발 제외
         const specUpperH = parseFloat(item.specs.upperH) || 720;
-        const upperBodyH = specUpperH - 20;
+        const upperBodyH = specUpperH;
 
         const ESSENTIAL_DEFS = {
           sink:  { type: 'sink',    name: '개수대',  pos: 'lower', w: 1000, d: 600, isDrawer: false, matchFn: m => m.type === 'sink' },
@@ -4220,7 +4220,7 @@
         }
 
         const specUpperH = parseFloat(item.specs.upperH) || 720;
-        const upperBodyH = specUpperH - 20;
+        const upperBodyH = specUpperH;
         const isRefLeft = item.specs.measurementBase === 'Left';
         const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const startBound = fL;
@@ -4505,7 +4505,7 @@
         const specLowerH = 870;
         const specUpperH = 720;
         const lowerBodyH = specLowerH - specLegH;
-        const upperBodyH = specUpperH - 20;
+        const upperBodyH = specUpperH;
 
         const newItem = {
           uniqueId: Date.now() + Math.random(),
