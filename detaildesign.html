@@ -4116,7 +4116,8 @@
       // ★ 자동계산 전 필수장 주입
       function injectEssentialModules(item, section) {
         const specLowerH = parseFloat(item.specs.lowerH) || 870;
-        const lowerBodyH = specLowerH - 60; // 다리발 제외
+        const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+        const lowerBodyH = specLowerH - specLegH; // 다리발 제외
         const specUpperH = parseFloat(item.specs.upperH) || 720;
         const upperBodyH = specUpperH - 20;
 
@@ -4207,6 +4208,38 @@
           cursor += mw;
         });
 
+        // ★ 개수대 위 2D 상부장 필수 배치 규칙
+        const lowerModules = item.modules.filter((m) => m.pos === 'lower');
+        let lowerCursor = startBound;
+        lowerModules.forEach((m) => {
+          const mw = parseFloat(m.w) || 0;
+          if (m.type === 'sink') {
+            // 개수대 위치에 2D 상부장 고정 배치 (이미 같은 위치에 고정모듈 없으면)
+            const sinkX = lowerCursor;
+            const sinkW = mw;
+            const alreadyExists = fixedOccupied.some(f => f.x === sinkX && Math.abs(f.w - sinkW) < 10);
+            if (!alreadyExists) {
+              fixedOccupied.push({
+                id: Date.now() + Math.random(),
+                type: 'storage',
+                name: '상부장(2D)',
+                pos: 'upper',
+                w: sinkW,
+                h: upperBodyH,
+                d: 295,
+                doorCount: 2,
+                isDrawer: false,
+                isEL: false,
+                isFixed: false,
+                x: sinkX,
+                endX: sinkX + sinkW,
+                _sinkUpper: true, // 개수대 위 상부장 마킹
+              });
+            }
+          }
+          lowerCursor += mw;
+        });
+
         // 고정 모듈 총 너비
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
         const availableW = effectiveW - fixedTotalW;
@@ -4243,9 +4276,10 @@
             w: fixed.w,
             h: fixed.h,
             d: fixed.d,
+            doorCount: fixed.doorCount,
             isDrawer: fixed.isDrawer || false,
             isEL: fixed.isEL || false,
-            isFixed: true,
+            isFixed: fixed._sinkUpper ? false : true,
             isBase: fixed.isBase || false,
             _x: fixed.x,
           });
@@ -4253,7 +4287,7 @@
 
         // 정렬 및 저장
         newModules.sort((a, b) => a._x - b._x);
-        newModules.forEach((m) => delete m._x);
+        newModules.forEach((m) => { delete m._x; delete m._sinkUpper; });
         if (!isRefLeft) newModules.reverse();
 
         item.modules = item.modules.concat(newModules);
@@ -4911,6 +4945,7 @@
         const doorColorU = getDoorColor(item.specs.doorColorUpper || '화이트');
         const doorColorL = getDoorColor(item.specs.doorColorLower || '화이트');
         const doorGap = 3 * scale; // 3mm 간격
+        const upperOverlap_s = (parseFloat(item.specs.upperDoorOverlap) || 15) * scale;
 
         // 상부장 모듈들
         let upperStartX = offsetX + finishL * scale;
@@ -4927,16 +4962,17 @@
           upperStartX += modW;
         });
 
-        // ★ 상부장 도어 표시
+        // ★ 상부장 도어 표시 (도어 높이 = 몸체 + 오버랩)
         if (showDoors) {
           let upperDoorX = offsetX + finishL * scale;
           upperModules.forEach((mod, idx) => {
             const modW = parseFloat(mod.w) * scale;
             const doorCount = Math.max(1, Math.round(mod.w / 450));
             const dW = modW / doorCount;
+            const doorH = mod.type === 'hood' ? upperH_s - doorGap : upperH_s + upperOverlap_s - doorGap;
             for (let d = 0; d < doorCount; d++) {
               const dX = upperDoorX + d * dW + doorGap / 2;
-              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${upperH_s - doorGap}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2"/>`;
+              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorH}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2"/>`;
             }
             upperDoorX += modW;
           });
