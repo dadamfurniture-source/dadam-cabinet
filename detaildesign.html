@@ -3574,7 +3574,7 @@
           }
 
           if (targetEl) {
-            targetEl.focus();
+            targetEl.focus({ preventScroll: true });
             if (focusInfo.selectionStart !== null && targetEl.type !== 'number') {
               try {
                 targetEl.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
