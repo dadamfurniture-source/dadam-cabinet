@@ -4361,6 +4361,35 @@
           cursor += mw;
         });
 
+        // ★ 분배기 위치 기반 개수대 배치
+        const distStart = parseFloat(item.specs.distributorStart) || 0;
+        const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+
+        if (distStart > 0 && distEnd > distStart) {
+          const sinkMod = fixedOccupied.find(m => m.type === 'sink');
+          if (sinkMod) {
+            // 분배기 좌표 (실측 기준 → 좌벽 절대좌표 변환)
+            let dStart, dEnd;
+            if (isRefLeft) {
+              dStart = startBound + distStart;
+              dEnd = startBound + distEnd;
+            } else {
+              dStart = endBound - distEnd;
+              dEnd = endBound - distStart;
+            }
+
+            // 개수대: 분배기 시작 -100mm ~ 분배기 끝 +100mm 커버
+            const sinkX = Math.max(startBound, dStart - 100);
+            const sinkEndX = Math.min(endBound, dEnd + 100);
+            const minW = sinkEndX - sinkX;
+            const sinkW = Math.max(parseFloat(sinkMod.w) || 1000, minW);
+
+            sinkMod.x = sinkX;
+            sinkMod.w = sinkW;
+            sinkMod.endX = sinkX + sinkW;
+          }
+        }
+
         // 고정 모듈 총 너비
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
         const availableW = effectiveW - fixedTotalW;
