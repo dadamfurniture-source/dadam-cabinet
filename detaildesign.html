@@ -4808,6 +4808,7 @@
 
       function renderWorkspaceContent(item) {
         if (!item || !item.uniqueId) return;
+        console.log('[RENDER] renderWorkspaceContent called, scrollY=' + window.scrollY);
 
         const itemId = item.uniqueId;
 
@@ -4838,6 +4839,7 @@
 
       // 실제 렌더링 구현
       function _renderWorkspaceContentImpl(item) {
+        console.log('[RENDER] _renderWorkspaceContentImpl called, scrollY=' + window.scrollY);
         const ws = document.getElementById('designWorkspace');
         if (!ws) return;
 
