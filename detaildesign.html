@@ -3587,18 +3587,16 @@
       // ★ 스크롤 위치 복원 (패널 + 페이지 모두)
       function _restoreScroll(container, scrollInfo) {
         if (!scrollInfo) return;
-        const apply = (tag) => {
+        const apply = () => {
           const sp = container.querySelector('.spec-panel');
           const mp = container.querySelector('.module-panel');
-          console.log('[SCROLL ' + tag + '] sp=' + (sp ? sp.scrollHeight + '/' + sp.clientHeight : 'null') +
-            ', pageY_now=' + window.scrollY + ', restore_to=' + scrollInfo.pageY);
           if (sp && scrollInfo.specPanel) sp.scrollTop = scrollInfo.specPanel;
           if (mp && scrollInfo.modulePanel) mp.scrollTop = scrollInfo.modulePanel;
           if (scrollInfo.pageY) window.scrollTo(0, scrollInfo.pageY);
         };
-        apply('sync');
-        setTimeout(() => apply('timeout'), 0);
-        requestAnimationFrame(() => apply('raf'));
+        apply();
+        setTimeout(apply, 0);
+        requestAnimationFrame(apply);
       }
 
       /**
@@ -4808,7 +4806,6 @@
 
       function renderWorkspaceContent(item) {
         if (!item || !item.uniqueId) return;
-        console.log('[RENDER] renderWorkspaceContent called, scrollY=' + window.scrollY);
 
         const itemId = item.uniqueId;
 
@@ -4839,7 +4836,6 @@
 
       // 실제 렌더링 구현
       function _renderWorkspaceContentImpl(item) {
-        console.log('[RENDER] _renderWorkspaceContentImpl called, scrollY=' + window.scrollY);
         const ws = document.getElementById('designWorkspace');
         if (!ws) return;
 
@@ -5373,12 +5369,8 @@
     </div>
   `;
 
-        // ★ 스크롤 복원 (디버그 로그 포함)
-        const _dbgPageY = scrollInfo.pageY;
-        const _dbgSpY = scrollInfo.specPanel;
-        console.log('[SCROLL] saved: pageY=' + _dbgPageY + ', specPanel=' + _dbgSpY + ', window.scrollY=' + window.scrollY);
+        // ★ 스크롤 복원
         _restoreScroll(ws, scrollInfo);
-        console.log('[SCROLL] after restore: window.scrollY=' + window.scrollY);
         _restoreFocus(ws, focusInfo);
       }
 
