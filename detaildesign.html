@@ -4208,33 +4208,62 @@
           cursor += mw;
         });
 
-        // ★ 개수대 위 2D 상부장 필수 배치 규칙
+        // ★ 개수대 위 2D 상부장 필수 배치 (중앙 정렬, ±100mm 여유)
+        const SINK_UPPER_TOLERANCE = 100; // 개수대 중앙 기준 허용 편차(mm)
         const lowerModules = item.modules.filter((m) => m.pos === 'lower');
         let lowerCursor = startBound;
         lowerModules.forEach((m) => {
           const mw = parseFloat(m.w) || 0;
           if (m.type === 'sink') {
-            // 개수대 위치에 2D 상부장 고정 배치 (이미 같은 위치에 고정모듈 없으면)
             const sinkX = lowerCursor;
             const sinkW = mw;
-            const alreadyExists = fixedOccupied.some(f => f.x === sinkX && Math.abs(f.w - sinkW) < 10);
+            const sinkCenterX = sinkX + sinkW / 2;
+            const upperW = sinkW; // 개수대와 같은 너비 2D
+            const idealX = sinkCenterX - upperW / 2; // 중앙 정렬
+
+            // ±100mm 허용 범위 (경계 제한)
+            const rangeMin = Math.max(startBound, idealX - SINK_UPPER_TOLERANCE);
+            const rangeMax = Math.min(endBound - upperW, idealX + SINK_UPPER_TOLERANCE);
+
+            // 기존 고정 모듈과 겹치지 않는 최적 위치 탐색
+            let bestX = Math.max(rangeMin, Math.min(rangeMax, idealX));
+            const hasOverlap = (x) => fixedOccupied.some(f =>
+              Math.max(x, f.x) < Math.min(x + upperW, f.endX));
+
+            if (hasOverlap(bestX)) {
+              // 겹침 발생 → ±100mm 범위 내에서 가장 중앙에 가까운 비겹침 위치 탐색
+              let candidates = [];
+              fixedOccupied.forEach(f => {
+                candidates.push(f.endX);           // 고정 모듈 오른쪽
+                candidates.push(f.x - upperW);     // 고정 모듈 왼쪽
+              });
+              candidates = candidates
+                .filter(x => x >= rangeMin && x <= rangeMax && x >= startBound && x + upperW <= endBound)
+                .filter(x => !hasOverlap(x))
+                .sort((a, b) => Math.abs(a + upperW/2 - sinkCenterX) - Math.abs(b + upperW/2 - sinkCenterX));
+              if (candidates.length > 0) bestX = candidates[0];
+            }
+
+            const alreadyExists = fixedOccupied.some(f =>
+              Math.abs((f.x + f.w / 2) - sinkCenterX) < 10);
             if (!alreadyExists) {
               fixedOccupied.push({
                 id: Date.now() + Math.random(),
                 type: 'storage',
                 name: '상부장(2D)',
                 pos: 'upper',
-                w: sinkW,
+                w: upperW,
                 h: upperBodyH,
                 d: 295,
                 doorCount: 2,
                 isDrawer: false,
                 isEL: false,
                 isFixed: false,
-                x: sinkX,
-                endX: sinkX + sinkW,
-                _sinkUpper: true, // 개수대 위 상부장 마킹
+                x: bestX,
+                endX: bestX + upperW,
+                _sinkUpper: true,
               });
+              console.log(`[AutoCalc] 개수대 위 상부장: 개수대중앙=${sinkCenterX}, 상부장X=${bestX}, 편차=${Math.round(bestX + upperW/2 - sinkCenterX)}mm`);
             }
           }
           lowerCursor += mw;
