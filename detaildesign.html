@@ -4361,27 +4361,26 @@
           cursor += mw;
         });
 
-        // ★ 분배기 위치 기반 개수대 배치
+        // ★ 분배기 절대좌표 계산 (개수대 배치 + 검증에서 재사용)
         const distStart = parseFloat(item.specs.distributorStart) || 0;
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+        let dStartAbs = 0, dEndAbs = 0;
 
         if (distStart > 0 && distEnd > distStart) {
+          if (isRefLeft) {
+            dStartAbs = startBound + distStart;
+            dEndAbs = startBound + distEnd;
+          } else {
+            dStartAbs = endBound - distEnd;
+            dEndAbs = endBound - distStart;
+          }
+
           const sinkMod = fixedOccupied.find(m => m.type === 'sink');
           if (sinkMod) {
-            // 분배기 좌표 (실측 기준 → 좌벽 절대좌표 변환)
-            let dStart, dEnd;
-            if (isRefLeft) {
-              dStart = startBound + distStart;
-              dEnd = startBound + distEnd;
-            } else {
-              dStart = endBound - distEnd;
-              dEnd = endBound - distStart;
-            }
-
             // 개수대: 분배기 시작 -100mm ~ 분배기 끝 +100mm 커버
-            const sinkX = Math.max(startBound, dStart - 100);
-            const sinkEndX = Math.min(endBound, dEnd + 100);
-            const minW = sinkEndX - sinkX;
+            const sinkX = Math.max(startBound, dStartAbs - 100);
+            const minEnd = Math.min(endBound, dEndAbs + 100);
+            const minW = minEnd - sinkX;
             const sinkW = Math.max(parseFloat(sinkMod.w) || 1000, minW);
 
             sinkMod.x = sinkX;
@@ -4401,6 +4400,22 @@
 
         // 위치 조정 및 Gap 계산
         fixedOccupied = adjustFixedPositions(fixedOccupied, startBound, endBound);
+
+        // ★ 분배기-개수대 제약 재적용 (adjustFixedPositions가 위치를 밀었을 수 있음)
+        if (dStartAbs > 0 && dEndAbs > 0) {
+          const sinkMod = fixedOccupied.find(m => m.type === 'sink');
+          if (sinkMod) {
+            // 제약: 개수대 시작 < 분배기 시작 AND 개수대 끝 > 분배기 끝
+            if (sinkMod.x >= dStartAbs) {
+              sinkMod.x = Math.max(startBound, dStartAbs - 100);
+            }
+            const curEnd = sinkMod.x + parseFloat(sinkMod.w);
+            if (curEnd <= dEndAbs) {
+              sinkMod.w = Math.min(endBound, dEndAbs + 100) - sinkMod.x;
+            }
+            sinkMod.endX = sinkMod.x + parseFloat(sinkMod.w);
+          }
+        }
 
         if (fixedOccupied[0] && fixedOccupied[0].x < startBound) {
           alert('공간이 부족하여 고정 모듈을 배치할 수 없습니다.');
