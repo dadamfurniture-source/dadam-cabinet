@@ -4208,8 +4208,8 @@
           cursor += mw;
         });
 
-        // ★ 개수대 위 2D 상부장 필수 배치 (중앙 정렬, ±100mm 여유)
-        const SINK_UPPER_TOLERANCE = 100; // 개수대 중앙 기준 허용 편차(mm)
+        // ★ 개수대 위 2D 상부장 필수 배치 (중앙 정렬, ±50mm 여유)
+        const SINK_UPPER_TOLERANCE = 50; // 개수대 중앙 기준 허용 편차(mm)
         const lowerModules = item.modules.filter((m) => m.pos === 'lower');
         let lowerCursor = startBound;
         lowerModules.forEach((m) => {
