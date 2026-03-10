@@ -3584,14 +3584,19 @@
         });
       }
 
-      // ★ 스크롤 위치 복원 (레이아웃 reflow 강제 후 설정)
+      // ★ 스크롤 위치 복원 (동기 + 비동기 이중 보장)
       function _restoreScroll(container, scrollInfo) {
         if (!scrollInfo) return;
-        const sp = container.querySelector('.spec-panel');
-        const mp = container.querySelector('.module-panel');
-        // offsetHeight 읽기로 브라우저 레이아웃 계산 강제
-        if (sp) { void sp.offsetHeight; sp.scrollTop = scrollInfo.specPanel || 0; }
-        if (mp) { void mp.offsetHeight; mp.scrollTop = scrollInfo.modulePanel || 0; }
+        const apply = () => {
+          const sp = container.querySelector('.spec-panel');
+          const mp = container.querySelector('.module-panel');
+          if (sp && scrollInfo.specPanel) sp.scrollTop = scrollInfo.specPanel;
+          if (mp && scrollInfo.modulePanel) mp.scrollTop = scrollInfo.modulePanel;
+        };
+        // 1차: 동기 즉시 적용
+        apply();
+        // 2차: 마이크로태스크 후 재적용 (브라우저 레이아웃 계산 보장)
+        setTimeout(apply, 0);
       }
 
       /**
@@ -4797,12 +4802,27 @@
 
       // 렌더링 debounce를 위한 타이머 저장소
       const _renderTimers = new Map();
+      const _pendingScroll = new Map(); // ★ debounce 전 스크롤 위치 저장
 
       function renderWorkspaceContent(item) {
         if (!item || !item.uniqueId) return;
 
-        // ★ 성능 최적화: 동일 아이템에 대한 연속 렌더링 요청을 debounce
         const itemId = item.uniqueId;
+
+        // ★ debounce 전에 스크롤 위치 즉시 저장 (이벤트 발생 시점의 정확한 값)
+        const ws = document.getElementById('designWorkspace');
+        if (ws) {
+          const sp = ws.querySelector('.spec-panel');
+          const mp = ws.querySelector('.module-panel');
+          if (!_pendingScroll.has(itemId)) {
+            // 첫 호출만 저장 (debounce 중 재호출 시 원본 유지)
+            _pendingScroll.set(itemId, {
+              specPanel: sp ? sp.scrollTop : 0,
+              modulePanel: mp ? mp.scrollTop : 0,
+            });
+          }
+        }
+
         if (_renderTimers.has(itemId)) {
           clearTimeout(_renderTimers.get(itemId));
         }
@@ -4813,7 +4833,7 @@
             _renderTimers.delete(itemId);
             _renderWorkspaceContentImpl(item);
           }, 30)
-        ); // 30ms debounce
+        );
       }
 
       // 실제 렌더링 구현
@@ -4836,13 +4856,9 @@
           };
         }
 
-        // ★ 스크롤 위치 저장 (DOM 교체 전)
-        const _sp = ws.querySelector('.spec-panel');
-        const _mp = ws.querySelector('.module-panel');
-        const scrollInfo = {
-          specPanel: _sp ? _sp.scrollTop : 0,
-          modulePanel: _mp ? _mp.scrollTop : 0,
-        };
+        // ★ 스크롤 위치 가져오기 (renderWorkspaceContent에서 미리 저장한 값)
+        const scrollInfo = _pendingScroll.get(item.uniqueId) || { specPanel: 0, modulePanel: 0 };
+        _pendingScroll.delete(item.uniqueId);
 
         // ★ 붙박이장인 경우 별도 렌더링
         if (item.categoryId === 'wardrobe') {
