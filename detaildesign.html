@@ -9276,21 +9276,21 @@
             const isEL = mod.isEL || false;
             const isOpen = mod.isOpen || false;
 
-            // 측판 2개 (사쿠리홈)
-            this.add(materials, `하부장-${name}`, '측판', 'PB', T, modD, H, 2, '4면', 'sakuri(15→3mm)');
-            // 지판 (사쿠리 반영 D-18)
-            this.add(materials, `하부장-${name}`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            // 측판 2개 (하부장: 사쿠리 없음)
+            this.add(materials, `하부장-${name}`, '측판', 'PB', T, modD, H, 2, '4면');
+            // 지판 (하부장: 사쿠리 없음, D 그대로)
+            this.add(materials, `하부장-${name}`, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             // 밴드 2개
             this.add(materials, `하부장-${name}`, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
-            // 뒷판 (사쿠리홈에 끼움 W-20)
-            this.add(materials, `하부장-${name}`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+            // 뒷판 (하부장: 사쿠리 없음)
+            this.add(materials, `하부장-${name}`, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
             // 밴드(처짐방지목) - 목찬넬이면 -70, W>=800이면 2개
             const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
             const bandQty = W >= 800 ? 2 : 1;
             this.add(materials, `하부장-${name}`, '밴드(처짐방지)', 'PB', T, 70, bandH, bandQty, '2면(장)');
-            // 선반 (서랍/EL/오픈장 없으면 1개, 사쿠리 반영 D-34)
+            // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
-              this.add(materials, `하부장-${name}`, '선반', 'PB', T, W - T * 2, modD - 34, 1, '1면(전)');
+              this.add(materials, `하부장-${name}`, '선반', 'PB', T, W - T * 2, modD - T, 1, '1면(전)');
             }
             // 도어 (H - 30)
             const doorCount = mod.doorCount || 0;
@@ -9427,13 +9427,13 @@
               }
 
               // --- 하부장 ---
-              this.add(materials, `${name}-하부장`, '측판', 'PB', T, modD, lowerH, 2, '4면', 'sakuri(15→3mm)');
-              this.add(materials, `${name}-하부장`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-              this.add(materials, `${name}-하부장`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-              this.add(materials, `${name}-하부장`, '뒷판', 'MDF', 2.7, W - 20, lowerH - 1, 1, '-');
+              this.add(materials, `${name}-하부장`, '측판', 'PB', T, modD, lowerH, 2, '4면');
+              this.add(materials, `${name}-하부장`, '천판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+              this.add(materials, `${name}-하부장`, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+              this.add(materials, `${name}-하부장`, '뒷판', 'MDF', 2.7, W - T * 2, lowerH - T, 1, '-');
               const shelfLower = mod.shelfCountLower || 0;
               if (shelfLower > 0) {
-                this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfLower, '1면(전)');
+                this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - T, shelfLower, '1면(전)');
               }
 
               // 서랍
@@ -9711,10 +9711,10 @@
             }
             // 하부장 (lower) — PB 구조
             else if (modType === 'lower') {
-              this.add(materials, '냉장고하부장', '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
-              this.add(materials, '냉장고하부장', '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, '냉장고하부장', '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, '냉장고하부장', '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+              this.add(materials, '냉장고하부장', '측판', 'PB', T, D, H, 2, '4면');
+              this.add(materials, '냉장고하부장', '천판', 'PB', T, W - T * 2, D, 1, '1면(전)');
+              this.add(materials, '냉장고하부장', '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
+              this.add(materials, '냉장고하부장', '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
