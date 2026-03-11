@@ -4385,6 +4385,8 @@
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         let dStartAbs = 0, dEndAbs = 0;
 
+        const sinkMod = fixedOccupied.find(m => m.type === 'sink');
+
         if (distStart > 0 && distEnd > distStart) {
           if (isRefLeft) {
             dStartAbs = startBound + distStart;
@@ -4394,7 +4396,6 @@
             dEndAbs = endBound - distStart;
           }
 
-          const sinkMod = fixedOccupied.find(m => m.type === 'sink');
           if (sinkMod) {
             // 개수대: 분배기 시작 -100mm ~ 분배기 끝 +100mm 커버
             const sinkX = Math.max(startBound, dStartAbs - 100);
@@ -4405,6 +4406,30 @@
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
             sinkMod.endX = sinkX + sinkW;
+          }
+        } else {
+          // ★ 분배기 미입력 시: 기준 방향에 따라 개수대/가스대 기본 위치 결정
+          if (sinkMod) {
+            const sinkW = parseFloat(sinkMod.w) || 1000;
+            if (isRefLeft) {
+              sinkMod.x = startBound;
+            } else {
+              sinkMod.x = Math.max(startBound, endBound - sinkW);
+            }
+            sinkMod.endX = sinkMod.x + sinkW;
+          }
+
+          const cookMod = fixedOccupied.find(m => m.type === 'cook');
+          if (cookMod) {
+            const cookW = parseFloat(cookMod.w) || 600;
+            if (isRefLeft) {
+              // 좌측 기준 → 가스대를 오른쪽에 배치
+              cookMod.x = Math.max(startBound, endBound - cookW);
+            } else {
+              // 우측 기준 → 가스대를 왼쪽에 배치
+              cookMod.x = startBound;
+            }
+            cookMod.endX = cookMod.x + cookW;
           }
         }
 
