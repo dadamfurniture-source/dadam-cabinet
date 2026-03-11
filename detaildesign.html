@@ -2668,7 +2668,7 @@
         finishCorner1Width: 60,
         finishCorner2Type: 'Filler',
         finishCorner2Width: 60,
-        topSizes: [''],
+        topSizes: [{ w: '', d: '' }],
         effectiveUpperW: null,
         effectiveLowerW: null,
         // ★ 붙박이장 전용 설정
@@ -4636,8 +4636,18 @@
           typeCounter[item.categoryId] = (typeCounter[item.categoryId] || 0) + 1;
           item.labelName = `${item.name} #${typeCounter[item.categoryId]}`;
 
-          if (item.specs.layoutShape === 'I' && !item.specs.topSizes[0] && item.w && item.d) {
-            item.specs.topSizes[0] = `${item.w} x ${item.d}`;
+          // topSizes 마이그레이션: 문자열 → 객체 변환
+          if (typeof item.specs.topSizes[0] === 'string') {
+            item.specs.topSizes = item.specs.topSizes.map(s => {
+              if (typeof s === 'string' && s.includes('x')) {
+                const [w, d] = s.split('x').map(v => v.trim());
+                return { w: w || '', d: d || '' };
+              }
+              return typeof s === 'object' && s ? s : { w: '', d: '' };
+            });
+          }
+          if (item.specs.layoutShape === 'I' && !item.specs.topSizes[0]?.w && item.w && item.d) {
+            item.specs.topSizes[0] = { w: String(item.w), d: String(item.d) };
           }
 
           const sinkInputs =
@@ -4766,7 +4776,11 @@
         if (target) {
           target[field] = value;
           if (target.specs.layoutShape === 'I' && (field === 'w' || field === 'd')) {
-            target.specs.topSizes[0] = `${target.w} x ${target.d}`;
+            if (!target.specs.topSizes[0] || typeof target.specs.topSizes[0] === 'string') {
+              target.specs.topSizes[0] = { w: '', d: '' };
+            }
+            target.specs.topSizes[0].w = String(target.w || '');
+            target.specs.topSizes[0].d = String(target.d || '');
           }
           // ★ 붙박이장: 가로(W) 변경 시 유효공간 자동 재계산
           if (target.categoryId === 'wardrobe' && field === 'w') {
@@ -5296,7 +5310,14 @@
         const topCount = item.specs.layoutShape === 'U' ? 3 : item.specs.layoutShape === 'L' ? 2 : 1;
         let topSizeInputs = '';
         for (let i = 0; i < topCount; i++) {
-          topSizeInputs += `<input type="text" placeholder="W x D" value="${item.specs.topSizes[i] || ''}" oninput="updateTopSize(${item.uniqueId}, ${i}, this.value)" style="margin-bottom:4px;">`;
+          const ts = item.specs.topSizes[i] || { w: '', d: '' };
+          const label = topCount > 1 ? `#${i + 1} ` : '';
+          topSizeInputs += `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;color:#888;min-width:20px;">${label}</span>
+            <input type="number" placeholder="길이(W)" value="${ts.w || ''}" onchange="updateTopSizeDim(${item.uniqueId}, ${i}, 'w', this.value)" style="flex:1;min-width:0;">
+            <span style="font-size:11px;color:#999;">×</span>
+            <input type="number" placeholder="폭(D)" value="${ts.d || ''}" onchange="updateTopSizeDim(${item.uniqueId}, ${i}, 'd', this.value)" style="flex:1;min-width:0;">
+          </div>`;
         }
 
         const accHtml = item.specs.accessories
@@ -6901,6 +6922,10 @@
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) {
           item.specs.layoutShape = shape;
+          const count = shape === 'U' ? 3 : shape === 'L' ? 2 : 1;
+          while (item.specs.topSizes.length < count) {
+            item.specs.topSizes.push({ w: '', d: '' });
+          }
           renderWorkspaceContent(item);
         }
       }
@@ -6908,6 +6933,15 @@
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;
+      }
+
+      function updateTopSizeDim(itemUniqueId, index, dim, value) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (!item.specs.topSizes[index] || typeof item.specs.topSizes[index] === 'string') {
+          item.specs.topSizes[index] = { w: '', d: '' };
+        }
+        item.specs.topSizes[index][dim] = value;
       }
 
       function updateSpec(itemUniqueId, field, value) {
