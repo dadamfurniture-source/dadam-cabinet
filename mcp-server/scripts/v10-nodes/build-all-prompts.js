@@ -1,6 +1,9 @@
 // ═══ Build All Prompts v10 — Cleanup + Furniture + Open ═══
 // Optimized: All English, deduplicated shared sections
-const input = $('Parse Wall Data').first().json;
+// RAG 노드가 있으면 RAG에서, 없으면 Parse Wall Data에서 데이터 가져오기
+let input;
+try { input = $('Supabase RAG Search').first().json; }
+catch(e) { input = $('Parse Wall Data').first().json; }
 const category = (input.category || 'sink').toLowerCase();
 const styleLabel = input.style || 'Modern Minimal';
 const roomImage = input.roomImage || '';
@@ -8,6 +11,7 @@ const imageType = input.imageType || 'image/jpeg';
 const cabinetSpecs = input.cabinetSpecs || {};
 const materialDescriptions = input.materialDescriptions || [];
 const clientPrompt = input.prompt || '';
+const ragRules = input.ragRules || null;
 const negativePrompt = input.negative_prompt || '';
 // Blueprint data from frontend (if provided)
 let layoutData = input.layoutData || null;
@@ -162,10 +166,29 @@ if (materialDescriptions && materialDescriptions.length > 0) {
   materialText += 'Additional: ' + materialDescriptions.join(', ') + '\n';
 }
 
+// ═══ RAG RULES SECTION ═══
+let ragSection = '';
+if (ragRules) {
+  if (ragRules.background && ragRules.background.length > 0) {
+    ragSection += '[BACKGROUND RULES]\n' + ragRules.background.join('\n') + '\n\n';
+  }
+  if (ragRules.modules && ragRules.modules.length > 0) {
+    ragSection += '[MODULE RULES]\n' + ragRules.modules.join('\n') + '\n\n';
+  }
+  if (ragRules.doors && ragRules.doors.length > 0) {
+    ragSection += '[DOOR RULES]\n' + ragRules.doors.join('\n') + '\n\n';
+  }
+  if (ragRules.materials && ragRules.materials.length > 0) {
+    const matTexts = ragRules.materials.map(m => '- ' + (m.triggers && m.triggers[0] ? m.triggers[0] + ': ' : '') + m.content);
+    ragSection += '[MATERIAL RULES]\n' + matTexts.join('\n') + '\n\n';
+  }
+}
+
 // ═══ SHARED PROMPT SECTIONS (deduplicated) ═══
 const WALL_DIM = 'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall';
 const PRESERVE_BG = 'This photo shows a room ready for furniture installation. PRESERVE the background EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.';
 const MATERIALS_STYLE = '[MATERIALS]\n' + materialText + '\n[STYLE: ' + styleLabel + ']\n' +
+  (ragSection ? ragSection : '') +
   (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '');
 const BASE_PROHIBITED = '- Do NOT modify the background, walls, or floor\n' +
   '- No text, labels, dimensions, or markings\n' +
