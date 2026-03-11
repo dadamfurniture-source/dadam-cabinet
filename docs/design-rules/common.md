@@ -47,12 +47,14 @@
 
 ### distributeModules(totalSpace)
 
-전체 유효공간에 모듈을 균등 배분:
+**각 갭(gap)을 독립적으로** 균등 배분:
 
-1. 도어 개수 범위 계산: `minCount` ~ `maxCount`
-2. 각 도어 개수에 대해 `findBestDoorWidth()` 호출
-3. 정렬: isPrimary 우선 > 목표너비(450)에 가까운 순 > 잔여 작은 순
-4. **2D/1D 모듈 패턴**: `doorCount / 2 = 몫(2D모듈) + 나머지(1D모듈)`
+1. 고정 모듈 사이 갭(gap) 목록 계산
+2. 작은 갭(< DOOR_MIN_WIDTH=350mm) → 모듈 생성 불가 → 큰 갭에 흡수
+3. 흡수: 작은 갭 총 너비를 큰 갭에 균등 분배
+4. 각 큰 갭에 대해 독립적으로 `findBestDoorWidth()` 호출
+5. 정렬: isPrimary 우선 > 목표너비(450)에 가까운 순 > 잔여 작은 순
+6. **2D/1D 모듈 패턴**: `doorCount / 2 = 몫(2D모듈) + 나머지(1D모듈)`
    - 2D 모듈: `doorWidth * 2` mm
    - 1D 모듈: `doorWidth` mm
 

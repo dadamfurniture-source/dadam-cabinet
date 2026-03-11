@@ -4029,46 +4029,25 @@
        * @param {number} defaultD - 기본 깊이
        * @param {number} fixedDoorWidth - 고정 도어 너비 (전달시 해당 너비 그대로 사용)
        */
-      function fillGapWithModules(gap, section, defaultH, defaultD, fixedDoorWidth = null, edgeMode = 'none', preferExact = false) {
+      function fillGapWithModules(gap, section, defaultH, defaultD, edgeMode = 'none', preferExact = false) {
         const newModules = [];
         const namePrefix = section === 'upper' ? '상부장' : '하부장';
 
-        if (gap.width < 100) return newModules;
+        // ★ RAG 규칙: 갭 < DOOR_MIN_WIDTH → 모듈 생성 안 함 (인접 모듈에 흡수 대상)
+        if (gap.width < DOOR_MIN_WIDTH) return newModules;
 
-        let doorWidth, doorCount;
+        // ★ 각 갭을 독립적으로 distributeModules 호출 (fixedDoorWidth 기반 분할 제거)
+        const result = distributeModules(gap.width, preferExact);
+        let doorWidth = result.doorWidth;
+        let doorCount = result.doorCount;
 
-        if (fixedDoorWidth) {
-          // ★ 고정 도어 너비 사용 — gap 초과 방지
-          doorWidth = fixedDoorWidth;
-
-          // gap이 fixedDoorWidth보다 작으면 gap 자체를 너비로 사용
-          if (gap.width < fixedDoorWidth) {
-            doorWidth = gap.width;
-            doorCount = 1;
-          } else {
-            doorCount = Math.floor(gap.width / fixedDoorWidth);
-            if (doorCount < 1) doorCount = 1;
-          }
-
-          // doorCount * doorWidth가 gap을 초과하면 doorCount 감소
-          while (doorCount > 1 && doorCount * doorWidth > gap.width) {
-            doorCount--;
-          }
-        } else {
-          // 고정 도어 너비가 없는 경우: 기존 분배규칙 적용
-          const result = distributeModules(gap.width, preferExact);
-          doorWidth = result.doorWidth;
-          doorCount = result.doorCount;
-        }
+        if (!doorWidth || doorCount < 1) return newModules;
 
         let dx = gap.start;
         const gapEnd = gap.start + gap.width;
-
-        // ★ gap 경계 초과 방지 헬퍼
-        const canFit = (w) => dx + w <= gapEnd + 1; // 1mm 허용오차
+        const canFit = (w) => dx + w <= gapEnd + 1;
 
         // ★ 상부장 대칭 배치: 1D 가장자리 + 2D 중앙
-        // edgeMode: 'both' = 양쪽 1D, 'left' = 왼쪽 1D만, 'right' = 오른쪽 1D만
         if (edgeMode !== 'none' && doorCount >= 3) {
           const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
           const hasRight = (edgeMode === 'both' || edgeMode === 'right');
@@ -4077,23 +4056,19 @@
           const center2D = Math.floor(centerDoors / 2);
           const centerMod1D = centerDoors % 2;
 
-          // 왼쪽 1D
           if (hasLeft && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
-          // 중앙 2D
           for (let i = 0; i < center2D; i++) {
             if (!canFit(doorWidth * 2)) break;
             newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
             dx += doorWidth * 2;
           }
-          // 중앙 잔여 1D (홀수 도어 시)
           if (centerMod1D > 0 && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
-          // 오른쪽 1D
           if (hasRight && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
@@ -4305,25 +4280,38 @@
         const hasMoldingUpper = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
         const preferExactUpper = hasMoldingUpper;
 
-        // 전체 가용 공간에 대한 균일 도어 너비 결정
-        const totalAvailable = gaps.reduce((sum, g) => sum + g.width, 0);
-        const calcResult = distributeModules(totalAvailable, preferExactUpper);
-        const doorWidth = calcResult.doorWidth || DOOR_TARGET_WIDTH;
+        // ★ RAG 규칙: 작은 갭(< DOOR_MIN_WIDTH)을 큰 갭에 흡수
+        const largeGapsUpper = [];
+        let smallGapTotalUpper = 0;
+        gaps.forEach(g => {
+          if (g.width >= DOOR_MIN_WIDTH) {
+            largeGapsUpper.push({ ...g });
+          } else {
+            smallGapTotalUpper += g.width;
+          }
+        });
+        if (smallGapTotalUpper > 0 && largeGapsUpper.length > 0) {
+          const extra = Math.floor(smallGapTotalUpper / largeGapsUpper.length);
+          const rem = smallGapTotalUpper - extra * largeGapsUpper.length;
+          largeGapsUpper.forEach((g, i) => {
+            g.width += extra + (i < rem ? 1 : 0);
+          });
+        }
 
-        // ★ Step 4: 대칭 분배 (1D 양쪽 가장자리 + 2D 중앙)
+        // ★ Step 4: 대칭 분배 (각 갭 독립 distributeModules 호출)
         item.modules = item.modules.filter((m) => m.pos !== 'upper');
         let newModules = [];
 
-        if (gaps.length === 1) {
+        if (largeGapsUpper.length === 1) {
           // 단일 공간 (후드 없음): 전체 대칭 분배
-          newModules = fillGapWithModules(gaps[0], 'upper', upperBodyH, 295, doorWidth, 'both', preferExactUpper);
-        } else {
+          newModules = fillGapWithModules(largeGapsUpper[0], 'upper', upperBodyH, 295, 'both', preferExactUpper);
+        } else if (largeGapsUpper.length > 1) {
           // 복수 공간 (후드 있음): 가장 왼쪽=왼1D, 가장 오른쪽=오른1D, 중간=2D
-          gaps.forEach((gap, idx) => {
+          largeGapsUpper.forEach((gap, idx) => {
             let edgeMode = 'none';
             if (idx === 0) edgeMode = 'left';
-            else if (idx === gaps.length - 1) edgeMode = 'right';
-            newModules = newModules.concat(fillGapWithModules(gap, 'upper', upperBodyH, 295, doorWidth, edgeMode, preferExactUpper));
+            else if (idx === largeGapsUpper.length - 1) edgeMode = 'right';
+            newModules = newModules.concat(fillGapWithModules(gap, 'upper', upperBodyH, 295, edgeMode, preferExactUpper));
           });
         }
 
@@ -4353,8 +4341,9 @@
 
         item.modules = item.modules.concat(newModules);
 
+        const totalAvailableUpper = largeGapsUpper.reduce((s, g) => s + g.width, 0);
         console.log(
-          `상부장: 도어=${doorWidth}mm, 고정모듈=${fixedOccupied.length}개, 가용공간=${totalAvailable}mm`
+          `상부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${totalAvailableUpper}mm, 작은갭흡수=${smallGapTotalUpper}mm`
         );
       }
 
@@ -4490,17 +4479,31 @@
         const hasMolding = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
         const preferExact = hasMolding;
 
-        // ★ 가용 공간에서 도어 너비 결정
-        const totalAvailable = gaps.reduce((sum, g) => sum + g.width, 0);
-        const calcResult = distributeModules(totalAvailable, preferExact);
-        const doorWidth = calcResult.doorWidth || DOOR_TARGET_WIDTH;
+        // ★ RAG 규칙: 작은 갭(< DOOR_MIN_WIDTH)을 큰 갭에 흡수
+        const largeGaps = [];
+        let smallGapTotal = 0;
+        gaps.forEach(g => {
+          if (g.width >= DOOR_MIN_WIDTH) {
+            largeGaps.push({ ...g });
+          } else {
+            smallGapTotal += g.width;
+          }
+        });
+        // 작은 갭 너비를 큰 갭에 균등 분배 (잔여공간 비고정 모듈 분배 규칙)
+        if (smallGapTotal > 0 && largeGaps.length > 0) {
+          const extra = Math.floor(smallGapTotal / largeGaps.length);
+          const rem = smallGapTotal - extra * largeGaps.length;
+          largeGaps.forEach((g, i) => {
+            g.width += extra + (i < rem ? 1 : 0);
+          });
+        }
 
-        // ★ 모듈 생성
+        // ★ 모듈 생성 (각 갭 독립 distributeModules 호출)
         item.modules = item.modules.filter((m) => m.pos !== 'lower');
         let newModules = [];
 
-        gaps.forEach((gap) => {
-          newModules = newModules.concat(fillGapWithModules(gap, 'lower', defaultLowerH, 550, doorWidth, 'none', preferExact));
+        largeGaps.forEach((gap) => {
+          newModules = newModules.concat(fillGapWithModules(gap, 'lower', defaultLowerH, 550, 'none', preferExact));
         });
 
         // 고정 모듈 추가
