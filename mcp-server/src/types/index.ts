@@ -41,6 +41,7 @@ export interface CabinetSpecs {
   leg_height?: number;
   molding_height?: number;
   countertop_thickness?: number;
+  upper_door_overlap?: number;
   door_color_upper?: string;
   door_color_lower?: string;
   door_finish_upper?: string;
@@ -469,6 +470,8 @@ export interface StructuredDesignData {
     lower_height_mm: number;
     leg_height_mm: number;
     molding_height_mm: number;
+    countertop_thickness_mm: number;
+    upper_door_overlap_mm: number;
   };
 
   equipment: {

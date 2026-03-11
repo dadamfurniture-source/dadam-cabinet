@@ -50,6 +50,8 @@ export function extractDesignData(input: ExtractDesignDataInput): StructuredDesi
   const lowerHeight = cabinetSpecs?.lower_cabinet_height ?? 870;
   const legHeight = cabinetSpecs?.leg_height ?? 150;
   const moldingHeight = cabinetSpecs?.molding_height ?? 60;
+  const countertopThickness = cabinetSpecs?.countertop_thickness ?? 12;
+  const upperDoorOverlap = cabinetSpecs?.upper_door_overlap ?? 15;
 
   // 캐비닛 유닛 생성
   const { upper, lower } = buildCabinetUnits(
@@ -88,6 +90,8 @@ export function extractDesignData(input: ExtractDesignDataInput): StructuredDesi
       lower_height_mm: lowerHeight,
       leg_height_mm: legHeight,
       molding_height_mm: moldingHeight,
+      countertop_thickness_mm: countertopThickness,
+      upper_door_overlap_mm: upperDoorOverlap,
     },
     equipment,
     materials,

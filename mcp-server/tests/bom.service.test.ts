@@ -30,6 +30,8 @@ function makeKitchenDesign(overrides: Partial<StructuredDesignData> = {}): Struc
       lower_height_mm: 870,
       leg_height_mm: 150,
       molding_height_mm: 60,
+      countertop_thickness_mm: 12,
+      upper_door_overlap_mm: 15,
     },
     equipment: {
       sink: { position_mm: 400, width_mm: 800, type: 'undermount' },
@@ -225,6 +227,8 @@ describe('generateBom', () => {
         lower_height_mm: 2200,
         leg_height_mm: 0,
         molding_height_mm: 0,
+        countertop_thickness_mm: 0,
+        upper_door_overlap_mm: 0,
       },
       equipment: {},
     }));

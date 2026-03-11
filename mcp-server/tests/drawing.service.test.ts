@@ -32,6 +32,8 @@ function makeKitchenDesign(overrides: Partial<StructuredDesignData> = {}): Struc
       lower_height_mm: 870,
       leg_height_mm: 150,
       molding_height_mm: 60,
+      countertop_thickness_mm: 12,
+      upper_door_overlap_mm: 15,
     },
     equipment: {
       sink: { position_mm: 400, width_mm: 800, type: 'undermount' },
@@ -94,10 +96,11 @@ describe('generateDrawingData', () => {
     expect(door1.x).toBe(400);
     expect(door1.width).toBe(398);
 
-    // height = 720 (lower body height) - 4 (gap) = 716
+    // 하부장 모듈 높이 = 870 - 12(상판) - 150(다리발) = 708
     const legH = 150;
-    const lowerBodyH = 870 - legH; // 720
-    expect(door0.height).toBe(lowerBodyH - 4);
+    const ctT = 12;
+    const lowerBodyH = 870 - ctT - legH; // 708
+    expect(door0.height).toBe(lowerBodyH - 4); // 704
   });
 
   // 3. 서랍 캐비닛 높이 분할
@@ -105,19 +108,20 @@ describe('generateDrawingData', () => {
     const drawing = generateDrawingData(makeKitchenDesign());
     const frontView = drawing.common.front_view;
 
-    // lower_1: 3 drawers, bodyH = 720
+    // lower_1: 3 drawers, bodyH = 708
     const drawers = frontView.doors.filter(d => d.ref === 'lower_1' && d.is_drawer);
     expect(drawers.length).toBe(3);
 
-    const drawerHeight = Math.round(720 / 3); // 240
-    expect(drawers[0].height).toBe(drawerHeight - 4); // 236
+    const lowerBodyH = 870 - 12 - 150; // 708
+    const drawerHeight = Math.round(lowerBodyH / 3); // 236
+    expect(drawers[0].height).toBe(drawerHeight - 4); // 232
     expect(drawers[1].height).toBe(drawerHeight - 4);
     expect(drawers[2].height).toBe(drawerHeight - 4);
 
-    // Y positions: legH=150, each drawer 240px apart
+    // Y positions: legH=150, each drawer 236px apart
     expect(drawers[0].y).toBe(150 + 2); // cabY + gap/2
-    expect(drawers[1].y).toBe(150 + 240 + 2);
-    expect(drawers[2].y).toBe(150 + 480 + 2);
+    expect(drawers[1].y).toBe(150 + drawerHeight + 2);
+    expect(drawers[2].y).toBe(150 + drawerHeight * 2 + 2);
   });
 
   // 4. 경첩/핸들 위치
@@ -131,16 +135,17 @@ describe('generateDrawingData', () => {
     expect(lower0Hinges.length).toBe(4);
 
     const legH = 150;
+    const lowerBodyH = 870 - 12 - legH; // 708
     // First hinge at cabY + 100 = 150 + 100 = 250
     expect(lower0Hinges[0].y).toBe(legH + 100);
-    // Second hinge at cabY + bodyH - 100 = 150 + 720 - 100 = 770
-    expect(lower0Hinges[1].y).toBe(legH + 720 - 100);
+    // Second hinge at cabY + bodyH - 100 = 150 + 708 - 100 = 758
+    expect(lower0Hinges[1].y).toBe(legH + lowerBodyH - 100);
 
     // Handles for lower_0
     const lower0Handles = hw.filter(h => h.ref === 'lower_0' && h.type === 'handle');
     expect(lower0Handles.length).toBe(2); // one per door
-    // Handle Y at cabY + height/2 = 150 + 360 = 510
-    expect(lower0Handles[0].y).toBe(legH + 720 / 2);
+    // Handle Y at cabY + height/2 = 150 + 354 = 504
+    expect(lower0Handles[0].y).toBe(legH + lowerBodyH / 2);
   });
 
   // 5. 단면도 패널 두께 반영 (18T 측판, 2.7T 뒷판)
@@ -250,6 +255,8 @@ describe('generateDrawingData', () => {
         lower_height_mm: 2200,
         leg_height_mm: 0,
         molding_height_mm: 0,
+        countertop_thickness_mm: 0,
+        upper_door_overlap_mm: 0,
       },
       equipment: {},
       utilities: {

@@ -29,23 +29,30 @@ export function generateBom(designData: StructuredDesignData): BomResult {
   const backMaterial = rules.materials.back_panel.label || `${rules.materials.back_panel.thickness}T ${rules.materials.back_panel.type}`;
 
   // ─── 하부장 캐비닛 ───
+  // 하부장 모듈 높이 = 하부장 높이 - 상판 두께 - 다리발
+  const lowerModuleH = designData.cabinets.lower_height_mm
+    - designData.cabinets.countertop_thickness_mm
+    - designData.cabinets.leg_height_mm;
   for (let i = 0; i < designData.cabinets.lower.length; i++) {
     const cab = designData.cabinets.lower[i];
     const ref = `lower_${i}`;
-    const cabHeight = designData.cabinets.lower_height_mm - designData.cabinets.leg_height_mm;
     const cabDepth = designData.layout.depth_mm;
 
-    items.push(...buildCabinetParts(nextId, rules, cab, ref, cabHeight, cabDepth, doorMaterial, bodyMaterial, backMaterial, 'lower'));
+    items.push(...buildCabinetParts(nextId, rules, cab, ref, lowerModuleH, cabDepth, doorMaterial, bodyMaterial, backMaterial, 'lower'));
   }
 
   // ─── 상부장 캐비닛 ───
+  // 상부장 모듈 높이 = 상부장 높이 - 상부 도어 오버랩
+  const upperModuleH = designData.cabinets.upper_height_mm
+    - designData.cabinets.upper_door_overlap_mm;
+  // 상부장 도어 높이 = 상부장 높이 (설정값 그대로)
+  const upperDoorH = designData.cabinets.upper_height_mm;
   for (let i = 0; i < designData.cabinets.upper.length; i++) {
     const cab = designData.cabinets.upper[i];
     const ref = `upper_${i}`;
-    const cabHeight = designData.cabinets.upper_height_mm;
     const cabDepth = Math.round(designData.layout.depth_mm * rules.upper_cabinet.depth_ratio);
 
-    items.push(...buildCabinetParts(nextId, rules, cab, ref, cabHeight, cabDepth, doorMaterial, bodyMaterial, backMaterial, 'upper'));
+    items.push(...buildCabinetParts(nextId, rules, cab, ref, upperModuleH, cabDepth, doorMaterial, bodyMaterial, backMaterial, 'upper', upperDoorH));
   }
 
   // ─── 카운터탑 ───
@@ -107,6 +114,7 @@ function buildCabinetParts(
   bodyMaterial: string,
   backMaterial: string,
   position: 'upper' | 'lower',
+  doorHeightOverride?: number,
 ): BomItem[] {
   const items: BomItem[] = [];
   const label = position === 'upper' ? '상부장' : '하부장';
@@ -117,9 +125,12 @@ function buildCabinetParts(
   const gap = rules.construction.door_gap;
   const clearance = rules.construction.back_panel_clearance;
 
+  // 도어 높이: 상부장은 설정값(오버랩 포함), 하부장은 모듈 높이 - gap
+  const effectiveDoorH = doorHeightOverride ?? (cabHeight - gap);
+
   // ── 1. 도어 패널 (18T MDF) ──
   if (cab.is_drawer) {
-    const drawerHeight = Math.round(cabHeight / cab.door_count);
+    const drawerHeight = Math.round(effectiveDoorH / cab.door_count);
     for (let d = 0; d < cab.door_count; d++) {
       items.push({
         id: nextId(),
@@ -143,7 +154,7 @@ function buildCabinetParts(
         name: `${label}${idx} 도어${cab.door_count > 1 ? d + 1 : ''}`,
         material: doorMaterial,
         width_mm: doorWidth,
-        height_mm: cabHeight - gap,
+        height_mm: effectiveDoorH,
         depth_mm: doorT,
         quantity: 1,
         unit: 'ea',

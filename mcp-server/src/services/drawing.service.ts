@@ -117,7 +117,9 @@ function buildFrontView(
   const legH = data.cabinets.leg_height_mm;
   const lowerH = data.cabinets.lower_height_mm;
   const upperH = data.cabinets.upper_height_mm;
-  const lowerBodyH = lowerH - legH;
+  const ctT = data.cabinets.countertop_thickness_mm ?? COUNTERTOP_THICKNESS;
+  // 하부장 모듈 높이 = 하부장 높이 - 상판 두께 - 다리발
+  const lowerBodyH = lowerH - ctT - legH;
   const countertopY = lowerH;
   const upperStartY = lowerH + UPPER_LOWER_GAP;
 
@@ -330,7 +332,9 @@ function buildSideView(
   const depth = data.layout.depth_mm;
   const legH = data.cabinets.leg_height_mm;
   const lowerH = data.cabinets.lower_height_mm;
-  const lowerBodyH = lowerH - legH;
+  const ctT = data.cabinets.countertop_thickness_mm ?? countertopT;
+  // 하부장 모듈 높이 = 하부장 높이 - 상판 두께 - 다리발
+  const lowerBodyH = lowerH - ctT - legH;
   const panels: PanelRect[] = [];
   const dimensions: DimensionLine[] = [];
 
