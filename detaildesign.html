@@ -4028,23 +4028,19 @@
         let doorWidth, doorCount;
 
         if (fixedDoorWidth) {
-          // ★ 고정 도어 너비 사용 — gap 초과 방지를 위해 floor 사용
+          // ★ 고정 도어 너비 사용 — gap 초과 방지
           doorWidth = fixedDoorWidth;
-          doorCount = Math.floor(gap.width / fixedDoorWidth);
-          if (doorCount < 1) doorCount = 1;
 
-          // ★ doorCount * doorWidth가 gap을 초과하면 doorCount 감소
-          while (doorCount > 1 && doorCount * doorWidth > gap.width) {
-            doorCount--;
+          // gap이 fixedDoorWidth보다 작으면 gap 자체를 너비로 사용
+          if (gap.width < fixedDoorWidth) {
+            doorWidth = gap.width;
+            doorCount = 1;
+          } else {
+            doorCount = Math.floor(gap.width / fixedDoorWidth);
+            if (doorCount < 1) doorCount = 1;
           }
 
-          // 제약 조건으로 인해 도어 개수 조정이 필요한 경우만
-          if (doorWidth < DOOR_MIN_WIDTH) {
-            doorCount = Math.max(1, Math.floor(gap.width / DOOR_MIN_WIDTH));
-          } else if (doorWidth > DOOR_MAX_WIDTH) {
-            doorCount = Math.ceil(gap.width / DOOR_MAX_WIDTH);
-          }
-          // ★ 최종 검증: 생성될 모듈 총 너비가 gap 초과 방지
+          // doorCount * doorWidth가 gap을 초과하면 doorCount 감소
           while (doorCount > 1 && doorCount * doorWidth > gap.width) {
             doorCount--;
           }
@@ -7257,8 +7253,10 @@
         const specUpperH = parseFloat(item.specs.upperH) || 720;
         const specLowerH = parseFloat(item.specs.lowerH) || 870;
         const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
 
-        const defaultH = type === 'upper' ? specUpperH - 20 : specLowerH - specLegH;
+        const defaultH = type === 'upper' ? specUpperH - specOverlap : specLowerH - specTopT - specLegH;
         const defaultD = type === 'upper' ? 295 : 550;
         const name = type === 'upper' ? '상부장' : '하부장';
 
