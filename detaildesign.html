@@ -4195,7 +4195,7 @@
           if (!def || def.pos !== section) return;
           // 이미 존재하면 건너뜀
           if (sectionModules.some(def.matchFn)) return;
-          const h = section === 'upper' ? upperBodyH - 20 : lowerBodyH;
+          const h = section === 'upper' ? upperBodyH : lowerBodyH;
           item.modules.push({
             id: Date.now() + Math.random(),
             type: def.type,
@@ -4364,7 +4364,8 @@
 
         const specLowerH = parseFloat(item.specs.lowerH) || 870;
         const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
-        const defaultLowerH = specLowerH - specLegH;
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const defaultLowerH = specLowerH - specTopT - specLegH;
 
         // ★ 고정 모듈만 수집 (isFixed=true인 모듈의 현재 위치 계산)
         const currentModules = item.modules.filter((m) => m.pos === 'lower');
@@ -4575,8 +4576,8 @@
             { id: 1, type: 'storage', name: '하부장', pos: 'lower', w: 600, h: lowerBodyH, d: 550, isDrawer: false, isEL: false, isFixed: false },
             { id: 2, type: 'storage', name: '하부장', pos: 'lower', w: 600, h: lowerBodyH, d: 550, isDrawer: false, isEL: false, isFixed: false },
             { id: 3, type: 'storage', name: '하부장', pos: 'lower', w: 600, h: lowerBodyH, d: 550, isDrawer: false, isEL: false, isFixed: false },
-            { id: 4, type: 'storage', name: '상부장', pos: 'upper', w: 600, h: upperBodyH - 20, d: 295, isDrawer: false, isEL: false, isFixed: false },
-            { id: 5, type: 'storage', name: '상부장', pos: 'upper', w: 600, h: upperBodyH - 20, d: 295, isDrawer: false, isEL: false, isFixed: false },
+            { id: 4, type: 'storage', name: '상부장', pos: 'upper', w: 600, h: upperBodyH, d: 295, isDrawer: false, isEL: false, isFixed: false },
+            { id: 5, type: 'storage', name: '상부장', pos: 'upper', w: 600, h: upperBodyH, d: 295, isDrawer: false, isEL: false, isFixed: false },
           ];
         }
 
@@ -9172,7 +9173,8 @@
           lowerModules.forEach((mod, idx) => {
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 600;
-            const H = parseFloat(mod.h) || (specs.lowerH || 870) - legH;
+            const topT = parseFloat(specs.topThickness) || 12;
+            const H = parseFloat(mod.h) || (specs.lowerH || 870) - topT - legH;
             const modD = parseFloat(mod.d) || defaultLowerD;
             const name = mod.name || `${W}/${mod.doorCount || 1}도어`;
             const isDrawer = mod.isDrawer || false;
@@ -9745,8 +9747,8 @@
 
             let doorH;
             const upperOverlap = parseFloat(specs.upperDoorOverlap) || 15;
-            if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - 20) + upperOverlap;
-            else if (mod.pos === 'lower') doorH = (mod.h || specs.lowerH - specs.sinkLegHeight) - 30;
+            if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + upperOverlap;
+            else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
 
             const hingesPerDoor = this.getHingeCount(doorH);
