@@ -4028,10 +4028,15 @@
         let doorWidth, doorCount;
 
         if (fixedDoorWidth) {
-          // ★ 고정 도어 너비를 그대로 사용 (모든 도어 동일 크기)
+          // ★ 고정 도어 너비 사용 — gap 초과 방지를 위해 floor 사용
           doorWidth = fixedDoorWidth;
-          doorCount = Math.round(gap.width / fixedDoorWidth);
+          doorCount = Math.floor(gap.width / fixedDoorWidth);
           if (doorCount < 1) doorCount = 1;
+
+          // ★ doorCount * doorWidth가 gap을 초과하면 doorCount 감소
+          while (doorCount > 1 && doorCount * doorWidth > gap.width) {
+            doorCount--;
+          }
 
           // 제약 조건으로 인해 도어 개수 조정이 필요한 경우만
           if (doorWidth < DOOR_MIN_WIDTH) {
@@ -4039,7 +4044,10 @@
           } else if (doorWidth > DOOR_MAX_WIDTH) {
             doorCount = Math.ceil(gap.width / DOOR_MAX_WIDTH);
           }
-          // ★ doorWidth는 변경하지 않음 (동일 크기 유지)
+          // ★ 최종 검증: 생성될 모듈 총 너비가 gap 초과 방지
+          while (doorCount > 1 && doorCount * doorWidth > gap.width) {
+            doorCount--;
+          }
         } else {
           // 고정 도어 너비가 없는 경우: 기존 분배규칙 적용
           const result = distributeModules(gap.width);
@@ -4048,6 +4056,10 @@
         }
 
         let dx = gap.start;
+        const gapEnd = gap.start + gap.width;
+
+        // ★ gap 경계 초과 방지 헬퍼
+        const canFit = (w) => dx + w <= gapEnd + 1; // 1mm 허용오차
 
         // ★ 상부장 대칭 배치: 1D 가장자리 + 2D 중앙
         // edgeMode: 'both' = 양쪽 1D, 'left' = 왼쪽 1D만, 'right' = 오른쪽 1D만
@@ -4060,22 +4072,23 @@
           const centerMod1D = centerDoors % 2;
 
           // 왼쪽 1D
-          if (hasLeft) {
+          if (hasLeft && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
           // 중앙 2D
           for (let i = 0; i < center2D; i++) {
+            if (!canFit(doorWidth * 2)) break;
             newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
             dx += doorWidth * 2;
           }
           // 중앙 잔여 1D (홀수 도어 시)
-          if (centerMod1D > 0) {
+          if (centerMod1D > 0 && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
           // 오른쪽 1D
-          if (hasRight) {
+          if (hasRight && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
@@ -4084,10 +4097,11 @@
           const quotient = Math.floor(doorCount / 2);
           const mod1D = doorCount % 2;
           for (let i = 0; i < quotient; i++) {
+            if (!canFit(doorWidth * 2)) break;
             newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
             dx += doorWidth * 2;
           }
-          if (mod1D > 0) {
+          if (mod1D > 0 && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
