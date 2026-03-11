@@ -1,6 +1,5 @@
 // ═══ Build All Prompts v10 — Cleanup + Furniture + Open ═══
-// Ported from v9 Parse BG Result + Build Fixed Prompts
-// Builds all prompts and geminiCleanupBody for the 4-stage pipeline
+// Optimized: All English, deduplicated shared sections
 const input = $('Parse Wall Data').first().json;
 const category = (input.category || 'sink').toLowerCase();
 const styleLabel = input.style || 'Modern Minimal';
@@ -163,12 +162,29 @@ if (materialDescriptions && materialDescriptions.length > 0) {
   materialText += 'Additional: ' + materialDescriptions.join(', ') + '\n';
 }
 
-// ═══ 1. CLEANUP PROMPT (short & direct for better Gemini results) ═══
+// ═══ SHARED PROMPT SECTIONS (deduplicated) ═══
+const WALL_DIM = 'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall';
+const PRESERVE_BG = 'This photo shows a room ready for furniture installation. PRESERVE the background EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.';
+const MATERIALS_STYLE = '[MATERIALS]\n' + materialText + '\n[STYLE: ' + styleLabel + ']\n' +
+  (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '');
+const BASE_PROHIBITED = '- Do NOT modify the background, walls, or floor\n' +
+  '- No text, labels, dimensions, or markings\n' +
+  '- No floating or detached furniture elements\n';
+const QUALITY_RULES = '- Photorealistic quality with realistic shadows and reflections\n' +
+  '- Proper material textures (wood grain, stone pattern, stainless steel)\n' +
+  '- Realistic edge profiles and panel gaps (2-3mm between doors)\n' +
+  '- Natural lighting consistent with the background\n';
+const DUCT_RULES = 'The range hood MUST be fully concealed inside the upper cabinet.\n' +
+  'REMOVE all exposed duct pipes, silver aluminum tubes, ventilation pipes from the image.\n' +
+  'The wall behind cabinets must show clean tiles or wall surface \u2014 NO pipe or duct visible.\n';
+const EXTRA_RESTRICT = negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '';
+
+// ═══ 1. CLEANUP PROMPT ═══
 const cleanupPrompt =
   'Edit this image: Remove everything from the floor and surfaces. ' +
   'Delete all construction debris, tools, materials, plastic sheets, dust, and trash. ' +
   'The floor must be perfectly clean polished tile or concrete. ' +
-  'Keep the exact same room — same walls, tiles, ceiling, lights, camera angle. ' +
+  'Keep the exact same room \u2014 same walls, tiles, ceiling, lights, camera angle. ' +
   'Output: a photorealistic photo of this same empty room, spotlessly clean, ready for furniture.';
 
 // ═══ 2. FURNITURE PROMPT ═══
@@ -224,43 +240,32 @@ if (isKitchen) {
     if (ld && ld.toeKick) layoutText += 'Toe kick: dark strip at very bottom (~' + (ld.toeKick.h * 100).toFixed(0) + '%)\n';
 
     furniturePrompt = '[TASK: BLUEPRINT-GUIDED PHOTOREALISTIC FURNITURE RENDERING]\n\n' +
-      'This photo shows a room ready for furniture installation. PRESERVE the background EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n' +
-      'Place furniture according to the PRECISE CABINET LAYOUT below.\n\n' +
+      PRESERVE_BG + '\nPlace furniture according to the PRECISE CABINET LAYOUT below.\n\n' +
       layoutText + '\n' +
-      '[UTILITY ANCHOR POINTS \u2014 \uC704\uCE58 \uACE0\uC815]\n' +
-      '\u2605 \uAE09\uC218\uBC30\uAD00(Water supply) at ' + waterPercent + '% \u2192 \uAC1C\uC218\uB300(Sink) \uBC18\uB4DC\uC2DC \uC774 \uC704\uCE58\uC5D0 \uBC30\uCE58\n' +
-      '\u2605 \uBC30\uAE30\uB355\uD2B8(Exhaust duct) at ' + exhaustPercent + '% \u2192 \uAC00\uC2A4\uB300(Cooktop) + \uB808\uC778\uC9C0\uD6C4\uB4DC \uBC18\uB4DC\uC2DC \uC774 \uC704\uCE58\uC5D0 \uBC30\uCE58\n\n' +
+      '[UTILITY ANCHOR POINTS \u2014 FIXED POSITIONS]\n' +
+      '\u2605 Water supply at ' + waterPercent + '% \u2192 Sink MUST be placed at this position\n' +
+      '\u2605 Exhaust duct at ' + exhaustPercent + '% \u2192 Cooktop + Range hood MUST be placed at this position\n\n' +
       '\u2605\u2605\u2605 RENDERING RULES (MANDATORY) \u2605\u2605\u2605\n' +
-      '1. PRESERVE the background EXACTLY \u2014 do NOT modify walls, floor, or ceiling\n' +
-      '2. Place furniture ONLY where the layout description specifies\n' +
-      '3. Match the EXACT proportions and positions from the layout\n' +
-      '4. Each module WIDTH RATIO must match the layout precisely\n' +
-      '5. Upper cabinets must be flush with ceiling\n' +
-      '6. Drawers and doors must match the count specified\n' +
-      '7. Handles must match the type specified in materials\n' +
-      '8. Sink and cooktop positions must match the layout exactly\n\n' +
+      '1. PRESERVE the background EXACTLY\n' +
+      '2. Place furniture ONLY where the layout specifies\n' +
+      '3. Match EXACT proportions and positions from the layout\n' +
+      '4. Each module width ratio must match precisely\n' +
+      '5. Upper cabinets flush with ceiling\n' +
+      '6. Door/drawer count must match the layout\n' +
+      '7. Sink and cooktop positions must match exactly\n\n' +
       '\u2605\u2605\u2605 PHOTOREALISTIC QUALITY \u2605\u2605\u2605\n' +
-      '- Add realistic shadows, reflections, and ambient lighting\n' +
-      '- Apply proper material textures (wood grain, stone pattern, stainless steel)\n' +
-      '- Show realistic edge profiles and panel gaps (2-3mm between doors)\n' +
-      '- Natural lighting from windows/ceiling as visible in the background\n' +
+      QUALITY_RULES +
       '- Subtle shadow under upper cabinets onto backsplash\n' +
       '- Realistic toe kick shadow on floor\n\n' +
-      '\u2605\u2605\u2605 \uBC30\uAE30\uB355\uD2B8 \uC644\uC804 \uC81C\uAC70 + \uB808\uC778\uC9C0\uD6C4\uB4DC \uC740\uD3D0 \u2605\u2605\u2605\n' +
-      'The range hood MUST be fully concealed inside the upper cabinet.\n' +
-      'REMOVE all exposed duct pipes, silver aluminum tubes, ventilation pipes from the image.\n' +
-      'The wall behind cabinets must show clean tiles or wall surface \u2014 NO pipe or duct visible.\n\n' +
-      '[MATERIALS]\n' + materialText + '\n' +
-      '[STYLE: ' + styleLabel + ']\n' +
-      (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
+      '\u2605\u2605\u2605 CONCEALED RANGE HOOD \u2605\u2605\u2605\n' +
+      DUCT_RULES + '\n' +
+      MATERIALS_STYLE +
       '[PROHIBITED]\n' +
+      BASE_PROHIBITED +
       '- Do NOT change positions or proportions from the layout\n' +
-      '- Do NOT modify the background/wall/floor\n' +
-      '- No text, labels, or dimension markings\n' +
-      '- NO exposed duct pipe, silver tube, aluminum duct, ventilation pipe\n' +
-      '- NO floating or detached furniture elements\n' +
+      '- NO exposed duct pipe, silver tube, or ventilation pipe\n' +
       '- Sink cabinet door MUST be completely closed\n' +
-      (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
+      EXTRA_RESTRICT;
 
   } else {
     // ─── KITCHEN FALLBACK (no blueprint) ───
@@ -272,16 +277,14 @@ if (isKitchen) {
       'This photo shows a room. Do NOT alter walls, floor, ceiling, or lighting.\n' +
       'ONLY add kitchen furniture and appliances.\n\n' +
       'Wall dimensions: ' + wallW + 'mm \u00D7 ' + wallH + 'mm\n\n' +
-      '[\uAE09\uC218\uBC30\uAD00 \u2192 \uAC1C\uC218\uB300(Sink) \uC704\uCE58]\n' +
+      '[WATER SUPPLY \u2192 SINK POSITION]\n' +
       '  ' + waterMm + 'mm (' + waterPercent + '%) from left\n' +
-      '  \u2192 \uAC1C\uC218\uB300(Sink bowl) \uC911\uC2EC\uC744 \uBC18\uB4DC\uC2DC ' + waterPercent + '% \uC704\uCE58\uC5D0 \uBC30\uCE58\n\n' +
-      '[\uBC30\uAE30\uB355\uD2B8 \u2192 \uAC00\uC2A4\uB300(Cooktop) \uC704\uCE58]\n' +
+      '  \u2192 Sink bowl center MUST be placed at ' + waterPercent + '% position\n\n' +
+      '[EXHAUST DUCT \u2192 COOKTOP POSITION]\n' +
       '  ' + exhaustMm + 'mm (' + exhaustPercent + '%) from left\n' +
-      '  \u2192 \uAC00\uC2A4\uB300(Cooktop) + \uB808\uC778\uC9C0\uD6C4\uB4DC \uC911\uC2EC\uC744 \uBC18\uB4DC\uC2DC ' + exhaustPercent + '% \uC704\uCE58\uC5D0 \uBC30\uCE58\n\n' +
-      '\u2605\u2605\u2605 \uBC30\uAE30\uB355\uD2B8 \uC644\uC804 \uC81C\uAC70 + \uB808\uC778\uC9C0\uD6C4\uB4DC \uC740\uD3D0 \u2605\u2605\u2605\n' +
-      'The range hood MUST be fully concealed inside the upper cabinet.\n' +
-      'REMOVE all exposed duct pipes, silver aluminum tubes, ventilation pipes.\n' +
-      'Wall behind cabinets must show clean tiles \u2014 NO pipe or duct visible.\n\n' +
+      '  \u2192 Cooktop + Range hood center MUST be placed at ' + exhaustPercent + '% position\n\n' +
+      '\u2605\u2605\u2605 CONCEALED RANGE HOOD \u2605\u2605\u2605\n' +
+      DUCT_RULES + '\n' +
       '[REQUIRED COMPONENTS]\n' +
       '\u2713 Sink Bowl \u2014 stainless steel, at ' + waterPercent + '% position\n' +
       '\u2713 Faucet \u2014 behind sink bowl\n' +
@@ -290,206 +293,159 @@ if (isKitchen) {
       '\u2713 Lower Cabinets \u2014 height 870mm from floor\n' +
       '\u2713 Upper Cabinets \u2014 FLUSH with ceiling (NO gap)\n' +
       '\u2713 Toe Kick \u2014 below lower cabinets\n\n' +
-      '[MATERIALS]\n' + materialText + '\n' +
-      '[STYLE: ' + styleLabel + ']\n' +
-      (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
+      MATERIALS_STYLE +
       '[PROHIBITED]\n' +
-      '- Do NOT modify background/walls/floor\n' +
-      '- No text, labels, or dimensions\n' +
-      '- NO exposed duct pipe, silver tube, aluminum duct, ventilation pipe\n' +
+      BASE_PROHIBITED +
+      '- NO exposed duct pipe, silver tube, or ventilation pipe\n' +
       '- NO exposed/chimney/wall-mount range hood\n' +
       '- NO gap between upper cabinets and ceiling\n' +
       '- Sink cabinet door MUST be completely closed\n' +
-      (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
+      EXTRA_RESTRICT;
   }
 
-} else if (category === 'wardrobe') {
-  furniturePrompt = '[TASK: PHOTOREALISTIC BUILT-IN WARDROBE RENDERING]\n\n' +
-    'This photo shows a room ready for furniture installation. PRESERVE EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n\n' +
-    '[WARDROBE LAYOUT]\n' +
-    'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall\n' +
-    '- Full-width built-in wardrobe covering the entire wall\n' +
-    '- Floor-to-ceiling installation (no gap at top or bottom)\n' +
-    '- Multiple sections with hinged or sliding doors\n' +
-    '- Interior composition: hanging rod section + shelf section + drawer section\n' +
-    '- All doors CLOSED in this rendering\n\n' +
-    '[MATERIALS]\n' + materialText + '\n' +
-    '[STYLE: ' + styleLabel + ']\n' +
-    (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
-    '\u2605\u2605\u2605 RENDERING RULES \u2605\u2605\u2605\n' +
-    '- Photorealistic quality with proper shadows and reflections\n' +
-    '- Doors must be uniform with consistent gap spacing (2-3mm)\n' +
-    '- Handles aligned horizontally across all doors\n' +
-    '- Realistic edge profiles and panel construction\n\n' +
-    '[PROHIBITED]\n' +
-    '- Do NOT modify background/walls/floor\n' +
-    '- No glass-front doors unless specified\n' +
-    '- No text, labels, or dimensions\n' +
-    '- No floating or detached elements\n' +
-    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
-
-} else if (category === 'shoe_cabinet') {
-  furniturePrompt = '[TASK: PHOTOREALISTIC SHOE CABINET RENDERING]\n\n' +
-    'This photo shows a room ready for furniture installation. PRESERVE EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n\n' +
-    '[SHOE CABINET LAYOUT]\n' +
-    'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall\n' +
-    '- Slim profile shoe cabinet (300-400mm depth)\n' +
-    '- Floor-to-ceiling or partial height as appropriate for the space\n' +
-    '- Internal tilted shoe shelves (15-20 degree angle) for efficient storage\n' +
-    '- All doors CLOSED in this rendering\n' +
-    '- Clean minimal door fronts\n\n' +
-    '[MATERIALS]\n' + materialText + '\n' +
-    '[STYLE: ' + styleLabel + ']\n' +
-    (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
-    '\u2605\u2605\u2605 RENDERING RULES \u2605\u2605\u2605\n' +
-    '- Photorealistic quality with proper shadows\n' +
-    '- Slim proportions \u2014 cabinet must NOT look deep/bulky\n' +
-    '- Consistent door gaps and handle alignment\n\n' +
-    '[PROHIBITED]\n' +
-    '- Do NOT modify background/walls/floor\n' +
-    '- No text, labels, or dimensions\n' +
-    '- Cabinet depth must not exceed 400mm visual appearance\n' +
-    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
-
-} else if (category === 'fridge_cabinet' || category === 'fridge') {
-  furniturePrompt = '[TASK: PHOTOREALISTIC REFRIGERATOR CABINET RENDERING]\n\n' +
-    'This photo shows a room ready for furniture installation. PRESERVE EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n\n' +
-    '[FRIDGE CABINET LAYOUT]\n' +
-    'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall\n' +
-    '- Center: refrigerator opening (~700mm wide \u00D7 1800mm tall)\n' +
-    '- Side panels: tall storage cabinets flanking the refrigerator\n' +
-    '- Upper cabinet: bridge cabinet above refrigerator opening\n' +
-    '- Floor-to-ceiling installation\n' +
-    '- All cabinet doors CLOSED in this rendering\n\n' +
-    '[MATERIALS]\n' + materialText + '\n' +
-    '[STYLE: ' + styleLabel + ']\n' +
-    (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
-    '\u2605\u2605\u2605 RENDERING RULES \u2605\u2605\u2605\n' +
-    '- Photorealistic quality with proper shadows\n' +
-    '- Refrigerator opening must be clearly defined and centered\n' +
-    '- Side cabinets must be symmetrical\n' +
-    '- Consistent material and color across all panels\n\n' +
-    '[PROHIBITED]\n' +
-    '- Do NOT modify background/walls/floor\n' +
-    '- Do NOT render a refrigerator \u2014 only the cabinet surround\n' +
-    '- No text, labels, or dimensions\n' +
-    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
-
-} else if (category === 'vanity') {
-  furniturePrompt = '[TASK: PHOTOREALISTIC BATHROOM VANITY RENDERING]\n\n' +
-    'This photo shows a room ready for furniture installation. PRESERVE EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n\n' +
-    '[VANITY LAYOUT]\n' +
-    'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall\n' +
-    '- Lower: vanity cabinet with integrated sink basin\n' +
-    '- Sink position: aligned at ' + waterPercent + '% from left (water supply location)\n' +
-    '- Upper: mirror cabinet above vanity\n' +
-    '- Faucet: single-lever mixer, chrome or matte finish\n' +
-    '- Countertop: extending full width of vanity\n\n' +
-    '[MATERIALS]\n' + materialText + '\n' +
-    '[STYLE: ' + styleLabel + ']\n' +
-    (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
-    '\u2605\u2605\u2605 RENDERING RULES \u2605\u2605\u2605\n' +
-    '- Photorealistic quality with proper reflections on mirror\n' +
-    '- Sink must align with water supply position\n' +
-    '- Mirror cabinet proportional to vanity below\n' +
-    '- Realistic water fixture and basin details\n\n' +
-    '[PROHIBITED]\n' +
-    '- Do NOT modify background/walls/floor\n' +
-    '- No text, labels, or dimensions\n' +
-    '- No floating or detached elements\n' +
-    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
-
 } else {
-  // ─── GENERIC STORAGE CABINET ───
-  furniturePrompt = '[TASK: PHOTOREALISTIC STORAGE CABINET RENDERING]\n\n' +
-    'This photo shows a room ready for furniture installation. PRESERVE EXACTLY \u2014 do NOT modify walls, floor, ceiling, or lighting.\n\n' +
-    '[STORAGE CABINET LAYOUT]\n' +
-    'Wall: ' + wallW + 'mm wide \u00D7 ' + wallH + 'mm tall\n' +
-    '- Built-in storage cabinet covering the wall\n' +
-    '- Floor-to-ceiling installation\n' +
-    '- Multiple door sections with adjustable interior shelves\n' +
-    '- All doors CLOSED in this rendering\n\n' +
-    '[MATERIALS]\n' + materialText + '\n' +
-    '[STYLE: ' + styleLabel + ']\n' +
-    (clientPrompt ? '[CLIENT SPECIFICATIONS]\n' + clientPrompt + '\n' : '') +
+  // ─── NON-KITCHEN CATEGORIES ───
+  const categoryConfigs = {
+    wardrobe: {
+      task: 'BUILT-IN WARDROBE',
+      layout: '- Full-width built-in wardrobe covering the entire wall\n' +
+        '- Floor-to-ceiling installation (no gap at top or bottom)\n' +
+        '- Multiple sections with hinged or sliding doors\n' +
+        '- Interior: hanging rod + shelf + drawer sections\n' +
+        '- All doors CLOSED in this rendering',
+      rules: QUALITY_RULES + '- Handles aligned horizontally across all doors\n',
+      extra_prohibit: '- No glass-front doors unless specified\n'
+    },
+    shoe_cabinet: {
+      task: 'SHOE CABINET',
+      layout: '- Slim profile shoe cabinet (300-400mm depth)\n' +
+        '- Floor-to-ceiling or partial height as appropriate\n' +
+        '- Internal tilted shoe shelves (15-20\u00B0 angle)\n' +
+        '- All doors CLOSED, clean minimal door fronts',
+      rules: '- Photorealistic quality with proper shadows\n' +
+        '- Slim proportions \u2014 must NOT look deep/bulky\n' +
+        '- Consistent door gaps and handle alignment\n',
+      extra_prohibit: '- Cabinet depth must not exceed 400mm visual appearance\n'
+    },
+    fridge_cabinet: {
+      task: 'REFRIGERATOR CABINET',
+      layout: '- Center: refrigerator opening (~700mm wide \u00D7 1800mm tall)\n' +
+        '- Side panels: tall storage cabinets flanking the refrigerator\n' +
+        '- Upper: bridge cabinet above refrigerator opening\n' +
+        '- Floor-to-ceiling installation\n' +
+        '- All cabinet doors CLOSED in this rendering',
+      rules: QUALITY_RULES +
+        '- Refrigerator opening clearly defined and centered\n' +
+        '- Side cabinets symmetrical\n',
+      extra_prohibit: '- Do NOT render a refrigerator \u2014 only the cabinet surround\n'
+    },
+    vanity: {
+      task: 'BATHROOM VANITY',
+      layout: '- Lower: vanity cabinet with integrated sink basin\n' +
+        '- Sink position: aligned at ' + waterPercent + '% from left (water supply)\n' +
+        '- Upper: mirror cabinet above vanity\n' +
+        '- Faucet: single-lever mixer, chrome or matte finish\n' +
+        '- Countertop: extending full width of vanity',
+      rules: '- Photorealistic quality with proper reflections on mirror\n' +
+        '- Sink aligned with water supply position\n' +
+        '- Mirror cabinet proportional to vanity below\n' +
+        '- Realistic water fixture and basin details\n',
+      extra_prohibit: ''
+    },
+    storage: {
+      task: 'STORAGE CABINET',
+      layout: '- Built-in storage cabinet covering the wall\n' +
+        '- Floor-to-ceiling installation\n' +
+        '- Multiple door sections with adjustable interior shelves\n' +
+        '- All doors CLOSED in this rendering',
+      rules: QUALITY_RULES,
+      extra_prohibit: ''
+    }
+  };
+
+  const catCfgKey = category === 'fridge' ? 'fridge_cabinet' : category;
+  const cfg = categoryConfigs[catCfgKey] || categoryConfigs.storage;
+
+  furniturePrompt = '[TASK: PHOTOREALISTIC ' + cfg.task + ' RENDERING]\n\n' +
+    PRESERVE_BG + '\n\n' +
+    '[' + cfg.task + ' LAYOUT]\n' +
+    WALL_DIM + '\n' +
+    cfg.layout + '\n\n' +
+    MATERIALS_STYLE +
     '\u2605\u2605\u2605 RENDERING RULES \u2605\u2605\u2605\n' +
-    '- Photorealistic quality with proper shadows and reflections\n' +
-    '- Consistent door gaps and handle alignment\n' +
-    '- Realistic edge profiles\n\n' +
+    cfg.rules + '\n' +
     '[PROHIBITED]\n' +
-    '- Do NOT modify background/walls/floor\n' +
-    '- No text, labels, or dimensions\n' +
-    '- No floating or detached elements\n' +
-    (negativePrompt ? '[ADDITIONAL RESTRICTIONS]\n' + negativePrompt : '');
+    BASE_PROHIBITED +
+    cfg.extra_prohibit +
+    EXTRA_RESTRICT;
 }
 
-// ═══ 3. OPEN DOOR PROMPT (Korean, from v9) ═══
-const SEP = '\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550';
+// ═══ 3. OPEN DOOR PROMPT (English) ═══
 const CATEGORY_CONTENTS = {
-  wardrobe: '- \uD589\uAC70\uC5D0 \uAC78\uB9B0 \uC154\uCE20, \uBE14\uB77C\uC6B0\uC2A4, \uC7AC\uD0B7, \uCF54\uD2B8\n- \uC811\uD78C \uC2A4\uC6E8\uD130, \uB2C8\uD2B8, \uD2F0\uC154\uCE20\n- \uCCAD\uBC14\uC9C0, \uBA74\uBC14\uC9C0 \uB4F1 \uD558\uC758\uB958\n- \uC11C\uB78D \uC18D \uC18D\uC637, \uC591\uB9D0 \uC815\uB9AC\uD568\n- \uAC00\uBC29, \uBAA8\uC790, \uC2A4\uCE74\uD504 \uC561\uC138\uC11C\uB9AC',
-  sink: '- \uADF8\uB987, \uC811\uC2DC, \uBC25\uACF5\uAE30, \uAD6D\uADF8\uB987\n- \uCEF5, \uBA38\uADF8\uC794, \uC720\uB9AC\uC794\n- \uB0C4\uBE44, \uD504\uB77C\uC774\uD32C, \uC870\uB9AC\uB3C4\uAD6C\n- \uC591\uB150\uD1B5, \uC624\uC77C\uBCD1\n- \uB3C4\uB9C8, \uC8FC\uAC78, \uAD6D\uC790\n[\uC2F1\uD06C\uBCFC \uD558\uBD80 - \uD544\uC218]\n- \uBC30\uC218\uAD00 (P\uD2B8\uB7A9/S\uD2B8\uB7A9)\n- \uAE09\uC218\uAD00 (\uB0C9/\uC628\uC218)\n- \uC218\uB3C4 \uBD84\uBC30\uAE30 (\uC575\uAE00\uBC38\uBE0C)\n[\uC2F1\uD06C\uBCFC \uD558\uBD80 - \uAE08\uC9C0]\n\u274C \uC4F0\uB808\uAE30\uD1B5, \uC138\uC81C, \uCCAD\uC18C\uC6A9\uD488, \uC7A1\uB3D9\uC0AC\uB2C8',
-  fridge: '- \uCEE4\uD53C\uBA38\uC2E0, \uC804\uC790\uB808\uC778\uC9C0\n- \uD1A0\uC2A4\uD130, \uBBF9\uC11C\uAE30\n- \uC2DD\uB8CC\uD488, \uC2DC\uB9AC\uC5BC \uBC15\uC2A4\n- \uCEF5, \uBA38\uADF8\uC794\n- \uAC04\uC2DD, \uC74C\uB8CC',
-  vanity: '- \uD654\uC7A5\uD488, \uC2A4\uD0A8\uCF00\uC5B4 \uC81C\uD488\n- \uBA54\uC774\uD06C\uC5C5 \uBE0C\uB7EC\uC2DC, \uD30C\uC6B0\uCE58\n- \uD5A5\uC218, \uB85C\uC158, \uD06C\uB9BC\n- \uD5E4\uC5B4\uB4DC\uB77C\uC774\uC5B4, \uACE0\uB370\uAE30\n- \uC218\uAC74, \uC138\uBA74\uB3C4\uAD6C',
-  shoe: '- \uC6B4\uB3D9\uD654, \uC2A4\uB2C8\uCEE4\uC988\n- \uAD6C\uB450, \uB85C\uD37C, \uD790\n- \uC0CC\uB4E4, \uC2AC\uB9AC\uD37C\n- \uBD80\uCE20, \uB808\uC778\uBD80\uCE20\n- \uC2E0\uBC1C \uAD00\uB9AC\uC6A9\uD488',
-  storage: '- \uCC45, \uC7A1\uC9C0, \uBB38\uC11C\n- \uC218\uB0A9\uBC15\uC2A4, \uBC14\uAD6C\uB2C8\n- \uC774\uBD88, \uCE68\uAD6C\uB958\n- \uC5EC\uD589\uAC00\uBC29, \uCE90\uB9AC\uC5B4\n- \uACC4\uC808\uC6A9\uD488'
+  wardrobe: '- Shirts, blouses, jackets, coats on hanging rods\n- Folded sweaters, knits, t-shirts on shelves\n- Jeans, pants on hangers or shelves\n- Underwear, socks in drawer organizers\n- Bags, hats, scarves as accessories',
+  sink: '- Plates, bowls, dishes on shelves\n- Cups, mugs, glasses\n- Pots, pans, cooking utensils\n- Spice jars, oil bottles\n- Cutting boards, spatulas, ladles\n[UNDER SINK \u2014 MANDATORY]\n- Drain pipe (P-trap/S-trap)\n- Water supply pipes (hot/cold)\n- Water distributor (angle valves)\n[UNDER SINK \u2014 FORBIDDEN]\n\u274C NO trash cans, detergent, cleaning supplies, or clutter',
+  fridge: '- Coffee machine, microwave\n- Toaster, blender\n- Groceries, cereal boxes\n- Cups, mugs\n- Snacks, beverages',
+  vanity: '- Cosmetics, skincare products\n- Makeup brushes, pouches\n- Perfume, lotion, cream\n- Hair dryer, curling iron\n- Towels, toiletries',
+  shoe: '- Sneakers, athletic shoes\n- Dress shoes, loafers, heels\n- Sandals, slippers\n- Boots, rain boots\n- Shoe care supplies',
+  storage: '- Books, magazines, documents\n- Storage boxes, baskets\n- Bedding, blankets\n- Luggage, suitcases\n- Seasonal items'
 };
+
 const CATEGORY_FORBIDDEN = {
-  wardrobe: '\u274C \uC2DD\uAE30\uB958, \uC8FC\uBC29\uC6A9\uD488 \uAE08\uC9C0 (\uC637\uC7A5\uC5D0\uB294 \uC758\uB958\uB9CC)',
-  sink: '\u274C \uC758\uB958, \uC637 \uAE08\uC9C0 (\uC8FC\uBC29\uC5D0\uB294 \uC8FC\uBC29\uC6A9\uD488\uB9CC)',
-  fridge: '\u274C \uC758\uB958, \uC637 \uAE08\uC9C0 (\uB0C9\uC7A5\uACE0\uC7A5\uC5D0\uB294 \uAC00\uC804/\uC2DD\uD488\uB9CC)',
-  vanity: '\u274C \uC758\uB958, \uC8FC\uBC29\uC6A9\uD488 \uAE08\uC9C0 (\uD654\uC7A5\uB300\uC5D0\uB294 \uD654\uC7A5\uD488\uB9CC)',
-  shoe: '\u274C \uC758\uB958, \uC2DD\uAE30\uB958 \uAE08\uC9C0 (\uC2E0\uBC1C\uC7A5\uC5D0\uB294 \uC2E0\uBC1C\uB9CC)',
-  storage: '\u274C \uC74C\uC2DD\uBB3C \uAE08\uC9C0 (\uC218\uB0A9\uC7A5\uC5D0\uB294 \uC218\uB0A9\uC6A9\uD488\uB9CC)'
+  wardrobe: '\u274C NO dishes or kitchen items (wardrobe = clothing only)',
+  sink: '\u274C NO clothing (kitchen = kitchenware only)',
+  fridge: '\u274C NO clothing (fridge cabinet = appliances/food only)',
+  vanity: '\u274C NO clothing or kitchen items (vanity = cosmetics only)',
+  shoe: '\u274C NO clothing or dishes (shoe cabinet = shoes only)',
+  storage: '\u274C NO food items (storage = storage supplies only)'
 };
 
 const catKey = category === 'fridge_cabinet' ? 'fridge' : (category === 'shoe_cabinet' ? 'shoe' : category);
 const contents = CATEGORY_CONTENTS[catKey] || CATEGORY_CONTENTS.storage;
 const forbidden = CATEGORY_FORBIDDEN[catKey] || CATEGORY_FORBIDDEN.storage;
-const sinkExtra = category === 'sink' ? '- \uC2F1\uD06C\uBCFC, \uC218\uC804, \uCFE1\uD0D1, \uD6C4\uB4DC \uC704\uCE58: \uBCC0\uACBD \uAE08\uC9C0\n' : '';
+const sinkExtra = category === 'sink' ? '- Sink bowl, faucet, cooktop, hood positions: DO NOT change\n' : '';
 
 const openPrompt =
-  '[IMAGE EDITING — NOT REGENERATION]\n' +
-  '\uC774 \uC774\uBBF8\uC9C0\uB97C \uC0C8\uB85C \uC0DD\uC131\uD558\uC9C0 \uB9C8\uC138\uC694. \uAE30\uC874 \uC774\uBBF8\uC9C0\uB97C \uD3B8\uC9D1\uD558\uC5EC \uB3C4\uC5B4\uB9CC \uC5F4\uB9B0 \uC0C1\uD0DC\uB85C \uBCC0\uACBD\uD558\uC138\uC694.\n' +
-  '\u2605 \uAC00\uAD6C \uC678\uD615(\uD06C\uAE30, \uC0C9\uC0C1, \uC7AC\uC9C8, \uC704\uCE58) 100% \uB3D9\uC77C \uC720\uC9C0\n' +
-  '\u2605 \uBC30\uACBD(\uBCBD, \uBC14\uB2E5, \uCC9C\uC7A5, \uC870\uBA85) 100% \uB3D9\uC77C \uC720\uC9C0\n' +
-  '\u2605 \uCE74\uBA54\uB77C \uC575\uAE00, \uC6D0\uADFC\uAC10, \uC2DC\uC810 100% \uB3D9\uC77C \uC720\uC9C0\n\n' +
-  SEP + '\n[\uC808\uB300 \uBCC0\uACBD \uAE08\uC9C0] \u2605\u2605\u2605\n' + SEP + '\n' +
-  '- \uB3C4\uC5B4 \uAC1C\uC218: \uD604\uC7AC \uC774\uBBF8\uC9C0\uC758 \uB3C4\uC5B4 \uAC1C\uC218 \uC815\uD655\uD788 \uC720\uC9C0\n' +
-  '- \uB3C4\uC5B4 \uC704\uCE58/\uD06C\uAE30/\uBE44\uC728: \uC644\uC804\uD788 \uB3D9\uC77C\n' +
-  '- \uB3C4\uC5B4 \uC0C9\uC0C1/\uC7AC\uC9C8: \uBCC0\uACBD \uAE08\uC9C0\n' +
-  '- \uAC00\uAD6C \uC804\uCCB4 \uD06C\uAE30\uC640 \uD615\uD0DC: \uBCC0\uACBD \uAE08\uC9C0\n' +
+  '[IMAGE EDITING \u2014 NOT REGENERATION]\n' +
+  'Do NOT regenerate this image. EDIT the existing image to show doors in OPEN state only.\n' +
+  '\u2605 Furniture appearance (size, color, material, position) \u2014 keep 100% identical\n' +
+  '\u2605 Background (walls, floor, ceiling, lighting) \u2014 keep 100% identical\n' +
+  '\u2605 Camera angle, perspective, viewpoint \u2014 keep 100% identical\n\n' +
+  '[DO NOT CHANGE] \u2605\u2605\u2605\n' +
+  '- Door count: maintain EXACT number of doors from the closed image\n' +
+  '- Door position/size/ratio: keep identical\n' +
+  '- Door color/material: do NOT change\n' +
+  '- Overall furniture size and shape: do NOT change\n' +
   sinkExtra + '\n' +
-  SEP + '\n[CRITICAL - \uB3C4\uC5B4 \uAD6C\uC870 \uC720\uC9C0 \uADDC\uCE59]\n' + SEP + '\n' +
-  '- \uC808\uB300 \uB3C4\uC5B4\uB97C \uCD94\uAC00\uD558\uAC70\uB098 \uC81C\uAC70\uD558\uC9C0 \uB9C8\uC138\uC694\n' +
-  '- \uC808\uB300 \uB3C4\uC5B4\uB97C \uD569\uCE58\uAC70\uB098 \uBD84\uD560\uD558\uC9C0 \uB9C8\uC138\uC694\n' +
-  '- \uB2EB\uD78C \uC0C1\uD0DC\uC758 \uB3C4\uC5B4 \uBD84\uD560\uC120/\uACBD\uACC4\uC120\uC744 \uC815\uD655\uD788 \uB530\uB974\uC138\uC694\n' +
-  '- \uAC01 \uB3C4\uC5B4\uB294 \uB3C5\uB9BD\uC801\uC73C\uB85C \uC5F4\uB824\uC57C \uD569\uB2C8\uB2E4\n\n' +
-  SEP + '\n[\uBCC0\uACBD\uD560 \uAC83 - \uB3C4\uC5B4 \uC0C1\uD0DC\uB9CC]\n' + SEP + '\n' +
-  '\uC5EC\uB2EB\uC774 \uB3C4\uC5B4 (Swing door):\n\u2192 \uD604\uC7AC \uC704\uCE58\uC5D0\uC11C \uD78C\uC9C0 \uAE30\uC900 90\uB3C4 \uBC14\uAE65\uC73C\uB85C \uD68C\uC804\uD558\uC5EC \uC5F4\uB9BC\n\n' +
-  '\uC11C\uB78D \uB3C4\uC5B4 (Drawer):\n\u2192 \uD604\uC7AC \uC704\uCE58\uC5D0\uC11C 30-40% \uC55E\uC73C\uB85C \uB2F9\uACA8\uC9C4 \uC0C1\uD0DC\n\n' +
-  '\u203B \uC5EC\uB2EB\uC774\uB97C \uC11C\uB78D\uCC98\uB7FC \uC5F4\uAC70\uB098, \uC11C\uB78D\uC744 \uC5EC\uB2EB\uC774\uCC98\uB7FC \uC5F4\uBA74 \uC548\uB428!\n\n' +
-  SEP + '\n[\uB0B4\uBD80 \uC218\uB0A9\uBB3C - ' + category + ']\n' + SEP + '\n' +
+  '[CRITICAL \u2014 DOOR STRUCTURE RULES]\n' +
+  '- NEVER add or remove doors\n' +
+  '- NEVER merge or split doors\n' +
+  '- Follow the exact door division lines from the closed state\n' +
+  '- Each door must open independently\n\n' +
+  '[CHANGE ONLY \u2014 DOOR STATE]\n' +
+  'Swing doors: rotate 90\u00B0 outward on hinges from current position\n' +
+  'Drawers: pull forward 30-40% from current position\n' +
+  'Do NOT open swing doors like drawers or drawers like swing doors.\n\n' +
+  '[INTERIOR CONTENTS \u2014 ' + category + ']\n' +
   contents + '\n\n' +
-  SEP + '\n[\uD488\uBAA9 \uD63C\uB3D9 \uAE08\uC9C0]\n' + SEP + '\n' +
+  '[CATEGORY RESTRICTIONS]\n' +
   forbidden + '\n\n' +
-  SEP + '\n[ABSOLUTELY FORBIDDEN]\n' + SEP + '\n' +
-  '\u274C \uCE58\uC218 \uB77C\uBCA8, \uD14D\uC2A4\uD2B8, \uC22B\uC790 \uCD94\uAC00 \uAE08\uC9C0\n' +
-  '\u274C \uBC30\uACBD, \uBC29 \uC694\uC18C \uBCC0\uACBD \uAE08\uC9C0\n' +
-  '\u274C \uCE74\uBA54\uB77C \uC575\uAE00 \uBCC0\uACBD \uAE08\uC9C0\n' +
-  '\u274C \uB3C4\uC5B4 \uD0C0\uC785 \uBCC0\uACBD \uAE08\uC9C0 (swing\u2194drawer)\n' +
-  '\u274C \uB3C4\uC5B4 \uCD94\uAC00/\uC81C\uAC70/\uD569\uCE58\uAE30/\uBD84\uD560 \uAE08\uC9C0\n\n' +
-  SEP + '\n[OUTPUT]\n' + SEP + '\n' +
-  '- \uB2EB\uD78C \uC774\uBBF8\uC9C0\uC640 \uB3C4\uC5B4 \uAD6C\uC870 100% \uC77C\uCE58\n' +
-  '- \uD3EC\uD1A0\uB9AC\uC5BC\uB9AC\uC2A4\uD2F1 \uC778\uD14C\uB9AC\uC5B4 \uC0AC\uC9C4 \uD488\uC9C8\n' +
-  '- \uC815\uB9AC\uB41C \uC218\uB0A9 \uC0C1\uD0DC (\uC5B4\uC9C0\uB7FD\uC9C0 \uC54A\uAC8C)';
+  '[ABSOLUTELY FORBIDDEN]\n' +
+  '\u274C No dimension labels, text, or numbers\n' +
+  '\u274C No background or room element changes\n' +
+  '\u274C No camera angle changes\n' +
+  '\u274C No door type changes (swing\u2194drawer)\n' +
+  '\u274C No adding/removing/merging/splitting doors\n\n' +
+  '[OUTPUT]\n' +
+  '- Door structure 100% matching the closed image\n' +
+  '- Photorealistic interior photo quality\n' +
+  '- Neatly organized storage contents (not messy)';
 
-// ═══ COMPRESSED PROMPT (<500 chars for n8n Cloud + Gemini compatibility) ═══
+// ═══ COMPRESSED PROMPT (<500 chars for n8n Cloud + Gemini) ═══
 let compressedPrompt = '';
 const doorDesc = (upperColor || 'white') + ' ' + (upperFinish || 'matte');
 const ctDesc = input.styleCountertopPrompt || countertopColor || 'white stone';
 
 if (isKitchen && hasBlueprint && hasModules && modules) {
-  // Compact lower summary: only modules with sink/cooktop noted
   const lCompact = modules.lower.map(m => {
     if (m.hasSink || m.has_sink) return 'sink';
     if (m.hasCooktop || m.has_cooktop) return 'cooktop';
