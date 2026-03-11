@@ -3967,8 +3967,12 @@
         fixedList.forEach((mod) => {
           if (mod.x < cursor) {
             mod.x = cursor;
-            mod.endX = mod.x + mod.w;
           }
+          // ★ endBound 초과 방지: 너비 클램핑
+          if (mod.x + parseFloat(mod.w) > endBound) {
+            mod.w = Math.max(0, endBound - mod.x);
+          }
+          mod.endX = mod.x + parseFloat(mod.w);
           cursor = mod.endX;
         });
 
@@ -3978,7 +3982,8 @@
           const mod = fixedList[i];
           if (mod.endX > rightCursor) {
             mod.endX = rightCursor;
-            mod.x = mod.endX - mod.w;
+            mod.x = Math.max(startBound, mod.endX - parseFloat(mod.w));
+            mod.w = mod.endX - mod.x;
           }
           rightCursor = mod.x;
         }
@@ -4381,7 +4386,7 @@
             const sinkX = Math.max(startBound, dStartAbs - 100);
             const minEnd = Math.min(endBound, dEndAbs + 100);
             const minW = minEnd - sinkX;
-            const sinkW = Math.max(parseFloat(sinkMod.w) || 1000, minW);
+            const sinkW = Math.min(Math.max(parseFloat(sinkMod.w) || 1000, minW), endBound - sinkX);
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
@@ -4412,6 +4417,10 @@
             const curEnd = sinkMod.x + parseFloat(sinkMod.w);
             if (curEnd <= dEndAbs) {
               sinkMod.w = Math.min(endBound, dEndAbs + 100) - sinkMod.x;
+            }
+            // ★ endBound 초과 방지
+            if (sinkMod.x + parseFloat(sinkMod.w) > endBound) {
+              sinkMod.w = endBound - sinkMod.x;
             }
             sinkMod.endX = sinkMod.x + parseFloat(sinkMod.w);
           }
@@ -5004,7 +5013,7 @@
         const sinkH = parseFloat(item.h) || 2400;
         const upperH = parseFloat(item.specs.upperH) || 720;
         const lowerH = parseFloat(item.specs.lowerH) || 870;
-        const moldingH = parseFloat(item.specs.moldingH) || 50;
+        const moldingH = parseFloat(item.specs.moldingH) || 60;
         const legH = parseFloat(item.specs.sinkLegHeight) || 120;
         const finishL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const finishR = item.specs.finishRightType !== 'None' ? parseFloat(item.specs.finishRightWidth) || 0 : 0;
@@ -6920,7 +6929,7 @@
 
         (item.modules || []).forEach(mod => {
           if (mod.pos === 'upper' && mod.type !== 'hood') {
-            mod.h = upperH - 20;
+            mod.h = upperH;
           } else if (mod.pos === 'lower' && mod.type !== 'tall') {
             mod.h = lowerH - legH;
           }
@@ -9107,7 +9116,7 @@
           upperModules.forEach((mod, idx) => {
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 600;
-            const H = parseFloat(mod.h) || specs.upperH - 20 || 700;
+            const H = parseFloat(mod.h) || specs.upperH || 720;
             const modD = parseFloat(mod.d) || defaultUpperD;
             const name = mod.name || `${W}/${mod.doorCount || 1}도어`;
 
