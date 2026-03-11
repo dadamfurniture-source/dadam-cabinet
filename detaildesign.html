@@ -4157,9 +4157,11 @@
       function injectEssentialModules(item, section) {
         const specLowerH = parseFloat(item.specs.lowerH) || 870;
         const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
-        const lowerBodyH = specLowerH - specLegH; // 다리발 제외
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const lowerBodyH = specLowerH - specTopT - specLegH; // 상판 + 다리발 제외
         const specUpperH = parseFloat(item.specs.upperH) || 720;
-        const upperBodyH = specUpperH;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
+        const upperBodyH = specUpperH - specOverlap; // 오버랩 제외
 
         const ESSENTIAL_DEFS = {
           sink:  { type: 'sink',    name: '개수대',  pos: 'lower', w: 1000, d: 600, isDrawer: false, matchFn: m => m.type === 'sink' },
@@ -4225,7 +4227,8 @@
         }
 
         const specUpperH = parseFloat(item.specs.upperH) || 720;
-        const upperBodyH = specUpperH;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
+        const upperBodyH = specUpperH - specOverlap;
         const isRefLeft = item.specs.measurementBase === 'Left';
         const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const startBound = fL;
@@ -4513,8 +4516,10 @@
         const specLegH = 150;
         const specLowerH = 870;
         const specUpperH = 720;
-        const lowerBodyH = specLowerH - specLegH;
-        const upperBodyH = specUpperH;
+        const specTopT = 12;
+        const specOverlap = 15;
+        const lowerBodyH = specLowerH - specTopT - specLegH;
+        const upperBodyH = specUpperH - specOverlap;
 
         const newItem = {
           uniqueId: Date.now() + Math.random(),
@@ -6912,7 +6917,7 @@
           item.specs[field] = isNaN(num) ? value : num;
 
           // ★ 싱크대: 치수 설정 변경 시 모듈 높이 동기화
-          if (item.categoryId === 'sink' && ['upperH', 'lowerH', 'sinkLegHeight'].includes(field)) {
+          if (item.categoryId === 'sink' && ['upperH', 'lowerH', 'sinkLegHeight', 'topThickness', 'upperDoorOverlap'].includes(field)) {
             syncModuleHeights(item);
           }
 
@@ -6926,12 +6931,14 @@
         const upperH = parseFloat(specs.upperH) || 720;
         const lowerH = parseFloat(specs.lowerH) || 870;
         const legH = parseFloat(specs.sinkLegHeight) || 150;
+        const topT = parseFloat(specs.topThickness) || 12;
+        const overlap = parseFloat(specs.upperDoorOverlap) || 15;
 
         (item.modules || []).forEach(mod => {
           if (mod.pos === 'upper' && mod.type !== 'hood') {
-            mod.h = upperH;
+            mod.h = upperH - overlap;
           } else if (mod.pos === 'lower' && mod.type !== 'tall') {
-            mod.h = lowerH - legH;
+            mod.h = lowerH - topT - legH;
           }
         });
       }
@@ -10480,7 +10487,8 @@
             lower_cabinet_height: specs.lowerH || 870,
             molding_height: specs.moldingH || 60,
             leg_height: specs.sinkLegHeight || specs.legH || 150,
-            countertop_thickness: specs.topThickness || 20,
+            countertop_thickness: specs.topThickness || 12,
+            upper_door_overlap: specs.upperDoorOverlap || 15,
 
             // 색상 및 마감
             door_color_upper: specs.doorColorUpper || '화이트',
@@ -12061,7 +12069,7 @@
     <div id="door-module-view" style="max-height:400px;overflow-y:auto;">${moduleTableHTML}</div>
     <div id="door-spec-view" style="display:none;max-height:400px;overflow-y:auto;">${specTableHTML}</div>
     <div style="margin-top:15px;padding:12px;background:#f5f5f5;border-radius:8px;font-size:12px;color:#666;">
-      <strong>📌 도어 규칙:</strong> 상부장 도어 = 모듈높이 + 20mm / 하부장 도어 = 모듈높이 - 30mm / 너비 = 모듈너비 - 4mm
+      <strong>📌 도어 규칙:</strong> 상부장 도어 = 상부장 높이(설정값) / 하부장 모듈 = 하부장높이 - 상판 - 다리발 / 너비 = 모듈너비 - 4mm
     </div>
   `;
       }
