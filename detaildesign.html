@@ -4088,6 +4088,15 @@
           }
         }
 
+        // ★ 잔여공간 완전 흡수: 마지막 모듈에 남은 공간 추가 (낭비 0mm)
+        if (newModules.length > 0) {
+          const totalUsed = newModules.reduce((s, m) => s + m.w, 0);
+          const leftover = gap.width - totalUsed;
+          if (leftover > 0 && leftover <= MAX_REMAINDER + 20) {
+            newModules[newModules.length - 1].w += leftover;
+          }
+        }
+
         return newModules;
       }
 
