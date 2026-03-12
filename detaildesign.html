@@ -9169,7 +9169,7 @@
           const materials = [];
           const items = designData.items || [];
 
-          console.log('[MaterialExtractor] 추출 시작, 아이템 수:', items.length);
+          console.log('[MaterialExtractor] 추출 시작, 아이템 수:', items.length, 'categoryTotals:', JSON.stringify(categoryTotals));
 
           // ★ 같은 카테고리 아이템 카운트 (싱크대 2개 등)
           const categoryCounts = {};
@@ -9185,7 +9185,7 @@
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
-            console.log('[MaterialExtractor] 처리 중:', prefix + category, '모듈 수:', (item.modules || []).length);
+            console.log('[MaterialExtractor] 처리 중:', prefix + category, '모듈 수:', (item.modules || []).length, 'categoryId:', item.categoryId, 'category:', item.category, 'uniqueId:', item.uniqueId);
 
             switch (category) {
               case 'sink':
@@ -9200,7 +9200,7 @@
             }
           });
 
-          console.log('[MaterialExtractor] 추출 완료, 자재 수:', materials.length);
+          console.log('[MaterialExtractor] 추출 완료, 자재 수:', materials.length, '전체 모듈 목록:', materials.map(m => m.module).filter((v,i,a) => a.indexOf(v)===i));
 
           return {
             materials,
