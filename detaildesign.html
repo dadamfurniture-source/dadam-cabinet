@@ -4888,12 +4888,23 @@
         const modal = document.querySelector('.ai-design-result-modal');
         if (modal) modal.remove();
 
+        // ★ 디버그: BOM 시작 시 selectedItems 상태 확인
+        console.log('[BOM] === proceedToBOM 시작 ===');
+        selectedItems.forEach((item, idx) => {
+          console.log(`[BOM] selectedItems[${idx}]: categoryId=${item.categoryId}, modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
+        });
+
         // 2. 설계 데이터 추출
         const design = window.DadamAgent.exportDesign();
         if (!design.items || design.items.length === 0) {
           alert('설계 데이터가 없습니다.');
           return;
         }
+
+        // ★ 디버그: exportDesign 후 복사본 확인
+        design.items.forEach((item, idx) => {
+          console.log(`[BOM] design.items[${idx}]: modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
+        });
 
         // 3. Step 3로 이동
         goToStep3();
