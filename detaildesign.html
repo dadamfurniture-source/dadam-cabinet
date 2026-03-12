@@ -9171,20 +9171,31 @@
 
           console.log('[MaterialExtractor] 추출 시작, 아이템 수:', items.length);
 
+          // ★ 같은 카테고리 아이템 카운트 (싱크대 2개 등)
+          const categoryCounts = {};
+          const categoryTotals = {};
+          items.forEach(item => {
+            const cat = item.categoryId || item.category;
+            categoryTotals[cat] = (categoryTotals[cat] || 0) + 1;
+          });
+
           items.forEach((item) => {
             // ★ categoryId 사용 (category가 아님!)
             const category = item.categoryId || item.category;
-            console.log('[MaterialExtractor] 처리 중:', category, '모듈 수:', (item.modules || []).length);
+            categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+            // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
+            const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
+            console.log('[MaterialExtractor] 처리 중:', prefix + category, '모듈 수:', (item.modules || []).length);
 
             switch (category) {
               case 'sink':
-                this.extractSink(item, materials);
+                this.extractSink(item, materials, prefix);
                 break;
               case 'wardrobe':
-                this.extractWardrobe(item, materials);
+                this.extractWardrobe(item, materials, prefix);
                 break;
               case 'fridge':
-                this.extractFridge(item, materials);
+                this.extractFridge(item, materials, prefix);
                 break;
             }
           });
@@ -9218,7 +9229,7 @@
         // ========================================
         // 싱크대 자재 추출
         // ========================================
-        extractSink(item, materials) {
+        extractSink(item, materials, prefix = '') {
           const specs = item.specs || {};
           const T = this.T;
           const defaultUpperD = 295; // 상부장 기본 깊이
@@ -9236,28 +9247,29 @@
             const H = parseFloat(mod.h) || specs.upperH || 720;
             const modD = parseFloat(mod.d) || defaultUpperD;
             const name = mod.name || `${W}/${mod.doorCount || 1}도어`;
+            const modLabel = `${prefix}상부장-${name}`;
 
             // 측판 2개 (사쿠리홈)
-            this.add(materials, `상부장-${name}`, '측판', 'PB', T, modD, H, 2, '4면', 'sakuri(15→3mm)');
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '4면', 'sakuri(15→3mm)');
             // 천판 (사쿠리 반영 D-18)
-            this.add(materials, `상부장-${name}`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
             // 지판 (사쿠리 반영 D-18)
-            this.add(materials, `상부장-${name}`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
             // 뒷판 (사쿠리홈에 끼움 W-20)
-            this.add(materials, `상부장-${name}`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+            this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
             // 밴드(보강목) 2개
-            this.add(materials, `상부장-${name}`, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
             // 밴드(처짐방지목) - W>=700이면 2개
             const bandQty = W >= 700 ? 2 : 1;
-            this.add(materials, `상부장-${name}`, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, bandQty, '2면(장)');
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, bandQty, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34)
-            this.add(materials, `상부장-${name}`, '선반', 'PB', T, W - T * 2, modD - 34, 2, '1면(전)');
+            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, 2, '1면(전)');
             // 도어 (H + overlap)
             const doorCount = mod.doorCount || 1;
             if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
-              this.add(materials, `상부장-${name}`, '도어', 'MDF', 18, doorW, H + overlap, doorCount, '4면');
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, doorCount, '4면');
             }
           });
 
@@ -9272,25 +9284,26 @@
             const H = parseFloat(mod.h) || (specs.lowerH || 870) - topT - legH;
             const modD = parseFloat(mod.d) || defaultLowerD;
             const name = mod.name || `${W}/${mod.doorCount || 1}도어`;
+            const modLabel = `${prefix}하부장-${name}`;
             const isDrawer = mod.isDrawer || false;
             const isEL = mod.isEL || false;
             const isOpen = mod.isOpen || false;
 
             // 측판 2개 (하부장: 사쿠리 없음)
-            this.add(materials, `하부장-${name}`, '측판', 'PB', T, modD, H, 2, '4면');
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '4면');
             // 지판 (하부장: 사쿠리 없음, D 그대로)
-            this.add(materials, `하부장-${name}`, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             // 밴드 2개
-            this.add(materials, `하부장-${name}`, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
             // 뒷판 (하부장: 사쿠리 없음)
-            this.add(materials, `하부장-${name}`, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
+            this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
             // 밴드(처짐방지목) - 목찬넬이면 -70, W>=800이면 2개
             const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
             const bandQty = W >= 800 ? 2 : 1;
-            this.add(materials, `하부장-${name}`, '밴드(처짐방지)', 'PB', T, 70, bandH, bandQty, '2면(장)');
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, bandQty, '2면(장)');
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
-              this.add(materials, `하부장-${name}`, '선반', 'PB', T, W - T * 2, modD - T, 1, '1면(전)');
+              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, 1, '1면(전)');
             }
             // 도어 (H - 30)
             const doorCount = mod.doorCount || 0;
@@ -9303,34 +9316,35 @@
 
               // 서랍 자재
               const drawerFBW = W - 30 - 42;
-              this.add(materials, `하부장-${name}`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(전)');
-              this.add(materials, `하부장-${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
-              this.add(materials, `하부장-${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+              this.add(materials, modLabel, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(전)');
+              this.add(materials, modLabel, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(전)');
+              this.add(materials, modLabel, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
               if (drawerFBW > 600) {
-                this.add(materials, `하부장-${name}`, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '1면(전)');
+                this.add(materials, modLabel, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '1면(전)');
               }
 
               // 서랍 도어 (각 서랍 전면) — 1개일 때 250mm 기본
               const drawerDoorW = W - 4;
               const drawerDoorH = drawerCount === 1 ? 250 : Math.floor((totalDrawerH - 20) / drawerCount);
-              this.add(materials, `하부장-${name}`, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerCount, '4면');
+              this.add(materials, modLabel, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerCount, '4면');
 
               // 여닫이 도어 (서랍 아래)
               if (hingeDoorH > 50) {
                 const hingeDoorCount = Math.max(1, Math.round(W / 450));
                 const hingeDoorW = Math.floor(W / hingeDoorCount) - 4;
-                this.add(materials, `하부장-${name}`, '도어', 'MDF', 18, hingeDoorW, hingeDoorH, hingeDoorCount, '4면');
+                this.add(materials, modLabel, '도어', 'MDF', 18, hingeDoorW, hingeDoorH, hingeDoorCount, '4면');
               }
 
               // 목찬넬 (120 × W) — 서랍장 1개당 1개
-              this.add(materials, `하부장-${name}`, '목찬넬', 'MDF', 18, 120, W, 1, '-');
+              this.add(materials, modLabel, '목찬넬', 'MDF', 18, 120, W, 1, '-');
             } else if (doorCount > 0) {
               const doorW = Math.floor(W / doorCount) - 4;
-              this.add(materials, `하부장-${name}`, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면');
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면');
             }
           });
 
           // ===== EP (마감재) =====
+          const epLabel = `${prefix}EP`;
           const totalLowerW = lowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const effectiveW = totalLowerW || item.w - 120;
@@ -9341,34 +9355,34 @@
           // 상몰딩 (moldingH >= 20이면 산출)
           if (moldingH >= 20 && (totalUpperW || effectiveW) > 0) {
             const moldingW = totalUpperW || effectiveW;
-            this.add(materials, 'EP', '상몰딩', 'MDF', 18, moldingH, moldingW, 1, '2면(장)');
+            this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, '2면(장)');
           }
 
           // 걸레받이
-          this.add(materials, 'EP', '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
+          this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
 
           // 목찬넬
           if (isWoodChannel) {
-            this.add(materials, 'EP', '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '-');
-            this.add(materials, 'EP', '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '-');
+            this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '-');
+            this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '-');
           }
 
           // 좌측 마감 (몰딩/휠라/EP)
           if (specs.finishLeftType !== 'None' && specs.finishLeftWidth > 0) {
             const finishName = specs.finishLeftType === 'Filler' ? '휠라(좌)' : specs.finishLeftType === 'EP' ? 'EP(좌)' : '몰딩(좌)';
-            this.add(materials, 'EP', finishName, 'MDF', 18, specs.finishLeftWidth, totalH - legH, 1, '2면(장)');
+            this.add(materials, epLabel, finishName, 'MDF', 18, specs.finishLeftWidth, totalH - legH, 1, '2면(장)');
           }
           // 우측 마감 (몰딩/휠라/EP)
           if (specs.finishRightType !== 'None' && specs.finishRightWidth > 0) {
             const finishName = specs.finishRightType === 'Filler' ? '휠라(우)' : specs.finishRightType === 'EP' ? 'EP(우)' : '몰딩(우)';
-            this.add(materials, 'EP', finishName, 'MDF', 18, specs.finishRightWidth, totalH - legH, 1, '2면(장)');
+            this.add(materials, epLabel, finishName, 'MDF', 18, specs.finishRightWidth, totalH - legH, 1, '2면(장)');
           }
         }
 
         // ========================================
         // 붙박이장 자재 추출
         // ========================================
-        extractWardrobe(item, materials) {
+        extractWardrobe(item, materials, prefix = '') {
           const specs = item.specs || {};
           const T = this.T;
           const D = parseFloat(item.d) || 600;
@@ -9395,7 +9409,8 @@
           modules.forEach((mod, idx) => {
             const modType = mod.moduleType || 'long';
             const isDivided = modType === 'short' || modType === 'shelf';
-            const name = mod.name || `${idx + 1}번`;
+            const rawName = mod.name || `${idx + 1}번`;
+            const name = `${prefix}${rawName}`;
 
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 900;
@@ -9635,7 +9650,7 @@
             modules.forEach((mod, idx) => {
               const modW = parseFloat(mod.w) || 900;
               const modD = parseFloat(mod.d) || D;
-              const pName = mod.name || `${idx + 1}번`;
+              const pName = `${prefix}${mod.name || `${idx + 1}번`}`;
               this.add(materials, `${pName}-좌대`, '좌대 전후', 'PB', T, modW - 30, pedestalH, 2, '1면(전)');
               this.add(materials, `${pName}-좌대`, '좌대 측', 'PB', T, modD - 35, pedestalH, 2, '1면(전)');
               if (modW >= 700) {
@@ -9650,7 +9665,7 @@
         // ========================================
         // 냉장고장 자재 추출
         // ========================================
-        extractFridge(item, materials) {
+        extractFridge(item, materials, prefix = '') {
           const specs = item.specs || {};
           const T = this.T;
           const modules = item.modules || [];
@@ -9672,61 +9687,62 @@
             console.log(`[Fridge] 모듈: ${modType}, W=${W}, H=${H}, D=${D}`);
 
             // 키큰장 (tall) — PB 구조
+            const pf = prefix; // 같은 카테고리 복수 아이템 구분용
             if (modType === 'tall') {
-              this.add(materials, '키큰장', '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
-              this.add(materials, '키큰장', '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, '키큰장', '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, '키큰장', '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
-              this.add(materials, '키큰장', '선반', 'PB', T, W - T * 2, D - 34, 3, '1면(전)');
+              this.add(materials, `${pf}키큰장`, '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
+              this.add(materials, `${pf}키큰장`, '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}키큰장`, '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}키큰장`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+              this.add(materials, `${pf}키큰장`, '선반', 'PB', T, W - T * 2, D - 34, 3, '1면(전)');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
-                this.add(materials, '키큰장', '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
+                this.add(materials, `${pf}키큰장`, '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
               }
             }
             // 홈카페장 (homecafe) - 오픈장 규칙: MDF 18T 전체
             else if (modType === 'homecafe') {
-              this.add(materials, '홈카페장', '측판', 'MDF', 18, D + 20, H, 2, '4면');
-              this.add(materials, '홈카페장', '천판', 'MDF', 18, W - 36, D, 1, '2면(가로)');
-              this.add(materials, '홈카페장', '지판', 'MDF', 18, W - 36, D, 1, '2면(가로)');
-              this.add(materials, '홈카페장', '뒷판', 'MDF', 18, W - 36, H, 1, '2면(가로)'); // 18T!
-              this.add(materials, '홈카페장', '선반', 'MDF', 18, W - 36, D - 15, 2, '1면(전)');
+              this.add(materials, `${pf}홈카페장`, '측판', 'MDF', 18, D + 20, H, 2, '4면');
+              this.add(materials, `${pf}홈카페장`, '천판', 'MDF', 18, W - 36, D, 1, '2면(가로)');
+              this.add(materials, `${pf}홈카페장`, '지판', 'MDF', 18, W - 36, D, 1, '2면(가로)');
+              this.add(materials, `${pf}홈카페장`, '뒷판', 'MDF', 18, W - 36, H, 1, '2면(가로)'); // 18T!
+              this.add(materials, `${pf}홈카페장`, '선반', 'MDF', 18, W - 36, D - 15, 2, '1면(전)');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
-                this.add(materials, '홈카페장', '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
+                this.add(materials, `${pf}홈카페장`, '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
               }
             }
             // 상부장 (upper) — PB 구조
             else if (modType === 'upper') {
-              this.add(materials, '냉장고상부장', '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
-              this.add(materials, '냉장고상부장', '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, '냉장고상부장', '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, '냉장고상부장', '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+              this.add(materials, `${pf}냉장고상부장`, '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
+              this.add(materials, `${pf}냉장고상부장`, '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}냉장고상부장`, '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}냉장고상부장`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
-                this.add(materials, '냉장고상부장', '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
+                this.add(materials, `${pf}냉장고상부장`, '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면');
               }
             }
             // 하부장 (lower) — PB 구조
             else if (modType === 'lower') {
-              this.add(materials, '냉장고하부장', '측판', 'PB', T, D, H, 2, '4면');
-              this.add(materials, '냉장고하부장', '천판', 'PB', T, W - T * 2, D, 1, '1면(전)');
-              this.add(materials, '냉장고하부장', '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
-              this.add(materials, '냉장고하부장', '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
+              this.add(materials, `${pf}냉장고하부장`, '측판', 'PB', T, D, H, 2, '4면');
+              this.add(materials, `${pf}냉장고하부장`, '천판', 'PB', T, W - T * 2, D, 1, '1면(전)');
+              this.add(materials, `${pf}냉장고하부장`, '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
+              this.add(materials, `${pf}냉장고하부장`, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
-                this.add(materials, '냉장고하부장', '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면');
+                this.add(materials, `${pf}냉장고하부장`, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면');
               }
             }
             // EL장 (el) — PB 구조 (뒷판만)
             else if (modType === 'el') {
-              this.add(materials, 'EL장', '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
-              this.add(materials, 'EL장', '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, 'EL장', '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, 'EL장', '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+              this.add(materials, `${pf}EL장`, '측판', 'PB', T, D, H, 2, '4면', 'sakuri(15→3mm)');
+              this.add(materials, `${pf}EL장`, '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}EL장`, '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}EL장`, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
             }
           });
         }
