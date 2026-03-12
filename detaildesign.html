@@ -4027,7 +4027,8 @@
        * @param {string} section - 'upper' | 'lower'
        * @param {number} defaultH - 기본 높이
        * @param {number} defaultD - 기본 깊이
-       * @param {number} fixedDoorWidth - 고정 도어 너비 (전달시 해당 너비 그대로 사용)
+       * @param {string} edgeMode - 'none' | 'left' | 'right' | 'both' (대칭 배치 모드)
+       * @param {boolean} preferExact - true이면 잔여 0mm 우선 (몰딩 마감)
        */
       function fillGapWithModules(gap, section, defaultH, defaultD, edgeMode = 'none', preferExact = false) {
         const newModules = [];
@@ -9180,8 +9181,6 @@
           const materials = [];
           const items = designData.items || [];
 
-          console.log('[MaterialExtractor] 추출 시작, 아이템 수:', items.length, 'categoryTotals:', JSON.stringify(categoryTotals));
-
           // ★ 같은 카테고리 아이템 카운트 (싱크대 2개 등)
           const categoryCounts = {};
           const categoryTotals = {};
@@ -9189,6 +9188,8 @@
             const cat = item.categoryId || item.category;
             categoryTotals[cat] = (categoryTotals[cat] || 0) + 1;
           });
+
+          console.log('[MaterialExtractor] 추출 시작, 아이템 수:', items.length, 'categoryTotals:', JSON.stringify(categoryTotals));
 
           items.forEach((item) => {
             // ★ categoryId 사용 (category가 아님!)
