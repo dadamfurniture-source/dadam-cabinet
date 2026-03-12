@@ -9197,7 +9197,12 @@
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
-            console.log('[MaterialExtractor] 처리 중:', prefix + category, '모듈 수:', (item.modules || []).length, 'categoryId:', item.categoryId, 'category:', item.category, 'uniqueId:', item.uniqueId);
+            const mods = item.modules || [];
+            console.log(`[BOM-TRACE] === 아이템 처리: ${prefix}${category} ===`);
+            console.log(`[BOM-TRACE]   모듈 수: ${mods.length}`);
+            console.log(`[BOM-TRACE]   상부장: ${mods.filter(m=>m.pos==='upper').length}개, 하부장: ${mods.filter(m=>m.pos==='lower').length}개`);
+            console.log(`[BOM-TRACE]   모듈 상세:`, mods.map(m => `${m.pos}/${m.type}/${m.name}(${m.w})`));
+            const beforeLen = materials.length;
 
             switch (category) {
               case 'sink':
@@ -9210,6 +9215,7 @@
                 this.extractFridge(item, materials, prefix);
                 break;
             }
+            console.log(`[BOM-TRACE]   → 추출된 자재: ${materials.length - beforeLen}개 (누적 ${materials.length}개)`);
           });
 
           console.log('[MaterialExtractor] 추출 완료, 자재 수:', materials.length, '전체 모듈 목록:', materials.map(m => m.module).filter((v,i,a) => a.indexOf(v)===i));
