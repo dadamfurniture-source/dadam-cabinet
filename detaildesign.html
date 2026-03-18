@@ -11224,6 +11224,14 @@
       }
 
       // CNC 재단 목록 탭
+      // 부품명 → 원판 유형 분류 (본체/도어/뒷판)
+      function getPartType(partName) {
+        if (/도어/.test(partName)) return '도어';
+        if (/뒷판|서랍밑판/.test(partName)) return '뒷판';
+        if (/몰딩|걸레받이|목찬넬|마감/.test(partName)) return 'EP';
+        return '본체';
+      }
+
       function generateCNCTab(materials) {
         // 70mm 이하 얇은 부품(밴드, 보강재 등) 분리
         const cncParts = materials.filter(m => m.w > 70 && m.h > 70);
@@ -11231,7 +11239,7 @@
         const smallParts = materials.filter(m => (m.w <= 70 || m.h <= 70) && m.w > 0 && m.h > 0);
         const smallByGroup = new Map();
         smallParts.forEach(m => {
-          const gKey = `${m.material} ${m.thickness}T`;
+          const gKey = `${m.material} ${m.thickness}T [${getPartType(m.part)}]`;
           if (!smallByGroup.has(gKey)) smallByGroup.set(gKey, []);
           const list = smallByGroup.get(gKey);
           const existing = list.find(s => s.part === m.part && s.w === m.w && s.h === m.h);
@@ -11242,10 +11250,11 @@
         if (cncParts.length === 0)
           return '<p style="color:#666;text-align:center;padding:40px;">CNC 재단 대상 자재가 없습니다.</p>';
 
-        // 자재+두께+가로+세로 기준으로 합산 (엣지도 보존)
+        // 자재+두께+유형+가로+세로 기준으로 합산 (엣지도 보존)
         const map = new Map();
         cncParts.forEach(m => {
-          const key = `${m.material}|${m.thickness}|${m.w}|${m.h}`;
+          const pType = getPartType(m.part);
+          const key = `${m.material}|${m.thickness}|${pType}|${m.w}|${m.h}`;
           if (map.has(key)) {
             const agg = map.get(key);
             agg.qty += m.qty;
@@ -11256,6 +11265,7 @@
             map.set(key, {
               material: m.material,
               thickness: m.thickness,
+              partType: pType,
               w: m.w,
               h: m.h,
               qty: m.qty,
@@ -11270,10 +11280,10 @@
           a.material.localeCompare(b.material) || a.thickness - b.thickness || b.w - a.w || b.h - a.h
         );
 
-        // 자재+두께 그룹별 소계
+        // 자재+두께+유형 그룹별 소계 (본체/도어/뒷판 원판 분리)
         const groups = new Map();
         sorted.forEach(m => {
-          const gk = `${m.material} ${m.thickness}T`;
+          const gk = `${m.material} ${m.thickness}T [${m.partType}]`;
           if (!groups.has(gk)) groups.set(gk, []);
           groups.get(gk).push(m);
         });
