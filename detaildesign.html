@@ -11121,21 +11121,35 @@
         const cncData = window._cncData;
         if (Object.keys(summary).length === 0) {
           panelCards = '<div style="color:#999;font-size:13px;">자재 정보 없음</div>';
-        } else if (cncData && cncData.summary) {
-          // 실제 재단 결과 사용
-          const cs = cncData.summary;
-          const totalArea = Object.values(summary).reduce((s, v) => s + v.totalArea, 0);
-          const areaM2 = (totalArea / 1000000).toFixed(2);
-          const sheetArea = cs.totalPanels * 1220 * 2440;
-          const efficiency = sheetArea > 0 ? ((totalArea / sheetArea) * 100).toFixed(1) : '0';
-          panelCards += `
-        <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:15px;border-radius:10px;min-width:150px;">
-          <div style="font-size:12px;opacity:0.9;">원판 (1220x2440)</div>
-          <div style="font-size:28px;font-weight:bold;margin:5px 0;">${cs.totalPanels}장</div>
-          <div style="font-size:11px;opacity:0.8;">${areaM2}㎡ (효율 ${efficiency}%)</div>
-          <div style="font-size:10px;opacity:0.7;margin-top:4px;">생산 ${cs.totalProduced}/${cs.totalNeeded}개</div>
+        } else if (cncData && cncData.panelDetails) {
+          // 실제 재단 결과 — 자재별(PB/MDF) 그룹 분리 표시
+          const groupMap = new Map();
+          cncData.panelDetails.forEach(p => {
+            // "MDF 2.7T [뒷판]" → 자재키 "MDF 2.7T"
+            const matKey = p.group.replace(/\s*\[.*\]$/, '');
+            if (!groupMap.has(matKey)) groupMap.set(matKey, { panels: 0, produced: 0, needed: 0 });
+            const g = groupMap.get(matKey);
+            g.panels += p.stack;
+            p.strips.forEach(st => st.pieces.forEach(pc => { g.produced += pc.count * p.stack; }));
+          });
+          // needed는 sorted에서 계산
+          cncData.sorted.forEach(m => {
+            const matKey = `${m.material} ${m.thickness}T`;
+            if (groupMap.has(matKey)) groupMap.get(matKey).needed += m.qty;
+          });
+          const colors = { 'PB': ['#667eea', '#764ba2'], 'MDF 18': ['#f57c00', '#e65100'], 'MDF 2.7': ['#43a047', '#2e7d32'] };
+          groupMap.forEach((g, matKey) => {
+            const sheetArea = g.panels * 1220 * 2440;
+            const colorKey = Object.keys(colors).find(k => matKey.startsWith(k)) || 'PB';
+            const [c1, c2] = colors[colorKey];
+            panelCards += `
+        <div style="background:linear-gradient(135deg, ${c1} 0%, ${c2} 100%);color:white;padding:15px;border-radius:10px;min-width:130px;">
+          <div style="font-size:12px;opacity:0.9;">${matKey}</div>
+          <div style="font-size:28px;font-weight:bold;margin:5px 0;">${g.panels}장</div>
+          <div style="font-size:10px;opacity:0.7;margin-top:4px;">생산 ${g.produced}/${g.needed}개</div>
         </div>
       `;
+          });
         } else {
           // 폴백: 면적 기반 추정
           Object.values(summary).forEach((s) => {
