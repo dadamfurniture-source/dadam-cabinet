@@ -4,6 +4,9 @@ window.DADAM_CONFIG = {
     anonKey:
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ',
   },
+  multiagent: {
+    apiUrl: '', // multiagent API base URL (e.g. https://dadam-multiagent.up.railway.app/api/v1)
+  },
   app: {
     name: '다담가구',
     version: '1.0.0',

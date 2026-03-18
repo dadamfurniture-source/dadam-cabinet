@@ -1,0 +1,38 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cron-hourly:
+    build: .
+    command: ["python", "-m", "workers.feedback_cron", "all_hourly"]
+    env_file:
+      - .env
+    restart: "no"
+    profiles:
+      - cron
+
+  cron-daily:
+    build: .
+    command: ["python", "-m", "workers.feedback_cron", "all_daily"]
+    env_file:
+      - .env
+    restart: "no"
+    profiles:
+      - cron

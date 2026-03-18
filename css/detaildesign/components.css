@@ -1,0 +1,302 @@
+        color: var(--lower-color);
+      }
+      .btn-add-tall {
+        border-color: var(--tall-color);
+        color: var(--tall-color);
+      }
+
+      /* 최적화: 공통 버튼 스타일 */
+      .btn-toggle {
+        padding: 3px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+        cursor: pointer;
+        border: 1px solid var(--border-color);
+        background: var(--card-bg);
+        transition: all 0.15s;
+      }
+      .btn-toggle:hover {
+        opacity: 0.8;
+      }
+      .btn-toggle.active {
+        border-color: currentColor;
+      }
+      .btn-toggle.green {
+        color: var(--tall-color);
+      }
+      .btn-toggle.green.active {
+        background: #ecfdf5;
+        border-color: var(--tall-color);
+      }
+      .btn-toggle.blue {
+        color: var(--sink-color);
+      }
+      .btn-toggle.blue.active {
+        background: #eff6ff;
+        border-color: var(--sink-color);
+      }
+      .btn-toggle.orange {
+        color: var(--lower-color);
+      }
+      .btn-toggle.orange.active {
+        background: #fef3c7;
+        border-color: var(--lower-color);
+      }
+      .btn-toggle.purple {
+        color: #8b5cf6;
+      }
+      .btn-toggle.purple.active {
+        background: #f3e8ff;
+        border-color: #8b5cf6;
+      }
+
+      .btn-adjust {
+        width: 20px;
+        height: 20px;
+        border: 1px solid var(--border-color);
+        border-radius: 3px;
+        background: var(--card-bg);
+        cursor: pointer;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+      }
+      .btn-adjust:hover {
+        background: #f0f0f0;
+      }
+      .btn-adjust:active {
+        background: #e0e0e0;
+      }
+
+      .btn-purple-gradient {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        transition: all 0.2s;
+      }
+      .btn-purple-gradient:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+
+      .adjust-control {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+      }
+      .adjust-control .value {
+        min-width: 20px;
+        text-align: center;
+        font-weight: 600;
+      }
+
+      .toggle-group {
+        display: flex;
+        gap: 2px;
+      }
+
+      .spec-input-sm {
+        width: 50px;
+        padding: 3px 4px;
+        font-size: 11px;
+        border: 1px solid var(--border-color);
+        border-radius: 3px;
+        text-align: center;
+      }
+      .spec-input-sm:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: var(--text-muted);
+        cursor: pointer;
+      }
+      .checkbox-label input {
+        margin: 0;
+        transform: scale(0.9);
+      }
+
+      /* 최적화: Wardrobe 모듈 카드 스타일 */
+      .wm-card {
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        align-items: flex-start;
+      }
+      .wm-left {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 50px;
+      }
+      .wm-move-btns {
+        display: flex;
+        gap: 2px;
+        margin-bottom: 2px;
+      }
+      .wm-type-btn {
+        font-size: 8px;
+        padding: 3px 2px;
+        border-radius: 3px;
+        cursor: pointer;
+        border: 1px solid var(--border-color);
+        background: var(--card-bg);
+      }
+      .wm-type-btn.short {
+        color: var(--tall-color);
+      }
+      .wm-type-btn.short.active {
+        border-color: var(--tall-color);
+        background: #ecfdf5;
+      }
+      .wm-type-btn.long {
+        color: var(--sink-color);
+      }
+      .wm-type-btn.long.active {
+        border-color: var(--sink-color);
+        background: #eff6ff;
+      }
+      .wm-type-btn.shelf {
+        color: var(--lower-color);
+      }
+      .wm-type-btn.shelf.active {
+        border-color: var(--lower-color);
+        background: #fffbeb;
+      }
+      .wm-center {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .wm-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .wm-icon {
+        font-size: 14px;
+      }
+      .wm-name {
+        font-weight: 600;
+        color: #333;
+        font-size: 13px;
+      }
+      .wm-badge {
+        font-size: 9px;
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .wm-badge.short {
+        background: #ecfdf5;
+        color: var(--tall-color);
+      }
+      .wm-badge.long {
+        background: #eff6ff;
+        color: var(--sink-color);
+      }
+      .wm-badge.shelf {
+        background: #fffbeb;
+        color: var(--lower-color);
+      }
+      .wm-section {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-radius: 5px;
+      }
+      .wm-section.upper {
+        background: #ecfdf5;
+        border: 1px solid var(--tall-color);
+      }
+      .wm-section.lower {
+        background: #eff6ff;
+        border: 1px solid var(--sink-color);
+      }
+      .wm-section.full {
+        background: #f0f7ff;
+        border: 1px solid var(--primary-color);
+      }
+      .wm-section-label {
+        font-size: 10px;
+        font-weight: 700;
+        min-width: 38px;
+      }
+      .wm-section.upper .wm-section-label {
+        color: var(--tall-color);
+      }
+      .wm-section.lower .wm-section-label {
+        color: var(--sink-color);
+      }
+      .wm-section.full .wm-section-label {
+        color: var(--primary-color);
+      }
+      .wm-dim-label {
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+      .wm-dim-input {
+        width: 52px;
+        padding: 3px 4px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .wm-sett-btn {
+        padding: 2px 5px;
+        font-size: 9px;
+        background: #6366f1;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-left: auto;
+      }
+      .wm-drawer-toggle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 3px 5px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+      }
+      .wm-drawer-label {
+        font-size: 8px;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+      }
+      .wm-drawer-btns {
+        display: flex;
+        gap: 1px;
+      }
+      .wm-drawer-btn {
+        padding: 1px 3px;
+        font-size: 8px;
+        border-radius: 2px;
+        cursor: pointer;
+        border: 1px solid var(--border-color);
+        background: var(--card-bg);
+        color: var(--text-muted);
+      }
+      .wm-drawer-btn.active {
+        border-color: var(--sink-color);
+        background: #eff6ff;
+        color: var(--sink-color);
+      }

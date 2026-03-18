@@ -1,0 +1,970 @@
+      // ============================================================
+      // UI 관련 함수들
+      // ============================================================
+
+      function initCategoryGrid() {
+        const gridEl = document.getElementById('categoryGrid');
+        CATEGORIES.forEach((cat) => {
+          const btn = document.createElement('div');
+          btn.className = 'category-card';
+          btn.id = `btn-${cat.id}`;
+          btn.innerHTML = `
+      <div class="category-name">${cat.name}</div>
+      <div class="card-stepper" onclick="event.stopPropagation()">
+        <button class="stepper-btn" onclick="decrementCategory('${cat.id}')">－</button>
+        <span class="stepper-count" id="count-${cat.id}">0</span>
+        <button class="stepper-btn" onclick="incrementCategory('${cat.id}')">＋</button>
+      </div>
+    `;
+          btn.addEventListener('click', () => incrementCategory(cat.id));
+          gridEl.appendChild(btn);
+        });
+      }
+
+      function incrementCategory(catId) {
+        const cat = CATEGORIES.find((c) => c.id === catId);
+        const specLegH = 150;
+        const specLowerH = 870;
+        const specUpperH = 720;
+        const specTopT = 12;
+        const specOverlap = 15;
+        const lowerBodyH = specLowerH - specTopT - specLegH;
+        const upperBodyH = specUpperH - specOverlap;
+
+        const newItem = {
+          uniqueId: Date.now() + Math.random(),
+          categoryId: cat.id,
+          name: cat.name,
+          defaultD: cat.defaultD,
+          w: '',
+          h: '',
+          d: '',
+          image: null,
+          specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
+          modules: [],
+          prevUpperModules: null,
+          prevLowerModules: null,
+        };
+
+        // ★ 붙박이장: 기본 마감을 몰딩으로 설정
+        if (cat.id === 'wardrobe') {
+          newItem.specs.finishLeftType = 'Molding';
+          newItem.specs.finishRightType = 'Molding';
+        }
+
+        // ★ 냉장고장: 규칙 기반 초기화 (업데이트)
+        if (cat.id === 'fridge') {
+          newItem.specs.fridgeBrand = 'LG';
+          newItem.specs.fridgeMoldingH = FRIDGE_RULES.MOLDING_H; // 상몰딩 높이
+          newItem.specs.fridgePedestal = FRIDGE_RULES.PEDESTAL_H; // 좌대 높이
+          newItem.specs.fridgeModuleD = FRIDGE_RULES.MODULE_D; // 모듈 깊이 기본 550
+          newItem.specs.finishLeftType = 'molding'; // 몰딩 기본
+          newItem.specs.finishRightType = 'molding'; // 몰딩 기본
+          newItem.specs.finishLeftWidth = 60;
+          newItem.specs.finishRightWidth = 60;
+          // 자동계산 관련
+          newItem.specs.autoCalculated = false;
+        }
+
+        if (cat.id === 'sink') {
+          newItem.modules = []; // 빈 상태로 시작 — 자동계산 또는 수동 추가
+        }
+
+        selectedItems.push(newItem);
+        updateUI();
+      }
+
+      function decrementCategory(catId) {
+        const targets = selectedItems.filter((item) => item.categoryId === catId);
+        if (targets.length > 0) removeInstance(targets[targets.length - 1].uniqueId);
+      }
+
+      function removeInstance(uniqueId) {
+        selectedItems = selectedItems.filter((item) => item.uniqueId !== uniqueId);
+        updateUI();
+      }
+
+      function updateUI() {
+        const container = document.getElementById('dynamicInputList');
+        const detailSection = document.getElementById('detailInputSection');
+
+        detailSection.style.display = selectedItems.length > 0 ? 'block' : 'none';
+
+        CATEGORIES.forEach((cat) => {
+          const count = selectedItems.filter((item) => item.categoryId === cat.id).length;
+          document.getElementById(`count-${cat.id}`).innerText = count;
+          const btn = document.getElementById(`btn-${cat.id}`);
+          btn.classList.toggle('active', count > 0);
+        });
+
+        const typeCounter = {};
+        container.innerHTML = '';
+
+        selectedItems.forEach((item) => {
+          typeCounter[item.categoryId] = (typeCounter[item.categoryId] || 0) + 1;
+          item.labelName = `${item.name} #${typeCounter[item.categoryId]}`;
+
+          // topSizes 마이그레이션: 문자열 → 객체 변환
+          if (typeof item.specs.topSizes[0] === 'string') {
+            item.specs.topSizes = item.specs.topSizes.map(s => {
+              if (typeof s === 'string' && s.includes('x')) {
+                const [w, d] = s.split('x').map(v => v.trim());
+                return { w: w || '', d: d || '' };
+              }
+              return typeof s === 'object' && s ? s : { w: '', d: '' };
+            });
+          }
+          if (item.specs.layoutShape === 'I' && !item.specs.topSizes[0]?.w && item.w && item.d) {
+            item.specs.topSizes[0] = { w: String(item.w), d: String(item.d) };
+          }
+
+          const sinkInputs =
+            item.categoryId === 'sink'
+              ? `
+      <div class="extra-settings">
+        <div class="extra-title">Layout & 설비 설정</div>
+        <div class="input-row">
+          <div class="input-group"><label>구조 형태</label>
+            <select onchange="changeLayoutShape(${item.uniqueId}, this.value)">
+              <option value="I" ${item.specs.layoutShape === 'I' ? 'selected' : ''}>ㅡ자형</option>
+              <option value="L" ${item.specs.layoutShape === 'L' ? 'selected' : ''}>ㄱ자형</option>
+              <option value="U" ${item.specs.layoutShape === 'U' ? 'selected' : ''}>ㄷ자형</option>
+            </select>
+          </div>
+          <div class="input-group"><label>실측 기준</label>
+            <select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)">
+              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
+              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" oninput="updateSpec(${item.uniqueId}, 'distributorStart', this.value)"></div>
+          <div class="input-group"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" oninput="updateSpec(${item.uniqueId}, 'distributorEnd', this.value)"></div>
+        </div>
+        <div class="input-row">
+          <div class="input-group"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" oninput="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
+        </div>
+      </div>
+    `
+              : '';
+
+          // ★ 붙박이장 전용 입력 폼
+          const wardrobeInputs =
+            item.categoryId === 'wardrobe'
+              ? `
+      <div class="extra-settings">
+        <div class="extra-title">붙박이장 설정</div>
+        <div class="input-row">
+          <div class="input-group"><label>실측 기준</label>
+            <select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)">
+              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
+              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group"><label>커튼박스 가로(mm)</label><input type="number" value="${item.specs.curtainBoxW || ''}" placeholder="0" oninput="updateSpec(${item.uniqueId}, 'curtainBoxW', this.value)"></div>
+          <div class="input-group"><label>커튼박스 높이(mm)</label><input type="number" value="${item.specs.curtainBoxH || ''}" placeholder="0" oninput="updateSpec(${item.uniqueId}, 'curtainBoxH', this.value)"></div>
+        </div>
+      </div>
+    `
+              : '';
+
+          // ★ 냉장고장 전용 입력 폼 (규칙 기반)
+          const fridgeInputs =
+            item.categoryId === 'fridge'
+              ? `
+      <div class="extra-settings">
+        <div class="extra-title">🧊 냉장고장 기본 설정</div>
+        <div class="input-row">
+          <div class="input-group"><label>브랜드</label>
+            <select onchange="updateSpec(${item.uniqueId}, 'fridgeBrand', this.value)">
+              <option value="LG" ${item.specs.fridgeBrand === 'LG' ? 'selected' : ''}>LG</option>
+              <option value="Samsung" ${item.specs.fridgeBrand === 'Samsung' ? 'selected' : ''}>삼성</option>
+            </select>
+          </div>
+          <div class="input-group"><label>상몰딩 높이(mm)</label>
+            <input type="number" value="${item.specs.fridgeMoldingH || 50}" oninput="updateSpec(${item.uniqueId}, 'fridgeMoldingH', this.value)">
+          </div>
+        </div>
+        <div style="font-size:10px;color:#666;margin-top:4px;">
+          ※ 상부장 도어H = 실측H - 냉장고H - 15 - 상몰딩H (최대 400mm)
+        </div>
+      </div>
+    `
+              : '';
+
+          const imageHtml =
+            item.image === 'loading'
+              ? `<div style="font-size:14px;">⏳</div><div>업로드중...</div>`
+              : item.image
+                ? `<img src="${item.image}" alt="preview" onerror="this.outerHTML='<div>❌ 오류</div>'">`
+                : `<div style="font-size:20px;">📷</div><div>사진</div>`;
+
+          const card = document.createElement('div');
+          card.className = 'item-input-card';
+          card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-weight:bold;color:var(--primary-color);">${item.labelName}</div>
+        <button class="btn-delete" onclick="removeInstance(${item.uniqueId})">×</button>
+      </div>
+      <div class="item-body">
+        <div class="input-section">
+          <div class="input-row">
+            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
+            <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
+            <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || item.defaultD || ''}" oninput="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          </div>
+          ${sinkInputs}
+          ${wardrobeInputs}
+          ${fridgeInputs}
+        </div>
+        <div class="photo-section">
+          <label>현장 사진</label>
+          <div class="photo-box" onclick="document.getElementById('file-${item.uniqueId}').click()">${imageHtml}</div>
+          <input type="file" id="file-${item.uniqueId}" class="file-input-hidden" accept="image/*" onchange="handleItemPhoto(${item.uniqueId}, event)">
+        </div>
+      </div>
+    `;
+          container.appendChild(card);
+          if (!item.d && item.defaultD > 0) item.d = item.defaultD;
+        });
+
+        document.getElementById('btnNext').disabled =
+          selectedItems.length === 0 || !selectedItems.every((item) => item.w && item.h && item.d);
+        document.getElementById('aiGuideText').innerHTML =
+          selectedItems.length > 0
+            ? `총 <strong>${selectedItems.length}개</strong>의 가구 설정 중...`
+            : '가구를 추가하면 입력창이 생성됩니다.';
+      }
+
+      function updateItemValue(uniqueId, field, value) {
+        const target = selectedItems.find((item) => item.uniqueId === uniqueId);
+        if (target) {
+          target[field] = value;
+          if (target.specs.layoutShape === 'I' && (field === 'w' || field === 'd')) {
+            if (!target.specs.topSizes[0] || typeof target.specs.topSizes[0] === 'string') {
+              target.specs.topSizes[0] = { w: '', d: '' };
+            }
+            target.specs.topSizes[0].w = String(target.w || '');
+            target.specs.topSizes[0].d = String(target.d || '');
+          }
+          // ★ 붙박이장: 가로(W) 변경 시 유효공간 자동 재계산
+          if (target.categoryId === 'wardrobe' && field === 'w') {
+            const W = parseFloat(value) || 0;
+            const fL = target.specs.finishLeftType !== 'None' ? parseFloat(target.specs.finishLeftWidth) || 0 : 0;
+            const fR = target.specs.finishRightType !== 'None' ? parseFloat(target.specs.finishRightWidth) || 0 : 0;
+            target.specs.wardrobeEffectiveW = W - fL - fR;
+          }
+          document.getElementById('btnNext').disabled = !selectedItems.every((item) => item.w && item.h && item.d);
+        }
+      }
+
+      async function handleItemPhoto(uniqueId, event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!currentUser) {
+          alert('이미지 업로드를 위해 로그인이 필요합니다.');
+          return;
+        }
+
+        const target = selectedItems.find((item) => item.uniqueId === uniqueId);
+        if (!target) return;
+
+        // 로딩 표시
+        target.image = 'loading';
+        updateUI();
+
+        try {
+          const imageUrl = await uploadImageToStorage(file, currentUser.id);
+          target.image = imageUrl;
+          target.imageUrl = imageUrl;
+          updateUI();
+          hasUnsavedChanges = true;
+        } catch (error) {
+          console.error('이미지 업로드 실패:', error);
+          alert(error.message || '이미지 업로드에 실패했습니다.');
+          target.image = null;
+          updateUI();
+        }
+      }
+
+      function goToStep2() {
+        document.getElementById('step1-content').style.display = 'none';
+        document.getElementById('step2-content').style.display = 'block';
+        document.getElementById('step-dot-1').classList.remove('active');
+        document.getElementById('step-dot-2').classList.add('active');
+        renderBookmarks();
+      }
+
+      function backToStep1() {
+        document.getElementById('step1-content').style.display = 'block';
+        document.getElementById('step2-content').style.display = 'none';
+        document.getElementById('step-dot-1').classList.add('active');
+        document.getElementById('step-dot-2').classList.remove('active');
+        updateUI();
+      }
+
+      function goToStep3() {
+        document.getElementById('step2-content').style.display = 'none';
+        document.getElementById('step3-content').style.display = 'block';
+        document.getElementById('step-dot-2').classList.remove('active');
+        document.getElementById('step-dot-3').classList.add('active');
+      }
+
+      function backToStep2() {
+        document.getElementById('step3-content').style.display = 'none';
+        document.getElementById('step2-content').style.display = 'block';
+        document.getElementById('step-dot-3').classList.remove('active');
+        document.getElementById('step-dot-2').classList.add('active');
+      }
+
+      function proceedToBOM() {
+        // 1. AI 결과 모달 닫기
+        const modal = document.querySelector('.ai-design-result-modal');
+        if (modal) modal.remove();
+
+        // ★ 디버그: BOM 시작 시 selectedItems 상태 확인
+        console.log('[BOM] === proceedToBOM 시작 ===');
+        selectedItems.forEach((item, idx) => {
+          console.log(`[BOM] selectedItems[${idx}]: categoryId=${item.categoryId}, modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
+        });
+
+        // 2. 설계 데이터 추출
+        const design = window.DadamAgent.exportDesign();
+        if (!design.items || design.items.length === 0) {
+          alert('설계 데이터가 없습니다.');
+          return;
+        }
+
+        // ★ 디버그: exportDesign 후 복사본 확인
+        design.items.forEach((item, idx) => {
+          console.log(`[BOM] design.items[${idx}]: modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
+        });
+
+        // 3. Step 3로 이동
+        goToStep3();
+
+        // 4. 자재 추출
+        const matResult = materialExtractor.extract(design);
+        const hwResult = hardwareExtractor.extract(design);
+
+        // 5. 전역 데이터 저장 (다운로드용)
+        window._reportData = {
+          design,
+          materials: matResult,
+          hardware: hwResult,
+          csvMaterial: materialExtractor.toCSV(matResult.materials),
+          cncMaterial: materialExtractor.toCNC(matResult.materials),
+          csvHardware: hardwareExtractor.toCSV(hwResult.hardware)
+        };
+
+        // 6. 탭 콘텐츠 생성 후 Step 3 영역에 렌더링
+        const tabContent = generateReportTabs(matResult, hwResult, design);
+        document.getElementById('step3-report-area').innerHTML = tabContent;
+      }
+
+      function renderBookmarks() {
+        const tabsContainer = document.getElementById('bookmarkTabs');
+        tabsContainer.innerHTML = '';
+        selectedItems.forEach((item, index) => {
+          const tab = document.createElement('div');
+          tab.className = 'bookmark-tab' + (index === 0 ? ' active' : '');
+          tab.innerText = item.labelName;
+          tab.onclick = () => {
+            document.querySelectorAll('.bookmark-tab').forEach((t) => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentItemId = item.uniqueId;
+            renderWorkspaceContent(item);
+          };
+          tabsContainer.appendChild(tab);
+        });
+        if (selectedItems.length > 0) {
+          currentItemId = selectedItems[0].uniqueId;
+          renderWorkspaceContent(selectedItems[0]);
+        }
+      }
+
+      // 렌더링 debounce를 위한 타이머 저장소
+      const _renderTimers = new Map();
+      const _pendingScroll = new Map(); // ★ debounce 전 스크롤 위치 저장
+
+      function renderWorkspaceContent(item) {
+        if (!item || !item.uniqueId) return;
+
+        const itemId = item.uniqueId;
+
+        // ★ debounce 전에 스크롤 위치 즉시 저장 (이벤트 발생 시점의 정확한 값)
+        if (!_pendingScroll.has(itemId)) {
+          const ws = document.getElementById('designWorkspace');
+          const sp = ws?.querySelector('.spec-panel');
+          const mp = ws?.querySelector('.module-panel');
+          _pendingScroll.set(itemId, {
+            specPanel: sp ? sp.scrollTop : 0,
+            modulePanel: mp ? mp.scrollTop : 0,
+            pageY: window.scrollY || window.pageYOffset || 0,
+          });
+        }
+
+        if (_renderTimers.has(itemId)) {
+          clearTimeout(_renderTimers.get(itemId));
+        }
+
+        _renderTimers.set(
+          itemId,
+          setTimeout(() => {
+            _renderTimers.delete(itemId);
+            _renderWorkspaceContentImpl(item);
+          }, 30)
+        );
+      }
+
+      // 실제 렌더링 구현
+      function _renderWorkspaceContentImpl(item) {
+        const ws = document.getElementById('designWorkspace');
+        if (!ws) return;
+
+        // ★ 포커스 복원을 위한 정보 저장
+        const activeEl = document.activeElement;
+        let focusInfo = null;
+        if (activeEl && activeEl.tagName === 'INPUT' && ws.contains(activeEl)) {
+          focusInfo = {
+            type: activeEl.type,
+            value: activeEl.value,
+            selectionStart: activeEl.selectionStart,
+            selectionEnd: activeEl.selectionEnd,
+            onchange: activeEl.getAttribute('onchange'),
+            onblur: activeEl.getAttribute('onblur'),
+            parentClass: activeEl.closest('.dim-group, .spec-field, .effective-space-group')?.className,
+          };
+        }
+
+        // ★ 스크롤 위치 가져오기 (renderWorkspaceContent에서 미리 저장한 값)
+        const scrollInfo = _pendingScroll.get(item.uniqueId) || { specPanel: 0, modulePanel: 0 };
+        _pendingScroll.delete(item.uniqueId);
+
+        // ★ 붙박이장인 경우 별도 렌더링
+        if (item.categoryId === 'wardrobe') {
+          renderWardrobeWorkspace(item);
+          _restoreScroll(ws, scrollInfo);
+          _restoreFocus(ws, focusInfo);
+          return;
+        }
+
+        // ★ 냉장고장인 경우 별도 렌더링
+        if (item.categoryId === 'fridge') {
+          renderFridgeWorkspace(item);
+          _restoreScroll(ws, scrollInfo);
+          _restoreFocus(ws, focusInfo);
+          return;
+        }
+
+        const upperModules = item.modules.filter((m) => m.pos === 'upper');
+        const lowerModules = item.modules.filter((m) => m.pos === 'lower');
+
+        const autoEffectiveW = calcEffectiveSpace(item);
+        const upperEffectiveW = getEffectiveSpace(item, 'upper');
+        const lowerEffectiveW = getEffectiveSpace(item, 'lower');
+
+        const upperUsedW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+        const lowerUsedW = lowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+        const upperRemaining = upperEffectiveW - upperUsedW;
+        const lowerRemaining = lowerEffectiveW - lowerUsedW;
+
+        const renderModuleCard = (mod, idx, section, totalCount) => {
+          const icons = { sink: '🚰', cook: '🔥', hood: '🌀', tall: '↕️', storage: mod.pos === 'upper' ? '⬆️' : '⬇️' };
+          const icon = icons[mod.type] || '📦';
+          const isTall = mod.type === 'tall';
+          const isBase = mod.isBase; // ★ 기준 모듈 확인
+
+          const options =
+            mod.pos === 'lower' && (mod.type === 'storage' || mod.type === 'tall')
+              ? `
+      <div class="module-options">
+        <label class="module-chk"><input type="checkbox" ${mod.isDrawer ? 'checked' : ''} onchange="toggleOption(${item.uniqueId}, ${mod.id}, 'isDrawer', this.checked)"> 서랍장</label>
+        <label class="module-chk"><input type="checkbox" ${mod.isEL ? 'checked' : ''} onchange="toggleOption(${item.uniqueId}, ${mod.id}, 'isEL', this.checked)"> EL장</label>
+        ${
+          isTall
+            ? `<div style="margin-top:4px;display:flex;gap:8px;">
+          <label class="module-chk">도어수: <input type="number" style="width:40px;padding:2px;font-size:11px;border:1px solid #ddd;border-radius:3px;" value="${mod.doorCount || 1}" onchange="updateModuleDetail(${item.uniqueId}, ${mod.id}, 'doorCount', this.value)"></label>
+          <label class="module-chk">EL수: <input type="number" style="width:40px;padding:2px;font-size:11px;border:1px solid #ddd;border-radius:3px;" value="${mod.elCount || 0}" onchange="updateModuleDetail(${item.uniqueId}, ${mod.id}, 'elCount', this.value)"></label>
+        </div>`
+            : ''
+        }
+      </div>
+    `
+              : '';
+
+          // ★ 클래스 결정: 키큰장 > 기준모듈 > 고정모듈
+          let cardClass = 'module-card';
+          if (isTall) cardClass += ' tall-type';
+          else if (isBase) cardClass += ' base-module';
+          else if (mod.isFixed) cardClass += ' fixed-module';
+
+          const fixedClass = mod.isFixed ? 'active' : '';
+          return `
+      <div class="${cardClass}" data-module-id="${mod.id}">
+        <div class="move-buttons">
+          <button class="btn-move" onclick="moveModule(${item.uniqueId}, ${mod.id}, 'up')" ${idx === 0 ? 'disabled' : ''}>▲</button>
+          <button class="btn-move" onclick="moveModule(${item.uniqueId}, ${mod.id}, 'down')" ${idx === totalCount - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+        <div class="module-icon">${icon}</div>
+        <div class="module-info">
+          <div class="module-header">
+            <span class="module-title">${mod.name}</span>
+            ${isTall ? '<span class="module-type-badge">키큰장</span>' : ''}
+            <button class="toggle-btn ${fixedClass}" style="margin-left:auto;font-size:9px;padding:2px 6px;" onclick="toggleSinkModuleFixed(${item.uniqueId}, ${mod.id})">고정</button>
+            ${item.categoryId === 'sink' ? `<button class="btn-module-settings" onclick="openSinkModuleTypePopup(${item.uniqueId},${mod.id})">⚙️</button>` : ''}
+          </div>
+          <div class="module-dims">
+            <div class="dim-group"><label class="dim-label">W</label><input type="number" class="dim-input" value="${mod.w}" onchange="updateModuleDim(${item.uniqueId}, ${mod.id}, 'w', this.value)"></div>
+            <div class="dim-group"><label class="dim-label">H</label><input type="number" class="dim-input" value="${mod.h}" onchange="updateModuleDim(${item.uniqueId}, ${mod.id}, 'h', this.value)"></div>
+            <div class="dim-group"><label class="dim-label">D</label><input type="number" class="dim-input" value="${mod.d}" onchange="updateModuleDim(${item.uniqueId}, ${mod.id}, 'd', this.value)"></div>
+          </div>
+          ${options}
+        </div>
+        <button class="btn-delete-module" onclick="removeModule(${item.uniqueId}, ${mod.id})">×</button>
+      </div>
+    `;
+        };
+
+        const upperModulesHtml = upperModules
+          .map((m, i) => renderModuleCard(m, i, 'upper', upperModules.length))
+          .join('');
+        const lowerModulesHtml = lowerModules
+          .map((m, i) => renderModuleCard(m, i, 'lower', lowerModules.length))
+          .join('');
+
+        const upperEffDisplay =
+          item.specs.effectiveUpperW !== null ? item.specs.effectiveUpperW : Math.round(autoEffectiveW);
+        const lowerEffDisplay =
+          item.specs.effectiveLowerW !== null ? item.specs.effectiveLowerW : Math.round(autoEffectiveW);
+
+        // ★ 싱크대 Front View SVG 생성
+        const sinkW = parseFloat(item.w) || 3000;
+        const sinkH = parseFloat(item.h) || 2400;
+        const upperH = parseFloat(item.specs.upperH) || 720;
+        const lowerH = parseFloat(item.specs.lowerH) || 870;
+        const moldingH = parseFloat(item.specs.moldingH) || 60;
+        const legH = parseFloat(item.specs.sinkLegHeight) || 120;
+        const finishL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+        const finishR = item.specs.finishRightType !== 'None' ? parseFloat(item.specs.finishRightWidth) || 0 : 0;
+
+        const svgWidth = 600;
+        const svgHeight = 380;
+        const scaleX = (svgWidth - 100) / sinkW;
+        const scaleY = (svgHeight - 100) / sinkH;
+        const scale = Math.min(scaleX, scaleY);
+        const drawW = sinkW * scale;
+        const drawH = sinkH * scale;
+        const offsetX = (svgWidth - drawW) / 2;
+        const offsetY = 50;
+
+        // 각 영역 높이 (스케일 적용)
+        const moldingH_s = moldingH * scale;
+        const upperH_s = upperH * scale;
+        const lowerH_s = lowerH * scale;
+        const legH_s = legH * scale;
+
+        let sinkModuleSvg = '';
+
+        // 상몰딩
+        sinkModuleSvg += `<rect x="${offsetX}" y="${offsetY}" width="${drawW}" height="${moldingH_s}" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1"/>
+    <text x="${offsetX + drawW / 2}" y="${offsetY + moldingH_s / 2 + 3}" text-anchor="middle" font-size="9" fill="#666">상몰딩 ${moldingH}mm</text>`;
+
+        // 도어 색상 및 간격 설정
+        const showDoors = item.specs.showDoors || false;
+        const doorColorU = getDoorColor(item.specs.doorColorUpper || '화이트');
+        const doorColorL = getDoorColor(item.specs.doorColorLower || '화이트');
+        const doorGap = 3 * scale; // 3mm 간격
+        const upperOverlap_s = (parseFloat(item.specs.upperDoorOverlap) || 15) * scale;
+
+        // 상부장 모듈들
+        let upperStartX = offsetX + finishL * scale;
+        const upperY = offsetY + moldingH_s;
+        upperModules.forEach((mod, idx) => {
+          const modW = parseFloat(mod.w) * scale;
+          const icons = { hood: '🌀', storage: '📦' };
+          const icon = icons[mod.type] || '📦';
+          const fillColor = mod.type === 'hood' ? '#fef3c7' : '#eff6ff';
+          const strokeColor = mod.type === 'hood' ? '#f59e0b' : '#3b82f6';
+          sinkModuleSvg += `<rect x="${upperStartX}" y="${upperY}" width="${modW}" height="${upperH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2"/>
+      <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 - 8}" text-anchor="middle" font-size="11" fill="${mod.type === 'hood' ? '#b45309' : '#1d4ed8'}" font-weight="bold">${icon}</text>
+      <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 + 8}" text-anchor="middle" font-size="9" fill="#666">${mod.w}</text>`;
+          upperStartX += modW;
+        });
+
+        // ★ 상부장 도어 표시 (도어 높이 = 몸체 + 오버랩)
+        if (showDoors) {
+          let upperDoorX = offsetX + finishL * scale;
+          upperModules.forEach((mod, idx) => {
+            const modW = parseFloat(mod.w) * scale;
+            const doorCount = Math.max(1, Math.round(mod.w / 450));
+            const dW = modW / doorCount;
+            const doorH = mod.type === 'hood' ? upperH_s - doorGap : upperH_s + upperOverlap_s - doorGap;
+            for (let d = 0; d < doorCount; d++) {
+              const dX = upperDoorX + d * dW + doorGap / 2;
+              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorH}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2"/>`;
+            }
+            upperDoorX += modW;
+          });
+        }
+
+        // 중간 공간 (상판 영역)
+        const middleY = upperY + upperH_s;
+        const middleH_s = drawH - moldingH_s - upperH_s - lowerH_s - legH_s;
+        if (middleH_s > 0) {
+          sinkModuleSvg += `<rect x="${offsetX}" y="${middleY}" width="${drawW}" height="${middleH_s}" fill="#fafafa" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>`;
+        }
+
+        // 하부장 모듈들 + 다리발 연동
+        let lowerStartX = offsetX + finishL * scale;
+        const lowerY = middleY + middleH_s;
+
+        lowerModules.forEach((mod, idx) => {
+          const modW = parseFloat(mod.w) * scale;
+          const isTall = mod.type === 'tall';
+          // 키큰장은 상부장~하부장, 일반 하부장은 하부장+다리발
+          const modH_s = isTall ? upperH_s + middleH_s + lowerH_s : lowerH_s + legH_s;
+          const modY = isTall ? upperY : lowerY;
+
+          const icons = { sink: '🚰', cook: '🔥', tall: '↕️', storage: '🗄️' };
+          const icon = icons[mod.type] || '📦';
+          let fillColor = '#f3f4f6';
+          let strokeColor = '#6b7280';
+          if (mod.type === 'sink') {
+            fillColor = '#dbeafe';
+            strokeColor = '#3b82f6';
+          } else if (mod.type === 'cook') {
+            fillColor = '#fee2e2';
+            strokeColor = '#ef4444';
+          } else if (isTall) {
+            fillColor = '#dcfce7';
+            strokeColor = '#10b981';
+          } else if (mod.isDrawer) {
+            fillColor = '#fef3c7';
+            strokeColor = '#f59e0b';
+          }
+
+          // 모듈 본체 (다리발 포함 높이)
+          sinkModuleSvg += `<rect x="${lowerStartX}" y="${modY}" width="${modW}" height="${modH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2"/>`;
+
+          // 다리발 구분선 (키큰장 제외)
+          if (!isTall) {
+            const legLineY = lowerY + lowerH_s;
+            sinkModuleSvg += `<line x1="${lowerStartX}" y1="${legLineY}" x2="${lowerStartX + modW}" y2="${legLineY}" stroke="${strokeColor}" stroke-width="1" stroke-dasharray="3"/>`;
+            sinkModuleSvg += `<text x="${lowerStartX + modW / 2}" y="${legLineY + legH_s / 2 + 3}" text-anchor="middle" font-size="7" fill="#888">${legH}</text>`;
+          }
+
+          // 도어 표시 (showDoors가 true일 때)
+          if (showDoors && !isTall) {
+            if (mod.isDrawer) {
+              // ★ 서랍장: 상단 서랍 + 하단 여닫이 도어
+              const dCount = mod.drawerCount || 1;
+              const drawerH = 250; // 서랍 1개 높이 250mm
+              const totalDrawerH = drawerH * dCount;
+              const totalDrawerH_s = totalDrawerH * scale;
+              const hingeDoorH_s = lowerH_s - totalDrawerH_s;
+
+              // 서랍 영역 (상단)
+              for (let dr = 0; dr < dCount; dr++) {
+                const drY = modY + doorGap / 2 + dr * (totalDrawerH_s / dCount);
+                const drH = totalDrawerH_s / dCount - doorGap;
+                sinkModuleSvg += `<rect x="${lowerStartX + doorGap / 2}" y="${drY}" width="${modW - doorGap}" height="${drH}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                // 서랍 손잡이 (가로선)
+                const handleY = drY + drH / 2;
+                const handleW = modW * 0.35;
+                sinkModuleSvg += `<line x1="${lowerStartX + modW / 2 - handleW / 2}" y1="${handleY}" x2="${lowerStartX + modW / 2 + handleW / 2}" y2="${handleY}" stroke="#666" stroke-width="2" stroke-linecap="round"/>`;
+              }
+
+              // 여닫이 도어 (하단) - 남은 공간
+              if (hingeDoorH_s > doorGap * 2) {
+                const hingeDoorY = modY + totalDrawerH_s + doorGap / 2;
+                const hingeDoorCount = Math.max(1, Math.round(mod.w / 450));
+                const dW = modW / hingeDoorCount;
+                for (let d = 0; d < hingeDoorCount; d++) {
+                  const dX = lowerStartX + d * dW + doorGap / 2;
+                  sinkModuleSvg += `<rect x="${dX}" y="${hingeDoorY}" width="${dW - doorGap}" height="${hingeDoorH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                }
+              }
+            } else {
+              // 일반 하부장: 전체 여닫이 도어
+              const doorCount = Math.max(1, Math.round(mod.w / 450));
+              const dW = modW / doorCount;
+              for (let d = 0; d < doorCount; d++) {
+                const dX = lowerStartX + d * dW + doorGap / 2;
+                sinkModuleSvg += `<rect x="${dX}" y="${modY + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+              }
+            }
+          }
+
+          // 아이콘 & 텍스트 (도어 표시시 일반 하부장 아이콘 숨김, 키큰장/서랍장은 항상 표시)
+          if (!showDoors || isTall) {
+            const drawerLabel = mod.isDrawer ? ` 서랍${mod.drawerCount || 1}` : '';
+            sinkModuleSvg += `<text x="${lowerStartX + modW / 2}" y="${modY + (isTall ? modH_s : lowerH_s) / 2 - 8}" text-anchor="middle" font-size="12" fill="${strokeColor}" font-weight="bold">${mod.isDrawer ? '🗄️' : icon}</text>
+        <text x="${lowerStartX + modW / 2}" y="${modY + (isTall ? modH_s : lowerH_s) / 2 + 8}" text-anchor="middle" font-size="9" fill="#666">${mod.w}${isTall ? ' (TL)' : ''}${drawerLabel}</text>`;
+          }
+          lowerStartX += modW;
+        });
+
+        // 다리발 (전체 영역 - 마감 포함)
+        const legY = lowerY + lowerH_s;
+        // 마감 영역 아래에도 다리발 표시
+        if (finishL > 0) {
+          sinkModuleSvg += `<rect x="${offsetX}" y="${legY}" width="${finishL * scale}" height="${legH_s}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>`;
+        }
+        if (finishR > 0) {
+          sinkModuleSvg += `<rect x="${offsetX + drawW - finishR * scale}" y="${legY}" width="${finishR * scale}" height="${legH_s}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>`;
+        }
+
+        // 좌측 마감
+        if (finishL > 0) {
+          sinkModuleSvg += `<rect x="${offsetX}" y="${upperY}" width="${finishL * scale}" height="${upperH_s + middleH_s + lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>
+      <text x="${offsetX + (finishL * scale) / 2}" y="${upperY + (upperH_s + middleH_s + lowerH_s) / 2}" text-anchor="middle" font-size="8" fill="#666" transform="rotate(-90 ${offsetX + (finishL * scale) / 2} ${upperY + (upperH_s + middleH_s + lowerH_s) / 2})">${finishL}</text>`;
+        }
+        // 우측 마감
+        if (finishR > 0) {
+          sinkModuleSvg += `<rect x="${offsetX + drawW - finishR * scale}" y="${upperY}" width="${finishR * scale}" height="${upperH_s + middleH_s + lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>
+      <text x="${offsetX + drawW - (finishR * scale) / 2}" y="${upperY + (upperH_s + middleH_s + lowerH_s) / 2}" text-anchor="middle" font-size="8" fill="#666" transform="rotate(-90 ${offsetX + drawW - (finishR * scale) / 2} ${upperY + (upperH_s + middleH_s + lowerH_s) / 2})">${finishR}</text>`;
+        }
+
+        // ★ 걸레받이 (도어 표시시에만, 하부장에 설치)
+        if (showDoors) {
+          const baseboardH = legH - 5; // 걸레받이 높이 = 다리발 높이 - 5mm
+          const baseboardH_s = baseboardH * scale;
+          // 하부장 너비 합계 (키큰장 제외)
+          const lowerTotalW = lowerModules
+            .filter((m) => m.type !== 'tall')
+            .reduce((sum, m) => sum + parseFloat(m.w), 0);
+
+          if (lowerTotalW > 0 && baseboardH > 0) {
+            const MAX_BASEBOARD_W = 2400;
+            const baseboardCount = Math.ceil(lowerTotalW / MAX_BASEBOARD_W);
+            const baseboardY = legY + (legH_s - baseboardH_s);
+            let currentX = offsetX + finishL * scale;
+            let remainingW = lowerTotalW;
+
+            for (let i = 0; i < baseboardCount; i++) {
+              const thisW = Math.min(remainingW, MAX_BASEBOARD_W);
+              const thisW_s = thisW * scale;
+              sinkModuleSvg += `<rect x="${currentX}" y="${baseboardY}" width="${thisW_s}" height="${baseboardH_s}" fill="#8b5cf6" stroke="#6d28d9" stroke-width="1.5" rx="1"/>
+          <text x="${currentX + thisW_s / 2}" y="${baseboardY + baseboardH_s / 2 + 3}" text-anchor="middle" font-size="7" fill="#fff" font-weight="bold">걸레받이 ${thisW}×${baseboardH}</text>`;
+              currentX += thisW_s;
+              remainingW -= thisW;
+            }
+          }
+        }
+
+        const sinkFrontViewSvg = `
+    <svg width="${svgWidth}" height="${svgHeight}" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
+      <!-- 치수선 - 상단 -->
+      <line x1="${offsetX}" y1="${offsetY - 15}" x2="${offsetX + drawW}" y2="${offsetY - 15}" stroke="#666" stroke-width="1"/>
+      <line x1="${offsetX}" y1="${offsetY - 20}" x2="${offsetX}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
+      <line x1="${offsetX + drawW}" y1="${offsetY - 20}" x2="${offsetX + drawW}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
+      <text x="${offsetX + drawW / 2}" y="${offsetY - 25}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">${sinkW}mm</text>
+
+      <!-- 치수선 - 좌측 -->
+      <line x1="${offsetX - 15}" y1="${offsetY}" x2="${offsetX - 15}" y2="${offsetY + drawH}" stroke="#666" stroke-width="1"/>
+      <line x1="${offsetX - 20}" y1="${offsetY}" x2="${offsetX - 10}" y2="${offsetY}" stroke="#666" stroke-width="1"/>
+      <line x1="${offsetX - 20}" y1="${offsetY + drawH}" x2="${offsetX - 10}" y2="${offsetY + drawH}" stroke="#666" stroke-width="1"/>
+      <text x="${offsetX - 25}" y="${offsetY + drawH / 2}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold" transform="rotate(-90 ${offsetX - 25} ${offsetY + drawH / 2})">${sinkH}mm</text>
+
+      <!-- 모듈들 -->
+      ${sinkModuleSvg}
+    </svg>
+  `;
+
+        // 마감 설정
+        let cornerHtml = '';
+        if (item.specs.layoutShape === 'L') {
+          cornerHtml = `<div class="spec-row"><div class="spec-field"><label>코너 마감</label><select onchange="updateSpecNoRender(${item.uniqueId}, 'finishCorner1Type', this.value)"><option value="Molding" ${item.specs.finishCorner1Type === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type === 'Filler' ? 'selected' : ''}>휠라</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${item.uniqueId}, 'finishCorner1Width', this.value)"></div></div>`;
+        } else if (item.specs.layoutShape === 'U') {
+          cornerHtml = `<div class="spec-row"><div class="spec-field"><label>코너1 마감</label><select onchange="updateSpecNoRender(${item.uniqueId}, 'finishCorner1Type', this.value)"><option value="Molding" ${item.specs.finishCorner1Type === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type === 'Filler' ? 'selected' : ''}>휠라</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${item.uniqueId}, 'finishCorner1Width', this.value)"></div></div>
+    <div class="spec-row"><div class="spec-field"><label>코너2 마감</label><select onchange="updateSpecNoRender(${item.uniqueId}, 'finishCorner2Type', this.value)"><option value="Molding" ${item.specs.finishCorner2Type === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishCorner2Type === 'Filler' ? 'selected' : ''}>휠라</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishCorner2Width}" onchange="updateSpecValue(${item.uniqueId}, 'finishCorner2Width', this.value)"></div></div>`;
+        }
+
+        const shapes = { I: 'ㅡ자형 (1개)', L: 'ㄱ자형 (2개)', U: 'ㄷ자형 (3개)' };
+        const topCount = item.specs.layoutShape === 'U' ? 3 : item.specs.layoutShape === 'L' ? 2 : 1;
+        let topSizeInputs = '';
+        for (let i = 0; i < topCount; i++) {
+          const ts = item.specs.topSizes[i] || { w: '', d: '' };
+          const label = topCount > 1 ? `#${i + 1} ` : '';
+          topSizeInputs += `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;color:#888;min-width:20px;">${label}</span>
+            <input type="number" placeholder="길이(W)" value="${ts.w || ''}" onchange="updateTopSizeDim(${item.uniqueId}, ${i}, 'w', this.value)" style="flex:1;min-width:0;">
+            <span style="font-size:11px;color:#999;">×</span>
+            <input type="number" placeholder="폭(D)" value="${ts.d || ''}" onchange="updateTopSizeDim(${item.uniqueId}, ${i}, 'd', this.value)" style="flex:1;min-width:0;">
+          </div>`;
+        }
+
+        const accHtml = item.specs.accessories
+          .map(
+            (acc) => `
+    <div class="acc-item">
+      <select style="flex:1;" onchange="updateAccessory(${item.uniqueId}, ${acc.id}, this.value)">
+        <option value="LTMesh" ${acc.type === 'LTMesh' ? 'selected' : ''}>LT망장</option>
+        <option value="CircleMesh" ${acc.type === 'CircleMesh' ? 'selected' : ''}>원망장</option>
+        <option value="Cutlery" ${acc.type === 'Cutlery' ? 'selected' : ''}>수저분리함</option>
+        <option value="Knife" ${acc.type === 'Knife' ? 'selected' : ''}>칼꽂이</option>
+        <option value="DishRack" ${acc.type === 'DishRack' ? 'selected' : ''}>식기건조대</option>
+        <option value="Etc" ${acc.type === 'Etc' ? 'selected' : ''}>기타</option>
+      </select>
+      <button class="btn-del-acc" onclick="removeAccessory(${item.uniqueId}, ${acc.id})">×</button>
+    </div>
+  `
+          )
+          .join('');
+
+        ws.innerHTML = `
+    <div class="ws-header">
+      <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${item.w} x H ${item.h} x D ${item.d}</span></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
+        <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>
+      </div>
+    </div>
+    <div class="ws-layout">
+      <div class="spec-panel">
+        <div class="spec-group-title">1. Dimensions (치수)</div>
+        <div class="spec-row">
+          <div class="spec-field"><label>상부장 높이</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+          <div class="spec-field"><label>하부장 높이</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>상부 도어 오버랩</label><input type="number" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
+          <div class="spec-field"><label>다리발 높이</label>
+            <select id="legHeight-${item.uniqueId}" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)">
+              <option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120mm</option>
+              <option value="150" ${item.specs.sinkLegHeight == 150 ? 'selected' : ''}>150mm</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="spec-group-title">2. Hardware</div>
+        <div class="spec-row">
+          <div class="spec-field"><label>손잡이</label><select onchange="updateSpec(${item.uniqueId}, 'handle', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('handle', item.specs.handle, 'sink')}</select></div>
+          <div class="spec-field"><label>씽크볼</label><select onchange="updateSpec(${item.uniqueId}, 'sink', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('sink', item.specs.sink)}</select></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>수전</label><select onchange="updateSpec(${item.uniqueId}, 'faucet', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('faucet', item.specs.faucet)}</select></div>
+          <div class="spec-field"><label>후드</label><select onchange="updateSpec(${item.uniqueId}, 'hood', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('hood', item.specs.hood)}</select></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>쿡탑</label><select onchange="updateSpec(${item.uniqueId}, 'cooktop', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('cooktop', item.specs.cooktop)}</select></div>
+          <div class="spec-field"><label>식기세척기</label>
+            <select onchange="onDishwasherChange(${item.uniqueId}, this.value)">
+              <option value="None" ${item.specs.dishwasher === 'None' ? 'selected' : ''}>없음</option>
+              <option value="BuiltIn" ${item.specs.dishwasher === 'BuiltIn' ? 'selected' : ''}>빌트인</option>
+              <option value="FreeStanding" ${item.specs.dishwasher === 'FreeStanding' ? 'selected' : ''}>프리스탠딩</option>
+            </select>
+          </div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field">
+            <label>액세서리</label>
+            <div class="acc-list">${accHtml}</div>
+            <button class="btn-add-acc" onclick="addAccessory(${item.uniqueId})">+ 액세서리 추가</button>
+          </div>
+        </div>
+
+        <div class="spec-group-title">3. Colors (도어)</div>
+        <div class="spec-row"><div class="spec-field"><label>상부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'sink')}</select><select onchange="updateSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'sink')}</select></div></div></div>
+        <div class="spec-row"><div class="spec-field"><label>하부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${item.uniqueId}, 'doorFinishLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishLower, 'sink')}</select><select onchange="updateSpec(${item.uniqueId}, 'doorColorLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorLower, 'sink')}</select></div></div></div>
+
+        <div class="spec-group-title">4. Countertop (상판)</div>
+        <div class="spec-row">
+          <div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${item.uniqueId}, 'topColor', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop', item.specs.topColor)}</select></div>
+          <div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}" onchange="updateSpecValue(${item.uniqueId}, 'topThickness', this.value)"></div>
+        </div>
+        <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape]})</label>${topSizeInputs}</div></div>
+
+        <div class="spec-group-title">5. Finish Settings (마감)</div>
+        <div class="spec-row">
+          <div class="spec-field"><label>상몰딩 높이</label><input type="number" value="${item.specs.moldingH}" onchange="updateSpecValue(${item.uniqueId}, 'moldingH', this.value)"></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>좌측 마감</label><select onchange="updateFinishType(${item.uniqueId}, 'Left', this.value)"><option value="Molding" ${item.specs.finishLeftType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishLeftType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishLeftType === 'None' ? 'selected' : ''}>없음</option></select></div>
+          <div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishLeftWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishLeftWidth', this.value)"></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>우측 마감</label><select onchange="updateFinishType(${item.uniqueId}, 'Right', this.value)"><option value="Molding" ${item.specs.finishRightType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishRightType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishRightType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishRightType === 'None' ? 'selected' : ''}>없음</option></select></div>
+          <div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishRightWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishRightWidth', this.value)"></div>
+        </div>
+        ${cornerHtml ? `<div class="spec-group-title">Corner Settings (코너)</div>${cornerHtml}` : ''}
+      </div>
+
+      <div class="module-panel">
+        <!-- ★ Front View 도면 -->
+        <div class="front-view-section" style="margin-bottom:20px;">
+          <div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span>📐 Front View</span>
+              <span style="font-size:11px;color:#888;font-weight:normal;">(전면부 도면)</span>
+            </div>
+            <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+          </div>
+          ${sinkFrontViewSvg}
+        </div>
+
+        <div class="module-section">
+          <div class="module-section-header upper">
+            <div class="section-title-row"><span>⬆️ 상부장 모듈</span></div>
+            <div class="section-info-row">
+              <div class="effective-space-group">
+                <label>유효공간:</label>
+                <input type="number" class="effective-space-input" value="${upperEffDisplay}" onblur="onEffectiveSpaceBlur(${item.uniqueId}, 'upper', this)"><span>mm</span>
+              </div>
+              <span class="section-remaining" style="color:${getRemainColor(upperRemaining)}">잔여: ${Math.round(upperRemaining)}mm</span>
+              <div class="section-buttons">
+                <button class="btn-section-undo" onclick="undoAutoCalc(${item.uniqueId}, 'upper')" ${item.prevUpperModules ? '' : 'disabled'}>↩ 되돌리기</button>
+                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'upper')" title="상부장 자동계산">⚡</button>
+              </div>
+            </div>
+            ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
+              <span class="essential-label">필수장:</span>
+              <span class="essential-toggle ${item.specs.essentialUpper?.hood !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'upper','hood')">🌀 후드장</span>
+            </div>` : ''}
+          </div>
+          <div class="module-list ${upperModules.length === 0 ? 'empty-list' : ''}">${upperModulesHtml}</div>
+        </div>
+
+        <div class="module-section">
+          <div class="module-section-header lower">
+            <div class="section-title-row"><span>⬇️ 하부장 모듈</span><span style="font-size:10px;color:#888;">(키큰장 포함)</span></div>
+            <div class="section-info-row">
+              <div class="effective-space-group">
+                <label>유효공간:</label>
+                <input type="number" class="effective-space-input" value="${lowerEffDisplay}" onblur="onEffectiveSpaceBlur(${item.uniqueId}, 'lower', this)"><span>mm</span>
+              </div>
+              <span class="section-remaining" style="color:${getRemainColor(lowerRemaining)}">잔여: ${Math.round(lowerRemaining)}mm</span>
+              <div class="section-buttons">
+                <button class="btn-section-undo" onclick="undoAutoCalc(${item.uniqueId}, 'lower')" ${item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
+                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'lower')" title="하부장 자동계산">⚡</button>
+              </div>
+            </div>
+            ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
+              <span class="essential-label">필수장:</span>
+              <span class="essential-toggle ${item.specs.essentialLower?.sink !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','sink')">🚰 개수대</span>
+              <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')">🔥 가스대</span>
+              <span class="essential-toggle ${item.specs.essentialLower?.lt !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','lt')">🔧 LT망장</span>
+            </div>` : ''}
+          </div>
+          <div class="module-list ${lowerModules.length === 0 ? 'empty-list' : ''}">${lowerModulesHtml}</div>
+        </div>
+        
+        <div class="module-btn-group">
+          <button class="btn-add-split btn-add-upper" onclick="addStorageModule(${item.uniqueId}, 'upper')">+ 상부장</button>
+          <button class="btn-add-split btn-add-lower" onclick="addStorageModule(${item.uniqueId}, 'lower')">+ 하부장</button>
+          <button class="btn-add-split btn-add-tall" onclick="addTallModule(${item.uniqueId})">+ 키큰장(TL)</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+        // ★ 스크롤 복원
+        _restoreScroll(ws, scrollInfo);
+        _restoreFocus(ws, focusInfo);
+      }
+
