@@ -11331,6 +11331,8 @@
             if (!agg.parts.includes(m.part)) agg.parts.push(m.part);
             // 엣지 병합
             if (m.edge && m.edge !== '-' && !agg.edges.includes(m.edge)) agg.edges.push(m.edge);
+            // 품목 라벨 병합
+            if (m.itemLabel && !agg.itemLabels.includes(m.itemLabel)) agg.itemLabels.push(m.itemLabel);
           } else {
             map.set(key, {
               material: m.material,
@@ -11340,7 +11342,8 @@
               h: m.h,
               qty: m.qty,
               parts: [m.part],
-              edges: (m.edge && m.edge !== '-') ? [m.edge] : []
+              edges: (m.edge && m.edge !== '-') ? [m.edge] : [],
+              itemLabels: m.itemLabel ? [m.itemLabel] : []
             });
           }
         });
@@ -11776,15 +11779,24 @@
         }
 
         // 부품 rect + 각 변에 치수 라벨 렌더링
-        function renderPiece(rx, ry, rw, rh, pw, ph, partName) {
+        function renderPiece(rx, ry, rw, rh, pw, ph, partName, itemLabel) {
           const fill = partColor(partName);
           const stroke = partStroke(partName);
           let s = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
 
-          // 중앙: 부품명 (공간 충분할 때)
-          if (rw > 35 && rh > 24) {
+          // 중앙: 부품명 (공간 충분할 때) — 폰트 14px
+          if (rw > 45 && rh > 30) {
             const shortPart = partName.length > 8 ? partName.substring(0, 8) + '..' : partName;
-            s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-label" text-anchor="middle">${shortPart}</text>`;
+            s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + (itemLabel ? -2 : 5)}" class="cp-label" text-anchor="middle">${shortPart}</text>`;
+            // 품목 라벨 (부품명 아래)
+            if (itemLabel && rh > 46) {
+              const shortLabel = itemLabel.length > 10 ? itemLabel.substring(0, 10) + '..' : itemLabel;
+              s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 14}" class="cp-item" text-anchor="middle">${shortLabel}</text>`;
+            }
+          } else if (rw > 30 && rh > 20) {
+            // 좁은 공간: 부품명만 작게
+            const shortPart = partName.length > 6 ? partName.substring(0, 6) + '..' : partName;
+            s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-label" text-anchor="middle" style="font-size:10px;">${shortPart}</text>`;
           }
 
           // 상변: 가로 치수 (mm)
@@ -11808,7 +11820,8 @@
         let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:8px auto;">
       <style>
         .cp-title { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; fill: #333; }
-        .cp-label { font-family: Arial, sans-serif; font-size: 7px; fill: #333; }
+        .cp-label { font-family: Arial, sans-serif; font-size: 14px; fill: #333; font-weight: bold; }
+        .cp-item { font-family: Arial, sans-serif; font-size: 10px; fill: #1565c0; }
         .cp-edge { font-family: Arial, sans-serif; font-size: 12px; fill: #e53935; font-weight: bold; }
         .cp-dim { font-family: Arial, sans-serif; font-size: 7px; fill: #666; }
         .cp-cut { stroke: #e53935; stroke-width: 1; stroke-dasharray: 4 2; }
@@ -11843,7 +11856,7 @@
                 const ry = oy + Math.round(curY * scale);
                 const rw = Math.round(p.w * scale);
                 const rh = Math.round(strip.height * scale);
-                svg += renderPiece(rx, ry, rw, rh, p.w, strip.height, p.part);
+                svg += renderPiece(rx, ry, rw, rh, p.w, strip.height, p.part, (p.itemLabels || []).join('/'));
                 curX += p.w + CUT_KERF;
               }
             });
@@ -11890,7 +11903,7 @@
                 const ry = oy + Math.round(curY * scale);
                 const rw = Math.round(strip.width * scale);
                 const rh = Math.round(p.h * scale);
-                svg += renderPiece(rx, ry, rw, rh, strip.width, p.h, p.part);
+                svg += renderPiece(rx, ry, rw, rh, strip.width, p.h, p.part, (p.itemLabels || []).join('/'));
                 curY += p.h + CUT_KERF;
               }
             });
@@ -11958,6 +11971,7 @@
         const needs = items.map((item, i) => ({
           idx: i, w: item.w, h: item.h,
           parts: item.parts, edges: item.edges,
+          itemLabels: item.itemLabels || [],
           remain: item.qty
         }));
 
@@ -12129,7 +12143,7 @@
             if (avail <= 0 || n.h !== stripH || n.w > PW - strip.usedW) continue;
             const fitCount = Math.min(avail, Math.floor((PW - strip.usedW + CUT_KERF) / (n.w + CUT_KERF)));
             if (fitCount <= 0) continue;
-            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount });
+            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount });
             strip.usedW += (n.w + CUT_KERF) * fitCount - CUT_KERF;
             pieceCounts.set(n.idx, placed + fitCount);
             usedArea += n.w * n.h * fitCount;
@@ -12144,7 +12158,7 @@
               if (avail <= 0 || n.h > stripH || n.h === stripH || n.w > spaceLeft) continue;
               const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.w + CUT_KERF)));
               if (fitCount <= 0) continue;
-              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount, fromRemainder: true });
+              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount, fromRemainder: true });
               strip.usedW += CUT_KERF + (n.w + CUT_KERF) * fitCount - CUT_KERF;
               pieceCounts.set(n.idx, placed + fitCount);
               usedArea += n.w * n.h * fitCount;
@@ -12199,7 +12213,7 @@
             if (avail <= 0 || n.w !== stripW || n.h > PH - strip.usedH) continue;
             const fitCount = Math.min(avail, Math.floor((PH - strip.usedH + CUT_KERF) / (n.h + CUT_KERF)));
             if (fitCount <= 0) continue;
-            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount });
+            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount });
             strip.usedH += (n.h + CUT_KERF) * fitCount - CUT_KERF;
             pieceCounts.set(n.idx, placed + fitCount);
             usedArea += n.w * n.h * fitCount;
@@ -12214,7 +12228,7 @@
               if (avail <= 0 || n.w > stripW || n.w === stripW || n.h > spaceLeft) continue;
               const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.h + CUT_KERF)));
               if (fitCount <= 0) continue;
-              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount, fromRemainder: true });
+              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount, fromRemainder: true });
               strip.usedH += CUT_KERF + (n.h + CUT_KERF) * fitCount - CUT_KERF;
               pieceCounts.set(n.idx, placed + fitCount);
               usedArea += n.w * n.h * fitCount;
