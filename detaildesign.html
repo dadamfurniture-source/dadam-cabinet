@@ -11728,17 +11728,18 @@
       function renderCuttingPlanSVG(panel, groupName, PW, PH) {
         const scale = 0.25;
         const margin = { top: 50, left: 30, right: 30, bottom: 20 };
-        const svgW = Math.round(PW * scale) + margin.left + margin.right;
-        const svgH = Math.round(PH * scale) + margin.top + margin.bottom;
+        const panelW = Math.round(PW * scale);
+        const panelH = Math.round(PH * scale);
+        const svgW = panelW + margin.left + margin.right;
+        const svgH = panelH + margin.top + margin.bottom;
         const ox = margin.left, oy = margin.top;
 
         const colors = {
           panel: '#f5f5f5',
-          body: '#e3f2fd',    // 본체 (측판/천판/지판/선반/밴드)
-          door: '#fff3e0',    // 도어
-          back: '#f3e5f5',    // 뒷판
-          ep: '#e8f5e9',      // EP/마감
-          waste: '#f5f5f5'
+          body: '#e3f2fd',
+          door: '#fff3e0',
+          back: '#f3e5f5',
+          ep: '#e8f5e9'
         };
 
         function partColor(partName) {
@@ -11755,6 +11756,31 @@
           return '#1976d2';
         }
 
+        // 부품 rect + 각 변에 치수 라벨 렌더링
+        function renderPiece(rx, ry, rw, rh, pw, ph, partName) {
+          const fill = partColor(partName);
+          const stroke = partStroke(partName);
+          let s = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+
+          // 중앙: 부품명 (공간 충분할 때)
+          if (rw > 35 && rh > 24) {
+            const shortPart = partName.length > 8 ? partName.substring(0, 8) + '..' : partName;
+            s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-label" text-anchor="middle">${shortPart}</text>`;
+          }
+
+          // 상변: 가로 치수 (mm)
+          if (rw > 22) {
+            s += `<text x="${rx + rw / 2}" y="${ry + 8}" class="cp-edge" text-anchor="middle">${pw}</text>`;
+          }
+
+          // 좌변: 세로 치수 (mm) — 세로 회전 텍스트
+          if (rh > 22) {
+            s += `<text x="${rx + 7}" y="${ry + rh / 2}" class="cp-edge" text-anchor="middle" transform="rotate(-90, ${rx + 7}, ${ry + rh / 2})">${ph}</text>`;
+          }
+
+          return s;
+        }
+
         const stackLabel = panel.stack > 1 ? ` x${panel.stack}장 겹침` : '';
         const dirLabel = panel.dir === 'H' ? '가로→세로' : '세로→가로';
         const rotLabel = panel.rotated ? ' (회전)' : '';
@@ -11763,7 +11789,8 @@
         let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:8px auto;">
       <style>
         .cp-title { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; fill: #333; }
-        .cp-label { font-family: Arial, sans-serif; font-size: 8px; fill: #333; }
+        .cp-label { font-family: Arial, sans-serif; font-size: 7px; fill: #333; }
+        .cp-edge { font-family: Arial, sans-serif; font-size: 6px; fill: #e53935; font-weight: bold; }
         .cp-dim { font-family: Arial, sans-serif; font-size: 7px; fill: #666; }
         .cp-cut { stroke: #e53935; stroke-width: 1; stroke-dasharray: 4 2; }
         .cp-stack { font-family: Arial, sans-serif; font-size: 9px; fill: #fff; font-weight: bold; }
@@ -11771,21 +11798,24 @@
       <text x="${svgW / 2}" y="14" class="cp-title" text-anchor="middle">#${panel.id} ${groupName} | ${dirLabel}${rotLabel} | ${eff}%${stackLabel}</text>
       <text x="${svgW / 2}" y="28" class="cp-dim" text-anchor="middle">${PW} x ${PH} mm</text>`;
 
-        // 원판 배경
-        svg += `<rect x="${ox}" y="${oy}" width="${Math.round(PW * scale)}" height="${Math.round(PH * scale)}" fill="${colors.panel}" stroke="#333" stroke-width="2"/>`;
+        // 원판 배경 + clipPath로 넘침 방지
+        svg += `<defs>`;
+        svg += `<clipPath id="clip-${panel.id}"><rect x="${ox}" y="${oy}" width="${panelW}" height="${panelH}"/></clipPath>`;
+        svg += `<pattern id="hatch-${panel.id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#ddd" stroke-width="1"/></pattern>`;
+        svg += `</defs>`;
+        svg += `<rect x="${ox}" y="${oy}" width="${panelW}" height="${panelH}" fill="${colors.panel}" stroke="#333" stroke-width="2"/>`;
 
-        // 잔재 해칭 패턴
-        svg += `<defs><pattern id="hatch-${panel.id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#ddd" stroke-width="1"/></pattern></defs>`;
+        // 부품을 clipPath 안에서 렌더링
+        svg += `<g clip-path="url(#clip-${panel.id})">`;
 
         if (panel.dir === 'H') {
           // 가로→세로: y축으로 strip, x축으로 piece
           let curY = 0;
           panel.strips.forEach((strip, si) => {
             let curX = 0;
-            // strip 재단선
             if (si > 0) {
               const lineY = oy + Math.round(curY * scale);
-              svg += `<line x1="${ox}" y1="${lineY}" x2="${ox + Math.round(PW * scale)}" y2="${lineY}" class="cp-cut"/>`;
+              svg += `<line x1="${ox}" y1="${lineY}" x2="${ox + panelW}" y2="${lineY}" class="cp-cut"/>`;
             }
 
             strip.pieces.forEach(p => {
@@ -11794,46 +11824,35 @@
                 const ry = oy + Math.round(curY * scale);
                 const rw = Math.round(p.w * scale);
                 const rh = Math.round(strip.height * scale);
-                const fill = partColor(p.part);
-                const stroke = partStroke(p.part);
-
-                svg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-
-                // 라벨 (충분한 공간이 있을 때만)
-                if (rw > 30 && rh > 20) {
-                  const shortPart = p.part.length > 10 ? p.part.substring(0, 10) + '..' : p.part;
-                  svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 - 4}" class="cp-label" text-anchor="middle">${shortPart}</text>`;
-                  svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 7}" class="cp-dim" text-anchor="middle">${p.w}x${strip.height}</text>`;
-                } else if (rw > 15 && rh > 10) {
-                  svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle">${p.w}</text>`;
-                }
-
+                svg += renderPiece(rx, ry, rw, rh, p.w, strip.height, p.part);
                 curX += p.w + CUT_KERF;
               }
             });
 
-            // strip 잔여 영역
-            if (strip.remainW > 10) {
-              const rx = ox + Math.round(curX * scale);
-              const rw = Math.round(strip.remainW * scale);
+            // strip 내 잔여 영역 — 원판 경계까지만
+            const usedX = curX - CUT_KERF; // 마지막 KERF 제거
+            if (PW - usedX > 10) {
+              const rx = ox + Math.round(usedX * scale);
+              const rw = panelW - Math.round(usedX * scale);
               const rh = Math.round(strip.height * scale);
               svg += `<rect x="${rx}" y="${oy + Math.round(curY * scale)}" width="${rw}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
               if (rw > 20 && rh > 12) {
-                svg += `<text x="${rx + rw / 2}" y="${oy + Math.round(curY * scale) + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${strip.remainW}</text>`;
+                svg += `<text x="${rx + rw / 2}" y="${oy + Math.round(curY * scale) + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PW - usedX}</text>`;
               }
             }
 
             curY += strip.height + CUT_KERF;
           });
 
-          // 하단 잔여 영역
-          const remainH = PH - curY + CUT_KERF;
+          // 하단 잔여 영역 — 원판 하단까지
+          const usedY = curY - CUT_KERF;
+          const remainH = PH - usedY;
           if (remainH > 10) {
-            const ry = oy + Math.round(curY * scale);
-            const rh = Math.round(remainH * scale);
-            svg += `<rect x="${ox}" y="${ry}" width="${Math.round(PW * scale)}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
+            const ry = oy + Math.round(usedY * scale);
+            const rh = panelH - Math.round(usedY * scale);
+            svg += `<rect x="${ox}" y="${ry}" width="${panelW}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
             if (rh > 12) {
-              svg += `<text x="${ox + Math.round(PW * scale) / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PW}x${remainH}</text>`;
+              svg += `<text x="${ox + panelW / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PW}x${remainH}</text>`;
             }
           }
         } else {
@@ -11841,10 +11860,9 @@
           let curX = 0;
           panel.strips.forEach((strip, si) => {
             let curY = 0;
-            // strip 재단선
             if (si > 0) {
               const lineX = ox + Math.round(curX * scale);
-              svg += `<line x1="${lineX}" y1="${oy}" x2="${lineX}" y2="${oy + Math.round(PH * scale)}" class="cp-cut"/>`;
+              svg += `<line x1="${lineX}" y1="${oy}" x2="${lineX}" y2="${oy + panelH}" class="cp-cut"/>`;
             }
 
             strip.pieces.forEach(p => {
@@ -11853,52 +11871,44 @@
                 const ry = oy + Math.round(curY * scale);
                 const rw = Math.round(strip.width * scale);
                 const rh = Math.round(p.h * scale);
-                const fill = partColor(p.part);
-                const stroke = partStroke(p.part);
-
-                svg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-
-                if (rw > 30 && rh > 20) {
-                  const shortPart = p.part.length > 10 ? p.part.substring(0, 10) + '..' : p.part;
-                  svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 - 4}" class="cp-label" text-anchor="middle">${shortPart}</text>`;
-                  svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 7}" class="cp-dim" text-anchor="middle">${strip.width}x${p.h}</text>`;
-                } else if (rw > 15 && rh > 10) {
-                  svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle">${p.h}</text>`;
-                }
-
+                svg += renderPiece(rx, ry, rw, rh, strip.width, p.h, p.part);
                 curY += p.h + CUT_KERF;
               }
             });
 
-            // strip 잔여 영역
-            if (strip.remainH > 10) {
-              const ry = oy + Math.round(curY * scale);
+            // strip 내 잔여 영역 — 원판 하단까지
+            const usedY = curY - CUT_KERF;
+            if (PH - usedY > 10) {
+              const ry = oy + Math.round(usedY * scale);
               const rw = Math.round(strip.width * scale);
-              const rh = Math.round(strip.remainH * scale);
+              const rh = panelH - Math.round(usedY * scale);
               svg += `<rect x="${ox + Math.round(curX * scale)}" y="${ry}" width="${rw}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
               if (rw > 20 && rh > 12) {
-                svg += `<text x="${ox + Math.round(curX * scale) + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${strip.remainH}</text>`;
+                svg += `<text x="${ox + Math.round(curX * scale) + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PH - usedY}</text>`;
               }
             }
 
             curX += strip.width + CUT_KERF;
           });
 
-          // 우측 잔여 영역
-          const remainW = PW - curX + CUT_KERF;
+          // 우측 잔여 영역 — 원판 우측까지
+          const usedX = curX - CUT_KERF;
+          const remainW = PW - usedX;
           if (remainW > 10) {
-            const rx = ox + Math.round(curX * scale);
-            const rw = Math.round(remainW * scale);
-            svg += `<rect x="${rx}" y="${oy}" width="${rw}" height="${Math.round(PH * scale)}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
+            const rx = ox + Math.round(usedX * scale);
+            const rw = panelW - Math.round(usedX * scale);
+            svg += `<rect x="${rx}" y="${oy}" width="${rw}" height="${panelH}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
             if (rw > 12) {
-              svg += `<text x="${rx + rw / 2}" y="${oy + Math.round(PH * scale) / 2}" class="cp-dim" text-anchor="middle" fill="#999">${remainW}x${PH}</text>`;
+              svg += `<text x="${rx + rw / 2}" y="${oy + panelH / 2}" class="cp-dim" text-anchor="middle" fill="#999">${remainW}x${PH}</text>`;
             }
           }
         }
 
+        svg += `</g>`; // clip group 닫기
+
         // 겹침 배지
         if (panel.stack > 1) {
-          const bx = ox + Math.round(PW * scale) - 30;
+          const bx = ox + panelW - 30;
           svg += `<rect x="${bx}" y="${oy + 4}" width="26" height="16" rx="3" fill="#e53935"/>`;
           svg += `<text x="${bx + 13}" y="${oy + 15}" class="cp-stack" text-anchor="middle">x${panel.stack}</text>`;
         }
