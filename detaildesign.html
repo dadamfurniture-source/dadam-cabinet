@@ -11885,9 +11885,36 @@
           remain: item.qty
         }));
 
-        const panels = [];
-        let safety = 0;
+        // Step 1: 수량 많은 순 → 면적 큰 순 정렬 (스택 극대화)
+        needs.sort((a, b) => b.remain - a.remain || (b.w * b.h) - (a.w * a.h));
+        needs.forEach((n, i) => { n.idx = i; }); // 정렬 후 idx 재할당
 
+        const panels = [];
+
+        // Step 2: 동일 치수 부품 단독 패널 우선 배치 (Homogeneous Panel)
+        // 같은 부품만으로 원판을 채워 스택을 최대화
+        needs.forEach(n => {
+          if (n.remain < 2) return;
+          const soloLayout = chooseCutDirection([n], PW, PH, groupSmalls);
+          if (soloLayout.totalPieces === 0) return;
+          const fullStacks = Math.floor(n.remain / soloLayout.totalPieces);
+          if (fullStacks < 2) return; // 2장 미만이면 혼합 패널로 처리
+          const useStacks = Math.min(fullStacks, 5);
+          n.remain -= soloLayout.totalPieces * useStacks;
+          panels.push({
+            id: panels.length + 1,
+            stack: useStacks,
+            dir: soloLayout.dir,
+            rotated: soloLayout.rotated || false,
+            strips: soloLayout.strips,
+            usedArea: soloLayout.usedArea,
+            panelRemain: soloLayout.dir === 'H' ? soloLayout.remainH : soloLayout.remainW,
+            smallYield: soloLayout.smallYield || 0
+          });
+        });
+
+        // Step 3: 나머지 부품 혼합 배치 (기존 로직)
+        let safety = 0;
         while (needs.some(n => n.remain > 0) && safety++ < 30) {
           const layout = chooseCutDirection(needs, PW, PH, groupSmalls);
           if (layout.totalPieces === 0) break;
@@ -11930,14 +11957,25 @@
         const vr = designLayoutV(rotNeeds, PW, PH);
         hr.rotated = true; vr.rotated = true;
 
-        // 각 방향별 잔재에서 소부품 추출 가능 수량 산출
+        // 각 방향별 잔재에서 소부품 추출 가능 수량 산출 + 예상 스택 계산
         const candidates = [h, v, hr, vr];
         candidates.forEach(c => {
           c.smallYield = calcSmallYield(c, PW, PH, groupSmalls);
+          // 예상 스택: 이 레이아웃을 몇 장 겹칠 수 있는지
+          let estStack = 5;
+          const srcNeeds = c.rotated ? rotNeeds : needs;
+          const needsById = new Map(srcNeeds.map(n => [n.idx, n]));
+          c.pieceCounts.forEach((count, idx) => {
+            const n = needsById.get(idx);
+            if (n) estStack = Math.min(estStack, Math.floor(n.remain / count));
+          });
+          c.estStack = Math.max(1, estStack);
+          c.effectivePieces = c.totalPieces * c.estStack; // 실제 생산량
         });
 
-        // 우선순위: 배치수 → 소부품추출수 → 자투리길이 → 활용면적 → strip수(↓)
+        // 우선순위: 실제생산량(배치×스택) → 소부품추출수 → 자투리길이 → 활용면적 → strip수(↓)
         candidates.sort((a, b) => {
+          if (b.effectivePieces !== a.effectivePieces) return b.effectivePieces - a.effectivePieces;
           if (b.totalPieces !== a.totalPieces) return b.totalPieces - a.totalPieces;
           if (b.smallYield !== a.smallYield) return b.smallYield - a.smallYield;
           if (b.thinLen !== a.thinLen) return b.thinLen - a.thinLen;
