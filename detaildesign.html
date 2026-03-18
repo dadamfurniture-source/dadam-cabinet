@@ -11779,10 +11779,38 @@
         }
 
         // 부품 rect + 각 변에 치수 라벨 렌더링
-        function renderPiece(rx, ry, rw, rh, pw, ph, partName, itemLabel) {
+        // 엣지 문자열 → 상/하/좌/우 boolean 파싱
+        function parseEdges(edgeArr) {
+          const e = { top: false, bottom: false, left: false, right: false };
+          if (!edgeArr || edgeArr.length === 0) return e;
+          const str = edgeArr.join(' ');
+          if (/4면/.test(str)) { e.top = e.bottom = e.left = e.right = true; }
+          else {
+            if (/1면\(전\)|1면전/.test(str)) { e.top = true; } // 전면 = 상변 (가로)
+            if (/2면\(장\)|2면장/.test(str)) { e.left = true; e.right = true; } // 장변 = 좌우 (세로)
+            if (/2면\(단\)|2면단/.test(str)) { e.top = true; e.bottom = true; } // 단변 = 상하 (가로)
+            if (/3면/.test(str)) { e.top = true; e.left = true; e.right = true; }
+          }
+          return e;
+        }
+
+        function renderPiece(rx, ry, rw, rh, pw, ph, partName, itemLabel, edges) {
           const fill = partColor(partName);
           const stroke = partStroke(partName);
           let s = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+
+          // 엣지 표시 — 안쪽, 중앙 정렬, 각 변 길이의 70%
+          const eg = parseEdges(edges);
+          const ew = 3; // 엣지 선 두께
+          const ec = '#ff6f00'; // 주황색
+          const inset = 2; // 안쪽 여백 (px)
+          const ratio = 0.7; // 70% 길이
+          const hGap = rw * (1 - ratio) / 2; // 가로 변 양쪽 여백
+          const vGap = rh * (1 - ratio) / 2; // 세로 변 양쪽 여백
+          if (eg.top)    s += `<line x1="${rx + hGap}" y1="${ry + inset}" x2="${rx + rw - hGap}" y2="${ry + inset}" stroke="${ec}" stroke-width="${ew}"/>`;
+          if (eg.bottom) s += `<line x1="${rx + hGap}" y1="${ry + rh - inset}" x2="${rx + rw - hGap}" y2="${ry + rh - inset}" stroke="${ec}" stroke-width="${ew}"/>`;
+          if (eg.left)   s += `<line x1="${rx + inset}" y1="${ry + vGap}" x2="${rx + inset}" y2="${ry + rh - vGap}" stroke="${ec}" stroke-width="${ew}"/>`;
+          if (eg.right)  s += `<line x1="${rx + rw - inset}" y1="${ry + vGap}" x2="${rx + rw - inset}" y2="${ry + rh - vGap}" stroke="${ec}" stroke-width="${ew}"/>`;
 
           // 동적 폰트 크기: rect 크기에 비례 (최소 7px ~ 최대 18px)
           const minDim = Math.min(rw, rh);
@@ -11861,7 +11889,7 @@
                 const ry = oy + Math.round(curY * scale);
                 const rw = Math.round(p.w * scale);
                 const rh = Math.round(strip.height * scale);
-                svg += renderPiece(rx, ry, rw, rh, p.w, strip.height, p.part, (p.itemLabels || []).join('/'));
+                svg += renderPiece(rx, ry, rw, rh, p.w, strip.height, p.part, (p.itemLabels || []).join('/'), p.edges);
                 curX += p.w + CUT_KERF;
               }
             });
@@ -11908,7 +11936,7 @@
                 const ry = oy + Math.round(curY * scale);
                 const rw = Math.round(strip.width * scale);
                 const rh = Math.round(p.h * scale);
-                svg += renderPiece(rx, ry, rw, rh, strip.width, p.h, p.part, (p.itemLabels || []).join('/'));
+                svg += renderPiece(rx, ry, rw, rh, strip.width, p.h, p.part, (p.itemLabels || []).join('/'), p.edges);
                 curY += p.h + CUT_KERF;
               }
             });
@@ -12148,7 +12176,7 @@
             if (avail <= 0 || n.h !== stripH || n.w > PW - strip.usedW) continue;
             const fitCount = Math.min(avail, Math.floor((PW - strip.usedW + CUT_KERF) / (n.w + CUT_KERF)));
             if (fitCount <= 0) continue;
-            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount });
+            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount });
             strip.usedW += (n.w + CUT_KERF) * fitCount - CUT_KERF;
             pieceCounts.set(n.idx, placed + fitCount);
             usedArea += n.w * n.h * fitCount;
@@ -12163,7 +12191,7 @@
               if (avail <= 0 || n.h > stripH || n.h === stripH || n.w > spaceLeft) continue;
               const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.w + CUT_KERF)));
               if (fitCount <= 0) continue;
-              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount, fromRemainder: true });
+              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount, fromRemainder: true });
               strip.usedW += CUT_KERF + (n.w + CUT_KERF) * fitCount - CUT_KERF;
               pieceCounts.set(n.idx, placed + fitCount);
               usedArea += n.w * n.h * fitCount;
@@ -12218,7 +12246,7 @@
             if (avail <= 0 || n.w !== stripW || n.h > PH - strip.usedH) continue;
             const fitCount = Math.min(avail, Math.floor((PH - strip.usedH + CUT_KERF) / (n.h + CUT_KERF)));
             if (fitCount <= 0) continue;
-            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount });
+            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount });
             strip.usedH += (n.h + CUT_KERF) * fitCount - CUT_KERF;
             pieceCounts.set(n.idx, placed + fitCount);
             usedArea += n.w * n.h * fitCount;
@@ -12233,7 +12261,7 @@
               if (avail <= 0 || n.w > stripW || n.w === stripW || n.h > spaceLeft) continue;
               const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.h + CUT_KERF)));
               if (fitCount <= 0) continue;
-              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], count: fitCount, fromRemainder: true });
+              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount, fromRemainder: true });
               strip.usedH += CUT_KERF + (n.h + CUT_KERF) * fitCount - CUT_KERF;
               pieceCounts.set(n.idx, placed + fitCount);
               usedArea += n.w * n.h * fitCount;
