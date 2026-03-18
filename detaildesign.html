@@ -9197,8 +9197,11 @@
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
+            // ★ 품목 라벨 (아이템 구분용)
+            const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
+            const itemLabel = item.labelName || `${prefix}${catNames[category] || category}`;
             const mods = item.modules || [];
-            console.log(`[BOM-TRACE] === 아이템 처리: ${prefix}${category} ===`);
+            console.log(`[BOM-TRACE] === 아이템 처리: ${itemLabel} ===`);
             console.log(`[BOM-TRACE]   모듈 수: ${mods.length}`);
             console.log(`[BOM-TRACE]   상부장: ${mods.filter(m=>m.pos==='upper').length}개, 하부장: ${mods.filter(m=>m.pos==='lower').length}개`);
             console.log(`[BOM-TRACE]   모듈 상세:`, mods.map(m => `${m.pos}/${m.type}/${m.name}(${m.w})`));
@@ -9214,6 +9217,10 @@
               case 'fridge':
                 this.extractFridge(item, materials, prefix);
                 break;
+            }
+            // ★ 새로 추가된 자재에 품목 라벨 태깅
+            for (let i = beforeLen; i < materials.length; i++) {
+              materials[i].itemLabel = itemLabel;
             }
             console.log(`[BOM-TRACE]   → 추출된 자재: ${materials.length - beforeLen}개 (누적 ${materials.length}개)`);
           });
@@ -9836,13 +9843,33 @@
           const hardware = [];
           const items = designData.items || [];
 
+          // 품목 라벨 생성 (MaterialExtractor와 동일 로직)
+          const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
+          const categoryTotals = {};
+          const categoryCounts = {};
+          items.forEach(item => {
+            const cat = item.categoryId || item.category;
+            categoryTotals[cat] = (categoryTotals[cat] || 0) + 1;
+          });
+
           items.forEach((item) => {
+            const category = item.categoryId || item.category;
+            categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+            const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
+            const itemLabel = item.labelName || `${prefix}${catNames[category] || category}`;
+            const beforeLen = hardware.length;
+
             this.extractHinges(item, hardware);
             this.extractRails(item, hardware);
             this.extractHandles(item, hardware);
             this.extractLegs(item, hardware);
             this.extractBrackets(item, hardware);
             this.extractOthers(item, hardware);
+
+            // 새로 추가된 부자재에 품목 라벨 태깅
+            for (let i = beforeLen; i < hardware.length; i++) {
+              hardware[i].itemLabel = itemLabel;
+            }
           });
 
           return {
@@ -11047,8 +11074,10 @@
 
       // 보고서 탭 생성
       function generateReportTabs(matResult, hwResult, design) {
-        const firstItem = design.items[0];
-        const projectName = `${firstItem.name || firstItem.category} ${firstItem.w}×${firstItem.h}`;
+        const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
+        const projectName = design.items.length > 1
+          ? design.items.map(it => it.labelName || catNames[it.categoryId || it.category] || it.category).join(' + ')
+          : `${design.items[0].name || design.items[0].category} ${design.items[0].w}×${design.items[0].h}`;
 
         // 6. CNC 재단 목록 탭 (먼저 생성 — window._cncData를 요약 탭에서 참조)
         const cncTab = generateCNCTab(matResult.materials);
@@ -11112,7 +11141,8 @@
       // 요약 탭 생성
       function generateSummaryTab(matResult, hwResult, design) {
         const summary = matResult.summary;
-        const item = design.items[0];
+        const allItems = design.items || [];
+        const item = allItems[0];
         // ★ categoryId 사용
         const category = item.categoryId || item.category;
 
@@ -11201,17 +11231,43 @@
 
         const totalParts = matResult.materials.length;
 
+        // 품목 목록 (여러 품목 지원)
+        const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
+        let itemListHTML = '';
+        if (allItems.length > 1) {
+          itemListHTML = `
+      <div style="background:#f8f9fa;padding:20px;border-radius:12px;border:1px solid #e0e0e0;grid-column:1/-1;">
+        <h4 style="margin:0 0 15px 0;color:#333;">📋 포함 품목 (${allItems.length}개)</h4>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">`;
+          allItems.forEach((it, idx) => {
+            const cat = it.categoryId || it.category;
+            const label = it.labelName || catNames[cat] || cat;
+            const upperCnt = (it.modules || []).filter(m => m.pos === 'upper').length;
+            const lowerCnt = (it.modules || []).filter(m => m.pos === 'lower' || m.pos === 'wardrobe').length;
+            const matCount = matResult.materials.filter(m => m.itemLabel === label).length;
+            itemListHTML += `
+          <div style="background:white;border:1px solid #e0e0e0;border-radius:8px;padding:12px;min-width:200px;">
+            <div style="font-weight:bold;color:#1976d2;margin-bottom:4px;">${label}</div>
+            <div style="font-size:12px;color:#666;">크기: ${it.w}×${it.h}×${it.d}</div>
+            <div style="font-size:12px;color:#666;">모듈: 상부 ${upperCnt} / 하부 ${lowerCnt}</div>
+            <div style="font-size:12px;color:#666;">부품: ${matCount}개</div>
+          </div>`;
+          });
+          itemListHTML += `</div></div>`;
+        }
+
         return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:20px;">
+      ${itemListHTML}
       <div style="background:#f8f9fa;padding:20px;border-radius:12px;border:1px solid #e0e0e0;">
         <h4 style="margin:0 0 15px 0;color:#333;display:flex;align-items:center;gap:8px;">📦 패널 사용량</h4>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">${panelCards}</div>
       </div>
-      
+
       <div style="background:#f8f9fa;padding:20px;border-radius:12px;border:1px solid #e0e0e0;">
         <h4 style="margin:0 0 15px 0;color:#333;display:flex;align-items:center;gap:8px;">📐 설계 정보</h4>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;">
-          <div><span style="color:#666;">가구 유형:</span> <strong>${item.name || item.category}</strong></div>
+          <div><span style="color:#666;">가구 유형:</span> <strong>${allItems.length > 1 ? allItems.length + '개 품목' : (item.name || item.category)}</strong></div>
           <div><span style="color:#666;">전체 크기:</span> <strong>${item.w} × ${item.h} × ${item.d}</strong></div>
           ${moduleInfo}
           <div><span style="color:#666;">총 부품 수:</span> <strong>${totalParts}개</strong></div>
@@ -12260,10 +12316,21 @@
       </thead>
       <tbody>`;
 
-        bodyParts.forEach((m, i) => {
+        // 품목별 그룹화
+        let lastItemLabel = '';
+        let no = 0;
+        bodyParts.forEach((m) => {
+          if (m.itemLabel && m.itemLabel !== lastItemLabel) {
+            lastItemLabel = m.itemLabel;
+            moduleTableHTML += `
+      <tr style="background:#e8eaf6;">
+        <td colspan="10" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#283593;">📦 ${m.itemLabel}</td>
+      </tr>`;
+          }
+          no++;
           moduleTableHTML += `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f9'};">
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+      <tr style="background:${no % 2 === 0 ? '#fff' : '#f9f9f9'};">
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${no}</td>
         <td style="border:1px solid #ddd;padding:8px;">${m.module}</td>
         <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.part}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
@@ -12349,10 +12416,20 @@
       </thead>
       <tbody>`;
 
-        doorParts.forEach((m, i) => {
+        let lastDoorItemLabel = '';
+        let doorNo = 0;
+        doorParts.forEach((m) => {
+          if (m.itemLabel && m.itemLabel !== lastDoorItemLabel) {
+            lastDoorItemLabel = m.itemLabel;
+            moduleTableHTML += `
+      <tr style="background:#fff3e0;">
+        <td colspan="8" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#e65100;">📦 ${m.itemLabel}</td>
+      </tr>`;
+          }
+          doorNo++;
           moduleTableHTML += `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#fff8e1'};">
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+      <tr style="background:${doorNo % 2 === 0 ? '#fff' : '#fff8e1'};">
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${doorNo}</td>
         <td style="border:1px solid #ddd;padding:8px;">${m.module}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.thickness}T</td>
@@ -12448,10 +12525,20 @@
       </thead>
       <tbody>`;
 
-        epParts.forEach((m, i) => {
+        let lastEpItemLabel = '';
+        let epNo = 0;
+        epParts.forEach((m) => {
+          if (m.itemLabel && m.itemLabel !== lastEpItemLabel) {
+            lastEpItemLabel = m.itemLabel;
+            moduleTableHTML += `
+      <tr style="background:#c8e6c9;">
+        <td colspan="8" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#1b5e20;">📦 ${m.itemLabel}</td>
+      </tr>`;
+          }
+          epNo++;
           moduleTableHTML += `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#e8f5e9'};">
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+      <tr style="background:${epNo % 2 === 0 ? '#fff' : '#e8f5e9'};">
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${epNo}</td>
         <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${m.part}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.material}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${m.thickness}T</td>
@@ -12550,10 +12637,20 @@
       </thead>
       <tbody>`;
 
-        hwResult.hardware.forEach((h, i) => {
+        let lastHwItemLabel = '';
+        let hwNo = 0;
+        hwResult.hardware.forEach((h) => {
+          if (h.itemLabel && h.itemLabel !== lastHwItemLabel) {
+            lastHwItemLabel = h.itemLabel;
+            moduleTableHTML += `
+      <tr style="background:#f8bbd0;">
+        <td colspan="8" style="border:1px solid #ddd;padding:8px;font-weight:bold;color:#880e4f;">📦 ${h.itemLabel}</td>
+      </tr>`;
+          }
+          hwNo++;
           moduleTableHTML += `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#fce4ec'};">
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+      <tr style="background:${hwNo % 2 === 0 ? '#fff' : '#fce4ec'};">
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${hwNo}</td>
         <td style="border:1px solid #ddd;padding:8px;">${h.category}</td>
         <td style="border:1px solid #ddd;padding:8px;font-weight:600;">${h.item}</td>
         <td style="border:1px solid #ddd;padding:8px;">${h.manufacturer || '-'}</td>
