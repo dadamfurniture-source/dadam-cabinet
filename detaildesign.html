@@ -11394,7 +11394,15 @@
           totalProduced += groupProduced;
 
           planHTML += `<div style="margin-bottom:20px;">`;
-          planHTML += `<div style="font-weight:bold;color:#c2185b;font-size:13px;margin-bottom:8px;">📦 ${groupName} — 원판 ${groupPanelCount}장 (${panels.length}종 배치, ${groupProduced}/${groupNeeded}개 생산)</div>`;
+          // 그룹 전체 절단 횟수 합산
+          let groupTotalCuts = 0;
+          panels.forEach(p => {
+            const sc = p.strips.length;
+            let pc = 0;
+            p.strips.forEach(st => { const tp = st.pieces.reduce((s, pp) => s + pp.count, 0); pc += Math.max(0, tp - 1); });
+            groupTotalCuts += sc + pc;
+          });
+          planHTML += `<div style="font-weight:bold;color:#c2185b;font-size:13px;margin-bottom:8px;">📦 ${groupName} — 원판 ${groupPanelCount}장 (${panels.length}종 배치, ${groupProduced}/${groupNeeded}개 생산, ✂ ${groupTotalCuts}회 절단)</div>`;
 
           panels.forEach(panel => {
             const usedPct = ((panel.usedArea / (PANEL_W * PANEL_H)) * 100).toFixed(1);
@@ -11868,6 +11876,18 @@
           svg += `<text x="${bx + 13}" y="${oy + 15}" class="cp-stack" text-anchor="middle">x${panel.stack}</text>`;
         }
 
+        // 재단 횟수 배지
+        const stripCuts = panel.strips.length;
+        let pieceCuts = 0;
+        panel.strips.forEach(st => {
+          const totalInStrip = st.pieces.reduce((s, p) => s + p.count, 0);
+          pieceCuts += Math.max(0, totalInStrip - 1);
+        });
+        const totalCuts = stripCuts + pieceCuts;
+        const cutBadgeX = ox + panelW - (panel.stack > 1 ? 68 : 38);
+        svg += `<rect x="${cutBadgeX}" y="${oy + 4}" width="34" height="16" rx="3" fill="#1565c0"/>`;
+        svg += `<text x="${cutBadgeX + 17}" y="${oy + 15}" class="cp-stack" text-anchor="middle">✂${totalCuts}</text>`;
+
         // 회전 표시
         if (panel.rotated) {
           svg += `<text x="${ox + 6}" y="${oy + 14}" class="cp-dim" fill="#e65100">↻</text>`;
@@ -12033,9 +12053,12 @@
         const strips = [];
         let availH = PH;
 
+        // Step 4: 높이 → 너비 내림차순 정렬 (같은 치수 부품 클러스터링)
+        const sorted = [...needs].sort((a, b) => b.h - a.h || b.w - a.w);
+
         while (availH > 70) {
           let stripH = 0;
-          for (const n of needs) {
+          for (const n of sorted) {
             const avail = n.remain - (pieceCounts.get(n.idx) || 0);
             if (avail > 0 && n.h <= availH) { stripH = n.h; break; }
           }
@@ -12043,10 +12066,11 @@
 
           const strip = { height: stripH, pieces: [], usedW: 0 };
 
-          for (const n of needs) {
+          // Pass 1: 정확히 같은 높이 부품만 배치 (재단 횟수 최소화)
+          for (const n of sorted) {
             const placed = pieceCounts.get(n.idx) || 0;
             const avail = n.remain - placed;
-            if (avail <= 0 || n.h > stripH || n.w > PW - strip.usedW) continue;
+            if (avail <= 0 || n.h !== stripH || n.w > PW - strip.usedW) continue;
             const fitCount = Math.min(avail, Math.floor((PW - strip.usedW + CUT_KERF) / (n.w + CUT_KERF)));
             if (fitCount <= 0) continue;
             strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount });
@@ -12055,14 +12079,13 @@
             usedArea += n.w * n.h * fitCount;
           }
 
-          if (strip.pieces.length === 0) break;
-
+          // Pass 2: 잔여 공간에 더 짧은 부품 배치 (공간 활용)
           if (PW - strip.usedW > 70) {
-            for (const n of needs) {
+            for (const n of sorted) {
               const placed = pieceCounts.get(n.idx) || 0;
               const avail = n.remain - placed;
               const spaceLeft = PW - strip.usedW - CUT_KERF;
-              if (avail <= 0 || n.h > stripH || n.w > spaceLeft) continue;
+              if (avail <= 0 || n.h > stripH || n.h === stripH || n.w > spaceLeft) continue;
               const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.w + CUT_KERF)));
               if (fitCount <= 0) continue;
               strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount, fromRemainder: true });
@@ -12071,6 +12094,11 @@
               usedArea += n.w * n.h * fitCount;
             }
           }
+
+          if (strip.pieces.length === 0) break;
+
+          // Step 2: 스트립 내 너비 순 정렬 (같은 너비 연속 → 톱날 설정 최소화)
+          strip.pieces.sort((a, b) => b.w - a.w || b.count - a.count);
 
           strip.remainW = PW - strip.usedW;
           strips.push(strip);
@@ -12095,9 +12123,12 @@
         const strips = [];
         let availW = PW;
 
+        // Step 4: 너비 → 높이 내림차순 정렬 (같은 치수 부품 클러스터링)
+        const sorted = [...needs].sort((a, b) => b.w - a.w || b.h - a.h);
+
         while (availW > 70) {
           let stripW = 0;
-          for (const n of needs) {
+          for (const n of sorted) {
             const avail = n.remain - (pieceCounts.get(n.idx) || 0);
             if (avail > 0 && n.w <= availW) { stripW = n.w; break; }
           }
@@ -12105,10 +12136,11 @@
 
           const strip = { width: stripW, pieces: [], usedH: 0 };
 
-          for (const n of needs) {
+          // Pass 1: 정확히 같은 너비 부품만 배치 (재단 횟수 최소화)
+          for (const n of sorted) {
             const placed = pieceCounts.get(n.idx) || 0;
             const avail = n.remain - placed;
-            if (avail <= 0 || n.w > stripW || n.h > PH - strip.usedH) continue;
+            if (avail <= 0 || n.w !== stripW || n.h > PH - strip.usedH) continue;
             const fitCount = Math.min(avail, Math.floor((PH - strip.usedH + CUT_KERF) / (n.h + CUT_KERF)));
             if (fitCount <= 0) continue;
             strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount });
@@ -12117,14 +12149,13 @@
             usedArea += n.w * n.h * fitCount;
           }
 
-          if (strip.pieces.length === 0) break;
-
+          // Pass 2: 잔여 공간에 더 좁은 부품 배치 (공간 활용)
           if (PH - strip.usedH > 70) {
-            for (const n of needs) {
+            for (const n of sorted) {
               const placed = pieceCounts.get(n.idx) || 0;
               const avail = n.remain - placed;
               const spaceLeft = PH - strip.usedH - CUT_KERF;
-              if (avail <= 0 || n.w > stripW || n.h > spaceLeft) continue;
+              if (avail <= 0 || n.w > stripW || n.w === stripW || n.h > spaceLeft) continue;
               const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.h + CUT_KERF)));
               if (fitCount <= 0) continue;
               strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), count: fitCount, fromRemainder: true });
@@ -12133,6 +12164,11 @@
               usedArea += n.w * n.h * fitCount;
             }
           }
+
+          if (strip.pieces.length === 0) break;
+
+          // Step 2: 스트립 내 높이 순 정렬 (같은 높이 연속 → 톱날 설정 최소화)
+          strip.pieces.sort((a, b) => b.h - a.h || b.count - a.count);
 
           strip.remainH = PH - strip.usedH;
           strips.push(strip);
