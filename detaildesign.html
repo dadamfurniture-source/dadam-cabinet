@@ -11406,111 +11406,41 @@
             const totalCuts = panel.strips.length + panel.strips.reduce((s, st) => s + st.pieces.reduce((ss, p) => ss + p.count, 0), 0);
 
             planHTML += `<div style="margin:8px 0;padding:10px;background:#f5f5f5;border-radius:8px;border-left:4px solid ${dirColor};">`;
-            planHTML += `<div style="font-weight:bold;margin-bottom:6px;font-size:12px;">🔷 원판 #${panel.id} <span style="color:#1976d2;">(${stackLabel})</span> <span style="color:#666;font-weight:normal;">${PANEL_W}×${PANEL_H}</span> <span style="color:${dirColor};font-size:11px;border:1px solid ${dirColor};border-radius:3px;padding:1px 4px;">${dirLabel}${rotLabel}</span>${rotLabel ? ' <span style="color:#e65100;font-size:10px;">↻ w↔h 교환</span>' : ''} <span style="color:#888;font-size:10px;">재단${totalCuts}회</span></div>`;
-
+            // 잔재/자투리 데이터 수집 (텍스트 출력 없이)
             const remnants = [];
             const thinList = [];
 
             if (panel.dir === 'H') {
-              // ===== 가로→세로 방향 =====
               let trackH = PANEL_H;
-              panel.strips.forEach((strip, si) => {
+              panel.strips.forEach(strip => {
                 trackH -= strip.height;
-                const isLast = si === panel.strips.length - 1 && trackH <= 70;
-                const prefix = isLast ? '└' : '├';
-                const vPfx = isLast ? ' ' : '│';
-
-                planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
-                planHTML += `${prefix}─ <strong>${si + 1}단 가로재단</strong>: ${strip.height}mm 절단 → <span style="color:#1976d2;">${PANEL_W}×${strip.height} strip</span></div>`;
-
-                const cutDesc = strip.pieces.map(p => {
-                  const total = p.count * panel.stack;
-                  const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
-                  return `${label}${p.part} ${p.w}mm ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
-                }).join(', ');
-                planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">${vPfx}  └ <strong>세로재단</strong>: ${cutDesc}</div>`;
-
-                const remParts = [];
-                if (strip.remainW >= 60 && strip.remainW <= 70) {
-                  thinList.push({ w: strip.remainW, h: strip.height, type: '세로자투리' });
-                } else if (strip.remainW > 70) {
-                  remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.remainW}×${strip.height}</span>`);
-                  remnants.push({ w: strip.remainW, h: strip.height });
-                }
-                if (trackH >= 60 && trackH <= 70) {
-                  thinList.push({ w: PANEL_W, h: trackH, type: '가로자투리' });
-                } else if (trackH > 70) {
-                  remParts.push(`남은판 ${PANEL_W}×${trackH}`);
-                }
-                if (remParts.length > 0) {
-                  planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">${vPfx}  → 재단후: ${remParts.join(' | ')}</div>`;
-                }
+                if (strip.remainW >= 60 && strip.remainW <= 70) thinList.push({ w: strip.remainW, h: strip.height, type: '세로자투리' });
+                else if (strip.remainW > 70) remnants.push({ w: strip.remainW, h: strip.height });
+                if (trackH >= 60 && trackH <= 70) thinList.push({ w: PANEL_W, h: trackH, type: '가로자투리' });
               });
-              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) {
-                thinList.push({ w: PANEL_W, h: panel.panelRemain, type: '가로자투리' });
-              } else if (panel.panelRemain > 70) {
-                remnants.push({ w: PANEL_W, h: panel.panelRemain });
-              }
+              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) thinList.push({ w: PANEL_W, h: panel.panelRemain, type: '가로자투리' });
+              else if (panel.panelRemain > 70) remnants.push({ w: PANEL_W, h: panel.panelRemain });
             } else {
-              // ===== 세로→가로 방향 =====
               let trackW = PANEL_W;
-              panel.strips.forEach((strip, si) => {
+              panel.strips.forEach(strip => {
                 trackW -= strip.width;
-                const isLast = si === panel.strips.length - 1 && trackW <= 70;
-                const prefix = isLast ? '└' : '├';
-                const vPfx = isLast ? ' ' : '│';
-
-                planHTML += `<div style="font-size:12px;padding:2px 0;font-family:monospace;">`;
-                planHTML += `${prefix}─ <strong>${si + 1}단 세로재단</strong>: ${strip.width}mm 절단 → <span style="color:#7b1fa2;">${strip.width}×${PANEL_H} strip</span></div>`;
-
-                const cutDesc = strip.pieces.map(p => {
-                  const total = p.count * panel.stack;
-                  const label = p.fromRemainder ? '<span style="color:#2e7d32;">[잔여활용]</span> ' : '';
-                  return `${label}${p.part} ${p.h}mm ×${p.count}${panel.stack > 1 ? '(→' + total + ')' : ''}`;
-                }).join(', ');
-                planHTML += `<div style="font-size:12px;padding:2px 0 2px 20px;font-family:monospace;color:#555;">${vPfx}  └ <strong>가로재단</strong>: ${cutDesc}</div>`;
-
-                const remParts = [];
-                if (strip.remainH >= 60 && strip.remainH <= 70) {
-                  thinList.push({ w: strip.width, h: strip.remainH, type: '가로자투리' });
-                } else if (strip.remainH > 70) {
-                  remParts.push(`<span style="color:#e65100;">strip잔여 ${strip.width}×${strip.remainH}</span>`);
-                  remnants.push({ w: strip.width, h: strip.remainH });
-                }
-                if (trackW >= 60 && trackW <= 70) {
-                  thinList.push({ w: trackW, h: PANEL_H, type: '세로자투리' });
-                } else if (trackW > 70) {
-                  remParts.push(`남은판 ${trackW}×${PANEL_H}`);
-                }
-                if (remParts.length > 0) {
-                  planHTML += `<div style="font-size:11px;padding:2px 0 2px 20px;font-family:monospace;color:#888;">${vPfx}  → 재단후: ${remParts.join(' | ')}</div>`;
-                }
+                if (strip.remainH >= 60 && strip.remainH <= 70) thinList.push({ w: strip.width, h: strip.remainH, type: '가로자투리' });
+                else if (strip.remainH > 70) remnants.push({ w: strip.width, h: strip.remainH });
+                if (trackW >= 60 && trackW <= 70) thinList.push({ w: trackW, h: PANEL_H, type: '세로자투리' });
               });
-              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) {
-                thinList.push({ w: panel.panelRemain, h: PANEL_H, type: '세로자투리' });
-              } else if (panel.panelRemain > 70) {
-                remnants.push({ w: panel.panelRemain, h: PANEL_H });
-              }
+              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) thinList.push({ w: panel.panelRemain, h: PANEL_H, type: '세로자투리' });
+              else if (panel.panelRemain > 70) remnants.push({ w: panel.panelRemain, h: PANEL_H });
             }
 
-            if (remnants.length > 0) {
-              const remStr = remnants.map(r => `${r.w}×${r.h}`).join(', ');
-              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#e65100;">└─ 📐 잔여 조각: ${remStr}</div>`;
-              remnants.forEach(r => allRemnants.push({ w: r.w, h: r.h, qty: panel.stack, group: groupName, panelId: panel.id }));
-            }
+            if (remnants.length > 0) remnants.forEach(r => allRemnants.push({ w: r.w, h: r.h, qty: panel.stack, group: groupName, panelId: panel.id }));
             if (thinList.length > 0) {
-              const thinStr = thinList.map(t => `${t.w}×${t.h}`).join(', ');
               const thinTotalLen = thinList.reduce((s, t) => s + Math.max(t.w, t.h), 0);
               totalThinLen += thinTotalLen * panel.stack;
-              planHTML += `<div style="font-size:12px;padding:4px 0;font-family:monospace;color:#2e7d32;">└─ 🪵 자투리(60~70mm): ${thinStr} — 밴드/보강재 활용 가능</div>`;
               thinList.forEach(t => allThinStrips.push({ w: t.w, h: t.h, qty: panel.stack, group: groupName, panelId: panel.id, type: t.type }));
             }
 
-            const smallInfo = panel.smallYield > 0 ? ` | <span style="color:#1565c0;">소부품 ${panel.smallYield}개 추출가능</span>` : '';
-            planHTML += `<div style="font-size:11px;color:#666;margin-top:4px;">활용률: ${usedPct}% | ${dirLabel}${rotLabel} | 재단 ${totalCuts}회${panel.stack > 1 ? ' | 겹침 ' + panel.stack + '장 → 수량 ×' + panel.stack : ''}${smallInfo}</div>`;
-
-            // SVG 재단 배치도
-            planHTML += `<div style="margin-top:8px;text-align:center;">${renderCuttingPlanSVG(panel, groupName, PANEL_W, PANEL_H)}</div>`;
+            // SVG 재단 배치도만 표시
+            planHTML += `<div style="text-align:center;">${renderCuttingPlanSVG(panel, groupName, PANEL_W, PANEL_H)}</div>`;
 
             planHTML += `</div>`;
 
@@ -11814,7 +11744,7 @@
       <style>
         .cp-title { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; fill: #333; }
         .cp-label { font-family: Arial, sans-serif; font-size: 7px; fill: #333; }
-        .cp-edge { font-family: Arial, sans-serif; font-size: 6px; fill: #e53935; font-weight: bold; }
+        .cp-edge { font-family: Arial, sans-serif; font-size: 12px; fill: #e53935; font-weight: bold; }
         .cp-dim { font-family: Arial, sans-serif; font-size: 7px; fill: #666; }
         .cp-cut { stroke: #e53935; stroke-width: 1; stroke-dasharray: 4 2; }
         .cp-stack { font-family: Arial, sans-serif; font-size: 9px; fill: #fff; font-weight: bold; }
