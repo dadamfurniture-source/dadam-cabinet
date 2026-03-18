@@ -11780,18 +11780,26 @@
         }
 
         // 부품 rect + 각 변에 치수 라벨 렌더링
-        // 엣지 문자열 → 상/하/좌/우 boolean 파싱
-        function parseEdges(edgeArr) {
+        // 엣지 문자열 → 상/하/좌/우 boolean 파싱 (치수 기반 장변/단변 동적 결정)
+        // pw = SVG 가로 치수(mm), ph = SVG 세로 치수(mm)
+        function parseEdges(edgeArr, pw, ph) {
           const e = { top: false, bottom: false, left: false, right: false };
           if (!edgeArr || edgeArr.length === 0) return e;
           const str = edgeArr.join(' ');
           if (/4면/.test(str)) { e.top = e.bottom = e.left = e.right = true; }
           else {
-            if (/1면\(전\)|1면전/.test(str)) { e.top = true; } // 전면 = 상변 (가로)
-            if (/1면\(장\)|1면장/.test(str)) { e.top = true; } // 장변 1면 = 서랍 조립 시 윗면
-            if (/2면\(장\)|2면장/.test(str)) { e.left = true; e.right = true; } // 장변 = 좌우 (세로)
-            if (/2면\(단\)|2면단/.test(str)) { e.top = true; e.bottom = true; } // 단변 = 상하 (가로)
-            if (/3면/.test(str)) { e.top = true; e.bottom = true; e.left = true; } // 측판: 깊이2면(상·하) + 높이1면(전면=좌)
+            // 장변 = 긴 쪽, 단변 = 짧은 쪽 (SVG 기준 동적 결정)
+            const isWider = (pw || 1) >= (ph || 1); // pw >= ph → 가로가 장변
+            const longA  = isWider ? 'top' : 'left';      // 장변 앞면
+            const longB  = isWider ? 'bottom' : 'right';   // 장변 뒷면
+            const shortA = isWider ? 'left' : 'top';       // 단변 A
+            const shortB = isWider ? 'right' : 'bottom';   // 단변 B
+
+            if (/1면\(전\)|1면전/.test(str)) { e[longA] = true; }  // 전면 = 장변 1면
+            if (/1면\(장\)|1면장/.test(str)) { e[longA] = true; }  // 장변 1면
+            if (/2면\(장\)|2면장/.test(str)) { e[longA] = true; e[longB] = true; } // 장변 양쪽
+            if (/2면\(단\)|2면단/.test(str)) { e[shortA] = true; e[shortB] = true; } // 단변 양쪽
+            if (/3면/.test(str)) { e[longA] = true; e[shortA] = true; e[shortB] = true; } // 장변1면(전면) + 단변2면
           }
           return e;
         }
@@ -11802,7 +11810,7 @@
           let s = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
 
           // 엣지 표시 — 안쪽, 중앙 정렬, 각 변 길이의 70%
-          const eg = parseEdges(edges);
+          const eg = parseEdges(edges, pw, ph);
           const ew = 3; // 엣지 선 두께
           const ec = '#ff6f00'; // 주황색
           const inset = Math.max(3, Math.min(6, Math.round(Math.min(rw, rh) * 0.06))); // 안쪽 여백 — rect 크기에 비례 (3~6px)
