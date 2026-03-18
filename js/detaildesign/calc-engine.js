@@ -649,6 +649,21 @@
             largeGapsUpper.forEach((g, i) => {
               g.width += extra + (i < rem ? 1 : 0);
             });
+          } else if (smallGapTotalUpper > 0 && largeGapsUpper.length === 0 && fixedOccupied.length > 0) {
+            // ★ 큰 갭 없음 → 소규격 갭을 인접 고정 모듈에 흡수
+            gaps.forEach(g => {
+              if (g.width >= DOOR_MIN_WIDTH) return;
+              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1);
+              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1);
+              if (rightFixed) {
+                rightFixed.x -= g.width;
+                rightFixed.w = parseFloat(rightFixed.w) + g.width;
+              } else if (leftFixed) {
+                leftFixed.w = parseFloat(leftFixed.w) + g.width;
+                leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
+              }
+            });
+            console.log(`[AutoCalc] 상부장: 소규격 갭(${smallGapTotalUpper}mm)을 고정 모듈에 흡수`);
           }
 
           // 대칭 분배 (각 갭 독립 distributeModules 호출)
@@ -838,6 +853,22 @@
             largeGaps.forEach((g, i) => {
               g.width += extra + (i < rem ? 1 : 0);
             });
+          } else if (smallGapTotal > 0 && largeGaps.length === 0 && fixedOccupied.length > 0) {
+            // ★ 큰 갭 없음 → 소규격 갭을 인접 고정 모듈에 흡수
+            // 각 소규격 갭에 인접한 고정 모듈(오른쪽 우선, 없으면 왼쪽)의 너비를 확장
+            gaps.forEach(g => {
+              if (g.width >= DOOR_MIN_WIDTH) return;
+              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1);
+              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1);
+              if (rightFixed) {
+                rightFixed.x -= g.width;
+                rightFixed.w = parseFloat(rightFixed.w) + g.width;
+              } else if (leftFixed) {
+                leftFixed.w = parseFloat(leftFixed.w) + g.width;
+                leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
+              }
+            });
+            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수`);
           }
 
           // 모듈 생성 (각 갭 독립 distributeModules 호출)
