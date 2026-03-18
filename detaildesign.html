@@ -11791,7 +11791,7 @@
             if (/1면\(장\)|1면장/.test(str)) { e.top = true; } // 장변 1면 = 서랍 조립 시 윗면
             if (/2면\(장\)|2면장/.test(str)) { e.left = true; e.right = true; } // 장변 = 좌우 (세로)
             if (/2면\(단\)|2면단/.test(str)) { e.top = true; e.bottom = true; } // 단변 = 상하 (가로)
-            if (/3면/.test(str)) { e.top = true; e.left = true; e.right = true; }
+            if (/3면/.test(str)) { e.top = true; e.bottom = true; e.left = true; } // 측판: 깊이2면(상·하) + 높이1면(전면=좌)
           }
           return e;
         }
