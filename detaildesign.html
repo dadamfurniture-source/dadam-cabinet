@@ -11784,29 +11784,34 @@
           const stroke = partStroke(partName);
           let s = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
 
-          // 중앙: 부품명 (공간 충분할 때) — 폰트 14px
-          if (rw > 45 && rh > 30) {
-            const shortPart = partName.length > 8 ? partName.substring(0, 8) + '..' : partName;
-            s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + (itemLabel ? -2 : 5)}" class="cp-label" text-anchor="middle">${shortPart}</text>`;
-            // 품목 라벨 (부품명 아래)
-            if (itemLabel && rh > 46) {
-              const shortLabel = itemLabel.length > 10 ? itemLabel.substring(0, 10) + '..' : itemLabel;
-              s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 14}" class="cp-item" text-anchor="middle">${shortLabel}</text>`;
+          // 동적 폰트 크기: rect 크기에 비례 (최소 7px ~ 최대 18px)
+          const minDim = Math.min(rw, rh);
+          const partFs = Math.max(7, Math.min(18, Math.round(minDim * 0.14)));
+          const itemFs = Math.max(6, Math.min(12, Math.round(minDim * 0.09)));
+          const dimFs = Math.max(7, Math.min(14, Math.round(minDim * 0.11)));
+
+          // 부품명 표시에 필요한 최소 공간
+          if (rw > 30 && rh > 18) {
+            const maxChars = Math.max(2, Math.floor(rw / (partFs * 0.6)));
+            const shortPart = partName.length > maxChars ? partName.substring(0, maxChars) + '..' : partName;
+            const labelY = (itemLabel && rh > partFs + itemFs + 8) ? ry + rh / 2 - 1 : ry + rh / 2 + partFs * 0.35;
+            s += `<text x="${rx + rw / 2}" y="${labelY}" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:${partFs}px;fill:#333;font-weight:bold;">${shortPart}</text>`;
+            // 품목 라벨 (부품명 아래, 공간 있을 때)
+            if (itemLabel && rh > partFs + itemFs + 8) {
+              const maxLabelChars = Math.max(2, Math.floor(rw / (itemFs * 0.6)));
+              const shortLabel = itemLabel.length > maxLabelChars ? itemLabel.substring(0, maxLabelChars) + '..' : itemLabel;
+              s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + partFs * 0.6 + 2}" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:${itemFs}px;fill:#1565c0;">${shortLabel}</text>`;
             }
-          } else if (rw > 30 && rh > 20) {
-            // 좁은 공간: 부품명만 작게
-            const shortPart = partName.length > 6 ? partName.substring(0, 6) + '..' : partName;
-            s += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-label" text-anchor="middle" style="font-size:10px;">${shortPart}</text>`;
           }
 
           // 상변: 가로 치수 (mm)
           if (rw > 22) {
-            s += `<text x="${rx + rw / 2}" y="${ry + 8}" class="cp-edge" text-anchor="middle">${pw}</text>`;
+            s += `<text x="${rx + rw / 2}" y="${ry + dimFs * 0.7}" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:${dimFs}px;fill:#e53935;font-weight:bold;">${pw}</text>`;
           }
 
           // 좌변: 세로 치수 (mm) — 세로 회전 텍스트
           if (rh > 22) {
-            s += `<text x="${rx + 7}" y="${ry + rh / 2}" class="cp-edge" text-anchor="middle" transform="rotate(-90, ${rx + 7}, ${ry + rh / 2})">${ph}</text>`;
+            s += `<text x="${rx + dimFs * 0.6}" y="${ry + rh / 2}" text-anchor="middle" transform="rotate(-90, ${rx + dimFs * 0.6}, ${ry + rh / 2})" style="font-family:Arial,sans-serif;font-size:${dimFs}px;fill:#e53935;font-weight:bold;">${ph}</text>`;
           }
 
           return s;
