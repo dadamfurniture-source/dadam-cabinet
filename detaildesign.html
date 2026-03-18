@@ -11665,7 +11665,8 @@
         <button onclick="switchBomView('cnc','module',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#1976d2;color:#fff;font-weight:bold;">규격 목록</button>
         <button onclick="switchBomView('cnc','spec',this)" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#e0e0e0;color:#666;font-weight:normal;">원판 배치 (${totalPanels}장)</button>
         <button onclick="downloadBOMExcel()" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#2e7d32;color:#fff;font-weight:bold;">📊 엑셀</button>
-        <button onclick="downloadBOMWord()" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#1565c0;color:#fff;font-weight:bold;">📄 워드</button>
+        <button onclick="downloadBOMWordSpec()" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#1565c0;color:#fff;font-weight:bold;">📄 규격 워드</button>
+        <button onclick="downloadBOMWordPanel()" style="padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:11px;background:#7b1fa2;color:#fff;font-weight:bold;">📄 배치 워드</button>
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
@@ -12813,46 +12814,57 @@
         }
       }
 
-      // BOM 원판배치 워드 다운로드
-      function downloadBOMWord() {
-        const specView = document.getElementById('cnc-spec-view');
-        if (!specView || !specView.innerHTML.trim()) {
-          showToast('원판 배치 데이터가 없습니다. 먼저 BOM 산출을 실행하세요.');
-          return;
-        }
-
+      // 워드 다운로드 공통 헬퍼
+      function _buildWordHTML(title, content, landscape) {
         const rpt = window._reportData;
         const item = rpt && rpt.design ? rpt.design.items[0] : {};
         const projectName = (item.name || item.category || '') + ' ' + (item.w || '') + '×' + (item.h || '');
         const dateStr = new Date().toLocaleString('ko-KR');
-
-        // 원본 HTML에서 폰트 크기 확대 (11~13px → 15~18px)
-        let content = specView.innerHTML;
-        content = content.replace(/font-size:\s*11px/g, 'font-size:15px');
-        content = content.replace(/font-size:\s*12px/g, 'font-size:16px');
-        content = content.replace(/font-size:\s*13px/g, 'font-size:18px');
-        content = content.replace(/font-size:\s*10px/g, 'font-size:14px');
-
-        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+        const pageSize = landscape ? 'A4 landscape' : 'A4';
+        return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8">
 <style>
-  @page { size: A4 landscape; margin: 15mm; }
+  @page { size: ${pageSize}; margin: 15mm; }
   body { font-family: '맑은 고딕', 'Malgun Gothic', sans-serif; font-size: 14px; color: #333; }
   table { border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #ccc; padding: 5px 8px; }
   th { background: #e3f2fd; font-weight: bold; }
 </style></head>
 <body>
-  <h2 style="color:#1976d2;">✂️ CNC 원판 배치 계획</h2>
+  <h2 style="color:#1976d2;">${title}</h2>
   <p style="font-size:13px;color:#666;">프로젝트: ${projectName} | 출력일시: ${dateStr}</p>
   <hr style="border:1px solid #1976d2;margin-bottom:16px;">
   ${content}
 </body></html>`;
+      }
 
+      // 규격 목록 워드 다운로드
+      function downloadBOMWordSpec() {
+        const moduleView = document.getElementById('cnc-module-view');
+        if (!moduleView || !moduleView.innerHTML.trim()) {
+          showToast('규격 목록 데이터가 없습니다.');
+          return;
+        }
+        const item = window._reportData?.design?.items?.[0] || {};
+        const html = _buildWordHTML('✂️ CNC 규격 목록', moduleView.innerHTML, true);
         const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8' });
-        const filename = 'CNC_원판배치_' + (item.category || item.name || 'report') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
+        const filename = 'CNC_규격목록_' + (item.category || 'report') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
         downloadBlob(blob, filename);
+        showToast('📄 규격 목록 워드 파일이 다운로드되었습니다.');
+      }
 
+      // 원판 배치 워드 다운로드
+      function downloadBOMWordPanel() {
+        const specView = document.getElementById('cnc-spec-view');
+        if (!specView || !specView.innerHTML.trim()) {
+          showToast('원판 배치 데이터가 없습니다.');
+          return;
+        }
+        const item = window._reportData?.design?.items?.[0] || {};
+        const html = _buildWordHTML('✂️ CNC 원판 배치 계획', specView.innerHTML, true);
+        const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8' });
+        const filename = 'CNC_원판배치_' + (item.category || 'report') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
+        downloadBlob(blob, filename);
         showToast('📄 원판 배치 워드 파일이 다운로드되었습니다.');
       }
 
