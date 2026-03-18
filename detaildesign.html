@@ -534,24 +534,42 @@
       }
       .btn-section-undo,
       .btn-section-auto {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: 600;
+        width: 52px; height: 52px;
+        padding: 0;
+        border-radius: 10px;
+        font-size: 22px;
+        font-weight: 700;
         cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        line-height: 1;
       }
       .btn-section-undo {
         background: #f0f0f0;
         border: 1px solid #ccc;
         color: #666;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
       }
       .btn-section-undo:disabled {
         opacity: 0.4;
         cursor: not-allowed;
       }
       .btn-section-auto {
-        background: white;
-        border: 1px solid currentColor;
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        border: 2px solid #f59e0b;
+        color: #92400e;
+        box-shadow: 0 2px 6px rgba(245,158,11,0.3);
+        transition: all 0.15s ease;
+      }
+      .btn-section-auto:hover {
+        background: linear-gradient(135deg, #fde68a, #fcd34d);
+        transform: scale(1.05);
+      }
+      .btn-section-auto:active {
+        transform: scale(0.95);
       }
       .module-list {
         display: flex;
@@ -619,8 +637,18 @@
         padding: 1px 4px;
         border-radius: 3px;
       }
-      .essential-modules-row { display:flex; gap:8px; align-items:center; font-size:11px; margin-bottom:4px; }
-      .essential-label { color:#6b7280; font-weight:600; white-space:nowrap; }
+      .essential-modules-row { display:flex; gap:6px; align-items:center; font-size:13px; margin-bottom:4px; flex-wrap:wrap; }
+      .essential-label { color:#6b7280; font-weight:600; white-space:nowrap; font-size:13px; }
+      .essential-toggle {
+        display:inline-flex; align-items:center; gap:4px;
+        padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600;
+        cursor:pointer; border:2px solid #d1d5db; background:#f9fafb; color:#6b7280;
+        transition: all 0.2s ease; user-select:none;
+      }
+      .essential-toggle.active {
+        border-color:#3b82f6; background:#eff6ff; color:#2563eb;
+      }
+      .essential-toggle:hover { border-color:#93c5fd; }
       .btn-module-settings { background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:12px; padding:1px 5px; margin-left:4px; }
       .btn-module-settings:hover { background:#f3f4f6; border-color:#9ca3af; }
       .sink-type-popup-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:10000; display:flex; align-items:center; justify-content:center; }
@@ -4149,7 +4177,16 @@
        *    - 도어개수/2 → 몫*2D + 나머지*1D
        */
 
-      // ★ 필수장 체크 상태 토글
+      // ★ 필수장 토글 버튼
+      function toggleEssentialBtn(el, itemUniqueId, section, type) {
+        const isActive = el.classList.toggle('active');
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        const key = section === 'upper' ? 'essentialUpper' : 'essentialLower';
+        if (!item.specs[key]) item.specs[key] = {};
+        item.specs[key][type] = isActive;
+      }
+      // ★ 레거시 호환
       function toggleEssential(itemUniqueId, section, type, checked) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
@@ -4624,13 +4661,7 @@
         }
 
         if (cat.id === 'sink') {
-          newItem.modules = [
-            { id: 1, type: 'storage', name: '하부장', pos: 'lower', w: 600, h: lowerBodyH, d: 550, isDrawer: false, isEL: false, isFixed: false },
-            { id: 2, type: 'storage', name: '하부장', pos: 'lower', w: 600, h: lowerBodyH, d: 550, isDrawer: false, isEL: false, isFixed: false },
-            { id: 3, type: 'storage', name: '하부장', pos: 'lower', w: 600, h: lowerBodyH, d: 550, isDrawer: false, isEL: false, isFixed: false },
-            { id: 4, type: 'storage', name: '상부장', pos: 'upper', w: 600, h: upperBodyH, d: 295, isDrawer: false, isEL: false, isFixed: false },
-            { id: 5, type: 'storage', name: '상부장', pos: 'upper', w: 600, h: upperBodyH, d: 295, isDrawer: false, isEL: false, isFixed: false },
-          ];
+          newItem.modules = []; // 빈 상태로 시작 — 자동계산 또는 수동 추가
         }
 
         selectedItems.push(newItem);
@@ -5482,12 +5513,12 @@
               <span class="section-remaining" style="color:${getRemainColor(upperRemaining)}">잔여: ${Math.round(upperRemaining)}mm</span>
               <div class="section-buttons">
                 <button class="btn-section-undo" onclick="undoAutoCalc(${item.uniqueId}, 'upper')" ${item.prevUpperModules ? '' : 'disabled'}>↩ 되돌리기</button>
-                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'upper')">⚡ 자동계산</button>
+                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'upper')" title="상부장 자동계산">⚡</button>
               </div>
             </div>
             ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
               <span class="essential-label">필수장:</span>
-              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialUpper?.hood !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'upper','hood',this.checked)"> 🌀 후드장</label>
+              <span class="essential-toggle ${item.specs.essentialUpper?.hood !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'upper','hood')">🌀 후드장</span>
             </div>` : ''}
           </div>
           <div class="module-list ${upperModules.length === 0 ? 'empty-list' : ''}">${upperModulesHtml}</div>
@@ -5504,14 +5535,14 @@
               <span class="section-remaining" style="color:${getRemainColor(lowerRemaining)}">잔여: ${Math.round(lowerRemaining)}mm</span>
               <div class="section-buttons">
                 <button class="btn-section-undo" onclick="undoAutoCalc(${item.uniqueId}, 'lower')" ${item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
-                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'lower')">⚡ 자동계산</button>
+                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'lower')" title="하부장 자동계산">⚡</button>
               </div>
             </div>
             ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
               <span class="essential-label">필수장:</span>
-              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialLower?.sink !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'lower','sink',this.checked)"> 🚰 개수대</label>
-              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialLower?.cook !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'lower','cook',this.checked)"> 🔥 가스대</label>
-              <label class="checkbox-label"><input type="checkbox" ${item.specs.essentialLower?.lt !== false ? 'checked' : ''} onchange="toggleEssential(${item.uniqueId},'lower','lt',this.checked)"> 🔧 LT망장</label>
+              <span class="essential-toggle ${item.specs.essentialLower?.sink !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','sink')">🚰 개수대</span>
+              <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')">🔥 가스대</span>
+              <span class="essential-toggle ${item.specs.essentialLower?.lt !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','lt')">🔧 LT망장</span>
             </div>` : ''}
           </div>
           <div class="module-list ${lowerModules.length === 0 ? 'empty-list' : ''}">${lowerModulesHtml}</div>
