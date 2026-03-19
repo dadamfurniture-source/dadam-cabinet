@@ -1086,11 +1086,6 @@
           svg += isoBox(0, uY, 0, finishL, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
-        // ── ①-2 우측 하부장 마감재 (상판에 덮이도록 먼저 렌더) ──
-        if (finishR > 0) {
-          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, D, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
-        }
-
         // ── ② 걸레받이 (하부장 하단, 뒤로 60mm 들어감) ──
         const kickW = W - finishL - finishR; // 마감재 제외 너비
         svg += isoBox(finishL, 0, kickboardRecess, kickW, legH, lowerD - kickboardRecess, '#d1d5db', '#c4c4c4', '#b0b0b0', '#9ca3af');
@@ -1119,6 +1114,11 @@
           svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
           lx += mw;
         });
+
+        // ── ③-2 우측 하부장 마감재 (모듈 뒤에 보이도록, 상판에 덮이도록) ──
+        if (finishR > 0) {
+          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, D, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+        }
 
         // ── ④ 상판 ──
         svg += isoBox(0, midY, 0, W, topT, D, '#d4a574', '#c89660', '#b8865a', '#8b6914', 1.5);
