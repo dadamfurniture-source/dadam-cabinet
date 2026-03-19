@@ -730,15 +730,27 @@
           sinkModuleSvg += `<rect x="${offsetX + drawW - finishR * scale}" y="${legY}" width="${finishR * scale}" height="${legH_s}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>`;
         }
 
-        // 좌측 마감
+        // 좌측 마감 (상부장 높이 + 하부장 높이 각각 분리)
         if (finishL > 0) {
-          sinkModuleSvg += `<rect x="${offsetX}" y="${upperY}" width="${finishL * scale}" height="${upperH_s + middleH_s + lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>
-      <text x="${offsetX + (finishL * scale) / 2}" y="${upperY + (upperH_s + middleH_s + lowerH_s) / 2}" text-anchor="middle" font-size="8" fill="#666" transform="rotate(-90 ${offsetX + (finishL * scale) / 2} ${upperY + (upperH_s + middleH_s + lowerH_s) / 2})">${finishL}</text>`;
+          const fLw = finishL * scale;
+          const fLx = offsetX;
+          // 상부장 영역 마감
+          sinkModuleSvg += `<rect x="${fLx}" y="${upperY}" width="${fLw}" height="${upperH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (upperH_s > 20) sinkModuleSvg += `<text x="${fLx + fLw / 2}" y="${upperY + upperH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fLx + fLw / 2} ${upperY + upperH_s / 2})">${finishL}</text>`;
+          // 하부장 영역 마감
+          sinkModuleSvg += `<rect x="${fLx}" y="${lowerY}" width="${fLw}" height="${lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (lowerH_s > 20) sinkModuleSvg += `<text x="${fLx + fLw / 2}" y="${lowerY + lowerH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fLx + fLw / 2} ${lowerY + lowerH_s / 2})">${finishL}</text>`;
         }
-        // 우측 마감
+        // 우측 마감 (상부장 높이 + 하부장 높이 각각 분리)
         if (finishR > 0) {
-          sinkModuleSvg += `<rect x="${offsetX + drawW - finishR * scale}" y="${upperY}" width="${finishR * scale}" height="${upperH_s + middleH_s + lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>
-      <text x="${offsetX + drawW - (finishR * scale) / 2}" y="${upperY + (upperH_s + middleH_s + lowerH_s) / 2}" text-anchor="middle" font-size="8" fill="#666" transform="rotate(-90 ${offsetX + drawW - (finishR * scale) / 2} ${upperY + (upperH_s + middleH_s + lowerH_s) / 2})">${finishR}</text>`;
+          const fRw = finishR * scale;
+          const fRx = offsetX + drawW - fRw;
+          // 상부장 영역 마감
+          sinkModuleSvg += `<rect x="${fRx}" y="${upperY}" width="${fRw}" height="${upperH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (upperH_s > 20) sinkModuleSvg += `<text x="${fRx + fRw / 2}" y="${upperY + upperH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fRx + fRw / 2} ${upperY + upperH_s / 2})">${finishR}</text>`;
+          // 하부장 영역 마감
+          sinkModuleSvg += `<rect x="${fRx}" y="${lowerY}" width="${fRw}" height="${lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (lowerH_s > 20) sinkModuleSvg += `<text x="${fRx + fRw / 2}" y="${lowerY + lowerH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fRx + fRw / 2} ${lowerY + lowerH_s / 2})">${finishR}</text>`;
         }
 
         // ★ 걸레받이 (도어 표시시에만, 하부장에 설치)
@@ -1117,12 +1129,18 @@
         // ── 다리발 ──
         svg += isoBox(0, 0, 0, W, legH, lowerD * 0.3, '#d1d5db', '#c4c4c4', '#b0b0b0', '#9ca3af');
 
-        // ── 마감재 ──
+        // ── 마감재 (상부장/하부장 높이에 맞춰 분리) ──
         if (finishL > 0) {
-          svg += isoBox(0, legH, 0, finishL, upperH + midH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 하부장 영역 마감
+          svg += isoBox(0, legH, 0, finishL, lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 상부장 영역 마감
+          svg += isoBox(0, uY, 0, finishL, upperH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
         if (finishR > 0) {
-          svg += isoBox(W - finishR, legH, 0, finishR, upperH + midH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 하부장 영역 마감
+          svg += isoBox(W - finishR, legH, 0, finishR, lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 상부장 영역 마감
+          svg += isoBox(W - finishR, uY, 0, finishR, upperH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
         // ── 치수선 ──
