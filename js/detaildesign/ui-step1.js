@@ -612,11 +612,22 @@
           });
         }
 
-        // 중간 공간 (상판 영역)
+        // 중간 공간 (상판 + 백스플래시 영역)
         const middleY = upperY + upperH_s;
         const middleH_s = drawH - moldingH_s - upperH_s - lowerH_s - legH_s;
-        if (middleH_s > 0) {
-          sinkModuleSvg += `<rect x="${offsetX}" y="${middleY}" width="${drawW}" height="${middleH_s}" fill="#fafafa" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>`;
+        const topT = parseFloat(item.specs.topThickness) || 12;
+        const topT_s = Math.min(topT * scale, middleH_s);
+        const backSplashH_s = Math.max(0, middleH_s - topT_s);
+        if (backSplashH_s > 1) {
+          sinkModuleSvg += `<rect x="${offsetX}" y="${middleY}" width="${drawW}" height="${backSplashH_s}" fill="#fafafa" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>`;
+        }
+        // ★ 상판 표시
+        if (topT_s > 0) {
+          const countertopY = middleY + backSplashH_s;
+          sinkModuleSvg += `<rect x="${offsetX}" y="${countertopY}" width="${drawW}" height="${topT_s}" fill="#d4a574" stroke="#b8956a" stroke-width="1.5"/>`;
+          if (topT_s > 4) {
+            sinkModuleSvg += `<text x="${offsetX + drawW / 2}" y="${countertopY + topT_s / 2 + 3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
+          }
         }
 
         // 하부장 모듈들 + 다리발 연동
@@ -903,9 +914,10 @@
               <span>📐 Front View</span>
               <span style="font-size:11px;color:#888;font-weight:normal;">(전면부 도면)</span>
             </div>
+            <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
           </div>
-          ${sinkFrontViewSvg}
+          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules) : sinkFrontViewSvg}
         </div>
 
         <div class="module-section">
@@ -966,5 +978,181 @@
         // ★ 스크롤 복원
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
+      }
+
+      // ============================================================
+      // 뷰 모드 토글 + 아이소메트릭 뷰
+      // ============================================================
+
+      function toggleViewMode(itemUniqueId) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.viewMode = item.specs.viewMode === 'iso' ? 'front' : 'iso';
+        renderWorkspaceContent(item);
+      }
+
+      function renderIsometricView(item, upperModules, lowerModules) {
+        const W = parseFloat(item.w) || 3000;
+        const H = parseFloat(item.h) || 2400;
+        const D = parseFloat(item.d) || 650;
+        const upperH = parseFloat(item.specs.upperH) || 720;
+        const lowerH = parseFloat(item.specs.lowerH) || 870;
+        const moldingH = parseFloat(item.specs.moldingH) || 60;
+        const legH = parseFloat(item.specs.sinkLegHeight) || 120;
+        const topT = parseFloat(item.specs.topThickness) || 12;
+        const finishL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+        const finishR = item.specs.finishRightType !== 'None' ? parseFloat(item.specs.finishRightWidth) || 0 : 0;
+        const upperD = 295;
+        const lowerD = 550;
+
+        // 아이소메트릭 투영 파라미터
+        const svgW = 650, svgH = 480;
+        const angle = Math.PI / 6; // 30°
+        const cosA = Math.cos(angle), sinA = Math.sin(angle);
+        const depthScale = 0.45;
+
+        // 스케일 계산 — 전면(W×H) + 깊이 오프셋이 SVG에 맞도록
+        const dOffsetX = D * depthScale * cosA;
+        const dOffsetY = D * depthScale * sinA;
+        const maxW = W + dOffsetX;
+        const maxH = H + dOffsetY;
+        const sx = (svgW - 100) / maxW;
+        const sy = (svgH - 80) / maxH;
+        const s = Math.min(sx, sy);
+
+        // 원점 (전면 좌하단)
+        const ox = 50;
+        const oy = svgH - 40 + dOffsetY * s;
+
+        // 투영 함수: (x, y, z) → SVG (px, py) — y는 위로+, z는 깊이
+        function proj(x, y, z) {
+          const px = ox + x * s + z * depthScale * cosA * s;
+          const py = oy - y * s - z * depthScale * sinA * s;
+          return [px, py];
+        }
+
+        // 3D 박스 → SVG polygon (전면, 상면, 측면)
+        function isoBox(x, y, z, w, h, d, fillF, fillT, fillS, strokeCol = '#555', sw = 1) {
+          // 8개 꼭짓점
+          const fbl = proj(x, y, z);         // front-bottom-left
+          const fbr = proj(x + w, y, z);     // front-bottom-right
+          const ftl = proj(x, y + h, z);     // front-top-left
+          const ftr = proj(x + w, y + h, z); // front-top-right
+          const bbl = proj(x, y, z + d);
+          const bbr = proj(x + w, y, z + d);
+          const btl = proj(x, y + h, z + d);
+          const btr = proj(x + w, y + h, z + d);
+
+          let svg = '';
+          // 전면 (front face)
+          svg += `<polygon points="${fbl.join(',')},${fbr.join(',')},${ftr.join(',')},${ftl.join(',')}" fill="${fillF}" stroke="${strokeCol}" stroke-width="${sw}"/>`;
+          // 상면 (top face)
+          svg += `<polygon points="${ftl.join(',')},${ftr.join(',')},${btr.join(',')},${btl.join(',')}" fill="${fillT}" stroke="${strokeCol}" stroke-width="${sw}"/>`;
+          // 우측면 (right side face)
+          svg += `<polygon points="${fbr.join(',')},${bbr.join(',')},${btr.join(',')},${ftr.join(',')}" fill="${fillS}" stroke="${strokeCol}" stroke-width="${sw}"/>`;
+          return svg;
+        }
+
+        let svg = '';
+
+        // ── 상몰딩 ──
+        const moldY = H - moldingH;
+        svg += isoBox(0, moldY, 0, W, moldingH, D * 0.3, '#e5e7eb', '#d1d5db', '#c9c9c9', '#9ca3af');
+
+        // ── 상부장 모듈 ──
+        let ux = finishL;
+        const uY = H - moldingH - upperH;
+        upperModules.forEach(mod => {
+          const mw = parseFloat(mod.w) || 0;
+          const fillF = mod.type === 'hood' ? '#fef3c7' : '#dbeafe';
+          const fillT = mod.type === 'hood' ? '#fde68a' : '#bfdbfe';
+          const fillS = mod.type === 'hood' ? '#fcd34d' : '#93c5fd';
+          svg += isoBox(ux, uY, 0, mw, upperH, upperD, fillF, fillT, fillS, mod.type === 'hood' ? '#f59e0b' : '#3b82f6');
+          // 라벨
+          const [cx, cy] = proj(ux + mw / 2, uY + upperH / 2, 0);
+          const icon = mod.type === 'hood' ? '🌀' : '📦';
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          ux += mw;
+        });
+
+        // ── 중간 빈 공간 (백스플래시) ──
+        const midH = H - moldingH - upperH - lowerH - legH;
+        const midY = legH + lowerH;
+        if (midH - topT > 5) {
+          svg += isoBox(0, midY + topT, 0, W, midH - topT, D * 0.15, '#fafafa', '#f0f0f0', '#e8e8e8', '#d1d5db', 0.5);
+        }
+
+        // ── 상판 ──
+        svg += isoBox(0, midY, 0, W, topT, D, '#d4a574', '#c89660', '#b8865a', '#8b6914', 1.5);
+        const [tpx, tpy] = proj(W / 2, midY + topT / 2, 0);
+        svg += `<text x="${tpx}" y="${tpy + 3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
+
+        // ── 하부장 모듈 ──
+        let lx = finishL;
+        const lY = legH;
+        lowerModules.forEach(mod => {
+          const mw = parseFloat(mod.w) || 0;
+          const isTall = mod.type === 'tall';
+          const mh = isTall ? upperH + midH + lowerH : lowerH;
+          const my = isTall ? uY : lY;
+          const md = isTall ? lowerD : lowerD;
+
+          let fillF = '#f3f4f6', fillT = '#e5e7eb', fillS = '#d1d5db', sc = '#6b7280';
+          if (mod.type === 'sink') { fillF = '#dbeafe'; fillT = '#bfdbfe'; fillS = '#93c5fd'; sc = '#3b82f6'; }
+          else if (mod.type === 'cook') { fillF = '#fee2e2'; fillT = '#fecaca'; fillS = '#fca5a5'; sc = '#ef4444'; }
+          else if (isTall) { fillF = '#dcfce7'; fillT = '#bbf7d0'; fillS = '#86efac'; sc = '#10b981'; }
+          else if (mod.isDrawer) { fillF = '#fef3c7'; fillT = '#fde68a'; fillS = '#fcd34d'; sc = '#f59e0b'; }
+
+          svg += isoBox(lx, my, 0, mw, mh, md, fillF, fillT, fillS, sc);
+
+          const icons = { sink: '🚰', cook: '🔥', tall: '↕️', storage: '🗄️' };
+          const icon = icons[mod.type] || '📦';
+          const [cx, cy] = proj(lx + mw / 2, my + mh / 2, 0);
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          lx += mw;
+        });
+
+        // ── 다리발 ──
+        svg += isoBox(0, 0, 0, W, legH, lowerD * 0.3, '#d1d5db', '#c4c4c4', '#b0b0b0', '#9ca3af');
+
+        // ── 마감재 ──
+        if (finishL > 0) {
+          svg += isoBox(0, legH, 0, finishL, upperH + midH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+        }
+        if (finishR > 0) {
+          svg += isoBox(W - finishR, legH, 0, finishR, upperH + midH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+        }
+
+        // ── 치수선 ──
+        // W (하단)
+        const [wl, wly] = proj(0, -60, 0);
+        const [wr, wry] = proj(W, -60, 0);
+        svg += `<line x1="${wl}" y1="${wly}" x2="${wr}" y2="${wry}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${wl}" y1="${wly - 5}" x2="${wl}" y2="${wly + 5}" stroke="#666"/>`;
+        svg += `<line x1="${wr}" y1="${wry - 5}" x2="${wr}" y2="${wry + 5}" stroke="#666"/>`;
+        const [wm, wmy] = proj(W / 2, -60, 0);
+        svg += `<text x="${wm}" y="${wmy - 8}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">${W}mm</text>`;
+
+        // H (좌측)
+        const [hl, hly] = proj(-50, 0, 0);
+        const [ht, hty] = proj(-50, H, 0);
+        svg += `<line x1="${hl}" y1="${hly}" x2="${ht}" y2="${hty}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${hl - 5}" y1="${hly}" x2="${hl + 5}" y2="${hly}" stroke="#666"/>`;
+        svg += `<line x1="${ht - 5}" y1="${hty}" x2="${ht + 5}" y2="${hty}" stroke="#666"/>`;
+        const [hm, hmy] = proj(-50, H / 2, 0);
+        svg += `<text x="${hm - 10}" y="${hmy}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold" transform="rotate(-90 ${hm - 10} ${hmy})">${H}mm</text>`;
+
+        // D (깊이 축)
+        const [dl, dly] = proj(W + 30, 0, 0);
+        const [dr, dry] = proj(W + 30, 0, D);
+        svg += `<line x1="${dl}" y1="${dly}" x2="${dr}" y2="${dry}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${dl - 3}" y1="${dly - 3}" x2="${dl + 3}" y2="${dly + 3}" stroke="#666"/>`;
+        svg += `<line x1="${dr - 3}" y1="${dry - 3}" x2="${dr + 3}" y2="${dry + 3}" stroke="#666"/>`;
+        const [dm, dmy] = proj(W + 30, 0, D / 2);
+        svg += `<text x="${dm + 12}" y="${dmy}" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">${D}mm</text>`;
+
+        return `<svg width="${svgW}" height="${svgH}" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }
 
