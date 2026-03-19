@@ -1086,6 +1086,11 @@
           svg += isoBox(0, uY, 0, finishL, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
+        // ── ①-2 우측 하부장 마감재 (상판에 덮이도록 먼저 렌더) ──
+        if (finishR > 0) {
+          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, D, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+        }
+
         // ── ② 걸레받이 (하부장 하단, 뒤로 60mm 들어감) ──
         const kickW = W - finishL - finishR; // 마감재 제외 너비
         svg += isoBox(finishL, 0, kickboardRecess, kickW, legH, lowerD - kickboardRecess, '#d1d5db', '#c4c4c4', '#b0b0b0', '#9ca3af');
@@ -1135,16 +1140,20 @@
             // 싱크볼 내부 (물색)
             const innerM = 15;
             svg += isoBox(bowlX + innerM, equipY + 1, bowlZ + innerM, bowlW - innerM * 2, bowlH - 1, bowlD - innerM * 2, '#bde0fe', '#9ecffa', '#7ebef6', '#5b8db8', 0.5);
-            // 수전 (세로 기둥 + 곡선 아치)
-            const faucetX = bowlX + bowlW * 0.8;
-            const faucetZ = bowlZ + bowlD * 0.15;
-            const faucetBaseW = 20, faucetBaseD = 20;
-            // 수전 베이스
-            svg += isoBox(faucetX, equipY, faucetZ, faucetBaseW, 5, faucetBaseD, '#c0c0c0', '#b0b0b0', '#a0a0a0', '#888');
-            // 수전 기둥
-            svg += isoBox(faucetX + 5, equipY + 5, faucetZ + 5, 10, 50, 10, '#d0d0d0', '#c0c0c0', '#b0b0b0', '#888');
-            // 수전 꼭지 (위 가로)
-            svg += isoBox(faucetX - 15, equipY + 50, faucetZ + 5, 30, 8, 8, '#c8c8c8', '#b8b8b8', '#a8a8a8', '#888');
+            // 거위목 수전 — 싱크볼 중앙 안쪽(뒤쪽) 상판 위
+            const fCenterX = bowlX + bowlW * 0.5 - 15; // 볼 중앙
+            const fBackZ = bowlZ + bowlD * 0.85; // 안쪽(뒤쪽) 상판 위
+            // 베이스 (원형 근사)
+            svg += isoBox(fCenterX, equipY, fBackZ, 30, 8, 30, '#c8c8c8', '#b8b8b8', '#a8a8a8', '#999');
+            // 수직 기둥 (굵게)
+            svg += isoBox(fCenterX + 8, equipY + 8, fBackZ + 8, 14, 80, 14, '#d4d4d4', '#c4c4c4', '#b4b4b4', '#999');
+            // 거위목 커브 — 뒤에서 앞으로 휘어지는 목 (위쪽 가로)
+            svg += isoBox(fCenterX + 6, equipY + 80, fBackZ - 20, 18, 14, 40, '#d0d0d0', '#c0c0c0', '#b0b0b0', '#999');
+            // 토출구 (아래로 꺾임 — 앞쪽 끝)
+            svg += isoBox(fCenterX + 8, equipY + 65, fBackZ - 22, 14, 15, 10, '#ccc', '#bbb', '#aaa', '#999');
+            // 토출구 끝 (물 나오는 부분)
+            const [spX, spY] = proj(fCenterX + 15, equipY + 65, fBackZ - 18);
+            svg += `<circle cx="${spX}" cy="${spY}" r="2.5" fill="#60a5fa" opacity="0.7"/>`;
           }
           if (mod.type === 'cook') {
             // 가스레인지: 상판 위 박스 + 버너 표시
@@ -1190,11 +1199,8 @@
         const moldY = H - moldingH;
         svg += isoBox(finishL, moldY, 0, W - finishL - finishR, moldingH, upperD, '#e5e7eb', '#d1d5db', '#c9c9c9', '#9ca3af');
 
-        // ── ⑧ 우측 마감재 (모듈 앞에 → 나중에 렌더) ──
+        // ── ⑧ 우측 상부장 마감재 (하부장은 ①-2에서 이미 렌더) ──
         if (finishR > 0) {
-          // 하부장 영역: 다리발 + 하부장 모듈 높이, 깊이=상판(D)
-          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, D, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
-          // 상부장 영역: 상부장 + 상몰딩 높이
           svg += isoBox(W - finishR, uY, 0, finishR, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
