@@ -1066,43 +1066,24 @@
         }
 
         let svg = '';
-
-        // ── 상몰딩 ──
-        const moldY = H - moldingH;
-        svg += isoBox(0, moldY, 0, W, moldingH, D * 0.3, '#e5e7eb', '#d1d5db', '#c9c9c9', '#9ca3af');
-
-        // ── 상부장 모듈 ──
-        let ux = finishL;
-        const uY = H - moldingH - upperH;
-        upperModules.forEach(mod => {
-          const mw = parseFloat(mod.w) || 0;
-          const fillF = mod.type === 'hood' ? '#fef3c7' : '#dbeafe';
-          const fillT = mod.type === 'hood' ? '#fde68a' : '#bfdbfe';
-          const fillS = mod.type === 'hood' ? '#fcd34d' : '#93c5fd';
-          svg += isoBox(ux, uY, 0, mw, upperH, upperD, fillF, fillT, fillS, mod.type === 'hood' ? '#f59e0b' : '#3b82f6');
-          // 라벨
-          const [cx, cy] = proj(ux + mw / 2, uY + upperH / 2, 0);
-          const icon = mod.type === 'hood' ? '🌀' : '📦';
-          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
-          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
-          ux += mw;
-        });
-
-        // ── 중간 빈 공간 (백스플래시) ──
         const midH = H - moldingH - upperH - lowerH - legH;
         const midY = legH + lowerH;
-        if (midH - topT > 5) {
-          svg += isoBox(0, midY + topT, 0, W, midH - topT, D * 0.15, '#fafafa', '#f0f0f0', '#e8e8e8', '#d1d5db', 0.5);
+        const uY = H - moldingH - upperH;
+        const lY = legH;
+        const kickboardRecess = 60; // 걸레받이 뒤로 들어가는 깊이
+
+        // ── ① 좌측 마감재 (모듈 뒤에 가림 → 먼저 렌더) ──
+        // 높이 = 싱크대 총높이(H)
+        if (finishL > 0) {
+          svg += isoBox(0, 0, 0, finishL, H, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
-        // ── 상판 ──
-        svg += isoBox(0, midY, 0, W, topT, D, '#d4a574', '#c89660', '#b8865a', '#8b6914', 1.5);
-        const [tpx, tpy] = proj(W / 2, midY + topT / 2, 0);
-        svg += `<text x="${tpx}" y="${tpy + 3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
+        // ── ② 걸레받이 (하부장 하단, 뒤로 60mm 들어감) ──
+        const kickW = W - finishL - finishR; // 마감재 제외 너비
+        svg += isoBox(finishL, 0, kickboardRecess, kickW, legH, lowerD - kickboardRecess, '#d1d5db', '#c4c4c4', '#b0b0b0', '#9ca3af');
 
-        // ── 하부장 모듈 ──
+        // ── ③ 하부장 모듈 ──
         let lx = finishL;
-        const lY = legH;
         lowerModules.forEach(mod => {
           const mw = parseFloat(mod.w) || 0;
           const isTall = mod.type === 'tall';
@@ -1126,21 +1107,39 @@
           lx += mw;
         });
 
-        // ── 다리발 ──
-        svg += isoBox(0, 0, 0, W, legH, lowerD * 0.3, '#d1d5db', '#c4c4c4', '#b0b0b0', '#9ca3af');
+        // ── ④ 상판 ──
+        svg += isoBox(0, midY, 0, W, topT, D, '#d4a574', '#c89660', '#b8865a', '#8b6914', 1.5);
+        const [tpx, tpy] = proj(W / 2, midY + topT / 2, 0);
+        svg += `<text x="${tpx}" y="${tpy + 3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
 
-        // ── 마감재 (상부장/하부장 높이에 맞춰 분리) ──
-        if (finishL > 0) {
-          // 하부장 영역 마감
-          svg += isoBox(0, legH, 0, finishL, lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
-          // 상부장 영역 마감
-          svg += isoBox(0, uY, 0, finishL, upperH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+        // ── ⑤ 중간 빈 공간 (백스플래시) ──
+        if (midH - topT > 5) {
+          svg += isoBox(0, midY + topT, 0, W, midH - topT, D * 0.15, '#fafafa', '#f0f0f0', '#e8e8e8', '#d1d5db', 0.5);
         }
+
+        // ── ⑥ 상부장 모듈 ──
+        let ux = finishL;
+        upperModules.forEach(mod => {
+          const mw = parseFloat(mod.w) || 0;
+          const fillF = mod.type === 'hood' ? '#fef3c7' : '#dbeafe';
+          const fillT = mod.type === 'hood' ? '#fde68a' : '#bfdbfe';
+          const fillS = mod.type === 'hood' ? '#fcd34d' : '#93c5fd';
+          svg += isoBox(ux, uY, 0, mw, upperH, upperD, fillF, fillT, fillS, mod.type === 'hood' ? '#f59e0b' : '#3b82f6');
+          const [cx, cy] = proj(ux + mw / 2, uY + upperH / 2, 0);
+          const icon = mod.type === 'hood' ? '🌀' : '📦';
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          ux += mw;
+        });
+
+        // ── ⑦ 상몰딩 (상부장 상단 앞면에 딱 맞게, 깊이=상부장 깊이) ──
+        const moldY = H - moldingH;
+        svg += isoBox(finishL, moldY, 0, W - finishL - finishR, moldingH, upperD, '#e5e7eb', '#d1d5db', '#c9c9c9', '#9ca3af');
+
+        // ── ⑧ 우측 마감재 (모듈 앞에 → 나중에 렌더) ──
+        // 높이 = 싱크대 총높이(H)
         if (finishR > 0) {
-          // 하부장 영역 마감
-          svg += isoBox(W - finishR, legH, 0, finishR, lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
-          // 상부장 영역 마감
-          svg += isoBox(W - finishR, uY, 0, finishR, upperH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          svg += isoBox(W - finishR, 0, 0, finishR, H, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
         // ── 치수선 ──
