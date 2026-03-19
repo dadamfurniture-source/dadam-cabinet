@@ -391,7 +391,18 @@
             dx += doorWidth;
           }
           for (let i = 0; i < center2D; i++) {
-            if (!canFit(doorWidth * 2)) break;
+            if (!canFit(doorWidth * 2)) {
+              // ★ 2D가 안 들어가면 1D 2개로 폴백
+              if (canFit(doorWidth)) {
+                newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+                dx += doorWidth;
+              }
+              if (canFit(doorWidth)) {
+                newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+                dx += doorWidth;
+              }
+              continue;
+            }
             newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
             dx += doorWidth * 2;
           }
@@ -408,13 +419,35 @@
           const quotient = Math.floor(doorCount / 2);
           const mod1D = doorCount % 2;
           for (let i = 0; i < quotient; i++) {
-            if (!canFit(doorWidth * 2)) break;
+            if (!canFit(doorWidth * 2)) {
+              // ★ 2D가 안 들어가면 1D 2개로 폴백
+              if (canFit(doorWidth)) {
+                newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+                dx += doorWidth;
+              }
+              if (canFit(doorWidth)) {
+                newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+                dx += doorWidth;
+              }
+              continue;
+            }
             newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
             dx += doorWidth * 2;
           }
           if (mod1D > 0 && canFit(doorWidth)) {
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
+          }
+        }
+
+        // ★ 폴백: 모듈 생성 실패 또는 큰 잔여 → 갭 전체를 1D 모듈로 재생성
+        {
+          const usedSoFar = newModules.reduce((s, m) => s + m.w, 0);
+          const leftoverSoFar = gap.width - usedSoFar;
+          if (gap.width >= DOOR_MIN_WIDTH && (newModules.length === 0 || leftoverSoFar > MAX_REMAINDER + 20)) {
+            // 기존 모듈 버리고 갭 전체를 1D로 생성 (dead zone: 601~689mm 등)
+            newModules.length = 0;
+            newModules.push(createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start));
           }
         }
 
