@@ -730,27 +730,33 @@
           sinkModuleSvg += `<rect x="${offsetX + drawW - finishR * scale}" y="${legY}" width="${finishR * scale}" height="${legH_s}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>`;
         }
 
-        // 좌측 마감 (상부장 높이 + 하부장 높이 각각 분리)
+        // 좌측 마감 (상부장+상몰딩 높이 / 하부장+다리발 높이)
         if (finishL > 0) {
           const fLw = finishL * scale;
           const fLx = offsetX;
-          // 상부장 영역 마감
-          sinkModuleSvg += `<rect x="${fLx}" y="${upperY}" width="${fLw}" height="${upperH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
-          if (upperH_s > 20) sinkModuleSvg += `<text x="${fLx + fLw / 2}" y="${upperY + upperH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fLx + fLw / 2} ${upperY + upperH_s / 2})">${finishL}</text>`;
-          // 하부장 영역 마감
-          sinkModuleSvg += `<rect x="${fLx}" y="${lowerY}" width="${fLw}" height="${lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
-          if (lowerH_s > 20) sinkModuleSvg += `<text x="${fLx + fLw / 2}" y="${lowerY + lowerH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fLx + fLw / 2} ${lowerY + lowerH_s / 2})">${finishL}</text>`;
+          // 상부장 영역 마감 (상부장 + 상몰딩)
+          const fLUpperH = upperH_s + moldingH_s;
+          const fLUpperY = upperY - moldingH_s; // 몰딩 상단부터 시작 (= moldingY)
+          sinkModuleSvg += `<rect x="${fLx}" y="${fLUpperY}" width="${fLw}" height="${fLUpperH}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (fLUpperH > 20) sinkModuleSvg += `<text x="${fLx + fLw / 2}" y="${fLUpperY + fLUpperH / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fLx + fLw / 2} ${fLUpperY + fLUpperH / 2})">${finishL}</text>`;
+          // 하부장 영역 마감 (다리발 + 하부장 모듈)
+          const fLLowerH = lowerH_s + legH_s;
+          sinkModuleSvg += `<rect x="${fLx}" y="${lowerY}" width="${fLw}" height="${fLLowerH}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (fLLowerH > 20) sinkModuleSvg += `<text x="${fLx + fLw / 2}" y="${lowerY + fLLowerH / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fLx + fLw / 2} ${lowerY + fLLowerH / 2})">${finishL}</text>`;
         }
-        // 우측 마감 (상부장 높이 + 하부장 높이 각각 분리)
+        // 우측 마감 (상부장+상몰딩 높이 / 하부장+다리발 높이)
         if (finishR > 0) {
           const fRw = finishR * scale;
           const fRx = offsetX + drawW - fRw;
-          // 상부장 영역 마감
-          sinkModuleSvg += `<rect x="${fRx}" y="${upperY}" width="${fRw}" height="${upperH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
-          if (upperH_s > 20) sinkModuleSvg += `<text x="${fRx + fRw / 2}" y="${upperY + upperH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fRx + fRw / 2} ${upperY + upperH_s / 2})">${finishR}</text>`;
-          // 하부장 영역 마감
-          sinkModuleSvg += `<rect x="${fRx}" y="${lowerY}" width="${fRw}" height="${lowerH_s}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
-          if (lowerH_s > 20) sinkModuleSvg += `<text x="${fRx + fRw / 2}" y="${lowerY + lowerH_s / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fRx + fRw / 2} ${lowerY + lowerH_s / 2})">${finishR}</text>`;
+          // 상부장 영역 마감 (상부장 + 상몰딩)
+          const fRUpperH = upperH_s + moldingH_s;
+          const fRUpperY = upperY - moldingH_s;
+          sinkModuleSvg += `<rect x="${fRx}" y="${fRUpperY}" width="${fRw}" height="${fRUpperH}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (fRUpperH > 20) sinkModuleSvg += `<text x="${fRx + fRw / 2}" y="${fRUpperY + fRUpperH / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fRx + fRw / 2} ${fRUpperY + fRUpperH / 2})">${finishR}</text>`;
+          // 하부장 영역 마감 (다리발 + 하부장 모듈)
+          const fRLowerH = lowerH_s + legH_s;
+          sinkModuleSvg += `<rect x="${fRx}" y="${lowerY}" width="${fRw}" height="${fRLowerH}" fill="#e0e0e0" stroke="#999" stroke-width="1"/>`;
+          if (fRLowerH > 20) sinkModuleSvg += `<text x="${fRx + fRw / 2}" y="${lowerY + fRLowerH / 2}" text-anchor="middle" font-size="7" fill="#666" transform="rotate(-90 ${fRx + fRw / 2} ${lowerY + fRLowerH / 2})">${finishR}</text>`;
         }
 
         // ★ 걸레받이 (도어 표시시에만, 하부장에 설치)
@@ -1073,9 +1079,11 @@
         const kickboardRecess = 60; // 걸레받이 뒤로 들어가는 깊이
 
         // ── ① 좌측 마감재 (모듈 뒤에 가림 → 먼저 렌더) ──
-        // 높이 = 싱크대 총높이(H)
         if (finishL > 0) {
-          svg += isoBox(0, 0, 0, finishL, H, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 하부장 영역: 다리발 + 하부장 모듈 높이
+          svg += isoBox(0, 0, 0, finishL, legH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 상부장 영역: 상부장 + 상몰딩 높이
+          svg += isoBox(0, uY, 0, finishL, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
         // ── ② 걸레받이 (하부장 하단, 뒤로 60mm 들어감) ──
@@ -1137,9 +1145,11 @@
         svg += isoBox(finishL, moldY, 0, W - finishL - finishR, moldingH, upperD, '#e5e7eb', '#d1d5db', '#c9c9c9', '#9ca3af');
 
         // ── ⑧ 우측 마감재 (모듈 앞에 → 나중에 렌더) ──
-        // 높이 = 싱크대 총높이(H)
         if (finishR > 0) {
-          svg += isoBox(W - finishR, 0, 0, finishR, H, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 하부장 영역: 다리발 + 하부장 모듈 높이
+          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 상부장 영역: 상부장 + 상몰딩 높이
+          svg += isoBox(W - finishR, uY, 0, finishR, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
         // ── 치수선 ──
