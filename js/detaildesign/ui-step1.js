@@ -935,7 +935,7 @@
             <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
           </div>
-          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules) : sinkFrontViewSvg}
+          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
         </div>
 
         <div class="module-section">
@@ -1009,7 +1009,7 @@
         renderWorkspaceContent(item);
       }
 
-      function renderIsometricView(item, upperModules, lowerModules) {
+      function renderIsometricView(item, upperModules, lowerModules, showDoors) {
         const W = parseFloat(item.w) || 3000;
         const H = parseFloat(item.h) || 2400;
         const D = parseFloat(item.d) || 650;
@@ -1194,6 +1194,71 @@
           svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
           ux += mw;
         });
+
+        // ── ⑥-1 도어 표시 (showDoors) ──
+        if (showDoors) {
+          const doorColorU = getDoorColor(item.specs.doorColorUpper || '화이트');
+          const doorColorL = getDoorColor(item.specs.doorColorLower || '화이트');
+          const doorT = 3; // 도어 두께 3mm
+          const dGap = 3; // 도어 간 간격 3mm
+          const upperOverlap = parseFloat(item.specs.doorOverlapUpper) || 15;
+
+          // 상부장 도어
+          let udx = finishL;
+          upperModules.forEach(mod => {
+            const mw = parseFloat(mod.w) || 0;
+            const doorCount = Math.max(1, Math.round(mw / 450));
+            const dw = mw / doorCount;
+            const dh = mod.type === 'hood' ? upperH - dGap * 2 : upperH + upperOverlap - dGap * 2;
+            const dy = mod.type === 'hood' ? uY + dGap : uY - upperOverlap + dGap;
+            for (let d = 0; d < doorCount; d++) {
+              const dx = udx + d * dw + dGap;
+              svg += isoBox(dx, dy, -doorT, dw - dGap * 2, dh, doorT, doorColorU, doorColorU, doorColorU, '#555', 0.8);
+            }
+            udx += mw;
+          });
+
+          // 하부장 도어
+          let ldx = finishL;
+          lowerModules.forEach(mod => {
+            const mw = parseFloat(mod.w) || 0;
+            const isTall = mod.type === 'tall';
+            if (isTall) { ldx += mw; return; }
+
+            if (mod.isDrawer) {
+              // 서랍장: 상단 서랍 + 하단 여닫이
+              const dCount = mod.drawerCount || 1;
+              const drawerH = 250;
+              const totalDrawerH = drawerH * dCount;
+              // 서랍
+              for (let dr = 0; dr < dCount; dr++) {
+                const drY = lY + lowerH - totalDrawerH + dr * drawerH + dGap;
+                svg += isoBox(ldx + dGap, drY, -doorT, mw - dGap * 2, drawerH - dGap * 2, doorT, doorColorL, doorColorL, doorColorL, '#555', 0.8);
+                // 서랍 손잡이 (가로 라인)
+                const [hl, hly] = proj(ldx + mw * 0.3, drY + drawerH / 2, -doorT);
+                const [hr, hry] = proj(ldx + mw * 0.7, drY + drawerH / 2, -doorT);
+                svg += `<line x1="${hl}" y1="${hly}" x2="${hr}" y2="${hry}" stroke="#888" stroke-width="1.5" stroke-linecap="round"/>`;
+              }
+              // 하단 여닫이
+              const hingeDoorH = lowerH - totalDrawerH;
+              if (hingeDoorH > dGap * 2) {
+                const hingeDoorCount = Math.max(1, Math.round(mw / 450));
+                const hdw = mw / hingeDoorCount;
+                for (let d = 0; d < hingeDoorCount; d++) {
+                  svg += isoBox(ldx + d * hdw + dGap, lY + dGap, -doorT, hdw - dGap * 2, hingeDoorH - dGap * 2, doorT, doorColorL, doorColorL, doorColorL, '#555', 0.8);
+                }
+              }
+            } else {
+              // 일반 하부장: 여닫이 도어
+              const doorCount = Math.max(1, Math.round(mw / 450));
+              const dw = mw / doorCount;
+              for (let d = 0; d < doorCount; d++) {
+                svg += isoBox(ldx + d * dw + dGap, lY + dGap, -doorT, dw - dGap * 2, lowerH - dGap * 2, doorT, doorColorL, doorColorL, doorColorL, '#555', 0.8);
+              }
+            }
+            ldx += mw;
+          });
+        }
 
         // ── ⑦ 상몰딩 (상부장 상단 앞면에 딱 맞게, 깊이=상부장 깊이) ──
         const moldY = H - moldingH;
