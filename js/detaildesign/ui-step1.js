@@ -616,18 +616,18 @@
         const middleY = upperY + upperH_s;
         const middleH_s = drawH - moldingH_s - upperH_s - lowerH_s - legH_s;
         const topT = parseFloat(item.specs.topThickness) || 12;
-        const topT_s = Math.min(topT * scale, middleH_s);
+        const topT_s_raw = topT * scale;
+        const topT_s_min = 8; // 최소 표시 높이 8px
+        const topT_s = Math.min(Math.max(topT_s_raw, topT_s_min), middleH_s);
         const backSplashH_s = Math.max(0, middleH_s - topT_s);
         if (backSplashH_s > 1) {
           sinkModuleSvg += `<rect x="${offsetX}" y="${middleY}" width="${drawW}" height="${backSplashH_s}" fill="#fafafa" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>`;
         }
-        // ★ 상판 표시
+        // ★ 상판 표시 (최소 8px 보장)
         if (topT_s > 0) {
           const countertopY = middleY + backSplashH_s;
           sinkModuleSvg += `<rect x="${offsetX}" y="${countertopY}" width="${drawW}" height="${topT_s}" fill="#d4a574" stroke="#b8956a" stroke-width="1.5"/>`;
-          if (topT_s > 4) {
-            sinkModuleSvg += `<text x="${offsetX + drawW / 2}" y="${countertopY + topT_s / 2 + 3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
-          }
+          sinkModuleSvg += `<text x="${offsetX + drawW / 2}" y="${countertopY + topT_s / 2 + 3}" text-anchor="middle" font-size="${topT_s >= 12 ? 9 : 7}" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
         }
 
         // 하부장 모듈들 + 다리발 연동
@@ -1006,7 +1006,7 @@
         const lowerD = 550;
 
         // 아이소메트릭 투영 파라미터
-        const svgW = 650, svgH = 480;
+        const svgW = 720, svgH = 500;
         const angle = Math.PI / 6; // 30°
         const cosA = Math.cos(angle), sinA = Math.sin(angle);
         const depthScale = 0.45;
@@ -1016,13 +1016,13 @@
         const dOffsetY = D * depthScale * sinA;
         const maxW = W + dOffsetX;
         const maxH = H + dOffsetY;
-        const sx = (svgW - 100) / maxW;
-        const sy = (svgH - 80) / maxH;
+        const sx = (svgW - 130) / maxW;
+        const sy = (svgH - 90) / maxH;
         const s = Math.min(sx, sy);
 
         // 원점 (전면 좌하단)
-        const ox = 50;
-        const oy = svgH - 40 + dOffsetY * s;
+        const ox = 60;
+        const oy = svgH - 50 + dOffsetY * s;
 
         // 투영 함수: (x, y, z) → SVG (px, py) — y는 위로+, z는 깊이
         function proj(x, y, z) {
@@ -1145,14 +1145,14 @@
         svg += `<text x="${hm - 10}" y="${hmy}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold" transform="rotate(-90 ${hm - 10} ${hmy})">${H}mm</text>`;
 
         // D (깊이 축)
-        const [dl, dly] = proj(W + 30, 0, 0);
-        const [dr, dry] = proj(W + 30, 0, D);
+        const [dl, dly] = proj(W + 20, 0, 0);
+        const [dr, dry] = proj(W + 20, 0, D);
         svg += `<line x1="${dl}" y1="${dly}" x2="${dr}" y2="${dry}" stroke="#666" stroke-width="1"/>`;
         svg += `<line x1="${dl - 3}" y1="${dly - 3}" x2="${dl + 3}" y2="${dly + 3}" stroke="#666"/>`;
         svg += `<line x1="${dr - 3}" y1="${dry - 3}" x2="${dr + 3}" y2="${dry + 3}" stroke="#666"/>`;
-        const [dm, dmy] = proj(W + 30, 0, D / 2);
-        svg += `<text x="${dm + 12}" y="${dmy}" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">${D}mm</text>`;
+        const [dm, dmy] = proj(W + 20, 0, D / 2);
+        svg += `<text x="${dm + 5}" y="${dmy - 8}" text-anchor="start" font-size="10" fill="#333" font-weight="bold">${D}mm</text>`;
 
-        return `<svg width="${svgW}" height="${svgH}" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="max-width:${svgW}px;background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }
 
