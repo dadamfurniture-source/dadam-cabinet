@@ -3033,19 +3033,85 @@
         showToast('📄 규격 목록 워드 파일이 다운로드되었습니다.');
       }
 
-      // 원판 배치 워드 다운로드
-      function downloadBOMWordPanel() {
+      // 원판 배치 워드 다운로드 (SVG → PNG 이미지 포함)
+      async function downloadBOMWordPanel() {
         const specView = document.getElementById('cnc-spec-view');
         if (!specView || !specView.innerHTML.trim()) {
           showToast('원판 배치 데이터가 없습니다.');
           return;
         }
-        const item = window._reportData?.design?.items?.[0] || {};
-        const html = _buildWordHTML('✂️ CNC 원판 배치 계획', specView.innerHTML, true);
-        const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8' });
-        const filename = 'CNC_원판배치_' + (item.category || 'report') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
-        downloadBlob(blob, filename);
-        showToast('📄 원판 배치 워드 파일이 다운로드되었습니다.');
+
+        showToast('📄 워드 파일 생성 중... (이미지 변환)');
+
+        try {
+          // SVG → PNG base64 변환
+          const svgs = specView.querySelectorAll('svg');
+          const imgMap = new Map(); // svg element → base64 img tag
+
+          for (const svg of svgs) {
+            try {
+              const svgData = new XMLSerializer().serializeToString(svg);
+              const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+              const url = URL.createObjectURL(svgBlob);
+
+              const img = new Image();
+              await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = url;
+              });
+
+              // 2배 해상도로 렌더링 (선명도 향상)
+              const scale = 2;
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth * scale;
+              canvas.height = img.naturalHeight * scale;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.scale(scale, scale);
+              ctx.drawImage(img, 0, 0);
+
+              const base64 = canvas.toDataURL('image/png');
+              const imgTag = `<img src="${base64}" width="${img.naturalWidth}" height="${img.naturalHeight}" style="display:block;margin:8px auto;max-width:100%;">`;
+              imgMap.set(svg, imgTag);
+
+              URL.revokeObjectURL(url);
+            } catch (e) {
+              console.warn('[Word] SVG 변환 실패:', e);
+            }
+          }
+
+          // HTML 복사본에서 SVG를 IMG로 교체
+          const clone = specView.cloneNode(true);
+          const cloneSvgs = clone.querySelectorAll('svg');
+          const origSvgs = specView.querySelectorAll('svg');
+          cloneSvgs.forEach((csvg, idx) => {
+            const origSvg = origSvgs[idx];
+            const imgTag = imgMap.get(origSvg);
+            if (imgTag) {
+              const wrapper = document.createElement('div');
+              wrapper.innerHTML = imgTag;
+              csvg.parentNode.replaceChild(wrapper.firstChild, csvg);
+            }
+          });
+
+          const item = window._reportData?.design?.items?.[0] || {};
+          const html = _buildWordHTML('✂️ CNC 원판 배치 계획', clone.innerHTML, true);
+          const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8' });
+          const filename = 'CNC_원판배치_' + (item.category || 'report') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
+          downloadBlob(blob, filename);
+          showToast('📄 원판 배치 워드 파일이 다운로드되었습니다. (이미지 포함)');
+        } catch (e) {
+          console.error('[Word] 워드 생성 오류:', e);
+          // 폴백: 이미지 없이 기존 방식
+          const item = window._reportData?.design?.items?.[0] || {};
+          const html = _buildWordHTML('✂️ CNC 원판 배치 계획', specView.innerHTML, true);
+          const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8' });
+          const filename = 'CNC_원판배치_' + (item.category || 'report') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
+          downloadBlob(blob, filename);
+          showToast('📄 워드 파일 다운로드 (이미지 변환 실패, 텍스트만)');
+        }
       }
 
       // CSV 다운로드
