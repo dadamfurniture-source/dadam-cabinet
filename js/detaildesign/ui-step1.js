@@ -1080,8 +1080,8 @@
 
         // ── ① 좌측 마감재 (모듈 뒤에 가림 → 먼저 렌더) ──
         if (finishL > 0) {
-          // 하부장 영역: 다리발 + 하부장 모듈 높이
-          svg += isoBox(0, 0, 0, finishL, legH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 하부장 영역: 다리발 + 하부장 모듈 높이, 깊이=상판(D)
+          svg += isoBox(0, 0, 0, finishL, legH + lowerH, D, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
           // 상부장 영역: 상부장 + 상몰딩 높이
           svg += isoBox(0, uY, 0, finishL, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
@@ -1120,10 +1120,56 @@
         const [tpx, tpy] = proj(W / 2, midY + topT / 2, 0);
         svg += `<text x="${tpx}" y="${tpy + 3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">상판 ${topT}mm</text>`;
 
-        // ── ⑤ 중간 빈 공간 (백스플래시) ──
-        if (midH - topT > 5) {
-          svg += isoBox(0, midY + topT, 0, W, midH - topT, D * 0.15, '#fafafa', '#f0f0f0', '#e8e8e8', '#d1d5db', 0.5);
-        }
+        // ── ④-1 상판 위 설비 (싱크볼+수전, 가스레인지) ──
+        const equipY = midY + topT; // 상판 상면
+        let eqX = finishL;
+        lowerModules.forEach(mod => {
+          const mw = parseFloat(mod.w) || 0;
+          if (mod.type === 'sink') {
+            // 싱크볼: 상판 위에 오목한 사각 박스
+            const bowlW = mw * 0.65, bowlD = D * 0.45;
+            const bowlX = eqX + (mw - bowlW) / 2;
+            const bowlZ = (D - bowlD) / 2;
+            const bowlH = 8; // 볼 깊이 (얕은 박스)
+            svg += isoBox(bowlX, equipY, bowlZ, bowlW, bowlH, bowlD, '#c0d8f0', '#a8c8e8', '#90b8e0', '#5b8db8', 1);
+            // 싱크볼 내부 (물색)
+            const innerM = 15;
+            svg += isoBox(bowlX + innerM, equipY + 1, bowlZ + innerM, bowlW - innerM * 2, bowlH - 1, bowlD - innerM * 2, '#bde0fe', '#9ecffa', '#7ebef6', '#5b8db8', 0.5);
+            // 수전 (세로 기둥 + 곡선 아치)
+            const faucetX = bowlX + bowlW * 0.8;
+            const faucetZ = bowlZ + bowlD * 0.15;
+            const faucetBaseW = 20, faucetBaseD = 20;
+            // 수전 베이스
+            svg += isoBox(faucetX, equipY, faucetZ, faucetBaseW, 5, faucetBaseD, '#c0c0c0', '#b0b0b0', '#a0a0a0', '#888');
+            // 수전 기둥
+            svg += isoBox(faucetX + 5, equipY + 5, faucetZ + 5, 10, 50, 10, '#d0d0d0', '#c0c0c0', '#b0b0b0', '#888');
+            // 수전 꼭지 (위 가로)
+            svg += isoBox(faucetX - 15, equipY + 50, faucetZ + 5, 30, 8, 8, '#c8c8c8', '#b8b8b8', '#a8a8a8', '#888');
+          }
+          if (mod.type === 'cook') {
+            // 가스레인지: 상판 위 박스 + 버너 표시
+            const rangeW = mw * 0.8, rangeD = D * 0.5;
+            const rangeX = eqX + (mw - rangeW) / 2;
+            const rangeZ = (D - rangeD) / 2;
+            // 레인지 본체
+            svg += isoBox(rangeX, equipY, rangeZ, rangeW, 6, rangeD, '#333', '#2a2a2a', '#222', '#111', 1);
+            // 버너 2개 (원형 근사 — 작은 사각형)
+            const burnerR = Math.min(rangeW * 0.18, rangeD * 0.25);
+            const b1x = rangeX + rangeW * 0.3 - burnerR;
+            const b2x = rangeX + rangeW * 0.7 - burnerR;
+            const bz = rangeZ + rangeD * 0.5 - burnerR;
+            svg += isoBox(b1x, equipY + 6, bz, burnerR * 2, 2, burnerR * 2, '#555', '#4a4a4a', '#404040', '#666', 0.5);
+            svg += isoBox(b2x, equipY + 6, bz, burnerR * 2, 2, burnerR * 2, '#555', '#4a4a4a', '#404040', '#666', 0.5);
+            // 버너 가운데 점
+            const [c1x, c1y] = proj(b1x + burnerR, equipY + 8, bz + burnerR);
+            const [c2x, c2y] = proj(b2x + burnerR, equipY + 8, bz + burnerR);
+            svg += `<circle cx="${c1x}" cy="${c1y}" r="2" fill="#f97316"/>`;
+            svg += `<circle cx="${c2x}" cy="${c2y}" r="2" fill="#f97316"/>`;
+          }
+          eqX += mw;
+        });
+
+        // ── ⑤ 중간 빈 공간 (백스플래시) — Iso뷰에서는 생략 ──
 
         // ── ⑥ 상부장 모듈 ──
         let ux = finishL;
@@ -1146,8 +1192,8 @@
 
         // ── ⑧ 우측 마감재 (모듈 앞에 → 나중에 렌더) ──
         if (finishR > 0) {
-          // 하부장 영역: 다리발 + 하부장 모듈 높이
-          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, lowerD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
+          // 하부장 영역: 다리발 + 하부장 모듈 높이, 깊이=상판(D)
+          svg += isoBox(W - finishR, 0, 0, finishR, legH + lowerH, D, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
           // 상부장 영역: 상부장 + 상몰딩 높이
           svg += isoBox(W - finishR, uY, 0, finishR, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
