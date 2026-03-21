@@ -48,6 +48,9 @@ router.post('/webhook/controlnet-image', async (req: Request, res: Response, nex
       width: body.width,
       height: body.height,
       seed: body.seed,
+      enableVerification: body.enable_verification ?? false,
+      verificationThreshold: body.verification_threshold,
+      maxRetries: body.max_retries,
     };
 
     // LoRA 자동 매칭 포함 생성
@@ -67,6 +70,7 @@ router.post('/webhook/controlnet-image', async (req: Request, res: Response, nex
         mime_type: 'image/png',
       },
       prompt: result.prompt,
+      verification: result.verification || null,
       metadata: result.metadata,
     });
   } catch (error) {

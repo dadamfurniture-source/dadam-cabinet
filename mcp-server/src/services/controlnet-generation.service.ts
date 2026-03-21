@@ -15,6 +15,7 @@ import {
 import { fetchWithRetry } from '../clients/base-http.client.js';
 import { getConfig } from '../utils/config.js';
 import { AppError } from '../utils/errors.js';
+import { verifyStructuralFidelity, type VerificationResult } from './structural-verification.service.js';
 import type { StructuredDesignData } from '../types/index.js';
 
 const log = createLogger('controlnet-generation');
@@ -89,6 +90,12 @@ export interface ControlNetGenerationInput {
   height?: number;
   /** 시드 (재현성) */
   seed?: number;
+  /** 구조 검증 활성화 (기본: false) */
+  enableVerification?: boolean;
+  /** 구조 검증 통과 임계값 (기본: 0.4) */
+  verificationThreshold?: number;
+  /** 미달 시 최대 재시도 횟수 (기본: 2) */
+  maxRetries?: number;
 }
 
 export interface ControlNetGenerationResult {
@@ -98,6 +105,8 @@ export interface ControlNetGenerationResult {
   lineartImage: string;
   /** 사용된 프롬프트 */
   prompt: string;
+  /** 구조 검증 결과 (enableVerification=true 시) */
+  verification?: VerificationResult;
   /** 생성 메타데이터 */
   metadata: {
     category: string;
@@ -107,6 +116,8 @@ export interface ControlNetGenerationResult {
     hasLora: boolean;
     hasBackground: boolean;
     resolution: { width: number; height: number };
+    /** 재시도 횟수 (검증 실패 시) */
+    retryCount?: number;
   };
 }
 
@@ -233,30 +244,74 @@ export async function generateWithDrawingControlNet(
 
   // 결과 이미지 URL → base64
   const imageUrl = outputs[0];
-  const imageBase64 = await fetchImageAsBase64(imageUrl);
+  let imageBase64 = await fetchImageAsBase64(imageUrl);
+
+  // ── 구조 검증 (enableVerification=true 시) ──
+  let verification: VerificationResult | undefined;
+  let retryCount = 0;
+  const maxRetries = input.maxRetries ?? 2;
+  const verificationThreshold = input.verificationThreshold ?? 0.4;
+
+  if (input.enableVerification) {
+    verification = await verifyStructuralFidelity(imageBase64, lineartBase64, {
+      threshold: verificationThreshold,
+    });
+
+    // 미달 시 ControlNet strength 증가하며 재시도
+    let currentStrength = controlNetStrength;
+    while (!verification.passed && retryCount < maxRetries) {
+      retryCount++;
+      currentStrength = Math.min(currentStrength + 0.1, 1.5);
+
+      log.warn({
+        score: verification.score,
+        retryCount,
+        newStrength: currentStrength,
+      }, 'Structural verification failed, retrying with higher strength');
+
+      controlNetInput.controlNets[0].conditioningScale = currentStrength;
+
+      const retryOutputs = await generateWithControlNetAndWait(controlNetInput);
+      if (retryOutputs && retryOutputs.length > 0) {
+        imageBase64 = await fetchImageAsBase64(retryOutputs[0]);
+        verification = await verifyStructuralFidelity(imageBase64, lineartBase64, {
+          threshold: verificationThreshold,
+        });
+      }
+    }
+
+    log.info({
+      finalScore: verification.score,
+      passed: verification.passed,
+      retries: retryCount,
+    }, 'Structural verification complete');
+  }
 
   const elapsed = Date.now() - startTime;
   log.info({
     elapsed,
     category: input.category,
     imageSize: imageBase64.length,
+    verificationScore: verification?.score,
   }, 'ControlNet generation complete');
 
   return {
     image: imageBase64,
     lineartImage: lineartBase64,
     prompt,
+    verification,
     metadata: {
       category: input.category,
       style: input.style || 'modern',
       controlNetType,
-      controlNetStrength,
+      controlNetStrength: controlNetInput.controlNets[0].conditioningScale ?? controlNetStrength,
       hasLora: !!input.loraWeights,
       hasBackground: !!input.backgroundImage,
       resolution: {
         width: input.width || 1024,
         height: input.height || 1024,
       },
+      retryCount: retryCount > 0 ? retryCount : undefined,
     },
   };
 }
