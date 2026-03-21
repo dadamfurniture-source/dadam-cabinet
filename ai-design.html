@@ -633,6 +633,54 @@
         display: inline;
       }
 
+      /* Kitchen Layout Panel */
+      .kitchen-layout-panel {
+        margin-bottom: 16px;
+        animation: fadeIn 0.3s ease;
+      }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+      .layout-options {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .layout-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 10px 18px;
+        background: var(--white);
+        border: 2px solid var(--warm);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+        min-width: 70px;
+      }
+      .layout-btn:hover {
+        border-color: var(--gold);
+        transform: translateY(-1px);
+      }
+      .layout-btn.active {
+        border-color: var(--gold);
+        background: linear-gradient(135deg, #fff9f0, #fff);
+        box-shadow: 0 2px 8px rgba(193, 154, 107, 0.25);
+      }
+      .layout-icon {
+        font-size: 18px;
+        font-weight: bold;
+        color: var(--charcoal);
+        font-family: monospace;
+        letter-spacing: -1px;
+      }
+      .layout-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--charcoal);
+      }
+
       /* Image Preview Section (Slider) */
       .image-preview-section {
         background: var(--cream);
@@ -2124,6 +2172,29 @@
         </button>
       </div>
 
+      <!-- Kitchen Layout Selector (싱크대 선택 시 표시) -->
+      <div class="kitchen-layout-panel" id="kitchenLayoutPanel" style="display:none;">
+        <p class="section-title" style="margin-top:12px;">주방 레이아웃</p>
+        <div class="layout-options">
+          <button class="layout-btn active" data-layout="i_type" onclick="selectKitchenLayout('i_type')">
+            <span class="layout-icon">━━━</span>
+            <span class="layout-name">1자형</span>
+          </button>
+          <button class="layout-btn" data-layout="l_type" onclick="selectKitchenLayout('l_type')">
+            <span class="layout-icon">━┓</span>
+            <span class="layout-name">ㄱ자형</span>
+          </button>
+          <button class="layout-btn" data-layout="u_type" onclick="selectKitchenLayout('u_type')">
+            <span class="layout-icon">┏━┓</span>
+            <span class="layout-name">ㄷ자형</span>
+          </button>
+          <button class="layout-btn" data-layout="peninsula" onclick="selectKitchenLayout('peninsula')">
+            <span class="layout-icon">━┃</span>
+            <span class="layout-name">대면형</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Image Preview Section (Slider) -->
       <div class="image-preview-section" id="imagePreviewSection">
         <div class="preview-header">
@@ -2683,6 +2754,7 @@ Magazine quality, professional lighting.`;
         uploadedImages: {},
         results: [],
         currentPage: 0,
+        kitchenLayout: 'i_type',  // 주방 레이아웃: i_type, l_type, u_type, peninsula
       };
 
       // 슬라이더 상태
@@ -2972,6 +3044,20 @@ Magazine quality, professional lighting.`;
       // ═══════════════════════════════════════════════════════════════
       function selectCategory(category) {
         document.getElementById(`file-${category}`).click();
+        // 싱크대 선택 시 레이아웃 패널 표시
+        const panel = document.getElementById('kitchenLayoutPanel');
+        if (category === 'sink') {
+          panel.style.display = '';
+        }
+      }
+
+      function selectKitchenLayout(layout) {
+        state.kitchenLayout = layout;
+        document.querySelectorAll('.layout-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.layout === layout);
+        });
+        const names = { i_type: '1자형', l_type: 'ㄱ자형', u_type: 'ㄷ자형', peninsula: '대면형' };
+        showToast(`주방 레이아웃: ${names[layout]}`, 'info');
       }
 
       function handleFileUpload(category, input) {
@@ -3046,6 +3132,11 @@ Magazine quality, professional lighting.`;
         const fileInput = document.getElementById(`file-${category}`);
         if (fileInput) {
           fileInput.value = '';
+        }
+
+        // 싱크대 삭제 시 레이아웃 패널 숨김 (다른 싱크대가 없으면)
+        if (category === 'sink' && !state.uploadedImages.sink) {
+          document.getElementById('kitchenLayoutPanel').style.display = 'none';
         }
 
         // 슬라이더에서 제거
@@ -3172,6 +3263,7 @@ Magazine quality, professional lighting.`;
                 room_image: imageData.base64,
                 image_type: imageData.type,
                 category: category,
+                kitchen_layout: category === 'sink' ? state.kitchenLayout : undefined,
                 design_style: state.selectedStyle,
                 style_name: themeData.name,
                 style_keywords: themeData.keywords,
