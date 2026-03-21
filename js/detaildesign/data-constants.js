@@ -73,6 +73,16 @@
         essentialLower: { sink: true, cook: true, lt: true },
         essentialUpper: { hood: true },
         upperDoorOverlap: 15, // 상부장 도어 오버랩 (기본 15mm)
+        // ★ Secondary Line (ㄱ자형/ㄷ자형 보조 하부장 라인)
+        secondaryW: '',
+        secondaryH: '',
+        secondaryD: '',
+        secondaryEdgeBand4Side: false, // 4면지 적용 여부
+        // ㄷ자형 3번째 라인
+        tertiaryW: '',
+        tertiaryH: '',
+        tertiaryD: '',
+        tertiaryEdgeBand4Side: false,
       };
 
       // ★ 냉장고장 규칙 상수 (업데이트)

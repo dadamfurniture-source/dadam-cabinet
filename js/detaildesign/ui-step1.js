@@ -146,6 +146,36 @@
           <div class="input-group"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" oninput="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
         </div>
       </div>
+      ${item.specs.layoutShape !== 'I' ? `
+      <div class="extra-settings" style="margin-top:12px;">
+        <div class="extra-title">Secondary Line (보조 하부장)</div>
+        <div class="input-row">
+          <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.secondaryW}" oninput="updateSpec(${item.uniqueId}, 'secondaryW', this.value)"></div>
+          <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.secondaryH}" oninput="updateSpec(${item.uniqueId}, 'secondaryH', this.value)"></div>
+          <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.secondaryD || item.defaultD || ''}" oninput="updateSpec(${item.uniqueId}, 'secondaryD', this.value)"></div>
+        </div>
+        <div class="input-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" ${item.specs.secondaryEdgeBand4Side ? 'checked' : ''} onchange="updateSpec(${item.uniqueId}, 'secondaryEdgeBand4Side', this.checked)"> 4면지 적용
+          </label>
+        </div>
+      </div>
+      ` : ''}
+      ${item.specs.layoutShape === 'U' ? `
+      <div class="extra-settings" style="margin-top:12px;">
+        <div class="extra-title">Tertiary Line (3번째 하부장)</div>
+        <div class="input-row">
+          <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.tertiaryW}" oninput="updateSpec(${item.uniqueId}, 'tertiaryW', this.value)"></div>
+          <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.tertiaryH}" oninput="updateSpec(${item.uniqueId}, 'tertiaryH', this.value)"></div>
+          <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.tertiaryD || item.defaultD || ''}" oninput="updateSpec(${item.uniqueId}, 'tertiaryD', this.value)"></div>
+        </div>
+        <div class="input-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" ${item.specs.tertiaryEdgeBand4Side ? 'checked' : ''} onchange="updateSpec(${item.uniqueId}, 'tertiaryEdgeBand4Side', this.checked)"> 4면지 적용
+          </label>
+        </div>
+      </div>
+      ` : ''}
     `
               : '';
 
@@ -211,6 +241,7 @@
       </div>
       <div class="item-body">
         <div class="input-section">
+          ${item.categoryId === 'sink' && item.specs.layoutShape !== 'I' ? '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">Prime Line (메인 하부장)</div>' : ''}
           <div class="input-row">
             <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
             <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
@@ -848,7 +879,7 @@
 
         ws.innerHTML = `
     <div class="ws-header">
-      <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">W ${item.w} x H ${item.h} x D ${item.d}</span></div>
+      <div class="ws-title">${item.labelName} 상세 설계 <span class="ws-info-badge">Prime: W ${item.w} x H ${item.h} x D ${item.d}</span>${item.specs.layoutShape !== 'I' && item.specs.secondaryW ? `<span class="ws-info-badge" style="margin-left:4px;">Secondary: W ${item.specs.secondaryW} x H ${item.specs.secondaryH || item.h} x D ${item.specs.secondaryD || item.d}${item.specs.secondaryEdgeBand4Side ? ' [4면지]' : ''}</span>` : ''}</div>
       <div style="display:flex;gap:8px;">
         <button class="btn-purple-gradient" onclick="generateAIDesign()" title="AI 디자인 이미지 생성">🎨 AI 디자인 생성</button>
         <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>

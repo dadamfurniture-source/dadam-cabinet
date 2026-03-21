@@ -1435,6 +1435,25 @@
           while (item.specs.topSizes.length < count) {
             item.specs.topSizes.push({ w: '', d: '' });
           }
+          // Secondary Line 기본값 초기화 (ㄱ자/ㄷ자형 전환 시)
+          if (shape !== 'I' && !item.specs.secondaryD) {
+            item.specs.secondaryD = item.defaultD || item.d || '';
+          }
+          if (shape === 'U' && !item.specs.tertiaryD) {
+            item.specs.tertiaryD = item.defaultD || item.d || '';
+          }
+          // I자형 전환 시 초기화
+          if (shape === 'I') {
+            item.specs.secondaryW = '';
+            item.specs.secondaryH = '';
+            item.specs.secondaryD = '';
+            item.specs.secondaryEdgeBand4Side = false;
+            item.specs.tertiaryW = '';
+            item.specs.tertiaryH = '';
+            item.specs.tertiaryD = '';
+            item.specs.tertiaryEdgeBand4Side = false;
+          }
+          updateUI();
           renderWorkspaceContent(item);
         }
       }
