@@ -13,6 +13,8 @@ const materialDescriptions = input.materialDescriptions || [];
 const clientPrompt = input.prompt || '';
 const ragRules = input.ragRules || null;
 const negativePrompt = input.negative_prompt || '';
+// Kitchen layout type: i_type(1자), l_type(ㄱ자), u_type(ㄷ자), peninsula(대면)
+const kitchenLayout = input.kitchenLayout || input.kitchen_layout || cabinetSpecs.kitchen_layout || 'i_type';
 // Blueprint data from frontend (if provided)
 let layoutData = input.layoutData || null;
 let modules = input.modules || null;
@@ -508,9 +510,12 @@ if (isKitchen && hasBlueprint && hasModules && modules) {
 return [{
   category: input.category,
   style: input.style,
+  kitchenLayout: isKitchen ? kitchenLayout : undefined,
   cleanedBackground: roomImage,
   imageType,
   wallData: input.wallData,
+  cabinetSpecs,
+  modules,
   furniturePlacement: input.furniturePlacement,
   furniturePrompt,
   compressedPrompt,

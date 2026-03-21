@@ -8,6 +8,7 @@ const MCP_SERVER_URL = '%%MCP_SERVER_URL%%'; // e.g. https://mcp.dadamfurniture.
 const imgData = input.cleanedBackground || '';
 const category = input.category || 'sink';
 const style = input.style || 'modern';
+const kitchenLayout = input.kitchenLayout || input.kitchen_layout || 'i_type';
 
 let closedImage = null;
 let debugInfo = 'pipeline:controlnet; ';
@@ -49,6 +50,7 @@ try {
     design_data: designData,
     category: category,
     style: style,
+    kitchen_layout: kitchenLayout,
     background_image: imgData || undefined,
     prompt_strength: 0.75,
     controlnet_type: 'lineart',

@@ -8,6 +8,15 @@
 
 export type Category = 'sink' | 'wardrobe' | 'fridge' | 'vanity' | 'shoe' | 'storage';
 
+/**
+ * 주방 레이아웃 타입 (싱크대 카테고리 세분화)
+ * - i_type: 1자형 (직선형, 가장 일반적)
+ * - l_type: ㄱ자형 (코너형)
+ * - u_type: ㄷ자형 (양쪽 벽 + 뒤)
+ * - peninsula: 대면형 (아일랜드/반도형)
+ */
+export type KitchenLayoutType = 'i_type' | 'l_type' | 'u_type' | 'peninsula';
+
 export interface RoomDesignInput {
   category: Category;
   style: string;
@@ -48,6 +57,8 @@ export interface CabinetSpecs {
   door_finish_lower?: string;
   countertop_color?: string;
   handle_type?: string;
+  /** 주방 레이아웃 타입 (sink 카테고리 전용) */
+  kitchen_layout?: KitchenLayoutType;
   sink_type?: string;
   sink_position_mm?: number;
   cooktop_type?: string;

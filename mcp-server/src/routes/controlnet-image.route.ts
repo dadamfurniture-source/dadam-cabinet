@@ -10,6 +10,7 @@ import { createLogger } from '../utils/logger.js';
 import { validateCategory } from '../middleware/input-validator.js';
 import { generateWithAutoLora, generateABTest } from '../services/controlnet-generation.service.js';
 import type { ControlNetType } from '../clients/replicate.client.js';
+import type { KitchenLayoutType } from '../types/index.js';
 
 const log = createLogger('route:controlnet-image');
 const router = Router();
@@ -35,6 +36,7 @@ router.post('/webhook/controlnet-image', async (req: Request, res: Response, nex
       designData,
       category,
       style,
+      kitchenLayout: body.kitchen_layout as KitchenLayoutType | undefined,
       materialCode: body.material_code,
       additionalPrompt: body.additional_prompt,
       backgroundImage: body.background_image,
@@ -97,6 +99,7 @@ router.post('/webhook/controlnet-abtest', async (req: Request, res: Response, ne
       designData,
       category,
       style,
+      kitchenLayout: body.kitchen_layout as KitchenLayoutType | undefined,
       materialCode: body.material_code,
       additionalPrompt: body.additional_prompt,
       backgroundImage: body.background_image,

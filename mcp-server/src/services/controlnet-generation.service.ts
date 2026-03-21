@@ -16,7 +16,7 @@ import { fetchWithRetry } from '../clients/base-http.client.js';
 import { getConfig } from '../utils/config.js';
 import { AppError } from '../utils/errors.js';
 import { verifyStructuralFidelity, type VerificationResult } from './structural-verification.service.js';
-import type { StructuredDesignData } from '../types/index.js';
+import type { StructuredDesignData, KitchenLayoutType } from '../types/index.js';
 
 const log = createLogger('controlnet-generation');
 
@@ -54,6 +54,27 @@ const CATEGORY_PROMPTS: Record<string, string> = {
   storage_cabinet: 'utility storage cabinet with shelves',
 };
 
+/**
+ * 주방 레이아웃 타입별 프롬프트
+ * category=sink 시 kitchenLayout에 따라 추가 프롬프트 적용
+ */
+const KITCHEN_LAYOUT_PROMPTS: Record<string, string> = {
+  i_type: 'straight linear I-shaped kitchen along single wall, all cabinets in one row',
+  l_type: 'L-shaped corner kitchen with cabinets along two perpendicular walls, corner countertop connection',
+  u_type: 'U-shaped kitchen with cabinets along three walls, wrap-around countertop, enclosed workspace',
+  peninsula: 'peninsula kitchen with island counter facing living area, open-concept dining counter, bar-style seating side',
+};
+
+/**
+ * 주방 레이아웃 타입에서 LoRA 카테고리 매핑
+ */
+const KITCHEN_LAYOUT_TO_LORA_CATEGORY: Record<string, string> = {
+  i_type: 'sink',             // 기본 싱크대 LoRA
+  l_type: 'l_shaped_sink',    // ㄱ자형 전용 LoRA
+  u_type: 'sink',             // U자형은 싱크대 LoRA + 프롬프트로 보완
+  peninsula: 'island_kitchen', // 대면형은 아일랜드 LoRA
+};
+
 // ─────────────────────────────────────────────────────────────────
 // 타입
 // ─────────────────────────────────────────────────────────────────
@@ -65,6 +86,8 @@ export interface ControlNetGenerationInput {
   category: string;
   /** 스타일 (modern, nordic 등) */
   style?: string;
+  /** 주방 레이아웃 타입 (sink 카테고리 전용) */
+  kitchenLayout?: KitchenLayoutType;
   /** 재질 코드 (PB-W01 등) */
   materialCode?: string;
   /** 추가 프롬프트 */
@@ -128,9 +151,18 @@ export interface ControlNetGenerationResult {
 function buildControlNetPrompt(input: ControlNetGenerationInput): string {
   const parts: string[] = [];
 
-  // 카테고리
+  // 카테고리 (주방 레이아웃 타입 반영)
+  const isKitchen = input.category === 'sink' || input.category === 'l_shaped_sink' || input.category === 'island_kitchen';
   const categoryPrompt = CATEGORY_PROMPTS[input.category] || `Korean ${input.category} furniture`;
   parts.push(`photorealistic ${categoryPrompt}`);
+
+  // 주방 레이아웃 타입 프롬프트 추가
+  if (isKitchen && input.kitchenLayout) {
+    const layoutPrompt = KITCHEN_LAYOUT_PROMPTS[input.kitchenLayout];
+    if (layoutPrompt) {
+      parts.push(layoutPrompt);
+    }
+  }
 
   // 스타일
   const style = input.style || 'modern';
@@ -384,14 +416,21 @@ export async function getLoraForCategory(category: string): Promise<{
 export async function generateWithAutoLora(
   input: ControlNetGenerationInput,
 ): Promise<ControlNetGenerationResult> {
-  // LoRA 자동 매칭
+  // LoRA 자동 매칭 — 주방 레이아웃에 따라 적절한 LoRA 카테고리 선택
   if (!input.loraWeights) {
-    const lora = await getLoraForCategory(input.category);
+    let loraCategory = input.category;
+
+    // 주방 레이아웃 타입에 따라 LoRA 카테고리 분기
+    if (input.category === 'sink' && input.kitchenLayout) {
+      loraCategory = KITCHEN_LAYOUT_TO_LORA_CATEGORY[input.kitchenLayout] || input.category;
+      log.info({ kitchenLayout: input.kitchenLayout, loraCategory }, 'Kitchen layout → LoRA category mapped');
+    }
+
+    const lora = await getLoraForCategory(loraCategory);
     if (lora) {
       input.loraWeights = lora.loraWeights;
-      // 프롬프트에 트리거 워드 삽입
       input.additionalPrompt = [lora.triggerWord, input.additionalPrompt].filter(Boolean).join(', ');
-      log.info({ triggerWord: lora.triggerWord }, 'Auto-matched LoRA, trigger word added to prompt');
+      log.info({ triggerWord: lora.triggerWord, loraCategory }, 'Auto-matched LoRA, trigger word added to prompt');
     }
   }
 

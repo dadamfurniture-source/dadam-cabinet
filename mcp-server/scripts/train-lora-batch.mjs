@@ -67,9 +67,17 @@ if (!trainer) {
 const TRAINER_MODEL = trainer.model;
 const TRAINER_VERSION = trainer.version;
 
+// 주방 레이아웃 세분화: sink → i_type_sink 추가 (기존 sink 데이터 재사용)
+// l_shaped_sink = ㄱ자형, peninsula_sink = 대면형, island_kitchen = 아일랜드/대면
+// u_type_sink = ㄷ자형 (향후 데이터 확보 시 추가)
 const CATEGORIES = [
   'wardrobe', 'shoe_cabinet', 'vanity', 'fridge_cabinet',
-  'l_shaped_sink', 'peninsula_sink', 'island_kitchen', 'storage_cabinet'
+  'sink',              // 1자형 (i_type) — 기본 직선형 주방
+  'l_shaped_sink',     // ㄱ자형 (l_type)
+  'peninsula_sink',    // 대면형 (peninsula)
+  'island_kitchen',    // 아일랜드형
+  'storage_cabinet',
+  // 'u_type_sink',    // ㄷ자형 — 향후 데이터 확보 후 활성화
 ];
 
 const DRY_RUN = process.argv.includes('--dry-run');
