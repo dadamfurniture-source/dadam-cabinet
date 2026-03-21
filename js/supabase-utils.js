@@ -41,9 +41,31 @@ const SupabaseUtils = {
     }
 
     this.client = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
-    const {
-      data: { session },
-    } = await this.client.auth.getSession();
+
+    // 1차: getSession으로 세션 복원 시도
+    let { data: { session } } = await this.client.auth.getSession();
+
+    // 2차: 세션이 없으면 URL hash에서 토큰 복원 시도 (OAuth 콜백)
+    if (!session && window.location.hash.includes('access_token')) {
+      // Supabase가 hash에서 자동 복원할 시간을 줌
+      await new Promise(r => setTimeout(r, 500));
+      const retry = await this.client.auth.getSession();
+      session = retry.data?.session;
+    }
+
+    // 3차: 세션은 없지만 onAuthStateChange로 비동기 복원될 수 있음
+    if (!session) {
+      session = await new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve(null), 2000);
+        const { data: { subscription } } = this.client.auth.onAuthStateChange((event, sess) => {
+          if (sess) {
+            clearTimeout(timeout);
+            subscription.unsubscribe();
+            resolve(sess);
+          }
+        });
+      });
+    }
 
     if (session) {
       this.currentUser = session.user;
