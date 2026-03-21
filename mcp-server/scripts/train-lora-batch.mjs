@@ -20,8 +20,52 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const REPLICATE_KEY = process.env.REPLICATE_API_KEY;
 const REPLICATE_OWNER = 'dadamfurniture-source';
 
-const TRAINER_MODEL = 'ostris/flux-dev-lora-trainer';
-const TRAINER_VERSION = '26dce37af90b9d997eeb970d92e47de3064d46c300504ae376c75bef6a9022d2';
+// ── 트레이너 설정: --trainer flux (기본) 또는 --trainer sdxl ──
+const TRAINER_TYPE = process.argv.find((a, i, arr) => arr[i - 1] === '--trainer') || 'sdxl';
+
+const TRAINERS = {
+  flux: {
+    model: 'ostris/flux-dev-lora-trainer',
+    version: '26dce37af90b9d997eeb970d92e47de3064d46c300504ae376c75bef6a9022d2',
+    defaultSteps: 1000,
+    buildInput: (zipUrl, triggerWord, steps) => ({
+      input_images: zipUrl,
+      trigger_word: triggerWord,
+      steps,
+      learning_rate: 0.0004,
+      resolution: '512',
+      autocaption: true,
+      batch_size: 1,
+    }),
+  },
+  sdxl: {
+    model: 'stability-ai/sdxl',
+    version: '7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc',
+    defaultSteps: 2000,
+    buildInput: (zipUrl, triggerWord, steps) => ({
+      input_images: zipUrl,
+      token_string: triggerWord,
+      caption_prefix: `a photo of ${triggerWord}, `,
+      max_train_steps: steps,
+      use_face_detection_instead: false,
+      is_lora: true,
+      unet_learning_rate: 1e-6,
+      lora_lr: 1e-4,
+      resolution: 1024,
+      train_batch_size: 4,
+      checkpointing_steps: 500,
+    }),
+  },
+};
+
+const trainer = TRAINERS[TRAINER_TYPE];
+if (!trainer) {
+  console.error(`Unknown trainer: ${TRAINER_TYPE}. Use --trainer flux or --trainer sdxl`);
+  process.exit(1);
+}
+
+const TRAINER_MODEL = trainer.model;
+const TRAINER_VERSION = trainer.version;
 
 const CATEGORIES = [
   'wardrobe', 'shoe_cabinet', 'vanity', 'fridge_cabinet',
@@ -29,7 +73,7 @@ const CATEGORIES = [
 ];
 
 const DRY_RUN = process.argv.includes('--dry-run');
-const STEPS = parseInt(process.argv.find((a, i, arr) => arr[i - 1] === '--steps') || '1000');
+const STEPS = parseInt(process.argv.find((a, i, arr) => arr[i - 1] === '--steps') || String(trainer.defaultSteps));
 
 const CHECKPOINT_PATH = resolve(__dirname, '../tmp/training-batch-checkpoint.json');
 
@@ -188,21 +232,14 @@ async function uploadZip(category, zipPath) {
 // ─── Step 4: Start training on Replicate ───
 async function startTraining(category, destination, zipUrl) {
   const triggerWord = `DADAM_${category.toUpperCase()}`;
+  const trainingInput = trainer.buildInput(zipUrl, triggerWord, STEPS);
 
   const { status, data } = await replicateApi(
     'POST',
     `/models/${TRAINER_MODEL}/versions/${TRAINER_VERSION}/trainings`,
     {
       destination,
-      input: {
-        input_images: zipUrl,
-        trigger_word: triggerWord,
-        steps: STEPS,
-        learning_rate: 0.0004,
-        resolution: '512',
-        autocaption: true,
-        batch_size: 1,
-      }
+      input: trainingInput,
     }
   );
 
@@ -210,7 +247,7 @@ async function startTraining(category, destination, zipUrl) {
     throw new Error(`Training start failed: ${status} ${JSON.stringify(data)}`);
   }
 
-  console.log(`  Training started: ${data.id} → ${destination}`);
+  console.log(`  Training started: ${data.id} → ${destination} (trainer: ${TRAINER_TYPE})`);
   return { id: data.id, triggerWord, destination };
 }
 
@@ -275,6 +312,8 @@ async function saveModel(category, trainingResult, imageCount) {
         completed_at: trainingResult.completed_at,
         predict_time: trainingResult.metrics?.predict_time,
         batch_trained: true,
+        trainer_type: TRAINER_TYPE,
+        trainer_model: TRAINER_MODEL,
       },
     }),
   });
@@ -285,12 +324,14 @@ async function saveModel(category, trainingResult, imageCount) {
 
 // ─── Main ───
 async function main() {
-  console.log('╔══════════════════════════════════════════╗');
-  console.log('║   Dadam AI - LoRA Batch Training         ║');
-  console.log('╚══════════════════════════════════════════╝');
+  console.log('╔══════════════════════════════════════════════╗');
+  console.log('║   Dadam AI - LoRA Batch Training              ║');
+  console.log('╚══════════════════════════════════════════════╝');
+  console.log(`Trainer:    ${TRAINER_TYPE} (${TRAINER_MODEL})`);
   console.log(`Categories: ${CATEGORIES.length}`);
-  console.log(`Steps: ${STEPS}`);
-  console.log(`Dry run: ${DRY_RUN}`);
+  console.log(`Steps:      ${STEPS}`);
+  console.log(`Resolution: ${TRAINER_TYPE === 'sdxl' ? '1024' : '512'}`);
+  console.log(`Dry run:    ${DRY_RUN}`);
   console.log();
 
   const checkpoint = loadCheckpoint();
