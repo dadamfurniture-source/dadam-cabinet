@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { createLogger } from '../utils/logger.js';
+import { Resvg } from '@resvg/resvg-js';
 import type {
   DrawingData,
   FrontView,
@@ -558,4 +559,157 @@ function r(n: number): string {
 
 function escXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ControlNet 라인아트 렌더링 — 흑백 구조선만 출력
+// ─────────────────────────────────────────────────────────────────
+
+const LINEART_STROKE = '#000000';
+const LINEART_BG = '#FFFFFF';
+const LINEART_PADDING = 40;
+
+export interface LineartOptions {
+  /** 출력 해상도 (기본 1024) */
+  resolution?: number;
+  /** 캐비닛 외곽선 두께 (기본 2.5) */
+  cabinetStrokeWidth?: number;
+  /** 도어 구분선 두께 (기본 1.5) */
+  doorStrokeWidth?: number;
+  /** 카운터탑 선 두께 (기본 1.5) */
+  countertopStrokeWidth?: number;
+}
+
+/**
+ * ControlNet용 라인아트 SVG 렌더링
+ * 색상/텍스트/하드웨어/치수선 모두 제거, 순수 흑백 구조선만 출력
+ */
+export function renderLineartSvg(
+  drawing: DrawingData,
+  options?: LineartOptions,
+): string {
+  const view = drawing.common.front_view;
+  const cabStroke = options?.cabinetStrokeWidth ?? 2.5;
+  const doorStroke = options?.doorStrokeWidth ?? 1.5;
+  const ctopStroke = options?.countertopStrokeWidth ?? 1.5;
+
+  // 구조 요소만으로 bounds 계산 (치수선 제외)
+  const allRects = [
+    ...view.cabinets,
+    ...view.doors,
+    ...(view.countertop ? [view.countertop] : []),
+    ...(view.molding ? [view.molding] : []),
+    ...(view.baseboard ? [view.baseboard] : []),
+  ];
+
+  const bounds = computeBounds(allRects, []);
+  const scale = 0.5;
+  const { width, height, offsetX, offsetY } = svgDimensions(
+    { ...bounds, minX: bounds.minX, minY: bounds.minY, maxX: bounds.maxX, maxY: bounds.maxY },
+    scale,
+  );
+
+  // LINEART_PADDING으로 오버라이드
+  const adjOx = LINEART_PADDING - bounds.minX * scale;
+  const adjOy = LINEART_PADDING - bounds.minY * scale;
+  const dataW = (bounds.maxX - bounds.minX) * scale;
+  const dataH = (bounds.maxY - bounds.minY) * scale;
+  const svgW = dataW + LINEART_PADDING * 2;
+  const svgH = dataH + LINEART_PADDING * 2;
+
+  const parts: string[] = [];
+
+  // 걸레받이 — 구조선만
+  if (view.baseboard) {
+    parts.push(lineartRect(view.baseboard, scale, adjOx, adjOy, svgH, cabStroke));
+  }
+
+  // 캐비닛 외곽
+  for (const cab of view.cabinets) {
+    parts.push(lineartRect(cab, scale, adjOx, adjOy, svgH, cabStroke));
+  }
+
+  // 도어/서랍 구분선
+  for (const door of view.doors) {
+    parts.push(lineartRect(door, scale, adjOx, adjOy, svgH, doorStroke));
+  }
+
+  // 카운터탑
+  if (view.countertop) {
+    parts.push(lineartRect(view.countertop, scale, adjOx, adjOy, svgH, ctopStroke));
+  }
+
+  // 몰딩
+  if (view.molding) {
+    parts.push(lineartRect(view.molding, scale, adjOx, adjOy, svgH, cabStroke * 0.8));
+  }
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${r(svgW)}" height="${r(svgH)}" viewBox="0 0 ${r(svgW)} ${r(svgH)}">`,
+    `<rect width="100%" height="100%" fill="${LINEART_BG}"/>`,
+    ...parts,
+    `</svg>`,
+  ].join('\n');
+}
+
+/** 라인아트용 사각형 — fill 없이 stroke만 */
+function lineartRect(
+  rect: Rect, scale: number, ox: number, oy: number, svgH: number,
+  strokeWidth: number,
+): string {
+  const x = rect.x * scale + ox;
+  const y = svgH - (rect.y + rect.height) * scale + oy;
+  const w = rect.width * scale;
+  const h = rect.height * scale;
+  return `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" fill="none" stroke="${LINEART_STROKE}" stroke-width="${strokeWidth}"/>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SVG → PNG 래스터라이저 (resvg-js)
+// ─────────────────────────────────────────────────────────────────
+
+export interface RasterizeOptions {
+  /** 출력 너비 (기본 1024) */
+  width?: number;
+  /** 출력 높이 (기본: 비율 유지) */
+  height?: number;
+}
+
+/**
+ * SVG 문자열을 PNG base64로 래스터라이즈
+ */
+export function rasterizeSvgToPng(svgString: string, options?: RasterizeOptions): string {
+  const targetWidth = options?.width ?? 1024;
+
+  const resvg = new Resvg(svgString, {
+    fitTo: options?.height
+      ? { mode: 'width' as const, value: targetWidth }
+      : { mode: 'width' as const, value: targetWidth },
+  });
+
+  const pngData = resvg.render();
+  const pngBuffer = pngData.asPng();
+
+  log.info({
+    inputSvgLength: svgString.length,
+    outputPngSize: pngBuffer.length,
+    width: pngData.width,
+    height: pngData.height,
+  }, 'SVG rasterized to PNG');
+
+  return Buffer.from(pngBuffer).toString('base64');
+}
+
+/**
+ * DrawingData에서 ControlNet 라인아트 PNG base64 생성
+ * (라인아트 SVG 렌더링 → PNG 래스터라이즈)
+ */
+export function renderLineartPng(
+  drawing: DrawingData,
+  options?: LineartOptions & RasterizeOptions,
+): string {
+  const svgString = renderLineartSvg(drawing, options);
+  return rasterizeSvgToPng(svgString, {
+    width: options?.resolution ?? 1024,
+  });
 }

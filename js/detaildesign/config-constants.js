@@ -379,6 +379,114 @@
           return this._renderInternal(cabinetSpecs, upperModules, lowerModules, specs, {}, true);
         },
 
+        // ─── ControlNet 라인아트 렌더링 (흑백 구조선만) ───
+        renderLineart(cabinetSpecs, upperModules, lowerModules, specs) {
+          const layout = this.computeLayout(cabinetSpecs, upperModules, lowerModules);
+
+          const canvasW = 1024;
+          const canvasH = Math.round(canvasW / layout.aspectRatio);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = canvasW;
+          canvas.height = canvasH;
+          const ctx = canvas.getContext('2d');
+
+          const pxY = (n) => Math.round(n * canvasH);
+          const pxX = (n) => Math.round(n * canvasW);
+
+          // 흰색 배경
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvasW, canvasH);
+
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2.5;
+
+          // ── 몰딩 외곽 ──
+          const moldY = pxY(layout.molding.y), moldH = pxY(layout.molding.h);
+          ctx.strokeRect(0, moldY, canvasW, moldH);
+
+          // ── 상부장 모듈 ──
+          const upperY = pxY(layout.upper.y);
+          const upperH = pxY(layout.upper.h);
+          if (layout.upper.modules.length > 0) {
+            for (const mod of layout.upper.modules) {
+              const x = pxX(mod.x), w = pxX(mod.w);
+              // 캐비닛 외곽
+              ctx.lineWidth = 2.5;
+              ctx.strokeRect(x, upperY, w, upperH);
+              // 도어 구분선
+              ctx.lineWidth = 1.5;
+              const doorCount = mod.doorCount || mod.doors || 1;
+              if (doorCount > 1) {
+                const dw = w / doorCount;
+                for (let d = 1; d < doorCount; d++) {
+                  ctx.beginPath();
+                  ctx.moveTo(x + d * dw, upperY);
+                  ctx.lineTo(x + d * dw, upperY + upperH);
+                  ctx.stroke();
+                }
+              }
+            }
+          } else {
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(0, upperY, canvasW, upperH);
+          }
+
+          // ── 상판 ──
+          const ctY = pxY(layout.countertop.y);
+          const ctH = Math.max(pxY(layout.countertop.h), 4);
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(0, ctY, canvasW, ctH);
+
+          // ── 하부장 모듈 ──
+          const lowerY = pxY(layout.lower.y);
+          const lowerH = pxY(layout.lower.h);
+          if (layout.lower.modules.length > 0) {
+            for (const mod of layout.lower.modules) {
+              const x = pxX(mod.x), w = pxX(mod.w);
+              // 캐비닛 외곽
+              ctx.lineWidth = 2.5;
+              ctx.strokeRect(x, lowerY, w, lowerH);
+              // 도어/서랍 구분선
+              ctx.lineWidth = 1.5;
+              if (mod.type === 'drawer') {
+                // 서랍 수평 구분선
+                const drawerCount = mod.drawerCount || 3;
+                const dh = lowerH / drawerCount;
+                for (let d = 1; d < drawerCount; d++) {
+                  ctx.beginPath();
+                  ctx.moveTo(x, lowerY + d * dh);
+                  ctx.lineTo(x + w, lowerY + d * dh);
+                  ctx.stroke();
+                }
+              } else {
+                const doorCount = mod.doorCount || mod.doors || 1;
+                if (doorCount > 1) {
+                  const dw = w / doorCount;
+                  for (let d = 1; d < doorCount; d++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + d * dw, lowerY);
+                    ctx.lineTo(x + d * dw, lowerY + lowerH);
+                    ctx.stroke();
+                  }
+                }
+              }
+            }
+          } else {
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(0, lowerY, canvasW, lowerH);
+          }
+
+          // ── 토킥 ──
+          const tkY = pxY(layout.toeKick.y);
+          const tkH = pxY(layout.toeKick.h);
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(0, tkY, canvasW, tkH);
+
+          const dataUrl = canvas.toDataURL('image/png');
+          return dataUrl.split(',')[1];
+        },
+
         // ─── 내부 렌더링 엔진 ───
         _renderInternal(cabinetSpecs, upperModules, lowerModules, specs, texUrls, isMask) {
           const layout = this.computeLayout(cabinetSpecs, upperModules, lowerModules);
