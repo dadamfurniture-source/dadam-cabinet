@@ -495,9 +495,14 @@
         <span>다담</span>
       </a>
       <div class="nav-menu">
-        <a href="index.html">홈</a>
-        <a href="ai-design.html">AI 설계</a>
+        <a href="#">About us</a>
+        <a href="#">Collection</a>
+        <a href="#">Products</a>
+        <a href="ai-design.html">AI Design</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display:none">Detail Design</a>
         <a href="consultation.html" class="active">상담 신청</a>
+        <a href="#">Showroom</a>
+        <a href="#">Service</a>
       </div>
       <div class="nav-icons">
         <a href="login.html" class="login-btn" id="loginLink">로그인</a>
@@ -745,6 +750,8 @@
           // 네비게이션 - 로그인 버튼 숨기고 사용자 메뉴 표시
           document.getElementById('loginLink').style.display = 'none';
           document.getElementById('userMenu').style.display = 'block';
+          const ddLink = document.getElementById('navDetailDesign');
+          if (ddLink) ddLink.style.display = '';
 
           const name = meta.name || meta.full_name || currentUser.email.split('@')[0];
           document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
