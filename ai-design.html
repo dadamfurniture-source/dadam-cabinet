@@ -15,6 +15,7 @@
     />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/nav.css">
     <style>
       * {
         margin: 0;
@@ -59,58 +60,7 @@
       }
 
       /* Navigation */
-      .nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 100;
-        padding: 0 48px;
-        height: 80px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: rgba(255, 255, 255, 0.97);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-      }
-      .nav-logo {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--charcoal);
-      }
-      .nav-logo svg {
-        width: 32px;
-        height: 32px;
-      }
-      .nav-logo span {
-        font-family: 'Playfair Display', serif;
-        font-size: 24px;
-      }
-      .nav-menu {
-        display: flex;
-        gap: 32px;
-      }
-      .nav-menu a {
-        color: var(--charcoal);
-        font-size: 14px;
-        letter-spacing: 0.5px;
-        transition: all 0.3s;
-      }
-      .nav-menu a:hover {
-        opacity: 0.7;
-      }
-      .nav-menu a.active {
-        color: var(--gold);
-        font-weight: 500;
-      }
-      .nav-icons {
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        color: var(--charcoal);
-      }
+      /* nav 스타일은 css/nav.css에서 로드 */
       .nav-icons button {
         background: none;
         border: none;
@@ -2005,7 +1955,7 @@
     </svg>
 
     <!-- Navigation -->
-    <nav class="nav">
+    <nav class="nav nav-solid">
       <a href="index.html" class="nav-logo">
         <svg viewBox="0 0 40 40" fill="currentColor">
           <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
