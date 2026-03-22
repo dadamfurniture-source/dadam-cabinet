@@ -66,7 +66,7 @@
 /* ── Menu Links ── */
 .nav-menu {
   display: flex;
-  gap: 32px;
+  gap: 4px;
 }
 .nav-menu a {
   color: #fff;
@@ -74,17 +74,28 @@
   letter-spacing: 0.5px;
   transition: all 0.3s;
   text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 20px;
 }
 .nav.nav-solid .nav-menu a,
 .nav.scrolled .nav-menu a {
   color: var(--nav-charcoal);
 }
 .nav-menu a:hover {
-  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.15);
+}
+.nav.nav-solid .nav-menu a:hover,
+.nav.scrolled .nav-menu a:hover {
+  background: var(--nav-cream);
 }
 .nav-menu a.active {
   color: var(--nav-gold);
   font-weight: 500;
+  background: rgba(184, 149, 108, 0.12);
+}
+.nav.nav-solid .nav-menu a.active,
+.nav.scrolled .nav-menu a.active {
+  background: rgba(184, 149, 108, 0.12);
 }
 
 /* ── Right Icons ── */
@@ -291,6 +302,11 @@
   background: var(--nav-cream);
   color: var(--nav-gold);
 }
+.mobile-menu a.active {
+  background: rgba(184, 149, 108, 0.12);
+  color: var(--nav-gold);
+  font-weight: 500;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    RESPONSIVE — TABLET (1024px)
@@ -301,10 +317,11 @@
     height: 72px;
   }
   .nav-menu {
-    gap: 24px;
+    gap: 2px;
   }
   .nav-menu a {
     font-size: 13px;
+    padding: 5px 10px;
   }
 }
 
