@@ -2445,8 +2445,10 @@
               document.getElementById('navUserName').textContent = name;
 
               // Expert 또는 Business 등급은 상세 설계 페이지로 이동
+              // 세션이 localStorage에 완전히 저장된 후 이동 (race condition 방지)
               if (tier === 'expert' || tier === 'business') {
-                window.location.href = 'detaildesign.html';
+                await supabaseClient.auth.getSession(); // 세션 저장 보장
+                window.location.replace('detaildesign.html');
                 return;
               }
             }

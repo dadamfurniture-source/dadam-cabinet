@@ -2173,6 +2173,13 @@
                 navAiLink.href = 'detaildesign.html';
                 navAiLink.textContent = 'Detail Design';
               }
+
+              // 페이지 내 모든 ai-design.html 링크를 detaildesign.html로 변경
+              if (tier === 'expert' || tier === 'business') {
+                document.querySelectorAll('a[href="ai-design.html"]').forEach(link => {
+                  link.href = 'detaildesign.html';
+                });
+              }
             }
           }
         } catch (e) {
