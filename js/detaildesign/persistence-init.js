@@ -919,28 +919,25 @@
       // 사용자 프로필 로드
       async function loadUserProfile() {
         // profiles 테이블에서 조회 (또는 auth.users metadata 사용)
+        const fallbackProfile = () => ({
+          id: currentUser.id,
+          email: currentUser.email,
+          tier: currentUser.user_metadata?.tier || 'standard',
+          name: currentUser.user_metadata?.name || currentUser.email.split('@')[0],
+        });
+
         try {
           const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
 
           if (!error && data) {
             userProfile = data;
           } else {
-            // profiles 테이블이 없거나 조회 실패 시 auth.users metadata 사용
-            userProfile = {
-              id: currentUser.id,
-              email: currentUser.email,
-              tier: currentUser.user_metadata?.tier || 'standard',
-              name: currentUser.user_metadata?.name || currentUser.email.split('@')[0],
-            };
+            console.warn('[Auth] profiles 조회 실패, metadata 폴백:', error?.message);
+            userProfile = fallbackProfile();
           }
         } catch (e) {
-          // 폴백: auth.users metadata 사용
-          userProfile = {
-            id: currentUser.id,
-            email: currentUser.email,
-            tier: currentUser.user_metadata?.tier || 'standard',
-            name: currentUser.user_metadata?.name || currentUser.email.split('@')[0],
-          };
+          console.warn('[Auth] profiles 조회 예외, metadata 폴백:', e.message);
+          userProfile = fallbackProfile();
         }
 
         // 인증 성공 - UI 업데이트 (등급 제한 제거 - ai-design.html에서 리디렉트 처리)
