@@ -2147,35 +2147,17 @@
               document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
               document.getElementById('userName').textContent = name;
 
-              // AI 설계 링크 업데이트 (Expert는 detaildesign으로)
+              // AI 설계 링크 — 모든 등급 ai-design.html 사용
               const aiDesignLink = document.getElementById('aiDesignLink');
-              if (tier === 'expert' || tier === 'business') {
-                aiDesignLink.href = 'detaildesign.html';
-                aiDesignLink.querySelector('svg').nextSibling.textContent = '상세 설계';
-              } else {
-                aiDesignLink.href = 'ai-design.html';
-              }
+              aiDesignLink.href = 'ai-design.html';
 
               // 모바일 메뉴 업데이트
               document.getElementById('mobileLoginLink').style.display = 'none';
               document.getElementById('mobileMypage').style.display = 'block';
               document.getElementById('mobileLogout').style.display = 'block';
 
-              // 히어로 AI 설계 버튼 (Expert는 detaildesign으로)
-              const heroBtn = document.querySelector('.hero-text .btn');
-              if (heroBtn && (tier === 'expert' || tier === 'business')) {
-                heroBtn.href = 'detaildesign.html';
-              }
-
-              // 네비게이션 AI Design 링크
-              const navAiLink = document.querySelector('.nav-menu a[href="ai-design.html"]');
-              if (navAiLink && (tier === 'expert' || tier === 'business')) {
-                navAiLink.href = 'detaildesign.html';
-                navAiLink.textContent = 'Detail Design';
-              }
-
-              // 페이지 내 모든 ai-design.html 링크를 detaildesign.html로 변경
-              if (tier === 'expert' || tier === 'business') {
+              // 페이지 내 ai-design 링크를 detaildesign으로 변경하지 않음 (제거)
+              if (false) {
                 document.querySelectorAll('a[href="ai-design.html"]').forEach(link => {
                   link.href = 'detaildesign.html';
                 });

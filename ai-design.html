@@ -2444,13 +2444,7 @@
               document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
               document.getElementById('navUserName').textContent = name;
 
-              // Expert 또는 Business 등급은 상세 설계 페이지로 이동
-              // 세션이 localStorage에 완전히 저장된 후 이동 (race condition 방지)
-              if (tier === 'expert' || tier === 'business') {
-                await supabaseClient.auth.getSession(); // 세션 저장 보장
-                window.location.replace('detaildesign.html');
-                return;
-              }
+              // Expert/Business도 AI Design 페이지 사용 (리다이렉트 제거)
             }
           }
           // 스타일 데이터 Supabase 로드
