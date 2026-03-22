@@ -1678,6 +1678,7 @@
         <a href="#" data-i18n="nav.collection">Collection</a>
         <a href="#" data-i18n="nav.products">Products</a>
         <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display:none" data-i18n="nav.detail_design">Detail Design</a>
         <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
         <a href="#" data-i18n="nav.showroom">Showroom</a>
         <a href="#" data-i18n="nav.service">Service</a>
@@ -1701,12 +1702,20 @@
                 <circle cx="12" cy="7" r="4" /></svg
               >마이페이지</a
             >
-            <a href="#" id="aiDesignLink"
+            <a href="ai-design.html" id="aiDesignLink"
               ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
                 <path d="M2 12l10 5 10-5" /></svg
               >AI 설계</a
+            >
+            <a href="detaildesign.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" /></svg
+              >상세 설계</a
             >
             <button onclick="logout()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1745,6 +1754,7 @@
       <a href="#">Collection</a>
       <a href="#">Products</a>
       <a href="ai-design.html">AI Design</a>
+      <a href="detaildesign.html" id="mobileDetailDesign" style="display:none">Detail Design</a>
       <a href="consultation.html">상담 신청</a>
       <a href="#">Showroom</a>
       <a href="#">Service</a>
@@ -2150,6 +2160,10 @@
               // AI 설계 링크 — 모든 등급 ai-design.html 사용
               const aiDesignLink = document.getElementById('aiDesignLink');
               aiDesignLink.href = 'ai-design.html';
+
+              // Detail Design 링크 표시 (로그인 시에만)
+              document.getElementById('navDetailDesign').style.display = '';
+              document.getElementById('mobileDetailDesign').style.display = '';
 
               // 모바일 메뉴 업데이트
               document.getElementById('mobileLoginLink').style.display = 'none';

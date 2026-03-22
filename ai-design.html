@@ -2015,6 +2015,7 @@
       <div class="nav-menu">
         <a href="index.html">홈</a>
         <a href="ai-design.html" class="active">AI 설계</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display:none">상세 설계</a>
         <a href="consultation.html">상담 신청</a>
       </div>
       <div class="nav-icons">
@@ -2443,6 +2444,10 @@
               const name = meta.name || meta.full_name || user.email.split('@')[0];
               document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
               document.getElementById('navUserName').textContent = name;
+
+              // Detail Design 링크 표시 (로그인 시에만)
+              const ddLink = document.getElementById('navDetailDesign');
+              if (ddLink) ddLink.style.display = '';
 
               // Expert/Business도 AI Design 페이지 사용 (리다이렉트 제거)
             }
