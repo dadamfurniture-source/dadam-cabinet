@@ -42,36 +42,44 @@ const SupabaseUtils = {
 
     this.client = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
 
-    // 1차: getSession으로 세션 복원 시도
-    let { data: { session } } = await this.client.auth.getSession();
+    // onAuthStateChange를 먼저 등록 (초기 INITIAL_SESSION 이벤트 포착)
+    let authSession = null;
+    const sessionReady = new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('[SupabaseUtils] 세션 복원 타임아웃 (3초)');
+        resolve(null);
+      }, 3000);
 
-    // 2차: 세션이 없으면 URL hash에서 토큰 복원 시도 (OAuth 콜백)
-    if (!session && window.location.hash.includes('access_token')) {
-      // Supabase가 hash에서 자동 복원할 시간을 줌
-      await new Promise(r => setTimeout(r, 500));
-      const retry = await this.client.auth.getSession();
-      session = retry.data?.session;
-    }
-
-    // 3차: 세션은 없지만 onAuthStateChange로 비동기 복원될 수 있음
-    if (!session) {
-      session = await new Promise((resolve) => {
-        const timeout = setTimeout(() => resolve(null), 2000);
-        const { data: { subscription } } = this.client.auth.onAuthStateChange((event, sess) => {
-          if (sess) {
-            clearTimeout(timeout);
-            subscription.unsubscribe();
-            resolve(sess);
-          }
-        });
+      const { data: { subscription } } = this.client.auth.onAuthStateChange((event, sess) => {
+        console.log('[SupabaseUtils] onAuthStateChange:', event, !!sess);
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          clearTimeout(timeout);
+          subscription.unsubscribe();
+          resolve(sess);
+        }
       });
+    });
+
+    authSession = await sessionReady;
+
+    // 폴백: onAuthStateChange에서 못 받았으면 getSession 시도
+    if (!authSession) {
+      console.log('[SupabaseUtils] onAuthStateChange 실패, getSession 시도');
+      const { data: { session } } = await this.client.auth.getSession();
+      authSession = session;
     }
 
-    if (session) {
-      this.currentUser = session.user;
+    if (authSession) {
+      this.currentUser = authSession.user;
+      console.log('[SupabaseUtils] 세션 복원 성공:', authSession.user.email);
+    } else {
+      console.log('[SupabaseUtils] 세션 없음 — 미로그인 상태');
+      // localStorage에 Supabase 키가 있는지 확인 (디버깅)
+      const keys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-'));
+      console.log('[SupabaseUtils] localStorage 키:', keys);
     }
 
-    return session;
+    return authSession;
   },
 
   /**
