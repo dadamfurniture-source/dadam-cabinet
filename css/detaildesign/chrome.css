@@ -55,7 +55,7 @@
         right: 0;
         z-index: 1001;
         padding: 0 48px;
-        height: 64px;
+        height: 80px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -71,20 +71,20 @@
         text-decoration: none;
       }
       .nav-logo svg {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
       }
       .nav-logo span {
         font-family: 'Playfair Display', serif;
-        font-size: 20px;
+        font-size: 24px;
       }
       .nav-menu {
         display: flex;
-        gap: 28px;
+        gap: 32px;
       }
       .nav-menu a {
         color: #2d2a26;
-        font-size: 13px;
+        font-size: 14px;
         letter-spacing: 0.5px;
         transition: all 0.3s;
         text-decoration: none;
@@ -99,7 +99,7 @@
       .nav-icons {
         display: flex;
         align-items: center;
-        gap: 20px;
+        gap: 24px;
         color: #2d2a26;
       }
       .user-menu {
@@ -231,7 +231,7 @@
       @media (max-width: 768px) {
         .nav {
           padding: 0 16px;
-          height: 56px;
+          height: 64px;
         }
         .nav-menu {
           display: none;
