@@ -464,17 +464,17 @@
       }
 
       /**
-       * 고정 doorWidth로 갭 채우기 (균등 분배 보장)
+       * 고정 doorWidth로 갭 채우기 (잔여 없이 갭 전체를 균등 분배)
        */
       function fillGapWithModulesFixed(gap, section, defaultH, defaultD, edgeMode, doorWidth) {
         const newModules = [];
         const namePrefix = section === 'upper' ? '상부장' : '하부장';
         if (gap.width < DOOR_MIN_WIDTH || !doorWidth) return newModules;
 
-        const doorCount = Math.max(1, Math.floor(gap.width / doorWidth));
+        // 갭에 들어갈 도어 수 계산 → 실제 도어폭 = 갭 / 도어수 (잔여 0)
+        const doorCount = Math.max(1, Math.round(gap.width / doorWidth));
+        const actualDoorW = Math.round(gap.width / doorCount);
         let dx = gap.start;
-        const gapEnd = gap.start + gap.width;
-        const canFit = (w) => dx + w <= gapEnd + 1;
 
         if (edgeMode !== 'none' && doorCount >= 3) {
           const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
@@ -484,39 +484,34 @@
           const center2D = Math.floor(centerDoors / 2);
           const centerMod1D = centerDoors % 2;
 
-          if (hasLeft && canFit(doorWidth)) {
-            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
-            dx += doorWidth;
+          if (hasLeft) {
+            newModules.push(createModule(section, namePrefix, actualDoorW, defaultH, defaultD, false, dx));
+            dx += actualDoorW;
           }
           for (let i = 0; i < center2D; i++) {
-            if (canFit(doorWidth * 2)) {
-              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
-              dx += doorWidth * 2;
-            } else if (canFit(doorWidth)) {
-              newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
-              dx += doorWidth;
-            }
+            newModules.push(createModule(section, namePrefix, actualDoorW * 2, defaultH, defaultD, true, dx));
+            dx += actualDoorW * 2;
           }
-          if (centerMod1D > 0 && canFit(doorWidth)) {
-            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
-            dx += doorWidth;
+          if (centerMod1D > 0) {
+            newModules.push(createModule(section, namePrefix, actualDoorW, defaultH, defaultD, false, dx));
+            dx += actualDoorW;
           }
-          if (hasRight && canFit(doorWidth)) {
-            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
-            dx += doorWidth;
+          if (hasRight) {
+            // 마지막 모듈: 갭 끝까지 정확히 채움 (반올림 오차 보정)
+            const lastW = gap.start + gap.width - dx;
+            newModules.push(createModule(section, namePrefix, lastW > 0 ? lastW : actualDoorW, defaultH, defaultD, false, dx));
           }
         } else {
           const quotient = Math.floor(doorCount / 2);
           const mod1D = doorCount % 2;
           for (let i = 0; i < quotient; i++) {
-            if (canFit(doorWidth * 2)) {
-              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
-              dx += doorWidth * 2;
-            }
+            newModules.push(createModule(section, namePrefix, actualDoorW * 2, defaultH, defaultD, true, dx));
+            dx += actualDoorW * 2;
           }
-          if (mod1D > 0 && canFit(doorWidth)) {
-            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
-            dx += doorWidth;
+          if (mod1D > 0) {
+            // 마지막 모듈: 갭 끝까지 정확히 채움
+            const lastW = gap.start + gap.width - dx;
+            newModules.push(createModule(section, namePrefix, lastW > 0 ? lastW : actualDoorW, defaultH, defaultD, false, dx));
           }
         }
 
