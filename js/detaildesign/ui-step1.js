@@ -768,10 +768,10 @@
         <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>
       </div>
     </div>
-    <div class="ws-layout">
-      <div class="spec-panel">
-        <div class="spec-group-title" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>0. 현장 실측 & Layout</span>
+    <!-- 현장 실측 & Layout — 풀 너비 패널 -->
+    <div style="background:#f8f9fa;border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:700;color:var(--primary-color);">현장 실측 & Layout</div>
           <div style="display:flex;gap:3px;">
             <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:${(item.specs.dimensionMode || 'unified') === 'unified' ? 'none;background:#b8956c;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${(item.specs.dimensionMode || 'unified') !== 'unified' ? `toggleDimensionMode(${item.uniqueId})` : ''}" ${(item.specs.dimensionMode || 'unified') === 'unified' ? 'disabled' : ''}>통합</button>
             <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:${(item.specs.dimensionMode || 'unified') === 'split' ? 'none;background:#b8956c;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${(item.specs.dimensionMode || 'unified') !== 'split' ? `toggleDimensionMode(${item.uniqueId})` : ''}" ${(item.specs.dimensionMode || 'unified') === 'split' ? 'disabled' : ''}>분리</button>
@@ -884,10 +884,13 @@
           <div class="spec-field"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" onchange="updateSpec(${item.uniqueId}, 'distributorStart', this.value)"></div>
           <div class="spec-field"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" onchange="updateSpec(${item.uniqueId}, 'distributorEnd', this.value)"></div>
         </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" onchange="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1"><label style="font-size:11px;color:#666;">환풍구 위치(mm)</label><input type="number" style="width:100%;" value="${item.specs.ventStart}" onchange="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
         </div>
-
+    </div>
+    <!-- // 현장 실측 & Layout 끝 -->
+    <div class="ws-layout">
+      <div class="spec-panel">
         <div class="spec-group-title">1. Dimensions (모듈 치수)</div>
         <div class="spec-row">
           <div class="spec-field"><label>하부장 높이</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
