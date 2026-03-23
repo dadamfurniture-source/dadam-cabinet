@@ -643,6 +643,8 @@
         }
 
         // ★ 기준상부장 (개수대 중앙 정렬, 2D) — 개수대 위에 2도어 상부장 고정 배치
+        // 기존 기준상부장이 있으면 제거 (중복 방지)
+        item.modules = item.modules.filter(m => !(m.pos === 'upper' && m.name === '기준상부장(2D)'));
         if (lowerPosMap.sink) {
           const sinkCenter = lowerPosMap.sink.centerX;
           const sinkW = lowerPosMap.sink.w;
@@ -680,7 +682,7 @@
         let otherCursor = startBound;
         upperModules.forEach((m) => {
           const mw = parseFloat(m.w) || 0;
-          if (m.isFixed && m.type !== 'hood') {
+          if (m.isFixed && m.type !== 'hood' && m.name !== '기준상부장(2D)') {
             fixedOccupied.push({ ...m, x: otherCursor, endX: otherCursor + mw, pos: 'upper' });
           }
           otherCursor += mw;
