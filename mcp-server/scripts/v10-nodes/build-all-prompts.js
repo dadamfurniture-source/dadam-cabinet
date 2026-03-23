@@ -134,7 +134,7 @@ if (isKitchen && !hasBlueprint && !hasModules) {
   if (!cabinetSpecs.door_finish_upper) cabinetSpecs.door_finish_upper = '\uBB34\uAD11';
   if (!cabinetSpecs.door_finish_lower) cabinetSpecs.door_finish_lower = '\uBB34\uAD11';
   if (!cabinetSpecs.countertop_color) cabinetSpecs.countertop_color = '\uC2A4\uB178\uC6B0';
-  if (!cabinetSpecs.handle_type) cabinetSpecs.handle_type = 'hidden (push-to-open)';
+  if (!cabinetSpecs.handle_type) cabinetSpecs.handle_type = 'lower cabinet doors can be opened by reaching behind the door';
 }
 
 // ─── Korean to English material translation ───
@@ -154,14 +154,17 @@ const upperFinish = input.styleDoorFinish ? translateFinish(input.styleDoorFinis
 const lowerColor = input.styleDoorColor ? translateColor(input.styleDoorColor) : translateColor(cabinetSpecs.door_color_lower);
 const lowerFinish = input.styleDoorFinish ? translateFinish(input.styleDoorFinish) : translateFinish(cabinetSpecs.door_finish_lower);
 const countertopColor = translateColor(cabinetSpecs.countertop_color);
-const handleType = input.styleHandlePrompt || cabinetSpecs.handle_type || 'hidden (push-to-open)';
+// Full description for detailed prompt
+const handleTypeFull = 'lower cabinet doors can be opened by reaching behind the door';
+// Short version for compressedPrompt (<300 chars)
+const handleType = 'handleless doors, open by reaching behind';
 
 let materialText = '';
 if (upperColor) materialText += 'Upper doors: ' + upperColor + ' ' + upperFinish + '\n';
 if (lowerColor) materialText += 'Lower doors: ' + lowerColor + ' ' + lowerFinish + '\n';
 if (input.styleCountertopPrompt) materialText += 'Countertop: ' + input.styleCountertopPrompt + '\n';
 else if (countertopColor) materialText += 'Countertop: ' + countertopColor + '\n';
-materialText += 'Handle: ' + handleType + '\n';
+materialText += 'Door opening: ' + handleTypeFull + '\n';
 if (input.styleMoodPrompt) materialText += 'Mood: ' + input.styleMoodPrompt + '\n';
 if (input.styleAccentPrompt) materialText += 'Accent: ' + input.styleAccentPrompt + '\n';
 if (materialDescriptions && materialDescriptions.length > 0) {
@@ -338,7 +341,7 @@ if (isKitchen) {
         '- Multiple sections with hinged or sliding doors\n' +
         '- Interior: hanging rod + shelf + drawer sections\n' +
         '- All doors CLOSED in this rendering',
-      rules: QUALITY_RULES + '- Handles aligned horizontally across all doors\n',
+      rules: QUALITY_RULES + '- All doors have no visible handles, opened by reaching behind the door\n',
       extra_prohibit: '- No glass-front doors unless specified\n'
     },
     shoe_cabinet: {
@@ -349,7 +352,7 @@ if (isKitchen) {
         '- All doors CLOSED, clean minimal door fronts',
       rules: '- Photorealistic quality with proper shadows\n' +
         '- Slim proportions \u2014 must NOT look deep/bulky\n' +
-        '- Consistent door gaps and handle alignment\n',
+        '- Consistent door gaps, no visible handles on doors\n',
       extra_prohibit: '- Cabinet depth must not exceed 400mm visual appearance\n'
     },
     fridge_cabinet: {
@@ -470,14 +473,14 @@ let compressedPrompt = '';
 const doorDesc = (upperColor || 'white') + ' ' + (upperFinish || 'matte');
 const ctDesc = input.styleCountertopPrompt || countertopColor || 'white stone';
 
-// Kitchen layout descriptions
+// Kitchen layout descriptions (SHORT — <300char prompt limit on n8n Cloud)
 const layoutDescMap = {
-  i_type: 'straight linear I-shaped',
-  l_type: 'L-shaped corner',
-  u_type: 'U-shaped three-wall',
-  peninsula: 'peninsula island facing living room',
+  i_type: 'linear',
+  l_type: 'L-shape',
+  u_type: 'U-shape',
+  peninsula: 'peninsula',
 };
-const layoutDesc = layoutDescMap[kitchenLayout] || 'straight linear';
+const layoutDesc = layoutDescMap[kitchenLayout] || '';
 
 if (isKitchen && hasBlueprint && hasModules && modules) {
   const lCompact = modules.lower.map(m => {
