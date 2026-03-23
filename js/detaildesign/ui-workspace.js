@@ -1201,6 +1201,88 @@
       }
 
       // 붙박이장 도어 표시 토글
+      // ★ 붙박이장 뷰 전환
+      function switchWardrobeView(itemUniqueId, mode) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.wardrobeViewMode = mode;
+        renderWorkspaceContent(item);
+      }
+
+      // ★ 붙박이장 Top View (위에서 내려다보기)
+      function renderWardrobeTopView(item, wardrobeModules) {
+        const W = parseFloat(item.w) || 2400;
+        const D = parseFloat(item.d) || 600;
+        const fL = item.specs.finishLeftType !== 'None' ? (parseFloat(item.specs.finishLeftWidth) || 0) : 0;
+        const fR = item.specs.finishRightType !== 'None' ? (parseFloat(item.specs.finishRightWidth) || 0) : 0;
+
+        const svgW = 620, pad = 50;
+        const scale = (svgW - pad * 2) / W;
+        const drawD = D * scale;
+        const svgH = pad + drawD + 60 + pad;
+        let svg = '';
+        const ox = pad;
+        const oy = pad;
+
+        // 라벨
+        svg += `<text x="${ox - 5}" y="${oy - 8}" font-size="11" fill="#333" font-weight="bold">붙박이장</text>`;
+        svg += `<text x="${ox + 55}" y="${oy - 8}" font-size="9" fill="#999">(깊이 ${D}mm)</text>`;
+
+        // 전체 외곽
+        svg += `<rect x="${ox}" y="${oy}" width="${W*scale}" height="${drawD}" fill="#f8f9fa" stroke="#999" stroke-width="1.5"/>`;
+
+        // 전체 치수선 — 상단
+        svg += `<line x1="${ox}" y1="${oy - 15}" x2="${ox + W*scale}" y2="${oy - 15}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${ox}" y1="${oy - 20}" x2="${ox}" y2="${oy - 10}" stroke="#666"/>`;
+        svg += `<line x1="${ox + W*scale}" y1="${oy - 20}" x2="${ox + W*scale}" y2="${oy - 10}" stroke="#666"/>`;
+        svg += `<text x="${ox + W*scale/2}" y="${oy - 22}" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">${W}mm</text>`;
+
+        // 좌측 마감
+        if (fL > 0) {
+          svg += `<rect x="${ox}" y="${oy}" width="${fL*scale}" height="${drawD}" fill="#e8e8e8" stroke="#aaa" stroke-width="1"/>`;
+          svg += `<text x="${ox + fL*scale/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="8" fill="#888">마감 ${fL}</text>`;
+        }
+
+        // 우측 마감
+        if (fR > 0) {
+          const rx = ox + (W - fR) * scale;
+          svg += `<rect x="${rx}" y="${oy}" width="${fR*scale}" height="${drawD}" fill="#e8e8e8" stroke="#aaa" stroke-width="1"/>`;
+          svg += `<text x="${rx + fR*scale/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="8" fill="#888">마감 ${fR}</text>`;
+        }
+
+        // 모듈 배치
+        let mx = ox + fL * scale;
+        for (const mod of wardrobeModules) {
+          const mw = (parseFloat(mod.w) || 600) * scale;
+          const modType = mod.moduleType || mod.type || 'short';
+          const fill = modType === 'long' ? '#e8f0fe' : modType === 'shelf' ? '#fef9e7' : '#f0f0f0';
+          const label = modType === 'long' ? '긴옷' : modType === 'shelf' ? '선반' : '짧은옷';
+
+          svg += `<rect x="${mx}" y="${oy}" width="${mw}" height="${drawD}" fill="${fill}" stroke="#666" stroke-width="1"/>`;
+          svg += `<text x="${mx + mw/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="9" fill="#333">${label}</text>`;
+
+          // 모듈 치수
+          svg += `<text x="${mx + mw/2}" y="${oy + drawD + 14}" text-anchor="middle" font-size="8" fill="#666">${mod.w || ''}mm</text>`;
+
+          mx += mw;
+        }
+
+        // 모듈별 치수선 — 하단
+        if (wardrobeModules.length > 0) {
+          mx = ox + fL * scale;
+          const dimY = oy + drawD + 22;
+          for (const mod of wardrobeModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            svg += `<line x1="${mx}" y1="${dimY}" x2="${mx + mw}" y2="${dimY}" stroke="#666" stroke-width="0.8"/>`;
+            svg += `<line x1="${mx}" y1="${dimY - 4}" x2="${mx}" y2="${dimY + 4}" stroke="#666"/>`;
+            svg += `<line x1="${mx + mw}" y1="${dimY - 4}" x2="${mx + mw}" y2="${dimY + 4}" stroke="#666"/>`;
+            mx += mw;
+          }
+        }
+
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
+      }
+
       function toggleWardrobeDoors(itemUniqueId) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;

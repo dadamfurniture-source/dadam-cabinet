@@ -552,17 +552,21 @@
         <div class="front-view-section" style="margin-bottom:12px;">
           <div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:8px;">
-              <span>📐 Front View</span>
-              <span style="font-size:11px;color:#888;font-weight:normal;">(도어 기준)</span>
+              <span>📐 ${item.specs.fridgeViewMode === 'top' ? 'Top View' : 'Front View'}</span>
+              <span style="font-size:11px;color:#888;font-weight:normal;">${item.specs.fridgeViewMode === 'top' ? '(상면도)' : '(도어 기준)'}</span>
             </div>
-            <button onclick="toggleFridgeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+            <div style="display:flex;gap:4px;">
+              <button onclick="switchFridgeView(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.fridgeViewMode !== 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
+              <button onclick="switchFridgeView(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.fridgeViewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
+              <button onclick="toggleFridgeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+            </div>
           </div>
-          <div style="text-align:center;">
+          ${item.specs.fridgeViewMode === 'top' ? renderFridgeTopView(item) : `<div style="text-align:center;">
             <svg width="${svgWidth}" height="${svgHeight + 20}" style="background:#fafafa;border-radius:8px;border:1px solid #eee;">
               <defs><marker id="arrowL" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto"><path d="M6,0 L0,3 L6,6" fill="none" stroke="#333"/></marker><marker id="arrowR" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#333"/></marker></defs>
               ${moduleSvg}
             </svg>
-          </div>
+          </div>`}
         </div>
         ${isOverflow ? `<div class="overflow-warning">⚠️ 유효공간(${effectiveW}mm)을 ${Math.abs(remaining)}mm 초과!</div>` : ''}
         <div class="module-section">
@@ -1726,5 +1730,58 @@
         utterance.lang = 'ko-KR';
         utterance.rate = 1.1;
         synth.speak(utterance);
+      }
+
+      // ★ 냉장고장 뷰 전환
+      function switchFridgeView(itemUniqueId, mode) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.fridgeViewMode = mode;
+        renderWorkspaceContent(item);
+      }
+
+      // ★ 냉장고장 Top View (위에서 내려다보기)
+      function renderFridgeTopView(item) {
+        const W = parseFloat(item.w) || 1800;
+        const D = parseFloat(item.d) || 700;
+        const modules = item.modules || [];
+
+        const svgW = 620, pad = 50;
+        const scale = (svgW - pad * 2) / W;
+        const drawD = D * scale;
+        const svgH = pad + drawD + 60 + pad;
+        let svg = '';
+        const ox = pad, oy = pad;
+
+        // 라벨
+        svg += `<text x="${ox - 5}" y="${oy - 8}" font-size="11" fill="#333" font-weight="bold">냉장고장</text>`;
+        svg += `<text x="${ox + 55}" y="${oy - 8}" font-size="9" fill="#999">(깊이 ${D}mm)</text>`;
+
+        // 외곽
+        svg += `<rect x="${ox}" y="${oy}" width="${W*scale}" height="${drawD}" fill="#f8f9fa" stroke="#999" stroke-width="1.5"/>`;
+
+        // 치수선 — 상단
+        svg += `<line x1="${ox}" y1="${oy - 15}" x2="${ox + W*scale}" y2="${oy - 15}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${ox}" y1="${oy - 20}" x2="${ox}" y2="${oy - 10}" stroke="#666"/>`;
+        svg += `<line x1="${ox + W*scale}" y1="${oy - 20}" x2="${ox + W*scale}" y2="${oy - 10}" stroke="#666"/>`;
+        svg += `<text x="${ox + W*scale/2}" y="${oy - 22}" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">${W}mm</text>`;
+
+        // 모듈 배치
+        let mx = ox;
+        for (const mod of modules) {
+          const mw = (parseFloat(mod.w) || 600) * scale;
+          const isFridge = mod.type === 'fridge';
+          const isTall = mod.type === 'tall';
+          const isHomecafe = mod.type === 'homecafe';
+          const fill = isFridge ? '#e0f2fe' : isTall ? '#fef3c7' : isHomecafe ? '#fce7f3' : '#f0f0f0';
+          const label = isFridge ? '🧊 냉장고' : isTall ? '키큰장' : isHomecafe ? '☕ 홈카페' : `${mod.w||''}`;
+
+          svg += `<rect x="${mx}" y="${oy}" width="${mw}" height="${drawD}" fill="${fill}" stroke="#666" stroke-width="1"/>`;
+          svg += `<text x="${mx + mw/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="9" fill="#333">${label}</text>`;
+          svg += `<text x="${mx + mw/2}" y="${oy + drawD + 14}" text-anchor="middle" font-size="8" fill="#666">${mod.w||''}mm</text>`;
+          mx += mw;
+        }
+
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }
 
