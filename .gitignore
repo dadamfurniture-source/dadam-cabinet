@@ -76,3 +76,4 @@ mcp-server/output-svg/
 # Cloned reference project
 dadam-cabinet/
 config/gcp-service-account.json
+mcp-server/config/gcp-service-account.json
