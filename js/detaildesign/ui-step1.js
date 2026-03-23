@@ -354,6 +354,7 @@
       <div class="item-body">
         <div class="input-section">
           ${item.categoryId === 'sink' ? `<div class="input-row"><div class="input-group"><label>실측 기준</label><select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)"><option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option><option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option></select></div></div>` : ''}
+          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">현장 실측 치수</div>
           <div class="input-row">
             <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
             <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
