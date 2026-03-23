@@ -9,7 +9,7 @@
   to   { opacity: 1; }
 }
 body {
-  animation: pageIn 0.25s ease-out;
+  animation: pageIn 0.1s ease-out;
 }
 
 :root {
