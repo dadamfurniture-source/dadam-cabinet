@@ -2102,6 +2102,27 @@
           const dx = (e.clientX - modDragStartX) / rect.width * vb.width;
           modDragRect.setAttribute('x', modOrigX + dx);
 
+          // ★ B2: 스냅 가이드라인 표시
+          let guide = modDragSvg.querySelector('#snap-guide');
+          if (!guide) {
+            guide = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            guide.id = 'snap-guide';
+            guide.setAttribute('stroke', '#3b82f6');
+            guide.setAttribute('stroke-width', '1');
+            guide.setAttribute('stroke-dasharray', '4,4');
+            guide.setAttribute('opacity', '0.8');
+            modDragSvg.appendChild(guide);
+          }
+          // 50mm 단위 스냅 위치 계산
+          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
+          const dropMm = (svgX - modDragOx) / modDragDrawW * modDragSinkW;
+          const snapMm = Math.round(dropMm / 50) * 50;
+          const snapSvgX = modDragOx + (snapMm / modDragSinkW) * modDragDrawW;
+          guide.setAttribute('x1', snapSvgX);
+          guide.setAttribute('y1', '0');
+          guide.setAttribute('x2', snapSvgX);
+          guide.setAttribute('y2', vb.height);
+
           // 영향받는 모듈 하이라이트
           const idx = calcInsertIdx(e);
           highlightAffected(idx);
@@ -2114,9 +2135,11 @@
           const savedIdx = modDragIdx;
           const savedUid = modDragUid;
 
-          // 리셋 — 하이라이트 복원
+          // 리셋 — 하이라이트 복원 + 스냅 가이드 제거
           if (modDragSvg) {
             modDragSvg.style.cursor = '';
+            const guide = modDragSvg.querySelector('#snap-guide');
+            if (guide) guide.remove();
             modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
               r.setAttribute('opacity', '1');
               r.removeAttribute('filter');
