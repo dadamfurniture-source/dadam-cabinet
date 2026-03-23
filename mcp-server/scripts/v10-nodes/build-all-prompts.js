@@ -470,18 +470,27 @@ let compressedPrompt = '';
 const doorDesc = (upperColor || 'white') + ' ' + (upperFinish || 'matte');
 const ctDesc = input.styleCountertopPrompt || countertopColor || 'white stone';
 
+// Kitchen layout descriptions
+const layoutDescMap = {
+  i_type: 'straight linear I-shaped',
+  l_type: 'L-shaped corner',
+  u_type: 'U-shaped three-wall',
+  peninsula: 'peninsula island facing living room',
+};
+const layoutDesc = layoutDescMap[kitchenLayout] || 'straight linear';
+
 if (isKitchen && hasBlueprint && hasModules && modules) {
   const lCompact = modules.lower.map(m => {
     if (m.hasSink || m.has_sink) return 'sink';
     if (m.hasCooktop || m.has_cooktop) return 'cooktop';
     return m.width_mm + '';
   }).join(', ');
-  compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' ' + layoutDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
     wallW + 'x' + wallH + 'mm wall. Sink at ' + waterPercent + '%, cooktop at ' + exhaustPercent + '%.\n' +
     modules.upper.length + ' upper flush ceiling. ' + modules.lower.length + ' lower (' + lCompact + ').\n' +
     ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Concealed hood.';
 } else if (isKitchen) {
-  compressedPrompt = 'Place ' + doorDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
+  compressedPrompt = 'Place ' + doorDesc + ' ' + layoutDesc + ' kitchen cabinets on this photo. PRESERVE background EXACTLY.\n' +
     wallW + 'x' + wallH + 'mm wall. Sink at ' + waterPercent + '%, cooktop at ' + exhaustPercent + '%.\n' +
     ctDesc + '. ' + handleType + '. ' + styleLabel + '. Photorealistic. Concealed hood.';
 } else if (category === 'wardrobe') {
