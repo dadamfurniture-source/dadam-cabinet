@@ -1813,7 +1813,7 @@
           e.stopPropagation();
         });
 
-        // 드롭 위치에서 삽입 인덱스 계산
+        // 드롭 위치에서 삽입 인덱스 계산 (드래그 모듈 제외한 filtered 기준)
         function calcInsertIdx(e) {
           const item = selectedItems.find(i => i.uniqueId === modDragUid);
           if (!item) return -1;
@@ -1822,14 +1822,16 @@
           const svgX = (e.clientX - rect.left) / rect.width * vb.width;
           const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
           const posModules = item.modules.filter(m => m.pos === modDragPos);
+          const draggedMod = item.modules[modDragIdx];
+          const filtered = posModules.filter(m => m !== draggedMod);
           const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
           let cursor = fL;
-          for (let i = 0; i < posModules.length; i++) {
-            const midX = cursor + (parseFloat(posModules[i].w) || 0) / 2;
+          for (let i = 0; i < filtered.length; i++) {
+            const midX = cursor + (parseFloat(filtered[i].w) || 0) / 2;
             if (dropMm < midX) return i;
-            cursor += parseFloat(posModules[i].w) || 0;
+            cursor += parseFloat(filtered[i].w) || 0;
           }
-          return posModules.length;
+          return filtered.length;
         }
 
         // 영향받는 모듈 하이라이트 (위치 변경 모듈 = 진하게, 나머지 = 연하게)
@@ -1838,27 +1840,44 @@
           if (!item) return;
           const posModules = item.modules.filter(m => m.pos === modDragPos);
           const draggedMod = item.modules[modDragIdx];
-          const origIdx = posModules.indexOf(draggedMod);
+          const filtered = posModules.filter(m => m !== draggedMod);
+
+          // insertIdx 위치에 삽입했을 때 영향받는 모듈 = insertIdx 이후의 모듈들 (우측으로 밀림)
+          // 또는 원래 위치보다 앞이면 = insertIdx ~ origIdx-1의 모듈들 (우측으로 밀림)
+          const origFilteredIdx = (() => {
+            // 드래그 모듈이 제거된 filtered에서의 원래 위치 근사값
+            const origPosIdx = posModules.indexOf(draggedMod);
+            let adj = 0;
+            for (let i = 0; i < origPosIdx; i++) {
+              if (posModules[i] !== draggedMod) adj++;
+            }
+            return adj;
+          })();
+
+          const affectedSet = new Set();
+          if (insertIdx !== origFilteredIdx) {
+            const lo = Math.min(insertIdx, origFilteredIdx);
+            const hi = Math.max(insertIdx, origFilteredIdx);
+            for (let i = lo; i < hi; i++) {
+              if (filtered[i]) affectedSet.add(filtered[i]);
+            }
+          }
 
           modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
-            if (r === modDragRect) return; // 드래그 중인 모듈은 별도 처리
+            if (r === modDragRect) return;
             const idx = parseInt(r.dataset.dragMod);
             const mod = item.modules[idx];
             if (!mod || mod.pos !== modDragPos) {
               r.setAttribute('opacity', '1');
               r.removeAttribute('filter');
+              r.setAttribute('stroke-width', '2');
               return;
             }
-            const posIdx = posModules.indexOf(mod);
-            const lo = Math.min(origIdx, insertIdx);
-            const hi = Math.max(origIdx, insertIdx);
-            if (origIdx !== insertIdx && posIdx >= lo && posIdx < hi) {
-              // 위치 변경되는 모듈 → 진하게 + 테두리 강조
+            if (affectedSet.has(mod)) {
               r.setAttribute('opacity', '1');
               r.setAttribute('filter', 'saturate(1.8) brightness(0.85)');
               r.setAttribute('stroke-width', '3');
             } else {
-              // 변경 없는 모듈 → 연하게
               r.setAttribute('opacity', '0.4');
               r.removeAttribute('filter');
               r.setAttribute('stroke-width', '2');
@@ -1922,7 +1941,7 @@
             return;
           }
 
-          // 드래그 했으면 → 위치 재정렬
+          // 드래그 했으면 → 위치 재정렬 (calcInsertIdx와 동일 로직)
           const item = selectedItems.find(i => i.uniqueId === modDragUid);
           if (!item || !modDragSvg) {
             modDragRect = null;
@@ -1930,28 +1949,13 @@
             return;
           }
 
-          const rect = modDragSvg.getBoundingClientRect();
-          const vb = modDragSvg.viewBox.baseVal;
-          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
-          const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
-
+          const insertIdx = calcInsertIdx(e);
           const posModules = item.modules.filter(m => m.pos === modDragPos);
           const otherModules = item.modules.filter(m => m.pos !== modDragPos);
           const draggedMod = item.modules[modDragIdx];
 
-          if (draggedMod && posModules.length > 1) {
-            const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+          if (draggedMod && posModules.length > 1 && insertIdx >= 0) {
             const filtered = posModules.filter(m => m !== draggedMod);
-            let insertIdx = filtered.length;
-            let checkCursor = fL;
-            for (let i = 0; i < filtered.length; i++) {
-              const midX = checkCursor + (parseFloat(filtered[i].w) || 0) / 2;
-              if (dropMm < midX) {
-                insertIdx = i;
-                break;
-              }
-              checkCursor += parseFloat(filtered[i].w) || 0;
-            }
             filtered.splice(insertIdx, 0, draggedMod);
             item.modules = otherModules.concat(filtered);
           }
