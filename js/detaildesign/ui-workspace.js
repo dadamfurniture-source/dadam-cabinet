@@ -1580,6 +1580,73 @@
         if (item) renderWorkspaceContent(item);
       }
 
+      // ── Front View 모듈 클릭 → 치수 편집 팝업 ──
+      function handleFrontViewClick(event, itemUniqueId) {
+        // SVG rect 또는 그 부모 g에서 data-mod-id 찾기
+        let target = event.target;
+        let modId = null;
+        for (let i = 0; i < 5 && target; i++) {
+          if (target.dataset && target.dataset.modId) {
+            modId = target.dataset.modId;
+            break;
+          }
+          if (target.dataset && target.dataset.modIndex !== undefined) {
+            modId = target.dataset.modIndex;
+            break;
+          }
+          target = target.parentElement;
+        }
+        if (modId === null) return;
+        openModulePopup(itemUniqueId, modId);
+      }
+
+      function openModulePopup(itemUniqueId, modId) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        const mod = item.modules[modId] || item.modules.find(m => m.id == modId);
+        if (!mod) return;
+
+        const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
+        const title = document.getElementById(`spec-popup-title-${itemUniqueId}`);
+        const body = document.getElementById(`spec-popup-body-${itemUniqueId}`);
+        if (!popup || !body) return;
+
+        const mId = mod.id || modId;
+        title.textContent = `${mod.name || mod.type} (${mod.pos === 'upper' ? '상부' : '하부'})`;
+
+        body.innerHTML = `
+          <div class="spec-row">
+            <div class="spec-field"><label>너비(W)</label><input type="number" value="${mod.w || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','w',this.value)"></div>
+            <div class="spec-field"><label>높이(H)</label><input type="number" value="${mod.h || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','h',this.value)"></div>
+            <div class="spec-field"><label>깊이(D)</label><input type="number" value="${mod.d || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','d',this.value)"></div>
+          </div>
+          <div class="spec-row">
+            <div class="spec-field"><label>타입</label><span style="font-size:13px;color:#333;">${mod.type || '-'}</span></div>
+            <div class="spec-field"><label>서랍</label><span style="font-size:13px;">${mod.isDrawer ? '예' : '아니오'}</span></div>
+            <div class="spec-field"><label>고정</label><span style="font-size:13px;">${mod.isFixed ? '예' : '아니오'}</span></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button onclick="removeModuleById(${itemUniqueId},'${mId}');closeSpecPopup(${itemUniqueId})" style="padding:6px 14px;font-size:12px;border:1px solid #e74c3c;border-radius:6px;background:#fff;color:#e74c3c;cursor:pointer;">삭제</button>
+          </div>
+        `;
+        popup.style.display = 'flex';
+      }
+
+      function updateModuleDim(itemUniqueId, modId, field, value) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        const mod = item.modules.find(m => m.id == modId) || item.modules[modId];
+        if (mod) {
+          mod[field] = parseFloat(value) || 0;
+        }
+      }
+
+      function removeModuleById(itemUniqueId, modId) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.modules = item.modules.filter(m => m.id != modId);
+      }
+
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;

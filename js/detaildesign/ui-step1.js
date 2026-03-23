@@ -504,9 +504,10 @@
           const icon = icons[mod.type] || '📦';
           const fillColor = mod.type === 'hood' ? '#fef3c7' : '#eff6ff';
           const strokeColor = mod.type === 'hood' ? '#f59e0b' : '#3b82f6';
-          sinkModuleSvg += `<rect x="${upperStartX}" y="${upperY}" width="${modW}" height="${upperH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2"/>
-      <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 - 8}" text-anchor="middle" font-size="11" fill="${mod.type === 'hood' ? '#b45309' : '#1d4ed8'}" font-weight="bold">${icon}</text>
-      <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 + 8}" text-anchor="middle" font-size="9" fill="#666">${mod.w}</text>`;
+          const upperModIdx = item.modules.indexOf(mod);
+          sinkModuleSvg += `<rect x="${upperStartX}" y="${upperY}" width="${modW}" height="${upperH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2" data-mod-index="${upperModIdx}" style="cursor:pointer;" />
+      <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 - 8}" text-anchor="middle" font-size="11" fill="${mod.type === 'hood' ? '#b45309' : '#1d4ed8'}" font-weight="bold" pointer-events="none">${icon}</text>
+      <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 + 8}" text-anchor="middle" font-size="9" fill="#666" pointer-events="none">${mod.w}</text>`;
           upperStartX += modW;
         });
 
@@ -573,8 +574,9 @@
             strokeColor = '#f59e0b';
           }
 
-          // 모듈 본체 (다리발 포함 높이)
-          sinkModuleSvg += `<rect x="${lowerStartX}" y="${modY}" width="${modW}" height="${modH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2"/>`;
+          // 모듈 본체 (다리발 포함 높이) — 클릭 가능
+          const lowerModIdx = item.modules.indexOf(mod);
+          sinkModuleSvg += `<rect x="${lowerStartX}" y="${modY}" width="${modW}" height="${modH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2" data-mod-index="${lowerModIdx}" style="cursor:pointer;" />`;
 
           // 다리발 구분선 (키큰장 제외)
           if (!isTall) {
@@ -628,8 +630,8 @@
           // 아이콘 & 텍스트 (도어 표시시 일반 하부장 아이콘 숨김, 키큰장/서랍장은 항상 표시)
           if (!showDoors || isTall) {
             const drawerLabel = mod.isDrawer ? ` 서랍${mod.drawerCount || 1}` : '';
-            sinkModuleSvg += `<text x="${lowerStartX + modW / 2}" y="${modY + (isTall ? modH_s : lowerH_s) / 2 - 8}" text-anchor="middle" font-size="12" fill="${strokeColor}" font-weight="bold">${mod.isDrawer ? '🗄️' : icon}</text>
-        <text x="${lowerStartX + modW / 2}" y="${modY + (isTall ? modH_s : lowerH_s) / 2 + 8}" text-anchor="middle" font-size="9" fill="#666">${mod.w}${isTall ? ' (TL)' : ''}${drawerLabel}</text>`;
+            sinkModuleSvg += `<text x="${lowerStartX + modW / 2}" y="${modY + (isTall ? modH_s : lowerH_s) / 2 - 8}" text-anchor="middle" font-size="12" fill="${strokeColor}" font-weight="bold" pointer-events="none">${mod.isDrawer ? '🗄️' : icon}</text>
+        <text x="${lowerStartX + modW / 2}" y="${modY + (isTall ? modH_s : lowerH_s) / 2 + 8}" text-anchor="middle" font-size="9" fill="#666" pointer-events="none">${mod.w}${isTall ? ' (TL)' : ''}${drawerLabel}</text>`;
           }
           lowerStartX += modW;
         });
@@ -890,97 +892,51 @@
     </div>
     <!-- // 현장 실측 & Layout 끝 -->
     <!-- ★ Front View 도면 (풀 너비, 최대 크기) -->
-    <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <!-- ★ Front View 도면 (최대 크기) -->
+    <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:20px;margin-bottom:12px;min-height:400px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:15px;font-weight:bold;color:#333;">📐 Front View</span>
-          <span style="font-size:11px;color:#888;">(전면부 도면)</span>
+          <span style="font-size:16px;font-weight:bold;color:#333;">📐 Front View</span>
+          <span style="font-size:12px;color:#888;">모듈 클릭 → 치수 편집</span>
         </div>
         <div style="display:flex;gap:6px;">
-          <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
-          <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+          <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:5px 14px;font-size:12px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
+          <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:5px 14px;font-size:12px;">🚪 도어</button>
         </div>
       </div>
-      <div style="width:100%;overflow-x:auto;">
+      <div style="width:100%;overflow-x:auto;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
         ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
       </div>
     </div>
 
-    <!-- ★ 세부 설정 버튼 바 (클릭 → 팝업) -->
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-      <button onclick="openSpecPopup(${item.uniqueId}, 'dimensions')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">📏 모듈 치수</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'hardware')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">🔧 Hardware</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'colors')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">🎨 도어 색상</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'countertop')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">🪨 상판</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">✂️ 마감</button>
+    <!-- ★ 자동계산 + 세부 설정 버튼 바 -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;">
+      <div style="display:flex;gap:4px;margin-right:8px;">
+        ${item.categoryId === 'sink' ? `
+        <span style="font-size:11px;color:#888;margin-right:4px;">필수장:</span>
+        <span class="essential-toggle ${item.specs.essentialLower?.sink !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','sink')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🚰 개수대</span>
+        <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🔥 가스대</span>
+        ` : ''}
+      </div>
+      <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
+      <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
+      <span style="font-size:11px;color:#888;margin-left:4px;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
+      <div style="flex:1;"></div>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'dimensions')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">📏 치수</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'hardware')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">🔧 HW</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'colors')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">🎨 색상</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'countertop')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">🪨 상판</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">✂️ 마감</button>
     </div>
 
-    <!-- ★ 팝업 모달 (각 섹션) -->
-    <div id="spec-popup-${item.uniqueId}" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:2000;display:none;align-items:center;justify-content:center;" onclick="if(event.target===this)closeSpecPopup(${item.uniqueId})">
+    <!-- ★ 팝업 모달 (세부 설정 + 모듈 편집) -->
+    <div id="spec-popup-${item.uniqueId}" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeSpecPopup(${item.uniqueId})">
       <div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <div id="spec-popup-title-${item.uniqueId}" style="font-size:16px;font-weight:700;color:#333;"></div>
           <button onclick="closeSpecPopup(${item.uniqueId})" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">×</button>
         </div>
         <div id="spec-popup-body-${item.uniqueId}" class="spec-panel" style="background:none;border:none;padding:0;max-height:none;overflow:visible;"></div>
-      </div>
-    </div>
-
-    <!-- ★ 모듈 리스트 (풀 너비) -->
-    <div class="ws-layout" style="grid-template-columns:1fr;">
-      <div class="module-panel">
-
-        <div class="module-section">
-          <div class="module-section-header upper">
-            <div class="section-title-row"><span>⬆️ 상부장 모듈</span></div>
-            <div class="section-info-row">
-              <div class="effective-space-group">
-                <label>유효공간:</label>
-                <input type="number" class="effective-space-input" value="${upperEffDisplay}" onblur="onEffectiveSpaceBlur(${item.uniqueId}, 'upper', this)"><span>mm</span>
-              </div>
-              <span class="section-remaining" style="color:${getRemainColor(upperRemaining)}">잔여: ${Math.round(upperRemaining)}mm</span>
-              <div class="section-buttons">
-                <button class="btn-section-undo" onclick="undoAutoCalc(${item.uniqueId}, 'upper')" ${item.prevUpperModules ? '' : 'disabled'}>↩ 되돌리기</button>
-                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'upper')" title="상부장 자동계산">⚡</button>
-              </div>
-            </div>
-            ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
-              <span class="essential-label">필수장:</span>
-              <span class="essential-toggle ${item.specs.essentialUpper?.hood !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'upper','hood')">🌀 후드장</span>
-            </div>` : ''}
-          </div>
-          <div class="module-list ${upperModules.length === 0 ? 'empty-list' : ''}">${upperModulesHtml}</div>
-        </div>
-
-        <div class="module-section">
-          <div class="module-section-header lower">
-            <div class="section-title-row"><span>⬇️ 하부장 모듈</span><span style="font-size:10px;color:#888;">(키큰장 포함)</span></div>
-            <div class="section-info-row">
-              <div class="effective-space-group">
-                <label>유효공간:</label>
-                <input type="number" class="effective-space-input" value="${lowerEffDisplay}" onblur="onEffectiveSpaceBlur(${item.uniqueId}, 'lower', this)"><span>mm</span>
-              </div>
-              <span class="section-remaining" style="color:${getRemainColor(lowerRemaining)}">잔여: ${Math.round(lowerRemaining)}mm</span>
-              <div class="section-buttons">
-                <button class="btn-section-undo" onclick="undoAutoCalc(${item.uniqueId}, 'lower')" ${item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
-                <button class="btn-section-auto" onclick="runAutoCalcSection(${item.uniqueId}, 'lower')" title="하부장 자동계산">⚡</button>
-              </div>
-            </div>
-            ${item.categoryId === 'sink' ? `<div class="essential-modules-row">
-              <span class="essential-label">필수장:</span>
-              <span class="essential-toggle ${item.specs.essentialLower?.sink !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','sink')">🚰 개수대</span>
-              <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')">🔥 가스대</span>
-              <span class="essential-toggle ${item.specs.essentialLower?.lt !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','lt')">🔧 LT망장</span>
-            </div>` : ''}
-          </div>
-          <div class="module-list ${lowerModules.length === 0 ? 'empty-list' : ''}">${lowerModulesHtml}</div>
-        </div>
-        
-        <div class="module-btn-group">
-          <button class="btn-add-split btn-add-upper" onclick="addStorageModule(${item.uniqueId}, 'upper')">+ 상부장</button>
-          <button class="btn-add-split btn-add-lower" onclick="addStorageModule(${item.uniqueId}, 'lower')">+ 하부장</button>
-          <button class="btn-add-split btn-add-tall" onclick="addTallModule(${item.uniqueId})">+ 키큰장(TL)</button>
-        </div>
       </div>
     </div>
   `;
