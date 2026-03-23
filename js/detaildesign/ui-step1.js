@@ -313,12 +313,12 @@
       </div>
       <div class="item-body">
         <div class="input-section">
+          ${sinkInputs}
           <div class="input-row">
             <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
             <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
             <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || item.defaultD || ''}" oninput="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
           </div>
-          ${sinkInputs}
           ${wardrobeInputs}
           ${fridgeInputs}
         </div>
