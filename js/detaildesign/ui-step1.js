@@ -703,7 +703,7 @@
         }
 
         const sinkFrontViewSvg = `
-    <svg width="${svgWidth}" height="${svgHeight}" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
+    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
       <!-- 치수선 - 상단 -->
       <line x1="${offsetX}" y1="${offsetY - 15}" x2="${offsetX + drawW}" y2="${offsetY - 15}" stroke="#666" stroke-width="1"/>
       <line x1="${offsetX}" y1="${offsetY - 20}" x2="${offsetX}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
@@ -890,46 +890,44 @@
           <div style="flex:1"><label style="font-size:11px;color:#666;">환풍구 위치(mm)</label><input type="number" style="width:100%;" value="${item.specs.ventStart}" onchange="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
         </div>
     </div>
-    <!-- // 현장 실측 & Layout 끝 -->
-    <!-- ★ Front View 도면 (풀 너비, 최대 크기) -->
-    <!-- ★ Front View 도면 (최대 크기) -->
-    <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:20px;margin-bottom:12px;min-height:400px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+
+    <!-- ★ 자동계산 바 (Layout 바로 아래) -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 12px;background:#faf8f5;border:1px solid #e8e0d8;border-radius:6px;">
+      ${item.categoryId === 'sink' ? `
+      <span style="font-size:11px;color:#888;">필수장:</span>
+      <span class="essential-toggle ${item.specs.essentialLower?.sink !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','sink')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🚰 개수대</span>
+      <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🔥 가스대</span>
+      <span style="width:1px;height:16px;background:#ddd;margin:0 4px;"></span>
+      ` : ''}
+      <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
+      <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
+      <span style="font-size:11px;color:#888;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
+      <div style="flex:1;"></div>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'dimensions')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">📏 치수</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'hardware')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">🔧 HW</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'colors')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">🎨 색상</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'countertop')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">🪨 상판</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">✂️ 마감</button>
+    </div>
+
+    <!-- ★ Front View 도면 (워크스페이스 꽉 채움) -->
+    <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:12px;flex:1;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:16px;font-weight:bold;color:#333;">📐 Front View</span>
-          <span style="font-size:12px;color:#888;">모듈 클릭 → 치수 편집</span>
+          <span style="font-size:14px;font-weight:bold;color:#333;">📐 Front View</span>
+          <span style="font-size:11px;color:#aaa;">모듈 클릭 → 편집</span>
         </div>
         <div style="display:flex;gap:6px;">
-          <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:5px 14px;font-size:12px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
-          <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:5px 14px;font-size:12px;">🚪 도어</button>
+          <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
+          <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
         </div>
       </div>
-      <div style="width:100%;overflow-x:auto;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
+      <div style="flex:1;width:100%;overflow:auto;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
         ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
       </div>
     </div>
 
-    <!-- ★ 자동계산 + 세부 설정 버튼 바 -->
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;">
-      <div style="display:flex;gap:4px;margin-right:8px;">
-        ${item.categoryId === 'sink' ? `
-        <span style="font-size:11px;color:#888;margin-right:4px;">필수장:</span>
-        <span class="essential-toggle ${item.specs.essentialLower?.sink !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','sink')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🚰 개수대</span>
-        <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🔥 가스대</span>
-        ` : ''}
-      </div>
-      <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
-      <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
-      <span style="font-size:11px;color:#888;margin-left:4px;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
-      <div style="flex:1;"></div>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'dimensions')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">📏 치수</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'hardware')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">🔧 HW</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'colors')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">🎨 색상</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'countertop')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">🪨 상판</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:5px 12px;font-size:11px;border:1px solid #e0d6cc;border-radius:5px;background:#fff;cursor:pointer;color:#555;">✂️ 마감</button>
-    </div>
-
-    <!-- ★ 팝업 모달 (세부 설정 + 모듈 편집) -->
+    <!-- ★ 팝업 모달 -->
     <div id="spec-popup-${item.uniqueId}" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeSpecPopup(${item.uniqueId})">
       <div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -1245,6 +1243,6 @@
         const [dm, dmy] = proj(W + 20, 0, D / 2);
         svg += `<text x="${dm + 5}" y="${dmy - 8}" text-anchor="start" font-size="10" fill="#333" font-weight="bold">${D}mm</text>`;
 
-        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="max-width:${svgW}px;background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }
 
