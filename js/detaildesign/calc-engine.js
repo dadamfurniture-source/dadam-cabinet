@@ -642,7 +642,40 @@
           console.log(`[AutoCalc] 후드장: 환풍구=${ventPos}mm, 후드X=${hoodX}`);
         }
 
-        // 기타 고정 모듈 (후드 제외)
+        // ★ 기준상부장 (개수대 중앙 정렬, 2D) — 개수대 위에 2도어 상부장 고정 배치
+        if (lowerPosMap.sink) {
+          const sinkCenter = lowerPosMap.sink.centerX;
+          const sinkW = lowerPosMap.sink.w;
+          // 기준상부장 너비 = 개수대 너비 (2D 모듈)
+          const refUpperW = sinkW;
+          let refUpperX = sinkCenter - refUpperW / 2;
+          refUpperX = Math.max(startBound, Math.min(endBound - refUpperW, refUpperX));
+
+          // 후드장과 겹치지 않는지 확인
+          const hoodEntry = fixedOccupied.find(f => f.type === 'hood');
+          const overlapsHood = hoodEntry && refUpperX < hoodEntry.endX && (refUpperX + refUpperW) > hoodEntry.x;
+
+          if (!overlapsHood) {
+            fixedOccupied.push({
+              id: Date.now() + Math.random(),
+              type: 'storage',
+              name: '기준상부장(2D)',
+              pos: 'upper',
+              w: refUpperW,
+              h: upperBodyH,
+              d: 295,
+              isFixed: true,
+              is2door: true,
+              x: refUpperX,
+              endX: refUpperX + refUpperW,
+            });
+            console.log(`[AutoCalc] 기준상부장(2D): 개수대중앙=${sinkCenter}, X=${refUpperX}, W=${refUpperW}`);
+          } else {
+            console.log(`[AutoCalc] 기준상부장(2D): 후드장과 겹침 → 생략`);
+          }
+        }
+
+        // 기타 고정 모듈 (후드, 기준상부장 제외)
         const upperModules = item.modules.filter((m) => m.pos === 'upper');
         let otherCursor = startBound;
         upperModules.forEach((m) => {
