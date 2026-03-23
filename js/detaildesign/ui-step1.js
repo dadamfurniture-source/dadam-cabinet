@@ -136,7 +136,6 @@
             const sw = item.specs[prefix + 'SecondaryW'] || '';
             const sh = item.specs[prefix + 'SecondaryH'] || '';
             const sd = item.specs[prefix + 'SecondaryD'] || defaultD || '';
-            const eb = item.specs[prefix + 'SecondaryEdgeBand4Side'];
             return `
         <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
           <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">Secondary Line</div>
@@ -145,9 +144,6 @@
             <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${sh}" oninput="updateSpec(${uid}, '${prefix}SecondaryH', this.value)"></div>
             <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${sd}" oninput="updateSpec(${uid}, '${prefix}SecondaryD', this.value)"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:4px;">
-            <input type="checkbox" ${eb ? 'checked' : ''} onchange="updateSpec(${uid}, '${prefix}SecondaryEdgeBand4Side', this.checked)"> 4면지 적용
-          </label>
         </div>`;
           };
 

@@ -1454,11 +1454,9 @@
           item.specs.lowerSecondaryW = '';
           item.specs.lowerSecondaryH = '';
           item.specs.lowerSecondaryD = '';
-          item.specs.lowerSecondaryEdgeBand4Side = false;
           item.specs.lowerTertiaryW = '';
           item.specs.lowerTertiaryH = '';
           item.specs.lowerTertiaryD = '';
-          item.specs.lowerTertiaryEdgeBand4Side = false;
         }
         // 통합 모드: 상부장도 동일 구조로 동기화
         if (item.specs.dimensionMode === 'unified') {
@@ -1480,7 +1478,6 @@
           item.specs.upperSecondaryW = '';
           item.specs.upperSecondaryH = '';
           item.specs.upperSecondaryD = '';
-          item.specs.upperSecondaryEdgeBand4Side = false;
         }
         updateUI();
         renderWorkspaceContent(item);

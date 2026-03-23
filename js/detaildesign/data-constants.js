@@ -80,11 +80,9 @@
         lowerSecondaryW: '',
         lowerSecondaryH: '',
         lowerSecondaryD: '',
-        lowerSecondaryEdgeBand4Side: false,
         lowerTertiaryW: '',
         lowerTertiaryH: '',
         lowerTertiaryD: '',
-        lowerTertiaryEdgeBand4Side: false,
         // ── 상부장 구조 (분리 모드에서 독립)
         upperLayoutShape: 'I',          // I / L / U
         upperPrimeW: '',                // 분리 모드 상부장 가로
@@ -92,7 +90,6 @@
         upperSecondaryW: '',
         upperSecondaryH: '',
         upperSecondaryD: '',
-        upperSecondaryEdgeBand4Side: false,
       };
 
       // ★ 냉장고장 규칙 상수 (업데이트)
