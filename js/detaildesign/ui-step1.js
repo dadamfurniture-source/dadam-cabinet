@@ -702,38 +702,49 @@
           }
         }
 
-        // 분배기/환풍구 위치 마커 (도면 내부)
+        // 분배기/환풍구 위치 마커 (도면 내부 그림)
         const distStart = parseFloat(item.specs.distributorStart) || 0;
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         const ventPos = parseFloat(item.specs.ventStart) || 0;
         let utilityMarkers = '';
 
-        // 분배기 — 하부장 내부 하단 (급수 배관 아이콘)
-        if (distStart > 0 || distEnd > 0) {
-          const dsx = offsetX + distStart * scale;
-          const dex = offsetX + distEnd * scale;
-          const pipeY = lowerY + lowerH_s - 14;
-          const pipeCx = (dsx + dex) / 2;
-          // 배관 라인
+        // 분배기 — 하부장 내부 하단 (급수 배관 그림, 클릭으로 위치 편집)
+        {
+          const pipeY = lowerY + lowerH_s - 18;
+          if (distStart > 0 || distEnd > 0) {
+            const dsx = offsetX + distStart * scale;
+            const dex = offsetX + distEnd * scale;
+            // 급수 배관 그림
+            utilityMarkers += `
+              <line x1="${dsx}" y1="${pipeY + 10}" x2="${dex}" y2="${pipeY + 10}" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+              <circle cx="${dsx}" cy="${pipeY + 10}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>
+              <circle cx="${dex}" cy="${pipeY + 10}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>
+              <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
+              <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
+              <text x="${(dsx + dex) / 2}" y="${pipeY - 1}" text-anchor="middle" font-size="8" fill="#2563eb" font-weight="bold">${distStart}~${distEnd}mm</text>`;
+          }
+          // 항상 클릭 영역 (위치 편집)
           utilityMarkers += `
-            <line x1="${dsx}" y1="${pipeY + 5}" x2="${dex}" y2="${pipeY + 5}" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
-            <circle cx="${dsx}" cy="${pipeY + 5}" r="4" fill="#3b82f6" opacity="0.8"/>
-            <circle cx="${dex}" cy="${pipeY + 5}" r="4" fill="#3b82f6" opacity="0.8"/>
-            <line x1="${dsx}" y1="${pipeY - 4}" x2="${dsx}" y2="${pipeY + 5}" stroke="#3b82f6" stroke-width="1.5" opacity="0.5"/>
-            <line x1="${dex}" y1="${pipeY - 4}" x2="${dex}" y2="${pipeY + 5}" stroke="#3b82f6" stroke-width="1.5" opacity="0.5"/>
-            <text x="${pipeCx}" y="${pipeY - 2}" text-anchor="middle" font-size="7" fill="#3b82f6" font-weight="bold">💧 ${distStart}~${distEnd}</text>`;
+            <rect x="${offsetX}" y="${pipeY - 6}" width="${drawW}" height="22" fill="transparent" style="cursor:pointer;" data-utility="distributor" onclick="openUtilityPopup(${item.uniqueId}, 'distributor')"/>`;
         }
 
-        // 환풍구 — 상부장 내부 상단 (덕트 아이콘)
-        if (ventPos > 0) {
-          const vx = offsetX + ventPos * scale;
-          const ductY = upperY + 4;
+        // 환풍구 — 상부장 내부 상단 (배기 덕트 그림, 클릭으로 위치 편집)
+        {
+          const ductY = upperY + 3;
+          if (ventPos > 0) {
+            const vx = offsetX + ventPos * scale;
+            // 덕트 그릴 그림
+            utilityMarkers += `
+              <rect x="${vx - 14}" y="${ductY}" width="28" height="16" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" rx="3"/>
+              <line x1="${vx - 8}" y1="${ductY + 3}" x2="${vx - 8}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
+              <line x1="${vx - 3}" y1="${ductY + 3}" x2="${vx - 3}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
+              <line x1="${vx + 2}" y1="${ductY + 3}" x2="${vx + 2}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
+              <line x1="${vx + 7}" y1="${ductY + 3}" x2="${vx + 7}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
+              <text x="${vx}" y="${ductY + 26}" text-anchor="middle" font-size="8" fill="#dc2626" font-weight="bold">${ventPos}mm</text>`;
+          }
+          // 항상 클릭 영역 (위치 편집)
           utilityMarkers += `
-            <rect x="${vx - 12}" y="${ductY}" width="24" height="14" fill="none" stroke="#ef4444" stroke-width="1.5" rx="3" opacity="0.7"/>
-            <line x1="${vx - 6}" y1="${ductY + 3}" x2="${vx - 6}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
-            <line x1="${vx}" y1="${ductY + 3}" x2="${vx}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
-            <line x1="${vx + 6}" y1="${ductY + 3}" x2="${vx + 6}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
-            <text x="${vx}" y="${ductY + 22}" text-anchor="middle" font-size="7" fill="#ef4444" font-weight="bold">🌀 ${ventPos}</text>`;
+            <rect x="${offsetX}" y="${ductY - 2}" width="${drawW}" height="24" fill="transparent" style="cursor:pointer;" data-utility="vent" onclick="openUtilityPopup(${item.uniqueId}, 'vent')"/>`;
         }
 
         const sinkFrontViewSvg = `
@@ -985,21 +996,8 @@
         <div style="flex:1;width:100%;overflow:auto;position:relative;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
           ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
         </div>
-        <!-- 분배기/환풍구 슬라이더 (도면 내 마커와 연동) -->
-        <div style="padding:6px 8px 0;margin-top:4px;">
-          <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;">
-            <span style="font-size:9px;color:#3b82f6;font-weight:600;min-width:32px;">분배기</span>
-            <input type="range" min="0" max="${item.w || 3000}" step="10" value="${item.specs.distributorStart || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorStart', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))" style="flex:1;accent-color:#3b82f6;height:14px;">
-            <span style="font-size:9px;color:#888;min-width:30px;">${item.specs.distributorStart || 0}</span>
-            <span style="font-size:8px;color:#ccc;">~</span>
-            <input type="range" min="0" max="${item.w || 3000}" step="10" value="${item.specs.distributorEnd || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorEnd', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))" style="flex:1;accent-color:#3b82f6;height:14px;">
-            <span style="font-size:9px;color:#888;min-width:30px;">${item.specs.distributorEnd || 0}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <span style="font-size:9px;color:#ef4444;font-weight:600;min-width:32px;">환풍구</span>
-            <input type="range" min="0" max="${item.w || 3000}" step="10" value="${item.specs.ventStart || 0}" oninput="updateSpec(${item.uniqueId}, 'ventStart', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))" style="flex:1;accent-color:#ef4444;height:14px;">
-            <span style="font-size:9px;color:#888;min-width:30px;">${item.specs.ventStart || 0}</span>
-          </div>
+        <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
+        <div style="display:none;">
         </div>
       </div>
     </div>

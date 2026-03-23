@@ -1641,6 +1641,34 @@
         }
       }
 
+      // ── 분배기/환풍구 위치 편집 팝업 ──
+      function openUtilityPopup(itemUniqueId, type) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
+        const title = document.getElementById(`spec-popup-title-${itemUniqueId}`);
+        const body = document.getElementById(`spec-popup-body-${itemUniqueId}`);
+        if (!popup || !body) return;
+
+        if (type === 'distributor') {
+          title.textContent = '💧 분배기 위치';
+          body.innerHTML = `
+            <div class="spec-row">
+              <div class="spec-field"><label>시작 위치(mm)</label><input type="number" value="${item.specs.distributorStart || 0}" onchange="updateSpec(${itemUniqueId}, 'distributorStart', this.value)"></div>
+              <div class="spec-field"><label>끝 위치(mm)</label><input type="number" value="${item.specs.distributorEnd || 0}" onchange="updateSpec(${itemUniqueId}, 'distributorEnd', this.value)"></div>
+            </div>
+            <div style="font-size:11px;color:#888;margin-top:8px;">실측 기준(${item.specs.measurementBase === 'Left' ? '좌측' : '우측'})에서의 거리</div>`;
+        } else {
+          title.textContent = '🌀 환풍구 위치';
+          body.innerHTML = `
+            <div class="spec-row">
+              <div class="spec-field"><label>위치(mm)</label><input type="number" value="${item.specs.ventStart || 0}" onchange="updateSpec(${itemUniqueId}, 'ventStart', this.value)"></div>
+            </div>
+            <div style="font-size:11px;color:#888;margin-top:8px;">실측 기준(${item.specs.measurementBase === 'Left' ? '좌측' : '우측'})에서의 거리</div>`;
+        }
+        popup.style.display = 'flex';
+      }
+
       function removeModuleById(itemUniqueId, modId) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
