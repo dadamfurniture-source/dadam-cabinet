@@ -1632,15 +1632,6 @@
         popup.style.display = 'flex';
       }
 
-      function updateModuleDim(itemUniqueId, modId, field, value) {
-        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
-        if (!item) return;
-        const mod = item.modules.find(m => m.id == modId) || item.modules[modId];
-        if (mod) {
-          mod[field] = parseFloat(value) || 0;
-        }
-      }
-
       // ── 분배기/환풍구 위치 편집 팝업 ──
       function openUtilityPopup(itemUniqueId, type) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
@@ -1873,7 +1864,7 @@
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;
 
-        const mod = item.modules.find((m) => m.id === moduleId);
+        const mod = item.modules.find((m) => m.id == moduleId);
         if (!mod) return;
 
         mod[dim] = parseFloat(value) || 0;

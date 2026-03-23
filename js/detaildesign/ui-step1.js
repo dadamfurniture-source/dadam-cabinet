@@ -1230,7 +1230,7 @@
           const doorColorL = getDoorColor(item.specs.doorColorLower || '화이트');
           const doorT = 3; // 도어 두께 3mm
           const dGap = 3; // 도어 간 간격 3mm
-          const upperOverlap = parseFloat(item.specs.doorOverlapUpper) || 15;
+          const upperOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
 
           // 상부장 도어
           let udx = finishL;
