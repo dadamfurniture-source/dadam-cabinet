@@ -1424,13 +1424,17 @@
         const upperD = Math.round(D * 0.55);
         const topT = 30;
         const finishL = item.specs.finishLeftType !== 'None' ? (parseFloat(item.specs.finishLeftWidth) || 0) : 0;
+        const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+        const secW = parseFloat(item.specs.lowerSecondaryW) || 0;
 
         const svgW = 650, sectionGap = 40, pad = 50, innerPad = 15;
         const scale = (svgW - pad * 2) / W;
         const upperDrawD = upperD * scale, lowerDrawD = D * scale, topDrawT = topT * scale;
-        const dimOff = 20; // 치수선 오프셋
+        const dimOff = 20;
 
-        const svgH = pad + upperDrawD + dimOff + 20 + sectionGap + lowerDrawD + topDrawT + dimOff + 40 + pad;
+        // ㄱ자형/ㄷ자형이면 세컨더리 라인 영역 추가
+        const secH = (lShape !== 'I' && secW > 0) ? (secW * scale + 60) : 0;
+        const svgH = pad + upperDrawD + dimOff + 20 + sectionGap + lowerDrawD + topDrawT + dimOff + 40 + secH + pad;
         let svg = '';
         const ox = pad;
 
@@ -1548,6 +1552,46 @@
         svg += `<line x1="${gX}" y1="${ly+lowerDrawD}" x2="${gX}" y2="${markerY - 6}" stroke="#ff9800" stroke-width="1" stroke-dasharray="3"/>`;
         svg += `<circle cx="${gX}" cy="${markerY}" r="4" fill="#ff9800"/>`;
         svg += `<text x="${gX}" y="${markerY + 14}" text-anchor="middle" font-size="8" fill="#e65100">가스 ${item.specs.gasPosition||70}%</text>`;
+
+        // ═══ 세컨더리 라인 (ㄱ자/ㄷ자형) ═══
+        if (lShape !== 'I' && secW > 0) {
+          const secStartY = markerY + 30;
+          const secDrawW = secW * scale;
+          const secD = parseFloat(item.specs.lowerSecondaryD) || D;
+          const secDrawD = secD * scale;
+          const isRefLeft = item.specs.measurementBase === 'Left';
+
+          // Secondary 라벨
+          svg += `<text x="${ox - 5}" y="${secStartY}" font-size="11" fill="#b8956c" font-weight="bold">Secondary Line</text>`;
+          svg += `<text x="${ox + 100}" y="${secStartY}" font-size="9" fill="#999">(${lShape === 'L' ? 'ㄱ자' : 'ㄷ자'} W${secW}mm)</text>`;
+
+          const secY = secStartY + 10;
+
+          // L자 연결선 (프라임↔세컨더리 연결)
+          const connX = isRefLeft ? ox + W * scale : ox;
+          svg += `<line x1="${connX}" y1="${ly}" x2="${connX}" y2="${secY + secDrawD}" stroke="#b8956c" stroke-width="2" stroke-dasharray="6,3"/>`;
+
+          // 세컨더리 하부장 외곽 (90도 회전 — 수직 배치)
+          const secOx = isRefLeft ? ox + W * scale - secDrawD : ox;
+          svg += `<rect x="${secOx}" y="${secY}" width="${secDrawD}" height="${secDrawW}" fill="#faf8f5" stroke="#b8956c" stroke-width="1.5" rx="1"/>`;
+
+          // 세컨더리 상판
+          svg += `<rect x="${secOx - topDrawT}" y="${secY - topDrawT}" width="${secDrawD + topDrawT*2}" height="${secDrawW + topDrawT*2}" fill="none" stroke="#ccc" stroke-width="1" stroke-dasharray="4,2" rx="1"/>`;
+
+          // 세컨더리 치수선 — 세로 (W)
+          const secDimX = isRefLeft ? secOx + secDrawD + 10 : secOx - 10;
+          svg += `<line x1="${secDimX}" y1="${secY}" x2="${secDimX}" y2="${secY + secDrawW}" stroke="#b8956c" stroke-width="0.8"/>`;
+          svg += `<line x1="${secDimX - 4}" y1="${secY}" x2="${secDimX + 4}" y2="${secY}" stroke="#b8956c"/>`;
+          svg += `<line x1="${secDimX - 4}" y1="${secY + secDrawW}" x2="${secDimX + 4}" y2="${secY + secDrawW}" stroke="#b8956c"/>`;
+          svg += `<text x="${secDimX + (isRefLeft ? 8 : -8)}" y="${secY + secDrawW/2 + 3}" text-anchor="${isRefLeft ? 'start' : 'end'}" font-size="9" fill="#b8956c" font-weight="600">${secW}mm</text>`;
+
+          // 세컨더리 치수선 — 가로 (D)
+          svg += `<line x1="${secOx}" y1="${secY + secDrawW + 10}" x2="${secOx + secDrawD}" y2="${secY + secDrawW + 10}" stroke="#666" stroke-width="0.8"/>`;
+          svg += `<text x="${secOx + secDrawD/2}" y="${secY + secDrawW + 22}" text-anchor="middle" font-size="9" fill="#666">${secD}mm</text>`;
+
+          // L자형 코너 표시
+          svg += `<rect x="${connX - 3}" y="${ly - 3}" width="6" height="6" fill="#b8956c" rx="1"/>`;
+        }
 
         return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }
