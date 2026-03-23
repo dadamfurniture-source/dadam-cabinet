@@ -528,7 +528,7 @@
           const fillColor = mod.type === 'hood' ? '#fef3c7' : '#eff6ff';
           const strokeColor = mod.type === 'hood' ? '#f59e0b' : '#3b82f6';
           const upperModIdx = item.modules.indexOf(mod);
-          sinkModuleSvg += `<rect x="${upperStartX}" y="${upperY}" width="${modW}" height="${upperH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2" data-mod-index="${upperModIdx}" style="cursor:pointer;" />
+          sinkModuleSvg += `<rect x="${upperStartX}" y="${upperY}" width="${modW}" height="${upperH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2" data-mod-index="${upperModIdx}" data-drag-mod="${upperModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper" style="cursor:grab;" />
       <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 - 8}" text-anchor="middle" font-size="11" fill="${mod.type === 'hood' ? '#b45309' : '#1d4ed8'}" font-weight="bold" pointer-events="none">${icon}</text>
       <text x="${upperStartX + modW / 2}" y="${upperY + upperH_s / 2 + 8}" text-anchor="middle" font-size="9" fill="#666" pointer-events="none">${mod.w}</text>`;
           upperStartX += modW;
@@ -599,7 +599,7 @@
 
           // 모듈 본체 (다리발 포함 높이) — 클릭 가능
           const lowerModIdx = item.modules.indexOf(mod);
-          sinkModuleSvg += `<rect x="${lowerStartX}" y="${modY}" width="${modW}" height="${modH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2" data-mod-index="${lowerModIdx}" style="cursor:pointer;" />`;
+          sinkModuleSvg += `<rect x="${lowerStartX}" y="${modY}" width="${modW}" height="${modH_s}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" rx="2" data-mod-index="${lowerModIdx}" data-drag-mod="${lowerModIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower" style="cursor:grab;" />`;
 
           // 다리발 구분선 (키큰장 제외)
           if (!isTall) {

@@ -1769,6 +1769,109 @@
         });
       })();
 
+      // ── SVG 모듈 드래그 이동 + 자동 재배치 ──
+      (function initModuleDrag() {
+        let modDragIdx = null;
+        let modDragUid = null;
+        let modDragPos = null;
+        let modDragSvg = null;
+        let modDragRect = null;
+        let modDragStartX = 0;
+        let modOrigX = 0;
+        let modDragDrawW = 0;
+        let modDragOx = 0;
+        let modDragSinkW = 0;
+
+        document.addEventListener('pointerdown', function(e) {
+          const el = e.target.closest('[data-drag-mod]');
+          if (!el) return;
+          modDragIdx = parseInt(el.dataset.dragMod);
+          modDragUid = parseFloat(el.dataset.uid);
+          modDragPos = el.dataset.modPos;
+          modDragSvg = el.closest('svg');
+          modDragRect = el;
+          if (!modDragSvg) return;
+
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item) return;
+          modDragSinkW = parseFloat(item.w) || 3000;
+          const vb = modDragSvg.viewBox.baseVal;
+          modDragDrawW = vb.width - 100;
+          modDragOx = (vb.width - modDragDrawW) / 2;
+          modOrigX = parseFloat(el.getAttribute('x'));
+          modDragStartX = e.clientX;
+
+          el.style.cursor = 'grabbing';
+          el.setAttribute('opacity', '0.6');
+          modDragSvg.style.cursor = 'grabbing';
+          modDragSvg.setPointerCapture(e.pointerId);
+          e.preventDefault();
+          e.stopPropagation();
+        });
+
+        document.addEventListener('pointermove', function(e) {
+          if (modDragRect === null || !modDragSvg) return;
+          const rect = modDragSvg.getBoundingClientRect();
+          const vb = modDragSvg.viewBox.baseVal;
+          const dx = (e.clientX - modDragStartX) / rect.width * vb.width;
+          modDragRect.setAttribute('x', modOrigX + dx);
+        });
+
+        document.addEventListener('pointerup', function(e) {
+          if (modDragRect === null) return;
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item || !modDragSvg) {
+            modDragRect = null;
+            return;
+          }
+
+          // 드롭 위치에서 mm 좌표 계산
+          const rect = modDragSvg.getBoundingClientRect();
+          const vb = modDragSvg.viewBox.baseVal;
+          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
+          const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
+
+          // 같은 pos의 모듈 리스트에서 위치 기반 재정렬
+          const posModules = item.modules.filter(m => m.pos === modDragPos);
+          const otherModules = item.modules.filter(m => m.pos !== modDragPos);
+          const draggedMod = item.modules[modDragIdx];
+
+          if (draggedMod && posModules.length > 1) {
+            // 현재 위치 계산 (순서대로 누적)
+            const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+            let cursor = fL;
+            const posWithX = posModules.map(m => {
+              const x = cursor;
+              cursor += parseFloat(m.w) || 0;
+              return { mod: m, centerX: x + (parseFloat(m.w) || 0) / 2 };
+            });
+
+            // 드래그된 모듈을 제거하고 새 위치에 삽입
+            const filtered = posModules.filter(m => m !== draggedMod);
+            let insertIdx = filtered.length; // 기본: 맨 끝
+            let checkCursor = fL;
+            for (let i = 0; i < filtered.length; i++) {
+              const midX = checkCursor + (parseFloat(filtered[i].w) || 0) / 2;
+              if (dropMm < midX) {
+                insertIdx = i;
+                break;
+              }
+              checkCursor += parseFloat(filtered[i].w) || 0;
+            }
+            filtered.splice(insertIdx, 0, draggedMod);
+
+            // 모듈 배열 재구성
+            item.modules = otherModules.concat(filtered);
+          }
+
+          modDragSvg.style.cursor = '';
+          try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
+          modDragRect = null;
+
+          renderWorkspaceContent(item);
+        });
+      })();
+
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;
