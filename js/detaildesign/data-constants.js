@@ -39,7 +39,7 @@
         hood: '히든 후드',
         cooktop: '인덕션',
         dishwasher: 'None',
-        accessories: [{ id: Date.now(), type: 'LTMesh' }],
+        accessories: [{ id: Date.now(), type: 'LTMesh' }, { id: Date.now() + 1, type: 'Cutlery' }, { id: Date.now() + 2, type: 'Knife' }],
         // 실측 기준 = 분배기 기준 = 장 기준
         measurementBase: 'Left',
         distributorStart: 0,
