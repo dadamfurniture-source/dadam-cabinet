@@ -770,7 +770,13 @@
     </div>
     <div class="ws-layout">
       <div class="spec-panel">
-        <div class="spec-group-title">0. 현장 실측 & Layout</div>
+        <div class="spec-group-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>0. 현장 실측 & Layout</span>
+          <div style="display:flex;gap:3px;">
+            <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:${(item.specs.dimensionMode || 'unified') === 'unified' ? 'none;background:#b8956c;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${(item.specs.dimensionMode || 'unified') !== 'unified' ? `toggleDimensionMode(${item.uniqueId})` : ''}" ${(item.specs.dimensionMode || 'unified') === 'unified' ? 'disabled' : ''}>통합</button>
+            <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:${(item.specs.dimensionMode || 'unified') === 'split' ? 'none;background:#b8956c;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${(item.specs.dimensionMode || 'unified') !== 'split' ? `toggleDimensionMode(${item.uniqueId})` : ''}" ${(item.specs.dimensionMode || 'unified') === 'split' ? 'disabled' : ''}>분리</button>
+          </div>
+        </div>
         <div class="spec-row">
           <div class="spec-field"><label>실측 기준</label>
             <select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)">
@@ -786,20 +792,94 @@
             </select>
           </div>
         </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
-          <div class="spec-field"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
-          <div class="spec-field"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+        <div class="spec-row" style="margin-bottom:2px;">
+          <div class="spec-field" style="flex:2"><label>현장 실측 치수</label></div>
+          <div class="spec-field"><label>현장 사진</label></div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>현장 사진</label>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:4px 12px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '변경' : '업로드'}</button>
-              ${item.image && item.image !== 'loading' ? `<img src="${item.image}" style="height:32px;border-radius:4px;" alt="photo">` : ''}
+          <div class="spec-field"><label>W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
+          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
+          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          <div class="spec-field">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:4px 10px;font-size:11px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '변경' : '📷'}</button>
+              ${item.image && item.image !== 'loading' ? `<img src="${item.image}" style="height:28px;border-radius:3px;" alt="">` : ''}
               <input type="file" id="ws-file-${item.uniqueId}" style="display:none" accept="image/*" onchange="handleItemPhoto(${item.uniqueId}, event)">
             </div>
           </div>
         </div>
+        ${(item.specs.dimensionMode || 'unified') === 'unified' ? `
+        <div class="spec-row">
+          <div class="spec-field"><label>하부장 H</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
+          <div class="spec-field"><label>하부장 D</label><input type="number" value="${item.d || item.defaultD || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          <div class="spec-field"><label>상부장 H</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+          <div class="spec-field"><label>상부장 D</label><input type="number" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
+        </div>
+        ` : `
+        <div style="padding:6px 8px;border-left:3px solid #b8956c;margin:6px 0;">
+          <div style="font-size:10px;font-weight:600;color:#b8956c;margin-bottom:4px;">하부장</div>
+          <div class="spec-row">
+            <div class="spec-field"><label>W</label><input type="number" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
+            <div class="spec-field"><label>H</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
+            <div class="spec-field"><label>D</label><input type="number" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          </div>
+        </div>
+        <div style="padding:6px 8px;border-left:3px solid #5a7fa0;margin:6px 0;">
+          <div style="font-size:10px;font-weight:600;color:#5a7fa0;margin-bottom:4px;">상부장</div>
+          <div class="spec-row">
+            <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperPrimeW || item.w}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeW', this.value)"></div>
+            <div class="spec-field"><label>H</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+            <div class="spec-field"><label>D</label><input type="number" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
+          </div>
+        </div>
+        `}
+        ${(() => {
+          const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+          if (lShape === 'I') return '';
+          const secMode = item.specs.secondaryDimensionMode || 'unified';
+          const secLH = item.specs.lowerSecondaryH || item.specs.lowerH || 870;
+          const secUH = item.specs.upperSecondaryH || item.specs.upperH || 720;
+          const secLD = item.specs.lowerSecondaryD || item.d || item.defaultD || '';
+          const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
+          return `
+        <div style="padding:6px;background:#f9f9f9;border-radius:6px;margin-top:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:600;color:#888;">Secondary Line</span>
+            <div style="display:flex;gap:3px;">
+              <button style="padding:2px 6px;font-size:9px;border-radius:3px;border:${secMode === 'unified' ? 'none;background:#888;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${secMode !== 'unified' ? `toggleSecondaryDimensionMode(${item.uniqueId})` : ''}" ${secMode === 'unified' ? 'disabled' : ''}>통합</button>
+              <button style="padding:2px 6px;font-size:9px;border-radius:3px;border:${secMode === 'split' ? 'none;background:#888;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${secMode !== 'split' ? `toggleSecondaryDimensionMode(${item.uniqueId})` : ''}" ${secMode === 'split' ? 'disabled' : ''}>분리</button>
+            </div>
+          </div>
+          ${secMode === 'unified' ? `
+          <div class="spec-row">
+            <div class="spec-field"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryW', this.value); updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)"></div>
+          </div>
+          <div class="spec-row">
+            <div class="spec-field"><label>하부 H</label><input type="number" value="${secLH}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryH', this.value)"></div>
+            <div class="spec-field"><label>하부 D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
+            <div class="spec-field"><label>상부 H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)"></div>
+            <div class="spec-field"><label>상부 D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)"></div>
+          </div>
+          ` : `
+          <div style="padding:4px 6px;border-left:2px solid #b8956c;margin-bottom:4px;">
+            <div style="font-size:9px;font-weight:600;color:#b8956c;margin-bottom:2px;">하부장</div>
+            <div class="spec-row">
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryW', this.value)"></div>
+              <div class="spec-field"><label>H</label><input type="number" value="${secLH}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryH', this.value)"></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
+            </div>
+          </div>
+          <div style="padding:4px 6px;border-left:2px solid #5a7fa0;">
+            <div style="font-size:9px;font-weight:600;color:#5a7fa0;margin-bottom:2px;">상부장</div>
+            <div class="spec-row">
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)"></div>
+              <div class="spec-field"><label>H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)"></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)"></div>
+            </div>
+          </div>
+          `}
+        </div>`;
+        })()}
         <div class="spec-row">
           <div class="spec-field"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" onchange="updateSpec(${item.uniqueId}, 'distributorStart', this.value)"></div>
           <div class="spec-field"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" onchange="updateSpec(${item.uniqueId}, 'distributorEnd', this.value)"></div>
