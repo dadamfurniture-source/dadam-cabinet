@@ -2509,8 +2509,11 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (n8n Cloud 직접 호출)
-      const N8N_INTERIOR_URL = 'https://dadam.app.n8n.cloud/webhook/dadam-interior-v4';
+      // 프로덕션 API URL (MCP 서버 직접 호출 — n8n 제거, Gemini 3.1 Flash Image)
+      const MCP_SERVER_URL = 'https://api.dadamfurniture.com'; // 프로덕션 MCP 서버
+      const API_GENERATE_URL = `${MCP_SERVER_URL}/api/generate`;
+      // 로컬 개발용 폴백
+      // const API_GENERATE_URL = 'http://localhost:3200/api/generate';
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
@@ -3212,20 +3215,17 @@ Magazine quality, professional lighting.`;
             const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
 
             const authHeaders = await getAuthHeaders();
-            const response = await fetch(N8N_INTERIOR_URL, {
+            const response = await fetch(API_GENERATE_URL, {
               method: 'POST',
               headers: authHeaders,
               body: JSON.stringify({
                 room_image: imageData.base64,
                 image_type: imageData.type,
                 category: category,
-                kitchen_layout: category === 'sink' ? state.kitchenLayout : undefined,
+                kitchen_layout: category === 'sink' ? (state.selectedKitchenLayout || 'i_type') : undefined,
                 design_style: state.selectedStyle,
                 style_name: themeData.name,
                 style_keywords: themeData.keywords,
-                style_atmosphere: themeData.atmosphere,
-                design_prompt: designPrompt,
-                // v3 스타일 상세 프롬프트 데이터
                 style_mood_prompt: themeData.mood_prompt || '',
                 style_door_color: themeData.door_color_name || '',
                 style_door_hex: themeData.door_color_hex || '',
@@ -3243,34 +3243,29 @@ Magazine quality, professional lighting.`;
 
             console.log('API Response:', data);
 
-            // 이미지 추출 (로컬 서버 및 n8n 형식 모두 지원)
+            // 이미지 추출 — MCP Direct API 형식: { generated_image: { closed, open } }
             let afterImageUrl = '';
             let afterImageUrlOpen = '';
 
-            // 로컬 서버 형식: { generatedImage: { base64, mimeType } }
-            if (data.generatedImage && data.generatedImage.base64) {
-              const mimeType = data.generatedImage.mimeType || 'image/jpeg';
-              afterImageUrl = `data:${mimeType};base64,${data.generatedImage.base64}`;
-            }
-            // n8n 형식: { generated_image: { closed: { base64 }, open: { base64 } } }
-            else if (data.generated_image) {
-              // 닫힌 도어 이미지
-              if (data.generated_image.closed && data.generated_image.closed.base64) {
-                const mimeType = data.generated_image.closed.mime_type || 'image/png';
-                afterImageUrl = `data:${mimeType};base64,${data.generated_image.closed.base64}`;
+            if (data.generated_image) {
+              // MCP Direct API: base64 문자열 직접
+              if (typeof data.generated_image.closed === 'string') {
+                afterImageUrl = `data:image/png;base64,${data.generated_image.closed}`;
               }
-              // 이전 형식 호환
+              // 이전 n8n 형식 호환: { closed: { base64 } }
+              else if (data.generated_image.closed?.base64) {
+                afterImageUrl = `data:image/png;base64,${data.generated_image.closed.base64}`;
+              }
+              // 단일 이미지 형식
               else if (data.generated_image.base64) {
-                const mimeType = data.generated_image.mime_type || 'image/png';
-                afterImageUrl = `data:${mimeType};base64,${data.generated_image.base64}`;
-              } else if (data.generated_image.url) {
-                afterImageUrl = data.generated_image.url;
+                afterImageUrl = `data:image/png;base64,${data.generated_image.base64}`;
               }
 
-              // 열린 도어 이미지
-              if (data.generated_image.open && data.generated_image.open.base64) {
-                const mimeType = data.generated_image.open.mime_type || 'image/png';
-                afterImageUrlOpen = `data:${mimeType};base64,${data.generated_image.open.base64}`;
+              // 열린 도어
+              if (typeof data.generated_image.open === 'string') {
+                afterImageUrlOpen = `data:image/png;base64,${data.generated_image.open}`;
+              } else if (data.generated_image.open?.base64) {
+                afterImageUrlOpen = `data:image/png;base64,${data.generated_image.open.base64}`;
               }
             }
 
