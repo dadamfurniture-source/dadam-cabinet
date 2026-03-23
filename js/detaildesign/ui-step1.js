@@ -714,33 +714,31 @@
         let utilityMarkers = '';
         const uid = item.uniqueId;
 
-        // 분배기 — 하부장 내부 하단 (급수 배관, 드래그 가능)
+        // 분배기 — 하부장 하단 (배관 그림만, 드래그 가능)
         {
-          const pipeY = lowerY + lowerH_s - 18;
+          const pipeY = lowerY + lowerH_s - 16;
           const dsx = offsetX + distStart * scale;
           const dex = offsetX + distEnd * scale;
           utilityMarkers += `
-            <line x1="${dsx}" y1="${pipeY + 10}" x2="${dex}" y2="${pipeY + 10}" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
-            <circle cx="${dsx}" cy="${pipeY + 10}" r="6" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distStart" data-uid="${uid}"/>
-            <circle cx="${dex}" cy="${pipeY + 10}" r="6" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distEnd" data-uid="${uid}"/>
-            <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
-            <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
-            <text x="${(dsx + dex) / 2}" y="${pipeY - 1}" text-anchor="middle" font-size="8" fill="#2563eb" font-weight="bold" pointer-events="none">💧 ${distStart}~${distEnd}mm</text>`;
+            <line x1="${dsx}" y1="${pipeY + 8}" x2="${dex}" y2="${pipeY + 8}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+            <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
+            <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
+            <circle cx="${dsx}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorStart" data-uid="${uid}"/>
+            <circle cx="${dex}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorEnd" data-uid="${uid}"/>`;
         }
 
-        // 환풍구 — 상부장 내부 상단 (배기 덕트, 드래그 가능)
+        // 환풍구 — 상부장 상단 (덕트 그림만, 드래그 가능)
         {
           const ductY = upperY + 3;
           const vx = offsetX + ventPos * scale;
           utilityMarkers += `
             <g style="cursor:ew-resize;" data-drag="ventStart" data-uid="${uid}">
-              <rect x="${vx - 14}" y="${ductY}" width="28" height="16" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" rx="3"/>
-              <line x1="${vx - 8}" y1="${ductY + 3}" x2="${vx - 8}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
-              <line x1="${vx - 3}" y1="${ductY + 3}" x2="${vx - 3}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
-              <line x1="${vx + 2}" y1="${ductY + 3}" x2="${vx + 2}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
-              <line x1="${vx + 7}" y1="${ductY + 3}" x2="${vx + 7}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
-            </g>
-            <text x="${vx}" y="${ductY + 26}" text-anchor="middle" font-size="8" fill="#dc2626" font-weight="bold" pointer-events="none">🌀 ${ventPos}mm</text>`
+              <rect x="${vx - 12}" y="${ductY}" width="24" height="14" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" rx="3"/>
+              <line x1="${vx - 7}" y1="${ductY + 3}" x2="${vx - 7}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
+              <line x1="${vx - 2}" y1="${ductY + 3}" x2="${vx - 2}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
+              <line x1="${vx + 3}" y1="${ductY + 3}" x2="${vx + 3}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
+              <line x1="${vx + 8}" y1="${ductY + 3}" x2="${vx + 8}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
+            </g>`;
         }
 
         const sinkFrontViewSvg = `
