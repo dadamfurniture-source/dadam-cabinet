@@ -714,7 +714,11 @@
         let utilityMarkers = '';
         const uid = item.uniqueId;
 
-        // 분배기 — 하부장 하단 (배관 그림만, 드래그 가능)
+        // 실측 기준 방향
+        const isRefLeft = item.specs.measurementBase === 'Left';
+        const refLabel = isRefLeft ? '좌' : '우';
+
+        // 분배기 — 하부장 하단 (배관 그림 + 치수)
         {
           const pipeY = lowerY + lowerH_s - 16;
           const dsx = offsetX + distStart * scale;
@@ -724,10 +728,12 @@
             <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
             <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
             <circle cx="${dsx}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorStart" data-uid="${uid}"/>
-            <circle cx="${dex}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorEnd" data-uid="${uid}"/>`;
+            <circle cx="${dex}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorEnd" data-uid="${uid}"/>
+            <text x="${dsx}" y="${pipeY - 3}" text-anchor="middle" font-size="7" fill="#2563eb" pointer-events="none">${distStart}</text>
+            <text x="${dex}" y="${pipeY - 3}" text-anchor="middle" font-size="7" fill="#2563eb" pointer-events="none">${distEnd}</text>`;
         }
 
-        // 환풍구 — 상부장 상단 (덕트 그림만, 드래그 가능)
+        // 환풍구 — 상부장 상단 (덕트 그림 + 치수)
         {
           const ductY = upperY + 3;
           const vx = offsetX + ventPos * scale;
@@ -738,7 +744,17 @@
               <line x1="${vx - 2}" y1="${ductY + 3}" x2="${vx - 2}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
               <line x1="${vx + 3}" y1="${ductY + 3}" x2="${vx + 3}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
               <line x1="${vx + 8}" y1="${ductY + 3}" x2="${vx + 8}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1"/>
-            </g>`;
+            </g>
+            <text x="${vx}" y="${ductY + 24}" text-anchor="middle" font-size="7" fill="#dc2626" pointer-events="none">${ventPos}</text>`;
+        }
+
+        // 실측 기준 표시 (도면 하단)
+        {
+          const refX = isRefLeft ? offsetX : offsetX + drawW;
+          const refY = offsetY + drawH + 15;
+          utilityMarkers += `
+            <line x1="${refX}" y1="${offsetY}" x2="${refX}" y2="${refY - 4}" stroke="#b8956c" stroke-width="1" stroke-dasharray="4" opacity="0.5"/>
+            <text x="${refX}" y="${refY + 2}" text-anchor="middle" font-size="8" fill="#b8956c" font-weight="bold">▲ ${refLabel} 기준</text>`;
         }
 
         const sinkFrontViewSvg = `
