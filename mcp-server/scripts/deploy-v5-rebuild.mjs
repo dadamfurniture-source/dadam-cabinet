@@ -194,6 +194,7 @@ return [{
   styleCountertopPrompt: input.styleCountertopPrompt,
   styleHandlePrompt: input.styleHandlePrompt,
   styleAccentPrompt: input.styleAccentPrompt,
+  kitchen_layout: input.kitchen_layout,
   geminiAnalysisBody: JSON.stringify(geminiAnalysisBody)
 }];`;
 
@@ -301,6 +302,7 @@ return [{
   styleCountertopPrompt: input.styleCountertopPrompt,
   styleHandlePrompt: input.styleHandlePrompt,
   styleAccentPrompt: input.styleAccentPrompt,
+  kitchen_layout: input.kitchen_layout,
   wallData,
   furniturePlacement,
   analysisSuccess: wallData.confidence !== "low"

@@ -62,6 +62,7 @@ app.listen(PORT, () => {
   log.info('  POST /webhook/dadam-interior-v4');
   log.info('  POST /webhook/design-to-image');
   log.info('  POST /webhook/controlnet-image');
+  log.info('  POST /api/generate (Gemini 3.1 Flash Image direct)');
   log.info('  POST /webhook/chat');
   log.info('  GET  /api/themes/images');
   log.info('  POST /api/themes/generate');
