@@ -1781,6 +1781,8 @@
         let modDragDrawW = 0;
         let modDragOx = 0;
         let modDragSinkW = 0;
+        let modDragged = false; // 실제 드래그가 발생했는지
+        const DRAG_THRESHOLD = 10; // px 미만 이동은 클릭으로 간주
 
         document.addEventListener('pointerdown', function(e) {
           const el = e.target.closest('[data-drag-mod]');
@@ -1790,6 +1792,7 @@
           modDragPos = el.dataset.modPos;
           modDragSvg = el.closest('svg');
           modDragRect = el;
+          modDragged = false;
           if (!modDragSvg) return;
 
           const item = selectedItems.find(i => i.uniqueId === modDragUid);
@@ -1801,9 +1804,6 @@
           modOrigX = parseFloat(el.getAttribute('x'));
           modDragStartX = e.clientX;
 
-          el.style.cursor = 'grabbing';
-          el.setAttribute('opacity', '0.6');
-          modDragSvg.style.cursor = 'grabbing';
           modDragSvg.setPointerCapture(e.pointerId);
           e.preventDefault();
           e.stopPropagation();
@@ -1811,6 +1811,17 @@
 
         document.addEventListener('pointermove', function(e) {
           if (modDragRect === null || !modDragSvg) return;
+          const dist = Math.abs(e.clientX - modDragStartX);
+          if (!modDragged && dist < DRAG_THRESHOLD) return; // 임계값 미만: 무시
+
+          // 임계값 넘으면 드래그 시작
+          if (!modDragged) {
+            modDragged = true;
+            modDragRect.style.cursor = 'grabbing';
+            modDragRect.setAttribute('opacity', '0.6');
+            modDragSvg.style.cursor = 'grabbing';
+          }
+
           const rect = modDragSvg.getBoundingClientRect();
           const vb = modDragSvg.viewBox.baseVal;
           const dx = (e.clientX - modDragStartX) / rect.width * vb.width;
@@ -1819,36 +1830,46 @@
 
         document.addEventListener('pointerup', function(e) {
           if (modDragRect === null) return;
-          const item = selectedItems.find(i => i.uniqueId === modDragUid);
-          if (!item || !modDragSvg) {
+
+          const wasDragged = modDragged;
+          const savedIdx = modDragIdx;
+          const savedUid = modDragUid;
+
+          // 리셋
+          if (modDragSvg) {
+            modDragSvg.style.cursor = '';
+            try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
+          }
+
+          // 드래그 안 했으면 → 클릭 동작 (모듈 편집 팝업)
+          if (!wasDragged) {
             modDragRect = null;
+            modDragged = false;
+            openModulePopup(savedUid, savedIdx);
             return;
           }
 
-          // 드롭 위치에서 mm 좌표 계산
+          // 드래그 했으면 → 위치 재정렬
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item || !modDragSvg) {
+            modDragRect = null;
+            modDragged = false;
+            return;
+          }
+
           const rect = modDragSvg.getBoundingClientRect();
           const vb = modDragSvg.viewBox.baseVal;
           const svgX = (e.clientX - rect.left) / rect.width * vb.width;
           const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
 
-          // 같은 pos의 모듈 리스트에서 위치 기반 재정렬
           const posModules = item.modules.filter(m => m.pos === modDragPos);
           const otherModules = item.modules.filter(m => m.pos !== modDragPos);
           const draggedMod = item.modules[modDragIdx];
 
           if (draggedMod && posModules.length > 1) {
-            // 현재 위치 계산 (순서대로 누적)
             const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
-            let cursor = fL;
-            const posWithX = posModules.map(m => {
-              const x = cursor;
-              cursor += parseFloat(m.w) || 0;
-              return { mod: m, centerX: x + (parseFloat(m.w) || 0) / 2 };
-            });
-
-            // 드래그된 모듈을 제거하고 새 위치에 삽입
             const filtered = posModules.filter(m => m !== draggedMod);
-            let insertIdx = filtered.length; // 기본: 맨 끝
+            let insertIdx = filtered.length;
             let checkCursor = fL;
             for (let i = 0; i < filtered.length; i++) {
               const midX = checkCursor + (parseFloat(filtered[i].w) || 0) / 2;
@@ -1859,15 +1880,11 @@
               checkCursor += parseFloat(filtered[i].w) || 0;
             }
             filtered.splice(insertIdx, 0, draggedMod);
-
-            // 모듈 배열 재구성
             item.modules = otherModules.concat(filtered);
           }
 
-          modDragSvg.style.cursor = '';
-          try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
           modDragRect = null;
-
+          modDragged = false;
           renderWorkspaceContent(item);
         });
       })();
