@@ -73,16 +73,26 @@
         essentialLower: { sink: true, cook: true, lt: true },
         essentialUpper: { hood: true },
         upperDoorOverlap: 15, // 상부장 도어 오버랩 (기본 15mm)
-        // ★ Secondary Line (ㄱ자형/ㄷ자형 보조 하부장 라인)
-        secondaryW: '',
-        secondaryH: '',
-        secondaryD: '',
-        secondaryEdgeBand4Side: false, // 4면지 적용 여부
-        // ㄷ자형 3번째 라인
-        tertiaryW: '',
-        tertiaryH: '',
-        tertiaryD: '',
-        tertiaryEdgeBand4Side: false,
+        // ★ 상하부장 치수 모드: unified(통합) / split(분리)
+        dimensionMode: 'unified',
+        // ── 하부장 구조 (layoutShape를 하부장용으로 유지)
+        lowerLayoutShape: 'I',          // I / L / U
+        lowerSecondaryW: '',
+        lowerSecondaryH: '',
+        lowerSecondaryD: '',
+        lowerSecondaryEdgeBand4Side: false,
+        lowerTertiaryW: '',
+        lowerTertiaryH: '',
+        lowerTertiaryD: '',
+        lowerTertiaryEdgeBand4Side: false,
+        // ── 상부장 구조 (분리 모드에서 독립)
+        upperLayoutShape: 'I',          // I / L / U
+        upperPrimeW: '',                // 분리 모드 상부장 가로
+        upperPrimeD: '',                // 분리 모드 상부장 깊이
+        upperSecondaryW: '',
+        upperSecondaryH: '',
+        upperSecondaryD: '',
+        upperSecondaryEdgeBand4Side: false,
       };
 
       // ★ 냉장고장 규칙 상수 (업데이트)

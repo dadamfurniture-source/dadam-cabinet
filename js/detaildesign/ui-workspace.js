@@ -1427,35 +1427,79 @@
         renderWorkspaceContent(item);
       }
 
+      // ── 레거시 호환: 기존 changeLayoutShape → changeLowerLayoutShape 위임
       function changeLayoutShape(itemUniqueId, shape) {
+        changeLowerLayoutShape(itemUniqueId, shape);
+      }
+
+      // ── 하부장 구조 변경
+      function changeLowerLayoutShape(itemUniqueId, shape) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
-        if (item) {
-          item.specs.layoutShape = shape;
-          const count = shape === 'U' ? 3 : shape === 'L' ? 2 : 1;
-          while (item.specs.topSizes.length < count) {
-            item.specs.topSizes.push({ w: '', d: '' });
-          }
-          // Secondary Line 기본값 초기화 (ㄱ자/ㄷ자형 전환 시)
-          if (shape !== 'I' && !item.specs.secondaryD) {
-            item.specs.secondaryD = item.defaultD || item.d || '';
-          }
-          if (shape === 'U' && !item.specs.tertiaryD) {
-            item.specs.tertiaryD = item.defaultD || item.d || '';
-          }
-          // I자형 전환 시 초기화
-          if (shape === 'I') {
-            item.specs.secondaryW = '';
-            item.specs.secondaryH = '';
-            item.specs.secondaryD = '';
-            item.specs.secondaryEdgeBand4Side = false;
-            item.specs.tertiaryW = '';
-            item.specs.tertiaryH = '';
-            item.specs.tertiaryD = '';
-            item.specs.tertiaryEdgeBand4Side = false;
-          }
-          updateUI();
-          renderWorkspaceContent(item);
+        if (!item) return;
+        item.specs.lowerLayoutShape = shape;
+        item.specs.layoutShape = shape; // 레거시 호환
+        // 상판 크기 배열 확장
+        const count = shape === 'U' ? 3 : shape === 'L' ? 2 : 1;
+        while (item.specs.topSizes.length < count) {
+          item.specs.topSizes.push({ w: '', d: '' });
         }
+        // Secondary/Tertiary 기본값
+        if (shape !== 'I' && !item.specs.lowerSecondaryD) {
+          item.specs.lowerSecondaryD = item.defaultD || item.d || '';
+        }
+        if (shape === 'U' && !item.specs.lowerTertiaryD) {
+          item.specs.lowerTertiaryD = item.defaultD || item.d || '';
+        }
+        if (shape === 'I') {
+          item.specs.lowerSecondaryW = '';
+          item.specs.lowerSecondaryH = '';
+          item.specs.lowerSecondaryD = '';
+          item.specs.lowerSecondaryEdgeBand4Side = false;
+          item.specs.lowerTertiaryW = '';
+          item.specs.lowerTertiaryH = '';
+          item.specs.lowerTertiaryD = '';
+          item.specs.lowerTertiaryEdgeBand4Side = false;
+        }
+        // 통합 모드: 상부장도 동일 구조로 동기화
+        if (item.specs.dimensionMode === 'unified') {
+          item.specs.upperLayoutShape = shape;
+        }
+        updateUI();
+        renderWorkspaceContent(item);
+      }
+
+      // ── 상부장 구조 변경 (분리 모드 전용)
+      function changeUpperLayoutShape(itemUniqueId, shape) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.upperLayoutShape = shape;
+        if (shape !== 'I' && !item.specs.upperSecondaryD) {
+          item.specs.upperSecondaryD = '295';
+        }
+        if (shape === 'I') {
+          item.specs.upperSecondaryW = '';
+          item.specs.upperSecondaryH = '';
+          item.specs.upperSecondaryD = '';
+          item.specs.upperSecondaryEdgeBand4Side = false;
+        }
+        updateUI();
+        renderWorkspaceContent(item);
+      }
+
+      // ── 통합/분리 모드 전환
+      function toggleDimensionMode(itemUniqueId) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (item.specs.dimensionMode === 'unified') {
+          // 통합 → 분리: 공유값을 상부장에 복사
+          item.specs.dimensionMode = 'split';
+          item.specs.upperPrimeW = item.specs.upperPrimeW || item.w;
+          item.specs.upperLayoutShape = item.specs.upperLayoutShape || item.specs.lowerLayoutShape;
+        } else {
+          // 분리 → 통합: 하부장 기준으로 통합
+          item.specs.dimensionMode = 'unified';
+        }
+        updateUI();
       }
 
       function updateTopSize(itemUniqueId, index, value) {
