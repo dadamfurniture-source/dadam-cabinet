@@ -702,39 +702,42 @@
           }
         }
 
-        // 분배기/환풍구 위치 마커 (SVG 내부)
+        // 분배기/환풍구 위치 마커 (도면 내부)
         const distStart = parseFloat(item.specs.distributorStart) || 0;
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         const ventPos = parseFloat(item.specs.ventStart) || 0;
-        const markerY_bottom = offsetY + drawH + 8;
-        const markerY_top = offsetY - 8;
         let utilityMarkers = '';
 
-        // 분배기 (하단, 파란색)
+        // 분배기 — 하부장 내부 하단 (급수 배관 아이콘)
         if (distStart > 0 || distEnd > 0) {
           const dsx = offsetX + distStart * scale;
           const dex = offsetX + distEnd * scale;
+          const pipeY = lowerY + lowerH_s - 14;
+          const pipeCx = (dsx + dex) / 2;
+          // 배관 라인
           utilityMarkers += `
-            <rect x="${dsx}" y="${markerY_bottom}" width="${Math.max(dex - dsx, 4)}" height="${6}" fill="#3b82f6" rx="2" opacity="0.7"/>
-            <line x1="${dsx}" y1="${markerY_bottom - 2}" x2="${dsx}" y2="${offsetY + drawH}" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3"/>
-            <line x1="${dex}" y1="${markerY_bottom - 2}" x2="${dex}" y2="${offsetY + drawH}" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3"/>
-            <text x="${(dsx + dex) / 2}" y="${markerY_bottom + 14}" text-anchor="middle" font-size="8" fill="#3b82f6" font-weight="bold">분배기 ${distStart}~${distEnd}</text>`;
+            <line x1="${dsx}" y1="${pipeY + 5}" x2="${dex}" y2="${pipeY + 5}" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+            <circle cx="${dsx}" cy="${pipeY + 5}" r="4" fill="#3b82f6" opacity="0.8"/>
+            <circle cx="${dex}" cy="${pipeY + 5}" r="4" fill="#3b82f6" opacity="0.8"/>
+            <line x1="${dsx}" y1="${pipeY - 4}" x2="${dsx}" y2="${pipeY + 5}" stroke="#3b82f6" stroke-width="1.5" opacity="0.5"/>
+            <line x1="${dex}" y1="${pipeY - 4}" x2="${dex}" y2="${pipeY + 5}" stroke="#3b82f6" stroke-width="1.5" opacity="0.5"/>
+            <text x="${pipeCx}" y="${pipeY - 2}" text-anchor="middle" font-size="7" fill="#3b82f6" font-weight="bold">💧 ${distStart}~${distEnd}</text>`;
         }
 
-        // 환풍구 (상단, 빨간색)
+        // 환풍구 — 상부장 내부 상단 (덕트 아이콘)
         if (ventPos > 0) {
           const vx = offsetX + ventPos * scale;
+          const ductY = upperY + 4;
           utilityMarkers += `
-            <rect x="${vx - 8}" y="${markerY_top - 6}" width="${16}" height="${6}" fill="#ef4444" rx="2" opacity="0.7"/>
-            <line x1="${vx}" y1="${markerY_top}" x2="${vx}" y2="${offsetY}" stroke="#ef4444" stroke-width="1" stroke-dasharray="3"/>
-            <text x="${vx}" y="${markerY_top - 10}" text-anchor="middle" font-size="8" fill="#ef4444" font-weight="bold">환풍구 ${ventPos}</text>`;
+            <rect x="${vx - 12}" y="${ductY}" width="24" height="14" fill="none" stroke="#ef4444" stroke-width="1.5" rx="3" opacity="0.7"/>
+            <line x1="${vx - 6}" y1="${ductY + 3}" x2="${vx - 6}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
+            <line x1="${vx}" y1="${ductY + 3}" x2="${vx}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
+            <line x1="${vx + 6}" y1="${ductY + 3}" x2="${vx + 6}" y2="${ductY + 11}" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
+            <text x="${vx}" y="${ductY + 22}" text-anchor="middle" font-size="7" fill="#ef4444" font-weight="bold">🌀 ${ventPos}</text>`;
         }
 
-        // SVG 높이 확장 (마커 공간)
-        const extSvgH = svgHeight + 25;
-
         const sinkFrontViewSvg = `
-    <svg viewBox="0 0 ${svgWidth} ${extSvgH}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
+    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
       <!-- 치수선 - 상단 -->
       <line x1="${offsetX}" y1="${offsetY - 15}" x2="${offsetX + drawW}" y2="${offsetY - 15}" stroke="#666" stroke-width="1"/>
       <line x1="${offsetX}" y1="${offsetY - 20}" x2="${offsetX}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
