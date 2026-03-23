@@ -159,17 +159,17 @@
           </div>
         </div>
         <div class="input-row">
+          <div class="input-group"><label>실측 기준</label>
+            <select onchange="updateSpec(${uid}, 'measurementBase', this.value)">
+              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
+              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
+            </select>
+          </div>
           <div class="input-group"><label>구조 형태</label>
             <select onchange="changeLowerLayoutShape(${uid}, this.value)">
               <option value="I" ${lShape === 'I' ? 'selected' : ''}>ㅡ자형</option>
               <option value="L" ${lShape === 'L' ? 'selected' : ''}>ㄱ자형</option>
               <option value="U" ${lShape === 'U' ? 'selected' : ''}>ㄷ자형</option>
-            </select>
-          </div>
-          <div class="input-group"><label>실측 기준</label>
-            <select onchange="updateSpec(${uid}, 'measurementBase', this.value)">
-              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
-              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
             </select>
           </div>
         </div>
