@@ -865,8 +865,7 @@
             console.log(`[AutoCalc] 상부장: 소규격 갭(${smallGapTotalUpper}mm)을 고정 모듈에 흡수`);
           }
 
-          // ★ 균등 분배: 각 갭 독립 계산 (RAG 규칙 준수)
-          // 각 갭별로 distributeModules → 개별 최적 doorWidth 사용
+          // ★ 각 갭 독립 계산 (RAG 규칙 + 도어 균등 최우선)
           if (largeGapsUpper.length === 1) {
             newModules = fillGapWithModules(largeGapsUpper[0], 'upper', upperBodyH, 295, 'both', preferExactUpper);
           } else if (largeGapsUpper.length > 1) {
@@ -1096,7 +1095,7 @@
             console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수`);
           }
 
-          // ★ 각 갭 독립 계산 (RAG 규칙 준수)
+          // ★ 각 갭 독립 계산 (RAG 규칙 + 도어 균등 최우선)
           largeGaps.forEach((gap) => {
             newModules = newModules.concat(fillGapWithModules(gap, 'lower', defaultLowerH, 550, 'none', preferExact));
           });
