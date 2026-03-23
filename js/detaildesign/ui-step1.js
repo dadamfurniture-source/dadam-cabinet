@@ -534,6 +534,21 @@
           upperStartX += modW;
         });
 
+        // 상부장 빈 공간에 + 버튼
+        {
+          const upperEndX = offsetX + drawW - finishR_s;
+          const gapThreshold = DOOR_MIN_WIDTH * scale;
+          if (upperStartX < upperEndX - gapThreshold) {
+            const gapW = upperEndX - upperStartX;
+            const gapCx = upperStartX + gapW / 2;
+            const gapCy = upperY + upperH_s / 2;
+            sinkModuleSvg += `
+              <rect x="${upperStartX}" y="${upperY}" width="${gapW}" height="${upperH_s}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="6" rx="4" style="cursor:pointer;" onclick="addModuleAtGap(${item.uniqueId}, 'upper', ${Math.round(gapW / scale)})"/>
+              <circle cx="${gapCx}" cy="${gapCy}" r="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5" style="cursor:pointer;pointer-events:none;"/>
+              <text x="${gapCx}" y="${gapCy + 5}" text-anchor="middle" font-size="16" fill="#64748b" font-weight="bold" pointer-events="none">+</text>`;
+          }
+        }
+
         // ★ 상부장 도어 표시 (도어 높이 = 몸체 + 오버랩)
         if (showDoors) {
           let upperDoorX = offsetX + finishL * scale;
@@ -658,6 +673,21 @@
           }
           lowerStartX += modW;
         });
+
+        // 하부장 빈 공간에 + 버튼
+        {
+          const lowerEndX = offsetX + drawW - finishR_s;
+          const gapThreshold = DOOR_MIN_WIDTH * scale;
+          if (lowerStartX < lowerEndX - gapThreshold) {
+            const gapW = lowerEndX - lowerStartX;
+            const gapCx = lowerStartX + gapW / 2;
+            const gapCy = lowerY + (lowerH_s + legH_s) / 2;
+            sinkModuleSvg += `
+              <rect x="${lowerStartX}" y="${lowerY}" width="${gapW}" height="${lowerH_s + legH_s}" fill="#fefce8" stroke="#d4a574" stroke-width="1" stroke-dasharray="6" rx="4" style="cursor:pointer;" onclick="addModuleAtGap(${item.uniqueId}, 'lower', ${Math.round(gapW / scale)})"/>
+              <circle cx="${gapCx}" cy="${gapCy}" r="12" fill="#fef3c7" stroke="#d97706" stroke-width="1.5" style="cursor:pointer;pointer-events:none;"/>
+              <text x="${gapCx}" y="${gapCy + 5}" text-anchor="middle" font-size="16" fill="#92400e" font-weight="bold" pointer-events="none">+</text>`;
+          }
+        }
 
         // 다리발 (전체 영역 - 마감 포함)
         const legY = lowerY + lowerH_s;
@@ -1005,12 +1035,14 @@
             <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집</span>
           </div>
           <div style="display:flex;gap:4px;">
-            <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
+            <button onclick="switchViewMode(${item.uniqueId}, 'iso')" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🧊 Iso</button>
+            <button onclick="switchViewMode(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.viewMode === 'front' || !item.specs.viewMode ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
+            <button onclick="switchViewMode(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.viewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🚪 도어</button>
           </div>
         </div>
         <div style="flex:1;width:100%;overflow:auto;position:relative;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
-          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
+          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : item.specs.viewMode === 'top' ? renderTopView(item, upperModules, lowerModules) : sinkFrontViewSvg}
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
@@ -1063,7 +1095,16 @@
       function toggleViewMode(itemUniqueId) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
-        item.specs.viewMode = item.specs.viewMode === 'iso' ? 'front' : 'iso';
+        const modes = ['front', 'iso', 'top'];
+        const idx = modes.indexOf(item.specs.viewMode || 'front');
+        item.specs.viewMode = modes[(idx + 1) % modes.length];
+        renderWorkspaceContent(item);
+      }
+
+      function switchViewMode(itemUniqueId, mode) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.viewMode = mode;
         renderWorkspaceContent(item);
       }
 
@@ -1354,6 +1395,83 @@
         svg += `<line x1="${dr - 3}" y1="${dry - 3}" x2="${dr + 3}" y2="${dry + 3}" stroke="#666"/>`;
         const [dm, dmy] = proj(W + 20, 0, D / 2);
         svg += `<text x="${dm + 5}" y="${dmy - 8}" text-anchor="start" font-size="10" fill="#333" font-weight="bold">${D}mm</text>`;
+
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
+      }
+
+      // ============================================================
+      // Top View (상면도) — 상부장/하부장 분리
+      // ============================================================
+      function renderTopView(item, upperModules, lowerModules) {
+        const W = parseFloat(item.w) || 3000;
+        const D = parseFloat(item.d) || 600;
+        const upperD = Math.round(D * 0.55);
+        const topT = 30;
+        const finishL = item.specs.finishLeftType !== 'None' ? (parseFloat(item.specs.finishLeftWidth) || 0) : 0;
+
+        const svgW = 650, gap = 30, labelH = 24, dimH = 25, pad = 20;
+        const scale = (svgW - pad * 2) / W;
+        const upperDrawD = upperD * scale, lowerDrawD = D * scale, topDrawT = topT * scale;
+        const svgH = pad + labelH + upperDrawD + dimH + gap + labelH + lowerDrawD + topDrawT + dimH + pad + 30;
+        let svg = '';
+        const ox = pad;
+
+        // ═══ 상부장 ═══
+        let uy = pad;
+        svg += `<text x="${svgW/2}" y="${uy+14}" text-anchor="middle" font-size="12" font-weight="bold" fill="#1976D2">▼ 상부장 Top View</text>`;
+        uy += labelH;
+        svg += `<rect x="${ox}" y="${uy}" width="${W*scale}" height="${upperDrawD}" fill="#E3F2FD" stroke="#90CAF9" rx="2"/>`;
+        if (upperModules.length > 0) {
+          let ux = ox + finishL * scale;
+          for (const mod of upperModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="#BBDEFB" stroke="#2196F3" stroke-width="1.5"/>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+4}" text-anchor="middle" font-size="9" fill="#1565C0">${mod.w||''}mm</text>`;
+            ux += mw;
+          }
+        }
+        svg += `<text x="${ox+W*scale/2}" y="${uy+upperDrawD+18}" text-anchor="middle" font-size="10" fill="#1976D2">${W}mm x ${upperD}mm</text>`;
+
+        // ═══ 하부장 ═══
+        let ly = uy + upperDrawD + dimH + gap;
+        svg += `<text x="${svgW/2}" y="${ly+14}" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">▼ 하부장 Top View</text>`;
+        ly += labelH;
+        svg += `<rect x="${ox-topDrawT}" y="${ly-topDrawT}" width="${W*scale+topDrawT*2}" height="${lowerDrawD+topDrawT*2}" fill="#E8F5E9" stroke="#66BB6A" rx="2" opacity="0.5"/>`;
+        svg += `<rect x="${ox}" y="${ly}" width="${W*scale}" height="${lowerDrawD}" fill="#F5F5F5" stroke="#333" rx="2"/>`;
+
+        if (lowerModules.length > 0) {
+          let lx = ox + finishL * scale;
+          for (const mod of lowerModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            const isSink = mod.type === 'sink' || mod.hasSink || mod.has_sink;
+            const isCook = mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop;
+            const fill = isSink ? '#E3F2FD' : isCook ? '#FFF3E0' : '#FAFAFA';
+            const stroke = isSink ? '#42A5F5' : isCook ? '#FF9800' : '#666';
+            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
+            svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD/2-5}" text-anchor="middle" font-size="9" fill="#333">${isSink ? '🚰 싱크' : isCook ? '🔥 쿡탑' : (mod.w||'')+'mm'}</text>`;
+            if (isSink) {
+              svg += `<ellipse cx="${lx+mw/2}" cy="${ly+lowerDrawD/2+8}" rx="${mw*0.3}" ry="${lowerDrawD*0.25}" fill="#B0BEC5" stroke="#78909C" opacity="0.7"/>`;
+              svg += `<circle cx="${lx+mw/2}" cy="${ly+10}" r="4" fill="#42A5F5" stroke="#1976D2"/>`;
+            }
+            if (isCook) {
+              const cx=lx+mw/2, cy=ly+lowerDrawD/2, br=Math.min(mw,lowerDrawD)*0.12;
+              svg += `<circle cx="${cx-br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
+              svg += `<circle cx="${cx+br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
+              svg += `<circle cx="${cx-br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
+              svg += `<circle cx="${cx+br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
+            }
+            svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD+14}" text-anchor="middle" font-size="8" fill="#666">${mod.w||''}mm</text>`;
+            lx += mw;
+          }
+        }
+
+        // 배관
+        const wX = ox + (W*(item.specs.waterPosition||30)/100)*scale;
+        const gX = ox + (W*(item.specs.gasPosition||70)/100)*scale;
+        const my = ly + lowerDrawD + 22;
+        svg += `<circle cx="${wX}" cy="${my}" r="5" fill="#2196F3" opacity="0.8"/><text x="${wX}" y="${my+14}" text-anchor="middle" font-size="8" fill="#1976D2">급수</text>`;
+        svg += `<circle cx="${gX}" cy="${my}" r="5" fill="#FF9800" opacity="0.8"/><text x="${gX}" y="${my+14}" text-anchor="middle" font-size="8" fill="#E65100">가스</text>`;
+        svg += `<text x="${ox+W*scale/2}" y="${ly+lowerDrawD+42}" text-anchor="middle" font-size="10" fill="#333">${W}mm x ${D}mm</text>`;
 
         return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }

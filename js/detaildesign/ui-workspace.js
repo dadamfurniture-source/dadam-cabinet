@@ -1955,6 +1955,37 @@
 
       // 모듈 편집은 단일 클릭으로 처리 (드래그 핸들러 pointerup에서)
 
+      // ── 빈 공간에 모듈 추가 ──
+      function addModuleAtGap(itemUniqueId, pos, gapWidth) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+
+        const specLowerH = parseFloat(item.specs.lowerH) || 870;
+        const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const specUpperH = parseFloat(item.specs.upperH) || 720;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
+
+        const h = pos === 'upper' ? specUpperH - specOverlap : specLowerH - specTopT - specLegH;
+        const d = pos === 'upper' ? 295 : parseFloat(item.d) || 550;
+        const w = Math.min(gapWidth, DOOR_MAX_WIDTH * 2); // 최대 2D 모듈 너비
+
+        item.modules.push({
+          id: Date.now() + Math.random(),
+          type: 'storage',
+          name: '캐비닛',
+          pos: pos,
+          w: w,
+          h: h,
+          d: d,
+          isDrawer: false,
+          isFixed: false,
+          isEL: false,
+        });
+
+        renderWorkspaceContent(item);
+      }
+
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;
