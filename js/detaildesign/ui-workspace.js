@@ -1,4 +1,76 @@
       // ============================================================
+      // 전역 Undo/Redo 시스템
+      // ============================================================
+      const _undoStack = [];
+      const _redoStack = [];
+      const UNDO_MAX = 30;
+
+      function pushUndo(item) {
+        if (!item) return;
+        _undoStack.push({
+          uniqueId: item.uniqueId,
+          modules: JSON.parse(JSON.stringify(item.modules)),
+          specs: JSON.parse(JSON.stringify(item.specs)),
+          timestamp: Date.now(),
+        });
+        if (_undoStack.length > UNDO_MAX) _undoStack.shift();
+        _redoStack.length = 0; // redo 초기화
+      }
+
+      function undo() {
+        if (_undoStack.length === 0) return;
+        const snapshot = _undoStack.pop();
+        const item = selectedItems.find(i => i.uniqueId === snapshot.uniqueId);
+        if (!item) return;
+
+        // 현재 상태를 redo에 저장
+        _redoStack.push({
+          uniqueId: item.uniqueId,
+          modules: JSON.parse(JSON.stringify(item.modules)),
+          specs: JSON.parse(JSON.stringify(item.specs)),
+          timestamp: Date.now(),
+        });
+
+        // 복원
+        item.modules = snapshot.modules;
+        item.specs = snapshot.specs;
+        renderWorkspaceContent(item);
+        console.log('[Undo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
+      }
+
+      function redo() {
+        if (_redoStack.length === 0) return;
+        const snapshot = _redoStack.pop();
+        const item = selectedItems.find(i => i.uniqueId === snapshot.uniqueId);
+        if (!item) return;
+
+        // 현재 상태를 undo에 저장
+        _undoStack.push({
+          uniqueId: item.uniqueId,
+          modules: JSON.parse(JSON.stringify(item.modules)),
+          specs: JSON.parse(JSON.stringify(item.specs)),
+          timestamp: Date.now(),
+        });
+
+        item.modules = snapshot.modules;
+        item.specs = snapshot.specs;
+        renderWorkspaceContent(item);
+        console.log('[Redo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
+      }
+
+      // Ctrl+Z / Ctrl+Y 키보드 바인딩
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+          e.preventDefault();
+          redo();
+        }
+      });
+
+      // ============================================================
       // 이벤트 핸들러 함수들
       // ============================================================
 
@@ -1581,6 +1653,9 @@
       }
 
       // ── Front View 모듈 클릭 → 치수 편집 팝업 ──
+      // ★ 선택 모듈 상태 (뷰 동기화용)
+      window._selectedModuleIndex = null;
+
       function handleFrontViewClick(event, itemUniqueId) {
         // 모듈 드래그 핸들러가 처리하는 요소는 무시 (중복 방지)
         if (event.target.closest('[data-drag-mod]')) return;
@@ -1600,7 +1675,40 @@
           target = target.parentElement;
         }
         if (modId === null) return;
+
+        // ★ 뷰 동기화: 선택 모듈 인덱스 저장 + 모든 뷰에서 하이라이트
+        window._selectedModuleIndex = parseInt(modId);
+        highlightSelectedModule(itemUniqueId);
+
         openModulePopup(itemUniqueId, modId);
+      }
+
+      // ★ 선택 모듈 하이라이트 — 모든 뷰(Front/Top/ISO)에서 동기화
+      function highlightSelectedModule(itemUniqueId) {
+        const ws = document.getElementById('designWorkspace');
+        if (!ws) return;
+        const idx = window._selectedModuleIndex;
+
+        // 모든 모듈 rect 초기화
+        ws.querySelectorAll('[data-mod-index]').forEach(el => {
+          el.style.filter = '';
+          el.style.opacity = '';
+        });
+
+        if (idx === null || idx === undefined) return;
+
+        // 선택 모듈 하이라이트 (모든 뷰에서)
+        ws.querySelectorAll(`[data-mod-index="${idx}"]`).forEach(el => {
+          el.style.filter = 'drop-shadow(0 0 4px #b8956c)';
+          el.style.opacity = '1';
+        });
+
+        // 비선택 모듈 흐리게
+        ws.querySelectorAll('[data-mod-index]').forEach(el => {
+          if (el.dataset.modIndex !== String(idx)) {
+            el.style.opacity = '0.6';
+          }
+        });
       }
 
       function openModulePopup(itemUniqueId, modId) {
@@ -1667,6 +1775,7 @@
       function removeModuleById(itemUniqueId, modId) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
+        pushUndo(item); // ★ Undo
         item.modules = item.modules.filter(m => m.id != modId);
       }
 
@@ -1972,6 +2081,7 @@
       function addModuleAtGap(itemUniqueId, pos, gapWidth) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
+        pushUndo(item); // ★ Undo
 
         const specLowerH = parseFloat(item.specs.lowerH) || 870;
         const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
@@ -2019,6 +2129,7 @@
           // ★ 값이 동일하면 렌더링 스킵 (blur → onchange로 인한 불필요한 리렌더 방지)
           if (item.specs[field] === value) return;
 
+          pushUndo(item); // ★ Undo 스택에 현재 상태 저장
           item.specs[field] = value;
 
           // ★ 싱크대: 다리발 높이 등 치수 관련 select 변경 시 모듈 동기화
