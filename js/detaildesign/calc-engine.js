@@ -622,18 +622,24 @@
           lowerCursor += mw;
         });
 
-        // ★ Step 2: 후드장만 고정 모듈로 배치 (가스대 위 중앙 정렬)
+        // ★ Step 2: 후드장 배치 (환풍구 위치 우선 → 가스대 위 폴백)
         let fixedOccupied = [];
         const existingHood = item.modules.find((m) => m.pos === 'upper' && m.type === 'hood' && m.isFixed);
         if (existingHood) {
           const hoodW = parseFloat(existingHood.w) || 800;
           let hoodX = startBound;
-          if (lowerPosMap.cook) {
+          const ventPos = parseFloat(item.specs.ventStart) || 0;
+          if (ventPos > 0) {
+            // 환풍구 위치 중심에 후드장 배치
+            const ventAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
+            hoodX = ventAbs - hoodW / 2;
+          } else if (lowerPosMap.cook) {
+            // 환풍구 미입력 → 가스대 위 중앙
             hoodX = lowerPosMap.cook.centerX - hoodW / 2;
-            hoodX = Math.max(startBound, Math.min(endBound - hoodW, hoodX));
           }
+          hoodX = Math.max(startBound, Math.min(endBound - hoodW, hoodX));
           fixedOccupied.push({ ...existingHood, x: hoodX, endX: hoodX + hoodW, pos: 'upper' });
-          console.log(`[AutoCalc] 후드장: 가스대중앙=${lowerPosMap.cook?.centerX || 'N/A'}, 후드X=${hoodX}`);
+          console.log(`[AutoCalc] 후드장: 환풍구=${ventPos}mm, 후드X=${hoodX}`);
         }
 
         // 기타 고정 모듈 (후드 제외)
@@ -806,7 +812,7 @@
             sinkMod.endX = sinkX + sinkW;
           }
         } else {
-          // ★ 분배기 미입력 시: 기준 방향에 따라 개수대/가스대 기본 위치 결정
+          // ★ 분배기 미입력 시: 기준 방향에 따라 개수대 기본 위치 결정
           if (sinkMod) {
             const sinkW = parseFloat(sinkMod.w) || 1000;
             if (isRefLeft) {
@@ -816,15 +822,26 @@
             }
             sinkMod.endX = sinkMod.x + sinkW;
           }
+        }
 
-          const cookMod = fixedOccupied.find(m => m.type === 'cook');
-          if (cookMod) {
-            const cookW = parseFloat(cookMod.w) || 600;
+        // ★ 환풍구 → 가스대 위치 연동
+        const ventPos = parseFloat(item.specs.ventStart) || 0;
+        const cookMod = fixedOccupied.find(m => m.type === 'cook');
+        if (cookMod) {
+          const cookW = parseFloat(cookMod.w) || 600;
+          if (ventPos > 0) {
+            // 환풍구 위치 중심에 가스대 배치
+            let ventAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
+            let cookX = ventAbs - cookW / 2;
+            cookX = Math.max(startBound, Math.min(endBound - cookW, cookX));
+            cookMod.x = cookX;
+            cookMod.endX = cookX + cookW;
+            console.log(`[AutoCalc] 가스대: 환풍구=${ventPos}mm → cookX=${cookX}`);
+          } else {
+            // 환풍구 미입력: 기준 반대쪽에 배치
             if (isRefLeft) {
-              // 좌측 기준 → 가스대를 오른쪽에 배치
               cookMod.x = Math.max(startBound, endBound - cookW);
             } else {
-              // 우측 기준 → 가스대를 왼쪽에 배치
               cookMod.x = startBound;
             }
             cookMod.endX = cookMod.x + cookW;
