@@ -97,14 +97,14 @@
           btn.classList.toggle('active', count > 0);
         });
 
+        // labelName 갱신
         const typeCounter = {};
-        container.innerHTML = '';
-
         selectedItems.forEach((item) => {
           typeCounter[item.categoryId] = (typeCounter[item.categoryId] || 0) + 1;
           item.labelName = `${item.name} #${typeCounter[item.categoryId]}`;
+          if (!item.d && item.defaultD > 0) item.d = item.defaultD;
 
-          // topSizes 마이그레이션: 문자열 → 객체 변환
+          // topSizes 마이그레이션
           if (typeof item.specs.topSizes[0] === 'string') {
             item.specs.topSizes = item.specs.topSizes.map(s => {
               if (typeof s === 'string' && s.includes('x')) {
@@ -117,243 +117,33 @@
           if (item.specs.layoutShape === 'I' && !item.specs.topSizes[0]?.w && item.w && item.d) {
             item.specs.topSizes[0] = { w: String(item.w), d: String(item.d) };
           }
+        });
 
-          const sinkInputs =
-            item.categoryId === 'sink'
-              ? (() => {
-          // 마이그레이션: layoutShape → lowerLayoutShape
+        // 선택된 품목 요약 표시
+        container.innerHTML = '';
+        const summary = {};
+        selectedItems.forEach((item) => {
+          summary[item.categoryId] = (summary[item.categoryId] || 0) + 1;
+        });
+        if (Object.keys(summary).length > 0) {
+          const summaryEl = document.createElement('div');
+          summaryEl.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+          Object.entries(summary).forEach(([catId, count]) => {
+            const cat = CATEGORIES.find(c => c.id === catId);
+            if (!cat) return;
+            const tag = document.createElement('span');
+            tag.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#f5f0eb;border:1px solid #e0d6cc;border-radius:8px;font-size:13px;color:#2d2a26;';
+            tag.innerHTML = `<strong>${cat.name}</strong> × ${count}`;
+            summaryEl.appendChild(tag);
+          });
+          container.appendChild(summaryEl);
+        }
+
+        // 마이그레이션 처리
+        selectedItems.forEach((item) => {
           if (!item.specs.lowerLayoutShape && item.specs.layoutShape) {
             item.specs.lowerLayoutShape = item.specs.layoutShape;
           }
-          const mode = item.specs.dimensionMode || 'unified';
-          const lShape = item.specs.lowerLayoutShape || 'I';
-          const uShape = item.specs.upperLayoutShape || 'I';
-          const uid = item.uniqueId;
-
-          // ── Secondary Line 렌더 헬퍼 ──
-          const renderSecondary = (prefix, shape, defaultD) => {
-            if (shape === 'I') return '';
-            const sw = item.specs[prefix + 'SecondaryW'] || '';
-            const sh = item.specs[prefix + 'SecondaryH'] || '';
-            const sd = item.specs[prefix + 'SecondaryD'] || defaultD || '';
-            return `
-        <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
-          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">Secondary Line</div>
-          <div class="input-row">
-            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${sw}" oninput="updateSpec(${uid}, '${prefix}SecondaryW', this.value)"></div>
-            <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${sh}" oninput="updateSpec(${uid}, '${prefix}SecondaryH', this.value)"></div>
-            <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${sd}" oninput="updateSpec(${uid}, '${prefix}SecondaryD', this.value)"></div>
-          </div>
-        </div>`;
-          };
-
-          // ── 통합 모드 ──
-          if (mode === 'unified') {
-            return `
-      <div class="extra-settings">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div class="extra-title">Layout & 설비 설정</div>
-          <div style="display:flex;gap:4px;">
-            <button style="padding:3px 10px;font-size:11px;border-radius:4px;border:none;background:#b8956c;color:#fff;cursor:pointer;" disabled>통합</button>
-            <button style="padding:3px 10px;font-size:11px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;" onclick="toggleDimensionMode(${uid})">분리</button>
-          </div>
-        </div>
-        <div class="input-row">
-          <div class="input-group"><label>구조 형태</label>
-            <select onchange="changeLowerLayoutShape(${uid}, this.value)">
-              <option value="I" ${lShape === 'I' ? 'selected' : ''}>ㅡ자형</option>
-              <option value="L" ${lShape === 'L' ? 'selected' : ''}>ㄱ자형</option>
-              <option value="U" ${lShape === 'U' ? 'selected' : ''}>ㄷ자형</option>
-            </select>
-          </div>
-        </div>
-        <div class="input-row" style="margin-top:8px;">
-          <div class="input-group"><label>하부장 H</label><input type="number" placeholder="mm" value="${item.specs.lowerH}" oninput="updateSpecValue(${uid}, 'lowerH', this.value)"></div>
-          <div class="input-group"><label>하부장 D</label><input type="number" placeholder="mm" value="${item.d || item.defaultD || ''}" oninput="updateItemValue(${uid}, 'd', this.value)"></div>
-          <div class="input-group"><label>상부장 H</label><input type="number" placeholder="mm" value="${item.specs.upperH}" oninput="updateSpecValue(${uid}, 'upperH', this.value)"></div>
-          <div class="input-group"><label>상부장 D</label><input type="number" placeholder="mm" value="${item.specs.upperPrimeD || 295}" oninput="updateSpec(${uid}, 'upperPrimeD', this.value)"></div>
-        </div>
-        <div class="input-row">
-          <div class="input-group"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" oninput="updateSpec(${uid}, 'distributorStart', this.value)"></div>
-          <div class="input-group"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" oninput="updateSpec(${uid}, 'distributorEnd', this.value)"></div>
-        </div>
-        <div class="input-row">
-          <div class="input-group"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" oninput="updateSpec(${uid}, 'ventStart', this.value)"></div>
-        </div>
-        ${lShape !== 'I' ? (() => {
-          const secMode = item.specs.secondaryDimensionMode || 'unified';
-          const secLH = item.specs.lowerSecondaryH || item.specs.lowerH || 870;
-          const secUH = item.specs.upperSecondaryH || item.specs.upperH || 720;
-          const secLD = item.specs.lowerSecondaryD || item.defaultD || '';
-          const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
-          if (secMode === 'unified') {
-            return `
-        <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <div style="font-size:11px;font-weight:600;color:#888;">Secondary Line</div>
-            <div style="display:flex;gap:3px;">
-              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:none;background:#888;color:#fff;cursor:pointer;" disabled>통합</button>
-              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:1px solid #ccc;background:#fff;color:#888;cursor:pointer;" onclick="toggleSecondaryDimensionMode(${uid})">분리</button>
-            </div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryW', this.value); updateSpec(${uid}, 'upperSecondaryW', this.value)"></div>
-          </div>
-          <div class="input-row" style="margin-top:6px;">
-            <div class="input-group"><label>하부장 H</label><input type="number" placeholder="mm" value="${secLH}" oninput="updateSpec(${uid}, 'lowerSecondaryH', this.value)"></div>
-            <div class="input-group"><label>하부장 D</label><input type="number" placeholder="mm" value="${secLD}" oninput="updateSpec(${uid}, 'lowerSecondaryD', this.value)"></div>
-            <div class="input-group"><label>상부장 H</label><input type="number" placeholder="mm" value="${secUH}" oninput="updateSpec(${uid}, 'upperSecondaryH', this.value)"></div>
-            <div class="input-group"><label>상부장 D</label><input type="number" placeholder="mm" value="${secUD}" oninput="updateSpec(${uid}, 'upperSecondaryD', this.value)"></div>
-          </div>
-        </div>`;
-          } else {
-            return `
-        <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <div style="font-size:11px;font-weight:600;color:#888;">Secondary Line</div>
-            <div style="display:flex;gap:3px;">
-              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:1px solid #ccc;background:#fff;color:#888;cursor:pointer;" onclick="toggleSecondaryDimensionMode(${uid})">통합</button>
-              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:none;background:#888;color:#fff;cursor:pointer;" disabled>분리</button>
-            </div>
-          </div>
-          <div style="padding:6px 8px;border-left:3px solid #b8956c;margin-bottom:6px;">
-            <div style="font-size:10px;font-weight:600;color:#b8956c;margin-bottom:4px;">하부장</div>
-            <div class="input-row">
-              <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryW', this.value)"></div>
-              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${secLH}" oninput="updateSpec(${uid}, 'lowerSecondaryH', this.value)"></div>
-              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${secLD}" oninput="updateSpec(${uid}, 'lowerSecondaryD', this.value)"></div>
-            </div>
-          </div>
-          <div style="padding:6px 8px;border-left:3px solid #5a7fa0;">
-            <div style="font-size:10px;font-weight:600;color:#5a7fa0;margin-bottom:4px;">상부장</div>
-            <div class="input-row">
-              <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryW || ''}" oninput="updateSpec(${uid}, 'upperSecondaryW', this.value)"></div>
-              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${secUH}" oninput="updateSpec(${uid}, 'upperSecondaryH', this.value)"></div>
-              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${secUD}" oninput="updateSpec(${uid}, 'upperSecondaryD', this.value)"></div>
-            </div>
-          </div>
-        </div>`;
-          }
-        })() : ''}
-      </div>`;
-          }
-
-          // ── 분리 모드 ──
-          return `
-      <div class="extra-settings">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div class="extra-title">Layout & 설비 설정</div>
-          <div style="display:flex;gap:4px;">
-            <button style="padding:3px 10px;font-size:11px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;" onclick="toggleDimensionMode(${uid})">통합</button>
-            <button style="padding:3px 10px;font-size:11px;border-radius:4px;border:none;background:#b8956c;color:#fff;cursor:pointer;" disabled>분리</button>
-          </div>
-        </div>
-        <div style="margin-top:10px;padding:10px;border:1px solid #e0d6cc;border-radius:8px;">
-          <div style="font-size:12px;font-weight:600;color:#b8956c;margin-bottom:6px;">하부장</div>
-          <div class="input-row">
-            <div class="input-group"><label>구조</label>
-              <select onchange="changeLowerLayoutShape(${uid}, this.value)">
-                <option value="I" ${lShape === 'I' ? 'selected' : ''}>ㅡ자형</option>
-                <option value="L" ${lShape === 'L' ? 'selected' : ''}>ㄱ자형</option>
-                <option value="U" ${lShape === 'U' ? 'selected' : ''}>ㄷ자형</option>
-              </select>
-            </div>
-            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${uid}, 'w', this.value)"></div>
-            <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.lowerH}" oninput="updateSpecValue(${uid}, 'lowerH', this.value)"></div>
-            <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || item.defaultD || ''}" oninput="updateItemValue(${uid}, 'd', this.value)"></div>
-          </div>
-          ${renderSecondary('lower', lShape, item.defaultD)}
-        </div>
-        <div style="margin-top:8px;padding:10px;border:1px solid #ccd6e0;border-radius:8px;">
-          <div style="font-size:12px;font-weight:600;color:#5a7fa0;margin-bottom:6px;">상부장</div>
-          <div class="input-row">
-            <div class="input-group"><label>구조</label>
-              <select onchange="changeUpperLayoutShape(${uid}, this.value)">
-                <option value="I" ${uShape === 'I' ? 'selected' : ''}>ㅡ자형</option>
-                <option value="L" ${uShape === 'L' ? 'selected' : ''}>ㄱ자형</option>
-                <option value="U" ${uShape === 'U' ? 'selected' : ''}>ㄷ자형</option>
-              </select>
-            </div>
-            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.upperPrimeW || item.w}" oninput="updateSpec(${uid}, 'upperPrimeW', this.value)"></div>
-            <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.upperH}" oninput="updateSpecValue(${uid}, 'upperH', this.value)"></div>
-            <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.upperPrimeD || 295}" oninput="updateSpec(${uid}, 'upperPrimeD', this.value)"></div>
-          </div>
-          ${renderSecondary('upper', uShape, 295)}
-        </div>
-        <div class="input-row" style="margin-top:8px;">
-          <div class="input-group"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" oninput="updateSpec(${uid}, 'distributorStart', this.value)"></div>
-          <div class="input-group"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" oninput="updateSpec(${uid}, 'distributorEnd', this.value)"></div>
-        </div>
-        <div class="input-row">
-          <div class="input-group"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" oninput="updateSpec(${uid}, 'ventStart', this.value)"></div>
-        </div>
-      </div>`;
-        })()
-              : '';
-
-          // ★ 붙박이장 전용 입력 폼
-          const wardrobeInputs =
-            item.categoryId === 'wardrobe'
-              ? `
-      <div class="extra-settings">
-        <div class="extra-title">붙박이장 설정</div>
-        <div class="input-row">
-          <div class="input-group"><label>실측 기준</label>
-            <select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)">
-              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
-              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
-            </select>
-          </div>
-        </div>
-        <div class="input-row">
-          <div class="input-group"><label>커튼박스 가로(mm)</label><input type="number" value="${item.specs.curtainBoxW || ''}" placeholder="0" oninput="updateSpec(${item.uniqueId}, 'curtainBoxW', this.value)"></div>
-          <div class="input-group"><label>커튼박스 높이(mm)</label><input type="number" value="${item.specs.curtainBoxH || ''}" placeholder="0" oninput="updateSpec(${item.uniqueId}, 'curtainBoxH', this.value)"></div>
-        </div>
-      </div>
-    `
-              : '';
-
-          // ★ 냉장고장 전용 입력 폼 (규칙 기반)
-          const fridgeInputs =
-            item.categoryId === 'fridge'
-              ? `
-      <div class="extra-settings">
-        <div class="extra-title">🧊 냉장고장 기본 설정</div>
-        <div class="input-row">
-          <div class="input-group"><label>브랜드</label>
-            <select onchange="updateSpec(${item.uniqueId}, 'fridgeBrand', this.value)">
-              <option value="LG" ${item.specs.fridgeBrand === 'LG' ? 'selected' : ''}>LG</option>
-              <option value="Samsung" ${item.specs.fridgeBrand === 'Samsung' ? 'selected' : ''}>삼성</option>
-            </select>
-          </div>
-          <div class="input-group"><label>상몰딩 높이(mm)</label>
-            <input type="number" value="${item.specs.fridgeMoldingH || 50}" oninput="updateSpec(${item.uniqueId}, 'fridgeMoldingH', this.value)">
-          </div>
-        </div>
-        <div style="font-size:10px;color:#666;margin-top:4px;">
-          ※ 상부장 도어H = 실측H - 냉장고H - 15 - 상몰딩H (최대 400mm)
-        </div>
-      </div>
-    `
-              : '';
-
-          const imageHtml =
-            item.image === 'loading'
-              ? `<div style="font-size:14px;">⏳</div><div>업로드중...</div>`
-              : item.image
-                ? `<img src="${item.image}" alt="preview" onerror="this.outerHTML='<div>❌ 오류</div>'">`
-                : `<div style="font-size:20px;">📷</div><div>사진</div>`;
-
-          const card = document.createElement('div');
-          card.className = 'item-input-card';
-          card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-weight:bold;color:var(--primary-color);">${item.labelName}</div>
-        <button class="btn-delete" onclick="removeInstance(${item.uniqueId})">×</button>
-      </div>
-    `;
-          container.appendChild(card);
-          if (!item.d && item.defaultD > 0) item.d = item.defaultD;
         });
 
         document.getElementById('btnNext').disabled = selectedItems.length === 0;
