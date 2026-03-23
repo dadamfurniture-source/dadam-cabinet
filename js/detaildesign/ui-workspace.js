@@ -1844,11 +1844,11 @@
             try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
           }
 
-          // 드래그 안 했으면 → 클릭 동작 (모듈 편집 팝업)
+          // 드래그 안 했으면 → 아무 동작 없음 (위치 불변)
+          // 모듈 편집은 더블클릭으로만 가능
           if (!wasDragged) {
             modDragRect = null;
             modDragged = false;
-            openModulePopup(savedUid, savedIdx);
             return;
           }
 
@@ -1891,6 +1891,15 @@
           renderWorkspaceContent(item);
         });
       })();
+
+      // ── 모듈 더블클릭 → 편집 팝업 ──
+      document.addEventListener('dblclick', function(e) {
+        const el = e.target.closest('[data-drag-mod]');
+        if (!el) return;
+        const modIdx = parseInt(el.dataset.dragMod);
+        const uid = parseFloat(el.dataset.uid);
+        openModulePopup(uid, modIdx);
+      });
 
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
