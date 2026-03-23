@@ -464,6 +464,66 @@
       }
 
       /**
+       * 고정 doorWidth로 갭 채우기 (균등 분배 보장)
+       */
+      function fillGapWithModulesFixed(gap, section, defaultH, defaultD, edgeMode, doorWidth) {
+        const newModules = [];
+        const namePrefix = section === 'upper' ? '상부장' : '하부장';
+        if (gap.width < DOOR_MIN_WIDTH || !doorWidth) return newModules;
+
+        const doorCount = Math.max(1, Math.floor(gap.width / doorWidth));
+        let dx = gap.start;
+        const gapEnd = gap.start + gap.width;
+        const canFit = (w) => dx + w <= gapEnd + 1;
+
+        if (edgeMode !== 'none' && doorCount >= 3) {
+          const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
+          const hasRight = (edgeMode === 'both' || edgeMode === 'right');
+          const edgeDoors = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0);
+          const centerDoors = doorCount - edgeDoors;
+          const center2D = Math.floor(centerDoors / 2);
+          const centerMod1D = centerDoors % 2;
+
+          if (hasLeft && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+          for (let i = 0; i < center2D; i++) {
+            if (canFit(doorWidth * 2)) {
+              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+              dx += doorWidth * 2;
+            } else if (canFit(doorWidth)) {
+              newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+              dx += doorWidth;
+            }
+          }
+          if (centerMod1D > 0 && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+          if (hasRight && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+        } else {
+          const quotient = Math.floor(doorCount / 2);
+          const mod1D = doorCount % 2;
+          for (let i = 0; i < quotient; i++) {
+            if (canFit(doorWidth * 2)) {
+              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+              dx += doorWidth * 2;
+            }
+          }
+          if (mod1D > 0 && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+        }
+
+        return newModules;
+      }
+
+      /**
        * 모듈 객체 생성 헬퍼
        */
       function createModule(pos, namePrefix, w, h, d, is2D, x) {
@@ -741,15 +801,19 @@
             console.log(`[AutoCalc] 상부장: 소규격 갭(${smallGapTotalUpper}mm)을 고정 모듈에 흡수`);
           }
 
-          // 대칭 분배 (각 갭 독립 distributeModules 호출)
+          // ★ 균등 분배: 전체 가용 공간으로 단일 doorWidth 결정 → 모든 갭에 적용
+          const totalAvailSpace = largeGapsUpper.reduce((s, g) => s + g.width, 0);
+          const unifiedResult = distributeModules(totalAvailSpace, preferExactUpper);
+          const unifiedDoorWidth = unifiedResult.doorWidth;
+
           if (largeGapsUpper.length === 1) {
-            newModules = fillGapWithModules(largeGapsUpper[0], 'upper', upperBodyH, 295, 'both', preferExactUpper);
+            newModules = fillGapWithModulesFixed(largeGapsUpper[0], 'upper', upperBodyH, 295, 'both', unifiedDoorWidth);
           } else if (largeGapsUpper.length > 1) {
             largeGapsUpper.forEach((gap, idx) => {
               let edgeMode = 'none';
               if (idx === 0) edgeMode = 'left';
               else if (idx === largeGapsUpper.length - 1) edgeMode = 'right';
-              newModules = newModules.concat(fillGapWithModules(gap, 'upper', upperBodyH, 295, edgeMode, preferExactUpper));
+              newModules = newModules.concat(fillGapWithModulesFixed(gap, 'upper', upperBodyH, 295, edgeMode, unifiedDoorWidth));
             });
           }
 
@@ -971,9 +1035,13 @@
             console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수`);
           }
 
-          // 모듈 생성 (각 갭 독립 distributeModules 호출)
+          // ★ 균등 분배: 전체 가용 공간으로 단일 doorWidth 결정
+          const totalLowerAvail = largeGaps.reduce((s, g) => s + g.width, 0);
+          const unifiedLowerResult = distributeModules(totalLowerAvail, preferExact);
+          const unifiedLowerDoorW = unifiedLowerResult.doorWidth;
+
           largeGaps.forEach((gap) => {
-            newModules = newModules.concat(fillGapWithModules(gap, 'lower', defaultLowerH, 550, 'none', preferExact));
+            newModules = newModules.concat(fillGapWithModulesFixed(gap, 'lower', defaultLowerH, 550, 'none', unifiedLowerDoorW));
           });
 
           console.log(`하부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${effectiveW - fixedTotalW}mm`);
