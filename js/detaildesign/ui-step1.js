@@ -347,36 +347,16 @@
           const card = document.createElement('div');
           card.className = 'item-input-card';
           card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="font-weight:bold;color:var(--primary-color);">${item.labelName}</div>
         <button class="btn-delete" onclick="removeInstance(${item.uniqueId})">×</button>
-      </div>
-      <div class="item-body">
-        <div class="input-section">
-          ${item.categoryId === 'sink' ? `<div class="input-row"><div class="input-group"><label>실측 기준</label><select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)"><option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option><option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option></select></div></div>` : ''}
-          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">현장 실측 치수</div>
-          <div class="input-row">
-            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
-            <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
-            <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || item.defaultD || ''}" oninput="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
-          </div>
-          ${sinkInputs}
-          ${wardrobeInputs}
-          ${fridgeInputs}
-        </div>
-        <div class="photo-section">
-          <label>현장 사진</label>
-          <div class="photo-box" onclick="document.getElementById('file-${item.uniqueId}').click()">${imageHtml}</div>
-          <input type="file" id="file-${item.uniqueId}" class="file-input-hidden" accept="image/*" onchange="handleItemPhoto(${item.uniqueId}, event)">
-        </div>
       </div>
     `;
           container.appendChild(card);
           if (!item.d && item.defaultD > 0) item.d = item.defaultD;
         });
 
-        document.getElementById('btnNext').disabled =
-          selectedItems.length === 0 || !selectedItems.every((item) => item.w && item.h && item.d);
+        document.getElementById('btnNext').disabled = selectedItems.length === 0;
         document.getElementById('aiGuideText').innerHTML =
           selectedItems.length > 0
             ? `총 <strong>${selectedItems.length}개</strong>의 가구 설정 중...`
@@ -1000,10 +980,48 @@
     </div>
     <div class="ws-layout">
       <div class="spec-panel">
-        <div class="spec-group-title">1. Dimensions (치수)</div>
+        <div class="spec-group-title">0. 현장 실측 & Layout</div>
         <div class="spec-row">
-          <div class="spec-field"><label>상부장 높이</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+          <div class="spec-field"><label>실측 기준</label>
+            <select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)">
+              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
+              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
+            </select>
+          </div>
+          <div class="spec-field"><label>구조 형태</label>
+            <select onchange="changeLowerLayoutShape(${item.uniqueId}, this.value)">
+              <option value="I" ${(item.specs.lowerLayoutShape || item.specs.layoutShape) === 'I' ? 'selected' : ''}>ㅡ자형</option>
+              <option value="L" ${(item.specs.lowerLayoutShape || item.specs.layoutShape) === 'L' ? 'selected' : ''}>ㄱ자형</option>
+              <option value="U" ${(item.specs.lowerLayoutShape || item.specs.layoutShape) === 'U' ? 'selected' : ''}>ㄷ자형</option>
+            </select>
+          </div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
+          <div class="spec-field"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
+          <div class="spec-field"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>현장 사진</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:4px 12px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '변경' : '업로드'}</button>
+              ${item.image && item.image !== 'loading' ? `<img src="${item.image}" style="height:32px;border-radius:4px;" alt="photo">` : ''}
+              <input type="file" id="ws-file-${item.uniqueId}" style="display:none" accept="image/*" onchange="handleItemPhoto(${item.uniqueId}, event)">
+            </div>
+          </div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" onchange="updateSpec(${item.uniqueId}, 'distributorStart', this.value)"></div>
+          <div class="spec-field"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" onchange="updateSpec(${item.uniqueId}, 'distributorEnd', this.value)"></div>
+        </div>
+        <div class="spec-row">
+          <div class="spec-field"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" onchange="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
+        </div>
+
+        <div class="spec-group-title">1. Dimensions (모듈 치수)</div>
+        <div class="spec-row">
           <div class="spec-field"><label>하부장 높이</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
+          <div class="spec-field"><label>상부장 높이</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
         </div>
         <div class="spec-row">
           <div class="spec-field"><label>상부 도어 오버랩</label><input type="number" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
