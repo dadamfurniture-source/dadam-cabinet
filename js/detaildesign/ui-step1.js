@@ -180,7 +180,26 @@
         <div class="input-row">
           <div class="input-group"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" oninput="updateSpec(${uid}, 'ventStart', this.value)"></div>
         </div>
-        ${renderSecondary('lower', lShape, item.defaultD)}
+        ${lShape !== 'I' ? `
+        <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
+          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:6px;">Secondary Line</div>
+          <div style="padding:6px 8px;border-left:3px solid #b8956c;margin-bottom:6px;">
+            <div style="font-size:10px;font-weight:600;color:#b8956c;margin-bottom:4px;">하부장</div>
+            <div class="input-row">
+              <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryW', this.value)"></div>
+              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryH || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryH', this.value)"></div>
+              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryD || item.defaultD || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryD', this.value)"></div>
+            </div>
+          </div>
+          <div style="padding:6px 8px;border-left:3px solid #5a7fa0;">
+            <div style="font-size:10px;font-weight:600;color:#5a7fa0;margin-bottom:4px;">상부장</div>
+            <div class="input-row">
+              <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryW || ''}" oninput="updateSpec(${uid}, 'upperSecondaryW', this.value)"></div>
+              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryH || ''}" oninput="updateSpec(${uid}, 'upperSecondaryH', this.value)"></div>
+              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryD || 295}" oninput="updateSpec(${uid}, 'upperSecondaryD', this.value)"></div>
+            </div>
+          </div>
+        </div>` : ''}
       </div>`;
           }
 
