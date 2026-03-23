@@ -702,8 +702,39 @@
           }
         }
 
+        // 분배기/환풍구 위치 마커 (SVG 내부)
+        const distStart = parseFloat(item.specs.distributorStart) || 0;
+        const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+        const ventPos = parseFloat(item.specs.ventStart) || 0;
+        const markerY_bottom = offsetY + drawH + 8;
+        const markerY_top = offsetY - 8;
+        let utilityMarkers = '';
+
+        // 분배기 (하단, 파란색)
+        if (distStart > 0 || distEnd > 0) {
+          const dsx = offsetX + distStart * scale;
+          const dex = offsetX + distEnd * scale;
+          utilityMarkers += `
+            <rect x="${dsx}" y="${markerY_bottom}" width="${Math.max(dex - dsx, 4)}" height="${6}" fill="#3b82f6" rx="2" opacity="0.7"/>
+            <line x1="${dsx}" y1="${markerY_bottom - 2}" x2="${dsx}" y2="${offsetY + drawH}" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3"/>
+            <line x1="${dex}" y1="${markerY_bottom - 2}" x2="${dex}" y2="${offsetY + drawH}" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3"/>
+            <text x="${(dsx + dex) / 2}" y="${markerY_bottom + 14}" text-anchor="middle" font-size="8" fill="#3b82f6" font-weight="bold">분배기 ${distStart}~${distEnd}</text>`;
+        }
+
+        // 환풍구 (상단, 빨간색)
+        if (ventPos > 0) {
+          const vx = offsetX + ventPos * scale;
+          utilityMarkers += `
+            <rect x="${vx - 8}" y="${markerY_top - 6}" width="${16}" height="${6}" fill="#ef4444" rx="2" opacity="0.7"/>
+            <line x1="${vx}" y1="${markerY_top}" x2="${vx}" y2="${offsetY}" stroke="#ef4444" stroke-width="1" stroke-dasharray="3"/>
+            <text x="${vx}" y="${markerY_top - 10}" text-anchor="middle" font-size="8" fill="#ef4444" font-weight="bold">환풍구 ${ventPos}</text>`;
+        }
+
+        // SVG 높이 확장 (마커 공간)
+        const extSvgH = svgHeight + 25;
+
         const sinkFrontViewSvg = `
-    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
+    <svg viewBox="0 0 ${svgWidth} ${extSvgH}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
       <!-- 치수선 - 상단 -->
       <line x1="${offsetX}" y1="${offsetY - 15}" x2="${offsetX + drawW}" y2="${offsetY - 15}" stroke="#666" stroke-width="1"/>
       <line x1="${offsetX}" y1="${offsetY - 20}" x2="${offsetX}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
@@ -718,6 +749,9 @@
 
       <!-- 모듈들 -->
       ${sinkModuleSvg}
+
+      <!-- 분배기/환풍구 마커 -->
+      ${utilityMarkers}
     </svg>
   `;
 
@@ -948,20 +982,20 @@
         <div style="flex:1;width:100%;overflow:auto;position:relative;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
           ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
         </div>
-        <!-- 분배기/환풍구 위치 슬라이더 -->
-        <div style="padding:8px 4px 0;border-top:1px solid #f0f0f0;margin-top:6px;">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-            <span style="font-size:10px;color:#3b82f6;font-weight:600;min-width:55px;">🔵 분배기</span>
-            <input type="range" min="0" max="${item.w || 3000}" value="${item.specs.distributorStart || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorStart', this.value); this.nextElementSibling.textContent=this.value+'mm'" style="flex:1;accent-color:#3b82f6;">
-            <span style="font-size:10px;color:#555;min-width:45px;">${item.specs.distributorStart || 0}mm</span>
-            <span style="font-size:9px;color:#999;">~</span>
-            <input type="range" min="0" max="${item.w || 3000}" value="${item.specs.distributorEnd || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorEnd', this.value); this.nextElementSibling.textContent=this.value+'mm'" style="flex:1;accent-color:#3b82f6;">
-            <span style="font-size:10px;color:#555;min-width:45px;">${item.specs.distributorEnd || 0}mm</span>
+        <!-- 분배기/환풍구 슬라이더 (도면 내 마커와 연동) -->
+        <div style="padding:6px 8px 0;margin-top:4px;">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;">
+            <span style="font-size:9px;color:#3b82f6;font-weight:600;min-width:32px;">분배기</span>
+            <input type="range" min="0" max="${item.w || 3000}" step="10" value="${item.specs.distributorStart || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorStart', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))" style="flex:1;accent-color:#3b82f6;height:14px;">
+            <span style="font-size:9px;color:#888;min-width:30px;">${item.specs.distributorStart || 0}</span>
+            <span style="font-size:8px;color:#ccc;">~</span>
+            <input type="range" min="0" max="${item.w || 3000}" step="10" value="${item.specs.distributorEnd || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorEnd', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))" style="flex:1;accent-color:#3b82f6;height:14px;">
+            <span style="font-size:9px;color:#888;min-width:30px;">${item.specs.distributorEnd || 0}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#ef4444;font-weight:600;min-width:55px;">🔴 환풍구</span>
-            <input type="range" min="0" max="${item.w || 3000}" value="${item.specs.ventStart || 0}" oninput="updateSpec(${item.uniqueId}, 'ventStart', this.value); this.nextElementSibling.textContent=this.value+'mm'" style="flex:1;accent-color:#ef4444;">
-            <span style="font-size:10px;color:#555;min-width:45px;">${item.specs.ventStart || 0}mm</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-size:9px;color:#ef4444;font-weight:600;min-width:32px;">환풍구</span>
+            <input type="range" min="0" max="${item.w || 3000}" step="10" value="${item.specs.ventStart || 0}" oninput="updateSpec(${item.uniqueId}, 'ventStart', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))" style="flex:1;accent-color:#ef4444;height:14px;">
+            <span style="font-size:9px;color:#888;min-width:30px;">${item.specs.ventStart || 0}</span>
           </div>
         </div>
       </div>
