@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>도면 뷰어 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+      }
+      body {
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        background: var(--white);
+        color: var(--charcoal);
+        line-height: 1.7;
+      }
+
+      /* Header */
+      .header {
+        background: var(--charcoal);
+        color: var(--cream);
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .header h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .header a {
+        color: var(--gold);
+        text-decoration: none;
+        font-size: 14px;
+      }
+
+      /* Tab Navigation */
+      .tab-nav {
+        display: flex;
+        gap: 0;
+        background: var(--warm);
+        border-bottom: 2px solid var(--gold);
+        overflow-x: auto;
+      }
+      .tab-btn {
+        padding: 14px 24px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--gray);
+        white-space: nowrap;
+        transition: all 0.2s;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+      }
+      .tab-btn:hover { color: var(--charcoal); }
+      .tab-btn.active {
+        color: var(--charcoal);
+        border-bottom-color: var(--gold);
+        background: var(--white);
+      }
+
+      /* SVG Container */
+      .tab-content { display: none; padding: 24px; }
+      .tab-content.active { display: block; }
+      .svg-wrapper {
+        background: white;
+        border: 1px solid var(--warm);
+        border-radius: 8px;
+        padding: 16px;
+        overflow: auto;
+        text-align: center;
+        min-height: 300px;
+        position: relative;
+      }
+      .svg-wrapper svg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 24px;
+        background: var(--cream);
+        border-bottom: 1px solid var(--warm);
+        flex-wrap: wrap;
+      }
+      .controls label {
+        font-size: 13px;
+        color: var(--gray);
+      }
+      .controls select, .controls input[type="range"] {
+        padding: 6px 12px;
+        border: 1px solid var(--warm);
+        border-radius: 4px;
+        font-size: 13px;
+        background: white;
+      }
+      .controls input[type="range"] { width: 120px; }
+      .zoom-label {
+        font-size: 13px;
+        color: var(--charcoal);
+        font-weight: 500;
+        min-width: 40px;
+      }
+      .btn {
+        padding: 8px 16px;
+        background: var(--charcoal);
+        color: var(--cream);
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background 0.2s;
+      }
+      .btn:hover { background: var(--black); }
+      .btn-gold { background: var(--gold); }
+      .btn-gold:hover { background: #a6845e; }
+
+      /* Info Panel */
+      .info-panel {
+        background: var(--cream);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-top: 16px;
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .info-panel h3 {
+        font-size: 14px;
+        margin-bottom: 8px;
+        color: var(--charcoal);
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 8px;
+      }
+      .info-item { display: flex; gap: 8px; }
+      .info-item .label { color: var(--gray); }
+      .info-item .value { font-weight: 500; }
+
+      /* Loading */
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        color: var(--gray);
+        font-size: 15px;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--gray);
+      }
+      .empty-state p { margin-top: 8px; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>Drawing Viewer</h1>
+      <a href="index.html">&#8592; 메인으로</a>
+    </div>
+
+    <div class="controls">
+      <label>카테고리</label>
+      <select id="categorySelect">
+        <option value="sink">주방 (싱크)</option>
+        <option value="wardrobe">붙박이장</option>
+        <option value="vanity">세면대장</option>
+        <option value="shoe">신발장</option>
+        <option value="storage">수납장</option>
+      </select>
+      <label>줌</label>
+      <input type="range" id="zoomRange" min="30" max="200" value="100" />
+      <span class="zoom-label" id="zoomLabel">100%</span>
+      <button class="btn btn-gold" id="generateBtn">데모 도면 생성</button>
+      <button class="btn" id="downloadBtn">SVG 다운로드</button>
+    </div>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="front">정면도</button>
+      <button class="tab-btn" data-tab="side">단면도</button>
+      <button class="tab-btn" data-tab="plan">평면도</button>
+      <button class="tab-btn" data-tab="manufacturing">제작 도면</button>
+      <button class="tab-btn" data-tab="installation">설치 도면</button>
+    </div>
+
+    <div id="tab-front" class="tab-content active">
+      <div class="svg-wrapper" id="svg-front">
+        <div class="empty-state"><p>도면을 생성하면 여기에 표시됩니다</p></div>
+      </div>
+    </div>
+    <div id="tab-side" class="tab-content">
+      <div class="svg-wrapper" id="svg-side"></div>
+    </div>
+    <div id="tab-plan" class="tab-content">
+      <div class="svg-wrapper" id="svg-plan"></div>
+    </div>
+    <div id="tab-manufacturing" class="tab-content">
+      <div class="svg-wrapper" id="svg-manufacturing"></div>
+    </div>
+    <div id="tab-installation" class="tab-content">
+      <div class="svg-wrapper" id="svg-installation"></div>
+    </div>
+
+    <div style="padding: 0 24px;">
+      <div class="info-panel" id="infoPanel" style="display:none;">
+        <h3>도면 정보</h3>
+        <div class="info-grid" id="infoGrid"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      // ─── SVG 데모 데이터 (mcp-server에서 사전 생성) ───
+      const SVG_CACHE = {};
+      let currentTab = 'front';
+
+      // Tab switching
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          currentTab = btn.dataset.tab;
+          document.getElementById(`tab-${currentTab}`).classList.add('active');
+        });
+      });
+
+      // Zoom
+      const zoomRange = document.getElementById('zoomRange');
+      const zoomLabel = document.getElementById('zoomLabel');
+      zoomRange.addEventListener('input', () => {
+        const zoom = zoomRange.value;
+        zoomLabel.textContent = `${zoom}%`;
+        document.querySelectorAll('.svg-wrapper svg').forEach(svg => {
+          svg.style.transform = `scale(${zoom / 100})`;
+          svg.style.transformOrigin = 'top center';
+        });
+      });
+
+      // Load pre-generated SVGs from output-svg folder
+      async function loadSvgFiles() {
+        const views = ['front', 'side', 'plan', 'manufacturing', 'installation'];
+        const fileMap = {
+          front: 'mcp-server/output-svg/front-view.svg',
+          side: 'mcp-server/output-svg/side-view.svg',
+          plan: 'mcp-server/output-svg/plan-view.svg',
+          manufacturing: 'mcp-server/output-svg/manufacturing.svg',
+          installation: 'mcp-server/output-svg/installation.svg',
+        };
+
+        for (const view of views) {
+          const container = document.getElementById(`svg-${view}`);
+          try {
+            const res = await fetch(fileMap[view]);
+            if (!res.ok) throw new Error(`${res.status}`);
+            const svgText = await res.text();
+            container.innerHTML = svgText;
+            SVG_CACHE[view] = svgText;
+          } catch (e) {
+            container.innerHTML = `<div class="empty-state"><p>SVG 파일을 불러올 수 없습니다<br><small>${fileMap[view]}</small></p></div>`;
+          }
+        }
+
+        // Show info panel
+        showInfo();
+      }
+
+      function showInfo() {
+        const panel = document.getElementById('infoPanel');
+        const grid = document.getElementById('infoGrid');
+        panel.style.display = 'block';
+        grid.innerHTML = `
+          <div class="info-item"><span class="label">카테고리:</span><span class="value">주방 (sink)</span></div>
+          <div class="info-item"><span class="label">스타일:</span><span class="value">modern</span></div>
+          <div class="info-item"><span class="label">벽 너비:</span><span class="value">3,600mm</span></div>
+          <div class="info-item"><span class="label">벽 높이:</span><span class="value">2,400mm</span></div>
+          <div class="info-item"><span class="label">하부장:</span><span class="value">4개</span></div>
+          <div class="info-item"><span class="label">상부장:</span><span class="value">3개</span></div>
+          <div class="info-item"><span class="label">깊이:</span><span class="value">600mm</span></div>
+          <div class="info-item"><span class="label">스케일:</span><span class="value">0.5 (mm→px)</span></div>
+        `;
+      }
+
+      // Generate button (re-loads files)
+      document.getElementById('generateBtn').addEventListener('click', () => {
+        loadSvgFiles();
+      });
+
+      // Download current SVG
+      document.getElementById('downloadBtn').addEventListener('click', () => {
+        const svgEl = document.querySelector(`#svg-${currentTab} svg`);
+        if (!svgEl) return alert('표시된 SVG가 없습니다');
+        const svgData = new XMLSerializer().serializeToString(svgEl);
+        const blob = new Blob([svgData], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${currentTab}-view.svg`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      // Auto-load on page open
+      loadSvgFiles();
+    </script>
+  </body>
+</html>
