@@ -828,23 +828,23 @@
         const ventPos = parseFloat(item.specs.ventStart) || 0;
         const cookMod = fixedOccupied.find(m => m.type === 'cook');
         if (cookMod) {
-          const cookW = parseFloat(cookMod.w) || 600;
+          const cookW_val = parseFloat(cookMod.w) || 600;
           if (ventPos > 0) {
             // 환풍구 위치 중심에 가스대 배치
             let ventAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
-            let cookX = ventAbs - cookW / 2;
-            cookX = Math.max(startBound, Math.min(endBound - cookW, cookX));
+            let cookX = ventAbs - cookW_val / 2;
+            cookX = Math.max(startBound, Math.min(endBound - cookW_val, cookX));
             cookMod.x = cookX;
-            cookMod.endX = cookX + cookW;
+            cookMod.endX = cookX + cookW_val;
             console.log(`[AutoCalc] 가스대: 환풍구=${ventPos}mm → cookX=${cookX}`);
           } else {
             // 환풍구 미입력: 기준 반대쪽에 배치
             if (isRefLeft) {
-              cookMod.x = Math.max(startBound, endBound - cookW);
+              cookMod.x = Math.max(startBound, endBound - cookW_val);
             } else {
               cookMod.x = startBound;
             }
-            cookMod.endX = cookMod.x + cookW;
+            cookMod.endX = cookMod.x + cookW_val;
           }
         }
 
