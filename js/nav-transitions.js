@@ -30,11 +30,11 @@
     if (a.target === '_blank' || e.ctrlKey || e.metaKey || e.shiftKey) return;
 
     e.preventDefault();
-    document.body.style.transition = 'opacity 0.03s ease-out';
+    document.body.style.transition = 'opacity 0.1s ease-out';
     document.body.style.opacity = '0';
 
     setTimeout(function () {
       window.location.href = href;
-    }, 30);
+    }, 100);
   });
 })();
