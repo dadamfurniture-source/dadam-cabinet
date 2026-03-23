@@ -159,12 +159,6 @@
           </div>
         </div>
         <div class="input-row">
-          <div class="input-group"><label>실측 기준</label>
-            <select onchange="updateSpec(${uid}, 'measurementBase', this.value)">
-              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
-              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
-            </select>
-          </div>
           <div class="input-group"><label>구조 형태</label>
             <select onchange="changeLowerLayoutShape(${uid}, this.value)">
               <option value="I" ${lShape === 'I' ? 'selected' : ''}>ㅡ자형</option>
@@ -198,14 +192,6 @@
           <div style="display:flex;gap:4px;">
             <button style="padding:3px 10px;font-size:11px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;" onclick="toggleDimensionMode(${uid})">통합</button>
             <button style="padding:3px 10px;font-size:11px;border-radius:4px;border:none;background:#b8956c;color:#fff;cursor:pointer;" disabled>분리</button>
-          </div>
-        </div>
-        <div class="input-row">
-          <div class="input-group"><label>실측 기준</label>
-            <select onchange="updateSpec(${uid}, 'measurementBase', this.value)">
-              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
-              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
-            </select>
           </div>
         </div>
         <div style="margin-top:10px;padding:10px;border:1px solid #e0d6cc;border-radius:8px;">
@@ -313,12 +299,13 @@
       </div>
       <div class="item-body">
         <div class="input-section">
-          ${sinkInputs}
+          ${item.categoryId === 'sink' ? `<div class="input-row"><div class="input-group"><label>실측 기준</label><select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)"><option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option><option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option></select></div></div>` : ''}
           <div class="input-row">
             <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
             <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
             <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.d || item.defaultD || ''}" oninput="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
           </div>
+          ${sinkInputs}
           ${wardrobeInputs}
           ${fridgeInputs}
         </div>
