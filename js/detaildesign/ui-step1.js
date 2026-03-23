@@ -774,8 +774,10 @@
         // 분배기 — 하부장 하단 (배관 그림 + 치수 + 클릭 팝업 + 드래그)
         {
           const pipeY = lowerY + lowerH_s - 16;
-          const dsx = offsetX + distStart * scale;
-          const dex = offsetX + distEnd * scale;
+          const drawLeft = offsetX + finishL_s;
+          const drawRight = offsetX + drawW - finishR_s;
+          const dsx = Math.max(drawLeft, Math.min(drawRight, offsetX + distStart * scale));
+          const dex = Math.max(drawLeft, Math.min(drawRight, offsetX + distEnd * scale));
           // 클릭 영역 (배관 라인 → 팝업)
           utilityMarkers += `
             <rect x="${Math.min(dsx, dex) - 5}" y="${pipeY - 8}" width="${Math.abs(dex - dsx) + 10}" height="24" fill="transparent" style="cursor:pointer;" onclick="openUtilityPopup(${uid}, 'distributor')"/>`;
@@ -795,7 +797,7 @@
         // 환풍구 — 상부장 상단 (덕트 그림 + 치수 + 클릭 팝업 + 드래그)
         {
           const ductY = upperY + 3;
-          const vx = offsetX + ventPos * scale;
+          const vx = Math.max(drawLeft + 14, Math.min(drawRight - 14, offsetX + ventPos * scale));
           // 클릭 영역 (덕트 → 팝업, 드래그보다 뒤에 렌더)
           utilityMarkers += `
             <rect x="${vx - 20}" y="${ductY - 4}" width="40" height="30" fill="transparent" style="cursor:pointer;" onclick="openUtilityPopup(${uid}, 'vent')"/>`;
@@ -1204,13 +1206,20 @@
           else if (isTall) { fillF = '#dcfce7'; fillT = '#bbf7d0'; fillS = '#86efac'; sc = '#10b981'; }
           else if (mod.isDrawer) { fillF = '#fef3c7'; fillT = '#fde68a'; fillS = '#fcd34d'; sc = '#f59e0b'; }
 
+          const modIdx = item.modules.indexOf(mod);
           svg += isoBox(lx, my, 0, mw, mh, md, fillF, fillT, fillS, sc);
+          // 클릭/드래그 영역 (전면에 투명 오버레이)
+          const fbl = proj(lx, my, 0);
+          const fbr = proj(lx + mw, my, 0);
+          const ftr = proj(lx + mw, my + mh, 0);
+          const ftl = proj(lx, my + mh, 0);
+          svg += `<polygon points="${fbl.join(',')},${fbr.join(',')},${ftr.join(',')},${ftl.join(',')}" fill="transparent" style="cursor:grab;" data-mod-index="${modIdx}" data-drag-mod="${modIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower"/>`;
 
           const icons = { sink: '🚰', cook: '🔥', tall: '↕️', storage: '🗄️' };
           const icon = icons[mod.type] || '📦';
           const [cx, cy] = proj(lx + mw / 2, my + mh / 2, 0);
-          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
-          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold" pointer-events="none">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555" pointer-events="none">${mw}</text>`;
           lx += mw;
         });
 
@@ -1286,11 +1295,18 @@
           const fillF = mod.type === 'hood' ? '#fef3c7' : '#dbeafe';
           const fillT = mod.type === 'hood' ? '#fde68a' : '#bfdbfe';
           const fillS = mod.type === 'hood' ? '#fcd34d' : '#93c5fd';
+          const uModIdx = item.modules.indexOf(mod);
           svg += isoBox(ux, uY, 0, mw, upperH, upperD, fillF, fillT, fillS, mod.type === 'hood' ? '#f59e0b' : '#3b82f6');
+          // 클릭/드래그 오버레이
+          const ufbl = proj(ux, uY, 0);
+          const ufbr = proj(ux + mw, uY, 0);
+          const uftr = proj(ux + mw, uY + upperH, 0);
+          const uftl = proj(ux, uY + upperH, 0);
+          svg += `<polygon points="${ufbl.join(',')},${ufbr.join(',')},${uftr.join(',')},${uftl.join(',')}" fill="transparent" style="cursor:grab;" data-mod-index="${uModIdx}" data-drag-mod="${uModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper"/>`;
           const [cx, cy] = proj(ux + mw / 2, uY + upperH / 2, 0);
           const icon = mod.type === 'hood' ? '🌀' : '📦';
-          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
-          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold" pointer-events="none">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555" pointer-events="none">${mw}</text>`;
           ux += mw;
         });
 
@@ -1431,8 +1447,9 @@
           let ux = ox + finishL * scale;
           for (const mod of upperModules) {
             const mw = (parseFloat(mod.w) || 600) * scale;
-            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="#f0f0f0" stroke="#666" stroke-width="1"/>`;
-            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+3}" text-anchor="middle" font-size="10" fill="#333">${mod.w||''}</text>`;
+            const tModIdx = item.modules.indexOf(mod);
+            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="#f0f0f0" stroke="#666" stroke-width="1" data-mod-index="${tModIdx}" data-drag-mod="${tModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper" style="cursor:grab;"/>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+3}" text-anchor="middle" font-size="10" fill="#333" pointer-events="none">${mod.w||''}</text>`;
             ux += mw;
           }
         }
@@ -1480,7 +1497,8 @@
             const isSink = mod.type === 'sink' || mod.hasSink || mod.has_sink;
             const isCook = mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop;
             const fill = isSink ? '#e8f4fd' : isCook ? '#fff8e1' : '#f0f0f0';
-            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="#666" stroke-width="1"/>`;
+            const tLModIdx = item.modules.indexOf(mod);
+            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="#666" stroke-width="1" data-mod-index="${tLModIdx}" data-drag-mod="${tLModIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower" style="cursor:grab;"/>`;
 
             // 싱크볼
             if (isSink) {
