@@ -1409,69 +1409,134 @@
         const topT = 30;
         const finishL = item.specs.finishLeftType !== 'None' ? (parseFloat(item.specs.finishLeftWidth) || 0) : 0;
 
-        const svgW = 650, gap = 30, labelH = 24, dimH = 25, pad = 20;
-        const scale = (svgW - pad * 2) / W;
+        const svgW = 650, sectionGap = 50, labelH = 28, dimH = 28, pad = 20, sectionPad = 12;
+        const scale = (svgW - pad * 2 - sectionPad * 2) / W;
         const upperDrawD = upperD * scale, lowerDrawD = D * scale, topDrawT = topT * scale;
-        const svgH = pad + labelH + upperDrawD + dimH + gap + labelH + lowerDrawD + topDrawT + dimH + pad + 30;
-        let svg = '';
-        const ox = pad;
 
-        // ═══ 상부장 ═══
-        let uy = pad;
-        svg += `<text x="${svgW/2}" y="${uy+14}" text-anchor="middle" font-size="12" font-weight="bold" fill="#1976D2">▼ 상부장 Top View</text>`;
-        uy += labelH;
-        svg += `<rect x="${ox}" y="${uy}" width="${W*scale}" height="${upperDrawD}" fill="#E3F2FD" stroke="#90CAF9" rx="2"/>`;
+        // 각 섹션 높이
+        const upperSectionH = labelH + sectionPad + upperDrawD + dimH + sectionPad;
+        const lowerSectionH = labelH + sectionPad + lowerDrawD + topDrawT + dimH + sectionPad + 20;
+        const svgH = pad + upperSectionH + sectionGap + lowerSectionH + pad;
+
+        let svg = '';
+        const contentOx = pad + sectionPad; // 콘텐츠 X offset
+
+        // ═══════════════════════════════════════
+        // 상부장 구역 (파란색 테두리 박스)
+        // ═══════════════════════════════════════
+        const upperBoxY = pad;
+        svg += `<rect x="${pad}" y="${upperBoxY}" width="${svgW - pad*2}" height="${upperSectionH}" fill="#F0F7FF" stroke="#1976D2" stroke-width="2" rx="8" stroke-dasharray="6,3"/>`;
+
+        // 상부장 라벨 배지
+        svg += `<rect x="${pad + 10}" y="${upperBoxY - 10}" width="120" height="20" fill="#1976D2" rx="4"/>`;
+        svg += `<text x="${pad + 70}" y="${upperBoxY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">상부장 Top View</text>`;
+
+        let uy = upperBoxY + labelH + sectionPad;
+
+        // 상부장 전체 배경
+        svg += `<rect x="${contentOx}" y="${uy}" width="${W*scale}" height="${upperDrawD}" fill="#E3F2FD" stroke="#90CAF9" stroke-width="1" rx="3"/>`;
+
+        // 상부장 모듈
         if (upperModules.length > 0) {
-          let ux = ox + finishL * scale;
+          let ux = contentOx + finishL * scale;
           for (const mod of upperModules) {
             const mw = (parseFloat(mod.w) || 600) * scale;
-            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="#BBDEFB" stroke="#2196F3" stroke-width="1.5"/>`;
-            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+4}" text-anchor="middle" font-size="9" fill="#1565C0">${mod.w||''}mm</text>`;
+            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="#BBDEFB" stroke="#2196F3" stroke-width="1.5" rx="2"/>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+4}" text-anchor="middle" font-size="9" font-weight="600" fill="#1565C0">${mod.w||''}mm</text>`;
+            // 모듈 폭 치수 (아래)
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD+14}" text-anchor="middle" font-size="8" fill="#1976D2">${mod.w||''}</text>`;
             ux += mw;
           }
+        } else {
+          svg += `<text x="${contentOx + W*scale/2}" y="${uy+upperDrawD/2+4}" text-anchor="middle" font-size="10" fill="#90CAF9">상부장 모듈 없음</text>`;
         }
-        svg += `<text x="${ox+W*scale/2}" y="${uy+upperDrawD+18}" text-anchor="middle" font-size="10" fill="#1976D2">${W}mm x ${upperD}mm</text>`;
 
-        // ═══ 하부장 ═══
-        let ly = uy + upperDrawD + dimH + gap;
-        svg += `<text x="${svgW/2}" y="${ly+14}" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">▼ 하부장 Top View</text>`;
-        ly += labelH;
-        svg += `<rect x="${ox-topDrawT}" y="${ly-topDrawT}" width="${W*scale+topDrawT*2}" height="${lowerDrawD+topDrawT*2}" fill="#E8F5E9" stroke="#66BB6A" rx="2" opacity="0.5"/>`;
-        svg += `<rect x="${ox}" y="${ly}" width="${W*scale}" height="${lowerDrawD}" fill="#F5F5F5" stroke="#333" rx="2"/>`;
+        // 상부장 전체 치수
+        const uDimY = uy + upperDrawD + dimH - 4;
+        svg += `<line x1="${contentOx}" y1="${uDimY}" x2="${contentOx + W*scale}" y2="${uDimY}" stroke="#1976D2" stroke-width="0.8" marker-start="url(#arrowBlue)" marker-end="url(#arrowBlue)"/>`;
+        svg += `<text x="${contentOx + W*scale/2}" y="${uDimY - 4}" text-anchor="middle" font-size="10" fill="#1976D2" font-weight="600">${W}mm × 깊이 ${upperD}mm</text>`;
 
+        // ═══════════════════════════════════════
+        // 구분선
+        // ═══════════════════════════════════════
+        const sepY = upperBoxY + upperSectionH + sectionGap / 2;
+        svg += `<line x1="${pad + 20}" y1="${sepY}" x2="${svgW - pad - 20}" y2="${sepY}" stroke="#ccc" stroke-width="1" stroke-dasharray="4,4"/>`;
+        svg += `<text x="${svgW/2}" y="${sepY + 4}" text-anchor="middle" font-size="9" fill="#aaa">벽면</text>`;
+
+        // ═══════════════════════════════════════
+        // 하부장 구역 (회색 테두리 박스)
+        // ═══════════════════════════════════════
+        const lowerBoxY = upperBoxY + upperSectionH + sectionGap;
+        svg += `<rect x="${pad}" y="${lowerBoxY}" width="${svgW - pad*2}" height="${lowerSectionH}" fill="#FAFAFA" stroke="#424242" stroke-width="2" rx="8"/>`;
+
+        // 하부장 라벨 배지
+        svg += `<rect x="${pad + 10}" y="${lowerBoxY - 10}" width="120" height="20" fill="#424242" rx="4"/>`;
+        svg += `<text x="${pad + 70}" y="${lowerBoxY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">하부장 Top View</text>`;
+
+        let ly = lowerBoxY + labelH + sectionPad;
+
+        // 상판 (약간 돌출)
+        svg += `<rect x="${contentOx - topDrawT}" y="${ly - topDrawT}" width="${W*scale + topDrawT*2}" height="${lowerDrawD + topDrawT*2}" fill="#E8F5E9" stroke="#66BB6A" stroke-width="1.5" rx="3" opacity="0.6"/>`;
+        svg += `<text x="${contentOx + W*scale + topDrawT + 5}" y="${ly + lowerDrawD/2}" font-size="8" fill="#388E3C" dominant-baseline="middle" font-weight="600">상판</text>`;
+
+        // 하부장 전체 배경
+        svg += `<rect x="${contentOx}" y="${ly}" width="${W*scale}" height="${lowerDrawD}" fill="#F5F5F5" stroke="#555" stroke-width="1.5" rx="3"/>`;
+
+        // 하부장 모듈
         if (lowerModules.length > 0) {
-          let lx = ox + finishL * scale;
+          let lx = contentOx + finishL * scale;
           for (const mod of lowerModules) {
             const mw = (parseFloat(mod.w) || 600) * scale;
             const isSink = mod.type === 'sink' || mod.hasSink || mod.has_sink;
             const isCook = mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop;
             const fill = isSink ? '#E3F2FD' : isCook ? '#FFF3E0' : '#FAFAFA';
-            const stroke = isSink ? '#42A5F5' : isCook ? '#FF9800' : '#666';
-            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
-            svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD/2-5}" text-anchor="middle" font-size="9" fill="#333">${isSink ? '🚰 싱크' : isCook ? '🔥 쿡탑' : (mod.w||'')+'mm'}</text>`;
+            const stroke = isSink ? '#42A5F5' : isCook ? '#FF9800' : '#888';
+            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" rx="2"/>`;
+
+            // 라벨
+            const label = isSink ? '🚰 싱크' : isCook ? '🔥 쿡탑' : `${mod.w||''}mm`;
+            svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD/2-8}" text-anchor="middle" font-size="9" font-weight="600" fill="#333">${label}</text>`;
+
+            // 싱크볼
             if (isSink) {
-              svg += `<ellipse cx="${lx+mw/2}" cy="${ly+lowerDrawD/2+8}" rx="${mw*0.3}" ry="${lowerDrawD*0.25}" fill="#B0BEC5" stroke="#78909C" opacity="0.7"/>`;
-              svg += `<circle cx="${lx+mw/2}" cy="${ly+10}" r="4" fill="#42A5F5" stroke="#1976D2"/>`;
+              const bw = mw * 0.55, bd = lowerDrawD * 0.45;
+              svg += `<ellipse cx="${lx+mw/2}" cy="${ly+lowerDrawD/2+6}" rx="${bw/2}" ry="${bd/2}" fill="#B0BEC5" stroke="#78909C" stroke-width="1.5" opacity="0.7"/>`;
+              svg += `<circle cx="${lx+mw/2}" cy="${ly+12}" r="5" fill="#42A5F5" stroke="#1565C0" stroke-width="1.5"/>`;
+              svg += `<text x="${lx+mw/2}" y="${ly+12+3}" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">W</text>`;
             }
+
+            // 쿡탑 버너
             if (isCook) {
-              const cx=lx+mw/2, cy=ly+lowerDrawD/2, br=Math.min(mw,lowerDrawD)*0.12;
-              svg += `<circle cx="${cx-br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
-              svg += `<circle cx="${cx+br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
-              svg += `<circle cx="${cx-br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
-              svg += `<circle cx="${cx+br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#E65100" stroke-width="1.5"/>`;
+              const cx = lx+mw/2, cy = ly+lowerDrawD/2+2, br = Math.min(mw,lowerDrawD)*0.13;
+              svg += `<circle cx="${cx-br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#E65100" stroke-width="2"/>`;
+              svg += `<circle cx="${cx+br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#E65100" stroke-width="2"/>`;
+              svg += `<circle cx="${cx-br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#E65100" stroke-width="2"/>`;
+              svg += `<circle cx="${cx+br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#E65100" stroke-width="2"/>`;
             }
+
+            // 모듈 폭 치수
             svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD+14}" text-anchor="middle" font-size="8" fill="#666">${mod.w||''}mm</text>`;
             lx += mw;
           }
+        } else {
+          svg += `<text x="${contentOx + W*scale/2}" y="${ly+lowerDrawD/2+4}" text-anchor="middle" font-size="10" fill="#999">하부장 모듈 없음</text>`;
         }
 
-        // 배관
-        const wX = ox + (W*(item.specs.waterPosition||30)/100)*scale;
-        const gX = ox + (W*(item.specs.gasPosition||70)/100)*scale;
-        const my = ly + lowerDrawD + 22;
-        svg += `<circle cx="${wX}" cy="${my}" r="5" fill="#2196F3" opacity="0.8"/><text x="${wX}" y="${my+14}" text-anchor="middle" font-size="8" fill="#1976D2">급수</text>`;
-        svg += `<circle cx="${gX}" cy="${my}" r="5" fill="#FF9800" opacity="0.8"/><text x="${gX}" y="${my+14}" text-anchor="middle" font-size="8" fill="#E65100">가스</text>`;
-        svg += `<text x="${ox+W*scale/2}" y="${ly+lowerDrawD+42}" text-anchor="middle" font-size="10" fill="#333">${W}mm x ${D}mm</text>`;
+        // 배관 마커
+        const wX = contentOx + (W*(item.specs.waterPosition||30)/100)*scale;
+        const gX = contentOx + (W*(item.specs.gasPosition||70)/100)*scale;
+        const markerY = ly + lowerDrawD + 24;
+        svg += `<circle cx="${wX}" cy="${markerY}" r="6" fill="#2196F3" stroke="#1565C0" stroke-width="1.5"/>`;
+        svg += `<text x="${wX}" y="${markerY+3}" text-anchor="middle" font-size="7" fill="#fff" font-weight="bold">W</text>`;
+        svg += `<text x="${wX}" y="${markerY+16}" text-anchor="middle" font-size="8" fill="#1976D2" font-weight="600">급수</text>`;
+        svg += `<circle cx="${gX}" cy="${markerY}" r="6" fill="#FF9800" stroke="#E65100" stroke-width="1.5"/>`;
+        svg += `<text x="${gX}" y="${markerY+3}" text-anchor="middle" font-size="7" fill="#fff" font-weight="bold">G</text>`;
+        svg += `<text x="${gX}" y="${markerY+16}" text-anchor="middle" font-size="8" fill="#E65100" font-weight="600">가스</text>`;
+
+        // 하부장 전체 치수
+        const lDimY = ly + lowerDrawD + dimH + 16;
+        svg += `<line x1="${contentOx}" y1="${lDimY}" x2="${contentOx + W*scale}" y2="${lDimY}" stroke="#333" stroke-width="0.8"/>`;
+        svg += `<text x="${contentOx + W*scale/2}" y="${lDimY - 4}" text-anchor="middle" font-size="10" fill="#333" font-weight="600">${W}mm × 깊이 ${D}mm</text>`;
 
         return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }
