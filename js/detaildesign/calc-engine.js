@@ -464,18 +464,34 @@
       }
 
       /**
-       * 고정 doorWidth로 갭 채우기 (잔여 없이 갭 전체를 균등 분배)
+       * RAG 규칙 준수 갭 채우기 (통일 doorWidth 사용)
+       * - 잔여 4~10mm: 비몰딩 시 우선 (시공 공차)
+       * - 잔여 0~3mm: 몰딩 시 우선
+       * - Dead zone (601~689mm): 단일 모듈로 흡수
+       * - 잔여 ≤30mm: 마지막 모듈에 흡수
+       * - 상부장: 가장자리 1D + 중앙 2D (대칭)
+       * - 하부장: 2D 먼저 + 1D 나중
        */
       function fillGapWithModulesFixed(gap, section, defaultH, defaultD, edgeMode, doorWidth) {
         const newModules = [];
         const namePrefix = section === 'upper' ? '상부장' : '하부장';
-        if (gap.width < DOOR_MIN_WIDTH || !doorWidth) return newModules;
 
-        // 갭에 들어갈 도어 수 계산 → 실제 도어폭 = 갭 / 도어수 (잔여 0)
-        const doorCount = Math.max(1, Math.round(gap.width / doorWidth));
-        const actualDoorW = Math.round(gap.width / doorCount);
+        // RAG: 갭 < DOOR_MIN_WIDTH(350mm) → 모듈 생성 불가
+        if (gap.width < DOOR_MIN_WIDTH) return newModules;
+
+        // RAG: Dead zone (601~689mm) → 단일 모듈로 전체 흡수
+        if (gap.width > DOOR_MAX_WIDTH && gap.width < DOOR_MIN_WIDTH * 2) {
+          newModules.push(createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start));
+          return newModules;
+        }
+
+        // 갭에 들어갈 도어 수 (통일 doorWidth 기준)
+        const doorCount = Math.max(1, Math.floor(gap.width / doorWidth));
         let dx = gap.start;
+        const gapEnd = gap.start + gap.width;
+        const canFit = (w) => dx + w <= gapEnd + 1;
 
+        // 상부장 대칭 배치 (RAG: 가장자리 1D + 중앙 2D)
         if (edgeMode !== 'none' && doorCount >= 3) {
           const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
           const hasRight = (edgeMode === 'both' || edgeMode === 'right');
@@ -484,34 +500,63 @@
           const center2D = Math.floor(centerDoors / 2);
           const centerMod1D = centerDoors % 2;
 
-          if (hasLeft) {
-            newModules.push(createModule(section, namePrefix, actualDoorW, defaultH, defaultD, false, dx));
-            dx += actualDoorW;
+          if (hasLeft && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
           }
           for (let i = 0; i < center2D; i++) {
-            newModules.push(createModule(section, namePrefix, actualDoorW * 2, defaultH, defaultD, true, dx));
-            dx += actualDoorW * 2;
+            if (canFit(doorWidth * 2)) {
+              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+              dx += doorWidth * 2;
+            } else if (canFit(doorWidth)) {
+              newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+              dx += doorWidth;
+              if (canFit(doorWidth)) {
+                newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+                dx += doorWidth;
+              }
+            }
           }
-          if (centerMod1D > 0) {
-            newModules.push(createModule(section, namePrefix, actualDoorW, defaultH, defaultD, false, dx));
-            dx += actualDoorW;
+          if (centerMod1D > 0 && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
           }
-          if (hasRight) {
-            // 마지막 모듈: 갭 끝까지 정확히 채움 (반올림 오차 보정)
-            const lastW = gap.start + gap.width - dx;
-            newModules.push(createModule(section, namePrefix, lastW > 0 ? lastW : actualDoorW, defaultH, defaultD, false, dx));
+          if (hasRight && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
           }
         } else {
+          // 하부장 또는 기본: 2D 먼저 + 1D 나중 (RAG)
           const quotient = Math.floor(doorCount / 2);
           const mod1D = doorCount % 2;
           for (let i = 0; i < quotient; i++) {
-            newModules.push(createModule(section, namePrefix, actualDoorW * 2, defaultH, defaultD, true, dx));
-            dx += actualDoorW * 2;
+            if (canFit(doorWidth * 2)) {
+              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+              dx += doorWidth * 2;
+            }
           }
-          if (mod1D > 0) {
-            // 마지막 모듈: 갭 끝까지 정확히 채움
-            const lastW = gap.start + gap.width - dx;
-            newModules.push(createModule(section, namePrefix, lastW > 0 ? lastW : actualDoorW, defaultH, defaultD, false, dx));
+          if (mod1D > 0 && canFit(doorWidth)) {
+            newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+            dx += doorWidth;
+          }
+        }
+
+        // RAG: Dead zone 폴백 — 모듈 없거나 잔여 > 30mm → 갭 전체를 1D로
+        {
+          const usedSoFar = newModules.reduce((s, m) => s + m.w, 0);
+          const leftover = gap.width - usedSoFar;
+          if (gap.width >= DOOR_MIN_WIDTH && (newModules.length === 0 || leftover > MAX_REMAINDER + 20)) {
+            newModules.length = 0;
+            newModules.push(createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start));
+          }
+        }
+
+        // RAG: 잔여 ≤ 30mm → 마지막 모듈에 흡수 (시공 공차)
+        if (newModules.length > 0) {
+          const totalUsed = newModules.reduce((s, m) => s + m.w, 0);
+          const leftover = gap.width - totalUsed;
+          if (leftover > 0 && leftover <= MAX_REMAINDER + 20) {
+            newModules[newModules.length - 1].w += leftover;
           }
         }
 
