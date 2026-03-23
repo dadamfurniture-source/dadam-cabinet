@@ -772,11 +772,13 @@
         const isRefLeft = item.specs.measurementBase === 'Left';
         const refLabel = isRefLeft ? '좌' : '우';
 
+        // 유틸리티 클램핑 경계
+        const drawLeft = offsetX + finishL_s;
+        const drawRight = offsetX + drawW - finishR_s;
+
         // 분배기 — 하부장 하단 (배관 그림 + 치수 + 클릭 팝업 + 드래그)
         {
           const pipeY = lowerY + lowerH_s - 16;
-          const drawLeft = offsetX + finishL_s;
-          const drawRight = offsetX + drawW - finishR_s;
           const dsx = Math.max(drawLeft, Math.min(drawRight, offsetX + distStart * scale));
           const dex = Math.max(drawLeft, Math.min(drawRight, offsetX + distEnd * scale));
           // 클릭 영역 (배관 라인 → 팝업)
