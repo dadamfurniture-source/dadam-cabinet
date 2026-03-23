@@ -180,26 +180,61 @@
         <div class="input-row">
           <div class="input-group"><label>환풍구 위치(mm)</label><input type="number" value="${item.specs.ventStart}" oninput="updateSpec(${uid}, 'ventStart', this.value)"></div>
         </div>
-        ${lShape !== 'I' ? `
+        ${lShape !== 'I' ? (() => {
+          const secMode = item.specs.secondaryDimensionMode || 'unified';
+          const secLH = item.specs.lowerSecondaryH || item.specs.lowerH || 870;
+          const secUH = item.specs.upperSecondaryH || item.specs.upperH || 720;
+          const secLD = item.specs.lowerSecondaryD || item.defaultD || '';
+          const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
+          if (secMode === 'unified') {
+            return `
         <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
-          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:6px;">Secondary Line</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:11px;font-weight:600;color:#888;">Secondary Line</div>
+            <div style="display:flex;gap:3px;">
+              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:none;background:#888;color:#fff;cursor:pointer;" disabled>통합</button>
+              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:1px solid #ccc;background:#fff;color:#888;cursor:pointer;" onclick="toggleSecondaryDimensionMode(${uid})">분리</button>
+            </div>
+          </div>
+          <div class="input-row">
+            <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryW', this.value); updateSpec(${uid}, 'upperSecondaryW', this.value)"></div>
+          </div>
+          <div class="input-row" style="margin-top:6px;">
+            <div class="input-group"><label>하부장 H</label><input type="number" placeholder="mm" value="${secLH}" oninput="updateSpec(${uid}, 'lowerSecondaryH', this.value)"></div>
+            <div class="input-group"><label>하부장 D</label><input type="number" placeholder="mm" value="${secLD}" oninput="updateSpec(${uid}, 'lowerSecondaryD', this.value)"></div>
+            <div class="input-group"><label>상부장 H</label><input type="number" placeholder="mm" value="${secUH}" oninput="updateSpec(${uid}, 'upperSecondaryH', this.value)"></div>
+            <div class="input-group"><label>상부장 D</label><input type="number" placeholder="mm" value="${secUD}" oninput="updateSpec(${uid}, 'upperSecondaryD', this.value)"></div>
+          </div>
+        </div>`;
+          } else {
+            return `
+        <div style="margin-top:8px;padding:8px;background:#f9f9f9;border-radius:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:11px;font-weight:600;color:#888;">Secondary Line</div>
+            <div style="display:flex;gap:3px;">
+              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:1px solid #ccc;background:#fff;color:#888;cursor:pointer;" onclick="toggleSecondaryDimensionMode(${uid})">통합</button>
+              <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:none;background:#888;color:#fff;cursor:pointer;" disabled>분리</button>
+            </div>
+          </div>
           <div style="padding:6px 8px;border-left:3px solid #b8956c;margin-bottom:6px;">
             <div style="font-size:10px;font-weight:600;color:#b8956c;margin-bottom:4px;">하부장</div>
             <div class="input-row">
               <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryW', this.value)"></div>
-              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryH || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryH', this.value)"></div>
-              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryD || item.defaultD || ''}" oninput="updateSpec(${uid}, 'lowerSecondaryD', this.value)"></div>
+              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${secLH}" oninput="updateSpec(${uid}, 'lowerSecondaryH', this.value)"></div>
+              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${secLD}" oninput="updateSpec(${uid}, 'lowerSecondaryD', this.value)"></div>
             </div>
           </div>
           <div style="padding:6px 8px;border-left:3px solid #5a7fa0;">
             <div style="font-size:10px;font-weight:600;color:#5a7fa0;margin-bottom:4px;">상부장</div>
             <div class="input-row">
               <div class="input-group"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryW || ''}" oninput="updateSpec(${uid}, 'upperSecondaryW', this.value)"></div>
-              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryH || ''}" oninput="updateSpec(${uid}, 'upperSecondaryH', this.value)"></div>
-              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${item.specs.upperSecondaryD || 295}" oninput="updateSpec(${uid}, 'upperSecondaryD', this.value)"></div>
+              <div class="input-group"><label>높이(H)</label><input type="number" placeholder="mm" value="${secUH}" oninput="updateSpec(${uid}, 'upperSecondaryH', this.value)"></div>
+              <div class="input-group"><label>깊이(D)</label><input type="number" placeholder="mm" value="${secUD}" oninput="updateSpec(${uid}, 'upperSecondaryD', this.value)"></div>
             </div>
           </div>
-        </div>` : ''}
+        </div>`;
+          }
+        })() : ''}
       </div>`;
           }
 

@@ -75,6 +75,7 @@
         upperDoorOverlap: 15, // 상부장 도어 오버랩 (기본 15mm)
         // ★ 상하부장 치수 모드: unified(통합) / split(분리)
         dimensionMode: 'unified',
+        secondaryDimensionMode: 'unified', // Secondary Line 통합/분리
         // ── 하부장 구조 (layoutShape를 하부장용으로 유지)
         lowerLayoutShape: 'I',          // I / L / U
         lowerSecondaryW: '',

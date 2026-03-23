@@ -1499,6 +1499,22 @@
         updateUI();
       }
 
+      // ── Secondary Line 통합/분리 전환
+      function toggleSecondaryDimensionMode(itemUniqueId) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (item.specs.secondaryDimensionMode === 'split') {
+          // 분리 → 통합: 가로를 하부장 기준으로 통합
+          item.specs.secondaryDimensionMode = 'unified';
+          item.specs.upperSecondaryW = item.specs.lowerSecondaryW;
+        } else {
+          // 통합 → 분리: 공유 가로를 상부장에 복사
+          item.specs.secondaryDimensionMode = 'split';
+          item.specs.upperSecondaryW = item.specs.upperSecondaryW || item.specs.lowerSecondaryW;
+        }
+        updateUI();
+      }
+
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;
