@@ -889,89 +889,46 @@
         </div>
     </div>
     <!-- // 현장 실측 & Layout 끝 -->
-    <div class="ws-layout">
-      <div class="spec-panel">
-        <div class="spec-group-title">1. Dimensions (모듈 치수)</div>
-        <div class="spec-row">
-          <div class="spec-field"><label>하부장 높이</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
-          <div class="spec-field"><label>상부장 높이</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+    <!-- ★ Front View 도면 (풀 너비, 최대 크기) -->
+    <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:15px;font-weight:bold;color:#333;">📐 Front View</span>
+          <span style="font-size:11px;color:#888;">(전면부 도면)</span>
         </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>상부 도어 오버랩</label><input type="number" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
-          <div class="spec-field"><label>다리발 높이</label>
-            <select id="legHeight-${item.uniqueId}" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)">
-              <option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120mm</option>
-              <option value="150" ${item.specs.sinkLegHeight == 150 ? 'selected' : ''}>150mm</option>
-            </select>
-          </div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
+          <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
         </div>
-
-        <div class="spec-group-title">2. Hardware</div>
-        <div class="spec-row">
-          <div class="spec-field"><label>손잡이</label><select onchange="updateSpec(${item.uniqueId}, 'handle', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('handle', item.specs.handle, 'sink')}</select></div>
-          <div class="spec-field"><label>씽크볼</label><select onchange="updateSpec(${item.uniqueId}, 'sink', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('sink', item.specs.sink)}</select></div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>수전</label><select onchange="updateSpec(${item.uniqueId}, 'faucet', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('faucet', item.specs.faucet)}</select></div>
-          <div class="spec-field"><label>후드</label><select onchange="updateSpec(${item.uniqueId}, 'hood', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('hood', item.specs.hood)}</select></div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>쿡탑</label><select onchange="updateSpec(${item.uniqueId}, 'cooktop', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('cooktop', item.specs.cooktop)}</select></div>
-          <div class="spec-field"><label>식기세척기</label>
-            <select onchange="onDishwasherChange(${item.uniqueId}, this.value)">
-              <option value="None" ${item.specs.dishwasher === 'None' ? 'selected' : ''}>없음</option>
-              <option value="BuiltIn" ${item.specs.dishwasher === 'BuiltIn' ? 'selected' : ''}>빌트인</option>
-              <option value="FreeStanding" ${item.specs.dishwasher === 'FreeStanding' ? 'selected' : ''}>프리스탠딩</option>
-            </select>
-          </div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field">
-            <label>액세서리</label>
-            <div class="acc-list">${accHtml}</div>
-            <button class="btn-add-acc" onclick="addAccessory(${item.uniqueId})">+ 액세서리 추가</button>
-          </div>
-        </div>
-
-        <div class="spec-group-title">3. Colors (도어)</div>
-        <div class="spec-row"><div class="spec-field"><label>상부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'sink')}</select><select onchange="updateSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'sink')}</select></div></div></div>
-        <div class="spec-row"><div class="spec-field"><label>하부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${item.uniqueId}, 'doorFinishLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishLower, 'sink')}</select><select onchange="updateSpec(${item.uniqueId}, 'doorColorLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorLower, 'sink')}</select></div></div></div>
-
-        <div class="spec-group-title">4. Countertop (상판)</div>
-        <div class="spec-row">
-          <div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${item.uniqueId}, 'topColor', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop', item.specs.topColor)}</select></div>
-          <div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}" onchange="updateSpecValue(${item.uniqueId}, 'topThickness', this.value)"></div>
-        </div>
-        <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape]})</label>${topSizeInputs}</div></div>
-
-        <div class="spec-group-title">5. Finish Settings (마감)</div>
-        <div class="spec-row">
-          <div class="spec-field"><label>상몰딩 높이</label><input type="number" value="${item.specs.moldingH}" onchange="updateSpecValue(${item.uniqueId}, 'moldingH', this.value)"></div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>좌측 마감</label><select onchange="updateFinishType(${item.uniqueId}, 'Left', this.value)"><option value="Molding" ${item.specs.finishLeftType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishLeftType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishLeftType === 'None' ? 'selected' : ''}>없음</option></select></div>
-          <div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishLeftWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishLeftWidth', this.value)"></div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>우측 마감</label><select onchange="updateFinishType(${item.uniqueId}, 'Right', this.value)"><option value="Molding" ${item.specs.finishRightType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishRightType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishRightType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishRightType === 'None' ? 'selected' : ''}>없음</option></select></div>
-          <div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishRightWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishRightWidth', this.value)"></div>
-        </div>
-        ${cornerHtml ? `<div class="spec-group-title">Corner Settings (코너)</div>${cornerHtml}` : ''}
       </div>
+      <div style="width:100%;overflow-x:auto;">
+        ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
+      </div>
+    </div>
 
-      <div class="module-panel">
-        <!-- ★ Front View 도면 -->
-        <div class="front-view-section" style="margin-bottom:20px;">
-          <div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span>📐 Front View</span>
-              <span style="font-size:11px;color:#888;font-weight:normal;">(전면부 도면)</span>
-            </div>
-            <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
-            <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
-          </div>
-          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
+    <!-- ★ 세부 설정 버튼 바 (클릭 → 팝업) -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+      <button onclick="openSpecPopup(${item.uniqueId}, 'dimensions')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">📏 모듈 치수</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'hardware')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">🔧 Hardware</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'colors')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">🎨 도어 색상</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'countertop')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">🪨 상판</button>
+      <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:6px 14px;font-size:12px;border:1px solid #e0d6cc;border-radius:6px;background:#fff;cursor:pointer;color:#333;">✂️ 마감</button>
+    </div>
+
+    <!-- ★ 팝업 모달 (각 섹션) -->
+    <div id="spec-popup-${item.uniqueId}" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:2000;display:none;align-items:center;justify-content:center;" onclick="if(event.target===this)closeSpecPopup(${item.uniqueId})">
+      <div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div id="spec-popup-title-${item.uniqueId}" style="font-size:16px;font-weight:700;color:#333;"></div>
+          <button onclick="closeSpecPopup(${item.uniqueId})" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">×</button>
         </div>
+        <div id="spec-popup-body-${item.uniqueId}" class="spec-panel" style="background:none;border:none;padding:0;max-height:none;overflow:visible;"></div>
+      </div>
+    </div>
+
+    <!-- ★ 모듈 리스트 (풀 너비) -->
+    <div class="ws-layout" style="grid-template-columns:1fr;">
+      <div class="module-panel">
 
         <div class="module-section">
           <div class="module-section-header upper">

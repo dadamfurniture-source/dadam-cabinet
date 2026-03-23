@@ -1515,6 +1515,71 @@
         updateUI();
       }
 
+      // ── 세부 설정 팝업 ──
+      function openSpecPopup(itemUniqueId, section) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
+        const title = document.getElementById(`spec-popup-title-${itemUniqueId}`);
+        const body = document.getElementById(`spec-popup-body-${itemUniqueId}`);
+        if (!popup || !body) return;
+
+        const uid = itemUniqueId;
+        const titles = { dimensions: '📏 모듈 치수', hardware: '🔧 Hardware', colors: '🎨 도어 색상', countertop: '🪨 상판', finish: '✂️ 마감' };
+        title.textContent = titles[section] || section;
+
+        const shapes = { I: 'ㅡ자형 (1개)', L: 'ㄱ자형 (2개)', U: 'ㄷ자형 (3개)' };
+        const topCount = (item.specs.layoutShape === 'U' || item.specs.lowerLayoutShape === 'U') ? 3 : (item.specs.layoutShape === 'L' || item.specs.lowerLayoutShape === 'L') ? 2 : 1;
+        let topSizeInputs = '';
+        for (let i = 0; i < topCount; i++) {
+          const ts = item.specs.topSizes[i] || { w: '', d: '' };
+          const label = topCount > 1 ? `#${i + 1} ` : '';
+          topSizeInputs += `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;"><span style="font-size:11px;color:#888;min-width:20px;">${label}</span><input type="number" placeholder="길이(W)" value="${ts.w || ''}" onchange="updateTopSizeDim(${uid},${i},'w',this.value)" style="flex:1;min-width:0;"><span style="font-size:11px;color:#999;">×</span><input type="number" placeholder="폭(D)" value="${ts.d || ''}" onchange="updateTopSizeDim(${uid},${i},'d',this.value)" style="flex:1;min-width:0;"></div>`;
+        }
+
+        const accHtml = (item.specs.accessories || []).map(acc => `<div class="acc-item"><select style="flex:1;" onchange="updateAccessory(${uid},${acc.id},this.value)"><option value="LTMesh" ${acc.type==='LTMesh'?'selected':''}>LT망장</option><option value="CircleMesh" ${acc.type==='CircleMesh'?'selected':''}>원망장</option><option value="Cutlery" ${acc.type==='Cutlery'?'selected':''}>수저분리함</option><option value="Knife" ${acc.type==='Knife'?'selected':''}>칼꽂이</option><option value="DishRack" ${acc.type==='DishRack'?'selected':''}>식기건조대</option><option value="Etc" ${acc.type==='Etc'?'selected':''}>기타</option></select><button class="btn-del-acc" onclick="removeAccessory(${uid},${acc.id})">×</button></div>`).join('');
+
+        const cornerHtml = (() => {
+          const ls = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+          if (ls === 'L') return `<div class="spec-row"><div class="spec-field"><label>코너 마감</label><select onchange="updateSpecNoRender(${uid},'finishCorner1Type',this.value)"><option value="Molding" ${item.specs.finishCorner1Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${uid},'finishCorner1Width',this.value)"></div></div>`;
+          if (ls === 'U') return `<div class="spec-row"><div class="spec-field"><label>코너1</label><select onchange="updateSpecNoRender(${uid},'finishCorner1Type',this.value)"><option value="Molding" ${item.specs.finishCorner1Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${uid},'finishCorner1Width',this.value)"></div></div><div class="spec-row"><div class="spec-field"><label>코너2</label><select onchange="updateSpecNoRender(${uid},'finishCorner2Type',this.value)"><option value="Molding" ${item.specs.finishCorner2Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner2Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이</label><input type="number" value="${item.specs.finishCorner2Width}" onchange="updateSpecValue(${uid},'finishCorner2Width',this.value)"></div></div>`;
+          return '';
+        })();
+
+        const contents = {
+          dimensions: `
+            <div class="spec-row"><div class="spec-field"><label>하부장 높이</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${uid},'lowerH',this.value)"></div><div class="spec-field"><label>상부장 높이</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${uid},'upperH',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>상부 도어 오버랩</label><input type="number" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${uid},'upperDoorOverlap',this.value)"></div><div class="spec-field"><label>다리발 높이</label><select onchange="updateSpec(${uid},'sinkLegHeight',this.value)"><option value="120" ${item.specs.sinkLegHeight==120?'selected':''}>120mm</option><option value="150" ${item.specs.sinkLegHeight==150?'selected':''}>150mm</option></select></div></div>`,
+          hardware: `
+            <div class="spec-row"><div class="spec-field"><label>손잡이</label><select onchange="updateSpec(${uid},'handle',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('handle',item.specs.handle,'sink')}</select></div><div class="spec-field"><label>씽크볼</label><select onchange="updateSpec(${uid},'sink',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('sink',item.specs.sink)}</select></div></div>
+            <div class="spec-row"><div class="spec-field"><label>수전</label><select onchange="updateSpec(${uid},'faucet',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('faucet',item.specs.faucet)}</select></div><div class="spec-field"><label>후드</label><select onchange="updateSpec(${uid},'hood',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('hood',item.specs.hood)}</select></div></div>
+            <div class="spec-row"><div class="spec-field"><label>쿡탑</label><select onchange="updateSpec(${uid},'cooktop',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('cooktop',item.specs.cooktop)}</select></div><div class="spec-field"><label>식기세척기</label><select onchange="onDishwasherChange(${uid},this.value)"><option value="None" ${item.specs.dishwasher==='None'?'selected':''}>없음</option><option value="BuiltIn" ${item.specs.dishwasher==='BuiltIn'?'selected':''}>빌트인</option><option value="FreeStanding" ${item.specs.dishwasher==='FreeStanding'?'selected':''}>프리스탠딩</option></select></div></div>
+            <div class="spec-row"><div class="spec-field"><label>액세서리</label><div class="acc-list">${accHtml}</div><button class="btn-add-acc" onclick="addAccessory(${uid})">+ 액세서리 추가</button></div></div>`,
+          colors: `
+            <div class="spec-row"><div class="spec-field"><label>상부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${uid},'doorFinishUpper',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish',item.specs.doorFinishUpper,'sink')}</select><select onchange="updateSpec(${uid},'doorColorUpper',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color',item.specs.doorColorUpper,'sink')}</select></div></div></div>
+            <div class="spec-row"><div class="spec-field"><label>하부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${uid},'doorFinishLower',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish',item.specs.doorFinishLower,'sink')}</select><select onchange="updateSpec(${uid},'doorColorLower',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color',item.specs.doorColorLower,'sink')}</select></div></div></div>`,
+          countertop: `
+            <div class="spec-row"><div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${uid},'topColor',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop',item.specs.topColor)}</select></div><div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}" onchange="updateSpecValue(${uid},'topThickness',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape || item.specs.lowerLayoutShape || 'I']})</label>${topSizeInputs}</div></div>`,
+          finish: `
+            <div class="spec-row"><div class="spec-field"><label>상몰딩 높이</label><input type="number" value="${item.specs.moldingH}" onchange="updateSpecValue(${uid},'moldingH',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>좌측 마감</label><select onchange="updateFinishType(${uid},'Left',this.value)"><option value="Molding" ${item.specs.finishLeftType==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType==='Filler'?'selected':''}>휠라</option><option value="EP" ${item.specs.finishLeftType==='EP'?'selected':''}>EP</option><option value="None" ${item.specs.finishLeftType==='None'?'selected':''}>없음</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishLeftWidth}" onchange="updateSpecValue(${uid},'finishLeftWidth',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>우측 마감</label><select onchange="updateFinishType(${uid},'Right',this.value)"><option value="Molding" ${item.specs.finishRightType==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishRightType==='Filler'?'selected':''}>휠라</option><option value="EP" ${item.specs.finishRightType==='EP'?'selected':''}>EP</option><option value="None" ${item.specs.finishRightType==='None'?'selected':''}>없음</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishRightWidth}" onchange="updateSpecValue(${uid},'finishRightWidth',this.value)"></div></div>
+            ${cornerHtml}`,
+        };
+
+        body.innerHTML = contents[section] || '';
+        popup.style.display = 'flex';
+      }
+
+      function closeSpecPopup(itemUniqueId) {
+        const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
+        if (popup) popup.style.display = 'none';
+        // 팝업 닫을 때 워크스페이스 리렌더
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (item) renderWorkspaceContent(item);
+      }
+
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;
