@@ -880,9 +880,9 @@
           <div class="spec-field"><label>현장 사진</label></div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>W</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" oninput="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          <div class="spec-field"><label>W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
           <div class="spec-field">
             <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:4px 10px;font-size:11px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '변경' : '📷'}</button>
