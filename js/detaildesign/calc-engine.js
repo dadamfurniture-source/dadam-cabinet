@@ -881,6 +881,20 @@
           }
         }
 
+        // ★ LT망장 → 가스대 바로 우측에 배치
+        const ltMod = fixedOccupied.find(m => m.name === 'LT망장' || (m.type === 'storage' && m.isDrawer && parseFloat(m.w) <= 250));
+        if (ltMod && cookMod) {
+          const ltW = parseFloat(ltMod.w) || 200;
+          ltMod.x = cookMod.endX;
+          ltMod.endX = ltMod.x + ltW;
+          // 경계 초과 방지
+          if (ltMod.endX > endBound) {
+            ltMod.x = endBound - ltW;
+            ltMod.endX = endBound;
+          }
+          console.log(`[AutoCalc] LT망장: 가스대 우측 X=${ltMod.x}`);
+        }
+
         // 고정 모듈 총 너비
         // ★ 비고정 모듈 먼저 제거 → 고정 모듈 기준으로 재계산
         item.modules = item.modules.filter((m) => m.pos !== 'lower');
