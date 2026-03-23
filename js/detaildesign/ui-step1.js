@@ -741,25 +741,35 @@
         const isRefLeft = item.specs.measurementBase === 'Left';
         const refLabel = isRefLeft ? '좌' : '우';
 
-        // 분배기 — 하부장 하단 (배관 그림 + 치수)
+        // 분배기 — 하부장 하단 (배관 그림 + 치수 + 클릭 팝업 + 드래그)
         {
           const pipeY = lowerY + lowerH_s - 16;
           const dsx = offsetX + distStart * scale;
           const dex = offsetX + distEnd * scale;
+          // 클릭 영역 (배관 라인 → 팝업)
           utilityMarkers += `
-            <line x1="${dsx}" y1="${pipeY + 8}" x2="${dex}" y2="${pipeY + 8}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
-            <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
-            <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
-            <circle cx="${dsx}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorStart" data-uid="${uid}"/>
-            <circle cx="${dex}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorEnd" data-uid="${uid}"/>
+            <rect x="${Math.min(dsx, dex) - 5}" y="${pipeY - 8}" width="${Math.abs(dex - dsx) + 10}" height="24" fill="transparent" style="cursor:pointer;" onclick="openUtilityPopup(${uid}, 'distributor')"/>`;
+          // 배관 그림
+          utilityMarkers += `
+            <line x1="${dsx}" y1="${pipeY + 8}" x2="${dex}" y2="${pipeY + 8}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.5" pointer-events="none"/>
+            <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6" pointer-events="none"/>
+            <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 8}" stroke="#2563eb" stroke-width="2" opacity="0.6" pointer-events="none"/>
             <text x="${dsx}" y="${pipeY - 3}" text-anchor="middle" font-size="7" fill="#2563eb" pointer-events="none">${distStart}</text>
             <text x="${dex}" y="${pipeY - 3}" text-anchor="middle" font-size="7" fill="#2563eb" pointer-events="none">${distEnd}</text>`;
+          // 드래그 핸들 (원)
+          utilityMarkers += `
+            <circle cx="${dsx}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorStart" data-uid="${uid}"/>
+            <circle cx="${dex}" cy="${pipeY + 8}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distributorEnd" data-uid="${uid}"/>`;
         }
 
-        // 환풍구 — 상부장 상단 (덕트 그림 + 치수)
+        // 환풍구 — 상부장 상단 (덕트 그림 + 치수 + 클릭 팝업 + 드래그)
         {
           const ductY = upperY + 3;
           const vx = offsetX + ventPos * scale;
+          // 클릭 영역 (덕트 → 팝업, 드래그보다 뒤에 렌더)
+          utilityMarkers += `
+            <rect x="${vx - 20}" y="${ductY - 4}" width="40" height="30" fill="transparent" style="cursor:pointer;" onclick="openUtilityPopup(${uid}, 'vent')"/>`;
+          // 덕트 그림 (드래그 가능)
           utilityMarkers += `
             <g style="cursor:ew-resize;" data-drag="ventStart" data-uid="${uid}">
               <rect x="${vx - 12}" y="${ductY}" width="24" height="14" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" rx="3"/>
