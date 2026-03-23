@@ -1582,6 +1582,9 @@
 
       // ── Front View 모듈 클릭 → 치수 편집 팝업 ──
       function handleFrontViewClick(event, itemUniqueId) {
+        // 모듈 드래그 핸들러가 처리하는 요소는 무시 (중복 방지)
+        if (event.target.closest('[data-drag-mod]')) return;
+
         // SVG rect 또는 그 부모 g에서 data-mod-id 찾기
         let target = event.target;
         let modId = null;
