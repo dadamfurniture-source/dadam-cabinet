@@ -882,16 +882,9 @@
           `}
         </div>`;
         })()}
-        <div class="spec-row">
-          <div class="spec-field"><label>분배기 시작(mm)</label><input type="number" value="${item.specs.distributorStart}" onchange="updateSpec(${item.uniqueId}, 'distributorStart', this.value)"></div>
-          <div class="spec-field"><label>분배기 끝(mm)</label><input type="number" value="${item.specs.distributorEnd}" onchange="updateSpec(${item.uniqueId}, 'distributorEnd', this.value)"></div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1"><label style="font-size:11px;color:#666;">환풍구 위치(mm)</label><input type="number" style="width:100%;" value="${item.specs.ventStart}" onchange="updateSpec(${item.uniqueId}, 'ventStart', this.value)"></div>
-        </div>
     </div>
 
-    <!-- ★ 자동계산 바 (Layout 바로 아래) -->
+    <!-- ★ 자동계산 바 -->
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 12px;background:#faf8f5;border:1px solid #e8e0d8;border-radius:6px;">
       ${item.categoryId === 'sink' ? `
       <span style="font-size:11px;color:#888;">필수장:</span>
@@ -910,20 +903,67 @@
       <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">✂️ 마감</button>
     </div>
 
-    <!-- ★ Front View 도면 (워크스페이스 꽉 채움) -->
-    <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:12px;flex:1;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:14px;font-weight:bold;color:#333;">📐 Front View</span>
-          <span style="font-size:11px;color:#aaa;">모듈 클릭 → 편집</span>
+    <!-- ★ Front View + 좌측 치수 패널 -->
+    <div style="display:flex;gap:12px;flex:1;min-height:0;">
+      <!-- 좌측: 상하부장 치수 -->
+      <div style="width:140px;min-width:140px;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px;">
+          <div style="font-size:10px;font-weight:700;color:#3b82f6;margin-bottom:6px;">⬆ 상부장</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div><label style="font-size:9px;color:#666;">높이(H)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">깊이(D)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">오버랩</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;">
-          <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
-          <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:8px;">
+          <div style="font-size:10px;font-weight:700;color:#b45309;margin-bottom:6px;">⬇ 하부장</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div><label style="font-size:9px;color:#666;">높이(H)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">깊이(D)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.d || item.defaultD || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">다리발</label>
+              <select style="width:100%;font-size:12px;padding:3px 6px;" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)">
+                <option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120</option>
+                <option value="150" ${item.specs.sinkLegHeight == 150 ? 'selected' : ''}>150</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+          <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:6px;">상몰딩</div>
+          <div><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.moldingH}" onchange="updateSpecValue(${item.uniqueId}, 'moldingH', this.value)"></div>
         </div>
       </div>
-      <div style="flex:1;width:100%;overflow:auto;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
-        ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
+      <!-- 우측: Front View 도면 -->
+      <div style="flex:1;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px;display:flex;flex-direction:column;min-width:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:13px;font-weight:bold;color:#333;">📐 Front View</span>
+            <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집</span>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
+            <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🚪 도어</button>
+          </div>
+        </div>
+        <div style="flex:1;width:100%;overflow:auto;position:relative;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
+          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
+        </div>
+        <!-- 분배기/환풍구 위치 슬라이더 -->
+        <div style="padding:8px 4px 0;border-top:1px solid #f0f0f0;margin-top:6px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:10px;color:#3b82f6;font-weight:600;min-width:55px;">🔵 분배기</span>
+            <input type="range" min="0" max="${item.w || 3000}" value="${item.specs.distributorStart || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorStart', this.value); this.nextElementSibling.textContent=this.value+'mm'" style="flex:1;accent-color:#3b82f6;">
+            <span style="font-size:10px;color:#555;min-width:45px;">${item.specs.distributorStart || 0}mm</span>
+            <span style="font-size:9px;color:#999;">~</span>
+            <input type="range" min="0" max="${item.w || 3000}" value="${item.specs.distributorEnd || 0}" oninput="updateSpec(${item.uniqueId}, 'distributorEnd', this.value); this.nextElementSibling.textContent=this.value+'mm'" style="flex:1;accent-color:#3b82f6;">
+            <span style="font-size:10px;color:#555;min-width:45px;">${item.specs.distributorEnd || 0}mm</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;color:#ef4444;font-weight:600;min-width:55px;">🔴 환풍구</span>
+            <input type="range" min="0" max="${item.w || 3000}" value="${item.specs.ventStart || 0}" oninput="updateSpec(${item.uniqueId}, 'ventStart', this.value); this.nextElementSibling.textContent=this.value+'mm'" style="flex:1;accent-color:#ef4444;">
+            <span style="font-size:10px;color:#555;min-width:45px;">${item.specs.ventStart || 0}mm</span>
+          </div>
+        </div>
       </div>
     </div>
 
