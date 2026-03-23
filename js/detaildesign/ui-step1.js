@@ -1094,11 +1094,12 @@
             <button onclick="switchViewMode(${item.uniqueId}, 'iso')" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🧊 Iso</button>
             <button onclick="switchViewMode(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.viewMode === 'front' || !item.specs.viewMode ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
             <button onclick="switchViewMode(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.viewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
+            <button onclick="switchViewMode(${item.uniqueId}, '3d')" class="toggle-btn ${item.specs.viewMode === '3d' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🎮 3D</button>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🚪 도어</button>
           </div>
         </div>
-        <div style="flex:1;width:100%;overflow:auto;position:relative;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
-          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : item.specs.viewMode === 'top' ? renderTopView(item, upperModules, lowerModules) : sinkFrontViewSvg}
+        <div id="view-container-${item.uniqueId}" style="flex:1;width:100%;overflow:auto;position:relative;${item.specs.viewMode === '3d' ? 'min-height:450px;' : ''}" onclick="handleFrontViewClick(event, ${item.uniqueId})">
+          ${item.specs.viewMode === '3d' ? '<div id="three-canvas-' + item.uniqueId + '" style="width:100%;height:450px;border-radius:8px;overflow:hidden;"></div>' : item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : item.specs.viewMode === 'top' ? renderTopView(item, upperModules, lowerModules) : sinkFrontViewSvg}
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
@@ -1222,8 +1223,26 @@
       function switchViewMode(itemUniqueId, mode) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
+
+        // 3D → 다른 뷰로 전환 시 Three.js 해제
+        if (item.specs.viewMode === '3d' && mode !== '3d' && typeof ThreeRenderer !== 'undefined') {
+          ThreeRenderer.dispose();
+        }
+
         item.specs.viewMode = mode;
         renderWorkspaceContent(item);
+
+        // 3D 뷰 활성화 시 Three.js 렌더링
+        if (mode === '3d' && typeof ThreeRenderer !== 'undefined') {
+          setTimeout(() => {
+            const container = document.getElementById('three-canvas-' + itemUniqueId);
+            if (container) {
+              const upperModules = item.modules.filter(m => m.pos === 'upper');
+              const lowerModules = item.modules.filter(m => m.pos === 'lower');
+              ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
+            }
+          }, 100);
+        }
       }
 
       function renderIsometricView(item, upperModules, lowerModules, showDoors) {
