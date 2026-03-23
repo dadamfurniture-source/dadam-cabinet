@@ -2401,11 +2401,8 @@
               document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
               document.getElementById('navUserName').textContent = name;
 
-              // Expert 또는 Business 등급은 상세 설계 페이지로 이동
-              if (tier === 'expert' || tier === 'business') {
-                window.location.href = 'detaildesign.html';
-                return;
-              }
+              // Expert/Business 등급: 상세 설계 버튼 표시 (자동 리다이렉트 제거)
+              // ai-design 페이지에서도 사용 가능하도록 변경
             }
           }
           // 스타일 데이터 Supabase 로드
