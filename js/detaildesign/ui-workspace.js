@@ -1628,8 +1628,9 @@
             <div class="spec-field"><label>서랍</label><span style="font-size:13px;">${mod.isDrawer ? '예' : '아니오'}</span></div>
             <div class="spec-field"><label>고정</label><span style="font-size:13px;">${mod.isFixed ? '예' : '아니오'}</span></div>
           </div>
-          <div style="margin-top:12px;display:flex;gap:8px;">
-            <button onclick="removeModuleById(${itemUniqueId},'${mId}');closeSpecPopup(${itemUniqueId})" style="padding:6px 14px;font-size:12px;border:1px solid #e74c3c;border-radius:6px;background:#fff;color:#e74c3c;cursor:pointer;">삭제</button>
+          <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between;">
+            <button onclick="removeModuleById(${itemUniqueId},'${mId}');closeSpecPopup(${itemUniqueId})" style="padding:8px 16px;font-size:12px;border:1px solid #e74c3c;border-radius:6px;background:#fff;color:#e74c3c;cursor:pointer;">삭제</button>
+            <button onclick="closeSpecPopup(${itemUniqueId})" style="padding:8px 24px;font-size:13px;border:none;border-radius:6px;background:#b8956c;color:#fff;cursor:pointer;font-weight:600;">확인</button>
           </div>
         `;
         popup.style.display = 'flex';
