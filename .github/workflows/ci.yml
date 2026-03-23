@@ -1,10 +1,9 @@
 name: CI/CD Pipeline
 
+# 비활성화 — 정적 HTML 사이트이므로 CI/CD 불필요
+# GitHub Pages 자동 배포는 별도 workflow (pages-build-deployment)
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+  workflow_dispatch:  # 수동 실행만 허용
 
 env:
   NODE_VERSION: '20'
