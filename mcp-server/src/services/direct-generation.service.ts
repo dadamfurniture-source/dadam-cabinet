@@ -154,7 +154,7 @@ function buildFurniturePrompt(input: GenerationInput, wallData: Record<string, u
   const doorColor = input.styleDoorColor || 'white';
   const doorFinish = input.styleDoorFinish || 'matte';
   const countertop = input.styleCountertopPrompt || 'white engineered stone';
-  const handle = input.styleHandlePrompt || 'chrome bar handles';
+  const handle = 'handleless integrated grip recessed into door material, no visible hardware, clean flush surface';
   const style = input.styleName || input.designStyle || 'Modern Minimal';
   const mood = input.styleMoodPrompt || '';
 
