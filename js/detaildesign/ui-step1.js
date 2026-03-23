@@ -68,6 +68,30 @@
 
         if (cat.id === 'sink') {
           newItem.modules = []; // 빈 상태로 시작 — 자동계산 또는 수동 추가
+          // ★ 레이아웃 템플릿 프리셋 (B1)
+          newItem.specs.layoutTemplates = {
+            standard: { label: '표준형 (3m)', desc: '개수대+가스대+수납 3종', w: 3000 },
+            compact: { label: '소형 (2.4m)', desc: '개수대+가스대 최소', w: 2400 },
+            large: { label: '대형 (4m)', desc: '개수대+가스대+식세기+수납', w: 4000 },
+          };
+        }
+
+        if (cat.id === 'wardrobe') {
+          // ★ 붙박이장 템플릿 (B1)
+          newItem.specs.layoutTemplates = {
+            balanced: { label: '균형형', desc: '짧은옷2 + 긴옷1 + 선반1' },
+            hangOnly: { label: '행거 중심', desc: '짧은옷2 + 긴옷2' },
+            shelfOnly: { label: '선반 중심', desc: '선반3 + 짧은옷1' },
+          };
+        }
+
+        if (cat.id === 'fridge') {
+          // ★ 냉장고장 템플릿 (B1)
+          newItem.specs.layoutTemplates = {
+            standard: { label: '냉장고+키큰장', desc: '냉장고 좌측, 키큰장 우측' },
+            withCafe: { label: '냉장고+홈카페', desc: '냉장고 좌측, 홈카페 우측' },
+            dual: { label: '양문형', desc: '키큰장+냉장고+키큰장' },
+          };
         }
 
         selectedItems.push(newItem);
@@ -981,6 +1005,16 @@
         })()}
     </div>
 
+    <!-- ★ 레이아웃 템플릿 (B1) -->
+    ${item.specs.layoutTemplates && item.modules.length === 0 ? `
+    <div style="display:flex;gap:6px;margin-bottom:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+      <span style="font-size:11px;color:#16a34a;font-weight:600;white-space:nowrap;line-height:28px;">📋 템플릿:</span>
+      ${Object.entries(item.specs.layoutTemplates).map(([key, t]) => `
+        <button onclick="applyLayoutTemplate(${item.uniqueId}, '${key}')" style="padding:4px 12px;font-size:11px;border:1px solid #86efac;border-radius:6px;background:#fff;cursor:pointer;color:#166534;" title="${t.desc}">${t.label}</button>
+      `).join('')}
+    </div>
+    ` : ''}
+
     <!-- ★ 자동계산 바 -->
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 12px;background:#faf8f5;border:1px solid #e8e0d8;border-radius:6px;">
       ${item.categoryId === 'sink' ? `
@@ -993,6 +1027,23 @@
       <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
       <span style="font-size:11px;color:#888;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
     </div>
+
+    <!-- ★ 컨스트레인트 경고 (B3) -->
+    ${(() => {
+      const warnings = [];
+      if (upperRemaining < -5) warnings.push(`⚠️ 상부장 ${Math.abs(Math.round(upperRemaining))}mm 초과`);
+      if (lowerRemaining < -5) warnings.push(`⚠️ 하부장 ${Math.abs(Math.round(lowerRemaining))}mm 초과`);
+      if (item.categoryId === 'sink') {
+        const hasSink = lowerModules.some(m => m.type === 'sink' || m.hasSink || m.has_sink);
+        const hasCook = lowerModules.some(m => m.type === 'cook' || m.hasCooktop || m.has_cooktop);
+        if (!hasSink && lowerModules.length > 0) warnings.push('🚰 개수대 모듈 미배치');
+        if (!hasCook && lowerModules.length > 0) warnings.push('🔥 가스대 모듈 미배치');
+      }
+      const wideMods = [...upperModules, ...lowerModules].filter(m => parseFloat(m.w) > 600);
+      if (wideMods.length > 0) wideMods.forEach(m => warnings.push(`📏 ${m.name || m.type} (${m.w}mm) — 도어 600mm 초과`));
+      if (warnings.length === 0) return '';
+      return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;">${warnings.map(w => `<span style="font-size:11px;color:#dc2626;">${w}</span>`).join('<span style="color:#fca5a5;">|</span>')}</div>`;
+    })()}
 
     <!-- ★ 3컬럼: 좌측(치수+옵션) / 중앙(도면) / 우측(HW+액세서리) -->
     <div style="display:flex;gap:8px;flex:1;min-height:0;">
@@ -1108,6 +1159,63 @@
         const modes = ['front', 'iso', 'top'];
         const idx = modes.indexOf(item.specs.viewMode || 'front');
         item.specs.viewMode = modes[(idx + 1) % modes.length];
+        renderWorkspaceContent(item);
+      }
+
+      // ★ 레이아웃 템플릿 적용 (B1)
+      function applyLayoutTemplate(itemUniqueId, templateKey) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (typeof pushUndo === 'function') pushUndo(item);
+
+        const W = parseFloat(item.w) || 3000;
+        const specLowerH = parseFloat(item.specs.lowerH) || 870;
+        const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const specUpperH = parseFloat(item.specs.upperH) || 720;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
+        const lh = specLowerH - specTopT - specLegH;
+        const uh = specUpperH - specOverlap;
+        const ld = parseFloat(item.d) || 550;
+        const ud = 295;
+        let nextId = (item.modules.length > 0 ? Math.max(...item.modules.map(m => m.id || 0)) : 0) + 1;
+
+        const mkMod = (pos, type, w, extra = {}) => ({
+          id: nextId++, pos, type, w, h: pos === 'upper' ? uh : lh, d: pos === 'upper' ? ud : ld,
+          name: type === 'sink' ? '개수대' : type === 'cook' ? '가스대' : type === 'hood' ? '후드' : type === 'storage' ? '수납장' : '모듈',
+          isDrawer: false, isFixed: type === 'sink' || type === 'cook',
+          hasSink: type === 'sink', hasCooktop: type === 'cook',
+          ...extra,
+        });
+
+        if (item.categoryId === 'sink') {
+          if (templateKey === 'standard') {
+            item.w = item.w || '3000';
+            item.modules = [
+              mkMod('upper', 'storage', 600), mkMod('upper', 'storage', 800),
+              mkMod('upper', 'hood', 600), mkMod('upper', 'storage', 600),
+              mkMod('lower', 'storage', 600), mkMod('lower', 'sink', 800, { hasSink: true }),
+              mkMod('lower', 'cook', 600, { hasCooktop: true }), mkMod('lower', 'storage', 600),
+            ];
+          } else if (templateKey === 'compact') {
+            item.w = item.w || '2400';
+            item.modules = [
+              mkMod('upper', 'storage', 600), mkMod('upper', 'storage', 600),
+              mkMod('upper', 'hood', 600), mkMod('upper', 'storage', 600),
+              mkMod('lower', 'storage', 600), mkMod('lower', 'sink', 600, { hasSink: true }),
+              mkMod('lower', 'cook', 600, { hasCooktop: true }), mkMod('lower', 'storage', 600),
+            ];
+          } else if (templateKey === 'large') {
+            item.w = item.w || '4000';
+            item.modules = [
+              mkMod('upper', 'storage', 600), mkMod('upper', 'storage', 800),
+              mkMod('upper', 'hood', 800), mkMod('upper', 'storage', 800), mkMod('upper', 'storage', 600),
+              mkMod('lower', 'storage', 600), mkMod('lower', 'sink', 800, { hasSink: true }),
+              mkMod('lower', 'storage', 600, { isDrawer: true }),
+              mkMod('lower', 'cook', 800, { hasCooktop: true }), mkMod('lower', 'storage', 600),
+            ];
+          }
+        }
         renderWorkspaceContent(item);
       }
 
@@ -1649,6 +1757,25 @@
 
           // L자형 코너 표시
           svg += `<rect x="${connX - 3}" y="${ly - 3}" width="6" height="6" fill="#b8956c" rx="1"/>`;
+        }
+
+        // ★ 워크 트라이앵글 (B4) — 싱크↔쿡탑 거리 표시
+        if (item.categoryId === 'sink' && lowerModules.length > 0) {
+          let sinkCx = null, cookCx = null;
+          let lx2 = ox + finishL * scale;
+          for (const mod of lowerModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            if (mod.type === 'sink' || mod.hasSink || mod.has_sink) sinkCx = lx2 + mw / 2;
+            if (mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop) cookCx = lx2 + mw / 2;
+            lx2 += mw;
+          }
+          if (sinkCx && cookCx) {
+            const triY = ly + lowerDrawD / 2;
+            const distMm = Math.round(Math.abs(cookCx - sinkCx) / scale);
+            const color = distMm < 900 ? '#ef4444' : distMm > 2700 ? '#f59e0b' : '#22c55e';
+            svg += `<line x1="${sinkCx}" y1="${triY}" x2="${cookCx}" y2="${triY}" stroke="${color}" stroke-width="2" stroke-dasharray="6,3" opacity="0.6"/>`;
+            svg += `<text x="${(sinkCx + cookCx) / 2}" y="${triY - 6}" text-anchor="middle" font-size="9" fill="${color}" font-weight="600">${distMm}mm</text>`;
+          }
         }
 
         return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
