@@ -1675,15 +1675,40 @@
         item.modules = item.modules.filter(m => m.id != modId);
       }
 
-      // ── SVG 내 분배기/환풍구 드래그 이동 ──
+      // ── SVG 내 분배기/환풍구 드래그 이동 (실시간 SVG 요소 이동) ──
       (function initUtilityDrag() {
-        let dragTarget = null;
         let dragField = null;
         let dragUid = null;
         let dragSvg = null;
-        let dragOffsetX = 0;
-        let dragScale = 1;
-        let dragW = 0;
+        let dragDrawW = 0;
+        let dragOx = 0;
+        let dragSinkW = 0;
+        let dragAllEls = [];
+
+        function clientToMm(e) {
+          const rect = dragSvg.getBoundingClientRect();
+          const vb = dragSvg.viewBox.baseVal;
+          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
+          return Math.round(Math.max(0, Math.min(dragSinkW, (svgX - dragOx) / dragDrawW * dragSinkW)));
+        }
+
+        function moveSvgElements(newSvgX) {
+          dragAllEls.forEach(el => {
+            const tag = el.tagName;
+            if (tag === 'circle') {
+              el.setAttribute('cx', newSvgX);
+            } else if (tag === 'line') {
+              // 수직 라인: x1=x2 이동
+              if (el.getAttribute('x1') === el.getAttribute('x2')) {
+                el.setAttribute('x1', newSvgX);
+                el.setAttribute('x2', newSvgX);
+              }
+            } else if (tag === 'g') {
+              // 그룹 전체를 transform으로 이동
+              el.setAttribute('transform', `translate(${newSvgX - parseFloat(el.dataset.origX || 0)}, 0)`);
+            }
+          });
+        }
 
         document.addEventListener('pointerdown', function(e) {
           const el = e.target.closest('[data-drag]');
@@ -1692,42 +1717,62 @@
           dragUid = parseFloat(el.dataset.uid);
           dragSvg = el.closest('svg');
           if (!dragSvg) return;
-          dragTarget = el;
 
           const item = selectedItems.find(i => i.uniqueId === dragUid);
           if (!item) return;
-          dragW = parseFloat(item.w) || 3000;
+          dragSinkW = parseFloat(item.w) || 3000;
           const vb = dragSvg.viewBox.baseVal;
-          const rect = dragSvg.getBoundingClientRect();
-          dragScale = vb.width / rect.width;
-          // offsetX in viewBox
-          const drawW = vb.width - 100;
-          dragOffsetX = (vb.width - dragW * (drawW / dragW)) / 2;
-          // recalc: scale = drawW / sinkW
-          dragScale = dragW / drawW;
+          dragDrawW = vb.width - 100;
+          dragOx = (vb.width - dragDrawW) / 2;
+
+          // 드래그 대상 요소 수집
+          if (el.tagName === 'circle') {
+            // 분배기: 해당 원 + 연결된 수직 라인
+            const cx = parseFloat(el.getAttribute('cx'));
+            dragAllEls = [el];
+            // 같은 x좌표의 수직 라인 찾기
+            dragSvg.querySelectorAll('line').forEach(line => {
+              if (parseFloat(line.getAttribute('x1')) === cx && line.getAttribute('x1') === line.getAttribute('x2')) {
+                if (line.getAttribute('stroke') === '#2563eb') dragAllEls.push(line);
+              }
+            });
+            // 수평 배관 라인도 업데이트 필요 → pointerup에서 리렌더
+          } else if (el.tagName === 'g' || el.closest('g[data-drag]')) {
+            // 환풍구: g 그룹 전체
+            const g = el.tagName === 'g' ? el : el.closest('g[data-drag]');
+            const rect = g.querySelector('rect');
+            const origX = rect ? parseFloat(rect.getAttribute('x')) + parseFloat(rect.getAttribute('width')) / 2 : 0;
+            g.dataset.origX = origX;
+            dragAllEls = [g];
+          }
 
           dragSvg.style.cursor = 'ew-resize';
+          dragSvg.setPointerCapture(e.pointerId);
           e.preventDefault();
         });
 
         document.addEventListener('pointermove', function(e) {
-          if (!dragTarget || !dragSvg) return;
-          const rect = dragSvg.getBoundingClientRect();
-          const vb = dragSvg.viewBox.baseVal;
-          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
-          const drawW = vb.width - 100;
-          const ox = (vb.width - drawW) / 2;
-          const mmPos = Math.round(Math.max(0, Math.min(dragW, (svgX - ox) / drawW * dragW)));
+          if (!dragField || !dragSvg) return;
+          const mmPos = clientToMm(e);
+          const newSvgX = dragOx + mmPos / dragSinkW * dragDrawW;
 
+          // SVG 요소 실시간 이동
+          moveSvgElements(newSvgX);
+
+          // 데이터 업데이트 (리렌더 없이)
           const item = selectedItems.find(i => i.uniqueId === dragUid);
-          if (!item) return;
-          item.specs[dragField] = mmPos;
+          if (item) item.specs[dragField] = mmPos;
         });
 
         document.addEventListener('pointerup', function(e) {
-          if (!dragTarget) return;
-          dragSvg.style.cursor = '';
-          dragTarget = null;
+          if (!dragField) return;
+          if (dragSvg) {
+            dragSvg.style.cursor = '';
+            try { dragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
+          }
+          dragField = null;
+          dragAllEls = [];
+          // 드래그 완료 → 전체 리렌더 (배관 라인 등 업데이트)
           const item = selectedItems.find(i => i.uniqueId === dragUid);
           if (item) renderWorkspaceContent(item);
         });
