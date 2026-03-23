@@ -174,10 +174,11 @@ function buildFurniturePrompt(input: GenerationInput, wallData: Record<string, u
 - Cooktop/hood position: ${exhaustPct}% from left wall
 
 [CABINET SPECIFICATIONS]
-- Upper cabinets: flush to ceiling, ${doorColor} ${doorFinish} flat panel doors
-- Lower cabinets: floor-standing with toe kick
+- Upper cabinets: flush to ceiling, ${doorColor} ${doorFinish} flat panel doors, NO handles, NO knobs
+- Lower cabinets: floor-standing with toe kick, ${doorColor} ${doorFinish} flat panel doors, NO handles, NO knobs
+- ALL doors and drawers: completely HANDLELESS — NO bar handles, NO knobs, NO pull handles, NO visible hardware at all
+- Door opening method: hidden J-profile grip or push-to-open, recessed into the door panel itself
 - Countertop: ${countertop}
-- Handles: ${handle}
 - Sink: stainless steel undermount with chrome faucet
 - Hood: concealed/integrated range hood
 
@@ -188,6 +189,7 @@ ${mood ? '- ' + mood : ''}
 - Natural lighting, no artificial effects
 
 [FORBIDDEN]
+- NO handles, NO knobs, NO bar pulls, NO visible door hardware on ANY cabinet
 - NO text, numbers, dimensions, labels, or annotations
 - NO watermarks or logos
 - NO people or pets
