@@ -484,9 +484,32 @@
 
         let sinkModuleSvg = '';
 
-        // 상몰딩
+        // 좌우 마감 (몰딩/휠라) 폭
+        const finishL_s = finishL * scale;
+        const finishR_s = finishR * scale;
+        const finishLType = item.specs.finishLeftType || 'Filler';
+        const finishRType = item.specs.finishRightType || 'Filler';
+
+        // 상몰딩 (ㄷ자 형태: 상단 + 좌측 + 우측)
         sinkModuleSvg += `<rect x="${offsetX}" y="${offsetY}" width="${drawW}" height="${moldingH_s}" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1"/>
-    <text x="${offsetX + drawW / 2}" y="${offsetY + moldingH_s / 2 + 3}" text-anchor="middle" font-size="9" fill="#666">상몰딩 ${moldingH}mm</text>`;
+    <text x="${offsetX + drawW / 2}" y="${offsetY + moldingH_s / 2 + 3}" text-anchor="middle" font-size="9" fill="#666">상몰딩 ${moldingH}</text>`;
+
+        // 좌측 마감 (상몰딩 아래~하부장 끝까지)
+        if (finishL > 0) {
+          const fLY = offsetY + moldingH_s;
+          const fLH = drawH - moldingH_s;
+          sinkModuleSvg += `<rect x="${offsetX}" y="${fLY}" width="${finishL_s}" height="${fLH}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1" opacity="0.6"/>
+    <text x="${offsetX + finishL_s / 2}" y="${fLY + fLH / 2}" text-anchor="middle" font-size="7" fill="#555" transform="rotate(-90 ${offsetX + finishL_s / 2} ${fLY + fLH / 2})">${finishLType} ${finishL}</text>`;
+        }
+
+        // 우측 마감
+        if (finishR > 0) {
+          const fRX = offsetX + drawW - finishR_s;
+          const fRY = offsetY + moldingH_s;
+          const fRH = drawH - moldingH_s;
+          sinkModuleSvg += `<rect x="${fRX}" y="${fRY}" width="${finishR_s}" height="${fRH}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1" opacity="0.6"/>
+    <text x="${fRX + finishR_s / 2}" y="${fRY + fRH / 2}" text-anchor="middle" font-size="7" fill="#555" transform="rotate(-90 ${fRX + finishR_s / 2} ${fRY + fRH / 2})">${finishRType} ${finishR}</text>`;
+        }
 
         // 도어 색상 및 간격 설정
         const showDoors = item.specs.showDoors || false;
@@ -857,9 +880,9 @@
           <div class="spec-field"><label>현장 사진</label></div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
-          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value)"></div>
-          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          <div class="spec-field"><label>W</label><input type="number" placeholder="mm" value="${item.w}" oninput="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" oninput="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" oninput="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
           <div class="spec-field">
             <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:4px 10px;font-size:11px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '변경' : '📷'}</button>
@@ -868,31 +891,6 @@
             </div>
           </div>
         </div>
-        ${(item.specs.dimensionMode || 'unified') === 'unified' ? `
-        <div class="spec-row">
-          <div class="spec-field"><label>하부장 H</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
-          <div class="spec-field"><label>하부장 D</label><input type="number" value="${item.d || item.defaultD || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
-          <div class="spec-field"><label>상부장 H</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
-          <div class="spec-field"><label>상부장 D</label><input type="number" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
-        </div>
-        ` : `
-        <div style="padding:6px 8px;border-left:3px solid #b8956c;margin:6px 0;">
-          <div style="font-size:10px;font-weight:600;color:#b8956c;margin-bottom:4px;">하부장</div>
-          <div class="spec-row">
-            <div class="spec-field"><label>W</label><input type="number" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value)"></div>
-            <div class="spec-field"><label>H</label><input type="number" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
-            <div class="spec-field"><label>D</label><input type="number" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
-          </div>
-        </div>
-        <div style="padding:6px 8px;border-left:3px solid #5a7fa0;margin:6px 0;">
-          <div style="font-size:10px;font-weight:600;color:#5a7fa0;margin-bottom:4px;">상부장</div>
-          <div class="spec-row">
-            <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperPrimeW || item.w}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeW', this.value)"></div>
-            <div class="spec-field"><label>H</label><input type="number" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
-            <div class="spec-field"><label>D</label><input type="number" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
-          </div>
-        </div>
-        `}
         ${(() => {
           const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
           if (lShape === 'I') return '';
