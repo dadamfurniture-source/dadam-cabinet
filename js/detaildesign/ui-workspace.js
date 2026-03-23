@@ -1675,6 +1675,64 @@
         item.modules = item.modules.filter(m => m.id != modId);
       }
 
+      // ── SVG 내 분배기/환풍구 드래그 이동 ──
+      (function initUtilityDrag() {
+        let dragTarget = null;
+        let dragField = null;
+        let dragUid = null;
+        let dragSvg = null;
+        let dragOffsetX = 0;
+        let dragScale = 1;
+        let dragW = 0;
+
+        document.addEventListener('pointerdown', function(e) {
+          const el = e.target.closest('[data-drag]');
+          if (!el) return;
+          dragField = el.dataset.drag;
+          dragUid = parseFloat(el.dataset.uid);
+          dragSvg = el.closest('svg');
+          if (!dragSvg) return;
+          dragTarget = el;
+
+          const item = selectedItems.find(i => i.uniqueId === dragUid);
+          if (!item) return;
+          dragW = parseFloat(item.w) || 3000;
+          const vb = dragSvg.viewBox.baseVal;
+          const rect = dragSvg.getBoundingClientRect();
+          dragScale = vb.width / rect.width;
+          // offsetX in viewBox
+          const drawW = vb.width - 100;
+          dragOffsetX = (vb.width - dragW * (drawW / dragW)) / 2;
+          // recalc: scale = drawW / sinkW
+          dragScale = dragW / drawW;
+
+          dragSvg.style.cursor = 'ew-resize';
+          e.preventDefault();
+        });
+
+        document.addEventListener('pointermove', function(e) {
+          if (!dragTarget || !dragSvg) return;
+          const rect = dragSvg.getBoundingClientRect();
+          const vb = dragSvg.viewBox.baseVal;
+          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
+          const drawW = vb.width - 100;
+          const ox = (vb.width - drawW) / 2;
+          const mmPos = Math.round(Math.max(0, Math.min(dragW, (svgX - ox) / drawW * dragW)));
+
+          const item = selectedItems.find(i => i.uniqueId === dragUid);
+          if (!item) return;
+          item.specs[dragField] = mmPos;
+        });
+
+        document.addEventListener('pointerup', function(e) {
+          if (!dragTarget) return;
+          dragSvg.style.cursor = '';
+          dragTarget = null;
+          const item = selectedItems.find(i => i.uniqueId === dragUid);
+          if (item) renderWorkspaceContent(item);
+        });
+      })();
+
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs.topSizes[index] = value;

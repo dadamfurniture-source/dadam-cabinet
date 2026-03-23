@@ -14,7 +14,6 @@ export interface Config {
     models: {
       vision: string;
       imageGeneration: string;
-      imagePreview: string;
     };
   };
   server: {
@@ -51,9 +50,8 @@ export function loadConfig(): Config {
       apiKey: getEnv('GEMINI_API_KEY', ''),
       timeout: getEnvNumber('GEMINI_TIMEOUT', 120000),
       models: {
-        vision: 'gemini-2.0-flash',
-        imageGeneration: 'gemini-2.0-flash-exp-image',
-        imagePreview: 'gemini-3-pro-image-preview',
+        vision: 'gemini-2.5-flash-lite',
+        imageGeneration: 'gemini-2.5-flash-image',
       },
     },
     server: {

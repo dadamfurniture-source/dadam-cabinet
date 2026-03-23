@@ -702,49 +702,45 @@
           }
         }
 
-        // 분배기/환풍구 위치 마커 (도면 내부 그림)
-        const distStart = parseFloat(item.specs.distributorStart) || 0;
-        const distEnd = parseFloat(item.specs.distributorEnd) || 0;
-        const ventPos = parseFloat(item.specs.ventStart) || 0;
-        let utilityMarkers = '';
+        // 분배기/환풍구 위치 마커 (항상 표시, 드래그 이동)
+        const distStart = parseFloat(item.specs.distributorStart) || Math.round(sinkW * 0.2);
+        const distEnd = parseFloat(item.specs.distributorEnd) || Math.round(sinkW * 0.5);
+        const ventPos = parseFloat(item.specs.ventStart) || Math.round(sinkW * 0.7);
+        // 초기값 저장
+        if (!item.specs.distributorStart) item.specs.distributorStart = distStart;
+        if (!item.specs.distributorEnd) item.specs.distributorEnd = distEnd;
+        if (!item.specs.ventStart) item.specs.ventStart = ventPos;
 
-        // 분배기 — 하부장 내부 하단 (급수 배관 그림, 클릭으로 위치 편집)
+        let utilityMarkers = '';
+        const uid = item.uniqueId;
+
+        // 분배기 — 하부장 내부 하단 (급수 배관, 드래그 가능)
         {
           const pipeY = lowerY + lowerH_s - 18;
-          if (distStart > 0 || distEnd > 0) {
-            const dsx = offsetX + distStart * scale;
-            const dex = offsetX + distEnd * scale;
-            // 급수 배관 그림
-            utilityMarkers += `
-              <line x1="${dsx}" y1="${pipeY + 10}" x2="${dex}" y2="${pipeY + 10}" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
-              <circle cx="${dsx}" cy="${pipeY + 10}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>
-              <circle cx="${dex}" cy="${pipeY + 10}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>
-              <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
-              <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
-              <text x="${(dsx + dex) / 2}" y="${pipeY - 1}" text-anchor="middle" font-size="8" fill="#2563eb" font-weight="bold">${distStart}~${distEnd}mm</text>`;
-          }
-          // 항상 클릭 영역 (위치 편집)
+          const dsx = offsetX + distStart * scale;
+          const dex = offsetX + distEnd * scale;
           utilityMarkers += `
-            <rect x="${offsetX}" y="${pipeY - 6}" width="${drawW}" height="22" fill="transparent" style="cursor:pointer;" data-utility="distributor" onclick="openUtilityPopup(${item.uniqueId}, 'distributor')"/>`;
+            <line x1="${dsx}" y1="${pipeY + 10}" x2="${dex}" y2="${pipeY + 10}" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+            <circle cx="${dsx}" cy="${pipeY + 10}" r="6" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distStart" data-uid="${uid}"/>
+            <circle cx="${dex}" cy="${pipeY + 10}" r="6" fill="#2563eb" stroke="#fff" stroke-width="1.5" style="cursor:ew-resize;" data-drag="distEnd" data-uid="${uid}"/>
+            <line x1="${dsx}" y1="${pipeY}" x2="${dsx}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
+            <line x1="${dex}" y1="${pipeY}" x2="${dex}" y2="${pipeY + 10}" stroke="#2563eb" stroke-width="2" opacity="0.6"/>
+            <text x="${(dsx + dex) / 2}" y="${pipeY - 1}" text-anchor="middle" font-size="8" fill="#2563eb" font-weight="bold" pointer-events="none">💧 ${distStart}~${distEnd}mm</text>`;
         }
 
-        // 환풍구 — 상부장 내부 상단 (배기 덕트 그림, 클릭으로 위치 편집)
+        // 환풍구 — 상부장 내부 상단 (배기 덕트, 드래그 가능)
         {
           const ductY = upperY + 3;
-          if (ventPos > 0) {
-            const vx = offsetX + ventPos * scale;
-            // 덕트 그릴 그림
-            utilityMarkers += `
+          const vx = offsetX + ventPos * scale;
+          utilityMarkers += `
+            <g style="cursor:ew-resize;" data-drag="ventStart" data-uid="${uid}">
               <rect x="${vx - 14}" y="${ductY}" width="28" height="16" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" rx="3"/>
               <line x1="${vx - 8}" y1="${ductY + 3}" x2="${vx - 8}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
               <line x1="${vx - 3}" y1="${ductY + 3}" x2="${vx - 3}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
               <line x1="${vx + 2}" y1="${ductY + 3}" x2="${vx + 2}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
               <line x1="${vx + 7}" y1="${ductY + 3}" x2="${vx + 7}" y2="${ductY + 13}" stroke="#ef4444" stroke-width="1"/>
-              <text x="${vx}" y="${ductY + 26}" text-anchor="middle" font-size="8" fill="#dc2626" font-weight="bold">${ventPos}mm</text>`;
-          }
-          // 항상 클릭 영역 (위치 편집)
-          utilityMarkers += `
-            <rect x="${offsetX}" y="${ductY - 2}" width="${drawW}" height="24" fill="transparent" style="cursor:pointer;" data-utility="vent" onclick="openUtilityPopup(${item.uniqueId}, 'vent')"/>`;
+            </g>
+            <text x="${vx}" y="${ductY + 26}" text-anchor="middle" font-size="8" fill="#dc2626" font-weight="bold" pointer-events="none">🌀 ${ventPos}mm</text>`
         }
 
         const sinkFrontViewSvg = `
