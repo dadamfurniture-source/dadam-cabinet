@@ -50,8 +50,8 @@ export function loadConfig(): Config {
       apiKey: getEnv('GEMINI_API_KEY', ''),
       timeout: getEnvNumber('GEMINI_TIMEOUT', 120000),
       models: {
-        vision: 'gemini-2.5-flash-lite',
-        imageGeneration: 'gemini-2.5-flash-image',
+        vision: 'gemini-3.1-flash-image-preview',
+        imageGeneration: 'gemini-3.1-flash-image-preview',
       },
     },
     server: {
