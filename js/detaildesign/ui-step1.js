@@ -875,18 +875,14 @@
             </select>
           </div>
         </div>
-        <div class="spec-row" style="margin-bottom:2px;">
-          <div class="spec-field" style="flex:2"><label>현장 실측 치수</label></div>
-          <div class="spec-field"><label>현장 사진</label></div>
-        </div>
         <div class="spec-row">
-          <div class="spec-field"><label>W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
           <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
           <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
-          <div class="spec-field">
+          <div class="spec-field"><label>사진</label>
             <div style="display:flex;align-items:center;gap:4px;">
-              <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:4px 10px;font-size:11px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '변경' : '📷'}</button>
-              ${item.image && item.image !== 'loading' ? `<img src="${item.image}" style="height:28px;border-radius:3px;" alt="">` : ''}
+              <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:3px 8px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '📷 변경' : '📷 업로드'}</button>
+              ${item.image && item.image !== 'loading' ? `<img src="${item.image}" style="height:24px;border-radius:3px;" alt="">` : ''}
               <input type="file" id="ws-file-${item.uniqueId}" style="display:none" accept="image/*" onchange="handleItemPhoto(${item.uniqueId}, event)">
             </div>
           </div>
@@ -951,42 +947,44 @@
       <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
       <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
       <span style="font-size:11px;color:#888;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
-      <div style="flex:1;"></div>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'dimensions')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">📏 치수</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'hardware')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">🔧 HW</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'colors')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">🎨 색상</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'countertop')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">🪨 상판</button>
-      <button onclick="openSpecPopup(${item.uniqueId}, 'finish')" style="padding:4px 10px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;">✂️ 마감</button>
     </div>
 
-    <!-- ★ Front View + 좌측 치수 패널 -->
-    <div style="display:flex;gap:12px;flex:1;min-height:0;">
-      <!-- 좌측: 상하부장 치수 -->
-      <div style="width:140px;min-width:140px;display:flex;flex-direction:column;gap:8px;">
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px;">
-          <div style="font-size:10px;font-weight:700;color:#3b82f6;margin-bottom:6px;">⬆ 상부장</div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <div><label style="font-size:9px;color:#666;">높이(H)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
-            <div><label style="font-size:9px;color:#666;">깊이(D)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
-            <div><label style="font-size:9px;color:#666;">오버랩</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
+    <!-- ★ 3컬럼: 좌측(치수+옵션) / 중앙(도면) / 우측(HW+액세서리) -->
+    <div style="display:flex;gap:8px;flex:1;min-height:0;">
+      <!-- 좌측: 치수 + 색상 + 상판 + 마감 -->
+      <div style="width:150px;min-width:150px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:calc(100vh - 300px);">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#3b82f6;margin-bottom:4px;">⬆ 상부장</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div><label style="font-size:9px;color:#666;">높이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">깊이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">오버랩</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">도어색상</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'sink')}</select><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'sink')}</select></div></div>
           </div>
         </div>
-        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:8px;">
-          <div style="font-size:10px;font-weight:700;color:#b45309;margin-bottom:6px;">⬇ 하부장</div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <div><label style="font-size:9px;color:#666;">높이(H)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
-            <div><label style="font-size:9px;color:#666;">깊이(D)</label><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.d || item.defaultD || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
-            <div><label style="font-size:9px;color:#666;">다리발</label>
-              <select style="width:100%;font-size:12px;padding:3px 6px;" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)">
-                <option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120</option>
-                <option value="150" ${item.specs.sinkLegHeight == 150 ? 'selected' : ''}>150</option>
-              </select>
-            </div>
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#b45309;margin-bottom:4px;">⬇ 하부장</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div><label style="font-size:9px;color:#666;">높이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">깊이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.d || item.defaultD || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">다리발</label><select style="width:100%;font-size:11px;padding:2px 4px;" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)"><option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120</option><option value="150" ${item.specs.sinkLegHeight == 150 ? 'selected' : ''}>150</option></select></div>
+            <div><label style="font-size:9px;color:#666;">도어색상</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorFinishLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishLower, 'sink')}</select><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorColorLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorLower, 'sink')}</select></div></div>
           </div>
         </div>
-        <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
-          <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:6px;">상몰딩</div>
-          <div><input type="number" style="width:100%;font-size:12px;padding:3px 6px;" value="${item.specs.moldingH}" onchange="updateSpecValue(${item.uniqueId}, 'moldingH', this.value)"></div>
+        <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:4px;">상판</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div><label style="font-size:9px;color:#666;">색상</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'topColor', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop', item.specs.topColor)}</select></div>
+            <div><label style="font-size:9px;color:#666;">두께(T)</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.topThickness}" onchange="updateSpecValue(${item.uniqueId}, 'topThickness', this.value)"></div>
+            <div><label style="font-size:9px;color:#666;">몰딩</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.moldingH}" onchange="updateSpecValue(${item.uniqueId}, 'moldingH', this.value)"></div>
+          </div>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:4px;">마감</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div><label style="font-size:9px;color:#666;">좌측</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;" onchange="updateFinishType(${item.uniqueId}, 'Left', this.value)"><option value="Molding" ${item.specs.finishLeftType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishLeftType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishLeftType === 'None' ? 'selected' : ''}>없음</option></select><input type="number" style="width:40px;font-size:10px;padding:1px;" value="${item.specs.finishLeftWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishLeftWidth', this.value)"></div></div>
+            <div><label style="font-size:9px;color:#666;">우측</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;" onchange="updateFinishType(${item.uniqueId}, 'Right', this.value)"><option value="Molding" ${item.specs.finishRightType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishRightType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishRightType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishRightType === 'None' ? 'selected' : ''}>없음</option></select><input type="number" style="width:40px;font-size:10px;padding:1px;" value="${item.specs.finishRightWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishRightWidth', this.value)"></div></div>
+          </div>
         </div>
       </div>
       <!-- 우측: Front View 도면 -->
@@ -1006,6 +1004,27 @@
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
+        </div>
+      </div>
+      <!-- 우측: HW + 액세서리 -->
+      <div style="width:150px;min-width:150px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:calc(100vh - 300px);">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px;">Hardware</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div><label style="font-size:9px;color:#666;">손잡이</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'handle', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('handle', item.specs.handle, 'sink')}</select></div>
+            <div><label style="font-size:9px;color:#666;">씽크볼</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'sink', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('sink', item.specs.sink)}</select></div>
+            <div><label style="font-size:9px;color:#666;">수전</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'faucet', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('faucet', item.specs.faucet)}</select></div>
+            <div><label style="font-size:9px;color:#666;">후드</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'hood', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('hood', item.specs.hood)}</select></div>
+            <div><label style="font-size:9px;color:#666;">쿡탑</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'cooktop', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('cooktop', item.specs.cooktop)}</select></div>
+            <div><label style="font-size:9px;color:#666;">식기세척기</label><select style="width:100%;font-size:10px;padding:1px;" onchange="onDishwasherChange(${item.uniqueId}, this.value)"><option value="None" ${item.specs.dishwasher === 'None' ? 'selected' : ''}>없음</option><option value="BuiltIn" ${item.specs.dishwasher === 'BuiltIn' ? 'selected' : ''}>빌트인</option><option value="FreeStanding" ${item.specs.dishwasher === 'FreeStanding' ? 'selected' : ''}>프리스탠딩</option></select></div>
+          </div>
+        </div>
+        <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:4px;">액세서리</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            ${(item.specs.accessories || []).map(acc => `<div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;padding:1px;" onchange="updateAccessory(${item.uniqueId},${acc.id},this.value)"><option value="LTMesh" ${acc.type==='LTMesh'?'selected':''}>LT망장</option><option value="CircleMesh" ${acc.type==='CircleMesh'?'selected':''}>원망장</option><option value="Cutlery" ${acc.type==='Cutlery'?'selected':''}>수저분리함</option><option value="Knife" ${acc.type==='Knife'?'selected':''}>칼꽂이</option><option value="DishRack" ${acc.type==='DishRack'?'selected':''}>식기건조대</option></select><button style="font-size:10px;border:1px solid #eee;background:#fff;border-radius:3px;cursor:pointer;padding:0 4px;" onclick="removeAccessory(${item.uniqueId},${acc.id})">×</button></div>`).join('')}
+            <button style="width:100%;padding:3px;font-size:9px;border:1px dashed #ccc;background:#fff;border-radius:3px;cursor:pointer;color:#888;" onclick="addAccessory(${item.uniqueId})">+ 추가</button>
+          </div>
         </div>
       </div>
     </div>
