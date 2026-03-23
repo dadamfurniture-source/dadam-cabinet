@@ -210,48 +210,69 @@
         const baseCount = Math.round(totalSpace / DOOR_TARGET_WIDTH);
         const maxCount = Math.min(maxDoorCount, Math.max(baseCount + 3, minCount + 5));
 
-        // 모든 유효한 조합 수집
+        // ★ 도어 균등 분배 최우선: 모든 도어가 동일 너비, 잔여 ≤10mm
         let allResults = [];
 
         for (let count = minCount; count <= maxCount; count++) {
-          const width = findBestDoorWidth(totalSpace, count, preferExact);
-          if (width !== null) {
-            const gap = totalSpace - width * count;
-            const targetDiff = Math.abs(width - DOOR_TARGET_WIDTH);
-            const isPrimary = preferExact
-              ? (gap >= 0 && gap < MIN_REMAINDER)
-              : (gap >= MIN_REMAINDER && gap <= MAX_REMAINDER);
+          // 균등 분배: totalSpace를 count로 나눈 도어 너비
+          const evenWidth = Math.floor(totalSpace / count);
+          const evenGap = totalSpace - evenWidth * count;
 
+          // 도어 너비 범위 체크
+          if (evenWidth >= DOOR_MIN_WIDTH && evenWidth <= DOOR_MAX_WIDTH && evenGap >= 0 && evenGap <= MAX_REMAINDER) {
             allResults.push({
               doorCount: count,
-              doorWidth: width,
-              gap,
-              targetDiff,
-              isPrimary, // 4~10mm 조건 만족 여부
+              doorWidth: evenWidth,
+              gap: evenGap,
+              targetDiff: Math.abs(evenWidth - DOOR_TARGET_WIDTH),
             });
+          }
+
+          // 10단위 내림 후보
+          const floorWidth = Math.floor(totalSpace / count / 10) * 10;
+          if (floorWidth >= DOOR_MIN_WIDTH && floorWidth <= DOOR_MAX_WIDTH) {
+            const floorGap = totalSpace - floorWidth * count;
+            if (floorGap >= 0 && floorGap <= MAX_REMAINDER) {
+              allResults.push({
+                doorCount: count,
+                doorWidth: floorWidth,
+                gap: floorGap,
+                targetDiff: Math.abs(floorWidth - DOOR_TARGET_WIDTH),
+              });
+            }
+          }
+
+          // 짝수 내림 후보
+          const evenFloor = Math.floor(totalSpace / count / 2) * 2;
+          if (evenFloor >= DOOR_MIN_WIDTH && evenFloor <= DOOR_MAX_WIDTH && evenFloor !== floorWidth) {
+            const eg = totalSpace - evenFloor * count;
+            if (eg >= 0 && eg <= MAX_REMAINDER) {
+              allResults.push({
+                doorCount: count,
+                doorWidth: evenFloor,
+                gap: eg,
+                targetDiff: Math.abs(evenFloor - DOOR_TARGET_WIDTH),
+              });
+            }
           }
         }
 
-        // 정렬: isPrimary 우선 → targetDiff 작은 순 → gap 작은 순
+        // ★ 정렬: 도어 균등(목표 450mm 근접) 최우선 → 잔여 ≤10mm 내에서 작은 순
         allResults.sort((a, b) => {
-          // 1. 4~10mm 조건 만족하는 것 우선
-          if (a.isPrimary !== b.isPrimary) return b.isPrimary - a.isPrimary;
-          // 2. 목표 도어 너비(450mm)에 가까운 것 우선
+          // 1. 목표 도어 너비(450mm)에 가까운 것 최우선
           if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
-          // 3. 잔여 작은 것 우선
+          // 2. 잔여 작은 것 우선 (≤10mm는 모두 허용)
           return a.gap - b.gap;
         });
 
         let bestResult = allResults.length > 0 ? allResults[0] : null;
 
-        // 결과가 없으면 강제 계산
+        // 폴백: 결과 없으면 강제 균등 분배
         if (!bestResult) {
-          // 목표 도어 너비에 가장 가까운 도어 개수 계산
           const idealCount = Math.round(totalSpace / DOOR_TARGET_WIDTH);
           const count = Math.max(minCount, Math.min(maxDoorCount, idealCount));
-          let width = Math.floor(totalSpace / count / 2) * 2;
-          width = Math.max(DOOR_MIN_WIDTH, Math.min(DOOR_MAX_WIDTH, width));
-          bestResult = { doorCount: count, doorWidth: width, gap: totalSpace - width * count };
+          const width = Math.floor(totalSpace / count);
+          bestResult = { doorCount: count, doorWidth: Math.max(DOOR_MIN_WIDTH, Math.min(DOOR_MAX_WIDTH, width)), gap: totalSpace - width * count };
         }
 
         const { doorCount, doorWidth } = bestResult;
@@ -451,13 +472,16 @@
           }
         }
 
-        // ★ 잔여공간 완전 흡수: 마지막 모듈에 남은 공간 추가 (낭비 0mm)
+        // ★ 잔여 ≤10mm: 시공 공차로 허용 (도어 균등 유지)
+        // 잔여 >10mm: 마지막 모듈에 흡수 (균등 깨짐 방지보다 공간 낭비 방지 우선)
         if (newModules.length > 0) {
           const totalUsed = newModules.reduce((s, m) => s + m.w, 0);
           const leftover = gap.width - totalUsed;
-          if (leftover > 0 && leftover <= MAX_REMAINDER + 20) {
+          if (leftover > MAX_REMAINDER) {
+            // 10mm 초과 잔여만 마지막 모듈에 흡수
             newModules[newModules.length - 1].w += leftover;
           }
+          // ≤10mm 잔여는 시공 공차로 그냥 둠
         }
 
         return newModules;
