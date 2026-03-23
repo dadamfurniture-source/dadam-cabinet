@@ -1832,32 +1832,38 @@
           return posModules.length;
         }
 
-        // 영향받는 모듈 하이라이트
+        // 영향받는 모듈 하이라이트 (위치 변경 모듈 = 진하게, 나머지 = 연하게)
         function highlightAffected(insertIdx) {
-          // 모든 모듈 rect 원래 색으로 복원
-          modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
-            r.removeAttribute('filter');
-            if (r !== modDragRect) r.setAttribute('opacity', '1');
-          });
-          // 삽입 위치에 인접한 모듈에 밝기 변화
           const item = selectedItems.find(i => i.uniqueId === modDragUid);
           if (!item) return;
           const posModules = item.modules.filter(m => m.pos === modDragPos);
           const draggedMod = item.modules[modDragIdx];
           const origIdx = posModules.indexOf(draggedMod);
-          if (origIdx !== insertIdx && insertIdx !== origIdx + 1) {
-            // 이동 대상 범위의 모듈들 하이라이트
+
+          modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
+            if (r === modDragRect) return; // 드래그 중인 모듈은 별도 처리
+            const idx = parseInt(r.dataset.dragMod);
+            const mod = item.modules[idx];
+            if (!mod || mod.pos !== modDragPos) {
+              r.setAttribute('opacity', '1');
+              r.removeAttribute('filter');
+              return;
+            }
+            const posIdx = posModules.indexOf(mod);
             const lo = Math.min(origIdx, insertIdx);
             const hi = Math.max(origIdx, insertIdx);
-            posModules.forEach((m, i) => {
-              if (m === draggedMod) return;
-              if (i >= lo && i < hi) {
-                const modGlobalIdx = item.modules.indexOf(m);
-                const r = modDragSvg.querySelector(`[data-drag-mod="${modGlobalIdx}"]`);
-                if (r) r.setAttribute('opacity', '0.4');
-              }
-            });
-          }
+            if (origIdx !== insertIdx && posIdx >= lo && posIdx < hi) {
+              // 위치 변경되는 모듈 → 진하게 + 테두리 강조
+              r.setAttribute('opacity', '1');
+              r.setAttribute('filter', 'saturate(1.8) brightness(0.85)');
+              r.setAttribute('stroke-width', '3');
+            } else {
+              // 변경 없는 모듈 → 연하게
+              r.setAttribute('opacity', '0.4');
+              r.removeAttribute('filter');
+              r.setAttribute('stroke-width', '2');
+            }
+          });
         }
 
         document.addEventListener('pointermove', function(e) {
@@ -1870,11 +1876,12 @@
             modDragged = true;
             modDragRect.style.cursor = 'grabbing';
             modDragSvg.style.cursor = 'grabbing';
-            // 드래그 모듈을 SVG 최앞으로 이동 + 그림자 + 강조
+            // 드래그 모듈: SVG 최앞 + 투명 + 그림자
             modDragRect.parentNode.appendChild(modDragRect);
-            modDragRect.setAttribute('opacity', '0.8');
-            modDragRect.setAttribute('filter', 'drop-shadow(3px 3px 4px rgba(0,0,0,0.3))');
+            modDragRect.setAttribute('opacity', '0.35');
+            modDragRect.setAttribute('filter', 'drop-shadow(3px 3px 6px rgba(0,0,0,0.4))');
             modDragRect.setAttribute('stroke-width', '3');
+            modDragRect.setAttribute('stroke-dasharray', '6,3');
           }
 
           // 모듈 위치 이동
@@ -1902,6 +1909,7 @@
               r.setAttribute('opacity', '1');
               r.removeAttribute('filter');
               r.setAttribute('stroke-width', '2');
+              r.removeAttribute('stroke-dasharray');
             });
             try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
           }
