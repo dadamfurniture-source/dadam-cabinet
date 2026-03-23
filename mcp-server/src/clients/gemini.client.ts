@@ -120,7 +120,7 @@ export async function geminiImageGeneration(
     },
   };
 
-  return geminiGenerate(config.gemini.models.imagePreview, request);
+  return geminiGenerate(config.gemini.models.imageGeneration, request);
 }
 
 export async function geminiChat(
