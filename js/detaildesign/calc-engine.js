@@ -576,6 +576,7 @@
       function runAutoCalcSection(itemUniqueId, section) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;
+        if (typeof pushUndo === 'function') pushUndo(item); // ★ Undo
 
         // ★ 싱크대: 자동계산 전 필수장 주입
         if (item.categoryId === 'sink') {
