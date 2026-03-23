@@ -339,6 +339,7 @@
       function _renderWorkspaceContentImpl(item) {
         const ws = document.getElementById('designWorkspace');
         if (!ws) return;
+        try {
 
         // ★ 포커스 복원을 위한 정보 저장
         const activeEl = document.activeElement;
@@ -1088,6 +1089,11 @@
         // ★ 스크롤 복원
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
+        } catch(err) {
+          console.error('[Workspace] 렌더링 에러:', err);
+          const ws2 = document.getElementById('designWorkspace');
+          if (ws2) ws2.innerHTML = `<div style="padding:40px;text-align:center;color:#e74c3c;"><p>렌더링 에러: ${err.message}</p><button onclick="renderWorkspaceContent(getItem(${item.uniqueId}))" style="margin-top:12px;padding:8px 16px;border:1px solid #ddd;border-radius:6px;cursor:pointer;">다시 시도</button></div>`;
+        }
       }
 
       // ============================================================
