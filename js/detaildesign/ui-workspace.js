@@ -571,16 +571,20 @@
       </div>
 
       <div class="module-panel">
-        <!-- ★ Front View 도면 -->
+        <!-- ★ Front/Top View 도면 -->
         <div class="front-view-section" style="margin-bottom:20px;">
           <div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:8px;">
-              <span>📐 Front View</span>
-              <span style="font-size:11px;color:#888;font-weight:normal;">(전면부 도면)</span>
+              <span>📐 ${item.specs.wardrobeViewMode === 'top' ? 'Top View' : 'Front View'}</span>
+              <span style="font-size:11px;color:#888;font-weight:normal;">${item.specs.wardrobeViewMode === 'top' ? '(상면도)' : '(전면부 도면)'}</span>
             </div>
-            <button onclick="toggleWardrobeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+            <div style="display:flex;gap:4px;">
+              <button onclick="switchWardrobeView(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.wardrobeViewMode !== 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
+              <button onclick="switchWardrobeView(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.wardrobeViewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
+              <button onclick="toggleWardrobeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+            </div>
           </div>
-          ${frontViewSvg}
+          ${item.specs.wardrobeViewMode === 'top' ? renderWardrobeTopView(item, wardrobeModules) : frontViewSvg}
         </div>
 
         <div class="module-section">
@@ -1647,9 +1651,8 @@
       function closeSpecPopup(itemUniqueId) {
         const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
         if (popup) popup.style.display = 'none';
-        // 팝업 닫을 때 워크스페이스 리렌더
-        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
-        if (item) renderWorkspaceContent(item);
+        // 팝업 닫을 때 고정 모듈 재배치 + 리렌더
+        repositionFixedModules(itemUniqueId);
       }
 
       // ── Front View 모듈 클릭 → 치수 편집 팝업 ──
@@ -1876,9 +1879,8 @@
           }
           dragField = null;
           dragAllEls = [];
-          // 드래그 완료 → 전체 리렌더 (배관 라인 등 업데이트)
-          const item = selectedItems.find(i => i.uniqueId === dragUid);
-          if (item) renderWorkspaceContent(item);
+          // 드래그 완료 → 고정 모듈 실시간 재배치 + 리렌더
+          repositionFixedModules(dragUid);
         });
       })();
 

@@ -1018,3 +1018,73 @@
         renderWorkspaceContent(item);
       }
 
+      // ★ 경량 재배치: 모듈 삭제 없이 고정 모듈 위치만 재정렬
+      function repositionFixedModules(itemUniqueId) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item || item.modules.length === 0) return;
+
+        const isRefLeft = item.specs.measurementBase === 'Left';
+        const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+        const effectiveW = calcEffectiveSpace(item);
+        const startBound = fL;
+        const endBound = startBound + effectiveW;
+        const distStart = parseFloat(item.specs.distributorStart) || 0;
+        const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+        const ventPos = parseFloat(item.specs.ventStart) || 0;
+
+        // ── 하부장: 개수대/가스대 위치 기반 재정렬 ──
+        const lowerMods = item.modules.filter(m => m.pos === 'lower');
+        const sinkMod = lowerMods.find(m => m.type === 'sink');
+        const cookMod = lowerMods.find(m => m.type === 'cook');
+
+        lowerMods.forEach(m => { m._tx = -1; });
+
+        if (sinkMod && distStart > 0 && distEnd > distStart) {
+          const dAbs = isRefLeft ? startBound + distStart : endBound - distEnd;
+          sinkMod._tx = Math.max(startBound, dAbs - 100);
+        }
+        if (cookMod && ventPos > 0) {
+          const cw = parseFloat(cookMod.w) || 600;
+          const vAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
+          cookMod._tx = Math.max(startBound, Math.min(endBound - cw, vAbs - cw / 2));
+        }
+
+        const targeted = lowerMods.filter(m => m._tx >= 0).sort((a, b) => a._tx - b._tx);
+        const others = lowerMods.filter(m => m._tx < 0);
+        const merged = [];
+        let tIdx = 0, oIdx = 0, cursor = startBound;
+        while (tIdx < targeted.length || oIdx < others.length) {
+          if (tIdx < targeted.length && (oIdx >= others.length || targeted[tIdx]._tx <= cursor)) {
+            merged.push(targeted[tIdx]);
+            cursor = targeted[tIdx]._tx + (parseFloat(targeted[tIdx].w) || 0);
+            tIdx++;
+          } else if (oIdx < others.length) {
+            merged.push(others[oIdx]);
+            cursor += parseFloat(others[oIdx].w) || 0;
+            oIdx++;
+          } else break;
+        }
+        merged.forEach(m => delete m._tx);
+
+        // ── 상부장: 후드 → 환풍구 위치 ──
+        const upperMods = item.modules.filter(m => m.pos === 'upper');
+        const hoodMod = upperMods.find(m => m.type === 'hood');
+        let upperSorted = [...upperMods];
+        if (hoodMod && ventPos > 0) {
+          const hw = parseFloat(hoodMod.w) || 800;
+          const vAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
+          const hoodX = Math.max(startBound, Math.min(endBound - hw, vAbs - hw / 2));
+          const without = upperMods.filter(m => m !== hoodMod);
+          let ins = without.length, c = startBound;
+          for (let i = 0; i < without.length; i++) {
+            if (hoodX < c + (parseFloat(without[i].w) || 0) / 2) { ins = i; break; }
+            c += parseFloat(without[i].w) || 0;
+          }
+          without.splice(ins, 0, hoodMod);
+          upperSorted = without;
+        }
+
+        item.modules = item.modules.filter(m => m.pos !== 'lower' && m.pos !== 'upper').concat(merged).concat(upperSorted);
+        renderWorkspaceContent(item);
+      }
+
