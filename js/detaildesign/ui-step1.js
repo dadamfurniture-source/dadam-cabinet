@@ -1392,6 +1392,27 @@
           svg += isoBox(W - finishR, uY, 0, finishR, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
+        // ── 분배기/환풍구 마커 (Iso뷰) ──
+        {
+          const distStart = parseFloat(item.specs.distributorStart) || 0;
+          const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+          const ventPos = parseFloat(item.specs.ventStart) || 0;
+          // 분배기 (하부장 전면 하단)
+          if (distStart > 0 || distEnd > 0) {
+            const [ps] = proj(Math.min(W, distStart), lY, 0);
+            const [pe] = proj(Math.min(W, distEnd), lY, 0);
+            const [_, psy] = proj(0, lY, 0);
+            svg += `<line x1="${ps}" y1="${psy + 3}" x2="${pe}" y2="${psy + 3}" stroke="#60a5fa" stroke-width="3" opacity="0.6"/>`;
+            svg += `<circle cx="${ps}" cy="${psy + 3}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+            svg += `<circle cx="${pe}" cy="${psy + 3}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+          }
+          // 환풍구 (상부장 전면 상단)
+          if (ventPos > 0) {
+            const [vx, vy] = proj(Math.min(W, ventPos), uY + upperH, 0);
+            svg += `<rect x="${vx - 8}" y="${vy - 12}" width="16" height="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1" rx="2"/>`;
+          }
+        }
+
         // ── 치수선 ──
         // W (하단)
         const [wl, wly] = proj(0, -60, 0);
@@ -1454,15 +1475,26 @@
         // 상부장 외곽
         svg += `<rect x="${ox}" y="${uy}" width="${W*scale}" height="${upperDrawD}" fill="#f8f9fa" stroke="#999" stroke-width="1.5"/>`;
 
-        // 상부장 모듈
+        // 상부장 모듈 (Front View 색상 통일)
         if (upperModules.length > 0) {
           let ux = ox + finishL * scale;
           for (const mod of upperModules) {
             const mw = (parseFloat(mod.w) || 600) * scale;
             const tModIdx = item.modules.indexOf(mod);
-            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="#f0f0f0" stroke="#666" stroke-width="1" data-mod-index="${tModIdx}" data-drag-mod="${tModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper" style="cursor:grab;"/>`;
-            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+3}" text-anchor="middle" font-size="10" fill="#333" pointer-events="none">${mod.w||''}</text>`;
+            const fill = mod.type === 'hood' ? '#fef3c7' : '#eff6ff';
+            const stroke = mod.type === 'hood' ? '#f59e0b' : '#3b82f6';
+            const icon = mod.type === 'hood' ? '🌀' : '📦';
+            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" rx="2" data-mod-index="${tModIdx}" data-drag-mod="${tModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper" style="cursor:grab;"/>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2-4}" text-anchor="middle" font-size="10" pointer-events="none">${icon}</text>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+10}" text-anchor="middle" font-size="9" fill="#666" pointer-events="none">${mod.w||''}</text>`;
             ux += mw;
+          }
+          // 환풍구 마커 (상부장 상단)
+          const ventPos = parseFloat(item.specs.ventStart) || 0;
+          if (ventPos > 0) {
+            const vx = ox + Math.min(W, ventPos) * scale;
+            svg += `<rect x="${vx-8}" y="${uy}" width="16" height="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1" rx="2"/>`;
+            svg += `<text x="${vx}" y="${uy+8}" text-anchor="middle" font-size="6" fill="#dc2626" pointer-events="none">${ventPos}</text>`;
           }
         }
 
@@ -1506,11 +1538,16 @@
           let lx = ox + finishL * scale;
           for (const mod of lowerModules) {
             const mw = (parseFloat(mod.w) || 600) * scale;
-            const isSink = mod.type === 'sink' || mod.hasSink || mod.has_sink;
-            const isCook = mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop;
-            const fill = isSink ? '#e8f4fd' : isCook ? '#fff8e1' : '#f0f0f0';
+            const isSink = mod.type === 'sink';
+            const isCook = mod.type === 'cook';
+            const isDrawer = mod.isDrawer;
+            // Front View 통일 색상
+            let fill = '#f3f4f6', stroke = '#6b7280';
+            if (isSink) { fill = '#dbeafe'; stroke = '#3b82f6'; }
+            else if (isCook) { fill = '#fee2e2'; stroke = '#ef4444'; }
+            else if (isDrawer) { fill = '#fef3c7'; stroke = '#f59e0b'; }
             const tLModIdx = item.modules.indexOf(mod);
-            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="#666" stroke-width="1" data-mod-index="${tLModIdx}" data-drag-mod="${tLModIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower" style="cursor:grab;"/>`;
+            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" rx="2" data-mod-index="${tLModIdx}" data-drag-mod="${tLModIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower" style="cursor:grab;"/>`;
 
             // 싱크볼
             if (isSink) {
@@ -1533,6 +1570,19 @@
               svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD/2+3}" text-anchor="middle" font-size="10" fill="#333">${mod.w||''}</text>`;
             }
             lx += mw;
+          }
+          // 분배기 마커 (하부장 하단)
+          const distStart = parseFloat(item.specs.distributorStart) || 0;
+          const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+          if (distStart > 0 || distEnd > 0) {
+            const dsx = ox + Math.min(W, distStart) * scale;
+            const dex = ox + Math.min(W, distEnd) * scale;
+            const pipeY = ly + lowerDrawD - 8;
+            svg += `<line x1="${dsx}" y1="${pipeY}" x2="${dex}" y2="${pipeY}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.5"/>`;
+            svg += `<circle cx="${dsx}" cy="${pipeY}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+            svg += `<circle cx="${dex}" cy="${pipeY}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+            svg += `<text x="${dsx}" y="${pipeY-5}" text-anchor="middle" font-size="7" fill="#2563eb">${distStart}</text>`;
+            svg += `<text x="${dex}" y="${pipeY-5}" text-anchor="middle" font-size="7" fill="#2563eb">${distEnd}</text>`;
           }
         }
 
