@@ -1812,23 +1812,79 @@
           e.stopPropagation();
         });
 
+        // 드롭 위치에서 삽입 인덱스 계산
+        function calcInsertIdx(e) {
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item) return -1;
+          const rect = modDragSvg.getBoundingClientRect();
+          const vb = modDragSvg.viewBox.baseVal;
+          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
+          const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
+          const posModules = item.modules.filter(m => m.pos === modDragPos);
+          const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+          let cursor = fL;
+          for (let i = 0; i < posModules.length; i++) {
+            const midX = cursor + (parseFloat(posModules[i].w) || 0) / 2;
+            if (dropMm < midX) return i;
+            cursor += parseFloat(posModules[i].w) || 0;
+          }
+          return posModules.length;
+        }
+
+        // 영향받는 모듈 하이라이트
+        function highlightAffected(insertIdx) {
+          // 모든 모듈 rect 원래 색으로 복원
+          modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
+            r.removeAttribute('filter');
+            if (r !== modDragRect) r.setAttribute('opacity', '1');
+          });
+          // 삽입 위치에 인접한 모듈에 밝기 변화
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item) return;
+          const posModules = item.modules.filter(m => m.pos === modDragPos);
+          const draggedMod = item.modules[modDragIdx];
+          const origIdx = posModules.indexOf(draggedMod);
+          if (origIdx !== insertIdx && insertIdx !== origIdx + 1) {
+            // 이동 대상 범위의 모듈들 하이라이트
+            const lo = Math.min(origIdx, insertIdx);
+            const hi = Math.max(origIdx, insertIdx);
+            posModules.forEach((m, i) => {
+              if (m === draggedMod) return;
+              if (i >= lo && i < hi) {
+                const modGlobalIdx = item.modules.indexOf(m);
+                const r = modDragSvg.querySelector(`[data-drag-mod="${modGlobalIdx}"]`);
+                if (r) r.setAttribute('opacity', '0.4');
+              }
+            });
+          }
+        }
+
         document.addEventListener('pointermove', function(e) {
           if (modDragRect === null || !modDragSvg) return;
           const dist = Math.abs(e.clientX - modDragStartX);
-          if (!modDragged && dist < DRAG_THRESHOLD) return; // 임계값 미만: 무시
+          if (!modDragged && dist < DRAG_THRESHOLD) return;
 
-          // 임계값 넘으면 드래그 시작
+          // 드래그 시작
           if (!modDragged) {
             modDragged = true;
             modDragRect.style.cursor = 'grabbing';
-            modDragRect.setAttribute('opacity', '0.6');
             modDragSvg.style.cursor = 'grabbing';
+            // 드래그 모듈을 SVG 최앞으로 이동 + 그림자 + 강조
+            modDragRect.parentNode.appendChild(modDragRect);
+            modDragRect.setAttribute('opacity', '0.8');
+            modDragRect.setAttribute('filter', 'drop-shadow(3px 3px 4px rgba(0,0,0,0.3))');
+            modDragRect.setAttribute('stroke-width', '3');
           }
 
+          // 모듈 위치 이동
           const rect = modDragSvg.getBoundingClientRect();
           const vb = modDragSvg.viewBox.baseVal;
           const dx = (e.clientX - modDragStartX) / rect.width * vb.width;
           modDragRect.setAttribute('x', modOrigX + dx);
+
+          // 영향받는 모듈 하이라이트
+          const idx = calcInsertIdx(e);
+          highlightAffected(idx);
         });
 
         document.addEventListener('pointerup', function(e) {
@@ -1838,9 +1894,14 @@
           const savedIdx = modDragIdx;
           const savedUid = modDragUid;
 
-          // 리셋
+          // 리셋 — 하이라이트 복원
           if (modDragSvg) {
             modDragSvg.style.cursor = '';
+            modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
+              r.setAttribute('opacity', '1');
+              r.removeAttribute('filter');
+              r.setAttribute('stroke-width', '2');
+            });
             try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
           }
 
