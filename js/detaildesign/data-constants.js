@@ -18,7 +18,7 @@
       const DOOR_TARGET_WIDTH = 450; // 목표 도어 너비 (싱크대)
       const DOOR_MAX_WIDTH = 600; // 최대 도어 너비
       const DOOR_MIN_WIDTH = 350; // ★ 최소 도어 너비 (NEW)
-      const MIN_REMAINDER = 4; // ★ 최소 잔여 (0→4)
+      const MIN_REMAINDER = 5; // ★ 최소 잔여 (4→5, ACTIVE_RULES v28)
       const MAX_REMAINDER = 10; // 최대 잔여
 
       const DEFAULT_SPECS = {
