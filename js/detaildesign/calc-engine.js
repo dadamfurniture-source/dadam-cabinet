@@ -454,16 +454,27 @@
           }
         }
 
-        // ★ 잔여 ≤10mm: 시공 공차로 허용 (도어 균등 유지)
-        // 잔여 >10mm: 마지막 모듈에 흡수 (균등 깨짐 방지보다 공간 낭비 방지 우선)
+        // ★ 잔여 gap → 모든 모듈에 균등 분배 (v33: 한 모듈 몰아넣기 → 균등)
+        // 10mm 이하가 되면 몰딩-모듈 사이 gap으로 허용
         if (newModules.length > 0) {
           const totalUsed = newModules.reduce((s, m) => s + m.w, 0);
           const leftover = gap.width - totalUsed;
-          if (leftover > MAX_REMAINDER) {
-            // 10mm 초과 잔여만 마지막 모듈에 흡수
-            newModules[newModules.length - 1].w += leftover;
+          if (leftover > 0) {
+            const perModule = Math.floor(leftover / newModules.length);
+            const remainder = leftover - perModule * newModules.length;
+            if (perModule > 0) {
+              // 모든 모듈에 균등 분배
+              for (const mod of newModules) {
+                mod.w += perModule;
+              }
+            }
+            // 나머지 (모듈 수로 나누어 떨어지지 않는 부분)
+            if (remainder > MAX_REMAINDER) {
+              // 10mm 초과 나머지는 마지막 모듈에 흡수
+              newModules[newModules.length - 1].w += remainder;
+            }
+            // remainder ≤10mm는 몰딩-모듈 사이 시공 공차로 허용
           }
-          // ≤10mm 잔여는 시공 공차로 그냥 둠
         }
 
         return newModules;
@@ -560,12 +571,23 @@
           }
         }
 
-        // RAG: 잔여 ≤ 30mm → 마지막 모듈에 흡수 (시공 공차)
+        // ★ 잔여 gap → 모든 모듈에 균등 분배 (v33: 균등 분배 우선)
+        // 10mm 이하가 되면 몰딩-모듈 사이 gap으로 허용
         if (newModules.length > 0) {
           const totalUsed = newModules.reduce((s, m) => s + m.w, 0);
           const leftover = gap.width - totalUsed;
-          if (leftover > 0 && leftover <= MAX_REMAINDER + 20) {
-            newModules[newModules.length - 1].w += leftover;
+          if (leftover > 0) {
+            const perModule = Math.floor(leftover / newModules.length);
+            const remainder = leftover - perModule * newModules.length;
+            if (perModule > 0) {
+              for (const mod of newModules) {
+                mod.w += perModule;
+              }
+            }
+            if (remainder > MAX_REMAINDER) {
+              newModules[newModules.length - 1].w += remainder;
+            }
+            // remainder ≤10mm → 몰딩-모듈 사이 시공 공차로 허용
           }
         }
 
