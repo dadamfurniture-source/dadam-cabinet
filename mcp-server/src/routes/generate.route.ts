@@ -135,7 +135,7 @@ function buildFurniturePrompt(
 [LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
 [COUNTERTOP] ${countertop}, continuous surface.
 [DOORS] No visible handles. Push-to-open mechanism.
-[HOOD] Concealed range hood integrated into upper cabinet above cooktop.
+[HOOD] Range hood integrated into upper cabinet above cooktop.
 [STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
 [QUALITY] 8K quality, natural lighting, proper shadows and reflections.
 
