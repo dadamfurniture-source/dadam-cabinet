@@ -1140,18 +1140,15 @@
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
 
-        // ★ 3D 뷰 실시간 업데이트 (치수 변경 즉시 반영) — 항상 3D 모드
+        // ★ 3D 뷰 실시간 업데이트 — 항상 render3DView 호출 (DOM 교체 감지 + 재초기화)
         if (typeof ThreeRenderer !== 'undefined') {
           const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + item.uniqueId);
             if (container && container.clientWidth > 0) {
               const upperModules = item.modules.filter(m => m.pos === 'upper');
               const lowerModules = item.modules.filter(m => m.pos === 'lower');
-              if (ThreeRenderer.isInitialized?.()) {
-                ThreeRenderer.updateScene(item, upperModules, lowerModules, item.specs.showDoors || false);
-              } else {
-                ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
-              }
+              // 항상 render3DView 호출 — 내부에서 container 변경 감지 → dispose + init
+              ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
             }
