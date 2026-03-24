@@ -78,3 +78,6 @@ dadam-cabinet/
 config/gcp-service-account.json
 mcp-server/config/gcp-service-account.json
 .claude/worktrees/
+
+# 내부 문서 (Google 인덱싱 방지)
+docs/
