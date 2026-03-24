@@ -28,7 +28,7 @@ config();
 
 const log = createLogger('server');
 const app = express();
-const PORT = process.env.HTTP_PORT || 3200;
+const PORT = process.env.PORT || process.env.HTTP_PORT || 3200;
 
 // 미들웨어
 app.use(corsMiddleware);

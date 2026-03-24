@@ -2518,8 +2518,8 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (Cloudflare Worker — Gemini Flash Image)
-      const API_GENERATE_URL = 'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate';
+      // 프로덕션 API URL (Railway — Gemini Flash Image)
+      const API_GENERATE_URL = 'https://dadam-generate-api-production.up.railway.app/api/generate';
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
