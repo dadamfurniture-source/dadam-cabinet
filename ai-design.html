@@ -3254,30 +3254,29 @@ Magazine quality, professional lighting.`;
 
             // 이미지 추출 (MCP 서버 /api/generate 응답 형식)
             let afterImageUrl = '';
-            let afterImageUrlOpen = '';
+            let afterImageUrlAlt = '';
+            let altStyleName = '';
 
             if (data.generated_image) {
-              // 닫힌 도어 이미지
               if (data.generated_image.closed) {
                 afterImageUrl = `data:image/png;base64,${data.generated_image.closed}`;
               }
-              // 열린 도어 이미지
-              if (data.generated_image.open) {
-                afterImageUrlOpen = `data:image/png;base64,${data.generated_image.open}`;
+              if (data.generated_image.alt) {
+                afterImageUrlAlt = `data:image/png;base64,${data.generated_image.alt}`;
               }
             }
+            if (data.alt_style) {
+              altStyleName = data.alt_style.name || '';
+            }
 
-            // 분석 결과 포맷팅
             let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 적용`;
-
-            // 제안 텍스트
-            let suggestionText = `${info.name} - 동일 제품 도어 열림/닫힘`;
+            let suggestionText = altStyleName ? `${info.name} - ${state.selectedStyle} vs ${altStyleName}` : `${info.name} 디자인`;
 
             state.results.push({
               category,
               beforeUrl: imageData.preview,
               afterUrl: afterImageUrl,
-              afterUrlOpen: afterImageUrlOpen,
+              afterUrlOpen: afterImageUrlAlt,
               analysis: analysisText,
               suggestions: suggestionText,
               wallAnalysis: data.room_analysis || wallAnalysis,
@@ -3552,8 +3551,8 @@ Magazine quality, professional lighting.`;
 
         const images = [
           { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
-          { url: img.dataset.closed, state: 'closed', label: '🚪 도어 닫힘', color: '#3b82f6' },
-          { url: img.dataset.open, state: 'open', label: '🚪 도어 열림', color: '#10b981' },
+          { url: img.dataset.closed, state: 'closed', label: '🎨 선택 스타일', color: '#3b82f6' },
+          { url: img.dataset.open, state: 'open', label: '✨ 대체 스타일', color: '#10b981' },
         ];
 
         // 이미지가 없으면 스킵
