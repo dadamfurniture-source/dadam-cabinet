@@ -1087,19 +1087,15 @@
       <div style="flex:1;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px;display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:13px;font-weight:bold;color:#333;">📐 Front View</span>
-            <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집</span>
+            <span style="font-size:13px;font-weight:bold;color:#333;">🎮 3D View</span>
+            <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집 | 드래그 → 회전 | 스크롤 → 줌</span>
           </div>
           <div style="display:flex;gap:4px;">
-            <button onclick="switchViewMode(${item.uniqueId}, 'iso')" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🧊 Iso</button>
-            <button onclick="switchViewMode(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.viewMode === 'front' || !item.specs.viewMode ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
-            <button onclick="switchViewMode(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.viewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
-            <button onclick="switchViewMode(${item.uniqueId}, '3d')" class="toggle-btn ${item.specs.viewMode === '3d' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🎮 3D</button>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🚪 도어</button>
           </div>
         </div>
-        <div id="view-container-${item.uniqueId}" style="flex:1;width:100%;overflow:auto;position:relative;${item.specs.viewMode === '3d' ? 'min-height:450px;' : ''}" onclick="handleFrontViewClick(event, ${item.uniqueId})">
-          ${item.specs.viewMode === '3d' ? '<div id="three-canvas-' + item.uniqueId + '" style="width:100%;height:450px;border-radius:8px;overflow:hidden;"></div>' : item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : item.specs.viewMode === 'top' ? renderTopView(item, upperModules, lowerModules) : sinkFrontViewSvg}
+        <div id="view-container-${item.uniqueId}" style="flex:1;width:100%;overflow:auto;position:relative;min-height:450px;">
+          <div id="three-canvas-${item.uniqueId}" style="width:100%;height:450px;border-radius:8px;overflow:hidden;"></div>
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
@@ -1144,11 +1140,23 @@
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
 
-        // ★ 3D 뷰 활성 시 실시간 업데이트 (치수 변경 즉시 반영)
-        if (item.specs.viewMode === '3d' && typeof ThreeRenderer !== 'undefined' && ThreeRenderer.isInitialized?.()) {
-          const upperModules = item.modules.filter(m => m.pos === 'upper');
-          const lowerModules = item.modules.filter(m => m.pos === 'lower');
-          ThreeRenderer.updateScene(item, upperModules, lowerModules, item.specs.showDoors || false);
+        // ★ 3D 뷰 실시간 업데이트 (치수 변경 즉시 반영) — 항상 3D 모드
+        if (typeof ThreeRenderer !== 'undefined') {
+          const tryInit3D = (retries) => {
+            const container = document.getElementById('three-canvas-' + item.uniqueId);
+            if (container && container.clientWidth > 0) {
+              const upperModules = item.modules.filter(m => m.pos === 'upper');
+              const lowerModules = item.modules.filter(m => m.pos === 'lower');
+              if (ThreeRenderer.isInitialized?.()) {
+                ThreeRenderer.updateScene(item, upperModules, lowerModules, item.specs.showDoors || false);
+              } else {
+                ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
+              }
+            } else if (retries > 0) {
+              setTimeout(() => tryInit3D(retries - 1), 100);
+            }
+          };
+          setTimeout(() => tryInit3D(5), 50);
         }
 
         } catch(err) {
