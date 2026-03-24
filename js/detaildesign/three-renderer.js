@@ -42,7 +42,14 @@
 
         const SELECTED_EMISSIVE = 0xb8956c;
 
-        // ─── 초기화: Orthographic Camera (2D 느낌) ───
+        // 듀얼 카메라 상태
+        let orthoCamera, perspCamera;
+        let isOrtho = true;
+        let orthoFront = { x: 0, y: 0, z: 3000 }; // 정면 기본 위치
+        let lastRotateAngle = 0;
+        const ROTATE_THRESHOLD = 0.05; // 이 각도 이상 회전하면 Perspective 전환
+
+        // ─── 초기화: 듀얼 카메라 (Ortho ↔ Perspective 자동 전환) ───
         function init(containerEl) {
           if (isInitialized) return;
           container = containerEl;
@@ -52,56 +59,89 @@
           scene = new THREE.Scene();
           scene.background = new THREE.Color(0xffffff);
 
-          // Orthographic 카메라 (2D 느낌)
-          const frustumSize = 3000;
           const aspect = w / h;
-          camera = new THREE.OrthographicCamera(
+          const frustumSize = 3000;
+
+          // Orthographic 카메라 (2D 기본)
+          orthoCamera = new THREE.OrthographicCamera(
             -frustumSize * aspect / 2, frustumSize * aspect / 2,
             frustumSize / 2, -frustumSize / 2,
             0.1, 20000
           );
-          camera.position.set(1500, 1200, 2500);
-          camera.lookAt(1500, 600, 0);
+          orthoCamera.position.set(1500, 1200, 3000);
+          orthoCamera.lookAt(1500, 600, 0);
+
+          // Perspective 카메라 (회전 시)
+          perspCamera = new THREE.PerspectiveCamera(30, aspect, 1, 20000);
+          perspCamera.position.set(1500, 1200, 3000);
+          perspCamera.lookAt(1500, 600, 0);
+
+          camera = orthoCamera; // 기본 = Ortho
 
           renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
           renderer.setSize(w, h);
           renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-          renderer.shadowMap.enabled = false; // 2D 스타일 — 그림자 OFF
+          renderer.shadowMap.enabled = false;
           container.appendChild(renderer.domElement);
 
-          // OrbitControls — 줌 범위 2배 확대
+          // OrbitControls
           controls = new THREE.OrbitControls(camera, renderer.domElement);
           controls.enableDamping = true;
           controls.dampingFactor = 0.1;
           controls.enableRotate = true;
-          controls.minZoom = 0.15;  // 2배 축소 가능 (기존 0.3)
-          controls.maxZoom = 4.0;   // 2배 확대 가능 (기존 2.0)
+          controls.minZoom = 0.15;
+          controls.maxZoom = 4.0;
+          controls.minDistance = 300;
+          controls.maxDistance = 12000;
           controls.target.set(1500, 600, 0);
           controls.update();
 
-          // 조명 — 플랫 라이팅 (2D 느낌)
-          const ambient = new THREE.AmbientLight(0xffffff, 0.95);
+          // 회전 감지 → 카메라 자동 전환
+          controls.addEventListener('change', () => {
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            // 정면(0,0,-1)과의 각도 차이
+            const frontDir = new THREE.Vector3(0, 0, -1);
+            const angle = camDir.angleTo(frontDir);
+
+            if (isOrtho && angle > ROTATE_THRESHOLD) {
+              // Ortho → Perspective 전환
+              switchToPerspective();
+            } else if (!isOrtho && angle < ROTATE_THRESHOLD * 0.5) {
+              // Perspective → Ortho 복귀 (거의 정면)
+              switchToOrtho();
+            }
+          });
+
+          // 조명 — 2D 기본 + 회전 시 약간의 입체감
+          const ambient = new THREE.AmbientLight(0xffffff, 0.85);
           scene.add(ambient);
-          const dirLight = new THREE.DirectionalLight(0xffffff, 0.15);
-          dirLight.position.set(0, 2000, 2000);
+          const dirLight = new THREE.DirectionalLight(0xffffff, 0.25);
+          dirLight.position.set(2000, 3000, 2000);
           scene.add(dirLight);
+          const hemiLight = new THREE.HemisphereLight(0xffffff, 0xf5f5f5, 0.15);
+          scene.add(hemiLight);
 
           // 이벤트
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('pointermove', onMouseMove);
 
-          // 리사이즈
+          // 리사이즈 — 듀얼 카메라 모두 업데이트
           const ro = new ResizeObserver(() => {
-            if (!container || !camera || !renderer) return;
+            if (!container || !renderer) return;
             const nw = container.clientWidth;
             const nh = container.clientHeight || 450;
             const na = nw / nh;
             const fs = 3000;
-            camera.left = -fs * na / 2;
-            camera.right = fs * na / 2;
-            camera.top = fs / 2;
-            camera.bottom = -fs / 2;
-            camera.updateProjectionMatrix();
+            // Ortho
+            orthoCamera.left = -fs * na / 2;
+            orthoCamera.right = fs * na / 2;
+            orthoCamera.top = fs / 2;
+            orthoCamera.bottom = -fs / 2;
+            orthoCamera.updateProjectionMatrix();
+            // Persp
+            perspCamera.aspect = na;
+            perspCamera.updateProjectionMatrix();
             renderer.setSize(nw, nh);
           });
           ro.observe(container);
@@ -115,6 +155,27 @@
           animFrameId = requestAnimationFrame(animate);
           if (controls) controls.update();
           if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        // ─── 카메라 전환: Ortho ↔ Perspective ───
+        function switchToPerspective() {
+          if (!isOrtho) return;
+          // Ortho 위치/타겟을 Perspective로 복사
+          perspCamera.position.copy(orthoCamera.position);
+          perspCamera.quaternion.copy(orthoCamera.quaternion);
+          camera = perspCamera;
+          controls.object = perspCamera;
+          isOrtho = false;
+        }
+
+        function switchToOrtho() {
+          if (isOrtho) return;
+          // Perspective 위치를 Ortho로 복사
+          orthoCamera.position.copy(perspCamera.position);
+          orthoCamera.quaternion.copy(perspCamera.quaternion);
+          camera = orthoCamera;
+          controls.object = orthoCamera;
+          isOrtho = true;
         }
 
         // ─── 플랫 박스 생성 (MeshBasicMaterial — 그림자/조명 없음, 2D 느낌) ───
