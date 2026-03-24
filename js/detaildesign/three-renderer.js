@@ -513,10 +513,9 @@
         function onMouseDblClick(event) {
           const entry = getClickedModule(event);
           if (entry && entry.moduleIndex !== null) {
-            const ws = document.getElementById('designWorkspace');
-            const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+            const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
             if (uid) {
-              const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+              const item = typeof getItem === 'function' ? getItem(uid) : null;
               if (item && item.modules[entry.moduleIndex]) {
                 const mod = item.modules[entry.moduleIndex];
                 const name = mod.name || mod.type || '모듈';
@@ -532,10 +531,10 @@
         // ★ 3D 모듈 치수 입력 팝업
         function show3DModulePopup(moduleIndex, clientX, clientY) {
           close3DModulePopup();
-          const ws = document.getElementById('designWorkspace');
-          const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+          // currentItemId 직접 사용 (data-uid 속성이 없는 경우 대비)
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
           if (!uid) return;
-          const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+          const item = typeof getItem === 'function' ? getItem(uid) : null;
           if (!item || !item.modules[moduleIndex]) return;
           const mod = item.modules[moduleIndex];
 
@@ -602,10 +601,9 @@
 
         // 전역 함수: 모듈 업데이트 + 삭제
         window._update3DModule = function(moduleIndex, field, value) {
-          const ws = document.getElementById('designWorkspace');
-          const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
           if (!uid) return;
-          const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+          const item = typeof getItem === 'function' ? getItem(uid) : null;
           if (!item || !item.modules[moduleIndex]) return;
           const mod = item.modules[moduleIndex];
           if (field === 'type') {
@@ -621,10 +619,9 @@
         };
 
         window._delete3DModule = function(moduleIndex) {
-          const ws = document.getElementById('designWorkspace');
-          const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
           if (!uid) return;
-          const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+          const item = typeof getItem === 'function' ? getItem(uid) : null;
           if (!item || !item.modules[moduleIndex]) return;
           const mod = item.modules[moduleIndex];
           if (confirm(`"${mod.name || mod.type} (${mod.w}mm)" 삭제하시겠습니까?`)) {
