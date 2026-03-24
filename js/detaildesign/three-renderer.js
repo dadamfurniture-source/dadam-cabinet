@@ -126,6 +126,29 @@
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('pointermove', onMouseMove);
 
+          // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
+          const btnBar = document.createElement('div');
+          btnBar.style.cssText = 'position:absolute;top:8px;left:8px;display:flex;gap:4px;z-index:10;';
+          const presets = [
+            { label: '📐 Front', pos: [0, 0, 1], up: [0, 1, 0] },
+            { label: '⬇ Top', pos: [0, 1, 0.01], up: [0, 0, -1] },
+            { label: '🧊 Iso', pos: [0.5, 0.5, 0.7], up: [0, 1, 0] },
+            { label: '🔄 Free', pos: null },
+          ];
+          presets.forEach(p => {
+            const btn = document.createElement('button');
+            btn.textContent = p.label;
+            btn.style.cssText = 'padding:4px 8px;font-size:10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;opacity:0.85;';
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (!p.pos) return; // Free = 현재 유지
+              setCameraPreset(p.pos, p.up);
+            });
+            btnBar.appendChild(btn);
+          });
+          container.style.position = 'relative';
+          container.appendChild(btnBar);
+
           // 리사이즈 — 듀얼 카메라 모두 업데이트
           const ro = new ResizeObserver(() => {
             if (!container || !renderer) return;
@@ -176,6 +199,34 @@
           camera = orthoCamera;
           controls.object = orthoCamera;
           isOrtho = true;
+        }
+
+        // ─── 카메라 프리셋 (Front/Top/Iso) ───
+        let _lastW = 3000, _lastH = 2400, _lastD = 650;
+        function setCameraPreset(dir, up) {
+          const cx = _lastW / 2, cy = _lastH / 2 - 200;
+          const dist = Math.max(_lastW, _lastH) * 1.2;
+          const target = new THREE.Vector3(cx, cy, 0);
+          const pos = new THREE.Vector3(
+            cx + dir[0] * dist,
+            cy + dir[1] * dist,
+            dir[2] * dist
+          );
+          // 부드러운 전환
+          const startPos = camera.position.clone();
+          const startTarget = controls.target.clone();
+          let t = 0;
+          function tweenStep() {
+            t += 0.08;
+            if (t >= 1) t = 1;
+            const ease = t * (2 - t); // easeOut
+            camera.position.lerpVectors(startPos, pos, ease);
+            controls.target.lerpVectors(startTarget, target, ease);
+            if (up) camera.up.set(up[0], up[1], up[2]);
+            controls.update();
+            if (t < 1) requestAnimationFrame(tweenStep);
+          }
+          tweenStep();
         }
 
         // ─── 플랫 박스 생성 (MeshBasicMaterial — 그림자/조명 없음, 2D 느낌) ───
@@ -237,9 +288,9 @@
           labelSprites.forEach(s => { scene.remove(s); s.material.map?.dispose(); s.material.dispose(); });
           labelSprites = [];
 
-          const W = parseFloat(item.w) || 3000;
-          const H = parseFloat(item.h) || 2400;
-          const D = parseFloat(item.d) || 650;
+          const W = _lastW = parseFloat(item.w) || 3000;
+          const H = _lastH = parseFloat(item.h) || 2400;
+          const D = _lastD = parseFloat(item.d) || 650;
           const legH = parseFloat(item.specs?.sinkLegHeight) || 120;
           const lowerH = parseFloat(item.specs?.lowerH) || 870;
           const upperH = parseFloat(item.specs?.upperH) || 720;
@@ -289,7 +340,7 @@
             // 라벨
             const icons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', storage: '📦' };
             const icon = icons[mod.type] || (isDrawer ? '🗄' : '📦');
-            addLabel(`${icon} ${mw}`, lx + mw / 2, legH + (isTall ? mh : lowerH) / 2, -20, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
+            addLabel(`${icon} ${mw}`, lx + mw / 2, legH + (isTall ? mh : lowerH) / 2, -40, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
 
             // 싱크볼
             if (isSink) {
@@ -307,7 +358,7 @@
 
           // ═══ 상판 ═══
           addBox(0, midY, 0, W, topT + 3, D, COLORS.countertop, COLORS.ctStroke, null, '상판');
-          addLabel(`상판 ${topT}mm`, W / 2, midY + topT / 2, -15, 12, '#8b6914');
+          addLabel(`상판 ${topT}mm`, W / 2, midY + topT / 2, -40, 12, '#8b6914');
 
           // ═══ 상부장 모듈 ═══
           let ux = finishL;
@@ -321,7 +372,7 @@
             addBox(ux + gap, upperY + gap, gap, mw - gap * 2, upperH - gap, upperD - gap, fill, stroke, modIdx, mod.type);
 
             const icon = isHood ? '🌀' : '📦';
-            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, -20, 15, isHood ? '#b45309' : '#1d4ed8');
+            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, -40, 15, isHood ? '#b45309' : '#1d4ed8');
             ux += mw;
           }
 
