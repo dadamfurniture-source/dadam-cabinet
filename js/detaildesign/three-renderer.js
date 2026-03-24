@@ -254,24 +254,24 @@
           return mesh;
         }
 
-        // 라벨 스프라이트 (폰트 300% 확대, 앞쪽 배치)
+        // 라벨 스프라이트 (폰트 900% 확대, 앞쪽 배치)
         function addLabel(text, x, y, z, fontSize, textColor) {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          canvas.width = 512; canvas.height = 96;
-          ctx.clearRect(0, 0, 512, 96);
+          canvas.width = 1024; canvas.height = 192;
+          ctx.clearRect(0, 0, 1024, 192);
           ctx.fillStyle = textColor || '#666';
-          const scaledFont = (fontSize || 16) * 3;  // 300% 확대
+          const scaledFont = (fontSize || 16) * 9;  // 900% 확대 (원본 대비)
           ctx.font = `bold ${scaledFont}px Pretendard, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(text, 256, 48);
+          ctx.fillText(text, 512, 96);
 
           const texture = new THREE.CanvasTexture(canvas);
           const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
           const sprite = new THREE.Sprite(mat);
           sprite.position.set(x, y, z);
-          sprite.scale.set(360, 80, 1);  // 스프라이트도 2배 확대
+          sprite.scale.set(600, 130, 1);
           scene.add(sprite);
           labelSprites.push(sprite);
           return sprite;
@@ -318,10 +318,11 @@
             addBox(W - finishR, upperY, 0, finishR, upperH + moldingH, upperD, COLORS.finish, COLORS.finishStroke, null, '우마감상');
           }
 
-          // ═══ 하부장 모듈 (상판보다 10mm 안쪽) ═══
-          const inset = 10;  // 상판 안쪽으로 10mm
+          // ═══ 하부장 모듈 (상판보다 10mm 안쪽, 모듈 간 틈새 없음) ═══
+          const inset = 10;  // 상판 안쪽으로 10mm (앞뒤만)
           let lx = finishL;
-          for (const mod of lowerModules) {
+          for (let li = 0; li < lowerModules.length; li++) {
+            const mod = lowerModules[li];
             const mw = parseFloat(mod.w) || 600;
             const isSink = mod.type === 'sink' || mod.hasSink;
             const isCook = mod.type === 'cook' || mod.hasCooktop;
@@ -337,13 +338,13 @@
 
             const modIdx = item.modules.indexOf(mod);
             const mh = isTall ? (upperY + upperH - legH) : lowerH;
-            // 상판보다 inset만큼 안쪽으로 배치 (좌우 + 앞뒤)
-            addBox(lx + gap + inset, legH, gap + inset, mw - gap * 2 - inset * 2, mh, lowerD - gap - inset * 2, fill, stroke, modIdx, mod.type);
+            // 앞뒤만 inset, 좌우는 틈새 없이 밀착
+            addBox(lx, legH, inset, mw, mh, lowerD - inset, fill, stroke, modIdx, mod.type);
 
             // 라벨 — 모듈 앞쪽(+Z 방향)에 표시
             const icons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', storage: '📦' };
             const icon = icons[mod.type] || (isDrawer ? '🗄' : '📦');
-            const labelZ = lowerD + 60;  // 앞쪽으로 배치
+            const labelZ = lowerD + 80;
             addLabel(`${icon} ${mw}`, lx + mw / 2, legH + (isTall ? mh : lowerH) / 2, labelZ, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
 
             // 싱크볼
@@ -364,7 +365,7 @@
           addBox(0, midY, 0, W, topT + 3, D, COLORS.countertop, COLORS.ctStroke, null, '상판');
           addLabel(`상판 ${topT}mm`, W / 2, midY + topT / 2, D + 60, 12, '#8b6914');
 
-          // ═══ 상부장 모듈 ═══
+          // ═══ 상부장 모듈 (틈새 없이 밀착) ═══
           let ux = finishL;
           for (const mod of upperModules) {
             const mw = parseFloat(mod.w) || 600;
@@ -373,10 +374,10 @@
             const stroke = isHood ? COLORS.hoodStroke : COLORS.upperStroke;
 
             const modIdx = item.modules.indexOf(mod);
-            addBox(ux + gap, upperY + gap, gap, mw - gap * 2, upperH - gap, upperD - gap, fill, stroke, modIdx, mod.type);
+            addBox(ux, upperY, 0, mw, upperH, upperD, fill, stroke, modIdx, mod.type);
 
             const icon = isHood ? '🌀' : '📦';
-            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, upperD + 60, 15, isHood ? '#b45309' : '#1d4ed8');
+            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, upperD + 80, 15, isHood ? '#b45309' : '#1d4ed8');
             ux += mw;
           }
 
@@ -413,6 +414,54 @@
                 }
               }
               dlx += mw;
+            }
+          }
+
+          // ═══ 분배기/환풍구 벽면 마커 ═══
+          const waterPos = item.specs?.waterSupplyPosition || item.specs?.sinkPosition;
+          const exhaustPos = item.specs?.exhaustPosition || item.specs?.hoodPosition;
+
+          if (waterPos) {
+            const wx = parseFloat(waterPos);
+            if (wx > 0 && wx < W) {
+              // 분배기 — 파란색 원기둥 (벽면 Z=0)
+              const waterGeo = new THREE.CylinderGeometry(25, 25, 80, 16);
+              const waterMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.85 });
+              const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+              waterMesh.position.set(wx, legH + 200, -15);
+              scene.add(waterMesh);
+              moduleMeshes.push({ mesh: waterMesh, moduleIndex: null });
+              addLabel('💧 분배기', wx, legH + 320, 80, 12, '#1565C0');
+              // 수직 파이프 라인
+              const pipeGeo = new THREE.CylinderGeometry(8, 8, legH + 200, 8);
+              const pipeMat = new THREE.MeshPhongMaterial({ color: 0x42A5F5 });
+              const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
+              pipeMesh.position.set(wx, (legH + 200) / 2, -15);
+              scene.add(pipeMesh);
+              moduleMeshes.push({ mesh: pipeMesh, moduleIndex: null });
+            }
+          }
+
+          if (exhaustPos) {
+            const ex = parseFloat(exhaustPos);
+            if (ex > 0 && ex < W) {
+              // 환풍구 — 회색 박스 (벽면 상부)
+              const ventGeo = new THREE.BoxGeometry(120, 120, 30);
+              const ventMat = new THREE.MeshPhongMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
+              const ventMesh = new THREE.Mesh(ventGeo, ventMat);
+              ventMesh.position.set(ex, H - 150, -15);
+              scene.add(ventMesh);
+              moduleMeshes.push({ mesh: ventMesh, moduleIndex: null });
+              // 환풍구 그릴 패턴
+              for (let i = -2; i <= 2; i++) {
+                const slotGeo = new THREE.BoxGeometry(80, 6, 32);
+                const slotMat = new THREE.MeshPhongMaterial({ color: 0x546E7A });
+                const slotMesh = new THREE.Mesh(slotGeo, slotMat);
+                slotMesh.position.set(ex, H - 150 + i * 18, -15);
+                scene.add(slotMesh);
+                moduleMeshes.push({ mesh: slotMesh, moduleIndex: null });
+              }
+              addLabel('🌀 환풍구', ex, H - 30, 80, 12, '#37474F');
             }
           }
 
