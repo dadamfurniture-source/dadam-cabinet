@@ -128,8 +128,8 @@
         if (rawWidth > DOOR_MAX_WIDTH) return null;
         if (rawWidth < DOOR_MIN_WIDTH) return null;
 
-        const primaryCandidates = []; // preferExact ? 0mm : 4~10mm
-        const secondaryCandidates = []; // preferExact ? 4~10mm : 0~3mm
+        // ★ ACTIVE_RULES: 몰딩/비몰딩 구분 없이 잔여 ≤10mm 모두 허용
+        const validCandidates = [];
 
         // 10의 단위 후보 (내림, 올림)
         const tenFloor = Math.floor(rawWidth / 10) * 10;
@@ -139,56 +139,33 @@
         const evenFloor = Math.floor(rawWidth / 2) * 2;
         const evenCeil = Math.ceil(rawWidth / 2) * 2;
 
-        // 후보들과 우선순위 (priority 낮을수록 우선)
+        // 균등 분배 후보
+        const evenDiv = Math.floor(rawWidth);
+
         const allCandidates = [
           { width: tenFloor, priority: 1 },
           { width: tenCeil, priority: 1 },
           { width: evenFloor, priority: 2 },
           { width: evenCeil, priority: 2 },
+          { width: evenDiv, priority: 3 },
         ];
 
-        // 후보 분류
         for (const cand of allCandidates) {
           if (cand.width < DOOR_MIN_WIDTH || cand.width > DOOR_MAX_WIDTH) continue;
           const used = cand.width * doorCount;
           const gap = totalSpace - used;
-          if (gap < 0) continue;
-
-          if (preferExact) {
-            // 몰딩 마감: 잔여 0mm 최우선
-            if (gap >= 0 && gap < MIN_REMAINDER) {
-              primaryCandidates.push({ ...cand, gap });
-            } else if (gap >= MIN_REMAINDER && gap <= MAX_REMAINDER) {
-              secondaryCandidates.push({ ...cand, gap });
-            }
-          } else {
-            // 비몰딩: 4~10mm 잔여 최우선
-            if (gap >= MIN_REMAINDER && gap <= MAX_REMAINDER) {
-              primaryCandidates.push({ ...cand, gap });
-            } else if (gap >= 0 && gap < MIN_REMAINDER) {
-              secondaryCandidates.push({ ...cand, gap });
-            }
-          }
+          if (gap < 0 || gap > MAX_REMAINDER) continue;
+          validCandidates.push({ ...cand, gap });
         }
 
-        // 우선순위 정렬 함수
-        const sortCandidates = (arr) => {
-          arr.sort((a, b) => {
-            if (a.priority !== b.priority) return a.priority - b.priority;
-            return a.gap - b.gap;
-          });
-        };
+        // 정렬: priority → gap 작은 순
+        validCandidates.sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          return a.gap - b.gap;
+        });
 
-        // 우선 후보 선택
-        if (primaryCandidates.length > 0) {
-          sortCandidates(primaryCandidates);
-          return primaryCandidates[0].width;
-        }
-
-        // 차선 후보 선택 (0~3mm)
-        if (secondaryCandidates.length > 0) {
-          sortCandidates(secondaryCandidates);
-          return secondaryCandidates[0].width;
+        if (validCandidates.length > 0) {
+          return validCandidates[0].width;
         }
 
         return null;
@@ -464,13 +441,16 @@
         }
 
         // ★ 폴백: 모듈 생성 실패 또는 큰 잔여 → 갭 전체를 1D 모듈로 재생성
+        // ★ ACTIVE_RULES 1.7: Dead Zone (601~689mm) → 서랍형으로 자동 전환
         {
           const usedSoFar = newModules.reduce((s, m) => s + m.w, 0);
           const leftoverSoFar = gap.width - usedSoFar;
           if (gap.width >= DOOR_MIN_WIDTH && (newModules.length === 0 || leftoverSoFar > MAX_REMAINDER + 20)) {
-            // 기존 모듈 버리고 갭 전체를 1D로 생성 (dead zone: 601~689mm 등)
             newModules.length = 0;
-            newModules.push(createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start));
+            const mod = createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start);
+            mod.isDrawer = true; // 서랍형 자동 전환
+            mod.name = namePrefix + '(서랍)';
+            newModules.push(mod);
           }
         }
 
@@ -505,9 +485,12 @@
         // RAG: 갭 < DOOR_MIN_WIDTH(350mm) → 모듈 생성 불가
         if (gap.width < DOOR_MIN_WIDTH) return newModules;
 
-        // RAG: Dead zone (601~689mm) → 단일 모듈로 전체 흡수
+        // ACTIVE_RULES 1.7: Dead zone (601~689mm) → 서랍형 자동 전환
         if (gap.width > DOOR_MAX_WIDTH && gap.width < DOOR_MIN_WIDTH * 2) {
-          newModules.push(createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start));
+          const mod = createModule(section, namePrefix, gap.width, defaultH, defaultD, false, gap.start);
+          mod.isDrawer = true;
+          mod.name = namePrefix + '(서랍)';
+          newModules.push(mod);
           return newModules;
         }
 
@@ -964,10 +947,13 @@
 
           if (sinkMod) {
             // 개수대: 분배기 시작 -100mm ~ 분배기 끝 +100mm 커버
+            // ★ 수정: 개수대 끝점이 분배기 커버 범위(dEndAbs+100)를 넘지 않도록 제한
             const sinkX = Math.max(startBound, dStartAbs - 100);
             const minEnd = Math.min(endBound, dEndAbs + 100);
-            const minW = minEnd - sinkX;
-            const sinkW = Math.min(Math.max(parseFloat(sinkMod.w) || 1000, minW), endBound - sinkX);
+            const coverW = minEnd - sinkX; // 분배기 커버에 필요한 최소 너비
+            const requestedW = parseFloat(sinkMod.w) || 1000;
+            // 커버 범위 내로 제한 (기본 너비가 커버보다 크면 커버 너비로 축소)
+            const sinkW = Math.min(Math.max(requestedW, coverW), minEnd - sinkX);
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
