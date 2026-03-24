@@ -131,10 +131,10 @@ function buildFurniturePrompt(
 
 [WALL] ${wallData.wallW}x${wallData.wallH}mm wall.
 [PLUMBING] Sink at ${wallData.waterPct}% from left, cooktop at ${wallData.exhaustPct}% from left.
-[UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets.
+[UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets. NO dish drying rack on upper cabinets.
 [LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
 [COUNTERTOP] ${countertop}, continuous surface.
-[DOORS] Lower cabinet doors can be opened by reaching behind the door. No visible handles.
+[DOORS] No visible handles. Push-to-open mechanism.
 [HOOD] Concealed range hood integrated into upper cabinet above cooktop.
 [STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
 [QUALITY] 8K quality, natural lighting, proper shadows and reflections.
@@ -142,6 +142,7 @@ function buildFurniturePrompt(
 CRITICAL RULES:
 - PRESERVE the original room background, walls, floor, ceiling EXACTLY
 - All cabinet doors must be CLOSED
+- NO dish drying rack or dish drainer on or inside upper cabinets
 - No text, labels, dimensions, or annotations
 - No people or pets
 - Photorealistic magazine-quality result`;
