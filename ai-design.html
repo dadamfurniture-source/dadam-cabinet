@@ -3280,6 +3280,7 @@ Magazine quality, professional lighting.`;
               analysis: analysisText,
               suggestions: suggestionText,
               wallAnalysis: data.room_analysis || wallAnalysis,
+              quote: data.quote || null,
             });
           } catch (error) {
             console.error(`Error generating ${category}:`, error);
@@ -3372,6 +3373,40 @@ Magazine quality, professional lighting.`;
               <div class="indicator-dot" onclick="goToImage(${index}, 2)"></div>
             </div>
           </div>
+          ${result.quote ? `
+          <div style="margin-top:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:20px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-size:18px;">💰</span>
+              <span style="font-size:15px;font-weight:600;color:#333;">예상 견적</span>
+              <span style="font-size:11px;color:#999;margin-left:auto;">${result.quote.grade === 'basic' ? '기본' : result.quote.grade === 'mid' ? '중급' : '프리미엄'} 등급</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${result.quote.items.map(item => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;">
+                  <div>
+                    <span style="font-size:13px;color:#333;">${item.name}</span>
+                    <span style="font-size:11px;color:#999;margin-left:6px;">${item.quantity}</span>
+                  </div>
+                  <span style="font-size:13px;font-weight:500;color:#333;">${item.total.toLocaleString()}원</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:2px solid #e5e7eb;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:13px;color:#666;">소계</span>
+                <span style="font-size:13px;color:#333;">${result.quote.subtotal.toLocaleString()}원</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-size:13px;color:#666;">부가세 (10%)</span>
+                <span style="font-size:13px;color:#333;">${result.quote.vat.toLocaleString()}원</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="font-size:16px;font-weight:700;color:#b8956c;">합계</span>
+                <span style="font-size:16px;font-weight:700;color:#b8956c;">${result.quote.total.toLocaleString()}원</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
         `;
 
           pagesContainer.appendChild(page);

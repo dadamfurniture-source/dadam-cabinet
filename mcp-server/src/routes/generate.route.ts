@@ -9,6 +9,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
+import { calculateQuote, type ImageAnalysisResult } from '../services/quote.service.js';
 
 const log = createLogger('route:generate');
 const router = Router();
@@ -191,6 +192,31 @@ RULES:
 - Do NOT change any furniture structure or color`;
 }
 
+// ─── 견적 분석 프롬프트 ───
+function buildQuoteAnalysisPrompt(category: string): string {
+  return `Analyze this generated furniture image and extract cabinet specifications as JSON.
+
+Count and measure all visible cabinets precisely.
+
+Return ONLY valid JSON:
+{
+  "upper_cabinets": [{"width_mm": number, "type": "storage"|"hood"}],
+  "lower_cabinets": [{"width_mm": number, "type": "storage"|"sink"|"cooktop"|"drawer"}],
+  "countertop_length_mm": number,
+  "wall_width_mm": number,
+  "has_sink": boolean,
+  "has_cooktop": boolean,
+  "has_hood": boolean,
+  "door_count": number,
+  "drawer_count": number
+}
+
+Category: ${category}
+- Estimate widths in mm based on proportions
+- Count ALL doors visible (upper + lower)
+- Identify sink (water faucet area), cooktop (burner area), hood (above cooktop)`;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // POST /api/generate — 메인 이미지 생성 엔드포인트
 // ═══════════════════════════════════════════════════════════════
@@ -298,6 +324,36 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
       log.warn('Alternative style generation failed');
     }
 
+    // ═══ Step 4: 이미지 분석 → 견적 산출 ═══
+    log.info('Step 4: Analyzing image for quote');
+    let quote = null;
+
+    try {
+      const quoteAnalysis = await callGemini(
+        buildQuoteAnalysisPrompt(category),
+        closedResult.image,
+        'image/png',
+        ['TEXT'],
+        0.2,
+      );
+
+      if (quoteAnalysis.text) {
+        const jsonMatch = quoteAnalysis.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const analysisData = JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
+          // 벽 분석 데이터 보완
+          if (!analysisData.wall_width_mm) analysisData.wall_width_mm = wallW;
+          if (!analysisData.countertop_length_mm) {
+            analysisData.countertop_length_mm = analysisData.lower_cabinets?.reduce((s: number, m: {width_mm: number}) => s + m.width_mm, 0) || wallW;
+          }
+          quote = calculateQuote(analysisData, category, 'basic');
+          log.info({ total: quote.total, items: quote.items.length }, 'Quote calculated');
+        }
+      }
+    } catch (e) {
+      log.warn('Quote analysis failed');
+    }
+
     // ═══ 응답 ═══
     const elapsed = Date.now() - startTime;
     log.info({ elapsed, category }, 'Generation complete');
@@ -314,6 +370,7 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
         name: STYLE_MAP[altStyleKey] || altStyleKey,
         door_color: altColors.color,
       },
+      quote,
       wall_analysis: { wallW, wallH, waterPct, exhaustPct },
       metadata: {
         category,
