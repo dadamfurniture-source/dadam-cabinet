@@ -946,18 +946,20 @@
           }
 
           if (sinkMod) {
-            // 개수대: 분배기 시작 -100mm ~ 분배기 끝 +100mm 커버
-            // ★ 수정: 개수대 끝점이 분배기 커버 범위(dEndAbs+100)를 넘지 않도록 제한
+            // ★ 개수대 배치: 분배기를 반드시 커버하되, 범위를 넘지 않도록
+            // 개수대 시작 = 분배기 시작 -100mm (최소 startBound)
             const sinkX = Math.max(startBound, dStartAbs - 100);
-            const minEnd = Math.min(endBound, dEndAbs + 100);
-            const coverW = minEnd - sinkX; // 분배기 커버에 필요한 최소 너비
-            const requestedW = parseFloat(sinkMod.w) || 1000;
-            // 커버 범위 내로 제한 (기본 너비가 커버보다 크면 커버 너비로 축소)
-            const sinkW = Math.min(Math.max(requestedW, coverW), minEnd - sinkX);
+            // 개수대 끝 = 분배기 끝 +100mm (최대 endBound)
+            const maxEnd = Math.min(endBound, dEndAbs + 100);
+            // 분배기 커버에 필요한 너비
+            const coverW = maxEnd - sinkX;
+            // ★ 핵심: 개수대 너비 = 커버 너비로 고정 (기본 1000mm를 무시하고 분배기 기준)
+            const sinkW = coverW;
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
             sinkMod.endX = sinkX + sinkW;
+            console.log(`[AutoCalc] 개수대: 분배기(${distStart}~${distEnd}) → dAbs(${dStartAbs}~${dEndAbs}) → sink(${sinkX}~${sinkX + sinkW}, W=${sinkW})`);
           }
         } else {
           // ★ 분배기 미입력 시: 기준 방향에 따라 개수대 기본 위치 결정
