@@ -820,7 +820,24 @@
           otherCursor += mw;
         });
 
-        // ★ Step 3: 비고정 모듈 먼저 제거 → 고정 모듈 기준으로 재계산
+        // ★ Step 3: 기존 모듈 유지 + 빈 공간만 채우기
+        // 기존 비고정 모듈도 고정으로 취급 → 빈 gap에만 새 모듈 추가
+        const existingUpperNonFixed = item.modules.filter(m => m.pos === 'upper' && !m.isFixed && m.name !== '기준상부장(2D)');
+        let existCursor = startBound;
+        // fixedOccupied 먼저 정렬
+        fixedOccupied.sort((a, b) => a.x - b.x);
+        // 기존 비고정 모듈도 fixedOccupied에 추가 (현재 위치 기준)
+        const allUpper = item.modules.filter(m => m.pos === 'upper');
+        let posCursor = startBound;
+        allUpper.forEach(m => {
+          const mw = parseFloat(m.w) || 0;
+          const alreadyFixed = fixedOccupied.find(f => f.id === m.id || (f.type === m.type && f.name === m.name && Math.abs((f.w || 0) - mw) < 1));
+          if (!alreadyFixed && mw > 0) {
+            fixedOccupied.push({ ...m, x: posCursor, endX: posCursor + mw });
+          }
+          posCursor += mw;
+        });
+        // 기존 상부장 모듈 제거 → 고정+비고정 모두 재배치
         item.modules = item.modules.filter((m) => m.pos !== 'upper');
 
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
@@ -1034,8 +1051,18 @@
           console.log(`[AutoCalc] LT망장: 가스대 우측 X=${ltMod.x}`);
         }
 
+        // ★ 기존 비고정 하부장도 fixedOccupied에 추가 (빈 공간만 채우기)
+        const allLower = item.modules.filter(m => m.pos === 'lower');
+        let lPosCursor = startBound;
+        allLower.forEach(m => {
+          const mw = parseFloat(m.w) || 0;
+          const alreadyFixed = fixedOccupied.find(f => f.id === m.id || (f.type === m.type && f.name === m.name && Math.abs((f.w || 0) - mw) < 1));
+          if (!alreadyFixed && mw > 0) {
+            fixedOccupied.push({ ...m, x: lPosCursor, endX: lPosCursor + mw });
+          }
+          lPosCursor += mw;
+        });
         // 고정 모듈 총 너비
-        // ★ 비고정 모듈 먼저 제거 → 고정 모듈 기준으로 재계산
         item.modules = item.modules.filter((m) => m.pos !== 'lower');
 
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
