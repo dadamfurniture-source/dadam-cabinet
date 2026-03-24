@@ -1143,6 +1143,14 @@
         // ★ 스크롤 복원
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
+
+        // ★ 3D 뷰 활성 시 실시간 업데이트 (치수 변경 즉시 반영)
+        if (item.specs.viewMode === '3d' && typeof ThreeRenderer !== 'undefined' && ThreeRenderer.isInitialized?.()) {
+          const upperModules = item.modules.filter(m => m.pos === 'upper');
+          const lowerModules = item.modules.filter(m => m.pos === 'lower');
+          ThreeRenderer.updateScene(item, upperModules, lowerModules, item.specs.showDoors || false);
+        }
+
         } catch(err) {
           console.error('[Workspace] 렌더링 에러:', err);
           const ws2 = document.getElementById('designWorkspace');
