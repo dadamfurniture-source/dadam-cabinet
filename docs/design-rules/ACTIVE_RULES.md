@@ -1,5 +1,5 @@
 # 다담가구 설계 시스템 — 활성 규칙 총정리
-> 최종 업데이트: 2026-03-24 | 총 85+ 규칙
+> 최종 업데이트: 2026-03-25 | 총 100+ 규칙
 
 ---
 
@@ -21,12 +21,15 @@
 3순위: 잔여 공간이 작은 것
 ```
 
-### 1.3 잔여 공간 처리
-| 마감 타입 | 우선 잔여 | 차선 잔여 |
-|-----------|----------|----------|
-| 비몰딩 (Filler/EP/None) | 최대 10mm 허용 |
-| 몰딩 (Molding) | 최대 10mm 허용 |
-- 잔여 ≤10mm: 시공 공차로 허용 (모듈에 흡수 안 함)
+### 1.3 잔여 공간 처리 (v33 업데이트)
+```
+1. 잔여 gap을 모든 모듈에 균등 분배 (Math.floor(gap / 모듈수))
+2. 균등 분배 후 나머지:
+   - ≤10mm → 몰딩-모듈 사이 시공 공차로 허용
+   - >10mm → 마지막 모듈에 흡수
+```
+- 변경 전: 잔여 전체를 마지막 모듈에만 흡수 (불균형)
+- 변경 후: 모든 모듈에 균등 분배 (균형 유지)
 
 ### 1.4 모듈 패턴 (2D/1D)
 ```
@@ -264,12 +267,94 @@ doorCount / 2 = 몫(2D 모듈) + 나머지(1D 모듈)
 
 ---
 
-## 13. 파일 위치
+## 13. 주방 레이아웃 타입 (v33 신규)
+
+| 타입 | 코드 | 설명 |
+|------|------|------|
+| 1자형 | `i_type` / `I` | 직선형, 한쪽 벽면 배치 |
+| ㄱ자형 | `l_type` / `L` | L자형, 두 벽면 사용 (코너1 적용) |
+| ㄷ자형 | `u_type` / `U` | U자형, 세 벽면 사용 (코너1+2 적용) |
+| 대면형 | `peninsula` | 11자형, 아일랜드/반도형 (거실 대면) |
+
+### 13.1 LoRA 모델 (SDXL 학습 완료)
+| 레이아웃 | 트리거 워드 | 학습 이미지 |
+|---------|-----------|-----------|
+| 1자형 | DADAM_I_TYPE_SINK | 50장 |
+| ㄱ자형 | DADAM_L_TYPE_SINK | 50장 |
+| ㄷ자형 | DADAM_U_TYPE_SINK | 40장 |
+| 대면형 | DADAM_PENINSULA_SINK | 30장 |
+
+---
+
+## 14. 손잡이 규칙 (v33 신규)
+
+- **기본**: handleless (매립형) — 모든 카테고리 적용
+- **하부장**: 도어 뒤로 손을 넣어서 열 수 있는 형태
+- **상부장**: 동일 (handleless)
+- **금지**: Chrome bar handle, push-to-open, 외부 노출 손잡이
+- AI 이미지 생성 프롬프트에도 handleless 강제 적용
+
+---
+
+## 15. AI 이미지 생성 아키텍처 (v33 신규)
+
+### 15.1 모델
+- **Gemini 3.1 Flash Image Preview** (`gemini-3.1-flash-image-preview`)
+- 벽분석 + 이미지 생성 모두 동일 모델 사용
+
+### 15.2 파이프라인 (n8n 제거, MCP 서버 직접)
+```
+프론트엔드 → POST /api/generate → MCP 서버
+  → Step 1: Gemini 벽분석 (배관/환풍구 위치)
+  → Step 2: 프롬프트 생성 (레이아웃 + 스타일 + handleless)
+  → Step 3: Gemini 닫힌문 이미지 생성
+  → Step 4: Gemini 열린문 이미지 생성
+  → 응답: { background, closed, open }
+```
+
+### 15.3 프롬프트 제약
+- n8n Cloud 제한 없음 (직접 API 호출로 1000자+ 가능)
+- handleless 3중 강조 (CRITICAL + STRICT + furniture door 표현)
+- kitchen_layout별 layoutDesc 자동 적용
+
+---
+
+## 16. 3D 뷰 (v33 신규)
+
+### 16.1 기술
+- Three.js (CDN, WebGL)
+- OrthographicCamera (2D 스타일) + 회전 시 PerspectiveCamera 자동 전환
+
+### 16.2 뷰 프리셋
+| 버튼 | 카메라 위치 | 설명 |
+|------|-----------|------|
+| Front | 정면 | 정면도 (기존 Front View 대체) |
+| Top | 상면 | 상면도 (기존 Top View 대체) |
+| Iso | 등각 | 아이소메트릭 (기존 Iso View 대체) |
+| Free | 자유 | 마우스 드래그로 자유 회전 |
+
+### 16.3 모듈 배치 규칙
+- 하부장: 상판 대비 앞뒤 10mm inset (좌우 밀착)
+- 상부장: 틈새 없이 밀착
+- 라벨: 모듈 앞쪽(+Z) 표시, 폰트 x9 확대
+- 분배기: 💧 파란색 원기둥 (벽면)
+- 환풍구: 🌀 회색 박스 + 그릴 (벽면 상부)
+
+---
+
+## 17. 파일 위치
 | 파일 | 내용 |
 |------|------|
 | `js/detaildesign/data-constants.js` | 상수, DEFAULT_SPECS, 냉장고 규칙 |
-| `js/detaildesign/calc-engine.js` | 알고리즘 구현 (분배, 자동계산) |
+| `js/detaildesign/calc-engine.js` | 알고리즘 구현 (분배, 자동계산, gap 균등 분배) |
+| `js/detaildesign/three-renderer.js` | Three.js 3D 뷰 렌더러 |
+| `js/detaildesign/ui-step1.js` | 싱크대/붙박이장 워크스페이스 UI |
 | `js/detaildesign/ui-fridge-el.js` | 냉장고장 워크스페이스 |
+| `mcp-server/src/routes/generate.route.ts` | AI 이미지 생성 엔드포인트 |
+| `mcp-server/src/clients/gemini.client.ts` | Gemini API 클라이언트 |
+| `mcp-server/src/services/controlnet-generation.service.ts` | ControlNet 파이프라인 |
+| `ai-design.html` | AI Design 프론트엔드 (레이아웃 선택 UI) |
+| `docs/design-rules/ACTIVE_RULES.md` | 이 문서 |
 | `docs/design-rules/common.md` | 공통 규칙 문서 |
 | `docs/design-rules/sink.md` | 싱크대 규칙 문서 |
 | `docs/design-rules/fridge.md` | 냉장고장 규칙 문서 |
