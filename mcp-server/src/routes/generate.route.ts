@@ -97,6 +97,45 @@ async function callGemini(
   return { image: resultImage, text: resultText };
 }
 
+// ─── Claude Vision API 호출 (견적 분석용) ───
+async function callClaude(
+  prompt: string,
+  imageBase64: string,
+  imageType: string = 'image/png',
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: imageType, data: imageBase64 } },
+          { type: 'text', text: prompt },
+        ],
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Claude API ${res.status}: ${errText.substring(0, 200)}`);
+  }
+
+  const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+  const textBlock = data.content?.find((b: { type: string }) => b.type === 'text');
+  return textBlock?.text || '';
+}
+
 // ─── 벽분석 프롬프트 ───
 function buildWallAnalysisPrompt(): string {
   return `[TASK: 한국 주방 벽면 구조 및 설비 분석]
@@ -324,30 +363,28 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
       log.warn('Alternative style generation failed');
     }
 
-    // ═══ Step 4: 이미지 분석 → 견적 산출 ═══
-    log.info('Step 4: Analyzing image for quote');
+    // ═══ Step 4: 이미지 분석 → 견적 산출 (Claude Vision) ═══
+    log.info('Step 4: Analyzing image with Claude for quote');
     let quote = null;
 
     try {
-      const quoteAnalysis = await callGemini(
+      const claudeText = await callClaude(
         buildQuoteAnalysisPrompt(category),
         closedResult.image,
         'image/png',
-        ['TEXT'],
-        0.2,
       );
+      log.info({ responseLen: claudeText.length }, 'Claude analysis received');
 
-      if (quoteAnalysis.text) {
-        const jsonMatch = quoteAnalysis.text.match(/\{[\s\S]*\}/);
+      if (claudeText) {
+        const jsonMatch = claudeText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const analysisData = JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
-          // 벽 분석 데이터 보완
           if (!analysisData.wall_width_mm) analysisData.wall_width_mm = wallW;
           if (!analysisData.countertop_length_mm) {
             analysisData.countertop_length_mm = analysisData.lower_cabinets?.reduce((s: number, m: {width_mm: number}) => s + m.width_mm, 0) || wallW;
           }
           quote = calculateQuote(analysisData, category, 'basic');
-          log.info({ total: quote.total, items: quote.items.length }, 'Quote calculated');
+          log.info({ total: quote.total, items: quote.items.length }, 'Quote calculated via Claude');
         }
       }
     } catch (e) {
