@@ -124,6 +124,7 @@
 
           // 이벤트
           renderer.domElement.addEventListener('click', onMouseClick);
+          renderer.domElement.addEventListener('dblclick', onMouseDblClick);
           renderer.domElement.addEventListener('pointermove', onMouseMove);
 
           // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
@@ -318,8 +319,8 @@
             addBox(W - finishR, upperY, 0, finishR, upperH + moldingH, upperD, COLORS.finish, COLORS.finishStroke, null, '우마감상');
           }
 
-          // ═══ 하부장 모듈 (상판보다 10mm 안쪽, 모듈 간 틈새 없음) ═══
-          const inset = 10;  // 상판 안쪽으로 10mm (앞뒤만)
+          // ═══ 하부장 모듈 (상판 앞면보다 10mm 뒤로, 모듈 간 밀착) ═══
+          const inset = 10;  // 상판 앞면 기준 뒤로 10mm
           let lx = finishL;
           for (let li = 0; li < lowerModules.length; li++) {
             const mod = lowerModules[li];
@@ -338,8 +339,8 @@
 
             const modIdx = item.modules.indexOf(mod);
             const mh = isTall ? (upperY + upperH - legH) : lowerH;
-            // 앞뒤만 inset, 좌우는 틈새 없이 밀착
-            addBox(lx, legH, inset, mw, mh, lowerD - inset, fill, stroke, modIdx, mod.type);
+            // Z: inset ~ (lowerD - inset) → 상판 앞면(D)보다 앞뒤 모두 10mm 안쪽
+            addBox(lx, legH, inset, mw, mh, lowerD - inset * 2, fill, stroke, modIdx, mod.type);
 
             // 라벨 — 모듈 앞쪽(+Z 방향)에 표시
             const icons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', storage: '📦' };
@@ -480,8 +481,8 @@
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
 
-        function onMouseClick(event) {
-          if (!renderer) return;
+        function getClickedModule(event) {
+          if (!renderer) return null;
           const rect = renderer.domElement.getBoundingClientRect();
           pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -490,18 +491,148 @@
           const intersects = raycaster.intersectObjects(meshes);
           if (intersects.length > 0) {
             const hit = intersects[0].object;
-            const entry = moduleMeshes.find(m => m.mesh === hit);
-            if (entry && entry.moduleIndex !== null) {
-              window._selectedModuleIndex = entry.moduleIndex;
-              highlightModule(entry.moduleIndex);
-              const ws = document.getElementById('designWorkspace');
-              if (ws) {
-                const uid = ws.querySelector('[data-uid]')?.dataset.uid;
-                if (uid && typeof openModulePopup === 'function') openModulePopup(parseFloat(uid), entry.moduleIndex);
+            return moduleMeshes.find(m => m.mesh === hit) || null;
+          }
+          return null;
+        }
+
+        function onMouseClick(event) {
+          const entry = getClickedModule(event);
+          if (entry && entry.moduleIndex !== null) {
+            window._selectedModuleIndex = entry.moduleIndex;
+            highlightModule(entry.moduleIndex);
+            // ★ 치수 입력 팝업 표시
+            show3DModulePopup(entry.moduleIndex, event.clientX, event.clientY);
+          } else {
+            // 빈 공간 클릭 → 팝업 닫기
+            close3DModulePopup();
+          }
+        }
+
+        // ★ 더블클릭 → 모듈 삭제
+        function onMouseDblClick(event) {
+          const entry = getClickedModule(event);
+          if (entry && entry.moduleIndex !== null) {
+            const ws = document.getElementById('designWorkspace');
+            const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+            if (uid) {
+              const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+              if (item && item.modules[entry.moduleIndex]) {
+                const mod = item.modules[entry.moduleIndex];
+                const name = mod.name || mod.type || '모듈';
+                if (confirm(`"${name} (${mod.w}mm)" 삭제하시겠습니까?`)) {
+                  item.modules.splice(entry.moduleIndex, 1);
+                  if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+                }
               }
             }
           }
         }
+
+        // ★ 3D 모듈 치수 입력 팝업
+        function show3DModulePopup(moduleIndex, clientX, clientY) {
+          close3DModulePopup();
+          const ws = document.getElementById('designWorkspace');
+          const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+          if (!uid) return;
+          const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+          if (!item || !item.modules[moduleIndex]) return;
+          const mod = item.modules[moduleIndex];
+
+          const popup = document.createElement('div');
+          popup.id = 'three-module-popup';
+          popup.style.cssText = `
+            position: fixed; left: ${clientX + 10}px; top: ${clientY - 10}px;
+            background: #fff; border: 2px solid #2196F3; border-radius: 10px;
+            padding: 14px 16px; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            font-size: 13px; min-width: 220px; font-family: Pretendard, sans-serif;
+          `;
+
+          const typeIcons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', hood: '🌀', storage: '📦' };
+          const icon = typeIcons[mod.type] || '📦';
+          const name = mod.name || mod.type || '모듈';
+
+          popup.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <b style="font-size:14px;">${icon} ${name}</b>
+              <span style="cursor:pointer;font-size:18px;color:#999;" onclick="document.getElementById('three-module-popup')?.remove()">✕</span>
+            </div>
+            <div style="display:grid;grid-template-columns:60px 1fr;gap:6px;align-items:center;">
+              <label style="color:#666;">너비 W</label>
+              <input type="number" value="${mod.w || ''}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                onchange="window._update3DModule(${moduleIndex},'w',this.value)" />
+              <label style="color:#666;">높이 H</label>
+              <input type="number" value="${mod.h || ''}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                onchange="window._update3DModule(${moduleIndex},'h',this.value)" />
+              <label style="color:#666;">깊이 D</label>
+              <input type="number" value="${mod.d || ''}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                onchange="window._update3DModule(${moduleIndex},'d',this.value)" />
+              <label style="color:#666;">위치 X</label>
+              <input type="number" value="${mod.x || 0}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                onchange="window._update3DModule(${moduleIndex},'x',this.value)" />
+            </div>
+            <div style="margin-top:10px;display:flex;gap:6px;">
+              <select style="flex:1;padding:4px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+                onchange="window._update3DModule(${moduleIndex},'type',this.value)">
+                <option value="storage" ${mod.type==='storage'?'selected':''}>수납장</option>
+                <option value="sink" ${mod.type==='sink'?'selected':''}>개수대</option>
+                <option value="cook" ${mod.type==='cook'?'selected':''}>가스대</option>
+                <option value="drawer" ${mod.type==='drawer'||mod.isDrawer?'selected':''}>서랍</option>
+                <option value="tall" ${mod.type==='tall'?'selected':''}>키큰장</option>
+                <option value="hood" ${mod.type==='hood'?'selected':''}>후드장</option>
+              </select>
+              <button style="padding:4px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;"
+                onclick="window._delete3DModule(${moduleIndex})">삭제</button>
+            </div>
+          `;
+
+          document.body.appendChild(popup);
+
+          // 화면 밖으로 나가지 않도록 보정
+          requestAnimationFrame(() => {
+            const pr = popup.getBoundingClientRect();
+            if (pr.right > window.innerWidth) popup.style.left = (window.innerWidth - pr.width - 10) + 'px';
+            if (pr.bottom > window.innerHeight) popup.style.top = (window.innerHeight - pr.height - 10) + 'px';
+          });
+        }
+
+        function close3DModulePopup() {
+          document.getElementById('three-module-popup')?.remove();
+        }
+
+        // 전역 함수: 모듈 업데이트 + 삭제
+        window._update3DModule = function(moduleIndex, field, value) {
+          const ws = document.getElementById('designWorkspace');
+          const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+          if (!uid) return;
+          const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+          if (!item || !item.modules[moduleIndex]) return;
+          const mod = item.modules[moduleIndex];
+          if (field === 'type') {
+            mod.type = value;
+            mod.isDrawer = value === 'drawer';
+            mod.hasSink = value === 'sink';
+            mod.hasCooktop = value === 'cook';
+          } else {
+            mod[field] = parseFloat(value) || 0;
+          }
+          close3DModulePopup();
+          if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+        };
+
+        window._delete3DModule = function(moduleIndex) {
+          const ws = document.getElementById('designWorkspace');
+          const uid = ws?.querySelector('[data-uid]')?.dataset.uid;
+          if (!uid) return;
+          const item = typeof getItem === 'function' ? getItem(parseFloat(uid)) : null;
+          if (!item || !item.modules[moduleIndex]) return;
+          const mod = item.modules[moduleIndex];
+          if (confirm(`"${mod.name || mod.type} (${mod.w}mm)" 삭제하시겠습니까?`)) {
+            item.modules.splice(moduleIndex, 1);
+            close3DModulePopup();
+            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+          }
+        };
 
         function onMouseMove(event) {
           if (!renderer) return;
@@ -549,6 +680,7 @@
           labelSprites = [];
           if (renderer) {
             renderer.domElement.removeEventListener('click', onMouseClick);
+            renderer.domElement.removeEventListener('dblclick', onMouseDblClick);
             renderer.domElement.removeEventListener('pointermove', onMouseMove);
             if (container && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
             renderer.dispose();
