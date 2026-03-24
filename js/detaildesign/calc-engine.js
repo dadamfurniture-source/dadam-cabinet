@@ -1025,17 +1025,17 @@
         if (dStartAbs > 0 && dEndAbs > 0) {
           const sinkMod2 = fixedOccupied.find(m => m.type === 'sink');
           if (sinkMod2) {
-            if (sinkMod2.x >= dStartAbs) {
-              sinkMod2.x = Math.max(startBound, dStartAbs - 100);
-            }
-            const curEnd = sinkMod2.x + parseFloat(sinkMod2.w);
-            if (curEnd <= dEndAbs) {
-              sinkMod2.w = Math.min(endBound, dEndAbs + 100) - sinkMod2.x;
-            }
-            if (sinkMod2.x + parseFloat(sinkMod2.w) > endBound) {
-              sinkMod2.w = endBound - sinkMod2.x;
-            }
-            sinkMod2.endX = sinkMod2.x + parseFloat(sinkMod2.w);
+            // 개수대 시작: 분배기 시작 -100mm 이전이어야 함
+            const idealX = Math.max(startBound, dStartAbs - 100);
+            // 개수대 끝: 분배기 끝 +100mm 이내
+            const idealEnd = Math.min(endBound, dEndAbs + 100);
+            // 개수대 너비: 커버 범위로 고정 (절대 초과 불가)
+            const idealW = idealEnd - idealX;
+
+            sinkMod2.x = idealX;
+            sinkMod2.w = idealW;
+            sinkMod2.endX = idealX + idealW;
+            console.log(`[AutoCalc] 개수대 재적용: x=${idealX}, w=${idealW}, end=${idealX + idealW}`);
           }
         }
 
@@ -1069,11 +1069,11 @@
             });
           } else if (smallGapTotal > 0 && largeGaps.length === 0 && fixedOccupied.length > 0) {
             // ★ 큰 갭 없음 → 소규격 갭을 인접 고정 모듈에 흡수
-            // 각 소규격 갭에 인접한 고정 모듈(오른쪽 우선, 없으면 왼쪽)의 너비를 확장
+            // ★ 개수대(sink)는 분배기 범위로 고정이므로 흡수 제외
             gaps.forEach(g => {
               if (g.width >= DOOR_MIN_WIDTH) return;
-              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1);
-              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1);
+              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1 && f.type !== 'sink');
+              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1 && f.type !== 'sink');
               if (rightFixed) {
                 rightFixed.x -= g.width;
                 rightFixed.w = parseFloat(rightFixed.w) + g.width;
@@ -1082,7 +1082,7 @@
                 leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
               }
             });
-            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수`);
+            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수 (sink 제외)`);
           }
 
           // ★ 각 갭 독립 계산 (RAG 규칙 + 도어 균등 최우선)
