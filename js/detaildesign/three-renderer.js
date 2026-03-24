@@ -11,23 +11,36 @@
         let hoveredMesh = null;
         let isInitialized = false;
 
-        // 색상 매핑
+        // 색상 매핑 — 모듈별 뚜렷한 색상 구분
         const MODULE_COLORS = {
-          storage: 0xf3f4f6,
-          sink: 0xdbeafe,
-          cook: 0xfee2e2,
-          tall: 0xdcfce7,
-          drawer: 0xfef3c7,
-          hood: 0xfef3c7,
-          countertop: 0xd4a574,
-          kickboard: 0xd1d5db,
-          finish: 0xe0e0e0,
-          molding: 0xc8c8c8,
-          door: 0xf5f5f5,
-          sinkBowl: 0xc0d8f0,
-          faucet: 0x888888,
-          burner: 0x333333,
+          storage: 0xe8eaed,
+          sink: 0xa8d5ff,
+          cook: 0xffb3b3,
+          tall: 0xa8e6cf,
+          drawer: 0xffe0a3,
+          hood: 0xffd480,
+          countertop: 0xc89660,
+          kickboard: 0x888888,
+          finish: 0xd0d0d0,
+          molding: 0xb0b0b0,
+          door: 0xf0f0f0,
+          sinkBowl: 0x7eb8e0,
+          faucet: 0x999999,
+          burner: 0x222222,
         };
+
+        // 모듈 타입별 외곽선 색상
+        const MODULE_EDGE_COLORS = {
+          storage: 0x666666,
+          sink: 0x2277cc,
+          cook: 0xcc3333,
+          tall: 0x22aa66,
+          drawer: 0xcc8800,
+          hood: 0xcc8800,
+        };
+
+        // 3D 라벨용 (스프라이트)
+        let labelSprites = [];
 
         const SELECTED_EMISSIVE = 0xb8956c;
 
@@ -109,7 +122,7 @@
 
         // ─── 모듈 → 3D 메시 ───
         function updateScene(item, upperModules, lowerModules, showDoors) {
-          // 기존 모듈 메시 제거
+          // 기존 메시 + 라벨 제거
           moduleMeshes.forEach(({ mesh }) => {
             scene.remove(mesh);
             if (mesh.geometry) mesh.geometry.dispose();
@@ -119,6 +132,8 @@
             }
           });
           moduleMeshes = [];
+          labelSprites.forEach(s => { scene.remove(s); s.material.map?.dispose(); s.material.dispose(); });
+          labelSprites = [];
 
           const W = parseFloat(item.w) || 3000;
           const H = parseFloat(item.h) || 2400;
@@ -136,13 +151,16 @@
           const midY = legH + lowerH;
           const upperY = midY + 600; // backsplash gap
 
-          // Helper: 박스 생성
-          function addBox(x, y, z, w, h, d, color, moduleIndex, name) {
+          // 모듈 간 간격 (시각적 구분)
+          const MOD_GAP = 3;
+
+          // Helper: 박스 생성 (강화된 외곽선 + 라벨)
+          function addBox(x, y, z, w, h, d, color, moduleIndex, name, edgeColor) {
             const geo = new THREE.BoxGeometry(w, h, d);
             const mat = new THREE.MeshStandardMaterial({
               color: color,
-              roughness: 0.6,
-              metalness: 0.1,
+              roughness: 0.5,
+              metalness: 0.05,
               transparent: true,
               opacity: 1.0,
             });
@@ -150,18 +168,46 @@
             mesh.position.set(x + w / 2, y + h / 2, z + d / 2);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
-            mesh.userData = { moduleIndex, name, type: 'module' };
+            mesh.userData = { moduleIndex, name, type: 'module', w, h, d };
 
-            // 외곽선
+            // 진한 외곽선 (모듈은 색상, 비모듈은 회색)
+            const ec = edgeColor || 0x888888;
             const edges = new THREE.EdgesGeometry(geo);
-            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x999999, linewidth: 1 }));
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: ec, linewidth: 2 }));
             mesh.add(line);
 
             scene.add(mesh);
-            if (moduleIndex !== undefined && moduleIndex !== null) {
+            if (moduleIndex !== undefined && moduleIndex !== null && moduleIndex >= 0) {
               moduleMeshes.push({ mesh, moduleIndex });
             }
             return mesh;
+          }
+
+          // Helper: 3D 텍스트 라벨 (스프라이트)
+          function addLabel(text, x, y, z, fontSize, color) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.fillRect(0, 0, 256, 64);
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, 256, 64);
+            ctx.fillStyle = color || '#333';
+            ctx.font = `bold ${fontSize || 20}px Pretendard, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.position.set(x, y, z);
+            sprite.scale.set(200, 50, 1);
+            scene.add(sprite);
+            labelSprites.push(sprite);
+            return sprite;
           }
 
           // ═══ 킥보드 (다리 부분) ═══
@@ -179,31 +225,39 @@
             addBox(W - finishR, upperY, 0, finishR, upperH + moldingH, upperD, MODULE_COLORS.finish, null, '우측 마감 상부');
           }
 
-          // ═══ 하부장 모듈 ═══
+          // ═══ 하부장 모듈 (갭 + 외곽선 색상 + 라벨) ═══
           let lx = finishL;
           for (let i = 0; i < lowerModules.length; i++) {
             const mod = lowerModules[i];
             const mw = parseFloat(mod.w) || 600;
-            const mh = lowerH - topT - legH;
+            const mh = lowerH;
             const md = lowerD;
             const isSink = mod.type === 'sink' || mod.hasSink || mod.has_sink;
             const isCook = mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop;
-            const color = isSink ? MODULE_COLORS.sink : isCook ? MODULE_COLORS.cook :
-                          mod.isDrawer ? MODULE_COLORS.drawer : MODULE_COLORS.storage;
+            const isTall = mod.type === 'tall';
+            const modType = isSink ? 'sink' : isCook ? 'cook' : isTall ? 'tall' : mod.isDrawer ? 'drawer' : 'storage';
+            const color = MODULE_COLORS[modType];
+            const edgeColor = MODULE_EDGE_COLORS[modType] || 0x666666;
 
             const modIdx = item.modules.indexOf(mod);
-            addBox(lx, legH, 0, mw, mh, md, color, modIdx, mod.name || mod.type);
+            const tallH = isTall ? (upperH + (upperY - midY) + lowerH) : mh;
+            const tallY = isTall ? legH : legH;
+            addBox(lx + MOD_GAP, tallY, MOD_GAP, mw - MOD_GAP * 2, isTall ? tallH : mh, md - MOD_GAP, color, modIdx, mod.name || modType, edgeColor);
+
+            // 모듈 라벨 (타입 + 치수)
+            const icons = { sink: '🚰', cook: '🔥', tall: '↕️', drawer: '🗄', storage: '📦' };
+            addLabel(`${icons[modType] || '📦'} ${mw}mm`, lx + mw / 2, legH + mh / 2, -30, 18, '#333');
 
             // 싱크볼
             if (isSink) {
-              const bowlW = mw * 0.6, bowlH = 100, bowlD = md * 0.5;
-              addBox(lx + (mw - bowlW) / 2, midY - bowlH + 5, (md - bowlD) / 2, bowlW, bowlH, bowlD, MODULE_COLORS.sinkBowl, null, '싱크볼');
+              const bowlW = mw * 0.6, bowlH = 80, bowlD = md * 0.45;
+              addBox(lx + (mw - bowlW) / 2, midY - bowlH + 5, (md - bowlD) / 2, bowlW, bowlH, bowlD, MODULE_COLORS.sinkBowl, null, '싱크볼', 0x4488bb);
             }
 
-            // 쿡탑 버너 표시 (얇은 박스)
+            // 쿡탑 버너 표시
             if (isCook) {
               const burnerW = mw * 0.7, burnerD = md * 0.5;
-              addBox(lx + (mw - burnerW) / 2, midY + 2, (md - burnerD) / 2, burnerW, 5, burnerD, MODULE_COLORS.burner, null, '쿡탑');
+              addBox(lx + (mw - burnerW) / 2, midY + 2, (md - burnerD) / 2, burnerW, 5, burnerD, MODULE_COLORS.burner, null, '쿡탑', 0x444444);
             }
 
             lx += mw;
@@ -212,7 +266,7 @@
           // ═══ 상판 (카운터탑) ═══
           addBox(0, midY - topT, 0, W, topT + 5, D, MODULE_COLORS.countertop, null, '상판');
 
-          // ═══ 상부장 모듈 ═══
+          // ═══ 상부장 모듈 (갭 + 라벨) ═══
           let ux = finishL;
           for (let i = 0; i < upperModules.length; i++) {
             const mod = upperModules[i];
@@ -220,10 +274,16 @@
             const mh = upperH;
             const md = upperD;
             const isHood = mod.type === 'hood';
-            const color = isHood ? MODULE_COLORS.hood : MODULE_COLORS.storage;
+            const modType = isHood ? 'hood' : 'storage';
+            const color = MODULE_COLORS[modType];
+            const edgeColor = MODULE_EDGE_COLORS[modType] || 0x3366aa;
 
             const modIdx = item.modules.indexOf(mod);
-            addBox(ux, upperY, 0, mw, mh, md, color, modIdx, mod.name || mod.type);
+            addBox(ux + MOD_GAP, upperY + MOD_GAP, MOD_GAP, mw - MOD_GAP * 2, mh - MOD_GAP, md - MOD_GAP, color, modIdx, mod.name || modType, edgeColor);
+
+            // 상부장 라벨
+            const icon = isHood ? '🌀' : '📦';
+            addLabel(`${icon} ${mw}mm`, ux + mw / 2, upperY + mh / 2, -30, 18, '#333');
             ux += mw;
           }
 
@@ -384,5 +444,5 @@
           updateScene(item, upperModules, lowerModules, showDoors);
         }
 
-        return { init, updateScene, dispose, render3DView, highlightModule };
+        return { init, updateScene, dispose, render3DView, highlightModule, isInitialized: () => isInitialized };
       })();
