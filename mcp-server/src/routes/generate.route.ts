@@ -368,10 +368,15 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
     let quote = null;
 
     try {
+      // base64 헤더로 MIME 타입 감지
+      const imgMime = closedResult.image.startsWith('/9j/') ? 'image/jpeg'
+        : closedResult.image.startsWith('iVBOR') ? 'image/png'
+        : closedResult.image.startsWith('R0lGO') ? 'image/gif'
+        : 'image/webp';
       const claudeText = await callClaude(
         buildQuoteAnalysisPrompt(category),
         closedResult.image,
-        'image/png',
+        imgMime,
       );
       log.info({ responseLen: claudeText.length }, 'Claude analysis received');
 
@@ -387,8 +392,8 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
           log.info({ total: quote.total, items: quote.items.length }, 'Quote calculated via Claude');
         }
       }
-    } catch (e) {
-      log.warn('Quote analysis failed');
+    } catch (e: any) {
+      log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
     }
 
     // ═══ 응답 ═══
