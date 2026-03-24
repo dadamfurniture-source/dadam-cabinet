@@ -4,15 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
-    <link rel="stylesheet" href="css/nav.css">
+    <script>window.__CV = Date.now();</script>
+    <script>document.write('<link rel="stylesheet" href="css/nav.css?v='+__CV+'">');</script>
     <script src="js/nav-transitions.js"></script>
-    <link rel="stylesheet" href="css/detaildesign/base.css">
-    <link rel="stylesheet" href="css/detaildesign/components.css">
-    <link rel="stylesheet" href="css/detaildesign/chrome.css">
+    <script>
+      document.write('<link rel="stylesheet" href="css/detaildesign/base.css?v='+__CV+'">');
+      document.write('<link rel="stylesheet" href="css/detaildesign/components.css?v='+__CV+'">');
+      document.write('<link rel="stylesheet" href="css/detaildesign/chrome.css?v='+__CV+'">');
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js"></script>
-    <script src="js/supabase-utils.js"></script>
+    <script>
+      document.write('<script src="js/config.js?v='+__CV+'"><\/script>');
+      document.write('<script src="js/supabase-utils.js?v='+__CV+'"><\/script>');
+    </script>
     <!-- Three.js 3D 렌더링 -->
     <script src="js/lib/three.min.js"></script>
     <script src="js/lib/OrbitControls.js"></script>
@@ -169,20 +174,30 @@
     </div>
 
     <!-- JS 모듈 (로딩 순서 중요) -->
-    <script src="js/detaildesign/data-constants.js"></script>
-    <script src="js/detaildesign/utils.js"></script>
-    <script src="js/detaildesign/config-constants.js"></script>
-    <script src="js/detaildesign/calc-engine.js"></script>
-    <script src="js/detaildesign/extractors.js"></script>
-    <script src="js/detaildesign/ui-step1.js"></script>
-    <script src="js/detaildesign/ui-workspace.js"></script>
-    <script src="js/detaildesign/ui-fridge-el.js"></script>
-    <script src="js/lib/three.min.js"></script>
-    <script src="js/lib/OrbitControls.js"></script>
-    <script src="js/detaildesign/three-renderer.js"></script>
-    <script src="js/detaildesign/multiagent-client.js"></script>
-    <script src="js/detaildesign/ai-design-report.js"></script>
-    <script src="js/detaildesign/persistence-init.js"></script>
+    <script>
+      // ★ 캐시버스터: 배포마다 자동 갱신 (Cloudflare Purge 불필요)
+      window.__CACHE_VER = Date.now();
+      function loadJS(src) {
+        const s = src.startsWith('http') ? src : src + '?v=' + window.__CACHE_VER;
+        document.write('<script src="' + s + '"><\/script>');
+      }
+    </script>
+    <script>
+      loadJS('js/detaildesign/data-constants.js');
+      loadJS('js/detaildesign/utils.js');
+      loadJS('js/detaildesign/config-constants.js');
+      loadJS('js/detaildesign/calc-engine.js');
+      loadJS('js/detaildesign/extractors.js');
+      loadJS('js/detaildesign/ui-step1.js');
+      loadJS('js/detaildesign/ui-workspace.js');
+      loadJS('js/detaildesign/ui-fridge-el.js');
+      loadJS('js/lib/three.min.js');
+      loadJS('js/lib/OrbitControls.js');
+      loadJS('js/detaildesign/three-renderer.js');
+      loadJS('js/detaildesign/multiagent-client.js');
+      loadJS('js/detaildesign/ai-design-report.js');
+      loadJS('js/detaildesign/persistence-init.js');
+    </script>
 
     <!-- AI 채팅 토글 버튼 -->
     <button
