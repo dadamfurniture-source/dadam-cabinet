@@ -30,6 +30,24 @@ const STYLE_MAP: Record<string, string> = {
   'luxury': 'Luxury Premium',
 };
 
+// ─── 대체 스타일 매핑 (선택 스타일 → 다른 스타일) ───
+const ALT_STYLE_MAP: Record<string, string> = {
+  'modern-minimal': 'scandinavian',
+  'scandinavian': 'modern-minimal',
+  'industrial': 'classic',
+  'classic': 'luxury',
+  'luxury': 'modern-minimal',
+};
+
+// ─── 대체 스타일 도어 색상 ───
+const ALT_DOOR_COLORS: Record<string, { color: string; finish: string; countertop: string }> = {
+  'modern-minimal': { color: 'white', finish: 'matte', countertop: 'white engineered stone' },
+  'scandinavian': { color: 'light oak wood', finish: 'natural', countertop: 'white marble' },
+  'industrial': { color: 'dark charcoal', finish: 'matte', countertop: 'concrete gray countertop' },
+  'classic': { color: 'cream ivory', finish: 'semi-gloss', countertop: 'beige granite' },
+  'luxury': { color: 'deep navy', finish: 'high-gloss', countertop: 'calacatta marble' },
+};
+
 // ─── Gemini API 호출 ───
 async function callGemini(
   prompt: string,
@@ -250,20 +268,33 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
 
     log.info('Closed door image generated');
 
-    // ═══ Step 3: 열린문 생성 ═══
-    log.info('Step 3: Generating open door furniture');
-    let openImage: string | undefined;
+    // ═══ Step 3: 대체 스타일 이미지 생성 ═══
+    const altStyleKey = ALT_STYLE_MAP[design_style] || 'scandinavian';
+    const altColors = ALT_DOOR_COLORS[altStyleKey] || ALT_DOOR_COLORS['scandinavian'];
+    log.info({ altStyleKey }, 'Step 3: Generating alternative style');
+
+    let altImage: string | undefined;
 
     try {
-      const openResult = await callGemini(
-        buildOpenDoorPrompt(category),
-        closedResult.image,
-        'image/png',
+      const altPrompt = buildFurniturePrompt(
+        category, altStyleKey, kitchen_layout,
+        { wallW, wallH, waterPct, exhaustPct },
+        {
+          style_door_color: altColors.color,
+          style_door_finish: altColors.finish,
+          style_countertop_prompt: altColors.countertop,
+        },
       );
-      openImage = openResult.image;
-      if (openImage) log.info('Open door image generated');
+
+      const altResult = await callGemini(
+        altPrompt,
+        room_image,
+        image_type,
+      );
+      altImage = altResult.image;
+      if (altImage) log.info('Alternative style image generated');
     } catch (e) {
-      log.warn('Open door generation failed');
+      log.warn('Alternative style generation failed');
     }
 
     // ═══ 응답 ═══
@@ -275,7 +306,12 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
       generated_image: {
         background: room_image,
         closed: closedResult.image,
-        open: openImage || null,
+        alt: altImage || null,
+      },
+      alt_style: {
+        key: altStyleKey,
+        name: STYLE_MAP[altStyleKey] || altStyleKey,
+        door_color: altColors.color,
       },
       wall_analysis: { wallW, wallH, waterPct, exhaustPct },
       metadata: {
