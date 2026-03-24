@@ -254,23 +254,24 @@
           return mesh;
         }
 
-        // 라벨 스프라이트
+        // 라벨 스프라이트 (폰트 300% 확대, 앞쪽 배치)
         function addLabel(text, x, y, z, fontSize, textColor) {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          canvas.width = 256; canvas.height = 48;
-          ctx.clearRect(0, 0, 256, 48);
+          canvas.width = 512; canvas.height = 96;
+          ctx.clearRect(0, 0, 512, 96);
           ctx.fillStyle = textColor || '#666';
-          ctx.font = `bold ${fontSize || 16}px Pretendard, sans-serif`;
+          const scaledFont = (fontSize || 16) * 3;  // 300% 확대
+          ctx.font = `bold ${scaledFont}px Pretendard, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(text, 128, 24);
+          ctx.fillText(text, 256, 48);
 
           const texture = new THREE.CanvasTexture(canvas);
           const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
           const sprite = new THREE.Sprite(mat);
           sprite.position.set(x, y, z);
-          sprite.scale.set(180, 40, 1);
+          sprite.scale.set(360, 80, 1);  // 스프라이트도 2배 확대
           scene.add(sprite);
           labelSprites.push(sprite);
           return sprite;
@@ -317,7 +318,8 @@
             addBox(W - finishR, upperY, 0, finishR, upperH + moldingH, upperD, COLORS.finish, COLORS.finishStroke, null, '우마감상');
           }
 
-          // ═══ 하부장 모듈 ═══
+          // ═══ 하부장 모듈 (상판보다 10mm 안쪽) ═══
+          const inset = 10;  // 상판 안쪽으로 10mm
           let lx = finishL;
           for (const mod of lowerModules) {
             const mw = parseFloat(mod.w) || 600;
@@ -335,12 +337,14 @@
 
             const modIdx = item.modules.indexOf(mod);
             const mh = isTall ? (upperY + upperH - legH) : lowerH;
-            addBox(lx + gap, legH, gap, mw - gap * 2, mh, lowerD - gap, fill, stroke, modIdx, mod.type);
+            // 상판보다 inset만큼 안쪽으로 배치 (좌우 + 앞뒤)
+            addBox(lx + gap + inset, legH, gap + inset, mw - gap * 2 - inset * 2, mh, lowerD - gap - inset * 2, fill, stroke, modIdx, mod.type);
 
-            // 라벨
+            // 라벨 — 모듈 앞쪽(+Z 방향)에 표시
             const icons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', storage: '📦' };
             const icon = icons[mod.type] || (isDrawer ? '🗄' : '📦');
-            addLabel(`${icon} ${mw}`, lx + mw / 2, legH + (isTall ? mh : lowerH) / 2, -40, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
+            const labelZ = lowerD + 60;  // 앞쪽으로 배치
+            addLabel(`${icon} ${mw}`, lx + mw / 2, legH + (isTall ? mh : lowerH) / 2, labelZ, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
 
             // 싱크볼
             if (isSink) {
@@ -358,7 +362,7 @@
 
           // ═══ 상판 ═══
           addBox(0, midY, 0, W, topT + 3, D, COLORS.countertop, COLORS.ctStroke, null, '상판');
-          addLabel(`상판 ${topT}mm`, W / 2, midY + topT / 2, -40, 12, '#8b6914');
+          addLabel(`상판 ${topT}mm`, W / 2, midY + topT / 2, D + 60, 12, '#8b6914');
 
           // ═══ 상부장 모듈 ═══
           let ux = finishL;
@@ -372,7 +376,7 @@
             addBox(ux + gap, upperY + gap, gap, mw - gap * 2, upperH - gap, upperD - gap, fill, stroke, modIdx, mod.type);
 
             const icon = isHood ? '🌀' : '📦';
-            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, -40, 15, isHood ? '#b45309' : '#1d4ed8');
+            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, upperD + 60, 15, isHood ? '#b45309' : '#1d4ed8');
             ux += mw;
           }
 
