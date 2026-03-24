@@ -187,6 +187,11 @@
           // Ortho 위치/타겟을 Perspective로 복사
           perspCamera.position.copy(orthoCamera.position);
           perspCamera.quaternion.copy(orthoCamera.quaternion);
+          // ★ 종횡비 업데이트 (찌그러짐 방지)
+          if (container) {
+            perspCamera.aspect = container.clientWidth / (container.clientHeight || 450);
+            perspCamera.updateProjectionMatrix();
+          }
           camera = perspCamera;
           controls.object = perspCamera;
           isOrtho = false;
@@ -197,6 +202,16 @@
           // Perspective 위치를 Ortho로 복사
           orthoCamera.position.copy(perspCamera.position);
           orthoCamera.quaternion.copy(perspCamera.quaternion);
+          // ★ Ortho frustum 업데이트
+          if (container) {
+            const aspect = container.clientWidth / (container.clientHeight || 450);
+            const maxDim = Math.max(_lastW, _lastH) * 1.3;
+            orthoCamera.left = -maxDim * aspect / 2;
+            orthoCamera.right = maxDim * aspect / 2;
+            orthoCamera.top = maxDim / 2;
+            orthoCamera.bottom = -maxDim / 2;
+            orthoCamera.updateProjectionMatrix();
+          }
           camera = orthoCamera;
           controls.object = orthoCamera;
           isOrtho = true;

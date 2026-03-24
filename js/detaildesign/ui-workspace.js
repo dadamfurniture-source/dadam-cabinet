@@ -3,7 +3,7 @@
       // ============================================================
       const _undoStack = [];
       const _redoStack = [];
-      const UNDO_MAX = 30;
+      const UNDO_MAX = 5;
 
       function pushUndo(item) {
         if (!item) return;
