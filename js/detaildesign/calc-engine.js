@@ -234,14 +234,14 @@
           }
         }
 
-        // ★ 정렬: 도어 수 적은 것 우선(넓은 모듈) → 목표 근접 → 잔여 작은 순
+        // ★ 정렬: 목표 450mm 근접 최우선 → 잔여 작은 순 → 도어 수 적은 순
         allResults.sort((a, b) => {
-          // 1. 도어 수 적은 것 우선 (넓은 도어, 모듈 수 최소화)
-          if (a.doorCount !== b.doorCount) return a.doorCount - b.doorCount;
-          // 2. 목표 도어 너비(450mm)에 가까운 것
+          // 1. 목표 도어 너비(450mm)에 가장 가까운 것 최우선
           if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
-          // 3. 잔여 작은 것 (≤10mm는 모두 허용)
-          return a.gap - b.gap;
+          // 2. 잔여 작은 것
+          if (a.gap !== b.gap) return a.gap - b.gap;
+          // 3. 도어 수 적은 것 (동점일 때만)
+          return a.doorCount - b.doorCount;
         });
 
         let bestResult = allResults.length > 0 ? allResults[0] : null;
