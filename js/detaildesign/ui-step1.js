@@ -1232,16 +1232,19 @@
         item.specs.viewMode = mode;
         renderWorkspaceContent(item);
 
-        // 3D 뷰 활성화 시 Three.js 렌더링
+        // 3D 뷰 활성화 시 Three.js 렌더링 (debounce 30ms + DOM 안정화 대기)
         if (mode === '3d' && typeof ThreeRenderer !== 'undefined') {
-          setTimeout(() => {
+          const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + itemUniqueId);
-            if (container) {
+            if (container && container.clientWidth > 0) {
               const upperModules = item.modules.filter(m => m.pos === 'upper');
               const lowerModules = item.modules.filter(m => m.pos === 'lower');
               ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
+            } else if (retries > 0) {
+              setTimeout(() => tryInit3D(retries - 1), 100);
             }
-          }, 100);
+          };
+          setTimeout(() => tryInit3D(5), 50);
         }
       }
 
