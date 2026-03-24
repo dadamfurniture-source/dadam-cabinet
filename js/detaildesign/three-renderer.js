@@ -506,7 +506,9 @@
         }
 
         function render3DView(containerEl, item, upperModules, lowerModules, showDoors) {
-          if (!isInitialized || container !== containerEl) {
+          // ★ canvas가 DOM에서 제거되었으면 재초기화 (renderWorkspaceContent가 DOM 교체)
+          const canvasStillInDom = renderer && renderer.domElement && renderer.domElement.parentNode;
+          if (!isInitialized || container !== containerEl || !canvasStillInDom) {
             if (isInitialized) dispose();
             init(containerEl);
           }
