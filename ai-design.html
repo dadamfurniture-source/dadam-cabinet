@@ -2518,9 +2518,8 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (MCP 서버 직접 호출 — Gemini 3.1 Flash Image)
-      // n8n 제거, MCP 서버에서 직접 Gemini API 호출
-      const API_GENERATE_URL = '/api/generate';
+      // 프로덕션 API URL (Cloudflare Worker — Gemini Flash Image)
+      const API_GENERATE_URL = 'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate';
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
