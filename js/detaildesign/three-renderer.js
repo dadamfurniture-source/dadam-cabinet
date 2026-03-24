@@ -242,11 +242,16 @@
           mesh.position.set(x + w / 2, y + h / 2, z + d / 2);
           mesh.userData = { moduleIndex, name, type: 'module', w, h, d };
 
-          // 외곽선 (Front View stroke 색상)
+          // 외곽선 — 두꺼운 테두리 (경계 또렷하게)
           const edges = new THREE.EdgesGeometry(geo);
-          const edgeMat = new THREE.LineBasicMaterial({ color: strokeColor || 0x999999, linewidth: 1 });
+          const edgeMat = new THREE.LineBasicMaterial({ color: strokeColor || 0x333333, linewidth: 2 });
           const line = new THREE.LineSegments(edges, edgeMat);
           mesh.add(line);
+
+          // 추가 외곽선 (더 진한 테두리 레이어)
+          const edge2Mat = new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 1, transparent: true, opacity: 0.5 });
+          const line2 = new THREE.LineSegments(edges.clone(), edge2Mat);
+          mesh.add(line2);
 
           scene.add(mesh);
           if (moduleIndex !== undefined && moduleIndex !== null && moduleIndex >= 0) {
@@ -466,9 +471,50 @@
             }
           }
 
-          // 카메라 위치 조정
+          // ═══ 빈 공간 + 버튼 (상부장/하부장 끝에 모듈 추가) ═══
+          const usedLowerW = lowerModules.reduce((s, m) => s + (parseFloat(m.w) || 600), 0) + finishL + finishR;
+          const usedUpperW = upperModules.reduce((s, m) => s + (parseFloat(m.w) || 600), 0) + finishL + finishR;
+          const addBtnSize = 100;
+
+          // 하부장 빈 공간에 + 버튼
+          if (usedLowerW + addBtnSize < W) {
+            const addGeo = new THREE.BoxGeometry(addBtnSize, addBtnSize, 10);
+            const addMat = new THREE.MeshBasicMaterial({ color: 0x4CAF50, transparent: true, opacity: 0.6 });
+            const addMesh = new THREE.Mesh(addGeo, addMat);
+            addMesh.position.set(lx + addBtnSize / 2 + 20, legH + lowerH / 2, lowerD / 2);
+            addMesh.userData = { isAddButton: true, pos: 'lower' };
+            scene.add(addMesh);
+            moduleMeshes.push({ mesh: addMesh, moduleIndex: -1 }); // -1 = 추가 버튼
+            addLabel('＋', lx + addBtnSize / 2 + 20, legH + lowerH / 2, lowerD + 80, 20, '#2E7D32');
+          }
+
+          // 상부장 빈 공간에 + 버튼
+          if (usedUpperW + addBtnSize < W) {
+            const addGeo = new THREE.BoxGeometry(addBtnSize, addBtnSize, 10);
+            const addMat = new THREE.MeshBasicMaterial({ color: 0x2196F3, transparent: true, opacity: 0.6 });
+            const addMesh = new THREE.Mesh(addGeo, addMat);
+            addMesh.position.set(ux + addBtnSize / 2 + 20, upperY + upperH / 2, upperD / 2);
+            addMesh.userData = { isAddButton: true, pos: 'upper' };
+            scene.add(addMesh);
+            moduleMeshes.push({ mesh: addMesh, moduleIndex: -2 }); // -2 = 상부 추가 버튼
+            addLabel('＋', ux + addBtnSize / 2 + 20, upperY + upperH / 2, upperD + 80, 20, '#1565C0');
+          }
+
+          // ★ 카메라 위치 + frustum 크기 자동 보정 (자동계산 후 찌그러짐 방지)
+          const maxDim = Math.max(W, H) * 1.3;
+          if (orthoCamera) {
+            const aspect = (container?.clientWidth || 800) / (container?.clientHeight || 450);
+            orthoCamera.left = -maxDim * aspect / 2;
+            orthoCamera.right = maxDim * aspect / 2;
+            orthoCamera.top = maxDim / 2;
+            orthoCamera.bottom = -maxDim / 2;
+            orthoCamera.updateProjectionMatrix();
+          }
+          if (perspCamera) {
+            perspCamera.updateProjectionMatrix();
+          }
           controls.target.set(W / 2, H / 2 - 200, 0);
-          camera.position.set(W / 2, H / 2, 3000);
+          camera.position.set(W / 2, H / 2, maxDim * 1.2);
           controls.update();
         }
 
@@ -499,6 +545,21 @@
         function onMouseClick(event) {
           const entry = getClickedModule(event);
           if (entry && entry.moduleIndex !== null) {
+            // + 버튼 클릭 → 모듈 추가
+            if (entry.moduleIndex === -1 || entry.moduleIndex === -2) {
+              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+              if (uid) {
+                const item = typeof getItem === 'function' ? getItem(uid) : null;
+                if (item) {
+                  const pos = entry.moduleIndex === -2 ? 'upper' : 'lower';
+                  const newMod = { pos, type: 'storage', w: 600, name: '수납장', doorCount: 1 };
+                  if (pos === 'lower') newMod.isDrawer = false;
+                  item.modules.push(newMod);
+                  if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+                }
+              }
+              return;
+            }
             window._selectedModuleIndex = entry.moduleIndex;
             highlightModule(entry.moduleIndex);
             // ★ 치수 입력 팝업 표시
@@ -509,7 +570,7 @@
           }
         }
 
-        // ★ 더블클릭 → 모듈 삭제
+        // ★ 더블클릭 → 즉시 삭제 (확인 없이)
         function onMouseDblClick(event) {
           const entry = getClickedModule(event);
           if (entry && entry.moduleIndex !== null) {
@@ -517,12 +578,9 @@
             if (uid) {
               const item = typeof getItem === 'function' ? getItem(uid) : null;
               if (item && item.modules[entry.moduleIndex]) {
-                const mod = item.modules[entry.moduleIndex];
-                const name = mod.name || mod.type || '모듈';
-                if (confirm(`"${name} (${mod.w}mm)" 삭제하시겠습니까?`)) {
-                  item.modules.splice(entry.moduleIndex, 1);
-                  if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
-                }
+                close3DModulePopup();
+                item.modules.splice(entry.moduleIndex, 1);
+                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
               }
             }
           }
