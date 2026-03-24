@@ -345,6 +345,25 @@
           for (let li = 0; li < lowerModules.length; li++) {
             const mod = lowerModules[li];
             const mw = parseFloat(mod.w) || 600;
+
+            // ★ spacer(빈 공간) — 점선 박스 + 라벨만 표시
+            if (mod.isSpacer || mod.type === 'spacer') {
+              const modIdx = item.modules.indexOf(mod);
+              const spacerGeo = new THREE.BoxGeometry(mw, lowerH, lowerD - inset * 2);
+              const spacerMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.3 });
+              const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
+              spacerMesh.position.set(lx + mw / 2, legH + lowerH / 2, inset + (lowerD - inset * 2) / 2);
+              const edges = new THREE.EdgesGeometry(spacerGeo);
+              const edgeMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, linewidth: 1 });
+              spacerMesh.add(new THREE.LineSegments(edges, edgeMat));
+              spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
+              scene.add(spacerMesh);
+              moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
+              addLabel(`＋ ${mw}`, lx + mw / 2, legH + lowerH / 2, lowerD + 80, 15, '#999');
+              lx += mw;
+              continue;
+            }
+
             const isSink = mod.type === 'sink' || mod.hasSink;
             const isCook = mod.type === 'cook' || mod.hasCooktop;
             const isTall = mod.type === 'tall';
@@ -359,10 +378,9 @@
 
             const modIdx = item.modules.indexOf(mod);
             const mh = isTall ? (upperY + upperH - legH) : lowerH;
-            // Z: inset ~ (lowerD - inset) → 상판 앞면(D)보다 앞뒤 모두 10mm 안쪽
             addBox(lx, legH, inset, mw, mh, lowerD - inset * 2, fill, stroke, modIdx, mod.type);
 
-            // 라벨 — 모듈 앞쪽(+Z 방향)에 표시
+            // 라벨
             const icons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', storage: '📦' };
             const icon = icons[mod.type] || (isDrawer ? '🗄' : '📦');
             const labelZ = lowerD + 80;
@@ -390,6 +408,24 @@
           let ux = finishL;
           for (const mod of upperModules) {
             const mw = parseFloat(mod.w) || 600;
+
+            // ★ spacer(빈 공간) — 점선 박스
+            if (mod.isSpacer || mod.type === 'spacer') {
+              const modIdx = item.modules.indexOf(mod);
+              const spacerGeo = new THREE.BoxGeometry(mw, upperH, upperD);
+              const spacerMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.3 });
+              const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
+              spacerMesh.position.set(ux + mw / 2, upperY + upperH / 2, upperD / 2);
+              const edges = new THREE.EdgesGeometry(spacerGeo);
+              spacerMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa })));
+              spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
+              scene.add(spacerMesh);
+              moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
+              addLabel(`＋ ${mw}`, ux + mw / 2, upperY + upperH / 2, upperD + 80, 15, '#999');
+              ux += mw;
+              continue;
+            }
+
             const isHood = mod.type === 'hood';
             const fill = isHood ? COLORS.hood : COLORS.upperBg;
             const stroke = isHood ? COLORS.hoodStroke : COLORS.upperStroke;
@@ -575,6 +611,20 @@
               }
               return;
             }
+            // ★ spacer 클릭 → 수납장으로 교체
+            const uid2 = typeof currentItemId !== 'undefined' ? currentItemId : null;
+            if (uid2) {
+              const item2 = typeof getItem === 'function' ? getItem(uid2) : null;
+              if (item2 && item2.modules[entry.moduleIndex]?.isSpacer) {
+                if (typeof pushUndo === 'function') pushUndo(item2);
+                const spacer = item2.modules[entry.moduleIndex];
+                item2.modules[entry.moduleIndex] = {
+                  pos: spacer.pos, type: 'storage', name: '수납장', w: spacer.w, doorCount: 1,
+                };
+                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item2);
+                return;
+              }
+            }
             window._selectedModuleIndex = entry.moduleIndex;
             highlightModule(entry.moduleIndex);
             // ★ 치수 입력 팝업 표시
@@ -585,16 +635,25 @@
           }
         }
 
-        // ★ 더블클릭 → 즉시 삭제 (확인 없이)
+        // ★ 더블클릭 → 즉시 삭제 (빈 공간으로 대체 — 나머지 모듈 위치 유지)
         function onMouseDblClick(event) {
           const entry = getClickedModule(event);
-          if (entry && entry.moduleIndex !== null) {
+          if (entry && entry.moduleIndex !== null && entry.moduleIndex >= 0) {
             const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
             if (uid) {
               const item = typeof getItem === 'function' ? getItem(uid) : null;
               if (item && item.modules[entry.moduleIndex]) {
                 close3DModulePopup();
-                item.modules.splice(entry.moduleIndex, 1);
+                if (typeof pushUndo === 'function') pushUndo(item);
+                const deletedMod = item.modules[entry.moduleIndex];
+                // 빈 공간(spacer)으로 대체 — 나머지 모듈 위치 고정
+                item.modules[entry.moduleIndex] = {
+                  pos: deletedMod.pos,
+                  type: 'spacer',
+                  name: '빈공간',
+                  w: deletedMod.w,
+                  isSpacer: true,
+                };
                 if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
               }
             }
