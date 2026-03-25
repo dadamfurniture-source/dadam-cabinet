@@ -984,9 +984,9 @@
             const sinkX = Math.max(startBound, dStartAbs - 100);
             // 개수대 끝 = 분배기 끝 +100mm (최대 endBound)
             const maxEnd = Math.min(endBound, dEndAbs + 100);
-            // 분배기 커버에 필요한 너비 (최소 600mm, 최대 1200mm)
+            // 분배기 커버에 필요한 너비 (최소 950mm, 최대 1200mm)
             const coverW = maxEnd - sinkX;
-            const sinkW = Math.max(600, Math.min(1200, coverW));
+            const sinkW = Math.max(950, Math.min(1200, coverW));
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
@@ -1068,8 +1068,8 @@
             const idealX = Math.max(startBound, dStartAbs - 100);
             // 개수대 끝: 분배기 끝 +100mm 이내
             const idealEnd = Math.min(endBound, dEndAbs + 100);
-            // 개수대 너비: 커버 범위 (최소 600, 최대 1200mm)
-            const idealW = Math.max(600, Math.min(1200, idealEnd - idealX));
+            // 개수대 너비: 커버 범위 (최소 950, 최대 1200mm)
+            const idealW = Math.max(950, Math.min(1200, idealEnd - idealX));
 
             sinkMod2.x = idealX;
             sinkMod2.w = idealW;
