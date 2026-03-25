@@ -3400,9 +3400,12 @@ Magazine quality, professional lighting.`;
                 <span style="font-size:13px;color:#666;">부가세 (10%)</span>
                 <span style="font-size:13px;color:#333;">${result.quote.vat.toLocaleString()}원</span>
               </div>
-              <div style="display:flex;justify-content:space-between;">
-                <span style="font-size:16px;font-weight:700;color:#b8956c;">합계</span>
-                <span style="font-size:16px;font-weight:700;color:#b8956c;">${result.quote.total.toLocaleString()}원</span>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:16px;font-weight:700;color:#b8956c;">예상 견적</span>
+                <span style="font-size:16px;font-weight:700;color:#b8956c;">${result.quote.range ? result.quote.range.min.toLocaleString() : result.quote.total.toLocaleString()}원 ~ ${result.quote.range ? result.quote.range.max.toLocaleString() : result.quote.total.toLocaleString()}원</span>
+              </div>
+              <div style="text-align:right;margin-top:4px;">
+                <span style="font-size:11px;color:#999;">※ 실측 및 옵션에 따라 변동될 수 있습니다</span>
               </div>
             </div>
           </div>

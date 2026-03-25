@@ -58,6 +58,7 @@ export interface QuoteResult {
   subtotal: number;
   vat: number;
   total: number;
+  range: { min: number; max: number };
   grade: string;
 }
 
@@ -114,5 +115,11 @@ export function calculateQuote(
   const vat = Math.round(subtotal * VAT_RATE);
   const total = subtotal + vat;
 
-  return { items, subtotal, vat, total, grade };
+  // 예상 범위: -5% ~ +30%
+  const range = {
+    min: Math.round(total * 0.95),
+    max: Math.round(total * 1.30),
+  };
+
+  return { items, subtotal, vat, total, range, grade };
 }
