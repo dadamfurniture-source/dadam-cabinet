@@ -1068,8 +1068,8 @@
             const idealX = Math.max(startBound, dStartAbs - 100);
             // 개수대 끝: 분배기 끝 +100mm 이내
             const idealEnd = Math.min(endBound, dEndAbs + 100);
-            // 개수대 너비: 커버 범위 (최소 600, 최대 1200mm)
-            const idealW = Math.max(600, Math.min(1200, idealEnd - idealX));
+            // 개수대 너비: 커버 범위 (최소 950, 최대 1200mm)
+            const idealW = Math.max(950, Math.min(1200, idealEnd - idealX));
 
             sinkMod2.x = idealX;
             sinkMod2.w = idealW;
