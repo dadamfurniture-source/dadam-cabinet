@@ -1141,5 +1141,9 @@
           updateScene(item, upperModules, lowerModules, showDoors);
         }
 
-        return { init, updateScene, dispose, render3DView, highlightModule, isInitialized: () => isInitialized };
+        function setFrontView() {
+          setCameraPreset([0, 0, 1], [0, 1, 0]);
+        }
+
+        return { init, updateScene, dispose, render3DView, highlightModule, setFrontView, isInitialized: () => isInitialized };
       })();

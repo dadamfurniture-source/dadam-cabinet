@@ -1149,6 +1149,7 @@
               const lowerModules = item.modules.filter(m => m.pos === 'lower');
               // 항상 render3DView 호출 — 내부에서 container 변경 감지 → dispose + init
               ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
+              ThreeRenderer.setFrontView();
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
             }
