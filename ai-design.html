@@ -904,56 +904,81 @@
         color: var(--charcoal);
       }
 
-      /* Style Theme Grid */
-      .style-theme-grid {
+      /* Gallery Tabs */
+      .gallery-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+      }
+      .gallery-tabs::-webkit-scrollbar { display: none; }
+      .gallery-tab {
+        padding: 6px 14px;
+        border: 1px solid var(--warm);
+        border-radius: 20px;
+        background: var(--white);
+        font-size: 12px;
+        color: var(--gray);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      }
+      .gallery-tab:hover {
+        border-color: var(--gold);
+        color: var(--charcoal);
+      }
+      .gallery-tab.active {
+        background: var(--charcoal);
+        border-color: var(--charcoal);
+        color: #fff;
+      }
+
+      /* Product Gallery Grid */
+      .product-gallery {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 10px;
         margin-bottom: 20px;
       }
-      .style-theme-card {
-        background: var(--white);
-        border: 2px solid transparent;
-        border-radius: 12px;
-        padding: 14px 8px;
-        text-align: center;
+      .gallery-item {
+        aspect-ratio: 4/3;
+        border-radius: 10px;
+        overflow: hidden;
         cursor: pointer;
-        transition: all 0.3s;
+        position: relative;
+        background: var(--cream);
       }
-      .style-theme-card:hover {
-        border-color: var(--gold-light);
-        transform: translateY(-2px);
+      .gallery-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
       }
-      .style-theme-card.selected {
-        border-color: var(--gold);
-        background: linear-gradient(180deg, rgba(184, 149, 108, 0.1) 0%, var(--white) 100%);
+      .gallery-item:hover img {
+        transform: scale(1.06);
       }
-      .style-theme-icon {
-        width: 36px;
-        height: 36px;
-        margin: 0 auto 8px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
+      .gallery-item .gallery-badge {
+        position: absolute;
+        bottom: 6px;
+        left: 6px;
+        background: rgba(0,0,0,0.6);
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        backdrop-filter: blur(4px);
       }
-      .style-theme-card h4 {
-        font-size: 12px;
-        font-weight: 600;
-        margin-bottom: 2px;
-        font-family: inherit;
-      }
-      .style-theme-card p {
-        font-size: 9px;
+      .gallery-loading {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 32px;
         color: var(--gray);
-        line-height: 1.3;
+        font-size: 13px;
       }
-      .style-modern .style-theme-icon { background: #f5f5f5; }
-      .style-scandi .style-theme-icon { background: #e8f0e8; }
-      .style-industrial .style-theme-icon { background: #e5e5e5; }
-      .style-classic .style-theme-icon { background: #f5ebe0; }
-      .style-luxury .style-theme-icon { background: #1a1a1a; color: #d4af37; }
 
       /* Selected Theme Summary */
       .theme-summary {
@@ -980,12 +1005,11 @@
         color: var(--charcoal);
       }
       @media (max-width: 768px) {
-        .style-theme-grid { grid-template-columns: repeat(3, 1fr); }
+        .product-gallery { grid-template-columns: repeat(3, 1fr); }
         .theme-summary { flex-wrap: wrap; gap: 12px; }
       }
       @media (max-width: 480px) {
-        .style-theme-grid { grid-template-columns: repeat(2, 1fr); }
-        .style-theme-card p { display: none; }
+        .product-gallery { grid-template-columns: repeat(2, 1fr); }
       }
 
       /* Single Generate Button */
@@ -2138,13 +2162,13 @@
     </section>
 
     <!-- Floating Chat Widget -->
-    <button class="chat-fab active" id="chatFab" onclick="toggleChat()" aria-label="AI 설계사 채팅">
-      <svg class="fab-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <button class="chat-fab" id="chatFab" onclick="toggleChat()" aria-label="AI 설계사 채팅">
+      <span class="fab-open" style="color:#fff;font-weight:700;font-size:16px;letter-spacing:1px">AI</span>
       <svg class="fab-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       <span class="chat-fab-badge"></span>
     </button>
 
-    <div class="chat-widget open" id="chatWidget">
+    <div class="chat-widget" id="chatWidget">
       <div class="chat-header">
         <div class="chat-header-icon">
           <svg><use href="#icon-ai" /></svg>
@@ -2312,49 +2336,17 @@
         </div>
       </div>
 
-      <!-- Theme Selection Section -->
+      <!-- Product Gallery Section -->
       <div class="theme-section">
-        <!-- Style Theme -->
         <div class="theme-section-header">
           <span class="theme-section-number">1</span>
-          <span class="theme-section-title">스타일 테마</span>
+          <span class="theme-section-title">시공 사례</span>
         </div>
-        <div class="style-theme-grid">
-          <div class="style-theme-card style-modern selected" data-style="modern-minimal" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">◻️</div>
-            <h4>모던 미니멀</h4>
-            <p>깔끔하고 현대적</p>
-          </div>
-          <div class="style-theme-card style-scandi" data-style="scandinavian" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">🌲</div>
-            <h4>스칸디나비안</h4>
-            <p>따뜻한 원목</p>
-          </div>
-          <div class="style-theme-card style-industrial" data-style="industrial" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">⚙️</div>
-            <h4>인더스트리얼</h4>
-            <p>빈티지 메탈</p>
-          </div>
-          <div class="style-theme-card style-classic" data-style="classic" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">🏛️</div>
-            <h4>클래식</h4>
-            <p>우아한 전통</p>
-          </div>
-          <div class="style-theme-card style-luxury" data-style="luxury" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">⭐</div>
-            <h4>럭셔리</h4>
-            <p>고급스러운</p>
-          </div>
+        <div class="gallery-tabs" id="galleryTabs">
+          <button class="gallery-tab active" data-cat="all" onclick="filterGallery('all')">전체</button>
         </div>
-
-        <!-- Selection Summary -->
-        <div class="theme-summary">
-          <div class="theme-summary-item">
-            <div>
-              <div class="theme-summary-label">선택된 스타일</div>
-              <div class="theme-summary-value" id="selectedStyleName">모던 미니멀</div>
-            </div>
-          </div>
+        <div class="product-gallery" id="productGallery">
+          <div class="gallery-loading">이미지를 불러오는 중...</div>
         </div>
       </div>
 
@@ -2499,6 +2491,8 @@
           }
           // 스타일 데이터 Supabase 로드
           loadStylesFromSupabase();
+          // 품목 이미지 갤러리 로드
+          loadProductGallery();
         } catch (e) {
           console.log('Auth check error:', e.message);
         }
@@ -2905,6 +2899,98 @@ Magazine quality, professional lighting.`;
         } catch (e) {
           console.warn('[Styles] Supabase load failed, using fallback:', e.message);
         }
+      }
+
+      // Supabase furniture_images에서 품목별 이미지 로드
+      // 품목/구조 기준 그룹핑
+      const galleryGroups = {
+        'l_shaped_sink': 'L자형 싱크대',
+        'peninsula_sink': '반도형 싱크대',
+        'island_kitchen': '아일랜드',
+        'storage_cabinet': '수납장',
+        'wardrobe': '붙박이장',
+        'fridge_cabinet': '냉장고장',
+        'vanity': '화장대',
+        'shoe_cabinet': '신발장',
+      };
+
+      let galleryAllData = [];
+
+      async function loadProductGallery() {
+        const gallery = document.getElementById('productGallery');
+        const tabs = document.getElementById('galleryTabs');
+        if (!gallery || !supabaseClient) return;
+
+        try {
+          const { data, error } = await supabaseClient
+            .from('furniture_images')
+            .select('category, style, image_url')
+            .eq('is_training', false)
+            .limit(300);
+
+          if (error || !data || data.length === 0) {
+            loadFallbackGallery(gallery);
+            return;
+          }
+
+          galleryAllData = data;
+
+          // 존재하는 카테고리만 탭 생성
+          const cats = [...new Set(data.map(d => d.category))];
+          tabs.innerHTML = '<button class="gallery-tab active" data-cat="all" onclick="filterGallery(\'all\')">전체</button>'
+            + cats.map(c => {
+              const label = galleryGroups[c] || c;
+              return `<button class="gallery-tab" data-cat="${c}" onclick="filterGallery('${c}')">${label}</button>`;
+            }).join('');
+
+          filterGallery('all');
+          console.log('[Gallery] Loaded', data.length, 'images,', cats.length, 'categories');
+        } catch (e) {
+          console.warn('[Gallery] Supabase load failed:', e.message);
+          loadFallbackGallery(gallery);
+        }
+      }
+
+      function filterGallery(cat) {
+        const gallery = document.getElementById('productGallery');
+        // 탭 활성화
+        document.querySelectorAll('.gallery-tab').forEach(t =>
+          t.classList.toggle('active', t.dataset.cat === cat)
+        );
+        // 필터링 + 랜덤 8개
+        const filtered = cat === 'all' ? galleryAllData : galleryAllData.filter(d => d.category === cat);
+        const picked = filtered.sort(() => Math.random() - 0.5).slice(0, 8);
+
+        gallery.innerHTML = picked.map(img => {
+          const label = galleryGroups[img.category] || img.category;
+          return `<div class="gallery-item">
+            <img src="${img.image_url}" alt="${label}" loading="lazy" onerror="this.parentElement.remove()">
+            <span class="gallery-badge">${label}</span>
+          </div>`;
+        }).join('');
+
+        if (picked.length === 0) {
+          gallery.innerHTML = '<div class="gallery-loading">해당 품목 이미지가 없습니다</div>';
+        }
+      }
+
+      function loadFallbackGallery(gallery) {
+        const fallback = [
+          { src: 'app/portfolio/kitchen-n1-3.jpg', label: '싱크대' },
+          { src: 'app/portfolio/kitchen-n1-4.jpg', label: '싱크대' },
+          { src: 'app/portfolio/kitchen-n6-2.jpg', label: '수납장' },
+          { src: 'app/portfolio/kitchen-n6-3.jpg', label: '수납장' },
+          { src: 'app/portfolio/kitchen-n7-3.jpg', label: '붙박이장' },
+          { src: 'app/portfolio/kitchen-n7-4.jpg', label: '붙박이장' },
+          { src: 'app/portfolio/kitchen-n3-3.jpg', label: '싱크대' },
+          { src: 'app/portfolio/kitchen-n4-1.jpg', label: '냉장고장' },
+        ].sort(() => Math.random() - 0.5);
+        gallery.innerHTML = fallback.map(f =>
+          `<div class="gallery-item">
+            <img src="${f.src}" alt="${f.label}" loading="lazy">
+            <span class="gallery-badge">${f.label}</span>
+          </div>`
+        ).join('');
       }
 
       const categoryInfo = {
