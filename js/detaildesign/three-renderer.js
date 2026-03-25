@@ -161,6 +161,7 @@
           });
           container.style.position = 'relative';
           container.appendChild(btnBar);
+          _btnBar = btnBar; // 참조 저장 (DOM 교체 시 이식용)
 
           // 리사이즈 — 듀얼 카메라 모두 업데이트
           const ro = new ResizeObserver(() => {
@@ -1210,15 +1211,28 @@
           isInitialized = false;
         }
 
+        let _btnBar = null; // 뷰 프리셋 버튼 바 참조
+
         function render3DView(containerEl, item, upperModules, lowerModules, showDoors) {
-          // ★ canvas가 DOM에서 제거되었으면 재초기화 (renderWorkspaceContent가 DOM 교체)
-          const canvasStillInDom = renderer && renderer.domElement && renderer.domElement.parentNode;
-          if (!isInitialized || container !== containerEl || !canvasStillInDom) {
-            if (isInitialized) dispose();
-            init(containerEl);
+          // ★ 캔버스가 살아있고 새 컨테이너에 이식되었으면 → dispose 없이 updateScene만
+          if (isInitialized && renderer && renderer.domElement) {
+            if (renderer.domElement.parentNode === containerEl) {
+              // 캔버스가 이미 올바른 컨테이너에 있음 → updateScene만
+              container = containerEl;
+              updateScene(item, upperModules, lowerModules, showDoors);
+              return;
+            }
           }
+          // 캔버스가 없거나 컨테이너 불일치 → 재초기화
+          if (isInitialized) dispose();
+          init(containerEl);
           updateScene(item, upperModules, lowerModules, showDoors);
         }
 
-        return { init, updateScene, dispose, render3DView, highlightModule, isInitialized: () => isInitialized };
+        return {
+          init, updateScene, dispose, render3DView, highlightModule,
+          isInitialized: () => isInitialized,
+          _getCanvas: () => renderer ? renderer.domElement : null,
+          _getBtnBar: () => _btnBar,
+        };
       })();
