@@ -1039,8 +1039,12 @@
         if (!hasSink && lowerModules.length > 0) warnings.push('🚰 개수대 모듈 미배치');
         if (!hasCook && lowerModules.length > 0) warnings.push('🔥 가스대 모듈 미배치');
       }
-      const wideMods = [...upperModules, ...lowerModules].filter(m => parseFloat(m.w) > 600);
-      if (wideMods.length > 0) wideMods.forEach(m => warnings.push(`📏 ${m.name || m.type} (${m.w}mm) — 도어 600mm 초과`));
+      const wideMods = [...upperModules, ...lowerModules].filter(m => {
+        const w = parseFloat(m.w) || 0;
+        const doors = m.doorCount || Math.ceil(w / 550);
+        return (w / doors) > 600;
+      });
+      if (wideMods.length > 0) wideMods.forEach(m => { const dw = Math.round(parseFloat(m.w) / (m.doorCount || Math.ceil(parseFloat(m.w)/550))); warnings.push(`📏 ${m.name || m.type} (도어 ${dw}mm) — 600mm 초과`); });
       if (warnings.length === 0) return '';
       return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;">${warnings.map(w => `<span style="font-size:11px;color:#dc2626;">${w}</span>`).join('<span style="color:#fca5a5;">|</span>')}</div>`;
     })()}

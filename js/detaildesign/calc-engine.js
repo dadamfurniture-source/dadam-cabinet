@@ -782,8 +782,8 @@
         if (lowerPosMap.sink) {
           const sinkCenter = lowerPosMap.sink.centerX;
           const sinkW = lowerPosMap.sink.w;
-          // 기준상부장 너비 = 개수대 너비 (2D 모듈)
-          const refUpperW = sinkW;
+          // 기준상부장 너비 = 개수대 너비 (최대 1200mm)
+          const refUpperW = Math.min(1200, sinkW);
           let refUpperX = sinkCenter - refUpperW / 2;
           refUpperX = Math.max(startBound, Math.min(endBound - refUpperW, refUpperX));
 
@@ -984,10 +984,9 @@
             const sinkX = Math.max(startBound, dStartAbs - 100);
             // 개수대 끝 = 분배기 끝 +100mm (최대 endBound)
             const maxEnd = Math.min(endBound, dEndAbs + 100);
-            // 분배기 커버에 필요한 너비
+            // 분배기 커버에 필요한 너비 (최소 600mm, 최대 1200mm)
             const coverW = maxEnd - sinkX;
-            // ★ 핵심: 개수대 너비 = 커버 너비로 고정 (최소 600mm 보장)
-            const sinkW = Math.max(600, coverW);
+            const sinkW = Math.max(600, Math.min(1200, coverW));
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
@@ -1063,8 +1062,8 @@
             const idealX = Math.max(startBound, dStartAbs - 100);
             // 개수대 끝: 분배기 끝 +100mm 이내
             const idealEnd = Math.min(endBound, dEndAbs + 100);
-            // 개수대 너비: 커버 범위로 고정 (절대 초과 불가)
-            const idealW = idealEnd - idealX;
+            // 개수대 너비: 커버 범위 (최소 600, 최대 1200mm)
+            const idealW = Math.max(600, Math.min(1200, idealEnd - idealX));
 
             sinkMod2.x = idealX;
             sinkMod2.w = idealW;
