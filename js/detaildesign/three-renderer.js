@@ -8,35 +8,9 @@
         let container = null;
         let animFrameId = null;
         let moduleMeshes = []; // {mesh, moduleIndex}
-        let _meshCache = []; // raycaster용 메시 배열 캐시
         let hoveredMesh = null;
         let isInitialized = false;
         let labelSprites = [];
-        // _needsRender 제거됨 → _scheduleRender() 온디맨드 방식으로 전환
-        let _hoverRafId = 0; // hover rAF throttle
-        let _isDragging = false; // 마우스 버튼 눌린 상태 (OrbitControls 드래그 포함)
-        let _cachedRect = null; // getBoundingClientRect 캐시
-        let _rectCacheTime = 0;
-        let _resizeObserver = null; // ResizeObserver 참조 (컨테이너 변경 시 재연결용)
-
-        // 렌더러/카메라 크기를 컨테이너에 동기화
-        function _syncRendererSize() {
-          if (!container || !renderer) return;
-          const nw = container.clientWidth;
-          const nh = container.clientHeight || 450;
-          const na = nw / nh;
-          const fs = 3000;
-          orthoCamera.left = -fs * na / 2;
-          orthoCamera.right = fs * na / 2;
-          orthoCamera.top = fs / 2;
-          orthoCamera.bottom = -fs / 2;
-          orthoCamera.updateProjectionMatrix();
-          perspCamera.aspect = na;
-          perspCamera.updateProjectionMatrix();
-          renderer.setSize(nw, nh);
-          _scheduleRender();
-          _cachedRect = null;
-        }
 
         // ─── Front View 색상 통일 ───
         const COLORS = {
@@ -74,7 +48,6 @@
         let orthoFront = { x: 0, y: 0, z: 3000 }; // 정면 기본 위치
         let lastRotateAngle = 0;
         const ROTATE_THRESHOLD = 0.05; // 이 각도 이상 회전하면 Perspective 전환
-        let _cameraLocked = false; // 초기화/updateScene 중 카메라 전환 방지
 
         // ─── 초기화: 듀얼 카메라 (Ortho ↔ Perspective 자동 전환) ───
         function init(containerEl) {
@@ -105,7 +78,7 @@
 
           camera = orthoCamera; // 기본 = Ortho
 
-          renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
+          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
           renderer.setSize(w, h);
           renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
           renderer.shadowMap.enabled = false;
@@ -123,22 +96,19 @@
           controls.target.set(1500, 600, 0);
           controls.update();
 
-          // 회전 감지 → 카메라 자동 전환 (카메라→타겟 방향 기준, XZ 평면 각도만 사용)
+          // 회전 감지 → 카메라 자동 전환
           controls.addEventListener('change', () => {
-            _scheduleRender(); // 온디맨드 렌더 예약
-            if (_cameraLocked || _utilDrag) return; // 초기화/드래그 중에는 전환 안 함
-            // 카메라→타겟 방향에서 XZ 평면 각도만 측정 (Y축 높이 차이 무시)
-            const dx = controls.target.x - camera.position.x;
-            const dz = controls.target.z - camera.position.z;
-            const len = Math.sqrt(dx * dx + dz * dz);
-            if (len < 0.001) return;
-            // 정면 = (0, 0, -1) → 카메라가 +Z에서 바라봄 → dz < 0이면 정면
-            const cosAngle = -dz / len; // 정면일 때 1.0
-            const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            // 정면(0,0,-1)과의 각도 차이
+            const frontDir = new THREE.Vector3(0, 0, -1);
+            const angle = camDir.angleTo(frontDir);
 
             if (isOrtho && angle > ROTATE_THRESHOLD) {
+              // Ortho → Perspective 전환
               switchToPerspective();
             } else if (!isOrtho && angle < ROTATE_THRESHOLD * 0.5) {
+              // Perspective → Ortho 복귀 (거의 정면)
               switchToOrtho();
             }
           });
@@ -152,23 +122,13 @@
           const hemiLight = new THREE.HemisphereLight(0xffffff, 0xf5f5f5, 0.15);
           scene.add(hemiLight);
 
-          // 이벤트 — pointermove 1개로 통합 (이벤트 디스패치 절감)
+          // 이벤트
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('dblclick', onMouseDblClick);
-          renderer.domElement.addEventListener('pointermove', onPointerMoveUnified);
-          renderer.domElement.addEventListener('pointerdown', (e) => {
-            _isDragging = true; _cachedRect = null;
-            // 드래그 시작 → pixelRatio 축소 (고DPI 성능 개선)
-            if (renderer && window.devicePixelRatio > 1) renderer.setPixelRatio(1);
-            onUtilityDragStart(e);
-          });
-          renderer.domElement.addEventListener('pointerup', (e) => {
-            _isDragging = false;
-            // 드래그 끝 → pixelRatio 복원
-            if (renderer) renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            _scheduleRender();
-            onUtilityDragEnd(e);
-          });
+          renderer.domElement.addEventListener('pointermove', onMouseMove);
+          renderer.domElement.addEventListener('pointerdown', onUtilityDragStart);
+          renderer.domElement.addEventListener('pointermove', onUtilityDragMove);
+          renderer.domElement.addEventListener('pointerup', onUtilityDragEnd);
 
           // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
           const btnBar = document.createElement('div');
@@ -192,40 +152,36 @@
           });
           container.style.position = 'relative';
           container.appendChild(btnBar);
-          _btnBar = btnBar; // 참조 저장 (DOM 교체 시 이식용)
 
           // 리사이즈 — 듀얼 카메라 모두 업데이트
-          _resizeObserver = new ResizeObserver(() => {
+          const ro = new ResizeObserver(() => {
             if (!container || !renderer) return;
-            _syncRendererSize();
+            const nw = container.clientWidth;
+            const nh = container.clientHeight || 450;
+            const na = nw / nh;
+            const fs = 3000;
+            // Ortho
+            orthoCamera.left = -fs * na / 2;
+            orthoCamera.right = fs * na / 2;
+            orthoCamera.top = fs / 2;
+            orthoCamera.bottom = -fs / 2;
+            orthoCamera.updateProjectionMatrix();
+            // Persp
+            perspCamera.aspect = na;
+            perspCamera.updateProjectionMatrix();
+            renderer.setSize(nw, nh);
           });
-          _resizeObserver.observe(container);
+          ro.observe(container);
 
           isInitialized = true;
-          _scheduleRender(); // 최초 1회 렌더
+          animate();
         }
 
-        // ─── 온디맨드 렌더링 (연속 루프 제거) ───
-        let _renderPending = false;
-        let _dampingActive = false;
-
-        function _scheduleRender() {
-          if (_renderPending || !isInitialized) return;
-          _renderPending = true;
-          animFrameId = requestAnimationFrame(_doRender);
-        }
-
-        function _doRender() {
-          _renderPending = false;
-          if (!isInitialized || !renderer || !scene || !camera) return;
-          if (controls) {
-            _dampingActive = controls.update(); // r150+: returns true if damping active
-            // r150 미만 fallback: dampingActive가 undefined면 항상 체인
-            if (_dampingActive === undefined) _dampingActive = true;
-          }
-          renderer.render(scene, camera);
-          // damping 진행 중이면 다음 프레임도 예약
-          if (_dampingActive) _scheduleRender();
+        function animate() {
+          if (!isInitialized) return;
+          animFrameId = requestAnimationFrame(animate);
+          if (controls) controls.update();
+          if (renderer && scene && camera) renderer.render(scene, camera);
         }
 
         // ─── 카메라 전환: Ortho ↔ Perspective ───
@@ -237,18 +193,10 @@
           // ★ 종횡비 업데이트 (찌그러짐 방지)
           if (container) {
             perspCamera.aspect = container.clientWidth / (container.clientHeight || 450);
+            perspCamera.updateProjectionMatrix();
           }
-          // ★ Ortho frustum과 동일한 영역이 보이도록 거리 보정
-          const orthoHeight = orthoCamera.top - orthoCamera.bottom; // Ortho에서 보이는 세로 크기
-          const fovRad = THREE.MathUtils.degToRad(perspCamera.fov);
-          const targetDist = (orthoHeight / 2) / Math.tan(fovRad / 2);
-          // 카메라→타겟 방향 유지하면서 거리만 조정
-          const dir = new THREE.Vector3().subVectors(perspCamera.position, controls.target).normalize();
-          perspCamera.position.copy(controls.target).addScaledVector(dir, targetDist);
-          perspCamera.updateProjectionMatrix();
           camera = perspCamera;
           controls.object = perspCamera;
-          controls.update();
           isOrtho = false;
         }
 
@@ -257,21 +205,18 @@
           // Perspective 위치를 Ortho로 복사
           orthoCamera.position.copy(perspCamera.position);
           orthoCamera.quaternion.copy(perspCamera.quaternion);
-          // ★ Perspective에서 보이던 영역에 맞춰 Ortho frustum 계산
+          // ★ Ortho frustum 업데이트
           if (container) {
             const aspect = container.clientWidth / (container.clientHeight || 450);
-            const dist = perspCamera.position.distanceTo(controls.target);
-            const fovRad = THREE.MathUtils.degToRad(perspCamera.fov);
-            const visibleH = 2 * dist * Math.tan(fovRad / 2);
-            orthoCamera.left = -visibleH * aspect / 2;
-            orthoCamera.right = visibleH * aspect / 2;
-            orthoCamera.top = visibleH / 2;
-            orthoCamera.bottom = -visibleH / 2;
+            const maxDim = Math.max(_lastW, _lastH) * 1.3;
+            orthoCamera.left = -maxDim * aspect / 2;
+            orthoCamera.right = maxDim * aspect / 2;
+            orthoCamera.top = maxDim / 2;
+            orthoCamera.bottom = -maxDim / 2;
             orthoCamera.updateProjectionMatrix();
           }
           camera = orthoCamera;
           controls.object = orthoCamera;
-          controls.update();
           isOrtho = true;
         }
 
@@ -298,14 +243,12 @@
             controls.target.lerpVectors(startTarget, target, ease);
             if (up) camera.up.set(up[0], up[1], up[2]);
             controls.update();
-            _scheduleRender();
             if (t < 1) requestAnimationFrame(tweenStep);
           }
           tweenStep();
         }
 
         // ─── 플랫 박스 생성 (MeshBasicMaterial — 그림자/조명 없음, 2D 느낌) ───
-        const _edgeCache = new Map(); // EdgesGeometry 캐시 (동일 크기 재사용)
         function addBox(x, y, z, w, h, d, fillColor, strokeColor, moduleIndex, name) {
           const geo = new THREE.BoxGeometry(w, h, d);
           const mat = new THREE.MeshBasicMaterial({
@@ -317,13 +260,10 @@
           mesh.position.set(x + w / 2, y + h / 2, z + d / 2);
           mesh.userData = { moduleIndex, name, type: 'module', w, h, d };
 
-          // 외곽선 — 1개만 (중복 제거, draw call 절감)
-          const eKey = w + '_' + h + '_' + d;
-          let edges = _edgeCache.get(eKey);
-          if (!edges) { edges = new THREE.EdgesGeometry(geo); _edgeCache.set(eKey, edges); }
-          const edgeMat = new THREE.LineBasicMaterial({ color: strokeColor || 0x333333 });
-          const line = new THREE.LineSegments(edges, edgeMat);
-          line.raycast = () => {}; // raycaster에서 제외 (성능)
+          // 외곽선 — 1개만 (draw call 절감)
+          const edges = new THREE.EdgesGeometry(geo);
+          const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: strokeColor || 0x333333 }));
+          line.raycast = () => {}; // raycaster 제외
           mesh.add(line);
 
           scene.add(mesh);
@@ -331,18 +271,18 @@
           return mesh;
         }
 
-        // 라벨 스프라이트 (캔버스 256x64 — GPU 텍스처 87% 절감)
+        // 라벨 스프라이트 (폰트 900% 확대, 앞쪽 배치)
         function addLabel(text, x, y, z, fontSize, textColor) {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          canvas.width = 256; canvas.height = 64;
-          ctx.clearRect(0, 0, 256, 64);
+          canvas.width = 1024; canvas.height = 192;
+          ctx.clearRect(0, 0, 1024, 192);
           ctx.fillStyle = textColor || '#666';
-          const scaledFont = (fontSize || 16) * 2.5;
+          const scaledFont = (fontSize || 16) * 9;  // 900% 확대 (원본 대비)
           ctx.font = `bold ${scaledFont}px Pretendard, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(text, 128, 32);
+          ctx.fillText(text, 512, 96);
 
           const texture = new THREE.CanvasTexture(canvas);
           const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
@@ -375,7 +315,6 @@
             scene.remove(mesh);
           });
           moduleMeshes = [];
-          _edgeCache.clear(); // EdgesGeometry 캐시 클리어
           labelSprites.forEach(s => { disposeObject(s); scene.remove(s); });
           labelSprites = [];
 
@@ -398,7 +337,7 @@
           // ═══ 킥보드 ═══
           addBox(finishL, 0, 50, W - finishL - finishR, legH, lowerD - 50, COLORS.kickboard, 0x444444, null, '킥보드');
 
-          // ═══ 마감재 (좌우 상부는 상몰딩 아래까지만 — 상몰딩이 위에 덮음) ═══
+          // ═══ 마감재 ═══
           if (finishL > 0) {
             addBox(0, 0, 0, finishL, legH + lowerH, D, COLORS.finish, COLORS.finishStroke, null, '좌마감');
             addBox(0, upperY, 0, finishL, upperH, upperD, COLORS.finish, COLORS.finishStroke, null, '좌마감상');
@@ -423,9 +362,8 @@
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
               spacerMesh.position.set(lx + mw / 2, legH + lowerH / 2, inset + (lowerD - inset * 2) / 2);
               const edges = new THREE.EdgesGeometry(spacerGeo);
-              const edgeLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa }));
-              edgeLine.raycast = () => {};
-              spacerMesh.add(edgeLine);
+              const edgeMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, linewidth: 1 });
+              spacerMesh.add(new THREE.LineSegments(edges, edgeMat));
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
@@ -487,9 +425,7 @@
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
               spacerMesh.position.set(ux + mw / 2, upperY + upperH / 2, upperD / 2);
               const edges = new THREE.EdgesGeometry(spacerGeo);
-              const edgeLine2 = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa }));
-              edgeLine2.raycast = () => {};
-              spacerMesh.add(edgeLine2);
+              spacerMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa })));
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
@@ -584,9 +520,9 @@
             const we = Math.max(_startBound, Math.min(W, _waterEndAbs));
             const rangeW = we - ws;
             const cx = (ws + we) / 2;
-            // 범위 박스 (반투명 파란색) — MeshBasicMaterial (셰이더 스위칭 제거)
+            // 범위 박스 (반투명 파란색)
             const rangeGeo = new THREE.BoxGeometry(rangeW, 60, 20);
-            const rangeMat = new THREE.MeshBasicMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
+            const rangeMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
             const rangeMesh = new THREE.Mesh(rangeGeo, rangeMat);
             rangeMesh.position.set(cx, legH + 200, -15);
             rangeMesh.userData = { isDraggable: true, dragType: 'water' };
@@ -595,7 +531,7 @@
             // 시작/끝 수직 파이프 (개별 드래그 가능)
             [{ px: ws, type: 'waterStart' }, { px: we, type: 'waterEnd' }].forEach(({ px, type }) => {
               const pipeGeo = new THREE.CylinderGeometry(8, 8, legH + 230, 8);
-              const pipeMat = new THREE.MeshBasicMaterial({ color: 0x1E88E5 });
+              const pipeMat = new THREE.MeshPhongMaterial({ color: 0x1E88E5 });
               const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
               pipeMesh.position.set(px, (legH + 230) / 2, -15);
               pipeMesh.userData = { isDraggable: true, dragType: type };
@@ -604,7 +540,7 @@
             });
             // 수평 연결 파이프
             const hPipeGeo = new THREE.CylinderGeometry(5, 5, rangeW, 8);
-            const hPipeMat = new THREE.MeshBasicMaterial({ color: 0x64B5F6 });
+            const hPipeMat = new THREE.MeshPhongMaterial({ color: 0x64B5F6 });
             const hPipeMesh = new THREE.Mesh(hPipeGeo, hPipeMat);
             hPipeMesh.rotation.z = Math.PI / 2;
             hPipeMesh.position.set(cx, legH + 230, -15);
@@ -617,22 +553,23 @@
           if (exhaustPos) {
             const ex = parseFloat(exhaustPos);
             if (ex > 0 && ex < W) {
-              // 환풍구 — MeshBasicMaterial (셰이더 통일)
+              // 환풍구 — 회색 박스 (벽면 상부, 드래그 가능)
               const ventGeo = new THREE.BoxGeometry(120, 120, 30);
-              const ventMat = new THREE.MeshBasicMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
+              const ventMat = new THREE.MeshPhongMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
               const ventMesh = new THREE.Mesh(ventGeo, ventMat);
               ventMesh.position.set(ex, H - 150, -15);
               ventMesh.userData = { isDraggable: true, dragType: 'vent' };
               scene.add(ventMesh);
               moduleMeshes.push({ mesh: ventMesh, moduleIndex: null });
-              // 환풍구 그릴 — 자식으로 통합 (별도 draw call 최소화)
-              const slotGeo = new THREE.BoxGeometry(80, 6, 32);
-              const slotMat = new THREE.MeshBasicMaterial({ color: 0x546E7A });
+              // 환풍구 그릴 패턴
               for (let i = -2; i <= 2; i++) {
-                const slotMesh = new THREE.Mesh(slotGeo, slotMat); // geo/mat 공유
-                slotMesh.position.set(0, i * 18, 0); // 부모 기준 상대위치
-                slotMesh.raycast = () => {}; // raycaster 제외
-                ventMesh.add(slotMesh); // 부모의 자식으로 추가
+                const slotGeo = new THREE.BoxGeometry(80, 6, 32);
+                const slotMat = new THREE.MeshPhongMaterial({ color: 0x546E7A });
+                const slotMesh = new THREE.Mesh(slotGeo, slotMat);
+                slotMesh.position.set(ex, H - 150 + i * 18, -15);
+                slotMesh.userData = { isDraggable: true, dragType: 'vent' };
+                scene.add(slotMesh);
+                moduleMeshes.push({ mesh: slotMesh, moduleIndex: null });
               }
               addLabel('🌀 환풍구', ex, H - 30, 80, 12, '#37474F');
             }
@@ -647,7 +584,7 @@
           const addBtnR = addBtnSize / 2;
           if (usedLowerW + addBtnSize < W) {
             const addGeo = new THREE.SphereGeometry(addBtnR, 24, 24);
-            const addMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
+            const addMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
             const addPosX = lx + addBtnR + 20, addPosY = legH + lowerH / 2, addPosZ = lowerD / 2;
             addMesh.position.set(addPosX, addPosY, addPosZ);
@@ -660,7 +597,7 @@
           // 상부장 빈 공간에 + 버튼 (흰 구 + 빨간 +)
           if (usedUpperW + addBtnSize < W) {
             const addGeo = new THREE.SphereGeometry(addBtnR, 24, 24);
-            const addMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
+            const addMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
             const addPosX = ux + addBtnR + 20, addPosY = upperY + upperH / 2, addPosZ = upperD / 2;
             addMesh.position.set(addPosX, addPosY, addPosZ);
@@ -671,7 +608,6 @@
           }
 
           // ★ 카메라 위치 + frustum 크기 자동 보정 (자동계산 후 찌그러짐 방지)
-          _cameraLocked = true; // 카메라 전환 방지 (updateScene 중)
           const maxDim = Math.max(W, H) * 1.3;
           if (orthoCamera) {
             const aspect = (container?.clientWidth || 800) / (container?.clientHeight || 450);
@@ -684,18 +620,9 @@
           if (perspCamera) {
             perspCamera.updateProjectionMatrix();
           }
-          // Ortho 카메라로 복귀 (updateScene 시 항상 정면 뷰)
-          camera = orthoCamera;
-          controls.object = orthoCamera;
-          isOrtho = true;
           controls.target.set(W / 2, H / 2 - 200, 0);
           camera.position.set(W / 2, H / 2, maxDim * 1.2);
           controls.update();
-          _cameraLocked = false;
-          // 메시 배열 캐시 갱신 (raycaster용)
-          _meshCache = moduleMeshes.map(m => m.mesh);
-          _cachedRect = null; // rect 캐시 무효화
-          _scheduleRender();
         }
 
         function getDoorColorHex(name) {
@@ -713,7 +640,8 @@
           pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
-          const intersects = raycaster.intersectObjects(_meshCache, true); // 캐시 사용
+          const meshes = moduleMeshes.map(m => m.mesh);
+          const intersects = raycaster.intersectObjects(meshes, true); // true: 자식도 hit-test
           if (intersects.length > 0) {
             let hit = intersects[0].object;
             // 자식(edge line 등)이 hit되면 부모에서 찾기
@@ -982,7 +910,8 @@
           pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
-          const intersects = raycaster.intersectObjects(_meshCache, true);
+          const allMeshes = moduleMeshes.map(m => m.mesh);
+          const intersects = raycaster.intersectObjects(allMeshes, true);
           if (intersects.length === 0) return;
           let hit = intersects[0].object;
           // 자식 hit → 부모 확인
@@ -1036,18 +965,8 @@
           const pxDelta = event.clientX - _utilDrag.startClientX;
           if (Math.abs(pxDelta) > 3) _utilDragged = true; // 3px 이상 이동 시 드래그로 판정
 
-          // worldPerPx는 드래그 시작 시 한 번만 계산 (캐시)
-          if (!_utilDrag._worldPerPx) {
-            if (isOrtho) {
-              _utilDrag._worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
-            } else {
-              const dist = camera.position.distanceTo(controls.target);
-              const fovRad = THREE.MathUtils.degToRad(camera.fov);
-              const visibleH = 2 * dist * Math.tan(fovRad / 2);
-              _utilDrag._worldPerPx = (visibleH * camera.aspect) / renderer.domElement.clientWidth;
-            }
-          }
-          const worldDelta = pxDelta * _utilDrag._worldPerPx;
+          const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+          const worldDelta = pxDelta * worldPerPx;
 
           let newX = _utilDrag.startWorldX + worldDelta;
           newX = Math.max(_utilDrag.startBound + 30, Math.min(_utilDrag.endBound - 30, newX));
@@ -1056,7 +975,8 @@
           // 라벨도 같이 이동
           if (_utilDrag.labels) _utilDrag.labels.forEach(l => { l.position.x = newX; });
           renderer.domElement.style.cursor = 'ew-resize';
-          _scheduleRender(); // dirty flag → animate()에서 렌더
+          // 깜빡임 방지: scene 재생성 없이 render만 호출
+          if (renderer && camera) renderer.render(scene, camera);
         }
 
         function onUtilityDragEnd(event) {
@@ -1155,38 +1075,17 @@
           }
         };
 
-        // 통합 pointermove 핸들러 — 드래그 vs hover 분기
-        function onPointerMoveUnified(event) {
-          // 유틸리티 드래그 중 → 드래그 처리만
-          if (_utilDrag) { onUtilityDragMove(event); return; }
-          // OrbitControls/기타 드래그 중 → hover 스킵
-          if (_isDragging || !renderer) return;
-          // rAF throttle — 프레임당 최대 1회만 hover
-          if (_hoverRafId) return;
-          const cx = event.clientX, cy = event.clientY;
-          _hoverRafId = requestAnimationFrame(() => {
-            _hoverRafId = 0;
-            onMouseMove(cx, cy);
-          });
-        }
-
-        function onMouseMove(clientX, clientY) {
-          if (!renderer) return;
-          // rect 캐시 (200ms마다 갱신)
-          const now = performance.now();
-          if (!_cachedRect || now - _rectCacheTime > 200) {
-            _cachedRect = renderer.domElement.getBoundingClientRect();
-            _rectCacheTime = now;
-          }
-          const rect = _cachedRect;
-          pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-          pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        function onMouseMove(event) {
+          if (!renderer || _utilDrag || event.buttons > 0) return; // 드래그 중 hover 스킵
+          const rect = renderer.domElement.getBoundingClientRect();
+          pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
-          const intersects = raycaster.intersectObjects(_meshCache, false);
+          const meshes = moduleMeshes.map(m => m.mesh);
+          const intersects = raycaster.intersectObjects(meshes);
 
           if (hoveredMesh && hoveredMesh !== (moduleMeshes.find(m => m.moduleIndex === window._selectedModuleIndex)?.mesh)) {
             hoveredMesh.material.color.setHex(hoveredMesh.userData._origColor || 0xffffff);
-            _scheduleRender();
           }
 
           if (intersects.length > 0) {
@@ -1194,9 +1093,7 @@
             if (!hoveredMesh.userData._origColor) hoveredMesh.userData._origColor = hoveredMesh.material.color.getHex();
             hoveredMesh.material.color.setHex(0xe0e7ff);
             renderer.domElement.style.cursor = 'pointer';
-            _scheduleRender();
           } else {
-            if (hoveredMesh) _scheduleRender();
             hoveredMesh = null;
             renderer.domElement.style.cursor = 'default';
           }
@@ -1213,65 +1110,36 @@
               mesh.material.opacity = 0.85;
             }
           });
-          _scheduleRender();
           if (typeof highlightSelectedModule === 'function') highlightSelectedModule();
         }
 
         function dispose() {
           if (animFrameId) cancelAnimationFrame(animFrameId);
-          if (_hoverRafId) cancelAnimationFrame(_hoverRafId);
-          _renderPending = false;
-          _dampingActive = false;
           moduleMeshes.forEach(({ mesh }) => { scene.remove(mesh); if (mesh.geometry) mesh.geometry.dispose(); });
           moduleMeshes = [];
-          _meshCache = [];
           labelSprites.forEach(s => { scene.remove(s); });
           labelSprites = [];
           if (renderer) {
             renderer.domElement.removeEventListener('click', onMouseClick);
             renderer.domElement.removeEventListener('dblclick', onMouseDblClick);
-            renderer.domElement.removeEventListener('pointermove', onPointerMoveUnified);
+            renderer.domElement.removeEventListener('pointermove', onMouseMove);
             if (container && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
             renderer.dispose();
           }
-          if (_resizeObserver) { _resizeObserver.disconnect(); _resizeObserver = null; }
           scene = camera = renderer = controls = null;
           container = null;
-          _cachedRect = null;
-          _isDragging = false;
-          _hoverRafId = 0;
           isInitialized = false;
         }
 
-        let _btnBar = null; // 뷰 프리셋 버튼 바 참조
-
         function render3DView(containerEl, item, upperModules, lowerModules, showDoors) {
-          // ★ 캔버스가 살아있고 새 컨테이너에 이식되었으면 → dispose 없이 updateScene만
-          if (isInitialized && renderer && renderer.domElement) {
-            if (renderer.domElement.parentNode === containerEl) {
-              // 캔버스가 이미 올바른 컨테이너에 있음
-              if (container !== containerEl) {
-                // 컨테이너 변경됨 → 크기 동기화 + ResizeObserver 재연결
-                container = containerEl;
-                if (_resizeObserver) { _resizeObserver.disconnect(); _resizeObserver.observe(container); }
-                _syncRendererSize();
-              } else {
-                container = containerEl;
-              }
-              updateScene(item, upperModules, lowerModules, showDoors);
-              return;
-            }
+          // ★ canvas가 DOM에서 제거되었으면 재초기화 (renderWorkspaceContent가 DOM 교체)
+          const canvasStillInDom = renderer && renderer.domElement && renderer.domElement.parentNode;
+          if (!isInitialized || container !== containerEl || !canvasStillInDom) {
+            if (isInitialized) dispose();
+            init(containerEl);
           }
-          // 캔버스가 없거나 컨테이너 불일치 → 재초기화
-          if (isInitialized) dispose();
-          init(containerEl);
           updateScene(item, upperModules, lowerModules, showDoors);
         }
 
-        return {
-          init, updateScene, dispose, render3DView, highlightModule,
-          isInitialized: () => isInitialized,
-          _getCanvas: () => renderer ? renderer.domElement : null,
-          _getBtnBar: () => _btnBar,
-        };
+        return { init, updateScene, dispose, render3DView, highlightModule, isInitialized: () => isInitialized };
       })();
