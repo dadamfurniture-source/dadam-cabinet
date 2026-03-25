@@ -545,11 +545,13 @@ Generate a detailed photorealistic prompt for this furniture layout.
 Focus on the structure visible in the blueprint.`;
 
   try {
+    // Haiku 사용: 이미지 → 텍스트 프롬프트 변환은 비용 최적화 대상
     const response = await claudeVisionAnalysis(
       lineartBase64,
       'image/png',
       userPrompt,
       PROMPT_GENERATION_SYSTEM,
+      { model: 'haiku', max_tokens: 1024 },
     );
 
     const generatedPrompt = response.content?.[0]?.text?.trim();

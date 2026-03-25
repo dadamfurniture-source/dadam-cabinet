@@ -6,12 +6,14 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { runAgentLoop } from '../agent/orchestrator.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { agentRateLimit } from '../middleware/rate-limiter.js';
 import type { AgentChatRequest, SSEEvent } from '../agent/types.js';
 
 const log = createLogger('route:agent');
 const router = Router();
 
-router.post('/api/agent/chat/stream', async (req: Request, res: Response, _next: NextFunction) => {
+router.post('/api/agent/chat/stream', optionalAuth, agentRateLimit, async (req: Request, res: Response, _next: NextFunction) => {
   const body = req.body as AgentChatRequest;
 
   if (!body.message || typeof body.message !== 'string') {

@@ -41,6 +41,9 @@ export function rateLimit(name: string, maxRequests: number, windowMs: number) {
 }
 
 // 사전 정의된 리미터
+export const globalRateLimit = rateLimit('global', 100, 60000);      // 100 req/min (전체)
 export const interiorRateLimit = rateLimit('interior', 5, 60000);    // 5 req/min
+export const generateRateLimit = rateLimit('generate', 10, 60000);   // 10 req/min
+export const agentRateLimit = rateLimit('agent', 15, 60000);         // 15 req/min
 export const chatRateLimit = rateLimit('chat', 20, 60000);           // 20 req/min
 export const themeRateLimit = rateLimit('theme', 10, 60000);         // 10 req/min
