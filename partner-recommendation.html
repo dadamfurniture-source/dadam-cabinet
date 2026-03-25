@@ -378,10 +378,23 @@
       // ═══════════════════════════════════════════════════════════════
       // Init
       // ═══════════════════════════════════════════════════════════════
+      let currentUser = null;
+
       async function init() {
+        // 컨텍스트 없으면 ai-design으로 리다이렉트
+        if (!partnerContext.categories?.length) {
+          window.location.href = 'ai-design.html';
+          return;
+        }
+
         // Supabase init
         if (window.supabase && SUPABASE_KEY) {
           supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          // 로그인 상태 확인
+          try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session?.user) currentUser = session.user;
+          } catch(e) {}
         }
 
         // Render design info chips
@@ -624,11 +637,42 @@
               <span style="color:var(--gray);">(${p.review_count || 0}건 | 시공 ${p.completed_projects || 0}건)</span>
             </div>
             <div class="card-contact">
-              <a href="tel:${p.phone}" class="btn btn-secondary" style="display:block;">📞 전화</a>
-              <button class="btn btn-primary" onclick="requestConsultation('${p.id}','${p.company_name}')">상담 신청하기</button>
+              <button class="btn btn-secondary" onclick="savePartner('${p.id}')" id="save-${p.id}" title="저장">♡</button>
+              <a href="tel:${p.phone}" class="btn btn-secondary" style="display:block;flex:1;">📞 전화</a>
+              <button class="btn btn-primary" style="flex:2;" onclick="requestConsultation('${p.id}','${p.company_name}')">상담 신청</button>
             </div>
           </div>
         `;
+      }
+
+      async function savePartner(partnerId) {
+        if (!currentUser) {
+          alert('로그인 후 저장할 수 있습니다.');
+          window.location.href = 'login.html';
+          return;
+        }
+        try {
+          const { error } = await supabaseClient.from('saved_partners').upsert({
+            user_id: currentUser.id,
+            partner_id: partnerId,
+            context_json: {
+              categories: partnerContext.categories,
+              style: partnerContext.style,
+              quoteTotal: partnerContext.quoteTotal
+            }
+          }, { onConflict: 'user_id,partner_id' });
+
+          const btn = document.getElementById('save-' + partnerId);
+          if (!error) {
+            btn.innerHTML = '♥';
+            btn.style.color = '#e74c3c';
+            btn.style.background = '#fff0f0';
+          } else {
+            alert('저장 실패: ' + error.message);
+          }
+        } catch(e) {
+          alert('저장 중 오류가 발생했습니다.');
+        }
       }
 
       function requestConsultation(partnerId, partnerName) {

@@ -720,6 +720,16 @@
           <div class="stat-value" id="statCompleted">0</div>
           <div class="stat-label">완료된 프로젝트</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(184,149,108,0.1);color:#b8956c;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          </div>
+          <div class="stat-value" id="statPartners">0</div>
+          <div class="stat-label">저장된 업체</div>
+        </div>
       </div>
 
       <!-- Quick Actions -->
@@ -750,12 +760,12 @@
             </svg>
             <span>상담 요청</span>
           </a>
-          <div class="action-card" onclick="location.href = '#'">
+          <div class="action-card" onclick="scrollToSavedPartners()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
-            <span>포트폴리오</span>
+            <span>추천 업체</span>
           </div>
           <div class="action-card" onclick="location.href = '#'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -805,6 +815,29 @@
           <div class="info-item">
             <span class="info-label">가입일</span>
             <span class="info-value" id="infoJoined">-</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Saved Partners -->
+      <section class="section" id="savedPartnersSection">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            내 추천 업체
+          </h2>
+        </div>
+        <div id="savedPartnersList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <p>저장된 추천 업체가 없습니다.</p>
+            <button class="btn-primary" onclick="location.href='ai-design.html'">AI 설계 시작하기</button>
           </div>
         </div>
       </section>
@@ -977,6 +1010,7 @@
 
         // 통계 로드
         await loadUserStats();
+        await loadSavedPartners();
       }
 
       // 사용자 통계 로드
@@ -1009,9 +1043,85 @@
           } catch (e) {
             console.log('designs 테이블 없음');
           }
+
+          // 저장된 업체 수 조회
+          try {
+            const { data: savedP, error: spError } = await supabaseClient
+              .from('saved_partners')
+              .select('id')
+              .eq('user_id', currentUser.id);
+            if (!spError && savedP) {
+              document.getElementById('statPartners').textContent = savedP.length;
+            }
+          } catch (e) {
+            console.log('saved_partners 테이블 없음');
+          }
         } catch (error) {
           console.log('통계 로드 실패:', error.message);
         }
+      }
+
+      // 저장된 파트너 로드
+      async function loadSavedPartners() {
+        if (!supabaseClient || !currentUser) return;
+        try {
+          const { data, error } = await supabaseClient
+            .from('saved_partners')
+            .select('*, partners(*)')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+
+          if (error || !data?.length) return;
+
+          const categoryLabels = {
+            sink:'싱크대', wardrobe:'붙박이장', fridge:'냉장고장',
+            vanity:'화장대', shoe:'신발장', storage:'수납장'
+          };
+
+          const container = document.getElementById('savedPartnersList');
+          container.innerHTML = data.map(sp => {
+            const p = sp.partners;
+            if (!p) return '';
+            const cats = (p.specialty_categories || [])
+              .filter(c => categoryLabels[c])
+              .map(c => `<span style="font-size:11px;padding:2px 8px;background:#f8f7f4;border-radius:8px;">${categoryLabels[c]}</span>`)
+              .join(' ');
+            const initial = p.company_name.charAt(0);
+            const typeLabel = p.partner_type === 'interior' ? '인테리어' : '제조공장';
+            return `
+              <div style="background:#fff;border:1px solid #ebe8e2;border-radius:12px;padding:16px;transition:transform 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                  <div style="width:40px;height:40px;border-radius:10px;background:#ebe8e2;display:flex;align-items:center;justify-content:center;font-weight:700;color:#b8956c;">${initial}</div>
+                  <div style="flex:1;">
+                    <div style="font-weight:600;font-size:14px;">${p.company_name} ${p.is_verified ? '<span style="color:#4CAF50;">✓</span>' : ''}</div>
+                    <div style="font-size:12px;color:#8b8680;">${typeLabel} · ${p.sido} ${p.gugun}</div>
+                  </div>
+                  <button onclick="removeSavedPartner('${sp.id}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:#ccc;" title="삭제">✕</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">${cats}</div>
+                <div style="display:flex;gap:8px;">
+                  <a href="tel:${p.phone}" style="flex:1;text-align:center;padding:8px;background:#f8f7f4;border-radius:6px;font-size:12px;color:#2d2a26;">📞 전화</a>
+                  <a href="consultation.html" style="flex:1;text-align:center;padding:8px;background:#2d2a26;border-radius:6px;font-size:12px;color:#fff;">상담 신청</a>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } catch (e) {
+          console.log('저장된 파트너 로드 실패:', e.message);
+        }
+      }
+
+      async function removeSavedPartner(savedId) {
+        if (!confirm('저장된 업체를 삭제하시겠습니까?')) return;
+        try {
+          await supabaseClient.from('saved_partners').delete().eq('id', savedId);
+          loadSavedPartners();
+          loadUserStats();
+        } catch(e) {}
+      }
+
+      function scrollToSavedPartners() {
+        document.getElementById('savedPartnersSection').scrollIntoView({ behavior: 'smooth' });
       }
 
       // 등급 표시 업데이트
