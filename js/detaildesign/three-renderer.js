@@ -8,9 +8,15 @@
         let container = null;
         let animFrameId = null;
         let moduleMeshes = []; // {mesh, moduleIndex}
+        let _meshCache = []; // raycaster용 메시 배열 캐시
         let hoveredMesh = null;
         let isInitialized = false;
         let labelSprites = [];
+        let _needsRender = true; // dirty flag — 변경 시에만 렌더
+        let _hoverRafId = 0; // hover rAF throttle
+        let _isDragging = false; // 마우스 버튼 눌린 상태 (OrbitControls 드래그 포함)
+        let _cachedRect = null; // getBoundingClientRect 캐시
+        let _rectCacheTime = 0;
 
         // ─── Front View 색상 통일 ───
         const COLORS = {
@@ -99,6 +105,7 @@
 
           // 회전 감지 → 카메라 자동 전환 (카메라→타겟 방향 기준, XZ 평면 각도만 사용)
           controls.addEventListener('change', () => {
+            _needsRender = true; // dirty flag 설정
             if (_cameraLocked || _utilDrag) return; // 초기화/드래그 중에는 전환 안 함
             // 카메라→타겟 방향에서 XZ 평면 각도만 측정 (Y축 높이 차이 무시)
             const dx = controls.target.x - camera.position.x;
@@ -110,10 +117,8 @@
             const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
 
             if (isOrtho && angle > ROTATE_THRESHOLD) {
-              // Ortho → Perspective 전환
               switchToPerspective();
             } else if (!isOrtho && angle < ROTATE_THRESHOLD * 0.5) {
-              // Perspective → Ortho 복귀 (거의 정면)
               switchToOrtho();
             }
           });
@@ -130,10 +135,10 @@
           // 이벤트
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('dblclick', onMouseDblClick);
-          renderer.domElement.addEventListener('pointermove', onMouseMove);
-          renderer.domElement.addEventListener('pointerdown', onUtilityDragStart);
+          renderer.domElement.addEventListener('pointermove', onMouseMoveThrottled);
+          renderer.domElement.addEventListener('pointerdown', (e) => { _isDragging = true; _cachedRect = null; onUtilityDragStart(e); });
           renderer.domElement.addEventListener('pointermove', onUtilityDragMove);
-          renderer.domElement.addEventListener('pointerup', onUtilityDragEnd);
+          renderer.domElement.addEventListener('pointerup', (e) => { _isDragging = false; onUtilityDragEnd(e); });
 
           // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
           const btnBar = document.createElement('div');
@@ -185,8 +190,13 @@
         function animate() {
           if (!isInitialized) return;
           animFrameId = requestAnimationFrame(animate);
-          if (controls) controls.update();
-          if (renderer && scene && camera) renderer.render(scene, camera);
+          if (controls) {
+            controls.update(); // damping 보간
+          }
+          if (_needsRender && renderer && scene && camera) {
+            renderer.render(scene, camera);
+            _needsRender = false;
+          }
         }
 
         // ─── 카메라 전환: Ortho ↔ Perspective ───
@@ -650,6 +660,10 @@
           camera.position.set(W / 2, H / 2, maxDim * 1.2);
           controls.update();
           _cameraLocked = false;
+          // 메시 배열 캐시 갱신 (raycaster용)
+          _meshCache = moduleMeshes.map(m => m.mesh);
+          _cachedRect = null; // rect 캐시 무효화
+          _needsRender = true;
         }
 
         function getDoorColorHex(name) {
@@ -667,8 +681,7 @@
           pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
-          const meshes = moduleMeshes.map(m => m.mesh);
-          const intersects = raycaster.intersectObjects(meshes, true); // true: 자식도 hit-test
+          const intersects = raycaster.intersectObjects(_meshCache, true); // 캐시 사용
           if (intersects.length > 0) {
             let hit = intersects[0].object;
             // 자식(edge line 등)이 hit되면 부모에서 찾기
@@ -937,8 +950,7 @@
           pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
-          const allMeshes = moduleMeshes.map(m => m.mesh);
-          const intersects = raycaster.intersectObjects(allMeshes, true);
+          const intersects = raycaster.intersectObjects(_meshCache, true);
           if (intersects.length === 0) return;
           let hit = intersects[0].object;
           // 자식 hit → 부모 확인
@@ -1012,7 +1024,7 @@
           // 라벨도 같이 이동
           if (_utilDrag.labels) _utilDrag.labels.forEach(l => { l.position.x = newX; });
           renderer.domElement.style.cursor = 'ew-resize';
-          // animate() 루프가 렌더링하므로 수동 render 불필요 (이중 렌더 방지)
+          _needsRender = true; // dirty flag → animate()에서 렌더
         }
 
         function onUtilityDragEnd(event) {
@@ -1111,17 +1123,35 @@
           }
         };
 
-        function onMouseMove(event) {
-          if (!renderer || _utilDrag) return; // 드래그 중에는 hover 스킵
-          const rect = renderer.domElement.getBoundingClientRect();
-          pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-          pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        // rAF throttle wrapper — 프레임당 최대 1회만 hover 체크
+        function onMouseMoveThrottled(event) {
+          if (!renderer || _utilDrag || _isDragging) return; // 모든 드래그 중 hover 스킵
+          // rAF로 throttle (이전 예약이 있으면 스킵)
+          if (_hoverRafId) return;
+          const cx = event.clientX, cy = event.clientY;
+          _hoverRafId = requestAnimationFrame(() => {
+            _hoverRafId = 0;
+            onMouseMove(cx, cy);
+          });
+        }
+
+        function onMouseMove(clientX, clientY) {
+          if (!renderer) return;
+          // rect 캐시 (200ms마다 갱신)
+          const now = performance.now();
+          if (!_cachedRect || now - _rectCacheTime > 200) {
+            _cachedRect = renderer.domElement.getBoundingClientRect();
+            _rectCacheTime = now;
+          }
+          const rect = _cachedRect;
+          pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+          pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
-          const meshes = moduleMeshes.map(m => m.mesh);
-          const intersects = raycaster.intersectObjects(meshes);
+          const intersects = raycaster.intersectObjects(_meshCache, false);
 
           if (hoveredMesh && hoveredMesh !== (moduleMeshes.find(m => m.moduleIndex === window._selectedModuleIndex)?.mesh)) {
             hoveredMesh.material.color.setHex(hoveredMesh.userData._origColor || 0xffffff);
+            _needsRender = true;
           }
 
           if (intersects.length > 0) {
@@ -1129,7 +1159,9 @@
             if (!hoveredMesh.userData._origColor) hoveredMesh.userData._origColor = hoveredMesh.material.color.getHex();
             hoveredMesh.material.color.setHex(0xe0e7ff);
             renderer.domElement.style.cursor = 'pointer';
+            _needsRender = true;
           } else {
+            if (hoveredMesh) _needsRender = true;
             hoveredMesh = null;
             renderer.domElement.style.cursor = 'default';
           }
@@ -1146,24 +1178,30 @@
               mesh.material.opacity = 0.85;
             }
           });
+          _needsRender = true;
           if (typeof highlightSelectedModule === 'function') highlightSelectedModule();
         }
 
         function dispose() {
           if (animFrameId) cancelAnimationFrame(animFrameId);
+          if (_hoverRafId) cancelAnimationFrame(_hoverRafId);
           moduleMeshes.forEach(({ mesh }) => { scene.remove(mesh); if (mesh.geometry) mesh.geometry.dispose(); });
           moduleMeshes = [];
+          _meshCache = [];
           labelSprites.forEach(s => { scene.remove(s); });
           labelSprites = [];
           if (renderer) {
             renderer.domElement.removeEventListener('click', onMouseClick);
             renderer.domElement.removeEventListener('dblclick', onMouseDblClick);
-            renderer.domElement.removeEventListener('pointermove', onMouseMove);
+            renderer.domElement.removeEventListener('pointermove', onMouseMoveThrottled);
             if (container && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
             renderer.dispose();
           }
           scene = camera = renderer = controls = null;
           container = null;
+          _cachedRect = null;
+          _isDragging = false;
+          _hoverRafId = 0;
           isInitialized = false;
         }
 
