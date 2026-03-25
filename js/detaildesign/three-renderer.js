@@ -751,18 +751,11 @@
             return;
           }
 
-          // ★ 모듈 더블클릭 → 빈 공간으로 대체
+          // ★ 모듈 더블클릭 → 완전 삭제
           if (entry.moduleIndex !== null && entry.moduleIndex >= 0 && item.modules[entry.moduleIndex]) {
             close3DModulePopup();
             if (typeof pushUndo === 'function') pushUndo(item);
-            const deletedMod = item.modules[entry.moduleIndex];
-            item.modules[entry.moduleIndex] = {
-              pos: deletedMod.pos,
-              type: 'spacer',
-              name: '빈공간',
-              w: deletedMod.w,
-              isSpacer: true,
-            };
+            item.modules.splice(entry.moduleIndex, 1);
             if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
           }
         }
