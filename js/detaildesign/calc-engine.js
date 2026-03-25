@@ -307,9 +307,11 @@
           if (mod.x < cursor) {
             mod.x = cursor;
           }
-          // ★ endBound 초과 방지: 너비 클램핑
+          // ★ endBound 초과 방지: 너비 클램핑 (최소 DOOR_MIN_WIDTH 보장)
           if (mod.x + parseFloat(mod.w) > endBound) {
-            mod.w = Math.max(0, endBound - mod.x);
+            mod.w = Math.max(DOOR_MIN_WIDTH, endBound - mod.x);
+            if (mod.x + mod.w > endBound) mod.x = endBound - mod.w;
+            if (mod.x < startBound) mod.x = startBound;
           }
           mod.endX = mod.x + parseFloat(mod.w);
           cursor = mod.endX;
@@ -912,6 +914,12 @@
         newModules.forEach((m) => delete m._x);
         if (!isRefLeft) newModules.reverse();
 
+        // ★ 안전장치: 비정상 모듈 수 방지 (최대 30개)
+        if (newModules.length > 30) {
+          console.error(`[AutoCalc] 상부장: 비정상 모듈 수 ${newModules.length}개 → 고정 모듈만 유지`);
+          newModules = newModules.filter(m => m.isFixed);
+        }
+
         item.modules = item.modules.concat(newModules);
       }
 
@@ -978,8 +986,8 @@
             const maxEnd = Math.min(endBound, dEndAbs + 100);
             // 분배기 커버에 필요한 너비
             const coverW = maxEnd - sinkX;
-            // ★ 핵심: 개수대 너비 = 커버 너비로 고정 (기본 1000mm를 무시하고 분배기 기준)
-            const sinkW = coverW;
+            // ★ 핵심: 개수대 너비 = 커버 너비로 고정 (최소 600mm 보장)
+            const sinkW = Math.max(600, coverW);
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
@@ -1041,6 +1049,8 @@
         item.modules = item.modules.filter((m) => m.pos !== 'lower');
 
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
+
+        console.log(`[AutoCalc] 하부장 시작: W=${W}, effectiveW=${effectiveW}, startBound=${startBound}, endBound=${endBound}, 고정모듈=${fixedOccupied.length}개(${fixedTotalW}mm), 분배기=${distStart}~${distEnd}, 환풍구=${ventPos}`);
 
         // 위치 조정
         fixedOccupied = adjustFixedPositions(fixedOccupied, startBound, endBound);
@@ -1138,6 +1148,12 @@
         newModules.sort((a, b) => a._x - b._x);
         newModules.forEach((m) => delete m._x);
         if (!isRefLeft) newModules.reverse();
+
+        // ★ 안전장치: 비정상 모듈 수 방지 (최대 30개)
+        if (newModules.length > 30) {
+          console.error(`[AutoCalc] 하부장: 비정상 모듈 수 ${newModules.length}개 → 고정 모듈만 유지`);
+          newModules = newModules.filter(m => m.isFixed);
+        }
 
         item.modules = item.modules.concat(newModules);
       }
