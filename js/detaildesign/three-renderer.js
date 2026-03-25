@@ -552,7 +552,7 @@
             hPipeMesh.userData = { isDraggable: true, dragType: 'water' };
             scene.add(hPipeMesh);
             moduleMeshes.push({ mesh: hPipeMesh, moduleIndex: null });
-            addLabel(`💧 ${Math.round(ws)}~${Math.round(we)}`, cx, legH + 320, 120, 11, '#1565C0');
+            addLabel('💧', cx, legH + 290, 40, 12, '#1565C0');
           }
 
           if (exhaustPos) {
@@ -655,14 +655,14 @@
         }
 
         function onMouseClick(event) {
-          if (_utilDrag) return; // 드래그 중 클릭 무시
+          if (_utilDragged) { _utilDragged = false; return; } // 드래그 후 클릭 무시
           const entry = getClickedModule(event);
           if (!entry) {
             close3DModulePopup();
             return;
           }
 
-          // ★ 분배기/환풍구 클릭 → 배관 치수 팝업
+          // ★ 분배기/환풍구 클릭 → 배관 치수 팝업 (드래그 아닌 순수 클릭만)
           if (entry.mesh?.userData?.isDraggable) {
             const dragType = entry.mesh.userData.dragType;
             showUtilityPopup(dragType, event.clientX, event.clientY);
@@ -709,28 +709,47 @@
           show3DModulePopup(entry.moduleIndex, event.clientX, event.clientY);
         }
 
-        // ★ 더블클릭 → 즉시 삭제 (빈 공간으로 대체 — 나머지 모듈 위치 유지)
+        // ★ 더블클릭 → 즉시 삭제
         function onMouseDblClick(event) {
           const entry = getClickedModule(event);
-          if (entry && entry.moduleIndex !== null && entry.moduleIndex >= 0) {
-            const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-            if (uid) {
-              const item = typeof getItem === 'function' ? getItem(uid) : null;
-              if (item && item.modules[entry.moduleIndex]) {
-                close3DModulePopup();
-                if (typeof pushUndo === 'function') pushUndo(item);
-                const deletedMod = item.modules[entry.moduleIndex];
-                // 빈 공간(spacer)으로 대체 — 나머지 모듈 위치 고정
-                item.modules[entry.moduleIndex] = {
-                  pos: deletedMod.pos,
-                  type: 'spacer',
-                  name: '빈공간',
-                  w: deletedMod.w,
-                  isSpacer: true,
-                };
-                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
-              }
+          if (!entry) return;
+
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          if (!item) return;
+
+          // ★ 분배기/환풍구 더블클릭 → 값 초기화 (삭제)
+          if (entry.mesh?.userData?.isDraggable) {
+            close3DModulePopup();
+            if (typeof pushUndo === 'function') pushUndo(item);
+            const dt = entry.mesh.userData.dragType;
+            if (dt === 'water' || dt === 'waterStart' || dt === 'waterEnd') {
+              item.specs.distributorStart = 0;
+              item.specs.distributorEnd = 0;
+              delete item.specs.waterSupplyPosition;
+              delete item.specs.distributorStartAbs;
+              delete item.specs.distributorEndAbs;
+            } else if (dt === 'vent') {
+              item.specs.ventStart = 0;
+              delete item.specs.exhaustPosition;
             }
+            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+            return;
+          }
+
+          // ★ 모듈 더블클릭 → 빈 공간으로 대체
+          if (entry.moduleIndex !== null && entry.moduleIndex >= 0 && item.modules[entry.moduleIndex]) {
+            close3DModulePopup();
+            if (typeof pushUndo === 'function') pushUndo(item);
+            const deletedMod = item.modules[entry.moduleIndex];
+            item.modules[entry.moduleIndex] = {
+              pos: deletedMod.pos,
+              type: 'spacer',
+              name: '빈공간',
+              w: deletedMod.w,
+              isSpacer: true,
+            };
+            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
           }
         }
 
@@ -879,6 +898,7 @@
 
         // ─── 분배기/환풍구 드래그 ───
         let _utilDrag = null;
+        let _utilDragged = false; // 드래그 발생 여부 (클릭 구분용)
 
         function onUtilityDragStart(event) {
           if (!renderer) return;
@@ -923,6 +943,7 @@
             isRefLeft: item.specs?.measurementBase === 'Left',
           };
 
+          _utilDragged = false;
           if (controls) controls.enabled = false;
         }
 
@@ -931,6 +952,8 @@
           event.stopPropagation();
 
           const pxDelta = event.clientX - _utilDrag.startClientX;
+          if (Math.abs(pxDelta) > 3) _utilDragged = true; // 3px 이상 이동 시 드래그로 판정
+
           const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
           const worldDelta = pxDelta * worldPerPx;
 
