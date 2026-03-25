@@ -369,7 +369,8 @@ async function handleVerifyImage(
 
 JSON 형식으로 응답: {"placement": 점수, "proportion": 점수, "quality": 점수, "completeness": 점수, "overall": 평균점수, "issues": ["문제1", ...], "suggestions": ["제안1", ...]}`;
 
-  const response = await claudeVisionAnalysis(image, 'image/png', verifyPrompt);
+  // Haiku 사용: 이미지 검증은 점수 매기기 + 이슈 나열로 비용 최적화
+  const response = await claudeVisionAnalysis(image, 'image/png', verifyPrompt, undefined, { model: 'haiku', max_tokens: 1024 });
   const text = extractTextFromClaudeResponse(response);
 
   if (!text) {
