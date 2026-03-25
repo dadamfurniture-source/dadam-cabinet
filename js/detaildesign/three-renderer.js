@@ -12,7 +12,7 @@
         let hoveredMesh = null;
         let isInitialized = false;
         let labelSprites = [];
-        let _needsRender = true; // dirty flag — 변경 시에만 렌더
+        // _needsRender 제거됨 → _scheduleRender() 온디맨드 방식으로 전환
         let _hoverRafId = 0; // hover rAF throttle
         let _isDragging = false; // 마우스 버튼 눌린 상태 (OrbitControls 드래그 포함)
         let _cachedRect = null; // getBoundingClientRect 캐시
@@ -34,7 +34,7 @@
           perspCamera.aspect = na;
           perspCamera.updateProjectionMatrix();
           renderer.setSize(nw, nh);
-          _needsRender = true;
+          _scheduleRender();
           _cachedRect = null;
         }
 
@@ -105,7 +105,7 @@
 
           camera = orthoCamera; // 기본 = Ortho
 
-          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+          renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
           renderer.setSize(w, h);
           renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
           renderer.shadowMap.enabled = false;
@@ -125,7 +125,7 @@
 
           // 회전 감지 → 카메라 자동 전환 (카메라→타겟 방향 기준, XZ 평면 각도만 사용)
           controls.addEventListener('change', () => {
-            _needsRender = true; // dirty flag 설정
+            _scheduleRender(); // 온디맨드 렌더 예약
             if (_cameraLocked || _utilDrag) return; // 초기화/드래그 중에는 전환 안 함
             // 카메라→타겟 방향에서 XZ 평면 각도만 측정 (Y축 높이 차이 무시)
             const dx = controls.target.x - camera.position.x;
@@ -156,8 +156,19 @@
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('dblclick', onMouseDblClick);
           renderer.domElement.addEventListener('pointermove', onPointerMoveUnified);
-          renderer.domElement.addEventListener('pointerdown', (e) => { _isDragging = true; _cachedRect = null; onUtilityDragStart(e); });
-          renderer.domElement.addEventListener('pointerup', (e) => { _isDragging = false; onUtilityDragEnd(e); });
+          renderer.domElement.addEventListener('pointerdown', (e) => {
+            _isDragging = true; _cachedRect = null;
+            // 드래그 시작 → pixelRatio 축소 (고DPI 성능 개선)
+            if (renderer && window.devicePixelRatio > 1) renderer.setPixelRatio(1);
+            onUtilityDragStart(e);
+          });
+          renderer.domElement.addEventListener('pointerup', (e) => {
+            _isDragging = false;
+            // 드래그 끝 → pixelRatio 복원
+            if (renderer) renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            _scheduleRender();
+            onUtilityDragEnd(e);
+          });
 
           // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
           const btnBar = document.createElement('div');
@@ -191,19 +202,30 @@
           _resizeObserver.observe(container);
 
           isInitialized = true;
-          animate();
+          _scheduleRender(); // 최초 1회 렌더
         }
 
-        function animate() {
-          if (!isInitialized) return;
-          animFrameId = requestAnimationFrame(animate);
+        // ─── 온디맨드 렌더링 (연속 루프 제거) ───
+        let _renderPending = false;
+        let _dampingActive = false;
+
+        function _scheduleRender() {
+          if (_renderPending || !isInitialized) return;
+          _renderPending = true;
+          animFrameId = requestAnimationFrame(_doRender);
+        }
+
+        function _doRender() {
+          _renderPending = false;
+          if (!isInitialized || !renderer || !scene || !camera) return;
           if (controls) {
-            controls.update(); // damping 보간
+            _dampingActive = controls.update(); // r150+: returns true if damping active
+            // r150 미만 fallback: dampingActive가 undefined면 항상 체인
+            if (_dampingActive === undefined) _dampingActive = true;
           }
-          if (_needsRender && renderer && scene && camera) {
-            renderer.render(scene, camera);
-            _needsRender = false;
-          }
+          renderer.render(scene, camera);
+          // damping 진행 중이면 다음 프레임도 예약
+          if (_dampingActive) _scheduleRender();
         }
 
         // ─── 카메라 전환: Ortho ↔ Perspective ───
@@ -276,7 +298,7 @@
             controls.target.lerpVectors(startTarget, target, ease);
             if (up) camera.up.set(up[0], up[1], up[2]);
             controls.update();
-            _needsRender = true;
+            _scheduleRender();
             if (t < 1) requestAnimationFrame(tweenStep);
           }
           tweenStep();
@@ -673,7 +695,7 @@
           // 메시 배열 캐시 갱신 (raycaster용)
           _meshCache = moduleMeshes.map(m => m.mesh);
           _cachedRect = null; // rect 캐시 무효화
-          _needsRender = true;
+          _scheduleRender();
         }
 
         function getDoorColorHex(name) {
@@ -1034,7 +1056,7 @@
           // 라벨도 같이 이동
           if (_utilDrag.labels) _utilDrag.labels.forEach(l => { l.position.x = newX; });
           renderer.domElement.style.cursor = 'ew-resize';
-          _needsRender = true; // dirty flag → animate()에서 렌더
+          _scheduleRender(); // dirty flag → animate()에서 렌더
         }
 
         function onUtilityDragEnd(event) {
@@ -1164,7 +1186,7 @@
 
           if (hoveredMesh && hoveredMesh !== (moduleMeshes.find(m => m.moduleIndex === window._selectedModuleIndex)?.mesh)) {
             hoveredMesh.material.color.setHex(hoveredMesh.userData._origColor || 0xffffff);
-            _needsRender = true;
+            _scheduleRender();
           }
 
           if (intersects.length > 0) {
@@ -1172,9 +1194,9 @@
             if (!hoveredMesh.userData._origColor) hoveredMesh.userData._origColor = hoveredMesh.material.color.getHex();
             hoveredMesh.material.color.setHex(0xe0e7ff);
             renderer.domElement.style.cursor = 'pointer';
-            _needsRender = true;
+            _scheduleRender();
           } else {
-            if (hoveredMesh) _needsRender = true;
+            if (hoveredMesh) _scheduleRender();
             hoveredMesh = null;
             renderer.domElement.style.cursor = 'default';
           }
@@ -1191,13 +1213,15 @@
               mesh.material.opacity = 0.85;
             }
           });
-          _needsRender = true;
+          _scheduleRender();
           if (typeof highlightSelectedModule === 'function') highlightSelectedModule();
         }
 
         function dispose() {
           if (animFrameId) cancelAnimationFrame(animFrameId);
           if (_hoverRafId) cancelAnimationFrame(_hoverRafId);
+          _renderPending = false;
+          _dampingActive = false;
           moduleMeshes.forEach(({ mesh }) => { scene.remove(mesh); if (mesh.geometry) mesh.geometry.dispose(); });
           moduleMeshes = [];
           _meshCache = [];
