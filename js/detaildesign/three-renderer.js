@@ -272,9 +272,7 @@
           mesh.add(line2);
 
           scene.add(mesh);
-          if (moduleIndex !== undefined && moduleIndex !== null && moduleIndex >= 0) {
-            moduleMeshes.push({ mesh, moduleIndex });
-          }
+          moduleMeshes.push({ mesh, moduleIndex: (moduleIndex !== undefined && moduleIndex !== null && moduleIndex >= 0) ? moduleIndex : null });
           return mesh;
         }
 
