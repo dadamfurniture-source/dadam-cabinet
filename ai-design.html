@@ -302,22 +302,85 @@
         padding: 0 24px 60px;
       }
 
-      /* Chat Box */
-      .chat-box {
+      /* Floating Chat Widget */
+      .chat-fab {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, var(--gold), #d4a574);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 16px rgba(184, 149, 108, 0.4);
+        z-index: 1000;
+        transition: all 0.3s;
+      }
+      .chat-fab:hover {
+        transform: scale(1.08);
+        box-shadow: 0 6px 24px rgba(184, 149, 108, 0.5);
+      }
+      .chat-fab svg {
+        width: 24px;
+        height: 24px;
+        color: #fff;
+      }
+      .chat-fab .fab-close {
+        display: none;
+      }
+      .chat-fab.active .fab-open {
+        display: none;
+      }
+      .chat-fab.active .fab-close {
+        display: block;
+      }
+      .chat-fab-badge {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 14px;
+        height: 14px;
+        background: #4caf50;
+        border: 2px solid #fff;
+        border-radius: 50%;
+      }
+
+      .chat-widget {
+        position: fixed;
+        bottom: 92px;
+        right: 24px;
+        width: 380px;
+        max-height: 520px;
         background: var(--white);
         border: 1px solid var(--warm);
         border-radius: 16px;
         overflow: hidden;
-        margin-bottom: 32px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        transform: scale(0.9) translateY(20px);
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        transform-origin: bottom right;
+      }
+      .chat-widget.open {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+        pointer-events: auto;
       }
       .chat-header {
         padding: 14px 20px;
-        background: var(--cream);
+        background: var(--charcoal);
         display: flex;
         align-items: center;
         gap: 12px;
-        border-bottom: 1px solid var(--warm);
+        flex-shrink: 0;
       }
       .chat-header-icon {
         width: 36px;
@@ -338,10 +401,11 @@
         font-size: 15px;
         font-family: inherit;
         font-weight: 600;
+        color: #fff;
       }
       .chat-header-text p {
         font-size: 11px;
-        color: var(--gray);
+        color: rgba(255,255,255,0.6);
       }
       .chat-status {
         margin-left: auto;
@@ -349,7 +413,7 @@
         align-items: center;
         gap: 5px;
         font-size: 11px;
-        color: var(--gray);
+        color: rgba(255,255,255,0.6);
       }
       .chat-status::before {
         content: '';
@@ -359,13 +423,14 @@
         border-radius: 50%;
       }
       .chat-messages {
-        height: 100px;
+        height: 340px;
         padding: 16px 20px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
         gap: 10px;
         background: var(--white);
+        flex: 1;
       }
       .message {
         display: flex;
@@ -428,18 +493,19 @@
         margin-bottom: 4px;
       }
       .chat-input {
-        padding: 14px 20px;
+        padding: 12px 16px;
         border-top: 1px solid var(--warm);
         background: var(--cream);
         display: flex;
         gap: 10px;
+        flex-shrink: 0;
       }
       .chat-input input {
         flex: 1;
-        padding: 12px 14px;
+        padding: 10px 14px;
         border: 1px solid var(--warm);
         border-radius: 10px;
-        font-size: 16px;
+        font-size: 14px;
         background: var(--white);
       }
       .chat-input input:focus {
@@ -447,8 +513,8 @@
         border-color: var(--gold);
       }
       .chat-input button {
-        width: 44px;
-        height: 44px;
+        width: 40px;
+        height: 40px;
         background: var(--charcoal);
         border: none;
         border-radius: 10px;
@@ -1716,11 +1782,20 @@
           padding: 0 12px 40px;
         }
 
-        .chat-box {
-          margin-bottom: 20px;
+        .chat-widget {
+          width: calc(100vw - 24px);
+          right: 12px;
+          bottom: 80px;
+          max-height: 60vh;
         }
         .chat-messages {
-          height: 80px;
+          height: 240px;
+        }
+        .chat-fab {
+          bottom: 16px;
+          right: 12px;
+          width: 50px;
+          height: 50px;
         }
 
         .category-grid {
@@ -2062,39 +2137,45 @@
       <p>사진 한 장으로 맞춤 가구를 디자인하세요</p>
     </section>
 
-    <!-- Main Container -->
-    <main class="main-container">
-      <!-- AI Chat Box -->
-      <div class="chat-box">
-        <div class="chat-header">
-          <div class="chat-header-icon">
-            <svg><use href="#icon-ai" /></svg>
-          </div>
-          <div class="chat-header-text">
-            <h3>다담 AI 설계사</h3>
-            <p>맞춤 가구 설계 전문 AI</p>
-          </div>
-          <div class="chat-status">온라인</div>
+    <!-- Floating Chat Widget -->
+    <button class="chat-fab active" id="chatFab" onclick="toggleChat()" aria-label="AI 설계사 채팅">
+      <svg class="fab-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <svg class="fab-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      <span class="chat-fab-badge"></span>
+    </button>
+
+    <div class="chat-widget open" id="chatWidget">
+      <div class="chat-header">
+        <div class="chat-header-icon">
+          <svg><use href="#icon-ai" /></svg>
         </div>
-        <div class="chat-messages" id="chatMessages">
-          <div class="welcome-msg">
-            <strong>👋 안녕하세요!</strong>
-            카테고리를 선택하고 사진을 업로드해주세요.
-          </div>
+        <div class="chat-header-text">
+          <h3>다담 AI 설계사</h3>
+          <p>맞춤 가구 설계 전문 AI</p>
         </div>
-        <div class="chat-input">
-          <input
-            type="text"
-            id="messageInput"
-            placeholder="메시지를 입력하세요..."
-            onkeydown="if (event.key === 'Enter') sendMessage();"
-          />
-          <button onclick="sendMessage()" aria-label="전송">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send" /></svg>
-          </button>
+        <div class="chat-status">온라인</div>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome-msg">
+          <strong>안녕하세요!</strong>
+          카테고리를 선택하고 사진을 업로드해주세요.
         </div>
       </div>
+      <div class="chat-input">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="메시지를 입력하세요..."
+          onkeydown="if (event.key === 'Enter') sendMessage();"
+        />
+        <button onclick="sendMessage()" aria-label="전송">
+          <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send" /></svg>
+        </button>
+      </div>
+    </div>
 
+    <!-- Main Container -->
+    <main class="main-container">
       <!-- Category Buttons (New Layout) -->
       <p class="section-title">카테고리 선택</p>
       <p class="section-subtitle">클릭하여 사진 업로드 (여러 개 선택 가능)</p>
@@ -2436,6 +2517,20 @@
       const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
 
       // ═══════════════════════════════════════════════════════════════
+      // 플로팅 채팅 토글
+      // ═══════════════════════════════════════════════════════════════
+      function toggleChat() {
+        const widget = document.getElementById('chatWidget');
+        const fab = document.getElementById('chatFab');
+        const isOpen = widget.classList.toggle('open');
+        fab.classList.toggle('active', isOpen);
+        if (isOpen) {
+          const msgs = document.getElementById('chatMessages');
+          msgs.scrollTop = msgs.scrollHeight;
+          document.getElementById('messageInput').focus();
+        }
+      }
+
       // 채팅 기록 저장/불러오기 (Supabase)
       // ═══════════════════════════════════════════════════════════════
 
