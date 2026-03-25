@@ -8,11 +8,12 @@ import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { searchInteriorImages, getCategoryQuery } from '../clients/unsplash.client.js';
 import { generateStyleColorImage } from '../services/image-generation.service.js';
+import { themeRateLimit } from '../middleware/rate-limiter.js';
 
 const log = createLogger('route:themes');
 const router = Router();
 
-router.get('/api/themes/images', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/api/themes/images', themeRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const perPage = parseInt(req.query.per_page as string) || 20;

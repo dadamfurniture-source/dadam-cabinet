@@ -14,7 +14,8 @@ import type {
 const log = createLogger('claude-client');
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const CLAUDE_MODEL_SONNET = 'claude-sonnet-4-6-20250514';
+const CLAUDE_MODEL_HAIKU = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_VERSION = '2023-06-01';
 
 export interface ClaudeMessage {
@@ -68,13 +69,15 @@ export async function claudeVisionAnalysis(
   image: string,
   imageType: string,
   prompt: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  options?: { model?: 'sonnet' | 'haiku'; max_tokens?: number }
 ): Promise<ClaudeResponse> {
   const apiKey = getApiKey();
+  const model = options?.model === 'haiku' ? CLAUDE_MODEL_HAIKU : CLAUDE_MODEL_SONNET;
 
   const request: ClaudeRequest = {
-    model: CLAUDE_MODEL,
-    max_tokens: 4096,
+    model,
+    max_tokens: options?.max_tokens ?? 4096,
     temperature: 0.2,
     messages: [
       {
@@ -101,7 +104,7 @@ export async function claudeVisionAnalysis(
     request.system = systemPrompt;
   }
 
-  log.debug({ model: CLAUDE_MODEL }, 'Calling Claude API for vision analysis');
+  log.debug({ model }, 'Calling Claude API for vision analysis');
 
   const response = await fetchWithRetry('claude', CLAUDE_API_URL, {
     method: 'POST',
@@ -143,7 +146,7 @@ export async function claudeMultiImageAnalysis(
   });
 
   const request: ClaudeRequest = {
-    model: CLAUDE_MODEL,
+    model: CLAUDE_MODEL_SONNET,
     max_tokens: 4096,
     temperature: 0.2,
     messages: [
@@ -158,7 +161,7 @@ export async function claudeMultiImageAnalysis(
     request.system = systemPrompt;
   }
 
-  log.debug({ model: CLAUDE_MODEL, imageCount: images.length }, 'Calling Claude API for multi-image analysis');
+  log.debug({ model: CLAUDE_MODEL_SONNET, imageCount: images.length }, 'Calling Claude API for multi-image analysis');
 
   const response = await fetchWithRetry('claude', CLAUDE_API_URL, {
     method: 'POST',
@@ -203,16 +206,25 @@ export interface ClaudeAgentCallParams {
 export async function claudeAgentCall(params: ClaudeAgentCallParams): Promise<ClaudeAgentResponse> {
   const apiKey = getApiKey();
 
+  // Prompt Caching: 시스템 프롬프트를 cache_control로 감싸서 반복 호출 시 ~90% input 비용 절감
+  const systemWithCache = [
+    {
+      type: 'text' as const,
+      text: params.system,
+      cache_control: { type: 'ephemeral' as const },
+    },
+  ];
+
   const body = {
-    model: CLAUDE_MODEL,
+    model: CLAUDE_MODEL_SONNET,
     max_tokens: params.max_tokens ?? 4096,
     temperature: params.temperature ?? 0.3,
-    system: params.system,
+    system: systemWithCache,
     messages: params.messages,
     tools: params.tools,
   };
 
-  log.debug({ model: CLAUDE_MODEL, messageCount: params.messages.length, toolCount: params.tools.length }, 'Agent API call');
+  log.debug({ model: CLAUDE_MODEL_SONNET, messageCount: params.messages.length, toolCount: params.tools.length }, 'Agent API call (with prompt caching)');
 
   const response = await fetchWithRetry('claude', CLAUDE_API_URL, {
     method: 'POST',
