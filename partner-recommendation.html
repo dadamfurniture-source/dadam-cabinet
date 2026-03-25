@@ -344,6 +344,15 @@
 
     <script>
       // ═══════════════════════════════════════════════════════════════
+      // Utilities
+      // ═══════════════════════════════════════════════════════════════
+      function escapeHtml(text) {
+        if (!text) return '';
+        const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // State & Config
       // ═══════════════════════════════════════════════════════════════
       const SUPABASE_URL = window.DADAM_CONFIG?.SUPABASE_URL || 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
@@ -574,7 +583,7 @@
           score: scorePartner(p),
           distance: userLat && p.lat ? haversineKm(userLat, userLng, p.lat, p.lng) : null
         }));
-        scored.sort((a, b) => b.score - a.score);
+        scored.sort((a, b) => b.score - a.score || (b.review_count || 0) - (a.review_count || 0));
         return scored.slice(0, count);
       }
 
@@ -584,6 +593,16 @@
       function renderRecommendations() {
         renderGrid('interiorGrid', getTopPartners('interior', 2));
         renderGrid('factoryGrid', getTopPartners('factory', 2));
+        bindCardActions();
+      }
+
+      function bindCardActions() {
+        document.querySelectorAll('[data-action="save"]').forEach(btn => {
+          btn.onclick = () => savePartner(btn.dataset.id);
+        });
+        document.querySelectorAll('[data-action="consult"]').forEach(btn => {
+          btn.onclick = () => requestConsultation(btn.dataset.id, btn.dataset.name);
+        });
       }
 
       function renderGrid(containerId, partners) {
@@ -603,11 +622,14 @@
 
         const distText = p.distance != null
           ? `📍 ${p.distance < 1 ? (p.distance * 1000).toFixed(0) + 'm' : p.distance.toFixed(1) + 'km'}`
-          : `📍 ${p.sido} ${p.gugun}`;
+          : `📍 ${escapeHtml(p.sido)} ${escapeHtml(p.gugun)}`;
 
-        const stars = '★'.repeat(Math.floor(p.rating || 0)) + (p.rating % 1 >= 0.5 ? '☆' : '');
+        const fullStars = Math.floor(p.rating || 0);
+        const halfStar = (p.rating || 0) % 1 >= 0.5 ? 1 : 0;
+        const emptyStars = 5 - fullStars - halfStar;
+        const stars = '★'.repeat(fullStars) + '½'.repeat(halfStar) + '☆'.repeat(Math.max(0, emptyStars));
 
-        const initial = p.company_name.charAt(0);
+        const initial = escapeHtml(p.company_name.charAt(0));
 
         // Portfolio placeholder (3 slots)
         const portfolioHtml = (p.portfolio_images?.length > 0)
@@ -622,10 +644,10 @@
               <div class="card-logo">${initial}</div>
               <div class="card-info">
                 <div class="name">
-                  ${p.company_name}
+                  ${escapeHtml(p.company_name)}
                   ${p.is_verified ? '<span class="verified" title="인증 업체">✓</span>' : ''}
                 </div>
-                <div class="specialty">${p.description || p.specialty_text || ''}</div>
+                <div class="specialty">${escapeHtml(p.description || p.specialty_text || '')}</div>
               </div>
               <div class="card-distance">${distText}</div>
             </div>
@@ -637,9 +659,9 @@
               <span style="color:var(--gray);">(${p.review_count || 0}건 | 시공 ${p.completed_projects || 0}건)</span>
             </div>
             <div class="card-contact">
-              <button class="btn btn-secondary" onclick="savePartner('${p.id}')" id="save-${p.id}" title="저장">♡</button>
-              <a href="tel:${p.phone}" class="btn btn-secondary" style="display:block;flex:1;">📞 전화</a>
-              <button class="btn btn-primary" style="flex:2;" onclick="requestConsultation('${p.id}','${p.company_name}')">상담 신청</button>
+              <button class="btn btn-secondary" data-action="save" data-id="${escapeHtml(p.id)}" id="save-${escapeHtml(p.id)}" aria-label="업체 저장" title="저장">♡</button>
+              <a href="tel:${escapeHtml(p.phone)}" class="btn btn-secondary" style="display:block;flex:1;">📞 전화</a>
+              <button class="btn btn-primary" style="flex:2;" data-action="consult" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.company_name)}">상담 신청</button>
             </div>
           </div>
         `;
