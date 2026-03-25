@@ -193,10 +193,18 @@
           // ★ 종횡비 업데이트 (찌그러짐 방지)
           if (container) {
             perspCamera.aspect = container.clientWidth / (container.clientHeight || 450);
-            perspCamera.updateProjectionMatrix();
           }
+          // ★ Ortho frustum과 동일한 영역이 보이도록 거리 보정
+          const orthoHeight = orthoCamera.top - orthoCamera.bottom; // Ortho에서 보이는 세로 크기
+          const fovRad = THREE.MathUtils.degToRad(perspCamera.fov);
+          const targetDist = (orthoHeight / 2) / Math.tan(fovRad / 2);
+          // 카메라→타겟 방향 유지하면서 거리만 조정
+          const dir = new THREE.Vector3().subVectors(perspCamera.position, controls.target).normalize();
+          perspCamera.position.copy(controls.target).addScaledVector(dir, targetDist);
+          perspCamera.updateProjectionMatrix();
           camera = perspCamera;
           controls.object = perspCamera;
+          controls.update();
           isOrtho = false;
         }
 
@@ -205,18 +213,21 @@
           // Perspective 위치를 Ortho로 복사
           orthoCamera.position.copy(perspCamera.position);
           orthoCamera.quaternion.copy(perspCamera.quaternion);
-          // ★ Ortho frustum 업데이트
+          // ★ Perspective에서 보이던 영역에 맞춰 Ortho frustum 계산
           if (container) {
             const aspect = container.clientWidth / (container.clientHeight || 450);
-            const maxDim = Math.max(_lastW, _lastH) * 1.3;
-            orthoCamera.left = -maxDim * aspect / 2;
-            orthoCamera.right = maxDim * aspect / 2;
-            orthoCamera.top = maxDim / 2;
-            orthoCamera.bottom = -maxDim / 2;
+            const dist = perspCamera.position.distanceTo(controls.target);
+            const fovRad = THREE.MathUtils.degToRad(perspCamera.fov);
+            const visibleH = 2 * dist * Math.tan(fovRad / 2);
+            orthoCamera.left = -visibleH * aspect / 2;
+            orthoCamera.right = visibleH * aspect / 2;
+            orthoCamera.top = visibleH / 2;
+            orthoCamera.bottom = -visibleH / 2;
             orthoCamera.updateProjectionMatrix();
           }
           camera = orthoCamera;
           controls.object = orthoCamera;
+          controls.update();
           isOrtho = true;
         }
 
@@ -342,14 +353,14 @@
           // ═══ 킥보드 ═══
           addBox(finishL, 0, 50, W - finishL - finishR, legH, lowerD - 50, COLORS.kickboard, 0x444444, null, '킥보드');
 
-          // ═══ 마감재 ═══
+          // ═══ 마감재 (좌우 상부는 상몰딩 아래까지만 — 상몰딩이 위에 덮음) ═══
           if (finishL > 0) {
             addBox(0, 0, 0, finishL, legH + lowerH, D, COLORS.finish, COLORS.finishStroke, null, '좌마감');
-            addBox(0, upperY, 0, finishL, upperH + moldingH, upperD, COLORS.finish, COLORS.finishStroke, null, '좌마감상');
+            addBox(0, upperY, 0, finishL, upperH, upperD, COLORS.finish, COLORS.finishStroke, null, '좌마감상');
           }
           if (finishR > 0) {
             addBox(W - finishR, 0, 0, finishR, legH + lowerH, D, COLORS.finish, COLORS.finishStroke, null, '우마감');
-            addBox(W - finishR, upperY, 0, finishR, upperH + moldingH, upperD, COLORS.finish, COLORS.finishStroke, null, '우마감상');
+            addBox(W - finishR, upperY, 0, finishR, upperH, upperD, COLORS.finish, COLORS.finishStroke, null, '우마감상');
           }
 
           // ═══ 하부장 모듈 (상판 앞면보다 10mm 뒤로, 모듈 간 밀착) ═══
@@ -970,7 +981,16 @@
           const pxDelta = event.clientX - _utilDrag.startClientX;
           if (Math.abs(pxDelta) > 3) _utilDragged = true; // 3px 이상 이동 시 드래그로 판정
 
-          const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+          // Ortho: frustum 크기 기반, Perspective: FOV + 거리 기반
+          let worldPerPx;
+          if (isOrtho) {
+            worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+          } else {
+            const dist = camera.position.distanceTo(controls.target);
+            const fovRad = THREE.MathUtils.degToRad(camera.fov);
+            const visibleH = 2 * dist * Math.tan(fovRad / 2);
+            worldPerPx = (visibleH * camera.aspect) / renderer.domElement.clientWidth;
+          }
           const worldDelta = pxDelta * worldPerPx;
 
           let newX = _utilDrag.startWorldX + worldDelta;
