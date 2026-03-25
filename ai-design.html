@@ -3627,6 +3627,19 @@ Magazine quality, professional lighting.`;
               </div>
             </div>
           </div>
+          <div style="margin-top:16px;text-align:center;">
+            <button onclick="goToPartnerRecommendation()"
+              style="width:100%;padding:14px 24px;background:var(--charcoal);color:#fff;
+                     border:none;border-radius:8px;font-size:14px;font-weight:600;
+                     cursor:pointer;letter-spacing:0.5px;transition:all 0.3s;"
+              onmouseover="this.style.background='#b8956c'"
+              onmouseout="this.style.background='#2d2a26'">
+              🏠 시공 협력업체 추천받기
+            </button>
+            <p style="font-size:11px;color:#999;margin-top:6px;">
+              내 견적에 맞는 인테리어 업체와 제조공장을 추천받으세요
+            </p>
+          </div>
           ` : ''}
         `;
 
@@ -3695,6 +3708,25 @@ Magazine quality, professional lighting.`;
         document.getElementById('currentPage').textContent = state.currentPage + 1;
         document.getElementById('prevPage').disabled = state.currentPage === 0;
         document.getElementById('nextPage').disabled = state.currentPage === state.results.length - 1;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Partner Recommendation
+      // ═══════════════════════════════════════════════════════════════
+      function goToPartnerRecommendation() {
+        const context = {
+          categories: Object.keys(state.uploadedImages),
+          style: state.selectedStyle,
+          styleName: state.selectedStyleName,
+          quoteTotal: state.results[0]?.quote?.total || 0,
+          quoteGrade: state.results[0]?.quote?.grade || 'mid',
+          designImages: state.results.map(r => ({
+            category: r.category,
+            afterUrl: r.afterUrl
+          }))
+        };
+        sessionStorage.setItem('partnerContext', JSON.stringify(context));
+        window.location.href = 'partner-recommendation.html';
       }
 
       // ═══════════════════════════════════════════════════════════════
