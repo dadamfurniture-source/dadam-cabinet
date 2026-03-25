@@ -943,8 +943,19 @@
             let entry = moduleMeshes.find(m => m.mesh === hit);
             if (!entry && hit.parent) entry = moduleMeshes.find(m => m.mesh === hit.parent);
             if (entry && entry.moduleIndex !== null && entry.moduleIndex >= 0) {
-              // 모듈 드래그 시작
-              _modDrag = { moduleIndex: entry.moduleIndex, startClientX: event.clientX, mesh: entry.mesh, startX: entry.mesh.position.x };
+              // 모듈 드래그 시작 — 드래그 모듈 반투명화
+              entry.mesh.material.opacity = 0.4;
+              entry.mesh.material.transparent = true;
+              // 같은 pos의 인접 모듈 참조 저장
+              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+              const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+              const mod = item ? item.modules[entry.moduleIndex] : null;
+              const samePosMeshes = mod ? moduleMeshes.filter(m => {
+                if (m.moduleIndex === null || m.moduleIndex < 0 || m.moduleIndex === entry.moduleIndex) return false;
+                const mm = item.modules[m.moduleIndex];
+                return mm && mm.pos === mod.pos && !mm.isSpacer;
+              }) : [];
+              _modDrag = { moduleIndex: entry.moduleIndex, startClientX: event.clientX, mesh: entry.mesh, startX: entry.mesh.position.x, samePosMeshes, highlightedIdx: -1 };
               _utilDragged = false;
               if (controls) controls.enabled = false;
               event.stopPropagation();
@@ -995,13 +1006,34 @@
         }
 
         function onUtilityDragMove(event) {
-          // ★ 모듈 드래그 이동
+          // ★ 모듈 드래그 이동 + swap 대상 하이라이트
           if (_modDrag) {
             event.stopPropagation();
             const pxDelta = event.clientX - _modDrag.startClientX;
             if (Math.abs(pxDelta) > 3) _utilDragged = true;
             const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
-            _modDrag.mesh.position.x = _modDrag.startX + pxDelta * worldPerPx;
+            const worldDelta = pxDelta * worldPerPx;
+            _modDrag.mesh.position.x = _modDrag.startX + worldDelta;
+            // swap 대상 찾기: 드래그 방향의 가장 가까운 모듈
+            const direction = worldDelta > 0 ? 1 : worldDelta < 0 ? -1 : 0;
+            let closestIdx = -1;
+            let closestDist = Infinity;
+            _modDrag.samePosMeshes.forEach(m => {
+              const dist = direction > 0 ? m.mesh.position.x - _modDrag.startX : _modDrag.startX - m.mesh.position.x;
+              if (dist > 0 && dist < closestDist) { closestDist = dist; closestIdx = m.moduleIndex; }
+            });
+            // 이전 하이라이트 해제 + 새 하이라이트 적용
+            if (_modDrag.highlightedIdx !== closestIdx) {
+              _modDrag.samePosMeshes.forEach(m => {
+                m.mesh.material.opacity = (m.moduleIndex === closestIdx && Math.abs(worldDelta) > 50) ? 1.0 : 0.85;
+                if (m.moduleIndex === closestIdx && Math.abs(worldDelta) > 50) {
+                  m.mesh.material.color.setHex(0xfef3c7); // 노란 하이라이트
+                } else if (m.mesh.userData._origColor) {
+                  m.mesh.material.color.setHex(m.mesh.userData._origColor);
+                }
+              });
+              _modDrag.highlightedIdx = closestIdx;
+            }
             renderer.domElement.style.cursor = 'grabbing';
             return;
           }
@@ -1032,6 +1064,12 @@
             renderer.domElement.releasePointerCapture(event.pointerId);
             renderer.domElement.style.cursor = '';
             if (controls) controls.enabled = true;
+            // 드래그 모듈 + 하이라이트 복원
+            _modDrag.mesh.material.opacity = 1.0;
+            _modDrag.samePosMeshes.forEach(m => {
+              m.mesh.material.opacity = 1.0;
+              if (m.mesh.userData._origColor) m.mesh.material.color.setHex(m.mesh.userData._origColor);
+            });
 
             if (_utilDragged) {
               const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
