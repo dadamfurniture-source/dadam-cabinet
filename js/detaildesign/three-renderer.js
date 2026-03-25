@@ -11,6 +11,8 @@
         let hoveredMesh = null;
         let isInitialized = false;
         let labelSprites = [];
+        let resizeObserver = null;
+        let lights = [];
 
         // ─── Front View 색상 통일 ───
         const COLORS = {
@@ -121,6 +123,7 @@
           scene.add(dirLight);
           const hemiLight = new THREE.HemisphereLight(0xffffff, 0xf5f5f5, 0.15);
           scene.add(hemiLight);
+          lights = [ambient, dirLight, hemiLight];
 
           // 이벤트
           renderer.domElement.addEventListener('click', onMouseClick);
@@ -154,7 +157,7 @@
           container.appendChild(btnBar);
 
           // 리사이즈 — 듀얼 카메라 모두 업데이트
-          const ro = new ResizeObserver(() => {
+          resizeObserver = new ResizeObserver(() => {
             if (!container || !renderer) return;
             const nw = container.clientWidth;
             const nh = container.clientHeight || 450;
@@ -171,7 +174,7 @@
             perspCamera.updateProjectionMatrix();
             renderer.setSize(nw, nh);
           });
-          ro.observe(container);
+          resizeObserver.observe(container);
 
           isInitialized = true;
           animate();
@@ -1053,8 +1056,7 @@
           // 라벨도 같이 이동
           if (_utilDrag.labels) _utilDrag.labels.forEach(l => { l.position.x = newX; });
           renderer.domElement.style.cursor = 'ew-resize';
-          // 깜빡임 방지: scene 재생성 없이 render만 호출
-          if (renderer && camera) renderer.render(scene, camera);
+          // animate 루프가 렌더링 처리 (수동 render 호출 제거 → 이중 렌더 방지)
         }
 
         function onUtilityDragEnd(event) {
@@ -1235,16 +1237,44 @@
           if (typeof highlightSelectedModule === 'function') highlightSelectedModule();
         }
 
+        function disposeObject(obj) {
+          if (!obj) return;
+          // Dispose children first
+          if (obj.children) {
+            [...obj.children].forEach(child => disposeObject(child));
+          }
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+            } else {
+              if (obj.material.map) obj.material.map.dispose();
+              obj.material.dispose();
+            }
+          }
+        }
+
         function dispose() {
           if (animFrameId) cancelAnimationFrame(animFrameId);
-          moduleMeshes.forEach(({ mesh }) => { scene.remove(mesh); if (mesh.geometry) mesh.geometry.dispose(); });
+          // Dispose all module meshes and their children
+          moduleMeshes.forEach(({ mesh }) => { disposeObject(mesh); scene.remove(mesh); });
           moduleMeshes = [];
-          labelSprites.forEach(s => { scene.remove(s); });
+          // Dispose label sprites and their textures
+          labelSprites.forEach(s => { disposeObject(s); scene.remove(s); });
           labelSprites = [];
+          // Remove lights
+          lights.forEach(l => scene.remove(l));
+          lights = [];
+          // Disconnect ResizeObserver
+          if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
           if (renderer) {
+            // Remove ALL event listeners
             renderer.domElement.removeEventListener('click', onMouseClick);
             renderer.domElement.removeEventListener('dblclick', onMouseDblClick);
             renderer.domElement.removeEventListener('pointermove', onMouseMove);
+            renderer.domElement.removeEventListener('pointerdown', onUtilityDragStart);
+            renderer.domElement.removeEventListener('pointermove', onUtilityDragMove);
+            renderer.domElement.removeEventListener('pointerup', onUtilityDragEnd);
             if (container && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
             renderer.dispose();
           }

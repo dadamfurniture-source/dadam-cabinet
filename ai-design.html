@@ -3714,6 +3714,10 @@ Magazine quality, professional lighting.`;
       // Partner Recommendation
       // ═══════════════════════════════════════════════════════════════
       function goToPartnerRecommendation() {
+        if (!state.results || state.results.length === 0) {
+          alert('디자인 결과가 없습니다. 먼저 이미지를 업로드해주세요.');
+          return;
+        }
         const context = {
           categories: Object.keys(state.uploadedImages),
           style: state.selectedStyle,
