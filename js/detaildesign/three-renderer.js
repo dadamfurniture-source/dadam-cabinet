@@ -301,14 +301,26 @@
 
         // ─── 모듈 → 3D 메시 (Front View 디자인 통일) ───
         function updateScene(item, upperModules, lowerModules, showDoors) {
-          // 정리
+          // 정리 — 자식 메시(edges 등)까지 재귀 dispose
+          function disposeObject(obj) {
+            if (obj.children) {
+              while (obj.children.length > 0) {
+                disposeObject(obj.children[0]);
+                obj.remove(obj.children[0]);
+              }
+            }
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+              if (Array.isArray(obj.material)) obj.material.forEach(m => { m.map?.dispose(); m.dispose(); });
+              else { obj.material.map?.dispose(); obj.material.dispose(); }
+            }
+          }
           moduleMeshes.forEach(({ mesh }) => {
+            disposeObject(mesh);
             scene.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) { if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose()); else mesh.material.dispose(); }
           });
           moduleMeshes = [];
-          labelSprites.forEach(s => { scene.remove(s); s.material.map?.dispose(); s.material.dispose(); });
+          labelSprites.forEach(s => { disposeObject(s); scene.remove(s); });
           labelSprites = [];
 
           const W = _lastW = parseFloat(item.w) || 3000;
@@ -521,13 +533,13 @@
             rangeMesh.userData = { isDraggable: true, dragType: 'water' };
             scene.add(rangeMesh);
             moduleMeshes.push({ mesh: rangeMesh, moduleIndex: null });
-            // 시작/끝 수직 파이프
-            [ws, we].forEach(px => {
-              const pipeGeo = new THREE.CylinderGeometry(6, 6, legH + 230, 8);
-              const pipeMat = new THREE.MeshPhongMaterial({ color: 0x42A5F5 });
+            // 시작/끝 수직 파이프 (개별 드래그 가능)
+            [{ px: ws, type: 'waterStart' }, { px: we, type: 'waterEnd' }].forEach(({ px, type }) => {
+              const pipeGeo = new THREE.CylinderGeometry(8, 8, legH + 230, 8);
+              const pipeMat = new THREE.MeshPhongMaterial({ color: 0x1E88E5 });
               const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
               pipeMesh.position.set(px, (legH + 230) / 2, -15);
-              pipeMesh.userData = { isDraggable: true, dragType: 'water' };
+              pipeMesh.userData = { isDraggable: true, dragType: type };
               scene.add(pipeMesh);
               moduleMeshes.push({ mesh: pipeMesh, moduleIndex: null });
             });
@@ -631,54 +643,70 @@
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
           const meshes = moduleMeshes.map(m => m.mesh);
-          const intersects = raycaster.intersectObjects(meshes);
+          const intersects = raycaster.intersectObjects(meshes, true); // true: 자식도 hit-test
           if (intersects.length > 0) {
-            const hit = intersects[0].object;
-            return moduleMeshes.find(m => m.mesh === hit) || null;
+            let hit = intersects[0].object;
+            // 자식(edge line 등)이 hit되면 부모에서 찾기
+            let entry = moduleMeshes.find(m => m.mesh === hit);
+            if (!entry && hit.parent) entry = moduleMeshes.find(m => m.mesh === hit.parent);
+            return entry || null;
           }
           return null;
         }
 
         function onMouseClick(event) {
+          if (_utilDrag) return; // 드래그 중 클릭 무시
           const entry = getClickedModule(event);
-          if (entry && entry.moduleIndex !== null) {
-            // + 버튼 클릭 → 모듈 추가
-            if (entry.moduleIndex === -1 || entry.moduleIndex === -2) {
-              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-              if (uid) {
-                const item = typeof getItem === 'function' ? getItem(uid) : null;
-                if (item) {
-                  const pos = entry.moduleIndex === -2 ? 'upper' : 'lower';
-                  const newMod = { pos, type: 'storage', w: 600, name: '수납장', doorCount: 1 };
-                  if (pos === 'lower') newMod.isDrawer = false;
-                  item.modules.push(newMod);
-                  if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
-                }
+          if (!entry) {
+            close3DModulePopup();
+            return;
+          }
+
+          // ★ 분배기/환풍구 클릭 → 배관 치수 팝업
+          if (entry.mesh?.userData?.isDraggable) {
+            const dragType = entry.mesh.userData.dragType;
+            showUtilityPopup(dragType, event.clientX, event.clientY);
+            return;
+          }
+
+          if (entry.moduleIndex === null) {
+            close3DModulePopup();
+            return;
+          }
+
+          // + 버튼 클릭 → 모듈 추가
+          if (entry.moduleIndex === -1 || entry.moduleIndex === -2) {
+            const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+            if (uid) {
+              const item = typeof getItem === 'function' ? getItem(uid) : null;
+              if (item) {
+                const pos = entry.moduleIndex === -2 ? 'upper' : 'lower';
+                const newMod = { pos, type: 'storage', w: 600, name: '수납장', doorCount: 1 };
+                if (pos === 'lower') newMod.isDrawer = false;
+                item.modules.push(newMod);
+                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
               }
+            }
+            return;
+          }
+          // ★ spacer 클릭 → 수납장으로 교체
+          const uid2 = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          if (uid2) {
+            const item2 = typeof getItem === 'function' ? getItem(uid2) : null;
+            if (item2 && item2.modules[entry.moduleIndex]?.isSpacer) {
+              if (typeof pushUndo === 'function') pushUndo(item2);
+              const spacer = item2.modules[entry.moduleIndex];
+              item2.modules[entry.moduleIndex] = {
+                pos: spacer.pos, type: 'storage', name: '수납장', w: spacer.w, doorCount: 1,
+              };
+              if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item2);
               return;
             }
-            // ★ spacer 클릭 → 수납장으로 교체
-            const uid2 = typeof currentItemId !== 'undefined' ? currentItemId : null;
-            if (uid2) {
-              const item2 = typeof getItem === 'function' ? getItem(uid2) : null;
-              if (item2 && item2.modules[entry.moduleIndex]?.isSpacer) {
-                if (typeof pushUndo === 'function') pushUndo(item2);
-                const spacer = item2.modules[entry.moduleIndex];
-                item2.modules[entry.moduleIndex] = {
-                  pos: spacer.pos, type: 'storage', name: '수납장', w: spacer.w, doorCount: 1,
-                };
-                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item2);
-                return;
-              }
-            }
-            window._selectedModuleIndex = entry.moduleIndex;
-            highlightModule(entry.moduleIndex);
-            // ★ 치수 입력 팝업 표시
-            show3DModulePopup(entry.moduleIndex, event.clientX, event.clientY);
-          } else {
-            // 빈 공간 클릭 → 팝업 닫기
-            close3DModulePopup();
           }
+          window._selectedModuleIndex = entry.moduleIndex;
+          highlightModule(entry.moduleIndex);
+          // ★ 치수 입력 팝업 표시
+          show3DModulePopup(entry.moduleIndex, event.clientX, event.clientY);
         }
 
         // ★ 더블클릭 → 즉시 삭제 (빈 공간으로 대체 — 나머지 모듈 위치 유지)
@@ -775,10 +803,82 @@
 
         function close3DModulePopup() {
           document.getElementById('three-module-popup')?.remove();
+          document.getElementById('three-utility-popup')?.remove();
         }
 
+        // ★ 분배기/환풍구 치수 입력 팝업
+        function showUtilityPopup(dragType, clientX, clientY) {
+          close3DModulePopup();
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          if (!item) return;
+
+          const popup = document.createElement('div');
+          popup.id = 'three-utility-popup';
+          popup.style.cssText = `
+            position:fixed;left:${clientX+10}px;top:${clientY-10}px;
+            background:#fff;border:2px solid ${dragType==='water'?'#2196F3':'#78909C'};border-radius:10px;
+            padding:14px 16px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.15);
+            font-size:13px;min-width:200px;font-family:Pretendard,sans-serif;
+          `;
+
+          if (dragType === 'water' || dragType === 'waterStart' || dragType === 'waterEnd') {
+            popup.innerHTML = `
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <b style="font-size:14px;color:#1565C0;">💧 분배기 위치</b>
+                <span style="cursor:pointer;font-size:18px;color:#999;" onclick="document.getElementById('three-utility-popup')?.remove()">✕</span>
+              </div>
+              <div style="display:grid;grid-template-columns:70px 1fr;gap:6px;align-items:center;">
+                <label style="color:#666;font-size:12px;">시작 (mm)</label>
+                <input type="number" value="${item.specs.distributorStart||0}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                  onchange="window._updateUtility('distributorStart',this.value)"/>
+                <label style="color:#666;font-size:12px;">끝 (mm)</label>
+                <input type="number" value="${item.specs.distributorEnd||0}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                  onchange="window._updateUtility('distributorEnd',this.value)"/>
+              </div>
+              <div style="margin-top:8px;font-size:10px;color:#999;">기준: ${item.specs.measurementBase==='Left'?'좌':'우'}측에서 거리 (mm)</div>
+            `;
+          } else {
+            popup.innerHTML = `
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <b style="font-size:14px;color:#37474F;">🌀 환풍구 위치</b>
+                <span style="cursor:pointer;font-size:18px;color:#999;" onclick="document.getElementById('three-utility-popup')?.remove()">✕</span>
+              </div>
+              <div style="display:grid;grid-template-columns:70px 1fr;gap:6px;align-items:center;">
+                <label style="color:#666;font-size:12px;">위치 (mm)</label>
+                <input type="number" value="${item.specs.ventStart||0}" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"
+                  onchange="window._updateUtility('ventStart',this.value)"/>
+              </div>
+              <div style="margin-top:8px;font-size:10px;color:#999;">기준: ${item.specs.measurementBase==='Left'?'좌':'우'}측에서 거리 (mm)</div>
+            `;
+          }
+
+          document.body.appendChild(popup);
+          requestAnimationFrame(() => {
+            const pr = popup.getBoundingClientRect();
+            if (pr.right > window.innerWidth) popup.style.left = (window.innerWidth - pr.width - 10) + 'px';
+            if (pr.bottom > window.innerHeight) popup.style.top = (window.innerHeight - pr.height - 10) + 'px';
+          });
+        }
+
+        // 전역: 배관 치수 업데이트
+        window._updateUtility = function(field, value) {
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          if (!item) return;
+          if (typeof pushUndo === 'function') pushUndo(item);
+          item.specs[field] = parseFloat(value) || 0;
+          // 절대좌표 초기화 → 렌더러에서 재계산
+          delete item.specs.waterSupplyPosition;
+          delete item.specs.exhaustPosition;
+          delete item.specs.distributorStartAbs;
+          delete item.specs.distributorEndAbs;
+          document.getElementById('three-utility-popup')?.remove();
+          if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+        };
+
         // ─── 분배기/환풍구 드래그 ───
-        let _utilDrag = null; // { dragType, startClientX, startWorldX, meshes[], W, startBound, endBound, isRefLeft }
+        let _utilDrag = null;
 
         function onUtilityDragStart(event) {
           if (!renderer) return;
@@ -787,19 +887,22 @@
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
           raycaster.setFromCamera(pointer, camera);
           const allMeshes = moduleMeshes.map(m => m.mesh);
-          const intersects = raycaster.intersectObjects(allMeshes);
+          const intersects = raycaster.intersectObjects(allMeshes, true);
           if (intersects.length === 0) return;
-          const hit = intersects[0].object;
+          let hit = intersects[0].object;
+          // 자식 hit → 부모 확인
+          if (!hit.userData?.isDraggable && hit.parent?.userData?.isDraggable) hit = hit.parent;
           if (!hit.userData?.isDraggable) return;
 
           event.stopPropagation();
           renderer.domElement.setPointerCapture(event.pointerId);
 
-          // 같은 dragType의 모든 메시 수집 (분배기: 원기둥+파이프, 환풍구: 박스+그릴)
           const dragType = hit.userData.dragType;
-          const relatedMeshes = moduleMeshes
-            .filter(m => m.mesh.userData?.isDraggable && m.mesh.userData.dragType === dragType)
-            .map(m => m.mesh);
+          // waterStart/waterEnd: 개별 파이프만 이동, water/vent: 전체 이동
+          const isSinglePipe = dragType === 'waterStart' || dragType === 'waterEnd';
+          const relatedMeshes = isSinglePipe
+            ? [hit]
+            : moduleMeshes.filter(m => m.mesh.userData?.isDraggable && m.mesh.userData.dragType === dragType).map(m => m.mesh);
 
           const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
           const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
@@ -820,7 +923,6 @@
             isRefLeft: item.specs?.measurementBase === 'Left',
           };
 
-          // OrbitControls 비활성화
           if (controls) controls.enabled = false;
         }
 
@@ -828,19 +930,14 @@
           if (!_utilDrag) return;
           event.stopPropagation();
 
-          // 마우스 X delta → 월드 좌표 delta (OrthographicCamera)
           const pxDelta = event.clientX - _utilDrag.startClientX;
           const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
           const worldDelta = pxDelta * worldPerPx;
 
           let newX = _utilDrag.startWorldX + worldDelta;
-          // 클램핑
-          newX = Math.max(_utilDrag.startBound + 60, Math.min(_utilDrag.endBound - 60, newX));
+          newX = Math.max(_utilDrag.startBound + 30, Math.min(_utilDrag.endBound - 30, newX));
 
-          // 관련 메시 모두 이동
           _utilDrag.meshes.forEach(m => { m.position.x = newX; });
-
-          // 커서 변경
           renderer.domElement.style.cursor = 'ew-resize';
         }
 
@@ -849,38 +946,55 @@
           event.stopPropagation();
           renderer.domElement.releasePointerCapture(event.pointerId);
           renderer.domElement.style.cursor = '';
-
-          // OrbitControls 복원
           if (controls) controls.enabled = true;
 
-          // 최종 위치 → item.specs에 저장
           const finalX = _utilDrag.meshes[0].position.x;
           const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
           const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
 
           if (item) {
             if (typeof pushUndo === 'function') pushUndo(item);
+            const { dragType, isRefLeft, startBound, endBound } = _utilDrag;
 
-            if (_utilDrag.dragType === 'water') {
-              // 절대좌표 → 상대좌표 역변환 (범위 전체 이동)
-              const relPos = _utilDrag.isRefLeft
-                ? finalX - _utilDrag.startBound
-                : _utilDrag.endBound - finalX;
+            if (dragType === 'waterStart') {
+              // 시작 파이프만 이동 → distributorStart 변경
+              const relPos = isRefLeft ? finalX - startBound : endBound - finalX;
+              if (isRefLeft) {
+                item.specs.distributorStart = Math.max(0, Math.round(relPos));
+              } else {
+                item.specs.distributorEnd = Math.max(0, Math.round(relPos));
+              }
+            } else if (dragType === 'waterEnd') {
+              // 끝 파이프만 이동 → distributorEnd 변경
+              const relPos = isRefLeft ? finalX - startBound : endBound - finalX;
+              if (isRefLeft) {
+                item.specs.distributorEnd = Math.max(0, Math.round(relPos));
+              } else {
+                item.specs.distributorStart = Math.max(0, Math.round(relPos));
+              }
+            } else if (dragType === 'water') {
+              // 범위 박스/수평파이프 드래그 → 전체 이동
+              const relPos = isRefLeft ? finalX - startBound : endBound - finalX;
               const halfSpan = (parseFloat(item.specs.distributorEnd) - parseFloat(item.specs.distributorStart)) / 2 || 100;
               item.specs.distributorStart = Math.max(0, Math.round(relPos - halfSpan));
               item.specs.distributorEnd = Math.round(relPos + halfSpan);
-              item.specs.waterSupplyPosition = Math.round(finalX);
-              const absS = _utilDrag.isRefLeft ? _utilDrag.startBound + item.specs.distributorStart : _utilDrag.endBound - item.specs.distributorEnd;
-              const absE = _utilDrag.isRefLeft ? _utilDrag.startBound + item.specs.distributorEnd : _utilDrag.endBound - item.specs.distributorStart;
-              item.specs.distributorStartAbs = Math.round(Math.min(absS, absE));
-              item.specs.distributorEndAbs = Math.round(Math.max(absS, absE));
-            } else if (_utilDrag.dragType === 'vent') {
-              const relPos = _utilDrag.isRefLeft
-                ? finalX - _utilDrag.startBound
-                : _utilDrag.endBound - finalX;
+            } else if (dragType === 'vent') {
+              const relPos = isRefLeft ? finalX - startBound : endBound - finalX;
               item.specs.ventStart = Math.max(0, Math.round(relPos));
-              item.specs.exhaustPosition = Math.round(finalX);
             }
+
+            // start > end 보정
+            if (parseFloat(item.specs.distributorStart) > parseFloat(item.specs.distributorEnd)) {
+              const tmp = item.specs.distributorStart;
+              item.specs.distributorStart = item.specs.distributorEnd;
+              item.specs.distributorEnd = tmp;
+            }
+
+            // 절대좌표 초기화 → 렌더러에서 재계산
+            delete item.specs.waterSupplyPosition;
+            delete item.specs.exhaustPosition;
+            delete item.specs.distributorStartAbs;
+            delete item.specs.distributorEndAbs;
 
             if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
           }
