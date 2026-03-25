@@ -1140,14 +1140,23 @@
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
 
-        // ★ 3D 뷰 실시간 업데이트 — 항상 render3DView 호출 (DOM 교체 감지 + 재초기화)
+        // ★ 3D 뷰 실시간 업데이트 — 캔버스 재사용 (dispose+init 최소화)
         if (typeof ThreeRenderer !== 'undefined') {
           const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + item.uniqueId);
             if (container && container.clientWidth > 0) {
+              // ★ 기존 캔버스가 살아있으면 새 컨테이너에 이식 (dispose 없이 updateScene만)
+              if (ThreeRenderer.isInitialized() && ThreeRenderer._getCanvas()) {
+                const existingCanvas = ThreeRenderer._getCanvas();
+                if (existingCanvas.parentNode !== container) {
+                  container.appendChild(existingCanvas);
+                }
+                // 뷰 프리셋 버튼 바도 이식
+                const btnBar = ThreeRenderer._getBtnBar && ThreeRenderer._getBtnBar();
+                if (btnBar && btnBar.parentNode !== container) container.appendChild(btnBar);
+              }
               const upperModules = item.modules.filter(m => m.pos === 'upper');
               const lowerModules = item.modules.filter(m => m.pos === 'lower');
-              // 항상 render3DView 호출 — 내부에서 container 변경 감지 → dispose + init
               ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
