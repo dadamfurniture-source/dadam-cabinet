@@ -1220,6 +1220,32 @@
         }
 
         item.modules = item.modules.filter(m => m.pos !== 'lower' && m.pos !== 'upper').concat(merged).concat(upperSorted);
+
+        // ★ 분배기/환풍구 절대좌표를 item.specs에 저장 (3D 뷰에서 표시)
+        if (dStartAbs > 0 && dEndAbs > dStartAbs) {
+          item.specs.waterSupplyPosition = Math.round((dStartAbs + dEndAbs) / 2);
+          item.specs.distributorStartAbs = Math.round(dStartAbs);
+          item.specs.distributorEndAbs = Math.round(dEndAbs);
+        } else {
+          // 폴백: 개수대 모듈 중심에서 분배기 위치 유추
+          const sinkMod2 = merged.find(m => m.type === 'sink');
+          if (sinkMod2) {
+            const sx = parseFloat(sinkMod2.x) || merged.filter(m2 => merged.indexOf(m2) < merged.indexOf(sinkMod2)).reduce((s, m2) => s + (parseFloat(m2.w) || 0), finishL);
+            item.specs.waterSupplyPosition = Math.round(sx + (parseFloat(sinkMod2.w) || 1000) / 2);
+          }
+        }
+        if (ventPos > 0) {
+          const ventAbs2 = isRefLeft ? startBound + ventPos : endBound - ventPos;
+          item.specs.exhaustPosition = Math.round(ventAbs2);
+        } else {
+          // 폴백: 가스대 모듈 중심에서 환풍구 위치 유추
+          const cookMod2 = merged.find(m => m.type === 'cook');
+          if (cookMod2) {
+            const cx = parseFloat(cookMod2.x) || merged.filter(m2 => merged.indexOf(m2) < merged.indexOf(cookMod2)).reduce((s, m2) => s + (parseFloat(m2.w) || 0), finishL);
+            item.specs.exhaustPosition = Math.round(cx + (parseFloat(cookMod2.w) || 600) / 2);
+          }
+        }
+
         renderWorkspaceContent(item);
       }
 
