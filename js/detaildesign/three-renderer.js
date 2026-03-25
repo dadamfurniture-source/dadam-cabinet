@@ -475,8 +475,29 @@
           }
 
           // ═══ 분배기/환풍구 벽면 마커 ═══
-          const waterPos = item.specs?.waterSupplyPosition || item.specs?.sinkPosition;
-          const exhaustPos = item.specs?.exhaustPosition || item.specs?.hoodPosition;
+          const _finishLw = item.specs?.finishLeftType !== 'None' ? (parseFloat(item.specs?.finishLeftWidth) || 0) : 0;
+          const _finishRw = item.specs?.finishRightType !== 'None' ? (parseFloat(item.specs?.finishRightWidth) || 0) : 0;
+          const _isRefLeft = item.specs?.measurementBase === 'Left';
+          const _startBound = _finishLw;
+          const _endBound = W - _finishRw;
+
+          let waterPos = item.specs?.waterSupplyPosition;
+          if (!waterPos) {
+            const ds = parseFloat(item.specs?.distributorStart) || 0;
+            const de = parseFloat(item.specs?.distributorEnd) || 0;
+            if (ds > 0 && de > ds) {
+              const absS = _isRefLeft ? _startBound + ds : _endBound - de;
+              const absE = _isRefLeft ? _startBound + de : _endBound - ds;
+              waterPos = Math.round((absS + absE) / 2);
+            }
+          }
+          let exhaustPos = item.specs?.exhaustPosition;
+          if (!exhaustPos) {
+            const vs = parseFloat(item.specs?.ventStart) || 0;
+            if (vs > 0) {
+              exhaustPos = _isRefLeft ? _startBound + vs : _endBound - vs;
+            }
+          }
 
           if (waterPos) {
             const wx = parseFloat(waterPos);
