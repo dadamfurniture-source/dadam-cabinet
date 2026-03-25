@@ -904,6 +904,9 @@
         let _utilDrag = null;
         let _utilDragged = false; // 드래그 발생 여부 (클릭 구분용)
 
+        // ─── 모듈 드래그 (위치 이동) ───
+        let _modDrag = null;
+
         function onUtilityDragStart(event) {
           if (!renderer) return;
           const rect = renderer.domElement.getBoundingClientRect();
@@ -916,7 +919,22 @@
           let hit = intersects[0].object;
           // 자식 hit → 부모 확인
           if (!hit.userData?.isDraggable && hit.parent?.userData?.isDraggable) hit = hit.parent;
-          if (!hit.userData?.isDraggable) return;
+
+          // ★ 일반 모듈 드래그 감지 (isDraggable이 아닌 경우)
+          if (!hit.userData?.isDraggable) {
+            let entry = moduleMeshes.find(m => m.mesh === hit);
+            if (!entry && hit.parent) entry = moduleMeshes.find(m => m.mesh === hit.parent);
+            if (entry && entry.moduleIndex !== null && entry.moduleIndex >= 0) {
+              // 모듈 드래그 시작
+              _modDrag = { moduleIndex: entry.moduleIndex, startClientX: event.clientX, mesh: entry.mesh, startX: entry.mesh.position.x };
+              _utilDragged = false;
+              if (controls) controls.enabled = false;
+              event.stopPropagation();
+              renderer.domElement.setPointerCapture(event.pointerId);
+              return;
+            }
+            return; // 모듈도 유틸리티도 아님
+          }
 
           event.stopPropagation();
           renderer.domElement.setPointerCapture(event.pointerId);
@@ -959,6 +977,16 @@
         }
 
         function onUtilityDragMove(event) {
+          // ★ 모듈 드래그 이동
+          if (_modDrag) {
+            event.stopPropagation();
+            const pxDelta = event.clientX - _modDrag.startClientX;
+            if (Math.abs(pxDelta) > 3) _utilDragged = true;
+            const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+            _modDrag.mesh.position.x = _modDrag.startX + pxDelta * worldPerPx;
+            renderer.domElement.style.cursor = 'grabbing';
+            return;
+          }
           if (!_utilDrag) return;
           event.stopPropagation();
 
@@ -980,6 +1008,41 @@
         }
 
         function onUtilityDragEnd(event) {
+          // ★ 모듈 드래그 완료 → 순서 재배치
+          if (_modDrag) {
+            event.stopPropagation();
+            renderer.domElement.releasePointerCapture(event.pointerId);
+            renderer.domElement.style.cursor = '';
+            if (controls) controls.enabled = true;
+
+            if (_utilDragged) {
+              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+              const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+              if (item && item.modules[_modDrag.moduleIndex]) {
+                if (typeof pushUndo === 'function') pushUndo(item);
+                const mod = item.modules[_modDrag.moduleIndex];
+                const pos = mod.pos; // upper or lower
+                const samePosMods = item.modules.filter(m => m.pos === pos);
+                const draggedIdx = samePosMods.indexOf(mod);
+                // 드래그 방향으로 인접 모듈과 swap
+                const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+                const pxDelta = event.clientX - _modDrag.startClientX;
+                const worldDelta = pxDelta * worldPerPx;
+                if (Math.abs(worldDelta) > 50) { // 50mm 이상 이동해야 swap
+                  const direction = worldDelta > 0 ? 1 : -1;
+                  const swapIdx = draggedIdx + direction;
+                  if (swapIdx >= 0 && swapIdx < samePosMods.length) {
+                    const globalA = item.modules.indexOf(samePosMods[draggedIdx]);
+                    const globalB = item.modules.indexOf(samePosMods[swapIdx]);
+                    [item.modules[globalA], item.modules[globalB]] = [item.modules[globalB], item.modules[globalA]];
+                  }
+                }
+                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+              }
+            }
+            _modDrag = null;
+            return;
+          }
           if (!_utilDrag) return;
           event.stopPropagation();
           renderer.domElement.releasePointerCapture(event.pointerId);
