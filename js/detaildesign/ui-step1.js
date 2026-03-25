@@ -781,8 +781,8 @@
         }
 
         // 분배기/환풍구 위치 마커 (항상 표시, 드래그 이동)
-        const distStart = parseFloat(item.specs.distributorStart) || Math.round(sinkW * 0.2);
-        const distEnd = parseFloat(item.specs.distributorEnd) || Math.round(sinkW * 0.5);
+        const distStart = parseFloat(item.specs.distributorStart) || Math.round(sinkW * 0.15);
+        const distEnd = parseFloat(item.specs.distributorEnd) || Math.round(sinkW * 0.15 + 700);
         const ventPos = parseFloat(item.specs.ventStart) || Math.round(sinkW * 0.7);
         // 초기값 저장
         if (!item.specs.distributorStart) item.specs.distributorStart = distStart;
