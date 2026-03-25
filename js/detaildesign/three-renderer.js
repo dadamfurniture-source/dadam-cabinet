@@ -585,28 +585,31 @@
           const usedUpperW = upperModules.reduce((s, m) => s + (parseFloat(m.w) || 600), 0) + finishL + finishR;
           const addBtnSize = 100;
 
-          // 하부장 빈 공간에 + 버튼 (구 형태)
+          // 하부장 빈 공간에 + 버튼 (흰 구 + 빨간 +)
+          const addBtnR = addBtnSize / 2;
           if (usedLowerW + addBtnSize < W) {
-            const addGeo = new THREE.SphereGeometry(addBtnSize / 2, 24, 24);
-            const addMat = new THREE.MeshPhongMaterial({ color: 0x4CAF50, transparent: true, opacity: 0.6 });
+            const addGeo = new THREE.SphereGeometry(addBtnR, 24, 24);
+            const addMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
-            addMesh.position.set(lx + addBtnSize / 2 + 20, legH + lowerH / 2, lowerD / 2);
+            const addPosX = lx + addBtnR + 20, addPosY = legH + lowerH / 2, addPosZ = lowerD / 2;
+            addMesh.position.set(addPosX, addPosY, addPosZ);
             addMesh.userData = { isAddButton: true, pos: 'lower' };
             scene.add(addMesh);
             moduleMeshes.push({ mesh: addMesh, moduleIndex: -1 });
-            addLabel('＋', lx + addBtnSize / 2 + 20, legH + lowerH / 2, lowerD + 80, 20, '#2E7D32');
+            addLabel('＋', addPosX, addPosY, addPosZ + addBtnR + 5, 22, '#E53935');
           }
 
-          // 상부장 빈 공간에 + 버튼 (구 형태)
+          // 상부장 빈 공간에 + 버튼 (흰 구 + 빨간 +)
           if (usedUpperW + addBtnSize < W) {
-            const addGeo = new THREE.SphereGeometry(addBtnSize / 2, 24, 24);
-            const addMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.6 });
+            const addGeo = new THREE.SphereGeometry(addBtnR, 24, 24);
+            const addMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
-            addMesh.position.set(ux + addBtnSize / 2 + 20, upperY + upperH / 2, upperD / 2);
+            const addPosX = ux + addBtnR + 20, addPosY = upperY + upperH / 2, addPosZ = upperD / 2;
+            addMesh.position.set(addPosX, addPosY, addPosZ);
             addMesh.userData = { isAddButton: true, pos: 'upper' };
             scene.add(addMesh);
             moduleMeshes.push({ mesh: addMesh, moduleIndex: -2 });
-            addLabel('＋', ux + addBtnSize / 2 + 20, upperY + upperH / 2, upperD + 80, 20, '#1565C0');
+            addLabel('＋', addPosX, addPosY, addPosZ + addBtnR + 5, 22, '#E53935');
           }
 
           // ★ 카메라 위치 + frustum 크기 자동 보정 (자동계산 후 찌그러짐 방지)
@@ -805,6 +808,12 @@
                 <option value="tall" ${mod.type==='tall'?'selected':''}>키큰장</option>
                 <option value="hood" ${mod.type==='hood'?'selected':''}>후드장</option>
               </select>
+              ${(() => {
+                const lShape = item.specs?.lowerLayoutShape || item.specs?.layoutShape || 'I';
+                if (lShape === 'I') return '';
+                const isCorner = mod.isCornerModule;
+                return `<button style="padding:4px 8px;background:${isCorner ? '#7c3aed' : '#e5e7eb'};color:${isCorner ? '#fff' : '#666'};border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;" onclick="window._update3DModule(${moduleIndex},'isCornerModule',${!isCorner})">멍장</button>`;
+              })()}
               <button style="padding:4px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;"
                 onclick="window._delete3DModule(${moduleIndex})">삭제</button>
             </div>
@@ -932,11 +941,18 @@
           const fL = item.specs?.finishLeftType !== 'None' ? (parseFloat(item.specs?.finishLeftWidth) || 0) : 0;
           const fR = item.specs?.finishRightType !== 'None' ? (parseFloat(item.specs?.finishRightWidth) || 0) : 0;
 
+          // 관련 라벨 찾기 (깜빡임 방지용)
+          const hitX = hit.position.x;
+          const relatedLabels = scene.children.filter(c =>
+            c.isSprite && Math.abs(c.position.x - hitX) < 5
+          );
+
           _utilDrag = {
             dragType,
             startClientX: event.clientX,
             startWorldX: hit.position.x,
             meshes: relatedMeshes,
+            labels: relatedLabels,
             W,
             startBound: fL,
             endBound: W - fR,
@@ -961,7 +977,11 @@
           newX = Math.max(_utilDrag.startBound + 30, Math.min(_utilDrag.endBound - 30, newX));
 
           _utilDrag.meshes.forEach(m => { m.position.x = newX; });
+          // 라벨도 같이 이동
+          if (_utilDrag.labels) _utilDrag.labels.forEach(l => { l.position.x = newX; });
           renderer.domElement.style.cursor = 'ew-resize';
+          // 깜빡임 방지: scene 재생성 없이 render만 호출
+          if (renderer && camera) renderer.render(scene, camera);
         }
 
         function onUtilityDragEnd(event) {
@@ -1037,6 +1057,9 @@
             mod.isDrawer = value === 'drawer';
             mod.hasSink = value === 'sink';
             mod.hasCooktop = value === 'cook';
+          } else if (field === 'isCornerModule') {
+            mod.isCornerModule = !!value;
+            if (mod.isCornerModule) mod.name = '멍장';
           } else {
             mod[field] = parseFloat(value) || 0;
           }

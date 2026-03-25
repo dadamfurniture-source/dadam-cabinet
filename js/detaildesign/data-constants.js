@@ -45,6 +45,7 @@
         distributorStart: 0,
         distributorEnd: 0,
         ventStart: 0,
+        secondaryUpperEnabled: true,
         finishLeftType: 'Filler',
         finishLeftWidth: 60,
         finishRightType: 'Filler',
