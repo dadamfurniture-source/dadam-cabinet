@@ -979,19 +979,36 @@
           dEndAbs = Math.max(startBound, Math.min(endBound, dEndAbs));
 
           if (sinkMod) {
-            // ★ 개수대 배치: 분배기를 반드시 커버하되, 범위를 넘지 않도록
-            // 개수대 시작 = 분배기 시작 -100mm (최소 startBound)
-            const sinkX = Math.max(startBound, dStartAbs - 100);
-            // 개수대 끝 = 분배기 끝 +100mm (최대 endBound)
-            const maxEnd = Math.min(endBound, dEndAbs + 100);
-            // 분배기 커버에 필요한 너비 (최소 950mm, 최대 1200mm)
-            const coverW = maxEnd - sinkX;
-            const sinkW = Math.max(950, Math.min(1200, coverW));
+            // ★ 개수대 배치: 분배기가 개수대 내부 유효공간 안에 위치해야 함
+            // 측판 두께 15mm × 2 = 유효공간 = W - 30mm
+            // 조건: 분배기시작 ≥ 개수대X + 15, 분배기끝 ≤ 개수대X + W - 15
+            const SIDE_PANEL = 15; // 측판 두께
+            const distSpan = dEndAbs - dStartAbs; // 분배기 폭
+
+            // 개수대 최소 너비: 분배기 폭 + 양쪽 측판 (최소 950mm, 최대 1200mm)
+            const sinkW = Math.max(950, Math.min(1200, distSpan + SIDE_PANEL * 2));
+
+            // 개수대 초기 배치: 분배기를 내부 중앙에 위치
+            const distCenter = (dStartAbs + dEndAbs) / 2;
+            let sinkX = distCenter - sinkW / 2;
+
+            // 경계 클램핑
+            sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
+
+            // 검증: 분배기가 측판에 닿지 않는지 확인, 필요 시 보정
+            if (dStartAbs < sinkX + SIDE_PANEL) {
+              sinkX = dStartAbs - SIDE_PANEL;
+              sinkX = Math.max(startBound, sinkX);
+            }
+            if (dEndAbs > sinkX + sinkW - SIDE_PANEL) {
+              sinkX = dEndAbs - sinkW + SIDE_PANEL;
+              sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
+            }
 
             sinkMod.x = sinkX;
             sinkMod.w = sinkW;
             sinkMod.endX = sinkX + sinkW;
-            console.log(`[AutoCalc] 개수대: 분배기(${distStart}~${distEnd}) → dAbs(${dStartAbs}~${dEndAbs}) → sink(${sinkX}~${sinkX + sinkW}, W=${sinkW})`);
+            console.log(`[AutoCalc] 개수대: 분배기(${dStartAbs}~${dEndAbs}, 폭${distSpan}) → sink(${sinkX}~${sinkX + sinkW}, W=${sinkW}) 유효공간(${sinkX + SIDE_PANEL}~${sinkX + sinkW - SIDE_PANEL})`);
           }
         } else {
           // ★ 분배기 미입력 시: 기준 방향에 따라 개수대 기본 위치 결정
@@ -1064,17 +1081,22 @@
         if (dStartAbs > 0 && dEndAbs > 0) {
           const sinkMod2 = fixedOccupied.find(m => m.type === 'sink');
           if (sinkMod2) {
-            // 개수대 시작: 분배기 시작 -100mm 이전이어야 함
-            const idealX = Math.max(startBound, dStartAbs - 100);
-            // 개수대 끝: 분배기 끝 +100mm 이내
-            const idealEnd = Math.min(endBound, dEndAbs + 100);
-            // 개수대 너비: 커버 범위 (최소 950, 최대 1200mm)
-            const idealW = Math.max(950, Math.min(1200, idealEnd - idealX));
+            const SIDE_PANEL = 15;
+            const distSpan = dEndAbs - dStartAbs;
+            // 개수대 너비: 분배기 폭 + 양쪽 측판 (최소 950, 최대 1200mm)
+            const idealW = Math.max(950, Math.min(1200, distSpan + SIDE_PANEL * 2));
+            // 분배기 중앙 기준 배치
+            const distCenter = (dStartAbs + dEndAbs) / 2;
+            let idealX = distCenter - idealW / 2;
+            idealX = Math.max(startBound, Math.min(endBound - idealW, idealX));
+            // 검증: 분배기가 측판에 닿지 않도록 보정
+            if (dStartAbs < idealX + SIDE_PANEL) idealX = Math.max(startBound, dStartAbs - SIDE_PANEL);
+            if (dEndAbs > idealX + idealW - SIDE_PANEL) idealX = Math.max(startBound, Math.min(endBound - idealW, dEndAbs - idealW + SIDE_PANEL));
 
             sinkMod2.x = idealX;
             sinkMod2.w = idealW;
             sinkMod2.endX = idealX + idealW;
-            console.log(`[AutoCalc] 개수대 재적용: x=${idealX}, w=${idealW}, end=${idealX + idealW}`);
+            console.log(`[AutoCalc] 개수대 재적용: x=${idealX}, w=${idealW}, 유효(${idealX + SIDE_PANEL}~${idealX + idealW - SIDE_PANEL})`);
             // LT망장도 개수대 우측으로 재배치
             const ltMod2 = fixedOccupied.find(m => m.name === 'LT망장');
             if (ltMod2) {
