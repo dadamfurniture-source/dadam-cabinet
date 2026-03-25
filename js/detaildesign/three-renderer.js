@@ -99,7 +99,7 @@
 
           // 회전 감지 → 카메라 자동 전환 (카메라→타겟 방향 기준, XZ 평면 각도만 사용)
           controls.addEventListener('change', () => {
-            if (_cameraLocked) return; // 초기화/updateScene 중에는 전환 안 함
+            if (_cameraLocked || _utilDrag) return; // 초기화/드래그 중에는 전환 안 함
             // 카메라→타겟 방향에서 XZ 평면 각도만 측정 (Y축 높이 차이 무시)
             const dx = controls.target.x - camera.position.x;
             const dz = controls.target.z - camera.position.z;
@@ -992,17 +992,18 @@
           const pxDelta = event.clientX - _utilDrag.startClientX;
           if (Math.abs(pxDelta) > 3) _utilDragged = true; // 3px 이상 이동 시 드래그로 판정
 
-          // Ortho: frustum 크기 기반, Perspective: FOV + 거리 기반
-          let worldPerPx;
-          if (isOrtho) {
-            worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
-          } else {
-            const dist = camera.position.distanceTo(controls.target);
-            const fovRad = THREE.MathUtils.degToRad(camera.fov);
-            const visibleH = 2 * dist * Math.tan(fovRad / 2);
-            worldPerPx = (visibleH * camera.aspect) / renderer.domElement.clientWidth;
+          // worldPerPx는 드래그 시작 시 한 번만 계산 (캐시)
+          if (!_utilDrag._worldPerPx) {
+            if (isOrtho) {
+              _utilDrag._worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+            } else {
+              const dist = camera.position.distanceTo(controls.target);
+              const fovRad = THREE.MathUtils.degToRad(camera.fov);
+              const visibleH = 2 * dist * Math.tan(fovRad / 2);
+              _utilDrag._worldPerPx = (visibleH * camera.aspect) / renderer.domElement.clientWidth;
+            }
           }
-          const worldDelta = pxDelta * worldPerPx;
+          const worldDelta = pxDelta * _utilDrag._worldPerPx;
 
           let newX = _utilDrag.startWorldX + worldDelta;
           newX = Math.max(_utilDrag.startBound + 30, Math.min(_utilDrag.endBound - 30, newX));
@@ -1011,8 +1012,7 @@
           // 라벨도 같이 이동
           if (_utilDrag.labels) _utilDrag.labels.forEach(l => { l.position.x = newX; });
           renderer.domElement.style.cursor = 'ew-resize';
-          // 깜빡임 방지: scene 재생성 없이 render만 호출
-          if (renderer && camera) renderer.render(scene, camera);
+          // animate() 루프가 렌더링하므로 수동 render 불필요 (이중 렌더 방지)
         }
 
         function onUtilityDragEnd(event) {
@@ -1112,7 +1112,7 @@
         };
 
         function onMouseMove(event) {
-          if (!renderer) return;
+          if (!renderer || _utilDrag) return; // 드래그 중에는 hover 스킵
           const rect = renderer.domElement.getBoundingClientRect();
           pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
