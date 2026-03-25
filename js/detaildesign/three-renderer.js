@@ -585,27 +585,27 @@
           const usedUpperW = upperModules.reduce((s, m) => s + (parseFloat(m.w) || 600), 0) + finishL + finishR;
           const addBtnSize = 100;
 
-          // 하부장 빈 공간에 + 버튼
+          // 하부장 빈 공간에 + 버튼 (구 형태)
           if (usedLowerW + addBtnSize < W) {
-            const addGeo = new THREE.BoxGeometry(addBtnSize, addBtnSize, 10);
-            const addMat = new THREE.MeshBasicMaterial({ color: 0x4CAF50, transparent: true, opacity: 0.6 });
+            const addGeo = new THREE.SphereGeometry(addBtnSize / 2, 24, 24);
+            const addMat = new THREE.MeshPhongMaterial({ color: 0x4CAF50, transparent: true, opacity: 0.6 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
             addMesh.position.set(lx + addBtnSize / 2 + 20, legH + lowerH / 2, lowerD / 2);
             addMesh.userData = { isAddButton: true, pos: 'lower' };
             scene.add(addMesh);
-            moduleMeshes.push({ mesh: addMesh, moduleIndex: -1 }); // -1 = 추가 버튼
+            moduleMeshes.push({ mesh: addMesh, moduleIndex: -1 });
             addLabel('＋', lx + addBtnSize / 2 + 20, legH + lowerH / 2, lowerD + 80, 20, '#2E7D32');
           }
 
-          // 상부장 빈 공간에 + 버튼
+          // 상부장 빈 공간에 + 버튼 (구 형태)
           if (usedUpperW + addBtnSize < W) {
-            const addGeo = new THREE.BoxGeometry(addBtnSize, addBtnSize, 10);
-            const addMat = new THREE.MeshBasicMaterial({ color: 0x2196F3, transparent: true, opacity: 0.6 });
+            const addGeo = new THREE.SphereGeometry(addBtnSize / 2, 24, 24);
+            const addMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.6 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
             addMesh.position.set(ux + addBtnSize / 2 + 20, upperY + upperH / 2, upperD / 2);
             addMesh.userData = { isAddButton: true, pos: 'upper' };
             scene.add(addMesh);
-            moduleMeshes.push({ mesh: addMesh, moduleIndex: -2 }); // -2 = 상부 추가 버튼
+            moduleMeshes.push({ mesh: addMesh, moduleIndex: -2 });
             addLabel('＋', ux + addBtnSize / 2 + 20, upperY + upperH / 2, upperD + 80, 20, '#1565C0');
           }
 
