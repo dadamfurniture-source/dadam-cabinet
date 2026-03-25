@@ -1121,6 +1121,14 @@
             <button style="width:100%;padding:3px;font-size:9px;border:1px dashed #ccc;background:#fff;border-radius:3px;cursor:pointer;color:#888;" onclick="addAccessory(${item.uniqueId})">+ 추가</button>
           </div>
         </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#2563eb;margin-bottom:4px;">배관 위치 (mm)</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div><label style="font-size:9px;color:#666;">분배기 시작</label><input type="number" style="width:100%;font-size:10px;padding:1px;" value="${item.specs.distributorStart || 0}" onchange="updateSpec(${item.uniqueId},'distributorStart',parseFloat(this.value)||0)"></div>
+            <div><label style="font-size:9px;color:#666;">분배기 끝</label><input type="number" style="width:100%;font-size:10px;padding:1px;" value="${item.specs.distributorEnd || 0}" onchange="updateSpec(${item.uniqueId},'distributorEnd',parseFloat(this.value)||0)"></div>
+            <div><label style="font-size:9px;color:#666;">환풍구</label><input type="number" style="width:100%;font-size:10px;padding:1px;" value="${item.specs.ventStart || 0}" onchange="updateSpec(${item.uniqueId},'ventStart',parseFloat(this.value)||0)"></div>
+          </div>
+        </div>
       </div>
     </div>
 
