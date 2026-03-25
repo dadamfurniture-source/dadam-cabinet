@@ -132,12 +132,11 @@
           const hemiLight = new THREE.HemisphereLight(0xffffff, 0xf5f5f5, 0.15);
           scene.add(hemiLight);
 
-          // 이벤트
+          // 이벤트 — pointermove 1개로 통합 (이벤트 디스패치 절감)
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('dblclick', onMouseDblClick);
-          renderer.domElement.addEventListener('pointermove', onMouseMoveThrottled);
+          renderer.domElement.addEventListener('pointermove', onPointerMoveUnified);
           renderer.domElement.addEventListener('pointerdown', (e) => { _isDragging = true; _cachedRect = null; onUtilityDragStart(e); });
-          renderer.domElement.addEventListener('pointermove', onUtilityDragMove);
           renderer.domElement.addEventListener('pointerup', (e) => { _isDragging = false; onUtilityDragEnd(e); });
 
           // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
@@ -269,12 +268,14 @@
             controls.target.lerpVectors(startTarget, target, ease);
             if (up) camera.up.set(up[0], up[1], up[2]);
             controls.update();
+            _needsRender = true;
             if (t < 1) requestAnimationFrame(tweenStep);
           }
           tweenStep();
         }
 
         // ─── 플랫 박스 생성 (MeshBasicMaterial — 그림자/조명 없음, 2D 느낌) ───
+        const _edgeCache = new Map(); // EdgesGeometry 캐시 (동일 크기 재사용)
         function addBox(x, y, z, w, h, d, fillColor, strokeColor, moduleIndex, name) {
           const geo = new THREE.BoxGeometry(w, h, d);
           const mat = new THREE.MeshBasicMaterial({
@@ -286,34 +287,32 @@
           mesh.position.set(x + w / 2, y + h / 2, z + d / 2);
           mesh.userData = { moduleIndex, name, type: 'module', w, h, d };
 
-          // 외곽선 — 두꺼운 테두리 (경계 또렷하게)
-          const edges = new THREE.EdgesGeometry(geo);
-          const edgeMat = new THREE.LineBasicMaterial({ color: strokeColor || 0x333333, linewidth: 2 });
+          // 외곽선 — 1개만 (중복 제거, draw call 절감)
+          const eKey = w + '_' + h + '_' + d;
+          let edges = _edgeCache.get(eKey);
+          if (!edges) { edges = new THREE.EdgesGeometry(geo); _edgeCache.set(eKey, edges); }
+          const edgeMat = new THREE.LineBasicMaterial({ color: strokeColor || 0x333333 });
           const line = new THREE.LineSegments(edges, edgeMat);
+          line.raycast = () => {}; // raycaster에서 제외 (성능)
           mesh.add(line);
-
-          // 추가 외곽선 (더 진한 테두리 레이어)
-          const edge2Mat = new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 1, transparent: true, opacity: 0.5 });
-          const line2 = new THREE.LineSegments(edges.clone(), edge2Mat);
-          mesh.add(line2);
 
           scene.add(mesh);
           moduleMeshes.push({ mesh, moduleIndex: (moduleIndex !== undefined && moduleIndex !== null && moduleIndex >= 0) ? moduleIndex : null });
           return mesh;
         }
 
-        // 라벨 스프라이트 (폰트 900% 확대, 앞쪽 배치)
+        // 라벨 스프라이트 (캔버스 256x64 — GPU 텍스처 87% 절감)
         function addLabel(text, x, y, z, fontSize, textColor) {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          canvas.width = 1024; canvas.height = 192;
-          ctx.clearRect(0, 0, 1024, 192);
+          canvas.width = 256; canvas.height = 64;
+          ctx.clearRect(0, 0, 256, 64);
           ctx.fillStyle = textColor || '#666';
-          const scaledFont = (fontSize || 16) * 9;  // 900% 확대 (원본 대비)
+          const scaledFont = (fontSize || 16) * 2.5;
           ctx.font = `bold ${scaledFont}px Pretendard, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(text, 512, 96);
+          ctx.fillText(text, 128, 32);
 
           const texture = new THREE.CanvasTexture(canvas);
           const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
@@ -346,6 +345,7 @@
             scene.remove(mesh);
           });
           moduleMeshes = [];
+          _edgeCache.clear(); // EdgesGeometry 캐시 클리어
           labelSprites.forEach(s => { disposeObject(s); scene.remove(s); });
           labelSprites = [];
 
@@ -393,8 +393,9 @@
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
               spacerMesh.position.set(lx + mw / 2, legH + lowerH / 2, inset + (lowerD - inset * 2) / 2);
               const edges = new THREE.EdgesGeometry(spacerGeo);
-              const edgeMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, linewidth: 1 });
-              spacerMesh.add(new THREE.LineSegments(edges, edgeMat));
+              const edgeLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa }));
+              edgeLine.raycast = () => {};
+              spacerMesh.add(edgeLine);
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
@@ -456,7 +457,9 @@
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
               spacerMesh.position.set(ux + mw / 2, upperY + upperH / 2, upperD / 2);
               const edges = new THREE.EdgesGeometry(spacerGeo);
-              spacerMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa })));
+              const edgeLine2 = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa }));
+              edgeLine2.raycast = () => {};
+              spacerMesh.add(edgeLine2);
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
@@ -551,9 +554,9 @@
             const we = Math.max(_startBound, Math.min(W, _waterEndAbs));
             const rangeW = we - ws;
             const cx = (ws + we) / 2;
-            // 범위 박스 (반투명 파란색)
+            // 범위 박스 (반투명 파란색) — MeshBasicMaterial (셰이더 스위칭 제거)
             const rangeGeo = new THREE.BoxGeometry(rangeW, 60, 20);
-            const rangeMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
+            const rangeMat = new THREE.MeshBasicMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
             const rangeMesh = new THREE.Mesh(rangeGeo, rangeMat);
             rangeMesh.position.set(cx, legH + 200, -15);
             rangeMesh.userData = { isDraggable: true, dragType: 'water' };
@@ -562,7 +565,7 @@
             // 시작/끝 수직 파이프 (개별 드래그 가능)
             [{ px: ws, type: 'waterStart' }, { px: we, type: 'waterEnd' }].forEach(({ px, type }) => {
               const pipeGeo = new THREE.CylinderGeometry(8, 8, legH + 230, 8);
-              const pipeMat = new THREE.MeshPhongMaterial({ color: 0x1E88E5 });
+              const pipeMat = new THREE.MeshBasicMaterial({ color: 0x1E88E5 });
               const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
               pipeMesh.position.set(px, (legH + 230) / 2, -15);
               pipeMesh.userData = { isDraggable: true, dragType: type };
@@ -571,7 +574,7 @@
             });
             // 수평 연결 파이프
             const hPipeGeo = new THREE.CylinderGeometry(5, 5, rangeW, 8);
-            const hPipeMat = new THREE.MeshPhongMaterial({ color: 0x64B5F6 });
+            const hPipeMat = new THREE.MeshBasicMaterial({ color: 0x64B5F6 });
             const hPipeMesh = new THREE.Mesh(hPipeGeo, hPipeMat);
             hPipeMesh.rotation.z = Math.PI / 2;
             hPipeMesh.position.set(cx, legH + 230, -15);
@@ -584,23 +587,22 @@
           if (exhaustPos) {
             const ex = parseFloat(exhaustPos);
             if (ex > 0 && ex < W) {
-              // 환풍구 — 회색 박스 (벽면 상부, 드래그 가능)
+              // 환풍구 — MeshBasicMaterial (셰이더 통일)
               const ventGeo = new THREE.BoxGeometry(120, 120, 30);
-              const ventMat = new THREE.MeshPhongMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
+              const ventMat = new THREE.MeshBasicMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
               const ventMesh = new THREE.Mesh(ventGeo, ventMat);
               ventMesh.position.set(ex, H - 150, -15);
               ventMesh.userData = { isDraggable: true, dragType: 'vent' };
               scene.add(ventMesh);
               moduleMeshes.push({ mesh: ventMesh, moduleIndex: null });
-              // 환풍구 그릴 패턴
+              // 환풍구 그릴 — 자식으로 통합 (별도 draw call 최소화)
+              const slotGeo = new THREE.BoxGeometry(80, 6, 32);
+              const slotMat = new THREE.MeshBasicMaterial({ color: 0x546E7A });
               for (let i = -2; i <= 2; i++) {
-                const slotGeo = new THREE.BoxGeometry(80, 6, 32);
-                const slotMat = new THREE.MeshPhongMaterial({ color: 0x546E7A });
-                const slotMesh = new THREE.Mesh(slotGeo, slotMat);
-                slotMesh.position.set(ex, H - 150 + i * 18, -15);
-                slotMesh.userData = { isDraggable: true, dragType: 'vent' };
-                scene.add(slotMesh);
-                moduleMeshes.push({ mesh: slotMesh, moduleIndex: null });
+                const slotMesh = new THREE.Mesh(slotGeo, slotMat); // geo/mat 공유
+                slotMesh.position.set(0, i * 18, 0); // 부모 기준 상대위치
+                slotMesh.raycast = () => {}; // raycaster 제외
+                ventMesh.add(slotMesh); // 부모의 자식으로 추가
               }
               addLabel('🌀 환풍구', ex, H - 30, 80, 12, '#37474F');
             }
@@ -615,7 +617,7 @@
           const addBtnR = addBtnSize / 2;
           if (usedLowerW + addBtnSize < W) {
             const addGeo = new THREE.SphereGeometry(addBtnR, 24, 24);
-            const addMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
+            const addMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
             const addPosX = lx + addBtnR + 20, addPosY = legH + lowerH / 2, addPosZ = lowerD / 2;
             addMesh.position.set(addPosX, addPosY, addPosZ);
@@ -628,7 +630,7 @@
           // 상부장 빈 공간에 + 버튼 (흰 구 + 빨간 +)
           if (usedUpperW + addBtnSize < W) {
             const addGeo = new THREE.SphereGeometry(addBtnR, 24, 24);
-            const addMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
+            const addMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
             const addMesh = new THREE.Mesh(addGeo, addMat);
             const addPosX = ux + addBtnR + 20, addPosY = upperY + upperH / 2, addPosZ = upperD / 2;
             addMesh.position.set(addPosX, addPosY, addPosZ);
@@ -1123,10 +1125,13 @@
           }
         };
 
-        // rAF throttle wrapper — 프레임당 최대 1회만 hover 체크
-        function onMouseMoveThrottled(event) {
-          if (!renderer || _utilDrag || _isDragging) return; // 모든 드래그 중 hover 스킵
-          // rAF로 throttle (이전 예약이 있으면 스킵)
+        // 통합 pointermove 핸들러 — 드래그 vs hover 분기
+        function onPointerMoveUnified(event) {
+          // 유틸리티 드래그 중 → 드래그 처리만
+          if (_utilDrag) { onUtilityDragMove(event); return; }
+          // OrbitControls/기타 드래그 중 → hover 스킵
+          if (_isDragging || !renderer) return;
+          // rAF throttle — 프레임당 최대 1회만 hover
           if (_hoverRafId) return;
           const cx = event.clientX, cy = event.clientY;
           _hoverRafId = requestAnimationFrame(() => {
@@ -1193,7 +1198,7 @@
           if (renderer) {
             renderer.domElement.removeEventListener('click', onMouseClick);
             renderer.domElement.removeEventListener('dblclick', onMouseDblClick);
-            renderer.domElement.removeEventListener('pointermove', onMouseMoveThrottled);
+            renderer.domElement.removeEventListener('pointermove', onPointerMoveUnified);
             if (container && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
             renderer.dispose();
           }
