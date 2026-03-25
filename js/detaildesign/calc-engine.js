@@ -1030,18 +1030,24 @@
           }
         }
 
-        // ★ LT망장 → 가스대 바로 우측에 배치
-        const ltMod = fixedOccupied.find(m => m.name === 'LT망장' || (m.type === 'storage' && m.isDrawer && parseFloat(m.w) <= 250));
-        if (ltMod && cookMod) {
-          const ltW = parseFloat(ltMod.w) || 200;
-          ltMod.x = cookMod.endX;
+        // ★ LT망장 → 개수대 바로 우측에 배치 (필수장, W=200 고정)
+        let ltMod = fixedOccupied.find(m => m.name === 'LT망장' || (m.type === 'storage' && m.isDrawer && parseFloat(m.w) <= 250));
+        // LT망장이 없으면 필수장으로 자동 생성
+        if (!ltMod && sinkMod) {
+          ltMod = { id: Date.now() + Math.random(), type: 'storage', name: 'LT망장', pos: 'lower', w: 200, d: 550, isDrawer: true, x: 0, endX: 0 };
+          fixedOccupied.push(ltMod);
+        }
+        if (ltMod && sinkMod) {
+          const ltW = 200; // 고정 너비
+          ltMod.w = ltW;
+          ltMod.x = sinkMod.endX;
           ltMod.endX = ltMod.x + ltW;
           // 경계 초과 방지
           if (ltMod.endX > endBound) {
             ltMod.x = endBound - ltW;
             ltMod.endX = endBound;
           }
-          console.log(`[AutoCalc] LT망장: 가스대 우측 X=${ltMod.x}`);
+          console.log(`[AutoCalc] LT망장: 개수대 우측 X=${ltMod.x}`);
         }
 
         // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 재계산
@@ -1069,6 +1075,12 @@
             sinkMod2.w = idealW;
             sinkMod2.endX = idealX + idealW;
             console.log(`[AutoCalc] 개수대 재적용: x=${idealX}, w=${idealW}, end=${idealX + idealW}`);
+            // LT망장도 개수대 우측으로 재배치
+            const ltMod2 = fixedOccupied.find(m => m.name === 'LT망장');
+            if (ltMod2) {
+              ltMod2.x = sinkMod2.endX;
+              ltMod2.endX = ltMod2.x + (parseFloat(ltMod2.w) || 200);
+            }
           }
         }
 
