@@ -260,11 +260,16 @@
           mesh.position.set(x + w / 2, y + h / 2, z + d / 2);
           mesh.userData = { moduleIndex, name, type: 'module', w, h, d };
 
-          // 외곽선 — 1개만 (draw call 절감)
+          // 외곽선 — 두꺼운 테두리 (모듈 구분 강화)
           const edges = new THREE.EdgesGeometry(geo);
-          const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: strokeColor || 0x333333 }));
-          line.raycast = () => {}; // raycaster 제외
+          const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: strokeColor || 0x333333, linewidth: 2 }));
+          line.raycast = () => {};
           mesh.add(line);
+          // 두께 보강 (살짝 확대된 진한 외곽선)
+          const line2 = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 1, transparent: true, opacity: 0.4 }));
+          line2.scale.set(1.003, 1.003, 1.003);
+          line2.raycast = () => {};
+          mesh.add(line2);
 
           scene.add(mesh);
           moduleMeshes.push({ mesh, moduleIndex: (moduleIndex !== undefined && moduleIndex !== null && moduleIndex >= 0) ? moduleIndex : null });
@@ -358,16 +363,18 @@
             if (mod.isSpacer || mod.type === 'spacer') {
               const modIdx = item.modules.indexOf(mod);
               const spacerGeo = new THREE.BoxGeometry(mw, lowerH, lowerD - inset * 2);
-              const spacerMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.3 });
+              const spacerMat = new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.15 });
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
               spacerMesh.position.set(lx + mw / 2, legH + lowerH / 2, inset + (lowerD - inset * 2) / 2);
-              const edges = new THREE.EdgesGeometry(spacerGeo);
-              const edgeMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, linewidth: 1 });
-              spacerMesh.add(new THREE.LineSegments(edges, edgeMat));
+              const sEdges = new THREE.EdgesGeometry(spacerGeo);
+              const sLine = new THREE.LineSegments(sEdges, new THREE.LineDashedMaterial({ color: 0x999999, dashSize: 20, gapSize: 10 }));
+              sLine.computeLineDistances(); // dash 필수
+              sLine.raycast = () => {};
+              spacerMesh.add(sLine);
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
-              addLabel(`＋ ${mw}`, lx + mw / 2, legH + lowerH / 2, lowerD + 80, 15, '#999');
+              addLabel(`＋ 추가 (${mw})`, lx + mw / 2, legH + lowerH / 2, lowerD + 80, 13, '#666');
               lx += mw;
               continue;
             }
@@ -421,15 +428,18 @@
             if (mod.isSpacer || mod.type === 'spacer') {
               const modIdx = item.modules.indexOf(mod);
               const spacerGeo = new THREE.BoxGeometry(mw, upperH, upperD);
-              const spacerMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.3 });
+              const spacerMat = new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.15 });
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
               spacerMesh.position.set(ux + mw / 2, upperY + upperH / 2, upperD / 2);
-              const edges = new THREE.EdgesGeometry(spacerGeo);
-              spacerMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa })));
+              const sEdges2 = new THREE.EdgesGeometry(spacerGeo);
+              const sLine2 = new THREE.LineSegments(sEdges2, new THREE.LineDashedMaterial({ color: 0x999999, dashSize: 20, gapSize: 10 }));
+              sLine2.computeLineDistances();
+              sLine2.raycast = () => {};
+              spacerMesh.add(sLine2);
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
-              addLabel(`＋ ${mw}`, ux + mw / 2, upperY + upperH / 2, upperD + 80, 15, '#999');
+              addLabel(`＋ 추가 (${mw})`, ux + mw / 2, upperY + upperH / 2, upperD + 80, 13, '#666');
               ux += mw;
               continue;
             }
@@ -687,17 +697,23 @@
             }
             return;
           }
-          // ★ spacer 클릭 → 수납장으로 교체
+          // ★ spacer(빈 공간) 클릭 → 자동계산으로 공간 채우기
           const uid2 = typeof currentItemId !== 'undefined' ? currentItemId : null;
           if (uid2) {
             const item2 = typeof getItem === 'function' ? getItem(uid2) : null;
             if (item2 && item2.modules[entry.moduleIndex]?.isSpacer) {
-              if (typeof pushUndo === 'function') pushUndo(item2);
-              const spacer = item2.modules[entry.moduleIndex];
-              item2.modules[entry.moduleIndex] = {
-                pos: spacer.pos, type: 'storage', name: '수납장', w: spacer.w, doorCount: 1,
-              };
-              if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item2);
+              const section = item2.modules[entry.moduleIndex].pos; // 'upper' or 'lower'
+              if (typeof runAutoCalcSection === 'function') {
+                runAutoCalcSection(item2.uniqueId, section);
+              } else {
+                // fallback: 수납장으로 교체
+                if (typeof pushUndo === 'function') pushUndo(item2);
+                const spacer = item2.modules[entry.moduleIndex];
+                item2.modules[entry.moduleIndex] = {
+                  pos: spacer.pos, type: 'storage', name: '수납장', w: spacer.w, doorCount: 1,
+                };
+                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item2);
+              }
               return;
             }
           }
