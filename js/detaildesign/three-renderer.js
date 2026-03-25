@@ -126,6 +126,9 @@
           renderer.domElement.addEventListener('click', onMouseClick);
           renderer.domElement.addEventListener('dblclick', onMouseDblClick);
           renderer.domElement.addEventListener('pointermove', onMouseMove);
+          renderer.domElement.addEventListener('pointerdown', onUtilityDragStart);
+          renderer.domElement.addEventListener('pointermove', onUtilityDragMove);
+          renderer.domElement.addEventListener('pointerup', onUtilityDragEnd);
 
           // ── 뷰 프리셋 버튼 (3D 캔버스 내부 오버레이) ──
           const btnBar = document.createElement('div');
@@ -502,11 +505,12 @@
           if (waterPos) {
             const wx = parseFloat(waterPos);
             if (wx > 0 && wx < W) {
-              // 분배기 — 파란색 원기둥 (벽면 Z=0)
+              // 분배기 — 파란색 원기둥 (벽면 Z=0, 드래그 가능)
               const waterGeo = new THREE.CylinderGeometry(25, 25, 80, 16);
               const waterMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.85 });
               const waterMesh = new THREE.Mesh(waterGeo, waterMat);
               waterMesh.position.set(wx, legH + 200, -15);
+              waterMesh.userData = { isDraggable: true, dragType: 'water' };
               scene.add(waterMesh);
               moduleMeshes.push({ mesh: waterMesh, moduleIndex: null });
               addLabel('💧 분배기', wx, legH + 320, 80, 12, '#1565C0');
@@ -515,6 +519,7 @@
               const pipeMat = new THREE.MeshPhongMaterial({ color: 0x42A5F5 });
               const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
               pipeMesh.position.set(wx, (legH + 200) / 2, -15);
+              pipeMesh.userData = { isDraggable: true, dragType: 'water' };
               scene.add(pipeMesh);
               moduleMeshes.push({ mesh: pipeMesh, moduleIndex: null });
             }
@@ -523,11 +528,12 @@
           if (exhaustPos) {
             const ex = parseFloat(exhaustPos);
             if (ex > 0 && ex < W) {
-              // 환풍구 — 회색 박스 (벽면 상부)
+              // 환풍구 — 회색 박스 (벽면 상부, 드래그 가능)
               const ventGeo = new THREE.BoxGeometry(120, 120, 30);
               const ventMat = new THREE.MeshPhongMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
               const ventMesh = new THREE.Mesh(ventGeo, ventMat);
               ventMesh.position.set(ex, H - 150, -15);
+              ventMesh.userData = { isDraggable: true, dragType: 'vent' };
               scene.add(ventMesh);
               moduleMeshes.push({ mesh: ventMesh, moduleIndex: null });
               // 환풍구 그릴 패턴
@@ -536,6 +542,7 @@
                 const slotMat = new THREE.MeshPhongMaterial({ color: 0x546E7A });
                 const slotMesh = new THREE.Mesh(slotGeo, slotMat);
                 slotMesh.position.set(ex, H - 150 + i * 18, -15);
+                slotMesh.userData = { isDraggable: true, dragType: 'vent' };
                 scene.add(slotMesh);
                 moduleMeshes.push({ mesh: slotMesh, moduleIndex: null });
               }
@@ -750,6 +757,113 @@
 
         function close3DModulePopup() {
           document.getElementById('three-module-popup')?.remove();
+        }
+
+        // ─── 분배기/환풍구 드래그 ───
+        let _utilDrag = null; // { dragType, startClientX, startWorldX, meshes[], W, startBound, endBound, isRefLeft }
+
+        function onUtilityDragStart(event) {
+          if (!renderer) return;
+          const rect = renderer.domElement.getBoundingClientRect();
+          pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(pointer, camera);
+          const allMeshes = moduleMeshes.map(m => m.mesh);
+          const intersects = raycaster.intersectObjects(allMeshes);
+          if (intersects.length === 0) return;
+          const hit = intersects[0].object;
+          if (!hit.userData?.isDraggable) return;
+
+          event.stopPropagation();
+          renderer.domElement.setPointerCapture(event.pointerId);
+
+          // 같은 dragType의 모든 메시 수집 (분배기: 원기둥+파이프, 환풍구: 박스+그릴)
+          const dragType = hit.userData.dragType;
+          const relatedMeshes = moduleMeshes
+            .filter(m => m.mesh.userData?.isDraggable && m.mesh.userData.dragType === dragType)
+            .map(m => m.mesh);
+
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          if (!item) return;
+
+          const W = parseFloat(item.w) || 3000;
+          const fL = item.specs?.finishLeftType !== 'None' ? (parseFloat(item.specs?.finishLeftWidth) || 0) : 0;
+          const fR = item.specs?.finishRightType !== 'None' ? (parseFloat(item.specs?.finishRightWidth) || 0) : 0;
+
+          _utilDrag = {
+            dragType,
+            startClientX: event.clientX,
+            startWorldX: hit.position.x,
+            meshes: relatedMeshes,
+            W,
+            startBound: fL,
+            endBound: W - fR,
+            isRefLeft: item.specs?.measurementBase === 'Left',
+          };
+
+          // OrbitControls 비활성화
+          if (controls) controls.enabled = false;
+        }
+
+        function onUtilityDragMove(event) {
+          if (!_utilDrag) return;
+          event.stopPropagation();
+
+          // 마우스 X delta → 월드 좌표 delta (OrthographicCamera)
+          const pxDelta = event.clientX - _utilDrag.startClientX;
+          const worldPerPx = (camera.right - camera.left) / renderer.domElement.clientWidth;
+          const worldDelta = pxDelta * worldPerPx;
+
+          let newX = _utilDrag.startWorldX + worldDelta;
+          // 클램핑
+          newX = Math.max(_utilDrag.startBound + 60, Math.min(_utilDrag.endBound - 60, newX));
+
+          // 관련 메시 모두 이동
+          _utilDrag.meshes.forEach(m => { m.position.x = newX; });
+
+          // 커서 변경
+          renderer.domElement.style.cursor = 'ew-resize';
+        }
+
+        function onUtilityDragEnd(event) {
+          if (!_utilDrag) return;
+          event.stopPropagation();
+          renderer.domElement.releasePointerCapture(event.pointerId);
+          renderer.domElement.style.cursor = '';
+
+          // OrbitControls 복원
+          if (controls) controls.enabled = true;
+
+          // 최종 위치 → item.specs에 저장
+          const finalX = _utilDrag.meshes[0].position.x;
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+
+          if (item) {
+            if (typeof pushUndo === 'function') pushUndo(item);
+
+            if (_utilDrag.dragType === 'water') {
+              // 절대좌표 → 상대좌표 역변환
+              const relPos = _utilDrag.isRefLeft
+                ? finalX - _utilDrag.startBound
+                : _utilDrag.endBound - finalX;
+              const halfSpan = (parseFloat(item.specs.distributorEnd) - parseFloat(item.specs.distributorStart)) / 2 || 100;
+              item.specs.distributorStart = Math.max(0, Math.round(relPos - halfSpan));
+              item.specs.distributorEnd = Math.round(relPos + halfSpan);
+              item.specs.waterSupplyPosition = Math.round(finalX);
+            } else if (_utilDrag.dragType === 'vent') {
+              const relPos = _utilDrag.isRefLeft
+                ? finalX - _utilDrag.startBound
+                : _utilDrag.endBound - finalX;
+              item.specs.ventStart = Math.max(0, Math.round(relPos));
+              item.specs.exhaustPosition = Math.round(finalX);
+            }
+
+            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+          }
+
+          _utilDrag = null;
         }
 
         // 전역 함수: 모듈 업데이트 + 삭제
