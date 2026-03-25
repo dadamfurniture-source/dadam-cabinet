@@ -48,6 +48,7 @@
         let orthoFront = { x: 0, y: 0, z: 3000 }; // 정면 기본 위치
         let lastRotateAngle = 0;
         const ROTATE_THRESHOLD = 0.05; // 이 각도 이상 회전하면 Perspective 전환
+        let _cameraLocked = false; // 초기화/updateScene 중 카메라 전환 방지
 
         // ─── 초기화: 듀얼 카메라 (Ortho ↔ Perspective 자동 전환) ───
         function init(containerEl) {
@@ -96,13 +97,17 @@
           controls.target.set(1500, 600, 0);
           controls.update();
 
-          // 회전 감지 → 카메라 자동 전환
+          // 회전 감지 → 카메라 자동 전환 (카메라→타겟 방향 기준, XZ 평면 각도만 사용)
           controls.addEventListener('change', () => {
-            const camDir = new THREE.Vector3();
-            camera.getWorldDirection(camDir);
-            // 정면(0,0,-1)과의 각도 차이
-            const frontDir = new THREE.Vector3(0, 0, -1);
-            const angle = camDir.angleTo(frontDir);
+            if (_cameraLocked) return; // 초기화/updateScene 중에는 전환 안 함
+            // 카메라→타겟 방향에서 XZ 평면 각도만 측정 (Y축 높이 차이 무시)
+            const dx = controls.target.x - camera.position.x;
+            const dz = controls.target.z - camera.position.z;
+            const len = Math.sqrt(dx * dx + dz * dz);
+            if (len < 0.001) return;
+            // 정면 = (0, 0, -1) → 카메라가 +Z에서 바라봄 → dz < 0이면 정면
+            const cosAngle = -dz / len; // 정면일 때 1.0
+            const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
 
             if (isOrtho && angle > ROTATE_THRESHOLD) {
               // Ortho → Perspective 전환
@@ -624,6 +629,7 @@
           }
 
           // ★ 카메라 위치 + frustum 크기 자동 보정 (자동계산 후 찌그러짐 방지)
+          _cameraLocked = true; // 카메라 전환 방지 (updateScene 중)
           const maxDim = Math.max(W, H) * 1.3;
           if (orthoCamera) {
             const aspect = (container?.clientWidth || 800) / (container?.clientHeight || 450);
@@ -636,9 +642,14 @@
           if (perspCamera) {
             perspCamera.updateProjectionMatrix();
           }
+          // Ortho 카메라로 복귀 (updateScene 시 항상 정면 뷰)
+          camera = orthoCamera;
+          controls.object = orthoCamera;
+          isOrtho = true;
           controls.target.set(W / 2, H / 2 - 200, 0);
           camera.position.set(W / 2, H / 2, maxDim * 1.2);
           controls.update();
+          _cameraLocked = false;
         }
 
         function getDoorColorHex(name) {
