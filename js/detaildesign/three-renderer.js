@@ -1135,7 +1135,10 @@
             mod.isCornerModule = !!value;
             if (mod.isCornerModule) mod.name = '멍장';
           } else {
-            mod[field] = parseFloat(value) || 0;
+            let v = parseFloat(value) || 0;
+            // 개수대 최소 너비 950mm 제한
+            if (field === 'w' && (mod.type === 'sink' || mod.hasSink) && v < 950) v = 950;
+            mod[field] = v;
           }
           close3DModulePopup();
           if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
