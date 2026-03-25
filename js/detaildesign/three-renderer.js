@@ -17,6 +17,26 @@
         let _isDragging = false; // 마우스 버튼 눌린 상태 (OrbitControls 드래그 포함)
         let _cachedRect = null; // getBoundingClientRect 캐시
         let _rectCacheTime = 0;
+        let _resizeObserver = null; // ResizeObserver 참조 (컨테이너 변경 시 재연결용)
+
+        // 렌더러/카메라 크기를 컨테이너에 동기화
+        function _syncRendererSize() {
+          if (!container || !renderer) return;
+          const nw = container.clientWidth;
+          const nh = container.clientHeight || 450;
+          const na = nw / nh;
+          const fs = 3000;
+          orthoCamera.left = -fs * na / 2;
+          orthoCamera.right = fs * na / 2;
+          orthoCamera.top = fs / 2;
+          orthoCamera.bottom = -fs / 2;
+          orthoCamera.updateProjectionMatrix();
+          perspCamera.aspect = na;
+          perspCamera.updateProjectionMatrix();
+          renderer.setSize(nw, nh);
+          _needsRender = true;
+          _cachedRect = null;
+        }
 
         // ─── Front View 색상 통일 ───
         const COLORS = {
@@ -164,24 +184,11 @@
           _btnBar = btnBar; // 참조 저장 (DOM 교체 시 이식용)
 
           // 리사이즈 — 듀얼 카메라 모두 업데이트
-          const ro = new ResizeObserver(() => {
+          _resizeObserver = new ResizeObserver(() => {
             if (!container || !renderer) return;
-            const nw = container.clientWidth;
-            const nh = container.clientHeight || 450;
-            const na = nw / nh;
-            const fs = 3000;
-            // Ortho
-            orthoCamera.left = -fs * na / 2;
-            orthoCamera.right = fs * na / 2;
-            orthoCamera.top = fs / 2;
-            orthoCamera.bottom = -fs / 2;
-            orthoCamera.updateProjectionMatrix();
-            // Persp
-            perspCamera.aspect = na;
-            perspCamera.updateProjectionMatrix();
-            renderer.setSize(nw, nh);
+            _syncRendererSize();
           });
-          ro.observe(container);
+          _resizeObserver.observe(container);
 
           isInitialized = true;
           animate();
@@ -1203,6 +1210,7 @@
             if (container && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
             renderer.dispose();
           }
+          if (_resizeObserver) { _resizeObserver.disconnect(); _resizeObserver = null; }
           scene = camera = renderer = controls = null;
           container = null;
           _cachedRect = null;
@@ -1217,8 +1225,15 @@
           // ★ 캔버스가 살아있고 새 컨테이너에 이식되었으면 → dispose 없이 updateScene만
           if (isInitialized && renderer && renderer.domElement) {
             if (renderer.domElement.parentNode === containerEl) {
-              // 캔버스가 이미 올바른 컨테이너에 있음 → updateScene만
-              container = containerEl;
+              // 캔버스가 이미 올바른 컨테이너에 있음
+              if (container !== containerEl) {
+                // 컨테이너 변경됨 → 크기 동기화 + ResizeObserver 재연결
+                container = containerEl;
+                if (_resizeObserver) { _resizeObserver.disconnect(); _resizeObserver.observe(container); }
+                _syncRendererSize();
+              } else {
+                container = containerEl;
+              }
               updateScene(item, upperModules, lowerModules, showDoors);
               return;
             }
