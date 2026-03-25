@@ -959,31 +959,14 @@
         ${(() => {
           const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
           if (lShape === 'I') return '';
-          const secMode = item.specs.secondaryDimensionMode || 'unified';
           const secLH = item.specs.lowerSecondaryH || item.specs.lowerH || 870;
           const secUH = item.specs.upperSecondaryH || item.specs.upperH || 720;
           const secLD = item.specs.lowerSecondaryD || item.d || item.defaultD || '';
           const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
+          const secUpperOn = item.specs.secondaryUpperEnabled !== false;
           return `
         <div style="padding:6px;background:#f9f9f9;border-radius:6px;margin-top:4px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;color:#888;">Secondary Line</span>
-            <div style="display:flex;gap:3px;">
-              <button style="padding:2px 6px;font-size:9px;border-radius:3px;border:${secMode === 'unified' ? 'none;background:#888;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${secMode !== 'unified' ? `toggleSecondaryDimensionMode(${item.uniqueId})` : ''}" ${secMode === 'unified' ? 'disabled' : ''}>통합</button>
-              <button style="padding:2px 6px;font-size:9px;border-radius:3px;border:${secMode === 'split' ? 'none;background:#888;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${secMode !== 'split' ? `toggleSecondaryDimensionMode(${item.uniqueId})` : ''}" ${secMode === 'split' ? 'disabled' : ''}>분리</button>
-            </div>
-          </div>
-          ${secMode === 'unified' ? `
-          <div class="spec-row">
-            <div class="spec-field"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryW', this.value); updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)"></div>
-          </div>
-          <div class="spec-row">
-            <div class="spec-field"><label>하부 H</label><input type="number" value="${secLH}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryH', this.value)"></div>
-            <div class="spec-field"><label>하부 D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
-            <div class="spec-field"><label>상부 H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)"></div>
-            <div class="spec-field"><label>상부 D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)"></div>
-          </div>
-          ` : `
+          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">Secondary Line</div>
           <div style="padding:4px 6px;border-left:2px solid #b8956c;margin-bottom:4px;">
             <div style="font-size:9px;font-weight:600;color:#b8956c;margin-bottom:2px;">하부장</div>
             <div class="spec-row">
@@ -992,15 +975,20 @@
               <div class="spec-field"><label>D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
             </div>
           </div>
-          <div style="padding:4px 6px;border-left:2px solid #5a7fa0;">
-            <div style="font-size:9px;font-weight:600;color:#5a7fa0;margin-bottom:2px;">상부장</div>
+          <div style="padding:4px 6px;border-left:2px solid ${secUpperOn ? '#5a7fa0' : '#ccc'};${secUpperOn ? '' : 'opacity:0.5;'}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+              <span style="font-size:9px;font-weight:600;color:${secUpperOn ? '#5a7fa0' : '#aaa'};">상부장</span>
+              <label style="font-size:9px;color:#666;cursor:pointer;display:flex;align-items:center;gap:2px;">
+                <input type="checkbox" ${secUpperOn ? 'checked' : ''} onchange="updateSpec(${item.uniqueId}, 'secondaryUpperEnabled', this.checked); renderWorkspaceContent(getItem(${item.uniqueId}))" style="margin:0;width:12px;height:12px;">
+                <span>사용</span>
+              </label>
+            </div>
             <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)"></div>
-              <div class="spec-field"><label>H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)"></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)"></div>
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
             </div>
           </div>
-          `}
         </div>`;
         })()}
     </div>
