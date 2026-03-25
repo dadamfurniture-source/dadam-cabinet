@@ -3188,8 +3188,45 @@ Magazine quality, professional lighting.`;
       // ═══════════════════════════════════════════════════════════════
       // Category & File Upload
       // ═══════════════════════════════════════════════════════════════
+      // 카테고리 버튼 → 갤러리 카테고리 매핑
+      const catToGallery = {
+        sink: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'],
+        wardrobe: ['wardrobe'],
+        fridge: ['fridge_cabinet'],
+        vanity: ['vanity'],
+        shoe: ['shoe_cabinet'],
+        storage: ['storage_cabinet'],
+      };
+
       function selectCategory(category) {
         document.getElementById(`file-${category}`).click();
+
+        // 해당 품목 갤러리 필터 연동
+        const mapped = catToGallery[category];
+        if (mapped && galleryAllData.length > 0) {
+          filterGalleryMulti(mapped);
+        }
+      }
+
+      function filterGalleryMulti(cats) {
+        const gallery = document.getElementById('productGallery');
+        // 탭 활성 해제 (직접 품목 선택이므로)
+        document.querySelectorAll('.gallery-tab').forEach(t => t.classList.remove('active'));
+
+        const filtered = galleryAllData.filter(d => cats.includes(d.category));
+        const picked = filtered.sort(() => Math.random() - 0.5).slice(0, 8);
+
+        gallery.innerHTML = picked.map(img => {
+          const label = galleryGroups[img.category] || img.category;
+          return `<div class="gallery-item">
+            <img src="${img.image_url}" alt="${label}" loading="lazy" onerror="this.parentElement.remove()">
+            <span class="gallery-badge">${label}</span>
+          </div>`;
+        }).join('');
+
+        if (picked.length === 0) {
+          gallery.innerHTML = '<div class="gallery-loading">해당 품목 이미지가 없습니다</div>';
+        }
       }
 
       function handleFileUpload(category, input) {
