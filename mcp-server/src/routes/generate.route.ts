@@ -10,6 +10,7 @@ import { createLogger } from '../utils/logger.js';
 import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
 import { calculateQuote, type ImageAnalysisResult } from '../services/quote.service.js';
+import { generateRateLimit } from '../middleware/rate-limiter.js';
 
 const log = createLogger('route:generate');
 const router = Router();
@@ -259,7 +260,7 @@ Category: ${category}
 // ═══════════════════════════════════════════════════════════════
 // POST /api/generate — 메인 이미지 생성 엔드포인트
 // ═══════════════════════════════════════════════════════════════
-router.post('/api/generate', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/api/generate', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
 
   try {
