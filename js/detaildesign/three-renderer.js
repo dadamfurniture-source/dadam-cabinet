@@ -482,45 +482,65 @@
           const _startBound = _finishLw;
           const _endBound = W - _finishRw;
 
-          let waterPos = item.specs?.waterSupplyPosition;
-          if (!waterPos) {
-            const ds = parseFloat(item.specs?.distributorStart) || 0;
-            const de = parseFloat(item.specs?.distributorEnd) || 0;
-            if (ds > 0 && de > ds) {
-              const absS = _isRefLeft ? _startBound + ds : _endBound - de;
-              const absE = _isRefLeft ? _startBound + de : _endBound - ds;
-              waterPos = Math.round((absS + absE) / 2);
+          // 분배기 범위 절대좌표 계산
+          let _waterStartAbs = 0, _waterEndAbs = 0;
+          {
+            const dsAbs = parseFloat(item.specs?.distributorStartAbs) || 0;
+            const deAbs = parseFloat(item.specs?.distributorEndAbs) || 0;
+            if (dsAbs > 0 && deAbs > dsAbs) {
+              _waterStartAbs = dsAbs;
+              _waterEndAbs = deAbs;
+            } else {
+              const ds = parseFloat(item.specs?.distributorStart) || 0;
+              const de = parseFloat(item.specs?.distributorEnd) || 0;
+              if (ds > 0 && de > ds) {
+                _waterStartAbs = Math.max(_startBound, _isRefLeft ? _startBound + ds : _endBound - de);
+                _waterEndAbs = Math.min(_endBound, _isRefLeft ? _startBound + de : _endBound - ds);
+              }
             }
           }
           let exhaustPos = item.specs?.exhaustPosition;
           if (!exhaustPos) {
             const vs = parseFloat(item.specs?.ventStart) || 0;
             if (vs > 0) {
-              exhaustPos = _isRefLeft ? _startBound + vs : _endBound - vs;
+              exhaustPos = Math.max(_startBound, Math.min(_endBound, _isRefLeft ? _startBound + vs : _endBound - vs));
             }
           }
 
-          if (waterPos) {
-            const wx = parseFloat(waterPos);
-            if (wx > 0 && wx < W) {
-              // 분배기 — 파란색 원기둥 (벽면 Z=0, 드래그 가능)
-              const waterGeo = new THREE.CylinderGeometry(25, 25, 80, 16);
-              const waterMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.85 });
-              const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-              waterMesh.position.set(wx, legH + 200, -15);
-              waterMesh.userData = { isDraggable: true, dragType: 'water' };
-              scene.add(waterMesh);
-              moduleMeshes.push({ mesh: waterMesh, moduleIndex: null });
-              addLabel('💧 분배기', wx, legH + 320, 80, 12, '#1565C0');
-              // 수직 파이프 라인
-              const pipeGeo = new THREE.CylinderGeometry(8, 8, legH + 200, 8);
+          // 분배기 — 범위 표시 (시작~끝 파란색 영역 + 수직 파이프)
+          if (_waterStartAbs > 0 && _waterEndAbs > _waterStartAbs) {
+            const ws = Math.max(_startBound, Math.min(W, _waterStartAbs));
+            const we = Math.max(_startBound, Math.min(W, _waterEndAbs));
+            const rangeW = we - ws;
+            const cx = (ws + we) / 2;
+            // 범위 박스 (반투명 파란색)
+            const rangeGeo = new THREE.BoxGeometry(rangeW, 60, 20);
+            const rangeMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
+            const rangeMesh = new THREE.Mesh(rangeGeo, rangeMat);
+            rangeMesh.position.set(cx, legH + 200, -15);
+            rangeMesh.userData = { isDraggable: true, dragType: 'water' };
+            scene.add(rangeMesh);
+            moduleMeshes.push({ mesh: rangeMesh, moduleIndex: null });
+            // 시작/끝 수직 파이프
+            [ws, we].forEach(px => {
+              const pipeGeo = new THREE.CylinderGeometry(6, 6, legH + 230, 8);
               const pipeMat = new THREE.MeshPhongMaterial({ color: 0x42A5F5 });
               const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
-              pipeMesh.position.set(wx, (legH + 200) / 2, -15);
+              pipeMesh.position.set(px, (legH + 230) / 2, -15);
               pipeMesh.userData = { isDraggable: true, dragType: 'water' };
               scene.add(pipeMesh);
               moduleMeshes.push({ mesh: pipeMesh, moduleIndex: null });
-            }
+            });
+            // 수평 연결 파이프
+            const hPipeGeo = new THREE.CylinderGeometry(5, 5, rangeW, 8);
+            const hPipeMat = new THREE.MeshPhongMaterial({ color: 0x64B5F6 });
+            const hPipeMesh = new THREE.Mesh(hPipeGeo, hPipeMat);
+            hPipeMesh.rotation.z = Math.PI / 2;
+            hPipeMesh.position.set(cx, legH + 230, -15);
+            hPipeMesh.userData = { isDraggable: true, dragType: 'water' };
+            scene.add(hPipeMesh);
+            moduleMeshes.push({ mesh: hPipeMesh, moduleIndex: null });
+            addLabel(`💧 ${Math.round(ws)}~${Math.round(we)}`, cx, legH + 320, 120, 11, '#1565C0');
           }
 
           if (exhaustPos) {
@@ -842,7 +862,7 @@
             if (typeof pushUndo === 'function') pushUndo(item);
 
             if (_utilDrag.dragType === 'water') {
-              // 절대좌표 → 상대좌표 역변환
+              // 절대좌표 → 상대좌표 역변환 (범위 전체 이동)
               const relPos = _utilDrag.isRefLeft
                 ? finalX - _utilDrag.startBound
                 : _utilDrag.endBound - finalX;
@@ -850,6 +870,10 @@
               item.specs.distributorStart = Math.max(0, Math.round(relPos - halfSpan));
               item.specs.distributorEnd = Math.round(relPos + halfSpan);
               item.specs.waterSupplyPosition = Math.round(finalX);
+              const absS = _utilDrag.isRefLeft ? _utilDrag.startBound + item.specs.distributorStart : _utilDrag.endBound - item.specs.distributorEnd;
+              const absE = _utilDrag.isRefLeft ? _utilDrag.startBound + item.specs.distributorEnd : _utilDrag.endBound - item.specs.distributorStart;
+              item.specs.distributorStartAbs = Math.round(Math.min(absS, absE));
+              item.specs.distributorEndAbs = Math.round(Math.max(absS, absE));
             } else if (_utilDrag.dragType === 'vent') {
               const relPos = _utilDrag.isRefLeft
                 ? finalX - _utilDrag.startBound

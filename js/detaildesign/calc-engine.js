@@ -966,6 +966,9 @@
             dStartAbs = endBound - distEnd;
             dEndAbs = endBound - distStart;
           }
+          // ★ 경계 클램핑 — 실측 치수 외부로 튀어나오지 않도록
+          dStartAbs = Math.max(startBound, Math.min(endBound, dStartAbs));
+          dEndAbs = Math.max(startBound, Math.min(endBound, dEndAbs));
 
           if (sinkMod) {
             // ★ 개수대 배치: 분배기를 반드시 커버하되, 범위를 넘지 않도록
@@ -1002,8 +1005,8 @@
         if (cookMod) {
           const cookW_val = parseFloat(cookMod.w) || 600;
           if (ventPos > 0) {
-            // 환풍구 위치 중심에 가스대 배치
-            let ventAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
+            // 환풍구 위치 중심에 가스대 배치 (경계 클램핑)
+            let ventAbs = Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + ventPos : endBound - ventPos));
             let cookX = ventAbs - cookW_val / 2;
             cookX = Math.max(startBound, Math.min(endBound - cookW_val, cookX));
             cookMod.x = cookX;
@@ -1175,12 +1178,12 @@
         lowerMods.forEach(m => { m._tx = -1; });
 
         if (sinkMod && distStart > 0 && distEnd > distStart) {
-          const dAbs = isRefLeft ? startBound + distStart : endBound - distEnd;
+          const dAbs = Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + distStart : endBound - distEnd));
           sinkMod._tx = Math.max(startBound, dAbs - 100);
         }
         if (cookMod && ventPos > 0) {
           const cw = parseFloat(cookMod.w) || 600;
-          const vAbs = isRefLeft ? startBound + ventPos : endBound - ventPos;
+          const vAbs = Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + ventPos : endBound - ventPos));
           cookMod._tx = Math.max(startBound, Math.min(endBound - cw, vAbs - cw / 2));
         }
 
