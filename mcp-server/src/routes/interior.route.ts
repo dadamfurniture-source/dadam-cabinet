@@ -7,6 +7,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { validateCategory, validateBase64Image, validateMimeType } from '../middleware/input-validator.js';
+import { interiorRateLimit } from '../middleware/rate-limiter.js';
 import type { Category } from '../types/index.js';
 import { searchAndClassifyRules } from '../services/rag-search.service.js';
 import { analyzeWall } from '../services/wall-analysis.service.js';
@@ -16,7 +17,7 @@ import { extractDesignData } from '../services/design-data.service.js';
 const log = createLogger('route:interior');
 const router = Router();
 
-router.post('/webhook/dadam-interior-v4', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/webhook/dadam-interior-v4', interiorRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body;
 

@@ -10,6 +10,8 @@ import { corsMiddleware } from './middleware/cors-config.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requireAuth } from './middleware/auth.js';
+import { globalRateLimit } from './middleware/rate-limiter.js';
+import { securityHeaders } from './middleware/security-headers.js';
 
 // Routes
 import healthRoute from './routes/health.route.js';
@@ -31,7 +33,9 @@ const app = express();
 const PORT = process.env.PORT || process.env.HTTP_PORT || 3200;
 
 // 미들웨어
+app.use(securityHeaders);
 app.use(corsMiddleware);
+app.use(globalRateLimit);
 app.use(express.json({ limit: '50mb' }));
 app.use(requestLogger);
 
