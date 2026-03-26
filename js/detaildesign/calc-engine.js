@@ -1205,6 +1205,15 @@
         renderWorkspaceContent(item);
       }
 
+      function clearAllModules(itemUniqueId) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (!confirm('상부장 + 하부장 모듈을 모두 제거하시겠습니까?')) return;
+        pushUndo(item);
+        item.modules = [];
+        renderWorkspaceContent(item);
+      }
+
       // ★ 경량 재배치: 모듈 삭제 없이 고정 모듈 위치만 재정렬
       function repositionFixedModules(itemUniqueId) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
