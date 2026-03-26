@@ -601,6 +601,7 @@
               <span class="section-remaining" style="color:${remaining >= 0 && remaining <= 10 ? '#90EE90' : remaining < 0 ? '#ff6b6b' : 'white'}">잔여: ${Math.round(remaining)}mm</span>
               <div class="section-buttons">
                 <button class="btn-section-auto" onclick="runWardrobeAutoCalc(${item.uniqueId})">⚡ 자동계산</button>
+                <button class="btn-section-auto" onclick="clearAllModules(${item.uniqueId})" style="background:#fff;color:#dc3545;border:1px solid #f5c6cb;">🗑 전체 제거</button>
               </div>
             </div>
           </div>

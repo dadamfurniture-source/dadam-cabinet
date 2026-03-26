@@ -576,6 +576,7 @@
               <div style="display:flex;align-items:center;gap:8px;">
                 <span class="section-remaining" style="color:${isOverflow ? '#ef4444' : '#10b981'};font-size:11px;">잔여: ${remaining}mm</span>
                 <button class="auto-calc-btn-sm" onclick="autoCalculateFridge(${item.uniqueId})" ${allModules.length === 0 ? 'disabled' : ''}>⚡ 자동계산</button>
+                <button class="auto-calc-btn-sm" onclick="clearAllModules(${item.uniqueId})" style="background:#fff;color:#dc3545;border:1px solid #f5c6cb;">🗑 전체 제거</button>
               </div>
             </div>
           </div>
