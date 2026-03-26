@@ -307,9 +307,10 @@
           if (mod.x < cursor) {
             mod.x = cursor;
           }
-          // ★ endBound 초과 방지: 너비 클램핑 (최소 DOOR_MIN_WIDTH 보장)
+          // ★ endBound 초과 방지: 너비 클램핑 (개수대는 최소 950mm 보장)
           if (mod.x + parseFloat(mod.w) > endBound) {
-            mod.w = Math.max(DOOR_MIN_WIDTH, endBound - mod.x);
+            const minW = mod.type === 'sink' ? 950 : DOOR_MIN_WIDTH;
+            mod.w = Math.max(minW, endBound - mod.x);
             if (mod.x + mod.w > endBound) mod.x = endBound - mod.w;
             if (mod.x < startBound) mod.x = startBound;
           }
@@ -323,7 +324,8 @@
           const mod = fixedList[i];
           if (mod.endX > rightCursor) {
             mod.endX = rightCursor;
-            mod.x = Math.max(startBound, mod.endX - parseFloat(mod.w));
+            const minW = mod.type === 'sink' ? 950 : DOOR_MIN_WIDTH;
+            mod.x = Math.max(startBound, mod.endX - Math.max(minW, parseFloat(mod.w)));
             mod.w = mod.endX - mod.x;
           }
           rightCursor = mod.x;
