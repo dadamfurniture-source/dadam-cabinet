@@ -307,9 +307,9 @@
           if (mod.x < cursor) {
             mod.x = cursor;
           }
-          // ★ endBound 초과 방지: 너비 클램핑 (개수대는 최소 950mm 보장)
+          // ★ endBound 초과 방지: 너비 클램핑 (개수대 950mm, 가스대 600mm 보장)
           if (mod.x + parseFloat(mod.w) > endBound) {
-            const minW = mod.type === 'sink' ? 950 : DOOR_MIN_WIDTH;
+            const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
             mod.w = Math.max(minW, endBound - mod.x);
             if (mod.x + mod.w > endBound) mod.x = endBound - mod.w;
             if (mod.x < startBound) mod.x = startBound;
@@ -324,7 +324,7 @@
           const mod = fixedList[i];
           if (mod.endX > rightCursor) {
             mod.endX = rightCursor;
-            const minW = mod.type === 'sink' ? 950 : DOOR_MIN_WIDTH;
+            const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
             mod.x = Math.max(startBound, mod.endX - Math.max(minW, parseFloat(mod.w)));
             mod.w = mod.endX - mod.x;
           }
@@ -1138,20 +1138,42 @@
             });
           } else if (smallGapTotal > 0 && largeGaps.length === 0 && fixedOccupied.length > 0) {
             // ★ 큰 갭 없음 → 소규격 갭을 인접 고정 모듈에 흡수
-            // ★ 개수대(sink)는 분배기 범위로 고정이므로 흡수 제외
+            // ★ 개수대(sink)·가스대(cook)는 고정 규격이므로 흡수 제외
+            // ★ 흡수 우선순위: 개수대 확장(950~1200mm) > LT망장 인접 > 나머지
+            const isAbsorbable = (f) => f.type !== 'sink' && f.type !== 'cook';
+            const sinkForAbsorb = fixedOccupied.find(f => f.type === 'sink');
+
             gaps.forEach(g => {
               if (g.width >= DOOR_MIN_WIDTH) return;
-              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1 && f.type !== 'sink');
-              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1 && f.type !== 'sink');
+
+              // 1차: 일반 모듈(cook/sink 제외)에 흡수 시도
+              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1 && isAbsorbable(f));
+              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1 && isAbsorbable(f));
+
               if (rightFixed) {
                 rightFixed.x -= g.width;
                 rightFixed.w = parseFloat(rightFixed.w) + g.width;
+                rightFixed.endX = rightFixed.x + parseFloat(rightFixed.w);
               } else if (leftFixed) {
                 leftFixed.w = parseFloat(leftFixed.w) + g.width;
                 leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
+              } else if (sinkForAbsorb) {
+                // 2차: 흡수할 일반 모듈 없으면 개수대 확장 (1200mm 한도 내)
+                const newSinkW = parseFloat(sinkForAbsorb.w) + g.width;
+                if (newSinkW <= 1200) {
+                  // 갭이 개수대 좌측이면 좌측 확장, 우측이면 우측 확장
+                  if (Math.abs(sinkForAbsorb.x - g.end) <= 1) {
+                    sinkForAbsorb.x -= g.width;
+                    sinkForAbsorb.w = newSinkW;
+                  } else {
+                    sinkForAbsorb.w = newSinkW;
+                    sinkForAbsorb.endX = sinkForAbsorb.x + newSinkW;
+                  }
+                  console.log(`[AutoCalc] 개수대 확장: +${g.width}mm → W=${newSinkW}mm`);
+                }
               }
             });
-            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수 (sink 제외)`);
+            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수 (sink/cook 직접흡수 제외, sink 확장 허용)`);
           }
 
           // ★ 각 갭 독립 계산 (RAG 규칙 + 도어 균등 최우선)
