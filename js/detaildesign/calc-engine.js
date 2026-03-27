@@ -246,12 +246,9 @@
 
         let bestResult = allResults.length > 0 ? allResults[0] : null;
 
-        // 폴백: 결과 없으면 강제 균등 분배
+        // 폴백: 결과 없으면 모듈 생성 불가 (갭 흡수 대상)
         if (!bestResult) {
-          const idealCount = Math.round(totalSpace / DOOR_TARGET_WIDTH);
-          const count = Math.max(minCount, Math.min(maxDoorCount, idealCount));
-          const width = Math.floor(totalSpace / count);
-          bestResult = { doorCount: count, doorWidth: Math.max(DOOR_MIN_WIDTH, Math.min(DOOR_MAX_WIDTH, width)), gap: totalSpace - width * count };
+          return { modules: [], doorWidth: 0, doorCount: 0 };
         }
 
         const { doorCount, doorWidth } = bestResult;
@@ -627,16 +624,39 @@
           // ★ 고정 모듈이 유효공간을 초과/가득 참 → 고정 모듈만 배치
           console.warn(`[AutoCalc] 상부장: 고정 모듈(${fixedTotalW}mm) >= 유효공간(${effectiveW}mm) — 고정 모듈만 배치`);
         } else {
-          // ★ 가용 공간 있음 → Gap 계산 → 모듈 생성
-          const gaps = calculateGaps(fixedOccupied, startBound, endBound);
-
+          const spaces = calculateGaps(fixedOccupied, startBound, endBound);
           const hasMoldingUpper = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
           const preferExactUpper = hasMoldingUpper;
 
-          // ★ 빈 공간에 규칙대로 모듈 배치
-          gaps.forEach((space) => {
+          // ★ 빈 공간 분류: 모듈 생성 가능(≥350) vs 갭(<350)
+          const fillable = [];
+          const smallGaps = [];
+          spaces.forEach((s) => {
+            if (s.width >= DOOR_MIN_WIDTH) fillable.push(s);
+            else if (s.width > 0) smallGaps.push(s);
+          });
+
+          fillable.forEach((space) => {
             newModules = newModules.concat(fillSpaceWithModules(space, 'upper', upperBodyH, 295, preferExactUpper));
           });
+
+          // ★ 갭 흡수: 도어 너비가 450에서 가장 먼 모듈부터 흡수
+          if (smallGaps.length > 0) {
+            const totalGap = smallGaps.reduce((s, g) => s + g.width, 0);
+            const absorbable = [...newModules, ...fixedOccupied.filter(f => f.name === '기준상부장(2D)')];
+            absorbable.sort((a, b) => {
+              const aw = parseFloat(a.w) || 0;
+              const bw = parseFloat(b.w) || 0;
+              const aDoorW = a.is2door || a.is2D ? aw / 2 : aw;
+              const bDoorW = b.is2door || b.is2D ? bw / 2 : bw;
+              return Math.abs(bDoorW - DOOR_TARGET_WIDTH) - Math.abs(aDoorW - DOOR_TARGET_WIDTH);
+            });
+            if (absorbable.length > 0) {
+              absorbable[0].w = (parseFloat(absorbable[0].w) || 0) + totalGap;
+              if (absorbable[0].endX !== undefined) absorbable[0].endX = absorbable[0].x + parseFloat(absorbable[0].w);
+              console.log(`[AutoCalc] 상부장 갭 흡수: ${totalGap}mm → ${absorbable[0].name || absorbable[0].type}`);
+            }
+          }
 
           console.log(`상부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${effectiveW - fixedTotalW}mm`);
         }
@@ -736,8 +756,9 @@
             const SIDE_PANEL = 15; // 측판 두께
             const distSpan = dEndAbs - dStartAbs; // 분배기 폭
 
-            // 개수대 최소 너비: 분배기 폭 + 양쪽 측판 (최소 950mm, 최대 1200mm)
-            const sinkW = Math.max(950, Math.min(1200, distSpan + SIDE_PANEL * 2));
+            // 개수대 기본 너비: W ≤ 2500 → 950mm, W > 2500 → 1000mm
+            const sinkBaseW = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
+            const sinkW = Math.max(sinkBaseW, Math.min(1200, distSpan + SIDE_PANEL * 2));
 
             // 개수대 초기 배치: 분배기를 내부 중앙에 위치
             const distCenter = (dStartAbs + dEndAbs) / 2;
@@ -834,8 +855,8 @@
           if (sinkMod2) {
             const SIDE_PANEL = 15;
             const distSpan = dEndAbs - dStartAbs;
-            // 개수대 너비: 분배기 폭 + 양쪽 측판 (최소 950, 최대 1200mm)
-            const idealW = Math.max(950, Math.min(1200, distSpan + SIDE_PANEL * 2));
+            const sinkBaseW2 = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
+            const idealW = Math.max(sinkBaseW2, Math.min(1200, distSpan + SIDE_PANEL * 2));
             // 분배기 중앙 기준 배치
             const distCenter = (dStartAbs + dEndAbs) / 2;
             let idealX = distCenter - idealW / 2;
@@ -863,14 +884,43 @@
           // ★ 고정 모듈이 유효공간을 초과/가득 참 → 고정 모듈만 배치
           console.warn(`[AutoCalc] 하부장: 고정 모듈(${fixedTotalW}mm) >= 유효공간(${effectiveW}mm) — 고정 모듈만 배치`);
         } else {
-          const gaps = calculateGaps(fixedOccupied, startBound, endBound);
+          const spaces = calculateGaps(fixedOccupied, startBound, endBound);
           const hasMolding = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
           const preferExact = hasMolding;
 
-          // ★ 빈 공간에 규칙대로 모듈 배치
-          gaps.forEach((space) => {
+          // ★ 빈 공간 분류: 모듈 생성 가능(≥350) vs 갭(<350)
+          const fillable = [];
+          const smallGaps = [];
+          spaces.forEach((s) => {
+            if (s.width >= DOOR_MIN_WIDTH) fillable.push(s);
+            else if (s.width > 0) smallGaps.push(s);
+          });
+
+          // ★ 모듈 생성 가능한 공간에 배치
+          fillable.forEach((space) => {
             newModules = newModules.concat(fillSpaceWithModules(space, 'lower', defaultLowerH, 550, preferExact));
           });
+
+          // ★ 갭 흡수: 도어 너비가 450에서 가장 먼 모듈부터 흡수
+          // LT망장(200 고정), 가스대(600 고정)는 흡수 대상 제외
+          if (smallGaps.length > 0) {
+            const totalGap = smallGaps.reduce((s, g) => s + g.width, 0);
+            const absorbable = [...newModules, ...fixedOccupied.filter(f => f.type === 'sink')];
+            // 도어 너비 기준 |doorWidth - 450| 내림차순 정렬
+            absorbable.sort((a, b) => {
+              const aw = parseFloat(a.w) || 0;
+              const bw = parseFloat(b.w) || 0;
+              const aDoorW = a.is2door || a.is2D ? aw / 2 : aw;
+              const bDoorW = b.is2door || b.is2D ? bw / 2 : bw;
+              return Math.abs(bDoorW - DOOR_TARGET_WIDTH) - Math.abs(aDoorW - DOOR_TARGET_WIDTH);
+            });
+            if (absorbable.length > 0) {
+              // 가장 이상치가 큰 모듈에 갭 전체 흡수
+              absorbable[0].w = (parseFloat(absorbable[0].w) || 0) + totalGap;
+              if (absorbable[0].endX !== undefined) absorbable[0].endX = absorbable[0].x + parseFloat(absorbable[0].w);
+              console.log(`[AutoCalc] 갭 흡수: ${totalGap}mm → ${absorbable[0].name || absorbable[0].type} (도어편차 최대)`);
+            }
+          }
 
           console.log(`하부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${effectiveW - fixedTotalW}mm`);
         }
