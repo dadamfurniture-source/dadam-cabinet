@@ -689,9 +689,26 @@
           if (entry.mesh?.userData?.isDraggable) {
             const dragType = entry.mesh.userData.dragType;
             if (_utilityClickTimer) {
-              // 더블클릭 — 타이머 취소, 삭제 처리는 onMouseDblClick에서
+              // 더블클릭 — 타이머 취소 + 즉시 삭제
               clearTimeout(_utilityClickTimer);
               _utilityClickTimer = null;
+              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+              const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+              if (item) {
+                close3DModulePopup();
+                if (typeof pushUndo === 'function') pushUndo(item);
+                if (dragType === 'water' || dragType === 'waterStart' || dragType === 'waterEnd') {
+                  item.specs.distributorStart = 0;
+                  item.specs.distributorEnd = 0;
+                  delete item.specs.waterSupplyPosition;
+                  delete item.specs.distributorStartAbs;
+                  delete item.specs.distributorEndAbs;
+                } else if (dragType === 'vent') {
+                  item.specs.ventStart = 0;
+                  delete item.specs.exhaustPosition;
+                }
+                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+              }
             } else {
               // 싱글클릭 대기 (300ms 내 두 번째 클릭 없으면 팝업)
               const cx = event.clientX, cy = event.clientY;
