@@ -885,15 +885,10 @@
           const hasMoldingUpper = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
           const preferExactUpper = hasMoldingUpper;
 
-          // ★ 각 빈 공간에 규칙대로 모듈 배치 (갭 흡수 없음)
+          // ★ 빈 공간에 규칙대로 모듈 배치 (350mm 이상만)
           gaps.forEach((gap) => {
             if (gap.width >= DOOR_MIN_WIDTH) {
               newModules = newModules.concat(fillGapWithModules(gap, 'upper', upperBodyH, 295, 'none', preferExactUpper));
-            } else if (gap.width >= 150) {
-              const drawerMod = createModule('upper', '상부장', gap.width, upperBodyH, 295, false, gap.start);
-              drawerMod.isDrawer = true;
-              drawerMod.name = '상부장(서랍)';
-              newModules.push(drawerMod);
             }
           });
 
@@ -1126,16 +1121,10 @@
           const hasMolding = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
           const preferExact = hasMolding;
 
-          // ★ 모든 갭에 직접 모듈 생성 (갭 흡수 없음)
+          // ★ 빈 공간에 규칙대로 모듈 배치 (350mm 이상만)
           gaps.forEach((gap) => {
             if (gap.width >= DOOR_MIN_WIDTH) {
               newModules = newModules.concat(fillGapWithModules(gap, 'lower', defaultLowerH, 550, 'none', preferExact));
-            } else if (gap.width >= 150) {
-              // 350mm 미만 → 서랍 모듈
-              const drawerMod = createModule('lower', '하부장', gap.width, defaultLowerH, 550, false, gap.start);
-              drawerMod.isDrawer = true;
-              drawerMod.name = '하부장(서랍)';
-              newModules.push(drawerMod);
             }
           });
 
