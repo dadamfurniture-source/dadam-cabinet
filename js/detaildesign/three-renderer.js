@@ -506,28 +506,28 @@
           const _startBound = _finishLw;
           const _endBound = W - _finishRw;
 
-          // 분배기 범위 절대좌표 계산
+          // 분배기 범위 절대좌표 계산 (distributorStart=0이면 표시 안 함)
           let _waterStartAbs = 0, _waterEndAbs = 0;
           {
-            const dsAbs = parseFloat(item.specs?.distributorStartAbs) || 0;
-            const deAbs = parseFloat(item.specs?.distributorEndAbs) || 0;
-            if (dsAbs > 0 && deAbs > dsAbs) {
-              _waterStartAbs = dsAbs;
-              _waterEndAbs = deAbs;
-            } else {
-              const ds = parseFloat(item.specs?.distributorStart) || 0;
-              const de = parseFloat(item.specs?.distributorEnd) || 0;
-              if (ds > 0 && de > ds) {
+            const ds = parseFloat(item.specs?.distributorStart) || 0;
+            const de = parseFloat(item.specs?.distributorEnd) || 0;
+            if (ds > 0 && de > ds) {
+              const dsAbs = parseFloat(item.specs?.distributorStartAbs) || 0;
+              const deAbs = parseFloat(item.specs?.distributorEndAbs) || 0;
+              if (dsAbs > 0 && deAbs > dsAbs) {
+                _waterStartAbs = dsAbs;
+                _waterEndAbs = deAbs;
+              } else {
                 _waterStartAbs = Math.max(_startBound, _isRefLeft ? _startBound + ds : _endBound - de);
                 _waterEndAbs = Math.min(_endBound, _isRefLeft ? _startBound + de : _endBound - ds);
               }
             }
           }
-          let exhaustPos = item.specs?.exhaustPosition;
-          if (!exhaustPos) {
+          let exhaustPos = null;
+          {
             const vs = parseFloat(item.specs?.ventStart) || 0;
             if (vs > 0) {
-              exhaustPos = Math.max(_startBound, Math.min(_endBound, _isRefLeft ? _startBound + vs : _endBound - vs));
+              exhaustPos = parseFloat(item.specs?.exhaustPosition) || Math.max(_startBound, Math.min(_endBound, _isRefLeft ? _startBound + vs : _endBound - vs));
             }
           }
 
