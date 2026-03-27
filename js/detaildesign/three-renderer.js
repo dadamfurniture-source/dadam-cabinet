@@ -597,40 +597,38 @@
           const usedUpperW = upperModules.reduce((s, m) => s + (parseFloat(m.w) || 600), 0) + finishL + finishR;
           const addBtnSize = 100;
 
-          // 하부장 빈 공간 + 버튼
+          // 하부장 빈 공간 + 축소 버튼
           const emptyLowerW = W - usedLowerW;
           if (emptyLowerW > 30) {
-            const btnGeo = new THREE.BoxGeometry(emptyLowerW, lowerBodyH, lowerD - inset * 2);
-            const btnMat = new THREE.MeshBasicMaterial({ color: 0xfafafa, transparent: true, opacity: 0.15 });
+            const btnW = Math.min(80, emptyLowerW);
+            const btnH = 40;
+            const btnGeo = new THREE.BoxGeometry(btnW, btnH, 5);
+            const btnMat = new THREE.MeshBasicMaterial({ color: 0xE53935, transparent: true, opacity: 0.85 });
             const btnMesh = new THREE.Mesh(btnGeo, btnMat);
-            btnMesh.position.set(lx + emptyLowerW / 2, legH + lowerBodyH / 2, inset + (lowerD - inset * 2) / 2);
-            const bEdges = new THREE.EdgesGeometry(btnGeo);
-            const bLine = new THREE.LineSegments(bEdges, new THREE.LineDashedMaterial({ color: 0xcccccc, dashSize: 20, gapSize: 10 }));
-            bLine.computeLineDistances();
-            bLine.raycast = () => {};
-            btnMesh.add(bLine);
+            const btnX = lx + emptyLowerW / 2;
+            const btnY = legH + lowerBodyH / 2;
+            btnMesh.position.set(btnX, btnY, lowerD + 5);
             btnMesh.userData = { isAddButton: true, pos: 'lower' };
             scene.add(btnMesh);
             moduleMeshes.push({ mesh: btnMesh, moduleIndex: -1 });
-            addLabel('＋ 추가', lx + emptyLowerW / 2, legH + lowerBodyH / 2, lowerD + 80, 14, '#E53935');
+            addLabel('＋', btnX, btnY, lowerD + 30, 16, '#ffffff');
           }
 
-          // 상부장 빈 공간 + 버튼
+          // 상부장 빈 공간 + 축소 버튼
           const emptyUpperW = W - usedUpperW;
           if (emptyUpperW > 30) {
-            const btnGeo = new THREE.BoxGeometry(emptyUpperW, upperBodyH, upperD);
-            const btnMat = new THREE.MeshBasicMaterial({ color: 0xfafafa, transparent: true, opacity: 0.15 });
+            const btnW = Math.min(80, emptyUpperW);
+            const btnH = 40;
+            const btnGeo = new THREE.BoxGeometry(btnW, btnH, 5);
+            const btnMat = new THREE.MeshBasicMaterial({ color: 0xE53935, transparent: true, opacity: 0.85 });
             const btnMesh = new THREE.Mesh(btnGeo, btnMat);
-            btnMesh.position.set(ux + emptyUpperW / 2, upperY + upperBodyH / 2, upperD / 2);
-            const bEdges = new THREE.EdgesGeometry(btnGeo);
-            const bLine = new THREE.LineSegments(bEdges, new THREE.LineDashedMaterial({ color: 0xcccccc, dashSize: 20, gapSize: 10 }));
-            bLine.computeLineDistances();
-            bLine.raycast = () => {};
-            btnMesh.add(bLine);
+            const btnX = ux + emptyUpperW / 2;
+            const btnY = upperY + upperBodyH / 2;
+            btnMesh.position.set(btnX, btnY, upperD + 5);
             btnMesh.userData = { isAddButton: true, pos: 'upper' };
             scene.add(btnMesh);
             moduleMeshes.push({ mesh: btnMesh, moduleIndex: -2 });
-            addLabel('＋ 추가', ux + emptyUpperW / 2, upperY + upperBodyH / 2, upperD + 80, 14, '#E53935');
+            addLabel('＋', btnX, btnY, upperD + 30, 16, '#ffffff');
           }
 
           // ★ 카메라 위치 + frustum 크기 자동 보정 (자동계산 후 찌그러짐 방지)
