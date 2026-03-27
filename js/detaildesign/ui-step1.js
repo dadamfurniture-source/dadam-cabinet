@@ -1117,9 +1117,21 @@
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px;">
           <div style="font-size:10px;font-weight:700;color:#2563eb;margin-bottom:4px;">배관 위치 (mm)</div>
           <div style="display:flex;flex-direction:column;gap:3px;">
-            <div><label style="font-size:9px;color:#666;">분배기 시작</label><input type="number" style="width:100%;font-size:10px;padding:1px;" value="${item.specs.distributorStart || 0}" onchange="updateSpec(${item.uniqueId},'distributorStart',parseFloat(this.value)||0)"></div>
-            <div><label style="font-size:9px;color:#666;">분배기 끝</label><input type="number" style="width:100%;font-size:10px;padding:1px;" value="${item.specs.distributorEnd || 0}" onchange="updateSpec(${item.uniqueId},'distributorEnd',parseFloat(this.value)||0)"></div>
-            <div><label style="font-size:9px;color:#666;">환풍구</label><input type="number" style="width:100%;font-size:10px;padding:1px;" value="${item.specs.ventStart || 0}" onchange="updateSpec(${item.uniqueId},'ventStart',parseFloat(this.value)||0)"></div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" ${(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'checked' : ''} onchange="togglePlumbing(${item.uniqueId},'distributor',this.checked)" style="margin:0;">
+              <label style="font-size:9px;color:#666;flex:1;">분배기 시작</label>
+              <input type="number" style="width:60px;font-size:10px;padding:1px;" value="${item.specs.distributorStart || 0}" onchange="updateSpec(${item.uniqueId},'distributorStart',parseFloat(this.value)||0)" ${!(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'disabled' : ''}>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="width:13px;"></div>
+              <label style="font-size:9px;color:#666;flex:1;">분배기 끝</label>
+              <input type="number" style="width:60px;font-size:10px;padding:1px;" value="${item.specs.distributorEnd || 0}" onchange="updateSpec(${item.uniqueId},'distributorEnd',parseFloat(this.value)||0)" ${!(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'disabled' : ''}>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" ${item.specs.ventStart > 0 ? 'checked' : ''} onchange="togglePlumbing(${item.uniqueId},'vent',this.checked)" style="margin:0;">
+              <label style="font-size:9px;color:#666;flex:1;">환풍구</label>
+              <input type="number" style="width:60px;font-size:10px;padding:1px;" value="${item.specs.ventStart || 0}" onchange="updateSpec(${item.uniqueId},'ventStart',parseFloat(this.value)||0)" ${!item.specs.ventStart ? 'disabled' : ''}>
+            </div>
           </div>
         </div>
       </div>

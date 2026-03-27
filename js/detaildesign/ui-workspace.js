@@ -2251,6 +2251,25 @@
         }
       }
 
+      function togglePlumbing(itemUniqueId, type, checked) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        pushUndo(item);
+        if (!checked) {
+          if (type === 'distributor') {
+            item.specs.distributorStart = 0;
+            item.specs.distributorEnd = 0;
+            delete item.specs.waterSupplyPosition;
+            delete item.specs.distributorStartAbs;
+            delete item.specs.distributorEndAbs;
+          } else if (type === 'vent') {
+            item.specs.ventStart = 0;
+            delete item.specs.exhaustPosition;
+          }
+        }
+        renderWorkspaceContent(item);
+      }
+
       function updateSpecNoRender(itemUniqueId, field, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (item) item.specs[field] = value;
