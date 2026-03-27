@@ -781,13 +781,17 @@
         }
 
         // 분배기/환풍구 위치 마커 (항상 표시, 드래그 이동)
-        const distStart = parseFloat(item.specs.distributorStart) || Math.round(sinkW * 0.15);
-        const distEnd = parseFloat(item.specs.distributorEnd) || Math.round(sinkW * 0.15 + 700);
-        const ventPos = parseFloat(item.specs.ventStart) || Math.round(sinkW * 0.7);
-        // 초기값 저장
-        if (!item.specs.distributorStart) item.specs.distributorStart = distStart;
-        if (!item.specs.distributorEnd) item.specs.distributorEnd = distEnd;
-        if (!item.specs.ventStart) item.specs.ventStart = ventPos;
+        // ★ 0은 "삭제됨" 상태 — undefined/null만 초기값 생성
+        const _dsRaw = item.specs.distributorStart;
+        const _deRaw = item.specs.distributorEnd;
+        const _vsRaw = item.specs.ventStart;
+        const distStart = (_dsRaw != null && _dsRaw !== undefined) ? parseFloat(_dsRaw) : Math.round(sinkW * 0.15);
+        const distEnd = (_deRaw != null && _deRaw !== undefined) ? parseFloat(_deRaw) : Math.round(sinkW * 0.15 + 700);
+        const ventPos = (_vsRaw != null && _vsRaw !== undefined) ? parseFloat(_vsRaw) : Math.round(sinkW * 0.7);
+        // 초기값 저장 (undefined/null일 때만 — 0은 삭제 상태이므로 덮어쓰지 않음)
+        if (item.specs.distributorStart == null) item.specs.distributorStart = distStart;
+        if (item.specs.distributorEnd == null) item.specs.distributorEnd = distEnd;
+        if (item.specs.ventStart == null) item.specs.ventStart = ventPos;
 
         let utilityMarkers = '';
         const uid = item.uniqueId;
@@ -801,7 +805,8 @@
         const drawRight = offsetX + drawW - finishR_s;
 
         // 분배기 — 하부장 하단 (배관 그림 + 치수 + 클릭 팝업 + 드래그)
-        {
+        // ★ distStart=0, distEnd=0이면 삭제 상태 → 마커 숨김
+        if (distStart > 0 && distEnd > distStart) {
           const pipeY = lowerY + lowerH_s - 16;
           const dsx = Math.max(drawLeft, Math.min(drawRight, offsetX + distStart * scale));
           const dex = Math.max(drawLeft, Math.min(drawRight, offsetX + distEnd * scale));
@@ -822,7 +827,8 @@
         }
 
         // 환풍구 — 상부장 상단 (덕트 그림 + 치수 + 클릭 팝업 + 드래그)
-        {
+        // ★ ventPos=0이면 삭제 상태 → 마커 숨김
+        if (ventPos > 0) {
           const ductY = upperY + 3;
           const vx = Math.max(drawLeft + 14, Math.min(drawRight - 14, offsetX + ventPos * scale));
           // 클릭 영역 (덕트 → 팝업, 드래그보다 뒤에 렌더)
