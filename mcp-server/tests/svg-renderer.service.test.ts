@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateDrawingData } from '../src/services/drawing.service.js';
-import { renderDrawingToSvg } from '../src/services/svg-renderer.service.js';
+import { renderDrawingToSvg, renderLineartSvg } from '../src/services/svg-renderer.service.js';
 import type { StructuredDesignData } from '../src/types/index.js';
 
 // ─────────────────────────────────────────────────────────────────
@@ -214,5 +214,54 @@ describe('renderDrawingToSvg', () => {
     if (svg.manufacturing.includes('cream')) {
       expect(svg.manufacturing).toContain('&amp;');
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ControlNet Lineart SVG Tests
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderLineartSvg', () => {
+  it('renders valid SVG with only black strokes on white background', () => {
+    const drawing = getDrawing();
+    const svg = renderLineartSvg(drawing);
+
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('</svg>');
+    // White background
+    expect(svg).toContain('fill="#FFFFFF"');
+    // Black strokes only
+    expect(svg).toContain('stroke="#000000"');
+    // No fill colors (all rects are fill="none")
+    expect(svg).not.toContain('fill="#E0E0E0"'); // no cabinet fill
+    expect(svg).not.toContain('fill="#F5F5F5"'); // no door fill
+  });
+
+  it('does not contain dimension lines or text labels', () => {
+    const drawing = getDrawing();
+    const svg = renderLineartSvg(drawing);
+
+    // No dimension text (mm values)
+    expect(svg).not.toContain('mm (');
+    // No hardware markers
+    expect(svg).not.toContain('<circle');
+    // No title text
+    expect(svg).not.toContain('정면도');
+  });
+
+  it('contains rect elements for cabinets and doors', () => {
+    const drawing = getDrawing();
+    const svg = renderLineartSvg(drawing);
+
+    const rectCount = (svg.match(/<rect /g) || []).length;
+    // background + baseboard + cabinets + doors + countertop + molding
+    expect(rectCount).toBeGreaterThan(5);
+  });
+
+  it('respects custom stroke widths', () => {
+    const drawing = getDrawing();
+    const svg = renderLineartSvg(drawing, { cabinetStrokeWidth: 4.0 });
+
+    expect(svg).toContain('stroke-width="4"');
   });
 });

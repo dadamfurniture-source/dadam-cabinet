@@ -262,16 +262,26 @@
         });
       });
 
+      // 카테고리별 SVG 파일 경로
+      const categoryNames = { sink: '주방 (싱크)', wardrobe: '붙박이장', vanity: '세면대장', shoe: '신발장', storage: '수납장' };
+
+      function getSvgFileMap(category) {
+        const prefix = category === 'sink' ? '' : `${category}-`;
+        return {
+          front: `mcp-server/output-svg/${prefix}front-view.svg`,
+          side: `mcp-server/output-svg/${prefix}side-view.svg`,
+          plan: `mcp-server/output-svg/${prefix}plan-view.svg`,
+          manufacturing: `mcp-server/output-svg/${prefix}manufacturing.svg`,
+          installation: `mcp-server/output-svg/${prefix}installation.svg`,
+        };
+      }
+
       // Load pre-generated SVGs from output-svg folder
       async function loadSvgFiles() {
+        const category = document.getElementById('categorySelect').value;
         const views = ['front', 'side', 'plan', 'manufacturing', 'installation'];
-        const fileMap = {
-          front: 'mcp-server/output-svg/front-view.svg',
-          side: 'mcp-server/output-svg/side-view.svg',
-          plan: 'mcp-server/output-svg/plan-view.svg',
-          manufacturing: 'mcp-server/output-svg/manufacturing.svg',
-          installation: 'mcp-server/output-svg/installation.svg',
-        };
+        const fileMap = getSvgFileMap(category);
+        let loadedCount = 0;
 
         for (const view of views) {
           const container = document.getElementById(`svg-${view}`);
@@ -281,32 +291,43 @@
             const svgText = await res.text();
             container.innerHTML = svgText;
             SVG_CACHE[view] = svgText;
+            loadedCount++;
           } catch (e) {
+            // 카테고리별 파일이 없으면 기본(sink) 파일 시도
+            if (category !== 'sink') {
+              try {
+                const fallbackMap = getSvgFileMap('sink');
+                const res2 = await fetch(fallbackMap[view]);
+                if (res2.ok) {
+                  const svgText = await res2.text();
+                  container.innerHTML = svgText;
+                  SVG_CACHE[view] = svgText;
+                  loadedCount++;
+                  continue;
+                }
+              } catch (_) { /* fall through */ }
+            }
             container.innerHTML = `<div class="empty-state"><p>SVG 파일을 불러올 수 없습니다<br><small>${fileMap[view]}</small></p></div>`;
           }
         }
 
-        // Show info panel
-        showInfo();
+        showInfo(category, loadedCount);
       }
 
-      function showInfo() {
+      function showInfo(category, loadedCount) {
         const panel = document.getElementById('infoPanel');
         const grid = document.getElementById('infoGrid');
         panel.style.display = 'block';
+        const catName = categoryNames[category] || category;
         grid.innerHTML = `
-          <div class="info-item"><span class="label">카테고리:</span><span class="value">주방 (sink)</span></div>
-          <div class="info-item"><span class="label">스타일:</span><span class="value">modern</span></div>
-          <div class="info-item"><span class="label">벽 너비:</span><span class="value">3,600mm</span></div>
-          <div class="info-item"><span class="label">벽 높이:</span><span class="value">2,400mm</span></div>
-          <div class="info-item"><span class="label">하부장:</span><span class="value">4개</span></div>
-          <div class="info-item"><span class="label">상부장:</span><span class="value">3개</span></div>
-          <div class="info-item"><span class="label">깊이:</span><span class="value">600mm</span></div>
+          <div class="info-item"><span class="label">카테고리:</span><span class="value">${catName}</span></div>
+          <div class="info-item"><span class="label">로드된 뷰:</span><span class="value">${loadedCount || 0}/5</span></div>
           <div class="info-item"><span class="label">스케일:</span><span class="value">0.5 (mm→px)</span></div>
+          <div class="info-item"><span class="label">생성:</span><span class="value">MCP Server</span></div>
         `;
       }
 
-      // Generate button (re-loads files)
+      // Generate button — 선택된 카테고리로 로드
       document.getElementById('generateBtn').addEventListener('click', () => {
         loadSvgFiles();
       });

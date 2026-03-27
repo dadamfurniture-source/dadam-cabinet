@@ -361,18 +361,19 @@ function buildSideView(
     name: '하판', thickness: bodyT, material: 'PB',
   });
 
-  // 뒷판
+  // 뒷판 — 측판 뒤에 부착 (외부 마감형: 뒷판이 측판 바깥면에 위치)
+  // 참고: 끼움형이면 x: depth - bodyT - backT (측판 안쪽 면)
   panels.push({
     x: depth - backT, y: legH,
     width: backT, height: lowerBodyH,
     name: '뒷판', thickness: backT, material: 'MDF',
   });
 
-  // 선반 (중간 높이)
+  // 선반 (중간 높이) — 뒷판 두께만큼 여유 확보
   const shelfY = legH + Math.round(lowerBodyH / 2);
   panels.push({
     x: bodyT, y: shelfY,
-    width: depth - bodyT * 2 - 20, height: bodyT,
+    width: depth - bodyT * 2 - backT, height: bodyT,
     name: '선반', thickness: bodyT, material: 'PB',
   });
 
