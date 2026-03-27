@@ -44,6 +44,47 @@
 
         const SELECTED_EMISSIVE = 0xb8956c;
 
+        // ─── 콜백 저장소 (전역 함수 의존 대체) ───
+        let _callbacks = {
+          getItem: null,
+          getCurrentItemId: null,
+          renderWorkspace: null,
+          pushUndo: null,
+          runAutoCalcSection: null,
+          highlightSelected: null,
+        };
+
+        /** 콜백 등록 — render3DView 호출 전 1회 호출 */
+        function registerCallbacks(cbs) {
+          Object.assign(_callbacks, cbs);
+        }
+
+        // 헬퍼: 콜백 또는 전역 함수 폴백
+        function _getItem(uid) {
+          if (_callbacks.getItem) return _callbacks.getItem(uid);
+          return _getItem(uid);
+        }
+        function _getCurrentItemId() {
+          if (_callbacks.getCurrentItemId) return _callbacks.getCurrentItemId();
+          return _getCurrentItemId();
+        }
+        function _renderWorkspace(item) {
+          if (_callbacks.renderWorkspace) return _callbacks.renderWorkspace(item);
+          _renderWorkspace(item);
+        }
+        function _pushUndo(item) {
+          if (_callbacks.pushUndo) return _callbacks.pushUndo(item);
+          _pushUndo(item);
+        }
+        function _runAutoCalcSection(uid, section) {
+          if (_callbacks.runAutoCalcSection) return _callbacks.runAutoCalcSection(uid, section);
+          if (typeof runAutoCalcSection === 'function') runAutoCalcSection(uid, section);
+        }
+        function _highlightSelected() {
+          if (_callbacks.highlightSelected) return _callbacks.highlightSelected();
+          _highlightSelected();
+        }
+
         // 듀얼 카메라 상태
         let orthoCamera, perspCamera;
         let isOrtho = true;
@@ -535,7 +576,7 @@
             const cx = (ws + we) / 2;
             // 범위 박스 (반투명 파란색)
             const rangeGeo = new THREE.BoxGeometry(rangeW, 60, 20);
-            const rangeMat = new THREE.MeshPhongMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
+            const rangeMat = new THREE.MeshBasicMaterial({ color: 0x2196F3, transparent: true, opacity: 0.35 });
             const rangeMesh = new THREE.Mesh(rangeGeo, rangeMat);
             rangeMesh.position.set(cx, legH + 200, -15);
             rangeMesh.userData = { isDraggable: true, dragType: 'water' };
@@ -544,7 +585,7 @@
             // 시작/끝 수직 파이프 (개별 드래그 가능)
             [{ px: ws, type: 'waterStart' }, { px: we, type: 'waterEnd' }].forEach(({ px, type }) => {
               const pipeGeo = new THREE.CylinderGeometry(8, 8, legH + 230, 8);
-              const pipeMat = new THREE.MeshPhongMaterial({ color: 0x1E88E5 });
+              const pipeMat = new THREE.MeshBasicMaterial({ color: 0x1E88E5 });
               const pipeMesh = new THREE.Mesh(pipeGeo, pipeMat);
               pipeMesh.position.set(px, (legH + 230) / 2, -15);
               pipeMesh.userData = { isDraggable: true, dragType: type };
@@ -553,7 +594,7 @@
             });
             // 수평 연결 파이프
             const hPipeGeo = new THREE.CylinderGeometry(5, 5, rangeW, 8);
-            const hPipeMat = new THREE.MeshPhongMaterial({ color: 0x64B5F6 });
+            const hPipeMat = new THREE.MeshBasicMaterial({ color: 0x64B5F6 });
             const hPipeMesh = new THREE.Mesh(hPipeGeo, hPipeMat);
             hPipeMesh.rotation.z = Math.PI / 2;
             hPipeMesh.position.set(cx, legH + 230, -15);
@@ -568,7 +609,7 @@
             if (ex > 0 && ex < W) {
               // 환풍구 — 회색 박스 (벽면 상부, 드래그 가능)
               const ventGeo = new THREE.BoxGeometry(120, 120, 30);
-              const ventMat = new THREE.MeshPhongMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
+              const ventMat = new THREE.MeshBasicMaterial({ color: 0x78909C, transparent: true, opacity: 0.85 });
               const ventMesh = new THREE.Mesh(ventGeo, ventMat);
               ventMesh.position.set(ex, H - 150, -15);
               ventMesh.userData = { isDraggable: true, dragType: 'vent' };
@@ -577,7 +618,7 @@
               // 환풍구 그릴 패턴
               for (let i = -2; i <= 2; i++) {
                 const slotGeo = new THREE.BoxGeometry(80, 6, 32);
-                const slotMat = new THREE.MeshPhongMaterial({ color: 0x546E7A });
+                const slotMat = new THREE.MeshBasicMaterial({ color: 0x546E7A });
                 const slotMesh = new THREE.Mesh(slotGeo, slotMat);
                 slotMesh.position.set(ex, H - 150 + i * 18, -15);
                 slotMesh.userData = { isDraggable: true, dragType: 'vent' };
@@ -648,7 +689,17 @@
         }
 
         function getDoorColorHex(name) {
-          const m = { '화이트': 0xf5f5f5, '그레이': 0xcccccc, '블랙': 0x333333, '오크': 0xc8a882, '월넛': 0x6b4e3d, '베이지': 0xe8dcc8 };
+          const m = {
+            '화이트': 0xf5f5f5, '그레이': 0xcccccc, '블랙': 0x333333,
+            '오크': 0xc8a882, '월넛': 0x6b4e3d, '베이지': 0xe8dcc8,
+            '네이비': 0x2c3e6b, '올리브': 0x6b7c4e, '크림': 0xf5f0e0,
+            '차콜': 0x4a4a4a, '민트': 0xb8e0d2, '테라코타': 0xc87856,
+            '라벤더': 0xc4b7d4, '머스타드': 0xd4a830, '스카이블루': 0xa0c4e8,
+          };
+          // HEX 문자열 (#ffffff) 직접 입력 지원
+          if (typeof name === 'string' && name.startsWith('#') && name.length === 7) {
+            return parseInt(name.slice(1), 16);
+          }
           return m[name] || 0xf5f5f5;
         }
 
@@ -696,27 +747,27 @@
 
           // + 버튼 클릭 → 모듈 추가
           if (entry.moduleIndex === -1 || entry.moduleIndex === -2) {
-            const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+            const uid = _getCurrentItemId();
             if (uid) {
-              const item = typeof getItem === 'function' ? getItem(uid) : null;
+              const item = _getItem(uid);
               if (item) {
                 const pos = entry.moduleIndex === -2 ? 'upper' : 'lower';
                 const newMod = { pos, type: 'storage', w: 600, name: '수납장', doorCount: 1 };
                 if (pos === 'lower') newMod.isDrawer = false;
                 item.modules.push(newMod);
-                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+                _renderWorkspace(item);
               }
             }
             return;
           }
           // ★ spacer(빈 공간) 클릭 → 자동계산으로 공간 채우기
-          const uid2 = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const uid2 = _getCurrentItemId();
           if (uid2) {
             const item2 = typeof getItem === 'function' ? getItem(uid2) : null;
             if (item2 && item2.modules[entry.moduleIndex]?.isSpacer) {
               const section = item2.modules[entry.moduleIndex].pos; // 'upper' or 'lower'
-              if (typeof runAutoCalcSection === 'function') {
-                runAutoCalcSection(item2.uniqueId, section);
+              if (_callbacks.runAutoCalcSection || typeof runAutoCalcSection === 'function') {
+                _runAutoCalcSection(item2.uniqueId, section);
               } else {
                 // fallback: 수납장으로 교체
                 if (typeof pushUndo === 'function') pushUndo(item2);
@@ -740,15 +791,17 @@
           const entry = getClickedModule(event);
           if (!entry) return;
 
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          const uid = _getCurrentItemId();
+          const item = uid && _getItem(uid);
           if (!item) return;
 
           // ★ 분배기/환풍구 더블클릭 → 값 초기화 (삭제)
           if (entry.mesh?.userData?.isDraggable) {
-            close3DModulePopup();
-            if (typeof pushUndo === 'function') pushUndo(item);
             const dt = entry.mesh.userData.dragType;
+            const utilLabel = (dt === 'water' || dt === 'waterStart' || dt === 'waterEnd') ? '분배기' : '환풍구';
+            if (!confirm(`"${utilLabel}" 위치를 초기화하시겠습니까?`)) return;
+            close3DModulePopup();
+            _pushUndo(item);
             if (dt === 'water' || dt === 'waterStart' || dt === 'waterEnd') {
               item.specs.distributorStart = 0;
               item.specs.distributorEnd = 0;
@@ -759,16 +812,18 @@
               item.specs.ventStart = 0;
               delete item.specs.exhaustPosition;
             }
-            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+            _renderWorkspace(item);
             return;
           }
 
-          // ★ 모듈 더블클릭 → 완전 삭제
+          // ★ 모듈 더블클릭 → 확인 후 삭제
           if (entry.moduleIndex !== null && entry.moduleIndex >= 0 && item.modules[entry.moduleIndex]) {
+            const mod = item.modules[entry.moduleIndex];
+            if (!confirm(`"${mod.name || mod.type} (${mod.w}mm)" 삭제하시겠습니까?`)) return;
             close3DModulePopup();
-            if (typeof pushUndo === 'function') pushUndo(item);
+            _pushUndo(item);
             item.modules.splice(entry.moduleIndex, 1);
-            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+            _renderWorkspace(item);
           }
         }
 
@@ -776,9 +831,9 @@
         function show3DModulePopup(moduleIndex, clientX, clientY) {
           close3DModulePopup();
           // currentItemId 직접 사용 (data-uid 속성이 없는 경우 대비)
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const uid = _getCurrentItemId();
           if (!uid) return;
-          const item = typeof getItem === 'function' ? getItem(uid) : null;
+          const item = _getItem(uid);
           if (!item || !item.modules[moduleIndex]) return;
           const mod = item.modules[moduleIndex];
 
@@ -853,8 +908,8 @@
         // ★ 분배기/환풍구 치수 입력 팝업
         function showUtilityPopup(dragType, clientX, clientY) {
           close3DModulePopup();
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          const uid = _getCurrentItemId();
+          const item = uid && _getItem(uid);
           if (!item) return;
 
           const popup = document.createElement('div');
@@ -907,10 +962,10 @@
 
         // 전역: 배관 치수 업데이트
         window._updateUtility = function(field, value) {
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          const uid = _getCurrentItemId();
+          const item = uid && _getItem(uid);
           if (!item) return;
-          if (typeof pushUndo === 'function') pushUndo(item);
+          _pushUndo(item);
           item.specs[field] = parseFloat(value) || 0;
           // 절대좌표 초기화 → 렌더러에서 재계산
           delete item.specs.waterSupplyPosition;
@@ -918,7 +973,7 @@
           delete item.specs.distributorStartAbs;
           delete item.specs.distributorEndAbs;
           document.getElementById('three-utility-popup')?.remove();
-          if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+          _renderWorkspace(item);
         };
 
         // ─── 분배기/환풍구 드래그 ───
@@ -950,8 +1005,8 @@
               entry.mesh.material.opacity = 0.4;
               entry.mesh.material.transparent = true;
               // 같은 pos의 인접 모듈 참조 저장
-              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-              const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+              const uid = _getCurrentItemId();
+              const item = uid && _getItem(uid);
               const mod = item ? item.modules[entry.moduleIndex] : null;
               const samePosMeshes = mod ? moduleMeshes.filter(m => {
                 if (m.moduleIndex === null || m.moduleIndex < 0 || m.moduleIndex === entry.moduleIndex) return false;
@@ -978,8 +1033,8 @@
             ? [hit]
             : moduleMeshes.filter(m => m.mesh.userData?.isDraggable && m.mesh.userData.dragType === dragType).map(m => m.mesh);
 
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          const uid = _getCurrentItemId();
+          const item = uid && _getItem(uid);
           if (!item) return;
 
           const W = parseFloat(item.w) || 3000;
@@ -1074,10 +1129,10 @@
             });
 
             if (_utilDragged) {
-              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-              const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+              const uid = _getCurrentItemId();
+              const item = uid && _getItem(uid);
               if (item && item.modules[_modDrag.moduleIndex]) {
-                if (typeof pushUndo === 'function') pushUndo(item);
+                _pushUndo(item);
                 const mod = item.modules[_modDrag.moduleIndex];
                 const pos = mod.pos; // upper or lower
                 const samePosMods = item.modules.filter(m => m.pos === pos);
@@ -1095,7 +1150,7 @@
                     [item.modules[globalA], item.modules[globalB]] = [item.modules[globalB], item.modules[globalA]];
                   }
                 }
-                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+                _renderWorkspace(item);
               }
             }
             _modDrag = null;
@@ -1108,11 +1163,11 @@
           if (controls) controls.enabled = true;
 
           const finalX = _utilDrag.meshes[0].position.x;
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          const uid = _getCurrentItemId();
+          const item = uid && _getItem(uid);
 
           if (item) {
-            if (typeof pushUndo === 'function') pushUndo(item);
+            _pushUndo(item);
             const { dragType, isRefLeft, startBound, endBound } = _utilDrag;
 
             if (dragType === 'waterStart') {
@@ -1155,7 +1210,7 @@
             delete item.specs.distributorStartAbs;
             delete item.specs.distributorEndAbs;
 
-            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+            _renderWorkspace(item);
           }
 
           _utilDrag = null;
@@ -1163,9 +1218,9 @@
 
         // 전역 함수: 모듈 업데이트 + 삭제
         window._update3DModule = function(moduleIndex, field, value) {
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const uid = _getCurrentItemId();
           if (!uid) return;
-          const item = typeof getItem === 'function' ? getItem(uid) : null;
+          const item = _getItem(uid);
           if (!item || !item.modules[moduleIndex]) return;
           const mod = item.modules[moduleIndex];
           if (field === 'type') {
@@ -1183,19 +1238,19 @@
             mod[field] = v;
           }
           close3DModulePopup();
-          if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+          _renderWorkspace(item);
         };
 
         window._delete3DModule = function(moduleIndex) {
-          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const uid = _getCurrentItemId();
           if (!uid) return;
-          const item = typeof getItem === 'function' ? getItem(uid) : null;
+          const item = _getItem(uid);
           if (!item || !item.modules[moduleIndex]) return;
           const mod = item.modules[moduleIndex];
           if (confirm(`"${mod.name || mod.type} (${mod.w}mm)" 삭제하시겠습니까?`)) {
             item.modules.splice(moduleIndex, 1);
             close3DModulePopup();
-            if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+            _renderWorkspace(item);
           }
         };
 
@@ -1234,7 +1289,7 @@
               mesh.material.opacity = 0.85;
             }
           });
-          if (typeof highlightSelectedModule === 'function') highlightSelectedModule();
+          _highlightSelected();
         }
 
         function disposeObject(obj) {
@@ -1297,5 +1352,5 @@
           setCameraPreset([0, 0, 1], [0, 1, 0]);
         }
 
-        return { init, updateScene, dispose, render3DView, highlightModule, setFrontView, isInitialized: () => isInitialized };
+        return { init, updateScene, dispose, render3DView, highlightModule, setFrontView, registerCallbacks, isInitialized: () => isInitialized };
       })();

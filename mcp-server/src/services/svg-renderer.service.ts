@@ -296,8 +296,9 @@ function renderPanelDetail(panel: PanelDetail, scale: number, gx: number, gy: nu
   // 라벨
   parts.push(`<text x="${r(gx + w / 2)}" y="${r(gy - 5)}" font-size="${DIM_FONT_SIZE}" fill="${COLORS.title}" text-anchor="middle">${escXml(panel.name)} [${panel.bom_id}]</text>`);
 
-  // 패널 사각형
-  parts.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(w)}" height="${r(h)}" fill="${COLORS.panel_pb}" stroke="${COLORS.cabinet_stroke}" stroke-width="1"/>`);
+  // 패널 사각형 (재질별 색상)
+  const panelFill = panel.material === 'MDF' ? COLORS.panel_mdf : COLORS.panel_pb;
+  parts.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(w)}" height="${r(h)}" fill="${panelFill}" stroke="${COLORS.cabinet_stroke}" stroke-width="1"/>`);
 
   // 너비 치수
   parts.push(`<text x="${r(gx + w / 2)}" y="${r(gy + h + 15)}" font-size="${DIM_FONT_SIZE}" fill="${COLORS.dim_text}" text-anchor="middle">${panel.rect.width}mm</text>`);
@@ -683,7 +684,7 @@ export function rasterizeSvgToPng(svgString: string, options?: RasterizeOptions)
 
   const resvg = new Resvg(svgString, {
     fitTo: options?.height
-      ? { mode: 'width' as const, value: targetWidth }
+      ? { mode: 'height' as const, value: options.height }
       : { mode: 'width' as const, value: targetWidth },
   });
 
