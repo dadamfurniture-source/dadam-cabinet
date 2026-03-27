@@ -532,6 +532,7 @@
           }
 
           // 분배기 — 범위 표시 (시작~끝 파란색 영역 + 수직 파이프)
+          console.log('[3D Marker] dist:', item.specs?.distributorStart, item.specs?.distributorEnd, 'abs:', _waterStartAbs, _waterEndAbs, 'vent:', item.specs?.ventStart, 'exhaust:', exhaustPos);
           if (_waterStartAbs > 0 && _waterEndAbs > _waterStartAbs) {
             const ws = Math.max(_startBound, Math.min(W, _waterStartAbs));
             const we = Math.max(_startBound, Math.min(W, _waterEndAbs));
@@ -930,6 +931,7 @@
         window._deleteUtility = function(type) {
           const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
           const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          console.log('[DeleteUtility]', type, 'uid=', uid, 'item=', !!item);
           if (!item) return;
           if (typeof pushUndo === 'function') pushUndo(item);
           if (type === 'distributor') {
@@ -938,9 +940,11 @@
             delete item.specs.waterSupplyPosition;
             delete item.specs.distributorStartAbs;
             delete item.specs.distributorEndAbs;
+            console.log('[DeleteUtility] distributor cleared:', item.specs.distributorStart, item.specs.distributorEnd);
           } else if (type === 'vent') {
             item.specs.ventStart = 0;
             delete item.specs.exhaustPosition;
+            console.log('[DeleteUtility] vent cleared:', item.specs.ventStart);
           }
           document.getElementById('three-utility-popup')?.remove();
           if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
