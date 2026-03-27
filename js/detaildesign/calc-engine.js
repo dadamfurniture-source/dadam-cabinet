@@ -1137,43 +1137,42 @@
               g.width += extra + (i < rem ? 1 : 0);
             });
           } else if (smallGapTotal > 0 && largeGaps.length === 0 && fixedOccupied.length > 0) {
-            // ★ 큰 갭 없음 → 소규격 갭을 인접 고정 모듈에 흡수
-            // ★ 개수대(sink)·가스대(cook)는 고정 규격이므로 흡수 제외
-            // ★ 흡수 우선순위: 개수대 확장(950~1200mm) > LT망장 인접 > 나머지
-            const isAbsorbable = (f) => f.type !== 'sink' && f.type !== 'cook';
+            // ★ 큰 갭 없음 → 소규격 갭 흡수
+            // ★ 고정 규격 모듈: sink(950~1200), cook(600 고정), LT망장(200 고정)
+            // ★ 전략: 잔여 전체를 개수대에 흡수 (1200mm 한도) → 나머지 위치 재조정
             const sinkForAbsorb = fixedOccupied.find(f => f.type === 'sink');
+            const SIDE_PANEL = 15;
 
-            gaps.forEach(g => {
-              if (g.width >= DOOR_MIN_WIDTH) return;
+            if (sinkForAbsorb) {
+              const curSinkW = parseFloat(sinkForAbsorb.w);
+              const maxExpand = 1200 - curSinkW; // 확장 가능 여유
+              const absorb = Math.min(smallGapTotal, maxExpand);
 
-              // 1차: 일반 모듈(cook/sink 제외)에 흡수 시도
-              const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1 && isAbsorbable(f));
-              const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1 && isAbsorbable(f));
+              if (absorb > 0) {
+                // 개수대를 좌측으로 확장 (startBound까지)
+                const leftExpand = Math.min(absorb, sinkForAbsorb.x - startBound);
+                const rightExpand = absorb - leftExpand;
 
-              if (rightFixed) {
-                rightFixed.x -= g.width;
-                rightFixed.w = parseFloat(rightFixed.w) + g.width;
-                rightFixed.endX = rightFixed.x + parseFloat(rightFixed.w);
-              } else if (leftFixed) {
-                leftFixed.w = parseFloat(leftFixed.w) + g.width;
-                leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
-              } else if (sinkForAbsorb) {
-                // 2차: 흡수할 일반 모듈 없으면 개수대 확장 (1200mm 한도 내)
-                const newSinkW = parseFloat(sinkForAbsorb.w) + g.width;
-                if (newSinkW <= 1200) {
-                  // 갭이 개수대 좌측이면 좌측 확장, 우측이면 우측 확장
-                  if (Math.abs(sinkForAbsorb.x - g.end) <= 1) {
-                    sinkForAbsorb.x -= g.width;
-                    sinkForAbsorb.w = newSinkW;
-                  } else {
-                    sinkForAbsorb.w = newSinkW;
-                    sinkForAbsorb.endX = sinkForAbsorb.x + newSinkW;
-                  }
-                  console.log(`[AutoCalc] 개수대 확장: +${g.width}mm → W=${newSinkW}mm`);
+                sinkForAbsorb.x -= leftExpand;
+                sinkForAbsorb.w = curSinkW + absorb;
+                sinkForAbsorb.endX = sinkForAbsorb.x + sinkForAbsorb.w;
+
+                console.log(`[AutoCalc] 개수대 확장: ${curSinkW}→${sinkForAbsorb.w}mm (좌${leftExpand}+우${rightExpand})`);
+
+                // LT망장 위치 재조정 (개수대 우측 인접)
+                const ltForRepos = fixedOccupied.find(f => f.name === 'LT망장');
+                if (ltForRepos) {
+                  ltForRepos.x = sinkForAbsorb.endX;
+                  ltForRepos.endX = ltForRepos.x + parseFloat(ltForRepos.w);
                 }
               }
-            });
-            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm)을 고정 모듈에 흡수 (sink/cook 직접흡수 제외, sink 확장 허용)`);
+
+              const remaining = smallGapTotal - absorb;
+              if (remaining > 0) {
+                console.log(`[AutoCalc] 개수대 확장 한도 초과: ${remaining}mm 잔여 (몰딩/시공 오차 처리)`);
+              }
+            }
+            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm) 개수대 확장으로 흡수`);
           }
 
           // ★ 각 갭 독립 계산 (RAG 규칙 + 도어 균등 최우선)
