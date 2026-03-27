@@ -21,6 +21,14 @@
       const MIN_REMAINDER = 5; // ★ 최소 잔여 (4→5, ACTIVE_RULES v28)
       const MAX_REMAINDER = 10; // 최대 잔여
 
+      // ★ 개수대 기본 너비 (실측 기준)
+      const SINK_DEFAULT_W_SMALL = 950; // W ≤ 2500mm
+      const SINK_DEFAULT_W_LARGE = 1000; // W > 2500mm
+
+      // ★ 고정 너비 모듈 (갭 흡수 대상 제외)
+      const LT_FIXED_W = 200;
+      const COOK_FIXED_W = 600;
+
       const DEFAULT_SPECS = {
         layoutShape: 'I',
         doorColorUpper: '화이트',
