@@ -1011,7 +1011,7 @@
       <span class="essential-toggle ${item.specs.essentialLower?.cook !== false ? 'active' : ''}" onclick="toggleEssentialBtn(this,${item.uniqueId},'lower','cook')" style="padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">🔥 가스대</span>
       <span style="width:1px;height:16px;background:#ddd;margin:0 4px;"></span>
       ` : ''}
-      <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
+      <button onclick="runAutoCalcSection(${item.uniqueId}, 'lower'); runAutoCalcSection(${item.uniqueId}, 'upper')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
       <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
       <button onclick="clearAllModules(${item.uniqueId})" style="padding:6px 12px;font-size:11px;border:1px solid #f5c6cb;border-radius:6px;background:#fff;cursor:pointer;color:#dc3545;">🗑 전체 제거</button>
       <span style="font-size:11px;color:#888;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>

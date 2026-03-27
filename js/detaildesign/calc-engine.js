@@ -234,12 +234,13 @@
           }
         }
 
-        // ★ 정렬: 목표 450mm 근접 최우선 → 잔여 작은 순 → 도어 수 적은 순
+        // ★ BUG6 FIX: 잔여 최소 → 450mm 근접 → 도어 수 적은 순
+        // 이유: 450mm 근접 우선 시 잔여 9mm가 선택되고 균등분배로 450이 아니게 됨
         allResults.sort((a, b) => {
-          // 1. 목표 도어 너비(450mm)에 가장 가까운 것 최우선
-          if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
-          // 2. 잔여 작은 것
+          // 1. 잔여 작은 것 최우선 (시공 정밀도)
           if (a.gap !== b.gap) return a.gap - b.gap;
+          // 2. 목표 도어 너비(450mm) 근접
+          if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
           // 3. 도어 수 적은 것 (동점일 때만)
           return a.doorCount - b.doorCount;
         });
@@ -299,36 +300,58 @@
        * 고정 모듈 위치 조정 (경계 내로)
        */
       function adjustFixedPositions(fixedList, startBound, endBound) {
+        if (fixedList.length === 0) return fixedList;
         fixedList.sort((a, b) => a.x - b.x);
 
-        // 왼쪽에서 오른쪽으로 겹침 방지
-        let cursor = startBound;
-        fixedList.forEach((mod) => {
-          if (mod.x < cursor) {
-            mod.x = cursor;
-          }
-          // ★ endBound 초과 방지: 너비 클램핑 (개수대 950mm, 가스대 600mm 보장)
-          if (mod.x + parseFloat(mod.w) > endBound) {
+        // ★ BUG3 FIX: 총 너비 초과 시 비례 축소 (최소 너비 보장)
+        const totalFixedW = fixedList.reduce((s, m) => s + (parseFloat(m.w) || 0), 0);
+        const availableW = endBound - startBound;
+        if (totalFixedW > availableW) {
+          console.warn(`[AutoCalc] 고정 모듈 총 너비(${totalFixedW}mm) > 유효공간(${availableW}mm) — 비례 축소`);
+          const ratio = availableW / totalFixedW;
+          fixedList.forEach(mod => {
             const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
-            mod.w = Math.max(minW, endBound - mod.x);
-            if (mod.x + mod.w > endBound) mod.x = endBound - mod.w;
-            if (mod.x < startBound) mod.x = startBound;
-          }
-          mod.endX = mod.x + parseFloat(mod.w);
-          cursor = mod.endX;
-        });
+            mod.w = Math.max(minW, Math.round(parseFloat(mod.w) * ratio));
+          });
+        }
 
-        // 오른쪽에서 왼쪽으로 경계 조정
-        let rightCursor = endBound;
-        for (let i = fixedList.length - 1; i >= 0; i--) {
-          const mod = fixedList[i];
-          if (mod.endX > rightCursor) {
-            mod.endX = rightCursor;
-            const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
-            mod.x = Math.max(startBound, mod.endX - Math.max(minW, parseFloat(mod.w)));
-            mod.w = mod.endX - mod.x;
+        // ★ BUG3 FIX: 반복 수렴 (최대 3회) — 양방향 패스 후 재검증
+        for (let iter = 0; iter < 3; iter++) {
+          let changed = false;
+
+          // Pass 1: 왼쪽에서 오른쪽으로 겹침 방지
+          let cursor = startBound;
+          fixedList.forEach((mod) => {
+            if (mod.x < cursor) {
+              mod.x = cursor;
+              changed = true;
+            }
+            if (mod.x + parseFloat(mod.w) > endBound) {
+              const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
+              mod.w = Math.max(minW, endBound - mod.x);
+              if (mod.x + mod.w > endBound) mod.x = endBound - mod.w;
+              if (mod.x < startBound) mod.x = startBound;
+              changed = true;
+            }
+            mod.endX = mod.x + parseFloat(mod.w);
+            cursor = mod.endX;
+          });
+
+          // Pass 2: 오른쪽에서 왼쪽으로 경계 조정
+          let rightCursor = endBound;
+          for (let i = fixedList.length - 1; i >= 0; i--) {
+            const mod = fixedList[i];
+            if (mod.endX > rightCursor) {
+              mod.endX = rightCursor;
+              const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
+              mod.x = Math.max(startBound, mod.endX - Math.max(minW, parseFloat(mod.w)));
+              mod.w = mod.endX - mod.x;
+              changed = true;
+            }
+            rightCursor = mod.x;
           }
-          rightCursor = mod.x;
+
+          if (!changed) break;
         }
 
         return fixedList;
@@ -858,6 +881,7 @@
             const rem = smallGapTotalUpper - extra * largeGapsUpper.length;
             largeGapsUpper.forEach((g, i) => {
               g.width += extra + (i < rem ? 1 : 0);
+              g.end = g.start + g.width;  // ★ BUG1 FIX: end도 갱신
             });
           } else if (smallGapTotalUpper > 0 && largeGapsUpper.length === 0 && fixedOccupied.length > 0) {
             // ★ 큰 갭 없음 → 소규격 갭을 인접 고정 모듈에 흡수
@@ -868,6 +892,7 @@
               if (rightFixed) {
                 rightFixed.x -= g.width;
                 rightFixed.w = parseFloat(rightFixed.w) + g.width;
+                rightFixed.endX = rightFixed.x + parseFloat(rightFixed.w);  // ★ BUG4 FIX
               } else if (leftFixed) {
                 leftFixed.w = parseFloat(leftFixed.w) + g.width;
                 leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
@@ -980,38 +1005,8 @@
           dStartAbs = Math.max(startBound, Math.min(endBound, dStartAbs));
           dEndAbs = Math.max(startBound, Math.min(endBound, dEndAbs));
 
-          if (sinkMod) {
-            // ★ 개수대 배치: 분배기가 개수대 내부 유효공간 안에 위치해야 함
-            // 측판 두께 15mm × 2 = 유효공간 = W - 30mm
-            // 조건: 분배기시작 ≥ 개수대X + 15, 분배기끝 ≤ 개수대X + W - 15
-            const SIDE_PANEL = 15; // 측판 두께
-            const distSpan = dEndAbs - dStartAbs; // 분배기 폭
-
-            // 개수대 최소 너비: 분배기 폭 + 양쪽 측판 (최소 950mm, 최대 1200mm)
-            const sinkW = Math.max(950, Math.min(1200, distSpan + SIDE_PANEL * 2));
-
-            // 개수대 초기 배치: 분배기를 내부 중앙에 위치
-            const distCenter = (dStartAbs + dEndAbs) / 2;
-            let sinkX = distCenter - sinkW / 2;
-
-            // 경계 클램핑
-            sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
-
-            // 검증: 분배기가 측판에 닿지 않는지 확인, 필요 시 보정
-            if (dStartAbs < sinkX + SIDE_PANEL) {
-              sinkX = dStartAbs - SIDE_PANEL;
-              sinkX = Math.max(startBound, sinkX);
-            }
-            if (dEndAbs > sinkX + sinkW - SIDE_PANEL) {
-              sinkX = dEndAbs - sinkW + SIDE_PANEL;
-              sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
-            }
-
-            sinkMod.x = sinkX;
-            sinkMod.w = sinkW;
-            sinkMod.endX = sinkX + sinkW;
-            console.log(`[AutoCalc] 개수대: 분배기(${dStartAbs}~${dEndAbs}, 폭${distSpan}) → sink(${sinkX}~${sinkX + sinkW}, W=${sinkW}) 유효공간(${sinkX + SIDE_PANEL}~${sinkX + sinkW - SIDE_PANEL})`);
-          }
+          // ★ BUG5 FIX: 분배기-개수대 초기 배치는 adjustFixedPositions 이후 단일 적용으로 이동
+          // (첫 번째 적용 제거 — 이중 적용 시 크기가 두 번 달라지는 문제 방지)
         } else {
           // ★ 분배기 미입력 시: 기준 방향에 따라 개수대 기본 위치 결정
           if (sinkMod) {
@@ -1135,6 +1130,7 @@
             const rem = smallGapTotal - extra * largeGaps.length;
             largeGaps.forEach((g, i) => {
               g.width += extra + (i < rem ? 1 : 0);
+              g.end = g.start + g.width;  // ★ BUG1 FIX: end도 갱신
             });
           } else if (smallGapTotal > 0 && largeGaps.length === 0 && fixedOccupied.length > 0) {
             // ★ 큰 갭 없음 → 소규격 갭 흡수
