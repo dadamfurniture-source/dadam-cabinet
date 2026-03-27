@@ -685,38 +685,10 @@
             return;
           }
 
-          // ★ 분배기/환풍구 클릭 → 더블클릭 대기 후 싱글이면 팝업, 더블이면 삭제
+          // ★ 분배기/환풍구 클릭 → 치수 팝업 (삭제 버튼 포함)
           if (entry.mesh?.userData?.isDraggable) {
             const dragType = entry.mesh.userData.dragType;
-            if (_utilityClickTimer) {
-              // 더블클릭 — 타이머 취소 + 즉시 삭제
-              clearTimeout(_utilityClickTimer);
-              _utilityClickTimer = null;
-              const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
-              const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
-              if (item) {
-                close3DModulePopup();
-                if (typeof pushUndo === 'function') pushUndo(item);
-                if (dragType === 'water' || dragType === 'waterStart' || dragType === 'waterEnd') {
-                  item.specs.distributorStart = 0;
-                  item.specs.distributorEnd = 0;
-                  delete item.specs.waterSupplyPosition;
-                  delete item.specs.distributorStartAbs;
-                  delete item.specs.distributorEndAbs;
-                } else if (dragType === 'vent') {
-                  item.specs.ventStart = 0;
-                  delete item.specs.exhaustPosition;
-                }
-                if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
-              }
-            } else {
-              // 싱글클릭 대기 (300ms 내 두 번째 클릭 없으면 팝업)
-              const cx = event.clientX, cy = event.clientY;
-              _utilityClickTimer = setTimeout(() => {
-                _utilityClickTimer = null;
-                showUtilityPopup(dragType, cx, cy);
-              }, 300);
-            }
+            showUtilityPopup(dragType, event.clientX, event.clientY);
             return;
           }
 
@@ -913,6 +885,7 @@
                   onchange="window._updateUtility('distributorEnd',this.value)"/>
               </div>
               <div style="margin-top:8px;font-size:10px;color:#999;">기준: ${item.specs.measurementBase==='Left'?'좌':'우'}측에서 거리 (mm)</div>
+              <button onclick="window._deleteUtility('distributor')" style="margin-top:10px;width:100%;padding:6px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">삭제</button>
             `;
           } else {
             popup.innerHTML = `
@@ -926,6 +899,7 @@
                   onchange="window._updateUtility('ventStart',this.value)"/>
               </div>
               <div style="margin-top:8px;font-size:10px;color:#999;">기준: ${item.specs.measurementBase==='Left'?'좌':'우'}측에서 거리 (mm)</div>
+              <button onclick="window._deleteUtility('vent')" style="margin-top:10px;width:100%;padding:6px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">삭제</button>
             `;
           }
 
@@ -949,6 +923,25 @@
           delete item.specs.exhaustPosition;
           delete item.specs.distributorStartAbs;
           delete item.specs.distributorEndAbs;
+          document.getElementById('three-utility-popup')?.remove();
+          if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+        };
+
+        window._deleteUtility = function(type) {
+          const uid = typeof currentItemId !== 'undefined' ? currentItemId : null;
+          const item = uid && typeof getItem === 'function' ? getItem(uid) : null;
+          if (!item) return;
+          if (typeof pushUndo === 'function') pushUndo(item);
+          if (type === 'distributor') {
+            item.specs.distributorStart = 0;
+            item.specs.distributorEnd = 0;
+            delete item.specs.waterSupplyPosition;
+            delete item.specs.distributorStartAbs;
+            delete item.specs.distributorEndAbs;
+          } else if (type === 'vent') {
+            item.specs.ventStart = 0;
+            delete item.specs.exhaustPosition;
+          }
           document.getElementById('three-utility-popup')?.remove();
           if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
         };
