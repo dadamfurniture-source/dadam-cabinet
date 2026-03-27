@@ -338,7 +338,8 @@
           const lowerD = D - 100;
           const finishL = item.specs?.finishLeftType !== 'None' ? (parseFloat(item.specs?.finishLeftWidth) || 0) : 0;
           const finishR = item.specs?.finishRightType !== 'None' ? (parseFloat(item.specs?.finishRightWidth) || 0) : 0;
-          const midY = legH + lowerH;
+          const lowerBodyH = lowerH - topT - legH;   // calc-engine 동일: 본체만
+          const midY = lowerH;                          // spec lowerH = 바닥~상판상단
           const upperY = H - moldingH - upperH;
           const gap = 2;
 
@@ -347,11 +348,11 @@
 
           // ═══ 마감재 ═══
           if (finishL > 0) {
-            addBox(0, 0, 0, finishL, legH + lowerH, D, COLORS.finish, COLORS.finishStroke, null, '좌마감');
+            addBox(0, 0, 0, finishL, lowerH, D, COLORS.finish, COLORS.finishStroke, null, '좌마감');
             addBox(0, upperY, 0, finishL, upperH, upperD, COLORS.finish, COLORS.finishStroke, null, '좌마감상');
           }
           if (finishR > 0) {
-            addBox(W - finishR, 0, 0, finishR, legH + lowerH, D, COLORS.finish, COLORS.finishStroke, null, '우마감');
+            addBox(W - finishR, 0, 0, finishR, lowerH, D, COLORS.finish, COLORS.finishStroke, null, '우마감');
             addBox(W - finishR, upperY, 0, finishR, upperH, upperD, COLORS.finish, COLORS.finishStroke, null, '우마감상');
           }
 
@@ -365,10 +366,10 @@
             // ★ spacer(빈 공간) — 점선 박스 + 라벨만 표시
             if (mod.isSpacer || mod.type === 'spacer') {
               const modIdx = item.modules.indexOf(mod);
-              const spacerGeo = new THREE.BoxGeometry(mw, lowerH, lowerD - inset * 2);
+              const spacerGeo = new THREE.BoxGeometry(mw, lowerBodyH, lowerD - inset * 2);
               const spacerMat = new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.15 });
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
-              spacerMesh.position.set(lx + mw / 2, legH + lowerH / 2, inset + (lowerD - inset * 2) / 2);
+              spacerMesh.position.set(lx + mw / 2, legH + lowerBodyH / 2, inset + (lowerD - inset * 2) / 2);
               const sEdges = new THREE.EdgesGeometry(spacerGeo);
               const sLine = new THREE.LineSegments(sEdges, new THREE.LineDashedMaterial({ color: 0x999999, dashSize: 20, gapSize: 10 }));
               sLine.computeLineDistances(); // dash 필수
@@ -377,7 +378,7 @@
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
-              addLabel(`＋ 추가 (${mw})`, lx + mw / 2, legH + lowerH / 2, lowerD + 80, 13, '#666');
+              addLabel(`＋ 추가 (${mw})`, lx + mw / 2, legH + lowerBodyH / 2, lowerD + 80, 13, '#666');
               lx += mw;
               continue;
             }
@@ -395,14 +396,14 @@
             else              { fill = COLORS.lowerBg; stroke = COLORS.lowerStroke; }
 
             const modIdx = item.modules.indexOf(mod);
-            const mh = isTall ? (upperY + upperH - legH) : lowerH;
+            const mh = isTall ? (upperY + upperH - legH) : (parseFloat(mod.h) || lowerBodyH);
             addBox(lx, legH, inset, mw, mh, lowerD - inset * 2, fill, stroke, modIdx, mod.type);
 
             // 라벨
             const icons = { sink: '🚰', cook: '🔥', tall: '↕', drawer: '🗄', storage: '📦' };
             const icon = icons[mod.type] || (isDrawer ? '🗄' : '📦');
             const labelZ = lowerD + 80;
-            addLabel(`${icon} ${mw}`, lx + mw / 2, legH + (isTall ? mh : lowerH) / 2, labelZ, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
+            addLabel(`${icon} ${mw}`, lx + mw / 2, legH + mh / 2, labelZ, 15, isSink ? '#1d4ed8' : isCook ? '#dc2626' : '#555');
 
             // 싱크볼
             if (isSink) {
@@ -423,17 +424,20 @@
           addLabel(`상판 ${topT}mm`, W / 2, midY + topT / 2, D + 60, 12, '#8b6914');
 
           // ═══ 상부장 모듈 (틈새 없이 밀착) ═══
+          const overlap = parseFloat(item.specs?.upperDoorOverlap) || 15;
+          const upperBodyH = upperH - overlap;   // calc-engine 동일: 본체만
           let ux = finishL;
           for (const mod of upperModules) {
             const mw = parseFloat(mod.w) || 600;
+            const umh = parseFloat(mod.h) || upperBodyH;
 
             // ★ spacer(빈 공간) — 점선 박스
             if (mod.isSpacer || mod.type === 'spacer') {
               const modIdx = item.modules.indexOf(mod);
-              const spacerGeo = new THREE.BoxGeometry(mw, upperH, upperD);
+              const spacerGeo = new THREE.BoxGeometry(mw, umh, upperD);
               const spacerMat = new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.15 });
               const spacerMesh = new THREE.Mesh(spacerGeo, spacerMat);
-              spacerMesh.position.set(ux + mw / 2, upperY + upperH / 2, upperD / 2);
+              spacerMesh.position.set(ux + mw / 2, upperY + umh / 2, upperD / 2);
               const sEdges2 = new THREE.EdgesGeometry(spacerGeo);
               const sLine2 = new THREE.LineSegments(sEdges2, new THREE.LineDashedMaterial({ color: 0x999999, dashSize: 20, gapSize: 10 }));
               sLine2.computeLineDistances();
@@ -442,7 +446,7 @@
               spacerMesh.userData = { moduleIndex: modIdx, isSpacer: true };
               scene.add(spacerMesh);
               moduleMeshes.push({ mesh: spacerMesh, moduleIndex: modIdx });
-              addLabel(`＋ 추가 (${mw})`, ux + mw / 2, upperY + upperH / 2, upperD + 80, 13, '#666');
+              addLabel(`＋ 추가 (${mw})`, ux + mw / 2, upperY + umh / 2, upperD + 80, 13, '#666');
               ux += mw;
               continue;
             }
@@ -452,10 +456,10 @@
             const stroke = isHood ? COLORS.hoodStroke : COLORS.upperStroke;
 
             const modIdx = item.modules.indexOf(mod);
-            addBox(ux, upperY, 0, mw, upperH, upperD, fill, stroke, modIdx, mod.type);
+            addBox(ux, upperY, 0, mw, umh, upperD, fill, stroke, modIdx, mod.type);
 
             const icon = isHood ? '🌀' : '📦';
-            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + upperH / 2, upperD + 80, 15, isHood ? '#b45309' : '#1d4ed8');
+            addLabel(`${icon} ${mw}`, ux + mw / 2, upperY + umh / 2, upperD + 80, 15, isHood ? '#b45309' : '#1d4ed8');
             ux += mw;
           }
 
@@ -468,7 +472,7 @@
             let dx = finishL;
             for (const mod of upperModules) {
               const mw = parseFloat(mod.w) || 600;
-              const cnt = mod.doorCount || Math.ceil(mw / 550);
+              const cnt = mod.doorCount || Math.ceil(mw / 450);
               const dw = mw / cnt;
               for (let d = 0; d < cnt; d++) {
                 addBox(dx + d * dw + 3, upperY + 3, -3, dw - 6, upperH - 6, 3, dc, 0x333333, null, '도어');
@@ -480,15 +484,15 @@
               const mw = parseFloat(mod.w) || 600;
               if (mod.isDrawer) {
                 const drc = mod.drawerCount || 3;
-                const dh = lowerH / drc;
+                const dh = lowerBodyH / drc;
                 for (let dd = 0; dd < drc; dd++) {
                   addBox(dlx + 3, legH + dd * dh + 3, -3, mw - 6, dh - 6, 3, dc, 0x333333, null, '서랍');
                 }
               } else {
-                const cnt = mod.doorCount || Math.ceil(mw / 550);
+                const cnt = mod.doorCount || Math.ceil(mw / 450);
                 const dw = mw / cnt;
                 for (let d = 0; d < cnt; d++) {
-                  addBox(dlx + d * dw + 3, legH + 3, -3, dw - 6, lowerH - 6, 3, dc, 0x333333, null, '도어');
+                  addBox(dlx + d * dw + 3, legH + 3, -3, dw - 6, lowerBodyH - 6, 3, dc, 0x333333, null, '도어');
                 }
               }
               dlx += mw;
@@ -596,10 +600,10 @@
           // 하부장 빈 공간 + 버튼
           const emptyLowerW = W - usedLowerW;
           if (emptyLowerW > 30) {
-            const btnGeo = new THREE.BoxGeometry(emptyLowerW, lowerH, lowerD - inset * 2);
+            const btnGeo = new THREE.BoxGeometry(emptyLowerW, lowerBodyH, lowerD - inset * 2);
             const btnMat = new THREE.MeshBasicMaterial({ color: 0xfafafa, transparent: true, opacity: 0.15 });
             const btnMesh = new THREE.Mesh(btnGeo, btnMat);
-            btnMesh.position.set(lx + emptyLowerW / 2, legH + lowerH / 2, inset + (lowerD - inset * 2) / 2);
+            btnMesh.position.set(lx + emptyLowerW / 2, legH + lowerBodyH / 2, inset + (lowerD - inset * 2) / 2);
             const bEdges = new THREE.EdgesGeometry(btnGeo);
             const bLine = new THREE.LineSegments(bEdges, new THREE.LineDashedMaterial({ color: 0xcccccc, dashSize: 20, gapSize: 10 }));
             bLine.computeLineDistances();
@@ -608,16 +612,16 @@
             btnMesh.userData = { isAddButton: true, pos: 'lower' };
             scene.add(btnMesh);
             moduleMeshes.push({ mesh: btnMesh, moduleIndex: -1 });
-            addLabel('＋ 추가', lx + emptyLowerW / 2, legH + lowerH / 2, lowerD + 80, 14, '#E53935');
+            addLabel('＋ 추가', lx + emptyLowerW / 2, legH + lowerBodyH / 2, lowerD + 80, 14, '#E53935');
           }
 
           // 상부장 빈 공간 + 버튼
           const emptyUpperW = W - usedUpperW;
           if (emptyUpperW > 30) {
-            const btnGeo = new THREE.BoxGeometry(emptyUpperW, upperH, upperD);
+            const btnGeo = new THREE.BoxGeometry(emptyUpperW, upperBodyH, upperD);
             const btnMat = new THREE.MeshBasicMaterial({ color: 0xfafafa, transparent: true, opacity: 0.15 });
             const btnMesh = new THREE.Mesh(btnGeo, btnMat);
-            btnMesh.position.set(ux + emptyUpperW / 2, upperY + upperH / 2, upperD / 2);
+            btnMesh.position.set(ux + emptyUpperW / 2, upperY + upperBodyH / 2, upperD / 2);
             const bEdges = new THREE.EdgesGeometry(btnGeo);
             const bLine = new THREE.LineSegments(bEdges, new THREE.LineDashedMaterial({ color: 0xcccccc, dashSize: 20, gapSize: 10 }));
             bLine.computeLineDistances();
@@ -626,7 +630,7 @@
             btnMesh.userData = { isAddButton: true, pos: 'upper' };
             scene.add(btnMesh);
             moduleMeshes.push({ mesh: btnMesh, moduleIndex: -2 });
-            addLabel('＋ 추가', ux + emptyUpperW / 2, upperY + upperH / 2, upperD + 80, 14, '#E53935');
+            addLabel('＋ 추가', ux + emptyUpperW / 2, upperY + upperBodyH / 2, upperD + 80, 14, '#E53935');
           }
 
           // ★ 카메라 위치 + frustum 크기 자동 보정 (자동계산 후 찌그러짐 방지)
