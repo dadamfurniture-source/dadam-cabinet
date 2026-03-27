@@ -657,6 +657,7 @@
         // ─── 인터랙션 ───
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
+        let _utilityClickTimer = null;
 
         function getClickedModule(event) {
           if (!renderer) return null;
@@ -684,10 +685,21 @@
             return;
           }
 
-          // ★ 분배기/환풍구 클릭 → 배관 치수 팝업 (드래그 아닌 순수 클릭만)
+          // ★ 분배기/환풍구 클릭 → 더블클릭 대기 후 싱글이면 팝업, 더블이면 삭제
           if (entry.mesh?.userData?.isDraggable) {
             const dragType = entry.mesh.userData.dragType;
-            showUtilityPopup(dragType, event.clientX, event.clientY);
+            if (_utilityClickTimer) {
+              // 더블클릭 — 타이머 취소, 삭제 처리는 onMouseDblClick에서
+              clearTimeout(_utilityClickTimer);
+              _utilityClickTimer = null;
+            } else {
+              // 싱글클릭 대기 (300ms 내 두 번째 클릭 없으면 팝업)
+              const cx = event.clientX, cy = event.clientY;
+              _utilityClickTimer = setTimeout(() => {
+                _utilityClickTimer = null;
+                showUtilityPopup(dragType, cx, cy);
+              }, 300);
+            }
             return;
           }
 
@@ -748,6 +760,7 @@
 
           // ★ 분배기/환풍구 더블클릭 → 값 초기화 (삭제)
           if (entry.mesh?.userData?.isDraggable) {
+            if (_utilityClickTimer) { clearTimeout(_utilityClickTimer); _utilityClickTimer = null; }
             close3DModulePopup();
             if (typeof pushUndo === 'function') pushUndo(item);
             const dt = entry.mesh.userData.dragType;
