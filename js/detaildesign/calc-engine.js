@@ -905,7 +905,10 @@
           // LT망장(200 고정), 가스대(600 고정)는 흡수 대상 제외
           if (smallGaps.length > 0) {
             const totalGap = smallGaps.reduce((s, g) => s + g.width, 0);
-            const absorbable = [...newModules, ...fixedOccupied.filter(f => f.type === 'sink')];
+            const sinkFixed = fixedOccupied.find(f => f.type === 'sink');
+            const nonSink = newModules.filter(m => m.type !== 'sink');
+            const absorbable = [...nonSink, ...(sinkFixed ? [sinkFixed] : [])];
+
             // 도어 너비 기준 |doorWidth - 450| 내림차순 정렬
             absorbable.sort((a, b) => {
               const aw = parseFloat(a.w) || 0;
@@ -914,11 +917,56 @@
               const bDoorW = b.is2door || b.is2D ? bw / 2 : bw;
               return Math.abs(bDoorW - DOOR_TARGET_WIDTH) - Math.abs(aDoorW - DOOR_TARGET_WIDTH);
             });
-            if (absorbable.length > 0) {
-              // 가장 이상치가 큰 모듈에 갭 전체 흡수
-              absorbable[0].w = (parseFloat(absorbable[0].w) || 0) + totalGap;
-              if (absorbable[0].endX !== undefined) absorbable[0].endX = absorbable[0].x + parseFloat(absorbable[0].w);
-              console.log(`[AutoCalc] 갭 흡수: ${totalGap}mm → ${absorbable[0].name || absorbable[0].type} (도어편차 최대)`);
+
+            // ★ 개수대-분배기 겹침 검증 후 흡수
+            // 우선순위 모듈에 흡수 → 개수대가 분배기와 겹치면 다음 모듈 시도 → 최종 개수대
+            const SIDE_PANEL = 15;
+            let absorbed = false;
+            for (const target of absorbable) {
+              if (target.type === 'sink') {
+                // 개수대는 최종 폴백 — 무조건 흡수 가능
+                target.w = (parseFloat(target.w) || 0) + totalGap;
+                if (target.endX !== undefined) target.endX = target.x + parseFloat(target.w);
+                console.log(`[AutoCalc] 갭 흡수: ${totalGap}mm → 개수대 (최종 폴백)`);
+                absorbed = true;
+                break;
+              }
+              // 비개수대 모듈에 흡수 시뮬레이션: 개수대-분배기 겹침 확인
+              if (sinkFixed && dStartAbs > 0 && dEndAbs > 0) {
+                // 흡수 후 모듈 배치를 시뮬레이션 (모듈 너비 변경 → 순서 재배치)
+                const origW = parseFloat(target.w) || 0;
+                const simW = origW + totalGap;
+                // 모든 모듈의 총 너비 계산
+                const allMods = [...fixedOccupied, ...newModules];
+                const totalUsed = allMods.reduce((s, m) => s + (m === target ? simW : (parseFloat(m.w) || 0)), 0);
+                // 총 너비가 유효공간 초과 → 겹침 발생
+                if (totalUsed > effectiveW) continue;
+                // 개수대 위치가 분배기를 포함하는지 확인
+                // (순서 기반 재배치 시뮬레이션)
+                let simCursor = startBound;
+                let sinkOk = true;
+                const sortedMods = [...fixedOccupied, ...newModules].sort((a, b) => (a._x || a.x || 0) - (b._x || b.x || 0));
+                for (const m of sortedMods) {
+                  const mw = m === target ? simW : (parseFloat(m.w) || 0);
+                  if (m.type === 'sink') {
+                    // 개수대 시작/끝 위치에서 분배기 포함 확인
+                    if (dStartAbs < simCursor + SIDE_PANEL || dEndAbs > simCursor + mw - SIDE_PANEL) {
+                      sinkOk = false;
+                    }
+                  }
+                  simCursor += mw;
+                }
+                if (!sinkOk) {
+                  console.log(`[AutoCalc] 갭 흡수 시도: ${target.name || target.type} → 개수대-분배기 겹침 → 건너뜀`);
+                  continue;
+                }
+              }
+              // 겹침 없음 → 흡수 확정
+              target.w = (parseFloat(target.w) || 0) + totalGap;
+              if (target.endX !== undefined) target.endX = target.x + parseFloat(target.w);
+              console.log(`[AutoCalc] 갭 흡수: ${totalGap}mm → ${target.name || target.type} (도어편차 최대)`);
+              absorbed = true;
+              break;
             }
           }
 
