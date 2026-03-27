@@ -382,11 +382,31 @@
         const canFit = (w) => dx + w <= gapEnd + 1;
 
         // ★ 상부장 대칭 배치: 1D 가장자리 + 2D 중앙
+        // ★ 단, centerDoors < 2이면 2D 생성 불가 → 표준 분배로 폴백
         if (edgeMode !== 'none' && doorCount >= 3) {
           const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
           const hasRight = (edgeMode === 'both' || edgeMode === 'right');
           const edgeDoors = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0);
           const centerDoors = doorCount - edgeDoors;
+          // ★ centerDoors < 2면 2D 그룹핑 불가 → 표준 분배 사용
+          if (centerDoors < 2) {
+            // 표준 분배 (2D 먼저 + 1D 나중)
+            const quotient = Math.floor(doorCount / 2);
+            const mod1D = doorCount % 2;
+            for (let i = 0; i < quotient; i++) {
+              if (!canFit(doorWidth * 2)) {
+                if (canFit(doorWidth)) { newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx)); dx += doorWidth; }
+                if (canFit(doorWidth)) { newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx)); dx += doorWidth; }
+                continue;
+              }
+              newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+              dx += doorWidth * 2;
+            }
+            if (mod1D > 0 && canFit(doorWidth)) {
+              newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+              dx += doorWidth;
+            }
+          } else {
           const center2D = Math.floor(centerDoors / 2);
           const centerMod1D = centerDoors % 2;
 
@@ -418,6 +438,7 @@
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
+          }  // ← centerDoors >= 2 블록 닫기
         } else {
           // 하부장 또는 기본: 2D 먼저 + 1D 나중
           const quotient = Math.floor(doorCount / 2);
@@ -516,11 +537,32 @@
         const canFit = (w) => dx + w <= gapEnd + 1;
 
         // 상부장 대칭 배치 (RAG: 가장자리 1D + 중앙 2D)
+        // ★ centerDoors < 2이면 2D 그룹핑 불가 → 표준 분배로 폴백
         if (edgeMode !== 'none' && doorCount >= 3) {
           const hasLeft = (edgeMode === 'both' || edgeMode === 'left');
           const hasRight = (edgeMode === 'both' || edgeMode === 'right');
           const edgeDoors = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0);
           const centerDoors = doorCount - edgeDoors;
+
+          if (centerDoors < 2) {
+            // 표준 분배 (2D 먼저 + 1D 나중)
+            const quotient = Math.floor(doorCount / 2);
+            const mod1D = doorCount % 2;
+            for (let i = 0; i < quotient; i++) {
+              if (canFit(doorWidth * 2)) {
+                newModules.push(createModule(section, namePrefix, doorWidth * 2, defaultH, defaultD, true, dx));
+                dx += doorWidth * 2;
+              } else if (canFit(doorWidth)) {
+                newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+                dx += doorWidth;
+                if (canFit(doorWidth)) { newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx)); dx += doorWidth; }
+              }
+            }
+            if (mod1D > 0 && canFit(doorWidth)) {
+              newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
+              dx += doorWidth;
+            }
+          } else {
           const center2D = Math.floor(centerDoors / 2);
           const centerMod1D = centerDoors % 2;
 
@@ -549,6 +591,7 @@
             newModules.push(createModule(section, namePrefix, doorWidth, defaultH, defaultD, false, dx));
             dx += doorWidth;
           }
+          }  // ← centerDoors >= 2 블록 닫기
         } else {
           // 하부장 또는 기본: 2D 먼저 + 1D 나중 (RAG)
           const quotient = Math.floor(doorCount / 2);
@@ -868,9 +911,22 @@
               if (rightFixed) {
                 rightFixed.x -= g.width;
                 rightFixed.w = parseFloat(rightFixed.w) + g.width;
+                rightFixed.endX = rightFixed.x + parseFloat(rightFixed.w);
               } else if (leftFixed) {
                 leftFixed.w = parseFloat(leftFixed.w) + g.width;
                 leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
+              }
+            });
+            // ★ 흡수 후 남은 갭 재확인 → 150mm 이상이면 모듈 생성
+            const finalUpperGaps = calculateGaps(fixedOccupied, startBound, endBound);
+            finalUpperGaps.forEach(g => {
+              if (g.width >= DOOR_MIN_WIDTH) {
+                newModules = newModules.concat(fillGapWithModules(g, 'upper', upperBodyH, 295, 'none', preferExactUpper));
+              } else if (g.width >= 150) {
+                const drawerMod = createModule('upper', '상부장', g.width, upperBodyH, 295, false, g.start);
+                drawerMod.isDrawer = true;
+                drawerMod.name = '상부장(서랍)';
+                newModules.push(drawerMod);
               }
             });
             console.log(`[AutoCalc] 상부장: 소규격 갭(${smallGapTotalUpper}mm)을 고정 모듈에 흡수`);
@@ -1137,42 +1193,101 @@
               g.width += extra + (i < rem ? 1 : 0);
             });
           } else if (smallGapTotal > 0 && largeGaps.length === 0 && fixedOccupied.length > 0) {
-            // ★ 큰 갭 없음 → 소규격 갭 흡수
-            // ★ 고정 규격 모듈: sink(950~1200), cook(600 고정), LT망장(200 고정)
-            // ★ 전략: 잔여 전체를 개수대에 흡수 (1200mm 한도) → 나머지 위치 재조정
+            // ★ 큰 갭 없음 → 전략: 고정모듈 재배치로 갭 통합 우선, 그래도 안 되면 개수대 확장 + 서랍 생성
             const sinkForAbsorb = fixedOccupied.find(f => f.type === 'sink');
             const SIDE_PANEL = 15;
 
-            if (sinkForAbsorb) {
-              const curSinkW = parseFloat(sinkForAbsorb.w);
-              const maxExpand = 1200 - curSinkW; // 확장 가능 여유
-              const absorb = Math.min(smallGapTotal, maxExpand);
+            // ★ 전략 1: 고정모듈을 한쪽으로 밀어 갭 통합 시도
+            // 개수대를 분배기 제약 범위 내에서 최대한 startBound 쪽으로 이동
+            if (sinkForAbsorb && dStartAbs > 0 && dEndAbs > 0) {
+              const minSinkX = Math.max(startBound, dStartAbs - SIDE_PANEL);
+              if (sinkForAbsorb.x > minSinkX) {
+                sinkForAbsorb.x = minSinkX;
+                sinkForAbsorb.endX = sinkForAbsorb.x + parseFloat(sinkForAbsorb.w);
+                // LT망장 위치 재조정
+                const ltRepos = fixedOccupied.find(f => f.name === 'LT망장');
+                if (ltRepos) {
+                  ltRepos.x = sinkForAbsorb.endX;
+                  ltRepos.endX = ltRepos.x + parseFloat(ltRepos.w);
+                }
+                console.log(`[AutoCalc] 개수대 좌측 이동: x=${sinkForAbsorb.x} (분배기 제약 내 최소)`);
+              }
+            }
 
-              if (absorb > 0) {
-                // 개수대를 좌측으로 확장 (startBound까지)
-                const leftExpand = Math.min(absorb, sinkForAbsorb.x - startBound);
-                const rightExpand = absorb - leftExpand;
+            // 갭 재계산
+            const reGaps = calculateGaps(fixedOccupied, startBound, endBound);
+            const reLarge = [];
+            let reSmallTotal = 0;
+            const reSmallGaps = [];
+            reGaps.forEach(g => {
+              if (g.width >= DOOR_MIN_WIDTH) {
+                reLarge.push({ ...g });
+              } else {
+                reSmallTotal += g.width;
+                reSmallGaps.push({ ...g });
+              }
+            });
 
-                sinkForAbsorb.x -= leftExpand;
-                sinkForAbsorb.w = curSinkW + absorb;
-                sinkForAbsorb.endX = sinkForAbsorb.x + sinkForAbsorb.w;
+            if (reLarge.length > 0) {
+              // 통합 성공: 큰 갭이 생김 → 소규격 갭을 큰 갭에 흡수
+              if (reSmallTotal > 0) {
+                const extra = Math.floor(reSmallTotal / reLarge.length);
+                const rem = reSmallTotal - extra * reLarge.length;
+                reLarge.forEach((g, i) => { g.width += extra + (i < rem ? 1 : 0); });
+              }
+              // 큰 갭으로 모듈 생성
+              reLarge.forEach((gap) => {
+                newModules = newModules.concat(fillGapWithModules(gap, 'lower', defaultLowerH, 550, 'none', preferExact));
+              });
+              console.log(`[AutoCalc] 하부장: 고정모듈 재배치로 ${reLarge.length}개 갭 확보 (${reLarge.map(g => g.width + 'mm').join(', ')})`);
+            } else {
+              // ★ 전략 2: 재배치 후에도 큰 갭 없음 → 개수대 확장 + 남은 갭에 서랍 생성
+              if (sinkForAbsorb) {
+                const curSinkW = parseFloat(sinkForAbsorb.w);
+                const maxExpand = 1200 - curSinkW;
+                const absorb = Math.min(reSmallTotal, maxExpand);
 
-                console.log(`[AutoCalc] 개수대 확장: ${curSinkW}→${sinkForAbsorb.w}mm (좌${leftExpand}+우${rightExpand})`);
-
-                // LT망장 위치 재조정 (개수대 우측 인접)
-                const ltForRepos = fixedOccupied.find(f => f.name === 'LT망장');
-                if (ltForRepos) {
-                  ltForRepos.x = sinkForAbsorb.endX;
-                  ltForRepos.endX = ltForRepos.x + parseFloat(ltForRepos.w);
+                if (absorb > 0) {
+                  const leftExpand = Math.min(absorb, sinkForAbsorb.x - startBound);
+                  const rightExpand = absorb - leftExpand;
+                  sinkForAbsorb.x -= leftExpand;
+                  sinkForAbsorb.w = curSinkW + absorb;
+                  sinkForAbsorb.endX = sinkForAbsorb.x + sinkForAbsorb.w;
+                  const ltForRepos = fixedOccupied.find(f => f.name === 'LT망장');
+                  if (ltForRepos) {
+                    ltForRepos.x = sinkForAbsorb.endX;
+                    ltForRepos.endX = ltForRepos.x + parseFloat(ltForRepos.w);
+                  }
+                  console.log(`[AutoCalc] 개수대 확장: ${curSinkW}→${sinkForAbsorb.w}mm (좌${leftExpand}+우${rightExpand})`);
                 }
               }
 
-              const remaining = smallGapTotal - absorb;
-              if (remaining > 0) {
-                console.log(`[AutoCalc] 개수대 확장 한도 초과: ${remaining}mm 잔여 (몰딩/시공 오차 처리)`);
-              }
+              // ★ 확장 후 남은 갭 재계산 → 서랍/수납 모듈 생성 (150mm 이상)
+              const finalGaps = calculateGaps(fixedOccupied, startBound, endBound);
+              finalGaps.forEach(g => {
+                if (g.width >= 150) {
+                  // 서랍 모듈 생성 (일반 도어 규칙 미적용)
+                  const drawerMod = createModule('lower', '하부장', g.width, defaultLowerH, 550, false, g.start);
+                  drawerMod.isDrawer = true;
+                  drawerMod.name = '하부장(서랍)';
+                  newModules.push(drawerMod);
+                  console.log(`[AutoCalc] 서랍 모듈 생성: x=${g.start}, w=${g.width}mm`);
+                } else if (g.width > 0) {
+                  // 150mm 미만: 인접 고정모듈에 흡수
+                  const rightFixed = fixedOccupied.find(f => Math.abs(f.x - g.end) <= 1);
+                  const leftFixed = fixedOccupied.find(f => Math.abs(f.endX - g.start) <= 1);
+                  if (rightFixed && rightFixed.type === 'sink' && parseFloat(rightFixed.w) + g.width <= 1200) {
+                    rightFixed.x -= g.width;
+                    rightFixed.w = parseFloat(rightFixed.w) + g.width;
+                    rightFixed.endX = rightFixed.x + parseFloat(rightFixed.w);
+                  } else if (leftFixed && leftFixed.type === 'sink' && parseFloat(leftFixed.w) + g.width <= 1200) {
+                    leftFixed.w = parseFloat(leftFixed.w) + g.width;
+                    leftFixed.endX = leftFixed.x + parseFloat(leftFixed.w);
+                  }
+                }
+              });
+              console.log(`[AutoCalc] 하부장: 소규격 갭 처리 완료 (개수대 확장 + 서랍 생성)`);
             }
-            console.log(`[AutoCalc] 하부장: 소규격 갭(${smallGapTotal}mm) 개수대 확장으로 흡수`);
           }
 
           // ★ 각 갭 독립 계산 (RAG 규칙 + 도어 균등 최우선)
