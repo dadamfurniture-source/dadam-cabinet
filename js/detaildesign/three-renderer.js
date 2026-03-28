@@ -475,7 +475,7 @@
               const cnt = mod.doorCount || Math.ceil(mw / 450);
               const dw = mw / cnt;
               for (let d = 0; d < cnt; d++) {
-                addBox(dx + d * dw + 3, upperY + 3, -3, dw - 6, upperH - 6, 3, dc, 0x333333, null, '도어');
+                addBox(dx + d * dw + 3, upperY + 3, -3, dw - 6, upperBodyH - 6, 3, dc, 0x333333, null, '도어');
               }
               dx += mw;
             }
