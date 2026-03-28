@@ -359,6 +359,44 @@
         );
       }
 
+      // ★ R3F 3D 플래너 임베드 로드
+      const PLANNER_BASE_URL = '/planner/embed/';
+      function _loadPlannerEmbed(container, item) {
+        // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
+        const existing = container.querySelector('iframe[data-planner]');
+        if (existing) {
+          existing.contentWindow?.postMessage({
+            type: 'UPDATE_PLANNER',
+            payload: {
+              presetId: item.categoryId || 'sink',
+              width: parseFloat(item.w) || 3000,
+              height: parseFloat(item.specs?.lowerH) || 870,
+              depth: parseFloat(item.d) || 600,
+              lowerCount: item.modules.filter(m => m.pos === 'lower').length || 5,
+              upperCount: item.modules.filter(m => m.pos === 'upper').length || 4,
+            }
+          }, '*');
+          return;
+        }
+        // 새 iframe 생성
+        const params = new URLSearchParams({
+          preset: item.categoryId || 'sink',
+          w: String(parseFloat(item.w) || 3000),
+          h: String(parseFloat(item.specs?.lowerH) || 870),
+          d: String(parseFloat(item.d) || 600),
+          lowerCount: String(item.modules.filter(m => m.pos === 'lower').length || 5),
+          upperCount: String(item.modules.filter(m => m.pos === 'upper').length || 4),
+          material: item.specs?.materialTone || 'cream',
+        });
+        container.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.src = PLANNER_BASE_URL + '?' + params.toString();
+        iframe.dataset.planner = 'true';
+        iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
+        iframe.allow = 'accelerometer; autoplay; fullscreen';
+        container.appendChild(iframe);
+      }
+
       // 실제 렌더링 구현
       function _renderWorkspaceContentImpl(item) {
         const ws = document.getElementById('designWorkspace');
@@ -1159,16 +1197,12 @@
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
 
-        // ★ 3D 뷰 실시간 업데이트 — 항상 render3DView 호출 (DOM 교체 감지 + 재초기화)
-        if (typeof ThreeRenderer !== 'undefined') {
+        // ★ 3D 뷰 — R3F 임베드 iframe 로드
+        {
           const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + item.uniqueId);
             if (container && container.clientWidth > 0) {
-              const upperModules = item.modules.filter(m => m.pos === 'upper');
-              const lowerModules = item.modules.filter(m => m.pos === 'lower');
-              // 항상 render3DView 호출 — 내부에서 container 변경 감지 → dispose + init
-              ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
-              if (!ThreeRenderer._frontViewDone) { ThreeRenderer.setFrontView(); ThreeRenderer._frontViewDone = true; }
+              _loadPlannerEmbed(container, item);
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
             }
@@ -1257,22 +1291,25 @@
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
 
-        // 3D → 다른 뷰로 전환 시 Three.js 해제
-        if (item.specs.viewMode === '3d' && mode !== '3d' && typeof ThreeRenderer !== 'undefined') {
-          ThreeRenderer.dispose();
+        // 3D → 다른 뷰로 전환 시 iframe 제거
+        if (item.specs.viewMode === '3d' && mode !== '3d') {
+          const container = document.getElementById('three-canvas-' + itemUniqueId);
+          if (container) {
+            const iframe = container.querySelector('iframe[data-planner]');
+            if (iframe) iframe.remove();
+          }
+          if (typeof ThreeRenderer !== 'undefined') ThreeRenderer.dispose();
         }
 
         item.specs.viewMode = mode;
         renderWorkspaceContent(item);
 
-        // 3D 뷰 활성화 시 Three.js 렌더링 (debounce 30ms + DOM 안정화 대기)
-        if (mode === '3d' && typeof ThreeRenderer !== 'undefined') {
+        // 3D 뷰 활성화 시 R3F 임베드 로드
+        if (mode === '3d') {
           const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + itemUniqueId);
             if (container && container.clientWidth > 0) {
-              const upperModules = item.modules.filter(m => m.pos === 'upper');
-              const lowerModules = item.modules.filter(m => m.pos === 'lower');
-              ThreeRenderer.render3DView(container, item, upperModules, lowerModules, item.specs.showDoors || false);
+              _loadPlannerEmbed(container, item);
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
             }
