@@ -603,6 +603,28 @@
         const category = mainItem.categoryId || mainItem.category || 'sink';
         const specs = mainItem.specs || {};
         const style = extractStyleFromSpecs(specs);
+        const modules = mainItem.modules || [];
+
+        // layout_constraints 구성 (위치 고정형)
+        const upperMods = modules.filter(m => m.pos === 'upper');
+        const lowerMods = modules.filter(m => m.pos === 'lower');
+        const sinkMod = lowerMods.find(m => m.type === 'sink' || m.hasSink);
+        const cookMod = lowerMods.find(m => m.type === 'cook' || m.hasCooktop);
+        const hoodMod = upperMods.find(m => m.type === 'hood');
+
+        const layoutConstraints = {
+          design_id: (typeof currentDesignId !== 'undefined' && currentDesignId) || null,
+          total_width_mm: parseFloat(mainItem.w) || 3000,
+          total_height_mm: parseFloat(mainItem.h) || 2400,
+          depth_mm: parseFloat(mainItem.d) || 600,
+          fixed_appliances: {
+            sink: sinkMod ? { x_mm: parseFloat(sinkMod.x) || 0, width_mm: parseFloat(sinkMod.w) || 1000 } : null,
+            cooktop: cookMod ? { x_mm: parseFloat(cookMod.x) || 0, width_mm: parseFloat(cookMod.w) || 600 } : null,
+            hood: hoodMod ? { align_to: 'cooktop_center', width_mm: parseFloat(hoodMod.w) || 800 } : null,
+          },
+          upper_modules: upperMods.map(m => ({ type: m.type, width_mm: parseFloat(m.w) || 600, name: m.name })),
+          lower_modules: lowerMods.map(m => ({ type: m.type, width_mm: parseFloat(m.w) || 600, name: m.name, is_fixed: m.isFixed || false })),
+        };
 
         // 현장 사진 가져오기 (필수)
         const sitePhotoUrl = mainItem.imageUrl || mainItem.image;
@@ -631,6 +653,7 @@
             category,
             style,
             null, // budget
+            layoutConstraints, // layout_constraints 전달
             {
               onStage: (stage, label) => updateMultiagentProgress(stage, label),
               onError: (err) => {
