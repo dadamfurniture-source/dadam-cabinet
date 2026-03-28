@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 정적 내보내기 모드 (Vercel/Netlify 등 정적 호스팅용)
-  // 동적 기능이 필요하면 이 줄을 주석 처리하세요
+  // 정적 내보내기 모드 (GitHub Pages 정적 호스팅용)
   output: 'export',
   trailingSlash: true,
+  basePath: '/planner',
+  assetPrefix: '/planner',
 
   images: {
     unoptimized: true,

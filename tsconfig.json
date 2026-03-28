@@ -35,5 +35,5 @@
     "types/**/*.d.ts",
     "lib/**/*.ts"
   ],
-  "exclude": ["node_modules", "out", ".next", "js"]
+  "exclude": ["node_modules", "out", ".next", "js", "mcp-server"]
 }
