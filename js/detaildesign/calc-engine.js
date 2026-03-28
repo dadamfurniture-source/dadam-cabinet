@@ -738,7 +738,7 @@
           cursor += mw;
         });
 
-        // ★ 분배기 절대좌표 계산 (개수대 배치 + 검증에서 재사용)
+        // ★ 분배기/환풍구 절대좌표 계산
         const distStart = parseFloat(item.specs.distributorStart) || 0;
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         let dStartAbs = 0, dEndAbs = 0;
@@ -753,27 +753,44 @@
             dStartAbs = endBound - distEnd;
             dEndAbs = endBound - distStart;
           }
-          // ★ 경계 클램핑 — 실측 치수 외부로 튀어나오지 않도록
           dStartAbs = Math.max(startBound, Math.min(endBound, dStartAbs));
           dEndAbs = Math.max(startBound, Math.min(endBound, dEndAbs));
+        }
 
+        // ★ 1단계: 환풍구 → 가스대 위치 연동 (개수대보다 먼저 — 개수대 배치에서 가스대 위치 참조)
+        const ventPos = parseFloat(item.specs.ventStart) || 0;
+        const cookMod = fixedOccupied.find(m => m.type === 'cook');
+        if (cookMod) {
+          const cookW_val = parseFloat(cookMod.w) || 600;
+          if (ventPos > 0) {
+            let ventAbs = Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + ventPos : endBound - ventPos));
+            let cookX = ventAbs - cookW_val / 2;
+            cookX = Math.max(startBound, Math.min(endBound - cookW_val, cookX));
+            cookMod.x = cookX;
+            cookMod.endX = cookX + cookW_val;
+            console.log(`[AutoCalc] 가스대: 환풍구=${ventPos}mm → cookX=${cookX}`);
+          } else {
+            if (isRefLeft) {
+              cookMod.x = Math.max(startBound, endBound - cookW_val);
+            } else {
+              cookMod.x = startBound;
+            }
+            cookMod.endX = cookMod.x + cookW_val;
+          }
+        }
+
+        // ★ 2단계: 분배기 → 개수대 위치 연동 (가스대 위치 확정 후)
+        if (dStartAbs > 0 && dEndAbs > dStartAbs) {
           if (sinkMod) {
-            // ★ 개수대 배치: 분배기가 개수대 내부 유효공간 안에 위치해야 함
-            // 측판 두께 15mm × 2 = 유효공간 = W - 30mm
-            // 조건: 분배기시작 ≥ 개수대X + 15, 분배기끝 ≤ 개수대X + W - 15
-            const SIDE_PANEL = 15; // 측판 두께
-            const distSpan = dEndAbs - dStartAbs; // 분배기 폭
+            const SIDE_PANEL = 15;
+            const distSpan = dEndAbs - dStartAbs;
 
-            // 개수대 기본 너비: W ≤ 2500 → 950mm, W > 2500 → 1000mm
             const sinkBaseW = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
             const sinkW = Math.max(sinkBaseW, Math.min(SINK_MAX_W, distSpan + SIDE_PANEL * 2));
 
-            // 개수대 배치: 분배기를 포함하면서 기준 방향에 최대한 붙임
-            // (빈 공간이 반대쪽에 모여서 모듈 생성 가능)
-            // ★ 가스대/다른 고정모듈과 겹침 방지: 개수대+LT 끝이 가스대 시작 이하
-            const cookMod2 = fixedOccupied.find(m => m.type === 'cook');
-            const ltW = 200; // LT 고정 너비
-            const sinkMaxEndX = cookMod2 ? cookMod2.x - ltW : endBound - ltW;
+            // 가스대 위치 기반 개수대 최대 끝점 (개수대+LT가 가스대와 겹치지 않도록)
+            const ltW = 200;
+            const sinkMaxEndX = cookMod ? cookMod.x - ltW : endBound - ltW;
 
             let sinkX;
             if (isRefLeft) {
@@ -783,14 +800,12 @@
               sinkX = Math.max(startBound, sinkX);
             }
 
-            // 경계 클램핑
             sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
-            // 가스대와 겹치지 않도록 제약
             if (sinkX + sinkW > sinkMaxEndX) {
               sinkX = Math.max(startBound, sinkMaxEndX - sinkW);
             }
 
-            // 검증: 분배기가 측판에 닿지 않는지 확인, 필요 시 보정
+            // 분배기 측판 검증
             if (dStartAbs < sinkX + SIDE_PANEL) {
               sinkX = Math.max(startBound, dStartAbs - SIDE_PANEL);
             }
@@ -804,7 +819,6 @@
             console.log(`[AutoCalc] 개수대: 분배기(${dStartAbs}~${dEndAbs}, 폭${distSpan}) → sink(${sinkX}~${sinkX + sinkW}, W=${sinkW}) 유효공간(${sinkX + SIDE_PANEL}~${sinkX + sinkW - SIDE_PANEL})`);
           }
         } else {
-          // ★ 분배기 미입력 시: 기준 방향에 따라 개수대 기본 위치 결정
           if (sinkMod) {
             const sinkW = parseFloat(sinkMod.w) || 1000;
             if (isRefLeft) {
@@ -813,30 +827,6 @@
               sinkMod.x = Math.max(startBound, endBound - sinkW);
             }
             sinkMod.endX = sinkMod.x + sinkW;
-          }
-        }
-
-        // ★ 환풍구 → 가스대 위치 연동
-        const ventPos = parseFloat(item.specs.ventStart) || 0;
-        const cookMod = fixedOccupied.find(m => m.type === 'cook');
-        if (cookMod) {
-          const cookW_val = parseFloat(cookMod.w) || 600;
-          if (ventPos > 0) {
-            // 환풍구 위치 중심에 가스대 배치 (경계 클램핑)
-            let ventAbs = Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + ventPos : endBound - ventPos));
-            let cookX = ventAbs - cookW_val / 2;
-            cookX = Math.max(startBound, Math.min(endBound - cookW_val, cookX));
-            cookMod.x = cookX;
-            cookMod.endX = cookX + cookW_val;
-            console.log(`[AutoCalc] 가스대: 환풍구=${ventPos}mm → cookX=${cookX}`);
-          } else {
-            // 환풍구 미입력: 기준 반대쪽에 배치
-            if (isRefLeft) {
-              cookMod.x = Math.max(startBound, endBound - cookW_val);
-            } else {
-              cookMod.x = startBound;
-            }
-            cookMod.endX = cookMod.x + cookW_val;
           }
         }
 
