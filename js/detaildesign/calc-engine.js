@@ -298,15 +298,23 @@
       function adjustFixedPositions(fixedList, startBound, endBound) {
         fixedList.sort((a, b) => a.x - b.x);
 
+        // 고정 모듈별 최소 너비 결정
+        function getMinW(mod) {
+          if (mod.type === 'sink') return SINK_DEFAULT_W_SMALL;
+          if (mod.type === 'cook') return COOK_FIXED_W;
+          if (mod.name === 'LT망장') return LT_FIXED_W;
+          return DOOR_MIN_WIDTH;
+        }
+
         // 왼쪽에서 오른쪽으로 겹침 방지
         let cursor = startBound;
         fixedList.forEach((mod) => {
           if (mod.x < cursor) {
             mod.x = cursor;
           }
-          // ★ endBound 초과 방지: 너비 클램핑 (개수대 950mm, 가스대 600mm 보장)
+          // ★ endBound 초과 방지
           if (mod.x + parseFloat(mod.w) > endBound) {
-            const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
+            const minW = getMinW(mod);
             mod.w = Math.max(minW, endBound - mod.x);
             if (mod.x + mod.w > endBound) mod.x = endBound - mod.w;
             if (mod.x < startBound) mod.x = startBound;
@@ -321,7 +329,7 @@
           const mod = fixedList[i];
           if (mod.endX > rightCursor) {
             mod.endX = rightCursor;
-            const minW = mod.type === 'sink' ? 950 : mod.type === 'cook' ? 600 : DOOR_MIN_WIDTH;
+            const minW = getMinW(mod);
             mod.x = Math.max(startBound, mod.endX - Math.max(minW, parseFloat(mod.w)));
             mod.w = mod.endX - mod.x;
           }
@@ -572,8 +580,8 @@
         if (lowerPosMap.sink) {
           const sinkCenter = lowerPosMap.sink.centerX;
           const sinkW = lowerPosMap.sink.w;
-          // 기준상부장 너비 = 개수대 너비 (최대 1200mm)
-          const refUpperW = Math.min(1200, sinkW);
+          // 기준상부장 너비 = 개수대 너비 (최대 SINK_MAX_W)
+          const refUpperW = Math.min(SINK_MAX_W, sinkW);
           let refUpperX = sinkCenter - refUpperW / 2;
           refUpperX = Math.max(startBound, Math.min(endBound - refUpperW, refUpperX));
 
@@ -758,23 +766,36 @@
 
             // 개수대 기본 너비: W ≤ 2500 → 950mm, W > 2500 → 1000mm
             const sinkBaseW = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
-            const sinkW = Math.max(sinkBaseW, Math.min(1200, distSpan + SIDE_PANEL * 2));
+            const sinkW = Math.max(sinkBaseW, Math.min(SINK_MAX_W, distSpan + SIDE_PANEL * 2));
 
-            // 개수대 초기 배치: 분배기를 내부 중앙에 위치
-            const distCenter = (dStartAbs + dEndAbs) / 2;
-            let sinkX = distCenter - sinkW / 2;
+            // 개수대 배치: 분배기를 포함하면서 기준 방향에 최대한 붙임
+            // (빈 공간이 반대쪽에 모여서 모듈 생성 가능)
+            // ★ 가스대/다른 고정모듈과 겹침 방지: 개수대+LT 끝이 가스대 시작 이하
+            const cookMod2 = fixedOccupied.find(m => m.type === 'cook');
+            const ltW = 200; // LT 고정 너비
+            const sinkMaxEndX = cookMod2 ? cookMod2.x - ltW : endBound - ltW;
+
+            let sinkX;
+            if (isRefLeft) {
+              sinkX = Math.max(startBound, dStartAbs - SIDE_PANEL);
+            } else {
+              sinkX = Math.min(endBound - sinkW, dEndAbs - sinkW + SIDE_PANEL);
+              sinkX = Math.max(startBound, sinkX);
+            }
 
             // 경계 클램핑
             sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
+            // 가스대와 겹치지 않도록 제약
+            if (sinkX + sinkW > sinkMaxEndX) {
+              sinkX = Math.max(startBound, sinkMaxEndX - sinkW);
+            }
 
             // 검증: 분배기가 측판에 닿지 않는지 확인, 필요 시 보정
             if (dStartAbs < sinkX + SIDE_PANEL) {
-              sinkX = dStartAbs - SIDE_PANEL;
-              sinkX = Math.max(startBound, sinkX);
+              sinkX = Math.max(startBound, dStartAbs - SIDE_PANEL);
             }
             if (dEndAbs > sinkX + sinkW - SIDE_PANEL) {
-              sinkX = dEndAbs - sinkW + SIDE_PANEL;
-              sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
+              sinkX = Math.max(startBound, Math.min(sinkMaxEndX - sinkW, dEndAbs - sinkW + SIDE_PANEL));
             }
 
             sinkMod.x = sinkX;
@@ -856,14 +877,27 @@
             const SIDE_PANEL = 15;
             const distSpan = dEndAbs - dStartAbs;
             const sinkBaseW2 = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
-            const idealW = Math.max(sinkBaseW2, Math.min(1200, distSpan + SIDE_PANEL * 2));
-            // 분배기 중앙 기준 배치
-            const distCenter = (dStartAbs + dEndAbs) / 2;
-            let idealX = distCenter - idealW / 2;
+            const idealW = Math.max(sinkBaseW2, Math.min(SINK_MAX_W, distSpan + SIDE_PANEL * 2));
+            // 분배기 포함하면서 기준 방향에 최대한 붙임
+            // ★ 가스대와 겹치지 않도록 제약
+            const cookMod3 = fixedOccupied.find(m => m.type === 'cook');
+            const ltW2 = 200;
+            const sinkMaxEnd = cookMod3 ? cookMod3.x - ltW2 : endBound - ltW2;
+
+            let idealX;
+            if (isRefLeft) {
+              idealX = Math.max(startBound, dStartAbs - SIDE_PANEL);
+            } else {
+              idealX = Math.min(endBound - idealW, dEndAbs - idealW + SIDE_PANEL);
+              idealX = Math.max(startBound, idealX);
+            }
             idealX = Math.max(startBound, Math.min(endBound - idealW, idealX));
+            if (idealX + idealW > sinkMaxEnd) {
+              idealX = Math.max(startBound, sinkMaxEnd - idealW);
+            }
             // 검증: 분배기가 측판에 닿지 않도록 보정
             if (dStartAbs < idealX + SIDE_PANEL) idealX = Math.max(startBound, dStartAbs - SIDE_PANEL);
-            if (dEndAbs > idealX + idealW - SIDE_PANEL) idealX = Math.max(startBound, Math.min(endBound - idealW, dEndAbs - idealW + SIDE_PANEL));
+            if (dEndAbs > idealX + idealW - SIDE_PANEL) idealX = Math.max(startBound, Math.min(sinkMaxEnd - idealW, dEndAbs - idealW + SIDE_PANEL));
 
             sinkMod2.x = idealX;
             sinkMod2.w = idealW;
@@ -924,10 +958,14 @@
             let absorbed = false;
             for (const target of absorbable) {
               if (target.type === 'sink') {
-                // 개수대는 최종 폴백 — 무조건 흡수 가능
-                target.w = (parseFloat(target.w) || 0) + totalGap;
-                if (target.endX !== undefined) target.endX = target.x + parseFloat(target.w);
-                console.log(`[AutoCalc] 갭 흡수: ${totalGap}mm → 개수대 (최종 폴백)`);
+                // 개수대는 최종 폴백 — SINK_MAX_W 이내에서만 흡수
+                const curW = parseFloat(target.w) || 0;
+                const canAbsorb = Math.min(totalGap, SINK_MAX_W - curW);
+                if (canAbsorb > 0) {
+                  target.w = curW + canAbsorb;
+                  if (target.endX !== undefined) target.endX = target.x + parseFloat(target.w);
+                  console.log(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → 개수대 (최종 폴백, 잔여 ${totalGap - canAbsorb}mm)`);
+                }
                 absorbed = true;
                 break;
               }

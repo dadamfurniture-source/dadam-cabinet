@@ -25,6 +25,9 @@
       const SINK_DEFAULT_W_SMALL = 950; // W ≤ 2500mm
       const SINK_DEFAULT_W_LARGE = 1000; // W > 2500mm
 
+      // ★ 개수대 최대 너비
+      const SINK_MAX_W = 1100;
+
       // ★ 고정 너비 모듈 (갭 흡수 대상 제외)
       const LT_FIXED_W = 200;
       const COOK_FIXED_W = 600;
