@@ -2028,7 +2028,7 @@
           return filtered.length;
         }
 
-        // 영향받는 모듈 하이라이트 (위치 변경 모듈 = 진하게, 나머지 = 연하게)
+        // 삽입 위치의 좌우 경계 모듈 하이라이트 + 삽입선 표시
         function highlightAffected(insertIdx) {
           const item = selectedItems.find(i => i.uniqueId === modDragUid);
           if (!item) return;
@@ -2036,26 +2036,49 @@
           const draggedMod = item.modules[modDragIdx];
           const filtered = posModules.filter(m => m !== draggedMod);
 
-          // insertIdx 위치에 삽입했을 때 영향받는 모듈 = insertIdx 이후의 모듈들 (우측으로 밀림)
-          // 또는 원래 위치보다 앞이면 = insertIdx ~ origIdx-1의 모듈들 (우측으로 밀림)
-          const origFilteredIdx = (() => {
-            // 드래그 모듈이 제거된 filtered에서의 원래 위치 근사값
-            const origPosIdx = posModules.indexOf(draggedMod);
-            let adj = 0;
-            for (let i = 0; i < origPosIdx; i++) {
-              if (posModules[i] !== draggedMod) adj++;
-            }
-            return adj;
-          })();
+          // 삽입 위치의 좌우 이웃 모듈 (기준 모듈)
+          const leftNeighbor = insertIdx > 0 ? filtered[insertIdx - 1] : null;
+          const rightNeighbor = insertIdx < filtered.length ? filtered[insertIdx] : null;
+          const boundarySet = new Set();
+          if (leftNeighbor) boundarySet.add(leftNeighbor);
+          if (rightNeighbor) boundarySet.add(rightNeighbor);
 
-          const affectedSet = new Set();
-          if (insertIdx !== origFilteredIdx) {
-            const lo = Math.min(insertIdx, origFilteredIdx);
-            const hi = Math.max(insertIdx, origFilteredIdx);
-            for (let i = lo; i < hi; i++) {
-              if (filtered[i]) affectedSet.add(filtered[i]);
-            }
+          // ★ 삽입선 위치 계산 (mm → SVG 좌표)
+          const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+          let insertMm = fL;
+          for (let i = 0; i < insertIdx && i < filtered.length; i++) {
+            insertMm += parseFloat(filtered[i].w) || 0;
           }
+          const insertSvgX = modDragOx + (insertMm / modDragSinkW) * modDragDrawW;
+
+          // 삽입선 (두꺼운 초록색 실선)
+          let insertLine = modDragSvg.querySelector('#insert-line');
+          if (!insertLine) {
+            insertLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            insertLine.id = 'insert-line';
+            insertLine.setAttribute('stroke', '#22c55e');
+            insertLine.setAttribute('stroke-width', '3');
+            insertLine.setAttribute('stroke-linecap', 'round');
+            modDragSvg.appendChild(insertLine);
+          }
+          const vb = modDragSvg.viewBox.baseVal;
+          insertLine.setAttribute('x1', insertSvgX);
+          insertLine.setAttribute('y1', '2');
+          insertLine.setAttribute('x2', insertSvgX);
+          insertLine.setAttribute('y2', vb.height - 2);
+          insertLine.setAttribute('opacity', '1');
+
+          // ★ 삽입 위치 삼각형 화살표 (위/아래)
+          let insertArrow = modDragSvg.querySelector('#insert-arrow');
+          if (!insertArrow) {
+            insertArrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            insertArrow.id = 'insert-arrow';
+            insertArrow.setAttribute('fill', '#22c55e');
+            modDragSvg.appendChild(insertArrow);
+          }
+          const aw = 8; // 화살표 너비
+          insertArrow.setAttribute('points',
+            `${insertSvgX - aw},0 ${insertSvgX + aw},0 ${insertSvgX},${aw * 1.2}`);
 
           modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
             if (r === modDragRect) return;
@@ -2065,16 +2088,21 @@
               r.setAttribute('opacity', '1');
               r.removeAttribute('filter');
               r.setAttribute('stroke-width', '2');
+              r.style.stroke = '';
               return;
             }
-            if (affectedSet.has(mod)) {
+            if (boundarySet.has(mod)) {
+              // 기준 모듈: 진하게 + 두꺼운 초록 테두리
               r.setAttribute('opacity', '1');
-              r.setAttribute('filter', 'saturate(1.8) brightness(0.85)');
-              r.setAttribute('stroke-width', '3');
+              r.setAttribute('filter', 'saturate(1.6) brightness(0.9)');
+              r.setAttribute('stroke-width', '4');
+              r.style.stroke = '#22c55e';
             } else {
-              r.setAttribute('opacity', '0.4');
+              // 나머지: 연하게
+              r.setAttribute('opacity', '0.35');
               r.removeAttribute('filter');
               r.setAttribute('stroke-width', '2');
+              r.style.stroke = '';
             }
           });
         }
@@ -2103,28 +2131,7 @@
           const dx = (e.clientX - modDragStartX) / rect.width * vb.width;
           modDragRect.setAttribute('x', modOrigX + dx);
 
-          // ★ B2: 스냅 가이드라인 표시
-          let guide = modDragSvg.querySelector('#snap-guide');
-          if (!guide) {
-            guide = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            guide.id = 'snap-guide';
-            guide.setAttribute('stroke', '#3b82f6');
-            guide.setAttribute('stroke-width', '1');
-            guide.setAttribute('stroke-dasharray', '4,4');
-            guide.setAttribute('opacity', '0.8');
-            modDragSvg.appendChild(guide);
-          }
-          // 50mm 단위 스냅 위치 계산
-          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
-          const dropMm = (svgX - modDragOx) / modDragDrawW * modDragSinkW;
-          const snapMm = Math.round(dropMm / 50) * 50;
-          const snapSvgX = modDragOx + (snapMm / modDragSinkW) * modDragDrawW;
-          guide.setAttribute('x1', snapSvgX);
-          guide.setAttribute('y1', '0');
-          guide.setAttribute('x2', snapSvgX);
-          guide.setAttribute('y2', vb.height);
-
-          // 영향받는 모듈 하이라이트
+          // 삽입 위치 계산 + 경계 모듈 하이라이트 + 삽입선
           const idx = calcInsertIdx(e);
           highlightAffected(idx);
         });
@@ -2136,16 +2143,19 @@
           const savedIdx = modDragIdx;
           const savedUid = modDragUid;
 
-          // 리셋 — 하이라이트 복원 + 스냅 가이드 제거
+          // 리셋 — 하이라이트 복원 + 삽입선/화살표 제거
           if (modDragSvg) {
             modDragSvg.style.cursor = '';
-            const guide = modDragSvg.querySelector('#snap-guide');
-            if (guide) guide.remove();
+            const insertLine = modDragSvg.querySelector('#insert-line');
+            if (insertLine) insertLine.remove();
+            const insertArrow = modDragSvg.querySelector('#insert-arrow');
+            if (insertArrow) insertArrow.remove();
             modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
               r.setAttribute('opacity', '1');
               r.removeAttribute('filter');
               r.setAttribute('stroke-width', '2');
               r.removeAttribute('stroke-dasharray');
+              r.style.stroke = '';
             });
             try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
           }
@@ -2172,6 +2182,7 @@
           const draggedMod = item.modules[modDragIdx];
 
           if (draggedMod && posModules.length > 1 && insertIdx >= 0) {
+            pushUndo(item); // ★ Undo — 모듈 순서 변경 전 저장
             const filtered = posModules.filter(m => m !== draggedMod);
             filtered.splice(insertIdx, 0, draggedMod);
             item.modules = otherModules.concat(filtered);
