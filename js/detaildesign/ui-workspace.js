@@ -2256,6 +2256,7 @@
         if (!item) return;
         pushUndo(item);
         if (!checked) {
+          // 삭제: 0으로 설정 (0 = 삭제됨 상태)
           if (type === 'distributor') {
             item.specs.distributorStart = 0;
             item.specs.distributorEnd = 0;
@@ -2265,6 +2266,14 @@
           } else if (type === 'vent') {
             item.specs.ventStart = 0;
             delete item.specs.exhaustPosition;
+          }
+        } else {
+          // 활성화: null로 설정 → 렌더 시 초기값 자동 생성
+          if (type === 'distributor') {
+            item.specs.distributorStart = null;
+            item.specs.distributorEnd = null;
+          } else if (type === 'vent') {
+            item.specs.ventStart = null;
           }
         }
         renderWorkspaceContent(item);
