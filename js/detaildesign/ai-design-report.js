@@ -705,11 +705,14 @@
         const images = data.images || [];
         const furnitureImg = images.find(i => i.type === 'furniture');
         const openImg = images.find(i => i.type === 'open');
+        const altStyleImg = images.find(i => i.type === 'alt_style');
         const originalImg = images.find(i => i.type === 'original');
 
         const closedImageUrl = furnitureImg?.image_url || '';
         const openImageUrl = openImg?.image_url || '';
+        const altStyleUrl = altStyleImg?.image_url || '';
         const hasOpenImage = !!openImageUrl;
+        const hasAltStyle = !!altStyleUrl;
 
         // 분석 데이터
         const spaceAnalysis = data.space_analysis;
@@ -722,6 +725,7 @@
 
         // 탭 구성
         const tabs = ['가구 이미지'];
+        if (hasAltStyle) tabs.push('대체 스타일');
         if (hasOpenImage) tabs.push('오픈도어');
         if (spaceAnalysis) tabs.push('벽면 분석');
         if (layout) tabs.push('레이아웃');
@@ -798,7 +802,11 @@
         <div class="ma-tab-content" data-tab="0">
           ${closedImageUrl ? `<img src="${closedImageUrl}" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;" alt="가구 이미지">` : '<p style="text-align:center;color:#999;">이미지가 생성되지 않았습니다.</p>'}
         </div>
-        ${hasOpenImage ? `<div class="ma-tab-content" data-tab="1" style="display:none;">
+        ${hasAltStyle ? `<div class="ma-tab-content" data-tab="${tabs.indexOf('대체 스타일')}" style="display:none;">
+          <img src="${altStyleUrl}" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;" alt="대체 스타일">
+          <p style="text-align:center;color:#888;font-size:12px;margin-top:8px;">하부장 컬러 + 상부장 무채색 투톤 스타일</p>
+        </div>` : ''}
+        ${hasOpenImage ? `<div class="ma-tab-content" data-tab="${tabs.indexOf('오픈도어')}" style="display:none;">
           <img src="${openImageUrl}" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;" alt="오픈도어 이미지">
         </div>` : ''}
         ${spaceAnalysis ? `<div class="ma-tab-content" data-tab="${tabs.indexOf('벽면 분석')}" style="display:none;">${analysisHtml}</div>` : ''}
@@ -807,6 +815,7 @@
       </div>
       <div style="display:flex;gap:8px;padding:16px 24px;border-top:1px solid #EBE8E2;justify-content:flex-end;">
         ${closedImageUrl ? `<button onclick="downloadMultiagentImage('${closedImageUrl}', 'furniture')" style="padding:10px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📥 가구 이미지 저장</button>` : ''}
+        ${hasAltStyle ? `<button onclick="downloadMultiagentImage('${altStyleUrl}', 'alt_style')" style="padding:10px 20px;background:#f59e0b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📥 대체 스타일 저장</button>` : ''}
         ${hasOpenImage ? `<button onclick="downloadMultiagentImage('${openImageUrl}', 'open')" style="padding:10px 20px;background:#6366F1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📥 오픈도어 저장</button>` : ''}
         <button onclick="this.closest('.ai-design-result-modal').remove()" style="padding:10px 20px;background:#f3f4f6;color:#666;border:none;border-radius:8px;cursor:pointer;font-weight:600;">닫기</button>
       </div>
