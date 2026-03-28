@@ -370,7 +370,7 @@
             payload: {
               presetId: item.categoryId || 'sink',
               width: parseFloat(item.w) || 3000,
-              height: parseFloat(item.specs?.lowerH) || 870,
+              height: parseFloat(item.h) || 2300,
               depth: parseFloat(item.d) || 600,
               lowerCount: item.modules.filter(m => m.pos === 'lower').length || 5,
               upperCount: item.modules.filter(m => m.pos === 'upper').length || 4,
@@ -382,7 +382,7 @@
         const params = new URLSearchParams({
           preset: item.categoryId || 'sink',
           w: String(parseFloat(item.w) || 3000),
-          h: String(parseFloat(item.specs?.lowerH) || 870),
+          h: String(parseFloat(item.h) || 2300),
           d: String(parseFloat(item.d) || 600),
           lowerCount: String(item.modules.filter(m => m.pos === 'lower').length || 5),
           upperCount: String(item.modules.filter(m => m.pos === 'upper').length || 4),
