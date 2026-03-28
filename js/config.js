@@ -7,6 +7,9 @@ window.DADAM_CONFIG = {
   multiagent: {
     apiUrl: '', // multiagent API base URL (e.g. https://dadam-multiagent.up.railway.app/api/v1)
   },
+  generateApi: {
+    url: 'https://dadam-generate-api-production.up.railway.app/api/generate',
+  },
   app: {
     name: '다담가구',
     version: '1.0.0',

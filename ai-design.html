@@ -2607,8 +2607,10 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (Railway — Gemini Flash Image)
-      const API_GENERATE_URL = 'https://dadam-generate-api-production.up.railway.app/api/generate';
+      // 이미지 생성 API URL (config 우선, 없으면 운영 기본값)
+      const API_GENERATE_URL =
+        window.DADAM_CONFIG?.generateApi?.url ||
+        'https://dadam-generate-api-production.up.railway.app/api/generate';
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
@@ -2870,6 +2872,334 @@ Magazine quality, professional lighting.`;
           accent_prompt: 'brushed gold faucet, full-height marble backsplash, integrated LED under-cabinet lighting, crystal pendant over island',
         }
       };
+
+      const randomColorCatalog = {
+        baseDoorColors: [
+          { name_ko: '샌드그레이', name_en: 'sand-gray', color_hex: '#d8d2c8', prompt_description: 'soft sand gray painted flat panel finish, bright neutral achromatic tone' },
+          { name_ko: '라이트그레이', name_en: 'light-gray', color_hex: '#d9dde2', prompt_description: 'light gray painted flat panel finish, bright neutral achromatic tone' },
+          { name_ko: '포그그레이', name_en: 'fog-gray', color_hex: '#cfd4d1', prompt_description: 'fog gray painted flat panel finish, soft muted neutral tone' },
+          { name_ko: '캐시미어', name_en: 'cashmere', color_hex: '#d8d0c5', prompt_description: 'cashmere painted flat panel finish, warm pale neutral tone' },
+          { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f3', prompt_description: 'pure white smooth matte flat panel finish' },
+          { name_ko: '밀크화이트', name_en: 'milk-white', color_hex: '#f3efe8', prompt_description: 'milk white painted flat panel finish, warm creamy neutral tone' },
+          { name_ko: '듀이클라우드', name_en: 'dewy-cloud', color_hex: '#e7e9ea', prompt_description: 'dewy cloud painted flat panel finish, pale misty neutral tone' }
+        ],
+        baseCountertops: [
+          { name_ko: '화이트세라믹', name_en: 'white-ceramic', color_hex: '#efede8', prompt_description: 'bright white ceramic countertop with subtle stone movement' },
+          { name_ko: '소프트그레이세라믹', name_en: 'soft-gray-ceramic', color_hex: '#dadbdd', prompt_description: 'soft light gray ceramic countertop with refined matte texture' },
+          { name_ko: '웜아이보리스톤', name_en: 'warm-ivory-stone', color_hex: '#ebe3d7', prompt_description: 'warm ivory engineered stone countertop with clean minimal pattern' },
+          { name_ko: '프로스트화이트', name_en: 'frost-white', color_hex: '#f4f4f1', prompt_description: 'frost white solid surface countertop with crisp clean appearance' }
+        ],
+        altDoorColors: [
+          { name_ko: '딥그린', name_en: 'deep-green', color_hex: '#234235', prompt_description: 'deep green painted flat panel finish with rich saturated tone' },
+          { name_ko: '딥블루', name_en: 'deep-blue', color_hex: '#1f3f6b', prompt_description: 'deep blue painted flat panel finish with elegant saturated tone' },
+          { name_ko: '퍼플', name_en: 'purple', color_hex: '#6b5876', prompt_description: 'muted purple painted flat panel finish with premium tone' },
+          { name_ko: '브릭테라코타', name_en: 'brick-terracotta', color_hex: '#9c5f49', prompt_description: 'brick terracotta painted flat panel finish with sophisticated warmth' },
+          { name_ko: '웜토프', name_en: 'warm-taupe', color_hex: '#8d7b70', prompt_description: 'warm taupe painted flat panel finish with refined earthy tone' },
+          { name_ko: '네이처오크', name_en: 'nature-oak', color_hex: '#c9ab7a', prompt_description: 'natural oak wood grain finish with visible linear texture' },
+          { name_ko: '월넛', name_en: 'walnut', color_hex: '#6a4a36', prompt_description: 'dark walnut wood grain finish with luxurious deep texture' },
+          { name_ko: '콘크리트', name_en: 'concrete', color_hex: '#9ea3a7', prompt_description: 'architectural concrete-texture cabinet finish with matte mineral surface' }
+        ],
+        altNeutralDoorColors: [
+          { name_ko: '샌드그레이', name_en: 'sand-gray', color_hex: '#d8d2c8', prompt_description: 'soft sand gray painted flat panel finish, bright neutral achromatic tone' },
+          { name_ko: '라이트그레이', name_en: 'light-gray', color_hex: '#d9dde2', prompt_description: 'light gray painted flat panel finish, bright neutral achromatic tone' },
+          { name_ko: '포그그레이', name_en: 'fog-gray', color_hex: '#cfd4d1', prompt_description: 'fog gray painted flat panel finish, soft muted neutral tone' },
+          { name_ko: '캐시미어', name_en: 'cashmere', color_hex: '#d8d0c5', prompt_description: 'cashmere painted flat panel finish, warm pale neutral tone' },
+          { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f3', prompt_description: 'pure white smooth matte flat panel finish' },
+          { name_ko: '밀크화이트', name_en: 'milk-white', color_hex: '#f3efe8', prompt_description: 'milk white painted flat panel finish, warm creamy neutral tone' },
+          { name_ko: '듀이클라우드', name_en: 'dewy-cloud', color_hex: '#e7e9ea', prompt_description: 'dewy cloud painted flat panel finish, pale misty neutral tone' }
+        ],
+        altCountertops: [
+          { name_ko: '세라믹화이트', name_en: 'ceramic-white', color_hex: '#efeeeb', prompt_description: 'bright ceramic countertop with subtle premium veining' },
+          { name_ko: '세라믹베이지', name_en: 'ceramic-beige', color_hex: '#ddd1c1', prompt_description: 'warm beige ceramic countertop with fine stone movement' },
+          { name_ko: '콘크리트상판', name_en: 'concrete-top', color_hex: '#9ea1a3', prompt_description: 'matte concrete countertop with architectural mineral texture' },
+          { name_ko: '소프트그레이세라믹', name_en: 'soft-gray-ceramic', color_hex: '#d7d8dc', prompt_description: 'soft gray ceramic countertop with calm refined texture' }
+        ]
+      };
+
+      function hashString(value) {
+        let hash = 2166136261;
+        for (let i = 0; i < value.length; i++) {
+          hash ^= value.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+      }
+
+      function mulberry32(seed) {
+        return function () {
+          let t = (seed += 0x6d2b79f5);
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function pickRandom(list, rng) {
+        return list[Math.floor(rng() * list.length)];
+      }
+
+      function pickDistinctPair(list, rng) {
+        const first = pickRandom(list, rng);
+        let second = pickRandom(list, rng);
+        if (second.name_en === first.name_en) {
+          second = list[(list.findIndex((item) => item.name_en === first.name_en) + 1) % list.length];
+        }
+        return [first, second];
+      }
+
+      function buildRandomColorScheme(styleKey, category, seedSource) {
+        const themeData = styleThemes[styleKey] || styleThemes['modern-minimal'];
+        const seed = hashString(`${seedSource}:${styleKey}:${category}`);
+        const rng = mulberry32(seed);
+        const upper = pickRandom(randomColorCatalog.baseDoorColors, rng);
+        const lower = upper;
+        const countertop = pickRandom(randomColorCatalog.baseCountertops, rng);
+
+        return {
+          seed,
+          scheme_type: 'base-neutral',
+          source_style: styleKey,
+          base_theme: {
+            name: themeData.name || styleKey,
+            finish: themeData.door_finish || 'matte'
+          },
+          upper,
+          lower,
+          countertop
+        };
+      }
+
+      function buildAltRandomStyleScheme(styleKey, category, seedSource) {
+        const themeData = styleThemes[styleKey] || styleThemes['modern-minimal'];
+        const seed = hashString(`alt:${seedSource}:${styleKey}:${category}`);
+        const rng = mulberry32(seed);
+        const neutral = pickRandom(randomColorCatalog.altNeutralDoorColors, rng);
+        const expressive = pickRandom(randomColorCatalog.altDoorColors, rng);
+        const neutralOnUpper = rng() >= 0.5;
+        const upper = neutralOnUpper ? neutral : expressive;
+        const lower = neutralOnUpper ? expressive : neutral;
+        const countertop = pickRandom(randomColorCatalog.altCountertops, rng);
+
+        return {
+          seed,
+          scheme_type: 'alt-expressive',
+          source_style: styleKey,
+          base_theme: {
+            name: themeData.name || styleKey,
+            finish: 'matte'
+          },
+          upper,
+          lower,
+          countertop
+        };
+      }
+
+      function buildKitchenLayoutConstraints(layout, wallWidthMm) {
+        const normalizedWallWidth = Math.max(2400, Math.round(wallWidthMm || 3300));
+        const baseWidth = Math.min(3600, Math.max(2400, Math.round((normalizedWallWidth * 0.84) / 50) * 50));
+        const sinkWidth = 900;
+        const cooktopWidth = 600;
+        const hoodWidth = 600;
+        const sinkCenter = layout === 'l_type' ? Math.round(baseWidth * 0.32) : Math.round(baseWidth * 0.3);
+        const cooktopCenter = layout === 'peninsula' ? Math.round(baseWidth * 0.62) : Math.round(baseWidth * 0.7);
+        const sinkX = Math.max(0, sinkCenter - sinkWidth / 2);
+        const cooktopX = Math.max(0, cooktopCenter - cooktopWidth / 2);
+        const hoodX = Math.max(0, cooktopCenter - hoodWidth / 2);
+
+        return {
+          layout_type: layout || 'i_type',
+          total_width_mm: baseWidth,
+          base_depth_mm: 600,
+          upper_depth_mm: 360,
+          fixed_appliances: {
+            sink: { x_mm: sinkX, width_mm: sinkWidth, center_mm: sinkCenter, anchor: 'from_left' },
+            cooktop: { x_mm: cooktopX, width_mm: cooktopWidth, center_mm: cooktopCenter, anchor: 'from_left' },
+            hood: {
+              x_mm: hoodX,
+              width_mm: hoodWidth,
+              center_mm: cooktopCenter,
+              anchor: 'from_left',
+              align_to: 'cooktop_center'
+            }
+          },
+          lower_modules: [
+            { type: 'storage', position_from_left_mm: 0, width_mm: Math.max(400, sinkX), fixed: false },
+            { type: 'sink', position_from_left_mm: sinkX, width_mm: sinkWidth, fixed: true },
+            {
+              type: 'storage',
+              position_from_left_mm: sinkX + sinkWidth,
+              width_mm: Math.max(300, cooktopX - (sinkX + sinkWidth)),
+              fixed: false
+            },
+            { type: 'cooktop', position_from_left_mm: cooktopX, width_mm: cooktopWidth, fixed: true },
+            {
+              type: 'storage',
+              position_from_left_mm: cooktopX + cooktopWidth,
+              width_mm: Math.max(300, baseWidth - (cooktopX + cooktopWidth)),
+              fixed: false
+            }
+          ].filter((module) => module.width_mm > 0),
+          upper_modules: [
+            { type: 'storage', position_from_left_mm: 0, width_mm: hoodX, fixed: false },
+            { type: 'hood', position_from_left_mm: hoodX, width_mm: hoodWidth, fixed: true },
+            {
+              type: 'storage',
+              position_from_left_mm: hoodX + hoodWidth,
+              width_mm: Math.max(300, baseWidth - (hoodX + hoodWidth)),
+              fixed: false
+            }
+          ].filter((module) => module.width_mm > 0)
+        };
+      }
+
+      function svgToBase64(svgText) {
+        return btoa(unescape(encodeURIComponent(svgText)));
+      }
+
+      function svgToPngDataUrl(svgText, width, height) {
+        return new Promise((resolve, reject) => {
+          const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(svgBlob);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              URL.revokeObjectURL(url);
+              reject(new Error('Canvas context unavailable'));
+              return;
+            }
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to rasterize SVG'));
+          };
+          img.src = url;
+        });
+      }
+
+      function dataUrlToInlineImage(dataUrl) {
+        if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+          return null;
+        }
+        const [header, base64] = dataUrl.split(',', 2);
+        const mimeMatch = header.match(/^data:(.*?);base64$/);
+        if (!mimeMatch || !base64) return null;
+        return {
+          base64,
+          mime_type: mimeMatch[1]
+        };
+      }
+
+      async function buildLayoutGuideImages(layoutConstraints, colorScheme) {
+        if (!layoutConstraints?.total_width_mm) {
+          return { layoutImage: null, maskImage: null };
+        }
+
+        const width = 1200;
+        const height = 720;
+        const padding = 80;
+        const totalWidth = layoutConstraints.total_width_mm;
+        const scale = (width - padding * 2) / totalWidth;
+        const lowerY = 420;
+        const lowerH = 170;
+        const upperY = 140;
+        const upperH = 120;
+
+        const moduleToRect = (module, y, h, fill, stroke) => {
+          const x = padding + Math.round((module.position_from_left_mm || 0) * scale);
+          const w = Math.max(8, Math.round((module.width_mm || 0) * scale));
+          return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="3" />`;
+        };
+
+        const labelForModule = (module, y) => {
+          const x = padding + Math.round(((module.position_from_left_mm || 0) + (module.width_mm || 0) / 2) * scale);
+          const text = (module.type || 'module').toUpperCase();
+          return `<text x="${x}" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1f2937">${text}</text>`;
+        };
+
+        const lowerModules = (layoutConstraints.lower_modules || []).map((module) =>
+          moduleToRect(
+            module,
+            lowerY,
+            lowerH,
+            module.type === 'sink' ? '#93c5fd' : module.type === 'cooktop' ? '#fca5a5' : (colorScheme?.lower?.color_hex || '#cbd5e1'),
+            '#334155'
+          )
+        ).join('');
+
+        const upperModules = (layoutConstraints.upper_modules || []).map((module) =>
+          moduleToRect(
+            module,
+            upperY,
+            upperH,
+            module.type === 'hood' ? '#fdba74' : (colorScheme?.upper?.color_hex || '#e2e8f0'),
+            '#334155'
+          )
+        ).join('');
+
+        const labels = []
+          .concat((layoutConstraints.lower_modules || []).map((module) => labelForModule(module, lowerY + lowerH / 2 + 10)))
+          .concat((layoutConstraints.upper_modules || []).map((module) => labelForModule(module, upperY + upperH / 2 + 10)))
+          .join('');
+
+        const guideSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            <rect width="100%" height="100%" fill="#f8fafc"/>
+            <text x="${padding}" y="56" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">Kitchen layout guide</text>
+            <text x="${padding}" y="94" font-family="Arial, sans-serif" font-size="20" fill="#475569">Keep sink, cooktop, and hood centered at these exact positions.</text>
+            <line x1="${padding}" y1="${lowerY + lowerH + 34}" x2="${width - padding}" y2="${lowerY + lowerH + 34}" stroke="#64748b" stroke-width="4"/>
+            ${upperModules}
+            ${lowerModules}
+            ${labels}
+          </svg>
+        `;
+
+        const maskSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            <rect width="100%" height="100%" fill="#000000"/>
+            ${upperModules.replace(/fill=\"[^\"]+\"/g, 'fill="#ffffff"').replace(/stroke=\"[^\"]+\"/g, 'stroke="#ffffff"')}
+            ${lowerModules.replace(/fill=\"[^\"]+\"/g, 'fill="#ffffff"').replace(/stroke=\"[^\"]+\"/g, 'stroke="#ffffff"')}
+          </svg>
+        `;
+
+        const guidePngDataUrl = await svgToPngDataUrl(guideSvg, width, height);
+        const maskPngDataUrl = await svgToPngDataUrl(maskSvg, width, height);
+
+        return {
+          layoutImage: dataUrlToInlineImage(guidePngDataUrl),
+          maskImage: dataUrlToInlineImage(maskPngDataUrl)
+        };
+      }
+
+      async function buildColorReferenceImage(colorScheme) {
+        if (!colorScheme?.upper?.color_hex || !colorScheme?.lower?.color_hex || !colorScheme?.countertop?.color_hex) {
+          return null;
+        }
+
+        const svg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="960" height="280" viewBox="0 0 960 280">
+            <rect width="100%" height="100%" fill="#ffffff"/>
+            <text x="40" y="52" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#111827">Exact color references</text>
+            <rect x="40" y="86" width="260" height="150" rx="12" fill="${colorScheme.upper.color_hex}"/>
+            <rect x="350" y="86" width="260" height="150" rx="12" fill="${colorScheme.lower.color_hex}"/>
+            <rect x="660" y="86" width="260" height="150" rx="12" fill="${colorScheme.countertop.color_hex}"/>
+            <text x="170" y="258" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">UPPER ${colorScheme.upper.name_en.toUpperCase()}</text>
+            <text x="480" y="258" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">LOWER ${colorScheme.lower.name_en.toUpperCase()}</text>
+            <text x="790" y="258" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">TOP ${colorScheme.countertop.name_en.toUpperCase()}</text>
+          </svg>
+        `;
+
+        const pngDataUrl = await svgToPngDataUrl(svg, 960, 280);
+        return dataUrlToInlineImage(pngDataUrl);
+      }
 
       // Supabase에서 스타일 데이터 로드
       async function loadStylesFromSupabase() {
@@ -3409,6 +3739,7 @@ Magazine quality, professional lighting.`;
 
         state.results = [];
         const total = categories.length;
+        const generationNonce = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
         for (let i = 0; i < categories.length; i++) {
           const category = categories[i];
@@ -3446,6 +3777,20 @@ Magazine quality, professional lighting.`;
           try {
             // 스타일 데이터 준비
             const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
+            const randomColorScheme = buildRandomColorScheme(
+              state.selectedStyle,
+              category,
+              `${generationNonce}:${category}:${state.selectedStyle}:${imageData.preview || imageData.base64?.slice(0, 32) || 'seed'}`
+            );
+            const altRandomStyleScheme = buildAltRandomStyleScheme(
+              state.selectedStyle,
+              category,
+              `${generationNonce}:${category}:${state.selectedStyle}:${imageData.preview || imageData.base64?.slice(0, 32) || 'seed'}`
+            );
+            const layoutConstraints =
+              category === 'sink'
+                ? buildKitchenLayoutConstraints(state.selectedKitchenLayout || 'i_type', 3300)
+                : null;
 
             const authHeaders = await getAuthHeaders();
             const response = await fetch(API_GENERATE_URL, {
@@ -3457,9 +3802,12 @@ Magazine quality, professional lighting.`;
                 category: category,
                 design_style: state.selectedStyle,
                 kitchen_layout: category === 'sink' ? (state.selectedKitchenLayout || 'i_type') : undefined,
-                style_door_color: themeData.door_color_name || '',
+                style_door_color: randomColorScheme.upper.name_en || themeData.door_color_name || '',
                 style_door_finish: themeData.door_finish || '',
-                style_countertop_prompt: themeData.countertop_prompt || '',
+                style_countertop_prompt: randomColorScheme.countertop.prompt_description || themeData.countertop_prompt || '',
+                random_color_scheme: randomColorScheme,
+                alt_random_color_scheme: altRandomStyleScheme,
+                layout_constraints: layoutConstraints,
               }),
             });
 
@@ -3488,7 +3836,7 @@ Magazine quality, professional lighting.`;
             }
 
             let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 적용`;
-            let suggestionText = altStyleName ? `${info.name} - ${state.selectedStyle} vs ${altStyleName}` : `${info.name} 디자인`;
+            let suggestionText = altStyleName ? `${info.name} - ${state.selectedStyle} 기본안 / ${altStyleName} AI 추천 적용 색상/질감` : `${info.name} 디자인`;
 
             state.results.push({
               category,
@@ -3844,7 +4192,7 @@ Magazine quality, professional lighting.`;
         const images = [
           { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
           { url: img.dataset.closed, state: 'closed', label: '🎨 선택 스타일', color: '#3b82f6' },
-          { url: img.dataset.open, state: 'open', label: '✨ 대체 스타일', color: '#10b981' },
+              { url: img.dataset.open, state: 'open', label: '✨ AI 추천 적용 색상/질감', color: '#10b981' },
         ];
 
         // 이미지가 없으면 스킵
