@@ -52,9 +52,10 @@ function AddPanelSide({ position, moduleHeight, moduleDepth, color, onClick }: {
 /* ── 클릭 가능한 모듈 mesh ── */
 function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
   const [hovered, setHovered] = useState(false);
-  // mod- 로 시작하는 파츠만 클릭 가능 (face 포함 — 부모 ID로 전달)
+  // mod- 또는 utility- 로 시작하는 파츠 클릭 가능
   const isMod = part.id.startsWith('mod-');
-  const isClickable = isMod;
+  const isUtility = part.id.startsWith('utility-');
+  const isClickable = isMod || isUtility;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
 
   return (
@@ -67,12 +68,14 @@ function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: str
     >
       <boxGeometry args={[part.width, part.height, part.depth]} />
       <meshStandardMaterial
-        color={hovered && isClickable ? '#c9a87c' : color}
+        color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c')) : (hovered && isClickable ? '#c9a87c' : color)}
         metalness={wireframe ? 0.1 : 0.2}
         roughness={wireframe ? 0.5 : 0.75}
         wireframe={wireframe}
-        emissive={hovered && isClickable ? '#3a2a1a' : '#000000'}
-        emissiveIntensity={hovered && isClickable ? 0.15 : 0}
+        opacity={isUtility ? 0.7 : 1}
+        transparent={isUtility}
+        emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : '#000000'}
+        emissiveIntensity={hovered && isClickable ? 0.2 : 0}
       />
     </mesh>
   );
@@ -232,6 +235,65 @@ function ModulePopup({
   );
 }
 
+/* ── 유틸리티 편집 팝업 ── */
+function UtilityPopup({
+  type, planner, onUpdate, onDelete, onClose,
+}: {
+  type: 'distributor' | 'vent';
+  planner: PlannerState;
+  onUpdate: (changes: Partial<PlannerState>) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const isDist = type === 'distributor';
+  const label = isDist ? '💧 급수분배기' : '🌀 환풍구';
+  const color = isDist ? '#2196f3' : '#78909c';
+
+  const startVal = isDist ? (planner.distributorStart ?? Math.round(planner.width * 0.15)) : (planner.ventStart ?? Math.round(planner.width * 0.7));
+  const endVal = isDist ? (planner.distributorEnd ?? Math.round(planner.width * 0.15 + 700)) : 0;
+
+  return (
+    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 100, minWidth: 280, fontFamily: FONT }}
+      onClick={(e) => e.stopPropagation()}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color }}>{label}</span>
+        <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: '0 4px' }}>✕</button>
+      </div>
+
+      {/* 위치 입력 */}
+      {isDist ? (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>시작 (mm)</div>
+            <input type="number" value={startVal} step={10} min={0} max={planner.width}
+              onChange={(e) => onUpdate({ distributorStart: Math.max(0, Number(e.target.value)) })}
+              style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: '6px', fontSize: 13, fontFamily: FONT }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>끝 (mm)</div>
+            <input type="number" value={endVal} step={10} min={0} max={planner.width}
+              onChange={(e) => onUpdate({ distributorEnd: Math.max(0, Number(e.target.value)) })}
+              style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: '6px', fontSize: 13, fontFamily: FONT }} />
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>위치 (mm, 좌측 기준)</div>
+          <input type="number" value={startVal} step={10} min={0} max={planner.width}
+            onChange={(e) => onUpdate({ ventStart: Math.max(0, Number(e.target.value)) })}
+            style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: '6px', fontSize: 13, fontFamily: FONT }} />
+        </div>
+      )}
+
+      {/* 삭제 (숨김) */}
+      <button onClick={() => { onDelete(); onClose(); }}
+        style={{ width: '100%', padding: '10px', border: '1px solid #fca5a5', borderRadius: 8, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+        🗑 삭제 (숨김)
+      </button>
+    </div>
+  );
+}
+
 export interface EmbedCanvasProps {
   initialPreset?: CabinetCategory;
   initialWidth?: number;
@@ -335,7 +397,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
       </Canvas>
 
       {/* 팝업 배경 (클릭 시 닫기) */}
-      {selectedModule && (
+      {selectedModuleId && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 90 }}
           onClick={() => setSelectedModuleId(null)} />
       )}
@@ -350,6 +412,42 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           onClose={() => setSelectedModuleId(null)}
         />
       )}
+
+      {/* 유틸리티 편집 팝업 */}
+      {selectedModuleId === 'utility-distributor' && (
+        <UtilityPopup
+          type="distributor"
+          planner={planner}
+          onUpdate={(changes) => setPlanner((prev) => ({ ...prev, ...changes }))}
+          onDelete={() => setPlanner((prev) => ({ ...prev, distributorStart: 0, distributorEnd: 0 }))}
+          onClose={() => setSelectedModuleId(null)}
+        />
+      )}
+      {selectedModuleId === 'utility-vent' && (
+        <UtilityPopup
+          type="vent"
+          planner={planner}
+          onUpdate={(changes) => setPlanner((prev) => ({ ...prev, ...changes }))}
+          onDelete={() => setPlanner((prev) => ({ ...prev, ventStart: 0 }))}
+          onClose={() => setSelectedModuleId(null)}
+        />
+      )}
+
+      {/* 우하단 유틸리티 토글 */}
+      <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', gap: 6, fontFamily: FONT }}>
+        <button
+          onClick={() => setPlanner((prev) => ({ ...prev, distributorStart: prev.distributorStart === 0 ? null : 0, distributorEnd: prev.distributorEnd === 0 ? null : 0 }))}
+          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #90caf9', background: (planner.distributorStart !== 0) ? '#e3f2fd' : '#f5f5f5', color: (planner.distributorStart !== 0) ? '#1565c0' : '#999', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}>
+          💧 {planner.distributorStart !== 0 ? '분배기' : '분배기 (숨김)'}
+        </button>
+        {!preset.fullHeight && (
+          <button
+            onClick={() => setPlanner((prev) => ({ ...prev, ventStart: prev.ventStart === 0 ? null : 0 }))}
+            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #b0bec5', background: (planner.ventStart !== 0) ? '#eceff1' : '#f5f5f5', color: (planner.ventStart !== 0) ? '#546e7a' : '#999', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}>
+            🌀 {planner.ventStart !== 0 ? '환풍구' : '환풍구 (숨김)'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
