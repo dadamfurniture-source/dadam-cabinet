@@ -45,31 +45,48 @@ function AddButtonCenter({
   );
 }
 
-/* ── 모듈 측면 스티커형 + 버튼 ── */
-function AddButtonSide({
+/* ── 측판 일체형 + 패널 (3D mesh) ── */
+function AddPanelSide({
   position,
-  height,
+  moduleHeight,
+  moduleDepth,
+  color,
   onClick,
 }: {
   position: [number, number, number];
-  height: number;
+  moduleHeight: number;
+  moduleDepth: number;
+  color: string;
   onClick: () => void;
 }) {
-  const btnH = Math.min(60, Math.max(28, height * 0.08));
+  const [hovered, setHovered] = useState(false);
+  const panelW = 18; // 측판 두께와 동일
   return (
-    <Html position={position} center style={{ pointerEvents: 'auto' }}>
-      <button
-        onClick={onClick}
-        style={{
-          width: 22, height: btnH, borderRadius: 4,
-          border: 'none', background: '#b8956c', color: '#fff',
-          fontSize: 16, fontWeight: 400, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
+    <group position={position}>
+      <mesh
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        <boxGeometry args={[panelW, moduleHeight, moduleDepth]} />
+        <meshStandardMaterial
+          color={hovered ? '#b8956c' : color}
+          metalness={0.15}
+          roughness={0.7}
+          opacity={hovered ? 1 : 0.6}
+          transparent
+        />
+      </mesh>
+      {/* + 텍스트 */}
+      <Html center style={{ pointerEvents: 'none' }}>
+        <div style={{
+          color: hovered ? '#fff' : '#b8956c',
+          fontSize: 20, fontWeight: 600, userSelect: 'none',
+          textShadow: '0 1px 2px rgba(0,0,0,0.3)',
           fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-        }}
-      >+</button>
-    </Html>
+        }}>+</div>
+      </Html>
+    </group>
   );
 }
 
@@ -141,14 +158,18 @@ function SceneContent({
         {!preset.fullHeight && canAddLower && (
           hasLower && lowerLayout ? (
             <>
-              <AddButtonSide
-                position={[lowerLayout.startX, lowerLayout.centerY, 0]}
-                height={lowerBodyH}
+              <AddPanelSide
+                position={[lowerLayout.startX - 9, lowerLayout.centerY, 0]}
+                moduleHeight={lowerBodyH}
+                moduleDepth={depth}
+                color={palette.body}
                 onClick={onAddLower}
               />
-              <AddButtonSide
-                position={[lowerLayout.endX, lowerLayout.centerY, 0]}
-                height={lowerBodyH}
+              <AddPanelSide
+                position={[lowerLayout.endX + 9, lowerLayout.centerY, 0]}
+                moduleHeight={lowerBodyH}
+                moduleDepth={depth}
+                color={palette.body}
                 onClick={onAddLower}
               />
             </>
@@ -165,14 +186,18 @@ function SceneContent({
         {!preset.fullHeight && upperHeight > 0 && canAddUpper && (
           hasUpper && upperLayout ? (
             <>
-              <AddButtonSide
-                position={[upperLayout.startX, upperLayout.centerY, upperLayout.z]}
-                height={upperHeight}
+              <AddPanelSide
+                position={[upperLayout.startX - 9, upperLayout.centerY, upperLayout.z]}
+                moduleHeight={upperHeight}
+                moduleDepth={upperDepth}
+                color={palette.accent}
                 onClick={onAddUpper}
               />
-              <AddButtonSide
-                position={[upperLayout.endX, upperLayout.centerY, upperLayout.z]}
-                height={upperHeight}
+              <AddPanelSide
+                position={[upperLayout.endX + 9, upperLayout.centerY, upperLayout.z]}
+                moduleHeight={upperHeight}
+                moduleDepth={upperDepth}
+                color={palette.accent}
                 onClick={onAddUpper}
               />
             </>
@@ -189,14 +214,18 @@ function SceneContent({
         {preset.fullHeight && canAddLower && (
           hasLower && lowerLayout ? (
             <>
-              <AddButtonSide
-                position={[lowerLayout.startX, lowerLayout.centerY, 0]}
-                height={lowerBodyH}
+              <AddPanelSide
+                position={[lowerLayout.startX - 9, lowerLayout.centerY, 0]}
+                moduleHeight={lowerBodyH}
+                moduleDepth={depth}
+                color={palette.body}
                 onClick={onAddLower}
               />
-              <AddButtonSide
-                position={[lowerLayout.endX, lowerLayout.centerY, 0]}
-                height={lowerBodyH}
+              <AddPanelSide
+                position={[lowerLayout.endX + 9, lowerLayout.centerY, 0]}
+                moduleHeight={lowerBodyH}
+                moduleDepth={depth}
+                color={palette.body}
                 onClick={onAddLower}
               />
             </>
