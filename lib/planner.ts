@@ -90,8 +90,8 @@ export const PRESETS: CabinetPreset[] = [
     upperDepth: 295,
     toeKickHeight: 150,
     counterThickness: 12,
-    lowerCount: 5,
-    upperCount: 4,
+    lowerCount: 0,
+    upperCount: 0,
     hasCountertop: true,
     fullHeight: false,
   },
@@ -108,7 +108,7 @@ export const PRESETS: CabinetPreset[] = [
     upperDepth: 0,
     toeKickHeight: 40,
     counterThickness: 0,
-    lowerCount: 6,
+    lowerCount: 0,
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
@@ -126,8 +126,8 @@ export const PRESETS: CabinetPreset[] = [
     upperDepth: 220,
     toeKickHeight: 80,
     counterThickness: 18,
-    lowerCount: 3,
-    upperCount: 1,
+    lowerCount: 0,
+    upperCount: 0,
     hasCountertop: true,
     fullHeight: false,
   },
@@ -144,7 +144,7 @@ export const PRESETS: CabinetPreset[] = [
     upperDepth: 0,
     toeKickHeight: 70,
     counterThickness: 0,
-    lowerCount: 4,
+    lowerCount: 0,
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
@@ -162,7 +162,7 @@ export const PRESETS: CabinetPreset[] = [
     upperDepth: 0,
     toeKickHeight: 80,
     counterThickness: 0,
-    lowerCount: 3,
+    lowerCount: 0,
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
@@ -180,7 +180,7 @@ export const PRESETS: CabinetPreset[] = [
     upperDepth: 0,
     toeKickHeight: 60,
     counterThickness: 0,
-    lowerCount: 4,
+    lowerCount: 0,
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
@@ -237,7 +237,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const width = clamp(Math.round(state.width), 600, 6000);
   const height = clamp(Math.round(state.height), 700, 2800);
   const depth = clamp(Math.round(state.depth), 220, 900);
-  const lowerCount = clamp(Math.round(state.lowerCount), 1, 10);
+  const lowerCount = clamp(Math.round(state.lowerCount), 0, 10);
   const upperCount = clamp(Math.round(state.upperCount), 0, 10);
 
   const lowerHeight = preset.fullHeight ? height : Math.min(preset.lowerHeight, height);
@@ -246,9 +246,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const upperDepth = preset.fullHeight ? depth : preset.upperDepth;
   const parts: CabinetPart[] = [];
 
-  const modules: CabinetModule[] = [
-    ...buildModules('lower', lowerCount, width, lowerHeight, depth, preset.fullHeight ? 'door' : 'drawer'),
-  ];
+  const modules: CabinetModule[] = lowerCount > 0
+    ? buildModules('lower', lowerCount, width, lowerHeight, depth, preset.fullHeight ? 'door' : 'drawer')
+    : [];
 
   if (upperHeight > 0 && upperCount > 0) {
     modules.push(...buildModules('upper', upperCount, width, upperHeight, upperDepth, 'door'));
@@ -292,7 +292,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     cursor += module.width;
   });
 
-  if (preset.hasCountertop) {
+  if (preset.hasCountertop && lowerCount > 0) {
     parts.push({
       id: 'countertop',
       label: 'countertop',
@@ -306,7 +306,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  if (preset.id === 'fridge') {
+  if (preset.id === 'fridge' && lowerCount > 0) {
     parts.push({
       id: 'fridge-cavity',
       label: 'fridge-cavity',
@@ -321,7 +321,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  if (preset.id === 'vanity') {
+  if (preset.id === 'vanity' && lowerCount > 0) {
     parts.push({
       id: 'mirror',
       label: 'mirror',
