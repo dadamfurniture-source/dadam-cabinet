@@ -338,7 +338,9 @@ function buildFurniturePrompt(
     const colorInstruction = isTwoTone
       ? `UPPER cabinets=${doorColor}${upperHex ? ` HEX ${upperHex}` : ''}, LOWER cabinets=${lowerDoorColor}${lowerHex ? ` HEX ${lowerHex}` : ''}. Two-tone: upper and lower MUST be different colors.`
       : `All cabinets ${doorColor}${upperHex ? ` HEX ${upperHex}` : ''} ${doorFinish}.`;
-    return `Edit photo: install handleless flat-panel kitchen cabinets. ${colorInstruction} Keep wall tiles, camera, background identical. Sink at ${wallData.waterPct}% from left. Flush built-in cooktop at ${wallData.exhaustPct}% from left, below cooktop MUST have exactly 2 stacked horizontal drawers (not doors). ${countertop} countertop. No clutter. 2nd image=layout guide.`;
+    const sinkSide = wallData.waterPct <= 50 ? 'LEFT' : 'RIGHT';
+    const cooktopSide = wallData.exhaustPct <= 50 ? 'LEFT' : 'RIGHT';
+    return `Edit photo: install handleless flat-panel kitchen cabinets. ${colorInstruction} Keep wall tiles, camera, background identical. Sink on the ${sinkSide} side (where water pipes are). Flush built-in cooktop on the ${cooktopSide} side (where exhaust duct is), below cooktop MUST have exactly 2 stacked horizontal drawers (not doors). ${countertop} countertop. No clutter. 2nd image=layout guide.`;
   }
 
   if (category === 'wardrobe') {
