@@ -55,6 +55,10 @@ export interface PlannerState {
   toeKickH: number;
   finishLeftW: number;
   finishRightW: number;
+  // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
+  distributorStart: number | null;
+  distributorEnd: number | null;
+  ventStart: number | null;
 }
 
 export interface CabinetPart {
@@ -79,12 +83,19 @@ export interface ModuleLayout {
   depth: number;
 }
 
+export interface UtilityPositions {
+  distributorStart: number | null;
+  distributorEnd: number | null;
+  ventStart: number | null;
+}
+
 export interface DerivedCabinet {
   preset: CabinetPreset;
   parts: CabinetPart[];
   modules: CabinetModule[];
   lowerLayout: ModuleLayout | null;
   upperLayout: ModuleLayout | null;
+  utilities: UtilityPositions;
   footprintAreaM2: number;
   facadeAreaM2: number;
   estimatedBoardAreaM2: number;
@@ -253,6 +264,9 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     toeKickH: preset.toeKickHeight,
     finishLeftW: 60,
     finishRightW: 60,
+    distributorStart: null,
+    distributorEnd: null,
+    ventStart: null,
   };
 };
 
@@ -503,6 +517,49 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     }
   }
 
+  // --- 유틸리티 (분배기/환풍구) ---
+  const autoDistStart = Math.round(width * 0.15);
+  const autoDistEnd = Math.round(width * 0.15 + 700);
+  const autoVentX = Math.round(width * 0.7);
+
+  const distStart = state.distributorStart === 0 ? null : (state.distributorStart ?? autoDistStart);
+  const distEnd = state.distributorEnd === 0 ? null : (state.distributorEnd ?? autoDistEnd);
+  const ventX = state.ventStart === 0 ? null : (state.ventStart ?? autoVentX);
+
+  const halfW = width / 2;
+
+  if (distStart != null && distEnd != null && distStart > 0 && distEnd > 0) {
+    const dw = Math.abs(distEnd - distStart);
+    const cx = -halfW + (distStart + distEnd) / 2;
+    parts.push({
+      id: 'utility-distributor',
+      label: '분배기',
+      x: cx,
+      y: lowerBottomY + 40,
+      z: -depth / 2 + 60,
+      width: dw,
+      height: 50,
+      depth: 80,
+      colorKey: 'body',
+      wireframe: false,
+    });
+  }
+
+  if (ventX != null && ventX > 0 && !preset.fullHeight) {
+    parts.push({
+      id: 'utility-vent',
+      label: '환풍구',
+      x: -halfW + ventX,
+      y: upperTopY - 30,
+      z: upperZOffset - upperDepth / 2 + 40,
+      width: 200,
+      height: 50,
+      depth: 60,
+      colorKey: 'body',
+      wireframe: false,
+    });
+  }
+
   // Countertop — 하부장 상단에 배치
   if (preset.hasCountertop && lowerCount > 0) {
     parts.push({
@@ -559,6 +616,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     modules,
     lowerLayout,
     upperLayout,
+    utilities: { distributorStart: distStart, distributorEnd: distEnd, ventStart: ventX },
     footprintAreaM2,
     facadeAreaM2,
     estimatedBoardAreaM2,
