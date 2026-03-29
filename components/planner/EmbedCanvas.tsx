@@ -52,13 +52,16 @@ function AddPanelSide({ position, moduleHeight, moduleDepth, color, onClick }: {
 /* ── 클릭 가능한 모듈 mesh ── */
 function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
   const [hovered, setHovered] = useState(false);
-  const isClickable = !part.id.includes('-face') && !part.id.startsWith('finish') && !part.id.startsWith('molding') && !part.id.startsWith('toekick') && !part.id.startsWith('countertop') && !part.id.startsWith('install') && !part.id.startsWith('fridge-cavity') && !part.id.startsWith('mirror') && part.id.startsWith('mod-');
+  // mod- 로 시작하는 파츠만 클릭 가능 (face 포함 — 부모 ID로 전달)
+  const isMod = part.id.startsWith('mod-');
+  const isClickable = isMod;
+  const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
 
   return (
     <mesh
       position={[part.x, part.y, part.z]}
       castShadow receiveShadow
-      onClick={isClickable ? (e) => { e.stopPropagation(); onSelect(part.id); } : undefined}
+      onClick={isClickable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
       onPointerOver={isClickable ? () => setHovered(true) : undefined}
       onPointerOut={isClickable ? () => setHovered(false) : undefined}
     >
