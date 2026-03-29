@@ -533,7 +533,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const cx = -halfW + (distStart + distEnd) / 2;
     parts.push({
       id: 'utility-distributor',
-      label: '분배기',
+      label: '설비',
       x: cx,
       y: lowerBottomY + 40,
       z: -depth / 2 + 60,
