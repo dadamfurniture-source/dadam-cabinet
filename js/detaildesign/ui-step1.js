@@ -359,6 +359,21 @@
         );
       }
 
+      // ★ 3D 뷰 카메라 전환
+      function set3DView(itemUniqueId, view, btn) {
+        const container = document.getElementById('three-canvas-' + itemUniqueId);
+        const iframe = container?.querySelector('iframe[data-planner]');
+        if (iframe) {
+          iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
+        }
+        // 버튼 active 토글
+        const group = btn.closest('.view3d-btns');
+        if (group) {
+          group.querySelectorAll('.v3d-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        }
+      }
+
       // ★ R3F 3D 플래너 임베드 로드
       const PLANNER_BASE_URL = '/planner/embed/';
       function _loadPlannerEmbed(container, item) {
@@ -1127,7 +1142,12 @@
             <span style="font-size:13px;font-weight:bold;color:#333;">🎮 3D View</span>
             <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집 | 드래그 → 회전 | 스크롤 → 줌</span>
           </div>
-          <div style="display:flex;gap:4px;">
+          <div style="display:flex;gap:4px;align-items:center;">
+            <div class="view3d-btns" data-uid="${item.uniqueId}">
+              <button class="v3d-btn active" data-view="perspective" onclick="set3DView(${item.uniqueId},'perspective',this)">3D</button>
+              <button class="v3d-btn" data-view="front" onclick="set3DView(${item.uniqueId},'front',this)">정면</button>
+              <button class="v3d-btn" data-view="top" onclick="set3DView(${item.uniqueId},'top',this)">평면</button>
+            </div>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🚪 도어</button>
           </div>
         </div>
