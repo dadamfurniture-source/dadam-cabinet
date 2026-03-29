@@ -406,8 +406,8 @@
               width: parseFloat(item.w) || 3000,
               height: parseFloat(item.h) || 2300,
               depth: parseFloat(item.d) || 600,
-              lowerCount: item.modules.filter(m => m.pos === 'lower').length || 5,
-              upperCount: item.modules.filter(m => m.pos === 'upper').length || 4,
+              lowerCount: item.modules.filter(m => m.pos === 'lower').length,
+              upperCount: item.modules.filter(m => m.pos === 'upper').length,
             }
           }, '*');
           return;
@@ -418,8 +418,8 @@
           w: String(parseFloat(item.w) || 3000),
           h: String(parseFloat(item.h) || 2300),
           d: String(parseFloat(item.d) || 600),
-          lowerCount: String(item.modules.filter(m => m.pos === 'lower').length || 5),
-          upperCount: String(item.modules.filter(m => m.pos === 'upper').length || 4),
+          lowerCount: String(item.modules.filter(m => m.pos === 'lower').length),
+          upperCount: String(item.modules.filter(m => m.pos === 'upper').length),
           material: item.specs?.materialTone || 'cream',
         });
         container.innerHTML = '';
