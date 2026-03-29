@@ -290,46 +290,53 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     modules.push(...buildModules('upper', upperCount, effectiveWidth, upperHeight, upperDepth, 'door'));
   }
 
-  // 모듈 X offset: 좌측 마감재 이후부터 시작
+  // 모듈 X offset: 좌측 마감재 이후부터 시작 (상부/하부 각각 독립 cursor)
   const moduleStartX = -width / 2 + finishLeftW;
-  let cursor = moduleStartX;
 
-  modules.forEach((module) => {
-    const centeredX = cursor + module.width / 2;
-    const isUpper = module.section === 'upper';
-    const y = isUpper
-      ? upperBottomY + module.height / 2
-      : lowerBottomY + module.height / 2;
-    const z = isUpper ? upperZOffset : 0;
+  const renderModules = (list: CabinetModule[]) => {
+    let cursor = moduleStartX;
+    list.forEach((module) => {
+      const centeredX = cursor + module.width / 2;
+      const isUpper = module.section === 'upper';
+      const y = isUpper
+        ? upperBottomY + module.height / 2
+        : lowerBottomY + module.height / 2;
+      const z = isUpper ? upperZOffset : 0;
 
-    parts.push({
-      id: module.id,
-      label: `${module.section}-${module.kind}`,
-      x: centeredX,
-      y,
-      z,
-      width: module.width,
-      height: module.height,
-      depth: module.depth,
-      colorKey: isUpper ? 'accent' : 'body',
-    });
-
-    if (module.kind !== 'open') {
       parts.push({
-        id: `${module.id}-face`,
-        label: `${module.id}-face`,
+        id: module.id,
+        label: `${module.section}-${module.kind}`,
         x: centeredX,
         y,
-        z: z + module.depth / 2 + 6,
-        width: Math.max(18, module.width - 8),
-        height: Math.max(18, module.height - 8),
-        depth: 12,
-        colorKey: 'shadow',
+        z,
+        width: module.width,
+        height: module.height,
+        depth: module.depth,
+        colorKey: isUpper ? 'accent' : 'body',
       });
-    }
 
-    cursor += module.width;
-  });
+      if (module.kind !== 'open') {
+        parts.push({
+          id: `${module.id}-face`,
+          label: `${module.id}-face`,
+          x: centeredX,
+          y,
+          z: z + module.depth / 2 + 6,
+          width: Math.max(18, module.width - 8),
+          height: Math.max(18, module.height - 8),
+          depth: 12,
+          colorKey: 'shadow',
+        });
+      }
+
+      cursor += module.width;
+    });
+  };
+
+  const lowerModules = modules.filter((m) => m.section !== 'upper');
+  const upperModules = modules.filter((m) => m.section === 'upper');
+  renderModules(lowerModules);
+  renderModules(upperModules);
 
   const hasFinish = finishLeftW > 0 || finishRightW > 0 || moldingH > 0 || toeKickH > 0;
 
@@ -418,38 +425,40 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     }
   }
 
-  // --- 설치공간 wireframe (모듈 없을 때) ---
-  if (lowerCount === 0 && hasFinish) {
+  // --- 설치공간 wireframe (해당 영역에 모듈 없을 때) ---
+  if (hasFinish) {
     if (preset.fullHeight) {
-      const spaceH = height - toeKickH - moldingH;
-      parts.push({
-        id: 'install-space',
-        label: '설치공간',
-        x: 0,
-        y: toeKickH + spaceH / 2,
-        z: 0,
-        width: effectiveWidth,
-        height: spaceH,
-        depth,
-        colorKey: 'accent',
-        wireframe: true,
-      });
+      if (lowerCount === 0) {
+        const spaceH = height - toeKickH - moldingH;
+        parts.push({
+          id: 'install-space',
+          label: '설치공간',
+          x: 0,
+          y: toeKickH + spaceH / 2,
+          z: 0,
+          width: effectiveWidth,
+          height: spaceH,
+          depth,
+          colorKey: 'accent',
+          wireframe: true,
+        });
+      }
     } else {
-      // 하부장 설치공간
-      parts.push({
-        id: 'install-space-lower',
-        label: '설치공간(하부)',
-        x: 0,
-        y: lowerBottomY + lowerBodyH / 2,
-        z: 0,
-        width: effectiveWidth,
-        height: lowerBodyH,
-        depth,
-        colorKey: 'accent',
-        wireframe: true,
-      });
-      // 상부장 설치공간
-      if (upperHeight > 0) {
+      if (lowerCount === 0) {
+        parts.push({
+          id: 'install-space-lower',
+          label: '설치공간(하부)',
+          x: 0,
+          y: lowerBottomY + lowerBodyH / 2,
+          z: 0,
+          width: effectiveWidth,
+          height: lowerBodyH,
+          depth,
+          colorKey: 'accent',
+          wireframe: true,
+        });
+      }
+      if (upperCount === 0 && upperHeight > 0) {
         parts.push({
           id: 'install-space-upper',
           label: '설치공간(상부)',
