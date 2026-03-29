@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Environment, Grid, OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { Environment, OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   MATERIALS,
@@ -47,19 +47,7 @@ function SceneContent({
           </mesh>
         ))}
       </group>
-      <Grid
-        args={[10000, 10000]}
-        position={[0, 0, 0]}
-        cellSize={500}
-        cellThickness={0.4}
-        sectionSize={500}
-        sectionThickness={0.4}
-        cellColor="#3a3a3a"
-        sectionColor="#3a3a3a"
-        fadeDistance={5000}
-        fadeStrength={2}
-        infiniteGrid
-      />
+      <primitive object={new THREE.GridHelper(6000, 12, '#3a3a3a', '#3a3a3a')} position={[0, 0, 0]} />
       <OrbitControls
         enablePan
         minDistance={700}
