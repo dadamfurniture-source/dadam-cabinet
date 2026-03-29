@@ -47,10 +47,6 @@ function SceneContent({
           </mesh>
         ))}
       </group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -2, 0]}>
-        <planeGeometry args={[10000, 10000]} />
-        <shadowMaterial opacity={0.16} />
-      </mesh>
       <Grid
         args={[10000, 10000]}
         position={[0, 0, 0]}
