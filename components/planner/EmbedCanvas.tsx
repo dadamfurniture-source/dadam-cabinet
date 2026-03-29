@@ -142,12 +142,12 @@ function SceneContent({
           hasLower && lowerLayout ? (
             <>
               <AddButtonSide
-                position={[lowerLayout.startX, lowerLayout.centerY, depth / 2]}
+                position={[lowerLayout.startX, lowerLayout.centerY, 0]}
                 height={lowerBodyH}
                 onClick={onAddLower}
               />
               <AddButtonSide
-                position={[lowerLayout.endX, lowerLayout.centerY, depth / 2]}
+                position={[lowerLayout.endX, lowerLayout.centerY, 0]}
                 height={lowerBodyH}
                 onClick={onAddLower}
               />
@@ -166,12 +166,12 @@ function SceneContent({
           hasUpper && upperLayout ? (
             <>
               <AddButtonSide
-                position={[upperLayout.startX, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z]}
+                position={[upperLayout.startX, upperLayout.centerY, upperLayout.z]}
                 height={upperHeight}
                 onClick={onAddUpper}
               />
               <AddButtonSide
-                position={[upperLayout.endX, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z]}
+                position={[upperLayout.endX, upperLayout.centerY, upperLayout.z]}
                 height={upperHeight}
                 onClick={onAddUpper}
               />
@@ -190,12 +190,12 @@ function SceneContent({
           hasLower && lowerLayout ? (
             <>
               <AddButtonSide
-                position={[lowerLayout.startX, lowerLayout.centerY, depth / 2]}
+                position={[lowerLayout.startX, lowerLayout.centerY, 0]}
                 height={lowerBodyH}
                 onClick={onAddLower}
               />
               <AddButtonSide
-                position={[lowerLayout.endX, lowerLayout.centerY, depth / 2]}
+                position={[lowerLayout.endX, lowerLayout.centerY, 0]}
                 height={lowerBodyH}
                 onClick={onAddLower}
               />
