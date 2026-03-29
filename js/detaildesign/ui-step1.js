@@ -359,12 +359,31 @@
         );
       }
 
-      // ★ 3D 뷰 카메라 전환
+      // ★ 3D 뷰 카메라 전환 + 2D/3D 토글
       function set3DView(itemUniqueId, view, btn) {
-        const container = document.getElementById('three-canvas-' + itemUniqueId);
-        const iframe = container?.querySelector('iframe[data-planner]');
-        if (iframe) {
-          iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
+        const threeCanvas = document.getElementById('three-canvas-' + itemUniqueId);
+        const svgFront = document.getElementById('svg-front-' + itemUniqueId);
+
+        const viewLabel = document.getElementById('view-label-' + itemUniqueId);
+        const viewHint = document.getElementById('view-hint-' + itemUniqueId);
+
+        if (view === '2d') {
+          // 2D SVG 정면 도면 표시 (모듈 클릭 가능)
+          if (threeCanvas) threeCanvas.style.display = 'none';
+          if (svgFront) svgFront.style.display = 'block';
+          if (viewLabel) viewLabel.textContent = '📐 2D 정면도';
+          if (viewHint) viewHint.textContent = '모듈 클릭 → 편집 | 드래그 → 이동';
+        } else {
+          // 3D 뷰 표시
+          if (threeCanvas) threeCanvas.style.display = 'block';
+          if (svgFront) svgFront.style.display = 'none';
+          if (viewLabel) viewLabel.textContent = '🎮 3D View';
+          if (viewHint) viewHint.textContent = '드래그 → 회전 | 스크롤 → 줌';
+          // 카메라 전환
+          const iframe = threeCanvas?.querySelector('iframe[data-planner]');
+          if (iframe) {
+            iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
+          }
         }
         // 버튼 active 토글
         const group = btn.closest('.view3d-btns');
@@ -1139,11 +1158,12 @@
       <div style="flex:1;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px;display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:13px;font-weight:bold;color:#333;">🎮 3D View</span>
-            <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집 | 드래그 → 회전 | 스크롤 → 줌</span>
+            <span id="view-label-${item.uniqueId}" style="font-size:13px;font-weight:bold;color:#333;">🎮 3D View</span>
+            <span id="view-hint-${item.uniqueId}" style="font-size:10px;color:#aaa;">모듈 클릭 → 편집 | 드래그 → 회전 | 스크롤 → 줌</span>
           </div>
           <div style="display:flex;gap:4px;align-items:center;">
             <div class="view3d-btns" data-uid="${item.uniqueId}">
+              <button class="v3d-btn" data-view="2d" onclick="set3DView(${item.uniqueId},'2d',this)">2D</button>
               <button class="v3d-btn active" data-view="perspective" onclick="set3DView(${item.uniqueId},'perspective',this)">3D</button>
               <button class="v3d-btn" data-view="front" onclick="set3DView(${item.uniqueId},'front',this)">정면</button>
               <button class="v3d-btn" data-view="top" onclick="set3DView(${item.uniqueId},'top',this)">평면</button>
@@ -1153,6 +1173,7 @@
         </div>
         <div id="view-container-${item.uniqueId}" style="flex:1;width:100%;overflow:auto;position:relative;min-height:450px;">
           <div id="three-canvas-${item.uniqueId}" style="width:100%;height:450px;border-radius:8px;overflow:hidden;"></div>
+          <div id="svg-front-${item.uniqueId}" style="display:none;width:100%;min-height:450px;">${sinkFrontViewSvg}</div>
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
