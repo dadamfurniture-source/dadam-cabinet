@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Environment, Html, OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import {
   MATERIALS,
@@ -81,30 +82,47 @@ function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: str
 }
 
 /* ── 드래그 가능한 유틸리티 mesh ── */
-function DraggableUtility({ part, halfW, onDrag, onSelect }: {
+function DraggableUtility({ part, halfW, controlsRef, onDrag, onSelect }: {
   part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number };
   halfW: number;
+  controlsRef: React.RefObject<OrbitControlsImpl | null>;
   onDrag: (id: string, newX: number) => void;
   onSelect: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
   const isDist = part.id.includes('distributor');
+  const didDrag = useRef(false);
 
   return (
     <group>
       <mesh
         position={[part.x, part.y, part.z]}
-        onPointerDown={(e) => { e.stopPropagation(); setDragging(true); (e.target as any).setPointerCapture(e.pointerId); }}
-        onPointerUp={(e) => { if (!dragging) return; setDragging(false); (e.target as any).releasePointerCapture(e.pointerId); }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          setDragging(true);
+          didDrag.current = false;
+          (e.target as any).setPointerCapture(e.pointerId);
+          if (controlsRef.current) controlsRef.current.enabled = false;
+        }}
+        onPointerUp={(e) => {
+          if (!dragging) return;
+          setDragging(false);
+          (e.target as any).releasePointerCapture(e.pointerId);
+          if (controlsRef.current) controlsRef.current.enabled = true;
+          if (!didDrag.current) { e.stopPropagation(); onSelect(part.id); }
+        }}
         onPointerMove={(e) => {
           if (!dragging) return;
+          didDrag.current = true;
           const newX = Math.max(-halfW, Math.min(halfW, e.point.x));
           onDrag(part.id, newX);
         }}
-        onClick={(e) => { if (!dragging) { e.stopPropagation(); onSelect(part.id); } }}
         onPointerOver={() => setHovered(true)}
-        onPointerOut={() => { setHovered(false); setDragging(false); }}
+        onPointerOut={() => {
+          setHovered(false);
+          if (dragging) { setDragging(false); if (controlsRef.current) controlsRef.current.enabled = true; }
+        }}
       >
         <boxGeometry args={[part.width, part.height, part.depth]} />
         <meshStandardMaterial
@@ -148,6 +166,7 @@ function SceneContent({
   onSelectModule: (id: string) => void;
   onDragUtility: (id: string, newX: number) => void;
 }) {
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const cameraPosition = cameraView === 'top' ? [0, 2400, 0.01] : cameraView === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
 
   const toeKickH = planner.toeKickH ?? 0;
@@ -180,7 +199,7 @@ function SceneContent({
         ))}
         {/* 유틸리티 파츠 (드래그 가능) */}
         {parts.filter(p => p.id.startsWith('utility-')).map((part) => (
-          <DraggableUtility key={part.id} part={part} halfW={planner.width / 2} onDrag={onDragUtility} onSelect={onSelectModule} />
+          <DraggableUtility key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={onDragUtility} onSelect={onSelectModule} />
         ))}
 
         {/* 치수 라벨 */}
@@ -237,7 +256,7 @@ function SceneContent({
         )}
       </group>
       <primitive object={new THREE.GridHelper(6000, 12, '#3a3a3a', '#3a3a3a')} position={[0, 0, 0]} />
-      <OrbitControls enablePan minDistance={700} maxDistance={7000} target={[0, 900, 0]} minPolarAngle={cameraView === 'top' ? 0.01 : 0.25} maxPolarAngle={cameraView === 'top' ? 0.01 : Math.PI / 2} />
+      <OrbitControls ref={controlsRef} enablePan minDistance={700} maxDistance={7000} target={[0, 900, 0]} minPolarAngle={cameraView === 'top' ? 0.01 : 0.25} maxPolarAngle={cameraView === 'top' ? 0.01 : Math.PI / 2} />
       <Environment preset="apartment" />
       <PerspectiveCamera makeDefault position={cameraPosition as [number, number, number]} fov={38} near={1} far={20000} />
     </>
