@@ -230,19 +230,21 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
   };
 };
 
+const MODULE_FIXED_W = 600;
+
 const buildModules = (
   section: ModuleSection,
   count: number,
-  width: number,
+  _effectiveWidth: number,
   height: number,
   depth: number,
   kind: ModuleKind
 ): CabinetModule[] =>
-  distributeWidths(width, count).map((moduleWidth, index) => ({
+  Array.from({ length: count }, (_, index) => ({
     id: `${section}-${index + 1}`,
     section,
     kind,
-    width: moduleWidth,
+    width: MODULE_FIXED_W,
     height,
     depth,
   }));
