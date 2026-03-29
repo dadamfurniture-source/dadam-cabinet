@@ -58,8 +58,8 @@ function SceneContent({
         cellThickness={0.4}
         sectionSize={500}
         sectionThickness={0.4}
-        cellColor="#e0dbd4"
-        sectionColor="#e0dbd4"
+        cellColor="#3a3a3a"
+        sectionColor="#3a3a3a"
         fadeDistance={5000}
         fadeStrength={2}
         infiniteGrid
