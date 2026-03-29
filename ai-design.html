@@ -2506,9 +2506,8 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
-      // ═══════════════════════════════════════════════════════════════
-      const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+      // n8n 제거 — 채팅 기능 비활성화
+      const N8N_CHAT_URL = null;
 
       // ═══════════════════════════════════════════════════════════════
       // 플로팅 채팅 토글
@@ -2975,9 +2974,9 @@ Magazine quality, professional lighting.`;
         const rng = mulberry32(seed);
         const neutral = pickRandom(randomColorCatalog.altNeutralDoorColors, rng);
         const expressive = pickRandom(randomColorCatalog.altDoorColors, rng);
-        const neutralOnUpper = rng() >= 0.5;
-        const upper = neutralOnUpper ? neutral : expressive;
-        const lower = neutralOnUpper ? expressive : neutral;
+        // 항상 상부=무채색, 하부=컬러 (투톤 고정)
+        const upper = neutral;
+        const lower = expressive;
         const countertop = pickRandom(randomColorCatalog.altCountertops, rng);
 
         return {
@@ -4157,15 +4156,7 @@ Magazine quality, professional lighting.`;
         input.value = '';
 
         try {
-          const chatAuthHeaders = await getAuthHeaders();
-          const response = await fetch(N8N_CHAT_URL, {
-            method: 'POST',
-            headers: chatAuthHeaders,
-            body: JSON.stringify({ message }),
-          });
-          const data = await response.json();
-          const aiResponse = data.response || data.output || '응답을 처리할 수 없습니다.';
-          addChatMessage(aiResponse, false);
+          addChatMessage('채팅 기능은 현재 준비 중입니다.', false);
         } catch (error) {
           addChatMessage('일시적인 오류가 발생했습니다.', false);
         }
