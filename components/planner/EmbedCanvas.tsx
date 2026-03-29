@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Environment, OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { Environment, Html, OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   MATERIALS,
@@ -16,17 +16,93 @@ import {
 
 type CameraView = 'perspective' | 'front' | 'top';
 
+/* ── 3D 공간 내 + 버튼 ── */
+function AddButton3D({
+  position,
+  label,
+  onClick,
+}: {
+  position: [number, number, number];
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Html position={position} center style={{ pointerEvents: 'auto' }}>
+      <button
+        onClick={onClick}
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          border: '2px solid #b8956c',
+          background: 'rgba(255,255,255,0.9)',
+          color: '#b8956c',
+          fontSize: 24,
+          fontWeight: 300,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          transition: 'all 0.15s',
+          fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+        }}
+      >
+        +
+      </button>
+      <div
+        style={{
+          marginTop: 4,
+          fontSize: 11,
+          color: '#666',
+          textAlign: 'center',
+          whiteSpace: 'nowrap',
+          fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+        }}
+      >
+        {label}
+      </div>
+    </Html>
+  );
+}
+
 function SceneContent({
   parts,
   palette,
   cameraView,
+  preset,
+  planner,
+  onAddLower,
+  onAddUpper,
 }: {
   parts: ReturnType<typeof deriveCabinet>['parts'];
   palette: (typeof MATERIALS)[keyof typeof MATERIALS];
   cameraView: CameraView;
+  preset: ReturnType<typeof getPresetById>;
+  planner: PlannerState;
+  onAddLower: () => void;
+  onAddUpper: () => void;
 }) {
   const cameraPosition =
     cameraView === 'top' ? [0, 2400, 0.01] : cameraView === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
+
+  // 실측 기준 설치공간 중심 좌표 계산
+  const toeKickH = planner.toeKickH ?? 0;
+  const moldingH = planner.moldingH ?? 0;
+  const height = planner.height;
+  const depth = planner.depth;
+  const upperDepth = preset.fullHeight ? depth : preset.upperDepth;
+  const upperZOffset = preset.fullHeight ? 0 : -(depth - upperDepth) / 2;
+
+  const lowerBodyH = preset.fullHeight
+    ? Math.max(0, height - moldingH - toeKickH)
+    : Math.min(preset.lowerHeight - toeKickH, height - toeKickH);
+  const lowerCenterY = toeKickH + lowerBodyH / 2;
+
+  const upperHeight = preset.fullHeight
+    ? 0
+    : Math.min(preset.upperHeight, Math.max(0, height - moldingH - (toeKickH + lowerBodyH) - (preset.hasCountertop ? preset.counterThickness : 0)));
+  const upperCenterY = height - moldingH - upperHeight / 2;
 
   return (
     <>
@@ -46,6 +122,33 @@ function SceneContent({
             />
           </mesh>
         ))}
+
+        {/* 하부장 + 버튼 (마감재 안쪽 설치공간 중앙) */}
+        {planner.lowerCount < 10 && !preset.fullHeight && (
+          <AddButton3D
+            position={[0, lowerCenterY, depth / 2 + 50]}
+            label="하부장 추가"
+            onClick={onAddLower}
+          />
+        )}
+
+        {/* 상부장 + 버튼 */}
+        {planner.upperCount < 10 && !preset.fullHeight && upperHeight > 0 && (
+          <AddButton3D
+            position={[0, upperCenterY, upperDepth / 2 + upperZOffset + 50]}
+            label="상부장 추가"
+            onClick={onAddUpper}
+          />
+        )}
+
+        {/* fullHeight 프리셋: 단일 + 버튼 */}
+        {preset.fullHeight && planner.lowerCount < 10 && (
+          <AddButton3D
+            position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]}
+            label="모듈 추가"
+            onClick={onAddLower}
+          />
+        )}
       </group>
       <primitive object={new THREE.GridHelper(6000, 12, '#3a3a3a', '#3a3a3a')} position={[0, 0, 0]} />
       <OrbitControls
@@ -127,13 +230,11 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
   }, [planner, derived]);
 
   const preset = getPresetById(planner.presetId);
-  const totalModules = planner.lowerCount + planner.upperCount;
-  const isEmpty = totalModules === 0;
 
-  const addLower = () => setPlanner((prev) => ({ ...prev, lowerCount: Math.min(prev.lowerCount + 1, 10) }));
-  const removeLower = () => setPlanner((prev) => ({ ...prev, lowerCount: Math.max(prev.lowerCount - 1, 0) }));
-  const addUpper = () => setPlanner((prev) => ({ ...prev, upperCount: Math.min(prev.upperCount + 1, 10) }));
-  const removeUpper = () => setPlanner((prev) => ({ ...prev, upperCount: Math.max(prev.upperCount - 1, 0) }));
+  const addLower = useCallback(() => setPlanner((prev) => ({ ...prev, lowerCount: Math.min(prev.lowerCount + 1, 10) })), []);
+  const removeLower = useCallback(() => setPlanner((prev) => ({ ...prev, lowerCount: Math.max(prev.lowerCount - 1, 0) })), []);
+  const addUpper = useCallback(() => setPlanner((prev) => ({ ...prev, upperCount: Math.min(prev.upperCount + 1, 10) })), []);
+  const removeUpper = useCallback(() => setPlanner((prev) => ({ ...prev, upperCount: Math.max(prev.upperCount - 1, 0) })), []);
 
   const btnBase: React.CSSProperties = {
     border: 'none',
@@ -145,10 +246,18 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0, overflow: 'hidden', position: 'relative' }}>
       <Canvas shadows dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
-        <SceneContent parts={derived.parts} palette={palette} cameraView={cameraView} />
+        <SceneContent
+          parts={derived.parts}
+          palette={palette}
+          cameraView={cameraView}
+          preset={preset}
+          planner={planner}
+          onAddLower={addLower}
+          onAddUpper={addUpper}
+        />
       </Canvas>
 
-      {/* Module controls — always visible */}
+      {/* 우하단 수량 컨트롤 */}
       <div
         style={{
           position: 'absolute',
@@ -156,94 +265,44 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           right: 16,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
-          background: isEmpty ? 'rgba(255,255,255,0.85)' : 'transparent',
-          borderRadius: isEmpty ? 12 : 0,
-          padding: isEmpty ? '14px 16px' : 0,
-          boxShadow: isEmpty ? '0 2px 12px rgba(0,0,0,0.08)' : 'none',
+          gap: 6,
+          background: 'rgba(255,255,255,0.85)',
+          borderRadius: 10,
+          padding: '10px 12px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
         }}
       >
-        {isEmpty && (
-          <span style={{ color: '#8b8680', fontSize: 12, marginBottom: 4, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-            모듈을 추가하세요
-          </span>
-        )}
-
         {/* Lower / Full modules */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: '#666', fontSize: 11, minWidth: 42, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ color: '#666', fontSize: 11, minWidth: 38, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
             {preset.fullHeight ? '모듈' : '하부장'}
           </span>
-          <button
-            onClick={removeLower}
-            disabled={planner.lowerCount <= 0}
-            style={{
-              ...btnBase,
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: planner.lowerCount > 0 ? '#e0d6c8' : '#eee',
-              color: planner.lowerCount > 0 ? '#4a3f35' : '#bbb',
-              fontSize: 18,
-            }}
-          >
+          <button onClick={removeLower} disabled={planner.lowerCount <= 0}
+            style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.lowerCount > 0 ? '#e0d6c8' : '#eee', color: planner.lowerCount > 0 ? '#4a3f35' : '#bbb', fontSize: 16 }}>
             -
           </button>
-          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 16, textAlign: 'center', color: '#2d2a26', fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 14, textAlign: 'center', color: '#2d2a26', fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
             {planner.lowerCount}
           </span>
-          <button
-            onClick={addLower}
-            disabled={planner.lowerCount >= 10}
-            style={{
-              ...btnBase,
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: planner.lowerCount < 10 ? '#b8956c' : '#eee',
-              color: planner.lowerCount < 10 ? '#fff' : '#bbb',
-              fontSize: 18,
-            }}
-          >
+          <button onClick={addLower} disabled={planner.lowerCount >= 10}
+            style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.lowerCount < 10 ? '#b8956c' : '#eee', color: planner.lowerCount < 10 ? '#fff' : '#bbb', fontSize: 16 }}>
             +
           </button>
         </div>
 
-        {/* Upper modules (only for non-fullHeight presets) */}
+        {/* Upper modules */}
         {!preset.fullHeight && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: '#666', fontSize: 11, minWidth: 42, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>상부장</span>
-            <button
-              onClick={removeUpper}
-              disabled={planner.upperCount <= 0}
-              style={{
-                ...btnBase,
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: planner.upperCount > 0 ? '#e0d6c8' : '#eee',
-                color: planner.upperCount > 0 ? '#4a3f35' : '#bbb',
-                fontSize: 18,
-              }}
-            >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ color: '#666', fontSize: 11, minWidth: 38, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>상부장</span>
+            <button onClick={removeUpper} disabled={planner.upperCount <= 0}
+              style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.upperCount > 0 ? '#e0d6c8' : '#eee', color: planner.upperCount > 0 ? '#4a3f35' : '#bbb', fontSize: 16 }}>
               -
             </button>
-            <span style={{ fontSize: 13, fontWeight: 600, minWidth: 16, textAlign: 'center', color: '#2d2a26', fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, minWidth: 14, textAlign: 'center', color: '#2d2a26', fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
               {planner.upperCount}
             </span>
-            <button
-              onClick={addUpper}
-              disabled={planner.upperCount >= 10}
-              style={{
-                ...btnBase,
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: planner.upperCount < 10 ? '#b8956c' : '#eee',
-                color: planner.upperCount < 10 ? '#fff' : '#bbb',
-                fontSize: 18,
-              }}
-            >
+            <button onClick={addUpper} disabled={planner.upperCount >= 10}
+              style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.upperCount < 10 ? '#b8956c' : '#eee', color: planner.upperCount < 10 ? '#fff' : '#bbb', fontSize: 16 }}>
               +
             </button>
           </div>
