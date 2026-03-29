@@ -16,8 +16,8 @@ import {
 
 type CameraView = 'perspective' | 'front' | 'top';
 
-/* ── 3D 공간 내 + 버튼 ── */
-function AddButton3D({
+/* ── 3D 공간 내 초기 + 버튼 (빈 상태) ── */
+function AddButtonCenter({
   position,
   label,
   onClick,
@@ -31,37 +31,44 @@ function AddButton3D({
       <button
         onClick={onClick}
         style={{
-          width: 48,
-          height: 48,
-          borderRadius: '50%',
-          border: '2px solid #b8956c',
-          background: 'rgba(255,255,255,0.9)',
-          color: '#b8956c',
-          fontSize: 24,
-          fontWeight: 300,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: 48, height: 48, borderRadius: '50%',
+          border: '2px solid #b8956c', background: 'rgba(255,255,255,0.9)',
+          color: '#b8956c', fontSize: 24, fontWeight: 300, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-          transition: 'all 0.15s',
           fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
         }}
-      >
-        +
-      </button>
-      <div
+      >+</button>
+      <div style={{ marginTop: 4, fontSize: 11, color: '#666', textAlign: 'center', whiteSpace: 'nowrap',
+        fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>{label}</div>
+    </Html>
+  );
+}
+
+/* ── 모듈 측면 스티커형 + 버튼 ── */
+function AddButtonSide({
+  position,
+  height,
+  onClick,
+}: {
+  position: [number, number, number];
+  height: number;
+  onClick: () => void;
+}) {
+  const btnH = Math.min(60, Math.max(28, height * 0.08));
+  return (
+    <Html position={position} center style={{ pointerEvents: 'auto' }}>
+      <button
+        onClick={onClick}
         style={{
-          marginTop: 4,
-          fontSize: 11,
-          color: '#666',
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
+          width: 22, height: btnH, borderRadius: 4,
+          border: 'none', background: '#b8956c', color: '#fff',
+          fontSize: 16, fontWeight: 400, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
           fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
         }}
-      >
-        {label}
-      </div>
+      >+</button>
     </Html>
   );
 }
@@ -134,21 +141,19 @@ function SceneContent({
         {!preset.fullHeight && canAddLower && (
           hasLower && lowerLayout ? (
             <>
-              {/* 좌측 + */}
-              <AddButton3D
-                position={[lowerLayout.startX - 40, lowerLayout.centerY, depth / 2 + 50]}
-                label=""
+              <AddButtonSide
+                position={[lowerLayout.startX, lowerLayout.centerY, depth / 2]}
+                height={lowerBodyH}
                 onClick={onAddLower}
               />
-              {/* 우측 + */}
-              <AddButton3D
-                position={[lowerLayout.endX + 40, lowerLayout.centerY, depth / 2 + 50]}
-                label=""
+              <AddButtonSide
+                position={[lowerLayout.endX, lowerLayout.centerY, depth / 2]}
+                height={lowerBodyH}
                 onClick={onAddLower}
               />
             </>
           ) : (
-            <AddButton3D
+            <AddButtonCenter
               position={[0, lowerCenterY, depth / 2 + 50]}
               label="하부장 추가"
               onClick={onAddLower}
@@ -160,19 +165,19 @@ function SceneContent({
         {!preset.fullHeight && upperHeight > 0 && canAddUpper && (
           hasUpper && upperLayout ? (
             <>
-              <AddButton3D
-                position={[upperLayout.startX - 40, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z + 50]}
-                label=""
+              <AddButtonSide
+                position={[upperLayout.startX, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z]}
+                height={upperHeight}
                 onClick={onAddUpper}
               />
-              <AddButton3D
-                position={[upperLayout.endX + 40, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z + 50]}
-                label=""
+              <AddButtonSide
+                position={[upperLayout.endX, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z]}
+                height={upperHeight}
                 onClick={onAddUpper}
               />
             </>
           ) : (
-            <AddButton3D
+            <AddButtonCenter
               position={[0, upperCenterY, upperDepth / 2 + upperZOffset + 50]}
               label="상부장 추가"
               onClick={onAddUpper}
@@ -184,19 +189,19 @@ function SceneContent({
         {preset.fullHeight && canAddLower && (
           hasLower && lowerLayout ? (
             <>
-              <AddButton3D
-                position={[lowerLayout.startX - 40, lowerLayout.centerY, depth / 2 + 50]}
-                label=""
+              <AddButtonSide
+                position={[lowerLayout.startX, lowerLayout.centerY, depth / 2]}
+                height={lowerBodyH}
                 onClick={onAddLower}
               />
-              <AddButton3D
-                position={[lowerLayout.endX + 40, lowerLayout.centerY, depth / 2 + 50]}
-                label=""
+              <AddButtonSide
+                position={[lowerLayout.endX, lowerLayout.centerY, depth / 2]}
+                height={lowerBodyH}
                 onClick={onAddLower}
               />
             </>
           ) : (
-            <AddButton3D
+            <AddButtonCenter
               position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]}
               label="모듈 추가"
               onClick={onAddLower}
