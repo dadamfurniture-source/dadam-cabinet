@@ -324,7 +324,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
 
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0, overflow: 'hidden', position: 'relative' }}
-      onClick={() => setSelectedModuleId(null)}>
+      onPointerDown={(e) => { if (e.target === e.currentTarget) setSelectedModuleId(null); }}>
       <Canvas shadows dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
         <SceneContent
           parts={derived.parts} palette={palette} cameraView={cameraView}
@@ -333,6 +333,12 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           onSelectModule={setSelectedModuleId}
         />
       </Canvas>
+
+      {/* 팝업 배경 (클릭 시 닫기) */}
+      {selectedModule && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 90 }}
+          onClick={() => setSelectedModuleId(null)} />
+      )}
 
       {/* 모듈 편집 팝업 */}
       {selectedModule && (
