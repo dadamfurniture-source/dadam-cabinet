@@ -696,6 +696,12 @@
       .mp-btn-delete:hover { background:#fef2f2; border-color:#f87171; }
       .mp-btn-confirm { padding:8px 28px; font-size:13px; border:none; border-radius:8px; background:#b8956c; color:#fff; cursor:pointer; font-weight:700; transition:all .15s; }
       .mp-btn-confirm:hover { background:#a07d58; }
+
+      /* ── 3D 뷰 카메라 버튼 ── */
+      .view3d-btns { display:flex; gap:2px; background:#f0ebe3; border-radius:6px; padding:2px; }
+      .v3d-btn { padding:3px 10px; font-size:10px; font-weight:600; border:none; border-radius:4px; background:transparent; color:#8b7355; cursor:pointer; transition:all .15s; white-space:nowrap; }
+      .v3d-btn:hover { background:rgba(255,255,255,0.5); color:#5a4a34; }
+      .v3d-btn.active { background:#fff; color:#1f2937; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
       .move-buttons {
         display: flex;
         flex-direction: column;
