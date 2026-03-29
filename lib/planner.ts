@@ -387,28 +387,30 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         colorKey: 'trim',
       });
     } else {
-      // 하부장 마감재 — 걸레받이 위 ~ 하부장 상단
+      // 하부장 마감재 — 모듈 높이 + 걸레받이 포함
+      const lowerFinishH = lowerBodyH + toeKickH;
       parts.push({
         id: `finish-${side.id}-lower`,
         label: `마감재(${side.label})-하부`,
         x: side.x,
-        y: lowerBottomY + lowerBodyH / 2,
+        y: lowerFinishH / 2,
         z: 0,
         width: side.fw,
-        height: lowerBodyH,
+        height: lowerFinishH,
         depth,
         colorKey: 'trim',
       });
-      // 상부장 마감재 — 상부장 하단 ~ 몰딩 하단
+      // 상부장 마감재 — 모듈 높이 + 상몰딩 포함
       if (upperHeight > 0) {
+        const upperFinishH = upperHeight + moldingH;
         parts.push({
           id: `finish-${side.id}-upper`,
           label: `마감재(${side.label})-상부`,
           x: side.x,
-          y: upperBottomY + upperHeight / 2,
+          y: height - upperFinishH / 2,
           z: upperZOffset,
           width: side.fw,
-          height: upperHeight,
+          height: upperFinishH,
           depth: upperDepth,
           colorKey: 'trim',
         });
