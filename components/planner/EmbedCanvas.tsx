@@ -72,6 +72,7 @@ function SceneContent({
   cameraView,
   preset,
   planner,
+  derived,
   onAddLower,
   onAddUpper,
 }: {
@@ -80,13 +81,13 @@ function SceneContent({
   cameraView: CameraView;
   preset: ReturnType<typeof getPresetById>;
   planner: PlannerState;
+  derived: ReturnType<typeof deriveCabinet>;
   onAddLower: () => void;
   onAddUpper: () => void;
 }) {
   const cameraPosition =
     cameraView === 'top' ? [0, 2400, 0.01] : cameraView === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
 
-  // 실측 기준 설치공간 중심 좌표 계산
   const toeKickH = planner.toeKickH ?? 0;
   const moldingH = planner.moldingH ?? 0;
   const height = planner.height;
@@ -103,6 +104,12 @@ function SceneContent({
     ? 0
     : Math.min(preset.upperHeight, Math.max(0, height - moldingH - (toeKickH + lowerBodyH) - (preset.hasCountertop ? preset.counterThickness : 0)));
   const upperCenterY = height - moldingH - upperHeight / 2;
+
+  const { lowerLayout, upperLayout } = derived;
+  const hasLower = planner.lowerCount > 0;
+  const hasUpper = planner.upperCount > 0;
+  const canAddLower = planner.lowerCount < 10;
+  const canAddUpper = planner.upperCount < 10;
 
   return (
     <>
@@ -123,31 +130,78 @@ function SceneContent({
           </mesh>
         ))}
 
-        {/* 하부장 + 버튼 (마감재 안쪽 설치공간 중앙) */}
-        {planner.lowerCount < 10 && !preset.fullHeight && (
-          <AddButton3D
-            position={[0, lowerCenterY, depth / 2 + 50]}
-            label="하부장 추가"
-            onClick={onAddLower}
-          />
+        {/* ── 하부장 버튼 ── */}
+        {!preset.fullHeight && canAddLower && (
+          hasLower && lowerLayout ? (
+            <>
+              {/* 좌측 + */}
+              <AddButton3D
+                position={[lowerLayout.startX - 40, lowerLayout.centerY, depth / 2 + 50]}
+                label=""
+                onClick={onAddLower}
+              />
+              {/* 우측 + */}
+              <AddButton3D
+                position={[lowerLayout.endX + 40, lowerLayout.centerY, depth / 2 + 50]}
+                label=""
+                onClick={onAddLower}
+              />
+            </>
+          ) : (
+            <AddButton3D
+              position={[0, lowerCenterY, depth / 2 + 50]}
+              label="하부장 추가"
+              onClick={onAddLower}
+            />
+          )
         )}
 
-        {/* 상부장 + 버튼 */}
-        {planner.upperCount < 10 && !preset.fullHeight && upperHeight > 0 && (
-          <AddButton3D
-            position={[0, upperCenterY, upperDepth / 2 + upperZOffset + 50]}
-            label="상부장 추가"
-            onClick={onAddUpper}
-          />
+        {/* ── 상부장 버튼 ── */}
+        {!preset.fullHeight && upperHeight > 0 && canAddUpper && (
+          hasUpper && upperLayout ? (
+            <>
+              <AddButton3D
+                position={[upperLayout.startX - 40, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z + 50]}
+                label=""
+                onClick={onAddUpper}
+              />
+              <AddButton3D
+                position={[upperLayout.endX + 40, upperLayout.centerY, upperLayout.depth / 2 + upperLayout.z + 50]}
+                label=""
+                onClick={onAddUpper}
+              />
+            </>
+          ) : (
+            <AddButton3D
+              position={[0, upperCenterY, upperDepth / 2 + upperZOffset + 50]}
+              label="상부장 추가"
+              onClick={onAddUpper}
+            />
+          )
         )}
 
-        {/* fullHeight 프리셋: 단일 + 버튼 */}
-        {preset.fullHeight && planner.lowerCount < 10 && (
-          <AddButton3D
-            position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]}
-            label="모듈 추가"
-            onClick={onAddLower}
-          />
+        {/* ── fullHeight 프리셋 ── */}
+        {preset.fullHeight && canAddLower && (
+          hasLower && lowerLayout ? (
+            <>
+              <AddButton3D
+                position={[lowerLayout.startX - 40, lowerLayout.centerY, depth / 2 + 50]}
+                label=""
+                onClick={onAddLower}
+              />
+              <AddButton3D
+                position={[lowerLayout.endX + 40, lowerLayout.centerY, depth / 2 + 50]}
+                label=""
+                onClick={onAddLower}
+              />
+            </>
+          ) : (
+            <AddButton3D
+              position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]}
+              label="모듈 추가"
+              onClick={onAddLower}
+            />
+          )
         )}
       </group>
       <primitive object={new THREE.GridHelper(6000, 12, '#3a3a3a', '#3a3a3a')} position={[0, 0, 0]} />
@@ -243,6 +297,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           cameraView={cameraView}
           preset={preset}
           planner={planner}
+          derived={derived}
           onAddLower={addLower}
           onAddUpper={addUpper}
         />
