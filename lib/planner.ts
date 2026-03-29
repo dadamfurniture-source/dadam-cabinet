@@ -354,56 +354,104 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 좌측 마감재 (left finish panel) — 하부+상부 전체 높이
-  if (finishLeftW > 0) {
-    const finishH = height - toeKickH - moldingH;
-    const finishY = toeKickH + finishH / 2;
-    parts.push({
-      id: 'finish-left',
-      label: '마감재(좌)',
-      x: -width / 2 + finishLeftW / 2,
-      y: finishY,
-      z: 0,
-      width: finishLeftW,
-      height: finishH,
-      depth,
-      colorKey: 'trim',
-    });
-  }
+  // 좌/우 마감재 — 하부장, 상부장 별도 생성
+  const finishSides: Array<{ id: string; label: string; xFn: (fw: number) => number; fw: number }> = [];
+  if (finishLeftW > 0) finishSides.push({ id: 'left', label: '좌', xFn: (fw) => -width / 2 + fw / 2, fw: finishLeftW });
+  if (finishRightW > 0) finishSides.push({ id: 'right', label: '우', xFn: (fw) => width / 2 - fw / 2, fw: finishRightW });
 
-  // 우측 마감재 (right finish panel) — 하부+상부 전체 높이
-  if (finishRightW > 0) {
-    const finishH = height - toeKickH - moldingH;
-    const finishY = toeKickH + finishH / 2;
-    parts.push({
-      id: 'finish-right',
-      label: '마감재(우)',
-      x: width / 2 - finishRightW / 2,
-      y: finishY,
-      z: 0,
-      width: finishRightW,
-      height: finishH,
-      depth,
-      colorKey: 'trim',
-    });
+  for (const side of finishSides) {
+    if (preset.fullHeight) {
+      // 풀하이트: 하나의 패널
+      const finishH = height - toeKickH - moldingH;
+      parts.push({
+        id: `finish-${side.id}`,
+        label: `마감재(${side.label})`,
+        x: side.xFn(side.fw),
+        y: toeKickH + finishH / 2,
+        z: 0,
+        width: side.fw,
+        height: finishH,
+        depth,
+        colorKey: 'trim',
+      });
+    } else {
+      // 하부장 마감재
+      parts.push({
+        id: `finish-${side.id}-lower`,
+        label: `마감재(${side.label})-하부`,
+        x: side.xFn(side.fw),
+        y: lowerHeight / 2,
+        z: 0,
+        width: side.fw,
+        height: lowerHeight,
+        depth,
+        colorKey: 'trim',
+      });
+      // 상부장 마감재
+      if (upperHeight > 0) {
+        const upperStartY = lowerHeight + counterThickness;
+        parts.push({
+          id: `finish-${side.id}-upper`,
+          label: `마감재(${side.label})-상부`,
+          x: side.xFn(side.fw),
+          y: upperStartY + upperHeight / 2,
+          z: 0,
+          width: side.fw,
+          height: upperHeight,
+          depth: upperDepth,
+          colorKey: 'trim',
+        });
+      }
+    }
   }
 
   // --- 설치 공간 (모듈이 없을 때 유효 영역 wireframe 표시) ---
   if (lowerCount === 0 && hasFinish) {
-    const spaceH = height - toeKickH - moldingH;
-    const spaceY = toeKickH + spaceH / 2;
-    parts.push({
-      id: 'install-space',
-      label: '설치공간',
-      x: 0,
-      y: spaceY,
-      z: 0,
-      width: effectiveWidth,
-      height: spaceH,
-      depth,
-      colorKey: 'accent',
-      wireframe: true,
-    });
+    if (preset.fullHeight) {
+      const spaceH = height - toeKickH - moldingH;
+      parts.push({
+        id: 'install-space',
+        label: '설치공간',
+        x: 0,
+        y: toeKickH + spaceH / 2,
+        z: 0,
+        width: effectiveWidth,
+        height: spaceH,
+        depth,
+        colorKey: 'accent',
+        wireframe: true,
+      });
+    } else {
+      // 하부장 설치공간
+      parts.push({
+        id: 'install-space-lower',
+        label: '설치공간(하부)',
+        x: 0,
+        y: lowerHeight / 2,
+        z: 0,
+        width: effectiveWidth,
+        height: lowerHeight,
+        depth,
+        colorKey: 'accent',
+        wireframe: true,
+      });
+      // 상부장 설치공간
+      if (upperHeight > 0) {
+        const upperStartY = lowerHeight + counterThickness;
+        parts.push({
+          id: 'install-space-upper',
+          label: '설치공간(상부)',
+          x: 0,
+          y: upperStartY + upperHeight / 2,
+          z: 0,
+          width: effectiveWidth,
+          height: upperHeight,
+          depth: upperDepth,
+          colorKey: 'accent',
+          wireframe: true,
+        });
+      }
+    }
   }
 
   // Countertop
