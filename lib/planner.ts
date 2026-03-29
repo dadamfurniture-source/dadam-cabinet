@@ -35,6 +35,12 @@ export interface CabinetPreset {
   defaultMoldingH: number;
 }
 
+export interface ModuleEntry {
+  id: string;
+  kind: ModuleKind;
+  width: number;
+}
+
 export interface PlannerState {
   presetId: CabinetCategory;
   width: number;
@@ -42,6 +48,8 @@ export interface PlannerState {
   depth: number;
   lowerCount: number;
   upperCount: number;
+  lowerModules: ModuleEntry[];
+  upperModules: ModuleEntry[];
   material: MaterialTone;
   moldingH: number;
   toeKickH: number;
@@ -224,6 +232,11 @@ const distributeWidths = (totalWidth: number, count: number) => {
   return widths;
 };
 
+export const MODULE_DEFAULT_W = 600;
+
+let _idCounter = 1;
+export const genModuleId = () => `mod-${_idCounter++}-${Date.now().toString(36)}`;
+
 export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
   const preset = getPresetById(presetId);
   return {
@@ -233,6 +246,8 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     depth: preset.defaultDepth,
     lowerCount: preset.lowerCount,
     upperCount: preset.upperCount,
+    lowerModules: [],
+    upperModules: [],
     material: 'cream',
     moldingH: preset.defaultMoldingH,
     toeKickH: preset.toeKickHeight,
@@ -241,21 +256,17 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
   };
 };
 
-const MODULE_FIXED_W = 600;
-
-const buildModules = (
+const buildModulesFromEntries = (
+  entries: ModuleEntry[],
   section: ModuleSection,
-  count: number,
-  _effectiveWidth: number,
   height: number,
   depth: number,
-  kind: ModuleKind
 ): CabinetModule[] =>
-  Array.from({ length: count }, (_, index) => ({
-    id: `${section}-${index + 1}`,
+  entries.map((entry) => ({
+    id: entry.id,
     section,
-    kind,
-    width: MODULE_FIXED_W,
+    kind: entry.kind,
+    width: entry.width,
     height,
     depth,
   }));
@@ -265,8 +276,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const width = clamp(Math.round(state.width), 600, 6000);
   const height = clamp(Math.round(state.height), 700, 2800);
   const depth = clamp(Math.round(state.depth), 220, 900);
-  const lowerCount = clamp(Math.round(state.lowerCount), 0, 10);
-  const upperCount = clamp(Math.round(state.upperCount), 0, 10);
+  const lowerEntries = state.lowerModules ?? [];
+  const upperEntries = state.upperModules ?? [];
+  const lowerCount = lowerEntries.length;
+  const upperCount = upperEntries.length;
   const moldingH = clamp(Math.round(state.moldingH ?? 0), 0, 120);
   const toeKickH = clamp(Math.round(state.toeKickH ?? 0), 0, 300);
   const finishLeftW = clamp(Math.round(state.finishLeftW ?? 0), 0, 200);
@@ -294,14 +307,11 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   const parts: CabinetPart[] = [];
 
-  // --- 모듈 생성 ---
-  const modules: CabinetModule[] = lowerCount > 0
-    ? buildModules('lower', lowerCount, effectiveWidth, lowerBodyH, depth, preset.fullHeight ? 'door' : 'drawer')
-    : [];
-
-  if (upperHeight > 0 && upperCount > 0) {
-    modules.push(...buildModules('upper', upperCount, effectiveWidth, upperHeight, upperDepth, 'door'));
-  }
+  // --- 모듈 생성 (개별 배열 기반) ---
+  const modules: CabinetModule[] = [
+    ...buildModulesFromEntries(lowerEntries, preset.fullHeight ? 'full' : 'lower', lowerBodyH, depth),
+    ...(upperHeight > 0 ? buildModulesFromEntries(upperEntries, 'upper', upperHeight, upperDepth) : []),
+  ];
 
   // 모듈 X offset: 좌측 마감재 이후부터 시작 (상부/하부 각각 독립 cursor)
   const moduleStartX = -width / 2 + finishLeftW;
