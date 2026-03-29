@@ -52,7 +52,6 @@ function AddPanelSide({ position, moduleHeight, moduleDepth, color, onClick }: {
 /* ── 클릭 가능한 모듈 mesh ── */
 function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
   const [hovered, setHovered] = useState(false);
-  // mod- 또는 utility- 로 시작하는 파츠 클릭 가능
   const isMod = part.id.startsWith('mod-');
   const isUtility = part.id.startsWith('utility-');
   const isClickable = isMod || isUtility;
@@ -81,8 +80,62 @@ function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: str
   );
 }
 
+/* ── 드래그 가능한 유틸리티 mesh ── */
+function DraggableUtility({ part, halfW, onDrag, onSelect }: {
+  part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number };
+  halfW: number;
+  onDrag: (id: string, newX: number) => void;
+  onSelect: (id: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const isDist = part.id.includes('distributor');
+
+  return (
+    <group>
+      <mesh
+        position={[part.x, part.y, part.z]}
+        onPointerDown={(e) => { e.stopPropagation(); setDragging(true); (e.target as any).setPointerCapture(e.pointerId); }}
+        onPointerUp={(e) => { if (!dragging) return; setDragging(false); (e.target as any).releasePointerCapture(e.pointerId); }}
+        onPointerMove={(e) => {
+          if (!dragging) return;
+          const newX = Math.max(-halfW, Math.min(halfW, e.point.x));
+          onDrag(part.id, newX);
+        }}
+        onClick={(e) => { if (!dragging) { e.stopPropagation(); onSelect(part.id); } }}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => { setHovered(false); setDragging(false); }}
+      >
+        <boxGeometry args={[part.width, part.height, part.depth]} />
+        <meshStandardMaterial
+          color={dragging ? '#ffa726' : hovered ? '#64b5f6' : (isDist ? '#2196f3' : '#78909c')}
+          opacity={0.7} transparent
+          emissive={hovered ? '#1565c0' : '#000'} emissiveIntensity={hovered ? 0.2 : 0}
+        />
+      </mesh>
+      {/* 라벨 */}
+      <Html position={[part.x, part.y + part.height / 2 + 20, part.z]} center style={{ pointerEvents: 'none' }}>
+        <div style={{ fontSize: 10, color: isDist ? '#1565c0' : '#546e7a', whiteSpace: 'nowrap', fontFamily: FONT, fontWeight: 600, textShadow: '0 0 4px #fff' }}>
+          {isDist ? '💧 설비' : '🌀 환풍구'}
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+/* ── 치수 라벨 (3D 공간에 mm 표시) ── */
+function DimensionLabel({ position, text, color = '#666' }: { position: [number, number, number]; text: string; color?: string }) {
+  return (
+    <Html position={position} center style={{ pointerEvents: 'none' }}>
+      <div style={{ fontSize: 10, color, fontFamily: FONT, fontWeight: 600, background: 'rgba(255,255,255,0.8)', padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap', border: `1px solid ${color}33` }}>
+        {text}
+      </div>
+    </Html>
+  );
+}
+
 function SceneContent({
-  parts, palette, cameraView, preset, planner, derived, onAddLower, onAddUpper, onSelectModule,
+  parts, palette, cameraView, preset, planner, derived, onAddLower, onAddUpper, onSelectModule, onDragUtility,
 }: {
   parts: ReturnType<typeof deriveCabinet>['parts'];
   palette: (typeof MATERIALS)[keyof typeof MATERIALS];
@@ -93,6 +146,7 @@ function SceneContent({
   onAddLower: () => void;
   onAddUpper: () => void;
   onSelectModule: (id: string) => void;
+  onDragUtility: (id: string, newX: number) => void;
 }) {
   const cameraPosition = cameraView === 'top' ? [0, 2400, 0.01] : cameraView === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
 
@@ -120,9 +174,31 @@ function SceneContent({
       <directionalLight position={[1800, 2200, 1200]} intensity={2.1} castShadow />
       <directionalLight position={[-1200, 1000, -900]} intensity={0.8} />
       <group rotation={cameraView === 'top' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
-        {parts.map((part) => (
+        {/* 일반 파츠 */}
+        {parts.filter(p => !p.id.startsWith('utility-')).map((part) => (
           <ClickableModule key={part.id} part={part} color={palette[part.colorKey]} wireframe={part.wireframe} onSelect={onSelectModule} />
         ))}
+        {/* 유틸리티 파츠 (드래그 가능) */}
+        {parts.filter(p => p.id.startsWith('utility-')).map((part) => (
+          <DraggableUtility key={part.id} part={part} halfW={planner.width / 2} onDrag={onDragUtility} onSelect={onSelectModule} />
+        ))}
+
+        {/* 치수 라벨 */}
+        {derived.modules.length > 0 && (
+          <>
+            {/* 전체 폭 */}
+            <DimensionLabel position={[0, -30, depth / 2 + 80]} text={`${planner.width}mm`} color="#333" />
+            {/* 전체 높이 */}
+            <DimensionLabel position={[-planner.width / 2 - 60, height / 2, 0]} text={`${height}mm`} color="#333" />
+            {/* 모듈별 폭 */}
+            {derived.modules.map((mod) => {
+              const modPart = parts.find(p => p.id === mod.id);
+              return modPart ? (
+                <DimensionLabel key={`dim-${mod.id}`} position={[modPart.x, modPart.y - modPart.height / 2 - 20, modPart.z + modPart.depth / 2 + 30]} text={`${mod.width}`} color={mod.section === 'upper' ? '#6366f1' : '#b8956c'} />
+              ) : null;
+            })}
+          </>
+        )}
 
         {/* 하부장 + 버튼 */}
         {!preset.fullHeight && canAddLower && (
@@ -246,7 +322,7 @@ function UtilityPopup({
   onClose: () => void;
 }) {
   const isDist = type === 'distributor';
-  const label = isDist ? '💧 급수분배기' : '🌀 환풍구';
+  const label = isDist ? '💧 설비 위치' : '🌀 환풍구';
   const color = isDist ? '#2196f3' : '#78909c';
 
   const startVal = isDist ? (planner.distributorStart ?? Math.round(planner.width * 0.15)) : (planner.ventStart ?? Math.round(planner.width * 0.7));
@@ -376,6 +452,24 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
     setSelectedModuleId(null);
   }, []);
 
+  const dragUtility = useCallback((id: string, newX: number) => {
+    const halfW = planner.width / 2;
+    const mmFromLeft = Math.round(Math.max(0, Math.min(planner.width, newX + halfW)));
+    setPlanner((prev) => {
+      if (id === 'utility-distributor') {
+        const oldStart = prev.distributorStart ?? Math.round(prev.width * 0.15);
+        const oldEnd = prev.distributorEnd ?? Math.round(prev.width * 0.15 + 700);
+        const dw = oldEnd - oldStart;
+        const center = mmFromLeft;
+        return { ...prev, distributorStart: Math.max(0, center - dw / 2), distributorEnd: Math.min(prev.width, center + dw / 2) };
+      }
+      if (id === 'utility-vent') {
+        return { ...prev, ventStart: mmFromLeft };
+      }
+      return prev;
+    });
+  }, [planner.width]);
+
   const selectedModule = selectedModuleId
     ? [...(planner.lowerModules ?? []), ...(planner.upperModules ?? [])].find((m) => m.id === selectedModuleId)
     : null;
@@ -393,6 +487,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           preset={preset} planner={planner} derived={derived}
           onAddLower={addLower} onAddUpper={addUpper}
           onSelectModule={setSelectedModuleId}
+          onDragUtility={dragUtility}
         />
       </Canvas>
 
@@ -438,7 +533,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
         <button
           onClick={() => setPlanner((prev) => ({ ...prev, distributorStart: prev.distributorStart === 0 ? null : 0, distributorEnd: prev.distributorEnd === 0 ? null : 0 }))}
           style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #90caf9', background: (planner.distributorStart !== 0) ? '#e3f2fd' : '#f5f5f5', color: (planner.distributorStart !== 0) ? '#1565c0' : '#999', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}>
-          💧 {planner.distributorStart !== 0 ? '분배기' : '분배기 (숨김)'}
+          💧 {planner.distributorStart !== 0 ? '설비' : '설비 (숨김)'}
         </button>
         {!preset.fullHeight && (
           <button
