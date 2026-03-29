@@ -32,6 +32,7 @@ export interface CabinetPreset {
   upperCount: number;
   hasCountertop: boolean;
   fullHeight: boolean;
+  defaultMoldingH: number;
 }
 
 export interface PlannerState {
@@ -42,6 +43,10 @@ export interface PlannerState {
   lowerCount: number;
   upperCount: number;
   material: MaterialTone;
+  moldingH: number;
+  toeKickH: number;
+  finishLeftW: number;
+  finishRightW: number;
 }
 
 export interface CabinetPart {
@@ -53,7 +58,7 @@ export interface CabinetPart {
   width: number;
   height: number;
   depth: number;
-  colorKey: 'body' | 'accent' | 'shadow';
+  colorKey: 'body' | 'accent' | 'shadow' | 'trim';
   wireframe?: boolean;
 }
 
@@ -68,12 +73,12 @@ export interface DerivedCabinet {
 
 export const MATERIALS: Record<
   MaterialTone,
-  { name: string; body: string; accent: string; shadow: string }
+  { name: string; body: string; accent: string; shadow: string; trim: string }
 > = {
-  cream: { name: 'Warm Cream', body: '#f1ede3', accent: '#d4c4a8', shadow: '#b7aa90' },
-  oak: { name: 'Natural Oak', body: '#d1b089', accent: '#9e7144', shadow: '#6f5031' },
-  walnut: { name: 'Deep Walnut', body: '#8b6447', accent: '#b48a6a', shadow: '#5d412c' },
-  graphite: { name: 'Graphite', body: '#696a6b', accent: '#c2b49c', shadow: '#3d4042' },
+  cream: { name: 'Warm Cream', body: '#f1ede3', accent: '#d4c4a8', shadow: '#b7aa90', trim: '#c8bda8' },
+  oak: { name: 'Natural Oak', body: '#d1b089', accent: '#9e7144', shadow: '#6f5031', trim: '#8a6a42' },
+  walnut: { name: 'Deep Walnut', body: '#8b6447', accent: '#b48a6a', shadow: '#5d412c', trim: '#6e5238' },
+  graphite: { name: 'Graphite', body: '#696a6b', accent: '#c2b49c', shadow: '#3d4042', trim: '#555657' },
 };
 
 export const PRESETS: CabinetPreset[] = [
@@ -94,6 +99,7 @@ export const PRESETS: CabinetPreset[] = [
     upperCount: 0,
     hasCountertop: true,
     fullHeight: false,
+    defaultMoldingH: 60,
   },
   {
     id: 'wardrobe',
@@ -112,6 +118,7 @@ export const PRESETS: CabinetPreset[] = [
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
+    defaultMoldingH: 20,
   },
   {
     id: 'vanity',
@@ -130,6 +137,7 @@ export const PRESETS: CabinetPreset[] = [
     upperCount: 0,
     hasCountertop: true,
     fullHeight: false,
+    defaultMoldingH: 40,
   },
   {
     id: 'shoe',
@@ -148,6 +156,7 @@ export const PRESETS: CabinetPreset[] = [
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
+    defaultMoldingH: 30,
   },
   {
     id: 'fridge',
@@ -166,6 +175,7 @@ export const PRESETS: CabinetPreset[] = [
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
+    defaultMoldingH: 50,
   },
   {
     id: 'storage',
@@ -184,6 +194,7 @@ export const PRESETS: CabinetPreset[] = [
     upperCount: 0,
     hasCountertop: false,
     fullHeight: true,
+    defaultMoldingH: 40,
   },
 ];
 
@@ -212,6 +223,10 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     lowerCount: preset.lowerCount,
     upperCount: preset.upperCount,
     material: 'cream',
+    moldingH: preset.defaultMoldingH,
+    toeKickH: preset.toeKickHeight,
+    finishLeftW: 60,
+    finishRightW: 60,
   };
 };
 
@@ -239,29 +254,39 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const depth = clamp(Math.round(state.depth), 220, 900);
   const lowerCount = clamp(Math.round(state.lowerCount), 0, 10);
   const upperCount = clamp(Math.round(state.upperCount), 0, 10);
+  const moldingH = clamp(Math.round(state.moldingH ?? 0), 0, 120);
+  const toeKickH = clamp(Math.round(state.toeKickH ?? 0), 0, 300);
+  const finishLeftW = clamp(Math.round(state.finishLeftW ?? 0), 0, 200);
+  const finishRightW = clamp(Math.round(state.finishRightW ?? 0), 0, 200);
 
-  const lowerHeight = preset.fullHeight ? height : Math.min(preset.lowerHeight, height);
+  const effectiveWidth = Math.max(0, width - finishLeftW - finishRightW);
+  const lowerHeight = preset.fullHeight
+    ? Math.max(0, height - moldingH - toeKickH)
+    : Math.min(preset.lowerHeight, height);
   const upperHeight = preset.fullHeight ? 0 : Math.min(preset.upperHeight, Math.max(0, height - lowerHeight));
   const counterThickness = preset.hasCountertop ? preset.counterThickness : 0;
   const upperDepth = preset.fullHeight ? depth : preset.upperDepth;
   const parts: CabinetPart[] = [];
 
   const modules: CabinetModule[] = lowerCount > 0
-    ? buildModules('lower', lowerCount, width, lowerHeight, depth, preset.fullHeight ? 'door' : 'drawer')
+    ? buildModules('lower', lowerCount, effectiveWidth, lowerHeight, depth, preset.fullHeight ? 'door' : 'drawer')
     : [];
 
   if (upperHeight > 0 && upperCount > 0) {
-    modules.push(...buildModules('upper', upperCount, width, upperHeight, upperDepth, 'door'));
+    modules.push(...buildModules('upper', upperCount, effectiveWidth, upperHeight, upperDepth, 'door'));
   }
 
-  let cursor = -width / 2;
+  // Module offset: start after left finish
+  const moduleStartX = -width / 2 + finishLeftW;
+  let cursor = moduleStartX;
 
   modules.forEach((module) => {
     const centeredX = cursor + module.width / 2;
+    const baseY = preset.fullHeight ? toeKickH : 0;
     const y =
       module.section === 'upper'
         ? lowerHeight + counterThickness + (height - lowerHeight - counterThickness - module.height / 2)
-        : module.height / 2;
+        : baseY + module.height / 2;
 
     parts.push({
       id: module.id,
@@ -292,6 +317,78 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     cursor += module.width;
   });
 
+  const hasModules = lowerCount > 0 || upperCount > 0;
+
+  // --- Finishing parts (마감재) ---
+
+  // 상몰딩 (top molding) — full width across top
+  if (moldingH > 0 && hasModules) {
+    const moldingTopY = preset.fullHeight
+      ? height - moldingH / 2
+      : (upperCount > 0 ? height - moldingH / 2 : lowerHeight + counterThickness + moldingH / 2);
+    parts.push({
+      id: 'molding-top',
+      label: '상몰딩',
+      x: 0,
+      y: moldingTopY,
+      z: 0,
+      width,
+      height: moldingH,
+      depth: depth + 6,
+      colorKey: 'trim',
+    });
+  }
+
+  // 걸레받이 (toe kick / baseboard)
+  if (toeKickH > 0 && hasModules) {
+    parts.push({
+      id: 'toekick',
+      label: '걸레받이',
+      x: 0,
+      y: toeKickH / 2,
+      z: -20,
+      width: effectiveWidth,
+      height: toeKickH,
+      depth: depth - 40,
+      colorKey: 'trim',
+    });
+  }
+
+  // 좌측 마감재 (left finish panel)
+  if (finishLeftW > 0 && hasModules) {
+    const finishH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
+    const finishY = preset.fullHeight ? toeKickH + finishH / 2 : finishH / 2;
+    parts.push({
+      id: 'finish-left',
+      label: '마감재(좌)',
+      x: -width / 2 + finishLeftW / 2,
+      y: finishY,
+      z: 0,
+      width: finishLeftW,
+      height: finishH,
+      depth,
+      colorKey: 'trim',
+    });
+  }
+
+  // 우측 마감재 (right finish panel)
+  if (finishRightW > 0 && hasModules) {
+    const finishH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
+    const finishY = preset.fullHeight ? toeKickH + finishH / 2 : finishH / 2;
+    parts.push({
+      id: 'finish-right',
+      label: '마감재(우)',
+      x: width / 2 - finishRightW / 2,
+      y: finishY,
+      z: 0,
+      width: finishRightW,
+      height: finishH,
+      depth,
+      colorKey: 'trim',
+    });
+  }
+
+  // Countertop
   if (preset.hasCountertop && lowerCount > 0) {
     parts.push({
       id: 'countertop',
