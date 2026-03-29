@@ -622,7 +622,7 @@
             const doorH = mod.type === 'hood' ? upperH_s - doorGap : upperH_s + upperOverlap_s - doorGap;
             for (let d = 0; d < doorCount; d++) {
               const dX = upperDoorX + d * dW + doorGap / 2;
-              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorH}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2"/>`;
+              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorH}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
             }
             upperDoorX += modW;
           });
@@ -700,11 +700,11 @@
               for (let dr = 0; dr < dCount; dr++) {
                 const drY = modY + doorGap / 2 + dr * (totalDrawerH_s / dCount);
                 const drH = totalDrawerH_s / dCount - doorGap;
-                sinkModuleSvg += `<rect x="${lowerStartX + doorGap / 2}" y="${drY}" width="${modW - doorGap}" height="${drH}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                sinkModuleSvg += `<rect x="${lowerStartX + doorGap / 2}" y="${drY}" width="${modW - doorGap}" height="${drH}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
                 // 서랍 손잡이 (가로선)
                 const handleY = drY + drH / 2;
                 const handleW = modW * 0.35;
-                sinkModuleSvg += `<line x1="${lowerStartX + modW / 2 - handleW / 2}" y1="${handleY}" x2="${lowerStartX + modW / 2 + handleW / 2}" y2="${handleY}" stroke="#666" stroke-width="2" stroke-linecap="round"/>`;
+                sinkModuleSvg += `<line x1="${lowerStartX + modW / 2 - handleW / 2}" y1="${handleY}" x2="${lowerStartX + modW / 2 + handleW / 2}" y2="${handleY}" stroke="#666" stroke-width="2" stroke-linecap="round" pointer-events="none"/>`;
               }
 
               // 여닫이 도어 (하단) - 남은 공간
@@ -714,7 +714,7 @@
                 const dW = modW / hingeDoorCount;
                 for (let d = 0; d < hingeDoorCount; d++) {
                   const dX = lowerStartX + d * dW + doorGap / 2;
-                  sinkModuleSvg += `<rect x="${dX}" y="${hingeDoorY}" width="${dW - doorGap}" height="${hingeDoorH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                  sinkModuleSvg += `<rect x="${dX}" y="${hingeDoorY}" width="${dW - doorGap}" height="${hingeDoorH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
                 }
               }
             } else {
@@ -723,7 +723,7 @@
               const dW = modW / doorCount;
               for (let d = 0; d < doorCount; d++) {
                 const dX = lowerStartX + d * dW + doorGap / 2;
-                sinkModuleSvg += `<rect x="${dX}" y="${modY + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                sinkModuleSvg += `<rect x="${dX}" y="${modY + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
               }
             }
           }
