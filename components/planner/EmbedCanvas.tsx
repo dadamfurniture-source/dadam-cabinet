@@ -54,14 +54,14 @@ function SceneContent({
       <Grid
         args={[10000, 10000]}
         position={[0, 0.5, 0]}
-        cellSize={100}
-        cellThickness={0.8}
+        cellSize={500}
+        cellThickness={0.4}
         sectionSize={500}
-        sectionThickness={1.2}
-        cellColor="#d5cab8"
-        sectionColor="#bcae98"
-        fadeDistance={8000}
-        fadeStrength={1}
+        sectionThickness={0.4}
+        cellColor="#e0dbd4"
+        sectionColor="#e0dbd4"
+        fadeDistance={5000}
+        fadeStrength={2}
         infiniteGrid
       />
       <OrbitControls
