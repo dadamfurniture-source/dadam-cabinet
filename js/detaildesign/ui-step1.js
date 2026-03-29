@@ -362,28 +362,16 @@
       // ★ 3D 뷰 카메라 전환 + 2D/3D 토글
       function set3DView(itemUniqueId, view, btn) {
         const threeCanvas = document.getElementById('three-canvas-' + itemUniqueId);
-        const svgFront = document.getElementById('svg-front-' + itemUniqueId);
-
         const viewLabel = document.getElementById('view-label-' + itemUniqueId);
         const viewHint = document.getElementById('view-hint-' + itemUniqueId);
 
-        if (view === '2d') {
-          // 2D SVG 정면 도면 표시 (모듈 클릭 가능)
-          if (threeCanvas) threeCanvas.style.display = 'none';
-          if (svgFront) svgFront.style.display = 'block';
-          if (viewLabel) viewLabel.textContent = '📐 2D 정면도';
-          if (viewHint) viewHint.textContent = '모듈 클릭 → 편집 | 드래그 → 이동';
-        } else {
-          // 3D 뷰 표시
-          if (threeCanvas) threeCanvas.style.display = 'block';
-          if (svgFront) svgFront.style.display = 'none';
-          if (viewLabel) viewLabel.textContent = '🎮 3D View';
-          if (viewHint) viewHint.textContent = '드래그 → 회전 | 스크롤 → 줌';
-          // 카메라 전환
-          const iframe = threeCanvas?.querySelector('iframe[data-planner]');
-          if (iframe) {
-            iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
-          }
+        if (threeCanvas) threeCanvas.style.display = 'block';
+        if (viewLabel) viewLabel.textContent = '🎮 3D View';
+        if (viewHint) viewHint.textContent = '드래그 → 회전 | 스크롤 → 줌';
+        // 카메라 전환
+        const iframe = threeCanvas?.querySelector('iframe[data-planner]');
+        if (iframe) {
+          iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
         }
         // 버튼 active 토글
         const group = btn.closest('.view3d-btns');
@@ -937,27 +925,8 @@
             <text x="${refX}" y="${refY + 2}" text-anchor="middle" font-size="8" fill="#b8956c" font-weight="bold">▲ ${refLabel} 기준</text>`;
         }
 
-        const sinkFrontViewSvg = `
-    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
-      <!-- 치수선 - 상단 -->
-      <line x1="${offsetX}" y1="${offsetY - 15}" x2="${offsetX + drawW}" y2="${offsetY - 15}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX}" y1="${offsetY - 20}" x2="${offsetX}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX + drawW}" y1="${offsetY - 20}" x2="${offsetX + drawW}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
-      <text x="${offsetX + drawW / 2}" y="${offsetY - 25}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">${sinkW}mm</text>
-
-      <!-- 치수선 - 좌측 -->
-      <line x1="${offsetX - 15}" y1="${offsetY}" x2="${offsetX - 15}" y2="${offsetY + drawH}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX - 20}" y1="${offsetY}" x2="${offsetX - 10}" y2="${offsetY}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX - 20}" y1="${offsetY + drawH}" x2="${offsetX - 10}" y2="${offsetY + drawH}" stroke="#666" stroke-width="1"/>
-      <text x="${offsetX - 25}" y="${offsetY + drawH / 2}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold" transform="rotate(-90 ${offsetX - 25} ${offsetY + drawH / 2})">${sinkH}mm</text>
-
-      <!-- 모듈들 -->
-      ${sinkModuleSvg}
-
-      <!-- 분배기/환풍구 마커 -->
-      ${utilityMarkers}
-    </svg>
-  `;
+        // 2D SVG 제거 — R3F 3D planner로 대체
+        const sinkFrontViewSvg = '';
 
         // 마감 설정
         let cornerHtml = '';
@@ -1173,7 +1142,6 @@
           </div>
           <div style="display:flex;gap:4px;align-items:center;">
             <div class="view3d-btns" data-uid="${item.uniqueId}">
-              <button class="v3d-btn" data-view="2d" onclick="set3DView(${item.uniqueId},'2d',this)">2D</button>
               <button class="v3d-btn active" data-view="perspective" onclick="set3DView(${item.uniqueId},'perspective',this)">3D</button>
               <button class="v3d-btn" data-view="front" onclick="set3DView(${item.uniqueId},'front',this)">정면</button>
               <button class="v3d-btn" data-view="top" onclick="set3DView(${item.uniqueId},'top',this)">평면</button>
@@ -1183,7 +1151,6 @@
         </div>
         <div id="view-container-${item.uniqueId}" style="flex:1;width:100%;overflow:auto;position:relative;min-height:450px;">
           <div id="three-canvas-${item.uniqueId}" style="width:100%;height:450px;border-radius:8px;overflow:hidden;"></div>
-          <div id="svg-front-${item.uniqueId}" style="display:none;width:100%;min-height:450px;">${sinkFrontViewSvg}</div>
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
