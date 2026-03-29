@@ -317,12 +317,12 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     cursor += module.width;
   });
 
-  const hasModules = lowerCount > 0 || upperCount > 0;
+  const hasFinish = finishLeftW > 0 || finishRightW > 0 || moldingH > 0 || toeKickH > 0;
 
-  // --- Finishing parts (마감재) ---
+  // --- Finishing parts (마감재) — 실측 완료 시 모듈 없어도 표시 ---
 
   // 상몰딩 (top molding) — full width across top
-  if (moldingH > 0 && hasModules) {
+  if (moldingH > 0) {
     const moldingTopY = preset.fullHeight
       ? height - moldingH / 2
       : (upperCount > 0 ? height - moldingH / 2 : lowerHeight + counterThickness + moldingH / 2);
@@ -340,7 +340,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   }
 
   // 걸레받이 (toe kick / baseboard)
-  if (toeKickH > 0 && hasModules) {
+  if (toeKickH > 0) {
     parts.push({
       id: 'toekick',
       label: '걸레받이',
@@ -355,7 +355,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   }
 
   // 좌측 마감재 (left finish panel)
-  if (finishLeftW > 0 && hasModules) {
+  if (finishLeftW > 0) {
     const finishH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
     const finishY = preset.fullHeight ? toeKickH + finishH / 2 : finishH / 2;
     parts.push({
@@ -372,7 +372,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   }
 
   // 우측 마감재 (right finish panel)
-  if (finishRightW > 0 && hasModules) {
+  if (finishRightW > 0) {
     const finishH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
     const finishY = preset.fullHeight ? toeKickH + finishH / 2 : finishH / 2;
     parts.push({
@@ -385,6 +385,24 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       height: finishH,
       depth,
       colorKey: 'trim',
+    });
+  }
+
+  // --- 설치 공간 (모듈이 없을 때 유효 영역 wireframe 표시) ---
+  if (lowerCount === 0 && hasFinish) {
+    const spaceH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
+    const spaceY = preset.fullHeight ? toeKickH + spaceH / 2 : spaceH / 2;
+    parts.push({
+      id: 'install-space',
+      label: '설치공간',
+      x: 0,
+      y: spaceY,
+      z: 0,
+      width: effectiveWidth,
+      height: spaceH,
+      depth,
+      colorKey: 'accent',
+      wireframe: true,
     });
   }
 

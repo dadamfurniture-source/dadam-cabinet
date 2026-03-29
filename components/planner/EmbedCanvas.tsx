@@ -78,6 +78,10 @@ export interface EmbedCanvasProps {
   initialLowerCount?: number;
   initialUpperCount?: number;
   initialView?: CameraView;
+  initialMoldingH?: number;
+  initialToeKickH?: number;
+  initialFinishLeftW?: number;
+  initialFinishRightW?: number;
 }
 
 export default function EmbedCanvas(props: EmbedCanvasProps) {
@@ -89,6 +93,10 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
     if (props.initialMaterial) state.material = props.initialMaterial;
     if (props.initialLowerCount) state.lowerCount = props.initialLowerCount;
     if (props.initialUpperCount) state.upperCount = props.initialUpperCount;
+    if (props.initialMoldingH != null) state.moldingH = props.initialMoldingH;
+    if (props.initialToeKickH != null) state.toeKickH = props.initialToeKickH;
+    if (props.initialFinishLeftW != null) state.finishLeftW = props.initialFinishLeftW;
+    if (props.initialFinishRightW != null) state.finishRightW = props.initialFinishRightW;
     return state;
   });
   const [cameraView, setCameraView] = useState<CameraView>(props.initialView || 'perspective');
