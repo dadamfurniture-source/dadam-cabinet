@@ -232,16 +232,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
   const preset = getPresetById(planner.presetId);
 
   const addLower = useCallback(() => setPlanner((prev) => ({ ...prev, lowerCount: Math.min(prev.lowerCount + 1, 10) })), []);
-  const removeLower = useCallback(() => setPlanner((prev) => ({ ...prev, lowerCount: Math.max(prev.lowerCount - 1, 0) })), []);
   const addUpper = useCallback(() => setPlanner((prev) => ({ ...prev, upperCount: Math.min(prev.upperCount + 1, 10) })), []);
-  const removeUpper = useCallback(() => setPlanner((prev) => ({ ...prev, upperCount: Math.max(prev.upperCount - 1, 0) })), []);
-
-  const btnBase: React.CSSProperties = {
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-    transition: 'opacity 0.15s',
-  };
 
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0, overflow: 'hidden', position: 'relative' }}>
@@ -256,58 +247,6 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           onAddUpper={addUpper}
         />
       </Canvas>
-
-      {/* 우하단 수량 컨트롤 */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 16,
-          right: 16,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-          background: 'rgba(255,255,255,0.85)',
-          borderRadius: 10,
-          padding: '10px 12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-        }}
-      >
-        {/* Lower / Full modules */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ color: '#666', fontSize: 11, minWidth: 38, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-            {preset.fullHeight ? '모듈' : '하부장'}
-          </span>
-          <button onClick={removeLower} disabled={planner.lowerCount <= 0}
-            style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.lowerCount > 0 ? '#e0d6c8' : '#eee', color: planner.lowerCount > 0 ? '#4a3f35' : '#bbb', fontSize: 16 }}>
-            -
-          </button>
-          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 14, textAlign: 'center', color: '#2d2a26', fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-            {planner.lowerCount}
-          </span>
-          <button onClick={addLower} disabled={planner.lowerCount >= 10}
-            style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.lowerCount < 10 ? '#b8956c' : '#eee', color: planner.lowerCount < 10 ? '#fff' : '#bbb', fontSize: 16 }}>
-            +
-          </button>
-        </div>
-
-        {/* Upper modules */}
-        {!preset.fullHeight && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ color: '#666', fontSize: 11, minWidth: 38, fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>상부장</span>
-            <button onClick={removeUpper} disabled={planner.upperCount <= 0}
-              style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.upperCount > 0 ? '#e0d6c8' : '#eee', color: planner.upperCount > 0 ? '#4a3f35' : '#bbb', fontSize: 16 }}>
-              -
-            </button>
-            <span style={{ fontSize: 13, fontWeight: 600, minWidth: 14, textAlign: 'center', color: '#2d2a26', fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-              {planner.upperCount}
-            </span>
-            <button onClick={addUpper} disabled={planner.upperCount >= 10}
-              style={{ ...btnBase, width: 28, height: 28, borderRadius: '50%', background: planner.upperCount < 10 ? '#b8956c' : '#eee', color: planner.upperCount < 10 ? '#fff' : '#bbb', fontSize: 16 }}>
-              +
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
