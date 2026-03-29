@@ -23,6 +23,10 @@ function EmbedWithParams() {
   const lc = Number(searchParams.get('lowerCount')) || undefined;
   const uc = Number(searchParams.get('upperCount')) || undefined;
   const view = (searchParams.get('view') || 'perspective') as 'perspective' | 'front' | 'top';
+  const moldingH = Number(searchParams.get('moldingH')) || undefined;
+  const toeKickH = Number(searchParams.get('toeKickH')) || undefined;
+  const finishLeftW = Number(searchParams.get('finishLeftW')) ?? undefined;
+  const finishRightW = Number(searchParams.get('finishRightW')) ?? undefined;
 
   return (
     <EmbedCanvas
@@ -34,6 +38,10 @@ function EmbedWithParams() {
       initialLowerCount={lc}
       initialUpperCount={uc}
       initialView={view}
+      initialMoldingH={moldingH}
+      initialToeKickH={toeKickH}
+      initialFinishLeftW={finishLeftW}
+      initialFinishRightW={finishRightW}
     />
   );
 }

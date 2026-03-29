@@ -397,30 +397,40 @@
       const PLANNER_BASE_URL = '/planner/embed/';
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
+        const specs = item.specs || {};
+        const finishPayload = {
+          presetId: item.categoryId || 'sink',
+          width: parseFloat(item.w) || 3000,
+          height: parseFloat(item.h) || 2300,
+          depth: parseFloat(item.d) || 600,
+          lowerCount: item.modules.filter(m => m.pos === 'lower').length,
+          upperCount: item.modules.filter(m => m.pos === 'upper').length,
+          moldingH: parseFloat(specs.moldingH) || 60,
+          toeKickH: parseFloat(specs.sinkLegHeight || specs.wardrobePedestalH) || 150,
+          finishLeftW: specs.finishLeftType !== 'None' ? (parseFloat(specs.finishLeftWidth) || 60) : 0,
+          finishRightW: specs.finishRightType !== 'None' ? (parseFloat(specs.finishRightWidth) || 60) : 0,
+        };
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
           existing.contentWindow?.postMessage({
             type: 'UPDATE_PLANNER',
-            payload: {
-              presetId: item.categoryId || 'sink',
-              width: parseFloat(item.w) || 3000,
-              height: parseFloat(item.h) || 2300,
-              depth: parseFloat(item.d) || 600,
-              lowerCount: item.modules.filter(m => m.pos === 'lower').length,
-              upperCount: item.modules.filter(m => m.pos === 'upper').length,
-            }
+            payload: finishPayload,
           }, '*');
           return;
         }
         // 새 iframe 생성
         const params = new URLSearchParams({
-          preset: item.categoryId || 'sink',
-          w: String(parseFloat(item.w) || 3000),
-          h: String(parseFloat(item.h) || 2300),
-          d: String(parseFloat(item.d) || 600),
-          lowerCount: String(item.modules.filter(m => m.pos === 'lower').length),
-          upperCount: String(item.modules.filter(m => m.pos === 'upper').length),
-          material: item.specs?.materialTone || 'cream',
+          preset: finishPayload.presetId,
+          w: String(finishPayload.width),
+          h: String(finishPayload.height),
+          d: String(finishPayload.depth),
+          lowerCount: String(finishPayload.lowerCount),
+          upperCount: String(finishPayload.upperCount),
+          material: specs.materialTone || 'cream',
+          moldingH: String(finishPayload.moldingH),
+          toeKickH: String(finishPayload.toeKickH),
+          finishLeftW: String(finishPayload.finishLeftW),
+          finishRightW: String(finishPayload.finishRightW),
         });
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
