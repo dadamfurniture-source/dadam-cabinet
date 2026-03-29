@@ -260,44 +260,58 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const finishRightW = clamp(Math.round(state.finishRightW ?? 0), 0, 200);
 
   const effectiveWidth = Math.max(0, width - finishLeftW - finishRightW);
-  const lowerHeight = preset.fullHeight
-    ? Math.max(0, height - moldingH - toeKickH)
-    : Math.min(preset.lowerHeight, height);
-  const upperHeight = preset.fullHeight ? 0 : Math.min(preset.upperHeight, Math.max(0, height - lowerHeight));
   const counterThickness = preset.hasCountertop ? preset.counterThickness : 0;
   const upperDepth = preset.fullHeight ? depth : preset.upperDepth;
+
+  // --- 실측 기준 Y 좌표 계산 (바닥 Y=0) ---
+  // 하부장: 걸레받이 위에 배치
+  const lowerBodyH = preset.fullHeight
+    ? Math.max(0, height - moldingH - toeKickH)
+    : Math.min(preset.lowerHeight - toeKickH, height - toeKickH);
+  const lowerBottomY = toeKickH;
+  const lowerTopY = lowerBottomY + lowerBodyH;
+
+  // 상부장: 천장 몰딩 아래에 배치
+  const upperHeight = preset.fullHeight ? 0 : Math.min(preset.upperHeight, Math.max(0, height - moldingH - lowerTopY - counterThickness));
+  const upperTopY = height - moldingH;
+  const upperBottomY = upperTopY - upperHeight;
+
+  // 상부장 Z offset: 벽 쪽으로 후퇴 (하부장보다 얕음)
+  const upperZOffset = preset.fullHeight ? 0 : -(depth - upperDepth) / 2;
+
   const parts: CabinetPart[] = [];
 
+  // --- 모듈 생성 ---
   const modules: CabinetModule[] = lowerCount > 0
-    ? buildModules('lower', lowerCount, effectiveWidth, lowerHeight, depth, preset.fullHeight ? 'door' : 'drawer')
+    ? buildModules('lower', lowerCount, effectiveWidth, lowerBodyH, depth, preset.fullHeight ? 'door' : 'drawer')
     : [];
 
   if (upperHeight > 0 && upperCount > 0) {
     modules.push(...buildModules('upper', upperCount, effectiveWidth, upperHeight, upperDepth, 'door'));
   }
 
-  // Module offset: start after left finish
+  // 모듈 X offset: 좌측 마감재 이후부터 시작
   const moduleStartX = -width / 2 + finishLeftW;
   let cursor = moduleStartX;
 
   modules.forEach((module) => {
     const centeredX = cursor + module.width / 2;
-    const baseY = preset.fullHeight ? toeKickH : 0;
-    const y =
-      module.section === 'upper'
-        ? lowerHeight + counterThickness + (height - lowerHeight - counterThickness - module.height / 2)
-        : baseY + module.height / 2;
+    const isUpper = module.section === 'upper';
+    const y = isUpper
+      ? upperBottomY + module.height / 2
+      : lowerBottomY + module.height / 2;
+    const z = isUpper ? upperZOffset : 0;
 
     parts.push({
       id: module.id,
       label: `${module.section}-${module.kind}`,
       x: centeredX,
       y,
-      z: 0,
+      z,
       width: module.width,
       height: module.height,
       depth: module.depth,
-      colorKey: module.section === 'upper' ? 'accent' : 'body',
+      colorKey: isUpper ? 'accent' : 'body',
     });
 
     if (module.kind !== 'open') {
@@ -306,7 +320,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         label: `${module.id}-face`,
         x: centeredX,
         y,
-        z: module.depth / 2 + 6,
+        z: z + module.depth / 2 + 6,
         width: Math.max(18, module.width - 8),
         height: Math.max(18, module.height - 8),
         depth: 12,
@@ -319,18 +333,15 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   const hasFinish = finishLeftW > 0 || finishRightW > 0 || moldingH > 0 || toeKickH > 0;
 
-  // --- Finishing parts (마감재) — 실측 완료 시 모듈 없어도 표시 ---
+  // --- 마감재 (실측 완료 시 모듈 없어도 표시) ---
 
-  // 상몰딩 (top molding) — full width across top
+  // 상몰딩 — 천장 바로 아래, 전체 폭
   if (moldingH > 0) {
-    const moldingTopY = preset.fullHeight
-      ? height - moldingH / 2
-      : (upperCount > 0 ? height - moldingH / 2 : lowerHeight + counterThickness + moldingH / 2);
     parts.push({
       id: 'molding-top',
       label: '상몰딩',
       x: 0,
-      y: moldingTopY,
+      y: height - moldingH / 2,
       z: 0,
       width,
       height: moldingH,
@@ -339,7 +350,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 걸레받이 (toe kick / baseboard)
+  // 걸레받이 — 바닥 위, 유효폭
   if (toeKickH > 0) {
     parts.push({
       id: 'toekick',
@@ -354,19 +365,18 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 좌/우 마감재 — 하부장, 상부장 별도 생성
-  const finishSides: Array<{ id: string; label: string; xFn: (fw: number) => number; fw: number }> = [];
-  if (finishLeftW > 0) finishSides.push({ id: 'left', label: '좌', xFn: (fw) => -width / 2 + fw / 2, fw: finishLeftW });
-  if (finishRightW > 0) finishSides.push({ id: 'right', label: '우', xFn: (fw) => width / 2 - fw / 2, fw: finishRightW });
+  // 좌/우 마감재 — 하부장/상부장 별도 (실측 기준 Y 정렬)
+  const finishSides: Array<{ id: string; label: string; x: number; fw: number }> = [];
+  if (finishLeftW > 0) finishSides.push({ id: 'left', label: '좌', x: -width / 2 + finishLeftW / 2, fw: finishLeftW });
+  if (finishRightW > 0) finishSides.push({ id: 'right', label: '우', x: width / 2 - finishRightW / 2, fw: finishRightW });
 
   for (const side of finishSides) {
     if (preset.fullHeight) {
-      // 풀하이트: 하나의 패널
       const finishH = height - toeKickH - moldingH;
       parts.push({
         id: `finish-${side.id}`,
         label: `마감재(${side.label})`,
-        x: side.xFn(side.fw),
+        x: side.x,
         y: toeKickH + finishH / 2,
         z: 0,
         width: side.fw,
@@ -375,27 +385,26 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         colorKey: 'trim',
       });
     } else {
-      // 하부장 마감재
+      // 하부장 마감재 — 걸레받이 위 ~ 하부장 상단
       parts.push({
         id: `finish-${side.id}-lower`,
         label: `마감재(${side.label})-하부`,
-        x: side.xFn(side.fw),
-        y: lowerHeight / 2,
+        x: side.x,
+        y: lowerBottomY + lowerBodyH / 2,
         z: 0,
         width: side.fw,
-        height: lowerHeight,
+        height: lowerBodyH,
         depth,
         colorKey: 'trim',
       });
-      // 상부장 마감재
+      // 상부장 마감재 — 상부장 하단 ~ 몰딩 하단
       if (upperHeight > 0) {
-        const upperStartY = lowerHeight + counterThickness;
         parts.push({
           id: `finish-${side.id}-upper`,
           label: `마감재(${side.label})-상부`,
-          x: side.xFn(side.fw),
-          y: upperStartY + upperHeight / 2,
-          z: 0,
+          x: side.x,
+          y: upperBottomY + upperHeight / 2,
+          z: upperZOffset,
           width: side.fw,
           height: upperHeight,
           depth: upperDepth,
@@ -405,7 +414,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     }
   }
 
-  // --- 설치 공간 (모듈이 없을 때 유효 영역 wireframe 표시) ---
+  // --- 설치공간 wireframe (모듈 없을 때) ---
   if (lowerCount === 0 && hasFinish) {
     if (preset.fullHeight) {
       const spaceH = height - toeKickH - moldingH;
@@ -427,23 +436,22 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         id: 'install-space-lower',
         label: '설치공간(하부)',
         x: 0,
-        y: lowerHeight / 2,
+        y: lowerBottomY + lowerBodyH / 2,
         z: 0,
         width: effectiveWidth,
-        height: lowerHeight,
+        height: lowerBodyH,
         depth,
         colorKey: 'accent',
         wireframe: true,
       });
       // 상부장 설치공간
       if (upperHeight > 0) {
-        const upperStartY = lowerHeight + counterThickness;
         parts.push({
           id: 'install-space-upper',
           label: '설치공간(상부)',
           x: 0,
-          y: upperStartY + upperHeight / 2,
-          z: 0,
+          y: upperBottomY + upperHeight / 2,
+          z: upperZOffset,
           width: effectiveWidth,
           height: upperHeight,
           depth: upperDepth,
@@ -454,13 +462,13 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     }
   }
 
-  // Countertop
+  // Countertop — 하부장 상단에 배치
   if (preset.hasCountertop && lowerCount > 0) {
     parts.push({
       id: 'countertop',
       label: 'countertop',
       x: 0,
-      y: lowerHeight + counterThickness / 2,
+      y: lowerTopY + counterThickness / 2,
       z: 0,
       width,
       height: counterThickness,
@@ -489,7 +497,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       id: 'mirror',
       label: 'mirror',
       x: 0,
-      y: lowerHeight + upperHeight * 0.45,
+      y: lowerTopY + upperHeight * 0.45,
       z: depth / 2 + 20,
       width: width * 0.7,
       height: Math.max(600, upperHeight * 0.8),
