@@ -62,10 +62,21 @@ export interface CabinetPart {
   wireframe?: boolean;
 }
 
+export interface ModuleLayout {
+  section: 'lower' | 'upper' | 'full';
+  startX: number;
+  endX: number;
+  centerY: number;
+  z: number;
+  depth: number;
+}
+
 export interface DerivedCabinet {
   preset: CabinetPreset;
   parts: CabinetPart[];
   modules: CabinetModule[];
+  lowerLayout: ModuleLayout | null;
+  upperLayout: ModuleLayout | null;
   footprintAreaM2: number;
   facadeAreaM2: number;
   estimatedBoardAreaM2: number;
@@ -295,15 +306,18 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   // 모듈 X offset: 좌측 마감재 이후부터 시작 (상부/하부 각각 독립 cursor)
   const moduleStartX = -width / 2 + finishLeftW;
 
-  const renderModules = (list: CabinetModule[]) => {
-    let cursor = moduleStartX;
+  const renderModules = (list: CabinetModule[]): ModuleLayout | null => {
+    if (list.length === 0) return null;
+    const startX = moduleStartX;
+    let cursor = startX;
+    const isUpper = list[0].section === 'upper';
+    const centerY = isUpper ? upperBottomY + list[0].height / 2 : lowerBottomY + list[0].height / 2;
+    const z = isUpper ? upperZOffset : 0;
+    const moduleDepth = list[0].depth;
+
     list.forEach((module) => {
       const centeredX = cursor + module.width / 2;
-      const isUpper = module.section === 'upper';
-      const y = isUpper
-        ? upperBottomY + module.height / 2
-        : lowerBottomY + module.height / 2;
-      const z = isUpper ? upperZOffset : 0;
+      const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
 
       parts.push({
         id: module.id,
@@ -333,12 +347,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
       cursor += module.width;
     });
+
+    return { section: isUpper ? 'upper' : 'lower', startX, endX: cursor, centerY, z, depth: moduleDepth };
   };
 
   const lowerModules = modules.filter((m) => m.section !== 'upper');
   const upperModules = modules.filter((m) => m.section === 'upper');
-  renderModules(lowerModules);
-  renderModules(upperModules);
+  const lowerLayout = renderModules(lowerModules);
+  const upperLayout = renderModules(upperModules);
 
   const hasFinish = finishLeftW > 0 || finishRightW > 0 || moldingH > 0 || toeKickH > 0;
 
@@ -531,6 +547,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     preset,
     parts,
     modules,
+    lowerLayout,
+    upperLayout,
     footprintAreaM2,
     facadeAreaM2,
     estimatedBoardAreaM2,
