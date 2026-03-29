@@ -1803,31 +1803,252 @@
         const mod = item.modules[modId] || item.modules.find(m => m.id == modId);
         if (!mod) return;
 
-        const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
-        const title = document.getElementById(`spec-popup-title-${itemUniqueId}`);
-        const body = document.getElementById(`spec-popup-body-${itemUniqueId}`);
-        if (!popup || !body) return;
+        // 기존 팝업 제거
+        const existing = document.querySelector('.mod-popup-overlay');
+        if (existing) existing.remove();
 
         const mId = mod.id || modId;
-        title.textContent = `${mod.name || mod.type} (${mod.pos === 'upper' ? '상부' : '하부'})`;
+        const posLabel = mod.pos === 'upper' ? '상부' : '하부';
+        const isSink = item.categoryId === 'sink' || item.categoryId === 'island';
 
-        body.innerHTML = `
-          <div class="spec-row">
-            <div class="spec-field"><label>너비(W)</label><input type="number" value="${mod.w || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','w',this.value)"></div>
-            <div class="spec-field"><label>높이(H)</label><input type="number" value="${mod.h || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','h',this.value)"></div>
-            <div class="spec-field"><label>깊이(D)</label><input type="number" value="${mod.d || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','d',this.value)"></div>
-          </div>
-          <div class="spec-row">
-            <div class="spec-field"><label>타입</label><span style="font-size:13px;color:#333;">${mod.type || '-'}</span></div>
-            <div class="spec-field"><label>서랍</label><span style="font-size:13px;">${mod.isDrawer ? '예' : '아니오'}</span></div>
-            <div class="spec-field"><label>고정</label><span style="font-size:13px;">${mod.isFixed ? '예' : '아니오'}</span></div>
-          </div>
-          <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between;">
-            <button onclick="removeModuleById(${itemUniqueId},'${mId}');closeSpecPopup(${itemUniqueId})" style="padding:8px 16px;font-size:12px;border:1px solid #e74c3c;border-radius:6px;background:#fff;color:#e74c3c;cursor:pointer;">삭제</button>
-            <button onclick="closeSpecPopup(${itemUniqueId})" style="padding:8px 24px;font-size:13px;border:none;border-radius:6px;background:#b8956c;color:#fff;cursor:pointer;font-weight:600;">확인</button>
+        // 타입 판별
+        let currentType = 'storage';
+        if (mod.type === 'sink') currentType = 'sink';
+        else if (mod.type === 'cook') currentType = 'cook';
+        else if (mod.type === 'hood') currentType = 'hood';
+        else if (mod.type === 'storage' && mod.name === 'LT망장') currentType = 'lt';
+        else if (mod.type === 'tall') currentType = 'tall';
+        else if (mod.isDrawer) currentType = 'drawer';
+
+        // 타입 아이콘/이름
+        const typeMap = {
+          storage: { icon: '📦', name: '수납장' },
+          drawer: { icon: '🗄️', name: '서랍장' },
+          sink: { icon: '🚰', name: '개수대' },
+          cook: { icon: '🔥', name: '가스대' },
+          hood: { icon: '🌀', name: '후드장' },
+          lt: { icon: '🔧', name: 'LT망장' },
+          tall: { icon: '↕', name: '키큰장' },
+        };
+        const typeInfo = typeMap[currentType] || typeMap.storage;
+
+        // 싱크대 타입 버튼 (타입 변경 가능)
+        let typeSelectHtml = '';
+        if (isSink) {
+          const allTypes = [
+            { value: 'storage', icon: '📦', name: '수납장', pos: ['lower','upper'] },
+            { value: 'drawer', icon: '🗄️', name: '서랍장', pos: ['lower'] },
+            { value: 'sink', icon: '🚰', name: '개수대', pos: ['lower'] },
+            { value: 'cook', icon: '🔥', name: '가스대', pos: ['lower'] },
+            { value: 'lt', icon: '🔧', name: 'LT망장', pos: ['lower'] },
+            { value: 'hood', icon: '🌀', name: '후드장', pos: ['upper'] },
+          ];
+          const filtered = allTypes.filter(t => t.pos.includes(mod.pos));
+          typeSelectHtml = `
+            <div class="mp-section">
+              <div class="mp-section-title">타입 변경</div>
+              <div class="mp-type-grid">
+                ${filtered.map(t => `
+                  <button class="mp-type-btn ${currentType === t.value ? 'active' : ''}" data-mp-type="${t.value}"
+                    onclick="mpSelectType(this,'${t.value}')">
+                    <span>${t.icon}</span><span>${t.name}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>`;
+        }
+
+        // 서랍 개수 (서랍장일 때)
+        const drawerCount = mod.drawerCount || 3;
+        const drawerCountHtml = `
+          <div class="mp-section mp-drawer-section" style="display:${currentType === 'drawer' ? '' : 'none'}">
+            <div class="mp-section-title">서랍 개수</div>
+            <div class="mp-counter-row">
+              ${[1,2,3,4,5].map(n => `
+                <button class="mp-count-btn ${drawerCount === n ? 'active' : ''}" data-mp-dcount="${n}"
+                  onclick="mpSelectDrawerCount(${n})">${n}</button>
+              `).join('')}
+            </div>
+          </div>`;
+
+        // 도어 개수 (수납장/상부장일 때, 서랍/개수대/가스대 제외)
+        const showDoorCount = !mod.isDrawer && mod.type !== 'sink' && mod.type !== 'cook' && mod.type !== 'hood';
+        const doorCount = mod.doorCount || Math.ceil((parseFloat(mod.w) || 600) / 450);
+        const doorCountHtml = showDoorCount ? `
+          <div class="mp-section">
+            <div class="mp-section-title">도어 개수</div>
+            <div class="mp-counter-row">
+              ${[1,2,3,4].map(n => `
+                <button class="mp-count-btn ${doorCount === n ? 'active' : ''}" data-mp-door="${n}"
+                  onclick="mpSelectDoorCount(${n})">${n}</button>
+              `).join('')}
+            </div>
+          </div>` : '';
+
+        // 토글 옵션
+        const togglesHtml = `
+          <div class="mp-section">
+            <div class="mp-toggles">
+              ${!mod.type || mod.type === 'storage' ? `
+              <label class="mp-toggle">
+                <input type="checkbox" ${mod.isDrawer ? 'checked' : ''} onchange="mpToggleDrawer(this.checked)">
+                <span>서랍장</span>
+              </label>` : ''}
+              <label class="mp-toggle">
+                <input type="checkbox" ${mod.isFixed ? 'checked' : ''} onchange="mpToggleFixed(this.checked)">
+                <span>위치 고정</span>
+              </label>
+            </div>
+          </div>`;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'mod-popup-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) closeModulePopup(itemUniqueId); };
+        overlay.innerHTML = `
+          <div class="mod-popup">
+            <div class="mp-header">
+              <div class="mp-header-icon">${typeInfo.icon}</div>
+              <div class="mp-header-info">
+                <div class="mp-header-name">${mod.name || typeInfo.name}</div>
+                <div class="mp-header-badge">${posLabel} · W${mod.w || '?'}mm</div>
+              </div>
+              <button class="mp-close" onclick="closeModulePopup(${itemUniqueId})">&times;</button>
+            </div>
+
+            <div class="mp-body">
+              <div class="mp-section">
+                <div class="mp-section-title">치수 (mm)</div>
+                <div class="mp-dim-row">
+                  <div class="mp-dim">
+                    <label>W 너비</label>
+                    <input type="number" id="mp-w" value="${mod.w || ''}" step="10" min="100" max="2400">
+                  </div>
+                  <div class="mp-dim">
+                    <label>H 높이</label>
+                    <input type="number" id="mp-h" value="${mod.h || ''}" step="10" min="100" max="2400">
+                  </div>
+                  <div class="mp-dim">
+                    <label>D 깊이</label>
+                    <input type="number" id="mp-d" value="${mod.d || ''}" step="10" min="100" max="800">
+                  </div>
+                </div>
+              </div>
+              ${typeSelectHtml}
+              ${drawerCountHtml}
+              ${doorCountHtml}
+              ${togglesHtml}
+            </div>
+
+            <div class="mp-footer">
+              <button class="mp-btn-delete" onclick="removeModuleById(${itemUniqueId},'${mId}');closeModulePopup(${itemUniqueId})">삭제</button>
+              <button class="mp-btn-confirm" onclick="applyModulePopup(${itemUniqueId},'${mId}')">적용</button>
+            </div>
           </div>
         `;
-        popup.style.display = 'flex';
+        document.body.appendChild(overlay);
+
+        // 전역 참조 (적용 시 사용)
+        window._mpContext = { itemUniqueId, modId: mId, mod, item };
+      }
+
+      // 모듈 팝업 — 타입 선택
+      function mpSelectType(btn, typeValue) {
+        document.querySelectorAll('.mp-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const ds = document.querySelector('.mp-drawer-section');
+        if (ds) ds.style.display = typeValue === 'drawer' ? '' : 'none';
+      }
+
+      // 모듈 팝업 — 서랍 개수
+      function mpSelectDrawerCount(n) {
+        document.querySelectorAll('[data-mp-dcount]').forEach(b => {
+          b.classList.toggle('active', parseInt(b.dataset.mpDcount) === n);
+        });
+      }
+
+      // 모듈 팝업 — 도어 개수
+      function mpSelectDoorCount(n) {
+        document.querySelectorAll('[data-mp-door]').forEach(b => {
+          b.classList.toggle('active', parseInt(b.dataset.mpDoor) === n);
+        });
+      }
+
+      // 모듈 팝업 — 서랍 토글
+      function mpToggleDrawer(checked) {
+        const ds = document.querySelector('.mp-drawer-section');
+        if (ds) ds.style.display = checked ? '' : 'none';
+      }
+
+      // 모듈 팝업 — 고정 토글 (UI만, 적용은 applyModulePopup)
+      function mpToggleFixed(checked) { /* UI 즉시 반영 불필요 */ }
+
+      // 모듈 팝업 — 적용
+      function applyModulePopup(itemUniqueId, modId) {
+        const ctx = window._mpContext;
+        if (!ctx) { closeModulePopup(itemUniqueId); return; }
+        const { mod, item } = ctx;
+
+        // 치수 적용
+        const wVal = parseFloat(document.getElementById('mp-w')?.value);
+        const hVal = parseFloat(document.getElementById('mp-h')?.value);
+        const dVal = parseFloat(document.getElementById('mp-d')?.value);
+        if (wVal && wVal > 0) mod.w = wVal;
+        if (hVal && hVal > 0) mod.h = hVal;
+        if (dVal && dVal > 0) mod.d = dVal;
+
+        // 타입 적용 (싱크대 카테고리)
+        const typeBtn = document.querySelector('.mp-type-btn.active');
+        if (typeBtn) {
+          const typeValue = typeBtn.dataset.mpType;
+          switch (typeValue) {
+            case 'storage':
+              mod.type = 'storage';
+              mod.name = mod.pos === 'upper' ? '상부장' : '하부장';
+              mod.isDrawer = false; mod.isFixed = false;
+              break;
+            case 'drawer':
+              mod.type = 'storage'; mod.name = '서랍장'; mod.isDrawer = true; mod.isFixed = false;
+              const dcBtn = document.querySelector('[data-mp-dcount].active');
+              mod.drawerCount = dcBtn ? parseInt(dcBtn.dataset.mpDcount) : 3;
+              break;
+            case 'sink':
+              mod.type = 'sink'; mod.name = '개수대'; mod.w = wVal || 1000; mod.isDrawer = false; mod.isFixed = true;
+              break;
+            case 'cook':
+              mod.type = 'cook'; mod.name = '가스대'; mod.w = wVal || 600; mod.isDrawer = false; mod.isFixed = true;
+              break;
+            case 'lt':
+              mod.type = 'storage'; mod.name = 'LT망장'; mod.w = wVal || 200; mod.isDrawer = true; mod.isFixed = true;
+              break;
+            case 'hood':
+              mod.type = 'hood'; mod.name = '후드장'; mod.w = wVal || 800; mod.isDrawer = false; mod.isFixed = true;
+              break;
+          }
+        }
+
+        // 도어 개수 적용
+        const doorBtn = document.querySelector('[data-mp-door].active');
+        if (doorBtn) mod.doorCount = parseInt(doorBtn.dataset.mpDoor);
+
+        // 토글 적용
+        const drawerChk = document.querySelector('.mp-toggles input[onchange*="mpToggleDrawer"]');
+        const fixedChk = document.querySelector('.mp-toggles input[onchange*="mpToggleFixed"]');
+        if (drawerChk && !typeBtn) mod.isDrawer = drawerChk.checked;
+        if (fixedChk) mod.isFixed = fixedChk.checked;
+
+        closeModulePopup(itemUniqueId);
+      }
+
+      // 모듈 팝업 닫기
+      function closeModulePopup(itemUniqueId) {
+        const overlay = document.querySelector('.mod-popup-overlay');
+        if (overlay) overlay.remove();
+        window._mpContext = null;
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (item) {
+          repositionFixedModules(itemUniqueId);
+          renderWorkspaceContent(item);
+        }
       }
 
       // ── 분배기/환풍구 위치 편집 팝업 ──
