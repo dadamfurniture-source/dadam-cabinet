@@ -354,10 +354,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 좌측 마감재 (left finish panel)
+  // 좌측 마감재 (left finish panel) — 하부+상부 전체 높이
   if (finishLeftW > 0) {
-    const finishH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
-    const finishY = preset.fullHeight ? toeKickH + finishH / 2 : finishH / 2;
+    const finishH = height - toeKickH - moldingH;
+    const finishY = toeKickH + finishH / 2;
     parts.push({
       id: 'finish-left',
       label: '마감재(좌)',
@@ -371,10 +371,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 우측 마감재 (right finish panel)
+  // 우측 마감재 (right finish panel) — 하부+상부 전체 높이
   if (finishRightW > 0) {
-    const finishH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
-    const finishY = preset.fullHeight ? toeKickH + finishH / 2 : finishH / 2;
+    const finishH = height - toeKickH - moldingH;
+    const finishY = toeKickH + finishH / 2;
     parts.push({
       id: 'finish-right',
       label: '마감재(우)',
@@ -390,8 +390,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   // --- 설치 공간 (모듈이 없을 때 유효 영역 wireframe 표시) ---
   if (lowerCount === 0 && hasFinish) {
-    const spaceH = preset.fullHeight ? height - toeKickH - moldingH : lowerHeight;
-    const spaceY = preset.fullHeight ? toeKickH + spaceH / 2 : spaceH / 2;
+    const spaceH = height - toeKickH - moldingH;
+    const spaceY = toeKickH + spaceH / 2;
     parts.push({
       id: 'install-space',
       label: '설치공간',
