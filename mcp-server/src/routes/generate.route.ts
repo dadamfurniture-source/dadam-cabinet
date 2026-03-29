@@ -334,7 +334,11 @@ function buildFurniturePrompt(
   // immutablePlateRules, transformationRules 제거됨 (3,900자 → 300자)
 
   if (['sink', 'kitchen', 'l_shaped_sink', 'island_kitchen'].includes(category)) {
-    return `Edit photo: install ${doorColor} upper, ${lowerDoorColor} lower ${doorFinish} handleless kitchen cabinets. Keep wall tiles, camera, background identical. Sink ${wallData.waterPct}% left, flush cooktop ${wallData.exhaustPct}% left with 2-drawer base. ${countertop} countertop. Clean floor, no clutter. Ref images=layout+color guide.`;
+    const isTwoTone = doorColor !== lowerDoorColor;
+    const colorInstruction = isTwoTone
+      ? `UPPER cabinets=${doorColor}${upperHex ? ` HEX ${upperHex}` : ''}, LOWER cabinets=${lowerDoorColor}${lowerHex ? ` HEX ${lowerHex}` : ''}. Two-tone: upper and lower MUST be different colors.`
+      : `All cabinets ${doorColor}${upperHex ? ` HEX ${upperHex}` : ''} ${doorFinish}.`;
+    return `Edit photo: install handleless flat-panel kitchen cabinets. ${colorInstruction} Keep wall tiles, camera, background identical. Sink at ${wallData.waterPct}% from left. Flush built-in cooktop at ${wallData.exhaustPct}% from left, below cooktop MUST have exactly 2 stacked horizontal drawers (not doors). ${countertop} countertop. No clutter. 2nd image=layout guide.`;
   }
 
   if (category === 'wardrobe') {
