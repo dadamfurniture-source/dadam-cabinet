@@ -1743,30 +1743,8 @@
       window._selectedModuleIndex = null;
 
       function handleFrontViewClick(event, itemUniqueId) {
-        // 모듈 드래그 핸들러가 처리하는 요소는 무시 (중복 방지)
-        if (event.target.closest('[data-drag-mod]')) return;
-
-        // SVG rect 또는 그 부모 g에서 data-mod-id 찾기
-        let target = event.target;
-        let modId = null;
-        for (let i = 0; i < 5 && target; i++) {
-          if (target.dataset && target.dataset.modId) {
-            modId = target.dataset.modId;
-            break;
-          }
-          if (target.dataset && target.dataset.modIndex !== undefined) {
-            modId = target.dataset.modIndex;
-            break;
-          }
-          target = target.parentElement;
-        }
-        if (modId === null) return;
-
-        // ★ 뷰 동기화: 선택 모듈 인덱스 저장 + 모든 뷰에서 하이라이트
-        window._selectedModuleIndex = parseInt(modId);
-        highlightSelectedModule(itemUniqueId);
-
-        openModulePopup(itemUniqueId, modId);
+        // 모듈 클릭 팝업 비활성화 — 3D planner로 전환
+        return;
       }
 
       // ★ 선택 모듈 하이라이트 — 모든 뷰(Front/Top/ISO)에서 동기화
