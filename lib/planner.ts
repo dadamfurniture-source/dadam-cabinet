@@ -335,17 +335,19 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   // --- 마감재 (실측 완료 시 모듈 없어도 표시) ---
 
-  // 상몰딩 — 천장 바로 아래, 전체 폭
+  // 상몰딩 — 상부장 기준 (폭: 유효폭 + 좌우마감, 깊이: upperDepth, Z: 상부장과 동일)
   if (moldingH > 0) {
+    const moldingDepth = preset.fullHeight ? depth : upperDepth;
+    const moldingZ = preset.fullHeight ? 0 : upperZOffset;
     parts.push({
       id: 'molding-top',
       label: '상몰딩',
       x: 0,
       y: height - moldingH / 2,
-      z: 0,
+      z: moldingZ,
       width,
       height: moldingH,
-      depth: depth + 6,
+      depth: moldingDepth + 6,
       colorKey: 'trim',
     });
   }
