@@ -330,113 +330,31 @@ function buildFurniturePrompt(
   const upperHex = themeData.style_upper_color_hex || '';
   const lowerHex = themeData.style_lower_color_hex || '';
   const countertopHex = themeData.style_countertop_color_hex || '';
-  const immutablePlateRules = `[BASE IMAGE RULE]
-- The FIRST image is the immutable source room photo.
-- Keep the exact same camera position, lens, perspective, crop, horizon, and field of view.
-- Keep the exact same background, including walls, ceiling, floor, windows, doors, trim, outlets, tiles, shadows, and lighting direction.
-- Preserve the kitchen wall tile exactly as in the source image, including tile size, tile pattern, grout lines, grout color, gloss or matte finish, reflections, and all visible tile edges.
-- Do not zoom, pan, rotate, reframe, restage, or redesign the room.
-- Only add cabinetry onto the existing room photo.
-- Any additional reference images are guides for layout and color only. They must NOT change the viewpoint or background.`;
-  const transformationRules = `[CABINET TRANSFORMATION RULE]
-- Make the cabinetry visually substantial and clearly new.
-- Fill the available wall span with full cabinetry according to the layout constraints.
-- Use clear panel lines, realistic cabinet volumes, toe-kick, countertop thickness, and upper/lower separation so the change is obvious.
-- The room must stay the same, but the cabinetry itself should read as a decisive design proposal, not a faint overlay.
-- Prioritize strong cabinet visibility over timid blending.
-- Make the cabinet installation look complete, premium, and immediately noticeable from the existing camera view.`;
+  // ─── 프롬프트 300자 이내 압축 (Gemini 이미지 생성 최적) ───
+  // immutablePlateRules, transformationRules 제거됨 (3,900자 → 300자)
 
   if (['sink', 'kitchen', 'l_shaped_sink', 'island_kitchen'].includes(category)) {
-    return `Place upper cabinets in ${doorColor} and lower cabinets in ${lowerDoorColor}, ${doorFinish} flat panel ${layoutDesc} kitchen cabinets on this photo. PRESERVE background EXACTLY.
-
-[EDIT MODE] Edit the first image instead of generating a new scene.
-[OUTPUT] Return the same room photo with only the cabinetry inserted.
-[CAMERA] Same camera angle, same framing, same perspective, same lens.
-[BACKGROUND LOCK] Do not alter any non-cabinet pixels except tiny contact shadows where the new cabinets touch the room.
-[WALL TILE LOCK] Keep the backsplash and wall tile identical to the original photo. Do not replace, simplify, repaint, retile, blur, or reinterpret the tile.
-[REFERENCE PRIORITY] First image = source room photo. Later images = layout/color guides only.
-[COMPOSITE] Treat this as a photoreal furniture compositing task, not a room redesign task.
-[PLATE LOCK]
-${immutablePlateRules}
-[TRANSFORMATION]
-${transformationRules}
-[WALL] ${wallData.wallW}x${wallData.wallH}mm wall.
-[PLUMBING] Sink at ${wallData.waterPct}% from left, cooktop at ${wallData.exhaustPct}% from left.
-[UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets. NO dish drying rack on upper cabinets.
-[LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop drawer base, 600mm).
-[COOKTOP BASE] The cabinet directly below the cooktop must be a clearly visible 2-drawer base cabinet: one shallow top drawer line and one deep lower drawer line. Never use a hinged door below the cooktop. The two drawer front lines must be obvious in the final image.
-[EXISTING APPLIANCES] If a refrigerator or tall appliance is already visible in the source image, preserve it exactly in the same position, size, angle, and appearance. Build the new cabinetry around it. Do not move, replace, cover, or redesign the refrigerator.
-[COUNTERTOP] ${countertop}, continuous surface.
-[DECLUTTER] Remove all dishes, bowls, cups, utensils, cutting boards, small appliances, dish racks, sink items, and countertop clutter. Sink and countertop must look clean and empty.
-[DOORS] No visible handles. Push-to-open mechanism.
-[HOOD] Range hood integrated into upper cabinet above cooktop.
-[COLOR SCHEME] Use the provided upper/lower color split exactly. Do not normalize all cabinets to a single color.
-[UPPER COLOR] ${doorColor}${upperHex ? `, exact HEX ${upperHex}` : ''}
-[LOWER COLOR] ${lowerDoorColor}${lowerHex ? `, exact HEX ${lowerHex}` : ''}
-[COUNTERTOP COLOR] ${countertop}${countertopHex ? `, exact HEX ${countertopHex}` : ''}
-[REFERENCE IMAGES] One reference image shows the exact cabinet layout. Another reference image shows the exact target colors. Match both exactly.
-[LAYOUT CONSTRAINTS]
-${layoutGuidance || 'Keep sink, cooktop, and hood aligned in standard Korean kitchen positions.'}
-[STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
-[QUALITY] 8K quality, natural lighting, proper shadows and reflections.
-
-CRITICAL RULES:
-- PRESERVE the original room background, walls, floor, ceiling EXACTLY
-- Preserve the original camera angle and framing EXACTLY
-- Preserve the original wall tile and grout exactly
-- All cabinet doors must be CLOSED
-- NO dish drying rack or dish drainer on or inside upper cabinets
-- Remove all dishes, cookware, utensils, and countertop clutter
-- Keep the sink empty and the countertop clear
-- Sink, cooktop, and hood positions must remain fixed
-- If a refrigerator exists in the photo, preserve it exactly and keep it visible
-- The cooktop base must be a clearly visible 2-drawer cabinet, not a door cabinet
-- Match the provided cabinet colors exactly, including the upper/lower split
-- Make the cabinetry change visually obvious and fully realized
-- No text, labels, dimensions, or annotations
-- No people or pets
-- Photorealistic magazine-quality result`;
+    return `Edit photo: install ${doorColor} upper, ${lowerDoorColor} lower ${doorFinish} handleless kitchen cabinets. Keep wall tiles, camera, background identical. Sink ${wallData.waterPct}% left, flush cooktop ${wallData.exhaustPct}% left with 2-drawer base. ${countertop} countertop. Clean floor, no clutter. Ref images=layout+color guide.`;
   }
 
   if (category === 'wardrobe') {
-    return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
-[EDIT MODE] Edit the first image instead of generating a new scene.
-${immutablePlateRules}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Full-width floor-to-ceiling wardrobe with hinged doors.
-Lower cabinet doors can be opened by reaching behind the door. No visible handles.
-${styleName}. Photorealistic. All doors closed.`;
+    return `Edit photo: install ${doorColor} ${doorFinish} floor-to-ceiling built-in wardrobe. Keep wall, floor, camera identical. Handleless doors. Clean room.`;
   }
 
   if (category === 'shoe' || category === 'shoe_cabinet') {
-    return `Place ${doorColor} ${doorFinish} shoe cabinet on this photo. PRESERVE background EXACTLY.
-[EDIT MODE] Edit the first image instead of generating a new scene.
-${immutablePlateRules}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Slim profile 300-400mm depth. Floor-to-ceiling.
-No visible handles on doors. ${styleName}. Photorealistic. All doors closed.`;
+    return `Edit photo: install ${doorColor} ${doorFinish} floor-to-ceiling shoe cabinet. Keep wall, floor, camera identical. Handleless doors, slim 350mm depth. Clean room.`;
   }
 
   if (category === 'fridge' || category === 'fridge_cabinet') {
-    return `Place ${doorColor} ${doorFinish} refrigerator surround cabinet on this photo. PRESERVE background EXACTLY.
-[EDIT MODE] Edit the first image instead of generating a new scene.
-${immutablePlateRules}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Center opening for fridge, tall storage on sides, bridge above.
-No visible handles on doors. ${styleName}. Photorealistic. All doors closed.`;
+    return `Edit photo: install ${doorColor} ${doorFinish} fridge surround cabinet. Center opening for fridge, tall storage sides, bridge above. Keep wall, camera identical. Handleless.`;
   }
 
   if (category === 'vanity') {
-    return `Place ${doorColor} ${doorFinish} bathroom vanity on this photo. PRESERVE background EXACTLY.
-[EDIT MODE] Edit the first image instead of generating a new scene.
-${immutablePlateRules}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Vanity with sink at ${wallData.waterPct}% from left. Mirror cabinet above.
-${countertop}. ${styleName}. Photorealistic. Faucet chrome finish.`;
+    return `Edit photo: install ${doorColor} ${doorFinish} vanity with sink and mirror cabinet above. ${countertop} countertop. Keep wall, camera identical. Chrome faucet.`;
   }
 
   // storage, custom
-  return `Place ${doorColor} ${doorFinish} storage cabinet on this photo. PRESERVE background EXACTLY.
-[EDIT MODE] Edit the first image instead of generating a new scene.
-${immutablePlateRules}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Floor-to-ceiling built-in with multiple door sections.
-No visible handles on doors. ${styleName}. Photorealistic. All doors closed.`;
+  return `Edit photo: install ${doorColor} ${doorFinish} floor-to-ceiling storage cabinet. Keep wall, floor, camera identical. Handleless doors. Clean room.`;
 }
 
 // ─── 열린문 프롬프트 ───
