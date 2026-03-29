@@ -3,7 +3,6 @@ const nextConfig = {
   // 정적 내보내기 모드 (GitHub Pages 정적 호스팅용)
   output: 'export',
   trailingSlash: true,
-  basePath: '/planner',
   assetPrefix: '/planner',
 
   images: {

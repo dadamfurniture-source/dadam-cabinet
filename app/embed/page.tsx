@@ -3,9 +3,9 @@
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import type { CabinetCategory, MaterialTone } from '../../../lib/planner';
+import type { CabinetCategory, MaterialTone } from '../../lib/planner';
 
-const EmbedCanvas = dynamic(() => import('../../../components/planner/EmbedCanvas'), {
+const EmbedCanvas = dynamic(() => import('../../components/planner/EmbedCanvas'), {
   ssr: false,
 });
 
