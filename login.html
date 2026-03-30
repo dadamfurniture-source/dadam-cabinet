@@ -778,7 +778,7 @@
           if (data.user) {
             showSuccess('로그인 성공! 잠시 후 이동합니다...');
             setTimeout(() => {
-              window.location.href = 'index.html';
+              window.location.href = getRedirectUrl();
             }, 1000);
           }
         } catch (err) {
@@ -867,6 +867,11 @@
       }
 
       // 페이지 로드 시 세션 확인
+      function getRedirectUrl() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('redirect') || 'index.html';
+      }
+
       async function checkSession() {
         if (!supabaseClient) return;
 
@@ -874,8 +879,7 @@
           data: { session },
         } = await supabaseClient.auth.getSession();
         if (session) {
-          // 이미 로그인된 상태면 메인으로 리다이렉트
-          window.location.href = 'index.html';
+          window.location.href = getRedirectUrl();
         }
       }
 
