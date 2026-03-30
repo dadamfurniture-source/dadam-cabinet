@@ -97,296 +97,14 @@
         background: var(--gold);
       }
 
-      /* ═══════════════════════════════════════════════════════════════
-       NAVIGATION (css/nav.css와 중복 — nav.css가 우선)
-       ═══════════════════════════════════════════════════════════════ */
-      .nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 100;
-        padding: 0 48px;
-        height: 80px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        transition: all 0.5s;
-      }
+      /* Navigation — css/nav.css에서 로드 */
 
-      .nav.scrolled {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-
-      .nav-logo {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #fff;
-        transition: color 0.5s;
-      }
-
-      .nav.scrolled .nav-logo {
-        color: var(--charcoal);
-      }
-
-      .nav-logo svg {
-        width: 32px;
-        height: 32px;
-      }
-
-      .nav-logo span {
-        font-family: 'Playfair Display', serif;
-        font-size: 24px;
-      }
-
-      .nav-menu {
-        display: flex;
-        gap: 32px;
-      }
-
-      .nav-menu a {
-        color: #fff;
-        font-size: 14px;
-        letter-spacing: 0.5px;
-        transition: all 0.3s;
-      }
-
-      .nav.scrolled .nav-menu a {
-        color: var(--charcoal);
-      }
-
-      .nav-menu a:hover {
-        opacity: 0.7;
-      }
-
-      .nav-icons {
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        color: #fff;
-        transition: color 0.5s;
-      }
-
-      .nav.scrolled .nav-icons {
-        color: var(--charcoal);
-      }
-
-      .nav-icons button {
-        background: none;
-        border: none;
-        color: inherit;
-        cursor: pointer;
-        padding: 4px;
-      }
-
-      /* User Menu */
-      .user-menu {
-        position: relative;
-      }
-
-      .user-btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.1);
-        border: none;
-        color: inherit;
-        cursor: pointer;
-        transition: all 0.3s;
-      }
-
-      .nav.scrolled .user-btn {
-        background: var(--cream);
-      }
-
-      .user-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
-
-      .nav.scrolled .user-btn:hover {
-        background: var(--warm);
-      }
-
-      .user-avatar {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: var(--gold);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: 600;
-        color: #fff;
-      }
-
-      .user-name {
-        font-size: 13px;
-        max-width: 80px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .user-dropdown {
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        min-width: 180px;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(-10px);
-        transition: all 0.3s;
-        z-index: 200;
-      }
-
-      .user-menu:hover .user-dropdown,
-      .user-dropdown:hover {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
-      }
-
-      .user-dropdown a,
-      .user-dropdown button {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 12px 16px;
-        font-size: 14px;
-        color: var(--charcoal);
-        background: none;
-        border: none;
-        cursor: pointer;
-        transition: background 0.2s;
-        text-align: left;
-      }
-
-      .user-dropdown a:hover,
-      .user-dropdown button:hover {
-        background: var(--cream);
-      }
-
-      .user-dropdown a:first-child {
-        border-radius: 12px 12px 0 0;
-      }
-
-      .user-dropdown button:last-child {
-        border-radius: 0 0 12px 12px;
-        border-top: 1px solid var(--warm);
-        color: var(--gray);
-      }
-
-      .user-dropdown svg {
-        width: 18px;
-        height: 18px;
-        color: var(--gray);
-      }
-
-      .login-btn {
-        padding: 8px 16px;
-        background: transparent;
-        border: 1px solid currentColor;
-        border-radius: 8px;
-        font-size: 13px;
-        transition: all 0.3s;
-      }
-
-      .login-btn:hover {
-        background: var(--gold);
-        border-color: var(--gold);
-        color: #fff;
-      }
-
-      /* Hamburger Menu Button */
-      .hamburger {
-        display: none;
-        flex-direction: column;
-        gap: 5px;
-        padding: 10px;
-        cursor: pointer;
-        background: none;
-        border: none;
-        z-index: 101;
-      }
-
-      .hamburger span {
-        width: 24px;
-        height: 2px;
-        background: #fff;
-        border-radius: 2px;
-        transition: all 0.3s;
-      }
-
-      .nav.scrolled .hamburger span {
-        background: var(--charcoal);
-      }
-
-      .hamburger.active span {
-        background: var(--charcoal);
-      }
-
-      .hamburger.active span:nth-child(1) {
-        transform: rotate(45deg) translate(5px, 5px);
-      }
-
-      .hamburger.active span:nth-child(2) {
-        opacity: 0;
-      }
-
-      .hamburger.active span:nth-child(3) {
-        transform: rotate(-45deg) translate(5px, -5px);
-      }
-
-      /* Mobile Menu Overlay */
-      .mobile-menu {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: var(--white);
-        z-index: 99;
-        padding: 100px 24px 24px;
-        display: none;
-        flex-direction: column;
-        gap: 8px;
-        overflow-y: auto;
-      }
-
-      .mobile-menu.active {
-        display: flex;
-      }
-
-      .mobile-menu a {
-        padding: 18px 20px;
-        font-size: 18px;
-        border-radius: 12px;
-        transition: background 0.3s;
-        color: var(--charcoal);
-      }
-
-      .mobile-menu a:hover,
-      .mobile-menu a:active {
-        background: var(--cream);
-        color: var(--gold);
-      }
-
+      /* index.html 전용: 모바일 메뉴 footer */
       .mobile-menu-footer {
         margin-top: auto;
         padding-top: 24px;
         border-top: 1px solid var(--warm);
       }
-
       .mobile-menu-contact {
         display: flex;
         flex-direction: column;
@@ -394,7 +112,6 @@
         color: var(--gray);
         font-size: 14px;
       }
-
       .mobile-menu-contact a {
         padding: 8px 0;
         display: flex;
@@ -1081,18 +798,7 @@
        RESPONSIVE - TABLET (1024px)
        ═══════════════════════════════════════════════════════════════ */
       @media (max-width: 1024px) {
-        .nav {
-          padding: 0 32px;
-          height: 72px;
-        }
-
-        .nav-menu {
-          gap: 24px;
-        }
-
-        .nav-menu a {
-          font-size: 13px;
-        }
+        /* nav responsive → css/nav.css */
 
         .hero-content {
           padding: 0 32px;
@@ -1136,31 +842,7 @@
        RESPONSIVE - MOBILE (768px)
        ═══════════════════════════════════════════════════════════════ */
       @media (max-width: 768px) {
-        .nav {
-          padding: 0 16px;
-          height: 64px;
-        }
-
-        .nav-logo svg {
-          width: 28px;
-          height: 28px;
-        }
-
-        .nav-logo span {
-          font-size: 20px;
-        }
-
-        .nav-menu {
-          display: none;
-        }
-
-        .nav-icons > button:not(.hamburger) {
-          display: none;
-        }
-
-        .hamburger {
-          display: flex;
-        }
+        /* nav responsive → css/nav.css */
 
         .hero {
           min-height: 100vh;
@@ -1416,18 +1098,7 @@
        RESPONSIVE - SMALL MOBILE (480px)
        ═══════════════════════════════════════════════════════════════ */
       @media (max-width: 480px) {
-        .nav {
-          height: 56px;
-        }
-
-        .nav-logo svg {
-          width: 24px;
-          height: 24px;
-        }
-
-        .nav-logo span {
-          font-size: 18px;
-        }
+        /* nav responsive → css/nav.css */
 
         .hero-content {
           padding-bottom: 120px;

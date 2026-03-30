@@ -359,3 +359,19 @@ body {
     display: flex;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — SMALL MOBILE (480px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .nav {
+    height: 56px;
+  }
+  .nav-logo svg {
+    width: 24px;
+    height: 24px;
+  }
+  .nav-logo span {
+    font-size: 18px;
+  }
+}
