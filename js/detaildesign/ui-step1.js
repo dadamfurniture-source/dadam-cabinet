@@ -531,9 +531,12 @@
     `
               : '';
 
-          // ★ 클래스 결정: 키큰장 > 기준모듈 > 고정모듈
+          // ★ 클래스 결정: 타입별 > 키큰장 > 기준모듈 > 고정모듈
           let cardClass = 'module-card';
-          if (isTall) cardClass += ' tall-type';
+          if (mod.type === 'sink') cardClass += ' type-sink';
+          else if (mod.type === 'cook') cardClass += ' type-cook';
+          else if (mod.type === 'hood') cardClass += ' type-hood';
+          else if (isTall) cardClass += ' tall-type';
           else if (isBase) cardClass += ' base-module';
           else if (mod.isFixed) cardClass += ' fixed-module';
 

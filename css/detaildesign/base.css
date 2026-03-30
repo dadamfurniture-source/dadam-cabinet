@@ -630,6 +630,19 @@
         padding: 1px 4px;
         border-radius: 3px;
       }
+      /* ── 고정모듈 타입별 강조 ── */
+      .module-card.type-sink {
+        border-left: 3px solid #0284c7;
+        background: linear-gradient(90deg, #e0f2fe 0%, #f0f9ff 30%, white 60%);
+      }
+      .module-card.type-cook {
+        border-left: 3px solid #dc2626;
+        background: linear-gradient(90deg, #fee2e2 0%, #fef2f2 30%, white 60%);
+      }
+      .module-card.type-hood {
+        border-left: 3px solid #7c3aed;
+        background: linear-gradient(90deg, #ede9fe 0%, #f5f3ff 30%, white 60%);
+      }
       .essential-modules-row { display:flex; gap:6px; align-items:center; font-size:13px; margin-bottom:4px; flex-wrap:wrap; }
       .essential-label { color:#6b7280; font-weight:600; white-space:nowrap; font-size:13px; }
       .essential-toggle {
