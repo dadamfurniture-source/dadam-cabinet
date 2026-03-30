@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-03-30T09:57:45.856Z",
+  "lastUpdated": "2026-03-30T19:05:16.693Z",
   "activeFeatures": [
     "mcp-server",
     "js",
@@ -74,9 +74,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-01T12:14:21.963Z",
-        "lastUpdated": "2026-03-23T01:57:06.585Z"
+        "lastUpdated": "2026-03-30T17:54:56.044Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\js\\nav-transitions.js"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\js\\agent-chat.js"
     },
     "modules": {
       "phase": "do",
@@ -152,9 +152,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-08T13:21:11.032Z",
-        "lastUpdated": "2026-02-19T12:11:49.465Z"
+        "lastUpdated": "2026-03-30T18:12:34.365Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\clients\\replicate.client.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\mcp-server\\src\\clients\\claude.client.ts"
     },
     "routes": {
       "phase": "do",
@@ -165,9 +165,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-08T13:51:27.478Z",
-        "lastUpdated": "2026-03-29T06:48:34.928Z"
+        "lastUpdated": "2026-03-30T18:12:42.180Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\mcp-server\\src\\routes\\controlnet-image.route.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\mcp-server\\src\\routes\\generate.route.ts"
     },
     "tests": {
       "phase": "do",
@@ -243,9 +243,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-15T13:42:56.747Z",
-        "lastUpdated": "2026-02-15T15:15:58.357Z"
+        "lastUpdated": "2026-03-30T18:25:41.838Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\agent\\orchestrator.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\mcp-server\\src\\agent\\orchestrator.ts"
     },
     "nodes": {
       "phase": "do",
@@ -477,9 +477,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-29T07:27:45.629Z",
-        "lastUpdated": "2026-03-30T08:59:50.543Z"
+        "lastUpdated": "2026-03-30T19:05:16.693Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\components\\planner\\EmbedCanvas.tsx"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\components\\planner\\DadamPlanner.tsx"
     },
     "embed": {
       "phase": "do",
@@ -503,7 +503,7 @@
   "session": {
     "startedAt": "2026-02-01T08:25:55.232Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-03-30T09:57:45.856Z"
+    "lastActivity": "2026-03-30T19:05:16.693Z"
   },
   "history": [
     {
@@ -5363,6 +5363,138 @@
     {
       "timestamp": "2026-03-30T09:57:45.856Z",
       "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:01:34.888Z",
+      "feature": "agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:02:12.403Z",
+      "feature": "agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:02:52.772Z",
+      "feature": "agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:05:12.955Z",
+      "feature": "agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:06:14.682Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:07:16.647Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T15:44:49.629Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T16:21:00.133Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T16:21:23.181Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T16:21:30.629Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T17:53:21.939Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T17:53:32.398Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T17:54:56.044Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:00:52.978Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:00:58.575Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:05:11.699Z",
+      "feature": "clients",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:05:21.782Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:12:34.365Z",
+      "feature": "clients",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:12:42.180Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:25:17.279Z",
+      "feature": "agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T18:25:41.838Z",
+      "feature": "agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T19:05:16.693Z",
+      "feature": "planner",
       "phase": "do",
       "action": "updated"
     }
