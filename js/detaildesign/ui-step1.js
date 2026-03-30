@@ -435,6 +435,14 @@
         if (!ws) return;
         try {
 
+        // ★ 3D iframe 보존 — innerHTML 교체 전에 떼어내기
+        const existingIframe = ws.querySelector('iframe[data-planner]');
+        let savedIframe = null;
+        if (existingIframe) {
+          savedIframe = existingIframe;
+          existingIframe.remove();
+        }
+
         // ★ 포커스 복원을 위한 정보 저장
         const activeEl = document.activeElement;
         let focusInfo = null;
@@ -1215,12 +1223,18 @@
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
 
-        // ★ 3D 뷰 — R3F 임베드 iframe 로드
+        // ★ 3D 뷰 — 기존 iframe 복원 또는 새로 로드
         {
           const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + item.uniqueId);
             if (container && container.clientWidth > 0) {
-              _loadPlannerEmbed(container, item);
+              if (savedIframe) {
+                container.appendChild(savedIframe);
+                // postMessage로 최신 상태 전달
+                _loadPlannerEmbed(container, item);
+              } else {
+                _loadPlannerEmbed(container, item);
+              }
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
             }
