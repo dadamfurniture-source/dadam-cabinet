@@ -3,6 +3,11 @@
  * 이미지 분석 결과(모듈 스펙)로 견적 산출
  */
 
+import { ValidationError } from '../utils/errors.js';
+
+const VALID_GRADES = ['basic', 'mid', 'premium'] as const;
+type QuoteGrade = typeof VALID_GRADES[number];
+
 // ─── 단가표 (14건 고객 견적 + 제품 시트 기반) ───
 const CABINET_PRICES: Record<string, Record<string, number>> = {
   sink:           { lower: 160000, upper: 140000 },
@@ -68,18 +73,23 @@ export function calculateQuote(
   category: string = 'sink',
   grade: string = 'basic',
 ): QuoteResult {
+  // 입력 검증
+  if (!VALID_GRADES.includes(grade as QuoteGrade)) {
+    throw new ValidationError(`유효하지 않은 등급: '${grade}'. 허용값: ${VALID_GRADES.join(', ')}`, 'grade');
+  }
+
   const items: QuoteResult['items'] = [];
   const prices = CABINET_PRICES[category] || CABINET_PRICES.sink;
 
-  // 하부장 캐비닛
-  const lowerTotalW = analysis.lower_cabinets.reduce((s, m) => s + m.width_mm, 0);
+  // 하부장 캐비닛 (음수 너비 방어)
+  const lowerTotalW = analysis.lower_cabinets.reduce((s, m) => s + Math.max(0, m.width_mm), 0);
   if (lowerTotalW > 0 && prices.lower) {
     const cost = Math.round(prices.lower * lowerTotalW / 1000);
     items.push({ name: '하부장 캐비닛', quantity: `${lowerTotalW}mm`, unit_price: prices.lower, total: cost });
   }
 
   // 상부장 캐비닛
-  const upperTotalW = analysis.upper_cabinets.reduce((s, m) => s + m.width_mm, 0);
+  const upperTotalW = analysis.upper_cabinets.reduce((s, m) => s + Math.max(0, m.width_mm), 0);
   if (upperTotalW > 0 && prices.upper) {
     const cost = Math.round(prices.upper * upperTotalW / 1000);
     items.push({ name: '상부장 캐비닛', quantity: `${upperTotalW}mm`, unit_price: prices.upper, total: cost });
@@ -93,8 +103,8 @@ export function calculateQuote(
     items.push({ name: '상판 (인조대리석)', quantity: `${ctLen}mm`, unit_price: ctPrice, total: cost });
   }
 
-  // 설비
-  const fGrade = grade as keyof typeof FIXTURE_PRICES.faucet;
+  // 설비 (grade는 위에서 이미 검증됨)
+  const fGrade = grade as QuoteGrade;
   if (analysis.has_sink) {
     const faucetCost = FIXTURE_PRICES.faucet[fGrade] || FIXTURE_PRICES.faucet.basic;
     const bowlCost = FIXTURE_PRICES.sink_bowl[fGrade] || FIXTURE_PRICES.sink_bowl.basic;

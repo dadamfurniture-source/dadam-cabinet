@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { createLogger } from '../utils/logger.js';
+import { ValidationError } from '../utils/errors.js';
 import { searchRagRules } from '../clients/supabase.client.js';
 import { getCachedRagResults, setCachedRagResults } from '../cache/rag-cache.js';
 import { classifyRules, type ClassifiedRules } from '../mappers/rule-classifier.js';
@@ -22,6 +23,13 @@ export async function searchAndClassifyRules(
   style: string,
   limit: number = 25
 ): Promise<RagSearchResult> {
+  if (!category || category.trim().length === 0) {
+    throw new ValidationError('카테고리가 비어있습니다', 'category');
+  }
+  if (!style || style.trim().length === 0) {
+    throw new ValidationError('스타일이 비어있습니다', 'style');
+  }
+
   const triggers = getTriggers(category, style);
 
   // 캐시 확인
