@@ -1,5 +1,5 @@
 node_modules/
-src/
+dist/
 tests/
 tmp/
 scripts/
@@ -9,5 +9,4 @@ scripts/
 *.md
 .eslintrc*
 vitest.config.ts
-tsconfig.json
 .git/
