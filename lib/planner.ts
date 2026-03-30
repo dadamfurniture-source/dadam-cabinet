@@ -493,20 +493,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         moduleType: module.moduleType,
       });
 
-      if (module.kind !== 'open') {
-        parts.push({
-          id: `${module.id}-face`,
-          label: `${module.id}-face`,
-          x: centeredX,
-          y,
-          z: z + module.depth / 2 + 6,
-          width: Math.max(18, module.width - 8),
-          height: Math.max(18, module.height - 8),
-          depth: 12,
-          colorKey: 'shadow',
-          moduleType: module.moduleType,
-        });
-      }
+      // face 패널 제거됨 (도어 표면 작대기 불필요)
 
       cursor += module.width;
     });
