@@ -187,7 +187,7 @@ body {
   visibility: hidden;
   transform: translateY(-10px);
   transition: all 0.3s;
-  z-index: 200;
+  z-index: 9000;
 }
 .user-menu:hover .user-dropdown,
 .user-dropdown:hover {
