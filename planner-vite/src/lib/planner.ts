@@ -14,6 +14,8 @@ export interface CabinetModule {
   height: number;
   depth: number;
   moduleType?: ModuleType;
+  doorCount?: number;
+  drawerCount?: number;
 }
 
 export interface CabinetPreset {
@@ -43,6 +45,8 @@ export interface ModuleEntry {
   kind: ModuleKind;
   width: number;
   moduleType?: ModuleType;
+  doorCount?: number;
+  drawerCount?: number;
 }
 
 export interface PlannerState {
@@ -78,6 +82,9 @@ export interface CabinetPart {
   wireframe?: boolean;
   essential?: boolean;
   moduleType?: ModuleType;
+  moduleKind?: ModuleKind;
+  doorCount?: number;
+  drawerCount?: number;
 }
 
 export interface ModuleLayout {
@@ -416,6 +423,8 @@ const buildModulesFromEntries = (
     height,
     depth,
     moduleType: entry.moduleType,
+    doorCount: entry.doorCount,
+    drawerCount: entry.drawerCount,
   }));
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
@@ -491,6 +500,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         colorKey: isUpper ? 'accent' : 'body',
         essential: isEssential,
         moduleType: module.moduleType,
+        moduleKind: module.kind,
+        doorCount: module.doorCount,
+        drawerCount: module.drawerCount,
       });
 
       if (module.kind !== 'open') {
