@@ -788,7 +788,7 @@
         <div style="background:#f0f9ff;padding:12px;border-radius:8px;"><span style="font-size:11px;color:#666;">벽면 너비</span><div style="font-size:20px;font-weight:700;color:#0369a1;">${spaceAnalysis.wall_width_mm || '-'}mm</div></div>
         <div style="background:#f0fdf4;padding:12px;border-radius:8px;"><span style="font-size:11px;color:#666;">벽 형태</span><div style="font-size:20px;font-weight:700;color:#065f46;">${spaceAnalysis.wall_layout || '-'}</div></div>
       </div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">배관 위치</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">설비 위치</div>
       ${pipeRows || '<div style="color:#999;font-size:13px;">감지된 배관 없음</div>'}`;
         }
 

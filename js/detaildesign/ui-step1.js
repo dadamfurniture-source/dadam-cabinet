@@ -1202,7 +1202,7 @@
           </div>
         </div>
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px;">
-          <div style="font-size:10px;font-weight:700;color:#2563eb;margin-bottom:4px;">배관 위치 (mm)</div>
+          <div style="font-size:10px;font-weight:700;color:#2563eb;margin-bottom:4px;">설비 위치 (mm)</div>
           <div style="display:flex;flex-direction:column;gap:3px;">
             <div style="display:flex;align-items:center;gap:4px;">
               <input type="checkbox" ${(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'checked' : ''} onchange="togglePlumbing(${item.uniqueId},'distributor',this.checked)" style="margin:0;">
