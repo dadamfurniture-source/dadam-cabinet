@@ -386,13 +386,30 @@
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
         const specs = item.specs || {};
+        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower');
+        const upperMods = (item.modules || []).filter(m => m.pos === 'upper');
+        // item.modules → R3F lowerModules/upperModules 변환
+        const toLowerModules = lowerMods.map(m => ({
+          id: String(m.id || Date.now() + Math.random()),
+          kind: m.isDrawer || m.type === 'drawer' ? 'drawer' : (m.type === 'open' ? 'open' : 'door'),
+          width: parseFloat(m.w) || 600,
+          moduleType: m.type === 'sink' ? 'sink' : m.type === 'cook' ? 'cook' : 'storage',
+        }));
+        const toUpperModules = upperMods.map(m => ({
+          id: String(m.id || Date.now() + Math.random()),
+          kind: m.type === 'open' ? 'open' : 'door',
+          width: parseFloat(m.w) || 600,
+          moduleType: m.type === 'hood' ? 'hood' : 'storage',
+        }));
         const finishPayload = {
           presetId: item.categoryId || 'sink',
           width: parseFloat(item.w) || 3000,
           height: parseFloat(item.h) || 2300,
           depth: parseFloat(item.d) || 600,
-          lowerCount: item.modules.filter(m => m.pos === 'lower').length,
-          upperCount: item.modules.filter(m => m.pos === 'upper').length,
+          lowerCount: lowerMods.length,
+          upperCount: upperMods.length,
+          lowerModules: toLowerModules,
+          upperModules: toUpperModules,
           moldingH: parseFloat(specs.moldingH) || 60,
           toeKickH: parseFloat(specs.sinkLegHeight || specs.wardrobePedestalH) || 150,
           finishLeftW: specs.finishLeftType !== 'None' ? (parseFloat(specs.finishLeftWidth) || 60) : 0,
