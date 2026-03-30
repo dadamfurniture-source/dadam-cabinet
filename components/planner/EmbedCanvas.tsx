@@ -564,6 +564,8 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
         <button
           onClick={() => {
             const result = autoCalculateModules(planner);
+            console.log('[AutoCalc] input:', { width: planner.width, effectiveW: planner.width - (planner.finishLeftW??60) - (planner.finishRightW??60), preset: planner.presetId });
+            console.log('[AutoCalc] result:', { lower: result.lower.length, upper: result.upper.length, lowerModules: result.lower, upperModules: result.upper });
             setPlanner((prev) => ({
               ...prev,
               lowerModules: result.lower,
