@@ -1347,7 +1347,7 @@
             const iframe = container.querySelector('iframe[data-planner]');
             if (iframe) iframe.remove();
           }
-          if (typeof ThreeRenderer !== 'undefined') ThreeRenderer.dispose();
+          // ThreeRenderer 레거시 제거됨
         }
 
         item.specs.viewMode = mode;

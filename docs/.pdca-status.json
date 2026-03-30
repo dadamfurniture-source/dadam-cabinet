@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-03-25T09:26:29.208Z",
+  "lastUpdated": "2026-03-30T09:57:45.856Z",
   "activeFeatures": [
     "mcp-server",
     "js",
@@ -32,7 +32,10 @@
     "schemas",
     "workers",
     "detaildesign",
-    "modest-hellman"
+    "modest-hellman",
+    "awesome-hofstadter",
+    "planner",
+    "embed"
   ],
   "primaryFeature": "mcp-server",
   "archivedFeatures": {
@@ -162,9 +165,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-08T13:51:27.478Z",
-        "lastUpdated": "2026-03-25T09:26:29.208Z"
+        "lastUpdated": "2026-03-29T06:48:34.928Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\modest-hellman\\mcp-server\\src\\routes\\themes.route.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\mcp-server\\src\\routes\\controlnet-image.route.ts"
     },
     "tests": {
       "phase": "do",
@@ -435,9 +438,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-21T13:31:37.204Z",
-        "lastUpdated": "2026-03-23T07:45:35.790Z"
+        "lastUpdated": "2026-03-30T09:57:45.856Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\js\\detaildesign\\calc-engine.js"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\js\\detaildesign\\ui-step1.js"
     },
     "modest-hellman": {
       "phase": "do",
@@ -451,6 +454,45 @@
         "lastUpdated": "2026-03-25T09:13:56.554Z"
       },
       "lastFile": "/c/Users/hchan/dadamagent/.claude/worktrees/modest-hellman/update-pdca-status.sh"
+    },
+    "awesome-hofstadter": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-29T07:26:01.852Z",
+        "lastUpdated": "2026-03-30T09:00:03.819Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\lib\\planner.ts"
+    },
+    "planner": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-29T07:27:45.629Z",
+        "lastUpdated": "2026-03-30T08:59:50.543Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\components\\planner\\EmbedCanvas.tsx"
+    },
+    "embed": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-29T08:27:20.983Z",
+        "lastUpdated": "2026-03-29T08:27:20.983Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\app\\embed\\page.tsx"
     }
   },
   "pipeline": {
@@ -461,7 +503,7 @@
   "session": {
     "startedAt": "2026-02-01T08:25:55.232Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-03-25T09:26:29.208Z"
+    "lastActivity": "2026-03-30T09:57:45.856Z"
   },
   "history": [
     {
@@ -4643,6 +4685,684 @@
     {
       "timestamp": "2026-03-25T09:26:29.208Z",
       "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T06:47:48.626Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T06:47:56.997Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T06:48:02.465Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T06:48:21.168Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T06:48:34.928Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:01.852Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:08.780Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:14.501Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:19.789Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:25.718Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:31.375Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:38.765Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:47.885Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:26:54.924Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:27:00.175Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:27:05.483Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:27:45.629Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:27:54.463Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:42:05.713Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:42:12.376Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:49:46.870Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T07:56:18.877Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:00:06.599Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:04:27.212Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:13:24.332Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:17:21.059Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:17:29.024Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:26:10.415Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:26:52.729Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:27:20.983Z",
+      "feature": "embed",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:27:32.245Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:33:32.742Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:33:40.065Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:38:43.783Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:38:56.108Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:44:37.739Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:45:03.635Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T08:48:14.263Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T09:02:30.779Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T09:05:40.201Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T09:08:32.861Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T09:08:53.926Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T09:09:45.058Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T10:51:36.747Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:15:21.757Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:15:50.235Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:20:32.060Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:20:46.794Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:21:00.448Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:21:33.159Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:21:40.572Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:32:02.781Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:32:23.894Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:36:57.414Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:45:57.368Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:46:08.103Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T11:46:15.389Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T12:03:16.492Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:21:57.447Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:22:06.113Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:22:12.817Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:22:27.959Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:33:13.073Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:33:29.217Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:33:36.718Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:33:45.945Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:35:08.362Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:40:02.325Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:40:08.760Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:57:31.299Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T17:57:44.032Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:13:40.355Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:13:50.520Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:14:17.979Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:14:26.445Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:14:33.838Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:15:03.627Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:15:14.188Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:15:51.685Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:16:30.982Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:28:17.781Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:28:45.844Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:29:08.992Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:29:23.088Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:29:50.020Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:29:58.092Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:30:07.115Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:30:15.350Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:31:28.819Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:43:32.184Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:43:47.793Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:44:16.220Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:44:25.419Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-29T18:44:40.831Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T06:30:59.249Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T06:31:13.918Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T07:05:34.820Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T07:06:19.159Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T07:06:41.480Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T07:07:30.989Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T07:55:58.880Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:03:56.511Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:04:11.830Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:15:53.468Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:16:16.084Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:47:11.891Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:51:53.989Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:52:23.371Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:59:27.415Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:59:39.522Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T08:59:50.543Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T09:00:03.819Z",
+      "feature": "awesome-hofstadter",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T09:57:45.856Z",
+      "feature": "detaildesign",
       "phase": "do",
       "action": "updated"
     }

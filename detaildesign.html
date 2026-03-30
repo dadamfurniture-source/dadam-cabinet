@@ -18,9 +18,6 @@
       document.write('<script src="js/config.js?v='+__CV+'"><\/script>');
       document.write('<script src="js/supabase-utils.js?v='+__CV+'"><\/script>');
     </script>
-    <!-- Three.js 3D 렌더링 -->
-    <script src="js/lib/three.min.js"></script>
-    <script src="js/lib/OrbitControls.js"></script>
   </head>
   <body class="has-toolbar">
     <!-- Navigation -->
@@ -107,17 +104,15 @@
       </div>
     </div>
 
-    <!-- 상단 툴바 (저장 상태만 유지) -->
-    <div id="topToolbar" style="display:none;">
-      <span class="save-status saved hidden" id="saveStatus">
-        <span id="saveStatusIcon">✓</span>
-        <span id="saveStatusText">저장됨</span>
-      </span>
-    </div>
-
     <div class="app-container">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
-        <h1 style="margin:0;">다담 캐비넷 에이전트</h1>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <h1 style="margin:0;">다담 캐비넷 에이전트</h1>
+          <span class="save-status saved hidden" id="saveStatus" style="font-size:12px;">
+            <span id="saveStatusIcon">✓</span>
+            <span id="saveStatusText">저장됨</span>
+          </span>
+        </div>
         <div style="display:flex;gap:6px;">
           <button class="btn-toolbar" onclick="loadDesignList()">📂 불러오기</button>
           <button class="btn-toolbar primary" onclick="saveDesign()">💾 저장하기</button>
@@ -189,9 +184,7 @@
       loadJS('js/detaildesign/ui-step1.js');
       loadJS('js/detaildesign/ui-workspace.js');
       loadJS('js/detaildesign/ui-fridge-el.js');
-      loadJS('js/lib/three.min.js');
-      loadJS('js/lib/OrbitControls.js');
-      loadJS('js/detaildesign/three-renderer.js');
+      // Three.js 레거시 제거됨 — R3F planner iframe으로 대체
       loadJS('js/detaildesign/multiagent-client.js');
       loadJS('js/detaildesign/ai-design-report.js');
       loadJS('js/detaildesign/persistence-init.js');
