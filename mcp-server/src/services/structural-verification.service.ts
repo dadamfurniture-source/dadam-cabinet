@@ -124,7 +124,8 @@ async function extractLineartEdges(
 // 에지 팽창 (Dilation) — 정렬 오차 허용
 // ─────────────────────────────────────────────────────────────────
 
-function dilateEdges(
+/** @internal 테스트용 export */
+export function dilateEdges(
   edges: Uint8Array,
   width: number,
   height: number,
@@ -160,7 +161,8 @@ function dilateEdges(
 // SSIM 근사 (간소화 버전)
 // ─────────────────────────────────────────────────────────────────
 
-function computeSSIMApprox(
+/** @internal 테스트용 export */
+export function computeSSIMApprox(
   edgesA: Uint8Array,
   edgesB: Uint8Array,
 ): number {
@@ -252,7 +254,9 @@ export async function verifyStructuralFidelity(
   const ssimApprox = computeSSIMApprox(refDilated, genEdges.edges);
 
   // 종합 점수: IoU 60% + SSIM 40%
-  const score = edgeIoU * 0.6 + Math.max(0, ssimApprox) * 0.4;
+  // 두 이미지 모두 에지가 없으면 비교 불가 → 0점
+  const bothEmpty = refCount === 0 && genCount === 0;
+  const score = bothEmpty ? 0 : edgeIoU * 0.6 + Math.max(0, ssimApprox) * 0.4;
   const passed = score >= threshold;
 
   const elapsed = Date.now() - startTime;

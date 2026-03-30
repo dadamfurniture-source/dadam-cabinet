@@ -6,6 +6,12 @@
 import { createLogger } from '../utils/logger.js';
 import { getBomRules } from '../config/bom-rules.loader.js';
 import { generateBom } from './bom.service.js';
+import {
+  UPPER_LOWER_GAP_MM,
+  HINGE_OFFSET_MM,
+  DRAWING_COUNTERTOP_THICKNESS_MM,
+  UPPER_DEPTH_RATIO,
+} from '../constants/dimensions.js';
 import type {
   StructuredDesignData,
   CabinetUnit,
@@ -35,10 +41,8 @@ const log = createLogger('drawing');
 // Constants
 // ─────────────────────────────────────────────────────────────────
 
-const UPPER_LOWER_GAP = 600;    // 하부장~상부장 간격 (mm)
-const HINGE_OFFSET = 100;       // 경첩: 도어 상/하단에서 100mm
-const COUNTERTOP_THICKNESS = 30;
-const UPPER_DEPTH_RATIO = 0.55; // 상부장 깊이 비율
+// 상수는 constants/dimensions.ts에서 import
+// UPPER_LOWER_GAP_MM, HINGE_OFFSET_MM, DRAWING_COUNTERTOP_THICKNESS_MM, UPPER_DEPTH_RATIO
 
 // ─────────────────────────────────────────────────────────────────
 // Main Entry
@@ -55,6 +59,22 @@ export function generateDrawingData(
   bomResult?: BomResult,
   options?: DrawingOptions,
 ): DrawingData {
+  // 빈 캐비닛 가드
+  if (!designData.cabinets?.lower?.length && !designData.cabinets?.upper?.length) {
+    log.warn('No cabinets in design data — returning empty drawing');
+    const emptyDrawing: DrawingData = {
+      common: {
+        front_view: { cabinets: [], doors: [], hardware: [], dimensions: [] },
+        side_view: { outer: { x: 0, y: 0, width: 0, height: 0 }, panels: [], dimensions: [] },
+        plan_view: { lower_cabinets: [], upper_cabinets: [], dimensions: [] },
+      },
+      manufacturing: { panel_details: [], edge_banding_marks: [], bom_references: [] },
+      installation: { wall: { x: 0, y: 0, width: 0, height: 0 }, utilities: [], equipment: [], clearance_zones: [] },
+      metadata: { category: designData.category, style: designData.style, generated_at: new Date().toISOString() },
+    };
+    return emptyDrawing;
+  }
+
   const rules = getBomRules();
   const doorGap = rules.construction.door_gap;
   const bodyT = rules.materials.body.thickness;
@@ -117,11 +137,11 @@ function buildFrontView(
   const legH = data.cabinets.leg_height_mm;
   const lowerH = data.cabinets.lower_height_mm;
   const upperH = data.cabinets.upper_height_mm;
-  const ctT = data.cabinets.countertop_thickness_mm ?? COUNTERTOP_THICKNESS;
+  const ctT = data.cabinets.countertop_thickness_mm ?? DRAWING_COUNTERTOP_THICKNESS_MM;
   // 하부장 모듈 높이 = 하부장 높이 - 상판 두께 - 다리발
   const lowerBodyH = lowerH - ctT - legH;
   const countertopY = lowerH;
-  const upperStartY = lowerH + UPPER_LOWER_GAP;
+  const upperStartY = lowerH + UPPER_LOWER_GAP_MM;
 
   // 하부장 캐비닛
   for (let i = 0; i < data.cabinets.lower.length; i++) {
@@ -297,13 +317,13 @@ function buildDoorRects(
       // 경첩: 도어 상/하단에서 100mm
       hardware.push({
         x: doorX,
-        y: cabY + HINGE_OFFSET,
+        y: cabY + HINGE_OFFSET_MM,
         type: 'hinge',
         ref,
       });
       hardware.push({
         x: doorX,
-        y: cabY + cabHeight - HINGE_OFFSET,
+        y: cabY + cabHeight - HINGE_OFFSET_MM,
         type: 'hinge',
         ref,
       });
@@ -652,7 +672,7 @@ function buildInstallationLayout(
 
   if (data.equipment.hood) {
     const hood = data.equipment.hood;
-    const upperStartY = lowerH + UPPER_LOWER_GAP;
+    const upperStartY = lowerH + UPPER_LOWER_GAP_MM;
     equipment.push({
       x: hood.position_mm - hood.width_mm / 2,
       y: upperStartY - 300,

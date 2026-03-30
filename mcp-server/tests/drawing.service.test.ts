@@ -1,22 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { generateDrawingData } from '../src/services/drawing.service.js';
+import { makeKitchenDesign as makeBaseKitchen } from './fixtures/design.fixture.js';
 import type { StructuredDesignData } from '../src/types/index.js';
 
-// ─────────────────────────────────────────────────────────────────
-// Test Fixtures
-// ─────────────────────────────────────────────────────────────────
-
+// Drawing 테스트는 상부장 3개 필요 (기본 fixture는 1개)
 function makeKitchenDesign(overrides: Partial<StructuredDesignData> = {}): StructuredDesignData {
-  return {
-    category: 'sink',
-    style: 'modern',
-    wall: { width_mm: 3600, height_mm: 2400, tile_type: 'subway', confidence: 'high' },
-    utilities: {
-      water_supply: { detected: true, position_mm: 900 },
-      exhaust_duct: { detected: true, position_mm: 2700 },
-      gas_pipe: { detected: true, position_mm: 2700 },
-    },
-    layout: { direction: 'sink_left_cooktop_right', total_width_mm: 3600, depth_mm: 600 },
+  return makeBaseKitchen({
     cabinets: {
       upper: [
         { position_mm: 0, width_mm: 900, type: 'standard', door_count: 2, is_drawer: false },
@@ -35,22 +24,8 @@ function makeKitchenDesign(overrides: Partial<StructuredDesignData> = {}): Struc
       countertop_thickness_mm: 12,
       upper_door_overlap_mm: 15,
     },
-    equipment: {
-      sink: { position_mm: 400, width_mm: 800, type: 'undermount' },
-      cooktop: { position_mm: 1800, width_mm: 600, type: '3-burner', burner_count: 3 },
-      hood: { position_mm: 1800, width_mm: 600, type: 'slim' },
-      faucet: { type: 'single_lever' },
-    },
-    materials: {
-      door_color: 'white',
-      door_finish: 'matte',
-      countertop: 'white_marble',
-      material_codes: ['WM-01'],
-      handle_type: 'line',
-    },
-    rag_rules_applied: { background: [], modules: [], doors: [], material_codes: [] },
     ...overrides,
-  };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────

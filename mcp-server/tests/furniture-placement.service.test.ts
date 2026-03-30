@@ -109,6 +109,40 @@ describe('calculateFurniturePlacement', () => {
     expect(result.sink_center_mm).toBe(900); // 3000 * 0.3
     expect(result.cooktop_center_mm).toBe(2100); // 3000 * 0.7
   });
+
+  it('handles negative wall dimensions by falling back to defaults', () => {
+    const wallData: WallAnalysis = {
+      tile_detected: false,
+      tile_type: 'unknown',
+      tile_size_mm: { width: 300, height: 600 },
+      wall_width_mm: -1000,
+      wall_height_mm: -500,
+      confidence: 'low',
+    };
+
+    const result = calculateFurniturePlacement(wallData);
+
+    // 음수 → 기본값 3000x2400 fallback
+    expect(result.sink_center_mm).toBe(900);
+    expect(result.cooktop_center_mm).toBe(2100);
+    expect(result.upper_cabinet_bottom_mm).toBe(2400 - 720);
+  });
+
+  it('handles NaN wall dimensions by falling back to defaults', () => {
+    const wallData: WallAnalysis = {
+      tile_detected: false,
+      tile_type: 'unknown',
+      tile_size_mm: { width: 300, height: 600 },
+      wall_width_mm: NaN,
+      wall_height_mm: NaN,
+      confidence: 'low',
+    };
+
+    const result = calculateFurniturePlacement(wallData);
+
+    expect(result.sink_center_mm).toBe(900);
+    expect(result.cooktop_center_mm).toBe(2100);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { createLogger } from '../utils/logger.js';
+import { sanitizePromptInput } from '../utils/sanitize.js';
 import { generateDrawingData } from './drawing.service.js';
 import { renderLineartPng } from './svg-renderer.service.js';
 import {
@@ -182,7 +183,7 @@ function buildControlNetPrompt(input: ControlNetGenerationInput): string {
 
   // 추가 프롬프트
   if (input.additionalPrompt) {
-    parts.push(input.additionalPrompt);
+    parts.push(sanitizePromptInput(input.additionalPrompt, 500));
   }
 
   return parts.join(', ');
