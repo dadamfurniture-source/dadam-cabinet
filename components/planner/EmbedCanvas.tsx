@@ -51,14 +51,40 @@ function AddPanelSide({ position, moduleHeight, moduleDepth, color, onClick }: {
   );
 }
 
+/* ── 필수장 타입별 색상 ── */
+const MODULE_TYPE_COLORS: Record<string, { body: string; face: string; outline: string; emissive: string }> = {
+  sink: { body: '#b3d4e8', face: '#8ab8d4', outline: '#0284c7', emissive: '#0369a1' },
+  cook: { body: '#e8b3b3', face: '#d48a8a', outline: '#dc2626', emissive: '#b91c1c' },
+  hood: { body: '#c9b3e8', face: '#a88ad4', outline: '#7c3aed', emissive: '#6d28d9' },
+};
+
 /* ── 클릭 가능한 모듈 mesh ── */
-function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
+function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
   const [hovered, setHovered] = useState(false);
   const isMod = part.id.startsWith('mod-');
   const isUtility = part.id.startsWith('utility-');
   const isClickable = isMod || isUtility;
   const isEssential = !!(part as any).essential;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
+
+  // 타입별 색상 결정
+  const mType = (part as any).moduleType as string | undefined;
+  const isFace = part.id.endsWith('-face');
+  const typeColor = mType && MODULE_TYPE_COLORS[mType];
+  let baseColor = color;
+  let emissiveColor = '#000000';
+  let emissiveInt = 0;
+  let outlineColor = '#b8956c';
+
+  if (typeColor && !isUtility) {
+    baseColor = isFace ? typeColor.face : typeColor.body;
+    emissiveColor = typeColor.emissive;
+    emissiveInt = 0.1;
+    outlineColor = typeColor.outline;
+  } else if (isEssential) {
+    emissiveColor = '#b8956c';
+    emissiveInt = 0.08;
+  }
 
   return (
     <group position={[part.x, part.y, part.z]}>
@@ -70,21 +96,21 @@ function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: str
       >
         <boxGeometry args={[part.width, part.height, part.depth]} />
         <meshStandardMaterial
-          color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c')) : (hovered && isClickable ? '#c9a87c' : color)}
+          color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c')) : (hovered && isClickable ? '#c9a87c' : baseColor)}
           metalness={wireframe ? 0.1 : 0.2}
           roughness={wireframe ? 0.5 : 0.75}
           wireframe={wireframe}
           opacity={isUtility ? 0.7 : 1}
           transparent={isUtility}
-          emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : (isEssential ? '#b8956c' : '#000000')}
-          emissiveIntensity={hovered && isClickable ? 0.2 : (isEssential ? 0.08 : 0)}
+          emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : emissiveColor}
+          emissiveIntensity={hovered && isClickable ? 0.2 : emissiveInt}
         />
       </mesh>
       {/* 필수장 윤곽선 */}
       {isEssential && !wireframe && (
         <lineSegments>
           <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
-          <lineBasicMaterial color="#b8956c" linewidth={1} />
+          <lineBasicMaterial color={outlineColor} linewidth={1} />
         </lineSegments>
       )}
     </group>
