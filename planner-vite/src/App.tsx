@@ -44,75 +44,37 @@ function SinkMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
   );
 }
 
-// ═══ 3D 메쉬: 도어 (손잡이+분리선) ═══
+// ═══ 3D 메쉬: 도어 (클린 — 분리선/손잡이 없음) ═══
 function DoorMesh({ w, h, d, color, doorCount }: { w: number; h: number; d: number; color: string; doorCount: number }) {
-  const dc = Math.max(1, doorCount);
   return (
     <group>
       <mesh castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} roughness={0.6} />
       </mesh>
-      {/* 도어 분리선 */}
-      {Array.from({ length: dc - 1 }).map((_, i) => (
-        <mesh key={`line-${i}`} position={[(-w / 2) + (w / dc) * (i + 1), 0, d / 2 + 1]}>
-          <boxGeometry args={[2, h * 0.98, 2]} />
-          <meshStandardMaterial color="#000000" transparent opacity={0.25} />
-        </mesh>
-      ))}
-      {/* 손잡이 */}
-      {Array.from({ length: dc }).map((_, i) => {
-        const cx = (-w / 2) + (w / dc) * (i + 0.5) + (i % 2 === 0 ? 20 : -20);
-        return (
-          <mesh key={`handle-${i}`} position={[cx, 0, d / 2 + 4]}>
-            <boxGeometry args={[4, 60, 8]} />
-            <meshStandardMaterial color="#888888" metalness={0.7} roughness={0.3} />
-          </mesh>
-        );
-      })}
     </group>
   );
 }
 
-// ═══ 3D 메쉬: 서랍 (서랍선+손잡이) ═══
+// ═══ 3D 메쉬: 서랍 (클린 — 분리선/손잡이 없음) ═══
 function DrawerMesh({ w, h, d, color, drawerCount }: { w: number; h: number; d: number; color: string; drawerCount: number }) {
-  const dc = Math.max(1, drawerCount || 3);
   return (
     <group>
       <mesh castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} roughness={0.6} />
       </mesh>
-      {/* 서랍 분리선 */}
-      {Array.from({ length: dc - 1 }).map((_, i) => (
-        <mesh key={`line-${i}`} position={[0, (-h / 2) + (h / dc) * (i + 1), d / 2 + 1]}>
-          <boxGeometry args={[w * 0.96, 2, 2]} />
-          <meshStandardMaterial color="#000000" transparent opacity={0.2} />
-        </mesh>
-      ))}
-      {/* 손잡이 */}
-      {Array.from({ length: dc }).map((_, i) => (
-        <mesh key={`handle-${i}`} position={[0, (-h / 2) + (h / dc) * (i + 0.5), d / 2 + 4]}>
-          <boxGeometry args={[w * 0.2, 4, 8]} />
-          <meshStandardMaterial color="#888888" metalness={0.5} roughness={0.3} />
-        </mesh>
-      ))}
     </group>
   );
 }
 
-// ═══ 3D 메쉬: 후드 ═══
+// ═══ 3D 메쉬: 후드 (클린) ═══
 function HoodMesh({ w, h, d, color }: { w: number; h: number; d: number; color: string }) {
   return (
     <group>
       <mesh castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
-      </mesh>
-      {/* 필터 그릴 */}
-      <mesh position={[0, -h * 0.3, d / 2 + 1]}>
-        <boxGeometry args={[w * 0.85, h * 0.15, 3]} />
-        <meshStandardMaterial color="#aaaaaa" metalness={0.6} roughness={0.2} />
       </mesh>
     </group>
   );
