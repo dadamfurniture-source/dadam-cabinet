@@ -107,18 +107,12 @@
       </div>
     </div>
 
-    <!-- 상단 툴바 -->
-    <div class="top-toolbar" id="topToolbar">
-      <div class="toolbar-left">
-        <a href="index.html" class="toolbar-logo">🪑 다담가구</a>
-        <span class="toolbar-user" id="toolbarUser">로딩중...</span>
-        <span class="save-status saved hidden" id="saveStatus">
-          <span id="saveStatusIcon">✓</span>
-          <span id="saveStatusText">저장됨</span>
-        </span>
-      </div>
-      <div class="toolbar-right">
-      </div>
+    <!-- 상단 툴바 (저장 상태만 유지) -->
+    <div id="topToolbar" style="display:none;">
+      <span class="save-status saved hidden" id="saveStatus">
+        <span id="saveStatusIcon">✓</span>
+        <span id="saveStatusText">저장됨</span>
+      </span>
     </div>
 
     <div class="app-container">
