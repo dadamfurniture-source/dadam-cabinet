@@ -534,7 +534,7 @@ export default function App() {
           <directionalLight position={[1800, 2200, 1200]} intensity={1.8} castShadow />
           <directionalLight position={[-1200, 1000, -900]} intensity={0.6} />
           <Environment preset="city" />
-          <ContactShadows position={[0, -1, 0]} opacity={0.3} scale={6000} blur={2} far={4000} />
+          <ContactShadows position={[0, -1, 0]} opacity={0.4} scale={6000} blur={2.5} far={4000} />
 
           <group rotation={view === 'top' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
             {/* 일반 파츠 */}
@@ -572,7 +572,7 @@ export default function App() {
             )}
           </group>
 
-          <primitive object={new THREE.GridHelper(6000, 12, '#3a3a3a', '#3a3a3a')} position={[0, 0, 0]} />
+          <gridHelper args={[6000, 40, 0x000000, 0xcccccc]} position={[0, -1, 0]} />
           <OrbitControls ref={controlsRef} enablePan enableDamping dampingFactor={0.08} minDistance={700} maxDistance={7000} target={[0, 900, 0]} minPolarAngle={view === 'top' ? 0.01 : 0.1} maxPolarAngle={view === 'top' ? 0.01 : Math.PI / 2} />
           <PerspectiveCamera makeDefault position={camPos} fov={45} near={1} far={20000} />
         </Suspense>
