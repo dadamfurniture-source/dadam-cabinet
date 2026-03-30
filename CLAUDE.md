@@ -52,3 +52,32 @@
 - 모든 카테고리: handleless (매립형)
 - "Lower cabinet doors can be opened by reaching behind the door"
 - Chrome bar handles, push-to-open 사용 금지
+
+## AI 에이전트 팀
+
+### 도메인별 에이전트 소유권 (확장)
+
+| 도메인 | Engineer 소유 파일 | 브랜치 prefix |
+|--------|-------------------|--------------|
+| 3D Planner | `lib/planner.ts`, `components/planner/*` | `agent/planner-*` |
+| Image Gen | `ai-design.html`, `js/detaildesign/ai-design-report.js` | `agent/imggen-*` |
+| BOM/Materials | `calc-engine.js`, `extractors.js`, `bom.service.ts`, `bom.tool.ts`, `bom-rules.*` | `agent/bom-*` |
+| Design UI | `ui-step1.js`, `ui-workspace.js`, `ui-fridge-el.js` | `agent/designui-*` |
+| Collection | `collection.html`, `database/collection-schema.sql` | `agent/collection-*` |
+| MCP Server | `mcp-server/src/**` (BOM 파일 제외) | `agent/mcp-*` |
+
+### 역할별 실행 순서
+1. **Engineer** → 코드 수정 + PR 생성
+2. **Designer** → PR 리뷰 코멘트
+3. **QA** → 빌드/테스트 검증 결과 게시
+
+같은 도메인 내 병렬 실행 금지 (순차만 허용)
+
+### 스킬 파일 위치
+`.claude/skills/agents/{domain}/{role}.md`
+
+### Scheduled Tasks
+- `qa-nightly-bom`: 매일 2시 BOM 문법 검증
+- `qa-nightly-mcp`: 매일 3시 MCP 빌드 검증
+- `designer-weekly-ui`: 매주 월 9시 UI 일관성 감사
+- `designer-weekly-collection`: 매주 수 10시 Collection UX 감사
