@@ -90,9 +90,18 @@ function DraggableUtility({ part, halfW, controlsRef, onDrag, onSelect }: {
   onSelect: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const draggingRef = useRef(false);
   const isDist = part.id.includes('distributor');
   const didDrag = useRef(false);
+  const dragOffsetRef = useRef(0);
+
+  // ray와 Y평면의 교차점에서 안정적인 X좌표 추출
+  const getPlaneX = (e: { ray: THREE.Ray }) => {
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -part.z);
+    const target = new THREE.Vector3();
+    e.ray.intersectPlane(plane, target);
+    return target.x;
+  };
 
   return (
     <group>
@@ -100,33 +109,35 @@ function DraggableUtility({ part, halfW, controlsRef, onDrag, onSelect }: {
         position={[part.x, part.y, part.z]}
         onPointerDown={(e) => {
           e.stopPropagation();
-          setDragging(true);
+          draggingRef.current = true;
           didDrag.current = false;
+          dragOffsetRef.current = getPlaneX(e) - part.x;
           (e.target as any).setPointerCapture(e.pointerId);
           if (controlsRef.current) controlsRef.current.enabled = false;
         }}
         onPointerUp={(e) => {
-          if (!dragging) return;
-          setDragging(false);
+          if (!draggingRef.current) return;
+          draggingRef.current = false;
           (e.target as any).releasePointerCapture(e.pointerId);
           if (controlsRef.current) controlsRef.current.enabled = true;
           if (!didDrag.current) { e.stopPropagation(); onSelect(part.id); }
         }}
         onPointerMove={(e) => {
-          if (!dragging) return;
+          if (!draggingRef.current) return;
           didDrag.current = true;
-          const newX = Math.max(-halfW, Math.min(halfW, e.point.x));
+          const planeX = getPlaneX(e);
+          const newX = Math.max(-halfW, Math.min(halfW, planeX - dragOffsetRef.current));
           onDrag(part.id, newX);
         }}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => {
           setHovered(false);
-          if (dragging) { setDragging(false); if (controlsRef.current) controlsRef.current.enabled = true; }
+          if (draggingRef.current) { draggingRef.current = false; if (controlsRef.current) controlsRef.current.enabled = true; }
         }}
       >
         <boxGeometry args={[part.width, part.height, part.depth]} />
         <meshStandardMaterial
-          color={dragging ? '#ffa726' : hovered ? '#64b5f6' : (isDist ? '#2196f3' : '#78909c')}
+          color={hovered ? '#64b5f6' : (isDist ? '#2196f3' : '#78909c')}
           opacity={0.7} transparent
           emissive={hovered ? '#1565c0' : '#000'} emissiveIntensity={hovered ? 0.2 : 0}
         />
