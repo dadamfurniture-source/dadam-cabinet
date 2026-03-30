@@ -305,37 +305,36 @@ function distributeSpace(space: number): ModuleEntry[] {
 
 export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[]; upper: ModuleEntry[] } {
   const preset = getPresetById(state.presetId);
-  const width = state.width;
-  const effectiveW = width - (state.finishLeftW ?? 60) - (state.finishRightW ?? 60);
-  const startBound = state.finishLeftW ?? 60;
+  const fL = state.finishLeftW ?? 60;
+  const fR = state.finishRightW ?? 60;
+  const effectiveW = Math.max(0, state.width - fL - fR);
+  if (effectiveW < DOOR_MIN) return { lower: [], upper: [] };
 
-  const autoDistStart = Math.round(width * 0.15);
-  const autoDistEnd = Math.round(width * 0.15 + 700);
-  const autoVentX = Math.round(width * 0.7);
+  // 설비 위치를 유효폭 내 상대좌표(0~effectiveW)로 변환
+  const rawDistStart = (state.distributorStart != null && state.distributorStart > 0) ? state.distributorStart : Math.round(state.width * 0.15);
+  const rawDistEnd = (state.distributorEnd != null && state.distributorEnd > 0) ? state.distributorEnd : Math.round(state.width * 0.15 + 700);
+  const rawVentX = (state.ventStart != null && state.ventStart > 0) ? state.ventStart : Math.round(state.width * 0.7);
 
-  const distStart = (state.distributorStart != null && state.distributorStart > 0) ? state.distributorStart : autoDistStart;
-  const distEnd = (state.distributorEnd != null && state.distributorEnd > 0) ? state.distributorEnd : autoDistEnd;
-  const ventX = (state.ventStart != null && state.ventStart > 0) ? state.ventStart : autoVentX;
+  const clampEff = (v: number) => Math.max(0, Math.min(effectiveW, v - fL));
+  const distStart = clampEff(rawDistStart);
+  const distEnd = clampEff(rawDistEnd);
+  const ventRel = clampEff(rawVentX);
 
   // ── 하부장 ──
   const lower: ModuleEntry[] = [];
 
   if (preset.id === 'sink' || preset.id === 'vanity') {
-    // 고정 모듈 위치 계산 (mm from left edge, absolute)
     const sinkBaseW = effectiveW <= 2500 ? SINK_W_SMALL : SINK_W_LARGE;
     const distSpan = Math.abs(distEnd - distStart);
     const sinkW = Math.min(SINK_MAX, Math.max(sinkBaseW, distSpan + 30));
     const sinkCenter = (distStart + distEnd) / 2;
-    const sinkX = Math.max(startBound, sinkCenter - sinkW / 2);
+    const sinkX = Math.max(0, Math.min(effectiveW - sinkW, sinkCenter - sinkW / 2));
 
-    const cookCenter = ventX;
-    const cookX = Math.max(startBound, cookCenter - COOK_W / 2);
+    const cookX = Math.max(0, Math.min(effectiveW - COOK_W, ventRel - COOK_W / 2));
 
-    // 고정 모듈들을 X 위치 순으로 정렬
     type Fixed = { x: number; w: number; entry: ModuleEntry };
     const fixedList: Fixed[] = [];
 
-    // 개수대가 좌측, 가스대가 우측인 경우 (일반적)
     if (sinkX + sinkW <= cookX) {
       fixedList.push({ x: sinkX, w: sinkW, entry: { id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' } });
       fixedList.push({ x: cookX, w: COOK_W, entry: { id: genModuleId(), kind: 'drawer', width: COOK_W, moduleType: 'cook' } });
@@ -343,55 +342,55 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
       fixedList.push({ x: cookX, w: COOK_W, entry: { id: genModuleId(), kind: 'drawer', width: COOK_W, moduleType: 'cook' } });
       fixedList.push({ x: sinkX, w: sinkW, entry: { id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' } });
     } else {
-      // 겹치면 개수대만
       fixedList.push({ x: sinkX, w: sinkW, entry: { id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' } });
     }
 
-    // 고정 모듈 사이 빈 공간에 수납 모듈 분배
-    let cursor = startBound;
+    // 고정 모듈 사이 빈 공간에 수납 모듈 분배 (상대좌표 0~effectiveW)
+    let cursor = 0;
     for (const f of fixedList) {
       const gap = f.x - cursor;
-      if (gap >= DOOR_MIN) {
-        lower.push(...distributeSpace(gap));
-      }
+      if (gap >= DOOR_MIN) lower.push(...distributeSpace(gap));
+      else if (gap > 0 && lower.length > 0) lower[lower.length - 1].width += gap; // 잔여 흡수
       lower.push(f.entry);
       cursor = f.x + f.w;
     }
-    // 마지막 고정 모듈 이후 공간
-    const endGap = startBound + effectiveW - cursor;
-    if (endGap >= DOOR_MIN) {
-      lower.push(...distributeSpace(endGap));
-    }
+    const endGap = effectiveW - cursor;
+    if (endGap >= DOOR_MIN) lower.push(...distributeSpace(endGap));
+    else if (endGap > 0 && lower.length > 0) lower[lower.length - 1].width += endGap;
   } else {
-    // 싱크대 외 카테고리: 단순 균등 분배
     lower.push(...distributeSpace(effectiveW));
+  }
+
+  // 총 폭 보정
+  const lowerTotal = lower.reduce((s, m) => s + m.width, 0);
+  if (lower.length > 0 && Math.abs(lowerTotal - effectiveW) > 1) {
+    lower[lower.length - 1].width += effectiveW - lowerTotal;
   }
 
   // ── 상부장 ──
   const upper: ModuleEntry[] = [];
 
   if (!preset.fullHeight && preset.upperHeight > 0) {
-    // 후드 고정 배치
-    const hoodCenter = ventX;
-    const hoodX = Math.max(startBound, hoodCenter - HOOD_W / 2);
-    const hoodEndX = Math.min(startBound + effectiveW, hoodX + HOOD_W);
+    const hoodX = Math.max(0, Math.min(effectiveW - HOOD_W, ventRel - HOOD_W / 2));
+    const hoodEndX = Math.min(effectiveW, hoodX + HOOD_W);
     const hoodActualW = hoodEndX - hoodX;
 
-    // 후드 좌측 공간
-    const leftGap = hoodX - startBound;
-    if (leftGap >= DOOR_MIN) {
-      upper.push(...distributeSpace(leftGap));
-    }
+    const leftGap = hoodX;
+    if (leftGap >= DOOR_MIN) upper.push(...distributeSpace(leftGap));
+    else if (leftGap > 0 && upper.length > 0) upper[upper.length - 1].width += leftGap;
 
-    // 후드
     if (hoodActualW >= 200) {
       upper.push({ id: genModuleId(), kind: 'door', width: hoodActualW, moduleType: 'hood' });
     }
 
-    // 후드 우측 공간
-    const rightGap = startBound + effectiveW - hoodEndX;
-    if (rightGap >= DOOR_MIN) {
-      upper.push(...distributeSpace(rightGap));
+    const rightGap = effectiveW - hoodEndX;
+    if (rightGap >= DOOR_MIN) upper.push(...distributeSpace(rightGap));
+    else if (rightGap > 0 && upper.length > 0) upper[upper.length - 1].width += rightGap;
+
+    // 총 폭 보정
+    const upperTotal = upper.reduce((s, m) => s + m.width, 0);
+    if (upper.length > 0 && Math.abs(upperTotal - effectiveW) > 1) {
+      upper[upper.length - 1].width += effectiveW - upperTotal;
     }
   }
 
