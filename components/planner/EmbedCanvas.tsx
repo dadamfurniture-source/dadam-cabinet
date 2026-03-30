@@ -59,13 +59,15 @@ const MODULE_TYPE_COLORS: Record<string, { body: string; face: string; outline: 
 };
 
 /* ── 드래그+클릭 가능한 모듈 mesh ── */
-function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef, onDragModule }: {
+function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef, onDragModule, onDragMove, shiftDir }: {
   part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string };
   color: string; wireframe?: boolean;
   onSelect: (id: string) => void;
   halfW?: number;
   controlsRef?: React.RefObject<OrbitControlsImpl | null>;
   onDragModule?: (id: string, newX: number) => void;
+  onDragMove?: (id: string | null, x: number | null) => void;
+  shiftDir?: 'left' | 'right' | null;
 }) {
   const [hovered, setHovered] = useState(false);
   const [dragX, setDragX] = useState<number | null>(null);
@@ -125,6 +127,7 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
           draggingRef.current = false;
           (e.target as any).releasePointerCapture(e.pointerId);
           if (controlsRef?.current) controlsRef.current.enabled = true;
+          onDragMove?.(null, null);
           if (didDragRef.current) {
             onDragModule!(moduleId, dragX ?? part.x);
             setDragX(null);
@@ -138,6 +141,7 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
           didDragRef.current = true;
           const newX = Math.max(-halfW!, Math.min(halfW!, getPlaneX(e) - dragOffsetRef.current));
           setDragX(newX);
+          onDragMove?.(moduleId, newX);
         } : undefined}
         onClick={!isDraggable && isClickable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
         onPointerOver={isClickable ? () => setHovered(true) : undefined}
@@ -146,6 +150,7 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
           if (draggingRef.current) {
             draggingRef.current = false;
             if (controlsRef?.current) controlsRef.current.enabled = true;
+            onDragMove?.(null, null);
             if (didDragRef.current && onDragModule) { onDragModule(moduleId, dragX ?? part.x); }
             setDragX(null);
           }
@@ -170,6 +175,13 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
           <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
           <lineBasicMaterial color={outlineColor} linewidth={1} />
         </lineSegments>
+      )}
+      {/* 이동 방향 인디케이터: 밀리는 방향에 굵은 선 */}
+      {shiftDir && !isFace && (
+        <mesh position={[shiftDir === 'left' ? -part.width / 2 - 2 : part.width / 2 + 2, 0, part.depth / 2 + 1]}>
+          <boxGeometry args={[4, part.height, 4]} />
+          <meshBasicMaterial color="#f59e0b" />
+        </mesh>
       )}
     </group>
   );
@@ -273,6 +285,66 @@ function SceneContent({
   onDragModule: (id: string, newX: number) => void;
 }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
+  // 드래그 중인 모듈 추적 (삽입 위치 인디케이터용)
+  const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
+
+  // 드래그 중인 모듈의 삽입 위치 기반 shiftDir 계산
+  const shiftMap = useMemo<Record<string, 'left' | 'right'>>(() => {
+    if (!dragState) return {};
+    const halfW = planner.width / 2;
+    const targetMm = Math.max(0, Math.min(planner.width, dragState.x + halfW));
+    const isUpper = (planner.upperModules ?? []).some(m => m.id === dragState.id);
+    const list = isUpper ? (planner.upperModules ?? []) : (planner.lowerModules ?? []);
+
+    const draggedIdx = list.findIndex(m => m.id === dragState.id);
+    if (draggedIdx < 0) return {};
+
+    // 각 모듈의 현재 중심 X 계산
+    const fL = planner.finishLeftW ?? 0;
+    let cursor = fL;
+    const centers: { id: string; cx: number }[] = [];
+    list.forEach(m => {
+      centers.push({ id: m.id, cx: cursor + m.width / 2 });
+      cursor += m.width;
+    });
+
+    // 삽입될 위치 결정
+    const withoutDragged = centers.filter(c => c.id !== dragState.id);
+    let insertIdx = withoutDragged.length;
+    for (let i = 0; i < withoutDragged.length; i++) {
+      if (targetMm < withoutDragged[i].cx) { insertIdx = i; break; }
+    }
+
+    // 원래 위치와 비교하여 밀리는 방향 결정
+    const origIdx = withoutDragged.length; // draggedIdx in withoutDragged 기준
+    const result: Record<string, 'left' | 'right'> = {};
+    const origOrder = list.filter(m => m.id !== dragState.id);
+    const origDragPos = draggedIdx;
+
+    // insertIdx > origDragPos: 드래그가 오른쪽으로 → 사이 모듈은 왼쪽으로 밀림
+    // insertIdx < origDragPos: 드래그가 왼쪽으로 → 사이 모듈은 오른쪽으로 밀림
+    const adjustedOrigIdx = draggedIdx; // 원래 list에서의 index
+    // withoutDragged에서의 삽입 위치 vs 원래 위치
+    const origPosInFiltered = list.slice(0, draggedIdx).filter(m => m.id !== dragState.id).length;
+
+    if (insertIdx < origPosInFiltered) {
+      // 왼쪽으로 이동 → insertIdx ~ origPosInFiltered-1 모듈이 오른쪽으로 밀림
+      for (let i = insertIdx; i < origPosInFiltered; i++) {
+        result[`mod-${withoutDragged[i].id}`] = 'right';
+      }
+    } else if (insertIdx > origPosInFiltered) {
+      // 오른쪽으로 이동 → origPosInFiltered ~ insertIdx-1 모듈이 왼쪽으로 밀림
+      for (let i = origPosInFiltered; i < insertIdx; i++) {
+        result[`mod-${withoutDragged[i].id}`] = 'left';
+      }
+    }
+    return result;
+  }, [dragState, planner]);
+
+  const handleDragMove = useCallback((id: string | null, x: number | null) => {
+    setDragState(id && x != null ? { id, x } : null);
+  }, []);
   const cameraPosition = cameraView === 'top' ? [0, 2400, 0.01] : cameraView === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
 
   const toeKickH = planner.toeKickH ?? 0;
@@ -301,7 +373,7 @@ function SceneContent({
       <group rotation={cameraView === 'top' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
         {/* 일반 파츠 */}
         {parts.filter(p => !p.id.startsWith('utility-')).map((part) => (
-          <ClickableModule key={part.id} part={part} color={palette[part.colorKey]} wireframe={part.wireframe} onSelect={onSelectModule} halfW={planner.width / 2} controlsRef={controlsRef} onDragModule={onDragModule} />
+          <ClickableModule key={part.id} part={part} color={palette[part.colorKey]} wireframe={part.wireframe} onSelect={onSelectModule} halfW={planner.width / 2} controlsRef={controlsRef} onDragModule={onDragModule} onDragMove={handleDragMove} shiftDir={shiftMap[part.id] || null} />
         ))}
         {/* 유틸리티 파츠 (드래그 가능) */}
         {parts.filter(p => p.id.startsWith('utility-')).map((part) => (
