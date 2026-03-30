@@ -52,33 +52,42 @@ function AddPanelSide({ position, moduleHeight, moduleDepth, color, onClick }: {
 }
 
 /* ── 클릭 가능한 모듈 mesh ── */
-function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
+function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
   const [hovered, setHovered] = useState(false);
   const isMod = part.id.startsWith('mod-');
   const isUtility = part.id.startsWith('utility-');
   const isClickable = isMod || isUtility;
+  const isEssential = !!(part as any).essential;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
 
   return (
-    <mesh
-      position={[part.x, part.y, part.z]}
-      castShadow receiveShadow
-      onClick={isClickable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
-      onPointerOver={isClickable ? () => setHovered(true) : undefined}
-      onPointerOut={isClickable ? () => setHovered(false) : undefined}
-    >
-      <boxGeometry args={[part.width, part.height, part.depth]} />
-      <meshStandardMaterial
-        color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c')) : (hovered && isClickable ? '#c9a87c' : color)}
-        metalness={wireframe ? 0.1 : 0.2}
-        roughness={wireframe ? 0.5 : 0.75}
-        wireframe={wireframe}
-        opacity={isUtility ? 0.7 : 1}
-        transparent={isUtility}
-        emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : '#000000'}
-        emissiveIntensity={hovered && isClickable ? 0.2 : 0}
-      />
-    </mesh>
+    <group position={[part.x, part.y, part.z]}>
+      <mesh
+        castShadow receiveShadow
+        onClick={isClickable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
+        onPointerOver={isClickable ? () => setHovered(true) : undefined}
+        onPointerOut={isClickable ? () => setHovered(false) : undefined}
+      >
+        <boxGeometry args={[part.width, part.height, part.depth]} />
+        <meshStandardMaterial
+          color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c')) : (hovered && isClickable ? '#c9a87c' : color)}
+          metalness={wireframe ? 0.1 : 0.2}
+          roughness={wireframe ? 0.5 : 0.75}
+          wireframe={wireframe}
+          opacity={isUtility ? 0.7 : 1}
+          transparent={isUtility}
+          emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : (isEssential ? '#b8956c' : '#000000')}
+          emissiveIntensity={hovered && isClickable ? 0.2 : (isEssential ? 0.08 : 0)}
+        />
+      </mesh>
+      {/* 필수장 윤곽선 */}
+      {isEssential && !wireframe && (
+        <lineSegments>
+          <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
+          <lineBasicMaterial color="#b8956c" linewidth={1} />
+        </lineSegments>
+      )}
+    </group>
   );
 }
 
