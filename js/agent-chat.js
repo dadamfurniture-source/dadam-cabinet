@@ -6,7 +6,7 @@ const API_BASE = (() => {
   const host = window.location.hostname;
   if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:3200';
   // 프로덕션: Railway 배포 URL (환경별 설정)
-  return window.__DADAM_API_BASE || 'https://dadam-api.up.railway.app';
+  return window.__DADAM_API_BASE || 'https://agent-api-production-523d.up.railway.app';
 })();
 
 class AgentChat {
