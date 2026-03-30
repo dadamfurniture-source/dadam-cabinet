@@ -149,9 +149,21 @@ class AgentChat {
     const progressEl = botMsgEl.querySelector('.msg-progress');
 
     try {
+      // 매 요청마다 최신 토큰 갱신
+      if (typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client) {
+        const { data: { session } } = await SupabaseUtils.client.auth.getSession();
+        if (session?.access_token) {
+          this.accessToken = session.access_token;
+        }
+      }
+
       const headers = { 'Content-Type': 'application/json' };
       if (this.accessToken) {
         headers['Authorization'] = `Bearer ${this.accessToken}`;
+      } else {
+        this.addBotMessage('로그인이 필요합니다. 로그인 페이지로 이동합니다.');
+        setTimeout(() => { window.location.href = 'login.html?redirect=chat.html'; }, 1500);
+        return;
       }
 
       const response = await fetch(`${API_BASE}/api/agent/chat/stream`, {
