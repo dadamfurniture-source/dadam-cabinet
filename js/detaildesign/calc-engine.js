@@ -560,6 +560,10 @@
         if (existingHood) {
           const hoodW = parseFloat(existingHood.w) || 800;
           let hoodX = startBound;
+          // ventStart null → 기본값 초기화
+          if (item.specs.ventStart == null) {
+            item.specs.ventStart = Math.round((W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE) * 0.7);
+          }
           const ventPos = parseFloat(item.specs.ventStart) || 0;
           if (ventPos > 0) {
             // 환풍구 위치 중심에 후드장 배치
@@ -706,10 +710,7 @@
         const W = parseFloat(item.w) || 0;
         const effectiveW = getEffectiveSpace(item, 'lower');
 
-        if (effectiveW <= 0) {
-          alert('하부장 유효 공간이 부족합니다.');
-          return;
-        }
+        if (effectiveW <= 0) { alert('하부장 유효 공간이 부족합니다.'); return; }
 
         const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const startBound = fL;
@@ -721,309 +722,268 @@
         const specTopT = parseFloat(item.specs.topThickness) || 12;
         const defaultLowerH = specLowerH - specTopT - specLegH;
 
-        // ★ 고정 모듈만 수집 (isFixed=true인 모듈의 현재 위치 계산)
-        const currentModules = item.modules.filter((m) => m.pos === 'lower');
+        // ── 개수대 상수 (W 기준) ──
+        const SINK_MIN_W = 950;
+        const SINK_DEF_W = W <= 2500 ? 950 : 1000;
+        const SINK_MAX  = 1100;
+        const LT_DEF_W  = 200;
+        const LT_MAX_W  = 300;
+        const SIDE_PANEL = 15;
+
+        // ★ 고정 모듈 수집
+        const currentModules = item.modules.filter(m => m.pos === 'lower');
         let fixedOccupied = [];
         let cursor = startBound;
-        currentModules.forEach((m) => {
+        currentModules.forEach(m => {
           const mw = parseFloat(m.w) || 0;
-          if (m.isFixed) {
-            fixedOccupied.push({
-              ...m,
-              x: cursor,
-              endX: cursor + mw,
-              pos: 'lower',
-            });
-          }
+          if (m.isFixed) fixedOccupied.push({ ...m, x: cursor, endX: cursor + mw, pos: 'lower' });
           cursor += mw;
         });
 
-        // ★ 분배기/환풍구 절대좌표 계산
+        // ═══════════════════════════════════════════════════════════
+        // ★ 환풍구/분배기 기준 고정모듈 배치 규칙
+        // ═══════════════════════════════════════════════════════════
+        //  ① 가스대: 환풍구 포함 (환풍구 중심 배치)
+        //  ② 개수대: 분배기 포함
+        //  ③ LT망장: 가스대와 가까운 벽 사이
+        //  좌/우 기준 = 실측 기준과 동일
+
+        // ── null 초기화 ──
+        if (item.specs.distributorStart == null) {
+          item.specs.distributorStart = Math.round(SINK_DEF_W * 0.15);
+          item.specs.distributorEnd = Math.round(SINK_DEF_W * 0.15 + 700);
+        }
+        if (item.specs.ventStart == null) {
+          item.specs.ventStart = Math.round(SINK_DEF_W * 0.7);
+        }
+
         const distStart = parseFloat(item.specs.distributorStart) || 0;
-        const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+        const distEnd   = parseFloat(item.specs.distributorEnd) || 0;
+        const ventPos   = parseFloat(item.specs.ventStart) || 0;
+
+        // ── 분배기 절대좌표 ──
         let dStartAbs = 0, dEndAbs = 0;
+        if (distStart > 0 && distEnd > distStart) {
+          if (isRefLeft) { dStartAbs = startBound + distStart; dEndAbs = startBound + distEnd; }
+          else           { dStartAbs = endBound - distEnd;     dEndAbs = endBound - distStart; }
+          dStartAbs = Math.max(startBound, Math.min(endBound, dStartAbs));
+          dEndAbs   = Math.max(startBound, Math.min(endBound, dEndAbs));
+        }
+
+        // ── 환풍구 절대좌표 ──
+        const ventAbs = ventPos > 0
+          ? Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + ventPos : endBound - ventPos))
+          : 0;
 
         const sinkMod = fixedOccupied.find(m => m.type === 'sink');
-
-        if (distStart > 0 && distEnd > distStart) {
-          if (isRefLeft) {
-            dStartAbs = startBound + distStart;
-            dEndAbs = startBound + distEnd;
-          } else {
-            dStartAbs = endBound - distEnd;
-            dEndAbs = endBound - distStart;
-          }
-          dStartAbs = Math.max(startBound, Math.min(endBound, dStartAbs));
-          dEndAbs = Math.max(startBound, Math.min(endBound, dEndAbs));
-        }
-
-        // ★ 1단계: 환풍구 → 가스대 위치 연동 (개수대보다 먼저 — 개수대 배치에서 가스대 위치 참조)
-        const ventPos = parseFloat(item.specs.ventStart) || 0;
         const cookMod = fixedOccupied.find(m => m.type === 'cook');
+
+        // ════════════════════════════════════════
+        // ① 가스대: 환풍구 포함 (중심 배치)
+        // ════════════════════════════════════════
         if (cookMod) {
-          const cookW_val = parseFloat(cookMod.w) || 600;
-          if (ventPos > 0) {
-            let ventAbs = Math.max(startBound, Math.min(endBound, isRefLeft ? startBound + ventPos : endBound - ventPos));
-            let cookX = ventAbs - cookW_val / 2;
-            cookX = Math.max(startBound, Math.min(endBound - cookW_val, cookX));
-            cookMod.x = cookX;
-            cookMod.endX = cookX + cookW_val;
-            console.log(`[AutoCalc] 가스대: 환풍구=${ventPos}mm → cookX=${cookX}`);
+          const cookW = parseFloat(cookMod.w) || COOK_FIXED_W;
+          let cookX;
+          if (ventAbs > 0) {
+            cookX = ventAbs - cookW / 2;
           } else {
-            if (isRefLeft) {
-              cookMod.x = Math.max(startBound, endBound - cookW_val);
-            } else {
-              cookMod.x = startBound;
-            }
-            cookMod.endX = cookMod.x + cookW_val;
+            // 환풍구 없음 → 기준 반대쪽 끝
+            cookX = isRefLeft ? endBound - cookW : startBound;
           }
+          cookX = Math.max(startBound, Math.min(endBound - cookW, cookX));
+          cookMod.x = cookX;
+          cookMod.endX = cookX + cookW;
         }
 
-        // ★ 2단계: 분배기 → 개수대 위치 연동 (가스대 위치 확정 후)
-        if (dStartAbs > 0 && dEndAbs > dStartAbs) {
-          if (sinkMod) {
-            const SIDE_PANEL = 15;
-            const distSpan = dEndAbs - dStartAbs;
-
-            const sinkBaseW = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
-            const sinkW = Math.max(sinkBaseW, Math.min(SINK_MAX_W, distSpan + SIDE_PANEL * 2));
-
-            // 가스대 위치 기반 개수대 최대 끝점 (개수대+LT가 가스대와 겹치지 않도록)
-            const ltW = 200;
-            const sinkMaxEndX = cookMod ? cookMod.x - ltW : endBound - ltW;
-
-            let sinkX;
-            if (isRefLeft) {
-              sinkX = Math.max(startBound, dStartAbs - SIDE_PANEL);
-            } else {
-              sinkX = Math.min(endBound - sinkW, dEndAbs - sinkW + SIDE_PANEL);
-              sinkX = Math.max(startBound, sinkX);
-            }
-
-            sinkX = Math.max(startBound, Math.min(endBound - sinkW, sinkX));
-            if (sinkX + sinkW > sinkMaxEndX) {
-              sinkX = Math.max(startBound, sinkMaxEndX - sinkW);
-            }
-
-            // 분배기 측판 검증
-            if (dStartAbs < sinkX + SIDE_PANEL) {
-              sinkX = Math.max(startBound, dStartAbs - SIDE_PANEL);
-            }
-            if (dEndAbs > sinkX + sinkW - SIDE_PANEL) {
-              sinkX = Math.max(startBound, Math.min(sinkMaxEndX - sinkW, dEndAbs - sinkW + SIDE_PANEL));
-            }
-
-            sinkMod.x = sinkX;
-            sinkMod.w = sinkW;
-            sinkMod.endX = sinkX + sinkW;
-            console.log(`[AutoCalc] 개수대: 분배기(${dStartAbs}~${dEndAbs}, 폭${distSpan}) → sink(${sinkX}~${sinkX + sinkW}, W=${sinkW}) 유효공간(${sinkX + SIDE_PANEL}~${sinkX + sinkW - SIDE_PANEL})`);
-          }
-        } else {
-          if (sinkMod) {
-            const sinkW = parseFloat(sinkMod.w) || 1000;
-            if (isRefLeft) {
-              sinkMod.x = startBound;
-            } else {
-              sinkMod.x = Math.max(startBound, endBound - sinkW);
-            }
-            sinkMod.endX = sinkMod.x + sinkW;
-          }
-        }
-
-        // ★ LT망장 → 개수대 바로 우측에 배치 (필수장, W=200 고정)
+        // ════════════════════════════════════════
+        // ③ LT망장: 가스대와 가까운 벽 사이
+        // ════════════════════════════════════════
+        //  좌측기준: 가스대=우측 → LT는 가스대 우측~endBound 사이
+        //  우측기준: 가스대=좌측 → LT는 startBound~가스대 좌측 사이
         let ltMod = fixedOccupied.find(m => m.name === 'LT망장' || (m.type === 'storage' && m.isDrawer && parseFloat(m.w) <= 250));
-        // LT망장이 없으면 필수장으로 자동 생성
         if (!ltMod && sinkMod) {
-          ltMod = { id: Date.now() + Math.random(), type: 'storage', name: 'LT망장', pos: 'lower', w: 200, d: 550, isDrawer: true, x: 0, endX: 0 };
+          ltMod = { id: Date.now() + Math.random(), type: 'storage', name: 'LT망장', pos: 'lower', w: LT_DEF_W, d: 550, isDrawer: true, isFixed: true, x: 0, endX: 0 };
           fixedOccupied.push(ltMod);
         }
-        if (ltMod && sinkMod) {
-          const ltW = 200; // 고정 너비
-          ltMod.w = ltW;
-          ltMod.x = sinkMod.endX;
-          ltMod.endX = ltMod.x + ltW;
-          // 경계 초과 방지
-          if (ltMod.endX > endBound) {
-            ltMod.x = endBound - ltW;
-            ltMod.endX = endBound;
+        if (ltMod && cookMod) {
+          ltMod.w = LT_DEF_W;
+          if (isRefLeft) {
+            // 좌측기준: LT = 가스대 우측 (cook.endX ~ endBound)
+            ltMod.x = cookMod.endX;
+          } else {
+            // 우측기준: LT = 가스대 좌측 (startBound ~ cook.x)
+            ltMod.x = cookMod.x - LT_DEF_W;
           }
-          console.log(`[AutoCalc] LT망장: 개수대 우측 X=${ltMod.x}`);
+          ltMod.x = Math.max(startBound, Math.min(endBound - LT_DEF_W, ltMod.x));
+          ltMod.endX = ltMod.x + LT_DEF_W;
         }
 
-        // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 재계산
-        item.modules = item.modules.filter((m) => m.pos !== 'lower');
+        // ════════════════════════════════════════
+        // ② 개수대: 분배기 포함
+        // ════════════════════════════════════════
+        //  개수대 영역: 가스대+LT를 제외한 나머지 공간
+        if (sinkMod) {
+          let sinkZoneStart, sinkZoneEnd;
+          if (isRefLeft) {
+            // 좌측기준: 개수대 = startBound ~ cook.x (가스대 좌측)
+            sinkZoneStart = startBound;
+            sinkZoneEnd = cookMod ? cookMod.x : endBound;
+          } else {
+            // 우측기준: 개수대 = (ltMod ? ltMod.endX : cook.endX) ~ endBound
+            sinkZoneStart = ltMod ? ltMod.endX : (cookMod ? cookMod.endX : startBound);
+            sinkZoneEnd = endBound;
+          }
+          const zoneW = sinkZoneEnd - sinkZoneStart;
 
-        const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
-
-        console.log(`[AutoCalc] 하부장 시작: W=${W}, effectiveW=${effectiveW}, startBound=${startBound}, endBound=${endBound}, 고정모듈=${fixedOccupied.length}개(${fixedTotalW}mm), 분배기=${distStart}~${distEnd}, 환풍구=${ventPos}`);
-
-        // 위치 조정
-        fixedOccupied = adjustFixedPositions(fixedOccupied, startBound, endBound);
-
-        // ★ 분배기-개수대 제약 재적용 (adjustFixedPositions가 위치를 밀었을 수 있음)
-        if (dStartAbs > 0 && dEndAbs > 0) {
-          const sinkMod2 = fixedOccupied.find(m => m.type === 'sink');
-          if (sinkMod2) {
-            const SIDE_PANEL = 15;
+          let sinkW, sinkX;
+          if (dStartAbs > 0 && dEndAbs > dStartAbs) {
             const distSpan = dEndAbs - dStartAbs;
-            const sinkBaseW2 = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
-            const idealW = Math.max(sinkBaseW2, Math.min(SINK_MAX_W, distSpan + SIDE_PANEL * 2));
-            // 분배기 포함하면서 기준 방향에 최대한 붙임
-            // ★ 가스대와 겹치지 않도록 제약
-            const cookMod3 = fixedOccupied.find(m => m.type === 'cook');
-            const ltW2 = 200;
-            const sinkMaxEnd = cookMod3 ? cookMod3.x - ltW2 : endBound - ltW2;
+            sinkW = Math.max(SINK_MIN_W, Math.min(SINK_MAX, distSpan + SIDE_PANEL * 2));
+            if (sinkW > zoneW && zoneW > 0) sinkW = zoneW;
+            sinkX = Math.max(sinkZoneStart, dStartAbs - SIDE_PANEL);
+            sinkX = Math.max(sinkZoneStart, Math.min(sinkZoneEnd - sinkW, sinkX));
+            // 분배기 포함 검증
+            if (dStartAbs < sinkX + SIDE_PANEL) sinkX = Math.max(sinkZoneStart, dStartAbs - SIDE_PANEL);
+            if (dEndAbs > sinkX + sinkW - SIDE_PANEL) sinkX = Math.max(sinkZoneStart, Math.min(sinkZoneEnd - sinkW, dEndAbs - sinkW + SIDE_PANEL));
+          } else {
+            sinkW = SINK_DEF_W;
+            if (sinkW > zoneW && zoneW > 0) sinkW = zoneW;
+            sinkX = isRefLeft ? sinkZoneStart : Math.max(sinkZoneStart, sinkZoneEnd - sinkW);
+          }
+          sinkX = Math.max(sinkZoneStart, Math.min(sinkZoneEnd - sinkW, sinkX));
+          sinkMod.x = sinkX;
+          sinkMod.w = sinkW;
+          sinkMod.endX = sinkX + sinkW;
+        }
 
-            let idealX;
-            if (isRefLeft) {
-              idealX = Math.max(startBound, dStartAbs - SIDE_PANEL);
+        // ════════════════════════════════════════
+        // ★ 겹침 방지: 고정모듈 간 겹침 해소
+        // ════════════════════════════════════════
+        //  우선순위: 환풍구(가스대) > 분배기(개수대) > LT
+        //  겹침 시 낮은 우선순위 모듈이 양보 (위치 이동 또는 축소)
+        fixedOccupied.sort((a, b) => a.x - b.x);
+        for (let i = 1; i < fixedOccupied.length; i++) {
+          const prev = fixedOccupied[i - 1];
+          const curr = fixedOccupied[i];
+          const overlap = prev.endX - curr.x;
+          if (overlap > 0) {
+            // 가스대는 환풍구 기준이므로 절대 이동하지 않음
+            if (curr.type === 'cook') {
+              // prev가 양보: 너비 축소
+              prev.w = Math.max(0, parseFloat(prev.w) - overlap);
+              prev.endX = prev.x + prev.w;
+            } else if (prev.type === 'cook') {
+              // curr가 양보: 우측으로 밀기
+              curr.x = prev.endX;
+              curr.endX = curr.x + parseFloat(curr.w);
+              // endBound 초과 시 너비 축소
+              if (curr.endX > endBound) {
+                curr.w = Math.max(0, endBound - curr.x);
+                curr.endX = curr.x + curr.w;
+              }
             } else {
-              idealX = Math.min(endBound - idealW, dEndAbs - idealW + SIDE_PANEL);
-              idealX = Math.max(startBound, idealX);
+              // 둘 다 비가스대: 뒤쪽 모듈이 밀림
+              curr.x = prev.endX;
+              curr.endX = curr.x + parseFloat(curr.w);
+              if (curr.endX > endBound) {
+                curr.w = Math.max(0, endBound - curr.x);
+                curr.endX = curr.x + curr.w;
+              }
             }
-            idealX = Math.max(startBound, Math.min(endBound - idealW, idealX));
-            if (idealX + idealW > sinkMaxEnd) {
-              idealX = Math.max(startBound, sinkMaxEnd - idealW);
-            }
-            // 검증: 분배기가 측판에 닿지 않도록 보정
-            if (dStartAbs < idealX + SIDE_PANEL) idealX = Math.max(startBound, dStartAbs - SIDE_PANEL);
-            if (dEndAbs > idealX + idealW - SIDE_PANEL) idealX = Math.max(startBound, Math.min(sinkMaxEnd - idealW, dEndAbs - idealW + SIDE_PANEL));
-
-            sinkMod2.x = idealX;
-            sinkMod2.w = idealW;
-            sinkMod2.endX = idealX + idealW;
-            console.log(`[AutoCalc] 개수대 재적용: x=${idealX}, w=${idealW}, 유효(${idealX + SIDE_PANEL}~${idealX + idealW - SIDE_PANEL})`);
-            // LT망장도 개수대 우측으로 재배치
-            const ltMod2 = fixedOccupied.find(m => m.name === 'LT망장');
-            if (ltMod2) {
-              ltMod2.x = sinkMod2.endX;
-              ltMod2.endX = ltMod2.x + (parseFloat(ltMod2.w) || 200);
-            }
+            console.log(`[AutoCalc] 겹침해소: ${prev.name||prev.type}↔${curr.name||curr.type}, overlap=${overlap}mm`);
           }
         }
+
+        console.log(`[AutoCalc] 하부장: W=${W}, 유효=${effectiveW}, 환풍구=${ventPos}(abs=${ventAbs}), 분배기=${distStart}~${distEnd}(abs=${dStartAbs}~${dEndAbs})`);
+        console.log(`[AutoCalc] 배치: ${fixedOccupied.sort((a,b)=>a.x-b.x).map(m => `${m.name||m.type}(${Math.round(m.x)}~${Math.round(m.endX)})`).join(' | ')}`);
+
+        // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 빈 공간 채우기
+        item.modules = item.modules.filter(m => m.pos !== 'lower');
+        const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
 
         let newModules = [];
 
         if (fixedTotalW >= effectiveW) {
-          // ★ 고정 모듈이 유효공간을 초과/가득 참 → 고정 모듈만 배치
           console.warn(`[AutoCalc] 하부장: 고정 모듈(${fixedTotalW}mm) >= 유효공간(${effectiveW}mm) — 고정 모듈만 배치`);
         } else {
           const spaces = calculateGaps(fixedOccupied, startBound, endBound);
           const hasMolding = item.specs.finishLeftType === 'Molding' || item.specs.finishRightType === 'Molding';
           const preferExact = hasMolding;
 
-          // ★ 빈 공간 분류: 모듈 생성 가능(≥350) vs 갭(<350)
           const fillable = [];
           const smallGaps = [];
-          spaces.forEach((s) => {
+          spaces.forEach(s => {
             if (s.width >= DOOR_MIN_WIDTH) fillable.push(s);
             else if (s.width > 0) smallGaps.push(s);
           });
 
-          // ★ 모듈 생성 가능한 공간에 배치
-          fillable.forEach((space) => {
+          // 빈 공간 채우기
+          fillable.forEach(space => {
             newModules = newModules.concat(fillSpaceWithModules(space, 'lower', defaultLowerH, 550, preferExact));
           });
 
-          // ★ 갭 흡수: 도어 너비가 450에서 가장 먼 모듈부터 흡수
-          // LT망장(200 고정), 가스대(600 고정)는 흡수 대상 제외
+          // ★ 갭 흡수 (<350mm): 1순위 일반모듈 → 2순위 개수대 → 3순위 LT망장
           if (smallGaps.length > 0) {
-            const totalGap = smallGaps.reduce((s, g) => s + g.width, 0);
+            let remaining = smallGaps.reduce((s, g) => s + g.width, 0);
             const sinkFixed = fixedOccupied.find(f => f.type === 'sink');
-            const nonSink = newModules.filter(m => m.type !== 'sink');
-            const absorbable = [...nonSink, ...(sinkFixed ? [sinkFixed] : [])];
+            const ltFixed = fixedOccupied.find(f => f.name === 'LT망장');
 
-            // 도어 너비 기준 |doorWidth - 450| 내림차순 정렬
-            absorbable.sort((a, b) => {
-              const aw = parseFloat(a.w) || 0;
-              const bw = parseFloat(b.w) || 0;
-              const aDoorW = a.is2door || a.is2D ? aw / 2 : aw;
-              const bDoorW = b.is2door || b.is2D ? bw / 2 : bw;
+            // 1순위: 일반모듈 (도어 450mm 기준 편차 큰 순)
+            const generals = [...newModules].sort((a, b) => {
+              const aDoorW = a.is2door || a.is2D ? parseFloat(a.w)/2 : parseFloat(a.w);
+              const bDoorW = b.is2door || b.is2D ? parseFloat(b.w)/2 : parseFloat(b.w);
               return Math.abs(bDoorW - DOOR_TARGET_WIDTH) - Math.abs(aDoorW - DOOR_TARGET_WIDTH);
             });
+            for (const mod of generals) {
+              if (remaining <= 0) break;
+              mod.w = (parseFloat(mod.w) || 0) + remaining;
+              if (mod.endX !== undefined) mod.endX = mod.x + parseFloat(mod.w);
+              console.log(`[AutoCalc] 갭 흡수: ${remaining}mm → ${mod.name} (일반모듈)`);
+              remaining = 0;
+            }
 
-            // ★ 개수대-분배기 겹침 검증 후 흡수
-            // 우선순위 모듈에 흡수 → 개수대가 분배기와 겹치면 다음 모듈 시도 → 최종 개수대
-            const SIDE_PANEL = 15;
-            let absorbed = false;
-            for (const target of absorbable) {
-              if (target.type === 'sink') {
-                // 개수대는 최종 폴백 — SINK_MAX_W 이내에서만 흡수
-                const curW = parseFloat(target.w) || 0;
-                const canAbsorb = Math.min(totalGap, SINK_MAX_W - curW);
-                if (canAbsorb > 0) {
-                  target.w = curW + canAbsorb;
-                  if (target.endX !== undefined) target.endX = target.x + parseFloat(target.w);
-                  console.log(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → 개수대 (최종 폴백, 잔여 ${totalGap - canAbsorb}mm)`);
-                }
-                absorbed = true;
-                break;
+            // 2순위: 개수대 (SINK_MAX 이내)
+            if (remaining > 0 && sinkFixed) {
+              const curW = parseFloat(sinkFixed.w) || 0;
+              const canAbsorb = Math.min(remaining, SINK_MAX - curW);
+              if (canAbsorb > 0) {
+                sinkFixed.w = curW + canAbsorb;
+                sinkFixed.endX = sinkFixed.x + sinkFixed.w;
+                remaining -= canAbsorb;
+                console.log(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → 개수대`);
               }
-              // 비개수대 모듈에 흡수 시뮬레이션: 개수대-분배기 겹침 확인
-              if (sinkFixed && dStartAbs > 0 && dEndAbs > 0) {
-                // 흡수 후 모듈 배치를 시뮬레이션 (모듈 너비 변경 → 순서 재배치)
-                const origW = parseFloat(target.w) || 0;
-                const simW = origW + totalGap;
-                // 모든 모듈의 총 너비 계산
-                const allMods = [...fixedOccupied, ...newModules];
-                const totalUsed = allMods.reduce((s, m) => s + (m === target ? simW : (parseFloat(m.w) || 0)), 0);
-                // 총 너비가 유효공간 초과 → 겹침 발생
-                if (totalUsed > effectiveW) continue;
-                // 개수대 위치가 분배기를 포함하는지 확인
-                // (순서 기반 재배치 시뮬레이션)
-                let simCursor = startBound;
-                let sinkOk = true;
-                const sortedMods = [...fixedOccupied, ...newModules].sort((a, b) => (a._x || a.x || 0) - (b._x || b.x || 0));
-                for (const m of sortedMods) {
-                  const mw = m === target ? simW : (parseFloat(m.w) || 0);
-                  if (m.type === 'sink') {
-                    // 개수대 시작/끝 위치에서 분배기 포함 확인
-                    if (dStartAbs < simCursor + SIDE_PANEL || dEndAbs > simCursor + mw - SIDE_PANEL) {
-                      sinkOk = false;
-                    }
-                  }
-                  simCursor += mw;
-                }
-                if (!sinkOk) {
-                  console.log(`[AutoCalc] 갭 흡수 시도: ${target.name || target.type} → 개수대-분배기 겹침 → 건너뜀`);
-                  continue;
-                }
+            }
+
+            // 3순위: LT망장 (LT_MAX_W 이내)
+            if (remaining > 0 && ltFixed) {
+              const curW = parseFloat(ltFixed.w) || 0;
+              const canAbsorb = Math.min(remaining, LT_MAX_W - curW);
+              if (canAbsorb > 0) {
+                ltFixed.w = curW + canAbsorb;
+                ltFixed.endX = ltFixed.x + ltFixed.w;
+                remaining -= canAbsorb;
+                console.log(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → LT망장`);
               }
-              // 겹침 없음 → 흡수 확정
-              target.w = (parseFloat(target.w) || 0) + totalGap;
-              if (target.endX !== undefined) target.endX = target.x + parseFloat(target.w);
-              console.log(`[AutoCalc] 갭 흡수: ${totalGap}mm → ${target.name || target.type} (도어편차 최대)`);
-              absorbed = true;
-              break;
             }
           }
-
-          console.log(`하부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${effectiveW - fixedTotalW}mm`);
         }
 
         // 고정 모듈 추가
-        fixedOccupied.forEach((fixed) => {
+        fixedOccupied.forEach(fixed => {
           newModules.push({
             id: fixed.id || Date.now() + Math.random(),
-            type: fixed.type,
-            name: fixed.name,
-            pos: 'lower',
-            w: fixed.w,
-            h: fixed.h,
-            d: fixed.d,
-            isDrawer: fixed.isDrawer || false,
-            isEL: fixed.isEL || false,
-            isFixed: true,
-            _x: fixed.x,
+            type: fixed.type, name: fixed.name, pos: 'lower',
+            w: fixed.w, h: fixed.h, d: fixed.d,
+            isDrawer: fixed.isDrawer || false, isEL: fixed.isEL || false,
+            isFixed: true, _x: fixed.x,
           });
         });
 
         // 정렬 및 저장
         newModules.sort((a, b) => a._x - b._x);
-        newModules.forEach((m) => delete m._x);
+        newModules.forEach(m => delete m._x);
         if (!isRefLeft) newModules.reverse();
 
-        // ★ 안전장치: 비정상 모듈 수 방지 (최대 30개)
         if (newModules.length > 30) {
           console.error(`[AutoCalc] 하부장: 비정상 모듈 수 ${newModules.length}개 → 고정 모듈만 유지`);
           newModules = newModules.filter(m => m.isFixed);
