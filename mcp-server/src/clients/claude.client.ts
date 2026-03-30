@@ -14,7 +14,7 @@ import type {
 const log = createLogger('claude-client');
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL_SONNET = 'claude-sonnet-4-6-20250514';
+const CLAUDE_MODEL_SONNET = 'claude-sonnet-4-6';
 const CLAUDE_MODEL_HAIKU = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_VERSION = '2023-06-01';
 
