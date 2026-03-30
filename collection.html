@@ -221,8 +221,9 @@
       // ── 초기화 ──
       async function init() {
         try {
-          if (typeof supabaseClient !== 'undefined') sb = supabaseClient;
-          else if (window.DADAM_CONFIG) sb = window.supabase.createClient(window.DADAM_CONFIG.SUPABASE_URL, window.DADAM_CONFIG.SUPABASE_ANON_KEY);
+          if (window.DADAM_CONFIG && window.supabase) {
+            sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
+          }
         } catch(e) { console.warn('Supabase init:', e); }
 
         if (sb) {
