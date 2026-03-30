@@ -14,179 +14,86 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase-utils.js"></script>
     <style>
-      :root {
-        --white: #fafafa;
-        --cream: #f8f7f4;
-        --warm: #ebe8e2;
-        --gray: #8b8680;
-        --charcoal: #2d2a26;
-        --black: #1a1918;
-        --gold: #b8956c;
-      }
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-        background: var(--white);
-        color: var(--charcoal);
-        line-height: 1.6;
-      }
-      a { text-decoration: none; color: inherit; }
+      :root { --white:#fafafa;--cream:#f8f7f4;--warm:#ebe8e2;--gray:#8b8680;--charcoal:#2d2a26;--black:#1a1918;--gold:#b8956c; }
+      * { margin:0;padding:0;box-sizing:border-box; }
+      body { font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.6; }
+      a { text-decoration:none;color:inherit; }
 
-      .main {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 120px 24px 80px;
-      }
+      .main { max-width:1200px;margin:0 auto;padding:120px 24px 80px; }
 
       /* Header */
-      .collection-header {
-        text-align: center;
-        margin-bottom: 48px;
-      }
-      .collection-header h1 {
-        font-family: 'Playfair Display', serif;
-        font-size: 48px;
-        font-weight: 400;
-        letter-spacing: 2px;
-        margin-bottom: 12px;
-      }
-      .collection-header p {
-        font-size: 15px;
-        color: var(--gray);
-        max-width: 500px;
-        margin: 0 auto;
-      }
+      .collection-header { text-align:center;margin-bottom:40px; }
+      .collection-header h1 { font-family:'Playfair Display',serif;font-size:48px;font-weight:400;letter-spacing:2px;margin-bottom:12px; }
+      .collection-header p { font-size:15px;color:var(--gray);max-width:500px;margin:0 auto; }
 
-      /* Filter */
-      .filter-bar {
-        display: flex;
-        justify-content: center;
-        gap: 8px;
-        margin-bottom: 40px;
-        flex-wrap: wrap;
-      }
-      .filter-btn {
-        padding: 8px 20px;
-        border: 1px solid var(--warm);
-        border-radius: 24px;
-        background: transparent;
-        font-size: 13px;
-        color: var(--gray);
-        cursor: pointer;
-        transition: all 0.3s;
-        font-family: inherit;
-      }
-      .filter-btn:hover {
-        border-color: var(--gold);
-        color: var(--charcoal);
-      }
-      .filter-btn.active {
-        background: var(--charcoal);
-        border-color: var(--charcoal);
-        color: #fff;
-      }
+      /* Filter + Upload */
+      .toolbar { display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;flex-wrap:wrap;gap:12px; }
+      .filter-bar { display:flex;gap:6px;flex-wrap:wrap; }
+      .filter-btn { padding:7px 18px;border:1px solid var(--warm);border-radius:24px;background:transparent;font-size:13px;color:var(--gray);cursor:pointer;transition:all .3s;font-family:inherit; }
+      .filter-btn:hover { border-color:var(--gold);color:var(--charcoal); }
+      .filter-btn.active { background:var(--charcoal);border-color:var(--charcoal);color:#fff; }
+      .btn-upload { padding:8px 20px;border:none;border-radius:24px;background:var(--gold);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .3s;display:none; }
+      .btn-upload:hover { background:#a07a54; }
 
       /* Grid */
-      .collection-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
-      }
-      .collection-item {
-        aspect-ratio: 1;
-        overflow: hidden;
-        position: relative;
-        cursor: pointer;
-        background: var(--warm);
-      }
-      .collection-item img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: transform 0.6s ease;
-      }
-      .collection-item:hover img {
-        transform: scale(1.08);
-      }
-      .collection-item .overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.45);
-        opacity: 0;
-        transition: opacity 0.4s;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-      }
-      .collection-item:hover .overlay {
-        opacity: 1;
-      }
-      .overlay .tag {
-        font-size: 11px;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        opacity: 0.8;
-        margin-bottom: 6px;
-      }
-      .overlay .title {
-        font-family: 'Playfair Display', serif;
-        font-size: 20px;
-        font-weight: 400;
-      }
+      .grid { display:grid;grid-template-columns:repeat(3,1fr);gap:20px; }
 
-      /* Item count */
-      .collection-count {
-        text-align: center;
-        margin-top: 32px;
-        font-size: 13px;
-        color: var(--gray);
-      }
+      /* Card */
+      .card { background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.06);transition:box-shadow .3s; }
+      .card:hover { box-shadow:0 4px 20px rgba(0,0,0,.1); }
+      .card-img { aspect-ratio:1;overflow:hidden;position:relative;cursor:pointer; }
+      .card-img img { width:100%;height:100%;object-fit:cover;transition:transform .5s; }
+      .card:hover .card-img img { transform:scale(1.05); }
+      .card-body { padding:14px 16px; }
+      .card-user { display:flex;align-items:center;gap:10px;margin-bottom:10px; }
+      .card-avatar { width:32px;height:32px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;flex-shrink:0; }
+      .card-name { font-size:13px;font-weight:600; }
+      .card-title { font-size:14px;color:var(--charcoal);margin-bottom:8px;line-height:1.4; }
+      .card-actions { display:flex;align-items:center;gap:16px; }
+      .btn-like { background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px;color:var(--gray);transition:color .2s;font-family:inherit; }
+      .btn-like:hover,.btn-like.liked { color:#e53e3e; }
+      .btn-like.liked .heart { fill:#e53e3e; }
+      .btn-inquiry { background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px;color:var(--gray);transition:color .2s;font-family:inherit; }
+      .btn-inquiry:hover { color:var(--gold); }
+      .card-cat { font-size:11px;color:var(--gray);margin-left:auto; }
+
+      /* Count */
+      .collection-count { text-align:center;margin-top:32px;font-size:13px;color:var(--gray); }
+
+      /* Modal backdrop */
+      .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px; }
+      .modal-overlay.active { display:flex; }
+      .modal { background:#fff;border-radius:16px;max-width:480px;width:100%;padding:28px;position:relative; }
+      .modal h2 { font-family:'Playfair Display',serif;font-size:22px;margin-bottom:20px; }
+      .modal label { display:block;font-size:13px;color:var(--gray);margin-bottom:4px;margin-top:14px; }
+      .modal input,.modal textarea,.modal select { width:100%;padding:10px 12px;border:1px solid var(--warm);border-radius:8px;font-size:14px;font-family:inherit;background:var(--white); }
+      .modal textarea { height:100px;resize:vertical; }
+      .modal-actions { display:flex;gap:8px;margin-top:20px; }
+      .modal-actions button { flex:1;padding:12px;border-radius:10px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit; }
+      .btn-primary { background:var(--gold);color:#fff; }
+      .btn-primary:hover { background:#a07a54; }
+      .btn-secondary { background:var(--warm);color:var(--charcoal); }
+      .btn-close { position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray); }
+
+      /* Image preview */
+      .upload-preview { width:100%;aspect-ratio:1;border:2px dashed var(--warm);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;margin-bottom:8px;background:var(--cream);transition:border-color .3s; }
+      .upload-preview:hover { border-color:var(--gold); }
+      .upload-preview img { width:100%;height:100%;object-fit:cover; }
+      .upload-preview .placeholder { text-align:center;color:var(--gray);font-size:14px; }
 
       /* Footer */
-      .footer {
-        background: var(--charcoal);
-        color: var(--warm);
-        padding: 48px 24px 24px;
-        text-align: center;
-        font-size: 13px;
-        margin-top: 80px;
-      }
-      .footer p { opacity: 0.6; }
+      .footer { background:var(--charcoal);color:var(--warm);padding:48px 24px 24px;text-align:center;font-size:13px;margin-top:80px; }
+      .footer p { opacity:.6; }
 
       /* Responsive */
-      @media (max-width: 1024px) {
-        .collection-header h1 { font-size: 40px; }
-        .main { padding: 100px 20px 60px; }
-      }
-      @media (max-width: 768px) {
-        .collection-grid {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 4px;
-        }
-        .collection-header h1 { font-size: 32px; }
-        .overlay .title { font-size: 16px; }
-        .main { padding: 80px 12px 40px; }
-      }
-      @media (max-width: 480px) {
-        .collection-grid {
-          grid-template-columns: 1fr;
-          gap: 4px;
-        }
-        .collection-header h1 { font-size: 28px; }
-        .filter-btn { padding: 6px 14px; font-size: 12px; }
-      }
+      @media(max-width:1024px) { .collection-header h1{font-size:40px;} .main{padding:100px 20px 60px;} }
+      @media(max-width:768px) { .grid{grid-template-columns:repeat(2,1fr);gap:12px;} .collection-header h1{font-size:32px;} .main{padding:80px 12px 40px;} .card-body{padding:10px 12px;} }
+      @media(max-width:480px) { .grid{grid-template-columns:1fr;gap:12px;} .collection-header h1{font-size:28px;} .filter-btn{padding:6px 12px;font-size:12px;} }
     </style>
   </head>
   <body>
     <nav class="nav nav-solid">
-      <a href="index.html" class="nav-logo">
-        <svg viewBox="0 0 40 40" fill="currentColor">
-          <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
-        </svg>
-        <span>다담</span>
-      </a>
+      <a href="index.html" class="nav-logo"><svg viewBox="0 0 40 40" fill="currentColor"><path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z"/></svg><span>다담</span></a>
       <div class="nav-menu">
         <a href="#">About us</a>
         <a href="collection.html" class="active">Collection</a>
@@ -198,30 +105,20 @@
       <div class="nav-icons">
         <a href="login.html" id="loginLink" class="login-btn">로그인</a>
         <div class="user-menu" id="userMenu" style="display:none">
-          <button class="user-btn">
-            <div class="user-avatar" id="navUserAvatar">?</div>
-            <span class="user-name" id="navUserName">사용자</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" /></svg>
-          </button>
+          <button class="user-btn"><div class="user-avatar" id="navUserAvatar">?</div><span class="user-name" id="navUserName">사용자</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
           <div class="user-dropdown">
-            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
-            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
-            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
+            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>마이페이지</a>
+            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>내 설계</a>
+            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>로그아웃</button>
           </div>
         </div>
-        <button class="hamburger" onclick="toggleMobileMenu()">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <button class="hamburger" onclick="toggleMobileMenu()"><span></span><span></span><span></span></button>
       </div>
     </nav>
-
     <div class="mobile-menu" id="mobileMenu">
       <a href="#">About us</a>
       <a href="collection.html" class="active">Collection</a>
       <a href="ai-design.html">AI Design</a>
-      <a href="detaildesign.html" id="mobileDetailDesign" style="display:none">Detail Design</a>
       <a href="consultation.html">상담 신청</a>
       <a href="#">Service</a>
     </div>
@@ -229,148 +126,319 @@
     <div class="main">
       <div class="collection-header">
         <h1>Collection</h1>
-        <p>30년 장인정신으로 완성한 다담의 시공 사례를 만나보세요</p>
+        <p>협력업체와 고객이 함께 만드는 시공사례 갤러리</p>
       </div>
 
-      <div class="filter-bar">
-        <button class="filter-btn active" data-filter="all">전체</button>
-        <button class="filter-btn" data-filter="kitchen">주방</button>
-        <button class="filter-btn" data-filter="builtin">붙박이장</button>
-        <button class="filter-btn" data-filter="storage">수납장</button>
-        <button class="filter-btn" data-filter="interior">인테리어</button>
+      <div class="toolbar">
+        <div class="filter-bar">
+          <button class="filter-btn active" data-filter="all">전체</button>
+          <button class="filter-btn" data-filter="kitchen">주방</button>
+          <button class="filter-btn" data-filter="builtin">붙박이장</button>
+          <button class="filter-btn" data-filter="storage">수납장</button>
+          <button class="filter-btn" data-filter="interior">인테리어</button>
+        </div>
+        <button class="btn-upload" id="btnUpload" onclick="openUploadModal()">+ 업로드</button>
       </div>
 
-      <div class="collection-grid" id="collectionGrid">
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n1-1.jpg" alt="주방 시공사례" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">모던 주방 N1</span></div>
-        </div>
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n1-2.jpg" alt="주방 시공사례" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">모던 주방 N1</span></div>
-        </div>
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n1-3.jpg" alt="주방 시공사례" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">모던 주방 N1</span></div>
-        </div>
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n1-4.jpg" alt="주방 시공사례" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">클래식 주방 N1</span></div>
-        </div>
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n3-2.jpg" alt="주방 시공사례" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">내추럴 주방 N3</span></div>
-        </div>
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n3-3.jpg" alt="주방 시공사례" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">내추럴 주방 N3</span></div>
-        </div>
-        <div class="collection-item" data-cat="interior">
-          <img src="app/portfolio/kitchen-n4-1.jpg" alt="인테리어" loading="lazy" />
-          <div class="overlay"><span class="tag">Interior</span><span class="title">프리미엄 인테리어</span></div>
-        </div>
-        <div class="collection-item" data-cat="storage">
-          <img src="app/portfolio/kitchen-n6-1.jpg" alt="수납장" loading="lazy" />
-          <div class="overlay"><span class="tag">Storage</span><span class="title">수납 시스템 N6</span></div>
-        </div>
-        <div class="collection-item" data-cat="storage">
-          <img src="app/portfolio/kitchen-n6-2.jpg" alt="수납장" loading="lazy" />
-          <div class="overlay"><span class="tag">Storage</span><span class="title">수납 시스템 N6</span></div>
-        </div>
-        <div class="collection-item" data-cat="storage">
-          <img src="app/portfolio/kitchen-n6-3.jpg" alt="수납장" loading="lazy" />
-          <div class="overlay"><span class="tag">Storage</span><span class="title">수납 시스템 N6</span></div>
-        </div>
-        <div class="collection-item" data-cat="interior">
-          <img src="app/portfolio/kitchen-n7-1.jpg" alt="인테리어" loading="lazy" />
-          <div class="overlay"><span class="tag">Interior</span><span class="title">럭셔리 인테리어 N7</span></div>
-        </div>
-        <div class="collection-item" data-cat="interior">
-          <img src="app/portfolio/kitchen-n7-2.jpg" alt="인테리어" loading="lazy" />
-          <div class="overlay"><span class="tag">Interior</span><span class="title">럭셔리 인테리어 N7</span></div>
-        </div>
-        <div class="collection-item" data-cat="kitchen">
-          <img src="app/portfolio/kitchen-n7-3.jpg" alt="주방" loading="lazy" />
-          <div class="overlay"><span class="tag">Kitchen</span><span class="title">럭셔리 주방 N7</span></div>
-        </div>
-        <div class="collection-item" data-cat="interior">
-          <img src="app/portfolio/kitchen-n7-4.jpg" alt="인테리어" loading="lazy" />
-          <div class="overlay"><span class="tag">Interior</span><span class="title">럭셔리 인테리어 N7</span></div>
-        </div>
-        <div class="collection-item" data-cat="builtin">
-          <img src="app/portfolio/funiture-n4-1.jpg" alt="붙박이장" loading="lazy" />
-          <div class="overlay"><span class="tag">Built-in</span><span class="title">맞춤 붙박이장</span></div>
-        </div>
-      </div>
-
-      <div class="collection-count" id="collectionCount">15개의 시공사례</div>
+      <div class="grid" id="collectionGrid"></div>
+      <div class="collection-count" id="collectionCount"></div>
     </div>
 
-    <footer class="footer">
-      <p>&copy; 2024 다담가구. All rights reserved.</p>
-    </footer>
+    <!-- 업로드 모달 -->
+    <div class="modal-overlay" id="uploadModal">
+      <div class="modal">
+        <button class="btn-close" onclick="closeModal('uploadModal')">✕</button>
+        <h2>시공사례 업로드</h2>
+        <div class="upload-preview" id="uploadPreview" onclick="document.getElementById('fileInput').click()">
+          <div class="placeholder">📷 이미지를 선택하세요</div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="previewImage(this)" />
+        <label>제목</label>
+        <input type="text" id="uploadTitle" placeholder="시공사례 제목" />
+        <label>카테고리</label>
+        <select id="uploadCategory">
+          <option value="kitchen">주방</option>
+          <option value="builtin">붙박이장</option>
+          <option value="storage">수납장</option>
+          <option value="interior">인테리어</option>
+          <option value="other">기타</option>
+        </select>
+        <label>설명 (선택)</label>
+        <textarea id="uploadDesc" placeholder="간단한 설명을 입력하세요"></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeModal('uploadModal')">취소</button>
+          <button class="btn-primary" id="btnSubmitUpload" onclick="submitUpload()">업로드</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 문의 모달 -->
+    <div class="modal-overlay" id="inquiryModal">
+      <div class="modal">
+        <button class="btn-close" onclick="closeModal('inquiryModal')">✕</button>
+        <h2>문의하기</h2>
+        <input type="hidden" id="inquiryPostId" />
+        <input type="hidden" id="inquiryToUserId" />
+        <label>이름</label>
+        <input type="text" id="inquiryName" placeholder="홍길동" />
+        <label>연락처</label>
+        <input type="text" id="inquiryContact" placeholder="010-1234-5678 또는 이메일" />
+        <label>문의 내용</label>
+        <textarea id="inquiryMessage" placeholder="궁금한 점을 남겨주세요"></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeModal('inquiryModal')">취소</button>
+          <button class="btn-primary" onclick="submitInquiry()">보내기</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer"><p>&copy; 2024 다담가구. All rights reserved.</p></footer>
 
     <script>
-      // 카테고리 필터
-      const filterBtns = document.querySelectorAll('.filter-btn');
-      const items = document.querySelectorAll('.collection-item');
-      const countEl = document.getElementById('collectionCount');
+      let sb = null;
+      let currentUser = null;
+      let allPosts = [];
+      let userLikes = new Set();
 
-      filterBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          filterBtns.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const filter = btn.dataset.filter;
-          let visible = 0;
-          items.forEach(item => {
-            if (filter === 'all' || item.dataset.cat === filter) {
-              item.style.display = '';
-              visible++;
-            } else {
-              item.style.display = 'none';
-            }
-          });
-          countEl.textContent = visible + '개의 시공사례';
-        });
-      });
+      const CATEGORIES = { kitchen:'주방', builtin:'붙박이장', storage:'수납장', interior:'인테리어', other:'기타' };
 
-      // 모바일 메뉴 토글
-      function toggleMobileMenu() {
-        const menu = document.getElementById('mobileMenu');
-        const hamburger = document.querySelector('.hamburger');
-        menu.classList.toggle('active');
-        hamburger.classList.toggle('active');
-      }
+      // 정적 포트폴리오 (DB 없을 때 fallback)
+      const STATIC_POSTS = [
+        { id:'s1', user_id:null, image_url:'app/portfolio/kitchen-n1-1.jpg', title:'모던 주방 N1', category:'kitchen', like_count:12, user_name:'다담가구' },
+        { id:'s2', user_id:null, image_url:'app/portfolio/kitchen-n1-2.jpg', title:'모던 주방 N1', category:'kitchen', like_count:8, user_name:'다담가구' },
+        { id:'s3', user_id:null, image_url:'app/portfolio/kitchen-n1-3.jpg', title:'모던 주방 N1', category:'kitchen', like_count:15, user_name:'다담가구' },
+        { id:'s4', user_id:null, image_url:'app/portfolio/kitchen-n3-2.jpg', title:'내추럴 주방 N3', category:'kitchen', like_count:6, user_name:'다담가구' },
+        { id:'s5', user_id:null, image_url:'app/portfolio/kitchen-n3-3.jpg', title:'내추럴 주방 N3', category:'kitchen', like_count:9, user_name:'다담가구' },
+        { id:'s6', user_id:null, image_url:'app/portfolio/kitchen-n4-1.jpg', title:'프리미엄 인테리어', category:'interior', like_count:22, user_name:'다담가구' },
+        { id:'s7', user_id:null, image_url:'app/portfolio/kitchen-n6-1.jpg', title:'수납 시스템 N6', category:'storage', like_count:11, user_name:'다담가구' },
+        { id:'s8', user_id:null, image_url:'app/portfolio/kitchen-n6-2.jpg', title:'수납 시스템 N6', category:'storage', like_count:7, user_name:'다담가구' },
+        { id:'s9', user_id:null, image_url:'app/portfolio/kitchen-n7-1.jpg', title:'럭셔리 인테리어 N7', category:'interior', like_count:18, user_name:'다담가구' },
+        { id:'s10', user_id:null, image_url:'app/portfolio/kitchen-n7-2.jpg', title:'럭셔리 주방 N7', category:'kitchen', like_count:14, user_name:'다담가구' },
+        { id:'s11', user_id:null, image_url:'app/portfolio/kitchen-n7-3.jpg', title:'럭셔리 주방 N7', category:'kitchen', like_count:10, user_name:'다담가구' },
+        { id:'s12', user_id:null, image_url:'app/portfolio/funiture-n4-1.jpg', title:'맞춤 붙박이장', category:'builtin', like_count:16, user_name:'다담가구' },
+      ];
 
-      // 로그인 상태 체크
-      async function checkAuth() {
-        if (typeof supabaseClient === 'undefined') return;
+      // ── 초기화 ──
+      async function init() {
         try {
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          if (session) {
-            const loginLink = document.getElementById('loginLink');
-            const userMenu = document.getElementById('userMenu');
-            const navDetailDesign = document.getElementById('navDetailDesign');
-            const mobileDetailDesign = document.getElementById('mobileDetailDesign');
-            if (loginLink) loginLink.style.display = 'none';
-            if (userMenu) userMenu.style.display = '';
-            if (navDetailDesign) navDetailDesign.style.display = '';
-            if (mobileDetailDesign) mobileDetailDesign.style.display = '';
-            const avatar = document.getElementById('navUserAvatar');
-            const name = document.getElementById('navUserName');
-            const email = session.user.email || '';
-            if (avatar) avatar.textContent = email.charAt(0).toUpperCase();
-            if (name) name.textContent = email.split('@')[0];
-          }
-        } catch (e) { console.warn('Auth check failed:', e); }
-      }
-      checkAuth();
+          if (typeof supabaseClient !== 'undefined') sb = supabaseClient;
+          else if (window.DADAM_CONFIG) sb = window.supabase.createClient(window.DADAM_CONFIG.SUPABASE_URL, window.DADAM_CONFIG.SUPABASE_ANON_KEY);
+        } catch(e) { console.warn('Supabase init:', e); }
 
-      function logout() {
-        if (typeof supabaseClient !== 'undefined') {
-          supabaseClient.auth.signOut().then(() => location.href = 'index.html');
+        if (sb) {
+          try {
+            const { data:{ session } } = await sb.auth.getSession();
+            if (session) {
+              currentUser = session.user;
+              document.getElementById('btnUpload').style.display = '';
+              document.getElementById('loginLink').style.display = 'none';
+              document.getElementById('userMenu').style.display = '';
+              const dd = document.getElementById('navDetailDesign');
+              if (dd) dd.style.display = '';
+              const av = document.getElementById('navUserAvatar');
+              const nm = document.getElementById('navUserName');
+              if (av) av.textContent = (currentUser.email||'?').charAt(0).toUpperCase();
+              if (nm) nm.textContent = (currentUser.email||'').split('@')[0];
+            }
+          } catch(e) {}
+        }
+
+        await loadPosts();
+        renderGrid();
+        setupFilters();
+      }
+
+      // ── 게시물 로드 ──
+      async function loadPosts() {
+        let dbPosts = [];
+        if (sb) {
+          try {
+            const { data, error } = await sb.from('collection_posts').select('*, profiles(name, avatar_url, company_name)').order('created_at', { ascending: false });
+            if (!error && data) dbPosts = data.map(p => ({
+              ...p,
+              user_name: p.profiles?.company_name || p.profiles?.name || '익명',
+              avatar_url: p.profiles?.avatar_url || null,
+            }));
+          } catch(e) { console.warn('Posts load:', e); }
+
+          // 내 좋아요 목록
+          if (currentUser) {
+            try {
+              const { data } = await sb.from('collection_likes').select('post_id').eq('user_id', currentUser.id);
+              if (data) data.forEach(l => userLikes.add(l.post_id));
+            } catch(e) {}
+          }
+        }
+        allPosts = [...dbPosts, ...STATIC_POSTS];
+      }
+
+      // ── 그리드 렌더링 ──
+      function renderGrid(filter = 'all') {
+        const grid = document.getElementById('collectionGrid');
+        const filtered = filter === 'all' ? allPosts : allPosts.filter(p => p.category === filter);
+
+        grid.innerHTML = filtered.map(post => {
+          const isLiked = userLikes.has(post.id);
+          const initial = (post.user_name || '?').charAt(0).toUpperCase();
+          const isStatic = String(post.id).startsWith('s');
+          return `
+          <div class="card" data-cat="${post.category}">
+            <div class="card-img"><img src="${post.image_url}" alt="${post.title||''}" loading="lazy" /></div>
+            <div class="card-body">
+              <div class="card-user">
+                ${post.avatar_url ? `<img src="${post.avatar_url}" class="card-avatar" style="object-fit:cover;" />` : `<div class="card-avatar">${initial}</div>`}
+                <span class="card-name">${post.user_name || '익명'}</span>
+              </div>
+              ${post.title ? `<div class="card-title">${post.title}</div>` : ''}
+              <div class="card-actions">
+                <button class="btn-like ${isLiked?'liked':''}" onclick="toggleLike('${post.id}')" ${isStatic?'disabled':''}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="heart"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  <span>${post.like_count || 0}</span>
+                </button>
+                <button class="btn-inquiry" onclick="openInquiry('${post.id}','${post.user_id||''}')" ${isStatic?'disabled':''}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  문의
+                </button>
+                <span class="card-cat">${CATEGORIES[post.category]||''}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+
+        document.getElementById('collectionCount').textContent = filtered.length + '개의 시공사례';
+      }
+
+      // ── 필터 ──
+      function setupFilters() {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderGrid(btn.dataset.filter);
+          });
+        });
+      }
+
+      // ── 좋아요 토글 ──
+      async function toggleLike(postId) {
+        if (!currentUser || !sb) return alert('로그인이 필요합니다.');
+        if (String(postId).startsWith('s')) return;
+
+        if (userLikes.has(postId)) {
+          await sb.from('collection_likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
+          userLikes.delete(postId);
+        } else {
+          await sb.from('collection_likes').insert({ user_id: currentUser.id, post_id: postId });
+          userLikes.add(postId);
+        }
+        await loadPosts();
+        const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
+        renderGrid(activeFilter);
+      }
+
+      // ── 업로드 ──
+      function openUploadModal() {
+        if (!currentUser) return alert('로그인이 필요합니다.');
+        document.getElementById('uploadModal').classList.add('active');
+      }
+
+      function previewImage(input) {
+        if (!input.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          document.getElementById('uploadPreview').innerHTML = `<img src="${e.target.result}" />`;
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+
+      async function submitUpload() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) return alert('이미지를 선택하세요.');
+        if (!currentUser || !sb) return alert('로그인이 필요합니다.');
+
+        const btn = document.getElementById('btnSubmitUpload');
+        btn.disabled = true;
+        btn.textContent = '업로드 중...';
+
+        try {
+          const ext = file.name.split('.').pop();
+          const path = `collection/${currentUser.id}/${Date.now()}.${ext}`;
+          const { error: upErr } = await sb.storage.from('collection').upload(path, file, { cacheControl:'3600', upsert:false });
+          if (upErr) throw upErr;
+
+          const { data: { publicUrl } } = sb.storage.from('collection').getPublicUrl(path);
+
+          await sb.from('collection_posts').insert({
+            user_id: currentUser.id,
+            image_url: publicUrl,
+            storage_path: path,
+            title: document.getElementById('uploadTitle').value || '',
+            description: document.getElementById('uploadDesc').value || '',
+            category: document.getElementById('uploadCategory').value,
+          });
+
+          closeModal('uploadModal');
+          document.getElementById('fileInput').value = '';
+          document.getElementById('uploadPreview').innerHTML = '<div class="placeholder">📷 이미지를 선택하세요</div>';
+          document.getElementById('uploadTitle').value = '';
+          document.getElementById('uploadDesc').value = '';
+          await loadPosts();
+          renderGrid();
+        } catch(e) {
+          alert('업로드 실패: ' + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '업로드';
         }
       }
+
+      // ── 문의 ──
+      function openInquiry(postId, toUserId) {
+        document.getElementById('inquiryPostId').value = postId;
+        document.getElementById('inquiryToUserId').value = toUserId;
+        document.getElementById('inquiryModal').classList.add('active');
+      }
+
+      async function submitInquiry() {
+        const name = document.getElementById('inquiryName').value.trim();
+        const contact = document.getElementById('inquiryContact').value.trim();
+        const message = document.getElementById('inquiryMessage').value.trim();
+        if (!name || !contact || !message) return alert('모든 항목을 입력하세요.');
+
+        if (sb) {
+          try {
+            await sb.from('collection_inquiries').insert({
+              from_user_id: currentUser?.id || null,
+              to_user_id: document.getElementById('inquiryToUserId').value || null,
+              post_id: document.getElementById('inquiryPostId').value,
+              name, contact, message,
+            });
+          } catch(e) { console.warn('Inquiry save:', e); }
+        }
+
+        alert('문의가 전송되었습니다.');
+        closeModal('inquiryModal');
+        document.getElementById('inquiryName').value = '';
+        document.getElementById('inquiryContact').value = '';
+        document.getElementById('inquiryMessage').value = '';
+      }
+
+      // ── 모달 ──
+      function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+      document.querySelectorAll('.modal-overlay').forEach(el => {
+        el.addEventListener('click', e => { if (e.target === el) closeModal(el.id); });
+      });
+
+      // ── 유틸 ──
+      function toggleMobileMenu() {
+        document.getElementById('mobileMenu').classList.toggle('active');
+        document.querySelector('.hamburger').classList.toggle('active');
+      }
+      function logout() {
+        if (sb) sb.auth.signOut().then(() => location.href = 'index.html');
+      }
+
+      init();
     </script>
   </body>
 </html>
