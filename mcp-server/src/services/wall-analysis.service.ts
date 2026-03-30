@@ -3,6 +3,13 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { createLogger } from '../utils/logger.js';
+import { ExternalApiError } from '../utils/errors.js';
+import {
+  DEFAULT_WALL_WIDTH_MM,
+  DEFAULT_WALL_HEIGHT_MM,
+  DEFAULT_TILE_WIDTH_MM,
+  DEFAULT_TILE_HEIGHT_MM,
+} from '../constants/dimensions.js';
 import {
   geminiVisionAnalysis,
   geminiMultiImageAnalysis,
@@ -152,7 +159,7 @@ async function performWallAnalysis(
   }
 
   if (!wallData) {
-    throw new Error('Failed to analyze wall structure');
+    throw new ExternalApiError('vision', 'Failed to analyze wall structure');
   }
 
   return applyDefaults(wallData);
@@ -207,11 +214,11 @@ function applyDefaults(data: Partial<WallAnalysis>): WallAnalysis {
   return {
     tile_detected: data.tile_detected ?? false,
     tile_type: data.tile_type ?? 'unknown',
-    tile_size_mm: data.tile_size_mm ?? { width: 300, height: 600 },
+    tile_size_mm: data.tile_size_mm ?? { width: DEFAULT_TILE_WIDTH_MM, height: DEFAULT_TILE_HEIGHT_MM },
     tile_count: data.tile_count,
     wall_dimensions_mm: data.wall_dimensions_mm,
-    wall_width_mm: data.wall_dimensions_mm?.width ?? data.wall_width_mm ?? 3000,
-    wall_height_mm: data.wall_dimensions_mm?.height ?? data.wall_height_mm ?? 2400,
+    wall_width_mm: data.wall_dimensions_mm?.width ?? data.wall_width_mm ?? DEFAULT_WALL_WIDTH_MM,
+    wall_height_mm: data.wall_dimensions_mm?.height ?? data.wall_height_mm ?? DEFAULT_WALL_HEIGHT_MM,
     utility_positions: data.utility_positions,
     furniture_placement: data.furniture_placement,
     reference_used: data.reference_used,

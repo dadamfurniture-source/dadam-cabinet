@@ -163,14 +163,18 @@ router.post('/', generateRateLimit, async (req: Request, res: Response, next: Ne
 
     log.info({ category, design_style, extraImages: extraImages.length }, 'Generate request');
 
-    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) ═══
+    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) — 싱크대만 plumbing 분석 ═══
     log.info('Step 1: Wall analysis');
     let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
 
     try {
-      const wallPrompt = `Analyze this Korean apartment photo. Return JSON only:
+      const wallPrompt = category === 'sink'
+        ? `Analyze this Korean apartment photo. Return JSON only:
 {"wall":{"width":number,"height":number},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
-Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPct as % from left.`;
+Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPct as % from left.`
+        : `Analyze this Korean apartment photo. Return JSON only:
+{"wall":{"width":number,"height":number},"confidence":"high"|"medium"|"low"}
+Estimate wall width in mm.`;
 
       const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
       if (wallResult.text) {
@@ -179,8 +183,10 @@ Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPc
           const parsed = JSON.parse(jsonMatch[0]);
           wallW = parsed.wall?.width || 3000;
           wallH = parsed.wall?.height || 2400;
-          waterPct = parsed.plumbing?.waterPct || 30;
-          exhaustPct = parsed.plumbing?.exhaustPct || 70;
+          if (category === 'sink') {
+            waterPct = parsed.plumbing?.waterPct || 30;
+            exhaustPct = parsed.plumbing?.exhaustPct || 70;
+          }
           log.info({ wallW, wallH, waterPct, exhaustPct }, 'Wall analysis parsed');
         }
       }
@@ -188,17 +194,46 @@ Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPc
       log.warn('Wall analysis failed, using defaults');
     }
 
-    // ═══ Step 2: 레이아웃 제약조건 (위치 고정) ═══
+    // ═══ Step 2: 레이아웃 제약조건 (싱크대만 위치 고정) ═══
     const sinkSide = waterPct <= 50 ? 'LEFT' : 'RIGHT';
     const cooktopSide = exhaustPct <= 50 ? 'LEFT' : 'RIGHT';
-    const layoutConstraints = [
+    const sinkLayoutConstraints = [
       `[FIXED SINK] ${sinkSide} side at ${waterPct}% from left. MUST MATCH ORIGINAL PLUMBING.`,
       `[FIXED COOKTOP] ${cooktopSide} side at ${exhaustPct}% from left. MUST MATCH ORIGINAL VENT.`,
       `Wall ${wallW}x${wallH}mm.`,
     ].join(' ');
 
-    // ═══ Step 3: 메인 디자인 생성 (기본 투톤) ═══
-    log.info('Step 3: Generate main image');
+    // ─── 카테고리별 기구 설명 ───
+    const CATEGORY_SUBJECT: Record<string, string> = {
+      sink: 'handleless flat-panel kitchen cabinets with upper and lower sections, integrated sink, cooktop',
+      wardrobe: 'floor-to-ceiling built-in wardrobe with flat-panel doors, handleless push-to-open design',
+      fridge: 'tall pantry and refrigerator surround cabinet with flat-panel doors, handleless design',
+      vanity: 'modern vanity cabinet with mirror cabinet above, flat-panel doors, handleless push-to-open',
+      shoe: 'entryway shoe cabinet with flat-panel doors, handleless push-to-open, ventilation slats',
+      storage: 'custom storage cabinet with flat-panel doors, adjustable shelves, handleless design',
+    };
+
+    // ─── 카테고리별 기본안 프롬프트 빌더 ───
+    function buildBasePrompt(cat: string, colorDesc: string, countertop: string): string {
+      const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      if (cat === 'sink') {
+        return `Edit photo: install ${subject}. ${colorDesc} ${sinkLayoutConstraints} ${countertop} countertop. Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera identical. No clutter.`;
+      }
+      return `Edit photo: install ${subject}. ${colorDesc} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+    }
+
+    // ─── 카테고리별 AI 추천안 프롬프트 빌더 ───
+    function buildAltPrompt(cat: string, upperColor: string, upperHex: string, lowerColor: string, lowerHex: string): string {
+      const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      const twoToneDesc = `[TWO-TONE] Upper=${upperColor}${upperHex ? ` HEX ${upperHex}` : ''}, Lower=${lowerColor}${lowerHex ? ` HEX ${lowerHex}` : ''}. [MANDATORY] Upper and lower MUST be DIFFERENT colors.`;
+      if (cat === 'sink') {
+        return `Edit photo: install ${subject}. ${twoToneDesc} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera, sink, cooktop positions identical. No clutter.`;
+      }
+      return `Edit photo: install ${subject}. ${twoToneDesc} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+    }
+
+    // ═══ Step 3: 기본안 생성 (무채색 단일 품목) ═══
+    log.info('Step 3: Generate base design (기본안)');
     const rcs = random_color_scheme as any;
     const mainUpperColor = rcs?.upper?.name_en || STYLE_UPPER_COLOR[design_style] || 'Warm White';
     const mainLowerColor = rcs?.lower?.name_en || mainUpperColor; // 기본은 단색
@@ -211,9 +246,9 @@ Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPc
       ? `[TWO-TONE] Upper=${mainUpperColor}${mainUpperHex ? ` HEX ${mainUpperHex}` : ''}, Lower=${mainLowerColor}${mainLowerHex ? ` HEX ${mainLowerHex}` : ''}. Upper and lower MUST be different colors.`
       : `All cabinets ${mainUpperColor}${mainUpperHex ? ` HEX ${mainUpperHex}` : ''} matte.`;
 
-    const mainPrompt = `Edit photo: install handleless flat-panel kitchen cabinets. ${colorPart} ${layoutConstraints} ${mainCountertop} countertop. Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera identical. No clutter.`;
+    const mainPrompt = buildBasePrompt(category, colorPart, mainCountertop);
 
-    log.info({ promptLength: mainPrompt.length, mainUpperColor, mainLowerColor }, 'Main prompt');
+    log.info({ promptLength: mainPrompt.length, mainUpperColor, mainLowerColor, category }, 'Base design prompt');
 
     const closedResult = await callGemini(
       mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
@@ -223,10 +258,10 @@ Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPc
       res.status(500).json({ success: false, error: 'Failed to generate image' });
       return;
     }
-    log.info('Main image generated');
+    log.info('Base design (기본안) generated');
 
-    // ═══ Step 4: AI 추천 디자인 (투톤 고정: 상부=무채색, 하부=컬러) ═══
-    log.info('Step 4: Generate alt two-tone image');
+    // ═══ Step 4: AI 추천안 생성 (투톤 고정: 상부=무채색, 하부=컬러) ═══
+    log.info('Step 4: Generate AI recommendation (AI 추천안)');
     const arcs = alt_random_color_scheme as any;
     const altStyleKey = ALT_STYLE_MAP[design_style] || 'scandinavian';
     const altUpperColor = arcs?.upper?.name_en || STYLE_UPPER_COLOR[altStyleKey] || 'Milk White';
@@ -236,15 +271,15 @@ Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPc
 
     let altImage: string | undefined;
     try {
-      const altPrompt = `Edit photo: install handleless flat-panel kitchen cabinets. [TWO-TONE] Upper=${altUpperColor}${altUpperHex ? ` HEX ${altUpperHex}` : ''}, Lower=${altLowerColor}${altLowerHex ? ` HEX ${altLowerHex}` : ''}. [MANDATORY] Upper and lower MUST be DIFFERENT colors. ${layoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera, sink, cooktop positions identical. No clutter.`;
+      const altPrompt = buildAltPrompt(category, altUpperColor, altUpperHex, altLowerColor, altLowerHex);
 
-      log.info({ promptLength: altPrompt.length, altUpperColor, altLowerColor }, 'Alt prompt');
+      log.info({ promptLength: altPrompt.length, altUpperColor, altLowerColor, category }, 'AI recommendation prompt');
 
       const altResult = await callGemini(
         altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
       );
       altImage = altResult.image;
-      if (altImage) log.info('Alt two-tone image generated');
+      if (altImage) log.info('AI recommendation (AI 추천안) generated');
     } catch (e) {
       log.warn('Alt style generation failed');
     }
@@ -253,7 +288,7 @@ Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPc
     log.info('Step 5: Quote analysis');
     let quote = null;
     try {
-      const quotePrompt = `Analyze this two-tone kitchen image. Upper cabinets are ${mainUpperColor}, lower are ${mainLowerColor}. Count upper/lower cabinets, estimate total width mm, count drawers. Wall ~${wallW}mm. Return JSON: {"upper_count":N,"lower_count":N,"total_width_mm":N,"drawer_count":N,"countertop_length_mm":N}`;
+      const quotePrompt = `Analyze this cabinet design image. Upper cabinets are ${mainUpperColor}, lower are ${mainLowerColor}. Count upper/lower cabinets, estimate total width mm, count drawers. Wall ~${wallW}mm. Return JSON: {"upper_count":N,"lower_count":N,"total_width_mm":N,"drawer_count":N,"countertop_length_mm":N}`;
 
       const mimeType = closedResult.image.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
       const quoteText = await callClaude(quotePrompt, closedResult.image, mimeType);
