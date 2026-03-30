@@ -13,6 +13,7 @@ class AgentChat {
   constructor() {
     this.sessionId = null;
     this.isProcessing = false;
+    this.accessToken = null;
 
     // DOM 요소
     this.chatMessages = document.getElementById('chat-messages');
@@ -148,9 +149,14 @@ class AgentChat {
     const progressEl = botMsgEl.querySelector('.msg-progress');
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.accessToken) {
+        headers['Authorization'] = `Bearer ${this.accessToken}`;
+      }
+
       const response = await fetch(`${API_BASE}/api/agent/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(requestBody),
       });
 
@@ -447,6 +453,18 @@ class AgentChat {
 }
 
 let agentChat;
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   agentChat = new AgentChat();
+
+  // Supabase 로그인 세션에서 토큰 가져오기
+  if (typeof SupabaseUtils !== 'undefined') {
+    const session = await SupabaseUtils.init();
+    if (session?.access_token) {
+      agentChat.accessToken = session.access_token;
+      console.log('[AgentChat] 인증 토큰 설정 완료');
+    } else {
+      console.warn('[AgentChat] 로그인 필요 — 로그인 페이지로 이동합니다.');
+      window.location.href = 'login.html?redirect=chat.html';
+    }
+  }
 });
