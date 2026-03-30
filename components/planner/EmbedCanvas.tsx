@@ -146,7 +146,7 @@ function DraggableUtility({ part, halfW, controlsRef, onDrag, onSelect }: {
       {/* 라벨 */}
       <Html position={[part.x, part.y + part.height / 2 + 20, part.z]} center style={{ pointerEvents: 'none' }}>
         <div style={{ fontSize: 10, color: isDist ? '#1565c0' : '#546e7a', whiteSpace: 'nowrap', fontFamily: FONT, fontWeight: 600, textShadow: '0 0 4px #fff' }}>
-          {isDist ? '💧 설비' : '🌀 환풍구'}
+          {isDist ? '💧 분배기' : '🌀 환풍구'}
         </div>
       </Html>
     </group>
@@ -353,7 +353,7 @@ function UtilityPopup({
   onClose: () => void;
 }) {
   const isDist = type === 'distributor';
-  const label = isDist ? '💧 설비 위치' : '🌀 환풍구';
+  const label = isDist ? '💧 분배기 위치' : '🌀 환풍구';
   const color = isDist ? '#2196f3' : '#78909c';
 
   const startVal = isDist ? (planner.distributorStart ?? Math.round(planner.width * 0.15)) : (planner.ventStart ?? Math.round(planner.width * 0.7));
@@ -559,13 +559,11 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
         />
       )}
 
-      {/* 좌하단 컨트롤: 자동계산 + 유틸리티 토글 */}
-      <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', gap: 6, fontFamily: FONT }}>
+      {/* 좌상단 컨트롤: 자동계산 + 유틸리티 토글 */}
+      <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: 6, fontFamily: FONT }}>
         <button
           onClick={() => {
             const result = autoCalculateModules(planner);
-            console.log('[AutoCalc] input:', { width: planner.width, effectiveW: planner.width - (planner.finishLeftW??60) - (planner.finishRightW??60), preset: planner.presetId });
-            console.log('[AutoCalc] result:', { lower: result.lower.length, upper: result.upper.length, lowerModules: result.lower, upperModules: result.upper });
             setPlanner((prev) => ({
               ...prev,
               lowerModules: result.lower,
@@ -581,7 +579,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
         <button
           onClick={() => setPlanner((prev) => ({ ...prev, distributorStart: prev.distributorStart === 0 ? null : 0, distributorEnd: prev.distributorEnd === 0 ? null : 0 }))}
           style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #90caf9', background: (planner.distributorStart !== 0) ? '#e3f2fd' : '#f5f5f5', color: (planner.distributorStart !== 0) ? '#1565c0' : '#999', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}>
-          💧 {planner.distributorStart !== 0 ? '설비' : '설비 (숨김)'}
+          💧 {planner.distributorStart !== 0 ? '분배기' : '분배기 (숨김)'}
         </button>
         {!preset.fullHeight && (
           <button
