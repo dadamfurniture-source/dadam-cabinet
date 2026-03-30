@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import {
   MATERIALS,
   MODULE_DEFAULT_W,
+  autoCalculateModules,
   genModuleId,
   type CabinetCategory,
   type CabinetModule,
@@ -558,8 +559,23 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
         />
       )}
 
-      {/* 우하단 유틸리티 토글 */}
+      {/* 좌하단 컨트롤: 자동계산 + 유틸리티 토글 */}
       <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', gap: 6, fontFamily: FONT }}>
+        <button
+          onClick={() => {
+            const result = autoCalculateModules(planner);
+            setPlanner((prev) => ({
+              ...prev,
+              lowerModules: result.lower,
+              upperModules: result.upper,
+              lowerCount: result.lower.length,
+              upperCount: result.upper.length,
+            }));
+            setSelectedModuleId(null);
+          }}
+          style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', fontSize: 11, cursor: 'pointer', fontWeight: 600, fontFamily: FONT, boxShadow: '0 2px 6px rgba(184,149,108,0.3)' }}>
+          ⚡ 자동계산
+        </button>
         <button
           onClick={() => setPlanner((prev) => ({ ...prev, distributorStart: prev.distributorStart === 0 ? null : 0, distributorEnd: prev.distributorEnd === 0 ? null : 0 }))}
           style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #90caf9', background: (planner.distributorStart !== 0) ? '#e3f2fd' : '#f5f5f5', color: (planner.distributorStart !== 0) ? '#1565c0' : '#999', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}>

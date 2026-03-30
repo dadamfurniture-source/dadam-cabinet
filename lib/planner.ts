@@ -35,10 +35,13 @@ export interface CabinetPreset {
   defaultMoldingH: number;
 }
 
+export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
+
 export interface ModuleEntry {
   id: string;
   kind: ModuleKind;
   width: number;
+  moduleType?: ModuleType;
 }
 
 export interface PlannerState {
@@ -269,6 +272,131 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     ventStart: null,
   };
 };
+
+// ── 자동계산: 설비 기준 모듈 자동 배치 ──
+
+const DOOR_TARGET = 450;
+const DOOR_MIN = 350;
+const DOOR_MAX = 600;
+const SINK_W_SMALL = 950;
+const SINK_W_LARGE = 1000;
+const SINK_MAX = 1100;
+const COOK_W = 600;
+const HOOD_W = 800;
+
+function distributeSpace(space: number): ModuleEntry[] {
+  if (space < DOOR_MIN) return [];
+  const count = Math.max(1, Math.round(space / DOOR_TARGET));
+  const w = Math.round(space / count / 10) * 10;
+  const modules: ModuleEntry[] = [];
+  let remaining = space;
+  for (let i = 0; i < count; i++) {
+    const mw = i === count - 1 ? remaining : Math.min(w, remaining);
+    if (mw >= DOOR_MIN) {
+      modules.push({ id: genModuleId(), kind: 'door', width: mw, moduleType: 'storage' });
+      remaining -= mw;
+    }
+  }
+  if (remaining >= 50 && modules.length > 0) {
+    modules[modules.length - 1].width += remaining;
+  }
+  return modules;
+}
+
+export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[]; upper: ModuleEntry[] } {
+  const preset = getPresetById(state.presetId);
+  const width = state.width;
+  const effectiveW = width - (state.finishLeftW ?? 60) - (state.finishRightW ?? 60);
+  const startBound = state.finishLeftW ?? 60;
+
+  const autoDistStart = Math.round(width * 0.15);
+  const autoDistEnd = Math.round(width * 0.15 + 700);
+  const autoVentX = Math.round(width * 0.7);
+
+  const distStart = (state.distributorStart != null && state.distributorStart > 0) ? state.distributorStart : autoDistStart;
+  const distEnd = (state.distributorEnd != null && state.distributorEnd > 0) ? state.distributorEnd : autoDistEnd;
+  const ventX = (state.ventStart != null && state.ventStart > 0) ? state.ventStart : autoVentX;
+
+  // ── 하부장 ──
+  const lower: ModuleEntry[] = [];
+
+  if (preset.id === 'sink' || preset.id === 'vanity') {
+    // 고정 모듈 위치 계산 (mm from left edge, absolute)
+    const sinkBaseW = effectiveW <= 2500 ? SINK_W_SMALL : SINK_W_LARGE;
+    const distSpan = Math.abs(distEnd - distStart);
+    const sinkW = Math.min(SINK_MAX, Math.max(sinkBaseW, distSpan + 30));
+    const sinkCenter = (distStart + distEnd) / 2;
+    const sinkX = Math.max(startBound, sinkCenter - sinkW / 2);
+
+    const cookCenter = ventX;
+    const cookX = Math.max(startBound, cookCenter - COOK_W / 2);
+
+    // 고정 모듈들을 X 위치 순으로 정렬
+    type Fixed = { x: number; w: number; entry: ModuleEntry };
+    const fixedList: Fixed[] = [];
+
+    // 개수대가 좌측, 가스대가 우측인 경우 (일반적)
+    if (sinkX + sinkW <= cookX) {
+      fixedList.push({ x: sinkX, w: sinkW, entry: { id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' } });
+      fixedList.push({ x: cookX, w: COOK_W, entry: { id: genModuleId(), kind: 'drawer', width: COOK_W, moduleType: 'cook' } });
+    } else if (cookX + COOK_W <= sinkX) {
+      fixedList.push({ x: cookX, w: COOK_W, entry: { id: genModuleId(), kind: 'drawer', width: COOK_W, moduleType: 'cook' } });
+      fixedList.push({ x: sinkX, w: sinkW, entry: { id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' } });
+    } else {
+      // 겹치면 개수대만
+      fixedList.push({ x: sinkX, w: sinkW, entry: { id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' } });
+    }
+
+    // 고정 모듈 사이 빈 공간에 수납 모듈 분배
+    let cursor = startBound;
+    for (const f of fixedList) {
+      const gap = f.x - cursor;
+      if (gap >= DOOR_MIN) {
+        lower.push(...distributeSpace(gap));
+      }
+      lower.push(f.entry);
+      cursor = f.x + f.w;
+    }
+    // 마지막 고정 모듈 이후 공간
+    const endGap = startBound + effectiveW - cursor;
+    if (endGap >= DOOR_MIN) {
+      lower.push(...distributeSpace(endGap));
+    }
+  } else {
+    // 싱크대 외 카테고리: 단순 균등 분배
+    lower.push(...distributeSpace(effectiveW));
+  }
+
+  // ── 상부장 ──
+  const upper: ModuleEntry[] = [];
+
+  if (!preset.fullHeight && preset.upperHeight > 0) {
+    // 후드 고정 배치
+    const hoodCenter = ventX;
+    const hoodX = Math.max(startBound, hoodCenter - HOOD_W / 2);
+    const hoodEndX = Math.min(startBound + effectiveW, hoodX + HOOD_W);
+    const hoodActualW = hoodEndX - hoodX;
+
+    // 후드 좌측 공간
+    const leftGap = hoodX - startBound;
+    if (leftGap >= DOOR_MIN) {
+      upper.push(...distributeSpace(leftGap));
+    }
+
+    // 후드
+    if (hoodActualW >= 200) {
+      upper.push({ id: genModuleId(), kind: 'door', width: hoodActualW, moduleType: 'hood' });
+    }
+
+    // 후드 우측 공간
+    const rightGap = startBound + effectiveW - hoodEndX;
+    if (rightGap >= DOOR_MIN) {
+      upper.push(...distributeSpace(rightGap));
+    }
+  }
+
+  return { lower, upper };
+}
 
 const buildModulesFromEntries = (
   entries: ModuleEntry[],
