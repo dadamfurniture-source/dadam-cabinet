@@ -7,6 +7,13 @@ import { createLogger } from '../utils/logger.js';
 import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
 import { AppError } from '../utils/errors.js';
+import { sanitizePromptInput } from '../utils/sanitize.js';
+import {
+  DEFAULT_WALL_WIDTH_MM,
+  DEFAULT_WALL_HEIGHT_MM,
+  SINK_POSITION_RATIO,
+  COOKTOP_POSITION_RATIO,
+} from '../constants/dimensions.js';
 
 const log = createLogger('direct-generation');
 
@@ -132,10 +139,12 @@ async function analyzeWall(roomImage: string, imageType: string): Promise<Record
 // ─────────────────────────────────────────────────────────────
 
 function buildFurniturePrompt(input: GenerationInput, wallData: Record<string, unknown>): string {
-  const wallW = (wallData.wall_width_mm as number) || 3000;
-  const wallH = (wallData.wall_height_mm as number) || 2400;
-  const waterPos = (wallData.water_supply_position as number) || Math.round(wallW * 0.3);
-  const exhaustPos = (wallData.exhaust_duct_position as number) || Math.round(wallW * 0.7);
+  const rawW = wallData.wall_width_mm as number;
+  const rawH = wallData.wall_height_mm as number;
+  const wallW = (Number.isFinite(rawW) && rawW > 0) ? rawW : DEFAULT_WALL_WIDTH_MM;
+  const wallH = (Number.isFinite(rawH) && rawH > 0) ? rawH : DEFAULT_WALL_HEIGHT_MM;
+  const waterPos = (wallData.water_supply_position as number) || Math.round(wallW * SINK_POSITION_RATIO);
+  const exhaustPos = (wallData.exhaust_duct_position as number) || Math.round(wallW * COOKTOP_POSITION_RATIO);
   const waterPct = Math.round(waterPos / wallW * 100);
   const exhaustPct = Math.round(exhaustPos / wallW * 100);
 
@@ -150,13 +159,13 @@ function buildFurniturePrompt(input: GenerationInput, wallData: Record<string, u
   };
   const layoutDesc = layoutDescMap[input.kitchenLayout || 'i_type'] || 'straight linear kitchen';
 
-  // 스타일
-  const doorColor = input.styleDoorColor || 'white';
-  const doorFinish = input.styleDoorFinish || 'matte';
-  const countertop = input.styleCountertopPrompt || 'white engineered stone';
+  // 스타일 (사용자 입력 sanitize)
+  const doorColor = sanitizePromptInput(input.styleDoorColor, 100) || 'white';
+  const doorFinish = sanitizePromptInput(input.styleDoorFinish, 100) || 'matte';
+  const countertop = sanitizePromptInput(input.styleCountertopPrompt, 200) || 'white engineered stone';
   const handle = 'handleless integrated grip recessed into door material, no visible hardware, clean flush surface';
-  const style = input.styleName || input.designStyle || 'Modern Minimal';
-  const mood = input.styleMoodPrompt || '';
+  const style = sanitizePromptInput(input.styleName || input.designStyle, 200) || 'Modern Minimal';
+  const mood = sanitizePromptInput(input.styleMoodPrompt, 300);
 
   if (isKitchen) {
     return `[TASK] Place ${doorColor} ${doorFinish} flat panel ${layoutDesc} cabinets on this photo.
