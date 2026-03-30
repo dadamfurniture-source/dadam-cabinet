@@ -2057,7 +2057,7 @@
     </svg>
 
     <!-- Navigation -->
-    <nav class="nav">
+    <nav class="nav nav-solid">
       <a href="index.html" class="nav-logo">
         <svg viewBox="0 0 40 40" fill="currentColor">
           <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
@@ -2065,18 +2065,16 @@
         <span>다담</span>
       </a>
       <div class="nav-menu">
-        <a href="index.html#about">About us</a>
-        <a href="index.html#collection">Collection</a>
+        <a href="#">About us</a>
+        <a href="#">Collection</a>
         <a href="ai-design.html" class="active">AI Design</a>
         <a href="detaildesign.html" id="navDetailDesign" style="display:none">Detail Design</a>
         <a href="consultation.html">상담 신청</a>
-        <a href="index.html#service">Service</a>
+        <a href="#">Service</a>
       </div>
       <div class="nav-icons">
-        <!-- 비로그인 상태 -->
         <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-        <!-- 로그인 상태 -->
-        <div class="user-menu" id="userMenu" style="display: none">
+        <div class="user-menu" id="userMenu" style="display:none">
           <button class="user-btn">
             <div class="user-avatar" id="navUserAvatar">?</div>
             <span class="user-name" id="navUserName">사용자</span>
@@ -2085,28 +2083,12 @@
             </svg>
           </button>
           <div class="user-dropdown">
-            <a href="mypage.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" /></svg
-              >마이페이지</a
-            >
-            <a href="my-designs.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" /></svg
-              >내 설계</a
-            >
-            <button onclick="logout()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" /></svg
-              >로그아웃
-            </button>
+            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
+            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
           </div>
         </div>
-        <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
+        <button class="hamburger" onclick="toggleMobileMenu()">
           <span></span>
           <span></span>
           <span></span>
