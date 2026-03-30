@@ -415,6 +415,10 @@ export default function App() {
     if (params.get('toeKickH')) s.toeKickH = Number(params.get('toeKickH'));
     if (params.get('finishLeftW')) s.finishLeftW = Number(params.get('finishLeftW'));
     if (params.get('finishRightW')) s.finishRightW = Number(params.get('finishRightW'));
+    // 유틸리티 (분배기/환풍구)
+    if (params.get('distStart')) s.distributorStart = Number(params.get('distStart'));
+    if (params.get('distEnd')) s.distributorEnd = Number(params.get('distEnd'));
+    if (params.get('ventStart')) s.ventStart = Number(params.get('ventStart'));
     return s;
   });
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
