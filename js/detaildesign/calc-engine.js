@@ -407,6 +407,7 @@
           h,
           d,
           doorCount: is2D ? 2 : 1,
+          is2door: is2D,
           isDrawer: false,
           isEL: false,
           isFixed: false,

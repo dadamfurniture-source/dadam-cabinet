@@ -55,7 +55,29 @@
       "mcp__Windows-MCP__Type",
       "mcp__Windows-MCP__Snapshot",
       "mcp__Windows-MCP__Click",
-      "mcp__Windows-MCP__Screenshot"
+      "mcp__Windows-MCP__Screenshot",
+      "Bash(npm list:*)",
+      "Bash(railway init:*)",
+      "Bash(railway add:*)",
+      "Bash(source \"C:/Users/hchan/dadamagent/mcp-server/.env\")",
+      "Bash(railway logs:*)",
+      "Bash(railway domain:*)",
+      "Bash(curl -s https://agent-api-production-523d.up.railway.app/health)",
+      "Bash(python3 -m json.tool)",
+      "Bash(gh repo:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:dadamfurniture.com)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://dadamfurniture.com/js/config.js\")",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(wc -l /c/Users/hchan/dadamagent/.claude/worktrees/crazy-noether/*.html)",
+      "Skill(ux-designer)",
+      "Skill(ux-designer:*)",
+      "Bash(for f:*)",
+      "Bash(do grep:*)",
+      "Bash(sed -i 's|<link rel=\"\"stylesheet\"\" href=\"\"css/nav.css\"\"|<link rel=\"\"stylesheet\"\" href=\"\"css/nav.css\"\">\\\\n    <link rel=\"\"stylesheet\"\" href=\"\"css/dadam-system.css\"\"|' \"$f\")",
+      "Bash(echo \"Updated: $f\")",
+      "Bash(done)"
     ]
   }
 }

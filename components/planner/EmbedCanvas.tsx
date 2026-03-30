@@ -51,34 +51,139 @@ function AddPanelSide({ position, moduleHeight, moduleDepth, color, onClick }: {
   );
 }
 
-/* ── 클릭 가능한 모듈 mesh ── */
-function ClickableModule({ part, color, wireframe, onSelect }: { part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number }; color: string; wireframe?: boolean; onSelect: (id: string) => void }) {
+/* ── 필수장 타입별 색상 ── */
+const MODULE_TYPE_COLORS: Record<string, { body: string; face: string; outline: string; emissive: string }> = {
+  sink: { body: '#b3d4e8', face: '#8ab8d4', outline: '#0284c7', emissive: '#0369a1' },
+  cook: { body: '#e8b3b3', face: '#d48a8a', outline: '#dc2626', emissive: '#b91c1c' },
+  hood: { body: '#c9b3e8', face: '#a88ad4', outline: '#7c3aed', emissive: '#6d28d9' },
+};
+
+/* ── 드래그+클릭 가능한 모듈 mesh ── */
+function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef, onDragModule, onDragMove, shiftDir }: {
+  part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string };
+  color: string; wireframe?: boolean;
+  onSelect: (id: string) => void;
+  halfW?: number;
+  controlsRef?: React.RefObject<OrbitControlsImpl | null>;
+  onDragModule?: (id: string, newX: number) => void;
+  onDragMove?: (id: string | null, x: number | null) => void;
+  shiftDir?: 'left' | 'right' | null;
+}) {
   const [hovered, setHovered] = useState(false);
+  const [dragX, setDragX] = useState<number | null>(null);
+  const draggingRef = useRef(false);
+  const didDragRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+
   const isMod = part.id.startsWith('mod-');
+  const isFace = part.id.endsWith('-face');
   const isUtility = part.id.startsWith('utility-');
   const isClickable = isMod || isUtility;
+  const isDraggable = isMod && !isFace && !!onDragModule && halfW != null;
+  const isEssential = !!(part as any).essential;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
 
+  // 타입별 색상 결정
+  const mType = (part as any).moduleType as string | undefined;
+  const typeColor = mType && MODULE_TYPE_COLORS[mType];
+  let baseColor = color;
+  let emissiveColor = '#000000';
+  let emissiveInt = 0;
+  let outlineColor = '#b8956c';
+
+  if (typeColor && !isUtility) {
+    baseColor = isFace ? typeColor.face : typeColor.body;
+    emissiveColor = typeColor.emissive;
+    emissiveInt = 0.1;
+    outlineColor = typeColor.outline;
+  } else if (isEssential) {
+    emissiveColor = '#b8956c';
+    emissiveInt = 0.08;
+  }
+
+  const getPlaneX = (e: { ray: THREE.Ray }) => {
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -part.z);
+    const target = new THREE.Vector3();
+    e.ray.intersectPlane(plane, target);
+    return target.x;
+  };
+
+  const displayX = dragX != null ? dragX : part.x;
+
   return (
-    <mesh
-      position={[part.x, part.y, part.z]}
-      castShadow receiveShadow
-      onClick={isClickable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
-      onPointerOver={isClickable ? () => setHovered(true) : undefined}
-      onPointerOut={isClickable ? () => setHovered(false) : undefined}
-    >
-      <boxGeometry args={[part.width, part.height, part.depth]} />
-      <meshStandardMaterial
-        color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c')) : (hovered && isClickable ? '#c9a87c' : color)}
-        metalness={wireframe ? 0.1 : 0.2}
-        roughness={wireframe ? 0.5 : 0.75}
-        wireframe={wireframe}
-        opacity={isUtility ? 0.7 : 1}
-        transparent={isUtility}
-        emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : '#000000'}
-        emissiveIntensity={hovered && isClickable ? 0.2 : 0}
-      />
-    </mesh>
+    <group position={[displayX, part.y, part.z]}>
+      <mesh
+        castShadow receiveShadow
+        onPointerDown={isDraggable ? (e) => {
+          e.stopPropagation();
+          draggingRef.current = true;
+          didDragRef.current = false;
+          dragOffsetRef.current = getPlaneX(e) - part.x;
+          (e.target as any).setPointerCapture(e.pointerId);
+          if (controlsRef?.current) controlsRef.current.enabled = false;
+        } : undefined}
+        onPointerUp={isDraggable ? (e) => {
+          if (!draggingRef.current) return;
+          draggingRef.current = false;
+          (e.target as any).releasePointerCapture(e.pointerId);
+          if (controlsRef?.current) controlsRef.current.enabled = true;
+          onDragMove?.(null, null);
+          if (didDragRef.current) {
+            onDragModule!(moduleId, dragX ?? part.x);
+            setDragX(null);
+          } else {
+            e.stopPropagation();
+            onSelect(moduleId);
+          }
+        } : undefined}
+        onPointerMove={isDraggable ? (e) => {
+          if (!draggingRef.current) return;
+          didDragRef.current = true;
+          const newX = Math.max(-halfW!, Math.min(halfW!, getPlaneX(e) - dragOffsetRef.current));
+          setDragX(newX);
+          onDragMove?.(moduleId, newX);
+        } : undefined}
+        onClick={!isDraggable && isClickable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
+        onPointerOver={isClickable ? () => setHovered(true) : undefined}
+        onPointerOut={isClickable ? () => {
+          setHovered(false);
+          if (draggingRef.current) {
+            draggingRef.current = false;
+            if (controlsRef?.current) controlsRef.current.enabled = true;
+            onDragMove?.(null, null);
+            if (didDragRef.current && onDragModule) { onDragModule(moduleId, dragX ?? part.x); }
+            setDragX(null);
+          }
+        } : undefined}
+      >
+        <boxGeometry args={[part.width, part.height, part.depth]} />
+        <meshStandardMaterial
+          color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c'))
+            : (draggingRef.current ? '#e8d5b8' : (hovered && isClickable ? '#c9a87c' : baseColor))}
+          metalness={wireframe ? 0.1 : 0.2}
+          roughness={wireframe ? 0.5 : 0.75}
+          wireframe={wireframe}
+          opacity={isUtility ? 0.7 : (draggingRef.current ? 0.85 : 1)}
+          transparent={isUtility || draggingRef.current}
+          emissive={hovered && isClickable ? (isUtility ? '#1565c0' : '#3a2a1a') : emissiveColor}
+          emissiveIntensity={hovered && isClickable ? 0.2 : emissiveInt}
+        />
+      </mesh>
+      {/* 필수장 윤곽선 */}
+      {isEssential && !wireframe && (
+        <lineSegments>
+          <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
+          <lineBasicMaterial color={outlineColor} linewidth={1} />
+        </lineSegments>
+      )}
+      {/* 이동 방향 인디케이터: 밀리는 방향에 굵은 선 */}
+      {shiftDir && !isFace && (
+        <mesh position={[shiftDir === 'left' ? -part.width / 2 - 2 : part.width / 2 + 2, 0, part.depth / 2 + 1]}>
+          <boxGeometry args={[4, part.height, 4]} />
+          <meshBasicMaterial color="#f59e0b" />
+        </mesh>
+      )}
+    </group>
   );
 }
 
@@ -165,7 +270,7 @@ function DimensionLabel({ position, text, color = '#666' }: { position: [number,
 }
 
 function SceneContent({
-  parts, palette, cameraView, preset, planner, derived, onAddLower, onAddUpper, onSelectModule, onDragUtility,
+  parts, palette, cameraView, preset, planner, derived, onAddLower, onAddUpper, onSelectModule, onDragUtility, onDragModule,
 }: {
   parts: ReturnType<typeof deriveCabinet>['parts'];
   palette: (typeof MATERIALS)[keyof typeof MATERIALS];
@@ -177,8 +282,69 @@ function SceneContent({
   onAddUpper: () => void;
   onSelectModule: (id: string) => void;
   onDragUtility: (id: string, newX: number) => void;
+  onDragModule: (id: string, newX: number) => void;
 }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
+  // 드래그 중인 모듈 추적 (삽입 위치 인디케이터용)
+  const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
+
+  // 드래그 중인 모듈의 삽입 위치 기반 shiftDir 계산
+  const shiftMap = useMemo<Record<string, 'left' | 'right'>>(() => {
+    if (!dragState) return {};
+    const halfW = planner.width / 2;
+    const targetMm = Math.max(0, Math.min(planner.width, dragState.x + halfW));
+    const isUpper = (planner.upperModules ?? []).some(m => m.id === dragState.id);
+    const list = isUpper ? (planner.upperModules ?? []) : (planner.lowerModules ?? []);
+
+    const draggedIdx = list.findIndex(m => m.id === dragState.id);
+    if (draggedIdx < 0) return {};
+
+    // 각 모듈의 현재 중심 X 계산
+    const fL = planner.finishLeftW ?? 0;
+    let cursor = fL;
+    const centers: { id: string; cx: number }[] = [];
+    list.forEach(m => {
+      centers.push({ id: m.id, cx: cursor + m.width / 2 });
+      cursor += m.width;
+    });
+
+    // 삽입될 위치 결정
+    const withoutDragged = centers.filter(c => c.id !== dragState.id);
+    let insertIdx = withoutDragged.length;
+    for (let i = 0; i < withoutDragged.length; i++) {
+      if (targetMm < withoutDragged[i].cx) { insertIdx = i; break; }
+    }
+
+    // 원래 위치와 비교하여 밀리는 방향 결정
+    const origIdx = withoutDragged.length; // draggedIdx in withoutDragged 기준
+    const result: Record<string, 'left' | 'right'> = {};
+    const origOrder = list.filter(m => m.id !== dragState.id);
+    const origDragPos = draggedIdx;
+
+    // insertIdx > origDragPos: 드래그가 오른쪽으로 → 사이 모듈은 왼쪽으로 밀림
+    // insertIdx < origDragPos: 드래그가 왼쪽으로 → 사이 모듈은 오른쪽으로 밀림
+    const adjustedOrigIdx = draggedIdx; // 원래 list에서의 index
+    // withoutDragged에서의 삽입 위치 vs 원래 위치
+    const origPosInFiltered = list.slice(0, draggedIdx).filter(m => m.id !== dragState.id).length;
+
+    if (insertIdx < origPosInFiltered) {
+      // 왼쪽으로 이동 → insertIdx ~ origPosInFiltered-1 모듈이 오른쪽으로 밀림
+      for (let i = insertIdx; i < origPosInFiltered; i++) {
+        result[`mod-${withoutDragged[i].id}`] = 'right';
+      }
+    } else if (insertIdx > origPosInFiltered) {
+      // 오른쪽으로 이동 → origPosInFiltered ~ insertIdx-1 모듈이 왼쪽으로 밀림
+      for (let i = origPosInFiltered; i < insertIdx; i++) {
+        result[`mod-${withoutDragged[i].id}`] = 'left';
+      }
+    }
+    return result;
+  }, [dragState, planner]);
+
+  const handleDragMove = useCallback((id: string | null, x: number | null) => {
+    setDragState(id && x != null ? { id, x } : null);
+  }, []);
   const cameraPosition = cameraView === 'top' ? [0, 2400, 0.01] : cameraView === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
 
   const toeKickH = planner.toeKickH ?? 0;
@@ -207,7 +373,7 @@ function SceneContent({
       <group rotation={cameraView === 'top' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
         {/* 일반 파츠 */}
         {parts.filter(p => !p.id.startsWith('utility-')).map((part) => (
-          <ClickableModule key={part.id} part={part} color={palette[part.colorKey]} wireframe={part.wireframe} onSelect={onSelectModule} />
+          <ClickableModule key={part.id} part={part} color={palette[part.colorKey]} wireframe={part.wireframe} onSelect={onSelectModule} halfW={planner.width / 2} controlsRef={controlsRef} onDragModule={onDragModule} onDragMove={handleDragMove} shiftDir={shiftMap[part.id] || null} />
         ))}
         {/* 유틸리티 파츠 (드래그 가능) */}
         {parts.filter(p => p.id.startsWith('utility-')).map((part) => (
@@ -483,6 +649,45 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
     setSelectedModuleId(null);
   }, []);
 
+  // 모듈 드래그 완료: X좌표 기준으로 모듈 순서 재정렬
+  const dragModule = useCallback((id: string, newX: number) => {
+    setPlanner((prev) => {
+      const halfW = prev.width / 2;
+      const isUpper = (prev.upperModules ?? []).some(m => m.id === id);
+      const listKey = isUpper ? 'upperModules' : 'lowerModules';
+      const list = [...(prev[listKey] ?? [])];
+
+      // 드래그된 모듈의 목표 절대 X (mm from left)
+      const targetMm = Math.max(0, Math.min(prev.width, newX + halfW));
+
+      // 각 모듈의 현재 절대 중심 X 계산
+      const fL = prev.finishLeftW ?? 0;
+      let cursor = fL;
+      const positions = list.map((m) => {
+        const cx = cursor + m.width / 2;
+        cursor += m.width;
+        return { id: m.id, centerX: cx };
+      });
+
+      // 드래그된 모듈을 목표 위치에 맞게 순서 변경
+      const draggedIdx = list.findIndex(m => m.id === id);
+      if (draggedIdx < 0) return prev;
+      const [dragged] = list.splice(draggedIdx, 1);
+
+      // 삽입 위치 결정: 목표 X보다 중심이 큰 첫 모듈 앞에 삽입
+      let insertIdx = list.length;
+      cursor = fL;
+      for (let i = 0; i < list.length; i++) {
+        const cx = cursor + list[i].width / 2;
+        if (targetMm < cx) { insertIdx = i; break; }
+        cursor += list[i].width;
+      }
+      list.splice(insertIdx, 0, dragged);
+
+      return { ...prev, [listKey]: list };
+    });
+  }, []);
+
   const dragUtility = useCallback((id: string, newX: number) => {
     const halfW = planner.width / 2;
     const mmFromLeft = Math.round(Math.max(0, Math.min(planner.width, newX + halfW)));
@@ -519,6 +724,7 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
           onAddLower={addLower} onAddUpper={addUpper}
           onSelectModule={setSelectedModuleId}
           onDragUtility={dragUtility}
+          onDragModule={dragModule}
         />
       </Canvas>
 

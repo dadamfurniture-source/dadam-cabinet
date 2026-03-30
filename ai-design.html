@@ -2119,22 +2119,18 @@
         <p class="section-subtitle">주방 형태를 선택하세요</p>
         <div class="kitchen-layout-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px;">
           <button class="kitchen-layout-btn" data-layout="i_type" onclick="selectKitchenLayout('i_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">━</div>
             <div style="font-size: 13px; font-weight: 600;">1자형</div>
             <div style="font-size: 11px; color: #888;">직선형</div>
           </button>
           <button class="kitchen-layout-btn" data-layout="l_type" onclick="selectKitchenLayout('l_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">┗</div>
             <div style="font-size: 13px; font-weight: 600;">ㄱ자형</div>
             <div style="font-size: 11px; color: #888;">L자형</div>
           </button>
           <button class="kitchen-layout-btn" data-layout="u_type" onclick="selectKitchenLayout('u_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">┗┛</div>
             <div style="font-size: 13px; font-weight: 600;">ㄷ자형</div>
             <div style="font-size: 11px; color: #888;">U자형</div>
           </button>
           <button class="kitchen-layout-btn" data-layout="peninsula" onclick="selectKitchenLayout('peninsula')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">╋</div>
             <div style="font-size: 13px; font-weight: 600;">대면형</div>
             <div style="font-size: 11px; color: #888;">11자형</div>
           </button>
@@ -3596,6 +3592,10 @@ Magazine quality, professional lighting.`;
                 ? buildKitchenLayoutConstraints(state.selectedKitchenLayout || 'i_type', 3300)
                 : null;
 
+            // 색상 참조 이미지 생성 (기본안 + AI추천안)
+            const baseColorRefImage = await buildColorReferenceImage(randomColorScheme);
+            const altColorRefImage = await buildColorReferenceImage(altRandomStyleScheme);
+
             const authHeaders = await getAuthHeaders();
             const response = await fetch(API_GENERATE_URL, {
               method: 'POST',
@@ -3612,6 +3612,8 @@ Magazine quality, professional lighting.`;
                 random_color_scheme: randomColorScheme,
                 alt_random_color_scheme: altRandomStyleScheme,
                 layout_constraints: layoutConstraints,
+                color_reference_image: baseColorRefImage,
+                alt_color_reference_image: altColorRefImage,
               }),
             });
 

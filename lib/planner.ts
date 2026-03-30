@@ -13,6 +13,7 @@ export interface CabinetModule {
   width: number;
   height: number;
   depth: number;
+  moduleType?: ModuleType;
 }
 
 export interface CabinetPreset {
@@ -75,6 +76,8 @@ export interface CabinetPart {
   depth: number;
   colorKey: 'body' | 'accent' | 'shadow' | 'trim';
   wireframe?: boolean;
+  essential?: boolean;
+  moduleType?: ModuleType;
 }
 
 export interface ModuleLayout {
@@ -412,6 +415,7 @@ const buildModulesFromEntries = (
     width: entry.width,
     height,
     depth,
+    moduleType: entry.moduleType,
   }));
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
@@ -468,9 +472,12 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const z = isUpper ? upperZOffset : 0;
     const moduleDepth = list[0].depth;
 
+    const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
+
     list.forEach((module) => {
       const centeredX = cursor + module.width / 2;
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
+      const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
 
       parts.push({
         id: module.id,
@@ -482,6 +489,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         height: module.height,
         depth: module.depth,
         colorKey: isUpper ? 'accent' : 'body',
+        essential: isEssential,
+        moduleType: module.moduleType,
       });
 
       if (module.kind !== 'open') {
@@ -495,6 +504,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           height: Math.max(18, module.height - 8),
           depth: 12,
           colorKey: 'shadow',
+          moduleType: module.moduleType,
         });
       }
 
