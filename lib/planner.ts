@@ -77,6 +77,7 @@ export interface CabinetPart {
   colorKey: 'body' | 'accent' | 'shadow' | 'trim';
   wireframe?: boolean;
   essential?: boolean;
+  moduleType?: ModuleType;
 }
 
 export interface ModuleLayout {
@@ -489,6 +490,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         depth: module.depth,
         colorKey: isUpper ? 'accent' : 'body',
         essential: isEssential,
+        moduleType: module.moduleType,
       });
 
       if (module.kind !== 'open') {
@@ -502,6 +504,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           height: Math.max(18, module.height - 8),
           depth: 12,
           colorKey: 'shadow',
+          moduleType: module.moduleType,
         });
       }
 
