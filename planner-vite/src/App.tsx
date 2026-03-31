@@ -18,6 +18,16 @@ const TYPE_COLORS: Record<string, { body: string; face: string; outline: string;
   hood: { body: '#c9b3e8', face: '#a88ad4', outline: '#7c3aed', emissive: '#6d28d9' },
 };
 
+// ═══ 공통: 모듈 윤곽선 ═══
+function ModuleEdges({ w, h, d, color = '#999999' }: { w: number; h: number; d: number; color?: string }) {
+  return (
+    <lineSegments>
+      <edgesGeometry args={[new THREE.BoxGeometry(w, h, d)]} />
+      <lineBasicMaterial color={color} transparent opacity={0.4} />
+    </lineSegments>
+  );
+}
+
 // ═══ 3D 메쉬: 싱크대 (수전+상판) ═══
 function SinkMesh({ w, h, d, color }: { w: number; h: number; d: number; color: string }) {
   return (
@@ -26,6 +36,7 @@ function SinkMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
         <boxGeometry args={[w, h * 0.9, d * 0.95]} />
         <meshStandardMaterial color={color} />
       </mesh>
+      <ModuleEdges w={w} h={h * 0.9} d={d * 0.95} color="#0284c7" />
       {/* 상판 */}
       <mesh position={[0, h * 0.45, 0]} castShadow>
         <boxGeometry args={[w * 1.02, h * 0.1, d * 1.02]} />
@@ -44,7 +55,7 @@ function SinkMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
   );
 }
 
-// ═══ 3D 메쉬: 도어 (클린 — 분리선/손잡이 없음) ═══
+// ═══ 3D 메쉬: 도어 ═══
 function DoorMesh({ w, h, d, color, doorCount }: { w: number; h: number; d: number; color: string; doorCount: number }) {
   return (
     <group>
@@ -52,11 +63,12 @@ function DoorMesh({ w, h, d, color, doorCount }: { w: number; h: number; d: numb
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} roughness={0.6} />
       </mesh>
+      <ModuleEdges w={w} h={h} d={d} />
     </group>
   );
 }
 
-// ═══ 3D 메쉬: 서랍 (클린 — 분리선/손잡이 없음) ═══
+// ═══ 3D 메쉬: 서랍 ═══
 function DrawerMesh({ w, h, d, color, drawerCount }: { w: number; h: number; d: number; color: string; drawerCount: number }) {
   return (
     <group>
@@ -64,11 +76,12 @@ function DrawerMesh({ w, h, d, color, drawerCount }: { w: number; h: number; d: 
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} roughness={0.6} />
       </mesh>
+      <ModuleEdges w={w} h={h} d={d} />
     </group>
   );
 }
 
-// ═══ 3D 메쉬: 후드 (클린) ═══
+// ═══ 3D 메쉬: 후드 ═══
 function HoodMesh({ w, h, d, color }: { w: number; h: number; d: number; color: string }) {
   return (
     <group>
@@ -76,6 +89,20 @@ function HoodMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
       </mesh>
+      <ModuleEdges w={w} h={h} d={d} color="#7c3aed" />
+    </group>
+  );
+}
+
+// ═══ 3D 메쉬: 가스대 (쿡탑) ═══
+function CookMesh({ w, h, d, color }: { w: number; h: number; d: number; color: string }) {
+  return (
+    <group>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={color} roughness={0.5} />
+      </mesh>
+      <ModuleEdges w={w} h={h} d={d} color="#dc2626" />
     </group>
   );
 }
@@ -100,6 +127,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
   const isMod = part.id.startsWith('mod-');
   const isFace = part.id.endsWith('-face');
   const isDraggable = isMod && !isFace;
+  const isClickable = isMod; // 측판/몰딩/걸레받이 등은 클릭 불가
   const isEssential = !!part.essential;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
 
@@ -123,6 +151,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
     if (isFace) return null; // face 파트는 타입 메쉬가 대체
 
     if (mType === 'sink') return <SinkMesh w={w} h={h} d={d} color={baseColor} />;
+    if (mType === 'cook') return <CookMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'hood') return <HoodMesh w={w} h={h} d={d} color={baseColor} />;
     if (part.moduleKind === 'drawer') return <DrawerMesh w={w} h={h} d={d} color={baseColor} drawerCount={part.drawerCount || 3} />;
     return <DoorMesh w={w} h={h} d={d} color={baseColor} doorCount={part.doorCount || 1} />;
@@ -158,9 +187,9 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
           setDragX(nx);
           onDragMove(moduleId, nx);
         } : undefined}
-        onClick={!isDraggable ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => {
+        onClick={(!isDraggable && isClickable) ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
+        onPointerOver={isClickable ? () => setHovered(true) : undefined}
+        onPointerOut={isClickable ? () => {
           setHovered(false);
           if (dragging.current) {
             dragging.current = false;
@@ -169,7 +198,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
             if (didDrag.current) { onDragDone(moduleId, dragX ?? part.x); }
             setDragX(null);
           }
-        }}
+        } : undefined}
       >
         <planeGeometry args={[part.width, part.height]} />
         <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
@@ -242,7 +271,7 @@ function UtilityMesh({ part, halfW, controlsRef, onDrag, onSelect }: {
         <boxGeometry args={[part.width, part.height, part.depth]} />
         <meshStandardMaterial color={hovered ? '#64b5f6' : (isDist ? '#2196f3' : '#78909c')} opacity={0.7} transparent emissive={hovered ? '#1565c0' : '#000'} emissiveIntensity={hovered ? 0.2 : 0} />
       </mesh>
-      <Html position={[part.x, part.y + part.height / 2 + 20, part.z]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[part.x, part.y + part.height / 2 + 20, part.z]} center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
         <div style={{ fontSize: 10, color: isDist ? '#1565c0' : '#546e7a', whiteSpace: 'nowrap', fontWeight: 600, textShadow: '0 0 4px #fff' }}>
           {isDist ? '💧 분배기' : '🌀 환풍구'}
         </div>
@@ -254,7 +283,7 @@ function UtilityMesh({ part, halfW, controlsRef, onDrag, onSelect }: {
 // ═══ 치수 라벨 ═══
 function DimLabel({ position, text, color = '#666' }: { position: [number, number, number]; text: string; color?: string }) {
   return (
-    <Html position={position} center style={{ pointerEvents: 'none' }}>
+    <Html position={position} center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
       <div style={{ fontSize: 10, color, fontWeight: 600, background: 'rgba(255,255,255,0.8)', padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap', border: `1px solid ${color}33` }}>{text}</div>
     </Html>
   );
@@ -263,7 +292,7 @@ function DimLabel({ position, text, color = '#666' }: { position: [number, numbe
 // ═══ 추가 버튼 ═══
 function AddBtn({ position, label, onClick }: { position: [number, number, number]; label: string; onClick: () => void }) {
   return (
-    <Html position={position} center style={{ pointerEvents: 'auto' }}>
+    <Html position={position} center style={{ pointerEvents: 'auto' }} zIndexRange={[1, 0]}>
       <button onClick={onClick} style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid #b8956c', background: 'rgba(255,255,255,0.9)', color: '#b8956c', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>+</button>
       <div style={{ marginTop: 4, fontSize: 10, color: '#666', textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</div>
     </Html>
@@ -278,7 +307,7 @@ function AddSide({ position, h, d, color, onClick }: { position: [number, number
         <boxGeometry args={[18, h, d]} />
         <meshStandardMaterial color={hov ? '#b8956c' : color} metalness={0.15} roughness={0.7} opacity={hov ? 1 : 0.6} transparent />
       </mesh>
-      <Html center style={{ pointerEvents: 'none' }}>
+      <Html center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
         <div style={{ color: hov ? '#fff' : '#b8956c', fontSize: 18, fontWeight: 600, userSelect: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>+</div>
       </Html>
     </group>
