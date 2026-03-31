@@ -554,8 +554,10 @@ export default function App() {
         </Suspense>
       </Canvas>
 
-      {/* 팝업 배경 (최전면) */}
-      {selId && <div style={{ position: 'absolute', inset: 0, zIndex: 9000 }} onClick={() => setSelId(null)} />}
+      {/* 팝업 배경 — 반투명 오버레이로 Canvas 위 Html 요소 완전 차단 */}
+      {selId && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setSelId(null)} />
+      )}
       {selMod && <ModulePopup mod={selMod} section={selSection} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} />}
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
