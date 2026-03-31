@@ -393,13 +393,16 @@
           id: String(m.id || Date.now() + Math.random()),
           kind: m.isDrawer || m.type === 'drawer' ? 'drawer' : (m.type === 'open' ? 'open' : 'door'),
           width: parseFloat(m.w) || 600,
-          moduleType: m.type === 'sink' ? 'sink' : m.type === 'cook' ? 'cook' : 'storage',
+          moduleType: m.type === 'sink' ? 'sink' : m.type === 'cook' ? 'cook' : (m.name === 'LT망장' ? 'storage' : 'storage'),
+          doorCount: m.doorCount || (m.is2door ? 2 : 1),
+          drawerCount: m.drawerCount || (m.isDrawer ? 3 : 0),
         }));
         const toUpperModules = upperMods.map(m => ({
           id: String(m.id || Date.now() + Math.random()),
           kind: m.type === 'open' ? 'open' : 'door',
           width: parseFloat(m.w) || 600,
           moduleType: m.type === 'hood' ? 'hood' : 'storage',
+          doorCount: m.doorCount || (m.is2door ? 2 : 1),
         }));
         const finishPayload = {
           presetId: item.categoryId || 'sink',
@@ -414,6 +417,11 @@
           toeKickH: parseFloat(specs.sinkLegHeight || specs.wardrobePedestalH) || 150,
           finishLeftW: specs.finishLeftType !== 'None' ? (parseFloat(specs.finishLeftWidth) || 60) : 0,
           finishRightW: specs.finishRightType !== 'None' ? (parseFloat(specs.finishRightWidth) || 60) : 0,
+          // 실측 유틸리티 정보
+          material: specs.materialTone || 'cream',
+          distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
+          distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
+          ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
         };
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
@@ -431,11 +439,14 @@
           d: String(finishPayload.depth),
           lowerCount: String(finishPayload.lowerCount),
           upperCount: String(finishPayload.upperCount),
-          material: specs.materialTone || 'cream',
+          material: finishPayload.material,
           moldingH: String(finishPayload.moldingH),
           toeKickH: String(finishPayload.toeKickH),
           finishLeftW: String(finishPayload.finishLeftW),
           finishRightW: String(finishPayload.finishRightW),
+          ...(finishPayload.distributorStart != null ? { distStart: String(finishPayload.distributorStart) } : {}),
+          ...(finishPayload.distributorEnd != null ? { distEnd: String(finishPayload.distributorEnd) } : {}),
+          ...(finishPayload.ventStart != null ? { ventStart: String(finishPayload.ventStart) } : {}),
         });
         container.innerHTML = '';
         const iframe = document.createElement('iframe');

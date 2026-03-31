@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-03-30T19:05:16.693Z",
+  "lastUpdated": "2026-03-31T14:20:24.020Z",
   "activeFeatures": [
     "mcp-server",
     "js",
@@ -35,7 +35,9 @@
     "modest-hellman",
     "awesome-hofstadter",
     "planner",
-    "embed"
+    "embed",
+    "crazy-noether",
+    "planner-vite"
   ],
   "primaryFeature": "mcp-server",
   "archivedFeatures": {
@@ -493,6 +495,32 @@
         "lastUpdated": "2026-03-29T08:27:20.983Z"
       },
       "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\awesome-hofstadter\\app\\embed\\page.tsx"
+    },
+    "crazy-noether": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-30T20:24:30.508Z",
+        "lastUpdated": "2026-03-30T20:24:30.508Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\lib\\planner.ts"
+    },
+    "planner-vite": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-30T20:36:24.264Z",
+        "lastUpdated": "2026-03-31T14:20:24.020Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\planner-vite\\src\\App.tsx"
     }
   },
   "pipeline": {
@@ -503,7 +531,7 @@
   "session": {
     "startedAt": "2026-02-01T08:25:55.232Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-03-30T19:05:16.693Z"
+    "lastActivity": "2026-03-31T14:20:24.020Z"
   },
   "history": [
     {
@@ -5495,6 +5523,108 @@
     {
       "timestamp": "2026-03-30T19:05:16.693Z",
       "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T20:24:30.508Z",
+      "feature": "crazy-noether",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T20:36:24.264Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T20:37:41.599Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T20:38:02.786Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-30T20:38:24.587Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T13:59:58.348Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:00:12.681Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:00:27.045Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:00:37.673Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:18:38.002Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:18:44.426Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:18:54.662Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:19:09.076Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:19:44.723Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:20:04.434Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:20:12.613Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-31T14:20:24.020Z",
+      "feature": "planner-vite",
       "phase": "do",
       "action": "updated"
     }
