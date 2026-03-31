@@ -19,11 +19,11 @@ const TYPE_COLORS: Record<string, { body: string; face: string; outline: string;
 };
 
 // ═══ 공통: 모듈 윤곽선 ═══
-function ModuleEdges({ w, h, d, color = '#999999' }: { w: number; h: number; d: number; color?: string }) {
+function ModuleEdges({ w, h, d, color = '#555555' }: { w: number; h: number; d: number; color?: string }) {
   return (
     <lineSegments>
       <edgesGeometry args={[new THREE.BoxGeometry(w, h, d)]} />
-      <lineBasicMaterial color={color} transparent opacity={0.4} />
+      <lineBasicMaterial color={color} transparent opacity={0.85} />
     </lineSegments>
   );
 }
