@@ -179,13 +179,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
         {renderInner()}
       </group>
 
-      {/* 필수장 윤곽선 */}
-      {isEssential && (
-        <lineSegments>
-          <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
-          <lineBasicMaterial color={outlineColor} linewidth={1} />
-        </lineSegments>
-      )}
+      {/* 필수장 윤곽선 제거됨 — 타입별 색상으로 충분히 구분 */}
 
       {/* 이동 방향 인디케이터 */}
       {shiftDir && (
