@@ -518,8 +518,8 @@ export default function App() {
               <ModuleBox key={part.id} part={part} color={palette[part.colorKey]} onSelect={setSelId} halfW={planner.width / 2} controlsRef={controlsRef} onDragDone={dragModule} onDragMove={handleDragMove} shiftDir={shiftMap[part.id] || null} />
             ))}
 
-            {/* 유틸리티 */}
-            {derived.parts.filter(p => p.id.startsWith('utility-')).map(part => (
+            {/* 유틸리티 (팝업 열려있으면 숨김) */}
+            {!selId && derived.parts.filter(p => p.id.startsWith('utility-')).map(part => (
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
