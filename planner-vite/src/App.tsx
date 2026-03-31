@@ -28,29 +28,15 @@ function ModuleEdges({ w, h, d, color = '#999999' }: { w: number; h: number; d: 
   );
 }
 
-// ═══ 3D 메쉬: 싱크대 (수전+상판) ═══
+// ═══ 3D 메쉬: 싱크대 ═══
 function SinkMesh({ w, h, d, color }: { w: number; h: number; d: number; color: string }) {
   return (
     <group>
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[w, h * 0.9, d * 0.95]} />
+        <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <ModuleEdges w={w} h={h * 0.9} d={d * 0.95} color="#0284c7" />
-      {/* 상판 */}
-      <mesh position={[0, h * 0.45, 0]} castShadow>
-        <boxGeometry args={[w * 1.02, h * 0.1, d * 1.02]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.2} />
-      </mesh>
-      {/* 수전 */}
-      <mesh position={[0, h * 0.55, -d * 0.3]} castShadow>
-        <cylinderGeometry args={[8, 8, 80]} />
-        <meshStandardMaterial color="#dddddd" metalness={0.9} roughness={0.1} />
-      </mesh>
-      <mesh position={[0, h * 0.55 + 40, -d * 0.3 + 20]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[6, 6, 40]} />
-        <meshStandardMaterial color="#dddddd" metalness={0.9} roughness={0.1} />
-      </mesh>
+      <ModuleEdges w={w} h={h} d={d} color="#0284c7" />
     </group>
   );
 }
@@ -532,8 +518,8 @@ export default function App() {
               <ModuleBox key={part.id} part={part} color={palette[part.colorKey]} onSelect={setSelId} halfW={planner.width / 2} controlsRef={controlsRef} onDragDone={dragModule} onDragMove={handleDragMove} shiftDir={shiftMap[part.id] || null} />
             ))}
 
-            {/* 유틸리티 */}
-            {derived.parts.filter(p => p.id.startsWith('utility-')).map(part => (
+            {/* 유틸리티 (팝업 열려있으면 숨김) */}
+            {!selId && derived.parts.filter(p => p.id.startsWith('utility-')).map(part => (
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
