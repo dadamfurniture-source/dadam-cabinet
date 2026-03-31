@@ -132,8 +132,9 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
 
   return (
     <group position={[posX, part.y, part.z]}>
-      {/* 히트박스 (투명, 드래그/클릭용) */}
+      {/* 히트박스 (정면 전체 범위, 투명, 드래그/클릭용) */}
       <mesh
+        position={[0, 0, part.depth / 2]}
         onPointerDown={isDraggable ? (e) => {
           e.stopPropagation();
           dragging.current = true; didDrag.current = false;
@@ -170,8 +171,8 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
           }
         }}
       >
-        <boxGeometry args={[part.width, part.height, part.depth]} />
-        <meshBasicMaterial transparent opacity={0} />
+        <planeGeometry args={[part.width, part.height]} />
+        <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
       </mesh>
 
       {/* 타입별 3D 메쉬 */}
@@ -179,13 +180,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
         {renderInner()}
       </group>
 
-      {/* 필수장 윤곽선 */}
-      {isEssential && (
-        <lineSegments>
-          <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
-          <lineBasicMaterial color={outlineColor} linewidth={1} />
-        </lineSegments>
-      )}
+      {/* 필수장 윤곽선 제거됨 — 타입별 색상으로 충분히 구분 */}
 
       {/* 이동 방향 인디케이터 */}
       {shiftDir && (
@@ -301,7 +296,7 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose }: {
     { value: 'door', label: '도어', icon: '🚪' }, { value: 'drawer', label: '서랍', icon: '🗄️' }, { value: 'open', label: '오픈', icon: '📦' },
   ];
   return (
-    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 100, minWidth: 260 }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999, minWidth: 260 }} onClick={e => e.stopPropagation()}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ background: sc, color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>{section === 'upper' ? '상부장' : '하부장'}</span>
@@ -345,7 +340,7 @@ function UtilityPopup({ type, planner, onUpdate, onDelete, onClose }: {
   const startVal = isDist ? (planner.distributorStart ?? Math.round(planner.width * 0.15)) : (planner.ventStart ?? Math.round(planner.width * 0.7));
   const endVal = isDist ? (planner.distributorEnd ?? Math.round(planner.width * 0.15 + 700)) : 0;
   return (
-    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 100, minWidth: 280 }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999, minWidth: 280 }} onClick={e => e.stopPropagation()}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: isDist ? '#2196f3' : '#78909c' }}>{isDist ? '💧 분배기 위치' : '🌀 환풍구'}</span>
         <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999' }}>✕</button>
@@ -377,6 +372,10 @@ export default function App() {
     if (params.get('toeKickH')) s.toeKickH = Number(params.get('toeKickH'));
     if (params.get('finishLeftW')) s.finishLeftW = Number(params.get('finishLeftW'));
     if (params.get('finishRightW')) s.finishRightW = Number(params.get('finishRightW'));
+    // 유틸리티 (분배기/환풍구)
+    if (params.get('distStart')) s.distributorStart = Number(params.get('distStart'));
+    if (params.get('distEnd')) s.distributorEnd = Number(params.get('distEnd'));
+    if (params.get('ventStart')) s.ventStart = Number(params.get('ventStart'));
     return s;
   });
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
@@ -540,8 +539,8 @@ export default function App() {
         </Suspense>
       </Canvas>
 
-      {/* 팝업 배경 */}
-      {selId && <div style={{ position: 'absolute', inset: 0, zIndex: 90 }} onClick={() => setSelId(null)} />}
+      {/* 팝업 배경 (최전면) */}
+      {selId && <div style={{ position: 'absolute', inset: 0, zIndex: 9000 }} onClick={() => setSelId(null)} />}
       {selMod && <ModulePopup mod={selMod} section={selSection} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} />}
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
