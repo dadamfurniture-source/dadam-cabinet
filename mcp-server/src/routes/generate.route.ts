@@ -140,8 +140,10 @@ router.post('/', generateRateLimit, async (req: Request, res: Response, next: Ne
       room_image, image_type = 'image/jpeg',
       category = 'sink', design_style = 'modern-minimal',
       kitchen_layout = 'i_type',
-      random_color_scheme, alt_random_color_scheme,
-      layout_image, mask_image, color_reference_image, alt_color_reference_image,
+      // 레거시 호환: 기존 색상 스키마가 전달되면 무시
+      random_color_scheme: _rcs, alt_random_color_scheme: _arcs,
+      layout_image, mask_image,
+      color_reference_image: _cri, alt_color_reference_image: _acri,
     } = req.body;
 
     if (!room_image) {
@@ -149,28 +151,16 @@ router.post('/', generateRateLimit, async (req: Request, res: Response, next: Ne
       return;
     }
 
-    // extra images (레이아웃 가이드, 마스크 — 기본안/추천안 공통)
-    const baseExtraImages: InlineImage[] = [];
+    // extra images (레이아웃 가이드, 마스크만 유지 — 색상 참조 이미지 제거)
+    const extraImages: InlineImage[] = [];
     if (layout_image?.base64 && layout_image?.mime_type) {
-      baseExtraImages.push({ data: String(layout_image.base64), mimeType: String(layout_image.mime_type) });
+      extraImages.push({ data: String(layout_image.base64), mimeType: String(layout_image.mime_type) });
     }
     if (mask_image?.base64 && mask_image?.mime_type) {
-      baseExtraImages.push({ data: String(mask_image.base64), mimeType: String(mask_image.mime_type) });
+      extraImages.push({ data: String(mask_image.base64), mimeType: String(mask_image.mime_type) });
     }
 
-    // 기본안 색상 참조 이미지
-    const mainExtraImages: InlineImage[] = [...baseExtraImages];
-    if (color_reference_image?.base64 && color_reference_image?.mime_type) {
-      mainExtraImages.push({ data: String(color_reference_image.base64), mimeType: String(color_reference_image.mime_type) });
-    }
-
-    // AI 추천안 색상 참조 이미지
-    const altExtraImages: InlineImage[] = [...baseExtraImages];
-    if (alt_color_reference_image?.base64 && alt_color_reference_image?.mime_type) {
-      altExtraImages.push({ data: String(alt_color_reference_image.base64), mimeType: String(alt_color_reference_image.mime_type) });
-    }
-
-    log.info({ category, design_style, mainExtraImages: mainExtraImages.length, altExtraImages: altExtraImages.length }, 'Generate request');
+    log.info({ category, design_style, extraImages: extraImages.length }, 'Generate request');
 
     // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) — 싱크대만 plumbing 분석 ═══
     log.info('Step 1: Wall analysis');
@@ -222,47 +212,39 @@ Estimate wall width in mm.`;
       storage: 'custom storage cabinet with flat-panel doors, adjustable shelves, handleless design',
     };
 
-    // ─── 카테고리별 기본안 프롬프트 빌더 ───
-    function buildBasePrompt(cat: string, colorDesc: string, countertop: string): string {
+    // ─── 카테고리별 기본안 프롬프트 빌더 (AI 색상 위임) ───
+    function buildBasePrompt(cat: string): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      const colorDesc = `[COLOR] You MUST change all cabinet colors. Choose ONE harmonious achromatic color randomly from: pure white, milk white, sand gray, light gray, fog gray, cashmere, dewy cloud. Apply the chosen color consistently to all upper and lower cabinets with matte flat panel finish.`;
+      const countertop = `Choose a matching countertop: white ceramic, soft gray ceramic, warm ivory stone, or frost white solid surface.`;
       if (cat === 'sink') {
-        return `Edit photo: install ${subject}. ${colorDesc} ${sinkLayoutConstraints} ${countertop} countertop. Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera identical. No clutter.`;
+        return `Edit photo: install ${subject}. ${colorDesc} ${countertop} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. ${colorDesc} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. ${colorDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ─── 카테고리별 AI 추천안 프롬프트 빌더 ───
-    function buildAltPrompt(cat: string, upperColor: string, upperHex: string, lowerColor: string, lowerHex: string, countertop: string): string {
+    // ─── 카테고리별 AI 추천안 프롬프트 빌더 (AI 투톤 위임) ───
+    function buildAltPrompt(cat: string): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
-      const twoToneDesc = `[TWO-TONE] Upper: ${upperColor}${upperHex ? ` (HEX ${upperHex})` : ''}, Lower: ${lowerColor}${lowerHex ? ` (HEX ${lowerHex})` : ''}. [MANDATORY] Upper and lower MUST be DIFFERENT colors. Match the color reference image exactly.`;
+      const twoToneDesc = `[TWO-TONE COLOR — MANDATORY] You MUST use two DIFFERENT colors.
+Upper cabinets: choose one bright neutral randomly from: pure white, milk white, sand gray, light gray, cashmere, dewy cloud (matte flat panel finish).
+Lower cabinets: choose one bold expressive color randomly from: deep green painted, deep navy blue painted, muted purple painted, brick terracotta painted, warm taupe painted, natural oak wood grain, dark walnut wood grain, concrete texture.
+Upper and lower MUST be clearly different. The combination should feel premium and harmonious.`;
+      const countertop = `Choose a matching countertop: ceramic white, ceramic beige, concrete top, or soft gray ceramic.`;
       if (cat === 'sink') {
-        return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} countertop. ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera, sink, cooktop positions identical. No clutter.`;
+        return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera, sink, cooktop positions identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. ${twoToneDesc} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ═══ Step 3: 기본안 생성 (무채색 단일 품목) ═══
-    log.info('Step 3: Generate base design (기본안)');
-    const rcs = random_color_scheme as any;
-    const mainUpperColor = rcs?.upper?.name_en || STYLE_UPPER_COLOR[design_style] || 'Warm White';
-    const mainUpperDesc = rcs?.upper?.prompt_description || '';
-    const mainLowerColor = rcs?.lower?.name_en || mainUpperColor; // 기본은 단색
-    const mainLowerDesc = rcs?.lower?.prompt_description || '';
-    const mainCountertop = rcs?.countertop?.prompt_description || 'white engineered stone';
-    const mainUpperHex = rcs?.upper?.color_hex || '';
-    const mainLowerHex = rcs?.lower?.color_hex || '';
+    // ═══ Step 3: 기본안 생성 (무채색 — AI가 색상 랜덤 선택) ═══
+    log.info('Step 3: Generate base design (기본안 — AI color selection)');
 
-    const isTwoTone = mainUpperColor !== mainLowerColor;
-    const colorPart = isTwoTone
-      ? `[TWO-TONE] Upper: ${mainUpperDesc || mainUpperColor}${mainUpperHex ? ` (HEX ${mainUpperHex})` : ''}, Lower: ${mainLowerDesc || mainLowerColor}${mainLowerHex ? ` (HEX ${mainLowerHex})` : ''}. Upper and lower MUST be different colors.`
-      : `All cabinets: ${mainUpperDesc || mainUpperColor}${mainUpperHex ? ` (HEX ${mainUpperHex})` : ''}. Match the color reference image exactly.`;
-
-    const mainPrompt = buildBasePrompt(category, colorPart, mainCountertop);
-
-    log.info({ promptLength: mainPrompt.length, mainUpperColor, mainLowerColor, category }, 'Base design prompt');
+    const mainPrompt = buildBasePrompt(category);
+    log.info({ promptLength: mainPrompt.length, category }, 'Base design prompt (AI color)');
 
     const closedResult = await callGemini(
-      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, mainExtraImages,
+      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
     );
 
     if (!closedResult.image) {
@@ -271,26 +253,16 @@ Estimate wall width in mm.`;
     }
     log.info('Base design (기본안) generated');
 
-    // ═══ Step 4: AI 추천안 생성 (투톤 고정: 상부=무채색, 하부=컬러) ═══
-    log.info('Step 4: Generate AI recommendation (AI 추천안)');
-    const arcs = alt_random_color_scheme as any;
-    const altStyleKey = ALT_STYLE_MAP[design_style] || 'scandinavian';
-    const altUpperColor = arcs?.upper?.name_en || STYLE_UPPER_COLOR[altStyleKey] || 'Milk White';
-    const altUpperDesc = arcs?.upper?.prompt_description || '';
-    const altLowerColor = arcs?.lower?.name_en || TWO_TONE_MAP[altUpperColor] || TWO_TONE_MAP['Default'];
-    const altLowerDesc = arcs?.lower?.prompt_description || '';
-    const altCountertop = arcs?.countertop?.prompt_description || 'white engineered stone';
-    const altUpperHex = arcs?.upper?.color_hex || '';
-    const altLowerHex = arcs?.lower?.color_hex || '';
+    // ═══ Step 4: AI 추천안 생성 (투톤 — AI가 색상 랜덤 선택) ═══
+    log.info('Step 4: Generate AI recommendation (AI 추천안 — AI two-tone selection)');
 
     let altImage: string | undefined;
     try {
-      const altPrompt = buildAltPrompt(category, altUpperDesc || altUpperColor, altUpperHex, altLowerDesc || altLowerColor, altLowerHex, altCountertop);
-
-      log.info({ promptLength: altPrompt.length, altUpperColor, altLowerColor, category }, 'AI recommendation prompt');
+      const altPrompt = buildAltPrompt(category);
+      log.info({ promptLength: altPrompt.length, category }, 'AI recommendation prompt (AI two-tone)');
 
       const altResult = await callGemini(
-        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, altExtraImages,
+        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
       );
       altImage = altResult.image;
       if (altImage) log.info('AI recommendation (AI 추천안) generated');
@@ -302,7 +274,7 @@ Estimate wall width in mm.`;
     log.info('Step 5: Quote analysis');
     let quote = null;
     try {
-      const quotePrompt = `Analyze this cabinet design image. Upper cabinets are ${mainUpperColor}, lower are ${mainLowerColor}. Count upper/lower cabinets, estimate total width mm, count drawers. Wall ~${wallW}mm. Return JSON: {"upper_count":N,"lower_count":N,"total_width_mm":N,"drawer_count":N,"countertop_length_mm":N}`;
+      const quotePrompt = `Analyze this cabinet design image. Count upper/lower cabinets, estimate total width mm, count drawers. Wall ~${wallW}mm. Return JSON: {"upper_count":N,"lower_count":N,"total_width_mm":N,"drawer_count":N,"countertop_length_mm":N}`;
 
       const mimeType = closedResult.image.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
       const quoteText = await callClaude(quotePrompt, closedResult.image, mimeType);
@@ -326,20 +298,15 @@ Estimate wall width in mm.`;
         alt: altImage || null,
       },
       alt_style: {
-        name: `Two-tone: ${altUpperColor} + ${altLowerColor}`,
-        upper: altUpperColor,
-        lower: altLowerColor,
+        name: 'AI Two-tone Recommendation',
       },
       quote,
       wall_analysis: { wallW, wallH, waterPct, exhaustPct },
-      applied_random_color_scheme: random_color_scheme || null,
-      applied_alt_random_color_scheme: alt_random_color_scheme || null,
       metadata: {
         category, kitchen_layout, design_style,
         model: 'gemini-3.1-flash-image-preview',
         elapsed_ms: elapsed,
-        main_colors: { upper: mainUpperColor, lower: mainLowerColor },
-        alt_colors: { upper: altUpperColor, lower: altLowerColor },
+        color_mode: 'ai-delegated',
       },
     });
   } catch (error) {
