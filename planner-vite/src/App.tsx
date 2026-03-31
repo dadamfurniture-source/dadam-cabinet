@@ -537,8 +537,8 @@ export default function App() {
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
-            {/* 치수 라벨 */}
-            {derived.modules.length > 0 && (
+            {/* 치수 라벨 (팝업 열려있으면 숨김) */}
+            {!selId && derived.modules.length > 0 && (
               <>
                 <DimLabel position={[0, -30, depth / 2 + 80]} text={`${planner.width}mm`} color="#333" />
                 <DimLabel position={[-planner.width / 2 - 60, height / 2, 0]} text={`${height}mm`} color="#333" />
@@ -549,13 +549,13 @@ export default function App() {
               </>
             )}
 
-            {/* 추가 버튼 */}
-            {!preset.fullHeight && (planner.lowerModules ?? []).length < 10 && (
+            {/* 추가 버튼 (팝업 열려있으면 숨김) */}
+            {!selId && !preset.fullHeight && (planner.lowerModules ?? []).length < 10 && (
               hasLower && lowerLayout ? (
                 <><AddSide position={[lowerLayout.startX - 9, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /><AddSide position={[lowerLayout.endX + 9, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /></>
               ) : <AddBtn position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]} label="하부장 추가" onClick={addLower} />
             )}
-            {!preset.fullHeight && upperHeight > 0 && (planner.upperModules ?? []).length < 10 && (
+            {!selId && !preset.fullHeight && upperHeight > 0 && (planner.upperModules ?? []).length < 10 && (
               hasUpper && upperLayout ? (
                 <><AddSide position={[upperLayout.startX - 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /><AddSide position={[upperLayout.endX + 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /></>
               ) : <AddBtn position={[0, height - moldingH - upperHeight / 2, upperDepth / 2 + 50]} label="상부장 추가" onClick={addUpper} />
