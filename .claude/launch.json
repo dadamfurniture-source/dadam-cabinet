@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "static-html",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "3050"],
+      "port": 3050
+    },
+    {
       "name": "nextjs-dev",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["next", "dev", "--port", "3100"],
