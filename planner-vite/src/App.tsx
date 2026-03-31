@@ -290,11 +290,11 @@ function AddSide({ position, h, d, color, onClick }: { position: [number, number
   return (
     <group position={position}>
       <mesh onClick={(e) => { e.stopPropagation(); onClick(); }} onPointerOver={() => setHov(true)} onPointerOut={() => setHov(false)}>
-        <boxGeometry args={[18, h, d]} />
-        <meshStandardMaterial color={hov ? '#b8956c' : color} metalness={0.15} roughness={0.7} opacity={hov ? 1 : 0.6} transparent />
+        <boxGeometry args={[2, h, d]} />
+        <meshStandardMaterial color={hov ? '#b8956c' : color} metalness={0.15} roughness={0.7} opacity={hov ? 1 : 0.7} transparent />
       </mesh>
       <Html center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
-        <div style={{ color: hov ? '#fff' : '#b8956c', fontSize: 18, fontWeight: 600, userSelect: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>+</div>
+        <div style={{ color: hov ? '#fff' : '#b8956c', fontSize: 16, fontWeight: 600, userSelect: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>+</div>
       </Html>
     </group>
   );
@@ -538,12 +538,12 @@ export default function App() {
             {/* 추가 버튼 (팝업 열려있으면 숨김) */}
             {!selId && !preset.fullHeight && (planner.lowerModules ?? []).length < 10 && (
               hasLower && lowerLayout ? (
-                <><AddSide position={[lowerLayout.startX - 9, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /><AddSide position={[lowerLayout.endX + 9, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /></>
+                <><AddSide position={[lowerLayout.startX - 1, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /><AddSide position={[lowerLayout.endX + 1, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /></>
               ) : <AddBtn position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]} label="하부장 추가" onClick={addLower} />
             )}
             {!selId && !preset.fullHeight && upperHeight > 0 && (planner.upperModules ?? []).length < 10 && (
               hasUpper && upperLayout ? (
-                <><AddSide position={[upperLayout.startX - 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /><AddSide position={[upperLayout.endX + 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /></>
+                <><AddSide position={[upperLayout.startX - 1, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /><AddSide position={[upperLayout.endX + 1, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /></>
               ) : <AddBtn position={[0, height - moldingH - upperHeight / 2, upperDepth / 2 + 50]} label="상부장 추가" onClick={addUpper} />
             )}
           </group>
