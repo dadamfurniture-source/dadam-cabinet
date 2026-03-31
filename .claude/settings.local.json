@@ -77,7 +77,10 @@
       "Bash(do grep:*)",
       "Bash(sed -i 's|<link rel=\"\"stylesheet\"\" href=\"\"css/nav.css\"\"|<link rel=\"\"stylesheet\"\" href=\"\"css/nav.css\"\">\\\\n    <link rel=\"\"stylesheet\"\" href=\"\"css/dadam-system.css\"\"|' \"$f\")",
       "Bash(echo \"Updated: $f\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://dadamfurniture.com/css/dadam-system.css\")",
+      "Bash(curl -s \"https://dadamfurniture.com/chat.html\")",
+      "Bash(curl -sL \"https://dadamfurniture.com/chat.html\")"
     ]
   }
 }
