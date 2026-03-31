@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "planner-vite",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001,
+      "cwd": "planner-vite"
+    },
+    {
       "name": "static-html",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "-l", "3050"],
