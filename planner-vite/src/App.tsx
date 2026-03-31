@@ -255,13 +255,9 @@ function UtilityMesh({ part, halfW, controlsRef, onDrag, onSelect }: {
         onPointerOut={() => { setHovered(false); if (dragging.current) { dragging.current = false; if (controlsRef.current) controlsRef.current.enabled = true; } }}
       >
         <boxGeometry args={[part.width, part.height, part.depth]} />
-        <meshStandardMaterial color={hovered ? '#64b5f6' : (isDist ? '#2196f3' : '#78909c')} opacity={0.7} transparent emissive={hovered ? '#1565c0' : '#000'} emissiveIntensity={hovered ? 0.2 : 0} />
+        <meshStandardMaterial color={hovered ? '#64b5f6' : (isDist ? '#2196f3' : '#78909c')} emissive={hovered ? '#1565c0' : '#000'} emissiveIntensity={hovered ? 0.2 : 0} />
       </mesh>
-      <Html position={[part.x, part.y + part.height / 2 + 20, part.z]} center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
-        <div style={{ fontSize: 10, color: isDist ? '#1565c0' : '#546e7a', whiteSpace: 'nowrap', fontWeight: 600, textShadow: '0 0 4px #fff' }}>
-          {isDist ? '💧 분배기' : '🌀 환풍구'}
-        </div>
-      </Html>
+      {/* 라벨은 뒤쪽 벽면에만 표시 — 정면에서는 메쉬만 보임 */}
     </group>
   );
 }
