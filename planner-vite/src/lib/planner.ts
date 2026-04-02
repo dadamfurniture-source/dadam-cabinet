@@ -819,8 +819,25 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const halfW = width / 2;
 
   if (distStart != null && distEnd != null && distStart > 0 && distEnd > 0) {
-    const dw = Math.abs(distEnd - distStart);
-    const cx = -halfW + (distStart + distEnd) / 2;
+    let dw = Math.abs(distEnd - distStart);
+    let cx = -halfW + (distStart + distEnd) / 2;
+
+    // 개수대 모듈 범위 내로 클램핑
+    const sinkPart = parts.find(p => p.id.startsWith('mod-') && (p as any).moduleType === 'sink');
+    if (sinkPart) {
+      const sinkLeft = sinkPart.x - sinkPart.width / 2;
+      const sinkRight = sinkPart.x + sinkPart.width / 2;
+      const distLeft = cx - dw / 2;
+      const distRight = cx + dw / 2;
+      // 분배기가 개수대 범위를 초과하면 클램핑
+      const clampedLeft = Math.max(sinkLeft + 15, distLeft);
+      const clampedRight = Math.min(sinkRight - 15, distRight);
+      if (clampedRight > clampedLeft) {
+        dw = clampedRight - clampedLeft;
+        cx = (clampedLeft + clampedRight) / 2;
+      }
+    }
+
     parts.push({
       id: 'utility-distributor',
       label: '분배기',
