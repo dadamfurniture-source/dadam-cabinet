@@ -132,7 +132,7 @@ async function callClaude(prompt: string, imageBase64: string, imageType = 'imag
 // ═══════════════════════════════════════════════════════════════
 // POST /api/generate
 // ═══════════════════════════════════════════════════════════════
-router.post('/', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/api/generate', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
 
   try {
@@ -204,7 +204,7 @@ Estimate wall width in mm.`;
 
     // ─── 카테고리별 기구 설명 ───
     const CATEGORY_SUBJECT: Record<string, string> = {
-      sink: 'handleless flat-panel kitchen cabinets with upper and lower sections, integrated sink, cooktop',
+      sink: 'handleless flat-panel kitchen cabinets with upper and lower sections, integrated sink, flush-mounted built-in induction cooktop (no gas burners)',
       wardrobe: 'floor-to-ceiling built-in wardrobe with flat-panel doors, handleless push-to-open design',
       fridge: 'tall pantry and refrigerator surround cabinet with flat-panel doors, handleless design',
       vanity: 'modern vanity cabinet with mirror cabinet above, flat-panel doors, handleless push-to-open',
@@ -218,7 +218,15 @@ Estimate wall width in mm.`;
       const colorDesc = `[COLOR] You MUST change all cabinet colors. Choose ONE harmonious achromatic color randomly from: pure white, milk white, sand gray, light gray, fog gray, cashmere, dewy cloud. Apply the chosen color consistently to all upper and lower cabinets with matte flat panel finish.`;
       const countertop = `Choose a matching countertop: white ceramic, soft gray ceramic, warm ivory stone, or frost white solid surface.`;
       if (cat === 'sink') {
-        return `Edit photo: install ${subject}. ${colorDesc} ${countertop} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera identical. No clutter.`;
+        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance. Only change cabinet door colors and countertop material.
+
+Edit photo: install ${subject}. ${sinkLayoutConstraints}
+
+${colorDesc} ${countertop}
+
+[COOKTOP] The cooktop MUST be a flush-mounted built-in induction (flat glass surface, NO gas burners). The cabinet directly below the induction cooktop MUST be a 2-tier horizontal drawer unit (two equal drawers stacked vertically).
+
+Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. Change ONLY colors. No clutter.`;
       }
       return `Edit photo: install ${subject}. ${colorDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
@@ -232,7 +240,15 @@ Lower cabinets: choose one bold expressive color randomly from: deep green paint
 Upper and lower MUST be clearly different. The combination should feel premium and harmonious.`;
       const countertop = `Choose a matching countertop: ceramic white, ceramic beige, concrete top, or soft gray ceramic.`;
       if (cat === 'sink') {
-        return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera, sink, cooktop positions identical. No clutter.`;
+        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance. Only change cabinet door colors and countertop material.
+
+Edit photo: install ${subject}. ${sinkLayoutConstraints}
+
+${twoToneDesc} ${countertop}
+
+[COOKTOP] The cooktop MUST be a flush-mounted built-in induction (flat glass surface, NO gas burners). The cabinet directly below the induction cooktop MUST be a 2-tier horizontal drawer unit (two equal drawers stacked vertically).
+
+Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. Change ONLY colors. No clutter.`;
       }
       return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
