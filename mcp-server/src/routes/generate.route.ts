@@ -218,7 +218,13 @@ Estimate wall width in mm.`;
       const colorDesc = `[COLOR] You MUST change all cabinet colors. Choose ONE harmonious achromatic color randomly from: pure white, milk white, sand gray, light gray, fog gray, cashmere, dewy cloud. Apply the chosen color consistently to all upper and lower cabinets with matte flat panel finish.`;
       const countertop = `Choose a matching countertop: white ceramic, soft gray ceramic, warm ivory stone, or frost white solid surface.`;
       if (cat === 'sink') {
-        return `Edit photo: install ${subject}. ${colorDesc} ${countertop} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera identical. No clutter.`;
+        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance. Only change cabinet door colors and countertop material.
+
+Edit photo: install ${subject}. ${sinkLayoutConstraints}
+
+${colorDesc} ${countertop}
+
+Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. Change ONLY colors. No clutter.`;
       }
       return `Edit photo: install ${subject}. ${colorDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
@@ -232,7 +238,13 @@ Lower cabinets: choose one bold expressive color randomly from: deep green paint
 Upper and lower MUST be clearly different. The combination should feel premium and harmonious.`;
       const countertop = `Choose a matching countertop: ceramic white, ceramic beige, concrete top, or soft gray ceramic.`;
       if (cat === 'sink') {
-        return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} ${sinkLayoutConstraints} Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, camera, sink, cooktop positions identical. No clutter.`;
+        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance. Only change cabinet door colors and countertop material.
+
+Edit photo: install ${subject}. ${sinkLayoutConstraints}
+
+${twoToneDesc} ${countertop}
+
+Below cooktop MUST have 2 stacked horizontal drawers. Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. Change ONLY colors. No clutter.`;
       }
       return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
