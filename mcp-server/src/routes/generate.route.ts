@@ -207,7 +207,9 @@ Estimate wall width in mm.`;
 [SINK BOWL] Modern undermount single-bowl sink, wide rectangular shape, matte gunmetal gray or stainless steel finish, seamlessly integrated under countertop.
 [FAUCET] Minimalist pull-down faucet with slim silhouette, matte black or brushed nickel finish, single-lever handle.
 [HOOD] Slim built-in under-cabinet range hood (hidden type), stainless steel or black glass panel, ultra-thin profile flush with upper cabinets.
-[COOKTOP] Flush-mounted built-in induction cooktop (flat black glass surface, NO gas burners, NO grates). The cabinet directly below the induction cooktop MUST be a 2-tier horizontal drawer unit (two equal drawers stacked vertically).`;
+[COOKTOP] Flush-mounted built-in induction cooktop (flat black glass surface, NO gas burners, NO grates). The cabinet directly below the induction cooktop MUST be a 2-tier horizontal drawer unit (two equal drawers stacked vertically).
+
+[UPPER CABINETS — MUST REDESIGN] You MUST replace the original upper cabinets with NEW modern handleless flat-panel upper cabinets. Do NOT keep the original upper cabinet doors or style. The upper cabinets must have clean flat panel doors with finger groove (J-pull) handles, matching the chosen color scheme. They must look completely different from the original photo's upper cabinets.`;
 
     // ─── 카테고리별 기구 설명 ───
     const CATEGORY_SUBJECT: Record<string, string> = {
