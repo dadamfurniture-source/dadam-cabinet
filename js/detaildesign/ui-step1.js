@@ -425,6 +425,7 @@
         };
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
+          console.log('[Planner] postMessage UPDATE_PLANNER:', { width: finishPayload.width, height: finishPayload.height, depth: finishPayload.depth, lowerCount: finishPayload.lowerCount, upperCount: finishPayload.upperCount });
           existing.contentWindow?.postMessage({
             type: 'UPDATE_PLANNER',
             payload: finishPayload,
@@ -1043,7 +1044,7 @@
         <div class="spec-row">
           <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
           <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
           <div class="spec-field"><label>사진</label>
             <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:3px 8px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '📷 변경' : '📷 업로드'}</button>
