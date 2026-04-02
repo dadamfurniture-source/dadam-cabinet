@@ -53,6 +53,7 @@ async function callGemini(
   responseModalities: string[] = ['IMAGE', 'TEXT'],
   temperature = 0.4,
   extraImages: InlineImage[] = [],
+  retryOverride: { maxRetries?: number } = {},
 ): Promise<{ image?: string; text?: string }> {
   const config = getConfig();
   const model = config.gemini.models.imageGeneration;
@@ -77,7 +78,7 @@ async function callGemini(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     timeout: config.gemini.timeout,
-  });
+  }, retryOverride);
 
   const data = await res.json() as {
     candidates?: Array<{
@@ -252,7 +253,7 @@ Keep wall, floor, camera identical. No clutter.`;
     log.info({ promptLength: mainPrompt.length, category, randomSeed }, 'Base design prompt (AI color)');
 
     const closedResult = await callGemini(
-      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages,
+      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
     );
 
     if (!closedResult.image) {
@@ -271,12 +272,12 @@ Keep wall, floor, camera identical. No clutter.`;
       log.info({ promptLength: altPrompt.length, category, altSeed }, 'AI recommendation prompt (AI two-tone)');
 
       const altResult = await callGemini(
-        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages,
+        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
       );
       altImage = altResult.image;
       if (altImage) log.info('AI recommendation (AI 추천안) generated');
-    } catch (e) {
-      log.warn('Alt style generation failed');
+    } catch (e: any) {
+      log.warn({ error: e?.message || String(e) }, 'Alt style generation failed');
     }
 
     // ═══ Step 5: 견적 (Claude Vision) ═══
@@ -293,8 +294,8 @@ Keep wall, floor, camera identical. No clutter.`;
         quote = calculateQuote(analysis, category);
         log.info({ total: quote?.total }, 'Quote calculated');
       }
-    } catch (e) {
-      log.warn('Quote analysis failed');
+    } catch (e: any) {
+      log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
     }
 
     const elapsed = Date.now() - startTime;
