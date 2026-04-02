@@ -1,7 +1,13 @@
 {
+<<<<<<< HEAD
   "sessionCount": 131,
   "lastSession": {
     "startedAt": "2026-04-02T14:03:16.595Z",
+=======
+  "sessionCount": 133,
+  "lastSession": {
+    "startedAt": "2026-04-02T14:17:30.975Z",
+>>>>>>> origin/main
     "platform": "claude",
     "level": "Dynamic"
   }
