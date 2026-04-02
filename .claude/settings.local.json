@@ -82,7 +82,8 @@
       "Bash(curl -s \"https://dadamfurniture.com/chat.html\")",
       "Bash(curl -sL \"https://dadamfurniture.com/chat.html\")",
       "Bash(python3:*)",
-      "Bash(node -e \"console.log\\(''node works''\\)\")"
+      "Bash(node -e \"console.log\\(''node works''\\)\")",
+      "Bash(ls \"C:/Users/hchan/dadamagent/.claude/worktrees/crazy-noether/planner/embed/assets/\"*.js)"
     ]
   }
 }
