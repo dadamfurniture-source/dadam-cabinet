@@ -383,6 +383,47 @@
 
       // ★ R3F 3D 플래너 임베드 로드
       const PLANNER_BASE_URL = '/planner/embed/';
+      /**
+       * 실측/스펙 변경 시 3D iframe에 직접 postMessage (DOM 리렌더 없이)
+       */
+      function _syncPlannerState(item) {
+        const ws = document.getElementById('designWorkspace');
+        if (!ws) return;
+        const iframe = ws.querySelector('iframe[data-planner]');
+        if (!iframe || !iframe.contentWindow) return;
+        const specs = item.specs || {};
+        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower');
+        const upperMods = (item.modules || []).filter(m => m.pos === 'upper');
+        const payload = {
+          presetId: item.categoryId || 'sink',
+          width: parseFloat(item.w) || 3000,
+          height: parseFloat(item.h) || 2300,
+          depth: parseFloat(item.d) || 600,
+          lowerCount: lowerMods.length,
+          upperCount: upperMods.length,
+          lowerModules: lowerMods.map(m => ({
+            id: String(m.id), kind: m.isDrawer ? 'drawer' : (m.type === 'open' ? 'open' : 'door'),
+            width: parseFloat(m.w) || 600, moduleType: m.type === 'sink' ? 'sink' : m.type === 'cook' ? 'cook' : 'storage',
+            doorCount: m.doorCount || (m.is2door ? 2 : 1),
+          })),
+          upperModules: upperMods.map(m => ({
+            id: String(m.id), kind: m.type === 'open' ? 'open' : 'door',
+            width: parseFloat(m.w) || 600, moduleType: m.type === 'hood' ? 'hood' : 'storage',
+            doorCount: m.doorCount || (m.is2door ? 2 : 1),
+          })),
+          moldingH: parseFloat(specs.moldingH) || 60,
+          toeKickH: parseFloat(specs.sinkLegHeight || specs.wardrobePedestalH) || 150,
+          finishLeftW: specs.finishLeftType !== 'None' ? (parseFloat(specs.finishLeftWidth) || 60) : 0,
+          finishRightW: specs.finishRightType !== 'None' ? (parseFloat(specs.finishRightWidth) || 60) : 0,
+          material: specs.materialTone || 'cream',
+          distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
+          distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
+          ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+        };
+        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth });
+        iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
+      }
+
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
         const specs = item.specs || {};
@@ -1050,9 +1091,9 @@
           </div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
           <div class="spec-field"><label>사진</label>
             <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:3px 8px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '📷 변경' : '📷 업로드'}</button>
