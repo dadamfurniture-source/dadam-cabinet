@@ -202,64 +202,45 @@ Estimate wall width in mm.`;
       `Wall ${wallW}x${wallH}mm.`,
     ].join(' ');
 
-    // ─── 싱크대 필수장비 스타일 (트렌디) ───
-    const SINK_APPLIANCES = `[APPLIANCES — TRENDY STYLE]
-[SINK BOWL] Modern undermount single-bowl sink, wide rectangular shape, matte gunmetal gray or stainless steel finish, seamlessly integrated under countertop.
-[FAUCET] Minimalist pull-down faucet with slim silhouette, matte black or brushed nickel finish, single-lever handle.
-[HOOD] Slim built-in under-cabinet range hood (hidden type), stainless steel or black glass panel, ultra-thin profile flush with upper cabinets.
-[COOKTOP] Flush-mounted built-in induction cooktop (flat black glass surface, NO gas burners, NO grates). The cabinet directly below the induction cooktop MUST be a 2-tier horizontal drawer unit (two equal drawers stacked vertically).
-
-[UPPER CABINETS — MUST REDESIGN] You MUST replace the original upper cabinets with NEW modern handleless flat-panel upper cabinets. Do NOT keep the original upper cabinet doors or style. The upper cabinets must have clean flat panel doors with finger groove (J-pull) handles, matching the chosen color scheme. They must look completely different from the original photo's upper cabinets.`;
+    // ─── 싱크대 공통 디테일 (압축) ───
+    const SINK_DETAILS = `Sink: undermount single-bowl, matte gunmetal. Faucet: minimalist pull-down, matte black. Hood: slim hidden under-cabinet type. Cooktop: flush induction (NO gas). Below cooktop: 2-tier drawer. Upper cabinets: MUST be NEW flat-panel J-pull handleless (NOT original).`;
 
     // ─── 카테고리별 기구 설명 ───
     const CATEGORY_SUBJECT: Record<string, string> = {
-      sink: 'handleless flat-panel kitchen cabinets with upper and lower sections, undermount sink, pull-down faucet, slim built-in hood, flush-mounted induction cooktop',
-      wardrobe: 'floor-to-ceiling built-in wardrobe with flat-panel doors, handleless push-to-open design',
-      fridge: 'tall pantry and refrigerator surround cabinet with flat-panel doors, handleless design',
-      vanity: 'modern vanity cabinet with mirror cabinet above, flat-panel doors, handleless push-to-open',
-      shoe: 'entryway shoe cabinet with flat-panel doors, handleless push-to-open, ventilation slats',
-      storage: 'custom storage cabinet with flat-panel doors, adjustable shelves, handleless design',
+      sink: 'modern handleless flat-panel kitchen cabinets',
+      wardrobe: 'floor-to-ceiling built-in wardrobe with flat-panel doors',
+      fridge: 'tall pantry and refrigerator surround cabinet',
+      vanity: 'modern vanity cabinet with mirror cabinet above',
+      shoe: 'entryway shoe cabinet with ventilation',
+      storage: 'custom storage cabinet with adjustable shelves',
     };
 
-    // ─── 카테고리별 기본안 프롬프트 빌더 (AI 색상 위임) ───
+    // ─── 기본안 (무채색 단일) ───
     function buildBasePrompt(cat: string): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
-      const colorDesc = `[COLOR] You MUST change all cabinet colors. Choose ONE harmonious achromatic color randomly from: pure white, milk white, sand gray, light gray, fog gray, cashmere, dewy cloud. Apply the chosen color consistently to all upper and lower cabinets with matte flat panel finish.`;
-      const countertop = `Choose a matching countertop: white ceramic, soft gray ceramic, warm ivory stone, or frost white solid surface.`;
       if (cat === 'sink') {
-        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance.
-
+        return `[POSITION FIXED] Keep sink, cooktop, hood at EXACT same positions. Do NOT move appliances.
 Edit photo: install ${subject}. ${sinkLayoutConstraints}
-
-${colorDesc} ${countertop}
-
-${SINK_APPLIANCES}
-
-Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. No clutter.`;
+[COLOR] Choose ONE achromatic: white/milk white/sand gray/light gray/fog gray/cashmere. All cabinets same color, matte flat panel.
+Countertop: white ceramic or warm ivory stone.
+${SINK_DETAILS}
+Keep wall, floor, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. ${colorDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. Choose ONE achromatic color for all cabinets. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ─── 카테고리별 AI 추천안 프롬프트 빌더 (AI 투톤 위임) ───
+    // ─── AI 추천안 (투톤) ───
     function buildAltPrompt(cat: string): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
-      const twoToneDesc = `[TWO-TONE COLOR — MANDATORY] You MUST use two DIFFERENT colors.
-Upper cabinets: choose one bright neutral randomly from: pure white, milk white, sand gray, light gray, cashmere, dewy cloud (matte flat panel finish).
-Lower cabinets: choose one bold expressive color randomly from: deep green painted, deep navy blue painted, muted purple painted, brick terracotta painted, warm taupe painted, natural oak wood grain, dark walnut wood grain, concrete texture.
-Upper and lower MUST be clearly different. The combination should feel premium and harmonious.`;
-      const countertop = `Choose a matching countertop: ceramic white, ceramic beige, concrete top, or soft gray ceramic.`;
       if (cat === 'sink') {
-        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance.
-
+        return `[POSITION FIXED] Keep sink, cooktop, hood at EXACT same positions. Do NOT move appliances.
 Edit photo: install ${subject}. ${sinkLayoutConstraints}
-
-${twoToneDesc} ${countertop}
-
-${SINK_APPLIANCES}
-
-Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. No clutter.`;
+[TWO-TONE] Upper: choose neutral (white/cream/light gray/cashmere), matte flat panel. Lower: choose bold (deep green/navy/purple/terracotta/walnut/oak/concrete). MUST be different.
+Countertop: ceramic white or concrete.
+${SINK_DETAILS}
+Keep wall, floor, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. Upper: neutral, Lower: bold color. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
     // ═══ Step 3: 기본안 생성 (무채색 — AI가 색상 랜덤 선택) ═══
