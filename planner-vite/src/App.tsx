@@ -297,46 +297,66 @@ function AddSide({ position, h, d, color, onClick }: { position: [number, number
 }
 
 // ═══ 팝업: 모듈 편집 ═══
-function ModulePopup({ mod, section, onUpdate, onDelete, onClose }: {
+function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }: {
   mod: ModuleEntry; section: 'lower' | 'upper';
   onUpdate: (id: string, c: Partial<ModuleEntry>) => void;
   onDelete: (id: string) => void; onClose: () => void;
+  onBlindPanel: (modId: string, blindW: number) => void;
 }) {
+  const [blindW, setBlindW] = useState(100);
   const sc = section === 'upper' ? '#6366f1' : '#b8956c';
   const kinds: { value: ModuleKind; label: string; icon: string }[] = [
     { value: 'door', label: '도어', icon: '🚪' }, { value: 'drawer', label: '서랍', icon: '🗄️' }, { value: 'open', label: '오픈', icon: '📦' },
   ];
   return (
-    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999, minWidth: 260 }} onClick={e => e.stopPropagation()}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ background: sc, color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>{section === 'upper' ? '상부장' : '하부장'}</span>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>{mod.width}mm</span>
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
+      <div style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 14, padding: '24px 28px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', margin: '0 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ background: sc, color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>{section === 'upper' ? '상부장' : '하부장'}</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{mod.width}mm</span>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999' }}>✕</button>
         </div>
-        <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999' }}>✕</button>
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>타입</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {kinds.map(k => (
-            <button key={k.value} onClick={() => onUpdate(mod.id, { kind: k.value })}
-              style={{ flex: 1, padding: '8px 0', border: mod.kind === k.value ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: mod.kind === k.value ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12 }}>
-              {k.icon} {k.label}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>타입</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {kinds.map(k => (
+              <button key={k.value} onClick={() => onUpdate(mod.id, { kind: k.value })}
+                style={{ flex: 1, padding: '8px 0', border: mod.kind === k.value ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: mod.kind === k.value ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12 }}>
+                {k.icon} {k.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>너비 (mm)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => onUpdate(mod.id, { width: Math.max(350, mod.width - 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16 }}>-</button>
+            <input type="number" value={mod.width} step={50} min={350} max={1200}
+              onChange={e => { const v = Math.min(1200, Math.max(350, Math.round(Number(e.target.value) / 50) * 50)); onUpdate(mod.id, { width: v }); }}
+              style={{ flex: 1, textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 14, fontWeight: 600 }} />
+            <button onClick={() => onUpdate(mod.id, { width: Math.min(1200, mod.width + 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16 }}>+</button>
+          </div>
+        </div>
+        {/* 멍장 섹션 */}
+        <div style={{ marginBottom: 16, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>멍장 (블라인드 패널)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
+              <input type="number" value={blindW} step={10} min={30} max={300}
+                onChange={e => setBlindW(Math.max(30, Math.min(300, Number(e.target.value))))}
+                style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600 }} />
+            </div>
+            <button onClick={() => { onBlindPanel(mod.id, blindW); onClose(); }}
+              style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              멍장 적용
             </button>
-          ))}
+          </div>
         </div>
+        <button onClick={() => { onDelete(mod.id); onClose(); }} style={{ width: '100%', padding: 10, border: '1px solid #fca5a5', borderRadius: 8, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🗑 모듈 삭제</button>
       </div>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>너비 (mm)</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => onUpdate(mod.id, { width: Math.max(350, mod.width - 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16 }}>-</button>
-          <input type="number" value={mod.width} step={50} min={350} max={1200}
-            onChange={e => { const v = Math.min(1200, Math.max(350, Math.round(Number(e.target.value) / 50) * 50)); onUpdate(mod.id, { width: v }); }}
-            style={{ flex: 1, textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 14, fontWeight: 600 }} />
-          <button onClick={() => onUpdate(mod.id, { width: Math.min(1200, mod.width + 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16 }}>+</button>
-        </div>
-      </div>
-      <button onClick={() => { onDelete(mod.id); onClose(); }} style={{ width: '100%', padding: 10, border: '1px solid #fca5a5', borderRadius: 8, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🗑 모듈 삭제</button>
     </div>
   );
 }
@@ -392,6 +412,7 @@ export default function App() {
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
   const [selId, setSelId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
+  const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
@@ -424,6 +445,33 @@ export default function App() {
     setPlanner(p => { const nl = (p.lowerModules ?? []).filter(m => m.id !== id); const nu = (p.upperModules ?? []).filter(m => m.id !== id); return { ...p, lowerModules: nl, upperModules: nu, lowerCount: nl.length, upperCount: nu.length }; });
     setSelId(null);
   }, []);
+
+  // 멍장 적용 핸들러: 모듈 앞에 멍장 너비만큼 새 모듈 생성
+  const applyBlindPanel = useCallback((modId: string, blindW: number) => {
+    setBlindPanel({ modId, blindW });
+  }, []);
+
+  const confirmBlindPanel = useCallback(() => {
+    if (!blindPanel) return;
+    const { modId, blindW } = blindPanel;
+    setPlanner(p => {
+      const isUp = (p.upperModules ?? []).some(m => m.id === modId);
+      const key = isUp ? 'upperModules' : 'lowerModules';
+      const list = [...(p[key] as ModuleEntry[] ?? [])];
+      const idx = list.findIndex(m => m.id === modId);
+      if (idx < 0) return p;
+      // 원본 모듈의 너비를 멍장 너비만큼 줄이고, 멍장 모듈을 앞에 삽입
+      const origMod = list[idx];
+      const newModW = Math.max(350, origMod.width - blindW);
+      list[idx] = { ...origMod, width: newModW };
+      const blindMod: ModuleEntry = { id: genModuleId(), kind: 'door', width: blindW };
+      list.splice(idx, 0, blindMod);
+      return { ...p, [key]: list, [`${key === 'lowerModules' ? 'lower' : 'upper'}Count`]: list.length };
+    });
+    setBlindPanel(null);
+  }, [blindPanel]);
+
+  const cancelBlindPanel = useCallback(() => setBlindPanel(null), []);
 
   // 모듈 드래그 → 순서 재정렬
   const dragModule = useCallback((id: string, newX: number) => {
@@ -519,6 +567,28 @@ export default function App() {
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
+            {/* 멍장 모드: 선택된 모듈 정면에 +/✓ 버튼 */}
+            {blindPanel && (() => {
+              const bp = blindPanel;
+              const mp = derived.parts.find(p => p.id === `mod-${bp.modId}` || p.id === bp.modId);
+              if (!mp) return null;
+              return (
+                <Html position={[mp.x, mp.y, mp.z + mp.depth / 2 + 1]} center style={{ pointerEvents: 'auto' }} zIndexRange={[9999, 9998]}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <button onClick={confirmBlindPanel}
+                      style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid #22c55e', background: 'rgba(255,255,255,0.95)', color: '#22c55e', fontSize: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', fontWeight: 700 }}
+                      title="멍장 확인 — 모듈 생성">+</button>
+                    <button onClick={cancelBlindPanel}
+                      style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid #ef4444', background: 'rgba(255,255,255,0.95)', color: '#ef4444', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', fontWeight: 700 }}
+                      title="취소">✕</button>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#666', textAlign: 'center', background: 'rgba(255,255,255,0.9)', padding: '2px 8px', borderRadius: 4 }}>
+                    멍장 {bp.blindW}mm
+                  </div>
+                </Html>
+              );
+            })()}
+
             {/* 치수 라벨 (팝업 열려있으면 숨김) */}
             {!selId && derived.modules.length > 0 && (
               <>
@@ -554,7 +624,7 @@ export default function App() {
       {selId && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setSelId(null)} />
       )}
-      {selMod && <ModulePopup mod={selMod} section={selSection} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} />}
+      {selMod && <ModulePopup mod={selMod} section={selSection} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} onBlindPanel={applyBlindPanel} />}
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
 
