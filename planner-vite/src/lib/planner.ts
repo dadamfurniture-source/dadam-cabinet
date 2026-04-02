@@ -283,34 +283,67 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
   };
 };
 
-// ── 자동계산: 설비 기준 모듈 자동 배치 ──
+// ── 자동계산: 설비 기준 모듈 자동 배치 (calc-engine.js 포팅) ──
 
-const DOOR_TARGET = 450;
-const DOOR_MIN = 350;
-const DOOR_MAX = 600;
-const SINK_W_SMALL = 950;
-const SINK_W_LARGE = 1000;
-const SINK_MAX = 1100;
-const COOK_W = 600;
-const HOOD_W = 800;
+import {
+  DOOR_TARGET, DOOR_MIN, DOOR_MAX,
+  SINK_W_SMALL, SINK_W_LARGE, SINK_MAX_W, LT_MAX_W,
+  COOK_FIXED_W, LT_FIXED_W, HOOD_DEFAULT_W, SIDE_PANEL,
+} from './calc-constants';
+import {
+  distributeModules, adjustFixedPositions, calculateGaps,
+  fillGapWithModules, type FixedModule, type GapSpace,
+} from './calc-utils';
 
-function distributeSpace(space: number): ModuleEntry[] {
-  if (space < DOOR_MIN) return [];
-  const count = Math.max(1, Math.round(space / DOOR_TARGET));
-  const w = Math.round(space / count / 10) * 10;
-  const modules: ModuleEntry[] = [];
-  let remaining = space;
-  for (let i = 0; i < count; i++) {
-    const mw = i === count - 1 ? remaining : Math.min(w, remaining);
-    if (mw >= DOOR_MIN) {
-      modules.push({ id: genModuleId(), kind: 'door', width: mw, moduleType: 'storage' });
-      remaining -= mw;
-    }
+/** distributeModules 결과를 ModuleEntry[]로 변환 (_x 좌표 포함) */
+function distToEntries(gap: GapSpace, kind: ModuleKind = 'door', type?: ModuleType): (ModuleEntry & { _x: number })[] {
+  const filled = fillGapWithModules(gap);
+  return filled.map((m) => ({
+    id: genModuleId(),
+    kind,
+    width: m.w,
+    moduleType: type,
+    doorCount: m.is2D ? 2 : 1,
+    _x: m.x,
+  }));
+}
+
+/** 갭 흡수: 350mm 미만 공간을 인접 모듈에 합치기 */
+function absorbSmallGaps(
+  modules: ModuleEntry[],
+  smallGaps: GapSpace[],
+  fixedModules?: FixedModule[],
+): void {
+  if (smallGaps.length === 0) return;
+  let remaining = smallGaps.reduce((s, g) => s + g.width, 0);
+
+  // 1순위: 일반 모듈 (450mm 기준 편차 큰 순)
+  const sorted = [...modules].sort((a, b) => {
+    const aDoorW = (a.doorCount ?? 1) >= 2 ? a.width / 2 : a.width;
+    const bDoorW = (b.doorCount ?? 1) >= 2 ? b.width / 2 : b.width;
+    return Math.abs(bDoorW - DOOR_TARGET) - Math.abs(aDoorW - DOOR_TARGET);
+  });
+  for (const mod of sorted) {
+    if (remaining <= 0) break;
+    mod.width += remaining;
+    remaining = 0;
   }
-  if (remaining >= 50 && modules.length > 0) {
-    modules[modules.length - 1].width += remaining;
+
+  if (remaining <= 0 || !fixedModules) return;
+
+  // 2순위: 개수대 (SINK_MAX_W 이내)
+  const sinkFixed = fixedModules.find((f) => f.type === 'sink');
+  if (remaining > 0 && sinkFixed) {
+    const canAbsorb = Math.min(remaining, SINK_MAX_W - sinkFixed.w);
+    if (canAbsorb > 0) { sinkFixed.w += canAbsorb; remaining -= canAbsorb; }
   }
-  return modules;
+
+  // 3순위: LT망장 (LT_MAX_W 이내)
+  const ltFixed = fixedModules.find((f) => f.name === 'LT망장');
+  if (remaining > 0 && ltFixed) {
+    const canAbsorb = Math.min(remaining, LT_MAX_W - ltFixed.w);
+    if (canAbsorb > 0) { ltFixed.w += canAbsorb; remaining -= canAbsorb; }
+  }
 }
 
 export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[]; upper: ModuleEntry[] } {
@@ -318,62 +351,118 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
   const fL = state.finishLeftW ?? 60;
   const fR = state.finishRightW ?? 60;
   const effectiveW = Math.max(0, state.width - fL - fR);
+  const startBound = fL;
+  const endBound = startBound + effectiveW;
 
-  // 유효폭이 최소 도어폭보다 작으면 전체를 하나의 모듈로
   if (effectiveW < DOOR_MIN) {
     return effectiveW > 0
       ? { lower: [{ id: genModuleId(), kind: 'door', width: effectiveW }], upper: [] }
       : { lower: [], upper: [] };
   }
 
-  // ── 단순 분할 함수: space를 n개로 나누기 ──
-  const splitSpace = (space: number, kind: ModuleKind = 'door', type?: ModuleType): ModuleEntry[] => {
-    if (space < DOOR_MIN) return [];
-    const count = Math.max(1, Math.round(space / DOOR_TARGET));
-    const base = Math.floor(space / count);
-    const remainder = space - base * count;
-    return Array.from({ length: count }, (_, i) => ({
-      id: genModuleId(),
-      kind,
-      width: base + (i === count - 1 ? remainder : 0),
-      moduleType: type,
-    }));
-  };
-
-  // ── 하부장 ──
+  // ═══════════════════════════════════════════
+  // 하부장
+  // ═══════════════════════════════════════════
   const lower: ModuleEntry[] = [];
 
   if (preset.id === 'sink' || preset.id === 'vanity') {
-    // 개수대 + 가스대 고정, 나머지 균등 분배
-    const sinkW = effectiveW > 2500 ? 1000 : 950;
-    const totalFixed = sinkW + COOK_W; // 950+600=1550 or 1000+600=1600
+    // ── 유틸리티 좌표 계산 ──
+    const SINK_DEF_W = state.width > 2500 ? SINK_W_LARGE : SINK_W_SMALL;
+    const distStart = state.distributorStart ?? Math.round(SINK_DEF_W * 0.15);
+    const distEnd = state.distributorEnd ?? Math.round(SINK_DEF_W * 0.15 + 700);
+    const ventPos = state.ventStart ?? Math.round(SINK_DEF_W * 0.7);
 
-    if (totalFixed >= effectiveW) {
-      // 유효폭이 고정 모듈보다 작으면 개수대만
-      lower.push({ id: genModuleId(), kind: 'door', width: effectiveW, moduleType: 'sink' });
-    } else {
-      const freeSpace = effectiveW - totalFixed;
-      // 좌측 수납 (개수대 앞)
-      const leftW = Math.round(freeSpace * 0.3);
-      const rightW = freeSpace - leftW;
+    // 절대 좌표 (좌측 기준)
+    const dStartAbs = distStart > 0 ? Math.max(startBound, Math.min(endBound, startBound + distStart)) : 0;
+    const dEndAbs = distEnd > distStart ? Math.max(startBound, Math.min(endBound, startBound + distEnd)) : 0;
+    const ventAbs = ventPos > 0 ? Math.max(startBound, Math.min(endBound, startBound + ventPos)) : 0;
 
-      if (leftW >= DOOR_MIN) lower.push(...splitSpace(leftW, 'door', 'storage'));
-      else if (leftW > 0) {
-        // 개수대에 흡수
-        lower.push({ id: genModuleId(), kind: 'door', width: sinkW + leftW, moduleType: 'sink' });
-      }
+    // ── 고정 모듈 배치 ──
+    const fixedList: FixedModule[] = [];
 
-      if (leftW >= DOOR_MIN) lower.push({ id: genModuleId(), kind: 'door', width: sinkW, moduleType: 'sink' });
+    // ① 가스대: 환풍구 중심 배치 (vanity는 가스대 없음)
+    if (preset.id === 'sink') {
+      const cookW = COOK_FIXED_W;
+      let cookX = ventAbs > 0 ? ventAbs - cookW / 2 : endBound - cookW;
+      cookX = Math.max(startBound, Math.min(endBound - cookW, cookX));
+      fixedList.push({ id: genModuleId(), type: 'cook', name: '가스대', x: cookX, endX: cookX + cookW, w: cookW });
 
-      lower.push({ id: genModuleId(), kind: 'drawer', width: COOK_W, moduleType: 'cook' });
-
-      // 우측 수납 (가스대 뒤)
-      if (rightW >= DOOR_MIN) lower.push(...splitSpace(rightW, 'door', 'storage'));
-      else if (rightW > 0) lower[lower.length - 1].width += rightW;
+      // ③ LT망장: 가스대 옆 벽쪽
+      const ltX = cookX + cookW; // 좌측기준: 가스대 우측
+      const ltXClamped = Math.max(startBound, Math.min(endBound - LT_FIXED_W, ltX));
+      fixedList.push({ id: genModuleId(), type: 'storage', name: 'LT망장', x: ltXClamped, endX: ltXClamped + LT_FIXED_W, w: LT_FIXED_W, isDrawer: true });
     }
+
+    // ② 개수대: 분배기 포함
+    let sinkW: number, sinkX: number;
+    const cookEntry = fixedList.find((f) => f.type === 'cook');
+    const sinkZoneStart = startBound;
+    const sinkZoneEnd = cookEntry ? cookEntry.x : endBound;
+    const zoneW = sinkZoneEnd - sinkZoneStart;
+
+    if (dStartAbs > 0 && dEndAbs > dStartAbs) {
+      const distSpan = dEndAbs - dStartAbs;
+      sinkW = Math.max(SINK_W_SMALL, Math.min(SINK_MAX_W, distSpan + SIDE_PANEL * 2));
+      if (sinkW > zoneW && zoneW > 0) sinkW = zoneW;
+      sinkX = Math.max(sinkZoneStart, dStartAbs - SIDE_PANEL);
+      sinkX = Math.max(sinkZoneStart, Math.min(sinkZoneEnd - sinkW, sinkX));
+    } else {
+      sinkW = SINK_DEF_W;
+      if (sinkW > zoneW && zoneW > 0) sinkW = zoneW;
+      sinkX = sinkZoneStart;
+    }
+    sinkX = Math.max(sinkZoneStart, Math.min(sinkZoneEnd - sinkW, sinkX));
+    fixedList.push({ id: genModuleId(), type: 'sink', name: '개수대', x: sinkX, endX: sinkX + sinkW, w: sinkW });
+
+    // ── 겹침 방지 (가스대 > 개수대 > LT) ──
+    fixedList.sort((a, b) => a.x - b.x);
+    for (let i = 1; i < fixedList.length; i++) {
+      const prev = fixedList[i - 1];
+      const curr = fixedList[i];
+      const overlap = prev.endX - curr.x;
+      if (overlap > 0) {
+        if (curr.type === 'cook') {
+          prev.w = Math.max(0, prev.w - overlap);
+          prev.endX = prev.x + prev.w;
+        } else {
+          curr.x = prev.endX;
+          curr.endX = curr.x + curr.w;
+          if (curr.endX > endBound) { curr.w = Math.max(0, endBound - curr.x); curr.endX = curr.x + curr.w; }
+        }
+      }
+    }
+
+    // ── 빈 공간 채우기 ──
+    const gaps = calculateGaps(fixedList, startBound, endBound);
+    const fillable: GapSpace[] = [];
+    const smallGaps: GapSpace[] = [];
+    gaps.forEach((g) => { if (g.width >= DOOR_MIN) fillable.push(g); else if (g.width > 0) smallGaps.push(g); });
+
+    const newModules: (ModuleEntry & { _x: number })[] = [];
+    fillable.forEach((gap) => { newModules.push(...distToEntries(gap, 'door', 'storage')); });
+
+    // 갭 흡수
+    absorbSmallGaps(newModules, smallGaps, fixedList);
+
+    // ── 고정 모듈 → ModuleEntry 변환 ──
+    fixedList.forEach((f) => {
+      if (f.w <= 0) return;
+      newModules.push({
+        id: f.id,
+        kind: f.isDrawer ? 'drawer' as ModuleKind : 'door' as ModuleKind,
+        width: f.w,
+        moduleType: f.type as ModuleType,
+        _x: f.x,
+      });
+    });
+
+    // _x 기준 정렬 후 lower에 추가
+    newModules.sort((a, b) => a._x - b._x);
+    newModules.forEach((m) => { const { _x, ...rest } = m; lower.push(rest); });
   } else {
-    // 싱크대 외: 전체 균등 분배
-    lower.push(...splitSpace(effectiveW));
+    // ── 비싱크대: 균등 분배 (2D 페어링 + 잔여 최적화) ──
+    const gap: GapSpace = { start: startBound, end: endBound, width: effectiveW };
+    lower.push(...distToEntries(gap));
   }
 
   // 하부장 총 폭 보정
@@ -382,27 +471,90 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
     lower[lower.length - 1].width += effectiveW - lowerSum;
   }
 
-  // ── 상부장 ──
+  // 안전장치
+  if (lower.length > 30) {
+    return { lower: lower.filter((m) => m.moduleType === 'sink' || m.moduleType === 'cook'), upper: [] };
+  }
+
+  // ═══════════════════════════════════════════
+  // 상부장
+  // ═══════════════════════════════════════════
   const upper: ModuleEntry[] = [];
 
   if (!preset.fullHeight && preset.upperHeight > 0) {
-    const hoodW = Math.min(HOOD_W, effectiveW);
-    const totalFree = effectiveW - hoodW;
-    const leftW = Math.round(totalFree * 0.4);
-    const rightW = totalFree - leftW;
+    const ventPos = state.ventStart ?? 0;
+    const ventAbs = ventPos > 0 ? Math.max(startBound, Math.min(endBound, startBound + ventPos)) : 0;
 
-    if (leftW >= DOOR_MIN) upper.push(...splitSpace(leftW, 'door', 'storage'));
-    upper.push({ id: genModuleId(), kind: 'open', width: hoodW, moduleType: 'hood' });
-    if (rightW >= DOOR_MIN) upper.push(...splitSpace(rightW, 'door', 'storage'));
+    // 하부장에서 개수대/가스대 위치 추출
+    let sinkCenterX = 0, cookCenterX = 0;
+    let cx = startBound;
+    lower.forEach((m) => {
+      if (m.moduleType === 'sink') sinkCenterX = cx + m.width / 2;
+      if (m.moduleType === 'cook') cookCenterX = cx + m.width / 2;
+      cx += m.width;
+    });
 
-    // 잔여 흡수
-    if (leftW > 0 && leftW < DOOR_MIN) upper[0].width += leftW;
-    if (rightW > 0 && rightW < DOOR_MIN && upper.length > 0) upper[upper.length - 1].width += rightW;
+    const fixedList: FixedModule[] = [];
+
+    // ① 후드장: 환풍구 중심 → 가스대 위 폴백
+    const hoodW = Math.min(HOOD_DEFAULT_W, effectiveW);
+    let hoodX: number;
+    if (ventAbs > 0) hoodX = ventAbs - hoodW / 2;
+    else if (cookCenterX > 0) hoodX = cookCenterX - hoodW / 2;
+    else hoodX = endBound - hoodW;
+    hoodX = Math.max(startBound, Math.min(endBound - hoodW, hoodX));
+    fixedList.push({ id: genModuleId(), type: 'hood', name: '후드장', x: hoodX, endX: hoodX + hoodW, w: hoodW });
+
+    // ② 기준상부장(2D): 개수대 위 정렬 (후드와 겹치면 스킵)
+    if (sinkCenterX > 0) {
+      const sinkMod = lower.find((m) => m.moduleType === 'sink');
+      const refW = sinkMod ? Math.min(SINK_MAX_W, sinkMod.width) : SINK_W_SMALL;
+      let refX = sinkCenterX - refW / 2;
+      refX = Math.max(startBound, Math.min(endBound - refW, refX));
+      const overlapsHood = refX < hoodX + hoodW && refX + refW > hoodX;
+      if (!overlapsHood) {
+        fixedList.push({ id: genModuleId(), type: 'storage', name: '기준상부장', x: refX, endX: refX + refW, w: refW, is2door: true });
+      }
+    }
+
+    // ── 빈 공간 채우기 ──
+    const adjustedFixed = adjustFixedPositions(fixedList, startBound, endBound);
+    const gaps = calculateGaps(adjustedFixed, startBound, endBound);
+    const fillable: GapSpace[] = [];
+    const smallGaps: GapSpace[] = [];
+    gaps.forEach((g) => { if (g.width >= DOOR_MIN) fillable.push(g); else if (g.width > 0) smallGaps.push(g); });
+
+    const newModules: (ModuleEntry & { _x: number })[] = [];
+    fillable.forEach((gap) => { newModules.push(...distToEntries(gap, 'door', 'storage')); });
+
+    // 갭 흡수
+    absorbSmallGaps(newModules, smallGaps);
+
+    // 고정 모듈 → ModuleEntry
+    adjustedFixed.forEach((f) => {
+      if (f.w <= 0) return;
+      newModules.push({
+        id: f.id,
+        kind: f.type === 'hood' ? 'open' as ModuleKind : 'door' as ModuleKind,
+        width: f.w,
+        moduleType: f.type === 'hood' ? 'hood' as ModuleType : 'storage' as ModuleType,
+        doorCount: (f as any).is2door ? 2 : undefined,
+        _x: f.x,
+      });
+    });
+
+    // _x 기준 정렬 후 upper에 추가
+    newModules.sort((a, b) => a._x - b._x);
+    newModules.forEach((m) => { const { _x, ...rest } = m; upper.push(rest); });
 
     // 상부장 총 폭 보정
     const upperSum = upper.reduce((s, m) => s + m.width, 0);
     if (upper.length > 0 && upperSum !== effectiveW) {
       upper[upper.length - 1].width += effectiveW - upperSum;
+    }
+
+    if (upper.length > 30) {
+      return { lower, upper: upper.filter((m) => m.moduleType === 'hood') };
     }
   }
 
