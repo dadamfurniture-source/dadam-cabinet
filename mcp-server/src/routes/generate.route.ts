@@ -132,7 +132,7 @@ async function callClaude(prompt: string, imageBase64: string, imageType = 'imag
 // ═══════════════════════════════════════════════════════════════
 // POST /api/generate
 // ═══════════════════════════════════════════════════════════════
-router.post('/', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/api/generate', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
 
   try {
