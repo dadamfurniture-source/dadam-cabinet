@@ -80,7 +80,9 @@
       "Bash(done)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://dadamfurniture.com/css/dadam-system.css\")",
       "Bash(curl -s \"https://dadamfurniture.com/chat.html\")",
-      "Bash(curl -sL \"https://dadamfurniture.com/chat.html\")"
+      "Bash(curl -sL \"https://dadamfurniture.com/chat.html\")",
+      "Bash(python3:*)",
+      "Bash(node -e \"console.log\\(''node works''\\)\")"
     ]
   }
 }
