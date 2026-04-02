@@ -263,11 +263,13 @@ Keep wall tiles, floor, camera angle, sink position, cooktop position, hood posi
     // ═══ Step 3: 기본안 생성 (무채색 — AI가 색상 랜덤 선택) ═══
     log.info('Step 3: Generate base design (기본안 — AI color selection)');
 
-    const mainPrompt = buildBasePrompt(category);
-    log.info({ promptLength: mainPrompt.length, category }, 'Base design prompt (AI color)');
+    // 랜덤 시드: 매 요청마다 다른 색상 선택 유도
+    const randomSeed = Math.floor(Math.random() * 9999);
+    const mainPrompt = buildBasePrompt(category) + `\n[RANDOM SEED: ${randomSeed}] — Use this seed to pick a DIFFERENT color than usual. Be creative and surprising.`;
+    log.info({ promptLength: mainPrompt.length, category, randomSeed }, 'Base design prompt (AI color)');
 
     const closedResult = await callGemini(
-      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
+      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.7, extraImages,
     );
 
     if (!closedResult.image) {
@@ -281,11 +283,12 @@ Keep wall tiles, floor, camera angle, sink position, cooktop position, hood posi
 
     let altImage: string | undefined;
     try {
-      const altPrompt = buildAltPrompt(category);
-      log.info({ promptLength: altPrompt.length, category }, 'AI recommendation prompt (AI two-tone)');
+      const altSeed = Math.floor(Math.random() * 9999);
+      const altPrompt = buildAltPrompt(category) + `\n[RANDOM SEED: ${altSeed}] — Use this seed to pick a DIFFERENT color combination than the base design. Be bold and creative.`;
+      log.info({ promptLength: altPrompt.length, category, altSeed }, 'AI recommendation prompt (AI two-tone)');
 
       const altResult = await callGemini(
-        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
+        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.7, extraImages,
       );
       altImage = altResult.image;
       if (altImage) log.info('AI recommendation (AI 추천안) generated');
