@@ -425,11 +425,19 @@
         };
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
-          console.log('[Planner] postMessage UPDATE_PLANNER:', { width: finishPayload.width, height: finishPayload.height, depth: finishPayload.depth, lowerCount: finishPayload.lowerCount, upperCount: finishPayload.upperCount });
-          existing.contentWindow?.postMessage({
-            type: 'UPDATE_PLANNER',
-            payload: finishPayload,
-          }, '*');
+          const sendUpdate = () => {
+            if (existing.contentWindow) {
+              console.log('[Planner] postMessage UPDATE_PLANNER:', { width: finishPayload.width, height: finishPayload.height, depth: finishPayload.depth });
+              existing.contentWindow.postMessage({
+                type: 'UPDATE_PLANNER',
+                payload: finishPayload,
+              }, '*');
+            } else {
+              console.warn('[Planner] contentWindow null — 100ms 후 재시도');
+              setTimeout(sendUpdate, 100);
+            }
+          };
+          sendUpdate();
           return;
         }
         // 새 iframe 생성
