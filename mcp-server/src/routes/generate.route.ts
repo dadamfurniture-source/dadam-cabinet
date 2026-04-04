@@ -284,13 +284,27 @@ Keep wall, floor, camera identical. No clutter.`;
     log.info('Step 5: Quote analysis');
     let quote = null;
     try {
-      const quotePrompt = `Analyze this cabinet design image. Count upper/lower cabinets, estimate total width mm, count drawers. Wall ~${wallW}mm. Return JSON: {"upper_count":N,"lower_count":N,"total_width_mm":N,"drawer_count":N,"countertop_length_mm":N}`;
+      const quotePrompt = `Analyze this cabinet design image. Wall ~${wallW}mm. Return JSON:
+{"upper_cabinets":[{"width_mm":N,"type":"door"}],"lower_cabinets":[{"width_mm":N,"type":"door|drawer"}],"countertop_length_mm":N,"wall_width_mm":${wallW},"has_sink":true,"has_cooktop":true,"has_hood":true,"door_count":N,"drawer_count":N}
+Estimate each cabinet width. type=drawer for drawer units.`;
 
-      const mimeType = closedResult.image.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
-      const quoteText = await callClaude(quotePrompt, closedResult.image, mimeType);
+      const mimeType = closedResult.image!.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+      const quoteText = await callClaude(quotePrompt, closedResult.image!, mimeType);
       const quoteMatch = quoteText.match(/\{[\s\S]*\}/);
       if (quoteMatch) {
-        const analysis = JSON.parse(quoteMatch[0]) as ImageAnalysisResult;
+        const raw = JSON.parse(quoteMatch[0]);
+        // 방어: 배열 없으면 카운트 기반으로 변환
+        const analysis: ImageAnalysisResult = {
+          upper_cabinets: raw.upper_cabinets || Array.from({ length: raw.upper_count || 0 }, () => ({ width_mm: Math.round((raw.total_width_mm || wallW) / (raw.upper_count || 1)), type: 'door' })),
+          lower_cabinets: raw.lower_cabinets || Array.from({ length: raw.lower_count || 0 }, () => ({ width_mm: Math.round((raw.total_width_mm || wallW) / (raw.lower_count || 1)), type: 'door' })),
+          countertop_length_mm: raw.countertop_length_mm || raw.total_width_mm || wallW,
+          wall_width_mm: raw.wall_width_mm || wallW,
+          has_sink: raw.has_sink ?? true,
+          has_cooktop: raw.has_cooktop ?? true,
+          has_hood: raw.has_hood ?? true,
+          door_count: raw.door_count || 0,
+          drawer_count: raw.drawer_count || 0,
+        };
         quote = calculateQuote(analysis, category);
         log.info({ total: quote?.total }, 'Quote calculated');
       }
