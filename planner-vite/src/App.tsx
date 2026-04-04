@@ -95,7 +95,7 @@ function CookMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
 
 // ═══ 모듈 컴포넌트 (드래그+클릭+타입별 렌더링) ═══
 function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDragMove, shiftDir }: {
-  part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string; moduleKind?: string; doorCount?: number; drawerCount?: number };
+  part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string; moduleKind?: string; doorCount?: number; drawerCount?: number; rotationY?: number };
   color: string;
   onSelect: (id: string) => void;
   halfW: number;
@@ -112,7 +112,8 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
 
   const isMod = part.id.startsWith('mod-');
   const isFace = part.id.endsWith('-face');
-  const isDraggable = isMod && !isFace;
+  const isPerp = !!part.rotationY;
+  const isDraggable = isMod && !isFace && !isPerp; // perpendicular 모듈은 드래그 불가
   const isClickable = isMod; // 측판/몰딩/걸레받이 등은 클릭 불가
   const isEssential = !!part.essential;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
@@ -146,7 +147,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
   if (isFace) return null; // face 파트 숨김 (타입 메쉬가 도어면 포함)
 
   return (
-    <group position={[posX, part.y, part.z]}>
+    <group position={[posX, part.y, part.z]} rotation={isPerp ? [0, part.rotationY!, 0] : undefined}>
       {/* 히트박스 (정면 전체 범위, 투명, 드래그/클릭용) */}
       <mesh
         position={[0, 0, part.depth / 2]}
@@ -468,12 +469,16 @@ export default function App() {
       const list = [...(p[key] as ModuleEntry[] ?? [])];
       const idx = list.findIndex(m => m.id === modId);
       if (idx < 0) return p;
-      // 원본 모듈의 너비를 멍장 너비만큼 줄이고, 멍장 모듈을 앞에 삽입
-      const origMod = list[idx];
-      const newModW = Math.max(350, origMod.width - blindW);
-      list[idx] = { ...origMod, width: newModW };
-      const blindMod: ModuleEntry = { id: genModuleId(), kind: 'door', width: blindW };
-      list.splice(idx, 0, blindMod);
+      // 멍장 모듈: 정면(Z축) 방향으로 돌출 배치 (ㄱ자형)
+      const blindMod: ModuleEntry = {
+        id: genModuleId(),
+        kind: 'door',
+        width: blindW,
+        orientation: 'perpendicular',
+        blindAnchorId: modId,
+      };
+      // 앵커 모듈 바로 뒤에 삽입 (perpendicular 모듈은 X cursor 안 먹음)
+      list.splice(idx + 1, 0, blindMod);
       return { ...p, [key]: list, [`${key === 'lowerModules' ? 'lower' : 'upper'}Count`]: list.length };
     });
     setBlindPanel(null);

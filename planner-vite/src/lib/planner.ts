@@ -16,6 +16,8 @@ export interface CabinetModule {
   moduleType?: ModuleType;
   doorCount?: number;
   drawerCount?: number;
+  orientation?: 'normal' | 'perpendicular';
+  blindAnchorId?: string;
 }
 
 export interface CabinetPreset {
@@ -47,6 +49,10 @@ export interface ModuleEntry {
   moduleType?: ModuleType;
   doorCount?: number;
   drawerCount?: number;
+  /** 'perpendicular' = 정면 방향(Z축)으로 배치 (ㄱ자 싱크대용 멍장 모듈) */
+  orientation?: 'normal' | 'perpendicular';
+  /** 멍장 연결 대상 모듈 ID (perpendicular 모듈이 어디에 붙는지) */
+  blindAnchorId?: string;
 }
 
 export interface PlannerState {
@@ -85,6 +91,8 @@ export interface CabinetPart {
   moduleKind?: ModuleKind;
   doorCount?: number;
   drawerCount?: number;
+  /** Y축 회전 (라디안). perpendicular 모듈용 */
+  rotationY?: number;
 }
 
 export interface ModuleLayout {
@@ -577,6 +585,8 @@ const buildModulesFromEntries = (
     moduleType: entry.moduleType,
     doorCount: entry.doorCount,
     drawerCount: entry.drawerCount,
+    orientation: entry.orientation,
+    blindAnchorId: entry.blindAnchorId,
   }));
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
@@ -636,30 +646,54 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
 
     list.forEach((module) => {
-      const centeredX = cursor + module.width / 2;
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
+      const isPerp = module.orientation === 'perpendicular';
 
-      parts.push({
-        id: module.id,
-        label: `${module.section}-${module.kind}`,
-        x: centeredX,
-        y,
-        z,
-        width: module.width,
-        height: module.height,
-        depth: module.depth,
-        colorKey: isUpper ? 'accent' : 'body',
-        essential: isEssential,
-        moduleType: module.moduleType,
-        moduleKind: module.kind,
-        doorCount: module.doorCount,
-        drawerCount: module.drawerCount,
-      });
-
-      // face 패널 제거됨 (도어 표면 작대기 불필요)
-
-      cursor += module.width;
+      if (isPerp) {
+        // ㄱ자 배치: 앵커 모듈의 X 위치에서 Z축(정면) 방향으로 돌출
+        // cursor 위치(앵커 모듈의 옆)에 90° 회전하여 배치
+        // X: 앵커 옆 (cursor 위치 기준), Z: 캐비넷 정면으로 돌출
+        const perpX = cursor; // 앵커 모듈 끝점
+        const perpZ = z + module.depth / 2 + module.width / 2; // 정면으로 돌출
+        parts.push({
+          id: module.id,
+          label: `${module.section}-${module.kind}-perp`,
+          x: perpX,
+          y,
+          z: perpZ,
+          width: module.width,
+          height: module.height,
+          depth: module.depth,
+          colorKey: isUpper ? 'accent' : 'body',
+          essential: isEssential,
+          moduleType: module.moduleType,
+          moduleKind: module.kind,
+          doorCount: module.doorCount,
+          drawerCount: module.drawerCount,
+          rotationY: Math.PI / 2, // 90° Y축 회전
+        });
+        // perpendicular 모듈은 X축 cursor를 증가시키지 않음
+      } else {
+        const centeredX = cursor + module.width / 2;
+        parts.push({
+          id: module.id,
+          label: `${module.section}-${module.kind}`,
+          x: centeredX,
+          y,
+          z,
+          width: module.width,
+          height: module.height,
+          depth: module.depth,
+          colorKey: isUpper ? 'accent' : 'body',
+          essential: isEssential,
+          moduleType: module.moduleType,
+          moduleKind: module.kind,
+          doorCount: module.doorCount,
+          drawerCount: module.drawerCount,
+        });
+        cursor += module.width;
+      }
     });
 
     return { section: isUpper ? 'upper' : 'lower', startX, endX: cursor, centerY, z, depth: moduleDepth };
