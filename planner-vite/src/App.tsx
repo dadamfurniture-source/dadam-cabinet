@@ -303,60 +303,68 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }
   onDelete: (id: string) => void; onClose: () => void;
   onBlindPanel: (modId: string, blindW: number) => void;
 }) {
-  const [blindW, setBlindW] = useState(100);
+  const [blindW, setBlindW] = useState('100');
   const sc = section === 'upper' ? '#6366f1' : '#b8956c';
   const kinds: { value: ModuleKind; label: string; icon: string }[] = [
     { value: 'door', label: '도어', icon: '🚪' }, { value: 'drawer', label: '서랍', icon: '🗄️' }, { value: 'open', label: '오픈', icon: '📦' },
   ];
+  const blindWNum = Math.max(30, Math.min(300, Number(blindW) || 100));
   return (
-    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
-      <div style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 14, padding: '24px 28px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', margin: '0 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ background: sc, color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>{section === 'upper' ? '상부장' : '하부장'}</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{mod.width}mm</span>
-          </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999' }}>✕</button>
+    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'calc(100% - 32px)', maxWidth: 400, background: '#fff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
+      {/* 헤더 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ background: sc, color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>{section === 'upper' ? '상부장' : '하부장'}</span>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>{mod.width}mm</span>
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>타입</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {kinds.map(k => (
-              <button key={k.value} onClick={() => onUpdate(mod.id, { kind: k.value })}
-                style={{ flex: 1, padding: '8px 0', border: mod.kind === k.value ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: mod.kind === k.value ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12 }}>
-                {k.icon} {k.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>너비 (mm)</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => onUpdate(mod.id, { width: Math.max(350, mod.width - 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16 }}>-</button>
-            <input type="number" value={mod.width} step={50} min={350} max={1200}
-              onChange={e => { const v = Math.min(1200, Math.max(350, Math.round(Number(e.target.value) / 50) * 50)); onUpdate(mod.id, { width: v }); }}
-              style={{ flex: 1, textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 14, fontWeight: 600 }} />
-            <button onClick={() => onUpdate(mod.id, { width: Math.min(1200, mod.width + 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16 }}>+</button>
-          </div>
-        </div>
-        {/* 멍장 섹션 */}
-        <div style={{ marginBottom: 16, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>멍장 (블라인드 패널)</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
-              <input type="number" value={blindW} step={10} min={30} max={300}
-                onChange={e => setBlindW(Math.max(30, Math.min(300, Number(e.target.value))))}
-                style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600 }} />
-            </div>
-            <button onClick={() => { onBlindPanel(mod.id, blindW); onClose(); }}
-              style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-              멍장 적용
-            </button>
-          </div>
-        </div>
-        <button onClick={() => { onDelete(mod.id); onClose(); }} style={{ width: '100%', padding: 10, border: '1px solid #fca5a5', borderRadius: 8, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🗑 모듈 삭제</button>
+        <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: 4 }}>✕</button>
       </div>
+
+      {/* 타입 */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>타입</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {kinds.map(k => (
+            <button key={k.value} onClick={() => onUpdate(mod.id, { kind: k.value })}
+              style={{ flex: 1, padding: '8px 0', border: mod.kind === k.value ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: mod.kind === k.value ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12 }}>
+              {k.icon} {k.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 너비 */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>너비 (mm)</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => onUpdate(mod.id, { width: Math.max(350, mod.width - 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>-</button>
+          <input type="number" value={mod.width} step={50} min={350} max={1200}
+            onChange={e => { const v = Math.min(1200, Math.max(350, Math.round(Number(e.target.value) / 50) * 50)); onUpdate(mod.id, { width: v }); }}
+            style={{ flex: 1, textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 14, fontWeight: 600, minWidth: 0 }} />
+          <button onClick={() => onUpdate(mod.id, { width: Math.min(1200, mod.width + 50) })} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>+</button>
+        </div>
+      </div>
+
+      {/* 멍장 섹션 */}
+      <div style={{ marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>멍장 (블라인드 패널)</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
+            <input type="number" value={blindW} step={10} min={30} max={300}
+              onChange={e => setBlindW(e.target.value)}
+              onBlur={() => setBlindW(String(blindWNum))}
+              style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' }} />
+          </div>
+          <button onClick={() => { onBlindPanel(mod.id, blindWNum); onClose(); }}
+            style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            멍장 적용
+          </button>
+        </div>
+      </div>
+
+      {/* 삭제 */}
+      <button onClick={() => { onDelete(mod.id); onClose(); }} style={{ width: '100%', padding: 10, border: '1px solid #fca5a5', borderRadius: 8, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🗑 모듈 삭제</button>
     </div>
   );
 }
