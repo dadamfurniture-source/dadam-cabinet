@@ -651,9 +651,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const isPerp = module.orientation === 'perpendicular';
 
       if (isPerp) {
-        // ㄱ자 배치: 앵커 모듈의 X 위치에서 Z축(정면) 방향으로 돌출
-        // cursor 위치(앵커 모듈의 옆)에 90° 회전하여 배치
-        // X: 앵커 옆 (cursor 위치 기준), Z: 캐비넷 정면으로 돌출
+        // ㄱ자 배치: 앵커 모듈 끝에서 Z축(정면) 방향으로 돌출
+        // -90° 회전 → 모듈의 정면이 안쪽(캐비넷 방향)을 향함
         const perpX = cursor; // 앵커 모듈 끝점
         const perpZ = z + module.depth / 2 + module.width / 2; // 정면으로 돌출
         parts.push({
@@ -671,7 +670,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           moduleKind: module.kind,
           doorCount: module.doorCount,
           drawerCount: module.drawerCount,
-          rotationY: Math.PI / 2, // 90° Y축 회전
+          rotationY: -Math.PI / 2, // -90° → 안쪽이 정면
         });
         // perpendicular 모듈은 X축 cursor를 증가시키지 않음
       } else {
