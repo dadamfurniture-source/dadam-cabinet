@@ -16,7 +16,8 @@ export interface CabinetModule {
   moduleType?: ModuleType;
   doorCount?: number;
   drawerCount?: number;
-  orientation?: 'normal' | 'perpendicular';
+  /** 'secondary' = 차선모듈 (Secondary Line Module) */
+  orientation?: 'normal' | 'secondary';
   blindAnchorId?: string;
 }
 
@@ -49,9 +50,9 @@ export interface ModuleEntry {
   moduleType?: ModuleType;
   doorCount?: number;
   drawerCount?: number;
-  /** 'perpendicular' = 정면 방향(Z축)으로 배치 (ㄱ자 싱크대용 멍장 모듈) */
-  orientation?: 'normal' | 'perpendicular';
-  /** 멍장 연결 대상 모듈 ID (perpendicular 모듈이 어디에 붙는지) */
+  /** 'secondary' = 차선모듈(Secondary Line Module). 멍장을 통해 생성된 ㄱ자형 정면(Z축) 배치 모듈 */
+  orientation?: 'normal' | 'secondary';
+  /** 멍장 연결 대상(주선) 모듈 ID — 차선모듈이 어느 앵커에 붙는지 */
   blindAnchorId?: string;
 }
 
@@ -91,7 +92,7 @@ export interface CabinetPart {
   moduleKind?: ModuleKind;
   doorCount?: number;
   drawerCount?: number;
-  /** Y축 회전 (라디안). perpendicular 모듈용 */
+  /** Y축 회전 (라디안). 차선모듈(secondary) 용 */
   rotationY?: number;
 }
 
@@ -581,8 +582,8 @@ const buildModulesFromEntries = (
     kind: entry.kind,
     width: entry.width,
     height,
-    // perpendicular 모듈은 기본 깊이 600mm 고정 (회전 후 월드 X축 extent)
-    depth: entry.orientation === 'perpendicular' ? 600 : depth,
+    // 차선모듈(secondary)은 기본 깊이 600mm 고정 (회전 후 월드 X축 extent)
+    depth: entry.orientation === 'secondary' ? 600 : depth,
     moduleType: entry.moduleType,
     doorCount: entry.doorCount,
     drawerCount: entry.drawerCount,
@@ -642,8 +643,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const isUpper = list[0].section === 'upper';
     const centerY = isUpper ? upperBottomY + list[0].height / 2 : lowerBottomY + list[0].height / 2;
     const z = isUpper ? upperZOffset : 0;
-    // perpendicular 모듈의 depth(600)를 섞지 않도록 일반 모듈만 기준으로 사용
-    const normalRef = list.find((m) => m.orientation !== 'perpendicular') ?? list[0];
+    // 차선모듈(secondary)의 depth(600)를 섞지 않도록 주선(일반) 모듈만 기준으로 사용
+    const normalRef = list.find((m) => m.orientation !== 'secondary') ?? list[0];
     const moduleDepth = normalRef.depth;
 
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
@@ -651,10 +652,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     list.forEach((module) => {
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
-      const isPerp = module.orientation === 'perpendicular';
+      const isSecondary = module.orientation === 'secondary';
 
-      if (isPerp) {
-        // ㄱ자 배치: 앵커 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
+      if (isSecondary) {
+        // 차선모듈 ㄱ자 배치: 앵커 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
         // -90° 회전 → width가 Z축, depth가 X축이 됨
         // X: 앵커 끝점 - depth/2 (회전 후 depth가 X축이므로 밀착)
         // Z: 캐비넷 정면 끝(depth/2)에서 width/2만큼 돌출
@@ -662,7 +663,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         const perpZ = z + moduleDepth / 2 + module.width / 2;
         parts.push({
           id: module.id,
-          label: `${module.section}-${module.kind}-perp`,
+          label: `${module.section}-${module.kind}-secondary`,
           x: perpX,
           y,
           z: perpZ,
@@ -677,7 +678,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           drawerCount: module.drawerCount,
           rotationY: -Math.PI / 2, // -90° → 안쪽이 정면
         });
-        // perpendicular 모듈은 X축 cursor를 증가시키지 않음
+        // 차선모듈은 주선의 X축 cursor를 증가시키지 않음
       } else {
         const centeredX = cursor + module.width / 2;
         parts.push({
