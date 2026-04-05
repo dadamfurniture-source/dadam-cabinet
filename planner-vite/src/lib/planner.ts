@@ -649,18 +649,21 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
 
+    // 차선모듈 체인용 Z 커서 — 연속된 secondary 엔트리를 Z축으로 쌓음
+    let secNearZ: number | null = null; // 현재 체인의 다음 모듈 근접(near) 면 Z
+
     list.forEach((module) => {
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
       const isSecondary = module.orientation === 'secondary';
 
       if (isSecondary) {
-        // 차선모듈 ㄱ자 배치: 앵커 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
-        // -90° 회전 → width가 Z축, depth가 X축이 됨
-        // X: 앵커 끝점 - depth/2 (회전 후 depth가 X축이므로 밀착)
-        // Z: 캐비넷 정면 끝(depth/2)에서 width/2만큼 돌출
+        // 차선모듈 ㄱ자 배치: 앵커(주선) 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
+        // 체인 지원: 여러 차선모듈이 연속되면 Z축으로 순차 배치
+        if (secNearZ === null) secNearZ = z + moduleDepth / 2; // 체인 시작 = 주선 정면 끝
         const perpX = cursor - module.depth / 2;
-        const perpZ = z + moduleDepth / 2 + module.width / 2;
+        const perpZ = secNearZ + module.width / 2;
+        secNearZ += module.width;
         parts.push({
           id: module.id,
           label: `${module.section}-${module.kind}-secondary`,
@@ -680,6 +683,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         });
         // 차선모듈은 주선의 X축 cursor를 증가시키지 않음
       } else {
+        secNearZ = null; // 주선 모듈을 만나면 차선 체인 종료
         const centeredX = cursor + module.width / 2;
         parts.push({
           id: module.id,
