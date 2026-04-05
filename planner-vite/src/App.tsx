@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, PerspectiveCamera, Html, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Environment, PerspectiveCamera, Html, ContactShadows, Edges } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import {
@@ -130,7 +130,9 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
     return v.x;
   };
 
-  const posX = dragX ?? part.x;
+  // 드래그 중 재정렬 대상이면 이동 방향으로 살짝 밀어서 시각화 (약 40mm)
+  const shiftOffset = shiftDir ? (shiftDir === 'left' ? -40 : 40) : 0;
+  const posX = (dragX ?? part.x) + shiftOffset;
 
   // 타입별 메쉬 선택
   const renderInner = () => {
@@ -200,12 +202,22 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
 
       {/* 필수장 윤곽선 제거됨 — 타입별 색상으로 충분히 구분 */}
 
-      {/* 이동 방향 인디케이터 */}
+      {/* 이동 방향 인디케이터 — 박스 외곽선 + 화살표 라벨 */}
       {shiftDir && (
-        <mesh position={[shiftDir === 'left' ? -part.width / 2 - 2 : part.width / 2 + 2, 0, part.depth / 2 + 1]}>
-          <boxGeometry args={[4, part.height, 4]} />
-          <meshBasicMaterial color="#f59e0b" />
-        </mesh>
+        <>
+          {/* 강조 외곽선 (모듈 본체 래핑) */}
+          <mesh position={[0, 0, part.depth / 2]}>
+            <boxGeometry args={[part.width + 8, part.height + 8, part.depth + 8]} />
+            <meshBasicMaterial transparent opacity={0.12} color="#f59e0b" depthWrite={false} />
+            <Edges color="#f59e0b" linewidth={3} threshold={15} />
+          </mesh>
+          {/* 이동 방향 화살표 Html 라벨 */}
+          <Html position={[0, part.height / 2 + 40, part.depth / 2 + 20]} center style={{ pointerEvents: 'none' }} zIndexRange={[100, 99]}>
+            <div style={{ background: '#f59e0b', color: '#fff', padding: '4px 10px', borderRadius: 999, fontSize: 14, fontWeight: 700, boxShadow: '0 2px 8px rgba(245,158,11,0.5)', whiteSpace: 'nowrap' }}>
+              {shiftDir === 'left' ? '← 이동' : '이동 →'}
+            </div>
+          </Html>
+        </>
       )}
     </group>
   );
