@@ -284,10 +284,10 @@ function AddBtn({ position, label, onClick }: { position: [number, number, numbe
   );
 }
 
-function AddSide({ position, h, d, color, onClick }: { position: [number, number, number]; h: number; d: number; color: string; onClick: () => void }) {
+function AddSide({ position, h, d, color, onClick, rotationY }: { position: [number, number, number]; h: number; d: number; color: string; onClick: () => void; rotationY?: number }) {
   const [hov, setHov] = useState(false);
   return (
-    <group position={position}>
+    <group position={position} rotation={rotationY ? [0, rotationY, 0] : undefined}>
       <mesh onClick={(e) => { e.stopPropagation(); onClick(); }} onPointerOver={() => setHov(true)} onPointerOut={() => setHov(false)}>
         <boxGeometry args={[18, h, d]} />
         <meshStandardMaterial color={hov ? '#b8956c' : color} metalness={0.15} roughness={0.7} opacity={hov ? 1 : 0.6} transparent />
@@ -488,6 +488,44 @@ export default function App() {
 
   const cancelBlindPanel = useCallback(() => setBlindPanel(null), []);
 
+  // 차선모듈 체인 연장: 기존 차선모듈 뒤에 같은 blindAnchorId로 새 차선모듈 추가
+  const addSecondaryToChain = useCallback((chainEndModId: string) => {
+    setPlanner(p => {
+      const isUp = (p.upperModules ?? []).some(m => m.id === chainEndModId);
+      const key = isUp ? 'upperModules' : 'lowerModules';
+      const list = [...(p[key] as ModuleEntry[] ?? [])];
+      const idx = list.findIndex(m => m.id === chainEndModId);
+      if (idx < 0) return p;
+      const target = list[idx];
+      if (target.orientation !== 'secondary') return p;
+      const newMod: ModuleEntry = {
+        id: genModuleId(),
+        kind: 'door',
+        width: target.width, // 이전 차선모듈과 같은 Z 돌출 폭으로 기본값
+        orientation: 'secondary',
+        blindAnchorId: target.blindAnchorId,
+      };
+      list.splice(idx + 1, 0, newMod);
+      return { ...p, [key]: list, [`${key === 'lowerModules' ? 'lower' : 'upper'}Count`]: list.length };
+    });
+  }, []);
+
+  // 차선 체인의 마지막 모듈 ID 집합 (다음 엔트리가 secondary가 아니면 체인 끝)
+  const secondaryChainEnds = useMemo(() => {
+    const ends = new Set<string>();
+    const scan = (list: ModuleEntry[] | undefined) => {
+      if (!list) return;
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].orientation === 'secondary' && (i === list.length - 1 || list[i + 1].orientation !== 'secondary')) {
+          ends.add(list[i].id);
+        }
+      }
+    };
+    scan(planner.lowerModules);
+    scan(planner.upperModules);
+    return ends;
+  }, [planner.lowerModules, planner.upperModules]);
+
   // 모듈 드래그 → 순서 재정렬
   const dragModule = useCallback((id: string, newX: number) => {
     setPlanner(p => {
@@ -627,6 +665,28 @@ export default function App() {
                 <><AddSide position={[upperLayout.startX - 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /><AddSide position={[upperLayout.endX + 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /></>
               ) : <AddBtn position={[0, height - moldingH - upperHeight / 2, upperDepth / 2 + 50]} label="상부장 추가" onClick={addUpper} />
             )}
+
+            {/* 차선모듈 체인 연장 버튼 — 각 체인의 마지막 secondary의 Z축 자유단(free end) 측판에 부착 */}
+            {!selId && Array.from(secondaryChainEnds).map(modId => {
+              const part = derived.parts.find(p => p.id === modId);
+              if (!part || !part.rotationY) return null;
+              const isUp = (planner.upperModules ?? []).some(m => m.id === modId);
+              const total = ((planner.lowerModules ?? []).length + (planner.upperModules ?? []).length);
+              if (total >= 20) return null;
+              // part.width = 차선모듈의 월드 Z extent (= blindW), part.depth = 월드 X extent (= 600)
+              const freeZ = part.z + part.width / 2 + 9;
+              return (
+                <AddSide
+                  key={`sec-add-${modId}`}
+                  position={[part.x, part.y, freeZ]}
+                  h={part.height}
+                  d={part.depth}
+                  color={isUp ? palette.accent : palette.body}
+                  onClick={() => addSecondaryToChain(modId)}
+                  rotationY={-Math.PI / 2}
+                />
+              );
+            })}
           </group>
 
           <gridHelper args={[6000, 40, 0x000000, 0xcccccc]} position={[0, -1, 0]} />
