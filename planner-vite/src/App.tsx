@@ -616,16 +616,22 @@ export default function App() {
               </>
             )}
 
-            {/* 추가 버튼 (팝업 열려있으면 숨김) */}
+            {/* 추가 버튼 (팝업 열려있으면 숨김) — 좌우 측판 바깥 + 정면 fallback */}
             {!selId && !preset.fullHeight && (planner.lowerModules ?? []).length < 10 && (
-              hasLower && lowerLayout ? (
-                <><AddSide position={[lowerLayout.startX - 9, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /><AddSide position={[lowerLayout.endX + 9, lowerLayout.centerY, 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} /></>
-              ) : <AddBtn position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]} label="하부장 추가" onClick={addLower} />
+              <>
+                {/* 좌우 측판 바깥 — 항상 표시 (측판 마감재 또는 캐비넷 끝면에 부착) */}
+                <AddSide position={[-planner.width / 2 - 9, (lowerLayout?.centerY ?? (toeKickH + lowerBodyH / 2)), 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} />
+                <AddSide position={[planner.width / 2 + 9, (lowerLayout?.centerY ?? (toeKickH + lowerBodyH / 2)), 0]} h={lowerBodyH} d={depth} color={palette.body} onClick={addLower} />
+                {/* 모듈 없을 때만 정면 fallback 버튼 */}
+                {!(hasLower && lowerLayout) && <AddBtn position={[0, toeKickH + lowerBodyH / 2, depth / 2 + 50]} label="하부장 추가" onClick={addLower} />}
+              </>
             )}
             {!selId && !preset.fullHeight && upperHeight > 0 && (planner.upperModules ?? []).length < 10 && (
-              hasUpper && upperLayout ? (
-                <><AddSide position={[upperLayout.startX - 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /><AddSide position={[upperLayout.endX + 9, upperLayout.centerY, upperLayout.z]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} /></>
-              ) : <AddBtn position={[0, height - moldingH - upperHeight / 2, upperDepth / 2 + 50]} label="상부장 추가" onClick={addUpper} />
+              <>
+                <AddSide position={[-planner.width / 2 - 9, (upperLayout?.centerY ?? (height - moldingH - upperHeight / 2)), upperLayout?.z ?? 0]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} />
+                <AddSide position={[planner.width / 2 + 9, (upperLayout?.centerY ?? (height - moldingH - upperHeight / 2)), upperLayout?.z ?? 0]} h={upperHeight} d={upperDepth} color={palette.accent} onClick={addUpper} />
+                {!(hasUpper && upperLayout) && <AddBtn position={[0, height - moldingH - upperHeight / 2, upperDepth / 2 + 50]} label="상부장 추가" onClick={addUpper} />}
+              </>
             )}
           </group>
 
