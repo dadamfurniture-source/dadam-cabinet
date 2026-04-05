@@ -600,20 +600,33 @@ const buildModulesFromEntries = (
   height: number,
   depth: number,
 ): CabinetModule[] =>
-  entries.map((entry) => ({
-    id: entry.id,
-    section,
-    kind: entry.kind,
-    width: entry.width,
-    height,
-    // 차선모듈(secondary)은 기본 깊이 600mm 고정 (회전 후 월드 X축 extent)
-    depth: entry.orientation === 'secondary' ? 600 : depth,
-    moduleType: entry.moduleType,
-    doorCount: entry.doorCount,
-    drawerCount: entry.drawerCount,
-    orientation: entry.orientation,
-    blindAnchorId: entry.blindAnchorId,
-  }));
+  entries.map((entry) => {
+    const isLower = section === 'lower' || section === 'full';
+    const isSecondary = entry.orientation === 'secondary';
+    // 주선 하부/풀하이트: 상판(실측 depth) 기준으로 재귀(recess)
+    //   door/drawer → 도어 20T 앞쪽 생성, 모듈 본체 + 도어 합계 = depth - 10 (상판이 10mm 오버행)
+    //   open → depth - 30 (상판이 30mm 오버행)
+    // 상부장/차선모듈은 기존 depth 유지
+    let effDepth = depth;
+    if (isSecondary) {
+      effDepth = 600;
+    } else if (isLower) {
+      effDepth = entry.kind === 'open' ? Math.max(100, depth - 30) : Math.max(100, depth - 10);
+    }
+    return {
+      id: entry.id,
+      section,
+      kind: entry.kind,
+      width: entry.width,
+      height,
+      depth: effDepth,
+      moduleType: entry.moduleType,
+      doorCount: entry.doorCount,
+      drawerCount: entry.drawerCount,
+      orientation: entry.orientation,
+      blindAnchorId: entry.blindAnchorId,
+    };
+  });
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const preset = getPresetById(state.presetId);
@@ -682,9 +695,11 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const isUpper = list[0].section === 'upper';
     const centerY = isUpper ? upperBottomY + list[0].height / 2 : lowerBottomY + list[0].height / 2;
     const z = isUpper ? upperZOffset : 0;
-    // 차선모듈(secondary)의 depth(600)를 섞지 않도록 주선(일반) 모듈만 기준으로 사용
-    const normalRef = list.find((m) => m.orientation !== 'secondary') ?? list[0];
-    const moduleDepth = normalRef.depth;
+    // 주선 기준 "상판 앞 edge" Z (하부: 실측 depth의 절반, 상부: 상부장 앞면)
+    // 하부 모듈은 kind별 재귀(recess)가 적용되므로 moduleDepth ≠ counterDepth
+    // → 상판/차선체인 기준은 실측 depth 사용
+    const counterFrontZ = isUpper ? upperZOffset + upperDepth / 2 : depth / 2;
+    const counterBackZ = isUpper ? upperZOffset - upperDepth / 2 : -depth / 2;
 
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
 
@@ -701,7 +716,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         // 차선모듈 ㄱ자 배치: 앵커(주선) 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
         // 체인 지원: 여러 차선모듈이 연속되면 Z축으로 순차 배치
         if (secNearZ === null) {
-          secNearZ = z + moduleDepth / 2; // 체인 시작 = 주선 정면 끝
+          secNearZ = counterFrontZ; // 체인 시작 = 주선 상판 정면 edge (실측 기준)
           curChain = {
             section: isUpper ? 'upper' : 'lower',
             xCenter: cursor - module.depth / 2,
@@ -709,7 +724,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             startZ: secNearZ,
             endZ: secNearZ,
             anchorRightX: cursor,
-            primaryFrontEdgeZ: z + moduleDepth / 2 + 9, // 주선 상판 오버행 끝
+            primaryFrontEdgeZ: counterFrontZ, // 상판 정면 edge (실측: +9 오버행 제거)
             bodyH: module.height,
             bottomY: isUpper ? upperBottomY : lowerBottomY,
           };
@@ -746,12 +761,15 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         secNearZ = null; // 주선 모듈을 만나면 차선 체인 종료
         curChain = null;
         const centeredX = cursor + module.width / 2;
+        // 주선 하부: 상판 뒤쪽 flush → z center = counterBackZ + module.depth/2
+        // 주선 상부: 기존 upperZOffset 유지
+        const primaryZ = isUpper ? z : (counterBackZ + module.depth / 2);
         parts.push({
           id: module.id,
           label: `${module.section}-${module.kind}`,
           x: centeredX,
           y,
-          z,
+          z: primaryZ,
           width: module.width,
           height: module.height,
           depth: module.depth,
@@ -766,7 +784,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       }
     });
 
-    return { section: isUpper ? 'upper' : 'lower', startX, endX: cursor, centerY, z, depth: moduleDepth };
+    const normalRef = list.find((m) => m.orientation !== 'secondary') ?? list[0];
+    return { section: isUpper ? 'upper' : 'lower', startX, endX: cursor, centerY, z, depth: normalRef.depth };
   };
 
   const lowerModules = modules.filter((m) => m.section !== 'upper');
@@ -847,6 +866,24 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
+  // 차선 체인 안쪽 측판(inner side panel) — 앵커(멍장) 쪽 측면에 마감재 색상으로 렌더
+  // 위치: 체인의 startZ (주선 상판 앞 edge)를 중심으로 18mm 두께
+  // 역할: 멍장(앵커 주선 모듈)과 차선 체인 첫 모듈 사이의 시각적 마감 경계
+  const INNER_PANEL_T = 18;
+  secondaryChains.forEach((ch, i) => {
+    parts.push({
+      id: `sec-inner-panel-${ch.section}-${i}`,
+      label: '마감재(차선 안쪽)',
+      x: ch.xCenter,
+      y: ch.bottomY + ch.bodyH / 2,
+      z: ch.startZ + INNER_PANEL_T / 2,
+      width: ch.xExtent,
+      height: ch.bodyH,
+      depth: INNER_PANEL_T,
+      colorKey: 'trim',
+    });
+  });
+
   // 차선모듈 체인용 상판 — 주선 상판 정면 오버행 끝부터 시작, 휠라 위까지 덮음
   // Z 범위: primaryFrontEdgeZ (주선 상판 앞 끝 오버행) → endZ + fillerW (휠라 끝에 딱 맞게)
   // X 범위: 차선 xExtent + 18mm 오버행(외측) — 내측(주선측)은 주선 상판과 맞닿으므로 오버행 없음
@@ -856,7 +893,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0); // 휠라 끝과 플러시
       const secZCenter = (secBackZ + secFrontZ) / 2;
       const secZDepth = secFrontZ - secBackZ;
-      const { cx, width: xWidth } = chainOuterExtend(ch, 9);
+      const { cx, width: xWidth } = chainOuterExtend(ch, 0);
       parts.push({
         id: `countertop-sec-${i}`,
         label: 'countertop-sec',
@@ -1096,7 +1133,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // Countertop — 하부장 상단에 배치
+  // Countertop — 하부장 상단, 실측 정보(width × depth) 그대로
   // 차선 체인이 있는 측은 마감재 영역만큼 X 범위를 좁혀 차선 상판과 플러시 정렬
   if (preset.hasCountertop && lowerCount > 0) {
     const leftExclude = hasLowerLeftChain ? finishLeftW : 0;
@@ -1111,7 +1148,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       z: 0,
       width: counterWidth,
       height: counterThickness,
-      depth: depth + 18,
+      depth, // 실측 depth 그대로 (+18 오버행 제거)
       colorKey: 'shadow',
     });
   }
