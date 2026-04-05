@@ -306,12 +306,12 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }
   onDelete: (id: string) => void; onClose: () => void;
   onBlindPanel: (modId: string, blindW: number) => void;
 }) {
-  const [blindW, setBlindW] = useState('100');
+  const [blindW, setBlindW] = useState('600');
   const sc = section === 'upper' ? '#6366f1' : '#b8956c';
   const kinds: { value: ModuleKind; label: string; icon: string }[] = [
     { value: 'door', label: '도어', icon: '🚪' }, { value: 'drawer', label: '서랍', icon: '🗄️' }, { value: 'open', label: '오픈', icon: '📦' },
   ];
-  const blindWNum = Math.max(30, Math.min(300, Number(blindW) || 100));
+  const blindWNum = Math.max(30, Math.min(1200, Number(blindW) || 600));
   return (
     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'calc(100% - 32px)', maxWidth: 400, background: '#fff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
       {/* 헤더 */}
@@ -354,7 +354,7 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
-            <input type="number" value={blindW} step={10} min={30} max={300}
+            <input type="number" value={blindW} step={10} min={30} max={1200}
               onChange={e => setBlindW(e.target.value)}
               onBlur={() => setBlindW(String(blindWNum))}
               style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' }} />
