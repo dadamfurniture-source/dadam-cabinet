@@ -83,7 +83,22 @@
       "Bash(curl -sL \"https://dadamfurniture.com/chat.html\")",
       "Bash(python3:*)",
       "Bash(node -e \"console.log\\(''node works''\\)\")",
-      "Bash(ls \"C:/Users/hchan/dadamagent/.claude/worktrees/crazy-noether/planner/embed/assets/\"*.js)"
+      "Bash(ls \"C:/Users/hchan/dadamagent/.claude/worktrees/crazy-noether/planner/embed/assets/\"*.js)",
+      "Bash(npx tsx -e \":*)",
+      "Bash(node --loader ts-node/esm -e \":*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git revert:*)",
+      "Bash(ls node_modules/@react-three/drei/Edges*)",
+      "Bash(curl -sI \"https://dadamfurniture.com/planner/embed/\")",
+      "Bash(curl -s \"https://dadamfurniture.com/planner/embed/index.html\")",
+      "Bash(curl -s \"https://dadamfurniture.com/planner/embed/\")",
+      "Bash(npm test:*)",
+      "Bash(gh run:*)",
+      "Bash(curl -sI \"https://dadamfurniture.com/planner/embed/index.html\")",
+      "Bash(curl -sL \"https://dadamfurniture.com/planner/embed/\")",
+      "Bash(npx vite:*)"
     ]
   }
 }
