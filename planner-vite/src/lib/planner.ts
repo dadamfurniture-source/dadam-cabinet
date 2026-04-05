@@ -776,6 +776,28 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   const hasFinish = finishLeftW > 0 || finishRightW > 0 || moldingH > 0 || toeKickH > 0;
 
+  // 차선 체인이 각 섹션 좌/우 단부에 있는지 판정 (마감재 생략 + 상판/몰딩 벽까지 확장)
+  const hasLowerRightChain = secondaryChains.some(c => c.section === 'lower' && Math.abs(c.anchorRightX - (lowerLayout?.endX ?? Number.NEGATIVE_INFINITY)) < 1);
+  const hasLowerLeftChain = secondaryChains.some(c => c.section === 'lower' && Math.abs((c.anchorRightX - c.xExtent) - (lowerLayout?.startX ?? Number.POSITIVE_INFINITY)) < 1);
+  const hasUpperRightChain = secondaryChains.some(c => c.section === 'upper' && Math.abs(c.anchorRightX - (upperLayout?.endX ?? Number.NEGATIVE_INFINITY)) < 1);
+  const hasUpperLeftChain = secondaryChains.some(c => c.section === 'upper' && Math.abs((c.anchorRightX - c.xExtent) - (upperLayout?.startX ?? Number.POSITIVE_INFINITY)) < 1);
+
+  /** 차선 체인이 벽측 마감재를 대체하는 경우, 차선 요소의 X 오버행을 벽까지 확장 */
+  const chainOuterExtend = (ch: SecondaryChain, baseOverhang = 9): { cx: number; width: number } => {
+    const isRight = ch.section === 'lower'
+      ? Math.abs(ch.anchorRightX - (lowerLayout?.endX ?? -Infinity)) < 1
+      : Math.abs(ch.anchorRightX - (upperLayout?.endX ?? -Infinity)) < 1;
+    const isLeft = ch.section === 'lower'
+      ? Math.abs((ch.anchorRightX - ch.xExtent) - (lowerLayout?.startX ?? Infinity)) < 1
+      : Math.abs((ch.anchorRightX - ch.xExtent) - (upperLayout?.startX ?? Infinity)) < 1;
+    const outerRight = isRight ? finishRightW : baseOverhang;
+    const outerLeft = isLeft ? finishLeftW : baseOverhang;
+    return {
+      cx: ch.xCenter + (outerRight - outerLeft) / 2,
+      width: ch.xExtent + outerLeft + outerRight,
+    };
+  };
+
   // --- 마감재 (실측 완료 시 모듈 없어도 표시) ---
 
   // 상몰딩 — 상부장 기준 (폭: 유효폭 + 좌우마감, 깊이: upperDepth, Z: 상부장과 동일)
@@ -834,13 +856,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0); // 휠라 끝과 플러시
       const secZCenter = (secBackZ + secFrontZ) / 2;
       const secZDepth = secFrontZ - secBackZ;
+      const { cx, width: xWidth } = chainOuterExtend(ch, 9);
       parts.push({
         id: `countertop-sec-${i}`,
         label: 'countertop-sec',
-        x: ch.xCenter,
+        x: cx,
         y: lowerTopY + counterThickness / 2,
         z: secZCenter,
-        width: ch.xExtent + 18,
+        width: xWidth,
         height: counterThickness,
         depth: secZDepth,
         colorKey: 'shadow',
@@ -855,13 +878,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0);
       const secZCenter = (secBackZ + secFrontZ) / 2;
       const secZDepth = secFrontZ - secBackZ;
+      const { cx, width: xWidth } = chainOuterExtend(ch, 3);
       parts.push({
         id: `molding-top-sec-${i}`,
         label: '상몰딩(차선)',
-        x: ch.xCenter,
+        x: cx,
         y: height - moldingH / 2,
         z: secZCenter,
-        width: ch.xExtent + 6,
+        width: xWidth,
         height: moldingH,
         depth: secZDepth,
         colorKey: 'trim',
@@ -872,10 +896,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   // 좌/우 마감재 — 하부장/상부장 별도 (실측 기준 Y 정렬)
   // 차선모듈이 해당 방향·섹션에 있으면 해당 측 primary 마감재 렌더 생략
   // (차선 자유단 휠라가 그 역할 대체)
-  const hasLowerRightChain = secondaryChains.some(c => c.section === 'lower' && Math.abs(c.anchorRightX - (lowerLayout?.endX ?? Number.NEGATIVE_INFINITY)) < 1);
-  const hasLowerLeftChain = secondaryChains.some(c => c.section === 'lower' && Math.abs((c.anchorRightX - c.xExtent) - (lowerLayout?.startX ?? Number.POSITIVE_INFINITY)) < 1);
-  const hasUpperRightChain = secondaryChains.some(c => c.section === 'upper' && Math.abs(c.anchorRightX - (upperLayout?.endX ?? Number.NEGATIVE_INFINITY)) < 1);
-  const hasUpperLeftChain = secondaryChains.some(c => c.section === 'upper' && Math.abs((c.anchorRightX - c.xExtent) - (upperLayout?.startX ?? Number.POSITIVE_INFINITY)) < 1);
 
   const finishSides: Array<{ id: 'left' | 'right'; label: string; x: number; fw: number }> = [];
   if (finishLeftW > 0) finishSides.push({ id: 'left', label: '좌', x: -width / 2 + finishLeftW / 2, fw: finishLeftW });
@@ -932,18 +952,19 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   }
 
   // --- 차선모듈 ㄱ자 자유단 마감재 (휠라) — secondaryFillerW 기본 60 ---
+  // 차선 체인이 벽측 마감재를 대체하는 경우, 휠라도 벽까지 X 확장
   if (secondaryFillerW > 0) {
     secondaryChains.forEach((ch, i) => {
+      const { cx, width: xWidth } = chainOuterExtend(ch, 0);
       if (ch.section === 'lower') {
-        // 하부: 걸레받이 + 본체 높이 (기존 좌우 마감재와 동일 형태)
         const h = ch.bodyH + toeKickH;
         parts.push({
           id: `filler-sec-lower-${i}`,
           label: '휠라(차선)',
-          x: ch.xCenter,
+          x: cx,
           y: h / 2,
           z: ch.endZ + secondaryFillerW / 2,
-          width: ch.xExtent,
+          width: xWidth,
           height: h,
           depth: secondaryFillerW,
           colorKey: 'trim',
@@ -953,10 +974,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         parts.push({
           id: `filler-sec-upper-${i}`,
           label: '휠라(차선)',
-          x: ch.xCenter,
+          x: cx,
           y: height - h / 2,
           z: ch.endZ + secondaryFillerW / 2,
-          width: ch.xExtent,
+          width: xWidth,
           height: h,
           depth: secondaryFillerW,
           colorKey: 'trim',
@@ -1076,14 +1097,19 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   }
 
   // Countertop — 하부장 상단에 배치
+  // 차선 체인이 있는 측은 마감재 영역만큼 X 범위를 좁혀 차선 상판과 플러시 정렬
   if (preset.hasCountertop && lowerCount > 0) {
+    const leftExclude = hasLowerLeftChain ? finishLeftW : 0;
+    const rightExclude = hasLowerRightChain ? finishRightW : 0;
+    const counterWidth = Math.max(0, width - leftExclude - rightExclude);
+    const counterX = (leftExclude - rightExclude) / 2;
     parts.push({
       id: 'countertop',
       label: 'countertop',
-      x: 0,
+      x: counterX,
       y: lowerTopY + counterThickness / 2,
       z: 0,
-      width,
+      width: counterWidth,
       height: counterThickness,
       depth: depth + 18,
       colorKey: 'shadow',
