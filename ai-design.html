@@ -3431,7 +3431,13 @@ Magazine quality, professional lighting.`;
 
             const currentTheme = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
             let analysisText = data.message || `${currentTheme?.name || state.selectedStyle} 스타일 적용`;
-            let suggestionText = altStyleName ? `${info.name} - ${state.selectedStyle} 기본안 / ${altStyleName} AI 추천 적용 색상/질감` : `${info.name} 디자인`;
+            const baseColor = data.metadata?.base_color;
+            const altColors = data.metadata?.alt_colors;
+            const baseColorLabel = baseColor ? ` (기본: ${baseColor})` : '';
+            const altColorLabel = altColors?.upper && altColors?.lower ? ` (추천: ${altColors.upper} + ${altColors.lower})` : '';
+            let suggestionText = altStyleName
+              ? `${info.name} - ${state.selectedStyle} 기본안${baseColorLabel} / ${altStyleName}${altColorLabel}`
+              : `${info.name} 디자인${baseColorLabel}`;
 
             state.results.push({
               category,
