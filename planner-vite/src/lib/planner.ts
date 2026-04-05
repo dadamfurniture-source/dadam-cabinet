@@ -70,6 +70,8 @@ export interface PlannerState {
   toeKickH: number;
   finishLeftW: number;
   finishRightW: number;
+  /** 차선모듈(ㄱ자) 자유단 마감재 폭 (mm) — 기본 휠라 60 */
+  secondaryFillerW?: number;
   // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
   distributorStart: number | null;
   distributorEnd: number | null;
@@ -286,6 +288,7 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     toeKickH: preset.toeKickHeight,
     finishLeftW: 60,
     finishRightW: 60,
+    secondaryFillerW: 60,
     distributorStart: null,
     distributorEnd: null,
     ventStart: null,
@@ -604,6 +607,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   const toeKickH = clamp(Math.round(state.toeKickH ?? 0), 0, 300);
   const finishLeftW = clamp(Math.round(state.finishLeftW ?? 0), 0, 200);
   const finishRightW = clamp(Math.round(state.finishRightW ?? 0), 0, 200);
+  const secondaryFillerW = clamp(Math.round(state.secondaryFillerW ?? 60), 0, 200);
 
   const effectiveWidth = Math.max(0, width - finishLeftW - finishRightW);
   const counterThickness = preset.hasCountertop ? preset.counterThickness : 0;
@@ -630,11 +634,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   // 차선모듈 체인 수집 (걸레받이/상판/몰딩/마감재 재배치용)
   interface SecondaryChain {
     section: 'lower' | 'upper';
-    xCenter: number;      // 월드 X 중심
-    xExtent: number;      // 월드 X extent (차선모듈 depth = 600)
-    startZ: number;       // 월드 Z 근접 edge (주선 쪽)
-    endZ: number;         // 월드 Z 원접 edge (자유단)
-    anchorRightX: number; // 주선 앵커의 오른쪽 edge (코너 판정)
+    xCenter: number;          // 월드 X 중심
+    xExtent: number;          // 월드 X extent (차선모듈 depth = 600)
+    startZ: number;           // 월드 Z 근접 edge (주선 정면)
+    endZ: number;             // 월드 Z 원접 edge (자유단: 차선모듈 몸체 끝)
+    anchorRightX: number;     // 주선 앵커의 오른쪽 edge
+    primaryFrontEdgeZ: number; // 주선 상판의 정면 끝 Z (= moduleDepth/2 + 9 오버행)
+    bodyH: number;            // 모듈 본체 높이
+    bottomY: number;          // 모듈 본체 Y 바닥
   }
   const secondaryChains: SecondaryChain[] = [];
 
@@ -681,6 +688,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             startZ: secNearZ,
             endZ: secNearZ,
             anchorRightX: cursor,
+            primaryFrontEdgeZ: z + moduleDepth / 2 + 9, // 주선 상판 오버행 끝
+            bodyH: module.height,
+            bottomY: isUpper ? upperBottomY : lowerBottomY,
           };
         }
         const perpX = cursor - module.depth / 2;
@@ -777,7 +787,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       depth: depth - 40,
       colorKey: 'trim',
     });
-    // 차선모듈 체인용 걸레받이 — 주선에서 돌출된 ㄱ자 영역
+    // 차선모듈 체인용 걸레받이 — 모듈 본체 영역만 (휠라 제외), 40mm 리세스
     secondaryChains.filter(c => c.section === 'lower').forEach((ch, i) => {
       const chLen = ch.endZ - ch.startZ;
       parts.push({
@@ -794,130 +804,132 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 차선모듈 체인용 상판 — 주선 상판 뒤에 추가 (lowerCount>0 조건은 차선 유무와 무관)
+  // 차선모듈 체인용 상판 — 주선 상판 정면 오버행 끝부터 시작, 휠라 위까지 덮음
+  // Z 범위: primaryFrontEdgeZ (주선 상판 앞 끝 오버행) → endZ + fillerW (휠라 끝에 딱 맞게)
+  // X 범위: 차선 xExtent + 18mm 오버행(외측) — 내측(주선측)은 주선 상판과 맞닿으므로 오버행 없음
   if (preset.hasCountertop && lowerEntries.length > 0) {
     secondaryChains.filter(c => c.section === 'lower').forEach((ch, i) => {
-      const chLen = ch.endZ - ch.startZ;
+      const secBackZ = ch.primaryFrontEdgeZ;              // 주선 상판 오버행 끝과 플러시
+      const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0); // 휠라 끝과 플러시
+      const secZCenter = (secBackZ + secFrontZ) / 2;
+      const secZDepth = secFrontZ - secBackZ;
       parts.push({
         id: `countertop-sec-${i}`,
         label: 'countertop-sec',
         x: ch.xCenter,
         y: lowerTopY + counterThickness / 2,
-        z: ch.startZ + chLen / 2,
+        z: secZCenter,
         width: ch.xExtent + 18,
         height: counterThickness,
-        depth: chLen + 18,
+        depth: secZDepth,
         colorKey: 'shadow',
       });
     });
   }
 
-  // 차선모듈 상부장 체인용 상몰딩 연장
+  // 차선모듈 상부장 체인용 상몰딩 연장 — 휠라 위까지 덮음
   if (moldingH > 0) {
     secondaryChains.filter(c => c.section === 'upper').forEach((ch, i) => {
-      const chLen = ch.endZ - ch.startZ;
+      const secBackZ = ch.primaryFrontEdgeZ;
+      const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0);
+      const secZCenter = (secBackZ + secFrontZ) / 2;
+      const secZDepth = secFrontZ - secBackZ;
       parts.push({
         id: `molding-top-sec-${i}`,
         label: '상몰딩(차선)',
         x: ch.xCenter,
         y: height - moldingH / 2,
-        z: ch.startZ + chLen / 2,
+        z: secZCenter,
         width: ch.xExtent + 6,
         height: moldingH,
-        depth: chLen + 6,
+        depth: secZDepth,
         colorKey: 'trim',
       });
     });
   }
 
   // 좌/우 마감재 — 하부장/상부장 별도 (실측 기준 Y 정렬)
-  // 차선모듈이 해당 방향에 존재하면 마감재를 차선 체인의 자유단(endZ)으로 이동
-  // "해당 방향" 판정: 체인의 anchorRightX가 주선 우측 끝 근처면 우측, 좌측 끝 근처면 좌측
-  const lowerRightChain = secondaryChains.find(c => c.section === 'lower' && Math.abs(c.anchorRightX - (lowerLayout?.endX ?? (moduleStartX + effectiveWidth))) < 1);
-  const lowerLeftChain = secondaryChains.find(c => c.section === 'lower' && Math.abs((c.anchorRightX - c.xExtent) - (lowerLayout?.startX ?? moduleStartX)) < 1);
-  const upperRightChain = secondaryChains.find(c => c.section === 'upper' && Math.abs(c.anchorRightX - (upperLayout?.endX ?? (moduleStartX + effectiveWidth))) < 1);
-  const upperLeftChain = secondaryChains.find(c => c.section === 'upper' && Math.abs((c.anchorRightX - c.xExtent) - (upperLayout?.startX ?? moduleStartX)) < 1);
-
-  interface FinishSide {
-    id: string;
-    label: string;
-    x: number;
-    fw: number;
-    // 차선 전환: 측판이 X축 벽면이 아니라 Z축 벽면(차선 자유단)으로 재배치됨
-    lowerOverride?: { x: number; z: number; width: number; depth: number };
-    upperOverride?: { x: number; z: number; width: number; depth: number };
-  }
-  const finishSides: Array<FinishSide> = [];
-  if (finishLeftW > 0) {
-    const fs: FinishSide = { id: 'left', label: '좌', x: -width / 2 + finishLeftW / 2, fw: finishLeftW };
-    if (lowerLeftChain) {
-      // 차선 자유단(endZ)에 얇은 벽 형태로 재배치: X extent = 차선 폭, Z extent = finishW
-      fs.lowerOverride = { x: lowerLeftChain.xCenter, z: lowerLeftChain.endZ + finishLeftW / 2, width: lowerLeftChain.xExtent, depth: finishLeftW };
-    }
-    if (upperLeftChain) {
-      fs.upperOverride = { x: upperLeftChain.xCenter, z: upperLeftChain.endZ + finishLeftW / 2, width: upperLeftChain.xExtent, depth: finishLeftW };
-    }
-    finishSides.push(fs);
-  }
-  if (finishRightW > 0) {
-    const fs: FinishSide = { id: 'right', label: '우', x: width / 2 - finishRightW / 2, fw: finishRightW };
-    if (lowerRightChain) {
-      fs.lowerOverride = { x: lowerRightChain.xCenter, z: lowerRightChain.endZ + finishRightW / 2, width: lowerRightChain.xExtent, depth: finishRightW };
-    }
-    if (upperRightChain) {
-      fs.upperOverride = { x: upperRightChain.xCenter, z: upperRightChain.endZ + finishRightW / 2, width: upperRightChain.xExtent, depth: finishRightW };
-    }
-    finishSides.push(fs);
-  }
+  const finishSides: Array<{ id: string; label: string; x: number; fw: number }> = [];
+  if (finishLeftW > 0) finishSides.push({ id: 'left', label: '좌', x: -width / 2 + finishLeftW / 2, fw: finishLeftW });
+  if (finishRightW > 0) finishSides.push({ id: 'right', label: '우', x: width / 2 - finishRightW / 2, fw: finishRightW });
 
   for (const side of finishSides) {
     if (preset.fullHeight) {
       const finishH = height - toeKickH - moldingH;
-      // fullHeight에선 하부/상부 override가 하나로 합쳐짐 — lowerOverride 우선 사용
-      const ov = side.lowerOverride ?? side.upperOverride;
       parts.push({
         id: `finish-${side.id}`,
         label: `마감재(${side.label})`,
-        x: ov?.x ?? side.x,
+        x: side.x,
         y: toeKickH + finishH / 2,
-        z: ov?.z ?? 0,
-        width: ov?.width ?? side.fw,
+        z: 0,
+        width: side.fw,
         height: finishH,
-        depth: ov?.depth ?? depth,
+        depth,
         colorKey: 'trim',
       });
     } else {
       // 하부장 마감재 — 모듈 높이 + 걸레받이 포함
       const lowerFinishH = lowerBodyH + toeKickH;
-      const lOv = side.lowerOverride;
       parts.push({
         id: `finish-${side.id}-lower`,
         label: `마감재(${side.label})-하부`,
-        x: lOv?.x ?? side.x,
+        x: side.x,
         y: lowerFinishH / 2,
-        z: lOv?.z ?? 0,
-        width: lOv?.width ?? side.fw,
+        z: 0,
+        width: side.fw,
         height: lowerFinishH,
-        depth: lOv?.depth ?? depth,
+        depth,
         colorKey: 'trim',
       });
-      // 상부장 마감재 — 모듈 높이 + 상몰딩 포함
       if (upperHeight > 0) {
         const upperFinishH = upperHeight + moldingH;
-        const uOv = side.upperOverride;
         parts.push({
           id: `finish-${side.id}-upper`,
           label: `마감재(${side.label})-상부`,
-          x: uOv?.x ?? side.x,
+          x: side.x,
           y: height - upperFinishH / 2,
-          z: uOv?.z ?? upperZOffset,
-          width: uOv?.width ?? side.fw,
+          z: upperZOffset,
+          width: side.fw,
           height: upperFinishH,
-          depth: uOv?.depth ?? upperDepth,
+          depth: upperDepth,
           colorKey: 'trim',
         });
       }
     }
+  }
+
+  // --- 차선모듈 ㄱ자 자유단 마감재 (휠라) — secondaryFillerW 기본 60 ---
+  if (secondaryFillerW > 0) {
+    secondaryChains.forEach((ch, i) => {
+      if (ch.section === 'lower') {
+        // 하부: 걸레받이 + 본체 높이 (기존 좌우 마감재와 동일 형태)
+        const h = ch.bodyH + toeKickH;
+        parts.push({
+          id: `filler-sec-lower-${i}`,
+          label: '휠라(차선)',
+          x: ch.xCenter,
+          y: h / 2,
+          z: ch.endZ + secondaryFillerW / 2,
+          width: ch.xExtent,
+          height: h,
+          depth: secondaryFillerW,
+          colorKey: 'trim',
+        });
+      } else {
+        const h = ch.bodyH + moldingH;
+        parts.push({
+          id: `filler-sec-upper-${i}`,
+          label: '휠라(차선)',
+          x: ch.xCenter,
+          y: height - h / 2,
+          z: ch.endZ + secondaryFillerW / 2,
+          width: ch.xExtent,
+          height: h,
+          depth: secondaryFillerW,
+          colorKey: 'trim',
+        });
+      }
+    });
   }
 
   // --- 설치공간 wireframe (해당 영역에 모듈 없을 때) ---

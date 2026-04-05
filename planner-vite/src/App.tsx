@@ -300,13 +300,18 @@ function AddSide({ position, h, d, color, onClick, rotationY }: { position: [num
 }
 
 // ═══ 팝업: 모듈 편집 ═══
-function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }: {
+function ModulePopup({ mod, section, secondaryFillerW, onUpdate, onDelete, onClose, onBlindPanel, onUpdateFiller }: {
   mod: ModuleEntry; section: 'lower' | 'upper';
+  secondaryFillerW: number;
   onUpdate: (id: string, c: Partial<ModuleEntry>) => void;
   onDelete: (id: string) => void; onClose: () => void;
   onBlindPanel: (modId: string, blindW: number) => void;
+  onUpdateFiller: (w: number) => void;
 }) {
   const [blindW, setBlindW] = useState('600');
+  const [fillerW, setFillerW] = useState(String(secondaryFillerW));
+  const fillerWNum = Math.max(0, Math.min(200, Number(fillerW) || 0));
+  const isSec = mod.orientation === 'secondary';
   const sc = section === 'upper' ? '#6366f1' : '#b8956c';
   const kinds: { value: ModuleKind; label: string; icon: string }[] = [
     { value: 'door', label: '도어', icon: '🚪' }, { value: 'drawer', label: '서랍', icon: '🗄️' }, { value: 'open', label: '오픈', icon: '📦' },
@@ -349,22 +354,44 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }
       </div>
 
       {/* 차선모듈(Secondary Line Module) 섹션 — 멍장을 통해 추가 */}
-      <div style={{ marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>차선모듈 추가 (멍장 경유)</div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
-            <input type="number" value={blindW} step={10} min={30} max={1200}
-              onChange={e => setBlindW(e.target.value)}
-              onBlur={() => setBlindW(String(blindWNum))}
-              style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' }} />
+      {!isSec && (
+        <div style={{ marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>차선모듈 추가 (멍장 경유)</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
+              <input type="number" value={blindW} step={10} min={30} max={1200}
+                onChange={e => setBlindW(e.target.value)}
+                onBlur={() => setBlindW(String(blindWNum))}
+                style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' }} />
+            </div>
+            <button onClick={() => { onBlindPanel(mod.id, blindWNum); onClose(); }}
+              style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              차선모듈 추가
+            </button>
           </div>
-          <button onClick={() => { onBlindPanel(mod.id, blindWNum); onClose(); }}
-            style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-            차선모듈 추가
-          </button>
         </div>
-      </div>
+      )}
+
+      {/* 차선모듈 ㄱ자 마감재 (휠라) — 차선 모듈 선택 시 */}
+      {isSec && (
+        <div style={{ marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>ㄱ자 마감재 (휠라)</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>자유단 휠라 폭 (mm)</div>
+              <input type="number" value={fillerW} step={10} min={0} max={200}
+                onChange={e => setFillerW(e.target.value)}
+                onBlur={() => { setFillerW(String(fillerWNum)); onUpdateFiller(fillerWNum); }}
+                style={{ width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' }} />
+            </div>
+            <button onClick={() => onUpdateFiller(fillerWNum)}
+              style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              적용
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 삭제 */}
       <button onClick={() => { onDelete(mod.id); onClose(); }} style={{ width: '100%', padding: 10, border: '1px solid #fca5a5', borderRadius: 8, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🗑 모듈 삭제</button>
@@ -414,6 +441,7 @@ export default function App() {
     if (params.get('toeKickH')) s.toeKickH = Number(params.get('toeKickH'));
     if (params.get('finishLeftW')) s.finishLeftW = Number(params.get('finishLeftW'));
     if (params.get('finishRightW')) s.finishRightW = Number(params.get('finishRightW'));
+    if (params.get('secondaryFillerW')) s.secondaryFillerW = Number(params.get('secondaryFillerW'));
     // 유틸리티 (분배기/환풍구)
     if (params.get('distStart')) s.distributorStart = Number(params.get('distStart'));
     if (params.get('distEnd')) s.distributorEnd = Number(params.get('distEnd'));
@@ -710,7 +738,7 @@ export default function App() {
       {selId && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setSelId(null)} />
       )}
-      {selMod && <ModulePopup mod={selMod} section={selSection} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} onBlindPanel={applyBlindPanel} />}
+      {selMod && <ModulePopup mod={selMod} section={selSection} secondaryFillerW={planner.secondaryFillerW ?? 60} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} onBlindPanel={applyBlindPanel} onUpdateFiller={(w) => setPlanner(p => ({ ...p, secondaryFillerW: w }))} />}
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
 
