@@ -849,12 +849,23 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   }
 
   // 좌/우 마감재 — 하부장/상부장 별도 (실측 기준 Y 정렬)
-  const finishSides: Array<{ id: string; label: string; x: number; fw: number }> = [];
+  // 차선모듈이 해당 방향·섹션에 있으면 해당 측 primary 마감재 렌더 생략
+  // (차선 자유단 휠라가 그 역할 대체)
+  const hasLowerRightChain = secondaryChains.some(c => c.section === 'lower' && Math.abs(c.anchorRightX - (lowerLayout?.endX ?? Number.NEGATIVE_INFINITY)) < 1);
+  const hasLowerLeftChain = secondaryChains.some(c => c.section === 'lower' && Math.abs((c.anchorRightX - c.xExtent) - (lowerLayout?.startX ?? Number.POSITIVE_INFINITY)) < 1);
+  const hasUpperRightChain = secondaryChains.some(c => c.section === 'upper' && Math.abs(c.anchorRightX - (upperLayout?.endX ?? Number.NEGATIVE_INFINITY)) < 1);
+  const hasUpperLeftChain = secondaryChains.some(c => c.section === 'upper' && Math.abs((c.anchorRightX - c.xExtent) - (upperLayout?.startX ?? Number.POSITIVE_INFINITY)) < 1);
+
+  const finishSides: Array<{ id: 'left' | 'right'; label: string; x: number; fw: number }> = [];
   if (finishLeftW > 0) finishSides.push({ id: 'left', label: '좌', x: -width / 2 + finishLeftW / 2, fw: finishLeftW });
   if (finishRightW > 0) finishSides.push({ id: 'right', label: '우', x: width / 2 - finishRightW / 2, fw: finishRightW });
 
   for (const side of finishSides) {
+    const skipLower = side.id === 'left' ? hasLowerLeftChain : hasLowerRightChain;
+    const skipUpper = side.id === 'left' ? hasUpperLeftChain : hasUpperRightChain;
+
     if (preset.fullHeight) {
+      if (skipLower || skipUpper) continue; // fullHeight: 상·하 통합 — 어느 쪽이든 체인 있으면 생략
       const finishH = height - toeKickH - moldingH;
       parts.push({
         id: `finish-${side.id}`,
@@ -868,20 +879,21 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         colorKey: 'trim',
       });
     } else {
-      // 하부장 마감재 — 모듈 높이 + 걸레받이 포함
-      const lowerFinishH = lowerBodyH + toeKickH;
-      parts.push({
-        id: `finish-${side.id}-lower`,
-        label: `마감재(${side.label})-하부`,
-        x: side.x,
-        y: lowerFinishH / 2,
-        z: 0,
-        width: side.fw,
-        height: lowerFinishH,
-        depth,
-        colorKey: 'trim',
-      });
-      if (upperHeight > 0) {
+      if (!skipLower) {
+        const lowerFinishH = lowerBodyH + toeKickH;
+        parts.push({
+          id: `finish-${side.id}-lower`,
+          label: `마감재(${side.label})-하부`,
+          x: side.x,
+          y: lowerFinishH / 2,
+          z: 0,
+          width: side.fw,
+          height: lowerFinishH,
+          depth,
+          colorKey: 'trim',
+        });
+      }
+      if (upperHeight > 0 && !skipUpper) {
         const upperFinishH = upperHeight + moldingH;
         parts.push({
           id: `finish-${side.id}-upper`,
