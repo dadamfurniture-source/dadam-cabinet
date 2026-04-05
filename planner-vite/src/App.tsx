@@ -148,9 +148,9 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
 
   return (
     <group position={[posX, part.y, part.z]} rotation={isPerp ? [0, part.rotationY!, 0] : undefined}>
-      {/* 히트박스 (정면 전체 범위, 투명, 드래그/클릭용) */}
+      {/* 히트박스 (투명, 드래그/클릭용) — perpendicular는 전체 박스, 일반은 정면 평면 */}
       <mesh
-        position={[0, 0, part.depth / 2]}
+        position={isPerp ? [0, 0, 0] : [0, 0, part.depth / 2]}
         onPointerDown={isDraggable ? (e) => {
           e.stopPropagation();
           dragging.current = true; didDrag.current = false;
@@ -187,7 +187,9 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
           }
         } : undefined}
       >
-        <planeGeometry args={[part.width, part.height]} />
+        {isPerp
+          ? <boxGeometry args={[part.width, part.height, part.depth]} />
+          : <planeGeometry args={[part.width, part.height]} />}
         <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
       </mesh>
 
