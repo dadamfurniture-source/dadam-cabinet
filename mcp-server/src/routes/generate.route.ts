@@ -216,41 +216,56 @@ Estimate wall width in mm.`;
       storage: 'custom storage cabinet with adjustable shelves',
     };
 
+    // ─── 색상 팔레트 ───
+    const BASE_ACHROMATICS = ['white', 'milk white', 'sand gray', 'light gray', 'fog gray', 'cashmere'];
+    const ALT_TWO_TONES: Array<{ upper: string; lower: string }> = [
+      { upper: 'cream white', lower: 'deep forest green' },
+      { upper: 'white',       lower: 'navy blue' },
+      { upper: 'light gray',  lower: 'deep purple' },
+      { upper: 'sand beige',  lower: 'terracotta' },
+      { upper: 'cashmere',    lower: 'walnut wood' },
+      { upper: 'milk white',  lower: 'natural oak wood' },
+      { upper: 'fog gray',    lower: 'concrete charcoal' },
+      { upper: 'ivory',       lower: 'matte black' },
+      { upper: 'warm white',  lower: 'olive green' },
+      { upper: 'pale taupe',  lower: 'burgundy' },
+    ];
+
     // ─── 기본안 (무채색 단일) ───
-    function buildBasePrompt(cat: string): string {
+    function buildBasePrompt(cat: string, color: string): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
       if (cat === 'sink') {
         return `[POSITION FIXED] Keep sink, cooktop, hood at EXACT same positions. Do NOT move appliances.
 Edit photo: install ${subject}. ${sinkLayoutConstraints}
-[COLOR] Choose ONE achromatic: white/milk white/sand gray/light gray/fog gray/cashmere. All cabinets same color, matte flat panel.
+[COLOR FIXED] ALL cabinets must be "${color}" — matte flat panel, exactly this color, no variation.
 Countertop: white ceramic or warm ivory stone.
 ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. Choose ONE achromatic color for all cabinets. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
     // ─── AI 추천안 (투톤) ───
-    function buildAltPrompt(cat: string): string {
+    function buildAltPrompt(cat: string, upper: string, lower: string): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
       if (cat === 'sink') {
         return `[POSITION FIXED] Keep sink, cooktop, hood at EXACT same positions. Do NOT move appliances.
 Edit photo: install ${subject}. ${sinkLayoutConstraints}
-[TWO-TONE] Upper: choose neutral (white/cream/light gray/cashmere), matte flat panel. Lower: choose bold (deep green/navy/purple/terracotta/walnut/oak/concrete). MUST be different.
+[TWO-TONE FIXED] Upper cabinets: "${upper}" (matte flat panel). Lower cabinets: "${lower}" (matte flat panel). Use EXACTLY these colors, no substitution.
 Countertop: ceramic white or concrete.
 ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. Upper: neutral, Lower: bold color. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. Upper: "${upper}", Lower: "${lower}". Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ═══ Step 3: 기본안 생성 (무채색 — AI가 색상 랜덤 선택) ═══
-    log.info('Step 3: Generate base design (기본안 — AI color selection)');
+    // ═══ Step 3: 기본안 생성 (시드로 무채색 팔레트에서 픽) ═══
+    log.info('Step 3: Generate base design (기본안 — seeded color pick)');
 
-    // 랜덤 시드: 매 요청마다 다른 색상 선택 유도
-    const randomSeed = Math.floor(Math.random() * 9999);
-    const mainPrompt = buildBasePrompt(category) + `\n[COLOR SEED: ${randomSeed}] — Pick a different color based on this number. Change ONLY colors, keep layout identical.`;
-    log.info({ promptLength: mainPrompt.length, category, randomSeed }, 'Base design prompt (AI color)');
+    const baseSeed = Math.floor(Math.random() * 9999);
+    const baseColor = BASE_ACHROMATICS[baseSeed % BASE_ACHROMATICS.length];
+    const mainPrompt = buildBasePrompt(category, baseColor);
+    log.info({ promptLength: mainPrompt.length, category, baseSeed, baseColor }, 'Base design prompt (seeded pick)');
 
     const closedResult = await callGemini(
       mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
@@ -262,14 +277,16 @@ Keep wall, floor, camera identical. No clutter.`;
     }
     log.info('Base design (기본안) generated');
 
-    // ═══ Step 4: AI 추천안 생성 (투톤 — AI가 색상 랜덤 선택) ═══
-    log.info('Step 4: Generate AI recommendation (AI 추천안 — AI two-tone selection)');
+    // ═══ Step 4: AI 추천안 생성 (시드로 투톤 팔레트에서 픽) ═══
+    log.info('Step 4: Generate AI recommendation (AI 추천안 — seeded two-tone pick)');
 
     let altImage: string | undefined;
+    let altPick: { upper: string; lower: string } | null = null;
     try {
       const altSeed = Math.floor(Math.random() * 9999);
-      const altPrompt = buildAltPrompt(category) + `\n[COLOR SEED: ${altSeed}] — Pick a different two-tone combination based on this number. Change ONLY colors, keep layout identical.`;
-      log.info({ promptLength: altPrompt.length, category, altSeed }, 'AI recommendation prompt (AI two-tone)');
+      altPick = ALT_TWO_TONES[altSeed % ALT_TWO_TONES.length];
+      const altPrompt = buildAltPrompt(category, altPick.upper, altPick.lower);
+      log.info({ promptLength: altPrompt.length, category, altSeed, altPick }, 'AI recommendation prompt (seeded two-tone)');
 
       const altResult = await callGemini(
         altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
@@ -330,7 +347,9 @@ Estimate each cabinet width. type=drawer for drawer units.`;
         category, kitchen_layout, design_style,
         model: 'gemini-3.1-flash-image-preview',
         elapsed_ms: elapsed,
-        color_mode: 'ai-delegated',
+        color_mode: 'seeded-pick',
+        base_color: baseColor,
+        alt_colors: altPick,
       },
     });
   } catch (error) {
