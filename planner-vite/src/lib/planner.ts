@@ -581,7 +581,8 @@ const buildModulesFromEntries = (
     kind: entry.kind,
     width: entry.width,
     height,
-    depth,
+    // perpendicular 모듈은 기본 깊이 600mm 고정 (회전 후 월드 X축 extent)
+    depth: entry.orientation === 'perpendicular' ? 600 : depth,
     moduleType: entry.moduleType,
     doorCount: entry.doorCount,
     drawerCount: entry.drawerCount,
@@ -641,7 +642,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const isUpper = list[0].section === 'upper';
     const centerY = isUpper ? upperBottomY + list[0].height / 2 : lowerBottomY + list[0].height / 2;
     const z = isUpper ? upperZOffset : 0;
-    const moduleDepth = list[0].depth;
+    // perpendicular 모듈의 depth(600)를 섞지 않도록 일반 모듈만 기준으로 사용
+    const normalRef = list.find((m) => m.orientation !== 'perpendicular') ?? list[0];
+    const moduleDepth = normalRef.depth;
 
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
 
