@@ -112,8 +112,8 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
 
   const isMod = part.id.startsWith('mod-');
   const isFace = part.id.endsWith('-face');
-  const isPerp = !!part.rotationY;
-  const isDraggable = isMod && !isFace && !isPerp; // perpendicular 모듈은 드래그 불가
+  const isSecondary = !!part.rotationY; // 차선모듈 여부
+  const isDraggable = isMod && !isFace && !isSecondary; // 차선모듈은 드래그 불가
   const isClickable = isMod; // 측판/몰딩/걸레받이 등은 클릭 불가
   const isEssential = !!part.essential;
   const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
@@ -147,10 +147,10 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
   if (isFace) return null; // face 파트 숨김 (타입 메쉬가 도어면 포함)
 
   return (
-    <group position={[posX, part.y, part.z]} rotation={isPerp ? [0, part.rotationY!, 0] : undefined}>
-      {/* 히트박스 (투명, 드래그/클릭용) — perpendicular는 전체 박스, 일반은 정면 평면 */}
+    <group position={[posX, part.y, part.z]} rotation={isSecondary ? [0, part.rotationY!, 0] : undefined}>
+      {/* 히트박스 (투명, 드래그/클릭용) — 차선모듈은 전체 박스, 주선(일반)은 정면 평면 */}
       <mesh
-        position={isPerp ? [0, 0, 0] : [0, 0, part.depth / 2]}
+        position={isSecondary ? [0, 0, 0] : [0, 0, part.depth / 2]}
         onPointerDown={isDraggable ? (e) => {
           e.stopPropagation();
           dragging.current = true; didDrag.current = false;
@@ -187,7 +187,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
           }
         } : undefined}
       >
-        {isPerp
+        {isSecondary
           ? <boxGeometry args={[part.width, part.height, part.depth]} />
           : <planeGeometry args={[part.width, part.height]} />}
         <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
@@ -348,9 +348,9 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }
         </div>
       </div>
 
-      {/* 멍장 섹션 */}
+      {/* 차선모듈(Secondary Line Module) 섹션 — 멍장을 통해 추가 */}
       <div style={{ marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>멍장 (블라인드 패널)</div>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>차선모듈 추가 (멍장 경유)</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
@@ -361,7 +361,7 @@ function ModulePopup({ mod, section, onUpdate, onDelete, onClose, onBlindPanel }
           </div>
           <button onClick={() => { onBlindPanel(mod.id, blindWNum); onClose(); }}
             style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-            멍장 적용
+            차선모듈 추가
           </button>
         </div>
       </div>
@@ -457,7 +457,7 @@ export default function App() {
     setSelId(null);
   }, []);
 
-  // 멍장 적용 핸들러: 모듈 앞에 멍장 너비만큼 새 모듈 생성
+  // 멍장을 통한 차선모듈(Secondary Line Module) 추가 핸들러
   const applyBlindPanel = useCallback((modId: string, blindW: number) => {
     setBlindPanel({ modId, blindW });
   }, []);
@@ -471,16 +471,16 @@ export default function App() {
       const list = [...(p[key] as ModuleEntry[] ?? [])];
       const idx = list.findIndex(m => m.id === modId);
       if (idx < 0) return p;
-      // 멍장 모듈: 정면(Z축) 방향으로 돌출 배치 (ㄱ자형)
-      const blindMod: ModuleEntry = {
+      // 차선모듈: 멍장을 통해 정면(Z축) 방향으로 돌출 배치 (ㄱ자형)
+      const secondaryMod: ModuleEntry = {
         id: genModuleId(),
         kind: 'door',
         width: blindW,
-        orientation: 'perpendicular',
+        orientation: 'secondary',
         blindAnchorId: modId,
       };
-      // 앵커 모듈 바로 뒤에 삽입 (perpendicular 모듈은 X cursor 안 먹음)
-      list.splice(idx + 1, 0, blindMod);
+      // 주선(앵커) 모듈 바로 뒤에 삽입 (차선모듈은 X cursor 안 먹음)
+      list.splice(idx + 1, 0, secondaryMod);
       return { ...p, [key]: list, [`${key === 'lowerModules' ? 'lower' : 'upper'}Count`]: list.length };
     });
     setBlindPanel(null);
@@ -582,7 +582,7 @@ export default function App() {
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
-            {/* 멍장 모드: 선택된 모듈 정면에 +/✓ 버튼 */}
+            {/* 차선모듈 추가 모드: 선택된 주선 모듈 정면에 +/✓ 버튼 */}
             {blindPanel && (() => {
               const bp = blindPanel;
               const mp = derived.parts.find(p => p.id === `mod-${bp.modId}` || p.id === bp.modId);
@@ -592,13 +592,13 @@ export default function App() {
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <button onClick={confirmBlindPanel}
                       style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid #22c55e', background: 'rgba(255,255,255,0.95)', color: '#22c55e', fontSize: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', fontWeight: 700 }}
-                      title="멍장 확인 — 모듈 생성">+</button>
+                      title="차선모듈 생성 확인">+</button>
                     <button onClick={cancelBlindPanel}
                       style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid #ef4444', background: 'rgba(255,255,255,0.95)', color: '#ef4444', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', fontWeight: 700 }}
                       title="취소">✕</button>
                   </div>
                   <div style={{ marginTop: 6, fontSize: 11, color: '#666', textAlign: 'center', background: 'rgba(255,255,255,0.9)', padding: '2px 8px', borderRadius: 4 }}>
-                    멍장 {bp.blindW}mm
+                    차선모듈 (멍장 {bp.blindW}mm)
                   </div>
                 </Html>
               );
