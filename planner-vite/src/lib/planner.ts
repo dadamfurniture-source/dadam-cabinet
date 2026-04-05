@@ -471,10 +471,31 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
     // _x 기준 정렬 후 lower에 추가
     newModules.sort((a, b) => a._x - b._x);
     newModules.forEach((m) => { const { _x, ...rest } = m; lower.push(rest); });
+  } else if (preset.id === 'fridge') {
+    // ── 냉장고장: 냉장고 니치(900mm, open) + 나머지 균등 분배 ──
+    const FRIDGE_NICHE_W = 900;
+    if (effectiveW <= FRIDGE_NICHE_W + DOOR_MIN) {
+      // 공간이 좁으면 니치만
+      const nicheW = Math.min(FRIDGE_NICHE_W, effectiveW);
+      lower.push({ id: genModuleId(), kind: 'open', width: nicheW, moduleType: 'storage' });
+      const rest = effectiveW - nicheW;
+      if (rest >= DOOR_MIN) {
+        const gap: GapSpace = { start: startBound + nicheW, end: endBound, width: rest };
+        lower.push(...distToEntries(gap).map(({ _x, ...m }) => m));
+      }
+    } else {
+      // 냉장고 니치는 우측 벽 쪽 배치 (표준 배치)
+      const nicheX = endBound - FRIDGE_NICHE_W;
+      const leftGap: GapSpace = { start: startBound, end: nicheX, width: nicheX - startBound };
+      const leftMods = distToEntries(leftGap).sort((a, b) => a._x - b._x);
+      leftMods.forEach(({ _x, ...m }) => lower.push(m));
+      lower.push({ id: genModuleId(), kind: 'open', width: FRIDGE_NICHE_W, moduleType: 'storage' });
+    }
   } else {
     // ── 비싱크대: 균등 분배 (2D 페어링 + 잔여 최적화) ──
     const gap: GapSpace = { start: startBound, end: endBound, width: effectiveW };
-    lower.push(...distToEntries(gap));
+    const mods = distToEntries(gap).sort((a, b) => a._x - b._x);
+    mods.forEach(({ _x, ...m }) => lower.push(m));
   }
 
   // 하부장 총 폭 보정
