@@ -308,7 +308,7 @@ function ModulePopup({ mod, section, secondaryFillerW, onUpdate, onDelete, onClo
   onBlindPanel: (modId: string, blindW: number) => void;
   onUpdateFiller: (w: number) => void;
 }) {
-  const [blindW, setBlindW] = useState('600');
+  const [blindW, setBlindW] = useState(section === 'upper' ? '340' : '600');
   const [fillerW, setFillerW] = useState(String(secondaryFillerW));
   const fillerWNum = Math.max(0, Math.min(200, Number(fillerW) || 0));
   const isSec = mod.orientation === 'secondary';
@@ -316,7 +316,8 @@ function ModulePopup({ mod, section, secondaryFillerW, onUpdate, onDelete, onClo
   const kinds: { value: ModuleKind; label: string; icon: string }[] = [
     { value: 'door', label: '도어', icon: '🚪' }, { value: 'drawer', label: '서랍', icon: '🗄️' }, { value: 'open', label: '오픈', icon: '📦' },
   ];
-  const blindWNum = Math.max(30, Math.min(1200, Number(blindW) || 600));
+  const blindWDefault = section === 'upper' ? 340 : 600;
+  const blindWNum = Math.max(30, Math.min(1200, Number(blindW) || blindWDefault));
   return (
     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'calc(100% - 32px)', maxWidth: 400, background: '#fff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
       {/* 헤더 */}
@@ -359,7 +360,7 @@ function ModulePopup({ mod, section, secondaryFillerW, onUpdate, onDelete, onClo
           <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>차선모듈 추가 (멍장 경유)</div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍장 너비 (mm)</div>
+              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>멍 너비 (mm)</div>
               <input type="number" value={blindW} step={10} min={30} max={1200}
                 onChange={e => setBlindW(e.target.value)}
                 onBlur={() => setBlindW(String(blindWNum))}
