@@ -526,7 +526,7 @@ export default function App() {
     return ends;
   }, [planner.lowerModules, planner.upperModules]);
 
-  // 모듈 드래그 → 순서 재정렬
+  // 모듈 드래그 → 순서 재정렬 (앵커 주선 + 부속 차선 체인을 ㄱ자 단위로 함께 이동)
   const dragModule = useCallback((id: string, newX: number) => {
     setPlanner(p => {
       const halfW = p.width / 2;
@@ -535,12 +535,22 @@ export default function App() {
       const key = isUp ? 'upperModules' : 'lowerModules';
       const list = [...(p[key] as ModuleEntry[] ?? [])];
       const idx = list.findIndex(m => m.id === id);
-      if (idx < 0) return p;
-      const [dragged] = list.splice(idx, 1);
+      if (idx < 0 || list[idx].orientation === 'secondary') return p; // 차선모듈은 드래그 불가
+
+      // 앵커 + 뒤따르는 차선 체인을 하나의 그룹으로 묶어서 이동
+      let groupEnd = idx;
+      while (groupEnd + 1 < list.length && list[groupEnd + 1].orientation === 'secondary') groupEnd++;
+      const group = list.splice(idx, groupEnd - idx + 1);
+
+      // 삽입 위치 계산 — 주선(non-secondary) 모듈만 X cursor에 기여
       let ins = list.length;
       let cursor = p.finishLeftW ?? 0;
-      for (let i = 0; i < list.length; i++) { if (targetMm < cursor + list[i].width / 2) { ins = i; break; } cursor += list[i].width; }
-      list.splice(ins, 0, dragged);
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].orientation === 'secondary') continue;
+        if (targetMm < cursor + list[i].width / 2) { ins = i; break; }
+        cursor += list[i].width;
+      }
+      list.splice(ins, 0, ...group);
       return { ...p, [key]: list };
     });
   }, []);
@@ -555,23 +565,24 @@ export default function App() {
     });
   }, [planner.width]);
 
-  // shiftMap 계산
+  // shiftMap 계산 — 차선모듈은 X cursor/정렬에서 제외 (앵커와 함께 이동)
   const shiftMap = useMemo<Record<string, 'left' | 'right'>>(() => {
     if (!dragState) return {};
     const halfW = planner.width / 2;
     const targetMm = Math.max(0, Math.min(planner.width, dragState.x + halfW));
     const isUp = (planner.upperModules ?? []).some(m => m.id === dragState.id);
     const list = isUp ? (planner.upperModules ?? []) : (planner.lowerModules ?? []);
-    const dragIdx = list.findIndex(m => m.id === dragState.id);
+    const mainOnly = list.filter(m => m.orientation !== 'secondary');
+    const dragIdx = mainOnly.findIndex(m => m.id === dragState.id);
     if (dragIdx < 0) return {};
     const fL = planner.finishLeftW ?? 0;
     let c = fL;
     const centers: { id: string; cx: number }[] = [];
-    list.forEach(m => { centers.push({ id: m.id, cx: c + m.width / 2 }); c += m.width; });
+    mainOnly.forEach(m => { centers.push({ id: m.id, cx: c + m.width / 2 }); c += m.width; });
     const without = centers.filter(x => x.id !== dragState.id);
     let ins = without.length;
     for (let i = 0; i < without.length; i++) { if (targetMm < without[i].cx) { ins = i; break; } }
-    const origPos = list.slice(0, dragIdx).filter(m => m.id !== dragState.id).length;
+    const origPos = mainOnly.slice(0, dragIdx).filter(m => m.id !== dragState.id).length;
     const result: Record<string, 'left' | 'right'> = {};
     if (ins < origPos) { for (let i = ins; i < origPos; i++) result[`mod-${without[i].id}`] = 'right'; }
     else if (ins > origPos) { for (let i = origPos; i < ins; i++) result[`mod-${without[i].id}`] = 'left'; }
