@@ -43,8 +43,7 @@ const FIXTURE_PRICES: Record<string, Record<string, number>> = {
 
 const LABOR = {
   installation: 200000,
-  demolition_small: 300000,
-  demolition_large: 500000,
+  demolition_per_1000mm: 30000,  // 1000mm당 3만원
 };
 
 const VAT_RATE = 0.10;
@@ -152,8 +151,9 @@ export function calculateQuote(
 
   // 설치비 + 철거비 (벽 너비 기반)
   items.push({ name: '배송 + 설치', quantity: '1식', unit_price: LABOR.installation, total: LABOR.installation });
-  const demolition = (analysis.wall_width_mm || 0) >= 3000 ? LABOR.demolition_large : LABOR.demolition_small;
-  items.push({ name: '기존 철거', quantity: '1식', unit_price: demolition, total: demolition });
+  const wallLen = analysis.wall_width_mm || lowerTotalW || 3000;
+  const demolition = Math.round(LABOR.demolition_per_1000mm * wallLen / 1000);
+  items.push({ name: '기존 철거', quantity: `${wallLen}mm`, unit_price: LABOR.demolition_per_1000mm, total: demolition });
 
   // 합산
   const subtotal = items.reduce((s, i) => s + i.total, 0);
