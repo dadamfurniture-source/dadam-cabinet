@@ -609,7 +609,8 @@ const buildModulesFromEntries = (
     // 상부장/차선모듈은 기존 depth 유지
     let effDepth = depth;
     if (isSecondary) {
-      effDepth = 600;
+      // 차선모듈: 전달받은 depth 그대로 사용 (하부=counter depth, 상부=upperDepth)
+      effDepth = depth;
     } else if (isLower) {
       effDepth = entry.kind === 'open' ? Math.max(100, depth - 30) : Math.max(100, depth - 10);
     }
