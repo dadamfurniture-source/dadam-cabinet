@@ -10,7 +10,7 @@ import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
 import { calculateQuote, type ImageAnalysisResult } from '../services/quote.service.js';
 import { generateRateLimit } from '../middleware/rate-limiter.js';
-import { snapToStandard, enforceMinWidth, adjustToWallWidth } from '../constants/cabinet-standards.js';
+import { snapToStandard, enforceMinWidth, adjustToWallWidth, FIXED_MODULE_WIDTHS } from '../constants/cabinet-standards.js';
 
 const log = createLogger('route:generate');
 const router = Router();
@@ -437,11 +437,22 @@ Return ONLY this JSON (no other text):
           rawWidth: Math.round(totalCabinetW * (m.pct || 0) / 100),
         }));
 
-        // 스냅 + 최소 너비 적용
-        const lowerSnapped = lowerRaw.map(m => ({
-          type: m.type,
-          width: enforceMinWidth(snapToStandard(m.rawWidth), m.type),
-        }));
+        // 고정 너비 적용 (sink=1000mm, cooktop=600mm) + 나머지 스냅
+        const fixedTypes = Object.keys(FIXED_MODULE_WIDTHS);
+        const lowerFixedTotal = lowerRaw.filter(m => fixedTypes.includes(m.type)).reduce((s, m) => s + (FIXED_MODULE_WIDTHS[m.type] || 0), 0);
+        const lowerFlexTotal = totalCabinetW - lowerFixedTotal;
+        const lowerFlexRawTotal = lowerRaw.filter(m => !fixedTypes.includes(m.type)).reduce((s, m) => s + m.rawWidth, 0);
+
+        const lowerSnapped = lowerRaw.map(m => {
+          if (FIXED_MODULE_WIDTHS[m.type]) {
+            return { type: m.type, width: FIXED_MODULE_WIDTHS[m.type] };
+          }
+          // 유연 모듈: 남은 길이 내에서 비율 재분배 후 스냅
+          const flexRatio = lowerFlexRawTotal > 0 ? m.rawWidth / lowerFlexRawTotal : 1 / Math.max(1, lowerRaw.filter(x => !fixedTypes.includes(x.type)).length);
+          const flexWidth = Math.round(lowerFlexTotal * flexRatio);
+          return { type: m.type, width: enforceMinWidth(snapToStandard(flexWidth), m.type) };
+        });
+
         const upperSnapped = upperRaw.map(m => ({
           type: m.type,
           width: enforceMinWidth(snapToStandard(m.rawWidth), m.type),
