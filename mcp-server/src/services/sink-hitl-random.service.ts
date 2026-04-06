@@ -94,30 +94,31 @@ function layoutSecondary(
 }
 
 // ─── 좌표 변환 ───
-function toInner(xWall: number, env: SinkEnv): number {
-  // measurementBase 'left' 기준: 벽 좌측으로부터 xWall mm → inner coord (finishLeftW 차감)
+// blindLeftW/blindRightW: 멍장 폭 (L/U자 코너)을 inner 좌표에서 제외
+function toInner(xWall: number, env: SinkEnv, blindLeftW = 0, blindRightW = 0): number {
+  // measurementBase 'left' 기준: 벽 좌측으로부터 xWall mm → inner coord (finishLeftW + 멍장 차감)
   // 'right' 기준: 벽 우측으로부터 xWall mm → inner coord
   if (env.measurementBase === 'left') {
-    return xWall - env.finishLeftW;
+    return xWall - env.finishLeftW - blindLeftW;
   }
-  // right base: innerW - (xWall - finishRightW)
-  const innerW = env.width - env.finishLeftW - env.finishRightW;
-  return innerW - (xWall - env.finishRightW);
+  // right base: innerW - (xWall - finishRightW - blindRightW)
+  const innerW = env.width - env.finishLeftW - env.finishRightW - blindLeftW - blindRightW;
+  return innerW - (xWall - env.finishRightW - blindRightW);
 }
 
 // ─── 하부 레이아웃: 유틸리티 기반 고정 + 빈 공간 랜덤 채움 ───
-function layoutLower(env: SinkEnv, rng: () => number): ProtoModule[] {
-  const innerW = env.width - env.finishLeftW - env.finishRightW;
+function layoutLower(env: SinkEnv, rng: () => number, blindLeftW = 0, blindRightW = 0): ProtoModule[] {
+  const innerW = env.width - env.finishLeftW - env.finishRightW - blindLeftW - blindRightW;
 
-  // 환풍구 중심 (inner coord)
+  // 환풍구 중심 (inner coord — 멍장 오프셋 반영)
   const ventCenter =
     env.ventStart != null && env.ventEnd != null
-      ? (toInner(env.ventStart, env) + toInner(env.ventEnd, env)) / 2
+      ? (toInner(env.ventStart, env, blindLeftW, blindRightW) + toInner(env.ventEnd, env, blindLeftW, blindRightW)) / 2
       : null;
 
-  // 분배기 범위 (inner coord)
-  const distStart = env.distributorStart != null ? toInner(env.distributorStart, env) : null;
-  const distEnd = env.distributorEnd != null ? toInner(env.distributorEnd, env) : null;
+  // 분배기 범위 (inner coord — 멍장 오프셋 반영)
+  const distStart = env.distributorStart != null ? toInner(env.distributorStart, env, blindLeftW, blindRightW) : null;
+  const distEnd = env.distributorEnd != null ? toInner(env.distributorEnd, env, blindLeftW, blindRightW) : null;
   const distCenter = distStart != null && distEnd != null ? (distStart + distEnd) / 2 : null;
 
   const cookW = pick(rng, COOK_WIDTH_CANDIDATES);
@@ -231,11 +232,11 @@ function layoutLower(env: SinkEnv, rng: () => number): ProtoModule[] {
 }
 
 // ─── 상부 레이아웃: hood를 환풍구 중심에 + 나머지 storage ───
-function layoutUpper(env: SinkEnv, rng: () => number): ProtoModule[] {
-  const innerW = env.width - env.finishLeftW - env.finishRightW;
+function layoutUpper(env: SinkEnv, rng: () => number, blindLeftW = 0, blindRightW = 0): ProtoModule[] {
+  const innerW = env.width - env.finishLeftW - env.finishRightW - blindLeftW - blindRightW;
   const ventCenter =
     env.ventStart != null && env.ventEnd != null
-      ? (toInner(env.ventStart, env) + toInner(env.ventEnd, env)) / 2
+      ? (toInner(env.ventStart, env, blindLeftW, blindRightW) + toInner(env.ventEnd, env, blindLeftW, blindRightW)) / 2
       : null;
 
   const hoodW = pick(rng, HOOD_WIDTH_CANDIDATES);
@@ -301,19 +302,34 @@ export function generateRandomSinkDesign(
   const depth = env.depth ?? 600;
   const fillerW = env.secondaryFillerW ?? 60;
 
-  // 1) 주선(primary) 레이아웃
-  const lowerProto = layoutLower(env, rng);
-  const upperProto = layoutUpper(env, rng);
-
-  // 2) ㄱ자/ㄷ자 차선(secondary) 생성
-  //    좌측 차선: 주선의 첫 번째 모듈(idx=0)에 앵커
-  //    우측 차선: 주선의 마지막 모듈에 앵커
+  // 2) ㄱ자/ㄷ자: 멍장(blind corner panel) + 차선(secondary)
+  //    멍장: 코너 접합부에 depth 폭의 blank 모듈 → 차선이 앵커로 연결
+  //    좌측 차선: 주선의 첫 번째 모듈(멍장, idx=0)에 앵커
+  //    우측 차선: 주선의 마지막 모듈(멍장)에 앵커
   const hasLeft  = (layoutType === 'L' || layoutType === 'U') && (env.secondaryLeftW ?? 0) > 0;
   const hasRight = layoutType === 'U' && (env.secondaryRightW ?? 0) > 0;
 
+  const blindLeftW  = hasLeft  ? depth : 0;
+  const blindRightW = hasRight ? depth : 0;
+
+  // 1) 주선(primary) 레이아웃 — 멍장 폭 제외
+  const lowerProto = layoutLower(env, rng, blindLeftW, blindRightW);
+  const upperProto = layoutUpper(env, rng, blindLeftW, blindRightW);
+
+  // 멍장 삽입: 좌측은 맨 앞, 우측은 맨 뒤
+  if (hasLeft) {
+    lowerProto.unshift({ type: 'blank', width: blindLeftW, kind: 'door' });
+    upperProto.unshift({ type: 'blank', width: blindLeftW, kind: 'door' });
+  }
+  if (hasRight) {
+    lowerProto.push({ type: 'blank', width: blindRightW, kind: 'door' });
+    upperProto.push({ type: 'blank', width: blindRightW, kind: 'door' });
+  }
+
+  // 차선 모듈 생성 + 멍장에 앵커 연결
   if (hasLeft) {
     const secLower = layoutSecondary(env.secondaryLeftW!, depth, fillerW, rng);
-    secLower.forEach(m => { m.blindAnchorIdx = 0; }); // 좌측 끝 모듈에 앵커
+    secLower.forEach(m => { m.blindAnchorIdx = 0; }); // 좌측 멍장(idx=0)에 앵커
     lowerProto.push(...secLower);
 
     const secUpper = layoutSecondary(env.secondaryLeftW!, depth, fillerW, rng);
