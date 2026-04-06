@@ -832,7 +832,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   // --- 마감재 (실측 완료 시 모듈 없어도 표시) ---
 
-  // 상몰딩 — 상부장 기준 (폭: 유효폭 + 좌우마감, 깊이: upperDepth, Z: 상부장과 동일)
+  // 상몰딩 — 상부장 위에 덮는 방식 (좌우 마감재 위로 올라감)
+  // Z를 1mm 앞으로 밀어 좌우 마감재와의 Z-fighting 방지
   if (moldingH > 0) {
     const moldingDepth = preset.fullHeight ? depth : upperDepth;
     const moldingZ = preset.fullHeight ? 0 : upperZOffset;
@@ -841,7 +842,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       label: '상몰딩',
       x: 0,
       y: height - moldingH / 2,
-      z: moldingZ,
+      z: moldingZ + 1,
       width,
       height: moldingH,
       depth: moldingDepth + 6,
@@ -986,15 +987,16 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         });
       }
       if (upperHeight > 0 && !skipUpper) {
-        // 상몰딩 아래까지만 (moldingH 제외 — 상몰딩이 전폭을 커버)
+        // 상몰딩 아래까지만 — 1mm 간격으로 상몰딩이 위에서 덮도록
+        const upperFinishH = Math.max(0, upperHeight - 1);
         parts.push({
           id: `finish-${side.id}-upper`,
           label: `마감재(${side.label})-상부`,
           x: side.x,
-          y: upperBottomY + upperHeight / 2,
+          y: upperBottomY + upperFinishH / 2,
           z: upperZOffset,
           width: side.fw,
-          height: upperHeight,
+          height: upperFinishH,
           depth: upperDepth,
           colorKey: 'trim',
         });
