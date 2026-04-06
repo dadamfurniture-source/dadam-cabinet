@@ -726,7 +726,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         // 하부장: 상판 앞면(counterFrontZ)에서 시작 → 상판이 코너를 덮음
         const isLeftChain = Math.abs(cursor - startX) < 1;
         if (secNearZ === null) {
-          secNearZ = isUpper ? counterBackZ : counterFrontZ;
+          // 상부·하부 모두 counterFrontZ(앞면)에서 시작 → 방 안쪽(+Z)으로 연장
+          // counterBackZ 에서 시작하면 blind panel과 Z가 겹침
+          secNearZ = counterFrontZ;
           curChain = {
             section: isUpper ? 'upper' : 'lower',
             xCenter: isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2,
@@ -923,7 +925,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   // 차선모듈 상부장 체인용 상몰딩 연장 — 벽(코너)부터 휠라 끝까지
   if (moldingH > 0) {
     secondaryChains.filter(c => c.section === 'upper').forEach((ch, i) => {
-      const secBackZ = ch.startZ; // 상부: counterBackZ (벽), 하부: counterFrontZ
+      const secBackZ = ch.startZ; // 상부·하부 모두 counterFrontZ (앞면)에서 시작
       const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0);
       const secZCenter = (secBackZ + secFrontZ) / 2;
       const secZDepth = secFrontZ - secBackZ;

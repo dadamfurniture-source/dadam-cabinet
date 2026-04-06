@@ -61,6 +61,11 @@
     .orientation-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
     .orientation-tag.sec { color: #92400e; background: #fef3c7; }
     .orientation-tag.ter { color: #1e40af; background: #dbeafe; }
+    .mod-card[draggable="true"] { cursor: grab; }
+    .mod-card[draggable="true"]:active { cursor: grabbing; }
+    .mod-card.dragging { opacity: 0.4; }
+    .mod-card.drag-over { border-top: 3px solid #0071e3; margin-top: 1px; }
+    .drag-handle { cursor: grab; color: #86868b; font-size: 14px; margin-right: 4px; user-select: none; }
     .env-section-header { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 2px; }
     .env-section-header label { margin: 0; }
   </style>
@@ -379,10 +384,12 @@
         const typeLabel = TYPE_LABELS[m.type] || m.type;
         const tagMap = { sec: '<span class="orientation-tag sec">좌 차선</span>', ter: '<span class="orientation-tag ter">우 차차선</span>' };
         const secTag = lineType ? (tagMap[lineType] || '') : '';
+        const orient = m.orientation || 'normal';
         return `
-          <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}">
+          <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}" data-orient="${orient}"
+               draggable="true" ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)" ondragleave="onDragLeave(event)">
             <div class="mod-header">
-              <span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
+              <span><span class="drag-handle">⠿</span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
               <button class="btn-danger" onclick="removeModule('${section}',${i})">✕</button>
             </div>
             <div class="mod-row">
@@ -451,6 +458,67 @@
       currentDesign[section].push(mod);
       sendToPlanner(currentDesign);
       renderModuleCards();
+    };
+
+    // ─── 드래그 앤 드롭 재정렬 ───
+    let dragState = null; // { section, idx, orient }
+
+    window.onDragStart = (e) => {
+      const card = e.target.closest('.mod-card');
+      if (!card) return;
+      dragState = {
+        section: card.dataset.section,
+        idx: Number(card.dataset.idx),
+        orient: card.dataset.orient,
+      };
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', ''); // Firefox 호환
+    };
+
+    window.onDragOver = (e) => {
+      e.preventDefault();
+      const card = e.target.closest('.mod-card');
+      if (!card || !dragState) return;
+      // 같은 section + 같은 orientation 그룹 안에서만 허용
+      if (card.dataset.section !== dragState.section || card.dataset.orient !== dragState.orient) return;
+      e.dataTransfer.dropEffect = 'move';
+      card.classList.add('drag-over');
+    };
+
+    window.onDragLeave = (e) => {
+      const card = e.target.closest('.mod-card');
+      if (card) card.classList.remove('drag-over');
+    };
+
+    window.onDrop = (e) => {
+      e.preventDefault();
+      const card = e.target.closest('.mod-card');
+      if (!card || !dragState) return;
+      card.classList.remove('drag-over');
+      const targetSection = card.dataset.section;
+      const targetIdx = Number(card.dataset.idx);
+      const targetOrient = card.dataset.orient;
+      if (targetSection !== dragState.section || targetOrient !== dragState.orient) return;
+      if (targetIdx === dragState.idx) return;
+
+      // 같은 orientation 그룹 내에서 이동
+      const mods = currentDesign[dragState.section];
+      const moved = mods.splice(dragState.idx, 1)[0];
+      // splice 후 targetIdx 보정
+      const insertIdx = targetIdx > dragState.idx ? targetIdx - 1 : targetIdx;
+      mods.splice(insertIdx, 0, moved);
+      // idx 재번호
+      mods.forEach((m, i) => m.idx = i);
+      sendToPlanner(currentDesign);
+      renderModuleCards();
+    };
+
+    window.onDragEnd = (e) => {
+      document.querySelectorAll('.mod-card').forEach(c => {
+        c.classList.remove('dragging', 'drag-over');
+      });
+      dragState = null;
     };
 
     // ─── API 호출 ───
