@@ -143,7 +143,7 @@ export const PRESETS: CabinetPreset[] = [
     roomLabel: '주방',
     defaultWidth: 3000,
     defaultHeight: 2300,
-    defaultDepth: 600,
+    defaultDepth: 650,
     lowerHeight: 870,
     upperHeight: 720,
     upperDepth: 295,
@@ -607,12 +607,16 @@ const buildModulesFromEntries = (
     //   door/drawer → 도어 20T 앞쪽 생성, 모듈 본체 + 도어 합계 = depth - 10 (상판이 10mm 오버행)
     //   open → depth - 30 (상판이 30mm 오버행)
     // 상부장/차선모듈은 기존 depth 유지
+    // 모듈별 깊이 결정
+    // 상판(counter) depth가 기준(650), 모듈은 타입별 고정 깊이 사용
     let effDepth = depth;
     if (isSecondary) {
       // 차선모듈: 전달받은 depth 그대로 사용 (하부=counter depth, 상부=upperDepth)
       effDepth = depth;
     } else if (isLower) {
-      effDepth = entry.kind === 'open' ? Math.max(100, depth - 30) : Math.max(100, depth - 10);
+      // 하부 모듈: 타입별 깊이 — sink=600, 일반/cook=550
+      const baseDepth = entry.moduleType === 'sink' ? 600 : 550;
+      effDepth = baseDepth;
     }
     return {
       id: entry.id,

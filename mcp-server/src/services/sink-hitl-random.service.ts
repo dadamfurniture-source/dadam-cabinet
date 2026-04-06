@@ -299,7 +299,7 @@ export function generateRandomSinkDesign(
 ): SinkDesign {
   const rng = mulberry32(seed);
   const layoutType: LayoutType = env.layoutType ?? 'I';
-  const depth = env.depth ?? 600;
+  const depth = env.depth ?? 650;
   const fillerW = env.secondaryFillerW ?? 60;
 
   // 2) ㄱ자/ㄷ자: 멍장(blind corner panel) + 차선(secondary)
