@@ -167,14 +167,23 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
     // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) — 싱크대만 plumbing 분석 ═══
     log.info('Step 1: Wall analysis');
     let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
+    let wallW2 = 0; // ㄱ자/ㄷ자 두 번째 벽
+    const isLType = kitchen_layout === 'l_type';
+    const isUType = kitchen_layout === 'u_type';
 
     try {
+      const layoutHint = isLType
+        ? '\nThis is an L-shaped (ㄱ자) kitchen. Measure BOTH walls: main wall (longer) and secondary wall (shorter, perpendicular). Return wall.width for main wall and wall.width2 for secondary wall.'
+        : isUType
+          ? '\nThis is a U-shaped (ㄷ자) kitchen. Measure all walls. Return wall.width for main wall and wall.width2 for total of secondary walls.'
+          : '';
+
       const wallPrompt = category === 'sink'
-        ? `Analyze this Korean apartment photo. Return JSON only:
-{"wall":{"width":number,"height":number},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
-Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPct as % from left.`
-        : `Analyze this Korean apartment photo. Return JSON only:
-{"wall":{"width":number,"height":number},"confidence":"high"|"medium"|"low"}
+        ? `Analyze this Korean apartment photo.${layoutHint} Return JSON only:
+{"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
+Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPct as % from left of MAIN wall.`
+        : `Analyze this Korean apartment photo.${layoutHint} Return JSON only:
+{"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"confidence":"high"|"medium"|"low"}
 Estimate wall width in mm.`;
 
       const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
@@ -187,11 +196,16 @@ Estimate wall width in mm.`;
           if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
           wallH = parsed.wall?.height || 2400;
           if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
+          // ㄱ자/ㄷ자 두 번째 벽
+          if (parsed.wall?.width2) {
+            wallW2 = parsed.wall.width2;
+            if (wallW2 > 0 && wallW2 < 100) wallW2 = Math.round(wallW2 * 1000);
+          }
           if (category === 'sink') {
             waterPct = parsed.plumbing?.waterPct || 30;
             exhaustPct = parsed.plumbing?.exhaustPct || 70;
           }
-          log.info({ wallW, wallH, waterPct, exhaustPct }, 'Wall analysis parsed');
+          log.info({ wallW, wallW2, wallH, waterPct, exhaustPct, kitchen_layout }, 'Wall analysis parsed');
         }
       }
     } catch (e) {
@@ -372,10 +386,16 @@ Keep wall, floor, camera identical. No clutter.`;
     let quoteMetadata: Record<string, unknown> = {};
     try {
       // 5a + 5b: 모듈 타입 분류 + 비율 추정을 단일 호출로
-      const quotePrompt = `Analyze this kitchen cabinet design image.
-Total wall width: ${wallW}mm.
+      // ㄱ자/ㄷ자: 전체 캐비닛 총 길이 = 주선(wallW) + 보조선(wallW2)
+      const totalCabinetW = wallW + wallW2;
+      const layoutDesc = wallW2 > 0
+        ? `This is an L-shaped kitchen. Main wall: ${wallW}mm, Secondary wall: ${wallW2}mm. Total cabinet length: ${totalCabinetW}mm.`
+        : `Total wall width: ${totalCabinetW}mm.`;
 
-STEP 1 — Count and classify each cabinet module from LEFT to RIGHT.
+      const quotePrompt = `Analyze this kitchen cabinet design image.
+${layoutDesc}
+
+STEP 1 — Count and classify each cabinet module from LEFT to RIGHT${wallW2 > 0 ? ', including modules on the secondary wall' : ''}.
 Lower cabinets (하부장):
 - sink: module containing sink bowl
 - cooktop: module with cooktop/induction
@@ -384,7 +404,7 @@ Lower cabinets (하부장):
 
 Upper cabinets (상부장): classify same way (all are "door" type typically).
 
-STEP 2 — Estimate each module's width as a PERCENTAGE of total wall width.
+STEP 2 — Estimate each module's width as a PERCENTAGE of TOTAL cabinet length (${totalCabinetW}mm).
 All lower percentages must sum to 100.
 All upper percentages must sum to 100.
 
@@ -410,11 +430,11 @@ Return ONLY this JSON (no other text):
         // 5c: 비율 → mm → 스냅 → 제약 → 합계 보정
         const lowerRaw = lowerModules.map(m => ({
           type: m.type || 'door',
-          rawWidth: Math.round(wallW * (m.pct || 0) / 100),
+          rawWidth: Math.round(totalCabinetW * (m.pct || 0) / 100),
         }));
         const upperRaw = upperModules.map(m => ({
           type: m.type || 'door',
-          rawWidth: Math.round(wallW * (m.pct || 0) / 100),
+          rawWidth: Math.round(totalCabinetW * (m.pct || 0) / 100),
         }));
 
         // 스냅 + 최소 너비 적용
@@ -427,9 +447,9 @@ Return ONLY this JSON (no other text):
           width: enforceMinWidth(snapToStandard(m.rawWidth), m.type),
         }));
 
-        // 합계를 wallW에 맞춤
-        const lowerAdjusted = adjustToWallWidth(lowerSnapped, wallW);
-        const upperAdjusted = adjustToWallWidth(upperSnapped, wallW);
+        // 합계를 총 캐비닛 길이에 맞춤
+        const lowerAdjusted = adjustToWallWidth(lowerSnapped, totalCabinetW);
+        const upperAdjusted = adjustToWallWidth(upperSnapped, totalCabinetW);
 
         log.info({
           lower_raw: lowerRaw.map(m => m.rawWidth),
@@ -444,7 +464,7 @@ Return ONLY this JSON (no other text):
           lower_cabinets: lowerAdjusted.map(m => ({ width_mm: m.width, type: m.type })),
           upper_cabinets: upperAdjusted.map(m => ({ width_mm: m.width, type: m.type })),
           countertop_length_mm: lowerAdjusted.reduce((s, m) => s + m.width, 0),
-          wall_width_mm: wallW,
+          wall_width_mm: totalCabinetW,
           has_sink: raw.has_sink ?? true,
           has_cooktop: raw.has_cooktop ?? true,
           has_hood: raw.has_hood ?? true,
@@ -459,7 +479,9 @@ Return ONLY this JSON (no other text):
           module_widths_snapped: lowerAdjusted,
           upper_widths_snapped: upperAdjusted,
           wall_width_mm: wallW,
-          sum_diff: wallW - lowerAdjusted.reduce((s, m) => s + m.width, 0),
+          wall_width2_mm: wallW2,
+          total_cabinet_width_mm: totalCabinetW,
+          sum_diff: totalCabinetW - lowerAdjusted.reduce((s, m) => s + m.width, 0),
         };
         log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (multi-stage)');
       }
@@ -481,7 +503,7 @@ Return ONLY this JSON (no other text):
       },
       quote,
       quote_analysis: quoteMetadata,
-      wall_analysis: { wallW, wallH, waterPct, exhaustPct },
+      wall_analysis: { wallW, wallW2, wallH, waterPct, exhaustPct, kitchen_layout, totalCabinetW: wallW + wallW2 },
       metadata: {
         category, kitchen_layout, design_style,
         model: 'gemini-3.1-flash-image-preview',
