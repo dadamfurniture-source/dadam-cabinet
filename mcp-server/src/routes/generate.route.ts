@@ -395,40 +395,32 @@ Keep wall, floor, camera identical. No clutter.`;
       log.warn({ error: e?.message || String(e) }, 'Alt style generation failed');
     }
 
-    // ═══ Step 5: 견적 — 멀티스테이지 구조 분석 (Claude Vision) ═══
-    log.info('Step 5: Quote analysis (multi-stage)');
+    // ═══ Step 5: 견적 — 모듈 카운트 기반 길이 산출 (Claude Vision) ═══
+    log.info('Step 5: Quote analysis (module-count based)');
     let quote = null;
     let quoteMetadata: Record<string, unknown> = {};
+    // 모듈 타입별 기본 너비 (mm)
+    const MODULE_DEFAULT_WIDTHS: Record<string, number> = {
+      sink: 1000, cooktop: 600, door: 450, drawer: 500,
+    };
     try {
-      // 5a + 5b: 모듈 타입 분류 + 비율 추정을 단일 호출로
-      // ㄱ자/ㄷ자: 전체 캐비닛 총 길이 = 주선(wallW) + 보조선(wallW2)
-      const totalCabinetW = wallW + wallW2;
-      const layoutDesc = wallW2 > 0
-        ? `This is an L-shaped kitchen. Main wall: ${wallW}mm, Secondary wall: ${wallW2}mm. Total cabinet length: ${totalCabinetW}mm.`
-        : `Total wall width: ${totalCabinetW}mm.`;
-
       const quotePrompt = `Analyze this kitchen cabinet design image.
-${layoutDesc}
 
-STEP 1 — Count and classify each cabinet module from LEFT to RIGHT${wallW2 > 0 ? ', including modules on the secondary wall' : ''}.
+Count and classify each cabinet module from LEFT to RIGHT.
 Lower cabinets (하부장):
-- sink: module containing sink bowl
-- cooktop: module with cooktop/induction
+- sink: module containing sink bowl (1 per kitchen)
+- cooktop: module with cooktop/induction (1 per kitchen)
 - drawer: drawer unit (horizontal lines/gaps)
 - door: hinged door (vertical lines/gaps)
 
-Upper cabinets (상부장): classify same way (all are "door" type typically).
-
-STEP 2 — Estimate each module's width as a PERCENTAGE of TOTAL cabinet length (${totalCabinetW}mm).
-All lower percentages must sum to 100.
-All upper percentages must sum to 100.
+Upper cabinets (상부장): count total number of door modules.
 
 Also detect: has_sink (boolean), has_cooktop (boolean), has_hood (boolean).
 
-Return ONLY this JSON (no other text):
+Return ONLY this JSON:
 {
-  "lower": [{"type":"door","pct":25}, {"type":"sink","pct":30}, ...],
-  "upper": [{"type":"door","pct":33}, ...],
+  "lower": [{"type":"sink"}, {"type":"door"}, {"type":"cooktop"}, {"type":"drawer"}, ...],
+  "upper_count": 5,
   "has_sink": true,
   "has_cooktop": true,
   "has_hood": true
@@ -439,77 +431,52 @@ Return ONLY this JSON (no other text):
       const quoteMatch = quoteText.match(/\{[\s\S]*\}/);
       if (quoteMatch) {
         const raw = JSON.parse(quoteMatch[0]);
-        const lowerModules: Array<{ type: string; pct: number }> = raw.lower || [];
-        const upperModules: Array<{ type: string; pct: number }> = raw.upper || [];
+        const lowerModules: Array<{ type: string }> = raw.lower || [];
+        const upperCount: number = raw.upper_count || lowerModules.length;
 
-        // 5c: 비율 → mm → 스냅 → 제약 → 합계 보정
-        const lowerRaw = lowerModules.map(m => ({
-          type: m.type || 'door',
-          rawWidth: Math.round(totalCabinetW * (m.pct || 0) / 100),
-        }));
-        const upperRaw = upperModules.map(m => ({
-          type: m.type || 'door',
-          rawWidth: Math.round(totalCabinetW * (m.pct || 0) / 100),
-        }));
-
-        // 고정 너비 적용 (sink=1000mm, cooktop=600mm) + 나머지 스냅
-        const fixedTypes = Object.keys(FIXED_MODULE_WIDTHS);
-        const lowerFixedTotal = lowerRaw.filter(m => fixedTypes.includes(m.type)).reduce((s, m) => s + (FIXED_MODULE_WIDTHS[m.type] || 0), 0);
-        const lowerFlexTotal = totalCabinetW - lowerFixedTotal;
-        const lowerFlexRawTotal = lowerRaw.filter(m => !fixedTypes.includes(m.type)).reduce((s, m) => s + m.rawWidth, 0);
-
-        const lowerSnapped = lowerRaw.map(m => {
-          if (FIXED_MODULE_WIDTHS[m.type]) {
-            return { type: m.type, width: FIXED_MODULE_WIDTHS[m.type] };
-          }
-          // 유연 모듈: 남은 길이 내에서 비율 재분배 후 스냅
-          const flexRatio = lowerFlexRawTotal > 0 ? m.rawWidth / lowerFlexRawTotal : 1 / Math.max(1, lowerRaw.filter(x => !fixedTypes.includes(x.type)).length);
-          const flexWidth = Math.round(lowerFlexTotal * flexRatio);
-          return { type: m.type, width: enforceMinWidth(snapToStandard(flexWidth), m.type) };
+        // 모듈 타입별 고정/기본 너비로 길이 산출 (wallW 무관)
+        const lowerWithWidths = lowerModules.map(m => {
+          const type = m.type || 'door';
+          return { type, width: MODULE_DEFAULT_WIDTHS[type] || MODULE_DEFAULT_WIDTHS.door };
         });
+        const lowerTotalCalc = lowerWithWidths.reduce((s, m) => s + m.width, 0);
 
-        const upperSnapped = upperRaw.map(m => ({
-          type: m.type,
-          width: enforceMinWidth(snapToStandard(m.rawWidth), m.type),
+        // 상부장: 하부장 총 길이를 상부장 모듈 수로 균등 분배
+        const upperModuleW = upperCount > 0 ? Math.round(lowerTotalCalc / upperCount) : 0;
+        const upperWithWidths = Array.from({ length: upperCount }, () => ({
+          type: 'door' as string,
+          width: snapToStandard(upperModuleW),
         }));
-
-        // 합계를 총 캐비닛 길이에 맞춤
-        const lowerAdjusted = adjustToWallWidth(lowerSnapped, totalCabinetW);
-        const upperAdjusted = adjustToWallWidth(upperSnapped, totalCabinetW);
+        const upperAdjusted = upperCount > 0 ? adjustToWallWidth(upperWithWidths, lowerTotalCalc) : [];
 
         log.info({
-          lower_raw: lowerRaw.map(m => m.rawWidth),
-          lower_snapped: lowerAdjusted.map(m => m.width),
-          upper_raw: upperRaw.map(m => m.rawWidth),
-          upper_snapped: upperAdjusted.map(m => m.width),
-          wallW,
-          lower_sum: lowerAdjusted.reduce((s, m) => s + m.width, 0),
-        }, 'Module dimension analysis (raw → snapped)');
+          lower_modules: lowerWithWidths,
+          lower_total: lowerTotalCalc,
+          upper_count: upperCount,
+          upper_total: upperAdjusted.reduce((s, m) => s + m.width, 0),
+        }, 'Module-count based dimension analysis');
 
         const analysis: ImageAnalysisResult = {
-          lower_cabinets: lowerAdjusted.map(m => ({ width_mm: m.width, type: m.type })),
+          lower_cabinets: lowerWithWidths.map(m => ({ width_mm: m.width, type: m.type })),
           upper_cabinets: upperAdjusted.map(m => ({ width_mm: m.width, type: m.type })),
-          countertop_length_mm: lowerAdjusted.reduce((s, m) => s + m.width, 0),
-          wall_width_mm: totalCabinetW,
+          countertop_length_mm: lowerTotalCalc,
+          wall_width_mm: lowerTotalCalc,
           has_sink: raw.has_sink ?? true,
           has_cooktop: raw.has_cooktop ?? true,
           has_hood: raw.has_hood ?? true,
-          door_count: lowerAdjusted.filter(m => m.type === 'door').length + upperAdjusted.filter(m => m.type === 'door').length,
-          drawer_count: lowerAdjusted.filter(m => m.type === 'drawer').length,
+          door_count: lowerWithWidths.filter(m => m.type === 'door').length + upperCount,
+          drawer_count: lowerWithWidths.filter(m => m.type === 'drawer').length,
         };
 
         quote = calculateQuote(analysis, category);
         quoteMetadata = {
-          analysis_version: 'multi-stage-v1',
-          module_widths_raw: lowerRaw.map(m => ({ type: m.type, width: m.rawWidth })),
-          module_widths_snapped: lowerAdjusted,
-          upper_widths_snapped: upperAdjusted,
-          wall_width_mm: wallW,
-          wall_width2_mm: wallW2,
-          total_cabinet_width_mm: totalCabinetW,
-          sum_diff: totalCabinetW - lowerAdjusted.reduce((s, m) => s + m.width, 0),
+          analysis_version: 'module-count-v2',
+          lower_modules: lowerWithWidths,
+          upper_count: upperCount,
+          lower_total_mm: lowerTotalCalc,
+          wall_analysis_wallW: wallW,
         };
-        log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (multi-stage)');
+        log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (module-count)');
       }
     } catch (e: any) {
       log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
