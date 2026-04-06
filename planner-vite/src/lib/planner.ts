@@ -715,23 +715,26 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       if (isSecondary) {
         // 차선모듈 ㄱ자 배치: 앵커(주선) 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
         // 체인 지원: 여러 차선모듈이 연속되면 Z축으로 순차 배치
+        // 좌측 차선: cursor 위치(startX)에서 방 안쪽(+X)으로 연장
+        // 우측 차선: cursor 위치(endX)에서 방 안쪽(-X)으로 연장
         // 상부장: 벽(counterBackZ)에서 시작 → 코너가 주선과 자연스럽게 이어짐
         // 하부장: 상판 앞면(counterFrontZ)에서 시작 → 상판이 코너를 덮음
+        const isLeftChain = Math.abs(cursor - startX) < 1;
         if (secNearZ === null) {
           secNearZ = isUpper ? counterBackZ : counterFrontZ;
           curChain = {
             section: isUpper ? 'upper' : 'lower',
-            xCenter: cursor - module.depth / 2,
+            xCenter: isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2,
             xExtent: module.depth,
             startZ: secNearZ,
             endZ: secNearZ,
-            anchorRightX: cursor,
+            anchorRightX: isLeftChain ? cursor + module.depth : cursor,
             primaryFrontEdgeZ: counterFrontZ, // 상판 정면 edge (실측: +9 오버행 제거)
             bodyH: module.height,
             bottomY: isUpper ? upperBottomY : lowerBottomY,
           };
         }
-        const perpX = cursor - module.depth / 2;
+        const perpX = isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2;
         const perpZ = secNearZ + module.width / 2;
         secNearZ += module.width;
         if (curChain) curChain.endZ = secNearZ;
@@ -756,7 +759,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           moduleKind: module.kind,
           doorCount: module.doorCount,
           drawerCount: module.drawerCount,
-          rotationY: -Math.PI / 2, // -90° → 안쪽이 정면
+          rotationY: isLeftChain ? Math.PI / 2 : -Math.PI / 2, // 좌: +90°, 우: -90°
         });
         // 차선모듈은 주선의 X축 cursor를 증가시키지 않음
       } else {
