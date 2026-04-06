@@ -57,7 +57,9 @@
     .secondary-fields { display: none; background: #f0f7ff; border-radius: 6px; padding: 8px; margin: 6px 0; }
     .secondary-fields.show { display: block; }
     .badge-secondary { background: #fef9c3; color: #854d0e; font-size: 8px; margin-left: 4px; }
-    .orientation-tag { font-size: 9px; color: #92400e; background: #fef3c7; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+    .orientation-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+    .orientation-tag.sec { color: #92400e; background: #fef3c7; }
+    .orientation-tag.ter { color: #1e40af; background: #dbeafe; }
   </style>
 </head>
 <body>
@@ -178,10 +180,9 @@
           doorCount: m.doorCount,
           drawerCount: m.drawerCount,
         };
-        // ㄱ자/ㄷ자: secondary 모듈 orientation 전달
-        if (m.orientation === 'secondary') {
-          entry.orientation = 'secondary';
-          // blindAnchorId: 주선 앵커 모듈의 planner ID
+        // ㄱ자/ㄷ자: secondary/tertiary → planner 'secondary'로 통일 (앵커로 좌/우 구분)
+        if (m.orientation === 'secondary' || m.orientation === 'tertiary') {
+          entry.orientation = 'secondary';  // planner는 secondary만 인식
           if (m.blindAnchorIdx != null) {
             const anchor = allMods.find(am => am.idx === m.blindAnchorIdx && (am.orientation || 'normal') === 'normal');
             entry.blindAnchorId = anchor ? `hitl-${anchor.type}-${anchor.idx}` : undefined;
@@ -214,7 +215,7 @@
 
     // ─── PlannerState → SinkDesign 변환 ───
     function plannerToDesign(ps) {
-      const fromEntry = (m, idx) => {
+      const fromEntry = (m, idx, allEntries) => {
         const mod = {
           idx,
           width: m.width,
@@ -225,9 +226,16 @@
         if (m.doorCount) mod.doorCount = m.doorCount;
         if (m.drawerCount) mod.drawerCount = m.drawerCount;
         if (m.orientation === 'secondary' && m.blindAnchorId) {
-          // blindAnchorId → blindAnchorIdx 역변환
           const match = m.blindAnchorId.match(/hitl-\w+-(\d+)/);
-          if (match) mod.blindAnchorIdx = Number(match[1]);
+          if (match) {
+            mod.blindAnchorIdx = Number(match[1]);
+            // 앵커가 마지막 주선 모듈이면 → 우측 차차선(tertiary)
+            const primaries = allEntries.filter(e => (e.orientation || 'normal') === 'normal');
+            const lastPrimaryIdx = primaries.length > 0 ? primaries.length - 1 : 0;
+            if (mod.blindAnchorIdx === lastPrimaryIdx && currentLayout === 'U') {
+              mod.orientation = 'tertiary';
+            }
+          }
         }
         return mod;
       };
@@ -253,8 +261,8 @@
           secondaryRightW: currentDesign?.env?.secondaryRightW ?? null,
           secondaryFillerW: currentDesign?.env?.secondaryFillerW ?? 60,
         },
-        lower: (ps.lowerModules || []).map(fromEntry),
-        upper: (ps.upperModules || []).map(fromEntry),
+        lower: (ps.lowerModules || []).map((m, i, all) => fromEntry(m, i, all)),
+        upper: (ps.upperModules || []).map((m, i, all) => fromEntry(m, i, all)),
         meta: { generated_by: 'human-correction', parent_id: currentGenerated?.id },
       };
     }
@@ -290,30 +298,38 @@
       const renderSection = (section, modules, label) => {
         const primary = modules.filter(m => (m.orientation || 'normal') === 'normal');
         const secondary = modules.filter(m => m.orientation === 'secondary');
+        const tertiary = modules.filter(m => m.orientation === 'tertiary');
 
+        // 주선 (primary)
         html += `<div class="section-title"><span>📦 ${label} 주선 (${primary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','normal')">+ 추가</button></div>`;
-        primary.forEach((m, _) => {
-          const i = modules.indexOf(m);
-          html += renderModCard(section, m, i);
+        primary.forEach(m => {
+          html += renderModCard(section, m, modules.indexOf(m));
         });
 
-        if (secondary.length > 0) {
-          html += `<div class="section-title" style="color:#92400e;"><span>↪ ${label} 차선 (${secondary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','secondary')">+ 추가</button></div>`;
-          secondary.forEach((m, _) => {
-            const i = modules.indexOf(m);
-            html += renderModCard(section, m, i, true);
+        // 차선 (secondary, 좌측) — ㄱ자/ㄷ자
+        if (secondary.length > 0 || currentLayout !== 'I') {
+          html += `<div class="section-title" style="color:#92400e;"><span>↪ ${label} 좌측 차선 (${secondary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','secondary')">+ 추가</button></div>`;
+          secondary.forEach(m => {
+            html += renderModCard(section, m, modules.indexOf(m), 'sec');
           });
-        } else if (currentLayout !== 'I') {
-          html += `<div class="section-title" style="color:#92400e;"><span>↪ ${label} 차선 (0개)</span><button class="btn-sm" onclick="addModule('${section}','secondary')">+ 추가</button></div>`;
+        }
+
+        // 차차선 (tertiary, 우측) — ㄷ자만
+        if (tertiary.length > 0 || currentLayout === 'U') {
+          html += `<div class="section-title" style="color:#1e40af;"><span>↪ ${label} 우측 차차선 (${tertiary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','tertiary')">+ 추가</button></div>`;
+          tertiary.forEach(m => {
+            html += renderModCard(section, m, modules.indexOf(m), 'ter');
+          });
         }
       };
 
-      const renderModCard = (section, m, i, isSec = false) => {
+      const renderModCard = (section, m, i, lineType = null) => {
         const badge = TYPE_BADGES[m.type] || 'badge-storage';
         const typeLabel = TYPE_LABELS[m.type] || m.type;
-        const secTag = isSec ? '<span class="orientation-tag">차선</span>' : '';
+        const tagMap = { sec: '<span class="orientation-tag sec">좌 차선</span>', ter: '<span class="orientation-tag ter">우 차차선</span>' };
+        const secTag = lineType ? (tagMap[lineType] || '') : '';
         return `
-          <div class="mod-card${isSec ? ' highlight' : ''}" data-section="${section}" data-idx="${i}">
+          <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}">
             <div class="mod-header">
               <span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
               <button class="btn-danger" onclick="removeModule('${section}',${i})">✕</button>
@@ -377,9 +393,10 @@
       const idx = currentDesign[section].length;
       const mod = { idx, width: 450, kind: 'door', type: 'storage', doorCount: 1, orientation };
       if (orientation === 'secondary') {
-        // 앵커를 주선 끝(좌측)이나 처음(우측) 모듈로 설정
+        mod.blindAnchorIdx = 0; // 좌측: 주선 첫 번째 모듈에 앵커
+      } else if (orientation === 'tertiary') {
         const primaries = currentDesign[section].filter(m => (m.orientation || 'normal') === 'normal');
-        mod.blindAnchorIdx = primaries.length > 0 ? 0 : 0;
+        mod.blindAnchorIdx = primaries.length > 0 ? primaries.length - 1 : 0; // 우측: 주선 마지막 모듈에 앵커
       }
       currentDesign[section].push(mod);
       sendToPlanner(currentDesign);
