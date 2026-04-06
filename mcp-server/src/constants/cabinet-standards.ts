@@ -20,6 +20,15 @@ export const FIXED_MODULE_WIDTHS: Record<string, number> = {
   cooktop: 600,  // 쿡탑/후드장
 };
 
+// 한국 아파트 기준 참조 치수
+export const KOREAN_REFERENCE = {
+  outlet_plate: { width: 70, height: 120 },  // 콘센트/스위치 플레이트
+  door_frame: { width: 900, height: 2100 },  // 방문 프레임
+  ceiling_height: 2400,
+  kitchen_wall_range: { min: 2200, max: 5000 },
+  lens_correction: 0.85,  // 광각 렌즈 왜곡 보정 (15% 과대측정)
+};
+
 // 표준 치수 (mm)
 export const CABINET_DIMENSIONS = {
   lower: { depth: 600, height: 870 },   // 상판 포함

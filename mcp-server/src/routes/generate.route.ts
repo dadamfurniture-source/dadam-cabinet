@@ -10,7 +10,7 @@ import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
 import { calculateQuote, type ImageAnalysisResult } from '../services/quote.service.js';
 import { generateRateLimit } from '../middleware/rate-limiter.js';
-import { snapToStandard, enforceMinWidth, adjustToWallWidth, FIXED_MODULE_WIDTHS } from '../constants/cabinet-standards.js';
+import { snapToStandard, enforceMinWidth, adjustToWallWidth, FIXED_MODULE_WIDTHS, KOREAN_REFERENCE } from '../constants/cabinet-standards.js';
 
 const log = createLogger('route:generate');
 const router = Router();
@@ -180,17 +180,22 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
 
       const wallPrompt = category === 'sink'
         ? `Analyze this Korean apartment kitchen photo.${layoutHint}
-Use these KNOWN dimensions as reference to estimate wall width:
-- Sink cabinet (개수대): ~1000mm wide
-- Cooktop/hood cabinet (가스대/후드장): ~600mm wide
-Count how many cabinet modules you see and estimate total wall width based on these references.
+
+CALIBRATION — Estimate wall width using these steps:
+1. Find an electrical outlet/switch plate in the photo (Korean standard: 70mm wide, 120mm tall). If visible, use it as a ruler to calculate wall width.
+2. If no outlet visible, use these KNOWN cabinet sizes as reference:
+   - Sink cabinet (개수대): 1000mm wide
+   - Cooktop/hood cabinet (가스대/후드장): 600mm wide
+3. Count visible cabinet modules and estimate total wall width.
+4. IMPORTANT: Korean apartment kitchens are typically 2200-4500mm wide. Be conservative — do NOT overestimate.
 
 Return JSON only:
 {"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
 waterPct/exhaustPct as % from left of MAIN wall.`
-        : `Analyze this Korean apartment photo.${layoutHint} Return JSON only:
-{"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"confidence":"high"|"medium"|"low"}
-Estimate wall width in mm.`;
+        : `Analyze this Korean apartment photo.${layoutHint}
+Estimate wall width in mm. Korean apartments typically have 2200-4500mm wide kitchen walls. Be conservative.
+Return JSON only:
+{"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"confidence":"high"|"medium"|"low"}`;
 
       const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
       if (wallResult.text) {
@@ -200,12 +205,16 @@ Estimate wall width in mm.`;
           wallW = parsed.wall?.width || 3000;
           // 방어: 벽 분석이 미터 단위(< 100)로 반환되면 mm로 변환
           if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
+          // 광각 렌즈 왜곡 보정 + 범위 클램핑
+          wallW = Math.round(wallW * KOREAN_REFERENCE.lens_correction);
+          wallW = Math.max(KOREAN_REFERENCE.kitchen_wall_range.min, Math.min(KOREAN_REFERENCE.kitchen_wall_range.max, wallW));
           wallH = parsed.wall?.height || 2400;
           if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
           // ㄱ자/ㄷ자 두 번째 벽
           if (parsed.wall?.width2) {
             wallW2 = parsed.wall.width2;
             if (wallW2 > 0 && wallW2 < 100) wallW2 = Math.round(wallW2 * 1000);
+            wallW2 = Math.round(wallW2 * KOREAN_REFERENCE.lens_correction);
           }
           if (category === 'sink') {
             waterPct = parsed.plumbing?.waterPct || 30;
