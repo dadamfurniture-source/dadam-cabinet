@@ -235,27 +235,67 @@ Estimate wall width in mm.`;
       { upper: 'pale taupe',  lower: 'burgundy' },
     ];
 
-    // ─── 상판 색상 팔레트 (스타론/라디안츠 기반) ───
-    const COUNTERTOP_COLORS = [
-      { name: 'Bright White',       code: 'BW010', desc: 'pure white solid surface' },
-      { name: 'Sanded Icicle',      code: 'SI414', desc: 'white with fine speckles' },
-      { name: 'Sanded Cream',       code: 'SM421', desc: 'warm cream with subtle texture' },
-      { name: 'Pebble Ice',         code: 'PI811', desc: 'icy white with small pebble flecks' },
-      { name: 'Aspen Snow',         code: 'AS610', desc: 'clean snow white with fine grain' },
-      { name: 'Fog',                code: 'SF020', desc: 'soft light gray solid' },
+    // ─── 상판 색상 팔레트 (스타론/라디안츠 기반, 솔리드 제외) ───
+    // 기본안용: 샌디드, 아스펜, 페블, 메탈릭, 쿼리, 테라조, 크리스탈, 템피스트
+    const BASE_COUNTERTOPS = [
+      // 샌디드
+      { name: 'Sanded Icicle',      code: 'SI414', desc: 'white with fine sand speckles' },
+      { name: 'Sanded Cream',       code: 'SM421', desc: 'warm cream with subtle sand texture' },
       { name: 'Sanded Grey',        code: 'SG420', desc: 'medium gray with fine sand texture' },
-      { name: 'Aspen Concrete',     code: 'AC629', desc: 'concrete-look gray with texture' },
+      { name: 'Sanded Stratus',     code: 'SS418', desc: 'soft white with gentle sand particles' },
+      // 아스펜
+      { name: 'Aspen Snow',         code: 'AS610', desc: 'clean snow white with fine grain pattern' },
+      { name: 'Aspen Glacier',      code: 'AG612', desc: 'glacier white with subtle cool tone' },
+      { name: 'Aspen Concrete',     code: 'AC629', desc: 'concrete-look gray with natural texture' },
+      // 페블
+      { name: 'Pebble Ice',         code: 'PI811', desc: 'icy white with small pebble flecks' },
+      { name: 'Pebble Swan',        code: 'PS813', desc: 'elegant white with soft pebble pattern' },
+      { name: 'Pebble Grey',        code: 'PG810', desc: 'refined gray with pebble texture' },
+      // 메탈릭
+      { name: 'Metallic Yukon',     code: 'EY510', desc: 'white with subtle metallic shimmer' },
+      { name: 'Metallic Sleeksilver', code: 'ES582', desc: 'sleek silver-gray with metallic flecks' },
+      // 쿼리
+      { name: 'Quarry Starred',     code: 'QS287', desc: 'natural stone look with fine mineral pattern' },
+      // 테라조
+      { name: 'Terrazzo Venezia',   code: 'NT150', desc: 'white terrazzo with colorful chip fragments' },
+      { name: 'Terrazzo Bologna',   code: 'NT970', desc: 'gray terrazzo with scattered stone chips' },
+      // 크리스탈
+      { name: 'Crystal Cascade White', code: 'FC116', desc: 'crystal white with translucent flecks' },
+      // 템피스트
+      { name: 'Tempest Dawn',       code: 'FP112', desc: 'soft white with flowing tempest veining' },
+      { name: 'Tempest Threshold',  code: 'FT128', desc: 'warm gray with dynamic swirl pattern' },
+    ];
+
+    // AI 추천안용: 기본안 팔레트 + 프리미에르, 슈프림, 아리아, 이클립스, 스타코, 템피스트 스텔라 + 라디안츠
+    const ALT_COUNTERTOPS = [
+      ...BASE_COUNTERTOPS,
+      // 프리미에르
+      { name: 'Premier Saranac',    code: 'GP111', desc: 'warm beige with elegant veining' },
+      // 슈프림
+      { name: 'Supreme Cotton White', code: 'VC110', desc: 'soft cotton white with luxurious fine particles' },
+      { name: 'Supreme Magnolia',   code: 'VM143', desc: 'warm magnolia beige with premium texture' },
+      { name: 'Supreme Urban Grey', code: 'VU127', desc: 'sophisticated urban gray with depth' },
+      // 아리아
+      { name: 'Aria Snow White',    code: 'VA311', desc: 'pure snow white with elegant marble veining' },
+      { name: 'Aria Snowfall',      code: 'VS324', desc: 'delicate white with soft snowfall pattern' },
+      // 이클립스
+      { name: 'Eclipse Zenith',     code: 'FZ184', desc: 'deep dark with dramatic eclipse pattern' },
+      // 스타코
+      { name: 'Starco Luce',        code: 'SL170', desc: 'luminous white with starlight sparkle' },
+      // 템피스트 스텔라
+      { name: 'Tempest Stella Nimbus', code: 'TN198', desc: 'cloud white with stellar veining pattern' },
+      // 라디안츠 쿼츠
       { name: 'Diamond White',      code: 'DW105', desc: 'sparkling quartz white with silver flecks' },
       { name: 'Everest White',      code: 'EW120', desc: 'alpine white quartz with soft veining' },
       { name: 'Gentle Gray',        code: 'GG900', desc: 'warm gray quartz with subtle movement' },
       { name: 'Calacatta Classic',  code: 'CC001', desc: 'white marble-look with elegant gray veining' },
       { name: 'Carrara Bella',      code: 'CB001', desc: 'white with delicate gray marble veins' },
-      { name: 'Supreme Cotton White', code: 'VC110', desc: 'soft cotton white with fine particles' },
       { name: 'Bristol Beige',      code: 'BB227', desc: 'warm beige quartz with natural tone' },
     ];
+    type CountertopColor = typeof BASE_COUNTERTOPS[number];
 
     // ─── 기본안 (무채색 단일) ───
-    function buildBasePrompt(cat: string, color: string, countertop: typeof COUNTERTOP_COLORS[number]): string {
+    function buildBasePrompt(cat: string, color: string, countertop: CountertopColor): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
       const ctDesc = `"${countertop.name}" (${countertop.desc})`;
       if (cat === 'sink') {
@@ -270,7 +310,7 @@ Keep wall, floor, camera identical. No clutter.`;
     }
 
     // ─── AI 추천안 (투톤) ───
-    function buildAltPrompt(cat: string, upper: string, lower: string, countertop: typeof COUNTERTOP_COLORS[number]): string {
+    function buildAltPrompt(cat: string, upper: string, lower: string, countertop: CountertopColor): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
       const ctDesc = `"${countertop.name}" (${countertop.desc})`;
       if (cat === 'sink') {
@@ -290,7 +330,7 @@ Keep wall, floor, camera identical. No clutter.`;
     const baseSeed = Math.floor(Math.random() * 9999);
     const baseColor = BASE_ACHROMATICS[baseSeed % BASE_ACHROMATICS.length];
     const baseCTSeed = Math.floor(Math.random() * 9999);
-    const baseCT = COUNTERTOP_COLORS[baseCTSeed % COUNTERTOP_COLORS.length];
+    const baseCT = BASE_COUNTERTOPS[baseCTSeed % BASE_COUNTERTOPS.length];
     const mainPrompt = buildBasePrompt(category, baseColor, baseCT);
     log.info({ promptLength: mainPrompt.length, category, baseSeed, baseColor, countertop: baseCT.name }, 'Base design prompt (seeded pick)');
 
@@ -313,7 +353,7 @@ Keep wall, floor, camera identical. No clutter.`;
       const altSeed = Math.floor(Math.random() * 9999);
       altPick = ALT_TWO_TONES[altSeed % ALT_TWO_TONES.length];
       const altCTSeed = Math.floor(Math.random() * 9999);
-      const altCT = COUNTERTOP_COLORS[altCTSeed % COUNTERTOP_COLORS.length];
+      const altCT = ALT_COUNTERTOPS[altCTSeed % ALT_COUNTERTOPS.length];
       const altPrompt = buildAltPrompt(category, altPick.upper, altPick.lower, altCT);
       log.info({ promptLength: altPrompt.length, category, altSeed, altPick, countertop: altCT.name }, 'AI recommendation prompt (seeded two-tone)');
 
