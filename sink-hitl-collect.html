@@ -239,7 +239,7 @@
           id: `hitl-${m.type}-${m.idx}`,
           kind: m.kind,
           width: m.width,
-          moduleType: m.type === 'lt' ? 'storage' : (m.type === 'blank' ? undefined : m.type),
+          moduleType: m.type === 'lt' ? 'storage' : (m.type === 'blank' ? 'storage' : m.type),
           doorCount: m.doorCount,
           drawerCount: m.drawerCount,
         };
@@ -331,7 +331,7 @@
     function sendToPlanner(design) {
       const ps = designToPlanner(design);
       const iframe = el('planner');
-      iframe.contentWindow?.postMessage({ type: 'UPDATE_PLANNER', payload: ps }, '*');
+      iframe.contentWindow?.postMessage({ type: 'LOAD_HITL_CASE', payload: ps }, '*');
     }
 
     window.addEventListener('message', (e) => {
