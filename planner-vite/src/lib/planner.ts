@@ -986,15 +986,15 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         });
       }
       if (upperHeight > 0 && !skipUpper) {
-        const upperFinishH = upperHeight + moldingH;
+        // 상몰딩 아래까지만 (moldingH 제외 — 상몰딩이 전폭을 커버)
         parts.push({
           id: `finish-${side.id}-upper`,
           label: `마감재(${side.label})-상부`,
           x: side.x,
-          y: height - upperFinishH / 2,
+          y: upperBottomY + upperHeight / 2,
           z: upperZOffset,
           width: side.fw,
-          height: upperFinishH,
+          height: upperHeight,
           depth: upperDepth,
           colorKey: 'trim',
         });
@@ -1021,12 +1021,13 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           colorKey: 'trim',
         });
       } else {
-        const h = ch.bodyH + moldingH;
+        // 상몰딩 아래까지만 (moldingH 제외 — 상몰딩이 전폭을 커버)
+        const h = ch.bodyH;
         parts.push({
           id: `filler-sec-upper-${i}`,
           label: '휠라(차선)',
           x: cx,
-          y: height - h / 2,
+          y: upperTopY - h / 2,
           z: ch.endZ + secondaryFillerW / 2,
           width: xWidth,
           height: h,
