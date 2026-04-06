@@ -106,6 +106,30 @@ function toInner(xWall: number, env: SinkEnv, blindLeftW = 0, blindRightW = 0): 
   return innerW - (xWall - env.finishRightW - blindRightW);
 }
 
+// ─── 총 폭 보정: Σ module.width === targetW 를 보장 ───
+function normalizeWidths(modules: ProtoModule[], targetW: number): void {
+  if (modules.length === 0) return;
+  const totalW = modules.reduce((s, m) => s + m.width, 0);
+  let diff = targetW - totalW;
+  if (diff === 0) return;
+
+  // diff > 0: 공간이 남음 → 가장 넓은 non-essential(storage/drawer) 모듈에 추가
+  // diff < 0: 초과 → 가장 넓은 non-essential 모듈에서 감소
+  // essential(sink/cook/hood)은 가능하면 건드리지 않음
+  const ESSENTIAL: ModType[] = ['sink', 'cook', 'hood', 'lt', 'blank'];
+  const adjustable = modules.filter(m => !ESSENTIAL.includes(m.type));
+  const target = adjustable.length > 0
+    ? adjustable.reduce((a, b) => b.width > a.width ? b : a)
+    : modules.reduce((a, b) => b.width > a.width ? b : a);
+  target.width = Math.max(200, target.width + diff);
+
+  // 재검증: 여전히 차이 있으면 마지막 모듈로 최종 보정
+  const finalDiff = targetW - modules.reduce((s, m) => s + m.width, 0);
+  if (finalDiff !== 0) {
+    modules[modules.length - 1].width = Math.max(200, modules[modules.length - 1].width + finalDiff);
+  }
+}
+
 // ─── 하부 레이아웃: 유틸리티 기반 고정 + 빈 공간 랜덤 채움 ───
 function layoutLower(env: SinkEnv, rng: () => number, blindLeftW = 0, blindRightW = 0): ProtoModule[] {
   const innerW = env.width - env.finishLeftW - env.finishRightW - blindLeftW - blindRightW;
@@ -228,6 +252,9 @@ function layoutLower(env: SinkEnv, rng: () => number, blindLeftW = 0, blindRight
     out[out.length - 1].width += rightGap;
   }
 
+  // ── 총 폭 보정: Σ module.width === innerW 보장 ──
+  normalizeWidths(out, innerW);
+
   return out;
 }
 
@@ -273,6 +300,9 @@ function layoutUpper(env: SinkEnv, rng: () => number, blindLeftW = 0, blindRight
   } else if (rightGap > 0 && out.length > 0) {
     out[out.length - 1].width += rightGap;
   }
+
+  // ── 총 폭 보정: Σ module.width === innerW 보장 ──
+  normalizeWidths(out, innerW);
 
   return out;
 }
