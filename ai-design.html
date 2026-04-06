@@ -483,24 +483,25 @@
 
       /* Category Buttons (New Layout) */
       .category-buttons {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
         margin-bottom: 24px;
       }
       .category-btn {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
-        padding: 12px 18px;
+        padding: 18px 12px;
         background: var(--white);
         border: 2px solid var(--warm);
-        border-radius: 25px;
+        border-radius: 12px;
         cursor: pointer;
         transition: all 0.2s;
-        font-size: 14px;
+        font-size: 15px;
         font-family: inherit;
+        width: 100%;
       }
       .category-btn:hover {
         border-color: var(--gold);
@@ -1671,10 +1672,11 @@
 
         /* Category Buttons Mobile */
         .category-buttons {
+          grid-template-columns: repeat(3, 1fr);
           gap: 8px;
         }
         .category-btn {
-          padding: 10px 14px;
+          padding: 14px 8px;
           font-size: 13px;
         }
         .category-btn .btn-icon {
