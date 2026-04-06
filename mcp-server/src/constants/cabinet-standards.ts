@@ -14,6 +14,12 @@ export const MIN_MODULE_WIDTHS: Record<string, number> = {
   door: 300,
 };
 
+// 모듈 타입별 고정 너비 (mm) — 견적 산출 기준
+export const FIXED_MODULE_WIDTHS: Record<string, number> = {
+  sink: 1000,    // 개수대 가로 너비
+  cooktop: 600,  // 쿡탑/후드장
+};
+
 // 표준 치수 (mm)
 export const CABINET_DIMENSIONS = {
   lower: { depth: 600, height: 870 },   // 상판 포함
