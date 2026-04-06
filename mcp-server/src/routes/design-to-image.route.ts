@@ -7,12 +7,13 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { validateCategory } from '../middleware/input-validator.js';
+import { generateRateLimit } from '../middleware/rate-limiter.js';
 import { generateDesignImage } from '../services/image-generation.service.js';
 
 const log = createLogger('route:design-to-image');
 const router = Router();
 
-router.post('/webhook/design-to-image', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/webhook/design-to-image', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body;
     const designData = body.design_data || body;

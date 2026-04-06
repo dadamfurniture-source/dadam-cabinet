@@ -18,6 +18,24 @@ import type {
 const log = createLogger('bom');
 
 export function generateBom(designData: StructuredDesignData): BomResult {
+  // 빈 캐비닛 가드: 캐비닛이 없으면 빈 BOM 반환
+  if (!designData.cabinets?.lower?.length && !designData.cabinets?.upper?.length) {
+    log.warn('No cabinets found in design data — returning empty BOM');
+    return {
+      category: designData.category,
+      style: designData.style,
+      items: [],
+      summary: {
+        total_items: 0,
+        total_panels: 0,
+        total_hardware: 0,
+        total_equipment: 0,
+        categories: { panel: 0, board: 0, hardware: 0, countertop: 0, equipment: 0, accessory: 0, finish: 0 },
+      },
+      generated_at: new Date().toISOString(),
+    };
+  }
+
   const rules = getBomRules();
   const items: BomItem[] = [];
   let idCounter = 1;
@@ -441,8 +459,12 @@ function buildFinishItems(
   const items: BomItem[] = [];
 
   let totalEdgeLength = 0;
+  const lowerDoorH = data.cabinets.lower_height_mm - data.cabinets.countertop_thickness_mm - data.cabinets.leg_height_mm;
+  const upperDoorH = data.cabinets.upper_height_mm;
   for (const cab of [...data.cabinets.lower, ...data.cabinets.upper]) {
-    const perimeter = (cab.width_mm + 720) * 2;
+    const isUpper = data.cabinets.upper.includes(cab);
+    const doorH = isUpper ? upperDoorH : lowerDoorH;
+    const perimeter = (cab.width_mm + doorH) * 2;
     totalEdgeLength += perimeter * cab.door_count;
   }
 

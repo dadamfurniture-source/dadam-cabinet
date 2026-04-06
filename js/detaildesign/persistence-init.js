@@ -965,13 +965,13 @@
 
       // 인증 오버레이 표시/숨김
       function showAuthOverlay() {
-        document.getElementById('authOverlay').classList.remove('hidden');
-        document.getElementById('topToolbar').classList.add('hidden');
+        document.getElementById('authOverlay')?.classList.remove('hidden');
+        document.getElementById('topToolbar')?.classList.add('hidden');
       }
 
       function hideAuthOverlay() {
-        document.getElementById('authOverlay').classList.add('hidden');
-        document.getElementById('topToolbar').classList.remove('hidden');
+        document.getElementById('authOverlay')?.classList.add('hidden');
+        document.getElementById('topToolbar')?.classList.remove('hidden');
       }
 
       // 모바일 메뉴 토글

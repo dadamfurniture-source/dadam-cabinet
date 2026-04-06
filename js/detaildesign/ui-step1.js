@@ -68,6 +68,30 @@
 
         if (cat.id === 'sink') {
           newItem.modules = []; // 빈 상태로 시작 — 자동계산 또는 수동 추가
+          // ★ 레이아웃 템플릿 프리셋 (B1)
+          newItem.specs.layoutTemplates = {
+            standard: { label: '표준형 (3m)', desc: '개수대+가스대+수납 3종', w: 3000 },
+            compact: { label: '소형 (2.4m)', desc: '개수대+가스대 최소', w: 2400 },
+            large: { label: '대형 (4m)', desc: '개수대+가스대+식세기+수납', w: 4000 },
+          };
+        }
+
+        if (cat.id === 'wardrobe') {
+          // ★ 붙박이장 템플릿 (B1)
+          newItem.specs.layoutTemplates = {
+            balanced: { label: '균형형', desc: '짧은옷2 + 긴옷1 + 선반1' },
+            hangOnly: { label: '행거 중심', desc: '짧은옷2 + 긴옷2' },
+            shelfOnly: { label: '선반 중심', desc: '선반3 + 짧은옷1' },
+          };
+        }
+
+        if (cat.id === 'fridge') {
+          // ★ 냉장고장 템플릿 (B1)
+          newItem.specs.layoutTemplates = {
+            standard: { label: '냉장고+키큰장', desc: '냉장고 좌측, 키큰장 우측' },
+            withCafe: { label: '냉장고+홈카페', desc: '냉장고 좌측, 홈카페 우측' },
+            dual: { label: '양문형', desc: '키큰장+냉장고+키큰장' },
+          };
         }
 
         selectedItems.push(newItem);
@@ -335,10 +359,167 @@
         );
       }
 
+      // ★ 3D 뷰 카메라 전환 + 2D/3D 토글
+      function set3DView(itemUniqueId, view, btn) {
+        const threeCanvas = document.getElementById('three-canvas-' + itemUniqueId);
+        const viewLabel = document.getElementById('view-label-' + itemUniqueId);
+        const viewHint = document.getElementById('view-hint-' + itemUniqueId);
+
+        if (threeCanvas) threeCanvas.style.display = 'block';
+        if (viewLabel) viewLabel.textContent = '🎮 3D View';
+        if (viewHint) viewHint.textContent = '드래그 → 회전 | 스크롤 → 줌';
+        // 카메라 전환
+        const iframe = threeCanvas?.querySelector('iframe[data-planner]');
+        if (iframe) {
+          iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
+        }
+        // 버튼 active 토글
+        const group = btn.closest('.view3d-btns');
+        if (group) {
+          group.querySelectorAll('.v3d-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        }
+      }
+
+      // ★ R3F 3D 플래너 임베드 로드
+      const PLANNER_BASE_URL = '/planner/embed/';
+      /**
+       * 실측/스펙 변경 시 3D iframe에 직접 postMessage (DOM 리렌더 없이)
+       */
+      function _syncPlannerState(item) {
+        const ws = document.getElementById('designWorkspace');
+        if (!ws) return;
+        const iframe = ws.querySelector('iframe[data-planner]');
+        if (!iframe || !iframe.contentWindow) return;
+        const specs = item.specs || {};
+        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower');
+        const upperMods = (item.modules || []).filter(m => m.pos === 'upper');
+        const payload = {
+          presetId: item.categoryId || 'sink',
+          width: parseFloat(item.w) || 3000,
+          height: parseFloat(item.h) || 2300,
+          depth: parseFloat(item.d) || 600,
+          lowerCount: lowerMods.length,
+          upperCount: upperMods.length,
+          lowerModules: lowerMods.map(m => ({
+            id: String(m.id), kind: m.isDrawer ? 'drawer' : (m.type === 'open' ? 'open' : 'door'),
+            width: parseFloat(m.w) || 600, moduleType: m.type === 'sink' ? 'sink' : m.type === 'cook' ? 'cook' : 'storage',
+            doorCount: m.doorCount || (m.is2door ? 2 : 1),
+          })),
+          upperModules: upperMods.map(m => ({
+            id: String(m.id), kind: m.type === 'open' ? 'open' : 'door',
+            width: parseFloat(m.w) || 600, moduleType: m.type === 'hood' ? 'hood' : 'storage',
+            doorCount: m.doorCount || (m.is2door ? 2 : 1),
+          })),
+          moldingH: parseFloat(specs.moldingH) || 60,
+          toeKickH: parseFloat(specs.sinkLegHeight || specs.wardrobePedestalH) || 150,
+          finishLeftW: specs.finishLeftType !== 'None' ? (parseFloat(specs.finishLeftWidth) || 60) : 0,
+          finishRightW: specs.finishRightType !== 'None' ? (parseFloat(specs.finishRightWidth) || 60) : 0,
+          material: specs.materialTone || 'cream',
+          distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
+          distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
+          ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+        };
+        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth });
+        iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
+      }
+
+      function _loadPlannerEmbed(container, item) {
+        // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
+        const specs = item.specs || {};
+        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower');
+        const upperMods = (item.modules || []).filter(m => m.pos === 'upper');
+        // item.modules → R3F lowerModules/upperModules 변환
+        const toLowerModules = lowerMods.map(m => ({
+          id: String(m.id || Date.now() + Math.random()),
+          kind: m.isDrawer || m.type === 'drawer' ? 'drawer' : (m.type === 'open' ? 'open' : 'door'),
+          width: parseFloat(m.w) || 600,
+          moduleType: m.type === 'sink' ? 'sink' : m.type === 'cook' ? 'cook' : (m.name === 'LT망장' ? 'storage' : 'storage'),
+          doorCount: m.doorCount || (m.is2door ? 2 : 1),
+          drawerCount: m.drawerCount || (m.isDrawer ? 3 : 0),
+        }));
+        const toUpperModules = upperMods.map(m => ({
+          id: String(m.id || Date.now() + Math.random()),
+          kind: m.type === 'open' ? 'open' : 'door',
+          width: parseFloat(m.w) || 600,
+          moduleType: m.type === 'hood' ? 'hood' : 'storage',
+          doorCount: m.doorCount || (m.is2door ? 2 : 1),
+        }));
+        const finishPayload = {
+          presetId: item.categoryId || 'sink',
+          width: parseFloat(item.w) || 3000,
+          height: parseFloat(item.h) || 2300,
+          depth: parseFloat(item.d) || 600,
+          lowerCount: lowerMods.length,
+          upperCount: upperMods.length,
+          lowerModules: toLowerModules,
+          upperModules: toUpperModules,
+          moldingH: parseFloat(specs.moldingH) || 60,
+          toeKickH: parseFloat(specs.sinkLegHeight || specs.wardrobePedestalH) || 150,
+          finishLeftW: specs.finishLeftType !== 'None' ? (parseFloat(specs.finishLeftWidth) || 60) : 0,
+          finishRightW: specs.finishRightType !== 'None' ? (parseFloat(specs.finishRightWidth) || 60) : 0,
+          // 실측 유틸리티 정보
+          material: specs.materialTone || 'cream',
+          distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
+          distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
+          ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+        };
+        const existing = container.querySelector('iframe[data-planner]');
+        if (existing) {
+          const sendUpdate = () => {
+            if (existing.contentWindow) {
+              console.log('[Planner] postMessage UPDATE_PLANNER:', { width: finishPayload.width, height: finishPayload.height, depth: finishPayload.depth });
+              existing.contentWindow.postMessage({
+                type: 'UPDATE_PLANNER',
+                payload: finishPayload,
+              }, '*');
+            } else {
+              console.warn('[Planner] contentWindow null — 100ms 후 재시도');
+              setTimeout(sendUpdate, 100);
+            }
+          };
+          sendUpdate();
+          return;
+        }
+        // 새 iframe 생성
+        const params = new URLSearchParams({
+          preset: finishPayload.presetId,
+          w: String(finishPayload.width),
+          h: String(finishPayload.height),
+          d: String(finishPayload.depth),
+          lowerCount: String(finishPayload.lowerCount),
+          upperCount: String(finishPayload.upperCount),
+          material: finishPayload.material,
+          moldingH: String(finishPayload.moldingH),
+          toeKickH: String(finishPayload.toeKickH),
+          finishLeftW: String(finishPayload.finishLeftW),
+          finishRightW: String(finishPayload.finishRightW),
+          ...(finishPayload.distributorStart != null ? { distStart: String(finishPayload.distributorStart) } : {}),
+          ...(finishPayload.distributorEnd != null ? { distEnd: String(finishPayload.distributorEnd) } : {}),
+          ...(finishPayload.ventStart != null ? { ventStart: String(finishPayload.ventStart) } : {}),
+        });
+        container.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.src = PLANNER_BASE_URL + '?' + params.toString();
+        iframe.dataset.planner = 'true';
+        iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
+        iframe.allow = 'accelerometer; autoplay; fullscreen';
+        container.appendChild(iframe);
+      }
+
       // 실제 렌더링 구현
       function _renderWorkspaceContentImpl(item) {
         const ws = document.getElementById('designWorkspace');
         if (!ws) return;
+        try {
+
+        // ★ 3D iframe 보존 — innerHTML 교체 전에 떼어내기
+        const existingIframe = ws.querySelector('iframe[data-planner]');
+        let savedIframe = null;
+        if (existingIframe) {
+          savedIframe = existingIframe;
+          existingIframe.remove();
+        }
 
         // ★ 포커스 복원을 위한 정보 저장
         const activeEl = document.activeElement;
@@ -411,9 +592,12 @@
     `
               : '';
 
-          // ★ 클래스 결정: 키큰장 > 기준모듈 > 고정모듈
+          // ★ 클래스 결정: 타입별 > 키큰장 > 기준모듈 > 고정모듈
           let cardClass = 'module-card';
-          if (isTall) cardClass += ' tall-type';
+          if (mod.type === 'sink') cardClass += ' type-sink';
+          else if (mod.type === 'cook') cardClass += ' type-cook';
+          else if (mod.type === 'hood') cardClass += ' type-hood';
+          else if (isTall) cardClass += ' tall-type';
           else if (isBase) cardClass += ' base-module';
           else if (mod.isFixed) cardClass += ' fixed-module';
 
@@ -534,6 +718,21 @@
           upperStartX += modW;
         });
 
+        // 상부장 빈 공간에 + 버튼
+        {
+          const upperEndX = offsetX + drawW - finishR_s;
+          const gapThreshold = DOOR_MIN_WIDTH * scale;
+          if (upperStartX < upperEndX - gapThreshold) {
+            const gapW = upperEndX - upperStartX;
+            const gapCx = upperStartX + gapW / 2;
+            const gapCy = upperY + upperH_s / 2;
+            sinkModuleSvg += `
+              <rect x="${upperStartX}" y="${upperY}" width="${gapW}" height="${upperH_s}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="6" rx="4" style="cursor:pointer;" onclick="addModuleAtGap(${item.uniqueId}, 'upper', ${Math.round(gapW / scale)})"/>
+              <circle cx="${gapCx}" cy="${gapCy}" r="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5" style="cursor:pointer;pointer-events:none;"/>
+              <text x="${gapCx}" y="${gapCy + 5}" text-anchor="middle" font-size="16" fill="#64748b" font-weight="bold" pointer-events="none">+</text>`;
+          }
+        }
+
         // ★ 상부장 도어 표시 (도어 높이 = 몸체 + 오버랩)
         if (showDoors) {
           let upperDoorX = offsetX + finishL * scale;
@@ -544,7 +743,7 @@
             const doorH = mod.type === 'hood' ? upperH_s - doorGap : upperH_s + upperOverlap_s - doorGap;
             for (let d = 0; d < doorCount; d++) {
               const dX = upperDoorX + d * dW + doorGap / 2;
-              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorH}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2"/>`;
+              sinkModuleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorH}" fill="${doorColorU}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
             }
             upperDoorX += modW;
           });
@@ -622,11 +821,11 @@
               for (let dr = 0; dr < dCount; dr++) {
                 const drY = modY + doorGap / 2 + dr * (totalDrawerH_s / dCount);
                 const drH = totalDrawerH_s / dCount - doorGap;
-                sinkModuleSvg += `<rect x="${lowerStartX + doorGap / 2}" y="${drY}" width="${modW - doorGap}" height="${drH}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                sinkModuleSvg += `<rect x="${lowerStartX + doorGap / 2}" y="${drY}" width="${modW - doorGap}" height="${drH}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
                 // 서랍 손잡이 (가로선)
                 const handleY = drY + drH / 2;
                 const handleW = modW * 0.35;
-                sinkModuleSvg += `<line x1="${lowerStartX + modW / 2 - handleW / 2}" y1="${handleY}" x2="${lowerStartX + modW / 2 + handleW / 2}" y2="${handleY}" stroke="#666" stroke-width="2" stroke-linecap="round"/>`;
+                sinkModuleSvg += `<line x1="${lowerStartX + modW / 2 - handleW / 2}" y1="${handleY}" x2="${lowerStartX + modW / 2 + handleW / 2}" y2="${handleY}" stroke="#666" stroke-width="2" stroke-linecap="round" pointer-events="none"/>`;
               }
 
               // 여닫이 도어 (하단) - 남은 공간
@@ -636,7 +835,7 @@
                 const dW = modW / hingeDoorCount;
                 for (let d = 0; d < hingeDoorCount; d++) {
                   const dX = lowerStartX + d * dW + doorGap / 2;
-                  sinkModuleSvg += `<rect x="${dX}" y="${hingeDoorY}" width="${dW - doorGap}" height="${hingeDoorH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                  sinkModuleSvg += `<rect x="${dX}" y="${hingeDoorY}" width="${dW - doorGap}" height="${hingeDoorH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
                 }
               }
             } else {
@@ -645,7 +844,7 @@
               const dW = modW / doorCount;
               for (let d = 0; d < doorCount; d++) {
                 const dX = lowerStartX + d * dW + doorGap / 2;
-                sinkModuleSvg += `<rect x="${dX}" y="${modY + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2"/>`;
+                sinkModuleSvg += `<rect x="${dX}" y="${modY + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_s - doorGap}" fill="${doorColorL}" stroke="#333" stroke-width="1" rx="2" pointer-events="none"/>`;
               }
             }
           }
@@ -658,6 +857,21 @@
           }
           lowerStartX += modW;
         });
+
+        // 하부장 빈 공간에 + 버튼
+        {
+          const lowerEndX = offsetX + drawW - finishR_s;
+          const gapThreshold = DOOR_MIN_WIDTH * scale;
+          if (lowerStartX < lowerEndX - gapThreshold) {
+            const gapW = lowerEndX - lowerStartX;
+            const gapCx = lowerStartX + gapW / 2;
+            const gapCy = lowerY + (lowerH_s + legH_s) / 2;
+            sinkModuleSvg += `
+              <rect x="${lowerStartX}" y="${lowerY}" width="${gapW}" height="${lowerH_s + legH_s}" fill="#fefce8" stroke="#d4a574" stroke-width="1" stroke-dasharray="6" rx="4" style="cursor:pointer;" onclick="addModuleAtGap(${item.uniqueId}, 'lower', ${Math.round(gapW / scale)})"/>
+              <circle cx="${gapCx}" cy="${gapCy}" r="12" fill="#fef3c7" stroke="#d97706" stroke-width="1.5" style="cursor:pointer;pointer-events:none;"/>
+              <text x="${gapCx}" y="${gapCy + 5}" text-anchor="middle" font-size="16" fill="#92400e" font-weight="bold" pointer-events="none">+</text>`;
+          }
+        }
 
         // 다리발 (전체 영역 - 마감 포함)
         const legY = lowerY + lowerH_s;
@@ -726,13 +940,17 @@
         }
 
         // 분배기/환풍구 위치 마커 (항상 표시, 드래그 이동)
-        const distStart = parseFloat(item.specs.distributorStart) || Math.round(sinkW * 0.2);
-        const distEnd = parseFloat(item.specs.distributorEnd) || Math.round(sinkW * 0.5);
-        const ventPos = parseFloat(item.specs.ventStart) || Math.round(sinkW * 0.7);
-        // 초기값 저장
-        if (!item.specs.distributorStart) item.specs.distributorStart = distStart;
-        if (!item.specs.distributorEnd) item.specs.distributorEnd = distEnd;
-        if (!item.specs.ventStart) item.specs.ventStart = ventPos;
+        // ★ 0은 "삭제됨" 상태 — undefined/null만 초기값 생성
+        const _dsRaw = item.specs.distributorStart;
+        const _deRaw = item.specs.distributorEnd;
+        const _vsRaw = item.specs.ventStart;
+        const distStart = (_dsRaw != null && _dsRaw !== undefined) ? parseFloat(_dsRaw) : Math.round(sinkW * 0.15);
+        const distEnd = (_deRaw != null && _deRaw !== undefined) ? parseFloat(_deRaw) : Math.round(sinkW * 0.15 + 700);
+        const ventPos = (_vsRaw != null && _vsRaw !== undefined) ? parseFloat(_vsRaw) : Math.round(sinkW * 0.7);
+        // 초기값 저장 (undefined/null일 때만 — 0은 삭제 상태이므로 덮어쓰지 않음)
+        if (item.specs.distributorStart == null) item.specs.distributorStart = distStart;
+        if (item.specs.distributorEnd == null) item.specs.distributorEnd = distEnd;
+        if (item.specs.ventStart == null) item.specs.ventStart = ventPos;
 
         let utilityMarkers = '';
         const uid = item.uniqueId;
@@ -741,11 +959,16 @@
         const isRefLeft = item.specs.measurementBase === 'Left';
         const refLabel = isRefLeft ? '좌' : '우';
 
+        // 유틸리티 클램핑 경계
+        const drawLeft = offsetX + finishL_s;
+        const drawRight = offsetX + drawW - finishR_s;
+
         // 분배기 — 하부장 하단 (배관 그림 + 치수 + 클릭 팝업 + 드래그)
-        {
+        // ★ distStart=0, distEnd=0이면 삭제 상태 → 마커 숨김
+        if (distStart > 0 && distEnd > distStart) {
           const pipeY = lowerY + lowerH_s - 16;
-          const dsx = offsetX + distStart * scale;
-          const dex = offsetX + distEnd * scale;
+          const dsx = Math.max(drawLeft, Math.min(drawRight, offsetX + distStart * scale));
+          const dex = Math.max(drawLeft, Math.min(drawRight, offsetX + distEnd * scale));
           // 클릭 영역 (배관 라인 → 팝업)
           utilityMarkers += `
             <rect x="${Math.min(dsx, dex) - 5}" y="${pipeY - 8}" width="${Math.abs(dex - dsx) + 10}" height="24" fill="transparent" style="cursor:pointer;" onclick="openUtilityPopup(${uid}, 'distributor')"/>`;
@@ -763,9 +986,10 @@
         }
 
         // 환풍구 — 상부장 상단 (덕트 그림 + 치수 + 클릭 팝업 + 드래그)
-        {
+        // ★ ventPos=0이면 삭제 상태 → 마커 숨김
+        if (ventPos > 0) {
           const ductY = upperY + 3;
-          const vx = offsetX + ventPos * scale;
+          const vx = Math.max(drawLeft + 14, Math.min(drawRight - 14, offsetX + ventPos * scale));
           // 클릭 영역 (덕트 → 팝업, 드래그보다 뒤에 렌더)
           utilityMarkers += `
             <rect x="${vx - 20}" y="${ductY - 4}" width="40" height="30" fill="transparent" style="cursor:pointer;" onclick="openUtilityPopup(${uid}, 'vent')"/>`;
@@ -790,27 +1014,8 @@
             <text x="${refX}" y="${refY + 2}" text-anchor="middle" font-size="8" fill="#b8956c" font-weight="bold">▲ ${refLabel} 기준</text>`;
         }
 
-        const sinkFrontViewSvg = `
-    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" preserveAspectRatio="xMidYMid meet" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">
-      <!-- 치수선 - 상단 -->
-      <line x1="${offsetX}" y1="${offsetY - 15}" x2="${offsetX + drawW}" y2="${offsetY - 15}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX}" y1="${offsetY - 20}" x2="${offsetX}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX + drawW}" y1="${offsetY - 20}" x2="${offsetX + drawW}" y2="${offsetY - 10}" stroke="#666" stroke-width="1"/>
-      <text x="${offsetX + drawW / 2}" y="${offsetY - 25}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">${sinkW}mm</text>
-
-      <!-- 치수선 - 좌측 -->
-      <line x1="${offsetX - 15}" y1="${offsetY}" x2="${offsetX - 15}" y2="${offsetY + drawH}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX - 20}" y1="${offsetY}" x2="${offsetX - 10}" y2="${offsetY}" stroke="#666" stroke-width="1"/>
-      <line x1="${offsetX - 20}" y1="${offsetY + drawH}" x2="${offsetX - 10}" y2="${offsetY + drawH}" stroke="#666" stroke-width="1"/>
-      <text x="${offsetX - 25}" y="${offsetY + drawH / 2}" text-anchor="middle" font-size="12" fill="#333" font-weight="bold" transform="rotate(-90 ${offsetX - 25} ${offsetY + drawH / 2})">${sinkH}mm</text>
-
-      <!-- 모듈들 -->
-      ${sinkModuleSvg}
-
-      <!-- 분배기/환풍구 마커 -->
-      ${utilityMarkers}
-    </svg>
-  `;
+        // 2D SVG 제거 — R3F 3D planner로 대체
+        const sinkFrontViewSvg = '';
 
         // 마감 설정
         let cornerHtml = '';
@@ -886,9 +1091,9 @@
           </div>
         </div>
         <div class="spec-row">
-          <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); renderWorkspaceContent(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
+          <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
           <div class="spec-field"><label>사진</label>
             <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:3px 8px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '📷 변경' : '📷 업로드'}</button>
@@ -900,31 +1105,14 @@
         ${(() => {
           const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
           if (lShape === 'I') return '';
-          const secMode = item.specs.secondaryDimensionMode || 'unified';
           const secLH = item.specs.lowerSecondaryH || item.specs.lowerH || 870;
           const secUH = item.specs.upperSecondaryH || item.specs.upperH || 720;
           const secLD = item.specs.lowerSecondaryD || item.d || item.defaultD || '';
           const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
+          const secUpperOn = item.specs.secondaryUpperEnabled !== false;
           return `
         <div style="padding:6px;background:#f9f9f9;border-radius:6px;margin-top:4px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;color:#888;">Secondary Line</span>
-            <div style="display:flex;gap:3px;">
-              <button style="padding:2px 6px;font-size:9px;border-radius:3px;border:${secMode === 'unified' ? 'none;background:#888;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${secMode !== 'unified' ? `toggleSecondaryDimensionMode(${item.uniqueId})` : ''}" ${secMode === 'unified' ? 'disabled' : ''}>통합</button>
-              <button style="padding:2px 6px;font-size:9px;border-radius:3px;border:${secMode === 'split' ? 'none;background:#888;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${secMode !== 'split' ? `toggleSecondaryDimensionMode(${item.uniqueId})` : ''}" ${secMode === 'split' ? 'disabled' : ''}>분리</button>
-            </div>
-          </div>
-          ${secMode === 'unified' ? `
-          <div class="spec-row">
-            <div class="spec-field"><label>가로(W)</label><input type="number" placeholder="mm" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryW', this.value); updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)"></div>
-          </div>
-          <div class="spec-row">
-            <div class="spec-field"><label>하부 H</label><input type="number" value="${secLH}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryH', this.value)"></div>
-            <div class="spec-field"><label>하부 D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
-            <div class="spec-field"><label>상부 H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)"></div>
-            <div class="spec-field"><label>상부 D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)"></div>
-          </div>
-          ` : `
+          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">Secondary Line</div>
           <div style="padding:4px 6px;border-left:2px solid #b8956c;margin-bottom:4px;">
             <div style="font-size:9px;font-weight:600;color:#b8956c;margin-bottom:2px;">하부장</div>
             <div class="spec-row">
@@ -933,18 +1121,33 @@
               <div class="spec-field"><label>D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
             </div>
           </div>
-          <div style="padding:4px 6px;border-left:2px solid #5a7fa0;">
-            <div style="font-size:9px;font-weight:600;color:#5a7fa0;margin-bottom:2px;">상부장</div>
+          <div style="padding:4px 6px;border-left:2px solid ${secUpperOn ? '#5a7fa0' : '#ccc'};${secUpperOn ? '' : 'opacity:0.5;'}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+              <span style="font-size:9px;font-weight:600;color:${secUpperOn ? '#5a7fa0' : '#aaa'};">상부장</span>
+              <label style="font-size:9px;color:#666;cursor:pointer;display:flex;align-items:center;gap:2px;">
+                <input type="checkbox" ${secUpperOn ? 'checked' : ''} onchange="updateSpec(${item.uniqueId}, 'secondaryUpperEnabled', this.checked); renderWorkspaceContent(getItem(${item.uniqueId}))" style="margin:0;width:12px;height:12px;">
+                <span>사용</span>
+              </label>
+            </div>
             <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)"></div>
-              <div class="spec-field"><label>H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)"></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)"></div>
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
             </div>
           </div>
-          `}
         </div>`;
         })()}
     </div>
+
+    <!-- ★ 레이아웃 템플릿 (B1) -->
+    ${item.specs.layoutTemplates && item.modules.length === 0 ? `
+    <div style="display:flex;gap:6px;margin-bottom:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+      <span style="font-size:11px;color:#16a34a;font-weight:600;white-space:nowrap;line-height:28px;">📋 템플릿:</span>
+      ${Object.entries(item.specs.layoutTemplates).map(([key, t]) => `
+        <button onclick="applyLayoutTemplate(${item.uniqueId}, '${key}')" style="padding:4px 12px;font-size:11px;border:1px solid #86efac;border-radius:6px;background:#fff;cursor:pointer;color:#166534;" title="${t.desc}">${t.label}</button>
+      `).join('')}
+    </div>
+    ` : ''}
 
     <!-- ★ 자동계산 바 -->
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 12px;background:#faf8f5;border:1px solid #e8e0d8;border-radius:6px;">
@@ -956,8 +1159,30 @@
       ` : ''}
       <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
       <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
+      <button onclick="clearAllModules(${item.uniqueId})" style="padding:6px 12px;font-size:11px;border:1px solid #f5c6cb;border-radius:6px;background:#fff;cursor:pointer;color:#dc3545;">🗑 전체 제거</button>
       <span style="font-size:11px;color:#888;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
     </div>
+
+    <!-- ★ 컨스트레인트 경고 (B3) -->
+    ${(() => {
+      const warnings = [];
+      if (upperRemaining < -5) warnings.push(`⚠️ 상부장 ${Math.abs(Math.round(upperRemaining))}mm 초과`);
+      if (lowerRemaining < -5) warnings.push(`⚠️ 하부장 ${Math.abs(Math.round(lowerRemaining))}mm 초과`);
+      if (item.categoryId === 'sink') {
+        const hasSink = lowerModules.some(m => m.type === 'sink' || m.hasSink || m.has_sink);
+        const hasCook = lowerModules.some(m => m.type === 'cook' || m.hasCooktop || m.has_cooktop);
+        if (!hasSink && lowerModules.length > 0) warnings.push('🚰 개수대 모듈 미배치');
+        if (!hasCook && lowerModules.length > 0) warnings.push('🔥 가스대 모듈 미배치');
+      }
+      const wideMods = [...upperModules, ...lowerModules].filter(m => {
+        const w = parseFloat(m.w) || 0;
+        const doors = m.doorCount || Math.ceil(w / 550);
+        return (w / doors) > 600;
+      });
+      if (wideMods.length > 0) wideMods.forEach(m => { const dw = Math.round(parseFloat(m.w) / (m.doorCount || Math.ceil(parseFloat(m.w)/550))); warnings.push(`📏 ${m.name || m.type} (도어 ${dw}mm) — 600mm 초과`); });
+      if (warnings.length === 0) return '';
+      return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;">${warnings.map(w => `<span style="font-size:11px;color:#dc2626;">${w}</span>`).join('<span style="color:#fca5a5;">|</span>')}</div>`;
+    })()}
 
     <!-- ★ 3컬럼: 좌측(치수+옵션) / 중앙(도면) / 우측(HW+액세서리) -->
     <div style="display:flex;gap:8px;flex:1;min-height:0;">
@@ -1001,16 +1226,20 @@
       <div style="flex:1;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px;display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:13px;font-weight:bold;color:#333;">📐 Front View</span>
-            <span style="font-size:10px;color:#aaa;">모듈 클릭 → 편집</span>
+            <span id="view-label-${item.uniqueId}" style="font-size:13px;font-weight:bold;color:#333;">🎮 3D View</span>
+            <span id="view-hint-${item.uniqueId}" style="font-size:10px;color:#aaa;">모듈 클릭 → 편집 | 드래그 → 회전 | 스크롤 → 줌</span>
           </div>
-          <div style="display:flex;gap:4px;">
-            <button onclick="toggleViewMode(${item.uniqueId})" class="toggle-btn ${item.specs.viewMode === 'iso' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">${item.specs.viewMode === 'iso' ? '📐 Front' : '🧊 Iso'}</button>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <div class="view3d-btns" data-uid="${item.uniqueId}">
+              <button class="v3d-btn active" data-view="perspective" onclick="set3DView(${item.uniqueId},'perspective',this)">3D</button>
+              <button class="v3d-btn" data-view="front" onclick="set3DView(${item.uniqueId},'front',this)">정면</button>
+              <button class="v3d-btn" data-view="top" onclick="set3DView(${item.uniqueId},'top',this)">평면</button>
+            </div>
             <button onclick="toggleSinkDoors(${item.uniqueId})" class="toggle-btn ${showDoors ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">🚪 도어</button>
           </div>
         </div>
-        <div style="flex:1;width:100%;overflow:auto;position:relative;" onclick="handleFrontViewClick(event, ${item.uniqueId})">
-          ${item.specs.viewMode === 'iso' ? renderIsometricView(item, upperModules, lowerModules, showDoors) : sinkFrontViewSvg}
+        <div id="view-container-${item.uniqueId}" style="flex:1;width:100%;overflow:auto;position:relative;min-height:450px;">
+          <div id="three-canvas-${item.uniqueId}" style="width:100%;height:450px;border-radius:8px;overflow:hidden;"></div>
         </div>
         <!-- 분배기/환풍구는 도면 내부 그림으로만 표시 (슬라이더 제거) -->
         <div style="display:none;">
@@ -1036,6 +1265,26 @@
             <button style="width:100%;padding:3px;font-size:9px;border:1px dashed #ccc;background:#fff;border-radius:3px;cursor:pointer;color:#888;" onclick="addAccessory(${item.uniqueId})">+ 추가</button>
           </div>
         </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px;">
+          <div style="font-size:10px;font-weight:700;color:#2563eb;margin-bottom:4px;">설비 위치 (mm)</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" ${(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'checked' : ''} onchange="togglePlumbing(${item.uniqueId},'distributor',this.checked)" style="margin:0;">
+              <label style="font-size:9px;color:#666;flex:1;">분배기 시작</label>
+              <input type="number" style="width:60px;font-size:10px;padding:1px;" value="${item.specs.distributorStart || 0}" onchange="updateSpec(${item.uniqueId},'distributorStart',parseFloat(this.value)||0)" ${!(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'disabled' : ''}>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="width:13px;"></div>
+              <label style="font-size:9px;color:#666;flex:1;">분배기 끝</label>
+              <input type="number" style="width:60px;font-size:10px;padding:1px;" value="${item.specs.distributorEnd || 0}" onchange="updateSpec(${item.uniqueId},'distributorEnd',parseFloat(this.value)||0)" ${!(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? 'disabled' : ''}>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" ${item.specs.ventStart > 0 ? 'checked' : ''} onchange="togglePlumbing(${item.uniqueId},'vent',this.checked)" style="margin:0;">
+              <label style="font-size:9px;color:#666;flex:1;">환풍구</label>
+              <input type="number" style="width:60px;font-size:10px;padding:1px;" value="${item.specs.ventStart || 0}" onchange="updateSpec(${item.uniqueId},'ventStart',parseFloat(this.value)||0)" ${!item.specs.ventStart ? 'disabled' : ''}>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1054,6 +1303,31 @@
         // ★ 스크롤 복원
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
+
+        // ★ 3D 뷰 — 기존 iframe 복원 또는 새로 로드
+        {
+          const tryInit3D = (retries) => {
+            const container = document.getElementById('three-canvas-' + item.uniqueId);
+            if (container && container.clientWidth > 0) {
+              if (savedIframe) {
+                container.appendChild(savedIframe);
+                // postMessage로 최신 상태 전달
+                _loadPlannerEmbed(container, item);
+              } else {
+                _loadPlannerEmbed(container, item);
+              }
+            } else if (retries > 0) {
+              setTimeout(() => tryInit3D(retries - 1), 100);
+            }
+          };
+          setTimeout(() => tryInit3D(5), 50);
+        }
+
+        } catch(err) {
+          console.error('[Workspace] 렌더링 에러:', err);
+          const ws2 = document.getElementById('designWorkspace');
+          if (ws2) ws2.innerHTML = `<div style="padding:40px;text-align:center;color:#e74c3c;"><p>렌더링 에러: ${err.message}</p><button onclick="renderWorkspaceContent(getItem(${item.uniqueId}))" style="margin-top:12px;padding:8px 16px;border:1px solid #ddd;border-radius:6px;cursor:pointer;">다시 시도</button></div>`;
+        }
       }
 
       // ============================================================
@@ -1063,8 +1337,98 @@
       function toggleViewMode(itemUniqueId) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
-        item.specs.viewMode = item.specs.viewMode === 'iso' ? 'front' : 'iso';
+        const modes = ['front', 'iso', 'top'];
+        const idx = modes.indexOf(item.specs.viewMode || 'front');
+        item.specs.viewMode = modes[(idx + 1) % modes.length];
         renderWorkspaceContent(item);
+      }
+
+      // ★ 레이아웃 템플릿 적용 (B1)
+      function applyLayoutTemplate(itemUniqueId, templateKey) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (typeof pushUndo === 'function') pushUndo(item);
+
+        const W = parseFloat(item.w) || 3000;
+        const specLowerH = parseFloat(item.specs.lowerH) || 870;
+        const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const specUpperH = parseFloat(item.specs.upperH) || 720;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
+        const lh = specLowerH - specTopT - specLegH;
+        const uh = specUpperH - specOverlap;
+        const ld = parseFloat(item.d) || 550;
+        const ud = 295;
+        let nextId = (item.modules.length > 0 ? Math.max(...item.modules.map(m => m.id || 0)) : 0) + 1;
+
+        const mkMod = (pos, type, w, extra = {}) => ({
+          id: nextId++, pos, type, w, h: pos === 'upper' ? uh : lh, d: pos === 'upper' ? ud : ld,
+          name: type === 'sink' ? '개수대' : type === 'cook' ? '가스대' : type === 'hood' ? '후드' : type === 'storage' ? '수납장' : '모듈',
+          isDrawer: false, isFixed: type === 'sink' || type === 'cook',
+          hasSink: type === 'sink', hasCooktop: type === 'cook',
+          ...extra,
+        });
+
+        if (item.categoryId === 'sink') {
+          if (templateKey === 'standard') {
+            item.w = item.w || '3000';
+            item.modules = [
+              mkMod('upper', 'storage', 600), mkMod('upper', 'storage', 800),
+              mkMod('upper', 'hood', 600), mkMod('upper', 'storage', 600),
+              mkMod('lower', 'storage', 600), mkMod('lower', 'sink', 800, { hasSink: true }),
+              mkMod('lower', 'cook', 600, { hasCooktop: true }), mkMod('lower', 'storage', 600),
+            ];
+          } else if (templateKey === 'compact') {
+            item.w = item.w || '2400';
+            item.modules = [
+              mkMod('upper', 'storage', 600), mkMod('upper', 'storage', 600),
+              mkMod('upper', 'hood', 600), mkMod('upper', 'storage', 600),
+              mkMod('lower', 'storage', 600), mkMod('lower', 'sink', 600, { hasSink: true }),
+              mkMod('lower', 'cook', 600, { hasCooktop: true }), mkMod('lower', 'storage', 600),
+            ];
+          } else if (templateKey === 'large') {
+            item.w = item.w || '4000';
+            item.modules = [
+              mkMod('upper', 'storage', 600), mkMod('upper', 'storage', 800),
+              mkMod('upper', 'hood', 800), mkMod('upper', 'storage', 800), mkMod('upper', 'storage', 600),
+              mkMod('lower', 'storage', 600), mkMod('lower', 'sink', 800, { hasSink: true }),
+              mkMod('lower', 'storage', 600, { isDrawer: true }),
+              mkMod('lower', 'cook', 800, { hasCooktop: true }), mkMod('lower', 'storage', 600),
+            ];
+          }
+        }
+        renderWorkspaceContent(item);
+      }
+
+      function switchViewMode(itemUniqueId, mode) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+
+        // 3D → 다른 뷰로 전환 시 iframe 제거
+        if (item.specs.viewMode === '3d' && mode !== '3d') {
+          const container = document.getElementById('three-canvas-' + itemUniqueId);
+          if (container) {
+            const iframe = container.querySelector('iframe[data-planner]');
+            if (iframe) iframe.remove();
+          }
+          // ThreeRenderer 레거시 제거됨
+        }
+
+        item.specs.viewMode = mode;
+        renderWorkspaceContent(item);
+
+        // 3D 뷰 활성화 시 R3F 임베드 로드
+        if (mode === '3d') {
+          const tryInit3D = (retries) => {
+            const container = document.getElementById('three-canvas-' + itemUniqueId);
+            if (container && container.clientWidth > 0) {
+              _loadPlannerEmbed(container, item);
+            } else if (retries > 0) {
+              setTimeout(() => tryInit3D(retries - 1), 100);
+            }
+          };
+          setTimeout(() => tryInit3D(5), 50);
+        }
       }
 
       function renderIsometricView(item, upperModules, lowerModules, showDoors) {
@@ -1163,13 +1527,20 @@
           else if (isTall) { fillF = '#dcfce7'; fillT = '#bbf7d0'; fillS = '#86efac'; sc = '#10b981'; }
           else if (mod.isDrawer) { fillF = '#fef3c7'; fillT = '#fde68a'; fillS = '#fcd34d'; sc = '#f59e0b'; }
 
+          const modIdx = item.modules.indexOf(mod);
           svg += isoBox(lx, my, 0, mw, mh, md, fillF, fillT, fillS, sc);
+          // 클릭/드래그 영역 (전면에 투명 오버레이)
+          const fbl = proj(lx, my, 0);
+          const fbr = proj(lx + mw, my, 0);
+          const ftr = proj(lx + mw, my + mh, 0);
+          const ftl = proj(lx, my + mh, 0);
+          svg += `<polygon points="${fbl.join(',')},${fbr.join(',')},${ftr.join(',')},${ftl.join(',')}" fill="transparent" style="cursor:grab;" data-mod-index="${modIdx}" data-drag-mod="${modIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower"/>`;
 
           const icons = { sink: '🚰', cook: '🔥', tall: '↕️', storage: '🗄️' };
           const icon = icons[mod.type] || '📦';
           const [cx, cy] = proj(lx + mw / 2, my + mh / 2, 0);
-          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
-          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold" pointer-events="none">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555" pointer-events="none">${mw}</text>`;
           lx += mw;
         });
 
@@ -1245,11 +1616,18 @@
           const fillF = mod.type === 'hood' ? '#fef3c7' : '#dbeafe';
           const fillT = mod.type === 'hood' ? '#fde68a' : '#bfdbfe';
           const fillS = mod.type === 'hood' ? '#fcd34d' : '#93c5fd';
+          const uModIdx = item.modules.indexOf(mod);
           svg += isoBox(ux, uY, 0, mw, upperH, upperD, fillF, fillT, fillS, mod.type === 'hood' ? '#f59e0b' : '#3b82f6');
+          // 클릭/드래그 오버레이
+          const ufbl = proj(ux, uY, 0);
+          const ufbr = proj(ux + mw, uY, 0);
+          const uftr = proj(ux + mw, uY + upperH, 0);
+          const uftl = proj(ux, uY + upperH, 0);
+          svg += `<polygon points="${ufbl.join(',')},${ufbr.join(',')},${uftr.join(',')},${uftl.join(',')}" fill="transparent" style="cursor:grab;" data-mod-index="${uModIdx}" data-drag-mod="${uModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper"/>`;
           const [cx, cy] = proj(ux + mw / 2, uY + upperH / 2, 0);
           const icon = mod.type === 'hood' ? '🌀' : '📦';
-          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold">${icon}</text>`;
-          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555">${mw}</text>`;
+          svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="11" font-weight="bold" pointer-events="none">${icon}</text>`;
+          svg += `<text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="8" fill="#555" pointer-events="none">${mw}</text>`;
           ux += mw;
         });
 
@@ -1327,6 +1705,27 @@
           svg += isoBox(W - finishR, uY, 0, finishR, upperH + moldingH, upperD, '#e0e0e0', '#d4d4d4', '#c8c8c8', '#999');
         }
 
+        // ── 분배기/환풍구 마커 (Iso뷰) ──
+        {
+          const distStart = parseFloat(item.specs.distributorStart) || 0;
+          const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+          const ventPos = parseFloat(item.specs.ventStart) || 0;
+          // 분배기 (하부장 전면 하단)
+          if (distStart > 0 || distEnd > 0) {
+            const [ps] = proj(Math.min(W, distStart), lY, 0);
+            const [pe] = proj(Math.min(W, distEnd), lY, 0);
+            const [_, psy] = proj(0, lY, 0);
+            svg += `<line x1="${ps}" y1="${psy + 3}" x2="${pe}" y2="${psy + 3}" stroke="#60a5fa" stroke-width="3" opacity="0.6"/>`;
+            svg += `<circle cx="${ps}" cy="${psy + 3}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+            svg += `<circle cx="${pe}" cy="${psy + 3}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+          }
+          // 환풍구 (상부장 전면 상단)
+          if (ventPos > 0) {
+            const [vx, vy] = proj(Math.min(W, ventPos), uY + upperH, 0);
+            svg += `<rect x="${vx - 8}" y="${vy - 12}" width="16" height="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1" rx="2"/>`;
+          }
+        }
+
         // ── 치수선 ──
         // W (하단)
         const [wl, wly] = proj(0, -60, 0);
@@ -1354,6 +1753,235 @@
         svg += `<line x1="${dr - 3}" y1="${dry - 3}" x2="${dr + 3}" y2="${dry + 3}" stroke="#666"/>`;
         const [dm, dmy] = proj(W + 20, 0, D / 2);
         svg += `<text x="${dm + 5}" y="${dmy - 8}" text-anchor="start" font-size="10" fill="#333" font-weight="bold">${D}mm</text>`;
+
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
+      }
+
+      // ============================================================
+      // Top View (상면도) — 상부장/하부장 분리
+      // ============================================================
+      function renderTopView(item, upperModules, lowerModules) {
+        const W = parseFloat(item.w) || 3000;
+        const D = parseFloat(item.d) || 600;
+        const upperD = Math.round(D * 0.55);
+        const topT = 30;
+        const finishL = item.specs.finishLeftType !== 'None' ? (parseFloat(item.specs.finishLeftWidth) || 0) : 0;
+        const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+        const secW = parseFloat(item.specs.lowerSecondaryW) || 0;
+
+        const svgW = 650, sectionGap = 40, pad = 50, innerPad = 15;
+        const scale = (svgW - pad * 2) / W;
+        const upperDrawD = upperD * scale, lowerDrawD = D * scale, topDrawT = topT * scale;
+        const dimOff = 20;
+
+        // ㄱ자형/ㄷ자형이면 세컨더리 라인 영역 추가
+        const secH = (lShape !== 'I' && secW > 0) ? (secW * scale + 60) : 0;
+        const svgH = pad + upperDrawD + dimOff + 20 + sectionGap + lowerDrawD + topDrawT + dimOff + 40 + secH + pad;
+        let svg = '';
+        const ox = pad;
+
+        // ═══ 상부장 라벨 (좌측, Front View 스타일) ═══
+        let uy = pad;
+        svg += `<text x="${ox - 5}" y="${uy - 8}" font-size="11" fill="#333" font-weight="bold">상부장</text>`;
+        svg += `<text x="${ox + 42}" y="${uy - 8}" font-size="9" fill="#999">(깊이 ${upperD}mm)</text>`;
+
+        // 상부장 외곽
+        svg += `<rect x="${ox}" y="${uy}" width="${W*scale}" height="${upperDrawD}" fill="#f8f9fa" stroke="#999" stroke-width="1.5"/>`;
+
+        // 상부장 모듈 (Front View 색상 통일)
+        if (upperModules.length > 0) {
+          let ux = ox + finishL * scale;
+          for (const mod of upperModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            const tModIdx = item.modules.indexOf(mod);
+            const fill = mod.type === 'hood' ? '#fef3c7' : '#eff6ff';
+            const stroke = mod.type === 'hood' ? '#f59e0b' : '#3b82f6';
+            const icon = mod.type === 'hood' ? '🌀' : '📦';
+            svg += `<rect x="${ux}" y="${uy}" width="${mw}" height="${upperDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" rx="2" data-mod-index="${tModIdx}" data-drag-mod="${tModIdx}" data-uid="${item.uniqueId}" data-mod-pos="upper" style="cursor:grab;"/>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2-4}" text-anchor="middle" font-size="10" pointer-events="none">${icon}</text>`;
+            svg += `<text x="${ux+mw/2}" y="${uy+upperDrawD/2+10}" text-anchor="middle" font-size="9" fill="#666" pointer-events="none">${mod.w||''}</text>`;
+            ux += mw;
+          }
+          // 환풍구 마커 (상부장 상단)
+          const ventPos = parseFloat(item.specs.ventStart) || 0;
+          if (ventPos > 0) {
+            const vx = ox + Math.min(W, ventPos) * scale;
+            svg += `<rect x="${vx-8}" y="${uy}" width="16" height="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1" rx="2"/>`;
+            svg += `<text x="${vx}" y="${uy+8}" text-anchor="middle" font-size="6" fill="#dc2626" pointer-events="none">${ventPos}</text>`;
+          }
+        }
+
+        // 상부장 치수선 — 상단 (전체 폭)
+        svg += `<line x1="${ox}" y1="${uy - 15}" x2="${ox + W*scale}" y2="${uy - 15}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${ox}" y1="${uy - 20}" x2="${ox}" y2="${uy - 10}" stroke="#666"/>`;
+        svg += `<line x1="${ox + W*scale}" y1="${uy - 20}" x2="${ox + W*scale}" y2="${uy - 10}" stroke="#666"/>`;
+        svg += `<text x="${ox + W*scale/2}" y="${uy - 22}" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">${W}mm</text>`;
+
+        // 상부장 치수선 — 하단 모듈별
+        if (upperModules.length > 0) {
+          let ux = ox + finishL * scale;
+          const dimY = uy + upperDrawD + 12;
+          for (const mod of upperModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            svg += `<line x1="${ux}" y1="${dimY}" x2="${ux + mw}" y2="${dimY}" stroke="#666" stroke-width="0.8"/>`;
+            svg += `<line x1="${ux}" y1="${dimY - 4}" x2="${ux}" y2="${dimY + 4}" stroke="#666"/>`;
+            svg += `<line x1="${ux + mw}" y1="${dimY - 4}" x2="${ux + mw}" y2="${dimY + 4}" stroke="#666"/>`;
+            svg += `<text x="${ux + mw/2}" y="${dimY + 14}" text-anchor="middle" font-size="9" fill="#666">${mod.w||''}</text>`;
+            ux += mw;
+          }
+        }
+
+        // ═══ 구분선 (벽면) ═══
+        const sepY = uy + upperDrawD + dimOff + 20 + sectionGap / 2;
+        svg += `<line x1="${ox}" y1="${sepY}" x2="${ox + W*scale}" y2="${sepY}" stroke="#ccc" stroke-width="1" stroke-dasharray="6,3"/>`;
+
+        // ═══ 하부장 라벨 ═══
+        let ly = sepY + sectionGap / 2;
+        svg += `<text x="${ox - 5}" y="${ly - 8}" font-size="11" fill="#333" font-weight="bold">하부장</text>`;
+        svg += `<text x="${ox + 42}" y="${ly - 8}" font-size="9" fill="#999">(깊이 ${D}mm)</text>`;
+
+        // 상판 윤곽
+        svg += `<rect x="${ox - topDrawT}" y="${ly - topDrawT}" width="${W*scale + topDrawT*2}" height="${lowerDrawD + topDrawT*2}" fill="none" stroke="#aaa" stroke-width="1" stroke-dasharray="4,2" rx="1"/>`;
+
+        // 하부장 외곽
+        svg += `<rect x="${ox}" y="${ly}" width="${W*scale}" height="${lowerDrawD}" fill="#f8f9fa" stroke="#999" stroke-width="1.5"/>`;
+
+        // 하부장 모듈
+        if (lowerModules.length > 0) {
+          let lx = ox + finishL * scale;
+          for (const mod of lowerModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            const isSink = mod.type === 'sink';
+            const isCook = mod.type === 'cook';
+            const isDrawer = mod.isDrawer;
+            // Front View 통일 색상
+            let fill = '#f3f4f6', stroke = '#6b7280';
+            if (isSink) { fill = '#dbeafe'; stroke = '#3b82f6'; }
+            else if (isCook) { fill = '#fee2e2'; stroke = '#ef4444'; }
+            else if (isDrawer) { fill = '#fef3c7'; stroke = '#f59e0b'; }
+            const tLModIdx = item.modules.indexOf(mod);
+            svg += `<rect x="${lx}" y="${ly}" width="${mw}" height="${lowerDrawD}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" rx="2" data-mod-index="${tLModIdx}" data-drag-mod="${tLModIdx}" data-uid="${item.uniqueId}" data-mod-pos="lower" style="cursor:grab;"/>`;
+
+            // 싱크볼
+            if (isSink) {
+              const bw = mw * 0.5, bd = lowerDrawD * 0.4;
+              svg += `<ellipse cx="${lx+mw/2}" cy="${ly+lowerDrawD/2+4}" rx="${bw/2}" ry="${bd/2}" fill="#cfd8dc" stroke="#90a4ae" stroke-width="1.5"/>`;
+              // 수전
+              svg += `<circle cx="${lx+mw/2}" cy="${ly+10}" r="4" fill="#64b5f6" stroke="#1e88e5" stroke-width="1"/>`;
+              svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD/2-10}" text-anchor="middle" font-size="9" fill="#333">싱크</text>`;
+            }
+            // 쿡탑 버너
+            else if (isCook) {
+              const cx = lx+mw/2, cy = ly+lowerDrawD/2, br = Math.min(mw,lowerDrawD)*0.12;
+              svg += `<circle cx="${cx-br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#e65100" stroke-width="1.5"/>`;
+              svg += `<circle cx="${cx+br*1.5}" cy="${cy-br*1.2}" r="${br}" fill="none" stroke="#e65100" stroke-width="1.5"/>`;
+              svg += `<circle cx="${cx-br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#e65100" stroke-width="1.5"/>`;
+              svg += `<circle cx="${cx+br*1.5}" cy="${cy+br*1.2}" r="${br*0.8}" fill="none" stroke="#e65100" stroke-width="1.5"/>`;
+              svg += `<text x="${cx}" y="${cy-br*2-4}" text-anchor="middle" font-size="9" fill="#333">쿡탑</text>`;
+            }
+            else {
+              svg += `<text x="${lx+mw/2}" y="${ly+lowerDrawD/2+3}" text-anchor="middle" font-size="10" fill="#333">${mod.w||''}</text>`;
+            }
+            lx += mw;
+          }
+          // 분배기 마커 (하부장 하단)
+          const distStart = parseFloat(item.specs.distributorStart) || 0;
+          const distEnd = parseFloat(item.specs.distributorEnd) || 0;
+          if (distStart > 0 || distEnd > 0) {
+            const dsx = ox + Math.min(W, distStart) * scale;
+            const dex = ox + Math.min(W, distEnd) * scale;
+            const pipeY = ly + lowerDrawD - 8;
+            svg += `<line x1="${dsx}" y1="${pipeY}" x2="${dex}" y2="${pipeY}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.5"/>`;
+            svg += `<circle cx="${dsx}" cy="${pipeY}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+            svg += `<circle cx="${dex}" cy="${pipeY}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1"/>`;
+            svg += `<text x="${dsx}" y="${pipeY-5}" text-anchor="middle" font-size="7" fill="#2563eb">${distStart}</text>`;
+            svg += `<text x="${dex}" y="${pipeY-5}" text-anchor="middle" font-size="7" fill="#2563eb">${distEnd}</text>`;
+          }
+        }
+
+        // 하부장 치수선 — 하단 모듈별
+        if (lowerModules.length > 0) {
+          let lx = ox + finishL * scale;
+          const dimY = ly + lowerDrawD + 12;
+          for (const mod of lowerModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            svg += `<line x1="${lx}" y1="${dimY}" x2="${lx + mw}" y2="${dimY}" stroke="#666" stroke-width="0.8"/>`;
+            svg += `<line x1="${lx}" y1="${dimY - 4}" x2="${lx}" y2="${dimY + 4}" stroke="#666"/>`;
+            svg += `<line x1="${lx + mw}" y1="${dimY - 4}" x2="${lx + mw}" y2="${dimY + 4}" stroke="#666"/>`;
+            svg += `<text x="${lx + mw/2}" y="${dimY + 14}" text-anchor="middle" font-size="9" fill="#666">${mod.w||''}</text>`;
+            lx += mw;
+          }
+        }
+
+        // 배관 마커 (Front View와 동일 스타일)
+        const wX = ox + (W*(item.specs.waterPosition||30)/100)*scale;
+        const gX = ox + (W*(item.specs.gasPosition||70)/100)*scale;
+        const markerY = ly + lowerDrawD + 32;
+        svg += `<line x1="${wX}" y1="${ly+lowerDrawD}" x2="${wX}" y2="${markerY - 6}" stroke="#2196f3" stroke-width="1" stroke-dasharray="3"/>`;
+        svg += `<circle cx="${wX}" cy="${markerY}" r="4" fill="#2196f3"/>`;
+        svg += `<text x="${wX}" y="${markerY + 14}" text-anchor="middle" font-size="8" fill="#1976d2">급수 ${item.specs.waterPosition||30}%</text>`;
+        svg += `<line x1="${gX}" y1="${ly+lowerDrawD}" x2="${gX}" y2="${markerY - 6}" stroke="#ff9800" stroke-width="1" stroke-dasharray="3"/>`;
+        svg += `<circle cx="${gX}" cy="${markerY}" r="4" fill="#ff9800"/>`;
+        svg += `<text x="${gX}" y="${markerY + 14}" text-anchor="middle" font-size="8" fill="#e65100">가스 ${item.specs.gasPosition||70}%</text>`;
+
+        // ═══ 세컨더리 라인 (ㄱ자/ㄷ자형) ═══
+        if (lShape !== 'I' && secW > 0) {
+          const secStartY = markerY + 30;
+          const secDrawW = secW * scale;
+          const secD = parseFloat(item.specs.lowerSecondaryD) || D;
+          const secDrawD = secD * scale;
+          const isRefLeft = item.specs.measurementBase === 'Left';
+
+          // Secondary 라벨
+          svg += `<text x="${ox - 5}" y="${secStartY}" font-size="11" fill="#b8956c" font-weight="bold">Secondary Line</text>`;
+          svg += `<text x="${ox + 100}" y="${secStartY}" font-size="9" fill="#999">(${lShape === 'L' ? 'ㄱ자' : 'ㄷ자'} W${secW}mm)</text>`;
+
+          const secY = secStartY + 10;
+
+          // L자 연결선 (프라임↔세컨더리 연결)
+          const connX = isRefLeft ? ox + W * scale : ox;
+          svg += `<line x1="${connX}" y1="${ly}" x2="${connX}" y2="${secY + secDrawD}" stroke="#b8956c" stroke-width="2" stroke-dasharray="6,3"/>`;
+
+          // 세컨더리 하부장 외곽 (90도 회전 — 수직 배치)
+          const secOx = isRefLeft ? ox + W * scale - secDrawD : ox;
+          svg += `<rect x="${secOx}" y="${secY}" width="${secDrawD}" height="${secDrawW}" fill="#faf8f5" stroke="#b8956c" stroke-width="1.5" rx="1"/>`;
+
+          // 세컨더리 상판
+          svg += `<rect x="${secOx - topDrawT}" y="${secY - topDrawT}" width="${secDrawD + topDrawT*2}" height="${secDrawW + topDrawT*2}" fill="none" stroke="#ccc" stroke-width="1" stroke-dasharray="4,2" rx="1"/>`;
+
+          // 세컨더리 치수선 — 세로 (W)
+          const secDimX = isRefLeft ? secOx + secDrawD + 10 : secOx - 10;
+          svg += `<line x1="${secDimX}" y1="${secY}" x2="${secDimX}" y2="${secY + secDrawW}" stroke="#b8956c" stroke-width="0.8"/>`;
+          svg += `<line x1="${secDimX - 4}" y1="${secY}" x2="${secDimX + 4}" y2="${secY}" stroke="#b8956c"/>`;
+          svg += `<line x1="${secDimX - 4}" y1="${secY + secDrawW}" x2="${secDimX + 4}" y2="${secY + secDrawW}" stroke="#b8956c"/>`;
+          svg += `<text x="${secDimX + (isRefLeft ? 8 : -8)}" y="${secY + secDrawW/2 + 3}" text-anchor="${isRefLeft ? 'start' : 'end'}" font-size="9" fill="#b8956c" font-weight="600">${secW}mm</text>`;
+
+          // 세컨더리 치수선 — 가로 (D)
+          svg += `<line x1="${secOx}" y1="${secY + secDrawW + 10}" x2="${secOx + secDrawD}" y2="${secY + secDrawW + 10}" stroke="#666" stroke-width="0.8"/>`;
+          svg += `<text x="${secOx + secDrawD/2}" y="${secY + secDrawW + 22}" text-anchor="middle" font-size="9" fill="#666">${secD}mm</text>`;
+
+          // L자형 코너 표시
+          svg += `<rect x="${connX - 3}" y="${ly - 3}" width="6" height="6" fill="#b8956c" rx="1"/>`;
+        }
+
+        // ★ 워크 트라이앵글 (B4) — 싱크↔쿡탑 거리 표시
+        if (item.categoryId === 'sink' && lowerModules.length > 0) {
+          let sinkCx = null, cookCx = null;
+          let lx2 = ox + finishL * scale;
+          for (const mod of lowerModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            if (mod.type === 'sink' || mod.hasSink || mod.has_sink) sinkCx = lx2 + mw / 2;
+            if (mod.type === 'cook' || mod.hasCooktop || mod.has_cooktop) cookCx = lx2 + mw / 2;
+            lx2 += mw;
+          }
+          if (sinkCx && cookCx) {
+            const triY = ly + lowerDrawD / 2;
+            const distMm = Math.round(Math.abs(cookCx - sinkCx) / scale);
+            const color = distMm < 900 ? '#ef4444' : distMm > 2700 ? '#f59e0b' : '#22c55e';
+            svg += `<line x1="${sinkCx}" y1="${triY}" x2="${cookCx}" y2="${triY}" stroke="${color}" stroke-width="2" stroke-dasharray="6,3" opacity="0.6"/>`;
+            svg += `<text x="${(sinkCx + cookCx) / 2}" y="${triY - 6}" text-anchor="middle" font-size="9" fill="${color}" font-weight="600">${distMm}mm</text>`;
+          }
+        }
 
         return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
       }

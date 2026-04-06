@@ -1,39 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractDesignData } from '../src/services/design-data.service.js';
-import type { WallAnalysis, Category } from '../src/types/index.js';
-import type { ClassifiedRules } from '../src/mappers/rule-classifier.js';
-
-// ─────────────────────────────────────────────────────────────────
-// Test Fixtures
-// ─────────────────────────────────────────────────────────────────
-
-function makeWallData(overrides: Partial<WallAnalysis> = {}): WallAnalysis {
-  return {
-    tile_detected: true,
-    tile_type: 'subway_tile',
-    tile_size_mm: { width: 300, height: 600 },
-    wall_width_mm: 3600,
-    wall_height_mm: 2400,
-    water_pipe_x: 900,
-    exhaust_duct_x: 2700,
-    gas_pipe_x: 2700,
-    confidence: 'high',
-    ...overrides,
-  };
-}
-
-function makeClassified(overrides: Partial<ClassifiedRules> = {}): ClassifiedRules {
-  return {
-    background: ['- Clean walls'],
-    modules: ['- 상부장: 600mm standard'],
-    doors: ['- 도어: 1-door hinged'],
-    materials: [
-      { id: 'm1', rule_type: 'material', content: 'White matte laminate', triggers: ['WM-01'] },
-    ],
-    materialKeywords: [],
-    ...overrides,
-  };
-}
+import { makeWallData, makeClassified } from './fixtures/design.fixture.js';
 
 // ─────────────────────────────────────────────────────────────────
 // Tests: extractDesignData
@@ -297,5 +264,39 @@ describe('extractDesignData', () => {
 
     expect(result.category).toBe('vanity');
     expect(result.style).toBe('classic');
+  });
+
+  // ─── 입력 검증 테스트 ───
+
+  it('throws ValidationError for invalid category', () => {
+    expect(() => extractDesignData({
+      category: 'invalid' as any,
+      style: 'modern',
+      wallData: makeWallData(),
+      classified: makeClassified(),
+    })).toThrow('유효하지 않은 카테고리');
+  });
+
+  it('throws ValidationError for empty style', () => {
+    expect(() => extractDesignData({
+      category: 'sink',
+      style: '',
+      wallData: makeWallData(),
+      classified: makeClassified(),
+    })).toThrow('스타일이 비어있습니다');
+  });
+
+  it('handles all supported categories without error', () => {
+    const categories = ['sink', 'wardrobe', 'fridge', 'vanity', 'shoe', 'storage'] as const;
+    for (const cat of categories) {
+      const result = extractDesignData({
+        category: cat,
+        style: 'modern',
+        wallData: makeWallData(),
+        classified: makeClassified(),
+      });
+      expect(result.category).toBe(cat);
+      expect(result.cabinets.lower.length).toBeGreaterThan(0);
+    }
   });
 });

@@ -5,7 +5,10 @@ window.DADAM_CONFIG = {
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ',
   },
   multiagent: {
-    apiUrl: '', // multiagent API base URL (e.g. https://dadam-multiagent.up.railway.app/api/v1)
+    apiUrl: '', // 비활성 → Codex generate API 사용
+  },
+  generateApi: {
+    url: 'https://dadam-generate-api-production.up.railway.app/api/generate',
   },
   app: {
     name: '다담가구',

@@ -254,6 +254,10 @@ function sendDesignStateEvents(session: AgentSession, onEvent: SSECallback): voi
   sendSvgEvents(session, onEvent);
 }
 
+function detectMimeType(base64: string): string {
+  return base64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+}
+
 function sendImageEvents(session: AgentSession, onEvent: SSECallback): void {
   const images = session.designState.generatedImages;
   if (!images) return;
@@ -261,13 +265,13 @@ function sendImageEvents(session: AgentSession, onEvent: SSECallback): void {
   if (images.closed) {
     onEvent({
       event: 'image',
-      data: { base64: images.closed, mime_type: 'image/png', label: 'closed_door' },
+      data: { base64: images.closed, mime_type: detectMimeType(images.closed), label: 'closed_door' },
     });
   }
   if (images.open) {
     onEvent({
       event: 'image',
-      data: { base64: images.open, mime_type: 'image/png', label: 'open_door' },
+      data: { base64: images.open, mime_type: detectMimeType(images.open), label: 'open_door' },
     });
   }
 }

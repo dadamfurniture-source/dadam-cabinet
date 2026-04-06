@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sink HITL 수집 — 다담AI</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 20px; background: #f5f5f7; color: #1d1d1f; }
+    h1 { font-size: 20px; margin: 0 0 16px; }
+    .container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 380px 1fr; gap: 16px; }
+    .panel { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .panel h2 { font-size: 14px; margin: 0 0 12px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.5px; }
+    label { display: block; font-size: 12px; margin: 6px 0 2px; color: #515154; }
+    input, textarea, select { width: 100%; padding: 6px 8px; border: 1px solid #d2d2d7; border-radius: 6px; font-size: 13px; font-family: inherit; }
+    textarea { font-family: "SF Mono", Menlo, monospace; font-size: 11px; resize: vertical; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
+    .btn-primary { background: #0071e3; color: #fff; }
+    .btn-primary:hover { background: #0077ed; }
+    .btn-secondary { background: #e8e8ed; color: #1d1d1f; }
+    .btn-secondary:hover { background: #d2d2d7; }
+    .btn-success { background: #34c759; color: #fff; }
+    .btn-success:hover { background: #30b653; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 12px; }
+    .stat-box { background: #f5f5f7; padding: 8px; border-radius: 6px; text-align: center; }
+    .stat-label { color: #86868b; font-size: 10px; }
+    .stat-val { font-size: 18px; font-weight: 600; color: #1d1d1f; margin-top: 2px; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    #status { font-size: 12px; color: #86868b; margin-top: 8px; min-height: 16px; }
+    #jsonEditor { min-height: 420px; }
+  </style>
+</head>
+<body>
+  <h1>🗂 Sink HITL 수집 — Phase 1</h1>
+  <div class="container">
+    <!-- 좌측: 환경 설정 + 통계 -->
+    <div>
+      <div class="panel">
+        <h2>환경 (SinkEnv)</h2>
+        <div class="row">
+          <div><label>벽 너비 (mm)</label><input type="number" id="env-width" value="3000" /></div>
+          <div><label>벽 높이 (mm)</label><input type="number" id="env-height" value="2400" /></div>
+        </div>
+        <div class="row">
+          <div><label>깊이 (mm)</label><input type="number" id="env-depth" value="600" /></div>
+          <div><label>측정 기준</label><select id="env-base"><option value="left">좌측</option><option value="right">우측</option></select></div>
+        </div>
+        <div class="row">
+          <div><label>좌측 마감재</label><input type="number" id="env-finL" value="0" /></div>
+          <div><label>우측 마감재</label><input type="number" id="env-finR" value="0" /></div>
+        </div>
+        <div class="row">
+          <div><label>몰딩 H</label><input type="number" id="env-molding" value="60" /></div>
+          <div><label>걸레받이 H</label><input type="number" id="env-toe" value="100" /></div>
+        </div>
+        <div class="row">
+          <div><label>분전반 시작</label><input type="number" id="env-distS" placeholder="null" /></div>
+          <div><label>분전반 끝</label><input type="number" id="env-distE" placeholder="null" /></div>
+        </div>
+        <div class="row">
+          <div><label>환풍구 시작</label><input type="number" id="env-ventS" value="1800" /></div>
+          <div><label>환풍구 끝</label><input type="number" id="env-ventE" value="2400" /></div>
+        </div>
+        <div style="margin-top: 12px;">
+          <button class="btn-primary" id="btn-generate">🎲 Random 생성</button>
+        </div>
+        <div id="status"></div>
+      </div>
+
+      <div class="panel" style="margin-top: 12px;">
+        <h2>수집 통계</h2>
+        <div class="stats">
+          <div class="stat-box"><div class="stat-label">총 Pair</div><div class="stat-val" id="stat-total">-</div></div>
+          <div class="stat-box"><div class="stat-label">지난주</div><div class="stat-val" id="stat-week">-</div></div>
+          <div class="stat-box"><div class="stat-label">평균 ⭐</div><div class="stat-val" id="stat-rating">-</div></div>
+          <div class="stat-box"><div class="stat-label">평균 diff</div><div class="stat-val" id="stat-diff">-</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 우측: JSON 에디터 + rating + 저장 -->
+    <div class="panel">
+      <h2>설계안 편집 (SinkDesign JSON)</h2>
+      <div class="toolbar">
+        <button class="btn-secondary" id="btn-format">🎨 JSON 포맷</button>
+        <button class="btn-secondary" id="btn-reset">↩ 원본 복원</button>
+      </div>
+      <textarea id="jsonEditor" placeholder="먼저 'Random 생성' 버튼을 눌러주세요"></textarea>
+      <div class="row" style="margin-top: 12px;">
+        <div>
+          <label>평점 (1-5, 5=수정 거의 없음)</label>
+          <input type="number" id="rating" value="3" min="1" max="5" />
+        </div>
+        <div>
+          <label>주석 (선택)</label>
+          <input type="text" id="comment" placeholder="특이사항" />
+        </div>
+      </div>
+      <div class="toolbar" style="margin-top: 12px;">
+        <button class="btn-success" id="btn-save">✅ 수정 완료 저장</button>
+        <button class="btn-primary" id="btn-next">⏭ 다음 Random</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:3200';
+    let currentGenerated = null;
+    const el = (id) => document.getElementById(id);
+    const status = (msg, isError) => { const s = el('status'); s.textContent = msg; s.style.color = isError ? '#ff3b30' : '#86868b'; };
+
+    function buildEnv() {
+      const num = (id) => Number(el(id).value);
+      const numOrNull = (id) => el(id).value === '' ? null : Number(el(id).value);
+      return {
+        width: num('env-width'),
+        height: num('env-height'),
+        depth: num('env-depth'),
+        finishLeftW: num('env-finL'),
+        finishRightW: num('env-finR'),
+        moldingH: num('env-molding'),
+        toeKickH: num('env-toe'),
+        distributorStart: numOrNull('env-distS'),
+        distributorEnd: numOrNull('env-distE'),
+        ventStart: numOrNull('env-ventS'),
+        ventEnd: numOrNull('env-ventE'),
+        measurementBase: el('env-base').value,
+      };
+    }
+
+    async function generate() {
+      status('생성 중...');
+      try {
+        const res = await fetch(`${API}/api/sink-hitl/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ env: buildEnv() }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Generate failed');
+        currentGenerated = data.design;
+        el('jsonEditor').value = JSON.stringify(data.design, null, 2);
+        status(`✓ 생성 완료 (id: ${data.design.id}, 하부 ${data.design.lower.length}개, 상부 ${data.design.upper.length}개)`);
+      } catch (e) {
+        status('✗ ' + e.message, true);
+      }
+    }
+
+    async function save() {
+      if (!currentGenerated) { status('먼저 생성하세요', true); return; }
+      let corrected;
+      try {
+        corrected = JSON.parse(el('jsonEditor').value);
+      } catch (e) {
+        status('JSON 파싱 실패: ' + e.message, true);
+        return;
+      }
+      // corrected meta 표시 갱신
+      corrected.meta = { ...(corrected.meta || {}), generated_by: 'human-correction', parent_id: currentGenerated.id };
+      status('저장 중...');
+      try {
+        const res = await fetch(`${API}/api/sink-hitl/save-correction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            generated: currentGenerated,
+            corrected,
+            rating: Number(el('rating').value),
+            comment: el('comment').value || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Save failed');
+        status(`✓ 저장 완료 (pair: ${data.pair_id}, diff ${data.diff_count}건)`);
+        await refreshStats();
+      } catch (e) {
+        status('✗ ' + e.message, true);
+      }
+    }
+
+    async function refreshStats() {
+      try {
+        const res = await fetch(`${API}/api/sink-hitl/stats`);
+        const data = await res.json();
+        el('stat-total').textContent = data.totalPairs ?? 0;
+        el('stat-week').textContent = data.lastWeekPairs ?? 0;
+        el('stat-rating').textContent = (data.avgRating ?? 0).toFixed(1);
+        el('stat-diff').textContent = (data.avgDiffCount ?? 0).toFixed(1);
+      } catch (e) { /* ignore */ }
+    }
+
+    el('btn-generate').onclick = generate;
+    el('btn-next').onclick = generate;
+    el('btn-save').onclick = save;
+    el('btn-format').onclick = () => {
+      try {
+        el('jsonEditor').value = JSON.stringify(JSON.parse(el('jsonEditor').value), null, 2);
+      } catch (e) { status('JSON 포맷 실패', true); }
+    };
+    el('btn-reset').onclick = () => {
+      if (currentGenerated) el('jsonEditor').value = JSON.stringify(currentGenerated, null, 2);
+    };
+
+    refreshStats();
+  </script>
+</body>
+</html>

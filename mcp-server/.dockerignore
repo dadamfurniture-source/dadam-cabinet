@@ -1,0 +1,12 @@
+node_modules/
+dist/
+tests/
+tmp/
+scripts/
+.env
+.env.*
+!.env.example
+*.md
+.eslintrc*
+vitest.config.ts
+.git/

@@ -4,15 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
-    <link rel="stylesheet" href="css/nav.css">
+    <script>window.__CV = Date.now();</script>
+    <script>document.write('<link rel="stylesheet" href="css/nav.css?v='+__CV+'">');</script>
     <script src="js/nav-transitions.js"></script>
-    <link rel="stylesheet" href="css/detaildesign/base.css">
-    <link rel="stylesheet" href="css/detaildesign/components.css">
-    <link rel="stylesheet" href="css/detaildesign/chrome.css">
+    <script>
+      document.write('<link rel="stylesheet" href="css/detaildesign/base.css?v='+__CV+'">');
+      document.write('<link rel="stylesheet" href="css/detaildesign/components.css?v='+__CV+'">');
+      document.write('<link rel="stylesheet" href="css/detaildesign/chrome.css?v='+__CV+'">');
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js"></script>
-    <script src="js/supabase-utils.js"></script>
+    <script>
+      document.write('<script src="js/config.js?v='+__CV+'"><\/script>');
+      document.write('<script src="js/supabase-utils.js?v='+__CV+'"><\/script>');
+    </script>
   </head>
   <body class="has-toolbar">
     <!-- Navigation -->
@@ -25,16 +30,15 @@
       </a>
       <div class="nav-menu">
         <a href="#">About us</a>
-        <a href="#">Collection</a>
-        <a href="#">Products</a>
+        <a href="collection.html">Collection</a>
         <a href="ai-design.html">AI Design</a>
         <a href="detaildesign.html" class="active">Detail Design</a>
         <a href="consultation.html">상담 신청</a>
-        <a href="#">Showroom</a>
         <a href="#">Service</a>
       </div>
       <div class="nav-icons">
-        <div class="user-menu" id="navUserMenu">
+        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
+        <div class="user-menu" id="userMenu" style="display:none">
           <button class="user-btn">
             <div class="user-avatar" id="navUserAvatar">?</div>
             <span class="user-name" id="navUserName">사용자</span>
@@ -43,25 +47,9 @@
             </svg>
           </button>
           <div class="user-dropdown">
-            <a href="mypage.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" /></svg
-              >마이페이지</a
-            >
-            <a href="my-designs.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" /></svg
-              >내 설계</a
-            >
-            <button onclick="logoutNav()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" /></svg
-              >로그아웃
-            </button>
+            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
+            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <button onclick="logoutNav()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
           </div>
         </div>
         <button class="hamburger" onclick="toggleMobileMenu()">
@@ -99,25 +87,21 @@
       </div>
     </div>
 
-    <!-- 상단 툴바 -->
-    <div class="top-toolbar" id="topToolbar">
-      <div class="toolbar-left">
-        <a href="index.html" class="toolbar-logo">🪑 다담가구</a>
-        <span class="toolbar-user" id="toolbarUser">로딩중...</span>
-        <span class="save-status saved hidden" id="saveStatus">
-          <span id="saveStatusIcon">✓</span>
-          <span id="saveStatusText">저장됨</span>
-        </span>
-      </div>
-      <div class="toolbar-right">
-        <button class="btn-toolbar" onclick="loadDesignList()">📂 불러오기</button>
-        <button class="btn-toolbar primary" onclick="saveDesign()">💾 저장하기</button>
-        <button class="btn-toolbar success" onclick="submitDesign()">📤 제출하기</button>
-      </div>
-    </div>
-
     <div class="app-container">
-      <h1>다담 캐비넷 에이전트</h1>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <h1 style="margin:0;">다담 캐비넷 에이전트</h1>
+          <span class="save-status saved hidden" id="saveStatus" style="font-size:12px;">
+            <span id="saveStatusIcon">✓</span>
+            <span id="saveStatusText">저장됨</span>
+          </span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-toolbar" onclick="loadDesignList()">📂 불러오기</button>
+          <button class="btn-toolbar primary" onclick="saveDesign()">💾 저장하기</button>
+          <button class="btn-toolbar success" onclick="submitDesign()">📤 제출하기</button>
+        </div>
+      </div>
       <div class="subtitle">통합 가구 설계 및 자동 자재 산출 솔루션 (v33.0 - 자재추출 시스템 개선)</div>
       <div class="stepper-indicator">
         <div id="step-dot-1" class="step-dot active">1</div>
@@ -166,41 +150,30 @@
     </div>
 
     <!-- JS 모듈 (로딩 순서 중요) -->
-    <script src="js/detaildesign/data-constants.js"></script>
-    <script src="js/detaildesign/utils.js"></script>
-    <script src="js/detaildesign/config-constants.js"></script>
-    <script src="js/detaildesign/calc-engine.js"></script>
-    <script src="js/detaildesign/extractors.js"></script>
-    <script src="js/detaildesign/ui-step1.js"></script>
-    <script src="js/detaildesign/ui-workspace.js"></script>
-    <script src="js/detaildesign/ui-fridge-el.js"></script>
-    <script src="js/detaildesign/multiagent-client.js"></script>
-    <script src="js/detaildesign/ai-design-report.js"></script>
-    <script src="js/detaildesign/persistence-init.js"></script>
+    <script>
+      // ★ 캐시버스터: 배포마다 자동 갱신 (Cloudflare Purge 불필요)
+      window.__CACHE_VER = Date.now();
+      function loadJS(src) {
+        const s = src.startsWith('http') ? src : src + '?v=' + window.__CACHE_VER;
+        document.write('<script src="' + s + '"><\/script>');
+      }
+    </script>
+    <script>
+      loadJS('js/detaildesign/data-constants.js');
+      loadJS('js/detaildesign/utils.js');
+      loadJS('js/detaildesign/config-constants.js');
+      loadJS('js/detaildesign/calc-engine.js');
+      loadJS('js/detaildesign/extractors.js');
+      loadJS('js/detaildesign/ui-step1.js');
+      loadJS('js/detaildesign/ui-workspace.js');
+      loadJS('js/detaildesign/ui-fridge-el.js');
+      // Three.js 레거시 제거됨 — R3F planner iframe으로 대체
+      loadJS('js/detaildesign/multiagent-client.js');
+      loadJS('js/detaildesign/ai-design-report.js');
+      loadJS('js/detaildesign/persistence-init.js');
+    </script>
 
-    <!-- AI 채팅 토글 버튼 -->
-    <button
-      id="aiChatToggle"
-      onclick="toggleAIChat()"
-      style="
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        z-index: 1000;
-        padding: 14px 24px;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        color: #fff;
-        border: none;
-        border-radius: 50px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-        transition: all 0.3s;
-      "
-    >
-      💬 AI 상담
-    </button>
+    <!-- AI 채팅 토글 버튼 (제거됨) -->
 
     <!-- AI 채팅 패널 -->
     <div

@@ -10,6 +10,8 @@ import { corsMiddleware } from './middleware/cors-config.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requireAuth } from './middleware/auth.js';
+import { globalRateLimit } from './middleware/rate-limiter.js';
+import { securityHeaders } from './middleware/security-headers.js';
 
 // Routes
 import healthRoute from './routes/health.route.js';
@@ -22,16 +24,19 @@ import themesRoute from './routes/themes.route.js';
 import agentRoute from './routes/agent.route.js';
 import designsRoute from './routes/designs.route.js';
 import imagesRoute from './routes/images.route.js';
+import sinkHitlRoute from './routes/sink-hitl.route.js';
 
 // 환경 변수 로드
 config();
 
 const log = createLogger('server');
 const app = express();
-const PORT = process.env.HTTP_PORT || 3200;
+const PORT = process.env.PORT || process.env.HTTP_PORT || 3200;
 
 // 미들웨어
+app.use(securityHeaders);
 app.use(corsMiddleware);
+app.use(globalRateLimit);
 app.use(express.json({ limit: '50mb' }));
 app.use(requestLogger);
 
@@ -46,6 +51,7 @@ app.use(themesRoute);
 app.use(agentRoute);
 app.use(designsRoute);
 app.use(imagesRoute);
+app.use(sinkHitlRoute);
 
 // 인증 확인 엔드포인트
 app.post('/api/auth/verify', requireAuth, (req, res) => {

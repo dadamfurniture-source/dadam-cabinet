@@ -38,12 +38,13 @@
         },
 
         // ── 프로젝트 생성 (이미지 업로드) ──
-        async createProject(imageFile, category, style, budget) {
+        async createProject(imageFile, category, style, budget, layoutConstraints) {
           const fd = new FormData();
           fd.append('image', imageFile);
           fd.append('category', this.mapCategory(category));
           if (style) fd.append('style', style);
           if (budget) fd.append('budget', String(budget));
+          if (layoutConstraints) fd.append('layout_constraints', JSON.stringify(layoutConstraints));
 
           const headers = await this._headers();
           delete headers['Accept']; // FormData sets its own content-type
@@ -123,7 +124,7 @@
         },
 
         // ── 전체 파이프라인 실행 (생성 + 실행 + 스트리밍 + 결과) ──
-        async runFullPipeline(imageFile, category, style, budget, callbacks = {}) {
+        async runFullPipeline(imageFile, category, style, budget, layoutConstraints, callbacks = {}) {
           const { onStage, onError, onComplete } = callbacks;
           const stageLabels = {
             started: '시작 중...',
@@ -137,7 +138,7 @@
           try {
             // 1. 프로젝트 생성
             if (onStage) onStage('uploading', '사진 업로드 중...');
-            const createResult = await this.createProject(imageFile, category, style, budget);
+            const createResult = await this.createProject(imageFile, category, style, budget, layoutConstraints);
             const projectId = createResult.data.project_id;
 
             // 2. 파이프라인 시작

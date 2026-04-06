@@ -12,6 +12,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/dadam-system.css">
     <script src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -21,37 +22,9 @@
         padding: 0;
         box-sizing: border-box;
       }
-      :root {
-        --white: #fafafa;
-        --cream: #f8f7f4;
-        --warm: #ebe8e2;
-        --gray: #8b8680;
-        --charcoal: #2d2a26;
-        --black: #1a1918;
-        --gold: #b8956c;
-      }
-      body {
-        font-family:
-          'Pretendard',
-          -apple-system,
-          BlinkMacSystemFont,
-          system-ui,
-          sans-serif;
-        background: var(--cream);
-        color: var(--charcoal);
-        line-height: 1.7;
-        min-height: 100vh;
-      }
-      h1,
-      h2,
-      h3 {
-        font-family: 'Playfair Display', 'Noto Serif KR', serif;
-        font-weight: 500;
-      }
-      a {
-        text-decoration: none;
-        color: inherit;
-      }
+      body { background: var(--d-bg); min-height: 100vh; }
+      h1, h2, h3 { font-family: var(--d-font-display); font-weight: 500; }
+      a { text-decoration: none; color: inherit; }
 
       /* Main */
       .main {
@@ -65,22 +38,29 @@
         text-align: center;
         margin-bottom: 48px;
       }
+      .page-header .d-overline {
+        display: block; font-size: 11px; font-weight: 600;
+        letter-spacing: 0.25em; text-transform: uppercase;
+        color: var(--d-gold); margin-bottom: 12px;
+      }
       .page-header h1 {
-        font-size: 2.5rem;
-        margin-bottom: 16px;
+        font-size: clamp(28px, 5vw, 42px);
+        letter-spacing: -0.01em;
       }
       .page-header p {
-        color: var(--gray);
-        font-size: 1.1rem;
+        color: var(--d-text-secondary);
+        font-size: 15px;
         line-height: 1.8;
+        margin-top: 8px;
       }
 
       /* Form Card */
       .form-card {
-        background: #fff;
-        border-radius: 20px;
-        padding: 40px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        background: var(--d-surface);
+        border: 1px solid var(--d-border);
+        border-radius: var(--d-radius-xl);
+        padding: clamp(24px, 4vw, 40px);
+        box-shadow: var(--d-shadow-md);
       }
 
       /* Type Selection */
@@ -92,19 +72,20 @@
       }
       .type-card {
         padding: 20px;
-        border: 2px solid var(--warm);
-        border-radius: 12px;
+        border: 2px solid var(--d-border);
+        border-radius: var(--d-radius-md);
         cursor: pointer;
         transition: all 0.3s;
         text-align: center;
       }
       .type-card:hover {
-        border-color: var(--gold);
-        background: rgba(184, 149, 108, 0.05);
+        border-color: var(--d-gold);
+        background: var(--d-gold-dim);
       }
       .type-card.selected {
-        border-color: var(--gold);
-        background: rgba(184, 149, 108, 0.1);
+        border-color: var(--d-gold);
+        background: var(--d-gold-dim);
+        box-shadow: 0 0 0 3px rgba(184, 149, 108, 0.1);
       }
       .type-card input {
         display: none;
@@ -113,7 +94,7 @@
         width: 32px;
         height: 32px;
         margin-bottom: 10px;
-        color: var(--gold);
+        color: var(--d-gold);
       }
       .type-card h4 {
         font-size: 15px;
@@ -139,7 +120,7 @@
       .form-section-title svg {
         width: 20px;
         height: 20px;
-        color: var(--gold);
+        color: var(--d-gold);
       }
 
       .form-group {
@@ -148,31 +129,38 @@
       .form-group label {
         display: block;
         margin-bottom: 8px;
-        font-size: 14px;
-        font-weight: 500;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--d-text-secondary);
+        letter-spacing: 0.02em;
       }
       .form-group label .required {
-        color: #c62828;
+        color: var(--d-error);
         margin-left: 2px;
       }
       .form-group input,
       .form-group select,
       .form-group textarea {
         width: 100%;
-        padding: 14px 16px;
-        border: 1px solid var(--warm);
-        border-radius: 10px;
-        font-size: 15px;
-        font-family: inherit;
-        transition: all 0.3s;
-        background: #fff;
+        padding: 12px 16px;
+        border: 1px solid var(--d-border);
+        border-radius: var(--d-radius-md);
+        font-size: 14px;
+        font-family: var(--d-font-body);
+        transition: border-color 0.2s, box-shadow 0.2s;
+        background: var(--d-surface);
+        color: var(--d-text);
+        outline: none;
       }
       .form-group input:focus,
       .form-group select:focus,
       .form-group textarea:focus {
-        outline: none;
-        border-color: var(--gold);
-        box-shadow: 0 0 0 3px rgba(184, 149, 108, 0.15);
+        border-color: var(--d-gold);
+        box-shadow: 0 0 0 3px var(--d-gold-dim);
+      }
+      .form-group input::placeholder,
+      .form-group textarea::placeholder {
+        color: var(--d-text-tertiary);
       }
       .form-group textarea {
         resize: vertical;
@@ -180,7 +168,7 @@
       }
       .form-hint {
         font-size: 12px;
-        color: var(--gray);
+        color: var(--d-text-tertiary);
         margin-top: 6px;
       }
 
@@ -206,25 +194,30 @@
       .btn-submit {
         width: 100%;
         padding: 16px;
-        background: var(--charcoal);
-        color: #fff;
+        background: var(--d-charcoal);
+        color: var(--d-text-inverse);
         border: none;
-        border-radius: 12px;
-        font-size: 16px;
-        font-weight: 500;
+        border-radius: var(--d-radius-full);
+        font-size: 15px;
+        font-weight: 600;
+        font-family: var(--d-font-body);
         cursor: pointer;
-        transition: all 0.3s;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
       }
       .btn-submit:hover {
-        background: var(--gold);
+        background: #1a1918;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(45, 42, 38, 0.2);
       }
       .btn-submit:disabled {
-        background: var(--gray);
+        background: var(--d-border);
         cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
       }
       .btn-submit svg {
         width: 20px;
@@ -296,17 +289,15 @@
       </a>
       <div class="nav-menu">
         <a href="#">About us</a>
-        <a href="#">Collection</a>
-        <a href="#">Products</a>
+        <a href="collection.html">Collection</a>
         <a href="ai-design.html">AI Design</a>
         <a href="detaildesign.html" id="navDetailDesign" style="display:none">Detail Design</a>
         <a href="consultation.html" class="active">상담 신청</a>
-        <a href="#">Showroom</a>
         <a href="#">Service</a>
       </div>
       <div class="nav-icons">
-        <a href="login.html" class="login-btn" id="loginLink">로그인</a>
-        <div class="user-menu" id="userMenu">
+        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
+        <div class="user-menu" id="userMenu" style="display:none">
           <button class="user-btn">
             <div class="user-avatar" id="navUserAvatar">?</div>
             <span class="user-name" id="navUserName">사용자</span>
@@ -315,19 +306,9 @@
             </svg>
           </button>
           <div class="user-dropdown">
-            <a href="mypage.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" /></svg
-              >마이페이지</a
-            >
-            <button onclick="logout()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" /></svg
-              >로그아웃
-            </button>
+            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
+            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
           </div>
         </div>
         <button class="hamburger" onclick="toggleMobileMenu()">
@@ -348,7 +329,8 @@
 
     <!-- Main -->
     <main class="main">
-      <div class="page-header">
+      <div class="page-header d-animate-in">
+        <span class="d-overline">Consultation</span>
         <h1>상담 신청</h1>
         <p>맞춤 가구, 인테리어 설계에 대해<br />전문 상담사가 친절히 안내해 드립니다.</p>
       </div>
