@@ -461,6 +461,7 @@ export default function App() {
     if (params.get('ventStart')) s.ventStart = Number(params.get('ventStart'));
     return s;
   });
+  const hitlMode = params.get('mode') === 'hitl';
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
   const [selId, setSelId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
@@ -476,6 +477,7 @@ export default function App() {
     const h = (e: MessageEvent) => {
       if (e.data?.type === 'UPDATE_PLANNER') setPlanner(p => ({ ...p, ...e.data.payload }));
       if (e.data?.type === 'SET_CAMERA_VIEW') setView(e.data.view);
+      if (e.data?.type === 'LOAD_HITL_CASE' && e.data.payload) setPlanner(e.data.payload as PlannerState);
     };
     window.addEventListener('message', h);
     return () => window.removeEventListener('message', h);
@@ -483,7 +485,10 @@ export default function App() {
 
   useEffect(() => {
     window.parent?.postMessage({ type: 'PLANNER_STATE', payload: { planner, derived } }, '*');
-  }, [planner, derived]);
+    if (hitlMode) {
+      window.parent?.postMessage({ type: 'HITL_STATE', payload: { planner, derived } }, '*');
+    }
+  }, [planner, derived, hitlMode]);
 
   // 모듈 CRUD
   const defaultKind: ModuleKind = preset.fullHeight ? 'door' : 'drawer';
