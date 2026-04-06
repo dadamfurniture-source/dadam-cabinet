@@ -72,6 +72,8 @@ export interface PlannerState {
   finishRightW: number;
   /** 차선모듈(ㄱ자) 자유단 마감재 폭 (mm) — 기본 휠라 60 */
   secondaryFillerW?: number;
+  /** 차선모듈 시작 방향: 'left' = 좌측에서 시작, 'right' = 우측에서 시작 */
+  secondaryStartSide?: 'left' | 'right';
   // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
   distributorStart: number | null;
   distributorEnd: number | null;
@@ -724,7 +726,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         // 우측 차선: cursor 위치(endX)에서 방 안쪽(-X)으로 연장
         // 상부장: 벽(counterBackZ)에서 시작 → 코너가 주선과 자연스럽게 이어짐
         // 하부장: 상판 앞면(counterFrontZ)에서 시작 → 상판이 코너를 덮음
-        const isLeftChain = Math.abs(cursor - startX) < 1;
+        // 사용자 설정 우선, 없으면 cursor 위치로 자동 판단
+        const isLeftChain = state.secondaryStartSide
+          ? state.secondaryStartSide === 'left'
+          : Math.abs(cursor - startX) < 1;
         if (secNearZ === null) {
           // 상부·하부 모두 counterFrontZ(앞면)에서 시작 → 방 안쪽(+Z)으로 연장
           // counterBackZ 에서 시작하면 blind panel과 Z가 겹침

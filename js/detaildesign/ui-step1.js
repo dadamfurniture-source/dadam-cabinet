@@ -419,6 +419,7 @@
           distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
           distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+          secondaryStartSide: specs.secondaryStartSide || undefined,
         };
         console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth });
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
@@ -1110,9 +1111,19 @@
           const secLD = item.specs.lowerSecondaryD || item.d || item.defaultD || '';
           const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
           const secUpperOn = item.specs.secondaryUpperEnabled !== false;
+          const startSide = item.specs.secondaryStartSide || 'left';
           return `
         <div style="padding:6px;background:#f9f9f9;border-radius:6px;margin-top:4px;">
-          <div style="font-size:11px;font-weight:600;color:#888;margin-bottom:4px;">Secondary Line</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:600;color:#888;">Secondary Line</span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span style="font-size:9px;color:#888;">시작 방향</span>
+              <select onchange="updateSpec(${item.uniqueId}, 'secondaryStartSide', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
+                <option value="left" ${startSide === 'left' ? 'selected' : ''}>좌측 시작</option>
+                <option value="right" ${startSide === 'right' ? 'selected' : ''}>우측 시작</option>
+              </select>
+            </div>
+          </div>
           <div style="padding:4px 6px;border-left:2px solid #b8956c;margin-bottom:4px;">
             <div style="font-size:9px;font-weight:600;color:#b8956c;margin-bottom:2px;">하부장</div>
             <div class="spec-row">
