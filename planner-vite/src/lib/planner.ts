@@ -715,8 +715,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       if (isSecondary) {
         // 차선모듈 ㄱ자 배치: 앵커(주선) 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
         // 체인 지원: 여러 차선모듈이 연속되면 Z축으로 순차 배치
+        // 상부장: 벽(counterBackZ)에서 시작 → 코너가 주선과 자연스럽게 이어짐
+        // 하부장: 상판 앞면(counterFrontZ)에서 시작 → 상판이 코너를 덮음
         if (secNearZ === null) {
-          secNearZ = counterFrontZ; // 체인 시작 = 주선 상판 정면 edge (실측 기준)
+          secNearZ = isUpper ? counterBackZ : counterFrontZ;
           curChain = {
             section: isUpper ? 'upper' : 'lower',
             xCenter: cursor - module.depth / 2,
@@ -869,8 +871,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   // 차선 체인 안쪽 측판(inner side panel) — 앵커(멍장) 쪽 측면에 마감재 색상으로 렌더
   // 위치: 체인의 startZ (주선 상판 앞 edge)를 중심으로 18mm 두께
   // 역할: 멍장(앵커 주선 모듈)과 차선 체인 첫 모듈 사이의 시각적 마감 경계
+  // 상부장: 벽에서 시작하므로 코너 측판 불필요 (모듈 자체가 코너를 채움)
   const INNER_PANEL_T = 18;
-  secondaryChains.forEach((ch, i) => {
+  secondaryChains.filter(c => c.section === 'lower').forEach((ch, i) => {
     parts.push({
       id: `sec-inner-panel-${ch.section}-${i}`,
       label: '마감재(차선 안쪽)',
@@ -908,10 +911,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 차선모듈 상부장 체인용 상몰딩 연장 — 휠라 위까지 덮음
+  // 차선모듈 상부장 체인용 상몰딩 연장 — 벽(코너)부터 휠라 끝까지
   if (moldingH > 0) {
     secondaryChains.filter(c => c.section === 'upper').forEach((ch, i) => {
-      const secBackZ = ch.primaryFrontEdgeZ;
+      const secBackZ = ch.startZ; // 상부: counterBackZ (벽), 하부: counterFrontZ
       const secFrontZ = ch.endZ + Math.max(secondaryFillerW, 0);
       const secZCenter = (secBackZ + secFrontZ) / 2;
       const secZDepth = secFrontZ - secBackZ;
