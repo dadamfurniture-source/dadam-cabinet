@@ -126,8 +126,7 @@ export function calculateQuote(
     items.push({ name: '후드', quantity: '1개', unit_price: hoodCost, total: hoodCost });
   }
 
-  // 설치비 + 철거비 (상하부장 합산 길이 기준)
-  items.push({ name: '배송 + 설치', quantity: '1식', unit_price: LABOR.installation, total: LABOR.installation });
+  // 철거비 (상하부장 합산 길이 기준)
   const demolitionLen = lowerTotalW + upperTotalW;
   const demolition = Math.round(LABOR.demolition_per_1000mm * demolitionLen / 1000);
   items.push({ name: '기존 철거', quantity: `${demolitionLen}mm`, unit_price: LABOR.demolition_per_1000mm, total: demolition });

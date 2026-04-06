@@ -179,9 +179,15 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
           : '';
 
       const wallPrompt = category === 'sink'
-        ? `Analyze this Korean apartment photo.${layoutHint} Return JSON only:
+        ? `Analyze this Korean apartment kitchen photo.${layoutHint}
+Use these KNOWN dimensions as reference to estimate wall width:
+- Sink cabinet (개수대): ~1000mm wide
+- Cooktop/hood cabinet (가스대/후드장): ~600mm wide
+Count how many cabinet modules you see and estimate total wall width based on these references.
+
+Return JSON only:
 {"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
-Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPct as % from left of MAIN wall.`
+waterPct/exhaustPct as % from left of MAIN wall.`
         : `Analyze this Korean apartment photo.${layoutHint} Return JSON only:
 {"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"confidence":"high"|"medium"|"low"}
 Estimate wall width in mm.`;
