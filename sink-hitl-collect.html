@@ -50,6 +50,14 @@
     .badge-drawer { background: #ede9fe; color: #5b21b6; }
     .badge-blank { background: #e5e7eb; color: #6b7280; }
     .divider { height: 1px; background: #e8e8ed; margin: 12px 0; }
+    .layout-selector { display: flex; gap: 4px; margin: 4px 0 8px; }
+    .layout-btn { flex: 1; padding: 8px 4px; border: 2px solid #d2d2d7; border-radius: 6px; background: #fff; cursor: pointer; text-align: center; font-size: 11px; font-weight: 600; }
+    .layout-btn.active { border-color: #0071e3; background: #e3f2fd; color: #0071e3; }
+    .layout-btn .shape { font-size: 18px; display: block; margin-bottom: 2px; }
+    .secondary-fields { display: none; background: #f0f7ff; border-radius: 6px; padding: 8px; margin: 6px 0; }
+    .secondary-fields.show { display: block; }
+    .badge-secondary { background: #fef9c3; color: #854d0e; font-size: 8px; margin-left: 4px; }
+    .orientation-tag { font-size: 9px; color: #92400e; background: #fef3c7; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -71,13 +79,29 @@
     <!-- 좌측: 환경 + 통계 -->
     <div class="panel">
       <h2>환경 (SinkEnv)</h2>
+      <label>레이아웃</label>
+      <div class="layout-selector">
+        <button class="layout-btn active" data-layout="I" onclick="setLayout('I')"><span class="shape">━</span>일자</button>
+        <button class="layout-btn" data-layout="L" onclick="setLayout('L')"><span class="shape">┗</span>ㄱ자</button>
+        <button class="layout-btn" data-layout="U" onclick="setLayout('U')"><span class="shape">┗━┛</span>ㄷ자</button>
+      </div>
       <div class="row">
-        <div><label>벽 너비</label><input type="number" id="env-width" value="3000" /></div>
+        <div><label>주벽 너비</label><input type="number" id="env-width" value="3000" /></div>
         <div><label>벽 높이</label><input type="number" id="env-height" value="2400" /></div>
       </div>
       <div class="row">
         <div><label>깊이</label><input type="number" id="env-depth" value="600" /></div>
         <div><label>측정 기준</label><select id="env-base"><option value="left">좌측</option><option value="right">우측</option></select></div>
+      </div>
+      <div id="secondary-fields" class="secondary-fields">
+        <div class="row">
+          <div><label>좌측 보조벽 (mm)</label><input type="number" id="env-secL" value="1500" /></div>
+          <div id="secR-wrap"><label>우측 보조벽 (mm)</label><input type="number" id="env-secR" value="1500" /></div>
+        </div>
+        <div class="row" style="margin-top:4px;">
+          <div><label>자유단 마감재</label><input type="number" id="env-secFiller" value="60" /></div>
+          <div></div>
+        </div>
       </div>
       <div class="row">
         <div><label>좌측 마감재</label><input type="number" id="env-finL" value="0" /></div>
@@ -124,21 +148,48 @@
     let currentGenerated = null;
     let currentDesign = null;  // 편집 중인 SinkDesign
     let plannerReady = false;
+    let currentLayout = 'I';
     const el = (id) => document.getElementById(id);
     const status = (msg, err) => { const s = el('status'); s.textContent = msg; s.style.color = err ? '#ff3b30' : '#34c759'; };
+
+    // ─── 레이아웃 타입 선택 ───
+    window.setLayout = (type) => {
+      currentLayout = type;
+      document.querySelectorAll('.layout-btn').forEach(b => b.classList.toggle('active', b.dataset.layout === type));
+      const secFields = el('secondary-fields');
+      const secRWrap = el('secR-wrap');
+      if (type === 'I') {
+        secFields.classList.remove('show');
+      } else {
+        secFields.classList.add('show');
+        secRWrap.style.display = type === 'U' ? '' : 'none';
+      }
+    };
 
     // ─── SinkDesign → PlannerState 변환 ───
     function designToPlanner(design) {
       const e = design.env;
-      const toEntry = (m) => ({
-        id: `hitl-${m.type}-${m.idx}`,
-        kind: m.kind,
-        width: m.width,
-        moduleType: m.type === 'lt' ? 'storage' : (m.type === 'blank' ? undefined : m.type),
-        doorCount: m.doorCount,
-        drawerCount: m.drawerCount,
-      });
-      return {
+      const toEntry = (m, allMods) => {
+        const entry = {
+          id: `hitl-${m.type}-${m.idx}`,
+          kind: m.kind,
+          width: m.width,
+          moduleType: m.type === 'lt' ? 'storage' : (m.type === 'blank' ? undefined : m.type),
+          doorCount: m.doorCount,
+          drawerCount: m.drawerCount,
+        };
+        // ㄱ자/ㄷ자: secondary 모듈 orientation 전달
+        if (m.orientation === 'secondary') {
+          entry.orientation = 'secondary';
+          // blindAnchorId: 주선 앵커 모듈의 planner ID
+          if (m.blindAnchorIdx != null) {
+            const anchor = allMods.find(am => am.idx === m.blindAnchorIdx && (am.orientation || 'normal') === 'normal');
+            entry.blindAnchorId = anchor ? `hitl-${anchor.type}-${anchor.idx}` : undefined;
+          }
+        }
+        return entry;
+      };
+      const ps = {
         presetId: 'sink',
         width: e.width,
         height: e.height,
@@ -151,11 +202,14 @@
         distributorStart: e.distributorStart,
         distributorEnd: e.distributorEnd,
         ventStart: e.ventStart,
-        lowerModules: design.lower.map(toEntry),
-        upperModules: design.upper.map(toEntry),
+        lowerModules: design.lower.map(m => toEntry(m, design.lower)),
+        upperModules: design.upper.map(m => toEntry(m, design.upper)),
         lowerCount: design.lower.length,
         upperCount: design.upper.length,
       };
+      // 차선 마감재 전달
+      if (e.secondaryFillerW) ps.secondaryFillerW = e.secondaryFillerW;
+      return ps;
     }
 
     // ─── PlannerState → SinkDesign 변환 ───
@@ -166,9 +220,15 @@
           width: m.width,
           kind: m.kind,
           type: m.moduleType || 'storage',
+          orientation: m.orientation || 'normal',
         };
         if (m.doorCount) mod.doorCount = m.doorCount;
         if (m.drawerCount) mod.drawerCount = m.drawerCount;
+        if (m.orientation === 'secondary' && m.blindAnchorId) {
+          // blindAnchorId → blindAnchorIdx 역변환
+          const match = m.blindAnchorId.match(/hitl-\w+-(\d+)/);
+          if (match) mod.blindAnchorIdx = Number(match[1]);
+        }
         return mod;
       };
       return {
@@ -188,9 +248,13 @@
           ventStart: currentDesign?.env?.ventStart ?? null,
           ventEnd: currentDesign?.env?.ventEnd ?? null,
           measurementBase: currentDesign?.env?.measurementBase || 'left',
+          layoutType: currentLayout,
+          secondaryLeftW: currentDesign?.env?.secondaryLeftW ?? null,
+          secondaryRightW: currentDesign?.env?.secondaryRightW ?? null,
+          secondaryFillerW: currentDesign?.env?.secondaryFillerW ?? 60,
         },
-        lower: (ps.lowerModules || []).filter(m => m.orientation !== 'secondary').map(fromEntry),
-        upper: (ps.upperModules || []).filter(m => m.orientation !== 'secondary').map(fromEntry),
+        lower: (ps.lowerModules || []).map(fromEntry),
+        upper: (ps.upperModules || []).map(fromEntry),
         meta: { generated_by: 'human-correction', parent_id: currentGenerated?.id },
       };
     }
@@ -220,50 +284,71 @@
       if (!currentDesign) return;
       const panel = el('module-panel');
       let html = '<h2>모듈 편집</h2>';
+      const layoutLabel = currentDesign.env?.layoutType === 'L' ? ' (ㄱ자)' : currentDesign.env?.layoutType === 'U' ? ' (ㄷ자)' : '';
+      if (layoutLabel) html += `<div style="font-size:11px;color:#0071e3;font-weight:600;margin-bottom:6px;">📐 ${layoutLabel} 레이아웃</div>`;
 
       const renderSection = (section, modules, label) => {
-        html += `<div class="section-title"><span>📦 ${label} (${modules.length}개)</span><button class="btn-sm" onclick="addModule('${section}')">+ 추가</button></div>`;
-        modules.forEach((m, i) => {
-          const badge = TYPE_BADGES[m.type] || 'badge-storage';
-          const typeLabel = TYPE_LABELS[m.type] || m.type;
-          html += `
-            <div class="mod-card" data-section="${section}" data-idx="${i}">
-              <div class="mod-header">
-                <span class="badge ${badge}">${typeLabel}</span>
-                <button class="btn-danger" onclick="removeModule('${section}',${i})">✕</button>
-              </div>
-              <div class="mod-row">
-                <div>
-                  <label>너비 (mm)</label>
-                  <input type="number" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
-                </div>
-                <div>
-                  <label>타입</label>
-                  <select onchange="updateMod('${section}',${i},'type',this.value)">
-                    ${['sink','cook','hood','lt','storage','drawer','blank'].map(t =>
-                      `<option value="${t}" ${m.type===t?'selected':''}>${TYPE_LABELS[t]||t}</option>`
-                    ).join('')}
-                  </select>
-                </div>
-              </div>
-              <div class="mod-row">
-                <div>
-                  <label>종류</label>
-                  <select onchange="updateMod('${section}',${i},'kind',this.value)">
-                    ${['door','drawer','open'].map(k =>
-                      `<option value="${k}" ${m.kind===k?'selected':''}>${k==='door'?'도어':k==='drawer'?'서랍':'오픈'}</option>`
-                    ).join('')}
-                  </select>
-                </div>
-                <div>
-                  <label>${m.kind==='drawer'?'서랍 수':'도어 수'}</label>
-                  <input type="number" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
-                    onchange="updateMod('${section}',${i},this.dataset.field,Number(this.value))"
-                    data-field="${m.kind==='drawer'?'drawerCount':'doorCount'}" />
-                </div>
-              </div>
-            </div>`;
+        const primary = modules.filter(m => (m.orientation || 'normal') === 'normal');
+        const secondary = modules.filter(m => m.orientation === 'secondary');
+
+        html += `<div class="section-title"><span>📦 ${label} 주선 (${primary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','normal')">+ 추가</button></div>`;
+        primary.forEach((m, _) => {
+          const i = modules.indexOf(m);
+          html += renderModCard(section, m, i);
         });
+
+        if (secondary.length > 0) {
+          html += `<div class="section-title" style="color:#92400e;"><span>↪ ${label} 차선 (${secondary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','secondary')">+ 추가</button></div>`;
+          secondary.forEach((m, _) => {
+            const i = modules.indexOf(m);
+            html += renderModCard(section, m, i, true);
+          });
+        } else if (currentLayout !== 'I') {
+          html += `<div class="section-title" style="color:#92400e;"><span>↪ ${label} 차선 (0개)</span><button class="btn-sm" onclick="addModule('${section}','secondary')">+ 추가</button></div>`;
+        }
+      };
+
+      const renderModCard = (section, m, i, isSec = false) => {
+        const badge = TYPE_BADGES[m.type] || 'badge-storage';
+        const typeLabel = TYPE_LABELS[m.type] || m.type;
+        const secTag = isSec ? '<span class="orientation-tag">차선</span>' : '';
+        return `
+          <div class="mod-card${isSec ? ' highlight' : ''}" data-section="${section}" data-idx="${i}">
+            <div class="mod-header">
+              <span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
+              <button class="btn-danger" onclick="removeModule('${section}',${i})">✕</button>
+            </div>
+            <div class="mod-row">
+              <div>
+                <label>너비 (mm)</label>
+                <input type="number" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
+              </div>
+              <div>
+                <label>타입</label>
+                <select onchange="updateMod('${section}',${i},'type',this.value)">
+                  ${['sink','cook','hood','lt','storage','drawer','blank'].map(t =>
+                    `<option value="${t}" ${m.type===t?'selected':''}>${TYPE_LABELS[t]||t}</option>`
+                  ).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="mod-row">
+              <div>
+                <label>종류</label>
+                <select onchange="updateMod('${section}',${i},'kind',this.value)">
+                  ${['door','drawer','open'].map(k =>
+                    `<option value="${k}" ${m.kind===k?'selected':''}>${k==='door'?'도어':k==='drawer'?'서랍':'오픈'}</option>`
+                  ).join('')}
+                </select>
+              </div>
+              <div>
+                <label>${m.kind==='drawer'?'서랍 수':'도어 수'}</label>
+                <input type="number" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
+                  onchange="updateMod('${section}',${i},this.dataset.field,Number(this.value))"
+                  data-field="${m.kind==='drawer'?'drawerCount':'doorCount'}" />
+              </div>
+            </div>
+          </div>`;
       };
 
       renderSection('lower', currentDesign.lower, '하부장');
@@ -287,10 +372,16 @@
       renderModuleCards();
     };
 
-    window.addModule = (section) => {
+    window.addModule = (section, orientation = 'normal') => {
       if (!currentDesign) return;
       const idx = currentDesign[section].length;
-      currentDesign[section].push({ idx, width: 450, kind: 'door', type: 'storage', doorCount: 1 });
+      const mod = { idx, width: 450, kind: 'door', type: 'storage', doorCount: 1, orientation };
+      if (orientation === 'secondary') {
+        // 앵커를 주선 끝(좌측)이나 처음(우측) 모듈로 설정
+        const primaries = currentDesign[section].filter(m => (m.orientation || 'normal') === 'normal');
+        mod.blindAnchorIdx = primaries.length > 0 ? 0 : 0;
+      }
+      currentDesign[section].push(mod);
       sendToPlanner(currentDesign);
       renderModuleCards();
     };
@@ -299,14 +390,26 @@
     function buildEnv() {
       const num = (id) => Number(el(id).value);
       const numOrNull = (id) => el(id).value === '' ? null : Number(el(id).value);
-      return {
+      const env = {
         width: num('env-width'), height: num('env-height'), depth: num('env-depth'),
         finishLeftW: num('env-finL'), finishRightW: num('env-finR'),
         moldingH: num('env-molding'), toeKickH: num('env-toe'),
         distributorStart: numOrNull('env-distS'), distributorEnd: numOrNull('env-distE'),
         ventStart: numOrNull('env-ventS'), ventEnd: numOrNull('env-ventE'),
         measurementBase: el('env-base').value,
+        layoutType: currentLayout,
+        secondaryLeftW: null,
+        secondaryRightW: null,
+        secondaryFillerW: 60,
       };
+      if (currentLayout === 'L' || currentLayout === 'U') {
+        env.secondaryLeftW = num('env-secL');
+        env.secondaryFillerW = num('env-secFiller');
+      }
+      if (currentLayout === 'U') {
+        env.secondaryRightW = num('env-secR');
+      }
+      return env;
     }
 
     async function generate() {

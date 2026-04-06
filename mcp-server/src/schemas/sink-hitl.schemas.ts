@@ -8,8 +8,11 @@ import { DimensionMmSchema, PositiveDimensionSchema } from './common.schemas.js'
 
 // ─── 환경 (벽 + 마감재 + 유틸리티) ───
 
+export const LayoutTypeSchema = z.enum(['I', 'L', 'U']);
+export type LayoutType = z.infer<typeof LayoutTypeSchema>;
+
 export const SinkEnvSchema = z.object({
-  width: PositiveDimensionSchema,       // 벽 가로 (mm)
+  width: PositiveDimensionSchema,       // 주벽(primary) 가로 (mm)
   height: PositiveDimensionSchema,      // 벽 세로 (mm)
   depth: PositiveDimensionSchema,       // 싱크대 깊이 (mm)
   finishLeftW: DimensionMmSchema,       // 좌측 마감재 폭
@@ -21,6 +24,11 @@ export const SinkEnvSchema = z.object({
   ventStart: DimensionMmSchema.nullable(),        // 환풍구 시작
   ventEnd: DimensionMmSchema.nullable(),          // 환풍구 끝
   measurementBase: z.enum(['left', 'right']),     // 측정 기준
+  // ─── ㄱ자 / ㄷ자 확장 ───
+  layoutType: LayoutTypeSchema.default('I'),      // I=일자, L=ㄱ자, U=ㄷ자
+  secondaryLeftW: DimensionMmSchema.nullable().default(null),   // ㄱ자/ㄷ자 좌측 보조벽 길이 (mm, Z축)
+  secondaryRightW: DimensionMmSchema.nullable().default(null),  // ㄷ자 우측 보조벽 길이 (mm, Z축)
+  secondaryFillerW: DimensionMmSchema.default(60),              // 차선 자유단 마감재 폭 (기본 60)
 });
 
 export type SinkEnv = z.infer<typeof SinkEnvSchema>;
@@ -32,6 +40,8 @@ export const SinkModuleTypeSchema = z.enum([
   'sink', 'cook', 'hood', 'lt', 'storage', 'drawer', 'blank',
 ]);
 
+export const SinkModuleOrientationSchema = z.enum(['normal', 'secondary']);
+
 export const SinkModuleSchema = z.object({
   idx: z.number().int().nonnegative(),
   width: PositiveDimensionSchema,
@@ -39,6 +49,9 @@ export const SinkModuleSchema = z.object({
   type: SinkModuleTypeSchema,
   doorCount: z.number().int().min(1).max(2).optional(),
   drawerCount: z.number().int().min(1).max(5).optional(),
+  // ─── ㄱ자 / ㄷ자 확장 ───
+  orientation: SinkModuleOrientationSchema.default('normal'),    // normal=주선, secondary=차선(Z축)
+  blindAnchorIdx: z.number().int().nonnegative().optional(),     // 차선 → 주선 앵커 모듈 idx
 });
 
 export type SinkModule = z.infer<typeof SinkModuleSchema>;

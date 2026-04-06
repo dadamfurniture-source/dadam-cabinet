@@ -15,7 +15,7 @@
 //   • doorCount 휴리스틱
 // ═══════════════════════════════════════════════════════════════
 
-import type { SinkEnv, SinkDesign, SinkModule } from '../schemas/sink-hitl.schemas.js';
+import type { SinkEnv, SinkDesign, SinkModule, LayoutType } from '../schemas/sink-hitl.schemas.js';
 
 // ─── seed-able RNG ───
 function mulberry32(seed: number): () => number {
@@ -51,6 +51,46 @@ interface ProtoModule {
   kind: ModKind;
   /** 절대 X 위치 (inner coord, 좌측 마감재 이후) — 정렬·배치용 임시 */
   start?: number;
+  /** normal=주선(X축), secondary=차선(Z축, ㄱ자/ㄷ자) */
+  orientation?: 'normal' | 'secondary';
+  /** 차선 모듈이 연결되는 주선 모듈 인덱스 */
+  blindAnchorIdx?: number;
+}
+
+// ─── ㄱ자/ㄷ자 차선(secondary) 모듈 생성 ───
+const SECONDARY_WIDTH_CANDIDATES = [400, 450, 500, 550, 600] as const;
+
+function layoutSecondary(
+  wallLength: number,           // 보조벽 길이 (mm, depth 포함)
+  depth: number,                // 싱크대 깊이
+  fillerW: number,              // 자유단 마감재
+  rng: () => number,
+): ProtoModule[] {
+  // 실제 사용 가능 길이: 보조벽 - 주선 깊이(코너 겹침) - 자유단 마감재
+  const usableW = wallLength - depth - fillerW;
+  if (usableW < 300) return []; // 공간 부족 → 차선 없음
+
+  const out: ProtoModule[] = [];
+  let remaining = usableW;
+
+  while (remaining >= 300) {
+    const candidate = Math.min(pick(rng, SECONDARY_WIDTH_CANDIDATES), remaining);
+    if (candidate < 300) break;
+    const isDrawer = rng() < 0.25;
+    out.push({
+      type: isDrawer ? 'drawer' : 'storage',
+      width: candidate,
+      kind: isDrawer ? 'drawer' : 'door',
+      orientation: 'secondary',
+    });
+    remaining -= candidate;
+  }
+  // 잔여 흡수
+  if (remaining > 0 && out.length > 0) {
+    out[out.length - 1].width += remaining;
+  }
+
+  return out;
 }
 
 // ─── 좌표 변환 ───
@@ -236,28 +276,67 @@ function layoutUpper(env: SinkEnv, rng: () => number): ProtoModule[] {
   return out;
 }
 
+// ─── ProtoModule → SinkModule 변환 ───
+function protoToModule(p: ProtoModule, idx: number, rng: () => number): SinkModule {
+  const m: SinkModule = {
+    idx,
+    width: p.width,
+    kind: p.kind,
+    type: p.type,
+    orientation: p.orientation ?? 'normal',
+  };
+  if (p.blindAnchorIdx != null) m.blindAnchorIdx = p.blindAnchorIdx;
+  if (p.kind === 'door') m.doorCount = p.width >= 600 ? 2 : 1;
+  if (p.kind === 'drawer') m.drawerCount = randInt(rng, 2, 4);
+  return m;
+}
+
 // ─── 메인 엔트리 ───
 export function generateRandomSinkDesign(
   env: SinkEnv,
   seed: number = Date.now() & 0xffffffff,
 ): SinkDesign {
   const rng = mulberry32(seed);
+  const layoutType: LayoutType = env.layoutType ?? 'I';
+  const depth = env.depth ?? 600;
+  const fillerW = env.secondaryFillerW ?? 60;
 
+  // 1) 주선(primary) 레이아웃
   const lowerProto = layoutLower(env, rng);
   const upperProto = layoutUpper(env, rng);
 
-  const lower: SinkModule[] = lowerProto.map((p, idx) => {
-    const m: SinkModule = { idx, width: p.width, kind: p.kind, type: p.type };
-    if (p.kind === 'door') m.doorCount = p.width >= 600 ? 2 : 1;
-    if (p.kind === 'drawer') m.drawerCount = randInt(rng, 2, 4);
-    return m;
-  });
+  // 2) ㄱ자/ㄷ자 차선(secondary) 생성
+  //    좌측 차선: 주선의 첫 번째 모듈(idx=0)에 앵커
+  //    우측 차선: 주선의 마지막 모듈에 앵커
+  const hasLeft  = (layoutType === 'L' || layoutType === 'U') && (env.secondaryLeftW ?? 0) > 0;
+  const hasRight = layoutType === 'U' && (env.secondaryRightW ?? 0) > 0;
 
-  const upper: SinkModule[] = upperProto.map((p, idx) => {
-    const m: SinkModule = { idx, width: p.width, kind: p.kind, type: p.type };
-    if (p.kind === 'door') m.doorCount = p.width >= 600 ? 2 : 1;
-    return m;
-  });
+  if (hasLeft) {
+    const secLower = layoutSecondary(env.secondaryLeftW!, depth, fillerW, rng);
+    secLower.forEach(m => { m.blindAnchorIdx = 0; }); // 좌측 끝 모듈에 앵커
+    lowerProto.push(...secLower);
+
+    const secUpper = layoutSecondary(env.secondaryLeftW!, depth, fillerW, rng);
+    secUpper.forEach(m => { m.blindAnchorIdx = 0; });
+    upperProto.push(...secUpper);
+  }
+
+  if (hasRight) {
+    const primaryLastLowerIdx = lowerProto.filter(m => (m.orientation ?? 'normal') === 'normal').length - 1;
+    const primaryLastUpperIdx = upperProto.filter(m => (m.orientation ?? 'normal') === 'normal').length - 1;
+
+    const secLower = layoutSecondary(env.secondaryRightW!, depth, fillerW, rng);
+    secLower.forEach(m => { m.blindAnchorIdx = primaryLastLowerIdx; });
+    lowerProto.push(...secLower);
+
+    const secUpper = layoutSecondary(env.secondaryRightW!, depth, fillerW, rng);
+    secUpper.forEach(m => { m.blindAnchorIdx = primaryLastUpperIdx; });
+    upperProto.push(...secUpper);
+  }
+
+  // 3) 최종 idx 재번호 + 변환
+  const lower: SinkModule[] = lowerProto.map((p, idx) => protoToModule(p, idx, rng));
+  const upper: SinkModule[] = upperProto.map((p, idx) => protoToModule(p, idx, rng));
 
   return {
     id: `sink-${Date.now().toString(36)}-${seed.toString(36)}`,
