@@ -10,6 +10,7 @@ import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
 import { calculateQuote, type ImageAnalysisResult } from '../services/quote.service.js';
 import { generateRateLimit } from '../middleware/rate-limiter.js';
+import { snapToStandard, enforceMinWidth, adjustToWallWidth } from '../constants/cabinet-standards.js';
 
 const log = createLogger('route:generate');
 const router = Router();
@@ -182,7 +183,10 @@ Estimate wall width in mm.`;
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
           wallW = parsed.wall?.width || 3000;
+          // 방어: 벽 분석이 미터 단위(< 100)로 반환되면 mm로 변환
+          if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
           wallH = parsed.wall?.height || 2400;
+          if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
           if (category === 'sink') {
             waterPct = parsed.plumbing?.waterPct || 30;
             exhaustPct = parsed.plumbing?.exhaustPct || 70;
@@ -297,33 +301,102 @@ Keep wall, floor, camera identical. No clutter.`;
       log.warn({ error: e?.message || String(e) }, 'Alt style generation failed');
     }
 
-    // ═══ Step 5: 견적 (Claude Vision) ═══
-    log.info('Step 5: Quote analysis');
+    // ═══ Step 5: 견적 — 멀티스테이지 구조 분석 (Claude Vision) ═══
+    log.info('Step 5: Quote analysis (multi-stage)');
     let quote = null;
+    let quoteMetadata: Record<string, unknown> = {};
     try {
-      const quotePrompt = `Analyze this cabinet design image. Wall ~${wallW}mm. Return JSON:
-{"upper_cabinets":[{"width_mm":N,"type":"door"}],"lower_cabinets":[{"width_mm":N,"type":"door|drawer"}],"countertop_length_mm":N,"wall_width_mm":${wallW},"has_sink":true,"has_cooktop":true,"has_hood":true,"door_count":N,"drawer_count":N}
-Estimate each cabinet width. type=drawer for drawer units.`;
+      // 5a + 5b: 모듈 타입 분류 + 비율 추정을 단일 호출로
+      const quotePrompt = `Analyze this kitchen cabinet design image.
+Total wall width: ${wallW}mm.
+
+STEP 1 — Count and classify each cabinet module from LEFT to RIGHT.
+Lower cabinets (하부장):
+- sink: module containing sink bowl
+- cooktop: module with cooktop/induction
+- drawer: drawer unit (horizontal lines/gaps)
+- door: hinged door (vertical lines/gaps)
+
+Upper cabinets (상부장): classify same way (all are "door" type typically).
+
+STEP 2 — Estimate each module's width as a PERCENTAGE of total wall width.
+All lower percentages must sum to 100.
+All upper percentages must sum to 100.
+
+Also detect: has_sink (boolean), has_cooktop (boolean), has_hood (boolean).
+
+Return ONLY this JSON (no other text):
+{
+  "lower": [{"type":"door","pct":25}, {"type":"sink","pct":30}, ...],
+  "upper": [{"type":"door","pct":33}, ...],
+  "has_sink": true,
+  "has_cooktop": true,
+  "has_hood": true
+}`;
 
       const mimeType = closedResult.image!.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
       const quoteText = await callClaude(quotePrompt, closedResult.image!, mimeType);
       const quoteMatch = quoteText.match(/\{[\s\S]*\}/);
       if (quoteMatch) {
         const raw = JSON.parse(quoteMatch[0]);
-        // 방어: 배열 없으면 카운트 기반으로 변환
+        const lowerModules: Array<{ type: string; pct: number }> = raw.lower || [];
+        const upperModules: Array<{ type: string; pct: number }> = raw.upper || [];
+
+        // 5c: 비율 → mm → 스냅 → 제약 → 합계 보정
+        const lowerRaw = lowerModules.map(m => ({
+          type: m.type || 'door',
+          rawWidth: Math.round(wallW * (m.pct || 0) / 100),
+        }));
+        const upperRaw = upperModules.map(m => ({
+          type: m.type || 'door',
+          rawWidth: Math.round(wallW * (m.pct || 0) / 100),
+        }));
+
+        // 스냅 + 최소 너비 적용
+        const lowerSnapped = lowerRaw.map(m => ({
+          type: m.type,
+          width: enforceMinWidth(snapToStandard(m.rawWidth), m.type),
+        }));
+        const upperSnapped = upperRaw.map(m => ({
+          type: m.type,
+          width: enforceMinWidth(snapToStandard(m.rawWidth), m.type),
+        }));
+
+        // 합계를 wallW에 맞춤
+        const lowerAdjusted = adjustToWallWidth(lowerSnapped, wallW);
+        const upperAdjusted = adjustToWallWidth(upperSnapped, wallW);
+
+        log.info({
+          lower_raw: lowerRaw.map(m => m.rawWidth),
+          lower_snapped: lowerAdjusted.map(m => m.width),
+          upper_raw: upperRaw.map(m => m.rawWidth),
+          upper_snapped: upperAdjusted.map(m => m.width),
+          wallW,
+          lower_sum: lowerAdjusted.reduce((s, m) => s + m.width, 0),
+        }, 'Module dimension analysis (raw → snapped)');
+
         const analysis: ImageAnalysisResult = {
-          upper_cabinets: raw.upper_cabinets || Array.from({ length: raw.upper_count || 0 }, () => ({ width_mm: Math.round((raw.total_width_mm || wallW) / (raw.upper_count || 1)), type: 'door' })),
-          lower_cabinets: raw.lower_cabinets || Array.from({ length: raw.lower_count || 0 }, () => ({ width_mm: Math.round((raw.total_width_mm || wallW) / (raw.lower_count || 1)), type: 'door' })),
-          countertop_length_mm: raw.countertop_length_mm || raw.total_width_mm || wallW,
-          wall_width_mm: raw.wall_width_mm || wallW,
+          lower_cabinets: lowerAdjusted.map(m => ({ width_mm: m.width, type: m.type })),
+          upper_cabinets: upperAdjusted.map(m => ({ width_mm: m.width, type: m.type })),
+          countertop_length_mm: lowerAdjusted.reduce((s, m) => s + m.width, 0),
+          wall_width_mm: wallW,
           has_sink: raw.has_sink ?? true,
           has_cooktop: raw.has_cooktop ?? true,
           has_hood: raw.has_hood ?? true,
-          door_count: raw.door_count || 0,
-          drawer_count: raw.drawer_count || 0,
+          door_count: lowerAdjusted.filter(m => m.type === 'door').length + upperAdjusted.filter(m => m.type === 'door').length,
+          drawer_count: lowerAdjusted.filter(m => m.type === 'drawer').length,
         };
+
         quote = calculateQuote(analysis, category);
-        log.info({ total: quote?.total }, 'Quote calculated');
+        quoteMetadata = {
+          analysis_version: 'multi-stage-v1',
+          module_widths_raw: lowerRaw.map(m => ({ type: m.type, width: m.rawWidth })),
+          module_widths_snapped: lowerAdjusted,
+          upper_widths_snapped: upperAdjusted,
+          wall_width_mm: wallW,
+          sum_diff: wallW - lowerAdjusted.reduce((s, m) => s + m.width, 0),
+        };
+        log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (multi-stage)');
       }
     } catch (e: any) {
       log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
@@ -342,6 +415,7 @@ Estimate each cabinet width. type=drawer for drawer units.`;
         name: 'AI Two-tone Recommendation',
       },
       quote,
+      quote_analysis: quoteMetadata,
       wall_analysis: { wallW, wallH, waterPct, exhaustPct },
       metadata: {
         category, kitchen_layout, design_style,
