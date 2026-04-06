@@ -168,6 +168,17 @@
       }
     };
 
+    // ─── 플래너용 모듈 순서 정렬 ───
+    // 플래너는 배열 순서대로 X커서를 이동하므로:
+    //   좌차선(secondary) → 주선(normal) → 우차차선(tertiary)
+    // 순서여야 좌/우 양쪽에 차선이 제대로 배치됨
+    function reorderForPlanner(modules) {
+      const secondary = modules.filter(m => m.orientation === 'secondary');
+      const primary = modules.filter(m => (m.orientation || 'normal') === 'normal');
+      const tertiary = modules.filter(m => m.orientation === 'tertiary');
+      return [...secondary, ...primary, ...tertiary];
+    }
+
     // ─── SinkDesign → PlannerState 변환 ───
     function designToPlanner(design) {
       const e = design.env;
@@ -203,8 +214,8 @@
         distributorStart: e.distributorStart,
         distributorEnd: e.distributorEnd,
         ventStart: e.ventStart,
-        lowerModules: design.lower.map(m => toEntry(m, design.lower)),
-        upperModules: design.upper.map(m => toEntry(m, design.upper)),
+        lowerModules: reorderForPlanner(design.lower).map(m => toEntry(m, design.lower)),
+        upperModules: reorderForPlanner(design.upper).map(m => toEntry(m, design.upper)),
         lowerCount: design.lower.length,
         upperCount: design.upper.length,
       };
