@@ -61,13 +61,12 @@
     .orientation-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
     .orientation-tag.sec { color: #92400e; background: #fef3c7; }
     .orientation-tag.ter { color: #1e40af; background: #dbeafe; }
-    .mod-card[draggable="true"] { cursor: default; }
+    .mod-card.draggable { cursor: default; }
     .mod-card.dragging { opacity: 0.4; transform: scale(0.97); }
     .mod-card.drag-over { border-top: 3px solid #0071e3; padding-top: 11px; }
     .drag-handle { cursor: grab; color: #86868b; font-size: 16px; margin-right: 4px; user-select: none; padding: 2px 4px; border-radius: 3px; }
     .drag-handle:hover { background: #e8e8ed; color: #1d1d1f; }
     .drag-handle:active { cursor: grabbing; }
-    .mod-card input, .mod-card select { -webkit-user-drag: none; }
     .move-btns { display: flex; flex-direction: column; gap: 1px; margin-left: auto; margin-right: 4px; }
     .move-btn { background: none; border: 1px solid #d2d2d7; border-radius: 3px; font-size: 9px; padding: 0 4px; line-height: 14px; cursor: pointer; color: #86868b; }
     .move-btn:hover { background: #e8e8ed; color: #1d1d1f; }
@@ -391,8 +390,7 @@
         const secTag = lineType ? (tagMap[lineType] || '') : '';
         const orient = m.orientation || 'normal';
         return `
-          <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}" data-orient="${orient}"
-               draggable="true">
+          <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}" data-orient="${orient}">
             <div class="mod-header">
               <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
               <span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
@@ -405,11 +403,11 @@
             <div class="mod-row">
               <div>
                 <label>너비 (mm)</label>
-                <input type="number" draggable="false" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
+                <input type="number" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
               </div>
               <div>
                 <label>타입</label>
-                <select draggable="false" onchange="updateMod('${section}',${i},'type',this.value)">
+                <select onchange="updateMod('${section}',${i},'type',this.value)">
                   ${['sink','cook','hood','lt','storage','drawer','blank'].map(t =>
                     `<option value="${t}" ${m.type===t?'selected':''}>${TYPE_LABELS[t]||t}</option>`
                   ).join('')}
@@ -419,7 +417,7 @@
             <div class="mod-row">
               <div>
                 <label>종류</label>
-                <select draggable="false" onchange="updateMod('${section}',${i},'kind',this.value)">
+                <select onchange="updateMod('${section}',${i},'kind',this.value)">
                   ${['door','drawer','open'].map(k =>
                     `<option value="${k}" ${m.kind===k?'selected':''}>${k==='door'?'도어':k==='drawer'?'서랍':'오픈'}</option>`
                   ).join('')}
@@ -427,7 +425,7 @@
               </div>
               <div>
                 <label>${m.kind==='drawer'?'서랍 수':'도어 수'}</label>
-                <input type="number" draggable="false" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
+                <input type="number" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
                   onchange="updateMod('${section}',${i},this.dataset.field,Number(this.value))"
                   data-field="${m.kind==='drawer'?'drawerCount':'doorCount'}" />
               </div>
@@ -470,15 +468,25 @@
       renderModuleCards();
     };
 
-    // ─── 드래그 앤 드롭 재정렬 (이벤트 위임) ───
+    // ─── 드래그 앤 드롭 재정렬 (핸들 mousedown → 동적 draggable) ───
     let dragState = null;
 
-    document.addEventListener('dragstart', (e) => {
-      // 드래그 핸들(⠿)에서 시작된 경우만 허용
+    // 핸들(⠿)에 마우스 누를 때만 카드를 draggable로 활성화
+    document.addEventListener('mousedown', (e) => {
       const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      const card = handle.closest('.mod-card');
+      if (card) card.setAttribute('draggable', 'true');
+    });
+
+    // 마우스 뗄 때 draggable 해제 (드래그 안 했을 경우 대비)
+    document.addEventListener('mouseup', () => {
+      document.querySelectorAll('.mod-card[draggable]').forEach(c => c.removeAttribute('draggable'));
+    });
+
+    document.addEventListener('dragstart', (e) => {
       const card = e.target.closest('.mod-card');
-      if (!handle || !card) {
-        // 핸들이 아닌 곳(input/select 등)에서 시작 → 드래그 취소
+      if (!card || !card.hasAttribute('draggable')) {
         e.preventDefault();
         return;
       }
@@ -530,7 +538,10 @@
     });
 
     document.addEventListener('dragend', () => {
-      document.querySelectorAll('.mod-card').forEach(c => c.classList.remove('dragging', 'drag-over'));
+      document.querySelectorAll('.mod-card').forEach(c => {
+        c.classList.remove('dragging', 'drag-over');
+        c.removeAttribute('draggable');
+      });
       dragState = null;
     });
 
