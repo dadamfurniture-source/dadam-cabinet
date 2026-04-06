@@ -19,6 +19,16 @@ const CABINET_PRICES: Record<string, Record<string, number>> = {
   fridge_cabinet: { lower: 180000, upper: 140000 },
 };
 
+// ─── 모듈 타입별 단가 (per 1000mm) ───
+const MODULE_TYPE_PRICES: Record<string, Record<string, number>> = {
+  sink: {
+    sink:    200000,  // 싱크볼+배관 공간 포함
+    cooktop: 180000,  // 인덕션+환기 포함
+    drawer:  170000,  // 소프트클로즈 레일 포함
+    door:    150000,  // 기본 여닫이
+  },
+};
+
 const COUNTERTOP_PRICES: Record<string, number> = {
   basic: 150000,    // per 1000mm
   mid: 190000,
@@ -81,11 +91,33 @@ export function calculateQuote(
   const items: QuoteResult['items'] = [];
   const prices = CABINET_PRICES[category] || CABINET_PRICES.sink;
 
-  // 하부장 캐비닛 (음수 너비 방어)
-  const lowerTotalW = analysis.lower_cabinets.reduce((s, m) => s + Math.max(0, m.width_mm), 0);
-  if (lowerTotalW > 0 && prices.lower) {
-    const cost = Math.round(prices.lower * lowerTotalW / 1000);
-    items.push({ name: '하부장 캐비닛', quantity: `${lowerTotalW}mm`, unit_price: prices.lower, total: cost });
+  // 하부장 캐비닛 — 모듈 타입별 단가 적용 (sink 카테고리만)
+  const moduleTypePrices = MODULE_TYPE_PRICES[category];
+  if (moduleTypePrices) {
+    // 타입별 그룹핑
+    const groups: Record<string, number> = {};
+    for (const m of analysis.lower_cabinets) {
+      const w = Math.max(0, m.width_mm);
+      const t = m.type || 'door';
+      groups[t] = (groups[t] || 0) + w;
+    }
+    const typeNames: Record<string, string> = {
+      sink: '하부 싱크볼 모듈', cooktop: '하부 쿡탑 모듈',
+      drawer: '하부 서랍 모듈', door: '하부 도어 모듈',
+    };
+    for (const [type, totalW] of Object.entries(groups)) {
+      if (totalW <= 0) continue;
+      const unitPrice = moduleTypePrices[type] || moduleTypePrices.door || prices.lower;
+      const cost = Math.round(unitPrice * totalW / 1000);
+      items.push({ name: typeNames[type] || `하부 ${type}`, quantity: `${totalW}mm`, unit_price: unitPrice, total: cost });
+    }
+  } else {
+    // 비-sink 카테고리: 기존 통합 단가
+    const lowerTotalW = analysis.lower_cabinets.reduce((s, m) => s + Math.max(0, m.width_mm), 0);
+    if (lowerTotalW > 0 && prices.lower) {
+      const cost = Math.round(prices.lower * lowerTotalW / 1000);
+      items.push({ name: '하부장 캐비닛', quantity: `${lowerTotalW}mm`, unit_price: prices.lower, total: cost });
+    }
   }
 
   // 상부장 캐비닛
@@ -96,6 +128,7 @@ export function calculateQuote(
   }
 
   // 상판
+  const lowerTotalW = analysis.lower_cabinets.reduce((s, m) => s + Math.max(0, m.width_mm), 0);
   const ctLen = analysis.countertop_length_mm || lowerTotalW;
   if (ctLen > 0) {
     const ctPrice = COUNTERTOP_PRICES[grade] || COUNTERTOP_PRICES.basic;
@@ -117,8 +150,10 @@ export function calculateQuote(
     items.push({ name: '후드', quantity: '1개', unit_price: hoodCost, total: hoodCost });
   }
 
-  // 설치비
+  // 설치비 + 철거비 (벽 너비 기반)
   items.push({ name: '배송 + 설치', quantity: '1식', unit_price: LABOR.installation, total: LABOR.installation });
+  const demolition = (analysis.wall_width_mm || 0) >= 3000 ? LABOR.demolition_large : LABOR.demolition_small;
+  items.push({ name: '기존 철거', quantity: '1식', unit_price: demolition, total: demolition });
 
   // 합산
   const subtotal = items.reduce((s, i) => s + i.total, 0);
