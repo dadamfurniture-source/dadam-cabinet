@@ -23,6 +23,8 @@
     .btn-danger { background: #ff3b30; color: #fff; font-size: 10px; padding: 3px 6px; }
     .btn-sm { font-size: 11px; padding: 4px 8px; background: #e8e8ed; color: #1d1d1f; }
     .btn-sm:hover { background: #d2d2d7; }
+    .btn-rand { font-size: 10px; padding: 3px 8px; background: #f0f7ff; color: #0071e3; border: 1px solid #0071e3; border-radius: 4px; cursor: pointer; }
+    .btn-rand:hover { background: #dbeafe; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 11px; margin-top: 8px; }
     .stat-box { background: #f5f5f7; padding: 6px; border-radius: 5px; text-align: center; }
@@ -56,10 +58,11 @@
     .layout-btn .shape { font-size: 18px; display: block; margin-bottom: 2px; }
     .secondary-fields { display: none; background: #f0f7ff; border-radius: 6px; padding: 8px; margin: 6px 0; }
     .secondary-fields.show { display: block; }
-    .badge-secondary { background: #fef9c3; color: #854d0e; font-size: 8px; margin-left: 4px; }
     .orientation-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
     .orientation-tag.sec { color: #92400e; background: #fef3c7; }
     .orientation-tag.ter { color: #1e40af; background: #dbeafe; }
+    .env-section-header { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 2px; }
+    .env-section-header label { margin: 0; }
   </style>
 </head>
 <body>
@@ -71,16 +74,19 @@
         <input type="number" id="rating" value="3" min="1" max="5" />
         <input type="text" id="comment" placeholder="주석(선택)" style="width:120px" />
       </div>
-      <button class="btn-success" id="btn-save">✅ 저장</button>
-      <button class="btn-primary" id="btn-generate">🎲 생성</button>
-      <button class="btn-primary" id="btn-next">⏭ 다음</button>
+      <button class="btn-success" id="btn-save">저장</button>
+      <button class="btn-primary" id="btn-generate">생성</button>
+      <button class="btn-primary" id="btn-next">다음</button>
     </div>
   </div>
 
   <div class="layout">
     <!-- 좌측: 환경 + 통계 -->
     <div class="panel">
-      <h2>환경 (SinkEnv)</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>환경 (SinkEnv)</h2>
+        <button class="btn-rand" onclick="randomizeEnv()">🎲 환경 랜덤</button>
+      </div>
       <label>레이아웃</label>
       <div class="layout-selector">
         <button class="layout-btn active" data-layout="I" onclick="setLayout('I')"><span class="shape">━</span>일자</button>
@@ -114,12 +120,12 @@
         <div><label>걸레받이 H</label><input type="number" id="env-toe" value="100" /></div>
       </div>
       <div class="row">
-        <div><label>분전반 시작</label><input type="number" id="env-distS" placeholder="null" /></div>
-        <div><label>분전반 끝</label><input type="number" id="env-distE" placeholder="null" /></div>
+        <div><label>분배기 시작</label><input type="number" id="env-distS" placeholder="자동" /></div>
+        <div><label>분배기 끝</label><input type="number" id="env-distE" placeholder="자동" /></div>
       </div>
       <div class="row">
-        <div><label>환풍구 시작</label><input type="number" id="env-ventS" value="1800" /></div>
-        <div><label>환풍구 끝</label><input type="number" id="env-ventE" value="2400" /></div>
+        <div><label>환풍구 시작</label><input type="number" id="env-ventS" placeholder="자동" /></div>
+        <div><label>환풍구 끝</label><input type="number" id="env-ventE" placeholder="자동" /></div>
       </div>
       <div id="status"></div>
       <div class="divider"></div>
@@ -148,11 +154,60 @@
     const API = 'http://localhost:3200';
     const PLANNER_ORIGIN = location.origin;
     let currentGenerated = null;
-    let currentDesign = null;  // 편집 중인 SinkDesign
+    let currentDesign = null;
     let plannerReady = false;
     let currentLayout = 'I';
     const el = (id) => document.getElementById(id);
     const status = (msg, err) => { const s = el('status'); s.textContent = msg; s.style.color = err ? '#ff3b30' : '#34c759'; };
+
+    // ─── 랜덤 유틸리티 ───
+    function randBetween(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function pickOne(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function roundTo50(v) { return Math.round(v / 50) * 50; }
+
+    // ─── 환경 랜덤 생성 ───
+    window.randomizeEnv = () => {
+      // 레이아웃 랜덤
+      const layout = pickOne(['I', 'I', 'I', 'L', 'L', 'U']); // I가 더 흔함
+      setLayout(layout);
+
+      // 주벽 너비
+      const width = pickOne([2400, 2700, 3000, 3000, 3200, 3600, 4000]);
+      el('env-width').value = width;
+      el('env-height').value = 2400;
+      el('env-depth').value = 600;
+      el('env-base').value = pickOne(['left', 'left', 'left', 'right']); // left가 더 흔함
+      el('env-finL').value = pickOne([0, 0, 0, 18, 18]);
+      el('env-finR').value = pickOne([0, 0, 0, 18, 18]);
+      el('env-molding').value = pickOne([50, 60, 60]);
+      el('env-toe').value = pickOne([100, 100, 120]);
+
+      // 환풍구: 주벽의 50~90% 구간에 400~600mm 폭
+      const ventWidth = pickOne([400, 500, 600]);
+      const ventStart = roundTo50(randBetween(Math.floor(width * 0.4), Math.floor(width * 0.8) - ventWidth));
+      el('env-ventS').value = ventStart;
+      el('env-ventE').value = ventStart + ventWidth;
+
+      // 분배기: 70% 확률로 존재, 주벽의 10~50% 구간에 200~400mm 폭
+      if (Math.random() < 0.7) {
+        const distWidth = pickOne([200, 250, 300, 350, 400]);
+        const distStart = roundTo50(randBetween(Math.floor(width * 0.05), Math.floor(width * 0.45)));
+        el('env-distS').value = distStart;
+        el('env-distE').value = distStart + distWidth;
+      } else {
+        el('env-distS').value = '';
+        el('env-distE').value = '';
+      }
+
+      // 보조벽 (L/U)
+      if (layout === 'L' || layout === 'U') {
+        el('env-secL').value = pickOne([1200, 1500, 1500, 1800, 2000]);
+        el('env-secFiller').value = 60;
+      }
+      if (layout === 'U') {
+        el('env-secR').value = pickOne([1200, 1500, 1500, 1800, 2000]);
+      }
+    };
 
     // ─── 레이아웃 타입 선택 ───
     window.setLayout = (type) => {
@@ -169,9 +224,6 @@
     };
 
     // ─── 플래너용 모듈 순서 정렬 ───
-    // 플래너는 배열 순서대로 X커서를 이동하므로:
-    //   좌차선(secondary) → 주선(normal) → 우차차선(tertiary)
-    // 순서여야 좌/우 양쪽에 차선이 제대로 배치됨
     function reorderForPlanner(modules) {
       const secondary = modules.filter(m => m.orientation === 'secondary');
       const primary = modules.filter(m => (m.orientation || 'normal') === 'normal');
@@ -191,9 +243,8 @@
           doorCount: m.doorCount,
           drawerCount: m.drawerCount,
         };
-        // ㄱ자/ㄷ자: secondary/tertiary → planner 'secondary'로 통일 (앵커로 좌/우 구분)
         if (m.orientation === 'secondary' || m.orientation === 'tertiary') {
-          entry.orientation = 'secondary';  // planner는 secondary만 인식
+          entry.orientation = 'secondary';
           if (m.blindAnchorIdx != null) {
             const anchor = allMods.find(am => am.idx === m.blindAnchorIdx && (am.orientation || 'normal') === 'normal');
             entry.blindAnchorId = anchor ? `hitl-${anchor.type}-${anchor.idx}` : undefined;
@@ -219,7 +270,6 @@
         lowerCount: design.lower.length,
         upperCount: design.upper.length,
       };
-      // 차선 마감재 전달
       if (e.secondaryFillerW) ps.secondaryFillerW = e.secondaryFillerW;
       return ps;
     }
@@ -240,7 +290,6 @@
           const match = m.blindAnchorId.match(/hitl-\w+-(\d+)/);
           if (match) {
             mod.blindAnchorIdx = Number(match[1]);
-            // 앵커가 마지막 주선 모듈이면 → 우측 차차선(tertiary)
             const primaries = allEntries.filter(e => (e.orientation || 'normal') === 'normal');
             const lastPrimaryIdx = primaries.length > 0 ? primaries.length - 1 : 0;
             if (mod.blindAnchorIdx === lastPrimaryIdx && currentLayout === 'U') {
@@ -311,26 +360,17 @@
         const secondary = modules.filter(m => m.orientation === 'secondary');
         const tertiary = modules.filter(m => m.orientation === 'tertiary');
 
-        // 주선 (primary)
         html += `<div class="section-title"><span>📦 ${label} 주선 (${primary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','normal')">+ 추가</button></div>`;
-        primary.forEach(m => {
-          html += renderModCard(section, m, modules.indexOf(m));
-        });
+        primary.forEach(m => { html += renderModCard(section, m, modules.indexOf(m)); });
 
-        // 차선 (secondary, 좌측) — ㄱ자/ㄷ자
         if (secondary.length > 0 || currentLayout !== 'I') {
           html += `<div class="section-title" style="color:#92400e;"><span>↪ ${label} 좌측 차선 (${secondary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','secondary')">+ 추가</button></div>`;
-          secondary.forEach(m => {
-            html += renderModCard(section, m, modules.indexOf(m), 'sec');
-          });
+          secondary.forEach(m => { html += renderModCard(section, m, modules.indexOf(m), 'sec'); });
         }
 
-        // 차차선 (tertiary, 우측) — ㄷ자만
         if (tertiary.length > 0 || currentLayout === 'U') {
           html += `<div class="section-title" style="color:#1e40af;"><span>↪ ${label} 우측 차차선 (${tertiary.length}개)</span><button class="btn-sm" onclick="addModule('${section}','tertiary')">+ 추가</button></div>`;
-          tertiary.forEach(m => {
-            html += renderModCard(section, m, modules.indexOf(m), 'ter');
-          });
+          tertiary.forEach(m => { html += renderModCard(section, m, modules.indexOf(m), 'ter'); });
         }
       };
 
@@ -387,7 +427,6 @@
     window.updateMod = (section, idx, field, value) => {
       if (!currentDesign) return;
       currentDesign[section][idx][field] = value;
-      // 플래너에 반영
       sendToPlanner(currentDesign);
     };
 
@@ -404,10 +443,10 @@
       const idx = currentDesign[section].length;
       const mod = { idx, width: 450, kind: 'door', type: 'storage', doorCount: 1, orientation };
       if (orientation === 'secondary') {
-        mod.blindAnchorIdx = 0; // 좌측: 주선 첫 번째 모듈에 앵커
+        mod.blindAnchorIdx = 0;
       } else if (orientation === 'tertiary') {
         const primaries = currentDesign[section].filter(m => (m.orientation || 'normal') === 'normal');
-        mod.blindAnchorIdx = primaries.length > 0 ? primaries.length - 1 : 0; // 우측: 주선 마지막 모듈에 앵커
+        mod.blindAnchorIdx = primaries.length > 0 ? primaries.length - 1 : 0;
       }
       currentDesign[section].push(mod);
       sendToPlanner(currentDesign);
@@ -440,7 +479,8 @@
       return env;
     }
 
-    async function generate() {
+    async function generate(autoRandomize = false) {
+      if (autoRandomize) randomizeEnv();
       status('생성 중...');
       try {
         const res = await fetch(`${API}/api/sink-hitl/generate`, {
@@ -454,7 +494,8 @@
         currentDesign = JSON.parse(JSON.stringify(data.design));
         sendToPlanner(currentDesign);
         renderModuleCards();
-        status(`✓ 생성 완료 (하부 ${data.design.lower.length} / 상부 ${data.design.upper.length})`);
+        const lt = data.design.env.layoutType === 'L' ? 'ㄱ자' : data.design.env.layoutType === 'U' ? 'ㄷ자' : '일자';
+        status(`✓ ${lt} 생성 (하부 ${data.design.lower.length} / 상부 ${data.design.upper.length})`);
       } catch (e) {
         status('✗ ' + e.message, true);
       }
@@ -496,8 +537,8 @@
       } catch (e) { /* ignore */ }
     }
 
-    el('btn-generate').onclick = generate;
-    el('btn-next').onclick = generate;
+    el('btn-generate').onclick = () => generate(false);    // 현재 env로 생성
+    el('btn-next').onclick = () => generate(true);          // 환경 랜덤 + 생성
     el('btn-save').onclick = save;
     refreshStats();
   </script>
