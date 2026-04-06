@@ -337,7 +337,10 @@
     }
 
     // ─── 플래너 통신 ───
+    let ignoreNextPlannerState = false; // 내가 보낸 메시지의 echo-back 무시 플래그
+
     function sendToPlanner(design) {
+      ignoreNextPlannerState = true;
       const ps = designToPlanner(design);
       const iframe = el('planner');
       iframe.contentWindow?.postMessage({ type: 'LOAD_HITL_CASE', payload: ps }, '*');
@@ -346,10 +349,16 @@
     window.addEventListener('message', (e) => {
       if (e.data?.type === 'PLANNER_STATE' || e.data?.type === 'HITL_STATE') {
         const ps = e.data.payload?.planner;
-        if (ps) {
+        if (!ps) return;
+        if (ignoreNextPlannerState) {
+          // 내가 보낸 LOAD_HITL_CASE의 echo-back → 데이터만 동기화, DOM 재생성 안 함
+          ignoreNextPlannerState = false;
           currentDesign = plannerToDesign(ps);
-          renderModuleCards();
+          return;
         }
+        // 외부에서 온 진짜 상태 변경 → 카드 렌더링
+        currentDesign = plannerToDesign(ps);
+        renderModuleCards();
       }
     });
 
