@@ -771,9 +771,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         secNearZ = null; // 주선 모듈을 만나면 차선 체인 종료
         curChain = null;
         const centeredX = cursor + module.width / 2;
-        // 주선 하부: 상판 뒤쪽 flush → z center = counterBackZ + module.depth/2
+        // 주선 하부: 상판 앞면에서 30mm 안쪽 정렬 (모듈 앞면 = counterFrontZ - 30)
         // 주선 상부: 기존 upperZOffset 유지
-        const primaryZ = isUpper ? z : (counterBackZ + module.depth / 2);
+        const COUNTER_INSET = 30; // 상판 앞면 대비 모듈 후퇴량 (mm)
+        const primaryZ = isUpper ? z : (counterFrontZ - COUNTER_INSET - module.depth / 2);
         parts.push({
           id: module.id,
           label: `${module.section}-${module.kind}`,
