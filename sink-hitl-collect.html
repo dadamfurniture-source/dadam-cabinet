@@ -337,29 +337,21 @@
     }
 
     // ─── 플래너 통신 ───
-    // sendToPlanner() 호출 후 echo-back 메시지를 일정 시간 동안 무시
-    // (hitlMode에서 PLANNER_STATE + HITL_STATE 2개가 돌아오므로 boolean으로 부족)
-    let echoBlockUntil = 0;
-
     function sendToPlanner(design) {
-      echoBlockUntil = Date.now() + 500; // 500ms 동안 echo-back 무시
       const ps = designToPlanner(design);
       const iframe = el('planner');
       iframe.contentWindow?.postMessage({ type: 'LOAD_HITL_CASE', payload: ps }, '*');
     }
 
+    // 플래너 → 부모 메시지: 데이터 동기화만 수행, DOM 재생성 절대 안 함.
+    // 카드 렌더링은 명시적 사용자 액션(생성/추가/삭제/이동)에서만 호출.
+    // 이유: 플래너가 PLANNER_STATE + HITL_STATE를 비동기로 보내면
+    //       renderModuleCards()가 DOM을 파괴해 input focus가 사라짐.
     window.addEventListener('message', (e) => {
       if (e.data?.type === 'PLANNER_STATE' || e.data?.type === 'HITL_STATE') {
         const ps = e.data.payload?.planner;
         if (!ps) return;
-        // 데이터는 항상 동기화
         currentDesign = plannerToDesign(ps);
-        if (Date.now() < echoBlockUntil) {
-          // sendToPlanner()의 echo-back → 데이터만 동기화, DOM 재생성 안 함
-          return;
-        }
-        // 외부에서 온 진짜 상태 변경 → 카드 렌더링
-        renderModuleCards();
       }
     });
 
