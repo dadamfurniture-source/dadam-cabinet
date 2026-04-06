@@ -572,19 +572,38 @@
       el('env-finR').value = pickOne([0, 0, 0, 18, 18]);
       el('env-molding').value = pickOne([50, 60, 60]);
       el('env-toe').value = pickOne([100, 100, 120]);
+      // 분배기: 반드시 생성, 좌우 끝에서 1000mm 이상 떨어져야 함
+      const distWidth = pickOne([200, 250, 300, 350, 400]);
+      const distMinStart = 1000;
+      const distMaxEnd = width - 1000;
+      const distStart = roundTo50(randBetween(distMinStart, Math.max(distMinStart, distMaxEnd - distWidth)));
+      const distEnd = distStart + distWidth;
+      el('env-distS').value = distStart;
+      el('env-distE').value = distEnd;
+      // 환풍구: 반드시 생성, 분배기와 최소 600mm 격차
       const ventWidth = pickOne([400, 500, 600]);
-      const ventStart = roundTo50(randBetween(Math.floor(width * 0.4), Math.floor(width * 0.8) - ventWidth));
+      const gap = 600;
+      // 분배기 왼쪽 또는 오른쪽에 배치 (공간 충분한 쪽 선택)
+      const spaceLeft = distStart - gap - ventWidth; // 분배기 왼쪽에 놓을 때 최대 시작점
+      const spaceRight = width - (distEnd + gap + ventWidth); // 분배기 오른쪽에 놓을 때 남는 공간
+      let ventStart;
+      if (spaceLeft >= 0 && spaceRight >= 0) {
+        // 양쪽 다 가능 → 랜덤 선택
+        if (Math.random() < 0.5) {
+          ventStart = roundTo50(randBetween(0, spaceLeft));
+        } else {
+          ventStart = roundTo50(randBetween(distEnd + gap, width - ventWidth));
+        }
+      } else if (spaceRight >= 0) {
+        ventStart = roundTo50(randBetween(distEnd + gap, width - ventWidth));
+      } else if (spaceLeft >= 0) {
+        ventStart = roundTo50(randBetween(0, spaceLeft));
+      } else {
+        // 공간 부족 시 분배기 오른쪽 바로 뒤
+        ventStart = distEnd + gap;
+      }
       el('env-ventS').value = ventStart;
       el('env-ventE').value = ventStart + ventWidth;
-      if (Math.random() < 0.7) {
-        const distWidth = pickOne([200, 250, 300, 350, 400]);
-        const distStart = roundTo50(randBetween(Math.floor(width * 0.05), Math.floor(width * 0.45)));
-        el('env-distS').value = distStart;
-        el('env-distE').value = distStart + distWidth;
-      } else {
-        el('env-distS').value = '';
-        el('env-distE').value = '';
-      }
       if (layout === 'L' || layout === 'U') {
         el('env-secL').value = pickOne([1200, 1500, 1500, 1800, 2000]);
         el('env-secFiller').value = 60;
