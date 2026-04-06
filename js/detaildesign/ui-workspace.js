@@ -1623,6 +1623,8 @@
         }
         updateUI();
         renderWorkspaceContent(item);
+        // 3D 플래너에도 반영
+        if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
       }
 
       // ── 상부장 구조 변경 (분리 모드 전용)
