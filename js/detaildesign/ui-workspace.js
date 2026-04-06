@@ -1609,6 +1609,32 @@
         if (shape !== 'I' && !item.specs.lowerSecondaryD) {
           item.specs.lowerSecondaryD = item.defaultD || item.d || '';
         }
+        // ㄱ자: 멍장(blind corner) 자동 삽입 — secondary line 시작 모듈
+        if (shape === 'L' || shape === 'U') {
+          const startSide = item.specs.secondaryStartSide || 'left';
+          const hasBlind = item.modules.some(m => m.name === 'LT망장' && m.pos === 'lower');
+          if (!hasBlind) {
+            const specLowerH = parseFloat(item.specs.lowerH) || 870;
+            const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+            const specTopT = parseFloat(item.specs.topThickness) || 12;
+            const blindMod = {
+              id: Date.now() + Math.random(),
+              type: 'storage', name: 'LT망장', pos: 'lower',
+              w: parseFloat(item.specs.lowerSecondaryD) || parseFloat(item.d) || 600,
+              h: specLowerH - specTopT - specLegH,
+              d: parseFloat(item.d) || 550,
+              isDrawer: true, isFixed: true,
+              orientation: 'secondary',
+            };
+            if (startSide === 'left') {
+              item.modules.unshift(blindMod);
+            } else {
+              // 하부장 마지막에 추가
+              const lastLowerIdx = item.modules.reduce((last, m, i) => m.pos === 'lower' ? i : last, -1);
+              item.modules.splice(lastLowerIdx + 1, 0, blindMod);
+            }
+          }
+        }
         if (shape === 'U' && !item.specs.lowerTertiaryD) {
           item.specs.lowerTertiaryD = item.defaultD || item.d || '';
         }
@@ -2463,6 +2489,8 @@
           }
 
           renderWorkspaceContent(item);
+          // 3D 플래너에도 반영
+          if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
         }
       }
 
@@ -2531,6 +2559,8 @@
           }
 
           renderWorkspaceContent(item);
+          // 3D 플래너에도 반영
+          if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
         }
       }
 
