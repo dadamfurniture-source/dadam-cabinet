@@ -449,8 +449,29 @@
             payload.lowerModules = [...payload.lowerModules, blindMod, ...secMods];
           }
           payload.lowerCount = payload.lowerModules.length;
+          // 상부장도 secondary 생성 (secondaryUpperEnabled !== false)
+          if (specs.secondaryUpperEnabled !== false && specs.upperSecondaryW) {
+            const uSecW = parseFloat(specs.upperSecondaryW) || secW;
+            const uSecD = parseFloat(specs.upperSecondaryD) || parseFloat(specs.upperPrimeD) || 295;
+            const uBlindMod = {
+              id: 'blind-corner-upper-auto', kind: 'door', width: uSecD,
+              moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+            };
+            const uSecModCount = Math.max(1, Math.round(uSecW / 600));
+            const uSecModW = Math.round(uSecW / uSecModCount);
+            const uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
+              id: `sec-upper-auto-${i}`, kind: 'door', width: uSecModW,
+              moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+            }));
+            if (startSide === 'left') {
+              payload.upperModules = [uBlindMod, ...uSecMods, ...payload.upperModules];
+            } else {
+              payload.upperModules = [...payload.upperModules, uBlindMod, ...uSecMods];
+            }
+            payload.upperCount = payload.upperModules.length;
+          }
         }
-        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth, lShape, lowerCount: payload.lowerCount });
+        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth, lShape, lowerCount: payload.lowerCount, upperCount: payload.upperCount });
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
       }
 
