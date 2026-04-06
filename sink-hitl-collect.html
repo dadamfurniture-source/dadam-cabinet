@@ -72,11 +72,13 @@
     /* ─── SVG 2D 뷰 ─── */
     #svg-container { background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 20px; min-width: 300px; }
     #elevation-svg { max-width: 100%; max-height: 100%; }
-    .svg-module { cursor: pointer; transition: opacity 0.15s; }
+    .svg-module { cursor: grab; transition: opacity 0.15s; }
     .svg-module:hover { opacity: 0.8; }
+    .svg-module.svg-dragging { opacity: 0.4; cursor: grabbing; }
     .svg-module.selected rect:first-child { stroke-width: 3 !important; stroke: #0071e3 !important; }
     .zone-overlay { opacity: 0.25; pointer-events: none; }
     .svg-section-label { font-size: 11px; fill: #86868b; font-weight: 600; }
+    #svg-drop-indicator { pointer-events: none; }
   </style>
 </head>
 <body>
@@ -170,6 +172,7 @@
     let currentDesign = null;
     let currentLayout = 'I';
     let selectedModule = null; // { section, idx }
+    let svgModPositions = []; // [{ section, idx, orient, x, w, y, h }] — for drag hit-testing
     const el = (id) => document.getElementById(id);
     const status = (msg, err) => { const s = el('status'); s.textContent = msg; s.style.color = err ? '#ff3b30' : '#34c759'; };
 
@@ -204,6 +207,7 @@
     // ─── 2D SVG 정면도 렌더 ───
     function renderSVG() {
       if (!currentDesign) return;
+      svgModPositions = [];
       const env = currentDesign.env;
       const PAD = 40;
 
@@ -275,7 +279,10 @@
           const color = MODULE_COLORS[m.type] || MODULE_COLORS.storage;
           const isSel = selectedModule && selectedModule.section === section && selectedModule.idx === realIdx;
 
-          svg += `<g class="svg-module${isSel ? ' selected' : ''}" data-section="${section}" data-idx="${realIdx}" onclick="selectModule('${section}',${realIdx})">`;
+          // 위치 저장 (드래그용)
+          svgModPositions.push({ section, idx: realIdx, orient: orientFilter, x, w, y, h: rowH });
+
+          svg += `<g class="svg-module${isSel ? ' selected' : ''}" data-section="${section}" data-idx="${realIdx}" data-orient="${orientFilter}" onclick="selectModule('${section}',${realIdx})">`;
           svg += svgRect(x, y, w, rowH, color.fill, isSel ? '#0071e3' : color.stroke, isSel ? 3 : 1.5, 2);
 
           // 타입 라벨
@@ -418,6 +425,134 @@
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     };
+
+    // ─── SVG 드래그 앤 드롭 (모듈 순서 변경) ───
+    let svgDrag = null; // { section, idx, orient, startX, el }
+
+    document.addEventListener('mousedown', (e) => {
+      const svgMod = e.target.closest('.svg-module');
+      if (!svgMod) return;
+      const section = svgMod.dataset.section;
+      const idx = Number(svgMod.dataset.idx);
+      const orient = svgMod.dataset.orient || 'normal';
+      const svgContainer = el('svg-container');
+      const svgEl = svgContainer.querySelector('svg');
+      if (!svgEl) return;
+
+      // SVG 좌표 변환
+      const pt = svgEl.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const svgPt = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+
+      svgDrag = { section, idx, orient, startX: svgPt.x, el: svgMod, moved: false };
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!svgDrag) return;
+      const svgContainer = el('svg-container');
+      const svgEl = svgContainer.querySelector('svg');
+      if (!svgEl) return;
+
+      const pt = svgEl.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const svgPt = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+
+      // 최소 이동 거리 체크 (클릭과 드래그 구분)
+      if (!svgDrag.moved && Math.abs(svgPt.x - svgDrag.startX) < 5) return;
+      svgDrag.moved = true;
+
+      // 드래그 중 시각 피드백
+      svgDrag.el.classList.add('svg-dragging');
+      svgEl.style.cursor = 'grabbing';
+
+      // 같은 section + orient 모듈만 필터
+      const sameGroup = svgModPositions.filter(p => p.section === svgDrag.section && p.orient === svgDrag.orient);
+
+      // 드롭 위치 계산: 가장 가까운 모듈 경계선 찾기
+      let dropIndicatorX = null;
+      let bestDist = Infinity;
+      let dropInsertIdx = -1;
+
+      sameGroup.forEach((pos, i) => {
+        // 왼쪽 경계
+        const leftDist = Math.abs(svgPt.x - pos.x);
+        if (leftDist < bestDist) { bestDist = leftDist; dropIndicatorX = pos.x; dropInsertIdx = i; }
+        // 오른쪽 경계
+        const rightDist = Math.abs(svgPt.x - (pos.x + pos.w));
+        if (rightDist < bestDist) { bestDist = rightDist; dropIndicatorX = pos.x + pos.w; dropInsertIdx = i + 1; }
+      });
+
+      svgDrag.dropInsertIdx = dropInsertIdx;
+      svgDrag.dropGroup = sameGroup;
+
+      // 드롭 인디케이터 표시
+      let indicator = svgEl.querySelector('#svg-drop-indicator');
+      if (!indicator) {
+        indicator = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        indicator.id = 'svg-drop-indicator';
+        indicator.setAttribute('stroke', '#0071e3');
+        indicator.setAttribute('stroke-width', '3');
+        indicator.setAttribute('stroke-dasharray', '4,2');
+        svgEl.appendChild(indicator);
+      }
+      if (dropIndicatorX !== null && sameGroup.length > 0) {
+        const refPos = sameGroup[0];
+        indicator.setAttribute('x1', dropIndicatorX);
+        indicator.setAttribute('y1', refPos.y - 4);
+        indicator.setAttribute('x2', dropIndicatorX);
+        indicator.setAttribute('y2', refPos.y + refPos.h + 4);
+        indicator.style.display = '';
+      }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (!svgDrag) return;
+      const wasMoved = svgDrag.moved;
+      const { section, idx, orient, dropInsertIdx, dropGroup } = svgDrag;
+
+      // 인디케이터 제거
+      const svgContainer = el('svg-container');
+      const svgEl = svgContainer.querySelector('svg');
+      if (svgEl) {
+        const indicator = svgEl.querySelector('#svg-drop-indicator');
+        if (indicator) indicator.remove();
+        svgEl.style.cursor = '';
+      }
+
+      svgDrag = null;
+
+      // 실제 이동이 없었으면 클릭으로 처리 (selectModule이 onclick에서 처리됨)
+      if (!wasMoved || dropInsertIdx == null || !dropGroup) return;
+
+      // 같은 그룹 내에서의 인덱스 매핑
+      const mods = currentDesign[section];
+      const groupIdxList = dropGroup.map(p => p.idx); // 실제 배열 인덱스
+      const fromPosInGroup = groupIdxList.indexOf(idx);
+      if (fromPosInGroup < 0) return;
+
+      // dropInsertIdx는 그룹 내 삽입 위치 (0~groupLen)
+      let toPosInGroup = dropInsertIdx;
+      // 자기 위치면 무시
+      if (toPosInGroup === fromPosInGroup || toPosInGroup === fromPosInGroup + 1) return;
+
+      // 실제 배열 조작
+      const moved = mods.splice(groupIdxList[fromPosInGroup], 1)[0];
+      // splice 후 인덱스 보정
+      let insertAt;
+      if (toPosInGroup > fromPosInGroup) {
+        insertAt = groupIdxList[toPosInGroup - 1]; // 1 빠진 상태에서의 위치
+      } else {
+        insertAt = groupIdxList[toPosInGroup];
+      }
+      mods.splice(insertAt, 0, moved);
+      mods.forEach((m, i) => m.idx = i);
+
+      selectedModule = { section, idx: insertAt };
+      renderSVG();
+      renderModuleCards();
+    });
 
     // ─── 랜덤 유틸리티 ───
     function randBetween(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
