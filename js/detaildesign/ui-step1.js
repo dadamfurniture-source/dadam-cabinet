@@ -421,7 +421,33 @@
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
           secondaryStartSide: specs.secondaryStartSide || undefined,
         };
-        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth });
+        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 자동 추가
+        const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
+        if (lShape !== 'I' && specs.lowerSecondaryW) {
+          const secW = parseFloat(specs.lowerSecondaryW) || 600;
+          const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(item.d) || 600;
+          const startSide = specs.secondaryStartSide || 'left';
+          // 멍장(blind corner) + secondary 모듈 생성
+          const blindMod = {
+            id: 'blind-corner-auto', kind: 'door', width: secD,
+            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+          };
+          // secondary 라인 모듈들 (secW를 600mm 단위로 분할)
+          const secModCount = Math.max(1, Math.round(secW / 600));
+          const secModW = Math.round(secW / secModCount);
+          const secMods = Array.from({ length: secModCount }, (_, i) => ({
+            id: `sec-auto-${i}`, kind: 'door', width: secModW,
+            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+          }));
+          // 시작 방향에 따라 앞/뒤에 추가
+          if (startSide === 'left') {
+            payload.lowerModules = [blindMod, ...secMods, ...payload.lowerModules];
+          } else {
+            payload.lowerModules = [...payload.lowerModules, blindMod, ...secMods];
+          }
+          payload.lowerCount = payload.lowerModules.length;
+        }
+        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth, lShape, lowerCount: payload.lowerCount });
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
       }
 
