@@ -168,34 +168,29 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
     log.info('Step 1: Wall analysis');
     let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
     let wallW2 = 0; // ㄱ자/ㄷ자 두 번째 벽
-    const isLType = kitchen_layout === 'l_type';
-    const isUType = kitchen_layout === 'u_type';
+    let detectedLShape = kitchen_layout === 'l_type';
 
     try {
-      const layoutHint = isLType
-        ? '\nThis is an L-shaped (ㄱ자) kitchen. Measure BOTH walls: main wall (longer) and secondary wall (shorter, perpendicular). Return wall.width for main wall and wall.width2 for secondary wall.'
-        : isUType
-          ? '\nThis is a U-shaped (ㄷ자) kitchen. Measure all walls. Return wall.width for main wall and wall.width2 for total of secondary walls.'
-          : '';
-
       const wallPrompt = category === 'sink'
-        ? `Analyze this Korean apartment kitchen photo.${layoutHint}
+        ? `Analyze this Korean apartment kitchen photo.
 
-CALIBRATION — Estimate wall width using these steps:
-1. Find an electrical outlet/switch plate in the photo (Korean standard: 70mm wide, 120mm tall). If visible, use it as a ruler to calculate wall width.
-2. If no outlet visible, use these KNOWN cabinet sizes as reference:
-   - Sink cabinet (개수대): 1000mm wide
-   - Cooktop/hood cabinet (가스대/후드장): 600mm wide
-3. Count visible cabinet modules and estimate total wall width.
-4. IMPORTANT: Korean apartment kitchens are typically 2200-4500mm wide. Be conservative — do NOT overestimate.
+L-SHAPE DETECTION — Check if this kitchen has an L-shaped (ㄱ자) corner:
+- Look for a 90-degree corner where cabinets change direction
+- Visual cues: vertical edge where two walls meet, countertop corner joint, corner cabinet (blind corner module), cabinet doors facing different directions
+- If L-shaped: set is_l_shape=true and estimate both wall widths
+
+CALIBRATION — Use these KNOWN cabinet sizes as reference:
+- Sink cabinet (개수대): 1000mm wide
+- Cooktop/hood cabinet (가스대/후드장): 600mm wide
+- IMPORTANT: Korean apartment kitchens are typically 2200-4500mm wide per wall. Be conservative.
 
 Return JSON only:
-{"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
-waterPct/exhaustPct as % from left of MAIN wall.`
-        : `Analyze this Korean apartment photo.${layoutHint}
+{"wall":{"width":number,"height":number,"width2":number},"plumbing":{"waterPct":number,"exhaustPct":number},"is_l_shape":boolean,"confidence":"high"|"medium"|"low"}
+width=main wall mm, width2=secondary wall mm (0 if not L-shaped). waterPct/exhaustPct as % from left of MAIN wall.`
+        : `Analyze this Korean apartment photo.
 Estimate wall width in mm. Korean apartments typically have 2200-4500mm wide kitchen walls. Be conservative.
 Return JSON only:
-{"wall":{"width":number,"height":number${isLType || isUType ? ',"width2":number' : ''}},"confidence":"high"|"medium"|"low"}`;
+{"wall":{"width":number,"height":number,"width2":number},"is_l_shape":boolean,"confidence":"high"|"medium"|"low"}`;
 
       const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
       if (wallResult.text) {
@@ -210,7 +205,8 @@ Return JSON only:
           wallW = Math.max(KOREAN_REFERENCE.kitchen_wall_range.min, Math.min(KOREAN_REFERENCE.kitchen_wall_range.max, wallW));
           wallH = parsed.wall?.height || 2400;
           if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
-          // ㄱ자/ㄷ자 두 번째 벽
+          // ㄱ자 자동 감지 + 두 번째 벽
+          if (parsed.is_l_shape) detectedLShape = true;
           if (parsed.wall?.width2) {
             wallW2 = parsed.wall.width2;
             if (wallW2 > 0 && wallW2 < 100) wallW2 = Math.round(wallW2 * 1000);
@@ -220,7 +216,7 @@ Return JSON only:
             waterPct = parsed.plumbing?.waterPct || 30;
             exhaustPct = parsed.plumbing?.exhaustPct || 70;
           }
-          log.info({ wallW, wallW2, wallH, waterPct, exhaustPct, kitchen_layout }, 'Wall analysis parsed');
+          log.info({ wallW, wallW2, wallH, waterPct, exhaustPct, detectedLShape, kitchen_layout }, 'Wall analysis parsed');
         }
       }
     } catch (e) {
@@ -400,17 +396,24 @@ Keep wall, floor, camera identical. No clutter.`;
     let quote = null;
     let quoteMetadata: Record<string, unknown> = {};
     try {
+      const cornerHint = detectedLShape
+        ? `\nL-SHAPE DETECTION: This kitchen has an L-shaped corner.
+Look for the CORNER MODULE (블라인드 코너장) — the cabinet where two walls meet at 90°.
+Mark it as type "corner". It is typically ~900mm wide.
+List ALL modules: main wall first (left to right), then "corner", then secondary wall modules.`
+        : '';
+
       const quotePrompt = `Analyze this kitchen cabinet design image.
 
 KNOWN REFERENCE SIZES:
 - Sink cabinet (개수대) = exactly 1000mm wide
 - Cooktop/hood cabinet (가스대/후드장) = exactly 600mm wide
-
+${cornerHint}
 STEP 1: Count and classify each lower cabinet module from LEFT to RIGHT:
 - sink: module containing sink bowl (1 per kitchen, 1000mm)
 - cooktop: module with cooktop/induction (1 per kitchen, 600mm)
 - drawer: drawer unit (horizontal lines/gaps)
-- door: hinged door (vertical lines/gaps)
+- door: hinged door (vertical lines/gaps)${detectedLShape ? '\n- corner: L-shaped blind corner cabinet where two walls meet (~900mm)' : ''}
 
 STEP 2: For each door/drawer module, estimate its width RELATIVE to the sink (1000mm).
 Example: if a door appears to be half the width of the sink, its ratio is 0.5 (= 500mm).
@@ -419,13 +422,13 @@ STEP 3: Count upper cabinet door modules.
 
 Return ONLY this JSON:
 {
-  "lower": [{"type":"sink","ratio":1.0}, {"type":"door","ratio":0.45}, {"type":"cooktop","ratio":0.6}, {"type":"drawer","ratio":0.5}, ...],
+  "lower": [{"type":"sink","ratio":1.0}, {"type":"door","ratio":0.45}, ${detectedLShape ? '{"type":"corner","ratio":0.9}, ' : ''}{"type":"cooktop","ratio":0.6}, ...],
   "upper_count": 5,
   "has_sink": true,
   "has_cooktop": true,
   "has_hood": true
 }
-ratio: width relative to sink (1.0 = 1000mm). sink is always 1.0, cooktop is always 0.6.`;
+ratio: width relative to sink (1.0 = 1000mm). sink=1.0, cooktop=0.6${detectedLShape ? ', corner=0.9' : ''}.`;
 
       const mimeType = closedResult.image!.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
       const quoteText = await callClaude(quotePrompt, closedResult.image!, mimeType);
@@ -437,14 +440,26 @@ ratio: width relative to sink (1.0 = 1000mm). sink is always 1.0, cooktop is alw
         const upperCount: number = raw.upper_count || lowerModules.length;
 
         // ratio × 1000mm(sink 기준) → 실제 너비, 표준 규격 스냅
+        const CORNER_WIDTH = 900;
         const lowerWithWidths = lowerModules.map(m => {
           const type = m.type || 'door';
           if (type === 'sink') return { type, width: SINK_WIDTH };
           if (type === 'cooktop') return { type, width: 600 };
+          if (type === 'corner') return { type, width: CORNER_WIDTH };
           const rawWidth = Math.round((m.ratio || 0.45) * SINK_WIDTH);
           return { type, width: snapToStandard(Math.max(300, rawWidth)) };
         });
         const lowerTotalCalc = lowerWithWidths.reduce((s, m) => s + m.width, 0);
+
+        // ㄱ자: corner 모듈 기준으로 주선/보조선 분리
+        const cornerIdx = lowerWithWidths.findIndex(m => m.type === 'corner');
+        let mainLineW = lowerTotalCalc;
+        let secondLineW = 0;
+        if (cornerIdx >= 0) {
+          mainLineW = lowerWithWidths.slice(0, cornerIdx).reduce((s, m) => s + m.width, 0);
+          secondLineW = lowerWithWidths.slice(cornerIdx + 1).reduce((s, m) => s + m.width, 0);
+          log.info({ mainLineW, cornerWidth: CORNER_WIDTH, secondLineW, detectedLShape }, 'L-shape split at corner module');
+        }
 
         // 상부장: 하부장 총 길이를 상부장 모듈 수로 균등 분배
         const upperModuleW = upperCount > 0 ? Math.round(lowerTotalCalc / upperCount) : 0;
@@ -475,10 +490,14 @@ ratio: width relative to sink (1.0 = 1000mm). sink is always 1.0, cooktop is alw
 
         quote = calculateQuote(analysis, category);
         quoteMetadata = {
-          analysis_version: 'ratio-based-v3',
+          analysis_version: 'ratio-based-v4',
           lower_modules: lowerWithWidths,
           upper_count: upperCount,
           lower_total_mm: lowerTotalCalc,
+          detected_l_shape: detectedLShape,
+          main_line_mm: cornerIdx >= 0 ? mainLineW : lowerTotalCalc,
+          corner_mm: cornerIdx >= 0 ? CORNER_WIDTH : 0,
+          second_line_mm: secondLineW,
           wall_analysis_wallW: wallW,
         };
         log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (ratio-based)');
@@ -501,7 +520,7 @@ ratio: width relative to sink (1.0 = 1000mm). sink is always 1.0, cooktop is alw
       },
       quote,
       quote_analysis: quoteMetadata,
-      wall_analysis: { wallW, wallW2, wallH, waterPct, exhaustPct, kitchen_layout, totalCabinetW: wallW + wallW2 },
+      wall_analysis: { wallW, wallW2, wallH, waterPct, exhaustPct, kitchen_layout, detectedLShape, totalCabinetW: wallW + wallW2 },
       metadata: {
         category, kitchen_layout, design_style,
         model: 'gemini-3.1-flash-image-preview',
