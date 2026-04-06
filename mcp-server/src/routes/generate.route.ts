@@ -395,49 +395,54 @@ Keep wall, floor, camera identical. No clutter.`;
       log.warn({ error: e?.message || String(e) }, 'Alt style generation failed');
     }
 
-    // ═══ Step 5: 견적 — 모듈 카운트 기반 길이 산출 (Claude Vision) ═══
-    log.info('Step 5: Quote analysis (module-count based)');
+    // ═══ Step 5: 견적 — sink/cooktop 비율 기반 길이 산출 (Claude Vision) ═══
+    log.info('Step 5: Quote analysis (ratio-based)');
     let quote = null;
     let quoteMetadata: Record<string, unknown> = {};
-    // 모듈 타입별 기본 너비 (mm)
-    const MODULE_DEFAULT_WIDTHS: Record<string, number> = {
-      sink: 1000, cooktop: 600, door: 450, drawer: 500,
-    };
     try {
       const quotePrompt = `Analyze this kitchen cabinet design image.
 
-Count and classify each cabinet module from LEFT to RIGHT.
-Lower cabinets (하부장):
-- sink: module containing sink bowl (1 per kitchen)
-- cooktop: module with cooktop/induction (1 per kitchen)
+KNOWN REFERENCE SIZES:
+- Sink cabinet (개수대) = exactly 1000mm wide
+- Cooktop/hood cabinet (가스대/후드장) = exactly 600mm wide
+
+STEP 1: Count and classify each lower cabinet module from LEFT to RIGHT:
+- sink: module containing sink bowl (1 per kitchen, 1000mm)
+- cooktop: module with cooktop/induction (1 per kitchen, 600mm)
 - drawer: drawer unit (horizontal lines/gaps)
 - door: hinged door (vertical lines/gaps)
 
-Upper cabinets (상부장): count total number of door modules.
+STEP 2: For each door/drawer module, estimate its width RELATIVE to the sink (1000mm).
+Example: if a door appears to be half the width of the sink, its ratio is 0.5 (= 500mm).
 
-Also detect: has_sink (boolean), has_cooktop (boolean), has_hood (boolean).
+STEP 3: Count upper cabinet door modules.
 
 Return ONLY this JSON:
 {
-  "lower": [{"type":"sink"}, {"type":"door"}, {"type":"cooktop"}, {"type":"drawer"}, ...],
+  "lower": [{"type":"sink","ratio":1.0}, {"type":"door","ratio":0.45}, {"type":"cooktop","ratio":0.6}, {"type":"drawer","ratio":0.5}, ...],
   "upper_count": 5,
   "has_sink": true,
   "has_cooktop": true,
   "has_hood": true
-}`;
+}
+ratio: width relative to sink (1.0 = 1000mm). sink is always 1.0, cooktop is always 0.6.`;
 
       const mimeType = closedResult.image!.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
       const quoteText = await callClaude(quotePrompt, closedResult.image!, mimeType);
       const quoteMatch = quoteText.match(/\{[\s\S]*\}/);
       if (quoteMatch) {
         const raw = JSON.parse(quoteMatch[0]);
-        const lowerModules: Array<{ type: string }> = raw.lower || [];
+        const SINK_WIDTH = 1000;
+        const lowerModules: Array<{ type: string; ratio?: number }> = raw.lower || [];
         const upperCount: number = raw.upper_count || lowerModules.length;
 
-        // 모듈 타입별 고정/기본 너비로 길이 산출 (wallW 무관)
+        // ratio × 1000mm(sink 기준) → 실제 너비, 표준 규격 스냅
         const lowerWithWidths = lowerModules.map(m => {
           const type = m.type || 'door';
-          return { type, width: MODULE_DEFAULT_WIDTHS[type] || MODULE_DEFAULT_WIDTHS.door };
+          if (type === 'sink') return { type, width: SINK_WIDTH };
+          if (type === 'cooktop') return { type, width: 600 };
+          const rawWidth = Math.round((m.ratio || 0.45) * SINK_WIDTH);
+          return { type, width: snapToStandard(Math.max(300, rawWidth)) };
         });
         const lowerTotalCalc = lowerWithWidths.reduce((s, m) => s + m.width, 0);
 
@@ -454,7 +459,7 @@ Return ONLY this JSON:
           lower_total: lowerTotalCalc,
           upper_count: upperCount,
           upper_total: upperAdjusted.reduce((s, m) => s + m.width, 0),
-        }, 'Module-count based dimension analysis');
+        }, 'Ratio-based dimension analysis (sink=1000mm reference)');
 
         const analysis: ImageAnalysisResult = {
           lower_cabinets: lowerWithWidths.map(m => ({ width_mm: m.width, type: m.type })),
@@ -470,13 +475,13 @@ Return ONLY this JSON:
 
         quote = calculateQuote(analysis, category);
         quoteMetadata = {
-          analysis_version: 'module-count-v2',
+          analysis_version: 'ratio-based-v3',
           lower_modules: lowerWithWidths,
           upper_count: upperCount,
           lower_total_mm: lowerTotalCalc,
           wall_analysis_wallW: wallW,
         };
-        log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (module-count)');
+        log.info({ total: quote?.total, ...quoteMetadata }, 'Quote calculated (ratio-based)');
       }
     } catch (e: any) {
       log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
