@@ -51,8 +51,8 @@ interface ProtoModule {
   kind: ModKind;
   /** 절대 X 위치 (inner coord, 좌측 마감재 이후) — 정렬·배치용 임시 */
   start?: number;
-  /** normal=주선(X축), secondary=차선(Z축, ㄱ자/ㄷ자) */
-  orientation?: 'normal' | 'secondary';
+  /** normal=주선(X축), secondary=좌측 차선(Z축), tertiary=우측 차차선(Z축) */
+  orientation?: 'normal' | 'secondary' | 'tertiary';
   /** 차선 모듈이 연결되는 주선 모듈 인덱스 */
   blindAnchorIdx?: number;
 }
@@ -325,13 +325,13 @@ export function generateRandomSinkDesign(
     const primaryLastLowerIdx = lowerProto.filter(m => (m.orientation ?? 'normal') === 'normal').length - 1;
     const primaryLastUpperIdx = upperProto.filter(m => (m.orientation ?? 'normal') === 'normal').length - 1;
 
-    const secLower = layoutSecondary(env.secondaryRightW!, depth, fillerW, rng);
-    secLower.forEach(m => { m.blindAnchorIdx = primaryLastLowerIdx; });
-    lowerProto.push(...secLower);
+    const terLower = layoutSecondary(env.secondaryRightW!, depth, fillerW, rng);
+    terLower.forEach(m => { m.orientation = 'tertiary'; m.blindAnchorIdx = primaryLastLowerIdx; });
+    lowerProto.push(...terLower);
 
-    const secUpper = layoutSecondary(env.secondaryRightW!, depth, fillerW, rng);
-    secUpper.forEach(m => { m.blindAnchorIdx = primaryLastUpperIdx; });
-    upperProto.push(...secUpper);
+    const terUpper = layoutSecondary(env.secondaryRightW!, depth, fillerW, rng);
+    terUpper.forEach(m => { m.orientation = 'tertiary'; m.blindAnchorIdx = primaryLastUpperIdx; });
+    upperProto.push(...terUpper);
   }
 
   // 3) 최종 idx 재번호 + 변환

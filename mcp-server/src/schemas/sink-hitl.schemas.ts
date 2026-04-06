@@ -40,7 +40,8 @@ export const SinkModuleTypeSchema = z.enum([
   'sink', 'cook', 'hood', 'lt', 'storage', 'drawer', 'blank',
 ]);
 
-export const SinkModuleOrientationSchema = z.enum(['normal', 'secondary']);
+// normal=주선, secondary=좌측 차선(ㄱ자/ㄷ자), tertiary=우측 차차선(ㄷ자)
+export const SinkModuleOrientationSchema = z.enum(['normal', 'secondary', 'tertiary']);
 
 export const SinkModuleSchema = z.object({
   idx: z.number().int().nonnegative(),
