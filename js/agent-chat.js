@@ -2,14 +2,18 @@
 // Agent Chat Client - SSE 스트리밍 + 이미지 업로드
 // ═══════════════════════════════════════════════════════════════
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:3200'
-  : '';
+const API_BASE = (() => {
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:3200';
+  // 프로덕션: Railway 배포 URL (환경별 설정)
+  return window.__DADAM_API_BASE || 'https://agent-api-production-523d.up.railway.app';
+})();
 
 class AgentChat {
   constructor() {
     this.sessionId = null;
     this.isProcessing = false;
+    this.accessToken = null;
 
     // DOM 요소
     this.chatMessages = document.getElementById('chat-messages');
@@ -145,9 +149,26 @@ class AgentChat {
     const progressEl = botMsgEl.querySelector('.msg-progress');
 
     try {
+      // 매 요청마다 최신 토큰 갱신
+      if (typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client) {
+        const { data: { session } } = await SupabaseUtils.client.auth.getSession();
+        if (session?.access_token) {
+          this.accessToken = session.access_token;
+        }
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.accessToken) {
+        headers['Authorization'] = `Bearer ${this.accessToken}`;
+      } else {
+        this.addBotMessage('로그인이 필요합니다. 로그인 페이지로 이동합니다.');
+        setTimeout(() => { window.location.href = 'login.html?redirect=chat.html'; }, 1500);
+        return;
+      }
+
       const response = await fetch(`${API_BASE}/api/agent/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(requestBody),
       });
 
@@ -444,6 +465,18 @@ class AgentChat {
 }
 
 let agentChat;
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   agentChat = new AgentChat();
+
+  // Supabase 로그인 세션에서 토큰 가져오기
+  if (typeof SupabaseUtils !== 'undefined') {
+    const session = await SupabaseUtils.init();
+    if (session?.access_token) {
+      agentChat.accessToken = session.access_token;
+      console.log('[AgentChat] 인증 토큰 설정 완료');
+    } else {
+      console.warn('[AgentChat] 로그인 필요 — 로그인 페이지로 이동합니다.');
+      window.location.href = 'login.html?redirect=chat.html';
+    }
+  }
 });

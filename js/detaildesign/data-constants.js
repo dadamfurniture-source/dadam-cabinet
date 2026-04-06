@@ -18,8 +18,19 @@
       const DOOR_TARGET_WIDTH = 450; // 목표 도어 너비 (싱크대)
       const DOOR_MAX_WIDTH = 600; // 최대 도어 너비
       const DOOR_MIN_WIDTH = 350; // ★ 최소 도어 너비 (NEW)
-      const MIN_REMAINDER = 4; // ★ 최소 잔여 (0→4)
+      const MIN_REMAINDER = 5; // ★ 최소 잔여 (4→5, ACTIVE_RULES v28)
       const MAX_REMAINDER = 10; // 최대 잔여
+
+      // ★ 개수대 기본 너비 (실측 기준)
+      const SINK_DEFAULT_W_SMALL = 950; // W ≤ 2500mm
+      const SINK_DEFAULT_W_LARGE = 1000; // W > 2500mm
+
+      // ★ 개수대 최대 너비
+      const SINK_MAX_W = 1100;
+
+      // ★ 고정 너비 모듈 (갭 흡수 대상 제외)
+      const LT_FIXED_W = 200;
+      const COOK_FIXED_W = 600;
 
       const DEFAULT_SPECS = {
         layoutShape: 'I',
@@ -42,9 +53,10 @@
         accessories: [{ id: Date.now(), type: 'LTMesh' }, { id: Date.now() + 1, type: 'Cutlery' }, { id: Date.now() + 2, type: 'Knife' }],
         // 실측 기준 = 분배기 기준 = 장 기준
         measurementBase: 'Left',
-        distributorStart: 0,
-        distributorEnd: 0,
-        ventStart: 0,
+        distributorStart: null,
+        distributorEnd: null,
+        ventStart: null,
+        secondaryUpperEnabled: true,
         finishLeftType: 'Filler',
         finishLeftWidth: 60,
         finishRightType: 'Filler',

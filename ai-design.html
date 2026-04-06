@@ -8,6 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>AI 설계 - 다담가구</title>
+    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/dadam-system.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -59,183 +61,7 @@
         -webkit-tap-highlight-color: transparent;
       }
 
-      /* Navigation */
-      .nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 100;
-        padding: 0 48px;
-        height: 72px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: rgba(255, 255, 255, 0.97);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-      }
-      .nav-logo {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--charcoal);
-      }
-      .nav-logo svg {
-        width: 28px;
-        height: 28px;
-      }
-      .nav-logo span {
-        font-family: 'Playfair Display', serif;
-        font-size: 22px;
-      }
-      .nav-menu {
-        display: flex;
-        gap: 28px;
-      }
-      .nav-menu a {
-        color: var(--charcoal);
-        font-size: 13px;
-        letter-spacing: 0.5px;
-        transition: all 0.3s;
-      }
-      .nav-menu a:hover {
-        opacity: 0.7;
-      }
-      .nav-menu a.active {
-        color: var(--gold);
-        font-weight: 500;
-      }
-      .nav-icons {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        color: var(--charcoal);
-      }
-      .nav-icons button {
-        background: none;
-        border: none;
-        color: inherit;
-        cursor: pointer;
-        padding: 4px;
-      }
-      .login-btn {
-        padding: 8px 20px;
-        background: var(--charcoal);
-        color: #fff;
-        border-radius: 20px;
-        font-size: 13px;
-        transition: all 0.3s;
-      }
-      .login-btn:hover {
-        background: var(--gold);
-      }
-      .user-menu {
-        position: relative;
-      }
-      .user-btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        border-radius: 20px;
-        background: var(--cream);
-        border: none;
-        color: inherit;
-        cursor: pointer;
-        transition: all 0.3s;
-      }
-      .user-btn:hover {
-        background: var(--warm);
-      }
-      .user-avatar {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: var(--gold);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: 600;
-        color: #fff;
-      }
-      .user-name {
-        font-size: 13px;
-        max-width: 100px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .user-dropdown {
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        min-width: 180px;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(-10px);
-        transition: all 0.3s;
-        z-index: 200;
-      }
-      .user-menu:hover .user-dropdown {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
-      }
-      .user-dropdown a,
-      .user-dropdown button {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 12px 16px;
-        font-size: 14px;
-        color: var(--charcoal);
-        background: none;
-        border: none;
-        cursor: pointer;
-        transition: background 0.2s;
-        text-align: left;
-      }
-      .user-dropdown a:hover,
-      .user-dropdown button:hover {
-        background: var(--cream);
-      }
-      .user-dropdown svg {
-        width: 18px;
-        height: 18px;
-        color: var(--gray);
-      }
-
-      .hamburger {
-        display: none;
-        flex-direction: column;
-        gap: 5px;
-        padding: 8px;
-        cursor: pointer;
-        background: none;
-        border: none;
-      }
-      .hamburger span {
-        width: 24px;
-        height: 2px;
-        background: var(--charcoal);
-        border-radius: 2px;
-        transition: all 0.3s;
-      }
-      .hamburger.active span:nth-child(1) {
-        transform: rotate(45deg) translate(5px, 5px);
-      }
-      .hamburger.active span:nth-child(2) {
-        opacity: 0;
-      }
-      .hamburger.active span:nth-child(3) {
-        transform: rotate(-45deg) translate(5px, -5px);
-      }
+      /* Navigation — css/nav.css에서 로드 */
 
       .mobile-menu {
         position: fixed;
@@ -302,22 +128,85 @@
         padding: 0 24px 60px;
       }
 
-      /* Chat Box */
-      .chat-box {
+      /* Floating Chat Widget */
+      .chat-fab {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, var(--gold), #d4a574);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 16px rgba(184, 149, 108, 0.4);
+        z-index: 1000;
+        transition: all 0.3s;
+      }
+      .chat-fab:hover {
+        transform: scale(1.08);
+        box-shadow: 0 6px 24px rgba(184, 149, 108, 0.5);
+      }
+      .chat-fab svg {
+        width: 24px;
+        height: 24px;
+        color: #fff;
+      }
+      .chat-fab .fab-close {
+        display: none;
+      }
+      .chat-fab.active .fab-open {
+        display: none;
+      }
+      .chat-fab.active .fab-close {
+        display: block;
+      }
+      .chat-fab-badge {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 14px;
+        height: 14px;
+        background: #4caf50;
+        border: 2px solid #fff;
+        border-radius: 50%;
+      }
+
+      .chat-widget {
+        position: fixed;
+        bottom: 92px;
+        right: 24px;
+        width: 380px;
+        max-height: 520px;
         background: var(--white);
         border: 1px solid var(--warm);
         border-radius: 16px;
         overflow: hidden;
-        margin-bottom: 32px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        transform: scale(0.9) translateY(20px);
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        transform-origin: bottom right;
+      }
+      .chat-widget.open {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+        pointer-events: auto;
       }
       .chat-header {
         padding: 14px 20px;
-        background: var(--cream);
+        background: var(--charcoal);
         display: flex;
         align-items: center;
         gap: 12px;
-        border-bottom: 1px solid var(--warm);
+        flex-shrink: 0;
       }
       .chat-header-icon {
         width: 36px;
@@ -338,10 +227,11 @@
         font-size: 15px;
         font-family: inherit;
         font-weight: 600;
+        color: #fff;
       }
       .chat-header-text p {
         font-size: 11px;
-        color: var(--gray);
+        color: rgba(255,255,255,0.6);
       }
       .chat-status {
         margin-left: auto;
@@ -349,7 +239,7 @@
         align-items: center;
         gap: 5px;
         font-size: 11px;
-        color: var(--gray);
+        color: rgba(255,255,255,0.6);
       }
       .chat-status::before {
         content: '';
@@ -359,13 +249,14 @@
         border-radius: 50%;
       }
       .chat-messages {
-        height: 100px;
+        height: 340px;
         padding: 16px 20px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
         gap: 10px;
         background: var(--white);
+        flex: 1;
       }
       .message {
         display: flex;
@@ -428,18 +319,19 @@
         margin-bottom: 4px;
       }
       .chat-input {
-        padding: 14px 20px;
+        padding: 12px 16px;
         border-top: 1px solid var(--warm);
         background: var(--cream);
         display: flex;
         gap: 10px;
+        flex-shrink: 0;
       }
       .chat-input input {
         flex: 1;
-        padding: 12px 14px;
+        padding: 10px 14px;
         border: 1px solid var(--warm);
         border-radius: 10px;
-        font-size: 16px;
+        font-size: 14px;
         background: var(--white);
       }
       .chat-input input:focus {
@@ -447,8 +339,8 @@
         border-color: var(--gold);
       }
       .chat-input button {
-        width: 44px;
-        height: 44px;
+        width: 40px;
+        height: 40px;
         background: var(--charcoal);
         border: none;
         border-radius: 10px;
@@ -838,56 +730,81 @@
         color: var(--charcoal);
       }
 
-      /* Style Theme Grid */
-      .style-theme-grid {
+      /* Gallery Tabs */
+      .gallery-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+      }
+      .gallery-tabs::-webkit-scrollbar { display: none; }
+      .gallery-tab {
+        padding: 6px 14px;
+        border: 1px solid var(--warm);
+        border-radius: 20px;
+        background: var(--white);
+        font-size: 12px;
+        color: var(--gray);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      }
+      .gallery-tab:hover {
+        border-color: var(--gold);
+        color: var(--charcoal);
+      }
+      .gallery-tab.active {
+        background: var(--charcoal);
+        border-color: var(--charcoal);
+        color: #fff;
+      }
+
+      /* Product Gallery Grid */
+      .product-gallery {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 10px;
         margin-bottom: 20px;
       }
-      .style-theme-card {
-        background: var(--white);
-        border: 2px solid transparent;
-        border-radius: 12px;
-        padding: 14px 8px;
-        text-align: center;
+      .gallery-item {
+        aspect-ratio: 4/3;
+        border-radius: 10px;
+        overflow: hidden;
         cursor: pointer;
-        transition: all 0.3s;
+        position: relative;
+        background: var(--cream);
       }
-      .style-theme-card:hover {
-        border-color: var(--gold-light);
-        transform: translateY(-2px);
+      .gallery-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
       }
-      .style-theme-card.selected {
-        border-color: var(--gold);
-        background: linear-gradient(180deg, rgba(184, 149, 108, 0.1) 0%, var(--white) 100%);
+      .gallery-item:hover img {
+        transform: scale(1.06);
       }
-      .style-theme-icon {
-        width: 36px;
-        height: 36px;
-        margin: 0 auto 8px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
+      .gallery-item .gallery-badge {
+        position: absolute;
+        bottom: 6px;
+        left: 6px;
+        background: rgba(0,0,0,0.6);
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        backdrop-filter: blur(4px);
       }
-      .style-theme-card h4 {
-        font-size: 12px;
-        font-weight: 600;
-        margin-bottom: 2px;
-        font-family: inherit;
-      }
-      .style-theme-card p {
-        font-size: 9px;
+      .gallery-loading {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 32px;
         color: var(--gray);
-        line-height: 1.3;
+        font-size: 13px;
       }
-      .style-modern .style-theme-icon { background: #f5f5f5; }
-      .style-scandi .style-theme-icon { background: #e8f0e8; }
-      .style-industrial .style-theme-icon { background: #e5e5e5; }
-      .style-classic .style-theme-icon { background: #f5ebe0; }
-      .style-luxury .style-theme-icon { background: #1a1a1a; color: #d4af37; }
 
       /* Selected Theme Summary */
       .theme-summary {
@@ -914,12 +831,11 @@
         color: var(--charcoal);
       }
       @media (max-width: 768px) {
-        .style-theme-grid { grid-template-columns: repeat(3, 1fr); }
+        .product-gallery { grid-template-columns: repeat(3, 1fr); }
         .theme-summary { flex-wrap: wrap; gap: 12px; }
       }
       @media (max-width: 480px) {
-        .style-theme-grid { grid-template-columns: repeat(2, 1fr); }
-        .style-theme-card p { display: none; }
+        .product-gallery { grid-template-columns: repeat(2, 1fr); }
       }
 
       /* Single Generate Button */
@@ -1716,11 +1632,20 @@
           padding: 0 12px 40px;
         }
 
-        .chat-box {
-          margin-bottom: 20px;
+        .chat-widget {
+          width: calc(100vw - 24px);
+          right: 12px;
+          bottom: 80px;
+          max-height: 60vh;
         }
         .chat-messages {
-          height: 80px;
+          height: 240px;
+        }
+        .chat-fab {
+          bottom: 16px;
+          right: 12px;
+          width: 50px;
+          height: 50px;
         }
 
         .category-grid {
@@ -1958,7 +1883,7 @@
     </svg>
 
     <!-- Navigation -->
-    <nav class="nav">
+    <nav class="nav nav-solid">
       <a href="index.html" class="nav-logo">
         <svg viewBox="0 0 40 40" fill="currentColor">
           <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
@@ -1966,15 +1891,16 @@
         <span>다담</span>
       </a>
       <div class="nav-menu">
-        <a href="index.html">홈</a>
-        <a href="ai-design.html" class="active">AI 설계</a>
+        <a href="#">About us</a>
+        <a href="collection.html">Collection</a>
+        <a href="ai-design.html" class="active">AI Design</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display:none">Detail Design</a>
         <a href="consultation.html">상담 신청</a>
+        <a href="#">Service</a>
       </div>
       <div class="nav-icons">
-        <!-- 비로그인 상태 -->
         <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-        <!-- 로그인 상태 -->
-        <div class="user-menu" id="userMenu" style="display: none">
+        <div class="user-menu" id="userMenu" style="display:none">
           <button class="user-btn">
             <div class="user-avatar" id="navUserAvatar">?</div>
             <span class="user-name" id="navUserName">사용자</span>
@@ -1983,28 +1909,12 @@
             </svg>
           </button>
           <div class="user-dropdown">
-            <a href="mypage.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" /></svg
-              >마이페이지</a
-            >
-            <a href="my-designs.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" /></svg
-              >내 설계</a
-            >
-            <button onclick="logout()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" /></svg
-              >로그아웃
-            </button>
+            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
+            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
           </div>
         </div>
-        <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
+        <button class="hamburger" onclick="toggleMobileMenu()">
           <span></span>
           <span></span>
           <span></span>
@@ -2015,7 +1925,8 @@
     <!-- Mobile Menu -->
     <div class="mobile-menu" id="mobileMenu">
       <a href="index.html">홈</a>
-      <a href="ai-design.html" class="active" style="background: var(--cream)">AI 설계</a>
+      <a href="ai-design.html" class="active" style="background: var(--cream)">AI Design</a>
+      <a href="detaildesign.html" id="mobileDetailDesign" style="display:none">Detail Design</a>
       <a href="consultation.html">상담 신청</a>
       <a href="mypage.html">마이페이지</a>
       <a href="my-designs.html">내 설계</a>
@@ -2055,39 +1966,45 @@
       <p>사진 한 장으로 맞춤 가구를 디자인하세요</p>
     </section>
 
-    <!-- Main Container -->
-    <main class="main-container">
-      <!-- AI Chat Box -->
-      <div class="chat-box">
-        <div class="chat-header">
-          <div class="chat-header-icon">
-            <svg><use href="#icon-ai" /></svg>
-          </div>
-          <div class="chat-header-text">
-            <h3>다담 AI 설계사</h3>
-            <p>맞춤 가구 설계 전문 AI</p>
-          </div>
-          <div class="chat-status">온라인</div>
+    <!-- Floating Chat Widget -->
+    <button class="chat-fab" id="chatFab" onclick="toggleChat()" aria-label="AI 설계사 채팅">
+      <span class="fab-open" style="color:#fff;font-weight:700;font-size:16px;letter-spacing:1px">AI</span>
+      <svg class="fab-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      <span class="chat-fab-badge"></span>
+    </button>
+
+    <div class="chat-widget" id="chatWidget">
+      <div class="chat-header">
+        <div class="chat-header-icon">
+          <svg><use href="#icon-ai" /></svg>
         </div>
-        <div class="chat-messages" id="chatMessages">
-          <div class="welcome-msg">
-            <strong>👋 안녕하세요!</strong>
-            카테고리를 선택하고 사진을 업로드해주세요.
-          </div>
+        <div class="chat-header-text">
+          <h3>다담 AI 설계사</h3>
+          <p>맞춤 가구 설계 전문 AI</p>
         </div>
-        <div class="chat-input">
-          <input
-            type="text"
-            id="messageInput"
-            placeholder="메시지를 입력하세요..."
-            onkeydown="if (event.key === 'Enter') sendMessage();"
-          />
-          <button onclick="sendMessage()" aria-label="전송">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send" /></svg>
-          </button>
+        <div class="chat-status">온라인</div>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome-msg">
+          <strong>안녕하세요!</strong>
+          카테고리를 선택하고 사진을 업로드해주세요.
         </div>
       </div>
+      <div class="chat-input">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="메시지를 입력하세요..."
+          onkeydown="if (event.key === 'Enter') sendMessage();"
+        />
+        <button onclick="sendMessage()" aria-label="전송">
+          <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send" /></svg>
+        </button>
+      </div>
+    </div>
 
+    <!-- Main Container -->
+    <main class="main-container">
       <!-- Category Buttons (New Layout) -->
       <p class="section-title">카테고리 선택</p>
       <p class="section-subtitle">클릭하여 사진 업로드 (여러 개 선택 가능)</p>
@@ -2202,71 +2119,35 @@
         <p class="section-subtitle">주방 형태를 선택하세요</p>
         <div class="kitchen-layout-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px;">
           <button class="kitchen-layout-btn" data-layout="i_type" onclick="selectKitchenLayout('i_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">━</div>
             <div style="font-size: 13px; font-weight: 600;">1자형</div>
             <div style="font-size: 11px; color: #888;">직선형</div>
           </button>
           <button class="kitchen-layout-btn" data-layout="l_type" onclick="selectKitchenLayout('l_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">┗</div>
             <div style="font-size: 13px; font-weight: 600;">ㄱ자형</div>
             <div style="font-size: 11px; color: #888;">L자형</div>
           </button>
           <button class="kitchen-layout-btn" data-layout="u_type" onclick="selectKitchenLayout('u_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">┗┛</div>
             <div style="font-size: 13px; font-weight: 600;">ㄷ자형</div>
             <div style="font-size: 11px; color: #888;">U자형</div>
           </button>
           <button class="kitchen-layout-btn" data-layout="peninsula" onclick="selectKitchenLayout('peninsula')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 24px; margin-bottom: 6px;">╋</div>
             <div style="font-size: 13px; font-weight: 600;">대면형</div>
             <div style="font-size: 11px; color: #888;">11자형</div>
           </button>
         </div>
       </div>
 
-      <!-- Theme Selection Section -->
+      <!-- Product Gallery Section -->
       <div class="theme-section">
-        <!-- Style Theme -->
         <div class="theme-section-header">
           <span class="theme-section-number">1</span>
-          <span class="theme-section-title">스타일 테마</span>
+          <span class="theme-section-title">시공 사례</span>
         </div>
-        <div class="style-theme-grid">
-          <div class="style-theme-card style-modern selected" data-style="modern-minimal" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">◻️</div>
-            <h4>모던 미니멀</h4>
-            <p>깔끔하고 현대적</p>
-          </div>
-          <div class="style-theme-card style-scandi" data-style="scandinavian" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">🌲</div>
-            <h4>스칸디나비안</h4>
-            <p>따뜻한 원목</p>
-          </div>
-          <div class="style-theme-card style-industrial" data-style="industrial" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">⚙️</div>
-            <h4>인더스트리얼</h4>
-            <p>빈티지 메탈</p>
-          </div>
-          <div class="style-theme-card style-classic" data-style="classic" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">🏛️</div>
-            <h4>클래식</h4>
-            <p>우아한 전통</p>
-          </div>
-          <div class="style-theme-card style-luxury" data-style="luxury" onclick="selectStyleTheme(this)">
-            <div class="style-theme-icon">⭐</div>
-            <h4>럭셔리</h4>
-            <p>고급스러운</p>
-          </div>
+        <div class="gallery-tabs" id="galleryTabs">
+          <button class="gallery-tab active" data-cat="all" onclick="filterGallery('all')">전체</button>
         </div>
-
-        <!-- Selection Summary -->
-        <div class="theme-summary">
-          <div class="theme-summary-item">
-            <div>
-              <div class="theme-summary-label">선택된 스타일</div>
-              <div class="theme-summary-value" id="selectedStyleName">모던 미니멀</div>
-            </div>
-          </div>
+        <div class="product-gallery" id="productGallery">
+          <div class="gallery-loading">이미지를 불러오는 중...</div>
         </div>
       </div>
 
@@ -2402,12 +2283,17 @@
               document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
               document.getElementById('navUserName').textContent = name;
 
-              // Expert/Business 등급: 상세 설계 버튼 표시 (자동 리다이렉트 제거)
-              // ai-design 페이지에서도 사용 가능하도록 변경
+              // 로그인 시 Detail Design 탭 표시
+              const ddNav = document.getElementById('navDetailDesign');
+              const ddMobile = document.getElementById('mobileDetailDesign');
+              if (ddNav) ddNav.style.display = '';
+              if (ddMobile) ddMobile.style.display = '';
             }
           }
           // 스타일 데이터 Supabase 로드
           loadStylesFromSupabase();
+          // 품목 이미지 갤러리 로드
+          loadProductGallery();
         } catch (e) {
           console.log('Auth check error:', e.message);
         }
@@ -2421,11 +2307,24 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // API URLs (Cloudflare Worker 프록시 경유 - CORS 해결!)
-      // ═══════════════════════════════════════════════════════════════
-      const N8N_CHAT_URL = 'https://dadam.app.n8n.cloud/webhook/chat';
+      // n8n 제거 — 채팅 기능 비활성화
+      const N8N_CHAT_URL = null;
 
       // ═══════════════════════════════════════════════════════════════
+      // 플로팅 채팅 토글
+      // ═══════════════════════════════════════════════════════════════
+      function toggleChat() {
+        const widget = document.getElementById('chatWidget');
+        const fab = document.getElementById('chatFab');
+        const isOpen = widget.classList.toggle('open');
+        fab.classList.toggle('active', isOpen);
+        if (isOpen) {
+          const msgs = document.getElementById('chatMessages');
+          msgs.scrollTop = msgs.scrollHeight;
+          document.getElementById('messageInput').focus();
+        }
+      }
+
       // 채팅 기록 저장/불러오기 (Supabase)
       // ═══════════════════════════════════════════════════════════════
 
@@ -2508,9 +2407,10 @@
           }
         }, 500);
       });
-      // 프로덕션 API URL (MCP 서버 직접 호출 — Gemini 3.1 Flash Image)
-      // n8n 제거, MCP 서버에서 직접 Gemini API 호출
-      const API_GENERATE_URL = '/api/generate';
+      // 이미지 생성 API URL (config 우선, 없으면 운영 기본값)
+      const API_GENERATE_URL =
+        window.DADAM_CONFIG?.generateApi?.url ||
+        'https://dadam-generate-api-production.up.railway.app/api/generate';
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
@@ -2773,6 +2673,151 @@ Magazine quality, professional lighting.`;
         }
       };
 
+      // 색상 카탈로그/RNG/참조이미지 제거됨 — AI가 프롬프트 기반으로 색상 직접 선택
+
+      function buildKitchenLayoutConstraints(layout, wallWidthMm) {
+        const normalizedWallWidth = Math.max(2400, Math.round(wallWidthMm || 3300));
+        const baseWidth = Math.min(3600, Math.max(2400, Math.round((normalizedWallWidth * 0.84) / 50) * 50));
+        const sinkWidth = 900;
+        const cooktopWidth = 600;
+        const hoodWidth = 600;
+        const sinkCenter = layout === 'l_type' ? Math.round(baseWidth * 0.32) : Math.round(baseWidth * 0.3);
+        const cooktopCenter = layout === 'peninsula' ? Math.round(baseWidth * 0.62) : Math.round(baseWidth * 0.7);
+        const sinkX = Math.max(0, sinkCenter - sinkWidth / 2);
+        const cooktopX = Math.max(0, cooktopCenter - cooktopWidth / 2);
+        const hoodX = Math.max(0, cooktopCenter - hoodWidth / 2);
+
+        return {
+          layout_type: layout || 'i_type',
+          total_width_mm: baseWidth,
+          base_depth_mm: 600,
+          upper_depth_mm: 360,
+          fixed_appliances: {
+            sink: { x_mm: sinkX, width_mm: sinkWidth, center_mm: sinkCenter, anchor: 'from_left' },
+            cooktop: { x_mm: cooktopX, width_mm: cooktopWidth, center_mm: cooktopCenter, anchor: 'from_left' },
+            hood: {
+              x_mm: hoodX,
+              width_mm: hoodWidth,
+              center_mm: cooktopCenter,
+              anchor: 'from_left',
+              align_to: 'cooktop_center'
+            }
+          },
+          lower_modules: [
+            { type: 'storage', position_from_left_mm: 0, width_mm: Math.max(400, sinkX), fixed: false },
+            { type: 'sink', position_from_left_mm: sinkX, width_mm: sinkWidth, fixed: true },
+            {
+              type: 'storage',
+              position_from_left_mm: sinkX + sinkWidth,
+              width_mm: Math.max(300, cooktopX - (sinkX + sinkWidth)),
+              fixed: false
+            },
+            { type: 'cooktop', position_from_left_mm: cooktopX, width_mm: cooktopWidth, fixed: true },
+            {
+              type: 'storage',
+              position_from_left_mm: cooktopX + cooktopWidth,
+              width_mm: Math.max(300, baseWidth - (cooktopX + cooktopWidth)),
+              fixed: false
+            }
+          ].filter((module) => module.width_mm > 0),
+          upper_modules: [
+            { type: 'storage', position_from_left_mm: 0, width_mm: hoodX, fixed: false },
+            { type: 'hood', position_from_left_mm: hoodX, width_mm: hoodWidth, fixed: true },
+            {
+              type: 'storage',
+              position_from_left_mm: hoodX + hoodWidth,
+              width_mm: Math.max(300, baseWidth - (hoodX + hoodWidth)),
+              fixed: false
+            }
+          ].filter((module) => module.width_mm > 0)
+        };
+      }
+
+      // SVG→PNG 변환/참조이미지 생성 제거됨 — AI 색상 위임으로 불필요
+
+      async function buildLayoutGuideImages(layoutConstraints, colorScheme) {
+        if (!layoutConstraints?.total_width_mm) {
+          return { layoutImage: null, maskImage: null };
+        }
+
+        const width = 1200;
+        const height = 720;
+        const padding = 80;
+        const totalWidth = layoutConstraints.total_width_mm;
+        const scale = (width - padding * 2) / totalWidth;
+        const lowerY = 420;
+        const lowerH = 170;
+        const upperY = 140;
+        const upperH = 120;
+
+        const moduleToRect = (module, y, h, fill, stroke) => {
+          const x = padding + Math.round((module.position_from_left_mm || 0) * scale);
+          const w = Math.max(8, Math.round((module.width_mm || 0) * scale));
+          return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="3" />`;
+        };
+
+        const labelForModule = (module, y) => {
+          const x = padding + Math.round(((module.position_from_left_mm || 0) + (module.width_mm || 0) / 2) * scale);
+          const text = (module.type || 'module').toUpperCase();
+          return `<text x="${x}" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1f2937">${text}</text>`;
+        };
+
+        const lowerModules = (layoutConstraints.lower_modules || []).map((module) =>
+          moduleToRect(
+            module,
+            lowerY,
+            lowerH,
+            module.type === 'sink' ? '#93c5fd' : module.type === 'cooktop' ? '#fca5a5' : (colorScheme?.lower?.color_hex || '#cbd5e1'),
+            '#334155'
+          )
+        ).join('');
+
+        const upperModules = (layoutConstraints.upper_modules || []).map((module) =>
+          moduleToRect(
+            module,
+            upperY,
+            upperH,
+            module.type === 'hood' ? '#fdba74' : (colorScheme?.upper?.color_hex || '#e2e8f0'),
+            '#334155'
+          )
+        ).join('');
+
+        const labels = []
+          .concat((layoutConstraints.lower_modules || []).map((module) => labelForModule(module, lowerY + lowerH / 2 + 10)))
+          .concat((layoutConstraints.upper_modules || []).map((module) => labelForModule(module, upperY + upperH / 2 + 10)))
+          .join('');
+
+        const guideSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            <rect width="100%" height="100%" fill="#f8fafc"/>
+            <text x="${padding}" y="56" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">Kitchen layout guide</text>
+            <text x="${padding}" y="94" font-family="Arial, sans-serif" font-size="20" fill="#475569">Keep sink, cooktop, and hood centered at these exact positions.</text>
+            <line x1="${padding}" y1="${lowerY + lowerH + 34}" x2="${width - padding}" y2="${lowerY + lowerH + 34}" stroke="#64748b" stroke-width="4"/>
+            ${upperModules}
+            ${lowerModules}
+            ${labels}
+          </svg>
+        `;
+
+        const maskSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            <rect width="100%" height="100%" fill="#000000"/>
+            ${upperModules.replace(/fill=\"[^\"]+\"/g, 'fill="#ffffff"').replace(/stroke=\"[^\"]+\"/g, 'stroke="#ffffff"')}
+            ${lowerModules.replace(/fill=\"[^\"]+\"/g, 'fill="#ffffff"').replace(/stroke=\"[^\"]+\"/g, 'stroke="#ffffff"')}
+          </svg>
+        `;
+
+        const guidePngDataUrl = await svgToPngDataUrl(guideSvg, width, height);
+        const maskPngDataUrl = await svgToPngDataUrl(maskSvg, width, height);
+
+        return {
+          layoutImage: dataUrlToInlineImage(guidePngDataUrl),
+          maskImage: dataUrlToInlineImage(maskPngDataUrl)
+        };
+      }
+
+      // buildColorReferenceImage 제거됨
+
       // Supabase에서 스타일 데이터 로드
       async function loadStylesFromSupabase() {
         try {
@@ -2801,6 +2846,98 @@ Magazine quality, professional lighting.`;
         } catch (e) {
           console.warn('[Styles] Supabase load failed, using fallback:', e.message);
         }
+      }
+
+      // Supabase furniture_images에서 품목별 이미지 로드
+      // 품목/구조 기준 그룹핑
+      const galleryGroups = {
+        'l_shaped_sink': 'L자형 싱크대',
+        'peninsula_sink': '반도형 싱크대',
+        'island_kitchen': '아일랜드',
+        'storage_cabinet': '수납장',
+        'wardrobe': '붙박이장',
+        'fridge_cabinet': '냉장고장',
+        'vanity': '화장대',
+        'shoe_cabinet': '신발장',
+      };
+
+      let galleryAllData = [];
+
+      async function loadProductGallery() {
+        const gallery = document.getElementById('productGallery');
+        const tabs = document.getElementById('galleryTabs');
+        if (!gallery || !supabaseClient) return;
+
+        try {
+          const { data, error } = await supabaseClient
+            .from('furniture_images')
+            .select('category, style, image_url')
+            .eq('is_training', false)
+            .limit(300);
+
+          if (error || !data || data.length === 0) {
+            loadFallbackGallery(gallery);
+            return;
+          }
+
+          galleryAllData = data;
+
+          // 존재하는 카테고리만 탭 생성
+          const cats = [...new Set(data.map(d => d.category))];
+          tabs.innerHTML = '<button class="gallery-tab active" data-cat="all" onclick="filterGallery(\'all\')">전체</button>'
+            + cats.map(c => {
+              const label = galleryGroups[c] || c;
+              return `<button class="gallery-tab" data-cat="${c}" onclick="filterGallery('${c}')">${label}</button>`;
+            }).join('');
+
+          filterGallery('all');
+          console.log('[Gallery] Loaded', data.length, 'images,', cats.length, 'categories');
+        } catch (e) {
+          console.warn('[Gallery] Supabase load failed:', e.message);
+          loadFallbackGallery(gallery);
+        }
+      }
+
+      function filterGallery(cat) {
+        const gallery = document.getElementById('productGallery');
+        // 탭 활성화
+        document.querySelectorAll('.gallery-tab').forEach(t =>
+          t.classList.toggle('active', t.dataset.cat === cat)
+        );
+        // 필터링 + 랜덤 8개
+        const filtered = cat === 'all' ? galleryAllData : galleryAllData.filter(d => d.category === cat);
+        const picked = filtered.sort(() => Math.random() - 0.5).slice(0, 8);
+
+        gallery.innerHTML = picked.map(img => {
+          const label = galleryGroups[img.category] || img.category;
+          return `<div class="gallery-item">
+            <img src="${img.image_url}" alt="${label}" loading="lazy" onerror="this.parentElement.remove()">
+            <span class="gallery-badge">${label}</span>
+          </div>`;
+        }).join('');
+
+        if (picked.length === 0) {
+          gallery.innerHTML = '<div class="gallery-loading">해당 품목 이미지가 없습니다</div>';
+        }
+      }
+
+      function loadFallbackGallery(gallery) {
+        const fallback = [
+          { src: 'app/portfolio/kitchen-n1-3.jpg', label: '싱크대' },
+          { src: 'app/portfolio/kitchen-n1-4.jpg', label: '싱크대' },
+          { src: 'app/portfolio/kitchen-n6-2.jpg', label: '수납장' },
+          { src: 'app/portfolio/kitchen-n6-3.jpg', label: '수납장' },
+          { src: 'app/portfolio/kitchen-n7-3.jpg', label: '붙박이장' },
+          { src: 'app/portfolio/kitchen-n7-4.jpg', label: '붙박이장' },
+          { src: 'app/portfolio/kitchen-n3-3.jpg', label: '싱크대' },
+          { src: 'app/portfolio/kitchen-n4-1.jpg', label: '냉장고장' },
+        ].sort(() => Math.random() - 0.5);
+        gallery.innerHTML = fallback.map(f =>
+          `<div class="gallery-item">
+            <img src="${f.src}" alt="${f.label}" loading="lazy">
+            <span class="gallery-badge">${f.label}</span>
+          </div>`
+        ).join('');
       }
 
       const categoryInfo = {
@@ -2998,8 +3135,45 @@ Magazine quality, professional lighting.`;
       // ═══════════════════════════════════════════════════════════════
       // Category & File Upload
       // ═══════════════════════════════════════════════════════════════
+      // 카테고리 버튼 → 갤러리 카테고리 매핑
+      const catToGallery = {
+        sink: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'],
+        wardrobe: ['wardrobe'],
+        fridge: ['fridge_cabinet'],
+        vanity: ['vanity'],
+        shoe: ['shoe_cabinet'],
+        storage: ['storage_cabinet'],
+      };
+
       function selectCategory(category) {
         document.getElementById(`file-${category}`).click();
+
+        // 해당 품목 갤러리 필터 연동
+        const mapped = catToGallery[category];
+        if (mapped && galleryAllData.length > 0) {
+          filterGalleryMulti(mapped);
+        }
+      }
+
+      function filterGalleryMulti(cats) {
+        const gallery = document.getElementById('productGallery');
+        // 탭 활성 해제 (직접 품목 선택이므로)
+        document.querySelectorAll('.gallery-tab').forEach(t => t.classList.remove('active'));
+
+        const filtered = galleryAllData.filter(d => cats.includes(d.category));
+        const picked = filtered.sort(() => Math.random() - 0.5).slice(0, 8);
+
+        gallery.innerHTML = picked.map(img => {
+          const label = galleryGroups[img.category] || img.category;
+          return `<div class="gallery-item">
+            <img src="${img.image_url}" alt="${label}" loading="lazy" onerror="this.parentElement.remove()">
+            <span class="gallery-badge">${label}</span>
+          </div>`;
+        }).join('');
+
+        if (picked.length === 0) {
+          gallery.innerHTML = '<div class="gallery-loading">해당 품목 이미지가 없습니다</div>';
+        }
       }
 
       function handleFileUpload(category, input) {
@@ -3182,6 +3356,7 @@ Magazine quality, professional lighting.`;
 
         state.results = [];
         const total = categories.length;
+        const generationNonce = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
         for (let i = 0; i < categories.length; i++) {
           const category = categories[i];
@@ -3217,9 +3392,6 @@ Magazine quality, professional lighting.`;
           console.log('Design Prompt:', designPrompt);
 
           try {
-            // 스타일 데이터 준비
-            const themeData = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
-
             const authHeaders = await getAuthHeaders();
             const response = await fetch(API_GENERATE_URL, {
               method: 'POST',
@@ -3230,9 +3402,6 @@ Magazine quality, professional lighting.`;
                 category: category,
                 design_style: state.selectedStyle,
                 kitchen_layout: category === 'sink' ? (state.selectedKitchenLayout || 'i_type') : undefined,
-                style_door_color: themeData.door_color_name || '',
-                style_door_finish: themeData.door_finish || '',
-                style_countertop_prompt: themeData.countertop_prompt || '',
               }),
             });
 
@@ -3245,33 +3414,34 @@ Magazine quality, professional lighting.`;
 
             // 이미지 추출 (MCP 서버 /api/generate 응답 형식)
             let afterImageUrl = '';
-            let afterImageUrlOpen = '';
+            let afterImageUrlAlt = '';
+            let altStyleName = '';
 
             if (data.generated_image) {
-              // 닫힌 도어 이미지
               if (data.generated_image.closed) {
                 afterImageUrl = `data:image/png;base64,${data.generated_image.closed}`;
               }
-              // 열린 도어 이미지
-              if (data.generated_image.open) {
-                afterImageUrlOpen = `data:image/png;base64,${data.generated_image.open}`;
+              if (data.generated_image.alt) {
+                afterImageUrlAlt = `data:image/png;base64,${data.generated_image.alt}`;
               }
             }
+            if (data.alt_style) {
+              altStyleName = data.alt_style.name || '';
+            }
 
-            // 분석 결과 포맷팅
-            let analysisText = data.message || `${themeData.name || state.selectedStyle} 스타일 적용`;
-
-            // 제안 텍스트
-            let suggestionText = `${info.name} - 동일 제품 도어 열림/닫힘`;
+            const currentTheme = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
+            let analysisText = data.message || `${currentTheme?.name || state.selectedStyle} 스타일 적용`;
+            let suggestionText = altStyleName ? `${info.name} - ${state.selectedStyle} 기본안 / ${altStyleName} AI 추천 적용 색상/질감` : `${info.name} 디자인`;
 
             state.results.push({
               category,
               beforeUrl: imageData.preview,
               afterUrl: afterImageUrl,
-              afterUrlOpen: afterImageUrlOpen,
+              afterUrlOpen: afterImageUrlAlt,
               analysis: analysisText,
               suggestions: suggestionText,
               wallAnalysis: data.room_analysis || wallAnalysis,
+              quote: data.quote || null,
             });
           } catch (error) {
             console.error(`Error generating ${category}:`, error);
@@ -3364,6 +3534,56 @@ Magazine quality, professional lighting.`;
               <div class="indicator-dot" onclick="goToImage(${index}, 2)"></div>
             </div>
           </div>
+          ${result.quote ? `
+          <div style="margin-top:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:20px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-size:18px;">💰</span>
+              <span style="font-size:15px;font-weight:600;color:#333;">예상 견적</span>
+              <span style="font-size:11px;color:#999;margin-left:auto;">${result.quote.grade === 'basic' ? '기본' : result.quote.grade === 'mid' ? '중급' : '프리미엄'} 등급</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${result.quote.items.map(item => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;">
+                  <div>
+                    <span style="font-size:13px;color:#333;">${item.name}</span>
+                    <span style="font-size:11px;color:#999;margin-left:6px;">${item.quantity}</span>
+                  </div>
+                  <span style="font-size:13px;font-weight:500;color:#333;">${item.total.toLocaleString()}원</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:2px solid #e5e7eb;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:13px;color:#666;">소계</span>
+                <span style="font-size:13px;color:#333;">${result.quote.subtotal.toLocaleString()}원</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-size:13px;color:#666;">부가세 (10%)</span>
+                <span style="font-size:13px;color:#333;">${result.quote.vat.toLocaleString()}원</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:16px;font-weight:700;color:#b8956c;">예상 견적</span>
+                <span style="font-size:16px;font-weight:700;color:#b8956c;">${result.quote.range ? result.quote.range.min.toLocaleString() : result.quote.total.toLocaleString()}원 ~ ${result.quote.range ? result.quote.range.max.toLocaleString() : result.quote.total.toLocaleString()}원</span>
+              </div>
+              <div style="text-align:right;margin-top:4px;">
+                <span style="font-size:11px;color:#999;">※ 실측 및 옵션에 따라 변동될 수 있습니다</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:16px;text-align:center;">
+            <button onclick="goToPartnerRecommendation()"
+              style="width:100%;padding:14px 24px;background:var(--charcoal);color:#fff;
+                     border:none;border-radius:8px;font-size:14px;font-weight:600;
+                     cursor:pointer;letter-spacing:0.5px;transition:all 0.3s;"
+              onmouseover="this.style.background='#b8956c'"
+              onmouseout="this.style.background='#2d2a26'">
+              🏠 시공 협력업체 추천받기
+            </button>
+            <p style="font-size:11px;color:#999;margin-top:6px;">
+              내 견적에 맞는 인테리어 업체와 제조공장을 추천받으세요
+            </p>
+          </div>
+          ` : ''}
         `;
 
           pagesContainer.appendChild(page);
@@ -3431,6 +3651,29 @@ Magazine quality, professional lighting.`;
         document.getElementById('currentPage').textContent = state.currentPage + 1;
         document.getElementById('prevPage').disabled = state.currentPage === 0;
         document.getElementById('nextPage').disabled = state.currentPage === state.results.length - 1;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // Partner Recommendation
+      // ═══════════════════════════════════════════════════════════════
+      function goToPartnerRecommendation() {
+        if (!state.results || state.results.length === 0) {
+          alert('디자인 결과가 없습니다. 먼저 이미지를 업로드해주세요.');
+          return;
+        }
+        const context = {
+          categories: Object.keys(state.uploadedImages),
+          style: state.selectedStyle,
+          styleName: state.selectedStyleName,
+          quoteTotal: state.results[0]?.quote?.total || 0,
+          quoteGrade: state.results[0]?.quote?.grade || 'mid',
+          designImages: state.results.map(r => ({
+            category: r.category,
+            afterUrl: r.afterUrl
+          }))
+        };
+        sessionStorage.setItem('partnerContext', JSON.stringify(context));
+        window.location.href = 'partner-recommendation.html';
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -3509,15 +3752,7 @@ Magazine quality, professional lighting.`;
         input.value = '';
 
         try {
-          const chatAuthHeaders = await getAuthHeaders();
-          const response = await fetch(N8N_CHAT_URL, {
-            method: 'POST',
-            headers: chatAuthHeaders,
-            body: JSON.stringify({ message }),
-          });
-          const data = await response.json();
-          const aiResponse = data.response || data.output || '응답을 처리할 수 없습니다.';
-          addChatMessage(aiResponse, false);
+          addChatMessage('채팅 기능은 현재 준비 중입니다.', false);
         } catch (error) {
           addChatMessage('일시적인 오류가 발생했습니다.', false);
         }
@@ -3543,8 +3778,8 @@ Magazine quality, professional lighting.`;
 
         const images = [
           { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
-          { url: img.dataset.closed, state: 'closed', label: '🚪 도어 닫힘', color: '#3b82f6' },
-          { url: img.dataset.open, state: 'open', label: '🚪 도어 열림', color: '#10b981' },
+          { url: img.dataset.closed, state: 'closed', label: '🎨 기본안', color: '#3b82f6' },
+          { url: img.dataset.open, state: 'open', label: '✨ AI 추천안', color: '#10b981' },
         ];
 
         // 이미지가 없으면 스킵

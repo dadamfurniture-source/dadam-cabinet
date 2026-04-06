@@ -8,6 +8,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { validateCategory } from '../middleware/input-validator.js';
+import { generateRateLimit } from '../middleware/rate-limiter.js';
 import { generateWithAutoLora, generateABTest } from '../services/controlnet-generation.service.js';
 import type { ControlNetType } from '../clients/replicate.client.js';
 import type { KitchenLayoutType } from '../types/index.js';
@@ -15,7 +16,7 @@ import type { KitchenLayoutType } from '../types/index.js';
 const log = createLogger('route:controlnet-image');
 const router = Router();
 
-router.post('/webhook/controlnet-image', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/webhook/controlnet-image', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body;
     const designData = body.design_data;

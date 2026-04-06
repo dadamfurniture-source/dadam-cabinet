@@ -11,6 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="css/dadam-system.css">
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -20,26 +21,8 @@
         box-sizing: border-box;
       }
 
-      :root {
-        --white: #fafafa;
-        --cream: #f8f7f4;
-        --warm: #ebe8e2;
-        --gray: #8b8680;
-        --charcoal: #2d2a26;
-        --black: #1a1918;
-        --gold: #b8956c;
-      }
-
       body {
-        font-family:
-          'Pretendard',
-          -apple-system,
-          BlinkMacSystemFont,
-          system-ui,
-          sans-serif;
-        background: var(--cream);
-        color: var(--charcoal);
-        line-height: 1.7;
+        background: var(--d-bg);
         min-height: 100vh;
         display: flex;
       }
@@ -48,7 +31,7 @@
       h2,
       h3,
       h4 {
-        font-family: 'Playfair Display', 'Noto Serif KR', serif;
+        font-family: var(--d-font-display);
         font-weight: 500;
       }
 
@@ -447,15 +430,6 @@
         background: var(--cream);
       }
 
-      .btn-kakao {
-        background: #fee500;
-        border: none;
-        color: #191919;
-      }
-
-      .btn-kakao:hover {
-        background: #fdd800;
-      }
 
       .btn-naver {
         background: #03c75a;
@@ -665,14 +639,6 @@
               </svg>
               Google로 계속하기
             </button>
-            <button type="button" class="btn-social btn-kakao" onclick="signInWithKakao()">
-              <svg viewBox="0 0 24 24" fill="#191919">
-                <path
-                  d="M12 3C6.48 3 2 6.58 2 11c0 2.85 1.93 5.35 4.84 6.75-.22.81-.8 2.93-.92 3.38-.14.54.2.53.42.39.17-.11 2.72-1.84 3.83-2.59.59.09 1.2.13 1.83.13 5.52 0 10-3.58 10-8s-4.48-8-10-8z"
-                />
-              </svg>
-              카카오로 계속하기
-            </button>
           </div>
 
           <!-- Footer -->
@@ -795,7 +761,7 @@
           if (data.user) {
             showSuccess('로그인 성공! 잠시 후 이동합니다...');
             setTimeout(() => {
-              window.location.href = 'index.html';
+              window.location.href = getRedirectUrl();
             }, 1000);
           }
         } catch (err) {
@@ -830,30 +796,6 @@
         }
       }
 
-      // 카카오 로그인
-      async function signInWithKakao() {
-        if (!supabaseClient) {
-          showError('Supabase가 설정되지 않았습니다.');
-          return;
-        }
-
-        hideMessages();
-
-        try {
-          const { data, error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'kakao',
-            options: {
-              redirectTo: window.location.origin + '/index.html',
-            },
-          });
-
-          if (error) {
-            showError('카카오 로그인 중 오류가 발생했습니다.');
-          }
-        } catch (err) {
-          showError('카카오 로그인 중 오류가 발생했습니다.');
-        }
-      }
 
       // 네이버 로그인 (커스텀 OIDC)
       async function signInWithNaver() {
@@ -908,6 +850,11 @@
       }
 
       // 페이지 로드 시 세션 확인
+      function getRedirectUrl() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('redirect') || 'index.html';
+      }
+
       async function checkSession() {
         if (!supabaseClient) return;
 
@@ -915,8 +862,7 @@
           data: { session },
         } = await supabaseClient.auth.getSession();
         if (session) {
-          // 이미 로그인된 상태면 메인으로 리다이렉트
-          window.location.href = 'index.html';
+          window.location.href = getRedirectUrl();
         }
       }
 

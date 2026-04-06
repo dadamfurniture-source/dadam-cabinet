@@ -22,6 +22,7 @@ import './tools/bom.tool.js';
 import './tools/bom-rules.tool.js';
 import './tools/drawing.tool.js';
 import './tools/svg-renderer.tool.js';
+import './tools/sink-hitl.tool.js';
 
 import { getToolDefinitions, executeTool } from './tools/registry.js';
 

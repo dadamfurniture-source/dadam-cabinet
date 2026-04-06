@@ -26,9 +26,17 @@ n8n/v8-import.json
 *.key
 *.p12
 *.pfx
+*.jks
 credentials.json
 service-account.json
+gcp-service-account*.json
 firebase-adminsdk*.json
+*-credentials.json
+*-service-key.json
+secret*.json
+!package.json
+!package-lock.json
+!tsconfig.json
 
 # Debug
 npm-debug.log*
@@ -77,3 +85,7 @@ mcp-server/output-svg/
 dadam-cabinet/
 config/gcp-service-account.json
 mcp-server/config/gcp-service-account.json
+.claude/worktrees/
+
+# 내부 문서 (Google 인덱싱 방지)
+docs/

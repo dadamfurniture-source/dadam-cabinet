@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// Generate Route — n8n 파이프라인 대체
+// Generate Route — 투톤 컬러 및 위치 고정 강화 버전
 // POST /api/generate
-// Gemini 3.1 Flash Image 직접 호출 (벽분석 + 가구생성 + 열린문)
 // ═══════════════════════════════════════════════════════════════
 
 import { Router } from 'express';
@@ -9,26 +8,42 @@ import type { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../utils/logger.js';
 import { getConfig } from '../utils/config.js';
 import { fetchWithRetry } from '../clients/base-http.client.js';
+import { calculateQuote, type ImageAnalysisResult } from '../services/quote.service.js';
+import { generateRateLimit } from '../middleware/rate-limiter.js';
 
 const log = createLogger('route:generate');
 const router = Router();
 
-// ─── 레이아웃 타입 설명 ───
-const LAYOUT_DESC: Record<string, string> = {
-  i_type: 'straight linear I-shaped',
-  l_type: 'L-shaped corner',
-  u_type: 'U-shaped three-wall',
-  peninsula: 'peninsula island facing living room',
+// ─── 스타일 매핑 (상부장 기본 색상) ───
+const STYLE_UPPER_COLOR: Record<string, string> = {
+  'modern-minimal': 'Warm White',
+  'scandinavian': 'Milk White',
+  'industrial': 'Sand Gray',
+  'classic': 'Ivory',
+  'luxury': 'Cashmere',
 };
 
-// ─── 스타일 매핑 ───
-const STYLE_MAP: Record<string, string> = {
-  'modern-minimal': 'Modern Minimal',
-  'scandinavian': 'Scandinavian Nordic',
-  'industrial': 'Industrial Vintage',
-  'classic': 'Classic Traditional',
-  'luxury': 'Luxury Premium',
+// ─── 대체 스타일 매핑 ───
+const ALT_STYLE_MAP: Record<string, string> = {
+  'modern-minimal': 'scandinavian',
+  'scandinavian': 'modern-minimal',
+  'industrial': 'classic',
+  'classic': 'luxury',
+  'luxury': 'modern-minimal',
 };
+
+// ─── 투톤 컬러 매핑 (상부장 → 추천 하부장) ───
+const TWO_TONE_MAP: Record<string, string> = {
+  'Warm White': 'Navy Blue',
+  'Milk White': 'Deep Green',
+  'Sand Gray': 'Concrete Gray',
+  'Ivory': 'Walnut',
+  'Cashmere': 'Dark Charcoal',
+  'Scandinavian White': 'Nature Oak',
+  'Default': 'Deep Grey',
+};
+
+type InlineImage = { data: string; mimeType: string };
 
 // ─── Gemini API 호출 ───
 async function callGemini(
@@ -37,6 +52,7 @@ async function callGemini(
   imageType?: string,
   responseModalities: string[] = ['IMAGE', 'TEXT'],
   temperature = 0.4,
+  extraImages: InlineImage[] = [],
 ): Promise<{ image?: string; text?: string }> {
   const config = getConfig();
   const model = config.gemini.models.imageGeneration;
@@ -45,6 +61,9 @@ async function callGemini(
   const parts: Array<Record<string, unknown>> = [];
   if (image && imageType) {
     parts.push({ inlineData: { mimeType: imageType, data: image } });
+  }
+  for (const extra of extraImages) {
+    parts.push({ inlineData: { mimeType: extra.mimeType, data: extra.data } });
   }
   parts.push({ text: prompt });
 
@@ -69,123 +88,62 @@ async function callGemini(
   const resultParts = data.candidates?.[0]?.content?.parts || [];
   let resultImage: string | undefined;
   let resultText: string | undefined;
-
   for (const part of resultParts) {
     if (part.inlineData) resultImage = part.inlineData.data;
     if (part.text) resultText = part.text;
   }
-
   return { image: resultImage, text: resultText };
 }
 
-// ─── 벽분석 프롬프트 ───
-function buildWallAnalysisPrompt(): string {
-  return `[TASK: 한국 주방 벽면 구조 및 설비 분석]
+// ─── Claude Vision API (견적 분석용) ───
+async function callClaude(prompt: string, imageBase64: string, imageType = 'image/png'): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
 
-이 사진에서 다음 정보를 JSON으로 추출하세요:
-- wall_dimensions_mm: { width, height } (추정치)
-- utility_positions_mm: {
-    water_supply_from_left, water_supply_confidence,
-    exhaust_duct_from_left, exhaust_duct_confidence,
-    gas_pipe_from_left, gas_pipe_confidence
-  }
-- confidence: "high" | "medium" | "low"
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: imageType, data: imageBase64 } },
+          { type: 'text', text: prompt },
+        ],
+      }],
+    }),
+  });
 
-JSON만 반환하세요.`;
-}
-
-// ─── 가구 생성 프롬프트 ───
-function buildFurniturePrompt(
-  category: string,
-  style: string,
-  kitchenLayout: string,
-  wallData: { wallW: number; wallH: number; waterPct: number; exhaustPct: number },
-  themeData: Record<string, string>,
-): string {
-  const layoutDesc = LAYOUT_DESC[kitchenLayout] || 'straight linear';
-  const styleName = STYLE_MAP[style] || 'Modern Minimal';
-  const doorColor = themeData.style_door_color || 'white';
-  const doorFinish = themeData.style_door_finish || 'matte';
-  const countertop = themeData.style_countertop_prompt || 'white stone countertop';
-
-  if (['sink', 'kitchen', 'l_shaped_sink', 'island_kitchen'].includes(category)) {
-    return `Place ${doorColor} ${doorFinish} flat panel ${layoutDesc} kitchen cabinets on this photo. PRESERVE background EXACTLY.
-
-[WALL] ${wallData.wallW}x${wallData.wallH}mm wall.
-[PLUMBING] Sink at ${wallData.waterPct}% from left, cooktop at ${wallData.exhaustPct}% from left.
-[UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets.
-[LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
-[COUNTERTOP] ${countertop}, continuous surface.
-[DOORS] Lower cabinet doors can be opened by reaching behind the door. No visible handles.
-[HOOD] Concealed range hood integrated into upper cabinet above cooktop.
-[STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
-[QUALITY] 8K quality, natural lighting, proper shadows and reflections.
-
-CRITICAL RULES:
-- PRESERVE the original room background, walls, floor, ceiling EXACTLY
-- All cabinet doors must be CLOSED
-- No text, labels, dimensions, or annotations
-- No people or pets
-- Photorealistic magazine-quality result`;
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Claude API ${res.status}: ${errText.substring(0, 200)}`);
   }
 
-  if (category === 'wardrobe') {
-    return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Full-width floor-to-ceiling wardrobe with hinged doors.
-Lower cabinet doors can be opened by reaching behind the door. No visible handles.
-${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'shoe' || category === 'shoe_cabinet') {
-    return `Place ${doorColor} ${doorFinish} shoe cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Slim profile 300-400mm depth. Floor-to-ceiling.
-No visible handles on doors. ${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'fridge' || category === 'fridge_cabinet') {
-    return `Place ${doorColor} ${doorFinish} refrigerator surround cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Center opening for fridge, tall storage on sides, bridge above.
-No visible handles on doors. ${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'vanity') {
-    return `Place ${doorColor} ${doorFinish} bathroom vanity on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Vanity with sink at ${wallData.waterPct}% from left. Mirror cabinet above.
-${countertop}. ${styleName}. Photorealistic. Faucet chrome finish.`;
-  }
-
-  // storage, custom
-  return `Place ${doorColor} ${doorFinish} storage cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Floor-to-ceiling built-in with multiple door sections.
-No visible handles on doors. ${styleName}. Photorealistic. All doors closed.`;
-}
-
-// ─── 열린문 프롬프트 ───
-function buildOpenDoorPrompt(category: string): string {
-  return `Using this closed-door furniture image, generate the SAME furniture with doors OPEN.
-
-RULES:
-- SAME camera angle, lighting, background, furniture position
-- Open doors to ~90 degrees showing interior
-- Show neatly organized storage inside
-- Photorealistic quality
-- Do NOT change any furniture structure or color`;
+  const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+  return data.content?.find((b: { type: string }) => b.type === 'text')?.text || '';
 }
 
 // ═══════════════════════════════════════════════════════════════
-// POST /api/generate — 메인 이미지 생성 엔드포인트
+// POST /api/generate
 // ═══════════════════════════════════════════════════════════════
-router.post('/api/generate', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/api/generate', generateRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
 
   try {
     const {
-      room_image,
-      image_type = 'image/jpeg',
-      category = 'sink',
+      room_image, image_type = 'image/jpeg',
+      category = 'sink', design_style = 'modern-minimal',
       kitchen_layout = 'i_type',
-      design_style = 'modern-minimal',
-      ...themeData
+      // 레거시 호환: 기존 색상 스키마가 전달되면 무시
+      random_color_scheme: _rcs, alt_random_color_scheme: _arcs,
+      layout_image, mask_image,
+      color_reference_image: _cri, alt_color_reference_image: _acri,
     } = req.body;
 
     if (!room_image) {
@@ -193,34 +151,40 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
       return;
     }
 
-    log.info({ category, kitchen_layout, design_style }, 'Generate request received');
+    // extra images (레이아웃 가이드, 마스크만 유지 — 색상 참조 이미지 제거)
+    const extraImages: InlineImage[] = [];
+    if (layout_image?.base64 && layout_image?.mime_type) {
+      extraImages.push({ data: String(layout_image.base64), mimeType: String(layout_image.mime_type) });
+    }
+    if (mask_image?.base64 && mask_image?.mime_type) {
+      extraImages.push({ data: String(mask_image.base64), mimeType: String(mask_image.mime_type) });
+    }
 
-    // ═══ Step 1: 벽면 분석 ═══
+    log.info({ category, design_style, extraImages: extraImages.length }, 'Generate request');
+
+    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) — 싱크대만 plumbing 분석 ═══
     log.info('Step 1: Wall analysis');
     let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
 
     try {
-      const wallResult = await callGemini(
-        buildWallAnalysisPrompt(),
-        room_image,
-        image_type,
-        ['TEXT'],
-        0.2,
-      );
+      const wallPrompt = category === 'sink'
+        ? `Analyze this Korean apartment photo. Return JSON only:
+{"wall":{"width":number,"height":number},"plumbing":{"waterPct":number,"exhaustPct":number},"confidence":"high"|"medium"|"low"}
+Measure wall width using tile count (Korean 300x600mm tiles). waterPct/exhaustPct as % from left.`
+        : `Analyze this Korean apartment photo. Return JSON only:
+{"wall":{"width":number,"height":number},"confidence":"high"|"medium"|"low"}
+Estimate wall width in mm.`;
 
+      const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
       if (wallResult.text) {
         const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          const dims = parsed.wall_dimensions_mm || {};
-          const utils = parsed.utility_positions_mm || {};
-          wallW = dims.width || 3000;
-          wallH = dims.height || 2400;
-          if (utils.water_supply_from_left) {
-            waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
-          }
-          if (utils.exhaust_duct_from_left) {
-            exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
+          wallW = parsed.wall?.width || 3000;
+          wallH = parsed.wall?.height || 2400;
+          if (category === 'sink') {
+            waterPct = parsed.plumbing?.waterPct || 30;
+            exhaustPct = parsed.plumbing?.exhaustPct || 70;
           }
           log.info({ wallW, wallH, waterPct, exhaustPct }, 'Wall analysis parsed');
         }
@@ -229,61 +193,143 @@ router.post('/api/generate', async (req: Request, res: Response, next: NextFunct
       log.warn('Wall analysis failed, using defaults');
     }
 
-    // ═══ Step 2: 가구 생성 (닫힌문) ═══
-    log.info('Step 2: Generating closed door furniture');
-    const furniturePrompt = buildFurniturePrompt(
-      category, design_style, kitchen_layout,
-      { wallW, wallH, waterPct, exhaustPct },
-      themeData,
-    );
+    // ═══ Step 2: 레이아웃 제약조건 (싱크대만 위치 고정) ═══
+    const sinkSide = waterPct <= 50 ? 'LEFT' : 'RIGHT';
+    const cooktopSide = exhaustPct <= 50 ? 'LEFT' : 'RIGHT';
+    const sinkLayoutConstraints = [
+      `[FIXED SINK] ${sinkSide} side at ${waterPct}% from left. MUST MATCH ORIGINAL PLUMBING.`,
+      `[FIXED COOKTOP] ${cooktopSide} side at ${exhaustPct}% from left. MUST MATCH ORIGINAL VENT.`,
+      `Wall ${wallW}x${wallH}mm.`,
+    ].join(' ');
+
+    // ─── 싱크대 필수장비 스타일 (트렌디) ───
+    const SINK_APPLIANCES = `[APPLIANCES — TRENDY STYLE]
+[SINK BOWL] Modern undermount single-bowl sink, wide rectangular shape, matte gunmetal gray or stainless steel finish, seamlessly integrated under countertop.
+[FAUCET] Minimalist pull-down faucet with slim silhouette, matte black or brushed nickel finish, single-lever handle.
+[HOOD] Slim built-in under-cabinet range hood (hidden type), stainless steel or black glass panel, ultra-thin profile flush with upper cabinets.
+[COOKTOP] Flush-mounted built-in induction cooktop (flat black glass surface, NO gas burners, NO grates). The cabinet directly below the induction cooktop MUST be a 2-tier horizontal drawer unit (two equal drawers stacked vertically).`;
+
+    // ─── 카테고리별 기구 설명 ───
+    const CATEGORY_SUBJECT: Record<string, string> = {
+      sink: 'handleless flat-panel kitchen cabinets with upper and lower sections, undermount sink, pull-down faucet, slim built-in hood, flush-mounted induction cooktop',
+      wardrobe: 'floor-to-ceiling built-in wardrobe with flat-panel doors, handleless push-to-open design',
+      fridge: 'tall pantry and refrigerator surround cabinet with flat-panel doors, handleless design',
+      vanity: 'modern vanity cabinet with mirror cabinet above, flat-panel doors, handleless push-to-open',
+      shoe: 'entryway shoe cabinet with flat-panel doors, handleless push-to-open, ventilation slats',
+      storage: 'custom storage cabinet with flat-panel doors, adjustable shelves, handleless design',
+    };
+
+    // ─── 카테고리별 기본안 프롬프트 빌더 (AI 색상 위임) ───
+    function buildBasePrompt(cat: string): string {
+      const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      const colorDesc = `[COLOR] You MUST change all cabinet colors. Choose ONE harmonious achromatic color randomly from: pure white, milk white, sand gray, light gray, fog gray, cashmere, dewy cloud. Apply the chosen color consistently to all upper and lower cabinets with matte flat panel finish.`;
+      const countertop = `Choose a matching countertop: white ceramic, soft gray ceramic, warm ivory stone, or frost white solid surface.`;
+      if (cat === 'sink') {
+        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance.
+
+Edit photo: install ${subject}. ${sinkLayoutConstraints}
+
+${colorDesc} ${countertop}
+
+${SINK_APPLIANCES}
+
+Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. No clutter.`;
+      }
+      return `Edit photo: install ${subject}. ${colorDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+    }
+
+    // ─── 카테고리별 AI 추천안 프롬프트 빌더 (AI 투톤 위임) ───
+    function buildAltPrompt(cat: string): string {
+      const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      const twoToneDesc = `[TWO-TONE COLOR — MANDATORY] You MUST use two DIFFERENT colors.
+Upper cabinets: choose one bright neutral randomly from: pure white, milk white, sand gray, light gray, cashmere, dewy cloud (matte flat panel finish).
+Lower cabinets: choose one bold expressive color randomly from: deep green painted, deep navy blue painted, muted purple painted, brick terracotta painted, warm taupe painted, natural oak wood grain, dark walnut wood grain, concrete texture.
+Upper and lower MUST be clearly different. The combination should feel premium and harmonious.`;
+      const countertop = `Choose a matching countertop: ceramic white, ceramic beige, concrete top, or soft gray ceramic.`;
+      if (cat === 'sink') {
+        return `[CRITICAL — READ FIRST] Keep the sink, cooktop, and hood at their EXACT SAME positions as the original photo. Do NOT move, swap, or rearrange any appliance.
+
+Edit photo: install ${subject}. ${sinkLayoutConstraints}
+
+${twoToneDesc} ${countertop}
+
+${SINK_APPLIANCES}
+
+Keep wall tiles, floor, camera angle, sink position, cooktop position, hood position ALL identical to original. No clutter.`;
+      }
+      return `Edit photo: install ${subject}. ${twoToneDesc} ${countertop} Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+    }
+
+    // ═══ Step 3: 기본안 생성 (무채색 — AI가 색상 랜덤 선택) ═══
+    log.info('Step 3: Generate base design (기본안 — AI color selection)');
+
+    const mainPrompt = buildBasePrompt(category);
+    log.info({ promptLength: mainPrompt.length, category }, 'Base design prompt (AI color)');
 
     const closedResult = await callGemini(
-      furniturePrompt,
-      room_image,
-      image_type,
+      mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
     );
 
     if (!closedResult.image) {
-      res.status(500).json({ success: false, error: 'Failed to generate closed door image' });
+      res.status(500).json({ success: false, error: 'Failed to generate image' });
       return;
     }
+    log.info('Base design (기본안) generated');
 
-    log.info('Closed door image generated');
+    // ═══ Step 4: AI 추천안 생성 (투톤 — AI가 색상 랜덤 선택) ═══
+    log.info('Step 4: Generate AI recommendation (AI 추천안 — AI two-tone selection)');
 
-    // ═══ Step 3: 열린문 생성 ═══
-    log.info('Step 3: Generating open door furniture');
-    let openImage: string | undefined;
-
+    let altImage: string | undefined;
     try {
-      const openResult = await callGemini(
-        buildOpenDoorPrompt(category),
-        closedResult.image,
-        'image/png',
+      const altPrompt = buildAltPrompt(category);
+      log.info({ promptLength: altPrompt.length, category }, 'AI recommendation prompt (AI two-tone)');
+
+      const altResult = await callGemini(
+        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.28, extraImages,
       );
-      openImage = openResult.image;
-      if (openImage) log.info('Open door image generated');
+      altImage = altResult.image;
+      if (altImage) log.info('AI recommendation (AI 추천안) generated');
     } catch (e) {
-      log.warn('Open door generation failed');
+      log.warn('Alt style generation failed');
     }
 
-    // ═══ 응답 ═══
+    // ═══ Step 5: 견적 (Claude Vision) ═══
+    log.info('Step 5: Quote analysis');
+    let quote = null;
+    try {
+      const quotePrompt = `Analyze this cabinet design image. Count upper/lower cabinets, estimate total width mm, count drawers. Wall ~${wallW}mm. Return JSON: {"upper_count":N,"lower_count":N,"total_width_mm":N,"drawer_count":N,"countertop_length_mm":N}`;
+
+      const mimeType = closedResult.image.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+      const quoteText = await callClaude(quotePrompt, closedResult.image, mimeType);
+      const quoteMatch = quoteText.match(/\{[\s\S]*\}/);
+      if (quoteMatch) {
+        const analysis = JSON.parse(quoteMatch[0]) as ImageAnalysisResult;
+        quote = calculateQuote(analysis, category);
+        log.info({ total: quote?.total }, 'Quote calculated');
+      }
+    } catch (e) {
+      log.warn('Quote analysis failed');
+    }
+
     const elapsed = Date.now() - startTime;
-    log.info({ elapsed, category }, 'Generation complete');
+    log.info({ elapsed }, 'Generation complete');
 
     res.json({
       success: true,
       generated_image: {
-        background: room_image,
         closed: closedResult.image,
-        open: openImage || null,
+        alt: altImage || null,
       },
+      alt_style: {
+        name: 'AI Two-tone Recommendation',
+      },
+      quote,
       wall_analysis: { wallW, wallH, waterPct, exhaustPct },
       metadata: {
-        category,
-        kitchen_layout,
-        design_style,
+        category, kitchen_layout, design_style,
         model: 'gemini-3.1-flash-image-preview',
         elapsed_ms: elapsed,
+        color_mode: 'ai-delegated',
       },
     });
   } catch (error) {

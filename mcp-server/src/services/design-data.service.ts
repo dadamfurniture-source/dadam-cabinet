@@ -4,7 +4,25 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { createLogger } from '../utils/logger.js';
+import { ValidationError } from '../utils/errors.js';
 import { calculateFurniturePlacement } from './furniture-placement.service.js';
+import {
+  DEFAULT_WALL_WIDTH_MM,
+  DEFAULT_WALL_HEIGHT_MM,
+  STANDARD_UPPER_CABINET_HEIGHT_MM,
+  STANDARD_LOWER_CABINET_HEIGHT_MM,
+  STANDARD_LEG_HEIGHT_MM,
+  STANDARD_MOLDING_HEIGHT_MM,
+  STANDARD_COUNTERTOP_THICKNESS_MM,
+  STANDARD_UPPER_DOOR_OVERLAP_MM,
+  STANDARD_DEPTH_MM,
+  SINK_POSITION_RATIO,
+  COOKTOP_POSITION_RATIO,
+  DEFAULT_SINK_CABINET_WIDTH_MM,
+  DEFAULT_DRAWER_CABINET_WIDTH_MM,
+  DEFAULT_COOKTOP_CABINET_WIDTH_MM,
+  DEFAULT_STANDARD_CABINET_WIDTH_MM,
+} from '../constants/dimensions.js';
 import type { ClassifiedRules } from '../mappers/rule-classifier.js';
 import type {
   Category,
@@ -27,13 +45,23 @@ export interface ExtractDesignDataInput {
   modules?: ModulesData;
 }
 
+const VALID_CATEGORIES: Category[] = ['sink', 'wardrobe', 'fridge', 'vanity', 'shoe', 'storage'];
+
 export function extractDesignData(input: ExtractDesignDataInput): StructuredDesignData {
   const { category, style, wallData, classified, cabinetSpecs, modules } = input;
 
+  // 입력 검증
+  if (!category || !VALID_CATEGORIES.includes(category)) {
+    throw new ValidationError(`유효하지 않은 카테고리: '${category}'`, 'category');
+  }
+  if (!style || style.trim().length === 0) {
+    throw new ValidationError('스타일이 비어있습니다', 'style');
+  }
+
   const placement = wallData.furniture_placement ?? calculateFurniturePlacement(wallData);
-  const wallWidth = wallData.wall_width_mm || 3000;
-  const wallHeight = wallData.wall_height_mm || 2400;
-  const depth = cabinetSpecs?.depth_mm ?? 600;
+  const wallWidth = wallData.wall_width_mm || DEFAULT_WALL_WIDTH_MM;
+  const wallHeight = wallData.wall_height_mm || DEFAULT_WALL_HEIGHT_MM;
+  const depth = cabinetSpecs?.depth_mm ?? STANDARD_DEPTH_MM;
 
   // 유틸리티 위치 매핑
   const utilities = mapUtilities(wallData, wallWidth);
@@ -46,12 +74,12 @@ export function extractDesignData(input: ExtractDesignDataInput): StructuredDesi
   };
 
   // 캐비닛 높이 기본값
-  const upperHeight = cabinetSpecs?.upper_cabinet_height ?? 720;
-  const lowerHeight = cabinetSpecs?.lower_cabinet_height ?? 870;
-  const legHeight = cabinetSpecs?.leg_height ?? 150;
-  const moldingHeight = cabinetSpecs?.molding_height ?? 60;
-  const countertopThickness = cabinetSpecs?.countertop_thickness ?? 12;
-  const upperDoorOverlap = cabinetSpecs?.upper_door_overlap ?? 15;
+  const upperHeight = cabinetSpecs?.upper_cabinet_height ?? STANDARD_UPPER_CABINET_HEIGHT_MM;
+  const lowerHeight = cabinetSpecs?.lower_cabinet_height ?? STANDARD_LOWER_CABINET_HEIGHT_MM;
+  const legHeight = cabinetSpecs?.leg_height ?? STANDARD_LEG_HEIGHT_MM;
+  const moldingHeight = cabinetSpecs?.molding_height ?? STANDARD_MOLDING_HEIGHT_MM;
+  const countertopThickness = cabinetSpecs?.countertop_thickness ?? STANDARD_COUNTERTOP_THICKNESS_MM;
+  const upperDoorOverlap = cabinetSpecs?.upper_door_overlap ?? STANDARD_UPPER_DOOR_OVERLAP_MM;
 
   // 캐비닛 유닛 생성
   const { upper, lower } = buildCabinetUnits(
@@ -117,18 +145,18 @@ function mapUtilities(wallData: WallAnalysis, wallWidth: number) {
   const waterDetected = !!(wallData.water_pipe_x ?? up?.water_supply?.detected);
   const waterPos = wallData.water_pipe_x
     ?? up?.water_supply?.from_origin_mm
-    ?? Math.round(wallWidth * 0.3);
+    ?? Math.round(wallWidth * SINK_POSITION_RATIO);
 
   const exhaustDetected = !!(wallData.exhaust_duct_x ?? up?.exhaust_duct?.detected);
   const exhaustPos = wallData.exhaust_duct_x
     ?? up?.exhaust_duct?.from_origin_mm
-    ?? Math.round(wallWidth * 0.7);
+    ?? Math.round(wallWidth * COOKTOP_POSITION_RATIO);
 
   const gasDetected = !!(wallData.gas_pipe_x ?? up?.gas_pipe?.detected ?? up?.gas_line?.detected);
   const gasPos = wallData.gas_pipe_x
     ?? up?.gas_pipe?.from_origin_mm
     ?? up?.gas_line?.from_origin_mm
-    ?? Math.round(wallWidth * 0.7);
+    ?? Math.round(wallWidth * COOKTOP_POSITION_RATIO);
 
   return {
     water_supply: { detected: waterDetected, position_mm: waterPos },
@@ -259,13 +287,13 @@ function buildKitchenCabinets(
   placement: { sink_center_mm?: number; cooktop_center_mm?: number },
   specs?: CabinetSpecs,
 ): { upper: CabinetUnit[]; lower: CabinetUnit[] } {
-  const sinkCenter = specs?.sink_position_mm ?? placement.sink_center_mm ?? Math.round(totalWidth * 0.3);
-  const cooktopCenter = specs?.cooktop_position_mm ?? placement.cooktop_center_mm ?? Math.round(totalWidth * 0.7);
+  const sinkCenter = specs?.sink_position_mm ?? placement.sink_center_mm ?? Math.round(totalWidth * SINK_POSITION_RATIO);
+  const cooktopCenter = specs?.cooktop_position_mm ?? placement.cooktop_center_mm ?? Math.round(totalWidth * COOKTOP_POSITION_RATIO);
 
-  // 하부장: 싱크(800) + 서랍(600) + 일반(가변) + 쿡탑(800)
-  const sinkWidth = 800;
-  const drawerWidth = 600;
-  const cooktopWidth = 800;
+  // 하부장: 싱크 + 서랍 + 일반(가변) + 쿡탑
+  const sinkWidth = DEFAULT_SINK_CABINET_WIDTH_MM;
+  const drawerWidth = DEFAULT_DRAWER_CABINET_WIDTH_MM;
+  const cooktopWidth = DEFAULT_COOKTOP_CABINET_WIDTH_MM;
   const sinkStart = Math.max(0, sinkCenter - sinkWidth / 2);
   const cooktopStart = Math.max(0, cooktopCenter - cooktopWidth / 2);
 
@@ -342,7 +370,7 @@ function buildUpperCabinets(totalWidth: number, hoodCenter: number, hoodWidth: n
 
 function buildWardrobeCabinets(totalWidth: number): { upper: CabinetUnit[]; lower: CabinetUnit[] } {
   // 붙박이장: 행거장 + 서랍장 + 선반장
-  const unitCount = Math.max(2, Math.round(totalWidth / 800));
+  const unitCount = Math.max(2, Math.round(totalWidth / DEFAULT_STANDARD_CABINET_WIDTH_MM));
   const unitWidth = Math.round(totalWidth / unitCount);
   const lower: CabinetUnit[] = [];
 

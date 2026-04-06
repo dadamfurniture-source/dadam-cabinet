@@ -603,6 +603,28 @@
         const category = mainItem.categoryId || mainItem.category || 'sink';
         const specs = mainItem.specs || {};
         const style = extractStyleFromSpecs(specs);
+        const modules = mainItem.modules || [];
+
+        // layout_constraints 구성 (위치 고정형)
+        const upperMods = modules.filter(m => m.pos === 'upper');
+        const lowerMods = modules.filter(m => m.pos === 'lower');
+        const sinkMod = lowerMods.find(m => m.type === 'sink' || m.hasSink);
+        const cookMod = lowerMods.find(m => m.type === 'cook' || m.hasCooktop);
+        const hoodMod = upperMods.find(m => m.type === 'hood');
+
+        const layoutConstraints = {
+          design_id: (typeof currentDesignId !== 'undefined' && currentDesignId) || null,
+          total_width_mm: parseFloat(mainItem.w) || 3000,
+          total_height_mm: parseFloat(mainItem.h) || 2400,
+          depth_mm: parseFloat(mainItem.d) || 600,
+          fixed_appliances: {
+            sink: sinkMod ? { x_mm: parseFloat(sinkMod.x) || 0, width_mm: parseFloat(sinkMod.w) || 1000 } : null,
+            cooktop: cookMod ? { x_mm: parseFloat(cookMod.x) || 0, width_mm: parseFloat(cookMod.w) || 600 } : null,
+            hood: hoodMod ? { align_to: 'cooktop_center', width_mm: parseFloat(hoodMod.w) || 800 } : null,
+          },
+          upper_modules: upperMods.map(m => ({ type: m.type, width_mm: parseFloat(m.w) || 600, name: m.name })),
+          lower_modules: lowerMods.map(m => ({ type: m.type, width_mm: parseFloat(m.w) || 600, name: m.name, is_fixed: m.isFixed || false })),
+        };
 
         // 현장 사진 가져오기 (필수)
         const sitePhotoUrl = mainItem.imageUrl || mainItem.image;
@@ -631,6 +653,7 @@
             category,
             style,
             null, // budget
+            layoutConstraints, // layout_constraints 전달
             {
               onStage: (stage, label) => updateMultiagentProgress(stage, label),
               onError: (err) => {
@@ -705,11 +728,14 @@
         const images = data.images || [];
         const furnitureImg = images.find(i => i.type === 'furniture');
         const openImg = images.find(i => i.type === 'open');
+        const altStyleImg = images.find(i => i.type === 'alt_style');
         const originalImg = images.find(i => i.type === 'original');
 
         const closedImageUrl = furnitureImg?.image_url || '';
         const openImageUrl = openImg?.image_url || '';
+        const altStyleUrl = altStyleImg?.image_url || '';
         const hasOpenImage = !!openImageUrl;
+        const hasAltStyle = !!altStyleUrl;
 
         // 분석 데이터
         const spaceAnalysis = data.space_analysis;
@@ -722,6 +748,7 @@
 
         // 탭 구성
         const tabs = ['가구 이미지'];
+        if (hasAltStyle) tabs.push('대체 스타일');
         if (hasOpenImage) tabs.push('오픈도어');
         if (spaceAnalysis) tabs.push('벽면 분석');
         if (layout) tabs.push('레이아웃');
@@ -761,7 +788,7 @@
         <div style="background:#f0f9ff;padding:12px;border-radius:8px;"><span style="font-size:11px;color:#666;">벽면 너비</span><div style="font-size:20px;font-weight:700;color:#0369a1;">${spaceAnalysis.wall_width_mm || '-'}mm</div></div>
         <div style="background:#f0fdf4;padding:12px;border-radius:8px;"><span style="font-size:11px;color:#666;">벽 형태</span><div style="font-size:20px;font-weight:700;color:#065f46;">${spaceAnalysis.wall_layout || '-'}</div></div>
       </div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">배관 위치</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">설비 위치</div>
       ${pipeRows || '<div style="color:#999;font-size:13px;">감지된 배관 없음</div>'}`;
         }
 
@@ -798,7 +825,11 @@
         <div class="ma-tab-content" data-tab="0">
           ${closedImageUrl ? `<img src="${closedImageUrl}" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;" alt="가구 이미지">` : '<p style="text-align:center;color:#999;">이미지가 생성되지 않았습니다.</p>'}
         </div>
-        ${hasOpenImage ? `<div class="ma-tab-content" data-tab="1" style="display:none;">
+        ${hasAltStyle ? `<div class="ma-tab-content" data-tab="${tabs.indexOf('대체 스타일')}" style="display:none;">
+          <img src="${altStyleUrl}" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;" alt="대체 스타일">
+          <p style="text-align:center;color:#888;font-size:12px;margin-top:8px;">하부장 컬러 + 상부장 무채색 투톤 스타일</p>
+        </div>` : ''}
+        ${hasOpenImage ? `<div class="ma-tab-content" data-tab="${tabs.indexOf('오픈도어')}" style="display:none;">
           <img src="${openImageUrl}" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;" alt="오픈도어 이미지">
         </div>` : ''}
         ${spaceAnalysis ? `<div class="ma-tab-content" data-tab="${tabs.indexOf('벽면 분석')}" style="display:none;">${analysisHtml}</div>` : ''}
@@ -807,6 +838,7 @@
       </div>
       <div style="display:flex;gap:8px;padding:16px 24px;border-top:1px solid #EBE8E2;justify-content:flex-end;">
         ${closedImageUrl ? `<button onclick="downloadMultiagentImage('${closedImageUrl}', 'furniture')" style="padding:10px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📥 가구 이미지 저장</button>` : ''}
+        ${hasAltStyle ? `<button onclick="downloadMultiagentImage('${altStyleUrl}', 'alt_style')" style="padding:10px 20px;background:#f59e0b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📥 대체 스타일 저장</button>` : ''}
         ${hasOpenImage ? `<button onclick="downloadMultiagentImage('${openImageUrl}', 'open')" style="padding:10px 20px;background:#6366F1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📥 오픈도어 저장</button>` : ''}
         <button onclick="this.closest('.ai-design-result-modal').remove()" style="padding:10px 20px;background:#f3f4f6;color:#666;border:none;border-radius:8px;cursor:pointer;font-weight:600;">닫기</button>
       </div>

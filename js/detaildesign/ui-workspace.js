@@ -1,4 +1,76 @@
       // ============================================================
+      // 전역 Undo/Redo 시스템
+      // ============================================================
+      const _undoStack = [];
+      const _redoStack = [];
+      const UNDO_MAX = 5;
+
+      function pushUndo(item) {
+        if (!item) return;
+        _undoStack.push({
+          uniqueId: item.uniqueId,
+          modules: JSON.parse(JSON.stringify(item.modules)),
+          specs: JSON.parse(JSON.stringify(item.specs)),
+          timestamp: Date.now(),
+        });
+        if (_undoStack.length > UNDO_MAX) _undoStack.shift();
+        _redoStack.length = 0; // redo 초기화
+      }
+
+      function undo() {
+        if (_undoStack.length === 0) return;
+        const snapshot = _undoStack.pop();
+        const item = selectedItems.find(i => i.uniqueId === snapshot.uniqueId);
+        if (!item) return;
+
+        // 현재 상태를 redo에 저장
+        _redoStack.push({
+          uniqueId: item.uniqueId,
+          modules: JSON.parse(JSON.stringify(item.modules)),
+          specs: JSON.parse(JSON.stringify(item.specs)),
+          timestamp: Date.now(),
+        });
+
+        // 복원
+        item.modules = snapshot.modules;
+        item.specs = snapshot.specs;
+        renderWorkspaceContent(item);
+        console.log('[Undo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
+      }
+
+      function redo() {
+        if (_redoStack.length === 0) return;
+        const snapshot = _redoStack.pop();
+        const item = selectedItems.find(i => i.uniqueId === snapshot.uniqueId);
+        if (!item) return;
+
+        // 현재 상태를 undo에 저장
+        _undoStack.push({
+          uniqueId: item.uniqueId,
+          modules: JSON.parse(JSON.stringify(item.modules)),
+          specs: JSON.parse(JSON.stringify(item.specs)),
+          timestamp: Date.now(),
+        });
+
+        item.modules = snapshot.modules;
+        item.specs = snapshot.specs;
+        renderWorkspaceContent(item);
+        console.log('[Redo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
+      }
+
+      // Ctrl+Z / Ctrl+Y 키보드 바인딩
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+          e.preventDefault();
+          redo();
+        }
+      });
+
+      // ============================================================
       // 이벤트 핸들러 함수들
       // ============================================================
 
@@ -499,16 +571,20 @@
       </div>
 
       <div class="module-panel">
-        <!-- ★ Front View 도면 -->
+        <!-- ★ Front/Top View 도면 -->
         <div class="front-view-section" style="margin-bottom:20px;">
           <div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:8px;">
-              <span>📐 Front View</span>
-              <span style="font-size:11px;color:#888;font-weight:normal;">(전면부 도면)</span>
+              <span>📐 ${item.specs.wardrobeViewMode === 'top' ? 'Top View' : 'Front View'}</span>
+              <span style="font-size:11px;color:#888;font-weight:normal;">${item.specs.wardrobeViewMode === 'top' ? '(상면도)' : '(전면부 도면)'}</span>
             </div>
-            <button onclick="toggleWardrobeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+            <div style="display:flex;gap:4px;">
+              <button onclick="switchWardrobeView(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.wardrobeViewMode !== 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
+              <button onclick="switchWardrobeView(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.wardrobeViewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
+              <button onclick="toggleWardrobeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
+            </div>
           </div>
-          ${frontViewSvg}
+          ${item.specs.wardrobeViewMode === 'top' ? renderWardrobeTopView(item, wardrobeModules) : frontViewSvg}
         </div>
 
         <div class="module-section">
@@ -525,6 +601,7 @@
               <span class="section-remaining" style="color:${remaining >= 0 && remaining <= 10 ? '#90EE90' : remaining < 0 ? '#ff6b6b' : 'white'}">잔여: ${Math.round(remaining)}mm</span>
               <div class="section-buttons">
                 <button class="btn-section-auto" onclick="runWardrobeAutoCalc(${item.uniqueId})">⚡ 자동계산</button>
+                <button class="btn-section-auto" onclick="clearAllModules(${item.uniqueId})" style="background:#fff;color:#dc3545;border:1px solid #f5c6cb;">🗑 전체 제거</button>
               </div>
             </div>
           </div>
@@ -1125,6 +1202,88 @@
       }
 
       // 붙박이장 도어 표시 토글
+      // ★ 붙박이장 뷰 전환
+      function switchWardrobeView(itemUniqueId, mode) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.wardrobeViewMode = mode;
+        renderWorkspaceContent(item);
+      }
+
+      // ★ 붙박이장 Top View (위에서 내려다보기)
+      function renderWardrobeTopView(item, wardrobeModules) {
+        const W = parseFloat(item.w) || 2400;
+        const D = parseFloat(item.d) || 600;
+        const fL = item.specs.finishLeftType !== 'None' ? (parseFloat(item.specs.finishLeftWidth) || 0) : 0;
+        const fR = item.specs.finishRightType !== 'None' ? (parseFloat(item.specs.finishRightWidth) || 0) : 0;
+
+        const svgW = 620, pad = 50;
+        const scale = (svgW - pad * 2) / W;
+        const drawD = D * scale;
+        const svgH = pad + drawD + 60 + pad;
+        let svg = '';
+        const ox = pad;
+        const oy = pad;
+
+        // 라벨
+        svg += `<text x="${ox - 5}" y="${oy - 8}" font-size="11" fill="#333" font-weight="bold">붙박이장</text>`;
+        svg += `<text x="${ox + 55}" y="${oy - 8}" font-size="9" fill="#999">(깊이 ${D}mm)</text>`;
+
+        // 전체 외곽
+        svg += `<rect x="${ox}" y="${oy}" width="${W*scale}" height="${drawD}" fill="#f8f9fa" stroke="#999" stroke-width="1.5"/>`;
+
+        // 전체 치수선 — 상단
+        svg += `<line x1="${ox}" y1="${oy - 15}" x2="${ox + W*scale}" y2="${oy - 15}" stroke="#666" stroke-width="1"/>`;
+        svg += `<line x1="${ox}" y1="${oy - 20}" x2="${ox}" y2="${oy - 10}" stroke="#666"/>`;
+        svg += `<line x1="${ox + W*scale}" y1="${oy - 20}" x2="${ox + W*scale}" y2="${oy - 10}" stroke="#666"/>`;
+        svg += `<text x="${ox + W*scale/2}" y="${oy - 22}" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">${W}mm</text>`;
+
+        // 좌측 마감
+        if (fL > 0) {
+          svg += `<rect x="${ox}" y="${oy}" width="${fL*scale}" height="${drawD}" fill="#e8e8e8" stroke="#aaa" stroke-width="1"/>`;
+          svg += `<text x="${ox + fL*scale/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="8" fill="#888">마감 ${fL}</text>`;
+        }
+
+        // 우측 마감
+        if (fR > 0) {
+          const rx = ox + (W - fR) * scale;
+          svg += `<rect x="${rx}" y="${oy}" width="${fR*scale}" height="${drawD}" fill="#e8e8e8" stroke="#aaa" stroke-width="1"/>`;
+          svg += `<text x="${rx + fR*scale/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="8" fill="#888">마감 ${fR}</text>`;
+        }
+
+        // 모듈 배치
+        let mx = ox + fL * scale;
+        for (const mod of wardrobeModules) {
+          const mw = (parseFloat(mod.w) || 600) * scale;
+          const modType = mod.moduleType || mod.type || 'short';
+          const fill = modType === 'long' ? '#e8f0fe' : modType === 'shelf' ? '#fef9e7' : '#f0f0f0';
+          const label = modType === 'long' ? '긴옷' : modType === 'shelf' ? '선반' : '짧은옷';
+
+          svg += `<rect x="${mx}" y="${oy}" width="${mw}" height="${drawD}" fill="${fill}" stroke="#666" stroke-width="1"/>`;
+          svg += `<text x="${mx + mw/2}" y="${oy + drawD/2 + 3}" text-anchor="middle" font-size="9" fill="#333">${label}</text>`;
+
+          // 모듈 치수
+          svg += `<text x="${mx + mw/2}" y="${oy + drawD + 14}" text-anchor="middle" font-size="8" fill="#666">${mod.w || ''}mm</text>`;
+
+          mx += mw;
+        }
+
+        // 모듈별 치수선 — 하단
+        if (wardrobeModules.length > 0) {
+          mx = ox + fL * scale;
+          const dimY = oy + drawD + 22;
+          for (const mod of wardrobeModules) {
+            const mw = (parseFloat(mod.w) || 600) * scale;
+            svg += `<line x1="${mx}" y1="${dimY}" x2="${mx + mw}" y2="${dimY}" stroke="#666" stroke-width="0.8"/>`;
+            svg += `<line x1="${mx}" y1="${dimY - 4}" x2="${mx}" y2="${dimY + 4}" stroke="#666"/>`;
+            svg += `<line x1="${mx + mw}" y1="${dimY - 4}" x2="${mx + mw}" y2="${dimY + 4}" stroke="#666"/>`;
+            mx += mw;
+          }
+        }
+
+        return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
+      }
+
       function toggleWardrobeDoors(itemUniqueId) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;
@@ -1575,32 +1734,45 @@
       function closeSpecPopup(itemUniqueId) {
         const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
         if (popup) popup.style.display = 'none';
-        // 팝업 닫을 때 워크스페이스 리렌더
-        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
-        if (item) renderWorkspaceContent(item);
+        // 팝업 닫을 때 고정 모듈 재배치 + 리렌더
+        repositionFixedModules(itemUniqueId);
       }
 
       // ── Front View 모듈 클릭 → 치수 편집 팝업 ──
-      function handleFrontViewClick(event, itemUniqueId) {
-        // 모듈 드래그 핸들러가 처리하는 요소는 무시 (중복 방지)
-        if (event.target.closest('[data-drag-mod]')) return;
+      // ★ 선택 모듈 상태 (뷰 동기화용)
+      window._selectedModuleIndex = null;
 
-        // SVG rect 또는 그 부모 g에서 data-mod-id 찾기
-        let target = event.target;
-        let modId = null;
-        for (let i = 0; i < 5 && target; i++) {
-          if (target.dataset && target.dataset.modId) {
-            modId = target.dataset.modId;
-            break;
+      function handleFrontViewClick(event, itemUniqueId) {
+        // 모듈 클릭 팝업 비활성화 — 3D planner로 전환
+        return;
+      }
+
+      // ★ 선택 모듈 하이라이트 — 모든 뷰(Front/Top/ISO)에서 동기화
+      function highlightSelectedModule(itemUniqueId) {
+        const ws = document.getElementById('designWorkspace');
+        if (!ws) return;
+        const idx = window._selectedModuleIndex;
+
+        // 모든 모듈 rect 초기화
+        ws.querySelectorAll('[data-mod-index]').forEach(el => {
+          el.style.filter = '';
+          el.style.opacity = '';
+        });
+
+        if (idx === null || idx === undefined) return;
+
+        // 선택 모듈 하이라이트 (모든 뷰에서)
+        ws.querySelectorAll(`[data-mod-index="${idx}"]`).forEach(el => {
+          el.style.filter = 'drop-shadow(0 0 4px #b8956c)';
+          el.style.opacity = '1';
+        });
+
+        // 비선택 모듈 흐리게
+        ws.querySelectorAll('[data-mod-index]').forEach(el => {
+          if (el.dataset.modIndex !== String(idx)) {
+            el.style.opacity = '0.6';
           }
-          if (target.dataset && target.dataset.modIndex !== undefined) {
-            modId = target.dataset.modIndex;
-            break;
-          }
-          target = target.parentElement;
-        }
-        if (modId === null) return;
-        openModulePopup(itemUniqueId, modId);
+        });
       }
 
       function openModulePopup(itemUniqueId, modId) {
@@ -1609,30 +1781,252 @@
         const mod = item.modules[modId] || item.modules.find(m => m.id == modId);
         if (!mod) return;
 
-        const popup = document.getElementById(`spec-popup-${itemUniqueId}`);
-        const title = document.getElementById(`spec-popup-title-${itemUniqueId}`);
-        const body = document.getElementById(`spec-popup-body-${itemUniqueId}`);
-        if (!popup || !body) return;
+        // 기존 팝업 제거
+        const existing = document.querySelector('.mod-popup-overlay');
+        if (existing) existing.remove();
 
         const mId = mod.id || modId;
-        title.textContent = `${mod.name || mod.type} (${mod.pos === 'upper' ? '상부' : '하부'})`;
+        const posLabel = mod.pos === 'upper' ? '상부' : '하부';
+        const isSink = item.categoryId === 'sink' || item.categoryId === 'island';
 
-        body.innerHTML = `
-          <div class="spec-row">
-            <div class="spec-field"><label>너비(W)</label><input type="number" value="${mod.w || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','w',this.value)"></div>
-            <div class="spec-field"><label>높이(H)</label><input type="number" value="${mod.h || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','h',this.value)"></div>
-            <div class="spec-field"><label>깊이(D)</label><input type="number" value="${mod.d || ''}" onchange="updateModuleDim(${itemUniqueId},'${mId}','d',this.value)"></div>
-          </div>
-          <div class="spec-row">
-            <div class="spec-field"><label>타입</label><span style="font-size:13px;color:#333;">${mod.type || '-'}</span></div>
-            <div class="spec-field"><label>서랍</label><span style="font-size:13px;">${mod.isDrawer ? '예' : '아니오'}</span></div>
-            <div class="spec-field"><label>고정</label><span style="font-size:13px;">${mod.isFixed ? '예' : '아니오'}</span></div>
-          </div>
-          <div style="margin-top:12px;display:flex;gap:8px;">
-            <button onclick="removeModuleById(${itemUniqueId},'${mId}');closeSpecPopup(${itemUniqueId})" style="padding:6px 14px;font-size:12px;border:1px solid #e74c3c;border-radius:6px;background:#fff;color:#e74c3c;cursor:pointer;">삭제</button>
+        // 타입 판별
+        let currentType = 'storage';
+        if (mod.type === 'sink') currentType = 'sink';
+        else if (mod.type === 'cook') currentType = 'cook';
+        else if (mod.type === 'hood') currentType = 'hood';
+        else if (mod.type === 'storage' && mod.name === 'LT망장') currentType = 'lt';
+        else if (mod.type === 'tall') currentType = 'tall';
+        else if (mod.isDrawer) currentType = 'drawer';
+
+        // 타입 아이콘/이름
+        const typeMap = {
+          storage: { icon: '📦', name: '수납장' },
+          drawer: { icon: '🗄️', name: '서랍장' },
+          sink: { icon: '🚰', name: '개수대' },
+          cook: { icon: '🔥', name: '가스대' },
+          hood: { icon: '🌀', name: '후드장' },
+          lt: { icon: '🔧', name: 'LT망장' },
+          tall: { icon: '↕', name: '키큰장' },
+        };
+        const typeInfo = typeMap[currentType] || typeMap.storage;
+
+        // 싱크대 타입 버튼 (타입 변경 가능)
+        let typeSelectHtml = '';
+        if (isSink) {
+          const allTypes = [
+            { value: 'storage', icon: '📦', name: '수납장', pos: ['lower','upper'] },
+            { value: 'drawer', icon: '🗄️', name: '서랍장', pos: ['lower'] },
+            { value: 'sink', icon: '🚰', name: '개수대', pos: ['lower'] },
+            { value: 'cook', icon: '🔥', name: '가스대', pos: ['lower'] },
+            { value: 'lt', icon: '🔧', name: 'LT망장', pos: ['lower'] },
+            { value: 'hood', icon: '🌀', name: '후드장', pos: ['upper'] },
+          ];
+          const filtered = allTypes.filter(t => t.pos.includes(mod.pos));
+          typeSelectHtml = `
+            <div class="mp-section">
+              <div class="mp-section-title">타입 변경</div>
+              <div class="mp-type-grid">
+                ${filtered.map(t => `
+                  <button class="mp-type-btn ${currentType === t.value ? 'active' : ''}" data-mp-type="${t.value}"
+                    onclick="mpSelectType(this,'${t.value}')">
+                    <span>${t.icon}</span><span>${t.name}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>`;
+        }
+
+        // 서랍 개수 (서랍장일 때)
+        const drawerCount = mod.drawerCount || 3;
+        const drawerCountHtml = `
+          <div class="mp-section mp-drawer-section" style="display:${currentType === 'drawer' ? '' : 'none'}">
+            <div class="mp-section-title">서랍 개수</div>
+            <div class="mp-counter-row">
+              ${[1,2,3,4,5].map(n => `
+                <button class="mp-count-btn ${drawerCount === n ? 'active' : ''}" data-mp-dcount="${n}"
+                  onclick="mpSelectDrawerCount(${n})">${n}</button>
+              `).join('')}
+            </div>
+          </div>`;
+
+        // 도어 개수 (수납장/상부장일 때, 서랍/개수대/가스대 제외)
+        const showDoorCount = !mod.isDrawer && mod.type !== 'sink' && mod.type !== 'cook' && mod.type !== 'hood';
+        const doorCount = mod.doorCount || Math.ceil((parseFloat(mod.w) || 600) / 450);
+        const doorCountHtml = showDoorCount ? `
+          <div class="mp-section">
+            <div class="mp-section-title">도어 개수</div>
+            <div class="mp-counter-row">
+              ${[1,2,3,4].map(n => `
+                <button class="mp-count-btn ${doorCount === n ? 'active' : ''}" data-mp-door="${n}"
+                  onclick="mpSelectDoorCount(${n})">${n}</button>
+              `).join('')}
+            </div>
+          </div>` : '';
+
+        // 토글 옵션
+        const togglesHtml = `
+          <div class="mp-section">
+            <div class="mp-toggles">
+              ${!mod.type || mod.type === 'storage' ? `
+              <label class="mp-toggle">
+                <input type="checkbox" ${mod.isDrawer ? 'checked' : ''} onchange="mpToggleDrawer(this.checked)">
+                <span>서랍장</span>
+              </label>` : ''}
+              <label class="mp-toggle">
+                <input type="checkbox" ${mod.isFixed ? 'checked' : ''} onchange="mpToggleFixed(this.checked)">
+                <span>위치 고정</span>
+              </label>
+            </div>
+          </div>`;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'mod-popup-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) closeModulePopup(itemUniqueId); };
+        overlay.innerHTML = `
+          <div class="mod-popup">
+            <div class="mp-header">
+              <div class="mp-header-icon">${typeInfo.icon}</div>
+              <div class="mp-header-info">
+                <div class="mp-header-name">${mod.name || typeInfo.name}</div>
+                <div class="mp-header-badge">${posLabel} · W${mod.w || '?'}mm</div>
+              </div>
+              <button class="mp-close" onclick="closeModulePopup(${itemUniqueId})">&times;</button>
+            </div>
+
+            <div class="mp-body">
+              <div class="mp-section">
+                <div class="mp-section-title">치수 (mm)</div>
+                <div class="mp-dim-row">
+                  <div class="mp-dim">
+                    <label>W 너비</label>
+                    <input type="number" id="mp-w" value="${mod.w || ''}" step="10" min="100" max="2400">
+                  </div>
+                  <div class="mp-dim">
+                    <label>H 높이</label>
+                    <input type="number" id="mp-h" value="${mod.h || ''}" step="10" min="100" max="2400">
+                  </div>
+                  <div class="mp-dim">
+                    <label>D 깊이</label>
+                    <input type="number" id="mp-d" value="${mod.d || ''}" step="10" min="100" max="800">
+                  </div>
+                </div>
+              </div>
+              ${typeSelectHtml}
+              ${drawerCountHtml}
+              ${doorCountHtml}
+              ${togglesHtml}
+            </div>
+
+            <div class="mp-footer">
+              <button class="mp-btn-delete" onclick="removeModuleById(${itemUniqueId},'${mId}');closeModulePopup(${itemUniqueId})">삭제</button>
+              <button class="mp-btn-confirm" onclick="applyModulePopup(${itemUniqueId},'${mId}')">적용</button>
+            </div>
           </div>
         `;
-        popup.style.display = 'flex';
+        document.body.appendChild(overlay);
+
+        // 전역 참조 (적용 시 사용)
+        window._mpContext = { itemUniqueId, modId: mId, mod, item };
+      }
+
+      // 모듈 팝업 — 타입 선택
+      function mpSelectType(btn, typeValue) {
+        document.querySelectorAll('.mp-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const ds = document.querySelector('.mp-drawer-section');
+        if (ds) ds.style.display = typeValue === 'drawer' ? '' : 'none';
+      }
+
+      // 모듈 팝업 — 서랍 개수
+      function mpSelectDrawerCount(n) {
+        document.querySelectorAll('[data-mp-dcount]').forEach(b => {
+          b.classList.toggle('active', parseInt(b.dataset.mpDcount) === n);
+        });
+      }
+
+      // 모듈 팝업 — 도어 개수
+      function mpSelectDoorCount(n) {
+        document.querySelectorAll('[data-mp-door]').forEach(b => {
+          b.classList.toggle('active', parseInt(b.dataset.mpDoor) === n);
+        });
+      }
+
+      // 모듈 팝업 — 서랍 토글
+      function mpToggleDrawer(checked) {
+        const ds = document.querySelector('.mp-drawer-section');
+        if (ds) ds.style.display = checked ? '' : 'none';
+      }
+
+      // 모듈 팝업 — 고정 토글 (UI만, 적용은 applyModulePopup)
+      function mpToggleFixed(checked) { /* UI 즉시 반영 불필요 */ }
+
+      // 모듈 팝업 — 적용
+      function applyModulePopup(itemUniqueId, modId) {
+        const ctx = window._mpContext;
+        if (!ctx) { closeModulePopup(itemUniqueId); return; }
+        const { mod, item } = ctx;
+
+        // 치수 적용
+        const wVal = parseFloat(document.getElementById('mp-w')?.value);
+        const hVal = parseFloat(document.getElementById('mp-h')?.value);
+        const dVal = parseFloat(document.getElementById('mp-d')?.value);
+        if (wVal && wVal > 0) mod.w = wVal;
+        if (hVal && hVal > 0) mod.h = hVal;
+        if (dVal && dVal > 0) mod.d = dVal;
+
+        // 타입 적용 (싱크대 카테고리)
+        const typeBtn = document.querySelector('.mp-type-btn.active');
+        if (typeBtn) {
+          const typeValue = typeBtn.dataset.mpType;
+          switch (typeValue) {
+            case 'storage':
+              mod.type = 'storage';
+              mod.name = mod.pos === 'upper' ? '상부장' : '하부장';
+              mod.isDrawer = false; mod.isFixed = false;
+              break;
+            case 'drawer':
+              mod.type = 'storage'; mod.name = '서랍장'; mod.isDrawer = true; mod.isFixed = false;
+              const dcBtn = document.querySelector('[data-mp-dcount].active');
+              mod.drawerCount = dcBtn ? parseInt(dcBtn.dataset.mpDcount) : 3;
+              break;
+            case 'sink':
+              mod.type = 'sink'; mod.name = '개수대'; mod.w = wVal || 1000; mod.isDrawer = false; mod.isFixed = true;
+              break;
+            case 'cook':
+              mod.type = 'cook'; mod.name = '가스대'; mod.w = wVal || 600; mod.isDrawer = false; mod.isFixed = true;
+              break;
+            case 'lt':
+              mod.type = 'storage'; mod.name = 'LT망장'; mod.w = wVal || 200; mod.isDrawer = true; mod.isFixed = true;
+              break;
+            case 'hood':
+              mod.type = 'hood'; mod.name = '후드장'; mod.w = wVal || 800; mod.isDrawer = false; mod.isFixed = true;
+              break;
+          }
+        }
+
+        // 도어 개수 적용
+        const doorBtn = document.querySelector('[data-mp-door].active');
+        if (doorBtn) mod.doorCount = parseInt(doorBtn.dataset.mpDoor);
+
+        // 토글 적용
+        const drawerChk = document.querySelector('.mp-toggles input[onchange*="mpToggleDrawer"]');
+        const fixedChk = document.querySelector('.mp-toggles input[onchange*="mpToggleFixed"]');
+        if (drawerChk && !typeBtn) mod.isDrawer = drawerChk.checked;
+        if (fixedChk) mod.isFixed = fixedChk.checked;
+
+        closeModulePopup(itemUniqueId);
+      }
+
+      // 모듈 팝업 닫기
+      function closeModulePopup(itemUniqueId) {
+        const overlay = document.querySelector('.mod-popup-overlay');
+        if (overlay) overlay.remove();
+        window._mpContext = null;
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (item) {
+          repositionFixedModules(itemUniqueId);
+          renderWorkspaceContent(item);
+        }
       }
 
       // ── 분배기/환풍구 위치 편집 팝업 ──
@@ -1666,6 +2060,7 @@
       function removeModuleById(itemUniqueId, modId) {
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
+        pushUndo(item); // ★ Undo
         item.modules = item.modules.filter(m => m.id != modId);
       }
 
@@ -1766,9 +2161,8 @@
           }
           dragField = null;
           dragAllEls = [];
-          // 드래그 완료 → 전체 리렌더 (배관 라인 등 업데이트)
-          const item = selectedItems.find(i => i.uniqueId === dragUid);
-          if (item) renderWorkspaceContent(item);
+          // 드래그 완료 → 고정 모듈 실시간 재배치 + 리렌더
+          repositionFixedModules(dragUid);
         });
       })();
 
@@ -1812,23 +2206,133 @@
           e.stopPropagation();
         });
 
+        // 드롭 위치에서 삽입 인덱스 계산 (드래그 모듈 제외한 filtered 기준)
+        function calcInsertIdx(e) {
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item) return -1;
+          const rect = modDragSvg.getBoundingClientRect();
+          const vb = modDragSvg.viewBox.baseVal;
+          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
+          const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
+          const posModules = item.modules.filter(m => m.pos === modDragPos);
+          const draggedMod = item.modules[modDragIdx];
+          const filtered = posModules.filter(m => m !== draggedMod);
+          const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+          let cursor = fL;
+          for (let i = 0; i < filtered.length; i++) {
+            const midX = cursor + (parseFloat(filtered[i].w) || 0) / 2;
+            if (dropMm < midX) return i;
+            cursor += parseFloat(filtered[i].w) || 0;
+          }
+          return filtered.length;
+        }
+
+        // 삽입 위치의 좌우 경계 모듈 하이라이트 + 삽입선 표시
+        function highlightAffected(insertIdx) {
+          const item = selectedItems.find(i => i.uniqueId === modDragUid);
+          if (!item) return;
+          const posModules = item.modules.filter(m => m.pos === modDragPos);
+          const draggedMod = item.modules[modDragIdx];
+          const filtered = posModules.filter(m => m !== draggedMod);
+
+          // 삽입 위치의 좌우 이웃 모듈 (기준 모듈)
+          const leftNeighbor = insertIdx > 0 ? filtered[insertIdx - 1] : null;
+          const rightNeighbor = insertIdx < filtered.length ? filtered[insertIdx] : null;
+          const boundarySet = new Set();
+          if (leftNeighbor) boundarySet.add(leftNeighbor);
+          if (rightNeighbor) boundarySet.add(rightNeighbor);
+
+          // ★ 삽입선 위치 계산 (mm → SVG 좌표)
+          const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+          let insertMm = fL;
+          for (let i = 0; i < insertIdx && i < filtered.length; i++) {
+            insertMm += parseFloat(filtered[i].w) || 0;
+          }
+          const insertSvgX = modDragOx + (insertMm / modDragSinkW) * modDragDrawW;
+
+          // 삽입선 (두꺼운 초록색 실선)
+          let insertLine = modDragSvg.querySelector('#insert-line');
+          if (!insertLine) {
+            insertLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            insertLine.id = 'insert-line';
+            insertLine.setAttribute('stroke', '#22c55e');
+            insertLine.setAttribute('stroke-width', '3');
+            insertLine.setAttribute('stroke-linecap', 'round');
+            modDragSvg.appendChild(insertLine);
+          }
+          const vb = modDragSvg.viewBox.baseVal;
+          insertLine.setAttribute('x1', insertSvgX);
+          insertLine.setAttribute('y1', '2');
+          insertLine.setAttribute('x2', insertSvgX);
+          insertLine.setAttribute('y2', vb.height - 2);
+          insertLine.setAttribute('opacity', '1');
+
+          // ★ 삽입 위치 삼각형 화살표 (위/아래)
+          let insertArrow = modDragSvg.querySelector('#insert-arrow');
+          if (!insertArrow) {
+            insertArrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            insertArrow.id = 'insert-arrow';
+            insertArrow.setAttribute('fill', '#22c55e');
+            modDragSvg.appendChild(insertArrow);
+          }
+          const aw = 8; // 화살표 너비
+          insertArrow.setAttribute('points',
+            `${insertSvgX - aw},0 ${insertSvgX + aw},0 ${insertSvgX},${aw * 1.2}`);
+
+          modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
+            if (r === modDragRect) return;
+            const idx = parseInt(r.dataset.dragMod);
+            const mod = item.modules[idx];
+            if (!mod || mod.pos !== modDragPos) {
+              r.setAttribute('opacity', '1');
+              r.removeAttribute('filter');
+              r.setAttribute('stroke-width', '2');
+              r.style.stroke = '';
+              return;
+            }
+            if (boundarySet.has(mod)) {
+              // 기준 모듈: 진하게 + 두꺼운 초록 테두리
+              r.setAttribute('opacity', '1');
+              r.setAttribute('filter', 'saturate(1.6) brightness(0.9)');
+              r.setAttribute('stroke-width', '4');
+              r.style.stroke = '#22c55e';
+            } else {
+              // 나머지: 연하게
+              r.setAttribute('opacity', '0.35');
+              r.removeAttribute('filter');
+              r.setAttribute('stroke-width', '2');
+              r.style.stroke = '';
+            }
+          });
+        }
+
         document.addEventListener('pointermove', function(e) {
           if (modDragRect === null || !modDragSvg) return;
           const dist = Math.abs(e.clientX - modDragStartX);
-          if (!modDragged && dist < DRAG_THRESHOLD) return; // 임계값 미만: 무시
+          if (!modDragged && dist < DRAG_THRESHOLD) return;
 
-          // 임계값 넘으면 드래그 시작
+          // 드래그 시작
           if (!modDragged) {
             modDragged = true;
             modDragRect.style.cursor = 'grabbing';
-            modDragRect.setAttribute('opacity', '0.6');
             modDragSvg.style.cursor = 'grabbing';
+            // 드래그 모듈: SVG 최앞 + 투명 + 그림자
+            modDragRect.parentNode.appendChild(modDragRect);
+            modDragRect.setAttribute('opacity', '0.35');
+            modDragRect.setAttribute('filter', 'drop-shadow(3px 3px 6px rgba(0,0,0,0.4))');
+            modDragRect.setAttribute('stroke-width', '3');
+            modDragRect.setAttribute('stroke-dasharray', '6,3');
           }
 
+          // 모듈 위치 이동
           const rect = modDragSvg.getBoundingClientRect();
           const vb = modDragSvg.viewBox.baseVal;
           const dx = (e.clientX - modDragStartX) / rect.width * vb.width;
           modDragRect.setAttribute('x', modOrigX + dx);
+
+          // 삽입 위치 계산 + 경계 모듈 하이라이트 + 삽입선
+          const idx = calcInsertIdx(e);
+          highlightAffected(idx);
         });
 
         document.addEventListener('pointerup', function(e) {
@@ -1838,21 +2342,32 @@
           const savedIdx = modDragIdx;
           const savedUid = modDragUid;
 
-          // 리셋
+          // 리셋 — 하이라이트 복원 + 삽입선/화살표 제거
           if (modDragSvg) {
             modDragSvg.style.cursor = '';
+            const insertLine = modDragSvg.querySelector('#insert-line');
+            if (insertLine) insertLine.remove();
+            const insertArrow = modDragSvg.querySelector('#insert-arrow');
+            if (insertArrow) insertArrow.remove();
+            modDragSvg.querySelectorAll('[data-drag-mod]').forEach(r => {
+              r.setAttribute('opacity', '1');
+              r.removeAttribute('filter');
+              r.setAttribute('stroke-width', '2');
+              r.removeAttribute('stroke-dasharray');
+              r.style.stroke = '';
+            });
             try { modDragSvg.releasePointerCapture(e.pointerId); } catch(ex) {}
           }
 
-          // 드래그 안 했으면 → 아무 동작 없음 (위치 불변)
-          // 모듈 편집은 더블클릭으로만 가능
+          // 드래그 안 했으면 → 클릭: 모듈 편집 팝업
           if (!wasDragged) {
             modDragRect = null;
             modDragged = false;
+            openModulePopup(savedUid, savedIdx);
             return;
           }
 
-          // 드래그 했으면 → 위치 재정렬
+          // 드래그 했으면 → 위치 재정렬 (calcInsertIdx와 동일 로직)
           const item = selectedItems.find(i => i.uniqueId === modDragUid);
           if (!item || !modDragSvg) {
             modDragRect = null;
@@ -1860,28 +2375,14 @@
             return;
           }
 
-          const rect = modDragSvg.getBoundingClientRect();
-          const vb = modDragSvg.viewBox.baseVal;
-          const svgX = (e.clientX - rect.left) / rect.width * vb.width;
-          const dropMm = Math.max(0, Math.min(modDragSinkW, (svgX - modDragOx) / modDragDrawW * modDragSinkW));
-
+          const insertIdx = calcInsertIdx(e);
           const posModules = item.modules.filter(m => m.pos === modDragPos);
           const otherModules = item.modules.filter(m => m.pos !== modDragPos);
           const draggedMod = item.modules[modDragIdx];
 
-          if (draggedMod && posModules.length > 1) {
-            const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
+          if (draggedMod && posModules.length > 1 && insertIdx >= 0) {
+            pushUndo(item); // ★ Undo — 모듈 순서 변경 전 저장
             const filtered = posModules.filter(m => m !== draggedMod);
-            let insertIdx = filtered.length;
-            let checkCursor = fL;
-            for (let i = 0; i < filtered.length; i++) {
-              const midX = checkCursor + (parseFloat(filtered[i].w) || 0) / 2;
-              if (dropMm < midX) {
-                insertIdx = i;
-                break;
-              }
-              checkCursor += parseFloat(filtered[i].w) || 0;
-            }
             filtered.splice(insertIdx, 0, draggedMod);
             item.modules = otherModules.concat(filtered);
           }
@@ -1892,14 +2393,39 @@
         });
       })();
 
-      // ── 모듈 더블클릭 → 편집 팝업 ──
-      document.addEventListener('dblclick', function(e) {
-        const el = e.target.closest('[data-drag-mod]');
-        if (!el) return;
-        const modIdx = parseInt(el.dataset.dragMod);
-        const uid = parseFloat(el.dataset.uid);
-        openModulePopup(uid, modIdx);
-      });
+      // 모듈 편집은 단일 클릭으로 처리 (드래그 핸들러 pointerup에서)
+
+      // ── 빈 공간에 모듈 추가 ──
+      function addModuleAtGap(itemUniqueId, pos, gapWidth) {
+        const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        pushUndo(item); // ★ Undo
+
+        const specLowerH = parseFloat(item.specs.lowerH) || 870;
+        const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
+        const specTopT = parseFloat(item.specs.topThickness) || 12;
+        const specUpperH = parseFloat(item.specs.upperH) || 720;
+        const specOverlap = parseFloat(item.specs.upperDoorOverlap) || 15;
+
+        const h = pos === 'upper' ? specUpperH - specOverlap : specLowerH - specTopT - specLegH;
+        const d = pos === 'upper' ? 295 : parseFloat(item.d) || 550;
+        const w = Math.min(gapWidth, DOOR_MAX_WIDTH * 2); // 최대 2D 모듈 너비
+
+        item.modules.push({
+          id: Date.now() + Math.random(),
+          type: 'storage',
+          name: '캐비닛',
+          pos: pos,
+          w: w,
+          h: h,
+          d: d,
+          isDrawer: false,
+          isFixed: false,
+          isEL: false,
+        });
+
+        renderWorkspaceContent(item);
+      }
 
       function updateTopSize(itemUniqueId, index, value) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
@@ -1921,6 +2447,7 @@
           // ★ 값이 동일하면 렌더링 스킵 (blur → onchange로 인한 불필요한 리렌더 방지)
           if (item.specs[field] === value) return;
 
+          pushUndo(item); // ★ Undo 스택에 현재 상태 저장
           item.specs[field] = value;
 
           // ★ 싱크대: 다리발 높이 등 치수 관련 select 변경 시 모듈 동기화
@@ -1932,6 +2459,34 @@
 
           renderWorkspaceContent(item);
         }
+      }
+
+      function togglePlumbing(itemUniqueId, type, checked) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        pushUndo(item);
+        if (!checked) {
+          // 삭제: 0으로 설정 (0 = 삭제됨 상태)
+          if (type === 'distributor') {
+            item.specs.distributorStart = 0;
+            item.specs.distributorEnd = 0;
+            delete item.specs.waterSupplyPosition;
+            delete item.specs.distributorStartAbs;
+            delete item.specs.distributorEndAbs;
+          } else if (type === 'vent') {
+            item.specs.ventStart = 0;
+            delete item.specs.exhaustPosition;
+          }
+        } else {
+          // 활성화: null로 설정 → 렌더 시 초기값 자동 생성
+          if (type === 'distributor') {
+            item.specs.distributorStart = null;
+            item.specs.distributorEnd = null;
+          } else if (type === 'vent') {
+            item.specs.ventStart = null;
+          }
+        }
+        renderWorkspaceContent(item);
       }
 
       function updateSpecNoRender(itemUniqueId, field, value) {

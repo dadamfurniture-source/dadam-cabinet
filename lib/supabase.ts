@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // 환경 변수로 관리하거나, 기존 Supabase 프로젝트의 URL과 Key를 사용하세요
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vvqrvgcgnlfpiqqndsve.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-for-static-build';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

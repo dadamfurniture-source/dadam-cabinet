@@ -3,196 +3,260 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#B8956C" />
-    <title>다담AI - AI 가구 설계 어시스턴트</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    <meta name="theme-color" content="#2d2a26" />
+    <title>AI 상담 - 다담가구</title>
+    <link rel="stylesheet" href="css/dadam-system.css" />
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      :root {
-        --white: #fafafa; --cream: #f8f7f4; --warm: #ebe8e2;
-        --gray: #8b8680; --charcoal: #2d2a26; --black: #1a1918;
-        --gold: #b8956c; --gold-light: #d4b896;
-        --bg: #f5f4f1; --card: #ffffff; --border: #e8e5e0;
-        --success: #4caf50; --error: #f44336; --info: #2196f3;
-      }
-      body {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-        background: var(--bg); color: var(--charcoal);
-        line-height: 1.6; height: 100vh; overflow: hidden;
-      }
-      h1, h2, h3, h4 { font-family: 'Playfair Display', 'Noto Serif KR', serif; font-weight: 500; }
+      body { height: 100vh; overflow: hidden; background: var(--d-bg); }
 
       /* ─── Header ─── */
-      .header {
-        background: var(--card); border-bottom: 1px solid var(--border);
-        padding: 12px 24px; display: flex; align-items: center; gap: 12px;
+      .chat-header {
+        height: 56px;
+        background: var(--d-surface-glass);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--d-border);
+        padding: 0 24px;
+        display: flex; align-items: center; gap: 12px;
+        position: relative; z-index: 10;
       }
-      .header h1 { font-size: 18px; color: var(--charcoal); }
-      .header .subtitle { font-size: 12px; color: var(--gray); }
+      .chat-header-icon {
+        width: 32px; height: 32px; border-radius: 10px;
+        background: var(--d-gold-dim);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .chat-header h1 {
+        font-family: var(--d-font-display);
+        font-size: 20px; font-weight: 500; color: var(--d-charcoal);
+        letter-spacing: -0.01em;
+      }
+      .chat-header .chat-status {
+        font-size: 11px; color: var(--d-text-tertiary);
+        letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
+      }
 
       /* ─── Main Layout ─── */
-      .main { display: flex; height: calc(100vh - 52px); }
+      .chat-main { display: flex; height: calc(100vh - 56px); }
 
       /* ─── Chat Panel ─── */
       .chat-panel {
         flex: 1; min-width: 0; display: flex; flex-direction: column;
-        border-right: 1px solid var(--border);
+        border-right: 1px solid var(--d-border);
       }
-      #chat-area { flex: 1; display: flex; flex-direction: column; position: relative; }
-      #chat-area.drag-over { background: rgba(184, 149, 108, 0.05); }
+      #chat-area {
+        flex: 1; display: flex; flex-direction: column;
+        overflow: hidden; min-height: 0; position: relative;
+        background: linear-gradient(180deg, var(--d-bg) 0%, var(--d-bg-warm) 100%);
+      }
+      #chat-area.drag-over { background: var(--d-gold-dim); }
       #chat-messages {
-        flex: 1; overflow-y: auto; padding: 16px;
-        display: flex; flex-direction: column; gap: 12px;
+        flex: 1; overflow-y: auto; padding: 24px; min-height: 0;
+        display: flex; flex-direction: column; gap: 16px;
       }
 
-      /* Messages */
-      .message { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 14px; }
+      /* ─── Messages ─── */
+      .message {
+        max-width: 80%; padding: 12px 16px; font-size: 14px;
+        line-height: 1.6; animation: d-fadeUp 0.3s ease both;
+      }
       .user-message {
-        align-self: flex-end; background: var(--gold); color: white;
-        border-bottom-right-radius: 4px;
+        align-self: flex-end;
+        background: var(--d-charcoal); color: var(--d-text-inverse);
+        border-radius: 18px 18px 4px 18px;
       }
       .bot-message {
-        align-self: flex-start; background: var(--card); border: 1px solid var(--border);
-        border-bottom-left-radius: 4px;
+        align-self: flex-start;
+        background: var(--d-surface); border: 1px solid var(--d-border);
+        border-radius: 18px 18px 18px 4px;
+        box-shadow: var(--d-shadow-sm);
       }
       .msg-text { white-space: pre-wrap; word-break: break-word; }
-      .msg-images { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
-      .msg-thumb { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; }
+      .msg-images { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+      .msg-thumb {
+        width: 72px; height: 72px; object-fit: cover;
+        border-radius: var(--d-radius-sm); border: 1px solid var(--d-border);
+      }
       .msg-progress {
-        font-size: 12px; color: var(--gray); margin-bottom: 6px;
+        font-size: 12px; color: var(--d-text-secondary); margin-bottom: 6px;
         display: flex; align-items: center; gap: 6px;
       }
       .spinner {
-        width: 14px; height: 14px; border: 2px solid var(--border);
-        border-top-color: var(--gold); border-radius: 50%;
+        width: 14px; height: 14px; border: 2px solid var(--d-border);
+        border-top-color: var(--d-gold); border-radius: 50%;
         animation: spin 0.8s linear infinite; display: inline-block;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
-      .check { color: var(--success); font-weight: bold; }
-      .error-mark { color: var(--error); font-weight: bold; }
+      .check { color: var(--d-success); font-weight: bold; }
+      .error-mark { color: var(--d-error); font-weight: bold; }
 
-      /* Input Area */
+      /* ─── Input Area ─── */
       .input-area {
-        padding: 12px 16px; border-top: 1px solid var(--border);
-        background: var(--card); display: flex; gap: 8px; align-items: flex-end;
+        padding: 16px 20px;
+        background: var(--d-surface); border-top: 1px solid var(--d-border);
+        display: flex; gap: 10px; align-items: flex-end;
       }
       #image-preview {
-        display: none; gap: 6px; padding: 8px 16px 0;
-        background: var(--card); flex-wrap: wrap;
+        display: none; gap: 8px; padding: 10px 20px 0;
+        background: var(--d-surface); flex-wrap: wrap;
       }
       .preview-item { position: relative; }
-      .preview-item img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
+      .preview-item img {
+        width: 56px; height: 56px; object-fit: cover;
+        border-radius: var(--d-radius-sm); border: 1px solid var(--d-border);
+      }
       .preview-remove {
-        position: absolute; top: -4px; right: -4px; width: 18px; height: 18px;
-        border-radius: 50%; background: var(--error); color: white;
+        position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
+        border-radius: 50%; background: var(--d-error); color: white;
         border: none; font-size: 11px; cursor: pointer;
         display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
       }
       #chat-input {
-        flex: 1; border: 1px solid var(--border); border-radius: 8px;
-        padding: 10px 12px; font-size: 14px; resize: none; outline: none;
-        font-family: inherit; min-height: 42px; max-height: 120px;
-        transition: border-color 0.2s;
+        flex: 1; border: 1px solid var(--d-border); border-radius: var(--d-radius-md);
+        padding: 11px 14px; font-size: 14px; resize: none; outline: none;
+        font-family: var(--d-font-body); min-height: 44px; max-height: 120px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        background: var(--d-surface-dim);
       }
-      #chat-input:focus { border-color: var(--gold); }
-      #upload-btn, #send-btn {
-        width: 42px; height: 42px; border-radius: 8px; border: none;
+      #chat-input:focus {
+        border-color: var(--d-gold);
+        box-shadow: 0 0 0 3px var(--d-gold-dim);
+        background: var(--d-surface);
+      }
+      #chat-input::placeholder { color: var(--d-text-tertiary); }
+      .input-btn {
+        width: 44px; height: 44px; border-radius: var(--d-radius-sm); border: none;
         cursor: pointer; display: flex; align-items: center; justify-content: center;
         font-size: 18px; transition: all 0.2s;
       }
-      #upload-btn { background: var(--warm); color: var(--gray); }
-      #upload-btn:hover { background: var(--gold-light); color: var(--charcoal); }
-      #send-btn { background: var(--gold); color: white; }
-      #send-btn:hover { background: var(--charcoal); }
-      #send-btn:disabled { background: var(--border); cursor: not-allowed; }
+      #upload-btn { background: var(--d-bg-warm); color: var(--d-text-secondary); }
+      #upload-btn:hover { background: var(--d-gold-dim); color: var(--d-gold); }
+      #send-btn {
+        background: linear-gradient(135deg, var(--d-gold), var(--d-gold-light));
+        color: white; box-shadow: 0 2px 8px rgba(184, 149, 108, 0.25);
+      }
+      #send-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(184, 149, 108, 0.35); }
+      #send-btn:disabled { background: var(--d-border); box-shadow: none; cursor: not-allowed; transform: none; }
 
       /* ─── Visual Panel ─── */
       .visual-panel {
-        width: 45%; min-width: 360px; display: flex; flex-direction: column;
-        background: var(--card);
+        width: 44%; min-width: 340px; display: flex; flex-direction: column;
+        background: var(--d-surface);
       }
       .visual-tabs {
-        display: flex; border-bottom: 1px solid var(--border); overflow-x: auto;
+        display: flex; border-bottom: 1px solid var(--d-border); overflow-x: auto;
+        padding: 0 8px;
       }
       .tab-btn {
-        padding: 10px 16px; font-size: 13px; border: none;
-        background: none; cursor: pointer; color: var(--gray);
+        padding: 14px 16px; font-size: 12px; border: none;
+        background: none; cursor: pointer; color: var(--d-text-tertiary);
         border-bottom: 2px solid transparent; white-space: nowrap;
-        font-family: inherit; transition: all 0.2s;
+        font-family: var(--d-font-body); font-weight: 600;
+        letter-spacing: 0.04em; text-transform: uppercase;
+        transition: all 0.2s;
       }
-      .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
-      .visual-body { flex: 1; overflow-y: auto; padding: 16px; }
+      .tab-btn:hover { color: var(--d-text-secondary); }
+      .tab-btn.active { color: var(--d-gold); border-bottom-color: var(--d-gold); }
+      .visual-body { flex: 1; overflow-y: auto; padding: 20px; }
       .visual-content { display: none; }
       .visual-content.active { display: block; }
 
-      /* Gallery */
+      /* ─── Gallery ─── */
       #image-gallery { display: flex; flex-wrap: wrap; gap: 12px; }
-      .gallery-item { text-align: center; }
+      .gallery-item { text-align: center; flex: 1; min-width: 200px; }
       .gallery-image {
-        max-width: 100%; border-radius: 8px; cursor: pointer;
-        transition: transform 0.2s; border: 1px solid var(--border);
+        max-width: 100%; border-radius: var(--d-radius-md); cursor: pointer;
+        transition: transform 0.3s, box-shadow 0.3s;
+        border: 1px solid var(--d-border);
       }
-      .gallery-image:hover { transform: scale(1.02); }
-      .gallery-label { font-size: 12px; color: var(--gray); margin-top: 4px; display: block; }
+      .gallery-image:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--d-shadow-md);
+      }
+      .gallery-label {
+        font-size: 11px; color: var(--d-text-tertiary); margin-top: 6px;
+        display: block; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
 
-      /* Design Info */
+      /* ─── Design Info ─── */
       .info-row {
-        display: flex; justify-content: space-between; padding: 8px 0;
-        border-bottom: 1px solid var(--border); font-size: 13px;
+        display: flex; justify-content: space-between; padding: 10px 0;
+        border-bottom: 1px solid var(--d-border-subtle); font-size: 13px;
       }
-      .info-key { color: var(--gray); }
-      .info-val { font-weight: 500; }
+      .info-key { color: var(--d-text-secondary); }
+      .info-val { font-weight: 600; }
 
-      /* BOM */
-      .bom-summary { font-size: 13px; color: var(--gray); margin-bottom: 12px; padding: 8px; background: var(--cream); border-radius: 6px; }
+      /* ─── BOM ─── */
+      .bom-summary {
+        font-size: 13px; color: var(--d-text-secondary);
+        margin-bottom: 16px; padding: 12px;
+        background: var(--d-bg-warm); border-radius: var(--d-radius-sm);
+      }
       #bom-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      #bom-table th { background: var(--warm); padding: 6px 8px; text-align: left; font-weight: 500; }
-      #bom-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+      #bom-table th {
+        background: var(--d-bg-warm); padding: 8px 10px;
+        text-align: left; font-weight: 600; font-size: 11px;
+        text-transform: uppercase; letter-spacing: 0.04em;
+        color: var(--d-text-secondary);
+      }
+      #bom-table td { padding: 8px 10px; border-bottom: 1px solid var(--d-border-subtle); }
 
-      /* SVG */
+      /* ─── SVG ─── */
       .svg-section { margin-bottom: 24px; }
-      .svg-section h4 { font-size: 14px; margin-bottom: 8px; color: var(--charcoal); }
-      .svg-container { overflow-x: auto; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+      .svg-section h4 { font-size: 14px; margin-bottom: 8px; color: var(--d-charcoal); }
+      .svg-container {
+        overflow-x: auto; background: white;
+        border: 1px solid var(--d-border); border-radius: var(--d-radius-md);
+        padding: 16px;
+      }
       .svg-container svg { max-width: 100%; height: auto; }
 
-      /* Lightbox */
+      /* ─── Lightbox ─── */
       #lightbox {
-        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85); z-index: 1000;
+        display: none; position: fixed; inset: 0;
+        background: rgba(26, 25, 24, 0.88); z-index: 1000;
         align-items: center; justify-content: center; cursor: pointer;
+        backdrop-filter: blur(8px);
       }
       #lightbox.active { display: flex; }
-      #lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+      #lightbox img { max-width: 90%; max-height: 90%; border-radius: var(--d-radius-md); }
 
-      /* Placeholder */
-      .placeholder { text-align: center; color: var(--gray); padding: 40px 20px; font-size: 14px; }
+      /* ─── Placeholder ─── */
+      .placeholder {
+        text-align: center; color: var(--d-text-tertiary);
+        padding: 48px 20px; font-size: 13px;
+        font-weight: 500;
+      }
+      .placeholder::before {
+        content: ''; display: block; width: 40px; height: 40px;
+        margin: 0 auto 12px; border-radius: 12px;
+        background: var(--d-bg-warm);
+      }
 
       /* ─── Mobile ─── */
       @media (max-width: 768px) {
-        .main { flex-direction: column; }
+        .chat-main { flex-direction: column; }
         .chat-panel { border-right: none; height: 55vh; }
-        .visual-panel { width: 100%; min-width: 0; height: 45vh; border-top: 1px solid var(--border); }
+        .visual-panel { width: 100%; min-width: 0; height: 45vh; border-top: 1px solid var(--d-border); }
+        #chat-messages { padding: 16px; }
+        .input-area { padding: 12px 16px; }
+        .message { max-width: 90%; }
       }
-
-      /* Scrollbar */
-      ::-webkit-scrollbar { width: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: var(--gray); }
     </style>
   </head>
   <body>
-    <div class="header">
-      <h1>다담AI</h1>
-      <span class="subtitle">AI 가구 설계 어시스턴트</span>
-    </div>
+    <header class="chat-header">
+      <div class="chat-header-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b8956c" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </div>
+      <div>
+        <h1>AI 상담</h1>
+      </div>
+      <span class="chat-status" style="margin-left:auto">다담가구</span>
+    </header>
 
-    <div class="main">
+    <div class="chat-main">
       <!-- Chat Panel -->
       <div class="chat-panel">
         <div id="chat-area">
@@ -200,10 +264,14 @@
         </div>
         <div id="image-preview"></div>
         <div class="input-area">
-          <button id="upload-btn" title="사진 첨부">📎</button>
+          <button id="upload-btn" class="input-btn" title="사진 첨부" aria-label="사진 첨부">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </button>
           <input type="file" id="image-input" accept="image/*" multiple hidden>
-          <textarea id="chat-input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
-          <button id="send-btn" title="전송">➤</button>
+          <textarea id="chat-input" placeholder="방 사진과 함께 원하시는 가구를 말씀해주세요..." rows="1" aria-label="메시지 입력"></textarea>
+          <button id="send-btn" class="input-btn" title="전송" aria-label="메시지 전송">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          </button>
         </div>
       </div>
 
@@ -247,6 +315,9 @@
     <!-- Lightbox -->
     <div id="lightbox"><img src="" alt="확대 이미지"></div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase-utils.js"></script>
     <script src="js/agent-chat.js"></script>
   </body>
 </html>
