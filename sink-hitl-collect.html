@@ -31,12 +31,10 @@
     .stat-label { color: #86868b; font-size: 9px; }
     .stat-val { font-size: 16px; font-weight: 600; margin-top: 1px; }
     #status { font-size: 11px; color: #86868b; margin-top: 6px; min-height: 14px; }
-    .planner-frame { width: 100%; height: 100%; border: none; background: #1a1a2e; }
     .section-title { font-size: 11px; font-weight: 600; color: #1d1d1f; margin: 10px 0 4px; padding: 4px 0; border-bottom: 1px solid #e8e8ed; display: flex; justify-content: space-between; align-items: center; }
     .mod-card { background: #f5f5f7; border-radius: 6px; padding: 8px; margin-bottom: 6px; position: relative; }
     .mod-card.highlight { background: #e3f2fd; border: 1px solid #0071e3; }
     .mod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .mod-type { font-size: 11px; font-weight: 600; color: #0071e3; text-transform: uppercase; }
     .mod-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
     .mod-row label { font-size: 10px; margin: 2px 0 1px; }
     .mod-row input, .mod-row select { font-size: 11px; padding: 3px 5px; }
@@ -61,7 +59,6 @@
     .orientation-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
     .orientation-tag.sec { color: #92400e; background: #fef3c7; }
     .orientation-tag.ter { color: #1e40af; background: #dbeafe; }
-    .mod-card.draggable { cursor: default; }
     .mod-card.dragging { opacity: 0.4; transform: scale(0.97); }
     .mod-card.drag-over { border-top: 3px solid #0071e3; padding-top: 11px; }
     .drag-handle { cursor: grab; color: #86868b; font-size: 16px; margin-right: 4px; user-select: none; padding: 2px 4px; border-radius: 3px; }
@@ -72,6 +69,14 @@
     .move-btn:hover { background: #e8e8ed; color: #1d1d1f; }
     .env-section-header { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 2px; }
     .env-section-header label { margin: 0; }
+    /* ─── SVG 2D 뷰 ─── */
+    #svg-container { background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 20px; min-width: 300px; }
+    #elevation-svg { max-width: 100%; max-height: 100%; }
+    .svg-module { cursor: pointer; transition: opacity 0.15s; }
+    .svg-module:hover { opacity: 0.8; }
+    .svg-module.selected rect:first-child { stroke-width: 3 !important; stroke: #0071e3 !important; }
+    .zone-overlay { opacity: 0.25; pointer-events: none; }
+    .svg-section-label { font-size: 11px; fill: #86868b; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -147,9 +152,9 @@
       </div>
     </div>
 
-    <!-- 중앙: 3D 플래너 -->
-    <div style="background:#1a1a2e; position:relative;">
-      <iframe id="planner" class="planner-frame" src="/planner/embed/?preset=sink&mode=hitl"></iframe>
+    <!-- 중앙: 2D SVG 정면도 -->
+    <div id="svg-container">
+      <svg id="elevation-svg" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
 
     <!-- 우측: 모듈 카드 편집 -->
@@ -161,13 +166,258 @@
 
   <script>
     const API = 'http://localhost:3200';
-    const PLANNER_ORIGIN = location.origin;
     let currentGenerated = null;
     let currentDesign = null;
-    let plannerReady = false;
     let currentLayout = 'I';
+    let selectedModule = null; // { section, idx }
     const el = (id) => document.getElementById(id);
     const status = (msg, err) => { const s = el('status'); s.textContent = msg; s.style.color = err ? '#ff3b30' : '#34c759'; };
+
+    // ─── SVG 헬퍼 ───
+    function svgRect(x, y, w, h, fill, stroke, sw = 1, rx = 2) {
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" rx="${rx}"/>`;
+    }
+    function svgText(x, y, text, opts = {}) {
+      const anchor = opts.anchor || 'middle';
+      const sz = opts.size || 10;
+      const fill = opts.fill || '#333';
+      const weight = opts.weight || 'normal';
+      return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${sz}" fill="${fill}" font-weight="${weight}" font-family="-apple-system,sans-serif">${text}</text>`;
+    }
+    function svgLine(x1, y1, x2, y2, stroke = '#666', sw = 1, dash = '') {
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
+    }
+
+    // ─── 모듈 타입 색상맵 ───
+    const MODULE_COLORS = {
+      sink:    { fill: '#dbeafe', stroke: '#3b82f6' },
+      cook:    { fill: '#fef3c7', stroke: '#f59e0b' },
+      hood:    { fill: '#fce7f3', stroke: '#ec4899' },
+      lt:      { fill: '#d1fae5', stroke: '#10b981' },
+      storage: { fill: '#f3f4f6', stroke: '#9ca3af' },
+      drawer:  { fill: '#ede9fe', stroke: '#8b5cf6' },
+      blank:   { fill: '#e5e7eb', stroke: '#6b7280' },
+    };
+    const TYPE_BADGES = { sink:'badge-sink', cook:'badge-cook', hood:'badge-hood', lt:'badge-lt', storage:'badge-storage', drawer:'badge-drawer', blank:'badge-blank' };
+    const TYPE_LABELS = { sink:'개수대', cook:'가스대', hood:'후드', lt:'LT', storage:'수납장', drawer:'서랍장', blank:'빈칸' };
+
+    // ─── 2D SVG 정면도 렌더 ───
+    function renderSVG() {
+      if (!currentDesign) return;
+      const env = currentDesign.env;
+      const PAD = 40;
+
+      // 스케일 계산 (컨테이너 기준)
+      const container = el('svg-container');
+      const availW = Math.max(container.clientWidth - PAD * 2 - 40, 200);
+      const scale = Math.min(availW / env.width, 0.25);
+
+      // 수직 레이아웃 높이 (비례)
+      const vScale = scale * 0.5; // 수직 방향은 절반 비율로 (너무 세로로 길어지지 않게)
+      const moldH = env.moldingH * vScale;
+      const upperH = 720 * vScale;
+      const gapH = 30; // 백스플래시 갭 (고정 px)
+      const counterH = 4;
+      const lowerH = (env.height - env.moldingH - 720 - env.toeKickH - 450) * vScale; // 나머지
+      const lowerHClamped = Math.max(lowerH, upperH * 0.9); // 하부장 최소 높이
+      const toeH = env.toeKickH * vScale;
+
+      const totalW = env.width * scale;
+      const svgW = totalW + PAD * 2;
+
+      // 수직 위치
+      let y = PAD;
+      const moldY = y; y += moldH;
+      const upperY = y; y += upperH;
+      y += gapH; // 백스플래시
+      const counterY = y; y += counterH;
+      const lowerY = y; y += lowerHClamped;
+      const toeY = y; y += toeH;
+      const primaryBottom = y;
+
+      // ㄱ자/ㄷ자 차선 영역
+      const hasSecondary = currentLayout !== 'I' && currentDesign.lower.some(m => m.orientation === 'secondary');
+      const hasTertiary = currentLayout === 'U' && currentDesign.lower.some(m => m.orientation === 'tertiary');
+      const armH = lowerHClamped + upperH + gapH + counterH + moldH + toeH;
+      const armGap = 30;
+      let svgH = primaryBottom + PAD + 30; // 치수선 공간
+      if (hasSecondary || hasTertiary) svgH += armGap + armH + 20;
+
+      let svg = `<svg id="elevation-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}">`;
+
+      // ─── SVG defs (해칭 패턴) ───
+      svg += `<defs>
+        <pattern id="hatch-dist" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#3b82f6" stroke-width="1.5"/>
+        </pattern>
+        <pattern id="hatch-vent" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#ef4444" stroke-width="1.5"/>
+        </pattern>
+      </defs>`;
+
+      // ─── 배경 벽 ───
+      svg += svgRect(PAD, moldY, totalW, primaryBottom - moldY - toeH, '#f8f8f8', '#e0e0e0', 0.5, 0);
+
+      // ─── 상몰딩 ───
+      if (moldH > 1) {
+        svg += svgRect(PAD, moldY, totalW, moldH, '#d4a574', '#b8956a', 1, 0);
+        svg += svgText(PAD + totalW / 2, moldY + moldH / 2 + 3, '몰딩', { size: 8, fill: '#8b6e4e' });
+      }
+
+      // ─── 모듈 행 렌더 함수 ───
+      function renderModRow(modules, baseX, wallW, y, rowH, section, orientFilter) {
+        const mods = modules.filter(m => (m.orientation || 'normal') === orientFilter);
+        const finL = orientFilter === 'normal' ? env.finishLeftW : 0;
+        let x = baseX + finL * scale;
+        mods.forEach(m => {
+          const realIdx = modules.indexOf(m);
+          const w = m.width * scale;
+          const color = MODULE_COLORS[m.type] || MODULE_COLORS.storage;
+          const isSel = selectedModule && selectedModule.section === section && selectedModule.idx === realIdx;
+
+          svg += `<g class="svg-module${isSel ? ' selected' : ''}" data-section="${section}" data-idx="${realIdx}" onclick="selectModule('${section}',${realIdx})">`;
+          svg += svgRect(x, y, w, rowH, color.fill, isSel ? '#0071e3' : color.stroke, isSel ? 3 : 1.5, 2);
+
+          // 타입 라벨
+          if (w > 25) {
+            svg += svgText(x + w / 2, y + rowH / 2 - 5, TYPE_LABELS[m.type] || m.type, { size: w > 50 ? 10 : 8, weight: '600', fill: color.stroke });
+          }
+          // 폭 (mm)
+          if (w > 20) {
+            svg += svgText(x + w / 2, y + rowH / 2 + 9, m.width + '', { size: w > 50 ? 9 : 7, fill: '#888' });
+          }
+
+          // 도어선 (2도어)
+          if (m.kind === 'door' && (m.doorCount || 1) >= 2) {
+            svg += svgLine(x + w / 2, y + 3, x + w / 2, y + rowH - 3, '#aaa', 0.5);
+          }
+          // 서랍선
+          if (m.kind === 'drawer') {
+            const cnt = m.drawerCount || 2;
+            for (let d = 1; d < cnt; d++) {
+              const dy = y + (rowH * d / cnt);
+              svg += svgLine(x + 3, dy, x + w - 3, dy, '#aaa', 0.5);
+            }
+          }
+          // 오픈 (점선 테두리)
+          if (m.kind === 'open') {
+            svg += svgRect(x + 2, y + 2, w - 4, rowH - 4, 'none', '#ccc', 1, 1);
+          }
+
+          svg += `</g>`;
+          x += w;
+        });
+      }
+
+      // ─── 상부장 섹션 라벨 + 모듈 ───
+      svg += svgText(PAD + 4, upperY - 3, '상부장', { size: 9, fill: '#86868b', weight: '600', anchor: 'start' });
+      renderModRow(currentDesign.upper, PAD, env.width, upperY, upperH, 'upper', 'normal');
+
+      // ─── 상판 ───
+      svg += svgLine(PAD, counterY, PAD + totalW, counterY, '#555', 3);
+      svg += svgText(PAD + totalW + 5, counterY + 3, '상판', { size: 7, fill: '#888', anchor: 'start' });
+
+      // ─── 하부장 섹션 라벨 + 모듈 ───
+      svg += svgText(PAD + 4, lowerY - 3, '하부장', { size: 9, fill: '#86868b', weight: '600', anchor: 'start' });
+      renderModRow(currentDesign.lower, PAD, env.width, lowerY, lowerHClamped, 'lower', 'normal');
+
+      // ─── 걸레받이 ───
+      if (toeH > 1) {
+        svg += svgRect(PAD, toeY, totalW, toeH, '#9e9e9e', '#888', 0.5, 0);
+        svg += svgText(PAD + totalW / 2, toeY + toeH / 2 + 3, '걸레받이', { size: 7, fill: '#fff' });
+      }
+
+      // ─── 좌/우 마감재 ───
+      if (env.finishLeftW > 0) {
+        const fW = env.finishLeftW * scale;
+        svg += svgRect(PAD, upperY, fW, primaryBottom - upperY, '#e8e3de', '#c9c0b5', 0.5, 0);
+      }
+      if (env.finishRightW > 0) {
+        const fW = env.finishRightW * scale;
+        svg += svgRect(PAD + totalW - fW, upperY, fW, primaryBottom - upperY, '#e8e3de', '#c9c0b5', 0.5, 0);
+      }
+
+      // ─── 분배기 존 오버레이 ───
+      if (env.distributorStart != null && env.distributorEnd != null) {
+        const dx = PAD + env.distributorStart * scale;
+        const dw = (env.distributorEnd - env.distributorStart) * scale;
+        svg += `<rect class="zone-overlay" x="${dx}" y="${lowerY}" width="${dw}" height="${lowerHClamped}" fill="url(#hatch-dist)" rx="2"/>`;
+        svg += svgText(dx + dw / 2, lowerY - 3, '분배기', { size: 8, fill: '#3b82f6', weight: '600' });
+      }
+
+      // ─── 환풍구 존 오버레이 ───
+      if (env.ventStart != null && env.ventEnd != null) {
+        const vx = PAD + env.ventStart * scale;
+        const vw = (env.ventEnd - env.ventStart) * scale;
+        svg += `<rect class="zone-overlay" x="${vx}" y="${upperY}" width="${vw}" height="${upperH}" fill="url(#hatch-vent)" rx="2"/>`;
+        svg += svgText(vx + vw / 2, upperY - 3, '환풍구', { size: 8, fill: '#ef4444', weight: '600' });
+      }
+
+      // ─── 총 폭 치수선 ───
+      const dimY = primaryBottom + 15;
+      svg += svgLine(PAD, dimY, PAD + totalW, dimY, '#333', 0.5);
+      svg += svgLine(PAD, dimY - 4, PAD, dimY + 4, '#333', 1);
+      svg += svgLine(PAD + totalW, dimY - 4, PAD + totalW, dimY + 4, '#333', 1);
+      svg += svgText(PAD + totalW / 2, dimY + 13, env.width + 'mm', { size: 11, weight: '600' });
+
+      // ─── ㄱ자/ㄷ자 차선 블록 ───
+      if (hasSecondary || hasTertiary) {
+        const armY = primaryBottom + armGap;
+        const secW = (env.secondaryLeftW || 1500) * scale;
+        const terW = (env.secondaryRightW || 1500) * scale;
+
+        if (hasSecondary) {
+          // 코너 연결선
+          svg += svgLine(PAD, primaryBottom, PAD, armY, '#0071e3', 1.5, '4 2');
+          svg += svgText(PAD + 8, armY - 4, '↪ 좌측 차선', { size: 9, fill: '#92400e', weight: '600', anchor: 'start' });
+
+          // 차선 배경
+          svg += svgRect(PAD, armY, secW, armH, '#fefce8', '#e8e3de', 0.5, 2);
+
+          // 차선 상부장
+          renderModRow(currentDesign.upper, PAD, env.secondaryLeftW || 1500, armY + moldH, upperH, 'upper', 'secondary');
+          // 차선 하부장
+          renderModRow(currentDesign.lower, PAD, env.secondaryLeftW || 1500, armY + moldH + upperH + gapH + counterH, lowerHClamped, 'lower', 'secondary');
+
+          // 차선 치수
+          const secDimY = armY + armH + 10;
+          svg += svgLine(PAD, secDimY, PAD + secW, secDimY, '#92400e', 0.5);
+          svg += svgText(PAD + secW / 2, secDimY + 12, (env.secondaryLeftW || 1500) + 'mm', { size: 9, fill: '#92400e', weight: '600' });
+        }
+
+        if (hasTertiary) {
+          const terX = PAD + totalW - terW;
+          svg += svgLine(PAD + totalW, primaryBottom, PAD + totalW, armY, '#1e40af', 1.5, '4 2');
+          svg += svgText(terX + 8, armY - 4, '↪ 우측 차선', { size: 9, fill: '#1e40af', weight: '600', anchor: 'start' });
+
+          svg += svgRect(terX, armY, terW, armH, '#eff6ff', '#d2d2d7', 0.5, 2);
+
+          renderModRow(currentDesign.upper, terX, env.secondaryRightW || 1500, armY + moldH, upperH, 'upper', 'tertiary');
+          renderModRow(currentDesign.lower, terX, env.secondaryRightW || 1500, armY + moldH + upperH + gapH + counterH, lowerHClamped, 'lower', 'tertiary');
+
+          const terDimY = armY + armH + 10;
+          svg += svgLine(terX, terDimY, terX + terW, terDimY, '#1e40af', 0.5);
+          svg += svgText(terX + terW / 2, terDimY + 12, (env.secondaryRightW || 1500) + 'mm', { size: 9, fill: '#1e40af', weight: '600' });
+        }
+      }
+
+      svg += `</svg>`;
+      el('svg-container').innerHTML = svg;
+    }
+
+    // ─── 클릭 ↔ 하이라이트 동기화 ───
+    window.selectModule = (section, idx) => {
+      selectedModule = { section, idx };
+      // SVG 재렌더 (선택 상태 반영)
+      renderSVG();
+      // 카드 하이라이트
+      document.querySelectorAll('.mod-card.highlight').forEach(e => e.classList.remove('highlight'));
+      const card = document.querySelector(`.mod-card[data-section="${section}"][data-idx="${idx}"]`);
+      if (card) {
+        card.classList.add('highlight');
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
 
     // ─── 랜덤 유틸리티 ───
     function randBetween(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -176,28 +426,21 @@
 
     // ─── 환경 랜덤 생성 ───
     window.randomizeEnv = () => {
-      // 레이아웃 랜덤
-      const layout = pickOne(['I', 'I', 'I', 'L', 'L', 'U']); // I가 더 흔함
+      const layout = pickOne(['I', 'I', 'I', 'L', 'L', 'U']);
       setLayout(layout);
-
-      // 주벽 너비
       const width = pickOne([2400, 2700, 3000, 3000, 3200, 3600, 4000]);
       el('env-width').value = width;
       el('env-height').value = 2400;
       el('env-depth').value = 650;
-      el('env-base').value = pickOne(['left', 'left', 'left', 'right']); // left가 더 흔함
+      el('env-base').value = pickOne(['left', 'left', 'left', 'right']);
       el('env-finL').value = pickOne([0, 0, 0, 18, 18]);
       el('env-finR').value = pickOne([0, 0, 0, 18, 18]);
       el('env-molding').value = pickOne([50, 60, 60]);
       el('env-toe').value = pickOne([100, 100, 120]);
-
-      // 환풍구: 주벽의 50~90% 구간에 400~600mm 폭
       const ventWidth = pickOne([400, 500, 600]);
       const ventStart = roundTo50(randBetween(Math.floor(width * 0.4), Math.floor(width * 0.8) - ventWidth));
       el('env-ventS').value = ventStart;
       el('env-ventE').value = ventStart + ventWidth;
-
-      // 분배기: 70% 확률로 존재, 주벽의 10~50% 구간에 200~400mm 폭
       if (Math.random() < 0.7) {
         const distWidth = pickOne([200, 250, 300, 350, 400]);
         const distStart = roundTo50(randBetween(Math.floor(width * 0.05), Math.floor(width * 0.45)));
@@ -207,8 +450,6 @@
         el('env-distS').value = '';
         el('env-distE').value = '';
       }
-
-      // 보조벽 (L/U)
       if (layout === 'L' || layout === 'U') {
         el('env-secL').value = pickOne([1200, 1500, 1500, 1800, 2000]);
         el('env-secFiller').value = 60;
@@ -232,133 +473,7 @@
       }
     };
 
-    // ─── 플래너용 모듈 순서 정렬 ───
-    function reorderForPlanner(modules) {
-      const secondary = modules.filter(m => m.orientation === 'secondary');
-      const primary = modules.filter(m => (m.orientation || 'normal') === 'normal');
-      const tertiary = modules.filter(m => m.orientation === 'tertiary');
-      return [...secondary, ...primary, ...tertiary];
-    }
-
-    // ─── SinkDesign → PlannerState 변환 ───
-    function designToPlanner(design) {
-      const e = design.env;
-      const toEntry = (m, allMods) => {
-        const entry = {
-          id: `hitl-${m.type}-${m.idx}`,
-          kind: m.kind,
-          width: m.width,
-          moduleType: m.type === 'lt' ? 'storage' : (m.type === 'blank' ? 'storage' : m.type),
-          doorCount: m.doorCount,
-          drawerCount: m.drawerCount,
-        };
-        if (m.orientation === 'secondary' || m.orientation === 'tertiary') {
-          entry.orientation = 'secondary';
-          if (m.blindAnchorIdx != null) {
-            const anchor = allMods.find(am => am.idx === m.blindAnchorIdx && (am.orientation || 'normal') === 'normal');
-            entry.blindAnchorId = anchor ? `hitl-${anchor.type}-${anchor.idx}` : undefined;
-          }
-        }
-        return entry;
-      };
-      const ps = {
-        presetId: 'sink',
-        width: e.width,
-        height: e.height,
-        depth: e.depth,
-        material: 'cream',
-        moldingH: e.moldingH,
-        toeKickH: e.toeKickH,
-        finishLeftW: e.finishLeftW,
-        finishRightW: e.finishRightW,
-        distributorStart: e.distributorStart,
-        distributorEnd: e.distributorEnd,
-        ventStart: e.ventStart,
-        lowerModules: reorderForPlanner(design.lower).map(m => toEntry(m, design.lower)),
-        upperModules: reorderForPlanner(design.upper).map(m => toEntry(m, design.upper)),
-        lowerCount: design.lower.length,
-        upperCount: design.upper.length,
-      };
-      if (e.secondaryFillerW) ps.secondaryFillerW = e.secondaryFillerW;
-      return ps;
-    }
-
-    // ─── PlannerState → SinkDesign 변환 ───
-    function plannerToDesign(ps) {
-      const fromEntry = (m, idx, allEntries) => {
-        const mod = {
-          idx,
-          width: m.width,
-          kind: m.kind,
-          type: m.moduleType || 'storage',
-          orientation: m.orientation || 'normal',
-        };
-        if (m.doorCount) mod.doorCount = m.doorCount;
-        if (m.drawerCount) mod.drawerCount = m.drawerCount;
-        if (m.orientation === 'secondary' && m.blindAnchorId) {
-          const match = m.blindAnchorId.match(/hitl-\w+-(\d+)/);
-          if (match) {
-            mod.blindAnchorIdx = Number(match[1]);
-            const primaries = allEntries.filter(e => (e.orientation || 'normal') === 'normal');
-            const lastPrimaryIdx = primaries.length > 0 ? primaries.length - 1 : 0;
-            if (mod.blindAnchorIdx === lastPrimaryIdx && currentLayout === 'U') {
-              mod.orientation = 'tertiary';
-            }
-          }
-        }
-        return mod;
-      };
-      return {
-        id: currentDesign?.id || 'manual',
-        timestamp: new Date().toISOString(),
-        version: 'v1',
-        env: {
-          width: ps.width,
-          height: ps.height,
-          depth: ps.depth,
-          finishLeftW: ps.finishLeftW || 0,
-          finishRightW: ps.finishRightW || 0,
-          moldingH: ps.moldingH || 60,
-          toeKickH: ps.toeKickH || 100,
-          distributorStart: ps.distributorStart ?? null,
-          distributorEnd: ps.distributorEnd ?? null,
-          ventStart: currentDesign?.env?.ventStart ?? null,
-          ventEnd: currentDesign?.env?.ventEnd ?? null,
-          measurementBase: currentDesign?.env?.measurementBase || 'left',
-          layoutType: currentLayout,
-          secondaryLeftW: currentDesign?.env?.secondaryLeftW ?? null,
-          secondaryRightW: currentDesign?.env?.secondaryRightW ?? null,
-          secondaryFillerW: currentDesign?.env?.secondaryFillerW ?? 60,
-        },
-        lower: (ps.lowerModules || []).map((m, i, all) => fromEntry(m, i, all)),
-        upper: (ps.upperModules || []).map((m, i, all) => fromEntry(m, i, all)),
-        meta: { generated_by: 'human-correction', parent_id: currentGenerated?.id },
-      };
-    }
-
-    // ─── 플래너 통신 ───
-    function sendToPlanner(design) {
-      const ps = designToPlanner(design);
-      const iframe = el('planner');
-      iframe.contentWindow?.postMessage({ type: 'LOAD_HITL_CASE', payload: ps }, '*');
-    }
-
-    // 플래너 → 부모 메시지: 데이터 동기화만 수행, DOM 재생성 절대 안 함.
-    // 카드 렌더링은 명시적 사용자 액션(생성/추가/삭제/이동)에서만 호출.
-    // 이유: 플래너가 PLANNER_STATE + HITL_STATE를 비동기로 보내면
-    //       renderModuleCards()가 DOM을 파괴해 input focus가 사라짐.
-    window.addEventListener('message', (e) => {
-      if (e.data?.type === 'PLANNER_STATE' || e.data?.type === 'HITL_STATE') {
-        const ps = e.data.payload?.planner;
-        if (!ps) return;
-        currentDesign = plannerToDesign(ps);
-      }
-    });
-
     // ─── 모듈 카드 UI 렌더 ───
-    const TYPE_BADGES = { sink:'badge-sink', cook:'badge-cook', hood:'badge-hood', lt:'badge-lt', storage:'badge-storage', drawer:'badge-drawer', blank:'badge-blank' };
-    const TYPE_LABELS = { sink:'개수대', cook:'가스대', hood:'후드', lt:'LT', storage:'수납장', drawer:'서랍장', blank:'빈칸' };
-
     function renderModuleCards() {
       if (!currentDesign) return;
       const panel = el('module-panel');
@@ -391,25 +506,27 @@
         const tagMap = { sec: '<span class="orientation-tag sec">좌 차선</span>', ter: '<span class="orientation-tag ter">우 차차선</span>' };
         const secTag = lineType ? (tagMap[lineType] || '') : '';
         const orient = m.orientation || 'normal';
+        const isSel = selectedModule && selectedModule.section === section && selectedModule.idx === i;
         return `
-          <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}" data-orient="${orient}">
+          <div class="mod-card${isSel ? ' highlight' : ''}${lineType && !isSel ? ' highlight' : ''}" data-section="${section}" data-idx="${i}" data-orient="${orient}"
+               onclick="selectModule('${section}',${i})">
             <div class="mod-header">
               <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
               <span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
               <span class="move-btns">
-                <button class="move-btn" onclick="moveModule('${section}',${i},'${orient}',-1)" title="위로">▲</button>
-                <button class="move-btn" onclick="moveModule('${section}',${i},'${orient}',1)" title="아래로">▼</button>
+                <button class="move-btn" onclick="event.stopPropagation();moveModule('${section}',${i},'${orient}',-1)" title="위로">▲</button>
+                <button class="move-btn" onclick="event.stopPropagation();moveModule('${section}',${i},'${orient}',1)" title="아래로">▼</button>
               </span>
-              <button class="btn-danger" onclick="removeModule('${section}',${i})">✕</button>
+              <button class="btn-danger" onclick="event.stopPropagation();removeModule('${section}',${i})">✕</button>
             </div>
             <div class="mod-row">
               <div>
                 <label>너비 (mm)</label>
-                <input type="number" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
+                <input type="number" value="${m.width}" onclick="event.stopPropagation()" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
               </div>
               <div>
                 <label>타입</label>
-                <select onchange="updateMod('${section}',${i},'type',this.value)">
+                <select onclick="event.stopPropagation()" onchange="updateMod('${section}',${i},'type',this.value)">
                   ${['sink','cook','hood','lt','storage','drawer','blank'].map(t =>
                     `<option value="${t}" ${m.type===t?'selected':''}>${TYPE_LABELS[t]||t}</option>`
                   ).join('')}
@@ -419,7 +536,7 @@
             <div class="mod-row">
               <div>
                 <label>종류</label>
-                <select onchange="updateMod('${section}',${i},'kind',this.value)">
+                <select onclick="event.stopPropagation()" onchange="updateMod('${section}',${i},'kind',this.value)">
                   ${['door','drawer','open'].map(k =>
                     `<option value="${k}" ${m.kind===k?'selected':''}>${k==='door'?'도어':k==='drawer'?'서랍':'오픈'}</option>`
                   ).join('')}
@@ -428,6 +545,7 @@
               <div>
                 <label>${m.kind==='drawer'?'서랍 수':'도어 수'}</label>
                 <input type="number" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
+                  onclick="event.stopPropagation()"
                   onchange="updateMod('${section}',${i},this.dataset.field,Number(this.value))"
                   data-field="${m.kind==='drawer'?'drawerCount':'doorCount'}" />
               </div>
@@ -444,14 +562,15 @@
     window.updateMod = (section, idx, field, value) => {
       if (!currentDesign) return;
       currentDesign[section][idx][field] = value;
-      sendToPlanner(currentDesign);
+      renderSVG(); // 2D 뷰 즉시 업데이트
     };
 
     window.removeModule = (section, idx) => {
       if (!currentDesign) return;
       currentDesign[section].splice(idx, 1);
       currentDesign[section].forEach((m, i) => m.idx = i);
-      sendToPlanner(currentDesign);
+      selectedModule = null;
+      renderSVG();
       renderModuleCards();
     };
 
@@ -466,14 +585,13 @@
         mod.blindAnchorIdx = primaries.length > 0 ? primaries.length - 1 : 0;
       }
       currentDesign[section].push(mod);
-      sendToPlanner(currentDesign);
+      renderSVG();
       renderModuleCards();
     };
 
     // ─── 드래그 앤 드롭 재정렬 (핸들 mousedown → 동적 draggable) ───
     let dragState = null;
 
-    // 핸들(⠿)에 마우스 누를 때만 카드를 draggable로 활성화
     document.addEventListener('mousedown', (e) => {
       const handle = e.target.closest('.drag-handle');
       if (!handle) return;
@@ -481,22 +599,14 @@
       if (card) card.setAttribute('draggable', 'true');
     });
 
-    // 마우스 뗄 때 draggable 해제 (드래그 안 했을 경우 대비)
     document.addEventListener('mouseup', () => {
       document.querySelectorAll('.mod-card[draggable]').forEach(c => c.removeAttribute('draggable'));
     });
 
     document.addEventListener('dragstart', (e) => {
       const card = e.target.closest('.mod-card');
-      if (!card || !card.hasAttribute('draggable')) {
-        e.preventDefault();
-        return;
-      }
-      dragState = {
-        section: card.dataset.section,
-        idx: Number(card.dataset.idx),
-        orient: card.dataset.orient,
-      };
+      if (!card || !card.hasAttribute('draggable')) { e.preventDefault(); return; }
+      dragState = { section: card.dataset.section, idx: Number(card.dataset.idx), orient: card.dataset.orient };
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
@@ -508,17 +618,13 @@
       if (card.dataset.section !== dragState.section || card.dataset.orient !== dragState.orient) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      // 이전 drag-over 클래스 제거 후 현재 카드에만 적용
       document.querySelectorAll('.mod-card.drag-over').forEach(c => c.classList.remove('drag-over'));
       card.classList.add('drag-over');
     });
 
     document.addEventListener('dragleave', (e) => {
-      // 카드 영역을 완전히 벗어났을 때만 제거
       const card = e.target.closest('.mod-card');
-      if (card && !card.contains(e.relatedTarget)) {
-        card.classList.remove('drag-over');
-      }
+      if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
     });
 
     document.addEventListener('drop', (e) => {
@@ -529,21 +635,17 @@
       const targetIdx = Number(card.dataset.idx);
       if (card.dataset.section !== dragState.section || card.dataset.orient !== dragState.orient) return;
       if (targetIdx === dragState.idx) return;
-
       const mods = currentDesign[dragState.section];
       const moved = mods.splice(dragState.idx, 1)[0];
       const insertIdx = targetIdx > dragState.idx ? targetIdx - 1 : targetIdx;
       mods.splice(insertIdx, 0, moved);
       mods.forEach((m, i) => m.idx = i);
-      sendToPlanner(currentDesign);
+      renderSVG();
       renderModuleCards();
     });
 
     document.addEventListener('dragend', () => {
-      document.querySelectorAll('.mod-card').forEach(c => {
-        c.classList.remove('dragging', 'drag-over');
-        c.removeAttribute('draggable');
-      });
+      document.querySelectorAll('.mod-card').forEach(c => { c.classList.remove('dragging', 'drag-over'); c.removeAttribute('draggable'); });
       dragState = null;
     });
 
@@ -551,19 +653,15 @@
     window.moveModule = (section, idx, orient, dir) => {
       if (!currentDesign) return;
       const mods = currentDesign[section];
-      // 같은 orientation 그룹 내에서 인접 모듈과 swap
-      const sameGroup = mods
-        .map((m, i) => ({ m, i }))
-        .filter(({ m }) => (m.orientation || 'normal') === orient);
+      const sameGroup = mods.map((m, i) => ({ m, i })).filter(({ m }) => (m.orientation || 'normal') === orient);
       const posInGroup = sameGroup.findIndex(({ i }) => i === idx);
       const targetPos = posInGroup + dir;
-      if (targetPos < 0 || targetPos >= sameGroup.length) return; // 범위 밖
-      // 배열에서 실제 인덱스로 swap
+      if (targetPos < 0 || targetPos >= sameGroup.length) return;
       const fromIdx = sameGroup[posInGroup].i;
       const toIdx = sameGroup[targetPos].i;
       [mods[fromIdx], mods[toIdx]] = [mods[toIdx], mods[fromIdx]];
       mods.forEach((m, i) => m.idx = i);
-      sendToPlanner(currentDesign);
+      renderSVG();
       renderModuleCards();
     };
 
@@ -579,17 +677,13 @@
         ventStart: numOrNull('env-ventS'), ventEnd: numOrNull('env-ventE'),
         measurementBase: el('env-base').value,
         layoutType: currentLayout,
-        secondaryLeftW: null,
-        secondaryRightW: null,
-        secondaryFillerW: 60,
+        secondaryLeftW: null, secondaryRightW: null, secondaryFillerW: 60,
       };
       if (currentLayout === 'L' || currentLayout === 'U') {
         env.secondaryLeftW = num('env-secL');
         env.secondaryFillerW = num('env-secFiller');
       }
-      if (currentLayout === 'U') {
-        env.secondaryRightW = num('env-secR');
-      }
+      if (currentLayout === 'U') { env.secondaryRightW = num('env-secR'); }
       return env;
     }
 
@@ -606,7 +700,8 @@
         if (!data.success) throw new Error(data.error || 'Generate failed');
         currentGenerated = data.design;
         currentDesign = JSON.parse(JSON.stringify(data.design));
-        sendToPlanner(currentDesign);
+        selectedModule = null;
+        renderSVG();
         renderModuleCards();
         const lt = data.design.env.layoutType === 'L' ? 'ㄱ자' : data.design.env.layoutType === 'U' ? 'ㄷ자' : '일자';
         status(`✓ ${lt} 생성 (하부 ${data.design.lower.length} / 상부 ${data.design.upper.length})`);
@@ -651,8 +746,8 @@
       } catch (e) { /* ignore */ }
     }
 
-    el('btn-generate').onclick = () => generate(false);    // 현재 env로 생성
-    el('btn-next').onclick = () => generate(true);          // 환경 랜덤 + 생성
+    el('btn-generate').onclick = () => generate(false);
+    el('btn-next').onclick = () => generate(true);
     el('btn-save').onclick = save;
     refreshStats();
   </script>
