@@ -220,7 +220,7 @@ Estimate wall width in mm.`;
       storage: 'custom storage cabinet with adjustable shelves',
     };
 
-    // ─── 색상 팔레트 ───
+    // ─── 캐비닛 색상 팔레트 ───
     const BASE_ACHROMATICS = ['white', 'milk white', 'sand gray', 'light gray', 'fog gray', 'cashmere'];
     const ALT_TWO_TONES: Array<{ upper: string; lower: string }> = [
       { upper: 'cream white', lower: 'deep forest green' },
@@ -235,41 +235,64 @@ Estimate wall width in mm.`;
       { upper: 'pale taupe',  lower: 'burgundy' },
     ];
 
+    // ─── 상판 색상 팔레트 (스타론/라디안츠 기반) ───
+    const COUNTERTOP_COLORS = [
+      { name: 'Bright White',       code: 'BW010', desc: 'pure white solid surface' },
+      { name: 'Sanded Icicle',      code: 'SI414', desc: 'white with fine speckles' },
+      { name: 'Sanded Cream',       code: 'SM421', desc: 'warm cream with subtle texture' },
+      { name: 'Pebble Ice',         code: 'PI811', desc: 'icy white with small pebble flecks' },
+      { name: 'Aspen Snow',         code: 'AS610', desc: 'clean snow white with fine grain' },
+      { name: 'Fog',                code: 'SF020', desc: 'soft light gray solid' },
+      { name: 'Sanded Grey',        code: 'SG420', desc: 'medium gray with fine sand texture' },
+      { name: 'Aspen Concrete',     code: 'AC629', desc: 'concrete-look gray with texture' },
+      { name: 'Diamond White',      code: 'DW105', desc: 'sparkling quartz white with silver flecks' },
+      { name: 'Everest White',      code: 'EW120', desc: 'alpine white quartz with soft veining' },
+      { name: 'Gentle Gray',        code: 'GG900', desc: 'warm gray quartz with subtle movement' },
+      { name: 'Calacatta Classic',  code: 'CC001', desc: 'white marble-look with elegant gray veining' },
+      { name: 'Carrara Bella',      code: 'CB001', desc: 'white with delicate gray marble veins' },
+      { name: 'Supreme Cotton White', code: 'VC110', desc: 'soft cotton white with fine particles' },
+      { name: 'Bristol Beige',      code: 'BB227', desc: 'warm beige quartz with natural tone' },
+    ];
+
     // ─── 기본안 (무채색 단일) ───
-    function buildBasePrompt(cat: string, color: string): string {
+    function buildBasePrompt(cat: string, color: string, countertop: typeof COUNTERTOP_COLORS[number]): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      const ctDesc = `"${countertop.name}" (${countertop.desc})`;
       if (cat === 'sink') {
         return `[POSITION FIXED] Keep sink, cooktop, hood at EXACT same positions. Do NOT move appliances.
 Edit photo: install ${subject}. ${sinkLayoutConstraints}
 [COLOR FIXED] ALL cabinets must be "${color}" — matte flat panel, exactly this color, no variation.
-Countertop: white ceramic or warm ivory stone.
+[COUNTERTOP FIXED] Countertop must be ${ctDesc}. Use this exact color/pattern.
 ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
     // ─── AI 추천안 (투톤) ───
-    function buildAltPrompt(cat: string, upper: string, lower: string): string {
+    function buildAltPrompt(cat: string, upper: string, lower: string, countertop: typeof COUNTERTOP_COLORS[number]): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
+      const ctDesc = `"${countertop.name}" (${countertop.desc})`;
       if (cat === 'sink') {
         return `[POSITION FIXED] Keep sink, cooktop, hood at EXACT same positions. Do NOT move appliances.
 Edit photo: install ${subject}. ${sinkLayoutConstraints}
 [TWO-TONE FIXED] Upper cabinets: "${upper}" (matte flat panel). Lower cabinets: "${lower}" (matte flat panel). Use EXACTLY these colors, no substitution.
-Countertop: ceramic white or concrete.
+[COUNTERTOP FIXED] Countertop must be ${ctDesc}. Use this exact color/pattern.
 ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
-      return `Edit photo: install ${subject}. Upper: "${upper}", Lower: "${lower}". Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+      return `Edit photo: install ${subject}. Upper: "${upper}", Lower: "${lower}". Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ═══ Step 3: 기본안 생성 (시드로 무채색 팔레트에서 픽) ═══
+    // ═══ Step 3: 기본안 생성 (시드로 무채색 팔레트 + 상판 색상 픽) ═══
     log.info('Step 3: Generate base design (기본안 — seeded color pick)');
 
     const baseSeed = Math.floor(Math.random() * 9999);
     const baseColor = BASE_ACHROMATICS[baseSeed % BASE_ACHROMATICS.length];
-    const mainPrompt = buildBasePrompt(category, baseColor);
-    log.info({ promptLength: mainPrompt.length, category, baseSeed, baseColor }, 'Base design prompt (seeded pick)');
+    const baseCTSeed = Math.floor(Math.random() * 9999);
+    const baseCT = COUNTERTOP_COLORS[baseCTSeed % COUNTERTOP_COLORS.length];
+    const mainPrompt = buildBasePrompt(category, baseColor, baseCT);
+    log.info({ promptLength: mainPrompt.length, category, baseSeed, baseColor, countertop: baseCT.name }, 'Base design prompt (seeded pick)');
 
     const closedResult = await callGemini(
       mainPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
@@ -289,8 +312,10 @@ Keep wall, floor, camera identical. No clutter.`;
     try {
       const altSeed = Math.floor(Math.random() * 9999);
       altPick = ALT_TWO_TONES[altSeed % ALT_TWO_TONES.length];
-      const altPrompt = buildAltPrompt(category, altPick.upper, altPick.lower);
-      log.info({ promptLength: altPrompt.length, category, altSeed, altPick }, 'AI recommendation prompt (seeded two-tone)');
+      const altCTSeed = Math.floor(Math.random() * 9999);
+      const altCT = COUNTERTOP_COLORS[altCTSeed % COUNTERTOP_COLORS.length];
+      const altPrompt = buildAltPrompt(category, altPick.upper, altPick.lower, altCT);
+      log.info({ promptLength: altPrompt.length, category, altSeed, altPick, countertop: altCT.name }, 'AI recommendation prompt (seeded two-tone)');
 
       const altResult = await callGemini(
         altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
@@ -423,6 +448,7 @@ Return ONLY this JSON (no other text):
         elapsed_ms: elapsed,
         color_mode: 'seeded-pick',
         base_color: baseColor,
+        base_countertop: baseCT.name,
         alt_colors: altPick,
       },
     });
