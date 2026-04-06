@@ -61,11 +61,16 @@
     .orientation-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
     .orientation-tag.sec { color: #92400e; background: #fef3c7; }
     .orientation-tag.ter { color: #1e40af; background: #dbeafe; }
-    .mod-card[draggable="true"] { cursor: grab; }
-    .mod-card[draggable="true"]:active { cursor: grabbing; }
-    .mod-card.dragging { opacity: 0.4; }
-    .mod-card.drag-over { border-top: 3px solid #0071e3; margin-top: 1px; }
-    .drag-handle { cursor: grab; color: #86868b; font-size: 14px; margin-right: 4px; user-select: none; }
+    .mod-card[draggable="true"] { cursor: default; }
+    .mod-card.dragging { opacity: 0.4; transform: scale(0.97); }
+    .mod-card.drag-over { border-top: 3px solid #0071e3; padding-top: 11px; }
+    .drag-handle { cursor: grab; color: #86868b; font-size: 16px; margin-right: 4px; user-select: none; padding: 2px 4px; border-radius: 3px; }
+    .drag-handle:hover { background: #e8e8ed; color: #1d1d1f; }
+    .drag-handle:active { cursor: grabbing; }
+    .mod-card input, .mod-card select { -webkit-user-drag: none; }
+    .move-btns { display: flex; flex-direction: column; gap: 1px; margin-left: auto; margin-right: 4px; }
+    .move-btn { background: none; border: 1px solid #d2d2d7; border-radius: 3px; font-size: 9px; padding: 0 4px; line-height: 14px; cursor: pointer; color: #86868b; }
+    .move-btn:hover { background: #e8e8ed; color: #1d1d1f; }
     .env-section-header { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 2px; }
     .env-section-header label { margin: 0; }
   </style>
@@ -387,19 +392,24 @@
         const orient = m.orientation || 'normal';
         return `
           <div class="mod-card${lineType ? ' highlight' : ''}" data-section="${section}" data-idx="${i}" data-orient="${orient}"
-               draggable="true" ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)" ondragleave="onDragLeave(event)">
+               draggable="true">
             <div class="mod-header">
-              <span><span class="drag-handle">⠿</span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
+              <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
+              <span><span class="badge ${badge}">${typeLabel}</span>${secTag}</span>
+              <span class="move-btns">
+                <button class="move-btn" onclick="moveModule('${section}',${i},'${orient}',-1)" title="위로">▲</button>
+                <button class="move-btn" onclick="moveModule('${section}',${i},'${orient}',1)" title="아래로">▼</button>
+              </span>
               <button class="btn-danger" onclick="removeModule('${section}',${i})">✕</button>
             </div>
             <div class="mod-row">
               <div>
                 <label>너비 (mm)</label>
-                <input type="number" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
+                <input type="number" draggable="false" value="${m.width}" onchange="updateMod('${section}',${i},'width',Number(this.value))" />
               </div>
               <div>
                 <label>타입</label>
-                <select onchange="updateMod('${section}',${i},'type',this.value)">
+                <select draggable="false" onchange="updateMod('${section}',${i},'type',this.value)">
                   ${['sink','cook','hood','lt','storage','drawer','blank'].map(t =>
                     `<option value="${t}" ${m.type===t?'selected':''}>${TYPE_LABELS[t]||t}</option>`
                   ).join('')}
@@ -409,7 +419,7 @@
             <div class="mod-row">
               <div>
                 <label>종류</label>
-                <select onchange="updateMod('${section}',${i},'kind',this.value)">
+                <select draggable="false" onchange="updateMod('${section}',${i},'kind',this.value)">
                   ${['door','drawer','open'].map(k =>
                     `<option value="${k}" ${m.kind===k?'selected':''}>${k==='door'?'도어':k==='drawer'?'서랍':'오픈'}</option>`
                   ).join('')}
@@ -417,7 +427,7 @@
               </div>
               <div>
                 <label>${m.kind==='drawer'?'서랍 수':'도어 수'}</label>
-                <input type="number" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
+                <input type="number" draggable="false" min="1" max="5" value="${m.kind==='drawer'?(m.drawerCount||2):(m.doorCount||1)}"
                   onchange="updateMod('${section}',${i},this.dataset.field,Number(this.value))"
                   data-field="${m.kind==='drawer'?'drawerCount':'doorCount'}" />
               </div>
@@ -460,12 +470,18 @@
       renderModuleCards();
     };
 
-    // ─── 드래그 앤 드롭 재정렬 ───
-    let dragState = null; // { section, idx, orient }
+    // ─── 드래그 앤 드롭 재정렬 (이벤트 위임) ───
+    let dragState = null;
 
-    window.onDragStart = (e) => {
+    document.addEventListener('dragstart', (e) => {
+      // 드래그 핸들(⠿)에서 시작된 경우만 허용
+      const handle = e.target.closest('.drag-handle');
       const card = e.target.closest('.mod-card');
-      if (!card) return;
+      if (!handle || !card) {
+        // 핸들이 아닌 곳(input/select 등)에서 시작 → 드래그 취소
+        e.preventDefault();
+        return;
+      }
       dragState = {
         section: card.dataset.section,
         idx: Number(card.dataset.idx),
@@ -473,52 +489,69 @@
       };
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', ''); // Firefox 호환
-    };
+      e.dataTransfer.setData('text/plain', '');
+    });
 
-    window.onDragOver = (e) => {
-      e.preventDefault();
+    document.addEventListener('dragover', (e) => {
       const card = e.target.closest('.mod-card');
       if (!card || !dragState) return;
-      // 같은 section + 같은 orientation 그룹 안에서만 허용
       if (card.dataset.section !== dragState.section || card.dataset.orient !== dragState.orient) return;
+      e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
+      // 이전 drag-over 클래스 제거 후 현재 카드에만 적용
+      document.querySelectorAll('.mod-card.drag-over').forEach(c => c.classList.remove('drag-over'));
       card.classList.add('drag-over');
-    };
+    });
 
-    window.onDragLeave = (e) => {
+    document.addEventListener('dragleave', (e) => {
+      // 카드 영역을 완전히 벗어났을 때만 제거
       const card = e.target.closest('.mod-card');
-      if (card) card.classList.remove('drag-over');
-    };
+      if (card && !card.contains(e.relatedTarget)) {
+        card.classList.remove('drag-over');
+      }
+    });
 
-    window.onDrop = (e) => {
+    document.addEventListener('drop', (e) => {
       e.preventDefault();
       const card = e.target.closest('.mod-card');
       if (!card || !dragState) return;
       card.classList.remove('drag-over');
-      const targetSection = card.dataset.section;
       const targetIdx = Number(card.dataset.idx);
-      const targetOrient = card.dataset.orient;
-      if (targetSection !== dragState.section || targetOrient !== dragState.orient) return;
+      if (card.dataset.section !== dragState.section || card.dataset.orient !== dragState.orient) return;
       if (targetIdx === dragState.idx) return;
 
-      // 같은 orientation 그룹 내에서 이동
       const mods = currentDesign[dragState.section];
       const moved = mods.splice(dragState.idx, 1)[0];
-      // splice 후 targetIdx 보정
       const insertIdx = targetIdx > dragState.idx ? targetIdx - 1 : targetIdx;
       mods.splice(insertIdx, 0, moved);
-      // idx 재번호
       mods.forEach((m, i) => m.idx = i);
       sendToPlanner(currentDesign);
       renderModuleCards();
-    };
+    });
 
-    window.onDragEnd = (e) => {
-      document.querySelectorAll('.mod-card').forEach(c => {
-        c.classList.remove('dragging', 'drag-over');
-      });
+    document.addEventListener('dragend', () => {
+      document.querySelectorAll('.mod-card').forEach(c => c.classList.remove('dragging', 'drag-over'));
       dragState = null;
+    });
+
+    // ─── ▲▼ 버튼 이동 ───
+    window.moveModule = (section, idx, orient, dir) => {
+      if (!currentDesign) return;
+      const mods = currentDesign[section];
+      // 같은 orientation 그룹 내에서 인접 모듈과 swap
+      const sameGroup = mods
+        .map((m, i) => ({ m, i }))
+        .filter(({ m }) => (m.orientation || 'normal') === orient);
+      const posInGroup = sameGroup.findIndex(({ i }) => i === idx);
+      const targetPos = posInGroup + dir;
+      if (targetPos < 0 || targetPos >= sameGroup.length) return; // 범위 밖
+      // 배열에서 실제 인덱스로 swap
+      const fromIdx = sameGroup[posInGroup].i;
+      const toIdx = sameGroup[targetPos].i;
+      [mods[fromIdx], mods[toIdx]] = [mods[toIdx], mods[fromIdx]];
+      mods.forEach((m, i) => m.idx = i);
+      sendToPlanner(currentDesign);
+      renderModuleCards();
     };
 
     // ─── API 호출 ───

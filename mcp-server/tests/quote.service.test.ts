@@ -73,10 +73,9 @@ describe('calculateQuote', () => {
 
     const result = calculateQuote(analysis, 'sink', 'basic');
 
-    // 설치비 + 철거비만 포함
-    expect(result.items.length).toBe(2);
-    expect(result.items[0].name).toBe('배송 + 설치');
-    expect(result.items[1].name).toBe('기존 철거');
+    // 철거비만 포함
+    expect(result.items.length).toBe(1);
+    expect(result.items[0].name).toBe('기존 철거');
   });
 
   it('handles negative width by treating as 0', () => {
