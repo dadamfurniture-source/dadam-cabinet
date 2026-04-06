@@ -91,75 +91,41 @@
         color: var(--gold);
       }
 
-      /* Hero — INNER dark style */
+      /* Hero */
       .hero {
-        padding: 140px 48px 60px;
-        background: var(--black);
-        background-image: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.7)), url('app/portfolio/portfolio1.jpg');
-        background-size: cover;
-        background-position: center;
+        padding: 100px 48px 32px;
+        background: linear-gradient(180deg, var(--cream) 0%, var(--white) 100%);
         text-align: center;
-        position: relative;
-      }
-      .hero::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 80px;
-        background: linear-gradient(transparent, var(--white));
       }
       .hero-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 8px 20px;
-        background: rgba(184, 149, 108, 0.2);
-        border: 1px solid rgba(184, 149, 108, 0.4);
-        border-radius: 2px;
-        color: var(--gold-light);
+        padding: 6px 16px;
+        background: rgba(184, 149, 108, 0.12);
+        border-radius: 20px;
+        color: var(--gold);
         font-size: 11px;
-        letter-spacing: 2.5px;
+        letter-spacing: 1.5px;
         text-transform: uppercase;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
       }
       .hero h1 {
-        font-size: 42px;
-        margin-bottom: 14px;
-        color: #fff;
-        letter-spacing: 1px;
+        font-size: 36px;
+        margin-bottom: 10px;
       }
       .hero h1 span {
-        color: var(--gold-light);
+        color: var(--gold);
       }
       .hero p {
-        color: rgba(255,255,255,0.7);
+        color: var(--gray);
         font-size: 15px;
-        max-width: 500px;
-        margin: 0 auto;
       }
 
       .main-container {
         max-width: 1100px;
         margin: 0 auto;
         padding: 0 24px 60px;
-      }
-
-      /* INNER-style section headers */
-      .section-label {
-        font-size: 11px;
-        letter-spacing: 2.5px;
-        text-transform: uppercase;
-        color: var(--gold);
-        margin-bottom: 8px;
-      }
-      .section-title {
-        font-family: 'Playfair Display', 'Noto Serif KR', serif;
-        font-size: 28px;
-        font-weight: 500;
-        color: var(--charcoal);
-        margin-bottom: 24px;
       }
 
       /* Floating Chat Widget */
@@ -420,8 +386,8 @@
       }
       .category-card {
         background: var(--white);
-        border: 1px solid #e5e5e5;
-        border-radius: 4px;
+        border: 2px solid var(--warm);
+        border-radius: 16px;
         padding: 20px 12px;
         text-align: center;
         cursor: pointer;
@@ -430,15 +396,14 @@
         overflow: hidden;
       }
       .category-card:hover {
-        border-color: var(--charcoal);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border-color: var(--gold);
+        transform: translateY(-2px);
       }
       .category-card:active {
         transform: scale(0.98);
       }
       .category-card.has-image {
         border-color: var(--gold);
-        box-shadow: 0 2px 12px rgba(184, 149, 108, 0.15);
       }
       .category-card .check-badge {
         position: absolute;
@@ -883,8 +848,8 @@
         max-width: 400px;
         padding: 18px 32px;
         border: none;
-        border-radius: 2px;
-        font-size: 15px;
+        border-radius: 14px;
+        font-size: 16px;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s;
@@ -892,14 +857,13 @@
         align-items: center;
         justify-content: center;
         gap: 10px;
-        background: var(--charcoal);
+        background: linear-gradient(135deg, var(--gold), var(--gold-light));
         color: #fff;
-        letter-spacing: 1px;
-        text-transform: uppercase;
+        box-shadow: 0 4px 20px rgba(184, 149, 108, 0.3);
       }
       .generate-btn:hover:not(:disabled) {
-        background: var(--black);
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 28px rgba(184, 149, 108, 0.4);
       }
       .generate-btn:disabled {
         opacity: 0.6;
@@ -957,8 +921,8 @@
       .step-icon {
         width: 32px;
         height: 32px;
-        border-radius: 2px;
-        background: #e5e5e5;
+        border-radius: 50%;
+        background: var(--warm);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -966,11 +930,11 @@
         transition: all 0.3s;
       }
       .step.active .step-icon {
-        background: var(--charcoal);
+        background: var(--gold);
         color: #fff;
       }
       .step.done .step-icon {
-        background: var(--gold);
+        background: #10b981;
         color: #fff;
       }
       .step-label {
@@ -1171,13 +1135,14 @@
       }
       .result-card {
         background: var(--white);
-        border-radius: 2px;
+        border-radius: 14px;
         overflow: hidden;
-        border: 1px solid #e5e5e5;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       }
       .result-card-header {
-        padding: 12px 16px;
-        background: var(--charcoal);
+        padding: 10px 14px;
+        background: var(--white);
+        border-bottom: 1px solid var(--warm);
         display: flex;
         align-items: center;
         gap: 6px;
@@ -1196,7 +1161,7 @@
       .result-card-header span {
         font-size: 11px;
         font-weight: 600;
-        color: rgba(255,255,255,0.8);
+        color: var(--gray);
         text-transform: uppercase;
         letter-spacing: 1px;
       }
@@ -1210,10 +1175,10 @@
       /* ═══ 인스타그램 스타일 이미지 뷰어 + 화살표 네비게이션 ═══ */
       .render-image-container {
         background: #fff;
-        border-radius: 2px;
+        border-radius: 16px;
         overflow: hidden;
         margin-bottom: 16px;
-        border: 1px solid #e5e5e5;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
         position: relative;
       }
       .render-header {
@@ -2153,19 +2118,19 @@
         <p class="section-title">주방 레이아웃</p>
         <p class="section-subtitle">주방 형태를 선택하세요</p>
         <div class="kitchen-layout-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px;">
-          <button class="kitchen-layout-btn" data-layout="i_type" onclick="selectKitchenLayout('i_type')" style="padding: 14px 8px; border: 1px solid #e5e5e5; border-radius: 2px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
+          <button class="kitchen-layout-btn" data-layout="i_type" onclick="selectKitchenLayout('i_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
             <div style="font-size: 13px; font-weight: 600;">1자형</div>
             <div style="font-size: 11px; color: #888;">직선형</div>
           </button>
-          <button class="kitchen-layout-btn" data-layout="l_type" onclick="selectKitchenLayout('l_type')" style="padding: 14px 8px; border: 1px solid #e5e5e5; border-radius: 2px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
+          <button class="kitchen-layout-btn" data-layout="l_type" onclick="selectKitchenLayout('l_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
             <div style="font-size: 13px; font-weight: 600;">ㄱ자형</div>
             <div style="font-size: 11px; color: #888;">L자형</div>
           </button>
-          <button class="kitchen-layout-btn" data-layout="u_type" onclick="selectKitchenLayout('u_type')" style="padding: 14px 8px; border: 1px solid #e5e5e5; border-radius: 2px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
+          <button class="kitchen-layout-btn" data-layout="u_type" onclick="selectKitchenLayout('u_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
             <div style="font-size: 13px; font-weight: 600;">ㄷ자형</div>
             <div style="font-size: 11px; color: #888;">U자형</div>
           </button>
-          <button class="kitchen-layout-btn" data-layout="peninsula" onclick="selectKitchenLayout('peninsula')" style="padding: 14px 8px; border: 1px solid #e5e5e5; border-radius: 2px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
+          <button class="kitchen-layout-btn" data-layout="peninsula" onclick="selectKitchenLayout('peninsula')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
             <div style="font-size: 13px; font-weight: 600;">대면형</div>
             <div style="font-size: 11px; color: #888;">11자형</div>
           </button>
@@ -3579,7 +3544,7 @@ Magazine quality, professional lighting.`;
             </div>
           </div>
           ${result.quote ? `
-          <div style="margin-top:16px;background:#fafafa;border:1px solid #e5e5e5;border-radius:2px;padding:20px;">
+          <div style="margin-top:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:20px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
               <span style="font-size:18px;">💰</span>
               <span style="font-size:15px;font-weight:600;color:#333;">예상 견적</span>
@@ -3617,8 +3582,8 @@ Magazine quality, professional lighting.`;
           <div style="margin-top:16px;text-align:center;">
             <button onclick="goToPartnerRecommendation()"
               style="width:100%;padding:14px 24px;background:var(--charcoal);color:#fff;
-                     border:none;border-radius:2px;font-size:13px;font-weight:600;
-                     cursor:pointer;letter-spacing:1.5px;text-transform:uppercase;transition:all 0.3s;"
+                     border:none;border-radius:8px;font-size:14px;font-weight:600;
+                     cursor:pointer;letter-spacing:0.5px;transition:all 0.3s;"
               onmouseover="this.style.background='#b8956c'"
               onmouseout="this.style.background='#2d2a26'">
               🏠 시공 협력업체 추천받기
