@@ -543,12 +543,20 @@
         if (!ws) return;
         try {
 
-        // ★ 3D iframe 보존 — innerHTML 교체 전에 떼어내기
+        // ★ 3D iframe 보존 — body 레벨 숨김 컨테이너로 이동 (DOM에서 완전 제거하면 리로드됨)
         const existingIframe = ws.querySelector('iframe[data-planner]');
         let savedIframe = null;
         if (existingIframe) {
           savedIframe = existingIframe;
-          existingIframe.remove();
+          // DOM 트리에서 제거하지 않고 숨김 컨테이너로 이동 → 리로드 방지
+          let holder = document.getElementById('__planner-iframe-holder');
+          if (!holder) {
+            holder = document.createElement('div');
+            holder.id = '__planner-iframe-holder';
+            holder.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+            document.body.appendChild(holder);
+          }
+          holder.appendChild(savedIframe);
         }
 
         // ★ 포커스 복원을 위한 정보 저장
