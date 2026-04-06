@@ -1603,6 +1603,9 @@
           item.specs.topSizes.push({ w: '', d: '' });
         }
         // Secondary/Tertiary 기본값
+        if (shape !== 'I' && !item.specs.lowerSecondaryW) {
+          item.specs.lowerSecondaryW = '1200'; // 기본 1200mm
+        }
         if (shape !== 'I' && !item.specs.lowerSecondaryD) {
           item.specs.lowerSecondaryD = item.defaultD || item.d || '';
         }

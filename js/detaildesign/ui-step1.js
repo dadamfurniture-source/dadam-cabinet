@@ -386,6 +386,7 @@
       /**
        * 실측/스펙 변경 시 3D iframe에 직접 postMessage (DOM 리렌더 없이)
        */
+      window._syncPlannerState = _syncPlannerState; // 전역 노출 (ui-workspace.js에서 접근)
       function _syncPlannerState(item) {
         const ws = document.getElementById('designWorkspace');
         if (!ws) return;
@@ -423,7 +424,9 @@
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 자동 추가
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
-        if (lShape !== 'I' && specs.lowerSecondaryW) {
+        if (lShape !== 'I') {
+          // ㄱ자인데 W가 없으면 기본값 1200mm
+          if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1200';
           const secW = parseFloat(specs.lowerSecondaryW) || 600;
           const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(item.d) || 600;
           const startSide = specs.secondaryStartSide || 'left';
@@ -1153,23 +1156,21 @@
           <div style="padding:4px 6px;border-left:2px solid #b8956c;margin-bottom:4px;">
             <div style="font-size:9px;font-weight:600;color:#b8956c;margin-bottom:2px;">하부장</div>
             <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryW', this.value)"></div>
-              <div class="spec-field"><label>H</label><input type="number" value="${secLH}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryH', this.value)"></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value)"></div>
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${secLD}" onchange="updateSpec(${item.uniqueId}, 'lowerSecondaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
             </div>
           </div>
           <div style="padding:4px 6px;border-left:2px solid ${secUpperOn ? '#5a7fa0' : '#ccc'};${secUpperOn ? '' : 'opacity:0.5;'}">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
               <span style="font-size:9px;font-weight:600;color:${secUpperOn ? '#5a7fa0' : '#aaa'};">상부장</span>
               <label style="font-size:9px;color:#666;cursor:pointer;display:flex;align-items:center;gap:2px;">
-                <input type="checkbox" ${secUpperOn ? 'checked' : ''} onchange="updateSpec(${item.uniqueId}, 'secondaryUpperEnabled', this.checked); renderWorkspaceContent(getItem(${item.uniqueId}))" style="margin:0;width:12px;height:12px;">
+                <input type="checkbox" ${secUpperOn ? 'checked' : ''} onchange="updateSpec(${item.uniqueId}, 'secondaryUpperEnabled', this.checked); renderWorkspaceContent(getItem(${item.uniqueId})); _syncPlannerState(getItem(${item.uniqueId}))" style="margin:0;width:12px;height:12px;">
                 <span>사용</span>
               </label>
             </div>
             <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
-              <div class="spec-field"><label>H</label><input type="number" value="${secUH}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryH', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value)" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpec(${item.uniqueId}, 'upperSecondaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
             </div>
           </div>
         </div>`;
