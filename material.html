@@ -238,15 +238,19 @@
       }
       .test-certs-grid {
         display: flex;
-        gap: 16px;
+        gap: 20px;
+        flex-wrap: wrap;
       }
       .test-cert-card {
         flex: 1;
+        min-width: 200px;
+        max-width: 280px;
         border-radius: 10px;
         overflow: hidden;
         box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         background: #fff;
         text-align: center;
+        border: 1px solid var(--warm);
       }
       .test-cert-card img {
         width: 100%;
@@ -254,10 +258,12 @@
       }
       .test-cert-card span {
         display: block;
-        padding: 10px;
+        padding: 10px 12px;
         font-size: 12px;
-        font-weight: 500;
+        font-weight: 600;
         color: var(--charcoal);
+        background: var(--cream);
+        border-top: 1px solid var(--warm);
       }
       @media (max-width: 768px) {
         .test-results {
@@ -965,14 +971,16 @@
       </div>
 
       <!-- 인증서 -->
-      <div style="margin-top: 48px; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;">
-        <div style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 320px;">
-          <img src="app/material/cert-decor.jpg" alt="GREENGUARD - Edgeband Décor" style="width: 100%; display: block;" loading="lazy" />
-          <div style="padding: 12px 16px; background: #fff; text-align: center; font-size: 13px; font-weight: 500;">Edgeband D&eacute;cor</div>
-        </div>
-        <div style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 320px;">
-          <img src="app/material/cert-uni.jpg" alt="GREENGUARD - Edgeband Uni" style="width: 100%; display: block;" loading="lazy" />
-          <div style="padding: 12px 16px; background: #fff; text-align: center; font-size: 13px; font-weight: 500;">Edgeband Uni</div>
+      <div class="test-certs" style="margin-top: 48px;">
+        <div class="test-certs-grid" style="justify-content: center;">
+          <div class="test-cert-card">
+            <img src="app/material/cert-decor.jpg" alt="GREENGUARD - Edgeband Décor" loading="lazy" />
+            <span>Edgeband D&eacute;cor</span>
+          </div>
+          <div class="test-cert-card">
+            <img src="app/material/cert-uni.jpg" alt="GREENGUARD - Edgeband Uni" loading="lazy" />
+            <span>Edgeband Uni</span>
+          </div>
         </div>
       </div>
     </section>
