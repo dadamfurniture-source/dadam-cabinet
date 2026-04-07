@@ -384,6 +384,55 @@
       // ★ R3F 3D 플래너 임베드 로드
       const PLANNER_BASE_URL = '/planner/embed/';
       /**
+       * ㄱ자/ㄷ자 secondary 모듈을 payload에 동적 추가 (공통 헬퍼)
+       */
+      function _appendSecondaryModules(payload, specs, itemD) {
+        const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
+        if (lShape === 'I') return;
+        if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1200';
+        const secW = parseFloat(specs.lowerSecondaryW) || 600;
+        const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 600;
+        const startSide = specs.secondaryStartSide || 'left';
+        const blindMod = {
+          id: 'blind-corner-auto', kind: 'door', width: secD,
+          moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+        };
+        const secModCount = Math.max(1, Math.round(secW / 600));
+        const secModW = Math.round(secW / secModCount);
+        const secMods = Array.from({ length: secModCount }, (_, i) => ({
+          id: `sec-auto-${i}`, kind: 'door', width: secModW,
+          moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+        }));
+        if (startSide === 'left') {
+          payload.lowerModules = [blindMod, ...secMods, ...payload.lowerModules];
+        } else {
+          payload.lowerModules = [...payload.lowerModules, blindMod, ...secMods];
+        }
+        payload.lowerCount = payload.lowerModules.length;
+        // 상부장 secondary
+        if (specs.secondaryUpperEnabled !== false && specs.upperSecondaryW) {
+          const uSecW = parseFloat(specs.upperSecondaryW) || secW;
+          const uSecD = parseFloat(specs.upperSecondaryD) || parseFloat(specs.upperPrimeD) || 295;
+          const uBlindMod = {
+            id: 'blind-corner-upper-auto', kind: 'door', width: uSecD,
+            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+          };
+          const uSecModCount = Math.max(1, Math.round(uSecW / 600));
+          const uSecModW = Math.round(uSecW / uSecModCount);
+          const uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
+            id: `sec-upper-auto-${i}`, kind: 'door', width: uSecModW,
+            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+          }));
+          if (startSide === 'left') {
+            payload.upperModules = [uBlindMod, ...uSecMods, ...payload.upperModules];
+          } else {
+            payload.upperModules = [...payload.upperModules, uBlindMod, ...uSecMods];
+          }
+          payload.upperCount = payload.upperModules.length;
+        }
+      }
+
+      /**
        * 실측/스펙 변경 시 3D iframe에 직접 postMessage (DOM 리렌더 없이)
        */
       window._syncPlannerState = _syncPlannerState; // 전역 노출 (ui-workspace.js에서 접근)
@@ -393,8 +442,8 @@
         const iframe = ws.querySelector('iframe[data-planner]');
         if (!iframe || !iframe.contentWindow) return;
         const specs = item.specs || {};
-        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower');
-        const upperMods = (item.modules || []).filter(m => m.pos === 'upper');
+        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower' && !m.orientation);
+        const upperMods = (item.modules || []).filter(m => m.pos === 'upper' && !m.orientation);
         const payload = {
           presetId: item.categoryId || 'sink',
           width: parseFloat(item.w) || 3000,
@@ -422,55 +471,9 @@
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
           secondaryStartSide: specs.secondaryStartSide || undefined,
         };
-        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 자동 추가
+        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
+        _appendSecondaryModules(payload, specs, item.d);
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
-        if (lShape !== 'I') {
-          // ㄱ자인데 W가 없으면 기본값 1200mm
-          if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1200';
-          const secW = parseFloat(specs.lowerSecondaryW) || 600;
-          const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(item.d) || 600;
-          const startSide = specs.secondaryStartSide || 'left';
-          // 멍장(blind corner) + secondary 모듈 생성
-          const blindMod = {
-            id: 'blind-corner-auto', kind: 'door', width: secD,
-            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
-          };
-          // secondary 라인 모듈들 (secW를 600mm 단위로 분할)
-          const secModCount = Math.max(1, Math.round(secW / 600));
-          const secModW = Math.round(secW / secModCount);
-          const secMods = Array.from({ length: secModCount }, (_, i) => ({
-            id: `sec-auto-${i}`, kind: 'door', width: secModW,
-            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
-          }));
-          // 시작 방향에 따라 앞/뒤에 추가
-          if (startSide === 'left') {
-            payload.lowerModules = [blindMod, ...secMods, ...payload.lowerModules];
-          } else {
-            payload.lowerModules = [...payload.lowerModules, blindMod, ...secMods];
-          }
-          payload.lowerCount = payload.lowerModules.length;
-          // 상부장도 secondary 생성 (secondaryUpperEnabled !== false)
-          if (specs.secondaryUpperEnabled !== false && specs.upperSecondaryW) {
-            const uSecW = parseFloat(specs.upperSecondaryW) || secW;
-            const uSecD = parseFloat(specs.upperSecondaryD) || parseFloat(specs.upperPrimeD) || 295;
-            const uBlindMod = {
-              id: 'blind-corner-upper-auto', kind: 'door', width: uSecD,
-              moduleType: 'storage', doorCount: 1, orientation: 'secondary',
-            };
-            const uSecModCount = Math.max(1, Math.round(uSecW / 600));
-            const uSecModW = Math.round(uSecW / uSecModCount);
-            const uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
-              id: `sec-upper-auto-${i}`, kind: 'door', width: uSecModW,
-              moduleType: 'storage', doorCount: 1, orientation: 'secondary',
-            }));
-            if (startSide === 'left') {
-              payload.upperModules = [uBlindMod, ...uSecMods, ...payload.upperModules];
-            } else {
-              payload.upperModules = [...payload.upperModules, uBlindMod, ...uSecMods];
-            }
-            payload.upperCount = payload.upperModules.length;
-          }
-        }
         console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth, lShape, lowerCount: payload.lowerCount, upperCount: payload.upperCount });
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
       }
@@ -478,8 +481,8 @@
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
         const specs = item.specs || {};
-        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower');
-        const upperMods = (item.modules || []).filter(m => m.pos === 'upper');
+        const lowerMods = (item.modules || []).filter(m => m.pos === 'lower' && !m.orientation);
+        const upperMods = (item.modules || []).filter(m => m.pos === 'upper' && !m.orientation);
         // item.modules → R3F lowerModules/upperModules 변환
         const toLowerModules = lowerMods.map(m => ({
           id: String(m.id || Date.now() + Math.random()),
@@ -514,7 +517,10 @@
           distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
           distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+          secondaryStartSide: specs.secondaryStartSide || undefined,
         };
+        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
+        _appendSecondaryModules(finishPayload, specs, item.d);
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
           const sendUpdate = () => {
