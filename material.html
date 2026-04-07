@@ -242,19 +242,28 @@
         flex-wrap: wrap;
       }
       .test-cert-card {
-        flex: 1;
-        min-width: 200px;
-        max-width: 280px;
+        flex: 0 1 auto;
+        width: 240px;
         background: #fff;
         text-align: center;
         border: 1px solid #d0d0d0;
         box-shadow: 2px 3px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06);
-        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+      .test-cert-card .cert-img-wrap {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        min-height: 300px;
       }
       .test-cert-card img {
-        width: 100%;
+        max-width: 100%;
+        max-height: 100%;
         display: block;
-        padding: 8px;
+        object-fit: contain;
       }
       .test-cert-card span {
         display: block;
@@ -764,11 +773,11 @@
           <h4>흡수 두께 팽창률 시험 성적서</h4>
           <div class="test-certs-grid">
             <div class="test-cert-card">
-              <img src="app/material/cert-18t-e0.jpg" alt="18T E0 보드 성적서" loading="lazy" />
+              <div class="cert-img-wrap"><img src="app/material/cert-18t-e0.jpg" alt="18T E0 보드 성적서" loading="lazy" /></div>
               <span>18T E0 보드 성적서</span>
             </div>
             <div class="test-cert-card">
-              <img src="app/material/cert-18t-mr.jpg" alt="18T E0 MR 보드 성적서" loading="lazy" />
+              <div class="cert-img-wrap"><img src="app/material/cert-18t-mr.jpg" alt="18T E0 MR 보드 성적서" loading="lazy" /></div>
               <span>18T E0 MR 보드 성적서</span>
             </div>
           </div>
@@ -974,11 +983,11 @@
       <div class="test-certs" style="margin-top: 48px;">
         <div class="test-certs-grid" style="justify-content: center;">
           <div class="test-cert-card">
-            <img src="app/material/cert-decor.jpg" alt="GREENGUARD - Edgeband Décor" loading="lazy" />
+            <div class="cert-img-wrap"><img src="app/material/cert-decor.jpg" alt="GREENGUARD - Edgeband Décor" loading="lazy" /></div>
             <span>Edgeband D&eacute;cor</span>
           </div>
           <div class="test-cert-card">
-            <img src="app/material/cert-uni.jpg" alt="GREENGUARD - Edgeband Uni" loading="lazy" />
+            <div class="cert-img-wrap"><img src="app/material/cert-uni.jpg" alt="GREENGUARD - Edgeband Uni" loading="lazy" /></div>
             <span>Edgeband Uni</span>
           </div>
         </div>
