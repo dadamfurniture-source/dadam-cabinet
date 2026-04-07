@@ -2908,7 +2908,7 @@
         if (!item) return;
 
         const specMoldingH = parseFloat(item.specs.moldingH) || 60;
-        const spaceH = parseFloat(item.h) || 2300;
+        const spaceH = parseFloat(item.h) || 2310;
         const defaultH = spaceH - specMoldingH - 60;
 
         item.modules.push({

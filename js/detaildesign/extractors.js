@@ -210,7 +210,7 @@
           const effectiveW = totalLowerW || item.w - 120;
           const moldingH = parseFloat(specs.moldingH) || 60;
           const lowerH = (specs.lowerH || 870) - legH;
-          const totalH = parseFloat(item.h) || 2400;
+          const totalH = parseFloat(item.h) || 2310;
 
           // 상몰딩 (moldingH >= 20이면 산출)
           if (moldingH >= 20 && (totalUpperW || effectiveW) > 0) {
@@ -249,7 +249,7 @@
           const D = parseFloat(item.d) || 600;
           const pedestalH = parseFloat(specs.wardrobePedestal) || 60;
           const moldingH = parseFloat(specs.wardrobeMoldingH) || 15;
-          const totalH = parseFloat(item.h) || 2300;
+          const totalH = parseFloat(item.h) || 2310;
           const bodyH = totalH - pedestalH - moldingH;
 
           console.log('[Wardrobe] ===== 붙박이장 자재 추출 시작 =====');
