@@ -472,9 +472,14 @@
           secondaryStartSide: specs.secondaryStartSide || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
-        _appendSecondaryModules(payload, specs, item.d);
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
-        console.log('[Planner] _syncPlannerState:', { width: payload.width, height: payload.height, depth: payload.depth, lShape, lowerCount: payload.lowerCount, upperCount: payload.upperCount });
+        const primaryCount = payload.lowerModules.length;
+        _appendSecondaryModules(payload, specs, item.d);
+        const secCount = payload.lowerModules.length - primaryCount;
+        console.log('[Planner] _syncPlannerState:', { lShape, primaryLower: primaryCount, secondaryLower: secCount, totalLower: payload.lowerCount, totalUpper: payload.upperCount, secW: specs.lowerSecondaryW, secD: specs.lowerSecondaryD, startSide: specs.secondaryStartSide });
+        if (lShape !== 'I') {
+          console.log('[Planner] secondary modules:', payload.lowerModules.filter(m => m.orientation === 'secondary'));
+        }
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
       }
 
