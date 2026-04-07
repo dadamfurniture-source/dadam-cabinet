@@ -56,7 +56,7 @@
         content: '';
         position: absolute;
         inset: 0;
-        background: url('docs/catalog_pages/page_8.png') center/cover no-repeat;
+        background: url('app/material/rehau-edge.png') center/cover no-repeat;
         opacity: 0.25;
       }
       .hero-content {
@@ -126,31 +126,14 @@
         position: relative;
         text-align: center;
       }
-      .stat-circle {
-        width: 200px;
-        height: 200px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #4a6fa5, #6b8fa3);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        margin: 0 auto;
+      .board-catalog-img {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
       }
-      .stat-circle .number {
-        font-size: 56px;
-        font-weight: 700;
-        line-height: 1;
-      }
-      .stat-circle .unit {
-        font-size: 20px;
-        font-weight: 600;
-      }
-      .stat-circle .label {
-        font-size: 14px;
-        margin-top: 4px;
-        opacity: 0.9;
+      .board-catalog-img img {
+        width: 100%;
+        display: block;
       }
       .board-highlight-text h3 {
         font-size: 28px;
@@ -622,10 +605,8 @@
 
       <div class="board-highlight">
         <div class="board-highlight-visual">
-          <div class="stat-circle">
-            <span class="number">30</span>
-            <span class="unit">%</span>
-            <span class="label">두께팽창률 개선</span>
+          <div class="board-catalog-img">
+            <img src="app/material/board-stat.png" alt="두께팽창률 30% 개선" loading="lazy" />
           </div>
         </div>
         <div class="board-highlight-text">
@@ -782,13 +763,25 @@
 
       <div class="rehau-section">
         <div class="rehau-img">
-          <img src="docs/catalog_pages/page_8.png" alt="REHAU 엣지" loading="lazy" />
+          <img src="app/material/rehau-edge.png" alt="REHAU 엣지" loading="lazy" />
         </div>
         <div class="rehau-text">
           <div class="partner">The Perfect Component</div>
           <h3>예림보드 럭스<sup>MR</sup> &times; 레하우 엣지</h3>
           <p>엣지까지 일체화된 완성도, 완벽한 컬러 매칭과 선명한 고해상도 인쇄 기술로 보드와 엣지의 경계가 사라집니다.</p>
           <p>감열 방식을 적용한 레이저 공법으로 보드의 컬러와 디자인을 완벽하게 재현하여 자연스러운 마감을 제공합니다.</p>
+        </div>
+      </div>
+
+      <!-- 엣지 클로즈업 + 인증 이미지 -->
+      <div class="rehau-section" style="margin-top: 64px;">
+        <div class="rehau-text">
+          <h3>완벽한 일체감!</h3>
+          <p>엣지까지 일체화된 완성도, 기술의 차이로 컬러의 흐름까지 설계합니다.</p>
+          <p>압출 방식을 적용한 레이저 공법으로 전면과 이질감 없는 코어 색상, 개별 인쇄 방식으로 선명한 해상도로 고품질 인쇄 퀄리티를 제공합니다.</p>
+        </div>
+        <div class="rehau-img">
+          <img src="app/material/edge-closeup.png" alt="엣지 클로즈업" loading="lazy" />
         </div>
       </div>
 
@@ -824,26 +817,9 @@
         </div>
       </div>
 
-      <!-- 인증 뱃지 -->
-      <div class="cert-row">
-        <div class="cert-item">
-          <div class="cert-icon">
-            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
-          <div class="cert-info">
-            <strong>GREENGUARD</strong>
-            <span>Engineered Interior</span>
-          </div>
-        </div>
-        <div class="cert-item">
-          <div class="cert-icon">
-            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
-          <div class="cert-info">
-            <strong>GREENGUARD Gold</strong>
-            <span>Engineered Lux</span>
-          </div>
-        </div>
+      <!-- 인증 이미지 -->
+      <div style="margin-top: 48px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+        <img src="app/material/greenguard-cert.png" alt="GREENGUARD 인증서" style="width: 100%; display: block;" loading="lazy" />
       </div>
     </section>
 
@@ -857,12 +833,15 @@
         <h2>Mega Theme</h2>
         <p>스마트 기술이 공간 혁신하는 동시에, 지속 가능한 소재와 자연 친화적 디자인이 소비자의 니즈를 충족하며
         다목적성과 감각적 즐거움을 제공하는 요소로 더욱 중요해질 전망입니다.</p>
+        <div style="margin-top: 40px; max-width: 480px; margin-left: auto; margin-right: auto;">
+          <img src="app/material/mega-theme.png" alt="Mega Theme 다이어그램" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06);" loading="lazy" />
+        </div>
       </div>
 
       <!-- Forward -->
       <div class="theme-card">
         <div class="theme-visual" style="background: #c9b99a;">
-          <img src="docs/catalog_pages/page_15.png" alt="Forward 테마" style="object-position: top left;" loading="lazy" />
+          <img src="app/material/theme-forward.png" alt="Forward 테마" loading="lazy" />
         </div>
         <div class="theme-text">
           <div class="theme-number">Theme 01</div>
@@ -886,7 +865,7 @@
       <!-- Pause -->
       <div class="theme-card reverse">
         <div class="theme-visual" style="background: #b8c4a8;">
-          <img src="docs/catalog_pages/page_15.png" alt="Pause 테마" style="object-position: center;" loading="lazy" />
+          <img src="app/material/theme-pause.png" alt="Pause 테마" loading="lazy" />
         </div>
         <div class="theme-text">
           <div class="theme-number">Theme 02</div>
@@ -909,7 +888,7 @@
       <!-- Play -->
       <div class="theme-card">
         <div class="theme-visual" style="background: #e07040;">
-          <img src="docs/catalog_pages/page_15.png" alt="Play 테마" style="object-position: bottom left;" loading="lazy" />
+          <img src="app/material/theme-play.png" alt="Play 테마" loading="lazy" />
         </div>
         <div class="theme-text">
           <div class="theme-number">Theme 03</div>
