@@ -394,13 +394,17 @@
         if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1200';
         const secW = parseFloat(specs.lowerSecondaryW) || 600;
         const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 600;
+        const primeD = parseFloat(itemD) || 600;
         const startSide = specs.secondaryStartSide || 'left';
+        // ★ blind corner = prime line depth (코너 오버랩 영역)
         const blindMod = {
-          id: 'blind-corner-auto', kind: 'door', width: secD,
+          id: 'blind-corner-auto', kind: 'door', width: primeD,
           moduleType: 'storage', doorCount: 1, orientation: 'secondary',
         };
-        const secModCount = Math.max(1, Math.round(secW / 600));
-        const secModW = Math.round(secW / secModCount);
+        // ★ 실측 기준: secW(1200) = primeD(650) + 나머지 모듈(550)
+        const availableSecW = Math.max(0, secW - primeD);
+        const secModCount = availableSecW > 0 ? Math.max(1, Math.round(availableSecW / 600)) : 0;
+        const secModW = secModCount > 0 ? Math.round(availableSecW / secModCount) : 0;
         const secMods = Array.from({ length: secModCount }, (_, i) => ({
           id: `sec-auto-${i}`, kind: 'door', width: secModW,
           moduleType: 'storage', doorCount: 1, orientation: 'secondary',
@@ -414,13 +418,17 @@
         // 상부장 secondary
         if (specs.secondaryUpperEnabled !== false && specs.upperSecondaryW) {
           const uSecW = parseFloat(specs.upperSecondaryW) || secW;
-          const uSecD = parseFloat(specs.upperSecondaryD) || parseFloat(specs.upperPrimeD) || 295;
+          const uPrimeD = parseFloat(specs.upperPrimeD) || 295;
+          const uSecD = parseFloat(specs.upperSecondaryD) || uPrimeD;
+          // ★ blind corner = upper prime depth
           const uBlindMod = {
-            id: 'blind-corner-upper-auto', kind: 'door', width: uSecD,
+            id: 'blind-corner-upper-auto', kind: 'door', width: uPrimeD,
             moduleType: 'storage', doorCount: 1, orientation: 'secondary',
           };
-          const uSecModCount = Math.max(1, Math.round(uSecW / 600));
-          const uSecModW = Math.round(uSecW / uSecModCount);
+          // ★ 실측 기준: uSecW = uPrimeD + 나머지 모듈
+          const uAvailableSecW = Math.max(0, uSecW - uPrimeD);
+          const uSecModCount = uAvailableSecW > 0 ? Math.max(1, Math.round(uAvailableSecW / 600)) : 0;
+          const uSecModW = uSecModCount > 0 ? Math.round(uAvailableSecW / uSecModCount) : 0;
           const uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
             id: `sec-upper-auto-${i}`, kind: 'door', width: uSecModW,
             moduleType: 'storage', doorCount: 1, orientation: 'secondary',
