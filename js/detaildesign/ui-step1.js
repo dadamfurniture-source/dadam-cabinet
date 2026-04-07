@@ -440,6 +440,53 @@
           }
           payload.upperCount = payload.upperModules.length;
         }
+        // ★ ㄷ자형: tertiary line (secondary 반대편)
+        if (lShape === 'U') {
+          if (!specs.lowerTertiaryW) specs.lowerTertiaryW = specs.lowerSecondaryW || '1200';
+          const terW = parseFloat(specs.lowerTertiaryW) || secW;
+          const terStartSide = startSide === 'left' ? 'right' : 'left';
+          // ★ blind corner = prime line depth
+          const terBlindMod = {
+            id: 'blind-corner-ter-auto', kind: 'door', width: primeD,
+            moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+          };
+          // ★ 실측 기준: terW = primeD + 나머지 모듈
+          const availableTerW = Math.max(0, terW - primeD);
+          const terModCount = availableTerW > 0 ? Math.max(1, Math.round(availableTerW / 600)) : 0;
+          const terModW = terModCount > 0 ? Math.round(availableTerW / terModCount) : 0;
+          const terMods = Array.from({ length: terModCount }, (_, i) => ({
+            id: `ter-auto-${i}`, kind: 'door', width: terModW,
+            moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+          }));
+          if (terStartSide === 'left') {
+            payload.lowerModules = [terBlindMod, ...terMods, ...payload.lowerModules];
+          } else {
+            payload.lowerModules = [...payload.lowerModules, terBlindMod, ...terMods];
+          }
+          payload.lowerCount = payload.lowerModules.length;
+          // 상부장 tertiary
+          if (specs.secondaryUpperEnabled !== false && specs.upperTertiaryW) {
+            const uTerW = parseFloat(specs.upperTertiaryW) || terW;
+            const uTerPrimeD = parseFloat(specs.upperPrimeD) || 295;
+            const uTerBlindMod = {
+              id: 'blind-corner-upper-ter-auto', kind: 'door', width: uTerPrimeD,
+              moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+            };
+            const uAvailableTerW = Math.max(0, uTerW - uTerPrimeD);
+            const uTerModCount = uAvailableTerW > 0 ? Math.max(1, Math.round(uAvailableTerW / 600)) : 0;
+            const uTerModW = uTerModCount > 0 ? Math.round(uAvailableTerW / uTerModCount) : 0;
+            const uTerMods = Array.from({ length: uTerModCount }, (_, i) => ({
+              id: `ter-upper-auto-${i}`, kind: 'door', width: uTerModW,
+              moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+            }));
+            if (terStartSide === 'left') {
+              payload.upperModules = [uTerBlindMod, ...uTerMods, ...payload.upperModules];
+            } else {
+              payload.upperModules = [...payload.upperModules, uTerBlindMod, ...uTerMods];
+            }
+            payload.upperCount = payload.upperModules.length;
+          }
+        }
       }
 
       /**
@@ -1252,7 +1299,25 @@
               <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperSecondaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
             </div>
           </div>
-        </div>`;
+        </div>
+        ${lShape === 'U' ? `
+        <div style="padding:6px;background:#f5f5ff;border-radius:6px;margin-top:4px;">
+          <span style="font-size:11px;font-weight:600;color:#7c3aed;">Tertiary Line</span>
+          <div style="padding:4px 6px;border-left:2px solid #7c3aed;margin-top:4px;margin-bottom:4px;">
+            <div style="font-size:9px;font-weight:600;color:#7c3aed;margin-bottom:2px;">하부장</div>
+            <div class="spec-row">
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerTertiaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerTertiaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${item.specs.lowerTertiaryD || item.d || item.defaultD || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerTertiaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
+            </div>
+          </div>
+          <div style="padding:4px 6px;border-left:2px solid ${secUpperOn ? '#7c3aed' : '#ccc'};${secUpperOn ? '' : 'opacity:0.5;'}">
+            <div style="font-size:9px;font-weight:600;color:${secUpperOn ? '#7c3aed' : '#aaa'};margin-bottom:2px;">상부장</div>
+            <div class="spec-row">
+              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperTertiaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperTertiaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
+              <div class="spec-field"><label>D</label><input type="number" value="${item.specs.upperTertiaryD || item.specs.upperPrimeD || 295}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperTertiaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
+            </div>
+          </div>
+        </div>` : ''}`;
         })()}
     </div>
 
