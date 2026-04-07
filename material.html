@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>자재 소개 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/nav.css">
+    <script src="js/nav-transitions.js"></script>
+    <script src="js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+        --green: #6b8e5e;
+      }
+      body {
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        background: var(--white);
+        color: var(--charcoal);
+        line-height: 1.7;
+      }
+      h1, h2, h3, h4 {
+        font-family: 'Playfair Display', 'Noto Serif KR', serif;
+        font-weight: 500;
+      }
+      a { text-decoration: none; color: inherit; }
+
+      /* ── Hero ── */
+      .material-hero {
+        position: relative;
+        height: 60vh;
+        min-height: 400px;
+        background: linear-gradient(135deg, #3a3632 0%, #2d2a26 50%, #1a1918 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #fff;
+        overflow: hidden;
+      }
+      .material-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: url('docs/catalog_pages/page_8.png') center/cover no-repeat;
+        opacity: 0.25;
+      }
+      .hero-content {
+        position: relative;
+        z-index: 1;
+      }
+      .hero-content .subtitle {
+        font-size: 14px;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 16px;
+      }
+      .hero-content h1 {
+        font-size: clamp(32px, 5vw, 56px);
+        margin-bottom: 16px;
+        line-height: 1.2;
+      }
+      .hero-content p {
+        font-size: 16px;
+        color: rgba(255,255,255,0.7);
+        max-width: 500px;
+        margin: 0 auto;
+      }
+
+      /* ── Section Layout ── */
+      .section {
+        padding: 100px 24px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .section-alt {
+        background: var(--cream);
+      }
+      .section-header {
+        text-align: center;
+        margin-bottom: 64px;
+      }
+      .section-header .tag {
+        display: inline-block;
+        font-size: 12px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 12px;
+      }
+      .section-header h2 {
+        font-size: clamp(28px, 4vw, 40px);
+        margin-bottom: 16px;
+      }
+      .section-header p {
+        color: var(--gray);
+        max-width: 600px;
+        margin: 0 auto;
+        font-size: 15px;
+      }
+
+      /* ── Board LUX Section ── */
+      .board-highlight {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: center;
+        margin-bottom: 80px;
+      }
+      .board-highlight-visual {
+        position: relative;
+        text-align: center;
+      }
+      .stat-circle {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4a6fa5, #6b8fa3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        margin: 0 auto;
+      }
+      .stat-circle .number {
+        font-size: 56px;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .stat-circle .unit {
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .stat-circle .label {
+        font-size: 14px;
+        margin-top: 4px;
+        opacity: 0.9;
+      }
+      .board-highlight-text h3 {
+        font-size: 28px;
+        margin-bottom: 16px;
+      }
+      .board-highlight-text p {
+        color: var(--gray);
+        margin-bottom: 12px;
+        font-size: 15px;
+      }
+      .badge-mr {
+        display: inline-block;
+        background: #4a6fa5;
+        color: #fff;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1px;
+      }
+      .improvement-note {
+        background: #f0f4f8;
+        border-left: 3px solid #4a6fa5;
+        padding: 16px 20px;
+        margin-top: 20px;
+        border-radius: 0 8px 8px 0;
+        font-size: 14px;
+        color: #4a6fa5;
+      }
+
+      /* ── Eco Grade Table ── */
+      .eco-table-wrap {
+        overflow-x: auto;
+        margin-bottom: 40px;
+      }
+      .eco-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        min-width: 400px;
+      }
+      .eco-table thead th {
+        background: var(--charcoal);
+        color: #fff;
+        padding: 14px 16px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 13px;
+        letter-spacing: 1px;
+      }
+      .eco-table tbody td {
+        padding: 12px 16px;
+        text-align: center;
+        border-bottom: 1px solid var(--warm);
+      }
+      .eco-table tbody tr:hover {
+        background: rgba(184, 149, 108, 0.06);
+      }
+      .grade-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .grade-seo { background: #e8f5e9; color: #2e7d32; }
+      .grade-e0 { background: #e3f2fd; color: #1565c0; }
+      .grade-e1 { background: #fff3e0; color: #e65100; }
+
+      /* ── Product Line Table ── */
+      .product-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        min-width: 700px;
+      }
+      .product-table thead th {
+        background: var(--charcoal);
+        color: #fff;
+        padding: 12px 10px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 12px;
+      }
+      .product-table thead th:first-child,
+      .product-table thead th:nth-child(2) {
+        text-align: left;
+        padding-left: 16px;
+      }
+      .product-table tbody td {
+        padding: 10px;
+        text-align: center;
+        border-bottom: 1px solid var(--warm);
+        vertical-align: middle;
+      }
+      .product-table tbody td:first-child {
+        text-align: left;
+        padding-left: 16px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .product-table tbody td:nth-child(2) {
+        text-align: left;
+        padding-left: 16px;
+        color: var(--gray);
+      }
+      .product-table .check {
+        color: var(--green);
+        font-weight: 700;
+      }
+
+      /* ── REHAU Edge Section ── */
+      .rehau-section {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        align-items: center;
+      }
+      .rehau-img {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+      }
+      .rehau-img img {
+        width: 100%;
+        display: block;
+      }
+      .rehau-text h3 {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+      .rehau-text .partner {
+        font-size: 14px;
+        color: var(--gold);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+      }
+      .rehau-text p {
+        color: var(--gray);
+        margin-bottom: 16px;
+        font-size: 15px;
+      }
+
+      /* ── Feature Cards ── */
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 24px;
+        margin-top: 48px;
+      }
+      .feature-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 32px 24px;
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        transition: transform 0.3s;
+      }
+      .feature-card:hover {
+        transform: translateY(-4px);
+      }
+      .feature-card .icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--cream);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+        font-size: 24px;
+      }
+      .feature-card h4 {
+        font-family: 'Pretendard', sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .feature-card p {
+        font-size: 13px;
+        color: var(--gray);
+        line-height: 1.6;
+      }
+
+      /* ── Certification ── */
+      .cert-row {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+        margin-top: 48px;
+        flex-wrap: wrap;
+      }
+      .cert-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #fff;
+        border: 1px solid var(--warm);
+        border-radius: 12px;
+        padding: 20px 28px;
+      }
+      .cert-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        background: #e8f5e9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .cert-icon svg {
+        width: 24px;
+        height: 24px;
+        fill: #2e7d32;
+      }
+      .cert-info strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 2px;
+      }
+      .cert-info span {
+        font-size: 12px;
+        color: var(--gray);
+      }
+
+      /* ── Inventory Info ── */
+      .inventory-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-top: 40px;
+      }
+      .inventory-card {
+        background: #fff;
+        border: 1px solid var(--warm);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .inventory-card h4 {
+        font-family: 'Pretendard', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .inventory-card .dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .dot-blue { background: #4a6fa5; }
+      .dot-red { background: #c0392b; }
+      .inventory-card p {
+        font-size: 13px;
+        color: var(--gray);
+        margin-bottom: 6px;
+      }
+
+      /* ── Mega Theme ── */
+      .theme-intro {
+        text-align: center;
+        margin-bottom: 64px;
+      }
+      .theme-intro .year {
+        font-size: 14px;
+        color: var(--gray);
+        letter-spacing: 2px;
+        margin-bottom: 8px;
+      }
+      .theme-intro h2 {
+        font-size: clamp(32px, 5vw, 48px);
+        margin-bottom: 20px;
+      }
+      .theme-intro p {
+        max-width: 700px;
+        margin: 0 auto;
+        color: var(--gray);
+        font-size: 15px;
+      }
+
+      .theme-card {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: center;
+        margin-bottom: 80px;
+        padding: 40px;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.05);
+      }
+      .theme-card.reverse {
+        direction: rtl;
+      }
+      .theme-card.reverse > * {
+        direction: ltr;
+      }
+      .theme-visual {
+        border-radius: 12px;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+        background: var(--warm);
+      }
+      .theme-visual img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .theme-text .theme-number {
+        font-size: 12px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 8px;
+      }
+      .theme-text h3 {
+        font-size: 28px;
+        margin-bottom: 16px;
+      }
+      .theme-text p {
+        color: var(--gray);
+        font-size: 15px;
+        margin-bottom: 20px;
+      }
+      .theme-keywords {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .theme-keywords span {
+        background: var(--cream);
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        color: var(--charcoal);
+      }
+      .color-chips {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      .color-chip {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .color-chip .swatch {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        border: 1px solid rgba(0,0,0,0.08);
+      }
+      .color-chip .name {
+        font-size: 10px;
+        color: var(--gray);
+        text-align: center;
+        max-width: 60px;
+        line-height: 1.3;
+      }
+
+      /* ── Footer ── */
+      .material-footer {
+        background: var(--charcoal);
+        color: rgba(255,255,255,0.6);
+        text-align: center;
+        padding: 48px 24px;
+        font-size: 13px;
+      }
+      .material-footer strong {
+        color: #fff;
+        font-size: 15px;
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 768px) {
+        .board-highlight,
+        .rehau-section,
+        .theme-card {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+        .theme-card.reverse { direction: ltr; }
+        .inventory-grid {
+          grid-template-columns: 1fr;
+        }
+        .section { padding: 64px 20px; }
+        .material-hero { height: 45vh; min-height: 320px; }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- Navigation -->
+    <nav class="nav nav-solid">
+      <a href="index.html" class="nav-logo">
+        <svg viewBox="0 0 40 40" fill="currentColor">
+          <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
+        </svg>
+        <span>다담</span>
+      </a>
+      <div class="nav-menu">
+        <a href="#">About us</a>
+        <a href="collection.html">Collection</a>
+        <a href="ai-design.html">AI Design</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display:none">Detail Design</a>
+        <a href="consultation.html">상담 신청</a>
+        <a href="material.html" class="active">자재</a>
+      </div>
+      <div class="nav-icons">
+        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
+        <div class="user-menu" id="userMenu" style="display:none">
+          <button class="user-btn">
+            <div class="user-avatar" id="navUserAvatar">?</div>
+            <span class="user-name" id="navUserName">사용자</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div class="user-dropdown">
+            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
+            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
+          </div>
+        </div>
+        <button class="hamburger" onclick="toggleMobileMenu()">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="index.html">홈</a>
+      <a href="ai-design.html">AI 설계</a>
+      <a href="consultation.html">상담 신청</a>
+      <a href="material.html" style="background: var(--cream)">자재</a>
+      <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
+    </div>
+
+    <!-- Hero -->
+    <section class="material-hero">
+      <div class="hero-content">
+        <div class="subtitle">Premium Materials</div>
+        <h1>다담가구의 자재</h1>
+        <p>예림보드 럭스&trade; &times; 레하우 엣지의 프리미엄 조합으로 완벽한 품질을 제공합니다</p>
+      </div>
+    </section>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SECTION 1: 예림보드 LUX MR (Page 6)
+         ═══════════════════════════════════════════════════════════════ -->
+    <section class="section">
+      <div class="section-header">
+        <div class="tag">Yerim Board</div>
+        <h2>YERIM BOARD LUX <sup>MR</sup></h2>
+        <p>예림보드 럭스는 단순한 표면 장식의 화려함을 넘어, 본질적인 가치를 추구합니다.<br>
+        트렌드의 흐름에 맞는 새로운 감성을 통해 브랜드 가치와 깊이 있는 제품의 품질을 제공합니다.</p>
+      </div>
+
+      <div class="board-highlight">
+        <div class="board-highlight-visual">
+          <div class="stat-circle">
+            <span class="number">30</span>
+            <span class="unit">%</span>
+            <span class="label">두께팽창률 개선</span>
+          </div>
+        </div>
+        <div class="board-highlight-text">
+          <span class="badge-mr">MR</span>
+          <h3>예림보드 럭스<sup>MR</sup> (내수보드)</h3>
+          <p>습기에 더 강력한 내구성으로, 오래동안 변형없이 안전하게 사용할 수 있는 예림보드 럭스<sup>MR</sup>를 만나보세요.</p>
+          <p style="font-size: 13px; color: var(--gray);">MR = Moisture Resistance의 약자</p>
+          <div class="improvement-note">
+            내수성을 평가하는 지표인 두께 팽창률<br>
+            기존 9% &#9654; <strong>7% 이하 수준</strong>으로 대폭 강화<br>
+            습기 테스트 결과 <strong>6.5%</strong> 달성
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SECTION 2: 친환경 등급 + 제품 라인업 (Page 7)
+         ═══════════════════════════════════════════════════════════════ -->
+    <section class="section section-alt">
+      <div class="section-header">
+        <div class="tag">Eco-Friendly</div>
+        <h2>차별화된 친환경 자재</h2>
+        <p>자연 상태에 가장 가까운 SEO/E0 등급으로 더 안전하게 친환경 자재만을 사용합니다</p>
+      </div>
+
+      <!-- 친환경 등급 테이블 -->
+      <div class="eco-table-wrap">
+        <table class="eco-table">
+          <thead>
+            <tr>
+              <th>목적 / 적용 환경 등급</th>
+              <th>SEO</th>
+              <th>E0</th>
+              <th>E1</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="text-align:left; font-weight:500;">포름알데히드 방출량</td>
+              <td><span class="grade-badge grade-seo">0.3mg/L 이하</span></td>
+              <td><span class="grade-badge grade-e0">0.5mg/L 이하</span></td>
+              <td><span class="grade-badge grade-e1">1.5mg/L 이하</span></td>
+            </tr>
+            <tr>
+              <td style="text-align:left; font-weight:500;">용도</td>
+              <td>무제한 / 친환경 최상급</td>
+              <td>가구 / 건축 내장재</td>
+              <td>일반 가구</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 제품 라인업 테이블 -->
+      <h3 style="text-align:center; margin: 48px 0 24px; font-size: 22px;">업그레이드된 보드 사양</h3>
+      <div class="eco-table-wrap">
+        <table class="product-table">
+          <thead>
+            <tr>
+              <th>구분</th>
+              <th>카테고리</th>
+              <th>보드 등급</th>
+              <th>MR</th>
+              <th>내오염</th>
+              <th>내지문</th>
+              <th>MLS (내스크래치)</th>
+              <th>항균</th>
+              <th>일체형 엣지</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="4">Prestige<br><span style="font-size:11px;color:var(--gray)">프레스티지</span></td>
+              <td>Deco</td><td>E0</td>
+              <td class="check">&#10004;</td><td class="check">&#10004;</td><td class="check">&#10004;</td>
+              <td></td><td class="check">&#10004;</td><td class="check">&#10004;</td>
+            </tr>
+            <tr>
+              <td>MVO</td><td>SEO</td>
+              <td class="check">&#10004;</td><td class="check">&#10004;</td><td class="check">&#10004;</td>
+              <td></td><td class="check">&#10004;</td><td class="check">&#10004;</td>
+            </tr>
+            <tr>
+              <td>MP</td><td>SEO</td>
+              <td class="check">&#10004;</td><td></td><td class="check">&#10004;</td>
+              <td></td><td class="check">&#10004;</td><td class="check">&#10004;</td>
+            </tr>
+            <tr>
+              <td>PET</td><td>SEO</td>
+              <td class="check">&#10004;</td><td></td><td class="check">&#10004;</td>
+              <td></td><td class="check">&#10004;</td><td></td>
+            </tr>
+            <tr>
+              <td rowspan="2">Supreme<br><span style="font-size:11px;color:var(--gray)">슈프림</span></td>
+              <td>HP</td><td>E0</td>
+              <td class="check">&#10004;</td><td></td><td class="check">&#10004;</td>
+              <td></td><td class="check">&#10004;</td><td></td>
+            </tr>
+            <tr>
+              <td>PET</td><td>E0</td>
+              <td class="check">&#10004;</td><td></td><td class="check">&#10004;</td>
+              <td></td><td></td><td></td>
+            </tr>
+            <tr>
+              <td>Deco<br><span style="font-size:11px;color:var(--gray)">데코</span></td>
+              <td>PVC</td><td>E0</td>
+              <td></td><td></td><td></td>
+              <td></td><td></td><td></td>
+            </tr>
+            <tr>
+              <td rowspan="2">Prime<br><span style="font-size:11px;color:var(--gray)">프라임</span></td>
+              <td>MPB</td><td>E0</td>
+              <td></td><td></td><td class="check">&#10004;</td>
+              <td></td><td></td><td></td>
+            </tr>
+            <tr>
+              <td>LW</td><td>E1</td>
+              <td></td><td></td><td></td>
+              <td></td><td></td><td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 재고 운영 정보 -->
+      <div class="inventory-grid">
+        <div class="inventory-card">
+          <h4><span class="dot dot-blue"></span> 특대 사이즈 (4x9) 재고 운영</h4>
+          <p><strong>제품 규격:</strong> 1,220mm(W) x 2,745mm(H) x 18T / E0 이상</p>
+          <p><strong>재고 운영:</strong> 16가지(PET) 색상, 8가지 이상 상시 재고 운영</p>
+          <p><strong>그 외 주문제:</strong> 잔여 색, 결고리 기준 가격 으로 제작 가능, 상한 재고 추가</p>
+        </div>
+        <div class="inventory-card">
+          <h4><span class="dot dot-red"></span> 방염 자재 재고 운영</h4>
+          <p><strong>제품 규격:</strong> 1,220mm(W) x 2,440mm(H) x 18T / E0 이상</p>
+          <p><strong>재고 운영:</strong> 다양한 MPB 소프트, 프레스티지 색상 운영</p>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SECTION 3: REHAU 엣지 (Pages 8, 9)
+         ═══════════════════════════════════════════════════════════════ -->
+    <section class="section">
+      <div class="section-header">
+        <div class="tag">YERIM &times; REHAU</div>
+        <h2>완벽한 일체감</h2>
+        <p>REHAU는 1948년에 설립된 독일의 글로벌 엣지 전문 기업입니다.<br>
+        혁신 기술로 더 나은 삶을 만들어 갑니다.</p>
+      </div>
+
+      <div class="rehau-section">
+        <div class="rehau-img">
+          <img src="docs/catalog_pages/page_8.png" alt="REHAU 엣지" loading="lazy" />
+        </div>
+        <div class="rehau-text">
+          <div class="partner">The Perfect Component</div>
+          <h3>예림보드 럭스<sup>MR</sup> &times; 레하우 엣지</h3>
+          <p>엣지까지 일체화된 완성도, 완벽한 컬러 매칭과 선명한 고해상도 인쇄 기술로 보드와 엣지의 경계가 사라집니다.</p>
+          <p>감열 방식을 적용한 레이저 공법으로 보드의 컬러와 디자인을 완벽하게 재현하여 자연스러운 마감을 제공합니다.</p>
+        </div>
+      </div>
+
+      <!-- 특장점 카드 -->
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <h4>고해상도 인쇄</h4>
+          <p>개별 인쇄 방식으로 선명한 색감과 그라데이션 처리, 높은 품질의 인쇄 퀄리티</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>
+          </div>
+          <h4>노블매트 코팅</h4>
+          <p>극우광 매트와 내지문 기능이 결합된 최상의 코팅, 품질과 디자인을 모두 갖춘 프리미엄 소재</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" stroke-width="1.5"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          </div>
+          <h4>내지문 &middot; 내오염</h4>
+          <p>MLS 내스크래치, 항균, 내지문 기능이 결합된 최상의 표면 처리</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h4>GREENGUARD 인증</h4>
+          <p>세계적인 인증 기관인 UL에서 발급하는 인증서로, 환경 안전을 보장</p>
+        </div>
+      </div>
+
+      <!-- 인증 뱃지 -->
+      <div class="cert-row">
+        <div class="cert-item">
+          <div class="cert-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="cert-info">
+            <strong>GREENGUARD</strong>
+            <span>Engineered Interior</span>
+          </div>
+        </div>
+        <div class="cert-item">
+          <div class="cert-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="cert-info">
+            <strong>GREENGUARD Gold</strong>
+            <span>Engineered Lux</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SECTION 4: 2025-2026 Mega Theme (Pages 14, 15)
+         ═══════════════════════════════════════════════════════════════ -->
+    <section class="section section-alt">
+      <div class="theme-intro">
+        <div class="year">2025 &mdash; 2026</div>
+        <h2>Mega Theme</h2>
+        <p>스마트 기술이 공간 혁신하는 동시에, 지속 가능한 소재와 자연 친화적 디자인이 소비자의 니즈를 충족하며
+        다목적성과 감각적 즐거움을 제공하는 요소로 더욱 중요해질 전망입니다.</p>
+      </div>
+
+      <!-- Forward -->
+      <div class="theme-card">
+        <div class="theme-visual" style="background: #c9b99a;">
+          <img src="docs/catalog_pages/page_15.png" alt="Forward 테마" style="object-position: top left;" loading="lazy" />
+        </div>
+        <div class="theme-text">
+          <div class="theme-number">Theme 01</div>
+          <h3>Forward</h3>
+          <p>자연스럽게 스며든 세련된 기술. AI 시대에서 최첨단 기술은 부각되지지 않고 두 번째에 놓이지만, 인간과 공간의 관계를 더욱 부드럽고 세련되게 만들어갑니다.</p>
+          <div class="theme-keywords">
+            <span>Beige-and-Walnut</span>
+            <span>Warmth</span>
+            <span>미래지향 기술</span>
+          </div>
+          <div class="color-chips">
+            <div class="color-chip"><div class="swatch" style="background:#d4c4a8"></div><span class="name">웜톤 베이지</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#8b6f47"></div><span class="name">클래식 월넛</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#5c4a3a"></div><span class="name">딥 월넛</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#a39080"></div><span class="name">워밍 그레이</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#e8ddd0"></div><span class="name">뉴트럴 크림</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pause -->
+      <div class="theme-card reverse">
+        <div class="theme-visual" style="background: #b8c4a8;">
+          <img src="docs/catalog_pages/page_15.png" alt="Pause 테마" style="object-position: center;" loading="lazy" />
+        </div>
+        <div class="theme-text">
+          <div class="theme-number">Theme 02</div>
+          <h3>Pause</h3>
+          <p>자연과 조화된 지속 가능한 일상 공간. 자연적이고 친환경적 가치관이 확산 중이며 한때 트렌드에 머물렀던 자연 소재와 조합, 자연을 감싸 안는 공간 디자인이 일상으로 들어옵니다.</p>
+          <div class="theme-keywords">
+            <span>Discovery/Pebble</span>
+            <span>Prestige</span>
+            <span>자연 &middot; 지속 가능</span>
+          </div>
+          <div class="color-chips">
+            <div class="color-chip"><div class="swatch" style="background:#c4b9a0"></div><span class="name">오크</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#8a9a7c"></div><span class="name">모스 그린</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#d5cfc5"></div><span class="name">페블</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#a09080"></div><span class="name">그레이지</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Play -->
+      <div class="theme-card">
+        <div class="theme-visual" style="background: #e07040;">
+          <img src="docs/catalog_pages/page_15.png" alt="Play 테마" style="object-position: bottom left;" loading="lazy" />
+        </div>
+        <div class="theme-text">
+          <div class="theme-number">Theme 03</div>
+          <h3>Play</h3>
+          <p>취향을 넘어서고 영감을 주는 맞춤형 공간. 컬러는 더 깊어지고 대담해지며 디자인 소재의 가능성은 한없이 넓어집니다. LUX 취향과 니즈를 담은 실험적이고 감각적인 공간입니다.</p>
+          <div class="theme-keywords">
+            <span>Upholstery</span>
+            <span>Earthy</span>
+            <span>리치 &middot; 크리에이티브</span>
+          </div>
+          <div class="color-chips">
+            <div class="color-chip"><div class="swatch" style="background:#d94f30"></div><span class="name">오렌지 레드</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#6b5b4a"></div><span class="name">어스 브라운</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#2c4a3e"></div><span class="name">다크 그린</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#e8d5c0"></div><span class="name">크림 베이지</span></div>
+            <div class="color-chip"><div class="swatch" style="background:#c0a882"></div><span class="name">라이트 오크</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- Footer -->
+    <footer class="material-footer">
+      <strong>다담가구</strong>
+      <p>자재 관련 상세 문의는 상담 신청을 통해 안내받으실 수 있습니다.</p>
+      <p style="margin-top: 8px;">&copy; 2025 다담가구. All rights reserved.</p>
+    </footer>
+
+
+    <script>
+      let supabaseClient = null;
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          supabaseClient = window.supabase.createClient(url, anonKey);
+          await checkAuthState();
+        }
+      });
+
+      async function checkAuthState() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          const user = session.user;
+          const meta = user.user_metadata || {};
+          document.getElementById('loginLink').style.display = 'none';
+          document.getElementById('userMenu').style.display = 'block';
+          const ddLink = document.getElementById('navDetailDesign');
+          if (ddLink) ddLink.style.display = '';
+          const avatar = document.getElementById('navUserAvatar');
+          const name = meta.name || meta.full_name || user.email?.charAt(0) || '?';
+          if (avatar) avatar.textContent = name.charAt(0);
+          const nameEl = document.getElementById('navUserName');
+          if (nameEl) nameEl.textContent = meta.name || meta.full_name || '사용자';
+          const mobileLogin = document.getElementById('mobileLoginLink');
+          if (mobileLogin) mobileLogin.style.display = 'none';
+        }
+      }
+
+      function toggleMobileMenu() {
+        const hamburger = document.querySelector('.hamburger');
+        const mobileMenu = document.getElementById('mobileMenu');
+        hamburger.classList.toggle('active');
+        mobileMenu.classList.toggle('active');
+      }
+
+      async function logout() {
+        if (!supabaseClient) return;
+        await supabaseClient.auth.signOut();
+        window.location.href = 'index.html';
+      }
+    </script>
+
+  </body>
+</html>
