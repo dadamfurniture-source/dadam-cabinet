@@ -760,17 +760,7 @@ export default function App() {
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
 
-      {/* 툴바 */}
-      <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: 6, zIndex: 10 }}>
-        <button onClick={() => { const r = autoCalculateModules(planner); setPlanner(p => ({ ...p, lowerModules: r.lower, upperModules: r.upper, lowerCount: r.lower.length, upperCount: r.upper.length })); setSelId(null); }}
-          style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #b8956c', background: 'linear-gradient(135deg,#b8956c,#d4b896)', color: '#fff', fontSize: 11, cursor: 'pointer', fontWeight: 600, boxShadow: '0 2px 6px rgba(184,149,108,0.3)' }}>⚡ 자동계산</button>
-        <button onClick={() => setPlanner(p => ({ ...p, distributorStart: p.distributorStart === 0 ? null : 0, distributorEnd: p.distributorEnd === 0 ? null : 0 }))}
-          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #90caf9', background: planner.distributorStart !== 0 ? '#e3f2fd' : '#f5f5f5', color: planner.distributorStart !== 0 ? '#1565c0' : '#999', fontSize: 11, cursor: 'pointer' }}>💧 {planner.distributorStart !== 0 ? '분배기' : '분배기 (숨김)'}</button>
-        {!preset.fullHeight && (
-          <button onClick={() => setPlanner(p => ({ ...p, ventStart: p.ventStart === 0 ? null : 0 }))}
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #b0bec5', background: planner.ventStart !== 0 ? '#eceff1' : '#f5f5f5', color: planner.ventStart !== 0 ? '#546e7a' : '#999', fontSize: 11, cursor: 'pointer' }}>🌀 {planner.ventStart !== 0 ? '환풍구' : '환풍구 (숨김)'}</button>
-        )}
-      </div>
+      {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
     </div>
   );
 }
