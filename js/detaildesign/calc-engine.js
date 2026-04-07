@@ -809,8 +809,11 @@
         // ════════════════════════════════════════
         //  좌측기준: 가스대=우측 → LT는 가스대 우측~endBound 사이
         //  우측기준: 가스대=좌측 → LT는 startBound~가스대 좌측 사이
+        //  ㄱ자/ㄷ자: secondary LT망장이 별도 존재하므로 primary LT 생성 건너뜀
+        const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+        const hasSecondaryLT = item.modules.some(m => m.name === 'LT망장' && m.orientation === 'secondary');
         let ltMod = fixedOccupied.find(m => m.name === 'LT망장' || (m.type === 'storage' && m.isDrawer && parseFloat(m.w) <= 250));
-        if (!ltMod && sinkMod) {
+        if (!ltMod && sinkMod && !hasSecondaryLT) {
           ltMod = { id: Date.now() + Math.random(), type: 'storage', name: 'LT망장', pos: 'lower', w: LT_DEF_W, d: 550, isDrawer: true, isFixed: true, x: 0, endX: 0 };
           fixedOccupied.push(ltMod);
         }
