@@ -2,16 +2,16 @@
       // 전역 변수 및 상수
       // ============================================================
       const CATEGORIES = [
-        { id: 'sink', name: '싱크대', defaultD: 650 },
-        { id: 'island', name: '아일랜드', defaultD: 800 },
-        { id: 'wardrobe', name: '붙박이장', defaultD: 600 },
-        { id: 'fridge', name: '냉장고장', defaultD: 700 },
-        { id: 'shoerack', name: '신발장', defaultD: 350 },
-        { id: 'vanity', name: '화장대', defaultD: 500 },
-        { id: 'storage', name: '수납장', defaultD: 400 },
-        { id: 'warehouse', name: '창고장', defaultD: 450 },
-        { id: 'door', name: '도어교체', defaultD: 18 },
-        { id: 'custom', name: '비규격장', defaultD: 0 },
+        { id: 'sink', name: '싱크대', defaultD: 650, defaultH: 2310 },
+        { id: 'island', name: '아일랜드', defaultD: 800, defaultH: 2310 },
+        { id: 'wardrobe', name: '붙박이장', defaultD: 600, defaultH: 2310 },
+        { id: 'fridge', name: '냉장고장', defaultD: 700, defaultH: 2310 },
+        { id: 'shoerack', name: '신발장', defaultD: 350, defaultH: 2310 },
+        { id: 'vanity', name: '화장대', defaultD: 500, defaultH: 2310 },
+        { id: 'storage', name: '수납장', defaultD: 400, defaultH: 2310 },
+        { id: 'warehouse', name: '창고장', defaultD: 450, defaultH: 2310 },
+        { id: 'door', name: '도어교체', defaultD: 18, defaultH: 2310 },
+        { id: 'custom', name: '비규격장', defaultD: 0, defaultH: 2310 },
       ];
 
       // ★ Rule 10: 균등분배 상수 (v28 업데이트)

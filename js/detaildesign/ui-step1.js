@@ -36,8 +36,9 @@
           categoryId: cat.id,
           name: cat.name,
           defaultD: cat.defaultD,
+          defaultH: cat.defaultH,
           w: '',
-          h: '',
+          h: cat.defaultH || '',
           d: '',
           image: null,
           specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
@@ -447,7 +448,7 @@
         const payload = {
           presetId: item.categoryId || 'sink',
           width: parseFloat(item.w) || 3000,
-          height: parseFloat(item.h) || 2300,
+          height: parseFloat(item.h) || 2310,
           depth: parseFloat(item.d) || 600,
           lowerCount: lowerMods.length,
           upperCount: upperMods.length,
@@ -500,7 +501,7 @@
         const finishPayload = {
           presetId: item.categoryId || 'sink',
           width: parseFloat(item.w) || 3000,
-          height: parseFloat(item.h) || 2300,
+          height: parseFloat(item.h) || 2310,
           depth: parseFloat(item.d) || 600,
           lowerCount: lowerMods.length,
           upperCount: upperMods.length,
@@ -704,7 +705,7 @@
 
         // ★ 싱크대 Front View SVG 생성
         const sinkW = parseFloat(item.w) || 3000;
-        const sinkH = parseFloat(item.h) || 2400;
+        const sinkH = parseFloat(item.h) || 2310;
         const upperH = parseFloat(item.specs.upperH) || 720;
         const lowerH = parseFloat(item.specs.lowerH) || 870;
         const moldingH = parseFloat(item.specs.moldingH) || 60;
@@ -1508,7 +1509,7 @@
 
       function renderIsometricView(item, upperModules, lowerModules, showDoors) {
         const W = parseFloat(item.w) || 3000;
-        const H = parseFloat(item.h) || 2400;
+        const H = parseFloat(item.h) || 2310;
         const D = parseFloat(item.d) || 650;
         const upperH = parseFloat(item.specs.upperH) || 720;
         const lowerH = parseFloat(item.specs.lowerH) || 870;

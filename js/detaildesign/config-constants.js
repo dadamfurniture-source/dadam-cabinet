@@ -310,7 +310,7 @@
         // ─── 수치 데이터 → 정규화 좌표 (0~1) 변환 ───
         computeLayout(cabinetSpecs, upperModules, lowerModules) {
           const totalW = cabinetSpecs.total_width_mm || 3600;
-          const totalH = cabinetSpecs.total_height_mm || 2400;
+          const totalH = cabinetSpecs.total_height_mm || 2310;
 
           const moldingH = cabinetSpecs.molding_height || 60;
           const upperH = cabinetSpecs.upper_cabinet_height || 720;
