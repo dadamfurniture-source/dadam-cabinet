@@ -369,8 +369,9 @@
         if (threeCanvas) threeCanvas.style.display = 'block';
         if (viewLabel) viewLabel.textContent = '🎮 3D View';
         if (viewHint) viewHint.textContent = '드래그 → 회전 | 스크롤 → 줌';
-        // 카메라 전환
-        const iframe = threeCanvas?.querySelector('iframe[data-planner]');
+        // 카메라 전환 (iframe은 body 레벨 오버레이에 있음)
+        const overlay = document.getElementById('__planner-overlay-' + itemUniqueId);
+        const iframe = overlay?.querySelector('iframe[data-planner]');
         if (iframe) {
           iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
         }
@@ -438,9 +439,9 @@
        */
       window._syncPlannerState = _syncPlannerState; // 전역 노출 (ui-workspace.js에서 접근)
       function _syncPlannerState(item) {
-        const ws = document.getElementById('designWorkspace');
-        if (!ws) return;
-        const iframe = ws.querySelector('iframe[data-planner]');
+        // iframe은 body 레벨 오버레이에 있음 (workspace 안에 없음)
+        const overlay = document.getElementById('__planner-overlay-' + item.uniqueId);
+        const iframe = overlay?.querySelector('iframe[data-planner]');
         if (!iframe || !iframe.contentWindow) return;
         const specs = item.specs || {};
         const lowerMods = (item.modules || []).filter(m => m.pos === 'lower' && !m.orientation);
@@ -562,27 +563,64 @@
         container.appendChild(iframe);
       }
 
+      // ★ 3D 플래너 오버레이 — iframe을 body 레벨에 고정 (DOM 이동 없이 리로드 방지)
+      function _positionPlannerOverlay(overlayId, targetContainer) {
+        const overlay = document.getElementById(overlayId);
+        if (!overlay || !targetContainer) return;
+        const rect = targetContainer.getBoundingClientRect();
+        overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;display:block;border-radius:8px;overflow:hidden;`;
+      }
+
+      function _createPlannerOverlay(overlayId, targetContainer, item) {
+        // 기존 오버레이 제거
+        const old = document.getElementById(overlayId);
+        if (old) old.remove();
+        // 새 오버레이 생성
+        const overlay = document.createElement('div');
+        overlay.id = overlayId;
+        document.body.appendChild(overlay);
+        const rect = targetContainer.getBoundingClientRect();
+        overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;border-radius:8px;overflow:hidden;`;
+        // iframe 생성
+        _loadPlannerEmbed(overlay, item);
+      }
+
+      // 스크롤/리사이즈 시 오버레이 위치 동기화
+      let _overlayRAF = null;
+      function _syncAllPlannerOverlays() {
+        if (_overlayRAF) return;
+        _overlayRAF = requestAnimationFrame(() => {
+          _overlayRAF = null;
+          document.querySelectorAll('[id^="__planner-overlay-"]').forEach(overlay => {
+            const uid = overlay.id.replace('__planner-overlay-', '');
+            const target = document.getElementById('three-canvas-' + uid);
+            if (target && overlay.style.display !== 'none') {
+              const rect = target.getBoundingClientRect();
+              overlay.style.left = rect.left + 'px';
+              overlay.style.top = rect.top + 'px';
+              overlay.style.width = rect.width + 'px';
+              overlay.style.height = rect.height + 'px';
+            }
+          });
+        });
+      }
+      window.addEventListener('scroll', _syncAllPlannerOverlays, true);
+      window.addEventListener('resize', _syncAllPlannerOverlays);
+
       // 실제 렌더링 구현
       function _renderWorkspaceContentImpl(item) {
         const ws = document.getElementById('designWorkspace');
         if (!ws) return;
         try {
 
-        // ★ 3D iframe 보존 — body 레벨 숨김 컨테이너로 이동 (DOM에서 완전 제거하면 리로드됨)
-        const existingIframe = ws.querySelector('iframe[data-planner]');
-        let savedIframe = null;
-        if (existingIframe) {
-          savedIframe = existingIframe;
-          // DOM 트리에서 제거하지 않고 숨김 컨테이너로 이동 → 리로드 방지
-          let holder = document.getElementById('__planner-iframe-holder');
-          if (!holder) {
-            holder = document.createElement('div');
-            holder.id = '__planner-iframe-holder';
-            holder.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
-            document.body.appendChild(holder);
-          }
-          holder.appendChild(savedIframe);
-        }
+        // ★ 3D iframe 보존 — body 레벨 오버레이 컨테이너 (DOM 이동 없음 → 리로드 방지)
+        // iframe을 DOM에서 이동하면 브라우저가 리로드함 → 절대 이동하지 않고 body에 고정
+        const plannerOverlayId = '__planner-overlay-' + item.uniqueId;
+        let plannerOverlay = document.getElementById(plannerOverlayId);
+        const existingIframe = plannerOverlay?.querySelector('iframe[data-planner]');
+        const savedIframe = existingIframe || null;
+        // 오버레이 숨김 (workspace 리빌드 중)
+        if (plannerOverlay) plannerOverlay.style.display = 'none';
 
         // ★ 포커스 복원을 위한 정보 저장
         const activeEl = document.activeElement;
@@ -1380,17 +1418,18 @@
         _restoreScroll(ws, scrollInfo);
         _restoreFocus(ws, focusInfo);
 
-        // ★ 3D 뷰 — 기존 iframe 복원 또는 새로 로드
+        // ★ 3D 뷰 — body 레벨 오버레이로 iframe 유지 (DOM 이동 없음)
         {
           const tryInit3D = (retries) => {
             const container = document.getElementById('three-canvas-' + item.uniqueId);
             if (container && container.clientWidth > 0) {
               if (savedIframe) {
-                // DOM 내 이동 (리로드 없음) → postMessage로 최신 상태 전달
-                container.appendChild(savedIframe);
+                // ★ iframe은 이동하지 않음 — 오버레이 위치만 동기화
+                _positionPlannerOverlay(plannerOverlayId, container);
                 _syncPlannerState(item);
               } else {
-                _loadPlannerEmbed(container, item);
+                // 최초: body 레벨 오버레이 생성 + iframe 로드
+                _createPlannerOverlay(plannerOverlayId, container, item);
               }
             } else if (retries > 0) {
               setTimeout(() => tryInit3D(retries - 1), 100);
@@ -1480,14 +1519,10 @@
         const item = selectedItems.find(i => i.uniqueId === itemUniqueId);
         if (!item) return;
 
-        // 3D → 다른 뷰로 전환 시 iframe 제거
+        // 3D → 다른 뷰로 전환 시 오버레이 숨김
         if (item.specs.viewMode === '3d' && mode !== '3d') {
-          const container = document.getElementById('three-canvas-' + itemUniqueId);
-          if (container) {
-            const iframe = container.querySelector('iframe[data-planner]');
-            if (iframe) iframe.remove();
-          }
-          // ThreeRenderer 레거시 제거됨
+          const overlay = document.getElementById('__planner-overlay-' + itemUniqueId);
+          if (overlay) overlay.style.display = 'none';
         }
 
         item.specs.viewMode = mode;
