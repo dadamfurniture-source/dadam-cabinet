@@ -543,8 +543,8 @@
         const startBound = fL;
         const endBound = startBound + effectiveW;
 
-        // ★ Step 1: 하부장 위치 맵 생성 (후드 위치 결정용)
-        const lowerModules = item.modules.filter((m) => m.pos === 'lower');
+        // ★ Step 1: 하부장 위치 맵 생성 (후드 위치 결정용, secondary/tertiary 제외)
+        const lowerModules = item.modules.filter((m) => m.pos === 'lower' && !m.orientation);
         const lowerPosMap = {};
         let lowerCursor = startBound;
         lowerModules.forEach((m) => {
@@ -614,8 +614,8 @@
           }
         }
 
-        // 기타 고정 모듈 (후드, 기준상부장 제외)
-        const upperModules = item.modules.filter((m) => m.pos === 'upper');
+        // 기타 고정 모듈 (후드, 기준상부장, secondary/tertiary 제외)
+        const upperModules = item.modules.filter((m) => m.pos === 'upper' && !m.orientation);
         let otherCursor = startBound;
         upperModules.forEach((m) => {
           const mw = parseFloat(m.w) || 0;
@@ -625,8 +625,8 @@
           otherCursor += mw;
         });
 
-        // ★ Step 3: 비고정 모듈 제거 → 고정 모듈 기준으로 재계산
-        item.modules = item.modules.filter((m) => m.pos !== 'upper');
+        // ★ Step 3: 비고정 모듈 제거 → 고정 모듈 기준으로 재계산 (secondary/tertiary 보존)
+        item.modules = item.modules.filter((m) => m.pos !== 'upper' || m.orientation === 'secondary' || m.orientation === 'tertiary');
 
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
         fixedOccupied = adjustFixedPositions(fixedOccupied, startBound, endBound);
@@ -731,8 +731,8 @@
         const LT_MAX_W  = 300;
         const SIDE_PANEL = 15;
 
-        // ★ 고정 모듈 수집
-        const currentModules = item.modules.filter(m => m.pos === 'lower');
+        // ★ 고정 모듈 수집 (secondary/tertiary 제외 — 다른 방향의 모듈)
+        const currentModules = item.modules.filter(m => m.pos === 'lower' && !m.orientation);
         let fixedOccupied = [];
         let cursor = startBound;
         currentModules.forEach(m => {
@@ -898,8 +898,8 @@
         console.log(`[AutoCalc] 하부장: W=${W}, 유효=${effectiveW}, 환풍구=${ventPos}(abs=${ventAbs}), 분배기=${distStart}~${distEnd}(abs=${dStartAbs}~${dEndAbs})`);
         console.log(`[AutoCalc] 배치: ${fixedOccupied.sort((a,b)=>a.x-b.x).map(m => `${m.name||m.type}(${Math.round(m.x)}~${Math.round(m.endX)})`).join(' | ')}`);
 
-        // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 빈 공간 채우기
-        item.modules = item.modules.filter(m => m.pos !== 'lower');
+        // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 빈 공간 채우기 (secondary/tertiary 보존)
+        item.modules = item.modules.filter(m => m.pos !== 'lower' || m.orientation === 'secondary' || m.orientation === 'tertiary');
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
 
         let newModules = [];
@@ -1030,8 +1030,8 @@
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         const ventPos = parseFloat(item.specs.ventStart) || 0;
 
-        // ── 하부장: 개수대/가스대 위치 기반 재정렬 ──
-        const lowerMods = item.modules.filter(m => m.pos === 'lower');
+        // ── 하부장: 개수대/가스대 위치 기반 재정렬 (secondary/tertiary 제외) ──
+        const lowerMods = item.modules.filter(m => m.pos === 'lower' && !m.orientation);
         const sinkMod = lowerMods.find(m => m.type === 'sink');
         const cookMod = lowerMods.find(m => m.type === 'cook');
 
@@ -1064,8 +1064,8 @@
         }
         merged.forEach(m => delete m._tx);
 
-        // ── 상부장: 후드 → 환풍구 위치 ──
-        const upperMods = item.modules.filter(m => m.pos === 'upper');
+        // ── 상부장: 후드 → 환풍구 위치 (secondary/tertiary 제외) ──
+        const upperMods = item.modules.filter(m => m.pos === 'upper' && !m.orientation);
         const hoodMod = upperMods.find(m => m.type === 'hood');
         let upperSorted = [...upperMods];
         if (hoodMod && ventPos > 0) {
@@ -1082,7 +1082,8 @@
           upperSorted = without;
         }
 
-        item.modules = item.modules.filter(m => m.pos !== 'lower' && m.pos !== 'upper').concat(merged).concat(upperSorted);
+        const secondaryMods = item.modules.filter(m => (m.pos === 'lower' || m.pos === 'upper') && m.orientation);
+        item.modules = item.modules.filter(m => m.pos !== 'lower' && m.pos !== 'upper').concat(merged).concat(upperSorted).concat(secondaryMods);
 
         // ★ 분배기/환풍구 절대좌표를 item.specs에 저장 (3D 뷰에서 표시)
         // distributorStart=0이면 저장 안 함 (삭제 상태 유지)
