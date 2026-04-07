@@ -164,6 +164,110 @@
         color: #4a6fa5;
       }
 
+      /* ── Test Results ── */
+      .test-results {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: start;
+        margin-top: 40px;
+      }
+      .test-chart h4,
+      .test-certs h4 {
+        font-family: 'Pretendard', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 24px;
+        color: var(--charcoal);
+      }
+      .bar-group {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .bar-label {
+        width: 100px;
+        flex-shrink: 0;
+        font-size: 12px;
+        color: var(--gray);
+        text-align: right;
+        line-height: 1.4;
+      }
+      .bar-track {
+        flex: 1;
+        height: 36px;
+        background: #f0f0ee;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 12px;
+        transition: width 1s ease;
+      }
+      .bar-old {
+        background: #c8d4e8;
+      }
+      .bar-new {
+        background: linear-gradient(90deg, #3a5a8c, #4a6fa5);
+      }
+      .bar-value {
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .bar-old .bar-value {
+        color: #5a7090;
+      }
+      .bar-axis {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 6px;
+        padding-left: 112px;
+        font-size: 11px;
+        color: var(--gray);
+      }
+      .test-certs-grid {
+        display: flex;
+        gap: 16px;
+      }
+      .test-cert-card {
+        flex: 1;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        background: #fff;
+        text-align: center;
+      }
+      .test-cert-card img {
+        width: 100%;
+        display: block;
+      }
+      .test-cert-card span {
+        display: block;
+        padding: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--charcoal);
+      }
+      @media (max-width: 768px) {
+        .test-results {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+        .bar-label { width: 70px; font-size: 11px; }
+        .bar-axis { padding-left: 82px; }
+      }
+
       /* ── Eco Grade Table ── */
       .eco-table-wrap {
         overflow-x: auto;
@@ -622,10 +726,46 @@
         </div>
       </div>
 
-      <!-- 테스트 결과 그래프 -->
-      <div style="margin-top: 40px;">
-        <div class="board-catalog-img">
-          <img src="app/material/board-test-graph.jpg" alt="습기 테스트 및 두께 팽창률 시험 결과" loading="lazy" />
+      <!-- 테스트 결과 + 시험 성적서 -->
+      <div class="test-results">
+        <!-- 바 차트 -->
+        <div class="test-chart">
+          <h4>실제 테스트 결과</h4>
+          <div class="bar-group">
+            <div class="bar-row">
+              <span class="bar-label">기존<br>예림보드 럭스</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-old" style="width: 92%;">
+                  <span class="bar-value">9.2%</span>
+                </div>
+              </div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label"><span class="badge-mr" style="font-size:10px; padding:2px 6px;">MR</span><br>예림보드 럭스<sup>MR</sup></span>
+              <div class="bar-track">
+                <div class="bar-fill bar-new" style="width: 65%;">
+                  <span class="bar-value">6.5%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bar-axis">
+            <span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span>
+          </div>
+        </div>
+        <!-- 시험 성적서 -->
+        <div class="test-certs">
+          <h4>흡수 두께 팽창률 시험 성적서</h4>
+          <div class="test-certs-grid">
+            <div class="test-cert-card">
+              <img src="app/material/cert-18t-e0.jpg" alt="18T E0 보드 성적서" loading="lazy" />
+              <span>18T E0 보드 성적서</span>
+            </div>
+            <div class="test-cert-card">
+              <img src="app/material/cert-18t-mr.jpg" alt="18T E0 MR 보드 성적서" loading="lazy" />
+              <span>18T E0 MR 보드 성적서</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
