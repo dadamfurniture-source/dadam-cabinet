@@ -391,7 +391,7 @@
       function _appendSecondaryModules(payload, specs, itemD) {
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
         if (lShape === 'I') return;
-        if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1200';
+        if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1800';
         const secW = parseFloat(specs.lowerSecondaryW) || 600;
         const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 600;
         const primeD = parseFloat(itemD) || 600;
@@ -440,51 +440,111 @@
           }
           payload.upperCount = payload.upperModules.length;
         }
-        // ★ ㄷ자형: tertiary line (secondary 반대편)
+        // ★ ㄷ자형: tertiary line
         if (lShape === 'U') {
-          if (!specs.lowerTertiaryW) specs.lowerTertiaryW = specs.lowerSecondaryW || '1200';
+          if (!specs.lowerTertiaryW) specs.lowerTertiaryW = specs.lowerSecondaryW || '1800';
           const terW = parseFloat(specs.lowerTertiaryW) || secW;
-          const terStartSide = startSide === 'left' ? 'right' : 'left';
-          // ★ blind corner = prime line depth
-          const terBlindMod = {
-            id: 'blind-corner-ter-auto', kind: 'door', width: primeD,
-            moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
-          };
-          // ★ 실측 기준: terW = primeD + 나머지 모듈
-          const availableTerW = Math.max(0, terW - primeD);
-          const terModCount = availableTerW > 0 ? Math.max(1, Math.round(availableTerW / 600)) : 0;
-          const terModW = terModCount > 0 ? Math.round(availableTerW / terModCount) : 0;
-          const terMods = Array.from({ length: terModCount }, (_, i) => ({
-            id: `ter-auto-${i}`, kind: 'door', width: terModW,
-            moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
-          }));
-          if (terStartSide === 'left') {
-            payload.lowerModules = [terBlindMod, ...terMods, ...payload.lowerModules];
+          const terFrom = specs.tertiaryStartFrom || 'prime';
+          const terD = parseFloat(specs.lowerTertiaryD) || primeD;
+
+          if (terFrom === 'secondary') {
+            // ★ secondary line 끝에서 시작 — secondary 마지막 모듈을 멍장으로 변경
+            // 멍장 width = tertiary depth (코너 오버랩)
+            const secModsInPayload = payload.lowerModules.filter(m => m.orientation === 'secondary');
+            if (secModsInPayload.length > 0) {
+              const lastSec = secModsInPayload[secModsInPayload.length - 1];
+              lastSec.kind = 'door';
+              lastSec.width = terD;
+              lastSec.id = 'blind-corner-sec-ter-auto';
+              lastSec.doorCount = 1;
+            }
+            // tertiary 모듈: prime line과 평행하게 secondary 끝에서 배치
+            const terModCount = terW > 0 ? Math.max(1, Math.round(terW / 600)) : 0;
+            const terModW = terModCount > 0 ? Math.round(terW / terModCount) : 0;
+            const terMods = Array.from({ length: terModCount }, (_, i) => ({
+              id: `ter-auto-${i}`, kind: 'door', width: terModW,
+              moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+            }));
+            // tertiary는 secondary 뒤에 배치 (startSide 동일)
+            if (startSide === 'left') {
+              // secondary가 앞에 있으므로 tertiary도 앞에 (secondary 뒤)
+              const secEndIdx = payload.lowerModules.lastIndexOf(secModsInPayload[secModsInPayload.length - 1]);
+              payload.lowerModules.splice(secEndIdx + 1, 0, ...terMods);
+            } else {
+              const secStartIdx = payload.lowerModules.indexOf(secModsInPayload[0]);
+              payload.lowerModules.splice(secStartIdx, 0, ...terMods);
+            }
+            payload.lowerCount = payload.lowerModules.length;
+            // 상부장 tertiary (from secondary)
+            if (specs.secondaryUpperEnabled !== false && specs.upperTertiaryW) {
+              const uTerW = parseFloat(specs.upperTertiaryW) || terW;
+              const uTerD = parseFloat(specs.upperTertiaryD) || parseFloat(specs.upperSecondaryD) || 295;
+              const uSecModsInPayload = payload.upperModules.filter(m => m.orientation === 'secondary');
+              if (uSecModsInPayload.length > 0) {
+                const lastUSec = uSecModsInPayload[uSecModsInPayload.length - 1];
+                lastUSec.kind = 'door';
+                lastUSec.width = uTerD;
+                lastUSec.id = 'blind-corner-upper-sec-ter-auto';
+                lastUSec.doorCount = 1;
+              }
+              const uTerModCount = uTerW > 0 ? Math.max(1, Math.round(uTerW / 600)) : 0;
+              const uTerModW = uTerModCount > 0 ? Math.round(uTerW / uTerModCount) : 0;
+              const uTerMods = Array.from({ length: uTerModCount }, (_, i) => ({
+                id: `ter-upper-auto-${i}`, kind: 'door', width: uTerModW,
+                moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+              }));
+              if (startSide === 'left') {
+                const uSecEndIdx = payload.upperModules.lastIndexOf(uSecModsInPayload[uSecModsInPayload.length - 1]);
+                payload.upperModules.splice(uSecEndIdx + 1, 0, ...uTerMods);
+              } else {
+                const uSecStartIdx = payload.upperModules.indexOf(uSecModsInPayload[0]);
+                payload.upperModules.splice(uSecStartIdx, 0, ...uTerMods);
+              }
+              payload.upperCount = payload.upperModules.length;
+            }
           } else {
-            payload.lowerModules = [...payload.lowerModules, terBlindMod, ...terMods];
-          }
-          payload.lowerCount = payload.lowerModules.length;
-          // 상부장 tertiary
-          if (specs.secondaryUpperEnabled !== false && specs.upperTertiaryW) {
-            const uTerW = parseFloat(specs.upperTertiaryW) || terW;
-            const uTerPrimeD = parseFloat(specs.upperPrimeD) || 295;
-            const uTerBlindMod = {
-              id: 'blind-corner-upper-ter-auto', kind: 'door', width: uTerPrimeD,
+            // ★ prime line 반대편 — 기존 로직 (secondary와 평행)
+            const terStartSide = startSide === 'left' ? 'right' : 'left';
+            const terBlindMod = {
+              id: 'blind-corner-ter-auto', kind: 'door', width: primeD,
               moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
             };
-            const uAvailableTerW = Math.max(0, uTerW - uTerPrimeD);
-            const uTerModCount = uAvailableTerW > 0 ? Math.max(1, Math.round(uAvailableTerW / 600)) : 0;
-            const uTerModW = uTerModCount > 0 ? Math.round(uAvailableTerW / uTerModCount) : 0;
-            const uTerMods = Array.from({ length: uTerModCount }, (_, i) => ({
-              id: `ter-upper-auto-${i}`, kind: 'door', width: uTerModW,
+            // 실측 기준: terW = primeD + 나머지 모듈
+            const availableTerW = Math.max(0, terW - primeD);
+            const terModCount = availableTerW > 0 ? Math.max(1, Math.round(availableTerW / 600)) : 0;
+            const terModW = terModCount > 0 ? Math.round(availableTerW / terModCount) : 0;
+            const terMods = Array.from({ length: terModCount }, (_, i) => ({
+              id: `ter-auto-${i}`, kind: 'door', width: terModW,
               moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
             }));
             if (terStartSide === 'left') {
-              payload.upperModules = [uTerBlindMod, ...uTerMods, ...payload.upperModules];
+              payload.lowerModules = [terBlindMod, ...terMods, ...payload.lowerModules];
             } else {
-              payload.upperModules = [...payload.upperModules, uTerBlindMod, ...uTerMods];
+              payload.lowerModules = [...payload.lowerModules, terBlindMod, ...terMods];
             }
-            payload.upperCount = payload.upperModules.length;
+            payload.lowerCount = payload.lowerModules.length;
+            // 상부장 tertiary (from prime)
+            if (specs.secondaryUpperEnabled !== false && specs.upperTertiaryW) {
+              const uTerW = parseFloat(specs.upperTertiaryW) || terW;
+              const uTerPrimeD = parseFloat(specs.upperPrimeD) || 295;
+              const uTerBlindMod = {
+                id: 'blind-corner-upper-ter-auto', kind: 'door', width: uTerPrimeD,
+                moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+              };
+              const uAvailableTerW = Math.max(0, uTerW - uTerPrimeD);
+              const uTerModCount = uAvailableTerW > 0 ? Math.max(1, Math.round(uAvailableTerW / 600)) : 0;
+              const uTerModW = uTerModCount > 0 ? Math.round(uAvailableTerW / uTerModCount) : 0;
+              const uTerMods = Array.from({ length: uTerModCount }, (_, i) => ({
+                id: `ter-upper-auto-${i}`, kind: 'door', width: uTerModW,
+                moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+              }));
+              if (terStartSide === 'left') {
+                payload.upperModules = [uTerBlindMod, ...uTerMods, ...payload.upperModules];
+              } else {
+                payload.upperModules = [...payload.upperModules, uTerBlindMod, ...uTerMods];
+              }
+              payload.upperCount = payload.upperModules.length;
+            }
           }
         }
       }
@@ -527,6 +587,7 @@
           distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
           secondaryStartSide: specs.secondaryStartSide || undefined,
+          tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
         _appendSecondaryModules(payload, specs, item.d);
@@ -573,6 +634,7 @@
           distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
           secondaryStartSide: specs.secondaryStartSide || undefined,
+          tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
         _appendSecondaryModules(finishPayload, specs, item.d);
@@ -1300,11 +1362,22 @@
             </div>
           </div>
         </div>
-        ${lShape === 'U' ? `
+        ${lShape === 'U' ? (() => {
+          const terFrom = item.specs.tertiaryStartFrom || 'prime';
+          return `
         <div style="padding:6px;background:#f5f5ff;border-radius:6px;margin-top:4px;">
-          <span style="font-size:11px;font-weight:600;color:#7c3aed;">Tertiary Line</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:600;color:#7c3aed;">Tertiary Line</span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span style="font-size:9px;color:#888;">시작 방향</span>
+              <select onchange="updateSpecNoRender(${item.uniqueId}, 'tertiaryStartFrom', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
+                <option value="prime" ${terFrom === 'prime' ? 'selected' : ''}>Prime Line</option>
+                <option value="secondary" ${terFrom === 'secondary' ? 'selected' : ''}>Secondary Line</option>
+              </select>
+            </div>
+          </div>
           <div style="padding:4px 6px;border-left:2px solid #7c3aed;margin-top:4px;margin-bottom:4px;">
-            <div style="font-size:9px;font-weight:600;color:#7c3aed;margin-bottom:2px;">하부장</div>
+            <div style="font-size:9px;font-weight:600;color:#7c3aed;margin-bottom:2px;">하부장</div>`; })() + `
             <div class="spec-row">
               <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerTertiaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerTertiaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
               <div class="spec-field"><label>D</label><input type="number" value="${item.specs.lowerTertiaryD || item.d || item.defaultD || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerTertiaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>

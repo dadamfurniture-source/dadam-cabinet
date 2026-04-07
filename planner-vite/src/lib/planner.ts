@@ -74,6 +74,8 @@ export interface PlannerState {
   secondaryFillerW?: number;
   /** 차선모듈 시작 방향: 'left' = 좌측에서 시작, 'right' = 우측에서 시작 */
   secondaryStartSide?: 'left' | 'right';
+  /** tertiary 시작 방향: 'prime' = prime line 반대편, 'secondary' = secondary line 끝 */
+  tertiaryStartFrom?: 'prime' | 'secondary';
   // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
   distributorStart: number | null;
   distributorEnd: number | null;
@@ -713,6 +715,9 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     // 차선모듈 체인용 Z 커서 — 연속된 secondary 엔트리를 Z축으로 쌓음
     let secNearZ: number | null = null; // 현재 체인의 다음 모듈 근접(near) 면 Z
     let curChain: SecondaryChain | null = null; // 현재 진행중인 체인
+    // tertiary from secondary 용 커서 — secondary 끝에서 X축으로 배치
+    let terCursorZ: number | null = null;
+    let terCursorX: number | null = null;
 
     list.forEach((module, idx) => {
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
@@ -721,62 +726,106 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const isTertiary = module.orientation === 'tertiary';
 
       if (isSecondary) {
-        // 차선모듈 ㄱ자 배치: 앵커(주선) 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
-        // 체인 지원: 여러 차선모듈이 연속되면 Z축으로 순차 배치
-        // 좌측 차선: cursor 위치(startX)에서 방 안쪽(+X)으로 연장
-        // 우측 차선: cursor 위치(endX)에서 방 안쪽(-X)으로 연장
-        // 상부장: 벽(counterBackZ)에서 시작 → 코너가 주선과 자연스럽게 이어짐
-        // 하부장: 상판 앞면(counterFrontZ)에서 시작 → 상판이 코너를 덮음
-        // 사용자 설정 우선, 없으면 cursor 위치로 자동 판단
-        // tertiary는 secondary 반대편에 배치
-        const secondarySide = state.secondaryStartSide
-          ? state.secondaryStartSide === 'left'
-          : Math.abs(cursor - startX) < 1;
-        const isLeftChain = isTertiary ? !secondarySide : secondarySide;
-        if (secNearZ === null) {
-          // 상부·하부 모두 counterFrontZ(앞면)에서 시작 → 방 안쪽(+Z)으로 연장
-          // counterBackZ 에서 시작하면 blind panel과 Z가 겹침
-          secNearZ = counterFrontZ;
-          curChain = {
-            section: isUpper ? 'upper' : 'lower',
-            xCenter: isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2,
-            xExtent: module.depth,
-            startZ: secNearZ,
-            endZ: secNearZ,
-            anchorRightX: isLeftChain ? cursor + module.depth : cursor,
-            primaryFrontEdgeZ: counterFrontZ, // 상판 정면 edge (실측: +9 오버행 제거)
-            bodyH: module.height,
-            bottomY: isUpper ? upperBottomY : lowerBottomY,
-          };
+        const tertiaryFromSec = isTertiary && state.tertiaryStartFrom === 'secondary';
+
+        if (tertiaryFromSec) {
+          // ★ tertiary from secondary: prime과 평행하게 secondary 끝에서 X축 배치
+          // secondary chain의 끝 Z 위치에서 시작, X축으로 연장
+          const lastSecChain = secondaryChains.find(c => c.section === (isUpper ? 'upper' : 'lower'));
+          const secondarySide = state.secondaryStartSide
+            ? state.secondaryStartSide === 'left'
+            : Math.abs(cursor - startX) < 1;
+          if (terCursorZ === null && lastSecChain) {
+            // tertiary Z = secondary chain 끝 + depth/2 (secondary 끝에서 수직으로)
+            terCursorZ = lastSecChain.endZ + module.depth / 2;
+            // tertiary X cursor: secondary의 anchor에서 시작
+            terCursorX = secondarySide
+              ? lastSecChain.xCenter - lastSecChain.xExtent / 2 // 좌측 secondary → 좌측 끝에서 시작
+              : lastSecChain.xCenter + lastSecChain.xExtent / 2; // 우측 secondary → 우측 끝에서 시작
+          }
+          if (terCursorZ !== null && terCursorX !== null) {
+            // secondary가 좌측이면 tertiary는 좌→우(+X), 우측이면 우→좌(-X)
+            const terX = secondarySide
+              ? terCursorX + module.width / 2
+              : terCursorX - module.width / 2;
+            parts.push({
+              id: module.id,
+              label: `${module.section}-${module.kind}-tertiary`,
+              x: terX,
+              y,
+              z: terCursorZ,
+              width: module.width,
+              height: module.height,
+              depth: module.depth,
+              colorKey: isUpper ? 'accent' : 'body',
+              essential: isEssential,
+              moduleType: module.moduleType,
+              moduleKind: module.kind,
+              doorCount: module.doorCount,
+              drawerCount: module.drawerCount,
+              // prime과 평행 → 회전 없음
+            });
+            if (secondarySide) {
+              terCursorX += module.width;
+            } else {
+              terCursorX -= module.width;
+            }
+          }
+          // 체인 종료 판정
+          const isLastInChain = idx === list.length - 1 || list[idx + 1].orientation !== module.orientation;
+          if (isLastInChain) {
+            // tertiary from secondary는 secondaryChains에 추가하지 않음 (별도 트래킹)
+            terCursorZ = null;
+            terCursorX = null;
+          }
+        } else {
+          // ★ 기존 로직: secondary / tertiary from prime — Z축(정면) 방향 수직 배치
+          const secondarySide = state.secondaryStartSide
+            ? state.secondaryStartSide === 'left'
+            : Math.abs(cursor - startX) < 1;
+          const isLeftChain = isTertiary ? !secondarySide : secondarySide;
+          if (secNearZ === null) {
+            secNearZ = counterFrontZ;
+            curChain = {
+              section: isUpper ? 'upper' : 'lower',
+              xCenter: isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2,
+              xExtent: module.depth,
+              startZ: secNearZ,
+              endZ: secNearZ,
+              anchorRightX: isLeftChain ? cursor + module.depth : cursor,
+              primaryFrontEdgeZ: counterFrontZ,
+              bodyH: module.height,
+              bottomY: isUpper ? upperBottomY : lowerBottomY,
+            };
+          }
+          const perpX = isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2;
+          const perpZ = secNearZ + module.width / 2;
+          secNearZ += module.width;
+          if (curChain) curChain.endZ = secNearZ;
+          const isLastInChain = idx === list.length - 1 || list[idx + 1].orientation !== module.orientation;
+          if (isLastInChain && curChain) {
+            secondaryChains.push(curChain);
+            curChain = null;
+            secNearZ = null;
+          }
+          parts.push({
+            id: module.id,
+            label: `${module.section}-${module.kind}-${isTertiary ? 'tertiary' : 'secondary'}`,
+            x: perpX,
+            y,
+            z: perpZ,
+            width: module.width,
+            height: module.height,
+            depth: module.depth,
+            colorKey: isUpper ? 'accent' : 'body',
+            essential: isEssential,
+            moduleType: module.moduleType,
+            moduleKind: module.kind,
+            doorCount: module.doorCount,
+            drawerCount: module.drawerCount,
+            rotationY: isLeftChain ? Math.PI / 2 : -Math.PI / 2,
+          });
         }
-        const perpX = isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2;
-        const perpZ = secNearZ + module.width / 2;
-        secNearZ += module.width;
-        if (curChain) curChain.endZ = secNearZ;
-        // 체인 종료 판정: 마지막이거나 다음 모듈의 orientation이 다름
-        const isLastInChain = idx === list.length - 1 || list[idx + 1].orientation !== module.orientation;
-        if (isLastInChain && curChain) {
-          secondaryChains.push(curChain);
-          curChain = null;
-          secNearZ = null; // 체인 종료 시 Z 커서 초기화 (secondary→tertiary 전환 대비)
-        }
-        parts.push({
-          id: module.id,
-          label: `${module.section}-${module.kind}-${isTertiary ? 'tertiary' : 'secondary'}`,
-          x: perpX,
-          y,
-          z: perpZ,
-          width: module.width,
-          height: module.height,
-          depth: module.depth,
-          colorKey: isUpper ? 'accent' : 'body',
-          essential: isEssential,
-          moduleType: module.moduleType,
-          moduleKind: module.kind,
-          doorCount: module.doorCount,
-          drawerCount: module.drawerCount,
-          rotationY: isLeftChain ? Math.PI / 2 : -Math.PI / 2, // 좌: +90°, 우: -90°
-        });
         // 차선모듈은 주선의 X축 cursor를 증가시키지 않음
       } else {
         secNearZ = null; // 주선 모듈을 만나면 차선 체인 종료
