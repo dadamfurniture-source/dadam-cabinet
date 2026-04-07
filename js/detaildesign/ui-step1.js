@@ -440,6 +440,10 @@
           }
           payload.upperCount = payload.upperModules.length;
         }
+        console.log('[SecMods] after secondary append:', {
+          lShape, startSide,
+          lowerModules: payload.lowerModules.map(m => `${m.id}(${m.orientation||'primary'}, w=${m.width})`),
+        });
         // ★ ㄷ자형: tertiary line
         if (lShape === 'U') {
           if (!specs.lowerTertiaryW) specs.lowerTertiaryW = specs.lowerSecondaryW || '1800';
@@ -546,6 +550,12 @@
               payload.upperCount = payload.upperModules.length;
             }
           }
+          console.log('[SecMods] after tertiary append:', {
+            terFrom: specs.tertiaryStartFrom || 'prime',
+            terW: parseFloat(specs.lowerTertiaryW) || 0,
+            lowerModules: payload.lowerModules.map(m => `${m.id}(${m.orientation||'primary'}, w=${m.width})`),
+            upperModules: payload.upperModules.map(m => `${m.id}(${m.orientation||'primary'}, w=${m.width})`),
+          });
         }
       }
 
