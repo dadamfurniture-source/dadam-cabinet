@@ -472,14 +472,7 @@
           secondaryStartSide: specs.secondaryStartSide || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
-        const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
-        const primaryCount = payload.lowerModules.length;
         _appendSecondaryModules(payload, specs, item.d);
-        const secCount = payload.lowerModules.length - primaryCount;
-        console.log('[Planner] _syncPlannerState:', { lShape, primaryLower: primaryCount, secondaryLower: secCount, totalLower: payload.lowerCount, totalUpper: payload.upperCount, secW: specs.lowerSecondaryW, secD: specs.lowerSecondaryD, startSide: specs.secondaryStartSide });
-        if (lShape !== 'I') {
-          console.log('[Planner] secondary modules:', payload.lowerModules.filter(m => m.orientation === 'secondary'));
-        }
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
       }
 
@@ -530,7 +523,6 @@
         if (existing) {
           const sendUpdate = () => {
             if (existing.contentWindow) {
-              console.log('[Planner] postMessage UPDATE_PLANNER:', { width: finishPayload.width, height: finishPayload.height, depth: finishPayload.depth });
               existing.contentWindow.postMessage({
                 type: 'UPDATE_PLANNER',
                 payload: finishPayload,
@@ -626,8 +618,8 @@
           return;
         }
 
-        const upperModules = item.modules.filter((m) => m.pos === 'upper');
-        const lowerModules = item.modules.filter((m) => m.pos === 'lower');
+        const upperModules = item.modules.filter((m) => m.pos === 'upper' && !m.orientation);
+        const lowerModules = item.modules.filter((m) => m.pos === 'lower' && !m.orientation);
 
         const autoEffectiveW = calcEffectiveSpace(item);
         const upperEffectiveW = getEffectiveSpace(item, 'upper');
