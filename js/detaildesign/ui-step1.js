@@ -1227,6 +1227,11 @@
       <button onclick="runAutoCalcSection(${item.uniqueId}, 'upper'); runAutoCalcSection(${item.uniqueId}, 'lower')" style="padding:6px 16px;font-size:12px;border:none;border-radius:6px;background:linear-gradient(135deg,#b8956c,#d4b896);color:#fff;cursor:pointer;font-weight:600;">⚡ 자동계산</button>
       <button onclick="undoAutoCalc(${item.uniqueId}, 'upper'); undoAutoCalc(${item.uniqueId}, 'lower')" style="padding:6px 12px;font-size:11px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;" ${item.prevUpperModules || item.prevLowerModules ? '' : 'disabled'}>↩ 되돌리기</button>
       <button onclick="clearAllModules(${item.uniqueId})" style="padding:6px 12px;font-size:11px;border:1px solid #f5c6cb;border-radius:6px;background:#fff;cursor:pointer;color:#dc3545;">🗑 전체 제거</button>
+      <span style="width:1px;height:16px;background:#ddd;margin:0 4px;"></span>
+      ${item.categoryId === 'sink' ? `
+      <button onclick="togglePlumbing(${item.uniqueId},'distributor',!(${item.specs.distributorStart > 0 || item.specs.distributorEnd > 0}))" style="padding:4px 10px;font-size:11px;border:1px solid #90caf9;border-radius:6px;background:${(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? '#e3f2fd' : '#f5f5f5'};color:${(item.specs.distributorStart > 0 || item.specs.distributorEnd > 0) ? '#1565c0' : '#999'};cursor:pointer;">💧 분배기</button>
+      <button onclick="togglePlumbing(${item.uniqueId},'vent',!(${item.specs.ventStart > 0}))" style="padding:4px 10px;font-size:11px;border:1px solid #b0bec5;border-radius:6px;background:${item.specs.ventStart > 0 ? '#eceff1' : '#f5f5f5'};color:${item.specs.ventStart > 0 ? '#546e7a' : '#999'};cursor:pointer;">🌀 환풍구</button>
+      ` : ''}
       <span style="font-size:11px;color:#888;">상부: <span style="color:${getRemainColor(upperRemaining)}">${Math.round(upperRemaining)}mm</span> | 하부: <span style="color:${getRemainColor(lowerRemaining)}">${Math.round(lowerRemaining)}mm</span></span>
     </div>
 
