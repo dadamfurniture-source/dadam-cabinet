@@ -510,6 +510,10 @@
         if (!item) return;
         if (typeof pushUndo === 'function') pushUndo(item); // ★ Undo
 
+        const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+        const secModsBefore = item.modules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
+        console.log(`[AutoCalc] START section=${section}, lShape=${lShape}, secModsBefore=${secModsBefore.length}`, secModsBefore.map(m => `${m.name||m.type}(${m.orientation})`));
+
         // ★ 싱크대: 자동계산 전 필수장 주입
         if (item.categoryId === 'sink') {
           injectEssentialModules(item, section);
@@ -522,6 +526,10 @@
           item.prevLowerModules = JSON.parse(JSON.stringify(item.modules.filter((m) => m.pos === 'lower')));
           runAutoCalcLower(item);
         }
+
+        const secModsAfter = item.modules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
+        console.log(`[AutoCalc] END section=${section}, secModsAfter=${secModsAfter.length}`, secModsAfter.map(m => `${m.name||m.type}(${m.orientation})`));
+        console.log(`[AutoCalc] ALL modules after:`, item.modules.map(m => `${m.name||m.type}(pos=${m.pos},orient=${m.orientation||'primary'})`));
 
         renderWorkspaceContent(item);
       }
