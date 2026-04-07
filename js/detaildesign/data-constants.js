@@ -103,6 +103,9 @@
         upperSecondaryW: '',
         upperSecondaryH: '',
         upperSecondaryD: '',
+        upperTertiaryW: '',
+        upperTertiaryH: '',
+        upperTertiaryD: '',
       };
 
       // ★ 냉장고장 규칙 상수 (업데이트)

@@ -1635,8 +1635,11 @@
             }
           }
         }
-        if (shape === 'U' && !item.specs.lowerTertiaryD) {
-          item.specs.lowerTertiaryD = item.defaultD || item.d || '';
+        if (shape === 'U') {
+          if (!item.specs.lowerTertiaryW) item.specs.lowerTertiaryW = item.specs.lowerSecondaryW || '1200';
+          if (!item.specs.lowerTertiaryD) item.specs.lowerTertiaryD = item.defaultD || item.d || '';
+          if (!item.specs.upperTertiaryW) item.specs.upperTertiaryW = item.specs.upperSecondaryW || '';
+          if (!item.specs.upperTertiaryD) item.specs.upperTertiaryD = item.specs.upperSecondaryD || '';
         }
         if (shape === 'I') {
           item.specs.lowerSecondaryW = '';
@@ -1645,6 +1648,9 @@
           item.specs.lowerTertiaryW = '';
           item.specs.lowerTertiaryH = '';
           item.specs.lowerTertiaryD = '';
+          item.specs.upperTertiaryW = '';
+          item.specs.upperTertiaryH = '';
+          item.specs.upperTertiaryD = '';
         }
         // 통합 모드: 상부장도 동일 구조로 동기화
         if (item.specs.dimensionMode === 'unified') {

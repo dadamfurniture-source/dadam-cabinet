@@ -16,8 +16,8 @@ export interface CabinetModule {
   moduleType?: ModuleType;
   doorCount?: number;
   drawerCount?: number;
-  /** 'secondary' = 차선모듈 (Secondary Line Module) */
-  orientation?: 'normal' | 'secondary';
+  /** 'secondary' = 차선모듈, 'tertiary' = 3차선 (ㄷ자형) */
+  orientation?: 'normal' | 'secondary' | 'tertiary';
   blindAnchorId?: string;
 }
 
@@ -50,8 +50,8 @@ export interface ModuleEntry {
   moduleType?: ModuleType;
   doorCount?: number;
   drawerCount?: number;
-  /** 'secondary' = 차선모듈(Secondary Line Module). 멍장을 통해 생성된 ㄱ자형 정면(Z축) 배치 모듈 */
-  orientation?: 'normal' | 'secondary';
+  /** 'secondary' = 차선모듈(ㄱ자 좌측/우측), 'tertiary' = 3차선(ㄷ자 반대편) */
+  orientation?: 'normal' | 'secondary' | 'tertiary';
   /** 멍장 연결 대상(주선) 모듈 ID — 차선모듈이 어느 앵커에 붙는지 */
   blindAnchorId?: string;
 }
@@ -604,7 +604,7 @@ const buildModulesFromEntries = (
 ): CabinetModule[] =>
   entries.map((entry) => {
     const isLower = section === 'lower' || section === 'full';
-    const isSecondary = entry.orientation === 'secondary';
+    const isSecondary = entry.orientation === 'secondary' || entry.orientation === 'tertiary';
     // 주선 하부/풀하이트: 상판(실측 depth) 기준으로 재귀(recess)
     //   door/drawer → 도어 20T 앞쪽 생성, 모듈 본체 + 도어 합계 = depth - 10 (상판이 10mm 오버행)
     //   open → depth - 30 (상판이 30mm 오버행)
@@ -717,7 +717,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     list.forEach((module, idx) => {
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
-      const isSecondary = module.orientation === 'secondary';
+      const isSecondary = module.orientation === 'secondary' || module.orientation === 'tertiary';
+      const isTertiary = module.orientation === 'tertiary';
 
       if (isSecondary) {
         // 차선모듈 ㄱ자 배치: 앵커(주선) 모듈 끝에 밀착하여 Z축(정면) 방향으로 돌출
@@ -727,9 +728,11 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         // 상부장: 벽(counterBackZ)에서 시작 → 코너가 주선과 자연스럽게 이어짐
         // 하부장: 상판 앞면(counterFrontZ)에서 시작 → 상판이 코너를 덮음
         // 사용자 설정 우선, 없으면 cursor 위치로 자동 판단
-        const isLeftChain = state.secondaryStartSide
+        // tertiary는 secondary 반대편에 배치
+        const secondarySide = state.secondaryStartSide
           ? state.secondaryStartSide === 'left'
           : Math.abs(cursor - startX) < 1;
+        const isLeftChain = isTertiary ? !secondarySide : secondarySide;
         if (secNearZ === null) {
           // 상부·하부 모두 counterFrontZ(앞면)에서 시작 → 방 안쪽(+Z)으로 연장
           // counterBackZ 에서 시작하면 blind panel과 Z가 겹침
@@ -750,15 +753,16 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         const perpZ = secNearZ + module.width / 2;
         secNearZ += module.width;
         if (curChain) curChain.endZ = secNearZ;
-        // 체인 종료 판정: 마지막이거나 다음이 secondary 아님
-        const isLastInChain = idx === list.length - 1 || list[idx + 1].orientation !== 'secondary';
+        // 체인 종료 판정: 마지막이거나 다음 모듈의 orientation이 다름
+        const isLastInChain = idx === list.length - 1 || list[idx + 1].orientation !== module.orientation;
         if (isLastInChain && curChain) {
           secondaryChains.push(curChain);
           curChain = null;
+          secNearZ = null; // 체인 종료 시 Z 커서 초기화 (secondary→tertiary 전환 대비)
         }
         parts.push({
           id: module.id,
-          label: `${module.section}-${module.kind}-secondary`,
+          label: `${module.section}-${module.kind}-${isTertiary ? 'tertiary' : 'secondary'}`,
           x: perpX,
           y,
           z: perpZ,
@@ -802,7 +806,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       }
     });
 
-    const normalRef = list.find((m) => m.orientation !== 'secondary') ?? list[0];
+    const normalRef = list.find((m) => m.orientation !== 'secondary' && m.orientation !== 'tertiary') ?? list[0];
     return { section: isUpper ? 'upper' : 'lower', startX, endX: cursor, centerY, z, depth: normalRef.depth };
   };
 
