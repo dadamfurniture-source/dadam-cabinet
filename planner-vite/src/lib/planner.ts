@@ -607,10 +607,6 @@ const buildModulesFromEntries = (
   entries.map((entry) => {
     const isLower = section === 'lower' || section === 'full';
     const isSecondary = entry.orientation === 'secondary' || entry.orientation === 'tertiary';
-    // 주선 하부/풀하이트: 상판(실측 depth) 기준으로 재귀(recess)
-    //   door/drawer → 도어 20T 앞쪽 생성, 모듈 본체 + 도어 합계 = depth - 10 (상판이 10mm 오버행)
-    //   open → depth - 30 (상판이 30mm 오버행)
-    // 상부장/차선모듈은 기존 depth 유지
     // 모듈별 깊이 결정
     // 상판(counter) depth가 기준(650), 모듈은 타입별 고정 깊이 사용
     let effDepth = depth;
@@ -719,13 +715,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     let terCursorZ: number | null = null;
     let terCursorX: number | null = null;
 
-    const secTerMods = list.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
-    if (secTerMods.length > 0) {
-      console.log(`[Planner renderModules] ${isUpper ? 'upper' : 'lower'}: total=${list.length}, sec/ter=${secTerMods.length}`,
-        secTerMods.map(m => `${m.id}(${m.orientation}, w=${m.width})`));
-      console.log('[Planner] tertiaryStartFrom:', state.tertiaryStartFrom);
-    }
-
     list.forEach((module, idx) => {
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
@@ -751,17 +740,12 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             terCursorX = secondarySide
               ? lastSecChain.xCenter + lastSecChain.xExtent / 2 // 좌측 secondary → inner edge에서 우측으로
               : lastSecChain.xCenter - lastSecChain.xExtent / 2; // 우측 secondary → inner edge에서 좌측으로
-            console.log('[Planner] tertiaryFromSec init:', {
-              terCursorZ, terCursorX, secondarySide,
-              secChainEndZ: lastSecChain.endZ, secXCenter: lastSecChain.xCenter, secXExtent: lastSecChain.xExtent,
-            });
           }
           if (terCursorZ !== null && terCursorX !== null) {
             // secondary가 좌측이면 tertiary는 좌→우(+X), 우측이면 우→좌(-X)
             const terX = secondarySide
               ? terCursorX + module.width / 2
               : terCursorX - module.width / 2;
-            console.log(`[Planner] tertiary module ${module.id}: x=${terX}, z=${terCursorZ}, w=${module.width}`);
             parts.push({
               id: module.id,
               label: `${module.section}-${module.kind}-tertiary`,
@@ -814,9 +798,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           }
           const perpX = isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2;
           const perpZ = secNearZ + module.width / 2;
-          if (isTertiary) {
-            console.log(`[Planner] tertiary(fromPrime) ${module.id}: x=${perpX}, z=${perpZ}, cursor=${cursor}, isLeft=${isLeftChain}`);
-          }
           secNearZ += module.width;
           if (curChain) curChain.endZ = secNearZ;
           const isLastInChain = idx === list.length - 1 || list[idx + 1].orientation !== module.orientation;
