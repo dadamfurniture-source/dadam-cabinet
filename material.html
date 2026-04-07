@@ -543,12 +543,12 @@
         <span>다담</span>
       </a>
       <div class="nav-menu">
-        <a href="#">About us</a>
-        <a href="collection.html">Collection</a>
-        <a href="ai-design.html">AI Design</a>
-        <a href="detaildesign.html" id="navDetailDesign" style="display:none">Detail Design</a>
-        <a href="consultation.html">상담 신청</a>
-        <a href="material.html" class="active">자재</a>
+        <a href="#" data-i18n="nav.about">About us</a>
+        <a href="collection.html" data-i18n="nav.collection">Collection</a>
+        <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display:none" data-i18n="nav.detail_design">Detail Design</a>
+        <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
+        <a href="material.html" class="active" data-i18n="nav.material">자재</a>
       </div>
       <div class="nav-icons">
         <a href="login.html" id="loginLink" class="login-btn">로그인</a>
@@ -586,9 +586,9 @@
     <!-- Hero -->
     <section class="material-hero">
       <div class="hero-content">
-        <div class="subtitle">Premium Materials</div>
-        <h1>다담가구의 자재</h1>
-        <p>예림보드 럭스&trade; &times; 레하우 엣지의 프리미엄 조합으로 완벽한 품질을 제공합니다</p>
+        <div class="subtitle" data-i18n="material.hero_subtitle">Premium Materials</div>
+        <h1 data-i18n="material.hero_title">다담가구의 자재</h1>
+        <p data-i18n="material.hero_desc">예림보드 럭스&trade; &times; 레하우 엣지의 프리미엄 조합으로 완벽한 품질을 제공합니다</p>
       </div>
     </section>
 
@@ -598,10 +598,10 @@
          ═══════════════════════════════════════════════════════════════ -->
     <section class="section">
       <div class="section-header">
-        <div class="tag">Yerim Board</div>
+        <div class="tag" data-i18n="material.board_tag">Yerim Board</div>
         <h2>YERIM BOARD LUX <sup>MR</sup></h2>
-        <p>예림보드 럭스는 단순한 표면 장식의 화려함을 넘어, 본질적인 가치를 추구합니다.<br>
-        트렌드의 흐름에 맞는 새로운 감성을 통해 브랜드 가치와 깊이 있는 제품의 품질을 제공합니다.</p>
+        <p><span data-i18n="material.board_desc">예림보드 럭스는 단순한 표면 장식의 화려함을 넘어, 본질적인 가치를 추구합니다.</span><br>
+        <span data-i18n="material.board_desc2">트렌드의 흐름에 맞는 새로운 감성을 통해 브랜드 가치와 깊이 있는 제품의 품질을 제공합니다.</span></p>
       </div>
 
       <div class="board-highlight">
@@ -612,9 +612,9 @@
         </div>
         <div class="board-highlight-text">
           <span class="badge-mr">MR</span>
-          <h3>예림보드 럭스<sup>MR</sup> (내수보드)</h3>
-          <p>습기에 더 강력한 내구성으로, 오래동안 변형없이 안전하게 사용할 수 있는 예림보드 럭스<sup>MR</sup>를 만나보세요.</p>
-          <p style="font-size: 13px; color: var(--gray);">MR = Moisture Resistance의 약자</p>
+          <h3 data-i18n="material.board_mr_title">예림보드 럭스<sup>MR</sup> (내수보드)</h3>
+          <p data-i18n="material.board_mr_desc">습기에 더 강력한 내구성으로, 오래동안 변형없이 안전하게 사용할 수 있는 예림보드 럭스를 만나보세요.</p>
+          <p style="font-size: 13px; color: var(--gray);" data-i18n="material.board_mr_note">MR = Moisture Resistance의 약자</p>
           <div class="improvement-note">
             내수성을 평가하는 지표인 두께 팽창률<br>
             기존 9% &#9654; <strong>7% 이하 수준</strong>으로 대폭 강화<br>
@@ -630,9 +630,9 @@
          ═══════════════════════════════════════════════════════════════ -->
     <section class="section section-alt">
       <div class="section-header">
-        <div class="tag">Eco-Friendly</div>
-        <h2>차별화된 친환경 자재</h2>
-        <p>자연 상태에 가장 가까운 SEO/E0 등급으로 더 안전하게 친환경 자재만을 사용합니다</p>
+        <div class="tag" data-i18n="material.eco_tag">Eco-Friendly</div>
+        <h2 data-i18n="material.eco_title">차별화된 친환경 자재</h2>
+        <p data-i18n="material.eco_desc">자연 상태에 가장 가까운 SEO/E0 등급으로 더 안전하게 친환경 자재만을 사용합니다</p>
       </div>
 
       <!-- 친환경 등급 테이블 -->
@@ -640,7 +640,7 @@
         <table class="eco-table">
           <thead>
             <tr>
-              <th>목적 / 적용 환경 등급</th>
+              <th data-i18n="material.eco_th_grade">목적 / 적용 환경 등급</th>
               <th>SEO</th>
               <th>E0</th>
               <th>E1</th>
@@ -648,36 +648,36 @@
           </thead>
           <tbody>
             <tr>
-              <td style="text-align:left; font-weight:500;">포름알데히드 방출량</td>
+              <td style="text-align:left; font-weight:500;" data-i18n="material.eco_emission">포름알데히드 방출량</td>
               <td><span class="grade-badge grade-seo">0.3mg/L 이하</span></td>
               <td><span class="grade-badge grade-e0">0.5mg/L 이하</span></td>
               <td><span class="grade-badge grade-e1">1.5mg/L 이하</span></td>
             </tr>
             <tr>
-              <td style="text-align:left; font-weight:500;">용도</td>
-              <td>무제한 / 친환경 최상급</td>
-              <td>가구 / 건축 내장재</td>
-              <td>일반 가구</td>
+              <td style="text-align:left; font-weight:500;" data-i18n="material.eco_usage">용도</td>
+              <td data-i18n="material.eco_seo_usage">무제한 / 친환경 최상급</td>
+              <td data-i18n="material.eco_e0_usage">가구 / 건축 내장재</td>
+              <td data-i18n="material.eco_e1_usage">일반 가구</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <!-- 제품 라인업 테이블 -->
-      <h3 style="text-align:center; margin: 48px 0 24px; font-size: 22px;">업그레이드된 보드 사양</h3>
+      <h3 style="text-align:center; margin: 48px 0 24px; font-size: 22px;" data-i18n="material.product_title">업그레이드된 보드 사양</h3>
       <div class="eco-table-wrap">
         <table class="product-table">
           <thead>
             <tr>
               <th>구분</th>
-              <th>카테고리</th>
-              <th>보드 등급</th>
+              <th data-i18n="material.th_category">카테고리</th>
+              <th data-i18n="material.th_grade">보드 등급</th>
               <th>MR</th>
-              <th>내오염</th>
-              <th>내지문</th>
-              <th>MLS (내스크래치)</th>
-              <th>항균</th>
-              <th>일체형 엣지</th>
+              <th data-i18n="material.th_stain">내오염</th>
+              <th data-i18n="material.th_fingerprint">내지문</th>
+              <th data-i18n="material.th_scratch">MLS (내스크래치)</th>
+              <th data-i18n="material.th_antibac">항균</th>
+              <th data-i18n="material.th_edge">일체형 엣지</th>
             </tr>
           </thead>
           <tbody>
@@ -756,10 +756,10 @@
          ═══════════════════════════════════════════════════════════════ -->
     <section class="section">
       <div class="section-header">
-        <div class="tag">YERIM &times; REHAU</div>
-        <h2>완벽한 일체감</h2>
-        <p>REHAU는 1948년에 설립된 독일의 글로벌 엣지 전문 기업입니다.<br>
-        혁신 기술로 더 나은 삶을 만들어 갑니다.</p>
+        <div class="tag" data-i18n="material.rehau_tag">YERIM &times; REHAU</div>
+        <h2 data-i18n="material.rehau_title">완벽한 일체감</h2>
+        <p><span data-i18n="material.rehau_desc">REHAU는 1948년에 설립된 독일의 글로벌 엣지 전문 기업입니다.</span><br>
+        <span data-i18n="material.rehau_desc2">혁신 기술로 더 나은 삶을 만들어 갑니다.</span></p>
       </div>
 
       <div class="rehau-section">
@@ -767,19 +767,19 @@
           <img src="app/material/rehau-edge.png" alt="REHAU 엣지" loading="lazy" />
         </div>
         <div class="rehau-text">
-          <div class="partner">The Perfect Component</div>
-          <h3>예림보드 럭스<sup>MR</sup> &times; 레하우 엣지</h3>
-          <p>엣지까지 일체화된 완성도, 완벽한 컬러 매칭과 선명한 고해상도 인쇄 기술로 보드와 엣지의 경계가 사라집니다.</p>
-          <p>감열 방식을 적용한 레이저 공법으로 보드의 컬러와 디자인을 완벽하게 재현하여 자연스러운 마감을 제공합니다.</p>
+          <div class="partner" data-i18n="material.rehau_partner">The Perfect Component</div>
+          <h3 data-i18n="material.rehau_sub_title">예림보드 럭스 × 레하우 엣지</h3>
+          <p data-i18n="material.rehau_text1">엣지까지 일체화된 완성도, 완벽한 컬러 매칭과 선명한 고해상도 인쇄 기술로 보드와 엣지의 경계가 사라집니다.</p>
+          <p data-i18n="material.rehau_text2">감열 방식을 적용한 레이저 공법으로 보드의 컬러와 디자인을 완벽하게 재현하여 자연스러운 마감을 제공합니다.</p>
         </div>
       </div>
 
       <!-- 엣지 클로즈업 + 인증 이미지 -->
       <div class="rehau-section" style="margin-top: 64px;">
         <div class="rehau-text">
-          <h3>완벽한 일체감!</h3>
-          <p>엣지까지 일체화된 완성도, 기술의 차이로 컬러의 흐름까지 설계합니다.</p>
-          <p>압출 방식을 적용한 레이저 공법으로 전면과 이질감 없는 코어 색상, 개별 인쇄 방식으로 선명한 해상도로 고품질 인쇄 퀄리티를 제공합니다.</p>
+          <h3 data-i18n="material.edge_title">완벽한 일체감!</h3>
+          <p data-i18n="material.edge_text1">엣지까지 일체화된 완성도, 기술의 차이로 컬러의 흐름까지 설계합니다.</p>
+          <p data-i18n="material.edge_text2">압출 방식을 적용한 레이저 공법으로 전면과 이질감 없는 코어 색상, 개별 인쇄 방식으로 선명한 해상도로 고품질 인쇄 퀄리티를 제공합니다.</p>
         </div>
         <div class="rehau-img">
           <img src="app/material/edge-closeup.png" alt="엣지 클로즈업" loading="lazy" />
@@ -792,29 +792,29 @@
           <div class="icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
           </div>
-          <h4>고해상도 인쇄</h4>
-          <p>개별 인쇄 방식으로 선명한 색감과 그라데이션 처리, 높은 품질의 인쇄 퀄리티</p>
+          <h4 data-i18n="material.feat_print">고해상도 인쇄</h4>
+          <p data-i18n="material.feat_print_desc">개별 인쇄 방식으로 선명한 색감과 그라데이션 처리, 높은 품질의 인쇄 퀄리티</p>
         </div>
         <div class="feature-card">
           <div class="icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>
           </div>
-          <h4>노블매트 코팅</h4>
-          <p>극우광 매트와 내지문 기능이 결합된 최상의 코팅, 품질과 디자인을 모두 갖춘 프리미엄 소재</p>
+          <h4 data-i18n="material.feat_noble">노블매트 코팅</h4>
+          <p data-i18n="material.feat_noble_desc">극우광 매트와 내지문 기능이 결합된 최상의 코팅, 품질과 디자인을 모두 갖춘 프리미엄 소재</p>
         </div>
         <div class="feature-card">
           <div class="icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" stroke-width="1.5"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
           </div>
-          <h4>내지문 &middot; 내오염</h4>
-          <p>MLS 내스크래치, 항균, 내지문 기능이 결합된 최상의 표면 처리</p>
+          <h4 data-i18n="material.feat_anti">내지문 &middot; 내오염</h4>
+          <p data-i18n="material.feat_anti_desc">MLS 내스크래치, 항균, 내지문 기능이 결합된 최상의 표면 처리</p>
         </div>
         <div class="feature-card">
           <div class="icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h4>GREENGUARD 인증</h4>
-          <p>세계적인 인증 기관인 UL에서 발급하는 인증서로, 환경 안전을 보장</p>
+          <h4 data-i18n="material.feat_green">GREENGUARD 인증</h4>
+          <p data-i18n="material.feat_green_desc">세계적인 인증 기관인 UL에서 발급하는 인증서로, 환경 안전을 보장</p>
         </div>
       </div>
 
@@ -830,9 +830,9 @@
          ═══════════════════════════════════════════════════════════════ -->
     <section class="section section-alt">
       <div class="theme-intro">
-        <div class="year">2025 &mdash; 2026</div>
-        <h2>Mega Theme</h2>
-        <p>스마트 기술이 공간 혁신하는 동시에, 지속 가능한 소재와 자연 친화적 디자인이 소비자의 니즈를 충족하며
+        <div class="year" data-i18n="material.theme_year">2025 &mdash; 2026</div>
+        <h2 data-i18n="material.theme_title">Mega Theme</h2>
+        <p data-i18n="material.theme_desc">스마트 기술이 공간 혁신하는 동시에, 지속 가능한 소재와 자연 친화적 디자인이 소비자의 니즈를 충족하며
         다목적성과 감각적 즐거움을 제공하는 요소로 더욱 중요해질 전망입니다.</p>
         <div style="margin-top: 40px; max-width: 480px; margin-left: auto; margin-right: auto;">
           <img src="app/material/mega-theme.png" alt="Mega Theme 다이어그램" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06);" loading="lazy" />
@@ -846,8 +846,8 @@
         </div>
         <div class="theme-text">
           <div class="theme-number">Theme 01</div>
-          <h3>Forward</h3>
-          <p>자연스럽게 스며든 세련된 기술. AI 시대에서 최첨단 기술은 부각되지지 않고 두 번째에 놓이지만, 인간과 공간의 관계를 더욱 부드럽고 세련되게 만들어갑니다.</p>
+          <h3 data-i18n="material.forward_title">Forward</h3>
+          <p data-i18n="material.forward_desc">자연스럽게 스며든 세련된 기술. AI 시대에서 최첨단 기술은 부각되지지 않고 두 번째에 놓이지만, 인간과 공간의 관계를 더욱 부드럽고 세련되게 만들어갑니다.</p>
           <div class="theme-keywords">
             <span>Beige-and-Walnut</span>
             <span>Warmth</span>
@@ -870,8 +870,8 @@
         </div>
         <div class="theme-text">
           <div class="theme-number">Theme 02</div>
-          <h3>Pause</h3>
-          <p>자연과 조화된 지속 가능한 일상 공간. 자연적이고 친환경적 가치관이 확산 중이며 한때 트렌드에 머물렀던 자연 소재와 조합, 자연을 감싸 안는 공간 디자인이 일상으로 들어옵니다.</p>
+          <h3 data-i18n="material.pause_title">Pause</h3>
+          <p data-i18n="material.pause_desc">자연과 조화된 지속 가능한 일상 공간. 자연적이고 친환경적 가치관이 확산 중이며 한때 트렌드에 머물렀던 자연 소재와 조합, 자연을 감싸 안는 공간 디자인이 일상으로 들어옵니다.</p>
           <div class="theme-keywords">
             <span>Discovery/Pebble</span>
             <span>Prestige</span>
@@ -893,8 +893,8 @@
         </div>
         <div class="theme-text">
           <div class="theme-number">Theme 03</div>
-          <h3>Play</h3>
-          <p>취향을 넘어서고 영감을 주는 맞춤형 공간. 컬러는 더 깊어지고 대담해지며 디자인 소재의 가능성은 한없이 넓어집니다. LUX 취향과 니즈를 담은 실험적이고 감각적인 공간입니다.</p>
+          <h3 data-i18n="material.play_title">Play</h3>
+          <p data-i18n="material.play_desc">취향을 넘어서고 영감을 주는 맞춤형 공간. 컬러는 더 깊어지고 대담해지며 디자인 소재의 가능성은 한없이 넓어집니다. LUX 취향과 니즈를 담은 실험적이고 감각적인 공간입니다.</p>
           <div class="theme-keywords">
             <span>Upholstery</span>
             <span>Earthy</span>
@@ -914,8 +914,8 @@
 
     <!-- Footer -->
     <footer class="material-footer">
-      <strong>다담가구</strong>
-      <p>자재 관련 상세 문의는 상담 신청을 통해 안내받으실 수 있습니다.</p>
+      <strong data-i18n="material.footer_name">다담가구</strong>
+      <p data-i18n="material.footer_desc">자재 관련 상세 문의는 상담 신청을 통해 안내받으실 수 있습니다.</p>
       <p style="margin-top: 8px;">&copy; 2025 다담가구. All rights reserved.</p>
     </footer>
 
@@ -963,6 +963,7 @@
         window.location.href = 'index.html';
       }
     </script>
+    <script type="module" src="js/i18n.js"></script>
 
   </body>
 </html>
