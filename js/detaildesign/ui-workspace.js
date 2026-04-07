@@ -1604,7 +1604,7 @@
         }
         // Secondary/Tertiary 기본값
         if (shape !== 'I' && !item.specs.lowerSecondaryW) {
-          item.specs.lowerSecondaryW = '1200'; // 기본 1200mm
+          item.specs.lowerSecondaryW = '1800'; // 기본 1800mm
         }
         if (shape !== 'I' && !item.specs.lowerSecondaryD) {
           item.specs.lowerSecondaryD = item.defaultD || item.d || '';
@@ -1636,10 +1636,11 @@
           }
         }
         if (shape === 'U') {
-          if (!item.specs.lowerTertiaryW) item.specs.lowerTertiaryW = item.specs.lowerSecondaryW || '1200';
+          if (!item.specs.lowerTertiaryW) item.specs.lowerTertiaryW = item.specs.lowerSecondaryW || '1800';
           if (!item.specs.lowerTertiaryD) item.specs.lowerTertiaryD = item.defaultD || item.d || '';
           if (!item.specs.upperTertiaryW) item.specs.upperTertiaryW = item.specs.upperSecondaryW || '';
           if (!item.specs.upperTertiaryD) item.specs.upperTertiaryD = item.specs.upperSecondaryD || '';
+          if (!item.specs.tertiaryStartFrom) item.specs.tertiaryStartFrom = 'prime';
         }
         if (shape === 'I') {
           item.specs.lowerSecondaryW = '';
