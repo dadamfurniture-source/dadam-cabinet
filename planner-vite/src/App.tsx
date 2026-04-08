@@ -11,6 +11,43 @@ import {
 
 type CameraView = 'perspective' | 'front' | 'top';
 
+// ═══ 파트 분류 — 모든 모듈 판별 로직 통합 ═══
+const STRUCTURAL_PREFIXES = [
+  'molding', 'toekick', 'finish-', 'install-space', 'countertop',
+  'fridge-cavity', 'mirror', 'sec-inner-panel', 'corner-post', 'corner-floor', 'blind-panel',
+  'filler-sec', 'molding-top-sec', 'countertop-sec',
+];
+
+interface PartClass {
+  isModule: boolean;     // 클릭/드래그 가능한 모듈인가
+  isStructural: boolean; // 구조물(몰딩/걸레받이 등)인가
+  isUtility: boolean;    // 유틸리티(분배기/환풍구)인가
+  isSecondary: boolean;  // 차선(90° 회전) 모듈인가
+  isDraggable: boolean;  // 드래그 이동 가능한가
+  isClickable: boolean;  // 클릭으로 팝업 열 수 있는가
+  dragAxis: 'x' | 'z';  // 드래그 축 (주선=X, 차선=Z)
+  moduleId: string;      // 모듈 조회용 ID (-face 제거)
+}
+
+function classifyPart(partId: string, rotationY?: number): PartClass {
+  const isUtility = partId.startsWith('utility-');
+  const isStructural = STRUCTURAL_PREFIXES.some(p => partId.startsWith(p));
+  const isFace = partId.endsWith('-face');
+  const isModule = !isStructural && !isUtility && !isFace;
+  const isSecondary = !!rotationY;
+
+  return {
+    isModule,
+    isStructural,
+    isUtility,
+    isSecondary,
+    isDraggable: isModule,         // 모든 모듈 드래그 가능 (차선 포함)
+    isClickable: isModule,         // 모든 모듈 클릭 가능
+    dragAxis: isSecondary ? 'z' : 'x',
+    moduleId: partId.replace(/-face$/, ''),
+  };
+}
+
 // ═══ 타입별 색상 ═══
 const TYPE_COLORS: Record<string, { body: string; face: string; outline: string; emissive: string }> = {
   sink: { body: '#b3d4e8', face: '#8ab8d4', outline: '#0284c7', emissive: '#0369a1' },
@@ -119,7 +156,7 @@ function CookMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
   );
 }
 
-// ═══ 모듈 컴포넌트 (드래그+클릭+타입별 렌더링) ═══
+// ═══ 모듈 컴포넌트 (드래그+클릭+타입별 렌더링) — classifyPart 통합 ═══
 function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDragMove, shiftDir }: {
   part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string; moduleKind?: string; doorCount?: number; drawerCount?: number; rotationY?: number };
   color: string;
@@ -131,43 +168,42 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
   shiftDir?: 'left' | 'right' | null;
 }) {
   const [hovered, setHovered] = useState(false);
-  const [dragX, setDragX] = useState<number | null>(null);
+  const [dragPos, setDragPos] = useState<number | null>(null); // X 또는 Z 드래그 위치
   const dragging = useRef(false);
   const didDrag = useRef(false);
   const dragOffset = useRef(0);
 
-  // mod- prefix 또는 외부에서 전달된 모듈 ID (숫자, blind-corner, sec-auto 등)
-  const NON_MODULE_PREFIXES = ['molding', 'toekick', 'finish-', 'install-space', 'countertop', 'fridge-cavity', 'mirror', 'sec-inner-panel', 'corner-post', 'corner-floor', 'blind-panel'];
-  const isNonModule = NON_MODULE_PREFIXES.some(p => part.id.startsWith(p));
-  const isMod = !isNonModule && !part.id.startsWith('utility-');
-  const isFace = part.id.endsWith('-face');
-  const isSecondary = !!part.rotationY; // 차선모듈 여부
-  const isDraggable = isMod && !isFace && !isSecondary; // 차선모듈은 드래그 불가
-  const isClickable = isMod; // 측판/몰딩/걸레받이 등은 클릭 불가
-  const isEssential = !!part.essential;
-  const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
+  // ═══ 통합 파트 분류 (classifyPart) ═══
+  const cls = classifyPart(part.id, part.rotationY);
 
   const mType = part.moduleType;
   const tc = mType ? TYPE_COLORS[mType] : null;
-  const baseColor = tc ? (isFace ? tc.face : tc.body) : color;
-  const outlineColor = tc ? tc.outline : '#b8956c';
+  const baseColor = tc ? tc.body : color;
 
-  const getPlaneX = (e: { ray: THREE.Ray }) => {
+  // 드래그용 평면 교차 계산 — 주선(X축)/차선(Z축) 통합
+  const getDragValue = (e: { ray: THREE.Ray }): number => {
+    if (cls.dragAxis === 'z') {
+      // 차선 모듈: X 평면에서 Z값 추출
+      const plane = new THREE.Plane(new THREE.Vector3(1, 0, 0), -part.x);
+      const v = new THREE.Vector3();
+      e.ray.intersectPlane(plane, v);
+      return v.z;
+    }
+    // 주선 모듈: Z 평면에서 X값 추출
     const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -part.z);
     const v = new THREE.Vector3();
     e.ray.intersectPlane(plane, v);
     return v.x;
   };
 
-  // 드래그 중 재정렬 대상이면 이동 방향으로 살짝 밀어서 시각화 (약 40mm)
+  const dragOrigin = cls.dragAxis === 'z' ? part.z : part.x;
   const shiftOffset = shiftDir ? (shiftDir === 'left' ? -40 : 40) : 0;
-  const posX = (dragX ?? part.x) + shiftOffset;
+  const posX = cls.dragAxis === 'x' ? ((dragPos ?? part.x) + shiftOffset) : part.x;
+  const posZ = cls.dragAxis === 'z' ? (dragPos ?? part.z) : part.z;
 
-  // 타입별 메쉬 선택
+  // 타입별 메쉬 선택 (통합 렌더러)
   const renderInner = () => {
     const w = part.width, h = part.height, d = part.depth;
-    if (isFace) return null; // face 파트는 타입 메쉬가 대체
-
     if (mType === 'blind') return <BlindMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'sink') return <SinkMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'cook') return <CookMesh w={w} h={h} d={d} color={baseColor} />;
@@ -176,52 +212,62 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
     return <DoorMesh w={w} h={h} d={d} color={baseColor} doorCount={part.doorCount || 1} />;
   };
 
-  if (isFace) return null; // face 파트 숨김 (타입 메쉬가 도어면 포함)
+  if (!cls.isModule) return null; // 구조물/유틸리티는 렌더 안 함 (별도 처리)
+
+  // ═══ 통합 드래그/클릭 핸들러 ═══
+  const handlePointerDown = cls.isDraggable ? (e: any) => {
+    e.stopPropagation();
+    dragging.current = true; didDrag.current = false;
+    dragOffset.current = getDragValue(e) - dragOrigin;
+    (e.target as any).setPointerCapture(e.pointerId);
+    if (controlsRef.current) controlsRef.current.enabled = false;
+  } : undefined;
+
+  const handlePointerUp = cls.isDraggable ? (e: any) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    (e.target as any).releasePointerCapture(e.pointerId);
+    if (controlsRef.current) controlsRef.current.enabled = true;
+    onDragMove(null, null);
+    if (didDrag.current) { onDragDone(cls.moduleId, dragPos ?? dragOrigin); setDragPos(null); }
+    else { e.stopPropagation(); onSelect(cls.moduleId); }
+  } : undefined;
+
+  const handlePointerMove = cls.isDraggable ? (e: any) => {
+    if (!dragging.current) return;
+    didDrag.current = true;
+    const nv = Math.max(-halfW * 2, Math.min(halfW * 2, getDragValue(e) - dragOffset.current));
+    setDragPos(nv);
+    onDragMove(cls.moduleId, nv);
+  } : undefined;
+
+  const handleClick = (!cls.isDraggable && cls.isClickable) ? (e: any) => { e.stopPropagation(); onSelect(cls.moduleId); } : undefined;
+
+  const handlePointerOver = cls.isClickable ? () => setHovered(true) : undefined;
+  const handlePointerOut = cls.isClickable ? () => {
+    setHovered(false);
+    if (dragging.current) {
+      dragging.current = false;
+      if (controlsRef.current) controlsRef.current.enabled = true;
+      onDragMove(null, null);
+      if (didDrag.current) { onDragDone(cls.moduleId, dragPos ?? dragOrigin); }
+      setDragPos(null);
+    }
+  } : undefined;
 
   return (
-    <group position={[posX, part.y, part.z]} rotation={isSecondary ? [0, part.rotationY!, 0] : undefined}>
-      {/* 히트박스 (투명, 드래그/클릭용) — 차선모듈은 전체 박스, 주선(일반)은 정면 평면 */}
+    <group position={[posX, part.y, posZ]} rotation={cls.isSecondary ? [0, part.rotationY!, 0] : undefined}>
+      {/* 히트박스 (투명) — 모든 모듈 공통 */}
       <mesh
-        position={isSecondary ? [0, 0, 0] : [0, 0, part.depth / 2]}
-        onPointerDown={isDraggable ? (e) => {
-          e.stopPropagation();
-          dragging.current = true; didDrag.current = false;
-          dragOffset.current = getPlaneX(e) - part.x;
-          (e.target as any).setPointerCapture(e.pointerId);
-          if (controlsRef.current) controlsRef.current.enabled = false;
-        } : undefined}
-        onPointerUp={isDraggable ? (e) => {
-          if (!dragging.current) return;
-          dragging.current = false;
-          (e.target as any).releasePointerCapture(e.pointerId);
-          if (controlsRef.current) controlsRef.current.enabled = true;
-          onDragMove(null, null);
-          if (didDrag.current) { onDragDone(moduleId, dragX ?? part.x); setDragX(null); }
-          else { e.stopPropagation(); onSelect(moduleId); }
-        } : undefined}
-        onPointerMove={isDraggable ? (e) => {
-          if (!dragging.current) return;
-          didDrag.current = true;
-          const nx = Math.max(-halfW, Math.min(halfW, getPlaneX(e) - dragOffset.current));
-          setDragX(nx);
-          onDragMove(moduleId, nx);
-        } : undefined}
-        onClick={(!isDraggable && isClickable) ? (e) => { e.stopPropagation(); onSelect(moduleId); } : undefined}
-        onPointerOver={isClickable ? () => setHovered(true) : undefined}
-        onPointerOut={isClickable ? () => {
-          setHovered(false);
-          if (dragging.current) {
-            dragging.current = false;
-            if (controlsRef.current) controlsRef.current.enabled = true;
-            onDragMove(null, null);
-            if (didDrag.current) { onDragDone(moduleId, dragX ?? part.x); }
-            setDragX(null);
-          }
-        } : undefined}
+        position={cls.isSecondary ? [0, 0, 0] : [0, 0, part.depth / 2]}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
+        onClick={handleClick}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
       >
-        {isSecondary
-          ? <boxGeometry args={[part.width, part.height, part.depth]} />
-          : <planeGeometry args={[part.width, part.height]} />}
+        <boxGeometry args={[part.width, part.height, cls.isSecondary ? part.depth : 1]} />
         <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
       </mesh>
 
