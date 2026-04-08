@@ -70,6 +70,16 @@ export interface PlannerState {
   toeKickH: number;
   finishLeftW: number;
   finishRightW: number;
+  /** 레이아웃 형태: I=일자, L=ㄱ자, U=ㄷ자 */
+  layoutShape?: 'I' | 'L' | 'U';
+  /** secondary line 가로 (mm) — ㄱ자/ㄷ자 */
+  secondaryW?: number;
+  /** secondary line 깊이 (mm) — 기본값: primary depth */
+  secondaryD?: number;
+  /** tertiary line 가로 (mm) — ㄷ자만 */
+  tertiaryW?: number;
+  /** tertiary line 깊이 (mm) — 기본값: primary depth */
+  tertiaryD?: number;
   /** 차선모듈(ㄱ자) 자유단 마감재 폭 (mm) — 기본 휠라 60 */
   secondaryFillerW?: number;
   /** 차선모듈 시작 방향: 'left' = 좌측에서 시작, 'right' = 우측에서 시작 */
@@ -292,6 +302,11 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     toeKickH: preset.toeKickHeight,
     finishLeftW: 60,
     finishRightW: 60,
+    layoutShape: 'I',
+    secondaryW: 0,
+    secondaryD: 0,
+    tertiaryW: 0,
+    tertiaryD: 0,
     secondaryFillerW: 60,
     distributorStart: null,
     distributorEnd: null,
@@ -592,6 +607,164 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
 
     if (upper.length > 30) {
       return { lower, upper: upper.filter((m) => m.moduleType === 'hood') };
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // 코너 모듈 자동생성 (ㄱ자/ㄷ자)
+  // ═══════════════════════════════════════════
+  const shape = state.layoutShape ?? 'I';
+  if (shape === 'L' || shape === 'U') {
+    const secW = state.secondaryW ?? 0;
+    const secD = state.secondaryD || state.depth;
+    const secFillerW = state.secondaryFillerW ?? 60;
+    const startSide = state.secondaryStartSide ?? 'left';
+
+    if (secW > 0) {
+      // 멍장(blind corner): 너비 = primary depth (코너 전환점)
+      const blindW = state.depth;
+      const blindModule: ModuleEntry = {
+        id: genModuleId(), kind: 'door', width: blindW,
+        orientation: 'secondary', moduleType: 'blind-corner',
+      };
+
+      // secondary 잔여 공간 모듈 분배
+      const secRemaining = secW - blindW - secFillerW;
+      const secModules: ModuleEntry[] = [];
+      if (secRemaining > DOOR_MIN) {
+        const secGap: GapSpace = { start: 0, end: secRemaining, width: secRemaining };
+        const secFilled = fillGapWithModules(secGap);
+        for (const fm of secFilled) {
+          secModules.push({
+            id: genModuleId(), kind: 'door', width: fm.w,
+            orientation: 'secondary',
+          });
+        }
+      } else if (secRemaining > 0) {
+        secModules.push({
+          id: genModuleId(), kind: 'door', width: secRemaining,
+          orientation: 'secondary',
+        });
+      }
+
+      // startSide에 따라 primary 모듈 앞/뒤에 삽입
+      if (startSide === 'left') {
+        lower.unshift(blindModule, ...secModules);
+      } else {
+        lower.push(blindModule, ...secModules);
+      }
+
+      // 상부장 secondary (upperCount > 0일 때)
+      if (state.upperCount > 0 && upper.length > 0) {
+        const upperBlindW = preset.upperDepth ?? 350;
+        const upperBlind: ModuleEntry = {
+          id: genModuleId(), kind: 'door', width: upperBlindW,
+          orientation: 'secondary', moduleType: 'blind-corner',
+        };
+        const upperSecRemaining = secW - upperBlindW - secFillerW;
+        const upperSecModules: ModuleEntry[] = [];
+        if (upperSecRemaining > DOOR_MIN) {
+          const ug: GapSpace = { start: 0, end: upperSecRemaining, width: upperSecRemaining };
+          const uf = fillGapWithModules(ug);
+          for (const fm of uf) {
+            upperSecModules.push({
+              id: genModuleId(), kind: 'door', width: fm.w,
+              orientation: 'secondary',
+            });
+          }
+        } else if (upperSecRemaining > 0) {
+          upperSecModules.push({
+            id: genModuleId(), kind: 'door', width: upperSecRemaining,
+            orientation: 'secondary',
+          });
+        }
+
+        if (startSide === 'left') {
+          upper.unshift(upperBlind, ...upperSecModules);
+        } else {
+          upper.push(upperBlind, ...upperSecModules);
+        }
+      }
+    }
+
+    // ㄷ자: tertiary line
+    if (shape === 'U') {
+      const terW = state.tertiaryW ?? 0;
+      const terD = state.tertiaryD || state.depth;
+      const terStartFrom = state.tertiaryStartFrom ?? 'prime';
+
+      if (terW > 0) {
+        const terBlindW = state.depth;
+        const terBlind: ModuleEntry = {
+          id: genModuleId(), kind: 'door', width: terBlindW,
+          orientation: 'tertiary', moduleType: 'blind-corner',
+        };
+        const terRemaining = terW - terBlindW - secFillerW;
+        const terModules: ModuleEntry[] = [];
+        if (terRemaining > DOOR_MIN) {
+          const tg: GapSpace = { start: 0, end: terRemaining, width: terRemaining };
+          const tf = fillGapWithModules(tg);
+          for (const fm of tf) {
+            terModules.push({
+              id: genModuleId(), kind: 'door', width: fm.w,
+              orientation: 'tertiary',
+            });
+          }
+        } else if (terRemaining > 0) {
+          terModules.push({
+            id: genModuleId(), kind: 'door', width: terRemaining,
+            orientation: 'tertiary',
+          });
+        }
+
+        // tertiary는 primary 반대편에 추가
+        if (terStartFrom === 'secondary') {
+          lower.push(terBlind, ...terModules);
+        } else {
+          // prime 반대편 = startSide 반대
+          if (startSide === 'left') {
+            lower.push(terBlind, ...terModules);
+          } else {
+            lower.unshift(terBlind, ...terModules);
+          }
+        }
+
+        // 상부장 tertiary
+        if (state.upperCount > 0 && upper.length > 0) {
+          const uTerBlindW = preset.upperDepth ?? 350;
+          const uTerBlind: ModuleEntry = {
+            id: genModuleId(), kind: 'door', width: uTerBlindW,
+            orientation: 'tertiary', moduleType: 'blind-corner',
+          };
+          const uTerRem = terW - uTerBlindW - secFillerW;
+          const uTerMods: ModuleEntry[] = [];
+          if (uTerRem > DOOR_MIN) {
+            const utg: GapSpace = { start: 0, end: uTerRem, width: uTerRem };
+            const utf = fillGapWithModules(utg);
+            for (const fm of utf) {
+              uTerMods.push({
+                id: genModuleId(), kind: 'door', width: fm.w,
+                orientation: 'tertiary',
+              });
+            }
+          } else if (uTerRem > 0) {
+            uTerMods.push({
+              id: genModuleId(), kind: 'door', width: uTerRem,
+              orientation: 'tertiary',
+            });
+          }
+
+          if (terStartFrom === 'secondary') {
+            upper.push(uTerBlind, ...uTerMods);
+          } else {
+            if (startSide === 'left') {
+              upper.push(uTerBlind, ...uTerMods);
+            } else {
+              upper.unshift(uTerBlind, ...uTerMods);
+            }
+          }
+        }
+      }
     }
   }
 

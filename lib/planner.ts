@@ -59,6 +59,22 @@ export interface PlannerState {
   toeKickH: number;
   finishLeftW: number;
   finishRightW: number;
+  /** 레이아웃 형태: I=일자, L=ㄱ자, U=ㄷ자 */
+  layoutShape?: 'I' | 'L' | 'U';
+  /** secondary line 가로 (mm) */
+  secondaryW?: number;
+  /** secondary line 깊이 (mm) */
+  secondaryD?: number;
+  /** tertiary line 가로 (mm) — ㄷ자만 */
+  tertiaryW?: number;
+  /** tertiary line 깊이 (mm) */
+  tertiaryD?: number;
+  /** 차선모듈 자유단 마감재 폭 (mm) */
+  secondaryFillerW?: number;
+  /** 차선모듈 시작 방향 */
+  secondaryStartSide?: 'left' | 'right';
+  /** tertiary 시작 방향 */
+  tertiaryStartFrom?: 'prime' | 'secondary';
   // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
   distributorStart: number | null;
   distributorEnd: number | null;

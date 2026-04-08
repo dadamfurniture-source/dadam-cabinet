@@ -613,6 +613,11 @@
           distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
           distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+          layoutShape: specs.lowerLayoutShape || specs.layoutShape || 'I',
+          secondaryW: parseFloat(specs.lowerSecondaryW) || 0,
+          secondaryD: parseFloat(specs.lowerSecondaryD) || parseFloat(item.d) || 0,
+          tertiaryW: parseFloat(specs.lowerTertiaryW) || 0,
+          tertiaryD: parseFloat(specs.lowerTertiaryD) || parseFloat(item.d) || 0,
           secondaryStartSide: specs.secondaryStartSide || undefined,
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
@@ -660,6 +665,11 @@
           distributorStart: specs.distributorStart != null ? parseFloat(specs.distributorStart) : null,
           distributorEnd: specs.distributorEnd != null ? parseFloat(specs.distributorEnd) : null,
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
+          layoutShape: specs.lowerLayoutShape || specs.layoutShape || 'I',
+          secondaryW: parseFloat(specs.lowerSecondaryW) || 0,
+          secondaryD: parseFloat(specs.lowerSecondaryD) || parseFloat(item.d) || 0,
+          tertiaryW: parseFloat(specs.lowerTertiaryW) || 0,
+          tertiaryD: parseFloat(specs.lowerTertiaryD) || parseFloat(item.d) || 0,
           secondaryStartSide: specs.secondaryStartSide || undefined,
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
