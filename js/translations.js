@@ -1,6 +1,7 @@
 export const translations = {
   ko: {
     nav: {
+      home: '홈',
       about: 'About us',
       collection: 'Collection',
       products: 'Products',
@@ -196,6 +197,7 @@ export const translations = {
   },
   en: {
     nav: {
+      home: 'Home',
       about: 'About us',
       collection: 'Collection',
       products: 'Products',
