@@ -287,7 +287,30 @@ doorCount / 2 = 몫(2D 모듈) + 나머지(1D 모듈)
 
 ---
 
-## 14. 손잡이 규칙 (v33 신규)
+## 14. 코너 구조 규칙 — ㄱ자/ㄷ자 (v33 신규)
+
+> 상세: `docs/design-rules/corner.md`
+
+### 14.1 멍장 (Blind Corner)
+- 코너 교차점에 **반드시** 멍장(LT망장) 배치 (isFixed: true)
+- 멍장 W = 인접 Line의 깊이(D), 멍장 D = prime line 깊이
+- ㄱ자: 멍장 1개, ㄷ자: 멍장 2개
+
+### 14.2 모듈 회전
+- 멍장 이후 연장되는 모듈은 **90° 회전** 배치
+- **도어 생성면(front)이 prime line을 향하도록** 방향 고정
+- `orientation: 'secondary'|'tertiary'` 속성으로 회전 제어
+
+### 14.3 기본값
+| 속성 | 하부장 | 상부장 |
+|------|--------|--------|
+| Secondary W | 1800mm | 1800mm |
+| Secondary D | prime D | 295mm |
+| Tertiary W | 1800mm | 1800mm |
+
+---
+
+## 15. 손잡이 규칙 (v33 신규)
 
 - **기본**: handleless (매립형) — 모든 카테고리 적용
 - **하부장**: 도어 뒤로 손을 넣어서 열 수 있는 형태
@@ -297,7 +320,7 @@ doorCount / 2 = 몫(2D 모듈) + 나머지(1D 모듈)
 
 ---
 
-## 15. AI 이미지 생성 아키텍처 (v33 신규)
+## 16. AI 이미지 생성 아키텍처 (v33 신규)
 
 ### 15.1 모델
 - **Gemini 3.1 Flash Image Preview** (`gemini-3.1-flash-image-preview`)
@@ -320,7 +343,7 @@ doorCount / 2 = 몫(2D 모듈) + 나머지(1D 모듈)
 
 ---
 
-## 16. 3D 뷰 (v33 신규)
+## 17. 3D 뷰 (v33 신규)
 
 ### 16.1 기술
 - Three.js (CDN, WebGL)
@@ -343,7 +366,7 @@ doorCount / 2 = 몫(2D 모듈) + 나머지(1D 모듈)
 
 ---
 
-## 17. 파일 위치
+## 18. 파일 위치
 | 파일 | 내용 |
 |------|------|
 | `js/detaildesign/data-constants.js` | 상수, DEFAULT_SPECS, 냉장고 규칙 |
@@ -359,4 +382,5 @@ doorCount / 2 = 몫(2D 모듈) + 나머지(1D 모듈)
 | `docs/design-rules/common.md` | 공통 규칙 문서 |
 | `docs/design-rules/sink.md` | 싱크대 규칙 문서 |
 | `docs/design-rules/fridge.md` | 냉장고장 규칙 문서 |
+| `docs/design-rules/corner.md` | 코너 구조 규칙 (ㄱ자/ㄷ자) |
 | `docs/design-rules/door.md` | 도어교체/비규격 규칙 문서 |

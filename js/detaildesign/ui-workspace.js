@@ -1671,6 +1671,13 @@
         if (shape !== 'I' && !item.specs.upperSecondaryD) {
           item.specs.upperSecondaryD = '295';
         }
+        if (shape !== 'I' && !item.specs.upperSecondaryW) {
+          item.specs.upperSecondaryW = '1800'; // 기본 1800mm
+        }
+        if (shape === 'U') {
+          if (!item.specs.upperTertiaryW) item.specs.upperTertiaryW = item.specs.upperSecondaryW || '1800';
+          if (!item.specs.upperTertiaryD) item.specs.upperTertiaryD = item.specs.upperSecondaryD || '295';
+        }
         if (shape === 'I') {
           item.specs.upperSecondaryW = '';
           item.specs.upperSecondaryH = '';
