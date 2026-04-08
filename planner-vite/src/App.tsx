@@ -204,6 +204,17 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
   // 타입별 메쉬 선택 (통합 렌더러)
   const renderInner = () => {
     const w = part.width, h = part.height, d = part.depth;
+    // 구조물: 단순 박스 렌더 (상판/몰딩/걸레받이/마감재 등)
+    if (cls.isStructural || cls.isUtility) {
+      const isWire = !!(part as any).wireframe;
+      return (
+        <mesh castShadow={!isWire} receiveShadow={!isWire}>
+          <boxGeometry args={[w, h, d]} />
+          <meshStandardMaterial color={baseColor} wireframe={isWire} transparent={isWire} opacity={isWire ? 0.3 : 1} roughness={0.7} />
+        </mesh>
+      );
+    }
+    // 모듈: 타입별 전용 메쉬
     if (mType === 'blind') return <BlindMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'sink') return <SinkMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'cook') return <CookMesh w={w} h={h} d={d} color={baseColor} />;
@@ -212,7 +223,14 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
     return <DoorMesh w={w} h={h} d={d} color={baseColor} doorCount={part.doorCount || 1} />;
   };
 
-  if (!cls.isModule) return null; // 구조물/유틸리티는 렌더 안 함 (별도 처리)
+  // 구조물/유틸리티: 단순 렌더만 (인터랙션 없음)
+  if (!cls.isModule) {
+    return (
+      <group position={[part.x, part.y, part.z]}>
+        {renderInner()}
+      </group>
+    );
+  }
 
   // ═══ 통합 드래그/클릭 핸들러 ═══
   const handlePointerDown = cls.isDraggable ? (e: any) => {
