@@ -10,13 +10,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Pretendard:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link rel="preload" as="image" href="app/portfolio/kitchen-n1-1.jpg" />
     <link rel="stylesheet" href="css/nav.css">
-    <script src="js/nav-transitions.js"></script>
-    <script src="js/config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="js/nav-transitions.js"></script>
+    <script defer src="js/config.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       * {
         margin: 0;
@@ -1506,15 +1507,15 @@
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-slide active">
-        <img src="app/portfolio/kitchen-n1-1.jpg" alt="다담 프리미엄 주방" />
+        <img src="app/portfolio/kitchen-n1-1.jpg" alt="다담 프리미엄 주방" fetchpriority="high" width="1220" height="508" />
         <div class="hero-overlay"></div>
       </div>
       <div class="hero-slide">
-        <img src="app/portfolio/kitchen-n3-2.jpg" alt="AI 맞춤 설계" />
+        <img src="app/portfolio/kitchen-n3-2.jpg" alt="AI 맞춤 설계" loading="lazy" />
         <div class="hero-overlay"></div>
       </div>
       <div class="hero-slide">
-        <img src="app/portfolio/kitchen-n4-1.jpg" alt="프리미엄 인테리어" />
+        <img src="app/portfolio/kitchen-n4-1.jpg" alt="프리미엄 인테리어" loading="lazy" />
         <div class="hero-overlay"></div>
       </div>
 
@@ -1812,11 +1813,18 @@
       };
 
       // 스크롤 이벤트
+      let scrollTicking = false;
       window.addEventListener('scroll', () => {
-        if (!document.getElementById('mobileMenu').classList.contains('active')) {
-          nav.classList.toggle('scrolled', scrollY > 50);
+        if (!scrollTicking) {
+          requestAnimationFrame(() => {
+            if (!document.getElementById('mobileMenu').classList.contains('active')) {
+              nav.classList.toggle('scrolled', scrollY > 50);
+            }
+            scrollTicking = false;
+          });
+          scrollTicking = true;
         }
-      });
+      }, { passive: true });
 
       // 슬라이더 버튼
       document.getElementById('nextBtn').addEventListener('click', () => go(cur + 1));
