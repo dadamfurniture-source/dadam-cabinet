@@ -634,19 +634,95 @@
       }
 
       /* ── Responsive ── */
+      /* ── Tablet (769-1024px) ── */
+      @media (max-width: 1024px) {
+        .section { padding: 80px 24px; max-width: 900px; }
+        .board-highlight,
+        .rehau-section { gap: 32px; }
+        .theme-card { gap: 32px; padding: 28px; }
+        .feature-grid { grid-template-columns: repeat(2, 1fr); }
+        .test-cert-card { width: 200px; }
+        .test-certs-grid { gap: 16px; }
+      }
+
+      /* ── Mobile (768px 이하) ── */
       @media (max-width: 768px) {
+        .material-hero { height: 45vh; min-height: 280px; }
+        .material-hero::before { opacity: 0.3; }
+        .hero-content h1 { font-size: 28px; }
+        .hero-content p { font-size: 14px; padding: 0 16px; }
+        .hero-content .subtitle { font-size: 12px; letter-spacing: 3px; }
+
+        .section { padding: 48px 16px; }
+        .section-header { margin-bottom: 40px; }
+        .section-header h2 { font-size: 24px; }
+        .section-header p { font-size: 14px; }
+
         .board-highlight,
         .rehau-section,
         .theme-card {
           grid-template-columns: 1fr;
+          gap: 24px;
+        }
+        .board-highlight { margin-bottom: 48px; }
+        .theme-card { padding: 20px; margin-bottom: 40px; }
+        .theme-card.reverse { direction: ltr; }
+        .theme-text h3 { font-size: 22px; }
+
+        .inventory-grid { grid-template-columns: 1fr; }
+
+        .test-results {
+          grid-template-columns: 1fr;
           gap: 32px;
         }
-        .theme-card.reverse { direction: ltr; }
-        .inventory-grid {
-          grid-template-columns: 1fr;
-        }
-        .section { padding: 64px 20px; }
-        .material-hero { height: 45vh; min-height: 320px; }
+        .bar-label { width: 70px; font-size: 11px; }
+        .bar-axis { padding-left: 82px; }
+        .test-certs-grid { justify-content: center; }
+        .test-cert-card { width: 160px; min-width: 140px; }
+        .test-cert-card .cert-img-wrap { min-height: 200px; padding: 6px; }
+
+        .feature-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+        .feature-card { padding: 20px 16px; }
+        .feature-card .icon { width: 44px; height: 44px; }
+        .feature-card h4 { font-size: 14px; }
+        .feature-card p { font-size: 12px; }
+
+        .color-chips { gap: 8px; }
+        .color-chip .swatch { width: 40px; height: 40px; }
+        .color-chip .name { font-size: 9px; }
+
+        .eco-table { font-size: 12px; }
+        .product-table { font-size: 11px; }
+        .product-table thead th { padding: 8px 6px; font-size: 10px; }
+        .product-table tbody td { padding: 6px 4px; }
+
+        .rehau-text h3 { font-size: 22px; }
+        .rehau-text .partner { font-size: 12px; }
+
+        .theme-intro h2 { font-size: 28px; }
+        .theme-intro p { font-size: 14px; }
+        .theme-visual { aspect-ratio: 3/2; }
+
+        .material-footer { padding: 32px 16px; }
+      }
+
+      /* ── Small Mobile (480px 이하) ── */
+      @media (max-width: 480px) {
+        .material-hero { height: 40vh; min-height: 240px; }
+        .hero-content h1 { font-size: 24px; }
+        .section { padding: 40px 14px; }
+        .section-header h2 { font-size: 22px; }
+
+        .feature-grid { grid-template-columns: 1fr; }
+        .test-cert-card { width: 140px; min-width: 120px; }
+        .test-cert-card .cert-img-wrap { min-height: 160px; }
+
+        .theme-keywords span { font-size: 11px; padding: 4px 10px; }
+        .color-chip .swatch { width: 36px; height: 36px; border-radius: 6px; }
+
+        .bar-label { width: 60px; font-size: 10px; }
+        .bar-axis { padding-left: 72px; font-size: 10px; }
+        .bar-value { font-size: 12px; }
       }
     </style>
   </head>
