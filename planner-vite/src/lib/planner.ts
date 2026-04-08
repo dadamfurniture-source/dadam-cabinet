@@ -41,7 +41,7 @@ export interface CabinetPreset {
   defaultMoldingH: number;
 }
 
-export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
+export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer' | 'blind';
 
 export interface ModuleEntry {
   id: string;
@@ -879,7 +879,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     const counterFrontZ = isUpper ? upperZOffset + upperDepth / 2 : depth / 2;
     const counterBackZ = isUpper ? upperZOffset - upperDepth / 2 : -depth / 2;
 
-    const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
+    const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood', 'blind'];
 
     // 차선모듈 체인용 Z 커서 — 연속된 secondary 엔트리를 Z축으로 쌓음
     let secNearZ: number | null = null; // 현재 체인의 다음 모듈 근접(near) 면 Z

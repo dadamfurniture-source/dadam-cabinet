@@ -409,7 +409,7 @@
         // ★ blind corner = prime line depth (코너 오버랩 영역)
         const blindMod = {
           id: 'blind-corner-auto', kind: 'door', width: primeD,
-          moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+          moduleType: 'blind', doorCount: 1, orientation: 'secondary',
         };
         // ★ 실측 기준: secW(1200) = primeD(650) + 나머지 모듈(550)
         const availableSecW = Math.max(0, secW - primeD);
@@ -440,7 +440,7 @@
           // ★ blind corner = upper prime depth
           const uBlindMod = {
             id: 'blind-corner-upper-auto', kind: 'door', width: uPrimeD,
-            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+            moduleType: 'blind', doorCount: 1, orientation: 'secondary',
           };
           // ★ 실측 기준: uSecW = uPrimeD + 나머지 모듈
           const uAvailableSecW = Math.max(0, uSecW - uPrimeD);
@@ -531,7 +531,7 @@
             const terStartSide = startSide === 'left' ? 'right' : 'left';
             const terBlindMod = {
               id: 'blind-corner-ter-auto', kind: 'door', width: primeD,
-              moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+              moduleType: 'blind', doorCount: 1, orientation: 'tertiary',
             };
             // 실측 기준: terW = primeD + 나머지 모듈
             const availableTerW = Math.max(0, terW - primeD);
@@ -556,7 +556,7 @@
               const uTerPrimeD = parseFloat(specs.upperPrimeD) || 295;
               const uTerBlindMod = {
                 id: 'blind-corner-upper-ter-auto', kind: 'door', width: uTerPrimeD,
-                moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
+                moduleType: 'blind', doorCount: 1, orientation: 'tertiary',
               };
               const uAvailableTerW = Math.max(0, uTerW - uTerPrimeD);
               const uTerModCount = uAvailableTerW > 0 ? Math.max(1, Math.round(uAvailableTerW / 600)) : 0;

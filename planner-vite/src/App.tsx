@@ -16,6 +16,7 @@ const TYPE_COLORS: Record<string, { body: string; face: string; outline: string;
   sink: { body: '#b3d4e8', face: '#8ab8d4', outline: '#0284c7', emissive: '#0369a1' },
   cook: { body: '#e8b3b3', face: '#d48a8a', outline: '#dc2626', emissive: '#b91c1c' },
   hood: { body: '#c9b3e8', face: '#a88ad4', outline: '#7c3aed', emissive: '#6d28d9' },
+  blind: { body: '#a8b5a0', face: '#8fa086', outline: '#4a6741', emissive: '#3d5636' },
 };
 
 // ═══ 공통: 모듈 윤곽선 ═══
@@ -76,6 +77,31 @@ function HoodMesh({ w, h, d, color }: { w: number; h: number; d: number; color: 
         <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
       </mesh>
       <ModuleEdges w={w} h={h} d={d} color="#7c3aed" />
+    </group>
+  );
+}
+
+// ═══ 3D 메쉬: 멍장 (blind corner) ═══
+function BlindMesh({ w, h, d, color }: { w: number; h: number; d: number; color: string }) {
+  return (
+    <group>
+      {/* 본체: 약간 어두운 톤으로 고정 패널 느낌 */}
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={color} roughness={0.8} metalness={0.05} />
+      </mesh>
+      {/* X자 표시: 멍장 식별용 대각선 — 정면 패널 위에 렌더 */}
+      <group position={[0, 0, d / 2 + 0.5]}>
+        <mesh>
+          <planeGeometry args={[w * 0.6, 2]} />
+          <meshBasicMaterial color="#4a6741" transparent opacity={0.5} />
+        </mesh>
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <planeGeometry args={[h * 0.6, 2]} />
+          <meshBasicMaterial color="#4a6741" transparent opacity={0.5} />
+        </mesh>
+      </group>
+      <ModuleEdges w={w} h={h} d={d} color="#4a6741" />
     </group>
   );
 }
@@ -142,6 +168,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
     const w = part.width, h = part.height, d = part.depth;
     if (isFace) return null; // face 파트는 타입 메쉬가 대체
 
+    if (mType === 'blind') return <BlindMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'sink') return <SinkMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'cook') return <CookMesh w={w} h={h} d={d} color={baseColor} />;
     if (mType === 'hood') return <HoodMesh w={w} h={h} d={d} color={baseColor} />;
