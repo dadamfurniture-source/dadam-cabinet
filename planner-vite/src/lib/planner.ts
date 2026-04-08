@@ -722,6 +722,11 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const isTertiary = module.orientation === 'tertiary';
 
       if (isSecondary) {
+        console.log(`[CornerDebug:embed] secondary 모듈 감지`, {
+          id: module.id, section: module.section, orientation: module.orientation,
+          width: module.width, isUpper, counterFrontZ, secNearZ, cursor,
+          secondaryStartSide: state.secondaryStartSide,
+        });
         const tertiaryFromSec = isTertiary && state.tertiaryStartFrom === 'secondary';
 
         if (tertiaryFromSec) {
@@ -806,7 +811,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             curChain = null;
             secNearZ = null;
           }
-          parts.push({
+          const partData = {
             id: module.id,
             label: `${module.section}-${module.kind}-${isTertiary ? 'tertiary' : 'secondary'}`,
             x: perpX,
@@ -822,7 +827,13 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             doorCount: module.doorCount,
             drawerCount: module.drawerCount,
             rotationY: isLeftChain ? Math.PI / 2 : -Math.PI / 2,
+          };
+          console.log(`[CornerDebug:embed] secondary 파트 생성`, {
+            id: partData.id, x: Math.round(partData.x), y: Math.round(partData.y),
+            z: Math.round(partData.z), rotationY: partData.rotationY?.toFixed(2),
+            isLeftChain, isUpper, perpX: Math.round(perpX), perpZ: Math.round(perpZ),
           });
+          parts.push(partData as any);
         }
         // 차선모듈은 주선의 X축 cursor를 증가시키지 않음
       } else {
@@ -859,6 +870,17 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   const lowerModules = modules.filter((m) => m.section !== 'upper');
   const upperModules = modules.filter((m) => m.section === 'upper');
+  const secLowerCount = lowerModules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary').length;
+  const secUpperCount = upperModules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary').length;
+  if (secLowerCount > 0 || secUpperCount > 0) {
+    console.log(`[CornerDebug:embed] deriveCabinet 모듈 분류`, {
+      lower: lowerModules.length, upper: upperModules.length,
+      secLower: secLowerCount, secUpper: secUpperCount,
+      secondaryStartSide: state.secondaryStartSide,
+      lowerOrients: lowerModules.map(m => `${m.id}:${m.orientation || 'normal'}`),
+      upperOrients: upperModules.map(m => `${m.id}:${m.orientation || 'normal'}`),
+    });
+  }
   const lowerLayout = renderModules(lowerModules);
   const upperLayout = renderModules(upperModules);
 
