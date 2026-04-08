@@ -1131,23 +1131,112 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     });
   }
 
-  // 차선 체인 안쪽 측판(inner side panel) — 앵커(멍장) 쪽 측면에 마감재 색상으로 렌더
-  // 위치: 체인의 startZ (주선 상판 앞 edge)를 중심으로 18mm 두께
-  // 역할: 멍장(앵커 주선 모듈)과 차선 체인 첫 모듈 사이의 시각적 마감 경계
-  // 상부장: 벽에서 시작하므로 코너 측판 불필요 (모듈 자체가 코너를 채움)
-  const INNER_PANEL_T = 18;
-  secondaryChains.filter(c => c.section === 'lower').forEach((ch, i) => {
+  // ═══ 코너 구조물: 멍기둥 + 멍 패널 (GLB conerstructure.glb 참조) ═══
+  // GLB 분석 결과:
+  //   멍기둥 = L자형 수직 기둥 (두 패널 각 70×bodyH×18mm, 90° 배치)
+  //   멍 패널 = 코너 뒷면 차폐 얇은 판 (~primaryDepth × bodyH × 3mm)
+  //   sec-inner-panel = 멍기둥의 한 팔(arm) 역할 (차선 시작점 폐쇄)
+
+  const INNER_PANEL_T = 18;       // 내측 패널 두께 (mm)
+  const CORNER_POST_T = 18;       // 멍기둥 두께 (mm) — PB 18T
+  const CORNER_POST_ARM = 70;     // 멍기둥 팔 길이 (mm) — GLB mesh 기준
+  const BLIND_PANEL_T = 3;        // 멍 뒷판 두께 (mm)
+
+  secondaryChains.forEach((ch, i) => {
+    const isLower = ch.section === 'lower';
+    const y = ch.bottomY + ch.bodyH / 2;
+    const layout = isLower ? lowerLayout : upperLayout;
+
+    // 체인 좌/우 판정
+    const isRightSide = layout ? Math.abs(ch.anchorRightX - layout.endX) < 1 : false;
+    const isLeftSide = layout ? Math.abs((ch.anchorRightX - ch.xExtent) - layout.startX) < 1 : false;
+
+    // 주선 depth 범위
+    const frontZ = ch.primaryFrontEdgeZ;
+    const backZ = isLower ? -depth / 2 : upperZOffset - upperDepth / 2;
+    const primaryDepthRange = Math.abs(frontZ - backZ);
+    const primaryZCenter = (frontZ + backZ) / 2;
+
+    // --- sec-inner-panel: 차선 시작면 폐쇄 (멍기둥 arm-A 역할) ---
+    if (isLower) {
+      parts.push({
+        id: `sec-inner-panel-${ch.section}-${i}`,
+        label: '마감재(차선 안쪽)',
+        x: ch.xCenter,
+        y,
+        z: ch.startZ + INNER_PANEL_T / 2,
+        width: ch.xExtent,
+        height: ch.bodyH,
+        depth: INNER_PANEL_T,
+        colorKey: 'trim',
+      });
+    }
+
+    // --- 멍기둥 arm-B: Z축 방향 수직 패널 (주선 depth를 따라 배치) ---
+    // 차선 inner edge에서 주선 안쪽 depth 전체를 따라 세워지는 기둥
+    const postInnerX = isLeftSide
+      ? ch.anchorRightX - CORNER_POST_T / 2   // 좌측 체인: inner edge 좌측
+      : (ch.anchorRightX - ch.xExtent) + CORNER_POST_T / 2; // 우측 체인: inner edge 우측
+
     parts.push({
-      id: `sec-inner-panel-${ch.section}-${i}`,
-      label: '마감재(차선 안쪽)',
-      x: ch.xCenter,
-      y: ch.bottomY + ch.bodyH / 2,
-      z: ch.startZ + INNER_PANEL_T / 2,
-      width: ch.xExtent,
+      id: `corner-post-${ch.section}-${i}`,
+      label: '멍기둥',
+      x: postInnerX,
+      y,
+      z: primaryZCenter,
+      width: CORNER_POST_T,
       height: ch.bodyH,
-      depth: INNER_PANEL_T,
+      depth: primaryDepthRange,
       colorKey: 'trim',
     });
+
+    // --- 멍기둥 arm-C: 짧은 팔 (X축 방향, junction point에서 70mm) ---
+    // 멍기둥의 L자 형태를 완성하는 짧은 수평 패널
+    const armStartZ = ch.startZ;  // 차선 시작 Z
+    const armCX = isLeftSide
+      ? postInnerX + CORNER_POST_T / 2 + CORNER_POST_ARM / 2   // 좌측: 기둥에서 우측으로
+      : postInnerX - CORNER_POST_T / 2 - CORNER_POST_ARM / 2;  // 우측: 기둥에서 좌측으로
+
+    parts.push({
+      id: `corner-post-arm-${ch.section}-${i}`,
+      label: '멍기둥(팔)',
+      x: armCX,
+      y,
+      z: armStartZ + CORNER_POST_T / 2,  // inner-panel과 같은 Z, 얇은 두께
+      width: CORNER_POST_ARM,
+      height: ch.bodyH,
+      depth: CORNER_POST_T,
+      colorKey: 'trim',
+    });
+
+    // --- 멍 패널: 코너 뒷면 차폐판 (dead corner 후면 폐쇄) ---
+    // 주선의 뒷면(backZ)에서 차선 영역의 사각 데드코너를 커버
+    parts.push({
+      id: `blind-panel-${ch.section}-${i}`,
+      label: '멍(코너)',
+      x: ch.xCenter,
+      y,
+      z: backZ + BLIND_PANEL_T / 2,
+      width: ch.xExtent,
+      height: ch.bodyH,
+      depth: BLIND_PANEL_T,
+      colorKey: 'body',
+    });
+
+    // --- 코너 하부 바닥판: dead corner 바닥 ---
+    if (isLower) {
+      parts.push({
+        id: `corner-floor-${i}`,
+        label: '코너바닥',
+        x: ch.xCenter,
+        y: ch.bottomY + BLIND_PANEL_T / 2,
+        z: primaryZCenter,
+        width: ch.xExtent,
+        height: BLIND_PANEL_T,
+        depth: primaryDepthRange,
+        colorKey: 'body',
+      });
+    }
   });
 
   // 차선모듈 체인용 상판 — 주선 상판 정면 오버행 끝부터 시작, 휠라 위까지 덮음
