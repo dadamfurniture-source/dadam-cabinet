@@ -1656,6 +1656,16 @@
         // 통합 모드: 상부장도 동일 구조로 동기화
         if (item.specs.dimensionMode === 'unified') {
           item.specs.upperLayoutShape = shape;
+          if (shape !== 'I' && !item.specs.upperSecondaryW) {
+            item.specs.upperSecondaryW = '1800';
+          }
+          if (shape !== 'I' && !item.specs.upperSecondaryD) {
+            item.specs.upperSecondaryD = '295';
+          }
+          if (shape === 'U') {
+            if (!item.specs.upperTertiaryW) item.specs.upperTertiaryW = item.specs.upperSecondaryW || '1800';
+            if (!item.specs.upperTertiaryD) item.specs.upperTertiaryD = item.specs.upperSecondaryD || '295';
+          }
         }
         updateUI();
         renderWorkspaceContent(item);
