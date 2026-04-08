@@ -29,6 +29,12 @@
     // 새 탭 열기는 무시
     if (a.target === '_blank' || e.ctrlKey || e.metaKey || e.shiftKey) return;
 
+    // 모바일에서는 fade-out 건너뛰기 (깜빡임 방지)
+    if (window.innerWidth <= 768) {
+      window.location.href = href;
+      return;
+    }
+
     e.preventDefault();
     document.body.style.transition = 'opacity 0.1s ease-out';
     document.body.style.opacity = '0';

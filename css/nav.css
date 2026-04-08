@@ -3,14 +3,17 @@
    index.html 기준 (서브페이지: .nav-solid 클래스 추가 시 흰 배경)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── 페이지 전환 fade-in (깜빡임 방지) ── */
+/* ── 페이지 전환 fade-in ── */
 @keyframes pageIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-body {
-  animation: pageIn 0.15s ease-out;
+@media (prefers-reduced-motion: no-preference) and (min-width: 769px) {
+  body {
+    animation: pageIn 0.15s ease-out;
+  }
 }
+/* 모바일: fade-in 비활성화 (깜빡임 방지) */
 
 :root {
   --nav-white: #fafafa;
