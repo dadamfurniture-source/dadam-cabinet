@@ -415,8 +415,9 @@
           payload.lowerModules = [...payload.lowerModules, blindMod, ...secMods];
         }
         payload.lowerCount = payload.lowerModules.length;
-        // 상부장 secondary
-        if (specs.secondaryUpperEnabled !== false && specs.upperSecondaryW) {
+        // 상부장 secondary — upperSecondaryW 없으면 기본 1800mm
+        if (specs.secondaryUpperEnabled !== false) {
+          if (!specs.upperSecondaryW) specs.upperSecondaryW = '1800';
           const uSecW = parseFloat(specs.upperSecondaryW) || secW;
           const uPrimeD = parseFloat(specs.upperPrimeD) || 295;
           const uSecD = parseFloat(specs.upperSecondaryD) || uPrimeD;
@@ -476,6 +477,9 @@
             }
             payload.lowerCount = payload.lowerModules.length;
             // 상부장 tertiary (from secondary)
+            if (specs.secondaryUpperEnabled !== false) {
+              if (!specs.upperTertiaryW) specs.upperTertiaryW = specs.upperSecondaryW || '1800';
+            }
             if (specs.secondaryUpperEnabled !== false && specs.upperTertiaryW) {
               const uTerW = parseFloat(specs.upperTertiaryW) || terW;
               const uTerD = parseFloat(specs.upperTertiaryD) || parseFloat(specs.upperSecondaryD) || 295;
@@ -524,6 +528,9 @@
             }
             payload.lowerCount = payload.lowerModules.length;
             // 상부장 tertiary (from prime)
+            if (specs.secondaryUpperEnabled !== false) {
+              if (!specs.upperTertiaryW) specs.upperTertiaryW = specs.upperSecondaryW || '1800';
+            }
             if (specs.secondaryUpperEnabled !== false && specs.upperTertiaryW) {
               const uTerW = parseFloat(specs.upperTertiaryW) || terW;
               const uTerPrimeD = parseFloat(specs.upperPrimeD) || 295;
