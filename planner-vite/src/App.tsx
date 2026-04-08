@@ -111,7 +111,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
   const dragOffset = useRef(0);
 
   // mod- prefix 또는 외부에서 전달된 모듈 ID (숫자, blind-corner, sec-auto 등)
-  const NON_MODULE_PREFIXES = ['molding', 'toekick', 'finish-', 'install-space', 'countertop', 'fridge-cavity', 'mirror', 'sec-inner-panel'];
+  const NON_MODULE_PREFIXES = ['molding', 'toekick', 'finish-', 'install-space', 'countertop', 'fridge-cavity', 'mirror', 'sec-inner-panel', 'corner-post', 'corner-floor', 'blind-panel'];
   const isNonModule = NON_MODULE_PREFIXES.some(p => part.id.startsWith(p));
   const isMod = !isNonModule && !part.id.startsWith('utility-');
   const isFace = part.id.endsWith('-face');
