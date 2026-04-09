@@ -988,11 +988,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const isTertiary = module.orientation === 'tertiary';
 
       if (isSecondary) {
-        console.log(`[CornerDebug:embed] secondary 모듈 감지`, {
-          id: module.id, section: module.section, orientation: module.orientation,
-          width: module.width, isUpper, counterFrontZ, secNearZ, cursor,
-          secondaryStartSide: state.secondaryStartSide,
-        });
         const tertiaryFromSec = isTertiary && state.tertiaryStartFrom === 'secondary';
 
         if (tertiaryFromSec) {
@@ -1117,11 +1112,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             drawerCount: module.drawerCount,
             rotationY: doorRotation,
           };
-          console.log(`[CornerDebug:embed] secondary 파트 생성`, {
-            id: partData.id, x: Math.round(partData.x), y: Math.round(partData.y),
-            z: Math.round(partData.z), rotationY: partData.rotationY?.toFixed(2),
-            isLeftChain, isTertiary, isUpper,
-          });
           parts.push(partData as any);
         }
         // 차선모듈은 주선의 X축 cursor를 증가시키지 않음
@@ -1129,10 +1119,10 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         secNearZ = null; // 주선 모듈을 만나면 차선 체인 종료
         curChain = null;
         const centeredX = cursor + module.width / 2;
-        // 주선 하부: 상판 앞면에서 30mm 안쪽 정렬 (모듈 앞면 = counterFrontZ - 30)
-        // 주선 상부: 기존 upperZOffset 유지
-        const COUNTER_INSET = 30; // 상판 앞면 대비 모듈 후퇴량 (mm)
-        const primaryZ = isUpper ? z : (counterFrontZ - COUNTER_INSET - module.depth / 2);
+        // 주선 하부: 뒷벽 기준 정렬 (모듈 뒷면 = 캐비닛 뒷면)
+        // 주선 상부: 기존 upperZOffset 유지 (이미 뒷벽 기준)
+        const backWallZ = -depth / 2;
+        const primaryZ = isUpper ? z : (backWallZ + module.depth / 2);
         parts.push({
           id: module.id,
           label: `${module.section}-${module.kind}`,
@@ -1159,17 +1149,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   const lowerModules = modules.filter((m) => m.section !== 'upper');
   const upperModules = modules.filter((m) => m.section === 'upper');
-  const secLowerCount = lowerModules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary').length;
-  const secUpperCount = upperModules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary').length;
-  if (secLowerCount > 0 || secUpperCount > 0) {
-    console.log(`[CornerDebug:embed] deriveCabinet 모듈 분류`, {
-      lower: lowerModules.length, upper: upperModules.length,
-      secLower: secLowerCount, secUpper: secUpperCount,
-      secondaryStartSide: state.secondaryStartSide,
-      lowerOrients: lowerModules.map(m => `${m.id}:${m.orientation || 'normal'}`),
-      upperOrients: upperModules.map(m => `${m.id}:${m.orientation || 'normal'}`),
-    });
-  }
   const lowerLayout = renderModules(lowerModules);
   const upperLayout = renderModules(upperModules);
 
@@ -1200,7 +1179,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
   // --- 마감재 (실측 완료 시 모듈 없어도 표시) ---
 
   // 상몰딩 — 상부장 위에 덮는 방식 (좌우 마감재 위로 올라감)
-  // Z를 1mm 앞으로 밀어 좌우 마감재와의 Z-fighting 방지
   if (moldingH > 0) {
     const moldingDepth = preset.fullHeight ? depth : upperDepth;
     const moldingZ = preset.fullHeight ? 0 : upperZOffset;
@@ -1209,7 +1187,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       label: '상몰딩',
       x: 0,
       y: height - moldingH / 2,
-      z: moldingZ + 1,
+      z: moldingZ,
       width,
       height: moldingH,
       depth: moldingDepth + 6,
@@ -1402,16 +1380,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         });
       }
       if (upperHeight > 0 && !skipUpper) {
-        // 상몰딩 아래까지만 — 1mm 간격으로 상몰딩이 위에서 덮도록
-        const upperFinishH = Math.max(0, upperHeight - 1);
         parts.push({
           id: `finish-${side.id}-upper`,
           label: `마감재(${side.label})-상부`,
           x: side.x,
-          y: upperBottomY + upperFinishH / 2,
+          y: upperBottomY + upperHeight / 2,
           z: upperZOffset,
           width: side.fw,
-          height: upperFinishH,
+          height: upperHeight,
           depth: upperDepth,
           colorKey: 'trim',
         });
