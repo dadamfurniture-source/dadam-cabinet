@@ -1028,7 +1028,8 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
               moduleKind: module.kind,
               doorCount: module.doorCount,
               drawerCount: module.drawerCount,
-              // prime과 평행 → 회전 없음
+              // tertiary from secondary: prime과 평행하지만 도어가 안쪽(secondary 방향)을 향해야 함
+              rotationY: Math.PI, // 180° 회전 — 도어가 secondary 쪽(안쪽)을 향함
             });
             if (secondarySide) {
               terCursorX += module.width;
@@ -1044,13 +1045,25 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             terCursorX = null;
           }
         } else {
-          // ★ 기존 로직: secondary / tertiary from prime — Z축(정면) 방향 수직 배치
+          // ★ secondary / tertiary from prime — Z축(정면) 방향 수직 배치
           const secondarySide = state.secondaryStartSide
             ? state.secondaryStartSide === 'left'
             : Math.abs(cursor - startX) < 1;
           const isLeftChain = isTertiary ? !secondarySide : secondarySide;
+
           if (secNearZ === null) {
-            secNearZ = counterFrontZ;
+            // ── tertiary from prime: secondary 끝에 연결 ──
+            if (isTertiary) {
+              const existingSecChain = secondaryChains.find(c => c.section === (isUpper ? 'upper' : 'lower'));
+              if (existingSecChain) {
+                // tertiary는 secondary 끝에서 시작 (연결)
+                secNearZ = existingSecChain.endZ;
+              } else {
+                secNearZ = counterFrontZ;
+              }
+            } else {
+              secNearZ = counterFrontZ;
+            }
             curChain = {
               section: isUpper ? 'upper' : 'lower',
               xCenter: isLeftChain ? cursor + module.depth / 2 : cursor - module.depth / 2,
@@ -1073,6 +1086,16 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             curChain = null;
             secNearZ = null;
           }
+
+          // ── 도어 방향: 안쪽(주방 내부)을 향하도록 회전 ──
+          // secondary: 좌측 체인 → +90° (도어가 우측/안쪽), 우측 체인 → -90° (도어가 좌측/안쪽)
+          // tertiary from prime: secondary와 반대 방향 → 도어가 안쪽
+          let doorRotation = isLeftChain ? Math.PI / 2 : -Math.PI / 2;
+          if (isTertiary) {
+            // tertiary는 secondary 반대편이므로 도어 방향을 반전
+            doorRotation = isLeftChain ? -Math.PI / 2 : Math.PI / 2;
+          }
+
           const partData = {
             id: module.id,
             label: `${module.section}-${module.kind}-${isTertiary ? 'tertiary' : 'secondary'}`,
@@ -1088,12 +1111,12 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             moduleKind: module.kind,
             doorCount: module.doorCount,
             drawerCount: module.drawerCount,
-            rotationY: isLeftChain ? Math.PI / 2 : -Math.PI / 2,
+            rotationY: doorRotation,
           };
           console.log(`[CornerDebug:embed] secondary 파트 생성`, {
             id: partData.id, x: Math.round(partData.x), y: Math.round(partData.y),
             z: Math.round(partData.z), rotationY: partData.rotationY?.toFixed(2),
-            isLeftChain, isUpper, perpX: Math.round(perpX), perpZ: Math.round(perpZ),
+            isLeftChain, isTertiary, isUpper,
           });
           parts.push(partData as any);
         }
