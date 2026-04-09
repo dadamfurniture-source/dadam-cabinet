@@ -83,7 +83,7 @@
 </head>
 <body>
   <div class="top-bar">
-    <h1>Sink HITL 수집</h1>
+    <h1>Sink HITL 학습</h1>
     <div class="actions">
       <div class="rating-row">
         <label>평점</label>
@@ -91,7 +91,8 @@
         <input type="text" id="comment" placeholder="주석(선택)" style="width:120px" />
       </div>
       <button class="btn-success" id="btn-save">저장</button>
-      <button class="btn-primary" id="btn-generate">생성</button>
+      <button class="btn-primary" id="btn-ai-generate" style="background:#8b5cf6;">AI 설계</button>
+      <button class="btn-primary" id="btn-generate">랜덤 생성</button>
       <button class="btn-primary" id="btn-next">다음</button>
     </div>
   </div>
@@ -149,9 +150,21 @@
       <div class="stats">
         <div class="stat-box"><div class="stat-label">총 Pair</div><div class="stat-val" id="stat-total">-</div></div>
         <div class="stat-box"><div class="stat-label">지난주</div><div class="stat-val" id="stat-week">-</div></div>
-        <div class="stat-box"><div class="stat-label">평균 ⭐</div><div class="stat-val" id="stat-rating">-</div></div>
+        <div class="stat-box"><div class="stat-label">평균 평점</div><div class="stat-val" id="stat-rating">-</div></div>
         <div class="stat-box"><div class="stat-label">평균 diff</div><div class="stat-val" id="stat-diff">-</div></div>
       </div>
+      <div class="divider"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>AI 학습 현황</h2>
+        <button class="btn-sm" id="btn-mine-rules" onclick="triggerMineRules()">규칙 마이닝</button>
+      </div>
+      <div class="stats" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-box"><div class="stat-label">활성 규칙</div><div class="stat-val" id="stat-active-rules">-</div></div>
+        <div class="stat-box"><div class="stat-label">전체 규칙</div><div class="stat-val" id="stat-total-rules">-</div></div>
+        <div class="stat-box"><div class="stat-label">AI 정확도</div><div class="stat-val" id="stat-ai-accuracy">-</div></div>
+      </div>
+      <div id="top-corrections" style="margin-top:8px;"></div>
+      <div id="generated-by-tag" style="font-size:10px; color:#86868b; margin-top:4px;"></div>
     </div>
 
     <!-- 중앙: 2D SVG 정면도 -->
@@ -843,7 +856,7 @@
 
     async function generate(autoRandomize = false) {
       if (autoRandomize) randomizeEnv();
-      status('생성 중...');
+      status('랜덤 생성 중...');
       try {
         const res = await fetch(`${API}/api/sink-hitl/generate`, {
           method: 'POST',
@@ -858,9 +871,35 @@
         renderSVG();
         renderModuleCards();
         const lt = data.design.env.layoutType === 'L' ? 'ㄱ자' : data.design.env.layoutType === 'U' ? 'ㄷ자' : '일자';
-        status(`✓ ${lt} 생성 (하부 ${data.design.lower.length} / 상부 ${data.design.upper.length})`);
+        showGeneratedBy(data.design.meta?.generated_by || 'random');
+        status(`✓ ${lt} 랜덤 생성 (하부 ${data.design.lower.length} / 상부 ${data.design.upper.length})`);
       } catch (e) {
         status('✗ ' + e.message, true);
+      }
+    }
+
+    async function generateAI() {
+      status('AI 설계 중... (Claude 호출)');
+      try {
+        const res = await fetch(`${API}/api/sink-hitl/generate-ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ env: buildEnv() }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'AI Generate failed');
+        currentGenerated = data.design;
+        currentDesign = JSON.parse(JSON.stringify(data.design));
+        selectedModule = null;
+        renderSVG();
+        renderModuleCards();
+        const lt = data.design.env.layoutType === 'L' ? 'ㄱ자' : data.design.env.layoutType === 'U' ? 'ㄷ자' : '일자';
+        const genBy = data.design.meta?.generated_by || 'ai_design';
+        showGeneratedBy(genBy);
+        const label = genBy === 'ai_design' ? 'AI 설계' : 'AI 폴백(랜덤)';
+        status(`✓ ${lt} ${label} (하부 ${data.design.lower.length} / 상부 ${data.design.upper.length})`);
+      } catch (e) {
+        status('✗ AI 설계 실패: ' + e.message, true);
       }
     }
 
@@ -882,8 +921,10 @@
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Save failed');
-        status(`✓ 저장 (pair: ${data.pair_id}, diff ${data.diff_count}건)`);
+        const mineMsg = data.auto_mined ? ' + 규칙 자동 갱신!' : '';
+        status(`✓ 저장 (pair: ${data.pair_id}, diff ${data.diff_count}건${mineMsg})`);
         await refreshStats();
+        await refreshFeedback();
       } catch (e) {
         status('✗ ' + e.message, true);
       }
@@ -897,13 +938,73 @@
         el('stat-week').textContent = data.lastWeekPairs ?? 0;
         el('stat-rating').textContent = (data.avgRating ?? 0).toFixed(1);
         el('stat-diff').textContent = (data.avgDiffCount ?? 0).toFixed(1);
+        el('stat-active-rules').textContent = data.activeRuleCount ?? 0;
+        el('stat-total-rules').textContent = data.totalRuleCount ?? 0;
       } catch (e) { /* ignore */ }
     }
 
+    // ─── 피드백 요약 새로고침 ───
+    async function refreshFeedback() {
+      try {
+        const res = await fetch(`${API}/api/sink-hitl/feedback-summary`);
+        const data = await res.json();
+        if (!data.success) return;
+        el('stat-ai-accuracy').textContent = data.avgAiRating ? data.avgAiRating.toFixed(1) : '-';
+        // Top 수정 태그
+        const topEl = el('top-corrections');
+        if (data.topCorrectionTags && data.topCorrectionTags.length > 0) {
+          topEl.innerHTML = '<div style="font-size:10px;color:#86868b;margin-bottom:2px;">빈번한 수정:</div>' +
+            data.topCorrectionTags.map(t =>
+              `<div style="font-size:10px;padding:1px 0;"><span style="color:#0071e3;font-weight:600;">${t.count}x</span> ${t.description}</div>`
+            ).join('');
+        } else {
+          topEl.innerHTML = '<div style="font-size:10px;color:#86868b;">아직 데이터 없음</div>';
+        }
+      } catch { /* ignore */ }
+    }
+
+    // ─── 생성 방식 표시 ───
+    function showGeneratedBy(genBy) {
+      const tagEl = el('generated-by-tag');
+      const labels = {
+        random: '랜덤 생성',
+        ai_design: 'AI(Claude) 설계',
+        hybrid: '하이브리드',
+        cbr: 'CBR 검색',
+      };
+      const colors = {
+        random: '#86868b',
+        ai_design: '#8b5cf6',
+        hybrid: '#f59e0b',
+        cbr: '#10b981',
+      };
+      tagEl.innerHTML = `<span style="color:${colors[genBy] || '#86868b'}; font-weight:600;">생성: ${labels[genBy] || genBy}</span>`;
+    }
+
+    // ─── 규칙 마이닝 트리거 ───
+    window.triggerMineRules = async () => {
+      status('규칙 마이닝 중...');
+      el('btn-mine-rules').disabled = true;
+      try {
+        const res = await fetch(`${API}/api/sink-hitl/mine-rules`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Mining failed');
+        status(`✓ 규칙 마이닝 완료: ${data.rulesExtracted}개 추출, ${data.rulesActivated}개 활성화`);
+        await refreshStats();
+        await refreshFeedback();
+      } catch (e) {
+        status('✗ 마이닝 실패: ' + e.message, true);
+      } finally {
+        el('btn-mine-rules').disabled = false;
+      }
+    };
+
+    el('btn-ai-generate').onclick = () => generateAI();
     el('btn-generate').onclick = () => generate(false);
     el('btn-next').onclick = () => generate(true);
     el('btn-save').onclick = save;
     refreshStats();
+    refreshFeedback();
   </script>
 </body>
 </html>
