@@ -623,7 +623,13 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
     const CORNER_FILLER_W = 60; // 코너 휠라 필수 (규칙 3)
 
     if (secW > 0) {
-      const blindW = state.depth; // 멍장 너비 = primary depth
+      // 멍판 너비 = 연결되는 수직 모듈의 상판 깊이 + 40mm
+      // 멍장이 secondary에 있으면 → primary depth + 40
+      // 멍장이 primary에 있으면 → secondary depth + 40
+      // (배치 라인은 아래에서 결정되므로 양쪽 모두 계산)
+      const blindWOnSec = state.depth + 40;      // secondary 배치 시 (primary depth + 40)
+      const blindWOnPri = secD + 40;             // primary 배치 시 (secondary depth + 40)
+      let blindW = blindWOnSec; // 기본: secondary 배치
 
       // ── 규칙 1: 개수대 인접 회피 ──
       // primary line 코너 끝에 개수대(sink)가 인접하면 → 멍장을 secondary에 배치
@@ -632,33 +638,29 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
       const sinkAdjacentToPrimary = primaryEdgeModule?.moduleType === 'sink';
 
       // ── 규칙 2: 도어 분배 일치 ──
-      // 멍장도어와 인접 도어가 같은 너비가 되는 라인에 배치
-      const secRemaining = secW - blindW - secFillerW - CORNER_FILLER_W;
-      const priRemaining = effectiveW - blindW - CORNER_FILLER_W;
+      const secRemaining = secW - blindWOnSec - secFillerW - CORNER_FILLER_W;
+      const priRemaining = effectiveW - blindWOnPri - CORNER_FILLER_W;
 
-      // secondary에 멍장 배치 시 인접 도어 너비
       const secAdjacentW = secRemaining > DOOR_MIN
         ? fillGapWithModules({ start: 0, end: secRemaining, width: secRemaining })[0]?.w ?? 0
         : secRemaining;
-      // primary에 멍장 배치 시 인접 도어 너비 (primary 재분배)
       const priAdjacentW = priRemaining > DOOR_MIN
         ? fillGapWithModules({ start: 0, end: priRemaining, width: priRemaining })[0]?.w ?? 0
         : priRemaining;
 
-      // 멍장도어와 인접 도어 너비 차이 비교
-      const secDoorMatch = Math.abs(blindW - secAdjacentW) < 30; // 30mm 이내면 일치
-      const priDoorMatch = Math.abs(blindW - priAdjacentW) < 30;
+      const secDoorMatch = Math.abs(blindWOnSec - secAdjacentW) < 30;
+      const priDoorMatch = Math.abs(blindWOnPri - priAdjacentW) < 30;
 
       // 멍장 배치 라인 결정
       let blindOnPrimary = false;
       if (sinkAdjacentToPrimary) {
-        // 규칙 1: 개수대가 primary 코너에 인접 → 멍장을 secondary로
         blindOnPrimary = false;
       } else if (priDoorMatch && !secDoorMatch) {
-        // 규칙 2: primary 쪽이 도어 너비 일치 → primary에 배치
         blindOnPrimary = true;
       }
-      // 기본: secondary에 배치
+
+      // 확정된 멍판 너비
+      blindW = blindOnPrimary ? blindWOnPri : blindWOnSec;
 
       // ── 멍장 모듈 생성 (코너 휠라 포함 — 규칙 3) ──
       const blindOrientation = blindOnPrimary ? undefined : 'secondary';
@@ -715,7 +717,7 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
 
       // ── 상부장 secondary ──
       if (state.upperCount > 0 && upper.length > 0) {
-        const upperBlindW = preset.upperDepth ?? 350;
+        const upperBlindW = (preset.upperDepth ?? 350) + 40;
         const upperBlind: ModuleEntry = {
           id: genModuleId(), kind: 'door', width: upperBlindW,
           orientation: 'secondary', moduleType: 'blind-corner',
@@ -757,7 +759,8 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
       const CORNER_FILLER_W = 60;
 
       if (terW > 0) {
-        const terBlindW = state.depth;
+        // 멍판 너비 = 연결되는 수직 모듈의 상판 깊이 + 40
+        const terBlindW = state.depth + 40;
         const terBlind: ModuleEntry = {
           id: genModuleId(), kind: 'door', width: terBlindW,
           orientation: 'tertiary', moduleType: 'blind-corner',
@@ -796,7 +799,7 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
 
         // 상부장 tertiary
         if (state.upperCount > 0 && upper.length > 0) {
-          const uTerBlindW = preset.upperDepth ?? 350;
+          const uTerBlindW = (preset.upperDepth ?? 350) + 40;
           const uTerBlind: ModuleEntry = {
             id: genModuleId(), kind: 'door', width: uTerBlindW,
             orientation: 'tertiary', moduleType: 'blind-corner',

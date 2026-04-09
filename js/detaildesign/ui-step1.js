@@ -406,13 +406,14 @@
         const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 600;
         const primeD = parseFloat(itemD) || 600;
         const startSide = specs.secondaryStartSide || 'left';
-        // ★ blind corner = prime line depth (코너 오버랩 영역)
+        // ★ 멍판 너비 = 연결되는 수직 모듈의 상판 깊이 + 40mm
+        const blindW = primeD + 40;
         const blindMod = {
-          id: 'blind-corner-auto', kind: 'door', width: primeD,
+          id: 'blind-corner-auto', kind: 'door', width: blindW,
           moduleType: 'blind', doorCount: 1, orientation: 'secondary',
         };
-        // ★ 실측 기준: secW(1200) = primeD(650) + 나머지 모듈(550)
-        const availableSecW = Math.max(0, secW - primeD);
+        // ★ 실측 기준: secW = blindW(depth+40) + 나머지 모듈
+        const availableSecW = Math.max(0, secW - blindW);
         const secModCount = availableSecW > 0 ? Math.max(1, Math.round(availableSecW / 600)) : 0;
         const secModW = secModCount > 0 ? Math.round(availableSecW / secModCount) : 0;
         const secMods = Array.from({ length: secModCount }, (_, i) => ({
@@ -437,13 +438,14 @@
           const uSecW = parseFloat(specs.upperSecondaryW) || secW;
           const uPrimeD = parseFloat(specs.upperPrimeD) || 295;
           const uSecD = parseFloat(specs.upperSecondaryD) || uPrimeD;
-          // ★ blind corner = upper prime depth
+          // ★ 멍판 너비 = upper prime depth + 40mm
+          const uBlindW = uPrimeD + 40;
           const uBlindMod = {
-            id: 'blind-corner-upper-auto', kind: 'door', width: uPrimeD,
+            id: 'blind-corner-upper-auto', kind: 'door', width: uBlindW,
             moduleType: 'blind', doorCount: 1, orientation: 'secondary',
           };
-          // ★ 실측 기준: uSecW = uPrimeD + 나머지 모듈
-          const uAvailableSecW = Math.max(0, uSecW - uPrimeD);
+          // ★ 실측 기준: uSecW = uBlindW(depth+40) + 나머지 모듈
+          const uAvailableSecW = Math.max(0, uSecW - uBlindW);
           const uSecModCount = uAvailableSecW > 0 ? Math.max(1, Math.round(uAvailableSecW / 600)) : 0;
           const uSecModW = uSecModCount > 0 ? Math.round(uAvailableSecW / uSecModCount) : 0;
           const uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
