@@ -8,6 +8,7 @@ import { tagHistogram } from './sink-hitl-diff.service.js';
 import {
   listPairs,
   saveRules,
+  getActiveRules,
   type SinkHitlRule,
 } from './sink-hitl-storage.service.js';
 import type { SinkDiffOp, SinkDiffPair } from '../schemas/sink-hitl.schemas.js';
@@ -343,8 +344,6 @@ export async function getFeedbackSummary(): Promise<FeedbackSummary> {
       return { tag, count, description: parsed?.description ?? tag };
     });
 
-  // active rules는 Supabase에서 직접 가져옴
-  const { getActiveRules } = await import('./sink-hitl-storage.service.js');
   const activeRules = await getActiveRules();
 
   return {
