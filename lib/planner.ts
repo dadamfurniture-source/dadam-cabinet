@@ -6,6 +6,9 @@ export type ModuleSection = 'lower' | 'upper' | 'full';
 
 export type ModuleKind = 'door' | 'drawer' | 'open';
 
+export type DoorOpenDirection = 'left' | 'right' | 'both';
+export type DoorType = 'swing' | 'sliding' | 'liftup';
+
 export interface CabinetModule {
   id: string;
   section: ModuleSection;
@@ -14,6 +17,9 @@ export interface CabinetModule {
   height: number;
   depth: number;
   moduleType?: ModuleType;
+  doorCount?: number;
+  openDirection?: DoorOpenDirection;
+  doorType?: DoorType;
 }
 
 export interface CabinetPreset {
@@ -43,6 +49,9 @@ export interface ModuleEntry {
   kind: ModuleKind;
   width: number;
   moduleType?: ModuleType;
+  doorCount?: number;
+  openDirection?: DoorOpenDirection;
+  doorType?: DoorType;
 }
 
 export interface PlannerState {
@@ -94,6 +103,10 @@ export interface CabinetPart {
   wireframe?: boolean;
   essential?: boolean;
   moduleType?: ModuleType;
+  isDoor?: boolean;
+  parentModuleId?: string;
+  doorIndex?: number;
+  openDirection?: 'left' | 'right';
 }
 
 export interface ModuleLayout {
@@ -267,6 +280,14 @@ const distributeWidths = (totalWidth: number, count: number) => {
 
 export const MODULE_DEFAULT_W = 600;
 
+const DOOR_GAP = 3; // mm gap between doors
+
+const autoDoorCount = (width: number, kind: ModuleKind): number => {
+  if (kind === 'drawer' || kind === 'open') return 0;
+  if (width <= 600) return 1;
+  return 2;
+};
+
 let _idCounter = 1;
 export const genModuleId = () => `mod-${_idCounter++}-${Date.now().toString(36)}`;
 
@@ -432,6 +453,9 @@ const buildModulesFromEntries = (
     height,
     depth,
     moduleType: entry.moduleType,
+    doorCount: entry.doorCount,
+    openDirection: entry.openDirection,
+    doorType: entry.doorType,
   }));
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
@@ -490,7 +514,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
 
-    list.forEach((module) => {
+    list.forEach((module, modIdx) => {
       const centeredX = cursor + module.width / 2;
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
@@ -509,7 +533,69 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         moduleType: module.moduleType,
       });
 
-      // face 패널 제거됨 (도어 표면 작대기 불필요)
+      // ── 도어/서랍 전면 패널 파츠 ──
+      const faceZ = z + moduleDepth / 2 + 5; // 전면으로 5mm 돌출
+      const doorPanelDepth = 18; // 도어 패널 두께
+
+      if (module.kind === 'door') {
+        const count = module.doorCount ?? autoDoorCount(module.width, module.kind);
+        if (count > 0) {
+          const totalGap = DOOR_GAP * (count + 1);
+          const doorW = (module.width - totalGap) / count;
+          const doorH = module.height - DOOR_GAP * 2;
+          const openDir = module.openDirection ?? (count >= 2 ? 'both' : 'left');
+
+          for (let di = 0; di < count; di++) {
+            const doorX = cursor + DOOR_GAP + di * (doorW + DOOR_GAP) + doorW / 2;
+            const singleDir: 'left' | 'right' = openDir === 'both'
+              ? (di === 0 ? 'left' : 'right')
+              : openDir === 'right' ? 'right' : 'left';
+
+            parts.push({
+              id: `${module.id}-door-${di}`,
+              label: `door-panel`,
+              x: doorX,
+              y,
+              z: faceZ,
+              width: doorW,
+              height: doorH,
+              depth: doorPanelDepth,
+              colorKey: isUpper ? 'accent' : 'body',
+              isDoor: true,
+              parentModuleId: module.id,
+              doorIndex: di,
+              openDirection: singleDir,
+              moduleType: module.moduleType,
+            });
+          }
+        }
+      } else if (module.kind === 'drawer') {
+        const drawerCount = Math.max(2, Math.round(module.height / 250));
+        const totalVGap = DOOR_GAP * (drawerCount + 1);
+        const drawerH = (module.height - totalVGap) / drawerCount;
+        const drawerW = module.width - DOOR_GAP * 2;
+        const baseY = isUpper ? upperBottomY : lowerBottomY;
+
+        for (let di = 0; di < drawerCount; di++) {
+          const drawerY = baseY + DOOR_GAP + di * (drawerH + DOOR_GAP) + drawerH / 2;
+
+          parts.push({
+            id: `${module.id}-drawer-${di}`,
+            label: `drawer-panel`,
+            x: centeredX,
+            y: drawerY,
+            z: faceZ,
+            width: drawerW,
+            height: drawerH,
+            depth: doorPanelDepth,
+            colorKey: isUpper ? 'accent' : 'body',
+            isDoor: true,
+            parentModuleId: module.id,
+            doorIndex: di,
+            moduleType: module.moduleType,
+          });
+        }
+      }
 
       cursor += module.width;
     });

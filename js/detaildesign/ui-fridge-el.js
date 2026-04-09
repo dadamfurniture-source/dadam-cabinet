@@ -83,7 +83,6 @@
         const offsetY = 50;
 
         let moduleSvg = '';
-        const showDoors = item.specs.showDoors || false; // 도어 표시 여부
 
         // 상몰딩
         moduleSvg += `<rect x="${offsetX}" y="${offsetY}" width="${drawW}" height="${MOLDING_H * scale}" fill="#d4a574" stroke="#a67c52" stroke-width="1"/>
@@ -126,8 +125,6 @@
         });
 
         // 상부장 연속 그리기
-        const doorColor = getDoorColor(item.specs.doorColorUpper || '화이트');
-        const doorGap = 3 * scale; // 3mm 간격
         upperCabinets.forEach((cab) => {
           const cabW = cab.w * scale;
           moduleSvg += `<rect x="${upperX}" y="${contentStartY}" width="${cabW}" height="${upperH_scaled}" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" rx="2"/>
@@ -135,22 +132,6 @@
       <text x="${upperX + cabW / 2}" y="${contentStartY + upperH_scaled / 2 + 10}" text-anchor="middle" font-size="7" fill="#666">${Math.round(cab.w)}mm</text>`;
           upperX += cabW;
         });
-
-        // ★ 상부장 도어 표시
-        if (showDoors) {
-          let upperDoorX = offsetX + fL * scale;
-          upperCabinets.forEach((cab) => {
-            const cabW = cab.w * scale;
-            const doorCount = 1; // 모듈당 1개 도어
-            const doorWidth = cabW / doorCount;
-            for (let d = 0; d < doorCount; d++) {
-              const doorX = upperDoorX + d * doorWidth + doorGap / 2;
-              const doorW = doorWidth - doorGap;
-              moduleSvg += `<rect x="${doorX}" y="${contentStartY + doorGap / 2}" width="${doorW}" height="${upperH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-            }
-            upperDoorX += cabW;
-          });
-        }
 
         // 본체 영역 그리기
         let currentX = offsetX + fL * scale;
@@ -273,54 +254,6 @@
               moduleSvg += `<rect x="${currentX}" y="${bodyStartY + middleH_scaled + lowerH_scaled}" width="${modW}" height="${pedestalH_scaled}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>`;
               moduleSvg += `<text x="${currentX + modW / 2}" y="${offsetY + drawH + 15}" text-anchor="middle" font-size="9" fill="#10b981">${mod.w}${mod.isFixed ? '🔒' : ''}</text>`;
 
-              // ★ 키큰장 도어 표시 (도어구분에 따라 다르게 표시)
-              if (showDoors) {
-                const doorDivision = mod.doorDivision || 'individual';
-                const doorCount = Math.max(1, Math.round(mod.w / 450)); // 가로너비 기준 도어분배
-                const dW = modW / doorCount;
-
-                if (doorDivision === 'all') {
-                  // 전체: 중간장+하부장 통합 도어
-                  const totalDoorH = middleH_scaled + lowerH_scaled;
-                  for (let d = 0; d < doorCount; d++) {
-                    const dX = currentX + d * dW + doorGap / 2;
-                    moduleSvg += `<rect x="${dX}" y="${bodyStartY + doorGap / 2}" width="${dW - doorGap}" height="${totalDoorH - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                  }
-                } else if (doorDivision === 'midLower') {
-                  // 중간장ㆍ하부장: 중간장 도어 + 하부장 도어 분리
-                  for (let d = 0; d < doorCount; d++) {
-                    const dX = currentX + d * dW + doorGap / 2;
-                    moduleSvg += `<rect x="${dX}" y="${bodyStartY + doorGap / 2}" width="${dW - doorGap}" height="${middleH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                    moduleSvg += `<rect x="${dX}" y="${bodyStartY + middleH_scaled + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                  }
-                } else {
-                  // 개별: EL 모듈별 도어 (오픈장 제외) + 하부장 도어
-                  if (mod.elModules && mod.elModules.length > 0) {
-                    let elDoorY = bodyStartY;
-                    mod.elModules.forEach((elMod) => {
-                      const elModH_scaled = (elMod.h / middleH) * middleH_scaled;
-                      const isOpen = elMod.type === 'open';
-                      if (!isOpen) {
-                        for (let d = 0; d < doorCount; d++) {
-                          const dX = currentX + d * dW + doorGap / 2;
-                          moduleSvg += `<rect x="${dX}" y="${elDoorY + doorGap / 2}" width="${dW - doorGap}" height="${elModH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                        }
-                      }
-                      elDoorY += elModH_scaled;
-                    });
-                  } else {
-                    for (let d = 0; d < doorCount; d++) {
-                      const dX = currentX + d * dW + doorGap / 2;
-                      moduleSvg += `<rect x="${dX}" y="${bodyStartY + doorGap / 2}" width="${dW - doorGap}" height="${middleH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                    }
-                  }
-                  // 하부장 도어
-                  for (let d = 0; d < doorCount; d++) {
-                    const dX = currentX + d * dW + doorGap / 2;
-                    moduleSvg += `<rect x="${dX}" y="${bodyStartY + middleH_scaled + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                  }
-                }
-              }
             } else if (mod.type === 'homecafe') {
               // 홈카페장: 중간장 + 하부장 + 좌대 (키큰장과 동일 구조)
               // EL 모듈들이 있으면 개별 렌더링, 없으면 기본 표시
@@ -392,15 +325,6 @@
               moduleSvg += `<rect x="${currentX}" y="${bodyStartY + middleH_scaled + lowerH_scaled}" width="${modW}" height="${pedestalH_scaled}" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>`;
               moduleSvg += `<text x="${currentX + modW / 2}" y="${offsetY + drawH + 15}" text-anchor="middle" font-size="9" fill="#8b5cf6">${mod.w}${mod.isFixed ? '🔒' : ''}</text>`;
 
-              // ★ 홈카페장 하부장 도어만 표시 (중간장은 도어 없음)
-              if (showDoors) {
-                const doorCount = Math.max(1, Math.round(mod.w / 450)); // 가로너비 기준 도어분배
-                const dW = modW / doorCount;
-                for (let d = 0; d < doorCount; d++) {
-                  const dX = currentX + d * dW + doorGap / 2;
-                  moduleSvg += `<rect x="${dX}" y="${bodyStartY + middleH_scaled + doorGap / 2}" width="${dW - doorGap}" height="${lowerH_scaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-                }
-              }
             }
             currentX += modW;
           }
@@ -558,7 +482,6 @@
             <div style="display:flex;gap:4px;">
               <button onclick="switchFridgeView(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.fridgeViewMode !== 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
               <button onclick="switchFridgeView(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.fridgeViewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
-              <button onclick="toggleFridgeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
             </div>
           </div>
           ${item.specs.fridgeViewMode === 'top' ? renderFridgeTopView(item) : `<div style="text-align:center;">
@@ -710,14 +633,6 @@
         const tempOrder = modules[idx].order;
         modules[idx].order = modules[swapIdx].order;
         modules[swapIdx].order = tempOrder;
-        renderWorkspaceContent(item);
-      }
-
-      function toggleFridgeDoors(itemUniqueId) {
-        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
-        if (!item) return;
-        if (!item.specs) item.specs = {};
-        item.specs.showDoors = !item.specs.showDoors;
         renderWorkspaceContent(item);
       }
 
