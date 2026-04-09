@@ -58,9 +58,10 @@ const TYPE_COLORS: Record<string, { body: string; face: string; outline: string;
 
 // ═══ 공통: 모듈 윤곽선 ═══
 function ModuleEdges({ w, h, d, color = '#333333' }: { w: number; h: number; d: number; color?: string }) {
+  const boxGeo = useMemo(() => new THREE.BoxGeometry(w, h, d), [w, h, d]);
   return (
     <lineSegments>
-      <edgesGeometry args={[new THREE.BoxGeometry(w, h, d)]} />
+      <edgesGeometry args={[boxGeo]} />
       <lineBasicMaterial color={color} />
     </lineSegments>
   );
@@ -210,7 +211,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
       return (
         <mesh castShadow={!isWire} receiveShadow={!isWire}>
           <boxGeometry args={[w, h, d]} />
-          <meshStandardMaterial color={baseColor} wireframe={isWire} transparent={isWire} opacity={isWire ? 0.3 : 1} roughness={0.7} />
+          <meshStandardMaterial color={baseColor} wireframe={isWire} transparent={isWire} opacity={isWire ? 0.3 : 1} roughness={0.7} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
       );
     }
@@ -275,9 +276,9 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
 
   return (
     <group position={[posX, part.y, posZ]} rotation={cls.isSecondary ? [0, part.rotationY!, 0] : undefined}>
-      {/* 히트박스 (투명) — 모든 모듈 공통 */}
+      {/* 히트박스 (투명) — 모듈 본체와 동일 위치/크기 */}
       <mesh
-        position={cls.isSecondary ? [0, 0, 0] : [0, 0, part.depth / 2]}
+        position={[0, 0, 0]}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerMove={handlePointerMove}
@@ -285,7 +286,7 @@ function ModuleBox({ part, color, onSelect, halfW, controlsRef, onDragDone, onDr
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
       >
-        <boxGeometry args={[part.width, part.height, cls.isSecondary ? part.depth : 1]} />
+        <boxGeometry args={[part.width, part.height, part.depth]} />
         <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
       </mesh>
 
@@ -562,18 +563,7 @@ export default function App() {
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
-  const derived = useMemo(() => {
-    const d = deriveCabinet(planner);
-    const secParts = d.parts.filter(p => p.rotationY);
-    const secMods = [...(planner.lowerModules ?? []), ...(planner.upperModules ?? [])].filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
-    if (secMods.length > 0) {
-      console.log('[CornerDebug:planner-vite] secondary/tertiary 모듈 입력:', secMods.map(m => `${m.id}:${m.width}:${m.orientation}`));
-      console.log('[CornerDebug:planner-vite] rotationY 파트:', secParts.map(p => `${p.id}:x=${Math.round(p.x)},z=${Math.round(p.z)},rotY=${p.rotationY?.toFixed(2)}`));
-      console.log('[CornerDebug:planner-vite] secondaryStartSide:', planner.secondaryStartSide);
-      console.log('[CornerDebug:planner-vite] 전체 파트 수:', d.parts.length, '모듈 수:', d.modules.length);
-    }
-    return d;
-  }, [planner]);
+  const derived = useMemo(() => deriveCabinet(planner), [planner]);
   const palette = MATERIALS[planner.material];
   const preset = getPresetById(planner.presetId);
 
