@@ -12,6 +12,8 @@ import {
   genModuleId,
   type CabinetCategory,
   type CabinetModule,
+  type DoorOpenDirection,
+  type DoorType,
   type MaterialTone,
   type ModuleEntry,
   type ModuleKind,
@@ -60,7 +62,7 @@ const MODULE_TYPE_COLORS: Record<string, { body: string; face: string; outline: 
 
 /* ── 드래그+클릭 가능한 모듈 mesh ── */
 function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef, onDragModule, onDragMove, shiftDir }: {
-  part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string };
+  part: { id: string; x: number; y: number; z: number; width: number; height: number; depth: number; essential?: boolean; moduleType?: string; isDoor?: boolean; parentModuleId?: string; openDirection?: 'left' | 'right' };
   color: string; wireframe?: boolean;
   onSelect: (id: string) => void;
   halfW?: number;
@@ -77,11 +79,13 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
 
   const isMod = part.id.startsWith('mod-');
   const isFace = part.id.endsWith('-face');
+  const isDoorPanel = !!(part as any).isDoor;
   const isUtility = part.id.startsWith('utility-');
-  const isClickable = isMod || isUtility;
-  const isDraggable = isMod && !isFace && !!onDragModule && halfW != null;
+  const isClickable = isMod || isUtility || isDoorPanel;
+  const isDraggable = isMod && !isFace && !isDoorPanel && !!onDragModule && halfW != null;
   const isEssential = !!(part as any).essential;
-  const moduleId = isMod ? part.id.replace(/-face$/, '') : part.id;
+  const parentModuleId = (part as any).parentModuleId as string | undefined;
+  const moduleId = isDoorPanel && parentModuleId ? parentModuleId : (isMod ? part.id.replace(/-face$/, '') : part.id);
 
   // 타입별 색상 결정
   const mType = (part as any).moduleType as string | undefined;
@@ -91,7 +95,13 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
   let emissiveInt = 0;
   let outlineColor = '#b8956c';
 
-  if (typeColor && !isUtility) {
+  if (isDoorPanel) {
+    // 도어 패널: 약간 밝은 톤 + 미세한 emissive
+    baseColor = typeColor ? typeColor.face : color;
+    emissiveColor = typeColor ? typeColor.emissive : '#2a2010';
+    emissiveInt = 0.05;
+    outlineColor = typeColor ? typeColor.outline : '#a08060';
+  } else if (typeColor && !isUtility) {
     baseColor = isFace ? typeColor.face : typeColor.body;
     emissiveColor = typeColor.emissive;
     emissiveInt = 0.1;
@@ -160,8 +170,8 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
         <meshStandardMaterial
           color={isUtility ? (hovered ? '#64b5f6' : (part.id.includes('distributor') ? '#2196f3' : '#78909c'))
             : (draggingRef.current ? '#e8d5b8' : (hovered && isClickable ? '#c9a87c' : baseColor))}
-          metalness={wireframe ? 0.1 : 0.2}
-          roughness={wireframe ? 0.5 : 0.75}
+          metalness={isDoorPanel ? 0.12 : (wireframe ? 0.1 : 0.2)}
+          roughness={isDoorPanel ? 0.65 : (wireframe ? 0.5 : 0.75)}
           wireframe={wireframe}
           opacity={isUtility ? 0.7 : (draggingRef.current ? 0.85 : 1)}
           transparent={isUtility || draggingRef.current}
@@ -171,6 +181,13 @@ function ClickableModule({ part, color, wireframe, onSelect, halfW, controlsRef,
       </mesh>
       {/* 필수장 윤곽선 */}
       {isEssential && !wireframe && (
+        <lineSegments>
+          <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
+          <lineBasicMaterial color={outlineColor} linewidth={1} />
+        </lineSegments>
+      )}
+      {/* 도어 패널 엣지 라인 */}
+      {isDoorPanel && (
         <lineSegments>
           <edgesGeometry args={[new THREE.BoxGeometry(part.width, part.height, part.depth)]} />
           <lineBasicMaterial color={outlineColor} linewidth={1} />
@@ -498,6 +515,69 @@ function ModulePopup({
             style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', cursor: 'pointer', fontSize: 16, fontFamily: FONT }}>+</button>
         </div>
       </div>
+
+      {/* 도어 설정 (kind='door' 일 때만) */}
+      {module.kind === 'door' && (
+        <div style={{ marginBottom: 16, paddingTop: 12, borderTop: '1px solid #eee' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8, fontWeight: 600 }}>도어 설정</div>
+
+          {/* 도어 수 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>도어 수</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[1, 2].map((n) => {
+                const currentCount = module.doorCount ?? (module.width <= 600 ? 1 : 2);
+                return (
+                  <button key={n} onClick={() => onUpdate(module.id, { doorCount: n })}
+                    style={{ flex: 1, padding: '6px 0', border: currentCount === n ? `2px solid ${sectionColor}` : '1px solid #ddd', borderRadius: 6, background: currentCount === n ? `${sectionColor}11` : '#fafafa', cursor: 'pointer', fontSize: 12, fontFamily: FONT, color: '#333' }}>
+                    {n}도어
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 열림 방향 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>열림 방향</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(() => {
+                const currentCount = module.doorCount ?? (module.width <= 600 ? 1 : 2);
+                const directions: { value: DoorOpenDirection; label: string }[] = currentCount >= 2
+                  ? [{ value: 'both', label: '↔ 양쪽' }]
+                  : [{ value: 'left', label: '← 좌' }, { value: 'right', label: '→ 우' }];
+                const currentDir = module.openDirection ?? (currentCount >= 2 ? 'both' : 'left');
+                return directions.map((d) => (
+                  <button key={d.value} onClick={() => onUpdate(module.id, { openDirection: d.value })}
+                    style={{ flex: 1, padding: '6px 0', border: currentDir === d.value ? `2px solid ${sectionColor}` : '1px solid #ddd', borderRadius: 6, background: currentDir === d.value ? `${sectionColor}11` : '#fafafa', cursor: 'pointer', fontSize: 11, fontFamily: FONT, color: '#333' }}>
+                    {d.label}
+                  </button>
+                ));
+              })()}
+            </div>
+          </div>
+
+          {/* 도어 타입 */}
+          <div>
+            <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>도어 타입</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([
+                { value: 'swing' as DoorType, label: '여닫이' },
+                { value: 'sliding' as DoorType, label: '슬라이딩' },
+                ...(section === 'upper' ? [{ value: 'liftup' as DoorType, label: '리프트업' }] : []),
+              ]).map((dt) => {
+                const currentType = module.doorType ?? 'swing';
+                return (
+                  <button key={dt.value} onClick={() => onUpdate(module.id, { doorType: dt.value })}
+                    style={{ flex: 1, padding: '6px 0', border: currentType === dt.value ? `2px solid ${sectionColor}` : '1px solid #ddd', borderRadius: 6, background: currentType === dt.value ? `${sectionColor}11` : '#fafafa', cursor: 'pointer', fontSize: 11, fontFamily: FONT, color: '#333' }}>
+                    {dt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 삭제 */}
       <button onClick={() => { onDelete(module.id); onClose(); }}
