@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// Sink HITL Tools - 랜덤 생성, 수정안 저장, 통계 조회
-// Phase 1 MCP 도구
+// Sink HITL Tools - 랜덤/AI 생성, 수정안 저장, 규칙 마이닝, 통계
 // ═══════════════════════════════════════════════════════════════
 
 import { registerTool } from './registry.js';
@@ -11,6 +10,7 @@ import {
   SaveCorrectionRequestSchema,
 } from '../schemas/sink-hitl.schemas.js';
 import { generateRandomSinkDesign } from '../services/sink-hitl-random.service.js';
+import { generateAIDesign } from '../services/sink-hitl-ai-design.service.js';
 import { computeSinkDiff } from '../services/sink-hitl-diff.service.js';
 import {
   saveCase,
@@ -18,9 +18,11 @@ import {
   getStats,
   newPairId,
   listPairs,
+  getAllRules,
 } from '../services/sink-hitl-storage.service.js';
+import { mineRules, getFeedbackSummary } from '../services/sink-hitl-rule-mining.service.js';
 
-// ─── sink_hitl_generate ───
+// ─── sink_hitl_generate (랜덤) ───
 registerTool(
   {
     name: 'sink_hitl_generate',
@@ -50,6 +52,39 @@ registerTool(
   }
 );
 
+// ─── sink_hitl_generate_ai (AI 설계) ───
+registerTool(
+  {
+    name: 'sink_hitl_generate_ai',
+    description: 'Claude AI가 학습된 규칙 + few-shot 예시를 기반으로 싱크대를 직접 설계합니다. 랜덤 생성보다 정확한 설계안을 만들어냅니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        env: {
+          type: 'object',
+          description: '벽/환경 치수 (SinkEnv 전체)',
+        },
+      },
+      required: ['env'],
+    },
+  },
+  async (args) => {
+    const parsed = SinkEnvSchema.safeParse((args as { env: unknown }).env);
+    if (!parsed.success) return mcpError(`Invalid env: ${parsed.error.message}`);
+    try {
+      const design = await generateAIDesign(parsed.data);
+      await saveCase(design);
+      return mcpSuccess({
+        success: true,
+        design,
+        generated_by: design.meta.generated_by,
+      });
+    } catch (e) {
+      return mcpError(`sink_hitl_generate_ai failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+);
+
 // ─── sink_hitl_save_correction ───
 registerTool(
   {
@@ -58,7 +93,7 @@ registerTool(
     inputSchema: {
       type: 'object',
       properties: {
-        generated: { type: 'object', description: '원본 랜덤 설계안 (SinkDesign)' },
+        generated: { type: 'object', description: '원본 설계안 (SinkDesign)' },
         corrected: { type: 'object', description: '사용자 수정 설계안 (SinkDesign)' },
         rating: { type: 'number', description: '1-5 평점 (5: 수정 거의 없음)' },
         comment: { type: 'string', description: '주석 (선택)' },
@@ -81,11 +116,28 @@ registerTool(
         rating,
         comment,
       };
-      const filepath = await savePair(pair);
       await saveCase({ ...corrected, meta: { ...corrected.meta, generated_by: 'human-correction', parent_id: generated.id } });
-      return mcpSuccess({ success: true, pair_id: pair.pair_id, diff_count: diffs.length, filepath });
+      await savePair(pair);
+      return mcpSuccess({ success: true, pair_id: pair.pair_id, diff_count: diffs.length });
     } catch (e) {
       return mcpError(`sink_hitl_save_correction failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+);
+
+// ─── sink_hitl_mine_rules ───
+registerTool(
+  {
+    name: 'sink_hitl_mine_rules',
+    description: '수집된 HITL pair 데이터에서 반복 수정 패턴을 자동 추출하여 학습 규칙으로 저장합니다.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  async () => {
+    try {
+      const result = await mineRules();
+      return mcpSuccess(result);
+    } catch (e) {
+      return mcpError(`sink_hitl_mine_rules failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 );
@@ -94,7 +146,7 @@ registerTool(
 registerTool(
   {
     name: 'sink_hitl_stats',
-    description: 'Sink HITL 수집 통계를 반환합니다 (총 pair 수, 평균 rating, 주간 증가 등).',
+    description: 'Sink HITL 수집 통계를 반환합니다 (총 pair 수, 평균 rating, 규칙 수, 주간 증가 등).',
     inputSchema: { type: 'object', properties: {} },
   },
   async () => {
@@ -120,7 +172,7 @@ registerTool(
   async (args) => {
     try {
       const limit = (args as { limit?: number })?.limit ?? 50;
-      const pairs = await listPairs();
+      const pairs = await listPairs(limit);
       const sorted = pairs
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, limit)
@@ -130,10 +182,49 @@ registerTool(
           rating: p.rating,
           diff_count: p.diffs.length,
           env_width: p.generated.env.width,
+          generated_by: p.generated.meta.generated_by,
         }));
       return mcpSuccess({ total: pairs.length, items: sorted });
     } catch (e) {
       return mcpError(`sink_hitl_list_pairs failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+);
+
+// ─── sink_hitl_rules ───
+registerTool(
+  {
+    name: 'sink_hitl_rules',
+    description: '학습된 HITL 규칙 목록을 반환합니다. is_active=true인 규칙이 AI 설계에 반영됩니다.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  async () => {
+    try {
+      const rules = await getAllRules();
+      return mcpSuccess({
+        total: rules.length,
+        active: rules.filter(r => r.is_active).length,
+        rules,
+      });
+    } catch (e) {
+      return mcpError(`sink_hitl_rules failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+);
+
+// ─── sink_hitl_feedback_summary ───
+registerTool(
+  {
+    name: 'sink_hitl_feedback_summary',
+    description: 'AI 학습 피드백 현황 요약 (총 pair 수, 활성 규칙 수, AI 정확도, 빈번한 수정 태그).',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  async () => {
+    try {
+      const summary = await getFeedbackSummary();
+      return mcpSuccess(summary);
+    } catch (e) {
+      return mcpError(`sink_hitl_feedback_summary failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 );
