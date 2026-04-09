@@ -333,7 +333,7 @@ function rowToDesign(row: Record<string, unknown>): SinkDesign {
   return {
     id: row.id as string,
     timestamp: (row.created_at as string) ?? new Date().toISOString(),
-    version: (row.version as string) ?? 'v1',
+    version: 'v1' as const,
     env: row.env as SinkDesign['env'],
     lower: row.lower as SinkDesign['lower'],
     upper: row.upper as SinkDesign['upper'],
