@@ -399,10 +399,14 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
   if (preset.id === 'sink' || preset.id === 'vanity') {
     // ── 유틸리티 좌표 계산 ──
     const SINK_DEF_W = state.width > 2500 ? SINK_W_LARGE : SINK_W_SMALL;
-    const distStart = state.distributorStart ?? 1000;
-    const distEnd = state.distributorEnd ?? 1700;
-    // 환풍구 기본값: 실측 반대편 끝 (effectiveW - 100)
-    const ventPos = state.ventStart ?? Math.max(0, effectiveW - 100);
+    const distStart = state.distributorStart ?? 1500;
+    const distEnd = state.distributorEnd ?? 2200;
+    // 환풍구 기본값: 분배기 기준 먼 쪽 제한공간 끝
+    // 분배기가 왼쪽에 있으면 → 오른쪽 끝, 분배기가 오른쪽에 있으면 → 왼쪽 끝
+    const distCenter = (distStart + distEnd) / 2;
+    const ventPos = state.ventStart ?? (distCenter < effectiveW / 2
+      ? effectiveW  // 분배기가 왼쪽 → 환풍구는 오른쪽 끝
+      : 0);         // 분배기가 오른쪽 → 환풍구는 왼쪽 끝
 
     // 절대 좌표 (좌측 기준)
     const dStartAbs = distStart > 0 ? Math.max(startBound, Math.min(endBound, startBound + distStart)) : 0;
