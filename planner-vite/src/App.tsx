@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera, Html, ContactShadows, Edges } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -534,6 +534,169 @@ function UtilityPopup({ type, planner, onUpdate, onDelete, onClose }: {
   );
 }
 
+// ═══ 패널: 레이아웃 방향 설정 ═══
+const LAYOUT_SHAPES: { value: 'I' | 'L' | 'U'; label: string; icon: string }[] = [
+  { value: 'I', label: 'ㅡ자', icon: '━' },
+  { value: 'L', label: 'ㄱ자', icon: '┗' },
+  { value: 'U', label: 'ㄷ자', icon: '┗┛' },
+];
+
+function LayoutSetupPanel({ planner, onUpdate, onClose }: {
+  planner: PlannerState;
+  onUpdate: (changes: Partial<PlannerState>) => void;
+  onClose: () => void;
+}) {
+  const shape = planner.layoutShape ?? 'I';
+  const isL = shape === 'L' || shape === 'U';
+  const isU = shape === 'U';
+  const side = planner.secondaryStartSide ?? 'left';
+
+  const handleShapeChange = (newShape: 'I' | 'L' | 'U') => {
+    const changes: Partial<PlannerState> = { layoutShape: newShape };
+    if (newShape !== 'I' && !planner.secondaryW) {
+      changes.secondaryW = 1800;
+      changes.secondaryD = planner.depth;
+      changes.secondaryStartSide = planner.secondaryStartSide ?? 'left';
+    }
+    if (newShape === 'U' && !planner.tertiaryW) {
+      changes.tertiaryW = 1800;
+      changes.tertiaryD = planner.depth;
+      changes.tertiaryStartFrom = planner.tertiaryStartFrom ?? 'prime';
+    }
+    if (newShape === 'I') {
+      changes.secondaryW = 0;
+      changes.secondaryD = 0;
+      changes.tertiaryW = 0;
+      changes.tertiaryD = 0;
+    } else if (newShape === 'L') {
+      changes.tertiaryW = 0;
+      changes.tertiaryD = 0;
+    }
+    onUpdate(changes);
+  };
+
+  const sc = '#b8956c';
+  const inputStyle: React.CSSProperties = { width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' };
+  const labelStyle: React.CSSProperties = { fontSize: 10, color: '#aaa', marginBottom: 4 };
+  const sectionStyle: React.CSSProperties = { marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' };
+
+  return (
+    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'calc(100% - 32px)', maxWidth: 380, background: '#fff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
+      {/* 헤더 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: '#2d2a26' }}>레이아웃 방향 설정</span>
+        <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: 4 }}>✕</button>
+      </div>
+
+      {/* 레이아웃 형태 */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>레이아웃 형태</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {LAYOUT_SHAPES.map(s => (
+            <button key={s.value} onClick={() => handleShapeChange(s.value)}
+              style={{ flex: 1, padding: '10px 0', border: shape === s.value ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: shape === s.value ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 13, fontWeight: shape === s.value ? 700 : 400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 18 }}>{s.icon}</span>
+              <span>{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Secondary 설정 (L/U) */}
+      {isL && (
+        <div style={sectionStyle}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>차선 (Secondary Line)</div>
+
+          {/* 방향 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={labelStyle}>시작 방향</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['left', 'right'] as const).map(d => (
+                <button key={d} onClick={() => onUpdate({ secondaryStartSide: d })}
+                  style={{ flex: 1, padding: '7px 0', border: side === d ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: side === d ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: side === d ? 700 : 400 }}>
+                  {d === 'left' ? '← 좌측' : '우측 →'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Secondary W / D */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={labelStyle}>너비 W (mm)</div>
+              <input type="number" value={planner.secondaryW ?? 0} step={50} min={0} max={5000}
+                onChange={e => onUpdate({ secondaryW: Math.max(0, Number(e.target.value)) })}
+                style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={labelStyle}>깊이 D (mm)</div>
+              <input type="number" value={planner.secondaryD ?? planner.depth} step={10} min={200} max={900}
+                onChange={e => onUpdate({ secondaryD: Math.max(200, Number(e.target.value)) })}
+                style={inputStyle} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tertiary 설정 (U만) */}
+      {isU && (
+        <div style={sectionStyle}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>3차선 (Tertiary Line)</div>
+
+          {/* Tertiary Start From */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={labelStyle}>시작점</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([{ v: 'prime' as const, l: '주선 반대편' }, { v: 'secondary' as const, l: '차선 끝' }]).map(opt => (
+                <button key={opt.v} onClick={() => onUpdate({ tertiaryStartFrom: opt.v })}
+                  style={{ flex: 1, padding: '7px 0', border: (planner.tertiaryStartFrom ?? 'prime') === opt.v ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: (planner.tertiaryStartFrom ?? 'prime') === opt.v ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: (planner.tertiaryStartFrom ?? 'prime') === opt.v ? 700 : 400 }}>
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tertiary W / D */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={labelStyle}>너비 W (mm)</div>
+              <input type="number" value={planner.tertiaryW ?? 0} step={50} min={0} max={5000}
+                onChange={e => onUpdate({ tertiaryW: Math.max(0, Number(e.target.value)) })}
+                style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={labelStyle}>깊이 D (mm)</div>
+              <input type="number" value={planner.tertiaryD ?? planner.depth} step={10} min={200} max={900}
+                onChange={e => onUpdate({ tertiaryD: Math.max(200, Number(e.target.value)) })}
+                style={inputStyle} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 휠라 설정 (L/U) */}
+      {isL && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <div style={labelStyle}>자유단 휠라 폭 (mm)</div>
+              <input type="number" value={planner.secondaryFillerW ?? 60} step={10} min={0} max={200}
+                onChange={e => onUpdate({ secondaryFillerW: Math.max(0, Math.min(200, Number(e.target.value))) })}
+                style={inputStyle} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 닫기 */}
+      <button onClick={onClose}
+        style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${sc}`, background: `linear-gradient(135deg,${sc},#d4b896)`, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+        설정 완료
+      </button>
+    </div>
+  );
+}
+
 // ═══ 메인 앱 ═══
 export default function App() {
   // URL 파라미터 파싱
@@ -549,6 +712,14 @@ export default function App() {
     if (params.get('finishLeftW')) s.finishLeftW = Number(params.get('finishLeftW'));
     if (params.get('finishRightW')) s.finishRightW = Number(params.get('finishRightW'));
     if (params.get('secondaryFillerW')) s.secondaryFillerW = Number(params.get('secondaryFillerW'));
+    // 레이아웃 방향 설정
+    if (params.get('layoutShape')) s.layoutShape = params.get('layoutShape') as 'I' | 'L' | 'U';
+    if (params.get('secondaryW')) s.secondaryW = Number(params.get('secondaryW'));
+    if (params.get('secondaryD')) s.secondaryD = Number(params.get('secondaryD'));
+    if (params.get('tertiaryW')) s.tertiaryW = Number(params.get('tertiaryW'));
+    if (params.get('tertiaryD')) s.tertiaryD = Number(params.get('tertiaryD'));
+    if (params.get('secondaryStartSide')) s.secondaryStartSide = params.get('secondaryStartSide') as 'left' | 'right';
+    if (params.get('tertiaryStartFrom')) s.tertiaryStartFrom = params.get('tertiaryStartFrom') as 'prime' | 'secondary';
     // 유틸리티 (분배기/환풍구)
     if (params.get('distStart')) s.distributorStart = Number(params.get('distStart'));
     if (params.get('distEnd')) s.distributorEnd = Number(params.get('distEnd'));
@@ -560,6 +731,7 @@ export default function App() {
   const [selId, setSelId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
+  const [showLayoutPanel, setShowLayoutPanel] = useState(false);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const derived = useMemo(() => {
@@ -606,6 +778,30 @@ export default function App() {
   const deleteMod = useCallback((id: string) => {
     setPlanner(p => { const nl = (p.lowerModules ?? []).filter(m => m.id !== id); const nu = (p.upperModules ?? []).filter(m => m.id !== id); return { ...p, lowerModules: nl, upperModules: nu, lowerCount: nl.length, upperCount: nu.length }; });
     setSelId(null);
+  }, []);
+
+  // 레이아웃 방향 설정 업데이트
+  const handleLayoutUpdate = useCallback((changes: Partial<PlannerState>) => {
+    setPlanner(p => {
+      const next = { ...p, ...changes };
+      // I로 전환 시 secondary/tertiary 모듈 제거
+      if (changes.layoutShape === 'I') {
+        const filterNormal = (list: ModuleEntry[]) => list.filter(m => !m.orientation || m.orientation === 'normal');
+        next.lowerModules = filterNormal(next.lowerModules ?? []);
+        next.upperModules = filterNormal(next.upperModules ?? []);
+        next.lowerCount = next.lowerModules.length;
+        next.upperCount = next.upperModules.length;
+      }
+      // L로 전환 시 tertiary 모듈 제거
+      if (changes.layoutShape === 'L') {
+        const filterNoTertiary = (list: ModuleEntry[]) => list.filter(m => m.orientation !== 'tertiary');
+        next.lowerModules = filterNoTertiary(next.lowerModules ?? []);
+        next.upperModules = filterNoTertiary(next.upperModules ?? []);
+        next.lowerCount = next.lowerModules.length;
+        next.upperCount = next.upperModules.length;
+      }
+      return next;
+    });
   }, []);
 
   // 멍장을 통한 차선모듈(Secondary Line Module) 추가 핸들러
@@ -816,6 +1012,42 @@ export default function App() {
               </>
             )}
 
+            {/* 방향 인디케이터 (바닥면) */}
+            {!selId && (() => {
+              const shape = planner.layoutShape ?? 'I';
+              const side = planner.secondaryStartSide ?? 'left';
+              const halfW = planner.width / 2;
+              const baseY = 5;
+              const baseZ = depth / 2 + 120;
+              const arrowStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#b8956c', background: 'rgba(255,255,255,0.85)', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap', border: '1px solid #b8956c44' };
+              return (
+                <>
+                  {/* Primary line arrow */}
+                  <Html position={[0, baseY, baseZ]} center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
+                    <div style={arrowStyle}>
+                      {side === 'left' ? '→' : '←'} 주선 ({planner.width}mm)
+                    </div>
+                  </Html>
+                  {/* Secondary line arrow (L/U) */}
+                  {(shape === 'L' || shape === 'U') && (planner.secondaryW ?? 0) > 0 && (
+                    <Html position={[side === 'left' ? -halfW - 40 : halfW + 40, baseY, baseZ + (planner.secondaryW ?? 0) / 2]} center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
+                      <div style={{ ...arrowStyle, transform: 'rotate(-90deg)', transformOrigin: 'center' }}>
+                        ↑ 차선 ({planner.secondaryW}mm)
+                      </div>
+                    </Html>
+                  )}
+                  {/* Tertiary line arrow (U only) */}
+                  {shape === 'U' && (planner.tertiaryW ?? 0) > 0 && (
+                    <Html position={[side === 'left' ? halfW + 40 : -halfW - 40, baseY, baseZ + (planner.secondaryW ?? 0)]} center style={{ pointerEvents: 'none' }} zIndexRange={[1, 0]}>
+                      <div style={arrowStyle}>
+                        {side === 'left' ? '←' : '→'} 3차선 ({planner.tertiaryW}mm)
+                      </div>
+                    </Html>
+                  )}
+                </>
+              );
+            })()}
+
             {/* 추가 버튼 (팝업 열려있으면 숨김) */}
             {!selId && !preset.fullHeight && (planner.lowerModules ?? []).length < 10 && (
               hasLower && lowerLayout ? (
@@ -864,6 +1096,23 @@ export default function App() {
       {selMod && <ModulePopup mod={selMod} section={selSection} secondaryFillerW={planner.secondaryFillerW ?? 60} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} onBlindPanel={applyBlindPanel} onUpdateFiller={(w) => setPlanner(p => ({ ...p, secondaryFillerW: w }))} />}
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
+
+      {/* 레이아웃 설정 패널 */}
+      {showLayoutPanel && (
+        <>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setShowLayoutPanel(false)} />
+          <LayoutSetupPanel planner={planner} onUpdate={handleLayoutUpdate} onClose={() => setShowLayoutPanel(false)} />
+        </>
+      )}
+
+      {/* 레이아웃 설정 토글 버튼 (하단 중앙) */}
+      {!selId && !showLayoutPanel && (
+        <button onClick={() => setShowLayoutPanel(true)}
+          style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 20, border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#2d2a26' }}>
+          <span style={{ fontSize: 14 }}>{planner.layoutShape === 'U' ? '┗┛' : planner.layoutShape === 'L' ? '┗' : '━'}</span>
+          <span>{planner.layoutShape === 'U' ? 'ㄷ자' : planner.layoutShape === 'L' ? 'ㄱ자' : 'ㅡ자'} 레이아웃</span>
+        </button>
+      )}
 
       {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
     </div>
