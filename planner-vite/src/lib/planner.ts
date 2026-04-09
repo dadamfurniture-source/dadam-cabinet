@@ -399,9 +399,10 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
   if (preset.id === 'sink' || preset.id === 'vanity') {
     // ── 유틸리티 좌표 계산 ──
     const SINK_DEF_W = state.width > 2500 ? SINK_W_LARGE : SINK_W_SMALL;
-    const distStart = state.distributorStart ?? Math.round(SINK_DEF_W * 0.15);
-    const distEnd = state.distributorEnd ?? Math.round(SINK_DEF_W * 0.15 + 700);
-    const ventPos = state.ventStart ?? Math.round(SINK_DEF_W * 0.7);
+    const distStart = state.distributorStart ?? 1000;
+    const distEnd = state.distributorEnd ?? 1700;
+    // 환풍구 기본값: 실측 반대편 끝 (effectiveW - 100)
+    const ventPos = state.ventStart ?? Math.max(0, effectiveW - 100);
 
     // 절대 좌표 (좌측 기준)
     const dStartAbs = distStart > 0 ? Math.max(startBound, Math.min(endBound, startBound + distStart)) : 0;
