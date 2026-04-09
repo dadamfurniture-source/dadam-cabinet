@@ -132,9 +132,6 @@
         // 모듈 그리기 (상부장/하부장 구분) + 옷봉/선반/서랍
         let moduleStartX = offsetX + fL * scale;
         const pedestalH = parseFloat(item.specs.wardrobePedestal) || 60;
-        const showDoors = item.specs.showDoors || false; // 도어 표시 여부
-        const doorColor = getDoorColor(item.specs.doorColorUpper || '화이트');
-        const doorGap = 3 * scale; // 3mm 간격
         const moldingH = parseFloat(item.specs.wardrobeMoldingH) || 15;
         const totalModuleH = H - pedestalH - moldingH;
         const pedestalHScaled = pedestalH * scale;
@@ -303,48 +300,6 @@
             moduleSvg += `<text x="${moduleStartX + mW / 2}" y="${mY + mHScaled / 2 + 5}" text-anchor="middle" font-size="9" fill="#666">${mod.w}×${mH}</text>
         <text x="${moduleStartX + mW / 2}" y="${offsetY + drawH + 15}" text-anchor="middle" font-size="10" fill="#4a7dff">${mod.w}</text>`;
 
-            // 도어 표시 (긴옷)
-            if (showDoors) {
-              const doorCount = Math.max(1, Math.round(mod.w / 450));
-              const dW = mW / doorCount;
-              for (let d = 0; d < doorCount; d++) {
-                const dX = moduleStartX + d * dW + doorGap / 2;
-                moduleSvg += `<rect x="${dX}" y="${mY + doorGap / 2}" width="${dW - doorGap}" height="${mHScaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-              }
-            }
-          }
-
-          // 도어 표시 (상부장/하부장 통합 도어)
-          if (showDoors && isDivided) {
-            const upperH = parseFloat(mod.upperH) || Math.round(totalModuleH / 2);
-            const lowerH = parseFloat(mod.lowerH) || Math.round(totalModuleH / 2);
-            const upperHScaled = upperH * scale;
-            const lowerHScaled = lowerH * scale;
-            const lowerY = offsetY + drawH - pedestalHScaled - lowerHScaled;
-            const upperY = lowerY - upperHScaled;
-
-            // 외부 서랍이 있으면 서랍 높이만큼 제외
-            const DRAWER_H = 300;
-            const externalDrawerH = isExternalDrawer ? drawerCount * DRAWER_H : 0;
-            const doorAreaH = upperH + lowerH - externalDrawerH;
-            const doorAreaHScaled = doorAreaH * scale;
-
-            // 통합 도어 (상부장 + 하부장, 외부서랍 제외)
-            const doorCount = Math.max(1, Math.round(mod.w / 450));
-            const dW = mW / doorCount;
-            for (let d = 0; d < doorCount; d++) {
-              const dX = moduleStartX + d * dW + doorGap / 2;
-              moduleSvg += `<rect x="${dX}" y="${upperY + doorGap / 2}" width="${dW - doorGap}" height="${doorAreaHScaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-            }
-
-            // 외부 서랍 개별 도어
-            if (isExternalDrawer && drawerCount > 0) {
-              const drawerHScaled = DRAWER_H * scale;
-              for (let i = 0; i < drawerCount; i++) {
-                const drawerY = offsetY + drawH - pedestalHScaled - (i + 1) * drawerHScaled;
-                moduleSvg += `<rect x="${moduleStartX + doorGap / 2}" y="${drawerY + doorGap / 2}" width="${mW - doorGap}" height="${drawerHScaled - doorGap}" fill="${doorColor}" stroke="#333" stroke-width="1" rx="2"/>`;
-              }
-            }
           }
 
           moduleStartX += mW;
@@ -581,7 +536,6 @@
             <div style="display:flex;gap:4px;">
               <button onclick="switchWardrobeView(${item.uniqueId}, 'front')" class="toggle-btn ${item.specs.wardrobeViewMode !== 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">📐 Front</button>
               <button onclick="switchWardrobeView(${item.uniqueId}, 'top')" class="toggle-btn ${item.specs.wardrobeViewMode === 'top' ? 'active' : ''}" style="padding:3px 10px;font-size:10px;">⬇️ Top</button>
-              <button onclick="toggleWardrobeDoors(${item.uniqueId})" class="toggle-btn ${item.specs.showDoors ? 'active' : ''}" style="padding:4px 12px;font-size:11px;">🚪 도어</button>
             </div>
           </div>
           ${item.specs.wardrobeViewMode === 'top' ? renderWardrobeTopView(item, wardrobeModules) : frontViewSvg}
@@ -1282,14 +1236,6 @@
         }
 
         return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;">${svg}</svg>`;
-      }
-
-      function toggleWardrobeDoors(itemUniqueId) {
-        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
-        if (!item) return;
-        if (!item.specs) item.specs = {};
-        item.specs.showDoors = !item.specs.showDoors;
-        renderWorkspaceContent(item);
       }
 
       // ★ 유효공간 직접 수정 함수
@@ -2887,15 +2833,6 @@
         const item = selectedItems.find((i) => i.uniqueId === currentSinkModuleTypePopup.itemId);
         if (item) renderWorkspaceContent(item);
         currentSinkModuleTypePopup = { itemId: null, modId: null };
-      }
-
-      // 싱크대 도어 표시 토글
-      function toggleSinkDoors(itemUniqueId) {
-        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
-        if (!item) return;
-        if (!item.specs) item.specs = {};
-        item.specs.showDoors = !item.specs.showDoors;
-        renderWorkspaceContent(item);
       }
 
       function addStorageModule(itemUniqueId, type) {
