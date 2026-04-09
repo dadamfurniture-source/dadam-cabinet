@@ -41,7 +41,7 @@ export interface CabinetPreset {
   defaultMoldingH: number;
 }
 
-export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer' | 'blind';
+export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer' | 'blind' | 'blind-corner' | 'corner-filler';
 
 export interface ModuleEntry {
   id: string;
@@ -612,7 +612,7 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
   }
 
   // ═══════════════════════════════════════════
-  // 코너 모듈 자동생성 (ㄱ자/ㄷ자)
+  // 코너 모듈 자동생성 (ㄱ자/ㄷ자) — 멍장 규칙 적용
   // ═══════════════════════════════════════════
   const shape = state.layoutShape ?? 'I';
   if (shape === 'L' || shape === 'U') {
@@ -620,20 +620,65 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
     const secD = state.secondaryD || state.depth;
     const secFillerW = state.secondaryFillerW ?? 60;
     const startSide = state.secondaryStartSide ?? 'left';
+    const CORNER_FILLER_W = 60; // 코너 휠라 필수 (규칙 3)
 
     if (secW > 0) {
-      // 멍장(blind corner): 너비 = primary depth (코너 전환점)
-      const blindW = state.depth;
+      const blindW = state.depth; // 멍장 너비 = primary depth
+
+      // ── 규칙 1: 개수대 인접 회피 ──
+      // primary line 코너 끝에 개수대(sink)가 인접하면 → 멍장을 secondary에 배치
+      // secondary에 개수대가 인접하면 → 멍장을 primary에 배치
+      const primaryEdgeModule = startSide === 'left' ? lower[0] : lower[lower.length - 1];
+      const sinkAdjacentToPrimary = primaryEdgeModule?.moduleType === 'sink';
+
+      // ── 규칙 2: 도어 분배 일치 ──
+      // 멍장도어와 인접 도어가 같은 너비가 되는 라인에 배치
+      const secRemaining = secW - blindW - secFillerW - CORNER_FILLER_W;
+      const priRemaining = effectiveW - blindW - CORNER_FILLER_W;
+
+      // secondary에 멍장 배치 시 인접 도어 너비
+      const secAdjacentW = secRemaining > DOOR_MIN
+        ? fillGapWithModules({ start: 0, end: secRemaining, width: secRemaining })[0]?.w ?? 0
+        : secRemaining;
+      // primary에 멍장 배치 시 인접 도어 너비 (primary 재분배)
+      const priAdjacentW = priRemaining > DOOR_MIN
+        ? fillGapWithModules({ start: 0, end: priRemaining, width: priRemaining })[0]?.w ?? 0
+        : priRemaining;
+
+      // 멍장도어와 인접 도어 너비 차이 비교
+      const secDoorMatch = Math.abs(blindW - secAdjacentW) < 30; // 30mm 이내면 일치
+      const priDoorMatch = Math.abs(blindW - priAdjacentW) < 30;
+
+      // 멍장 배치 라인 결정
+      let blindOnPrimary = false;
+      if (sinkAdjacentToPrimary) {
+        // 규칙 1: 개수대가 primary 코너에 인접 → 멍장을 secondary로
+        blindOnPrimary = false;
+      } else if (priDoorMatch && !secDoorMatch) {
+        // 규칙 2: primary 쪽이 도어 너비 일치 → primary에 배치
+        blindOnPrimary = true;
+      }
+      // 기본: secondary에 배치
+
+      // ── 멍장 모듈 생성 (코너 휠라 포함 — 규칙 3) ──
+      const blindOrientation = blindOnPrimary ? undefined : 'secondary';
       const blindModule: ModuleEntry = {
         id: genModuleId(), kind: 'door', width: blindW,
-        orientation: 'secondary', moduleType: 'blind-corner',
+        orientation: blindOrientation as any, moduleType: 'blind-corner',
+      };
+      // 코너 휠라: 멍장 바로 옆에 배치
+      const cornerFiller: ModuleEntry = {
+        id: genModuleId(), kind: 'open', width: CORNER_FILLER_W,
+        orientation: blindOrientation as any, moduleType: 'corner-filler',
       };
 
-      // secondary 잔여 공간 모듈 분배
-      const secRemaining = secW - blindW - secFillerW;
+      // ── secondary line 모듈 분배 ──
+      const secModuleSpace = blindOnPrimary
+        ? secW - secFillerW  // 멍장이 primary에 있으면 secondary 전체 사용
+        : secRemaining;       // 멍장이 secondary에 있으면 잔여 공간
       const secModules: ModuleEntry[] = [];
-      if (secRemaining > DOOR_MIN) {
-        const secGap: GapSpace = { start: 0, end: secRemaining, width: secRemaining };
+      if (secModuleSpace > DOOR_MIN) {
+        const secGap: GapSpace = { start: 0, end: secModuleSpace, width: secModuleSpace };
         const secFilled = fillGapWithModules(secGap);
         for (const fm of secFilled) {
           secModules.push({
@@ -641,28 +686,45 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
             orientation: 'secondary',
           });
         }
-      } else if (secRemaining > 0) {
+      } else if (secModuleSpace > 0) {
         secModules.push({
-          id: genModuleId(), kind: 'door', width: secRemaining,
+          id: genModuleId(), kind: 'door', width: secModuleSpace,
           orientation: 'secondary',
         });
       }
 
-      // startSide에 따라 primary 모듈 앞/뒤에 삽입
-      if (startSide === 'left') {
-        lower.unshift(blindModule, ...secModules);
+      // ── 모듈 삽입 ──
+      if (blindOnPrimary) {
+        // 멍장이 primary에 → primary 코너 끝에 삽입
+        if (startSide === 'left') {
+          lower.unshift(cornerFiller, blindModule);
+          // secondary 모듈은 뒤에 추가
+          lower.unshift(...secModules);
+        } else {
+          lower.push(cornerFiller, blindModule);
+          lower.push(...secModules);
+        }
       } else {
-        lower.push(blindModule, ...secModules);
+        // 멍장이 secondary에 (기본)
+        if (startSide === 'left') {
+          lower.unshift(blindModule, cornerFiller, ...secModules);
+        } else {
+          lower.push(blindModule, cornerFiller, ...secModules);
+        }
       }
 
-      // 상부장 secondary (upperCount > 0일 때)
+      // ── 상부장 secondary ──
       if (state.upperCount > 0 && upper.length > 0) {
         const upperBlindW = preset.upperDepth ?? 350;
         const upperBlind: ModuleEntry = {
           id: genModuleId(), kind: 'door', width: upperBlindW,
           orientation: 'secondary', moduleType: 'blind-corner',
         };
-        const upperSecRemaining = secW - upperBlindW - secFillerW;
+        const upperCornerFiller: ModuleEntry = {
+          id: genModuleId(), kind: 'open', width: CORNER_FILLER_W,
+          orientation: 'secondary', moduleType: 'corner-filler',
+        };
+        const upperSecRemaining = secW - upperBlindW - secFillerW - CORNER_FILLER_W;
         const upperSecModules: ModuleEntry[] = [];
         if (upperSecRemaining > DOOR_MIN) {
           const ug: GapSpace = { start: 0, end: upperSecRemaining, width: upperSecRemaining };
@@ -681,18 +743,18 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
         }
 
         if (startSide === 'left') {
-          upper.unshift(upperBlind, ...upperSecModules);
+          upper.unshift(upperBlind, upperCornerFiller, ...upperSecModules);
         } else {
-          upper.push(upperBlind, ...upperSecModules);
+          upper.push(upperBlind, upperCornerFiller, ...upperSecModules);
         }
       }
     }
 
-    // ㄷ자: tertiary line
+    // ── ㄷ자: tertiary line ──
     if (shape === 'U') {
       const terW = state.tertiaryW ?? 0;
-      const terD = state.tertiaryD || state.depth;
       const terStartFrom = state.tertiaryStartFrom ?? 'prime';
+      const CORNER_FILLER_W = 60;
 
       if (terW > 0) {
         const terBlindW = state.depth;
@@ -700,7 +762,11 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
           id: genModuleId(), kind: 'door', width: terBlindW,
           orientation: 'tertiary', moduleType: 'blind-corner',
         };
-        const terRemaining = terW - terBlindW - secFillerW;
+        const terCornerFiller: ModuleEntry = {
+          id: genModuleId(), kind: 'open', width: CORNER_FILLER_W,
+          orientation: 'tertiary', moduleType: 'corner-filler',
+        };
+        const terRemaining = terW - terBlindW - (state.secondaryFillerW ?? 60) - CORNER_FILLER_W;
         const terModules: ModuleEntry[] = [];
         if (terRemaining > DOOR_MIN) {
           const tg: GapSpace = { start: 0, end: terRemaining, width: terRemaining };
@@ -718,15 +784,13 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
           });
         }
 
-        // tertiary는 primary 반대편에 추가
         if (terStartFrom === 'secondary') {
-          lower.push(terBlind, ...terModules);
+          lower.push(terBlind, terCornerFiller, ...terModules);
         } else {
-          // prime 반대편 = startSide 반대
           if (startSide === 'left') {
-            lower.push(terBlind, ...terModules);
+            lower.push(terBlind, terCornerFiller, ...terModules);
           } else {
-            lower.unshift(terBlind, ...terModules);
+            lower.unshift(terBlind, terCornerFiller, ...terModules);
           }
         }
 
@@ -737,7 +801,11 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
             id: genModuleId(), kind: 'door', width: uTerBlindW,
             orientation: 'tertiary', moduleType: 'blind-corner',
           };
-          const uTerRem = terW - uTerBlindW - secFillerW;
+          const uTerCornerFiller: ModuleEntry = {
+            id: genModuleId(), kind: 'open', width: CORNER_FILLER_W,
+            orientation: 'tertiary', moduleType: 'corner-filler',
+          };
+          const uTerRem = terW - uTerBlindW - (state.secondaryFillerW ?? 60) - CORNER_FILLER_W;
           const uTerMods: ModuleEntry[] = [];
           if (uTerRem > DOOR_MIN) {
             const utg: GapSpace = { start: 0, end: uTerRem, width: uTerRem };
@@ -756,12 +824,12 @@ export function autoCalculateModules(state: PlannerState): { lower: ModuleEntry[
           }
 
           if (terStartFrom === 'secondary') {
-            upper.push(uTerBlind, ...uTerMods);
+            upper.push(uTerBlind, uTerCornerFiller, ...uTerMods);
           } else {
             if (startSide === 'left') {
-              upper.push(uTerBlind, ...uTerMods);
+              upper.push(uTerBlind, uTerCornerFiller, ...uTerMods);
             } else {
-              upper.unshift(uTerBlind, ...uTerMods);
+              upper.unshift(uTerBlind, uTerCornerFiller, ...uTerMods);
             }
           }
         }
