@@ -12,8 +12,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/dadam-system.css">
-    <script defer src="js/config.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       * {
         margin: 0;
@@ -602,7 +602,7 @@
                 <input type="checkbox" id="remember" />
                 <span>로그인 유지</span>
               </label>
-              <a href="forgot-password.html" class="forgot-link">비밀번호 찾기</a>
+              <a href="#" class="forgot-link" onclick="alert('비밀번호 찾기 기능은 준비 중입니다.'); return false;">비밀번호 찾기</a>
             </div>
 
             <button type="submit" class="btn-submit" id="submitBtn">
@@ -796,58 +796,6 @@
         }
       }
 
-
-      // 네이버 로그인 (커스텀 OIDC)
-      async function signInWithNaver() {
-        if (!supabaseClient) {
-          showError('Supabase가 설정되지 않았습니다.');
-          return;
-        }
-
-        hideMessages();
-
-        try {
-          // 네이버는 Supabase에서 커스텀 OIDC로 설정해야 합니다
-          // Supabase 대시보드 > Authentication > Providers > Add custom provider
-          const { data, error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'naver', // 커스텀 provider 이름
-            options: {
-              redirectTo: window.location.origin + '/index.html',
-            },
-          });
-
-          if (error) {
-            showError('네이버 로그인 중 오류가 발생했습니다. 설정을 확인해주세요.');
-          }
-        } catch (err) {
-          showError('네이버 로그인 중 오류가 발생했습니다.');
-        }
-      }
-
-      // Apple 로그인
-      async function signInWithApple() {
-        if (!supabaseClient) {
-          showError('Supabase가 설정되지 않았습니다.');
-          return;
-        }
-
-        hideMessages();
-
-        try {
-          const { data, error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'apple',
-            options: {
-              redirectTo: window.location.origin + '/index.html',
-            },
-          });
-
-          if (error) {
-            showError('Apple 로그인 중 오류가 발생했습니다.');
-          }
-        } catch (err) {
-          showError('Apple 로그인 중 오류가 발생했습니다.');
-        }
-      }
 
       // 페이지 로드 시 세션 확인
       function getRedirectUrl() {
