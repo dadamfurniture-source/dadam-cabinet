@@ -67,7 +67,7 @@ export const SinkDesignSchema = z.object({
   lower: z.array(SinkModuleSchema),
   upper: z.array(SinkModuleSchema),
   meta: z.object({
-    generated_by: z.enum(['random', 'hybrid', 'human-correction', 'cbr']),
+    generated_by: z.enum(['random', 'hybrid', 'human-correction', 'cbr', 'ai_design']),
     parent_id: z.string().optional(),
     seed: z.number().int().optional(),
     user_notes: z.string().max(2000).optional(),
