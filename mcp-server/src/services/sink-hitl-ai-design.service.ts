@@ -183,12 +183,6 @@ function parseAndValidate(text: string, env: SinkEnv): AIDesignOutput {
   }
 
   // 폭 합산 검증 (주선)
-  const layoutType = env.layoutType ?? 'I';
-  const depth = env.depth ?? 650;
-  const hasLeft = (layoutType === 'L' || layoutType === 'U') && (env.secondaryLeftW ?? 0) > 0;
-  const hasRight = layoutType === 'U' && (env.secondaryRightW ?? 0) > 0;
-  const blindLeftW = hasLeft ? depth : 0;
-  const blindRightW = hasRight ? depth : 0;
   const expectedPrimaryW = env.width - env.finishLeftW - env.finishRightW;
 
   const primaryLower = lower.filter(m => (m.orientation ?? 'normal') === 'normal');
