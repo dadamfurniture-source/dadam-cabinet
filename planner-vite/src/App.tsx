@@ -563,16 +563,7 @@ export default function App() {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const derived = useMemo(() => {
-    const d = deriveCabinet(planner);
-    const secParts = d.parts.filter(p => p.rotationY);
-    const secMods = [...(planner.lowerModules ?? []), ...(planner.upperModules ?? [])].filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
-    if (secMods.length > 0) {
-      console.log('[CornerDebug:planner-vite] secondary/tertiary 모듈 입력:', secMods.map(m => `${m.id}:${m.width}:${m.orientation}`));
-      console.log('[CornerDebug:planner-vite] rotationY 파트:', secParts.map(p => `${p.id}:x=${Math.round(p.x)},z=${Math.round(p.z)},rotY=${p.rotationY?.toFixed(2)}`));
-      console.log('[CornerDebug:planner-vite] secondaryStartSide:', planner.secondaryStartSide);
-      console.log('[CornerDebug:planner-vite] 전체 파트 수:', d.parts.length, '모듈 수:', d.modules.length);
-    }
-    return d;
+    return deriveCabinet(planner);
   }, [planner]);
   const palette = MATERIALS[planner.material];
   const preset = getPresetById(planner.presetId);
