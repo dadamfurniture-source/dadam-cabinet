@@ -569,9 +569,9 @@
         if (existingHood) {
           const hoodW = parseFloat(existingHood.w) || 800;
           let hoodX = startBound;
-          // ventStart null → 기본값 초기화
+          // ventStart null → 기본값: 기준벽 반대편 끝 (far wall에서 150mm 안쪽)
           if (item.specs.ventStart == null) {
-            item.specs.ventStart = Math.round((W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE) * 0.7);
+            item.specs.ventStart = Math.max(0, W - 150);
           }
           const ventPos = parseFloat(item.specs.ventStart) || 0;
           if (ventPos > 0) {
@@ -757,13 +757,16 @@
         //  ③ LT망장: 가스대와 가까운 벽 사이
         //  좌/우 기준 = 실측 기준과 동일
 
-        // ── null 초기화 ──
+        // ── null 초기화 (값은 실측 기준 벽에서의 상대 거리 mm) ──
+        //   분배기 시작: 1500mm, 끝: +700mm
+        //   환풍구: 기준벽 반대편 끝 (far wall에서 150mm 안쪽)
         if (item.specs.distributorStart == null) {
-          item.specs.distributorStart = Math.round(SINK_DEF_W * 0.15);
-          item.specs.distributorEnd = Math.round(SINK_DEF_W * 0.15 + 700);
+          const dStart = Math.max(0, Math.min(1500, W - 700));
+          item.specs.distributorStart = dStart;
+          item.specs.distributorEnd = Math.max(dStart, Math.min(W, dStart + 700));
         }
         if (item.specs.ventStart == null) {
-          item.specs.ventStart = Math.round(SINK_DEF_W * 0.7);
+          item.specs.ventStart = Math.max(0, W - 150);
         }
 
         const distStart = parseFloat(item.specs.distributorStart) || 0;
