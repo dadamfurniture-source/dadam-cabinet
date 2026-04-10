@@ -269,6 +269,104 @@
       }
 
       /**
+       * 단일 gap의 유효 도어 candidate 목록 열거
+       * - 도어 너비 ∈ [DOOR_MIN_WIDTH, DOOR_MAX_WIDTH]
+       * - 잔여 ∈ [0, MAX_REMAINDER]
+       * 반환: [{ doorWidth, doorCount, gap, targetDiff }, ...]
+       */
+      function enumerateGapCandidates(totalSpace) {
+        if (totalSpace < DOOR_MIN_WIDTH) return [];
+        const results = [];
+        const minCount = Math.max(1, Math.ceil(totalSpace / DOOR_MAX_WIDTH));
+        const maxCount = Math.floor(totalSpace / DOOR_MIN_WIDTH);
+        const seen = new Set();
+        for (let count = minCount; count <= maxCount; count++) {
+          // 균등 분배: floor
+          const evenWidth = Math.floor(totalSpace / count);
+          const evenGap = totalSpace - evenWidth * count;
+          if (evenWidth >= DOOR_MIN_WIDTH && evenWidth <= DOOR_MAX_WIDTH && evenGap >= 0 && evenGap <= MAX_REMAINDER) {
+            const key = `${evenWidth}x${count}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              results.push({ doorWidth: evenWidth, doorCount: count, gap: evenGap, targetDiff: Math.abs(evenWidth - DOOR_TARGET_WIDTH) });
+            }
+          }
+          // 10단위 내림
+          const floorWidth = Math.floor(totalSpace / count / 10) * 10;
+          if (floorWidth >= DOOR_MIN_WIDTH && floorWidth <= DOOR_MAX_WIDTH) {
+            const floorGap = totalSpace - floorWidth * count;
+            if (floorGap >= 0 && floorGap <= MAX_REMAINDER) {
+              const key = `${floorWidth}x${count}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                results.push({ doorWidth: floorWidth, doorCount: count, gap: floorGap, targetDiff: Math.abs(floorWidth - DOOR_TARGET_WIDTH) });
+              }
+            }
+          }
+        }
+        return results;
+      }
+
+      /**
+       * 여러 gap에 걸쳐 도어 너비 편차 최소화 배치 (v29)
+       * - 각 gap별 candidate 수집 → 조합 중 max-min 편차 ≤100mm 우선
+       * - 제약 만족하는 조합 중 도어 너비 450 근접도 + 약한 편차 penalty로 최적 선택
+       * - 제약 실패 시 기존 per-gap distributeModules 로 fallback
+       * 반환: gaps.length 길이 배열, 각 원소는 { doorWidth, doorCount, gap } 또는 null
+       */
+      function distributeAcrossGaps(gaps, preferExact = false) {
+        if (!gaps.length) return [];
+        const gapCandidates = gaps.map(g => enumerateGapCandidates(g.width));
+        // 한 gap이라도 candidate 없으면 per-gap fallback
+        if (gapCandidates.some(cs => cs.length === 0)) {
+          return gaps.map(g => {
+            const r = distributeModules(g.width, preferExact);
+            return r.doorWidth ? { doorWidth: r.doorWidth, doorCount: r.doorCount } : null;
+          });
+        }
+
+        const MAX_VARIANCE = 100; // mm — 라인 내 도어 편차 허용 상한
+        let best = null;
+        const pick = new Array(gaps.length);
+
+        function recurse(idx) {
+          if (idx === gaps.length) {
+            let minD = Infinity, maxD = -Infinity, targetSum = 0;
+            for (const c of pick) {
+              if (c.doorWidth < minD) minD = c.doorWidth;
+              if (c.doorWidth > maxD) maxD = c.doorWidth;
+              targetSum += c.targetDiff;
+            }
+            const variance = maxD - minD;
+            if (variance > MAX_VARIANCE) return;
+            // score: targetDiff 합 + 편차 × 0.5 (편차 약한 penalty)
+            const score = targetSum + variance * 0.5;
+            if (!best || score < best.score) {
+              best = { score, result: pick.map(p => ({ doorWidth: p.doorWidth, doorCount: p.doorCount })) };
+            }
+            return;
+          }
+          for (const cand of gapCandidates[idx]) {
+            pick[idx] = cand;
+            recurse(idx + 1);
+          }
+        }
+        recurse(0);
+
+        if (best) {
+          console.log(`[AutoCalc] 도어 균등화: ${best.result.map(r => r.doorWidth).join('mm / ')}mm`);
+          return best.result;
+        }
+
+        // Fallback: 편차 제약 실패 (어쩔 수 없는 경우)
+        console.warn(`[AutoCalc] 도어 균등화 실패 (편차 ${MAX_VARIANCE}mm 초과) → per-gap fallback`);
+        return gaps.map(g => {
+          const r = distributeModules(g.width, preferExact);
+          return r.doorWidth ? { doorWidth: r.doorWidth, doorCount: r.doorCount } : null;
+        });
+      }
+
+      /**
        * 유효 공간 계산
        */
       function calcEffectiveSpace(item) {
@@ -368,11 +466,13 @@
        * @param {string} edgeMode - 'none' | 'left' | 'right' | 'both' (대칭 배치 모드)
        * @param {boolean} preferExact - true이면 잔여 0mm 우선 (몰딩 마감)
        */
-      function fillSpaceWithModules(space, section, defaultH, defaultD, preferExact = false) {
+      function fillSpaceWithModules(space, section, defaultH, defaultD, preferExact = false, precomputed = null) {
         const newModules = [];
         const namePrefix = section === 'upper' ? '상부장' : '하부장';
 
-        const result = distributeModules(space.width, preferExact);
+        const result = precomputed && precomputed.doorWidth
+          ? precomputed
+          : distributeModules(space.width, preferExact);
         if (!result.doorWidth || result.doorCount < 1) return newModules;
 
         const { doorWidth, doorCount } = result;
@@ -657,8 +757,10 @@
             else if (s.width > 0) smallGaps.push(s);
           });
 
-          fillable.forEach((space) => {
-            newModules = newModules.concat(fillSpaceWithModules(space, 'upper', upperBodyH, 295, preferExactUpper));
+          // ★ v29: 라인 내 도어 너비 편차 최소화 (coordinated)
+          const unifiedUpper = distributeAcrossGaps(fillable, preferExactUpper);
+          fillable.forEach((space, i) => {
+            newModules = newModules.concat(fillSpaceWithModules(space, 'upper', upperBodyH, 295, preferExactUpper, unifiedUpper[i]));
           });
 
           // ★ 갭 흡수: 도어 너비가 450에서 가장 먼 모듈부터 흡수
@@ -932,9 +1034,10 @@
             else if (s.width > 0) smallGaps.push(s);
           });
 
-          // 빈 공간 채우기
-          fillable.forEach(space => {
-            newModules = newModules.concat(fillSpaceWithModules(space, 'lower', defaultLowerH, 550, preferExact));
+          // 빈 공간 채우기 — ★ v29: 라인 내 도어 너비 편차 최소화 (coordinated)
+          const unifiedLower = distributeAcrossGaps(fillable, preferExact);
+          fillable.forEach((space, i) => {
+            newModules = newModules.concat(fillSpaceWithModules(space, 'lower', defaultLowerH, 550, preferExact, unifiedLower[i]));
           });
 
           // ★ 갭 흡수 (<350mm): 1순위 일반모듈 → 2순위 개수대 → 3순위 LT망장
