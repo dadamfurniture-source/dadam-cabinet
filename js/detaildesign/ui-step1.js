@@ -449,15 +449,22 @@
           const terD = parseFloat(specs.lowerTertiaryD) || primeD;
 
           if (terFrom === 'secondary') {
-            // ★ secondary line 끝에서 시작 — secondary 마지막 모듈을 멍장으로 변경
+            // ★ secondary line의 한쪽 끝에서 tertiary 시작
+            // tertiaryAttachEnd: 'far'(기본) = secondary 자유단, 'near' = primary 근처 (secondary 첫 일반 모듈)
             // 멍장 width = tertiary depth (코너 오버랩)
+            const attachEnd = specs.tertiaryAttachEnd || 'far';
             const secModsInPayload = payload.lowerModules.filter(m => m.orientation === 'secondary');
-            if (secModsInPayload.length > 0) {
-              const lastSec = secModsInPayload[secModsInPayload.length - 1];
-              lastSec.kind = 'door';
-              lastSec.width = terD;
-              lastSec.id = 'blind-corner-sec-ter-auto';
-              lastSec.doorCount = 1;
+            // secModsInPayload[0]은 blind-corner-auto이므로 'near'는 index 1부터 pivot
+            let pivotSec = null;
+            if (secModsInPayload.length >= 2) {
+              const pivotIdx = attachEnd === 'far'
+                ? secModsInPayload.length - 1
+                : 1;
+              pivotSec = secModsInPayload[pivotIdx];
+              pivotSec.kind = 'door';
+              pivotSec.width = terD;
+              pivotSec.id = 'blind-corner-sec-ter-auto';
+              pivotSec.doorCount = 1;
             }
             // tertiary 모듈: prime line과 평행하게 secondary 끝에서 배치
             const terModCount = terW > 0 ? Math.max(1, Math.round(terW / 600)) : 0;
@@ -466,14 +473,15 @@
               id: `ter-auto-${i}`, kind: 'door', width: terModW,
               moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
             }));
-            // tertiary는 secondary 뒤에 배치 (startSide 동일)
-            if (startSide === 'left') {
-              // secondary가 앞에 있으므로 tertiary도 앞에 (secondary 뒤)
-              const secEndIdx = payload.lowerModules.lastIndexOf(secModsInPayload[secModsInPayload.length - 1]);
-              payload.lowerModules.splice(secEndIdx + 1, 0, ...terMods);
-            } else {
-              const secStartIdx = payload.lowerModules.indexOf(secModsInPayload[0]);
-              payload.lowerModules.splice(secStartIdx, 0, ...terMods);
+            // tertiary splice 위치: attachEnd에 따라 pivot 앞/뒤
+            if (pivotSec) {
+              if (attachEnd === 'far') {
+                const secEndIdx = payload.lowerModules.lastIndexOf(pivotSec);
+                payload.lowerModules.splice(secEndIdx + 1, 0, ...terMods);
+              } else {
+                const pivotIdxInPayload = payload.lowerModules.indexOf(pivotSec);
+                payload.lowerModules.splice(pivotIdxInPayload, 0, ...terMods);
+              }
             }
             payload.lowerCount = payload.lowerModules.length;
             // 상부장 tertiary (from secondary)
@@ -484,12 +492,16 @@
               const uTerW = parseFloat(specs.upperTertiaryW) || terW;
               const uTerD = parseFloat(specs.upperTertiaryD) || parseFloat(specs.upperSecondaryD) || 295;
               const uSecModsInPayload = payload.upperModules.filter(m => m.orientation === 'secondary');
-              if (uSecModsInPayload.length > 0) {
-                const lastUSec = uSecModsInPayload[uSecModsInPayload.length - 1];
-                lastUSec.kind = 'door';
-                lastUSec.width = uTerD;
-                lastUSec.id = 'blind-corner-upper-sec-ter-auto';
-                lastUSec.doorCount = 1;
+              let uPivotSec = null;
+              if (uSecModsInPayload.length >= 2) {
+                const uPivotIdx = attachEnd === 'far'
+                  ? uSecModsInPayload.length - 1
+                  : 1;
+                uPivotSec = uSecModsInPayload[uPivotIdx];
+                uPivotSec.kind = 'door';
+                uPivotSec.width = uTerD;
+                uPivotSec.id = 'blind-corner-upper-sec-ter-auto';
+                uPivotSec.doorCount = 1;
               }
               const uTerModCount = uTerW > 0 ? Math.max(1, Math.round(uTerW / 600)) : 0;
               const uTerModW = uTerModCount > 0 ? Math.round(uTerW / uTerModCount) : 0;
@@ -497,18 +509,24 @@
                 id: `ter-upper-auto-${i}`, kind: 'door', width: uTerModW,
                 moduleType: 'storage', doorCount: 1, orientation: 'tertiary',
               }));
-              if (startSide === 'left') {
-                const uSecEndIdx = payload.upperModules.lastIndexOf(uSecModsInPayload[uSecModsInPayload.length - 1]);
-                payload.upperModules.splice(uSecEndIdx + 1, 0, ...uTerMods);
-              } else {
-                const uSecStartIdx = payload.upperModules.indexOf(uSecModsInPayload[0]);
-                payload.upperModules.splice(uSecStartIdx, 0, ...uTerMods);
+              if (uPivotSec) {
+                if (attachEnd === 'far') {
+                  const uSecEndIdx = payload.upperModules.lastIndexOf(uPivotSec);
+                  payload.upperModules.splice(uSecEndIdx + 1, 0, ...uTerMods);
+                } else {
+                  const uPivotIdxInPayload = payload.upperModules.indexOf(uPivotSec);
+                  payload.upperModules.splice(uPivotIdxInPayload, 0, ...uTerMods);
+                }
               }
               payload.upperCount = payload.upperModules.length;
             }
           } else {
             // ★ prime line 반대편 — 기존 로직 (secondary와 평행)
-            const terStartSide = startSide === 'left' ? 'right' : 'left';
+            // tertiaryStartSide: 'auto'(기본) = secondary 반대쪽, 'left'/'right' = 명시 지정
+            const terStartSideSpec = specs.tertiaryStartSide || 'auto';
+            const terStartSide = terStartSideSpec === 'auto'
+              ? (startSide === 'left' ? 'right' : 'left')
+              : terStartSideSpec;
             const terBlindMod = {
               id: 'blind-corner-ter-auto', kind: 'door', width: primeD,
               moduleType: 'blind', doorCount: 1, orientation: 'tertiary',
@@ -595,6 +613,8 @@
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
           secondaryStartSide: specs.secondaryStartSide || undefined,
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
+          tertiaryStartSide: specs.tertiaryStartSide || undefined,
+          tertiaryAttachEnd: specs.tertiaryAttachEnd || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
         _appendSecondaryModules(payload, specs, item.d);
@@ -642,6 +662,8 @@
           ventStart: specs.ventStart != null ? parseFloat(specs.ventStart) : null,
           secondaryStartSide: specs.secondaryStartSide || undefined,
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
+          tertiaryStartSide: specs.tertiaryStartSide || undefined,
+          tertiaryAttachEnd: specs.tertiaryAttachEnd || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
         _appendSecondaryModules(finishPayload, specs, item.d);
@@ -1371,6 +1393,8 @@
         </div>
         ${lShape === 'U' ? (() => {
           const terFrom = item.specs.tertiaryStartFrom || 'prime';
+          const terStartSideVal = item.specs.tertiaryStartSide || 'auto';
+          const terAttachEndVal = item.specs.tertiaryAttachEnd || 'far';
           return `
         <div style="padding:6px;background:#f5f5ff;border-radius:6px;margin-top:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -1383,6 +1407,22 @@
               </select>
             </div>
           </div>
+          ${terFrom === 'prime' ? `
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="font-size:9px;color:#888;">Tertiary 측</span>
+            <select onchange="updateSpecNoRender(${item.uniqueId}, 'tertiaryStartSide', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
+              <option value="auto" ${terStartSideVal === 'auto' ? 'selected' : ''}>자동(반대쪽)</option>
+              <option value="left" ${terStartSideVal === 'left' ? 'selected' : ''}>좌측</option>
+              <option value="right" ${terStartSideVal === 'right' ? 'selected' : ''}>우측</option>
+            </select>
+          </div>` : `
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="font-size:9px;color:#888;">연결 지점</span>
+            <select onchange="updateSpecNoRender(${item.uniqueId}, 'tertiaryAttachEnd', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
+              <option value="far" ${terAttachEndVal === 'far' ? 'selected' : ''}>Secondary 자유단</option>
+              <option value="near" ${terAttachEndVal === 'near' ? 'selected' : ''}>Primary 근처</option>
+            </select>
+          </div>`}
           <div style="padding:4px 6px;border-left:2px solid #7c3aed;margin-top:4px;margin-bottom:4px;">
             <div style="font-size:9px;font-weight:600;color:#7c3aed;margin-bottom:2px;">하부장</div>`; })() + `
             <div class="spec-row">
