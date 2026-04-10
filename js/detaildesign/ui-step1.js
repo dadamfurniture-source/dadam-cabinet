@@ -1188,12 +1188,22 @@
 
         // 분배기/환풍구 위치 마커 (항상 표시, 드래그 이동)
         // ★ 0은 "삭제됨" 상태 — undefined/null만 초기값 생성
+        // ★ 값은 모두 실측 기준 벽으로부터의 상대 거리 (mm)
+        //   - 분배기 시작: 기준벽에서 1500mm (너비 협소 시 sinkW-700으로 클램프)
+        //   - 분배기 끝: 시작 + 700mm
+        //   - 환풍구: 기준벽 반대편 끝 (far wall에서 150mm 안쪽)
         const _dsRaw = item.specs.distributorStart;
         const _deRaw = item.specs.distributorEnd;
         const _vsRaw = item.specs.ventStart;
-        const distStart = (_dsRaw != null && _dsRaw !== undefined) ? parseFloat(_dsRaw) : Math.round(sinkW * 0.15);
-        const distEnd = (_deRaw != null && _deRaw !== undefined) ? parseFloat(_deRaw) : Math.round(sinkW * 0.15 + 700);
-        const ventPos = (_vsRaw != null && _vsRaw !== undefined) ? parseFloat(_vsRaw) : Math.round(sinkW * 0.7);
+        const DEF_DIST_OFFSET = 1500;
+        const DEF_DIST_WIDTH = 700;
+        const DEF_VENT_MARGIN = 150;
+        const defDistStart = Math.max(0, Math.min(DEF_DIST_OFFSET, sinkW - DEF_DIST_WIDTH));
+        const defDistEnd = Math.max(defDistStart, Math.min(sinkW, defDistStart + DEF_DIST_WIDTH));
+        const defVentPos = Math.max(0, sinkW - DEF_VENT_MARGIN);
+        const distStart = (_dsRaw != null && _dsRaw !== undefined) ? parseFloat(_dsRaw) : defDistStart;
+        const distEnd = (_deRaw != null && _deRaw !== undefined) ? parseFloat(_deRaw) : defDistEnd;
+        const ventPos = (_vsRaw != null && _vsRaw !== undefined) ? parseFloat(_vsRaw) : defVentPos;
         // 초기값 저장 (undefined/null일 때만 — 0은 삭제 상태이므로 덮어쓰지 않음)
         if (item.specs.distributorStart == null) item.specs.distributorStart = distStart;
         if (item.specs.distributorEnd == null) item.specs.distributorEnd = distEnd;
