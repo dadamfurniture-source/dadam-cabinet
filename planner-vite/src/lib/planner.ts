@@ -76,6 +76,10 @@ export interface PlannerState {
   secondaryStartSide?: 'left' | 'right';
   /** tertiary 시작 방향: 'prime' = prime line 반대편, 'secondary' = secondary line 끝 */
   tertiaryStartFrom?: 'prime' | 'secondary';
+  /** tertiary 측면 지정: 'auto' = secondary 반대쪽(기본), 'left'/'right' = 명시 지정 (tertiaryStartFrom='prime'일 때만 의미) */
+  tertiaryStartSide?: 'left' | 'right' | 'auto';
+  /** tertiary 연결 지점: 'far' = secondary 자유단(기본), 'near' = primary 근처 (tertiaryStartFrom='secondary'일 때만 의미) */
+  tertiaryAttachEnd?: 'near' | 'far';
   // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
   distributorStart: number | null;
   distributorEnd: number | null;
@@ -722,11 +726,6 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       const isTertiary = module.orientation === 'tertiary';
 
       if (isSecondary) {
-        console.log(`[CornerDebug:embed] secondary 모듈 감지`, {
-          id: module.id, section: module.section, orientation: module.orientation,
-          width: module.width, isUpper, counterFrontZ, secNearZ, cursor,
-          secondaryStartSide: state.secondaryStartSide,
-        });
         const tertiaryFromSec = isTertiary && state.tertiaryStartFrom === 'secondary';
 
         if (tertiaryFromSec) {
@@ -737,8 +736,15 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
             ? state.secondaryStartSide === 'left'
             : Math.abs(cursor - startX) < 1;
           if (terCursorZ === null && lastSecChain) {
-            // tertiary Z = secondary chain 끝 + depth/2 (secondary 끝에서 수직으로)
-            terCursorZ = lastSecChain.endZ + module.depth / 2;
+            // tertiaryAttachEnd: 'far'(기본) = secondary 자유단, 'near' = primary 근처
+            const attachEnd = state.tertiaryAttachEnd || 'far';
+            if (attachEnd === 'far') {
+              // tertiary Z = secondary chain 끝 + depth/2 (secondary 자유단에서 수직으로)
+              terCursorZ = lastSecChain.endZ + module.depth / 2;
+            } else {
+              // near: primary 근처 (startZ = counterFrontZ) 에서 primary 방향(Z 증가)으로
+              terCursorZ = lastSecChain.startZ - module.depth / 2;
+            }
             // tertiary X cursor: secondary의 inner edge에서 시작 (prime 방향으로 확장)
             // 좌측 secondary → inner edge = xCenter + xExtent/2 → rightward (+X)
             // 우측 secondary → inner edge = xCenter - xExtent/2 → leftward (-X)
@@ -786,7 +792,12 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
           const secondarySide = state.secondaryStartSide
             ? state.secondaryStartSide === 'left'
             : Math.abs(cursor - startX) < 1;
-          const isLeftChain = isTertiary ? !secondarySide : secondarySide;
+          // tertiary 측면: 'auto'(기본) = secondary 반대쪽, 'left'/'right' = 명시 지정
+          const terStartSideSpec = state.tertiaryStartSide || 'auto';
+          const terIsLeft = terStartSideSpec === 'auto'
+            ? !secondarySide
+            : terStartSideSpec === 'left';
+          const isLeftChain = isTertiary ? terIsLeft : secondarySide;
           if (secNearZ === null) {
             secNearZ = counterFrontZ;
             curChain = {
