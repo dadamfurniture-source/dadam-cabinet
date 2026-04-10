@@ -14,6 +14,7 @@ export interface CabinetModule {
   height: number;
   depth: number;
   moduleType?: ModuleType;
+  orientation?: ModuleOrientation;
 }
 
 export interface CabinetPreset {
@@ -38,11 +39,15 @@ export interface CabinetPreset {
 
 export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
 
+export type ModuleOrientation = 'primary' | 'secondary' | 'tertiary';
+
 export interface ModuleEntry {
   id: string;
   kind: ModuleKind;
   width: number;
   moduleType?: ModuleType;
+  orientation?: ModuleOrientation;
+  doorCount?: number;
 }
 
 export interface PlannerState {
@@ -63,6 +68,9 @@ export interface PlannerState {
   distributorStart: number | null;
   distributorEnd: number | null;
   ventStart: number | null;
+  // 코너 구조 (ㄱ자/ㄷ자)
+  secondaryStartSide?: 'left' | 'right';
+  tertiaryStartFrom?: 'secondary' | 'prime';
 }
 
 export interface CabinetPart {
@@ -78,6 +86,7 @@ export interface CabinetPart {
   wireframe?: boolean;
   essential?: boolean;
   moduleType?: ModuleType;
+  orientation?: ModuleOrientation;
 }
 
 export interface ModuleLayout {
@@ -416,6 +425,7 @@ const buildModulesFromEntries = (
     height,
     depth,
     moduleType: entry.moduleType,
+    orientation: entry.orientation,
   }));
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
@@ -462,19 +472,23 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   // 모듈 X offset: 좌측 마감재 이후부터 시작 (상부/하부 각각 독립 cursor)
   const moduleStartX = -width / 2 + finishLeftW;
+  const secondaryStartSide = state.secondaryStartSide || 'left';
 
   const renderModules = (list: CabinetModule[]): ModuleLayout | null => {
-    if (list.length === 0) return null;
+    // primary 모듈만 추출 (secondary/tertiary는 별도 처리)
+    const primaryList = list.filter(m => !m.orientation || m.orientation === 'primary');
+    if (primaryList.length === 0 && list.length === 0) return null;
     const startX = moduleStartX;
     let cursor = startX;
-    const isUpper = list[0].section === 'upper';
-    const centerY = isUpper ? upperBottomY + list[0].height / 2 : lowerBottomY + list[0].height / 2;
+    const isUpper = list[0]?.section === 'upper';
+    const centerY = isUpper ? upperBottomY + (list[0]?.height || 0) / 2 : lowerBottomY + (list[0]?.height || 0) / 2;
     const z = isUpper ? upperZOffset : 0;
-    const moduleDepth = list[0].depth;
+    const moduleDepth = list[0]?.depth || depth;
 
     const ESSENTIAL_TYPES: ModuleType[] = ['sink', 'cook', 'hood'];
 
-    list.forEach((module) => {
+    // ── Primary 모듈 렌더링 (기존 직선 배치) ──
+    primaryList.forEach((module) => {
       const centeredX = cursor + module.width / 2;
       const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
       const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
@@ -491,12 +505,84 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
         colorKey: isUpper ? 'accent' : 'body',
         essential: isEssential,
         moduleType: module.moduleType,
+        orientation: 'primary',
       });
-
-      // face 패널 제거됨 (도어 표면 작대기 불필요)
 
       cursor += module.width;
     });
+
+    // ── Secondary 모듈 렌더링 (코너에서 직교 방향) ──
+    const secList = list.filter(m => m.orientation === 'secondary');
+    if (secList.length > 0) {
+      // 코너 기준점: secondaryStartSide에 따라 prime line의 좌/우 끝
+      const cornerX = secondaryStartSide === 'left'
+        ? -width / 2 + finishLeftW  // 좌측 끝
+        : width / 2 - finishRightW; // 우측 끝
+      // secondary line은 prime line에 직교하여 -Z 방향으로 진행
+      const secDepth = isUpper ? (preset.upperDepth || 295) : depth;
+      let secCursor = -secDepth / 2; // prime line 뒤쪽 벽에서 시작
+      secList.forEach((module) => {
+        const modZ = secCursor - module.width / 2; // width가 Z 방향으로 배치
+        const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
+        const modX = secondaryStartSide === 'left'
+          ? cornerX - module.depth / 2
+          : cornerX + module.depth / 2;
+        const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
+
+        parts.push({
+          id: module.id,
+          label: `${module.section}-${module.kind}`,
+          x: modX,
+          y,
+          z: modZ,
+          width: module.depth,   // 90° 회전: depth→X방향
+          height: module.height,
+          depth: module.width,   // 90° 회전: width→Z방향
+          colorKey: isUpper ? 'accent' : 'body',
+          essential: isEssential,
+          moduleType: module.moduleType,
+          orientation: 'secondary',
+        });
+        secCursor -= module.width;
+      });
+    }
+
+    // ── Tertiary 모듈 렌더링 (secondary 끝에서 prime과 평행) ──
+    const terList = list.filter(m => m.orientation === 'tertiary');
+    if (terList.length > 0) {
+      const secList2 = list.filter(m => m.orientation === 'secondary');
+      const secTotalW = secList2.reduce((sum, m) => sum + m.width, 0);
+      const secDepth = isUpper ? (preset.upperDepth || 295) : depth;
+      // tertiary 시작 Z = secondary 끝
+      const terZ = -secDepth / 2 - secTotalW;
+      // tertiary는 prime과 평행 (X방향 진행)
+      const terStartX = secondaryStartSide === 'left'
+        ? -width / 2 + finishLeftW
+        : width / 2 - finishRightW;
+      let terCursor = terStartX;
+      const terDir = secondaryStartSide === 'left' ? 1 : -1;
+      terList.forEach((module) => {
+        const modX = terCursor + (terDir * module.width / 2);
+        const y = isUpper ? upperBottomY + module.height / 2 : lowerBottomY + module.height / 2;
+        const isEssential = !!module.moduleType && ESSENTIAL_TYPES.includes(module.moduleType);
+
+        parts.push({
+          id: module.id,
+          label: `${module.section}-${module.kind}`,
+          x: modX,
+          y,
+          z: terZ - module.depth / 2,
+          width: module.width,
+          height: module.height,
+          depth: module.depth,
+          colorKey: isUpper ? 'accent' : 'body',
+          essential: isEssential,
+          moduleType: module.moduleType,
+          orientation: 'tertiary',
+        });
+        terCursor += terDir * module.width;
+      });
+    }
 
     return { section: isUpper ? 'upper' : 'lower', startX, endX: cursor, centerY, z, depth: moduleDepth };
   };
@@ -688,6 +774,7 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 
   // Countertop — 하부장 상단에 배치
   if (preset.hasCountertop && lowerCount > 0) {
+    // Primary countertop
     parts.push({
       id: 'countertop',
       label: 'countertop',
@@ -699,6 +786,51 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       depth: depth + 18,
       colorKey: 'shadow',
     });
+    // Secondary countertop (코너 직교 방향)
+    const secLowerMods = lowerModules.filter(m => m.orientation === 'secondary');
+    if (secLowerMods.length > 0) {
+      const secTotalW = secLowerMods.reduce((sum, m) => sum + m.width, 0);
+      const secCornerX = secondaryStartSide === 'left'
+        ? -width / 2 + finishLeftW
+        : width / 2 - finishRightW;
+      const secCountertopX = secondaryStartSide === 'left'
+        ? secCornerX - depth / 2
+        : secCornerX + depth / 2;
+      parts.push({
+        id: 'countertop-secondary',
+        label: 'countertop-secondary',
+        x: secCountertopX,
+        y: lowerTopY + counterThickness / 2,
+        z: -depth / 2 - secTotalW / 2,
+        width: depth + 18,
+        height: counterThickness,
+        depth: secTotalW + 18,
+        colorKey: 'shadow',
+      });
+    }
+    // Tertiary countertop
+    const terLowerMods = lowerModules.filter(m => m.orientation === 'tertiary');
+    if (terLowerMods.length > 0) {
+      const secTotalW = secLowerMods.reduce((sum, m) => sum + m.width, 0);
+      const terTotalW = terLowerMods.reduce((sum, m) => sum + m.width, 0);
+      const terZ = -depth / 2 - secTotalW;
+      const terStartX = secondaryStartSide === 'left'
+        ? -width / 2 + finishLeftW
+        : width / 2 - finishRightW;
+      const terDir = secondaryStartSide === 'left' ? 1 : -1;
+      const terCenterX = terStartX + terDir * terTotalW / 2;
+      parts.push({
+        id: 'countertop-tertiary',
+        label: 'countertop-tertiary',
+        x: terCenterX,
+        y: lowerTopY + counterThickness / 2,
+        z: terZ - depth / 2,
+        width: terTotalW + 18,
+        height: counterThickness,
+        depth: depth + 18,
+        colorKey: 'shadow',
+      });
+    }
   }
 
   if (preset.id === 'fridge' && lowerCount > 0) {
