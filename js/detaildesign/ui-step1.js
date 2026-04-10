@@ -1401,7 +1401,7 @@
             <span style="font-size:11px;font-weight:600;color:#7c3aed;">Tertiary Line</span>
             <div style="display:flex;align-items:center;gap:4px;">
               <span style="font-size:9px;color:#888;">시작 방향</span>
-              <select onchange="updateSpecNoRender(${item.uniqueId}, 'tertiaryStartFrom', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
+              <select onchange="updateSpecNoRender(${item.uniqueId}, 'tertiaryStartFrom', this.value); _syncPlannerState(getItem(${item.uniqueId})); renderWorkspaceContent(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
                 <option value="prime" ${terFrom === 'prime' ? 'selected' : ''}>Prime Line</option>
                 <option value="secondary" ${terFrom === 'secondary' ? 'selected' : ''}>Secondary Line</option>
               </select>
