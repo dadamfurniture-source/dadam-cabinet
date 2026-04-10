@@ -1258,14 +1258,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       colorKey: 'trim',
     });
 
-    // --- 멍기둥 arm-B: Z축 수직 패널 (주선 depth를 따라 세워짐) ---
+    // --- 멍기둥 arm-B: Z축 수직 패널 (주선 depth를 따라 세워짐, GLB L자 긴 팔) ---
     const postInnerX = isLeftSide
       ? ch.anchorRightX - CORNER_POST_T / 2
       : (ch.anchorRightX - ch.xExtent) + CORNER_POST_T / 2;
 
     parts.push({
-      id: `corner-post-${ch.section}-${i}`,
-      label: '멍기둥',
+      id: `corner-post-arm-b-${ch.section}-${i}`,
+      label: '멍기둥 arm-B',
       x: postInnerX,
       y,
       z: (ch.primaryFrontEdgeZ + (- depth / 2)) / 2,
@@ -1274,6 +1274,38 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
       depth: Math.abs(ch.primaryFrontEdgeZ - (- depth / 2)),
       colorKey: 'trim',
     });
+
+    // --- 멍기둥 arm-A: X축 수평 팔 (arm-B에서 체인 내측으로 70mm 뻗어 L자 형성) ---
+    const armADirection = isLeftSide ? -1 : +1;
+    const armACenterX = postInnerX + armADirection * (CORNER_POST_ARM / 2);
+
+    parts.push({
+      id: `corner-post-arm-a-${ch.section}-${i}`,
+      label: '멍기둥 arm-A',
+      x: armACenterX,
+      y,
+      z: ch.startZ + CORNER_POST_T / 2,
+      width: CORNER_POST_ARM,
+      height: ch.bodyH,
+      depth: CORNER_POST_T,
+      colorKey: 'trim',
+    });
+
+    // --- 멍판: 주선 뒷벽 차폐 얇은 판 (GLB 멍판 mesh, 걸레받이 위부터 bodyH까지) ---
+    const blindPanelH = Math.max(ch.bodyH - toeKickH, 0);
+    if (blindPanelH > 0) {
+      parts.push({
+        id: `blind-back-panel-${ch.section}-${i}`,
+        label: '멍판',
+        x: ch.xCenter,
+        y: ch.bottomY + toeKickH + blindPanelH / 2,
+        z: -depth / 2 + BLIND_PANEL_T / 2,
+        width: ch.xExtent,
+        height: blindPanelH,
+        depth: BLIND_PANEL_T,
+        colorKey: 'trim',
+      });
+    }
   });
 
   // 상부 체인은 inner-panel만 생성 (멍기둥/멍패널 불필요)
