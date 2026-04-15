@@ -2847,13 +2847,29 @@
         showToast('📊 엑셀 파일이 다운로드되었습니다.');
       }
 
+      // SheetJS 동적 로더 (사용 시점에만 로드)
+      function loadXLSX() {
+        if (typeof XLSX !== 'undefined') return Promise.resolve();
+        if (window.__xlsxLoading) return window.__xlsxLoading;
+        window.__xlsxLoading = new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+        return window.__xlsxLoading;
+      }
+
       // BOM 엑셀 다운로드 (SheetJS 다중 시트)
-      function downloadBOMExcel() {
+      async function downloadBOMExcel() {
         if (!window._cncData || !window._reportData) {
           showToast('BOM 데이터가 없습니다. 먼저 BOM 산출을 실행하세요.');
           return;
         }
-        if (typeof XLSX === 'undefined') {
+        try {
+          await loadXLSX();
+        } catch (e) {
           showToast('SheetJS 라이브러리를 로드할 수 없습니다. 네트워크를 확인하세요.');
           return;
         }
