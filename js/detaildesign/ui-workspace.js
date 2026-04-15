@@ -9,8 +9,8 @@
         if (!item) return;
         _undoStack.push({
           uniqueId: item.uniqueId,
-          modules: JSON.parse(JSON.stringify(item.modules)),
-          specs: JSON.parse(JSON.stringify(item.specs)),
+          modules: deepClone(item.modules),
+          specs: deepClone(item.specs),
           timestamp: Date.now(),
         });
         if (_undoStack.length > UNDO_MAX) _undoStack.shift();
@@ -26,8 +26,8 @@
         // 현재 상태를 redo에 저장
         _redoStack.push({
           uniqueId: item.uniqueId,
-          modules: JSON.parse(JSON.stringify(item.modules)),
-          specs: JSON.parse(JSON.stringify(item.specs)),
+          modules: deepClone(item.modules),
+          specs: deepClone(item.specs),
           timestamp: Date.now(),
         });
 
@@ -47,8 +47,8 @@
         // 현재 상태를 undo에 저장
         _undoStack.push({
           uniqueId: item.uniqueId,
-          modules: JSON.parse(JSON.stringify(item.modules)),
-          specs: JSON.parse(JSON.stringify(item.specs)),
+          modules: deepClone(item.modules),
+          specs: deepClone(item.specs),
           timestamp: Date.now(),
         });
 
