@@ -49,6 +49,17 @@ CREATE TABLE IF NOT EXISTS consultations (
     status TEXT DEFAULT 'pending',        -- pending, confirmed, completed, cancelled
     assigned_to UUID,                     -- 담당자
     admin_memo TEXT,
+    confirmed_at TIMESTAMPTZ,
+
+    -- 주문제작 가구 상세 정보 (MVP: 상담 품질 향상)
+    furniture_categories TEXT[] DEFAULT '{}'::TEXT[],
+    space_type TEXT,                      -- 주방/거실/침실/드레스룸/현관/기타
+    space_width_mm INTEGER,
+    space_height_mm INTEGER,
+    space_depth_mm INTEGER,
+    budget_range TEXT,                    -- under_300 / 300_500 / 500_1000 / over_1000
+    style_preference TEXT,                -- modern / classic / natural / luxury / scandinavian / other
+    request_detail_design BOOLEAN DEFAULT FALSE,  -- 상세설계 권한 신청 체크박스
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
