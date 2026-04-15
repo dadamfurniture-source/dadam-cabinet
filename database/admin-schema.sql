@@ -152,14 +152,21 @@ CREATE POLICY "Admins can insert logs" ON admin_logs
 -- admin_roles RLS
 ALTER TABLE admin_roles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can view roles" ON admin_roles
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM admin_roles WHERE user_id = auth.uid())
-    );
+-- 자기 자신의 역할은 항상 조회 가능 (재귀 없음)
+CREATE POLICY "Users can view own role" ON admin_roles
+    FOR SELECT USING (auth.uid() = user_id);
+
+-- 관리자는 모든 역할 조회 가능 (is_admin() 은 SECURITY DEFINER 로 RLS 우회)
+-- is_admin() 함수는 database/fix-admin-rls-recursion.sql 에서 정의
+CREATE POLICY "Admins can view all roles" ON admin_roles
+    FOR SELECT USING (public.is_admin());
 
 CREATE POLICY "Super admins can manage roles" ON admin_roles
     FOR ALL USING (
-        EXISTS (SELECT 1 FROM admin_roles WHERE user_id = auth.uid() AND role = 'super_admin')
+        EXISTS (
+            SELECT 1 FROM admin_roles ar
+            WHERE ar.user_id = auth.uid() AND ar.role = 'super_admin'
+        )
     );
 
 -- =============================================
