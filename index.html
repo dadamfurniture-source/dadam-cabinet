@@ -19,6 +19,7 @@
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
+    <script src="js/admin-access.js"></script>
     <style>
       * {
         margin: 0;
@@ -1436,6 +1437,11 @@
                 <rect x="14" y="14" width="7" height="7" /></svg
               >상세 설계</a
             >
+            <a href="admin/index.html" id="navAdminLink" style="display:none"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15 9 22 9 16.5 13.5 18 21 12 17 6 21 7.5 13.5 2 9 9 9 12 2" /></svg
+              >관리자 페이지</a
+            >
             <button onclick="logout()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -1477,6 +1483,7 @@
       <a href="chat.html" style="display:none !important">AI 상담</a>
       <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
       <a href="material.html" data-i18n="nav.material">자재</a>
+      <a href="admin/index.html" id="mobileAdminLink" style="display:none">관리자 페이지</a>
       <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
       <a
         href="mypage.html"
@@ -1903,6 +1910,11 @@
               // Detail Design 링크는 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
               if (window.DetailDesignAccess) {
                 await window.DetailDesignAccess.updateNavVisibility(supabaseClient, user);
+              }
+              // 관리자 페이지 링크는 admin_roles 등록 사용자에게만 노출
+              if (window.AdminAccess) {
+                const isAdmin = await window.AdminAccess.isAdmin(supabaseClient);
+                window.AdminAccess.updateNavLinks(isAdmin);
               }
 
               // 모바일 메뉴 업데이트
