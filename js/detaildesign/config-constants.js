@@ -1,4 +1,15 @@
       // ============================================================
+      // 디버그 로깅 (localhost/127.0.0.1에서만 활성)
+      // ============================================================
+      const DEBUG =
+        typeof location !== 'undefined' &&
+        (location.hostname === 'localhost' ||
+          location.hostname === '127.0.0.1' ||
+          location.search.includes('debug=1'));
+      const dlog = (...args) => { if (DEBUG) console.log(...args); };
+      const dwarn = (...args) => { if (DEBUG) console.warn(...args); };
+
+      // ============================================================
       // 앱 설정 및 버전 정보
       // ============================================================
       const APP_CONFIG = {
