@@ -16,6 +16,7 @@
     <script defer src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/detaildesign-access.js"></script>
     <style>
       * {
         margin: 0;
@@ -182,6 +183,28 @@
           grid-template-columns: 1fr;
         }
       }
+
+      /* Furniture Category Chips */
+      .furniture-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 12px;
+        border: 1px solid var(--d-border);
+        border-radius: var(--d-radius-md);
+        background: var(--d-surface);
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+        user-select: none;
+      }
+      .furniture-chip:hover { border-color: var(--d-gold); }
+      .furniture-chip:has(input:checked) {
+        border-color: var(--d-gold);
+        background: var(--d-gold-dim);
+        box-shadow: 0 0 0 2px rgba(184, 149, 108, 0.08);
+      }
+      .furniture-chip input { cursor: pointer; }
 
       /* Date/Time Selection */
       .datetime-row {
@@ -441,6 +464,94 @@
             </div>
           </div>
 
+          <!-- 주문제작 가구 정보 (추천 입력) -->
+          <div class="form-section">
+            <h3 class="form-section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 3v18" />
+              </svg>
+              주문제작 가구 정보
+              <span style="font-size:12px;color:var(--d-text-tertiary);font-weight:400;margin-left:6px;">(선택 · 입력 시 상담 속도 ↑)</span>
+            </h3>
+
+            <div class="form-group">
+              <label>가구 종류 (중복 선택 가능)</label>
+              <div id="furnitureCategories" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));gap:8px;">
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="sink" /> 싱크대</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="island" /> 아일랜드</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="wardrobe" /> 붙박이장</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="fridge" /> 냉장고장</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="shoerack" /> 신발장</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="vanity" /> 화장대</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="storage" /> 수납장</label>
+                <label class="furniture-chip"><input type="checkbox" name="furnitureCategory" value="other" /> 기타</label>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>설치 공간</label>
+                <select id="spaceType">
+                  <option value="">선택하세요</option>
+                  <option value="kitchen">주방</option>
+                  <option value="living">거실</option>
+                  <option value="bedroom">침실</option>
+                  <option value="dressroom">드레스룸</option>
+                  <option value="entrance">현관</option>
+                  <option value="bathroom">욕실</option>
+                  <option value="other">기타</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>예산 범위</label>
+                <select id="budgetRange">
+                  <option value="">선택하세요</option>
+                  <option value="under_300">300만원 이하</option>
+                  <option value="300_500">300~500만원</option>
+                  <option value="500_1000">500~1,000만원</option>
+                  <option value="over_1000">1,000만원 이상</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>공간 크기 (mm, 선택)</label>
+              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;">
+                <input type="number" id="spaceWidth" placeholder="가로 (W)" min="0" />
+                <input type="number" id="spaceHeight" placeholder="높이 (H)" min="0" />
+                <input type="number" id="spaceDepth" placeholder="깊이 (D)" min="0" />
+              </div>
+              <div class="form-hint">예) 싱크대 가로 3000 × 높이 2310 × 깊이 650</div>
+            </div>
+
+            <div class="form-group">
+              <label>선호 스타일</label>
+              <select id="stylePreference">
+                <option value="">선택하세요</option>
+                <option value="modern">모던 미니멀</option>
+                <option value="scandinavian">북유럽 (내추럴 우드)</option>
+                <option value="classic">클래식</option>
+                <option value="luxury">럭셔리</option>
+                <option value="industrial">인더스트리얼</option>
+                <option value="other">기타</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="background:var(--d-gold-dim);border:1px solid var(--d-gold);border-radius:12px;padding:16px;">
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="requestDetailDesign" style="margin-top:4px;" />
+                <span>
+                  <strong style="display:block;margin-bottom:4px;">상세설계(CAD/BOM) 권한 신청</strong>
+                  <span style="font-size:12px;color:var(--d-text-secondary);line-height:1.6;">
+                    체크하시면 상담 후 본사(홍회장) 검토를 거쳐 <b>상세설계 기능 사용 권한</b>이 부여됩니다.
+                    승인 전까지는 로그인 후에도 상세설계 페이지는 보이지 않습니다.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           <!-- Preferred Date/Time -->
           <div class="form-section">
             <h3 class="form-section-title">
@@ -534,8 +645,10 @@
           // 네비게이션 - 로그인 버튼 숨기고 사용자 메뉴 표시
           document.getElementById('loginLink').style.display = 'none';
           document.getElementById('userMenu').style.display = 'block';
-          const ddLink = document.getElementById('navDetailDesign');
-          if (ddLink) ddLink.style.display = '';
+          // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
+          if (window.DetailDesignAccess) {
+            await window.DetailDesignAccess.updateNavVisibility(supabaseClient, currentUser);
+          }
 
           const name = meta.name || meta.full_name || currentUser.email.split('@')[0];
           document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
@@ -584,6 +697,18 @@
         const preferredDate = document.getElementById('preferredDate').value;
         const preferredTime = document.getElementById('preferredTime').value;
 
+        // 주문제작 가구 상세 정보 (전부 선택 항목)
+        const furnitureCategories = Array.from(
+          document.querySelectorAll('input[name="furnitureCategory"]:checked')
+        ).map((el) => el.value);
+        const spaceType = document.getElementById('spaceType').value || null;
+        const budgetRange = document.getElementById('budgetRange').value || null;
+        const stylePreference = document.getElementById('stylePreference').value || null;
+        const spaceWidth = parseInt(document.getElementById('spaceWidth').value, 10) || null;
+        const spaceHeight = parseInt(document.getElementById('spaceHeight').value, 10) || null;
+        const spaceDepth = parseInt(document.getElementById('spaceDepth').value, 10) || null;
+        const requestDetailDesign = document.getElementById('requestDetailDesign').checked;
+
         if (!name || !phone || !email || !title) {
           alert('필수 항목을 모두 입력해주세요.');
           submitBtn.disabled = false;
@@ -604,9 +729,29 @@
             preferred_date: preferredDate || null,
             preferred_time: preferredTime || null,
             status: 'pending',
+            furniture_categories: furnitureCategories.length ? furnitureCategories : null,
+            space_type: spaceType,
+            space_width_mm: spaceWidth,
+            space_height_mm: spaceHeight,
+            space_depth_mm: spaceDepth,
+            budget_range: budgetRange,
+            style_preference: stylePreference,
+            request_detail_design: requestDetailDesign,
           });
 
           if (error) throw error;
+
+          // 상세설계 권한 신청 체크 시, 프로필에 신청 타임스탬프 기록 (로그인 사용자만)
+          if (requestDetailDesign && currentUser?.id) {
+            try {
+              await supabaseClient
+                .from('profiles')
+                .update({ detaildesign_requested_at: new Date().toISOString() })
+                .eq('id', currentUser.id);
+            } catch (reqErr) {
+              console.warn('[consultation] detaildesign_requested_at 기록 실패:', reqErr?.message);
+            }
+          }
 
           // 성공 메시지 표시
           document.getElementById('consultationForm').style.display = 'none';

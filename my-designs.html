@@ -16,6 +16,7 @@
     <script defer src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/detaildesign-access.js"></script>
     <style>
       * {
         margin: 0;
@@ -678,8 +679,10 @@
         const name = meta.name || meta.full_name || currentUser.email.split('@')[0];
         document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
         document.getElementById('navUserName').textContent = name;
-        const ddLink = document.getElementById('navDetailDesign');
-        if (ddLink) ddLink.style.display = '';
+        // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
+        if (window.DetailDesignAccess) {
+          await window.DetailDesignAccess.updateNavVisibility(supabaseClient, currentUser);
+        }
 
         await loadDesigns();
 
