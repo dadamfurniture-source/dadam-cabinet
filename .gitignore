@@ -89,3 +89,16 @@ mcp-server/config/gcp-service-account.json
 
 # 내부 문서 (Google 인덱싱 방지)
 docs/
+
+# ultraplan / local planning artifacts
+.ultraplan/
+.claude/plans/
+
+# QA/Debug screenshots
+screenshot/
+
+# 3D/CAD 소스 원본 (대용량)
+database/*.glb
+database/*.skb
+database/*.skp
+database/glb-*.txt
