@@ -5,6 +5,18 @@
       // ============================================================
 
       /**
+       * deepClone — JSON.parse(JSON.stringify()) 대체
+       * structuredClone 우선 사용 (Blob/Map/Set/Date 보존, 빠름), 없으면 JSON fallback
+       */
+      function deepClone(obj) {
+        if (obj === null || typeof obj !== 'object') return obj;
+        if (typeof structuredClone === 'function') {
+          try { return structuredClone(obj); } catch (e) { /* fallback below */ }
+        }
+        return JSON.parse(JSON.stringify(obj));
+      }
+
+      /**
        * debounce 유틸리티 - 연속 호출 시 마지막 호출만 실행
        * 렌더링 성능 최적화를 위해 사용
        */

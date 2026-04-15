@@ -24,7 +24,7 @@
             categoryTotals[cat] = (categoryTotals[cat] || 0) + 1;
           });
 
-          console.log('[MaterialExtractor] 추출 시작, 아이템 수:', items.length, 'categoryTotals:', JSON.stringify(categoryTotals));
+          dlog('[MaterialExtractor] 추출 시작, 아이템 수:', items.length, 'categoryTotals:', JSON.stringify(categoryTotals));
 
           items.forEach((item) => {
             // ★ categoryId 사용 (category가 아님!)
@@ -36,10 +36,10 @@
             const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
             const itemLabel = item.labelName || `${prefix}${catNames[category] || category}`;
             const mods = item.modules || [];
-            console.log(`[BOM-TRACE] === 아이템 처리: ${itemLabel} ===`);
-            console.log(`[BOM-TRACE]   모듈 수: ${mods.length}`);
-            console.log(`[BOM-TRACE]   상부장: ${mods.filter(m=>m.pos==='upper').length}개, 하부장: ${mods.filter(m=>m.pos==='lower').length}개`);
-            console.log(`[BOM-TRACE]   모듈 상세:`, mods.map(m => `${m.pos}/${m.type}/${m.name}(${m.w})`));
+            dlog(`[BOM-TRACE] === 아이템 처리: ${itemLabel} ===`);
+            dlog(`[BOM-TRACE]   모듈 수: ${mods.length}`);
+            dlog(`[BOM-TRACE]   상부장: ${mods.filter(m=>m.pos==='upper').length}개, 하부장: ${mods.filter(m=>m.pos==='lower').length}개`);
+            dlog(`[BOM-TRACE]   모듈 상세:`, mods.map(m => `${m.pos}/${m.type}/${m.name}(${m.w})`));
             const beforeLen = materials.length;
 
             switch (category) {
@@ -57,10 +57,10 @@
             for (let i = beforeLen; i < materials.length; i++) {
               materials[i].itemLabel = itemLabel;
             }
-            console.log(`[BOM-TRACE]   → 추출된 자재: ${materials.length - beforeLen}개 (누적 ${materials.length}개)`);
+            dlog(`[BOM-TRACE]   → 추출된 자재: ${materials.length - beforeLen}개 (누적 ${materials.length}개)`);
           });
 
-          console.log('[MaterialExtractor] 추출 완료, 자재 수:', materials.length, '전체 모듈 목록:', materials.map(m => m.module).filter((v,i,a) => a.indexOf(v)===i));
+          dlog('[MaterialExtractor] 추출 완료, 자재 수:', materials.length, '전체 모듈 목록:', materials.map(m => m.module).filter((v,i,a) => a.indexOf(v)===i));
 
           return {
             materials,
@@ -99,7 +99,7 @@
 
           // ===== 상부장 모듈 =====
           const upperModules = (item.modules || []).filter((m) => m.pos === 'upper' && m.type !== 'hood');
-          console.log('[Sink] 상부장 모듈:', upperModules.length);
+          dlog('[Sink] 상부장 모듈:', upperModules.length);
 
           upperModules.forEach((mod, idx) => {
             // ★ 모듈 치수가 BOM의 근거
@@ -135,7 +135,7 @@
 
           // ===== 하부장 모듈 =====
           const lowerModules = (item.modules || []).filter((m) => m.pos === 'lower' && m.type !== 'cook');
-          console.log('[Sink] 하부장 모듈:', lowerModules.length);
+          dlog('[Sink] 하부장 모듈:', lowerModules.length);
 
           lowerModules.forEach((mod, idx) => {
             // ★ 모듈 치수가 BOM의 근거
@@ -252,13 +252,13 @@
           const totalH = parseFloat(item.h) || 2310;
           const bodyH = totalH - pedestalH - moldingH;
 
-          console.log('[Wardrobe] ===== 붙박이장 자재 추출 시작 =====');
-          console.log('[Wardrobe] item: w=%s, h=%s, d=%s, bodyH=%s', item.w, item.h, item.d, bodyH);
+          dlog('[Wardrobe] ===== 붙박이장 자재 추출 시작 =====');
+          dlog('[Wardrobe] item: w=%s, h=%s, d=%s, bodyH=%s', item.w, item.h, item.d, bodyH);
 
           // ★ 붙박이장 모듈만 필터 (pos=wardrobe)
           const modules = (item.modules || []).filter(m => m.pos === 'wardrobe');
 
-          console.log('[Wardrobe] 모듈 수:', modules.length);
+          dlog('[Wardrobe] 모듈 수:', modules.length);
 
           if (modules.length === 0) {
             console.warn('[Wardrobe] ⚠️ 모듈이 없습니다!');
@@ -290,7 +290,7 @@
               const upperH = parseFloat(mod.upperH) || Math.floor(availableH / 2);
               const lowerH = parseFloat(mod.lowerH) || Math.floor(availableH / 2);
 
-              console.log(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, upperH=${upperH}, lowerH=${lowerH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
+              dlog(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, upperH=${upperH}, lowerH=${lowerH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
               // --- 상부장 ---
               this.add(materials, `${name}-상부장`, '측판', 'PB', T, modD, upperH, 2, '3면', 'sakuri(15→3mm)');
@@ -379,7 +379,7 @@
               const externalDrawerH = (isExternalDrawer && drawerCount > 0) ? drawerCount * DRAWER_MOD_H_LONG : 0;
               const modH = (parseFloat(mod.h) || bodyH) - externalDrawerH;
 
-              console.log(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, H=${modH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
+              dlog(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, H=${modH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
               this.add(materials, `${name}`, '측판', 'PB', T, modD, modH, 2, '3면', 'sakuri(15→3mm)');
               this.add(materials, `${name}`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
@@ -452,7 +452,7 @@
             }
           });
 
-          console.log('[Wardrobe] 모듈 합계 너비:', totalW);
+          dlog('[Wardrobe] 모듈 합계 너비:', totalW);
 
           // ===== EP (마감재) =====
           const finishLeftType = specs.finishLeftType || 'Molding';
@@ -520,7 +520,7 @@
             });
           }
 
-          console.log('[Wardrobe] ===== 추출 완료, 자재 수:', materials.length, '=====');
+          dlog('[Wardrobe] ===== 추출 완료, 자재 수:', materials.length, '=====');
         }
 
         // ========================================
@@ -531,7 +531,7 @@
           const T = this.T;
           const modules = item.modules || [];
 
-          console.log('[Fridge] 모듈:', modules.length);
+          dlog('[Fridge] 모듈:', modules.length);
 
           if (modules.length === 0) return;
 
@@ -545,7 +545,7 @@
             const D = parseFloat(mod.d) || specs.fridgeModuleD || 550;
             const name = mod.name || modType;
 
-            console.log(`[Fridge] 모듈: ${modType}, W=${W}, H=${H}, D=${D}`);
+            dlog(`[Fridge] 모듈: ${modType}, W=${W}, H=${H}, D=${D}`);
 
             // 키큰장 (tall) — PB 구조
             const pf = prefix; // 같은 카테고리 복수 아이템 구분용
