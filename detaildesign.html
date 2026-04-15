@@ -246,11 +246,13 @@
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 
-    <!-- AI 채팅 패널 -->
+    <!-- AI 채팅 패널 — MVP 배포에서 모든 조건에서 숨김 처리 (display:none !important) -->
     <div
       id="aiChatPanel"
+      hidden
+      aria-hidden="true"
       style="
-        display: none;
+        display: none !important;
         position: fixed;
         bottom: 90px;
         right: 24px;

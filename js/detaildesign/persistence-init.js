@@ -1419,20 +1419,11 @@
       }
 
       // ============================================================
-      // AI 채팅 시스템
+      // AI 채팅 시스템 — MVP 배포에서 비활성화 (no-op).
+      // aiChatPanel 자체도 detaildesign.html 에서 display:none !important 로 숨김.
       // ============================================================
       function toggleAIChat() {
-        const panel = document.getElementById('aiChatPanel');
-        const btn = document.getElementById('aiChatToggle');
-        if (panel.style.display === 'none' || !panel.style.display) {
-          panel.style.display = 'flex';
-          btn.innerHTML = '✕';
-          btn.style.background = '#2D2A26';
-        } else {
-          panel.style.display = 'none';
-          btn.innerHTML = '💬 AI 상담';
-          btn.style.background = 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)';
-        }
+        // intentionally disabled
       }
 
       async function sendChatMessage() {
