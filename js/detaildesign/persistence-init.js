@@ -941,8 +941,18 @@
         }
 
         // 본사 승인 가드: profiles.detaildesign_approved = true 여야 상세설계 진입 가능 (MVP 배포 정책).
-        // 미승인이면 authOverlay 대신 approvalOverlay 를 유지 (상단 가드 스크립트와 협력).
-        const approved = Boolean(userProfile?.detaildesign_approved);
+        // 관리자(admin_roles 등록 사용자) 는 무조건 통과 — 검증/지원 목적.
+        let isAdminBypass = false;
+        if (window.AdminAccess) {
+          try { isAdminBypass = await window.AdminAccess.isAdmin(supabaseClient); }
+          catch (e) { isAdminBypass = false; }
+        }
+        const approved = Boolean(userProfile?.detaildesign_approved) || isAdminBypass;
+        if (isAdminBypass) {
+          // 상단 IIFE 가드가 ddApprovalBlocked 를 1로 표시했더라도 관리자는 해제
+          document.body.dataset.ddApprovalBlocked = '0';
+          document.getElementById('approvalOverlay')?.classList.add('hidden');
+        }
         if (!approved || document.body.dataset.ddApprovalBlocked === '1') {
           document.getElementById('authOverlay')?.classList.add('hidden');
           document.getElementById('approvalOverlay')?.classList.remove('hidden');

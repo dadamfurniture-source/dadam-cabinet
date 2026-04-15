@@ -12,6 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
     <style>
       * {
         margin: 0;
@@ -653,8 +654,7 @@
       let supabaseClient = null;
       let currentUser = null;
 
-      // 관리자 이메일 목록 (실제로는 admin_roles 테이블에서 확인)
-      const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
+      // 관리자 판별: AdminAccess.isAdmin() (is_admin RPC) 사용. ADMIN_EMAILS 하드코딩 폐기.
 
       document.addEventListener('DOMContentLoaded', async () => {
         await initAdmin();
@@ -682,9 +682,11 @@
 
         currentUser = session.user;
 
-        // 관리자 권한 확인 (간단한 이메일 기반 확인)
-        if (!ADMIN_EMAILS.includes(currentUser.email)) {
-          // TODO: admin_roles 테이블에서 확인
+        // 관리자 권한 확인 (admin_roles 테이블 기반 is_admin() RPC)
+        const isAdmin = window.AdminAccess
+          ? await window.AdminAccess.isAdmin(supabaseClient)
+          : false;
+        if (!isAdmin) {
           showAccessDenied();
           return;
         }

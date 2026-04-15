@@ -20,6 +20,7 @@
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
+    <script src="js/admin-access.js"></script>
   </head>
   <body>
     <!-- SVG Symbols -->
@@ -87,6 +88,7 @@
           <div class="user-dropdown">
             <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
             <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <a href="admin/index.html" id="navAdminLink" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16.5 13.5 18 21 12 17 6 21 7.5 13.5 2 9 9 9 12 2"/></svg>관리자 페이지</a>
             <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
           </div>
         </div>
@@ -105,6 +107,7 @@
       <a href="ai-design.html" class="active" data-i18n="nav.ai_design">AI Design</a>
       <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
       <a href="material.html" data-i18n="nav.material">자재</a>
+      <a href="admin/index.html" id="mobileAdminLink" style="display:none">관리자 페이지</a>
       <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
       <a
         href="#"
@@ -469,6 +472,11 @@
               // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
               if (window.DetailDesignAccess) {
                 await window.DetailDesignAccess.updateNavVisibility(supabaseClient, user);
+              }
+              // 관리자 페이지 링크는 admin_roles 등록 사용자에게만 노출
+              if (window.AdminAccess) {
+                const isAdmin = await window.AdminAccess.isAdmin(supabaseClient);
+                window.AdminAccess.updateNavLinks(isAdmin);
               }
             }
           }
