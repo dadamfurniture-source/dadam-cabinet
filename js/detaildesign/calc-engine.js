@@ -354,7 +354,7 @@
         recurse(0);
 
         if (best) {
-          console.log(`[AutoCalc] 도어 균등화: ${best.result.map(r => r.doorWidth).join('mm / ')}mm`);
+          dlog(`[AutoCalc] 도어 균등화: ${best.result.map(r => r.doorWidth).join('mm / ')}mm`);
           return best.result;
         }
 
@@ -612,7 +612,7 @@
 
         const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
         const secModsBefore = item.modules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
-        console.log(`[AutoCalc] START section=${section}, lShape=${lShape}, secModsBefore=${secModsBefore.length}`, secModsBefore.map(m => `${m.name||m.type}(${m.orientation})`));
+        dlog(`[AutoCalc] START section=${section}, lShape=${lShape}, secModsBefore=${secModsBefore.length}`, secModsBefore.map(m => `${m.name||m.type}(${m.orientation})`));
 
         // ★ 싱크대: 자동계산 전 필수장 주입
         if (item.categoryId === 'sink') {
@@ -628,8 +628,8 @@
         }
 
         const secModsAfter = item.modules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
-        console.log(`[AutoCalc] END section=${section}, secModsAfter=${secModsAfter.length}`, secModsAfter.map(m => `${m.name||m.type}(${m.orientation})`));
-        console.log(`[AutoCalc] ALL modules after:`, item.modules.map(m => `${m.name||m.type}(pos=${m.pos},orient=${m.orientation||'primary'})`));
+        dlog(`[AutoCalc] END section=${section}, secModsAfter=${secModsAfter.length}`, secModsAfter.map(m => `${m.name||m.type}(${m.orientation})`));
+        dlog(`[AutoCalc] ALL modules after:`, item.modules.map(m => `${m.name||m.type}(pos=${m.pos},orient=${m.orientation||'primary'})`));
 
         renderWorkspaceContent(item);
       }
@@ -684,7 +684,7 @@
           }
           hoodX = Math.max(startBound, Math.min(endBound - hoodW, hoodX));
           fixedOccupied.push({ ...existingHood, x: hoodX, endX: hoodX + hoodW, pos: 'upper' });
-          console.log(`[AutoCalc] 후드장: 환풍구=${ventPos}mm, 후드X=${hoodX}`);
+          dlog(`[AutoCalc] 후드장: 환풍구=${ventPos}mm, 후드X=${hoodX}`);
         }
 
         // ★ 기준상부장 (개수대 중앙 정렬, 2D) — 개수대 위에 2도어 상부장 고정 배치
@@ -716,9 +716,9 @@
               x: refUpperX,
               endX: refUpperX + refUpperW,
             });
-            console.log(`[AutoCalc] 기준상부장(2D): 개수대중앙=${sinkCenter}, X=${refUpperX}, W=${refUpperW}`);
+            dlog(`[AutoCalc] 기준상부장(2D): 개수대중앙=${sinkCenter}, X=${refUpperX}, W=${refUpperW}`);
           } else {
-            console.log(`[AutoCalc] 기준상부장(2D): 후드장과 겹침 → 생략`);
+            dlog(`[AutoCalc] 기준상부장(2D): 후드장과 겹침 → 생략`);
           }
         }
 
@@ -777,11 +777,11 @@
             if (absorbable.length > 0) {
               absorbable[0].w = (parseFloat(absorbable[0].w) || 0) + totalGap;
               if (absorbable[0].endX !== undefined) absorbable[0].endX = absorbable[0].x + parseFloat(absorbable[0].w);
-              console.log(`[AutoCalc] 상부장 갭 흡수: ${totalGap}mm → ${absorbable[0].name || absorbable[0].type}`);
+              dlog(`[AutoCalc] 상부장 갭 흡수: ${totalGap}mm → ${absorbable[0].name || absorbable[0].type}`);
             }
           }
 
-          console.log(`상부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${effectiveW - fixedTotalW}mm`);
+          dlog(`상부장: 고정모듈=${fixedOccupied.length}개, 가용공간=${effectiveW - fixedTotalW}mm`);
         }
 
         // 고정 모듈 추가 (후드 등)
@@ -1007,12 +1007,12 @@
                 curr.endX = curr.x + curr.w;
               }
             }
-            console.log(`[AutoCalc] 겹침해소: ${prev.name||prev.type}↔${curr.name||curr.type}, overlap=${overlap}mm`);
+            dlog(`[AutoCalc] 겹침해소: ${prev.name||prev.type}↔${curr.name||curr.type}, overlap=${overlap}mm`);
           }
         }
 
-        console.log(`[AutoCalc] 하부장: W=${W}, 유효=${effectiveW}, 환풍구=${ventPos}(abs=${ventAbs}), 분배기=${distStart}~${distEnd}(abs=${dStartAbs}~${dEndAbs})`);
-        console.log(`[AutoCalc] 배치: ${fixedOccupied.sort((a,b)=>a.x-b.x).map(m => `${m.name||m.type}(${Math.round(m.x)}~${Math.round(m.endX)})`).join(' | ')}`);
+        dlog(`[AutoCalc] 하부장: W=${W}, 유효=${effectiveW}, 환풍구=${ventPos}(abs=${ventAbs}), 분배기=${distStart}~${distEnd}(abs=${dStartAbs}~${dEndAbs})`);
+        dlog(`[AutoCalc] 배치: ${fixedOccupied.sort((a,b)=>a.x-b.x).map(m => `${m.name||m.type}(${Math.round(m.x)}~${Math.round(m.endX)})`).join(' | ')}`);
 
         // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 빈 공간 채우기 (secondary/tertiary 보존)
         item.modules = item.modules.filter(m => m.pos !== 'lower' || m.orientation === 'secondary' || m.orientation === 'tertiary');
@@ -1056,7 +1056,7 @@
               if (remaining <= 0) break;
               mod.w = (parseFloat(mod.w) || 0) + remaining;
               if (mod.endX !== undefined) mod.endX = mod.x + parseFloat(mod.w);
-              console.log(`[AutoCalc] 갭 흡수: ${remaining}mm → ${mod.name} (일반모듈)`);
+              dlog(`[AutoCalc] 갭 흡수: ${remaining}mm → ${mod.name} (일반모듈)`);
               remaining = 0;
             }
 
@@ -1068,7 +1068,7 @@
                 sinkFixed.w = curW + canAbsorb;
                 sinkFixed.endX = sinkFixed.x + sinkFixed.w;
                 remaining -= canAbsorb;
-                console.log(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → 개수대`);
+                dlog(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → 개수대`);
               }
             }
 
@@ -1080,7 +1080,7 @@
                 ltFixed.w = curW + canAbsorb;
                 ltFixed.endX = ltFixed.x + ltFixed.w;
                 remaining -= canAbsorb;
-                console.log(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → LT망장`);
+                dlog(`[AutoCalc] 갭 흡수: ${canAbsorb}mm → LT망장`);
               }
             }
           }

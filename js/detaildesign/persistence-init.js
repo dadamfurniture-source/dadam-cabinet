@@ -518,7 +518,7 @@
 
         // 재단 최적화
         const result = nestingOptimizer.process(matResult.materials);
-        console.log('[Nesting] 결과:', result);
+        dlog('[Nesting] 결과:', result);
 
         // 팝업 생성
         showNestingModal(result, design);
@@ -845,7 +845,7 @@
             page_source: 'detail-design'
           });
         } catch (error) {
-          console.log('메시지 저장 실패:', error.message);
+          dlog('메시지 저장 실패:', error.message);
         }
       }
 
@@ -880,7 +880,7 @@
             });
           }
         } catch (error) {
-          console.log('대화 기록 불러오기 실패:', error.message);
+          dlog('대화 기록 불러오기 실패:', error.message);
         }
       }
 
@@ -1365,7 +1365,7 @@
         autoSaveTimer = setInterval(
           () => {
             if (hasUnsavedChanges && currentDesignId) {
-              console.log('자동 저장 실행...');
+              dlog('자동 저장 실행...');
               // 자동 저장은 조용히 실행
               saveDesignQuiet();
             }

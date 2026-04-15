@@ -166,7 +166,7 @@
               });
             }
             this.loaded = true;
-            console.log('[Catalog] Loaded', data.length, 'materials from Supabase (v3)');
+            dlog('[Catalog] Loaded', data.length, 'materials from Supabase (v3)');
           } catch (e) {
             console.warn('[Catalog] Load failed, using hardcoded fallback:', e.message);
             this._loadFallback();
@@ -180,7 +180,7 @@
             this.options[opt.category].push(opt);
           }
           this.loaded = true;
-          console.log('[Catalog] Loaded', data.length, 'options from furniture_options (legacy)');
+          dlog('[Catalog] Loaded', data.length, 'options from furniture_options (legacy)');
         },
 
         _loadFallback() {
