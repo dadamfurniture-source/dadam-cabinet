@@ -146,10 +146,10 @@
     </div>
 
     <!-- 업로드 모달 -->
-    <div class="modal-overlay" id="uploadModal">
+    <div class="modal-overlay" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
       <div class="modal">
-        <button class="btn-close" onclick="closeModal('uploadModal')">✕</button>
-        <h2>시공사례 업로드</h2>
+        <button class="btn-close" aria-label="모달 닫기" onclick="closeModal('uploadModal')">✕</button>
+        <h2 id="uploadModalTitle">시공사례 업로드</h2>
         <div class="upload-preview" id="uploadPreview" onclick="document.getElementById('fileInput').click()">
           <div class="placeholder">📷 이미지를 선택하세요</div>
         </div>
@@ -174,10 +174,10 @@
     </div>
 
     <!-- 문의 모달 -->
-    <div class="modal-overlay" id="inquiryModal">
+    <div class="modal-overlay" id="inquiryModal" role="dialog" aria-modal="true" aria-labelledby="inquiryModalTitle">
       <div class="modal">
-        <button class="btn-close" onclick="closeModal('inquiryModal')">✕</button>
-        <h2>문의하기</h2>
+        <button class="btn-close" aria-label="모달 닫기" onclick="closeModal('inquiryModal')">✕</button>
+        <h2 id="inquiryModalTitle">문의하기</h2>
         <input type="hidden" id="inquiryPostId" />
         <input type="hidden" id="inquiryToUserId" />
         <label>이름</label>
