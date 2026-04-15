@@ -1120,6 +1120,22 @@
 
         currentUser = session.user;
 
+        // 로그인 상태이므로 nav 의 "로그인" 버튼을 "로그아웃" 으로 전환
+        // (mypage 는 사용자가 본인 페이지에 와 있다는 전제이므로 user-menu 드롭다운 대신
+        //  단일 로그아웃 버튼으로 단순화)
+        const loginLink = document.getElementById('loginLink');
+        if (loginLink) {
+          loginLink.textContent = '로그아웃';
+          loginLink.setAttribute('href', '#');
+          loginLink.onclick = (e) => { e.preventDefault(); logout(); };
+        }
+        const mobileLoginLink = document.getElementById('mobileLoginLink');
+        if (mobileLoginLink) {
+          mobileLoginLink.textContent = '로그아웃';
+          mobileLoginLink.setAttribute('href', '#');
+          mobileLoginLink.onclick = (e) => { e.preventDefault(); logout(); };
+        }
+
         // 관리자 판별 (is_admin() RPC, fail-closed). body.admin-view 토글로 CSS 분기.
         try {
           const isAdmin = window.AdminAccess
