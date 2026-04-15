@@ -940,7 +940,18 @@
           userProfile = fallbackProfile();
         }
 
-        // 인증 성공 - UI 업데이트 (등급 제한 제거 - ai-design.html에서 리디렉트 처리)
+        // 본사 승인 가드: profiles.detaildesign_approved = true 여야 상세설계 진입 가능 (MVP 배포 정책).
+        // 미승인이면 authOverlay 대신 approvalOverlay 를 유지 (상단 가드 스크립트와 협력).
+        const approved = Boolean(userProfile?.detaildesign_approved);
+        if (!approved || document.body.dataset.ddApprovalBlocked === '1') {
+          document.getElementById('authOverlay')?.classList.add('hidden');
+          document.getElementById('approvalOverlay')?.classList.remove('hidden');
+          document.getElementById('topToolbar')?.classList.add('hidden');
+          document.body.dataset.ddApprovalBlocked = '1';
+          return;
+        }
+
+        // 인증 + 승인 성공 - UI 업데이트
         hideAuthOverlay();
         document.getElementById('toolbarUser').textContent = currentUser.email;
 
