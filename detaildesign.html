@@ -145,29 +145,20 @@
       </div>
     </div>
 
-    <!-- JS 모듈 (로딩 순서 중요) -->
-    <script>
-      // ★ 캐시버스터: 배포마다 자동 갱신 (Cloudflare Purge 불필요)
-      window.__CACHE_VER = Date.now();
-      function loadJS(src) {
-        const s = src.startsWith('http') ? src : src + '?v=' + window.__CACHE_VER;
-        document.write('<script src="' + s + '"><\/script>');
-      }
-    </script>
-    <script>
-      loadJS('js/detaildesign/data-constants.js');
-      loadJS('js/detaildesign/utils.js');
-      loadJS('js/detaildesign/config-constants.js');
-      loadJS('js/detaildesign/calc-engine.js');
-      loadJS('js/detaildesign/extractors.js');
-      loadJS('js/detaildesign/ui-step1.js');
-      loadJS('js/detaildesign/ui-workspace.js');
-      loadJS('js/detaildesign/ui-fridge-el.js');
-      // Three.js 레거시 제거됨 — R3F planner iframe으로 대체
-      loadJS('js/detaildesign/multiagent-client.js');
-      loadJS('js/detaildesign/ai-design-report.js');
-      loadJS('js/detaildesign/persistence-init.js');
-    </script>
+    <!-- JS 모듈 (로딩 순서 중요: data → utils → config → engine → extractors → ui → 나머지) -->
+    <!-- 정적 <script>는 동일 origin/동기 로드 시 선언 순서 보장됨 -->
+    <script src="js/detaildesign/data-constants.js?v=33.0"></script>
+    <script src="js/detaildesign/utils.js?v=33.0"></script>
+    <script src="js/detaildesign/config-constants.js?v=33.0"></script>
+    <script src="js/detaildesign/calc-engine.js?v=33.0"></script>
+    <script src="js/detaildesign/extractors.js?v=33.0"></script>
+    <script src="js/detaildesign/ui-step1.js?v=33.0"></script>
+    <script src="js/detaildesign/ui-workspace.js?v=33.0"></script>
+    <script src="js/detaildesign/ui-fridge-el.js?v=33.0"></script>
+    <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
+    <script src="js/detaildesign/multiagent-client.js?v=33.0"></script>
+    <script src="js/detaildesign/ai-design-report.js?v=33.0"></script>
+    <script src="js/detaildesign/persistence-init.js?v=33.0"></script>
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 
