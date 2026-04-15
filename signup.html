@@ -20,12 +20,25 @@
         padding: 0;
         box-sizing: border-box;
       }
+      /* 레거시 색상 변수 복원 — dadam-system.css 가 --d-* 만 정의하므로
+         var(--charcoal) 등 옛 참조가 풀리지 않는 회귀 방지. */
       :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+        --gold-light: #d4b896;
         --expert: #6366f1;
         --business: #059669;
       }
       body {
-        background: var(--d-bg);
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        background: var(--cream);
+        color: var(--charcoal);
+        line-height: 1.7;
         min-height: 100vh;
         display: flex;
       }
