@@ -990,8 +990,19 @@
         const prev = usersData.find((u) => u.id === selectedUserId) || {};
         const wasApproved = Boolean(prev.detaildesign_approved);
 
+        // 승인 상태 변경 시 tier 도 자동 승급/강등 — 관리자가 모달에서 직접 tier 를
+        // 바꿨다면 그 값을 우선 존중하고, 그렇지 않을 때만 자동 동기화.
+        let effectiveTier = newTier;
+        if (approveDD !== wasApproved && newTier === (prev.tier || 'standard')) {
+          if (approveDD && effectiveTier === 'standard') {
+            effectiveTier = 'expert';
+          } else if (!approveDD && effectiveTier === 'expert') {
+            effectiveTier = 'standard';
+          }
+        }
+
         const payload = {
-          tier: newTier,
+          tier: effectiveTier,
           admin_memo: memo,
           updated_at: new Date().toISOString(),
         };
@@ -1019,9 +1030,18 @@
       }
 
       // 리스트의 빠른 승인/해제 액션
+      // 승인 시 tier 도 standard → expert 로 자동 승급, 해제 시 expert → standard 로 강등.
+      // business 는 건드리지 않음 (별도 정책).
       async function toggleDetailDesignApproval(userId, approve) {
         const action = approve ? '승인' : '승인 해제';
-        if (!confirm(`이 사용자의 상세설계 사용을 ${action}하시겠습니까?`)) return;
+        if (!confirm(`이 사용자의 상세설계 사용을 ${action}하시겠습니까?\n(${approve ? 'standard → expert 로 자동 승급' : 'expert → standard 로 강등'})`)) return;
+
+        const user = usersData.find((u) => u.id === userId);
+        const currentTier = user?.tier || 'standard';
+        let nextTier = currentTier;
+        if (approve && currentTier === 'standard') nextTier = 'expert';
+        else if (!approve && currentTier === 'expert') nextTier = 'standard';
+
         try {
           const { error } = await supabaseClient
             .from('profiles')
@@ -1029,6 +1049,7 @@
               detaildesign_approved: approve,
               detaildesign_approved_at: approve ? new Date().toISOString() : null,
               detaildesign_approved_by: approve ? currentUser.id : null,
+              tier: nextTier,
               updated_at: new Date().toISOString(),
             })
             .eq('id', userId);
