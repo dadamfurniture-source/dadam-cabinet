@@ -15,7 +15,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase-utils.js"></script>
     <style>
-      :root { --white:#fafafa;--cream:#f8f7f4;--warm:#ebe8e2;--gray:#8b8680;--charcoal:#2d2a26;--black:#1a1918;--gold:#b8956c; }
+      :root { --white:#fafafa;--cream:#f8f7f4;--warm:#ebe8e2;--gray:#6b6860;--charcoal:#2d2a26;--black:#1a1918;--gold:#b8956c; }
       * { margin:0;padding:0;box-sizing:border-box; }
       body { font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--white);color:var(--charcoal);line-height:1.6; }
       a { text-decoration:none;color:inherit; }
@@ -133,11 +133,11 @@
       <div class="toolbar">
         <div class="filter-bar">
           <button class="filter-btn active" data-filter="all">전체</button>
-          <button class="filter-btn" data-filter="kitchen">주방</button>
-          <button class="filter-btn" data-filter="builtin">붙박이장</button>
-          <button class="filter-btn" data-filter="storage">수납장</button>
-          <button class="filter-btn" data-filter="interior">인테리어</button>
-        </div>
+          <button class="filter-btn active" data-filter="all" aria-pressed="true">전체</button>
+          <button class="filter-btn" data-filter="kitchen" aria-pressed="false">주방</button>
+          <button class="filter-btn" data-filter="builtin" aria-pressed="false">붙박이장</button>
+          <button class="filter-btn" data-filter="storage" aria-pressed="false">수납장</button>
+          <button class="filter-btn" data-filter="interior" aria-pressed="false">인테리어</button>
         <button class="btn-upload" id="btnUpload" onclick="openUploadModal()">+ 업로드</button>
       </div>
 
