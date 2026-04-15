@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS profiles (
     -- 관리자 메모
     admin_memo TEXT,
 
+    -- 상세설계(CAD/BOM) 본사 승인 (홍회장 승인 필요)
+    -- 실제 승인은 database/detaildesign-approval.sql 의 block_self_dd_approval() 트리거로 admin만 변경 가능
+    detaildesign_approved BOOLEAN DEFAULT FALSE,
+    detaildesign_requested_at TIMESTAMPTZ,
+    detaildesign_approved_at TIMESTAMPTZ,
+    detaildesign_approved_by UUID,
+
     -- 타임스탬프
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
