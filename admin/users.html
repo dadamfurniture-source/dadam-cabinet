@@ -302,6 +302,11 @@
         color: #388e3c;
       }
 
+      /* 상세설계 승인 상태 뱃지 */
+      .badge.dd-approved { background: #e8f5e9; color: #1b5e20; }
+      .badge.dd-pending  { background: #fff3e0; color: #e65100; }
+      .badge.dd-none     { background: #f5f5f5; color: #757575; }
+
       .provider-badge {
         display: inline-flex;
         align-items: center;
@@ -626,6 +631,7 @@
                 <tr>
                   <th>회원 정보</th>
                   <th>등급</th>
+                  <th>상세설계</th>
                   <th>지역</th>
                   <th>가입 방식</th>
                   <th>가입일</th>
@@ -634,7 +640,7 @@
               </thead>
               <tbody id="usersTableBody">
                 <tr>
-                  <td colspan="6" class="loading">로딩 중...</td>
+                  <td colspan="7" class="loading">로딩 중...</td>
                 </tr>
               </tbody>
             </table>
@@ -677,6 +683,13 @@
               <option value="expert">Expert</option>
               <option value="business">Business</option>
             </select>
+          </div>
+          <div class="form-group" style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="modalDetailDesignApproved" style="width:auto;" />
+              <span>상세설계(CAD/BOM) 사용 승인</span>
+            </label>
+            <div id="modalDDStatus" style="font-size:0.8rem;color:#666;margin-top:6px;"></div>
           </div>
           <div class="form-group">
             <label>지역</label>
@@ -759,7 +772,7 @@
 
       async function loadUsers() {
         const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = '<tr><td colspan="6" class="loading">로딩 중...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">로딩 중...</td></tr>';
 
         const tierFilter = document.getElementById('tierFilter').value;
         const providerFilter = document.getElementById('providerFilter').value;
@@ -812,7 +825,7 @@
           if (error.message.includes('profiles') || error.code === '42P01') {
             tbody.innerHTML = `
                         <tr>
-                            <td colspan="6" style="text-align: center; padding: 40px; background: #fffde7;">
+                            <td colspan="7" style="text-align: center; padding: 40px; background: #fffde7;">
                                 <strong>profiles 테이블이 없습니다.</strong><br><br>
                                 database/profiles-schema.sql 파일을<br>
                                 Supabase SQL Editor에서 실행하세요.<br><br>
@@ -825,7 +838,7 @@
           } else {
             tbody.innerHTML = `
                         <tr>
-                            <td colspan="6" class="empty-state">
+                            <td colspan="7" class="empty-state">
                                 <h4>사용자 목록을 불러올 수 없습니다</h4>
                                 <p>${error.message}</p>
                             </td>
@@ -841,7 +854,7 @@
         if (!users || users.length === 0) {
           tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="empty-state">
+                        <td colspan="7" class="empty-state">
                             <h4>회원이 없습니다</h4>
                             <p>검색 조건을 변경해 보세요.</p>
                         </td>
@@ -858,6 +871,17 @@
             const location = user.sido && user.gugun ? `${user.sido} ${user.gugun}` : '-';
             const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
 
+            // 상세설계 승인 뱃지
+            let ddBadge = '<span class="badge dd-none">미신청</span>';
+            if (user.detaildesign_approved) {
+              ddBadge = '<span class="badge dd-approved">승인됨</span>';
+            } else if (user.detaildesign_requested_at) {
+              ddBadge = '<span class="badge dd-pending">검토중</span>';
+            }
+            const ddActionBtn = user.detaildesign_approved
+              ? `<button class="btn btn-sm btn-danger" onclick="toggleDetailDesignApproval('${user.id}', false)">승인해제</button>`
+              : `<button class="btn btn-sm btn-success" onclick="toggleDetailDesignApproval('${user.id}', true)">승인</button>`;
+
             return `
                     <tr>
                         <td>
@@ -872,6 +896,7 @@
                         <td>
                             <span class="badge ${tier}">${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>
                         </td>
+                        <td>${ddBadge}</td>
                         <td>${location}</td>
                         <td>
                             <span class="provider-badge ${provider}">${getProviderLabel(provider)}</span>
@@ -880,6 +905,7 @@
                         <td>
                             <div class="actions">
                                 <button class="btn btn-sm btn-primary" onclick="viewUser('${user.id}')">상세</button>
+                                ${ddActionBtn}
                             </div>
                         </td>
                     </tr>
@@ -933,6 +959,18 @@
         document.getElementById('modalCreatedAt').value = formatDate(user.created_at);
         document.getElementById('modalMemo').value = user.admin_memo || '';
 
+        // 상세설계 승인 상태
+        document.getElementById('modalDetailDesignApproved').checked = Boolean(user.detaildesign_approved);
+        const statusEl = document.getElementById('modalDDStatus');
+        if (user.detaildesign_approved) {
+          const at = user.detaildesign_approved_at ? formatDate(user.detaildesign_approved_at) : '-';
+          statusEl.textContent = `승인 완료 (${at})`;
+        } else if (user.detaildesign_requested_at) {
+          statusEl.textContent = `권한 신청 접수됨 (${formatDate(user.detaildesign_requested_at)}) — 승인 대기 중`;
+        } else {
+          statusEl.textContent = '아직 신청 이력이 없습니다.';
+        }
+
         document.getElementById('userModal').classList.add('active');
       }
 
@@ -946,16 +984,27 @@
 
         const newTier = document.getElementById('modalTier').value;
         const memo = document.getElementById('modalMemo').value;
+        const approveDD = document.getElementById('modalDetailDesignApproved').checked;
+
+        // 기존 값과 비교하여 승인 상태 변경 시에만 _at/_by 필드 갱신
+        const prev = usersData.find((u) => u.id === selectedUserId) || {};
+        const wasApproved = Boolean(prev.detaildesign_approved);
+
+        const payload = {
+          tier: newTier,
+          admin_memo: memo,
+          updated_at: new Date().toISOString(),
+        };
+        if (approveDD !== wasApproved) {
+          payload.detaildesign_approved = approveDD;
+          payload.detaildesign_approved_at = approveDD ? new Date().toISOString() : null;
+          payload.detaildesign_approved_by = approveDD ? currentUser.id : null;
+        }
 
         try {
-          // profiles 테이블 업데이트
           const { error } = await supabaseClient
             .from('profiles')
-            .update({
-              tier: newTier,
-              admin_memo: memo,
-              updated_at: new Date().toISOString(),
-            })
+            .update(payload)
             .eq('id', selectedUserId);
 
           if (error) throw error;
@@ -966,6 +1015,27 @@
         } catch (error) {
           console.error('Error updating user:', error);
           alert('수정 중 오류가 발생했습니다: ' + error.message);
+        }
+      }
+
+      // 리스트의 빠른 승인/해제 액션
+      async function toggleDetailDesignApproval(userId, approve) {
+        const action = approve ? '승인' : '승인 해제';
+        if (!confirm(`이 사용자의 상세설계 사용을 ${action}하시겠습니까?`)) return;
+        try {
+          const { error } = await supabaseClient
+            .from('profiles')
+            .update({
+              detaildesign_approved: approve,
+              detaildesign_approved_at: approve ? new Date().toISOString() : null,
+              detaildesign_approved_by: approve ? currentUser.id : null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', userId);
+          if (error) throw error;
+          await loadUsers();
+        } catch (e) {
+          alert(`${action} 처리 중 오류: ` + e.message);
         }
       }
 

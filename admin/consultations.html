@@ -580,6 +580,53 @@
       </div>
     </main>
 
+    <!-- Edit / Notes Modal (상담 내용 정리·수정) -->
+    <div class="modal" id="editModal">
+      <div class="modal-content" style="max-width:640px;">
+        <div class="modal-header">
+          <h3>상담 내용 정리 · 수정</h3>
+          <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>상담 제목</label>
+            <input type="text" id="editTitle" />
+          </div>
+          <div class="form-group">
+            <label>상세 내용 (고객 원문)</label>
+            <textarea id="editDescription" rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <label>담당자 메모 / 정리 노트</label>
+            <textarea id="editAdminMemo" rows="4" placeholder="상담 결과 정리, 후속 조치 등"></textarea>
+          </div>
+          <div class="form-group">
+            <label>상태</label>
+            <select id="editStatus">
+              <option value="pending">대기</option>
+              <option value="confirmed">확정</option>
+              <option value="completed">완료</option>
+              <option value="cancelled">취소</option>
+            </select>
+          </div>
+          <div class="form-group" style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+              <input type="checkbox" id="editRequestDetailDesign" style="width:auto;" disabled />
+              <span>상세설계(CAD/BOM) 권한 신청 (고객 요청)</span>
+            </label>
+            <div style="font-size:0.8rem;color:#666;margin-top:6px;">
+              이 체크 상태는 읽기 전용 참고용입니다. 실제 승인은
+              <a href="users.html" style="color:#007bff;">회원 관리</a> 에서 진행하세요.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('editModal')">닫기</button>
+          <button class="btn btn-primary" onclick="saveConsultationEdits()">저장</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Confirm Modal -->
     <div class="modal" id="confirmModal">
       <div class="modal-content">
@@ -629,6 +676,7 @@
       let supabaseClient = null;
       let currentUser = null;
       let selectedConsultationId = null;
+      let consultationsCache = [];
       let currentStatusFilter = '';
 
       const ADMIN_EMAILS = ['dadamfurniture@gmail.com'];
@@ -729,6 +777,7 @@
           }
 
           if (filtered.length === 0) {
+            consultationsCache = [];
             container.innerHTML = `
                         <div class="empty-state">
                             <h4>상담 신청이 없습니다</h4>
@@ -738,6 +787,7 @@
             return;
           }
 
+          consultationsCache = filtered;
           container.innerHTML = filtered.map((c) => renderConsultationCard(c)).join('');
         } catch (e) {
           console.error('Error:', e);
@@ -753,25 +803,68 @@
         }
       }
 
+      // 주문제작 상세 레이블 맵 (프런트 표시용)
+      const CATEGORY_LABELS_KO = {
+        sink: '싱크대', island: '아일랜드', wardrobe: '붙박이장', fridge: '냉장고장',
+        shoerack: '신발장', vanity: '화장대', storage: '수납장', other: '기타',
+      };
+      const SPACE_LABELS_KO = {
+        kitchen: '주방', living: '거실', bedroom: '침실', dressroom: '드레스룸',
+        entrance: '현관', bathroom: '욕실', other: '기타',
+      };
+      const BUDGET_LABELS_KO = {
+        under_300: '300만원 이하', '300_500': '300~500만원',
+        '500_1000': '500~1,000만원', over_1000: '1,000만원 이상',
+      };
+      const STYLE_LABELS_KO = {
+        modern: '모던 미니멀', scandinavian: '북유럽', classic: '클래식',
+        luxury: '럭셔리', industrial: '인더스트리얼', other: '기타',
+      };
+
       function renderConsultationCard(c) {
         const initial = (c.name || c.email || '?').charAt(0).toUpperCase();
         const typeLabel = TYPE_LABELS[c.consultation_type] || c.consultation_type || '미지정';
         const statusLabel = STATUS_LABELS[c.status] || c.status;
 
+        const cats = Array.isArray(c.furniture_categories) ? c.furniture_categories : [];
+        const catHtml = cats.length
+          ? cats
+              .map(
+                (cat) =>
+                  `<span class="type-badge" style="margin:2px 4px 2px 0;">${CATEGORY_LABELS_KO[cat] || cat}</span>`
+              )
+              .join('')
+          : '-';
+        const spaceLabel = SPACE_LABELS_KO[c.space_type] || c.space_type || '-';
+        const budgetLabel = BUDGET_LABELS_KO[c.budget_range] || c.budget_range || '-';
+        const styleLabel = STYLE_LABELS_KO[c.style_preference] || c.style_preference || '-';
+        const hasDims = c.space_width_mm || c.space_height_mm || c.space_depth_mm;
+        const dimHtml = hasDims
+          ? `${c.space_width_mm || '?'} × ${c.space_height_mm || '?'} × ${c.space_depth_mm || '?'} mm`
+          : '-';
+        const ddRequested = c.request_detail_design
+          ? '<span style="color:#e65100;font-weight:600;margin-left:4px;">상세설계 권한 신청</span>'
+          : '';
+
         let actionsHtml = '';
         if (c.status === 'pending') {
           actionsHtml = `
                     <button class="btn btn-primary btn-sm" onclick="openConfirmModal('${c.id}')">일정 확정</button>
+                    <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">내용 정리</button>
                     <button class="btn btn-danger btn-sm" onclick="cancelConsultation('${c.id}')">취소</button>
                 `;
         } else if (c.status === 'confirmed') {
           actionsHtml = `
                     <button class="btn btn-success btn-sm" onclick="openCompleteModal('${c.id}')">완료 처리</button>
+                    <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">내용 정리</button>
                     <button class="btn btn-warning btn-sm" onclick="openConfirmModal('${c.id}')">일정 변경</button>
                     <button class="btn btn-danger btn-sm" onclick="cancelConsultation('${c.id}')">취소</button>
                 `;
         } else {
-          actionsHtml = `<button class="btn btn-secondary btn-sm" disabled>처리 완료</button>`;
+          actionsHtml = `
+                    <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">내용 정리</button>
+                    <button class="btn btn-secondary btn-sm" disabled>처리 완료</button>
+                `;
         }
 
         return `
@@ -780,7 +873,7 @@
                         <div class="consultation-user">
                             <div class="user-avatar">${initial}</div>
                             <div class="user-details">
-                                <h4>${c.name || '이름 없음'} <span class="type-badge">${typeLabel}</span></h4>
+                                <h4>${c.name || '이름 없음'} <span class="type-badge">${typeLabel}</span>${ddRequested}</h4>
                                 <span>${c.email} ${c.phone ? '| ' + c.phone : ''}</span>
                             </div>
                         </div>
@@ -809,6 +902,18 @@
                         `
                             : ''
                         }
+                        <div class="info-item">
+                            <label>가구 종류</label>
+                            <p>${catHtml}</p>
+                        </div>
+                        <div class="info-item">
+                            <label>설치 공간 / 크기</label>
+                            <p>${spaceLabel} · ${dimHtml}</p>
+                        </div>
+                        <div class="info-item">
+                            <label>예산 / 스타일</label>
+                            <p>${budgetLabel} · ${styleLabel}</p>
+                        </div>
                     </div>
                     ${
                       c.description
@@ -850,6 +955,42 @@
         document.getElementById('confirmedDateTime').value = '';
         document.getElementById('confirmMemo').value = '';
         document.getElementById('confirmModal').classList.add('active');
+      }
+
+      function openEditModal(id) {
+        selectedConsultationId = id;
+        const c = consultationsCache.find((x) => x.id === id);
+        if (!c) return;
+        document.getElementById('editTitle').value = c.title || '';
+        document.getElementById('editDescription').value = c.description || '';
+        document.getElementById('editAdminMemo').value = c.admin_memo || '';
+        document.getElementById('editStatus').value = c.status || 'pending';
+        document.getElementById('editRequestDetailDesign').checked = Boolean(c.request_detail_design);
+        document.getElementById('editModal').classList.add('active');
+      }
+
+      async function saveConsultationEdits() {
+        if (!selectedConsultationId) return;
+        const payload = {
+          title: document.getElementById('editTitle').value.trim(),
+          description: document.getElementById('editDescription').value.trim() || null,
+          admin_memo: document.getElementById('editAdminMemo').value.trim() || null,
+          status: document.getElementById('editStatus').value,
+          updated_at: new Date().toISOString(),
+        };
+        try {
+          const { error } = await supabaseClient
+            .from('consultations')
+            .update(payload)
+            .eq('id', selectedConsultationId);
+          if (error) throw error;
+          alert('상담 내용이 저장되었습니다.');
+          closeModal('editModal');
+          await loadStats();
+          await loadConsultations();
+        } catch (e) {
+          alert('저장 중 오류: ' + e.message);
+        }
       }
 
       function openCompleteModal(id) {
