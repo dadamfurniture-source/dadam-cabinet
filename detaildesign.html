@@ -86,14 +86,15 @@
 
     <!-- 승인 대기 오버레이 (로그인 됨, 본사 승인 필요) -->
     <div class="auth-overlay hidden" id="approvalOverlay">
-      <div class="auth-modal" style="max-width:440px;">
-        <h2 id="approvalTitle">🕒 본사 승인이 필요합니다</h2>
+      <div class="auth-modal" style="max-width:460px;">
+        <h2 id="approvalTitle">🔒 본사 승인이 필요합니다</h2>
         <p id="approvalMessage" style="line-height:1.7;">
-          상세설계(CAD/BOM) 기능은 본사(홍회장)의 승인을 받은 계정에서만 사용할 수 있습니다.<br />
-          아래 버튼으로 권한 신청을 하시거나, 상담 신청 페이지에서 "상세설계 권한 신청" 에 체크해 주세요.
+          상세설계(CAD/BOM) 기능은 본사(홍회장)의 승인을 받아
+          <b>Standard → Expert 등급</b>으로 승급된 계정에서만 사용할 수 있습니다.<br /><br />
+          아래 <b>승인 요청</b> 버튼을 누르시거나, 마이페이지 배너에서도 동일하게 신청하실 수 있습니다.
         </p>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
-          <button class="btn-login" id="approvalRequestBtn" onclick="requestDetailDesignAccess()">권한 신청하기</button>
+          <button class="btn-login" id="approvalRequestBtn" onclick="requestDetailDesignAccess()">✉️ 승인 요청</button>
           <button class="btn-login" style="background:#6b7280;" onclick="location.href='consultation.html'">상담 신청</button>
           <button class="btn-login" style="background:#e5e7eb;color:#374151;" onclick="location.href='mypage.html'">마이페이지</button>
         </div>
