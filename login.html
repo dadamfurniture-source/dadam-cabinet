@@ -21,8 +21,25 @@
         box-sizing: border-box;
       }
 
+      /* 레거시 색상 변수 복원 — dadam-system.css 도입 시 :root 블록이 빠지면서
+         brand-section / 폼 헤더 / 입력 필드 등에서 var(--charcoal) 등이 풀리지 않아
+         텍스트가 투명해지는 회귀 발생 (login.html 만의 문제). */
+      :root {
+        --white: #fafafa;
+        --cream: #f8f7f4;
+        --warm: #ebe8e2;
+        --gray: #8b8680;
+        --charcoal: #2d2a26;
+        --black: #1a1918;
+        --gold: #b8956c;
+        --gold-light: #d4b896;
+      }
+
       body {
-        background: var(--d-bg);
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        background: var(--cream);
+        color: var(--charcoal);
+        line-height: 1.7;
         min-height: 100vh;
         display: flex;
       }
