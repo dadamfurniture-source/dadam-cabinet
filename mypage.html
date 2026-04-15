@@ -1523,49 +1523,44 @@
       // 등급 토글
       async function toggleTier() {
         const toggle = document.getElementById('tierToggle');
-        const newTier = toggle.checked ? 'expert' : 'standard';
+        const wantExpert = toggle.checked;
 
-        try {
-          // 1. auth.users metadata 업데이트
-          const { error: authError } = await supabaseClient.auth.updateUser({
-            data: { tier: newTier },
-          });
-
-          if (authError) throw authError;
-
-          // 2. profiles 테이블 업데이트
+        // MVP 정책: 사용자가 직접 등급을 Expert 로 올릴 수 없음.
+        // Expert 승급은 본사(홍회장) 승인(profiles.detaildesign_approved) 으로만 처리.
+        // 토글은 안내용으로 남기되 클릭 시 메시지 + 원복.
+        if (wantExpert) {
+          let alreadyApproved = false;
           try {
-            await supabaseClient
-              .from('profiles')
-              .update({ tier: newTier, updated_at: new Date().toISOString() })
-              .eq('id', currentUser.id);
-          } catch (profileError) {
-            console.log('profiles 테이블 업데이트 건너뜀:', profileError.message);
-          }
+            if (window.DetailDesignAccess) {
+              const status = await window.DetailDesignAccess.fetchStatus(
+                supabaseClient,
+                currentUser.id
+              );
+              alreadyApproved = Boolean(status?.approved);
+            }
+          } catch (e) { /* fail-closed */ }
 
-          // 3. 세션 새로고침
-          const {
-            data: { session },
-          } = await supabaseClient.auth.getSession();
-          if (session) {
-            currentUser = session.user;
+          if (!alreadyApproved) {
+            alert(
+              'Expert 등급은 본사(홍회장) 승인 후 자동으로 활성화됩니다.\n\n' +
+              '아래 "✉️ 승인 요청" 버튼으로 신청하시거나, "상담 신청" 페이지에서\n' +
+              '"상세설계 권한 신청" 에 체크해 주세요.'
+            );
+            toggle.checked = false; // 원복
+            return;
           }
-
-          // 4. UI 업데이트
-          updateTierDisplay(newTier);
-
-          // 알림
-          if (newTier === 'expert') {
-            alert('Expert 등급으로 변경되었습니다.\nAI 설계 페이지에서 상세 설계 도구를 이용할 수 있습니다.');
-          } else {
-            alert('Standard 등급으로 변경되었습니다.');
-          }
-        } catch (error) {
-          console.error('등급 변경 오류:', error);
-          alert('등급 변경 중 오류가 발생했습니다: ' + error.message);
-          // 실패 시 토글 원복
-          toggle.checked = !toggle.checked;
+          // 이미 승인된 사용자가 잘못 토글한 경우 — 아무 동작 없이 ON 유지
+          alert('이미 Expert 등급입니다. 상단 메뉴의 "Detail Design" 탭을 사용하세요.');
+          toggle.checked = true;
+          return;
         }
+
+        // Expert → Standard 강등 시도: 사용자 임의 변경 차단 (관리자 전용)
+        alert(
+          'Expert 등급의 해제는 본사 관리자만 처리할 수 있습니다.\n' +
+          '문의가 필요하시면 "상담 신청" 페이지를 이용해 주세요.'
+        );
+        toggle.checked = true; // 원복 (Expert 유지)
       }
 
       function formatDate(dateStr) {
