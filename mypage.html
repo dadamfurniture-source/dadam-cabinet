@@ -17,6 +17,7 @@
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
+    <script src="js/admin-access.js"></script>
     <style>
       * {
         margin: 0;
@@ -121,6 +122,68 @@
         background: var(--business);
         color: #fff;
       }
+
+      /* ============================================================
+         관리자 이중 뷰 (body.admin-view)
+         ============================================================ */
+      body:not(.admin-view) .admin-only { display: none !important; }
+      body.admin-view .user-only { display: none !important; }
+
+      .tier-admin {
+        background: var(--charcoal);
+        color: #fff;
+      }
+      .tier-super_admin {
+        background: linear-gradient(135deg, #2d2a26 0%, #b8956c 100%);
+        color: #fff;
+      }
+
+      body.admin-view .stat-card.admin-stat {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+      }
+      body.admin-view .stat-card.admin-stat:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      }
+
+      .admin-cta-card {
+        background: linear-gradient(135deg, #2d2a26 0%, #4a4540 100%);
+        color: #fff;
+        padding: 24px 28px;
+        border-radius: 16px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .admin-cta-card h3 {
+        font-size: 17px;
+        margin-bottom: 4px;
+        color: #fff;
+      }
+      .admin-cta-card p {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.75);
+        line-height: 1.6;
+      }
+      .admin-cta-card .cta-body { flex: 1; min-width: 220px; }
+      .admin-cta-card a.cta-btn {
+        padding: 12px 22px;
+        background: #b8956c;
+        color: #fff;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .admin-cta-card a.cta-btn:hover { background: #a07a54; }
+
       .profile-actions {
         display: flex;
         gap: 12px;
@@ -615,6 +678,7 @@
           <div class="user-dropdown">
             <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
             <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
+            <a href="admin/index.html" id="navAdminLink" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" /></svg>관리자 페이지</a>
             <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
           </div>
         </div>
@@ -633,6 +697,7 @@
       <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
       <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
       <a href="material.html" data-i18n="nav.material">자재</a>
+      <a href="admin/index.html" id="mobileAdminLink" style="display:none">관리자 페이지</a>
       <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
       <a
         href="#"
@@ -658,11 +723,12 @@
         <div class="profile-info">
           <h1 class="profile-name" id="profileName">로딩 중...</h1>
           <p class="profile-email" id="profileEmail">-</p>
-          <span class="profile-tier tier-standard" id="profileTier">Standard</span>
+          <span class="profile-tier tier-standard user-only" id="profileTier">Standard</span>
+          <span class="profile-tier tier-admin admin-only" id="profileAdminBadge" style="display:none">관리자</span>
         </div>
         <div class="profile-actions">
           <button class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
-          <div class="tier-toggle" id="tierToggleContainer">
+          <div class="tier-toggle user-only" id="tierToggleContainer">
             <span class="tier-label" id="labelStandard">Standard</span>
             <label class="toggle-switch">
               <input type="checkbox" id="tierToggle" onchange="toggleTier()" />
@@ -673,14 +739,69 @@
         </div>
       </div>
 
-      <!-- 상세설계 승인 상태 배너 -->
+      <!-- 상세설계 승인 상태 배너 (일반 사용자 전용) -->
       <div
         id="ddApprovalBanner"
+        class="user-only"
         style="display:none;margin:0 0 24px;padding:18px 20px;border-radius:16px;border:1px solid var(--d-border);background:var(--d-surface);"
       ></div>
 
-      <!-- Stats -->
-      <div class="stats-grid">
+      <!-- 관리자 대시보드 CTA (관리자 전용) -->
+      <div class="admin-cta-card admin-only">
+        <div style="font-size:36px;">👑</div>
+        <div class="cta-body">
+          <h3>관리자 대시보드</h3>
+          <p>회원/상담/상세설계 승인 등 모든 관리 기능은 전용 대시보드에서 진행됩니다.</p>
+        </div>
+        <a href="admin/index.html" class="cta-btn">대시보드 열기 →</a>
+      </div>
+
+      <!-- 관리자 KPI Stats (관리자 전용) -->
+      <div class="stats-grid admin-only">
+        <a href="admin/users.html" class="stat-card admin-stat">
+          <div class="stat-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </div>
+          <div class="stat-value" id="adminStatTotalUsers">-</div>
+          <div class="stat-label">전체 회원</div>
+        </a>
+        <a href="admin/users.html" class="stat-card admin-stat">
+          <div class="stat-icon gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </div>
+          <div class="stat-value" id="adminStatExpertUsers">-</div>
+          <div class="stat-label">Expert 회원</div>
+        </a>
+        <a href="admin/consultations.html" class="stat-card admin-stat">
+          <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <div class="stat-value" id="adminStatPendingConsult">-</div>
+          <div class="stat-label">상담 대기</div>
+        </a>
+        <a href="admin/users.html" class="stat-card admin-stat">
+          <div class="stat-icon" style="background:rgba(245,124,0,0.12);color:#f57c00;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <div class="stat-value" id="adminStatPendingDD">-</div>
+          <div class="stat-label">상세설계 승인 대기</div>
+        </a>
+      </div>
+
+      <!-- Stats (일반 사용자 전용) -->
+      <div class="stats-grid user-only">
         <div class="stat-card">
           <div class="stat-icon purple">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -724,8 +845,53 @@
         </div>
       </div>
 
-      <!-- Quick Actions -->
-      <section class="section">
+      <!-- 관리자 빠른 메뉴 (관리자 전용) -->
+      <section class="section admin-only">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg>
+            관리자 메뉴
+          </h2>
+        </div>
+        <div class="quick-actions">
+          <a href="admin/users.html" class="action-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span>회원 관리</span>
+          </a>
+          <a href="admin/consultations.html" class="action-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span>상담 관리</span>
+          </a>
+          <a href="admin/expert-requests.html" class="action-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span>Expert 신청</span>
+          </a>
+          <a href="admin/logs.html" class="action-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            <span>활동 로그</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- Quick Actions (일반 사용자 전용) -->
+      <section class="section user-only">
         <div class="section-header">
           <h2 class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -811,8 +977,8 @@
         </div>
       </section>
 
-      <!-- Saved Partners -->
-      <section class="section" id="savedPartnersSection">
+      <!-- Saved Partners (일반 사용자 전용) -->
+      <section class="section user-only" id="savedPartnersSection">
         <div class="section-header">
           <h2 class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -834,8 +1000,8 @@
         </div>
       </section>
 
-      <!-- Recent Designs -->
-      <section class="section">
+      <!-- Recent Designs (일반 사용자 전용) -->
+      <section class="section user-only" id="recentDesignsSection">
         <div class="section-header">
           <h2 class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -953,6 +1119,20 @@
         }
 
         currentUser = session.user;
+
+        // 관리자 판별 (is_admin() RPC, fail-closed). body.admin-view 토글로 CSS 분기.
+        try {
+          const isAdmin = window.AdminAccess
+            ? await window.AdminAccess.isAdmin(supabaseClient)
+            : false;
+          currentUser.__isAdmin = isAdmin;
+          document.body.classList.toggle('admin-view', isAdmin);
+          if (window.AdminAccess) window.AdminAccess.updateNavLinks(isAdmin);
+        } catch (e) {
+          console.warn('[mypage] 관리자 판별 실패, 일반 사용자로 폴백:', e?.message);
+          currentUser.__isAdmin = false;
+        }
+
         await loadUserProfile();
       }
 
@@ -974,13 +1154,19 @@
         // 네비게이션 사용자 정보
         document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
         document.getElementById('navUserName').textContent = name;
-        // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책) + 승인 배너 렌더링
+        // 관리자는 Detail Design 탭 무조건 노출 (검증 목적). 일반 사용자는 승인 여부에 따라.
         if (window.DetailDesignAccess) {
-          window.DetailDesignAccess.updateNavVisibility(supabaseClient, user).then((approved) => {
-            if (typeof renderDetailDesignApprovalBanner === 'function') {
-              renderDetailDesignApprovalBanner(approved);
-            }
-          });
+          if (currentUser.__isAdmin) {
+            ['#navDetailDesign', '#mobileDetailDesign'].forEach((sel) => {
+              document.querySelectorAll(sel).forEach((el) => { el.style.display = ''; });
+            });
+          } else {
+            window.DetailDesignAccess.updateNavVisibility(supabaseClient, user).then((approved) => {
+              if (typeof renderDetailDesignApprovalBanner === 'function') {
+                renderDetailDesignApprovalBanner(approved);
+              }
+            });
+          }
         }
 
         // 이메일
@@ -1002,19 +1188,96 @@
         });
         document.getElementById('infoJoined').textContent = joinedDate;
 
-        // 등급
+        // 등급 (일반 사용자만 tier 배지 사용. 관리자는 별도 배지)
         const tier = meta.tier || 'standard';
         updateTierDisplay(tier);
 
-        // 통계 로드
-        await loadUserStats();
-        await loadSavedPartners();
+        if (currentUser.__isAdmin) {
+          // 관리자 모드: 역할 배지 + KPI 통계 로드
+          await loadAdminRoleBadge();
+          await loadAdminStats();
+        } else {
+          // 일반 사용자 모드: 통계 + 저장 업체 로드
+          await loadUserStats();
+          await loadSavedPartners();
+        }
+      }
+
+      // 관리자 역할 배지 ("Super Admin" / "Admin")
+      async function loadAdminRoleBadge() {
+        if (!currentUser || !window.AdminAccess) return;
+        const badge = document.getElementById('profileAdminBadge');
+        if (!badge) return;
+        try {
+          const role = await window.AdminAccess.getRole(supabaseClient, currentUser.id);
+          if (role === 'super_admin') {
+            badge.textContent = '👑 Super Admin';
+            badge.classList.add('tier-super_admin');
+            badge.classList.remove('tier-admin');
+          } else if (role) {
+            badge.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+          } else {
+            badge.textContent = '관리자';
+          }
+        } catch (e) {
+          console.warn('[mypage] 관리자 배지 렌더 실패:', e?.message);
+        }
+      }
+
+      // 관리자 KPI 통계 로드 (전체 회원 / Expert / 상담 대기 / 상세설계 승인 대기)
+      async function loadAdminStats() {
+        if (!supabaseClient) return;
+
+        // 1) profile_stats 뷰 (total_users, expert_users)
+        try {
+          const { data: stats, error } = await supabaseClient
+            .from('profile_stats')
+            .select('total_users, expert_users')
+            .single();
+          if (!error && stats) {
+            const totalEl = document.getElementById('adminStatTotalUsers');
+            const expertEl = document.getElementById('adminStatExpertUsers');
+            if (totalEl) totalEl.textContent = stats.total_users ?? '-';
+            if (expertEl) expertEl.textContent = stats.expert_users ?? '-';
+          }
+        } catch (e) {
+          console.warn('[mypage] profile_stats 조회 실패:', e?.message);
+        }
+
+        // 2) 상담 대기 건수 (status = pending)
+        try {
+          const { count, error } = await supabaseClient
+            .from('consultations')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pending');
+          if (!error) {
+            const el = document.getElementById('adminStatPendingConsult');
+            if (el) el.textContent = count ?? '-';
+          }
+        } catch (e) {
+          console.warn('[mypage] 상담 대기 count 실패:', e?.message);
+        }
+
+        // 3) 상세설계 승인 대기 건수
+        try {
+          const { count, error } = await supabaseClient
+            .from('detail_design_approval_requests')
+            .select('user_id', { count: 'exact', head: true })
+            .eq('detaildesign_approved', false);
+          if (!error) {
+            const el = document.getElementById('adminStatPendingDD');
+            if (el) el.textContent = count ?? '-';
+          }
+        } catch (e) {
+          console.warn('[mypage] 상세설계 대기 count 실패:', e?.message);
+        }
       }
 
       // 상세설계 승인 상태 배너 렌더링 (🔒 미신청 / ⏳ 검토중 / ✅ 승인됨)
       async function renderDetailDesignApprovalBanner(approvedFromNav) {
         const banner = document.getElementById('ddApprovalBanner');
         if (!banner || !currentUser || !supabaseClient) return;
+        if (currentUser.__isAdmin) return; // 관리자에겐 승인 배너 무의미
 
         let approved = approvedFromNav;
         let requestedAt = null;
@@ -1098,6 +1361,7 @@
 
       // 사용자 통계 로드
       async function loadUserStats() {
+        if (currentUser?.__isAdmin) return; // 관리자 모드에서는 사용자 stats 미사용
         try {
           // 상담 요청 수 조회
           const { data: consultations, error: consultError } = await supabaseClient
@@ -1147,6 +1411,7 @@
       // 저장된 파트너 로드
       async function loadSavedPartners() {
         if (!supabaseClient || !currentUser) return;
+        if (currentUser.__isAdmin) return; // 관리자 모드에서는 추천 업체 섹션 미렌더링
         try {
           const { data, error } = await supabaseClient
             .from('saved_partners')
@@ -1642,6 +1907,10 @@
       // 로그아웃
       async function logout() {
         if (!supabaseClient) return;
+
+        // 세션 캐시 정리 (다른 사용자 로그인 시 권한 누수 방지)
+        if (window.AdminAccess) window.AdminAccess.clearCache();
+        if (window.DetailDesignAccess) window.DetailDesignAccess.clearCache();
 
         await supabaseClient.auth.signOut();
         window.location.href = 'index.html';
