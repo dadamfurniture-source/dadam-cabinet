@@ -2855,7 +2855,11 @@
           const s = document.createElement('script');
           s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
           s.onload = resolve;
-          s.onerror = reject;
+          s.onerror = (e) => {
+            window.__xlsxLoading = null; // 재시도 허용 (rejected Promise 캐싱 방지)
+            s.remove();
+            reject(e);
+          };
           document.head.appendChild(s);
         });
         return window.__xlsxLoading;
