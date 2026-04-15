@@ -449,7 +449,7 @@
             // 텍스처 포함 렌더링 시도 (실패 시 동기 폴백)
             try {
               layoutImageBase64 = await LayoutRenderer.renderWithTextures(cabinetSpecs, upperModules, lowerModules, specs);
-              console.log('[LayoutRenderer] 텍스처 렌더링 완료');
+              dlog('[LayoutRenderer] 텍스처 렌더링 완료');
             } catch (texErr) {
               console.warn('[LayoutRenderer] 텍스처 렌더링 실패, 기본 렌더링 사용:', texErr.message);
               layoutImageBase64 = LayoutRenderer.render(cabinetSpecs, upperModules, lowerModules, specs);
@@ -459,7 +459,7 @@
             // 마스크 이미지 생성 (가구 표면=흰색, 나머지=검정 → AI 인페인팅용)
             maskImageBase64 = LayoutRenderer.renderMask(cabinetSpecs, upperModules, lowerModules, specs);
 
-            console.log('[LayoutRenderer] 블루프린트 + 마스크 생성 완료:', {
+            dlog('[LayoutRenderer] 블루프린트 + 마스크 생성 완료:', {
               canvasSize: Math.round(1024 / layoutData.aspectRatio) + 'x1024',
               upperModules: layoutData.upper.modules.length,
               lowerModules: layoutData.lower.modules.length,
@@ -474,10 +474,10 @@
           const sitePhotoUrl = mainItem.imageUrl || mainItem.image;
 
           if (sitePhotoUrl && sitePhotoUrl !== 'loading') {
-            console.log('현장 사진 발견:', sitePhotoUrl);
+            dlog('현장 사진 발견:', sitePhotoUrl);
             roomImageData = await fetchImageAsBase64(sitePhotoUrl);
             if (roomImageData) {
-              console.log('현장 사진 변환 성공:', roomImageData.type);
+              dlog('현장 사진 변환 성공:', roomImageData.type);
             }
           }
 
@@ -490,7 +490,7 @@
           // 8-1. 상세 프롬프트 생성
           const designPrompt = buildDesignPrompt(specs, cabinetSpecs);
 
-          console.log('AI 디자인 생성 요청:', {
+          dlog('AI 디자인 생성 요청:', {
             category,
             style,
             prompt: designPrompt.prompt,
