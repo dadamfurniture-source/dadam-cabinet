@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="css/ai-design.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/detaildesign-access.js"></script>
   </head>
   <body>
     <!-- SVG Symbols -->
@@ -184,6 +185,11 @@
           <span class="btn-text">싱크대</span>
           <span class="btn-check">✓</span>
         </button>
+        <button class="category-btn" data-category="island" onclick="selectCategory('island')">
+          <span class="btn-icon">🏝️</span>
+          <span class="btn-text">아일랜드</span>
+          <span class="btn-check">✓</span>
+        </button>
         <button class="category-btn" data-category="wardrobe" onclick="selectCategory('wardrobe')">
           <span class="btn-icon">👔</span>
           <span class="btn-text">붙박이장</span>
@@ -243,6 +249,7 @@
       <!-- Hidden: Original Category Grid (kept for compatibility with preview elements) -->
       <div style="display: none;">
         <img id="preview-sink" src="" alt="" />
+        <img id="preview-island" src="" alt="" />
         <img id="preview-wardrobe" src="" alt="" />
         <img id="preview-fridge" src="" alt="" />
         <img id="preview-vanity" src="" alt="" />
@@ -252,6 +259,13 @@
 
       <!-- Hidden File Inputs -->
       <input type="file" class="file-input" id="file-sink" accept="image/*" onchange="handleFileUpload('sink', this)" />
+      <input
+        type="file"
+        class="file-input"
+        id="file-island"
+        accept="image/*"
+        onchange="handleFileUpload('island', this)"
+      />
       <input
         type="file"
         class="file-input"
@@ -452,11 +466,10 @@
               document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
               document.getElementById('navUserName').textContent = name;
 
-              // 로그인 시 Detail Design 탭 표시
-              const ddNav = document.getElementById('navDetailDesign');
-              const ddMobile = document.getElementById('mobileDetailDesign');
-              if (ddNav) ddNav.style.display = '';
-              if (ddMobile) ddMobile.style.display = '';
+              // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
+              if (window.DetailDesignAccess) {
+                await window.DetailDesignAccess.updateNavVisibility(supabaseClient, user);
+              }
             }
           }
           // 스타일 데이터 Supabase 로드
@@ -728,6 +741,7 @@ Atmosphere: ${themeData.atmosphere}`;
         // 카테고리별 특화 프롬프트
         const categoryPrompts = {
           sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
+          island: `Freestanding kitchen island with integrated cooktop or sink, breakfast-bar overhang for seating, handleless drawers and cabinets on all sides, premium stone countertop, pendant lighting overhead.`,
           wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, internal LED lighting, mix of hanging space and shelves.`,
           fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
           vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
@@ -1111,6 +1125,7 @@ Magazine quality, professional lighting.`;
 
       const categoryInfo = {
         sink: { name: '싱크대', icon: '🍳' },
+        island: { name: '아일랜드', icon: '🏝️' },
         wardrobe: { name: '붙박이장', icon: '👔' },
         fridge: { name: '냉장고장', icon: '🧊' },
         vanity: { name: '화장대', icon: '💄' },
@@ -1307,6 +1322,7 @@ Magazine quality, professional lighting.`;
       // 카테고리 버튼 → 갤러리 카테고리 매핑
       const catToGallery = {
         sink: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'],
+        island: ['island_kitchen'],
         wardrobe: ['wardrobe'],
         fridge: ['fridge_cabinet'],
         vanity: ['vanity'],

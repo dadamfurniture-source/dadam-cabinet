@@ -14,6 +14,7 @@
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/supabase-utils.js"></script>
+    <script src="js/detaildesign-access.js"></script>
     <style>
       :root { --white:#fafafa;--cream:#f8f7f4;--warm:#ebe8e2;--gray:#8b8680;--charcoal:#2d2a26;--black:#1a1918;--gold:#b8956c; }
       * { margin:0;padding:0;box-sizing:border-box; }
@@ -236,8 +237,10 @@
               document.getElementById('btnUpload').style.display = '';
               document.getElementById('loginLink').style.display = 'none';
               document.getElementById('userMenu').style.display = '';
-              const dd = document.getElementById('navDetailDesign');
-              if (dd) dd.style.display = '';
+              // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
+              if (window.DetailDesignAccess) {
+                await window.DetailDesignAccess.updateNavVisibility(sb, currentUser);
+              }
               const av = document.getElementById('navUserAvatar');
               const nm = document.getElementById('navUserName');
               if (av) av.textContent = (currentUser.email||'?').charAt(0).toUpperCase();
