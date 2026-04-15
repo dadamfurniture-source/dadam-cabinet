@@ -620,10 +620,10 @@
         }
 
         if (section === 'upper') {
-          item.prevUpperModules = JSON.parse(JSON.stringify(item.modules.filter((m) => m.pos === 'upper')));
+          item.prevUpperModules = deepClone(item.modules.filter((m) => m.pos === 'upper'));
           runAutoCalcUpper(item);
         } else {
-          item.prevLowerModules = JSON.parse(JSON.stringify(item.modules.filter((m) => m.pos === 'lower')));
+          item.prevLowerModules = deepClone(item.modules.filter((m) => m.pos === 'lower'));
           runAutoCalcLower(item);
         }
 

@@ -41,7 +41,7 @@
           h: cat.defaultH || '',
           d: '',
           image: null,
-          specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
+          specs: deepClone(DEFAULT_SPECS),
           modules: [],
           prevUpperModules: null,
           prevLowerModules: null,
