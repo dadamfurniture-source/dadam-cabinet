@@ -9,8 +9,8 @@
         if (!item) return;
         _undoStack.push({
           uniqueId: item.uniqueId,
-          modules: JSON.parse(JSON.stringify(item.modules)),
-          specs: JSON.parse(JSON.stringify(item.specs)),
+          modules: deepClone(item.modules),
+          specs: deepClone(item.specs),
           timestamp: Date.now(),
         });
         if (_undoStack.length > UNDO_MAX) _undoStack.shift();
@@ -26,8 +26,8 @@
         // 현재 상태를 redo에 저장
         _redoStack.push({
           uniqueId: item.uniqueId,
-          modules: JSON.parse(JSON.stringify(item.modules)),
-          specs: JSON.parse(JSON.stringify(item.specs)),
+          modules: deepClone(item.modules),
+          specs: deepClone(item.specs),
           timestamp: Date.now(),
         });
 
@@ -35,7 +35,7 @@
         item.modules = snapshot.modules;
         item.specs = snapshot.specs;
         renderWorkspaceContent(item);
-        console.log('[Undo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
+        dlog('[Undo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
       }
 
       function redo() {
@@ -47,15 +47,15 @@
         // 현재 상태를 undo에 저장
         _undoStack.push({
           uniqueId: item.uniqueId,
-          modules: JSON.parse(JSON.stringify(item.modules)),
-          specs: JSON.parse(JSON.stringify(item.specs)),
+          modules: deepClone(item.modules),
+          specs: deepClone(item.specs),
           timestamp: Date.now(),
         });
 
         item.modules = snapshot.modules;
         item.specs = snapshot.specs;
         renderWorkspaceContent(item);
-        console.log('[Redo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
+        dlog('[Redo] restored to', new Date(snapshot.timestamp).toLocaleTimeString());
       }
 
       // Ctrl+Z / Ctrl+Y 키보드 바인딩
@@ -667,7 +667,7 @@
         const mod = item.modules.find((m) => m.id === modId);
         if (mod) {
           // 이미 같은 타입이면 무시
-          if (mod.moduleType === type) { console.log('[setWdrbType] same type, skip'); return; }
+          if (mod.moduleType === type) { dlog('[setWdrbType] same type, skip'); return; }
 
           mod.moduleType = type;
           // 타입에 따른 이름 변경
@@ -1428,7 +1428,7 @@
 
           // 검증 로그
           const totalWidth = item.modules.filter((m) => m.pos === 'wardrobe').reduce((sum, m) => sum + m.w, 0);
-          console.log(`스마트바 계산: 도어너비=${doorWidth}mm, 모듈합=${totalWidth}mm, 여유공간=${remainder}mm`);
+          dlog(`스마트바 계산: 도어너비=${doorWidth}mm, 모듈합=${totalWidth}mm, 여유공간=${remainder}mm`);
 
           if (remainder > TOLERANCE) {
             console.warn(`시공 여유공간 초과: ${remainder}mm (허용: ${TOLERANCE}mm)`);
@@ -1504,7 +1504,7 @@
             });
           }
 
-          console.log(`붙박이장 자동계산: ${modules2DCount}×2D + ${modules1DCount}×1D = ${targetDoors}doors (${modules2DCount + modules1DCount * 0.5}통)`);
+          dlog(`붙박이장 자동계산: ${modules2DCount}×2D + ${modules1DCount}×1D = ${targetDoors}doors (${modules2DCount + modules1DCount * 0.5}통)`);
         }
 
         renderWorkspaceContent(item);

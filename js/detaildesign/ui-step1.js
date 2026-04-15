@@ -41,7 +41,7 @@
           h: cat.defaultH || '',
           d: '',
           image: null,
-          specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
+          specs: deepClone(DEFAULT_SPECS),
           modules: [],
           prevUpperModules: null,
           prevLowerModules: null,
@@ -266,9 +266,9 @@
         if (modal) modal.remove();
 
         // ★ 디버그: BOM 시작 시 selectedItems 상태 확인
-        console.log('[BOM] === proceedToBOM 시작 ===');
+        dlog('[BOM] === proceedToBOM 시작 ===');
         selectedItems.forEach((item, idx) => {
-          console.log(`[BOM] selectedItems[${idx}]: categoryId=${item.categoryId}, modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
+          dlog(`[BOM] selectedItems[${idx}]: categoryId=${item.categoryId}, modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
         });
 
         // 2. 설계 데이터 추출
@@ -280,7 +280,7 @@
 
         // ★ 디버그: exportDesign 후 복사본 확인
         design.items.forEach((item, idx) => {
-          console.log(`[BOM] design.items[${idx}]: modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
+          dlog(`[BOM] design.items[${idx}]: modules=${item.modules?.length}, upper=${item.modules?.filter(m=>m.pos==='upper').length}, lower=${item.modules?.filter(m=>m.pos==='lower').length}`);
         });
 
         // 3. Step 3로 이동
@@ -390,7 +390,7 @@
        */
       function _appendSecondaryModules(payload, specs, itemD) {
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
-        console.log('[CornerDebug] _appendSecondaryModules called', {
+        dlog('[CornerDebug] _appendSecondaryModules called', {
           lShape,
           upperSecondaryW: specs.upperSecondaryW,
           upperSecondaryD: specs.upperSecondaryD,
@@ -427,14 +427,14 @@
         }
         payload.lowerCount = payload.lowerModules.length;
         // 상부장 secondary — upperSecondaryW 없으면 기본 1800mm
-        console.log('[CornerDebug] 상부장 secondary 체크', {
+        dlog('[CornerDebug] 상부장 secondary 체크', {
           secondaryUpperEnabled: specs.secondaryUpperEnabled,
           upperSecondaryW_before: specs.upperSecondaryW,
           condition: specs.secondaryUpperEnabled !== false,
         });
         if (specs.secondaryUpperEnabled !== false) {
           if (!specs.upperSecondaryW) specs.upperSecondaryW = '1800';
-          console.log('[CornerDebug] 상부장 secondary 생성 진입', { upperSecondaryW: specs.upperSecondaryW });
+          dlog('[CornerDebug] 상부장 secondary 생성 진입', { upperSecondaryW: specs.upperSecondaryW });
           const uSecW = parseFloat(specs.upperSecondaryW) || secW;
           const uPrimeD = parseFloat(specs.upperPrimeD) || 295;
           const uSecD = parseFloat(specs.upperSecondaryD) || uPrimeD;
@@ -458,7 +458,7 @@
             payload.upperModules = [...payload.upperModules, uBlindMod, ...uSecMods];
           }
           payload.upperCount = payload.upperModules.length;
-          console.log('[CornerDebug] 상부장 secondary 생성 완료', {
+          dlog('[CornerDebug] 상부장 secondary 생성 완료', {
             upperModules: payload.upperModules.map(m => ({ id: m.id, w: m.width, orient: m.orientation })),
             upperCount: payload.upperCount,
           });
