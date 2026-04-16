@@ -364,36 +364,38 @@ Keep wall, floor, camera identical. No clutter.`;
         const s = getWardrobeStructure(wallW);
         return `Edit photo: install "${color}" matte handleless built-in wardrobe, wall-to-wall (~${wallW}mm), floor-to-ceiling (~${wallH}mm).
 ${s.prompt}
+CRITICAL: Every door must be a SINGLE full-height door from floor to ceiling. Do NOT split any door into upper and lower halves.
 All doors closed, no open shelves, no gaps. Preserve background. Photorealistic. No text.`;
       }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
     // ─── 붙박이장 구조 (벽 폭 기준, 섹션 950mm) ───
+    // All doors are FULL-HEIGHT single doors (floor to ceiling, never split upper/lower)
+    // Interior types: short-hang = 2 hanging rods inside, long-hang = 1 rod + internal drawer, shelf = fixed shelves
     function getWardrobeStructure(w: number): { prompt: string; open: string } {
-      // 2단=상하 행거봉(서랍없음), 1단=풀하이트 행거+하부 내부서랍, 선반=고정선반
-      if (w > 3200) return { // 7도어
-        prompt: '7 doors: 2-door double-tier×2 + 2-door single-tier×1 + 1-door shelf×1, each ~950mm.',
-        open: '2단×2(행거2줄) + 1단×1(행거+내부서랍) + 선반×1(접이옷·수납박스)',
+      if (w > 3200) return { // 7 full-height doors
+        prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, fixed shelves). Total 7 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: fixed shelves with folded clothes and storage boxes.',
       };
-      if (w > 2600) return { // 6도어
-        prompt: '6 doors: 2-door double-tier×2 + 2-door single-tier×1, each ~950mm.',
-        open: '2단×2(행거2줄) + 1단×1(행거+내부서랍)',
+      if (w > 2600) return { // 6 full-height doors
+        prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 6 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom.',
       };
-      if (w > 2000) return { // 5도어
-        prompt: '5 doors: 2-door double-tier×1 + 2-door single-tier×1 + 1-door shelf×1, each ~950mm.',
-        open: '2단×1(행거2줄) + 1단×1(행거+내부서랍) + 선반×1(접이옷·수납박스)',
+      if (w > 2000) return { // 5 full-height doors
+        prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, fixed shelves). Total 5 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: fixed shelves with folded clothes and storage boxes.',
       };
-      return { // 4도어
-        prompt: '4 doors: 2-door double-tier×1 + 2-door single-tier×1, each ~950mm.',
-        open: '2단×1(행거2줄) + 1단×1(행거+내부서랍)',
+      return { // 4 full-height doors
+        prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
       };
     }
 
     // ─── 붙박이장 열린문 ───
     function buildWardrobeOpenPrompt(): string {
       const s = getWardrobeStructure(wallW);
-      return `Open all wardrobe doors ~90°. Interior: ${s.open}. Clothes on hangers, folded items on shelves. Internal drawer at bottom of single-tier only. Same camera/lighting/background. Photorealistic. No text.`;
+      return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items on shelves. Same camera/lighting/background. Photorealistic. No text.`;
     }
 
     // ─── AI 추천안 (투톤) ───
