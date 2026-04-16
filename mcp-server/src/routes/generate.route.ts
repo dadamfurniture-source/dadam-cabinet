@@ -142,6 +142,7 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
       room_image, image_type = 'image/jpeg',
       category = 'sink', design_style = 'modern-minimal',
       kitchen_layout = 'i_type',
+      wall_width_override,
       // 레거시 호환: 기존 색상 스키마가 전달되면 무시
       random_color_scheme: _rcs, alt_random_color_scheme: _arcs,
       layout_image, mask_image,
@@ -164,15 +165,23 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
 
     log.info({ category, design_style, extraImages: extraImages.length }, 'Generate request');
 
-    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) — 싱크대만 plumbing 분석 ═══
+    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) ═══
     log.info('Step 1: Wall analysis');
     let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
     let wallW2 = 0; // ㄱ자/ㄷ자 두 번째 벽
     let detectedLShape = kitchen_layout === 'l_type';
 
+    // 사용자 수동 입력값이 있으면 AI 분석 건너뜀
+    const manualW = Number(wall_width_override);
+    if (manualW >= 1000 && manualW <= 6000) {
+      wallW = manualW;
+      log.info({ wallW, source: 'user_override' }, 'Wall width from user input');
+    } else {
+
     try {
-      const wallPrompt = category === 'sink'
-        ? `Analyze this Korean apartment kitchen photo.
+      let wallPrompt: string;
+      if (category === 'sink') {
+        wallPrompt = `Analyze this Korean apartment kitchen photo.
 
 L-SHAPE DETECTION — Check if this kitchen has an L-shaped (ㄱ자) corner:
 - Look for a 90-degree corner where cabinets change direction
@@ -186,11 +195,30 @@ CALIBRATION — Use these KNOWN cabinet sizes as reference:
 
 Return JSON only:
 {"wall":{"width":number,"height":number,"width2":number},"plumbing":{"waterPct":number,"exhaustPct":number},"is_l_shape":boolean,"confidence":"high"|"medium"|"low"}
-width=main wall mm, width2=secondary wall mm (0 if not L-shaped). waterPct/exhaustPct as % from left of MAIN wall.`
-        : `Analyze this Korean apartment photo.
-Estimate wall width in mm. Korean apartments typically have 2200-4500mm wide kitchen walls. Be conservative.
+width=main wall mm, width2=secondary wall mm (0 if not L-shaped). waterPct/exhaustPct as % from left of MAIN wall.`;
+      } else if (category === 'wardrobe') {
+        wallPrompt = `Analyze this Korean apartment room photo for built-in wardrobe installation.
+
+CALIBRATION — Use these KNOWN Korean apartment features as size references:
+- Standard door frame: 900mm wide × 2100mm tall (most common reference — look for room doors)
+- Light switch / outlet plate: 70mm wide × 120mm tall (small rectangular plates on walls)
+- Ceiling height: typically 2300-2400mm in Korean apartments
+- Standard room door: visible in most room photos, use as PRIMARY scale reference
+
+TASK:
+1. Identify any visible doors, door frames, outlets, or light switches in the photo
+2. Use them as scale reference to calculate the target wall width in mm
+3. The target wall is where the wardrobe will be installed (usually the longest unobstructed wall)
+4. Korean apartment rooms typically have walls 1800-5000mm wide. Be conservative.
+
+Return JSON only:
+{"wall":{"width":number,"height":number},"reference_used":"door_frame"|"outlet"|"ceiling"|"none","confidence":"high"|"medium"|"low"}`;
+      } else {
+        wallPrompt = `Analyze this Korean apartment photo.
+Estimate wall width in mm. Korean apartments typically have 2200-4500mm wide walls. Be conservative.
 Return JSON only:
 {"wall":{"width":number,"height":number,"width2":number},"is_l_shape":boolean,"confidence":"high"|"medium"|"low"}`;
+      }
 
       const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
       if (wallResult.text) {
@@ -222,6 +250,7 @@ Return JSON only:
     } catch (e) {
       log.warn('Wall analysis failed, using defaults');
     }
+    } // end else (AI wall analysis)
 
     // ═══ Step 2: 레이아웃 제약조건 (싱크대만 위치 고정) ═══
     const sinkSide = waterPct <= 50 ? 'LEFT' : 'RIGHT';

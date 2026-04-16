@@ -60,7 +60,25 @@ async function callGemini(env, prompt, image, imageType, responseModalities = ['
 }
 
 // ─── 벽분석 프롬프트 ───
-function buildWallAnalysisPrompt() {
+function buildWallAnalysisPrompt(category) {
+  if (category === 'wardrobe') {
+    return `Analyze this Korean apartment room photo for built-in wardrobe installation.
+
+CALIBRATION — Use these KNOWN Korean apartment features as size references:
+- Standard door frame: 900mm wide × 2100mm tall (most common reference)
+- Light switch / outlet plate: 70mm wide × 120mm tall
+- Ceiling height: typically 2300-2400mm
+- Standard room door: use as PRIMARY scale reference
+
+TASK:
+1. Identify any visible doors, door frames, outlets, or light switches
+2. Use them as scale reference to calculate the target wall width in mm
+3. Korean apartment rooms typically have walls 1800-5000mm wide. Be conservative.
+
+Return JSON only:
+{"wall_dimensions_mm":{"width":number,"height":number},"reference_used":"door_frame"|"outlet"|"ceiling"|"none","confidence":"high"|"medium"|"low"}`;
+  }
+
   return `[TASK: Korean kitchen wall structure analysis]
 Analyze this photo and extract as JSON:
 - wall_dimensions_mm: { width, height } (estimate)
@@ -243,6 +261,7 @@ export default {
           category = 'sink',
           kitchen_layout = 'i_type',
           design_style = 'modern-minimal',
+          wall_width_override,
           ...themeData
         } = body;
 
@@ -256,9 +275,14 @@ export default {
 
         // ═══ Step 1: 벽면 분석 ═══
         let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
+        const manualW = Number(wall_width_override);
 
+        if (manualW >= 1000 && manualW <= 6000) {
+          wallW = manualW;
+          console.log(`[Generate] Wall width from user override: ${wallW}mm`);
+        } else {
         try {
-          const wallResult = await callGemini(env, buildWallAnalysisPrompt(), room_image, image_type, ['TEXT'], 0.2);
+          const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2);
 
           if (wallResult.text) {
             const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
@@ -268,6 +292,13 @@ export default {
               const utils = parsed.utility_positions_mm || {};
               wallW = dims.width || 3000;
               wallH = dims.height || 2400;
+              // 미터 → mm 변환 보호
+              if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
+              if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
+              // 렌즈 왜곡 보정 (15% 과대측정)
+              wallW = Math.round(wallW * 0.85);
+              // 범위 클램핑
+              wallW = Math.max(1800, Math.min(5000, wallW));
               if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
               if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
             }
@@ -276,6 +307,7 @@ export default {
         } catch (e) {
           console.warn('[Generate] Wall analysis failed, using defaults');
         }
+        } // end else (AI wall analysis)
 
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
         const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData);
