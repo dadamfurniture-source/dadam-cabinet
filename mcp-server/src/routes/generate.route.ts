@@ -147,6 +147,7 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
       random_color_scheme: _rcs, alt_random_color_scheme: _arcs,
       layout_image, mask_image,
       color_reference_image: _cri, alt_color_reference_image: _acri,
+      fridge_options,
     } = req.body;
 
     if (!room_image) {
@@ -366,6 +367,9 @@ Keep wall, floor, camera identical. No clutter.`;
 Doors: "${color}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
 All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
       }
+      if (cat === 'fridge') {
+        return buildFridgePrompt(color, countertop);
+      }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
@@ -398,6 +402,52 @@ All doors closed. No gaps between doors. Preserve background. Photorealistic. No
       return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items in drawers. Same camera/lighting/background. Photorealistic. No text.`;
     }
 
+    // ─── 냉장고장 프롬프트 ───
+    const FRIDGE_DOOR_DESC: Record<string, string> = {
+      'french-door': 'french-door (4-door) refrigerator',
+      'side-by-side': 'side-by-side (2-door) refrigerator',
+      'single-door': 'single-door column refrigerator',
+      'top-freezer': 'top-mount freezer refrigerator',
+    };
+    const FRIDGE_STORAGE_DESC: Record<string, string> = {
+      'both-sides': 'tall pantry cabinets on both left and right sides of the fridge',
+      'left-only': 'one tall pantry cabinet on the left side of the fridge',
+      'right-only': 'one tall pantry cabinet on the right side of the fridge',
+      'none': 'no side cabinets, fridge niche only with bridge cabinet above',
+    };
+    const FRIDGE_APPLIANCE_DESC: Record<string, string> = {
+      'microwave': 'built-in microwave',
+      'oven': 'built-in oven',
+      'steam-oven': 'built-in steam oven',
+      'coffee-machine': 'built-in coffee machine',
+      'rice-cooker': 'built-in rice cooker niche',
+    };
+
+    function buildFridgePrompt(color: string, countertop: CountertopColor): string {
+      const ctDesc = `"${countertop.name}" (${countertop.desc})`;
+      const opts = fridge_options || {};
+      const doorType = opts.doorType || 'french-door';
+      const storageType = opts.storageType || 'both-sides';
+      const appliances: string[] = opts.appliances || [];
+
+      const fridgeDesc = FRIDGE_DOOR_DESC[doorType] || FRIDGE_DOOR_DESC['french-door'];
+      const storageDesc = FRIDGE_STORAGE_DESC[storageType] || FRIDGE_STORAGE_DESC['both-sides'];
+
+      let applianceStr = '';
+      if (appliances.length > 0) {
+        const appNames = appliances.map((a: string) => FRIDGE_APPLIANCE_DESC[a]).filter(Boolean);
+        if (appNames.length > 0) {
+          applianceStr = ` Tall cabinet includes: ${appNames.join(', ')}.`;
+        }
+      }
+
+      return `Edit photo: install refrigerator surround cabinet (~${wallW}mm wide, ~${wallH}mm tall).
+Center: built-in ${fridgeDesc} opening (~900mm wide). ${storageDesc}.${applianceStr}
+Bridge cabinet above fridge connecting left and right.
+ALL cabinet doors: "${color}" matte flat-panel. Countertop: ${ctDesc}.
+Door surface smooth and seamless. Preserve background. Photorealistic. No text.`;
+    }
+
     // ─── AI 추천안 (투톤) ───
     function buildAltPrompt(cat: string, upper: string, lower: string, countertop: CountertopColor): string {
       const subject = CATEGORY_SUBJECT[cat] || CATEGORY_SUBJECT['storage'];
@@ -409,6 +459,23 @@ Edit photo: install ${subject}. ${sinkLayoutConstraints}
 [COUNTERTOP FIXED] Countertop must be ${ctDesc}. Use this exact color/pattern.
 ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
+      }
+      if (cat === 'fridge') {
+        const opts = fridge_options || {};
+        const doorType = opts.doorType || 'french-door';
+        const storageType = opts.storageType || 'both-sides';
+        const appliances: string[] = opts.appliances || [];
+        const fridgeDesc = FRIDGE_DOOR_DESC[doorType] || FRIDGE_DOOR_DESC['french-door'];
+        const storageDesc = FRIDGE_STORAGE_DESC[storageType] || FRIDGE_STORAGE_DESC['both-sides'];
+        let applianceStr = '';
+        if (appliances.length > 0) {
+          const appNames = appliances.map((a: string) => FRIDGE_APPLIANCE_DESC[a]).filter(Boolean);
+          if (appNames.length > 0) applianceStr = ` Tall cabinet includes: ${appNames.join(', ')}.`;
+        }
+        return `Edit photo: install refrigerator surround cabinet (~${wallW}mm wide, ~${wallH}mm tall).
+Center: built-in ${fridgeDesc} opening (~900mm wide). ${storageDesc}.${applianceStr}
+Bridge cabinet above fridge. Upper cabinets: "${upper}" matte flat-panel. Lower cabinets: "${lower}" matte flat-panel.
+Countertop: ${ctDesc}. Door surface smooth and seamless. Preserve background. Photorealistic. No text.`;
       }
       return `Edit photo: install ${subject}. Upper: "${upper}", Lower: "${lower}". Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }

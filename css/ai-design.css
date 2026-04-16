@@ -356,6 +356,39 @@
         margin-bottom: 16px;
       }
 
+      /* Fridge Options */
+      .fridge-opt-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 6px;
+        display: block;
+      }
+      .fridge-opt-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .fridge-opt-btn {
+        padding: 8px 14px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        background: #fff;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #555;
+      }
+      .fridge-opt-btn:hover {
+        border-color: #ccc;
+      }
+      .fridge-opt-btn.active {
+        border-color: var(--gold);
+        background: #FDF6EE;
+        color: #8B6914;
+        font-weight: 600;
+      }
+
       /* Category Grid */
       .category-grid {
         display: grid;
