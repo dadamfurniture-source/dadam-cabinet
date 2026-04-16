@@ -57,6 +57,7 @@ jobs:
 
     steps:
       - name: Trigger Railway deploy
+        working-directory: /tmp
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RAILWAY_DEPLOY_HOOK }}")
           echo "Railway deploy hook response: $response"
