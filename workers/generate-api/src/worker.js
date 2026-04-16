@@ -92,9 +92,11 @@ CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/l
   }
 
   if (category === 'wardrobe') {
+    const structure = getWardrobeStructure(wallData.wallW);
     return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
 Wall: ${wallData.wallW}x${wallData.wallH}mm.
 [CRITICAL] The wardrobe MUST cover the ENTIRE wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
+[STRUCTURE] ${structure.prompt}
 Full-width floor-to-ceiling wardrobe spanning the entire wall width (~${wallData.wallW}mm).
 Height: floor to ceiling (~${wallData.wallH}mm). Depth: ~600mm.
 No visible handles (J-pull grip or push-to-open). ${styleName}. Photorealistic. All doors CLOSED. No text.`;
@@ -123,19 +125,47 @@ Wall: ${wallData.wallW}x${wallData.wallH}mm. Floor-to-ceiling built-in with mult
 No visible handles. ${styleName}. Photorealistic. All doors closed.`;
 }
 
+// ─── 붙박이장 내부 구조 사양 (벽 폭 기준) ───
+function getWardrobeStructure(w) {
+  if (w > 3200) {
+    return {
+      prompt: '4 sections total: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 7 doors.',
+      openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 3 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom
+  - Section 4 (1-door, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
+    };
+  }
+  if (w > 2000) {
+    return {
+      prompt: '3 sections total: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom). Total 6 doors.',
+      openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 3 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom`,
+    };
+  }
+  return {
+    prompt: '2 sections total: TWO 2-door sections (one with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom). Total 4 doors.',
+    openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom`,
+  };
+}
+
 // ─── 열린문 프롬프트 ───
-function buildOpenDoorPrompt(category) {
+function buildOpenDoorPrompt(category, wallW) {
   if (category === 'wardrobe') {
+    const structure = getWardrobeStructure(wallW || 3000);
     return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
 
 [RULES]
 - Keep the EXACT same camera angle, lighting, and room background
 - Open every wardrobe door to approximately 90 degrees
 - Show a well-organized wardrobe interior:
-  - Hanging rods with neatly hung clothes (shirts, jackets, dresses)
-  - Folded clothes on shelves
-  - Shoe racks or storage boxes on lower shelves
-  - Small accessory drawers or baskets
+${structure.openPrompt}
+- Each section clearly divided by vertical partition panels
+- Hanging rods with neatly hung clothes (shirts, jackets, dresses, coats)
+- Folded clothes and storage boxes on shelves
+- Large pull-out drawer visible at the bottom of each hanging section
 - Keep all wardrobe structure and room elements in place
 - Photorealistic result
 
@@ -252,7 +282,7 @@ export default {
         // ═══ Step 3: 열린문 생성 ═══
         let openImage = null;
         try {
-          const openResult = await callGemini(env, buildOpenDoorPrompt(category), closedResult.image, 'image/png');
+          const openResult = await callGemini(env, buildOpenDoorPrompt(category, wallW), closedResult.image, 'image/png');
           openImage = openResult.image || null;
           if (openImage) console.log('[Generate] Open door image generated');
         } catch (e) {

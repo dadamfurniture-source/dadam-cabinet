@@ -332,8 +332,10 @@ ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
       if (cat === 'wardrobe') {
+        const structure = getWardrobeStructure(wallW);
         return `Edit photo: install floor-to-ceiling built-in wardrobe spanning the ENTIRE wall width (~${wallW}mm).
 [CRITICAL] The wardrobe MUST cover the full wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
+[STRUCTURE] ${structure.prompt}
 ALL doors must be "${color}" matte flat panel. Handleless (J-pull grip or push-to-open). No visible hardware.
 Height: floor to ceiling (~${wallH}mm). Depth: ~600mm.
 Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.`;
@@ -341,18 +343,52 @@ Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.`;
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
+    // ─── 붙박이장 내부 구조 사양 (벽 폭 기준) ───
+    function getWardrobeStructure(w: number): { prompt: string; openPrompt: string } {
+      if (w > 3200) {
+        // W 3600mm 이하: 2도어 3통(2단2개+1단1개) + 1도어 1통(선반형)
+        return {
+          prompt: `4 sections total: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 7 doors.`,
+          openPrompt: `Interior layout (left to right):
+  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 3 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom
+  - Section 4 (1-door, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
+        };
+      }
+      if (w > 2000) {
+        // W 3200mm 이하: 2도어 3통(2단2개+1단1개)
+        return {
+          prompt: `3 sections total: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom). Total 6 doors.`,
+          openPrompt: `Interior layout (left to right):
+  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 3 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom`,
+        };
+      }
+      // W 2000mm 이하: 2도어 2통(2단1개+1단1개)
+      return {
+        prompt: `2 sections total: TWO 2-door sections (one with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom). Total 4 doors.`,
+        openPrompt: `Interior layout (left to right):
+  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom`,
+      };
+    }
+
     // ─── 붙박이장 열린문 (내부 구조) ───
     function buildWardrobeOpenPrompt(): string {
+      const structure = getWardrobeStructure(wallW);
       return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
 
 [RULES]
 - Keep the EXACT same camera angle, lighting, and room background
 - Open every wardrobe door to approximately 90 degrees
 - Show a well-organized wardrobe interior:
-  - Hanging rods with neatly hung clothes (shirts, jackets, dresses)
-  - Folded clothes on shelves
-  - Shoe racks or storage boxes on lower shelves
-  - Small accessory drawers or baskets
+${structure.openPrompt}
+- Each section clearly divided by vertical partition panels
+- Hanging rods with neatly hung clothes (shirts, jackets, dresses, coats)
+- Folded clothes and storage boxes on shelves
+- Large pull-out drawer visible at the bottom of each hanging section
 - Keep all wardrobe structure and room elements in place
 - Photorealistic result
 
@@ -381,7 +417,10 @@ Keep wall, floor, camera identical. No clutter.`;
     log.info('Step 3: Generate base design (기본안 — seeded color pick)');
 
     const baseSeed = Math.floor(Math.random() * 9999);
-    const baseColor = BASE_ACHROMATICS[baseSeed % BASE_ACHROMATICS.length];
+    // 붙박이장은 그레이 계열 제외
+    const wardrobePalette = ['white', 'milk white', 'cashmere', 'ivory', 'warm white'];
+    const colorPalette = category === 'wardrobe' ? wardrobePalette : BASE_ACHROMATICS;
+    const baseColor = colorPalette[baseSeed % colorPalette.length];
     const baseCTSeed = Math.floor(Math.random() * 9999);
     const baseCT = BASE_COUNTERTOPS[baseCTSeed % BASE_COUNTERTOPS.length];
     const mainPrompt = buildBasePrompt(category, baseColor, baseCT);
