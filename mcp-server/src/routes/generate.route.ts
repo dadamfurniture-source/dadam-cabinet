@@ -363,7 +363,7 @@ Keep wall, floor, camera identical. No clutter.`;
       if (cat === 'wardrobe') {
         const s = getWardrobeStructure(wallW);
         return `Edit photo: install built-in wardrobe covering entire wall (~${wallW}mm wide, ~${wallH}mm tall).
-Doors: "${color}" matte flat-panel, each door is one single piece running full height from floor to ceiling. ${s.prompt}
+Doors: "${color}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
 All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
       }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;

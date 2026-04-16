@@ -112,7 +112,7 @@ CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/l
   if (category === 'wardrobe') {
     const s = getWardrobeStructure(wallData.wallW);
     return `Edit photo: install built-in wardrobe covering entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall).
-Doors: "${doorColor}" matte flat-panel, each door is one single piece running full height from floor to ceiling. ${s.prompt}
+Doors: "${doorColor}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
 All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
   }
 
