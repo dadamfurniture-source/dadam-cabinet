@@ -56,14 +56,12 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy to Railway
-        run: railway up --service dadam-generate-api
-        working-directory: mcp-server
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Trigger Railway deploy
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RAILWAY_DEPLOY_HOOK }}")
+          echo "Railway deploy hook response: $response"
+          if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
+            echo "::error::Railway deploy hook failed with HTTP $response"
+            exit 1
+          fi
+          echo "Railway deployment triggered successfully"
