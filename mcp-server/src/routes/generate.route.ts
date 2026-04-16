@@ -486,10 +486,50 @@ Keep wall, floor, camera identical. No clutter.`;
       }
     }
 
-    // ═══ Step 5: 견적 — sink/cooktop 비율 기반 길이 산출 (Claude Vision) ═══
-    log.info('Step 5: Quote analysis (ratio-based)');
+    // ═══ Step 5: 견적 ═══
+    log.info('Step 5: Quote analysis');
     let quote = null;
     let quoteMetadata: Record<string, unknown> = {};
+
+    // 붙박이장: 벽 폭 기준 300mm당 14만원 구간 견적
+    if (category === 'wardrobe') {
+      try {
+        const WARDROBE_UNIT_MM = 300;
+        const WARDROBE_UNIT_PRICE = 140000;
+        const units = Math.ceil(wallW / WARDROBE_UNIT_MM);
+        const cabinetTotal = units * WARDROBE_UNIT_PRICE;
+        const installTotal = LABOR.installation;
+        const demolitionTotal = Math.round(LABOR.demolition_per_1000mm * wallW / 1000);
+
+        const items = [
+          { name: '붙박이장 캐비닛', quantity: `${wallW}mm (${units}자)`, unit_price: WARDROBE_UNIT_PRICE, total: cabinetTotal },
+          { name: '시공비', quantity: '1식', unit_price: installTotal, total: installTotal },
+          { name: '기존 철거', quantity: `${wallW}mm`, unit_price: LABOR.demolition_per_1000mm, total: demolitionTotal },
+        ];
+        const subtotal = items.reduce((s, i) => s + i.total, 0);
+        const vat = Math.round(subtotal * 0.10);
+        const total = subtotal + vat;
+
+        quote = {
+          items,
+          subtotal,
+          vat,
+          total,
+          range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+          grade: 'basic',
+        };
+        quoteMetadata = {
+          analysis_version: 'wardrobe-unit-v1',
+          wall_width_mm: wallW,
+          unit_count: units,
+          unit_price: WARDROBE_UNIT_PRICE,
+        };
+        log.info({ total: quote.total, units, wallW }, 'Wardrobe quote calculated');
+      } catch (e: any) {
+        log.warn({ error: e?.message || String(e) }, 'Wardrobe quote failed');
+      }
+    } else {
+    // 싱크대 등: 이미지 분석 기반 견적
     try {
       const cornerHint = detectedLShape
         ? `\nL-SHAPE DETECTION: This kitchen has an L-shaped corner.
@@ -600,6 +640,7 @@ ratio: width relative to sink (1.0 = 1000mm). sink=1.0, cooktop=0.6${detectedLSh
     } catch (e: any) {
       log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
     }
+    } // end else (non-wardrobe quote)
 
     const elapsed = Date.now() - startTime;
     log.info({ elapsed }, 'Generation complete');
