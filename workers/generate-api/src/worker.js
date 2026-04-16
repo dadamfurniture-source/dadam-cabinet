@@ -141,18 +141,19 @@ No visible handles. ${styleName}. Photorealistic. All doors closed.`;
 
 // ─── 붙박이장 구조 (벽 폭 기준, 섹션 950mm) ───
 // All doors are FULL-HEIGHT single doors (floor to ceiling, never split upper/lower)
+// Shelves are minimized — prefer hanging rods and internal drawers
 function getWardrobeStructure(w) {
   if (w > 3200) return { // 7 full-height doors
-    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, fixed shelves). Total 7 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: fixed shelves with folded clothes and storage boxes.',
+    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 7 full-height doors.',
+    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: 1 rod for long coats + internal drawer at bottom.',
   };
   if (w > 2600) return { // 6 full-height doors
     prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 6 full-height doors.',
     open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom.',
   };
   if (w > 2000) return { // 5 full-height doors
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, fixed shelves). Total 5 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: fixed shelves with folded clothes and storage boxes.',
+    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 5 full-height doors.',
+    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: 1 rod for long coats + internal drawer at bottom.',
   };
   return { // 4 full-height doors
     prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
@@ -164,7 +165,7 @@ function getWardrobeStructure(w) {
 function buildOpenDoorPrompt(category, wallW) {
   if (category === 'wardrobe') {
     const s = getWardrobeStructure(wallW || 3000);
-    return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items on shelves. Same camera/lighting/background. Photorealistic. No text.`;
+    return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items in drawers. Same camera/lighting/background. Photorealistic. No text.`;
   }
 
   return `Using this closed-door furniture image, generate the SAME furniture with doors OPEN.
