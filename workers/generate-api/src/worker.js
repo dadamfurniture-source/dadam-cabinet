@@ -301,6 +301,31 @@ export default {
           console.warn('[Generate] Open door generation failed');
         }
 
+        // ═══ 견적 (붙박이장: 300mm당 14만원) ═══
+        let quote = null;
+        if (category === 'wardrobe') {
+          const UNIT_MM = 300;
+          const UNIT_PRICE = 140000;
+          const units = Math.ceil(wallW / UNIT_MM);
+          const cabinetTotal = units * UNIT_PRICE;
+          const installTotal = 200000;
+          const demolitionTotal = Math.round(30000 * wallW / 1000);
+          const items = [
+            { name: '붙박이장 캐비닛', quantity: `${wallW}mm (${units}자)`, unit_price: UNIT_PRICE, total: cabinetTotal },
+            { name: '시공비', quantity: '1식', unit_price: installTotal, total: installTotal },
+            { name: '기존 철거', quantity: `${wallW}mm`, unit_price: 30000, total: demolitionTotal },
+          ];
+          const subtotal = items.reduce((s, i) => s + i.total, 0);
+          const vat = Math.round(subtotal * 0.10);
+          const total = subtotal + vat;
+          quote = {
+            items, subtotal, vat, total,
+            range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+            grade: 'basic',
+          };
+          console.log(`[Generate] Wardrobe quote: ${units}자 × ${UNIT_PRICE} = ${total}원`);
+        }
+
         // ═══ 응답 ═══
         const elapsed = Date.now() - startTime;
         console.log(`[Generate] Complete in ${elapsed}ms`);
@@ -312,6 +337,7 @@ export default {
             closed: closedResult.image,
             open: openImage,
           },
+          quote,
           wall_analysis: { wallW, wallH, waterPct, exhaustPct },
           metadata: {
             category, kitchen_layout, design_style,
