@@ -363,11 +363,18 @@ Keep wall, floor, camera identical. No clutter.`;
       if (cat === 'wardrobe') {
         const structure = getWardrobeStructure(wallW);
         return `Edit photo: install floor-to-ceiling built-in wardrobe spanning the ENTIRE wall width (~${wallW}mm).
-[CRITICAL] The wardrobe MUST cover the full wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
+[CRITICAL] The wardrobe MUST cover the full wall from left edge to right edge with NO gaps.
+[DOORS] EVERY section MUST have doors. NO open shelves, NO exposed interior. ALL doors CLOSED.
 [STRUCTURE] ${structure.prompt}
 ALL doors must be "${color}" matte flat panel. Handleless (J-pull grip or push-to-open). No visible hardware.
 Height: floor to ceiling (~${wallH}mm). Depth: ~600mm.
-Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.`;
+Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.
+
+[FORBIDDEN]
+- NO sections without doors
+- NO open shelving visible from outside
+- NO glass doors or transparent panels
+- NO gaps between sections`;
       }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
