@@ -60,7 +60,25 @@ async function callGemini(env, prompt, image, imageType, responseModalities = ['
 }
 
 // ─── 벽분석 프롬프트 ───
-function buildWallAnalysisPrompt() {
+function buildWallAnalysisPrompt(category) {
+  if (category === 'wardrobe') {
+    return `Analyze this Korean apartment room photo for built-in wardrobe installation.
+
+CALIBRATION — Use these KNOWN Korean apartment features as size references:
+- Standard door frame: 900mm wide × 2100mm tall (most common reference)
+- Light switch / outlet plate: 70mm wide × 120mm tall
+- Ceiling height: typically 2300-2400mm
+- Standard room door: use as PRIMARY scale reference
+
+TASK:
+1. Identify any visible doors, door frames, outlets, or light switches
+2. Use them as scale reference to calculate the target wall width in mm
+3. Korean apartment rooms typically have walls 1800-5000mm wide. Be conservative.
+
+Return JSON only:
+{"wall_dimensions_mm":{"width":number,"height":number},"reference_used":"door_frame"|"outlet"|"ceiling"|"none","confidence":"high"|"medium"|"low"}`;
+  }
+
   return `[TASK: Korean kitchen wall structure analysis]
 Analyze this photo and extract as JSON:
 - wall_dimensions_mm: { width, height } (estimate)
@@ -92,12 +110,10 @@ CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/l
   }
 
   if (category === 'wardrobe') {
-    return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm.
-[CRITICAL] The wardrobe MUST cover the ENTIRE wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
-Full-width floor-to-ceiling wardrobe spanning the entire wall width (~${wallData.wallW}mm).
-Height: floor to ceiling (~${wallData.wallH}mm). Depth: ~600mm.
-No visible handles (J-pull grip or push-to-open). ${styleName}. Photorealistic. All doors CLOSED. No text.`;
+    const s = getWardrobeStructure(wallData.wallW);
+    return `Edit photo: install built-in wardrobe covering entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall).
+Doors: "${doorColor}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
+All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
   }
 
   if (category === 'shoe' || category === 'shoe_cabinet') {
@@ -123,26 +139,33 @@ Wall: ${wallData.wallW}x${wallData.wallH}mm. Floor-to-ceiling built-in with mult
 No visible handles. ${styleName}. Photorealistic. All doors closed.`;
 }
 
+// ─── 붙박이장 구조 (벽 폭 기준, 섹션 950mm) ───
+// All doors are FULL-HEIGHT single doors (floor to ceiling, never split upper/lower)
+// Shelves are minimized — prefer hanging rods and internal drawers
+function getWardrobeStructure(w) {
+  if (w > 3200) return { // 7 full-height doors
+    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 7 full-height doors.',
+    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: 1 rod for long coats + internal drawer at bottom.',
+  };
+  if (w > 2600) return { // 6 full-height doors
+    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 6 full-height doors.',
+    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom.',
+  };
+  if (w > 2000) return { // 5 full-height doors
+    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 5 full-height doors.',
+    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: 1 rod for long coats + internal drawer at bottom.',
+  };
+  return { // 4 full-height doors
+    prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
+    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
+  };
+}
+
 // ─── 열린문 프롬프트 ───
-function buildOpenDoorPrompt(category) {
+function buildOpenDoorPrompt(category, wallW) {
   if (category === 'wardrobe') {
-    return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
-
-[RULES]
-- Keep the EXACT same camera angle, lighting, and room background
-- Open every wardrobe door to approximately 90 degrees
-- Show a well-organized wardrobe interior:
-  - Hanging rods with neatly hung clothes (shirts, jackets, dresses)
-  - Folded clothes on shelves
-  - Shoe racks or storage boxes on lower shelves
-  - Small accessory drawers or baskets
-- Keep all wardrobe structure and room elements in place
-- Photorealistic result
-
-[FORBIDDEN]
-- Do NOT change camera angle or room background
-- Do NOT add/remove/merge any door sections
-- NO text, labels, or annotations`;
+    const s = getWardrobeStructure(wallW || 3000);
+    return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items in drawers. Same camera/lighting/background. Photorealistic. No text.`;
   }
 
   return `Using this closed-door furniture image, generate the SAME furniture with doors OPEN.
@@ -203,6 +226,7 @@ export default {
           category = 'sink',
           kitchen_layout = 'i_type',
           design_style = 'modern-minimal',
+          wall_width_override,
           ...themeData
         } = body;
 
@@ -216,9 +240,14 @@ export default {
 
         // ═══ Step 1: 벽면 분석 ═══
         let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
+        const manualW = Number(wall_width_override);
 
+        if (manualW >= 1000 && manualW <= 6000) {
+          wallW = manualW;
+          console.log(`[Generate] Wall width from user override: ${wallW}mm`);
+        } else {
         try {
-          const wallResult = await callGemini(env, buildWallAnalysisPrompt(), room_image, image_type, ['TEXT'], 0.2);
+          const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2);
 
           if (wallResult.text) {
             const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
@@ -228,6 +257,13 @@ export default {
               const utils = parsed.utility_positions_mm || {};
               wallW = dims.width || 3000;
               wallH = dims.height || 2400;
+              // 미터 → mm 변환 보호
+              if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
+              if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
+              // 렌즈 왜곡 보정 (15% 과대측정)
+              wallW = Math.round(wallW * 0.85);
+              // 범위 클램핑
+              wallW = Math.max(1800, Math.min(5000, wallW));
               if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
               if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
             }
@@ -236,6 +272,7 @@ export default {
         } catch (e) {
           console.warn('[Generate] Wall analysis failed, using defaults');
         }
+        } // end else (AI wall analysis)
 
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
         const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData);
@@ -252,11 +289,36 @@ export default {
         // ═══ Step 3: 열린문 생성 ═══
         let openImage = null;
         try {
-          const openResult = await callGemini(env, buildOpenDoorPrompt(category), closedResult.image, 'image/png');
+          const openResult = await callGemini(env, buildOpenDoorPrompt(category, wallW), closedResult.image, 'image/png');
           openImage = openResult.image || null;
           if (openImage) console.log('[Generate] Open door image generated');
         } catch (e) {
           console.warn('[Generate] Open door generation failed');
+        }
+
+        // ═══ 견적 (붙박이장: 300mm당 14만원) ═══
+        let quote = null;
+        if (category === 'wardrobe') {
+          const UNIT_MM = 300;
+          const UNIT_PRICE = 140000;
+          const units = Math.ceil(wallW / UNIT_MM);
+          const cabinetTotal = units * UNIT_PRICE;
+          const installTotal = 200000;
+          const demolitionTotal = Math.round(30000 * wallW / 1000);
+          const items = [
+            { name: '붙박이장 캐비닛', quantity: `${wallW}mm (${units}자)`, unit_price: UNIT_PRICE, total: cabinetTotal },
+            { name: '시공비', quantity: '1식', unit_price: installTotal, total: installTotal },
+            { name: '기존 철거', quantity: `${wallW}mm`, unit_price: 30000, total: demolitionTotal },
+          ];
+          const subtotal = items.reduce((s, i) => s + i.total, 0);
+          const vat = Math.round(subtotal * 0.10);
+          const total = subtotal + vat;
+          quote = {
+            items, subtotal, vat, total,
+            range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+            grade: 'basic',
+          };
+          console.log(`[Generate] Wardrobe quote: ${units}자 × ${UNIT_PRICE} = ${total}원`);
         }
 
         // ═══ 응답 ═══
@@ -270,6 +332,7 @@ export default {
             closed: closedResult.image,
             open: openImage,
           },
+          quote,
           wall_analysis: { wallW, wallH, waterPct, exhaustPct },
           metadata: {
             category, kitchen_layout, design_style,
