@@ -130,33 +130,33 @@ function getWardrobeStructure(w) {
   const SW = 950; // 각 통(섹션) 기본 폭 950mm
   if (w > 3200) {
     return {
-      prompt: `4 sections total, each section ~${SW}mm wide: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 7 doors.`,
-      openPrompt: `  - Section 1 (2-door, ~${SW}mm): upper hanging rod + lower hanging rod for short clothes, one large internal drawer hidden behind door at bottom
-  - Section 2 (2-door, ~${SW}mm): upper hanging rod + lower hanging rod for short clothes, one large internal drawer hidden behind door at bottom
-  - Section 3 (2-door, ~${SW}mm): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom
+      prompt: `4 sections total, each section ~${SW}mm wide: THREE 2-door sections (two with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 7 doors.`,
+      openPrompt: `  - Section 1 (2-door, ~${SW}mm, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
+  - Section 2 (2-door, ~${SW}mm, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
+  - Section 3 (2-door, ~${SW}mm, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom
   - Section 4 (1-door, ~${SW}mm, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
     };
   }
   if (w > 2600) {
     return {
-      prompt: `3 sections total, each section ~${SW}mm wide: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom). Total 6 doors.`,
-      openPrompt: `  - Section 1 (2-door, ~${SW}mm): upper hanging rod + lower hanging rod for short clothes, one large internal drawer hidden behind door at bottom
-  - Section 2 (2-door, ~${SW}mm): upper hanging rod + lower hanging rod for short clothes, one large internal drawer hidden behind door at bottom
-  - Section 3 (2-door, ~${SW}mm): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom`,
+      prompt: `3 sections total, each section ~${SW}mm wide: THREE 2-door sections (two with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom). Total 6 doors.`,
+      openPrompt: `  - Section 1 (2-door, ~${SW}mm, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
+  - Section 2 (2-door, ~${SW}mm, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
+  - Section 3 (2-door, ~${SW}mm, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom`,
     };
   }
   if (w > 2000) {
     return {
-      prompt: `3 sections total, each section ~${SW}mm wide: TWO 2-door sections (one with double-tier hanging rods, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 5 doors.`,
-      openPrompt: `  - Section 1 (2-door, ~${SW}mm): upper hanging rod + lower hanging rod for short clothes, one large internal drawer hidden behind door at bottom
-  - Section 2 (2-door, ~${SW}mm): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom
+      prompt: `3 sections total, each section ~${SW}mm wide: TWO 2-door sections (one with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 5 doors.`,
+      openPrompt: `  - Section 1 (2-door, ~${SW}mm, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
+  - Section 2 (2-door, ~${SW}mm, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom
   - Section 3 (1-door, ~${SW}mm, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
     };
   }
   return {
-    prompt: `2 sections total, each section ~${SW}mm wide: TWO 2-door sections (one with double-tier hanging rods, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom). Total 4 doors.`,
-    openPrompt: `  - Section 1 (2-door, ~${SW}mm): upper hanging rod + lower hanging rod for short clothes, one large internal drawer hidden behind door at bottom
-  - Section 2 (2-door, ~${SW}mm): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom`,
+    prompt: `2 sections total, each section ~${SW}mm wide: TWO 2-door sections (one with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom). Total 4 doors.`,
+    openPrompt: `  - Section 1 (2-door, ~${SW}mm, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
+  - Section 2 (2-door, ~${SW}mm, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom`,
   };
 }
 
@@ -174,7 +174,8 @@ ${structure.openPrompt}
 - Each section clearly divided by vertical partition panels
 - Hanging rods with neatly hung clothes (shirts, jackets, dresses, coats)
 - Folded clothes and storage boxes on shelves
-- Internal drawers at the bottom of each hanging section (hidden behind door, only visible when door is open)
+- Internal drawers at the bottom of single-tier sections only (hidden behind door, only visible when door is open)
+- Double-tier sections have NO drawers — hanging rods fill the full height
 - Keep all wardrobe structure and room elements in place
 - Photorealistic result
 
