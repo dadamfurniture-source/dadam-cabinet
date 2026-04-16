@@ -1328,6 +1328,12 @@ Magazine quality, professional lighting.`;
       };
 
       function selectCategory(category) {
+        // 이미 이미지가 업로드된 품목이면 선택 취소 (이미지 제거)
+        if (state.uploadedImages[category]) {
+          removeImage(category);
+          return;
+        }
+
         document.getElementById(`file-${category}`).click();
 
         // 해당 품목 갤러리 필터 연동
