@@ -161,15 +161,17 @@ function getWardrobeStructure(w) {
 
 // ─── 냉장고장 프롬프트 ───
 const FRIDGE_DOOR_DESC = {
-  'french-door': 'french-door (4-door) refrigerator',
-  'side-by-side': 'side-by-side (2-door) refrigerator',
-  'single-door': 'single-door column refrigerator',
+  '4door': 'french-door (4-door) refrigerator',
+  'side-by-side': 'side-by-side refrigerator',
+  '1door': 'single-door column refrigerator',
+  '2door': 'two-door refrigerator',
   'top-freezer': 'top-mount freezer refrigerator',
+  'kimchi': 'kimchi refrigerator',
 };
 const FRIDGE_STORAGE_DESC = {
-  'both-sides': 'tall pantry cabinets on both left and right sides of the fridge',
-  'left-only': 'one tall pantry cabinet on the left side of the fridge',
-  'right-only': 'one tall pantry cabinet on the right side of the fridge',
+  'both-sides': 'tall pantry cabinets on both left and right sides',
+  'left-only': 'one tall pantry cabinet on the left side',
+  'right-only': 'one tall pantry cabinet on the right side',
   'none': 'no side cabinets, fridge niche only with bridge cabinet above',
 };
 const FRIDGE_APPLIANCE_DESC = {
@@ -182,11 +184,12 @@ const FRIDGE_APPLIANCE_DESC = {
 
 function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOpts) {
   const opts = fridgeOpts || {};
-  const doorType = opts.doorType || 'french-door';
+  const doorTypes = opts.doorTypes || (opts.doorType ? [opts.doorType] : ['4door']);
   const storageType = opts.storageType || 'both-sides';
   const appliances = opts.appliances || [];
 
-  const fridgeDesc = FRIDGE_DOOR_DESC[doorType] || FRIDGE_DOOR_DESC['french-door'];
+  const fridgeDescs = doorTypes.map(t => FRIDGE_DOOR_DESC[t]).filter(Boolean);
+  const fridgeStr = fridgeDescs.length > 0 ? fridgeDescs.join(' + ') : FRIDGE_DOOR_DESC['4door'];
   const storageDesc = FRIDGE_STORAGE_DESC[storageType] || FRIDGE_STORAGE_DESC['both-sides'];
 
   let applianceStr = '';
@@ -198,8 +201,8 @@ function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fri
   }
 
   return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Center: built-in ${fridgeDesc} opening (~900mm wide). ${storageDesc}.${applianceStr}
-Bridge cabinet above fridge connecting left and right.
+Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge units: ${fridgeStr}. ${storageDesc}.${applianceStr}
+Bridge cabinet above fridge connecting to side cabinets.
 ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }

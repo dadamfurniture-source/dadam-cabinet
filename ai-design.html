@@ -299,12 +299,14 @@
         <p class="section-title">냉장고장 구성 선택</p>
 
         <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">냉장고 종류</label>
-          <div class="fridge-opt-group" id="fridgeDoorType">
-            <button class="fridge-opt-btn active" data-value="french-door" onclick="selectFridgeOption('doorType', this)">4도어 (프렌치)</button>
-            <button class="fridge-opt-btn" data-value="side-by-side" onclick="selectFridgeOption('doorType', this)">양문형</button>
-            <button class="fridge-opt-btn" data-value="single-door" onclick="selectFridgeOption('doorType', this)">1도어</button>
-            <button class="fridge-opt-btn" data-value="top-freezer" onclick="selectFridgeOption('doorType', this)">상냉장하냉동</button>
+          <label class="fridge-opt-label">냉장고 종류 <span style="font-weight:400; color:#999;">(중복 선택 가능)</span></label>
+          <div class="fridge-opt-group multi" id="fridgeDoorTypes">
+            <button class="fridge-opt-btn active" data-value="4door" onclick="toggleFridgeDoorType(this)">4도어 (프렌치)</button>
+            <button class="fridge-opt-btn" data-value="side-by-side" onclick="toggleFridgeDoorType(this)">양문형</button>
+            <button class="fridge-opt-btn" data-value="1door" onclick="toggleFridgeDoorType(this)">1도어 컬럼</button>
+            <button class="fridge-opt-btn" data-value="2door" onclick="toggleFridgeDoorType(this)">2도어</button>
+            <button class="fridge-opt-btn" data-value="top-freezer" onclick="toggleFridgeDoorType(this)">상냉장하냉동</button>
+            <button class="fridge-opt-btn" data-value="kimchi" onclick="toggleFridgeDoorType(this)">김치냉장고</button>
           </div>
         </div>
 
@@ -821,7 +823,7 @@ Magazine quality, professional lighting.`;
         results: [],
         currentPage: 0,
         fridgeOptions: {
-          doorType: 'french-door',
+          doorTypes: ['4door'],
           storageType: 'both-sides',
           appliances: [],
         },
@@ -1467,21 +1469,28 @@ Magazine quality, professional lighting.`;
         state.fridgeOptions[field] = el.dataset.value;
       }
 
+      function toggleFridgeDoorType(el) {
+        el.classList.toggle('active');
+        const group = el.parentElement;
+        const actives = group.querySelectorAll('.fridge-opt-btn.active');
+        state.fridgeOptions.doorTypes = Array.from(actives).map(b => b.dataset.value);
+        if (state.fridgeOptions.doorTypes.length === 0) {
+          el.classList.add('active');
+          state.fridgeOptions.doorTypes = [el.dataset.value];
+        }
+      }
+
       function toggleFridgeAppliance(el) {
         const value = el.dataset.value;
         if (value === 'none') {
-          // "없음" 선택 시 나머지 모두 해제
           el.parentElement.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
           el.classList.add('active');
           state.fridgeOptions.appliances = [];
         } else {
-          // 다른 항목 선택 시 "없음" 해제
           el.parentElement.querySelector('[data-value="none"]').classList.remove('active');
           el.classList.toggle('active');
-          // active 상태인 항목 수집
           const actives = el.parentElement.querySelectorAll('.fridge-opt-btn.active');
           state.fridgeOptions.appliances = Array.from(actives).map(b => b.dataset.value);
-          // 아무것도 선택 안 된 경우 "없음" 다시 활성화
           if (state.fridgeOptions.appliances.length === 0) {
             el.parentElement.querySelector('[data-value="none"]').classList.add('active');
           }
