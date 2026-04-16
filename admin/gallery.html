@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>시공사례 관리 - 다담가구</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
+      .sidebar-logo span { font-size: 0.8rem; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { width: 20px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem; }
+      .sidebar-footer a:hover { background: rgba(255,255,255,0.2); color: white; }
+
+      .main-content { margin-left: 250px; padding: 20px 30px; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #ddd; }
+      .header h2 { font-size: 1.5rem; color: #333; }
+      .access-denied { display: none; text-align: center; padding: 60px 20px; }
+      .access-denied h2 { color: #dc3545; margin-bottom: 10px; }
+
+      /* Toolbar */
+      .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+      .toolbar select, .toolbar input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+      .toolbar select { min-width: 140px; }
+      .toolbar input[type="text"] { flex: 1; min-width: 200px; }
+      .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: opacity 0.2s; }
+      .btn:hover { opacity: 0.85; }
+      .btn-danger { background: #dc3545; color: white; }
+      .btn-primary { background: #007bff; color: white; }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+      /* Gallery Grid */
+      .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+      .gallery-item { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: relative; transition: transform 0.2s; }
+      .gallery-item:hover { transform: translateY(-2px); }
+      .gallery-item img { width: 100%; height: 180px; object-fit: cover; display: block; }
+      .gallery-item .info { padding: 12px; }
+      .gallery-item .info .category { font-size: 12px; font-weight: 600; color: #007bff; text-transform: uppercase; }
+      .gallery-item .info .style { font-size: 13px; color: #666; margin-top: 4px; }
+      .gallery-item .checkbox { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; cursor: pointer; accent-color: #007bff; }
+      .gallery-item .delete-btn { position: absolute; top: 8px; right: 8px; background: rgba(220,53,69,0.9); color: white; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+      .gallery-item.selected { outline: 3px solid #007bff; }
+      .gallery-item .training-badge { position: absolute; bottom: 60px; right: 8px; background: rgba(255,193,7,0.9); color: #333; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+
+      /* Stats bar */
+      .stats-bar { display: flex; gap: 20px; margin-bottom: 20px; font-size: 14px; color: #666; }
+      .stats-bar strong { color: #333; }
+
+      /* Empty / Loading */
+      .empty-state { text-align: center; padding: 60px; color: #888; }
+      .loading { text-align: center; padding: 40px; color: #888; }
+
+      /* Bulk actions */
+      .bulk-bar { display: none; background: #007bff; color: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; align-items: center; gap: 12px; }
+      .bulk-bar.active { display: flex; }
+      .bulk-bar .count { font-weight: 600; }
+      .bulk-bar .btn { background: white; color: #333; }
+      .bulk-bar .btn-danger { background: #dc3545; color: white; }
+
+      @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main-content { margin-left: 0; padding: 16px; }
+        .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+        .gallery-item img { height: 130px; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo"><h1>다담가구</h1><span>관리자 패널</span></div>
+      <ul class="nav-menu">
+        <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
+        <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
+        <li><a href="gallery.html" class="active"><span class="nav-icon">🖼️</span>시공사례 관리</a></li>
+        <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
+        <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
+        <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
+        <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
+      </ul>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display:none;">
+        <div class="header">
+          <h2>시공사례 이미지 관리</h2>
+          <div id="adminInfo" style="font-size:13px;color:#888;"></div>
+        </div>
+
+        <div class="stats-bar" id="statsBar">
+          <span>전체: <strong id="statTotal">0</strong></span>
+          <span>갤러리: <strong id="statGallery">0</strong></span>
+          <span>학습용: <strong id="statTraining">0</strong></span>
+        </div>
+
+        <div class="toolbar">
+          <select id="filterCategory" onchange="loadImages()">
+            <option value="">전체 품목</option>
+          </select>
+          <select id="filterTraining" onchange="loadImages()">
+            <option value="">전체</option>
+            <option value="false">갤러리용</option>
+            <option value="true">학습용</option>
+          </select>
+          <input type="text" id="searchInput" placeholder="검색 (설명, 스타일...)" onkeyup="loadImages()">
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="selectMode" onchange="toggleSelectMode()"> 선택 모드
+          </label>
+        </div>
+
+        <div class="bulk-bar" id="bulkBar">
+          <span><span class="count" id="selectedCount">0</span>개 선택</span>
+          <button class="btn" onclick="toggleTrainingBulk(false)">갤러리로 전환</button>
+          <button class="btn" onclick="toggleTrainingBulk(true)">학습용으로 전환</button>
+          <button class="btn btn-danger" onclick="deleteBulk()">선택 삭제</button>
+          <button class="btn" onclick="clearSelection()">선택 해제</button>
+        </div>
+
+        <div id="galleryContainer">
+          <div class="loading">이미지를 불러오는 중...</div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      let supabaseClient = null;
+      let allImages = [];
+      let selectedIds = new Set();
+      let selectMode = false;
+
+      // 품목 한글 라벨
+      const CATEGORY_LABELS = {
+        'l_shaped_sink': 'L자형 싱크대',
+        'peninsula_sink': '반도형 싱크대',
+        'island_kitchen': '아일랜드',
+        'wardrobe': '붙박이장',
+        'fridge_cabinet': '냉장고장',
+        'vanity': '화장대',
+        'shoe_cabinet': '신발장',
+        'sink': '싱크대',
+        'hood': '후드',
+        'cooktop': '쿡탑',
+        'door': '도어',
+        'countertop': '상판',
+        'handle': '손잡이',
+        'faucet': '수전',
+      };
+      function catLabel(cat) { return CATEGORY_LABELS[cat] || cat || '-'; }
+
+      async function initAdmin() {
+        if (!window.supabase || !window.DADAM_CONFIG?.supabase) { showAccessDenied(); return; }
+        const { url, anonKey } = window.DADAM_CONFIG.supabase;
+        supabaseClient = window.supabase.createClient(url, anonKey);
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showAccessDenied(); return; }
+
+        const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(supabaseClient) : false;
+        if (!isAdmin) { showAccessDenied(); return; }
+
+        const name = session.user.user_metadata?.name || session.user.email.split('@')[0];
+        document.getElementById('adminInfo').textContent = name;
+        document.getElementById('pageContent').style.display = 'block';
+
+        await loadCategories();
+        await loadImages();
+      }
+
+      function showAccessDenied() {
+        document.getElementById('accessDenied').style.display = 'block';
+        document.getElementById('pageContent').style.display = 'none';
+      }
+
+      async function loadCategories() {
+        const { data } = await supabaseClient.from('furniture_images').select('category');
+        if (!data) return;
+        const cats = [...new Set(data.map(d => d.category))].sort();
+        const sel = document.getElementById('filterCategory');
+        cats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c; opt.textContent = catLabel(c);
+          sel.appendChild(opt);
+        });
+      }
+
+      async function loadImages() {
+        const container = document.getElementById('galleryContainer');
+        container.innerHTML = '<div class="loading">불러오는 중...</div>';
+
+        let query = supabaseClient
+          .from('furniture_images')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        const catFilter = document.getElementById('filterCategory').value;
+        const trainFilter = document.getElementById('filterTraining').value;
+        if (catFilter) query = query.eq('category', catFilter);
+        if (trainFilter !== '') query = query.eq('is_training', trainFilter === 'true');
+
+        const { data, error } = await query;
+        if (error) { container.innerHTML = '<div class="empty-state">로드 실패: ' + error.message + '</div>'; return; }
+
+        allImages = data || [];
+
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        let filtered = allImages;
+        if (search) {
+          filtered = allImages.filter(img =>
+            (img.description || '').toLowerCase().includes(search) ||
+            (img.style || '').toLowerCase().includes(search) ||
+            (img.category || '').toLowerCase().includes(search)
+          );
+        }
+
+        // Stats
+        document.getElementById('statTotal').textContent = filtered.length;
+        document.getElementById('statGallery').textContent = filtered.filter(i => !i.is_training).length;
+        document.getElementById('statTraining').textContent = filtered.filter(i => i.is_training).length;
+
+        if (filtered.length === 0) {
+          container.innerHTML = '<div class="empty-state">이미지가 없습니다</div>';
+          return;
+        }
+
+        container.innerHTML = '<div class="gallery-grid">' + filtered.map(img => `
+          <div class="gallery-item ${selectedIds.has(img.id) ? 'selected' : ''}" data-id="${img.id}">
+            ${selectMode ? `<input type="checkbox" class="checkbox" ${selectedIds.has(img.id) ? 'checked' : ''} onchange="toggleSelect('${img.id}')">` : ''}
+            <img src="${img.image_url}" alt="${img.category}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22><rect fill=%22%23eee%22 width=%22200%22 height=%22200%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>No Image</text></svg>'">
+            ${img.is_training ? '<span class="training-badge">학습용</span>' : ''}
+            <button class="delete-btn" onclick="deleteSingle('${img.id}')" title="삭제">×</button>
+            <div class="info">
+              <div class="category">${catLabel(img.category)}</div>
+              <div class="style">${img.style || ''} ${img.description ? '· ' + img.description.substring(0, 30) : ''}</div>
+            </div>
+          </div>
+        `).join('') + '</div>';
+      }
+
+      function toggleSelectMode() {
+        selectMode = document.getElementById('selectMode').checked;
+        if (!selectMode) clearSelection();
+        loadImages();
+      }
+
+      function toggleSelect(id) {
+        if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+        updateBulkBar();
+        const el = document.querySelector(`.gallery-item[data-id="${id}"]`);
+        if (el) el.classList.toggle('selected', selectedIds.has(id));
+      }
+
+      function clearSelection() {
+        selectedIds.clear();
+        updateBulkBar();
+        document.querySelectorAll('.gallery-item.selected').forEach(el => el.classList.remove('selected'));
+        document.querySelectorAll('.gallery-item .checkbox').forEach(cb => cb.checked = false);
+      }
+
+      function updateBulkBar() {
+        const bar = document.getElementById('bulkBar');
+        document.getElementById('selectedCount').textContent = selectedIds.size;
+        bar.classList.toggle('active', selectedIds.size > 0);
+      }
+
+      // Storage 파일 삭제 (storage_path 또는 image_url에서 경로 추출)
+      async function deleteStorageFiles(images) {
+        const paths = images
+          .map(img => img.storage_path || extractStoragePath(img.image_url))
+          .filter(Boolean);
+        if (paths.length === 0) return;
+        try {
+          // Supabase Storage 버킷명 추출 (URL 패턴: /storage/v1/object/public/{bucket}/{path})
+          const bucketGroups = {};
+          for (const p of paths) {
+            const match = p.match(/^(?:.*\/storage\/v1\/object\/public\/)?([^/]+)\/(.+)$/);
+            if (match) {
+              const [, bucket, filePath] = match;
+              if (!bucketGroups[bucket]) bucketGroups[bucket] = [];
+              bucketGroups[bucket].push(filePath);
+            }
+          }
+          for (const [bucket, files] of Object.entries(bucketGroups)) {
+            await supabaseClient.storage.from(bucket).remove(files);
+          }
+        } catch (e) {
+          console.warn('Storage 파일 삭제 실패 (DB 행은 삭제됨):', e.message);
+        }
+      }
+
+      function extractStoragePath(url) {
+        if (!url) return null;
+        const match = url.match(/\/storage\/v1\/object\/public\/(.+)$/);
+        return match ? match[1] : null;
+      }
+
+      async function deleteSingle(id) {
+        if (!confirm('이 이미지를 삭제하시겠습니까?')) return;
+        const img = allImages.find(i => i.id === id);
+        if (img) await deleteStorageFiles([img]);
+        const { error } = await supabaseClient.from('furniture_images').delete().eq('id', id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        loadImages();
+      }
+
+      async function deleteBulk() {
+        if (selectedIds.size === 0) return;
+        if (!confirm(`${selectedIds.size}개 이미지를 삭제하시겠습니까?\nStorage 파일도 함께 삭제됩니다.`)) return;
+        const ids = [...selectedIds];
+        const targets = allImages.filter(i => ids.includes(i.id));
+        await deleteStorageFiles(targets);
+        const { error } = await supabaseClient.from('furniture_images').delete().in('id', ids);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        selectedIds.clear();
+        updateBulkBar();
+        loadImages();
+      }
+
+      async function toggleTrainingBulk(isTraining) {
+        if (selectedIds.size === 0) return;
+        const ids = [...selectedIds];
+        const { error } = await supabaseClient.from('furniture_images').update({ is_training: isTraining }).in('id', ids);
+        if (error) { alert('변경 실패: ' + error.message); return; }
+        selectedIds.clear();
+        updateBulkBar();
+        loadImages();
+      }
+
+      document.addEventListener('DOMContentLoaded', initAdmin);
+    </script>
+  </body>
+</html>

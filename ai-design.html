@@ -280,27 +280,17 @@
       />
       <input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFileUpload('shoe', this)" />
 
-      <!-- Kitchen Layout Selection (싱크대 전용) -->
-      <div class="kitchen-layout-section" id="kitchenLayoutSection" style="display: none; margin-bottom: 20px;">
-        <p class="section-title">주방 레이아웃</p>
-        <p class="section-subtitle">주방 형태를 선택하세요</p>
-        <div class="kitchen-layout-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px;">
-          <button class="kitchen-layout-btn" data-layout="i_type" onclick="selectKitchenLayout('i_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 13px; font-weight: 600;">1자형</div>
-            <div style="font-size: 11px; color: #888;">직선형</div>
-          </button>
-          <button class="kitchen-layout-btn" data-layout="l_type" onclick="selectKitchenLayout('l_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 13px; font-weight: 600;">ㄱ자형</div>
-            <div style="font-size: 11px; color: #888;">L자형</div>
-          </button>
-          <button class="kitchen-layout-btn" data-layout="u_type" onclick="selectKitchenLayout('u_type')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 13px; font-weight: 600;">ㄷ자형</div>
-            <div style="font-size: 11px; color: #888;">U자형</div>
-          </button>
-          <button class="kitchen-layout-btn" data-layout="peninsula" onclick="selectKitchenLayout('peninsula')" style="padding: 14px 8px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s;">
-            <div style="font-size: 13px; font-weight: 600;">대면형</div>
-            <div style="font-size: 11px; color: #888;">11자형</div>
-          </button>
+
+      <!-- 벽 길이 수동 입력 (붙박이장 전용) -->
+      <div class="wall-width-section" id="wallWidthSection" style="display: none; margin-bottom: 20px;">
+        <p class="section-title">벽 길이 입력 (선택)</p>
+        <p class="section-subtitle">정확한 견적을 위해 벽 길이를 입력하세요. 미입력 시 AI가 자동 분석합니다.</p>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+          <input type="number" id="wallWidthInput" min="1000" max="6000" step="100"
+            placeholder="예: 3000"
+            style="flex: 1; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; outline: none; transition: border-color 0.2s;"
+            onfocus="this.style.borderColor='#B8956C'" onblur="this.style.borderColor='#e0e0e0'">
+          <span style="font-size: 14px; color: #888; font-weight: 500;">mm</span>
         </div>
       </div>
 
@@ -743,7 +733,7 @@ Atmosphere: ${themeData.atmosphere}`;
         const categoryPrompts = {
           sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
           island: `Freestanding kitchen island with integrated cooktop or sink, breakfast-bar overhang for seating, handleless drawers and cabinets on all sides, premium stone countertop, pendant lighting overhead.`,
-          wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, mix of hanging space and shelves.`,
+          wardrobe: `Floor-to-ceiling built-in wardrobe with flat smooth doors, no handles, push-to-open mechanism.`,
           fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
           vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
           shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
@@ -775,7 +765,7 @@ Magazine quality, professional lighting.`;
 
       function getStyleDetails(style) {
         const styles = {
-          'modern-minimal': 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes, handleless design, flush surfaces.',
+          'modern-minimal': 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), flat smooth doors, geometric shapes, flush surfaces.',
           'scandinavian': 'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere, warmth and comfort.',
           'industrial': 'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures, urban loft aesthetic.',
           'classic': 'Traditional design, crown molding, paneled doors, brass hardware, timeless elegance, refined craftsmanship, sophisticated details.',
@@ -790,7 +780,6 @@ Magazine quality, professional lighting.`;
       const state = {
         selectedStyle: 'modern-minimal',
         selectedStyleName: '모던 미니멀',
-        selectedKitchenLayout: null,  // 'i_type' | 'l_type' | 'u_type' | 'peninsula'
         uploadedImages: {},
         results: [],
         currentPage: 0,
@@ -806,7 +795,7 @@ Magazine quality, professional lighting.`;
       let styleThemes = {
         'modern-minimal': {
           name: '모던 미니멀',
-          keywords: 'clean lines, minimal design, hidden handles, matte finish, geometric shapes',
+          keywords: 'clean lines, minimal design, flat smooth doors, matte finish, geometric shapes',
           atmosphere: 'serene, uncluttered, contemporary',
           mood_prompt: 'clean contemporary minimalist aesthetic, sharp straight lines, flat surfaces, monochrome palette with subtle warm undertone, uncluttered and serene',
           door_color_name: '화이트', door_color_hex: '#f5f5f5', door_finish: 'matte',
@@ -1411,25 +1400,14 @@ Magazine quality, professional lighting.`;
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // Kitchen Layout Selection
+      // 붙박이장 벽 길이 입력 표시/숨기기
       // ═══════════════════════════════════════════════════════════════
       function updateKitchenLayoutVisibility() {
-        const section = document.getElementById('kitchenLayoutSection');
-        const hasSink = state.uploadedImages['sink'] !== undefined;
-        section.style.display = hasSink ? 'block' : 'none';
-        if (!hasSink) state.selectedKitchenLayout = null;
-      }
-
-      function selectKitchenLayout(layout) {
-        state.selectedKitchenLayout = layout;
-        document.querySelectorAll('.kitchen-layout-btn').forEach(btn => {
-          const isSelected = btn.dataset.layout === layout;
-          btn.style.borderColor = isSelected ? '#2196F3' : '#e0e0e0';
-          btn.style.background = isSelected ? '#E3F2FD' : '#fff';
-          btn.style.transform = isSelected ? 'scale(1.03)' : 'scale(1)';
-        });
-        const names = { i_type: '1자형', l_type: 'ㄱ자형', u_type: 'ㄷ자형', peninsula: '대면형' };
-        showToast(`주방 레이아웃: ${names[layout]} 선택`, 'success');
+        // 붙박이장 벽 길이 입력 섹션
+        const wallSection = document.getElementById('wallWidthSection');
+        const hasWardrobe = state.uploadedImages['wardrobe'] !== undefined;
+        wallSection.style.display = hasWardrobe ? 'block' : 'none';
+        if (!hasWardrobe) document.getElementById('wallWidthInput').value = '';
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -1599,7 +1577,7 @@ Magazine quality, professional lighting.`;
                 image_type: imageData.type,
                 category: category,
                 design_style: state.selectedStyle,
-                kitchen_layout: category === 'sink' ? (state.selectedKitchenLayout || 'i_type') : undefined,
+                wall_width_override: category === 'wardrobe' ? (document.getElementById('wallWidthInput')?.value || undefined) : undefined,
               }),
             });
 

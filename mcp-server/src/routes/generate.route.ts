@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// Generate Route — 투톤 컬러 및 위치 고정 강화 버전
+// Generate Route — 투톤 컬러 및 위치 고정 강화 + 붙박이장 벽면 전체
 // POST /api/generate
 // ═══════════════════════════════════════════════════════════════
 
@@ -142,6 +142,7 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
       room_image, image_type = 'image/jpeg',
       category = 'sink', design_style = 'modern-minimal',
       kitchen_layout = 'i_type',
+      wall_width_override,
       // 레거시 호환: 기존 색상 스키마가 전달되면 무시
       random_color_scheme: _rcs, alt_random_color_scheme: _arcs,
       layout_image, mask_image,
@@ -164,15 +165,23 @@ router.post('/api/generate', generateRateLimit, async (req: Request, res: Respon
 
     log.info({ category, design_style, extraImages: extraImages.length }, 'Generate request');
 
-    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) — 싱크대만 plumbing 분석 ═══
+    // ═══ Step 1: 벽면 분석 (Gemini Vision, TEXT only) ═══
     log.info('Step 1: Wall analysis');
     let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
     let wallW2 = 0; // ㄱ자/ㄷ자 두 번째 벽
     let detectedLShape = kitchen_layout === 'l_type';
 
+    // 사용자 수동 입력값이 있으면 AI 분석 건너뜀
+    const manualW = Number(wall_width_override);
+    if (manualW >= 1000 && manualW <= 6000) {
+      wallW = manualW;
+      log.info({ wallW, source: 'user_override' }, 'Wall width from user input');
+    } else {
+
     try {
-      const wallPrompt = category === 'sink'
-        ? `Analyze this Korean apartment kitchen photo.
+      let wallPrompt: string;
+      if (category === 'sink') {
+        wallPrompt = `Analyze this Korean apartment kitchen photo.
 
 L-SHAPE DETECTION — Check if this kitchen has an L-shaped (ㄱ자) corner:
 - Look for a 90-degree corner where cabinets change direction
@@ -186,11 +195,30 @@ CALIBRATION — Use these KNOWN cabinet sizes as reference:
 
 Return JSON only:
 {"wall":{"width":number,"height":number,"width2":number},"plumbing":{"waterPct":number,"exhaustPct":number},"is_l_shape":boolean,"confidence":"high"|"medium"|"low"}
-width=main wall mm, width2=secondary wall mm (0 if not L-shaped). waterPct/exhaustPct as % from left of MAIN wall.`
-        : `Analyze this Korean apartment photo.
-Estimate wall width in mm. Korean apartments typically have 2200-4500mm wide kitchen walls. Be conservative.
+width=main wall mm, width2=secondary wall mm (0 if not L-shaped). waterPct/exhaustPct as % from left of MAIN wall.`;
+      } else if (category === 'wardrobe') {
+        wallPrompt = `Analyze this Korean apartment room photo for built-in wardrobe installation.
+
+CALIBRATION — Use these KNOWN Korean apartment features as size references:
+- Standard door frame: 900mm wide × 2100mm tall (most common reference — look for room doors)
+- Light switch / outlet plate: 70mm wide × 120mm tall (small rectangular plates on walls)
+- Ceiling height: typically 2300-2400mm in Korean apartments
+- Standard room door: visible in most room photos, use as PRIMARY scale reference
+
+TASK:
+1. Identify any visible doors, door frames, outlets, or light switches in the photo
+2. Use them as scale reference to calculate the target wall width in mm
+3. The target wall is where the wardrobe will be installed (usually the longest unobstructed wall)
+4. Korean apartment rooms typically have walls 1800-5000mm wide. Be conservative.
+
+Return JSON only:
+{"wall":{"width":number,"height":number},"reference_used":"door_frame"|"outlet"|"ceiling"|"none","confidence":"high"|"medium"|"low"}`;
+      } else {
+        wallPrompt = `Analyze this Korean apartment photo.
+Estimate wall width in mm. Korean apartments typically have 2200-4500mm wide walls. Be conservative.
 Return JSON only:
 {"wall":{"width":number,"height":number,"width2":number},"is_l_shape":boolean,"confidence":"high"|"medium"|"low"}`;
+      }
 
       const wallResult = await callGemini(wallPrompt, room_image, image_type, ['TEXT'], 0.2);
       if (wallResult.text) {
@@ -222,6 +250,7 @@ Return JSON only:
     } catch (e) {
       log.warn('Wall analysis failed, using defaults');
     }
+    } // end else (AI wall analysis)
 
     // ═══ Step 2: 레이아웃 제약조건 (싱크대만 위치 고정) ═══
     const sinkSide = waterPct <= 50 ? 'LEFT' : 'RIGHT';
@@ -332,34 +361,41 @@ ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
       if (cat === 'wardrobe') {
-        return `Edit photo: install floor-to-ceiling built-in wardrobe spanning the ENTIRE wall width (~${wallW}mm).
-[CRITICAL] The wardrobe MUST cover the full wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
-ALL doors must be "${color}" matte flat panel. Handleless (J-pull grip or push-to-open). No visible hardware.
-Height: floor to ceiling (~${wallH}mm). Depth: ~600mm.
-Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.`;
+        const s = getWardrobeStructure(wallW);
+        return `Edit photo: install built-in wardrobe covering entire wall (~${wallW}mm wide, ~${wallH}mm tall).
+Doors: "${color}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
+All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
       }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ─── 붙박이장 열린문 (내부 구조) ───
+    // ─── 붙박이장 구조 (벽 폭 기준, 섹션 950mm) ───
+    // All doors are FULL-HEIGHT single doors (floor to ceiling, never split upper/lower)
+    // Interior types: short-hang = 2 hanging rods inside, long-hang = 1 rod + internal drawer
+    // Shelves are minimized — prefer hanging rods and internal drawers
+    function getWardrobeStructure(w: number): { prompt: string; open: string } {
+      if (w > 3200) return { // 7 full-height doors
+        prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 7 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: 1 rod for long coats + internal drawer at bottom.',
+      };
+      if (w > 2600) return { // 6 full-height doors
+        prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 6 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom.',
+      };
+      if (w > 2000) return { // 5 full-height doors
+        prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 5 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: 1 rod for long coats + internal drawer at bottom.',
+      };
+      return { // 4 full-height doors
+        prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
+        open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
+      };
+    }
+
+    // ─── 붙박이장 열린문 ───
     function buildWardrobeOpenPrompt(): string {
-      return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
-
-[RULES]
-- Keep the EXACT same camera angle, lighting, and room background
-- Open every wardrobe door to approximately 90 degrees
-- Show a well-organized wardrobe interior:
-  - Hanging rods with neatly hung clothes (shirts, jackets, dresses)
-  - Folded clothes on shelves
-  - Shoe racks or storage boxes on lower shelves
-  - Small accessory drawers or baskets
-- Keep all wardrobe structure and room elements in place
-- Photorealistic result
-
-[FORBIDDEN]
-- Do NOT change camera angle or room background
-- Do NOT add/remove/merge any door sections
-- NO text, labels, or annotations`;
+      const s = getWardrobeStructure(wallW);
+      return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items in drawers. Same camera/lighting/background. Photorealistic. No text.`;
     }
 
     // ─── AI 추천안 (투톤) ───
@@ -381,7 +417,10 @@ Keep wall, floor, camera identical. No clutter.`;
     log.info('Step 3: Generate base design (기본안 — seeded color pick)');
 
     const baseSeed = Math.floor(Math.random() * 9999);
-    const baseColor = BASE_ACHROMATICS[baseSeed % BASE_ACHROMATICS.length];
+    // 붙박이장은 그레이 계열 제외
+    const wardrobePalette = ['white', 'milk white', 'cashmere', 'ivory', 'warm white'];
+    const colorPalette = category === 'wardrobe' ? wardrobePalette : BASE_ACHROMATICS;
+    const baseColor = colorPalette[baseSeed % colorPalette.length];
     const baseCTSeed = Math.floor(Math.random() * 9999);
     const baseCT = BASE_COUNTERTOPS[baseCTSeed % BASE_COUNTERTOPS.length];
     const mainPrompt = buildBasePrompt(category, baseColor, baseCT);
@@ -437,10 +476,50 @@ Keep wall, floor, camera identical. No clutter.`;
       }
     }
 
-    // ═══ Step 5: 견적 — sink/cooktop 비율 기반 길이 산출 (Claude Vision) ═══
-    log.info('Step 5: Quote analysis (ratio-based)');
+    // ═══ Step 5: 견적 ═══
+    log.info('Step 5: Quote analysis');
     let quote = null;
     let quoteMetadata: Record<string, unknown> = {};
+
+    // 붙박이장: 벽 폭 기준 300mm당 14만원 구간 견적
+    if (category === 'wardrobe') {
+      try {
+        const WARDROBE_UNIT_MM = 300;
+        const WARDROBE_UNIT_PRICE = 140000;
+        const units = Math.ceil(wallW / WARDROBE_UNIT_MM);
+        const cabinetTotal = units * WARDROBE_UNIT_PRICE;
+        const installTotal = 200000;
+        const demolitionTotal = Math.round(30000 * wallW / 1000);
+
+        const items = [
+          { name: '붙박이장 캐비닛', quantity: `${wallW}mm (${units}자)`, unit_price: WARDROBE_UNIT_PRICE, total: cabinetTotal },
+          { name: '시공비', quantity: '1식', unit_price: installTotal, total: installTotal },
+          { name: '기존 철거', quantity: `${wallW}mm`, unit_price: 30000, total: demolitionTotal },
+        ];
+        const subtotal = items.reduce((s, i) => s + i.total, 0);
+        const vat = Math.round(subtotal * 0.10);
+        const total = subtotal + vat;
+
+        quote = {
+          items,
+          subtotal,
+          vat,
+          total,
+          range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+          grade: 'basic',
+        };
+        quoteMetadata = {
+          analysis_version: 'wardrobe-unit-v1',
+          wall_width_mm: wallW,
+          unit_count: units,
+          unit_price: WARDROBE_UNIT_PRICE,
+        };
+        log.info({ total: quote.total, units, wallW }, 'Wardrobe quote calculated');
+      } catch (e: any) {
+        log.warn({ error: e?.message || String(e) }, 'Wardrobe quote failed');
+      }
+    } else {
+    // 싱크대 등: 이미지 분석 기반 견적
     try {
       const cornerHint = detectedLShape
         ? `\nL-SHAPE DETECTION: This kitchen has an L-shaped corner.
@@ -551,6 +630,7 @@ ratio: width relative to sink (1.0 = 1000mm). sink=1.0, cooktop=0.6${detectedLSh
     } catch (e: any) {
       log.warn({ error: e?.message || String(e) }, 'Quote analysis failed');
     }
+    } // end else (non-wardrobe quote)
 
     const elapsed = Date.now() - startTime;
     log.info({ elapsed }, 'Generation complete');
