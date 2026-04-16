@@ -1824,3 +1824,48 @@
           bottom: max(24px, env(safe-area-inset-bottom));
         }
       }
+
+      /* 로그인 필요 오버레이 */
+      .auth-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      .auth-overlay.hidden {
+        display: none;
+      }
+      .auth-modal {
+        background: white;
+        border-radius: 16px;
+        padding: 40px;
+        text-align: center;
+        max-width: 400px;
+      }
+      .auth-modal h2 {
+        font-size: 24px;
+        margin-bottom: 16px;
+      }
+      .auth-modal p {
+        color: #666;
+        margin-bottom: 24px;
+      }
+      .auth-modal .btn-login {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 14px 32px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .auth-modal .btn-login:hover {
+        opacity: 0.9;
+      }
