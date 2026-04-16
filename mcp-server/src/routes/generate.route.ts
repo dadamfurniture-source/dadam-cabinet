@@ -238,7 +238,7 @@ Return JSON only:
     // ─── 카테고리별 기구 설명 ───
     const CATEGORY_SUBJECT: Record<string, string> = {
       sink: 'modern handleless flat-panel kitchen cabinets',
-      wardrobe: 'floor-to-ceiling built-in wardrobe with flat-panel doors',
+      wardrobe: 'floor-to-ceiling full-wall built-in wardrobe with flat-panel doors covering entire wall',
       fridge: 'tall pantry and refrigerator surround cabinet',
       vanity: 'modern vanity cabinet with mirror cabinet above',
       shoe: 'entryway shoe cabinet with ventilation',
@@ -331,7 +331,36 @@ Edit photo: install ${subject}. ${sinkLayoutConstraints}
 ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
+      if (cat === 'wardrobe') {
+        return `Edit photo: install floor-to-ceiling built-in wardrobe spanning the ENTIRE wall width (~${wallW}mm).
+[CRITICAL] The wardrobe MUST cover the full wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
+ALL doors must be "${color}" matte flat panel. Handleless (J-pull grip or push-to-open). No visible hardware.
+Height: floor to ceiling (~${wallH}mm). Depth: ~600mm.
+Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.`;
+      }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+    }
+
+    // ─── 붙박이장 열린문 (내부 구조) ───
+    function buildWardrobeOpenPrompt(): string {
+      return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
+
+[RULES]
+- Keep the EXACT same camera angle, lighting, and room background
+- Open every wardrobe door to approximately 90 degrees
+- Show a well-organized wardrobe interior:
+  - Hanging rods with neatly hung clothes (shirts, jackets, dresses)
+  - Folded clothes on shelves
+  - Shoe racks or storage boxes on lower shelves
+  - Small accessory drawers or baskets
+  - LED interior lighting strips
+- Keep all wardrobe structure and room elements in place
+- Photorealistic result
+
+[FORBIDDEN]
+- Do NOT change camera angle or room background
+- Do NOT add/remove/merge any door sections
+- NO text, labels, or annotations`;
     }
 
     // ─── AI 추천안 (투톤) ───
@@ -369,26 +398,44 @@ Keep wall, floor, camera identical. No clutter.`;
     }
     log.info('Base design (기본안) generated');
 
-    // ═══ Step 4: AI 추천안 생성 (시드로 투톤 팔레트에서 픽) ═══
-    log.info('Step 4: Generate AI recommendation (AI 추천안 — seeded two-tone pick)');
-
+    // ═══ Step 4: 2nd image — 붙박이장은 열린문, 나머지는 AI 추천안 (투톤) ═══
     let altImage: string | undefined;
     let altPick: { upper: string; lower: string } | null = null;
-    try {
-      const altSeed = Math.floor(Math.random() * 9999);
-      altPick = ALT_TWO_TONES[altSeed % ALT_TWO_TONES.length];
-      const altCTSeed = Math.floor(Math.random() * 9999);
-      const altCT = ALT_COUNTERTOPS[altCTSeed % ALT_COUNTERTOPS.length];
-      const altPrompt = buildAltPrompt(category, altPick.upper, altPick.lower, altCT);
-      log.info({ promptLength: altPrompt.length, category, altSeed, altPick, countertop: altCT.name }, 'AI recommendation prompt (seeded two-tone)');
+    let altStyleLabel = 'AI Two-tone Recommendation';
 
-      const altResult = await callGemini(
-        altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
-      );
-      altImage = altResult.image;
-      if (altImage) log.info('AI recommendation (AI 추천안) generated');
-    } catch (e: any) {
-      log.warn({ error: e?.message || String(e) }, 'Alt style generation failed');
+    if (category === 'wardrobe') {
+      // 붙박이장: 기본안(닫힌 문) 이미지를 입력으로 열린문 생성
+      log.info('Step 4: Generate wardrobe open-door interior view');
+      try {
+        const openPrompt = buildWardrobeOpenPrompt();
+        const closedMime = closedResult.image!.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+        const openResult = await callGemini(
+          openPrompt, closedResult.image!, closedMime, ['IMAGE', 'TEXT'], 0.4, [], { maxRetries: 0 },
+        );
+        altImage = openResult.image;
+        altStyleLabel = '내부 구조 (열린문)';
+        if (altImage) log.info('Wardrobe open-door interior generated');
+      } catch (e: any) {
+        log.warn({ error: e?.message || String(e) }, 'Wardrobe open-door generation failed');
+      }
+    } else {
+      log.info('Step 4: Generate AI recommendation (AI 추천안 — seeded two-tone pick)');
+      try {
+        const altSeed = Math.floor(Math.random() * 9999);
+        altPick = ALT_TWO_TONES[altSeed % ALT_TWO_TONES.length];
+        const altCTSeed = Math.floor(Math.random() * 9999);
+        const altCT = ALT_COUNTERTOPS[altCTSeed % ALT_COUNTERTOPS.length];
+        const altPrompt = buildAltPrompt(category, altPick.upper, altPick.lower, altCT);
+        log.info({ promptLength: altPrompt.length, category, altSeed, altPick, countertop: altCT.name }, 'AI recommendation prompt (seeded two-tone)');
+
+        const altResult = await callGemini(
+          altPrompt, room_image, image_type, ['IMAGE', 'TEXT'], 0.4, extraImages, { maxRetries: 0 },
+        );
+        altImage = altResult.image;
+        if (altImage) log.info('AI recommendation (AI 추천안) generated');
+      } catch (e: any) {
+        log.warn({ error: e?.message || String(e) }, 'Alt style generation failed');
+      }
     }
 
     // ═══ Step 5: 견적 — sink/cooktop 비율 기반 길이 산출 (Claude Vision) ═══
@@ -516,7 +563,7 @@ ratio: width relative to sink (1.0 = 1000mm). sink=1.0, cooktop=0.6${detectedLSh
         alt: altImage || null,
       },
       alt_style: {
-        name: 'AI Two-tone Recommendation',
+        name: altStyleLabel,
       },
       quote,
       quote_analysis: quoteMetadata,

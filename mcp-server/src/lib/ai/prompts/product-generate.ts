@@ -17,7 +17,7 @@ export function getProductGeneratePrompt(
   }
 
   if (category === 'wardrobe') {
-    return `Edit photo: install ${style.doorColor} ${style.doorFinish} floor-to-ceiling built-in wardrobe. Keep wall, floor, camera identical. Handleless doors. Clean room.`;
+    return `Edit photo: install ${style.doorColor} ${style.doorFinish} floor-to-ceiling built-in wardrobe spanning the ENTIRE wall. Every section must have closed flat-panel doors. Keep wall, floor, camera identical. Handleless doors. Clean room.`;
   }
 
   return `Edit photo: install ${style.doorColor} ${style.doorFinish} ${category} cabinet. Keep wall, floor, camera identical. Handleless doors. Clean room.`;
