@@ -1771,14 +1771,11 @@
 
         /* Category Buttons 480px */
         .category-btn {
-          padding: 8px 12px;
+          padding: 10px 6px;
           font-size: 12px;
         }
         .category-btn .btn-text {
-          display: none;
-        }
-        .category-btn .btn-icon {
-          font-size: 18px;
+          font-size: 11px;
         }
 
         /* Image Preview Section 480px */
