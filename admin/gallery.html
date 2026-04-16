@@ -147,6 +147,25 @@
       let selectedIds = new Set();
       let selectMode = false;
 
+      // 품목 한글 라벨
+      const CATEGORY_LABELS = {
+        'l_shaped_sink': 'L자형 싱크대',
+        'peninsula_sink': '반도형 싱크대',
+        'island_kitchen': '아일랜드',
+        'wardrobe': '붙박이장',
+        'fridge_cabinet': '냉장고장',
+        'vanity': '화장대',
+        'shoe_cabinet': '신발장',
+        'sink': '싱크대',
+        'hood': '후드',
+        'cooktop': '쿡탑',
+        'door': '도어',
+        'countertop': '상판',
+        'handle': '손잡이',
+        'faucet': '수전',
+      };
+      function catLabel(cat) { return CATEGORY_LABELS[cat] || cat || '-'; }
+
       async function initAdmin() {
         if (!window.supabase || !window.DADAM_CONFIG?.supabase) { showAccessDenied(); return; }
         const { url, anonKey } = window.DADAM_CONFIG.supabase;
@@ -178,7 +197,7 @@
         const sel = document.getElementById('filterCategory');
         cats.forEach(c => {
           const opt = document.createElement('option');
-          opt.value = c; opt.textContent = c;
+          opt.value = c; opt.textContent = catLabel(c);
           sel.appendChild(opt);
         });
       }
@@ -230,7 +249,7 @@
             ${img.is_training ? '<span class="training-badge">학습용</span>' : ''}
             <button class="delete-btn" onclick="deleteSingle('${img.id}')" title="삭제">×</button>
             <div class="info">
-              <div class="category">${img.category || '-'}</div>
+              <div class="category">${catLabel(img.category)}</div>
               <div class="style">${img.style || ''} ${img.description ? '· ' + img.description.substring(0, 30) : ''}</div>
             </div>
           </div>
@@ -263,8 +282,41 @@
         bar.classList.toggle('active', selectedIds.size > 0);
       }
 
+      // Storage 파일 삭제 (storage_path 또는 image_url에서 경로 추출)
+      async function deleteStorageFiles(images) {
+        const paths = images
+          .map(img => img.storage_path || extractStoragePath(img.image_url))
+          .filter(Boolean);
+        if (paths.length === 0) return;
+        try {
+          // Supabase Storage 버킷명 추출 (URL 패턴: /storage/v1/object/public/{bucket}/{path})
+          const bucketGroups = {};
+          for (const p of paths) {
+            const match = p.match(/^(?:.*\/storage\/v1\/object\/public\/)?([^/]+)\/(.+)$/);
+            if (match) {
+              const [, bucket, filePath] = match;
+              if (!bucketGroups[bucket]) bucketGroups[bucket] = [];
+              bucketGroups[bucket].push(filePath);
+            }
+          }
+          for (const [bucket, files] of Object.entries(bucketGroups)) {
+            await supabaseClient.storage.from(bucket).remove(files);
+          }
+        } catch (e) {
+          console.warn('Storage 파일 삭제 실패 (DB 행은 삭제됨):', e.message);
+        }
+      }
+
+      function extractStoragePath(url) {
+        if (!url) return null;
+        const match = url.match(/\/storage\/v1\/object\/public\/(.+)$/);
+        return match ? match[1] : null;
+      }
+
       async function deleteSingle(id) {
         if (!confirm('이 이미지를 삭제하시겠습니까?')) return;
+        const img = allImages.find(i => i.id === id);
+        if (img) await deleteStorageFiles([img]);
         const { error } = await supabaseClient.from('furniture_images').delete().eq('id', id);
         if (error) { alert('삭제 실패: ' + error.message); return; }
         loadImages();
@@ -272,8 +324,10 @@
 
       async function deleteBulk() {
         if (selectedIds.size === 0) return;
-        if (!confirm(`${selectedIds.size}개 이미지를 삭제하시겠습니까?`)) return;
+        if (!confirm(`${selectedIds.size}개 이미지를 삭제하시겠습니까?\nStorage 파일도 함께 삭제됩니다.`)) return;
         const ids = [...selectedIds];
+        const targets = allImages.filter(i => ids.includes(i.id));
+        await deleteStorageFiles(targets);
         const { error } = await supabaseClient.from('furniture_images').delete().in('id', ids);
         if (error) { alert('삭제 실패: ' + error.message); return; }
         selectedIds.clear();
