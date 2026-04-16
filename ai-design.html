@@ -1619,8 +1619,10 @@ Magazine quality, professional lighting.`;
               if (data.generated_image.closed) {
                 afterImageUrl = `data:image/png;base64,${data.generated_image.closed}`;
               }
-              if (data.generated_image.alt) {
-                afterImageUrlAlt = `data:image/png;base64,${data.generated_image.alt}`;
+              // alt (MCP 서버) 또는 open (Worker) 응답 모두 지원
+              const altBase64 = data.generated_image.alt || data.generated_image.open;
+              if (altBase64) {
+                afterImageUrlAlt = `data:image/png;base64,${altBase64}`;
               }
             }
             if (data.alt_style) {

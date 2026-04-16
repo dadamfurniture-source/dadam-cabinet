@@ -93,8 +93,11 @@ CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/l
 
   if (category === 'wardrobe') {
     return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Full-width floor-to-ceiling wardrobe with hinged doors.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
+Wall: ${wallData.wallW}x${wallData.wallH}mm.
+[CRITICAL] The wardrobe MUST cover the ENTIRE wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
+Full-width floor-to-ceiling wardrobe spanning the entire wall width (~${wallData.wallW}mm).
+Height: floor to ceiling (~${wallData.wallH}mm). Depth: ~600mm.
+No visible handles (J-pull grip or push-to-open). ${styleName}. Photorealistic. All doors CLOSED. No text.`;
   }
 
   if (category === 'shoe' || category === 'shoe_cabinet') {
@@ -121,7 +124,27 @@ No visible handles. ${styleName}. Photorealistic. All doors closed.`;
 }
 
 // ─── 열린문 프롬프트 ───
-function buildOpenDoorPrompt() {
+function buildOpenDoorPrompt(category) {
+  if (category === 'wardrobe') {
+    return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
+
+[RULES]
+- Keep the EXACT same camera angle, lighting, and room background
+- Open every wardrobe door to approximately 90 degrees
+- Show a well-organized wardrobe interior:
+  - Hanging rods with neatly hung clothes (shirts, jackets, dresses)
+  - Folded clothes on shelves
+  - Shoe racks or storage boxes on lower shelves
+  - Small accessory drawers or baskets
+- Keep all wardrobe structure and room elements in place
+- Photorealistic result
+
+[FORBIDDEN]
+- Do NOT change camera angle or room background
+- Do NOT add/remove/merge any door sections
+- NO text, labels, or annotations`;
+  }
+
   return `Using this closed-door furniture image, generate the SAME furniture with doors OPEN.
 RULES:
 - SAME camera angle, lighting, background, furniture position
@@ -229,7 +252,7 @@ export default {
         // ═══ Step 3: 열린문 생성 ═══
         let openImage = null;
         try {
-          const openResult = await callGemini(env, buildOpenDoorPrompt(), closedResult.image, 'image/png');
+          const openResult = await callGemini(env, buildOpenDoorPrompt(category), closedResult.image, 'image/png');
           openImage = openResult.image || null;
           if (openImage) console.log('[Generate] Open door image generated');
         } catch (e) {
