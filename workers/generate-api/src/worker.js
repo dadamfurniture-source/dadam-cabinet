@@ -128,6 +128,7 @@ No visible handles. ${styleName}. Photorealistic. All doors closed.`;
 // ─── 붙박이장 내부 구조 사양 (벽 폭 기준) ───
 function getWardrobeStructure(w) {
   if (w > 3200) {
+    // 7도어: 2도어 3통(2단2개+1단1개) + 1도어 1통(선반형)
     return {
       prompt: '4 sections total: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 7 doors.',
       openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
@@ -136,7 +137,8 @@ function getWardrobeStructure(w) {
   - Section 4 (1-door, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
     };
   }
-  if (w > 2000) {
+  if (w > 2600) {
+    // 6도어: 2도어 3통(2단2개+1단1개)
     return {
       prompt: '3 sections total: THREE 2-door sections (two with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom). Total 6 doors.',
       openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
@@ -144,6 +146,16 @@ function getWardrobeStructure(w) {
   - Section 3 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom`,
     };
   }
+  if (w > 2000) {
+    // 5도어: 2도어 2통(2단1개+1단1개) + 1도어 1통(선반형)
+    return {
+      prompt: '3 sections total: TWO 2-door sections (one with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 5 doors.',
+      openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
+  - Section 2 (2-door): single full-height hanging rod for long coats/dresses, one large drawer at bottom
+  - Section 3 (1-door, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
+    };
+  }
+  // 4도어: 2도어 2통(2단1개+1단1개)
   return {
     prompt: '2 sections total: TWO 2-door sections (one with double-tier hanging rods, one with single-tier hanging rod and one large drawer at the bottom). Total 4 doors.',
     openPrompt: `  - Section 1 (2-door): upper hanging rod + lower hanging rod for short clothes, one large drawer at bottom
