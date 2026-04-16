@@ -353,7 +353,6 @@ Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.`;
   - Folded clothes on shelves
   - Shoe racks or storage boxes on lower shelves
   - Small accessory drawers or baskets
-  - LED interior lighting strips
 - Keep all wardrobe structure and room elements in place
 - Photorealistic result
 
