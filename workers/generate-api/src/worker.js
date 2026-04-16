@@ -160,49 +160,40 @@ function getWardrobeStructure(w) {
 }
 
 // ─── 냉장고장 프롬프트 ───
-const FRIDGE_DOOR_DESC = {
-  '4door': 'french-door (4-door) refrigerator',
-  'side-by-side': 'side-by-side refrigerator',
+const FRIDGE_UNIT_DESC = {
   '1door': 'single-door column refrigerator',
-  '2door': 'two-door refrigerator',
-  'top-freezer': 'top-mount freezer refrigerator',
-  'kimchi': 'kimchi refrigerator',
+  '3door': 'three-door refrigerator',
+  '4door': 'french-door (4-door) refrigerator',
 };
-const FRIDGE_STORAGE_DESC = {
-  'both-sides': 'tall pantry cabinets on both left and right sides',
-  'left-only': 'one tall pantry cabinet on the left side',
-  'right-only': 'one tall pantry cabinet on the right side',
-  'none': 'no side cabinets, fridge niche only with bridge cabinet above',
-};
-const FRIDGE_APPLIANCE_DESC = {
-  'microwave': 'built-in microwave',
-  'oven': 'built-in oven',
-  'steam-oven': 'built-in steam oven',
-  'coffee-machine': 'built-in coffee machine',
-  'rice-cooker': 'built-in rice cooker niche',
+const FRIDGE_LINE_DESC = {
+  'bespoke': 'Samsung Bespoke Kitchen Fit',
+  'infinite': 'Samsung Infinite Line',
+  'standing': 'freestanding',
+  'fitmax': 'LG Fit & Max built-in',
 };
 
-function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOpts) {
+function buildFridgeComboDesc(fridgeOpts) {
   const opts = fridgeOpts || {};
-  const doorTypes = opts.doorTypes || (opts.doorType ? [opts.doorType] : ['4door']);
-  const storageType = opts.storageType || 'both-sides';
-  const appliances = opts.appliances || [];
-
-  const fridgeDescs = doorTypes.map(t => FRIDGE_DOOR_DESC[t]).filter(Boolean);
-  const fridgeStr = fridgeDescs.length > 0 ? fridgeDescs.join(' + ') : FRIDGE_DOOR_DESC['4door'];
-  const storageDesc = FRIDGE_STORAGE_DESC[storageType] || FRIDGE_STORAGE_DESC['both-sides'];
-
-  let applianceStr = '';
-  if (appliances.length > 0) {
-    const appNames = appliances.map(a => FRIDGE_APPLIANCE_DESC[a]).filter(Boolean);
-    if (appNames.length > 0) {
-      applianceStr = ` Tall cabinet includes: ${appNames.join(', ')}.`;
+  const combo = opts.combo || { '4door': 1 };
+  const parts = [];
+  for (const [type, count] of Object.entries(combo)) {
+    if (Number(count) > 0) {
+      const desc = FRIDGE_UNIT_DESC[type] || type;
+      parts.push(Number(count) > 1 ? `${count}x ${desc}` : desc);
     }
   }
+  if (parts.length === 0) parts.push(FRIDGE_UNIT_DESC['4door']);
+  const brand = opts.brand === 'lg' ? 'LG' : 'Samsung';
+  const lineDesc = FRIDGE_LINE_DESC[opts.modelLine] || '';
+  const lineStr = lineDesc ? ` (${lineDesc})` : '';
+  return `${brand}${lineStr}: ${parts.join(' + ')}`;
+}
+
+function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOpts) {
+  const comboDesc = buildFridgeComboDesc(fridgeOpts);
 
   return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge units: ${fridgeStr}. ${storageDesc}.${applianceStr}
-Bridge cabinet above fridge connecting to side cabinets.
+Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${comboDesc}. Tall pantry cabinets on sides, bridge cabinet above.
 ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
