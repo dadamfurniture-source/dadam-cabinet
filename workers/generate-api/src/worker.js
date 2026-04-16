@@ -88,7 +88,7 @@ Return ONLY valid JSON.`;
 }
 
 // ─── 가구 생성 프롬프트 ───
-function buildFurniturePrompt(category, style, kitchenLayout, wallData, themeData) {
+function buildFurniturePrompt(category, style, kitchenLayout, wallData, themeData, fridgeOptions) {
   const layoutDesc = LAYOUT_DESC[kitchenLayout] || 'straight linear';
   const styleName = STYLE_MAP[style] || 'Modern Minimal';
   const doorColor = themeData.style_door_color || 'white';
@@ -123,9 +123,7 @@ No visible handles. ${styleName}. Photorealistic. All doors closed.`;
   }
 
   if (category === 'fridge' || category === 'fridge_cabinet') {
-    return `Place ${doorColor} ${doorFinish} refrigerator surround cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Center opening for fridge, tall storage on sides, bridge above.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
+    return buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOptions);
   }
 
   if (category === 'vanity') {
@@ -159,6 +157,51 @@ function getWardrobeStructure(w) {
     prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
     open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
   };
+}
+
+// ─── 냉장고장 프롬프트 ───
+const FRIDGE_DOOR_DESC = {
+  'french-door': 'french-door (4-door) refrigerator',
+  'side-by-side': 'side-by-side (2-door) refrigerator',
+  'single-door': 'single-door column refrigerator',
+  'top-freezer': 'top-mount freezer refrigerator',
+};
+const FRIDGE_STORAGE_DESC = {
+  'both-sides': 'tall pantry cabinets on both left and right sides of the fridge',
+  'left-only': 'one tall pantry cabinet on the left side of the fridge',
+  'right-only': 'one tall pantry cabinet on the right side of the fridge',
+  'none': 'no side cabinets, fridge niche only with bridge cabinet above',
+};
+const FRIDGE_APPLIANCE_DESC = {
+  'microwave': 'built-in microwave',
+  'oven': 'built-in oven',
+  'steam-oven': 'built-in steam oven',
+  'coffee-machine': 'built-in coffee machine',
+  'rice-cooker': 'built-in rice cooker niche',
+};
+
+function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOpts) {
+  const opts = fridgeOpts || {};
+  const doorType = opts.doorType || 'french-door';
+  const storageType = opts.storageType || 'both-sides';
+  const appliances = opts.appliances || [];
+
+  const fridgeDesc = FRIDGE_DOOR_DESC[doorType] || FRIDGE_DOOR_DESC['french-door'];
+  const storageDesc = FRIDGE_STORAGE_DESC[storageType] || FRIDGE_STORAGE_DESC['both-sides'];
+
+  let applianceStr = '';
+  if (appliances.length > 0) {
+    const appNames = appliances.map(a => FRIDGE_APPLIANCE_DESC[a]).filter(Boolean);
+    if (appNames.length > 0) {
+      applianceStr = ` Tall cabinet includes: ${appNames.join(', ')}.`;
+    }
+  }
+
+  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background EXACTLY.
+Wall: ${wallData.wallW}x${wallData.wallH}mm. Center: built-in ${fridgeDesc} opening (~900mm wide). ${storageDesc}.${applianceStr}
+Bridge cabinet above fridge connecting left and right.
+ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.
+${styleName}. Photorealistic. All doors closed. No text.`;
 }
 
 // ─── 열린문 프롬프트 ───
@@ -227,6 +270,7 @@ export default {
           kitchen_layout = 'i_type',
           design_style = 'modern-minimal',
           wall_width_override,
+          fridge_options,
           ...themeData
         } = body;
 
@@ -275,7 +319,7 @@ export default {
         } // end else (AI wall analysis)
 
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
-        const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData);
+        const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData, fridge_options);
         const closedResult = await callGemini(env, furniturePrompt, room_image, image_type);
 
         if (!closedResult.image) {

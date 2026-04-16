@@ -294,6 +294,43 @@
         </div>
       </div>
 
+      <!-- 냉장고장 구성 선택 (냉장고장 전용) -->
+      <div class="fridge-options-section" id="fridgeOptionsSection" style="display: none; margin-bottom: 20px;">
+        <p class="section-title">냉장고장 구성 선택</p>
+
+        <div style="margin-top: 12px;">
+          <label class="fridge-opt-label">냉장고 종류</label>
+          <div class="fridge-opt-group" id="fridgeDoorType">
+            <button class="fridge-opt-btn active" data-value="french-door" onclick="selectFridgeOption('doorType', this)">4도어 (프렌치)</button>
+            <button class="fridge-opt-btn" data-value="side-by-side" onclick="selectFridgeOption('doorType', this)">양문형</button>
+            <button class="fridge-opt-btn" data-value="single-door" onclick="selectFridgeOption('doorType', this)">1도어</button>
+            <button class="fridge-opt-btn" data-value="top-freezer" onclick="selectFridgeOption('doorType', this)">상냉장하냉동</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px;">
+          <label class="fridge-opt-label">수납장 구성</label>
+          <div class="fridge-opt-group" id="fridgeStorageType">
+            <button class="fridge-opt-btn active" data-value="both-sides" onclick="selectFridgeOption('storageType', this)">양쪽 키큰장</button>
+            <button class="fridge-opt-btn" data-value="left-only" onclick="selectFridgeOption('storageType', this)">왼쪽만</button>
+            <button class="fridge-opt-btn" data-value="right-only" onclick="selectFridgeOption('storageType', this)">오른쪽만</button>
+            <button class="fridge-opt-btn" data-value="none" onclick="selectFridgeOption('storageType', this)">없음 (냉장고만)</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px;">
+          <label class="fridge-opt-label">전자기기 (수납장 내)</label>
+          <div class="fridge-opt-group multi" id="fridgeApplianceType">
+            <button class="fridge-opt-btn" data-value="microwave" onclick="toggleFridgeAppliance(this)">전자레인지</button>
+            <button class="fridge-opt-btn" data-value="oven" onclick="toggleFridgeAppliance(this)">오븐</button>
+            <button class="fridge-opt-btn" data-value="steam-oven" onclick="toggleFridgeAppliance(this)">스팀오븐</button>
+            <button class="fridge-opt-btn" data-value="coffee-machine" onclick="toggleFridgeAppliance(this)">커피머신</button>
+            <button class="fridge-opt-btn" data-value="rice-cooker" onclick="toggleFridgeAppliance(this)">밥솥</button>
+            <button class="fridge-opt-btn active" data-value="none" onclick="toggleFridgeAppliance(this)">없음</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Product Gallery Section -->
       <div class="theme-section">
         <div class="theme-section-header">
@@ -783,6 +820,11 @@ Magazine quality, professional lighting.`;
         uploadedImages: {},
         results: [],
         currentPage: 0,
+        fridgeOptions: {
+          doorType: 'french-door',
+          storageType: 'both-sides',
+          appliances: [],
+        },
       };
 
       // 슬라이더 상태
@@ -1408,6 +1450,42 @@ Magazine quality, professional lighting.`;
         const hasWardrobe = state.uploadedImages['wardrobe'] !== undefined;
         wallSection.style.display = hasWardrobe ? 'block' : 'none';
         if (!hasWardrobe) document.getElementById('wallWidthInput').value = '';
+
+        // 냉장고장 옵션 섹션
+        const fridgeSection = document.getElementById('fridgeOptionsSection');
+        const hasFridge = state.uploadedImages['fridge'] !== undefined;
+        fridgeSection.style.display = hasFridge ? 'block' : 'none';
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 냉장고장 옵션 선택
+      // ═══════════════════════════════════════════════════════════════
+      function selectFridgeOption(field, el) {
+        const group = el.parentElement;
+        group.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        state.fridgeOptions[field] = el.dataset.value;
+      }
+
+      function toggleFridgeAppliance(el) {
+        const value = el.dataset.value;
+        if (value === 'none') {
+          // "없음" 선택 시 나머지 모두 해제
+          el.parentElement.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
+          el.classList.add('active');
+          state.fridgeOptions.appliances = [];
+        } else {
+          // 다른 항목 선택 시 "없음" 해제
+          el.parentElement.querySelector('[data-value="none"]').classList.remove('active');
+          el.classList.toggle('active');
+          // active 상태인 항목 수집
+          const actives = el.parentElement.querySelectorAll('.fridge-opt-btn.active');
+          state.fridgeOptions.appliances = Array.from(actives).map(b => b.dataset.value);
+          // 아무것도 선택 안 된 경우 "없음" 다시 활성화
+          if (state.fridgeOptions.appliances.length === 0) {
+            el.parentElement.querySelector('[data-value="none"]').classList.add('active');
+          }
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -1578,6 +1656,7 @@ Magazine quality, professional lighting.`;
                 category: category,
                 design_style: state.selectedStyle,
                 wall_width_override: category === 'wardrobe' ? (document.getElementById('wallWidthInput')?.value || undefined) : undefined,
+                fridge_options: category === 'fridge' ? state.fridgeOptions : undefined,
               }),
             });
 
