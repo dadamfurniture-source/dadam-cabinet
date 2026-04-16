@@ -361,89 +361,39 @@ ${SINK_DETAILS}
 Keep wall, floor, camera identical. No clutter.`;
       }
       if (cat === 'wardrobe') {
-        const structure = getWardrobeStructure(wallW);
-        return `Edit photo: install floor-to-ceiling built-in wardrobe spanning the ENTIRE wall width (~${wallW}mm).
-[CRITICAL] The wardrobe MUST cover the full wall from left edge to right edge with NO gaps.
-[DOORS] EVERY section MUST have doors. NO open shelves, NO exposed interior. ALL doors CLOSED.
-[STRUCTURE] ${structure.prompt}
-ALL doors must be "${color}" matte flat panel. Handleless (J-pull grip or push-to-open). No visible hardware.
-Height: floor to ceiling (~${wallH}mm). Depth: ~600mm.
-Keep wall, floor, camera angle identical. Photorealistic. No clutter. No text.
-
-[FORBIDDEN]
-- NO sections without doors
-- NO open shelving visible from outside
-- NO glass doors or transparent panels
-- NO gaps between sections`;
+        const s = getWardrobeStructure(wallW);
+        return `Edit photo: install "${color}" matte handleless built-in wardrobe, wall-to-wall (~${wallW}mm), floor-to-ceiling (~${wallH}mm).
+${s.prompt}
+All doors closed, no open shelves, no gaps. Preserve background. Photorealistic. No text.`;
       }
       return `Edit photo: install ${subject}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
     }
 
-    // ─── 붙박이장 내부 구조 사양 (벽 폭 기준) ───
-    function getWardrobeStructure(w: number): { prompt: string; openPrompt: string } {
-      const SECTION_W = 950; // 각 통(섹션) 기본 폭 950mm
-      if (w > 3200) {
-        // W 3200mm 초과: 7도어 — 2도어 3통(2단2개+1단1개) + 1도어 1통(선반형)
-        return {
-          prompt: `4 sections total, each section ~${SECTION_W}mm wide: THREE 2-door sections (two with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 7 doors.`,
-          openPrompt: `Interior layout (left to right, each section ~${SECTION_W}mm wide):
-  - Section 1 (2-door, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
-  - Section 2 (2-door, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
-  - Section 3 (2-door, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom
-  - Section 4 (1-door, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
-        };
-      }
-      if (w > 2600) {
-        // W 2600~3200mm: 6도어 — 2도어 3통(2단2개+1단1개)
-        return {
-          prompt: `3 sections total, each section ~${SECTION_W}mm wide: THREE 2-door sections (two with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom). Total 6 doors.`,
-          openPrompt: `Interior layout (left to right, each section ~${SECTION_W}mm wide):
-  - Section 1 (2-door, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
-  - Section 2 (2-door, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
-  - Section 3 (2-door, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom`,
-        };
-      }
-      if (w > 2000) {
-        // W 2000~2600mm: 5도어 — 2도어 2통(2단1개+1단1개) + 1도어 1통(선반형)
-        return {
-          prompt: `3 sections total, each section ~${SECTION_W}mm wide: TWO 2-door sections (one with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom) + ONE single-door shelf section with multiple fixed shelves. Total 5 doors.`,
-          openPrompt: `Interior layout (left to right, each section ~${SECTION_W}mm wide):
-  - Section 1 (2-door, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
-  - Section 2 (2-door, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom
-  - Section 3 (1-door, shelf unit): 5-6 fixed shelves with folded clothes and storage boxes`,
-        };
-      }
-      // W 2000mm 이하: 4도어 — 2도어 2통(2단1개+1단1개)
-      return {
-        prompt: `2 sections total, each section ~${SECTION_W}mm wide: TWO 2-door sections (one with double-tier hanging rods and NO drawers, one with single-tier hanging rod and one large internal drawer (hidden behind the door, not visible from outside) at the bottom). Total 4 doors.`,
-        openPrompt: `Interior layout (left to right, each section ~${SECTION_W}mm wide):
-  - Section 1 (2-door, double-tier): upper hanging rod + lower hanging rod for short clothes, NO drawer
-  - Section 2 (2-door, single-tier): single full-height hanging rod for long coats/dresses, one large internal drawer hidden behind door at bottom`,
+    // ─── 붙박이장 구조 (벽 폭 기준, 섹션 950mm) ───
+    function getWardrobeStructure(w: number): { prompt: string; open: string } {
+      // 2단=상하 행거봉(서랍없음), 1단=풀하이트 행거+하부 내부서랍, 선반=고정선반
+      if (w > 3200) return { // 7도어
+        prompt: '7 doors: 2-door double-tier×2 + 2-door single-tier×1 + 1-door shelf×1, each ~950mm.',
+        open: '2단×2(행거2줄) + 1단×1(행거+내부서랍) + 선반×1(접이옷·수납박스)',
+      };
+      if (w > 2600) return { // 6도어
+        prompt: '6 doors: 2-door double-tier×2 + 2-door single-tier×1, each ~950mm.',
+        open: '2단×2(행거2줄) + 1단×1(행거+내부서랍)',
+      };
+      if (w > 2000) return { // 5도어
+        prompt: '5 doors: 2-door double-tier×1 + 2-door single-tier×1 + 1-door shelf×1, each ~950mm.',
+        open: '2단×1(행거2줄) + 1단×1(행거+내부서랍) + 선반×1(접이옷·수납박스)',
+      };
+      return { // 4도어
+        prompt: '4 doors: 2-door double-tier×1 + 2-door single-tier×1, each ~950mm.',
+        open: '2단×1(행거2줄) + 1단×1(행거+내부서랍)',
       };
     }
 
-    // ─── 붙박이장 열린문 (내부 구조) ───
+    // ─── 붙박이장 열린문 ───
     function buildWardrobeOpenPrompt(): string {
-      const structure = getWardrobeStructure(wallW);
-      return `[TASK] Open ALL wardrobe doors in this image to reveal the organized interior.
-
-[RULES]
-- Keep the EXACT same camera angle, lighting, and room background
-- Open every wardrobe door to approximately 90 degrees
-- Show a well-organized wardrobe interior:
-${structure.openPrompt}
-- Each section clearly divided by vertical partition panels
-- Hanging rods with neatly hung clothes (shirts, jackets, dresses, coats)
-- Folded clothes and storage boxes on shelves
-- Internal drawers at the bottom of single-tier sections only (hidden behind door, only visible when door is open)
-- Double-tier sections have NO drawers — hanging rods fill the full height
-- Keep all wardrobe structure and room elements in place
-- Photorealistic result
-
-[FORBIDDEN]
-- Do NOT change camera angle or room background
-- Do NOT add/remove/merge any door sections
-- NO text, labels, or annotations`;
+      const s = getWardrobeStructure(wallW);
+      return `Open all wardrobe doors ~90°. Interior: ${s.open}. Clothes on hangers, folded items on shelves. Internal drawer at bottom of single-tier only. Same camera/lighting/background. Photorealistic. No text.`;
     }
 
     // ─── AI 추천안 (투톤) ───
