@@ -362,7 +362,7 @@ Keep wall, floor, camera identical. No clutter.`;
       }
       if (cat === 'wardrobe') {
         const s = getWardrobeStructure(wallW);
-        return `Edit photo: install "${color}" matte built-in wardrobe, wall-to-wall (~${wallW}mm), floor-to-ceiling (~${wallH}mm). No handles, no knobs, no visible hardware — push-to-open (touch latch) doors only.
+        return `Edit photo: install "${color}" matte built-in wardrobe, wall-to-wall (~${wallW}mm), floor-to-ceiling (~${wallH}mm). Doors must be completely FLAT and SMOOTH — NO handles, NO knobs, NO grooves, NO recessed grips, NO J-pull, NO edge profiles. Perfectly flat surface with invisible push-to-open mechanism.
 ${s.prompt}
 CRITICAL: Every door must be a SINGLE full-height door from floor to ceiling. Do NOT split any door into upper and lower halves.
 All doors closed, no open shelves, no gaps. Preserve background. Photorealistic. No text.`;

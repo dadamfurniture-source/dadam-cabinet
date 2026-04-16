@@ -111,7 +111,7 @@ CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/l
 
   if (category === 'wardrobe') {
     const s = getWardrobeStructure(wallData.wallW);
-    return `Edit photo: install "${doorColor}" matte built-in wardrobe, wall-to-wall (~${wallData.wallW}mm), floor-to-ceiling (~${wallData.wallH}mm). No handles, no knobs, no visible hardware — push-to-open (touch latch) doors only.
+    return `Edit photo: install "${doorColor}" matte built-in wardrobe, wall-to-wall (~${wallData.wallW}mm), floor-to-ceiling (~${wallData.wallH}mm). Doors must be completely FLAT and SMOOTH — NO handles, NO knobs, NO grooves, NO recessed grips, NO J-pull, NO edge profiles. Perfectly flat surface with invisible push-to-open mechanism.
 ${s.prompt}
 CRITICAL: Every door must be a SINGLE full-height door from floor to ceiling. Do NOT split any door into upper and lower halves.
 All doors closed, no open shelves, no gaps. Preserve background. Photorealistic. No text.`;
