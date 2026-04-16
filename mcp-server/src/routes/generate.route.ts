@@ -498,13 +498,13 @@ Keep wall, floor, camera identical. No clutter.`;
         const WARDROBE_UNIT_PRICE = 140000;
         const units = Math.ceil(wallW / WARDROBE_UNIT_MM);
         const cabinetTotal = units * WARDROBE_UNIT_PRICE;
-        const installTotal = LABOR.installation;
-        const demolitionTotal = Math.round(LABOR.demolition_per_1000mm * wallW / 1000);
+        const installTotal = 200000;
+        const demolitionTotal = Math.round(30000 * wallW / 1000);
 
         const items = [
           { name: '붙박이장 캐비닛', quantity: `${wallW}mm (${units}자)`, unit_price: WARDROBE_UNIT_PRICE, total: cabinetTotal },
           { name: '시공비', quantity: '1식', unit_price: installTotal, total: installTotal },
-          { name: '기존 철거', quantity: `${wallW}mm`, unit_price: LABOR.demolition_per_1000mm, total: demolitionTotal },
+          { name: '기존 철거', quantity: `${wallW}mm`, unit_price: 30000, total: demolitionTotal },
         ];
         const subtotal = items.reduce((s, i) => s + i.total, 0);
         const vat = Math.round(subtotal * 0.10);
