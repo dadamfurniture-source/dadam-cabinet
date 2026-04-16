@@ -743,7 +743,7 @@ Atmosphere: ${themeData.atmosphere}`;
         const categoryPrompts = {
           sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
           island: `Freestanding kitchen island with integrated cooktop or sink, breakfast-bar overhang for seating, handleless drawers and cabinets on all sides, premium stone countertop, pendant lighting overhead.`,
-          wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, internal LED lighting, mix of hanging space and shelves.`,
+          wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, mix of hanging space and shelves.`,
           fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
           vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
           shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
@@ -1982,10 +1982,12 @@ Magazine quality, professional lighting.`;
         const status = document.getElementById(`status_${pageIndex}`);
         if (!img) return;
 
+        const resultCategory = state.results[pageIndex]?.category;
+        const altLabel = resultCategory === 'wardrobe' ? '🚪 내부 구조' : '✨ AI 추천안';
         const images = [
           { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
           { url: img.dataset.closed, state: 'closed', label: '🎨 기본안', color: '#3b82f6' },
-          { url: img.dataset.open, state: 'open', label: '✨ AI 추천안', color: '#10b981' },
+          { url: img.dataset.open, state: 'open', label: altLabel, color: '#10b981' },
         ];
 
         // 이미지가 없으면 스킵
