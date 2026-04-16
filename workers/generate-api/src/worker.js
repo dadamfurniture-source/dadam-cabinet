@@ -113,11 +113,18 @@ CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/l
     const structure = getWardrobeStructure(wallData.wallW);
     return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
 Wall: ${wallData.wallW}x${wallData.wallH}mm.
-[CRITICAL] The wardrobe MUST cover the ENTIRE wall from left edge to right edge with NO gaps. Every section must have closed flat-panel doors.
+[CRITICAL] The wardrobe MUST cover the ENTIRE wall from left edge to right edge with NO gaps.
+[DOORS] EVERY section MUST have doors. NO open shelves, NO exposed interior. ALL doors CLOSED.
 [STRUCTURE] ${structure.prompt}
 Full-width floor-to-ceiling wardrobe spanning the entire wall width (~${wallData.wallW}mm).
 Height: floor to ceiling (~${wallData.wallH}mm). Depth: ~600mm.
-No visible handles (J-pull grip or push-to-open). ${styleName}. Photorealistic. All doors CLOSED. No text.`;
+No visible handles (J-pull grip or push-to-open). ${styleName}. Photorealistic. No text.
+
+[FORBIDDEN]
+- NO sections without doors
+- NO open shelving visible from outside
+- NO glass doors or transparent panels
+- NO gaps between sections`;
   }
 
   if (category === 'shoe' || category === 'shoe_cabinet') {
