@@ -298,37 +298,51 @@
       <div class="fridge-options-section" id="fridgeOptionsSection" style="display: none; margin-bottom: 20px;">
         <p class="section-title">냉장고장 구성 선택</p>
 
+        <!-- 1. 브랜드 -->
         <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">냉장고 종류 <span style="font-weight:400; color:#999;">(중복 선택 가능)</span></label>
-          <div class="fridge-opt-group multi" id="fridgeDoorTypes">
-            <button class="fridge-opt-btn active" data-value="4door" onclick="toggleFridgeDoorType(this)">4도어 (프렌치)</button>
-            <button class="fridge-opt-btn" data-value="side-by-side" onclick="toggleFridgeDoorType(this)">양문형</button>
-            <button class="fridge-opt-btn" data-value="1door" onclick="toggleFridgeDoorType(this)">1도어 컬럼</button>
-            <button class="fridge-opt-btn" data-value="2door" onclick="toggleFridgeDoorType(this)">2도어</button>
-            <button class="fridge-opt-btn" data-value="top-freezer" onclick="toggleFridgeDoorType(this)">상냉장하냉동</button>
-            <button class="fridge-opt-btn" data-value="kimchi" onclick="toggleFridgeDoorType(this)">김치냉장고</button>
+          <label class="fridge-opt-label">브랜드</label>
+          <div class="fridge-opt-group" id="fridgeBrand">
+            <button class="fridge-opt-btn active" data-value="samsung" onclick="selectFridgeBrand(this)">삼성</button>
+            <button class="fridge-opt-btn" data-value="lg" onclick="selectFridgeBrand(this)">LG</button>
           </div>
         </div>
 
+        <!-- 2. 모델라인 (브랜드에 따라 동적 표시) -->
         <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">수납장 구성</label>
-          <div class="fridge-opt-group" id="fridgeStorageType">
-            <button class="fridge-opt-btn active" data-value="both-sides" onclick="selectFridgeOption('storageType', this)">양쪽 키큰장</button>
-            <button class="fridge-opt-btn" data-value="left-only" onclick="selectFridgeOption('storageType', this)">왼쪽만</button>
-            <button class="fridge-opt-btn" data-value="right-only" onclick="selectFridgeOption('storageType', this)">오른쪽만</button>
-            <button class="fridge-opt-btn" data-value="none" onclick="selectFridgeOption('storageType', this)">없음 (냉장고만)</button>
+          <label class="fridge-opt-label">모델라인</label>
+          <div class="fridge-opt-group" id="fridgeModelLine">
+            <!-- JS에서 동적 생성 -->
           </div>
         </div>
 
+        <!-- 3. 냉장고 조합 (카운팅, 중복선택) -->
         <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">전자기기 (수납장 내)</label>
-          <div class="fridge-opt-group multi" id="fridgeApplianceType">
-            <button class="fridge-opt-btn" data-value="microwave" onclick="toggleFridgeAppliance(this)">전자레인지</button>
-            <button class="fridge-opt-btn" data-value="oven" onclick="toggleFridgeAppliance(this)">오븐</button>
-            <button class="fridge-opt-btn" data-value="steam-oven" onclick="toggleFridgeAppliance(this)">스팀오븐</button>
-            <button class="fridge-opt-btn" data-value="coffee-machine" onclick="toggleFridgeAppliance(this)">커피머신</button>
-            <button class="fridge-opt-btn" data-value="rice-cooker" onclick="toggleFridgeAppliance(this)">밥솥</button>
-            <button class="fridge-opt-btn active" data-value="none" onclick="toggleFridgeAppliance(this)">없음</button>
+          <label class="fridge-opt-label">냉장고 조합 <span style="font-weight:400; color:#999;">(+/- 로 수량 조절)</span></label>
+          <div class="fridge-combo-group" id="fridgeCombo">
+            <div class="fridge-combo-item">
+              <span class="fridge-combo-name">1도어</span>
+              <div class="fridge-combo-stepper">
+                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('1door', -1)">−</button>
+                <span class="fridge-combo-count" id="combo-1door">0</span>
+                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('1door', 1)">+</button>
+              </div>
+            </div>
+            <div class="fridge-combo-item">
+              <span class="fridge-combo-name">3도어</span>
+              <div class="fridge-combo-stepper">
+                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('3door', -1)">−</button>
+                <span class="fridge-combo-count" id="combo-3door">0</span>
+                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('3door', 1)">+</button>
+              </div>
+            </div>
+            <div class="fridge-combo-item">
+              <span class="fridge-combo-name">4도어</span>
+              <div class="fridge-combo-stepper">
+                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('4door', -1)">−</button>
+                <span class="fridge-combo-count" id="combo-4door">1</span>
+                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('4door', 1)">+</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -823,9 +837,9 @@ Magazine quality, professional lighting.`;
         results: [],
         currentPage: 0,
         fridgeOptions: {
-          doorTypes: ['4door'],
-          storageType: 'both-sides',
-          appliances: [],
+          brand: 'samsung',
+          modelLine: 'bespoke',
+          combo: { '1door': 0, '3door': 0, '4door': 1 },
         },
       };
 
@@ -1457,44 +1471,67 @@ Magazine quality, professional lighting.`;
         const fridgeSection = document.getElementById('fridgeOptionsSection');
         const hasFridge = state.uploadedImages['fridge'] !== undefined;
         fridgeSection.style.display = hasFridge ? 'block' : 'none';
+        if (hasFridge) initFridgeOptions();
       }
 
       // ═══════════════════════════════════════════════════════════════
       // 냉장고장 옵션 선택
       // ═══════════════════════════════════════════════════════════════
-      function selectFridgeOption(field, el) {
+      const FRIDGE_MODEL_LINES = {
+        samsung: [
+          { id: 'bespoke', name: '키친핏 (Bespoke)' },
+          { id: 'infinite', name: '인피니트' },
+          { id: 'standing', name: '스탠딩' },
+        ],
+        lg: [
+          { id: 'fitmax', name: 'Fit & Max' },
+          { id: 'standing', name: '스탠딩' },
+        ],
+      };
+
+      function selectFridgeBrand(el) {
         const group = el.parentElement;
         group.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
         el.classList.add('active');
-        state.fridgeOptions[field] = el.dataset.value;
+        state.fridgeOptions.brand = el.dataset.value;
+        renderFridgeModelLines();
       }
 
-      function toggleFridgeDoorType(el) {
-        el.classList.toggle('active');
+      function renderFridgeModelLines() {
+        const brand = state.fridgeOptions.brand;
+        const lines = FRIDGE_MODEL_LINES[brand] || [];
+        const container = document.getElementById('fridgeModelLine');
+        container.innerHTML = lines.map((l, i) =>
+          `<button class="fridge-opt-btn${i === 0 ? ' active' : ''}" data-value="${l.id}" onclick="selectFridgeModelLine(this)">${l.name}</button>`
+        ).join('');
+        state.fridgeOptions.modelLine = lines[0]?.id || '';
+      }
+
+      function selectFridgeModelLine(el) {
         const group = el.parentElement;
-        const actives = group.querySelectorAll('.fridge-opt-btn.active');
-        state.fridgeOptions.doorTypes = Array.from(actives).map(b => b.dataset.value);
-        if (state.fridgeOptions.doorTypes.length === 0) {
-          el.classList.add('active');
-          state.fridgeOptions.doorTypes = [el.dataset.value];
-        }
+        group.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        state.fridgeOptions.modelLine = el.dataset.value;
       }
 
-      function toggleFridgeAppliance(el) {
-        const value = el.dataset.value;
-        if (value === 'none') {
-          el.parentElement.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
-          el.classList.add('active');
-          state.fridgeOptions.appliances = [];
-        } else {
-          el.parentElement.querySelector('[data-value="none"]').classList.remove('active');
-          el.classList.toggle('active');
-          const actives = el.parentElement.querySelectorAll('.fridge-opt-btn.active');
-          state.fridgeOptions.appliances = Array.from(actives).map(b => b.dataset.value);
-          if (state.fridgeOptions.appliances.length === 0) {
-            el.parentElement.querySelector('[data-value="none"]').classList.add('active');
+      function changeFridgeCombo(type, delta) {
+        const cur = state.fridgeOptions.combo[type] || 0;
+        const next = Math.max(0, Math.min(4, cur + delta));
+        state.fridgeOptions.combo[type] = next;
+        document.getElementById(`combo-${type}`).textContent = next;
+        const item = document.getElementById(`combo-${type}`).closest('.fridge-combo-item');
+        item.classList.toggle('has-count', next > 0);
+      }
+
+      function initFridgeOptions() {
+        renderFridgeModelLines();
+        Object.entries(state.fridgeOptions.combo).forEach(([type, count]) => {
+          const el = document.getElementById(`combo-${type}`);
+          if (el) {
+            el.textContent = count;
+            el.closest('.fridge-combo-item').classList.toggle('has-count', count > 0);
           }
-        }
+        });
       }
 
       // ═══════════════════════════════════════════════════════════════

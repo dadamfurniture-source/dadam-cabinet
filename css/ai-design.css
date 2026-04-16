@@ -388,6 +388,67 @@
         color: #8B6914;
         font-weight: 600;
       }
+      .fridge-opt-btn.disabled {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      .fridge-combo-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .fridge-combo-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f9f9f9;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 6px 12px;
+      }
+      .fridge-combo-item.has-count {
+        border-color: var(--gold);
+        background: #FDF6EE;
+      }
+      .fridge-combo-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+        min-width: 36px;
+      }
+      .fridge-combo-stepper {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .fridge-stepper-btn {
+        width: 26px;
+        height: 26px;
+        border: 1px solid #ccc;
+        border-radius: 50%;
+        background: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #555;
+        transition: all 0.15s;
+        line-height: 1;
+        padding: 0;
+      }
+      .fridge-stepper-btn:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+      .fridge-combo-count {
+        font-size: 15px;
+        font-weight: 700;
+        min-width: 18px;
+        text-align: center;
+        color: #333;
+      }
 
       /* Category Grid */
       .category-grid {
