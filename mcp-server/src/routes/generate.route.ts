@@ -271,7 +271,7 @@ Return JSON only:
       sink: 'modern handleless flat-panel kitchen cabinets',
       wardrobe: 'floor-to-ceiling full-wall built-in wardrobe with flat-panel doors covering entire wall',
       fridge: 'tall pantry and refrigerator surround cabinet',
-      vanity: 'built-in dressing table (화장대) with drawers and large wall mirror — NOT a bathroom washbasin',
+      vanity: 'built-in dressing table (화장대) with drawers and a round wall mirror (원형거울, circular) — NOT a bathroom washbasin',
       shoe: 'entryway shoe cabinet with ventilation',
       storage: 'custom storage cabinet with adjustable shelves',
     };
@@ -466,20 +466,22 @@ STRICTLY FORBIDDEN: NO washbasin, NO sink, NO faucet, NO water, NO plumbing, NO 
 Handleless only — J-profile grip or push-to-open, NO bar handles, NO knobs.
 ${doorColor}
 Countertop: ${ctDesc}. Countertop neatly styled with perfume bottles, skincare set, makeup tray.
-Preserve background, wall, floor, and camera exactly. Photorealistic. No text, no labels.`;
+[BACKGROUND — STRICTLY PRESERVE] Keep the ORIGINAL background EXACTLY: do NOT change wall color, wallpaper, floor, ceiling, windows, doors, or lighting. Camera angle and perspective must stay identical. Only add the dressing table as a new installation in front of the existing wall.
+[MIRROR SHAPE FIXED] The wall mirror MUST be a perfectly round / circular mirror (원형거울). Round shape only — NOT rectangular, NOT square, NOT oval.
+Photorealistic. No text, no labels.`;
 
       if (type === 'chair') {
         return `Edit photo: install a CHAIR-TYPE built-in dressing table (의자형 화장대, ~${wallW}mm wide).
 Counter height ~720mm for seated use. Open knee clearance at the center (no drawers under the seat area, ~600mm wide open space).
 Flat-panel drawer banks on BOTH sides of the knee opening (2~3 tiers each) for makeup storage.
-Large framed wall mirror above the countertop with soft integrated LED strip around the mirror for even makeup lighting.
+ROUND wall mirror (원형거울, circular) mounted above the countertop with a soft LED ring light around the round mirror for even makeup lighting.
 Tall flat-panel side cabinets extending to the upper part of the wall, handleless doors.
 Matching upholstered dressing stool tucked under the desk.${SHARED}`;
       }
 
       return `Edit photo: install a STANDING-TYPE built-in dressing table (스탠딩형 화장대, ~${wallW}mm wide).
 Counter height ~900mm for standing use. Full bank of soft-close flat-panel drawers below across the entire width (3~4 tiers, NO open knee space).
-Tall full-length framed mirror above the countertop reaching close to ceiling, indirect LED cove lighting above the mirror.
+Large ROUND wall mirror (원형거울, circular) mounted above the countertop — round shape only, NOT rectangular. Indirect LED cove lighting or LED ring around the round mirror.
 Tall flat-panel side cabinets for taller items (hair dryer, curling iron), handleless doors.
 Integrated power outlet strip hidden under the top edge of the backsplash.${SHARED}`;
     }
