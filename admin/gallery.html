@@ -46,12 +46,12 @@
       .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
       .gallery-item { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: relative; transition: transform 0.2s; }
       .gallery-item:hover { transform: translateY(-2px); }
-      .gallery-item img { width: 100%; height: 180px; object-fit: cover; display: block; }
+      .gallery-item img { width: 100%; height: 180px; object-fit: cover; display: block; cursor: pointer; user-select: none; }
       .gallery-item .info { padding: 12px; }
       .gallery-item .info .category { font-size: 12px; font-weight: 600; color: #007bff; text-transform: uppercase; }
       .gallery-item .info .style { font-size: 13px; color: #666; margin-top: 4px; }
-      .gallery-item .checkbox { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; cursor: pointer; accent-color: #007bff; }
-      .gallery-item .delete-btn { position: absolute; top: 8px; right: 8px; background: rgba(220,53,69,0.9); color: white; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+      .gallery-item .checkbox { position: absolute; top: 8px; left: 8px; width: 24px; height: 24px; cursor: pointer; accent-color: #007bff; background: rgba(255,255,255,0.95); border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 2; }
+      .gallery-item .delete-btn { position: absolute; top: 8px; right: 8px; background: rgba(220,53,69,0.9); color: white; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; z-index: 2; }
       .gallery-item.selected { outline: 3px solid #007bff; }
       .gallery-item .training-badge { position: absolute; bottom: 60px; right: 8px; background: rgba(255,193,7,0.9); color: #333; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 
@@ -141,13 +141,13 @@
             <option value="true">학습용</option>
           </select>
           <input type="text" id="searchInput" placeholder="검색 (설명, 스타일...)" onkeyup="loadImages()">
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
-            <input type="checkbox" id="selectMode" onchange="toggleSelectMode()"> 선택 모드
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 현재 목록 전체 선택
           </label>
         </div>
 
         <div class="bulk-bar" id="bulkBar">
-          <span><span class="count" id="selectedCount">0</span>개 선택</span>
+          <span><span class="count" id="selectedCount">0</span>개 선택됨</span>
           <button class="btn" onclick="toggleTrainingBulk(false)">갤러리로 전환</button>
           <button class="btn" onclick="toggleTrainingBulk(true)">학습용으로 전환</button>
           <button class="btn btn-danger" onclick="deleteBulk()">선택 삭제</button>
@@ -212,8 +212,8 @@
     <script>
       let supabaseClient = null;
       let allImages = [];
+      let filteredImages = [];
       let selectedIds = new Set();
-      let selectMode = false;
 
       // Supabase Storage 버킷 (furniture-images.sql 참조)
       const STORAGE_BUCKET = 'furniture-images';
@@ -313,6 +313,12 @@
           );
         }
 
+        filteredImages = filtered;
+
+        // 현재 목록에 더이상 없는 선택은 정리
+        const visibleIds = new Set(filtered.map(i => i.id));
+        for (const id of [...selectedIds]) if (!visibleIds.has(id)) selectedIds.delete(id);
+
         // Stats
         document.getElementById('statTotal').textContent = filtered.length;
         document.getElementById('statGallery').textContent = filtered.filter(i => !i.is_training).length;
@@ -320,13 +326,15 @@
 
         if (filtered.length === 0) {
           container.innerHTML = '<div class="empty-state">이미지가 없습니다</div>';
+          updateBulkBar();
+          syncSelectAllCheckbox();
           return;
         }
 
         container.innerHTML = '<div class="gallery-grid">' + filtered.map(img => `
           <div class="gallery-item ${selectedIds.has(img.id) ? 'selected' : ''}" data-id="${img.id}">
-            ${selectMode ? `<input type="checkbox" class="checkbox" ${selectedIds.has(img.id) ? 'checked' : ''} onchange="toggleSelect('${img.id}')">` : ''}
-            <img src="${img.image_url}" alt="${img.category}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22><rect fill=%22%23eee%22 width=%22200%22 height=%22200%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>No Image</text></svg>'">
+            <input type="checkbox" class="checkbox" ${selectedIds.has(img.id) ? 'checked' : ''} onchange="toggleSelect('${img.id}')" title="선택">
+            <img src="${img.image_url}" alt="${img.category}" loading="lazy" onclick="toggleSelect('${img.id}')" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22><rect fill=%22%23eee%22 width=%22200%22 height=%22200%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>No Image</text></svg>'">
             ${img.is_training ? '<span class="training-badge">학습용</span>' : ''}
             <button class="delete-btn" onclick="deleteSingle('${img.id}')" title="삭제">×</button>
             <div class="info">
@@ -335,24 +343,52 @@
             </div>
           </div>
         `).join('') + '</div>';
-      }
 
-      function toggleSelectMode() {
-        selectMode = document.getElementById('selectMode').checked;
-        if (!selectMode) clearSelection();
-        loadImages();
+        updateBulkBar();
+        syncSelectAllCheckbox();
       }
 
       function toggleSelect(id) {
         if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
         updateBulkBar();
+        syncSelectAllCheckbox();
         const el = document.querySelector(`.gallery-item[data-id="${id}"]`);
         if (el) el.classList.toggle('selected', selectedIds.has(id));
+        const cb = document.querySelector(`.gallery-item[data-id="${id}"] .checkbox`);
+        if (cb) cb.checked = selectedIds.has(id);
+      }
+
+      function toggleSelectAll() {
+        const cb = document.getElementById('selectAll');
+        if (cb.checked) {
+          filteredImages.forEach(img => selectedIds.add(img.id));
+        } else {
+          filteredImages.forEach(img => selectedIds.delete(img.id));
+        }
+        // 체크박스/테두리 재반영
+        document.querySelectorAll('.gallery-item').forEach(el => {
+          const id = el.dataset.id;
+          const isSel = selectedIds.has(id);
+          el.classList.toggle('selected', isSel);
+          const inner = el.querySelector('.checkbox');
+          if (inner) inner.checked = isSel;
+        });
+        updateBulkBar();
+      }
+
+      function syncSelectAllCheckbox() {
+        const cb = document.getElementById('selectAll');
+        if (!cb) return;
+        const total = filteredImages.length;
+        const selected = filteredImages.filter(i => selectedIds.has(i.id)).length;
+        cb.checked = total > 0 && selected === total;
+        cb.indeterminate = selected > 0 && selected < total;
       }
 
       function clearSelection() {
         selectedIds.clear();
         updateBulkBar();
+        syncSelectAllCheckbox();
         document.querySelectorAll('.gallery-item.selected').forEach(el => el.classList.remove('selected'));
         document.querySelectorAll('.gallery-item .checkbox').forEach(cb => cb.checked = false);
       }
