@@ -449,6 +449,36 @@
         text-align: center;
         color: #333;
       }
+      .fridge-appliance-group {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+      .fridge-appliance-btn {
+        padding: 8px 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        background: #fff;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #555;
+        text-align: center;
+      }
+      .fridge-appliance-btn:hover {
+        border-color: #ccc;
+      }
+      .fridge-appliance-btn.active {
+        border-color: var(--gold);
+        background: #FDF6EE;
+        color: #8B6914;
+        font-weight: 600;
+      }
+      @media (max-width: 640px) {
+        .fridge-appliance-group {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
 
       /* Category Grid */
       .category-grid {

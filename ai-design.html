@@ -345,6 +345,30 @@
             </div>
           </div>
         </div>
+
+        <!-- 4. 냉장고 위치 (왼쪽/오른쪽) -->
+        <div style="margin-top: 12px;">
+          <label class="fridge-opt-label">냉장고 위치</label>
+          <div class="fridge-opt-group" id="fridgePosition">
+            <button class="fridge-opt-btn active" data-value="left" onclick="selectFridgePosition(this)">◀️ 왼쪽</button>
+            <button class="fridge-opt-btn" data-value="right" onclick="selectFridgePosition(this)">오른쪽 ▶️</button>
+          </div>
+        </div>
+
+        <!-- 5. 전자기기 (다중 선택) -->
+        <div style="margin-top: 12px;">
+          <label class="fridge-opt-label">전자기기 <span style="font-weight:400; color:#999;">(선택 시 이미지에 배치)</span></label>
+          <div class="fridge-appliance-group" id="fridgeAppliances">
+            <button class="fridge-appliance-btn" data-value="coffee_maker" onclick="toggleFridgeAppliance(this)">☕ 커피머신</button>
+            <button class="fridge-appliance-btn" data-value="microwave" onclick="toggleFridgeAppliance(this)">📦 전자레인지</button>
+            <button class="fridge-appliance-btn" data-value="oven" onclick="toggleFridgeAppliance(this)">🔥 오븐</button>
+            <button class="fridge-appliance-btn" data-value="air_fryer" onclick="toggleFridgeAppliance(this)">🍟 에어프라이어</button>
+            <button class="fridge-appliance-btn" data-value="toaster" onclick="toggleFridgeAppliance(this)">🍞 토스터</button>
+            <button class="fridge-appliance-btn" data-value="kettle" onclick="toggleFridgeAppliance(this)">🫖 전기포트</button>
+            <button class="fridge-appliance-btn" data-value="rice_cooker" onclick="toggleFridgeAppliance(this)">🍚 밥솥</button>
+            <button class="fridge-appliance-btn" data-value="blender" onclick="toggleFridgeAppliance(this)">🥤 믹서기</button>
+          </div>
+        </div>
       </div>
 
       <!-- Product Gallery Section -->
@@ -1523,6 +1547,26 @@ Magazine quality, professional lighting.`;
         document.getElementById(`combo-${type}`).textContent = next;
         const item = document.getElementById(`combo-${type}`).closest('.fridge-combo-item');
         item.classList.toggle('has-count', next > 0);
+      }
+
+      function selectFridgePosition(el) {
+        const group = el.parentElement;
+        group.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        state.fridgeOptions.position = el.dataset.value;
+      }
+
+      function toggleFridgeAppliance(el) {
+        const id = el.dataset.value;
+        if (!Array.isArray(state.fridgeOptions.appliances)) state.fridgeOptions.appliances = [];
+        const idx = state.fridgeOptions.appliances.indexOf(id);
+        if (idx === -1) {
+          state.fridgeOptions.appliances.push(id);
+          el.classList.add('active');
+        } else {
+          state.fridgeOptions.appliances.splice(idx, 1);
+          el.classList.remove('active');
+        }
       }
 
       function initFridgeOptions() {
