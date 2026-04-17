@@ -197,17 +197,8 @@ function mapEquipment(
     equipment.faucet = {
       type: specs?.faucet_type ?? 'single_lever',
     };
-  } else if (category === 'vanity') {
-    equipment.sink = {
-      position_mm: placement.sink_center_mm ?? Math.round((specs?.total_width_mm ?? 1200) / 2),
-      width_mm: 500,
-      type: specs?.sink_type ?? 'vessel',
-    };
-
-    equipment.faucet = {
-      type: specs?.faucet_type ?? 'single_lever',
-    };
   }
+  // 화장대(vanity)는 세면대가 아니므로 sink/faucet 장비 없음 (drawers + mirror only)
 
   return equipment;
 }

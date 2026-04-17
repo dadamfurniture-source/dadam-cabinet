@@ -49,7 +49,7 @@ const CATEGORY_PROMPTS: Record<string, string> = {
   l_shaped_sink: 'L-shaped kitchen sink cabinet with corner countertop',
   island_kitchen: 'kitchen island with countertop and storage below',
   wardrobe: 'built-in wardrobe closet with multiple compartments',
-  vanity: 'bathroom vanity cabinet with mirror above',
+  vanity: 'bedroom dressing table (화장대) with drawers and large wall mirror (NOT a bathroom washbasin)',
   shoe_cabinet: 'entryway shoe storage cabinet',
   fridge_cabinet: 'tall refrigerator surround cabinet',
   storage_cabinet: 'utility storage cabinet with shelves',

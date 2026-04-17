@@ -371,6 +371,22 @@
         </div>
       </div>
 
+      <!-- 화장대 타입 선택 (화장대 전용) -->
+      <div class="vanity-options-section" id="vanityOptionsSection" style="display: none; margin-bottom: 20px;">
+        <p class="section-title">화장대 타입 선택</p>
+        <div style="margin-top: 12px;">
+          <label class="fridge-opt-label">형태</label>
+          <div class="fridge-opt-group" id="vanityType">
+            <button class="fridge-opt-btn active" data-value="standing" onclick="selectVanityType(this)">🪞 스탠딩형</button>
+            <button class="fridge-opt-btn" data-value="chair" onclick="selectVanityType(this)">💺 의자형</button>
+          </div>
+          <p class="section-subtitle" style="margin-top: 8px; font-size: 12px; color: #888;">
+            스탠딩형: 서서 사용 · 상판 높이 ~900mm · 서랍 중심<br>
+            의자형: 앉아서 사용 · 상판 높이 ~720mm · 무릎 공간 + 거울 중심
+          </p>
+        </div>
+      </div>
+
       <!-- Product Gallery Section -->
       <div class="theme-section">
         <div class="theme-section-header">
@@ -806,13 +822,34 @@ Atmosphere: ${themeData.atmosphere}`;
           }
         }
 
+        // 화장대 전용 프롬프트 (스탠딩형/의자형)
+        const vanityType = state.vanityOptions?.type || 'standing';
+        const vanityPrompt = vanityType === 'chair'
+          ? `Built-in dressing table (화장대, NOT a bathroom vanity, NOT a sink — NO water, NO faucet, NO washbasin).
+Chair-type (의자형) sit-down makeup desk:
+- Lower countertop height ~720mm for seated use, with open knee clearance at the center (no drawers under the seating area)
+- Single large flat-panel drawer on each side of the knee opening for makeup storage
+- Large framed mirror mounted above the countertop, soft integrated LED strip around the mirror for even makeup lighting
+- Upper wall cabinets on both sides of the mirror with flat handleless doors, push-side opening by grip pocket on top edge
+- Matching upholstered stool or dressing chair tucked under the desk
+- Countertop surface neatly styled: perfume bottles, skincare bottles, small tray with makeup brushes
+- Integrated power outlet for hair dryer/curling iron`
+          : `Built-in dressing table (화장대, NOT a bathroom vanity, NOT a sink — NO water, NO faucet, NO washbasin).
+Standing-type (스탠딩형) stand-up makeup console:
+- Counter height ~900mm for standing use, full bank of flat-panel drawers below (no open knee space)
+- 3~4 tier soft-close drawers across the full width, handleless with J-profile grip or push-to-open from hidden finger pull behind the drawer top edge
+- Tall full-length framed mirror above the countertop reaching close to ceiling, indirect LED cove lighting above
+- Tall side cabinets with flat handleless doors for taller storage (hair dryer, curling iron)
+- Countertop surface neatly styled: perfume bottles, skincare set, makeup tray, small jewelry dish
+- Integrated power outlet strip hidden under the top edge of the backsplash`;
+
         // 카테고리별 특화 프롬프트
         const categoryPrompts = {
           sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
           island: `Freestanding kitchen island with integrated cooktop or sink, breakfast-bar overhang for seating, handleless drawers and cabinets on all sides, premium stone countertop, pendant lighting overhead.`,
           wardrobe: `Floor-to-ceiling built-in wardrobe with flat smooth doors, no handles, push-to-open mechanism.`,
           fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
-          vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
+          vanity: vanityPrompt,
           shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
         };
 
@@ -866,6 +903,9 @@ Magazine quality, professional lighting.`;
           combo: { '1door': 0, '3door': 0, '4door': 1 },
           position: 'left',
           appliances: [],
+        },
+        vanityOptions: {
+          type: 'standing', // 'standing' (스탠딩형) | 'chair' (의자형)
         },
       };
 
@@ -1498,6 +1538,21 @@ Magazine quality, professional lighting.`;
         const hasFridge = state.uploadedImages['fridge'] !== undefined;
         fridgeSection.style.display = hasFridge ? 'block' : 'none';
         if (hasFridge) initFridgeOptions();
+
+        // 화장대 옵션 섹션
+        const vanitySection = document.getElementById('vanityOptionsSection');
+        const hasVanity = state.uploadedImages['vanity'] !== undefined;
+        vanitySection.style.display = hasVanity ? 'block' : 'none';
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 화장대 타입 선택 (스탠딩형/의자형)
+      // ═══════════════════════════════════════════════════════════════
+      function selectVanityType(el) {
+        const group = el.parentElement;
+        group.querySelectorAll('.fridge-opt-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        state.vanityOptions.type = el.dataset.value;
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -1749,6 +1804,7 @@ Magazine quality, professional lighting.`;
                 design_style: state.selectedStyle,
                 wall_width_override: category === 'wardrobe' ? (document.getElementById('wallWidthInput')?.value || undefined) : undefined,
                 fridge_options: category === 'fridge' ? state.fridgeOptions : undefined,
+                vanity_options: category === 'vanity' ? state.vanityOptions : undefined,
               }),
             });
 
