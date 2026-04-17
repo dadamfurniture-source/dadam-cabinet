@@ -833,25 +833,37 @@ Atmosphere: ${themeData.atmosphere}`;
         }
 
         // 화장대 전용 프롬프트 (스탠딩형/의자형)
+        // 참고 레퍼런스: 벽감형 빌트인 + 얇은 플로팅 상판 + 상판 아래 작은 서랍 2개 + 무릎 공간 트임 + 원형거울
         const vanityType = state.vanityOptions?.type || 'standing';
-        const vanityPrompt = vanityType === 'chair'
-          ? `Built-in dressing table (화장대, NOT a bathroom vanity, NOT a sink — NO water, NO faucet, NO washbasin).
-Chair-type (의자형) sit-down makeup desk:
-- Lower countertop height ~720mm for seated use, with open knee clearance at the center (no drawers under the seating area)
-- Single large flat-panel drawer on each side of the knee opening for makeup storage
-- ROUND mirror (원형거울, circular shape) mounted on the wall above the countertop — the mirror MUST be perfectly round/circular, NOT rectangular, NOT oval. Soft integrated LED ring light around the round mirror for even makeup lighting
-- Upper wall cabinets on both sides of the round mirror with flat handleless doors, push-side opening by grip pocket on top edge
-- Matching upholstered stool or dressing chair tucked under the desk
-- Countertop surface neatly styled: perfume bottles, skincare bottles, small tray with makeup brushes
-- Integrated power outlet for hair dryer/curling iron`
-          : `Built-in dressing table (화장대, NOT a bathroom vanity, NOT a sink — NO water, NO faucet, NO washbasin).
-Standing-type (스탠딩형) stand-up makeup console:
-- Counter height ~900mm for standing use, full bank of flat-panel drawers below (no open knee space)
-- 3~4 tier soft-close drawers across the full width, handleless with J-profile grip or push-to-open from hidden finger pull behind the drawer top edge
-- ROUND mirror (원형거울, circular shape) mounted on the wall above the countertop — the mirror MUST be perfectly round/circular, NOT rectangular, NOT oval. Indirect LED cove lighting or LED ring around the round mirror
-- Tall side cabinets with flat handleless doors for taller storage (hair dryer, curling iron)
-- Countertop surface neatly styled: perfume bottles, skincare set, makeup tray, small jewelry dish
-- Integrated power outlet strip hidden under the top edge of the backsplash`;
+        const counterHeightMm = vanityType === 'chair' ? 720 : 900;
+        const useLabel = vanityType === 'chair' ? 'seated use (의자형)' : 'standing use (스탠딩형)';
+
+        const vanityPrompt = `Built-in recessed-niche dressing table (벽감 빌트인 화장대) — NOT a bathroom vanity, NOT a washbasin. NO water, NO faucet, NO sink, NO plumbing.
+
+[FORM — MUST MATCH THIS EXACT LAYOUT]
+- Recessed wall niche installation: the vanity sits inside a rectangular alcove / niche in the wall between tall flush side panels
+- SLIM FLOATING COUNTERTOP mounted to the back wall of the niche, depth ~400mm, matte white or cream solid surface, clean square edge
+- Exactly TWO small flat-panel drawers directly under the countertop, side by side, spanning the full counter width, NO handles at all (push-to-open or hidden J-profile on the top edge)
+- OPEN KNEE SPACE below the two drawers, all the way down to the floor — NO lower cabinet, NO doors, NO toe-kick plinth, just open negative space showing the niche side wall behind
+- Counter height approx ${counterHeightMm}mm from floor (for ${useLabel})
+- Counter width ~600~900mm (narrow, compact — it's a niche, not a full wall cabinet)
+
+[MIRROR — ROUND SHAPE FIXED]
+- ONE perfectly ROUND / CIRCULAR mirror (원형거울) wall-mounted on the back wall of the niche, centered above the countertop
+- Round shape only — STRICTLY NOT rectangular, NOT square, NOT oval, NOT irregular, NOT pebble-shape
+- Mirror diameter ~500~600mm, thin frameless or micro-bezel
+- Soft indirect lighting behind or around the mirror is optional, subtle only
+
+[OPTIONAL SIDE STORAGE]
+- Flush-face tall flat-panel side cabinet adjacent to the niche (same wall), handleless door, matte finish — only if space allows, otherwise plain side wall
+
+[FINISH]
+- All panels: matte white or warm off-white, completely handleless (push-to-open), flat smooth surface
+- Countertop neatly styled: one small perfume bottle, a skincare bottle, a small makeup tray — minimal, NOT cluttered
+
+[BACKGROUND — STRICTLY PRESERVE]
+- Keep the ORIGINAL room background EXACTLY as in the uploaded photo (wall color, wallpaper, floor pattern, ceiling, window, doors, existing fixtures, lighting, camera angle and perspective)
+- The vanity replaces ONLY the target alcove / wall section — do NOT repaint walls, do NOT change flooring`;
 
         // 카테고리별 특화 프롬프트
         const categoryPrompts = {

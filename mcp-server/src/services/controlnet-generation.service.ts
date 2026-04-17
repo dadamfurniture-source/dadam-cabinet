@@ -49,7 +49,7 @@ const CATEGORY_PROMPTS: Record<string, string> = {
   l_shaped_sink: 'L-shaped kitchen sink cabinet with corner countertop',
   island_kitchen: 'kitchen island with countertop and storage below',
   wardrobe: 'built-in wardrobe closet with multiple compartments',
-  vanity: 'bedroom dressing table (화장대) with drawers and round wall mirror (원형거울, circular shape only, NOT rectangular) — preserve original background, NOT a bathroom washbasin',
+  vanity: 'built-in recessed-niche dressing table (벽감 화장대): slim floating countertop, TWO handleless flat-panel drawers directly under the counter, OPEN knee space below (no lower cabinet), ROUND wall mirror (원형거울, circular only) above. Preserve original background. NOT a bathroom washbasin.',
   shoe_cabinet: 'entryway shoe storage cabinet',
   fridge_cabinet: 'tall refrigerator surround cabinet',
   storage_cabinet: 'utility storage cabinet with shelves',
