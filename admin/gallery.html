@@ -70,6 +70,24 @@
       .bulk-bar .btn { background: white; color: #333; }
       .bulk-bar .btn-danger { background: #dc3545; color: white; }
 
+      /* Upload modal */
+      .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
+      .modal-overlay.active { display: flex; }
+      .modal { background: white; border-radius: 12px; width: 100%; max-width: 560px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
+      .modal-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+      .modal-header h3 { font-size: 16px; color: #333; }
+      .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; }
+      .modal-body { padding: 20px; overflow-y: auto; }
+      .modal-footer { padding: 12px 20px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; background: #fafafa; }
+      .form-field { margin-bottom: 14px; }
+      .form-field label { display: block; font-size: 13px; font-weight: 500; color: #444; margin-bottom: 6px; }
+      .form-field input[type="text"], .form-field select, .form-field textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+      .form-field textarea { resize: vertical; min-height: 60px; }
+      .form-field input[type="file"] { width: 100%; padding: 6px; }
+      .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .upload-progress { margin-top: 10px; font-size: 13px; color: #007bff; }
+      .upload-progress .err { color: #dc3545; }
+
       @media (max-width: 768px) {
         .sidebar { display: none; }
         .main-content { margin-left: 0; padding: 16px; }
@@ -113,6 +131,7 @@
         </div>
 
         <div class="toolbar">
+          <button class="btn btn-primary" onclick="openUploadModal()">＋ 업로드</button>
           <select id="filterCategory" onchange="loadImages()">
             <option value="">전체 품목</option>
           </select>
@@ -139,6 +158,55 @@
           <div class="loading">이미지를 불러오는 중...</div>
         </div>
       </div>
+
+      <div class="modal-overlay" id="uploadModal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>시공사례 이미지 업로드</h3>
+            <button class="modal-close" onclick="closeUploadModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-field">
+              <label>이미지 파일 (다중 선택 가능) *</label>
+              <input type="file" id="uploadFiles" accept="image/*" multiple>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label>품목 *</label>
+                <select id="uploadCategory"></select>
+              </div>
+              <div class="form-field">
+                <label>스타일</label>
+                <input type="text" id="uploadStyle" placeholder="modern, classic...">
+              </div>
+            </div>
+            <div class="form-field">
+              <label>설명</label>
+              <textarea id="uploadDescription" placeholder="한국어 상세 설명"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label>소스</label>
+                <select id="uploadSource">
+                  <option value="photo">photo</option>
+                  <option value="render">render</option>
+                  <option value="catalog">catalog</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:24px;">
+                  <input type="checkbox" id="uploadIsTraining"> 학습용으로 등록
+                </label>
+              </div>
+            </div>
+            <div class="upload-progress" id="uploadProgress" style="display:none;"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="closeUploadModal()">취소</button>
+            <button class="btn btn-primary" id="uploadSubmitBtn" onclick="submitUpload()">업로드</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script>
@@ -146,6 +214,9 @@
       let allImages = [];
       let selectedIds = new Set();
       let selectMode = false;
+
+      // Supabase Storage 버킷 (furniture-images.sql 참조)
+      const STORAGE_BUCKET = 'furniture-images';
 
       // 품목 한글 라벨
       const CATEGORY_LABELS = {
@@ -192,13 +263,23 @@
 
       async function loadCategories() {
         const { data } = await supabaseClient.from('furniture_images').select('category');
-        if (!data) return;
-        const cats = [...new Set(data.map(d => d.category))].sort();
-        const sel = document.getElementById('filterCategory');
-        cats.forEach(c => {
+        const existing = data ? [...new Set(data.map(d => d.category))] : [];
+        // 필터용: 기존 DB에 존재하는 카테고리만 (빈 DB에서도 전체 옵션은 유지)
+        const filterCats = existing.length ? existing.sort() : Object.keys(CATEGORY_LABELS);
+        const filterSel = document.getElementById('filterCategory');
+        filterCats.forEach(c => {
           const opt = document.createElement('option');
           opt.value = c; opt.textContent = catLabel(c);
-          sel.appendChild(opt);
+          filterSel.appendChild(opt);
+        });
+        // 업로드용: CATEGORY_LABELS + 기존 카테고리 합집합 (신규 항목 허용)
+        const uploadCats = [...new Set([...Object.keys(CATEGORY_LABELS), ...existing])].sort();
+        const uploadSel = document.getElementById('uploadCategory');
+        uploadSel.innerHTML = '';
+        uploadCats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c; opt.textContent = catLabel(c);
+          uploadSel.appendChild(opt);
         });
       }
 
@@ -282,54 +363,79 @@
         bar.classList.toggle('active', selectedIds.size > 0);
       }
 
-      // Storage 파일 삭제 (storage_path 또는 image_url에서 경로 추출)
-      async function deleteStorageFiles(images) {
-        const paths = images
-          .map(img => img.storage_path || extractStoragePath(img.image_url))
-          .filter(Boolean);
-        if (paths.length === 0) return;
-        try {
-          // Supabase Storage 버킷명 추출 (URL 패턴: /storage/v1/object/public/{bucket}/{path})
-          const bucketGroups = {};
-          for (const p of paths) {
-            const match = p.match(/^(?:.*\/storage\/v1\/object\/public\/)?([^/]+)\/(.+)$/);
-            if (match) {
-              const [, bucket, filePath] = match;
-              if (!bucketGroups[bucket]) bucketGroups[bucket] = [];
-              bucketGroups[bucket].push(filePath);
-            }
-          }
-          for (const [bucket, files] of Object.entries(bucketGroups)) {
-            await supabaseClient.storage.from(bucket).remove(files);
-          }
-        } catch (e) {
-          console.warn('Storage 파일 삭제 실패 (DB 행은 삭제됨):', e.message);
-        }
-      }
-
+      // image_url(public URL) → 버킷 내부 경로 추출
+      // URL 패턴: /storage/v1/object/public/{bucket}/{path}
       function extractStoragePath(url) {
         if (!url) return null;
-        const match = url.match(/\/storage\/v1\/object\/public\/(.+)$/);
-        return match ? match[1] : null;
+        const match = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
+        if (!match) return null;
+        const [, bucket, filePath] = match;
+        return { bucket, path: filePath };
+      }
+
+      // storage_path(DB 저장값) 또는 image_url에서 { bucket, path } 표준화
+      function resolveStorageRef(img) {
+        if (img.storage_path) {
+          // storage_path는 버킷 내부 경로. 레거시 데이터가 "bucket/path" 형태일 수도 있음
+          const m = img.storage_path.match(/^([^/]+)\/(.+)$/);
+          if (m && m[1] === STORAGE_BUCKET) {
+            return { bucket: STORAGE_BUCKET, path: m[2] };
+          }
+          return { bucket: STORAGE_BUCKET, path: img.storage_path };
+        }
+        const parsed = extractStoragePath(img.image_url);
+        return parsed || null;
+      }
+
+      // Storage 파일 삭제 (DB row 삭제 전 호출 — 동기화 보장)
+      async function deleteStorageFiles(images) {
+        const groups = {}; // bucket -> [path, ...]
+        for (const img of images) {
+          const ref = resolveStorageRef(img);
+          if (!ref) continue;
+          (groups[ref.bucket] = groups[ref.bucket] || []).push(ref.path);
+        }
+        const failed = [];
+        for (const [bucket, paths] of Object.entries(groups)) {
+          try {
+            const { data, error } = await supabaseClient.storage.from(bucket).remove(paths);
+            if (error) {
+              failed.push({ bucket, error: error.message });
+              console.warn('[Storage] 삭제 실패', bucket, error);
+            } else {
+              console.log('[Storage] 삭제 완료', bucket, data?.length ?? paths.length, '개');
+            }
+          } catch (e) {
+            failed.push({ bucket, error: e.message });
+            console.warn('[Storage] 예외', bucket, e);
+          }
+        }
+        return { failed };
       }
 
       async function deleteSingle(id) {
-        if (!confirm('이 이미지를 삭제하시겠습니까?')) return;
+        if (!confirm('이 이미지를 삭제하시겠습니까?\nStorage 파일과 DB 레코드가 모두 삭제됩니다.')) return;
         const img = allImages.find(i => i.id === id);
-        if (img) await deleteStorageFiles([img]);
+        const storageResult = img ? await deleteStorageFiles([img]) : { failed: [] };
         const { error } = await supabaseClient.from('furniture_images').delete().eq('id', id);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) { alert('DB 삭제 실패: ' + error.message); return; }
+        if (storageResult.failed.length) {
+          alert('DB는 삭제됐지만 Storage 파일 정리 실패:\n' + storageResult.failed.map(f => `${f.bucket}: ${f.error}`).join('\n'));
+        }
         loadImages();
       }
 
       async function deleteBulk() {
         if (selectedIds.size === 0) return;
-        if (!confirm(`${selectedIds.size}개 이미지를 삭제하시겠습니까?\nStorage 파일도 함께 삭제됩니다.`)) return;
+        if (!confirm(`${selectedIds.size}개 이미지를 삭제하시겠습니까?\nStorage 파일과 DB 레코드가 모두 삭제됩니다.`)) return;
         const ids = [...selectedIds];
         const targets = allImages.filter(i => ids.includes(i.id));
-        await deleteStorageFiles(targets);
+        const storageResult = await deleteStorageFiles(targets);
         const { error } = await supabaseClient.from('furniture_images').delete().in('id', ids);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) { alert('DB 삭제 실패: ' + error.message); return; }
+        if (storageResult.failed.length) {
+          alert('DB는 삭제됐지만 Storage 파일 정리 실패:\n' + storageResult.failed.map(f => `${f.bucket}: ${f.error}`).join('\n'));
+        }
         selectedIds.clear();
         updateBulkBar();
         loadImages();
@@ -343,6 +449,123 @@
         selectedIds.clear();
         updateBulkBar();
         loadImages();
+      }
+
+      // ─── 업로드 모달 ───
+      function openUploadModal() {
+        document.getElementById('uploadModal').classList.add('active');
+        // 현재 필터 품목이 선택돼 있으면 기본값으로
+        const currentFilter = document.getElementById('filterCategory').value;
+        if (currentFilter) {
+          const sel = document.getElementById('uploadCategory');
+          if ([...sel.options].some(o => o.value === currentFilter)) sel.value = currentFilter;
+        }
+      }
+
+      function closeUploadModal() {
+        document.getElementById('uploadModal').classList.remove('active');
+        document.getElementById('uploadFiles').value = '';
+        document.getElementById('uploadStyle').value = '';
+        document.getElementById('uploadDescription').value = '';
+        document.getElementById('uploadIsTraining').checked = false;
+        document.getElementById('uploadSource').value = 'photo';
+        const prog = document.getElementById('uploadProgress');
+        prog.style.display = 'none';
+        prog.innerHTML = '';
+      }
+
+      // 이미지 파일에서 width/height 추출
+      function readImageDimensions(file) {
+        return new Promise((resolve) => {
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); resolve({ width: img.naturalWidth, height: img.naturalHeight }); };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve({ width: null, height: null }); };
+          img.src = url;
+        });
+      }
+
+      function sanitizeExt(name) {
+        const ext = (name.split('.').pop() || 'jpg').toLowerCase();
+        return /^[a-z0-9]{1,5}$/.test(ext) ? ext : 'jpg';
+      }
+
+      async function uploadSingleFile(file, meta) {
+        const ext = sanitizeExt(file.name);
+        const rand = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).replace(/-/g, '');
+        const path = `${meta.category}/${Date.now()}-${rand}.${ext}`;
+
+        const { error: upErr } = await supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+        if (upErr) throw new Error(`Storage 업로드 실패: ${upErr.message}`);
+
+        const { data: { publicUrl } } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const dims = await readImageDimensions(file);
+
+        const row = {
+          category: meta.category,
+          style: meta.style || null,
+          description: meta.description || null,
+          image_url: publicUrl,
+          storage_path: path,
+          source: meta.source || 'photo',
+          is_training: !!meta.isTraining,
+          width_px: dims.width,
+          height_px: dims.height,
+          file_size_bytes: file.size,
+        };
+        const { error: dbErr } = await supabaseClient.from('furniture_images').insert(row);
+        if (dbErr) {
+          // DB 실패 시 업로드된 Storage 파일 롤백 (동기화 유지)
+          await supabaseClient.storage.from(STORAGE_BUCKET).remove([path]).catch(() => {});
+          throw new Error(`DB insert 실패: ${dbErr.message}`);
+        }
+        return path;
+      }
+
+      async function submitUpload() {
+        const filesInput = document.getElementById('uploadFiles');
+        const files = [...(filesInput.files || [])];
+        if (files.length === 0) { alert('이미지를 선택하세요.'); return; }
+
+        const meta = {
+          category: document.getElementById('uploadCategory').value,
+          style: document.getElementById('uploadStyle').value.trim(),
+          description: document.getElementById('uploadDescription').value.trim(),
+          source: document.getElementById('uploadSource').value,
+          isTraining: document.getElementById('uploadIsTraining').checked,
+        };
+        if (!meta.category) { alert('품목을 선택하세요.'); return; }
+
+        const btn = document.getElementById('uploadSubmitBtn');
+        const prog = document.getElementById('uploadProgress');
+        btn.disabled = true;
+        prog.style.display = 'block';
+        prog.innerHTML = '';
+
+        let ok = 0;
+        const errors = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          prog.innerHTML = `업로드 중 (${i + 1}/${files.length}): ${file.name}`;
+          try {
+            await uploadSingleFile(file, meta);
+            ok++;
+          } catch (e) {
+            console.error(e);
+            errors.push(`${file.name}: ${e.message}`);
+          }
+        }
+
+        btn.disabled = false;
+        if (errors.length === 0) {
+          prog.innerHTML = `✅ ${ok}개 업로드 완료`;
+          setTimeout(() => { closeUploadModal(); loadImages(); }, 700);
+        } else {
+          prog.innerHTML = `완료 ${ok}개 / 실패 ${errors.length}개<br><span class="err">${errors.join('<br>')}</span>`;
+          loadImages();
+        }
       }
 
       document.addEventListener('DOMContentLoaded', initAdmin);
