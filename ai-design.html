@@ -790,8 +790,18 @@ Professional interior design photo of a modern Korean apartment with ${info.name
 ${themeData.keywords}
 Atmosphere: ${themeData.atmosphere}`;
 
-        // 배경 보정 지시
-        let backgroundPrompt = `
+        // 배경 보정 지시 (화장대는 배경 보존 우선)
+        let backgroundPrompt = category === 'vanity'
+          ? `
+[BACKGROUND — STRICTLY PRESERVE]
+- Keep the ORIGINAL room background EXACTLY as in the uploaded photo
+- DO NOT change wall color, wallpaper, paint, or texture
+- DO NOT change floor material, pattern, or color
+- DO NOT change ceiling, windows, doors, or existing fixtures
+- DO NOT modify lighting conditions of the room
+- Only add the dressing table (화장대) as a new installation in front of the existing wall
+- Camera angle and perspective must remain identical to the input photo`
+          : `
 [BACKGROUND REQUIREMENTS]
 - Clean, pristine walls with smooth matte finish
 - Fresh, modern wallpaper or paint (light gray or warm white tones)
@@ -829,8 +839,8 @@ Atmosphere: ${themeData.atmosphere}`;
 Chair-type (의자형) sit-down makeup desk:
 - Lower countertop height ~720mm for seated use, with open knee clearance at the center (no drawers under the seating area)
 - Single large flat-panel drawer on each side of the knee opening for makeup storage
-- Large framed mirror mounted above the countertop, soft integrated LED strip around the mirror for even makeup lighting
-- Upper wall cabinets on both sides of the mirror with flat handleless doors, push-side opening by grip pocket on top edge
+- ROUND mirror (원형거울, circular shape) mounted on the wall above the countertop — the mirror MUST be perfectly round/circular, NOT rectangular, NOT oval. Soft integrated LED ring light around the round mirror for even makeup lighting
+- Upper wall cabinets on both sides of the round mirror with flat handleless doors, push-side opening by grip pocket on top edge
 - Matching upholstered stool or dressing chair tucked under the desk
 - Countertop surface neatly styled: perfume bottles, skincare bottles, small tray with makeup brushes
 - Integrated power outlet for hair dryer/curling iron`
@@ -838,7 +848,7 @@ Chair-type (의자형) sit-down makeup desk:
 Standing-type (스탠딩형) stand-up makeup console:
 - Counter height ~900mm for standing use, full bank of flat-panel drawers below (no open knee space)
 - 3~4 tier soft-close drawers across the full width, handleless with J-profile grip or push-to-open from hidden finger pull behind the drawer top edge
-- Tall full-length framed mirror above the countertop reaching close to ceiling, indirect LED cove lighting above
+- ROUND mirror (원형거울, circular shape) mounted on the wall above the countertop — the mirror MUST be perfectly round/circular, NOT rectangular, NOT oval. Indirect LED cove lighting or LED ring around the round mirror
 - Tall side cabinets with flat handleless doors for taller storage (hair dryer, curling iron)
 - Countertop surface neatly styled: perfume bottles, skincare set, makeup tray, small jewelry dish
 - Integrated power outlet strip hidden under the top edge of the backsplash`;
