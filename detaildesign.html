@@ -3,18 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
-    <link rel="stylesheet" href="css/nav.css?v=33.0" />
-    <link rel="stylesheet" href="css/detaildesign/base.css?v=33.0" />
-    <link rel="stylesheet" href="css/detaildesign/components.css?v=33.0" />
-    <link rel="stylesheet" href="css/detaildesign/chrome.css?v=33.0" />
+    <title>다담 캐비넷 에이전트 - v34.0 (냉장고 위치·전자기기 옵션)</title>
+    <link rel="stylesheet" href="css/nav.css?v=34.0" />
+    <link rel="stylesheet" href="css/detaildesign/base.css?v=34.0" />
+    <link rel="stylesheet" href="css/detaildesign/components.css?v=34.0" />
+    <link rel="stylesheet" href="css/detaildesign/chrome.css?v=34.0" />
     <script src="js/nav-transitions.js"></script>
     <!-- xlsx는 BOM export 시 ai-design-report.js의 loadXLSX()로 동적 로드 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=33.0"></script>
-    <script src="js/supabase-utils.js?v=33.0"></script>
-    <script src="js/detaildesign-access.js?v=33.0"></script>
-    <script src="js/admin-access.js?v=33.0"></script>
+    <script src="js/config.js?v=34.0"></script>
+    <script src="js/supabase-utils.js?v=34.0"></script>
+    <script src="js/detaildesign-access.js?v=34.0"></script>
+    <script src="js/admin-access.js?v=34.0"></script>
   </head>
   <body class="has-toolbar">
     <!-- Navigation -->
@@ -193,7 +193,7 @@
           <button class="btn-toolbar success" onclick="submitDesign()">📤 제출하기</button>
         </div>
       </div>
-      <div class="subtitle">통합 가구 설계 및 자동 자재 산출 솔루션 (v33.0 - 자재추출 시스템 개선)</div>
+      <div class="subtitle">통합 가구 설계 및 자동 자재 산출 솔루션 (v34.0 - 냉장고 위치·전자기기 옵션)</div>
       <div class="stepper-indicator">
         <div id="step-dot-1" class="step-dot active">1</div>
         <div id="step-dot-2" class="step-dot">2</div>
@@ -242,18 +242,18 @@
 
     <!-- JS 모듈 (로딩 순서 중요: data → utils → config → engine → extractors → ui → 나머지) -->
     <!-- 정적 <script>는 동일 origin/동기 로드 시 선언 순서 보장됨 -->
-    <script src="js/detaildesign/data-constants.js?v=33.0"></script>
-    <script src="js/detaildesign/utils.js?v=33.0"></script>
-    <script src="js/detaildesign/config-constants.js?v=33.0"></script>
-    <script src="js/detaildesign/calc-engine.js?v=33.0"></script>
-    <script src="js/detaildesign/extractors.js?v=33.0"></script>
-    <script src="js/detaildesign/ui-step1.js?v=33.0"></script>
-    <script src="js/detaildesign/ui-workspace.js?v=33.0"></script>
-    <script src="js/detaildesign/ui-fridge-el.js?v=33.0"></script>
+    <script src="js/detaildesign/data-constants.js?v=34.0"></script>
+    <script src="js/detaildesign/utils.js?v=34.0"></script>
+    <script src="js/detaildesign/config-constants.js?v=34.0"></script>
+    <script src="js/detaildesign/calc-engine.js?v=34.0"></script>
+    <script src="js/detaildesign/extractors.js?v=34.0"></script>
+    <script src="js/detaildesign/ui-step1.js?v=34.0"></script>
+    <script src="js/detaildesign/ui-workspace.js?v=34.0"></script>
+    <script src="js/detaildesign/ui-fridge-el.js?v=34.0"></script>
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
-    <script src="js/detaildesign/multiagent-client.js?v=33.0"></script>
-    <script src="js/detaildesign/ai-design-report.js?v=33.0"></script>
-    <script src="js/detaildesign/persistence-init.js?v=33.0"></script>
+    <script src="js/detaildesign/multiagent-client.js?v=34.0"></script>
+    <script src="js/detaildesign/ai-design-report.js?v=34.0"></script>
+    <script src="js/detaildesign/persistence-init.js?v=34.0"></script>
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 
