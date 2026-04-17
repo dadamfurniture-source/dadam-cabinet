@@ -136,6 +136,24 @@
         { id: 'leg', name: '다리발', defaultH: 60 },
       ];
 
+      // ★ 냉장고 위치 옵션 (좌/우)
+      const FRIDGE_POSITIONS = [
+        { id: 'left', name: '왼쪽', icon: '◀️' },
+        { id: 'right', name: '오른쪽', icon: '▶️' },
+      ];
+
+      // ★ 냉장고장에 배치할 전자기기 (이미지 생성/BOM 참고)
+      const FRIDGE_APPLIANCES = [
+        { id: 'coffee_maker', name: '커피머신', icon: '☕', prompt: 'espresso/coffee machine' },
+        { id: 'microwave', name: '전자레인지', icon: '📦', prompt: 'microwave oven' },
+        { id: 'oven', name: '오븐', icon: '🔥', prompt: 'built-in oven' },
+        { id: 'air_fryer', name: '에어프라이어', icon: '🍟', prompt: 'air fryer' },
+        { id: 'toaster', name: '토스터', icon: '🍞', prompt: 'toaster' },
+        { id: 'kettle', name: '전기포트', icon: '🫖', prompt: 'electric kettle' },
+        { id: 'rice_cooker', name: '밥솥', icon: '🍚', prompt: 'rice cooker' },
+        { id: 'blender', name: '믹서기', icon: '🥤', prompt: 'blender' },
+      ];
+
       // ★ 냉장고 모델 데이터 (여유공간 정보 포함)
       // ★ 냉장고 모델 데이터 (개별 도어 정보 포함)
       const FRIDGE_DATA = {

@@ -63,6 +63,8 @@
           newItem.specs.finishRightType = 'molding'; // 몰딩 기본
           newItem.specs.finishLeftWidth = 60;
           newItem.specs.finishRightWidth = 60;
+          newItem.specs.fridgePosition = 'left'; // 냉장고 위치 기본: 왼쪽
+          newItem.specs.fridgeAppliances = []; // 전자기기 기본: 없음
           // 자동계산 관련
           newItem.specs.autoCalculated = false;
         }
