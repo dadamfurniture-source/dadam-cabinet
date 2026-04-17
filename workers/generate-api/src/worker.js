@@ -172,6 +172,17 @@ const FRIDGE_LINE_DESC = {
   'fitmax': 'LG Fit & Max built-in',
 };
 
+const FRIDGE_APPLIANCE_DESC = {
+  coffee_maker: 'espresso/coffee machine',
+  microwave: 'microwave oven',
+  oven: 'built-in oven',
+  air_fryer: 'air fryer',
+  toaster: 'toaster',
+  kettle: 'electric kettle',
+  rice_cooker: 'rice cooker',
+  blender: 'blender',
+};
+
 function buildFridgeComboDesc(fridgeOpts) {
   const opts = fridgeOpts || {};
   const combo = opts.combo || { '4door': 1 };
@@ -189,12 +200,29 @@ function buildFridgeComboDesc(fridgeOpts) {
   return `${brand}${lineStr}: ${parts.join(' + ')}`;
 }
 
+function buildFridgeLayoutDesc(fridgeOpts) {
+  const position = (fridgeOpts && fridgeOpts.position) === 'right' ? 'right' : 'left';
+  return position === 'right'
+    ? 'refrigerator on the RIGHT side of the wall, tall pantry cabinets to its LEFT'
+    : 'refrigerator on the LEFT side of the wall, tall pantry cabinets to its RIGHT';
+}
+
+function buildFridgeAppliancesDesc(fridgeOpts) {
+  const ids = (fridgeOpts && Array.isArray(fridgeOpts.appliances)) ? fridgeOpts.appliances : [];
+  if (ids.length === 0) return '';
+  const names = ids.map((id) => FRIDGE_APPLIANCE_DESC[id]).filter(Boolean);
+  if (names.length === 0) return '';
+  return ` Visible small appliances placed inside the open/glass niche of the tall cabinets: ${names.join(', ')}.`;
+}
+
 function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOpts) {
   const comboDesc = buildFridgeComboDesc(fridgeOpts);
+  const layoutDesc = buildFridgeLayoutDesc(fridgeOpts);
+  const appliancesDesc = buildFridgeAppliancesDesc(fridgeOpts);
 
   return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${comboDesc}. Tall pantry cabinets on sides, bridge cabinet above.
-ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.
+Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${comboDesc}. Layout: ${layoutDesc}, bridge cabinet above fridge.
+ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliancesDesc}
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
 
