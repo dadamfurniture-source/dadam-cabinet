@@ -271,7 +271,7 @@ Return JSON only:
       sink: 'modern handleless flat-panel kitchen cabinets',
       wardrobe: 'floor-to-ceiling full-wall built-in wardrobe with flat-panel doors covering entire wall',
       fridge: 'tall pantry and refrigerator surround cabinet',
-      vanity: 'built-in dressing table (화장대) with drawers and a round wall mirror (원형거울, circular) — NOT a bathroom washbasin',
+      vanity: 'built-in recessed-niche dressing table (벽감 화장대): floating counter + 2 drawers + open knee space + ROUND mirror (원형거울) above — NOT a bathroom washbasin',
       shoe: 'entryway shoe cabinet with ventilation',
       storage: 'custom storage cabinet with adjustable shelves',
     };
@@ -447,6 +447,7 @@ Door surface smooth and seamless. Preserve background. Photorealistic. No text.`
     }
 
     // ─── 화장대 프롬프트 (스탠딩형/의자형) ───
+    // 레퍼런스 레이아웃: 벽감(niche) 빌트인 + 얇은 플로팅 상판 + 상판 아래 서랍 2개 + 무릎 공간 트임 + 원형거울
     function buildVanityPrompt(
       color: string,
       countertop: CountertopColor,
@@ -455,35 +456,43 @@ Door surface smooth and seamless. Preserve background. Photorealistic. No text.`
     ): string {
       const ctDesc = `"${countertop.name}" (${countertop.desc})`;
       const type = (vanity_options?.type === 'chair') ? 'chair' : 'standing';
+      const counterH = type === 'chair' ? 720 : 900;
+      const useLabel = type === 'chair' ? 'seated use (의자형)' : 'standing use (스탠딩형)';
       const twoTone = upper && lower;
-      const doorColor = twoTone
-        ? `Upper cabinets: "${upper}" matte flat-panel. Lower drawers/side cabinets: "${lower}" matte flat-panel.`
-        : `ALL cabinet doors and drawer fronts: "${color}" matte flat-panel.`;
+      const drawerColor = twoTone ? `"${lower}"` : `"${color}"`;
+      const panelColor = twoTone ? `"${upper}"` : `"${color}"`;
 
-      const SHARED = `
-This is a bedroom dressing table (화장대), NOT a bathroom vanity.
-STRICTLY FORBIDDEN: NO washbasin, NO sink, NO faucet, NO water, NO plumbing, NO toilet, NO bathroom tiles.
-Handleless only — J-profile grip or push-to-open, NO bar handles, NO knobs.
-${doorColor}
-Countertop: ${ctDesc}. Countertop neatly styled with perfume bottles, skincare set, makeup tray.
-[BACKGROUND — STRICTLY PRESERVE] Keep the ORIGINAL background EXACTLY: do NOT change wall color, wallpaper, floor, ceiling, windows, doors, or lighting. Camera angle and perspective must stay identical. Only add the dressing table as a new installation in front of the existing wall.
-[MIRROR SHAPE FIXED] The wall mirror MUST be a perfectly round / circular mirror (원형거울). Round shape only — NOT rectangular, NOT square, NOT oval.
+      return `Edit photo: install a built-in recessed-niche dressing table (벽감 빌트인 화장대) for ${useLabel}.
+
+[FORM — MUST MATCH EXACTLY]
+- Recessed wall niche installation: vanity sits inside a rectangular alcove between flush side panels (${panelColor} matte flat-panel)
+- SLIM FLOATING COUNTERTOP mounted to the back wall of the niche, depth ~400mm, clean square edge
+- Countertop surface: ${ctDesc}
+- Exactly TWO small flat-panel drawers directly under the countertop, side by side across the full counter width (${drawerColor} matte, completely handleless — push-to-open or hidden J-profile on the top edge)
+- OPEN KNEE SPACE below the two drawers, all the way down to the floor — NO lower cabinet, NO doors, NO toe-kick plinth, just open negative space
+- Counter height ~${counterH}mm from floor
+- Niche width ~600~900mm (narrow, compact)
+
+[MIRROR — ROUND ONLY]
+- ONE perfectly ROUND / CIRCULAR wall mirror (원형거울) centered on the back wall of the niche above the countertop
+- Round shape only — STRICTLY NOT rectangular, NOT square, NOT oval, NOT irregular
+- Diameter ~500~600mm, thin frameless or micro-bezel
+- Optional subtle indirect light behind the round mirror
+
+[FINISH]
+- All cabinet panels and drawers: matte flat-panel, completely handleless (NO bar handles, NO knobs)
+- Counter neatly styled with a perfume bottle, a skincare bottle, and a small makeup tray — minimal
+
+[FORBIDDEN]
+- NO washbasin, NO sink, NO faucet, NO water, NO plumbing, NO toilet, NO bathroom tiles
+- NO lower cabinet under the drawers (knee space MUST be open)
+- NO rectangular or oval mirrors (round only)
+
+[BACKGROUND — STRICTLY PRESERVE]
+- Keep the ORIGINAL background EXACTLY: wall color, wallpaper, floor, ceiling, windows, doors, lighting, camera angle and perspective
+- Do NOT repaint walls, do NOT change flooring
+
 Photorealistic. No text, no labels.`;
-
-      if (type === 'chair') {
-        return `Edit photo: install a CHAIR-TYPE built-in dressing table (의자형 화장대, ~${wallW}mm wide).
-Counter height ~720mm for seated use. Open knee clearance at the center (no drawers under the seat area, ~600mm wide open space).
-Flat-panel drawer banks on BOTH sides of the knee opening (2~3 tiers each) for makeup storage.
-ROUND wall mirror (원형거울, circular) mounted above the countertop with a soft LED ring light around the round mirror for even makeup lighting.
-Tall flat-panel side cabinets extending to the upper part of the wall, handleless doors.
-Matching upholstered dressing stool tucked under the desk.${SHARED}`;
-      }
-
-      return `Edit photo: install a STANDING-TYPE built-in dressing table (스탠딩형 화장대, ~${wallW}mm wide).
-Counter height ~900mm for standing use. Full bank of soft-close flat-panel drawers below across the entire width (3~4 tiers, NO open knee space).
-Large ROUND wall mirror (원형거울, circular) mounted above the countertop — round shape only, NOT rectangular. Indirect LED cove lighting or LED ring around the round mirror.
-Tall flat-panel side cabinets for taller items (hair dryer, curling iron), handleless doors.
-Integrated power outlet strip hidden under the top edge of the backsplash.${SHARED}`;
     }
 
     // ─── AI 추천안 (투톤) ───
