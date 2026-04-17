@@ -413,12 +413,19 @@
         return { failed };
       }
 
+      const RLS_HINT = 'RLS 정책으로 차단된 것 같습니다. database/fix-furniture-images-admin-rls.sql 을 Supabase SQL Editor에서 실행해 주세요.';
+
       async function deleteSingle(id) {
         if (!confirm('이 이미지를 삭제하시겠습니까?\nStorage 파일과 DB 레코드가 모두 삭제됩니다.')) return;
         const img = allImages.find(i => i.id === id);
         const storageResult = img ? await deleteStorageFiles([img]) : { failed: [] };
-        const { error } = await supabaseClient.from('furniture_images').delete().eq('id', id);
+        // .select() 로 실제 삭제된 행을 받아 RLS 조용한 차단을 감지
+        const { data, error } = await supabaseClient.from('furniture_images').delete().eq('id', id).select('id');
         if (error) { alert('DB 삭제 실패: ' + error.message); return; }
+        if (!data || data.length === 0) {
+          alert(`DB 삭제 실패: 영향 행 없음.\n${RLS_HINT}`);
+          return;
+        }
         if (storageResult.failed.length) {
           alert('DB는 삭제됐지만 Storage 파일 정리 실패:\n' + storageResult.failed.map(f => `${f.bucket}: ${f.error}`).join('\n'));
         }
@@ -431,8 +438,16 @@
         const ids = [...selectedIds];
         const targets = allImages.filter(i => ids.includes(i.id));
         const storageResult = await deleteStorageFiles(targets);
-        const { error } = await supabaseClient.from('furniture_images').delete().in('id', ids);
+        const { data, error } = await supabaseClient.from('furniture_images').delete().in('id', ids).select('id');
         if (error) { alert('DB 삭제 실패: ' + error.message); return; }
+        const deleted = data ? data.length : 0;
+        if (deleted === 0) {
+          alert(`DB 삭제 실패: 영향 행 없음.\n${RLS_HINT}`);
+          return;
+        }
+        if (deleted < ids.length) {
+          alert(`일부만 삭제됨 (${deleted}/${ids.length}).\n${RLS_HINT}`);
+        }
         if (storageResult.failed.length) {
           alert('DB는 삭제됐지만 Storage 파일 정리 실패:\n' + storageResult.failed.map(f => `${f.bucket}: ${f.error}`).join('\n'));
         }
@@ -444,8 +459,12 @@
       async function toggleTrainingBulk(isTraining) {
         if (selectedIds.size === 0) return;
         const ids = [...selectedIds];
-        const { error } = await supabaseClient.from('furniture_images').update({ is_training: isTraining }).in('id', ids);
+        const { data, error } = await supabaseClient.from('furniture_images').update({ is_training: isTraining }).in('id', ids).select('id');
         if (error) { alert('변경 실패: ' + error.message); return; }
+        if (!data || data.length === 0) {
+          alert(`변경 실패: 영향 행 없음.\n${RLS_HINT}`);
+          return;
+        }
         selectedIds.clear();
         updateBulkBar();
         loadImages();
