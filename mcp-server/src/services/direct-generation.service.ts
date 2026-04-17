@@ -209,7 +209,7 @@ ${mood ? '- ' + mood : ''}
   const categoryPrompts: Record<string, string> = {
     wardrobe: `full-width floor-to-ceiling built-in wardrobe with ${doorColor} ${doorFinish} hinged doors`,
     shoe_cabinet: `slim profile floor-to-ceiling shoe cabinet (300-400mm depth) with ${doorColor} ${doorFinish} doors`,
-    vanity: `bedroom dressing table (화장대) with ${countertop} countertop, flat-panel drawers, round wall mirror (원형거울, circular shape only) above — NO washbasin, NO sink, NO faucet, NO plumbing. PRESERVE original background exactly.`,
+    vanity: `built-in recessed-niche dressing table (벽감 화장대): slim floating countertop in ${countertop}, exactly TWO small handleless flat-panel drawers directly under the counter, OPEN knee space below the drawers down to the floor (NO lower cabinet), ROUND wall mirror (원형거울, circular only — NOT rectangular, NOT oval) centered on the back wall above the counter. NO washbasin, NO sink, NO faucet. PRESERVE original background exactly.`,
     fridge_cabinet: `refrigerator surround cabinet with center opening for fridge, tall storage on sides, bridge cabinet above`,
     storage_cabinet: `floor-to-ceiling storage cabinet with multiple ${doorColor} ${doorFinish} door sections`,
   };
