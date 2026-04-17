@@ -432,7 +432,7 @@
 
         ws.innerHTML = `
     <style>
-      .fridge-brand-tabs{display:flex;gap:8px;margin-bottom:12px}.fridge-brand-tab{padding:8px 20px;border:2px solid #ddd;border-radius:8px;background:#f9f9f9;cursor:pointer;font-weight:600;font-size:13px}.fridge-brand-tab.active{border-color:#0ea5e9;background:#e0f2fe;color:#0369a1}.fridge-cat-group{margin-bottom:10px}.fridge-cat-title{font-size:11px;font-weight:700;color:#666;margin-bottom:5px}.fridge-btn-row{display:flex;flex-wrap:wrap;gap:5px}.fridge-model-btn{padding:5px 8px;border:1px solid #ddd;border-radius:5px;background:white;font-size:10px;cursor:pointer;min-width:80px}.fridge-model-btn:hover{border-color:#0ea5e9;background:#f0f9ff}.fridge-model-btn.selected{border-color:#0ea5e9;background:#0ea5e9;color:white}.fridge-model-btn.selected span{color:#e0f2fe!important}.module-add-btns{display:flex;gap:8px;margin-bottom:12px}.module-add-btn{flex:1;padding:10px;border:2px dashed #ccc;border-radius:8px;background:white;font-size:12px;cursor:pointer;font-weight:600}.module-add-btn:hover{border-style:solid}.module-add-btn.tall{color:#10b981;border-color:#10b981}.module-add-btn.tall:hover{background:#dcfce7}.module-add-btn.homecafe{color:#8b5cf6;border-color:#8b5cf6}.module-add-btn.homecafe:hover{background:#f3e8ff}.auto-calc-btn{background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;width:100%;margin-bottom:15px}.auto-calc-btn:hover{opacity:0.9}.auto-calc-btn:disabled{background:#ccc;cursor:not-allowed}.overflow-warning{background:#fee2e2;color:#b91c1c;padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:10px}.module-inline-inputs{display:flex;align-items:center;gap:4px;font-size:10px;margin-top:4px}.module-inline-inputs input,.module-inline-inputs select{padding:2px 4px;font-size:10px;border:1px solid #ddd;border-radius:4px}.module-order-btns{display:flex;flex-direction:column;gap:2px;margin-right:8px}.order-btn{width:24px;height:20px;border:1px solid #ddd;border-radius:4px;background:#f9f9f9;cursor:pointer;font-size:10px;padding:0}.order-btn:hover:not(:disabled){background:#e0e0e0}.order-btn:disabled{opacity:0.3;cursor:not-allowed}.module-card{display:flex;align-items:center;padding:10px;background:#f9fafb;border-radius:8px;margin-bottom:8px}.height-inputs{display:flex;gap:8px;margin-top:8px;padding:8px;background:#f0f9ff;border-radius:6px;font-size:10px}.height-inputs label{color:#0369a1;font-weight:600}.height-inputs input{width:50px;padding:2px 4px;border:1px solid #0ea5e9;border-radius:4px;font-size:10px}.toggle-btn{padding:2px 6px;border:1px solid #ccc;border-radius:4px;background:#f9f9f9;font-size:9px;cursor:pointer}.toggle-btn:hover{background:#e5e5e5}.toggle-btn.active{background:#ef4444;color:white;border-color:#ef4444}.toggle-btn.el{border-color:#10b981;color:#10b981}.toggle-btn.el.active{background:#10b981;color:white}.el-config-btn{padding:2px 8px;border:1px solid #10b981;border-radius:4px;background:linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%);font-size:9px;cursor:pointer;color:#065f46;font-weight:600}.el-config-btn:hover{background:linear-gradient(135deg,#bbf7d0 0%,#86efac 100%)}.auto-calc-btn-sm{background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:white;border:none;padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;font-size:10px}.auto-calc-btn-sm:hover{opacity:0.9}.auto-calc-btn-sm:disabled{background:#ccc;cursor:not-allowed}
+      .fridge-brand-tabs{display:flex;gap:8px;margin-bottom:12px}.fridge-brand-tab{padding:8px 20px;border:2px solid #ddd;border-radius:8px;background:#f9f9f9;cursor:pointer;font-weight:600;font-size:13px}.fridge-brand-tab.active{border-color:#0ea5e9;background:#e0f2fe;color:#0369a1}.fridge-cat-group{margin-bottom:10px}.fridge-cat-title{font-size:11px;font-weight:700;color:#666;margin-bottom:5px}.fridge-btn-row{display:flex;flex-wrap:wrap;gap:5px}.fridge-model-btn{padding:5px 8px;border:1px solid #ddd;border-radius:5px;background:white;font-size:10px;cursor:pointer;min-width:80px}.fridge-model-btn:hover{border-color:#0ea5e9;background:#f0f9ff}.fridge-model-btn.selected{border-color:#0ea5e9;background:#0ea5e9;color:white}.fridge-model-btn.selected span{color:#e0f2fe!important}.module-add-btns{display:flex;gap:8px;margin-bottom:12px}.module-add-btn{flex:1;padding:10px;border:2px dashed #ccc;border-radius:8px;background:white;font-size:12px;cursor:pointer;font-weight:600}.module-add-btn:hover{border-style:solid}.module-add-btn.tall{color:#10b981;border-color:#10b981}.module-add-btn.tall:hover{background:#dcfce7}.module-add-btn.homecafe{color:#8b5cf6;border-color:#8b5cf6}.module-add-btn.homecafe:hover{background:#f3e8ff}.auto-calc-btn{background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;width:100%;margin-bottom:15px}.auto-calc-btn:hover{opacity:0.9}.auto-calc-btn:disabled{background:#ccc;cursor:not-allowed}.overflow-warning{background:#fee2e2;color:#b91c1c;padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:10px}.module-inline-inputs{display:flex;align-items:center;gap:4px;font-size:10px;margin-top:4px}.module-inline-inputs input,.module-inline-inputs select{padding:2px 4px;font-size:10px;border:1px solid #ddd;border-radius:4px}.module-order-btns{display:flex;flex-direction:column;gap:2px;margin-right:8px}.order-btn{width:24px;height:20px;border:1px solid #ddd;border-radius:4px;background:#f9f9f9;cursor:pointer;font-size:10px;padding:0}.order-btn:hover:not(:disabled){background:#e0e0e0}.order-btn:disabled{opacity:0.3;cursor:not-allowed}.module-card{display:flex;align-items:center;padding:10px;background:#f9fafb;border-radius:8px;margin-bottom:8px}.height-inputs{display:flex;gap:8px;margin-top:8px;padding:8px;background:#f0f9ff;border-radius:6px;font-size:10px}.height-inputs label{color:#0369a1;font-weight:600}.height-inputs input{width:50px;padding:2px 4px;border:1px solid #0ea5e9;border-radius:4px;font-size:10px}.toggle-btn{padding:2px 6px;border:1px solid #ccc;border-radius:4px;background:#f9f9f9;font-size:9px;cursor:pointer}.toggle-btn:hover{background:#e5e5e5}.toggle-btn.active{background:#ef4444;color:white;border-color:#ef4444}.toggle-btn.el{border-color:#10b981;color:#10b981}.toggle-btn.el.active{background:#10b981;color:white}.el-config-btn{padding:2px 8px;border:1px solid #10b981;border-radius:4px;background:linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%);font-size:9px;cursor:pointer;color:#065f46;font-weight:600}.el-config-btn:hover{background:linear-gradient(135deg,#bbf7d0 0%,#86efac 100%)}.auto-calc-btn-sm{background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:white;border:none;padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;font-size:10px}.auto-calc-btn-sm:hover{opacity:0.9}.auto-calc-btn-sm:disabled{background:#ccc;cursor:not-allowed}.fridge-position-tabs{display:flex;gap:6px;margin-bottom:12px}.fridge-position-tab{flex:1;padding:8px 10px;border:2px solid #ddd;border-radius:8px;background:#f9f9f9;cursor:pointer;font-weight:600;font-size:12px;text-align:center}.fridge-position-tab.active{border-color:#0ea5e9;background:#e0f2fe;color:#0369a1}.fridge-appliance-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:12px}.fridge-appliance-chip{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1.5px solid #e5e7eb;border-radius:6px;background:#fafafa;cursor:pointer;font-size:11px;user-select:none}.fridge-appliance-chip:hover{border-color:#9ca3af}.fridge-appliance-chip.active{border-color:#10b981;background:#ecfdf5;color:#065f46;font-weight:600}.fridge-appliance-chip input{display:none}.fridge-appliance-chip .chip-icon{font-size:14px}
     </style>
     <div class="ws-header">
       <div class="ws-title">🧊 ${item.labelName || item.name} <span class="ws-info-badge">${W} × ${H} × ${D}</span></div>
@@ -460,6 +460,17 @@
         <div class="spec-row">
           <div class="spec-field"><label>하부 다리</label><select onchange="updateFridgeLegType(${item.uniqueId}, this.value)">${FRIDGE_LEG_TYPES.map((t) => `<option value="${t.id}" ${(item.specs.fridgeLegType || 'pedestal') === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}</select></div>
           <div class="spec-field"><label>높이</label><input type="number" value="${PEDESTAL_H}" onchange="updateFridgeSpecWithRecalc(${item.uniqueId}, 'fridgePedestal', this.value)"></div>
+        </div>
+        <div class="spec-group-title">냉장고 위치</div>
+        <div class="fridge-position-tabs">
+          ${FRIDGE_POSITIONS.map((p) => `<div class="fridge-position-tab ${(item.specs.fridgePosition || 'left') === p.id ? 'active' : ''}" onclick="updateFridgePosition(${item.uniqueId}, '${p.id}')">${p.icon} ${p.name}</div>`).join('')}
+        </div>
+        <div class="spec-group-title">전자기기 <span style="font-size:10px;color:#888;font-weight:normal;">(이미지 생성 참고)</span></div>
+        <div class="fridge-appliance-grid">
+          ${FRIDGE_APPLIANCES.map((a) => {
+            const selected = (item.specs.fridgeAppliances || []).includes(a.id);
+            return `<label class="fridge-appliance-chip ${selected ? 'active' : ''}"><input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleFridgeAppliance(${item.uniqueId}, '${a.id}')"><span class="chip-icon">${a.icon}</span><span>${a.name}</span></label>`;
+          }).join('')}
         </div>
         <div class="spec-group-title">마감 설정</div>
         <div class="spec-row">
@@ -541,10 +552,12 @@
         if (!model) return;
 
         item.modules = item.modules.filter((m) => m.type !== 'fridge');
-        const existingModules = item.modules;
-        const midOrder = existingModules.length > 0 ? Math.floor(existingModules.length / 2) + 1 : 1;
+        const existingModules = item.modules.sort((a, b) => (a.order || 0) - (b.order || 0));
+        const position = item.specs.fridgePosition || 'left';
+        // 왼쪽: 냉장고가 order=1, 나머지는 뒤로. 오른쪽: 냉장고가 마지막.
+        const fridgeOrder = position === 'left' ? 1 : existingModules.length + 1;
         existingModules.forEach((m, idx) => {
-          m.order = idx < Math.floor(existingModules.length / 2) ? idx + 1 : idx + 2;
+          m.order = position === 'left' ? idx + 2 : idx + 1;
         });
 
         item.modules.push({
@@ -559,7 +572,7 @@
           sideGap: model.sideGap,
           betweenGap: model.betweenGap,
           units: model.units,
-          order: midOrder,
+          order: fridgeOrder,
         });
 
         // 높이 자동 재계산
@@ -756,6 +769,38 @@
         const legType = FRIDGE_LEG_TYPES.find((t) => t.id === value);
         if (legType) item.specs.fridgePedestal = legType.defaultH;
         recalcFridgeHeights(item);
+        renderWorkspaceContent(item);
+      }
+
+      // ★ 냉장고 위치 변경: 기존 냉장고 모듈을 해당 끝으로 이동
+      function updateFridgePosition(itemUniqueId, position) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.fridgePosition = position;
+        const fridgeMod = item.modules.find((m) => m.type === 'fridge');
+        if (fridgeMod) {
+          const others = item.modules
+            .filter((m) => m.type !== 'fridge')
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          if (position === 'left') {
+            fridgeMod.order = 1;
+            others.forEach((m, idx) => (m.order = idx + 2));
+          } else {
+            others.forEach((m, idx) => (m.order = idx + 1));
+            fridgeMod.order = others.length + 1;
+          }
+        }
+        renderWorkspaceContent(item);
+      }
+
+      // ★ 전자기기 선택 토글
+      function toggleFridgeAppliance(itemUniqueId, applianceId) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        if (!Array.isArray(item.specs.fridgeAppliances)) item.specs.fridgeAppliances = [];
+        const idx = item.specs.fridgeAppliances.indexOf(applianceId);
+        if (idx === -1) item.specs.fridgeAppliances.push(applianceId);
+        else item.specs.fridgeAppliances.splice(idx, 1);
         renderWorkspaceContent(item);
       }
 
