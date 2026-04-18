@@ -239,98 +239,13 @@
         return `modern minimal korean ${styles.join(' ')}`.trim();
       }
 
-      // 냉장고장 전용 프롬프트 생성
-      function buildFridgePrompt(specs, cabinetSpecs) {
-        const cat = FurnitureOptionCatalog;
-
-        const upperColor = cat.getTexturePrompt('door_color', cabinetSpecs.door_color_upper);
-        const lowerColor = cat.getTexturePrompt('door_color', cabinetSpecs.door_color_lower);
-        const upperFinish = cat.getTexturePrompt('door_finish', cabinetSpecs.door_finish_upper);
-        const lowerFinish = cat.getTexturePrompt('door_finish', cabinetSpecs.door_finish_lower);
-        const handleDesc = cat.getTexturePrompt('handle', cabinetSpecs.handle_type);
-
-        const brand = cabinetSpecs.fridge_brand === 'SS' ? 'Samsung' : 'LG';
-        const lineMap = {
-          fitmax: 'LG Fit & Max built-in',
-          bespoke: 'Samsung Bespoke Kitchen Fit',
-          infinite: 'Samsung Infinite Line',
-          standing: 'freestanding',
-        };
-        const lineDesc = lineMap[cabinetSpecs.fridge_model_line] || '';
-        const position = cabinetSpecs.fridge_position === 'right' ? 'right' : 'left';
-        const oppositeSide = position === 'right' ? 'left' : 'right';
-        const legType = cabinetSpecs.fridge_leg_type === 'leg' ? 'exposed legs' : 'closed pedestal base';
-        const legHeight = cabinetSpecs.fridge_pedestal_h || 60;
-        const moldingH = cabinetSpecs.fridge_molding_h || 50;
-
-        // 냉장고 유닛 설명
-        let fridgeDesc = `${brand}${lineDesc ? ` (${lineDesc})` : ''} refrigerator`;
-        if (Array.isArray(cabinetSpecs.fridge_units) && cabinetSpecs.fridge_units.length > 0) {
-          const unitCount = cabinetSpecs.fridge_units.length;
-          const unitLabel = unitCount > 1 ? `${unitCount}-unit combo` : 'single unit';
-          const unitNames = cabinetSpecs.fridge_units.map((u) => u.name).filter(Boolean).join(' + ');
-          fridgeDesc += ` (${unitLabel}${unitNames ? `: ${unitNames}` : ''})`;
-        } else if (cabinetSpecs.fridge_model_name) {
-          fridgeDesc += ` (${cabinetSpecs.fridge_model_name})`;
-        }
-
-        // 가전 설명
-        const applianceMap = (typeof FRIDGE_APPLIANCES !== 'undefined')
-          ? FRIDGE_APPLIANCES.reduce((acc, a) => { acc[a.id] = a.prompt; return acc; }, {})
-          : {};
-        const applianceNames = (cabinetSpecs.fridge_appliances || [])
-          .map((id) => applianceMap[id])
-          .filter(Boolean);
-
-        const lines = [];
-        lines.push(`Korean built-in refrigerator pantry cabinet (냉장고장), photorealistic interior photograph.`);
-        // ★ 설치 공간 비우기 — 기존 수납장/칸막이/마감재 전부 제거 후 신규 설치
-        lines.push(`INSTALLATION SITE PREPARATION (CRITICAL, perform BEFORE placing new cabinet): Completely clear the target installation area on the ${position.toUpperCase()} wall.`);
-        lines.push(`REMOVE ALL existing storage cabinets, shelving units, closets, and built-in furniture from the installation zone.`);
-        lines.push(`REMOVE ALL interior partitions, dividers, vertical/horizontal slats, and any existing framing inside the alcove.`);
-        lines.push(`REMOVE ALL existing wall finishes, paneling, wainscoting, trim, moldings, wallpaper accents, and decorative cladding on the installation surface — leave only bare structural wall behind the new cabinet.`);
-        lines.push(`The newly installed ${fridgeDesc} pantry cabinet must be the ONLY furniture occupying this installation area — no leftover cabinetry or shelving from prior state.`);
-        lines.push(`Refrigerator: ${fridgeDesc}, positioned on the ${position.toUpperCase()} side of the wall.`);
-        lines.push(`Tall pantry cabinets to the ${oppositeSide.toUpperCase()} of the fridge, with a bridge upper cabinet spanning above the fridge.`);
-        lines.push(`Upper bridge cabinet doors: ${upperColor}, ${upperFinish}, flat panel.`);
-        lines.push(`Tall pantry doors: ${lowerColor}, ${lowerFinish}, flat panel, floor-to-ceiling style.`);
-        lines.push(`Hardware: ${handleDesc}, handleless integrated style, doors opened by reaching behind the door.`);
-        lines.push(`Top molding: ${moldingH}mm matching door finish.`);
-        lines.push(`Base: ${legType} (${legHeight}mm).`);
-
-        if (applianceNames.length > 0) {
-          lines.push(`Small appliances visible inside the open/glass niche of the tall cabinets: ${applianceNames.join(', ')}.`);
-        }
-
-        lines.push(`All doors closed. Seamless flat-panel surfaces with no grooves or visible handles.`);
-
-        const negatives = [];
-        // 설치 공간 정리 관련
-        negatives.push('NO pre-existing storage cabinets remaining in the installation area');
-        negatives.push('NO leftover shelves, closets, or built-in furniture from prior state');
-        negatives.push('NO interior partitions, dividers, or vertical slats inside the alcove');
-        negatives.push('NO old wall paneling, wainscoting, trim, or decorative cladding behind the new cabinet');
-        negatives.push('NO overlapping or double cabinetry');
-        // 카테고리 경계
-        negatives.push('NO countertop');
-        negatives.push('NO sink or faucet');
-        negatives.push('NO cooktop or range hood');
-        negatives.push('NO chrome bar handles');
-        negatives.push('NO push-to-open button mechanism visible');
-        negatives.push('NO exposed ductwork');
-
-        return {
-          prompt: lines.join(' '),
-          negative_prompt: negatives.join(', '),
-        };
-      }
+      // 냉장고장 전용 프롬프트 빌더는 ai-design.html → Cloudflare Worker 경로로 이전됨
+      // 실제 빌더: workers/generate-api/src/fridge-prompt.js
+      // 포트폴리오 레퍼런스: js/fridge-image-gen.js
+      // detaildesign.html 의 "AI 디자인 생성" 버튼은 레거시 n8n 엔드포인트에 의존하며 비활성 상태.
 
       // 이미지 생성용 상세 프롬프트 생성 (v3: texture_prompt 활용)
       function buildDesignPrompt(specs, cabinetSpecs, category) {
-        if (category === 'fridge') {
-          return buildFridgePrompt(specs, cabinetSpecs);
-        }
-
         const cat = FurnitureOptionCatalog;
 
         // v3: getTexturePrompt로 상세 질감 프롬프트 사용
@@ -489,28 +404,8 @@
             finish_right_width: specs.finishRightWidth || 60,
           };
 
-          // 냉장고장 전용 사양
-          if (category === 'fridge') {
-            const fridgeMod = modules.find((m) => m.type === 'fridge') || null;
-            cabinetSpecs.fridge_brand = specs.fridgeBrand || 'LG';
-            cabinetSpecs.fridge_position = specs.fridgePosition || 'left';
-            cabinetSpecs.fridge_appliances = Array.isArray(specs.fridgeAppliances) ? specs.fridgeAppliances : [];
-            cabinetSpecs.fridge_leg_type = specs.fridgeLegType || 'pedestal';
-            cabinetSpecs.fridge_molding_h = parseFloat(specs.fridgeMoldingH) || 50;
-            cabinetSpecs.fridge_pedestal_h = parseFloat(specs.fridgePedestal) || 60;
-            cabinetSpecs.fridge_module_d = parseFloat(specs.fridgeModuleD) || 550;
-            cabinetSpecs.fridge_upper_h = parseFloat(specs.fridgeUpperH) || 0;
-            cabinetSpecs.fridge_middle_h = parseFloat(specs.fridgeMiddleH) || 0;
-            cabinetSpecs.fridge_lower_h = parseFloat(specs.fridgeLowerH) || 0;
-            if (fridgeMod) {
-              cabinetSpecs.fridge_model_name = fridgeMod.name || null;
-              cabinetSpecs.fridge_model_id = fridgeMod.modelId || null;
-              cabinetSpecs.fridge_model_line = fridgeMod.line || null;
-              cabinetSpecs.fridge_model_w = fridgeMod.w || null;
-              cabinetSpecs.fridge_model_h = fridgeMod.h || null;
-              cabinetSpecs.fridge_units = Array.isArray(fridgeMod.units) ? fridgeMod.units : null;
-            }
-          }
+          // 냉장고장 전용 사양 enrichment 는 ai-design.html + Worker 경로로 이전됨
+          // (구 detaildesign.html → n8n 경로 미사용)
 
           // 6. 모듈 레이아웃 구성
           const upperModules = calculateModulePositions(modules, 'upper');
