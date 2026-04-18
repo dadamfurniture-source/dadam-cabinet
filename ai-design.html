@@ -782,7 +782,29 @@
         const info = categoryInfo[category];
         const themeData = styleThemes[style] || styleThemes['modern-minimal'];
 
-        let basePrompt = `[MOST IMPORTANT - READ FIRST]
+        let basePrompt = category === 'vanity'
+          ? `[MOST IMPORTANT — READ FIRST]
+This is an IMAGE EDIT / INPAINT task on the uploaded photo, NOT a fresh photo generation.
+DO NOT regenerate the room. DO NOT redraw the architecture. DO NOT add text, numbers, dimensions, or labels.
+
+[STRUCTURAL PRESERVATION — HIGHEST PRIORITY, OVERRIDES EVERY OTHER INSTRUCTION]
+The original room must remain pixel-identical except for the area where the dressing table is added:
+- Walls: keep ORIGINAL wall color, wallpaper, paint, texture, pattern, joint lines, and any wall niches/alcoves AS-IS
+- Floor: keep ORIGINAL floor material, pattern, board direction, joint lines, color, and tone AS-IS
+- Ceiling: keep ORIGINAL ceiling height, color, moldings, beams, and any soffits AS-IS
+- Architectural elements: PRESERVE EXACTLY all columns (기둥), beams (보), soffits, ledges, recessed niches, door frames (문틀), window frames (창틀), baseboards (걸레받이), and crown moldings (몰딩)
+- Existing fixtures: PRESERVE all switches, outlets, sensors, vents, lights, sliding-door tracks, and any existing closet that already shows in the photo
+- Lighting: keep ORIGINAL lighting direction, color temperature, shadows, and reflections AS-IS
+- Camera: keep IDENTICAL camera angle, focal length, perspective, and framing
+- The dressing table is INSERTED in front of / inside the existing structure — it does NOT replace the wall, the floor, or any existing architecture
+
+[TASK]
+Inpaint a built-in dressing table (${info.name}) into the photo with the exact form described below.
+
+[STYLE: ${themeData.name}]
+${themeData.keywords}
+Atmosphere: ${themeData.atmosphere}`
+          : `[MOST IMPORTANT - READ FIRST]
 This is a PHOTO generation task, NOT a technical drawing.
 DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS.
 
@@ -796,14 +818,14 @@ Atmosphere: ${themeData.atmosphere}`;
         // 배경 보정 지시 (화장대는 배경 보존 우선)
         let backgroundPrompt = category === 'vanity'
           ? `
-[BACKGROUND — STRICTLY PRESERVE]
-- Keep the ORIGINAL room background EXACTLY as in the uploaded photo
-- DO NOT change wall color, wallpaper, paint, or texture
-- DO NOT change floor material, pattern, or color
-- DO NOT change ceiling, windows, doors, or existing fixtures
-- DO NOT modify lighting conditions of the room
-- Only add the dressing table (화장대) as a new installation in front of the existing wall
-- Camera angle and perspective must remain identical to the input photo`
+[BACKGROUND — STRICTLY PRESERVE (REPEAT)]
+- Keep the ORIGINAL room background pixel-identical outside the vanity area
+- DO NOT change wall color, wallpaper, paint, texture, pattern, or joints
+- DO NOT change floor material, pattern, board direction, or color
+- DO NOT change ceiling, columns, beams, niches, windows, doors, or existing fixtures
+- DO NOT modify lighting direction, color temperature, or shadows of the room
+- Only ADD the dressing table (화장대) as a new installation in front of / inside the existing structure
+- Camera angle and perspective MUST remain identical to the input photo`
           : `
 [BACKGROUND REQUIREMENTS]
 - Clean, pristine walls with smooth matte finish
@@ -885,8 +907,8 @@ Atmosphere: ${themeData.atmosphere}`;
 - NO visible handles or knobs on any door or drawer
 
 [BACKGROUND — STRICTLY PRESERVE]
-- Keep the ORIGINAL room background EXACTLY as in the uploaded photo (wall, wallpaper, floor, ceiling, windows, doors, lighting, camera angle)
-- The vanity installs in front of the existing wall — do NOT repaint walls, do NOT change flooring`
+- Keep the ORIGINAL room background pixel-identical: wall color/wallpaper/joints, floor material/pattern/board direction, ceiling, columns, beams, niches, windows, doors, baseboards, switches, outlets, lighting, camera angle
+- The vanity installs in front of / inside the existing structure — do NOT repaint walls, do NOT change flooring, do NOT remove or alter columns, beams, or any architectural element`
           : `Built-in standing-type dressing table (스탠딩형 붙박이 화장대) — NOT a bathroom vanity, NOT a washbasin. NO water, NO faucet, NO sink, NO plumbing.
 
 [FORM — MUST MATCH THIS EXACT LAYOUT]
@@ -917,8 +939,8 @@ Atmosphere: ${themeData.atmosphere}`;
 - NO visible handles or knobs
 
 [BACKGROUND — STRICTLY PRESERVE]
-- Keep the ORIGINAL room background EXACTLY (wall, wallpaper, floor, ceiling, windows, doors, lighting, camera angle)
-- The vanity installs in front of the existing wall — do NOT repaint walls, do NOT change flooring`;
+- Keep the ORIGINAL room background pixel-identical: wall color/wallpaper/joints, floor material/pattern/board direction, ceiling, columns, beams, niches, windows, doors, baseboards, switches, outlets, lighting, camera angle
+- The vanity installs in front of / inside the existing structure — do NOT repaint walls, do NOT change flooring, do NOT remove or alter columns, beams, or any architectural element`;
 
         // 카테고리별 특화 프롬프트
         const categoryPrompts = {
