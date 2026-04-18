@@ -239,25 +239,6 @@
         return `modern minimal korean ${styles.join(' ')}`.trim();
       }
 
-      // 냉장고장 포트폴리오 레퍼런스 이미지 조회 (관리자가 admin/gallery.html 로 업로드한 것)
-      async function fetchFridgeReferenceImages(limit = 5) {
-        try {
-          const client = (typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client) ? SupabaseUtils.client : null;
-          if (!client) return [];
-          const { data, error } = await client
-            .from('furniture_images')
-            .select('image_url, description, style, is_training, created_at')
-            .in('category', ['fridge_cabinet', 'fridge'])
-            .order('created_at', { ascending: false })
-            .limit(limit);
-          if (error) { console.warn('[fridge-ref] fetch 실패:', error.message); return []; }
-          return (data || []).filter((r) => r.image_url);
-        } catch (e) {
-          console.warn('[fridge-ref] 예외:', e.message);
-          return [];
-        }
-      }
-
       // 냉장고장 전용 프롬프트 생성
       function buildFridgePrompt(specs, cabinetSpecs) {
         const cat = FurnitureOptionCatalog;
@@ -572,23 +553,6 @@
             }
           }
 
-          // 6-2-1. 냉장고장: admin/gallery.html 에 업로드된 포트폴리오를 스타일 레퍼런스로 첨부
-          let fridgePortfolioCount = 0;
-          if (category === 'fridge') {
-            const portfolioRefs = await fetchFridgeReferenceImages(5);
-            portfolioRefs.forEach((ref, idx) => {
-              const label = ref.description || ref.style || '냉장고장 스타일 참고';
-              referenceImages[`fridge_portfolio_${idx + 1}`] = {
-                url: ref.image_url,
-                prompt_description: `Portfolio reference ${idx + 1}: ${label}`,
-              };
-            });
-            fridgePortfolioCount = portfolioRefs.length;
-            if (fridgePortfolioCount > 0) {
-              dlog('[fridge-ref] 포트폴리오 레퍼런스 첨부:', fridgePortfolioCount, '장');
-            }
-          }
-
           // 6-3. LayoutRenderer로 수치 기반 레이아웃 블루프린트 생성
           //   - 텍스처 렌더링 (async) + 마스크 생성 (AI 인페인팅용)
           let layoutImageBase64 = null;
@@ -638,11 +602,6 @@
 
           // 8-1. 상세 프롬프트 생성
           const designPrompt = buildDesignPrompt(specs, cabinetSpecs, category);
-
-          // 냉장고장 포트폴리오 레퍼런스가 붙으면 스타일 일치 지시문을 프롬프트에 추가
-          if (category === 'fridge' && fridgePortfolioCount > 0) {
-            designPrompt.prompt += ` STYLE REFERENCE: Match the visual style, proportions, door-panel layout, and finish quality of the ${fridgePortfolioCount} attached portfolio reference image${fridgePortfolioCount > 1 ? 's' : ''} of 다담가구 냉장고장 installations (labeled fridge_portfolio_1..${fridgePortfolioCount} in reference_images).`;
-          }
 
           dlog('AI 디자인 생성 요청:', {
             category,
