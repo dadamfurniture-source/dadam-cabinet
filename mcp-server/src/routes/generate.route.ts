@@ -461,20 +461,30 @@ Door surface smooth and seamless. Preserve background. Photorealistic. No text.`
       const drawerColor = twoTone ? `"${lower}"` : `"${color}"`;
       const panelColor = twoTone ? `"${upper}"` : `"${color}"`;
 
+      const STRUCTURAL_PRESERVE = `
+[STRUCTURAL PRESERVATION — HIGHEST PRIORITY]
+This is an IMAGE EDIT / INPAINT task on the uploaded photo. The original room MUST remain pixel-identical except for the area where the dressing table is added:
+- Walls: keep ORIGINAL color, wallpaper, paint, texture, joints, niches AS-IS
+- Floor: keep ORIGINAL material, pattern, board direction, joint lines, color AS-IS
+- Ceiling: keep ORIGINAL height, color, moldings, beams, soffits AS-IS
+- Architecture: PRESERVE all columns (기둥), beams (보), soffits, ledges, alcoves, door frames (문틀), window frames (창틀), baseboards (걸레받이), crown moldings (몰딩)
+- Existing fixtures: PRESERVE switches, outlets, sensors, vents, lights, sliding-door tracks, existing closets visible in the photo
+- Lighting: keep ORIGINAL direction, color temperature, shadows, reflections AS-IS
+- Camera: keep IDENTICAL angle, focal length, perspective, framing
+- The dressing table is INSERTED in front of / inside the existing structure — it does NOT replace the wall, floor, or any architectural element`;
+
       const SHARED_FORBIDDEN = `
 [FORBIDDEN]
 - NO washbasin, NO sink, NO faucet, NO water, NO plumbing, NO toilet, NO bathroom tiles
 - NO rectangular or oval mirrors (round only)
 - NO visible handles or knobs on any door or drawer
-
-[BACKGROUND — STRICTLY PRESERVE]
-- Keep the ORIGINAL background EXACTLY: wall, wallpaper, floor, ceiling, windows, doors, lighting, camera angle and perspective
-- Do NOT repaint walls, do NOT change flooring
+- NO repainting walls, NO replacing flooring, NO removing or altering columns/beams/architectural elements
 
 Photorealistic. No text, no labels.`;
 
       if (type === 'chair') {
         return `Edit photo: install a DESK-STYLE CHAIR-TYPE built-in dressing table (책상형 의자형 붙박이 화장대, ~1400mm wide, ~650mm total depth, floor-to-ceiling).
+${STRUCTURAL_PRESERVE}
 
 [FORM — MUST MATCH EXACTLY]
 - Flush full-height side panels on both sides (${panelColor} matte flat-panel)
@@ -514,6 +524,7 @@ ${SHARED_FORBIDDEN}
       }
 
       return `Edit photo: install a STANDING-TYPE built-in dressing table (스탠딩형 붙박이 화장대).
+${STRUCTURAL_PRESERVE}
 
 [FORM — MUST MATCH EXACTLY]
 - Built between flush full-height side panels (${panelColor} matte flat-panel)
