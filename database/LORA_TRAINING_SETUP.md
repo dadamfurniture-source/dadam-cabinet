@@ -17,7 +17,7 @@ SELECT policyname FROM pg_policies WHERE tablename = 'lora_models';
 
 ## 2. mcp-server 환경변수
 
-Railway 대시보드 → `agent-api-production-523d` 프로젝트 → Variables 에 다음 추가 (또는 확인):
+Railway 대시보드 → `dadam-generate-api` 서비스 → Variables 에 다음 추가 (또는 확인):
 
 | Key | Value |
 |---|---|
@@ -34,7 +34,7 @@ Railway 대시보드 → `agent-api-production-523d` 프로젝트 → Variables 
 
 배포 확인:
 ```
-curl https://agent-api-production-523d.up.railway.app/health
+curl https://dadam-generate-api-production.up.railway.app/health
 ```
 출력에 `status: "ok"` 가 보이면 정상. 신규 엔드포인트는 인증 필요.
 
