@@ -2,14 +2,14 @@
  * 냉장고장 전용 프롬프트 빌더
  *
  * Cloudflare Worker 의 /api/generate 에서 category === 'fridge' | 'fridge_cabinet'
- * 일 때만 사용. 클라이언트가 보낸 fridge_options 와 포트폴리오 레퍼런스 개수를
- * 받아 Gemini 에 넘길 단일 문자열 프롬프트를 만든다.
- *
- * 입력:
- *   fridgeOpts: { brand, modelLine, combo, position, appliances, referenceCount }
+ * 일 때만 사용. 3 단계 Gemini 파이프라인(철거 → 설치 → 열린문)의 앞 두 단계
+ * 프롬프트를 생성한다.
  *
  * 공개 API:
- *   buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts })
+ *   buildFridgeDemolitionPrompt()
+ *     → 입력 사진에서 기존 빌트인 구조물을 완전히 제거한 "빈 벽" 사진 생성 지시
+ *   buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared })
+ *     → 철거된 (또는 원본) 이미지 위에 새 냉장고장을 설치하는 지시
  */
 
 const UNIT_DESC = {
@@ -70,33 +70,78 @@ function describeAppliances(opts) {
 function describeStyleReference(refCount) {
   if (!refCount || refCount <= 0) return '';
   const plural = refCount > 1;
-  return ` STYLE REFERENCE: The next ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 portfolio reference${plural ? 's' : ''}. Match their door-panel layout, proportions, trim detail, and finish quality while keeping the target room (first image) background EXACT.`;
+  return ` STYLE REFERENCE: The next ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 학습용 레퍼런스 (training examples) — match their door-panel layout, proportions, reveal lines, handle style, material finish, and bridge-cabinet proportion exactly. First image is the already-cleared target room — preserve its background, floor, ceiling, window, and outer walls EXACTLY.`;
+}
+
+// 철거 실패 폴백용 INSTALLATION SITE PREPARATION 문구
+const FALLBACK_SITE_PREP = 'INSTALLATION SITE PREPARATION: Completely clear the target wall area before placing the new cabinet — remove any existing storage, shelves, partitions, paneling, trim, or wall finishes so the new pantry is the only furniture on that wall.';
+
+/**
+ * Stage 1: 철거 프롬프트.
+ * 입력 이미지에서 기존 빌트인 구조를 전부 없애고 평평한 드라이월만 남긴 사진을 생성.
+ * extraImages 없이 단일 이미지 입력 전제. 낮은 temperature 권장 (0.2).
+ */
+export function buildFridgeDemolitionPrompt() {
+  return `Edit photo: DEMOLISH and REMOVE every pre-existing built-in furniture element on the target wall. Return a photograph of the SAME room with the target wall completely BARE.
+
+REMOVE (delete entirely, no trace left):
+- every full-height cabinet column on both sides of the wall
+- any center alcove, niche, or recessed opening
+- any top bridge cabinet or soffit-mounted cabinet spanning the wall
+- any embedded appliance (oven, microwave, wall oven, warming drawer)
+- every decorative trim, crown molding, baseboard, wainscoting, and wall panel on the target wall
+- all existing shelving, partitions, dividers, and vertical slats
+- all wallpaper accents, cladding, or non-paint finishes on the target surface
+
+PRESERVE (must remain visually identical):
+- floor (wood/tile pattern, grout lines, color)
+- ceiling
+- side walls and their surface
+- window frame, glass, curtains/blinds
+- exterior room lighting, white balance, and color temperature
+- camera angle, perspective, lens distortion
+- any furniture or object NOT on the target wall
+- electrical outlets — relocate onto the bare wall at the same height, no drill scars
+
+OUTPUT: bare flat painted drywall on the target wall, smooth and uniform, ready for new installation. Photorealistic. No text, labels, arrows, or diagrams. Do NOT add any new furniture.`;
 }
 
 /**
- * 냉장고장 설치 프롬프트 생성.
+ * Stage 2: 설치 프롬프트.
+ * siteAlreadyCleared === true 이면 INSTALLATION SITE PREPARATION 문구 생략 (철거 스테이지가 앞단에 성공했다는 의미).
+ * false 이면 폴백 문구 포함 (철거 실패로 원본 사진을 쓰는 경우).
  *
  * @param {object} p
- * @param {string} p.doorColor   도어 색상 (예: "white")
- * @param {string} p.doorFinish  도어 마감 (예: "matte")
- * @param {object} p.wallData    { wallW, wallH }
- * @param {string} p.styleName   스타일 이름 (예: "Modern Minimal")
- * @param {object} p.fridgeOpts  클라이언트가 보낸 fridge_options (+ referenceCount)
+ * @param {string} p.doorColor
+ * @param {string} p.doorFinish
+ * @param {object} p.wallData             { wallW, wallH }
+ * @param {string} p.styleName
+ * @param {object} p.fridgeOpts           클라이언트의 fridge_options (+ referenceCount)
+ * @param {boolean} [p.siteAlreadyCleared=false]
  * @returns {string}
  */
-export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts }) {
+export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
   const opts = fridgeOpts || {};
   const combo = describeCombo(opts);
   const layout = describeLayout(opts);
   const appliances = describeAppliances(opts);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
+  const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
-  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background of the first image EXACTLY.
-INSTALLATION SITE PREPARATION: Completely clear the target wall area before placing the new cabinet — remove any existing storage, shelves, partitions, paneling, trim, or wall finishes so the new pantry is the only furniture on that wall.
+  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background of the first image EXACTLY.${sitePrep}
 Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Layout: ${layout}, bridge cabinet above fridge.
 ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliances}${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
 
 // 테스트/디버깅용 (필요 시 worker 외부에서 불러 확인)
-export const __internals = { UNIT_DESC, LINE_DESC, APPLIANCE_DESC, describeCombo, describeLayout, describeAppliances, describeStyleReference };
+export const __internals = {
+  UNIT_DESC,
+  LINE_DESC,
+  APPLIANCE_DESC,
+  FALLBACK_SITE_PREP,
+  describeCombo,
+  describeLayout,
+  describeAppliances,
+  describeStyleReference,
+};

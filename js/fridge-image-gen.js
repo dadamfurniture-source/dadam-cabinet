@@ -21,22 +21,48 @@
 
   /**
    * 포트폴리오 메타데이터 조회.
+   * trainingOnly=true 이면 is_training=true 만 먼저 시도하고, 결과 0장일 때 폴백으로
+   * 전체 fridge 포트폴리오를 재조회한다.
+   * @param {*} supabaseClient
+   * @param {number} limit
+   * @param {{ trainingOnly?: boolean }} [opts]
    * @returns {Promise<Array<{image_url, description?, style?}>>}
    */
-  async function fetchReferenceImages(supabaseClient, limit = DEFAULT_LIMIT) {
+  async function fetchReferenceImages(supabaseClient, limit = DEFAULT_LIMIT, opts = {}) {
     if (!supabaseClient) return [];
-    try {
-      const { data, error } = await supabaseClient
+    const trainingOnly = !!opts.trainingOnly;
+
+    async function runQuery({ trainingOnly: onlyTraining }) {
+      let q = supabaseClient
         .from('furniture_images')
-        .select('image_url, description, style, created_at')
+        .select('image_url, description, style, is_training, created_at')
         .in('category', CATEGORY_IDS)
         .order('created_at', { ascending: false })
         .limit(limit);
+      if (onlyTraining) q = q.eq('is_training', true);
+      const { data, error } = await q;
       if (error) {
         console.warn('[FridgeImageGen] fetch 실패:', error.message);
         return [];
       }
       return (data || []).filter((r) => r && r.image_url);
+    }
+
+    try {
+      if (trainingOnly) {
+        const rows = await runQuery({ trainingOnly: true });
+        if (rows.length > 0) {
+          console.log(`[FridgeImageGen] training=${rows.length}`);
+          return rows;
+        }
+        // 폴백: 학습용 0장 → 전체 포트폴리오 재조회
+        const fallback = await runQuery({ trainingOnly: false });
+        console.log(`[FridgeImageGen] training=0, fallback=${fallback.length}`);
+        return fallback;
+      }
+      const rows = await runQuery({ trainingOnly: false });
+      console.log(`[FridgeImageGen] portfolio=${rows.length}`);
+      return rows;
     } catch (e) {
       console.warn('[FridgeImageGen] fetch 예외:', e.message);
       return [];
@@ -69,10 +95,13 @@
    * Worker /api/generate 의 reference_images 페이로드 조립.
    * 실패한 항목은 자동으로 제외된다.
    *
+   * @param {*} supabaseClient
+   * @param {number} limit
+   * @param {{ trainingOnly?: boolean }} [opts]  trainingOnly=true 권장 — 학습용 0장이면 자동 폴백
    * @returns {Promise<Array<{base64, mimeType, description}>>}
    */
-  async function buildReferencePayload(supabaseClient, limit = DEFAULT_LIMIT) {
-    const rows = await fetchReferenceImages(supabaseClient, limit);
+  async function buildReferencePayload(supabaseClient, limit = DEFAULT_LIMIT, opts = {}) {
+    const rows = await fetchReferenceImages(supabaseClient, limit, opts);
     if (rows.length === 0) return [];
     const converted = await Promise.all(rows.map(async (r) => {
       const img = await urlToBase64(r.image_url);
