@@ -474,16 +474,19 @@ Door surface smooth and seamless. Preserve background. Photorealistic. No text.`
 Photorealistic. No text, no labels.`;
 
       if (type === 'chair') {
-        return `Edit photo: install a CHAIR-TYPE built-in dressing table (의자형 붙박이 화장대, ~1400mm wide, ~650mm deep, floor-to-ceiling).
+        return `Edit photo: install a DESK-STYLE CHAIR-TYPE built-in dressing table (책상형 의자형 붙박이 화장대, ~1400mm wide, ~650mm total depth, floor-to-ceiling).
 
 [FORM — MUST MATCH EXACTLY]
 - Flush full-height side panels on both sides (${panelColor} matte flat-panel)
-- LOWER CABINET from floor to ~610mm: TWO hinged flat-panel doors side by side (${panelColor} matte), completely handleless (push-to-open)
-- Toe-kick plinth (0~60mm) recessed ~20mm behind the door faces
-- TWO slim handleless drawers directly under the countertop spanning the full width (${drawerColor}), drawer height ~130mm (610~740mm)
-- COUNTERTOP slab at ~740mm height, ~12mm thick, clean square edge, surface: ${ctDesc}
+- COUNTERTOP slab at ~740mm height, ~12mm thick, full ~650mm depth (wall to front edge), surface: ${ctDesc}
+- BELOW THE COUNTER, the under-counter volume is split by depth into TWO zones:
+  * REAR ZONE (wall side, ~300mm deep):
+    - Lower cabinet (0~610mm): TWO hinged flat-panel doors side by side (${panelColor} matte), handleless push-to-open
+    - Toe-kick plinth (0~60mm) recessed ~20mm behind the door faces
+    - TWO slim handleless drawers (610~740mm), ~300mm deep, full width (${drawerColor})
+  * FRONT ZONE (user side, ~350mm deep): COMPLETELY OPEN knee space — NO panels, NO drawers, NO doors, just open negative space so a chair can tuck UNDER the countertop like a desk
 - BACK PANEL (flush matte) rising from the countertop to the ceiling (~740~2300mm)
-- RIGHT-SIDE TALL DRAWER TOWER on the back wall, right side: narrow column ~150mm wide × ~570mm deep × ~1200mm tall (from ~1052mm to ~2240mm) with FIVE slim handleless drawers stacked evenly (${drawerColor})
+- RIGHT-SIDE TALL DRAWER TOWER on the back wall, right side: narrow column ~150mm wide × ~570mm deep × ~1200mm tall (from ~1052mm to ~2240mm) with FIVE slim handleless drawers (${drawerColor})
 - Top crown moulding at ~2240~2300mm
 
 [MIRROR — ROUND ONLY]
@@ -492,12 +495,14 @@ Photorealistic. No text, no labels.`;
 - Diameter ~500~600mm, thin frameless or micro-bezel
 
 [SEATING]
-- Matching upholstered dressing stool or small chair placed in front (not tucked under — lower cabinet occupies the knee zone)
+- Matching upholstered dressing stool or small chair TUCKED UNDER the countertop in the front knee zone (rear cabinet is only 300mm deep, the front ~350mm is open like a desk)
 
 [FINISH]
 - All panels, doors, and drawer fronts: matte flat-panel, completely handleless
 - Counter neatly styled with perfume bottle, skincare bottles, makeup tray, jewelry dish
-${SHARED_FORBIDDEN}`;
+${SHARED_FORBIDDEN}
+- NO full-depth lower cabinet — rear storage must be only ~300mm deep
+- NO panels or drawers in the front knee zone below the counter`;
       }
 
       return `Edit photo: install a STANDING-TYPE built-in dressing table (스탠딩형 붙박이 화장대).
