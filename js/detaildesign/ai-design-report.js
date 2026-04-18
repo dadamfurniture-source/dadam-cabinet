@@ -284,6 +284,12 @@
 
         const lines = [];
         lines.push(`Korean built-in refrigerator pantry cabinet (냉장고장), photorealistic interior photograph.`);
+        // ★ 설치 공간 비우기 — 기존 수납장/칸막이/마감재 전부 제거 후 신규 설치
+        lines.push(`INSTALLATION SITE PREPARATION (CRITICAL, perform BEFORE placing new cabinet): Completely clear the target installation area on the ${position.toUpperCase()} wall.`);
+        lines.push(`REMOVE ALL existing storage cabinets, shelving units, closets, and built-in furniture from the installation zone.`);
+        lines.push(`REMOVE ALL interior partitions, dividers, vertical/horizontal slats, and any existing framing inside the alcove.`);
+        lines.push(`REMOVE ALL existing wall finishes, paneling, wainscoting, trim, moldings, wallpaper accents, and decorative cladding on the installation surface — leave only bare structural wall behind the new cabinet.`);
+        lines.push(`The newly installed ${fridgeDesc} pantry cabinet must be the ONLY furniture occupying this installation area — no leftover cabinetry or shelving from prior state.`);
         lines.push(`Refrigerator: ${fridgeDesc}, positioned on the ${position.toUpperCase()} side of the wall.`);
         lines.push(`Tall pantry cabinets to the ${oppositeSide.toUpperCase()} of the fridge, with a bridge upper cabinet spanning above the fridge.`);
         lines.push(`Upper bridge cabinet doors: ${upperColor}, ${upperFinish}, flat panel.`);
@@ -299,6 +305,13 @@
         lines.push(`All doors closed. Seamless flat-panel surfaces with no grooves or visible handles.`);
 
         const negatives = [];
+        // 설치 공간 정리 관련
+        negatives.push('NO pre-existing storage cabinets remaining in the installation area');
+        negatives.push('NO leftover shelves, closets, or built-in furniture from prior state');
+        negatives.push('NO interior partitions, dividers, or vertical slats inside the alcove');
+        negatives.push('NO old wall paneling, wainscoting, trim, or decorative cladding behind the new cabinet');
+        negatives.push('NO overlapping or double cabinetry');
+        // 카테고리 경계
         negatives.push('NO countertop');
         negatives.push('NO sink or faucet');
         negatives.push('NO cooktop or range hood');
