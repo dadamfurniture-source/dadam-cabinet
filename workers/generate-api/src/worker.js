@@ -21,13 +21,19 @@ const STYLE_MAP = {
 };
 
 // ─── Gemini API 호출 ───
-async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4) {
+async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4, extraImages = []) {
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash-image';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
 
   const parts = [];
   if (image && imageType) {
     parts.push({ inlineData: { mimeType: imageType, data: image } });
+  }
+  // 추가 레퍼런스 이미지 (포트폴리오 등) - 메인 이미지 다음, 프롬프트 이전
+  for (const ex of extraImages) {
+    if (ex && ex.base64 && ex.mimeType) {
+      parts.push({ inlineData: { mimeType: ex.mimeType, data: ex.base64 } });
+    }
   }
   parts.push({ text: prompt });
 
@@ -219,10 +225,15 @@ function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fri
   const comboDesc = buildFridgeComboDesc(fridgeOpts);
   const layoutDesc = buildFridgeLayoutDesc(fridgeOpts);
   const appliancesDesc = buildFridgeAppliancesDesc(fridgeOpts);
+  const refCount = fridgeOpts?.referenceCount || 0;
+  const styleRef = refCount > 0
+    ? ` STYLE REFERENCE: The next ${refCount} image${refCount > 1 ? 's are' : ' is'} 다담가구 냉장고장 portfolio reference${refCount > 1 ? 's' : ''}. Match their door-panel layout, proportions, trim detail, and finish quality while keeping the target room (first image) background EXACT.`
+    : '';
 
-  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background EXACTLY.
+  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background of the first image EXACTLY.
+INSTALLATION SITE PREPARATION: Completely clear the target wall area before placing the new cabinet — remove any existing storage, shelves, partitions, paneling, trim, or wall finishes so the new pantry is the only furniture on that wall.
 Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${comboDesc}. Layout: ${layoutDesc}, bridge cabinet above fridge.
-ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliancesDesc}
+ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliancesDesc}${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
 
@@ -293,8 +304,17 @@ export default {
           design_style = 'modern-minimal',
           wall_width_override,
           fridge_options,
+          reference_images,
           ...themeData
         } = body;
+
+        // reference_images: [{ base64, mimeType, description? }, ...]
+        const refImages = Array.isArray(reference_images)
+          ? reference_images.filter((r) => r && r.base64 && r.mimeType)
+          : [];
+        if (refImages.length > 0) {
+          console.log(`[Generate] reference_images: ${refImages.length} attached`);
+        }
 
         if (!room_image) {
           return new Response(JSON.stringify({ success: false, error: 'room_image is required' }), {
@@ -341,8 +361,11 @@ export default {
         } // end else (AI wall analysis)
 
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
-        const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData, fridge_options);
-        const closedResult = await callGemini(env, furniturePrompt, room_image, image_type);
+        const fridgeOptsForPrompt = (category === 'fridge' || category === 'fridge_cabinet')
+          ? { ...(fridge_options || {}), referenceCount: refImages.length }
+          : fridge_options;
+        const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData, fridgeOptsForPrompt);
+        const closedResult = await callGemini(env, furniturePrompt, room_image, image_type, undefined, undefined, refImages);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
