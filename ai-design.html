@@ -1891,13 +1891,19 @@ Magazine quality, professional lighting.`;
           const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
           console.log('Design Prompt:', designPrompt);
 
-          // 냉장고장: admin/gallery.html 에 업로드된 포트폴리오를 스타일 레퍼런스로 첨부
+          // 냉장고장: 학습용(is_training=true) 이미지를 우선 첨부, 없으면 전체 포트폴리오 폴백
           let fridgeReferenceImages = [];
           if (category === 'fridge' && window.FridgeImageGen) {
-            fridgeReferenceImages = await window.FridgeImageGen.buildReferencePayload(supabaseClient, 5);
+            fridgeReferenceImages = await window.FridgeImageGen.buildReferencePayload(
+              supabaseClient,
+              5,
+              { trainingOnly: true },
+            );
             if (fridgeReferenceImages.length > 0) {
-              console.log('[FridgeImageGen] 포트폴리오 레퍼런스 첨부:', fridgeReferenceImages.length, '장');
+              console.log('[FridgeImageGen] 레퍼런스 첨부:', fridgeReferenceImages.length, '장');
             }
+            // 철거 → 설치 2단계 파이프라인이 Worker 에서 실행됨을 UI 에 안내
+            document.getElementById('loadingTitle').textContent = '🧱 기존 구조 철거 후 냉장고장 설치 중...';
           }
 
           try {
