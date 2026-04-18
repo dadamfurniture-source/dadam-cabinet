@@ -2,7 +2,13 @@
  * Dadam Generate API — Cloudflare Worker
  * POST /api/generate
  * Gemini Flash Image 직접 호출 (벽분석 + 가구생성 + 열린문)
+ *
+ * 카테고리별 프롬프트 모듈:
+ *   - 냉장고장: ./fridge-prompt.js
+ *   - 그 외: worker.js 내부 buildFurniturePrompt / getWardrobeStructure 등
  */
+
+import { buildFridgePrompt } from './fridge-prompt.js';
 
 // ─── 레이아웃/스타일 매핑 ───
 const LAYOUT_DESC = {
@@ -129,7 +135,7 @@ No visible handles. ${styleName}. Photorealistic. All doors closed.`;
   }
 
   if (category === 'fridge' || category === 'fridge_cabinet') {
-    return buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOptions);
+    return buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts: fridgeOptions });
   }
 
   if (category === 'vanity') {
@@ -163,78 +169,6 @@ function getWardrobeStructure(w) {
     prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
     open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
   };
-}
-
-// ─── 냉장고장 프롬프트 ───
-const FRIDGE_UNIT_DESC = {
-  '1door': 'single-door column refrigerator',
-  '3door': 'three-door refrigerator',
-  '4door': 'french-door (4-door) refrigerator',
-};
-const FRIDGE_LINE_DESC = {
-  'bespoke': 'Samsung Bespoke Kitchen Fit',
-  'infinite': 'Samsung Infinite Line',
-  'standing': 'freestanding',
-  'fitmax': 'LG Fit & Max built-in',
-};
-
-const FRIDGE_APPLIANCE_DESC = {
-  coffee_maker: 'espresso/coffee machine',
-  microwave: 'microwave oven',
-  oven: 'built-in oven',
-  air_fryer: 'air fryer',
-  toaster: 'toaster',
-  kettle: 'electric kettle',
-  rice_cooker: 'rice cooker',
-  blender: 'blender',
-};
-
-function buildFridgeComboDesc(fridgeOpts) {
-  const opts = fridgeOpts || {};
-  const combo = opts.combo || { '4door': 1 };
-  const parts = [];
-  for (const [type, count] of Object.entries(combo)) {
-    if (Number(count) > 0) {
-      const desc = FRIDGE_UNIT_DESC[type] || type;
-      parts.push(Number(count) > 1 ? `${count}x ${desc}` : desc);
-    }
-  }
-  if (parts.length === 0) parts.push(FRIDGE_UNIT_DESC['4door']);
-  const brand = opts.brand === 'lg' ? 'LG' : 'Samsung';
-  const lineDesc = FRIDGE_LINE_DESC[opts.modelLine] || '';
-  const lineStr = lineDesc ? ` (${lineDesc})` : '';
-  return `${brand}${lineStr}: ${parts.join(' + ')}`;
-}
-
-function buildFridgeLayoutDesc(fridgeOpts) {
-  const position = (fridgeOpts && fridgeOpts.position) === 'right' ? 'right' : 'left';
-  return position === 'right'
-    ? 'refrigerator on the RIGHT side of the wall, tall pantry cabinets to its LEFT'
-    : 'refrigerator on the LEFT side of the wall, tall pantry cabinets to its RIGHT';
-}
-
-function buildFridgeAppliancesDesc(fridgeOpts) {
-  const ids = (fridgeOpts && Array.isArray(fridgeOpts.appliances)) ? fridgeOpts.appliances : [];
-  if (ids.length === 0) return '';
-  const names = ids.map((id) => FRIDGE_APPLIANCE_DESC[id]).filter(Boolean);
-  if (names.length === 0) return '';
-  return ` Visible small appliances placed inside the open/glass niche of the tall cabinets: ${names.join(', ')}.`;
-}
-
-function buildFridgeWorkerPrompt(doorColor, doorFinish, wallData, styleName, fridgeOpts) {
-  const comboDesc = buildFridgeComboDesc(fridgeOpts);
-  const layoutDesc = buildFridgeLayoutDesc(fridgeOpts);
-  const appliancesDesc = buildFridgeAppliancesDesc(fridgeOpts);
-  const refCount = fridgeOpts?.referenceCount || 0;
-  const styleRef = refCount > 0
-    ? ` STYLE REFERENCE: The next ${refCount} image${refCount > 1 ? 's are' : ' is'} 다담가구 냉장고장 portfolio reference${refCount > 1 ? 's' : ''}. Match their door-panel layout, proportions, trim detail, and finish quality while keeping the target room (first image) background EXACT.`
-    : '';
-
-  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background of the first image EXACTLY.
-INSTALLATION SITE PREPARATION: Completely clear the target wall area before placing the new cabinet — remove any existing storage, shelves, partitions, paneling, trim, or wall finishes so the new pantry is the only furniture on that wall.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${comboDesc}. Layout: ${layoutDesc}, bridge cabinet above fridge.
-ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliancesDesc}${styleRef}
-${styleName}. Photorealistic. All doors closed. No text.`;
 }
 
 // ─── 열린문 프롬프트 ───
