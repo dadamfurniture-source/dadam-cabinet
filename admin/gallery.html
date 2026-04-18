@@ -125,9 +125,10 @@
         </div>
 
         <div class="stats-bar" id="statsBar">
-          <span>전체: <strong id="statTotal">0</strong></span>
+          <span>표시 중: <strong id="statTotal">0</strong></span>
           <span>갤러리: <strong id="statGallery">0</strong></span>
           <span>학습용: <strong id="statTraining">0</strong></span>
+          <span>DB 총합: <strong id="statDbTotal">0</strong></span>
         </div>
 
         <div class="toolbar">
@@ -283,25 +284,57 @@
         });
       }
 
+      // furniture_images 페이지네이션 조회 — Supabase 기본 page size 상한(1000)을 우회
+      async function fetchAllFurnitureImages({ category, isTraining, pageSize = 1000, hardCap = 20000, onProgress } = {}) {
+        const rows = [];
+        let offset = 0;
+        let totalEstimate = null;
+        while (offset < hardCap) {
+          let q = supabaseClient
+            .from('furniture_images')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + pageSize - 1);
+          if (category) q = q.eq('category', category);
+          if (isTraining !== null && isTraining !== undefined) q = q.eq('is_training', isTraining);
+          const { data, error, count } = await q;
+          if (error) throw error;
+          if (typeof count === 'number') totalEstimate = count;
+          const batch = data || [];
+          rows.push(...batch);
+          if (onProgress) onProgress(rows.length, totalEstimate);
+          if (batch.length < pageSize) break;
+          offset += pageSize;
+        }
+        return { rows, total: totalEstimate ?? rows.length, capped: rows.length >= hardCap };
+      }
+
       async function loadImages() {
         const container = document.getElementById('galleryContainer');
         container.innerHTML = '<div class="loading">불러오는 중...</div>';
 
-        let query = supabaseClient
-          .from('furniture_images')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(500);
-
         const catFilter = document.getElementById('filterCategory').value;
         const trainFilter = document.getElementById('filterTraining').value;
-        if (catFilter) query = query.eq('category', catFilter);
-        if (trainFilter !== '') query = query.eq('is_training', trainFilter === 'true');
+        const isTraining = trainFilter === '' ? null : (trainFilter === 'true');
 
-        const { data, error } = await query;
-        if (error) { container.innerHTML = '<div class="empty-state">로드 실패: ' + error.message + '</div>'; return; }
+        let result;
+        try {
+          result = await fetchAllFurnitureImages({
+            category: catFilter || null,
+            isTraining,
+            onProgress: (loaded, total) => {
+              container.innerHTML = `<div class="loading">불러오는 중... ${loaded}${total ? ` / ${total}` : ''}</div>`;
+            },
+          });
+        } catch (e) {
+          container.innerHTML = '<div class="empty-state">로드 실패: ' + e.message + '</div>';
+          return;
+        }
 
-        allImages = data || [];
+        allImages = result.rows;
+        if (result.capped) {
+          console.warn('[gallery] hardCap 도달 — 추가 데이터 있을 수 있음');
+        }
 
         const search = document.getElementById('searchInput').value.toLowerCase();
         let filtered = allImages;
@@ -319,10 +352,12 @@
         const visibleIds = new Set(filtered.map(i => i.id));
         for (const id of [...selectedIds]) if (!visibleIds.has(id)) selectedIds.delete(id);
 
-        // Stats
+        // Stats — 필터/검색 후 표시 수. 전체 DB 총계는 별도 표시.
         document.getElementById('statTotal').textContent = filtered.length;
         document.getElementById('statGallery').textContent = filtered.filter(i => !i.is_training).length;
         document.getElementById('statTraining').textContent = filtered.filter(i => i.is_training).length;
+        const dbTotalEl = document.getElementById('statDbTotal');
+        if (dbTotalEl) dbTotalEl.textContent = result.total + (result.capped ? '+' : '');
 
         if (filtered.length === 0) {
           container.innerHTML = '<div class="empty-state">이미지가 없습니다</div>';
