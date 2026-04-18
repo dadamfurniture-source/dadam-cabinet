@@ -43,7 +43,12 @@ export function loadConfig(): Config {
   return {
     supabase: {
       url: getEnv('SUPABASE_URL', 'https://vvqrvgcgnlfpiqqndsve.supabase.co'),
-      anonKey: getEnv('SUPABASE_ANON_KEY', ''),
+      // anon key 는 Supabase 설계상 공개 키 — js/config.js 에도 동일하게 평문으로 박혀 있음.
+      // Railway 에서 SUPABASE_ANON_KEY 를 지정하면 override, 아니면 기본값 사용.
+      anonKey: getEnv(
+        'SUPABASE_ANON_KEY',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ',
+      ),
       timeout: getEnvNumber('SUPABASE_TIMEOUT', 30000),
     },
     gemini: {
