@@ -674,10 +674,10 @@
           }
         }, 500);
       });
-      // 이미지 생성 API URL (config 우선, 없으면 운영 기본값)
+      // 이미지 생성 API URL (config 우선, 없으면 운영 기본값 — Cloudflare Workers)
       const API_GENERATE_URL =
         window.DADAM_CONFIG?.generateApi?.url ||
-        'https://dadam-generate-api-production.up.railway.app/api/generate';
+        'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate';
 
       // 냉장고장 포트폴리오 레퍼런스 로직은 js/fridge-image-gen.js (window.FridgeImageGen) 에 분리됨
 
