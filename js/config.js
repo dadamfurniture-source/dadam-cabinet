@@ -8,7 +8,8 @@ window.DADAM_CONFIG = {
     apiUrl: '', // 비활성 → Codex generate API 사용
   },
   generateApi: {
-    url: 'https://dadam-generate-api-production.up.railway.app/api/generate',
+    // Cloudflare Workers — workers/generate-api (wrangler deploy 로 배포)
+    url: 'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate',
   },
   app: {
     name: '다담가구',
