@@ -76,6 +76,12 @@ function describeStyleReference(refCount) {
 // 철거 실패 폴백용 INSTALLATION SITE PREPARATION 문구
 const FALLBACK_SITE_PREP = 'INSTALLATION SITE PREPARATION: Completely clear the target wall area before placing the new cabinet — remove any existing storage, shelves, partitions, paneling, trim, or wall finishes so the new pantry is the only furniture on that wall.';
 
+// 설치·추천 단계에서 반복되는 배경 고정 지시문 (사용자 요구: 배경 변경 불가)
+const BACKGROUND_LOCK = `BACKGROUND LOCK (CRITICAL — hard requirement):
+- The first image's floor, ceiling, side walls, window, curtains, lighting, white balance, camera angle, perspective, and every element OUTSIDE the target installation wall MUST remain pixel-identical.
+- Do NOT crop, zoom, pan, shift perspective, recolor, or relight the room.
+- Only the target installation wall may contain new cabinetry; everywhere else is frozen.`;
+
 /**
  * Stage 1: 철거 프롬프트.
  * 입력 이미지에서 기존 빌트인 구조를 전부 없애고 평평한 드라이월만 남긴 사진을 생성.
@@ -129,9 +135,45 @@ export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, 
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
   return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background of the first image EXACTLY.${sitePrep}
+${BACKGROUND_LOCK}
 Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Layout: ${layout}, bridge cabinet above fridge.
 ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliances}${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
+}
+
+/**
+ * Stage 3 (대안): AI 추천 디자인 — 냉장고장 + 홈바/홈카페 수납장 포함.
+ * 기존 "열린문" 스테이지를 대체. 입력 이미지는 철거된 빈 벽(또는 철거 실패 시 원본).
+ *
+ * 주요 차이:
+ *  - buildFridgePrompt 와 동일한 냉장고 사양은 유지하되 옆으로 홈바·홈카페 존을 덧붙임
+ *  - 커피머신 니치 / 글라스 프론트 머그 수납 / 와인·카라프 오픈 선반 등 시그니처 요소 요구
+ *  - 사용자 요구: 배경은 절대 변경 불가
+ *
+ * @param {object} p (buildFridgePrompt 와 동일한 파라미터)
+ * @returns {string}
+ */
+export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
+  const opts = fridgeOpts || {};
+  const combo = describeCombo(opts);
+  const layout = describeLayout(opts);
+  const appliances = describeAppliances(opts);
+  const styleRef = describeStyleReference(opts.referenceCount || 0);
+  const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
+
+  return `Edit photo: install a premium ${doorColor} ${doorFinish} refrigerator surround cabinet WITH an integrated home-bar and home-cafe zone. PRESERVE background of the first image EXACTLY.${sitePrep}
+${BACKGROUND_LOCK}
+Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Base layout: ${layout}, bridge cabinet above fridge.
+
+HOME BAR / HOME CAFE ZONE — adjacent to the fridge column, blended into the same ${doorColor} ${doorFinish} cabinetry:
+- Counter-height recessed niche (about 600mm wide, 400mm tall) with integrated power, sized for an espresso machine or drip coffee maker.
+- Glass-front upper wall cabinet above the niche, interior lit, displaying mugs and stemware on slim shelves.
+- Short open shelving bay (about 300–400mm wide) for carafes, tea canisters, wine bottles, or serveware.
+- Closed lower drawer under the niche for coffee beans / small appliances.
+- Tall pantry doors fill the remaining wall width up to the bridge cabinet, matching the fridge column height.
+
+ALL cabinet doors and panels: ${doorColor} ${doorFinish} flat-panel, handleless, seamless reveals. No chrome handles.${appliances}${styleRef}
+${styleName}. Photorealistic editorial interior shot. All closed doors fully closed. No text, labels, or floating captions.`;
 }
 
 // 테스트/디버깅용 (필요 시 worker 외부에서 불러 확인)
@@ -140,6 +182,7 @@ export const __internals = {
   LINE_DESC,
   APPLIANCE_DESC,
   FALLBACK_SITE_PREP,
+  BACKGROUND_LOCK,
   describeCombo,
   describeLayout,
   describeAppliances,

@@ -8,7 +8,7 @@
  *   - 그 외: worker.js 내부 buildFurniturePrompt / getWardrobeStructure 등
  */
 
-import { buildFridgePrompt, buildFridgeDemolitionPrompt } from './fridge-prompt.js';
+import { buildFridgePrompt, buildFridgeDemolitionPrompt, buildFridgeRecommendedPrompt } from './fridge-prompt.js';
 
 // ─── 레이아웃/스타일 매핑 ───
 const LAYOUT_DESC = {
@@ -354,14 +354,34 @@ export default {
 
         console.log('[Generate] Closed door image generated');
 
-        // ═══ Step 3: 열린문 생성 ═══
+        // ═══ Step 3: 대안 이미지 생성 ═══
+        //   fridge → AI 추천 디자인 (냉장고장 + 홈바/홈카페 수납장, 배경 고정)
+        //   그 외  → 기존 열린문 생성
         let openImage = null;
         try {
-          const openResult = await callGemini(env, buildOpenDoorPrompt(category, wallW), closedResult.image, 'image/png');
-          openImage = openResult.image || null;
-          if (openImage) console.log('[Generate] Open door image generated');
+          if (isFridge) {
+            const recDoorColor = themeData.style_door_color || 'white';
+            const recDoorFinish = themeData.style_door_finish || 'matte';
+            const recStyleName = STYLE_MAP[design_style] || 'Modern Minimal';
+            const recPrompt = buildFridgeRecommendedPrompt({
+              doorColor: recDoorColor,
+              doorFinish: recDoorFinish,
+              wallData: { wallW, wallH, waterPct, exhaustPct },
+              styleName: recStyleName,
+              fridgeOpts: fridgeOptsForPrompt,
+              siteAlreadyCleared: demoSucceeded,
+            });
+            const recResult = await callGemini(env, recPrompt, installBaseImage, installMime, undefined, undefined, refImages);
+            openImage = recResult.image || null;
+            if (openImage) console.log('[Generate] Fridge recommended design generated (homebar/cafe)');
+            else console.warn('[Generate] Fridge recommended design returned no image');
+          } else {
+            const openResult = await callGemini(env, buildOpenDoorPrompt(category, wallW), closedResult.image, 'image/png');
+            openImage = openResult.image || null;
+            if (openImage) console.log('[Generate] Open door image generated');
+          }
         } catch (e) {
-          console.warn('[Generate] Open door generation failed');
+          console.warn('[Generate] Alt image generation failed:', e.message);
         }
 
         // ═══ 견적 (붙박이장: 300mm당 14만원) ═══
