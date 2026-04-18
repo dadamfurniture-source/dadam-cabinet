@@ -500,25 +500,28 @@ Photorealistic. No text, no labels.`;
 ${SHARED_FORBIDDEN}`;
       }
 
-      return `Edit photo: install a STANDING-TYPE built-in recessed-niche dressing table (스탠딩형 벽감 화장대).
+      return `Edit photo: install a STANDING-TYPE built-in dressing table (스탠딩형 붙박이 화장대).
 
 [FORM — MUST MATCH EXACTLY]
-- Recessed wall niche between flush side panels (${panelColor} matte flat-panel)
-- SLIM FLOATING COUNTERTOP mounted to the back wall of the niche, depth ~400mm, clean square edge, surface: ${ctDesc}
-- Exactly TWO small flat-panel drawers directly under the countertop, side by side across the full counter width (${drawerColor} matte, handleless)
-- OPEN KNEE SPACE below the two drawers, all the way down to the floor — NO lower cabinet, NO doors, NO toe-kick plinth
-- Counter height ~900mm from floor
-- Niche width ~600~900mm (narrow, compact)
+- Built between flush full-height side panels (${panelColor} matte flat-panel)
+- COUNTER HEIGHT = 900mm from floor (standing use)
+- FLOOR-TO-COUNTER FULL DRAWER BANK (0~900mm): the ENTIRE vertical space from floor to the countertop is filled with flat-panel drawers stacked vertically — NO open knee space, NO hinged doors, NO plinth gap
+- 4 to 5 horizontal handleless drawers of equal or slightly graduated height (~180~225mm each), full cabinet width (${drawerColor} matte, push-to-open or hidden J-profile)
+- COUNTERTOP slab at ~900mm height, ~12~20mm thick, clean square edge, surface: ${ctDesc}
+- BACK PANEL (flush matte) rising from the countertop to the ceiling (~900~2300mm)
+- Cabinet width ~800~1200mm, depth ~450~500mm
 
 [MIRROR — ROUND ONLY]
-- ONE perfectly ROUND / CIRCULAR wall mirror (원형거울) centered on the back wall of the niche above the countertop
+- ONE perfectly ROUND / CIRCULAR wall mirror (원형거울) mounted on the back wall, centered above the countertop
 - Round shape only — STRICTLY NOT rectangular, NOT square, NOT oval, NOT irregular
 - Diameter ~500~600mm, thin frameless or micro-bezel
 
 [FINISH]
-- All cabinet panels and drawers: matte flat-panel, completely handleless
-- Counter neatly styled with a perfume bottle, skincare bottle, makeup tray
-${SHARED_FORBIDDEN}`;
+- All drawer fronts, side panels, and back wall: matte flat-panel, completely handleless
+- Counter neatly styled with a perfume bottle, skincare bottles, makeup tray
+${SHARED_FORBIDDEN}
+- NO open knee space under the counter (MUST be full drawer bank from floor)
+- NO hinged doors in the 0~900mm section (drawers only)`;
     }
 
     // ─── AI 추천안 (투톤) ───
