@@ -9,8 +9,6 @@
 // 6) 백그라운드 폴링: 학습 완료 시 status='ready' + model_version 업데이트
 // ═══════════════════════════════════════════════════════════════
 
-import archiver from 'archiver';
-import { PassThrough } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { getConfig } from '../utils/config.js';
 import { createLogger } from '../utils/logger.js';
@@ -127,35 +125,108 @@ async function downloadImage(url: string): Promise<{ buffer: Buffer; ext: string
   return { buffer, ext: /^[a-z0-9]+$/.test(ext) ? ext : 'jpg' };
 }
 
+// ─────────────────────────────────────────────────────────────────
+// 순수 Node ZIP (store mode, 무압축) — archiver 의존성 회피
+// ─────────────────────────────────────────────────────────────────
+
+const CRC32_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = (CRC32_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)) >>> 0;
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// DOS 날짜/시간: 2026-01-01 00:00:00 고정 (실제 값은 학습에 영향 없음)
+const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1; // 0x5C21
+const DOS_TIME = 0;
+
+function writeZipStore(files: Array<{ name: string; data: Buffer }>): Buffer {
+  interface Entry { name: string; nameBuf: Buffer; data: Buffer; crc: number; offset: number; }
+  const parts: Buffer[] = [];
+  const entries: Entry[] = [];
+  let offset = 0;
+
+  for (const f of files) {
+    const nameBuf = Buffer.from(f.name, 'utf8');
+    const crc = crc32(f.data);
+    const hdr = Buffer.alloc(30);
+    hdr.writeUInt32LE(0x04034b50, 0);
+    hdr.writeUInt16LE(20, 4);
+    hdr.writeUInt16LE(0, 6);
+    hdr.writeUInt16LE(0, 8);          // method = store
+    hdr.writeUInt16LE(DOS_TIME, 10);
+    hdr.writeUInt16LE(DOS_DATE, 12);
+    hdr.writeUInt32LE(crc, 14);
+    hdr.writeUInt32LE(f.data.length, 18);
+    hdr.writeUInt32LE(f.data.length, 22);
+    hdr.writeUInt16LE(nameBuf.length, 26);
+    hdr.writeUInt16LE(0, 28);
+    parts.push(hdr, nameBuf, f.data);
+    entries.push({ name: f.name, nameBuf, data: f.data, crc, offset });
+    offset += 30 + nameBuf.length + f.data.length;
+  }
+
+  const cdStart = offset;
+  for (const e of entries) {
+    const cdh = Buffer.alloc(46);
+    cdh.writeUInt32LE(0x02014b50, 0);
+    cdh.writeUInt16LE(20, 4);
+    cdh.writeUInt16LE(20, 6);
+    cdh.writeUInt16LE(0, 8);
+    cdh.writeUInt16LE(0, 10);
+    cdh.writeUInt16LE(DOS_TIME, 12);
+    cdh.writeUInt16LE(DOS_DATE, 14);
+    cdh.writeUInt32LE(e.crc, 16);
+    cdh.writeUInt32LE(e.data.length, 20);
+    cdh.writeUInt32LE(e.data.length, 24);
+    cdh.writeUInt16LE(e.nameBuf.length, 28);
+    cdh.writeUInt16LE(0, 30);
+    cdh.writeUInt16LE(0, 32);
+    cdh.writeUInt16LE(0, 34);
+    cdh.writeUInt16LE(0, 36);
+    cdh.writeUInt32LE(0, 38);
+    cdh.writeUInt32LE(e.offset, 42);
+    parts.push(cdh, e.nameBuf);
+    offset += 46 + e.nameBuf.length;
+  }
+  const cdSize = offset - cdStart;
+
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(cdSize, 12);
+  eocd.writeUInt32LE(cdStart, 16);
+  eocd.writeUInt16LE(0, 20);
+  parts.push(eocd);
+
+  return Buffer.concat(parts);
+}
+
 async function packageImagesAsZip(images: TrainingImage[]): Promise<Buffer> {
-  const archive = archiver('zip', { zlib: { level: 6 } });
-  const stream = new PassThrough();
-  const chunks: Buffer[] = [];
-  stream.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-
-  archive.pipe(stream);
-
+  const files: Array<{ name: string; data: Buffer }> = [];
   let i = 0;
   for (const img of images) {
     try {
       const { buffer, ext } = await downloadImage(img.image_url);
-      const filename = `img_${String(++i).padStart(3, '0')}.${ext}`;
-      archive.append(buffer, { name: filename });
+      files.push({ name: `img_${String(++i).padStart(3, '0')}.${ext}`, data: buffer });
     } catch (e) {
       log.warn({ url: img.image_url, error: (e as Error).message }, '이미지 zip 추가 스킵');
     }
   }
-
-  if (i === 0) throw new Error('zip 에 추가된 이미지 0장 — 모든 다운로드 실패');
-
-  const finalize = new Promise<void>((resolve, reject) => {
-    stream.on('end', () => resolve());
-    stream.on('error', reject);
-    archive.on('error', reject);
-  });
-  await archive.finalize();
-  await finalize;
-  return Buffer.concat(chunks);
+  if (files.length === 0) throw new Error('zip 에 추가된 이미지 0장 — 모든 다운로드 실패');
+  return writeZipStore(files);
 }
 
 // ─────────────────────────────────────────────────────────────────
