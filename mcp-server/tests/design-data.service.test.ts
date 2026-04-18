@@ -157,7 +157,7 @@ describe('extractDesignData', () => {
     expect(result.equipment.faucet).toBeDefined();
   });
 
-  it('maps equipment for vanity category (sink + faucet only)', () => {
+  it('does not map sink/faucet equipment for vanity category (dressing table has no washbasin)', () => {
     const result = extractDesignData({
       category: 'vanity',
       style: 'modern',
@@ -165,14 +165,13 @@ describe('extractDesignData', () => {
       classified: makeClassified(),
     });
 
-    expect(result.equipment.sink).toBeDefined();
-    expect(result.equipment.sink!.type).toBe('vessel');
-    expect(result.equipment.faucet).toBeDefined();
+    expect(result.equipment.sink).toBeUndefined();
+    expect(result.equipment.faucet).toBeUndefined();
     expect(result.equipment.cooktop).toBeUndefined();
     expect(result.equipment.hood).toBeUndefined();
   });
 
-  it('does not include equipment for non-sink/vanity categories', () => {
+  it('does not include equipment for non-sink categories', () => {
     const result = extractDesignData({
       category: 'wardrobe',
       style: 'modern',
