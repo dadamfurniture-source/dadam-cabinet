@@ -25,6 +25,7 @@ import agentRoute from './routes/agent.route.js';
 import designsRoute from './routes/designs.route.js';
 import imagesRoute from './routes/images.route.js';
 import sinkHitlRoute from './routes/sink-hitl.route.js';
+import loraRoute from './routes/lora.route.js';
 
 // 환경 변수 로드
 config();
@@ -52,6 +53,7 @@ app.use(agentRoute);
 app.use(designsRoute);
 app.use(imagesRoute);
 app.use(sinkHitlRoute);
+app.use(loraRoute);
 
 // 인증 확인 엔드포인트
 app.post('/api/auth/verify', requireAuth, (req, res) => {
@@ -75,6 +77,9 @@ app.listen(PORT, () => {
   log.info('  POST /api/agent/chat/stream (SSE)');
   log.info('  CRUD /api/designs (auth required)');
   log.info('  CRUD /api/images  (auth required)');
+  log.info('  POST /api/lora/train  (admin only)');
+  log.info('  GET  /api/lora/status (admin only)');
+  log.info('  GET  /api/lora/list   (admin only)');
   log.info('  GET  /health');
 });
 
