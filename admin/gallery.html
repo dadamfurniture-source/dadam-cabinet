@@ -702,11 +702,11 @@
       }
 
       // ─── LoRA 학습 ───
-      // mcp-server URL (host 별 분기)
+      // mcp-server URL — dadam-generate-api Railway 서비스 (lora routes 포함)
       const LORA_API_BASE = (() => {
         const host = window.location.hostname;
         if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:3200';
-        return window.__DADAM_API_BASE || 'https://agent-api-production-523d.up.railway.app';
+        return window.__DADAM_API_BASE || 'https://dadam-generate-api-production.up.railway.app';
       })();
       const LORA_CATEGORY = 'fridge_cabinet';
       const LORA_MIN_IMAGES = 10;
