@@ -21,6 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
     <script src="js/admin-access.js"></script>
+    <script src="js/fridge-image-gen.js"></script>
   </head>
   <body>
     <!-- SVG Symbols -->
@@ -678,54 +679,7 @@
         window.DADAM_CONFIG?.generateApi?.url ||
         'https://dadam-generate-api-production.up.railway.app/api/generate';
 
-      // ─── 냉장고장 포트폴리오 레퍼런스 (admin/gallery.html 에 업로드된 것) ───
-      async function fetchFridgeReferenceImages(limit = 5) {
-        try {
-          if (!supabaseClient) return [];
-          const { data, error } = await supabaseClient
-            .from('furniture_images')
-            .select('image_url, description, style, created_at')
-            .in('category', ['fridge_cabinet', 'fridge'])
-            .order('created_at', { ascending: false })
-            .limit(limit);
-          if (error) { console.warn('[fridge-ref] fetch 실패:', error.message); return []; }
-          return (data || []).filter((r) => r.image_url);
-        } catch (e) {
-          console.warn('[fridge-ref] 예외:', e.message);
-          return [];
-        }
-      }
-
-      // 공개 URL 의 이미지를 base64 로 변환 (Worker 에 inlineData 로 전달하기 위함)
-      async function urlToBase64(url) {
-        try {
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const blob = await resp.blob();
-          const mimeType = blob.type || 'image/jpeg';
-          const base64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          return { base64, mimeType };
-        } catch (e) {
-          console.warn('[fridge-ref] base64 변환 실패:', url, e.message);
-          return null;
-        }
-      }
-
-      async function buildFridgeReferencePayload(limit = 5) {
-        const rows = await fetchFridgeReferenceImages(limit);
-        if (rows.length === 0) return [];
-        const converted = await Promise.all(rows.map(async (r) => {
-          const img = await urlToBase64(r.image_url);
-          if (!img) return null;
-          return { ...img, description: r.description || r.style || '' };
-        }));
-        return converted.filter(Boolean);
-      }
+      // 냉장고장 포트폴리오 레퍼런스 로직은 js/fridge-image-gen.js (window.FridgeImageGen) 에 분리됨
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
@@ -1865,10 +1819,10 @@ Magazine quality, professional lighting.`;
 
           // 냉장고장: admin/gallery.html 에 업로드된 포트폴리오를 스타일 레퍼런스로 첨부
           let fridgeReferenceImages = [];
-          if (category === 'fridge') {
-            fridgeReferenceImages = await buildFridgeReferencePayload(5);
+          if (category === 'fridge' && window.FridgeImageGen) {
+            fridgeReferenceImages = await window.FridgeImageGen.buildReferencePayload(supabaseClient, 5);
             if (fridgeReferenceImages.length > 0) {
-              console.log('[fridge-ref] 포트폴리오 레퍼런스 첨부:', fridgeReferenceImages.length, '장');
+              console.log('[FridgeImageGen] 포트폴리오 레퍼런스 첨부:', fridgeReferenceImages.length, '장');
             }
           }
 
