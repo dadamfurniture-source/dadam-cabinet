@@ -489,12 +489,8 @@ ${STRUCTURAL_PRESERVE}
 [FORM — MUST MATCH EXACTLY]
 - Flush full-height side panels on both sides (${panelColor} matte flat-panel)
 - COUNTERTOP slab at ~740mm height, ~12mm thick, full ~650mm depth (wall to front edge), surface: ${ctDesc}
-- BELOW THE COUNTER, the under-counter volume is split by depth into TWO zones:
-  * REAR ZONE (wall side, ~300mm deep):
-    - Lower cabinet (0~610mm): TWO hinged flat-panel doors side by side (${panelColor} matte), handleless push-to-open
-    - Toe-kick plinth (0~60mm) recessed ~20mm behind the door faces
-    - TWO slim handleless drawers (610~740mm), ~300mm deep, full width (${drawerColor})
-  * FRONT ZONE (user side, ~350mm deep): COMPLETELY OPEN knee space — NO panels, NO drawers, NO doors, just open negative space so a chair can tuck UNDER the countertop like a desk
+- TWO slim handleless drawers hanging directly under the countertop (610~740mm), spanning the full width, ~300mm deep (${drawerColor}). These drawers are the ONLY storage below the counter
+- COMPLETELY OPEN KNEE SPACE below the drawers and below the front half of the counter — the ENTIRE under-counter volume from 0~610mm across the full ~650mm depth is empty negative space for a chair to slide in like a real desk. NO lower cabinet, NO doors, NO panels, NO toe-kick plinth
 - BACK PANEL (flush matte) rising from the countertop to the ceiling (~740~2300mm)
 - RIGHT-SIDE TALL STORAGE TOWER on the right side, sitting on top of the counter: ~150mm wide × ~570mm deep × ~1500mm tall (from ~740mm to ~2240mm) (${panelColor} matte)
   * BOTTOM OPEN COMPARTMENT (~740~1040mm, height 300mm): completely OPEN niche — NO door, NO drawers, exposed interior
@@ -510,14 +506,15 @@ ${STRUCTURAL_PRESERVE}
 - Diameter ~500~600mm, thin frameless or micro-bezel
 
 [SEATING]
-- Matching upholstered dressing stool or small chair TUCKED UNDER the countertop in the front knee zone (rear cabinet is only 300mm deep, the front ~350mm is open like a desk)
+- Matching upholstered dressing stool or small chair TUCKED UNDER the countertop (entire under-counter space is open — chair slides fully in like a desk)
 
 [FINISH]
 - All panels, doors, and drawer fronts: matte flat-panel, completely handleless
 - Counter neatly styled with perfume bottle, skincare bottles, makeup tray, jewelry dish
 ${SHARED_FORBIDDEN}
-- NO full-depth lower cabinet — rear storage must be only ~300mm deep
-- NO panels or drawers in the front knee zone below the counter
+- NO lower cabinet of ANY depth — under-counter MUST be entirely open (only 2 slim drawers hanging under the counter allowed)
+- NO hinged doors below the counter (drawers only, and only hanging under the counter slab)
+- NO toe-kick plinth at the floor
 - NO door or drawer on the FRONT face of the right-side tower (flush plain panel only)
 - NO drawers inside the right-side tower (shelves + single side-opening door only)
 - NO enclosed bottom on the right-side tower (bottom 300mm MUST be an open compartment)`;
