@@ -219,22 +219,39 @@
       // Supabase Storage 버킷 (furniture-images.sql 참조)
       const STORAGE_BUCKET = 'furniture-images';
 
-      // 품목 한글 라벨
+      // 업로드 시 선택 가능한 canonical 품목 (순서 = 드롭다운 순서)
+      const UPLOAD_CATEGORIES = [
+        // 주방
+        { id: 'l_shaped_sink', name: 'L자형 싱크대' },
+        { id: 'peninsula_sink', name: '반도형 싱크대' },
+        { id: 'island_kitchen', name: '아일랜드' },
+        { id: 'sink', name: '싱크대 (일반)' },
+        // 수납·대형가구
+        { id: 'wardrobe', name: '붙박이장' },
+        { id: 'fridge_cabinet', name: '냉장고장' },
+        { id: 'shoe_cabinet', name: '신발장' },
+        { id: 'vanity', name: '화장대' },
+        { id: 'storage', name: '수납장' },
+        { id: 'warehouse', name: '창고장' },
+        { id: 'door', name: '도어교체' },
+        { id: 'custom', name: '비규격장' },
+        // 부속/부자재
+        { id: 'hood', name: '후드' },
+        { id: 'cooktop', name: '쿡탑' },
+        { id: 'countertop', name: '상판' },
+        { id: 'handle', name: '손잡이' },
+        { id: 'faucet', name: '수전' },
+      ];
+
+      // 라벨 매핑 (업로드 canonical + DB 에 남아있을 수 있는 legacy alias)
       const CATEGORY_LABELS = {
-        'l_shaped_sink': 'L자형 싱크대',
-        'peninsula_sink': '반도형 싱크대',
-        'island_kitchen': '아일랜드',
-        'wardrobe': '붙박이장',
-        'fridge_cabinet': '냉장고장',
-        'vanity': '화장대',
-        'shoe_cabinet': '신발장',
-        'sink': '싱크대',
-        'hood': '후드',
-        'cooktop': '쿡탑',
-        'door': '도어',
-        'countertop': '상판',
-        'handle': '손잡이',
-        'faucet': '수전',
+        ...UPLOAD_CATEGORIES.reduce((acc, c) => { acc[c.id] = c.name; return acc; }, {}),
+        // legacy id 들 — data-constants.js / worker.js 과거 네이밍
+        'fridge': '냉장고장 (구 id)',
+        'shoe': '신발장 (구 id)',
+        'shoerack': '신발장 (구 id)',
+        'island': '아일랜드 (구 id)',
+        'kitchen': '주방 전체',
       };
       function catLabel(cat) { return CATEGORY_LABELS[cat] || cat || '-'; }
 
@@ -253,7 +270,7 @@
         document.getElementById('adminInfo').textContent = name;
         document.getElementById('pageContent').style.display = 'block';
 
-        await loadCategories();
+        populateCategoryDropdowns();
         await loadImages();
       }
 
@@ -262,25 +279,38 @@
         document.getElementById('pageContent').style.display = 'none';
       }
 
-      async function loadCategories() {
-        const { data } = await supabaseClient.from('furniture_images').select('category');
-        const existing = data ? [...new Set(data.map(d => d.category))] : [];
-        // 필터용: 기존 DB에 존재하는 카테고리만 (빈 DB에서도 전체 옵션은 유지)
-        const filterCats = existing.length ? existing.sort() : Object.keys(CATEGORY_LABELS);
+      // 필터 + 업로드 드롭다운 초기화 (DB 조회 없음 — 모든 canonical 항목 노출)
+      function populateCategoryDropdowns() {
         const filterSel = document.getElementById('filterCategory');
-        filterCats.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c; opt.textContent = catLabel(c);
-          filterSel.appendChild(opt);
-        });
-        // 업로드용: CATEGORY_LABELS + 기존 카테고리 합집합 (신규 항목 허용)
-        const uploadCats = [...new Set([...Object.keys(CATEGORY_LABELS), ...existing])].sort();
         const uploadSel = document.getElementById('uploadCategory');
+        // 필터: "전체 품목" + UPLOAD_CATEGORIES
+        filterSel.innerHTML = '<option value="">전체 품목</option>';
+        UPLOAD_CATEGORIES.forEach(c => {
+          filterSel.insertAdjacentHTML('beforeend', `<option value="${c.id}">${c.name}</option>`);
+        });
+        // 업로드: UPLOAD_CATEGORIES only
         uploadSel.innerHTML = '';
-        uploadCats.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c; opt.textContent = catLabel(c);
-          uploadSel.appendChild(opt);
+        UPLOAD_CATEGORIES.forEach(c => {
+          uploadSel.insertAdjacentHTML('beforeend', `<option value="${c.id}">${c.name}</option>`);
+        });
+      }
+
+      // loadImages() 후 DB 에 존재하지만 드롭다운에 없는 orphan 카테고리를 필터에 추가
+      function augmentFilterWithOrphans() {
+        const filterSel = document.getElementById('filterCategory');
+        const existingValues = new Set([...filterSel.options].map(o => o.value));
+        const orphanIds = [...new Set(allImages.map(i => i.category).filter(Boolean))]
+          .filter(id => !existingValues.has(id))
+          .sort((a, b) => catLabel(a).localeCompare(catLabel(b)));
+        if (orphanIds.length === 0) return;
+        // 구분 라벨 추가
+        if (![...filterSel.options].some(o => o.disabled && o.textContent.includes('DB orphan'))) {
+          const sep = document.createElement('option');
+          sep.disabled = true; sep.textContent = '— DB orphan —';
+          filterSel.appendChild(sep);
+        }
+        orphanIds.forEach(id => {
+          filterSel.insertAdjacentHTML('beforeend', `<option value="${id}">${catLabel(id)}</option>`);
         });
       }
 
@@ -335,6 +365,9 @@
         if (result.capped) {
           console.warn('[gallery] hardCap 도달 — 추가 데이터 있을 수 있음');
         }
+
+        // DB 에 이름 모를 orphan 카테고리가 있으면 필터에 추가
+        augmentFilterWithOrphans();
 
         const search = document.getElementById('searchInput').value.toLowerCase();
         let filtered = allImages;
