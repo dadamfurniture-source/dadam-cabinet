@@ -8,7 +8,7 @@
  *   - 그 외: worker.js 내부 buildFurniturePrompt / getWardrobeStructure 등
  */
 
-import { buildFridgePrompt } from './fridge-prompt.js';
+import { buildFridgePrompt, buildFridgeDemolitionPrompt } from './fridge-prompt.js';
 
 // ─── 레이아웃/스타일 매핑 ───
 const LAYOUT_DESC = {
@@ -100,7 +100,7 @@ Return ONLY valid JSON.`;
 }
 
 // ─── 가구 생성 프롬프트 ───
-function buildFurniturePrompt(category, style, kitchenLayout, wallData, themeData, fridgeOptions) {
+function buildFurniturePrompt(category, style, kitchenLayout, wallData, themeData, fridgeOptions, extra = {}) {
   const layoutDesc = LAYOUT_DESC[kitchenLayout] || 'straight linear';
   const styleName = STYLE_MAP[style] || 'Modern Minimal';
   const doorColor = themeData.style_door_color || 'white';
@@ -135,7 +135,14 @@ No visible handles. ${styleName}. Photorealistic. All doors closed.`;
   }
 
   if (category === 'fridge' || category === 'fridge_cabinet') {
-    return buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts: fridgeOptions });
+    return buildFridgePrompt({
+      doorColor,
+      doorFinish,
+      wallData,
+      styleName,
+      fridgeOpts: fridgeOptions,
+      siteAlreadyCleared: !!extra.siteAlreadyCleared,
+    });
   }
 
   if (category === 'vanity') {
@@ -294,12 +301,50 @@ export default {
         }
         } // end else (AI wall analysis)
 
+        // ═══ Step 1b: 냉장고장 전용 — 기존 구조 철거 (빈 벽 사진 생성) ═══
+        const isFridge = (category === 'fridge' || category === 'fridge_cabinet');
+        let installBaseImage = room_image;
+        let installMime = image_type;
+        let demoSucceeded = false;
+        let demolishedImage = null;
+        if (isFridge) {
+          try {
+            const demoResult = await callGemini(
+              env,
+              buildFridgeDemolitionPrompt(),
+              room_image,
+              image_type,
+              ['IMAGE', 'TEXT'],
+              0.2,
+            );
+            if (demoResult.image) {
+              installBaseImage = demoResult.image;
+              installMime = 'image/png';
+              demoSucceeded = true;
+              demolishedImage = demoResult.image;
+              console.log('[Generate] Fridge demolition stage complete');
+            } else {
+              console.warn('[Generate] Fridge demolition returned no image, using raw room image');
+            }
+          } catch (e) {
+            console.warn('[Generate] Fridge demolition failed, using raw room image:', e.message);
+          }
+        }
+
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
-        const fridgeOptsForPrompt = (category === 'fridge' || category === 'fridge_cabinet')
+        const fridgeOptsForPrompt = isFridge
           ? { ...(fridge_options || {}), referenceCount: refImages.length }
           : fridge_options;
-        const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData, fridgeOptsForPrompt);
-        const closedResult = await callGemini(env, furniturePrompt, room_image, image_type, undefined, undefined, refImages);
+        const furniturePrompt = buildFurniturePrompt(
+          category,
+          design_style,
+          kitchen_layout,
+          { wallW, wallH, waterPct, exhaustPct },
+          themeData,
+          fridgeOptsForPrompt,
+          { siteAlreadyCleared: demoSucceeded },
+        );
+        const closedResult = await callGemini(env, furniturePrompt, installBaseImage, installMime, undefined, undefined, refImages);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
@@ -348,19 +393,26 @@ export default {
         const elapsed = Date.now() - startTime;
         console.log(`[Generate] Complete in ${elapsed}ms`);
 
+        const generatedImage = {
+          background: room_image,
+          closed: closedResult.image,
+          open: openImage,
+        };
+        if (isFridge) {
+          // 철거 중간 이미지는 UI 에 표시하지 않지만 디버깅/회귀 검수를 위해 payload 에 포함
+          generatedImage.demolished = demolishedImage;
+        }
+
         return new Response(JSON.stringify({
           success: true,
-          generated_image: {
-            background: room_image,
-            closed: closedResult.image,
-            open: openImage,
-          },
+          generated_image: generatedImage,
           quote,
           wall_analysis: { wallW, wallH, waterPct, exhaustPct },
           metadata: {
             category, kitchen_layout, design_style,
             model: env.GEMINI_MODEL || 'gemini-2.5-flash-image',
             elapsed_ms: elapsed,
+            fridge_demolition: isFridge ? { attempted: true, succeeded: demoSucceeded } : undefined,
           },
         }), {
           headers: { ...headers, 'Content-Type': 'application/json' },
