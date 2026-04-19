@@ -70,17 +70,36 @@ function describeAppliances(opts) {
 function describeStyleReference(refCount) {
   if (!refCount || refCount <= 0) return '';
   const plural = refCount > 1;
-  return ` STYLE REFERENCE: The next ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 학습용 레퍼런스 (training examples) — match their door-panel layout, proportions, reveal lines, handle style, material finish, and bridge-cabinet proportion exactly. First image is the already-cleared target room — preserve its background, floor, ceiling, window, and outer walls EXACTLY.`;
+  return ` STYLE REFERENCE: Image 1 is the ONLY base photo — its floor, ceiling, walls, window, lighting are the target. The following ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 training example${plural ? 's' : ''} — use ONLY their door-panel layout, proportions, reveal lines, handle style, material finish, and bridge-cabinet proportion. DO NOT COPY their floor, ceiling, walls, windows, lighting, camera angle, or any background element into the output. Background comes from Image 1 alone.`;
 }
 
 // 철거 실패 폴백용 INSTALLATION SITE PREPARATION 문구
 const FALLBACK_SITE_PREP = 'INSTALLATION SITE PREPARATION: Completely clear the target wall area before placing the new cabinet — remove any existing storage, shelves, partitions, paneling, trim, or wall finishes so the new pantry is the only furniture on that wall.';
 
 // 설치·추천 단계에서 반복되는 배경 고정 지시문 (사용자 요구: 배경 변경 불가)
-const BACKGROUND_LOCK = `BACKGROUND LOCK (CRITICAL — hard requirement):
-- The first image's floor, ceiling, side walls, window, curtains, lighting, white balance, camera angle, perspective, and every element OUTSIDE the target installation wall MUST remain pixel-identical.
-- Do NOT crop, zoom, pan, shift perspective, recolor, or relight the room.
-- Only the target installation wall may contain new cabinetry; everywhere else is frozen.`;
+// 프롬프트 최상단에 배치해 Gemini 가 설치 지시를 처리하기 전에 배경 제약을 먼저 인식하도록 한다.
+const BACKGROUND_LOCK = `BACKGROUND LOCK (ABSOLUTE HARD REQUIREMENT — read this FIRST):
+Image 1 is the BASE photograph. Everything in it EXCEPT the target installation wall must come through to the output PIXEL-IDENTICAL. Treat this as an inpainting task where only the target wall is editable.
+
+PIXEL-IDENTICAL — must not change in any way:
+- Floor: material, wood-grain pattern, tile layout, board direction, color, sheen, grout lines, stains, reflections
+- Ceiling: color, texture, height, recessed lights positions, ceiling molding
+- Side walls and ALL walls outside the target installation wall: paint color, wallpaper, trim
+- Window: frame, mullion, glass, curtains, blinds, view outside
+- Lighting: white balance, color temperature, shadow direction, highlight placement
+- Camera: angle, perspective, focal length, lens distortion, framing, crop
+- Any furniture, plant, rug, décor, outlet, switch NOT on the target wall
+
+FORBIDDEN CHANGES (common failure modes — do NOT commit any of these):
+- Do NOT recolor or replace the floor (no swapping wood species, no adding rugs)
+- Do NOT recolor or re-paint non-target walls
+- Do NOT change window size, shape, curtain style, or the outside view
+- Do NOT re-orient the room or shift camera angle even slightly
+- Do NOT warm-up or cool-down the lighting
+- Do NOT copy any floor/ceiling/wall/window appearance from reference images (those are style-only)
+- Do NOT crop or re-frame the photo
+
+Only the target installation wall may receive new cabinetry. Everywhere else is FROZEN.`;
 
 /**
  * Stage 1: 철거 프롬프트.
@@ -134,8 +153,9 @@ export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, 
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
-  return `Edit photo: install ${doorColor} ${doorFinish} refrigerator surround cabinet. PRESERVE background of the first image EXACTLY.${sitePrep}
-${BACKGROUND_LOCK}
+  return `${BACKGROUND_LOCK}
+
+TASK: Edit Image 1 by installing a ${doorColor} ${doorFinish} refrigerator surround cabinet onto the target wall ONLY. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
 Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Layout: ${layout}, bridge cabinet above fridge.
 ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliances}${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
@@ -161,8 +181,9 @@ export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, 
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
-  return `Edit photo: install a premium ${doorColor} ${doorFinish} refrigerator surround cabinet WITH an integrated home-bar and home-cafe zone. PRESERVE background of the first image EXACTLY.${sitePrep}
-${BACKGROUND_LOCK}
+  return `${BACKGROUND_LOCK}
+
+TASK: Edit Image 1 by installing a premium ${doorColor} ${doorFinish} refrigerator surround cabinet WITH an integrated home-bar and home-cafe zone onto the target wall ONLY. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
 Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Base layout: ${layout}, bridge cabinet above fridge.
 
 HOME BAR / HOME CAFE ZONE — adjacent to the fridge column, blended into the same ${doorColor} ${doorFinish} cabinetry:
