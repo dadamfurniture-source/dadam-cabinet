@@ -101,6 +101,50 @@ FORBIDDEN CHANGES (common failure modes — do NOT commit any of these):
 
 Only the target installation wall may receive new cabinetry. Everywhere else is FROZEN.`;
 
+// 추천 디자인 (홈바·홈카페) 의 긴 자유 묘사 뒤에 다시 못 박는 짧은 재확인 문구.
+const BACKGROUND_LOCK_REMINDER = `REMINDER — BACKGROUND LOCK still applies: do NOT touch floor, ceiling, side walls, window, curtains, lighting, or camera angle. The home-bar zone is only allowed to occupy the target wall area, not to redecorate the rest of the room.`;
+
+/**
+ * 사용자가 선택한 냉장고 옵션을 Gemini 가 무시하지 못하도록 HARD REQUIREMENTS 블록으로 변환.
+ * 레퍼런스 이미지의 사양과 충돌하면 옵션이 우선임을 명시.
+ */
+function buildSpecLock(opts) {
+  const o = opts || {};
+  const brand = o.brand === 'lg' ? 'LG' : 'Samsung';
+  const lineDesc = LINE_DESC[o.modelLine] || '';
+  // LINE_DESC 문자열에 이미 브랜드명이 들어있는 경우(중복 방지)
+  const lineHasBrand = lineDesc.toLowerCase().includes(brand.toLowerCase());
+  const brandLine = lineDesc
+    ? (lineHasBrand ? lineDesc : `${brand} ${lineDesc}`)
+    : `${brand} (model line not specified)`;
+  const combo = o.combo || { '4door': 1 };
+  const comboParts = [];
+  for (const [type, count] of Object.entries(combo)) {
+    if (Number(count) > 0) {
+      comboParts.push(`${count}× ${UNIT_DESC[type] || type}`);
+    }
+  }
+  if (comboParts.length === 0) comboParts.push(`1× ${UNIT_DESC['4door']}`);
+  const position = o.position === 'right' ? 'RIGHT' : 'LEFT';
+  const oppPosition = o.position === 'right' ? 'LEFT' : 'RIGHT';
+  const ids = Array.isArray(o.appliances) ? o.appliances : [];
+  const applianceNames = ids.map((id) => APPLIANCE_DESC[id]).filter(Boolean);
+
+  const lines = [
+    `SPEC LOCK (HARD REQUIREMENTS — these specs OVERRIDE anything seen in the reference images):`,
+    `- Brand & line: ${brandLine}. Use authentic ${brand} refrigerator proportions, door divisions, hinge placement, and panel splits — not a generic fridge and not the brand shown in any reference image.`,
+    `- Refrigerator unit count and types — exactly this many appear on the target wall, no more, no fewer: ${comboParts.join(' + ')}.`,
+    `- Refrigerator position: occupies the ${position} side of the target wall. Tall pantry / storage cabinets fill the ${oppPosition} side. Do NOT swap sides.`,
+  ];
+  if (applianceNames.length > 0) {
+    lines.push(`- Built-in appliances that MUST appear, visibly placed inside the cabinetry's open or glass-front niches: ${applianceNames.join(', ')}. None of these may be omitted.`);
+  } else {
+    lines.push(`- No built-in cooking appliances on this wall — no oven, no microwave, no air-fryer drawer. Only the refrigerator(s) and closed cabinetry.`);
+  }
+  lines.push(`- If a reference image shows a different brand, different door count, opposite position, or extra appliances, IGNORE those aspects of the reference. References are consulted ONLY for door-panel finish, reveal lines, handleless detail, and bridge-cabinet proportion.`);
+  return lines.join('\n');
+}
+
 /**
  * Stage 1: 철거 프롬프트.
  * 입력 이미지에서 기존 빌트인 구조를 전부 없애고 평평한 드라이월만 남긴 사진을 생성.
@@ -147,17 +191,17 @@ OUTPUT: bare flat painted drywall on the target wall, smooth and uniform, ready 
  */
 export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
   const opts = fridgeOpts || {};
-  const combo = describeCombo(opts);
-  const layout = describeLayout(opts);
-  const appliances = describeAppliances(opts);
+  const specLock = buildSpecLock(opts);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
   return `${BACKGROUND_LOCK}
 
-TASK: Edit Image 1 by installing a ${doorColor} ${doorFinish} refrigerator surround cabinet onto the target wall ONLY. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Layout: ${layout}, bridge cabinet above fridge.
-ALL cabinet doors: ${doorColor} ${doorFinish} flat-panel. Door surface smooth and seamless.${appliances}${styleRef}
+${specLock}
+
+TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above onto the target wall ONLY. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
+Target wall dimensions: ${wallData.wallW}×${wallData.wallH}mm. Place a bridge cabinet across the top spanning the full wall width.
+ALL cabinet doors and panels: ${doorColor} ${doorFinish} flat-panel, handleless, seamless reveals. Door surface smooth and seamless.${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
 
@@ -175,26 +219,28 @@ ${styleName}. Photorealistic. All doors closed. No text.`;
  */
 export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
   const opts = fridgeOpts || {};
-  const combo = describeCombo(opts);
-  const layout = describeLayout(opts);
-  const appliances = describeAppliances(opts);
+  const specLock = buildSpecLock(opts);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
   return `${BACKGROUND_LOCK}
 
-TASK: Edit Image 1 by installing a premium ${doorColor} ${doorFinish} refrigerator surround cabinet WITH an integrated home-bar and home-cafe zone onto the target wall ONLY. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Fridge: ${combo}. Base layout: ${layout}, bridge cabinet above fridge.
+${specLock}
 
-HOME BAR / HOME CAFE ZONE — adjacent to the fridge column, blended into the same ${doorColor} ${doorFinish} cabinetry:
+TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above, AND adding an integrated home-bar / home-cafe zone on the SAME target wall, blended into the same cabinetry run. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above. The home-bar zone may ONLY occupy area on the target wall — it must NOT extend into the floor area, ceiling, side walls, or anywhere outside the target wall.${sitePrep}
+Target wall dimensions: ${wallData.wallW}×${wallData.wallH}mm. Bridge cabinet spans the top across the full wall width.
+
+HOME BAR / HOME CAFE ZONE — adjacent to the refrigerator column on the target wall, blended into the same ${doorColor} ${doorFinish} cabinetry:
 - Counter-height recessed niche (about 600mm wide, 400mm tall) with integrated power, sized for an espresso machine or drip coffee maker.
 - Glass-front upper wall cabinet above the niche, interior lit, displaying mugs and stemware on slim shelves.
 - Short open shelving bay (about 300–400mm wide) for carafes, tea canisters, wine bottles, or serveware.
 - Closed lower drawer under the niche for coffee beans / small appliances.
 - Tall pantry doors fill the remaining wall width up to the bridge cabinet, matching the fridge column height.
 
-ALL cabinet doors and panels: ${doorColor} ${doorFinish} flat-panel, handleless, seamless reveals. No chrome handles.${appliances}${styleRef}
-${styleName}. Photorealistic editorial interior shot. All closed doors fully closed. No text, labels, or floating captions.`;
+ALL cabinet doors and panels: ${doorColor} ${doorFinish} flat-panel, handleless, seamless reveals. No chrome handles.${styleRef}
+${styleName}. Photorealistic editorial interior shot. All closed doors fully closed. No text, labels, or floating captions.
+
+${BACKGROUND_LOCK_REMINDER}`;
 }
 
 // 테스트/디버깅용 (필요 시 worker 외부에서 불러 확인)
@@ -204,6 +250,8 @@ export const __internals = {
   APPLIANCE_DESC,
   FALLBACK_SITE_PREP,
   BACKGROUND_LOCK,
+  BACKGROUND_LOCK_REMINDER,
+  buildSpecLock,
   describeCombo,
   describeLayout,
   describeAppliances,
