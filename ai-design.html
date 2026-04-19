@@ -282,10 +282,10 @@
       <input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFileUpload('shoe', this)" />
 
 
-      <!-- 벽 길이 수동 입력 (붙박이장 전용) -->
+      <!-- 벽 길이 수동 입력 (붙박이장 / 냉장고장 공용) -->
       <div class="wall-width-section" id="wallWidthSection" style="display: none; margin-bottom: 20px;">
-        <p class="section-title">벽 길이 입력 (선택)</p>
-        <p class="section-subtitle">정확한 견적을 위해 벽 길이를 입력하세요. 미입력 시 AI가 자동 분석합니다.</p>
+        <p class="section-title">벽 길이 입력 (정확도 향상)</p>
+        <p class="section-subtitle">실측한 벽 길이를 입력하면 냉장고·팬트리 위치가 정확히 좌·우 끝에 정렬됩니다. 미입력 시 AI가 자동 추정합니다.</p>
         <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
           <input type="number" id="wallWidthInput" min="1000" max="6000" step="100"
             placeholder="예: 3000"
@@ -1615,15 +1615,16 @@ Magazine quality, professional lighting.`;
       // 붙박이장 벽 길이 입력 표시/숨기기
       // ═══════════════════════════════════════════════════════════════
       function updateKitchenLayoutVisibility() {
-        // 붙박이장 벽 길이 입력 섹션
+        // 붙박이장 / 냉장고장 공통 벽 길이 입력 섹션 (둘 중 하나라도 있으면 노출)
         const wallSection = document.getElementById('wallWidthSection');
         const hasWardrobe = state.uploadedImages['wardrobe'] !== undefined;
-        wallSection.style.display = hasWardrobe ? 'block' : 'none';
-        if (!hasWardrobe) document.getElementById('wallWidthInput').value = '';
+        const hasFridge = state.uploadedImages['fridge'] !== undefined;
+        const showWallInput = hasWardrobe || hasFridge;
+        wallSection.style.display = showWallInput ? 'block' : 'none';
+        if (!showWallInput) document.getElementById('wallWidthInput').value = '';
 
         // 냉장고장 옵션 섹션
         const fridgeSection = document.getElementById('fridgeOptionsSection');
-        const hasFridge = state.uploadedImages['fridge'] !== undefined;
         fridgeSection.style.display = hasFridge ? 'block' : 'none';
         if (hasFridge) initFridgeOptions();
 
@@ -1905,7 +1906,9 @@ Magazine quality, professional lighting.`;
                 image_type: imageData.type,
                 category: category,
                 design_style: state.selectedStyle,
-                wall_width_override: category === 'wardrobe' ? (document.getElementById('wallWidthInput')?.value || undefined) : undefined,
+                wall_width_override: (category === 'wardrobe' || category === 'fridge')
+                  ? (document.getElementById('wallWidthInput')?.value || undefined)
+                  : undefined,
                 fridge_options: category === 'fridge' ? state.fridgeOptions : undefined,
                 vanity_options: category === 'vanity' ? state.vanityOptions : undefined,
                 reference_images: fridgeReferenceImages.length > 0 ? fridgeReferenceImages : undefined,

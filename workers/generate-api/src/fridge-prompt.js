@@ -18,6 +18,14 @@ const UNIT_DESC = {
   '4door': 'french-door (4-door) refrigerator',
 };
 
+// 냉장고 유닛별 표준 가로폭 (mm). 절대 좌표 계산에 사용.
+// 한국 빌트인 표준 기준: 1도어 컬럼은 좁고, 3·4도어는 비슷한 와이드 바디.
+const UNIT_WIDTH_MM = {
+  '1door': 600,
+  '3door': 900,
+  '4door': 900,
+};
+
 const LINE_DESC = {
   bespoke: 'Samsung Bespoke Kitchen Fit',
   infinite: 'Samsung Infinite Line',
@@ -70,7 +78,7 @@ function describeAppliances(opts) {
 function describeStyleReference(refCount) {
   if (!refCount || refCount <= 0) return '';
   const plural = refCount > 1;
-  return ` STYLE REFERENCE: Image 1 is the ONLY base photo — its floor, ceiling, walls, window, lighting are the target. The following ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 training example${plural ? 's' : ''} — use ONLY their door-panel layout, proportions, reveal lines, handle style, material finish, and bridge-cabinet proportion. DO NOT COPY their floor, ceiling, walls, windows, lighting, camera angle, or any background element into the output. Background comes from Image 1 alone.`;
+  return ` STYLE REFERENCE: Image 1 is the ONLY base photo — its floor, ceiling, walls, window, lighting are the target. The following ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 training example${plural ? 's' : ''} — use ONLY their door-panel finish, reveal lines, handleless detail, and material texture. DO NOT COPY their floor, ceiling, walls, windows, lighting, camera angle, OR refrigerator placement, refrigerator-vs-pantry proportion, refrigerator centering, or column widths into the output. Layout (which side the fridge sits on, where it starts, how wide the pantry is) comes ONLY from SPEC LOCK above; backgrounds come ONLY from Image 1.`;
 }
 
 // 철거 실패 폴백용 INSTALLATION SITE PREPARATION 문구
@@ -106,43 +114,123 @@ const BACKGROUND_LOCK_REMINDER = `REMINDER — BACKGROUND LOCK still applies: do
 
 /**
  * 사용자가 선택한 냉장고 옵션을 Gemini 가 무시하지 못하도록 HARD REQUIREMENTS 블록으로 변환.
- * 레퍼런스 이미지의 사양과 충돌하면 옵션이 우선임을 명시.
+ * - 유닛별 가로 폭 (UNIT_WIDTH_MM) 으로 냉장고 그룹 총 폭을 계산
+ * - position 을 절대 좌표 (mm offset) 로 표현 → "LEFT side" 같은 모호함 제거
+ * - 멀티 유닛이면 좌→우 순서 명시
+ * - 레퍼런스 이미지의 사양과 충돌하면 옵션이 우선임을 명시.
  */
-function buildSpecLock(opts) {
+function buildSpecLock(opts, wallW) {
   const o = opts || {};
+  const W = Number(wallW) || 3000;
   const brand = o.brand === 'lg' ? 'LG' : 'Samsung';
   const lineDesc = LINE_DESC[o.modelLine] || '';
-  // LINE_DESC 문자열에 이미 브랜드명이 들어있는 경우(중복 방지)
   const lineHasBrand = lineDesc.toLowerCase().includes(brand.toLowerCase());
   const brandLine = lineDesc
     ? (lineHasBrand ? lineDesc : `${brand} ${lineDesc}`)
     : `${brand} (model line not specified)`;
+
+  // 1) 냉장고 유닛 시퀀스 — 좁은(1door) → 넓은(3·4door) 순으로 정렬해 외관상 자연스러움
   const combo = o.combo || { '4door': 1 };
-  const comboParts = [];
-  for (const [type, count] of Object.entries(combo)) {
-    if (Number(count) > 0) {
-      comboParts.push(`${count}× ${UNIT_DESC[type] || type}`);
+  const order = ['1door', '3door', '4door']; // 좌→우 표시 순서
+  const unitSeq = []; // [{type, widthMm}]
+  for (const type of order) {
+    const n = Number(combo[type] || 0);
+    for (let i = 0; i < n; i++) {
+      unitSeq.push({ type, widthMm: UNIT_WIDTH_MM[type] || 900 });
     }
   }
-  if (comboParts.length === 0) comboParts.push(`1× ${UNIT_DESC['4door']}`);
+  if (unitSeq.length === 0) unitSeq.push({ type: '4door', widthMm: UNIT_WIDTH_MM['4door'] });
+
+  const totalFridgeMm = unitSeq.reduce((s, u) => s + u.widthMm, 0);
+  const pantryMm = Math.max(0, W - totalFridgeMm);
+
+  const comboParts = unitSeq.map((u) => `${UNIT_DESC[u.type]} (~${u.widthMm}mm wide)`);
   const position = o.position === 'right' ? 'RIGHT' : 'LEFT';
-  const oppPosition = o.position === 'right' ? 'LEFT' : 'RIGHT';
+
+  // 2) 절대 좌표 기반 위치 지시 (벽의 left edge 를 x=0 기준)
+  let layoutLine;
+  if (position === 'LEFT') {
+    layoutLine =
+      `- Refrigerator group STARTS FLUSH AGAINST THE WALL'S LEFT EDGE (x=0mm) and extends rightward to x=${totalFridgeMm}mm. ` +
+      `Tall pantry / storage cabinets begin immediately at x=${totalFridgeMm}mm and continue to the wall's RIGHT edge (x=${W}mm), filling exactly ${pantryMm}mm. ` +
+      `No gap between the refrigerator group and the pantry. No empty wall space on the left of the refrigerator.`;
+  } else {
+    layoutLine =
+      `- Refrigerator group ENDS FLUSH AGAINST THE WALL'S RIGHT EDGE (x=${W}mm); it starts at x=${pantryMm}mm and extends rightward ${totalFridgeMm}mm. ` +
+      `Tall pantry / storage cabinets fill from the wall's LEFT edge (x=0mm) to x=${pantryMm}mm. ` +
+      `No gap between the pantry and the refrigerator group. No empty wall space on the right of the refrigerator.`;
+  }
+
+  // 3) 멀티 유닛이면 내부 순서 명시 (왼쪽부터 누적 좌표)
+  let unitOrderLine = '';
+  if (unitSeq.length > 1) {
+    let cursor = position === 'LEFT' ? 0 : pantryMm;
+    const ranges = unitSeq.map((u) => {
+      const start = cursor;
+      const end = cursor + u.widthMm;
+      cursor = end;
+      return `${UNIT_DESC[u.type]} occupies x=${start}mm → x=${end}mm`;
+    });
+    unitOrderLine = `- Inside the refrigerator group, units are placed strictly LEFT-TO-RIGHT in this order with NO overlap and NO gap: ${ranges.join('; then ')}.`;
+  }
+
   const ids = Array.isArray(o.appliances) ? o.appliances : [];
   const applianceNames = ids.map((id) => APPLIANCE_DESC[id]).filter(Boolean);
 
   const lines = [
     `SPEC LOCK (HARD REQUIREMENTS — these specs OVERRIDE anything seen in the reference images):`,
+    `- Target wall total width: ${W}mm. All x-coordinates below are measured from the wall's LEFT edge (x=0mm) to its RIGHT edge (x=${W}mm).`,
     `- Brand & line: ${brandLine}. Use authentic ${brand} refrigerator proportions, door divisions, hinge placement, and panel splits — not a generic fridge and not the brand shown in any reference image.`,
-    `- Refrigerator unit count and types — exactly this many appear on the target wall, no more, no fewer: ${comboParts.join(' + ')}.`,
-    `- Refrigerator position: occupies the ${position} side of the target wall. Tall pantry / storage cabinets fill the ${oppPosition} side. Do NOT swap sides.`,
+    `- Refrigerator units (exactly this many appear, no more no fewer, in this exact left-to-right order): ${comboParts.join(' + ')}. Total refrigerator group width ≈ ${totalFridgeMm}mm.`,
+    layoutLine,
   ];
+  if (unitOrderLine) lines.push(unitOrderLine);
   if (applianceNames.length > 0) {
     lines.push(`- Built-in appliances that MUST appear, visibly placed inside the cabinetry's open or glass-front niches: ${applianceNames.join(', ')}. None of these may be omitted.`);
   } else {
     lines.push(`- No built-in cooking appliances on this wall — no oven, no microwave, no air-fryer drawer. Only the refrigerator(s) and closed cabinetry.`);
   }
-  lines.push(`- If a reference image shows a different brand, different door count, opposite position, or extra appliances, IGNORE those aspects of the reference. References are consulted ONLY for door-panel finish, reveal lines, handleless detail, and bridge-cabinet proportion.`);
+  lines.push(`- If a reference image shows a different brand, different door count, opposite position, OR a different placement (centered when LEFT was requested, etc.), IGNORE those aspects of the reference. References are consulted ONLY for door-panel finish, reveal lines, handleless detail, and bridge-cabinet proportion.`);
   return lines.join('\n');
+}
+
+/**
+ * 상단 브릿지 캐비닛이 아래 컬럼 경계와 동기화되도록 강제하는 블록.
+ * SPEC LOCK 의 좌표 정보가 있어야 모델이 어디에 seam 을 둬야 할지 알 수 있음.
+ */
+function buildSeamAlignment(opts, wallW) {
+  const o = opts || {};
+  const W = Number(wallW) || 3000;
+  const combo = o.combo || { '4door': 1 };
+  const order = ['1door', '3door', '4door'];
+  const unitSeq = [];
+  for (const type of order) {
+    const n = Number(combo[type] || 0);
+    for (let i = 0; i < n; i++) unitSeq.push({ type, widthMm: UNIT_WIDTH_MM[type] || 900 });
+  }
+  if (unitSeq.length === 0) unitSeq.push({ type: '4door', widthMm: UNIT_WIDTH_MM['4door'] });
+  const totalFridgeMm = unitSeq.reduce((s, u) => s + u.widthMm, 0);
+  const pantryMm = Math.max(0, W - totalFridgeMm);
+  const position = o.position === 'right' ? 'RIGHT' : 'LEFT';
+
+  // 위→아래 컬럼 경계 좌표
+  const seams = new Set();
+  if (position === 'LEFT') {
+    let c = 0;
+    for (const u of unitSeq) { c += u.widthMm; seams.add(c); }
+    // 냉장고 그룹 끝(=팬트리 시작) 도 자연스럽게 포함됨
+  } else {
+    let c = pantryMm;
+    for (const u of unitSeq) { c += u.widthMm; if (c < W) seams.add(c); }
+    seams.add(pantryMm); // 팬트리 끝(=냉장고 시작)
+  }
+  const seamList = [...seams].sort((a, b) => a - b);
+
+  return `VERTICAL SEAM ALIGNMENT (required — bridge cabinet must follow column layout below):
+- Treat the top bridge cabinet as a horizontal panel run that MIRRORS the vertical seams of the cabinetry below it.
+- The bridge cabinet MUST have panel divisions at exactly these x-coordinates (mm from the wall's left edge): ${seamList.join('mm, ')}mm.
+- Bridge cabinet panels DIRECTLY ABOVE the refrigerator group share the same width as each refrigerator unit; bridge panels DIRECTLY ABOVE the pantry columns share the same width as the pantry door modules.
+- DO NOT introduce floating bridge panel divisions that ignore the columns below. No off-axis seams.`;
 }
 
 /**
@@ -191,7 +279,9 @@ OUTPUT: bare flat painted drywall on the target wall, smooth and uniform, ready 
  */
 export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
   const opts = fridgeOpts || {};
-  const specLock = buildSpecLock(opts);
+  const wallW = (wallData && Number(wallData.wallW)) || 3000;
+  const specLock = buildSpecLock(opts, wallW);
+  const seamLock = buildSeamAlignment(opts, wallW);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
@@ -199,8 +289,10 @@ export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, 
 
 ${specLock}
 
-TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above onto the target wall ONLY. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
-Target wall dimensions: ${wallData.wallW}×${wallData.wallH}mm. Place a bridge cabinet across the top spanning the full wall width.
+${seamLock}
+
+TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above onto the target wall ONLY, following the exact x-coordinates and seam alignment requirements above. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
+Target wall dimensions: ${wallW}×${(wallData && wallData.wallH) || 2400}mm. Place a bridge cabinet across the top spanning the full wall width, divided per VERTICAL SEAM ALIGNMENT above.
 ALL cabinet doors and panels: ${doorColor} ${doorFinish} flat-panel, handleless, seamless reveals. Door surface smooth and seamless.${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
@@ -219,7 +311,9 @@ ${styleName}. Photorealistic. All doors closed. No text.`;
  */
 export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
   const opts = fridgeOpts || {};
-  const specLock = buildSpecLock(opts);
+  const wallW = (wallData && Number(wallData.wallW)) || 3000;
+  const specLock = buildSpecLock(opts, wallW);
+  const seamLock = buildSeamAlignment(opts, wallW);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
 
@@ -227,8 +321,10 @@ export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, 
 
 ${specLock}
 
-TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above, AND adding an integrated home-bar / home-cafe zone on the SAME target wall, blended into the same cabinetry run. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above. The home-bar zone may ONLY occupy area on the target wall — it must NOT extend into the floor area, ceiling, side walls, or anywhere outside the target wall.${sitePrep}
-Target wall dimensions: ${wallData.wallW}×${wallData.wallH}mm. Bridge cabinet spans the top across the full wall width.
+${seamLock}
+
+TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above (with the exact x-coordinates), AND adding an integrated home-bar / home-cafe zone on the SAME target wall, BLENDED INTO THE PANTRY HALF (do NOT shift the refrigerator group from its locked x-coordinates). Background of Image 1 stays pixel-identical per BACKGROUND LOCK above. The home-bar zone may ONLY occupy area on the target wall — it must NOT extend into the floor area, ceiling, side walls, or anywhere outside the target wall.${sitePrep}
+Target wall dimensions: ${wallW}×${(wallData && wallData.wallH) || 2400}mm. Bridge cabinet spans the top across the full wall width, divided per VERTICAL SEAM ALIGNMENT above (the home-bar internal seams are additional, but must NOT alter the refrigerator-vs-pantry seam).
 
 HOME BAR / HOME CAFE ZONE — adjacent to the refrigerator column on the target wall, blended into the same ${doorColor} ${doorFinish} cabinetry:
 - Counter-height recessed niche (about 600mm wide, 400mm tall) with integrated power, sized for an espresso machine or drip coffee maker.
@@ -246,12 +342,14 @@ ${BACKGROUND_LOCK_REMINDER}`;
 // 테스트/디버깅용 (필요 시 worker 외부에서 불러 확인)
 export const __internals = {
   UNIT_DESC,
+  UNIT_WIDTH_MM,
   LINE_DESC,
   APPLIANCE_DESC,
   FALLBACK_SITE_PREP,
   BACKGROUND_LOCK,
   BACKGROUND_LOCK_REMINDER,
   buildSpecLock,
+  buildSeamAlignment,
   describeCombo,
   describeLayout,
   describeAppliances,
