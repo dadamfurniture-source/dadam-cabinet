@@ -90,7 +90,14 @@ PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camer
 export function buildWardrobeStructureAnalysisPrompt() {
   return `You are looking at a photo of a newly generated built-in wardrobe covering one entire wall, all doors closed. The design is HANDLELESS — the door faces should be perfectly flat matte rectangles with no visible handles, pulls, or hardware.
 
-Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE) and return ONLY the following JSON, no prose:
+Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE) and classify each door into a SECTION of type "2D" (two-door pair sharing a section, opening outward from the center seam between them) or "1D" (single door that forms its own section).
+
+Section classification rule:
+- Pair adjacent doors that read as matching twins (similar width + a center seam between them) into a 2D section of two doors.
+- Any door that cannot be paired (leftover, noticeably different width, or a standalone at the end) is a 1D section of one door.
+- If the total door count is ODD, the LAST section (rightmost standalone door) must be classified as 1D.
+
+Return ONLY the following JSON, no prose:
 
 {
   "door_count": integer — number of distinct vertical doors you can count,
@@ -100,17 +107,33 @@ Analyze the wardrobe as it actually appears in this image (do NOT guess the plan
       "relative_width": "narrow | medium | wide",
       "approx_x_start_pct": integer 0-100 (percent of wall width where this door's LEFT edge sits),
       "approx_x_end_pct":   integer 0-100 (percent of wall width where this door's RIGHT edge sits),
+      "section_index": 1-based integer — which section this door belongs to (doors in the same 2D pair share the same section_index),
+      "section_type": "2D" or "1D" — the type of the section this door belongs to,
       "face_is_flat_handleless": true_or_false (whether this door face appears perfectly flat with no visible handle or hardware),
       "notes": "anything noteworthy about this specific door's appearance (kept short)"
     }
   ],
+  "sections": [
+    {
+      "section_index": 1-based integer in left-to-right order,
+      "type": "2D" or "1D",
+      "door_indexes": [list of door indexes belonging to this section — exactly 2 for 2D, exactly 1 for 1D],
+      "approx_x_start_pct": integer 0-100 (LEFT edge of this section),
+      "approx_x_end_pct":   integer 0-100 (RIGHT edge of this section)
+    }
+  ],
   "door_color_finish": "short description of the door color and finish you observe",
-  "visible_vertical_seams_pct": [list of integers — x-coordinate percent of each vertical seam between doors],
+  "visible_vertical_seams_pct": [list of integers — x-coordinate percent of each vertical seam between doors; the seam INSIDE a 2D pair is the pair's center-open seam, the seams BETWEEN sections are section dividers],
   "horizontal_rails_or_seams": "describe any horizontal split / rail / shelf on the door faces, or 'none'",
   "overall_notes": "one short line of anything important for opening these doors naturally in a follow-up render"
 }
 
-Be accurate about the door count and their order. If you see 5 doors, say 5. Return valid JSON only.`;
+Be accurate about the door count and section pairing. Examples:
+- 4 doors seen → likely 2 sections of 2D each.
+- 5 doors seen → 2 sections of 2D + 1 section of 1D (the last door alone).
+- 6 doors seen → 3 sections of 2D each.
+- 7 doors seen → 3 sections of 2D + 1 section of 1D (the last door alone).
+Return valid JSON only.`;
 }
 
 /** Format the Opus structure analysis into a readable block for the Step 3 prompt. */
@@ -120,13 +143,27 @@ function formatStructureAnalysis(sa) {
   if (typeof sa.door_count === 'number') {
     lines.push(`- Door count observed: ${sa.door_count}`);
   }
+  if (Array.isArray(sa.sections) && sa.sections.length) {
+    const count2D = sa.sections.filter((s) => s.type === '2D').length;
+    const count1D = sa.sections.filter((s) => s.type === '1D').length;
+    lines.push(`- Sections: ${sa.sections.length} total — ${count2D} × 2D (paired), ${count1D} × 1D (single).`);
+    const sectionDescs = sa.sections.map((sec) => {
+      const range = (typeof sec.approx_x_start_pct === 'number' && typeof sec.approx_x_end_pct === 'number')
+        ? `x=${sec.approx_x_start_pct}%–${sec.approx_x_end_pct}%`
+        : '';
+      const doors = Array.isArray(sec.door_indexes) ? `doors [${sec.door_indexes.join(', ')}]` : '';
+      return `  Section ${sec.section_index} (${sec.type}, ${range}, ${doors})`;
+    });
+    lines.push(...sectionDescs);
+  }
   if (Array.isArray(sa.doors_left_to_right) && sa.doors_left_to_right.length) {
     const doorDescs = sa.doors_left_to_right.map((d) => {
       const range = (typeof d.approx_x_start_pct === 'number' && typeof d.approx_x_end_pct === 'number')
         ? ` at x=${d.approx_x_start_pct}%–${d.approx_x_end_pct}%`
         : '';
+      const sec = d.section_type ? ` [${d.section_type}${d.section_index ? ' §' + d.section_index : ''}]` : '';
       const width = d.relative_width ? ` (${d.relative_width})` : '';
-      return `  ${d.index}${range}${width}${d.notes ? ' — ' + d.notes : ''}`;
+      return `  ${d.index}${range}${sec}${width}${d.notes ? ' — ' + d.notes : ''}`;
     });
     lines.push('- Doors in left-to-right order:');
     lines.push(...doorDescs);
@@ -139,6 +176,10 @@ function formatStructureAnalysis(sa) {
     lines.push(`- Horizontal features: ${sa.horizontal_rails_or_seams}`);
   }
   if (sa.overall_notes) lines.push(`- Notes: ${sa.overall_notes}`);
+  lines.push('');
+  lines.push('OPENING RULES BY SECTION TYPE:');
+  lines.push('- 2D sections: both doors of the pair swing OUTWARD from the center seam between them (left door opens to the left side, right door opens to the right side), revealing the interior of that one section.');
+  lines.push('- 1D sections: the single door swings open from its own hinge side, revealing the interior of that single section.');
   return lines.join('\n');
 }
 
