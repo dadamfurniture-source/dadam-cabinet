@@ -1,13 +1,33 @@
 -- Migration 002: Payment Providers (Stripe + Toss 이중 지원)
 --
--- Goal: generic provider 컬럼 추가 + 빌링키/결제이력 테이블 신설.
--- 기존 stripe_* 컬럼은 후속 마이그레이션에서 drop 예정 (호환성 유지).
+-- 자체 포함형(self-contained). subscriptions 테이블이 없는 프로젝트에서도
+-- 안전하게 실행 가능. profiles(id UUID) 는 존재해야 함 (Supabase Auth 기본).
+--
+-- 멱등성: 재실행해도 에러 없이 통과.
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- ===== subscriptions 확장 =====
+-- ===== subscriptions 테이블 (없으면 생성) =====
+
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  plan TEXT NOT NULL DEFAULT 'free'
+    CHECK (plan IN ('free', 'basic', 'pro', 'enterprise')),
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  status TEXT DEFAULT 'active'
+    CHECK (status IN ('active', 'past_due', 'cancelled', 'trialing')),
+  current_period_start TIMESTAMPTZ,
+  current_period_end TIMESTAMPTZ,
+  cancel_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ===== 멀티 프로바이더 컬럼 추가 =====
 
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'stripe'
@@ -18,11 +38,15 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS next_charge_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS amount_krw INTEGER;
 
+-- 기존 Stripe 레코드 있으면 백필
 UPDATE public.subscriptions
 SET provider_customer_id = stripe_customer_id,
     provider_subscription_id = stripe_subscription_id
 WHERE provider_customer_id IS NULL
   AND stripe_customer_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user
+  ON public.subscriptions(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_next_charge
   ON public.subscriptions(next_charge_at)
@@ -70,8 +94,13 @@ CREATE INDEX IF NOT EXISTS idx_payment_history_subscription
 
 -- ===== RLS =====
 
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS subscriptions_owner_select ON public.subscriptions;
+CREATE POLICY subscriptions_owner_select ON public.subscriptions
+  FOR SELECT USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS payment_history_owner_select ON public.payment_history;
 CREATE POLICY payment_history_owner_select ON public.payment_history
