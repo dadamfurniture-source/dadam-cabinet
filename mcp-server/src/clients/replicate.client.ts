@@ -153,32 +153,16 @@ const FLUX_TRAINER = 'ostris/flux-dev-lora-trainer';
 const FLUX_TRAINER_VERSION = 'e440909d01a3b47efab37a893702ed90c708d8e2ede3465f1e8aac1c9e2efff5';
 
 /**
- * Flux LoRA 학습 시작
- *
- * Replicate API 는 학습 요청 시 모델 스코프된 URL 을 요구:
- *   POST /v1/models/{owner}/{name}/versions/{version}/trainings
- * 또한 ostris/flux-dev-lora-trainer 는 destination (학습 결과 가중치가 저장될
- * 본인 Replicate 모델 경로, 예: "dadamfurniture/dadam-fridge-lora") 이 필수.
- * destination 모델은 Replicate 대시보드에서 미리 생성해야 함.
- *
+ * Flux LoRA 학습 시작 (현재 호출처 없음 — 사용자 요청으로 학습 파이프라인 제거됨,
+ * 이 함수는 dead code 로 남아있음. 향후 재도입 시 참고용).
  * @returns training ID
  */
 export async function startLoraTraining(
   input: LoraTrainingInput,
   destinationModel?: string
 ): Promise<TrainingStatus> {
-  const destination = destinationModel || process.env.REPLICATE_DESTINATION_MODEL;
-  if (!destination) {
-    throw new ExternalApiError(
-      'replicate',
-      'REPLICATE_DESTINATION_MODEL 환경변수가 필요합니다. ' +
-      'Replicate 대시보드에서 빈 모델을 하나 생성(예: your-username/dadam-fridge-lora)한 뒤 ' +
-      'Railway Variables 에 REPLICATE_DESTINATION_MODEL=your-username/dadam-fridge-lora 추가해 주세요.',
-    );
-  }
-
   const body: Record<string, unknown> = {
-    destination,
+    version: FLUX_TRAINER_VERSION,
     input: {
       input_images: input.inputImagesUrl,
       trigger_word: input.triggerWord,
@@ -190,11 +174,13 @@ export async function startLoraTraining(
     },
   };
 
-  log.info({ triggerWord: input.triggerWord, steps: input.steps, destination }, 'Starting LoRA training');
+  if (destinationModel) {
+    body.destination = destinationModel;
+  }
 
-  // 모델 스코프된 training endpoint — /v1/trainings (deprecated) 가 아님
-  const url = `${REPLICATE_BASE}/models/${FLUX_TRAINER}/versions/${FLUX_TRAINER_VERSION}/trainings`;
-  const res = await fetchWithRetry('replicate', url, {
+  log.info({ triggerWord: input.triggerWord, steps: input.steps }, 'Starting LoRA training');
+
+  const res = await fetchWithRetry('replicate', `${REPLICATE_BASE}/trainings`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(body),
