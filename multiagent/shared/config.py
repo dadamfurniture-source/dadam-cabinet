@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     stripe_price_pro: str = ""
     stripe_price_enterprise: str = ""
 
+    # Toss Payments (빌링)
+    toss_client_key: str = ""
+    toss_secret_key: str = ""
+    toss_webhook_secret: str = ""
+    toss_price_basic_krw: int = 99000
+    toss_price_pro_krw: int = 199000
+    toss_price_enterprise_krw: int = 299000
+    default_payment_provider: str = "toss"
+
     # Redis
     redis_url: str = "redis://localhost:6379"
 

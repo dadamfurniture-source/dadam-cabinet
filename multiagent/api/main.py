@@ -21,6 +21,7 @@ from api.routes import (
     feedback,
     orders,
     payments,
+    payments_toss,
     projects,
     references,
 )
@@ -73,7 +74,13 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key", "stripe-signature"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-API-Key",
+        "stripe-signature",
+        "tosspayments-signature",
+    ],
 )
 
 # 글로벌 에러 핸들러
@@ -86,6 +93,7 @@ app.include_router(accounting.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(exports.router, prefix="/api/v1")
 app.include_router(payments.router, prefix="/api/v1")
+app.include_router(payments_toss.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(enterprise.router, prefix="/api/v1")
 app.include_router(references.router, prefix="/api/v1")
