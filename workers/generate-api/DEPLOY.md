@@ -37,9 +37,26 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 
 ## 환경 변수 (Secret)
 
-`GEMINI_API_KEY` 는 Cloudflare 대시보드에서 secret 으로 별도 등록 (wrangler.toml 에 넣지 않음):
+Cloudflare 대시보드에서 secret 으로 별도 등록 (wrangler.toml 에 넣지 않음):
 
+### 1. `GEMINI_API_KEY` (필수)
+모든 카테고리의 생성에 필요.
 ```powershell
 npx wrangler secret put GEMINI_API_KEY
 # 프롬프트에 키 값 붙여넣기
 ```
+
+### 2. `ANTHROPIC_API_KEY` (냉장고장 pre-analysis 에 사용)
+냉장고장 카테고리만 Claude Opus 4.7 로 사진을 분석해 Gemini 프롬프트에 컨텍스트를 주입합니다. 없어도 파이프라인은 동작 (pre-analysis 만 건너뜀).
+
+Anthropic 콘솔 → API Keys → Create key → `sk-ant-...` 복사.
+```powershell
+npx wrangler secret put ANTHROPIC_API_KEY
+# 프롬프트에 키 값 붙여넣기
+```
+
+#### 모델 · 비용
+- 현재 냉장고장은 `claude-opus-4-7` 사용 (`prompts/fridge-prompt.js:FRIDGE_ANALYSIS_MODEL`)
+- 다른 모델로 바꾸고 싶으면 해당 상수 한 줄만 수정 + 재배포
+- 호출당 비용: 대략 $0.06~0.07 (이미지 1장 + 분석 응답)
+- 다른 카테고리는 Claude 호출 안 함 (0 비용)
