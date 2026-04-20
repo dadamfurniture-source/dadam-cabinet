@@ -6,19 +6,23 @@
  * 카테고리별 프롬프트는 ./prompts/{category}-prompt.js 에 격리되어 있어
  * 한 카테고리 수정이 다른 카테고리로 새는 사고를 원천 차단한다.
  *
- * 새 카테고리 추가:
- *   1) ./prompts/{name}-prompt.js 생성 (CATEGORIES 배열 + 2개 export)
- *   2) 아래 import + register(...) 한 줄씩 추가
+ * 파이프라인:
+ *   Step 1   Gemini Vision  — 벽 분석 (모든 카테고리 공통, 카테고리별 보정 applyWallWidthCorrection)
+ *   Step 1.5 Claude          — 카테고리 pre-analysis (냉장고장만 Opus 4.7)
+ *   Step 1b  Gemini Image   — 냉장고장 철거 (냉장고장만)
+ *   Step 2   Gemini Image   — 닫힌 도어 (카테고리별 모듈)
+ *   Step 3   Gemini Image   — 대안 이미지 (카테고리별 모듈 — sink=투톤/fridge=홈바/나머지=열린문)
  */
 
-import { buildWallAnalysisPrompt } from './prompts/wall-analysis.js';
+import { buildWallAnalysisPrompt, applyWallWidthCorrection } from './prompts/wall-analysis.js';
 import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec } from './prompts/sink-prompt.js';
-import { WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec } from './prompts/wardrobe-prompt.js';
+import { WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec, buildWardrobeQuote } from './prompts/wardrobe-prompt.js';
 import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec } from './prompts/shoe-prompt.js';
 import {
   FRIDGE_CATEGORIES,
   FRIDGE_ANALYSIS_MODEL,
   buildFridgeAnalysisPrompt,
+  buildFridgeDemolitionPrompt,
   buildFridgeClosedPrompt,
   buildFridgeAltSpec,
 } from './prompts/fridge-prompt.js';
@@ -36,10 +40,8 @@ const STYLE_MAP = {
 };
 
 // ─── 카테고리 → prompt builder 룩업 ───
-// 신규 카테고리 = 모듈 파일 1개 + 아래 register 한 줄
 const CLOSED_BUILDERS = {};
 const ALT_BUILDERS = {};
-// Pre-analysis 를 쓰는 카테고리만 등록. 없는 카테고리는 Claude 호출 스킵.
 const PRE_ANALYSIS = {}; // { [category]: { model, promptBuilder } }
 function register(categories, closedBuilder, altBuilder, opts = {}) {
   for (const c of categories) {
@@ -59,7 +61,6 @@ register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
 });
 register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec);
 
-// 룩업에 없는 category 가 들어오면 일반 수납장으로 폴백
 function resolveBuilders(category) {
   return {
     closed: CLOSED_BUILDERS[category] || buildStorageClosedPrompt,
@@ -68,13 +69,18 @@ function resolveBuilders(category) {
 }
 
 // ─── Gemini API 호출 ───
-async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4) {
+async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4, extraImages = []) {
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash-image';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
 
   const parts = [];
   if (image && imageType) {
     parts.push({ inlineData: { mimeType: imageType, data: image } });
+  }
+  for (const ref of extraImages || []) {
+    if (ref && ref.base64 && ref.mimeType) {
+      parts.push({ inlineData: { mimeType: ref.mimeType, data: ref.base64 } });
+    }
   }
   parts.push({ text: prompt });
 
@@ -97,16 +103,13 @@ async function callGemini(env, prompt, image, imageType, responseModalities = ['
   const data = await res.json();
   const resultParts = data.candidates?.[0]?.content?.parts || [];
   let resultImage, resultText;
-
   for (const part of resultParts) {
     if (part.inlineData) resultImage = part.inlineData.data;
     if (part.text) resultText = part.text;
   }
-
   return { image: resultImage, text: resultText };
 }
 
-// ─── CORS 헤더 ───
 function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin || '*',
@@ -125,19 +128,16 @@ export default {
     const origin = request.headers.get('Origin') || '*';
     const headers = corsHeaders(origin);
 
-    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers });
     }
 
-    // Health check
     if (url.pathname === '/health' || url.pathname === '/') {
       return new Response(JSON.stringify({ status: 'ok', service: 'dadam-generate-api', worker: true }), {
         headers: { ...headers, 'Content-Type': 'application/json' },
       });
     }
 
-    // POST /api/generate
     if (url.pathname === '/api/generate' && request.method === 'POST') {
       const startTime = Date.now();
 
@@ -155,8 +155,19 @@ export default {
           category = 'sink',
           kitchen_layout = 'i_type',
           design_style = 'modern-minimal',
+          wall_width_override,
+          fridge_options,
+          vanity_options,
+          reference_images,
           ...themeData
         } = body;
+
+        const refImages = Array.isArray(reference_images)
+          ? reference_images.filter((r) => r && r.base64 && r.mimeType)
+          : [];
+        if (refImages.length > 0) {
+          console.log(`[Generate] reference_images: ${refImages.length} attached`);
+        }
 
         if (!room_image) {
           return new Response(JSON.stringify({ success: false, error: 'room_image is required' }), {
@@ -169,29 +180,49 @@ export default {
 
         // ═══ Step 1: 벽면 분석 ═══
         let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
+        const manualW = Number(wall_width_override);
 
-        try {
-          const wallResult = await callGemini(env, buildWallAnalysisPrompt(), room_image, image_type, ['TEXT'], 0.2);
+        if (manualW >= 1000 && manualW <= 6000) {
+          wallW = manualW;
+          console.log(`[Generate] Wall width from user override: ${wallW}mm`);
+        } else {
+          try {
+            const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2);
 
-          if (wallResult.text) {
-            const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              const dims = parsed.wall_dimensions_mm || {};
-              const utils = parsed.utility_positions_mm || {};
-              wallW = dims.width || 3000;
-              wallH = dims.height || 2400;
-              if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
-              if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
+            if (wallResult.text) {
+              const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                const dims = parsed.wall_dimensions_mm || {};
+                const utils = parsed.utility_positions_mm || {};
+                wallW = dims.width || 3000;
+                wallH = dims.height || 2400;
+                // 미터 → mm 변환 보호
+                if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
+                if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
+                // 카테고리별 렌즈 왜곡 보정 (싱크대는 미적용)
+                wallW = applyWallWidthCorrection(category, wallW);
+                if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
+                if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
+              }
             }
+            console.log(`[Generate] Wall: ${wallW}x${wallH}, water=${waterPct}%, exhaust=${exhaustPct}%`);
+          } catch (e) {
+            console.warn('[Generate] Wall analysis failed, using defaults');
           }
-          console.log(`[Generate] Wall: ${wallW}x${wallH}, water=${waterPct}%, exhaust=${exhaustPct}%`);
-        } catch (e) {
-          console.warn('[Generate] Wall analysis failed, using defaults');
         }
 
         const wallData = { wallW, wallH, waterPct, exhaustPct };
-        const ctx = { category, kitchenLayout: kitchen_layout, design_style, styleName, wallData, themeData };
+        const isFridge = FRIDGE_CATEGORIES.includes(category);
+        const fridgeOptsForPrompt = isFridge
+          ? { ...(fridge_options || {}), referenceCount: refImages.length }
+          : fridge_options;
+        const ctx = {
+          category, kitchenLayout: kitchen_layout, design_style, styleName,
+          wallData, themeData,
+          fridgeOpts: fridgeOptsForPrompt,
+          vanityOpts: vanity_options,
+        };
         const builders = resolveBuilders(category);
 
         // ═══ Step 1.5: 카테고리별 pre-analysis (Claude) — 해당 모듈이 등록한 경우만 ═══
@@ -228,9 +259,39 @@ export default {
         }
         ctx.preAnalysis = preAnalysis;
 
+        // ═══ Step 1b: 냉장고장 전용 — 기존 구조 철거 ═══
+        let installBaseImage = room_image;
+        let installMime = image_type;
+        let demoSucceeded = false;
+        let demolishedImage = null;
+        if (isFridge) {
+          try {
+            const demoResult = await callGemini(
+              env,
+              buildFridgeDemolitionPrompt(),
+              room_image,
+              image_type,
+              ['IMAGE', 'TEXT'],
+              0.2,
+            );
+            if (demoResult.image) {
+              installBaseImage = demoResult.image;
+              installMime = 'image/png';
+              demoSucceeded = true;
+              demolishedImage = demoResult.image;
+              console.log('[Generate] Fridge demolition stage complete');
+            } else {
+              console.warn('[Generate] Fridge demolition returned no image, using raw room image');
+            }
+          } catch (e) {
+            console.warn('[Generate] Fridge demolition failed:', e.message);
+          }
+        }
+        ctx.siteAlreadyCleared = demoSucceeded;
+
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
         const closedPrompt = builders.closed(ctx);
-        const closedResult = await callGemini(env, closedPrompt, room_image, image_type);
+        const closedResult = await callGemini(env, closedPrompt, installBaseImage, installMime, undefined, undefined, refImages);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
@@ -239,14 +300,15 @@ export default {
         }
         console.log('[Generate] Closed door image generated');
 
-        // ═══ Step 3: 대안 이미지 생성 ═══
+        // ═══ Step 3: 대안 이미지 (카테고리별) ═══
         let altImage = null;
         let altMetadata = {};
         try {
-          const altSpec = builders.alt(ctx);
-          const inputImage = altSpec.inputKey === 'install' ? room_image : closedResult.image;
-          const inputMime = altSpec.inputKey === 'install' ? image_type : 'image/png';
-          const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime);
+          const altSpec = builders.alt({ ...ctx, closedImage: closedResult.image });
+          const inputImage = altSpec.inputKey === 'install' ? installBaseImage : closedResult.image;
+          const inputMime = altSpec.inputKey === 'install' ? installMime : 'image/png';
+          const extraRefs = altSpec.inputKey === 'install' ? refImages : [];
+          const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime, undefined, undefined, extraRefs);
           altImage = altResult.image || null;
           altMetadata = altSpec.metadata || {};
           if (altImage) console.log(`[Generate] Alt image generated (${altMetadata.alt_style?.name || 'default'})`);
@@ -254,18 +316,26 @@ export default {
           console.warn('[Generate] Alt image generation failed:', e.message);
         }
 
+        // ═══ 견적 (붙박이장 전용) ═══
+        const quote = category === 'wardrobe' ? buildWardrobeQuote(wallW) : null;
+        if (quote) console.log(`[Generate] Wardrobe quote total: ${quote.total}원`);
+
         // ═══ 응답 ═══
         const elapsed = Date.now() - startTime;
         console.log(`[Generate] Complete in ${elapsed}ms`);
 
+        const generatedImage = {
+          background: room_image,
+          closed: closedResult.image,
+          open: altImage,
+          alt: altImage,
+        };
+        if (isFridge) generatedImage.demolished = demolishedImage;
+
         return new Response(JSON.stringify({
           success: true,
-          generated_image: {
-            background: room_image,
-            closed: closedResult.image,
-            open: altImage,
-            alt: altImage,
-          },
+          generated_image: generatedImage,
+          quote,
           wall_analysis: { wallW, wallH, waterPct, exhaustPct },
           alt_style: altMetadata.alt_style || null,
           metadata: {
@@ -274,6 +344,7 @@ export default {
             elapsed_ms: elapsed,
             pre_analysis: preAnalysisMeta,
             pre_analysis_data: preAnalysis,
+            fridge_demolition: isFridge ? { attempted: true, succeeded: demoSucceeded } : undefined,
             ...altMetadata,
           },
         }), {
@@ -288,7 +359,6 @@ export default {
       }
     }
 
-    // 404
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404, headers: { ...headers, 'Content-Type': 'application/json' },
     });

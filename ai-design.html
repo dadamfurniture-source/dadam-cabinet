@@ -1600,6 +1600,13 @@ Magazine quality, professional lighting.`;
                 category: category,
                 design_style: state.selectedStyle,
                 kitchen_layout: category === 'sink' ? (state.selectedKitchenLayout || 'i_type') : undefined,
+                // 카테고리별 옵션 (worker 의 각 prompts/*.js 가 알아서 해석)
+                fridge_options: category === 'fridge' ? state.fridgeOptions : undefined,
+                vanity_options: category === 'vanity' ? state.vanityOptions : undefined,
+                wall_width_override: (category === 'wardrobe' || category === 'fridge')
+                  ? (document.getElementById('wallWidthInput')?.value || undefined)
+                  : undefined,
+                reference_images: (category === 'fridge' && window.__dadamFridgeRefs) ? window.__dadamFridgeRefs : undefined,
               }),
             });
 
