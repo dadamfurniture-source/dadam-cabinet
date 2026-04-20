@@ -15,9 +15,16 @@ import { buildWallAnalysisPrompt } from './prompts/wall-analysis.js';
 import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec } from './prompts/sink-prompt.js';
 import { WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec } from './prompts/wardrobe-prompt.js';
 import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec } from './prompts/shoe-prompt.js';
-import { FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec } from './prompts/fridge-prompt.js';
+import {
+  FRIDGE_CATEGORIES,
+  FRIDGE_ANALYSIS_MODEL,
+  buildFridgeAnalysisPrompt,
+  buildFridgeClosedPrompt,
+  buildFridgeAltSpec,
+} from './prompts/fridge-prompt.js';
 import { VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec } from './prompts/vanity-prompt.js';
 import { buildStorageClosedPrompt, buildStorageAltSpec } from './prompts/storage-prompt.js';
+import { callClaudeVision, extractJson } from './clients/claude.js';
 
 // ─── 스타일 매핑 (카테고리 무관) ───
 const STYLE_MAP = {
@@ -32,16 +39,24 @@ const STYLE_MAP = {
 // 신규 카테고리 = 모듈 파일 1개 + 아래 register 한 줄
 const CLOSED_BUILDERS = {};
 const ALT_BUILDERS = {};
-function register(categories, closedBuilder, altBuilder) {
+// Pre-analysis 를 쓰는 카테고리만 등록. 없는 카테고리는 Claude 호출 스킵.
+const PRE_ANALYSIS = {}; // { [category]: { model, promptBuilder } }
+function register(categories, closedBuilder, altBuilder, opts = {}) {
   for (const c of categories) {
     CLOSED_BUILDERS[c] = closedBuilder;
     ALT_BUILDERS[c] = altBuilder;
+    if (opts.analysisModel && opts.analysisPromptBuilder) {
+      PRE_ANALYSIS[c] = { model: opts.analysisModel, promptBuilder: opts.analysisPromptBuilder };
+    }
   }
 }
 register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec);
 register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec);
 register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec);
-register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec);
+register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
+  analysisModel: FRIDGE_ANALYSIS_MODEL,
+  analysisPromptBuilder: buildFridgeAnalysisPrompt,
+});
 register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec);
 
 // 룩업에 없는 category 가 들어오면 일반 수납장으로 폴백
@@ -179,6 +194,40 @@ export default {
         const ctx = { category, kitchenLayout: kitchen_layout, design_style, styleName, wallData, themeData };
         const builders = resolveBuilders(category);
 
+        // ═══ Step 1.5: 카테고리별 pre-analysis (Claude) — 해당 모듈이 등록한 경우만 ═══
+        let preAnalysis = null;
+        let preAnalysisMeta = null;
+        const pa = PRE_ANALYSIS[category];
+        if (pa) {
+          const preStart = Date.now();
+          try {
+            const analysisPrompt = pa.promptBuilder(ctx);
+            const res = await callClaudeVision(env, {
+              model: pa.model,
+              prompt: analysisPrompt,
+              image: room_image,
+              imageType: image_type,
+              maxTokens: 1200,
+            });
+            preAnalysis = extractJson(res.text);
+            preAnalysisMeta = {
+              model: pa.model,
+              usage: res.usage,
+              elapsed_ms: Date.now() - preStart,
+              parsed: !!preAnalysis,
+            };
+            if (preAnalysis) {
+              console.log(`[Generate] ${pa.model} pre-analysis OK (${preAnalysisMeta.elapsed_ms}ms, ${res.usage?.input_tokens || '?'}→${res.usage?.output_tokens || '?'} tokens)`);
+            } else {
+              console.warn(`[Generate] ${pa.model} pre-analysis returned non-JSON, proceeding without context`);
+            }
+          } catch (e) {
+            console.warn(`[Generate] Pre-analysis failed (${pa.model}): ${e.message} — proceeding without context`);
+            preAnalysisMeta = { model: pa.model, error: e.message, elapsed_ms: Date.now() - preStart, parsed: false };
+          }
+        }
+        ctx.preAnalysis = preAnalysis;
+
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
         const closedPrompt = builders.closed(ctx);
         const closedResult = await callGemini(env, closedPrompt, room_image, image_type);
@@ -223,6 +272,8 @@ export default {
             category, kitchen_layout, design_style,
             model: env.GEMINI_MODEL || 'gemini-2.5-flash-image',
             elapsed_ms: elapsed,
+            pre_analysis: preAnalysisMeta,
+            pre_analysis_data: preAnalysis,
             ...altMetadata,
           },
         }), {
