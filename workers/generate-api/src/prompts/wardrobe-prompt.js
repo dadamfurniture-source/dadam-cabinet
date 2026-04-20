@@ -4,28 +4,27 @@
  * Target category: 'wardrobe'
  *
  * Pipeline:
- *   Step 1     — Gemini: wall-size analysis of the room photo.
- *   Step 1.5   — Claude Opus 4.7: analyze the ROOM PHOTO and return a JSON
- *                sketch of floor/ceiling/side-wall character, target-wall
- *                obstructions, existing built-ins, style hints, door-count
- *                suggestion. Passed to Step 2 as ctx.preAnalysis.
- *   Step 2     — Gemini: full-wall closed-door wardrobe with the pre-analysis
- *                block injected. Uses getWardrobeStructure(w) for section
- *                layout defaults, but the pre-analysis can override details.
- *   Step 3     — Gemini: open every door of the Step 2 render, revealing the
- *                interior. No additional post-analysis (that Step 2.5
- *                2D/1D classifier was removed in favor of this PRE pattern).
+ *   Step 2    — Gemini: closed-door wardrobe covering entire wall.
+ *   Step 2.5  — Claude Opus 4.7: analyze the generated closed-door image and
+ *               return a JSON description of the doors it actually sees
+ *               (count, left-to-right widths, visible seams, style cues).
+ *   Step 3    — Gemini: open every door at ~90° using the Opus analysis so
+ *               the output matches the exact door layout produced in Step 2.
  *
- * Handle policy: handleless. Every door is a perfectly flat matte rectangle
- * with no visible hardware anywhere. The prompt enumerates forbidden pulls
- * / grips / hinges so Gemini renders a clean unbroken surface.
+ * getWardrobeStructure(w) still supplies the planned 4 / 5 / 6 / 7-door layout
+ * to Step 2 and to buildWardrobeQuote for pricing. The Opus analysis feeds Step 3
+ * only — Step 2 keeps planning from scratch.
+ *
+ * Handle policy: handleless. Each door is a perfectly flat matte rectangle —
+ * NO visible handle of any kind. The prompt describes the door face only and
+ * stays silent on hardware so Gemini renders a clean unbroken surface.
  */
 
 export const WARDROBE_CATEGORIES = ['wardrobe'];
 
 /**
- * Claude Opus 4.7 runs BEFORE Step 2 for wardrobe (matches the fridge
- * pre-analysis pattern). Change this one line to swap models.
+ * Claude Opus 4.7 runs AFTER Step 2 for wardrobe (the only category that does
+ * this today). Other categories using PRE-analysis live in their own modules.
  */
 export const WARDROBE_ANALYSIS_MODEL = 'claude-opus-4-7';
 
@@ -53,77 +52,12 @@ export function getWardrobeStructure(w) {
 }
 
 /**
- * Step 1.5 — Opus 4.7 reads the original room photo and returns a JSON
- * description of the room that Gemini will use to place the wardrobe.
- */
-export function buildWardrobeAnalysisPrompt() {
-  return `You are looking at an uploaded photo of a room where a full-wall built-in wardrobe will be installed.
-
-Analyze the room as shown and return ONLY the following JSON, no prose. Be accurate about what you see — do not invent features that are not visible.
-
-{
-  "target_wall": {
-    "approx_width_mm": integer or null — your best guess of the target (back) wall width where the wardrobe will cover edge-to-edge,
-    "approx_height_mm": integer or null — floor-to-ceiling height at the target wall,
-    "has_window": true_or_false,
-    "has_door": true_or_false,
-    "obstructions": [{ "type": "window | door | beam | column | outlet | switch | niche | radiator | other", "side": "left | center | right", "note": "short description" }]
-  },
-  "floor": { "material": "string — e.g. medium oak wood / walnut herringbone / gray porcelain tile", "tone": "warm | cool | neutral" },
-  "ceiling": { "type": "flat | molding | soffit | beam_exposed", "lighting": "short note on visible ceiling lights" },
-  "side_walls": { "color": "string", "character": "short note — e.g. plain white paint, patterned wallpaper" },
-  "existing_built_ins_on_target_wall": ["short list of existing items to demolish before installing the wardrobe, or empty array"],
-  "style_character": "one short line on the room style (modern minimal / warm scandi / classic / etc.)",
-  "door_count_suggestion": {
-    "count": integer or null — recommended door count based on target wall width (use the wardrobe's 4/5/6/7 door tiers: ≤2000→4, ≤2600→5, ≤3200→6, >3200→7),
-    "reason": "short justification based on the measured wall width"
-  },
-  "design_hints_for_wardrobe": "one short line on door-face color/tone that harmonizes with the existing floor + side walls",
-  "special_considerations": ["list of installation notes — e.g. 'beam at center reduces usable height over section C', or empty array"]
-}
-
-JSON only. Use null where uncertain.`;
-}
-
-/** Format Opus pre-analysis into a readable block injected ahead of Step 2. */
-function formatPreAnalysis(pa) {
-  if (!pa || typeof pa !== 'object') return '';
-  const lines = ['[ROOM CONTEXT FROM CLAUDE PRE-ANALYSIS — honor these when placing the wardrobe]'];
-  if (pa.target_wall) {
-    const tw = pa.target_wall;
-    const dims = [tw.approx_width_mm ? `${tw.approx_width_mm}mm wide` : null, tw.approx_height_mm ? `${tw.approx_height_mm}mm tall` : null].filter(Boolean).join(', ');
-    if (dims) lines.push(`- Target wall: ${dims}`);
-    if (tw.has_window) lines.push(`- Target wall HAS a window — keep it uncovered, size the wardrobe around it`);
-    if (tw.has_door) lines.push(`- Target wall HAS a door — keep it clear, route the wardrobe around it`);
-    if (Array.isArray(tw.obstructions) && tw.obstructions.length) {
-      lines.push(`- Obstructions: ${tw.obstructions.map((o) => `${o.type}@${o.side}${o.note ? ' (' + o.note + ')' : ''}`).join('; ')}`);
-    }
-  }
-  if (pa.floor) lines.push(`- Floor: ${pa.floor.material || '?'} (${pa.floor.tone || '?'} tone)`);
-  if (pa.ceiling) lines.push(`- Ceiling: ${pa.ceiling.type || '?'}${pa.ceiling.lighting ? ' — ' + pa.ceiling.lighting : ''}`);
-  if (pa.side_walls) lines.push(`- Side walls: ${pa.side_walls.color || '?'}${pa.side_walls.character ? ' — ' + pa.side_walls.character : ''}`);
-  if (Array.isArray(pa.existing_built_ins_on_target_wall) && pa.existing_built_ins_on_target_wall.length) {
-    lines.push(`- Existing built-ins to demolish: ${pa.existing_built_ins_on_target_wall.join(', ')}`);
-  }
-  if (pa.style_character) lines.push(`- Room style: ${pa.style_character}`);
-  if (pa.door_count_suggestion?.count) {
-    lines.push(`- Suggested door count: ${pa.door_count_suggestion.count}${pa.door_count_suggestion.reason ? ' (' + pa.door_count_suggestion.reason + ')' : ''}`);
-  }
-  if (pa.design_hints_for_wardrobe) lines.push(`- Design hint: ${pa.design_hints_for_wardrobe}`);
-  if (Array.isArray(pa.special_considerations) && pa.special_considerations.length) {
-    lines.push(`- Special considerations: ${pa.special_considerations.join('; ')}`);
-  }
-  return lines.join('\n');
-}
-
-/**
  * Step 2 — full-wall closed-door wardrobe.
  * Handleless design — every door is a perfectly flat matte rectangle with
  * no visible hardware of any kind.
  */
-export function buildWardrobeClosedPrompt({ wallData, themeData, preAnalysis }) {
+export function buildWardrobeClosedPrompt({ wallData, themeData }) {
   const doorColor = themeData.style_door_color || 'white';
-  const preBlock = preAnalysis ? `\n\n${formatPreAnalysis(preAnalysis)}` : '';
   return `Edit photo: install a FULL-HEIGHT built-in wardrobe covering the entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall, floor to ceiling).
 
 STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT sink cabinetry, NOT an upper+lower cabinet):
@@ -144,25 +78,128 @@ DOORS (HANDLELESS — perfectly flat matte rectangles, NO visible hardware anywh
 SECTION LAYOUT (this describes the interior for reference; in THIS image the doors are closed and the interior is NOT visible):
 ${getWardrobeStructure(wallData.wallW).prompt}
 
-PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camera angle all pixel-identical to the input photo. Photorealistic. No text, no labels.${preBlock}`;
+PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camera angle all pixel-identical to the input photo. Photorealistic. No text, no labels.`;
 }
 
 /**
- * Step 3 — open-door variant.
- * worker.js feeds closedResult.image back in as the base. No Opus
- * post-analysis anymore — the opening rules come from the preAnalysis-
- * aware Step 2 plan plus getWardrobeStructure.
+ * Step 2.5 — Claude Opus 4.7 reads the closed-door image generated in Step 2
+ * and returns a JSON description of the actual door layout it sees. This is
+ * then handed to Step 3 so the open-door image opens the same number and
+ * positions of doors Gemini actually rendered.
  */
-export function buildWardrobeAltSpec({ wallData, themeData }) {
+export function buildWardrobeStructureAnalysisPrompt() {
+  return `You are looking at a photo of a newly generated built-in wardrobe covering one entire wall, all doors closed. The design is HANDLELESS — the door faces should be perfectly flat matte rectangles with no visible handles, pulls, or hardware.
+
+Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE) and classify each door into a SECTION of type "2D" (two-door pair sharing a section, opening outward from the center seam between them) or "1D" (single door that forms its own section).
+
+Section classification rule:
+- Pair adjacent doors that read as matching twins (similar width + a center seam between them) into a 2D section of two doors.
+- Any door that cannot be paired (leftover, noticeably different width, or a standalone at the end) is a 1D section of one door.
+- If the total door count is ODD, the LAST section (rightmost standalone door) must be classified as 1D.
+
+Return ONLY the following JSON, no prose:
+
+{
+  "door_count": integer — number of distinct vertical doors you can count,
+  "doors_left_to_right": [
+    {
+      "index": 1-based integer in left-to-right order,
+      "relative_width": "narrow | medium | wide",
+      "approx_x_start_pct": integer 0-100 (percent of wall width where this door's LEFT edge sits),
+      "approx_x_end_pct":   integer 0-100 (percent of wall width where this door's RIGHT edge sits),
+      "section_index": 1-based integer — which section this door belongs to (doors in the same 2D pair share the same section_index),
+      "section_type": "2D" or "1D" — the type of the section this door belongs to,
+      "face_is_flat_handleless": true_or_false (whether this door face appears perfectly flat with no visible handle or hardware),
+      "notes": "anything noteworthy about this specific door's appearance (kept short)"
+    }
+  ],
+  "sections": [
+    {
+      "section_index": 1-based integer in left-to-right order,
+      "type": "2D" or "1D",
+      "door_indexes": [list of door indexes belonging to this section — exactly 2 for 2D, exactly 1 for 1D],
+      "approx_x_start_pct": integer 0-100 (LEFT edge of this section),
+      "approx_x_end_pct":   integer 0-100 (RIGHT edge of this section)
+    }
+  ],
+  "door_color_finish": "short description of the door color and finish you observe",
+  "visible_vertical_seams_pct": [list of integers — x-coordinate percent of each vertical seam between doors; the seam INSIDE a 2D pair is the pair's center-open seam, the seams BETWEEN sections are section dividers],
+  "horizontal_rails_or_seams": "describe any horizontal split / rail / shelf on the door faces, or 'none'",
+  "overall_notes": "one short line of anything important for opening these doors naturally in a follow-up render"
+}
+
+Be accurate about the door count and section pairing. Examples:
+- 4 doors seen → likely 2 sections of 2D each.
+- 5 doors seen → 2 sections of 2D + 1 section of 1D (the last door alone).
+- 6 doors seen → 3 sections of 2D each.
+- 7 doors seen → 3 sections of 2D + 1 section of 1D (the last door alone).
+Return valid JSON only.`;
+}
+
+/** Format the Opus structure analysis into a readable block for the Step 3 prompt. */
+function formatStructureAnalysis(sa) {
+  if (!sa || typeof sa !== 'object') return '';
+  const lines = ['[ACTUAL DOOR LAYOUT FROM CLAUDE ANALYSIS OF THE CLOSED IMAGE — open exactly these doors]'];
+  if (typeof sa.door_count === 'number') {
+    lines.push(`- Door count observed: ${sa.door_count}`);
+  }
+  if (Array.isArray(sa.sections) && sa.sections.length) {
+    const count2D = sa.sections.filter((s) => s.type === '2D').length;
+    const count1D = sa.sections.filter((s) => s.type === '1D').length;
+    lines.push(`- Sections: ${sa.sections.length} total — ${count2D} × 2D (paired), ${count1D} × 1D (single).`);
+    const sectionDescs = sa.sections.map((sec) => {
+      const range = (typeof sec.approx_x_start_pct === 'number' && typeof sec.approx_x_end_pct === 'number')
+        ? `x=${sec.approx_x_start_pct}%–${sec.approx_x_end_pct}%`
+        : '';
+      const doors = Array.isArray(sec.door_indexes) ? `doors [${sec.door_indexes.join(', ')}]` : '';
+      return `  Section ${sec.section_index} (${sec.type}, ${range}, ${doors})`;
+    });
+    lines.push(...sectionDescs);
+  }
+  if (Array.isArray(sa.doors_left_to_right) && sa.doors_left_to_right.length) {
+    const doorDescs = sa.doors_left_to_right.map((d) => {
+      const range = (typeof d.approx_x_start_pct === 'number' && typeof d.approx_x_end_pct === 'number')
+        ? ` at x=${d.approx_x_start_pct}%–${d.approx_x_end_pct}%`
+        : '';
+      const sec = d.section_type ? ` [${d.section_type}${d.section_index ? ' §' + d.section_index : ''}]` : '';
+      const width = d.relative_width ? ` (${d.relative_width})` : '';
+      return `  ${d.index}${range}${sec}${width}${d.notes ? ' — ' + d.notes : ''}`;
+    });
+    lines.push('- Doors in left-to-right order:');
+    lines.push(...doorDescs);
+  }
+  if (sa.door_color_finish) lines.push(`- Door color/finish observed: ${sa.door_color_finish}`);
+  if (Array.isArray(sa.visible_vertical_seams_pct) && sa.visible_vertical_seams_pct.length) {
+    lines.push(`- Vertical seam positions (%): ${sa.visible_vertical_seams_pct.join(', ')}`);
+  }
+  if (sa.horizontal_rails_or_seams && sa.horizontal_rails_or_seams !== 'none') {
+    lines.push(`- Horizontal features: ${sa.horizontal_rails_or_seams}`);
+  }
+  if (sa.overall_notes) lines.push(`- Notes: ${sa.overall_notes}`);
+  lines.push('');
+  lines.push('OPENING RULES BY SECTION TYPE:');
+  lines.push('- 2D sections: both doors of the pair swing OUTWARD from the center seam between them (left door opens to the left side, right door opens to the right side), revealing the interior of that one section.');
+  lines.push('- 1D sections: the single door swings open from its own hinge side, revealing the interior of that single section.');
+  return lines.join('\n');
+}
+
+/**
+ * Step 3 — open every door shown in the Opus analysis at ~90°.
+ * worker.js feeds the closed-door image back in as the base and the Opus
+ * structure JSON as ctx.structureAnalysis.
+ */
+export function buildWardrobeAltSpec({ wallData, themeData, structureAnalysis }) {
   const s = getWardrobeStructure(wallData.wallW);
   const doorColor = (themeData && themeData.style_door_color) || 'same as input';
+  const analysisBlock = structureAnalysis ? `\n\n${formatStructureAnalysis(structureAnalysis)}` : '';
+  const expectedCount = structureAnalysis?.door_count ? structureAnalysis.door_count : 'every';
   return {
     inputKey: 'closed',
     prompt: `Using this closed-door wardrobe image, generate the SAME wardrobe but with ALL DOORS VISIBLY OPEN at ~90 degrees, showing the interior.
 
 CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
-- Every wardrobe door must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
-- The interior MUST be clearly visible through the open doors.
+- ${typeof expectedCount === 'number' ? `Exactly ${expectedCount} doors` : 'Every door'} must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
+- The interior MUST be clearly visible through the open doors.${analysisBlock}
 
 INTERIOR (must be visible through the open doors):
 ${s.open}
@@ -170,14 +207,17 @@ Clothes on hangers on the rods, folded items in the internal drawers. Realistic 
 
 DOORS on the opened state (still HANDLELESS):
 - The OUTSIDE face of each open door is still ${doorColor} matte flat-panel — a perfectly flat rectangle with ZERO visible hardware: no handles, no knobs, no edge pulls, no recessed grips, no finger grooves, no chrome bars. Do NOT add hardware to the now-visible door faces.
-- Each door swings from its own hinge side, revealing the interior of its own section. Paired doors (adjacent full-height twins) swing outward from the center seam between them; standalone doors swing from their single hinge.
+- Each door swings from its own hinge side, revealing the interior of its own section.
 
 KEEP IDENTICAL to the input:
 - Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and overall width.
 - Side panels, top crown, toe-kick.
 
 Photorealistic. No text, no labels.`,
-    metadata: { alt_style: { name: 'Interior View (Doors Open)' } },
+    metadata: {
+      alt_style: { name: 'Interior View (Doors Open)' },
+      wardrobe_structure_analysis: structureAnalysis || null,
+    },
   };
 }
 
@@ -207,4 +247,4 @@ export function buildWardrobeQuote(wallW) {
   };
 }
 
-export const __internals = { formatPreAnalysis };
+export const __internals = { formatStructureAnalysis };
