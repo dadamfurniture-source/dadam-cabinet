@@ -33,22 +33,33 @@ export const WARDROBE_ANALYSIS_MODEL = 'claude-opus-4-7';
  * (floor to ceiling). Shelves are minimized; rods handle hanging and a single
  * 2-tier stacked drawer pair (2 drawers total, nothing more) lives at the
  * bottom of the LAST section only.
+ *
+ * EVEN-ONLY tiers (4 / 4 / 6 / 8 doors):
+ *   Gemini strongly prefers symmetric mirrored pairs, so asymmetric odd-count
+ *   plans (old 5 / 7 tiers) were being silently rounded up to even in the
+ *   rendered image, causing closed-vs-open count drift. Keeping every tier
+ *   at an even count, with each section containing exactly 2 mirrored doors,
+ *   matches Gemini's natural rendering and eliminates the drift source.
  */
 export function getWardrobeStructure(w) {
   if (w > 3200) return {
-    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod inside) + section D (1 full-height door, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 7 full-height doors. The wardrobe contains exactly 2 drawers total, both in section D.',
+    doorCount: 8,
+    prompt: '4 sections (~' + Math.round(w / 4) + 'mm each): section A (2 full-height mirrored doors, short-clothes hanging with 2 rods inside) + section B (2 full-height mirrored doors, short-clothes hanging with 2 rods inside) + section C (2 full-height mirrored doors, long-clothes hanging with 1 rod inside) + section D (2 full-height mirrored doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 8 full-height doors arranged as 4 symmetric mirrored pairs. The wardrobe contains exactly 2 drawers total, both in section D.',
     open: 'Section A: 2 rods for short clothes, no drawers. Section B: 2 rods for short clothes, no drawers. Section C: 1 rod for long coats, no drawers. Section D: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
   if (w > 2600) return {
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 6 full-height doors. The wardrobe contains exactly 2 drawers total, both in section C.',
+    doorCount: 6,
+    prompt: '3 sections (~' + Math.round(w / 3) + 'mm each): section A (2 full-height mirrored doors, short-clothes hanging with 2 rods inside) + section B (2 full-height mirrored doors, short-clothes hanging with 2 rods inside) + section C (2 full-height mirrored doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 6 full-height doors arranged as 3 symmetric mirrored pairs. The wardrobe contains exactly 2 drawers total, both in section C.',
     open: 'Section A: 2 rods for short clothes, no drawers. Section B: 2 rods for short clothes, no drawers. Section C: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
   if (w > 2000) return {
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod inside) + section C (1 full-height door, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 5 full-height doors. The wardrobe contains exactly 2 drawers total, both in section C.',
-    open: 'Section A: 2 rods for short clothes, no drawers. Section B: 1 rod for long coats, no drawers. Section C: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
+    doorCount: 4,
+    prompt: '2 sections (~' + Math.round(w / 2) + 'mm each): section A (2 full-height mirrored doors, short-clothes hanging with 2 rods inside) + section B (2 full-height mirrored doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 4 full-height doors arranged as 2 symmetric mirrored pairs. The wardrobe contains exactly 2 drawers total, both in section B.',
+    open: 'Section A: 2 rods for short clothes, no drawers. Section B: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
   return {
-    prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 4 full-height doors. The wardrobe contains exactly 2 drawers total, both in section B.',
+    doorCount: 4,
+    prompt: '2 sections (~' + Math.round(w / 2) + 'mm each): section A (2 full-height mirrored doors, short-clothes hanging with 2 rods inside) + section B (2 full-height mirrored doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 4 full-height doors arranged as 2 symmetric mirrored pairs. The wardrobe contains exactly 2 drawers total, both in section B.',
     open: 'Section A: 2 rods for short clothes, no drawers. Section B: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
 }
@@ -60,7 +71,16 @@ export function getWardrobeStructure(w) {
  */
 export function buildWardrobeClosedPrompt({ wallData, themeData }) {
   const doorColor = themeData.style_door_color || 'white';
+  const struct = getWardrobeStructure(wallData.wallW);
+  const doorCount = struct.doorCount;
+  const pairCount = doorCount / 2;
   return `Edit photo: install a FULL-HEIGHT built-in wardrobe covering the entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall, floor to ceiling).
+
+EXACT DOOR COUNT (HARD REQUIREMENT — enforce BEFORE finalizing):
+- The closed wardrobe MUST show EXACTLY ${doorCount} full-height doors across the entire wall — no more, no fewer.
+- Arranged as ${pairCount} symmetric mirrored pair${pairCount > 1 ? 's' : ''} (each pair = two adjacent matching doors that meet at a center seam).
+- Do NOT add an extra pair to fill visual space. Do NOT drop a pair. Do NOT insert a narrow standalone door between pairs. The count is ${doorCount}, full stop.
+- Count the doors in your output before you return. If it is not exactly ${doorCount}, redo the layout until it matches.
 
 STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT sink cabinetry, NOT an upper+lower cabinet):
 - Each door is ONE SINGLE PIECE running continuously from floor to ceiling. A single rectangular door face, nothing else.
@@ -99,12 +119,14 @@ PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camer
 export function buildWardrobeStructureAnalysisPrompt() {
   return `You are looking at a photo of a newly generated built-in wardrobe covering one entire wall, all doors closed. The design is HANDLELESS — the door faces should be perfectly flat matte rectangles with no visible handles, pulls, or hardware.
 
-Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE) and classify each door into a SECTION of type "2D" (two-door pair sharing a section, opening outward from the center seam between them) or "1D" (single door that forms its own section).
+Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE). The wardrobe is designed to use symmetric mirrored pairs, so the total door count should be EVEN under normal conditions (4, 6, or 8 doors).
+
+Classify each door into a SECTION of type "2D" (two-door mirrored pair sharing a section, opening outward from the center seam between them). If, unexpectedly, you observe an asymmetric layout with an odd total count, you may fall back to a "1D" (single door that forms its own section) for the unpaired door — but this is the EXCEPTION, not the default.
 
 Section classification rule:
-- Pair adjacent doors that read as matching twins (similar width + a center seam between them) into a 2D section of two doors.
-- Any door that cannot be paired (leftover, noticeably different width, or a standalone at the end) is a 1D section of one door.
-- If the total door count is ODD, the LAST section (rightmost standalone door) must be classified as 1D. Every door in the image — including that trailing rightmost single door — must appear in doors_left_to_right and belong to a section. Do NOT drop, merge, or forget the trailing odd door.
+- Pair adjacent doors that read as matching twins (similar width + a center seam between them) into a 2D section of two doors. This is the default case.
+- Under normal conditions every section is 2D. Do NOT invent a 1D section for aesthetic reasons.
+- ONLY if the total door count is genuinely odd (rare, indicates a Gemini render deviation), classify the last unpaired door as 1D and include it in doors_left_to_right. Do NOT drop, merge, or forget that door.
 
 Return ONLY the following JSON, no prose:
 
@@ -186,22 +208,10 @@ function formatStructureAnalysis(sa) {
   }
   if (sa.overall_notes) lines.push(`- Notes: ${sa.overall_notes}`);
 
-  // 홀수 도어 조기 경고 — Gemini 가 마지막 1D 를 빼먹는 경향이 있어 알트 생성 전에 한번 더 강조.
-  const count = typeof sa.door_count === 'number' ? sa.door_count : null;
-  const oneDSections = Array.isArray(sa.sections) ? sa.sections.filter((s) => s.type === '1D') : [];
-  if (count && count % 2 === 1) {
-    lines.push('');
-    lines.push(`ODD DOOR COUNT (${count}) — the RIGHTMOST door is standalone (1D). ALL ${count} doors must be individually opened, INCLUDING that rightmost 1D door. Do NOT collapse, pair, or leave it closed.`);
-  }
-  if (oneDSections.length > 0) {
-    const ids = oneDSections.map((s) => `Section ${s.section_index} (doors ${(s.door_indexes || []).join(',')})`).join('; ');
-    lines.push(`- 1D sections must open independently: ${ids}. Each 1D section's single door opens on its own — do NOT merge with an adjacent section, do NOT leave closed.`);
-  }
-
   lines.push('');
-  lines.push('OPENING RULES BY SECTION TYPE:');
-  lines.push('- 2D sections: both doors of the pair swing OUTWARD from the center seam between them (left door opens to the left side, right door opens to the right side), revealing the interior of that one section.');
-  lines.push('- 1D sections: the single door swings open from its own hinge side, revealing the interior of that single section. EVERY 1D section — including the trailing rightmost one when the count is odd — must be visibly open in the output. Never skip a 1D door.');
+  lines.push('OPENING RULES:');
+  lines.push('- Every section is a 2D pair — both doors of each pair swing OUTWARD from the center seam between them (left door opens to the left side, right door opens to the right side), revealing the interior of that section.');
+  lines.push('- The output MUST contain exactly the same number of open doors as the input has closed doors. Do NOT drop a pair. Do NOT merge a pair into a single door. Do NOT leave any door closed.');
   return lines.join('\n');
 }
 
@@ -213,24 +223,28 @@ function formatStructureAnalysis(sa) {
 export function buildWardrobeAltSpec({ wallData, themeData, structureAnalysis }) {
   const s = getWardrobeStructure(wallData.wallW);
   const doorColor = (themeData && themeData.style_door_color) || 'same as input';
+  const opusCount = typeof structureAnalysis?.door_count === 'number' ? structureAnalysis.door_count : null;
+  // Opus 가 세어준 실제 닫힘 도어 수가 우선 (Gemini 가 플랜에서 드리프트한 경우 대응).
+  // 없으면 wallW 플랜 기반 짝수 기본값 (getWardrobeStructure.doorCount).
+  const enforcedCount = opusCount !== null ? opusCount : s.doorCount;
   const analysisBlock = structureAnalysis ? `\n\n${formatStructureAnalysis(structureAnalysis)}` : '';
-  const doorCount = typeof structureAnalysis?.door_count === 'number' ? structureAnalysis.door_count : null;
-  const countLabel = doorCount !== null ? `Exactly ${doorCount} doors` : 'Every door';
-  const oddReminder = doorCount !== null && doorCount % 2 === 1
-    ? ` The door count ${doorCount} is ODD, so the RIGHTMOST door is a standalone single (1D section). That rightmost door MUST be swung open by itself — do NOT leave it closed, do NOT skip it, do NOT merge it into a pair. Count the open doors in the output and make sure it equals ${doorCount}.`
-    : '';
+  // Opus 분석이 성공했을 때는 planned s.open 을 주입하지 않는다 (충돌 방지).
+  // Opus 실패 시에만 플랜 텍스트로 fallback.
+  const plannedInteriorBlock = structureAnalysis
+    ? ''
+    : `\n\nINTERIOR (planned layout — follow this when opening the doors):\n${s.open}`;
   return {
     inputKey: 'closed',
     prompt: `Using this closed-door wardrobe image, generate the SAME wardrobe but with ALL DOORS VISIBLY OPEN at ~90 degrees, showing the interior.
 
 CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
-- ${countLabel} must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
-- The number of OPEN doors in your output MUST exactly match the number of doors in the input image. If the input shows N doors, the output shows N doors open — never fewer, never more.${oddReminder}
-- The interior MUST be clearly visible through the open doors.${analysisBlock}
+- Exactly ${enforcedCount} doors must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
+- The number of OPEN doors in your output MUST exactly match the number of doors in the input image (which is ${enforcedCount}). If the input shows ${enforcedCount} doors, the output shows ${enforcedCount} doors open — never fewer, never more.
+- Every section is a mirrored 2-door pair; both doors of each pair swing OUTWARD from the center seam between them. Do NOT leave any pair half-open.
+- The interior MUST be clearly visible through the open doors.${analysisBlock}${plannedInteriorBlock}
 
-INTERIOR (must be visible through the open doors):
-${s.open}
-Clothes on hangers on the rods. The 2 drawers (exactly 2, stacked as a 2-tier pair in ONE section only) sit INSIDE that section — they are INTERIOR drawers visible THROUGH the opened door, NOT exterior drawers mounted on the outside of the wardrobe. All OTHER sections have rods only — do NOT render any additional drawers. No drawer fronts on any outside face of the wardrobe. Realistic wardrobe interior.
+INTERIOR CONTENTS (must be visible through the open doors):
+Clothes on hangers on the rods inside each section. The ONLY drawers are an exact 2-drawer stack (2-tier, vertically stacked) at the bottom of the LAST section — that is the entire drawer content of the wardrobe. All OTHER sections have rods only — do NOT render any additional drawers anywhere. The 2 drawers are INTERIOR drawers visible THROUGH the opened door of the last section, NOT exterior drawers mounted on the outside. No drawer fronts on any outside face of the wardrobe. Realistic wardrobe interior.
 
 DOORS on the opened state (still HANDLELESS — NO finger grooves):
 - The OUTSIDE face of each open door is still ${doorColor} matte flat-panel — a perfectly flat rectangle with ZERO visible hardware: no handles, no knobs, no edge pulls, no recessed grips, no chrome bars.
