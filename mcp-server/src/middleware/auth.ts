@@ -98,38 +98,3 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   }
 }
 
-/**
- * 관리자 전용 미들웨어 — requireAuth 통과 후 Supabase RPC public.is_admin() 로 판별.
- * 관리자가 아니면 403. requireAdmin 은 반드시 requireAuth 뒤에 체이닝.
- */
-export async function requireAdmin(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  try {
-    if (!req.user || !req.supabaseToken) {
-      throw new AuthenticationError('requireAdmin: requireAuth 가 먼저 통과해야 합니다');
-    }
-    const config = getConfig();
-    const response = await fetch(`${config.supabase.url}/rest/v1/rpc/is_admin`, {
-      method: 'POST',
-      headers: {
-        'apikey': config.supabase.anonKey,
-        'Authorization': `Bearer ${req.supabaseToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: '{}',
-    });
-    if (!response.ok) {
-      const errText = await response.text().catch(() => 'unknown');
-      log.warn({ status: response.status, error: errText.substring(0, 200) }, 'is_admin RPC failed');
-      throw new AuthenticationError('관리자 권한 확인 실패');
-    }
-    const isAdmin = await response.json() as boolean;
-    if (!isAdmin) {
-      log.warn({ userId: req.user.id }, 'Non-admin attempted admin endpoint');
-      throw new AuthenticationError('관리자 권한이 필요합니다');
-    }
-    log.debug({ userId: req.user.id }, 'Admin verified');
-    next();
-  } catch (error) {
-    next(error instanceof AuthenticationError ? error : new AuthenticationError());
-  }
-}
