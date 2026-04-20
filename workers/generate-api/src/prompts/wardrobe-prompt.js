@@ -1,19 +1,25 @@
 /**
- * 붙박이장 전용 프롬프트
+ * Wardrobe (붙박이장) prompt module — English only.
  *
- * 대상 category: 'wardrobe'
+ * Target category: 'wardrobe'
  *
- * Step 2 (닫힌 도어): 벽면 전체를 덮는 full-height 도어 구조 설치
- * Step 3 (열린 도어): 같은 결과물의 문을 ~90° 열어 내부 옷봉·서랍 보여주기
- * 벽 폭에 따라 getWardrobeStructure 가 4/5/6/7 도어 구조를 리턴 — 견적 계산에도 재사용 가능.
+ * Step 2 (closed doors):  Full-wall full-height built-in wardrobe installation.
+ * Step 3 (open doors):    Same wardrobe with all doors swung open, showing interior.
+ *
+ * getWardrobeStructure(w) returns a 4 / 5 / 6 / 7 full-height-door layout based on
+ * the target wall width. The same structure is reused by buildWardrobeQuote for
+ * pricing.
+ *
+ * All prompt text sent to Gemini is English only. JSDoc comments kept in English
+ * so the entire file matches.
  */
 
 export const WARDROBE_CATEGORIES = ['wardrobe'];
 
 /**
- * 벽 폭별 섹션 구조.
- * 모든 도어는 FULL-HEIGHT 단일 도어 (바닥~천장), 상·하 분할 금지.
- * 선반은 최소화하고 옷봉·내부 서랍을 우선.
+ * Section layout by wall width.
+ * Every door is a FULL-HEIGHT single panel (floor to ceiling) — never split
+ * horizontally. Shelves are minimized; hanging rods and internal drawers win.
  */
 export function getWardrobeStructure(w) {
   if (w > 3200) return {
@@ -35,36 +41,42 @@ export function getWardrobeStructure(w) {
 }
 
 /**
- * Step 2 — 벽 전체 붙박이장 닫힌 도어.
- * Gemini 가 습관적으로 상하부장으로 분할하려 하므로 금지 절을 반복·구체화.
+ * Step 2 — full-wall closed-door wardrobe.
+ * Gemini 2.5 Flash Image tends to default to kitchen-style upper+lower splits
+ * and to draw visible handles; both are explicitly banned here.
  */
 export function buildWardrobeClosedPrompt({ wallData, themeData }) {
   const doorColor = themeData.style_door_color || 'white';
-  const s = getWardrobeStructure(wallData.wallW);
-  return `Edit photo: install a FULL-HEIGHT built-in wardrobe covering the entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall floor-to-ceiling).
+  return `Edit photo: install a FULL-HEIGHT built-in wardrobe covering the entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall, floor to ceiling).
 
-STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT a sink cabinetry, NOT an upper+lower cabinet):
-- Each door is ONE SINGLE PIECE running continuously from the floor to the ceiling. Single rectangular door face, nothing else.
+STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT sink cabinetry, NOT an upper+lower cabinet):
+- Each door is ONE SINGLE PIECE running continuously from floor to ceiling. A single rectangular door face, nothing else.
 - NEVER split any door horizontally into upper and lower sections.
 - NO mid-height rail, NO crossbar, NO horizontal seam, NO counter, NO open shelf, NO visible transom panel breaking the door face.
 - NO upper cabinet above shorter doors. NO base cabinet with short doors below longer top doors. NO hutch. NO kitchen-style upper/lower split.
 - NO countertop, NO sink, NO faucet, NO appliances — this is a clothing wardrobe, not a kitchen.
 
-DOORS:
+DOORS (NO HANDLES — push-to-open, completely flush):
 - "${doorColor}" matte flat-panel, completely smooth and seamless.
-- NO indentations, NO grooves, NO cutouts, NO visible handles, NO knobs, NO chrome bars — push-to-open only.
-- All doors closed in this image. No gaps between adjacent doors.
+- The front face of every door is a PERFECTLY FLAT uninterrupted rectangle.
+- ABSOLUTELY NO handles of any kind. This includes ALL of the following, which must not appear anywhere:
+  * no knobs, pulls, D-handles, bar handles, cup pulls, finger pulls
+  * no chrome bars, metal bars, brass hardware, aluminum strips
+  * no recessed grips, J-channel grips, finger grooves, edge cutouts
+  * no indentations, no grooves, no slots, no notches on the door face or edges
+  * no hinge lines visible from the front
+- The opening mechanism is push-to-open (touch latch). No hardware is visible from the outside.
 
-SECTION LAYOUT (inside is described here for reference; in THIS image doors are closed):
-${s.prompt}
+SECTION LAYOUT (this describes the interior for reference; in THIS image the doors are closed and the interior is NOT visible):
+${getWardrobeStructure(wallData.wallW).prompt}
 
-PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camera angle all pixel-identical. Photorealistic. No text, no labels.`;
+PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camera angle all pixel-identical to the input photo. Photorealistic. No text, no labels.`;
 }
 
 /**
- * Step 3 — 열린 도어 + 내부 옷봉·서랍 구조.
- * worker.js 가 closedResult.image 를 입력으로 사용.
- * Gemini 가 "doors open" 지시를 무시하고 두 번째도 닫힌 이미지를 반환하는 경향을 차단.
+ * Step 3 — open-door variant showing interior rods and drawers.
+ * worker.js feeds closedResult.image back in as the base.
+ * Counter-measures against Gemini sometimes returning the input unchanged.
  */
 export function buildWardrobeAltSpec({ wallData, themeData }) {
   const s = getWardrobeStructure(wallData.wallW);
@@ -81,19 +93,22 @@ INTERIOR (must be visible through the open doors):
 ${s.open}
 Clothes on hangers on the rods, folded items in the internal drawers. Realistic wardrobe interior.
 
-KEEP IDENTICAL from the input:
-- Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and width
-- Door color and finish (the OUTSIDE face of each open door is still ${doorColor} matte flat-panel)
-- Side panels, top crown, toe-kick
+DOORS (still NO HANDLES on the open doors either):
+- Door color and finish (on the OUTSIDE face of each open door) remains ${doorColor} matte flat-panel.
+- The door faces are still completely flush — no handles, no knobs, no pulls, no recessed grips, no hinge lines visible from the front.
+
+KEEP IDENTICAL to the input:
+- Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and width.
+- Side panels, top crown, toe-kick.
 
 Photorealistic. No text, no labels.`,
-    metadata: { alt_style: { name: '내부 구조 (열린문)' } },
+    metadata: { alt_style: { name: 'Interior View (Doors Open)' } },
   };
 }
 
 /**
- * 붙박이장 전용 견적 (300mm 당 140,000원).
- * worker.js 가 response.quote 로 붙여 보낸다.
+ * Wardrobe-only quote (140,000 KRW per 300mm of wall width).
+ * worker.js attaches this to the response as `quote`.
  */
 export function buildWardrobeQuote(wallW) {
   const UNIT_MM = 300;
