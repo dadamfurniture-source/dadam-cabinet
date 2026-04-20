@@ -3,23 +3,34 @@
  *
  * Target category: 'wardrobe'
  *
- * Step 2 (closed doors):  Full-wall full-height built-in wardrobe installation.
- * Step 3 (open doors):    Same wardrobe with all doors swung open, showing interior.
+ * Pipeline:
+ *   Step 2    — Gemini: closed-door wardrobe covering entire wall.
+ *   Step 2.5  — Claude Opus 4.7: analyze the generated closed-door image and
+ *               return a JSON description of the doors it actually sees
+ *               (count, left-to-right widths, visible seams, style cues).
+ *   Step 3    — Gemini: open every door at ~90° using the Opus analysis so
+ *               the output matches the exact door layout produced in Step 2.
  *
- * getWardrobeStructure(w) returns a 4 / 5 / 6 / 7 full-height-door layout based on
- * the target wall width. The same structure is reused by buildWardrobeQuote for
- * pricing.
+ * getWardrobeStructure(w) still supplies the planned 4 / 5 / 6 / 7-door layout
+ * to Step 2 and to buildWardrobeQuote for pricing. The Opus analysis feeds Step 3
+ * only — Step 2 keeps planning from scratch.
  *
- * All prompt text sent to Gemini is English only. JSDoc comments kept in English
- * so the entire file matches.
+ * Handle policy: intentionally silent. No "no handles" language anywhere in the
+ * prompts — Gemini gets a flat-panel description and is left to render the
+ * surface naturally.
  */
 
 export const WARDROBE_CATEGORIES = ['wardrobe'];
 
 /**
- * Section layout by wall width.
- * Every door is a FULL-HEIGHT single panel (floor to ceiling) — never split
- * horizontally. Shelves are minimized; hanging rods and internal drawers win.
+ * Claude Opus 4.7 runs AFTER Step 2 for wardrobe (the only category that does
+ * this today). Other categories using PRE-analysis live in their own modules.
+ */
+export const WARDROBE_ANALYSIS_MODEL = 'claude-opus-4-7';
+
+/**
+ * Section layout by wall width. Each door is a single full-height panel
+ * (floor to ceiling). Shelves are minimized; rods and internal drawers win.
  */
 export function getWardrobeStructure(w) {
   if (w > 3200) return {
@@ -41,9 +52,8 @@ export function getWardrobeStructure(w) {
 }
 
 /**
- * Step 2 — full-wall closed-door wardrobe.
- * Gemini 2.5 Flash Image tends to default to kitchen-style upper+lower splits
- * and to draw visible handles; both are explicitly banned here.
+ * Step 2 — full-wall closed-door wardrobe (handle language intentionally
+ * omitted; flat-panel description only).
  */
 export function buildWardrobeClosedPrompt({ wallData, themeData }) {
   const doorColor = themeData.style_door_color || 'white';
@@ -56,16 +66,10 @@ STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT sink cabi
 - NO upper cabinet above shorter doors. NO base cabinet with short doors below longer top doors. NO hutch. NO kitchen-style upper/lower split.
 - NO countertop, NO sink, NO faucet, NO appliances — this is a clothing wardrobe, not a kitchen.
 
-DOORS (NO HANDLES — push-to-open, completely flush):
+DOORS:
 - "${doorColor}" matte flat-panel, completely smooth and seamless.
-- The front face of every door is a PERFECTLY FLAT uninterrupted rectangle.
-- ABSOLUTELY NO handles of any kind. This includes ALL of the following, which must not appear anywhere:
-  * no knobs, pulls, D-handles, bar handles, cup pulls, finger pulls
-  * no chrome bars, metal bars, brass hardware, aluminum strips
-  * no recessed grips, J-channel grips, finger grooves, edge cutouts
-  * no indentations, no grooves, no slots, no notches on the door face or edges
-  * no hinge lines visible from the front
-- The opening mechanism is push-to-open (touch latch). No hardware is visible from the outside.
+- The front face of every door is a perfectly flat uninterrupted rectangle.
+- All doors closed in this image. No gaps between adjacent doors.
 
 SECTION LAYOUT (this describes the interior for reference; in THIS image the doors are closed and the interior is NOT visible):
 ${getWardrobeStructure(wallData.wallW).prompt}
@@ -74,35 +78,100 @@ PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camer
 }
 
 /**
- * Step 3 — open-door variant showing interior rods and drawers.
- * worker.js feeds closedResult.image back in as the base.
- * Counter-measures against Gemini sometimes returning the input unchanged.
+ * Step 2.5 — Claude Opus 4.7 reads the closed-door image generated in Step 2
+ * and returns a JSON description of the actual door layout it sees. This is
+ * then handed to Step 3 so the open-door image opens the same number and
+ * positions of doors Gemini actually rendered.
  */
-export function buildWardrobeAltSpec({ wallData, themeData }) {
+export function buildWardrobeStructureAnalysisPrompt() {
+  return `You are looking at a photo of a newly generated built-in wardrobe covering one entire wall, all doors closed.
+
+Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE) and return ONLY the following JSON, no prose:
+
+{
+  "door_count": integer — number of distinct vertical doors you can count,
+  "doors_left_to_right": [
+    {
+      "index": 1-based integer in left-to-right order,
+      "relative_width": "narrow | medium | wide",
+      "approx_x_start_pct": integer 0-100 (percent of wall width where this door's LEFT edge sits),
+      "approx_x_end_pct":   integer 0-100 (percent of wall width where this door's RIGHT edge sits),
+      "notes": "anything noteworthy about this specific door's appearance (kept short)"
+    }
+  ],
+  "door_color_finish": "short description of the door color and finish you observe",
+  "visible_vertical_seams_pct": [list of integers — x-coordinate percent of each vertical seam between doors],
+  "horizontal_rails_or_seams": "describe any horizontal split / rail / shelf that appears on the door faces, or 'none'",
+  "overall_notes": "one short line of anything important for opening these doors naturally in a follow-up render"
+}
+
+Be accurate about the door count and their order. If you see 5 doors, say 5. Return valid JSON only.`;
+}
+
+/** Format the Opus structure analysis into a readable block for the Step 3 prompt. */
+function formatStructureAnalysis(sa) {
+  if (!sa || typeof sa !== 'object') return '';
+  const lines = ['[ACTUAL DOOR LAYOUT FROM CLAUDE ANALYSIS OF THE CLOSED IMAGE — open exactly these doors]'];
+  if (typeof sa.door_count === 'number') {
+    lines.push(`- Door count observed: ${sa.door_count}`);
+  }
+  if (Array.isArray(sa.doors_left_to_right) && sa.doors_left_to_right.length) {
+    const doorDescs = sa.doors_left_to_right.map((d) => {
+      const range = (typeof d.approx_x_start_pct === 'number' && typeof d.approx_x_end_pct === 'number')
+        ? ` at x=${d.approx_x_start_pct}%–${d.approx_x_end_pct}%`
+        : '';
+      const width = d.relative_width ? ` (${d.relative_width})` : '';
+      return `  ${d.index}${range}${width}${d.notes ? ' — ' + d.notes : ''}`;
+    });
+    lines.push('- Doors in left-to-right order:');
+    lines.push(...doorDescs);
+  }
+  if (sa.door_color_finish) lines.push(`- Door color/finish observed: ${sa.door_color_finish}`);
+  if (Array.isArray(sa.visible_vertical_seams_pct) && sa.visible_vertical_seams_pct.length) {
+    lines.push(`- Vertical seam positions (%): ${sa.visible_vertical_seams_pct.join(', ')}`);
+  }
+  if (sa.horizontal_rails_or_seams && sa.horizontal_rails_or_seams !== 'none') {
+    lines.push(`- Horizontal features: ${sa.horizontal_rails_or_seams}`);
+  }
+  if (sa.overall_notes) lines.push(`- Notes: ${sa.overall_notes}`);
+  return lines.join('\n');
+}
+
+/**
+ * Step 3 — open every door shown in the Opus analysis at ~90°.
+ * worker.js feeds the closed-door image back in as the base and the Opus
+ * structure JSON as ctx.structureAnalysis.
+ */
+export function buildWardrobeAltSpec({ wallData, themeData, structureAnalysis }) {
   const s = getWardrobeStructure(wallData.wallW);
   const doorColor = (themeData && themeData.style_door_color) || 'same as input';
+  const analysisBlock = structureAnalysis ? `\n\n${formatStructureAnalysis(structureAnalysis)}` : '';
+  const expectedCount = structureAnalysis?.door_count ? structureAnalysis.door_count : 'every';
   return {
     inputKey: 'closed',
     prompt: `Using this closed-door wardrobe image, generate the SAME wardrobe but with ALL DOORS VISIBLY OPEN at ~90 degrees, showing the interior.
 
 CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
-- Every wardrobe door MUST be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
-- The interior MUST be clearly visible through the open doors.
+- ${typeof expectedCount === 'number' ? `Exactly ${expectedCount} doors` : 'Every door'} must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
+- The interior MUST be clearly visible through the open doors.${analysisBlock}
 
 INTERIOR (must be visible through the open doors):
 ${s.open}
 Clothes on hangers on the rods, folded items in the internal drawers. Realistic wardrobe interior.
 
-DOORS (still NO HANDLES on the open doors either):
-- Door color and finish (on the OUTSIDE face of each open door) remains ${doorColor} matte flat-panel.
-- The door faces are still completely flush — no handles, no knobs, no pulls, no recessed grips, no hinge lines visible from the front.
+DOORS on the opened state:
+- The OUTSIDE face of each open door is still ${doorColor} matte flat-panel, the same surface seen in the input.
+- Each door swings from its own hinge side, revealing the interior of its own section.
 
 KEEP IDENTICAL to the input:
-- Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and width.
+- Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and overall width.
 - Side panels, top crown, toe-kick.
 
 Photorealistic. No text, no labels.`,
-    metadata: { alt_style: { name: 'Interior View (Doors Open)' } },
+    metadata: {
+      alt_style: { name: 'Interior View (Doors Open)' },
+      wardrobe_structure_analysis: structureAnalysis || null,
+    },
   };
 }
 
@@ -131,3 +200,5 @@ export function buildWardrobeQuote(wallW) {
     grade: 'basic',
   };
 }
+
+export const __internals = { formatStructureAnalysis };
