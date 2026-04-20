@@ -1,6 +1,10 @@
 import { supabase } from '@/lib/supabase';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+// Cloudflare Worker (dadam-payments-api) URL.
+// 기본값: 운영 워커 도메인. 로컬 개발 시 .env.local 의 NEXT_PUBLIC_API_BASE 로 오버라이드.
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  'https://dadam-payments-api.dadamfurniture.workers.dev';
 
 async function authHeader(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
@@ -21,7 +25,7 @@ export interface TossPlansResponse {
 }
 
 export async function fetchTossPlans(): Promise<TossPlansResponse> {
-  const res = await fetch(`${API_BASE}/api/v1/payments/toss/plans`);
+  const res = await fetch(`${API_BASE}/plans`);
   if (!res.ok) throw new Error('플랜 정보를 불러오지 못했습니다.');
   const body = await res.json();
   return body.data as TossPlansResponse;
@@ -33,7 +37,7 @@ export async function issueBillingKey(params: {
   plan: string;
 }) {
   const headers = { 'Content-Type': 'application/json', ...(await authHeader()) };
-  const res = await fetch(`${API_BASE}/api/v1/payments/toss/issue-billing-key`, {
+  const res = await fetch(`${API_BASE}/issue-billing-key`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -43,7 +47,7 @@ export async function issueBillingKey(params: {
     }),
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(body.detail || body.message || '결제 처리에 실패했습니다.');
+  if (!res.ok) throw new Error(body.message || '결제 처리에 실패했습니다.');
   return body.data as {
     plan: string;
     amount_krw: number;
@@ -54,19 +58,19 @@ export async function issueBillingKey(params: {
 
 export async function cancelTossSubscription(reason?: string) {
   const headers = { 'Content-Type': 'application/json', ...(await authHeader()) };
-  const res = await fetch(`${API_BASE}/api/v1/payments/toss/cancel`, {
+  const res = await fetch(`${API_BASE}/cancel`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ reason: reason ?? null }),
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(body.detail || '구독 취소에 실패했습니다.');
+  if (!res.ok) throw new Error(body.message || '구독 취소에 실패했습니다.');
   return body.data;
 }
 
 export async function fetchCurrentSubscription() {
   const headers = { ...(await authHeader()) };
-  const res = await fetch(`${API_BASE}/api/v1/payments/subscription`, { headers });
+  const res = await fetch(`${API_BASE}/subscription`, { headers });
   if (!res.ok) return null;
   const body = await res.json();
   return body.data;
