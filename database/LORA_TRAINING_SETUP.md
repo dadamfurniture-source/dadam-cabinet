@@ -22,8 +22,22 @@ Railway 대시보드 → `dadam-generate-api` 서비스 → Variables 에 다음
 | Key | Value |
 |---|---|
 | `REPLICATE_API_KEY` | Replicate 대시보드 → Account → API Tokens 에서 복사 (`r8_...`) |
-| `SUPABASE_URL` | 이미 있음 |
-| `SUPABASE_ANON_KEY` | 이미 있음 |
+| `REPLICATE_DESTINATION_MODEL` | 본인 Replicate 계정 아래 빈 모델 경로 (예: `dadamfurniture/dadam-fridge-lora`) — 아래 2.1 참조 |
+| `SUPABASE_URL` | (기본값 있음, 생략 가능) |
+| `SUPABASE_ANON_KEY` | (기본값 있음, 생략 가능) |
+
+### 2.1 REPLICATE_DESTINATION_MODEL — 학습 결과 저장용 빈 모델 만들기
+
+Replicate 는 학습된 LoRA 가중치를 저장할 "본인 모델" 이 필요합니다 (trainer 가 쓸 destination).
+
+1. https://replicate.com/create 접속
+2. **Model name**: 원하는 이름 (예: `dadam-fridge-lora`)
+3. **Visibility**: Private 권장 (내부용)
+4. **Hardware**: GPU 선택 (학습 후 추론용 — 당장은 사용 안 하지만 필수 필드)
+5. Create 클릭 → `https://replicate.com/{username}/{model-name}` 생성됨
+6. Railway Variables 에 `REPLICATE_DESTINATION_MODEL=${username}/${model-name}` 등록 (예: `dadamfurniture/dadam-fridge-lora`)
+
+이 빈 모델 안에 학습 완료 시마다 새 version 이 push 되고, 그 version ID 가 `lora_models.model_version` 으로 저장됩니다.
 
 ## 3. mcp-server 재배포
 
@@ -72,6 +86,8 @@ curl https://dadam-generate-api-production.up.railway.app/health
 | "학습 시작" 비활성 | 이미지 < 10장 또는 학습 진행 중 | 학습용 추가 마킹 / 기존 작업 완료 대기 |
 | `403` | requireAdmin 차단 | admin_roles 테이블에 본인 user_id 등록 |
 | `500` `REPLICATE_API_KEY not set` | Railway 환경변수 누락 | Variables 에 추가 후 재배포 |
+| `replicate API error: HTTP 404` | `REPLICATE_DESTINATION_MODEL` 미설정 또는 trainer version 만료 | Step 2.1 따라 destination 모델 생성 + env var 등록 후 재배포. 여전히 404 면 `FLUX_TRAINER_VERSION` (replicate.client.ts:153) 이 최신인지 Replicate 대시보드에서 확인 |
+| `REPLICATE_DESTINATION_MODEL 환경변수가 필요합니다` | Step 2.1 미완료 | 본인 계정에 빈 모델 생성 후 env 등록 |
 | `학습 이미지 부족` | is_training=true 가 10 미만 | 더 마킹 |
 | 30분 지나도 status='training' | Replicate 학습 지연 | https://replicate.com/dashboard 에서 직접 확인 |
 | `zip 업로드 실패 403` | training-zips 버킷 RLS 미적용 | Step 1 SQL 재실행 |
