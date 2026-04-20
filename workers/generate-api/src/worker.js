@@ -1,30 +1,73 @@
 /**
  * Dadam Generate API — Cloudflare Worker
  * POST /api/generate
- * Gemini Flash Image 직접 호출 (벽분석 + 가구생성 + 열린문)
  *
- * 카테고리별 프롬프트 모듈:
- *   - 냉장고장: ./fridge-prompt.js
- *   - 그 외: worker.js 내부 buildFurniturePrompt / getWardrobeStructure 등
+ * 이 파일은 카테고리 무관 인프라(callGemini, CORS, fetch handler 골격) 와
+ * 카테고리별 prompt 모듈을 호출하는 얇은 dispatcher 만 담당한다.
+ *
+ * 카테고리별 프롬프트는 ./prompts/{category}-prompt.js 에 격리되어 있어
+ * 한 카테고리 수정이 다른 카테고리로 새는 사고를 원천 차단한다.
+ *
+ * Dispatch 룩업:
+ *   - CLOSED_BUILDERS[category](ctx) → Step 2 프롬프트 문자열
+ *   - ALT_BUILDERS[category](ctx)    → Step 3 {inputKey, prompt, metadata}
+ *   - FRIDGE_CATEGORIES               → Step 1b 철거가 필요한 카테고리
+ *   - applyWallWidthCorrection        → Step 1 후 카테고리별 보정
  */
 
-import { buildFridgePrompt, buildFridgeDemolitionPrompt, buildFridgeRecommendedPrompt } from './fridge-prompt.js';
+import { buildWallAnalysisPrompt, applyWallWidthCorrection } from './prompts/wall-analysis.js';
+import {
+  SINK_CATEGORIES,
+  buildSinkClosedPrompt,
+  buildSinkAltSpec,
+} from './prompts/sink-prompt.js';
+import {
+  WARDROBE_CATEGORIES,
+  buildWardrobeClosedPrompt,
+  buildWardrobeAltSpec,
+  buildWardrobeQuote,
+} from './prompts/wardrobe-prompt.js';
+import {
+  VANITY_CATEGORIES,
+  buildVanityClosedPrompt,
+  buildVanityAltSpec,
+} from './prompts/vanity-prompt.js';
+import {
+  SHOE_CATEGORIES,
+  buildShoeClosedPrompt,
+  buildShoeAltSpec,
+} from './prompts/shoe-prompt.js';
+import {
+  FRIDGE_CATEGORIES,
+  buildFridgeClosedPrompt,
+  buildFridgeAltSpec,
+  buildFridgeDemolitionPrompt,
+} from './prompts/fridge-prompt.js';
 
-// ─── 레이아웃/스타일 매핑 ───
-const LAYOUT_DESC = {
-  i_type: 'straight linear I-shaped',
-  l_type: 'L-shaped corner',
-  u_type: 'U-shaped three-wall',
-  peninsula: 'peninsula island facing living room',
-};
-
+// ─── 스타일 매핑 (카테고리 무관) ───
 const STYLE_MAP = {
   'modern-minimal': 'Modern Minimal',
-  'scandinavian': 'Scandinavian Nordic',
-  'industrial': 'Industrial Vintage',
-  'classic': 'Classic Traditional',
-  'luxury': 'Luxury Premium',
+  'scandinavian-warm': 'Scandinavian Warm',
+  'natural-zen': 'Natural Zen',
+  'luxury-dark': 'Luxury Dark',
+  'urban-industrial': 'Urban Industrial',
 };
+
+// ─── 카테고리 → prompt 빌더 룩업 테이블 ───
+// 신규 카테고리 추가 시 여기 한 줄만 추가하면 됨 (+ 모듈 파일 1개)
+const CLOSED_BUILDERS = {};
+const ALT_BUILDERS = {};
+function register(categories, closedBuilder, altBuilder) {
+  for (const c of categories) {
+    CLOSED_BUILDERS[c] = closedBuilder;
+    ALT_BUILDERS[c] = altBuilder;
+  }
+}
+register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec);
+register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec);
+register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec);
+register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec);
+register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec);
 
 // ─── Gemini API 호출 ───
 async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4, extraImages = []) {
@@ -35,163 +78,42 @@ async function callGemini(env, prompt, image, imageType, responseModalities = ['
   if (image && imageType) {
     parts.push({ inlineData: { mimeType: imageType, data: image } });
   }
-  // 추가 레퍼런스 이미지 (포트폴리오 등) - 메인 이미지 다음, 프롬프트 이전
-  for (const ex of extraImages) {
-    if (ex && ex.base64 && ex.mimeType) {
-      parts.push({ inlineData: { mimeType: ex.mimeType, data: ex.base64 } });
+  // 추가 레퍼런스 이미지 (포트폴리오 등) — 메인 이미지 다음, 프롬프트 이전
+  for (const ref of extraImages || []) {
+    if (ref && ref.base64 && ref.mimeType) {
+      parts.push({ inlineData: { mimeType: ref.mimeType, data: ref.base64 } });
     }
   }
   parts.push({ text: prompt });
 
   const body = {
-    contents: [{ parts }],
-    generationConfig: { responseModalities, temperature },
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      temperature,
+      responseModalities,
+    },
   };
 
-  const res = await fetch(url, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API ${res.status}: ${errText.substring(0, 200)}`);
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'unknown');
+    throw new Error(`Gemini API ${response.status}: ${errText.substring(0, 200)}`);
   }
 
-  const data = await res.json();
-  const resultParts = data.candidates?.[0]?.content?.parts || [];
-  let resultImage, resultText;
-
-  for (const part of resultParts) {
-    if (part.inlineData) resultImage = part.inlineData.data;
-    if (part.text) resultText = part.text;
+  const data = await response.json();
+  const outParts = data.candidates?.[0]?.content?.parts || [];
+  let outImage = null;
+  let outText = '';
+  for (const p of outParts) {
+    if (p.inlineData?.data) outImage = p.inlineData.data;
+    if (p.text) outText += p.text;
   }
-
-  return { image: resultImage, text: resultText };
-}
-
-// ─── 벽분석 프롬프트 ───
-function buildWallAnalysisPrompt(category) {
-  if (category === 'wardrobe') {
-    return `Analyze this Korean apartment room photo for built-in wardrobe installation.
-
-CALIBRATION — Use these KNOWN Korean apartment features as size references:
-- Standard door frame: 900mm wide × 2100mm tall (most common reference)
-- Light switch / outlet plate: 70mm wide × 120mm tall
-- Ceiling height: typically 2300-2400mm
-- Standard room door: use as PRIMARY scale reference
-
-TASK:
-1. Identify any visible doors, door frames, outlets, or light switches
-2. Use them as scale reference to calculate the target wall width in mm
-3. Korean apartment rooms typically have walls 1800-5000mm wide. Be conservative.
-
-Return JSON only:
-{"wall_dimensions_mm":{"width":number,"height":number},"reference_used":"door_frame"|"outlet"|"ceiling"|"none","confidence":"high"|"medium"|"low"}`;
-  }
-
-  return `[TASK: Korean kitchen wall structure analysis]
-Analyze this photo and extract as JSON:
-- wall_dimensions_mm: { width, height } (estimate)
-- utility_positions_mm: { water_supply_from_left, exhaust_duct_from_left }
-- confidence: "high" | "medium" | "low"
-Return ONLY valid JSON.`;
-}
-
-// ─── 가구 생성 프롬프트 ───
-function buildFurniturePrompt(category, style, kitchenLayout, wallData, themeData, fridgeOptions, extra = {}) {
-  const layoutDesc = LAYOUT_DESC[kitchenLayout] || 'straight linear';
-  const styleName = STYLE_MAP[style] || 'Modern Minimal';
-  const doorColor = themeData.style_door_color || 'white';
-  const doorFinish = themeData.style_door_finish || 'matte';
-  const countertop = themeData.style_countertop_prompt || 'white stone countertop';
-
-  if (['sink', 'kitchen', 'l_shaped_sink', 'island_kitchen'].includes(category)) {
-    return `Place ${doorColor} ${doorFinish} flat panel ${layoutDesc} kitchen cabinets on this photo. PRESERVE background EXACTLY.
-[WALL] ${wallData.wallW}x${wallData.wallH}mm wall.
-[PLUMBING] Sink at ${wallData.waterPct}% from left, cooktop at ${wallData.exhaustPct}% from left.
-[UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets.
-[LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
-[COUNTERTOP] ${countertop}, continuous surface.
-[DOORS] No visible handles. Push-to-open mechanism.
-[HOOD] Concealed range hood integrated into upper cabinet above cooktop.
-[STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
-[QUALITY] 8K quality, natural lighting, proper shadows and reflections.
-CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/labels. Photorealistic.`;
-  }
-
-  if (category === 'wardrobe') {
-    const s = getWardrobeStructure(wallData.wallW);
-    return `Edit photo: install built-in wardrobe covering entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall).
-Doors: "${doorColor}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
-All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
-  }
-
-  if (category === 'shoe' || category === 'shoe_cabinet') {
-    return `Place ${doorColor} ${doorFinish} shoe cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Slim profile 300-400mm depth. Floor-to-ceiling.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'fridge' || category === 'fridge_cabinet') {
-    return buildFridgePrompt({
-      doorColor,
-      doorFinish,
-      wallData,
-      styleName,
-      fridgeOpts: fridgeOptions,
-      siteAlreadyCleared: !!extra.siteAlreadyCleared,
-    });
-  }
-
-  if (category === 'vanity') {
-    return `Place ${doorColor} ${doorFinish} bathroom vanity on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Vanity with sink at ${wallData.waterPct}% from left. Mirror cabinet above.
-${countertop}. ${styleName}. Photorealistic. Faucet chrome finish.`;
-  }
-
-  return `Place ${doorColor} ${doorFinish} storage cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Floor-to-ceiling built-in with multiple door sections.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
-}
-
-// ─── 붙박이장 구조 (벽 폭 기준, 섹션 950mm) ───
-// All doors are FULL-HEIGHT single doors (floor to ceiling, never split upper/lower)
-// Shelves are minimized — prefer hanging rods and internal drawers
-function getWardrobeStructure(w) {
-  if (w > 3200) return { // 7 full-height doors
-    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 7 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: 1 rod for long coats + internal drawer at bottom.',
-  };
-  if (w > 2600) return { // 6 full-height doors
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 6 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom.',
-  };
-  if (w > 2000) return { // 5 full-height doors
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 5 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: 1 rod for long coats + internal drawer at bottom.',
-  };
-  return { // 4 full-height doors
-    prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
-  };
-}
-
-// ─── 열린문 프롬프트 ───
-function buildOpenDoorPrompt(category, wallW) {
-  if (category === 'wardrobe') {
-    const s = getWardrobeStructure(wallW || 3000);
-    return `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items in drawers. Same camera/lighting/background. Photorealistic. No text.`;
-  }
-
-  return `Using this closed-door furniture image, generate the SAME furniture with doors OPEN.
-RULES:
-- SAME camera angle, lighting, background, furniture position
-- Open doors to ~90 degrees showing interior
-- Show neatly organized storage inside
-- Photorealistic quality
-- Do NOT change any furniture structure or color`;
+  return { image: outImage, text: outText };
 }
 
 // ─── CORS 헤더 ───
@@ -249,7 +171,6 @@ export default {
           ...themeData
         } = body;
 
-        // reference_images: [{ base64, mimeType, description? }, ...]
         const refImages = Array.isArray(reference_images)
           ? reference_images.filter((r) => r && r.base64 && r.mimeType)
           : [];
@@ -263,6 +184,7 @@ export default {
           });
         }
 
+        const styleName = STYLE_MAP[design_style] || 'Modern Minimal';
         console.log(`[Generate] category=${category}, style=${design_style}, layout=${kitchen_layout}`);
 
         // ═══ Step 1: 벽면 분석 ═══
@@ -273,37 +195,36 @@ export default {
           wallW = manualW;
           console.log(`[Generate] Wall width from user override: ${wallW}mm`);
         } else {
-        try {
-          const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2);
+          try {
+            const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2);
 
-          if (wallResult.text) {
-            const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              const dims = parsed.wall_dimensions_mm || {};
-              const utils = parsed.utility_positions_mm || {};
-              wallW = dims.width || 3000;
-              wallH = dims.height || 2400;
-              // 미터 → mm 변환 보호
-              if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
-              if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
-              // 렌즈 왜곡 보정 — 붙박이장 전용 (그 외 카테고리에 적용하면 싱크대 가구 비율이 깨짐)
-              if (category === 'wardrobe') {
-                wallW = Math.round(wallW * 0.85);
-                wallW = Math.max(1800, Math.min(5000, wallW));
+            if (wallResult.text) {
+              const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                const dims = parsed.wall_dimensions_mm || {};
+                const utils = parsed.utility_positions_mm || {};
+                wallW = dims.width || 3000;
+                wallH = dims.height || 2400;
+                // 미터 → mm 변환 보호
+                if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
+                if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
+                // 카테고리별 렌즈 왜곡 보정 (싱크대는 미적용)
+                wallW = applyWallWidthCorrection(category, wallW);
+                if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
+                if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
               }
-              if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
-              if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
             }
+            console.log(`[Generate] Wall: ${wallW}x${wallH}, water=${waterPct}%, exhaust=${exhaustPct}%`);
+          } catch (e) {
+            console.warn('[Generate] Wall analysis failed, using defaults');
           }
-          console.log(`[Generate] Wall: ${wallW}x${wallH}, water=${waterPct}%, exhaust=${exhaustPct}%`);
-        } catch (e) {
-          console.warn('[Generate] Wall analysis failed, using defaults');
         }
-        } // end else (AI wall analysis)
 
-        // ═══ Step 1b: 냉장고장 전용 — 기존 구조 철거 (빈 벽 사진 생성) ═══
-        const isFridge = (category === 'fridge' || category === 'fridge_cabinet');
+        const wallData = { wallW, wallH, waterPct, exhaustPct };
+
+        // ═══ Step 1b: 냉장고장 전용 — 기존 구조 철거 ═══
+        const isFridge = FRIDGE_CATEGORIES.includes(category);
         let installBaseImage = room_image;
         let installMime = image_type;
         let demoSucceeded = false;
@@ -328,7 +249,7 @@ export default {
               console.warn('[Generate] Fridge demolition returned no image, using raw room image');
             }
           } catch (e) {
-            console.warn('[Generate] Fridge demolition failed, using raw room image:', e.message);
+            console.warn('[Generate] Fridge demolition failed:', e.message);
           }
         }
 
@@ -336,15 +257,20 @@ export default {
         const fridgeOptsForPrompt = isFridge
           ? { ...(fridge_options || {}), referenceCount: refImages.length }
           : fridge_options;
-        const furniturePrompt = buildFurniturePrompt(
-          category,
-          design_style,
-          kitchen_layout,
-          { wallW, wallH, waterPct, exhaustPct },
-          themeData,
-          fridgeOptsForPrompt,
-          { siteAlreadyCleared: demoSucceeded },
-        );
+
+        const ctx = {
+          category, style: design_style, styleName, kitchenLayout: kitchen_layout,
+          wallData, themeData, fridgeOpts: fridgeOptsForPrompt,
+          siteAlreadyCleared: demoSucceeded,
+        };
+
+        const closedBuilder = CLOSED_BUILDERS[category];
+        if (!closedBuilder) {
+          return new Response(JSON.stringify({ success: false, error: `Unsupported category: ${category}` }), {
+            status: 400, headers: { ...headers, 'Content-Type': 'application/json' },
+          });
+        }
+        const furniturePrompt = closedBuilder(ctx);
         const closedResult = await callGemini(env, furniturePrompt, installBaseImage, installMime, undefined, undefined, refImages);
 
         if (!closedResult.image) {
@@ -352,62 +278,32 @@ export default {
             status: 500, headers: { ...headers, 'Content-Type': 'application/json' },
           });
         }
-
         console.log('[Generate] Closed door image generated');
 
-        // ═══ Step 3: 대안 이미지 생성 ═══
-        //   fridge → AI 추천 디자인 (냉장고장 + 홈바/홈카페 수납장, 배경 고정)
-        //   그 외  → 기존 열린문 생성
-        let openImage = null;
+        // ═══ Step 3: 대안 이미지 (카테고리별) ═══
+        let altImage = null;
+        let altMetadata = {};
         try {
-          if (isFridge) {
-            const recDoorColor = themeData.style_door_color || 'white';
-            const recDoorFinish = themeData.style_door_finish || 'matte';
-            const recStyleName = STYLE_MAP[design_style] || 'Modern Minimal';
-            const recPrompt = buildFridgeRecommendedPrompt({
-              doorColor: recDoorColor,
-              doorFinish: recDoorFinish,
-              wallData: { wallW, wallH, waterPct, exhaustPct },
-              styleName: recStyleName,
-              fridgeOpts: fridgeOptsForPrompt,
-              siteAlreadyCleared: demoSucceeded,
-            });
-            const recResult = await callGemini(env, recPrompt, installBaseImage, installMime, undefined, undefined, refImages);
-            openImage = recResult.image || null;
-            if (openImage) console.log('[Generate] Fridge recommended design generated (homebar/cafe)');
-            else console.warn('[Generate] Fridge recommended design returned no image');
-          } else {
-            const openResult = await callGemini(env, buildOpenDoorPrompt(category, wallW), closedResult.image, 'image/png');
-            openImage = openResult.image || null;
-            if (openImage) console.log('[Generate] Open door image generated');
+          const altBuilder = ALT_BUILDERS[category];
+          if (altBuilder) {
+            const altSpec = altBuilder({ ...ctx, closedImage: closedResult.image });
+            const inputImage = altSpec.inputKey === 'install' ? installBaseImage : closedResult.image;
+            const inputMime = altSpec.inputKey === 'install' ? installMime : 'image/png';
+            // fridge 는 install 이미지 위에 생성 — refImages 필요, 그 외는 closed 를 변환 — refImages 불필요
+            const extraRefs = altSpec.inputKey === 'install' ? refImages : [];
+            const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime, undefined, undefined, extraRefs);
+            altImage = altResult.image || null;
+            altMetadata = altSpec.metadata || {};
+            if (altImage) console.log(`[Generate] Alt image generated (${altSpec.metadata?.alt_style?.name || 'default'})`);
           }
         } catch (e) {
           console.warn('[Generate] Alt image generation failed:', e.message);
         }
 
-        // ═══ 견적 (붙박이장: 300mm당 14만원) ═══
-        let quote = null;
-        if (category === 'wardrobe') {
-          const UNIT_MM = 300;
-          const UNIT_PRICE = 140000;
-          const units = Math.ceil(wallW / UNIT_MM);
-          const cabinetTotal = units * UNIT_PRICE;
-          const installTotal = 200000;
-          const demolitionTotal = Math.round(30000 * wallW / 1000);
-          const items = [
-            { name: '붙박이장 캐비닛', quantity: `${wallW}mm (${units}자)`, unit_price: UNIT_PRICE, total: cabinetTotal },
-            { name: '시공비', quantity: '1식', unit_price: installTotal, total: installTotal },
-            { name: '기존 철거', quantity: `${wallW}mm`, unit_price: 30000, total: demolitionTotal },
-          ];
-          const subtotal = items.reduce((s, i) => s + i.total, 0);
-          const vat = Math.round(subtotal * 0.10);
-          const total = subtotal + vat;
-          quote = {
-            items, subtotal, vat, total,
-            range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
-            grade: 'basic',
-          };
-          console.log(`[Generate] Wardrobe quote: ${units}자 × ${UNIT_PRICE} = ${total}원`);
+        // ═══ 견적 (붙박이장 전용) ═══
+        const quote = category === 'wardrobe' ? buildWardrobeQuote(wallW) : null;
+        if (quote) {
+          console.log(`[Generate] Wardrobe quote total: ${quote.total}원`);
         }
 
         // ═══ 응답 ═══
@@ -417,10 +313,10 @@ export default {
         const generatedImage = {
           background: room_image,
           closed: closedResult.image,
-          open: openImage,
+          open: altImage,
+          alt: altImage,
         };
         if (isFridge) {
-          // 철거 중간 이미지는 UI 에 표시하지 않지만 디버깅/회귀 검수를 위해 payload 에 포함
           generatedImage.demolished = demolishedImage;
         }
 
@@ -429,10 +325,13 @@ export default {
           generated_image: generatedImage,
           quote,
           wall_analysis: { wallW, wallH, waterPct, exhaustPct },
+          alt_style: altMetadata.alt_style || null,
           metadata: {
             category, kitchen_layout, design_style,
             model: env.GEMINI_MODEL || 'gemini-2.5-flash-image',
             elapsed_ms: elapsed,
+            alt_colors: altMetadata.alt_colors,
+            alt_countertop: altMetadata.alt_countertop,
             fridge_demolition: isFridge ? { attempted: true, succeeded: demoSucceeded } : undefined,
           },
         }), {
