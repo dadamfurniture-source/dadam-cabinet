@@ -104,7 +104,7 @@ Analyze the wardrobe as it actually appears in this image (do NOT guess the plan
 Section classification rule:
 - Pair adjacent doors that read as matching twins (similar width + a center seam between them) into a 2D section of two doors.
 - Any door that cannot be paired (leftover, noticeably different width, or a standalone at the end) is a 1D section of one door.
-- If the total door count is ODD, the LAST section (rightmost standalone door) must be classified as 1D.
+- If the total door count is ODD, the LAST section (rightmost standalone door) must be classified as 1D. Every door in the image — including that trailing rightmost single door — must appear in doors_left_to_right and belong to a section. Do NOT drop, merge, or forget the trailing odd door.
 
 Return ONLY the following JSON, no prose:
 
@@ -185,10 +185,23 @@ function formatStructureAnalysis(sa) {
     lines.push(`- Horizontal features: ${sa.horizontal_rails_or_seams}`);
   }
   if (sa.overall_notes) lines.push(`- Notes: ${sa.overall_notes}`);
+
+  // 홀수 도어 조기 경고 — Gemini 가 마지막 1D 를 빼먹는 경향이 있어 알트 생성 전에 한번 더 강조.
+  const count = typeof sa.door_count === 'number' ? sa.door_count : null;
+  const oneDSections = Array.isArray(sa.sections) ? sa.sections.filter((s) => s.type === '1D') : [];
+  if (count && count % 2 === 1) {
+    lines.push('');
+    lines.push(`ODD DOOR COUNT (${count}) — the RIGHTMOST door is standalone (1D). ALL ${count} doors must be individually opened, INCLUDING that rightmost 1D door. Do NOT collapse, pair, or leave it closed.`);
+  }
+  if (oneDSections.length > 0) {
+    const ids = oneDSections.map((s) => `Section ${s.section_index} (doors ${(s.door_indexes || []).join(',')})`).join('; ');
+    lines.push(`- 1D sections must open independently: ${ids}. Each 1D section's single door opens on its own — do NOT merge with an adjacent section, do NOT leave closed.`);
+  }
+
   lines.push('');
   lines.push('OPENING RULES BY SECTION TYPE:');
   lines.push('- 2D sections: both doors of the pair swing OUTWARD from the center seam between them (left door opens to the left side, right door opens to the right side), revealing the interior of that one section.');
-  lines.push('- 1D sections: the single door swings open from its own hinge side, revealing the interior of that single section.');
+  lines.push('- 1D sections: the single door swings open from its own hinge side, revealing the interior of that single section. EVERY 1D section — including the trailing rightmost one when the count is odd — must be visibly open in the output. Never skip a 1D door.');
   return lines.join('\n');
 }
 
@@ -201,13 +214,18 @@ export function buildWardrobeAltSpec({ wallData, themeData, structureAnalysis })
   const s = getWardrobeStructure(wallData.wallW);
   const doorColor = (themeData && themeData.style_door_color) || 'same as input';
   const analysisBlock = structureAnalysis ? `\n\n${formatStructureAnalysis(structureAnalysis)}` : '';
-  const expectedCount = structureAnalysis?.door_count ? structureAnalysis.door_count : 'every';
+  const doorCount = typeof structureAnalysis?.door_count === 'number' ? structureAnalysis.door_count : null;
+  const countLabel = doorCount !== null ? `Exactly ${doorCount} doors` : 'Every door';
+  const oddReminder = doorCount !== null && doorCount % 2 === 1
+    ? ` The door count ${doorCount} is ODD, so the RIGHTMOST door is a standalone single (1D section). That rightmost door MUST be swung open by itself — do NOT leave it closed, do NOT skip it, do NOT merge it into a pair. Count the open doors in the output and make sure it equals ${doorCount}.`
+    : '';
   return {
     inputKey: 'closed',
     prompt: `Using this closed-door wardrobe image, generate the SAME wardrobe but with ALL DOORS VISIBLY OPEN at ~90 degrees, showing the interior.
 
 CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
-- ${typeof expectedCount === 'number' ? `Exactly ${expectedCount} doors` : 'Every door'} must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
+- ${countLabel} must be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
+- The number of OPEN doors in your output MUST exactly match the number of doors in the input image. If the input shows N doors, the output shows N doors open — never fewer, never more.${oddReminder}
 - The interior MUST be clearly visible through the open doors.${analysisBlock}
 
 INTERIOR (must be visible through the open doors):
