@@ -16,7 +16,7 @@
 
 import { buildWallAnalysisPrompt, applyWallWidthCorrection } from './prompts/wall-analysis.js';
 import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec } from './prompts/sink-prompt.js';
-import { WARDROBE_CATEGORIES, WARDROBE_ANALYSIS_MODEL, buildWardrobeClosedPrompt, buildWardrobeStructureAnalysisPrompt, buildWardrobeAltSpec, buildWardrobeQuote } from './prompts/wardrobe-prompt.js';
+import { WARDROBE_CATEGORIES, WARDROBE_ANALYSIS_MODEL, buildWardrobeAnalysisPrompt, buildWardrobeClosedPrompt, buildWardrobeAltSpec, buildWardrobeQuote } from './prompts/wardrobe-prompt.js';
 import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec } from './prompts/shoe-prompt.js';
 import {
   FRIDGE_CATEGORIES,
@@ -61,8 +61,8 @@ function register(categories, closedBuilder, altBuilder, opts = {}) {
 }
 register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec);
 register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec, {
-  structureModel: WARDROBE_ANALYSIS_MODEL,
-  structurePromptBuilder: buildWardrobeStructureAnalysisPrompt,
+  analysisModel: WARDROBE_ANALYSIS_MODEL,
+  analysisPromptBuilder: buildWardrobeAnalysisPrompt,
 });
 register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec);
 register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
