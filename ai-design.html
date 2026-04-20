@@ -590,10 +590,12 @@
           }
         }, 500);
       });
-      // 이미지 생성 API URL (config 우선, 없으면 운영 기본값)
+      // 이미지 생성 API URL — Cloudflare Worker (workers/generate-api/).
+      // 품목별 독립 프롬프트 + Claude Opus pre-analysis 등 현재 운영 로직은 전부 Worker 측.
+      // Railway mcp-server 는 다른 기능(채팅·설계 저장 등) 전용으로 유지.
       const API_GENERATE_URL =
         window.DADAM_CONFIG?.generateApi?.url ||
-        'https://dadam-generate-api-production.up.railway.app/api/generate';
+        'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate';
 
       // Supabase 세션 토큰을 포함한 헤더 생성
       async function getAuthHeaders() {
