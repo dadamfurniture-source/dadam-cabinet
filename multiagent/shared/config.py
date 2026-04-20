@@ -29,13 +29,11 @@ class Settings(BaseSettings):
     stripe_price_enterprise: str = ""
 
     # Toss Payments (빌링)
-    toss_client_key: str = ""
-    toss_secret_key: str = ""
-    toss_webhook_secret: str = ""
+    # 토스 빌링 백엔드는 Cloudflare Worker (workers/payments-api/) 로 이관됨.
+    # 가격 default 만 유지 — 실제 운영 값은 wrangler.toml [vars] 또는 secret 으로 설정.
     toss_price_basic_krw: int = 99000
     toss_price_pro_krw: int = 199000
     toss_price_enterprise_krw: int = 299000
-    default_payment_provider: str = "toss"
 
     # Redis
     redis_url: str = "redis://localhost:6379"
