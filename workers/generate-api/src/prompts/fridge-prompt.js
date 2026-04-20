@@ -355,3 +355,41 @@ export const __internals = {
   describeAppliances,
   describeStyleReference,
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Dispatcher 인터페이스 — worker.js 의 ALT_BUILDERS / CLOSED_BUILDERS 가
+// 모든 카테고리 모듈에서 동일한 모양의 함수를 호출한다.
+// ═══════════════════════════════════════════════════════════════
+
+export const FRIDGE_CATEGORIES = ['fridge', 'fridge_cabinet'];
+
+export function buildFridgeClosedPrompt({ wallData, themeData, styleName, fridgeOpts, siteAlreadyCleared }) {
+  return buildFridgePrompt({
+    doorColor: themeData.style_door_color || 'white',
+    doorFinish: themeData.style_door_finish || 'matte',
+    wallData,
+    styleName,
+    fridgeOpts,
+    siteAlreadyCleared: !!siteAlreadyCleared,
+  });
+}
+
+/**
+ * Step 3 — 냉장고장 AI 추천 디자인 (홈바·홈카페).
+ * 냉장고장은 다른 카테고리와 달리 `installBaseImage` (철거된 빈 벽) 을 입력으로 쓴다 — closedResult 가 아님.
+ */
+export function buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts, siteAlreadyCleared }) {
+  const prompt = buildFridgeRecommendedPrompt({
+    doorColor: themeData.style_door_color || 'white',
+    doorFinish: themeData.style_door_finish || 'matte',
+    wallData,
+    styleName,
+    fridgeOpts,
+    siteAlreadyCleared: !!siteAlreadyCleared,
+  });
+  return {
+    inputKey: 'install', // worker.js 가 installBaseImage (철거 후 빈 벽) 를 입력으로 사용
+    prompt,
+    metadata: { alt_style: { name: 'AI 추천 (홈바·홈카페)' } },
+  };
+}
