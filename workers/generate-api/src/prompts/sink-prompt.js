@@ -4,7 +4,8 @@
  * 대상 category: 'sink' | 'kitchen' | 'l_shaped_sink' | 'island_kitchen'
  *
  * Step 2 (닫힌 도어): 사용자가 선택한 색상·스타일·레이아웃으로 빌트인 주방 설치
- * Step 3 (열린 도어): 같은 결과물의 도어를 ~90° 열어 내부 보여주기
+ * Step 3 (AI 추천 — 닫힌 도어): Step 2 결과물에 상·하부 투톤 + 다른 카운터탑을 랜덤으로 입힌
+ *   **또 다른 닫힌 도어** 이미지. 열린 도어 아님. 사용자 요구: "싱크대 2개의 이미지 생성 결과물은 닫힌 도어."
  *
  * 이 파일만 수정해도 다른 카테고리에 영향 없음.
  */
@@ -15,6 +16,31 @@ const LAYOUT_DESC = {
   u_type: 'U-shaped three-wall',
   peninsula: 'peninsula island facing living room',
 };
+
+// AI 추천안 색상 풀 (상·하부 투톤)
+const ALT_TWO_TONES = [
+  { upper: 'cream white', lower: 'walnut wood grain' },
+  { upper: 'matte black', lower: 'natural oak' },
+  { upper: 'sage green',  lower: 'cream white' },
+  { upper: 'navy blue',   lower: 'warm beige' },
+  { upper: 'warm white',  lower: 'smoked oak' },
+  { upper: 'terracotta',  lower: 'cream white' },
+  { upper: 'soft gray',   lower: 'walnut wood grain' },
+  { upper: 'dusty pink',  lower: 'natural oak' },
+];
+
+const ALT_COUNTERTOPS = [
+  'white quartz with subtle gray veining',
+  'warm gray marble',
+  'butcher-block wood countertop',
+  'matte concrete',
+  'cream terrazzo with small chips',
+  'black granite',
+];
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export const SINK_CATEGORIES = ['sink', 'kitchen', 'l_shaped_sink', 'island_kitchen'];
 
@@ -37,18 +63,30 @@ export function buildSinkClosedPrompt({ kitchenLayout, wallData, themeData, styl
 CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/labels. Photorealistic.`;
 }
 
-export function buildSinkAltSpec() {
+/**
+ * Step 3 — 닫힌 도어 결과를 입력으로 받아 상·하부 색상·카운터탑만 **랜덤 추천안** 으로
+ * 리컬러링한 **또 다른 닫힌 도어** 이미지. 레이아웃·카메라·배경 모두 동일, 도어는 여전히 닫혀있음.
+ */
+export function buildSinkAltSpec({ styleName }) {
+  const pick = pickRandom(ALT_TWO_TONES);
+  const altCT = pickRandom(ALT_COUNTERTOPS);
+  const prompt = `Recolor this kitchen photo to an AI-recommended alternate color scheme:
+- Upper cabinets: ${pick.upper}
+- Lower cabinets: ${pick.lower}
+- Countertop: ${altCT}
+- ${styleName} style
+KEEP everything else PIXEL-IDENTICAL: camera angle, room background, cabinet layout, sink position, cooktop position, hood, door lines, appliance positions, lighting.
+ALL DOORS MUST STAY CLOSED — do NOT open any door or drawer. Do NOT show interior contents. This is a closed-door alternate color rendering of the same kitchen. Photorealistic. No text or labels.`;
+
   return {
     inputKey: 'closed',
-    prompt: `Using this closed-door kitchen image, generate the SAME kitchen with cabinet doors and drawers OPEN.
-RULES:
-- SAME camera angle, lighting, background, furniture position
-- Open upper cabinet doors and lower drawers to ~90 degrees showing interior
-- Show neatly organized dishware, utensils, pantry items inside
-- Photorealistic quality
-- Do NOT change any furniture structure, color, layout, or appliance position`,
-    metadata: { alt_style: { name: '내부 구조 (열린문)' } },
+    prompt,
+    metadata: {
+      alt_colors: { upper: pick.upper, lower: pick.lower },
+      alt_countertop: altCT,
+      alt_style: { name: 'AI Two-tone Recommendation', upper: pick.upper, lower: pick.lower, countertop: altCT },
+    },
   };
 }
 
-export const __internals = { LAYOUT_DESC };
+export const __internals = { LAYOUT_DESC, ALT_TWO_TONES, ALT_COUNTERTOPS, pickRandom };
