@@ -30,24 +30,26 @@ export const WARDROBE_ANALYSIS_MODEL = 'claude-opus-4-7';
 
 /**
  * Section layout by wall width. Each door is a single full-height panel
- * (floor to ceiling). Shelves are minimized; rods and internal drawers win.
+ * (floor to ceiling). Shelves are minimized; rods handle hanging and a single
+ * 2-tier stacked drawer pair (2 drawers total, nothing more) lives at the
+ * bottom of the LAST section only.
  */
 export function getWardrobeStructure(w) {
   if (w > 3200) return {
-    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section D (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 7 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom. Section D: 1 rod for long coats + internal drawer at bottom.',
+    prompt: '4 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod inside) + section D (1 full-height door, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 7 full-height doors. The wardrobe contains exactly 2 drawers total, both in section D.',
+    open: 'Section A: 2 rods for short clothes, no drawers. Section B: 2 rods for short clothes, no drawers. Section C: 1 rod for long coats, no drawers. Section D: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
   if (w > 2600) return {
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 6 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 2 rods for short clothes. Section C: 1 rod for long coats + internal drawer at bottom.',
+    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, short-clothes hanging with 2 rods inside) + section C (2 full-height doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 6 full-height doors. The wardrobe contains exactly 2 drawers total, both in section C.',
+    open: 'Section A: 2 rods for short clothes, no drawers. Section B: 2 rods for short clothes, no drawers. Section C: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
   if (w > 2000) return {
-    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom) + section C (1 full-height door, long-clothes hanging with 1 rod + internal drawer at bottom). Total 5 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom. Section C: 1 rod for long coats + internal drawer at bottom.',
+    prompt: '3 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod inside) + section C (1 full-height door, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 5 full-height doors. The wardrobe contains exactly 2 drawers total, both in section C.',
+    open: 'Section A: 2 rods for short clothes, no drawers. Section B: 1 rod for long coats, no drawers. Section C: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
   return {
-    prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + internal drawer at bottom). Total 4 full-height doors.',
-    open: 'Section A: 2 rods for short clothes. Section B: 1 rod for long coats + internal drawer at bottom.',
+    prompt: '2 sections (~950mm each): section A (2 full-height doors, short-clothes hanging with 2 rods inside) + section B (2 full-height doors, long-clothes hanging with 1 rod + ONE 2-tier stacked drawer pair — exactly 2 drawers, stacked, at the bottom of this section ONLY). Total 4 full-height doors. The wardrobe contains exactly 2 drawers total, both in section B.',
+    open: 'Section A: 2 rods for short clothes, no drawers. Section B: 1 rod for long coats + 2-tier stacked drawer pair at the bottom (exactly 2 drawers, stacked vertically, no more).',
   };
 }
 
@@ -71,8 +73,8 @@ DOORS (HANDLELESS — perfectly flat matte rectangles, NO visible hardware anywh
 - "${doorColor}" matte flat-panel, completely smooth and seamless across the entire face.
 - The front face of every door is a perfectly flat uninterrupted rectangle with zero surface interruption — no raised profiles, no grooves, no recesses, no bars, no lips, no bumps.
 - Absolutely NO handles of any kind: no knobs, no bar handles, no D-pulls, no cup pulls, no top-edge pulls, no edge pulls, no finger pulls, no chrome bars, no metal bars, no brass hardware.
-- Absolutely NO handle substitutes cut into the door: no recessed grips, no J-channel grips, no finger grooves, no routed slots, no notches, no cutouts along any edge.
-- No hinge lines, no visible hardware, no shadow lines, no trim. Each door face is one flat monolithic rectangle edge to edge.
+- ABSOLUTELY NO FINGER GROOVES anywhere on any door. Repeat: NO finger grooves — no horizontal grooves cut into the top edge, NO vertical grooves along any side, NO angled chamfers or bevels on the door edges that could read as grip slots. No "J-channel", no routed slots, no notches, no cutouts, no shadow gaps, no inset strips along any edge of any door.
+- No hinge lines, no visible hardware, no shadow lines, no trim. Each door face is one flat monolithic rectangle edge to edge, with its OWN top edge, bottom edge, and side edges all left as plain square corners — not carved, not routed, not grooved.
 - All doors closed in this image. No gaps between adjacent doors.
 
 SECTION LAYOUT (this describes the interior for reference; in THIS image the doors are closed and the interior is NOT visible):
@@ -203,10 +205,11 @@ CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
 
 INTERIOR (must be visible through the open doors):
 ${s.open}
-Clothes on hangers on the rods, folded items in the internal drawers. Realistic wardrobe interior.
+Clothes on hangers on the rods. The internal drawers (there are exactly 2 of them, stacked as a 2-tier pair in ONE section only) show folded items. All OTHER sections have rods only — do NOT render any additional drawers. Realistic wardrobe interior.
 
-DOORS on the opened state (still HANDLELESS):
-- The OUTSIDE face of each open door is still ${doorColor} matte flat-panel — a perfectly flat rectangle with ZERO visible hardware: no handles, no knobs, no edge pulls, no recessed grips, no finger grooves, no chrome bars. Do NOT add hardware to the now-visible door faces.
+DOORS on the opened state (still HANDLELESS — NO finger grooves):
+- The OUTSIDE face of each open door is still ${doorColor} matte flat-panel — a perfectly flat rectangle with ZERO visible hardware: no handles, no knobs, no edge pulls, no recessed grips, no chrome bars.
+- ABSOLUTELY NO finger grooves on the newly visible door edges: no horizontal groove along the top edge, no vertical groove on any side, no routed slot, no chamfer, no notch. Door edges are plain square corners.
 - Each door swings from its own hinge side, revealing the interior of its own section.
 
 KEEP IDENTICAL to the input:
