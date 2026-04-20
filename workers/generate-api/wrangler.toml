@@ -4,7 +4,9 @@ compatibility_date = "2024-01-01"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
 [vars]
-GEMINI_MODEL = "gemini-2.5-flash-image"
+# Gemini 3.1 Flash Image Preview — 이미지 편집·멀티-객체 카운트 정확도가 2.5 보다 크게 향상.
+# 붙박이장 "닫힌 N도어 ↔ 열린 N도어" 일치도, 냉장고장 SPEC LOCK 준수도 모두 이 모델에서 더 안정적.
+GEMINI_MODEL = "gemini-3.1-flash-image-preview"
 
 # GEMINI_API_KEY는 Cloudflare 대시보드에서 Secret으로 설정
 # wrangler secret put GEMINI_API_KEY
