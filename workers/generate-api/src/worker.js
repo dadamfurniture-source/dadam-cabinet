@@ -1,17 +1,25 @@
 /**
  * Dadam Generate API — Cloudflare Worker
  * POST /api/generate
- * Gemini Flash Image 직접 호출 (벽분석 + 가구생성 + 열린문)
+ *
+ * 카테고리 무관 인프라(callGemini, CORS, fetch handler 골격) + 얇은 dispatcher 만 담당.
+ * 카테고리별 프롬프트는 ./prompts/{category}-prompt.js 에 격리되어 있어
+ * 한 카테고리 수정이 다른 카테고리로 새는 사고를 원천 차단한다.
+ *
+ * 새 카테고리 추가:
+ *   1) ./prompts/{name}-prompt.js 생성 (CATEGORIES 배열 + 2개 export)
+ *   2) 아래 import + register(...) 한 줄씩 추가
  */
 
-// ─── 레이아웃/스타일 매핑 ───
-const LAYOUT_DESC = {
-  i_type: 'straight linear I-shaped',
-  l_type: 'L-shaped corner',
-  u_type: 'U-shaped three-wall',
-  peninsula: 'peninsula island facing living room',
-};
+import { buildWallAnalysisPrompt } from './prompts/wall-analysis.js';
+import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec } from './prompts/sink-prompt.js';
+import { WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec } from './prompts/wardrobe-prompt.js';
+import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec } from './prompts/shoe-prompt.js';
+import { FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec } from './prompts/fridge-prompt.js';
+import { VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec } from './prompts/vanity-prompt.js';
+import { buildStorageClosedPrompt, buildStorageAltSpec } from './prompts/storage-prompt.js';
 
+// ─── 스타일 매핑 (카테고리 무관) ───
 const STYLE_MAP = {
   'modern-minimal': 'Modern Minimal',
   'scandinavian': 'Scandinavian Nordic',
@@ -19,6 +27,30 @@ const STYLE_MAP = {
   'classic': 'Classic Traditional',
   'luxury': 'Luxury Premium',
 };
+
+// ─── 카테고리 → prompt builder 룩업 ───
+// 신규 카테고리 = 모듈 파일 1개 + 아래 register 한 줄
+const CLOSED_BUILDERS = {};
+const ALT_BUILDERS = {};
+function register(categories, closedBuilder, altBuilder) {
+  for (const c of categories) {
+    CLOSED_BUILDERS[c] = closedBuilder;
+    ALT_BUILDERS[c] = altBuilder;
+  }
+}
+register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec);
+register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec);
+register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec);
+register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec);
+register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec);
+
+// 룩업에 없는 category 가 들어오면 일반 수납장으로 폴백
+function resolveBuilders(category) {
+  return {
+    closed: CLOSED_BUILDERS[category] || buildStorageClosedPrompt,
+    alt: ALT_BUILDERS[category] || buildStorageAltSpec,
+  };
+}
 
 // ─── Gemini API 호출 ───
 async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4) {
@@ -57,78 +89,6 @@ async function callGemini(env, prompt, image, imageType, responseModalities = ['
   }
 
   return { image: resultImage, text: resultText };
-}
-
-// ─── 벽분석 프롬프트 ───
-function buildWallAnalysisPrompt() {
-  return `[TASK: Korean kitchen wall structure analysis]
-Analyze this photo and extract as JSON:
-- wall_dimensions_mm: { width, height } (estimate)
-- utility_positions_mm: { water_supply_from_left, exhaust_duct_from_left }
-- confidence: "high" | "medium" | "low"
-Return ONLY valid JSON.`;
-}
-
-// ─── 가구 생성 프롬프트 ───
-function buildFurniturePrompt(category, style, kitchenLayout, wallData, themeData) {
-  const layoutDesc = LAYOUT_DESC[kitchenLayout] || 'straight linear';
-  const styleName = STYLE_MAP[style] || 'Modern Minimal';
-  const doorColor = themeData.style_door_color || 'white';
-  const doorFinish = themeData.style_door_finish || 'matte';
-  const countertop = themeData.style_countertop_prompt || 'white stone countertop';
-
-  if (['sink', 'kitchen', 'l_shaped_sink', 'island_kitchen'].includes(category)) {
-    return `Place ${doorColor} ${doorFinish} flat panel ${layoutDesc} kitchen cabinets on this photo. PRESERVE background EXACTLY.
-[WALL] ${wallData.wallW}x${wallData.wallH}mm wall.
-[PLUMBING] Sink at ${wallData.waterPct}% from left, cooktop at ${wallData.exhaustPct}% from left.
-[UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets.
-[LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
-[COUNTERTOP] ${countertop}, continuous surface.
-[DOORS] No visible handles. Push-to-open mechanism.
-[HOOD] Concealed range hood integrated into upper cabinet above cooktop.
-[STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
-[QUALITY] 8K quality, natural lighting, proper shadows and reflections.
-CRITICAL: PRESERVE original room background EXACTLY. All doors CLOSED. No text/labels. Photorealistic.`;
-  }
-
-  if (category === 'wardrobe') {
-    return `Place ${doorColor} ${doorFinish} built-in wardrobe on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Full-width floor-to-ceiling wardrobe with hinged doors.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'shoe' || category === 'shoe_cabinet') {
-    return `Place ${doorColor} ${doorFinish} shoe cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Slim profile 300-400mm depth. Floor-to-ceiling.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'fridge' || category === 'fridge_cabinet') {
-    return `Place ${doorColor} ${doorFinish} refrigerator surround cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Center opening for fridge, tall storage on sides, bridge above.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
-  }
-
-  if (category === 'vanity') {
-    return `Place ${doorColor} ${doorFinish} bathroom vanity on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Vanity with sink at ${wallData.waterPct}% from left. Mirror cabinet above.
-${countertop}. ${styleName}. Photorealistic. Faucet chrome finish.`;
-  }
-
-  return `Place ${doorColor} ${doorFinish} storage cabinet on this photo. PRESERVE background EXACTLY.
-Wall: ${wallData.wallW}x${wallData.wallH}mm. Floor-to-ceiling built-in with multiple door sections.
-No visible handles. ${styleName}. Photorealistic. All doors closed.`;
-}
-
-// ─── 열린문 프롬프트 ───
-function buildOpenDoorPrompt() {
-  return `Using this closed-door furniture image, generate the SAME furniture with doors OPEN.
-RULES:
-- SAME camera angle, lighting, background, furniture position
-- Open doors to ~90 degrees showing interior
-- Show neatly organized storage inside
-- Photorealistic quality
-- Do NOT change any furniture structure or color`;
 }
 
 // ─── CORS 헤더 ───
@@ -189,6 +149,7 @@ export default {
           });
         }
 
+        const styleName = STYLE_MAP[design_style] || 'Modern Minimal';
         console.log(`[Generate] category=${category}, style=${design_style}, layout=${kitchen_layout}`);
 
         // ═══ Step 1: 벽면 분석 ═══
@@ -214,26 +175,34 @@ export default {
           console.warn('[Generate] Wall analysis failed, using defaults');
         }
 
+        const wallData = { wallW, wallH, waterPct, exhaustPct };
+        const ctx = { category, kitchenLayout: kitchen_layout, design_style, styleName, wallData, themeData };
+        const builders = resolveBuilders(category);
+
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
-        const furniturePrompt = buildFurniturePrompt(category, design_style, kitchen_layout, { wallW, wallH, waterPct, exhaustPct }, themeData);
-        const closedResult = await callGemini(env, furniturePrompt, room_image, image_type);
+        const closedPrompt = builders.closed(ctx);
+        const closedResult = await callGemini(env, closedPrompt, room_image, image_type);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
             status: 500, headers: { ...headers, 'Content-Type': 'application/json' },
           });
         }
-
         console.log('[Generate] Closed door image generated');
 
-        // ═══ Step 3: 열린문 생성 ═══
-        let openImage = null;
+        // ═══ Step 3: 대안 이미지 생성 ═══
+        let altImage = null;
+        let altMetadata = {};
         try {
-          const openResult = await callGemini(env, buildOpenDoorPrompt(), closedResult.image, 'image/png');
-          openImage = openResult.image || null;
-          if (openImage) console.log('[Generate] Open door image generated');
+          const altSpec = builders.alt(ctx);
+          const inputImage = altSpec.inputKey === 'install' ? room_image : closedResult.image;
+          const inputMime = altSpec.inputKey === 'install' ? image_type : 'image/png';
+          const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime);
+          altImage = altResult.image || null;
+          altMetadata = altSpec.metadata || {};
+          if (altImage) console.log(`[Generate] Alt image generated (${altMetadata.alt_style?.name || 'default'})`);
         } catch (e) {
-          console.warn('[Generate] Open door generation failed');
+          console.warn('[Generate] Alt image generation failed:', e.message);
         }
 
         // ═══ 응답 ═══
@@ -245,13 +214,16 @@ export default {
           generated_image: {
             background: room_image,
             closed: closedResult.image,
-            open: openImage,
+            open: altImage,
+            alt: altImage,
           },
           wall_analysis: { wallW, wallH, waterPct, exhaustPct },
+          alt_style: altMetadata.alt_style || null,
           metadata: {
             category, kitchen_layout, design_style,
             model: env.GEMINI_MODEL || 'gemini-2.5-flash-image',
             elapsed_ms: elapsed,
+            ...altMetadata,
           },
         }), {
           headers: { ...headers, 'Content-Type': 'application/json' },
