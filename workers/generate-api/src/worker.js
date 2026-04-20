@@ -287,10 +287,11 @@ export default {
               // 미터 → mm 변환 보호
               if (wallW > 0 && wallW < 100) wallW = Math.round(wallW * 1000);
               if (wallH > 0 && wallH < 100) wallH = Math.round(wallH * 1000);
-              // 렌즈 왜곡 보정 (15% 과대측정)
-              wallW = Math.round(wallW * 0.85);
-              // 범위 클램핑
-              wallW = Math.max(1800, Math.min(5000, wallW));
+              // 렌즈 왜곡 보정 — 붙박이장 전용 (그 외 카테고리에 적용하면 싱크대 가구 비율이 깨짐)
+              if (category === 'wardrobe') {
+                wallW = Math.round(wallW * 0.85);
+                wallW = Math.max(1800, Math.min(5000, wallW));
+              }
               if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
               if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
             }
