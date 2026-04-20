@@ -36,24 +36,57 @@ export function getWardrobeStructure(w) {
 
 /**
  * Step 2 — 벽 전체 붙박이장 닫힌 도어.
+ * Gemini 가 습관적으로 상하부장으로 분할하려 하므로 금지 절을 반복·구체화.
  */
 export function buildWardrobeClosedPrompt({ wallData, themeData }) {
   const doorColor = themeData.style_door_color || 'white';
   const s = getWardrobeStructure(wallData.wallW);
-  return `Edit photo: install built-in wardrobe covering entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall).
-Doors: "${doorColor}" matte flat-panel, each door is one single piece running full height from floor to ceiling. Door surface is completely smooth and seamless with no indentations, no grooves, no cutouts. ${s.prompt}
-All doors closed. No gaps between doors. Preserve background. Photorealistic. No text.`;
+  return `Edit photo: install a FULL-HEIGHT built-in wardrobe covering the entire wall (~${wallData.wallW}mm wide, ~${wallData.wallH}mm tall floor-to-ceiling).
+
+STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT a sink cabinetry, NOT an upper+lower cabinet):
+- Each door is ONE SINGLE PIECE running continuously from the floor to the ceiling. Single rectangular door face, nothing else.
+- NEVER split any door horizontally into upper and lower sections.
+- NO mid-height rail, NO crossbar, NO horizontal seam, NO counter, NO open shelf, NO visible transom panel breaking the door face.
+- NO upper cabinet above shorter doors. NO base cabinet with short doors below longer top doors. NO hutch. NO kitchen-style upper/lower split.
+- NO countertop, NO sink, NO faucet, NO appliances — this is a clothing wardrobe, not a kitchen.
+
+DOORS:
+- "${doorColor}" matte flat-panel, completely smooth and seamless.
+- NO indentations, NO grooves, NO cutouts, NO visible handles, NO knobs, NO chrome bars — push-to-open only.
+- All doors closed in this image. No gaps between adjacent doors.
+
+SECTION LAYOUT (inside is described here for reference; in THIS image doors are closed):
+${s.prompt}
+
+PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camera angle all pixel-identical. Photorealistic. No text, no labels.`;
 }
 
 /**
  * Step 3 — 열린 도어 + 내부 옷봉·서랍 구조.
  * worker.js 가 closedResult.image 를 입력으로 사용.
+ * Gemini 가 "doors open" 지시를 무시하고 두 번째도 닫힌 이미지를 반환하는 경향을 차단.
  */
-export function buildWardrobeAltSpec({ wallData }) {
+export function buildWardrobeAltSpec({ wallData, themeData }) {
   const s = getWardrobeStructure(wallData.wallW);
+  const doorColor = (themeData && themeData.style_door_color) || 'same as input';
   return {
     inputKey: 'closed',
-    prompt: `Open all wardrobe doors ~90°. Show organized interior: ${s.open} Clothes on hangers, folded items in drawers. Same camera/lighting/background. Photorealistic. No text.`,
+    prompt: `Using this closed-door wardrobe image, generate the SAME wardrobe but with ALL DOORS VISIBLY OPEN at ~90 degrees, showing the interior.
+
+CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
+- Every wardrobe door MUST be swung open ~90°. Do NOT return a closed-door image. Do NOT return the input unchanged.
+- The interior MUST be clearly visible through the open doors.
+
+INTERIOR (must be visible through the open doors):
+${s.open}
+Clothes on hangers on the rods, folded items in the internal drawers. Realistic wardrobe interior.
+
+KEEP IDENTICAL from the input:
+- Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and width
+- Door color and finish (the OUTSIDE face of each open door is still ${doorColor} matte flat-panel)
+- Side panels, top crown, toe-kick
+
+Photorealistic. No text, no labels.`,
     metadata: { alt_style: { name: '내부 구조 (열린문)' } },
   };
 }
