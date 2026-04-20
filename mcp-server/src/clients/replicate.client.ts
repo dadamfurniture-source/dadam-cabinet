@@ -154,14 +154,31 @@ const FLUX_TRAINER_VERSION = 'e440909d01a3b47efab37a893702ed90c708d8e2ede3465f1e
 
 /**
  * Flux LoRA 학습 시작
+ *
+ * Replicate API 는 학습 요청 시 모델 스코프된 URL 을 요구:
+ *   POST /v1/models/{owner}/{name}/versions/{version}/trainings
+ * 또한 ostris/flux-dev-lora-trainer 는 destination (학습 결과 가중치가 저장될
+ * 본인 Replicate 모델 경로, 예: "dadamfurniture/dadam-fridge-lora") 이 필수.
+ * destination 모델은 Replicate 대시보드에서 미리 생성해야 함.
+ *
  * @returns training ID
  */
 export async function startLoraTraining(
   input: LoraTrainingInput,
   destinationModel?: string
 ): Promise<TrainingStatus> {
+  const destination = destinationModel || process.env.REPLICATE_DESTINATION_MODEL;
+  if (!destination) {
+    throw new ExternalApiError(
+      'replicate',
+      'REPLICATE_DESTINATION_MODEL 환경변수가 필요합니다. ' +
+      'Replicate 대시보드에서 빈 모델을 하나 생성(예: your-username/dadam-fridge-lora)한 뒤 ' +
+      'Railway Variables 에 REPLICATE_DESTINATION_MODEL=your-username/dadam-fridge-lora 추가해 주세요.',
+    );
+  }
+
   const body: Record<string, unknown> = {
-    version: FLUX_TRAINER_VERSION,
+    destination,
     input: {
       input_images: input.inputImagesUrl,
       trigger_word: input.triggerWord,
@@ -173,13 +190,11 @@ export async function startLoraTraining(
     },
   };
 
-  if (destinationModel) {
-    body.destination = destinationModel;
-  }
+  log.info({ triggerWord: input.triggerWord, steps: input.steps, destination }, 'Starting LoRA training');
 
-  log.info({ triggerWord: input.triggerWord, steps: input.steps }, 'Starting LoRA training');
-
-  const res = await fetchWithRetry('replicate', `${REPLICATE_BASE}/trainings`, {
+  // 모델 스코프된 training endpoint — /v1/trainings (deprecated) 가 아님
+  const url = `${REPLICATE_BASE}/models/${FLUX_TRAINER}/versions/${FLUX_TRAINER_VERSION}/trainings`;
+  const res = await fetchWithRetry('replicate', url, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(body),
