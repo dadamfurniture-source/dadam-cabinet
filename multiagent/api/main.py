@@ -21,7 +21,6 @@ from api.routes import (
     feedback,
     orders,
     payments,
-    payments_toss,
     projects,
     references,
 )
@@ -93,7 +92,6 @@ app.include_router(accounting.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(exports.router, prefix="/api/v1")
 app.include_router(payments.router, prefix="/api/v1")
-app.include_router(payments_toss.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(enterprise.router, prefix="/api/v1")
 app.include_router(references.router, prefix="/api/v1")

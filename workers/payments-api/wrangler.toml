@@ -1,0 +1,19 @@
+name = "dadam-payments-api"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
+
+[vars]
+# 플랜별 월 가격 (원, VAT 포함)
+TOSS_PRICE_BASIC_KRW = "99000"
+TOSS_PRICE_PRO_KRW = "199000"
+TOSS_PRICE_ENTERPRISE_KRW = "299000"
+# CORS 허용 오리진 (콤마 구분)
+CORS_ORIGINS = "https://dadam.kr,https://app.dadam.kr,http://localhost:3000,http://localhost:8000"
+
+# 아래 값들은 Cloudflare 대시보드 또는 wrangler secret put 으로 등록:
+#   wrangler secret put TOSS_CLIENT_KEY
+#   wrangler secret put TOSS_SECRET_KEY
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put SUPABASE_ANON_KEY  (선택, JWT 검증용 — Edge SDK 사용 시 불필요)
