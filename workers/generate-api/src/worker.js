@@ -16,7 +16,7 @@
 
 import { buildWallAnalysisPrompt, applyWallWidthCorrection } from './prompts/wall-analysis.js';
 import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec } from './prompts/sink-prompt.js';
-import { WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec, buildWardrobeQuote } from './prompts/wardrobe-prompt.js';
+import { WARDROBE_CATEGORIES, WARDROBE_ANALYSIS_MODEL, buildWardrobeClosedPrompt, buildWardrobeStructureAnalysisPrompt, buildWardrobeAltSpec, buildWardrobeQuote } from './prompts/wardrobe-prompt.js';
 import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec } from './prompts/shoe-prompt.js';
 import {
   FRIDGE_CATEGORIES,
@@ -42,7 +42,11 @@ const STYLE_MAP = {
 // ─── 카테고리 → prompt builder 룩업 ───
 const CLOSED_BUILDERS = {};
 const ALT_BUILDERS = {};
+// Pre-analysis (Step 1.5) — Claude reads the original room photo BEFORE Step 2.
 const PRE_ANALYSIS = {}; // { [category]: { model, promptBuilder } }
+// Structure analysis (Step 2.5) — Claude reads the Step 2 CLOSED image AFTER it's
+// generated, BEFORE Step 3. Lets Step 3 open exactly the doors that were rendered.
+const STRUCTURE_ANALYSIS = {}; // { [category]: { model, promptBuilder } }
 function register(categories, closedBuilder, altBuilder, opts = {}) {
   for (const c of categories) {
     CLOSED_BUILDERS[c] = closedBuilder;
@@ -50,10 +54,16 @@ function register(categories, closedBuilder, altBuilder, opts = {}) {
     if (opts.analysisModel && opts.analysisPromptBuilder) {
       PRE_ANALYSIS[c] = { model: opts.analysisModel, promptBuilder: opts.analysisPromptBuilder };
     }
+    if (opts.structureModel && opts.structurePromptBuilder) {
+      STRUCTURE_ANALYSIS[c] = { model: opts.structureModel, promptBuilder: opts.structurePromptBuilder };
+    }
   }
 }
 register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec);
-register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec);
+register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec, {
+  structureModel: WARDROBE_ANALYSIS_MODEL,
+  structurePromptBuilder: buildWardrobeStructureAnalysisPrompt,
+});
 register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec);
 register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
   analysisModel: FRIDGE_ANALYSIS_MODEL,
@@ -300,6 +310,40 @@ export default {
         }
         console.log('[Generate] Closed door image generated');
 
+        // ═══ Step 2.5: 닫힌 이미지 구조 분석 (Claude) — 해당 모듈이 등록한 경우만 ═══
+        let structureAnalysis = null;
+        let structureAnalysisMeta = null;
+        const sa = STRUCTURE_ANALYSIS[category];
+        if (sa) {
+          const saStart = Date.now();
+          try {
+            const saPrompt = sa.promptBuilder(ctx);
+            const saRes = await callClaudeVision(env, {
+              model: sa.model,
+              prompt: saPrompt,
+              image: closedResult.image,
+              imageType: 'image/png',
+              maxTokens: 1200,
+            });
+            structureAnalysis = extractJson(saRes.text);
+            structureAnalysisMeta = {
+              model: sa.model,
+              usage: saRes.usage,
+              elapsed_ms: Date.now() - saStart,
+              parsed: !!structureAnalysis,
+            };
+            if (structureAnalysis) {
+              console.log(`[Generate] ${sa.model} structure-analysis OK (${structureAnalysisMeta.elapsed_ms}ms, doors=${structureAnalysis.door_count || '?'})`);
+            } else {
+              console.warn(`[Generate] ${sa.model} structure-analysis returned non-JSON, Step 3 proceeds without it`);
+            }
+          } catch (e) {
+            console.warn(`[Generate] Structure-analysis failed (${sa.model}): ${e.message} — Step 3 proceeds without it`);
+            structureAnalysisMeta = { model: sa.model, error: e.message, elapsed_ms: Date.now() - saStart, parsed: false };
+          }
+        }
+        ctx.structureAnalysis = structureAnalysis;
+
         // ═══ Step 3: 대안 이미지 (카테고리별) ═══
         let altImage = null;
         let altMetadata = {};
@@ -344,6 +388,8 @@ export default {
             elapsed_ms: elapsed,
             pre_analysis: preAnalysisMeta,
             pre_analysis_data: preAnalysis,
+            structure_analysis: structureAnalysisMeta,
+            structure_analysis_data: structureAnalysis,
             fridge_demolition: isFridge ? { attempted: true, succeeded: demoSucceeded } : undefined,
             ...altMetadata,
           },
