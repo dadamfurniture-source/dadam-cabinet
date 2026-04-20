@@ -69,6 +69,13 @@ STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT sink cabi
 - NO upper cabinet above shorter doors. NO base cabinet with short doors below longer top doors. NO hutch. NO kitchen-style upper/lower split.
 - NO countertop, NO sink, NO faucet, NO appliances — this is a clothing wardrobe, not a kitchen.
 
+NO EXTERNAL DRAWERS (ABSOLUTE — the closed wardrobe front shows ONLY full-height doors):
+- Drawers live ONLY inside the wardrobe behind closed doors. The drawers are revealed only in the open-door view, never visible on the closed front.
+- NO drawer fronts on the exterior. NO drawer bank visible below / above / between any door. NO row of drawer faces stacked at the floor line, at the top line, or anywhere in between.
+- NO visible drawer pulls, drawer lips, drawer seams, or drawer reveal-gaps anywhere on the closed face.
+- The bottom edge of every door runs directly to the floor (or the thin toe-kick); there is NO drawer band below the doors. The top edge of every door runs directly to the ceiling; there is NO drawer band above the doors.
+- If you are tempted to draw a strip of short horizontal panels at the bottom — that is a drawer bank and is FORBIDDEN. The closed wardrobe front is ONLY full-height door faces edge to edge.
+
 DOORS (HANDLELESS — perfectly flat matte rectangles, NO visible hardware anywhere):
 - "${doorColor}" matte flat-panel, completely smooth and seamless across the entire face.
 - The front face of every door is a perfectly flat uninterrupted rectangle with zero surface interruption — no raised profiles, no grooves, no recesses, no bars, no lips, no bumps.
@@ -205,7 +212,7 @@ CRITICAL — THE OUTPUT MUST LOOK DIFFERENT FROM THE INPUT:
 
 INTERIOR (must be visible through the open doors):
 ${s.open}
-Clothes on hangers on the rods. The internal drawers (there are exactly 2 of them, stacked as a 2-tier pair in ONE section only) show folded items. All OTHER sections have rods only — do NOT render any additional drawers. Realistic wardrobe interior.
+Clothes on hangers on the rods. The 2 drawers (exactly 2, stacked as a 2-tier pair in ONE section only) sit INSIDE that section — they are INTERIOR drawers visible THROUGH the opened door, NOT exterior drawers mounted on the outside of the wardrobe. All OTHER sections have rods only — do NOT render any additional drawers. No drawer fronts on any outside face of the wardrobe. Realistic wardrobe interior.
 
 DOORS on the opened state (still HANDLELESS — NO finger grooves):
 - The OUTSIDE face of each open door is still ${doorColor} matte flat-panel — a perfectly flat rectangle with ZERO visible hardware: no handles, no knobs, no edge pulls, no recessed grips, no chrome bars.
