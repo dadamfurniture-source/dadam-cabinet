@@ -8,7 +8,9 @@ window.DADAM_CONFIG = {
     apiUrl: '', // 비활성 → Codex generate API 사용
   },
   generateApi: {
-    url: 'https://dadam-generate-api-production.up.railway.app/api/generate',
+    // Cloudflare Worker (workers/generate-api/). main 푸시 시 자동 배포.
+    // 품목별 프롬프트 · Claude Opus pre-analysis 등 최신 생성 로직이 전부 이쪽에 있음.
+    url: 'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate',
   },
   app: {
     name: '다담가구',
