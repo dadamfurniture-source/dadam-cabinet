@@ -15,11 +15,9 @@
  * to Step 2 and to buildWardrobeQuote for pricing. The Opus analysis feeds Step 3
  * only — Step 2 keeps planning from scratch.
  *
- * Handle policy: top-edge pull. Each full-height door carries a single long
- * slim handle mounted along the TOP EDGE of the door — a rounded rectangular
- * profile that wraps slightly over the top edge and curves down about
- * 15–20mm to form a finger-grip lip. Color matches the door (e.g. matte
- * white on white, matte walnut on walnut). No other handles anywhere.
+ * Handle policy: handleless. Each door is a perfectly flat matte rectangle —
+ * NO visible handle of any kind. The prompt describes the door face only and
+ * stays silent on hardware so Gemini renders a clean unbroken surface.
  */
 
 export const WARDROBE_CATEGORIES = ['wardrobe'];
@@ -55,9 +53,8 @@ export function getWardrobeStructure(w) {
 
 /**
  * Step 2 — full-wall closed-door wardrobe.
- * Each door carries a single long slim TOP-EDGE PULL handle (color matches
- * the door). Door face itself stays perfectly flat — the handle sits at the
- * very top edge only.
+ * Handleless design — every door is a perfectly flat matte rectangle with
+ * no visible hardware of any kind.
  */
 export function buildWardrobeClosedPrompt({ wallData, themeData }) {
   const doorColor = themeData.style_door_color || 'white';
@@ -70,17 +67,13 @@ STRUCTURE (HARD REQUIREMENT — this is a WARDROBE, NOT a kitchen, NOT sink cabi
 - NO upper cabinet above shorter doors. NO base cabinet with short doors below longer top doors. NO hutch. NO kitchen-style upper/lower split.
 - NO countertop, NO sink, NO faucet, NO appliances — this is a clothing wardrobe, not a kitchen.
 
-DOORS:
-- "${doorColor}" matte flat-panel, completely smooth and seamless across the main face.
-- The front face of every door is a perfectly flat uninterrupted rectangle.
+DOORS (HANDLELESS — perfectly flat matte rectangles, NO visible hardware anywhere):
+- "${doorColor}" matte flat-panel, completely smooth and seamless across the entire face.
+- The front face of every door is a perfectly flat uninterrupted rectangle with zero surface interruption — no raised profiles, no grooves, no recesses, no bars, no lips, no bumps.
+- Absolutely NO handles of any kind: no knobs, no bar handles, no D-pulls, no cup pulls, no top-edge pulls, no edge pulls, no finger pulls, no chrome bars, no metal bars, no brass hardware.
+- Absolutely NO handle substitutes cut into the door: no recessed grips, no J-channel grips, no finger grooves, no routed slots, no notches, no cutouts along any edge.
+- No hinge lines, no visible hardware, no shadow lines, no trim. Each door face is one flat monolithic rectangle edge to edge.
 - All doors closed in this image. No gaps between adjacent doors.
-
-HANDLES (TOP-EDGE PULL — required on every door, matching color):
-- Each door carries ONE long slim TOP-EDGE PULL handle (also called an "edge pull" or "top-mounted finger pull lip").
-- Shape: a rounded rectangular bar that sits flush along the very top edge of the door, wrapping slightly over that top edge and curving down about 15–20mm on the front face. It forms a smooth finger-grip lip that runs the full width of the door (or nearly so — centered, spanning about 60–90% of the door width).
-- Position: ONLY at the TOP edge of each door. Nothing on the middle, bottom, or sides of the door face.
-- Color/finish: matte ${doorColor}, same material and finish as the door itself so the handle reads as a subtle continuation of the door, not a contrasting metal bar.
-- Do NOT use chrome, brass, or metallic bar handles. Do NOT use knobs, D-pulls, cup pulls, recessed grips, or finger grooves cut into the door face. Handle is purely the top-edge pull.
 
 SECTION LAYOUT (this describes the interior for reference; in THIS image the doors are closed and the interior is NOT visible):
 ${getWardrobeStructure(wallData.wallW).prompt}
@@ -95,7 +88,7 @@ PRESERVE background EXACTLY: floor, ceiling, side walls, window, lighting, camer
  * positions of doors Gemini actually rendered.
  */
 export function buildWardrobeStructureAnalysisPrompt() {
-  return `You are looking at a photo of a newly generated built-in wardrobe covering one entire wall, all doors closed. The design uses TOP-EDGE PULL handles (a long slim handle wraps the top edge of each door), so a thin horizontal feature near the very top of each door is expected — that is the handle, not a separate cabinet split.
+  return `You are looking at a photo of a newly generated built-in wardrobe covering one entire wall, all doors closed. The design is HANDLELESS — the door faces should be perfectly flat matte rectangles with no visible handles, pulls, or hardware.
 
 Analyze the wardrobe as it actually appears in this image (do NOT guess the planned layout — describe what you SEE) and return ONLY the following JSON, no prose:
 
@@ -107,13 +100,13 @@ Analyze the wardrobe as it actually appears in this image (do NOT guess the plan
       "relative_width": "narrow | medium | wide",
       "approx_x_start_pct": integer 0-100 (percent of wall width where this door's LEFT edge sits),
       "approx_x_end_pct":   integer 0-100 (percent of wall width where this door's RIGHT edge sits),
-      "top_edge_handle_visible": true_or_false (whether you see a top-edge pull handle on this door),
+      "face_is_flat_handleless": true_or_false (whether this door face appears perfectly flat with no visible handle or hardware),
       "notes": "anything noteworthy about this specific door's appearance (kept short)"
     }
   ],
   "door_color_finish": "short description of the door color and finish you observe",
   "visible_vertical_seams_pct": [list of integers — x-coordinate percent of each vertical seam between doors],
-  "horizontal_rails_or_seams": "describe any horizontal split / rail / shelf on the door faces EXCLUDING the top-edge handle, or 'none' (the top-edge handle is expected and should not be reported here)",
+  "horizontal_rails_or_seams": "describe any horizontal split / rail / shelf on the door faces, or 'none'",
   "overall_notes": "one short line of anything important for opening these doors naturally in a follow-up render"
 }
 
@@ -171,10 +164,9 @@ INTERIOR (must be visible through the open doors):
 ${s.open}
 Clothes on hangers on the rods, folded items in the internal drawers. Realistic wardrobe interior.
 
-DOORS on the opened state:
-- The OUTSIDE face of each open door is still ${doorColor} matte flat-panel, the same surface seen in the input.
+DOORS on the opened state (still HANDLELESS):
+- The OUTSIDE face of each open door is still ${doorColor} matte flat-panel — a perfectly flat rectangle with ZERO visible hardware: no handles, no knobs, no edge pulls, no recessed grips, no finger grooves, no chrome bars. Do NOT add hardware to the now-visible door faces.
 - Each door swings from its own hinge side, revealing the interior of its own section.
-- The same top-edge pull handle (long slim matte ${doorColor} bar wrapping the top edge of the door) remains on every door and is now visible at the top of each opened panel. Do NOT add any other handle; do NOT switch to a metal bar; do NOT draw handles on the middle or bottom of the door.
 
 KEEP IDENTICAL to the input:
 - Camera angle, lighting, background (walls, floor, ceiling, window, etc.), wardrobe position and overall width.
