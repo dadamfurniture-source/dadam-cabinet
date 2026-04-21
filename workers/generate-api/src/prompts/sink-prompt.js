@@ -56,7 +56,7 @@ export function buildSinkClosedPrompt({ kitchenLayout, wallData, themeData, styl
 [UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets.
 [LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
 [COUNTERTOP] ${countertop}, continuous surface.
-[HANDLES] Finger-groove pulls on every door and drawer (Korean 핑거 그루브 style): a continuous narrow horizontal recess carved into the top edge of each UPPER cabinet door and into the top edge of each LOWER cabinet drawer/door, depth ~12mm, height ~25mm, running the full width of each panel. No protruding bar handles, no knobs, no chrome hardware. The groove is the same color as the door (integrated into the panel). Do NOT use push-to-open — the finger groove must be clearly visible.
+[HANDLES] J-pull handleless flat-panel doors (Korean 핑거 그루브 style). Every upper door, every lower door, and every drawer front has an integrated J-shaped channel recess carved into the top edge of the panel — same color as the door, no separate hardware. NO bar handles, NO knobs, NO chrome pulls, NO protruding fittings. The J-pull groove is the ONLY way to grip each door/drawer.
 [HOOD] Concealed range hood integrated into upper cabinet above cooktop.
 [STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
 [QUALITY] 8K quality, natural lighting, proper shadows and reflections.
@@ -75,7 +75,7 @@ export function buildSinkAltSpec({ styleName }) {
 - Lower cabinets: ${pick.lower}
 - Countertop: ${altCT}
 - ${styleName} style
-KEEP everything else PIXEL-IDENTICAL: camera angle, room background, cabinet layout, sink position, cooktop position, hood, door lines, appliance positions, lighting, AND the finger-groove handle style (a horizontal recess on the top edge of each upper door and top edge of each lower drawer/door, integrated in the door color, no protruding hardware).
+KEEP everything else PIXEL-IDENTICAL: camera angle, room background, cabinet layout, sink position, cooktop position, hood, door lines, appliance positions, lighting, AND the J-pull handleless finger-groove style (integrated J-channel recess on the top edge of each door/drawer, no bar handles, no knobs, no chrome).
 ALL DOORS MUST STAY CLOSED — do NOT open any door or drawer. Do NOT show interior contents. This is a closed-door alternate color rendering of the same kitchen. Photorealistic. No text or labels.`;
 
   return {
