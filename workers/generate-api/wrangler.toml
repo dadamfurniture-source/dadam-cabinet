@@ -10,9 +10,12 @@ account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 mode = "smart"
 
 [vars]
-# Gemini 3.1 Flash Image Preview — 이미지 편집·멀티-객체 카운트 정확도가 2.5 보다 크게 향상.
-# 붙박이장 "닫힌 N도어 ↔ 열린 N도어" 일치도, 냉장고장 SPEC LOCK 준수도 모두 이 모델에서 더 안정적.
+# 카테고리별 Gemini 모델 분기
+# - GEMINI_MODEL: 기본값 (붙박이장·냉장고장·파우더룸·신발장·수납장). 3.1 로 도어 카운트 준수·SPEC LOCK 정확도 향상.
+# - GEMINI_MODEL_SINK: 싱크대 전용. 2.5 에서 AI Two-tone 색 배합과 레이아웃이 안정적이라 유지.
+#   3.1 로 올리면 싱크대 회귀 리스크 있음 — 충분히 검증 후에만 통일.
 GEMINI_MODEL = "gemini-3.1-flash-image-preview"
+GEMINI_MODEL_SINK = "gemini-2.5-flash-image"
 
 # Cloudflare AI Gateway base URL — Google Generative Language API 와 Anthropic API 를
 # 한국 발신에서 차단 (400 "User location is not supported" / 403 "Request not allowed")

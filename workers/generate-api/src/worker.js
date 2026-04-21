@@ -81,8 +81,17 @@ function resolveBuilders(category) {
 // ─── Gemini API 호출 ───
 // AI_GATEWAY_BASE 가 설정되어 있으면 Cloudflare AI Gateway 경유 (geo-restriction 우회, US egress).
 // 없으면 Google 원본 엔드포인트 직접 호출 (fallback).
-async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4, extraImages = []) {
-  const model = env.GEMINI_MODEL || 'gemini-2.5-flash-image';
+// 카테고리별 모델 분기: 싱크대는 env.GEMINI_MODEL_SINK (기본 2.5), 그 외는 env.GEMINI_MODEL (기본 3.1).
+// 싱크대 2D 투톤 렌더는 2.5 에서 색/레이아웃 안정성이 검증된 반면, 3.1 은 아직 회귀 리스크가 있어 분리.
+function resolveGeminiModel(env, category) {
+  if (category && SINK_CATEGORIES.includes(category)) {
+    return env.GEMINI_MODEL_SINK || 'gemini-2.5-flash-image';
+  }
+  return env.GEMINI_MODEL || 'gemini-2.5-flash-image';
+}
+
+async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4, extraImages = [], modelOverride) {
+  const model = modelOverride || env.GEMINI_MODEL || 'gemini-2.5-flash-image';
   const base = env.AI_GATEWAY_BASE
     ? `${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/google-ai-studio/v1beta`
     : 'https://generativelanguage.googleapis.com/v1beta';
@@ -191,7 +200,9 @@ export default {
         }
 
         const styleName = STYLE_MAP[design_style] || 'Modern Minimal';
-        console.log(`[Generate] category=${category}, style=${design_style}, layout=${kitchen_layout}`);
+        // 카테고리별 Gemini 모델 결정 (싱크대=2.5, 기타=3.1). 이 핸들러의 모든 callGemini 호출에 재사용.
+        const geminiModel = resolveGeminiModel(env, category);
+        console.log(`[Generate] category=${category}, style=${design_style}, layout=${kitchen_layout}, gemini=${geminiModel}`);
 
         // ═══ Step 1: 벽면 분석 ═══
         let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
@@ -202,7 +213,7 @@ export default {
           console.log(`[Generate] Wall width from user override: ${wallW}mm`);
         } else {
           try {
-            const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2);
+            const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2, [], geminiModel);
 
             if (wallResult.text) {
               const jsonMatch = wallResult.text.match(/\{[\s\S]*\}/);
@@ -288,6 +299,8 @@ export default {
               image_type,
               ['IMAGE', 'TEXT'],
               0.2,
+              [],
+              geminiModel,
             );
             if (demoResult.image) {
               installBaseImage = demoResult.image;
@@ -306,7 +319,7 @@ export default {
 
         // ═══ Step 2: 가구 생성 (닫힌문) ═══
         const closedPrompt = builders.closed(ctx);
-        const closedResult = await callGemini(env, closedPrompt, installBaseImage, installMime, undefined, undefined, refImages);
+        const closedResult = await callGemini(env, closedPrompt, installBaseImage, installMime, undefined, undefined, refImages, geminiModel);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
@@ -357,7 +370,7 @@ export default {
           const inputImage = altSpec.inputKey === 'install' ? installBaseImage : closedResult.image;
           const inputMime = altSpec.inputKey === 'install' ? installMime : 'image/png';
           const extraRefs = altSpec.inputKey === 'install' ? refImages : [];
-          const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime, undefined, undefined, extraRefs);
+          const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime, undefined, undefined, extraRefs, geminiModel);
           altImage = altResult.image || null;
           altMetadata = altSpec.metadata || {};
           if (altImage) console.log(`[Generate] Alt image generated (${altMetadata.alt_style?.name || 'default'})`);
@@ -389,7 +402,7 @@ export default {
           alt_style: altMetadata.alt_style || null,
           metadata: {
             category, kitchen_layout, design_style,
-            model: env.GEMINI_MODEL || 'gemini-2.5-flash-image',
+            model: geminiModel,
             elapsed_ms: elapsed,
             pre_analysis: preAnalysisMeta,
             pre_analysis_data: preAnalysis,
