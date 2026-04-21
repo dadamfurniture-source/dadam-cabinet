@@ -15,9 +15,9 @@
  */
 
 import { buildWallAnalysisPrompt, applyWallWidthCorrection } from './prompts/wall-analysis.js';
-import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec } from './prompts/sink-prompt.js';
+import { SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec, buildSinkQuote } from './prompts/sink-prompt.js';
 import { WARDROBE_CATEGORIES, WARDROBE_ANALYSIS_MODEL, buildWardrobeClosedPrompt, buildWardrobeStructureAnalysisPrompt, buildWardrobeAltSpec, buildWardrobeQuote } from './prompts/wardrobe-prompt.js';
-import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec } from './prompts/shoe-prompt.js';
+import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec, buildShoeQuote } from './prompts/shoe-prompt.js';
 import {
   FRIDGE_CATEGORIES,
   FRIDGE_ANALYSIS_MODEL,
@@ -25,9 +25,10 @@ import {
   buildFridgeDemolitionPrompt,
   buildFridgeClosedPrompt,
   buildFridgeAltSpec,
+  buildFridgeQuote,
 } from './prompts/fridge-prompt.js';
-import { VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec } from './prompts/vanity-prompt.js';
-import { buildStorageClosedPrompt, buildStorageAltSpec } from './prompts/storage-prompt.js';
+import { VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec, buildVanityQuote } from './prompts/vanity-prompt.js';
+import { buildStorageClosedPrompt, buildStorageAltSpec, buildStorageQuote } from './prompts/storage-prompt.js';
 import { callClaudeVision, extractJson } from './clients/claude.js';
 
 // ─── 스타일 매핑 (카테고리 무관) ───
@@ -42,6 +43,9 @@ const STYLE_MAP = {
 // ─── 카테고리 → prompt builder 룩업 ───
 const CLOSED_BUILDERS = {};
 const ALT_BUILDERS = {};
+// 카테고리별 견적 빌더. 모든 카테고리가 견적을 가지도록 각자 `build{Cat}Quote(wallW)` 등록.
+// 매치 실패 시 buildStorageQuote fallback.
+const QUOTE_BUILDERS = {};
 // Pre-analysis (Step 1.5) — Claude reads the original room photo BEFORE Step 2.
 const PRE_ANALYSIS = {}; // { [category]: { model, promptBuilder } }
 // Structure analysis (Step 2.5) — Claude reads the Step 2 CLOSED image AFTER it's
@@ -51,6 +55,9 @@ function register(categories, closedBuilder, altBuilder, opts = {}) {
   for (const c of categories) {
     CLOSED_BUILDERS[c] = closedBuilder;
     ALT_BUILDERS[c] = altBuilder;
+    if (opts.quoteBuilder) {
+      QUOTE_BUILDERS[c] = opts.quoteBuilder;
+    }
     if (opts.analysisModel && opts.analysisPromptBuilder) {
       PRE_ANALYSIS[c] = { model: opts.analysisModel, promptBuilder: opts.analysisPromptBuilder };
     }
@@ -59,23 +66,29 @@ function register(categories, closedBuilder, altBuilder, opts = {}) {
     }
   }
 }
-register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec);
+register(SINK_CATEGORIES, buildSinkClosedPrompt, buildSinkAltSpec, { quoteBuilder: buildSinkQuote });
 register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec, {
   structureModel: WARDROBE_ANALYSIS_MODEL,
   structurePromptBuilder: buildWardrobeStructureAnalysisPrompt,
+  quoteBuilder: buildWardrobeQuote,
 });
-register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec);
+register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec, { quoteBuilder: buildShoeQuote });
 register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
   analysisModel: FRIDGE_ANALYSIS_MODEL,
   analysisPromptBuilder: buildFridgeAnalysisPrompt,
+  quoteBuilder: buildFridgeQuote,
 });
-register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec);
+register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec, { quoteBuilder: buildVanityQuote });
 
 function resolveBuilders(category) {
   return {
     closed: CLOSED_BUILDERS[category] || buildStorageClosedPrompt,
     alt: ALT_BUILDERS[category] || buildStorageAltSpec,
   };
+}
+
+function resolveQuoteBuilder(category) {
+  return QUOTE_BUILDERS[category] || buildStorageQuote;
 }
 
 // ─── Gemini API 호출 ───
@@ -378,9 +391,16 @@ export default {
           console.warn('[Generate] Alt image generation failed:', e.message);
         }
 
-        // ═══ 견적 (붙박이장 전용) ═══
-        const quote = category === 'wardrobe' ? buildWardrobeQuote(wallW) : null;
-        if (quote) console.log(`[Generate] Wardrobe quote total: ${quote.total}원`);
+        // ═══ 견적 (전 카테고리) ═══
+        // 각 카테고리 프롬프트 모듈이 자체 buildXxxQuote(wallW) 를 등록. 매치 실패 시 buildStorageQuote fallback.
+        const quoteBuilder = resolveQuoteBuilder(category);
+        let quote = null;
+        try {
+          quote = quoteBuilder(wallW);
+          if (quote) console.log(`[Generate] Quote(${category}) total: ${quote.total.toLocaleString()}원`);
+        } catch (e) {
+          console.warn(`[Generate] Quote build failed for ${category}: ${e.message}`);
+        }
 
         // ═══ 응답 ═══
         const elapsed = Date.now() - startTime;
