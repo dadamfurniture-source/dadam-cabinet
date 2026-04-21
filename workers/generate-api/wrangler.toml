@@ -3,6 +3,12 @@ main = "src/worker.js"
 compatibility_date = "2024-01-01"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
+# Smart Placement — Worker 실행 위치를 백엔드 (Google Generative Language API, US) 근처로
+# 이동시켜 egress IP 를 미국 데이터센터로 만든다. Google AI Studio API 가 한국 발신을
+# "User location is not supported" 로 차단하던 문제를 우회한다.
+[placement]
+mode = "smart"
+
 [vars]
 # Gemini 3.1 Flash Image Preview — 이미지 편집·멀티-객체 카운트 정확도가 2.5 보다 크게 향상.
 # 붙박이장 "닫힌 N도어 ↔ 열린 N도어" 일치도, 냉장고장 SPEC LOCK 준수도 모두 이 모델에서 더 안정적.
