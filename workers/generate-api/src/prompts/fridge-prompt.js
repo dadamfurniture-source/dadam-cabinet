@@ -454,3 +454,29 @@ export function buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts,
     metadata: { alt_style: { name: 'AI 추천 (홈바·홈카페)' } },
   };
 }
+
+/**
+ * Fridge-only quote. 냉장고장은 벽 전체가 팬트리 + 브릿지 + 냉장고 영역으로 구성.
+ * 하부 팬트리 180k/1000mm, 상부 브릿지 140k/1000mm (브릿지는 벽폭 100%),
+ * 시공 200k, 철거 30k/1000mm. 냉장고 본체는 고객 지참 전제 (견적 제외).
+ */
+export function buildFridgeQuote(wallW) {
+  const mm = Math.max(0, Number(wallW) || 0);
+  const lowerPrice = 180000;
+  const bridgePrice = 140000;
+  const install = 200000, demolitionRate = 30000;
+  const items = [
+    { name: '팬트리 하부장', quantity: `${mm}mm`, unit_price: lowerPrice, total: Math.round(lowerPrice * mm / 1000) },
+    { name: '상단 브릿지 캐비닛', quantity: `${mm}mm`, unit_price: bridgePrice, total: Math.round(bridgePrice * mm / 1000) },
+    { name: '시공비', quantity: '1식', unit_price: install, total: install },
+    { name: '기존 철거', quantity: `${mm}mm`, unit_price: demolitionRate, total: Math.round(demolitionRate * mm / 1000) },
+  ];
+  const subtotal = items.reduce((s, i) => s + i.total, 0);
+  const vat = Math.round(subtotal * 0.10);
+  const total = subtotal + vat;
+  return {
+    items, subtotal, vat, total,
+    range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+    grade: 'basic',
+  };
+}

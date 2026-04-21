@@ -32,3 +32,25 @@ RULES:
     metadata: { alt_style: { name: '내부 구조 (열린문)' } },
   };
 }
+
+/**
+ * Shoe cabinet quote. mcp-server 단가: 400k/1000mm (슬림 프로파일, 바닥~천장).
+ */
+export function buildShoeQuote(wallW) {
+  const mm = Math.max(0, Number(wallW) || 0);
+  const unitPrice = 400000;
+  const install = 200000, demolitionRate = 30000;
+  const items = [
+    { name: '신발장 캐비닛', quantity: `${mm}mm`, unit_price: unitPrice, total: Math.round(unitPrice * mm / 1000) },
+    { name: '시공비', quantity: '1식', unit_price: install, total: install },
+    { name: '기존 철거', quantity: `${mm}mm`, unit_price: demolitionRate, total: Math.round(demolitionRate * mm / 1000) },
+  ];
+  const subtotal = items.reduce((s, i) => s + i.total, 0);
+  const vat = Math.round(subtotal * 0.10);
+  const total = subtotal + vat;
+  return {
+    items, subtotal, vat, total,
+    range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+    grade: 'basic',
+  };
+}
