@@ -90,3 +90,36 @@ ALL DOORS MUST STAY CLOSED — do NOT open any door or drawer. Do NOT show inter
 }
 
 export const __internals = { LAYOUT_DESC, ALT_TWO_TONES, ALT_COUNTERTOPS, pickRandom };
+
+/**
+ * Sink-only quote. 단가는 mcp-server `quote.service.ts` 의 카테고리 표준값.
+ * 하부장 160k/1000mm, 상부장 140k (벽폭의 70% 만 상부장으로 가정 — 후드 존 제외),
+ * 상판 basic 150k/1000mm, 수전·싱크볼·후드 basic 각 1식, 시공 200k, 철거 30k/1000mm.
+ */
+export function buildSinkQuote(wallW) {
+  const mm = Math.max(0, Number(wallW) || 0);
+  const lowerPrice = 160000;
+  const upperPrice = 140000;
+  const countertopPrice = 150000;
+  const faucet = 40000, sinkBowl = 80000, hood = 65000;
+  const install = 200000, demolitionRate = 30000;
+  const upperMm = Math.round(mm * 0.7);
+  const items = [
+    { name: '하부장 캐비닛', quantity: `${mm}mm`, unit_price: lowerPrice, total: Math.round(lowerPrice * mm / 1000) },
+    { name: '상부장 캐비닛', quantity: `${upperMm}mm`, unit_price: upperPrice, total: Math.round(upperPrice * upperMm / 1000) },
+    { name: '상판 (인조대리석)', quantity: `${mm}mm`, unit_price: countertopPrice, total: Math.round(countertopPrice * mm / 1000) },
+    { name: '수전', quantity: '1개', unit_price: faucet, total: faucet },
+    { name: '싱크볼', quantity: '1개', unit_price: sinkBowl, total: sinkBowl },
+    { name: '후드', quantity: '1개', unit_price: hood, total: hood },
+    { name: '시공비', quantity: '1식', unit_price: install, total: install },
+    { name: '기존 철거', quantity: `${mm}mm`, unit_price: demolitionRate, total: Math.round(demolitionRate * mm / 1000) },
+  ];
+  const subtotal = items.reduce((s, i) => s + i.total, 0);
+  const vat = Math.round(subtotal * 0.10);
+  const total = subtotal + vat;
+  return {
+    items, subtotal, vat, total,
+    range: { min: Math.round(total * 0.95), max: Math.round(total * 1.30) },
+    grade: 'basic',
+  };
+}
