@@ -9,7 +9,18 @@
  *   - Rate limit / 타임아웃 → 동일, 생성 파이프라인 자체는 계속 진행
  */
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_DIRECT_URL = 'https://api.anthropic.com/v1/messages';
+
+/**
+ * env.AI_GATEWAY_BASE 가 있으면 Cloudflare AI Gateway 경유 URL 반환 (geo-restriction 우회).
+ * 없으면 Anthropic 원본 엔드포인트.
+ */
+function resolveAnthropicUrl(env) {
+  if (env && env.AI_GATEWAY_BASE) {
+    return `${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/anthropic/v1/messages`;
+  }
+  return ANTHROPIC_DIRECT_URL;
+}
 
 /**
  * 방 사진 한 장을 Claude 에게 분석 요청.
@@ -42,7 +53,7 @@ export async function callClaudeVision(env, { model, prompt, image, imageType, m
     ],
   };
 
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetch(resolveAnthropicUrl(env), {
     method: 'POST',
     headers: {
       'x-api-key': env.ANTHROPIC_API_KEY,

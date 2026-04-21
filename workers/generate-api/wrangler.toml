@@ -14,5 +14,11 @@ mode = "smart"
 # 붙박이장 "닫힌 N도어 ↔ 열린 N도어" 일치도, 냉장고장 SPEC LOCK 준수도 모두 이 모델에서 더 안정적.
 GEMINI_MODEL = "gemini-3.1-flash-image-preview"
 
+# Cloudflare AI Gateway base URL — Google Generative Language API 와 Anthropic API 를
+# 한국 발신에서 차단 (400 "User location is not supported" / 403 "Request not allowed")
+# 하는 문제 우회. Gateway 가 US 엣지에서 provider 로 프록시.
+# 설정되면 워커가 google-ai-studio/... 와 anthropic/v1/messages 를 이 경로 아래로 호출.
+AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb79edd3284/dadam-ai"
+
 # GEMINI_API_KEY는 Cloudflare 대시보드에서 Secret으로 설정
 # wrangler secret put GEMINI_API_KEY
