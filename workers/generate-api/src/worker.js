@@ -79,9 +79,14 @@ function resolveBuilders(category) {
 }
 
 // ─── Gemini API 호출 ───
+// AI_GATEWAY_BASE 가 설정되어 있으면 Cloudflare AI Gateway 경유 (geo-restriction 우회, US egress).
+// 없으면 Google 원본 엔드포인트 직접 호출 (fallback).
 async function callGemini(env, prompt, image, imageType, responseModalities = ['IMAGE', 'TEXT'], temperature = 0.4, extraImages = []) {
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash-image';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const base = env.AI_GATEWAY_BASE
+    ? `${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/google-ai-studio/v1beta`
+    : 'https://generativelanguage.googleapis.com/v1beta';
+  const url = `${base}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
 
   const parts = [];
   if (image && imageType) {
