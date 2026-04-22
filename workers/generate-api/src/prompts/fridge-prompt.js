@@ -113,15 +113,46 @@ Only the target installation wall may receive new cabinetry. Everywhere else is 
 const BACKGROUND_LOCK_REMINDER = `REMINDER — BACKGROUND LOCK still applies: do NOT touch floor, ceiling, side walls, window, curtains, lighting, or camera angle. The home-bar zone is only allowed to occupy the target wall area, not to redecorate the rest of the room.`;
 
 /**
+ * 알코브 감지 시 install/recommended 프롬프트에 주입할 프레임 보존 블록.
+ * preAnalysis.alcove_frame.present === true 이고 interior 폭 ≥ 600mm 일 때만 non-empty.
+ * 반환: { block: string, interiorW: number | 0 }
+ */
+function buildAlcoveInstallFrame(preAnalysis) {
+  const alc = preAnalysis && preAnalysis.alcove_frame;
+  if (!alc || alc.present !== true) return { block: '', interiorW: 0 };
+  const interior = alc.interior || {};
+  const x0 = Number(interior.x_from_left_mm);
+  const x1 = Number(interior.x_to_left_mm);
+  if (!isFinite(x0) || !isFinite(x1) || x1 - x0 < 600) {
+    return { block: '', interiorW: 0 };
+  }
+  const interiorW = x1 - x0;
+  const lp = alc.left_panel || {};
+  const rp = alc.right_panel || {};
+  const tb = alc.top_bridge || {};
+  const block = `ALCOVE INSTALL FRAME (HARD — the target wall is a 3-sided recessed alcove that MUST stay visible):
+- Alcove LEFT vertical panel (x=${lp.x_from_left_mm ?? '?'}mm → x=${lp.x_to_left_mm ?? '?'}mm in original wall coords) remains pixel-identical to Image 1.
+- Alcove RIGHT vertical panel (x=${rp.x_from_left_mm ?? '?'}mm → x=${rp.x_to_left_mm ?? '?'}mm) remains pixel-identical.
+- Alcove TOP bridge/header (y=${tb.y_from_top_pct ?? '?'}% → y=${tb.y_to_top_pct ?? '?'}% from ceiling) remains pixel-identical.
+- The new cabinetry (refrigerator + pantry + any internal bridge cabinet) must fit ENTIRELY INSIDE the alcove interior (width ≈ ${interiorW}mm).
+- Left side of the cabinetry butts flush against the alcove's left inner face; right side butts flush against the right inner face; top butts flush against the alcove top bridge under-surface.
+- DO NOT draw any new panel, frame, or trim OVER the alcove's outer frame (left vertical panel, right vertical panel, top header). The alcove frame must be visibly intact in the final image.
+- DO NOT widen, narrow, repaint, or re-clad the alcove frame.`;
+  return { block, interiorW };
+}
+
+/**
  * 사용자가 선택한 냉장고 옵션을 Gemini 가 무시하지 못하도록 HARD REQUIREMENTS 블록으로 변환.
  * - 유닛별 가로 폭 (UNIT_WIDTH_MM) 으로 냉장고 그룹 총 폭을 계산
  * - position 을 절대 좌표 (mm offset) 로 표현 → "LEFT side" 같은 모호함 제거
  * - 멀티 유닛이면 좌→우 순서 명시
  * - 레퍼런스 이미지의 사양과 충돌하면 옵션이 우선임을 명시.
+ * - alcoveInteriorW 가 주어지면 (>0) 그 값을 effective wall width 로 사용 (알코브 내부에 설치).
  */
-function buildSpecLock(opts, wallW) {
+function buildSpecLock(opts, wallW, alcoveInteriorW) {
   const o = opts || {};
-  const W = Number(wallW) || 3000;
+  const useAlcove = Number(alcoveInteriorW) > 600;
+  const W = useAlcove ? Number(alcoveInteriorW) : (Number(wallW) || 3000);
   const brand = o.brand === 'lg' ? 'LG' : 'Samsung';
   const lineDesc = LINE_DESC[o.modelLine] || '';
   const lineHasBrand = lineDesc.toLowerCase().includes(brand.toLowerCase());
@@ -177,9 +208,13 @@ function buildSpecLock(opts, wallW) {
   const ids = Array.isArray(o.appliances) ? o.appliances : [];
   const applianceNames = ids.map((id) => APPLIANCE_DESC[id]).filter(Boolean);
 
+  const wallLabel = useAlcove
+    ? `Effective install zone width (= alcove interior, the only place where new cabinetry may go): ${W}mm. All x-coordinates below are measured from the alcove interior's LEFT inner face (x=0mm) to its RIGHT inner face (x=${W}mm). Do NOT extend any cabinet beyond x=0mm or x=${W}mm — those edges are the alcove frame which must remain visible.`
+    : `Target wall total width: ${W}mm. All x-coordinates below are measured from the wall's LEFT edge (x=0mm) to its RIGHT edge (x=${W}mm).`;
+
   const lines = [
     `SPEC LOCK (HARD REQUIREMENTS — these specs OVERRIDE anything seen in the reference images):`,
-    `- Target wall total width: ${W}mm. All x-coordinates below are measured from the wall's LEFT edge (x=0mm) to its RIGHT edge (x=${W}mm).`,
+    `- ${wallLabel}`,
     `- Brand & line: ${brandLine}. Use authentic ${brand} refrigerator proportions, door divisions, hinge placement, and panel splits — not a generic fridge and not the brand shown in any reference image.`,
     `- Refrigerator units (exactly this many appear, no more no fewer, in this exact left-to-right order): ${comboParts.join(' + ')}. Total refrigerator group width ≈ ${totalFridgeMm}mm.`,
     layoutLine,
@@ -191,6 +226,9 @@ function buildSpecLock(opts, wallW) {
     lines.push(`- No built-in cooking appliances on this wall — no oven, no microwave, no air-fryer drawer. Only the refrigerator(s) and closed cabinetry.`);
   }
   lines.push(`- If a reference image shows a different brand, different door count, opposite position, OR a different placement (centered when LEFT was requested, etc.), IGNORE those aspects of the reference. References are consulted ONLY for door-panel finish, reveal lines, handleless detail, and bridge-cabinet proportion.`);
+  if (useAlcove) {
+    lines.push(`- If the refrigerator group width exceeds the alcove interior width (${W}mm), reduce the unit count (e.g., drop a 1door) or choose narrower units — NEVER spill over the alcove frame.`);
+  }
   return lines.join('\n');
 }
 
@@ -198,9 +236,10 @@ function buildSpecLock(opts, wallW) {
  * 상단 브릿지 캐비닛이 아래 컬럼 경계와 동기화되도록 강제하는 블록.
  * SPEC LOCK 의 좌표 정보가 있어야 모델이 어디에 seam 을 둬야 할지 알 수 있음.
  */
-function buildSeamAlignment(opts, wallW) {
+function buildSeamAlignment(opts, wallW, alcoveInteriorW) {
   const o = opts || {};
-  const W = Number(wallW) || 3000;
+  const useAlcove = Number(alcoveInteriorW) > 600;
+  const W = useAlcove ? Number(alcoveInteriorW) : (Number(wallW) || 3000);
   const combo = o.combo || { '4door': 1 };
   const order = ['1door', '3door', '4door'];
   const unitSeq = [];
@@ -234,11 +273,61 @@ function buildSeamAlignment(opts, wallW) {
 }
 
 /**
+ * Opus pre-analysis 에서 알코브 감지 시 demolition 프롬프트 맨 앞에 주입할 보존 블록 생성.
+ * alcove.present === true 일 때만 non-empty 문자열 반환.
+ */
+function formatAlcoveFrameForDemo(pa) {
+  const alc = pa && pa.alcove_frame;
+  if (!alc || alc.present !== true) return '';
+  const lp = alc.left_panel || {};
+  const rp = alc.right_panel || {};
+  const tb = alc.top_bridge || {};
+  const interior = alc.interior || {};
+  const demoList = Array.isArray(pa.interior_demolish_targets) && pa.interior_demolish_targets.length
+    ? pa.interior_demolish_targets.map((t) => `- ${t}`).join('\n')
+    : '- any remaining partitions, upper header inner doors, internal dividers or shelving inside the alcove';
+  return `ALCOVE FRAME PRESERVATION (HARD — the target wall is a 3-sided recessed alcove, NOT a flat wall):
+The following FRAME elements are architectural (part of the wall itself) and MUST remain pixel-identical to Image 1:
+- LEFT vertical panel (x=${lp.x_from_left_mm ?? '?'}mm → x=${lp.x_to_left_mm ?? '?'}mm)${lp.note ? ' — ' + lp.note : ''}
+- RIGHT vertical panel (x=${rp.x_from_left_mm ?? '?'}mm → x=${rp.x_to_left_mm ?? '?'}mm)${rp.note ? ' — ' + rp.note : ''}
+- TOP bridge/header spanning above the alcove opening (y=${tb.y_from_top_pct ?? '?'}% → y=${tb.y_to_top_pct ?? '?'}% from ceiling)${tb.note ? ' — ' + tb.note : ''}
+DO NOT demolish, repaint, re-texture, re-clad, widen, narrow, or alter the alcove frame in any way. Keep its edges, faces, reveals, corners, and color exactly as in Image 1.
+Alcove interior zone (x=${interior.x_from_left_mm ?? '?'}mm → x=${interior.x_to_left_mm ?? '?'}mm)${interior.note ? ' — ' + interior.note : ''} is the ONLY area where demolition applies.
+
+INTERIOR DEMOLITION (inside the alcove only — the frame stays untouched):
+${demoList}
+Leave the alcove's inner walls smooth, flat, and freshly painted, ready for new cabinetry. Floor inside the alcove and the electrical outlets remain. Do NOT touch anything outside the alcove.
+
+`;
+}
+
+/**
  * Stage 1: 철거 프롬프트.
- * 입력 이미지에서 기존 빌트인 구조를 전부 없애고 평평한 드라이월만 남긴 사진을 생성.
+ * 입력 이미지에서 기존 빌트인 구조를 없애 새 설치 가능 상태로 만듦.
+ * preAnalysis.alcove_frame.present === true 이면 알코브 프레임 보존 + 내부만 철거.
+ * false 또는 미제공이면 기존 전체 철거 로직.
  * extraImages 없이 단일 이미지 입력 전제. 낮은 temperature 권장 (0.2).
  */
-export function buildFridgeDemolitionPrompt() {
+export function buildFridgeDemolitionPrompt({ preAnalysis } = {}) {
+  const alcoveBlock = formatAlcoveFrameForDemo(preAnalysis);
+  if (alcoveBlock) {
+    // 알코브 있는 방: 프레임 보존 + 내부만 철거
+    return `Edit photo: prepare the target wall for new fridge cabinet installation.
+
+${alcoveBlock}
+PRESERVE (must remain visually identical):
+- floor inside and outside the alcove (wood/tile pattern, grout lines, color)
+- ceiling
+- side walls OUTSIDE the alcove and their surface
+- window frame, glass, curtains/blinds
+- exterior room lighting, white balance, and color temperature
+- camera angle, perspective, lens distortion
+- any furniture or object NOT on the target wall
+- electrical outlets — keep them on the alcove inner wall at the same height, no drill scars
+
+OUTPUT: the alcove FRAME (left vertical panel + right vertical panel + top bridge/header) stays pixel-identical; the alcove INTERIOR is emptied to smooth flat painted surface, ready for new installation. Photorealistic. No text, labels, arrows, or diagrams. Do NOT add any new furniture.`;
+  }
+  // 알코브 없는 일반 벽: 기존 전체 철거 로직
   return `Edit photo: DEMOLISH and REMOVE every pre-existing built-in furniture element on the target wall. Return a photograph of the SAME room with the target wall completely BARE.
 
 REMOVE (delete entirely, no trace left):
@@ -277,22 +366,27 @@ OUTPUT: bare flat painted drywall on the target wall, smooth and uniform, ready 
  * @param {boolean} [p.siteAlreadyCleared=false]
  * @returns {string}
  */
-export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
+export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false, preAnalysis }) {
   const opts = fridgeOpts || {};
   const wallW = (wallData && Number(wallData.wallW)) || 3000;
-  const specLock = buildSpecLock(opts, wallW);
-  const seamLock = buildSeamAlignment(opts, wallW);
+  const { block: alcoveBlock, interiorW } = buildAlcoveInstallFrame(preAnalysis);
+  const specLock = buildSpecLock(opts, wallW, interiorW);
+  const seamLock = buildSeamAlignment(opts, wallW, interiorW);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
+  const alcoveSection = alcoveBlock ? `\n\n${alcoveBlock}` : '';
+  const bridgeSpan = interiorW > 0
+    ? `Place a bridge cabinet across the top of the alcove interior (≈ ${interiorW}mm wide), divided per VERTICAL SEAM ALIGNMENT above. Do NOT extend the bridge over the alcove top header.`
+    : `Place a bridge cabinet across the top spanning the full wall width, divided per VERTICAL SEAM ALIGNMENT above.`;
 
-  return `${BACKGROUND_LOCK}
+  return `${BACKGROUND_LOCK}${alcoveSection}
 
 ${specLock}
 
 ${seamLock}
 
 TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above onto the target wall ONLY, following the exact x-coordinates and seam alignment requirements above. Background of Image 1 stays pixel-identical per BACKGROUND LOCK above.${sitePrep}
-Target wall dimensions: ${wallW}×${(wallData && wallData.wallH) || 2400}mm. Place a bridge cabinet across the top spanning the full wall width, divided per VERTICAL SEAM ALIGNMENT above.
+Target wall dimensions: ${wallW}×${(wallData && wallData.wallH) || 2400}mm. ${bridgeSpan}
 ALL cabinet doors and panels: ${doorColor} ${doorFinish} flat-panel, handleless, seamless reveals. Door surface smooth and seamless.${styleRef}
 ${styleName}. Photorealistic. All doors closed. No text.`;
 }
@@ -309,22 +403,27 @@ ${styleName}. Photorealistic. All doors closed. No text.`;
  * @param {object} p (buildFridgePrompt 와 동일한 파라미터)
  * @returns {string}
  */
-export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false }) {
+export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, siteAlreadyCleared = false, preAnalysis }) {
   const opts = fridgeOpts || {};
   const wallW = (wallData && Number(wallData.wallW)) || 3000;
-  const specLock = buildSpecLock(opts, wallW);
-  const seamLock = buildSeamAlignment(opts, wallW);
+  const { block: alcoveBlock, interiorW } = buildAlcoveInstallFrame(preAnalysis);
+  const specLock = buildSpecLock(opts, wallW, interiorW);
+  const seamLock = buildSeamAlignment(opts, wallW, interiorW);
   const styleRef = describeStyleReference(opts.referenceCount || 0);
   const sitePrep = siteAlreadyCleared ? '' : `\n${FALLBACK_SITE_PREP}`;
+  const alcoveSection = alcoveBlock ? `\n\n${alcoveBlock}` : '';
+  const bridgeSpan = interiorW > 0
+    ? `Bridge cabinet spans the top of the alcove interior (≈ ${interiorW}mm), divided per VERTICAL SEAM ALIGNMENT above (the home-bar internal seams are additional, but must NOT alter the refrigerator-vs-pantry seam, and must NOT extend over the alcove top header).`
+    : `Bridge cabinet spans the top across the full wall width, divided per VERTICAL SEAM ALIGNMENT above (the home-bar internal seams are additional, but must NOT alter the refrigerator-vs-pantry seam).`;
 
-  return `${BACKGROUND_LOCK}
+  return `${BACKGROUND_LOCK}${alcoveSection}
 
 ${specLock}
 
 ${seamLock}
 
 TASK: Edit Image 1 by installing the ${doorColor} ${doorFinish} refrigerator surround cabinet specified in SPEC LOCK above (with the exact x-coordinates), AND adding an integrated home-bar / home-cafe zone on the SAME target wall, BLENDED INTO THE PANTRY HALF (do NOT shift the refrigerator group from its locked x-coordinates). Background of Image 1 stays pixel-identical per BACKGROUND LOCK above. The home-bar zone may ONLY occupy area on the target wall — it must NOT extend into the floor area, ceiling, side walls, or anywhere outside the target wall.${sitePrep}
-Target wall dimensions: ${wallW}×${(wallData && wallData.wallH) || 2400}mm. Bridge cabinet spans the top across the full wall width, divided per VERTICAL SEAM ALIGNMENT above (the home-bar internal seams are additional, but must NOT alter the refrigerator-vs-pantry seam).
+Target wall dimensions: ${wallW}×${(wallData && wallData.wallH) || 2400}mm. ${bridgeSpan}
 
 HOME BAR / HOME CAFE ZONE — adjacent to the refrigerator column on the target wall, blended into the same ${doorColor} ${doorFinish} cabinetry:
 - Counter-height recessed niche (about 600mm wide, 400mm tall) with integrated power, sized for an espresso machine or drip coffee maker.
@@ -383,10 +482,28 @@ export function buildFridgeAnalysisPrompt() {
   ],
   "existing_fridge_visible": { "present": true_or_false, "side": "left | center | right | null", "approx_width_mm": number_or_null },
   "existing_built_ins_on_target_wall": ["string — 예: 상단 행거, 하단 수납장"],
+  "alcove_frame": {
+    "present": true_or_false,
+    "left_panel":  { "x_from_left_mm": number, "x_to_left_mm": number, "note": "string — 좌측 수직 패널 위치" },
+    "right_panel": { "x_from_left_mm": number, "x_to_left_mm": number, "note": "string — 우측 수직 패널 위치" },
+    "top_bridge":  { "y_from_top_pct": number, "y_to_top_pct": number, "note": "string — 상단 헤더 높이 범위 (천장=0%)" },
+    "interior":    { "x_from_left_mm": number, "x_to_left_mm": number, "note": "string — 알코브 내부 가용 공간" },
+    "material_note": "string — 알코브 프레임 재료·색상"
+  },
+  "interior_demolish_targets": [
+    "string — 알코브 내부에서 철거해야 할 요소. 예: 상단 헤더 내부 칸막이, 중앙 세로 파티션, 내부 선반"
+  ],
   "style_character": "string — 짧게 (예: 모던 미니멀, 따뜻한 스칸디)",
   "design_hints_for_fridge_cabinet": "string — 기존 공간과 조화로운 냉장고장 톤·비례 한줄 제안",
   "special_considerations": ["string — 설치 시 주의점. 없으면 빈 배열"]
 }
+
+알코브 프레임 판단 가이드:
+- "알코브(recessed bay)" = 벽체에 파인 3면 오목 구조 (좌·우 수직 패널 + 상단 헤더).
+- 있으면 present=true 로 두고 좌·우 패널의 x 좌표, 상단 헤더의 y 범위 (천장 기준 %), 내부 가용 공간 x 좌표를 추정.
+- 알코브 프레임은 **건축 요소** (벽체 일부) 로 간주 — 새 설치에서는 그대로 보존 대상.
+- 알코브 내부의 기존 가구·중앙 세로 파티션·상부장 문짝·내부 분할 선반은 철거 대상이므로 \`interior_demolish_targets\` 로.
+- 알코브가 아닌 평평한 벽이면 present=false.
 
 JSON 외 텍스트 금지. 확신 없으면 null 사용.`;
 }
@@ -429,6 +546,7 @@ export function buildFridgeClosedPrompt({ wallData, themeData, styleName, fridge
     styleName,
     fridgeOpts,
     siteAlreadyCleared: !!siteAlreadyCleared,
+    preAnalysis,
   });
   const contextBlock = preAnalysis ? `\n\n${formatPreAnalysis(preAnalysis)}` : '';
   return `${basePrompt}${contextBlock}`;
@@ -446,6 +564,7 @@ export function buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts,
     styleName,
     fridgeOpts,
     siteAlreadyCleared: !!siteAlreadyCleared,
+    preAnalysis,
   });
   const contextBlock = preAnalysis ? `\n\n${formatPreAnalysis(preAnalysis)}` : '';
   return {
