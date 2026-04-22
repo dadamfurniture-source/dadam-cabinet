@@ -7,10 +7,9 @@
  * 한 카테고리 수정이 다른 카테고리로 새는 사고를 원천 차단한다.
  *
  * 파이프라인:
- *   Step 1   Gemini Vision  — 벽 분석 (모든 카테고리 공통, 카테고리별 보정 applyWallWidthCorrection)
- *   Step 1.5 Claude          — 카테고리 pre-analysis (냉장고장만 Opus 4.7)
- *   Step 1b  Gemini Image   — 냉장고장 철거 (냉장고장만)
- *   Step 2   Gemini Image   — 닫힌 도어 (카테고리별 모듈)
+ *   Step 1   Gemini Vision  — 벽 분석 (모든 카테고리 공통; 냉장고장은 알코브/기존 빌트인까지 한 번에 감지)
+ *   Step 1.5 Claude          — 카테고리 pre-analysis (현재 등록된 카테고리 없음; 이전 냉장고장용 Opus 4.7 은 Step 1 로 흡수)
+ *   Step 2   Gemini Image   — 닫힌 도어 (카테고리별 모듈) — 냉장고장은 clear-and-install 을 한 호출에서 처리
  *   Step 3   Gemini Image   — 대안 이미지 (카테고리별 모듈 — sink=투톤/fridge=홈바/나머지=열린문)
  */
 
@@ -20,9 +19,6 @@ import { WARDROBE_CATEGORIES, WARDROBE_ANALYSIS_MODEL, buildWardrobeClosedPrompt
 import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec, buildShoeQuote } from './prompts/shoe-prompt.js';
 import {
   FRIDGE_CATEGORIES,
-  FRIDGE_ANALYSIS_MODEL,
-  buildFridgeAnalysisPrompt,
-  buildFridgeDemolitionPrompt,
   buildFridgeClosedPrompt,
   buildFridgeAltSpec,
   buildFridgeQuote,
@@ -74,8 +70,6 @@ register(WARDROBE_CATEGORIES, buildWardrobeClosedPrompt, buildWardrobeAltSpec, {
 });
 register(SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec, { quoteBuilder: buildShoeQuote });
 register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
-  analysisModel: FRIDGE_ANALYSIS_MODEL,
-  analysisPromptBuilder: buildFridgeAnalysisPrompt,
   quoteBuilder: buildFridgeQuote,
 });
 register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec, { quoteBuilder: buildVanityQuote });
@@ -219,12 +213,17 @@ export default {
 
         // ═══ Step 1: 벽면 분석 ═══
         let wallW = 3000, wallH = 2400, waterPct = 30, exhaustPct = 70;
+        // 냉장고 카테고리는 Step 1 의 Gemini 응답에서 알코브/기존 빌트인까지 한 번에 뽑아 preAnalysis 에 저장.
+        let preAnalysis = null;
+        let preAnalysisMeta = null;
+        const isFridge = FRIDGE_CATEGORIES.includes(category);
         const manualW = Number(wall_width_override);
 
         if (manualW >= 1000 && manualW <= 6000) {
           wallW = manualW;
           console.log(`[Generate] Wall width from user override: ${wallW}mm`);
         } else {
+          const waStart = Date.now();
           try {
             const wallResult = await callGemini(env, buildWallAnalysisPrompt(category), room_image, image_type, ['TEXT'], 0.2, [], geminiModel);
 
@@ -243,16 +242,36 @@ export default {
                 wallW = applyWallWidthCorrection(category, wallW);
                 if (utils.water_supply_from_left) waterPct = Math.round(utils.water_supply_from_left / wallW * 100);
                 if (utils.exhaust_duct_from_left) exhaustPct = Math.round(utils.exhaust_duct_from_left / wallW * 100);
+                // 냉장고장: 같은 응답에서 alcove_frame + existing_builtins 를 preAnalysis 로 승격.
+                if (isFridge) {
+                  preAnalysis = {
+                    alcove_frame: parsed.alcove_frame || { present: false },
+                    existing_builtins_on_target_wall: Array.isArray(parsed.existing_builtins_on_target_wall)
+                      ? parsed.existing_builtins_on_target_wall
+                      : [],
+                    confidence: parsed.confidence || null,
+                  };
+                  preAnalysisMeta = {
+                    model: geminiModel,
+                    source: 'step1-gemini',
+                    elapsed_ms: Date.now() - waStart,
+                    parsed: true,
+                    alcove_present: !!preAnalysis.alcove_frame?.present,
+                  };
+                  console.log(`[Generate] Fridge preAnalysis via Gemini Step 1 (alcove=${preAnalysis.alcove_frame?.present === true})`);
+                }
               }
             }
             console.log(`[Generate] Wall: ${wallW}x${wallH}, water=${waterPct}%, exhaust=${exhaustPct}%`);
           } catch (e) {
             console.warn('[Generate] Wall analysis failed, using defaults');
+            if (isFridge) {
+              preAnalysisMeta = { model: geminiModel, source: 'step1-gemini', error: e.message, elapsed_ms: Date.now() - waStart, parsed: false };
+            }
           }
         }
 
         const wallData = { wallW, wallH, waterPct, exhaustPct };
-        const isFridge = FRIDGE_CATEGORIES.includes(category);
         const fridgeOptsForPrompt = isFridge
           ? { ...(fridge_options || {}), referenceCount: refImages.length }
           : fridge_options;
@@ -261,12 +280,11 @@ export default {
           wallData, themeData,
           fridgeOpts: fridgeOptsForPrompt,
           vanityOpts: vanity_options,
+          preAnalysis,
         };
         const builders = resolveBuilders(category);
 
-        // ═══ Step 1.5: 카테고리별 pre-analysis (Claude) — 해당 모듈이 등록한 경우만 ═══
-        let preAnalysis = null;
-        let preAnalysisMeta = null;
+        // ═══ Step 1.5: 카테고리별 pre-analysis (Claude) — 현재 등록된 카테고리 없음 (냉장고장은 Step 1 으로 흡수) ═══
         const pa = PRE_ANALYSIS[category];
         if (pa) {
           const preStart = Date.now();
@@ -291,48 +309,16 @@ export default {
             } else {
               console.warn(`[Generate] ${pa.model} pre-analysis returned non-JSON, proceeding without context`);
             }
+            ctx.preAnalysis = preAnalysis;
           } catch (e) {
             console.warn(`[Generate] Pre-analysis failed (${pa.model}): ${e.message} — proceeding without context`);
             preAnalysisMeta = { model: pa.model, error: e.message, elapsed_ms: Date.now() - preStart, parsed: false };
           }
         }
-        ctx.preAnalysis = preAnalysis;
 
-        // ═══ Step 1b: 냉장고장 전용 — 기존 구조 철거 ═══
-        let installBaseImage = room_image;
-        let installMime = image_type;
-        let demoSucceeded = false;
-        let demolishedImage = null;
-        if (isFridge) {
-          try {
-            const demoResult = await callGemini(
-              env,
-              buildFridgeDemolitionPrompt({ preAnalysis }),
-              room_image,
-              image_type,
-              ['IMAGE', 'TEXT'],
-              0.2,
-              [],
-              geminiModel,
-            );
-            if (demoResult.image) {
-              installBaseImage = demoResult.image;
-              installMime = 'image/png';
-              demoSucceeded = true;
-              demolishedImage = demoResult.image;
-              console.log('[Generate] Fridge demolition stage complete');
-            } else {
-              console.warn('[Generate] Fridge demolition returned no image, using raw room image');
-            }
-          } catch (e) {
-            console.warn('[Generate] Fridge demolition failed:', e.message);
-          }
-        }
-        ctx.siteAlreadyCleared = demoSucceeded;
-
-        // ═══ Step 2: 가구 생성 (닫힌문) ═══
+        // ═══ Step 2: 가구 생성 (닫힌문) — 냉장고장은 clear-and-install 을 이 한 호출에서 수행 ═══
         const closedPrompt = builders.closed(ctx);
-        const closedResult = await callGemini(env, closedPrompt, installBaseImage, installMime, undefined, undefined, refImages, geminiModel);
+        const closedResult = await callGemini(env, closedPrompt, room_image, image_type, undefined, undefined, refImages, geminiModel);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
@@ -380,9 +366,11 @@ export default {
         let altMetadata = {};
         try {
           const altSpec = builders.alt({ ...ctx, closedImage: closedResult.image });
-          const inputImage = altSpec.inputKey === 'install' ? installBaseImage : closedResult.image;
-          const inputMime = altSpec.inputKey === 'install' ? installMime : 'image/png';
-          const extraRefs = altSpec.inputKey === 'install' ? refImages : [];
+          // inputKey: 'raw' → 원본 룸 사진 (냉장고장 홈바 — clear-and-install 재수행), 그 외 → 닫힌문 이미지 위에 변형.
+          const useRaw = altSpec.inputKey === 'raw';
+          const inputImage = useRaw ? room_image : closedResult.image;
+          const inputMime = useRaw ? image_type : 'image/png';
+          const extraRefs = useRaw ? refImages : [];
           const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime, undefined, undefined, extraRefs, geminiModel);
           altImage = altResult.image || null;
           altMetadata = altSpec.metadata || {};
@@ -412,7 +400,6 @@ export default {
           open: altImage,
           alt: altImage,
         };
-        if (isFridge) generatedImage.demolished = demolishedImage;
 
         return new Response(JSON.stringify({
           success: true,
@@ -428,7 +415,6 @@ export default {
             pre_analysis_data: preAnalysis,
             structure_analysis: structureAnalysisMeta,
             structure_analysis_data: structureAnalysis,
-            fridge_demolition: isFridge ? { attempted: true, succeeded: demoSucceeded } : undefined,
             ...altMetadata,
           },
         }), {
