@@ -25,6 +25,37 @@ Return JSON only:
 {"wall_dimensions_mm":{"width":number,"height":number},"reference_used":"door_frame"|"outlet"|"ceiling"|"none","confidence":"high"|"medium"|"low"}`;
   }
 
+  if (category === 'fridge' || category === 'fridge_cabinet') {
+    return `[TASK: Korean apartment fridge cabinet wall analysis — Gemini replaces Claude pre-analysis]
+Analyze this photo for built-in fridge cabinet installation. Detect the target wall geometry AND whether it is a recessed alcove bay. Return JSON ONLY (no prose, no markdown):
+
+{
+  "wall_dimensions_mm": { "width": number, "height": number },
+  "alcove_frame": {
+    "present": boolean,
+    "interior":    { "x_from_left_mm": number, "x_to_left_mm": number },
+    "left_panel":  { "x_from_left_mm": number, "x_to_left_mm": number },
+    "right_panel": { "x_from_left_mm": number, "x_to_left_mm": number },
+    "top_bridge":  { "y_from_top_pct": number, "y_to_top_pct": number }
+  },
+  "existing_builtins_on_target_wall": ["string — items to demolish, e.g., 상단 행거, 기존 수납장, 중앙 파티션"],
+  "confidence": "high" | "medium" | "low"
+}
+
+DEFINITIONS:
+- "alcove" = 3-sided recessed bay in the wall (left vertical panel + right vertical panel + top header/bridge). The fridge is meant to sit INSIDE this bay.
+- If the target wall is flat (no recess), set alcove_frame.present = false and put 0 for all interior/panel/bridge fields.
+- If alcove is present, measure INTERIOR width between the inner faces of the left and right panels — this is the usable install width.
+
+CALIBRATION (Korean apartments):
+- Wall width: typically 2200-3600mm (conservative)
+- Alcove interior width: typically 1800-3200mm
+- Wall height: typically 2200-2400mm
+- Door frame = 900mm, standard outlet plate = 70mm — use as scale references.
+
+Return ONLY valid JSON. No text before or after.`;
+  }
+
   return `[TASK: Korean kitchen wall structure analysis]
 Analyze this photo and extract as JSON:
 - wall_dimensions_mm: { width, height } (estimate)
