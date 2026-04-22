@@ -307,7 +307,7 @@ export default {
           try {
             const demoResult = await callGemini(
               env,
-              buildFridgeDemolitionPrompt(),
+              buildFridgeDemolitionPrompt({ preAnalysis }),
               room_image,
               image_type,
               ['IMAGE', 'TEXT'],
