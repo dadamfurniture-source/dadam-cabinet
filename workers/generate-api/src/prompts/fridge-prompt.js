@@ -142,6 +142,8 @@ function buildAlcoveInstallFrame(preAnalysis) {
 // 한국 빌트인 표준 수직 치수 (mm)
 const BASE_PLINTH_MM = 100;           // 바닥 토크익 (하부 걸레받이)
 const FRIDGE_COLUMN_H_MM = 1850;      // 냉장고·팬트리 기둥 높이 (토크익 위부터 상단까지)
+const FRIDGE_UNIT_GAP_MM = 10;        // 냉장고 유닛 사이 틈새 (visible reveal)
+const BRIDGE_CLEARANCE_MM = 20;       // 냉장고 상단과 상부 브릿지 캐비닛 하단 사이 틈새
 
 /**
  * 사용자가 선택한 냉장고 옵션을 Gemini 가 무시하지 못하도록 HARD REQUIREMENTS 블록으로 변환.
@@ -176,37 +178,42 @@ function buildSpecLock(opts, wallW, alcoveInteriorW, wallH = 2400) {
   }
   if (unitSeq.length === 0) unitSeq.push({ type: '4door', widthMm: UNIT_WIDTH_MM['4door'] });
 
-  const totalFridgeMm = unitSeq.reduce((s, u) => s + u.widthMm, 0);
+  // 냉장고 유닛 사이 10mm 틈새를 총 폭에 포함
+  const unitGapsTotal = Math.max(0, (unitSeq.length - 1) * FRIDGE_UNIT_GAP_MM);
+  const totalFridgeMm = unitSeq.reduce((s, u) => s + u.widthMm, 0) + unitGapsTotal;
   const pantryMm = Math.max(0, W - totalFridgeMm);
 
   const comboParts = unitSeq.map((u) => `${UNIT_DESC[u.type]} (~${u.widthMm}mm wide)`);
   const position = o.position === 'right' ? 'RIGHT' : 'LEFT';
 
-  // 2) 절대 좌표 기반 위치 지시 (벽의 left edge 를 x=0 기준)
+  // 2) 절대 좌표 기반 위치 지시 — 위치 옵션(LEFT/RIGHT)에 따라 해당 벽 엣지부터 배치 시작
   let layoutLine;
+  const gapNote = unitSeq.length > 1
+    ? ` (${unitSeq.length} units separated by ${FRIDGE_UNIT_GAP_MM}mm visible reveals — NOT flush to each other)`
+    : '';
   if (position === 'LEFT') {
     layoutLine =
-      `- Refrigerator group STARTS FLUSH AGAINST THE WALL'S LEFT EDGE (x=0mm) and extends rightward to x=${totalFridgeMm}mm. ` +
+      `- Refrigerator group STARTS FLUSH AGAINST THE WALL'S LEFT EDGE (x=0mm) and extends rightward to x=${totalFridgeMm}mm${gapNote}. ` +
       `Tall pantry / storage cabinets begin immediately at x=${totalFridgeMm}mm and continue to the wall's RIGHT edge (x=${W}mm), filling exactly ${pantryMm}mm. ` +
-      `No gap between the refrigerator group and the pantry. No empty wall space on the left of the refrigerator.`;
+      `Pantry is FLUSH against the last refrigerator unit (no gap there). No empty wall space on the left of the refrigerator.`;
   } else {
     layoutLine =
-      `- Refrigerator group ENDS FLUSH AGAINST THE WALL'S RIGHT EDGE (x=${W}mm); it starts at x=${pantryMm}mm and extends rightward ${totalFridgeMm}mm. ` +
+      `- Refrigerator group ENDS FLUSH AGAINST THE WALL'S RIGHT EDGE (x=${W}mm); it starts at x=${pantryMm}mm and extends rightward ${totalFridgeMm}mm${gapNote}. ` +
       `Tall pantry / storage cabinets fill from the wall's LEFT edge (x=0mm) to x=${pantryMm}mm. ` +
-      `No gap between the pantry and the refrigerator group. No empty wall space on the right of the refrigerator.`;
+      `Pantry is FLUSH against the first refrigerator unit (no gap there). No empty wall space on the right of the refrigerator.`;
   }
 
-  // 3) 멀티 유닛이면 내부 순서 명시 (왼쪽부터 누적 좌표)
+  // 3) 멀티 유닛이면 내부 순서 명시 — 10mm 틈새를 포함한 누적 좌표
   let unitOrderLine = '';
   if (unitSeq.length > 1) {
     let cursor = position === 'LEFT' ? 0 : pantryMm;
-    const ranges = unitSeq.map((u) => {
+    const ranges = unitSeq.map((u, i) => {
       const start = cursor;
       const end = cursor + u.widthMm;
-      cursor = end;
-      return `${UNIT_DESC[u.type]} occupies x=${start}mm → x=${end}mm`;
+      cursor = end + (i < unitSeq.length - 1 ? FRIDGE_UNIT_GAP_MM : 0);
+      return `${UNIT_DESC[u.type]} (${u.widthMm}mm) at x=${start}mm → x=${end}mm`;
     });
-    unitOrderLine = `- Inside the refrigerator group, units are placed strictly LEFT-TO-RIGHT in this order with NO overlap and NO gap: ${ranges.join('; then ')}.`;
+    unitOrderLine = `- Inside the refrigerator group, units stand SIDE-BY-SIDE LEFT-TO-RIGHT with exactly ${FRIDGE_UNIT_GAP_MM}mm visible reveal between adjacent units (no flush-stacking, no overlap): ${ranges.join('; then ')}. Each reveal must appear as a thin ${FRIDGE_UNIT_GAP_MM}mm vertical shadow line between the refrigerator doors.`;
   }
 
   const ids = Array.isArray(o.appliances) ? o.appliances : [];
@@ -219,21 +226,24 @@ function buildSpecLock(opts, wallW, alcoveInteriorW, wallH = 2400) {
   // ─── [PROPORTIONS] 수평·수직 비율 잠금 ───
   const fridgePct = Math.round((totalFridgeMm / Math.max(1, W)) * 100);
   const pantryPct = Math.max(0, 100 - fridgePct);
-  const fridgeTopFromFloor = BASE_PLINTH_MM + FRIDGE_COLUMN_H_MM; // 1950mm typical
-  const bridgeHeightMm = Math.max(350, H - fridgeTopFromFloor);   // ceiling - fridge top
+  const fridgeTopFromFloor = BASE_PLINTH_MM + FRIDGE_COLUMN_H_MM;                    // 1950mm typical
+  const bridgeBottomFromFloor = fridgeTopFromFloor + BRIDGE_CLEARANCE_MM;            // 1970mm (20mm clearance)
+  const bridgeHeightMm = Math.max(300, H - bridgeBottomFromFloor);                    // ceiling - bridge bottom
   const basePct = Math.round((BASE_PLINTH_MM / H) * 100);
   const colPct = Math.round((FRIDGE_COLUMN_H_MM / H) * 100);
-  const bridgePct_v = Math.max(0, 100 - basePct - colPct);
+  const clearancePct = Math.round((BRIDGE_CLEARANCE_MM / H) * 100);
+  const bridgePct_v = Math.max(0, 100 - basePct - colPct - clearancePct);
   const proportionsBlock = [
     `[PROPORTIONS — horizontal, relative to install zone ${W}mm]`,
-    `  • Refrigerator group: ${totalFridgeMm}mm (${fridgePct}% of ${W}mm)`,
+    `  • Refrigerator group: ${totalFridgeMm}mm (${fridgePct}% of ${W}mm)${unitSeq.length > 1 ? ` — includes ${unitSeq.length - 1} × ${FRIDGE_UNIT_GAP_MM}mm reveals between units` : ''}`,
     `  • Pantry columns:     ${pantryMm}mm (${pantryPct}% of ${W}mm)`,
     `  • Top bridge cabinet: spans 100% of install zone (${W}mm)`,
     `[PROPORTIONS — vertical, relative to wall height ${H}mm]`,
     `  • Base plinth / toe-kick: ${BASE_PLINTH_MM}mm off the floor (${basePct}%) — continuous under both fridge and pantry`,
-    `  • Refrigerator + pantry column height: ${FRIDGE_COLUMN_H_MM}mm (${colPct}%) — fridge top and pantry top share the SAME horizontal plane at ${fridgeTopFromFloor}mm from floor`,
-    `  • Top bridge cabinet height: ${bridgeHeightMm}mm (${bridgePct_v}%) — from the fridge/pantry top plane up to the ceiling`,
-    `Any cabinet that exceeds these ratios by more than ±5% is WRONG. Do NOT stretch or shrink the fridge to fill empty space — the fridge width is FIXED at ${totalFridgeMm}mm per SPEC LOCK.`,
+    `  • Refrigerator + pantry column height: ${FRIDGE_COLUMN_H_MM}mm (${colPct}%) — fridge FRONT-TOP edge and pantry top share the SAME horizontal plane at ${fridgeTopFromFloor}mm from floor. Pantry height is DERIVED from the refrigerator front-top plane — not chosen independently.`,
+    `  • Clearance gap (refrigerator top → bridge bottom): ${BRIDGE_CLEARANCE_MM}mm (${clearancePct}%) — a visible horizontal reveal at ${fridgeTopFromFloor}mm, NOT a flush join`,
+    `  • Top bridge cabinet height: ${bridgeHeightMm}mm (${bridgePct_v}%) — bottom at ${bridgeBottomFromFloor}mm, top at ceiling (${H}mm)`,
+    `Any cabinet that exceeds these ratios by more than ±5% is WRONG. Do NOT stretch or shrink the fridge to fill empty space — the fridge width is FIXED per SPEC LOCK.`,
   ].join('\n');
 
   const lines = [
@@ -244,13 +254,17 @@ function buildSpecLock(opts, wallW, alcoveInteriorW, wallH = 2400) {
     layoutLine,
   ];
   if (unitOrderLine) lines.push(unitOrderLine);
+  // 팬트리 캐비닛 타입: 전자기기 있으면 오픈장, 없으면 도어 수납장 (기본)
   if (applianceNames.length > 0) {
-    lines.push(`- Built-in appliances that MUST appear, visibly placed inside the cabinetry's open or glass-front niches: ${applianceNames.join(', ')}. None of these may be omitted.`);
+    lines.push(`- Pantry cabinet type (${pantryMm}mm zone): OPEN-FRONT niche cabinets (오픈장) — the portion hosting appliances has NO doors, showing the appliances directly inside open niches with an interior back panel. Appliances that MUST appear, in these open niches: ${applianceNames.join(', ')}. None may be omitted. Any pantry section WITHOUT an appliance still uses solid flat-panel DOORS.`);
   } else {
-    lines.push(`- No built-in cooking appliances on this wall — no oven, no microwave, no air-fryer drawer. Only the refrigerator(s) and closed cabinetry.`);
+    lines.push(`- Pantry cabinet type (${pantryMm}mm zone): SOLID-DOOR cabinets (도어 수납장) — closed flat-panel handleless doors only. NO open shelves, NO glass fronts, NO appliances. The full ${pantryMm}mm is filled with door pantry columns.`);
   }
+  // 냉장고 위 브릿지 도어 폭 = 냉장고 유닛 폭
+  lines.push(`- Bridge cabinet doors DIRECTLY ABOVE the refrigerator group: each bridge door's width EXACTLY MATCHES the refrigerator unit beneath it (same x-range). A ${FRIDGE_UNIT_GAP_MM}mm reveal between adjacent bridge doors mirrors the ${FRIDGE_UNIT_GAP_MM}mm reveal between refrigerator units. Bridge doors above the pantry follow the pantry module widths.`);
   lines.push(`- If a reference image shows a different brand, different door count, opposite position, OR a different placement (centered when LEFT was requested, etc.), IGNORE those aspects of the reference. References are consulted ONLY for door-panel finish, reveal lines, handleless detail, and bridge-cabinet proportion.`);
   if (useAlcove) {
+    lines.push(`- ALCOVE INTERIOR CLEANUP: Any pre-existing central vertical partition/panel inside the alcove MUST BE REMOVED (중간 판넬 필수 제거). The alcove interior must be a single continuous bay; the refrigerator group must not appear split by a center divider.`);
     lines.push(`- If the refrigerator group width exceeds the alcove interior width (${W}mm), reduce the unit count (e.g., drop a 1door) or choose narrower units — NEVER spill over the alcove frame.`);
   }
   lines.push(proportionsBlock);
@@ -273,27 +287,42 @@ function buildSeamAlignment(opts, wallW, alcoveInteriorW) {
     for (let i = 0; i < n; i++) unitSeq.push({ type, widthMm: UNIT_WIDTH_MM[type] || 900 });
   }
   if (unitSeq.length === 0) unitSeq.push({ type: '4door', widthMm: UNIT_WIDTH_MM['4door'] });
-  const totalFridgeMm = unitSeq.reduce((s, u) => s + u.widthMm, 0);
+  const unitGapsTotal = Math.max(0, (unitSeq.length - 1) * FRIDGE_UNIT_GAP_MM);
+  const totalFridgeMm = unitSeq.reduce((s, u) => s + u.widthMm, 0) + unitGapsTotal;
   const pantryMm = Math.max(0, W - totalFridgeMm);
   const position = o.position === 'right' ? 'RIGHT' : 'LEFT';
 
-  // 위→아래 컬럼 경계 좌표
+  // 위→아래 컬럼 경계 좌표 — 냉장고 유닛 사이 10mm 틈새의 양쪽 edge 도 seam 으로 추가
   const seams = new Set();
   if (position === 'LEFT') {
     let c = 0;
-    for (const u of unitSeq) { c += u.widthMm; seams.add(c); }
-    // 냉장고 그룹 끝(=팬트리 시작) 도 자연스럽게 포함됨
+    for (let i = 0; i < unitSeq.length; i++) {
+      c += unitSeq[i].widthMm;
+      seams.add(c); // 현재 유닛의 오른쪽 edge
+      if (i < unitSeq.length - 1) {
+        c += FRIDGE_UNIT_GAP_MM;
+        seams.add(c); // 다음 유닛의 왼쪽 edge (10mm 틈새 건너)
+      }
+    }
   } else {
     let c = pantryMm;
-    for (const u of unitSeq) { c += u.widthMm; if (c < W) seams.add(c); }
-    seams.add(pantryMm); // 팬트리 끝(=냉장고 시작)
+    seams.add(pantryMm); // 팬트리 끝(=첫 냉장고 시작)
+    for (let i = 0; i < unitSeq.length; i++) {
+      c += unitSeq[i].widthMm;
+      if (c < W) seams.add(c);
+      if (i < unitSeq.length - 1) {
+        c += FRIDGE_UNIT_GAP_MM;
+        seams.add(c);
+      }
+    }
   }
   const seamList = [...seams].sort((a, b) => a - b);
 
   return `VERTICAL SEAM ALIGNMENT (required — bridge cabinet must follow column layout below):
 - Treat the top bridge cabinet as a horizontal panel run that MIRRORS the vertical seams of the cabinetry below it.
 - The bridge cabinet MUST have panel divisions at exactly these x-coordinates (mm from the wall's left edge): ${seamList.join('mm, ')}mm.
-- Bridge cabinet panels DIRECTLY ABOVE the refrigerator group share the same width as each refrigerator unit; bridge panels DIRECTLY ABOVE the pantry columns share the same width as the pantry door modules.
+- Bridge cabinet doors DIRECTLY ABOVE the refrigerator group: each bridge door's width = the refrigerator unit's width beneath it. A ${FRIDGE_UNIT_GAP_MM}mm reveal sits BETWEEN adjacent bridge doors, precisely above the ${FRIDGE_UNIT_GAP_MM}mm reveal between the refrigerators.
+- Bridge panels DIRECTLY ABOVE the pantry columns share the same width as the pantry door modules.
 - DO NOT introduce floating bridge panel divisions that ignore the columns below. No off-axis seams.`;
 }
 
@@ -301,10 +330,11 @@ function buildSeamAlignment(opts, wallW, alcoveInteriorW) {
 // Gemini now handles "remove existing builtins + install new cabinet" in a single pass,
 // so this language is injected into the installation prompt itself.
 const CLEAR_AND_INSTALL = `CLEAR AND INSTALL (single-pass edit):
-(a) Mentally remove any pre-existing built-ins on the target wall — old cabinet columns, shelving, partitions, upper hangers, embedded appliances, decorative trim, wall panels, and interior alcove dividers. They should NOT appear in the output.
+(a) Mentally remove any pre-existing built-ins on the target wall — old cabinet columns, shelving, partitions, upper hangers, embedded appliances, decorative trim, wall panels, and interior alcove dividers.
+    MANDATORY REMOVAL: any CENTRAL VERTICAL PARTITION or middle panel INSIDE the alcove (중간 판넬 필수 제거) — the alcove interior must be a single continuous bay. The refrigerator group must NOT appear split by a center divider.
 (b) In the SAME pass, install the new refrigerator + pantry cabinet system per SPEC LOCK coordinates below.
 DO NOT show demolition artifacts: no drill scars, no patched drywall, no partial-removal edges, no ghost outlines of removed furniture. The output must look like a clean, finished installation photograph.
-If the target wall is an alcove bay, keep the alcove frame (left panel, right panel, top header) intact — only the alcove INTERIOR receives new cabinetry.`;
+If the target wall is an alcove bay, keep the OUTER alcove frame (left panel, right panel, top header) intact — only the alcove INTERIOR receives new cabinetry.`;
 
 /**
  * 설치 프롬프트 — 단일 Gemini 호출로 "기존 구조 제거 + 새 냉장고장 설치" 를 한 번에 처리.
