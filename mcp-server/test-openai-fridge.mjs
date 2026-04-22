@@ -68,14 +68,39 @@ const BASE_COUNTERTOPS = [
   { name: 'Tempest Dawn',   desc: 'soft white with flowing tempest veining' },
 ];
 
+// ─── Fridge-specific config (edit these to tweak per-test) ───
+const FRIDGE_FORM = '3door';                 // '1door' | '3door' | '4door'
+const FRIDGE_BRAND_HINT = 'Samsung Bespoke'; // 'Samsung Bespoke' | 'LG Objet'
+
+// Mirrors SINK_DETAILS pattern in generate.route.ts:236 — compact category spec.
+const FRIDGE_DETAILS = `Structure: tall pantry column (~600mm) + refrigerator recess + upper bridge cabinet spanning the top. Refrigerator: ${FRIDGE_BRAND_HINT} ${FRIDGE_FORM} built-in style, panel-ready or matching cabinet tone. ALL cabinet doors and panels: matte flat-panel, handleless, seamless reveals, no visible hardware. NO chrome bars, NO push-to-open buttons — lower cabinet doors can be opened by reaching behind the door.`;
+
+// Background + alcove locks — drawn from workers/generate-api/src/prompts/fridge-prompt.js patterns (lines 89-142).
+const BACKGROUND_LOCK = `[BACKGROUND LOCK] Preserve walls, floor, ceiling lights, electrical outlets, window frames, and camera angle at pixel level. Do NOT alter anything outside the fridge cabinet footprint.`;
+const ALCOVE_LOCK = `[ALCOVE] If the photo shows an alcove frame or built-in wall opening, KEEP the frame intact and install cabinets ONLY inside the interior opening. Do NOT extend past the frame edges.`;
+
 function buildBasePrompt(color, countertop, wallW) {
   const ctDesc = `"${countertop.name}" (${countertop.desc})`;
-  return `Edit photo: install ${CATEGORY_SUBJECT_FRIDGE}. ALL cabinets must be "${color}" (matte flat panel). Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+  return `${BACKGROUND_LOCK}
+${ALCOVE_LOCK}
+Edit photo: install ${CATEGORY_SUBJECT_FRIDGE}.
+[COLOR FIXED] ALL cabinets must be "${color}" — matte flat panel, exactly this color, no variation.
+[COUNTERTOP FIXED] Countertop must be ${ctDesc}. Use this exact color/pattern.
+[GEOMETRY] Wall ~${wallW}mm.
+${FRIDGE_DETAILS}
+No clutter.`;
 }
 
 function buildAltPrompt(upper, lower, countertop, wallW) {
   const ctDesc = `"${countertop.name}" (${countertop.desc})`;
-  return `Edit photo: install ${CATEGORY_SUBJECT_FRIDGE}. Upper: "${upper}", Lower: "${lower}". Countertop: ${ctDesc}. Wall ~${wallW}mm. Keep wall, floor, camera identical. No clutter.`;
+  return `${BACKGROUND_LOCK}
+${ALCOVE_LOCK}
+Edit photo: install ${CATEGORY_SUBJECT_FRIDGE}.
+[TWO-TONE FIXED] Upper cabinets: "${upper}" (matte flat panel). Lower cabinets: "${lower}" (matte flat panel). Use EXACTLY these colors, no substitution.
+[COUNTERTOP FIXED] Countertop must be ${ctDesc}. Use this exact color/pattern.
+[GEOMETRY] Wall ~${wallW}mm.
+${FRIDGE_DETAILS}
+No clutter.`;
 }
 
 // ─── Image loading ───
@@ -116,6 +141,7 @@ async function callGemini(prompt) {
 // https://platform.openai.com/docs/api-reference/images/createEdit
 async function callOpenAI(prompt) {
   const form = new FormData();
+  // If status=400 with "model not found", fall back to 'gpt-image-1'.
   form.append('model', 'gpt-image-2');
   form.append('prompt', prompt);
   form.append('size', '1024x1024');
