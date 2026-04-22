@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════
-// Fridge Cabinet A/B test: OpenAI gpt-image-1 vs Gemini 3.1 Flash Image
+// Fridge Cabinet A/B test: OpenAI gpt-image-2 vs Gemini 3.1 Flash Image
 //
 // Mirrors the fridge prompt logic in src/routes/generate.route.ts so
 // both providers receive identical prompt + wall photo. Saves outputs
@@ -112,7 +112,7 @@ async function callGemini(prompt) {
   return { image, text, elapsed, status: res.status, raw: data };
 }
 
-// ─── OpenAI gpt-image-1 edit call ───
+// ─── OpenAI gpt-image-2 edit call ───
 // https://platform.openai.com/docs/api-reference/images/createEdit
 async function callOpenAI(prompt) {
   const form = new FormData();
@@ -120,7 +120,7 @@ async function callOpenAI(prompt) {
   form.append('prompt', prompt);
   form.append('size', '1024x1024');
   form.append('n', '1');
-  // gpt-image-1 returns base64 by default; no response_format param needed.
+  // gpt-image-2 returns base64 by default; no response_format param needed.
   form.append('image', new Blob([imgBuffer], { type: MIME }), basename(IMG_PATH));
 
   const t0 = Date.now();
