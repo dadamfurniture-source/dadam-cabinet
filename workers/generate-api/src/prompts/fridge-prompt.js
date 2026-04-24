@@ -7,9 +7,13 @@
  * 벽 분석(알코브 감지 포함)은 Worker 공통 Step 1 에서 Gemini TEXT 로 처리 — Claude Opus pre-analysis 는 제거됨.
  *
  * 공개 API:
- *   buildFridgeClosedPrompt({ wallData, themeData, styleName, fridgeOpts, preAnalysis })
- *     → 원본 룸 사진에서 기존 빌트인 제거 + 새 냉장고장 설치를 한 번에 수행하는 프롬프트
- *   buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts, preAnalysis })
+ *   buildFridgeStyleExtractionPrompt()
+ *     → 다담가구 레퍼런스 이미지를 Gemini TEXT 모드로 JSON 스타일 설명으로 추출 (Step 1.2)
+ *   buildFridgeClosedPrompt({ wallData, themeData, styleName, fridgeOpts, preAnalysis, styleDescriptor })
+ *     → 원본 룸 사진에서 기존 빌트인 제거 + 새 냉장고장 설치를 한 번에 수행하는 프롬프트.
+ *       styleDescriptor 가 주어지면 "모양만 참고" 블록이 프롬프트에 주입되고, 레퍼런스 이미지는
+ *       Gemini 호출에 첨부되지 않는다 (픽셀 복사 방지).
+ *   buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts, preAnalysis, styleDescriptor })
  *     → 홈바·홈카페 포함 AI 추천 디자인 프롬프트 (raw 룸 사진 기반)
  */
 
@@ -76,10 +80,66 @@ function describeAppliances(opts) {
   return ` Visible small appliances placed inside the open/glass niche of the tall cabinets: ${names.join(', ')}.`;
 }
 
-function describeStyleReference(refCount) {
-  if (!refCount || refCount <= 0) return '';
-  const plural = refCount > 1;
-  return ` STYLE REFERENCE: Image 1 is the ONLY base photo — its floor, ceiling, walls, window, lighting are the target. The following ${refCount} image${plural ? 's are' : ' is'} 다담가구 냉장고장 training example${plural ? 's' : ''} — use ONLY their door-panel finish, reveal lines, handleless detail, and material texture. DO NOT COPY their floor, ceiling, walls, windows, lighting, camera angle, OR refrigerator placement, refrigerator-vs-pantry proportion, refrigerator centering, or column widths into the output. Layout (which side the fridge sits on, where it starts, how wide the pantry is) comes ONLY from SPEC LOCK above; backgrounds come ONLY from Image 1.`;
+// ─────────────────────────────────────────────────────────────────
+// Style extraction — Gemini TEXT 모드로 다담가구 레퍼런스 이미지에서
+// "모양만" 추출해 JSON 으로 받는다. 본 생성 호출에는 레퍼런스 이미지를
+// 첨부하지 않으므로 Gemini 가 레퍼런스를 그대로 복사할 여지가 없다.
+// ─────────────────────────────────────────────────────────────────
+
+export function buildFridgeStyleExtractionPrompt() {
+  return `[TASK: Extract cabinet style vocabulary from 다담가구 refrigerator-cabinet reference photos]
+You are given 1~3 reference photographs of custom fridge-surround cabinets made by 다담가구. Ignore their room backgrounds, floors, ceilings, window views, lighting, camera framing, refrigerator placement, unit count, and wall proportions — those are irrelevant.
+
+Focus ONLY on the cabinet style vocabulary: door finish, reveal lines, handle style, panel split pattern, material character. Return ONLY a single JSON object (no prose, no markdown fences):
+
+{
+  "door_finish":             "matte lacquer | satin | high-gloss | wood veneer | laminate | painted MDF",
+  "color_family":            "short phrase — e.g. warm white, cool gray, navy, deep forest green, walnut, cashmere",
+  "reveal_style":            "shadow-gap reveal | j-pull groove | finger-pull slot | flat butt-joint | none",
+  "handle_type":             "handleless | j-pull | push-to-open | recessed pull",
+  "door_division_per_module":"single slab | horizontal split 50/50 | top drawer + bottom door | paired verticals | three-part vertical",
+  "panel_proportions":       "tall-slim | square | wide-horizontal | mixed",
+  "seam_character":          "minimal hairline | pronounced shadow | visible routed groove | no seams",
+  "top_bridge_style":        "continuous wide doors | segmented | open shelf bay | glass front | mixed open/closed",
+  "signature_detail":        "short phrase (≤12 words) describing what makes this style identifiable"
+}
+
+Rules:
+- If multiple reference images disagree on a field, pick the most common characteristic across them.
+- Do NOT invent a field value from the room background or the refrigerator itself — only the cabinet doors/panels/finish.
+- Return valid JSON, no extra text before or after, no code fences.`;
+}
+
+function formatStyleDescriptor(sd) {
+  if (!sd || typeof sd !== 'object') return '';
+  const row = (label, key) => (sd[key] ? `  • ${label}: ${sd[key]}` : null);
+  const items = [
+    row('Finish', 'door_finish'),
+    row('Color family', 'color_family'),
+    row('Reveal style', 'reveal_style'),
+    row('Handle', 'handle_type'),
+    row('Door division per module', 'door_division_per_module'),
+    row('Panel proportions', 'panel_proportions'),
+    row('Seam character', 'seam_character'),
+    row('Top bridge style', 'top_bridge_style'),
+    row('Signature detail', 'signature_detail'),
+  ].filter(Boolean);
+  if (items.length === 0) return '';
+  return [
+    `[STYLE REFERENCE — extracted from 다담가구 cabinet examples; NO reference images are attached to this call]`,
+    `Re-create cabinet doors matching this style vocabulary (SHAPE & FINISH only — DO NOT copy any source photograph):`,
+    ...items,
+    `Generate NEW refrigerator-cabinet doors from scratch and place them in the room from Image 1.`,
+    `The final image must NOT resemble any reference photograph — it must look like Image 1 with freshly designed cabinets in this style.`,
+  ].join('\n');
+}
+
+/**
+ * describeStyleReference — 스타일 디스크립터 JSON 을 설치 프롬프트용 텍스트 블록으로 변환.
+ * null/undefined 이면 빈 문자열 (Step 1.2 추출 실패 또는 레퍼런스 없음).
+ */
+function describeStyleReference(styleDescriptor) {
+  return styleDescriptor ? `\n\n${formatStyleDescriptor(styleDescriptor)}` : '';
 }
 
 // 설치·추천 단계에서 반복되는 배경 고정 지시문 (사용자 요구: 배경 변경 불가)
@@ -345,18 +405,19 @@ If the target wall is an alcove bay, keep the OUTER alcove frame (left panel, ri
  * @param {string} p.doorFinish
  * @param {object} p.wallData    { wallW, wallH }
  * @param {string} p.styleName
- * @param {object} p.fridgeOpts  클라이언트의 fridge_options (+ referenceCount)
- * @param {object} p.preAnalysis Gemini Step 1 에서 반환한 alcove_frame 등
+ * @param {object} p.fridgeOpts        클라이언트의 fridge_options
+ * @param {object} p.preAnalysis        Gemini Step 1 에서 반환한 alcove_frame 등
+ * @param {object} p.styleDescriptor    Step 1.2 에서 추출된 다담가구 스타일 JSON (null 이면 생략)
  * @returns {string}
  */
-export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, preAnalysis }) {
+export function buildFridgePrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, preAnalysis, styleDescriptor }) {
   const opts = fridgeOpts || {};
   const wallW = (wallData && Number(wallData.wallW)) || 3000;
   const wallH = (wallData && Number(wallData.wallH)) || 2400;
   const { block: alcoveBlock, interiorW } = buildAlcoveInstallFrame(preAnalysis);
   const specLock = buildSpecLock(opts, wallW, interiorW, wallH);
   const seamLock = buildSeamAlignment(opts, wallW, interiorW);
-  const styleRef = describeStyleReference(opts.referenceCount || 0);
+  const styleRef = describeStyleReference(styleDescriptor);
   const alcoveSection = alcoveBlock ? `\n\n${alcoveBlock}` : '';
   const bridgeSpan = interiorW > 0
     ? `Place a bridge cabinet across the top of the alcove interior (≈ ${interiorW}mm wide), divided per VERTICAL SEAM ALIGNMENT above. Do NOT extend the bridge over the alcove top header.`
@@ -388,14 +449,14 @@ ${styleName}. Photorealistic. All doors closed. No text.`;
  * @param {object} p (buildFridgePrompt 와 동일한 파라미터)
  * @returns {string}
  */
-export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, preAnalysis }) {
+export function buildFridgeRecommendedPrompt({ doorColor, doorFinish, wallData, styleName, fridgeOpts, preAnalysis, styleDescriptor }) {
   const opts = fridgeOpts || {};
   const wallW = (wallData && Number(wallData.wallW)) || 3000;
   const wallH = (wallData && Number(wallData.wallH)) || 2400;
   const { block: alcoveBlock, interiorW } = buildAlcoveInstallFrame(preAnalysis);
   const specLock = buildSpecLock(opts, wallW, interiorW, wallH);
   const seamLock = buildSeamAlignment(opts, wallW, interiorW);
-  const styleRef = describeStyleReference(opts.referenceCount || 0);
+  const styleRef = describeStyleReference(styleDescriptor);
   const alcoveSection = alcoveBlock ? `\n\n${alcoveBlock}` : '';
   const bridgeSpan = interiorW > 0
     ? `Bridge cabinet spans the top of the alcove interior (≈ ${interiorW}mm), divided per VERTICAL SEAM ALIGNMENT above (the home-bar internal seams are additional, but must NOT alter the refrigerator-vs-pantry seam, and must NOT extend over the alcove top header).`
@@ -479,7 +540,7 @@ function formatPreAnalysis(pa) {
   return ['[ROOM CONTEXT — from wall analysis]', ...lines].join('\n');
 }
 
-export function buildFridgeClosedPrompt({ wallData, themeData, styleName, fridgeOpts, preAnalysis }) {
+export function buildFridgeClosedPrompt({ wallData, themeData, styleName, fridgeOpts, preAnalysis, styleDescriptor }) {
   const basePrompt = buildFridgePrompt({
     doorColor: themeData.style_door_color || 'white',
     doorFinish: themeData.style_door_finish || 'matte',
@@ -487,6 +548,7 @@ export function buildFridgeClosedPrompt({ wallData, themeData, styleName, fridge
     styleName,
     fridgeOpts,
     preAnalysis,
+    styleDescriptor,
   });
   const contextBlock = preAnalysis ? `\n\n${formatPreAnalysis(preAnalysis)}` : '';
   return `${basePrompt}${contextBlock}`;
@@ -496,7 +558,7 @@ export function buildFridgeClosedPrompt({ wallData, themeData, styleName, fridge
  * 냉장고장 AI 추천 디자인 (홈바·홈카페).
  * 철거 단계가 제거됐으므로 원본 룸 사진(raw)을 입력으로 사용 — clear-and-install 을 프롬프트 내에서 처리.
  */
-export function buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts, preAnalysis }) {
+export function buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts, preAnalysis, styleDescriptor }) {
   const basePrompt = buildFridgeRecommendedPrompt({
     doorColor: themeData.style_door_color || 'white',
     doorFinish: themeData.style_door_finish || 'matte',
@@ -504,6 +566,7 @@ export function buildFridgeAltSpec({ wallData, themeData, styleName, fridgeOpts,
     styleName,
     fridgeOpts,
     preAnalysis,
+    styleDescriptor,
   });
   const contextBlock = preAnalysis ? `\n\n${formatPreAnalysis(preAnalysis)}` : '';
   return {
