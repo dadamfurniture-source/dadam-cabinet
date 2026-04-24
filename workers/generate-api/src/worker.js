@@ -19,6 +19,7 @@ import { WARDROBE_CATEGORIES, WARDROBE_ANALYSIS_MODEL, buildWardrobeClosedPrompt
 import { SHOE_CATEGORIES, buildShoeClosedPrompt, buildShoeAltSpec, buildShoeQuote } from './prompts/shoe-prompt.js';
 import {
   FRIDGE_CATEGORIES,
+  buildFridgeStyleExtractionPrompt,
   buildFridgeClosedPrompt,
   buildFridgeAltSpec,
   buildFridgeQuote,
@@ -284,7 +285,41 @@ export default {
         };
         const builders = resolveBuilders(category);
 
-        // ═══ Step 1.5: 카테고리별 pre-analysis (Claude) — 현재 등록된 카테고리 없음 (냉장고장은 Step 1 으로 흡수) ═══
+        // ═══ Step 1.2: 냉장고장 레퍼런스 이미지 → 텍스트 스타일 추출 (Gemini TEXT) ═══
+        // 레퍼런스 이미지를 그대로 첨부하면 Gemini 가 배경/레이아웃까지 복사하는 편향이 남는다.
+        // Step 1.2 는 이미지를 JSON 스타일 설명으로 변환해 "모양만" 프롬프트에 주입하고,
+        // Step 2/3 에서는 refImages 를 일체 첨부하지 않는다.
+        let styleDescriptor = null;
+        let styleExtractionMeta = null;
+        if (isFridge && refImages.length > 0) {
+          const seStart = Date.now();
+          try {
+            const firstRef = refImages[0];
+            const restRefs = refImages.slice(1);
+            const extractionPrompt = buildFridgeStyleExtractionPrompt();
+            const sdRes = await callGemini(
+              env, extractionPrompt,
+              firstRef.base64, firstRef.mimeType,
+              ['TEXT'], 0.2, restRefs, geminiModel,
+            );
+            const m = sdRes.text?.match(/\{[\s\S]*\}/);
+            if (m) styleDescriptor = JSON.parse(m[0]);
+            styleExtractionMeta = {
+              model: geminiModel,
+              source: 'step1.2-gemini-text',
+              ref_count: refImages.length,
+              elapsed_ms: Date.now() - seStart,
+              parsed: !!styleDescriptor,
+            };
+            console.log(`[Generate] Fridge style extraction ${styleDescriptor ? 'OK' : 'FAIL'} (${styleExtractionMeta.elapsed_ms}ms, ${refImages.length} refs)`);
+          } catch (e) {
+            console.warn('[Generate] Style extraction failed:', e.message);
+            styleExtractionMeta = { model: geminiModel, source: 'step1.2-gemini-text', ref_count: refImages.length, elapsed_ms: Date.now() - seStart, parsed: false, error: e.message };
+          }
+        }
+        ctx.styleDescriptor = styleDescriptor;
+
+        // ═══ Step 1.5: 카테고리별 pre-analysis (Claude) — 현재 등록된 카테고리 없음 (냉장고장은 Step 1/1.2 로 흡수) ═══
         const pa = PRE_ANALYSIS[category];
         if (pa) {
           const preStart = Date.now();
@@ -318,7 +353,9 @@ export default {
 
         // ═══ Step 2: 가구 생성 (닫힌문) — 냉장고장은 clear-and-install 을 이 한 호출에서 수행 ═══
         const closedPrompt = builders.closed(ctx);
-        const closedResult = await callGemini(env, closedPrompt, room_image, image_type, undefined, undefined, refImages, geminiModel);
+        // 냉장고장은 스타일이 이미 텍스트로 추출됐으므로 레퍼런스 이미지 미첨부 (픽셀 복사 방지).
+        const installExtraImages = isFridge ? [] : refImages;
+        const closedResult = await callGemini(env, closedPrompt, room_image, image_type, undefined, undefined, installExtraImages, geminiModel);
 
         if (!closedResult.image) {
           return new Response(JSON.stringify({ success: false, error: 'Failed to generate closed door image' }), {
@@ -370,7 +407,9 @@ export default {
           const useRaw = altSpec.inputKey === 'raw';
           const inputImage = useRaw ? room_image : closedResult.image;
           const inputMime = useRaw ? image_type : 'image/png';
-          const extraRefs = useRaw ? refImages : [];
+          // 냉장고장: 스타일이 이미 추출돼 프롬프트에 주입됨 → refImages 미첨부 (픽셀 복사 방지).
+          // 그 외 raw 입력 카테고리: 기존대로 refImages 동봉.
+          const extraRefs = useRaw && !isFridge ? refImages : [];
           const altResult = await callGemini(env, altSpec.prompt, inputImage, inputMime, undefined, undefined, extraRefs, geminiModel);
           altImage = altResult.image || null;
           altMetadata = altSpec.metadata || {};
@@ -413,6 +452,8 @@ export default {
             elapsed_ms: elapsed,
             pre_analysis: preAnalysisMeta,
             pre_analysis_data: preAnalysis,
+            style_extraction: styleExtractionMeta,
+            style_descriptor: styleDescriptor,
             structure_analysis: structureAnalysisMeta,
             structure_analysis_data: structureAnalysis,
             ...altMetadata,
