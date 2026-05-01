@@ -539,8 +539,6 @@
               document.getElementById('authOverlay')?.classList.remove('hidden');
             }
           }
-          // 스타일 데이터 Supabase 로드
-          loadStylesFromSupabase();
           // 품목 이미지 갤러리 로드
           loadProductGallery();
         } catch (e) {
@@ -761,8 +759,6 @@
       // State
       // ═══════════════════════════════════════════════════════════════
       const state = {
-        selectedStyle: 'modern-minimal',
-        selectedStyleName: '모던 미니멀',
         uploadedImages: {},
         results: [],
         currentPage: 0,
@@ -780,60 +776,6 @@
       const sliderState = {
         currentIndex: 0,
         items: []  // [{category, imageData}]
-      };
-
-      // 스타일 테마 데이터 (Supabase에서 동적 로드, 하드코딩 fallback)
-      let styleThemes = {
-        'modern-minimal': {
-          name: '모던 미니멀',
-          keywords: 'clean lines, minimal design, hidden handles, matte finish, geometric shapes',
-          atmosphere: 'serene, uncluttered, contemporary',
-          mood_prompt: 'clean contemporary minimalist aesthetic, sharp straight lines, flat surfaces, monochrome palette with subtle warm undertone, uncluttered and serene',
-          door_color_name: '화이트', door_color_hex: '#f5f5f5', door_finish: 'matte',
-          countertop_prompt: 'pure white engineered stone countertop with subtle quartz flecks, polished surface, clean bullnose edge',
-          handle_prompt: 'handleless push-to-open, flat surface, 3mm shadow gap between doors only',
-          accent_prompt: 'matte black faucet, minimal white backsplash, no decorative items on countertop',
-        },
-        'scandinavian': {
-          name: '스칸디나비안',
-          keywords: 'light wood tones, natural textures, functional design, hygge comfort',
-          atmosphere: 'warm, cozy, bright, natural light',
-          mood_prompt: 'warm minimalist Scandinavian aesthetic, clean lines, natural materials, cozy but uncluttered, hygge comfort with soft natural light',
-          door_color_name: '화이트', door_color_hex: '#f8fafc', door_finish: 'matte',
-          countertop_prompt: 'light oak butcher block countertop, visible natural wood grain, matte oiled finish',
-          handle_prompt: 'handleless push-to-open, flat surface, 3mm shadow gap between doors only',
-          accent_prompt: 'matte black faucet, white subway tile backsplash, open shelf with ceramic pots and wooden cutting board',
-        },
-        'industrial': {
-          name: '인더스트리얼',
-          keywords: 'raw materials, metal accents, exposed elements, dark tones, vintage fixtures',
-          atmosphere: 'urban, edgy, bold, masculine',
-          mood_prompt: 'urban industrial aesthetic, raw and bold, dark tones with metal accents, exposed elements, vintage fixtures with modern function',
-          door_color_name: '블랙', door_color_hex: '#2c2c2c', door_finish: 'matte',
-          countertop_prompt: 'dark charcoal concrete-look engineered stone countertop, subtle aggregate texture, matte honed finish',
-          handle_prompt: 'matte black iron bar handle, square profile, 160mm center-to-center',
-          accent_prompt: 'matte black industrial faucet, dark grout subway tile backsplash, exposed shelf bracket in black iron',
-        },
-        'classic': {
-          name: '클래식',
-          keywords: 'traditional design, crown molding, paneled doors, brass hardware, timeless elegance',
-          atmosphere: 'sophisticated, refined, traditional',
-          mood_prompt: 'sophisticated traditional Korean-European blend, elegant crown molding, warm neutral palette, timeless refined details',
-          door_color_name: '아이보리', door_color_hex: '#f5ebe0', door_finish: 'matte',
-          countertop_prompt: 'white marble-look engineered stone countertop with subtle grey veining, polished ogee edge',
-          handle_prompt: 'antique brass cup pull handle, 96mm center-to-center, warm brushed finish',
-          accent_prompt: 'warm brass faucet, cream ceramic backsplash with subtle pattern, glass-front upper cabinet doors',
-        },
-        'luxury': {
-          name: '럭셔리',
-          keywords: 'premium materials, gold/brass accents, marble, rich textures, high-end finishes',
-          atmosphere: 'opulent, glamorous, prestigious',
-          mood_prompt: 'premium high-end luxury aesthetic, rich materials, gold and brass accents, marble and stone, opulent glamorous atmosphere',
-          door_color_name: '네이비', door_color_hex: '#1e3a5f', door_finish: 'high-gloss',
-          countertop_prompt: 'Calacatta gold marble-look countertop, dramatic white with gold-toned veining, high-polish mirror finish',
-          handle_prompt: 'brushed gold bar handle, slender rectangular profile, 224mm center-to-center',
-          accent_prompt: 'brushed gold faucet, full-height marble backsplash, integrated LED under-cabinet lighting, crystal pendant over island',
-        }
       };
 
       // 색상 카탈로그/RNG/참조이미지 제거됨 — AI가 프롬프트 기반으로 색상 직접 선택
@@ -980,36 +922,6 @@
       }
 
       // buildColorReferenceImage 제거됨
-
-      // Supabase에서 스타일 데이터 로드
-      async function loadStylesFromSupabase() {
-        try {
-          if (!supabaseClient) return;
-          const { data, error } = await supabaseClient
-            .from('styles').select('*')
-            .eq('is_active', true).order('sort_order');
-          if (error || !data || data.length === 0) return;
-          const loaded = {};
-          for (const s of data) {
-            loaded[s.slug] = {
-              name: s.name,
-              keywords: '', atmosphere: '',
-              mood_prompt: s.mood_prompt || '',
-              door_color_name: s.door_color_name || '',
-              door_color_hex: s.door_color_hex || '',
-              door_finish: s.door_finish || 'matte',
-              countertop_prompt: s.countertop_prompt || '',
-              handle_prompt: s.handle_prompt || '',
-              accent_prompt: s.accent_prompt || '',
-              thumbnail_url: s.thumbnail_url || '',
-            };
-          }
-          styleThemes = loaded;
-          console.log('[Styles] Loaded', data.length, 'styles from Supabase');
-        } catch (e) {
-          console.warn('[Styles] Supabase load failed, using fallback:', e.message);
-        }
-      }
 
       // Supabase furniture_images에서 품목별 이미지 로드
       // 품목/구조 기준 그룹핑
@@ -1639,27 +1551,6 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // Style Theme Selection
-      // ═══════════════════════════════════════════════════════════════
-      function selectStyleTheme(el) {
-        document.querySelectorAll('.style-theme-card').forEach((c) => c.classList.remove('selected'));
-        el.classList.add('selected');
-
-        const styleKey = el.dataset.style;
-        const themeData = styleThemes[styleKey];
-
-        state.selectedStyle = styleKey;
-        state.selectedStyleName = themeData?.name || styleKey;
-
-        // Summary 업데이트
-        const summaryEl = document.getElementById('selectedStyleName');
-        if (summaryEl) summaryEl.textContent = state.selectedStyleName;
-
-        console.log('Style selected:', state.selectedStyle, state.selectedStyleName);
-        showToast(`스타일: ${state.selectedStyleName} 선택됨`, 'success');
-      }
-
-      // ═══════════════════════════════════════════════════════════════
       // Button State
       // ═══════════════════════════════════════════════════════════════
       function updateButtons() {
@@ -1735,11 +1626,10 @@
           await sleep(500);
 
           // ═══════════════════════════════════════════════════════════
-          // STEP 2: 스타일/컬러 적용 (벽 분석 생략 - 테마 기반 생성)
+          // STEP 2: 디자인 준비 (벽 분석 생략 - AI 기반 생성)
           // ═══════════════════════════════════════════════════════════
-          updateStep(2, 'active', `${info.name} 스타일 적용 중...`);
-          document.getElementById('loadingTitle').textContent = `🎨 테마 스타일 적용 중...`;
-          console.log('Selected Style:', state.selectedStyle);
+          updateStep(2, 'active', `${info.name} 디자인 준비 중...`);
+          document.getElementById('loadingTitle').textContent = `🎨 디자인 준비 중...`;
           await sleep(300);
 
           // 냉장고장: 선택한 combo 에 해당하는 제품 레퍼런스 이미지를 Supabase 에서 로드
@@ -1771,7 +1661,6 @@
                 room_image: imageData.base64,
                 image_type: imageData.type,
                 category: category,
-                design_style: state.selectedStyle,
                 // 카테고리별 옵션 (worker 의 각 prompts/*.js 가 알아서 해석)
                 fridge_options: category === 'fridge' ? state.fridgeOptions : undefined,
                 vanity_options: category === 'vanity' ? state.vanityOptions : undefined,
@@ -1805,8 +1694,7 @@
               altStyleName = data.alt_style.name || '';
             }
 
-            const currentTheme = styleThemes[state.selectedStyle] || styleThemes['modern-minimal'];
-            let analysisText = data.message || `${currentTheme?.name || state.selectedStyle} 스타일 적용`;
+            let analysisText = data.message || 'AI 디자인 적용';
             const baseColor = data.metadata?.base_color;
             const baseCT = data.metadata?.base_countertop;
             const altColors = data.metadata?.alt_colors;
@@ -2047,8 +1935,6 @@
         }
         const context = {
           categories: Object.keys(state.uploadedImages),
-          style: state.selectedStyle,
-          styleName: state.selectedStyleName,
           quoteTotal: state.results[0]?.quote?.total || 0,
           quoteGrade: state.results[0]?.quote?.grade || 'mid',
           designImages: state.results.map(r => ({
@@ -2084,7 +1970,7 @@
           if (navigator.share) {
             await navigator.share({
               title: `다담가구 AI 리디자인 - ${categoryInfo[result.category].name}`,
-              text: `${categoryInfo[result.category].name}를 "${state.selectedStyle}" 스타일로 리디자인했어요!`,
+              text: `${categoryInfo[result.category].name}를 AI로 리디자인했어요!`,
               url: result.afterUrl,
             });
           } else {
