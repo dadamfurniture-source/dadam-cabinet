@@ -523,7 +523,7 @@ ratio: width relative to sink (1.0 = 1000mm). sink=1.0, cooktop=0.6${detectedLSh
       wall_analysis: { wallW, wallW2, wallH, waterPct, exhaustPct, kitchen_layout, detectedLShape, totalCabinetW: wallW + wallW2 },
       metadata: {
         category, kitchen_layout, design_style,
-        model: 'gemini-3.1-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         elapsed_ms: elapsed,
         color_mode: 'seeded-pick',
         base_color: baseColor,

@@ -40,7 +40,7 @@
 - MCP 서버: TypeScript + Express (포트 3200)
 
 ## Gemini 모델
-- 벽분석 + 이미지 생성: `gemini-3.1-flash-image-preview`
+- 벽분석 + 이미지 생성: `gemini-2.5-flash-image`
 - n8n: 더 이상 사용하지 않음 (MCP 서버 직접 호출)
 
 ## 배포 주의사항
