@@ -758,101 +758,6 @@
 }`;
 
       // ═══════════════════════════════════════════════════════════════
-      // DALL-E 배경 보정 프롬프트 생성
-      // ═══════════════════════════════════════════════════════════════
-      function generateDesignPrompt(category, style, wallAnalysis) {
-        const info = categoryInfo[category];
-        const themeData = styleThemes[style] || styleThemes['modern-minimal'];
-
-        let basePrompt = `[MOST IMPORTANT - READ FIRST]
-This is a PHOTO generation task, NOT a technical drawing.
-DO NOT ADD ANY TEXT, NUMBERS, DIMENSIONS, OR LABELS.
-
-[TASK: KOREAN INTERIOR DESIGN - PHOTOREALISTIC]
-Professional interior design photo of a modern Korean apartment with ${info.name} (${category}) installation.
-
-[STYLE: ${themeData.name}]
-${themeData.keywords}
-Atmosphere: ${themeData.atmosphere}`;
-
-        // 배경 보정 지시
-        let backgroundPrompt = `
-[BACKGROUND REQUIREMENTS]
-- Clean, pristine walls with smooth matte finish
-- Fresh, modern wallpaper or paint (light gray or warm white tones)
-- Pristine flooring - light oak hardwood or modern laminate
-- No visible damage, stains, or imperfections
-- Soft natural lighting from windows
-- Minimalist, clutter-free space`;
-
-        // 벽 분석 결과 반영
-        if (wallAnalysis) {
-          const dims = wallAnalysis.space_analysis?.estimated_dimensions;
-          const constraints = wallAnalysis.installation_constraints;
-          const bgCond = wallAnalysis.background_condition;
-
-          if (dims) {
-            basePrompt += `\n\n[SPACE DIMENSIONS]\nRoom: ${dims.total_width_mm / 1000}m wide, ${dims.ceiling_height_mm / 1000}m ceiling height.`;
-          }
-
-          if (constraints) {
-            basePrompt += `\nCabinet: ${constraints.recommended_cabinet_width_mm}mm wide, ${constraints.recommended_cabinet_height_mm}mm tall, ${constraints.recommended_cabinet_depth_mm}mm deep.`;
-          }
-
-          if (bgCond?.suggested_wall_style) {
-            backgroundPrompt += `\n- Wall style: ${bgCond.suggested_wall_style}`;
-          }
-          if (bgCond?.suggested_floor_style) {
-            backgroundPrompt += `\n- Floor style: ${bgCond.suggested_floor_style}`;
-          }
-        }
-
-        // 카테고리별 특화 프롬프트
-        const categoryPrompts = {
-          sink: `Modern kitchen with sleek built-in cabinets, integrated sink, upper and lower cabinets with hidden handles, LED under-cabinet lighting.`,
-          island: `Freestanding kitchen island with integrated cooktop or sink, breakfast-bar overhang for seating, handleless drawers and cabinets on all sides, premium stone countertop, pendant lighting overhead.`,
-          wardrobe: `Floor-to-ceiling built-in wardrobe with sliding doors, hidden handles, internal LED lighting, mix of hanging space and shelves.`,
-          fridge: `Tall cabinet unit surrounding refrigerator, pantry storage, clean integration with kitchen design.`,
-          vanity: `Elegant vanity area with mirror cabinet, soft lighting, drawer storage, modern minimalist design.`,
-          shoe: `Entryway shoe cabinet with ventilation, pull-out shelves, bench seating option, clean modern look.`,
-        };
-
-        const fullPrompt = `${basePrompt}
-
-[FURNITURE DETAILS]
-${categoryPrompts[category] || ''}
-
-${backgroundPrompt}
-
-[STYLE DETAILS]
-${getStyleDetails(style)}
-
-[STRICTLY FORBIDDEN]
-❌ NO dimension labels or measurements
-❌ NO text, numbers, or characters
-❌ NO watermarks or logos
-❌ NO people or pets
-
-[OUTPUT]
-Ultra-realistic 3D rendering, professional interior photography, 8K quality, perfect lighting, architectural visualization.
-Clean photorealistic Korean apartment interior photograph.
-Magazine quality, professional lighting.`;
-
-        return fullPrompt;
-      }
-
-      function getStyleDetails(style) {
-        const styles = {
-          'modern-minimal': 'Clean lines, minimalist aesthetic, matte finishes, neutral colors (white, gray, black), hidden hardware, geometric shapes, handleless design, flush surfaces.',
-          'scandinavian': 'Light wood tones, white and pastel colors, natural materials, cozy textures, simple functional design, hygge atmosphere, warmth and comfort.',
-          'industrial': 'Raw materials, exposed elements, metal accents, dark tones, concrete textures, vintage industrial fixtures, urban loft aesthetic.',
-          'classic': 'Traditional design, crown molding, paneled doors, brass hardware, timeless elegance, refined craftsmanship, sophisticated details.',
-          'luxury': 'Premium materials, gold/brass accents, rich textures, marble elements, sophisticated lighting, high-end finishes, opulent atmosphere.',
-        };
-        return styles[style] || styles['modern-minimal'];
-      }
-
-      // ═══════════════════════════════════════════════════════════════
       // State
       // ═══════════════════════════════════════════════════════════════
       const state = {
@@ -1856,10 +1761,6 @@ Magazine quality, professional lighting.`;
           // ═══════════════════════════════════════════════════════════
           updateStep(3, 'active', `${info.name} AI 디자인 생성 중...`);
           document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
-
-          // 상세 프롬프트 생성 (벽 분석 + 배경 보정 포함)
-          const designPrompt = generateDesignPrompt(category, state.selectedStyle, wallAnalysis);
-          console.log('Design Prompt:', designPrompt);
 
           try {
             const authHeaders = await getAuthHeaders();
