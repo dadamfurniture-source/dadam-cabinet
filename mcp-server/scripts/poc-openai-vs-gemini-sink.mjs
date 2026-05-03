@@ -5,6 +5,10 @@
 // 같은 프롬프트 + 같은 참조이미지(현장 사진)로 두 모델을 호출하여
 // 품질·지연시간·비용을 측정한다. PoC 산출물 — 프로덕션 코드 아님.
 //
+// 두 모델 모두 닫힌도어 단계에서 동일한 현장 사진을 입력으로 받는다
+// (Gemini: inline_data 멀티파트 / OpenAI: /v1/images/edits 엔드포인트).
+// 이후 열린도어 단계에서는 각자의 닫힌도어 출력을 참조 이미지로 사용한다.
+//
 // 실행:
 //   cd mcp-server
 //   node scripts/poc-openai-vs-gemini-sink.mjs [참조이미지경로]
@@ -153,30 +157,6 @@ async function callGemini(prompt, referenceImage, mimeType) {
 }
 
 // ─── OpenAI 호출 ────────────────────────────────────────────────
-async function callOpenAIGenerate(prompt) {
-  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY 미설정');
-  const t0 = Date.now();
-  const res = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_KEY}`,
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      prompt,
-      size: '1024x1024',
-      quality: 'high',
-      n: 1,
-    }),
-  });
-  const elapsedMs = Date.now() - t0;
-  const data = await res.json();
-  if (!res.ok) return { ok: false, elapsedMs, error: JSON.stringify(data).substring(0, 500) };
-  const image = data.data?.[0]?.b64_json || null;
-  return { ok: !!image, elapsedMs, image, usage: data.usage || null, cost: calcOpenaiCost(data.usage) };
-}
-
 async function callOpenAIEdit(prompt, referenceImageBase64, mimeType) {
   if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY 미설정');
   const form = new FormData();
@@ -234,10 +214,10 @@ async function main() {
     totalElapsedMs: (geminiClosed.elapsedMs || 0) + (geminiOpen.elapsedMs || 0),
   };
 
-  // ─── 2. OpenAI: 텍스트→이미지(닫힌) → 편집(열린) ───
+  // ─── 2. OpenAI: 편집(닫힌, 같은 현장 사진 참조) → 편집(열린) ───
   console.log('\n[2/2] OpenAI GPT Image 2');
-  console.log('  → 닫힌도어 생성 (text-to-image)...');
-  const openaiClosed = await callOpenAIGenerate(SINK_CLOSED_PROMPT);
+  console.log('  → 닫힌도어 생성 (image edit, Gemini와 동일한 현장 사진 참조)...');
+  const openaiClosed = await callOpenAIEdit(SINK_CLOSED_PROMPT, ref.base64, ref.mimeType);
   console.log(`     ${openaiClosed.ok ? '✓' : '✗'} ${(openaiClosed.elapsedMs / 1000).toFixed(1)}s ${openaiClosed.cost ? `$${openaiClosed.cost.totalUSD}` : openaiClosed.error?.substring(0, 100) || ''}`);
   if (openaiClosed.image) saveImage(openaiClosed.image, 'openai-closed.png');
 
