@@ -1147,6 +1147,15 @@
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         const ventPos = parseFloat(item.specs.ventStart) || 0;
 
+        // ── 분배기 절대좌표 ──
+        let dStartAbs = 0, dEndAbs = 0;
+        if (distStart > 0 && distEnd > distStart) {
+          if (isRefLeft) { dStartAbs = startBound + distStart; dEndAbs = startBound + distEnd; }
+          else           { dStartAbs = endBound - distEnd;     dEndAbs = endBound - distStart; }
+          dStartAbs = Math.max(startBound, Math.min(endBound, dStartAbs));
+          dEndAbs   = Math.max(startBound, Math.min(endBound, dEndAbs));
+        }
+
         // ── 하부장: 개수대/가스대 위치 기반 재정렬 (secondary/tertiary 제외) ──
         const lowerMods = item.modules.filter(m => m.pos === 'lower' && !m.orientation);
         const sinkMod = lowerMods.find(m => m.type === 'sink');
