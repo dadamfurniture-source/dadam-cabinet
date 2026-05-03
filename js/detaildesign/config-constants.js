@@ -41,7 +41,7 @@
             w: dimensions.w || 0,
             h: dimensions.h || 0,
             d: dimensions.d || categoryData.defaultD,
-            specs: { ...DEFAULT_SPECS },
+            specs: deepClone(DEFAULT_SPECS),
             modules: [],
           };
           selectedItems.push(newItem);

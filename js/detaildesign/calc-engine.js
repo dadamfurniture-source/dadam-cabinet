@@ -3,6 +3,15 @@
       // 최적화: 공통 모듈 조작 함수들
       // ============================================================
 
+      // 계산 엔진 경고를 UI에 위임 (showToast가 ai-design-report.js에서 늦게 로드되므로 런타임 lookup)
+      function notifyCalcWarning(message) {
+        if (typeof showToast === 'function') {
+          showToast(message);
+        } else {
+          console.warn('[calc-engine]', message);
+        }
+      }
+
       /**
        * 모듈 옵션 토글 (체크박스용 - 기존 toggleOption과 병행)
        */
@@ -639,7 +648,7 @@
         const effectiveW = getEffectiveSpace(item, 'upper');
 
         if (effectiveW <= 0) {
-          alert('상부장 유효 공간이 부족합니다.');
+          notifyCalcWarning('상부장 유효 공간이 부족합니다.');
           return;
         }
 
@@ -821,7 +830,7 @@
         const W = parseFloat(item.w) || 0;
         const effectiveW = getEffectiveSpace(item, 'lower');
 
-        if (effectiveW <= 0) { alert('하부장 유효 공간이 부족합니다.'); return; }
+        if (effectiveW <= 0) { notifyCalcWarning('하부장 유효 공간이 부족합니다.'); return; }
 
         const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const startBound = fL;

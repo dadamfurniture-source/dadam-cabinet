@@ -807,9 +807,6 @@
       // ============================================================
       // (Supabase 설정은 js/supabase-utils.js에서 관리)
 
-      // n8n Webhook URL (설정 필요)
-      const N8N_WEBHOOK_URL = ''; // 예: 'https://your-n8n.com/webhook/design-save'
-
       // AI 디자인 생성 API URL (설계 데이터 기반 - Fast Generation)
       // Cloudflare Proxy 경유 (CORS 해결)
       const N8N_AI_DESIGN_URL = 'https://dadam.app.n8n.cloud/webhook/design-to-image';
@@ -1082,11 +1079,6 @@
             window.history.replaceState({}, '', `?id=${currentDesignId}`);
           }
 
-          // n8n Webhook 호출 (설정된 경우)
-          if (N8N_WEBHOOK_URL) {
-            await sendToN8N(designData);
-          }
-
           hasUnsavedChanges = false;
           updateSaveStatus('saved', '저장됨');
         } catch (error) {
@@ -1153,7 +1145,7 @@
             w: item.width,
             h: item.height,
             d: item.depth,
-            specs: item.specs || { ...DEFAULT_SPECS },
+            specs: item.specs || deepClone(DEFAULT_SPECS),
             modules: item.modules || [],
             image: item.specs?.imageUrl || item.specs?.image || null,
             imageUrl: item.specs?.imageUrl || item.specs?.image || null,
@@ -1316,42 +1308,10 @@
 
           if (error) throw error;
 
-          // n8n으로 제출 알림
-          if (N8N_WEBHOOK_URL) {
-            const designData = window.DadamAgent.exportDesign();
-            await sendToN8N({ ...designData, action: 'submit', designId: currentDesignId });
-          }
-
           alert('설계가 제출되었습니다.');
         } catch (error) {
           console.error('제출 실패:', error);
           alert('제출 중 오류가 발생했습니다: ' + error.message);
-        }
-      }
-
-      // n8n Webhook 전송
-      async function sendToN8N(data) {
-        if (!N8N_WEBHOOK_URL) return;
-
-        try {
-          const response = await fetch(N8N_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              timestamp: new Date().toISOString(),
-              userId: currentUser.id,
-              userEmail: currentUser.email,
-              designId: currentDesignId,
-              appVersion: APP_CONFIG.version,
-              data: data,
-            }),
-          });
-
-          if (!response.ok) {
-            console.warn('n8n Webhook 응답 오류:', response.status);
-          }
-        } catch (error) {
-          console.warn('n8n Webhook 전송 실패:', error);
         }
       }
 

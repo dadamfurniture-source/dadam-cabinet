@@ -32,6 +32,17 @@
       const LT_FIXED_W = 200;
       const COOK_FIXED_W = 600;
 
+      // accessories 기본값을 매 호출마다 새 배열로 생성 (얕은 복제 시 참조 공유 방지)
+      let _accessoryIdSeq = 0;
+      function createDefaultAccessories() {
+        const base = Date.now();
+        return [
+          { id: base + (_accessoryIdSeq += 1), type: 'LTMesh' },
+          { id: base + (_accessoryIdSeq += 1), type: 'Cutlery' },
+          { id: base + (_accessoryIdSeq += 1), type: 'Knife' },
+        ];
+      }
+
       const DEFAULT_SPECS = {
         layoutShape: 'I',
         doorColorUpper: '화이트',
@@ -50,7 +61,8 @@
         hood: '히든 후드',
         cooktop: '인덕션',
         dishwasher: 'None',
-        accessories: [{ id: Date.now(), type: 'LTMesh' }, { id: Date.now() + 1, type: 'Cutlery' }, { id: Date.now() + 2, type: 'Knife' }],
+        // 팩토리에서 매 호출마다 새 id로 생성 → 모듈 로드 시 한 번 평가되어 모든 아이템이 공유하던 문제 해결
+        get accessories() { return createDefaultAccessories(); },
         // 실측 기준 = 분배기 기준 = 장 기준
         measurementBase: 'Left',
         distributorStart: null,
