@@ -2,6 +2,9 @@
       // UI 관련 함수들
       // ============================================================
 
+      // 현재 편집 중 아이템 id (이전 암묵 전역을 명시 선언으로 승격)
+      let currentItemId;
+
       function initCategoryGrid() {
         const gridEl = document.getElementById('categoryGrid');
         CATEGORIES.forEach((cat) => {
