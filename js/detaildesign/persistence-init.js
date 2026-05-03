@@ -963,12 +963,15 @@
 
         // 인증 + 승인 성공 - UI 업데이트
         hideAuthOverlay();
-        document.getElementById('toolbarUser').textContent = currentUser.email;
+        const toolbarUserEl = document.getElementById('toolbarUser');
+        if (toolbarUserEl) toolbarUserEl.textContent = currentUser.email;
 
         // 네비게이션 사용자 정보 표시
         const name = userProfile.name || currentUser.email.split('@')[0];
-        document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
-        document.getElementById('navUserName').textContent = name;
+        const avatarEl = document.getElementById('navUserAvatar');
+        if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
+        const nameEl = document.getElementById('navUserName');
+        if (nameEl) nameEl.textContent = name;
 
         // URL에서 설계 ID 확인 (수정 모드)
         const urlParams = new URLSearchParams(window.location.search);
