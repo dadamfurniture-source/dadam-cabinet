@@ -16,6 +16,13 @@ export interface Config {
       imageGeneration: string;
     };
   };
+  openai: {
+    apiKey: string;
+    timeout: number;
+    models: {
+      imageGeneration: string;
+    };
+  };
   server: {
     port: number;
     host: string;
@@ -52,6 +59,13 @@ export function loadConfig(): Config {
       models: {
         vision: 'gemini-2.5-flash-image',
         imageGeneration: 'gemini-2.5-flash-image',
+      },
+    },
+    openai: {
+      apiKey: getEnv('OPENAI_API_KEY', ''),
+      timeout: getEnvNumber('OPENAI_TIMEOUT', 180000),
+      models: {
+        imageGeneration: getEnv('OPENAI_IMAGE_MODEL', 'gpt-image-2'),
       },
     },
     server: {
