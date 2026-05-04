@@ -1,0 +1,107 @@
+name: Planner Vite Auto-Build
+
+# 3D 플래너(planner-vite/)가 변경되면 자동으로 vite build를 돌려
+# planner/embed/ 산출물을 같은 PR 브랜치에 추가 커밋한다.
+# - main 직접 푸시 없음 (PR 브랜치에만 작업)
+# - 정적 사이트(GitHub Pages)는 머지 후 자동 배포
+
+on:
+  pull_request:
+    paths:
+      - 'planner-vite/**'
+      - '.github/workflows/planner-vite-build.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'planner-vite/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build planner-vite → planner/embed/
+    runs-on: ubuntu-latest
+    # fork PR은 권한 부족으로 자동 commit 불가 — 메인 레포 PR에서만 동작
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+
+    steps:
+      - name: Checkout (PR head 또는 main)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: planner-vite/package-lock.json
+
+      - name: Install dependencies (planner-vite)
+        working-directory: planner-vite
+        run: npm ci
+
+      - name: Build (vite)
+        working-directory: planner-vite
+        run: npm run build
+
+      - name: Verify output
+        run: |
+          test -f planner/embed/index.html
+          test -d planner/embed/assets
+          echo "Build artifacts:"
+          ls -la planner/embed/
+          ls -la planner/embed/assets/
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if git diff --quiet planner/embed/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "산출물 변경 없음 — commit 건너뜀"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "산출물 변경 감지 — auto-commit 진행"
+            git diff --stat planner/embed/
+          fi
+
+      - name: Auto-commit build artifacts (PR 브랜치)
+        if: |
+          steps.changes.outputs.changed == 'true' &&
+          github.event_name == 'pull_request'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: |
+            chore(planner): planner/embed/ 자동 빌드
+
+            planner-vite/ 변경에 따른 정적 산출물 자동 갱신.
+            워크플로우: planner-vite-build.yml
+          file_pattern: 'planner/embed/**'
+          commit_user_name: 'github-actions[bot]'
+          commit_user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Upload artifact (참고용)
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: planner-embed-${{ github.sha }}
+          path: planner/embed/
+          retention-days: 14
+
+      - name: Warn on direct main push
+        if: |
+          steps.changes.outputs.changed == 'true' &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main'
+        run: |
+          echo "::warning::main 브랜치에 직접 push되어 산출물이 stale일 수 있습니다."
+          echo "::warning::산출물은 artifact로 업로드되었으나 main에 자동 commit하지 않습니다(CLAUDE.md 정책)."
+          echo "::warning::필요 시 별도 PR로 산출물을 업데이트하세요."
