@@ -77,9 +77,9 @@
 | 3 | Next 트랙 archive | 낮음 | ✅ 완료. 사장님이 운영 사이트(dadamfurniture.com)의 `/portfolio`, `/pricing`을 직접 확인 → 두 경로 모두 정적 `index.html`의 메인 hero가 표시됨 → **Next 빌드 산출물(`out/`)이 운영에 배포되지 않음 확정**. `app/`(전체), `components/`, `lib/planner.ts`, `lib/supabase.ts`, `next.config.js`, `tailwind.config.js`, `postcss.config.js`, `next-env.d.ts`를 `archive/next-planner/`로 이동(README 동봉). tsconfig `exclude`에 `archive`/`planner-vite` 추가. CI의 Next build/lighthouse-build-needs/deploy-needs 정리. 후속: `index.html`의 `/pricing`·`/account/billing` 죽은 링크 정리 + `package.json` Next 의존 제거(별도 PR) |
 | 4 | dead `PLANNER_STATE`/`HITL_STATE` 송신 정리 | 0 | ✅ 자식 측 useEffect 제거 (커밋 `5aa3695`) |
 | 5 | 모듈 ID 네임스페이스화 | 낮음 | ✅ 부모 `_appendSecondaryModules`의 6개 고정 ID(`blind-corner-*-auto`)에 `i${itemUniqueId}-` prefix 적용. 다중 item React key 충돌 차단. 더 광범위한 ID prefix 표준화(24개 위치 `Date.now()+Math.random()`)는 회귀 위험으로 M1로 이관 |
-| 6 | LIVE 골든 마스터 캡처 (Supabase 100건) | 0 (read-only) | ⏸ **보류 — 사용자 Supabase 액세스 필요**. M5 BOM 회귀 검증의 비교 기준이므로 M1 시작 전 확보 필요 |
+| 6 | LIVE 골든 마스터 캡처 (Supabase 100건) | 0 (read-only) | 🔵 **사장님 직접 진행 중** — `docs/04-report/golden-master-export-guide.md` 가이드 작성 완료. SQL 쿼리 + PII 마스킹 + 저장 경로 권장(`__tests__/golden-master/v1-2026-05-04.json`) 명시. M5 비교 스크립트는 사장님 export 완료 후 작성 예정 |
 | 7 | calc-utils 통합 테스트 추가 | 0 | ⏸ **보류** — `planner-vite/src/lib/__tests__/calc-utils.test.ts` 17건 외 `runAutoCalcLower`/`runAutoCalcUpper` 통합 테스트는 현재 vanilla JS(`js/detaildesign/calc-engine.js`)에 살아 있어 vitest로 테스트하려면 ESM/모듈 추출이 선행되어야 함. M1 자료 모델 정의 시 calc-engine을 `.ts`로 추출하면서 테스트 동시 작성이 효율적 |
-| 8 | 빌드 산출물 git 커밋 정책 재검토 | 낮음 | ⏸ **결정 대기** — `planner/embed/assets/index-Ct6xrK34.js` (1.18MB) 정책: (a) GitHub Actions 자동 빌드 + commit 또는 (b) Git LFS 또는 (c) release artifact + 별도 CDN. M2 시작 전 결정 필요 |
+| 8 | 빌드 산출물 git 커밋 정책 재검토 | 낮음 | ✅ **완료 — 옵션 (a) 자동 생성기 도입**. `.github/workflows/planner-vite-build.yml` 신설. PR에서 `planner-vite/**` 변경 감지 시 vite build → `planner/embed/` 산출물을 같은 PR 브랜치에 auto-commit. main 직접 push는 artifact 업로드 + 경고만 (CLAUDE.md 정책 준수). fork PR은 권한 부족으로 skip |
 
 ## 7. 일정 (보수)
 
