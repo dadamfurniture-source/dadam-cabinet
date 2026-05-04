@@ -144,42 +144,21 @@ jobs:
         run: npx tsc --noEmit
         continue-on-error: true
 
-  # Next.js 빌드
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # Next.js 빌드 (archive됨 - 본 job은 비활성화. planner-vite 빌드로 교체 검토 중)
+  # 사유: app/, next.config.js 등은 archive/next-planner/로 이동 (커밋 참조)
+  # TODO: planner-vite 빌드 + 정적 산출물 검증으로 교체
+  # build:
+  #   name: Build
+  #   runs-on: ubuntu-latest
+  #   needs: [lint, typecheck, test]
+  #   steps:
+  #     ...
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Next.js
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: out/
-          retention-days: 7
-
-  # Lighthouse 성능 테스트
+  # Lighthouse 성능 테스트 (build 의존 해제, 정적 HTML 직접 측정)
   lighthouse:
     name: Lighthouse Performance
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [test]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -195,30 +174,16 @@ jobs:
           lhci autorun --collect.staticDistDir=./ --collect.url=index.html || true
         continue-on-error: true
 
-  # 배포 (main 브랜치만)
+  # 배포 (main 브랜치만) — 실제 GitHub Pages 자동 배포는 pages-build-deployment workflow가 처리.
+  # 본 job은 build artifact 없이 placeholder만 남음.
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    needs: [build, security]
+    needs: [security]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: out/
-
-      # Vercel 배포 (선택적)
-      # - name: Deploy to Vercel
-      #   uses: amondnet/vercel-action@v25
-      #   with:
-      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
-      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-      #     vercel-args: '--prod'
-
       - name: Deployment placeholder
-        run: echo "Deployment step - configure with your hosting provider"
+        run: echo "GitHub Pages 자동 배포는 pages-build-deployment workflow에서 처리됩니다."
