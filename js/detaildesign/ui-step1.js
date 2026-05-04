@@ -403,7 +403,9 @@
       /**
        * ㄱ자/ㄷ자 secondary 모듈을 payload에 동적 추가 (공통 헬퍼)
        */
-      function _appendSecondaryModules(payload, specs, itemD) {
+      function _appendSecondaryModules(payload, specs, itemD, itemUniqueId) {
+        // itemUniqueId가 누락되면 자동 생성 ID 사용 (호환성). 다중 item에서 React key 충돌 방지.
+        const idNs = itemUniqueId != null ? `i${itemUniqueId}-` : '';
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
         dlog('[CornerDebug] _appendSecondaryModules called', {
           lShape,
@@ -424,7 +426,7 @@
         // ★ 멍판 너비 = 연결되는 수직 모듈의 상판 깊이 + 40mm
         const blindW = primeD + 40;
         const blindMod = {
-          id: 'blind-corner-auto', kind: 'door', width: blindW,
+          id: `${idNs}blind-corner-auto`, kind: 'door', width: blindW,
           moduleType: 'blind', doorCount: 1, orientation: 'secondary',
         };
         // ★ 실측 기준: secW = blindW(depth+40) + 나머지 모듈
@@ -456,7 +458,7 @@
           // ★ 멍판 너비 = upper prime depth + 40mm
           const uBlindW = uPrimeD + 40;
           const uBlindMod = {
-            id: 'blind-corner-upper-auto', kind: 'door', width: uBlindW,
+            id: `${idNs}blind-corner-upper-auto`, kind: 'door', width: uBlindW,
             moduleType: 'blind', doorCount: 1, orientation: 'secondary',
           };
           // ★ 실측 기준: uSecW = uBlindW(depth+40) + 나머지 모듈
@@ -493,7 +495,7 @@
               const lastSec = secModsInPayload[secModsInPayload.length - 1];
               lastSec.kind = 'door';
               lastSec.width = terD;
-              lastSec.id = 'blind-corner-sec-ter-auto';
+              lastSec.id = `${idNs}blind-corner-sec-ter-auto`;
               lastSec.doorCount = 1;
             }
             // tertiary 모듈: prime line과 평행하게 secondary 끝에서 배치
@@ -525,7 +527,7 @@
                 const lastUSec = uSecModsInPayload[uSecModsInPayload.length - 1];
                 lastUSec.kind = 'door';
                 lastUSec.width = uTerD;
-                lastUSec.id = 'blind-corner-upper-sec-ter-auto';
+                lastUSec.id = `${idNs}blind-corner-upper-sec-ter-auto`;
                 lastUSec.doorCount = 1;
               }
               const uTerModCount = uTerW > 0 ? Math.max(1, Math.round(uTerW / 600)) : 0;
@@ -547,7 +549,7 @@
             // ★ prime line 반대편 — 기존 로직 (secondary와 평행)
             const terStartSide = startSide === 'left' ? 'right' : 'left';
             const terBlindMod = {
-              id: 'blind-corner-ter-auto', kind: 'door', width: primeD,
+              id: `${idNs}blind-corner-ter-auto`, kind: 'door', width: primeD,
               moduleType: 'blind', doorCount: 1, orientation: 'tertiary',
             };
             // 실측 기준: terW = primeD + 나머지 모듈
@@ -572,7 +574,7 @@
               const uTerW = parseFloat(specs.upperTertiaryW) || terW;
               const uTerPrimeD = parseFloat(specs.upperPrimeD) || 295;
               const uTerBlindMod = {
-                id: 'blind-corner-upper-ter-auto', kind: 'door', width: uTerPrimeD,
+                id: `${idNs}blind-corner-upper-ter-auto`, kind: 'door', width: uTerPrimeD,
                 moduleType: 'blind', doorCount: 1, orientation: 'tertiary',
               };
               const uAvailableTerW = Math.max(0, uTerW - uTerPrimeD);
@@ -639,7 +641,7 @@
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
-        _appendSecondaryModules(payload, specs, item.d);
+        _appendSecondaryModules(payload, specs, item.d, item.uniqueId);
         _postPlannerMessage(iframe.contentWindow, { type: 'UPDATE_PLANNER', payload });
       }
 
@@ -691,7 +693,7 @@
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
-        _appendSecondaryModules(finishPayload, specs, item.d);
+        _appendSecondaryModules(finishPayload, specs, item.d, item.uniqueId);
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
           let retries = 0;

@@ -68,18 +68,18 @@
 - `archive/next-planner/`로 `git mv` 하고 README에 사유 명시. main에서 즉시 archive.
 - 사유: 두 트랙(Next 18 / Vite 19) 동시 마이그레이션은 일정 50% 증가, 위험 2배. dead path 유지 비용 0.
 
-## 6. 즉시 시작 작업 (결정 대기 없이, 약 1.5주)
+## 6. 즉시 시작 작업 — 진행 결과
 
 | # | 작업 | 위험 | 진행 상태 |
 |---|------|------|----------|
-| 1 | postMessage origin 검증 추가 | 0 | 본 PR |
-| 2 | schema 가드 추가 | 매우 낮음 | 본 PR |
-| 3 | Next 트랙 archive | 낮음 | 본 PR (별도 커밋) |
-| 4 | dead `PLANNER_STATE`/`HITL_STATE` 송신 정리 | 0 | 본 PR |
-| 5 | 모듈 ID 네임스페이스화 | 낮음 | 본 PR |
-| 6 | LIVE 골든 마스터 캡처 (Supabase 100건) | 0 (read-only) | **사용자 액세스 필요 — 보류** |
-| 7 | calc-utils 통합 테스트 추가 | 0 | 본 PR (스코프 축소: 10건) |
-| 8 | 빌드 산출물 git 커밋 정책 재검토 | 낮음 | **결정 대기 — 보류** |
+| 1 | postMessage origin 검증 추가 | 0 | ✅ 적용 (커밋 `5aa3695`) |
+| 2 | schema 가드 추가 | 매우 낮음 | ✅ 자식 측 type guard + VALID_VIEWS 화이트리스트 |
+| 3 | Next 트랙 archive | 낮음 | ⏸ **보류** — 점검 보고서의 가정과 달리 `app/page.tsx`(Next 메인)도 `lib/planner.ts`의 PRESETS를 import 중. `lib/planner.ts` 단독 archive가 깨짐. archive는 (a) `app/`/`components/planner/`/`lib/planner.ts`/`next.config.js`를 한꺼번에 옮기거나 (b) `app/page.tsx`의 PRESETS 의존을 제거하는 두 가지 옵션이 있으며, 사용자가 Next 빌드/배포 활성 여부를 확정해야 함 |
+| 4 | dead `PLANNER_STATE`/`HITL_STATE` 송신 정리 | 0 | ✅ 자식 측 useEffect 제거 (커밋 `5aa3695`) |
+| 5 | 모듈 ID 네임스페이스화 | 낮음 | ✅ 부모 `_appendSecondaryModules`의 6개 고정 ID(`blind-corner-*-auto`)에 `i${itemUniqueId}-` prefix 적용. 다중 item React key 충돌 차단. 더 광범위한 ID prefix 표준화(24개 위치 `Date.now()+Math.random()`)는 회귀 위험으로 M1로 이관 |
+| 6 | LIVE 골든 마스터 캡처 (Supabase 100건) | 0 (read-only) | ⏸ **보류 — 사용자 Supabase 액세스 필요**. M5 BOM 회귀 검증의 비교 기준이므로 M1 시작 전 확보 필요 |
+| 7 | calc-utils 통합 테스트 추가 | 0 | ⏸ **보류** — `planner-vite/src/lib/__tests__/calc-utils.test.ts` 17건 외 `runAutoCalcLower`/`runAutoCalcUpper` 통합 테스트는 현재 vanilla JS(`js/detaildesign/calc-engine.js`)에 살아 있어 vitest로 테스트하려면 ESM/모듈 추출이 선행되어야 함. M1 자료 모델 정의 시 calc-engine을 `.ts`로 추출하면서 테스트 동시 작성이 효율적 |
+| 8 | 빌드 산출물 git 커밋 정책 재검토 | 낮음 | ⏸ **결정 대기** — `planner/embed/assets/index-Ct6xrK34.js` (1.18MB) 정책: (a) GitHub Actions 자동 빌드 + commit 또는 (b) Git LFS 또는 (c) release artifact + 별도 CDN. M2 시작 전 결정 필요 |
 
 ## 7. 일정 (보수)
 
