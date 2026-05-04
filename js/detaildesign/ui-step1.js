@@ -2,6 +2,18 @@
       // UI 관련 함수들
       // ============================================================
 
+      // 현재 정적 사이트는 동일 origin이므로 location.origin을 신뢰. 향후 다른 origin에 임베드되면 빌드시 주입한 상수로 교체.
+      const PLANNER_ALLOWED_ORIGIN = (typeof window !== 'undefined' && window.location && window.location.origin) || '*';
+
+      function _postPlannerMessage(targetWindow, message) {
+        if (!targetWindow || typeof targetWindow.postMessage !== 'function') return;
+        try {
+          targetWindow.postMessage(message, PLANNER_ALLOWED_ORIGIN);
+        } catch (err) {
+          console.warn('[Planner] postMessage failed:', err);
+        }
+      }
+
       // 현재 편집 중 아이템 id (이전 암묵 전역을 명시 선언으로 승격)
       let currentItemId;
 
@@ -376,7 +388,7 @@
         const overlay = document.getElementById('__planner-overlay-' + itemUniqueId);
         const iframe = overlay?.querySelector('iframe[data-planner]');
         if (iframe) {
-          iframe.contentWindow?.postMessage({ type: 'SET_CAMERA_VIEW', view }, '*');
+          _postPlannerMessage(iframe.contentWindow, { type: 'SET_CAMERA_VIEW', view });
         }
         // 버튼 active 토글
         const group = btn.closest('.view3d-btns');
@@ -628,7 +640,7 @@
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
         _appendSecondaryModules(payload, specs, item.d);
-        iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
+        _postPlannerMessage(iframe.contentWindow, { type: 'UPDATE_PLANNER', payload });
       }
 
       function _loadPlannerEmbed(container, item) {
@@ -682,16 +694,17 @@
         _appendSecondaryModules(finishPayload, specs, item.d);
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
+          let retries = 0;
           const sendUpdate = () => {
             if (existing.contentWindow) {
-              existing.contentWindow.postMessage({
-                type: 'UPDATE_PLANNER',
-                payload: finishPayload,
-              }, '*');
-            } else {
-              console.warn('[Planner] contentWindow null — 100ms 후 재시도');
-              setTimeout(sendUpdate, 100);
+              _postPlannerMessage(existing.contentWindow, { type: 'UPDATE_PLANNER', payload: finishPayload });
+              return;
             }
+            if (retries++ >= 30) {
+              console.warn('[Planner] contentWindow 30회 재시도 실패 — 중단');
+              return;
+            }
+            setTimeout(sendUpdate, 100);
           };
           sendUpdate();
           return;
