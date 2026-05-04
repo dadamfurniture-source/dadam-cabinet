@@ -83,17 +83,17 @@
 
 ## 7. 일정 (보수)
 
-| 단계 | 산출물 | 공수 |
-|------|-------|------|
-| M0 | 본 합의서 + 사전 작업 8건 | 1주 |
-| M1 | floorplan-types/migration/bridge | 2주 |
-| M2 | Top View + 1자형 + 90° 회전 | 3주 |
-| M3 | 공간 추가 + ㄱ자 + 직각 트리밍 | 4주 |
-| M4 | 자동계산 다중 공간 | 3주 |
-| M5 | BOM 다중 공간 + LIVE 100건 비교 | 4주 |
-| M6 | persistence 마이그레이션 + UI 정리 | 2주 |
-| M7 | 회귀 매트릭스 + 알파 + 시범 발주 | 3주 |
-| **합계** | | **18주, 풀타임 1.5~2명** |
+| 단계 | 산출물 | 공수 | 상태 |
+|------|-------|------|------|
+| **M0** | 본 합의서 + 사전 작업 8건 | 1주 | ✅ 완료 (#6 골든 마스터는 사장님 직접 진행 중) |
+| **M1** | floorplan-types/migration/bridge + 단위 테스트 | 2주 | ✅ **완료** (커밋 ${COMMIT}). 산출물 7개:<br>1. `lib/floorplan-types.ts` — Space/Floorplan/Junction/TrimmedSpace/ItemV2/ModuleV2/ItemV1 타입<br>2. `lib/floorplan-trim.ts` — 직각 분석적 트리밍 알고리즘 + recomputeFloorplan<br>3. `__tests__/floorplan-trim.test.ts` — 트리밍 단위 테스트 ~12건<br>4. `lib/floorplan-migration.ts` — migrateItemV1ToV2 / tryDowngradeV2ToV1<br>5. `__tests__/floorplan-migration.test.ts` — 라운드트립 테스트 ~14건<br>6. `lib/floorplan-message-schema.ts` — 양방향 메시지 type guard + 빌더<br>7. `js/detaildesign/floorplan-bridge.js` — 부모 측 PlannerBridge 클래스 |
+| M2 | Top View + 1자형 + 90° 회전 | 3주 | ⏸ |
+| M3 | 공간 추가 + ㄱ자 + 직각 트리밍 | 4주 | ⏸ |
+| M4 | 자동계산 다중 공간 | 3주 | ⏸ |
+| M5 | BOM 다중 공간 + LIVE 100건 비교 | 4주 | ⏸ |
+| M6 | persistence 마이그레이션 + UI 정리 | 2주 | ⏸ |
+| M7 | 회귀 매트릭스 + 알파 + 시범 발주 | 3주 | ⏸ |
+| **합계** | | **18주, 풀타임 1.5~2명** | |
 
 **LIVE 배포 게이트**: M5 통과 전까지 LIVE 차단. feature flag로 v1/v2 동시 운영.
 
