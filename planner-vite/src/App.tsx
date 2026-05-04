@@ -741,21 +741,44 @@ export default function App() {
 
   // postMessage 통신
   useEffect(() => {
+    // 동일 origin 가정. 향후 cross-origin 임베드 시 빌드 시점 환경변수로 교체.
+    const allowedOrigin = window.location.origin;
+    const VALID_VIEWS = new Set<CameraView>(['top', 'front', 'perspective']);
+
     const h = (e: MessageEvent) => {
-      if (e.data?.type === 'UPDATE_PLANNER') setPlanner(p => ({ ...p, ...e.data.payload }));
-      if (e.data?.type === 'SET_CAMERA_VIEW') setView(e.data.view);
-      if (e.data?.type === 'LOAD_HITL_CASE' && e.data.payload) setPlanner(e.data.payload as PlannerState);
+      if (e.origin !== allowedOrigin) return;
+      const data = e.data;
+      if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
+
+      switch (data.type) {
+        case 'UPDATE_PLANNER': {
+          const p = data.payload;
+          if (!p || typeof p !== 'object') return;
+          setPlanner(prev => ({ ...prev, ...p }));
+          return;
+        }
+        case 'SET_CAMERA_VIEW': {
+          if (typeof data.view === 'string' && VALID_VIEWS.has(data.view)) {
+            setView(data.view as CameraView);
+          }
+          return;
+        }
+        case 'LOAD_HITL_CASE': {
+          const p = data.payload;
+          if (p && typeof p === 'object' && typeof (p as PlannerState).presetId === 'string') {
+            setPlanner(p as PlannerState);
+          }
+          return;
+        }
+        // 향후 'PING' 등 신규 type 무시(forward-compat)
+      }
     };
     window.addEventListener('message', h);
     return () => window.removeEventListener('message', h);
   }, []);
 
-  useEffect(() => {
-    window.parent?.postMessage({ type: 'PLANNER_STATE', payload: { planner, derived } }, '*');
-    if (hitlMode) {
-      window.parent?.postMessage({ type: 'HITL_STATE', payload: { planner, derived } }, '*');
-    }
-  }, [planner, derived, hitlMode]);
+  // 자식→부모 송신은 부모 측 listener가 추가될 때까지 비활성. 새 계약(FLOORPLAN_CHANGED)으로 교체 예정.
+  // (이전: PLANNER_STATE/HITL_STATE 매 렌더 송신 — dead path 였음)
 
   // 모듈 CRUD
   const defaultKind: ModuleKind = preset.fullHeight ? 'door' : 'drawer';
