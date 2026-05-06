@@ -109,8 +109,10 @@ function SpaceMesh({
       return;
     }
     if (e.button === 2) {
-      // 우클릭 — 컨텍스트 처리는 onContextMenu에서. preventDefault는 브라우저 메뉴 차단용.
+      // 우클릭 — preventDefault로 브라우저 메뉴 차단 + 회전 직접 호출(fallback)
+      // R3F의 onContextMenu가 일부 브라우저/장치에서 dispatch되지 않는 경우를 대비한 보강.
       e.nativeEvent.preventDefault?.();
+      onContextMenu();
       return;
     }
     onSelect();
@@ -132,10 +134,11 @@ function SpaceMesh({
   }, [dragOrigin, onDragEnd]);
 
   const handleContextMenu = useCallback((e: ThreeEvent<MouseEvent>) => {
+    // 회전 자체는 onPointerDown(e.button===2)에서 호출됨 (단일 진입점).
+    // 본 핸들러는 브라우저 컨텍스트 메뉴 차단만 담당.
     e.stopPropagation();
     e.nativeEvent.preventDefault?.();
-    onContextMenu();
-  }, [onContextMenu]);
+  }, []);
 
   // 트리밍 발생 시 outline 색을 빨강으로 (점선 line 렌더는 M3에서 정밀화)
   const isTrimmed = trimmed && trimmed.trimmedEdges.length > 0;

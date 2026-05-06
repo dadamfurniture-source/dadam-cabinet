@@ -1172,6 +1172,87 @@ export default function App() {
         </Suspense>
       </Canvas>
 
+      {/* M2: Top View 인스펙터 패널 — 선택된 Space의 W/H/회전을 직접 편집 */}
+      {floorplanItem && (() => {
+        const sel = floorplanItem.floorplan.spaces.find(s => s.id === selectedSpaceId);
+        const updateSpace = (patch: Partial<typeof sel & object>) => {
+          if (!sel) return;
+          const idx = floorplanItem.floorplan.spaces.findIndex(s => s.id === sel.id);
+          if (idx < 0) return;
+          const next = floorplanItem.floorplan.spaces.slice();
+          next[idx] = { ...next[idx], ...patch };
+          // 트리밍 재계산은 FloorplanScene 외부에서도 동일 헬퍼 사용
+          import('@floorplan/floorplan-trim').then(mod => {
+            const result = mod.recomputeFloorplan({ ...floorplanItem.floorplan, spaces: next });
+            setFloorplanItem(prev => prev ? { ...prev, floorplan: result } : prev);
+            if (window.parent && window.parent !== window) {
+              try {
+                const msg = buildFloorplanChanged(result, 'resize');
+                window.parent.postMessage(msg, window.location.origin);
+              } catch (err) { console.warn('[Planner] resize 송신 실패:', err); }
+            }
+          });
+        };
+
+        return (
+          <div style={{
+            position: 'absolute', top: 16, right: 16, zIndex: 10000,
+            background: 'rgba(255,255,255,0.95)', borderRadius: 8,
+            padding: '12px 14px', minWidth: 220, fontSize: 13,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontFamily: 'system-ui, sans-serif',
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>
+              평면 인스펙터
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
+              공간 {floorplanItem.floorplan.spaces.length}개
+              {floorplanItem.floorplan.junctions.length > 0 && ` · 트리밍 ${floorplanItem.floorplan.junctions.length}개`}
+            </div>
+            {sel ? (
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{sel.label || sel.id}</div>
+                <label style={{ display: 'block', marginBottom: 4 }}>
+                  가로 (mm)
+                  <input type="number" step={50} value={sel.w}
+                    onChange={(e) => updateSpace({ w: Number(e.target.value) || sel.w })}
+                    style={{ width: '100%', padding: 4, marginTop: 2 }} />
+                </label>
+                <label style={{ display: 'block', marginBottom: 4 }}>
+                  세로/깊이 (mm)
+                  <input type="number" step={50} value={sel.h}
+                    onChange={(e) => updateSpace({ h: Number(e.target.value) || sel.h })}
+                    style={{ width: '100%', padding: 4, marginTop: 2 }} />
+                </label>
+                <label style={{ display: 'block', marginBottom: 4 }}>
+                  회전 (90° 단위)
+                  <select value={Math.round(((sel.rotation % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / (Math.PI / 2)) % 4}
+                    onChange={(e) => updateSpace({ rotation: Number(e.target.value) * (Math.PI / 2) })}
+                    style={{ width: '100%', padding: 4, marginTop: 2 }}>
+                    <option value={0}>0°</option>
+                    <option value={1}>90°</option>
+                    <option value={2}>180°</option>
+                    <option value={3}>270°</option>
+                  </select>
+                </label>
+                <label style={{ display: 'block', marginBottom: 4 }}>
+                  앞으로 보내기 (zIndex)
+                  <input type="number" value={sel.zIndex}
+                    onChange={(e) => updateSpace({ zIndex: Number(e.target.value) || 0 })}
+                    style={{ width: '100%', padding: 4, marginTop: 2 }} />
+                </label>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>
+                  💡 우클릭: 90° 회전 · 좌드래그: 이동 (50mm)
+                </div>
+              </>
+            ) : (
+              <div style={{ color: '#888', fontSize: 12 }}>
+                공간을 클릭하면 편집할 수 있습니다.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* 팝업 배경 — 반투명 오버레이로 Canvas 위 Html 요소 완전 차단 */}
       {selId && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setSelId(null)} />
