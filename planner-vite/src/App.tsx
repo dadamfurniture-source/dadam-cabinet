@@ -3,6 +3,8 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera, OrthographicCamera, Html, ContactShadows, Edges } from '@react-three/drei';
 import type { Floorplan, ItemV2, ModuleV2 } from '@floorplan/floorplan-types';
 import { buildFloorplanChanged, type FloorplanChangeTrigger } from '@floorplan/floorplan-message-schema';
+import { recomputeFloorplan } from '@floorplan/floorplan-trim';
+import type { Space } from '@floorplan/floorplan-types';
 import { FloorplanScene } from './FloorplanScene';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -734,9 +736,90 @@ export default function App() {
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
   const [selId, setSelId] = useState<string | null>(null);
 
-  // ── M2: Floorplan 모드 ── 부모가 UPDATE_FLOORPLAN을 보내면 활성화 (legacy UPDATE_PLANNER와 병행)
+  // ── M2/M3: Floorplan 모드 ── 부모가 UPDATE_FLOORPLAN을 보내면 활성화 (legacy UPDATE_PLANNER와 병행)
   const [floorplanItem, setFloorplanItem] = useState<ItemV2 | null>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+
+  // 단조 카운터 — 새 Space ID에 사용 (i{itemId}-add{seq})
+  const newSpaceCounterRef = useRef(0);
+
+  /** 단일 진입점: 트리밍 재산출 + state 갱신 + 부모 송신 */
+  const applyFloorplanChange = useCallback((nextSpaces: Space[], trigger: FloorplanChangeTrigger) => {
+    setFloorplanItem(prev => {
+      if (!prev) return prev;
+      const result = recomputeFloorplan({ ...prev.floorplan, spaces: nextSpaces });
+      const next = { ...prev, floorplan: result };
+      if (window.parent && window.parent !== window) {
+        try {
+          const msg = buildFloorplanChanged(result, trigger);
+          window.parent.postMessage(msg, window.location.origin);
+        } catch (err) { console.warn('[Planner] FLOORPLAN_CHANGED 송신 실패:', err); }
+      }
+      return next;
+    });
+  }, []);
+
+  /** 새 공간 추가 — 마지막 공간 우측에 200mm 간격으로 배치 */
+  const handleAddSpace = useCallback(() => {
+    if (!floorplanItem) return;
+    const spaces = floorplanItem.floorplan.spaces;
+    const last = spaces[spaces.length - 1];
+    const itemId = floorplanItem.uniqueId;
+    const seq = ++newSpaceCounterRef.current;
+    const newSpace: Space = {
+      id: `space-i${itemId}-add${seq}`,
+      w: 1500,
+      h: 600,
+      // 마지막 공간 우측 가장자리 + 200mm 여백
+      x: (last?.x ?? 0) + (last?.w ?? 0) / 2 + 200 + 1500 / 2,
+      y: last?.y ?? 300,
+      rotation: 0,
+      zIndex: 0, // 기존 공간이 앞 (zIndex 1)이라 새 공간은 트리밍당하는 쪽
+      verticalH: last?.verticalH ?? 2310,
+      category: last?.category ?? floorplanItem.categoryId,
+      label: `공간 ${spaces.length + 1}`,
+    };
+    applyFloorplanChange([...spaces, newSpace], 'add');
+    setSelectedSpaceId(newSpace.id);
+  }, [floorplanItem, applyFloorplanChange]);
+
+  /** 선택 공간 삭제 — spaces.length === 1일 때 거부. 모듈도 같이 정리 (단일 setState). */
+  const handleDeleteSpace = useCallback(() => {
+    if (!selectedSpaceId) return;
+    setFloorplanItem(prev => {
+      if (!prev) return prev;
+      if (prev.floorplan.spaces.length <= 1) {
+        console.warn('[Planner] 마지막 공간은 삭제할 수 없습니다.');
+        return prev;
+      }
+      const nextSpaces = prev.floorplan.spaces.filter(s => s.id !== selectedSpaceId);
+      const result = recomputeFloorplan({ ...prev.floorplan, spaces: nextSpaces });
+      const next = {
+        ...prev,
+        floorplan: result,
+        modules: prev.modules.filter(m => m.spaceId !== selectedSpaceId),
+      };
+      // 부모 송신
+      if (window.parent && window.parent !== window) {
+        try {
+          const msg = buildFloorplanChanged(result, 'delete');
+          window.parent.postMessage(msg, window.location.origin);
+        } catch (err) { console.warn('[Planner] FLOORPLAN_CHANGED(delete) 송신 실패:', err); }
+      }
+      return next;
+    });
+    setSelectedSpaceId(null);
+  }, [selectedSpaceId]);
+
+  /** 선택 공간의 zIndex 변경 — 앞으로 보내기/뒤로 보내기 */
+  const handleZIndexShift = useCallback((delta: number) => {
+    if (!floorplanItem || !selectedSpaceId) return;
+    const idx = floorplanItem.floorplan.spaces.findIndex(s => s.id === selectedSpaceId);
+    if (idx < 0) return;
+    const next = floorplanItem.floorplan.spaces.slice();
+    next[idx] = { ...next[idx], zIndex: next[idx].zIndex + delta };
+    applyFloorplanChange(next, 'zindex');
+  }, [floorplanItem, selectedSpaceId, applyFloorplanChange]);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
   const [showLayoutPanel, setShowLayoutPanel] = useState(false);
@@ -1134,20 +1217,9 @@ export default function App() {
                 selectedSpaceId={selectedSpaceId}
                 onSelect={setSelectedSpaceId}
                 onChange={(nextFloorplan, trigger) => {
-                  setFloorplanItem(prev => prev ? { ...prev, floorplan: nextFloorplan } : prev);
-                  // 부모 페이지로 FLOORPLAN_CHANGED 송신 (M2 2차)
-                  // - origin 명시 (location.origin)
-                  // - schema 빌더로 nonce 자동 생성
-                  // - parent listener는 부모 측 PlannerBridge.onFloorplanChanged 가 처리
-                  if (window.parent && window.parent !== window) {
-                    try {
-                      const msg = buildFloorplanChanged(nextFloorplan, trigger as FloorplanChangeTrigger);
-                      window.parent.postMessage(msg, window.location.origin);
-                    } catch (err) {
-                      // postMessage 실패는 운영에 영향 0 — 콘솔만
-                      console.warn('[Planner] FLOORPLAN_CHANGED 송신 실패:', err);
-                    }
-                  }
+                  // FloorplanScene는 이미 recomputeFloorplan을 거친 nextFloorplan을 전달.
+                  // applyFloorplanChange는 spaces만 받으므로 동일 결과를 위해 spaces를 추출.
+                  applyFloorplanChange(nextFloorplan.spaces, trigger as FloorplanChangeTrigger);
                 }}
               />
             </group>
@@ -1172,33 +1244,54 @@ export default function App() {
         </Suspense>
       </Canvas>
 
-      {/* M2: Top View 인스펙터 패널 — 선택된 Space의 W/H/회전을 직접 편집 */}
+      {/* M3: Top View 좌상단 toolbar — 공간 추가/삭제 */}
+      {floorplanItem && (
+        <div style={{
+          position: 'absolute', top: 16, left: 16, zIndex: 10000,
+          display: 'flex', gap: 8, fontFamily: 'system-ui, sans-serif',
+        }}>
+          <button
+            onClick={handleAddSpace}
+            style={{
+              background: '#2563eb', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            }}
+          >
+            + 공간 추가
+          </button>
+          {selectedSpaceId && floorplanItem.floorplan.spaces.length > 1 && (
+            <button
+              onClick={handleDeleteSpace}
+              style={{
+                background: '#fff', color: '#dc2626', border: '1px solid #dc2626',
+                borderRadius: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+              }}
+            >
+              선택 공간 삭제
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* M2/M3: Top View 인스펙터 패널 — 선택된 Space의 W/H/회전/zIndex 직접 편집 */}
       {floorplanItem && (() => {
         const sel = floorplanItem.floorplan.spaces.find(s => s.id === selectedSpaceId);
-        const updateSpace = (patch: Partial<typeof sel & object>) => {
+        const updateSpace = (patch: Partial<Space>) => {
           if (!sel) return;
           const idx = floorplanItem.floorplan.spaces.findIndex(s => s.id === sel.id);
           if (idx < 0) return;
           const next = floorplanItem.floorplan.spaces.slice();
           next[idx] = { ...next[idx], ...patch };
-          // 트리밍 재계산은 FloorplanScene 외부에서도 동일 헬퍼 사용
-          import('@floorplan/floorplan-trim').then(mod => {
-            const result = mod.recomputeFloorplan({ ...floorplanItem.floorplan, spaces: next });
-            setFloorplanItem(prev => prev ? { ...prev, floorplan: result } : prev);
-            if (window.parent && window.parent !== window) {
-              try {
-                const msg = buildFloorplanChanged(result, 'resize');
-                window.parent.postMessage(msg, window.location.origin);
-              } catch (err) { console.warn('[Planner] resize 송신 실패:', err); }
-            }
-          });
+          applyFloorplanChange(next, 'resize');
         };
 
         return (
           <div style={{
             position: 'absolute', top: 16, right: 16, zIndex: 10000,
             background: 'rgba(255,255,255,0.95)', borderRadius: 8,
-            padding: '12px 14px', minWidth: 220, fontSize: 13,
+            padding: '12px 14px', minWidth: 240, fontSize: 13,
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontFamily: 'system-ui, sans-serif',
           }}>
             <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>
@@ -1234,14 +1327,23 @@ export default function App() {
                     <option value={3}>270°</option>
                   </select>
                 </label>
-                <label style={{ display: 'block', marginBottom: 4 }}>
-                  앞으로 보내기 (zIndex)
-                  <input type="number" value={sel.zIndex}
-                    onChange={(e) => updateSpace({ zIndex: Number(e.target.value) || 0 })}
-                    style={{ width: '100%', padding: 4, marginTop: 2 }} />
-                </label>
+                <div style={{ marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, marginBottom: 2 }}>
+                    앞으로 보내기 (zIndex: {sel.zIndex})
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => handleZIndexShift(-1)}
+                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', background: '#fff', cursor: 'pointer', borderRadius: 4 }}>
+                      ↓ 뒤로
+                    </button>
+                    <button onClick={() => handleZIndexShift(1)}
+                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', background: '#fff', cursor: 'pointer', borderRadius: 4 }}>
+                      ↑ 앞으로
+                    </button>
+                  </div>
+                </div>
                 <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>
-                  💡 우클릭: 90° 회전 · 좌드래그: 이동 (50mm)
+                  💡 우클릭: 90° 회전 · 좌드래그: 이동 (50mm) · zIndex 큰 쪽이 앞
                 </div>
               </>
             ) : (
