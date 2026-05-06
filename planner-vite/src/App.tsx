@@ -4,7 +4,8 @@ import { OrbitControls, Environment, PerspectiveCamera, OrthographicCamera, Html
 import type { Floorplan, ItemV2, ModuleV2 } from '@floorplan/floorplan-types';
 import { buildFloorplanChanged, type FloorplanChangeTrigger } from '@floorplan/floorplan-message-schema';
 import { recomputeFloorplan } from '@floorplan/floorplan-trim';
-import type { Space } from '@floorplan/floorplan-types';
+import type { Space, ItemV1, CabinetCategory as FpCabinetCategory } from '@floorplan/floorplan-types';
+import { migrateItemV1ToV2 } from '@floorplan/floorplan-migration';
 import { FloorplanScene } from './FloorplanScene';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -733,6 +734,9 @@ export default function App() {
     return s;
   });
   const hitlMode = params.get('mode') === 'hitl';
+  // M3 파일럿: URL ?floorplan=v2 가 있으면 legacy UPDATE_PLANNER 수신 시
+  // 자동으로 v1→v2 마이그레이션 후 Floorplan 모드 활성. ui-step1.js 변경 없이 검증 가능.
+  const floorplanFlag = params.get('floorplan') === 'v2';
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
   const [selId, setSelId] = useState<string | null>(null);
 
@@ -846,6 +850,59 @@ export default function App() {
           const p = data.payload;
           if (!p || typeof p !== 'object') return;
           setPlanner(prev => ({ ...prev, ...p }));
+          // M3 파일럿: URL ?floorplan=v2 일 때 legacy payload를 ItemV1로 매핑 → v2 마이그레이션 → Floorplan 모드 활성.
+          // ui-step1.js의 _syncPlannerState 코드를 한 줄도 안 바꾸고 새 모드를 검증할 수 있는 게이트.
+          if (floorplanFlag) {
+            try {
+              const v1: ItemV1 = {
+                uniqueId: typeof p.itemId === 'number' ? p.itemId : Date.now(),
+                category: typeof p.presetId === 'string' ? p.presetId : 'sink',
+                categoryId: typeof p.presetId === 'string' ? p.presetId : 'sink',
+                name: '',
+                w: typeof p.width === 'number' ? p.width : 3000,
+                h: typeof p.height === 'number' ? p.height : 2310,
+                d: typeof p.depth === 'number' ? p.depth : 600,
+                specs: {
+                  layoutShape: p.layoutShape,
+                  lowerLayoutShape: p.layoutShape,
+                  lowerSecondaryW: typeof p.secondaryW === 'number' ? p.secondaryW : undefined,
+                  lowerSecondaryD: typeof p.secondaryD === 'number' ? p.secondaryD : undefined,
+                  lowerTertiaryW: typeof p.tertiaryW === 'number' ? p.tertiaryW : undefined,
+                  lowerTertiaryD: typeof p.tertiaryD === 'number' ? p.tertiaryD : undefined,
+                  secondaryStartSide: p.secondaryStartSide,
+                  tertiaryStartFrom: p.tertiaryStartFrom,
+                  distributorStart: p.distributorStart,
+                  distributorEnd: p.distributorEnd,
+                  ventStart: p.ventStart,
+                  finishLeftWidth: typeof p.finishLeftW === 'number' ? p.finishLeftW : undefined,
+                  finishRightWidth: typeof p.finishRightW === 'number' ? p.finishRightW : undefined,
+                  materialTone: typeof p.material === 'string' ? p.material : undefined,
+                },
+                // 모듈은 v1 호환 형식으로 매핑 (lowerModules + upperModules 합치기)
+                modules: [
+                  ...(Array.isArray(p.lowerModules) ? p.lowerModules.map((m: Record<string, unknown>) => ({
+                    id: m.id as string | number,
+                    pos: 'lower' as const,
+                    type: typeof m.moduleType === 'string' ? m.moduleType : 'storage',
+                    w: typeof m.width === 'number' ? m.width : 600,
+                    doorCount: typeof m.doorCount === 'number' ? m.doorCount : undefined,
+                  })) : []),
+                  ...(Array.isArray(p.upperModules) ? p.upperModules.map((m: Record<string, unknown>) => ({
+                    id: m.id as string | number,
+                    pos: 'upper' as const,
+                    type: typeof m.moduleType === 'string' ? m.moduleType : 'storage',
+                    w: typeof m.width === 'number' ? m.width : 600,
+                    doorCount: typeof m.doorCount === 'number' ? m.doorCount : undefined,
+                  })) : []),
+                ],
+              };
+              const v2 = migrateItemV1ToV2(v1);
+              setFloorplanItem(v2);
+              setView('top');
+            } catch (err) {
+              console.warn('[Planner] v1→v2 자동 마이그레이션 실패:', err);
+            }
+          }
           return;
         }
         case 'UPDATE_FLOORPLAN': {

@@ -712,6 +712,9 @@
           return;
         }
         // 새 iframe 생성
+        // M3 파일럿: 부모 URL에 ?floorplan=v2 가 있으면 iframe URL에도 같은 flag 전달
+        // → 자식이 legacy UPDATE_PLANNER를 받았을 때 자동으로 v1→v2 마이그레이션 + Top View 모드 활성
+        const floorplanFlag = window.location.search.includes('floorplan=v2');
         const params = new URLSearchParams({
           preset: finishPayload.presetId,
           w: String(finishPayload.width),
@@ -724,6 +727,7 @@
           toeKickH: String(finishPayload.toeKickH),
           finishLeftW: String(finishPayload.finishLeftW),
           finishRightW: String(finishPayload.finishRightW),
+          ...(floorplanFlag ? { floorplan: 'v2' } : {}),
           ...(finishPayload.distributorStart != null ? { distStart: String(finishPayload.distributorStart) } : {}),
           ...(finishPayload.distributorEnd != null ? { distEnd: String(finishPayload.distributorEnd) } : {}),
           ...(finishPayload.ventStart != null ? { ventStart: String(finishPayload.ventStart) } : {}),
