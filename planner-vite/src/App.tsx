@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, PerspectiveCamera, Html, ContactShadows, Edges } from '@react-three/drei';
+import { OrbitControls, Environment, PerspectiveCamera, OrthographicCamera, Html, ContactShadows, Edges } from '@react-three/drei';
+import type { Floorplan, ItemV2, ModuleV2 } from '@floorplan/floorplan-types';
+import { FloorplanScene } from './FloorplanScene';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import {
@@ -730,6 +732,10 @@ export default function App() {
   const hitlMode = params.get('mode') === 'hitl';
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
   const [selId, setSelId] = useState<string | null>(null);
+
+  // ── M2: Floorplan 모드 ── 부모가 UPDATE_FLOORPLAN을 보내면 활성화 (legacy UPDATE_PLANNER와 병행)
+  const [floorplanItem, setFloorplanItem] = useState<ItemV2 | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
   const [showLayoutPanel, setShowLayoutPanel] = useState(false);
@@ -752,9 +758,30 @@ export default function App() {
 
       switch (data.type) {
         case 'UPDATE_PLANNER': {
+          // legacy: 단일 박스 모델 (M5까지 병행 지원)
           const p = data.payload;
           if (!p || typeof p !== 'object') return;
           setPlanner(prev => ({ ...prev, ...p }));
+          return;
+        }
+        case 'UPDATE_FLOORPLAN': {
+          // M1+: 다중 공간 Floorplan 모델
+          const p = data.payload;
+          if (!p || typeof p !== 'object') return;
+          // schema 1차 검증 (자식 측 자체 가드 — bridge가 이미 검증했지만 방어 심층)
+          if (p.schemaVersion !== 2 || !p.floorplan || !Array.isArray(p.floorplan.spaces)) return;
+          const item: ItemV2 = {
+            schemaVersion: 2,
+            uniqueId: typeof p.itemId === 'number' ? p.itemId : 0,
+            categoryId: p.floorplan.spaces[0]?.category ?? 'sink',
+            labelName: '',
+            floorplan: p.floorplan as Floorplan,
+            modules: Array.isArray(p.modules) ? (p.modules as ModuleV2[]) : [],
+            specs: (p.specs && typeof p.specs === 'object') ? p.specs : {},
+          };
+          setFloorplanItem(item);
+          // Floorplan 모드 진입 시 Top View로 자동 전환 (편집 시작점)
+          setView('top');
           return;
         }
         case 'SET_CAMERA_VIEW': {
@@ -1097,8 +1124,38 @@ export default function App() {
           </group>
 
           <gridHelper args={[6000, 40, 0x000000, 0xcccccc]} position={[0, -1, 0]} />
-          <OrbitControls ref={controlsRef} enablePan enableDamping dampingFactor={0.08} minDistance={700} maxDistance={7000} target={[0, 900, 0]} minPolarAngle={view === 'top' ? 0.01 : 0.1} maxPolarAngle={view === 'top' ? 0.01 : Math.PI / 2} />
-          <PerspectiveCamera makeDefault position={camPos} fov={45} near={1} far={20000} />
+
+          {/* M2: Floorplan 모드 — UPDATE_FLOORPLAN을 받았을 때만 활성, Top View로 강제 */}
+          {floorplanItem && (
+            <group rotation={[-Math.PI / 2, 0, 0]}>
+              <FloorplanScene
+                floorplan={floorplanItem.floorplan}
+                selectedSpaceId={selectedSpaceId}
+                onSelect={setSelectedSpaceId}
+                onChange={(nextFloorplan, _trigger) => {
+                  setFloorplanItem(prev => prev ? { ...prev, floorplan: nextFloorplan } : prev);
+                  // M3에서 부모 페이지로 FLOORPLAN_CHANGED 송신 추가 예정
+                }}
+              />
+            </group>
+          )}
+
+          <OrbitControls
+            ref={controlsRef}
+            enablePan
+            enableRotate={!floorplanItem || view !== 'top'}
+            enableDamping dampingFactor={0.08}
+            minDistance={700} maxDistance={floorplanItem ? 15000 : 7000}
+            target={[0, floorplanItem ? 0 : 900, 0]}
+            minPolarAngle={view === 'top' ? 0.01 : 0.1}
+            maxPolarAngle={view === 'top' ? 0.01 : Math.PI / 2}
+          />
+          {/* Floorplan + Top View일 때만 Orthographic, 그 외 PerspectiveCamera 유지 (legacy) */}
+          {floorplanItem && view === 'top' ? (
+            <OrthographicCamera makeDefault position={[0, 8000, 0.01]} zoom={0.15} near={1} far={50000} />
+          ) : (
+            <PerspectiveCamera makeDefault position={camPos} fov={45} near={1} far={20000} />
+          )}
         </Suspense>
       </Canvas>
 

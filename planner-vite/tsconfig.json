@@ -13,7 +13,10 @@
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "paths": {
+      "@floorplan/*": ["../lib/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../lib/floorplan-types.ts", "../lib/floorplan-trim.ts", "../lib/floorplan-migration.ts", "../lib/floorplan-message-schema.ts"]
 }
