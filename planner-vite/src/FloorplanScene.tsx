@@ -21,7 +21,7 @@
  *   - Three.js Top View에서는 X→X, Floorplan.y → Z (+Z는 화면 아래쪽)
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import type { Floorplan, Space, TrimmedSpace } from '@floorplan/floorplan-types';
@@ -181,33 +181,34 @@ export function FloorplanScene({
     onChange(result, 'rotate');
   }, [floorplan, onChange]);
 
-  const dragRef = useMemo(() => ({ baseX: 0, baseY: 0, spaceId: '' }), []);
+  // mutable ref — 드래그 시작 시점의 baseX/baseY를 보존. useRef가 useMemo([])보다 안전.
+  const dragRef = useRef({ baseX: 0, baseY: 0, spaceId: '' });
 
   const handleDragStart = useCallback((spaceId: string) => {
     const s = floorplan.spaces.find((sp) => sp.id === spaceId);
     if (!s) return;
-    dragRef.baseX = s.x;
-    dragRef.baseY = s.y;
-    dragRef.spaceId = spaceId;
-  }, [floorplan, dragRef]);
+    dragRef.current.baseX = s.x;
+    dragRef.current.baseY = s.y;
+    dragRef.current.spaceId = spaceId;
+  }, [floorplan]);
 
   const handleDragMove = useCallback((spaceId: string, dx: number, dz: number) => {
-    if (dragRef.spaceId !== spaceId) return;
+    if (dragRef.current.spaceId !== spaceId) return;
     const idx = floorplan.spaces.findIndex((s) => s.id === spaceId);
     if (idx < 0) return;
     const next = floorplan.spaces.slice();
     next[idx] = {
       ...next[idx],
-      x: snap(dragRef.baseX + dx),
-      y: snap(dragRef.baseY + dz),
+      x: snap(dragRef.current.baseX + dx),
+      y: snap(dragRef.current.baseY + dz),
     };
     const result = recomputeFloorplan({ ...floorplan, spaces: next });
     onChange(result, 'drag');
-  }, [floorplan, dragRef, onChange]);
+  }, [floorplan, onChange]);
 
   const handleDragEnd = useCallback(() => {
-    dragRef.spaceId = '';
-  }, [dragRef]);
+    dragRef.current.spaceId = '';
+  }, []);
 
   return (
     <group>
@@ -229,10 +230,13 @@ export function FloorplanScene({
         />
       ))}
 
-      {/* 빈 곳 클릭 → 선택 해제 */}
+      {/*
+        빈 곳 클릭 → 선택 해제.
+        부모 group이 [-PI/2,0,0]으로 회전되어 있어 floorplan XY 평면이 world XZ로 매핑됨.
+        plane은 group 내부에서 기본 XY 방향을 그대로 두고 살짝 -Z로 옮겨 SpaceMesh 뒤에 위치.
+      */}
       <mesh
-        position={[0, -0.1, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0, -0.1]}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           onSelect(null);
