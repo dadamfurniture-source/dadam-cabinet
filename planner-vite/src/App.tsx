@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } fr
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera, OrthographicCamera, Html, ContactShadows, Edges } from '@react-three/drei';
 import type { Floorplan, ItemV2, ModuleV2 } from '@floorplan/floorplan-types';
+import { buildFloorplanChanged, type FloorplanChangeTrigger } from '@floorplan/floorplan-message-schema';
 import { FloorplanScene } from './FloorplanScene';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -1132,9 +1133,21 @@ export default function App() {
                 floorplan={floorplanItem.floorplan}
                 selectedSpaceId={selectedSpaceId}
                 onSelect={setSelectedSpaceId}
-                onChange={(nextFloorplan, _trigger) => {
+                onChange={(nextFloorplan, trigger) => {
                   setFloorplanItem(prev => prev ? { ...prev, floorplan: nextFloorplan } : prev);
-                  // M3에서 부모 페이지로 FLOORPLAN_CHANGED 송신 추가 예정
+                  // 부모 페이지로 FLOORPLAN_CHANGED 송신 (M2 2차)
+                  // - origin 명시 (location.origin)
+                  // - schema 빌더로 nonce 자동 생성
+                  // - parent listener는 부모 측 PlannerBridge.onFloorplanChanged 가 처리
+                  if (window.parent && window.parent !== window) {
+                    try {
+                      const msg = buildFloorplanChanged(nextFloorplan, trigger as FloorplanChangeTrigger);
+                      window.parent.postMessage(msg, window.location.origin);
+                    } catch (err) {
+                      // postMessage 실패는 운영에 영향 0 — 콘솔만
+                      console.warn('[Planner] FLOORPLAN_CHANGED 송신 실패:', err);
+                    }
+                  }
                 }}
               />
             </group>
