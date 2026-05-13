@@ -165,7 +165,7 @@ async function main() {
   console.log(`프롬프트 본문: ${OUTPUT_DIR}/prompts/{category}.txt`);
   console.log(`메트릭: ${OUTPUT_DIR}/results.json`);
   console.log('\n육안 검증 체크리스트:');
-  console.log('  [sink]     싱크볼+수전+쿡탑+슬림 후드, 텍스트 없음, 핸드리스');
+  console.log('  [sink]     싱크볼+수전+쿡탑+슬림 후드, 쿡탑 아래 서랍, 카운터탑-도어 30mm 갭, 핸드리스');
   console.log('  [wardrobe] 짝수 도어(6), 세로 길쭉 비율, 좌대 60mm 보임');
   console.log('  [fridge]   중앙 빌트인 냉장고, 측면 키큰장, 10mm 상단 갭');
   console.log('  [vanity]   상부 거울 명확, 하부 카운터/세면대');
