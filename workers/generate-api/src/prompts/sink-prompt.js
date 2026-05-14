@@ -55,14 +55,14 @@ export function buildSinkClosedPrompt({ kitchenLayout, wallData, themeData, styl
 [PLUMBING] Sink at ${wallData.waterPct}% from left, cooktop at ${wallData.exhaustPct}% from left.
 [UPPER] 4 upper cabinets flush to ceiling, no gap between ceiling and cabinets.
 [LOWER] 5 lower cabinets (600mm, sink, 600mm, cooktop, 600mm).
-  - Below cooktop: 2-tier stacked drawer bank (exactly 2 drawer fronts stacked vertically). NOT a single door, NOT a single drawer — must be a visible 2-tier drawer face.
+  - Below cooktop: a SOLID DRAWER STACK of 2 or 3 horizontal drawer fronts filling the ENTIRE cabinet height from directly under the countertop down to the toe kick. The whole module must be completely covered by stacked drawer faces — NO empty appliance slot, NO oven cavity, NO microwave cavity, NO dishwasher cavity, NO door, NO single tall drawer. Each drawer front is a flat horizontal panel; the stack is uniform, fully closed, and shares the cabinet color. The cooktop module must look identical to a regular kitchen drawer bank — only horizontal drawer fronts, nothing else.
   - Below sink: single full-height cabinet door (under-sink storage).
   - Other lower cabinets (the three 600mm units): each is a single full-height door.
 [COUNTERTOP] ${countertop}, continuous surface.
 [SINK] Undermount single-bowl basin, matte gunmetal interior.
 [FAUCET] Minimalist pull-down mixer tap, matte black.
 [COOKTOP] Flush induction cooktop integrated into the countertop, 4 cooking zones, NO gas burners, NO knobs sticking up.
-[HANDLES] J-pull handleless on every door and drawer — a narrow J-shaped channel recess carved into the top edge of each door panel and into the top edge of each drawer front, same color as the cabinet (no separate hardware).
+[HANDLES] J-pull handleless — APPLIED UNIFORMLY to EVERY door AND EVERY drawer front, no exceptions. Each lower panel has a 30mm horizontal channel groove recessed into its TOP edge, running the FULL width of the panel; each upper panel has the same 30mm groove on its BOTTOM edge (mirror). The groove reads as a clean horizontal shadow line, same color and depth as the cabinet, perfectly identical across ALL panels (including every drawer in the cooktop module). NO knobs, NO bars, NO push-to-open buttons, NO mixed handle styles — the J-pull groove is the only grip and must be visually consistent across the entire kitchen run.
 [HOOD] Slim concealed under-cabinet hood integrated above cooktop.
 [STYLE] ${styleName}. Clean lines. Photorealistic interior photography.
 [QUALITY] 8K quality, natural lighting, proper shadows and reflections.
@@ -81,7 +81,7 @@ export function buildSinkAltSpec({ styleName }) {
 - Lower cabinets: ${pick.lower}
 - Countertop: ${altCT}
 - ${styleName} style
-KEEP everything else PIXEL-IDENTICAL: camera angle, room background, cabinet layout, sink position, cooktop position, hood, door lines, appliance positions, lighting, AND the J-pull handleless style AND the 2-tier drawer bank below the cooktop AND the undermount sink + matte black faucet + flush induction cooktop hardware.
+KEEP everything else PIXEL-IDENTICAL: camera angle, room background, cabinet layout, sink position, cooktop position, hood, door lines, appliance positions, lighting, AND the J-pull handleless style (uniform 30mm horizontal groove on the top edge of EVERY lower door/drawer and the bottom edge of EVERY upper door — same width and depth on every single panel) AND the solid drawer stack below the cooktop (2-3 horizontal drawer fronts filling the full module height, NO oven/microwave/dishwasher cavity, NO empty appliance slot) AND the undermount sink + matte black faucet + flush induction cooktop hardware.
 ALL DOORS MUST STAY CLOSED — do NOT open any door or drawer. Do NOT show interior contents. This is a closed-door alternate color rendering of the same kitchen. Photorealistic. No text or labels.`;
 
   return {
