@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPlanFromParts,
+  evalRubySafe,
   partToCommand,
 } from '../src/services/sketchup-builder.service.js';
 import {
@@ -9,6 +10,7 @@ import {
   sketchupComponentName,
   sketchupMaterialName,
   MHYRR_TOOLS,
+  RUBY_COMMANDS,
 } from '../src/constants/sketchup.js';
 import type { CabinetPart } from '../src/types/planner.types.js';
 
@@ -185,5 +187,96 @@ describe('buildPlanFromParts', () => {
   it('카테고리가 컴포넌트 이름에 반영됨', () => {
     const plan = buildPlanFromParts([makeBody('b1')], { category: 'fridge', materialTone: 'walnut' });
     expect(plan.commands[0].arguments.name).toBe('dadam.fridge.b1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 보안 가드 (W1.1 hotfix)
+// ─────────────────────────────────────────────────────────────────
+
+describe('evalRubySafe — eval_ruby RCE 가드', () => {
+  it('allowlist 의 CLEAR_ENTITIES 만 정해진 Ruby 코드로 매핑', () => {
+    const cmd = evalRubySafe('CLEAR_ENTITIES');
+    expect(cmd.tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
+    expect(cmd.arguments.code).toBe(RUBY_COMMANDS.CLEAR_ENTITIES);
+    expect(cmd.arguments.code).toContain('active_entities.clear!');
+  });
+
+  it('트랜잭션 명령 START_OP/COMMIT_OP/ABORT_OP 모두 정해진 코드만 반환', () => {
+    expect(evalRubySafe('START_OP').arguments.code).toBe(RUBY_COMMANDS.START_OP);
+    expect(evalRubySafe('COMMIT_OP').arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
+    expect(evalRubySafe('ABORT_OP').arguments.code).toBe(RUBY_COMMANDS.ABORT_OP);
+  });
+
+  it('TypeScript 컴파일 단에서 allowlist 외 key 차단 — 런타임 typeof 확인', () => {
+    // 모든 키가 RUBY_COMMANDS 에 존재해야 한다 (allowlist 위반 방지).
+    const keys: Array<keyof typeof RUBY_COMMANDS> = ['CLEAR_ENTITIES', 'START_OP', 'COMMIT_OP', 'ABORT_OP'];
+    for (const k of keys) {
+      expect(typeof RUBY_COMMANDS[k]).toBe('string');
+      expect(RUBY_COMMANDS[k].length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// partId validator (W1.1 hotfix M4)
+// ─────────────────────────────────────────────────────────────────
+
+describe('sketchupComponentName — partId 이스케이프', () => {
+  it('안전한 partId 는 그대로 통과', () => {
+    expect(sketchupComponentName('sink', 'body_01')).toBe('dadam.sink.body_01');
+    expect(sketchupComponentName('sink', 'door-2')).toBe('dadam.sink.door-2');
+    expect(sketchupComponentName('sink', 'AbC123')).toBe('dadam.sink.AbC123');
+  });
+
+  it('점 / 슬래시 / 공백 / 한글은 _ 로 치환 (outliner 분리자 깨짐 방지)', () => {
+    expect(sketchupComponentName('sink', 'body.01')).toBe('dadam.sink.body_01');
+    expect(sketchupComponentName('sink', 'a/b')).toBe('dadam.sink.a_b');
+    expect(sketchupComponentName('sink', 'foo bar')).toBe('dadam.sink.foo_bar');
+    expect(sketchupComponentName('sink', '도어1')).toBe('dadam.sink.__1');
+  });
+
+  it('빌더 통합: 위험한 partId 가 들어와도 안전한 컴포넌트 이름 생성', () => {
+    const dangerous: CabinetPart = makeBody('foo.bar/baz qux');
+    const cmd = partToCommand(dangerous, 'sink', 'cream')!;
+    expect(cmd.arguments.name).toBe('dadam.sink.foo_bar_baz_qux');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 빠진 케이스 (W1.1 hotfix M3)
+// ─────────────────────────────────────────────────────────────────
+
+describe('경계 케이스', () => {
+  it('음수 좌표 (벽 안쪽으로 매립된 파트) 도 그대로 전달', () => {
+    const part = makeBody('p', { x: -50, y: 100, z: -10 });
+    const cmd = partToCommand(part, 'sink', 'cream')!;
+    const pos = cmd.arguments.position as number[];
+    expect(pos[0]).toBeCloseTo(mmToInch(-50), 5);
+    expect(pos[1]).toBeCloseTo(mmToInch(-10), 5); // planner z → SketchUp y
+    expect(pos[2]).toBeCloseTo(mmToInch(100), 5);
+  });
+
+  it('초대형 가구 (10m 폭) 도 처리 — inch 변환 정밀도', () => {
+    const part = makeBody('p', { width: 10000, height: 2400, depth: 600 });
+    const cmd = partToCommand(part, 'wardrobe', 'oak')!;
+    const dim = cmd.arguments.dimensions as number[];
+    expect(dim[0]).toBeCloseTo(mmToInch(10000), 4);
+    expect(dim[2]).toBeCloseTo(mmToInch(2400), 4);
+  });
+
+  it('width=0 fallback — null 반환 (NaN/Infinity 호출 방지)', () => {
+    expect(partToCommand(makeBody('p', { width: 0, height: 100, depth: 100 }), 'sink', 'cream')).toBeNull();
+  });
+
+  it('clearExisting 사용 시 eval_ruby 가 allowlist 의 정확한 문자열만 사용', () => {
+    const plan = buildPlanFromParts([], {
+      category: 'sink',
+      materialTone: 'cream',
+      clearExisting: true,
+    });
+    expect(plan.commands).toHaveLength(1);
+    expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
+    expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.CLEAR_ENTITIES);
   });
 });
