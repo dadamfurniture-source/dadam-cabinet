@@ -18,7 +18,9 @@ import {
   sketchupComponentName,
   sketchupMaterialName,
   MHYRR_TOOLS,
+  RUBY_COMMANDS,
   type MhyrrToolName,
+  type RubyCommandKey,
 } from '../constants/sketchup.js';
 
 // ───────────────────────────────────────────────────────────────
@@ -47,6 +49,18 @@ export interface BuildOptions {
   materialTone: MaterialTone;
   /** true 면 빌드 전에 active_entities 초기화 명령을 prepend. */
   clearExisting?: boolean;
+}
+
+/**
+ * eval_ruby 호출 — allowlist 에 정의된 명령만 허용.
+ * 외부 LLM agent 가 도구를 호출할 수 있으므로 임의 Ruby 코드 실행 금지.
+ * 자유 입력이 필요한 경우 별도 RPC 도구로 분리하고 인증을 거치도록 한다.
+ */
+export function evalRubySafe(key: RubyCommandKey): BuildCommand {
+  return {
+    tool: MHYRR_TOOLS.EVAL_RUBY,
+    arguments: { code: RUBY_COMMANDS[key] },
+  };
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -111,12 +125,7 @@ export function buildPlanFromParts(parts: CabinetPart[], opts: BuildOptions): Bu
   const commands: BuildCommand[] = [];
 
   if (opts.clearExisting) {
-    commands.push({
-      tool: MHYRR_TOOLS.EVAL_RUBY,
-      arguments: {
-        code: 'Sketchup.active_model.active_entities.clear!',
-      },
-    });
+    commands.push(evalRubySafe('CLEAR_ENTITIES'));
   }
 
   // 보조 파트 (wireframe, essential=false) 제외.

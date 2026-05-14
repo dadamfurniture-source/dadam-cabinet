@@ -75,10 +75,42 @@ export function sketchupMaterialName(tone: MaterialTone, key: ColorKey): string 
 // 컴포넌트 명명 규칙
 // ───────────────────────────────────────────────────────────────
 
-/** 컴포넌트 이름: dadam.{category}.{partId} — 디자이너가 outliner 에서 식별 가능. */
+/** 컴포넌트 이름에 허용되는 partId 문자: 영숫자, _, - 만. */
+const SAFE_PART_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * 컴포넌트 이름: dadam.{category}.{partId} — 디자이너가 outliner 에서 식별 가능.
+ * partId 에 점/공백/슬래시 등이 들어오면 SketchUp outliner 검색·계층 분리자와
+ * 충돌하므로 _ 로 치환한다 (data loss 없이 안전한 fallback).
+ */
 export function sketchupComponentName(category: string, partId: string): string {
-  return `dadam.${category}.${partId}`;
+  const safePartId = SAFE_PART_ID_RE.test(partId)
+    ? partId
+    : partId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `dadam.${category}.${safePartId}`;
 }
+
+// ───────────────────────────────────────────────────────────────
+// eval_ruby allowlist — RCE 가드
+//
+// mhyrr eval_ruby 는 임의의 Ruby 코드를 실행할 수 있어 매우 위험하다.
+// MCP 도구 입력은 외부 LLM agent 로부터 오므로, 우리는 사전 정의된
+// 명령어만 허용한다. 자유 입력 Ruby 는 expose 하지 않는다.
+// ───────────────────────────────────────────────────────────────
+
+export const RUBY_COMMANDS = {
+  /** 현재 모델의 active_entities 비우기 — clearExisting 옵션 구현. */
+  CLEAR_ENTITIES: 'Sketchup.active_model.active_entities.clear!',
+  /** 트랜잭션 시작 — W2 에서 빌드 일관성에 사용 예정. */
+  START_OP: "Sketchup.active_model.start_operation('dadam_build', true)",
+  /** 트랜잭션 커밋. */
+  COMMIT_OP: 'Sketchup.active_model.commit_operation',
+  /** 트랜잭션 롤백 (undo stack). */
+  ABORT_OP: 'Sketchup.active_model.abort_operation',
+} as const;
+
+export type RubyCommandKey = keyof typeof RUBY_COMMANDS;
+export type RubyCommandLiteral = (typeof RUBY_COMMANDS)[RubyCommandKey];
 
 // ───────────────────────────────────────────────────────────────
 // mhyrr/sketchup-mcp 프로토콜

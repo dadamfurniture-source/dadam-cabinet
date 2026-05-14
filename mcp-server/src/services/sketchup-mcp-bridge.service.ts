@@ -18,6 +18,7 @@ import {
   MHYRR_DEFAULT_HOST,
   MHYRR_DEFAULT_PORT,
   MHYRR_RECEIVE_TIMEOUT_MS,
+  MHYRR_TOOLS,
 } from '../constants/sketchup.js';
 import type { BuildCommand } from './sketchup-builder.service.js';
 
@@ -99,23 +100,43 @@ export async function sendCommand(
 
     sock.on('data', (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
-      // mhyrr 가 응답 JSON 전체를 한 번에 보낸 후 stream 종료를 기다리지 않으므로,
-      // JSON parse 성공 시점에 settle.
-      const tryParse = (b: Buffer): JsonRpcResponse | null => {
+      // mhyrr 응답은 newline-delimited JSON (server.py: response + '\n').
+      // 두 응답이 한 청크에 합쳐 도착하거나 (W2 연결 재사용 시 발생 가능),
+      // 응답이 청크 경계에 걸쳐 도착해도 안전하게 첫 완성된 JSON 라인을 파싱.
+      const newlineIdx = buffer.indexOf(0x0a);
+      if (newlineIdx === -1) {
+        // 아직 newline 미수신 — 다음 청크 대기.
+        // 하지만 mhyrr 가 newline 없이 끝낼 수도 있으므로 fallback 으로 전체 파싱 시도.
         try {
-          return JSON.parse(b.toString('utf8')) as JsonRpcResponse;
+          const parsed = JSON.parse(buffer.toString('utf8')) as JsonRpcResponse;
+          clearTimeout(timer);
+          if (parsed.error) {
+            settle({ ok: false, error: parsed.error });
+          } else {
+            settle({ ok: true, result: parsed.result });
+          }
         } catch {
-          return null;
+          // 아직 미완성 — 계속 대기.
         }
-      };
-      const parsed = tryParse(buffer);
-      if (parsed) {
+        return;
+      }
+
+      const firstLine = buffer.subarray(0, newlineIdx).toString('utf8');
+      try {
+        const parsed = JSON.parse(firstLine) as JsonRpcResponse;
         clearTimeout(timer);
         if (parsed.error) {
           settle({ ok: false, error: parsed.error });
         } else {
           settle({ ok: true, result: parsed.result });
         }
+      } catch (e) {
+        clearTimeout(timer);
+        const msg = e instanceof Error ? e.message : String(e);
+        settle({
+          ok: false,
+          error: { message: `Invalid JSON line from SketchUp bridge: ${msg}` },
+        });
       }
     });
 
@@ -127,9 +148,10 @@ export async function sendCommand(
     sock.once('close', () => {
       clearTimeout(timer);
       if (!settled) {
-        // 응답이 끝나기 전에 닫혔다 — 마지막 시도.
+        // 응답이 끝나기 전에 닫혔다 — newline 없는 단일 JSON 으로 마지막 시도.
+        const trimmed = buffer.toString('utf8').replace(/\n$/, '');
         try {
-          const parsed = JSON.parse(buffer.toString('utf8')) as JsonRpcResponse;
+          const parsed = JSON.parse(trimmed) as JsonRpcResponse;
           if (parsed.error) {
             settle({ ok: false, error: parsed.error });
           } else {
@@ -203,7 +225,7 @@ export async function sendBatch(
  */
 export async function pingSketchup(options: BridgeOptions = {}): Promise<BridgeResult> {
   return sendCommand(
-    { tool: 'get_scene_info', arguments: {} },
+    { tool: MHYRR_TOOLS.GET_SCENE_INFO, arguments: {} },
     { ...options, timeoutMs: options.timeoutMs ?? 3000 },
   );
 }
