@@ -70,21 +70,26 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
 【쿡탑 & 레인지후드】
 - 인덕션 또는 가스레인지: 적절한 위치에 반드시 배치
 - 쿡탑 위에 레인지후드 배치
-- 쿡탑이 있는 모듈의 하부장은 모두 서랍(drawer)으로 구성 — 여닫이 도어 금지
-  (조리 도구·냄비·팬 수납을 위해 슬라이드 서랍이 한국 주방 표준)
+- 쿡탑 모듈 하부장: 카운터탑 바로 아래부터 토킥(toe kick)까지 전체 높이를 2~3단 가로 서랍으로 완전히 채움
+  · 오븐/전자레인지/식기세척기/빌트인 가전을 위한 빈 캐비티 절대 금지
+  · 여닫이 도어 금지, 단일 큰 서랍 1개 금지 — 반드시 2~3단 가로 서랍의 적층 형태
+  · 모든 서랍 전면은 평평한 가로 패널, 캐비닛 색상과 동일, 완전히 닫힌 상태
+  · 쿡탑 모듈은 일반 주방 서랍장과 시각적으로 동일하게 — 빈 공간 없음
 
-【하부장 J-pull 상단 갭 - 시각적 핵심】
-- 카운터탑(상판)과 하부장 도어 상단 사이에 약 30mm 가로 틈이 있어야 함
-- 이 30mm 갭이 J-pull 핸들의 시각 표현 — 손가락을 넣어 도어/서랍을 당김
-- 갭은 균일하게 가로로 캐비닛 폭 전체에 뻗어 있어야 함
-- 도어 표면 자체에는 손잡이/홈/노브 없음 (갭이 유일한 그립)`,
-    forbiddenItem: '❌ NO 싱크볼/쿡탑/후드 누락, NO 쿡탑 아래 여닫이 도어, NO 카운터탑-도어 밀착 → 30mm J-pull 갭 유지',
+【J-pull 목찬넬 - 모든 도어/서랍에 일괄 적용 (시각적 핵심)】
+- 모든 하부장 도어 AND 모든 서랍(쿡탑 하부 2~3단 포함)의 상단 끝에 동일한 30mm 가로 J-pull 채널 그루브
+- 카운터탑(상판)과 하부장 도어/서랍 상단 사이 약 30mm 균일한 가로 틈으로 표현
+- 갭/그루브의 폭·깊이·색상은 모든 패널에서 완벽히 동일 (일괄 통일)
+- 상부장은 도어 하단에 동일한 30mm J-pull 그루브 (대칭)
+- 도어/서랍 표면에는 어떤 손잡이·노브·바·하드웨어도 없음 — 그루브가 유일한 그립
+- 모든 패널이 완전히 같은 J-pull 스타일을 공유해야 함 (혼합 스타일 금지)`,
+    forbiddenItem: '❌ NO 싱크볼/쿡탑/후드 누락, NO 쿡탑 아래 여닫이 도어, NO 쿡탑 하부 오븐/전자레인지/식기세척기/빈 캐비티 (반드시 2~3단 서랍 적층으로 꽉 채움), NO 카운터탑-도어 밀착 → 모든 도어/서랍 상단 30mm J-pull 그루브 일괄 통일',
     outputChecklist: `  • 싱크볼 (SINK BOWL) - 하부장에 매립된 싱크
   • 수전 (FAUCET) - 싱크볼 뒤쪽 중앙의 수도꼭지
   • 쿡탑 (COOKTOP) - 인덕션 또는 가스레인지
   • 레인지후드 (RANGE HOOD) - 쿡탑 위
-  • 쿡탑 모듈 하부장은 모두 서랍 (drawer)
-  • 카운터탑과 하부장 도어 사이 30mm J-pull 갭`,
+  • 쿡탑 모듈 하부장: 2~3단 가로 서랍 적층(전체 높이 채움), 오븐/전자레인지/빈 캐비티 없음
+  • 모든 하부장 도어/서랍 상단 30mm J-pull 목찬넬 그루브 (일괄 통일)`,
   },
 
   wardrobe: {
@@ -303,10 +308,12 @@ ${lowerLayout ? `Lower layout: ${lowerLayout}` : ''}
 - 여닫이 도어 (Swing door): 힌지로 여는 일반 도어
 - 서랍 도어 (Drawer): 앞으로 당기는 서랍
 
-[HANDLE - 핸드리스(매립형) 필수]
-- All doors are handleless. Lower cabinet doors open by reaching behind the door (J-pull recessed handle on the top edge of each door).
-- Upper cabinet doors: J-pull recessed handle on the bottom edge.
-- Instead of visible hardware, use the J-pull recessed groove for grip.
+[HANDLE - 핸드리스 J-pull 목찬넬 (모든 패널 일괄 통일 필수)]
+- ALL doors AND ALL drawer fronts are handleless — NO knobs, NO bars, NO push-to-open buttons, NO visible hardware anywhere.
+- Every lower cabinet door AND every lower cabinet drawer has an IDENTICAL 30mm horizontal J-pull channel groove recessed into its TOP edge, running the FULL width of the panel.
+- Every upper cabinet door has the same 30mm horizontal J-pull groove recessed into its BOTTOM edge (mirror of the lowers).
+- The groove appears as a clean uniform horizontal shadow line, same color/material as the cabinet, identical depth and width across EVERY panel.
+- Mandatory consistency: every door and drawer in the whole cabinet run must share the SAME J-pull groove style — no mixing of handle styles, no skipped panels.
 
 ═══════════════════════════════════════════════════════════════
 [SECTION 5: 사용자 선택 테마/컬러 적용]
