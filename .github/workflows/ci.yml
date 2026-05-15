@@ -6,7 +6,7 @@ on:
   workflow_dispatch:  # 수동 실행만 허용
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 jobs:
   # HTML 검증
