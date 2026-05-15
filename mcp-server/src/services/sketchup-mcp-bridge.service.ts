@@ -9,8 +9,10 @@
 //   - response: { jsonrpc, id, result?, error? }
 //   - 기본 포트 9876, 디자이너 PC 의 SketchUp 확장이 listen
 //
-// 단일 BuildCommand 전송 외에도 sendBatch 로 명령 다발을 순차 전송한다.
-// 각 명령은 별도 JSON-RPC 요청 (mhyrr 가 배치 미지원).
+// W2 변경:
+//   - sendBatch 가 단일 TCP 연결을 재사용하여 N 개 명령 순차 전송 (이전: 매 명령마다
+//     새 연결 → mhyrr accept 오버헤드 + 부분 빌드 위험)
+//   - 트랜잭션 실패 감지 시 자동 abort_operation 호출 (autoAbortOnFailure 옵션)
 // ═══════════════════════════════════════════════════════════════
 
 import { createConnection, type Socket } from 'node:net';
@@ -19,6 +21,7 @@ import {
   MHYRR_DEFAULT_PORT,
   MHYRR_RECEIVE_TIMEOUT_MS,
   MHYRR_TOOLS,
+  RUBY_COMMANDS,
 } from '../constants/sketchup.js';
 import type { BuildCommand } from './sketchup-builder.service.js';
 
@@ -53,7 +56,7 @@ interface JsonRpcResponse {
 }
 
 // ───────────────────────────────────────────────────────────────
-// 단일 명령 전송
+// 단일 명령 전송 (단발 호출용 — 매번 새 연결)
 // ───────────────────────────────────────────────────────────────
 
 let nextRequestId = 1;
@@ -61,8 +64,8 @@ let nextRequestId = 1;
 /**
  * 단일 BuildCommand 를 SketchUp 확장에 전송하고 결과를 받는다.
  *
- * 새 연결을 매번 만들지 않고 호출자가 sendBatch 를 쓰도록 권장 —
- * 단발 호출 (테스트, 헬스체크) 시에만 사용.
+ * 단발 호출 (테스트, 헬스체크) 시에만 사용. 다중 명령은 sendBatch 를 통해
+ * 한 연결을 재사용하라.
  */
 export async function sendCommand(
   command: BuildCommand,
@@ -100,13 +103,8 @@ export async function sendCommand(
 
     sock.on('data', (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
-      // mhyrr 응답은 newline-delimited JSON (server.py: response + '\n').
-      // 두 응답이 한 청크에 합쳐 도착하거나 (W2 연결 재사용 시 발생 가능),
-      // 응답이 청크 경계에 걸쳐 도착해도 안전하게 첫 완성된 JSON 라인을 파싱.
       const newlineIdx = buffer.indexOf(0x0a);
       if (newlineIdx === -1) {
-        // 아직 newline 미수신 — 다음 청크 대기.
-        // 하지만 mhyrr 가 newline 없이 끝낼 수도 있으므로 fallback 으로 전체 파싱 시도.
         try {
           const parsed = JSON.parse(buffer.toString('utf8')) as JsonRpcResponse;
           clearTimeout(timer);
@@ -148,7 +146,6 @@ export async function sendCommand(
     sock.once('close', () => {
       clearTimeout(timer);
       if (!settled) {
-        // 응답이 끝나기 전에 닫혔다 — newline 없는 단일 JSON 으로 마지막 시도.
         const trimmed = buffer.toString('utf8').replace(/\n$/, '');
         try {
           const parsed = JSON.parse(trimmed) as JsonRpcResponse;
@@ -169,49 +166,262 @@ export async function sendCommand(
 }
 
 // ───────────────────────────────────────────────────────────────
-// 배치 전송 (순차)
+// 영구 연결 (W2) — 한 소켓에서 N 개 명령 순차 처리
 // ───────────────────────────────────────────────────────────────
+
+interface PendingRequest {
+  resolve: (r: BridgeResult) => void;
+  // 단일 명령 타임아웃 — 응답이 안 오면 발동되어 connection 을 닫는다.
+  timer: NodeJS.Timeout;
+}
+
+/**
+ * 단일 TCP 연결을 캡슐화. 한 명령 = 한 응답 모델을 strict 하게 유지하기 위해
+ * 큐 (head-of-line) 방식. mhyrr 가 명령 별로 ID 매칭을 보장하지 않으므로
+ * 순차 처리가 안전하다.
+ */
+class PersistentConnection {
+  private sock: Socket;
+  private buffer = Buffer.alloc(0);
+  private queue: PendingRequest[] = [];
+  private closed = false;
+  private connectPromise: Promise<void>;
+  private timeoutMs: number;
+
+  constructor(host: string, port: number, timeoutMs: number) {
+    this.timeoutMs = timeoutMs;
+    this.sock = createConnection({ host, port });
+    this.sock.on('data', (chunk) => this.onData(chunk));
+    this.sock.once('error', (err) => this.onSocketError(err));
+    this.sock.once('close', () => this.onClose());
+
+    this.connectPromise = new Promise((resolve, reject) => {
+      this.sock.once('connect', () => resolve());
+      this.sock.once('error', (err) => reject(err));
+    });
+  }
+
+  /** 연결 확립을 기다린다. createConnection 직후 즉시 send 호출되어도 안전. */
+  async ready(): Promise<void> {
+    await this.connectPromise;
+  }
+
+  /** 명령 전송 — head-of-line 순서로 응답을 분배한다. */
+  async send(command: BuildCommand): Promise<BridgeResult> {
+    if (this.closed) {
+      return { ok: false, error: { message: 'SketchUp bridge: connection closed' } };
+    }
+
+    return new Promise<BridgeResult>((resolve) => {
+      const timer = setTimeout(() => {
+        // 타임아웃 — 큐에서 꺼내 실패 처리, 연결도 끊는다 (응답 분배 정합성).
+        const idx = this.queue.findIndex((p) => p.timer === timer);
+        if (idx !== -1) {
+          this.queue.splice(idx, 1);
+        }
+        resolve({ ok: false, error: { message: `SketchUp bridge timeout after ${this.timeoutMs}ms` } });
+        this.destroy();
+      }, this.timeoutMs);
+
+      this.queue.push({ resolve, timer });
+
+      const req: JsonRpcRequest = {
+        jsonrpc: '2.0',
+        id: nextRequestId++,
+        method: 'tools/call',
+        params: { name: command.tool, arguments: command.arguments },
+      };
+      this.sock.write(JSON.stringify(req) + '\n');
+    });
+  }
+
+  /** 연결을 명시적으로 닫는다. 큐에 남은 요청은 모두 실패 처리. */
+  destroy(): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const p of this.queue) {
+      clearTimeout(p.timer);
+      p.resolve({ ok: false, error: { message: 'SketchUp bridge: connection destroyed' } });
+    }
+    this.queue = [];
+    this.sock.destroy();
+  }
+
+  private onData(chunk: Buffer): void {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+
+    // newline 으로 분리된 모든 완성된 JSON 라인을 head-of-line 순서대로 처리.
+    let newlineIdx: number;
+    while ((newlineIdx = this.buffer.indexOf(0x0a)) !== -1) {
+      const line = this.buffer.subarray(0, newlineIdx).toString('utf8');
+      this.buffer = this.buffer.subarray(newlineIdx + 1);
+      if (line.length === 0) continue;
+      this.dispatchLine(line);
+    }
+  }
+
+  private dispatchLine(line: string): void {
+    const pending = this.queue.shift();
+    if (!pending) {
+      // 응답이 큐 깊이를 초과 — mhyrr 가 비동기 알림을 보냈을 수 있다. 무시.
+      return;
+    }
+    clearTimeout(pending.timer);
+    try {
+      const parsed = JSON.parse(line) as JsonRpcResponse;
+      if (parsed.error) {
+        pending.resolve({ ok: false, error: parsed.error });
+      } else {
+        pending.resolve({ ok: true, result: parsed.result });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      pending.resolve({
+        ok: false,
+        error: { message: `Invalid JSON line from SketchUp bridge: ${msg}` },
+      });
+    }
+  }
+
+  private onSocketError(err: Error): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const p of this.queue) {
+      clearTimeout(p.timer);
+      p.resolve({ ok: false, error: { message: `SketchUp bridge socket error: ${err.message}` } });
+    }
+    this.queue = [];
+    this.sock.destroy();
+  }
+
+  private onClose(): void {
+    if (this.closed) return;
+    this.closed = true;
+    // 마지막 응답이 newline 없이 끝났을 수도 있어 한 번 더 시도.
+    const trimmed = this.buffer.toString('utf8').replace(/\n$/, '');
+    if (trimmed.length > 0) {
+      this.dispatchLine(trimmed);
+      this.buffer = Buffer.alloc(0);
+    }
+    for (const p of this.queue) {
+      clearTimeout(p.timer);
+      p.resolve({
+        ok: false,
+        error: { message: 'SketchUp bridge: connection closed before response' },
+      });
+    }
+    this.queue = [];
+  }
+}
+
+// ───────────────────────────────────────────────────────────────
+// 배치 전송 (W2 — 단일 연결 재사용 + 자동 ABORT)
+// ───────────────────────────────────────────────────────────────
+
+export interface BatchOptions extends BridgeOptions {
+  /**
+   * true (기본값) 면 명령 실패 시 트랜잭션을 abort_operation 으로 롤백한다.
+   * buildPlanFromParts(transactional=true) 산출물과 짝을 이룸 — 빌더가
+   * START_OP/COMMIT_OP 로 감싸지 않으면 ABORT 도 의미 없음.
+   */
+  autoAbortOnFailure?: boolean;
+  /**
+   * true 면 첫 실패에서 멈춘다 (이후 명령 미전송). false 면 모든 명령을
+   * 끝까지 시도. 기본값 true — 트랜잭션 모드에서 부분 빌드 방지.
+   */
+  stopOnFirstFailure?: boolean;
+}
 
 export interface BatchResult {
   totalSent: number;
   successCount: number;
   failures: Array<{ index: number; error: { message: string } }>;
   durationMs: number;
+  /** autoAbortOnFailure 트리거되어 abort_operation 까지 보냈는지. */
+  aborted: boolean;
 }
 
 /**
- * BuildCommand[] 를 순차 전송. 한 명령 실패해도 다음 명령으로 진행하되,
- * 실패 정보는 모아서 반환.
+ * BuildCommand[] 를 단일 TCP 연결로 순차 전송.
  *
- * 추후 mhyrr 가 batch endpoint 를 제공하면 한 연결에서 묶어 보내도록 최적화 가능.
+ * W2 개선:
+ *   - 한 소켓 재사용 → mhyrr accept 오버헤드 제거 (수십 ms 절감 / 명령)
+ *   - 실패 감지 시 즉시 abort_operation 호출하여 부분 빌드 방지
+ *   - stopOnFirstFailure=true (기본) 로 트랜잭션 정합성 우선
  */
 export async function sendBatch(
   commands: BuildCommand[],
-  options: BridgeOptions = {},
+  options: BatchOptions = {},
 ): Promise<BatchResult> {
+  const host = options.host ?? MHYRR_DEFAULT_HOST;
+  const port = options.port ?? MHYRR_DEFAULT_PORT;
+  const timeoutMs = options.timeoutMs ?? MHYRR_RECEIVE_TIMEOUT_MS;
+  const autoAbort = options.autoAbortOnFailure ?? true;
+  const stopOnFirstFailure = options.stopOnFirstFailure ?? true;
+
   const start = Date.now();
   const failures: BatchResult['failures'] = [];
   let successCount = 0;
+  let aborted = false;
+  let totalSent = 0;
 
-  for (let i = 0; i < commands.length; i++) {
-    const cmd = commands[i];
-    if (!cmd) continue;
-    const result = await sendCommand(cmd, options);
-    if (result.ok) {
-      successCount++;
-    } else {
-      failures.push({
-        index: i,
-        error: result.error ?? { message: 'unknown error' },
-      });
+  if (commands.length === 0) {
+    return { totalSent: 0, successCount: 0, failures: [], durationMs: 0, aborted: false };
+  }
+
+  const conn = new PersistentConnection(host, port, timeoutMs);
+
+  try {
+    try {
+      await conn.ready();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {
+        totalSent: 0,
+        successCount: 0,
+        failures: [{ index: -1, error: { message: `SketchUp bridge connect failed: ${msg}` } }],
+        durationMs: Date.now() - start,
+        aborted: false,
+      };
     }
+
+    for (let i = 0; i < commands.length; i++) {
+      const cmd = commands[i];
+      if (!cmd) continue;
+      totalSent++;
+      const result = await conn.send(cmd);
+      if (result.ok) {
+        successCount++;
+      } else {
+        failures.push({
+          index: i,
+          error: result.error ?? { message: 'unknown error' },
+        });
+
+        if (autoAbort) {
+          // ABORT 는 best-effort — 결과 무시. 같은 연결로 보낸다.
+          await conn.send({
+            tool: MHYRR_TOOLS.EVAL_RUBY,
+            arguments: { code: RUBY_COMMANDS.ABORT_OP },
+          });
+          aborted = true;
+        }
+
+        if (stopOnFirstFailure) {
+          break;
+        }
+      }
+    }
+  } finally {
+    conn.destroy();
   }
 
   return {
-    totalSent: commands.length,
+    totalSent,
     successCount,
     failures,
     durationMs: Date.now() - start,
+    aborted,
   };
 }
 

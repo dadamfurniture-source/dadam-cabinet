@@ -139,10 +139,22 @@ describe('partToCommand', () => {
 // ─────────────────────────────────────────────────────────────────
 
 describe('buildPlanFromParts', () => {
-  it('빈 입력 → componentCount 0', () => {
-    const plan = buildPlanFromParts([], { category: 'sink', materialTone: 'cream' });
+  it('빈 입력 + transactional=false → 빈 commands', () => {
+    const plan = buildPlanFromParts([], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+    });
     expect(plan.componentCount).toBe(0);
     expect(plan.commands).toEqual([]);
+  });
+
+  it('빈 입력 (기본 transactional=true) → START_OP/COMMIT_OP 만 남음', () => {
+    const plan = buildPlanFromParts([], { category: 'sink', materialTone: 'cream' });
+    expect(plan.componentCount).toBe(0);
+    expect(plan.commands).toHaveLength(2);
+    expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
+    expect(plan.commands[1].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
   });
 
   it('본체 → 도어 순서로 정렬', () => {
@@ -152,7 +164,11 @@ describe('buildPlanFromParts', () => {
       makeDoor('d2', 'm1'),       // 도어
       makeBody('b2'),             // 본체
     ];
-    const plan = buildPlanFromParts(parts, { category: 'sink', materialTone: 'cream' });
+    const plan = buildPlanFromParts(parts, {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+    });
 
     expect(plan.componentCount).toBe(4);
     const names = plan.commands.map((c) => c.arguments.name as string);
@@ -168,15 +184,20 @@ describe('buildPlanFromParts', () => {
       makeBody('b3', { essential: false }),
       makeBody('b4'),
     ];
-    const plan = buildPlanFromParts(parts, { category: 'storage', materialTone: 'graphite' });
+    const plan = buildPlanFromParts(parts, {
+      category: 'storage',
+      materialTone: 'graphite',
+      transactional: false,
+    });
     expect(plan.componentCount).toBe(2);
   });
 
-  it('clearExisting=true 면 맨 앞에 eval_ruby clear 명령 prepend', () => {
+  it('clearExisting=true + transactional=false → 맨 앞에 eval_ruby clear', () => {
     const plan = buildPlanFromParts([makeBody('b1')], {
       category: 'sink',
       materialTone: 'cream',
       clearExisting: true,
+      transactional: false,
     });
 
     expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
@@ -185,8 +206,62 @@ describe('buildPlanFromParts', () => {
   });
 
   it('카테고리가 컴포넌트 이름에 반영됨', () => {
-    const plan = buildPlanFromParts([makeBody('b1')], { category: 'fridge', materialTone: 'walnut' });
+    const plan = buildPlanFromParts([makeBody('b1')], {
+      category: 'fridge',
+      materialTone: 'walnut',
+      transactional: false,
+    });
     expect(plan.commands[0].arguments.name).toBe('dadam.fridge.b1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 트랜잭션 래핑 (W2)
+// ─────────────────────────────────────────────────────────────────
+
+describe('buildPlanFromParts — transactional 래핑', () => {
+  it('기본값: transactional=true → START_OP 가 맨 앞, COMMIT_OP 가 맨 뒤', () => {
+    const plan = buildPlanFromParts(
+      [makeBody('b1'), makeBody('b2')],
+      { category: 'sink', materialTone: 'cream' }, // transactional 미지정 → 기본 true
+    );
+
+    expect(plan.commands).toHaveLength(4); // START + 2 create + COMMIT
+    expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
+    expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
+    expect(plan.commands[plan.commands.length - 1].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
+    expect(plan.commands[plan.commands.length - 1].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
+
+    // componentCount 는 create_component 만 카운트 — START/COMMIT 영향 없음
+    expect(plan.componentCount).toBe(2);
+  });
+
+  it('transactional=false → START/COMMIT 미포함', () => {
+    const plan = buildPlanFromParts([makeBody('b1')], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+    });
+    const codes = plan.commands
+      .filter((c) => c.tool === MHYRR_TOOLS.EVAL_RUBY)
+      .map((c) => c.arguments.code as string);
+    expect(codes).not.toContain(RUBY_COMMANDS.START_OP);
+    expect(codes).not.toContain(RUBY_COMMANDS.COMMIT_OP);
+  });
+
+  it('clearExisting + transactional 동시 사용: [START, CLEAR, create…, COMMIT] 순서', () => {
+    const plan = buildPlanFromParts([makeBody('b1')], {
+      category: 'sink',
+      materialTone: 'cream',
+      clearExisting: true,
+      transactional: true,
+    });
+
+    expect(plan.commands).toHaveLength(4); // START + CLEAR + create + COMMIT
+    expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
+    expect(plan.commands[1].arguments.code).toBe(RUBY_COMMANDS.CLEAR_ENTITIES);
+    expect(plan.commands[2].tool).toBe(MHYRR_TOOLS.CREATE_COMPONENT);
+    expect(plan.commands[3].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
   });
 });
 
@@ -269,11 +344,12 @@ describe('경계 케이스', () => {
     expect(partToCommand(makeBody('p', { width: 0, height: 100, depth: 100 }), 'sink', 'cream')).toBeNull();
   });
 
-  it('clearExisting 사용 시 eval_ruby 가 allowlist 의 정확한 문자열만 사용', () => {
+  it('clearExisting + transactional=false 사용 시 eval_ruby 가 allowlist 의 정확한 문자열만 사용', () => {
     const plan = buildPlanFromParts([], {
       category: 'sink',
       materialTone: 'cream',
       clearExisting: true,
+      transactional: false,
     });
     expect(plan.commands).toHaveLength(1);
     expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
