@@ -294,14 +294,14 @@ describe('sendBatch — 연결 실패 처리', () => {
 });
 
 describe('pingSketchup', () => {
-  it('get_scene_info 호출로 가용성 확인', async () => {
+  it('get_selection 호출로 가용성 확인', async () => {
     mock = await startMockServer({
-      responsesByTool: { get_scene_info: [{ ok: true }] },
+      responsesByTool: { get_selection: [{ ok: true }] },
     });
 
     const r = await pingSketchup({ host: '127.0.0.1', port: mock.port, timeoutMs: 500 });
     expect(r.ok).toBe(true);
-    expect(mock.receivedTools).toEqual(['get_scene_info']);
+    expect(mock.receivedTools).toEqual(['get_selection']);
   });
 });
 
