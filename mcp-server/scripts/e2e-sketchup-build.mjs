@@ -184,6 +184,10 @@ async function buildCategory(name) {
     autoAbortOnFailure: ARGS.transactional,
     stopOnFirstFailure: ARGS.transactional,
     emitMetrics: false,
+    // mhyrr v0.1.0 는 한 연결당 한 명령만 처리 (main.rb 의 client.close).
+    // 실 mhyrr 와 호환을 위해 per-command 모드 사용. persistent 모드는
+    // mhyrr fork (while loop) 가 적용된 환경에서만 동작.
+    connectionMode: 'per-command',
   });
   const elapsedMs = Date.now() - start;
 

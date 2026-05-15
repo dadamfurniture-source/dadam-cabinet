@@ -383,6 +383,16 @@ export interface BatchOptions extends BridgeOptions {
    * autoAbortOnFailure 가 false 라도 cancel 시에는 ABORT 를 보낸다 (트랜잭션 안전).
    */
   signal?: AbortSignal;
+  /**
+   * mhyrr 호환 모드:
+   *   - 'persistent' (기본): 단일 TCP 연결 재사용 (W2). mhyrr 가 persistent 지원해야 함.
+   *   - 'per-command': 명령마다 새 TCP 연결 (W1 sendCommand 동작). mhyrr v0.1.0 는
+   *     한 연결당 한 명령만 처리 후 close — 이 경우 'per-command' 필요.
+   *
+   * 실 mhyrr 환경 (2026-05-15 검증) 에서 발견된 호환성 갭. 'persistent' 가 더 빠르지만
+   * mhyrr 가 fork 되어 persistent 지원 추가될 때까지 'per-command' 가 안전.
+   */
+  connectionMode?: 'persistent' | 'per-command';
 }
 
 /**
@@ -431,6 +441,7 @@ export async function sendBatch(
   const autoAbort = options.autoAbortOnFailure ?? true;
   const stopOnFirstFailure = options.stopOnFirstFailure ?? true;
   const emitMetrics = options.emitMetrics ?? true;
+  const connectionMode = options.connectionMode ?? 'persistent';
 
   const start = Date.now();
   const failures: BatchResult['failures'] = [];
@@ -454,6 +465,79 @@ export async function sendBatch(
     return buildEmptyResult();
   }
 
+  // ───────────────────────────────────────────────────────────────
+  // per-command 모드: mhyrr v0.1.0 호환 (한 연결당 한 명령). sendCommand 를
+  // 각 명령마다 호출 — PersistentConnection 사용 안 함.
+  // ───────────────────────────────────────────────────────────────
+  if (connectionMode === 'per-command') {
+    const bridgeOpts: BridgeOptions = { host, port, timeoutMs };
+    for (let i = 0; i < commands.length; i++) {
+      if (options.signal?.aborted) {
+        await sendCommand(evalRubySafe('ABORT_OP'), bridgeOpts);
+        aborted = true;
+        break;
+      }
+
+      const cmd = commands[i];
+      if (!cmd) continue;
+      totalSent++;
+      progress?.onSent?.(i, cmd);
+      const cmdStart = Date.now();
+      const result = await sendCommand(cmd, bridgeOpts);
+      const cmdDuration = Date.now() - cmdStart;
+      progress?.onResult?.(i, result, cmdDuration);
+
+      if (result.ok) {
+        successCount++;
+        rttSamples.push(cmdDuration);
+      } else {
+        failures.push({ index: i, error: result.error ?? { message: 'unknown error' } });
+
+        if (autoAbort) {
+          await sendCommand(evalRubySafe('ABORT_OP'), bridgeOpts);
+          aborted = true;
+        }
+        if (stopOnFirstFailure) break;
+      }
+    }
+
+    const durationMs = Date.now() - start;
+    const averageRttMs =
+      rttSamples.length > 0
+        ? Math.round(rttSamples.reduce((sum, v) => sum + v, 0) / rttSamples.length)
+        : 0;
+
+    if (emitMetrics) {
+      log.info(
+        {
+          event: 'sketchup_batch_complete',
+          connectionMode,
+          totalSent,
+          successCount,
+          failureCount: failures.length,
+          durationMs,
+          averageRttMs,
+          aborted,
+          unmatchedResponses: 0,
+        },
+        'sketchup batch complete (per-command)',
+      );
+    }
+
+    return {
+      totalSent,
+      successCount,
+      failures,
+      durationMs,
+      aborted,
+      averageRttMs,
+      unmatchedResponses: 0,
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  // persistent 모드 (기본, W2): 단일 TCP 연결 재사용
+  // ───────────────────────────────────────────────────────────────
   const conn = new PersistentConnection(host, port, timeoutMs);
 
   try {
@@ -572,7 +656,9 @@ export async function sendBatch(
  */
 export async function pingSketchup(options: BridgeOptions = {}): Promise<BridgeResult> {
   return sendCommand(
-    { tool: MHYRR_TOOLS.GET_SCENE_INFO, arguments: {} },
+    // mhyrr v0.1.0 실 검증 (2026-05-15): get_selection 이 가장 가벼운 query.
+    // get_scene_info 는 README 에만 있고 v0.1.0 에 미구현.
+    { tool: MHYRR_TOOLS.GET_SELECTION, arguments: {} },
     { ...options, timeoutMs: options.timeoutMs ?? 3000 },
   );
 }

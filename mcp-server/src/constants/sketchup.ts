@@ -120,15 +120,31 @@ export const MHYRR_DEFAULT_HOST = '127.0.0.1';
 export const MHYRR_DEFAULT_PORT = 9876;
 export const MHYRR_RECEIVE_TIMEOUT_MS = 15000;
 
-/** mhyrr 가 노출하는 tools/call name 집합 (src/sketchup_mcp/server.py 참조). */
+/**
+ * mhyrr 가 노출하는 tools/call name 집합.
+ *
+ * 실제 mhyrr v0.1.0 (su_mcp/main.rb) 검증 (2026-05-15 디자이너 PC):
+ *   create_component / delete_component / transform_component
+ *   get_selection (= 가장 가벼운 query, ping 용)
+ *   export / export_scene / set_material / eval_ruby
+ *   boolean_operation / chamfer_edges / fillet_edges
+ *   create_mortise_tenon / create_dovetail / create_finger_joint
+ *
+ * 참고: README 에 명시된 get_scene_info / get_selected_components 는 v0.1.0 미구현 —
+ * 상수는 README 기반으로 보존하되 pingSketchup 은 실 호환 도구 GET_SELECTION 사용.
+ */
 export const MHYRR_TOOLS = {
   CREATE_COMPONENT: 'create_component',
   DELETE_COMPONENT: 'delete_component',
   TRANSFORM_COMPONENT: 'transform_component',
   SET_MATERIAL: 'set_material',
   EXPORT_SCENE: 'export_scene',
+  /** README 명시 (mhyrr v0.1.0 미구현 — 호환 환경에서만 사용) */
   GET_SCENE_INFO: 'get_scene_info',
+  /** README 명시 (mhyrr v0.1.0 미구현 — 호환 환경에서만 사용) */
   GET_SELECTED_COMPONENTS: 'get_selected_components',
+  /** mhyrr v0.1.0 의 가장 가벼운 query — pingSketchup 의 기본값 */
+  GET_SELECTION: 'get_selection',
   EVAL_RUBY: 'eval_ruby',
 } as const;
 
