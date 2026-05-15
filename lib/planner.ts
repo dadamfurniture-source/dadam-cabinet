@@ -6,6 +6,8 @@ export type ModuleSection = 'lower' | 'upper' | 'full';
 
 export type ModuleKind = 'door' | 'drawer' | 'open';
 
+export type ColorKey = 'body' | 'accent' | 'shadow' | 'trim';
+
 export type DoorOpenDirection = 'left' | 'right' | 'both';
 export type DoorType = 'swing' | 'sliding' | 'liftup';
 
@@ -99,7 +101,7 @@ export interface CabinetPart {
   width: number;
   height: number;
   depth: number;
-  colorKey: 'body' | 'accent' | 'shadow' | 'trim';
+  colorKey: ColorKey;
   wireframe?: boolean;
   essential?: boolean;
   moduleType?: ModuleType;
@@ -136,10 +138,15 @@ export interface DerivedCabinet {
   estimatedBoardAreaM2: number;
 }
 
-export const MATERIALS: Record<
-  MaterialTone,
-  { name: string; body: string; accent: string; shadow: string; trim: string }
-> = {
+export interface MaterialPalette {
+  name: string;
+  body: string;
+  accent: string;
+  shadow: string;
+  trim: string;
+}
+
+export const MATERIALS: Record<MaterialTone, MaterialPalette> = {
   cream: { name: 'Warm Cream', body: '#f1ede3', accent: '#d4c4a8', shadow: '#b7aa90', trim: '#c8bda8' },
   oak: { name: 'Natural Oak', body: '#d1b089', accent: '#9e7144', shadow: '#6f5031', trim: '#8a6a42' },
   walnut: { name: 'Deep Walnut', body: '#8b6447', accent: '#b48a6a', shadow: '#5d412c', trim: '#6e5238' },

@@ -3,7 +3,10 @@
 //
 // mcp-server는 stdio 환경이라 Three.js/React 의존 불가.
 // SketchUp 통합에 필요한 데이터 타입만 별도 파일로 미러한다.
-// 원본 변경 시 scripts/sync-planner.mjs (Week 2 도입 예정)로 동기화.
+//
+// 동기화: `npm run sync-planner` (drift 검사) / `--write` (자동 수정).
+// CI 에서 mcp-server-ci.yml 의 "Planner mirror drift check" 가 강제.
+// 새 export 추가 시 mcp-server/scripts/sync-planner.mjs 의 EXPORTS_TO_SYNC 도 함께 갱신.
 // ═══════════════════════════════════════════════════════════════
 
 export type CabinetCategory = 'sink' | 'wardrobe' | 'vanity' | 'shoe' | 'fridge' | 'storage';

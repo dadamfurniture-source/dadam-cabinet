@@ -15,7 +15,9 @@
     "test:bom": "vitest run bom",
     "test:design": "vitest run design-data",
     "test:all": "tsc && vitest run",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "sync-planner": "node scripts/sync-planner.mjs",
+    "sync-planner:check": "node scripts/sync-planner.mjs --quiet"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
