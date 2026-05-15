@@ -516,3 +516,83 @@ describe('sendBatch — averageRttMs (W3-1, FR-06)', () => {
     expect(result.averageRttMs).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// W4 N3: SKETCHUP_BRIDGE_* env var fallback chain
+// ─────────────────────────────────────────────────────────────────
+
+describe('env var fallback (W4 N3)', () => {
+  const ORIG_HOST = process.env.SKETCHUP_BRIDGE_HOST;
+  const ORIG_PORT = process.env.SKETCHUP_BRIDGE_PORT;
+  const ORIG_TIMEOUT = process.env.SKETCHUP_BRIDGE_TIMEOUT_MS;
+
+  afterEach(() => {
+    // env 복원
+    if (ORIG_HOST === undefined) delete process.env.SKETCHUP_BRIDGE_HOST;
+    else process.env.SKETCHUP_BRIDGE_HOST = ORIG_HOST;
+    if (ORIG_PORT === undefined) delete process.env.SKETCHUP_BRIDGE_PORT;
+    else process.env.SKETCHUP_BRIDGE_PORT = ORIG_PORT;
+    if (ORIG_TIMEOUT === undefined) delete process.env.SKETCHUP_BRIDGE_TIMEOUT_MS;
+    else process.env.SKETCHUP_BRIDGE_TIMEOUT_MS = ORIG_TIMEOUT;
+  });
+
+  it('옵션 미지정 + env SKETCHUP_BRIDGE_PORT 설정 → env 값 사용', async () => {
+    mock = await startMockServer({ responsesByTool: { create_component: [{ ok: true }] } });
+    process.env.SKETCHUP_BRIDGE_HOST = '127.0.0.1';
+    process.env.SKETCHUP_BRIDGE_PORT = String(mock.port);
+
+    // host/port 명시 안 함 → env 가 적용되어야 함
+    const result = await sendBatch([createCmd('a')], {
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+
+    expect(result.successCount).toBe(1);
+    expect(mock.connectionCount).toBe(1);
+  });
+
+  it('옵션 명시 시 env 무시 (옵션 우선)', async () => {
+    mock = await startMockServer({ responsesByTool: { create_component: [{ ok: true }] } });
+    process.env.SKETCHUP_BRIDGE_HOST = '127.0.0.1';
+    process.env.SKETCHUP_BRIDGE_PORT = '1'; // 일부러 잘못된 env
+
+    // 옵션이 명시되었으므로 env 무시 — 정상 빌드
+    const result = await sendBatch([createCmd('a')], {
+      host: '127.0.0.1',
+      port: mock.port,
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+
+    expect(result.successCount).toBe(1);
+  });
+
+  it('env SKETCHUP_BRIDGE_PORT 가 invalid (NaN) → 기본값 fallback', async () => {
+    process.env.SKETCHUP_BRIDGE_PORT = 'not-a-number';
+    // port 도 옵션도 미지정이면 MHYRR_DEFAULT_PORT (9876) 사용 — 거의 확실히 연결 실패
+    const result = await sendBatch([createCmd('a')], {
+      host: '127.0.0.1',
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+      timeoutMs: 200,
+    });
+
+    // mock 가 9876 에 안 떠 있으므로 연결 실패하지만, NaN env 가 호환되어
+    // crash 하지 않고 fallback 으로 동작해야 함 (즉 result 가 반환됨)
+    expect(result.totalSent).toBe(0);
+    expect(result.failures.length).toBeGreaterThan(0);
+    expect(result.failures[0].index).toBe(-1);
+  });
+
+  it('env SKETCHUP_BRIDGE_PORT 가 음수 → 기본값 fallback (envInt 가드)', async () => {
+    process.env.SKETCHUP_BRIDGE_PORT = '-5';
+    const result = await sendBatch([createCmd('a')], {
+      host: '127.0.0.1',
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+      timeoutMs: 200,
+    });
+    // 음수 port 가 그대로 쓰이면 socket exception 등 다른 에러 — 가드 동작 시 fallback
+    expect(result.totalSent).toBe(0);
+  });
+});
