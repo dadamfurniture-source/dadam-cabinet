@@ -12,48 +12,15 @@
 //   - partId 는 builder 에서 영숫자/언더스코어/하이픈으로 sanitize
 // ═══════════════════════════════════════════════════════════════
 
-import { z } from 'zod';
 import { registerTool } from './registry.js';
 import { mcpSuccess, mcpError } from '../utils/response-builder.js';
 import { buildPlanFromParts } from '../services/sketchup-builder.service.js';
 import { sendBatch, pingSketchup } from '../services/sketchup-mcp-bridge.service.js';
+import { sketchupBuildSchema } from '../schemas/sketchup.schema.js';
 import type { CabinetPart } from '../types/planner.types.js';
 
-const categoryEnum = z.enum(['sink', 'wardrobe', 'fridge', 'vanity', 'shoe', 'storage']);
-const toneEnum = z.enum(['cream', 'oak', 'walnut', 'graphite']);
-const colorKeyEnum = z.enum(['body', 'accent', 'shadow', 'trim']);
-
-const partSchema = z.object({
-  id: z.string().min(1),
-  label: z.string(),
-  x: z.number(),
-  y: z.number(),
-  z: z.number(),
-  width: z.number(),
-  height: z.number(),
-  depth: z.number(),
-  colorKey: colorKeyEnum,
-  wireframe: z.boolean().optional(),
-  essential: z.boolean().optional(),
-  moduleType: z.enum(['storage', 'sink', 'cook', 'hood', 'drawer']).optional(),
-  isDoor: z.boolean().optional(),
-  parentModuleId: z.string().optional(),
-  doorIndex: z.number().optional(),
-  openDirection: z.enum(['left', 'right']).optional(),
-});
-
-const inputSchema = z.object({
-  parts: z.array(partSchema).min(1),
-  category: categoryEnum,
-  materialTone: toneEnum,
-  clearExisting: z.boolean().optional().default(false),
-  transactional: z.boolean().optional().default(true),
-  host: z.string().optional(),
-  port: z.number().int().positive().optional(),
-  timeoutMs: z.number().int().positive().optional(),
-  /** true 면 빌드 전 SketchUp 확장 ping 으로 가용성 확인 후 진행. */
-  ping: z.boolean().optional().default(true),
-});
+// W3-2: 공유 zod 스키마로 분리 — HTTP route (sketchup.route.ts) 와 동일.
+const inputSchema = sketchupBuildSchema;
 
 registerTool(
   {
