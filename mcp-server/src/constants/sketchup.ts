@@ -101,11 +101,11 @@ export function sketchupComponentName(category: string, partId: string): string 
 export const RUBY_COMMANDS = {
   /** 현재 모델의 active_entities 비우기 — clearExisting 옵션 구현. */
   CLEAR_ENTITIES: 'Sketchup.active_model.active_entities.clear!',
-  /** 트랜잭션 시작 — W2 에서 빌드 일관성에 사용 예정. */
+  /** 트랜잭션 시작 — buildPlanFromParts(transactional=true) 에서 자동 prepend. */
   START_OP: "Sketchup.active_model.start_operation('dadam_build', true)",
-  /** 트랜잭션 커밋. */
+  /** 트랜잭션 커밋 — buildPlanFromParts(transactional=true) 에서 자동 append. */
   COMMIT_OP: 'Sketchup.active_model.commit_operation',
-  /** 트랜잭션 롤백 (undo stack). */
+  /** 트랜잭션 롤백 — sendBatch(autoAbortOnFailure=true) 에서 실패 감지 시 호출. */
   ABORT_OP: 'Sketchup.active_model.abort_operation',
 } as const;
 
