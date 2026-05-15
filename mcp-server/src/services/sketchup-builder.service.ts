@@ -49,6 +49,12 @@ export interface BuildOptions {
   materialTone: MaterialTone;
   /** true 면 빌드 전에 active_entities 초기화 명령을 prepend. */
   clearExisting?: boolean;
+  /**
+   * true (기본값) 면 빌드 명령들을 SketchUp start_operation/commit_operation
+   * 블록으로 감싼다. 디자이너가 Ctrl+Z 한 번으로 빌드 전체를 롤백 가능하며,
+   * 도중 실패 시 bridge 가 abort_operation 으로 깔끔히 되돌릴 수 있다.
+   */
+  transactional?: boolean;
 }
 
 /**
@@ -117,12 +123,20 @@ export function partToCommand(part: CabinetPart, category: CabinetCategory, tone
  * CabinetPart[] → BuildPlan.
  *
  * 순서 보장:
- * 1) clearExisting 이 true 면 active_entities clear 명령을 맨 앞에 둔다.
- * 2) wireframe / essential=false 인 보조 파트는 제외 (시공 산출물에 불필요).
- * 3) 본체 → 도어 순으로 정렬 (도어가 본체보다 z 축에서 살짝 앞으로 나오는 게 자연스러움).
+ * 1) transactional=true (기본) 이면 START_OP 를 맨 앞에 prepend, COMMIT_OP 를 맨 뒤에 append.
+ *    clearExisting 의 clear 명령은 트랜잭션 내부 (START_OP 다음) 에 위치 — clear 도
+ *    같은 undo 그룹에 묶여야 디자이너가 Ctrl+Z 한 번으로 이전 상태로 복귀 가능.
+ * 2) clearExisting 이 true 면 active_entities clear 명령을 트랜잭션 시작 직후 둔다.
+ * 3) wireframe / essential=false 인 보조 파트는 제외 (시공 산출물에 불필요).
+ * 4) 본체 → 도어 순으로 정렬 (도어가 본체보다 z 축에서 살짝 앞으로 나오는 게 자연스러움).
  */
 export function buildPlanFromParts(parts: CabinetPart[], opts: BuildOptions): BuildPlan {
   const commands: BuildCommand[] = [];
+  const transactional = opts.transactional ?? true;
+
+  if (transactional) {
+    commands.push(evalRubySafe('START_OP'));
+  }
 
   if (opts.clearExisting) {
     commands.push(evalRubySafe('CLEAR_ENTITIES'));
@@ -138,6 +152,10 @@ export function buildPlanFromParts(parts: CabinetPart[], opts: BuildOptions): Bu
   for (const part of [...bodyParts, ...doorParts]) {
     const cmd = partToCommand(part, opts.category, opts.materialTone);
     if (cmd) commands.push(cmd);
+  }
+
+  if (transactional) {
+    commands.push(evalRubySafe('COMMIT_OP'));
   }
 
   return {
