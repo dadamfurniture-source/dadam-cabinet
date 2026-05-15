@@ -78,6 +78,7 @@ app.listen(PORT, () => {
   log.info('  CRUD /api/designs (auth required)');
   log.info('  CRUD /api/images  (auth required)');
   log.info('  POST /api/sketchup/build (auth required, 5/min)');
+  log.info('  POST /api/sketchup/build/stream (SSE, auth required, 5/min)');
   log.info('  GET  /api/sketchup/ping  (auth required)');
   log.info('  GET  /health');
 });
