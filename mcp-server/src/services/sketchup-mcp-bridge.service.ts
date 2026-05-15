@@ -37,6 +37,30 @@ export interface BridgeOptions {
   timeoutMs?: number;
 }
 
+// ───────────────────────────────────────────────────────────────
+// W4 N3: env var fallback chain
+// 우선순위: BridgeOptions → process.env.SKETCHUP_BRIDGE_* → MHYRR_DEFAULT_*
+// ───────────────────────────────────────────────────────────────
+
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function resolveBridgeOptions(options: BridgeOptions): {
+  host: string;
+  port: number;
+  timeoutMs: number;
+} {
+  return {
+    host: options.host ?? process.env.SKETCHUP_BRIDGE_HOST ?? MHYRR_DEFAULT_HOST,
+    port: options.port ?? envInt('SKETCHUP_BRIDGE_PORT', MHYRR_DEFAULT_PORT),
+    timeoutMs: options.timeoutMs ?? envInt('SKETCHUP_BRIDGE_TIMEOUT_MS', MHYRR_RECEIVE_TIMEOUT_MS),
+  };
+}
+
 export interface BridgeResult {
   ok: boolean;
   result?: unknown;
@@ -73,9 +97,7 @@ export async function sendCommand(
   command: BuildCommand,
   options: BridgeOptions = {},
 ): Promise<BridgeResult> {
-  const host = options.host ?? MHYRR_DEFAULT_HOST;
-  const port = options.port ?? MHYRR_DEFAULT_PORT;
-  const timeoutMs = options.timeoutMs ?? MHYRR_RECEIVE_TIMEOUT_MS;
+  const { host, port, timeoutMs } = resolveBridgeOptions(options);
 
   return new Promise<BridgeResult>((resolve) => {
     const sock: Socket = createConnection({ host, port });
@@ -405,9 +427,7 @@ export async function sendBatch(
   options: BatchOptions = {},
   progress?: SendBatchProgress,
 ): Promise<BatchResult> {
-  const host = options.host ?? MHYRR_DEFAULT_HOST;
-  const port = options.port ?? MHYRR_DEFAULT_PORT;
-  const timeoutMs = options.timeoutMs ?? MHYRR_RECEIVE_TIMEOUT_MS;
+  const { host, port, timeoutMs } = resolveBridgeOptions(options);
   const autoAbort = options.autoAbortOnFailure ?? true;
   const stopOnFirstFailure = options.stopOnFirstFailure ?? true;
   const emitMetrics = options.emitMetrics ?? true;
