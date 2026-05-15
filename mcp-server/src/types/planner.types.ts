@@ -17,6 +17,10 @@ export type ModuleSection = 'lower' | 'upper' | 'full';
 
 export type ModuleKind = 'door' | 'drawer' | 'open';
 
+export type DoorOpenDirection = 'left' | 'right' | 'both';
+
+export type DoorType = 'swing' | 'sliding' | 'liftup';
+
 export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
 
 export type ColorKey = 'body' | 'accent' | 'shadow' | 'trim';

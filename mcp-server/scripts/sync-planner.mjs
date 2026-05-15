@@ -34,6 +34,8 @@ const EXPORTS_TO_SYNC = [
   'MaterialTone',
   'ModuleSection',
   'ModuleKind',
+  'DoorOpenDirection',
+  'DoorType',
   'ModuleType',
   'ColorKey',
   'CabinetPart',
