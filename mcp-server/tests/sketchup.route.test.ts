@@ -169,7 +169,7 @@ const authHeaders = { Authorization: 'Bearer test-token', 'Content-Type': 'appli
 
 describe('GET /api/sketchup/ping', () => {
   it('mhyrr 응답 시 200 + rttMs', async () => {
-    const tcp = await startTcpMock({ responsesByTool: { get_scene_info: [{ ok: true }] } });
+    const tcp = await startTcpMock({ responsesByTool: { get_selection: [{ ok: true }] } });
     try {
       const res = await fetch(`${httpBase}/api/sketchup/ping?host=127.0.0.1&port=${tcp.port}`, {
         headers: authHeaders,
@@ -207,7 +207,7 @@ describe('POST /api/sketchup/build', () => {
   it('HAPPY: 1 컴포넌트 빌드 성공 → 200 + summary', async () => {
     const tcp = await startTcpMock({
       responsesByTool: {
-        get_scene_info: [{ ok: true }], // ping
+        get_selection: [{ ok: true }], // ping
         create_component: [{ ok: true }],
       },
     });
@@ -224,7 +224,7 @@ describe('POST /api/sketchup/build', () => {
       expect(json.summary.successCount).toBe(1);
       expect(json.summary.failures).toEqual([]);
       expect(json.summary.aborted).toBe(false);
-      expect(tcp.receivedTools).toEqual(['get_scene_info', 'create_component']);
+      expect(tcp.receivedTools).toEqual(['get_selection', 'create_component']);
     } finally {
       await tcp.close();
     }
@@ -274,7 +274,7 @@ describe('POST /api/sketchup/build', () => {
   it('BUILD_FAILED: ping 통과하지만 빌드 명령 실패 → 502', async () => {
     const tcp = await startTcpMock({
       responsesByTool: {
-        get_scene_info: [{ ok: true }],
+        get_selection: [{ ok: true }],
         create_component: [{ ok: false, message: 'duplicate name' }],
       },
     });
@@ -319,7 +319,7 @@ describe('POST /api/sketchup/build — rate limit', () => {
   it('5/min 초과 시 429 RATE_LIMIT', async () => {
     const tcp = await startTcpMock({
       responsesByTool: {
-        get_scene_info: Array.from({ length: 10 }, () => ({ ok: true })),
+        get_selection: Array.from({ length: 10 }, () => ({ ok: true })),
         create_component: Array.from({ length: 10 }, () => ({ ok: true })),
       },
     });
@@ -398,7 +398,7 @@ describe('POST /api/sketchup/build/stream (SSE)', () => {
   it('HAPPY: 1 컴포넌트 빌드 → build_started → command_sent/ack → complete', async () => {
     const tcp = await startTcpMock({
       responsesByTool: {
-        get_scene_info: [{ ok: true }],
+        get_selection: [{ ok: true }],
         create_component: [{ ok: true }],
       },
     });
@@ -464,7 +464,7 @@ describe('POST /api/sketchup/build/stream (SSE)', () => {
   it('BUILD_FAILED (transactional): aborted 이벤트 + complete.aborted=true + ABORT_OP 전송', async () => {
     const tcp = await startTcpMock({
       responsesByTool: {
-        get_scene_info: [{ ok: true }],
+        get_selection: [{ ok: true }],
         create_component: [{ ok: true }, { ok: false, message: 'duplicate' }],
         eval_ruby: [{ ok: true }, { ok: true }, { ok: true }], // START, ABORT, ... (transactional)
       },
@@ -502,7 +502,7 @@ describe('POST /api/sketchup/build/stream (SSE)', () => {
     // 응답을 천천히 보내서 abort 시점을 잡을 시간 확보
     const tcp = await startTcpMock({
       responsesByTool: {
-        get_scene_info: [{ ok: true }],
+        get_selection: [{ ok: true }],
         create_component: [{ ok: true }, { ok: true }, { ok: true }],
         eval_ruby: [{ ok: true }, { ok: true }, { ok: true }, { ok: true }], // START + ABORT 등
       },

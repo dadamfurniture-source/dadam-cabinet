@@ -100,11 +100,15 @@ export function partToCommand(part: CabinetPart, category: CabinetCategory, tone
   return {
     tool: MHYRR_TOOLS.CREATE_COMPONENT,
     arguments: {
-      name: componentName,
+      // mhyrr v0.1.0 필수 필드. 캐비닛 부품은 모두 직육면체 → 'cube'.
+      type: 'cube',
       position: [mmToInch(skOrigin.x), mmToInch(skOrigin.y), mmToInch(skOrigin.z)],
       dimensions: [mmToInch(skDimensions.x), mmToInch(skDimensions.y), mmToInch(skDimensions.z)],
+      // name / material / meta 는 mhyrr v0.1.0 의 create_component 가 무시한다.
+      // outliner 식별과 머티리얼은 별도 eval_ruby/set_material 호출로 적용해야 함 (W4 후속).
+      // 그래도 정보 손실 방지를 위해 함께 전달 — mhyrr 가 무시할 뿐.
+      name: componentName,
       material: materialName,
-      // 메타데이터 (mhyrr eval_ruby 로 attribute_dictionary 접근 시 사용)
       meta: {
         category,
         partId: part.id,
