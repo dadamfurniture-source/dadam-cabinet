@@ -21,9 +21,8 @@ import {
   MHYRR_DEFAULT_PORT,
   MHYRR_RECEIVE_TIMEOUT_MS,
   MHYRR_TOOLS,
-  RUBY_COMMANDS,
 } from '../constants/sketchup.js';
-import type { BuildCommand } from './sketchup-builder.service.js';
+import { evalRubySafe, type BuildCommand } from './sketchup-builder.service.js';
 
 // ───────────────────────────────────────────────────────────────
 // 타입
@@ -400,10 +399,8 @@ export async function sendBatch(
 
         if (autoAbort) {
           // ABORT 는 best-effort — 결과 무시. 같은 연결로 보낸다.
-          await conn.send({
-            tool: MHYRR_TOOLS.EVAL_RUBY,
-            arguments: { code: RUBY_COMMANDS.ABORT_OP },
-          });
+          // evalRubySafe 를 거쳐 RUBY_COMMANDS allowlist 게이트웨이 일관성 유지.
+          await conn.send(evalRubySafe('ABORT_OP'));
           aborted = true;
         }
 
