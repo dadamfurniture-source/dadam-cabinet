@@ -23,6 +23,9 @@ import {
   MHYRR_TOOLS,
 } from '../constants/sketchup.js';
 import { evalRubySafe, type BuildCommand } from './sketchup-builder.service.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('sketchup-bridge');
 
 // ───────────────────────────────────────────────────────────────
 // 타입
@@ -186,6 +189,12 @@ class PersistentConnection {
   private closed = false;
   private connectPromise: Promise<void>;
   private timeoutMs: number;
+  // M3 (W3): 인스턴스별 JSON-RPC request id 카운터.
+  // W2 까지는 모듈 전역 nextRequestId 를 공유했으나, 두 진입점 (sendCommand, PersistentConnection)
+  // 사이 id 공간을 격리하기 위해 클래스 필드로 분리. mhyrr 는 id 매칭하지 않으므로 호환.
+  private nextRequestId = 1;
+  // M4 (W3): dispatchLine 큐가 빌 때 발생하는 미매칭 응답 카운터 — destroy 시 메트릭에 포함.
+  private unmatchedResponseCount = 0;
 
   constructor(host: string, port: number, timeoutMs: number) {
     this.timeoutMs = timeoutMs;
@@ -226,12 +235,17 @@ class PersistentConnection {
 
       const req: JsonRpcRequest = {
         jsonrpc: '2.0',
-        id: nextRequestId++,
+        id: this.nextRequestId++,
         method: 'tools/call',
         params: { name: command.tool, arguments: command.arguments },
       };
       this.sock.write(JSON.stringify(req) + '\n');
     });
+  }
+
+  /** 미매칭 응답 카운터 (M4) — sendBatch 메트릭 로깅에서 읽는다. */
+  getUnmatchedResponseCount(): number {
+    return this.unmatchedResponseCount;
   }
 
   /** 연결을 명시적으로 닫는다. 큐에 남은 요청은 모두 실패 처리. */
@@ -262,7 +276,14 @@ class PersistentConnection {
   private dispatchLine(line: string): void {
     const pending = this.queue.shift();
     if (!pending) {
-      // 응답이 큐 깊이를 초과 — mhyrr 가 비동기 알림을 보냈을 수 있다. 무시.
+      // M4 (W3): 큐가 빈 상태에서 도착한 응답 — mhyrr 의 비동기 알림 또는 프로토콜 드리프트.
+      // W2 까지는 silent drop 이었으나 진단 가시성을 위해 debug 로그 + 카운터 누적.
+      // 응답 본문은 200자 truncate (PII / 폭주 방지).
+      this.unmatchedResponseCount++;
+      log.debug(
+        { line: line.slice(0, 200), unmatched: this.unmatchedResponseCount },
+        'unmatched bridge response — queue empty',
+      );
       return;
     }
     clearTimeout(pending.timer);
@@ -329,6 +350,20 @@ export interface BatchOptions extends BridgeOptions {
    * 끝까지 시도. 기본값 true — 트랜잭션 모드에서 부분 빌드 방지.
    */
   stopOnFirstFailure?: boolean;
+  /**
+   * FR-06 (W3): 배치 종료 시 구조화 메트릭 info 로그를 남길지. 기본값 true.
+   * 라우트가 자체 로그를 남기는 경우 false 로 끈다.
+   */
+  emitMetrics?: boolean;
+}
+
+/**
+ * FR-03 (W3): sendBatch 진행률 콜백. SSE 라우트가 명령별 이벤트를
+ * 송신하기 위한 진입점. 미지정이면 W2 동작과 동일.
+ */
+export interface SendBatchProgress {
+  onSent?: (index: number, command: BuildCommand) => void;
+  onResult?: (index: number, result: BridgeResult, durationMs: number) => void;
 }
 
 export interface BatchResult {
@@ -338,6 +373,13 @@ export interface BatchResult {
   durationMs: number;
   /** autoAbortOnFailure 트리거되어 abort_operation 까지 보냈는지. */
   aborted: boolean;
+  /**
+   * FR-06 (W3): 성공한 명령들의 평균 왕복시간 (ms). 성공이 0건이면 0.
+   * ABORT_OP / 실패 명령은 평균에서 제외 — 정상 빌드 RTT 만 측정.
+   */
+  averageRttMs: number;
+  /** M4 (W3): 배치 동안 PersistentConnection 에서 발생한 미매칭 응답 수. */
+  unmatchedResponses: number;
 }
 
 /**
@@ -347,25 +389,43 @@ export interface BatchResult {
  *   - 한 소켓 재사용 → mhyrr accept 오버헤드 제거 (수십 ms 절감 / 명령)
  *   - 실패 감지 시 즉시 abort_operation 호출하여 부분 빌드 방지
  *   - stopOnFirstFailure=true (기본) 로 트랜잭션 정합성 우선
+ *
+ * W3 개선:
+ *   - FR-03: progress 콜백으로 명령별 onSent/onResult 이벤트 노출 (SSE 라우트용)
+ *   - FR-06: averageRttMs / unmatchedResponses 메트릭 + emitMetrics info 로그
  */
 export async function sendBatch(
   commands: BuildCommand[],
   options: BatchOptions = {},
+  progress?: SendBatchProgress,
 ): Promise<BatchResult> {
   const host = options.host ?? MHYRR_DEFAULT_HOST;
   const port = options.port ?? MHYRR_DEFAULT_PORT;
   const timeoutMs = options.timeoutMs ?? MHYRR_RECEIVE_TIMEOUT_MS;
   const autoAbort = options.autoAbortOnFailure ?? true;
   const stopOnFirstFailure = options.stopOnFirstFailure ?? true;
+  const emitMetrics = options.emitMetrics ?? true;
 
   const start = Date.now();
   const failures: BatchResult['failures'] = [];
+  const rttSamples: number[] = []; // 성공 명령 RTT 만 수집 (ABORT/실패 제외)
   let successCount = 0;
   let aborted = false;
   let totalSent = 0;
+  let unmatchedResponses = 0;
+
+  const buildEmptyResult = (): BatchResult => ({
+    totalSent: 0,
+    successCount: 0,
+    failures: [],
+    durationMs: 0,
+    aborted: false,
+    averageRttMs: 0,
+    unmatchedResponses: 0,
+  });
 
   if (commands.length === 0) {
-    return { totalSent: 0, successCount: 0, failures: [], durationMs: 0, aborted: false };
+    return buildEmptyResult();
   }
 
   const conn = new PersistentConnection(host, port, timeoutMs);
@@ -375,22 +435,43 @@ export async function sendBatch(
       await conn.ready();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return {
+      const failedResult: BatchResult = {
         totalSent: 0,
         successCount: 0,
         failures: [{ index: -1, error: { message: `SketchUp bridge connect failed: ${msg}` } }],
         durationMs: Date.now() - start,
         aborted: false,
+        averageRttMs: 0,
+        unmatchedResponses: 0,
       };
+      if (emitMetrics) {
+        log.warn(
+          {
+            event: 'sketchup_connect_failed',
+            host,
+            port,
+            errorMessage: msg,
+            durationMs: failedResult.durationMs,
+          },
+          'sketchup bridge connect failed',
+        );
+      }
+      return failedResult;
     }
 
     for (let i = 0; i < commands.length; i++) {
       const cmd = commands[i];
       if (!cmd) continue;
       totalSent++;
+      progress?.onSent?.(i, cmd);
+      const commandStart = Date.now();
       const result = await conn.send(cmd);
+      const commandDuration = Date.now() - commandStart;
+      progress?.onResult?.(i, result, commandDuration);
+
       if (result.ok) {
         successCount++;
+        rttSamples.push(commandDuration);
       } else {
         failures.push({
           index: i,
@@ -410,15 +491,40 @@ export async function sendBatch(
       }
     }
   } finally {
+    unmatchedResponses = conn.getUnmatchedResponseCount();
     conn.destroy();
+  }
+
+  const durationMs = Date.now() - start;
+  const averageRttMs =
+    rttSamples.length > 0
+      ? Math.round(rttSamples.reduce((sum, v) => sum + v, 0) / rttSamples.length)
+      : 0;
+
+  if (emitMetrics) {
+    log.info(
+      {
+        event: 'sketchup_batch_complete',
+        totalSent,
+        successCount,
+        failureCount: failures.length,
+        durationMs,
+        averageRttMs,
+        aborted,
+        unmatchedResponses,
+      },
+      'sketchup batch complete',
+    );
   }
 
   return {
     totalSent,
     successCount,
     failures,
-    durationMs: Date.now() - start,
+    durationMs,
     aborted,
+    averageRttMs,
+    unmatchedResponses,
   };
 }
 

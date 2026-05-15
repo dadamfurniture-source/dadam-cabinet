@@ -28,13 +28,22 @@ interface MockServer {
   port: number;
   receivedTools: string[];
   receivedCodes: string[];
+  receivedIds: number[];
+  /** W3-1: 응답 1줄 보낸 직후 임의 1줄을 추가 emit (M4 미매칭 응답 시나리오용) */
+  emitUnsolicitedAfter?: { afterTool: string; payload: object };
   connectionCount: number;
   close: () => Promise<void>;
 }
 
-async function startMockServer(opts: MockOptions): Promise<MockServer> {
+interface ExtendedMockOptions extends MockOptions {
+  /** W3-1: 응답 후 즉시 임의 1줄을 더 emit — M4 미매칭 응답 시나리오. */
+  emitUnsolicitedAfter?: { afterTool: string; payload: object };
+}
+
+async function startMockServer(opts: ExtendedMockOptions): Promise<MockServer> {
   const receivedTools: string[] = [];
   const receivedCodes: string[] = [];
+  const receivedIds: number[] = [];
   const sockets = new Set<Socket>();
   let connectionCount = 0;
 
@@ -63,6 +72,7 @@ async function startMockServer(opts: MockOptions): Promise<MockServer> {
             params: { name: string; arguments: Record<string, unknown> };
           };
           receivedTools.push(req.params.name);
+          receivedIds.push(req.id);
           if (typeof req.params.arguments?.code === 'string') {
             receivedCodes.push(req.params.arguments.code);
           }
@@ -76,6 +86,11 @@ async function startMockServer(opts: MockOptions): Promise<MockServer> {
                 error: { code: -32000, message: scenario.message ?? 'mock failure' },
               };
           sock.write(JSON.stringify(response) + '\n');
+
+          // W3-1: 미매칭 응답 시나리오 — 동일 도구 처리 후 추가 응답 1줄 emit.
+          if (opts.emitUnsolicitedAfter && req.params.name === opts.emitUnsolicitedAfter.afterTool) {
+            sock.write(JSON.stringify(opts.emitUnsolicitedAfter.payload) + '\n');
+          }
         } catch {
           // 무시 — 잘못된 JSON 은 응답 없이 종료
         }
@@ -103,6 +118,7 @@ async function startMockServer(opts: MockOptions): Promise<MockServer> {
     port,
     receivedTools,
     receivedCodes,
+    receivedIds,
     get connectionCount() {
       return connectionCount;
     },
@@ -286,5 +302,217 @@ describe('pingSketchup', () => {
     const r = await pingSketchup({ host: '127.0.0.1', port: mock.port, timeoutMs: 500 });
     expect(r.ok).toBe(true);
     expect(mock.receivedTools).toEqual(['get_scene_info']);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// W3-1: M3 회귀 — PersistentConnection 인스턴스별 reqId 카운터
+// ─────────────────────────────────────────────────────────────────
+
+describe('sendBatch — M3 인스턴스별 request id (W3-1)', () => {
+  it('연속 두 배치는 각 새 connection 에서 id 가 1 부터 시작', async () => {
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: true }, { ok: true }, { ok: true }, { ok: true }] },
+    });
+
+    // 배치 1: 2 명령
+    await sendBatch([createCmd('a'), createCmd('b')], {
+      host: '127.0.0.1',
+      port: mock.port,
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+    // 배치 2: 2 명령 (새 PersistentConnection)
+    await sendBatch([createCmd('c'), createCmd('d')], {
+      host: '127.0.0.1',
+      port: mock.port,
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+
+    // 인스턴스별 카운터이므로 두 배치 모두 1,2 시퀀스로 시작해야 한다.
+    // (모듈 전역이었다면 1,2,3,4 — 두 배치 합쳐 누적)
+    expect(mock.receivedIds).toEqual([1, 2, 1, 2]);
+    expect(mock.connectionCount).toBe(2);
+  });
+
+  it('단발 sendCommand 는 모듈 전역 카운터를 유지 (격리 확인)', async () => {
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: true }, { ok: true }] },
+    });
+
+    // 단발 호출 두 번 — 모듈 전역 카운터로 누적 (1 이 아닌 임의 시작점부터 +1 증가)
+    await sendCommand(createCmd('x'), { host: '127.0.0.1', port: mock.port });
+    const idsAfterFirst = [...mock.receivedIds];
+    await sendCommand(createCmd('y'), { host: '127.0.0.1', port: mock.port });
+
+    expect(mock.receivedIds.length).toBe(2);
+    expect(mock.receivedIds[1]).toBe(idsAfterFirst[0] + 1);
+    expect(mock.connectionCount).toBe(2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// W3-1: M4 회귀 — dispatchLine 미매칭 응답 카운터
+// ─────────────────────────────────────────────────────────────────
+
+describe('sendBatch — M4 미매칭 응답 카운터 (W3-1)', () => {
+  it('큐가 빈 상태에서 도착한 응답은 unmatchedResponses 로 누적', async () => {
+    // 첫 명령 후 mhyrr 가 알림 1줄을 더 emit 하는 시나리오
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: true }] },
+      emitUnsolicitedAfter: {
+        afterTool: 'create_component',
+        payload: { jsonrpc: '2.0', method: 'notification', params: { type: 'mhyrr_async_event' } },
+      },
+    });
+
+    const result = await sendBatch([createCmd('a')], {
+      host: '127.0.0.1',
+      port: mock.port,
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+
+    expect(result.successCount).toBe(1);
+    // 미매칭 응답 1건이 카운트되어야 한다.
+    // (이전 동작에선 silent drop 으로 검증 불가능했음)
+    expect(result.unmatchedResponses).toBeGreaterThanOrEqual(1);
+  });
+
+  it('정상 시나리오에선 unmatchedResponses=0', async () => {
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: true }, { ok: true }] },
+    });
+
+    const result = await sendBatch([createCmd('a'), createCmd('b')], {
+      host: '127.0.0.1',
+      port: mock.port,
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+
+    expect(result.successCount).toBe(2);
+    expect(result.unmatchedResponses).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// W3-1: FR-03 progress 콜백
+// ─────────────────────────────────────────────────────────────────
+
+describe('sendBatch — progress 콜백 (W3-1)', () => {
+  it('onSent / onResult 가 명령별로 순서대로 호출됨', async () => {
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: true }, { ok: true }, { ok: true }] },
+    });
+
+    const sentEvents: number[] = [];
+    const resultEvents: Array<{ index: number; ok: boolean; durationMs: number }> = [];
+
+    await sendBatch(
+      [createCmd('a'), createCmd('b'), createCmd('c')],
+      {
+        host: '127.0.0.1',
+        port: mock.port,
+        autoAbortOnFailure: false,
+        emitMetrics: false,
+      },
+      {
+        onSent: (index) => sentEvents.push(index),
+        onResult: (index, result, durationMs) =>
+          resultEvents.push({ index, ok: result.ok, durationMs }),
+      },
+    );
+
+    expect(sentEvents).toEqual([0, 1, 2]);
+    expect(resultEvents.map((e) => ({ index: e.index, ok: e.ok }))).toEqual([
+      { index: 0, ok: true },
+      { index: 1, ok: true },
+      { index: 2, ok: true },
+    ]);
+    // 각 명령의 durationMs 가 측정되어야 한다 (0 이상)
+    for (const e of resultEvents) {
+      expect(e.durationMs).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('실패 명령도 onResult 로 통보, 이후 ABORT 명령은 progress 콜백에 포함 안 됨', async () => {
+    mock = await startMockServer({
+      responsesByTool: {
+        create_component: [{ ok: true }, { ok: false, message: 'duplicate' }],
+        eval_ruby: [{ ok: true }],
+      },
+    });
+
+    const sent: number[] = [];
+    const results: Array<{ index: number; ok: boolean }> = [];
+
+    const result = await sendBatch(
+      [createCmd('a'), createCmd('b'), createCmd('c')],
+      {
+        host: '127.0.0.1',
+        port: mock.port,
+        autoAbortOnFailure: true,
+        stopOnFirstFailure: true,
+        emitMetrics: false,
+      },
+      {
+        onSent: (index) => sent.push(index),
+        onResult: (index, r) => results.push({ index, ok: r.ok }),
+      },
+    );
+
+    // 0(ok), 1(fail) 만 보고. 2 는 미발사, ABORT 는 progress 콜백에 포함되지 않는다.
+    expect(sent).toEqual([0, 1]);
+    expect(results).toEqual([
+      { index: 0, ok: true },
+      { index: 1, ok: false },
+    ]);
+    expect(result.aborted).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// W3-1: FR-06 averageRttMs 메트릭
+// ─────────────────────────────────────────────────────────────────
+
+describe('sendBatch — averageRttMs (W3-1, FR-06)', () => {
+  it('성공 명령들의 평균 RTT 계산', async () => {
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: true }, { ok: true }, { ok: true }] },
+    });
+
+    const result = await sendBatch(
+      [createCmd('a'), createCmd('b'), createCmd('c')],
+      { host: '127.0.0.1', port: mock.port, autoAbortOnFailure: false, emitMetrics: false },
+    );
+
+    expect(result.successCount).toBe(3);
+    expect(result.averageRttMs).toBeGreaterThanOrEqual(0);
+    // 로컬 mock 서버는 매우 빠르므로 평균이 합리적 범위 안에 있어야 함
+    expect(result.averageRttMs).toBeLessThan(1000);
+  });
+
+  it('빈 입력 → averageRttMs=0', async () => {
+    const result = await sendBatch([], { emitMetrics: false });
+    expect(result.averageRttMs).toBe(0);
+    expect(result.unmatchedResponses).toBe(0);
+  });
+
+  it('전체 실패 → averageRttMs=0 (성공 표본 0건)', async () => {
+    mock = await startMockServer({
+      responsesByTool: { create_component: [{ ok: false, message: 'err' }] },
+    });
+
+    const result = await sendBatch([createCmd('a')], {
+      host: '127.0.0.1',
+      port: mock.port,
+      autoAbortOnFailure: false,
+      emitMetrics: false,
+    });
+
+    expect(result.successCount).toBe(0);
+    expect(result.averageRttMs).toBe(0);
   });
 });
