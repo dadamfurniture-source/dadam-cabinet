@@ -38,6 +38,8 @@ import { errorHandler } from '../src/middleware/error-handler.js';
 
 interface TcpMockOptions {
   responsesByTool: Record<string, Array<{ ok: boolean; message?: string }>>;
+  /** W3-3 SSE 테스트용 — 응답 전 인위적 지연 (ms). 클라이언트 단절 검증에 사용. */
+  delayMs?: number;
 }
 
 interface TcpMock {
@@ -74,7 +76,11 @@ async function startTcpMock(opts: TcpMockOptions): Promise<TcpMock> {
           const response = scenario.ok
             ? { jsonrpc: '2.0', id: req.id, result: { ok: true } }
             : { jsonrpc: '2.0', id: req.id, error: { code: -32000, message: scenario.message ?? 'mock failure' } };
-          sock.write(JSON.stringify(response) + '\n');
+          if (opts.delayMs && opts.delayMs > 0) {
+            setTimeout(() => sock.write(JSON.stringify(response) + '\n'), opts.delayMs);
+          } else {
+            sock.write(JSON.stringify(response) + '\n');
+          }
         } catch {}
       }
     });
@@ -337,6 +343,203 @@ describe('POST /api/sketchup/build — rate limit', () => {
       }
       expect(sawTooMany).toBe(true);
       expect(lastStatus).toBe(429);
+    } finally {
+      await tcp.close();
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// W3-3: POST /api/sketchup/build/stream — SSE
+// ─────────────────────────────────────────────────────────────────
+
+interface SSEFrame {
+  event: string;
+  data: any;
+}
+
+/**
+ * fetch 의 Response.body 를 읽어 SSE 프레임 배열로 파싱한다.
+ * 스트림이 끝나거나 client 가 reader.cancel() 할 때까지 누적.
+ */
+async function readAllSSE(res: Response): Promise<SSEFrame[]> {
+  const frames: SSEFrame[] = [];
+  const decoder = new TextDecoder();
+  const reader = res.body!.getReader();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // 프레임 분리자: 빈 줄 (\n\n)
+    let sep: number;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const lines = block.split('\n');
+      let event = '';
+      let dataLines: string[] = [];
+      for (const line of lines) {
+        if (line.startsWith('event: ')) event = line.slice(7);
+        else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
+      }
+      if (event) {
+        const dataStr = dataLines.join('\n');
+        let data: any = dataStr;
+        try { data = JSON.parse(dataStr); } catch {}
+        frames.push({ event, data });
+      }
+    }
+  }
+  return frames;
+}
+
+describe('POST /api/sketchup/build/stream (SSE)', () => {
+  it('HAPPY: 1 컴포넌트 빌드 → build_started → command_sent/ack → complete', async () => {
+    const tcp = await startTcpMock({
+      responsesByTool: {
+        get_scene_info: [{ ok: true }],
+        create_component: [{ ok: true }],
+      },
+    });
+    try {
+      const res = await fetch(`${httpBase}/api/sketchup/build/stream`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(makeBuildBody({ host: '127.0.0.1', port: tcp.port })),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/event-stream');
+      const frames = await readAllSSE(res);
+      const eventNames = frames.map((f) => f.event);
+      expect(eventNames[0]).toBe('build_started');
+      expect(eventNames).toContain('command_sent');
+      expect(eventNames).toContain('command_ack');
+      expect(eventNames[eventNames.length - 1]).toBe('complete');
+
+      const complete = frames.find((f) => f.event === 'complete')!;
+      expect(complete.data.successCount).toBe(1);
+      expect(complete.data.aborted).toBe(false);
+    } finally {
+      await tcp.close();
+    }
+  });
+
+  it('AUTH: JWT 누락 → 401 (SSE 시작 전)', async () => {
+    const res = await fetch(`${httpBase}/api/sketchup/build/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(makeBuildBody()),
+    });
+    expect(res.status).toBe(401);
+    expect(res.headers.get('content-type') || '').not.toContain('text/event-stream');
+    // body drain
+    await res.json().catch(() => null);
+  });
+
+  it('INVALID: parts=[] → 400 (SSE 시작 전)', async () => {
+    const res = await fetch(`${httpBase}/api/sketchup/build/stream`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(makeBuildBody({ parts: [] })),
+    });
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('UNAVAILABLE: mhyrr 다운 → SSE error 이벤트 (SKETCHUP_UNAVAILABLE)', async () => {
+    const res = await fetch(`${httpBase}/api/sketchup/build/stream`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(makeBuildBody({ host: '127.0.0.1', port: 1, timeoutMs: 200 })),
+    });
+    expect(res.status).toBe(200); // SSE 시작은 OK
+    const frames = await readAllSSE(res);
+    expect(frames).toHaveLength(1);
+    expect(frames[0].event).toBe('error');
+    expect(frames[0].data.code).toBe('SKETCHUP_UNAVAILABLE');
+  });
+
+  it('BUILD_FAILED (transactional): aborted 이벤트 + complete.aborted=true + ABORT_OP 전송', async () => {
+    const tcp = await startTcpMock({
+      responsesByTool: {
+        get_scene_info: [{ ok: true }],
+        create_component: [{ ok: true }, { ok: false, message: 'duplicate' }],
+        eval_ruby: [{ ok: true }, { ok: true }, { ok: true }], // START, ABORT, ... (transactional)
+      },
+    });
+    try {
+      const res = await fetch(`${httpBase}/api/sketchup/build/stream`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(
+          makeBuildBody({
+            host: '127.0.0.1',
+            port: tcp.port,
+            transactional: true,
+            parts: [
+              { id: 'a', label: 'a', x: 0, y: 0, z: 0, width: 100, height: 100, depth: 100, colorKey: 'body' },
+              { id: 'b', label: 'b', x: 0, y: 0, z: 0, width: 100, height: 100, depth: 100, colorKey: 'body' },
+            ],
+          }),
+        ),
+      });
+      expect(res.status).toBe(200);
+      const frames = await readAllSSE(res);
+      const events = frames.map((f) => f.event);
+      expect(events).toContain('aborted');
+      const complete = frames.find((f) => f.event === 'complete')!;
+      expect(complete.data.aborted).toBe(true);
+      // mhyrr 측에 ABORT_OP 도달 확인
+      expect(tcp.receivedTools).toContain('eval_ruby');
+    } finally {
+      await tcp.close();
+    }
+  });
+
+  it('CLIENT_DISCONNECT: 클라이언트 abort → 서버가 ABORT_OP 전송 후 종료', async () => {
+    // 응답을 천천히 보내서 abort 시점을 잡을 시간 확보
+    const tcp = await startTcpMock({
+      responsesByTool: {
+        get_scene_info: [{ ok: true }],
+        create_component: [{ ok: true }, { ok: true }, { ok: true }],
+        eval_ruby: [{ ok: true }, { ok: true }, { ok: true }, { ok: true }], // START + ABORT 등
+      },
+      delayMs: 100,
+    });
+    try {
+      const ac = new AbortController();
+      const fetchPromise = fetch(`${httpBase}/api/sketchup/build/stream`, {
+        method: 'POST',
+        headers: authHeaders,
+        signal: ac.signal,
+        body: JSON.stringify(
+          makeBuildBody({
+            host: '127.0.0.1',
+            port: tcp.port,
+            transactional: true,
+            parts: [
+              { id: 'p1', label: 'p1', x: 0, y: 0, z: 0, width: 100, height: 100, depth: 100, colorKey: 'body' },
+              { id: 'p2', label: 'p2', x: 0, y: 0, z: 0, width: 100, height: 100, depth: 100, colorKey: 'body' },
+              { id: 'p3', label: 'p3', x: 0, y: 0, z: 0, width: 100, height: 100, depth: 100, colorKey: 'body' },
+            ],
+          }),
+        ),
+      });
+
+      // 200ms 안에 abort — ping(100) + START_OP(100) 무렵
+      await new Promise((r) => setTimeout(r, 250));
+      ac.abort();
+
+      await fetchPromise.catch(() => null);
+      // 서버가 abort 처리 + ABORT_OP 발사를 완료할 시간
+      await new Promise((r) => setTimeout(r, 500));
+
+      // mhyrr 측에서 ABORT_OP (eval_ruby) 호출이 도달했어야 함
+      const evalRubyCount = tcp.receivedTools.filter((t) => t === 'eval_ruby').length;
+      // START_OP 1회 + ABORT_OP 1회 = 최소 2회
+      expect(evalRubyCount).toBeGreaterThanOrEqual(2);
     } finally {
       await tcp.close();
     }

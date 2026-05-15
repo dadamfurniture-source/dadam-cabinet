@@ -355,6 +355,12 @@ export interface BatchOptions extends BridgeOptions {
    * 라우트가 자체 로그를 남기는 경우 false 로 끈다.
    */
   emitMetrics?: boolean;
+  /**
+   * W3-3 (FR-03): 외부 cancel 신호. SSE 라우트에서 req.on('close') 가 abort 하면
+   * 다음 명령 전송 직전 ABORT_OP 를 즉시 발사하고 배치를 중단한다.
+   * autoAbortOnFailure 가 false 라도 cancel 시에는 ABORT 를 보낸다 (트랜잭션 안전).
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -460,6 +466,14 @@ export async function sendBatch(
     }
 
     for (let i = 0; i < commands.length; i++) {
+      // W3-3: cancel 검사 — 다음 명령 보내기 전에 외부 신호로 중단 가능.
+      // signal 이 abort 되었으면 진행 중인 트랜잭션을 ABORT 로 닫고 즉시 종료.
+      if (options.signal?.aborted) {
+        await conn.send(evalRubySafe('ABORT_OP'));
+        aborted = true;
+        break;
+      }
+
       const cmd = commands[i];
       if (!cmd) continue;
       totalSent++;
