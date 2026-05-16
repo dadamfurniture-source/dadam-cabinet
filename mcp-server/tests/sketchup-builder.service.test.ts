@@ -393,27 +393,23 @@ describe('partToRotationCommand — transform_component (회전)', () => {
     expect(partToRotationCommand(part, 'sink')).toBeNull();
   });
 
-  it('rotationZDeg=90: transform_component + axis=[0,0,1] + angle_deg + origin=corner', () => {
+  it('W4-5b: rotationZDeg=90 → { id: __ENT__:partId, rotation: [0, 0, 90] } Euler 배열', () => {
     const part = makeBody('sec-1', {
       x: 100, y: 200, z: 300,
       rotationZDeg: 90,
     });
     const cmd = partToRotationCommand(part, 'sink')!;
     expect(cmd.tool).toBe(MHYRR_TOOLS.TRANSFORM_COMPONENT);
-    expect(cmd.arguments.name).toBe(sketchupComponentName('sink', 'sec-1'));
-    const rotation = cmd.arguments.rotation as any;
-    expect(rotation.axis).toEqual([0, 0, 1]);
-    expect(rotation.angle_deg).toBe(90);
-    expect(rotation.origin[0]).toBeCloseTo(mmToInch(100), 5);
-    expect(rotation.origin[1]).toBeCloseTo(mmToInch(200), 5);
-    expect(rotation.origin[2]).toBeCloseTo(mmToInch(300), 5);
+    // id 는 placeholder — sendBatch 가 응답 resourceId 로 치환
+    expect(cmd.arguments.id).toBe('__ENT__:sec-1');
+    // rotation 은 Euler degrees 배열 [x_deg, y_deg, z_deg]
+    expect(cmd.arguments.rotation).toEqual([0, 0, 90]);
   });
 
-  it('rotationZDeg=-90: 부호 보존', () => {
+  it('W4-5b: rotationZDeg=-90 → rotation: [0, 0, -90] 부호 보존', () => {
     const part = makeBody('sec-1', { rotationZDeg: -90 });
     const cmd = partToRotationCommand(part, 'sink')!;
-    const rotation = cmd.arguments.rotation as any;
-    expect(rotation.angle_deg).toBe(-90);
+    expect(cmd.arguments.rotation).toEqual([0, 0, -90]);
   });
 
   it('width/depth/height 중 하나라도 0 이면 null (create_component 와 정합)', () => {
@@ -422,12 +418,15 @@ describe('partToRotationCommand — transform_component (회전)', () => {
 });
 
 describe('partToMaterialCommand — set_material', () => {
-  it('정상 → set_material + name + material', () => {
+  it('W4-5b: 정상 → { id: __ENT__:partId, material } (mhyrr 는 id 만 사용)', () => {
     const part = makeBody('b1');
     const cmd = partToMaterialCommand(part, 'sink', 'cream')!;
     expect(cmd.tool).toBe(MHYRR_TOOLS.SET_MATERIAL);
-    expect(cmd.arguments.name).toBe('dadam.sink.b1');
+    // id 는 placeholder — sendBatch 가 응답 resourceId 로 치환
+    expect(cmd.arguments.id).toBe('__ENT__:b1');
     expect(cmd.arguments.material).toBe('dadam_cream_body');
+    // name 은 더 이상 사용 안 함
+    expect(cmd.arguments.name).toBeUndefined();
   });
 
   it('도어는 accent colorKey → dadam_{tone}_accent', () => {
@@ -527,8 +526,9 @@ describe('buildPlanFromParts — applyRotation / applyMaterial 옵션', () => {
     expect(ofTool[createIdx + 2]).toBe(MHYRR_TOOLS.SET_MATERIAL);
   });
 
-  it('originAlign=min-corner 가 transform_component.rotation.origin 도 동일 offset 적용', () => {
-    // 박스 corner (-400, 0, 0). align 후 corner (0, 0, 0). rotation.origin 도 동일.
+  it('W4-5b: originAlign=min-corner 가 transform_component 에 영향 없음 (mhyrr 는 entity.bounds.center 사용)', () => {
+    // 박스 corner (-400, 0, 0). align 후 create_component.position 만 (0,0,0).
+    // transform_component 는 origin/position 인자 없음 — rotation 만.
     const part = makeBody('sec-1', {
       x: -400, y: 0, z: 0, width: 800, depth: 600, height: 720,
       rotationZDeg: 90,
@@ -541,11 +541,35 @@ describe('buildPlanFromParts — applyRotation / applyMaterial 옵션', () => {
       originAlign: 'min-corner',
     });
 
+    const createCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.CREATE_COMPONENT)!;
+    const pos = createCmd.arguments.position as number[];
+    expect(pos[0]).toBeCloseTo(0, 5);
+
     const transformCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.TRANSFORM_COMPONENT)!;
-    const rotation = transformCmd.arguments.rotation as any;
-    expect(rotation.origin[0]).toBeCloseTo(0, 5);
-    expect(rotation.origin[1]).toBeCloseTo(0, 5);
-    expect(rotation.origin[2]).toBeCloseTo(0, 5);
+    expect(transformCmd.arguments.rotation).toEqual([0, 0, 90]);
+    // origin / position 인자 없음
+    expect(transformCmd.arguments.origin).toBeUndefined();
+    expect(transformCmd.arguments.position).toBeUndefined();
+  });
+
+  it('W4-5b: create_component 의 idRef 가 part.id 와 일치 (응답 chaining 시 사용)', () => {
+    const part = makeBody('b1', { rotationZDeg: 90 });
+    const plan = buildPlanFromParts([part], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+      applyRotation: true,
+      applyMaterial: true,
+    });
+
+    const createCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.CREATE_COMPONENT)!;
+    expect(createCmd.idRef).toBe('b1');
+
+    // transform/material 의 id 는 placeholder
+    const transformCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.TRANSFORM_COMPONENT)!;
+    const setMatCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.SET_MATERIAL)!;
+    expect(transformCmd.arguments.id).toBe('__ENT__:b1');
+    expect(setMatCmd.arguments.id).toBe('__ENT__:b1');
   });
 });
 

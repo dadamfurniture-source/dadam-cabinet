@@ -22,7 +22,7 @@ import {
   MHYRR_RECEIVE_TIMEOUT_MS,
   MHYRR_TOOLS,
 } from '../constants/sketchup.js';
-import { evalRubySafe, type BuildCommand } from './sketchup-builder.service.js';
+import { evalRubySafe, ENT_REF_PREFIX, type BuildCommand } from './sketchup-builder.service.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('sketchup-bridge');
@@ -35,6 +35,31 @@ export interface BridgeOptions {
   host?: string;
   port?: number;
   timeoutMs?: number;
+}
+
+/**
+ * W4-5b: arguments 안의 `__ENT__:<idRef>` 플레이스홀더를 entityIdMap 의 실 entity ID 로 치환.
+ *
+ * 치환 대상:
+ *   - args.id (string `__ENT__:foo` → number/string)
+ *   - 그 외 string 값 중 prefix 매칭되는 것 (방어적)
+ * map 에 없는 idRef 는 그대로 두어 mhyrr 가 에러 응답 → batch 실패로 진단.
+ */
+export function resolveEntityRefs(
+  args: Record<string, unknown>,
+  entityIdMap: Map<string, number | string>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (typeof v === 'string' && v.startsWith(ENT_REF_PREFIX)) {
+      const ref = v.slice(ENT_REF_PREFIX.length);
+      const resolved = entityIdMap.get(ref);
+      out[k] = resolved ?? v; // 매핑 없으면 placeholder 그대로 (mhyrr 가 거부 → 진단 가능)
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -468,9 +493,15 @@ export async function sendBatch(
   // ───────────────────────────────────────────────────────────────
   // per-command 모드: mhyrr v0.1.0 호환 (한 연결당 한 명령). sendCommand 를
   // 각 명령마다 호출 — PersistentConnection 사용 안 함.
+  //
+  // W4-5b: 응답 chaining — create_component 응답의 result.resourceId (group.entityID)
+  // 를 entityIdMap[cmd.idRef] 에 저장. 후속 명령 args 의 `__ENT__:<idRef>` 플레이스홀더
+  // 를 실 ID 로 치환 후 전송.
   // ───────────────────────────────────────────────────────────────
   if (connectionMode === 'per-command') {
     const bridgeOpts: BridgeOptions = { host, port, timeoutMs };
+    const entityIdMap = new Map<string, number | string>();
+
     for (let i = 0; i < commands.length; i++) {
       if (options.signal?.aborted) {
         await sendCommand(evalRubySafe('ABORT_OP'), bridgeOpts);
@@ -481,15 +512,27 @@ export async function sendBatch(
       const cmd = commands[i];
       if (!cmd) continue;
       totalSent++;
+      // 플레이스홀더 치환된 명령으로 전송 (원본 cmd 는 progress 콜백 + idRef 저장용 그대로)
+      const resolvedCmd: BuildCommand = {
+        ...cmd,
+        arguments: resolveEntityRefs(cmd.arguments, entityIdMap),
+      };
       progress?.onSent?.(i, cmd);
       const cmdStart = Date.now();
-      const result = await sendCommand(cmd, bridgeOpts);
+      const result = await sendCommand(resolvedCmd, bridgeOpts);
       const cmdDuration = Date.now() - cmdStart;
       progress?.onResult?.(i, result, cmdDuration);
 
       if (result.ok) {
         successCount++;
         rttSamples.push(cmdDuration);
+        // W4-5b: create_component 응답의 resourceId 캡처
+        if (cmd.idRef) {
+          const resourceId = (result.result as { resourceId?: number | string } | undefined)?.resourceId;
+          if (resourceId != null) {
+            entityIdMap.set(cmd.idRef, resourceId);
+          }
+        }
       } else {
         failures.push({ index: i, error: result.error ?? { message: 'unknown error' } });
 
