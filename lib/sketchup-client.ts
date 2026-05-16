@@ -1,6 +1,14 @@
 // ═══════════════════════════════════════════════════════════════
 // SketchUp Client — Planner → mcp-server → SketchUp 빌드
 //
+// @deprecated W4-6 (2026-05): legacy Next.js 측 클라이언트.
+// dadamfurniture.com 의 production iframe (planner-vite Vite 빌드, /planner/embed/)
+// 은 planner-vite/src/lib/sketchup-client.ts 사용. 본 파일은 components/planner
+// (legacy) + app/embed, app/planner Next.js 라우트에서만 사용.
+//
+// W4-6 시 송신 직전 V1→V2 변환 (mcp-server 가 V2 만 받음).
+// planner-vite 와 코드 중복 — 향후 통합 또는 삭제 권장.
+//
 // detail design 페이지의 planner 가 만든 CabinetPart[] 를 mcp-server 의
 // /api/sketchup/build 라우트로 전송하여 디자이너 PC 의 SketchUp 에
 // 자동으로 3D 모델을 빌드한다.
@@ -21,8 +29,50 @@ import { auth } from './supabase';
 import type {
   CabinetCategory,
   CabinetPart,
+  CabinetPartV2,
   MaterialTone,
 } from './planner';
+
+/**
+ * W4-6: V1 (Y-up center radians) → V2 (Z-up corner degrees) 부품 변환.
+ * planner-vite/src/lib/coords.ts 의 migratePartV1ToV2 와 동일 logic.
+ *
+ *   좌표축: V1 Y-up (x=가로, y=수직, z=깊이) → V2 Z-up (x=가로, y=깊이, z=수직)
+ *   기준점: 박스 중심 → 박스 최소 모서리
+ *   회전: rotationY radians → rotationZDeg degrees (부호 보존)
+ */
+function migratePartV1ToV2(p: CabinetPart): CabinetPartV2 {
+  // V1 (x, y, z) center → V2 (x, z, y) center (Y-up→Z-up 축 교환)
+  const centerX = p.x;
+  const centerY = p.z;
+  const centerZ = p.y;
+  // V2 치수: V1 의 (width, height, depth) 가 의미는 같지만 V2 (width, depth, height) 매핑.
+  // V1 width=+x extent, height=+y(수직), depth=+z(깊이)
+  // V2 width=+x extent, depth=+y(깊이), height=+z(수직)
+  // 같은 박스 모양 — V2.depth = V1.depth (planner Y-up z extent), V2.height = V1.height.
+  const sizeX = p.width;
+  const sizeY = p.depth;
+  const sizeZ = p.height;
+  return {
+    id: p.id,
+    label: p.label,
+    x: centerX - sizeX / 2,
+    y: centerY - sizeY / 2,
+    z: centerZ - sizeZ / 2,
+    width: sizeX,
+    depth: sizeY,
+    height: sizeZ,
+    rotationZDeg: p.rotationY != null ? (p.rotationY * 180) / Math.PI : undefined,
+    colorKey: p.colorKey,
+    wireframe: p.wireframe,
+    essential: p.essential,
+    moduleType: p.moduleType,
+    isDoor: p.isDoor,
+    parentModuleId: p.parentModuleId,
+    doorIndex: p.doorIndex,
+    openDirection: p.openDirection,
+  };
+}
 
 const DEFAULT_MCP_SERVER_URL = 'http://localhost:3200';
 
@@ -99,15 +149,19 @@ export async function exportToSketchup(
   }
 
   // 2) 요청 body — mcp-server 의 sketchupBuildSchema 호환
+  // W4-6: mcp-server 가 W4-4 부터 V2 (Z-up corner mm degrees) 만 받음.
+  // legacy components/planner 가 여전히 V1 (Y-up center mm radians) 출력하므로
+  // 송신 직전에 변환. planner-vite 의 coords.ts/migratePartV1ToV2 와 동일 logic.
+  const partsV2 = opts.parts.map(migratePartV1ToV2);
   const body = {
-    parts: opts.parts,
+    schemaVersion: 'v2' as const,
+    parts: partsV2,
     category: opts.category,
     materialTone: opts.materialTone,
     clearExisting: opts.clearExisting ?? true,
     transactional: opts.transactional ?? true,
     host: opts.sketchupHost,
     port: opts.sketchupPort,
-    // 클라이언트는 connectionMode 를 알 필요 없음 — 서버 측 기본값 / env 설정 사용
   };
 
   // 3) fetch

@@ -112,6 +112,41 @@ export interface CabinetPart {
   rotationY?: number; // W1 누락 — radians, Y축 CCW. secondary 모듈만 ±π/2.
 }
 
+/**
+ * V2 (W4 SketchUp 호환): Z-up, 박스 최소 모서리, mm, rotationZDeg (degrees).
+ * planner-vite 의 CabinetPartV2 와 동일 — mcp-server 의 sketchupBuildSchema 가 받는 형식.
+ *
+ * 본 root 측 lib/planner.ts 의 deriveCabinet 은 여전히 V1 출력 (legacy components/planner
+ * 가 V1 렌더링 가정). lib/sketchup-client.ts 가 송신 직전에 V1 → V2 변환.
+ *
+ *   x = 가로 (좌↔우, +x 우측, AABB min)
+ *   y = 깊이 (정면↔벽, +y 벽 방향, AABB min)
+ *   z = 수직 (바닥↔천장, +z 위, AABB min)
+ *   width  = +x extent
+ *   depth  = +y extent
+ *   height = +z extent
+ *   rotationZDeg = Z축 CCW degrees, pivot = bbox center
+ */
+export interface CabinetPartV2 {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  rotationZDeg?: number;
+  colorKey: ColorKey;
+  wireframe?: boolean;
+  essential?: boolean;
+  moduleType?: ModuleType;
+  isDoor?: boolean;
+  parentModuleId?: string;
+  doorIndex?: number;
+  openDirection?: 'left' | 'right';
+}
+
 export interface ModuleLayout {
   section: 'lower' | 'upper' | 'full';
   startX: number;
