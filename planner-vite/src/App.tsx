@@ -5,9 +5,10 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import {
   MATERIALS, MODULE_DEFAULT_W, autoCalculateModules, genModuleId,
-  type CabinetCategory, type MaterialTone, type ModuleEntry, type ModuleKind,
+  type CabinetCategory, type CabinetPart, type MaterialTone, type ModuleEntry, type ModuleKind,
   createPlannerState, deriveCabinet, getPresetById, type PlannerState,
 } from './lib/planner';
+import { migratePartV2ToV1 } from './lib/coords';
 import { exportToSketchup } from './lib/sketchup-client';
 
 type CameraView = 'perspective' | 'front' | 'top';
@@ -739,6 +740,14 @@ export default function App() {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
+  // W4-3: derived.parts 는 이제 CabinetPartV2[] (Z-up corner). ModuleBox 등 Three.js
+  // 렌더 컴포넌트는 V1 (Y-up center) 가정으로 작성되어 있어 useMemo 어댑터로 V1 변환.
+  // sketchup 송신은 derived.parts (V2) 직접 사용. W4-3b 에서 ModuleBox 가 V2 직접
+  // 받도록 전환되면 본 useMemo 제거.
+  const partsV1: CabinetPart[] = useMemo(
+    () => derived.parts.map(migratePartV2ToV1),
+    [derived.parts],
+  );
   const palette = MATERIALS[planner.material];
   const preset = getPresetById(planner.presetId);
 
@@ -993,20 +1002,20 @@ export default function App() {
           <ContactShadows position={[0, -1, 0]} opacity={0.4} scale={6000} blur={2.5} far={4000} />
 
           <group rotation={view === 'top' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
-            {/* 일반 파츠 */}
-            {derived.parts.filter(p => !p.id.startsWith('utility-')).map(part => (
+            {/* 일반 파츠 — partsV1 (V2 어댑터) 사용 */}
+            {partsV1.filter(p => !p.id.startsWith('utility-')).map(part => (
               <ModuleBox key={part.id} part={part} color={palette[part.colorKey]} onSelect={setSelId} halfW={planner.width / 2} controlsRef={controlsRef} onDragDone={dragModule} onDragMove={handleDragMove} shiftDir={shiftMap[part.id] || null} />
             ))}
 
             {/* 유틸리티 (팝업 열려있으면 숨김) */}
-            {!selId && derived.parts.filter(p => p.id.startsWith('utility-')).map(part => (
+            {!selId && partsV1.filter(p => p.id.startsWith('utility-')).map(part => (
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
             {/* 차선모듈 추가 모드: 선택된 주선 모듈 정면에 +/✓ 버튼 */}
             {blindPanel && (() => {
               const bp = blindPanel;
-              const mp = derived.parts.find(p => p.id === `mod-${bp.modId}` || p.id === bp.modId);
+              const mp = partsV1.find(p => p.id === `mod-${bp.modId}` || p.id === bp.modId);
               if (!mp) return null;
               return (
                 <Html position={[mp.x, mp.y, mp.z + mp.depth / 2 + 1]} center style={{ pointerEvents: 'auto' }} zIndexRange={[9999, 9998]}>
@@ -1031,7 +1040,7 @@ export default function App() {
                 <DimLabel position={[0, -30, depth / 2 + 80]} text={`${planner.width}mm`} color="#333" />
                 <DimLabel position={[-planner.width / 2 - 60, height / 2, 0]} text={`${height}mm`} color="#333" />
                 {derived.modules.map(mod => {
-                  const mp = derived.parts.find(p => p.id === mod.id);
+                  const mp = partsV1.find(p => p.id === mod.id);
                   return mp ? <DimLabel key={`dim-${mod.id}`} position={[mp.x, mp.y - mp.height / 2 - 20, mp.z + mp.depth / 2 + 30]} text={`${mod.width}`} color={mod.section === 'upper' ? '#6366f1' : '#b8956c'} /> : null;
                 })}
               </>
@@ -1087,7 +1096,7 @@ export default function App() {
 
             {/* 차선모듈 체인 연장 버튼 — 각 체인의 마지막 secondary의 Z축 자유단(free end) 측판에 부착 */}
             {!selId && Array.from(secondaryChainEnds).map(modId => {
-              const part = derived.parts.find(p => p.id === modId);
+              const part = partsV1.find(p => p.id === modId);
               if (!part || !part.rotationY) return null;
               const isUp = (planner.upperModules ?? []).some(m => m.id === modId);
               const total = ((planner.lowerModules ?? []).length + (planner.upperModules ?? []).length);

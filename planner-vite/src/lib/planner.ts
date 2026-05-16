@@ -1,3 +1,7 @@
+// migratePartV1ToV2 는 deriveCabinet 함수 끝에서 V1 → V2 일괄 변환에 사용.
+// coords.ts 는 동일 디렉터리에 있어 순환 import 없음 (CabinetPart/CabinetPartV2 만 type-only import).
+import { migratePartV1ToV2 } from './coords';
+
 export type CabinetCategory = 'sink' | 'wardrobe' | 'vanity' | 'shoe' | 'fridge' | 'storage';
 
 export type MaterialTone = 'cream' | 'oak' | 'walnut' | 'graphite';
@@ -173,7 +177,14 @@ export interface UtilityPositions {
 
 export interface DerivedCabinet {
   preset: CabinetPreset;
-  parts: CabinetPart[];
+  /**
+   * W4-3: 출력은 V2 (Z-up corner mm degrees) 로 통일. deriveCabinet 함수 끝에서
+   * 내부 V1 작성분을 일괄 migration. sketchup-client 가 변환 없이 직송 가능.
+   *
+   * App.tsx 렌더는 useMemo 로 V2 → V1 어댑트 후 기존 ModuleBox 사용 (시각 변화 0).
+   * W4-3b 에서 ModuleBox 가 V2 직접 받도록 전환 예정.
+   */
+  parts: CabinetPartV2[];
   modules: CabinetModule[];
   lowerLayout: ModuleLayout | null;
   upperLayout: ModuleLayout | null;
@@ -1672,9 +1683,14 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
     (((width * height * 2 + width * depth * 2 + height * depth * 2) / 1_000_000) * 1.15).toFixed(2)
   );
 
+  // W4-3: 내부는 V1 (Y-up center radians) 으로 작성. 출력 직전 일괄 V2 변환.
+  // 27개 parts.push 호출을 모두 재작성하는 대신 한 곳에서 변환 — 회귀 위험 최소.
+  // migration 로직은 migratePartV1ToV2 단위 테스트 + round-trip 으로 보장.
+  const partsV2 = parts.map(migratePartV1ToV2);
+
   return {
     preset,
-    parts,
+    parts: partsV2,
     modules,
     lowerLayout,
     upperLayout,
