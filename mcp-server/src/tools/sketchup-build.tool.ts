@@ -125,12 +125,14 @@ registerTool(
       );
     }
 
+    // W4-5c: mhyrr v0.1.0 호환 per-command 모드 + entityIdMap 응답 chaining.
     const batch = await sendBatch(plan.commands, {
       host,
       port,
       timeoutMs,
       autoAbortOnFailure: transactional,
       stopOnFirstFailure: transactional,
+      connectionMode: 'per-command',
     });
 
     return mcpSuccess({
