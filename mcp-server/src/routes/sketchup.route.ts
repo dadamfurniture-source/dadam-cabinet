@@ -22,7 +22,6 @@ import { sketchupBuildSchema } from '../schemas/sketchup.schema.js';
 import { createLogger } from '../utils/logger.js';
 import { AppError, ValidationError } from '../utils/errors.js';
 import { MHYRR_TOOLS } from '../constants/sketchup.js';
-import type { CabinetPart, CabinetPartV2 } from '../types/planner.types.js';
 
 const log = createLogger('route:sketchup');
 const router = Router();
@@ -98,20 +97,13 @@ router.post(
         }
       }
 
-      // 3. 빌드 명령 시퀀스 생성
-      //    schemaVersion 'v2' 면 V2 (Z-up corner) 입력 — partV2ToCommand 직접.
-      //    그 외 V1 (Y-up center) — partToCommand 가 내부에서 migrate.
-      const isV2 = input.schemaVersion === 'v2';
-      const plan = buildPlanFromParts(
-        input.parts as (CabinetPart | CabinetPartV2)[],
-        {
-          category: input.category,
-          materialTone: input.materialTone,
-          clearExisting: input.clearExisting,
-          transactional: input.transactional,
-          schemaVersion: isV2 ? 'v2' : 'v1',
-        },
-      );
+      // 3. 빌드 명령 시퀀스 생성 (W4-4: V2 (Z-up corner) only)
+      const plan = buildPlanFromParts(input.parts, {
+        category: input.category,
+        materialTone: input.materialTone,
+        clearExisting: input.clearExisting,
+        transactional: input.transactional,
+      });
 
       if (plan.componentCount === 0) {
         throw new ValidationError(
@@ -259,18 +251,13 @@ router.post(
         }
       }
 
-      // 5. 빌드 명령 시퀀스 (V1/V2 분기 — non-SSE 라우트와 동일 로직)
-      const isV2 = input.schemaVersion === 'v2';
-      const plan = buildPlanFromParts(
-        input.parts as (CabinetPart | CabinetPartV2)[],
-        {
-          category: input.category,
-          materialTone: input.materialTone,
-          clearExisting: input.clearExisting,
-          transactional: input.transactional,
-          schemaVersion: isV2 ? 'v2' : 'v1',
-        },
-      );
+      // 5. 빌드 명령 시퀀스 (W4-4: V2 only)
+      const plan = buildPlanFromParts(input.parts, {
+        category: input.category,
+        materialTone: input.materialTone,
+        clearExisting: input.clearExisting,
+        transactional: input.transactional,
+      });
 
       if (plan.componentCount === 0) {
         sendSSE({

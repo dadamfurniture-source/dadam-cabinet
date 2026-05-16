@@ -28,35 +28,8 @@ export function inchToMm(inch: number): number {
   return inch * MM_PER_INCH;
 }
 
-// ───────────────────────────────────────────────────────────────
-// 좌표계 변환 (planner Y-up → SketchUp Z-up)
-// ───────────────────────────────────────────────────────────────
-
-export interface PlannerVec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export interface SketchupVec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-/**
- * planner Three.js 좌표 (Y-up) → SketchUp 좌표 (Z-up).
- *   planner: x=가로, y=수직(높이), z=깊이
- *   sketchup: x=가로, y=깊이, z=수직(높이)
- * 입력은 mm, 출력은 mm (단위 변환은 별도).
- */
-export function plannerToSketchup(v: PlannerVec3): SketchupVec3 {
-  return {
-    x: v.x,
-    y: v.z,
-    z: v.y,
-  };
-}
+// W4-4: plannerToSketchup (Y-up → Z-up 축 교환) 제거됨.
+// planner-vite 가 W4-3 부터 V2 (Z-up corner mm) 로 직접 송신 — 축 변환 불요.
 
 // ───────────────────────────────────────────────────────────────
 // 색상 매핑 (ColorKey + MaterialTone → 헥스)

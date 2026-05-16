@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// SketchUp Build MCP Tool — CabinetPart[] → SketchUp 모델 빌드
+// SketchUp Build MCP Tool — CabinetPartV2[] → SketchUp 모델 빌드
 //
 // W2 도구 노출. 외부 (LLM agent, HTTP route) 가 호출하면:
-//   1) buildPlanFromParts 로 CabinetPart[] 를 mhyrr 명령 시퀀스로 변환
+//   1) buildPlanFromParts 로 CabinetPartV2[] 를 mhyrr 명령 시퀀스로 변환
 //   2) sendBatch 로 단일 TCP 연결에서 순차 전송
 //   3) 트랜잭션 실패 시 abort_operation 자동 호출
 //
@@ -10,6 +10,8 @@
 //   - eval_ruby 는 builder 가 allowlist 명령만 생성 (RUBY_COMMANDS)
 //   - 자유 입력 Ruby 코드는 받지 않는다
 //   - partId 는 builder 에서 영숫자/언더스코어/하이픈으로 sanitize
+//
+// W4-4: V2 (Z-up corner mm degrees) 만 허용. V1 입력은 schema 에서 거부.
 // ═══════════════════════════════════════════════════════════════
 
 import { registerTool } from './registry.js';
@@ -17,7 +19,6 @@ import { mcpSuccess, mcpError } from '../utils/response-builder.js';
 import { buildPlanFromParts } from '../services/sketchup-builder.service.js';
 import { sendBatch, pingSketchup } from '../services/sketchup-mcp-bridge.service.js';
 import { sketchupBuildSchema } from '../schemas/sketchup.schema.js';
-import type { CabinetPart } from '../types/planner.types.js';
 
 // W3-2: 공유 zod 스키마로 분리 — HTTP route (sketchup.route.ts) 와 동일.
 const inputSchema = sketchupBuildSchema;
@@ -26,13 +27,18 @@ registerTool(
   {
     name: 'build_sketchup_scene',
     description:
-      'CabinetPart 배열을 SketchUp 씬으로 빌드합니다. 단위·축 변환·머티리얼 매핑·트랜잭션 래핑·자동 ABORT 를 모두 처리하며, mhyrr/sketchup-mcp 확장이 떠 있어야 합니다 (기본 127.0.0.1:9876).',
+      'CabinetPartV2 배열을 SketchUp 씬으로 빌드합니다. 단위(mm→inch)·머티리얼 매핑·트랜잭션 래핑·자동 ABORT 를 모두 처리하며, mhyrr/sketchup-mcp 확장이 떠 있어야 합니다 (기본 127.0.0.1:9876).',
     inputSchema: {
       type: 'object',
       properties: {
+        schemaVersion: {
+          type: 'string',
+          enum: ['v2'],
+          description: '스키마 버전 — 옵션. 미지정 시 v2 로 해석. v1 은 W4-4 부터 거부.',
+        },
         parts: {
           type: 'array',
-          description: 'planner CabinetPart 배열 (mm 단위, Y-up 좌표계)',
+          description: 'planner CabinetPartV2 배열 (mm 단위, Z-up corner 좌표계, rotationZDeg degrees)',
           items: { type: 'object' },
         },
         category: {
@@ -92,7 +98,7 @@ registerTool(
       }
     }
 
-    const plan = buildPlanFromParts(parts as CabinetPart[], {
+    const plan = buildPlanFromParts(parts, {
       category,
       materialTone,
       clearExisting,

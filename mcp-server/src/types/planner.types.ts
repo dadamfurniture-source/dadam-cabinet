@@ -26,12 +26,13 @@ export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
 export type ColorKey = 'body' | 'accent' | 'shadow' | 'trim';
 
 // lib/planner.ts:93-110 에서 미러
-// V1 (현행) — planner-vite 의 현재 출력. 향후 W4-2 에서 V2 로 마이그레이션 예정.
-// 좌표계: Three.js Y-up, mm, 박스 중심
-//   x = 가로 (좌↔우, 가구 중심선 기준)
-//   y = 수직 (바닥↔천장, 바닥=0)
-//   z = 깊이 (벽↔정면)
-// 회전: rotationY (radians, Y축 CCW). secondary 모듈만 ±π/2.
+// V1 (legacy) — Three.js Y-up center 좌표계. W4-3 에서 deriveCabinet 이 V2 출력으로
+// 전환됨. mcp-server 의 SketchUp 빌드 경로는 V2 만 받음 (sketchup.schema.ts).
+// 본 인터페이스는 sync-planner.mjs 가 lib/planner.ts (root) 미러를 유지하기 위해
+// 남아있을 뿐 — mcp-server 의 코드 어디에서도 import 되지 않음. W4-6 에서 root
+// lib/planner.ts 가 V2 로 갱신되면 본 인터페이스도 동시 제거 예정.
+//
+// @deprecated W4-4 이후 mcp-server 내부 사용 없음. CabinetPartV2 사용할 것.
 export interface CabinetPart {
   id: string;
   label: string;
