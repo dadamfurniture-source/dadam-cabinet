@@ -8,6 +8,7 @@ import {
   type CabinetCategory, type MaterialTone, type ModuleEntry, type ModuleKind,
   createPlannerState, deriveCabinet, getPresetById, type PlannerState,
 } from './lib/planner';
+import { exportToSketchup } from './lib/sketchup-client';
 
 type CameraView = 'perspective' | 'front' | 'top';
 
@@ -733,6 +734,8 @@ export default function App() {
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
   const [showLayoutPanel, setShowLayoutPanel] = useState(false);
+  const [sketchupBusy, setSketchupBusy] = useState(false);
+  const [sketchupMessage, setSketchupMessage] = useState('');
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
@@ -756,6 +759,38 @@ export default function App() {
       window.parent?.postMessage({ type: 'HITL_STATE', payload: { planner, derived } }, '*');
     }
   }, [planner, derived, hitlMode]);
+
+  // SketchUp 으로 보내기
+  useEffect(() => {
+    if (!sketchupMessage) return;
+    const t = window.setTimeout(() => setSketchupMessage(''), 6000);
+    return () => window.clearTimeout(t);
+  }, [sketchupMessage]);
+
+  const sendToSketchup = useCallback(async () => {
+    if (sketchupBusy) return;
+    setSketchupBusy(true);
+    setSketchupMessage('');
+    try {
+      const result = await exportToSketchup({
+        parts: derived.parts,
+        category: planner.presetId,
+        materialTone: planner.material,
+        clearExisting: true,
+        transactional: true,
+      });
+      if (result.ok) {
+        setSketchupMessage(`✓ ${result.componentCount}개 빌드 완료 (${result.summary.durationMs}ms)`);
+      } else {
+        setSketchupMessage(`✗ ${result.code}: ${result.message}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setSketchupMessage(`✗ 예외: ${msg}`);
+    } finally {
+      setSketchupBusy(false);
+    }
+  }, [derived.parts, planner.presetId, planner.material, sketchupBusy]);
 
   // 모듈 CRUD
   const defaultKind: ModuleKind = preset.fullHeight ? 'door' : 'drawer';
@@ -1103,6 +1138,48 @@ export default function App() {
           <span>{planner.layoutShape === 'U' ? 'ㄷ자' : planner.layoutShape === 'L' ? 'ㄱ자' : 'ㅡ자'} 레이아웃</span>
         </button>
       )}
+
+      {/* 우상단: SketchUp 으로 보내기 */}
+      <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, zIndex: 50, fontFamily: '-apple-system,BlinkMacSystemFont,system-ui,sans-serif' }}>
+        <button
+          type="button"
+          onClick={sendToSketchup}
+          disabled={sketchupBusy}
+          title="디자이너 PC 의 SketchUp 으로 3D 모델 전송 (SketchUp + mhyrr 확장 + mcp-server 가 디자이너 PC 에 떠 있어야 함)"
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #2d2a26',
+            background: sketchupBusy ? '#999' : '#2d2a26',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: sketchupBusy ? 'not-allowed' : 'pointer',
+            opacity: sketchupBusy ? 0.7 : 1,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {sketchupBusy ? '전송 중…' : '🔨 SketchUp 으로 보내기'}
+        </button>
+        {sketchupMessage && (
+          <div
+            style={{
+              maxWidth: 320,
+              padding: '6px 10px',
+              borderRadius: 6,
+              fontSize: 10,
+              background: sketchupMessage.startsWith('✓') ? '#ecfdf5' : '#fef2f2',
+              color: sketchupMessage.startsWith('✓') ? '#047857' : '#b91c1c',
+              border: sketchupMessage.startsWith('✓') ? '1px solid #a7f3d0' : '1px solid #fecaca',
+              wordBreak: 'keep-all',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {sketchupMessage}
+          </div>
+        )}
+      </div>
 
       {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
     </div>
