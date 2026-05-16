@@ -92,6 +92,17 @@ export interface PlannerState {
   ventStart: number | null;
 }
 
+/**
+ * planner CabinetPart (V1, legacy):
+ *   - 좌표계: Three.js Y-up (x=가로, y=수직, z=깊이), 박스 중심 기준
+ *   - 단위: mm
+ *   - 회전: rotationY (radians, Y축 CCW)
+ *
+ * W4-2 시점에는 이 V1 형식이 deriveCabinet 출력 + App.tsx 렌더의 기준.
+ * sketchup-client.ts 가 mcp-server 로 보내기 직전에 V2 (Z-up corner) 로 변환.
+ *
+ * W4-2b/W4-3 에서 deriveCabinet 내부 + App.tsx 렌더를 V2 로 본격 재작성 예정.
+ */
 export interface CabinetPart {
   id: string;
   label: string;
@@ -110,6 +121,39 @@ export interface CabinetPart {
   drawerCount?: number;
   /** Y축 회전 (라디안). 차선모듈(secondary) 용 */
   rotationY?: number;
+}
+
+/**
+ * V2 (W4 SketchUp 호환): Z-up, 박스 최소 모서리, mm, rotationZDeg (degrees).
+ *   x = 가로 (좌↔우, +x 우측)
+ *   y = 깊이 (정면↔벽, +y 벽 방향)
+ *   z = 수직 (바닥↔천장, +z 위)
+ *   width  = +x extent
+ *   depth  = +y extent
+ *   height = +z extent
+ *   (x, y, z) = AABB 최소 모서리 (회전 전)
+ *   rotationZDeg = Z축 CCW degrees, pivot = (x, y, z)
+ *
+ * mcp-server/src/types/planner.types.ts 의 CabinetPartV2 와 동일 구조.
+ * sketchup-client.ts 가 V1 → V2 변환 후 mcp-server 로 전송.
+ */
+export interface CabinetPartV2 {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  rotationZDeg?: number;
+  colorKey: 'body' | 'accent' | 'shadow' | 'trim';
+  wireframe?: boolean;
+  essential?: boolean;
+  moduleType?: ModuleType;
+  moduleKind?: ModuleKind;
+  doorCount?: number;
+  drawerCount?: number;
 }
 
 export interface ModuleLayout {
