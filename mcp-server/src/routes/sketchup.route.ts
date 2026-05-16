@@ -113,13 +113,16 @@ router.post(
         );
       }
 
-      // 4. 단일 TCP 연결로 순차 전송
+      // 4. 명령 시퀀스 전송 (mhyrr v0.1.0 호환 per-command 모드)
+      //    W4-5c: persistent 모드 시 두 번째 명령에서 ECONNRESET — mhyrr 는 명령당
+      //    연결 한 개만 처리. per-command 모드 + entityIdMap 응답 chaining.
       const batch = await sendBatch(plan.commands, {
         host: input.host,
         port: input.port,
         timeoutMs: input.timeoutMs,
         autoAbortOnFailure: input.transactional,
         stopOnFirstFailure: input.transactional,
+        connectionMode: 'per-command',
       });
 
       const summary = {
@@ -284,6 +287,7 @@ router.post(
       });
 
       // 6. sendBatch + progress 콜백 → SSE 이벤트로 변환
+      //    W4-5c: mhyrr v0.1.0 호환 per-command 모드 + entityIdMap 응답 chaining.
       let abortedEmitted = false;
       const batch = await sendBatch(
         plan.commands,
@@ -295,6 +299,7 @@ router.post(
           stopOnFirstFailure: input.transactional,
           signal: ac.signal,
           emitMetrics: true,
+          connectionMode: 'per-command',
         },
         {
           onSent: (index, cmd) => {
