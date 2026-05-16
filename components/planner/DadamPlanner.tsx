@@ -1,3 +1,22 @@
+/**
+ * @deprecated W4-6 (2026-05): legacy Next.js 측 planner 컴포넌트.
+ *
+ * dadamfurniture.com 의 production planner iframe 은 planner-vite 빌드물
+ * (`planner/embed/index.html`, Three.js V2 좌표계 + SketchUp 호환 변환) 를 사용.
+ * 본 컴포넌트는 V1 (Y-up center mm radians) 좌표계로 작성되어 있으며 deriveCabinet
+ * 의 출력도 V1. lib/sketchup-client.ts 가 W4-6 부터 송신 직전 V1→V2 변환하므로
+ * 동작은 유지되나, planner-vite 와 코드 중복.
+ *
+ * 사용처 (남아 있는 곳):
+ *   - app/planner/page.tsx — Next.js /planner 라우트 (production 트래픽 영향 미확인)
+ *   - app/embed/page.tsx — Next.js /embed 라우트 (planner-vite 와 URL 충돌 가능)
+ *
+ * 향후 단계:
+ *   1. production deploy 가 Next.js 라우트를 실제 노출하는지 검증
+ *   2. 미사용 확인되면 본 파일 + app/planner + app/embed 삭제
+ *   3. 사용 중이면 planner-vite 와 동일 V2 구조로 마이그레이션 또는 라우팅 통합
+ */
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';

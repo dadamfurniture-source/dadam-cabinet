@@ -1,3 +1,15 @@
+/**
+ * @deprecated W4-6 (2026-05): legacy Next.js 측 embed planner 컴포넌트.
+ *
+ * production iframe (dadamfurniture.com/planner/embed/) 은 planner-vite 의
+ * Vite 빌드물 사용 — 본 컴포넌트는 app/embed/page.tsx 의 라우트에서만 사용.
+ *
+ * V1 (Y-up center mm radians) 좌표계 — lib/sketchup-client.ts 가 W4-6 부터
+ * 송신 직전 V2 변환. planner-vite 와 코드 중복.
+ *
+ * 향후: production deploy 영향 검증 후 삭제 또는 planner-vite 와 통합.
+ */
+
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
