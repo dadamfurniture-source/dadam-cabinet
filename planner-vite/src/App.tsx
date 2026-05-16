@@ -781,12 +781,21 @@ export default function App() {
     setSketchupBusy(true);
     setSketchupMessage('');
     try {
+      // W4-5: URL 파라미터로 회전/머티리얼 명령 활성화 — 디자이너 PC E2E 검증 채널.
+      //   ?sketchupRotation=1 → applyRotation
+      //   ?sketchupMaterial=1 → applyMaterial
+      // 검증 후 W4-5b 에서 기본 활성화 전환 예정.
+      const sp = new URLSearchParams(window.location.search);
+      const applyRotation = sp.get('sketchupRotation') === '1';
+      const applyMaterial = sp.get('sketchupMaterial') === '1';
       const result = await exportToSketchup({
         parts: derived.parts,
         category: planner.presetId,
         materialTone: planner.material,
         clearExisting: true,
         transactional: true,
+        applyRotation,
+        applyMaterial,
       });
       if (result.ok) {
         setSketchupMessage(`✓ ${result.componentCount}개 빌드 완료 (${result.summary.durationMs}ms)`);

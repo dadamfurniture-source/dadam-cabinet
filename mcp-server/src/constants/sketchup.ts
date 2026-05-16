@@ -80,6 +80,27 @@ export const RUBY_COMMANDS = {
   COMMIT_OP: 'Sketchup.active_model.commit_operation',
   /** 트랜잭션 롤백 — sendBatch(autoAbortOnFailure=true) 에서 실패 감지 시 호출. */
   ABORT_OP: 'Sketchup.active_model.abort_operation',
+  /**
+   * W4-5: 16개 머티리얼 (4 tone × 4 colorKey) idempotent 사전 등록.
+   * 이름과 색상은 sketchup-builder.service.ts 의 sketchupMaterialName + MATERIALS 와 동기화.
+   * 동적 입력 없이 고정 Ruby 코드 — eval_ruby allowlist 위반 없음.
+   */
+  ENSURE_MATERIALS: `
+    palette = {
+      'cream' => { 'body' => '#f1ede3', 'accent' => '#d4c4a8', 'shadow' => '#b7aa90', 'trim' => '#c8bda8' },
+      'oak' => { 'body' => '#d1b089', 'accent' => '#9e7144', 'shadow' => '#6f5031', 'trim' => '#8a6a42' },
+      'walnut' => { 'body' => '#8b6447', 'accent' => '#b48a6a', 'shadow' => '#5d412c', 'trim' => '#6e5238' },
+      'graphite' => { 'body' => '#696a6b', 'accent' => '#c2b49c', 'shadow' => '#3d4042', 'trim' => '#555657' }
+    }
+    materials = Sketchup.active_model.materials
+    palette.each do |tone, keys|
+      keys.each do |key, hex|
+        name = "dadam_" + tone + "_" + key
+        mat = materials[name] || materials.add(name)
+        mat.color = hex
+      end
+    end
+  `.trim(),
 } as const;
 
 export type RubyCommandKey = keyof typeof RUBY_COMMANDS;

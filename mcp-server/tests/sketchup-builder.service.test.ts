@@ -10,6 +10,8 @@ import {
   buildPlanFromParts,
   evalRubySafe,
   partToCommand,
+  partToRotationCommand,
+  partToMaterialCommand,
 } from '../src/services/sketchup-builder.service.js';
 import {
   mmToInch,
@@ -355,11 +357,195 @@ describe('evalRubySafe — eval_ruby RCE 가드', () => {
   });
 
   it('TypeScript 컴파일 단에서 allowlist 외 key 차단 — 런타임 typeof 확인', () => {
-    const keys: Array<keyof typeof RUBY_COMMANDS> = ['CLEAR_ENTITIES', 'START_OP', 'COMMIT_OP', 'ABORT_OP'];
+    const keys: Array<keyof typeof RUBY_COMMANDS> = ['CLEAR_ENTITIES', 'START_OP', 'COMMIT_OP', 'ABORT_OP', 'ENSURE_MATERIALS'];
     for (const k of keys) {
       expect(typeof RUBY_COMMANDS[k]).toBe('string');
       expect(RUBY_COMMANDS[k].length).toBeGreaterThan(0);
     }
+  });
+
+  it('ENSURE_MATERIALS 는 동적 입력 없는 고정 Ruby 코드 (palette/materials 만 사용)', () => {
+    const code = RUBY_COMMANDS.ENSURE_MATERIALS;
+    expect(code).toContain('cream');
+    expect(code).toContain('oak');
+    expect(code).toContain('walnut');
+    expect(code).toContain('graphite');
+    expect(code).toContain('body');
+    expect(code).toContain('accent');
+    expect(code).toContain('Sketchup.active_model.materials');
+    // 외부 입력 보간 (#{...}) 없음 — 고정 string 만
+    expect(code).not.toMatch(/\#\{[^}]*\}/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// W4-5: transform_component (회전) + set_material 명령
+// ─────────────────────────────────────────────────────────────────
+
+describe('partToRotationCommand — transform_component (회전)', () => {
+  it('rotationZDeg undefined 이면 null', () => {
+    const part = makeBody('b1');
+    expect(partToRotationCommand(part, 'sink')).toBeNull();
+  });
+
+  it('rotationZDeg=0 이면 null (회전 불요)', () => {
+    const part = makeBody('b1', { rotationZDeg: 0 });
+    expect(partToRotationCommand(part, 'sink')).toBeNull();
+  });
+
+  it('rotationZDeg=90: transform_component + axis=[0,0,1] + angle_deg + origin=corner', () => {
+    const part = makeBody('sec-1', {
+      x: 100, y: 200, z: 300,
+      rotationZDeg: 90,
+    });
+    const cmd = partToRotationCommand(part, 'sink')!;
+    expect(cmd.tool).toBe(MHYRR_TOOLS.TRANSFORM_COMPONENT);
+    expect(cmd.arguments.name).toBe(sketchupComponentName('sink', 'sec-1'));
+    const rotation = cmd.arguments.rotation as any;
+    expect(rotation.axis).toEqual([0, 0, 1]);
+    expect(rotation.angle_deg).toBe(90);
+    expect(rotation.origin[0]).toBeCloseTo(mmToInch(100), 5);
+    expect(rotation.origin[1]).toBeCloseTo(mmToInch(200), 5);
+    expect(rotation.origin[2]).toBeCloseTo(mmToInch(300), 5);
+  });
+
+  it('rotationZDeg=-90: 부호 보존', () => {
+    const part = makeBody('sec-1', { rotationZDeg: -90 });
+    const cmd = partToRotationCommand(part, 'sink')!;
+    const rotation = cmd.arguments.rotation as any;
+    expect(rotation.angle_deg).toBe(-90);
+  });
+
+  it('width/depth/height 중 하나라도 0 이면 null (create_component 와 정합)', () => {
+    expect(partToRotationCommand(makeBody('p', { width: 0, rotationZDeg: 90 }), 'sink')).toBeNull();
+  });
+});
+
+describe('partToMaterialCommand — set_material', () => {
+  it('정상 → set_material + name + material', () => {
+    const part = makeBody('b1');
+    const cmd = partToMaterialCommand(part, 'sink', 'cream')!;
+    expect(cmd.tool).toBe(MHYRR_TOOLS.SET_MATERIAL);
+    expect(cmd.arguments.name).toBe('dadam.sink.b1');
+    expect(cmd.arguments.material).toBe('dadam_cream_body');
+  });
+
+  it('도어는 accent colorKey → dadam_{tone}_accent', () => {
+    const door = makeDoor('d1', 'm1');
+    const cmd = partToMaterialCommand(door, 'wardrobe', 'walnut')!;
+    expect(cmd.arguments.material).toBe('dadam_walnut_accent');
+  });
+
+  it('width=0 이면 null', () => {
+    expect(partToMaterialCommand(makeBody('p', { width: 0 }), 'sink', 'cream')).toBeNull();
+  });
+});
+
+describe('buildPlanFromParts — applyRotation / applyMaterial 옵션', () => {
+  it('기본값 (applyRotation=false): 회전 파트가 있어도 transform_component 명령 없음 (회귀 격리)', () => {
+    const part = makeBody('sec-1', { rotationZDeg: 90 });
+    const plan = buildPlanFromParts([part], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+    });
+    const tools = plan.commands.map((c) => c.tool);
+    expect(tools).not.toContain(MHYRR_TOOLS.TRANSFORM_COMPONENT);
+  });
+
+  it('applyRotation=true: rotationZDeg ≠ 0 파트마다 transform_component 추가', () => {
+    const parts = [
+      makeBody('b1'),                                  // 회전 없음
+      makeBody('sec-1', { rotationZDeg: 90 }),
+      makeBody('sec-2', { rotationZDeg: -90 }),
+    ];
+    const plan = buildPlanFromParts(parts, {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+      applyRotation: true,
+    });
+    const transformCmds = plan.commands.filter((c) => c.tool === MHYRR_TOOLS.TRANSFORM_COMPONENT);
+    expect(transformCmds).toHaveLength(2);
+    // create_component 직후에 transform_component 가 오는지 (순서)
+    const createIdx = plan.commands.findIndex(
+      (c) => c.tool === MHYRR_TOOLS.CREATE_COMPONENT && c.arguments.name === 'dadam.sink.sec-1',
+    );
+    expect(plan.commands[createIdx + 1].tool).toBe(MHYRR_TOOLS.TRANSFORM_COMPONENT);
+  });
+
+  it('기본값 (applyMaterial=false): set_material 명령 없음 + ENSURE_MATERIALS 도 없음', () => {
+    const plan = buildPlanFromParts([makeBody('b1')], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+    });
+    const tools = plan.commands.map((c) => c.tool);
+    expect(tools).not.toContain(MHYRR_TOOLS.SET_MATERIAL);
+    const evalCodes = plan.commands
+      .filter((c) => c.tool === MHYRR_TOOLS.EVAL_RUBY)
+      .map((c) => c.arguments.code as string);
+    expect(evalCodes).not.toContain(RUBY_COMMANDS.ENSURE_MATERIALS);
+  });
+
+  it('applyMaterial=true: ENSURE_MATERIALS 사전 등록 + 각 파트마다 set_material 추가', () => {
+    const parts = [makeBody('b1'), makeDoor('d1', 'm1')];
+    const plan = buildPlanFromParts(parts, {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: true,
+      applyMaterial: true,
+    });
+
+    // ENSURE_MATERIALS 가 START_OP 직후
+    const evalCodes = plan.commands
+      .filter((c) => c.tool === MHYRR_TOOLS.EVAL_RUBY)
+      .map((c) => c.arguments.code as string);
+    expect(evalCodes[0]).toBe(RUBY_COMMANDS.START_OP);
+    expect(evalCodes[1]).toBe(RUBY_COMMANDS.ENSURE_MATERIALS);
+
+    // set_material 명령 — 본체 1개 + 도어 1개
+    const setMatCmds = plan.commands.filter((c) => c.tool === MHYRR_TOOLS.SET_MATERIAL);
+    expect(setMatCmds).toHaveLength(2);
+    expect(setMatCmds[0].arguments.material).toBe('dadam_cream_body');
+    expect(setMatCmds[1].arguments.material).toBe('dadam_cream_accent');
+  });
+
+  it('applyRotation + applyMaterial 동시: 명령 순서 [create, transform?, set_material] × N', () => {
+    const part = makeBody('sec-1', { rotationZDeg: 90 });
+    const plan = buildPlanFromParts([part], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+      applyRotation: true,
+      applyMaterial: true,
+    });
+
+    const ofTool = plan.commands.map((c) => c.tool);
+    const createIdx = ofTool.indexOf(MHYRR_TOOLS.CREATE_COMPONENT);
+    expect(ofTool[createIdx + 1]).toBe(MHYRR_TOOLS.TRANSFORM_COMPONENT);
+    expect(ofTool[createIdx + 2]).toBe(MHYRR_TOOLS.SET_MATERIAL);
+  });
+
+  it('originAlign=min-corner 가 transform_component.rotation.origin 도 동일 offset 적용', () => {
+    // 박스 corner (-400, 0, 0). align 후 corner (0, 0, 0). rotation.origin 도 동일.
+    const part = makeBody('sec-1', {
+      x: -400, y: 0, z: 0, width: 800, depth: 600, height: 720,
+      rotationZDeg: 90,
+    });
+    const plan = buildPlanFromParts([part], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+      applyRotation: true,
+      originAlign: 'min-corner',
+    });
+
+    const transformCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.TRANSFORM_COMPONENT)!;
+    const rotation = transformCmd.arguments.rotation as any;
+    expect(rotation.origin[0]).toBeCloseTo(0, 5);
+    expect(rotation.origin[1]).toBeCloseTo(0, 5);
+    expect(rotation.origin[2]).toBeCloseTo(0, 5);
   });
 });
 

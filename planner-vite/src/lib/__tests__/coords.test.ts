@@ -98,7 +98,7 @@ describe('V1 ↔ V2 round-trip 동일성', () => {
     { ...baseV1, rotationY: Math.PI / 2 },
     { ...baseV1, rotationY: -Math.PI / 2 },
     { ...baseV1, x: -1234.5, y: 999.9, z: 0.1, width: 1, height: 1, depth: 1 },
-    { ...baseV1, moduleType: 'cook', isDoor: true, parentModuleId: 'p1', doorIndex: 0, openDirection: 'left' },
+    { ...baseV1, moduleType: 'cook', doorCount: 2 },
   ];
 
   for (const v1 of cases) {
