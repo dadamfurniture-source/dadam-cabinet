@@ -157,6 +157,9 @@ function makeBuildBody(overrides: Record<string, unknown> = {}) {
     materialTone: 'cream',
     transactional: false, // 테스트는 단순 시나리오 — start/commit 노이즈 없이
     clearExisting: false,
+    // W4-5c: 기본값 true 됐지만 라우트 단순 검증은 옵션 false 로 노이즈 제거
+    applyRotation: false,
+    applyMaterial: false,
     ...overrides,
   };
 }
