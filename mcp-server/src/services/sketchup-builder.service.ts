@@ -11,7 +11,7 @@
 // 4) isDoor flag → 별도 컴포넌트로 분리 (디자이너가 도어만 선택·변경 가능)
 // ═══════════════════════════════════════════════════════════════
 
-import type { CabinetCategory, CabinetPart, MaterialTone } from '../types/planner.types.js';
+import type { CabinetCategory, CabinetPart, CabinetPartV2, MaterialTone } from '../types/planner.types.js';
 import {
   mmToInch,
   plannerToSketchup,
@@ -55,6 +55,15 @@ export interface BuildOptions {
    * 도중 실패 시 bridge 가 abort_operation 으로 깔끔히 되돌릴 수 있다.
    */
   transactional?: boolean;
+  /**
+   * 원점 정렬 정책:
+   *   - 'min-corner' (기본): 가구의 좌하단 모서리를 SketchUp 원점 (0,0,0) 에 맞춤.
+   *     모든 create_component 의 position 에서 bounding box 의 (x_min, y_min, z_min) 을 뺀다.
+   *     디자이너 관례 — 가구가 SketchUp 의 +x/+y/+z 1사분면 안에 통째로 배치됨.
+   *   - 'none': planner 좌표 그대로 사용. 가구 가로 중심이 SketchUp x=0 에 위치
+   *     (planner CabinetPart 의 x=0 관례). 가구가 빨간 축 양쪽으로 걸침.
+   */
+  originAlign?: 'min-corner' | 'none';
 }
 
 /**
@@ -74,25 +83,60 @@ export function evalRubySafe(key: RubyCommandKey): BuildCommand {
 // ───────────────────────────────────────────────────────────────
 
 /**
- * CabinetPart 1개 → create_component 명령 1개.
+ * V1 (Y-up center mm, rotationY radians) → V2 (Z-up corner mm, rotationZDeg degrees).
  *
- * SketchUp 의 create_component 는 일반적으로 다음 arguments 를 받는다 (mhyrr 명세 기반):
- *   - name: string
- *   - position: [x, y, z]   // inch
- *   - dimensions: [w, h, d] // inch
- *   - material: string (선택)
+ * W4-1 shim — 외부 호출 측은 여전히 V1 을 보낸다.
+ * partToCommand 내부에서 V2 로 변환한 뒤 mhyrr 명령을 생성한다.
  *
- * width/height/depth 가 0 인 part 는 건너뛴다 (planner 에서 비활성 모듈).
+ * 변환:
+ *   좌표축: Y-up (x=가로, y=수직, z=깊이) → Z-up (x=가로, y=깊이, z=수직)
+ *   기준점: 박스 중심 → 박스 최소 모서리 (x_min, y_min, z_min)
+ *   치수 필드: (width, height, depth)_V1 → (width=+x, depth=+y, height=+z)_V2
+ *   회전: rotationY (Y-up Y축 radians) → rotationZDeg (Z-up Z축 degrees)
+ *     좌표축 변환 (x,y,z)→(x,z,y) + 회전 표현 변환 시 부호 보존
+ *     (수학 검증: Y-up Y회전 +π/2 == Z-up Z회전 +π/2 — 동일 결과)
  */
-export function partToCommand(part: CabinetPart, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
-  if (part.width <= 0 || part.height <= 0 || part.depth <= 0) {
+export function migrateV1ToV2(part: CabinetPart): CabinetPartV2 {
+  const skCenter = plannerToSketchup({ x: part.x, y: part.y, z: part.z });
+  const skDimensions = plannerToSketchup({ x: part.width, y: part.height, z: part.depth });
+  const cornerX = skCenter.x - skDimensions.x / 2;
+  const cornerY = skCenter.y - skDimensions.y / 2;
+  const cornerZ = skCenter.z - skDimensions.z / 2;
+  const rotZDeg = part.rotationY != null ? (part.rotationY * 180) / Math.PI : undefined;
+
+  return {
+    id: part.id,
+    label: part.label,
+    x: cornerX,
+    y: cornerY,
+    z: cornerZ,
+    width: skDimensions.x,   // 가로 (+x)
+    depth: skDimensions.y,   // 깊이 (+y)
+    height: skDimensions.z,  // 수직 (+z)
+    rotationZDeg: rotZDeg,
+    colorKey: part.colorKey,
+    wireframe: part.wireframe,
+    essential: part.essential,
+    moduleType: part.moduleType,
+    isDoor: part.isDoor,
+    parentModuleId: part.parentModuleId,
+    doorIndex: part.doorIndex,
+    openDirection: part.openDirection,
+  };
+}
+
+/**
+ * V2 CabinetPart 1개 → create_component 명령 1개.
+ *
+ * V2 는 이미 SketchUp 네이티브 좌표 (Z-up corner mm).
+ * 변환은 mm→inch 뿐. plannerToSketchup / center→corner 모두 불필요.
+ *
+ * width/depth/height 가 0 인 part 는 건너뛴다.
+ */
+export function partV2ToCommand(part: CabinetPartV2, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
+  if (part.width <= 0 || part.depth <= 0 || part.height <= 0) {
     return null;
   }
-
-  const skOrigin = plannerToSketchup({ x: part.x, y: part.y, z: part.z });
-  // planner 의 width/height/depth 는 축 정렬 박스 치수.
-  // 좌표 회전 후 width(x)=width, depth(y)=depth_in_planner, height(z)=height_in_planner.
-  const skDimensions = plannerToSketchup({ x: part.width, y: part.height, z: part.depth });
 
   const materialName = sketchupMaterialName(tone, part.colorKey);
   const componentName = sketchupComponentName(category, part.id);
@@ -100,13 +144,10 @@ export function partToCommand(part: CabinetPart, category: CabinetCategory, tone
   return {
     tool: MHYRR_TOOLS.CREATE_COMPONENT,
     arguments: {
-      // mhyrr v0.1.0 필수 필드. 캐비닛 부품은 모두 직육면체 → 'cube'.
       type: 'cube',
-      position: [mmToInch(skOrigin.x), mmToInch(skOrigin.y), mmToInch(skOrigin.z)],
-      dimensions: [mmToInch(skDimensions.x), mmToInch(skDimensions.y), mmToInch(skDimensions.z)],
-      // name / material / meta 는 mhyrr v0.1.0 의 create_component 가 무시한다.
-      // outliner 식별과 머티리얼은 별도 eval_ruby/set_material 호출로 적용해야 함 (W4 후속).
-      // 그래도 정보 손실 방지를 위해 함께 전달 — mhyrr 가 무시할 뿐.
+      position: [mmToInch(part.x), mmToInch(part.y), mmToInch(part.z)],
+      dimensions: [mmToInch(part.width), mmToInch(part.depth), mmToInch(part.height)],
+      // name / material / meta — mhyrr v0.1.0 는 무시하지만 정보 보존
       name: componentName,
       material: materialName,
       meta: {
@@ -118,9 +159,22 @@ export function partToCommand(part: CabinetPart, category: CabinetCategory, tone
         doorIndex: part.doorIndex ?? null,
         openDirection: part.openDirection ?? null,
         moduleType: part.moduleType ?? null,
+        rotationZDeg: part.rotationZDeg ?? null, // W4-5 에서 transform_component 로 적용 예정
       },
     },
   };
+}
+
+/**
+ * 외부 진입점 — 현재는 V1 입력을 받아 내부에서 V2 로 변환 후 명령 생성.
+ * W4-2 머지 후 planner-vite 가 V2 직송 시 partV2ToCommand 직접 호출로 변경 (W4-4).
+ */
+export function partToCommand(part: CabinetPart, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
+  if (part.width <= 0 || part.height <= 0 || part.depth <= 0) {
+    return null;
+  }
+  const v2 = migrateV1ToV2(part);
+  return partV2ToCommand(v2, category, tone);
 }
 
 /**
@@ -156,6 +210,28 @@ export function buildPlanFromParts(parts: CabinetPart[], opts: BuildOptions): Bu
   for (const part of [...bodyParts, ...doorParts]) {
     const cmd = partToCommand(part, opts.category, opts.materialTone);
     if (cmd) commands.push(cmd);
+  }
+
+  // 원점 정렬: 가구의 좌하단 모서리를 SketchUp 원점 (0,0,0) 에 맞춤.
+  // create_component 들의 position 중 (x_min, y_min, z_min) 을 모든 position 에서 뺀다.
+  // START/COMMIT/CLEAR (eval_ruby) 명령은 position 없으므로 영향 받지 않는다.
+  const originAlign = opts.originAlign ?? 'min-corner';
+  if (originAlign === 'min-corner') {
+    const positions = commands
+      .filter((c) => c.tool === MHYRR_TOOLS.CREATE_COMPONENT)
+      .map((c) => c.arguments.position as number[]);
+    if (positions.length > 0) {
+      const minX = Math.min(...positions.map((p) => p[0]));
+      const minY = Math.min(...positions.map((p) => p[1]));
+      const minZ = Math.min(...positions.map((p) => p[2]));
+      for (const cmd of commands) {
+        if (cmd.tool !== MHYRR_TOOLS.CREATE_COMPONENT) continue;
+        const pos = cmd.arguments.position as number[];
+        pos[0] -= minX;
+        pos[1] -= minY;
+        pos[2] -= minZ;
+      }
+    }
   }
 
   if (transactional) {

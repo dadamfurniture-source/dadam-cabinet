@@ -109,6 +109,7 @@ export interface CabinetPart {
   parentModuleId?: string;
   doorIndex?: number;
   openDirection?: 'left' | 'right';
+  rotationY?: number; // W1 누락 — radians, Y축 CCW. secondary 모듈만 ±π/2.
 }
 
 export interface ModuleLayout {
