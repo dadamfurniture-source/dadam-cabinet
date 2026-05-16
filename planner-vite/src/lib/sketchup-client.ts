@@ -12,10 +12,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type {
   CabinetCategory,
-  CabinetPart,
+  CabinetPartV2,
   MaterialTone,
 } from './planner';
-import { migratePartV1ToV2 } from './coords';
 
 // Vite env (build time inline) — 미설정 시 prod fallback.
 const SUPABASE_URL =
@@ -30,7 +29,8 @@ const DEFAULT_MCP_SERVER_URL =
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export interface ExportToSketchupOptions {
-  parts: CabinetPart[];
+  // W4-3: deriveCabinet 출력이 V2 로 통일되어 변환 없이 직송.
+  parts: CabinetPartV2[];
   category: CabinetCategory;
   materialTone: MaterialTone;
   clearExisting?: boolean;
@@ -77,13 +77,10 @@ export async function exportToSketchup(
     };
   }
 
-  // W4-2: V1 (Y-up center) → V2 (Z-up corner) 변환 후 전송.
-  // mcp-server schema 가 schemaVersion='v2' 받으면 V2 로 처리 (좌표 변환 없음).
-  // 향후 W4-2b 에서 deriveCabinet 자체가 V2 출력하게 되면 변환 제거.
-  const partsV2 = opts.parts.map(migratePartV1ToV2);
+  // W4-3: deriveCabinet 출력이 V2 (Z-up corner mm degrees) — 변환 없이 그대로 송신.
   const body = {
     schemaVersion: 'v2' as const,
-    parts: partsV2,
+    parts: opts.parts,
     category: opts.category,
     materialTone: opts.materialTone,
     clearExisting: opts.clearExisting ?? true,

@@ -62,3 +62,45 @@ export function migratePartV1ToV2(p: CabinetPart): CabinetPartV2 {
     drawerCount: p.drawerCount,
   };
 }
+
+/**
+ * V2 (Z-up corner mm degrees) → V1 (Y-up center mm radians) 역변환.
+ *
+ * W4-3 에서 App.tsx 가 derived.parts (V2) 를 받지만 ModuleBox 렌더 코드가
+ * V1 가정으로 작성되어 있어 useMemo 어댑터로 V1 변환 후 사용. W4-3b 에서
+ * App.tsx 가 V2 직접 받게 되면 본 함수도 제거 예정.
+ *
+ * migratePartV1ToV2 와 정확히 역. 6 preset round-trip 테스트로 보장.
+ */
+export function migratePartV2ToV1(p: CabinetPartV2): CabinetPart {
+  // V2 corner → center
+  const v2CenterX = p.x + p.width / 2;
+  const v2CenterY = p.y + p.depth / 2;
+  const v2CenterZ = p.z + p.height / 2;
+  // V2 (x, z, y) center → V1 (x, y, z) center  (swap z↔y back)
+  const v1X = v2CenterX;
+  const v1Y = v2CenterZ; // V2 z (수직) → V1 y (수직)
+  const v1Z = v2CenterY; // V2 y (깊이) → V1 z (깊이)
+  // V2 (width=+x, depth=+y, height=+z) → V1 (width=+x, height=+y, depth=+z)
+  const v1Width = p.width;
+  const v1Height = p.height;
+  const v1Depth = p.depth;
+  return {
+    id: p.id,
+    label: p.label,
+    x: v1X,
+    y: v1Y,
+    z: v1Z,
+    width: v1Width,
+    height: v1Height,
+    depth: v1Depth,
+    rotationY: p.rotationZDeg != null ? (p.rotationZDeg * Math.PI) / 180 : undefined,
+    colorKey: p.colorKey,
+    wireframe: p.wireframe,
+    essential: p.essential,
+    moduleType: p.moduleType,
+    moduleKind: p.moduleKind,
+    doorCount: p.doorCount,
+    drawerCount: p.drawerCount,
+  };
+}
