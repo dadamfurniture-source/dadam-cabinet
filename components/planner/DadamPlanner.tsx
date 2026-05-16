@@ -15,6 +15,7 @@ import {
   type MaterialTone,
   type PlannerState,
 } from '../../lib/planner';
+import { exportToSketchup } from '../../lib/sketchup-client';
 
 type CameraView = 'perspective' | 'front' | 'top';
 type TabId = 'category' | 'dimensions' | 'materials';
@@ -120,6 +121,9 @@ function ControlPanel({
   setCameraView,
   onExport,
   exportMessage,
+  onSendToSketchup,
+  sketchupMessage,
+  sketchupBusy,
 }: {
   planner: PlannerState;
   setPlanner: React.Dispatch<React.SetStateAction<PlannerState>>;
@@ -129,6 +133,9 @@ function ControlPanel({
   setCameraView: (v: CameraView) => void;
   onExport: () => void;
   exportMessage: string;
+  onSendToSketchup: () => void;
+  sketchupMessage: string;
+  sketchupBusy: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('dimensions');
 
@@ -342,20 +349,36 @@ function ControlPanel({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onExport}
-            className="flex-1 py-2.5 bg-white rounded-xl text-xs font-bold border border-black/10 hover:bg-black/5 transition-colors"
-          >
-            {exportMessage || 'JSON 저장'}
-          </button>
-          <button
-            type="button"
-            className="flex-1 py-2.5 bg-[#2d2a26] text-white rounded-xl text-xs font-bold hover:bg-[#1a1918] transition-colors"
-          >
-            제출 준비
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onExport}
+              className="flex-1 py-2.5 bg-white rounded-xl text-xs font-bold border border-black/10 hover:bg-black/5 transition-colors"
+            >
+              {exportMessage || 'JSON 저장'}
+            </button>
+            <button
+              type="button"
+              onClick={onSendToSketchup}
+              disabled={sketchupBusy}
+              className="flex-1 py-2.5 bg-[#2d2a26] text-white rounded-xl text-xs font-bold hover:bg-[#1a1918] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="디자이너 PC 의 SketchUp 으로 3D 모델 전송 (SketchUp + mhyrr 확장 + mcp-server 가 떠 있어야 함)"
+            >
+              {sketchupBusy ? '전송 중…' : 'SketchUp 으로 보내기'}
+            </button>
+          </div>
+          {sketchupMessage && (
+            <div
+              className={`text-[10px] px-3 py-2 rounded-lg ${
+                sketchupMessage.startsWith('✓')
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}
+            >
+              {sketchupMessage}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -387,6 +410,8 @@ export default function DadamPlanner(props: DadamPlannerProps) {
   });
   const [cameraView, setCameraView] = useState<CameraView>('perspective');
   const [exportMessage, setExportMessage] = useState('');
+  const [sketchupMessage, setSketchupMessage] = useState('');
+  const [sketchupBusy, setSketchupBusy] = useState(false);
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
   const palette = MATERIALS[planner.material];
@@ -416,6 +441,39 @@ export default function DadamPlanner(props: DadamPlannerProps) {
     const timer = window.setTimeout(() => setExportMessage(''), 2200);
     return () => window.clearTimeout(timer);
   }, [exportMessage]);
+
+  useEffect(() => {
+    if (!sketchupMessage) return;
+    const timer = window.setTimeout(() => setSketchupMessage(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [sketchupMessage]);
+
+  const sendToSketchup = async () => {
+    if (sketchupBusy) return;
+    setSketchupBusy(true);
+    setSketchupMessage('');
+    try {
+      const result = await exportToSketchup({
+        parts: derived.parts,
+        category: planner.presetId,
+        materialTone: planner.material,
+        clearExisting: true,
+        transactional: true,
+      });
+      if (result.ok) {
+        setSketchupMessage(
+          `✓ ${result.componentCount}개 컴포넌트 빌드 완료 (${result.summary.durationMs}ms, avgRtt ${result.summary.averageRttMs}ms)`,
+        );
+      } else {
+        setSketchupMessage(`✗ ${result.code}: ${result.message}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setSketchupMessage(`✗ 예외: ${msg}`);
+    } finally {
+      setSketchupBusy(false);
+    }
+  };
 
   const exportJson = async () => {
     const payload = {
@@ -453,6 +511,9 @@ export default function DadamPlanner(props: DadamPlannerProps) {
         setCameraView={setCameraView}
         onExport={exportJson}
         exportMessage={exportMessage}
+        onSendToSketchup={sendToSketchup}
+        sketchupMessage={sketchupMessage}
+        sketchupBusy={sketchupBusy}
       />
 
       {/* Overlay: Info Card (Right Top) */}
