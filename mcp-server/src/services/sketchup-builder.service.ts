@@ -188,9 +188,13 @@ export function partToCommand(part: CabinetPart, category: CabinetCategory, tone
  * 3) wireframe / essential=false 인 보조 파트는 제외 (시공 산출물에 불필요).
  * 4) 본체 → 도어 순으로 정렬 (도어가 본체보다 z 축에서 살짝 앞으로 나오는 게 자연스러움).
  */
-export function buildPlanFromParts(parts: CabinetPart[], opts: BuildOptions): BuildPlan {
+export function buildPlanFromParts(
+  parts: CabinetPart[] | CabinetPartV2[],
+  opts: BuildOptions & { schemaVersion?: 'v1' | 'v2' },
+): BuildPlan {
   const commands: BuildCommand[] = [];
   const transactional = opts.transactional ?? true;
+  const isV2 = opts.schemaVersion === 'v2';
 
   if (transactional) {
     commands.push(evalRubySafe('START_OP'));
@@ -200,15 +204,19 @@ export function buildPlanFromParts(parts: CabinetPart[], opts: BuildOptions): Bu
     commands.push(evalRubySafe('CLEAR_ENTITIES'));
   }
 
-  // 보조 파트 (wireframe, essential=false) 제외.
-  const buildParts = parts.filter((p) => !p.wireframe && p.essential !== false);
+  // 보조 파트 (wireframe, essential=false) 제외. (V1/V2 모두 같은 필드)
+  const buildParts = (parts as Array<CabinetPart | CabinetPartV2>).filter(
+    (p) => !(p as any).wireframe && (p as any).essential !== false,
+  );
 
   // 본체 → 도어 순서.
-  const bodyParts = buildParts.filter((p) => !p.isDoor);
-  const doorParts = buildParts.filter((p) => p.isDoor);
+  const bodyParts = buildParts.filter((p) => !(p as any).isDoor);
+  const doorParts = buildParts.filter((p) => (p as any).isDoor);
 
   for (const part of [...bodyParts, ...doorParts]) {
-    const cmd = partToCommand(part, opts.category, opts.materialTone);
+    const cmd = isV2
+      ? partV2ToCommand(part as CabinetPartV2, opts.category, opts.materialTone)
+      : partToCommand(part as CabinetPart, opts.category, opts.materialTone);
     if (cmd) commands.push(cmd);
   }
 

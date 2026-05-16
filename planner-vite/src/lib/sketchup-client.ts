@@ -15,6 +15,7 @@ import type {
   CabinetPart,
   MaterialTone,
 } from './planner';
+import { migratePartV1ToV2 } from './coords';
 
 // Vite env (build time inline) — 미설정 시 prod fallback.
 const SUPABASE_URL =
@@ -76,8 +77,13 @@ export async function exportToSketchup(
     };
   }
 
+  // W4-2: V1 (Y-up center) → V2 (Z-up corner) 변환 후 전송.
+  // mcp-server schema 가 schemaVersion='v2' 받으면 V2 로 처리 (좌표 변환 없음).
+  // 향후 W4-2b 에서 deriveCabinet 자체가 V2 출력하게 되면 변환 제거.
+  const partsV2 = opts.parts.map(migratePartV1ToV2);
   const body = {
-    parts: opts.parts,
+    schemaVersion: 'v2' as const,
+    parts: partsV2,
     category: opts.category,
     materialTone: opts.materialTone,
     clearExisting: opts.clearExisting ?? true,
