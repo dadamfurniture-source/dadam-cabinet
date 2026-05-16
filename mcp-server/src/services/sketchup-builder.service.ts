@@ -37,7 +37,19 @@ import {
 export interface BuildCommand {
   tool: MhyrrToolName;
   arguments: Record<string, unknown>;
+  /**
+   * W4-5b: create_component 응답의 result.resourceId (mhyrr 가 반환하는 group.entityID)
+   * 를 sendBatch 가 entityIdMap[idRef] 에 저장. 후속 transform_component / set_material
+   * 명령이 arguments 안에서 `__ENT__:<idRef>` 문자열로 참조 → sendBatch 가 실 ID 치환.
+   */
+  idRef?: string;
 }
+
+/**
+ * W4-5b: arguments 안의 `__ENT__:<partId>` 플레이스홀더 형식.
+ * sendBatch (per-command) 가 응답에서 받은 resourceId 로 치환.
+ */
+export const ENT_REF_PREFIX = '__ENT__:';
 
 export interface BuildPlan {
   category: CabinetCategory;
@@ -133,54 +145,66 @@ export function partToCommand(part: CabinetPartV2, category: CabinetCategory, to
         rotationZDeg: part.rotationZDeg ?? null,
       },
     },
+    // W4-5b: 후속 transform_component / set_material 이 응답 resourceId 참조.
+    idRef: part.id,
   };
 }
 
 /**
- * W4-5: rotationZDeg ≠ 0 인 파트에 mhyrr transform_component 명령 생성.
+ * W4-5b: rotationZDeg ≠ 0 인 파트에 mhyrr transform_component 명령 생성.
  *
- * mhyrr v0.1.0 의 transform_component 시그니처 (su_mcp/main.rb 기준 추정):
- *   { name: string, transform?: 16-elements } | { name: string, rotation: { axis, angle, origin } }
+ * mhyrr v0.1.0 의 transform_component 실제 시그니처 (su_mcp/main.rb 검증):
+ *   { id: number, rotation: [x_deg, y_deg, z_deg], position?: [x,y,z], scale?: [sx,sy,sz] }
+ *   - rotation 은 Euler degrees 배열 — 각 축마다 entity.bounds.center 기준 순차 회전
+ *   - pivot 은 mhyrr 가 entity.bounds.center 로 고정 (origin/axis 파라미터 없음)
  *
- * 본 구현은 semantic 형태로 발송 — mhyrr 가 거부하면 W4-5b 에서 transform 매트릭스로 보정.
- * pivot 은 part 의 corner 좌표 (rotation pivot = AABB min-corner) — V2 정의와 일치.
+ * W4-5b 변경:
+ *   - args.id 는 placeholder (sendBatch 가 응답 resourceId 로 치환)
+ *   - rotation 은 Euler 배열 [0, 0, angleDeg] — Z축만 회전
+ *   - origin 인자 제거 (mhyrr 가 center 자동 사용)
+ *
+ * pivot 의미 차이:
+ *   - V2 plan 의도: rotation pivot = corner (AABB min)
+ *   - mhyrr 실제: rotation pivot = bbox center
+ *   - secondary 모듈의 base 가 정사각 (depth==width 인 경우) 이면 차이 없음.
+ *   - 비정사각 박스는 회전 후 위치 차이 — W4-5c 에서 transform_component 의
+ *     position+rotation 조합으로 corner-pivot 효과 구현 가능 (별 PR).
  *
  * @returns rotationZDeg 가 undefined 또는 0 이면 null (회전 명령 불요)
  */
-export function partToRotationCommand(part: CabinetPartV2, category: CabinetCategory): BuildCommand | null {
+export function partToRotationCommand(part: CabinetPartV2, _category: CabinetCategory): BuildCommand | null {
   if (part.rotationZDeg == null || part.rotationZDeg === 0) return null;
   if (part.width <= 0 || part.depth <= 0 || part.height <= 0) return null;
 
-  const componentName = sketchupComponentName(category, part.id);
   return {
     tool: MHYRR_TOOLS.TRANSFORM_COMPONENT,
     arguments: {
-      name: componentName,
-      rotation: {
-        axis: [0, 0, 1],
-        angle_deg: part.rotationZDeg,
-        origin: [mmToInch(part.x), mmToInch(part.y), mmToInch(part.z)],
-      },
+      id: `${ENT_REF_PREFIX}${part.id}`,
+      rotation: [0, 0, part.rotationZDeg],
     },
   };
 }
 
 /**
- * W4-5: 각 파트에 mhyrr set_material 명령 생성.
+ * W4-5b: 각 파트에 mhyrr set_material 명령 생성.
  *
- * mhyrr v0.1.0 의 set_material 시그니처 (추정):
- *   { name: string, material: string }
+ * mhyrr v0.1.0 의 set_material 실제 시그니처 (su_mcp/main.rb 검증):
+ *   { id: number, material: string }
+ *   - id 로 entity 찾고 material 이름의 머티리얼 적용
+ *   - material 이 model.materials 에 등록돼 있으면 그것 사용 (ENSURE_MATERIALS 가 사전 등록)
+ *   - 없으면 mhyrr 가 자동 생성 — hex 색 (`#xxx`) 형식이면 색상 자동 파싱.
  *
- * material 이름은 ENSURE_MATERIALS 로 사전 등록된 16개 (4 tone × 4 key) 중 하나.
+ * W4-5b 변경:
+ *   - args.id 는 placeholder (sendBatch 가 응답 resourceId 로 치환)
+ *   - args.name 제거 (mhyrr 가 사용하지 않음)
  */
-export function partToMaterialCommand(part: CabinetPartV2, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
+export function partToMaterialCommand(part: CabinetPartV2, _category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
   if (part.width <= 0 || part.depth <= 0 || part.height <= 0) return null;
-  const componentName = sketchupComponentName(category, part.id);
   const materialName = sketchupMaterialName(tone, part.colorKey);
   return {
     tool: MHYRR_TOOLS.SET_MATERIAL,
     arguments: {
-      name: componentName,
+      id: `${ENT_REF_PREFIX}${part.id}`,
       material: materialName,
     },
   };
@@ -252,8 +276,8 @@ export function buildPlanFromParts(
 
   // 원점 정렬: 가구의 좌하단 모서리를 SketchUp 원점 (0,0,0) 에 맞춤.
   // create_component 들의 position 중 (x_min, y_min, z_min) 을 모든 position 에서 뺀다.
-  // transform_component 의 rotation.origin 도 동일 offset 적용 — 회전 pivot 이
-  // 파트 corner 이므로 정렬 후에도 일관 유지.
+  // W4-5b: mhyrr 의 transform_component 는 rotation.origin 인자 없음 — entity.bounds.center
+  // 기준 자동 회전. originAlign 은 create_component.position 만 보정.
   const originAlign = opts.originAlign ?? 'min-corner';
   if (originAlign === 'min-corner') {
     const positions = commands
@@ -264,18 +288,11 @@ export function buildPlanFromParts(
       const minY = Math.min(...positions.map((p) => p[1]));
       const minZ = Math.min(...positions.map((p) => p[2]));
       for (const cmd of commands) {
-        if (cmd.tool === MHYRR_TOOLS.CREATE_COMPONENT) {
-          const pos = cmd.arguments.position as number[];
-          pos[0] -= minX;
-          pos[1] -= minY;
-          pos[2] -= minZ;
-        } else if (cmd.tool === MHYRR_TOOLS.TRANSFORM_COMPONENT) {
-          // rotation.origin 도 동일 offset (회전 pivot 일관성)
-          const rotation = cmd.arguments.rotation as { origin: number[] };
-          rotation.origin[0] -= minX;
-          rotation.origin[1] -= minY;
-          rotation.origin[2] -= minZ;
-        }
+        if (cmd.tool !== MHYRR_TOOLS.CREATE_COMPONENT) continue;
+        const pos = cmd.arguments.position as number[];
+        pos[0] -= minX;
+        pos[1] -= minY;
+        pos[2] -= minZ;
       }
     }
   }

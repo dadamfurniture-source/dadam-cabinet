@@ -4,12 +4,49 @@ import {
   sendBatch,
   sendCommand,
   pingSketchup,
+  resolveEntityRefs,
 } from '../src/services/sketchup-mcp-bridge.service.js';
 import {
   MHYRR_TOOLS,
   RUBY_COMMANDS,
 } from '../src/constants/sketchup.js';
 import type { BuildCommand } from '../src/services/sketchup-builder.service.js';
+
+// ─────────────────────────────────────────────────────────────────
+// W4-5b: resolveEntityRefs — placeholder 치환
+// ─────────────────────────────────────────────────────────────────
+
+describe('resolveEntityRefs — __ENT__:<idRef> 플레이스홀더 치환', () => {
+  it('id 인자가 __ENT__:foo 형식이면 map[foo] 값으로 치환', () => {
+    const map = new Map<string, number | string>([['foo', 12345]]);
+    const out = resolveEntityRefs({ id: '__ENT__:foo', material: 'dadam_cream_body' }, map);
+    expect(out.id).toBe(12345);
+    expect(out.material).toBe('dadam_cream_body');
+  });
+
+  it('map 에 없는 idRef 는 placeholder 그대로 유지 (mhyrr 가 거부 → 진단 가능)', () => {
+    const map = new Map<string, number>();
+    const out = resolveEntityRefs({ id: '__ENT__:missing' }, map);
+    expect(out.id).toBe('__ENT__:missing');
+  });
+
+  it('placeholder 아닌 값은 그대로', () => {
+    const map = new Map<string, number>([['foo', 1]]);
+    const out = resolveEntityRefs(
+      { name: 'dadam.sink.body', rotation: [0, 0, 90], dimensions: [1, 2, 3] },
+      map,
+    );
+    expect(out.name).toBe('dadam.sink.body');
+    expect(out.rotation).toEqual([0, 0, 90]);
+    expect(out.dimensions).toEqual([1, 2, 3]);
+  });
+
+  it('숫자/배열/객체 값은 type 검사 통과 안 해 그대로 (방어적)', () => {
+    const map = new Map<string, number>([['foo', 99]]);
+    const out = resolveEntityRefs({ id: 12345, rotation: [0, 0, 90] }, map);
+    expect(out.id).toBe(12345);
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────
 // 모의 mhyrr TCP 서버
