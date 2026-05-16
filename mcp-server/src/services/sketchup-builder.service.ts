@@ -66,6 +66,18 @@ export interface BuildOptions {
    *     (planner CabinetPart 의 x=0 관례). 가구가 빨간 축 양쪽으로 걸침.
    */
   originAlign?: 'min-corner' | 'none';
+  /**
+   * W4-5: rotationZDeg ≠ 0 인 파트에 mhyrr transform_component 호출 추가.
+   * 기본 false — 디자이너 PC E2E 검증 후 기본값 true 전환 예정 (W4-5b).
+   * secondary 모듈이 SketchUp 에서 ±90° 회전된 상태로 배치됨.
+   */
+  applyRotation?: boolean;
+  /**
+   * W4-5: 각 파트에 mhyrr set_material 호출 추가.
+   * 기본 false — 디자이너 PC E2E 검증 후 기본값 true 전환 예정.
+   * true 면 빌드 시작 시 사전 등록 (ENSURE_MATERIALS) 도 자동 추가.
+   */
+  applyMaterial?: boolean;
 }
 
 /**
@@ -118,8 +130,58 @@ export function partToCommand(part: CabinetPartV2, category: CabinetCategory, to
         doorIndex: part.doorIndex ?? null,
         openDirection: part.openDirection ?? null,
         moduleType: part.moduleType ?? null,
-        rotationZDeg: part.rotationZDeg ?? null, // W4-5 에서 transform_component 로 적용 예정
+        rotationZDeg: part.rotationZDeg ?? null,
       },
+    },
+  };
+}
+
+/**
+ * W4-5: rotationZDeg ≠ 0 인 파트에 mhyrr transform_component 명령 생성.
+ *
+ * mhyrr v0.1.0 의 transform_component 시그니처 (su_mcp/main.rb 기준 추정):
+ *   { name: string, transform?: 16-elements } | { name: string, rotation: { axis, angle, origin } }
+ *
+ * 본 구현은 semantic 형태로 발송 — mhyrr 가 거부하면 W4-5b 에서 transform 매트릭스로 보정.
+ * pivot 은 part 의 corner 좌표 (rotation pivot = AABB min-corner) — V2 정의와 일치.
+ *
+ * @returns rotationZDeg 가 undefined 또는 0 이면 null (회전 명령 불요)
+ */
+export function partToRotationCommand(part: CabinetPartV2, category: CabinetCategory): BuildCommand | null {
+  if (part.rotationZDeg == null || part.rotationZDeg === 0) return null;
+  if (part.width <= 0 || part.depth <= 0 || part.height <= 0) return null;
+
+  const componentName = sketchupComponentName(category, part.id);
+  return {
+    tool: MHYRR_TOOLS.TRANSFORM_COMPONENT,
+    arguments: {
+      name: componentName,
+      rotation: {
+        axis: [0, 0, 1],
+        angle_deg: part.rotationZDeg,
+        origin: [mmToInch(part.x), mmToInch(part.y), mmToInch(part.z)],
+      },
+    },
+  };
+}
+
+/**
+ * W4-5: 각 파트에 mhyrr set_material 명령 생성.
+ *
+ * mhyrr v0.1.0 의 set_material 시그니처 (추정):
+ *   { name: string, material: string }
+ *
+ * material 이름은 ENSURE_MATERIALS 로 사전 등록된 16개 (4 tone × 4 key) 중 하나.
+ */
+export function partToMaterialCommand(part: CabinetPartV2, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
+  if (part.width <= 0 || part.depth <= 0 || part.height <= 0) return null;
+  const componentName = sketchupComponentName(category, part.id);
+  const materialName = sketchupMaterialName(tone, part.colorKey);
+  return {
+    tool: MHYRR_TOOLS.SET_MATERIAL,
+    arguments: {
+      name: componentName,
+      material: materialName,
     },
   };
 }
@@ -141,9 +203,19 @@ export function buildPlanFromParts(
 ): BuildPlan {
   const commands: BuildCommand[] = [];
   const transactional = opts.transactional ?? true;
+  const applyRotation = opts.applyRotation ?? false;
+  const applyMaterial = opts.applyMaterial ?? false;
 
   if (transactional) {
     commands.push(evalRubySafe('START_OP'));
+  }
+
+  // W4-5: 머티리얼 사전 등록 (16개 idempotent — 이미 있으면 색상만 갱신).
+  // ENSURE_MATERIALS 명령은 트랜잭션 내부 + clear 이전에 위치 — clear 가
+  // 머티리얼 정의 자체는 안 지움 (active_entities.clear! 는 entities 만).
+  // 하지만 같은 undo 그룹에 묶기 위해 START_OP 직후.
+  if (applyMaterial) {
+    commands.push(evalRubySafe('ENSURE_MATERIALS'));
   }
 
   if (opts.clearExisting) {
@@ -160,13 +232,28 @@ export function buildPlanFromParts(
   const doorParts = buildParts.filter((p) => p.isDoor);
 
   for (const part of [...bodyParts, ...doorParts]) {
-    const cmd = partToCommand(part, opts.category, opts.materialTone);
-    if (cmd) commands.push(cmd);
+    // 1) create_component (cube)
+    const createCmd = partToCommand(part, opts.category, opts.materialTone);
+    if (!createCmd) continue;
+    commands.push(createCmd);
+
+    // 2) transform_component (회전, 옵션) — origin 은 part.corner = create_component.position
+    if (applyRotation) {
+      const rotCmd = partToRotationCommand(part, opts.category);
+      if (rotCmd) commands.push(rotCmd);
+    }
+
+    // 3) set_material (옵션)
+    if (applyMaterial) {
+      const matCmd = partToMaterialCommand(part, opts.category, opts.materialTone);
+      if (matCmd) commands.push(matCmd);
+    }
   }
 
   // 원점 정렬: 가구의 좌하단 모서리를 SketchUp 원점 (0,0,0) 에 맞춤.
   // create_component 들의 position 중 (x_min, y_min, z_min) 을 모든 position 에서 뺀다.
-  // START/COMMIT/CLEAR (eval_ruby) 명령은 position 없으므로 영향 받지 않는다.
+  // transform_component 의 rotation.origin 도 동일 offset 적용 — 회전 pivot 이
+  // 파트 corner 이므로 정렬 후에도 일관 유지.
   const originAlign = opts.originAlign ?? 'min-corner';
   if (originAlign === 'min-corner') {
     const positions = commands
@@ -177,11 +264,18 @@ export function buildPlanFromParts(
       const minY = Math.min(...positions.map((p) => p[1]));
       const minZ = Math.min(...positions.map((p) => p[2]));
       for (const cmd of commands) {
-        if (cmd.tool !== MHYRR_TOOLS.CREATE_COMPONENT) continue;
-        const pos = cmd.arguments.position as number[];
-        pos[0] -= minX;
-        pos[1] -= minY;
-        pos[2] -= minZ;
+        if (cmd.tool === MHYRR_TOOLS.CREATE_COMPONENT) {
+          const pos = cmd.arguments.position as number[];
+          pos[0] -= minX;
+          pos[1] -= minY;
+          pos[2] -= minZ;
+        } else if (cmd.tool === MHYRR_TOOLS.TRANSFORM_COMPONENT) {
+          // rotation.origin 도 동일 offset (회전 pivot 일관성)
+          const rotation = cmd.arguments.rotation as { origin: number[] };
+          rotation.origin[0] -= minX;
+          rotation.origin[1] -= minY;
+          rotation.origin[2] -= minZ;
+        }
       }
     }
   }

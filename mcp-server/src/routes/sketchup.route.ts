@@ -97,12 +97,14 @@ router.post(
         }
       }
 
-      // 3. 빌드 명령 시퀀스 생성 (W4-4: V2 (Z-up corner) only)
+      // 3. 빌드 명령 시퀀스 생성 (W4-4: V2 only, W4-5: applyRotation/applyMaterial 옵션)
       const plan = buildPlanFromParts(input.parts, {
         category: input.category,
         materialTone: input.materialTone,
         clearExisting: input.clearExisting,
         transactional: input.transactional,
+        applyRotation: input.applyRotation,
+        applyMaterial: input.applyMaterial,
       });
 
       if (plan.componentCount === 0) {
@@ -251,12 +253,14 @@ router.post(
         }
       }
 
-      // 5. 빌드 명령 시퀀스 (W4-4: V2 only)
+      // 5. 빌드 명령 시퀀스 (W4-4: V2 only, W4-5: applyRotation/applyMaterial 옵션)
       const plan = buildPlanFromParts(input.parts, {
         category: input.category,
         materialTone: input.materialTone,
         clearExisting: input.clearExisting,
         transactional: input.transactional,
+        applyRotation: input.applyRotation,
+        applyMaterial: input.applyMaterial,
       });
 
       if (plan.componentCount === 0) {

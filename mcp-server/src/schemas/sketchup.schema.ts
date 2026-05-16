@@ -55,6 +55,9 @@ export const sketchupBuildSchema = z.object({
   materialTone: sketchupToneEnum,
   clearExisting: z.boolean().optional().default(false),
   transactional: z.boolean().optional().default(true),
+  // W4-5: rotation/material 명령 옵션 (기본 false — 디자이너 PC E2E 검증 후 default 전환).
+  applyRotation: z.boolean().optional().default(false),
+  applyMaterial: z.boolean().optional().default(false),
   host: z.string().optional(),
   port: z.number().int().positive().optional(),
   timeoutMs: z.number().int().positive().optional(),

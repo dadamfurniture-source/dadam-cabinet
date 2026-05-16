@@ -35,6 +35,10 @@ export interface ExportToSketchupOptions {
   materialTone: MaterialTone;
   clearExisting?: boolean;
   transactional?: boolean;
+  /** W4-5: rotationZDeg ≠ 0 파트에 transform_component 호출 추가 (기본 false). */
+  applyRotation?: boolean;
+  /** W4-5: set_material 호출 + 16개 머티리얼 사전 등록 (기본 false). */
+  applyMaterial?: boolean;
   mcpServerUrl?: string;
 }
 
@@ -78,6 +82,7 @@ export async function exportToSketchup(
   }
 
   // W4-3: deriveCabinet 출력이 V2 (Z-up corner mm degrees) — 변환 없이 그대로 송신.
+  // W4-5: applyRotation/applyMaterial 옵션 노출 (기본 false — 디자이너 E2E 검증 후 default 전환).
   const body = {
     schemaVersion: 'v2' as const,
     parts: opts.parts,
@@ -85,6 +90,8 @@ export async function exportToSketchup(
     materialTone: opts.materialTone,
     clearExisting: opts.clearExisting ?? true,
     transactional: opts.transactional ?? true,
+    applyRotation: opts.applyRotation ?? false,
+    applyMaterial: opts.applyMaterial ?? false,
   };
 
   let res: Response;

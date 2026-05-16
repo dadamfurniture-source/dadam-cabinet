@@ -60,6 +60,16 @@ registerTool(
           description:
             'true (기본값) 면 빌드를 start_operation/commit_operation 으로 감싼다. 디자이너 undo 1회로 전체 롤백 가능.',
         },
+        applyRotation: {
+          type: 'boolean',
+          description:
+            'W4-5: rotationZDeg ≠ 0 인 파트에 transform_component 명령 추가 (기본 false). secondary 모듈이 SketchUp 에서 ±90° 회전된 상태로 배치됨.',
+        },
+        applyMaterial: {
+          type: 'boolean',
+          description:
+            'W4-5: 각 파트에 set_material 명령 추가 (기본 false). 빌드 시작 시 16개 머티리얼 사전 등록 자동 동반.',
+        },
         host: { type: 'string', description: 'SketchUp 확장 호스트 (기본값 127.0.0.1)' },
         port: { type: 'number', description: 'SketchUp 확장 포트 (기본값 9876)' },
         timeoutMs: { type: 'number', description: '개별 명령 타임아웃 ms (기본값 15000)' },
@@ -83,6 +93,8 @@ registerTool(
       materialTone,
       clearExisting,
       transactional,
+      applyRotation,
+      applyMaterial,
       host,
       port,
       timeoutMs,
@@ -103,6 +115,8 @@ registerTool(
       materialTone,
       clearExisting,
       transactional,
+      applyRotation,
+      applyMaterial,
     });
 
     if (plan.componentCount === 0) {
