@@ -22,6 +22,7 @@ import {
   getPresetById,
   type PlannerState,
 } from '../../lib/planner';
+import { exportToSketchup } from '../../lib/sketchup-client';
 
 type CameraView = 'perspective' | 'front' | 'top';
 
@@ -677,6 +678,8 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
   });
   const [cameraView, setCameraView] = useState<CameraView>(props.initialView || 'perspective');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [sketchupBusy, setSketchupBusy] = useState(false);
+  const [sketchupMessage, setSketchupMessage] = useState('');
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
   const palette = MATERIALS[planner.material];
@@ -694,6 +697,39 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
   useEffect(() => {
     window.parent?.postMessage({ type: 'PLANNER_STATE', payload: { planner, derived } }, '*');
   }, [planner, derived]);
+
+  useEffect(() => {
+    if (!sketchupMessage) return;
+    const timer = window.setTimeout(() => setSketchupMessage(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [sketchupMessage]);
+
+  const sendToSketchup = useCallback(async () => {
+    if (sketchupBusy) return;
+    setSketchupBusy(true);
+    setSketchupMessage('');
+    try {
+      const result = await exportToSketchup({
+        parts: derived.parts,
+        category: planner.presetId,
+        materialTone: planner.material,
+        clearExisting: true,
+        transactional: true,
+      });
+      if (result.ok) {
+        setSketchupMessage(
+          `✓ ${result.componentCount}개 빌드 완료 (${result.summary.durationMs}ms)`,
+        );
+      } else {
+        setSketchupMessage(`✗ ${result.code}: ${result.message}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setSketchupMessage(`✗ 예외: ${msg}`);
+    } finally {
+      setSketchupBusy(false);
+    }
+  }, [derived.parts, planner.presetId, planner.material, sketchupBusy]);
 
   const defaultLowerKind: ModuleKind = preset.fullHeight ? 'door' : 'drawer';
 
@@ -873,6 +909,49 @@ export default function EmbedCanvas(props: EmbedCanvasProps) {
             style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #b0bec5', background: (planner.ventStart !== 0) ? '#eceff1' : '#f5f5f5', color: (planner.ventStart !== 0) ? '#546e7a' : '#999', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}>
             🌀 {planner.ventStart !== 0 ? '환풍구' : '환풍구 (숨김)'}
           </button>
+        )}
+      </div>
+
+      {/* 우상단: SketchUp 으로 보내기 */}
+      <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, fontFamily: FONT, zIndex: 95 }}>
+        <button
+          type="button"
+          onClick={sendToSketchup}
+          disabled={sketchupBusy}
+          title="디자이너 PC 의 SketchUp 으로 3D 모델 전송 (SketchUp + mhyrr + mcp-server 필요)"
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #2d2a26',
+            background: sketchupBusy ? '#999' : '#2d2a26',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: sketchupBusy ? 'not-allowed' : 'pointer',
+            opacity: sketchupBusy ? 0.7 : 1,
+            fontFamily: FONT,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+          }}
+        >
+          {sketchupBusy ? '전송 중…' : '🔨 SketchUp 으로 보내기'}
+        </button>
+        {sketchupMessage && (
+          <div
+            style={{
+              maxWidth: 320,
+              padding: '6px 10px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontFamily: FONT,
+              background: sketchupMessage.startsWith('✓') ? '#ecfdf5' : '#fef2f2',
+              color: sketchupMessage.startsWith('✓') ? '#047857' : '#b91c1c',
+              border: sketchupMessage.startsWith('✓') ? '1px solid #a7f3d0' : '1px solid #fecaca',
+              wordBreak: 'keep-all',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {sketchupMessage}
+          </div>
         )}
       </div>
     </div>
