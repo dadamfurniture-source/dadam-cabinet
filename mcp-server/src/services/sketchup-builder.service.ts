@@ -1,20 +1,22 @@
 // ═══════════════════════════════════════════════════════════════
-// SketchUp Builder Service — CabinetPart[] → BuildCommand[]
+// SketchUp Builder Service — CabinetPartV2[] → BuildCommand[]
 //
 // 순수 함수만 모음. 외부 통신 없음, 단위 테스트 가능.
 // Bridge 서비스가 BuildCommand[] 를 mhyrr JSON-RPC 메시지로 직렬화한다.
 //
+// W4-4: 입력은 V2 (Z-up corner mm degrees) 만. V1 shim (migrateV1ToV2,
+// partToCommand) 은 제거됨. planner-vite 가 W4-3 에서 V2 직송 전환.
+//
 // 변환 책임:
-// 1) mm → inch (SketchUp 내부 단위)
-// 2) planner Y-up → SketchUp Z-up
-// 3) ColorKey + MaterialTone → 머티리얼 이름
-// 4) isDoor flag → 별도 컴포넌트로 분리 (디자이너가 도어만 선택·변경 가능)
+// 1) mm → inch (SketchUp 내부 단위) — partV2ToCommand 가 유일
+// 2) ColorKey + MaterialTone → 머티리얼 이름
+// 3) isDoor flag → 별도 컴포넌트로 분리 (디자이너가 도어만 선택·변경 가능)
+// 4) (W4-5 예정) rotationZDeg → transform_component, material → set_material
 // ═══════════════════════════════════════════════════════════════
 
-import type { CabinetCategory, CabinetPart, CabinetPartV2, MaterialTone } from '../types/planner.types.js';
+import type { CabinetCategory, CabinetPartV2, MaterialTone } from '../types/planner.types.js';
 import {
   mmToInch,
-  plannerToSketchup,
   sketchupComponentName,
   sketchupMaterialName,
   MHYRR_TOOLS,
@@ -83,57 +85,14 @@ export function evalRubySafe(key: RubyCommandKey): BuildCommand {
 // ───────────────────────────────────────────────────────────────
 
 /**
- * V1 (Y-up center mm, rotationY radians) → V2 (Z-up corner mm, rotationZDeg degrees).
- *
- * W4-1 shim — 외부 호출 측은 여전히 V1 을 보낸다.
- * partToCommand 내부에서 V2 로 변환한 뒤 mhyrr 명령을 생성한다.
- *
- * 변환:
- *   좌표축: Y-up (x=가로, y=수직, z=깊이) → Z-up (x=가로, y=깊이, z=수직)
- *   기준점: 박스 중심 → 박스 최소 모서리 (x_min, y_min, z_min)
- *   치수 필드: (width, height, depth)_V1 → (width=+x, depth=+y, height=+z)_V2
- *   회전: rotationY (Y-up Y축 radians) → rotationZDeg (Z-up Z축 degrees)
- *     좌표축 변환 (x,y,z)→(x,z,y) + 회전 표현 변환 시 부호 보존
- *     (수학 검증: Y-up Y회전 +π/2 == Z-up Z회전 +π/2 — 동일 결과)
- */
-export function migrateV1ToV2(part: CabinetPart): CabinetPartV2 {
-  const skCenter = plannerToSketchup({ x: part.x, y: part.y, z: part.z });
-  const skDimensions = plannerToSketchup({ x: part.width, y: part.height, z: part.depth });
-  const cornerX = skCenter.x - skDimensions.x / 2;
-  const cornerY = skCenter.y - skDimensions.y / 2;
-  const cornerZ = skCenter.z - skDimensions.z / 2;
-  const rotZDeg = part.rotationY != null ? (part.rotationY * 180) / Math.PI : undefined;
-
-  return {
-    id: part.id,
-    label: part.label,
-    x: cornerX,
-    y: cornerY,
-    z: cornerZ,
-    width: skDimensions.x,   // 가로 (+x)
-    depth: skDimensions.y,   // 깊이 (+y)
-    height: skDimensions.z,  // 수직 (+z)
-    rotationZDeg: rotZDeg,
-    colorKey: part.colorKey,
-    wireframe: part.wireframe,
-    essential: part.essential,
-    moduleType: part.moduleType,
-    isDoor: part.isDoor,
-    parentModuleId: part.parentModuleId,
-    doorIndex: part.doorIndex,
-    openDirection: part.openDirection,
-  };
-}
-
-/**
- * V2 CabinetPart 1개 → create_component 명령 1개.
+ * CabinetPartV2 1개 → create_component 명령 1개.
  *
  * V2 는 이미 SketchUp 네이티브 좌표 (Z-up corner mm).
- * 변환은 mm→inch 뿐. plannerToSketchup / center→corner 모두 불필요.
+ * 변환은 mm→inch 뿐.
  *
  * width/depth/height 가 0 인 part 는 건너뛴다.
  */
-export function partV2ToCommand(part: CabinetPartV2, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
+export function partToCommand(part: CabinetPartV2, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
   if (part.width <= 0 || part.depth <= 0 || part.height <= 0) {
     return null;
   }
@@ -166,19 +125,7 @@ export function partV2ToCommand(part: CabinetPartV2, category: CabinetCategory, 
 }
 
 /**
- * 외부 진입점 — 현재는 V1 입력을 받아 내부에서 V2 로 변환 후 명령 생성.
- * W4-2 머지 후 planner-vite 가 V2 직송 시 partV2ToCommand 직접 호출로 변경 (W4-4).
- */
-export function partToCommand(part: CabinetPart, category: CabinetCategory, tone: MaterialTone): BuildCommand | null {
-  if (part.width <= 0 || part.height <= 0 || part.depth <= 0) {
-    return null;
-  }
-  const v2 = migrateV1ToV2(part);
-  return partV2ToCommand(v2, category, tone);
-}
-
-/**
- * CabinetPart[] → BuildPlan.
+ * CabinetPartV2[] → BuildPlan.
  *
  * 순서 보장:
  * 1) transactional=true (기본) 이면 START_OP 를 맨 앞에 prepend, COMMIT_OP 를 맨 뒤에 append.
@@ -189,12 +136,11 @@ export function partToCommand(part: CabinetPart, category: CabinetCategory, tone
  * 4) 본체 → 도어 순으로 정렬 (도어가 본체보다 z 축에서 살짝 앞으로 나오는 게 자연스러움).
  */
 export function buildPlanFromParts(
-  parts: CabinetPart[] | CabinetPartV2[],
-  opts: BuildOptions & { schemaVersion?: 'v1' | 'v2' },
+  parts: CabinetPartV2[],
+  opts: BuildOptions,
 ): BuildPlan {
   const commands: BuildCommand[] = [];
   const transactional = opts.transactional ?? true;
-  const isV2 = opts.schemaVersion === 'v2';
 
   if (transactional) {
     commands.push(evalRubySafe('START_OP'));
@@ -204,19 +150,17 @@ export function buildPlanFromParts(
     commands.push(evalRubySafe('CLEAR_ENTITIES'));
   }
 
-  // 보조 파트 (wireframe, essential=false) 제외. (V1/V2 모두 같은 필드)
-  const buildParts = (parts as Array<CabinetPart | CabinetPartV2>).filter(
-    (p) => !(p as any).wireframe && (p as any).essential !== false,
+  // 보조 파트 (wireframe, essential=false) 제외.
+  const buildParts = parts.filter(
+    (p) => !p.wireframe && p.essential !== false,
   );
 
   // 본체 → 도어 순서.
-  const bodyParts = buildParts.filter((p) => !(p as any).isDoor);
-  const doorParts = buildParts.filter((p) => (p as any).isDoor);
+  const bodyParts = buildParts.filter((p) => !p.isDoor);
+  const doorParts = buildParts.filter((p) => p.isDoor);
 
   for (const part of [...bodyParts, ...doorParts]) {
-    const cmd = isV2
-      ? partV2ToCommand(part as CabinetPartV2, opts.category, opts.materialTone)
-      : partToCommand(part as CabinetPart, opts.category, opts.materialTone);
+    const cmd = partToCommand(part, opts.category, opts.materialTone);
     if (cmd) commands.push(cmd);
   }
 

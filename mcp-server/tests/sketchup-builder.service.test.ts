@@ -1,50 +1,57 @@
+// ═══════════════════════════════════════════════════════════════
+// sketchup-builder.service 단위 테스트
+//
+// W4-4: V1 (Y-up center) 시절의 좌표 변환 검증 케이스 제거.
+// 현재는 V2 (Z-up corner mm degrees) 만 받음 — mm→inch 외 좌표 변환 없음.
+// ═══════════════════════════════════════════════════════════════
+
 import { describe, it, expect } from 'vitest';
 import {
   buildPlanFromParts,
   evalRubySafe,
   partToCommand,
-  partV2ToCommand,
-  migrateV1ToV2,
 } from '../src/services/sketchup-builder.service.js';
 import {
   mmToInch,
-  plannerToSketchup,
   sketchupComponentName,
   sketchupMaterialName,
   MHYRR_TOOLS,
   RUBY_COMMANDS,
 } from '../src/constants/sketchup.js';
-import type { CabinetPart, CabinetPartV2 } from '../src/types/planner.types.js';
+import type { CabinetPartV2 } from '../src/types/planner.types.js';
 
 // ─────────────────────────────────────────────────────────────────
-// 픽스처
+// 픽스처 (V2: Z-up corner mm degrees)
+//   x = corner x (+x extent=width 가로)
+//   y = corner y (+y extent=depth 깊이)
+//   z = corner z (+z extent=height 수직)
 // ─────────────────────────────────────────────────────────────────
 
-function makeBody(id: string, overrides: Partial<CabinetPart> = {}): CabinetPart {
+function makeBody(id: string, overrides: Partial<CabinetPartV2> = {}): CabinetPartV2 {
   return {
     id,
     label: `body ${id}`,
     x: 0,
     y: 0,
     z: 0,
-    width: 600,
-    height: 720,
-    depth: 600,
+    width: 600,   // +x
+    depth: 600,   // +y
+    height: 720,  // +z
     colorKey: 'body',
     ...overrides,
   };
 }
 
-function makeDoor(id: string, parentModuleId: string, overrides: Partial<CabinetPart> = {}): CabinetPart {
+function makeDoor(id: string, parentModuleId: string, overrides: Partial<CabinetPartV2> = {}): CabinetPartV2 {
   return {
     id,
     label: `door ${id}`,
     x: 0,
-    y: 0,
-    z: 600, // 본체 앞쪽
+    y: 600 - 18, // 본체 정면 측 (+y 방향) 에서 18mm 두께 도어
+    z: 0,
     width: 600,
-    height: 720,
     depth: 18,
+    height: 720,
     colorKey: 'accent',
     isDoor: true,
     parentModuleId,
@@ -66,97 +73,53 @@ describe('mmToInch', () => {
   });
 });
 
-describe('plannerToSketchup', () => {
-  it('Y-up (planner) → Z-up (SketchUp) 축 교환: (x,y,z) → (x,z,y)', () => {
-    expect(plannerToSketchup({ x: 100, y: 200, z: 300 })).toEqual({ x: 100, y: 300, z: 200 });
-  });
-
-  it('원점은 그대로', () => {
-    expect(plannerToSketchup({ x: 0, y: 0, z: 0 })).toEqual({ x: 0, y: 0, z: 0 });
-  });
-});
-
 // ─────────────────────────────────────────────────────────────────
-// partToCommand
+// partToCommand (V2 only)
 // ─────────────────────────────────────────────────────────────────
 
 describe('partToCommand', () => {
-  it('CabinetPart 한 개 → create_component 한 개', () => {
-    const part = makeBody('body-1', { x: 0, y: 150, z: 0 });
+  it('CabinetPartV2 한 개 → create_component 한 개', () => {
+    const part = makeBody('body-1', { x: 0, y: 0, z: 0 });
     const cmd = partToCommand(part, 'sink', 'cream');
 
     expect(cmd).not.toBeNull();
     expect(cmd!.tool).toBe(MHYRR_TOOLS.CREATE_COMPONENT);
     expect(cmd!.arguments.name).toBe(sketchupComponentName('sink', 'body-1'));
     expect(cmd!.arguments.material).toBe(sketchupMaterialName('cream', 'body'));
+    expect(cmd!.arguments.type).toBe('cube');
   });
 
-  it('mm → inch 변환 + 축 교환 + center→corner 보정이 모두 적용됨', () => {
+  it('mm → inch 변환만 (V2 는 이미 SketchUp 네이티브 좌표)', () => {
     const part = makeBody('p', {
       x: 100, y: 200, z: 300,
-      width: 600, height: 720, depth: 550,
+      width: 800, depth: 600, height: 720,
     });
     const cmd = partToCommand(part, 'sink', 'cream')!;
     const pos = cmd.arguments.position as number[];
     const dim = cmd.arguments.dimensions as number[];
 
-    // planner center (100,200,300) → SketchUp center (100,300,200)
-    // → corner (100-600/2, 300-550/2, 200-720/2) = (-200, 25, -160) → inch
-    expect(pos[0]).toBeCloseTo(mmToInch(-200), 5);
-    expect(pos[1]).toBeCloseTo(mmToInch(25), 5);
-    expect(pos[2]).toBeCloseTo(mmToInch(-160), 5);
-
-    // 치수: 축 교환 (width,depth,height) 만, center→corner 보정 영향 없음
-    expect(dim[0]).toBeCloseTo(mmToInch(600), 5);
-    expect(dim[1]).toBeCloseTo(mmToInch(550), 5);
+    // V2 corner 그대로 mm→inch
+    expect(pos[0]).toBeCloseTo(mmToInch(100), 5);
+    expect(pos[1]).toBeCloseTo(mmToInch(200), 5);
+    expect(pos[2]).toBeCloseTo(mmToInch(300), 5);
+    expect(dim[0]).toBeCloseTo(mmToInch(800), 5);
+    expect(dim[1]).toBeCloseTo(mmToInch(600), 5);
     expect(dim[2]).toBeCloseTo(mmToInch(720), 5);
   });
 
-  it('center→corner: 중심이 (0,0,0) 인 박스는 corner=(-w/2,-d/2,-h/2)', () => {
-    const part = makeBody('p', { x: 0, y: 0, z: 0, width: 600, height: 720, depth: 550 });
+  it('원점 (0,0,0) corner: position = (0,0,0)', () => {
+    const part = makeBody('p', { x: 0, y: 0, z: 0, width: 600, depth: 600, height: 720 });
     const cmd = partToCommand(part, 'sink', 'cream')!;
     const pos = cmd.arguments.position as number[];
-
-    // SketchUp 좌표계로 [x_corner=-w/2, y_corner=-d/2, z_corner=-h/2]
-    expect(pos[0]).toBeCloseTo(mmToInch(-300), 5); // -width/2
-    expect(pos[1]).toBeCloseTo(mmToInch(-275), 5); // -depth/2
-    expect(pos[2]).toBeCloseTo(mmToInch(-360), 5); // -height/2
+    expect(pos[0]).toBeCloseTo(0, 5);
+    expect(pos[1]).toBeCloseTo(0, 5);
+    expect(pos[2]).toBeCloseTo(0, 5);
   });
 
-  it('center→corner: 본체 (800×720×600) 중심 (400,360,300) → corner (0,0,0)', () => {
-    // 본체 좌하단 바닥이 SketchUp 원점에 오도록 의도된 배치.
-    const part = makeBody('p', { x: 400, y: 360, z: 300, width: 800, height: 720, depth: 600 });
-    const cmd = partToCommand(part, 'sink', 'cream')!;
-    const pos = cmd.arguments.position as number[];
-
-    expect(pos[0]).toBeCloseTo(mmToInch(0), 5);
-    expect(pos[1]).toBeCloseTo(mmToInch(0), 5);
-    expect(pos[2]).toBeCloseTo(mmToInch(0), 5);
-  });
-
-  it('center→corner: 얇은 도어 (depth=18) 도 모든 축에서 dimension/2 만큼 보정', () => {
-    // 도어는 planner.z = depth/2+5 위치 (본체 앞쪽 살짝 돌출). depth 가 얇아도 보정은 균일.
-    const part = makeDoor('door-1', 'mod-1', {
-      x: 0, y: 360, z: 305, width: 800, height: 720, depth: 18, // z=305 = depth/2+5
-    });
-    const cmd = partToCommand(part, 'sink', 'cream')!;
-    const pos = cmd.arguments.position as number[];
-    const dim = cmd.arguments.dimensions as number[];
-
-    // SketchUp center: (x=0, y=305, z=360) — Y-up→Z-up
-    // corner: x=0-800/2=-400, y=305-18/2=296, z=360-720/2=0
-    expect(pos[0]).toBeCloseTo(mmToInch(-400), 5);
-    expect(pos[1]).toBeCloseTo(mmToInch(296), 5);
-    expect(pos[2]).toBeCloseTo(mmToInch(0), 5);
-
-    // dimensions: 얇은 도어 — y(SketchUp depth) = 18
-    expect(dim[1]).toBeCloseTo(mmToInch(18), 5);
-  });
-
-  it('width/height/depth 중 하나라도 0 이면 null', () => {
+  it('width/depth/height 중 하나라도 0 이면 null', () => {
     expect(partToCommand(makeBody('p', { width: 0 }), 'sink', 'cream')).toBeNull();
-    expect(partToCommand(makeBody('p', { height: 0 }), 'sink', 'cream')).toBeNull();
     expect(partToCommand(makeBody('p', { depth: 0 }), 'sink', 'cream')).toBeNull();
+    expect(partToCommand(makeBody('p', { height: 0 }), 'sink', 'cream')).toBeNull();
   });
 
   it('meta 에 isDoor / parentModuleId / doorIndex / openDirection 전달', () => {
@@ -169,6 +132,13 @@ describe('partToCommand', () => {
     expect(meta.doorIndex).toBe(1);
     expect(meta.openDirection).toBe('right');
     expect(meta.category).toBe('wardrobe');
+  });
+
+  it('meta 에 rotationZDeg 보존 (W4-5 transform_component 용)', () => {
+    const part = makeBody('b1', { rotationZDeg: -90 });
+    const cmd = partToCommand(part, 'sink', 'cream')!;
+    const meta = cmd.arguments.meta as Record<string, unknown>;
+    expect(meta.rotationZDeg).toBe(-90);
   });
 
   it('material 이름은 카테고리 무관, MaterialTone 만 반영', () => {
@@ -216,7 +186,6 @@ describe('buildPlanFromParts', () => {
 
     expect(plan.componentCount).toBe(4);
     const names = plan.commands.map((c) => c.arguments.name as string);
-    // 본체가 도어보다 먼저
     expect(names.indexOf('dadam.sink.b1')).toBeLessThan(names.indexOf('dadam.sink.d1'));
     expect(names.indexOf('dadam.sink.b2')).toBeLessThan(names.indexOf('dadam.sink.d1'));
   });
@@ -246,7 +215,7 @@ describe('buildPlanFromParts', () => {
 
     expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
     expect((plan.commands[0].arguments.code as string)).toContain('active_entities.clear!');
-    expect(plan.componentCount).toBe(1); // clear 는 create_component 아니므로 카운트에서 제외
+    expect(plan.componentCount).toBe(1);
   });
 
   it('카테고리가 컴포넌트 이름에 반영됨', () => {
@@ -267,7 +236,7 @@ describe('buildPlanFromParts — transactional 래핑', () => {
   it('기본값: transactional=true → START_OP 가 맨 앞, COMMIT_OP 가 맨 뒤', () => {
     const plan = buildPlanFromParts(
       [makeBody('b1'), makeBody('b2')],
-      { category: 'sink', materialTone: 'cream' }, // transactional 미지정 → 기본 true
+      { category: 'sink', materialTone: 'cream' },
     );
 
     expect(plan.commands).toHaveLength(4); // START + 2 create + COMMIT
@@ -275,8 +244,6 @@ describe('buildPlanFromParts — transactional 래핑', () => {
     expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
     expect(plan.commands[plan.commands.length - 1].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
     expect(plan.commands[plan.commands.length - 1].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
-
-    // componentCount 는 create_component 만 카운트 — START/COMMIT 영향 없음
     expect(plan.componentCount).toBe(2);
   });
 
@@ -301,7 +268,7 @@ describe('buildPlanFromParts — transactional 래핑', () => {
       transactional: true,
     });
 
-    expect(plan.commands).toHaveLength(4); // START + CLEAR + create + COMMIT
+    expect(plan.commands).toHaveLength(4);
     expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
     expect(plan.commands[1].arguments.code).toBe(RUBY_COMMANDS.CLEAR_ENTITIES);
     expect(plan.commands[2].tool).toBe(MHYRR_TOOLS.CREATE_COMPONENT);
@@ -315,9 +282,9 @@ describe('buildPlanFromParts — transactional 래핑', () => {
 
 describe('buildPlanFromParts — 원점 정렬 (min-corner)', () => {
   it('기본 origin=min-corner: 가구의 좌하단이 SketchUp 원점 (0,0,0) 에 정렬', () => {
-    // 본체 800×720×600 중심 (0, 360, 300) → corner (-400, 0, 0) → align 후 (0, 0, 0)
+    // V2 corner (-400, 0, 0) 짜리 박스 → align 후 (0, 0, 0)
     const plan = buildPlanFromParts(
-      [makeBody('b1', { x: 0, y: 360, z: 300, width: 800, height: 720, depth: 600 })],
+      [makeBody('b1', { x: -400, y: 0, z: 0, width: 800, depth: 600, height: 720 })],
       { category: 'sink', materialTone: 'cream', transactional: false },
     );
 
@@ -329,10 +296,10 @@ describe('buildPlanFromParts — 원점 정렬 (min-corner)', () => {
   });
 
   it('가구 전체가 +x/+y/+z 영역에 위치 (음수 좌표 없음)', () => {
-    // 좌측 본체 (중심 x=-400), 우측 본체 (중심 x=400). 가구 가로 1600.
+    // 좌측 본체 corner x=-800, 우측 본체 corner x=0. 가구 가로 1600.
     const parts = [
-      makeBody('b-left', { x: -400, y: 360, z: 300, width: 800, height: 720, depth: 600 }),
-      makeBody('b-right', { x: 400, y: 360, z: 300, width: 800, height: 720, depth: 600 }),
+      makeBody('b-left', { x: -800, y: 0, z: 0, width: 800, depth: 600, height: 720 }),
+      makeBody('b-right', { x: 0, y: 0, z: 0, width: 800, depth: 600, height: 720 }),
     ];
     const plan = buildPlanFromParts(parts, {
       category: 'sink',
@@ -351,9 +318,8 @@ describe('buildPlanFromParts — 원점 정렬 (min-corner)', () => {
   });
 
   it('originAlign=none: 원래 corner 좌표 유지 (음수 가능)', () => {
-    // 중심 (0,360,300) → corner (-400, 0, 0) — 음수 x
     const plan = buildPlanFromParts(
-      [makeBody('b1', { x: 0, y: 360, z: 300, width: 800, height: 720, depth: 600 })],
+      [makeBody('b1', { x: -400, y: 0, z: 0, width: 800, depth: 600, height: 720 })],
       {
         category: 'sink',
         materialTone: 'cream',
@@ -389,7 +355,6 @@ describe('evalRubySafe — eval_ruby RCE 가드', () => {
   });
 
   it('TypeScript 컴파일 단에서 allowlist 외 key 차단 — 런타임 typeof 확인', () => {
-    // 모든 키가 RUBY_COMMANDS 에 존재해야 한다 (allowlist 위반 방지).
     const keys: Array<keyof typeof RUBY_COMMANDS> = ['CLEAR_ENTITIES', 'START_OP', 'COMMIT_OP', 'ABORT_OP'];
     for (const k of keys) {
       expect(typeof RUBY_COMMANDS[k]).toBe('string');
@@ -417,39 +382,36 @@ describe('sketchupComponentName — partId 이스케이프', () => {
   });
 
   it('빌더 통합: 위험한 partId 가 들어와도 안전한 컴포넌트 이름 생성', () => {
-    const dangerous: CabinetPart = makeBody('foo.bar/baz qux');
+    const dangerous: CabinetPartV2 = makeBody('foo.bar/baz qux');
     const cmd = partToCommand(dangerous, 'sink', 'cream')!;
     expect(cmd.arguments.name).toBe('dadam.sink.foo_bar_baz_qux');
   });
 });
 
 // ─────────────────────────────────────────────────────────────────
-// 빠진 케이스 (W1.1 hotfix M3)
+// 경계 케이스
 // ─────────────────────────────────────────────────────────────────
 
 describe('경계 케이스', () => {
-  it('음수 좌표 (벽 안쪽으로 매립된 파트) 도 center→corner 변환 적용', () => {
-    // makeBody 기본값: width=600, height=720, depth=600
-    const part = makeBody('p', { x: -50, y: 100, z: -10 });
+  it('음수 좌표 (벽 안쪽으로 매립된 파트) 도 mm→inch 그대로 통과 (originAlign=none)', () => {
+    const part = makeBody('p', { x: -350, y: -310, z: -260 });
     const cmd = partToCommand(part, 'sink', 'cream')!;
     const pos = cmd.arguments.position as number[];
-    // SketchUp center: (x=-50, y=z_planner=-10, z=y_planner=100)
-    // corner: (-50-300, -10-300, 100-360) = (-350, -310, -260)
     expect(pos[0]).toBeCloseTo(mmToInch(-350), 5);
     expect(pos[1]).toBeCloseTo(mmToInch(-310), 5);
     expect(pos[2]).toBeCloseTo(mmToInch(-260), 5);
   });
 
   it('초대형 가구 (10m 폭) 도 처리 — inch 변환 정밀도', () => {
-    const part = makeBody('p', { width: 10000, height: 2400, depth: 600 });
+    const part = makeBody('p', { width: 10000, depth: 600, height: 2400 });
     const cmd = partToCommand(part, 'wardrobe', 'oak')!;
     const dim = cmd.arguments.dimensions as number[];
     expect(dim[0]).toBeCloseTo(mmToInch(10000), 4);
     expect(dim[2]).toBeCloseTo(mmToInch(2400), 4);
   });
 
-  it('width=0 fallback — null 반환 (NaN/Infinity 호출 방지)', () => {
-    expect(partToCommand(makeBody('p', { width: 0, height: 100, depth: 100 }), 'sink', 'cream')).toBeNull();
+  it('width=0 fallback — null 반환', () => {
+    expect(partToCommand(makeBody('p', { width: 0, depth: 100, height: 100 }), 'sink', 'cream')).toBeNull();
   });
 
   it('clearExisting + transactional=false 사용 시 eval_ruby 가 allowlist 의 정확한 문자열만 사용', () => {
@@ -462,104 +424,5 @@ describe('경계 케이스', () => {
     expect(plan.commands).toHaveLength(1);
     expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
     expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.CLEAR_ENTITIES);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────
-// W4-1: V2 (Z-up corner mm rotationZDeg) shim
-// ─────────────────────────────────────────────────────────────────
-
-function makeV2Body(id: string, overrides: Partial<CabinetPartV2> = {}): CabinetPartV2 {
-  return {
-    id,
-    label: `body ${id}`,
-    x: 0, y: 0, z: 0,
-    width: 600, depth: 600, height: 720,
-    colorKey: 'body',
-    ...overrides,
-  };
-}
-
-describe('migrateV1ToV2 — Y-up center radians → Z-up corner degrees', () => {
-  it('회전 없는 본체: center (0, 360, 300) + (800, 720, 600) → corner (-400, 0, 0)', () => {
-    const v1: CabinetPart = makeBody('b1', {
-      x: 0, y: 360, z: 300, width: 800, height: 720, depth: 600,
-    });
-    const v2 = migrateV1ToV2(v1);
-    expect(v2.x).toBe(-400);   // x_corner = 0 - 800/2
-    expect(v2.y).toBe(0);      // y_corner = z_v1 - depth/2 = 300 - 600/2
-    expect(v2.z).toBe(0);      // z_corner = y_v1 - height/2 = 360 - 720/2
-    expect(v2.width).toBe(800);
-    expect(v2.depth).toBe(600);   // depth_V2 = depth_V1 (planner z extent)
-    expect(v2.height).toBe(720);  // height_V2 = height_V1 (planner y extent)
-    expect(v2.rotationZDeg).toBeUndefined();
-  });
-
-  it('회전 변환: rotationY +π/2 → rotationZDeg +90', () => {
-    const v1: CabinetPart = makeBody('b1', {
-      x: 0, y: 360, z: 300, rotationY: Math.PI / 2,
-    } as any);
-    const v2 = migrateV1ToV2(v1);
-    expect(v2.rotationZDeg).toBeCloseTo(90, 5);
-  });
-
-  it('회전 변환: rotationY -π/2 → rotationZDeg -90 (부호 보존)', () => {
-    const v1: CabinetPart = makeBody('b1', {
-      x: 0, y: 360, z: 300, rotationY: -Math.PI / 2,
-    } as any);
-    const v2 = migrateV1ToV2(v1);
-    expect(v2.rotationZDeg).toBeCloseTo(-90, 5);
-  });
-
-  it('필드 메타 보존: isDoor / parentModuleId / doorIndex / openDirection / colorKey', () => {
-    const v1: CabinetPart = makeDoor('d1', 'mod-1', { doorIndex: 1, openDirection: 'right' });
-    const v2 = migrateV1ToV2(v1);
-    expect(v2.isDoor).toBe(true);
-    expect(v2.parentModuleId).toBe('mod-1');
-    expect(v2.doorIndex).toBe(1);
-    expect(v2.openDirection).toBe('right');
-    expect(v2.colorKey).toBe('accent');
-  });
-});
-
-describe('partV2ToCommand — V2 직접 → mhyrr 명령', () => {
-  it('변환 없이 mm→inch 만 적용 — V2 가 이미 SketchUp 네이티브 좌표', () => {
-    const v2 = makeV2Body('b1', { x: 100, y: 200, z: 300, width: 800, depth: 600, height: 720 });
-    const cmd = partV2ToCommand(v2, 'sink', 'cream')!;
-    const pos = cmd.arguments.position as number[];
-    const dim = cmd.arguments.dimensions as number[];
-    expect(pos[0]).toBeCloseTo(mmToInch(100), 5);
-    expect(pos[1]).toBeCloseTo(mmToInch(200), 5);
-    expect(pos[2]).toBeCloseTo(mmToInch(300), 5);
-    expect(dim[0]).toBeCloseTo(mmToInch(800), 5);
-    expect(dim[1]).toBeCloseTo(mmToInch(600), 5);
-    expect(dim[2]).toBeCloseTo(mmToInch(720), 5);
-  });
-
-  it('width/depth/height 중 하나라도 0 이면 null', () => {
-    expect(partV2ToCommand(makeV2Body('p', { width: 0 }), 'sink', 'cream')).toBeNull();
-    expect(partV2ToCommand(makeV2Body('p', { depth: 0 }), 'sink', 'cream')).toBeNull();
-    expect(partV2ToCommand(makeV2Body('p', { height: 0 }), 'sink', 'cream')).toBeNull();
-  });
-
-  it('meta 에 rotationZDeg 보존 (W4-5 transform_component 용)', () => {
-    const v2 = makeV2Body('b1', { rotationZDeg: -90 });
-    const cmd = partV2ToCommand(v2, 'sink', 'cream')!;
-    const meta = cmd.arguments.meta as Record<string, unknown>;
-    expect(meta.rotationZDeg).toBe(-90);
-  });
-
-  it('V1 partToCommand 와 V2 partV2ToCommand 결과가 byte-identical (round-trip)', () => {
-    const v1: CabinetPart = makeBody('p', { x: 100, y: 200, z: 300, width: 600, height: 720, depth: 550 });
-    const v2 = migrateV1ToV2(v1);
-    const cmdV1 = partToCommand(v1, 'sink', 'cream')!;
-    const cmdV2 = partV2ToCommand(v2, 'sink', 'cream')!;
-
-    expect((cmdV1.arguments.position as number[])[0]).toBeCloseTo((cmdV2.arguments.position as number[])[0], 5);
-    expect((cmdV1.arguments.position as number[])[1]).toBeCloseTo((cmdV2.arguments.position as number[])[1], 5);
-    expect((cmdV1.arguments.position as number[])[2]).toBeCloseTo((cmdV2.arguments.position as number[])[2], 5);
-    expect((cmdV1.arguments.dimensions as number[])[0]).toBeCloseTo((cmdV2.arguments.dimensions as number[])[0], 5);
-    expect((cmdV1.arguments.dimensions as number[])[1]).toBeCloseTo((cmdV2.arguments.dimensions as number[])[1], 5);
-    expect((cmdV1.arguments.dimensions as number[])[2]).toBeCloseTo((cmdV2.arguments.dimensions as number[])[2], 5);
   });
 });
