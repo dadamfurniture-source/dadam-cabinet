@@ -246,10 +246,13 @@ export function buildPlanFromParts(
     commands.push(evalRubySafe('CLEAR_ENTITIES'));
   }
 
-  // 보조 파트 (wireframe, essential=false) 제외.
-  const buildParts = parts.filter(
-    (p) => !p.wireframe && p.essential !== false,
-  );
+  // W5-DIAG-fix: wireframe 만 제외. essential=false (planner 의 storage 모듈 본체)
+  // 는 시공 산출물 (BOM) 에서만 의미 — SketchUp 시각화에는 모든 모듈 본체 + 도어 +
+  // 구조물 + 유틸리티 모두 포함되어야 가구 전체가 visible.
+  //
+  // 이전 (W2~W5-2): essential!==false 필터로 storage 모듈 8개 제외 → SketchUp 에서
+  // 모듈 본체 누락 (사용자 가구 10+ 모듈인데 박스 3개만 표시되는 결함).
+  const buildParts = parts.filter((p) => !p.wireframe);
 
   // 본체 → 도어 순서.
   const bodyParts = buildParts.filter((p) => !p.isDoor);
