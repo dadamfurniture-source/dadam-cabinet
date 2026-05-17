@@ -192,11 +192,11 @@ describe('buildPlanFromParts', () => {
     expect(names.indexOf('dadam.sink.b2')).toBeLessThan(names.indexOf('dadam.sink.d1'));
   });
 
-  it('wireframe / essential=false 파트는 제외', () => {
+  it('wireframe 파트만 제외 (essential=false 는 SketchUp 시각화 포함 — W5-DIAG-fix)', () => {
     const parts = [
       makeBody('b1'),
-      makeBody('b2', { wireframe: true }),
-      makeBody('b3', { essential: false }),
+      makeBody('b2', { wireframe: true }),     // 제외
+      makeBody('b3', { essential: false }),    // SketchUp 시각화 포함 (planner 의 storage 모듈 본체)
       makeBody('b4'),
     ];
     const plan = buildPlanFromParts(parts, {
@@ -204,7 +204,8 @@ describe('buildPlanFromParts', () => {
       materialTone: 'graphite',
       transactional: false,
     });
-    expect(plan.componentCount).toBe(2);
+    // b1 + b3 + b4 = 3개 (wireframe b2 만 제외)
+    expect(plan.componentCount).toBe(3);
   });
 
   it('clearExisting=true + transactional=false → 맨 앞에 eval_ruby clear', () => {
