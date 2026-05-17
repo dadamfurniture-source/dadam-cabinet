@@ -109,13 +109,17 @@ describe('partToCommand', () => {
     expect(dim[2]).toBeCloseTo(mmToInch(720), 5);
   });
 
-  it('원점 (0,0,0) corner: position = (0,0,0)', () => {
+  it('원점 (0,0,0) corner: position=(0,0,0), dimensions[2]=-height (ground plane face normal fix)', () => {
     const part = makeBody('p', { x: 0, y: 0, z: 0, width: 600, depth: 600, height: 720 });
     const cmd = partToCommand(part, 'sink', 'cream')!;
     const pos = cmd.arguments.position as number[];
+    const dim = cmd.arguments.dimensions as number[];
     expect(pos[0]).toBeCloseTo(0, 5);
     expect(pos[1]).toBeCloseTo(0, 5);
     expect(pos[2]).toBeCloseTo(0, 5);
+    // z=0 face → SketchUp face_normal +Z, pushpull(+) = -Z (역방향). 보정: dim_z = -height.
+    expect(dim[2]).toBeCloseTo(mmToInch(-720), 5);
+    expect(dim[2]).toBeLessThan(0);
   });
 
   it('width/depth/height 중 하나라도 0 이면 null', () => {
@@ -321,7 +325,7 @@ describe('buildPlanFromParts — 원점 정렬 (min-corner)', () => {
     }
   });
 
-  it('originAlign=none: 원래 corner 좌표 유지 (음수 가능)', () => {
+  it('originAlign=none: 원래 corner 좌표 유지, z=0 → dim_z=-height (ground plane face normal fix)', () => {
     const plan = buildPlanFromParts(
       [makeBody('b1', { x: -400, y: 0, z: 0, width: 800, depth: 600, height: 720 })],
       {
@@ -334,9 +338,11 @@ describe('buildPlanFromParts — 원점 정렬 (min-corner)', () => {
 
     const createCmd = plan.commands.find((c) => c.tool === MHYRR_TOOLS.CREATE_COMPONENT)!;
     const pos = createCmd.arguments.position as number[];
+    const dim = createCmd.arguments.dimensions as number[];
     expect(pos[0]).toBeCloseTo(mmToInch(-400), 5);
     expect(pos[1]).toBeCloseTo(mmToInch(0), 5);
     expect(pos[2]).toBeCloseTo(mmToInch(0), 5);
+    expect(dim[2]).toBeCloseTo(mmToInch(-720), 5); // ground plane fix
   });
 });
 
@@ -615,11 +621,12 @@ describe('경계 케이스', () => {
   });
 
   it('초대형 가구 (10m 폭) 도 처리 — inch 변환 정밀도', () => {
+    // makeBody fixture z=0 → ground plane fix 적용 (dim_z 부호 반전)
     const part = makeBody('p', { width: 10000, depth: 600, height: 2400 });
     const cmd = partToCommand(part, 'wardrobe', 'oak')!;
     const dim = cmd.arguments.dimensions as number[];
     expect(dim[0]).toBeCloseTo(mmToInch(10000), 4);
-    expect(dim[2]).toBeCloseTo(mmToInch(2400), 4);
+    expect(Math.abs(dim[2])).toBeCloseTo(mmToInch(2400), 4); // 부호 무관 절댓값 검증
   });
 
   it('width=0 fallback — null 반환', () => {
