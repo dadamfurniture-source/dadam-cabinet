@@ -85,6 +85,11 @@ export const RUBY_COMMANDS = {
    * 이름과 색상은 sketchup-builder.service.ts 의 sketchupMaterialName + MATERIALS 와 동기화.
    * 동적 입력 없이 고정 Ruby 코드 — eval_ruby allowlist 위반 없음.
    */
+  /**
+   * 빌드 완료 후 SketchUp 의 active view 가 가구 전체에 자동 fit.
+   * 사용자가 빌드 직후 카메라 수동 조정 불요 — planner UI 와 비교 용이.
+   */
+  ZOOM_EXTENTS: 'Sketchup.active_model.active_view.zoom_extents',
   ENSURE_MATERIALS: `
     palette = {
       'cream' => { 'body' => '#f1ede3', 'accent' => '#d4c4a8', 'shadow' => '#b7aa90', 'trim' => '#c8bda8' },

@@ -90,6 +90,12 @@ export interface BuildOptions {
    * true 면 빌드 시작 시 사전 등록 (ENSURE_MATERIALS) 도 자동 추가.
    */
   applyMaterial?: boolean;
+  /**
+   * 빌드 완료 후 SketchUp active view 의 zoom_extents 자동 호출 (기본 true).
+   * 사용자가 SketchUp 카메라 수동 조정 불요 — planner UI 와 비교 용이.
+   * 트랜잭션 외부 (COMMIT_OP 후) 에 위치 — view 변경은 undo 그룹 미포함.
+   */
+  autoZoom?: boolean;
 }
 
 /**
@@ -302,6 +308,13 @@ export function buildPlanFromParts(
 
   if (transactional) {
     commands.push(evalRubySafe('COMMIT_OP'));
+  }
+
+  // 빌드 완료 후 카메라 자동 fit — 사용자가 SketchUp 시점 수동 조정 불요.
+  // 트랜잭션 외부 (COMMIT_OP 후) 에 위치 — view 변경은 undo 그룹에 포함되지 않음.
+  const autoZoom = opts.autoZoom ?? true;
+  if (autoZoom && commands.filter((c) => c.tool === MHYRR_TOOLS.CREATE_COMPONENT).length > 0) {
+    commands.push(evalRubySafe('ZOOM_EXTENTS'));
   }
 
   return {

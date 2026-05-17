@@ -236,17 +236,17 @@ describe('buildPlanFromParts', () => {
 // ─────────────────────────────────────────────────────────────────
 
 describe('buildPlanFromParts — transactional 래핑', () => {
-  it('기본값: transactional=true → START_OP 가 맨 앞, COMMIT_OP 가 맨 뒤', () => {
+  it('기본값: transactional=true → START_OP 가 맨 앞, COMMIT_OP + ZOOM_EXTENTS 가 맨 뒤', () => {
     const plan = buildPlanFromParts(
       [makeBody('b1'), makeBody('b2')],
       { category: 'sink', materialTone: 'cream' },
     );
 
-    expect(plan.commands).toHaveLength(4); // START + 2 create + COMMIT
+    expect(plan.commands).toHaveLength(5); // START + 2 create + COMMIT + ZOOM_EXTENTS
     expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
     expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
-    expect(plan.commands[plan.commands.length - 1].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
-    expect(plan.commands[plan.commands.length - 1].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
+    expect(plan.commands[plan.commands.length - 2].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
+    expect(plan.commands[plan.commands.length - 1].arguments.code).toBe(RUBY_COMMANDS.ZOOM_EXTENTS);
     expect(plan.componentCount).toBe(2);
   });
 
@@ -263,7 +263,7 @@ describe('buildPlanFromParts — transactional 래핑', () => {
     expect(codes).not.toContain(RUBY_COMMANDS.COMMIT_OP);
   });
 
-  it('clearExisting + transactional 동시 사용: [START, CLEAR, create…, COMMIT] 순서', () => {
+  it('clearExisting + transactional 동시 사용: [START, CLEAR, create…, COMMIT, ZOOM] 순서', () => {
     const plan = buildPlanFromParts([makeBody('b1')], {
       category: 'sink',
       materialTone: 'cream',
@@ -271,11 +271,12 @@ describe('buildPlanFromParts — transactional 래핑', () => {
       transactional: true,
     });
 
-    expect(plan.commands).toHaveLength(4);
+    expect(plan.commands).toHaveLength(5);
     expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
     expect(plan.commands[1].arguments.code).toBe(RUBY_COMMANDS.CLEAR_ENTITIES);
     expect(plan.commands[2].tool).toBe(MHYRR_TOOLS.CREATE_COMPONENT);
     expect(plan.commands[3].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
+    expect(plan.commands[4].arguments.code).toBe(RUBY_COMMANDS.ZOOM_EXTENTS);
   });
 });
 
@@ -358,7 +359,7 @@ describe('evalRubySafe — eval_ruby RCE 가드', () => {
   });
 
   it('TypeScript 컴파일 단에서 allowlist 외 key 차단 — 런타임 typeof 확인', () => {
-    const keys: Array<keyof typeof RUBY_COMMANDS> = ['CLEAR_ENTITIES', 'START_OP', 'COMMIT_OP', 'ABORT_OP', 'ENSURE_MATERIALS'];
+    const keys: Array<keyof typeof RUBY_COMMANDS> = ['CLEAR_ENTITIES', 'START_OP', 'COMMIT_OP', 'ABORT_OP', 'ENSURE_MATERIALS', 'ZOOM_EXTENTS'];
     for (const k of keys) {
       expect(typeof RUBY_COMMANDS[k]).toBe('string');
       expect(RUBY_COMMANDS[k].length).toBeGreaterThan(0);
