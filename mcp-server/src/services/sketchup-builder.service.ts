@@ -130,12 +130,29 @@ export function partToCommand(part: CabinetPartV2, category: CabinetCategory, to
   const materialName = sketchupMaterialName(tone, part.colorKey);
   const componentName = sketchupComponentName(category, part.id);
 
+  // SketchUp ground plane (z=0) face normal 보정.
+  //
+  // mhyrr v0.1.0 의 create_component 는 add_face(4점) + pushpull(height) 로 box 생성.
+  // SketchUp 실측 동작 (eval_ruby 진단 결과):
+  //   - z>0 face: face_normal = -Z, pushpull(+h) → +Z 방향 extrude (정상)
+  //   - z=0 face: face_normal = +Z (자동 결정), pushpull(+h) → -Z 방향 (역!)
+  //   즉 SketchUp 의 pushpull(positive distance) = face_normal **반대** 방향.
+  //
+  // 결함: z=0 인 걸레받이/마감재 하부가 z=-h ~ 0 으로 그려져 가구 총 높이 3180mm
+  //   (입력 2310 + 음수영역 -870) 으로 표시됨.
+  //
+  // 해결: z=0 part 의 dimensions[2] 부호를 반전 (pushpull(-h) → +face_normal = +Z).
+  //   position[2] = 0 그대로, dimensions[2] = -h. 결과: SketchUp box z = 0 ~ +h.
+  //   시각/단위 무관 (-mm 도 SketchUp 이 절댓값 box 로 처리).
+  const isGroundPlane = part.z === 0;
+  const dimZ = isGroundPlane ? -part.height : part.height;
+
   return {
     tool: MHYRR_TOOLS.CREATE_COMPONENT,
     arguments: {
       type: 'cube',
       position: [mmToInch(part.x), mmToInch(part.y), mmToInch(part.z)],
-      dimensions: [mmToInch(part.width), mmToInch(part.depth), mmToInch(part.height)],
+      dimensions: [mmToInch(part.width), mmToInch(part.depth), mmToInch(dimZ)],
       // name / material / meta — mhyrr v0.1.0 는 무시하지만 정보 보존
       name: componentName,
       material: materialName,
