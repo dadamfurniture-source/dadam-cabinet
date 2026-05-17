@@ -730,6 +730,10 @@ export default function App() {
     return s;
   });
   const hitlMode = params.get('mode') === 'hitl';
+  // W5-1: feature flag — Three.js Z-up 좌표축 활성화 (디자이너 PC A/B 검증용).
+  // flag on 시 카메라/조명/OrbitControls 가 V2 좌표 (Z-up corner) 의미로 재배치.
+  // mesh.position 은 W5-2 에서 V2 native 로 — 본 단계에서는 V1 어댑터 유지 (시각 회귀 발생, 의도된 회귀).
+  const isZup = params.get('planner3d') === 'zup';
   const [view, setView] = useState<CameraView>((params.get('view') as CameraView) || 'perspective');
   const [selId, setSelId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
@@ -997,7 +1001,43 @@ export default function App() {
   const hasUpper = (planner.upperModules ?? []).length > 0;
 
   // 카메라 위치
-  const camPos: [number, number, number] = view === 'top' ? [0, 2400, 0.01] : view === 'front' ? [0, 900, 2800] : [2300, 1500, 2300];
+  // W5-1: Z-up 좌표계로 전환 시 (x,y,z) → (x,z,y) 매핑.
+  //   Y-up top:        [0, 2400, 0.01]    (y 축 위에서 내려봄)
+  //   Z-up top:        [0, 0.01, 2400]    (z 축 위에서 내려봄)
+  //   Y-up front:      [0, 900, 2800]     (y=수직 900, z=깊이 2800)
+  //   Z-up front:      [0, -2800, 900]    (-y 방향에서 정면, z=900)
+  //   Y-up perspective:[2300, 1500, 2300] (대각선)
+  //   Z-up perspective:[2300, -2300, 1500] (Z-up 대각선 — 정면쪽 -y, 위쪽 +z)
+  const camPos: [number, number, number] = isZup
+    ? (view === 'top'   ? [0, 0.01, 2400]
+     : view === 'front' ? [0, -2800, 900]
+     :                    [2300, -2300, 1500])
+    : (view === 'top'   ? [0, 2400, 0.01]
+     : view === 'front' ? [0, 900, 2800]
+     :                    [2300, 1500, 2300]);
+
+  // W5-1: 카메라/조명/Orbit 의 up 벡터 — Z-up 시 (0,0,1), 기본 Y-up (0,1,0)
+  const camUp: [number, number, number] = isZup ? [0, 0, 1] : [0, 1, 0];
+
+  // W5-1: OrbitControls target — Y-up 의 [0,900,0] (y=수직 중간) → Z-up 의 [0,0,900] (z=수직 중간)
+  const orbitTarget: [number, number, number] = isZup ? [0, 0, 900] : [0, 900, 0];
+
+  // W5-1: 조명 위치 swap (y↔z)
+  const lightPos1: [number, number, number] = isZup ? [1800, -1200, 2200] : [1800, 2200, 1200];
+  const lightPos2: [number, number, number] = isZup ? [-1200, 900, 1000] : [-1200, 1000, -900];
+
+  // W5-1: top view 시 group rotation
+  //   Y-up: 카메라가 위(+y)에서 내려보므로 group 을 X축 -90° 회전해 도면처럼 평면화
+  //   Z-up: 카메라가 +z 에서 내려보므로 그대로 평면 (rotation 불요)
+  const topGroupRotation: [number, number, number] = view === 'top'
+    ? (isZup ? [0, 0, 0] : [-Math.PI / 2, 0, 0])
+    : [0, 0, 0];
+
+  // W5-1: ContactShadows 의 평면 위치 — Y-up 시 y=-1 (바닥), Z-up 시 z=-1 (바닥) 필요
+  //   drei ContactShadows 는 자체 평면을 카메라 up 에 따라 그리는 게 아닌, position 으로 직접 배치.
+  //   Z-up 에서는 평면을 XY 평면 (z=0) 으로 두려면 rotation 도 필요.
+  const shadowPos: [number, number, number] = isZup ? [0, 0, -1] : [0, -1, 0];
+  const shadowRotation: [number, number, number] = isZup ? [0, 0, 0] : [0, 0, 0]; // ContactShadows 의 디폴트 평면이 XZ, Z-up 에서는 XY 가 필요하므로 추후 검증
 
   return (
     <div style={{ width: '100%', height: '100vh', overflow: 'hidden', position: 'relative' }} onPointerDown={e => { if (e.target === e.currentTarget) setSelId(null); }}>
@@ -1005,12 +1045,19 @@ export default function App() {
         <Suspense fallback={null}>
           <color attach="background" args={['#f4efe7']} />
           <ambientLight intensity={0.6} />
-          <directionalLight position={[1800, 2200, 1200]} intensity={1.8} castShadow />
-          <directionalLight position={[-1200, 1000, -900]} intensity={0.6} />
+          <directionalLight position={lightPos1} intensity={1.8} castShadow />
+          <directionalLight position={lightPos2} intensity={0.6} />
           <Environment preset="city" />
-          <ContactShadows position={[0, -1, 0]} opacity={0.4} scale={6000} blur={2.5} far={4000} />
+          <ContactShadows
+            position={shadowPos}
+            rotation={shadowRotation}
+            opacity={0.4}
+            scale={6000}
+            blur={2.5}
+            far={4000}
+          />
 
-          <group rotation={view === 'top' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
+          <group rotation={topGroupRotation}>
             {/* 일반 파츠 — partsV1 (V2 어댑터) 사용 */}
             {partsV1.filter(p => !p.id.startsWith('utility-')).map(part => (
               <ModuleBox key={part.id} part={part} color={palette[part.colorKey]} onSelect={setSelId} halfW={planner.width / 2} controlsRef={controlsRef} onDragDone={dragModule} onDragMove={handleDragMove} shiftDir={shiftMap[part.id] || null} />
@@ -1127,8 +1174,8 @@ export default function App() {
           </group>
 
           <gridHelper args={[6000, 40, 0x000000, 0xcccccc]} position={[0, -1, 0]} />
-          <OrbitControls ref={controlsRef} enablePan enableDamping dampingFactor={0.08} minDistance={700} maxDistance={7000} target={[0, 900, 0]} minPolarAngle={view === 'top' ? 0.01 : 0.1} maxPolarAngle={view === 'top' ? 0.01 : Math.PI / 2} />
-          <PerspectiveCamera makeDefault position={camPos} fov={45} near={1} far={20000} />
+          <OrbitControls ref={controlsRef} enablePan enableDamping dampingFactor={0.08} minDistance={700} maxDistance={7000} target={orbitTarget} minPolarAngle={view === 'top' ? 0.01 : 0.1} maxPolarAngle={view === 'top' ? 0.01 : Math.PI / 2} />
+          <PerspectiveCamera makeDefault position={camPos} up={camUp} fov={45} near={1} far={20000} />
         </Suspense>
       </Canvas>
 
