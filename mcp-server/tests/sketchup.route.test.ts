@@ -160,6 +160,7 @@ function makeBuildBody(overrides: Record<string, unknown> = {}) {
     // W4-5c: 기본값 true 됐지만 라우트 단순 검증은 옵션 false 로 노이즈 제거
     applyRotation: false,
     applyMaterial: false,
+    autoZoom: false,
     ...overrides,
   };
 }

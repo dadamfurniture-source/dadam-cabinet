@@ -105,6 +105,7 @@ router.post(
         transactional: input.transactional,
         applyRotation: input.applyRotation,
         applyMaterial: input.applyMaterial,
+        autoZoom: input.autoZoom,
       });
 
       if (plan.componentCount === 0) {
@@ -264,6 +265,7 @@ router.post(
         transactional: input.transactional,
         applyRotation: input.applyRotation,
         applyMaterial: input.applyMaterial,
+        autoZoom: input.autoZoom,
       });
 
       if (plan.componentCount === 0) {

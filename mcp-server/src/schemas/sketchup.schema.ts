@@ -60,6 +60,8 @@ export const sketchupBuildSchema = z.object({
   // 비활성화하려면 명시적 false 전송.
   applyRotation: z.boolean().optional().default(true),
   applyMaterial: z.boolean().optional().default(true),
+  // 빌드 후 SketchUp active view zoom_extents 자동 호출 (기본 true)
+  autoZoom: z.boolean().optional().default(true),
   host: z.string().optional(),
   port: z.number().int().positive().optional(),
   timeoutMs: z.number().int().positive().optional(),
