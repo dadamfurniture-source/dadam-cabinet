@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-04-05T11:49:58.772Z",
+  "lastUpdated": "2026-05-16T12:05:35.140Z",
   "activeFeatures": [
     "mcp-server",
     "js",
@@ -38,7 +38,8 @@
     "embed",
     "crazy-noether",
     "planner-vite",
-    "__tests__"
+    "__tests__",
+    "constants"
   ],
   "primaryFeature": "mcp-server",
   "archivedFeatures": {
@@ -49,6 +50,17 @@
       "startedAt": "2026-02-17T10:55:00.000Z",
       "archivedAt": "2026-02-17T12:00:00.000Z",
       "archivedTo": "docs/archive/2026-02/supabase-api/"
+    },
+    "mcp-sketchup-w4": {
+      "phase": "archived",
+      "matchRate": 78,
+      "iterationCount": 0,
+      "startedAt": "2026-05-15T00:00:00.000Z",
+      "archivedAt": "2026-05-16T12:20:00.000Z",
+      "archivedTo": "docs/archive/2026-05/mcp-sketchup-w4/",
+      "prsMerged": 9,
+      "e2e": "11/11 (mhyrr v0.1.0)",
+      "note": "강행 보고서 — keystone W4-3 Three.js Z-up 은 어댑터 우회"
     }
   },
   "features": {
@@ -63,10 +75,10 @@
       },
       "timestamps": {
         "started": "2026-02-01T08:41:51.881Z",
-        "lastUpdated": "2026-03-25T09:24:25.355Z",
+        "lastUpdated": "2026-05-16T11:45:29.791Z",
         "reportedAt": "2026-03-25T00:00:00.000Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\modest-hellman\\mcp-server\\src\\http-server.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\services\\sketchup-mcp-bridge.service.ts"
     },
     "js": {
       "phase": "do",
@@ -142,9 +154,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-08T12:23:22.002Z",
-        "lastUpdated": "2026-02-14T14:08:23.294Z"
+        "lastUpdated": "2026-05-16T12:05:35.140Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\test-onchange.js"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\lib\\sketchup-client.ts"
     },
     "clients": {
       "phase": "do",
@@ -168,9 +180,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-08T13:51:27.478Z",
-        "lastUpdated": "2026-03-30T18:12:42.180Z"
+        "lastUpdated": "2026-05-16T11:54:52.274Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\mcp-server\\src\\routes\\generate.route.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\routes\\sketchup.route.ts"
     },
     "tests": {
       "phase": "do",
@@ -181,9 +193,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-14T07:57:15.037Z",
-        "lastUpdated": "2026-03-19T19:09:03.476Z"
+        "lastUpdated": "2026-05-16T11:57:02.606Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadam-saas\\tests\\test_real_images_e2e.py"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\tests\\sketchup.route.test.ts"
     },
     "config": {
       "phase": "do",
@@ -415,9 +427,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-11T11:25:17.057Z",
-        "lastUpdated": "2026-03-12T03:24:21.807Z"
+        "lastUpdated": "2026-05-16T11:55:12.516Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadam-saas\\api\\schemas\\common.py"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\schemas\\sketchup.schema.ts"
     },
     "workers": {
       "phase": "do",
@@ -480,9 +492,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-29T07:27:45.629Z",
-        "lastUpdated": "2026-03-30T19:05:16.693Z"
+        "lastUpdated": "2026-05-16T12:05:22.897Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\components\\planner\\DadamPlanner.tsx"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\components\\planner\\EmbedCanvas.tsx"
     },
     "embed": {
       "phase": "do",
@@ -519,9 +531,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-30T20:36:24.264Z",
-        "lastUpdated": "2026-04-05T11:49:58.772Z"
+        "lastUpdated": "2026-05-16T11:32:19.958Z"
       },
-      "lastFile": "/c/Users/hchan/dadamagent/.claude/worktrees/crazy-noether/planner-vite/src/lib/planner.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\planner-vite\\src\\App.tsx"
     },
     "__tests__": {
       "phase": "do",
@@ -532,9 +544,22 @@
       "documents": {},
       "timestamps": {
         "started": "2026-04-05T10:46:52.106Z",
-        "lastUpdated": "2026-04-05T10:46:52.106Z"
+        "lastUpdated": "2026-05-16T11:32:59.549Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\planner-vite\\src\\lib\\__tests__\\calc-utils.test.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\planner-vite\\src\\lib\\__tests__\\coords.test.ts"
+    },
+    "constants": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-05-16T11:17:23.191Z",
+        "lastUpdated": "2026-05-16T11:28:38.432Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\constants\\sketchup.ts"
     }
   },
   "pipeline": {
@@ -545,7 +570,7 @@
   "session": {
     "startedAt": "2026-02-01T08:25:55.232Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-04-05T11:49:58.772Z"
+    "lastActivity": "2026-05-16T12:05:35.140Z"
   },
   "history": [
     {
@@ -6287,6 +6312,384 @@
     {
       "timestamp": "2026-04-05T11:49:58.772Z",
       "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T03:14:32.046Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T03:15:00.893Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T04:18:41.358Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T06:18:55.745Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T06:19:42.566Z",
+      "feature": "dadamagent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:39:55.419Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:40:26.993Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:40:53.788Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:41:25.131Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:41:41.584Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:43:48.666Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:44:00.495Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:44:10.594Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:44:21.261Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:44:41.762Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:47:12.382Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:47:37.664Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:48:50.992Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:49:02.308Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:50:10.335Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:50:42.965Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T10:50:56.266Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:01:22.971Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:01:36.489Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:01:49.217Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:02:02.039Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:02:11.889Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:02:18.520Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:02:27.583Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:02:38.446Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:02:45.850Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:03:04.594Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:03:10.591Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:03:20.546Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:04:33.488Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:10:07.699Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:11:15.847Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:11:23.890Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:11:30.244Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:12:15.665Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:17:23.191Z",
+      "feature": "constants",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:28:38.432Z",
+      "feature": "constants",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:28:49.175Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:28:56.769Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:29:03.843Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:31:42.538Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:31:51.231Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:32:19.958Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:32:59.549Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:45:08.050Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:45:19.067Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:45:29.791Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:47:33.997Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:54:39.077Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:54:52.274Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:55:12.516Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T11:57:02.606Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T12:04:19.940Z",
+      "feature": "dadamagent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T12:04:35.128Z",
+      "feature": "dadamagent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T12:04:50.477Z",
+      "feature": "dadamagent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T12:05:10.406Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T12:05:22.897Z",
+      "feature": "planner",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-16T12:05:35.140Z",
+      "feature": "dadamagent",
       "phase": "do",
       "action": "updated"
     }
