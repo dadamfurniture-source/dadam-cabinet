@@ -1033,6 +1033,13 @@ export default function App() {
     ? (isZup ? [0, 0, 0] : [-Math.PI / 2, 0, 0])
     : [0, 0, 0];
 
+  // W5-2: Z-up 모드에서 V1 mesh 를 정상 시점으로 보이게 하는 wrapping group rotation.
+  //   X축 +π/2 회전 → V1 의 +Y (수직) 가 group 내부에서 +Z 가 되어 Z-up 카메라의 위쪽으로 보임
+  //   V1 의 +Z (깊이) 가 group 내부에서 -Y 가 되어 Z-up 카메라의 정면 (-Y 방향) 으로 보임
+  //   secondary 모듈의 rotationY (Y축 회전) 도 group 회전 후 Z축 회전 효과 — 부호 보존
+  //   이 group 으로 wrap 하면 ModuleBox/UtilityMesh 내부 V1 좌표 코드 0 변경
+  const zupWrapRotation: [number, number, number] = isZup ? [Math.PI / 2, 0, 0] : [0, 0, 0];
+
   // W5-1: ContactShadows 의 평면 위치 — Y-up 시 y=-1 (바닥), Z-up 시 z=-1 (바닥) 필요
   //   drei ContactShadows 는 자체 평면을 카메라 up 에 따라 그리는 게 아닌, position 으로 직접 배치.
   //   Z-up 에서는 평면을 XY 평면 (z=0) 으로 두려면 rotation 도 필요.
@@ -1057,6 +1064,8 @@ export default function App() {
             far={4000}
           />
 
+          {/* W5-2: Z-up 모드는 outer group 으로 X축 +π/2 wrap → V1 mesh 좌표 자동 호환 */}
+          <group rotation={zupWrapRotation}>
           <group rotation={topGroupRotation}>
             {/* 일반 파츠 — partsV1 (V2 어댑터) 사용 */}
             {partsV1.filter(p => !p.id.startsWith('utility-')).map(part => (
@@ -1172,8 +1181,9 @@ export default function App() {
               );
             })}
           </group>
+          </group>{/* /W5-2 zupWrapRotation */}
 
-          <gridHelper args={[6000, 40, 0x000000, 0xcccccc]} position={[0, -1, 0]} />
+          <gridHelper args={[6000, 40, 0x000000, 0xcccccc]} position={isZup ? [0, 0, -1] : [0, -1, 0]} rotation={isZup ? [Math.PI / 2, 0, 0] : [0, 0, 0]} />
           <OrbitControls ref={controlsRef} enablePan enableDamping dampingFactor={0.08} minDistance={700} maxDistance={7000} target={orbitTarget} minPolarAngle={view === 'top' ? 0.01 : 0.1} maxPolarAngle={view === 'top' ? 0.01 : Math.PI / 2} />
           <PerspectiveCamera makeDefault position={camPos} up={camUp} fov={45} near={1} far={20000} />
         </Suspense>
