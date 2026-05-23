@@ -161,6 +161,7 @@ function makeBuildBody(overrides: Record<string, unknown> = {}) {
     applyRotation: false,
     applyMaterial: false,
     autoZoom: false,
+    applyEntityNames: false,
     ...overrides,
   };
 }

@@ -38,11 +38,23 @@ export interface BridgeOptions {
 }
 
 /**
- * W4-5b: arguments 안의 `__ENT__:<idRef>` 플레이스홀더를 entityIdMap 의 실 entity ID 로 치환.
+ * Si-1b: code 안에서 `__ENT__:<idRef>` placeholder 를 찾는 global regex.
+ * 매칭 시 entityIdMap[idRef] 의 실 entity ID 로 치환.
+ *
+ * Ruby/JS 코드 안에 부분 문자열로 들어간 placeholder 도 처리:
+ *   "ids = [__ENT__:body-1, __ENT__:door-1]"
+ *   → "ids = [12345, 12346]"
+ *
+ * partId 규칙 (영숫자/_/-/.) 는 sketchupComponentName 에서 sanitize 됨.
+ */
+const ENT_REF_INLINE_PATTERN = /__ENT__:([A-Za-z0-9_.\-]+)/g;
+
+/**
+ * W4-5b + Si-1b: arguments 안의 `__ENT__:<idRef>` 플레이스홀더를 entityIdMap 의 실 entity ID 로 치환.
  *
  * 치환 대상:
- *   - args.id (string `__ENT__:foo` → number/string)
- *   - 그 외 string 값 중 prefix 매칭되는 것 (방어적)
+ *   - args.id (string `__ENT__:foo` → number/string, 단일 placeholder 완전 일치)
+ *   - 그 외 string 값 중 inline placeholder 가 포함된 경우 (예: code 안의 ID 배열)
  * map 에 없는 idRef 는 그대로 두어 mhyrr 가 에러 응답 → batch 실패로 진단.
  */
 export function resolveEntityRefs(
@@ -51,10 +63,25 @@ export function resolveEntityRefs(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(args)) {
-    if (typeof v === 'string' && v.startsWith(ENT_REF_PREFIX)) {
-      const ref = v.slice(ENT_REF_PREFIX.length);
-      const resolved = entityIdMap.get(ref);
-      out[k] = resolved ?? v; // 매핑 없으면 placeholder 그대로 (mhyrr 가 거부 → 진단 가능)
+    if (typeof v === 'string') {
+      // 1) 완전 일치 (args.id = "__ENT__:foo"): 정수/문자열로 치환
+      if (v.startsWith(ENT_REF_PREFIX) && !v.slice(ENT_REF_PREFIX.length).includes(' ')) {
+        const ref = v.slice(ENT_REF_PREFIX.length);
+        const resolved = entityIdMap.get(ref);
+        if (resolved !== undefined) {
+          out[k] = resolved;
+          continue;
+        }
+      }
+      // 2) inline 치환 (code 안의 임의 위치 placeholder)
+      if (v.includes(ENT_REF_PREFIX)) {
+        out[k] = v.replace(ENT_REF_INLINE_PATTERN, (match, ref) => {
+          const resolved = entityIdMap.get(ref);
+          return resolved !== undefined ? String(resolved) : match; // 매핑 없으면 그대로 (mhyrr 에러 진단 가능)
+        });
+        continue;
+      }
+      out[k] = v;
     } else {
       out[k] = v;
     }

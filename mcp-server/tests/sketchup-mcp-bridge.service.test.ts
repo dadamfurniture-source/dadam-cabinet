@@ -46,6 +46,25 @@ describe('resolveEntityRefs — __ENT__:<idRef> 플레이스홀더 치환', () =
     const out = resolveEntityRefs({ id: 12345, rotation: [0, 0, 90] }, map);
     expect(out.id).toBe(12345);
   });
+
+  // Si-1b: inline placeholder 치환 (code 안의 임의 위치)
+  it('code 안의 inline __ENT__:foo placeholder 도 치환 (Si-1b SET_NAMES 용)', () => {
+    const map = new Map<string, number | string>([['b1', 16657], ['d1', 16725]]);
+    const code = `
+      ids = [__ENT__:b1, __ENT__:d1]
+      names = ["dadam.sink.b1", "dadam.sink.d1"]
+    `;
+    const out = resolveEntityRefs({ code }, map);
+    expect(out.code).toContain('[16657, 16725]');
+    expect(out.code).not.toContain('__ENT__');
+  });
+
+  it('inline placeholder 중 매핑 누락 시 그대로 (mhyrr 에러 진단)', () => {
+    const map = new Map<string, number>([['b1', 16657]]);
+    const out = resolveEntityRefs({ code: 'ids = [__ENT__:b1, __ENT__:missing]' }, map);
+    expect(out.code).toContain('16657');
+    expect(out.code).toContain('__ENT__:missing');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────

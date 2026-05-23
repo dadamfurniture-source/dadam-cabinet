@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPlanFromParts,
+  buildSetNamesCommand,
   evalRubySafe,
   partToCommand,
   partToRotationCommand,
@@ -240,15 +241,20 @@ describe('buildPlanFromParts', () => {
 // ─────────────────────────────────────────────────────────────────
 
 describe('buildPlanFromParts — transactional 래핑', () => {
-  it('기본값: transactional=true → START_OP 가 맨 앞, COMMIT_OP + ZOOM_EXTENTS 가 맨 뒤', () => {
+  it('기본값 (모든 옵션 true): START + 2 create + SET_NAMES + COMMIT + ZOOM_EXTENTS', () => {
     const plan = buildPlanFromParts(
       [makeBody('b1'), makeBody('b2')],
       { category: 'sink', materialTone: 'cream' },
     );
 
-    expect(plan.commands).toHaveLength(5); // START + 2 create + COMMIT + ZOOM_EXTENTS
-    expect(plan.commands[0].tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
+    expect(plan.commands).toHaveLength(6); // START + 2 create + SET_NAMES + COMMIT + ZOOM_EXTENTS
     expect(plan.commands[0].arguments.code).toBe(RUBY_COMMANDS.START_OP);
+    // SET_NAMES: COMMIT 직전 eval_ruby (고정 RUBY_COMMANDS 외 동적)
+    const setNamesIdx = plan.commands.findIndex(
+      (c) => c.tool === MHYRR_TOOLS.EVAL_RUBY && typeof c.arguments.code === 'string'
+        && (c.arguments.code as string).includes('find_entity_by_id'),
+    );
+    expect(setNamesIdx).toBeGreaterThan(0);
     expect(plan.commands[plan.commands.length - 2].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
     expect(plan.commands[plan.commands.length - 1].arguments.code).toBe(RUBY_COMMANDS.ZOOM_EXTENTS);
     expect(plan.componentCount).toBe(2);
@@ -267,12 +273,13 @@ describe('buildPlanFromParts — transactional 래핑', () => {
     expect(codes).not.toContain(RUBY_COMMANDS.COMMIT_OP);
   });
 
-  it('clearExisting + transactional 동시 사용: [START, CLEAR, create…, COMMIT, ZOOM] 순서', () => {
+  it('clearExisting + transactional 동시 사용: [START, CLEAR, create…, COMMIT, ZOOM] 순서 (applyEntityNames=false)', () => {
     const plan = buildPlanFromParts([makeBody('b1')], {
       category: 'sink',
       materialTone: 'cream',
       clearExisting: true,
       transactional: true,
+      applyEntityNames: false,
     });
 
     expect(plan.commands).toHaveLength(5);
@@ -281,6 +288,76 @@ describe('buildPlanFromParts — transactional 래핑', () => {
     expect(plan.commands[2].tool).toBe(MHYRR_TOOLS.CREATE_COMPONENT);
     expect(plan.commands[3].arguments.code).toBe(RUBY_COMMANDS.COMMIT_OP);
     expect(plan.commands[4].arguments.code).toBe(RUBY_COMMANDS.ZOOM_EXTENTS);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Si-1b: buildSetNamesCommand + applyEntityNames 옵션
+// ─────────────────────────────────────────────────────────────────
+
+describe('buildSetNamesCommand', () => {
+  it('정상 → eval_ruby + code 안에 ID/name 배열 인라인', () => {
+    const parts = [
+      makeBody('b1'),
+      makeBody('door-1', { isDoor: true, parentModuleId: 'b1' }),
+    ];
+    const cmd = buildSetNamesCommand(parts, 'sink')!;
+    expect(cmd.tool).toBe(MHYRR_TOOLS.EVAL_RUBY);
+    const code = cmd.arguments.code as string;
+    // ID placeholder (__ENT__:partId) 가 ids 배열에
+    expect(code).toContain('__ENT__:b1');
+    expect(code).toContain('__ENT__:door-1');
+    // name 인라인 (sketchupComponentName)
+    expect(code).toContain('"dadam.sink.b1"');
+    expect(code).toContain('"dadam.sink.door-1"');
+    // 핵심 Ruby 함수
+    expect(code).toContain('find_entity_by_id');
+    expect(code).toContain('e.name = name');
+  });
+
+  it('wireframe / zero-dim parts 는 제외', () => {
+    const parts = [
+      makeBody('b1'),
+      makeBody('b2', { wireframe: true }),  // 제외
+      makeBody('b3', { width: 0 }),         // 제외
+    ];
+    const cmd = buildSetNamesCommand(parts, 'sink')!;
+    const code = cmd.arguments.code as string;
+    expect(code).toContain('__ENT__:b1');
+    expect(code).not.toContain('__ENT__:b2');
+    expect(code).not.toContain('__ENT__:b3');
+  });
+
+  it('빈 입력 → null', () => {
+    expect(buildSetNamesCommand([], 'sink')).toBeNull();
+    expect(buildSetNamesCommand([makeBody('b1', { width: 0 })], 'sink')).toBeNull();
+  });
+});
+
+describe('buildPlanFromParts — applyEntityNames 옵션', () => {
+  it('applyEntityNames=true (기본) → SET_NAMES eval_ruby 명령 포함', () => {
+    const plan = buildPlanFromParts([makeBody('b1')], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+    });
+    const evalCodes = plan.commands
+      .filter((c) => c.tool === MHYRR_TOOLS.EVAL_RUBY)
+      .map((c) => c.arguments.code as string);
+    expect(evalCodes.some((c) => c.includes('find_entity_by_id'))).toBe(true);
+  });
+
+  it('applyEntityNames=false → SET_NAMES 미포함', () => {
+    const plan = buildPlanFromParts([makeBody('b1')], {
+      category: 'sink',
+      materialTone: 'cream',
+      transactional: false,
+      applyEntityNames: false,
+    });
+    const evalCodes = plan.commands
+      .filter((c) => c.tool === MHYRR_TOOLS.EVAL_RUBY)
+      .map((c) => c.arguments.code as string);
+    expect(evalCodes.every((c) => !c.includes('find_entity_by_id'))).toBe(true);
   });
 });
 
