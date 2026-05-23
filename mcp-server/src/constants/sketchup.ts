@@ -106,6 +106,46 @@ export const RUBY_COMMANDS = {
       end
     end
   `.trim(),
+  /**
+   * Si-1: 현재 SketchUp 활성 모델의 모든 top-level group/component 을 JSON 으로 dump.
+   *
+   * 각 entity 마다:
+   *   - id: SketchUp entityID
+   *   - name: outliner name (dadam.{cat}.{partId} 또는 임의)
+   *   - type: 'group' | 'component'
+   *   - bounds: [min_mm[3], max_mm[3]] (mm 단위, SketchUp 내부 inch * 25.4)
+   *   - transformation: 16-element matrix (회전/이동 detect 용)
+   *   - material_name: 적용된 머티리얼 이름 또는 null
+   *
+   * 응답은 puts 로 JSON 출력 — eval_ruby 의 result.content[0].text 에 들어옴.
+   * planner-import.service.ts 가 JSON.parse 로 파싱.
+   *
+   * 동적 입력 없는 고정 Ruby — allowlist 안전.
+   */
+  DUMP_ENTITIES: `
+    m = Sketchup.active_model
+    entities = m.active_entities.to_a.select { |e| e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance) }
+    result = entities.map do |e|
+      b = e.bounds
+      mat_name = e.material ? e.material.display_name : nil
+      t = e.transformation.to_a
+      type_str = e.is_a?(Sketchup::Group) ? 'group' : 'component'
+      ent_name = (e.respond_to?(:name) && !e.name.to_s.empty?) ? e.name : (e.respond_to?(:definition) ? e.definition.name : '')
+      {
+        :id => e.entityID,
+        :name => ent_name,
+        :type => type_str,
+        :bounds => {
+          :min => [(b.min.x * 25.4).round(3), (b.min.y * 25.4).round(3), (b.min.z * 25.4).round(3)],
+          :max => [(b.max.x * 25.4).round(3), (b.max.y * 25.4).round(3), (b.max.z * 25.4).round(3)]
+        },
+        :transformation => t.map { |v| v.round(6) },
+        :material_name => mat_name
+      }
+    end
+    require 'json'
+    result.to_json
+  `.trim(),
 } as const;
 
 export type RubyCommandKey = keyof typeof RUBY_COMMANDS;
