@@ -9,7 +9,7 @@ import {
   createPlannerState, deriveCabinet, getPresetById, type PlannerState,
 } from './lib/planner';
 import { migratePartV2ToV1 } from './lib/coords';
-import { exportToSketchup } from './lib/sketchup-client';
+import { exportToSketchup, importFromSketchup, type ImportedPlannerData } from './lib/sketchup-client';
 
 type CameraView = 'perspective' | 'front' | 'top';
 
@@ -740,6 +740,9 @@ export default function App() {
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
   const [showLayoutPanel, setShowLayoutPanel] = useState(false);
   const [sketchupBusy, setSketchupBusy] = useState(false);
+  // Si-5: SketchUp 에서 가져오기
+  const [importBusy, setImportBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState<ImportedPlannerData | null>(null);
   const [sketchupMessage, setSketchupMessage] = useState('');
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
@@ -813,6 +816,70 @@ export default function App() {
       setSketchupBusy(false);
     }
   }, [derived.parts, planner.presetId, planner.material, sketchupBusy]);
+
+  // Si-5: SketchUp 활성 모델 → planner UI 역추적
+  const handleImportFromSketchup = useCallback(async () => {
+    if (importBusy) return;
+    setImportBusy(true);
+    setSketchupMessage('');
+    try {
+      const result = await importFromSketchup({});
+      if (!result.ok) {
+        setSketchupMessage(`✗ ${result.code}: ${result.message}`);
+        return;
+      }
+      // 가져오기 성공 → 미리보기 모달 표시 (사용자가 확인 후 적용)
+      setImportPreview(result.data);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setSketchupMessage(`✗ 예외: ${msg}`);
+    } finally {
+      setImportBusy(false);
+    }
+  }, [importBusy]);
+
+  // Si-5: import 결과 → PlannerState 적용 (사용자 확인 후)
+  const applyImportedData = useCallback(() => {
+    if (!importPreview) return;
+    const d = importPreview;
+    setPlanner((p) => ({
+      ...p,
+      presetId: d.category,
+      width: d.width,
+      height: d.height,
+      depth: d.depth,
+      toeKickH: d.toeKickH,
+      moldingH: d.moldingH,
+      finishLeftW: d.finishLeftW,
+      finishRightW: d.finishRightW,
+      lowerCount: d.lowerCount,
+      upperCount: d.upperCount,
+      lowerModules: d.lowerModules.map((m) => ({
+        id: m.id,
+        kind: m.kind as ModuleKind,
+        width: m.width,
+        moduleType: m.moduleType as any,
+      })),
+      upperModules: d.upperModules.map((m) => ({
+        id: m.id,
+        kind: m.kind as ModuleKind,
+        width: m.width,
+        moduleType: m.moduleType as any,
+      })),
+      material: d.material,
+      layoutShape: d.layoutShape,
+      secondaryW: d.secondaryW,
+      secondaryD: d.secondaryD,
+      secondaryStartSide: d.secondaryStartSide,
+      tertiaryW: d.tertiaryW,
+      tertiaryD: d.tertiaryD,
+      distributorStart: d.distributorStart,
+      distributorEnd: d.distributorEnd,
+      ventStart: d.ventStart,
+    }));
+    setImportPreview(null);
+    setSketchupMessage(`✓ SketchUp 가구 가져옴 (신뢰도 ${Math.round(d.confidence * 100)}%, 모듈 ${d.lowerCount + d.upperCount}개)`);
+  }, [importPreview]);
 
   // 모듈 CRUD
   const defaultKind: ModuleKind = preset.fullHeight ? 'door' : 'drawer';
@@ -1214,7 +1281,7 @@ export default function App() {
         </button>
       )}
 
-      {/* 우상단: SketchUp 으로 보내기 */}
+      {/* 우상단: SketchUp 송신/수신 버튼 */}
       <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, zIndex: 50, fontFamily: '-apple-system,BlinkMacSystemFont,system-ui,sans-serif' }}>
         <button
           type="button"
@@ -1237,6 +1304,28 @@ export default function App() {
         >
           {sketchupBusy ? '전송 중…' : '🔨 SketchUp 으로 보내기'}
         </button>
+        {/* Si-5: SketchUp 에서 가져오기 */}
+        <button
+          type="button"
+          onClick={handleImportFromSketchup}
+          disabled={importBusy}
+          title="디자이너 PC SketchUp 활성 모델의 가구를 planner 로 가져옴 (dadam.* 마킹 entity 만 지원)"
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #6a4b2a',
+            background: importBusy ? '#999' : '#fff',
+            color: importBusy ? '#fff' : '#6a4b2a',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: importBusy ? 'not-allowed' : 'pointer',
+            opacity: importBusy ? 0.7 : 1,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {importBusy ? '가져오는 중…' : '📥 SketchUp 에서 가져오기'}
+        </button>
         {sketchupMessage && (
           <div
             style={{
@@ -1255,6 +1344,59 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Si-5: import 미리보기 모달 */}
+      {importPreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setImportPreview(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 480, width: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: 0, color: '#2d2a26', fontSize: 18 }}>📥 SketchUp 가구 가져오기 미리보기</h3>
+            <p style={{ fontSize: 12, color: '#6a4b2a', marginTop: 4 }}>
+              신뢰도 <strong style={{ color: importPreview.confidence > 0.8 ? '#047857' : '#c97a3d' }}>{Math.round(importPreview.confidence * 100)}%</strong> · 모듈 {importPreview.lowerCount + importPreview.upperCount}개
+            </p>
+
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+              <div><strong>카테고리:</strong> {importPreview.category}</div>
+              <div><strong>레이아웃:</strong> {importPreview.layoutShape}</div>
+              <div><strong>가로:</strong> {importPreview.width} mm</div>
+              <div><strong>높이:</strong> {importPreview.height} mm</div>
+              <div><strong>깊이:</strong> {importPreview.depth} mm</div>
+              <div><strong>재질:</strong> {importPreview.material}</div>
+              <div><strong>하부 모듈:</strong> {importPreview.lowerCount}개</div>
+              <div><strong>상부 모듈:</strong> {importPreview.upperCount}개</div>
+              <div><strong>걸레받이:</strong> {importPreview.toeKickH} mm</div>
+              <div><strong>상몰딩:</strong> {importPreview.moldingH} mm</div>
+            </div>
+
+            {importPreview.warnings.length > 0 && (
+              <div style={{ marginTop: 16, padding: 12, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, fontSize: 12, color: '#9a3412' }}>
+                <strong>⚠️ 경고</strong>
+                <ul style={{ margin: '6px 0 0 16px', paddingLeft: 0 }}>
+                  {importPreview.warnings.map((w, i) => (<li key={i}>{w}</li>))}
+                </ul>
+              </div>
+            )}
+
+            <p style={{ marginTop: 16, fontSize: 12, color: '#b91c1c' }}>
+              ⚠️ 현재 가구 설정이 SketchUp 가져온 값으로 <strong>덮어쓰기</strong> 됩니다.
+            </p>
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setImportPreview(null)}
+                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #e3ddd0', background: '#fff', color: '#5a564e', fontSize: 13, cursor: 'pointer' }}
+              >
+                취소
+              </button>
+              <button
+                onClick={applyImportedData}
+                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #6a4b2a', background: '#6a4b2a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                적용
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
     </div>
