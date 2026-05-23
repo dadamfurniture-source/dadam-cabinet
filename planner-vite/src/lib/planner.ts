@@ -1013,6 +1013,12 @@ const buildModulesFromEntries = (
   });
 
 export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
+  // W6-2: V2 PlannerState 는 legacy 로 역변환 후 동일 로직 사용 (round-trip 동등성 보장).
+  // 향후 (W6-8 이후) deriveCabinet 본문 자체를 segments-native 로 재작성 예정.
+  if (isV2State(state)) {
+    return deriveCabinet(migrateV2ToLegacy(state));
+  }
+
   const preset = getPresetById(state.presetId);
   const width = clamp(Math.round(state.width), 600, 6000);
   const height = clamp(Math.round(state.height), 700, 2800);
@@ -1887,4 +1893,99 @@ export const migrateLegacyToV2 = (s: PlannerState): PlannerState => {
     segments,
     modulesV2,
   };
+};
+
+/**
+ * V2 PlannerState 를 legacy 로 역변환 (W6-2).
+ *  - segments[0] (prime) → state.width / state.depth
+ *  - segments[1] (secondary) → layoutShape='L' + secondaryW/D/StartSide
+ *  - segments[2] (tertiary) → layoutShape='U' + tertiaryW/D + tertiaryStartFrom
+ *  - modulesV2[] (section + segmentId) → lowerModules + upperModules (+ orientation)
+ *  - section='tall' 은 lowerModules 로 흡수 (preset.fullHeight=true 와 동일 처리)
+ *
+ * W6-2 deriveCabinet 의 V2 입력 분기에 사용. round-trip 동등성을 위해 정보 손실 최소화.
+ * 이미 legacy 면 그대로 반환 (idempotent).
+ */
+export const migrateV2ToLegacy = (s: PlannerState): PlannerState => {
+  if (!isV2State(s)) return s;
+
+  const segments = s.segments ?? [];
+  const modulesV2 = s.modulesV2 ?? [];
+  const prime = segments[0];
+  const secondary = segments[1];
+  const tertiary = segments[2];
+
+  // ── 기본 치수: prime segment 가 가구 본체 ─────────────────────
+  const width = prime?.width ?? s.width;
+  const depth = prime?.depth ?? s.depth;
+
+  // ── layoutShape + secondary/tertiary 필드 ─────────────────────
+  let layoutShape: 'I' | 'L' | 'U' = 'I';
+  let secondaryW: number | undefined;
+  let secondaryD: number | undefined;
+  let secondaryStartSide: 'left' | 'right' | undefined;
+  let tertiaryW: number | undefined;
+  let tertiaryD: number | undefined;
+  let tertiaryStartFrom: 'prime' | 'secondary' | undefined;
+
+  if (secondary) {
+    layoutShape = 'L';
+    secondaryW = secondary.depth;
+    secondaryD = secondary.width;
+    secondaryStartSide = secondary.x < 0 ? 'left' : 'right';
+  }
+  if (tertiary) {
+    layoutShape = 'U';
+    tertiaryW = tertiary.depth;
+    tertiaryD = tertiary.width;
+    tertiaryStartFrom = tertiary.y > 0 ? 'secondary' : 'prime';
+  }
+
+  // ── modulesV2[] → lowerModules + upperModules ────────────────
+  const orientationFor = (segmentId: string): 'normal' | 'secondary' | 'tertiary' => {
+    if (segmentId === 'secondary') return 'secondary';
+    if (segmentId === 'tertiary') return 'tertiary';
+    return 'normal';
+  };
+
+  const toLegacyEntry = (m: ModuleEntryV2): ModuleEntry => ({
+    id: m.id,
+    kind: m.kind,
+    width: m.width,
+    moduleType: m.moduleType,
+    doorCount: m.doorCount,
+    drawerCount: m.drawerCount,
+    orientation: orientationFor(m.segmentId),
+  });
+
+  const lowerModules: ModuleEntry[] = [];
+  const upperModules: ModuleEntry[] = [];
+  for (const m of modulesV2) {
+    const entry = toLegacyEntry(m);
+    if (m.section === 'upper') upperModules.push(entry);
+    else lowerModules.push(entry); // 'lower' + 'tall' 모두 lower 로 흡수
+  }
+
+  // ── 결과 (schemaVersion=1, segments/modulesV2 제거) ──────────
+  const result: PlannerState = {
+    ...s,
+    schemaVersion: 1,
+    width,
+    depth,
+    layoutShape,
+    secondaryW,
+    secondaryD,
+    secondaryStartSide,
+    tertiaryW,
+    tertiaryD,
+    tertiaryStartFrom,
+    lowerModules,
+    upperModules,
+    lowerCount: lowerModules.length,
+    upperCount: upperModules.length,
+  };
+  // V2 식별자 제거 (isV2State === false 보장)
+  delete result.segments;
+  delete result.modulesV2;
+  return result;
 };
