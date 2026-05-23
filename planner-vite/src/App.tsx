@@ -825,6 +825,15 @@ export default function App() {
     try {
       const result = await importFromSketchup({});
       if (!result.ok) {
+        // NO_DADAM_ENTITIES 인 경우 사용자에게 plugin 안내
+        if (result.code === 'NO_DADAM_ENTITIES') {
+          setSketchupMessage(
+            `✗ SketchUp 모델에 dadam.* 마킹된 entity 가 없습니다.\n` +
+            `\n외부 자료 사용 시: dadam-mark SketchUp 플러그인 (sketchup-plugins/dadam-mark/) 설치 후 ` +
+            `'Extensions > 다담 자동 마킹' 메뉴로 entity 들을 마킹하세요.`,
+          );
+          return;
+        }
         setSketchupMessage(`✗ ${result.code}: ${result.message}`);
         return;
       }
