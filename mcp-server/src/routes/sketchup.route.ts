@@ -23,6 +23,7 @@ import { createLogger } from '../utils/logger.js';
 import { AppError, ValidationError } from '../utils/errors.js';
 import { MHYRR_TOOLS } from '../constants/sketchup.js';
 import { fetchSketchupEntities, parseEntities, reconstructPlannerData, suggestEntities } from '../services/sketchup-import.service.js';
+import { captureSketchupView, classifyEntitiesWithAi } from '../services/sketchup-ai-classify.service.js';
 import { sketchupImportSchema } from '../schemas/sketchup.schema.js';
 
 const log = createLogger('route:sketchup');
@@ -115,6 +116,99 @@ router.get(
         count: result.count,
         entities: result.entities,
         suggestions: withSuggestions.map((w) => w.suggestion),
+      });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ───────────────────────────────────────────────────────────────
+// Phase 3b: POST /api/sketchup/classify-ai — Gemini Vision 기반 entity 분류
+//
+// SketchUp 활성 view PNG 캡처 + entities → Gemini Vision API → AI suggestions.
+// 응답에 inferredCategory + 각 entity 의 type/partId/colorKey/confidence.
+// 비용: ~$0.003/호출. 응답 시간 5-10초.
+// ───────────────────────────────────────────────────────────────
+
+router.post(
+  '/api/sketchup/classify-ai',
+  requireAuth,
+  sketchupRateLimit,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const host = typeof req.body?.host === 'string' ? req.body.host : undefined;
+      const port = typeof req.body?.port === 'number' ? req.body.port : undefined;
+      const timeoutMs = typeof req.body?.timeoutMs === 'number' ? req.body.timeoutMs : 30000;
+
+      // 1. ping (가벼움)
+      const probe = await pingSketchup({ host, port, timeoutMs: 3000 });
+      if (!probe.ok) {
+        throw new AppError(
+          `SketchUp bridge unavailable: ${probe.error?.message ?? 'unknown'}`,
+          503,
+          'SKETCHUP_UNAVAILABLE',
+        );
+      }
+
+      // 2. entities dump
+      const fetchResult = await fetchSketchupEntities({ host, port, timeoutMs });
+      if (!fetchResult.ok) {
+        throw new AppError(
+          `failed to fetch entities: ${fetchResult.error?.message}`,
+          502,
+          'SKETCHUP_FETCH_FAILED',
+        );
+      }
+      const entities = fetchResult.entities ?? [];
+      if (entities.length === 0) {
+        res.status(200).json({ ok: true, suggestions: [], inferredCategory: null, entities: [] });
+        return;
+      }
+
+      // 3. SketchUp view PNG 캡처
+      const captureResult = await captureSketchupView({ host, port, timeoutMs });
+      if (!captureResult.ok) {
+        throw new AppError(
+          `failed to capture SketchUp view: ${captureResult.error}`,
+          502,
+          'SKETCHUP_CAPTURE_FAILED',
+        );
+      }
+
+      // 4. Gemini Vision 분류
+      const aiResult = await classifyEntitiesWithAi(captureResult.base64!, entities);
+      if (!aiResult.ok) {
+        // AI 실패 시 fallback heuristic
+        log.warn({ error: aiResult.error }, 'Gemini Vision classification failed — fallback to heuristic');
+        const withSuggestions = suggestEntities(entities);
+        res.status(200).json({
+          ok: true,
+          fallback: true,
+          error: aiResult.error,
+          entities,
+          suggestions: withSuggestions.map((w) => w.suggestion),
+          inferredCategory: null,
+        });
+        return;
+      }
+
+      log.info(
+        {
+          userId: req.user?.id,
+          entityCount: entities.length,
+          aiCategory: aiResult.inferredCategory,
+          durationMs: aiResult.durationMs,
+        },
+        'AI classification complete',
+      );
+
+      res.status(200).json({
+        ok: true,
+        entities,
+        suggestions: aiResult.suggestions,
+        inferredCategory: aiResult.inferredCategory,
+        durationMs: aiResult.durationMs,
       });
     } catch (e) {
       next(e);

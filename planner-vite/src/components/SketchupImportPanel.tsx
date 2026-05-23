@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react';
 import type { RawEntity, EntitySuggestion, SuggestedPartType } from '../lib/sketchup-client';
+import { classifyEntitiesAi } from '../lib/sketchup-client';
 import type { CabinetCategory } from '../lib/planner';
 
 interface UserMapping {
@@ -55,9 +56,44 @@ export function SketchupImportPanel({ entities, suggestions, defaultCategory, on
     [suggestions],
   );
   const [mappings, setMappings] = useState<UserMapping[]>(initialMappings);
+  // Phase 3b: AI 분류 상태
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string>('');
 
   const updateMapping = (idx: number, patch: Partial<UserMapping>) => {
     setMappings((prev) => prev.map((m, i) => i === idx ? { ...m, ...patch } : m));
+  };
+
+  // Phase 3b: AI 분류 호출 — 결과로 mappings 갱신
+  const runAiClassification = async () => {
+    if (aiBusy) return;
+    setAiBusy(true);
+    setAiMessage('AI 분류 중… (5-10초 소요)');
+    try {
+      const result = await classifyEntitiesAi({});
+      if (!result.ok || !result.suggestions) {
+        setAiMessage(`✗ AI 분류 실패: ${result.error ?? 'unknown'}`);
+        return;
+      }
+      // AI suggestion 으로 mappings 일괄 갱신
+      const newMappings: UserMapping[] = result.suggestions.map((s) => ({
+        partType: s.type,
+        partId: s.suggestedPartId,
+        moduleType: s.suggestedModuleType,
+        colorKey: s.suggestedColorKey,
+      }));
+      setMappings(newMappings);
+      // 카테고리 추정도 적용
+      if (result.inferredCategory && CATEGORIES.includes(result.inferredCategory as CabinetCategory)) {
+        setCategory(result.inferredCategory as CabinetCategory);
+      }
+      const fallback = result.fallback ? ' (fallback: 휴리스틱 사용)' : '';
+      setAiMessage(`✓ AI 분류 완료${fallback} · 평균 신뢰 ${Math.round(result.suggestions.reduce((s, x) => s + x.confidence, 0) / result.suggestions.length * 100)}% · ${result.durationMs ?? 0}ms`);
+    } catch (e) {
+      setAiMessage(`✗ 예외: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const handleApply = () => {
@@ -92,16 +128,44 @@ export function SketchupImportPanel({ entities, suggestions, defaultCategory, on
           </span>
         </div>
 
-        {/* 카테고리 선택 */}
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>가구 카테고리:</span>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as CabinetCategory)}
-            style={{ padding: '4px 10px', fontSize: 13, borderRadius: 4, border: '1px solid #d4c4a8' }}
+        {/* 카테고리 선택 + AI 분류 버튼 */}
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>가구 카테고리:</span>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as CabinetCategory)}
+              style={{ padding: '4px 10px', fontSize: 13, borderRadius: 4, border: '1px solid #d4c4a8' }}
+            >
+              {CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
+            </select>
+          </div>
+          {/* Phase 3b: AI 분류 버튼 */}
+          <button
+            onClick={runAiClassification}
+            disabled={aiBusy}
+            title="Gemini Vision API 로 entity 자동 분류 (~$0.003 비용, 5-10초)"
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid #7c4a93',
+              background: aiBusy ? '#ccc' : '#fff',
+              color: '#7c4a93',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: aiBusy ? 'not-allowed' : 'pointer',
+            }}
           >
-            {CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
-          </select>
+            {aiBusy ? '🤖 분류 중…' : '🤖 AI 자동 분류 시작'}
+          </button>
+          {aiMessage && (
+            <span style={{
+              fontSize: 11,
+              color: aiMessage.startsWith('✓') ? '#047857' : aiMessage.startsWith('✗') ? '#b91c1c' : '#6a4b2a',
+            }}>
+              {aiMessage}
+            </span>
+          )}
         </div>
 
         {/* 통계 */}
