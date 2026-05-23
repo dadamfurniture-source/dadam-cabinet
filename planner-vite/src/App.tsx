@@ -14,6 +14,7 @@ import { SketchupImportPanel } from './components/SketchupImportPanel';
 import { SegmentEditor } from './components/SegmentEditor';
 import { StructureEditor } from './components/StructureEditor';
 import { ModuleDetailPanel } from './components/ModuleDetailPanel';
+import { StepIndicator, type WorkflowStep } from './components/StepIndicator';
 import type { CabinetSegment, ModuleEntryV2 } from './lib/planner';
 
 type CameraView = 'perspective' | 'front' | 'top';
@@ -751,12 +752,46 @@ export default function App() {
   // Phase 3a: 수동 매핑 UI
   const [manualMapPanel, setManualMapPanel] = useState<{ entities: RawEntity[]; suggestions: EntitySuggestion[] } | null>(null);
   const [sketchupMessage, setSketchupMessage] = useState('');
-  // W6-3: 3단계 워크플로우 (배치 → 구조 → 디테일). URL 동기화는 W6-6.
+  // W6-3: 3단계 워크플로우 (배치 → 구조 → 디테일). W6-6 에서 URL + postMessage 동기화 도입.
   const [step, setStep] = useState<'layout' | 'structure' | 'detail' | null>(() => {
     const s = params.get('step');
     return s === 'layout' || s === 'structure' || s === 'detail' ? s : null;
   });
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
+  // W6-6: step 변경 시 URL + 부모 detaildesign 으로 STEP_CHANGE 전파
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (step) url.searchParams.set('step', step);
+    else url.searchParams.delete('step');
+    window.history.replaceState(null, '', url.toString());
+    try {
+      window.parent?.postMessage({ type: 'STEP_CHANGE', step }, '*');
+    } catch {}
+  }, [step]);
+
+  // W6-6: popstate (브라우저 뒤로/앞으로 + 외부 URL 변경) → step 동기화
+  useEffect(() => {
+    const handler = () => {
+      const s = new URLSearchParams(window.location.search).get('step');
+      if (s === 'layout' || s === 'structure' || s === 'detail') setStep(s);
+      else setStep(null);
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, []);
+
+  // W6-6: progress bar 비활성 step 결정 (segments 없으면 structure/detail 잠금)
+  const disabledWorkflowSteps = useMemo<WorkflowStep[]>(() => {
+    const arr: WorkflowStep[] = [];
+    if (!planner.segments || planner.segments.length === 0) {
+      arr.push('structure', 'detail');
+    } else if (!planner.modulesV2 || planner.modulesV2.length === 0) {
+      arr.push('detail');
+    }
+    return arr;
+  }, [planner.segments, planner.modulesV2]);
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
   // W4-3: derived.parts 는 이제 CabinetPartV2[] (Z-up corner). ModuleBox 등 Three.js
@@ -1384,8 +1419,8 @@ export default function App() {
         </>
       )}
 
-      {/* 레이아웃 설정 토글 버튼 (하단 중앙) */}
-      {!selId && !showLayoutPanel && (
+      {/* 레이아웃 설정 토글 버튼 (하단 중앙) — V2 모드 (schemaVersion=2) 에서는 SegmentEditor 사용 */}
+      {!selId && !showLayoutPanel && planner.schemaVersion !== 2 && (
         <button onClick={() => setShowLayoutPanel(true)}
           style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 20, border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#2d2a26' }}>
           <span style={{ fontSize: 14 }}>{planner.layoutShape === 'U' ? '┗┛' : planner.layoutShape === 'L' ? '┗' : '━'}</span>
@@ -1497,8 +1532,9 @@ export default function App() {
           boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
           display: 'flex', flexDirection: 'column', gap: 12,
         }} data-testid="step-layout-overlay">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18 }}>📐 Step 1 · 가구 배치</h2>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18, whiteSpace: 'nowrap' }}>📐 Step 1 · 가구 배치</h2>
+            <StepIndicator current="layout" onJump={setStep} disabledSteps={disabledWorkflowSteps} />
             <button
               type="button"
               onClick={() => setStep(null)}
@@ -1536,8 +1572,9 @@ export default function App() {
           boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
           display: 'flex', flexDirection: 'column', gap: 12,
         }} data-testid="step-structure-overlay">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18 }}>📦 Step 2 · 구조 배치</h2>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18, whiteSpace: 'nowrap' }}>📦 Step 2 · 구조 배치</h2>
+            <StepIndicator current="structure" onJump={setStep} disabledSteps={disabledWorkflowSteps} />
             <button
               type="button"
               onClick={() => setStep(null)}
@@ -1576,8 +1613,9 @@ export default function App() {
           boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
           display: 'flex', flexDirection: 'column', gap: 12,
         }} data-testid="step-detail-overlay">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18 }}>🎨 Step 3 · 디테일</h2>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18, whiteSpace: 'nowrap' }}>🎨 Step 3 · 디테일</h2>
+            <StepIndicator current="detail" onJump={setStep} disabledSteps={disabledWorkflowSteps} />
             <button
               type="button"
               onClick={() => setStep(null)}
