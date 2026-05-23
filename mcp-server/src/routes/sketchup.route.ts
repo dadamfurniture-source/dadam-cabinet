@@ -22,7 +22,7 @@ import { sketchupBuildSchema } from '../schemas/sketchup.schema.js';
 import { createLogger } from '../utils/logger.js';
 import { AppError, ValidationError } from '../utils/errors.js';
 import { MHYRR_TOOLS } from '../constants/sketchup.js';
-import { fetchSketchupEntities, parseEntities, reconstructPlannerData } from '../services/sketchup-import.service.js';
+import { fetchSketchupEntities, parseEntities, reconstructPlannerData, suggestEntities } from '../services/sketchup-import.service.js';
 import { sketchupImportSchema } from '../schemas/sketchup.schema.js';
 
 const log = createLogger('route:sketchup');
@@ -105,12 +105,16 @@ router.get(
         'sketchup scene dump complete',
       );
 
+      // Phase 3a: 자동 추론 suggestion 첨부 (수동 매핑 UI 의 default 값)
+      const withSuggestions = suggestEntities(result.entities ?? []);
+
       res.status(200).json({
         ok: true,
         host: host ?? '127.0.0.1',
         port: port ?? 9876,
         count: result.count,
         entities: result.entities,
+        suggestions: withSuggestions.map((w) => w.suggestion),
       });
     } catch (e) {
       next(e);

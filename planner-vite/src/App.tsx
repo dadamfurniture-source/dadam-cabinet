@@ -9,7 +9,8 @@ import {
   createPlannerState, deriveCabinet, getPresetById, type PlannerState,
 } from './lib/planner';
 import { migratePartV2ToV1 } from './lib/coords';
-import { exportToSketchup, importFromSketchup, type ImportedPlannerData } from './lib/sketchup-client';
+import { exportToSketchup, importFromSketchup, fetchSketchupScene, type ImportedPlannerData, type RawEntity, type EntitySuggestion } from './lib/sketchup-client';
+import { SketchupImportPanel } from './components/SketchupImportPanel';
 
 type CameraView = 'perspective' | 'front' | 'top';
 
@@ -743,6 +744,8 @@ export default function App() {
   // Si-5: SketchUp 에서 가져오기
   const [importBusy, setImportBusy] = useState(false);
   const [importPreview, setImportPreview] = useState<ImportedPlannerData | null>(null);
+  // Phase 3a: 수동 매핑 UI
+  const [manualMapPanel, setManualMapPanel] = useState<{ entities: RawEntity[]; suggestions: EntitySuggestion[] } | null>(null);
   const [sketchupMessage, setSketchupMessage] = useState('');
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
@@ -825,13 +828,16 @@ export default function App() {
     try {
       const result = await importFromSketchup({});
       if (!result.ok) {
-        // NO_DADAM_ENTITIES 인 경우 사용자에게 plugin 안내
+        // NO_DADAM_ENTITIES → Phase 3a 수동 매핑 UI 자동 진입
         if (result.code === 'NO_DADAM_ENTITIES') {
-          setSketchupMessage(
-            `✗ SketchUp 모델에 dadam.* 마킹된 entity 가 없습니다.\n` +
-            `\n외부 자료 사용 시: dadam-mark SketchUp 플러그인 (sketchup-plugins/dadam-mark/) 설치 후 ` +
-            `'Extensions > 다담 자동 마킹' 메뉴로 entity 들을 마킹하세요.`,
-          );
+          setSketchupMessage('dadam.* 마킹된 entity 없음 — 수동 매핑 UI 진입 중…');
+          const scene = await fetchSketchupScene({});
+          if (scene.ok && scene.entities && scene.suggestions) {
+            setManualMapPanel({ entities: scene.entities, suggestions: scene.suggestions });
+            setSketchupMessage('');
+          } else {
+            setSketchupMessage(`✗ SketchUp scene 조회 실패: ${scene.error}`);
+          }
           return;
         }
         setSketchupMessage(`✗ ${result.code}: ${result.message}`);
@@ -846,6 +852,94 @@ export default function App() {
       setImportBusy(false);
     }
   }, [importBusy]);
+
+  // Phase 3a: 수동 매핑 결과 → PlannerState 직접 구성
+  const applyManualMapping = useCallback(
+    (category: CabinetCategory, mappings: Array<{ entity: RawEntity; mapping: { partType: string; partId: string; moduleType?: any; colorKey: string } }>) => {
+      // 가구 bbox (utility 제외)
+      const nonUtility = mappings.filter((m) => m.mapping.partType !== 'utility');
+      if (nonUtility.length === 0) {
+        setSketchupMessage('✗ 매핑할 entity 가 없습니다.');
+        setManualMapPanel(null);
+        return;
+      }
+
+      const bbox = nonUtility.reduce(
+        (acc, m) => ({
+          min: {
+            x: Math.min(acc.min.x, m.entity.bounds.min[0]),
+            y: Math.min(acc.min.y, m.entity.bounds.min[1]),
+            z: Math.min(acc.min.z, m.entity.bounds.min[2]),
+          },
+          max: {
+            x: Math.max(acc.max.x, m.entity.bounds.max[0]),
+            y: Math.max(acc.max.y, m.entity.bounds.max[1]),
+            z: Math.max(acc.max.z, m.entity.bounds.max[2]),
+          },
+        }),
+        {
+          min: { x: Infinity, y: Infinity, z: Infinity },
+          max: { x: -Infinity, y: -Infinity, z: -Infinity },
+        },
+      );
+
+      const w = Math.round(bbox.max.x - bbox.min.x);
+      const h = Math.round(bbox.max.z - bbox.min.z);
+      const d = Math.round(bbox.max.y - bbox.min.y);
+
+      // 구조물 측정
+      const toekick = mappings.find((m) => m.mapping.partType === 'toekick');
+      const molding = mappings.find((m) => m.mapping.partType === 'molding-top');
+      const fLeft = mappings.find((m) => m.mapping.partType === 'finish-side' && m.mapping.partId.includes('left'));
+      const fRight = mappings.find((m) => m.mapping.partType === 'finish-side' && m.mapping.partId.includes('right'));
+
+      const toeKickH = toekick ? Math.round(toekick.entity.bounds.max[2] - toekick.entity.bounds.min[2]) : 0;
+      const moldingH = molding ? Math.round(molding.entity.bounds.max[2] - molding.entity.bounds.min[2]) : 0;
+      const finishLeftW = fLeft ? Math.round(fLeft.entity.bounds.max[0] - fLeft.entity.bounds.min[0]) : 0;
+      const finishRightW = fRight ? Math.round(fRight.entity.bounds.max[0] - fRight.entity.bounds.min[0]) : 0;
+
+      // 모듈 본체 (z 클러스터링)
+      const bodies = mappings.filter((m) => m.mapping.partType === 'module-body');
+      const zs = bodies.map((b) => b.entity.bounds.min[2]).sort((a, b) => a - b);
+      const zMedian = zs.length > 0 ? zs[Math.floor(zs.length / 2)] : 0;
+      const lower = bodies.filter((b) => b.entity.bounds.min[2] <= zMedian + 100);
+      const upper = bodies.filter((b) => b.entity.bounds.min[2] > zMedian + 100);
+
+      const toModule = (m: typeof mappings[number]) => ({
+        id: m.mapping.partId,
+        kind: 'door' as const,
+        width: Math.round(m.entity.bounds.max[0] - m.entity.bounds.min[0]),
+        moduleType: m.mapping.moduleType,
+      });
+
+      // 유틸리티
+      const dist = mappings.find((m) => m.mapping.partId === 'utility-distributor');
+      const vent = mappings.find((m) => m.mapping.partId === 'utility-vent');
+
+      setPlanner((p) => ({
+        ...p,
+        presetId: category,
+        width: w,
+        height: h,
+        depth: d,
+        toeKickH,
+        moldingH,
+        finishLeftW,
+        finishRightW,
+        lowerCount: lower.length,
+        upperCount: upper.length,
+        lowerModules: lower.sort((a, b) => a.entity.bounds.min[0] - b.entity.bounds.min[0]).map(toModule),
+        upperModules: upper.sort((a, b) => a.entity.bounds.min[0] - b.entity.bounds.min[0]).map(toModule),
+        distributorStart: dist ? dist.entity.bounds.min[0] : null,
+        distributorEnd: dist ? dist.entity.bounds.max[0] : null,
+        ventStart: vent ? vent.entity.bounds.min[0] : null,
+        layoutShape: 'I',
+      }));
+      setManualMapPanel(null);
+      setSketchupMessage(`✓ 수동 매핑 적용 (entity ${mappings.length}개, lower ${lower.length} + upper ${upper.length})`);
+    },
+    [],
+  );
 
   // Si-5: import 결과 → PlannerState 적용 (사용자 확인 후)
   const applyImportedData = useCallback(() => {
@@ -1353,6 +1447,17 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Phase 3a: 수동 매핑 UI */}
+      {manualMapPanel && (
+        <SketchupImportPanel
+          entities={manualMapPanel.entities}
+          suggestions={manualMapPanel.suggestions}
+          defaultCategory={planner.presetId}
+          onCancel={() => setManualMapPanel(null)}
+          onApply={applyManualMapping}
+        />
+      )}
 
       {/* Si-5: import 미리보기 모달 */}
       {importPreview && (

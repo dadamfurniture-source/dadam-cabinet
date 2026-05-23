@@ -277,3 +277,70 @@ export async function importFromSketchup(
 
   return { ok: true, data: json.data as ImportedPlannerData };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 3a: 수동 매핑 UI 보조 — entities + 자동 추론 suggestions
+// ═══════════════════════════════════════════════════════════════
+
+export interface RawEntity {
+  id: number;
+  name: string;
+  type: 'group' | 'component';
+  bounds: { min: [number, number, number]; max: [number, number, number] };
+  transformation: number[];
+  material_name: string | null;
+}
+
+export type SuggestedPartType =
+  | 'module-body' | 'module-door' | 'toekick' | 'molding-top'
+  | 'finish-side' | 'countertop' | 'utility' | 'unknown';
+
+export interface EntitySuggestion {
+  type: SuggestedPartType;
+  confidence: number;
+  suggestedPartId: string;
+  suggestedModuleType?: 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
+  suggestedColorKey: 'body' | 'accent' | 'shadow' | 'trim';
+}
+
+export interface FetchSceneResult {
+  ok: boolean;
+  host?: string;
+  port?: number;
+  count?: number;
+  entities?: RawEntity[];
+  suggestions?: EntitySuggestion[];
+  error?: string;
+}
+
+/**
+ * Phase 3a: SketchUp 활성 모델의 raw entities + 자동 추론 결과 가져옴.
+ * 수동 매핑 UI 가 사용 — 사용자가 entity 별로 type 분류 후 mark.
+ */
+export async function fetchSketchupScene(
+  opts: { sketchupHost?: string; sketchupPort?: number; mcpServerUrl?: string } = {},
+): Promise<FetchSceneResult> {
+  const params = new URLSearchParams();
+  if (opts.sketchupHost) params.set('host', opts.sketchupHost);
+  if (opts.sketchupPort) params.set('port', String(opts.sketchupPort));
+  const url = `${resolveMcpUrl(opts.mcpServerUrl)}/api/sketchup/scene?${params.toString()}`;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return { ok: false, error: 'AUTH_REQUIRED' };
+
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+    const json = await res.json();
+    if (!res.ok || !json.ok) return { ok: false, error: json.error ?? `HTTP ${res.status}` };
+    return {
+      ok: true,
+      host: json.host,
+      port: json.port,
+      count: json.count,
+      entities: json.entities,
+      suggestions: json.suggestions,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}

@@ -690,3 +690,170 @@ function inferredCategoryAllowsZeroToekick(cat: CabinetCategory): boolean {
   // wardrobe / shoe / fridge 같은 fullHeight preset 은 걸레받이 0mm 가능
   return cat === 'wardrobe' || cat === 'shoe' || cat === 'fridge';
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 3a: 수동 매핑 UI 보조 — entity 별 자동 추론 suggestion
+// ═══════════════════════════════════════════════════════════════
+
+export type SuggestedPartType =
+  | 'module-body'    // 일반 모듈 본체 (lower/upper)
+  | 'module-door'    // 도어 (얇은 accent)
+  | 'toekick'        // 걸레받이 (낮은 가로 trim)
+  | 'molding-top'    // 상몰딩 (높은 가로 trim)
+  | 'finish-side'    // 좌/우 마감재 (좁고 높은 trim)
+  | 'countertop'     // 상판 (얇은 가로)
+  | 'utility'        // 분배기 / 환풍구 (작은 박스)
+  | 'unknown';
+
+export interface EntitySuggestion {
+  /** 추정 type */
+  type: SuggestedPartType;
+  /** 추정 신뢰도 0~1 */
+  confidence: number;
+  /** 추정 partId (수동 매핑 UI 의 default 값) */
+  suggestedPartId: string;
+  /** 추정 moduleType (module 인 경우) */
+  suggestedModuleType?: ModuleType;
+  /** 추정 colorKey */
+  suggestedColorKey: ColorKey;
+}
+
+/**
+ * Phase 3a: 단일 entity 의 bbox/colorKey/material 로 type 추론.
+ *
+ * 휴리스틱 (우선순위):
+ *   1. dadam.* 마킹 있으면 → name 파싱 결과 사용 (높은 신뢰)
+ *   2. height ≤ 200mm + width ≥ 1000mm → toekick (낮은 가로 trim)
+ *   3. height ≤ 80mm + width ≥ 1000mm + z > 2000mm → molding-top
+ *   4. width ≤ 80mm + height ≥ 500mm → finish-side
+ *   5. height ≤ 20mm + width ≥ 1000mm + z 600~1500 → countertop
+ *   6. depth ≤ 25mm → module-door
+ *   7. 100×40×80mm 범위 → utility
+ *   8. width × depth × height 가 일반 모듈 범위 (≥ 200mm 각 축) → module-body
+ *   9. 그 외 → unknown
+ */
+export function inferEntitySuggestion(ent: SketchupEntityDump): EntitySuggestion {
+  // 0) dadam.* 마킹 우선
+  const match = ent.name.match(DADAM_NAME_PATTERN);
+  if (match) {
+    const partId = match[2];
+    const partCategory = classifyPartId(partId);
+    const moduleType = inferModuleType(partId, partCategory);
+    const colorKey = inferColorKey(partId, ent.material_name);
+    let type: SuggestedPartType = 'unknown';
+    if (partId.startsWith('toekick')) type = 'toekick';
+    else if (partId.startsWith('molding-top')) type = 'molding-top';
+    else if (partId.startsWith('finish-')) type = 'finish-side';
+    else if (partId.startsWith('countertop')) type = 'countertop';
+    else if (partId.startsWith('utility-')) type = 'utility';
+    else if (partCategory === 'module') type = 'module-body';
+    return {
+      type,
+      confidence: 1.0,
+      suggestedPartId: partId,
+      suggestedModuleType: moduleType,
+      suggestedColorKey: colorKey,
+    };
+  }
+
+  // 1) bbox 기반 휴리스틱 (dadam 마킹 없음)
+  const w = ent.bounds.max[0] - ent.bounds.min[0];
+  const d = ent.bounds.max[1] - ent.bounds.min[1];
+  const h = ent.bounds.max[2] - ent.bounds.min[2];
+  const zMin = ent.bounds.min[2];
+
+  // toekick: 낮고 (h≤200) 가로 (w≥1000) z≈0
+  if (h <= 200 && w >= 1000 && zMin < 200) {
+    return {
+      type: 'toekick',
+      confidence: 0.8,
+      suggestedPartId: 'toekick',
+      suggestedColorKey: 'trim',
+    };
+  }
+
+  // molding-top: 낮고 가로 z 위
+  if (h <= 80 && w >= 1000 && zMin >= 2000) {
+    return {
+      type: 'molding-top',
+      confidence: 0.8,
+      suggestedPartId: 'molding-top',
+      suggestedColorKey: 'trim',
+    };
+  }
+
+  // countertop: 매우 얇고 (h≤20) 가로 z=중간
+  if (h <= 20 && w >= 1000 && zMin >= 600 && zMin <= 1500) {
+    return {
+      type: 'countertop',
+      confidence: 0.85,
+      suggestedPartId: 'countertop',
+      suggestedColorKey: 'shadow',
+    };
+  }
+
+  // finish-side: 좁고 (w≤80) 높음 (h≥500)
+  if (w <= 80 && h >= 500) {
+    // z=0 부근이면 lower, 그 외 upper
+    const partId = zMin < 200 ? (ent.bounds.min[0] < 0 ? 'finish-left-lower' : 'finish-right-lower')
+                              : (ent.bounds.min[0] < 0 ? 'finish-left-upper' : 'finish-right-upper');
+    return {
+      type: 'finish-side',
+      confidence: 0.65,
+      suggestedPartId: partId,
+      suggestedColorKey: 'trim',
+    };
+  }
+
+  // utility: 작은 박스
+  if (w <= 800 && d <= 80 && h <= 100) {
+    return {
+      type: 'utility',
+      confidence: 0.6,
+      suggestedPartId: 'utility-unknown',
+      suggestedColorKey: 'body',
+    };
+  }
+
+  // module-door: 매우 얇음 (depth ≤ 25)
+  if (d <= 25 && w >= 200 && h >= 200) {
+    return {
+      type: 'module-door',
+      confidence: 0.7,
+      suggestedPartId: 'door',
+      suggestedColorKey: 'accent',
+    };
+  }
+
+  // module-body: 일반 모듈 범위
+  if (w >= 200 && d >= 200 && h >= 200) {
+    return {
+      type: 'module-body',
+      confidence: 0.55,
+      suggestedPartId: 'body',
+      suggestedModuleType: 'storage',
+      suggestedColorKey: 'body',
+    };
+  }
+
+  // unknown
+  return {
+    type: 'unknown',
+    confidence: 0.0,
+    suggestedPartId: 'unknown',
+    suggestedColorKey: 'body',
+  };
+}
+
+/**
+ * Phase 3a: entities 배열에 자동 추론 suggestion 첨부.
+ * UI 가 사용자에게 추정 결과를 default 로 표시 → 사용자가 수정 또는 그대로 적용.
+ */
+export interface EntityWithSuggestion {
+  entity: SketchupEntityDump;
+  suggestion: EntitySuggestion;
+}
+
+export function suggestEntities(entities: SketchupEntityDump[]): EntityWithSuggestion[] {
+  return entities.map((ent) => ({ entity: ent, suggestion: inferEntitySuggestion(ent) }));
+}
