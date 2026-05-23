@@ -317,6 +317,38 @@ export interface FetchSceneResult {
  * Phase 3a: SketchUp 활성 모델의 raw entities + 자동 추론 결과 가져옴.
  * 수동 매핑 UI 가 사용 — 사용자가 entity 별로 type 분류 후 mark.
  */
+/**
+ * Phase 3b: Gemini Vision 으로 entity 자동 분류 (외부 자료 대응).
+ * AI 호출 ~$0.003/call, 응답 5-10초.
+ */
+export async function classifyEntitiesAi(
+  opts: { sketchupHost?: string; sketchupPort?: number; mcpServerUrl?: string } = {},
+): Promise<FetchSceneResult & { inferredCategory?: string; fallback?: boolean; durationMs?: number }> {
+  const url = `${resolveMcpUrl(opts.mcpServerUrl)}/api/sketchup/classify-ai`;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return { ok: false, error: 'AUTH_REQUIRED' };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: opts.sketchupHost, port: opts.sketchupPort }),
+    });
+    const json = await res.json();
+    if (!res.ok) return { ok: false, error: json.error ?? `HTTP ${res.status}` };
+    return {
+      ok: true,
+      entities: json.entities,
+      suggestions: json.suggestions,
+      inferredCategory: json.inferredCategory,
+      fallback: json.fallback,
+      durationMs: json.durationMs,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function fetchSketchupScene(
   opts: { sketchupHost?: string; sketchupPort?: number; mcpServerUrl?: string } = {},
 ): Promise<FetchSceneResult> {
