@@ -96,6 +96,13 @@ export interface BuildOptions {
    * 트랜잭션 외부 (COMMIT_OP 후) 에 위치 — view 변경은 undo 그룹 미포함.
    */
   autoZoom?: boolean;
+  /**
+   * Si-1b: 빌드 완료 후 모든 entity 의 group.name 을 dadam.{cat}.{partId} 로 설정 (기본 true).
+   * mhyrr v0.1.0 의 create_component 가 name 인자 무시 → outliner mark 가 SketchUp 에 저장 안 됨.
+   * 본 옵션이 build 마지막에 eval_ruby SET_NAMES 명령으로 일괄 설정.
+   * sketchup-import (Si-2/Si-3) 의 name 기반 역추적 가능하게 함.
+   */
+  applyEntityNames?: boolean;
 }
 
 /**
@@ -234,6 +241,44 @@ export function partToMaterialCommand(part: CabinetPartV2, _category: CabinetCat
 }
 
 /**
+ * Si-1b: build 마지막에 모든 entity 의 group.name 을 dadam.{cat}.{partId} 로 설정.
+ *
+ * mhyrr v0.1.0 의 create_component 는 우리가 보낸 name 인자를 무시 (Si-1 e2e 발견).
+ * → 후속 SketchUp → planner import 시 outliner name 으로 모듈 식별 불가.
+ *
+ * 해결: build 마지막에 entity ID → group.name 매핑을 eval_ruby 로 일괄 적용.
+ *
+ * Ruby 코드 안의 `__ENT__:<partId>` placeholder 는 sendBatch 의 resolveEntityRefs 가
+ * entityIdMap 으로 inline 치환. 매핑 누락 시 placeholder 그대로 (Ruby 에러 → 진단).
+ *
+ * @returns parts 가 빈 경우 null. 그 외 eval_ruby BuildCommand.
+ */
+export function buildSetNamesCommand(parts: CabinetPartV2[], category: CabinetCategory): BuildCommand | null {
+  const buildable = parts.filter((p) => p.width > 0 && p.depth > 0 && p.height > 0 && !p.wireframe);
+  if (buildable.length === 0) return null;
+
+  // ID array (entityIdMap placeholder) + Name array (sketchupComponentName)
+  // partId 는 sketchupComponentName 에서 영숫자/_/-/. 만 허용 → Ruby string 안전.
+  const idsInline = buildable.map((p) => `${ENT_REF_PREFIX}${p.id}`).join(', ');
+  const namesInline = buildable.map((p) => `"${sketchupComponentName(category, p.id)}"`).join(', ');
+
+  const code = `
+    m = Sketchup.active_model
+    ids = [${idsInline}]
+    names = [${namesInline}]
+    ids.zip(names).each do |id, name|
+      e = m.find_entity_by_id(id.to_i)
+      e.name = name if e && e.respond_to?(:name=)
+    end
+  `.trim();
+
+  return {
+    tool: MHYRR_TOOLS.EVAL_RUBY,
+    arguments: { code },
+  };
+}
+
+/**
  * CabinetPartV2[] → BuildPlan.
  *
  * 순서 보장:
@@ -321,6 +366,14 @@ export function buildPlanFromParts(
         pos[2] -= minZ;
       }
     }
+  }
+
+  // Si-1b: entity 의 group.name 자동 설정 (mhyrr 의 name 무시 보정).
+  // COMMIT_OP 이전 — 트랜잭션 내부에 두어 Ctrl+Z 시 이름까지 함께 롤백 (단일 undo 그룹).
+  const applyEntityNames = opts.applyEntityNames ?? true;
+  if (applyEntityNames) {
+    const setNamesCmd = buildSetNamesCommand(parts, opts.category);
+    if (setNamesCmd) commands.push(setNamesCmd);
   }
 
   if (transactional) {
