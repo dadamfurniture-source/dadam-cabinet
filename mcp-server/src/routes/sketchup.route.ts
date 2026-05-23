@@ -159,6 +159,7 @@ router.post(
         applyRotation: input.applyRotation,
         applyMaterial: input.applyMaterial,
         autoZoom: input.autoZoom,
+        applyEntityNames: input.applyEntityNames,
       });
 
       if (plan.componentCount === 0) {
@@ -319,6 +320,7 @@ router.post(
         applyRotation: input.applyRotation,
         applyMaterial: input.applyMaterial,
         autoZoom: input.autoZoom,
+        applyEntityNames: input.applyEntityNames,
       });
 
       if (plan.componentCount === 0) {

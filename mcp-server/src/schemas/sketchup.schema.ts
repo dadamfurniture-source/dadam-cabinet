@@ -62,6 +62,8 @@ export const sketchupBuildSchema = z.object({
   applyMaterial: z.boolean().optional().default(true),
   // 빌드 후 SketchUp active view zoom_extents 자동 호출 (기본 true)
   autoZoom: z.boolean().optional().default(true),
+  // Si-1b: 빌드 후 entity group.name 자동 설정 (기본 true)
+  applyEntityNames: z.boolean().optional().default(true),
   host: z.string().optional(),
   port: z.number().int().positive().optional(),
   timeoutMs: z.number().int().positive().optional(),
