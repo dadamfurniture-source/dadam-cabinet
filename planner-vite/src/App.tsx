@@ -1432,11 +1432,31 @@ export default function App() {
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
 
-      {/* 레이아웃 설정 패널 */}
+      {/* 레이아웃 설정 패널 (legacy) */}
       {showLayoutPanel && (
         <>
           <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setShowLayoutPanel(false)} />
           <LayoutSetupPanel planner={planner} onUpdate={handleLayoutUpdate} onClose={() => setShowLayoutPanel(false)} />
+          {/* W6-8: V2 마이그레이션 권장 배너 */}
+          <div style={{
+            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 9100, background: '#f3ead9', border: '1px solid #b8956c',
+            padding: '8px 14px', borderRadius: 8, fontSize: 12, color: '#6a4b2a',
+            display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          }}>
+            <span>💡 새 3단계 워크플로우 (배치 → 구조 → 디테일) 가 더 자유롭습니다.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowLayoutPanel(false);
+                setStep('layout');
+              }}
+              style={{ background: '#6a4b2a', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+            >
+              📐 3단계로 이동 →
+            </button>
+          </div>
         </>
       )}
 

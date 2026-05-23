@@ -106,35 +106,46 @@ export interface ModuleEntryV2 {
   doorFinish?: string;
 }
 
+/**
+ * PlannerState — 가구 입력 state. V1 (legacy) + V2 (W6 3단계) 공존.
+ *
+ * V2 식별: `schemaVersion === 2 && segments && modulesV2` (isV2State 헬퍼).
+ * V2 가 권장 — legacy 필드는 W6-7 외부 어댑터 호환을 위해 유지.
+ * legacy 필드 완전 제거는 W6-8b (디자이너 PC E2E 1주 안정 후) 예정.
+ */
 export interface PlannerState {
   presetId: CabinetCategory;
   width: number;
   height: number;
   depth: number;
+  /** @deprecated W6-8b 제거 예정. V2 에서는 modulesV2.length 로 대체. */
   lowerCount: number;
+  /** @deprecated W6-8b 제거 예정. V2 에서는 modulesV2.length 로 대체. */
   upperCount: number;
+  /** @deprecated W6-8b 제거 예정. V2 에서는 modulesV2 (section='lower') 사용. */
   lowerModules: ModuleEntry[];
+  /** @deprecated W6-8b 제거 예정. V2 에서는 modulesV2 (section='upper') 사용. */
   upperModules: ModuleEntry[];
   material: MaterialTone;
   moldingH: number;
   toeKickH: number;
   finishLeftW: number;
   finishRightW: number;
-  /** 레이아웃 형태: I=일자, L=ㄱ자, U=ㄷ자 */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[] 사용 (ㄱ자/ㄷ자/임의). */
   layoutShape?: 'I' | 'L' | 'U';
-  /** secondary line 가로 (mm) — ㄱ자/ㄷ자 */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[1].depth 사용. */
   secondaryW?: number;
-  /** secondary line 깊이 (mm) — 기본값: primary depth */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[1].width 사용. */
   secondaryD?: number;
-  /** tertiary line 가로 (mm) — ㄷ자만 */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[2].depth 사용. */
   tertiaryW?: number;
-  /** tertiary line 깊이 (mm) — 기본값: primary depth */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[2].width 사용. */
   tertiaryD?: number;
-  /** 차선모듈(ㄱ자) 자유단 마감재 폭 (mm) — 기본 휠라 60 */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segment cornerFiller 플래그 사용. */
   secondaryFillerW?: number;
-  /** 차선모듈 시작 방향: 'left' = 좌측에서 시작, 'right' = 우측에서 시작 */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[1].x 로 표현. */
   secondaryStartSide?: 'left' | 'right';
-  /** tertiary 시작 방향: 'prime' = prime line 반대편, 'secondary' = secondary line 끝 */
+  /** @deprecated W6-8b 제거 예정. V2 에서는 segments[2].y 위치로 표현. */
   tertiaryStartFrom?: 'prime' | 'secondary';
   // 유틸리티: null=자동, 0=삭제/숨김, >0=활성(mm from left)
   distributorStart: number | null;
@@ -401,6 +412,8 @@ export const genModuleId = () => `mod-${_idCounter++}-${Date.now().toString(36)}
 
 export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
   const preset = getPresetById(presetId);
+  // W6-8: 새 가구는 V2 기본 (schemaVersion=2 + segments=[prime] + modulesV2=[]).
+  // legacy 필드도 함께 채워 두 워크플로우 동시 호환 (W6-7 + 디자이너 PC 검증 1주 후 W6-8b 에서 legacy 필드 제거 예정).
   return {
     presetId,
     width: preset.defaultWidth,
@@ -424,6 +437,20 @@ export const createPlannerState = (presetId: CabinetCategory): PlannerState => {
     distributorStart: null,
     distributorEnd: null,
     ventStart: null,
+    // V2 (W6-8) — 새 가구는 즉시 V2 인식
+    schemaVersion: 2,
+    segments: [
+      {
+        id: 'prime',
+        x: 0,
+        y: 0,
+        width: preset.defaultWidth,
+        depth: preset.defaultDepth,
+        rotationDeg: 0,
+        label: '주선',
+      },
+    ],
+    modulesV2: [],
   };
 };
 
