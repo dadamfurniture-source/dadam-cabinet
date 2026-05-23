@@ -359,3 +359,334 @@ function extractZRotation(transformation: number[]): number | undefined {
   if (Math.abs(rad) < 1e-6) return undefined;
   return (rad * 180) / Math.PI;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Si-3: V2 parts → PlannerState 역추적
+// ═══════════════════════════════════════════════════════════════
+
+export type LayoutShape = 'I' | 'L' | 'U';
+export type ModuleKind = 'door' | 'drawer' | 'open';
+
+export interface ReconstructedModuleEntry {
+  id: string;
+  kind: ModuleKind;
+  width: number;
+  moduleType?: ModuleType;
+  orientation?: 'normal' | 'secondary' | 'tertiary';
+}
+
+/**
+ * mcp-server → planner-vite 응답 형식.
+ * planner-vite 가 이 데이터를 받아 setPlanner() 로 PlannerState 구성.
+ * PlannerState 필드와 1:1 매핑 (이름 일치).
+ */
+export interface ReconstructedPlannerData {
+  // 핵심 측정값
+  category: CabinetCategory;
+  width: number;
+  height: number;
+  depth: number;
+  toeKickH: number;
+  moldingH: number;
+  finishLeftW: number;
+  finishRightW: number;
+
+  // 레이아웃
+  layoutShape: LayoutShape;
+  secondaryW?: number;
+  secondaryD?: number;
+  secondaryStartSide?: 'left' | 'right';
+  tertiaryW?: number;
+  tertiaryD?: number;
+
+  // 모듈
+  lowerModules: ReconstructedModuleEntry[];
+  upperModules: ReconstructedModuleEntry[];
+  lowerCount: number;
+  upperCount: number;
+
+  // 유틸
+  distributorStart: number | null;
+  distributorEnd: number | null;
+  ventStart: number | null;
+
+  // 재질
+  material: MaterialTone;
+
+  // 신뢰도 / 경고
+  /** 0~1, 1=완벽 복원, 낮을수록 사용자 확인 필요 */
+  confidence: number;
+  /** 추정 신뢰도 낮은 항목 (모달에 표시) */
+  warnings: string[];
+}
+
+type MaterialTone = 'cream' | 'oak' | 'walnut' | 'graphite';
+
+/**
+ * Si-3: 파싱된 entity 들로부터 PlannerState 의 필드를 역추적.
+ *
+ * 단계:
+ *   1. 카테고리 (Si-2 의 inferredCategory)
+ *   2. 가구 bbox → width/height/depth
+ *   3. 구조물 측정 (toeKickH, moldingH, finishLeftW/RightW)
+ *   4. 모듈 분리 (z 위치 → lower/upper)
+ *   5. layoutShape 추정 (y 클러스터링 → I/L/U)
+ *   6. ModuleEntry[] 재구성 (X 정렬 + moduleType + kind)
+ *   7. 유틸리티 위치
+ *   8. materialTone 추정
+ *   9. 신뢰도 / warnings
+ */
+export function reconstructPlannerData(
+  parsed: ParsedEntity[],
+): ReconstructedPlannerData | null {
+  const warnings: string[] = [];
+
+  // 카테고리 (Si-2 의 다수결 사용)
+  const result = { parts: parsed.filter((p) => p.part !== null).map((p) => p.part!), parsed };
+  const inferredCategory = inferCategory(parsed);
+  if (!inferredCategory) {
+    return null; // dadam.* 마킹 entity 가 하나도 없음 → 외부 자료. Phase 3a/3b 대상.
+  }
+
+  // 가구 bbox — 유틸리티 제외 (분배기/환풍구가 가구 벽 밖으로 튀어나갈 수 있음).
+  // 가구 wall 측정 우선순위:
+  //   1) countertop / molding-top 의 width (가구 전체 가로) — 가장 정확
+  //   2) 좌/우 마감재 outer edge 차이
+  //   3) fallback: 모듈 + 구조물 bbox
+  const measureParts = parsed
+    .filter((p) => p.part !== null && p.partCategory !== 'utility')
+    .map((p) => p.part!);
+  if (measureParts.length === 0) return null;
+
+  const bbox = computeBbox(measureParts);
+
+  // width 측정 — countertop 또는 molding-top 의 width 가 가장 신뢰
+  const countertop = findByPartId(parsed, 'countertop');
+  const molding = findByPartId(parsed, 'molding-top');
+  const widthCandidates: number[] = [];
+  if (countertop?.part) widthCandidates.push(countertop.part.width);
+  if (molding?.part) widthCandidates.push(molding.part.width);
+  widthCandidates.push(bbox.max.x - bbox.min.x);
+  const width = Math.round(widthCandidates[0]);
+
+  const height = Math.round(bbox.max.z - bbox.min.z);
+  // depth 도 utility 제외 (utility 가 -y 쪽으로 돌출)
+  const depth = Math.round(bbox.max.y - bbox.min.y);
+
+  // 구조물 측정 (countertop / molding 은 width 측정에서 이미 찾음)
+  const toeKick = findByPartId(parsed, 'toekick');
+  const finishLeftLower = findByPartId(parsed, 'finish-left-lower');
+  const finishRightLower = findByPartId(parsed, 'finish-right-lower');
+
+  const toeKickH = toeKick?.part?.height ?? 0;
+  const moldingH = molding?.part?.height ?? 0;
+  const finishLeftW = finishLeftLower?.part?.width ?? 0;
+  const finishRightW = finishRightLower?.part?.width ?? 0;
+
+  // 모듈 part 분리 (z 클러스터링: 두 cluster 면 lower/upper, 단일이면 fullHeight)
+  const modules = parsed.filter((p) => p.partCategory === 'module' && p.part);
+  const moduleZs = modules.map((p) => p.part!.z);
+  const zClusters = clusterValues(moduleZs, 200); // 200mm 임계값
+
+  let lowerFinal: ParsedEntity[] = [];
+  let upperFinal: ParsedEntity[] = [];
+
+  if (zClusters.length >= 2) {
+    // 가장 낮은 cluster = lower, 가장 높은 cluster = upper
+    const lowerZMax = Math.max(...zClusters[0]);
+    const upperZMin = Math.min(...zClusters[zClusters.length - 1]);
+    lowerFinal = modules.filter((p) => p.part!.z <= lowerZMax);
+    upperFinal = modules.filter((p) => p.part!.z >= upperZMin);
+  } else {
+    // 단일 z 클러스터 (fullHeight) — 모두 lower
+    lowerFinal = modules;
+    upperFinal = [];
+  }
+
+  // layoutShape 추정 (y 위치 클러스터)
+  const yPositions = modules.map((p) => p.part!.y);
+  const yClusters = clusterValues(yPositions, 200); // 200mm 임계값
+  let layoutShape: LayoutShape = 'I';
+  if (yClusters.length === 2) layoutShape = 'L';
+  else if (yClusters.length >= 3) layoutShape = 'U';
+
+  // L/U 자 추가 측정 (현 단계는 간단 — secondaryW/D 정확 분리는 Si-3b 에서)
+  let secondaryW: number | undefined;
+  let secondaryD: number | undefined;
+  let secondaryStartSide: 'left' | 'right' | undefined;
+  if (layoutShape !== 'I') {
+    warnings.push(`레이아웃 ${layoutShape}자 가구 추정 — 차선/3차선 모듈 분리는 사용자 확인 권장`);
+  }
+
+  // ModuleEntry[] 재구성 (X 정렬)
+  const lowerModules = lowerFinal
+    .sort((a, b) => a.part!.x - b.part!.x)
+    .map((p) => toModuleEntry(p));
+  const upperModules = upperFinal
+    .sort((a, b) => a.part!.x - b.part!.x)
+    .map((p) => toModuleEntry(p));
+
+  // 유틸리티
+  const distributor = findByPartId(parsed, 'utility-distributor');
+  const vent = findByPartId(parsed, 'utility-vent');
+  const distributorStart = distributor?.part ? distributor.part.x : null;
+  const distributorEnd = distributor?.part ? distributor.part.x + distributor.part.width : null;
+  const ventStart = vent?.part?.x ?? null;
+
+  // materialTone 추정
+  const material = inferMaterialTone(parsed) ?? 'cream';
+
+  // 신뢰도 산출
+  let confidence = 1.0;
+  if (lowerModules.length === 0 && upperModules.length === 0) {
+    confidence -= 0.5;
+    warnings.push('모듈 엔트리 추출 실패 — 본체 part 가 분류되지 않음');
+  }
+  if (toeKickH === 0 && !inferredCategoryAllowsZeroToekick(inferredCategory)) {
+    confidence -= 0.05;
+    warnings.push('걸레받이 (toekick) 부재 — 0mm 로 설정됨');
+  }
+  if (moldingH === 0) {
+    confidence -= 0.05;
+    warnings.push('상몰딩 부재 — 0mm 로 설정됨');
+  }
+  if (layoutShape !== 'I') {
+    confidence -= 0.15;
+  }
+  const unknownCount = parsed.filter((p) => p.partCategory === 'unknown').length;
+  if (unknownCount > 0) {
+    confidence -= Math.min(0.1, unknownCount / parsed.length);
+    warnings.push(`${unknownCount}개 entity 가 dadam.* 마킹 없음 (외부 또는 잔여 — 자동 매핑 안 됨)`);
+  }
+  confidence = Math.max(0, Math.min(1, confidence));
+
+  return {
+    category: inferredCategory,
+    width,
+    height,
+    depth,
+    toeKickH,
+    moldingH,
+    finishLeftW,
+    finishRightW,
+    layoutShape,
+    secondaryW,
+    secondaryD,
+    secondaryStartSide,
+    lowerModules,
+    upperModules,
+    lowerCount: lowerModules.length,
+    upperCount: upperModules.length,
+    distributorStart,
+    distributorEnd,
+    ventStart,
+    material,
+    confidence,
+    warnings,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Si-3 헬퍼
+// ─────────────────────────────────────────────────────────────────
+
+function inferCategory(parsed: ParsedEntity[]): CabinetCategory | null {
+  const counts = new Map<CabinetCategory, number>();
+  for (const p of parsed) {
+    if (p.category) counts.set(p.category, (counts.get(p.category) ?? 0) + 1);
+  }
+  let max = 0;
+  let result: CabinetCategory | null = null;
+  for (const [cat, n] of counts) {
+    if (n > max) {
+      max = n;
+      result = cat;
+    }
+  }
+  return result;
+}
+
+function computeBbox(parts: CabinetPartV2[]): { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } {
+  return parts.reduce(
+    (acc, p) => ({
+      min: {
+        x: Math.min(acc.min.x, p.x),
+        y: Math.min(acc.min.y, p.y),
+        z: Math.min(acc.min.z, p.z),
+      },
+      max: {
+        x: Math.max(acc.max.x, p.x + p.width),
+        y: Math.max(acc.max.y, p.y + p.depth),
+        z: Math.max(acc.max.z, p.z + p.height),
+      },
+    }),
+    {
+      min: { x: Infinity, y: Infinity, z: Infinity },
+      max: { x: -Infinity, y: -Infinity, z: -Infinity },
+    },
+  );
+}
+
+function findByPartId(parsed: ParsedEntity[], partId: string): ParsedEntity | undefined {
+  return parsed.find((p) => p.partId === partId);
+}
+
+/**
+ * 값 배열을 임계값 기준으로 클러스터링.
+ * threshold 이내는 같은 클러스터로 묶음.
+ *
+ * 예: [0, 5, 700, 705, 1400] threshold=100 → [[0,5], [700,705], [1400]] → 3 클러스터
+ */
+function clusterValues(values: number[], threshold: number): number[][] {
+  if (values.length === 0) return [];
+  const sorted = [...values].sort((a, b) => a - b);
+  const clusters: number[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const last = clusters[clusters.length - 1];
+    if (sorted[i] - last[last.length - 1] <= threshold) {
+      last.push(sorted[i]);
+    } else {
+      clusters.push([sorted[i]]);
+    }
+  }
+  return clusters;
+}
+
+function toModuleEntry(p: ParsedEntity): ReconstructedModuleEntry {
+  const part = p.part!;
+  const moduleType = p.partId.includes('drawer') ? undefined : (p.part?.moduleType ?? 'storage');
+  const kind: ModuleKind = p.partId.includes('drawer') ? 'drawer'
+    : (moduleType === 'hood' || moduleType === 'cook') ? 'door'
+    : 'door';
+  return {
+    id: p.partId,
+    kind,
+    width: Math.round(part.width),
+    moduleType,
+  };
+}
+
+function inferMaterialTone(parsed: ParsedEntity[]): MaterialTone | undefined {
+  const counts = new Map<MaterialTone, number>();
+  for (const p of parsed) {
+    const m = p.source.material_name?.match(/^dadam_(cream|oak|walnut|graphite)_/);
+    if (m) {
+      const tone = m[1] as MaterialTone;
+      counts.set(tone, (counts.get(tone) ?? 0) + 1);
+    }
+  }
+  let max = 0;
+  let result: MaterialTone | undefined;
+  for (const [tone, n] of counts) {
+    if (n > max) {
+      max = n;
+      result = tone;
+    }
+  }
+  return result;
+}
+
+function inferredCategoryAllowsZeroToekick(cat: CabinetCategory): boolean {
+  // wardrobe / shoe / fridge 같은 fullHeight preset 은 걸레받이 0mm 가능
+  return cat === 'wardrobe' || cat === 'shoe' || cat === 'fridge';
+}
