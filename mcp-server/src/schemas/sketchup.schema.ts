@@ -71,3 +71,20 @@ export const sketchupBuildSchema = z.object({
 });
 
 export type SketchupBuildInput = z.infer<typeof sketchupBuildSchema>;
+
+// ───────────────────────────────────────────────────────────────
+// Si-4: SketchUp Import 입력 스키마
+// POST /api/sketchup/import — mhyrr 활성 모델의 entities 를 dump 한 후
+//   PlannerState 로 역추적. body 는 mhyrr 접속 옵션 + 응답 형식 옵션.
+// ───────────────────────────────────────────────────────────────
+
+export const sketchupImportSchema = z.object({
+  host: z.string().optional(),
+  port: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+  ping: z.boolean().optional().default(true),
+  /** true 면 응답에 raw entities + parsed 도 포함 (디버깅/수동 매핑용) */
+  includeRaw: z.boolean().optional().default(false),
+});
+
+export type SketchupImportInput = z.infer<typeof sketchupImportSchema>;

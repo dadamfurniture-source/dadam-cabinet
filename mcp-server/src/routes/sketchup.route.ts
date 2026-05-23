@@ -22,7 +22,8 @@ import { sketchupBuildSchema } from '../schemas/sketchup.schema.js';
 import { createLogger } from '../utils/logger.js';
 import { AppError, ValidationError } from '../utils/errors.js';
 import { MHYRR_TOOLS } from '../constants/sketchup.js';
-import { fetchSketchupEntities } from '../services/sketchup-import.service.js';
+import { fetchSketchupEntities, parseEntities, reconstructPlannerData } from '../services/sketchup-import.service.js';
+import { sketchupImportSchema } from '../schemas/sketchup.schema.js';
 
 const log = createLogger('route:sketchup');
 const router = Router();
@@ -111,6 +112,104 @@ router.get(
         count: result.count,
         entities: result.entities,
       });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ───────────────────────────────────────────────────────────────
+// Si-4: POST /api/sketchup/import — SketchUp 활성 모델 → PlannerState 역추적
+//
+// Si-1 (dump) + Si-2 (parse) + Si-3 (reconstruct) 통합 단일 라우트.
+// 사용자가 SketchUp 에서 작업한 가구를 planner UI 로 가져올 때 호출.
+// 응답: { ok, data: ReconstructedPlannerData, parsed?, entities? }
+// ───────────────────────────────────────────────────────────────
+
+router.post(
+  '/api/sketchup/import',
+  requireAuth,
+  sketchupRateLimit,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // 1. 입력 검증
+      const parsedInput = sketchupImportSchema.safeParse(req.body ?? {});
+      if (!parsedInput.success) {
+        throw new ValidationError(parsedInput.error.message);
+      }
+      const input = parsedInput.data;
+
+      // 2. (옵션) mhyrr 가용성 사전 확인
+      if (input.ping) {
+        const probe = await pingSketchup({
+          host: input.host,
+          port: input.port,
+          timeoutMs: input.timeoutMs ?? 3000,
+        });
+        if (!probe.ok) {
+          throw new AppError(
+            `SketchUp bridge unavailable: ${probe.error?.message ?? 'unknown'}. mhyrr/sketchup-mcp extension running on ${input.host ?? '127.0.0.1'}:${input.port ?? 9876}?`,
+            503,
+            'SKETCHUP_UNAVAILABLE',
+          );
+        }
+      }
+
+      // 3. Si-1: entities dump
+      const fetchResult = await fetchSketchupEntities({
+        host: input.host,
+        port: input.port,
+        timeoutMs: input.timeoutMs ?? 15000,
+      });
+      if (!fetchResult.ok) {
+        throw new AppError(
+          `failed to fetch entities: ${fetchResult.error?.message ?? 'unknown'}`,
+          502,
+          'SKETCHUP_FETCH_FAILED',
+        );
+      }
+      const entities = fetchResult.entities ?? [];
+
+      // 4. Si-2: entities → V2 parts
+      const parseResult = parseEntities(entities);
+
+      // 5. Si-3: V2 parts → PlannerState
+      const data = reconstructPlannerData(parseResult.parsed);
+
+      if (!data) {
+        // dadam.* 마킹 0개 → 외부 자료 (Phase 3a/3b 대상)
+        res.status(422).json({
+          ok: false,
+          code: 'NO_DADAM_ENTITIES',
+          message: 'SketchUp 모델에서 dadam.* 마킹된 entity 를 찾지 못했습니다. dadam template (Phase 2) 사용 또는 수동 매핑 (Phase 3a) 필요.',
+          entityCount: entities.length,
+          unknownCount: parseResult.unknownCount,
+        });
+        return;
+      }
+
+      log.info(
+        {
+          userId: req.user?.id,
+          category: data.category,
+          width: data.width,
+          height: data.height,
+          confidence: data.confidence,
+          entityCount: entities.length,
+        },
+        'sketchup import request complete',
+      );
+
+      // 6. 응답
+      const response: Record<string, unknown> = {
+        ok: true,
+        data,
+      };
+      if (input.includeRaw) {
+        response.entities = entities;
+        response.parsed = parseResult.parsed;
+      }
+      res.status(200).json(response);
     } catch (e) {
       next(e);
     }
