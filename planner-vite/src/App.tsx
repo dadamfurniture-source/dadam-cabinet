@@ -13,6 +13,7 @@ import { exportToSketchup, importFromSketchup, fetchSketchupScene, type Imported
 import { SketchupImportPanel } from './components/SketchupImportPanel';
 import { SegmentEditor } from './components/SegmentEditor';
 import { StructureEditor } from './components/StructureEditor';
+import { ModuleDetailPanel } from './components/ModuleDetailPanel';
 import type { CabinetSegment, ModuleEntryV2 } from './lib/planner';
 
 type CameraView = 'perspective' | 'front' | 'top';
@@ -1562,6 +1563,45 @@ export default function App() {
               onBack={() => setStep('layout')}
               onNext={() => setStep('detail')}
               defaultKind={defaultKind}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* W6-5: Step 3 모듈 디테일 (ModuleDetailPanel) */}
+      {step === 'detail' && (
+        <div style={{
+          position: 'fixed', top: 16, left: 16, right: 16, bottom: 16,
+          background: '#fff', borderRadius: 12, padding: 16,
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }} data-testid="step-detail-overlay">
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18 }}>🎨 Step 3 · 디테일</h2>
+            <button
+              type="button"
+              onClick={() => setStep(null)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: '#7a7062' }}
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </header>
+
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <ModuleDetailPanel
+              segments={planner.segments ?? []}
+              modulesV2={planner.modulesV2 ?? []}
+              onChange={(modulesV2: ModuleEntryV2[]) => {
+                setPlanner((p) => ({
+                  ...p,
+                  schemaVersion: 2,
+                  segments: p.segments ?? [],
+                  modulesV2,
+                }));
+              }}
+              onBack={() => setStep('structure')}
+              onDone={() => setStep(null)}
             />
           </div>
         </div>
