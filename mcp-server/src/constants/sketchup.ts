@@ -122,6 +122,26 @@ export const RUBY_COMMANDS = {
    *
    * 동적 입력 없는 고정 Ruby — allowlist 안전.
    */
+  /**
+   * Phase 3b: 현재 SketchUp active view 를 PNG 로 캡처 후 base64 로 반환.
+   * Gemini Vision API 로 전달해 entity 분류 추정에 사용.
+   *
+   * 1280x720, antialias, opaque. 임시 파일에 write 후 read → base64 encode → temp 삭제.
+   * 응답은 puts 로 base64 string (no newline) — sendCommand 가 result.content[0].text 로 받음.
+   */
+  CAPTURE_VIEW_PNG: `
+    require 'tempfile'
+    require 'base64'
+    tmp = Tempfile.new(['dadam_view_', '.png'])
+    tmp.close
+    view = Sketchup.active_model.active_view
+    options = { :filename => tmp.path, :width => 1280, :height => 720, :antialias => true, :transparent => false }
+    view.write_image(options)
+    data = File.binread(tmp.path)
+    b64 = Base64.strict_encode64(data)
+    tmp.unlink
+    b64
+  `.trim(),
   DUMP_ENTITIES: `
     m = Sketchup.active_model
     entities = m.active_entities.to_a.select { |e| e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance) }
