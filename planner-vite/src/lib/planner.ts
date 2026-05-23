@@ -60,6 +60,52 @@ export interface ModuleEntry {
   blindAnchorId?: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// V2 — 3단계 워크플로우 (배치 → 구조 → 디테일) 데이터 모델 (W6-1)
+// ─────────────────────────────────────────────────────────────
+
+export type Rotation90 = 0 | 90 | 180 | 270;
+
+export type ModuleSectionV2 = 'lower' | 'upper' | 'tall';
+
+/** Step 1 결과 — Top view 평면 사각형. ㄱ자/ㄷ자/임의 polygon 표현. */
+export interface CabinetSegment {
+  id: string;
+  /** mm, 회전 전 좌하단 모서리 (+x 우측, +y 후방) */
+  x: number;
+  y: number;
+  /** 회전 전 +x extent (mm) */
+  width: number;
+  /** 회전 전 +y extent (mm) */
+  depth: number;
+  rotationDeg: Rotation90;
+  /** 사용자 라벨 (예: "ㄱ자 좌측") — optional */
+  label?: string;
+  /** 인접 segment 사이 코너 필러 자동 생성 플래그 — optional */
+  cornerFillerLeft?: boolean;
+  cornerFillerRight?: boolean;
+}
+
+/** Step 2/3 결과 — segment 안의 모듈 (section + segmentId 기반). */
+export interface ModuleEntryV2 {
+  id: string;
+  segmentId: string;
+  section: ModuleSectionV2;
+  kind: ModuleKind;
+  width: number;
+  /** Step 3 — 모듈별 높이 override (없으면 section 기본값) */
+  heightOverride?: number;
+  /** 모듈별 깊이 override — optional */
+  depthOverride?: number;
+  moduleType?: ModuleType;
+  doorCount?: number;
+  drawerCount?: number;
+  /** Step 3 — 도어 색상 카탈로그 키 */
+  doorColor?: string;
+  /** Step 3 — 도어 마감재 카탈로그 키 */
+  doorFinish?: string;
+}
+
 export interface PlannerState {
   presetId: CabinetCategory;
   width: number;
@@ -94,6 +140,18 @@ export interface PlannerState {
   distributorStart: number | null;
   distributorEnd: number | null;
   ventStart: number | null;
+
+  // ── V2 (3단계 워크플로우, W6-1) ─────────────────────────────────
+  /** V2 schema 식별자. undefined 또는 1 = legacy, 2 = V2. */
+  schemaVersion?: 1 | 2;
+  /** Step 1 결과: 가구 평면 segment 목록 (ㄱ자/ㄷ자 등). undefined = legacy. */
+  segments?: CabinetSegment[];
+  /** Step 2/3 결과: 모듈 단일 배열 (segmentId + section 기반). undefined = legacy. */
+  modulesV2?: ModuleEntryV2[];
+  /** 현재 워크플로우 단계 ('layout' | 'structure' | 'detail') */
+  step?: 'layout' | 'structure' | 'detail';
+  /** tall section 의 기본 높이 (mm). undefined 이면 state.height 사용. */
+  tallHeight?: number;
 }
 
 /**
@@ -1702,3 +1760,131 @@ export const deriveCabinet = (state: PlannerState): DerivedCabinet => {
 };
 
 export const formatMillimeters = (value: number) => `${Math.round(value).toLocaleString('ko-KR')} mm`;
+
+// ═══════════════════════════════════════════════════════════════
+// V2 Migration (W6-1) — legacy PlannerState (layoutShape I/L/U +
+// lowerModules/upperModules) → V2 (segments[] + modulesV2[])
+// ═══════════════════════════════════════════════════════════════
+
+/** schemaVersion=2 + segments[] + modulesV2[] 모두 존재 시 V2 로 인식. */
+export const isV2State = (s: PlannerState): boolean =>
+  s.schemaVersion === 2 && Array.isArray(s.segments) && Array.isArray(s.modulesV2);
+
+/**
+ * legacy PlannerState 를 V2 로 일괄 변환.
+ *  - layoutShape (I/L/U) + secondary/tertiary 필드 → segments[]
+ *  - lowerModules + upperModules (+ orientation) → modulesV2[] (+ segmentId + section)
+ *  - preset.fullHeight=true → 기본 section='tall' (그 외 'lower')
+ *  - blind-corner / corner-filler 모듈은 제거 + segment cornerFiller 플래그로 대체
+ * 이미 V2 인 상태는 idempotent (그대로 반환).
+ */
+export const migrateLegacyToV2 = (s: PlannerState): PlannerState => {
+  if (isV2State(s)) return s;
+
+  const preset = getPresetById(s.presetId);
+  const layoutShape = s.layoutShape ?? 'I';
+  const secondaryStartSide = s.secondaryStartSide ?? 'right';
+  const secondaryW = s.secondaryW ?? 0;
+  const secondaryD = s.secondaryD ?? s.depth;
+  const tertiaryW = s.tertiaryW ?? 0;
+  const tertiaryD = s.tertiaryD ?? s.depth;
+  const tertiaryStartFrom = s.tertiaryStartFrom ?? 'prime';
+
+  // ── segments[] 구성 ──────────────────────────────────────────
+  const segments: CabinetSegment[] = [
+    {
+      id: 'prime',
+      x: 0,
+      y: 0,
+      width: s.width,
+      depth: s.depth,
+      rotationDeg: 0,
+      label: '주선',
+    },
+  ];
+
+  if ((layoutShape === 'L' || layoutShape === 'U') && secondaryW > 0) {
+    // secondary segment 는 prime 의 left/right 끝에서 +y 방향으로 뻗어나감.
+    // local +x = secondaryD (prime 깊이 축과 같은 방향, +y world), local +y = secondaryW (prime 가로 축, +x world).
+    // 단순 표현: secondaryStartSide='left' 면 x=-secondaryD, 'right' 면 x=s.width.
+    segments.push({
+      id: 'secondary',
+      x: secondaryStartSide === 'left' ? -secondaryD : s.width,
+      y: 0,
+      width: secondaryD,
+      depth: secondaryW,
+      rotationDeg: 0,
+      label: '차선',
+    });
+  }
+
+  if (layoutShape === 'U' && tertiaryW > 0) {
+    const secondarySeg = segments[1];
+    let tertiaryX: number;
+    let tertiaryY = 0;
+    if (tertiaryStartFrom === 'prime' || !secondarySeg) {
+      // prime 의 반대편 끝에서 시작
+      tertiaryX = secondaryStartSide === 'left' ? s.width : -tertiaryD;
+    } else {
+      // secondary 끝에서 연장
+      tertiaryX = secondarySeg.x;
+      tertiaryY = secondarySeg.y + secondarySeg.depth;
+    }
+    segments.push({
+      id: 'tertiary',
+      x: tertiaryX,
+      y: tertiaryY,
+      width: tertiaryD,
+      depth: tertiaryW,
+      rotationDeg: 0,
+      label: '3차선',
+    });
+  }
+
+  // ── modulesV2[] 매핑 ─────────────────────────────────────────
+  // 기본 section: preset.fullHeight=true 면 'tall' (한 가구 전체 = 키큰장), false 면 'lower'.
+  const lowerSection: ModuleSectionV2 = preset.fullHeight ? 'tall' : 'lower';
+
+  const segmentIdFor = (m: ModuleEntry): string => {
+    if (m.orientation === 'secondary') return 'secondary';
+    if (m.orientation === 'tertiary') return 'tertiary';
+    return 'prime';
+  };
+
+  const mapModule = (
+    m: ModuleEntry,
+    section: ModuleSectionV2
+  ): ModuleEntryV2 | null => {
+    // 코너 필러/멍장은 segment edge cornerFiller 플래그로 대체 → 모듈 배열에서 제거
+    if (m.moduleType === 'blind-corner' || m.moduleType === 'corner-filler') {
+      return null;
+    }
+    return {
+      id: m.id,
+      segmentId: segmentIdFor(m),
+      section,
+      kind: m.kind,
+      width: m.width,
+      moduleType: m.moduleType,
+      doorCount: m.doorCount,
+      drawerCount: m.drawerCount,
+    };
+  };
+
+  const modulesV2: ModuleEntryV2[] = [];
+  for (const m of s.lowerModules ?? []) {
+    const v2 = mapModule(m, lowerSection);
+    if (v2) modulesV2.push(v2);
+  }
+  for (const m of s.upperModules ?? []) {
+    const v2 = mapModule(m, 'upper');
+    if (v2) modulesV2.push(v2);
+  }
+
+  return {
+    ...s,
+    schemaVersion: 2,
+    segments,
+    modulesV2,
+  };
+};
