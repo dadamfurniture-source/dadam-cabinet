@@ -11,6 +11,8 @@ import {
 import { migratePartV2ToV1 } from './lib/coords';
 import { exportToSketchup, importFromSketchup, fetchSketchupScene, type ImportedPlannerData, type RawEntity, type EntitySuggestion } from './lib/sketchup-client';
 import { SketchupImportPanel } from './components/SketchupImportPanel';
+import { SegmentEditor } from './components/SegmentEditor';
+import type { CabinetSegment } from './lib/planner';
 
 type CameraView = 'perspective' | 'front' | 'top';
 
@@ -747,6 +749,11 @@ export default function App() {
   // Phase 3a: 수동 매핑 UI
   const [manualMapPanel, setManualMapPanel] = useState<{ entities: RawEntity[]; suggestions: EntitySuggestion[] } | null>(null);
   const [sketchupMessage, setSketchupMessage] = useState('');
+  // W6-3: 3단계 워크플로우 (배치 → 구조 → 디테일). URL 동기화는 W6-6.
+  const [step, setStep] = useState<'layout' | 'structure' | 'detail' | null>(() => {
+    const s = params.get('step');
+    return s === 'layout' || s === 'structure' || s === 'detail' ? s : null;
+  });
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
@@ -1384,8 +1391,29 @@ export default function App() {
         </button>
       )}
 
-      {/* 우상단: SketchUp 송신/수신 버튼 */}
+      {/* 우상단: SketchUp 송신/수신 버튼 + W6 3단계 워크플로우 진입 */}
       <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, zIndex: 50, fontFamily: '-apple-system,BlinkMacSystemFont,system-ui,sans-serif' }}>
+        {/* W6-3: Step 1 가구 배치 진입 */}
+        <button
+          type="button"
+          onClick={() => setStep('layout')}
+          title="3단계 워크플로우 시작 — Top View 에서 ㄱ자/ㄷ자 segment 자유 배치"
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #6a4b2a',
+            background: '#fff',
+            color: '#6a4b2a',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+            whiteSpace: 'nowrap',
+          }}
+          data-testid="open-step-layout"
+        >
+          📐 가구 배치 (3단계)
+        </button>
         <button
           type="button"
           onClick={sendToSketchup}
@@ -1457,6 +1485,45 @@ export default function App() {
           onCancel={() => setManualMapPanel(null)}
           onApply={applyManualMapping}
         />
+      )}
+
+      {/* W6-3: Step 1 가구 배치 (Top View 인터랙티브 SegmentEditor) */}
+      {step === 'layout' && (
+        <div style={{
+          position: 'fixed', top: 16, left: 16, right: 16, bottom: 16,
+          background: '#fff', borderRadius: 12, padding: 16,
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }} data-testid="step-layout-overlay">
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18 }}>📐 Step 1 · 가구 배치</h2>
+            <button
+              type="button"
+              onClick={() => setStep(null)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: '#7a7062' }}
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </header>
+
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <SegmentEditor
+              segments={planner.segments ?? []}
+              onChange={(segments: CabinetSegment[]) => {
+                setPlanner((p) => ({
+                  ...p,
+                  schemaVersion: 2,
+                  segments,
+                  modulesV2: p.modulesV2 ?? [],
+                }));
+              }}
+              onNext={() => setStep('structure')}
+              defaultWidth={planner.width}
+              defaultDepth={planner.depth}
+            />
+          </div>
+        </div>
       )}
 
       {/* Si-5: import 미리보기 모달 */}
