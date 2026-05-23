@@ -380,6 +380,25 @@ export interface ReconstructedModuleEntry {
  * planner-vite 가 이 데이터를 받아 setPlanner() 로 PlannerState 구성.
  * PlannerState 필드와 1:1 매핑 (이름 일치).
  */
+export interface ReconstructedCabinetSegment {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  rotationDeg: 0 | 90 | 180 | 270;
+  label?: string;
+}
+
+export interface ReconstructedModuleEntryV2 {
+  id: string;
+  segmentId: string;
+  section: 'lower' | 'upper' | 'tall';
+  kind: ModuleKind;
+  width: number;
+  moduleType?: 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
+}
+
 export interface ReconstructedPlannerData {
   // 핵심 측정값
   category: CabinetCategory;
@@ -391,7 +410,7 @@ export interface ReconstructedPlannerData {
   finishLeftW: number;
   finishRightW: number;
 
-  // 레이아웃
+  // 레이아웃 (legacy V1)
   layoutShape: LayoutShape;
   secondaryW?: number;
   secondaryD?: number;
@@ -399,7 +418,7 @@ export interface ReconstructedPlannerData {
   tertiaryW?: number;
   tertiaryD?: number;
 
-  // 모듈
+  // 모듈 (legacy V1)
   lowerModules: ReconstructedModuleEntry[];
   upperModules: ReconstructedModuleEntry[];
   lowerCount: number;
@@ -418,6 +437,11 @@ export interface ReconstructedPlannerData {
   confidence: number;
   /** 추정 신뢰도 낮은 항목 (모달에 표시) */
   warnings: string[];
+
+  // V2 (W6-7) — segments + modulesV2 동시 출력 (legacy 와 공존)
+  schemaVersion?: 2;
+  segments?: ReconstructedCabinetSegment[];
+  modulesV2?: ReconstructedModuleEntryV2[];
 }
 
 type MaterialTone = 'cream' | 'oak' | 'walnut' | 'graphite';
@@ -560,6 +584,62 @@ export function reconstructPlannerData(
   }
   confidence = Math.max(0, Math.min(1, confidence));
 
+  // ── V2 (W6-7) — legacy 필드와 동시 출력 ────────────────────────────
+  // SketchUp import 결과는 일단 단일 segment 'prime' (단순화).
+  // L/U 자 layoutShape 인 경우 secondary/tertiary segment 도 합성.
+  const segments: ReconstructedCabinetSegment[] = [
+    { id: 'prime', x: 0, y: 0, width, depth, rotationDeg: 0, label: '주선' },
+  ];
+  if (layoutShape !== 'I' && secondaryW != null && secondaryD != null) {
+    segments.push({
+      id: 'secondary',
+      x: secondaryStartSide === 'left' ? -secondaryD : width,
+      y: 0,
+      width: secondaryD,
+      depth: secondaryW,
+      rotationDeg: 0,
+      label: '차선',
+    });
+  }
+  if (layoutShape === 'U') {
+    // tertiary 는 prime 반대편 (단순화)
+    const ts = secondaryStartSide === 'left' ? 'right' : 'left';
+    const tertiaryWidth = secondaryD ?? depth;
+    const tertiaryDepth = secondaryW ?? 600;
+    segments.push({
+      id: 'tertiary',
+      x: ts === 'left' ? -tertiaryWidth : width,
+      y: 0,
+      width: tertiaryWidth,
+      depth: tertiaryDepth,
+      rotationDeg: 0,
+      label: '3차선',
+    });
+  }
+
+  // preset.fullHeight=true (wardrobe/shoe/fridge/storage) 인 경우 lower → 'tall'
+  const fullHeightCategories = new Set<CabinetCategory>(['wardrobe', 'shoe', 'fridge', 'storage']);
+  const lowerSectionV2: 'lower' | 'tall' = fullHeightCategories.has(inferredCategory) ? 'tall' : 'lower';
+
+  const modulesV2: ReconstructedModuleEntryV2[] = [
+    ...lowerModules.map<ReconstructedModuleEntryV2>((m) => ({
+      id: m.id,
+      segmentId: 'prime',
+      section: lowerSectionV2,
+      kind: m.kind,
+      width: m.width,
+      moduleType: m.moduleType,
+    })),
+    ...upperModules.map<ReconstructedModuleEntryV2>((m) => ({
+      id: m.id,
+      segmentId: 'prime',
+      section: 'upper',
+      kind: m.kind,
+      width: m.width,
+      moduleType: m.moduleType,
+    })),
+  ];
+
   return {
     category: inferredCategory,
     width,
@@ -583,6 +663,10 @@ export function reconstructPlannerData(
     material,
     confidence,
     warnings,
+    // V2 (W6-7)
+    schemaVersion: 2,
+    segments,
+    modulesV2,
   };
 }
 

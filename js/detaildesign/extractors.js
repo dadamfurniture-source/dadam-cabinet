@@ -255,8 +255,8 @@
           dlog('[Wardrobe] ===== 붙박이장 자재 추출 시작 =====');
           dlog('[Wardrobe] item: w=%s, h=%s, d=%s, bodyH=%s', item.w, item.h, item.d, bodyH);
 
-          // ★ 붙박이장 모듈만 필터 (pos=wardrobe)
-          const modules = (item.modules || []).filter(m => m.pos === 'wardrobe');
+          // ★ 붙박이장 모듈만 필터 (pos=wardrobe 또는 W6-7 V2 pos=tall)
+          const modules = (item.modules || []).filter(m => m.pos === 'wardrobe' || m.pos === 'tall');
 
           dlog('[Wardrobe] 모듈 수:', modules.length);
 

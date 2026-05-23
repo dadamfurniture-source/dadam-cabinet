@@ -155,6 +155,27 @@ export interface ImportedModuleEntry {
   moduleType?: 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
 }
 
+/** W6-7: SketchUp import 의 V2 segment (단일 또는 L/U) */
+export interface ImportedCabinetSegment {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  rotationDeg: 0 | 90 | 180 | 270;
+  label?: string;
+}
+
+/** W6-7: SketchUp import 의 V2 module (segment + section 기반) */
+export interface ImportedModuleEntryV2 {
+  id: string;
+  segmentId: string;
+  section: 'lower' | 'upper' | 'tall';
+  kind: ImportedModuleKind;
+  width: number;
+  moduleType?: 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
+}
+
 /** mcp-server /api/sketchup/import 응답의 data 필드 (ReconstructedPlannerData 미러). */
 export interface ImportedPlannerData {
   category: CabinetCategory;
@@ -181,6 +202,10 @@ export interface ImportedPlannerData {
   material: MaterialTone;
   confidence: number;
   warnings: string[];
+  // V2 (W6-7) — segments + modulesV2 동시 출력
+  schemaVersion?: 2;
+  segments?: ImportedCabinetSegment[];
+  modulesV2?: ImportedModuleEntryV2[];
 }
 
 export type ImportFromSketchupResult =

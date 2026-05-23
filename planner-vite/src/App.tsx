@@ -7,6 +7,7 @@ import {
   MATERIALS, MODULE_DEFAULT_W, autoCalculateModules, genModuleId,
   type CabinetCategory, type CabinetPart, type MaterialTone, type ModuleEntry, type ModuleKind,
   createPlannerState, deriveCabinet, getPresetById, type PlannerState,
+  migrateLegacyToV2, isV2State,
 } from './lib/planner';
 import { migratePartV2ToV1 } from './lib/coords';
 import { exportToSketchup, importFromSketchup, fetchSketchupScene, type ImportedPlannerData, type RawEntity, type EntitySuggestion } from './lib/sketchup-client';
@@ -808,9 +809,18 @@ export default function App() {
   // postMessage 통신
   useEffect(() => {
     const h = (e: MessageEvent) => {
-      if (e.data?.type === 'UPDATE_PLANNER') setPlanner(p => ({ ...p, ...e.data.payload }));
+      if (e.data?.type === 'UPDATE_PLANNER') {
+        // W6-7: V2 자동 마이그레이션 — legacy payload 가 들어와도 segments[]/modulesV2[] 보장
+        setPlanner(p => {
+          const next = { ...p, ...e.data.payload } as PlannerState;
+          return isV2State(next) ? next : migrateLegacyToV2(next);
+        });
+      }
       if (e.data?.type === 'SET_CAMERA_VIEW') setView(e.data.view);
-      if (e.data?.type === 'LOAD_HITL_CASE' && e.data.payload) setPlanner(e.data.payload as PlannerState);
+      if (e.data?.type === 'LOAD_HITL_CASE' && e.data.payload) {
+        const incoming = e.data.payload as PlannerState;
+        setPlanner(isV2State(incoming) ? incoming : migrateLegacyToV2(incoming));
+      }
     };
     window.addEventListener('message', h);
     return () => window.removeEventListener('message', h);
@@ -1023,9 +1033,20 @@ export default function App() {
       distributorStart: d.distributorStart,
       distributorEnd: d.distributorEnd,
       ventStart: d.ventStart,
+      // W6-7: V2 필드도 함께 적용 (segments + modulesV2). undefined 이면 그대로.
+      schemaVersion: d.schemaVersion,
+      segments: d.segments,
+      modulesV2: d.modulesV2?.map((m) => ({
+        id: m.id,
+        segmentId: m.segmentId,
+        section: m.section,
+        kind: m.kind as ModuleKind,
+        width: m.width,
+        moduleType: m.moduleType,
+      })),
     }));
     setImportPreview(null);
-    setSketchupMessage(`✓ SketchUp 가구 가져옴 (신뢰도 ${Math.round(d.confidence * 100)}%, 모듈 ${d.lowerCount + d.upperCount}개)`);
+    setSketchupMessage(`✓ SketchUp 가구 가져옴 (신뢰도 ${Math.round(d.confidence * 100)}%, 모듈 ${d.lowerCount + d.upperCount}개${d.schemaVersion === 2 ? ', V2' : ''})`);
   }, [importPreview]);
 
   // 모듈 CRUD
