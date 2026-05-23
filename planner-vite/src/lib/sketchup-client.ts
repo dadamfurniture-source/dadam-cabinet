@@ -140,3 +140,140 @@ export async function exportToSketchup(
     summary: json.summary,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Si-5: importFromSketchup — SketchUp 활성 모델 → PlannerState 역추적
+// ═══════════════════════════════════════════════════════════════
+
+export type LayoutShape = 'I' | 'L' | 'U';
+export type ImportedModuleKind = 'door' | 'drawer' | 'open';
+
+export interface ImportedModuleEntry {
+  id: string;
+  kind: ImportedModuleKind;
+  width: number;
+  moduleType?: 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
+}
+
+/** mcp-server /api/sketchup/import 응답의 data 필드 (ReconstructedPlannerData 미러). */
+export interface ImportedPlannerData {
+  category: CabinetCategory;
+  width: number;
+  height: number;
+  depth: number;
+  toeKickH: number;
+  moldingH: number;
+  finishLeftW: number;
+  finishRightW: number;
+  layoutShape: LayoutShape;
+  secondaryW?: number;
+  secondaryD?: number;
+  secondaryStartSide?: 'left' | 'right';
+  tertiaryW?: number;
+  tertiaryD?: number;
+  lowerModules: ImportedModuleEntry[];
+  upperModules: ImportedModuleEntry[];
+  lowerCount: number;
+  upperCount: number;
+  distributorStart: number | null;
+  distributorEnd: number | null;
+  ventStart: number | null;
+  material: MaterialTone;
+  confidence: number;
+  warnings: string[];
+}
+
+export type ImportFromSketchupResult =
+  | { ok: true; data: ImportedPlannerData }
+  | { ok: false; code: string; message: string; status?: number };
+
+export interface ImportFromSketchupOptions {
+  /** mhyrr 호스트 (디자이너 PC 위치) */
+  sketchupHost?: string;
+  sketchupPort?: number;
+  /** mhyrr 가용성 사전 확인 (기본 true) */
+  ping?: boolean;
+  mcpServerUrl?: string;
+}
+
+/**
+ * Si-5: SketchUp 활성 모델의 가구를 planner PlannerState 형식으로 가져옴.
+ *
+ * 동작:
+ *   1. mcp-server POST /api/sketchup/import 호출
+ *   2. mcp-server 가 mhyrr eval_ruby (DUMP_ENTITIES) → parseEntities → reconstructPlannerData
+ *   3. ImportedPlannerData 반환
+ *
+ * 사용 예 (App.tsx):
+ *   const result = await importFromSketchup({});
+ *   if (result.ok) {
+ *     setPlanner((p) => ({ ...p, ...applyImportedData(result.data) }));
+ *   } else {
+ *     toast.error(`${result.code}: ${result.message}`);
+ *   }
+ */
+export async function importFromSketchup(
+  opts: ImportFromSketchupOptions = {},
+): Promise<ImportFromSketchupResult> {
+  const url = `${resolveMcpUrl(opts.mcpServerUrl)}/api/sketchup/import`;
+
+  // 1) Supabase 세션
+  const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+  if (sessionErr || !session?.access_token) {
+    return {
+      ok: false,
+      code: 'AUTH_REQUIRED',
+      message: '로그인이 필요합니다.',
+    };
+  }
+
+  // 2) 요청 body
+  const body = {
+    host: opts.sketchupHost,
+    port: opts.sketchupPort,
+    ping: opts.ping ?? true,
+  };
+
+  // 3) fetch
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      code: 'NETWORK_ERROR',
+      message: `mcp-server (${url}) 에 연결 실패: ${msg}\n디자이너 PC 에서 mcp-server 가 떠 있는지 확인하세요.`,
+    };
+  }
+
+  let json: any = null;
+  try {
+    json = await res.json();
+  } catch {
+    return {
+      ok: false,
+      code: 'INVALID_RESPONSE',
+      message: `mcp-server 응답이 JSON 이 아닙니다 (${res.status})`,
+      status: res.status,
+    };
+  }
+
+  if (!res.ok || json?.ok !== true) {
+    return {
+      ok: false,
+      code: json?.code ?? `HTTP_${res.status}`,
+      message: json?.error ?? json?.message ?? `import 실패 (HTTP ${res.status})`,
+      status: res.status,
+    };
+  }
+
+  return { ok: true, data: json.data as ImportedPlannerData };
+}
