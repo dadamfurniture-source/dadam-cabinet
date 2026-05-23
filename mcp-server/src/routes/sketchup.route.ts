@@ -22,6 +22,7 @@ import { sketchupBuildSchema } from '../schemas/sketchup.schema.js';
 import { createLogger } from '../utils/logger.js';
 import { AppError, ValidationError } from '../utils/errors.js';
 import { MHYRR_TOOLS } from '../constants/sketchup.js';
+import { fetchSketchupEntities } from '../services/sketchup-import.service.js';
 
 const log = createLogger('route:sketchup');
 const router = Router();
@@ -58,6 +59,58 @@ router.get(
           port: port ?? 9876,
         });
       }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ───────────────────────────────────────────────────────────────
+// GET /api/sketchup/scene — Si-1: 현재 SketchUp 활성 모델의 entities dump
+//
+// Phase 1 (옵션 1: 자체 export 파일 재import) 의 첫 단계.
+// 응답: { ok, entities: [{id, name, type, bounds, transformation, material_name}], count }
+// ───────────────────────────────────────────────────────────────
+
+router.get(
+  '/api/sketchup/scene',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const host = typeof req.query.host === 'string' ? req.query.host : undefined;
+      const port = typeof req.query.port === 'string' ? Number(req.query.port) : undefined;
+      const timeoutMs = typeof req.query.timeoutMs === 'string'
+        ? Number(req.query.timeoutMs)
+        : 15000;
+
+      const result = await fetchSketchupEntities({ host, port, timeoutMs });
+
+      if (!result.ok) {
+        // mhyrr unreachable 등 — 503
+        res.status(503).json({
+          ok: false,
+          error: result.error?.message ?? 'failed to fetch entities',
+          host: host ?? '127.0.0.1',
+          port: port ?? 9876,
+        });
+        return;
+      }
+
+      log.info(
+        {
+          userId: req.user?.id,
+          count: result.count,
+        },
+        'sketchup scene dump complete',
+      );
+
+      res.status(200).json({
+        ok: true,
+        host: host ?? '127.0.0.1',
+        port: port ?? 9876,
+        count: result.count,
+        entities: result.entities,
+      });
     } catch (e) {
       next(e);
     }
