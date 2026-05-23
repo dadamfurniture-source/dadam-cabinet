@@ -625,7 +625,79 @@
         };
         // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
         _appendSecondaryModules(payload, specs, item.d);
+        // W6-7: V2 (3단계 워크플로우) 페이로드 동시 송신 — segments[] + modulesV2[]
+        _appendV2Payload(payload);
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
+      }
+
+      // W6-7: legacy payload → V2 (segments + modulesV2) 합성.
+      // App.tsx 의 자동 migrate 와 동일 로직 — 명시적 송신으로 즉시 V2 인식.
+      function _appendV2Payload(payload) {
+        const layoutShape = payload.layoutShape || 'I';
+        const segments = [
+          { id: 'prime', x: 0, y: 0, width: payload.width, depth: payload.depth, rotationDeg: 0, label: '주선' },
+        ];
+        if ((layoutShape === 'L' || layoutShape === 'U') && payload.secondaryW > 0) {
+          segments.push({
+            id: 'secondary',
+            x: payload.secondaryStartSide === 'left' ? -payload.secondaryD : payload.width,
+            y: 0,
+            width: payload.secondaryD,
+            depth: payload.secondaryW,
+            rotationDeg: 0,
+            label: '차선',
+          });
+        }
+        if (layoutShape === 'U' && payload.tertiaryW > 0) {
+          const secondary = segments[1];
+          let tx, ty = 0;
+          if (payload.tertiaryStartFrom === 'secondary' && secondary) {
+            tx = secondary.x;
+            ty = secondary.y + secondary.depth;
+          } else {
+            tx = payload.secondaryStartSide === 'left' ? payload.width : -payload.tertiaryD;
+          }
+          segments.push({
+            id: 'tertiary',
+            x: tx,
+            y: ty,
+            width: payload.tertiaryD,
+            depth: payload.tertiaryW,
+            rotationDeg: 0,
+            label: '3차선',
+          });
+        }
+
+        // preset.fullHeight 4개 (W6-1 migrateLegacyToV2 와 동일 매핑)
+        const fullHeightPresets = new Set(['wardrobe', 'shoe', 'fridge', 'storage']);
+        const lowerSection = fullHeightPresets.has(payload.presetId) ? 'tall' : 'lower';
+
+        const segmentIdFor = (m) => {
+          if (m.orientation === 'secondary') return 'secondary';
+          if (m.orientation === 'tertiary') return 'tertiary';
+          return 'prime';
+        };
+        const isCornerFiller = (m) => m.moduleType === 'blind-corner' || m.moduleType === 'corner-filler';
+
+        const modulesV2 = [];
+        for (const m of payload.lowerModules || []) {
+          if (isCornerFiller(m)) continue;
+          modulesV2.push({
+            id: m.id, segmentId: segmentIdFor(m), section: lowerSection,
+            kind: m.kind, width: m.width, moduleType: m.moduleType, doorCount: m.doorCount,
+          });
+        }
+        for (const m of payload.upperModules || []) {
+          if (isCornerFiller(m)) continue;
+          modulesV2.push({
+            id: m.id, segmentId: segmentIdFor(m), section: 'upper',
+            kind: m.kind, width: m.width, moduleType: m.moduleType, doorCount: m.doorCount,
+          });
+        }
+
+        payload.schemaVersion = 2;
+        payload.segments = segments;
+        payload.modulesV2 = modulesV2;
       }
 
       function _loadPlannerEmbed(container, item) {
