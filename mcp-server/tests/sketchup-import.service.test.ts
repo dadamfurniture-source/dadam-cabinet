@@ -4,7 +4,8 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createServer, type Server } from 'node:net';
-import { fetchSketchupEntities } from '../src/services/sketchup-import.service.js';
+import { fetchSketchupEntities, parseEntities } from '../src/services/sketchup-import.service.js';
+import type { SketchupEntityDump } from '../src/services/sketchup-import.service.js';
 import { RUBY_COMMANDS } from '../src/constants/sketchup.js';
 
 // ─────────────────────────────────────────────────────────────────
@@ -146,6 +147,163 @@ describe('fetchSketchupEntities', () => {
 // ─────────────────────────────────────────────────────────────────
 // DUMP_ENTITIES Ruby 코드 자체 검증
 // ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+// Si-2: parseEntities (entities → CabinetPartV2[])
+// ─────────────────────────────────────────────────────────────────
+
+function makeEnt(name: string, opts: Partial<SketchupEntityDump> = {}): SketchupEntityDump {
+  return {
+    id: opts.id ?? 100,
+    name,
+    type: opts.type ?? 'group',
+    bounds: opts.bounds ?? { min: [0, 0, 0], max: [600, 600, 720] },
+    transformation: opts.transformation ?? [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+    material_name: opts.material_name ?? null,
+  };
+}
+
+describe('parseEntities', () => {
+  it('dadam.sink.body-1 outliner name → V2 part 정상 추출', () => {
+    const ents = [makeEnt('dadam.sink.body-1', { bounds: { min: [-400, 0, 150], max: [400, 600, 870] } })];
+    const result = parseEntities(ents);
+
+    expect(result.parts).toHaveLength(1);
+    expect(result.inferredCategory).toBe('sink');
+    expect(result.unknownCount).toBe(0);
+
+    const p = result.parts[0];
+    expect(p.id).toBe('body-1');
+    expect(p.x).toBe(-400);
+    expect(p.y).toBe(0);
+    expect(p.z).toBe(150);
+    expect(p.width).toBe(800);
+    expect(p.depth).toBe(600);
+    expect(p.height).toBe(720);
+  });
+
+  it('dadam 마킹 없는 entity → unknown 으로 분류, parts 미포함', () => {
+    const ents = [
+      makeEnt('그룹0#1'),
+      makeEnt('그룹1#1'),
+      makeEnt('dadam.sink.body-1'),
+    ];
+    const result = parseEntities(ents);
+    expect(result.parts).toHaveLength(1);
+    expect(result.unknownCount).toBe(2);
+    expect(result.parsed.filter((p) => p.partCategory === 'unknown')).toHaveLength(2);
+  });
+
+  it('카테고리 다수결 추정 — sink 12개 + storage 1개 → sink', () => {
+    const ents = [
+      ...Array.from({ length: 12 }, (_, i) => makeEnt(`dadam.sink.b${i}`)),
+      makeEnt('dadam.storage.x1'),
+    ];
+    const result = parseEntities(ents);
+    expect(result.inferredCategory).toBe('sink');
+  });
+
+  it('구조물 분류: toekick / molding-top / finish-* / countertop', () => {
+    const ents = [
+      makeEnt('dadam.sink.toekick'),
+      makeEnt('dadam.sink.molding-top'),
+      makeEnt('dadam.sink.finish-left-lower'),
+      makeEnt('dadam.sink.finish-right-upper'),
+      makeEnt('dadam.sink.countertop'),
+    ];
+    const result = parseEntities(ents);
+    const structural = result.parsed.filter((p) => p.partCategory === 'structural');
+    expect(structural).toHaveLength(5);
+  });
+
+  it('유틸리티 분류: utility-distributor / utility-vent', () => {
+    const ents = [
+      makeEnt('dadam.sink.utility-distributor'),
+      makeEnt('dadam.sink.utility-vent'),
+    ];
+    const result = parseEntities(ents);
+    const utility = result.parsed.filter((p) => p.partCategory === 'utility');
+    expect(utility).toHaveLength(2);
+  });
+
+  it('colorKey 추정: toekick → trim, countertop → shadow, 일반 본체 → body', () => {
+    const ents = [
+      makeEnt('dadam.sink.toekick'),
+      makeEnt('dadam.sink.countertop'),
+      makeEnt('dadam.sink.body-1'),
+    ];
+    const result = parseEntities(ents);
+    expect(result.parts[0].colorKey).toBe('trim');
+    expect(result.parts[1].colorKey).toBe('shadow');
+    expect(result.parts[2].colorKey).toBe('body');
+  });
+
+  it('material_name 명시 시 colorKey 추정 우선 (dadam_oak_accent → accent)', () => {
+    const ents = [makeEnt('dadam.sink.body-1', { material_name: 'dadam_oak_accent' })];
+    const result = parseEntities(ents);
+    expect(result.parts[0].colorKey).toBe('accent');
+  });
+
+  it('rotationZDeg: identity matrix → undefined (회전 없음)', () => {
+    const ents = [makeEnt('dadam.sink.body-1')];
+    const result = parseEntities(ents);
+    expect(result.parts[0].rotationZDeg).toBeUndefined();
+  });
+
+  it('rotationZDeg: 90° Z rotation matrix → 90', () => {
+    // Z 90° 회전: m[0]=cos(90)=0, m[1]=sin(90)=1
+    const ents = [makeEnt('dadam.sink.sec-1', {
+      transformation: [0,1,0,0,  -1,0,0,0,  0,0,1,0,  0,0,0,1],
+    })];
+    const result = parseEntities(ents);
+    expect(result.parts[0].rotationZDeg).toBeCloseTo(90, 1);
+  });
+
+  it('rotationZDeg: -90° Z rotation → -90', () => {
+    const ents = [makeEnt('dadam.sink.sec-1', {
+      transformation: [0,-1,0,0,  1,0,0,0,  0,0,1,0,  0,0,0,1],
+    })];
+    const result = parseEntities(ents);
+    expect(result.parts[0].rotationZDeg).toBeCloseTo(-90, 1);
+  });
+
+  it('빈 entities → 빈 결과', () => {
+    const result = parseEntities([]);
+    expect(result.parts).toEqual([]);
+    expect(result.parsed).toEqual([]);
+    expect(result.inferredCategory).toBeNull();
+    expect(result.unknownCount).toBe(0);
+  });
+
+  it('실제 last-build-request 시나리오: 19 entities → 18 parts (마지막 1개는 unknown)', () => {
+    // 6 lower + 5 upper + 5 structural + 2 utility = 18 dadam + 1 unknown = 19 entities
+    const ents = [
+      ...Array.from({ length: 6 }, (_, i) => makeEnt(`dadam.sink.body-${i}`, { id: 100 + i, bounds: { min: [i * 700, 0, 150], max: [(i + 1) * 700, 600, 870] } })),
+      ...Array.from({ length: 5 }, (_, i) => makeEnt(`dadam.sink.upper-${i}`, { id: 200 + i, bounds: { min: [i * 800, 0, 1530], max: [(i + 1) * 800, 295, 2250] } })),
+      makeEnt('dadam.sink.toekick', { id: 300, bounds: { min: [0, 0, 0], max: [4080, 610, 150] } }),
+      makeEnt('dadam.sink.molding-top', { id: 301, bounds: { min: [0, 0, 2250], max: [4200, 301, 2310] } }),
+      makeEnt('dadam.sink.countertop', { id: 302, bounds: { min: [0, 0, 870], max: [4200, 650, 882] } }),
+      makeEnt('dadam.sink.finish-left-lower', { id: 303, bounds: { min: [-60, 0, 0], max: [0, 650, 870] } }),
+      makeEnt('dadam.sink.finish-right-lower', { id: 304, bounds: { min: [4080, 0, 0], max: [4140, 650, 870] } }),
+      makeEnt('dadam.sink.utility-distributor', { id: 305, bounds: { min: [-600, -100, 150], max: [100, -60, 230] } }),
+      makeEnt('dadam.sink.utility-vent', { id: 306, bounds: { min: [650, -100, 2180], max: [850, -60, 2260] } }),
+      makeEnt('그룹0#1', { id: 999 }), // dadam 마킹 안 됨 (외부 또는 sink-hitl 잔여)
+    ];
+    const result = parseEntities(ents);
+
+    expect(result.parts).toHaveLength(18);
+    expect(result.inferredCategory).toBe('sink');
+    expect(result.unknownCount).toBe(1);
+
+    // 모듈 / 구조물 / 유틸 카운트
+    const modules = result.parsed.filter((p) => p.partCategory === 'module');
+    const structural = result.parsed.filter((p) => p.partCategory === 'structural');
+    const utility = result.parsed.filter((p) => p.partCategory === 'utility');
+    expect(modules).toHaveLength(11); // 6 lower + 5 upper
+    expect(structural).toHaveLength(5); // toekick + molding + countertop + 2 finish
+    expect(utility).toHaveLength(2);
+  });
+});
 
 describe('RUBY_COMMANDS.DUMP_ENTITIES', () => {
   it('동적 입력 보간 없음 (고정 string, eval_ruby allowlist 안전)', () => {
