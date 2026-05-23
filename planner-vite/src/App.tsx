@@ -12,7 +12,8 @@ import { migratePartV2ToV1 } from './lib/coords';
 import { exportToSketchup, importFromSketchup, fetchSketchupScene, type ImportedPlannerData, type RawEntity, type EntitySuggestion } from './lib/sketchup-client';
 import { SketchupImportPanel } from './components/SketchupImportPanel';
 import { SegmentEditor } from './components/SegmentEditor';
-import type { CabinetSegment } from './lib/planner';
+import { StructureEditor } from './components/StructureEditor';
+import type { CabinetSegment, ModuleEntryV2 } from './lib/planner';
 
 type CameraView = 'perspective' | 'front' | 'top';
 
@@ -1521,6 +1522,46 @@ export default function App() {
               onNext={() => setStep('structure')}
               defaultWidth={planner.width}
               defaultDepth={planner.depth}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* W6-4: Step 2 모듈 구조 배치 (StructureEditor) */}
+      {step === 'structure' && (
+        <div style={{
+          position: 'fixed', top: 16, left: 16, right: 16, bottom: 16,
+          background: '#fff', borderRadius: 12, padding: 16,
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }} data-testid="step-structure-overlay">
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18 }}>📦 Step 2 · 구조 배치</h2>
+            <button
+              type="button"
+              onClick={() => setStep(null)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: '#7a7062' }}
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </header>
+
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <StructureEditor
+              segments={planner.segments ?? []}
+              modulesV2={planner.modulesV2 ?? []}
+              onChange={(modulesV2: ModuleEntryV2[]) => {
+                setPlanner((p) => ({
+                  ...p,
+                  schemaVersion: 2,
+                  segments: p.segments ?? [],
+                  modulesV2,
+                }));
+              }}
+              onBack={() => setStep('layout')}
+              onNext={() => setStep('detail')}
+              defaultKind={defaultKind}
             />
           </div>
         </div>
