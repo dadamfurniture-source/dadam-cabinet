@@ -700,6 +700,33 @@
         payload.modulesV2 = modulesV2;
       }
 
+      // W7-2: planner iframe → V2_MODULES_CHANGE 수신 → item.modules 의
+      // doorFinish/doorColor/heightOverride 갱신 (silent — _syncPlannerState 재호출 X 로 무한 루프 방지).
+      // BOM 산출 시 W7-3 의 extractors.js 가 갱신된 finish/color 인식.
+      window.addEventListener('message', function (e) {
+        if (!e.data || e.data.type !== 'V2_MODULES_CHANGE') return;
+        const itemId = parseFloat(e.data.itemId);
+        if (!itemId || isNaN(itemId)) return;
+        const item = (window.selectedItems || selectedItems).find(it => it.uniqueId === itemId);
+        if (!item || !Array.isArray(e.data.modulesV2)) return;
+        let changed = 0;
+        for (const v2 of e.data.modulesV2) {
+          const m = (item.modules || []).find(mm => String(mm.id) === String(v2.id));
+          if (!m) continue;
+          if (v2.doorFinish !== undefined && m.doorFinish !== v2.doorFinish) { m.doorFinish = v2.doorFinish; changed++; }
+          if (v2.doorColor !== undefined && m.doorColor !== v2.doorColor) { m.doorColor = v2.doorColor; changed++; }
+          if (v2.heightOverride !== undefined && parseFloat(m.h) !== v2.heightOverride) { m.h = String(v2.heightOverride); changed++; }
+          if (v2.doorCount !== undefined && m.doorCount !== v2.doorCount) { m.doorCount = v2.doorCount; changed++; }
+          if (v2.drawerCount !== undefined && m.drawerCount !== v2.drawerCount) { m.drawerCount = v2.drawerCount; changed++; }
+        }
+        if (changed > 0) {
+          // 사용자 BOM 산출 시점에 갱신된 finish/color 반영. UI 재렌더 X (무한 루프 방지).
+          if (window.console && window.console.debug) {
+            console.debug('[W7-2] V2_MODULES_CHANGE applied:', { itemId, changedFields: changed });
+          }
+        }
+      });
+
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
         const specs = item.specs || {};
@@ -778,6 +805,8 @@
           toeKickH: String(finishPayload.toeKickH),
           finishLeftW: String(finishPayload.finishLeftW),
           finishRightW: String(finishPayload.finishRightW),
+          // W7-2: V2_MODULES_CHANGE 메시지의 itemId 라우팅용
+          itemId: String(item.uniqueId),
           ...(finishPayload.distributorStart != null ? { distStart: String(finishPayload.distributorStart) } : {}),
           ...(finishPayload.distributorEnd != null ? { distEnd: String(finishPayload.distributorEnd) } : {}),
           ...(finishPayload.ventStart != null ? { ventStart: String(finishPayload.ventStart) } : {}),
