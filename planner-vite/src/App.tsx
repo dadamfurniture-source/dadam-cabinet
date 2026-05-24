@@ -1298,8 +1298,9 @@ export default function App() {
         )}
 
         {/* W8-2-1: viewMode='2d' — step 별 editor inline (SegmentEditor / StructureEditor / ModuleDetailPanel) */}
+        {/* W8-3: padding 제거 → 컴포넌트 자체가 100% 사용 */}
         {viewMode === '2d' && (
-          <div style={{ position: 'absolute', inset: 0, padding: 16, overflow: 'hidden' }} data-testid="step-router">
+          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }} data-testid="step-router">
             {step === 'layout' && (
               <SegmentEditor
                 segments={planner.segments ?? []}
