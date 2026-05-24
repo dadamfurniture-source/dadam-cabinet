@@ -544,168 +544,10 @@ function UtilityPopup({ type, planner, onUpdate, onDelete, onClose }: {
   );
 }
 
-// ═══ 패널: 레이아웃 방향 설정 ═══
-const LAYOUT_SHAPES: { value: 'I' | 'L' | 'U'; label: string; icon: string }[] = [
-  { value: 'I', label: 'ㅡ자', icon: '━' },
-  { value: 'L', label: 'ㄱ자', icon: '┗' },
-  { value: 'U', label: 'ㄷ자', icon: '┗┛' },
-];
+// W8-2-2: LAYOUT_SHAPES + LayoutSetupPanel 완전 제거 — V2 SegmentEditor 가 ㄱ자/ㄷ자/임의 polygon 자유 표현
+// 이전: legacy I/L/U layoutShape 모달 (showLayoutPanel)
+// 신규: planner.segments[] 직접 편집
 
-function LayoutSetupPanel({ planner, onUpdate, onClose }: {
-  planner: PlannerState;
-  onUpdate: (changes: Partial<PlannerState>) => void;
-  onClose: () => void;
-}) {
-  const shape = planner.layoutShape ?? 'I';
-  const isL = shape === 'L' || shape === 'U';
-  const isU = shape === 'U';
-  const side = planner.secondaryStartSide ?? 'left';
-
-  const handleShapeChange = (newShape: 'I' | 'L' | 'U') => {
-    const changes: Partial<PlannerState> = { layoutShape: newShape };
-    if (newShape !== 'I' && !planner.secondaryW) {
-      changes.secondaryW = 1800;
-      changes.secondaryD = planner.depth;
-      changes.secondaryStartSide = planner.secondaryStartSide ?? 'left';
-    }
-    if (newShape === 'U' && !planner.tertiaryW) {
-      changes.tertiaryW = 1800;
-      changes.tertiaryD = planner.depth;
-      changes.tertiaryStartFrom = planner.tertiaryStartFrom ?? 'prime';
-    }
-    if (newShape === 'I') {
-      changes.secondaryW = 0;
-      changes.secondaryD = 0;
-      changes.tertiaryW = 0;
-      changes.tertiaryD = 0;
-    } else if (newShape === 'L') {
-      changes.tertiaryW = 0;
-      changes.tertiaryD = 0;
-    }
-    onUpdate(changes);
-  };
-
-  const sc = '#b8956c';
-  const inputStyle: React.CSSProperties = { width: '100%', textAlign: 'center', border: '1px solid #ddd', borderRadius: 8, padding: 6, fontSize: 13, fontWeight: 600, boxSizing: 'border-box' };
-  const labelStyle: React.CSSProperties = { fontSize: 10, color: '#aaa', marginBottom: 4 };
-  const sectionStyle: React.CSSProperties = { marginBottom: 14, padding: '12px 14px', border: '1px solid #e0d6c8', borderRadius: 10, background: '#faf7f2' };
-
-  return (
-    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'calc(100% - 32px)', maxWidth: 380, background: '#fff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999 }} onClick={e => e.stopPropagation()}>
-      {/* 헤더 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#2d2a26' }}>레이아웃 방향 설정</span>
-        <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: 4 }}>✕</button>
-      </div>
-
-      {/* 레이아웃 형태 */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>레이아웃 형태</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {LAYOUT_SHAPES.map(s => (
-            <button key={s.value} onClick={() => handleShapeChange(s.value)}
-              style={{ flex: 1, padding: '10px 0', border: shape === s.value ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: shape === s.value ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 13, fontWeight: shape === s.value ? 700 : 400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 18 }}>{s.icon}</span>
-              <span>{s.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Secondary 설정 (L/U) */}
-      {isL && (
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>차선 (Secondary Line)</div>
-
-          {/* 방향 */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={labelStyle}>시작 방향</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['left', 'right'] as const).map(d => (
-                <button key={d} onClick={() => onUpdate({ secondaryStartSide: d })}
-                  style={{ flex: 1, padding: '7px 0', border: side === d ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: side === d ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: side === d ? 700 : 400 }}>
-                  {d === 'left' ? '← 좌측' : '우측 →'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Secondary W / D */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={labelStyle}>너비 W (mm)</div>
-              <input type="number" value={planner.secondaryW ?? 0} step={50} min={0} max={5000}
-                onChange={e => onUpdate({ secondaryW: Math.max(0, Number(e.target.value)) })}
-                style={inputStyle} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={labelStyle}>깊이 D (mm)</div>
-              <input type="number" value={planner.secondaryD ?? planner.depth} step={10} min={200} max={900}
-                onChange={e => onUpdate({ secondaryD: Math.max(200, Number(e.target.value)) })}
-                style={inputStyle} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tertiary 설정 (U만) */}
-      {isU && (
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>3차선 (Tertiary Line)</div>
-
-          {/* Tertiary Start From */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={labelStyle}>시작점</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {([{ v: 'prime' as const, l: '주선 반대편' }, { v: 'secondary' as const, l: '차선 끝' }]).map(opt => (
-                <button key={opt.v} onClick={() => onUpdate({ tertiaryStartFrom: opt.v })}
-                  style={{ flex: 1, padding: '7px 0', border: (planner.tertiaryStartFrom ?? 'prime') === opt.v ? `2px solid ${sc}` : '1px solid #ddd', borderRadius: 8, background: (planner.tertiaryStartFrom ?? 'prime') === opt.v ? `${sc}11` : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: (planner.tertiaryStartFrom ?? 'prime') === opt.v ? 700 : 400 }}>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Tertiary W / D */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={labelStyle}>너비 W (mm)</div>
-              <input type="number" value={planner.tertiaryW ?? 0} step={50} min={0} max={5000}
-                onChange={e => onUpdate({ tertiaryW: Math.max(0, Number(e.target.value)) })}
-                style={inputStyle} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={labelStyle}>깊이 D (mm)</div>
-              <input type="number" value={planner.tertiaryD ?? planner.depth} step={10} min={200} max={900}
-                onChange={e => onUpdate({ tertiaryD: Math.max(200, Number(e.target.value)) })}
-                style={inputStyle} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 휠라 설정 (L/U) */}
-      {isL && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
-              <div style={labelStyle}>자유단 휠라 폭 (mm)</div>
-              <input type="number" value={planner.secondaryFillerW ?? 60} step={10} min={0} max={200}
-                onChange={e => onUpdate({ secondaryFillerW: Math.max(0, Math.min(200, Number(e.target.value))) })}
-                style={inputStyle} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 닫기 */}
-      <button onClick={onClose}
-        style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${sc}`, background: `linear-gradient(135deg,${sc},#d4b896)`, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-        설정 완료
-      </button>
-    </div>
-  );
-}
 
 // ═══ 메인 앱 ═══
 export default function App() {
@@ -745,7 +587,7 @@ export default function App() {
   const [selId, setSelId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; x: number } | null>(null);
   const [blindPanel, setBlindPanel] = useState<{ modId: string; blindW: number } | null>(null);
-  const [showLayoutPanel, setShowLayoutPanel] = useState(false);
+  // W8-2-2: showLayoutPanel state 삭제 (LayoutSetupPanel 완전 제거, V2 only)
   const [sketchupBusy, setSketchupBusy] = useState(false);
   // Si-5: SketchUp 에서 가져오기
   const [importBusy, setImportBusy] = useState(false);
@@ -753,31 +595,35 @@ export default function App() {
   // Phase 3a: 수동 매핑 UI
   const [manualMapPanel, setManualMapPanel] = useState<{ entities: RawEntity[]; suggestions: EntitySuggestion[] } | null>(null);
   const [sketchupMessage, setSketchupMessage] = useState('');
-  // W6-3: 3단계 워크플로우 (배치 → 구조 → 디테일). W6-6 에서 URL + postMessage 동기화 도입.
-  const [step, setStep] = useState<'layout' | 'structure' | 'detail' | null>(() => {
+  // W6-3 + W8-2-1: 3단계 워크플로우 (배치 → 구조 → 디테일). 자동 진입 — null 옵션 제거.
+  const [step, setStep] = useState<WorkflowStep>(() => {
     const s = params.get('step');
-    return s === 'layout' || s === 'structure' || s === 'detail' ? s : null;
+    return s === 'structure' || s === 'detail' ? s : 'layout';
+  });
+  // W8-2-3: 2D/3D viewMode (기존 카메라 view 와 직교). '2d' = step editor inline, '3d' = R3F Canvas.
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => {
+    const v = params.get('viewMode');
+    return v === '3d' ? '3d' : '2d';
   });
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
-  // W6-6: step 변경 시 URL + 부모 detaildesign 으로 STEP_CHANGE 전파
+  // W6-6 + W8-2-1: step 변경 시 URL + 부모 detaildesign 으로 STEP_CHANGE 전파 (step 항상 set)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
-    if (step) url.searchParams.set('step', step);
-    else url.searchParams.delete('step');
+    url.searchParams.set('step', step);
     window.history.replaceState(null, '', url.toString());
     try {
       window.parent?.postMessage({ type: 'STEP_CHANGE', step }, '*');
     } catch {}
   }, [step]);
 
-  // W6-6: popstate (브라우저 뒤로/앞으로 + 외부 URL 변경) → step 동기화
+  // W6-6 + W8-2-1: popstate → step 동기화 (default 'layout')
   useEffect(() => {
     const handler = () => {
       const s = new URLSearchParams(window.location.search).get('step');
-      if (s === 'layout' || s === 'structure' || s === 'detail') setStep(s);
-      else setStep(null);
+      if (s === 'structure' || s === 'detail') setStep(s);
+      else setStep('layout');
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
@@ -836,7 +682,8 @@ export default function App() {
           return isV2State(next) ? next : migrateLegacyToV2(next);
         });
       }
-      if (e.data?.type === 'SET_CAMERA_VIEW') setView(e.data.view);
+      // W8-2-3: 부모가 카메라 view 변경 요청 → 3D 모드 자동 전환 (사용자 멘탈 모델 일치)
+      if (e.data?.type === 'SET_CAMERA_VIEW') { setView(e.data.view); setViewMode('3d'); }
       if (e.data?.type === 'LOAD_HITL_CASE' && e.data.payload) {
         const incoming = e.data.payload as PlannerState;
         setPlanner(isV2State(incoming) ? incoming : migrateLegacyToV2(incoming));
@@ -1082,29 +929,7 @@ export default function App() {
     setSelId(null);
   }, []);
 
-  // 레이아웃 방향 설정 업데이트
-  const handleLayoutUpdate = useCallback((changes: Partial<PlannerState>) => {
-    setPlanner(p => {
-      const next = { ...p, ...changes };
-      // I로 전환 시 secondary/tertiary 모듈 제거
-      if (changes.layoutShape === 'I') {
-        const filterNormal = (list: ModuleEntry[]) => list.filter(m => !m.orientation || m.orientation === 'normal');
-        next.lowerModules = filterNormal(next.lowerModules ?? []);
-        next.upperModules = filterNormal(next.upperModules ?? []);
-        next.lowerCount = next.lowerModules.length;
-        next.upperCount = next.upperModules.length;
-      }
-      // L로 전환 시 tertiary 모듈 제거
-      if (changes.layoutShape === 'L') {
-        const filterNoTertiary = (list: ModuleEntry[]) => list.filter(m => m.orientation !== 'tertiary');
-        next.lowerModules = filterNoTertiary(next.lowerModules ?? []);
-        next.upperModules = filterNoTertiary(next.upperModules ?? []);
-        next.lowerCount = next.lowerModules.length;
-        next.upperCount = next.upperModules.length;
-      }
-      return next;
-    });
-  }, []);
+  // W8-2-2: handleLayoutUpdate 삭제 (LayoutSetupPanel 완전 제거, V2 SegmentEditor 가 대체)
 
   // 멍장을 통한 차선모듈(Secondary Line Module) 추가 핸들러
   const applyBlindPanel = useCallback((modId: string, blindW: number) => {
@@ -1302,8 +1127,35 @@ export default function App() {
   const shadowRotation: [number, number, number] = isZup ? [0, 0, 0] : [0, 0, 0]; // ContactShadows 의 디폴트 평면이 XZ, Z-up 에서는 XY 가 필요하므로 추후 검증
 
   return (
-    <div style={{ width: '100%', height: '100vh', overflow: 'hidden', position: 'relative' }} onPointerDown={e => { if (e.target === e.currentTarget) setSelId(null); }}>
-      <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
+    <div style={{ width: '100%', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#f4efe7' }} onPointerDown={e => { if (e.target === e.currentTarget) setSelId(null); }}>
+      {/* W8-2-1: 상단 TopBar — StepIndicator 영구 노출 + 2D/3D viewMode toggle */}
+      <div style={{ height: 56, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#fff', borderBottom: '1px solid #e5e0d4', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        <StepIndicator current={step} onJump={setStep} disabledSteps={disabledWorkflowSteps} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 3, background: '#f1ede3', borderRadius: 999, border: '1px solid #e5e0d4' }}>
+          {(['2d', '3d'] as const).map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setViewMode(m)}
+              style={{
+                padding: '4px 16px', borderRadius: 999, border: 'none',
+                background: viewMode === m ? '#6a4b2a' : 'transparent',
+                color: viewMode === m ? '#fff' : '#7a7062',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              data-testid={`view-mode-${m}`}
+            >
+              {m === '2d' ? '📐 도면' : '🧊 3D'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* W8-2-1: 메인 영역 — viewMode 별 Canvas (3D) 또는 step editor inline (2D) */}
+      <main style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        {viewMode === '3d' && (
+        <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
         <Suspense fallback={null}>
           <color attach="background" args={['#f4efe7']} />
           <ambientLight intensity={0.6} />
@@ -1332,8 +1184,8 @@ export default function App() {
               <UtilityMesh key={part.id} part={part} halfW={planner.width / 2} controlsRef={controlsRef} onDrag={dragUtility} onSelect={setSelId} />
             ))}
 
-            {/* 차선모듈 추가 모드: 선택된 주선 모듈 정면에 +/✓ 버튼 */}
-            {blindPanel && (() => {
+            {/* 차선모듈 추가 모드: 선택된 주선 모듈 정면에 +/✓ 버튼 (W8-2-2: V2 모드 숨김 — SegmentEditor 대체) */}
+            {blindPanel && planner.schemaVersion !== 2 && (() => {
               const bp = blindPanel;
               const mp = partsV1.find(p => p.id === `mod-${bp.modId}` || p.id === bp.modId);
               if (!mp) return null;
@@ -1443,6 +1295,47 @@ export default function App() {
           <PerspectiveCamera makeDefault position={camPos} up={camUp} fov={45} near={1} far={20000} />
         </Suspense>
       </Canvas>
+        )}
+
+        {/* W8-2-1: viewMode='2d' — step 별 editor inline (SegmentEditor / StructureEditor / ModuleDetailPanel) */}
+        {viewMode === '2d' && (
+          <div style={{ position: 'absolute', inset: 0, padding: 16, overflow: 'hidden' }} data-testid="step-router">
+            {step === 'layout' && (
+              <SegmentEditor
+                segments={planner.segments ?? []}
+                onChange={(segments: CabinetSegment[]) => {
+                  setPlanner((p) => ({ ...p, schemaVersion: 2, segments, modulesV2: p.modulesV2 ?? [] }));
+                }}
+                onNext={() => setStep('structure')}
+                defaultWidth={planner.width}
+                defaultDepth={planner.depth}
+              />
+            )}
+            {step === 'structure' && (
+              <StructureEditor
+                segments={planner.segments ?? []}
+                modulesV2={planner.modulesV2 ?? []}
+                onChange={(modulesV2: ModuleEntryV2[]) => {
+                  setPlanner((p) => ({ ...p, schemaVersion: 2, segments: p.segments ?? [], modulesV2 }));
+                }}
+                onBack={() => setStep('layout')}
+                onNext={() => setStep('detail')}
+                defaultKind={defaultKind}
+              />
+            )}
+            {step === 'detail' && (
+              <ModuleDetailPanel
+                segments={planner.segments ?? []}
+                modulesV2={planner.modulesV2 ?? []}
+                onChange={(modulesV2: ModuleEntryV2[]) => {
+                  setPlanner((p) => ({ ...p, schemaVersion: 2, segments: p.segments ?? [], modulesV2 }));
+                }}
+                onBack={() => setStep('structure')}
+                onDone={() => setStep('layout')}
+              />
+            )}
+          </div>
+        )}
 
       {/* 팝업 배경 — 반투명 오버레이로 Canvas 위 Html 요소 완전 차단 */}
       {selId && (
@@ -1451,128 +1344,6 @@ export default function App() {
       {selMod && <ModulePopup mod={selMod} section={selSection} secondaryFillerW={planner.secondaryFillerW ?? 60} onUpdate={updateMod} onDelete={deleteMod} onClose={() => setSelId(null)} onBlindPanel={applyBlindPanel} onUpdateFiller={(w) => setPlanner(p => ({ ...p, secondaryFillerW: w }))} />}
       {selId === 'utility-distributor' && <UtilityPopup type="distributor" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, distributorStart: 0, distributorEnd: 0 }))} onClose={() => setSelId(null)} />}
       {selId === 'utility-vent' && <UtilityPopup type="vent" planner={planner} onUpdate={c => setPlanner(p => ({ ...p, ...c }))} onDelete={() => setPlanner(p => ({ ...p, ventStart: 0 }))} onClose={() => setSelId(null)} />}
-
-      {/* 레이아웃 설정 패널 (legacy) */}
-      {showLayoutPanel && (
-        <>
-          <div style={{ position: 'absolute', inset: 0, zIndex: 9000, background: 'rgba(244,239,231,0.6)', backdropFilter: 'blur(2px)' }} onClick={() => setShowLayoutPanel(false)} />
-          <LayoutSetupPanel planner={planner} onUpdate={handleLayoutUpdate} onClose={() => setShowLayoutPanel(false)} />
-          {/* W6-8: V2 마이그레이션 권장 배너 */}
-          <div style={{
-            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 9100, background: '#f3ead9', border: '1px solid #b8956c',
-            padding: '8px 14px', borderRadius: 8, fontSize: 12, color: '#6a4b2a',
-            display: 'flex', alignItems: 'center', gap: 8,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          }}>
-            <span>💡 새 3단계 워크플로우 (배치 → 구조 → 디테일) 가 더 자유롭습니다.</span>
-            <button
-              type="button"
-              onClick={() => {
-                setShowLayoutPanel(false);
-                setStep('layout');
-              }}
-              style={{ background: '#6a4b2a', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
-            >
-              📐 3단계로 이동 →
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* 레이아웃 설정 토글 버튼 (하단 중앙) — V2 모드 (schemaVersion=2) 에서는 SegmentEditor 사용 */}
-      {!selId && !showLayoutPanel && planner.schemaVersion !== 2 && (
-        <button onClick={() => setShowLayoutPanel(true)}
-          style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 20, border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#2d2a26' }}>
-          <span style={{ fontSize: 14 }}>{planner.layoutShape === 'U' ? '┗┛' : planner.layoutShape === 'L' ? '┗' : '━'}</span>
-          <span>{planner.layoutShape === 'U' ? 'ㄷ자' : planner.layoutShape === 'L' ? 'ㄱ자' : 'ㅡ자'} 레이아웃</span>
-        </button>
-      )}
-
-      {/* 우상단: SketchUp 송신/수신 버튼 + W6 3단계 워크플로우 진입 */}
-      <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, zIndex: 50, fontFamily: '-apple-system,BlinkMacSystemFont,system-ui,sans-serif' }}>
-        {/* W6-3: Step 1 가구 배치 진입 */}
-        <button
-          type="button"
-          onClick={() => setStep('layout')}
-          title="3단계 워크플로우 시작 — Top View 에서 ㄱ자/ㄷ자 segment 자유 배치"
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid #6a4b2a',
-            background: '#fff',
-            color: '#6a4b2a',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-            whiteSpace: 'nowrap',
-          }}
-          data-testid="open-step-layout"
-        >
-          📐 가구 배치 (3단계)
-        </button>
-        <button
-          type="button"
-          onClick={sendToSketchup}
-          disabled={sketchupBusy}
-          title="디자이너 PC 의 SketchUp 으로 3D 모델 전송 (SketchUp + mhyrr 확장 + mcp-server 가 디자이너 PC 에 떠 있어야 함)"
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid #2d2a26',
-            background: sketchupBusy ? '#999' : '#2d2a26',
-            color: '#fff',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: sketchupBusy ? 'not-allowed' : 'pointer',
-            opacity: sketchupBusy ? 0.7 : 1,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {sketchupBusy ? '전송 중…' : '🔨 SketchUp 으로 보내기'}
-        </button>
-        {/* Si-5: SketchUp 에서 가져오기 */}
-        <button
-          type="button"
-          onClick={handleImportFromSketchup}
-          disabled={importBusy}
-          title="디자이너 PC SketchUp 활성 모델의 가구를 planner 로 가져옴 (dadam.* 마킹 entity 만 지원)"
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid #6a4b2a',
-            background: importBusy ? '#999' : '#fff',
-            color: importBusy ? '#fff' : '#6a4b2a',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: importBusy ? 'not-allowed' : 'pointer',
-            opacity: importBusy ? 0.7 : 1,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {importBusy ? '가져오는 중…' : '📥 SketchUp 에서 가져오기'}
-        </button>
-        {sketchupMessage && (
-          <div
-            style={{
-              maxWidth: 320,
-              padding: '6px 10px',
-              borderRadius: 6,
-              fontSize: 10,
-              background: sketchupMessage.startsWith('✓') ? '#ecfdf5' : '#fef2f2',
-              color: sketchupMessage.startsWith('✓') ? '#047857' : '#b91c1c',
-              border: sketchupMessage.startsWith('✓') ? '1px solid #a7f3d0' : '1px solid #fecaca',
-              wordBreak: 'keep-all',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {sketchupMessage}
-          </div>
-        )}
-      </div>
 
       {/* Phase 3a: 수동 매핑 UI */}
       {manualMapPanel && (
@@ -1583,127 +1354,6 @@ export default function App() {
           onCancel={() => setManualMapPanel(null)}
           onApply={applyManualMapping}
         />
-      )}
-
-      {/* W6-3: Step 1 가구 배치 (Top View 인터랙티브 SegmentEditor) */}
-      {step === 'layout' && (
-        <div style={{
-          position: 'fixed', top: 16, left: 16, right: 16, bottom: 16,
-          background: '#fff', borderRadius: 12, padding: 16,
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
-          display: 'flex', flexDirection: 'column', gap: 12,
-        }} data-testid="step-layout-overlay">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18, whiteSpace: 'nowrap' }}>📐 Step 1 · 가구 배치</h2>
-            <StepIndicator current="layout" onJump={setStep} disabledSteps={disabledWorkflowSteps} />
-            <button
-              type="button"
-              onClick={() => setStep(null)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: '#7a7062' }}
-              aria-label="닫기"
-            >
-              ✕
-            </button>
-          </header>
-
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <SegmentEditor
-              segments={planner.segments ?? []}
-              onChange={(segments: CabinetSegment[]) => {
-                setPlanner((p) => ({
-                  ...p,
-                  schemaVersion: 2,
-                  segments,
-                  modulesV2: p.modulesV2 ?? [],
-                }));
-              }}
-              onNext={() => setStep('structure')}
-              defaultWidth={planner.width}
-              defaultDepth={planner.depth}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* W6-4: Step 2 모듈 구조 배치 (StructureEditor) */}
-      {step === 'structure' && (
-        <div style={{
-          position: 'fixed', top: 16, left: 16, right: 16, bottom: 16,
-          background: '#fff', borderRadius: 12, padding: 16,
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
-          display: 'flex', flexDirection: 'column', gap: 12,
-        }} data-testid="step-structure-overlay">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18, whiteSpace: 'nowrap' }}>📦 Step 2 · 구조 배치</h2>
-            <StepIndicator current="structure" onJump={setStep} disabledSteps={disabledWorkflowSteps} />
-            <button
-              type="button"
-              onClick={() => setStep(null)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: '#7a7062' }}
-              aria-label="닫기"
-            >
-              ✕
-            </button>
-          </header>
-
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <StructureEditor
-              segments={planner.segments ?? []}
-              modulesV2={planner.modulesV2 ?? []}
-              onChange={(modulesV2: ModuleEntryV2[]) => {
-                setPlanner((p) => ({
-                  ...p,
-                  schemaVersion: 2,
-                  segments: p.segments ?? [],
-                  modulesV2,
-                }));
-              }}
-              onBack={() => setStep('layout')}
-              onNext={() => setStep('detail')}
-              defaultKind={defaultKind}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* W6-5: Step 3 모듈 디테일 (ModuleDetailPanel) */}
-      {step === 'detail' && (
-        <div style={{
-          position: 'fixed', top: 16, left: 16, right: 16, bottom: 16,
-          background: '#fff', borderRadius: 12, padding: 16,
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 9997,
-          display: 'flex', flexDirection: 'column', gap: 12,
-        }} data-testid="step-detail-overlay">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-            <h2 style={{ margin: 0, color: '#6a4b2a', fontSize: 18, whiteSpace: 'nowrap' }}>🎨 Step 3 · 디테일</h2>
-            <StepIndicator current="detail" onJump={setStep} disabledSteps={disabledWorkflowSteps} />
-            <button
-              type="button"
-              onClick={() => setStep(null)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: '#7a7062' }}
-              aria-label="닫기"
-            >
-              ✕
-            </button>
-          </header>
-
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <ModuleDetailPanel
-              segments={planner.segments ?? []}
-              modulesV2={planner.modulesV2 ?? []}
-              onChange={(modulesV2: ModuleEntryV2[]) => {
-                setPlanner((p) => ({
-                  ...p,
-                  schemaVersion: 2,
-                  segments: p.segments ?? [],
-                  modulesV2,
-                }));
-              }}
-              onBack={() => setStep('structure')}
-              onDone={() => setStep(null)}
-            />
-          </div>
-        </div>
       )}
 
       {/* Si-5: import 미리보기 모달 */}
@@ -1760,6 +1410,64 @@ export default function App() {
       )}
 
       {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
+      </main>
+
+      {/* W8-2-3: 하단 BottomBar — SketchUp 보내기/가져오기 중앙 정렬 + 메시지 toast */}
+      <div style={{ height: 56, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '0 16px', background: '#fff', borderTop: '1px solid #e5e0d4', boxShadow: '0 -1px 4px rgba(0,0,0,0.04)' }}>
+        <button
+          type="button"
+          onClick={sendToSketchup}
+          disabled={sketchupBusy}
+          title="디자이너 PC 의 SketchUp 으로 3D 모델 전송 (SketchUp + mhyrr 확장 + mcp-server 가 디자이너 PC 에 떠 있어야 함)"
+          style={{
+            padding: '8px 18px', borderRadius: 8,
+            border: '1px solid #2d2a26',
+            background: sketchupBusy ? '#999' : '#2d2a26',
+            color: '#fff', fontSize: 12, fontWeight: 600,
+            cursor: sketchupBusy ? 'not-allowed' : 'pointer',
+            opacity: sketchupBusy ? 0.7 : 1,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {sketchupBusy ? '전송 중…' : '🔨 SketchUp 으로 보내기'}
+        </button>
+        <button
+          type="button"
+          onClick={handleImportFromSketchup}
+          disabled={importBusy}
+          title="디자이너 PC SketchUp 활성 모델의 가구를 planner 로 가져옴"
+          style={{
+            padding: '8px 18px', borderRadius: 8,
+            border: '1px solid #6a4b2a',
+            background: importBusy ? '#999' : '#fff',
+            color: importBusy ? '#fff' : '#6a4b2a',
+            fontSize: 12, fontWeight: 600,
+            cursor: importBusy ? 'not-allowed' : 'pointer',
+            opacity: importBusy ? 0.7 : 1,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {importBusy ? '가져오는 중…' : '📥 SketchUp 에서 가져오기'}
+        </button>
+        {/* 메시지 toast — BottomBar 위 floating */}
+        {sketchupMessage && (
+          <div
+            style={{
+              position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)',
+              maxWidth: 480, padding: '8px 14px', borderRadius: 6, fontSize: 11,
+              background: sketchupMessage.startsWith('✓') ? '#ecfdf5' : '#fef2f2',
+              color: sketchupMessage.startsWith('✓') ? '#047857' : '#b91c1c',
+              border: sketchupMessage.startsWith('✓') ? '1px solid #a7f3d0' : '1px solid #fecaca',
+              wordBreak: 'keep-all', whiteSpace: 'pre-wrap',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100,
+            }}
+          >
+            {sketchupMessage}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
