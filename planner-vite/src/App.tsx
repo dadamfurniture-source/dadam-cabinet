@@ -1128,9 +1128,32 @@ export default function App() {
 
   return (
     <div style={{ width: '100%', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#f4efe7' }} onPointerDown={e => { if (e.target === e.currentTarget) setSelId(null); }}>
-      {/* W8-2-1: 상단 TopBar — StepIndicator 영구 노출 + 2D/3D viewMode toggle */}
-      <div style={{ height: 56, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#fff', borderBottom: '1px solid #e5e0d4', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+      {/* W8-2-1: 상단 TopBar — StepIndicator + W/H/D 입력 + 2D/3D viewMode toggle */}
+      <div style={{ height: 56, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#fff', borderBottom: '1px solid #e5e0d4', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', gap: 16 }}>
         <StepIndicator current={step} onJump={setStep} disabledSteps={disabledWorkflowSteps} />
+        {/* W8-4: 가구 전체 W/H/D 입력 (가구배치 단계에서 정보 입력) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6a4b2a', fontWeight: 600 }}>
+          <span style={{ marginRight: 4 }}>가구</span>
+          {(['width', 'height', 'depth'] as const).map((dim, i) => (
+            <label key={dim} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ color: '#7a7062' }}>{['W', 'H', 'D'][i]}</span>
+              <input
+                type="number"
+                value={planner[dim]}
+                step={50}
+                min={dim === 'width' ? 600 : dim === 'height' ? 700 : 220}
+                max={dim === 'width' ? 6000 : dim === 'height' ? 2800 : 900}
+                onChange={(e) => {
+                  const v = Number(e.target.value) || planner[dim];
+                  setPlanner((p) => ({ ...p, [dim]: v }));
+                }}
+                style={{ width: 60, padding: '3px 5px', border: '1px solid #d9d2bf', borderRadius: 4, fontSize: 11, textAlign: 'right' }}
+                data-testid={`dim-${dim}`}
+              />
+              <span style={{ color: '#a89c84', fontSize: 10 }}>mm</span>
+            </label>
+          ))}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 3, background: '#f1ede3', borderRadius: 999, border: '1px solid #e5e0d4' }}>
           {(['2d', '3d'] as const).map(m => (
             <button
