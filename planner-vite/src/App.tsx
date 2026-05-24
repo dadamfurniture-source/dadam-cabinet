@@ -1518,6 +1518,11 @@ export default function App() {
           planner={planner}
           selectedModuleId={selId}
           moduleCount={planner.modulesV2?.length ?? 0}
+          onPlannerChange={(patch) => setPlanner((p) => ({ ...p, ...patch }))}
+          onModuleChange={(id, patch) => setPlanner((p) => ({
+            ...p,
+            modulesV2: (p.modulesV2 ?? []).map((m) => m.id === id ? { ...m, ...patch } : m),
+          }))}
         />
       </main>
 
