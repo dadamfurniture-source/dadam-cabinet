@@ -31,15 +31,20 @@
         const lowerBodyH = specLowerH - specTopT - specLegH;
         const upperBodyH = specUpperH - specOverlap;
 
+        // W8-4: 가구 추가 시 default w/d 자동 적용 — Step 2 워크스페이스에서 수정 (사용자 친화적)
+        const defaultWByCategory = {
+          sink: 3000, island: 2400, wardrobe: 3600, fridge: 1900, shoerack: 1800,
+          vanity: 1400, storage: 2400, warehouse: 2000, door: 600, custom: 1200,
+        };
         const newItem = {
           uniqueId: Date.now() + Math.random(),
           categoryId: cat.id,
           name: cat.name,
           defaultD: cat.defaultD,
           defaultH: cat.defaultH,
-          w: '',
-          h: cat.defaultH || '',
-          d: '',
+          w: defaultWByCategory[cat.id] || 2400,
+          h: cat.defaultH || 2310,
+          d: cat.defaultD || 600,
           image: null,
           specs: deepClone(DEFAULT_SPECS),
           modules: [],
@@ -69,31 +74,8 @@
 
         if (cat.id === 'sink') {
           newItem.modules = []; // 빈 상태로 시작 — 자동계산 또는 수동 추가
-          // ★ 레이아웃 템플릿 프리셋 (B1)
-          newItem.specs.layoutTemplates = {
-            standard: { label: '표준형 (3m)', desc: '개수대+가스대+수납 3종', w: 3000 },
-            compact: { label: '소형 (2.4m)', desc: '개수대+가스대 최소', w: 2400 },
-            large: { label: '대형 (4m)', desc: '개수대+가스대+식세기+수납', w: 4000 },
-          };
         }
-
-        if (cat.id === 'wardrobe') {
-          // ★ 붙박이장 템플릿 (B1)
-          newItem.specs.layoutTemplates = {
-            balanced: { label: '균형형', desc: '짧은옷2 + 긴옷1 + 선반1' },
-            hangOnly: { label: '행거 중심', desc: '짧은옷2 + 긴옷2' },
-            shelfOnly: { label: '선반 중심', desc: '선반3 + 짧은옷1' },
-          };
-        }
-
-        if (cat.id === 'fridge') {
-          // ★ 냉장고장 템플릿 (B1)
-          newItem.specs.layoutTemplates = {
-            standard: { label: '냉장고+키큰장', desc: '냉장고 좌측, 키큰장 우측' },
-            withCafe: { label: '냉장고+홈카페', desc: '냉장고 좌측, 홈카페 우측' },
-            dual: { label: '양문형', desc: '키큰장+냉장고+키큰장' },
-          };
-        }
+        // W8-4: layoutTemplates 정의 (표준형/소형/대형) 삭제 — UI 단순화
 
         selectedItems.push(newItem);
         updateUI();
@@ -1371,125 +1353,11 @@
         <button onclick="proceedToBOM()" style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;" title="자재/부자재 산출">📋 BOM 산출</button>
       </div>
     </div>
-    <!-- 현장 실측 & Layout — 풀 너비 패널 -->
-    <div style="background:#f8f9fa;border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:700;color:var(--primary-color);">현장 실측 & Layout</div>
-          <div style="display:flex;gap:3px;">
-            <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:${(item.specs.dimensionMode || 'unified') === 'unified' ? 'none;background:#b8956c;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${(item.specs.dimensionMode || 'unified') !== 'unified' ? `toggleDimensionMode(${item.uniqueId})` : ''}" ${(item.specs.dimensionMode || 'unified') === 'unified' ? 'disabled' : ''}>통합</button>
-            <button style="padding:2px 8px;font-size:10px;border-radius:3px;border:${(item.specs.dimensionMode || 'unified') === 'split' ? 'none;background:#b8956c;color:#fff' : '1px solid #ccc;background:#fff;color:#888'};cursor:pointer;" onclick="${(item.specs.dimensionMode || 'unified') !== 'split' ? `toggleDimensionMode(${item.uniqueId})` : ''}" ${(item.specs.dimensionMode || 'unified') === 'split' ? 'disabled' : ''}>분리</button>
-          </div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>실측 기준</label>
-            <select onchange="updateSpec(${item.uniqueId}, 'measurementBase', this.value)">
-              <option value="Left" ${item.specs.measurementBase === 'Left' ? 'selected' : ''}>좌측</option>
-              <option value="Right" ${item.specs.measurementBase === 'Right' ? 'selected' : ''}>우측</option>
-            </select>
-          </div>
-          <div class="spec-field"><label>구조 형태</label>
-            <select onchange="changeLowerLayoutShape(${item.uniqueId}, this.value)">
-              <option value="I" ${(item.specs.lowerLayoutShape || item.specs.layoutShape) === 'I' ? 'selected' : ''}>ㅡ자형</option>
-              <option value="L" ${(item.specs.lowerLayoutShape || item.specs.layoutShape) === 'L' ? 'selected' : ''}>ㄱ자형</option>
-              <option value="U" ${(item.specs.lowerLayoutShape || item.specs.layoutShape) === 'U' ? 'selected' : ''}>ㄷ자형</option>
-            </select>
-          </div>
-        </div>
-        <div class="spec-row">
-          <div class="spec-field"><label>현장 실측 W</label><input type="number" placeholder="mm" value="${item.w}" onchange="updateItemValue(${item.uniqueId}, 'w', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>H</label><input type="number" placeholder="mm" value="${item.h}" onchange="updateItemValue(${item.uniqueId}, 'h', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>D</label><input type="number" placeholder="mm" value="${item.d || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-          <div class="spec-field"><label>사진</label>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <button onclick="document.getElementById('ws-file-${item.uniqueId}').click()" style="padding:3px 8px;font-size:10px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;">${item.image && item.image !== 'loading' ? '📷 변경' : '📷 업로드'}</button>
-              ${item.image && item.image !== 'loading' ? `<img src="${item.image}" style="height:24px;border-radius:3px;" alt="">` : ''}
-              <input type="file" id="ws-file-${item.uniqueId}" style="display:none" accept="image/*" onchange="handleItemPhoto(${item.uniqueId}, event)">
-            </div>
-          </div>
-        </div>
-        ${(() => {
-          const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
-          if (lShape === 'I') return '';
-          const secLH = item.specs.lowerSecondaryH || item.specs.lowerH || 870;
-          const secUH = item.specs.upperSecondaryH || item.specs.upperH || 720;
-          const secLD = item.specs.lowerSecondaryD || item.d || item.defaultD || '';
-          const secUD = item.specs.upperSecondaryD || item.specs.upperPrimeD || 295;
-          const secUpperOn = item.specs.secondaryUpperEnabled !== false;
-          const startSide = item.specs.secondaryStartSide || 'left';
-          return `
-        <div style="padding:6px;background:#f9f9f9;border-radius:6px;margin-top:4px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;color:#888;">Secondary Line</span>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <span style="font-size:9px;color:#888;">시작 방향</span>
-              <select onchange="updateSpecNoRender(${item.uniqueId}, 'secondaryStartSide', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
-                <option value="left" ${startSide === 'left' ? 'selected' : ''}>좌측 시작</option>
-                <option value="right" ${startSide === 'right' ? 'selected' : ''}>우측 시작</option>
-              </select>
-            </div>
-          </div>
-          <div style="padding:4px 6px;border-left:2px solid #b8956c;margin-bottom:4px;">
-            <div style="font-size:9px;font-weight:600;color:#b8956c;margin-bottom:2px;">하부장</div>
-            <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerSecondaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerSecondaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${secLD}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerSecondaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-            </div>
-          </div>
-          <div style="padding:4px 6px;border-left:2px solid ${secUpperOn ? '#5a7fa0' : '#ccc'};${secUpperOn ? '' : 'opacity:0.5;'}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-              <span style="font-size:9px;font-weight:600;color:${secUpperOn ? '#5a7fa0' : '#aaa'};">상부장</span>
-              <label style="font-size:9px;color:#666;cursor:pointer;display:flex;align-items:center;gap:2px;">
-                <input type="checkbox" ${secUpperOn ? 'checked' : ''} onchange="updateSpecNoRender(${item.uniqueId}, 'secondaryUpperEnabled', this.checked); _syncPlannerState(getItem(${item.uniqueId}))" style="margin:0;width:12px;height:12px;">
-                <span>사용</span>
-              </label>
-            </div>
-            <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperSecondaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperSecondaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${secUD}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperSecondaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
-            </div>
-          </div>
-        </div>
-        ${lShape === 'U' ? (() => {
-          const terFrom = item.specs.tertiaryStartFrom || 'prime';
-          return `
-        <div style="padding:6px;background:#f5f5ff;border-radius:6px;margin-top:4px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;color:#7c3aed;">Tertiary Line</span>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <span style="font-size:9px;color:#888;">시작 방향</span>
-              <select onchange="updateSpecNoRender(${item.uniqueId}, 'tertiaryStartFrom', this.value); _syncPlannerState(getItem(${item.uniqueId}))" style="font-size:10px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">
-                <option value="prime" ${terFrom === 'prime' ? 'selected' : ''}>Prime Line</option>
-                <option value="secondary" ${terFrom === 'secondary' ? 'selected' : ''}>Secondary Line</option>
-              </select>
-            </div>
-          </div>
-          <div style="padding:4px 6px;border-left:2px solid #7c3aed;margin-top:4px;margin-bottom:4px;">
-            <div style="font-size:9px;font-weight:600;color:#7c3aed;margin-bottom:2px;">하부장</div>`; })() + `
-            <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.lowerTertiaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerTertiaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${item.specs.lowerTertiaryD || item.d || item.defaultD || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'lowerTertiaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))"></div>
-            </div>
-          </div>
-          <div style="padding:4px 6px;border-left:2px solid ${secUpperOn ? '#7c3aed' : '#ccc'};${secUpperOn ? '' : 'opacity:0.5;'}">
-            <div style="font-size:9px;font-weight:600;color:${secUpperOn ? '#7c3aed' : '#aaa'};margin-bottom:2px;">상부장</div>
-            <div class="spec-row">
-              <div class="spec-field"><label>W</label><input type="number" value="${item.specs.upperTertiaryW || ''}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperTertiaryW', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
-              <div class="spec-field"><label>D</label><input type="number" value="${item.specs.upperTertiaryD || item.specs.upperPrimeD || 295}" onchange="updateSpecNoRender(${item.uniqueId}, 'upperTertiaryD', this.value); _syncPlannerState(getItem(${item.uniqueId}))" ${secUpperOn ? '' : 'disabled'}></div>
-            </div>
-          </div>
-        </div>` : ''}`;
-        })()}
-    </div>
+    <!-- W8-4: 현장 실측 & Layout 패널 통째 삭제 (W/H/D 입력 + 구조 형태 + Secondary/Tertiary Line) -->
+    <!-- → Step 2 워크스페이스 (planner iframe) 에서 W/H/D + segment 직접 편집 -->
+    <!-- → ㄱ자/ㄷ자/임의 polygon 은 SegmentEditor 가 대체 -->
 
-    <!-- ★ 레이아웃 템플릿 (B1) -->
-    ${item.specs.layoutTemplates && item.modules.length === 0 ? `
-    <div style="display:flex;gap:6px;margin-bottom:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
-      <span style="font-size:11px;color:#16a34a;font-weight:600;white-space:nowrap;line-height:28px;">📋 템플릿:</span>
-      ${Object.entries(item.specs.layoutTemplates).map(([key, t]) => `
-        <button onclick="applyLayoutTemplate(${item.uniqueId}, '${key}')" style="padding:4px 12px;font-size:11px;border:1px solid #86efac;border-radius:6px;background:#fff;cursor:pointer;color:#166534;" title="${t.desc}">${t.label}</button>
-      `).join('')}
-    </div>
-    ` : ''}
+    <!-- W8-4: 레이아웃 템플릿 (표준형/소형/대형) 버튼 삭제 — 사용자 친화적 UI 단순화 -->
 
     <!-- ★ 자동계산 바 -->
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 12px;background:#faf8f5;border:1px solid #e8e0d8;border-radius:6px;">
