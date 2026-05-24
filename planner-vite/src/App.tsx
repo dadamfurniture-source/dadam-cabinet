@@ -16,6 +16,8 @@ import { SegmentEditor } from './components/SegmentEditor';
 import { StructureEditor } from './components/StructureEditor';
 import { ModuleDetailPanel } from './components/ModuleDetailPanel';
 import { StepIndicator, type WorkflowStep } from './components/StepIndicator';
+import { LeftToolbar } from './components/LeftToolbar';
+import { RightPanel } from './components/RightPanel';
 import type { CabinetSegment, ModuleEntryV2 } from './lib/planner';
 
 type CameraView = 'perspective' | 'front' | 'top';
@@ -605,6 +607,34 @@ export default function App() {
     const v = params.get('viewMode');
     return v === '3d' ? '3d' : '2d';
   });
+  // W8-5: 좌측/우측 패널 collapsed (localStorage persist + L/R 단축키)
+  const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('planner-leftCollapsed') === '1';
+  });
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('planner-rightCollapsed') === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('planner-leftCollapsed', leftCollapsed ? '1' : '0');
+  }, [leftCollapsed]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('planner-rightCollapsed', rightCollapsed ? '1' : '0');
+  }, [rightCollapsed]);
+  // W8-5: L/R 키보드 단축키 (input focus 시 무시)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'l' || e.key === 'L') setLeftCollapsed((v) => !v);
+      if (e.key === 'r' || e.key === 'R') setRightCollapsed((v) => !v);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   // W6-6 + W8-2-1: step 변경 시 URL + 부모 detaildesign 으로 STEP_CHANGE 전파 (step 항상 set)
@@ -1128,12 +1158,12 @@ export default function App() {
 
   return (
     <div style={{ width: '100%', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#f4efe7' }} onPointerDown={e => { if (e.target === e.currentTarget) setSelId(null); }}>
-      {/* W8-2-1: 상단 TopBar — StepIndicator + W/H/D 입력 + 2D/3D viewMode toggle */}
-      <div style={{ height: 56, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#fff', borderBottom: '1px solid #e5e0d4', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', gap: 16 }}>
+      {/* W8-5: 상단 TopBar (h:40) — StepIndicator + W/H/D + viewMode + L/R panel toggle */}
+      <div style={{ height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 12px', background: '#fff', borderBottom: '1px solid #e5e0d4', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', gap: 14 }}>
         <StepIndicator current={step} onJump={setStep} disabledSteps={disabledWorkflowSteps} />
-        {/* W8-4: 가구 전체 W/H/D 입력 (가구배치 단계에서 정보 입력) */}
+        {/* 가구 W/H/D 입력 (간소화 — 작은 input) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6a4b2a', fontWeight: 600 }}>
-          <span style={{ marginRight: 4 }}>가구</span>
+          <span>가구</span>
           {(['width', 'height', 'depth'] as const).map((dim, i) => (
             <label key={dim} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{ color: '#7a7062' }}>{['W', 'H', 'D'][i]}</span>
@@ -1147,25 +1177,25 @@ export default function App() {
                   const v = Number(e.target.value) || planner[dim];
                   setPlanner((p) => ({ ...p, [dim]: v }));
                 }}
-                style={{ width: 60, padding: '3px 5px', border: '1px solid #d9d2bf', borderRadius: 4, fontSize: 11, textAlign: 'right' }}
+                style={{ width: 54, padding: '2px 4px', border: '1px solid #d9d2bf', borderRadius: 4, fontSize: 11, textAlign: 'right' }}
                 data-testid={`dim-${dim}`}
               />
               <span style={{ color: '#a89c84', fontSize: 10 }}>mm</span>
             </label>
           ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 3, background: '#f1ede3', borderRadius: 999, border: '1px solid #e5e0d4' }}>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: 2, background: '#fbfaf6', borderRadius: 999, border: '1px solid #e5e0d4' }}>
           {(['2d', '3d'] as const).map(m => (
             <button
               key={m}
               type="button"
               onClick={() => setViewMode(m)}
               style={{
-                padding: '4px 16px', borderRadius: 999, border: 'none',
+                padding: '3px 12px', borderRadius: 999, border: 'none',
                 background: viewMode === m ? '#6a4b2a' : 'transparent',
                 color: viewMode === m ? '#fff' : '#7a7062',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                fontSize: 11, fontWeight: 600, cursor: 'pointer',
               }}
               data-testid={`view-mode-${m}`}
             >
@@ -1173,10 +1203,43 @@ export default function App() {
             </button>
           ))}
         </div>
+        {/* W8-5: 좌측/우측 패널 toggle (단축키 L/R) */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            type="button"
+            onClick={() => setLeftCollapsed(v => !v)}
+            title="좌측 도구 (L)"
+            style={{
+              width: 26, height: 26, borderRadius: 5, fontSize: 13, cursor: 'pointer',
+              border: '1px solid ' + (leftCollapsed ? '#e5e0d4' : '#b8956c'),
+              background: leftCollapsed ? '#fff' : '#f3ead9',
+              color: leftCollapsed ? '#7a7062' : '#6a4b2a',
+            }}
+            data-testid="toggle-left-panel"
+          >
+            ⬛
+          </button>
+          <button
+            type="button"
+            onClick={() => setRightCollapsed(v => !v)}
+            title="우측 패널 (R)"
+            style={{
+              width: 26, height: 26, borderRadius: 5, fontSize: 13, cursor: 'pointer',
+              border: '1px solid ' + (rightCollapsed ? '#e5e0d4' : '#b8956c'),
+              background: rightCollapsed ? '#fff' : '#f3ead9',
+              color: rightCollapsed ? '#7a7062' : '#6a4b2a',
+            }}
+            data-testid="toggle-right-panel"
+          >
+            ▦
+          </button>
+        </div>
       </div>
 
-      {/* W8-2-1: 메인 영역 — viewMode 별 Canvas (3D) 또는 step editor inline (2D) */}
-      <main style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      {/* W8-5: mid 영역 — LeftToolbar (48px) + 가운데 Canvas/step + RightPanel (280px) */}
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        <LeftToolbar collapsed={leftCollapsed} />
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {viewMode === '3d' && (
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
         <Suspense fallback={null}>
@@ -1434,52 +1497,59 @@ export default function App() {
       )}
 
       {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
+        </div>
+        <RightPanel
+          collapsed={rightCollapsed}
+          onToggleCollapsed={() => setRightCollapsed(v => !v)}
+          planner={planner}
+          selectedModuleId={selId}
+          moduleCount={planner.modulesV2?.length ?? 0}
+        />
       </main>
 
-      {/* W8-2-3: 하단 BottomBar — SketchUp 보내기/가져오기 중앙 정렬 + 메시지 toast */}
-      <div style={{ height: 56, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '0 16px', background: '#fff', borderTop: '1px solid #e5e0d4', boxShadow: '0 -1px 4px rgba(0,0,0,0.04)' }}>
-        <button
-          type="button"
-          onClick={sendToSketchup}
-          disabled={sketchupBusy}
-          title="디자이너 PC 의 SketchUp 으로 3D 모델 전송 (SketchUp + mhyrr 확장 + mcp-server 가 디자이너 PC 에 떠 있어야 함)"
-          style={{
-            padding: '8px 18px', borderRadius: 8,
-            border: '1px solid #2d2a26',
-            background: sketchupBusy ? '#999' : '#2d2a26',
-            color: '#fff', fontSize: 12, fontWeight: 600,
-            cursor: sketchupBusy ? 'not-allowed' : 'pointer',
-            opacity: sketchupBusy ? 0.7 : 1,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {sketchupBusy ? '전송 중…' : '🔨 SketchUp 으로 보내기'}
-        </button>
-        <button
-          type="button"
-          onClick={handleImportFromSketchup}
-          disabled={importBusy}
-          title="디자이너 PC SketchUp 활성 모델의 가구를 planner 로 가져옴"
-          style={{
-            padding: '8px 18px', borderRadius: 8,
-            border: '1px solid #6a4b2a',
-            background: importBusy ? '#999' : '#fff',
-            color: importBusy ? '#fff' : '#6a4b2a',
-            fontSize: 12, fontWeight: 600,
-            cursor: importBusy ? 'not-allowed' : 'pointer',
-            opacity: importBusy ? 0.7 : 1,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {importBusy ? '가져오는 중…' : '📥 SketchUp 에서 가져오기'}
-        </button>
+      {/* W8-5: 하단 BottomBar (h:32) — SketchUp 버튼 (작게) + status text */}
+      <div style={{ height: 32, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', background: '#fff', borderTop: '1px solid #e5e0d4', boxShadow: '0 -1px 4px rgba(0,0,0,0.04)', fontSize: 11, color: '#7a7062' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={sendToSketchup}
+            disabled={sketchupBusy}
+            title="디자이너 PC SketchUp 으로 3D 전송"
+            style={{
+              padding: '3px 10px', borderRadius: 4,
+              border: '1px solid #2d2a26',
+              background: sketchupBusy ? '#999' : '#2d2a26',
+              color: '#fff', fontSize: 11, fontWeight: 600,
+              cursor: sketchupBusy ? 'not-allowed' : 'pointer',
+              opacity: sketchupBusy ? 0.7 : 1,
+            }}
+          >
+            {sketchupBusy ? '전송 중…' : '📤 SketchUp 보내기'}
+          </button>
+          <button
+            type="button"
+            onClick={handleImportFromSketchup}
+            disabled={importBusy}
+            title="SketchUp 가구 가져오기"
+            style={{
+              padding: '3px 10px', borderRadius: 4,
+              border: '1px solid #6a4b2a',
+              background: importBusy ? '#999' : '#fbfaf6',
+              color: importBusy ? '#fff' : '#6a4b2a',
+              fontSize: 11, fontWeight: 600,
+              cursor: importBusy ? 'not-allowed' : 'pointer',
+              opacity: importBusy ? 0.7 : 1,
+            }}
+          >
+            {importBusy ? '가져오는 중…' : '📥 가져오기'}
+          </button>
+        </div>
+        <div>ⓘ {planner.modulesV2?.length ?? 0} modules · {planner.segments?.length ?? 0} segments · v33.0</div>
         {/* 메시지 toast — BottomBar 위 floating */}
         {sketchupMessage && (
           <div
             style={{
-              position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)',
+              position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)',
               maxWidth: 480, padding: '8px 14px', borderRadius: 6, fontSize: 11,
               background: sketchupMessage.startsWith('✓') ? '#ecfdf5' : '#fef2f2',
               color: sketchupMessage.startsWith('✓') ? '#047857' : '#b91c1c',
