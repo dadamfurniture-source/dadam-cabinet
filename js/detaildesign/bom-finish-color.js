@@ -135,6 +135,41 @@
   }
 
   // ─────────────────────────────────────────────────────────────
+  // W7-4: 도어 자재 단가 매트릭스 (mcp-server bom-rules.defaults 와 mirror)
+  // base finish price × color multiplier (Math.round)
+  // ─────────────────────────────────────────────────────────────
+
+  const FINISH_BASE_PRICE = {
+    'PET-M': 24000, 'PET-G': 26000,
+    'MFB':   14000, 'LPM':   16000,
+    'PNT-M': 32000, 'PNT-G': 34000,
+    'VNR':   38000,
+  };
+
+  const COLOR_PRICE_MULTIPLIER = {
+    CRM: 1.00, OAK: 1.00, WNT: 1.05, GRP: 1.05,
+    WHT: 0.95, BLK: 0.95, SAG: 1.10,
+  };
+
+  function getDoorFinishPrice(finishCode) {
+    if (!finishCode || finishCode === 'MDF-DEFAULT') return null;
+    const parts = finishCode.split('-');
+    if (parts.length < 2) return null;
+    let baseKey, colorCode;
+    if (parts.length === 3) {
+      baseKey = parts[0] + '-' + parts[2];
+      colorCode = parts[1];
+    } else {
+      baseKey = parts[0];
+      colorCode = parts[1];
+    }
+    const base = FINISH_BASE_PRICE[baseKey];
+    if (base == null) return null;
+    const mult = COLOR_PRICE_MULTIPLIER[colorCode] != null ? COLOR_PRICE_MULTIPLIER[colorCode] : 1.00;
+    return Math.round(base * mult);
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // 전역 노출 (CommonJS / ES module / 브라우저 모두 호환)
   // ─────────────────────────────────────────────────────────────
 
@@ -145,10 +180,13 @@
     DEFAULT_DOOR_MATERIAL,
     DEFAULT_DOOR_CODE,
     DEFAULT_DOOR_LABEL,
+    FINISH_BASE_PRICE,
+    COLOR_PRICE_MULTIPLIER,
     getFinishColorCode,
     getFinishColorLabel,
     buildFullMatrix,
     resolveDoorMaterial,
+    getDoorFinishPrice,
   };
 
   if (typeof window !== 'undefined') {
