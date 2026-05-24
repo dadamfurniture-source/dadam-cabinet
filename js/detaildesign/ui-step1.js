@@ -682,6 +682,16 @@
         payload.modulesV2 = modulesV2;
       }
 
+      // W8-5: planner iframe LeftToolbar → ADD_CATEGORY 수신 → incrementCategory 호출
+      window.addEventListener('message', function (e) {
+        if (!e.data || e.data.type !== 'ADD_CATEGORY') return;
+        const catId = e.data.categoryId;
+        if (!catId) return;
+        if (typeof incrementCategory === 'function') {
+          incrementCategory(catId);
+        }
+      });
+
       // W7-2: planner iframe → V2_MODULES_CHANGE 수신 → item.modules 의
       // doorFinish/doorColor/heightOverride 갱신 (silent — _syncPlannerState 재호출 X 로 무한 루프 방지).
       // BOM 산출 시 W7-3 의 extractors.js 가 갱신된 finish/color 인식.
