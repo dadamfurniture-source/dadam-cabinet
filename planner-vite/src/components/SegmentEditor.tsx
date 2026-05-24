@@ -224,8 +224,8 @@ export function SegmentEditor({
           ref={svgRef}
           viewBox={viewBox}
           preserveAspectRatio="xMidYMid meet"
-          width={SVG_W}
-          height={SVG_H}
+          width="100%"
+          height="100%"
           style={styles.svg}
         >
           {/* mm Y 반전: viewport 안에서 g transform 으로 Y 축 뒤집기 */}
@@ -439,11 +439,12 @@ const styles: Record<string, React.CSSProperties> = {
   root: {
     display: 'flex',
     flexDirection: 'row',
-    gap: 16,
-    padding: 16,
+    gap: 8,
+    padding: 8,
     background: '#fbfaf6',
-    border: '1px solid #d9d2bf',
-    borderRadius: 12,
+    height: '100%',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   canvasArea: {
     flex: '1 1 auto',
@@ -452,20 +453,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     background: '#fff',
-    borderRadius: 8,
+    borderRadius: 4,
     border: '1px solid #e5e0d4',
+    overflow: 'hidden',
   },
   svg: {
     width: '100%',
     height: '100%',
-    maxWidth: SVG_W,
-    maxHeight: SVG_H,
   },
   panel: {
-    flex: '0 0 280px',
+    flex: '0 0 240px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 10,
+    minWidth: 0,
   },
   panelHeader: { marginBottom: 4 },
   panelTitle: { margin: 0, fontSize: 16, color: '#6a4b2a' },
