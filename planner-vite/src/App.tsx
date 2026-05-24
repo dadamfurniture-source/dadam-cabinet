@@ -635,6 +635,16 @@ export default function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // W8-6: 부모 detaildesign 의 selectedItems 카테고리별 카운트 (LeftToolbar badge)
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  // mount 시 PLANNER_READY 송신 → 부모가 응답으로 CATEGORY_COUNTS 송신
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.parent?.postMessage({ type: 'PLANNER_READY' }, '*');
+    } catch {}
+  }, []);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   // W6-6 + W8-2-1: step 변경 시 URL + 부모 detaildesign 으로 STEP_CHANGE 전파 (step 항상 set)
@@ -714,6 +724,10 @@ export default function App() {
       }
       // W8-2-3: 부모가 카메라 view 변경 요청 → 3D 모드 자동 전환 (사용자 멘탈 모델 일치)
       if (e.data?.type === 'SET_CAMERA_VIEW') { setView(e.data.view); setViewMode('3d'); }
+      // W8-6: 부모 detaildesign 의 카테고리 카운트 갱신 → LeftToolbar badge
+      if (e.data?.type === 'CATEGORY_COUNTS' && e.data.counts && typeof e.data.counts === 'object') {
+        setCategoryCounts(e.data.counts as Record<string, number>);
+      }
       if (e.data?.type === 'LOAD_HITL_CASE' && e.data.payload) {
         const incoming = e.data.payload as PlannerState;
         setPlanner(isV2State(incoming) ? incoming : migrateLegacyToV2(incoming));
@@ -1238,7 +1252,7 @@ export default function App() {
 
       {/* W8-5: mid 영역 — LeftToolbar (48px) + 가운데 Canvas/step + RightPanel (280px) */}
       <main style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-        <LeftToolbar collapsed={leftCollapsed} />
+        <LeftToolbar collapsed={leftCollapsed} counts={categoryCounts} />
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {viewMode === '3d' && (
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>

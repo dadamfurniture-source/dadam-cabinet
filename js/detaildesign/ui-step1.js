@@ -91,6 +91,22 @@
         updateUI();
       }
 
+      // W8-6: 카테고리별 카운트 dict → 모든 planner iframe 으로 broadcast
+      function _broadcastCategoryCounts() {
+        const counts = {};
+        CATEGORIES.forEach((cat) => {
+          counts[cat.id] = selectedItems.filter((item) => item.categoryId === cat.id).length;
+        });
+        document.querySelectorAll('iframe[data-planner]').forEach((iframe) => {
+          try {
+            iframe.contentWindow && iframe.contentWindow.postMessage(
+              { type: 'CATEGORY_COUNTS', counts },
+              '*'
+            );
+          } catch {}
+        });
+      }
+
       function updateUI() {
         const container = document.getElementById('dynamicInputList');
         const detailSection = document.getElementById('detailInputSection');
@@ -103,6 +119,9 @@
           const btn = document.getElementById(`btn-${cat.id}`);
           btn.classList.toggle('active', count > 0);
         });
+
+        // W8-6: 카테고리 카운트 변경 시 planner iframe 의 LeftToolbar badge 갱신
+        _broadcastCategoryCounts();
 
         // labelName 갱신
         const typeCounter = {};
@@ -683,12 +702,25 @@
       }
 
       // W8-5: planner iframe LeftToolbar → ADD_CATEGORY 수신 → incrementCategory 호출
+      // W8-6: PLANNER_READY 수신 → 해당 iframe 에 CATEGORY_COUNTS 즉시 응답
       window.addEventListener('message', function (e) {
-        if (!e.data || e.data.type !== 'ADD_CATEGORY') return;
-        const catId = e.data.categoryId;
-        if (!catId) return;
-        if (typeof incrementCategory === 'function') {
-          incrementCategory(catId);
+        if (!e.data) return;
+        if (e.data.type === 'ADD_CATEGORY') {
+          const catId = e.data.categoryId;
+          if (!catId) return;
+          if (typeof incrementCategory === 'function') {
+            incrementCategory(catId);
+          }
+        }
+        if (e.data.type === 'PLANNER_READY') {
+          // 해당 iframe 에만 송신 (전체 broadcast 대신 source 활용)
+          const counts = {};
+          CATEGORIES.forEach((cat) => {
+            counts[cat.id] = selectedItems.filter((item) => item.categoryId === cat.id).length;
+          });
+          try {
+            e.source && e.source.postMessage({ type: 'CATEGORY_COUNTS', counts }, '*');
+          } catch {}
         }
       });
 
