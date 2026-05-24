@@ -645,6 +645,31 @@ export default function App() {
       window.parent?.postMessage({ type: 'PLANNER_READY' }, '*');
     } catch {}
   }, []);
+
+  // W8-8: 모바일/태블릿 감지 (≤768px)
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches);
+      if (e.matches) {
+        // 모바일 진입 시 양쪽 패널 자동 collapsed (캔버스 최대화)
+        setLeftCollapsed(true);
+        setRightCollapsed(true);
+      }
+    };
+    mq.addEventListener('change', handler);
+    // 초기 모바일이면 collapsed
+    if (mq.matches) {
+      setLeftCollapsed(true);
+      setRightCollapsed(true);
+    }
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   // W6-6 + W8-2-1: step 변경 시 URL + 부모 detaildesign 으로 STEP_CHANGE 전파 (step 항상 set)
@@ -1175,8 +1200,8 @@ export default function App() {
       {/* W8-5: 상단 TopBar (h:40) — StepIndicator + W/H/D + viewMode + L/R panel toggle */}
       <div style={{ height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 12px', background: '#fff', borderBottom: '1px solid #e5e0d4', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', gap: 14 }}>
         <StepIndicator current={step} onJump={setStep} disabledSteps={disabledWorkflowSteps} />
-        {/* 가구 W/H/D 입력 (간소화 — 작은 input) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6a4b2a', fontWeight: 600 }}>
+        {/* 가구 W/H/D 입력 (간소화 — 작은 input, 모바일 숨김) */}
+        <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6a4b2a', fontWeight: 600 }}>
           <span>가구</span>
           {(['width', 'height', 'depth'] as const).map((dim, i) => (
             <label key={dim} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1250,9 +1275,32 @@ export default function App() {
         </div>
       </div>
 
-      {/* W8-5: mid 영역 — LeftToolbar (48px) + 가운데 Canvas/step + RightPanel (280px) */}
-      <main style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-        <LeftToolbar collapsed={leftCollapsed} counts={categoryCounts} />
+      {/* W8-5+W8-8: mid 영역 — 데스크탑 3-column / 모바일 absolute overlay */}
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/* W8-8: 모바일 시 LeftToolbar 를 absolute wrap (slide-in from left), 데스크탑은 inline */}
+        {isMobile ? (
+          <>
+            <div
+              style={{
+                position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 50,
+                transform: leftCollapsed ? 'translateX(-100%)' : 'translateX(0)',
+                transition: 'transform 0.2s ease',
+                boxShadow: leftCollapsed ? 'none' : '2px 0 8px rgba(0,0,0,0.15)',
+              }}
+            >
+              <LeftToolbar collapsed={false} counts={categoryCounts} />
+            </div>
+            {/* 모바일 좌측 패널 열림 시 배경 dim (외부 클릭으로 닫기) */}
+            {!leftCollapsed && (
+              <div
+                style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.3)' }}
+                onClick={() => setLeftCollapsed(true)}
+              />
+            )}
+          </>
+        ) : (
+          <LeftToolbar collapsed={leftCollapsed} counts={categoryCounts} />
+        )}
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {viewMode === '3d' && (
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
@@ -1512,18 +1560,51 @@ export default function App() {
 
       {/* 툴바는 부모 페이지(ui-step1.js) 자동계산 바에 통합됨 */}
         </div>
-        <RightPanel
-          collapsed={rightCollapsed}
-          onToggleCollapsed={() => setRightCollapsed(v => !v)}
-          planner={planner}
-          selectedModuleId={selId}
-          moduleCount={planner.modulesV2?.length ?? 0}
-          onPlannerChange={(patch) => setPlanner((p) => ({ ...p, ...patch }))}
-          onModuleChange={(id, patch) => setPlanner((p) => ({
-            ...p,
-            modulesV2: (p.modulesV2 ?? []).map((m) => m.id === id ? { ...m, ...patch } : m),
-          }))}
-        />
+        {/* W8-8: 모바일 시 RightPanel 도 absolute wrap (slide-in from right) */}
+        {isMobile ? (
+          <>
+            <div
+              style={{
+                position: 'absolute', top: 0, bottom: 0, right: 0, zIndex: 50,
+                transform: rightCollapsed ? 'translateX(100%)' : 'translateX(0)',
+                transition: 'transform 0.2s ease',
+                boxShadow: rightCollapsed ? 'none' : '-2px 0 8px rgba(0,0,0,0.15)',
+              }}
+            >
+              <RightPanel
+                collapsed={false}
+                onToggleCollapsed={() => setRightCollapsed(true)}
+                planner={planner}
+                selectedModuleId={selId}
+                moduleCount={planner.modulesV2?.length ?? 0}
+                onPlannerChange={(patch) => setPlanner((p) => ({ ...p, ...patch }))}
+                onModuleChange={(id, patch) => setPlanner((p) => ({
+                  ...p,
+                  modulesV2: (p.modulesV2 ?? []).map((m) => m.id === id ? { ...m, ...patch } : m),
+                }))}
+              />
+            </div>
+            {!rightCollapsed && (
+              <div
+                style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.3)' }}
+                onClick={() => setRightCollapsed(true)}
+              />
+            )}
+          </>
+        ) : (
+          <RightPanel
+            collapsed={rightCollapsed}
+            onToggleCollapsed={() => setRightCollapsed(v => !v)}
+            planner={planner}
+            selectedModuleId={selId}
+            moduleCount={planner.modulesV2?.length ?? 0}
+            onPlannerChange={(patch) => setPlanner((p) => ({ ...p, ...patch }))}
+            onModuleChange={(id, patch) => setPlanner((p) => ({
+              ...p,
+              modulesV2: (p.modulesV2 ?? []).map((m) => m.id === id ? { ...m, ...patch } : m),
+            }))}
+          />
+        )}
       </main>
 
       {/* W8-5: 하단 BottomBar (h:32) — SketchUp 버튼 (작게) + status text */}
