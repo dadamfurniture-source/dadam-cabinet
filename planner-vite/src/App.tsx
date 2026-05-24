@@ -794,6 +794,26 @@ export default function App() {
     return arr;
   }, [planner.segments, planner.modulesV2]);
 
+  // W7-2: planner V2 state 변경 → 부모 detaildesign 으로 V2_MODULES_CHANGE postMessage
+  //   - 부모 ui-step1.js 가 수신 후 item.modules 의 doorFinish/doorColor/heightOverride 갱신
+  //   - 무한 루프 방지: 부모는 sync 후 _syncPlannerState (UPDATE_PLANNER) 호출 안 함
+  const itemIdParam = useMemo(() => params.get('itemId'), [params]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!planner.modulesV2) return;
+    try {
+      window.parent?.postMessage(
+        {
+          type: 'V2_MODULES_CHANGE',
+          itemId: itemIdParam,
+          modulesV2: planner.modulesV2,
+          segments: planner.segments,
+        },
+        '*'
+      );
+    } catch {}
+  }, [planner.modulesV2, planner.segments, itemIdParam]);
+
   const derived = useMemo(() => deriveCabinet(planner), [planner]);
   // W4-3: derived.parts 는 이제 CabinetPartV2[] (Z-up corner). ModuleBox 등 Three.js
   // 렌더 컴포넌트는 V1 (Y-up center) 가정으로 작성되어 있어 useMemo 어댑터로 V1 변환.
