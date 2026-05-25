@@ -243,7 +243,7 @@
       <button class="primary">📤 SketchUp 보내기</button>
       <button>📥 가져오기</button>
     </div>
-    <div>ⓘ 단위: mm · 그리드: 50mm · Shift 드래그 = 1mm 정밀</div>
+    <div>ⓘ 단위: mm · 휠=줌 · 빈공간 드래그=팬 · F=Fit · 0=Reset · 줌 <span id="zoomInd">100%</span></div>
   </div>
 </div>
 
@@ -264,6 +264,25 @@
     tall:  { fill: '#9c6e7c', stroke: '#5c3848', w: 65, h: 120, label: '키큰장' },
   };
   let rectIdx = 0;
+  // W9-17: pan/zoom view state. content layer 의 transform 으로 적용.
+  const view = { panX: 0, panY: 0, zoom: 1 };
+  function applyView() {
+    const svg = document.querySelector('.canvas-wrap svg.canvas-svg');
+    if (!svg) return;
+    const content = svg.querySelector('g.content');
+    if (content) content.setAttribute('transform', `translate(${view.panX} ${view.panY}) scale(${view.zoom})`);
+    // 배경 grid scale 동기화 (50mm * zoom)
+    const wrap = document.querySelector('.canvas-wrap');
+    if (wrap) {
+      const sz = (50 * view.zoom).toFixed(2) + 'px';
+      wrap.style.backgroundSize = sz + ' ' + sz;
+      wrap.style.backgroundPosition = view.panX + 'px ' + view.panY + 'px';
+    }
+    const zi = document.getElementById('zoomInd');
+    if (zi) zi.textContent = Math.round(view.zoom * 100) + '%';
+    if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+  }
+
   function ensureCanvasSVG() {
     const wrap = document.querySelector('.canvas-wrap');
     let svg = wrap.querySelector('svg.canvas-svg');
@@ -271,17 +290,107 @@
       const ns = 'http://www.w3.org/2000/svg';
       svg = document.createElementNS(ns, 'svg');
       svg.setAttribute('class', 'canvas-svg');
-      svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+      svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none;';
+      // W9-17: content layer — 모든 사각형은 여기 들어감 (pan/zoom 대상)
+      const content = document.createElementNS(ns, 'g');
+      content.setAttribute('class', 'content');
+      svg.appendChild(content);
       wrap.appendChild(svg);
       const ph = wrap.querySelector('.canvas-placeholder');
       if (ph) ph.style.display = 'none';
+      attachPanZoomHandlers(svg, wrap);
+      applyView();
     }
     return svg;
+  }
+
+  function getContent() {
+    const svg = document.querySelector('.canvas-wrap svg.canvas-svg');
+    return svg ? svg.querySelector('g.content') : null;
+  }
+
+  // W9-17: 마우스 휠 줌 (커서 anchor) + 빈 공간 드래그 = 팬
+  function attachPanZoomHandlers(svg, wrap) {
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = wrap.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      const newZoom = Math.max(0.05, Math.min(8, view.zoom * factor));
+      // 커서 위치 anchor 유지: world = (screen - pan) / zoom; pan' = screen - world * zoom'
+      const wx = (mx - view.panX) / view.zoom;
+      const wy = (my - view.panY) / view.zoom;
+      view.zoom = newZoom;
+      view.panX = mx - wx * newZoom;
+      view.panY = my - wy * newZoom;
+      applyView();
+    }, { passive: false });
+
+    // 빈 공간 (content layer 가 아닌 곳) pointerdown → pan
+    let panInfo = null;
+    svg.addEventListener('pointerdown', (e) => {
+      // g.sect-rect (또는 그 자손) 아래에서 시작한 경우는 pan 안 함
+      if (e.target.closest && e.target.closest('g.sect-rect')) return;
+      // 미들 버튼 or Space or 그냥 빈 공간
+      panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY, pid: e.pointerId };
+      svg.setPointerCapture(e.pointerId);
+      svg.style.cursor = 'grabbing';
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if (!panInfo) return;
+      view.panX = panInfo.ox + (e.clientX - panInfo.sx);
+      view.panY = panInfo.oy + (e.clientY - panInfo.sy);
+      applyView();
+    });
+    const endPan = () => { panInfo = null; svg.style.cursor = ''; };
+    svg.addEventListener('pointerup', endPan);
+    svg.addEventListener('pointercancel', endPan);
+
+    // 더블 클릭 빈 공간 = Fit All
+    svg.addEventListener('dblclick', (e) => {
+      if (e.target.closest && e.target.closest('g.sect-rect')) return;
+      fitAll();
+    });
+  }
+
+  // W9-17: 모든 사각형이 보이도록 zoom/pan 조정
+  function fitAll() {
+    const content = getContent();
+    const wrap = document.querySelector('.canvas-wrap');
+    if (!content || !wrap) return;
+    const rects = content.querySelectorAll('rect:not(.resize-handle)');
+    if (!rects.length) { view.zoom = 1; view.panX = 0; view.panY = 0; applyView(); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    rects.forEach((r) => {
+      const x = parseFloat(r.getAttribute('x'));
+      const y = parseFloat(r.getAttribute('y'));
+      const w = parseFloat(r.getAttribute('width'));
+      const h = parseFloat(r.getAttribute('height'));
+      minX = Math.min(minX, x); minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+    });
+    const pad = 60;
+    const cw = wrap.clientWidth, ch = wrap.clientHeight;
+    const contentW = (maxX - minX) || 1;
+    const contentH = (maxY - minY) || 1;
+    const z = Math.min((cw - pad * 2) / contentW, (ch - pad * 2) / contentH);
+    view.zoom = Math.max(0.05, Math.min(8, z));
+    view.panX = pad - minX * view.zoom + (cw - pad * 2 - contentW * view.zoom) / 2;
+    view.panY = pad - minY * view.zoom + (ch - pad * 2 - contentH * view.zoom) / 2;
+    applyView();
+  }
+
+  function resetView() {
+    view.zoom = 1; view.panX = 0; view.panY = 0;
+    applyView();
   }
   function addSectionRect(section) {
     const cfg = SECTION_CONFIG[section];
     if (!cfg) return;
-    const svg = ensureCanvasSVG();
+    ensureCanvasSVG();
+    const content = getContent();
+    if (!content) return;
     const ns = 'http://www.w3.org/2000/svg';
     const baseX = 80, baseY = 80;
     const offsetX = baseX + (rectIdx % 6) * 120;
@@ -311,7 +420,7 @@
     // W9-15: mm 단위 라벨 (W×D)
     txt.textContent = cfg.label + ' ' + cfg.w + '×' + cfg.h + 'mm';
     g.appendChild(txt);
-    svg.appendChild(g);
+    content.appendChild(g);
     rectIdx++;
   }
 
@@ -355,8 +464,10 @@
     });
     g.addEventListener('pointermove', (e) => {
       if (!dragInfo) return;
-      const dx = e.clientX - dragInfo.startX;
-      const dy = e.clientY - dragInfo.startY;
+      // W9-17: zoom 보정 — 화면 픽셀 → SVG 단위 (mm)
+      const z = view.zoom || 1;
+      const dx = (e.clientX - dragInfo.startX) / z;
+      const dy = (e.clientY - dragInfo.startY) / z;
       const rect = g.querySelector('rect:not(.resize-handle)');
       const text = g.querySelector('text');
       // W9-12: 격자 snap 50px (mockup grid 일치). Shift 누른 채 드래그 시 자유.
@@ -443,18 +554,17 @@
     if (!selectedG) { dimPopup.style.display = 'none'; return; }
     const r = selectedG.querySelector('rect:not(.resize-handle)');
     if (!r) return;
-    const wrap = document.querySelector('.canvas-wrap');
-    const wrapRect = wrap.getBoundingClientRect();
-    const svg = wrap.querySelector('svg.canvas-svg');
-    const svgRect = svg.getBoundingClientRect();
     const x = parseFloat(r.getAttribute('x'));
     const y = parseFloat(r.getAttribute('y'));
     const w = parseFloat(r.getAttribute('width'));
-    // popup 위치: 사각형 위 (y - 36)
-    const left = (x + w / 2) - 80;  // 중앙 정렬 (popup 폭 ~160)
-    const top = y - 36;
+    // W9-17: pan/zoom 적용 위치 — SVG 좌표 → 화면 좌표 (canvas-wrap 기준)
+    const z = view.zoom || 1;
+    const screenX = (x + w / 2) * z + view.panX;
+    const screenY = y * z + view.panY;
+    const left = screenX - 80;  // 중앙 정렬 (popup 폭 ~160)
+    const top = screenY - 36;
     dimPopup.style.display = 'block';
-    dimPopup.style.left = (left) + 'px';
+    dimPopup.style.left = left + 'px';
     dimPopup.style.top = Math.max(4, top) + 'px';
     dimW.value = w;
     dimD.value = parseFloat(r.getAttribute('height'));
@@ -491,15 +601,15 @@
   dimW.addEventListener('input', applyDimToSelected);
   dimD.addEventListener('input', applyDimToSelected);
 
-  // 외부 클릭 → deselect
-  document.querySelector('.canvas-wrap').addEventListener('pointerdown', (e) => {
+  // 외부 클릭 → deselect (W9-17: pan 드래그 후가 아닌 단순 클릭일 때만)
+  document.querySelector('.canvas-wrap').addEventListener('click', (e) => {
     if (e.target.tagName === 'svg' || e.target.classList.contains('canvas-wrap') ||
         e.target.classList.contains('canvas-placeholder') || e.target.classList.contains('big')) {
       selectG(null);
     }
   });
 
-  // 키보드 — Delete/Backspace 삭제, Esc deselect
+  // 키보드 — Delete/Backspace 삭제, Esc deselect, W9-17: F = fit all, 0 = reset, +/- = zoom
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedG) {
@@ -508,18 +618,48 @@
       selectedG = null;
     }
     if (e.key === 'Escape') selectG(null);
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); fitAll(); }
+    if (e.key === '0') { e.preventDefault(); resetView(); }
+    if (e.key === '+' || e.key === '=') {
+      e.preventDefault();
+      const wrap = document.querySelector('.canvas-wrap');
+      const cx = wrap.clientWidth / 2, cy = wrap.clientHeight / 2;
+      const wx = (cx - view.panX) / view.zoom, wy = (cy - view.panY) / view.zoom;
+      view.zoom = Math.min(8, view.zoom * 1.2);
+      view.panX = cx - wx * view.zoom; view.panY = cy - wy * view.zoom;
+      applyView();
+    }
+    if (e.key === '-' || e.key === '_') {
+      e.preventDefault();
+      const wrap = document.querySelector('.canvas-wrap');
+      const cx = wrap.clientWidth / 2, cy = wrap.clientHeight / 2;
+      const wx = (cx - view.panX) / view.zoom, wy = (cy - view.panY) / view.zoom;
+      view.zoom = Math.max(0.05, view.zoom / 1.2);
+      view.panX = cx - wx * view.zoom; view.panY = cy - wy * view.zoom;
+      applyView();
+    }
   });
 
   // addSectionRect 후 신규 g 에 핸들러 부착 (기존 함수 wrap)
   const _addOriginal = addSectionRect;
   addSectionRect = function(section) {
     _addOriginal(section);
-    const svg = document.querySelector('.canvas-wrap svg.canvas-svg');
-    if (!svg) return;
-    const last = svg.lastElementChild;
-    if (last && last.tagName.toLowerCase() === 'g') {
+    const content = getContent();
+    if (!content) return;
+    const last = content.lastElementChild;
+    if (last && last.tagName.toLowerCase() === 'g' && last.classList.contains('sect-rect')) {
       attachRectHandlers(last);
       selectG(last); // 신규 추가 시 자동 선택
+      // W9-17: 화면 밖이면 fitAll — 큰 사각형(4200mm 등) 자동으로 보이게
+      const r = last.querySelector('rect:not(.resize-handle)');
+      const wrap = document.querySelector('.canvas-wrap');
+      if (r && wrap) {
+        const w = parseFloat(r.getAttribute('width'));
+        const h = parseFloat(r.getAttribute('height'));
+        if (w * view.zoom > wrap.clientWidth * 0.8 || h * view.zoom > wrap.clientHeight * 0.8) {
+          fitAll();
+        }
+      }
     }
   };
 
