@@ -258,10 +258,14 @@
     if (e.key === 'r' || e.key === 'R') btnR.click();
   });
   // W9-10: 하부장/상부장/키큰장 — 도면 (canvas-wrap) 에 색상별 직사각형 추가
+  // W9-20: 표준 모듈 치수 (mm)
+  // - 하부장: W2400 × D650 (싱크대 표준 깊이)
+  // - 상부장: W2400 × D320 (벽장 표준 깊이)
+  // - 키큰장: W600 × D650 (냉장고/오븐장 표준)
   const SECTION_CONFIG = {
-    lower: { fill: '#b8956c', stroke: '#6a4b2a', w: 100, h: 65, label: '하부장' },
-    upper: { fill: '#7c9c8f', stroke: '#3d5750', w: 100, h: 45, label: '상부장' },
-    tall:  { fill: '#9c6e7c', stroke: '#5c3848', w: 65, h: 120, label: '키큰장' },
+    lower: { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장' },
+    upper: { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장' },
+    tall:  { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장' },
   };
   let rectIdx = 0;
   // W9-17: pan/zoom view state. content layer 의 transform 으로 적용.
@@ -418,9 +422,10 @@
     const content = getContent();
     if (!content) return;
     const ns = 'http://www.w3.org/2000/svg';
+    // W9-20: 큰 기본 치수 (W2400+) 에 맞춰 placement offset 동적 — 3열, 사각형 폭+100mm 간격
     const baseX = 80, baseY = 80;
-    const offsetX = baseX + (rectIdx % 6) * 120;
-    const offsetY = baseY + Math.floor(rectIdx / 6) * 150;
+    const offsetX = baseX + (rectIdx % 3) * (cfg.w + 100);
+    const offsetY = baseY + Math.floor(rectIdx / 3) * (cfg.h + 100);
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('class', 'sect-rect ' + section);
     g.style.cursor = 'move';
