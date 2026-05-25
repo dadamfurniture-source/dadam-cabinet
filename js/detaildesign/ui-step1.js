@@ -236,7 +236,19 @@
         document.getElementById('step2-content').style.display = 'block';
         document.getElementById('step-dot-1').classList.remove('active');
         document.getElementById('step-dot-2').classList.add('active');
+        // W9-1: Step 2 진입 시 외곽 (navbar + header + stepper + section-label + bookmark-tabs + 입력 수정하기) 숨김
+        document.body.classList.add('step2-fullscreen');
         renderBookmarks();
+        // W9-1: fullscreen reflow 후 iframe overlay 위치 재계산 (designWorkspace 가 100vh)
+        setTimeout(() => {
+          document.querySelectorAll('[id^="__planner-overlay-"]').forEach((overlay) => {
+            const id = overlay.id.replace('__planner-overlay-', '');
+            const item = selectedItems.find((i) => String(i.uniqueId) === String(id));
+            if (!item) return;
+            const ws = document.getElementById('designWorkspace');
+            if (ws) _positionPlannerOverlay(overlay.id, ws);
+          });
+        }, 50);
       }
 
       function backToStep1() {
@@ -244,6 +256,8 @@
         document.getElementById('step2-content').style.display = 'none';
         document.getElementById('step-dot-1').classList.add('active');
         document.getElementById('step-dot-2').classList.remove('active');
+        // W9-1: Step 1 복귀 시 외곽 복원
+        document.body.classList.remove('step2-fullscreen');
         updateUI();
       }
 
@@ -252,6 +266,8 @@
         document.getElementById('step3-content').style.display = 'block';
         document.getElementById('step-dot-2').classList.remove('active');
         document.getElementById('step-dot-3').classList.add('active');
+        // W9-1: Step 3 진입 시 fullscreen 해제 (BOM 보고서는 외곽 필요)
+        document.body.classList.remove('step2-fullscreen');
       }
 
       function backToStep2() {
@@ -259,6 +275,8 @@
         document.getElementById('step2-content').style.display = 'block';
         document.getElementById('step-dot-3').classList.remove('active');
         document.getElementById('step-dot-2').classList.add('active');
+        // W9-1: Step 2 복귀 시 fullscreen 재활성
+        document.body.classList.add('step2-fullscreen');
       }
 
       function proceedToBOM() {
