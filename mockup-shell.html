@@ -57,9 +57,17 @@
   .sect-rect:hover rect:not(.resize-handle){stroke-width:3}
   .sect-rect.selected rect:not(.resize-handle){stroke-width:4 !important;filter:drop-shadow(0 0 8px rgba(106,75,42,.55))}
   .sect-rect{cursor:move}
-  /* W9-13: 우하단 resize handle — 선택 시에만 표시 */
-  .sect-rect .resize-handle{display:none;cursor:nwse-resize}
-  .sect-rect.selected .resize-handle{display:block}
+  /* W9-14: resize handle 제거 — W/D 입력 popup 으로 대체 */
+  .sect-rect .resize-handle{display:none !important}
+  /* W9-14: W/D 입력 popup — 선택 사각형 위에 floating */
+  #dimPopup{position:absolute;display:none;background:#fff;border:1px solid #b8956c;border-radius:6px;padding:5px 8px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:60;font-size:11px;color:#3d342a}
+  #dimPopup label{display:inline-flex;align-items:center;gap:3px;margin-right:6px}
+  #dimPopup label:last-child{margin-right:0}
+  #dimPopup .k{color:#7a7062;font-weight:600}
+  #dimPopup input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
+  #dimPopup .u{color:#a89c84;font-size:10px}
+  /* W9-14: 자석 snap 시각 표시 (드래그 중) */
+  .magnet-hint{stroke:#e74c3c;stroke-width:2;stroke-dasharray:4 3;fill:none;pointer-events:none;opacity:.8}
 
   /* ── Right panel (w:280, collapsed:32) ─────────────── */
   .right-panel{width:280px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;transition:width .18s ease;overflow:hidden}
@@ -154,6 +162,11 @@
 
     <!-- Canvas placeholder -->
     <div class="canvas-wrap">
+      <!-- W9-14: 선택 사각형 W/D 입력 popup -->
+      <div id="dimPopup">
+        <label><span class="k">W</span><input id="dimW" type="number" step="50" min="50"><span class="u">px</span></label>
+        <label><span class="k">D</span><input id="dimD" type="number" step="50" min="50"><span class="u">px</span></label>
+      </div>
       <div class="canvas-placeholder">
         <div class="big">🧊</div>
         <div>메인 캔버스 (3D View / 도면)</div>
@@ -309,6 +322,8 @@
     if (selectedG && selectedG !== g) selectedG.classList.remove('selected');
     selectedG = g;
     if (g) g.classList.add('selected');
+    // W9-14: dimPopup 위치/값 갱신
+    if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
   }
 
   function rotateG(g) {
@@ -347,8 +362,13 @@
       const GRID = 50;
       const rawX = dragInfo.origX + dx;
       const rawY = dragInfo.origY + dy;
-      const newX = e.shiftKey ? rawX : Math.round(rawX / GRID) * GRID;
-      const newY = e.shiftKey ? rawY : Math.round(rawY / GRID) * GRID;
+      let newX = e.shiftKey ? rawX : Math.round(rawX / GRID) * GRID;
+      let newY = e.shiftKey ? rawY : Math.round(rawY / GRID) * GRID;
+      // W9-14: 자석 snap — 다른 사각형 꼭지점과 15px 이내 시 정확 일치 (Shift 시 비활성)
+      if (!e.shiftKey) {
+        const mag = findMagnetSnap(g, newX, newY);
+        if (mag) { newX = mag.x; newY = mag.y; }
+      }
       rect.setAttribute('x', newX);
       rect.setAttribute('y', newY);
       const w = parseFloat(rect.getAttribute('width'));
@@ -357,87 +377,111 @@
         text.setAttribute('x', newX + w / 2);
         text.setAttribute('y', newY + h / 2 + 4);
       }
-      // W9-13: resize handle 위치 갱신
-      const handle = g.querySelector('.resize-handle');
-      if (handle) {
-        handle.setAttribute('x', newX + w - 6);
-        handle.setAttribute('y', newY + h - 6);
-      }
       // 회전 transform 의 pivot 도 갱신
       const cur = rotations.get(g) || 0;
       if (cur) {
         g.setAttribute('transform', `rotate(${cur} ${newX + w / 2} ${newY + h / 2})`);
       }
+      // W9-14: 드래그 중 dimPopup 위치 따라가기
+      if (g === selectedG && typeof updateDimPopupPosition === 'function') {
+        updateDimPopupPosition();
+      }
     });
     g.addEventListener('pointerup', () => { dragInfo = null; });
     g.addEventListener('pointercancel', () => { dragInfo = null; });
     g.addEventListener('dblclick', (e) => { e.stopPropagation(); rotateG(g); });
-
-    // W9-13: 우하단 resize handle 추가 + 핸들러
-    addResizeHandle(g);
   }
 
-  // W9-13: 우하단 코너에 resize handle 추가 + 드래그 시 크기 변경
-  function addResizeHandle(g) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const rect = g.querySelector('rect:not(.resize-handle)');
-    if (!rect) return;
+  // W9-14: 꼭지점 자석 snap — 다른 사각형의 4 꼭지점과 15px 이내 시 정확 일치
+  const MAGNET_THRESHOLD = 15;
+  function getRectCorners(rect) {
     const x = parseFloat(rect.getAttribute('x'));
     const y = parseFloat(rect.getAttribute('y'));
     const w = parseFloat(rect.getAttribute('width'));
     const h = parseFloat(rect.getAttribute('height'));
-    const handle = document.createElementNS(ns, 'rect');
-    handle.setAttribute('class', 'resize-handle');
-    handle.setAttribute('x', x + w - 6);
-    handle.setAttribute('y', y + h - 6);
-    handle.setAttribute('width', 12);
-    handle.setAttribute('height', 12);
-    handle.setAttribute('fill', '#fff');
-    handle.setAttribute('stroke', '#6a4b2a');
-    handle.setAttribute('stroke-width', '2');
-    handle.setAttribute('rx', '2');
-    g.appendChild(handle);
-
-    let resizeInfo = null;
-    handle.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      const r = g.querySelector('rect:not(.resize-handle)');
-      resizeInfo = {
-        startX: e.clientX, startY: e.clientY,
-        origW: parseFloat(r.getAttribute('width')),
-        origH: parseFloat(r.getAttribute('height')),
-      };
-      handle.setPointerCapture(e.pointerId);
-    });
-    handle.addEventListener('pointermove', (e) => {
-      if (!resizeInfo) return;
-      const dx = e.clientX - resizeInfo.startX;
-      const dy = e.clientY - resizeInfo.startY;
-      const GRID = 50, MIN = 50;
-      const rawW = Math.max(MIN, resizeInfo.origW + dx);
-      const rawH = Math.max(MIN, resizeInfo.origH + dy);
-      const newW = e.shiftKey ? rawW : Math.max(MIN, Math.round(rawW / GRID) * GRID);
-      const newH = e.shiftKey ? rawH : Math.max(MIN, Math.round(rawH / GRID) * GRID);
-      const r = g.querySelector('rect:not(.resize-handle)');
-      r.setAttribute('width', newW);
-      r.setAttribute('height', newH);
-      const text = g.querySelector('text');
-      const x = parseFloat(r.getAttribute('x'));
-      const y = parseFloat(r.getAttribute('y'));
-      if (text) {
-        text.setAttribute('x', x + newW / 2);
-        text.setAttribute('y', y + newH / 2 + 4);
-      }
-      handle.setAttribute('x', x + newW - 6);
-      handle.setAttribute('y', y + newH - 6);
-      const cur = rotations.get(g) || 0;
-      if (cur) {
-        g.setAttribute('transform', `rotate(${cur} ${x + newW / 2} ${y + newH / 2})`);
-      }
-    });
-    handle.addEventListener('pointerup', () => { resizeInfo = null; });
-    handle.addEventListener('pointercancel', () => { resizeInfo = null; });
+    return [
+      { x: x, y: y }, { x: x + w, y: y },
+      { x: x + w, y: y + h }, { x: x, y: y + h },
+    ];
   }
+  function findMagnetSnap(currentG, newX, newY) {
+    const r = currentG.querySelector('rect:not(.resize-handle)');
+    if (!r) return null;
+    const w = parseFloat(r.getAttribute('width'));
+    const h = parseFloat(r.getAttribute('height'));
+    const myCorners = [
+      { x: newX, y: newY }, { x: newX + w, y: newY },
+      { x: newX + w, y: newY + h }, { x: newX, y: newY + h },
+    ];
+    let bestDx = 0, bestDy = 0, bestDist = MAGNET_THRESHOLD + 1;
+    document.querySelectorAll('.sect-rect').forEach((other) => {
+      if (other === currentG) return;
+      const or = other.querySelector('rect:not(.resize-handle)');
+      if (!or) return;
+      const otherCorners = getRectCorners(or);
+      myCorners.forEach((mc) => {
+        otherCorners.forEach((oc) => {
+          const dx = oc.x - mc.x;
+          const dy = oc.y - mc.y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < bestDist) {
+            bestDist = dist; bestDx = dx; bestDy = dy;
+          }
+        });
+      });
+    });
+    return bestDist <= MAGNET_THRESHOLD ? { x: newX + bestDx, y: newY + bestDy } : null;
+  }
+
+  // W9-14: dimPopup — 선택 사각형 W/D 입력 popup
+  const dimPopup = document.getElementById('dimPopup');
+  const dimW = document.getElementById('dimW');
+  const dimD = document.getElementById('dimD');
+
+  function updateDimPopupPosition() {
+    if (!selectedG) { dimPopup.style.display = 'none'; return; }
+    const r = selectedG.querySelector('rect:not(.resize-handle)');
+    if (!r) return;
+    const wrap = document.querySelector('.canvas-wrap');
+    const wrapRect = wrap.getBoundingClientRect();
+    const svg = wrap.querySelector('svg.canvas-svg');
+    const svgRect = svg.getBoundingClientRect();
+    const x = parseFloat(r.getAttribute('x'));
+    const y = parseFloat(r.getAttribute('y'));
+    const w = parseFloat(r.getAttribute('width'));
+    // popup 위치: 사각형 위 (y - 36)
+    const left = (x + w / 2) - 80;  // 중앙 정렬 (popup 폭 ~160)
+    const top = y - 36;
+    dimPopup.style.display = 'block';
+    dimPopup.style.left = (left) + 'px';
+    dimPopup.style.top = Math.max(4, top) + 'px';
+    dimW.value = w;
+    dimD.value = parseFloat(r.getAttribute('height'));
+  }
+
+  function applyDimToSelected() {
+    if (!selectedG) return;
+    const r = selectedG.querySelector('rect:not(.resize-handle)');
+    if (!r) return;
+    const newW = Math.max(50, parseFloat(dimW.value) || 50);
+    const newH = Math.max(50, parseFloat(dimD.value) || 50);
+    r.setAttribute('width', newW);
+    r.setAttribute('height', newH);
+    const text = selectedG.querySelector('text');
+    const x = parseFloat(r.getAttribute('x'));
+    const y = parseFloat(r.getAttribute('y'));
+    if (text) {
+      text.setAttribute('x', x + newW / 2);
+      text.setAttribute('y', y + newH / 2 + 4);
+    }
+    const cur = rotations.get(selectedG) || 0;
+    if (cur) {
+      selectedG.setAttribute('transform', `rotate(${cur} ${x + newW / 2} ${y + newH / 2})`);
+    }
+    updateDimPopupPosition();
+  }
+  dimW.addEventListener('input', applyDimToSelected);
+  dimD.addEventListener('input', applyDimToSelected);
 
   // 외부 클릭 → deselect
   document.querySelector('.canvas-wrap').addEventListener('pointerdown', (e) => {
