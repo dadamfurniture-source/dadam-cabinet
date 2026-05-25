@@ -405,9 +405,9 @@
       }
 
       // ★ R3F 3D 플래너 임베드 로드
-      // W9-6: mockup HTML 전면 교체 — 시각 일치 우선, 실 기능은 차차 (planner-vite 는 후속 복귀)
-      // 기존: '/planner/embed/' (planner-vite React)
-      const PLANNER_BASE_URL = '/mockup-shell.html';
+      // W9-6/W9-8: mockup HTML 전면 교체. Cloudflare Pages 가 .html 확장자 자동 제거 (308 redirect)
+      // → '/mockup-shell' (확장자 없이) 로 직접 접근. iframe 의 308 redirect 실패 회피.
+      const PLANNER_BASE_URL = '/mockup-shell';
       /**
        * ㄱ자/ㄷ자 secondary 모듈을 payload에 동적 추가 (공통 헬퍼)
        */
