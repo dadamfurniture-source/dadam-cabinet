@@ -164,8 +164,8 @@
     <div class="canvas-wrap">
       <!-- W9-14: 선택 사각형 W/D 입력 popup -->
       <div id="dimPopup">
-        <label><span class="k">W</span><input id="dimW" type="number" step="1" min="50"><span class="u">mm</span></label>
-        <label><span class="k">D</span><input id="dimD" type="number" step="1" min="50"><span class="u">mm</span></label>
+        <label><span class="k">W</span><input id="dimW" type="number" step="1" min="1"><span class="u">mm</span></label>
+        <label><span class="k">D</span><input id="dimD" type="number" step="1" min="1"><span class="u">mm</span></label>
       </div>
       <div class="canvas-placeholder">
         <div class="big">🧊</div>
@@ -464,8 +464,12 @@
     if (!selectedG) return;
     const r = selectedG.querySelector('rect:not(.resize-handle)');
     if (!r) return;
-    const newW = Math.max(50, parseFloat(dimW.value) || 50);
-    const newH = Math.max(50, parseFloat(dimD.value) || 50);
+    // W9-16: 자유 입력 (1mm 최소). 빈값/NaN 입력 중에는 변경 안 함.
+    const parsedW = parseFloat(dimW.value);
+    const parsedH = parseFloat(dimD.value);
+    if (!isFinite(parsedW) || !isFinite(parsedH)) return;
+    const newW = Math.max(1, parsedW);
+    const newH = Math.max(1, parsedH);
     r.setAttribute('width', newW);
     r.setAttribute('height', newH);
     const text = selectedG.querySelector('text');
