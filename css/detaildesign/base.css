@@ -66,7 +66,8 @@
         min-height: 100vh;
       }
 
-      /* W9-1: Step 2 진입 시 외곽 모두 숨김 — planner iframe 이 100vw × 100vh 차지 */
+      /* W9-1/W9-7: Step 2 진입 시 외곽 + designWorkspace 내부 UI 모두 숨김 */
+      /* iframe overlay (mockup-shell.html) 만 100vw × 100vh 표시 */
       body.step2-fullscreen { overflow: hidden; }
       body.step2-fullscreen nav,
       body.step2-fullscreen .app-container > div:first-child, /* h1 + 저장 버튼 행 */
@@ -74,6 +75,14 @@
       body.step2-fullscreen .stepper-indicator,
       body.step2-fullscreen #step2-content > div:first-child, /* section-label + 입력 수정하기 */
       body.step2-fullscreen .bookmark-tabs { display: none !important; }
+
+      /* W9-7: designWorkspace 안의 기존 UI (ws-header / ws-layout / spec-panel /
+         3D-view / 상부장-하부장-상판-하드웨어 트레이, 필수장-개수대-가스대 토글 등)
+         모두 숨김. iframe overlay 는 body 레벨 (position:fixed) 이라 영향 없음. */
+      body.step2-fullscreen .design-workspace > * { display: none !important; }
+      body.step2-fullscreen .design-workspace::before,
+      body.step2-fullscreen .design-workspace::after { display: none !important; }
+
       body.step2-fullscreen .app-container {
         padding: 0;
         min-height: 100vh;
@@ -92,6 +101,7 @@
         border-radius: 0;
         padding: 0;
         margin: 0;
+        background: transparent;
       }
       h1 {
         text-align: center;
