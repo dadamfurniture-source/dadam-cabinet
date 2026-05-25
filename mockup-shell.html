@@ -51,6 +51,12 @@
   .canvas-wrap{flex:1;min-width:0;position:relative;background:var(--bg-canvas);display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:14px;background-image:linear-gradient(rgba(184,149,108,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(184,149,108,.08) 1px,transparent 1px);background-size:50px 50px}
   .canvas-placeholder{text-align:center}
   .canvas-placeholder .big{font-size:48px;opacity:.3;margin-bottom:8px}
+  /* W9-11: 사각형 인터랙션 — 선택 강조 + 호버 */
+  .canvas-svg{user-select:none}
+  .sect-rect rect{transition:stroke-width .15s ease, filter .15s ease}
+  .sect-rect:hover rect{stroke-width:3}
+  .sect-rect.selected rect{stroke-width:4 !important;filter:drop-shadow(0 0 8px rgba(106,75,42,.55))}
+  .sect-rect{cursor:move}
 
   /* ── Right panel (w:280, collapsed:32) ─────────────── */
   .right-panel{width:280px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;transition:width .18s ease;overflow:hidden}
@@ -291,6 +297,101 @@
     svg.appendChild(g);
     rectIdx++;
   }
+
+  // W9-11: 사각형 인터랙션 — 선택 / 드래그 / 더블클릭 회전 / Delete 삭제 / Esc 해제
+  let selectedG = null;
+  const rotations = new WeakMap();
+
+  function selectG(g) {
+    if (selectedG && selectedG !== g) selectedG.classList.remove('selected');
+    selectedG = g;
+    if (g) g.classList.add('selected');
+  }
+
+  function rotateG(g) {
+    if (!g) return;
+    const cur = rotations.get(g) || 0;
+    const next = (cur + 90) % 360;
+    rotations.set(g, next);
+    const rect = g.querySelector('rect');
+    const cx = parseFloat(rect.getAttribute('x')) + parseFloat(rect.getAttribute('width')) / 2;
+    const cy = parseFloat(rect.getAttribute('y')) + parseFloat(rect.getAttribute('height')) / 2;
+    g.setAttribute('transform', next === 0 ? '' : `rotate(${next} ${cx} ${cy})`);
+  }
+
+  function attachRectHandlers(g) {
+    let dragInfo = null;
+    g.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      selectG(g);
+      const rect = g.querySelector('rect');
+      dragInfo = {
+        startX: e.clientX, startY: e.clientY,
+        origX: parseFloat(rect.getAttribute('x')),
+        origY: parseFloat(rect.getAttribute('y')),
+      };
+      g.setPointerCapture(e.pointerId);
+    });
+    g.addEventListener('pointermove', (e) => {
+      if (!dragInfo) return;
+      const dx = e.clientX - dragInfo.startX;
+      const dy = e.clientY - dragInfo.startY;
+      const rect = g.querySelector('rect');
+      const text = g.querySelector('text');
+      const newX = dragInfo.origX + dx;
+      const newY = dragInfo.origY + dy;
+      rect.setAttribute('x', newX);
+      rect.setAttribute('y', newY);
+      if (text) {
+        const w = parseFloat(rect.getAttribute('width'));
+        const h = parseFloat(rect.getAttribute('height'));
+        text.setAttribute('x', newX + w / 2);
+        text.setAttribute('y', newY + h / 2 + 4);
+      }
+      // 회전 transform 의 pivot 도 갱신
+      const cur = rotations.get(g) || 0;
+      if (cur) {
+        const cx = newX + parseFloat(rect.getAttribute('width')) / 2;
+        const cy = newY + parseFloat(rect.getAttribute('height')) / 2;
+        g.setAttribute('transform', `rotate(${cur} ${cx} ${cy})`);
+      }
+    });
+    g.addEventListener('pointerup', () => { dragInfo = null; });
+    g.addEventListener('pointercancel', () => { dragInfo = null; });
+    g.addEventListener('dblclick', (e) => { e.stopPropagation(); rotateG(g); });
+  }
+
+  // 외부 클릭 → deselect
+  document.querySelector('.canvas-wrap').addEventListener('pointerdown', (e) => {
+    if (e.target.tagName === 'svg' || e.target.classList.contains('canvas-wrap') ||
+        e.target.classList.contains('canvas-placeholder') || e.target.classList.contains('big')) {
+      selectG(null);
+    }
+  });
+
+  // 키보드 — Delete/Backspace 삭제, Esc deselect
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedG) {
+      e.preventDefault();
+      selectedG.remove();
+      selectedG = null;
+    }
+    if (e.key === 'Escape') selectG(null);
+  });
+
+  // addSectionRect 후 신규 g 에 핸들러 부착 (기존 함수 wrap)
+  const _addOriginal = addSectionRect;
+  addSectionRect = function(section) {
+    _addOriginal(section);
+    const svg = document.querySelector('.canvas-wrap svg.canvas-svg');
+    if (!svg) return;
+    const last = svg.lastElementChild;
+    if (last && last.tagName.toLowerCase() === 'g') {
+      attachRectHandlers(last);
+      selectG(last); // 신규 추가 시 자동 선택
+    }
+  };
 
   document.querySelectorAll('.tool-btn').forEach(b => b.onclick = () => {
     // W9-10: rect-btn (하부장/상부장/키큰장) 은 도면에 직사각형 추가
