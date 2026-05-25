@@ -243,7 +243,7 @@
       <button class="primary">📤 SketchUp 보내기</button>
       <button>📥 가져오기</button>
     </div>
-    <div>ⓘ 단위: mm · 휠=줌 · 빈공간 드래그=팬 · F=Fit · 0=Reset · 줌 <span id="zoomInd">100%</span></div>
+    <div>ⓘ 휠=줌 · 빈공간 드래그=팬 · 우클릭=회전 · F=Fit · 0=Reset · 줌 <span id="zoomInd">100%</span></div>
   </div>
 </div>
 
@@ -372,6 +372,11 @@
     svg.addEventListener('dblclick', (e) => {
       if (e.target.closest && e.target.closest('g.sect-rect')) return;
       fitAll();
+    });
+    // W9-19: 빈 공간 우클릭 메뉴 차단 (사각형은 회전 핸들러로 처리)
+    svg.addEventListener('contextmenu', (e) => {
+      if (e.target.closest && e.target.closest('g.sect-rect')) return;
+      e.preventDefault();
     });
   }
 
@@ -522,41 +527,58 @@
     });
     g.addEventListener('pointerup', () => { dragInfo = null; });
     g.addEventListener('pointercancel', () => { dragInfo = null; });
-    g.addEventListener('dblclick', (e) => { e.stopPropagation(); rotateG(g); });
+    // W9-19: 더블클릭 회전 제거, 우클릭(contextmenu) 회전으로 변경
+    g.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      selectG(g);
+      rotateG(g);
+    });
   }
 
   // W9-14: 꼭지점 자석 snap — 다른 사각형의 4 꼭지점과 15px 이내 시 정확 일치
+  // W9-19: 회전 각도 반영 — 회전된 사각형의 실제 꼭지점 계산
   const MAGNET_THRESHOLD = 15;
-  function getRectCorners(rect) {
-    const x = parseFloat(rect.getAttribute('x'));
-    const y = parseFloat(rect.getAttribute('y'));
-    const w = parseFloat(rect.getAttribute('width'));
-    const h = parseFloat(rect.getAttribute('height'));
-    return [
+  function getRotatedCorners(x, y, w, h, angle) {
+    const corners = [
       { x: x, y: y }, { x: x + w, y: y },
       { x: x + w, y: y + h }, { x: x, y: y + h },
     ];
+    if (!angle) return corners;
+    const cx = x + w / 2, cy = y + h / 2;
+    const rad = angle * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    return corners.map(c => {
+      const dx = c.x - cx, dy = c.y - cy;
+      return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+    });
+  }
+  function getRectCorners(rectEl, gEl) {
+    const x = parseFloat(rectEl.getAttribute('x'));
+    const y = parseFloat(rectEl.getAttribute('y'));
+    const w = parseFloat(rectEl.getAttribute('width'));
+    const h = parseFloat(rectEl.getAttribute('height'));
+    const angle = gEl ? (rotations.get(gEl) || 0) : 0;
+    return getRotatedCorners(x, y, w, h, angle);
   }
   function findMagnetSnap(currentG, newX, newY) {
     const r = currentG.querySelector('rect:not(.resize-handle)');
     if (!r) return null;
     const w = parseFloat(r.getAttribute('width'));
     const h = parseFloat(r.getAttribute('height'));
-    const myCorners = [
-      { x: newX, y: newY }, { x: newX + w, y: newY },
-      { x: newX + w, y: newY + h }, { x: newX, y: newY + h },
-    ];
+    const myAngle = rotations.get(currentG) || 0;
+    const myCorners = getRotatedCorners(newX, newY, w, h, myAngle);
     let bestDx = 0, bestDy = 0, bestDist = MAGNET_THRESHOLD + 1;
     document.querySelectorAll('.sect-rect').forEach((other) => {
       if (other === currentG) return;
       const or = other.querySelector('rect:not(.resize-handle)');
       if (!or) return;
-      const otherCorners = getRectCorners(or);
+      const otherCorners = getRectCorners(or, other);
       myCorners.forEach((mc) => {
         otherCorners.forEach((oc) => {
           const dx = oc.x - mc.x;
           const dy = oc.y - mc.y;
-          const dist = Math.sqrt(dx*dx + dy*dy);
+          const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < bestDist) {
             bestDist = dist; bestDx = dx; bestDy = dy;
           }
@@ -661,16 +683,32 @@
     }
   });
 
+  // W9-19: 상부장은 항상 하부장/키큰장 위에 — z-order 재정렬
+  // SVG DOM 순서 = z-order (뒤일수록 위). lower/tall = 바닥, upper = 그 위.
+  function reorderRects() {
+    const content = getContent();
+    if (!content) return;
+    const rects = Array.from(content.querySelectorAll('g.sect-rect'));
+    const zOf = (g) => g.classList.contains('upper') ? 1 : 0;
+    rects.sort((a, b) => zOf(a) - zOf(b));
+    // 안정성 위해 같은 z 끼리 기존 순서 유지 — sort 는 stable (ES2019+)
+    rects.forEach(g => content.appendChild(g));
+  }
+
   // addSectionRect 후 신규 g 에 핸들러 부착 (기존 함수 wrap)
   const _addOriginal = addSectionRect;
   addSectionRect = function(section) {
     _addOriginal(section);
     const content = getContent();
     if (!content) return;
+    // 신규 g 는 가장 마지막 자식 (방금 append 됨)
     const last = content.lastElementChild;
     if (last && last.tagName.toLowerCase() === 'g' && last.classList.contains('sect-rect')) {
       attachRectHandlers(last);
       selectG(last); // 신규 추가 시 자동 선택
+      // W9-19: z-order 재정렬 — 상부장은 항상 위
+      reorderRects();
+      // 재정렬 후 selectedG 가 바뀌지 않았는지 확인 (DOM 재배치 — 참조는 유지)
       // W9-17: 화면 밖이면 fitAll — 큰 사각형(4200mm 등) 자동으로 보이게
       const r = last.querySelector('rect:not(.resize-handle)');
       const wrap = document.querySelector('.canvas-wrap');
