@@ -338,8 +338,12 @@
       const dy = e.clientY - dragInfo.startY;
       const rect = g.querySelector('rect');
       const text = g.querySelector('text');
-      const newX = dragInfo.origX + dx;
-      const newY = dragInfo.origY + dy;
+      // W9-12: 격자 snap 50px (mockup grid 일치). Shift 누른 채 드래그 시 자유.
+      const GRID = 50;
+      const rawX = dragInfo.origX + dx;
+      const rawY = dragInfo.origY + dy;
+      const newX = e.shiftKey ? rawX : Math.round(rawX / GRID) * GRID;
+      const newY = e.shiftKey ? rawY : Math.round(rawY / GRID) * GRID;
       rect.setAttribute('x', newX);
       rect.setAttribute('y', newY);
       if (text) {
