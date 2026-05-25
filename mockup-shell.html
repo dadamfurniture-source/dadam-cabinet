@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>다담 — SketchUp 2026 스타일 layout mockup (W8-5-1)</title>
+<style>
+  :root {
+    --brand-deep:#6a4b2a; --brand-mid:#b8956c; --brand-soft:#f3ead9;
+    --bg:#fbfaf6; --bg-canvas:#f4efe7; --line:#e5e0d4;
+    --text:#3d342a; --text-dim:#7a7062; --text-faint:#a89c84;
+    --shadow-sm:0 1px 4px rgba(0,0,0,0.04);
+    --shadow-md:0 2px 8px rgba(0,0,0,0.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;font-family:-apple-system,'Segoe UI','Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:var(--text);background:var(--bg-canvas);overflow:hidden}
+
+  /* ── App shell ─────────────────────────────────────── */
+  .shell{display:flex;flex-direction:column;height:100vh;width:100vw}
+
+  /* ── TopBar (h:40) ─────────────────────────────────── */
+  .topbar{height:40px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 12px;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow-sm)}
+  .step-pill{display:flex;align-items:center;gap:0;padding:3px 6px;background:var(--bg);border:1px solid var(--line);border-radius:999px;font-size:11px;font-weight:600}
+  .step-pill button{border:none;background:transparent;padding:3px 10px;border-radius:999px;cursor:pointer;color:var(--text-dim);font-size:11px;font-weight:600;display:flex;gap:4px;align-items:center}
+  .step-pill button.active{background:var(--brand-deep);color:#fff;box-shadow:0 2px 5px rgba(106,75,42,.25)}
+  .step-pill .sep{width:14px;height:2px;background:var(--line);display:inline-block}
+  .dim-group{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--brand-deep);font-weight:600}
+  .dim-group label{display:flex;align-items:center;gap:3px}
+  .dim-group span.k{color:var(--text-dim)}
+  .dim-group input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:4px;font-size:11px;text-align:right}
+  .dim-group span.u{color:var(--text-faint);font-size:10px}
+  .spacer{flex:1}
+  .view-toggle{display:flex;gap:2px;padding:2px;background:var(--bg);border:1px solid var(--line);border-radius:999px}
+  .view-toggle button{border:none;padding:3px 12px;border-radius:999px;background:transparent;color:var(--text-dim);font-size:11px;font-weight:600;cursor:pointer}
+  .view-toggle button.active{background:var(--brand-deep);color:#fff}
+  .panel-toggle{display:flex;gap:4px}
+  .panel-toggle button{width:26px;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text-dim)}
+  .panel-toggle button.on{background:var(--brand-soft);color:var(--brand-deep);border-color:var(--brand-mid)}
+
+  /* ── Middle row (left tools + canvas + right panel) ── */
+  .mid{flex:1;min-height:0;display:flex}
+
+  /* ── Left toolbar (w:48) ───────────────────────────── */
+  .left-tools{width:48px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;transition:width .18s ease;overflow:hidden}
+  .left-tools.collapsed{width:0;border-right:0}
+  .tool-btn{width:38px;height:38px;border:1px solid transparent;border-radius:6px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-dim);position:relative;font-size:18px;transition:all .12s ease}
+  .tool-btn:hover{background:var(--brand-soft);color:var(--brand-deep);border-color:var(--brand-mid)}
+  .tool-btn .badge{position:absolute;top:2px;right:2px;background:var(--brand-deep);color:#fff;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;display:flex;align-items:center;justify-content:center}
+  .tool-sep{width:28px;height:1px;background:var(--line);margin:4px 0}
+
+  /* ── Main canvas ───────────────────────────────────── */
+  .canvas-wrap{flex:1;min-width:0;position:relative;background:var(--bg-canvas);display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:14px;background-image:linear-gradient(rgba(184,149,108,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(184,149,108,.08) 1px,transparent 1px);background-size:50px 50px}
+  .canvas-placeholder{text-align:center}
+  .canvas-placeholder .big{font-size:48px;opacity:.3;margin-bottom:8px}
+
+  /* ── Right panel (w:280, collapsed:32) ─────────────── */
+  .right-panel{width:280px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;transition:width .18s ease;overflow:hidden}
+  .right-panel.collapsed{width:32px}
+  .right-panel.collapsed .section,.right-panel.collapsed .panel-header-title{display:none}
+  .panel-header{height:28px;flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:11px;font-weight:600;color:var(--text-dim)}
+  .right-panel.collapsed .panel-header{justify-content:center;padding:0;writing-mode:vertical-rl;height:100%}
+  .panel-header button{border:none;background:transparent;cursor:pointer;color:var(--text-dim);font-size:14px;padding:2px 4px}
+  .section{border-bottom:1px solid var(--line)}
+  .section-header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;cursor:pointer;user-select:none;font-size:12px;font-weight:600;color:var(--text)}
+  .section-header:hover{background:var(--bg)}
+  .section-header .chev{font-size:10px;color:var(--text-faint);transition:transform .15s ease}
+  .section.collapsed .chev{transform:rotate(-90deg)}
+  .section.collapsed .section-body{display:none}
+  .section-body{padding:6px 10px 12px;background:#fff;font-size:11px;color:var(--text-dim)}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+  .row label{color:var(--text-dim)}
+  .row input,.row select{padding:2px 5px;border:1px solid var(--line);border-radius:3px;font-size:11px;width:90px}
+  .swatch-row{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+  .swatch{width:20px;height:20px;border-radius:4px;border:1px solid var(--line);cursor:pointer}
+  .swatch.sel{outline:2px solid var(--brand-deep);outline-offset:1px}
+
+  /* ── BottomBar (h:32) ──────────────────────────────── */
+  .bottombar{height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#fff;border-top:1px solid var(--line);box-shadow:0 -1px 4px rgba(0,0,0,.04);font-size:11px;color:var(--text-dim)}
+  .bottombar .actions{display:flex;gap:6px}
+  .bottombar button{border:1px solid var(--line);background:var(--bg);color:var(--text);padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer}
+  .bottombar button.primary{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── TopBar ── -->
+  <div class="topbar">
+    <div class="step-pill">
+      <button class="active">📐 1.배치</button><span class="sep"></span>
+      <button>📦 2.구조</button><span class="sep"></span>
+      <button>🎨 3.디테일</button>
+    </div>
+    <div class="dim-group">
+      <span>가구</span>
+      <label><span class="k">W</span><input type="number" value="4200" step="50"><span class="u">mm</span></label>
+      <label><span class="k">H</span><input type="number" value="2310" step="50"><span class="u">mm</span></label>
+      <label><span class="k">D</span><input type="number" value="650" step="50"><span class="u">mm</span></label>
+    </div>
+    <div class="spacer"></div>
+    <div class="view-toggle">
+      <button>📐 도면</button><button class="active">🧊 3D</button>
+    </div>
+    <div class="panel-toggle">
+      <button id="btnLeft" class="on" title="좌측 도구 (L)">⬛</button>
+      <button id="btnRight" class="on" title="우측 패널 (R)">▦</button>
+    </div>
+  </div>
+
+  <!-- ── Middle row ── -->
+  <div class="mid">
+
+    <!-- Left toolbar -->
+    <div class="left-tools" id="leftTools">
+      <button class="tool-btn" title="싱크대">🚰<span class="badge">2</span></button>
+      <button class="tool-btn" title="가스대/쿡탑">🔥</button>
+      <button class="tool-btn" title="후드">💨</button>
+      <button class="tool-btn" title="냉장고">🧊<span class="badge">1</span></button>
+      <button class="tool-btn" title="식기세척기">🍽️</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" title="하부장">⬜</button>
+      <button class="tool-btn" title="상부장">⬛</button>
+      <button class="tool-btn" title="키큰장">▮</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" title="멍장(blind corner)">◣</button>
+      <button class="tool-btn" title="필러">┃</button>
+    </div>
+
+    <!-- Canvas placeholder -->
+    <div class="canvas-wrap">
+      <div class="canvas-placeholder">
+        <div class="big">🧊</div>
+        <div>메인 캔버스 (3D View / 도면)</div>
+        <div style="font-size:11px;margin-top:6px">SegmentEditor · StructureEditor · ModuleDetailPanel · R3F Canvas</div>
+        <div style="font-size:10px;margin-top:14px;color:#b8956c">단축키: <kbd style="border:1px solid #b8956c;padding:1px 5px;border-radius:3px;font-family:monospace">L</kbd> 좌측 토글 · <kbd style="border:1px solid #b8956c;padding:1px 5px;border-radius:3px;font-family:monospace">R</kbd> 우측 토글</div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel" id="rightPanel">
+      <div class="panel-header">
+        <span class="panel-header-title">기본 트레이</span>
+        <button title="패널 접기" onclick="document.getElementById('rightPanel').classList.toggle('collapsed')">»</button>
+      </div>
+
+      <div class="section">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 가구 정보
+        </div>
+        <div class="section-body">
+          <div class="row"><label>선택</label><span>하부장 #3</span></div>
+          <div class="row"><label>W × H × D</label><span>800 × 870 × 650</span></div>
+          <div class="row"><label>카테고리</label><span>싱크대</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 도어 / 손잡이
+        </div>
+        <div class="section-body">
+          <div class="row"><label>도어 색상</label>
+            <div class="swatch-row" style="margin:0">
+              <span class="swatch sel" style="background:#e8dcc4"></span>
+              <span class="swatch" style="background:#3d342a"></span>
+              <span class="swatch" style="background:#b8956c"></span>
+              <span class="swatch" style="background:#fff"></span>
+            </div>
+          </div>
+          <div class="row"><label>도어 개수</label><input type="number" value="2"></div>
+          <div class="row"><label>손잡이</label>
+            <select><option>매립형</option><option>막대형</option><option>노브</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="section collapsed">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 마감 / 조명
+        </div>
+        <div class="section-body">
+          <div class="row"><label>몰딩 높이</label><input type="number" value="80"></div>
+          <div class="row"><label>걸레받이</label><input type="number" value="100"></div>
+          <div class="row"><label>LED 라인</label><select><option>없음</option><option>하부</option><option>상부</option></select></div>
+        </div>
+      </div>
+
+      <div class="section collapsed">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> BOM 미리보기
+        </div>
+        <div class="section-body">
+          <div class="row"><label>총 모듈</label><span>14 개</span></div>
+          <div class="row"><label>도어 패널</label><span>22 장</span></div>
+          <div class="row"><label>예상 자재비</label><span>2,840,000원</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BottomBar ── -->
+  <div class="bottombar">
+    <div class="actions">
+      <button class="primary">📤 SketchUp 보내기</button>
+      <button>📥 가져오기</button>
+    </div>
+    <div>ⓘ 14 modules · 자동저장됨 · v33.0</div>
+  </div>
+</div>
+
+<script>
+  const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
+  const rp = document.getElementById('rightPanel'), btnR = document.getElementById('btnRight');
+  btnL.onclick = () => { lt.classList.toggle('collapsed'); btnL.classList.toggle('on'); };
+  btnR.onclick = () => { rp.classList.toggle('collapsed'); btnR.classList.toggle('on'); };
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'l' || e.key === 'L') btnL.click();
+    if (e.key === 'r' || e.key === 'R') btnR.click();
+  });
+  document.querySelectorAll('.tool-btn').forEach(b => b.onclick = () => {
+    let badge = b.querySelector('.badge');
+    if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '0'; b.appendChild(badge); }
+    badge.textContent = String(+badge.textContent + 1);
+  });
+</script>
+</body>
+</html>

@@ -405,7 +405,9 @@
       }
 
       // ★ R3F 3D 플래너 임베드 로드
-      const PLANNER_BASE_URL = '/planner/embed/';
+      // W9-6: mockup HTML 전면 교체 — 시각 일치 우선, 실 기능은 차차 (planner-vite 는 후속 복귀)
+      // 기존: '/planner/embed/' (planner-vite React)
+      const PLANNER_BASE_URL = '/mockup-shell.html';
       /**
        * ㄱ자/ㄷ자 secondary 모듈을 payload에 동적 추가 (공통 헬퍼)
        */
