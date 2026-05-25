@@ -826,23 +826,8 @@
       // 초기화
       initCategoryGrid();
 
-      // W9-2: 페이지 진입 시 자동 가구 추가 + Step 2 fullscreen 진입
-      // (기존 Step 1 카드/Step 3 BOM 화면은 사용자가 명시적으로 backTo 시에만 노출)
-      try {
-        if (typeof selectedItems !== 'undefined' && selectedItems.length === 0) {
-          incrementCategory('sink'); // default sink 1개 자동 추가
-        }
-        if (typeof goToStep2 === 'function') {
-          // 가구 1개라도 있으면 자동 Step 2 진입
-          setTimeout(() => {
-            if (selectedItems && selectedItems.length > 0) {
-              goToStep2();
-            }
-          }, 100);
-        }
-      } catch (e) {
-        console.warn('[W9-2] auto Step 2 진입 실패:', e);
-      }
+      // W9-3: 페이지 진입 시 default 가구 자동 추가 안 함 (Step 1 가구 카드 그대로 표시)
+      // 사용자가 가구 카드 클릭 → incrementCategory → 자동 goToStep2 (mockup layout 진입)
 
       // ============================================================
       // EL장 팝업 기능

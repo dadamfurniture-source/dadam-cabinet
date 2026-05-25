@@ -79,6 +79,23 @@
 
         selectedItems.push(newItem);
         updateUI();
+
+        // W9-3: 가구 카드 첫 클릭 시 자동 Step 2 진입 (mockup layout 즉시 표시)
+        // 이미 Step 2 fullscreen 중이면 (selectedItems.length > 1) 추가만, 진입 안 함
+        if (selectedItems.length === 1 && !document.body.classList.contains('step2-fullscreen')) {
+          setTimeout(() => {
+            if (typeof goToStep2 === 'function') goToStep2();
+            // iframe overlay reflow (fullscreen 후 100vw×100vh)
+            setTimeout(() => {
+              document.querySelectorAll('[id^="__planner-overlay-"]').forEach((ov) => {
+                const ws = document.getElementById('designWorkspace');
+                if (ws && typeof _positionPlannerOverlay === 'function') {
+                  _positionPlannerOverlay(ov.id, ws);
+                }
+              });
+            }, 250);
+          }, 50);
+        }
       }
 
       function decrementCategory(catId) {
