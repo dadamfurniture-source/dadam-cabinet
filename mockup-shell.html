@@ -164,8 +164,8 @@
     <div class="canvas-wrap">
       <!-- W9-14: 선택 사각형 W/D 입력 popup -->
       <div id="dimPopup">
-        <label><span class="k">W</span><input id="dimW" type="number" step="50" min="50"><span class="u">px</span></label>
-        <label><span class="k">D</span><input id="dimD" type="number" step="50" min="50"><span class="u">px</span></label>
+        <label><span class="k">W</span><input id="dimW" type="number" step="1" min="50"><span class="u">mm</span></label>
+        <label><span class="k">D</span><input id="dimD" type="number" step="1" min="50"><span class="u">mm</span></label>
       </div>
       <div class="canvas-placeholder">
         <div class="big">🧊</div>
@@ -243,7 +243,7 @@
       <button class="primary">📤 SketchUp 보내기</button>
       <button>📥 가져오기</button>
     </div>
-    <div>ⓘ 14 modules · 자동저장됨 · v33.0</div>
+    <div>ⓘ 단위: mm · 그리드: 50mm · Shift 드래그 = 1mm 정밀</div>
   </div>
 </div>
 
@@ -297,7 +297,7 @@
     r.setAttribute('fill', cfg.fill);
     r.setAttribute('stroke', cfg.stroke);
     r.setAttribute('stroke-width', '2');
-    r.setAttribute('rx', '3');
+    // W9-15: 사각 코너 (rx 제거) — 90도 각 표현
     r.setAttribute('opacity', '0.92');
     g.appendChild(r);
     const txt = document.createElementNS(ns, 'text');
@@ -308,7 +308,8 @@
     txt.setAttribute('font-size', '11');
     txt.setAttribute('font-weight', '700');
     txt.setAttribute('pointer-events', 'none');
-    txt.textContent = cfg.label + ' #' + (rectIdx + 1);
+    // W9-15: mm 단위 라벨 (W×D)
+    txt.textContent = cfg.label + ' ' + cfg.w + '×' + cfg.h + 'mm';
     g.appendChild(txt);
     svg.appendChild(g);
     rectIdx++;
@@ -473,6 +474,9 @@
     if (text) {
       text.setAttribute('x', x + newW / 2);
       text.setAttribute('y', y + newH / 2 + 4);
+      // W9-15: 라벨 W×D mm 갱신
+      const label = (text.textContent || '').split(' ')[0];
+      text.textContent = label + ' ' + newW + '×' + newH + 'mm';
     }
     const cur = rotations.get(selectedG) || 0;
     if (cur) {
