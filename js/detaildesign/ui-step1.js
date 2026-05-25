@@ -1583,16 +1583,21 @@
         _restoreFocus(ws, focusInfo);
 
         // ★ 3D 뷰 — body 레벨 오버레이로 iframe 유지 (DOM 이동 없음)
+        // W9-9: step2-fullscreen 시 three-canvas 가 숨겨져 clientWidth=0 → CSS 가 위치 강제 (uses designWorkspace 대체)
         {
           const tryInit3D = (retries) => {
-            const container = document.getElementById('three-canvas-' + item.uniqueId);
-            if (container && container.clientWidth > 0) {
+            let container = document.getElementById('three-canvas-' + item.uniqueId);
+            const isFullscreen = document.body.classList.contains('step2-fullscreen');
+            // fullscreen 일 때 three-canvas 가 숨겨져 0×0 → designWorkspace 대체 (CSS 가 100vw×100vh 강제)
+            if (isFullscreen) {
+              container = container || document.getElementById('designWorkspace');
+            }
+            // 조건 완화: fullscreen 이면 container 만 있으면 OK (clientWidth 무관)
+            if (container && (isFullscreen || container.clientWidth > 0)) {
               if (savedIframe) {
-                // ★ iframe은 이동하지 않음 — 오버레이 위치만 동기화
                 _positionPlannerOverlay(plannerOverlayId, container);
                 _syncPlannerState(item);
               } else {
-                // 최초: body 레벨 오버레이 생성 + iframe 로드
                 _createPlannerOverlay(plannerOverlayId, container, item);
               }
             } else if (retries > 0) {
