@@ -1301,7 +1301,13 @@ export default function App() {
         ) : (
           <LeftToolbar collapsed={leftCollapsed} counts={categoryCounts} />
         )}
-        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+        <div style={{
+          flex: 1, minWidth: 0, position: 'relative',
+          // W9-5: mockup canvas-wrap 의 grid 배경 (#f4efe7 + 갈색 그리드 50px)
+          background: '#f4efe7',
+          backgroundImage: 'linear-gradient(rgba(184,149,108,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(184,149,108,.08) 1px, transparent 1px)',
+          backgroundSize: '50px 50px',
+        }}>
         {viewMode === '3d' && (
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} style={{ width: '100%', height: '100%' }}>
         <Suspense fallback={null}>
