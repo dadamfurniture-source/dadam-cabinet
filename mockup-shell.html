@@ -53,10 +53,13 @@
   .canvas-placeholder .big{font-size:48px;opacity:.3;margin-bottom:8px}
   /* W9-11: 사각형 인터랙션 — 선택 강조 + 호버 */
   .canvas-svg{user-select:none}
-  .sect-rect rect{transition:stroke-width .15s ease, filter .15s ease}
-  .sect-rect:hover rect{stroke-width:3}
-  .sect-rect.selected rect{stroke-width:4 !important;filter:drop-shadow(0 0 8px rgba(106,75,42,.55))}
+  .sect-rect rect:not(.resize-handle){transition:stroke-width .15s ease, filter .15s ease}
+  .sect-rect:hover rect:not(.resize-handle){stroke-width:3}
+  .sect-rect.selected rect:not(.resize-handle){stroke-width:4 !important;filter:drop-shadow(0 0 8px rgba(106,75,42,.55))}
   .sect-rect{cursor:move}
+  /* W9-13: 우하단 resize handle — 선택 시에만 표시 */
+  .sect-rect .resize-handle{display:none;cursor:nwse-resize}
+  .sect-rect.selected .resize-handle{display:block}
 
   /* ── Right panel (w:280, collapsed:32) ─────────────── */
   .right-panel{width:280px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;transition:width .18s ease;overflow:hidden}
@@ -322,9 +325,11 @@
   function attachRectHandlers(g) {
     let dragInfo = null;
     g.addEventListener('pointerdown', (e) => {
+      // W9-13: resize handle 클릭 시 드래그 안 함 (handle 자체 이벤트 처리)
+      if (e.target.classList && e.target.classList.contains('resize-handle')) return;
       e.stopPropagation();
       selectG(g);
-      const rect = g.querySelector('rect');
+      const rect = g.querySelector('rect:not(.resize-handle)');
       dragInfo = {
         startX: e.clientX, startY: e.clientY,
         origX: parseFloat(rect.getAttribute('x')),
@@ -336,7 +341,7 @@
       if (!dragInfo) return;
       const dx = e.clientX - dragInfo.startX;
       const dy = e.clientY - dragInfo.startY;
-      const rect = g.querySelector('rect');
+      const rect = g.querySelector('rect:not(.resize-handle)');
       const text = g.querySelector('text');
       // W9-12: 격자 snap 50px (mockup grid 일치). Shift 누른 채 드래그 시 자유.
       const GRID = 50;
@@ -346,23 +351,92 @@
       const newY = e.shiftKey ? rawY : Math.round(rawY / GRID) * GRID;
       rect.setAttribute('x', newX);
       rect.setAttribute('y', newY);
+      const w = parseFloat(rect.getAttribute('width'));
+      const h = parseFloat(rect.getAttribute('height'));
       if (text) {
-        const w = parseFloat(rect.getAttribute('width'));
-        const h = parseFloat(rect.getAttribute('height'));
         text.setAttribute('x', newX + w / 2);
         text.setAttribute('y', newY + h / 2 + 4);
+      }
+      // W9-13: resize handle 위치 갱신
+      const handle = g.querySelector('.resize-handle');
+      if (handle) {
+        handle.setAttribute('x', newX + w - 6);
+        handle.setAttribute('y', newY + h - 6);
       }
       // 회전 transform 의 pivot 도 갱신
       const cur = rotations.get(g) || 0;
       if (cur) {
-        const cx = newX + parseFloat(rect.getAttribute('width')) / 2;
-        const cy = newY + parseFloat(rect.getAttribute('height')) / 2;
-        g.setAttribute('transform', `rotate(${cur} ${cx} ${cy})`);
+        g.setAttribute('transform', `rotate(${cur} ${newX + w / 2} ${newY + h / 2})`);
       }
     });
     g.addEventListener('pointerup', () => { dragInfo = null; });
     g.addEventListener('pointercancel', () => { dragInfo = null; });
     g.addEventListener('dblclick', (e) => { e.stopPropagation(); rotateG(g); });
+
+    // W9-13: 우하단 resize handle 추가 + 핸들러
+    addResizeHandle(g);
+  }
+
+  // W9-13: 우하단 코너에 resize handle 추가 + 드래그 시 크기 변경
+  function addResizeHandle(g) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const rect = g.querySelector('rect:not(.resize-handle)');
+    if (!rect) return;
+    const x = parseFloat(rect.getAttribute('x'));
+    const y = parseFloat(rect.getAttribute('y'));
+    const w = parseFloat(rect.getAttribute('width'));
+    const h = parseFloat(rect.getAttribute('height'));
+    const handle = document.createElementNS(ns, 'rect');
+    handle.setAttribute('class', 'resize-handle');
+    handle.setAttribute('x', x + w - 6);
+    handle.setAttribute('y', y + h - 6);
+    handle.setAttribute('width', 12);
+    handle.setAttribute('height', 12);
+    handle.setAttribute('fill', '#fff');
+    handle.setAttribute('stroke', '#6a4b2a');
+    handle.setAttribute('stroke-width', '2');
+    handle.setAttribute('rx', '2');
+    g.appendChild(handle);
+
+    let resizeInfo = null;
+    handle.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      const r = g.querySelector('rect:not(.resize-handle)');
+      resizeInfo = {
+        startX: e.clientX, startY: e.clientY,
+        origW: parseFloat(r.getAttribute('width')),
+        origH: parseFloat(r.getAttribute('height')),
+      };
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!resizeInfo) return;
+      const dx = e.clientX - resizeInfo.startX;
+      const dy = e.clientY - resizeInfo.startY;
+      const GRID = 50, MIN = 50;
+      const rawW = Math.max(MIN, resizeInfo.origW + dx);
+      const rawH = Math.max(MIN, resizeInfo.origH + dy);
+      const newW = e.shiftKey ? rawW : Math.max(MIN, Math.round(rawW / GRID) * GRID);
+      const newH = e.shiftKey ? rawH : Math.max(MIN, Math.round(rawH / GRID) * GRID);
+      const r = g.querySelector('rect:not(.resize-handle)');
+      r.setAttribute('width', newW);
+      r.setAttribute('height', newH);
+      const text = g.querySelector('text');
+      const x = parseFloat(r.getAttribute('x'));
+      const y = parseFloat(r.getAttribute('y'));
+      if (text) {
+        text.setAttribute('x', x + newW / 2);
+        text.setAttribute('y', y + newH / 2 + 4);
+      }
+      handle.setAttribute('x', x + newW - 6);
+      handle.setAttribute('y', y + newH - 6);
+      const cur = rotations.get(g) || 0;
+      if (cur) {
+        g.setAttribute('transform', `rotate(${cur} ${x + newW / 2} ${y + newH / 2})`);
+      }
+    });
+    handle.addEventListener('pointerup', () => { resizeInfo = null; });
+    handle.addEventListener('pointercancel', () => { resizeInfo = null; });
   }
 
   // 외부 클릭 → deselect
