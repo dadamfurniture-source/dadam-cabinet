@@ -83,6 +83,28 @@
       body.step2-fullscreen .design-workspace::before,
       body.step2-fullscreen .design-workspace::after { display: none !important; }
 
+      /* W9-9: iframe overlay (body 레벨, id^="__planner-overlay-") 강제 100vw × 100vh.
+         _positionPlannerOverlay 는 three-canvas rect 기반인데 W9-7 로 three-canvas 가
+         숨겨져 rect = 0 → iframe 0×0. CSS 로 강제 풀화면. */
+      body.step2-fullscreen [id^="__planner-overlay-"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 100 !important;
+        border-radius: 0 !important;
+        display: block !important;
+      }
+      body.step2-fullscreen [id^="__planner-overlay-"] iframe {
+        width: 100% !important;
+        height: 100% !important;
+        border: none !important;
+        display: block !important;
+      }
+
       body.step2-fullscreen .app-container {
         padding: 0;
         min-height: 100vh;
