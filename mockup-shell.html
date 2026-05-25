@@ -501,16 +501,23 @@
       const dy = (e.clientY - dragInfo.startY) / z;
       const rect = g.querySelector('rect:not(.resize-handle)');
       const text = g.querySelector('text');
-      // W9-12: 격자 snap 50px (mockup grid 일치). Shift 누른 채 드래그 시 자유.
+      // W9-12: 격자 snap 50mm. Shift 누른 채 드래그 시 자유.
+      // W9-21: 자석을 grid 보다 먼저 시도 — raw 위치에서 검색 (grid 격자에 갇혀 자석 못 닿는 문제 해결)
       const GRID = 50;
       const rawX = dragInfo.origX + dx;
       const rawY = dragInfo.origY + dy;
-      let newX = e.shiftKey ? rawX : Math.round(rawX / GRID) * GRID;
-      let newY = e.shiftKey ? rawY : Math.round(rawY / GRID) * GRID;
-      // W9-14: 자석 snap — 다른 사각형 꼭지점과 15px 이내 시 정확 일치 (Shift 시 비활성)
-      if (!e.shiftKey) {
-        const mag = findMagnetSnap(g, newX, newY);
-        if (mag) { newX = mag.x; newY = mag.y; }
+      let newX, newY;
+      if (e.shiftKey) {
+        // Shift: 자석/grid 모두 비활성 (1mm 정밀)
+        newX = rawX; newY = rawY;
+      } else {
+        const mag = findMagnetSnap(g, rawX, rawY);
+        if (mag) {
+          newX = mag.x; newY = mag.y;
+        } else {
+          newX = Math.round(rawX / GRID) * GRID;
+          newY = Math.round(rawY / GRID) * GRID;
+        }
       }
       rect.setAttribute('x', newX);
       rect.setAttribute('y', newY);
@@ -541,9 +548,11 @@
     });
   }
 
-  // W9-14: 꼭지점 자석 snap — 다른 사각형의 4 꼭지점과 15px 이내 시 정확 일치
-  // W9-19: 회전 각도 반영 — 회전된 사각형의 실제 꼭지점 계산
-  const MAGNET_THRESHOLD = 15;
+  // W9-14: 꼭지점 자석 snap — 다른 사각형의 4 꼭지점과 일정 거리 이내 시 정확 일치
+  // W9-19: 회전 각도 반영
+  // W9-21: threshold 를 화면 픽셀 기준 (15px) → 줌에 무관하게 일정한 끌림
+  //        + 90도 배수일 때 정확한 sin/cos (부동소수점 오차 제거)
+  const MAGNET_THRESHOLD_PX = 15;
   function getRotatedCorners(x, y, w, h, angle) {
     const corners = [
       { x: x, y: y }, { x: x + w, y: y },
@@ -551,8 +560,17 @@
     ];
     if (!angle) return corners;
     const cx = x + w / 2, cy = y + h / 2;
-    const rad = angle * Math.PI / 180;
-    const cos = Math.cos(rad), sin = Math.sin(rad);
+    // W9-21: 90도 배수는 정확값 사용 — Math.sin(π/2) ≈ 6.12e-17 같은 오차 제거
+    let cos, sin;
+    const a = ((angle % 360) + 360) % 360;
+    if (a === 0)        { cos = 1;  sin = 0;  }
+    else if (a === 90)  { cos = 0;  sin = 1;  }
+    else if (a === 180) { cos = -1; sin = 0;  }
+    else if (a === 270) { cos = 0;  sin = -1; }
+    else {
+      const rad = angle * Math.PI / 180;
+      cos = Math.cos(rad); sin = Math.sin(rad);
+    }
     return corners.map(c => {
       const dx = c.x - cx, dy = c.y - cy;
       return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
@@ -573,7 +591,10 @@
     const h = parseFloat(r.getAttribute('height'));
     const myAngle = rotations.get(currentG) || 0;
     const myCorners = getRotatedCorners(newX, newY, w, h, myAngle);
-    let bestDx = 0, bestDy = 0, bestDist = MAGNET_THRESHOLD + 1;
+    // W9-21: 화면 px 15 를 mm 단위로 환산 (줌 무관 일관 끌림)
+    const z = view.zoom || 1;
+    const thresholdMm = MAGNET_THRESHOLD_PX / z;
+    let bestDx = 0, bestDy = 0, bestDist = thresholdMm + 1;
     document.querySelectorAll('.sect-rect').forEach((other) => {
       if (other === currentG) return;
       const or = other.querySelector('rect:not(.resize-handle)');
@@ -590,7 +611,7 @@
         });
       });
     });
-    return bestDist <= MAGNET_THRESHOLD ? { x: newX + bestDx, y: newY + bestDy } : null;
+    return bestDist <= thresholdMm ? { x: newX + bestDx, y: newY + bestDy } : null;
   }
 
   // W9-14: dimPopup — 선택 사각형 W/D 입력 popup
