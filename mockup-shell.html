@@ -299,10 +299,31 @@
       const ph = wrap.querySelector('.canvas-placeholder');
       if (ph) ph.style.display = 'none';
       attachPanZoomHandlers(svg, wrap);
-      applyView();
+      // W9-18: 첫 표시 시 가로 7000mm 가 보일 정도로 줌아웃
+      setInitialView();
     }
     return svg;
   }
+
+  // W9-18: 기본 view — 가로 7000mm fit (좌우 약간 여백)
+  function setInitialView() {
+    const wrap = document.querySelector('.canvas-wrap');
+    if (!wrap) { applyView(); return; }
+    const cw = wrap.clientWidth || 1200;
+    const ch = wrap.clientHeight || 700;
+    const targetMm = 7000;
+    view.zoom = (cw * 0.94) / targetMm;
+    view.panX = cw * 0.03;   // 좌측 3% 여백
+    view.panY = ch * 0.1;    // 상단 10% 여백 (도면 위쪽 정렬)
+    applyView();
+  }
+  // 외부 resize 대응 — 사각형 없을 때 윈도 리사이즈 시 다시 기본
+  window.addEventListener('resize', () => {
+    const content = getContent();
+    if (!content || !content.querySelector('rect:not(.resize-handle)')) {
+      if (document.querySelector('.canvas-wrap svg.canvas-svg')) setInitialView();
+    }
+  });
 
   function getContent() {
     const svg = document.querySelector('.canvas-wrap svg.canvas-svg');
@@ -382,8 +403,8 @@
   }
 
   function resetView() {
-    view.zoom = 1; view.panX = 0; view.panY = 0;
-    applyView();
+    // W9-18: Reset = 기본 view (가로 7000mm fit)
+    setInitialView();
   }
   function addSectionRect(section) {
     const cfg = SECTION_CONFIG[section];
