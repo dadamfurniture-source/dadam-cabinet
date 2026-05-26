@@ -165,6 +165,14 @@
           <line x1="2" y1="14" x2="16" y2="14" stroke="#5c3848" stroke-width="1"/>
         </svg>
       </button>
+      <button class="tool-btn rect-btn" title="냉장고장 추가 (도면에 배치)" data-section="fridge">
+        <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true">
+          <rect x="2" y="2" width="14" height="18" fill="#a0a8b0" stroke="#4a525a" stroke-width="1.5" rx="1"/>
+          <line x1="2" y1="9" x2="16" y2="9" stroke="#4a525a" stroke-width="1.2"/>
+          <circle cx="13" cy="6" r="0.9" fill="#4a525a"/>
+          <circle cx="13" cy="14" r="0.9" fill="#4a525a"/>
+        </svg>
+      </button>
       <div class="tool-sep"></div>
       <button class="tool-btn" title="멍장(blind corner)">◣</button>
       <button class="tool-btn" title="필러">┃</button>
@@ -271,11 +279,13 @@
   // W9-20: 표준 모듈 치수 (mm)
   // - 하부장: W2400 × D650 (싱크대 표준 깊이)
   // - 상부장: W2400 × D320 (벽장 표준 깊이)
-  // - 키큰장: W600 × D650 (냉장고/오븐장 표준)
+  // - 키큰장: W600 × D650 (오븐장 표준)
+  // - 냉장고장: W720 × D700 (빌트인 양문형 표준)
   const SECTION_CONFIG = {
-    lower: { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장' },
-    upper: { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장' },
-    tall:  { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장' },
+    lower:  { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장' },
+    upper:  { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장' },
+    tall:   { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장' },
+    fridge: { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장' },
   };
 
   // W9-25: 라벨을 두 줄로 분할 — 이름(큰 글자) / 치수(작은 글자)
