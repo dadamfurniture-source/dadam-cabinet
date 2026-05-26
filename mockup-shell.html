@@ -174,8 +174,22 @@
         </svg>
       </button>
       <div class="tool-sep"></div>
-      <button class="tool-btn" title="멍장(blind corner)">◣</button>
-      <button class="tool-btn" title="필러">┃</button>
+      <button class="tool-btn rect-btn" title="EP 측판 (두께 18T · W=인접 모듈 깊이 · H=인접 모듈 높이)" data-section="ep">
+        <svg width="8" height="22" viewBox="0 0 8 22" aria-hidden="true">
+          <rect x="2" y="2" width="4" height="18" fill="#d4c5a0" stroke="#7a6a45" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <button class="tool-btn rect-btn" title="몰딩 (W=60mm · 두께 18T · H=인접 모듈 높이)" data-section="molding">
+        <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
+          <rect x="2" y="2" width="18" height="4" fill="#c8b896" stroke="#7a6a45" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <button class="tool-btn rect-btn" title="휠라 (W=60mm · 두께 18T · H=인접 모듈 높이)" data-section="filler">
+        <svg width="8" height="22" viewBox="0 0 8 22" aria-hidden="true">
+          <rect x="2" y="2" width="4" height="18" fill="#c8b896" stroke="#7a6a45" stroke-width="1.2"/>
+          <line x1="4" y1="5" x2="4" y2="17" stroke="#5a4d2f" stroke-width="0.5" stroke-dasharray="1.2 1.2"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Canvas placeholder -->
@@ -276,17 +290,44 @@
     if (e.key === 'r' || e.key === 'R') btnR.click();
   });
   // W9-10: 하부장/상부장/키큰장 — 도면 (canvas-wrap) 에 색상별 직사각형 추가
-  // W9-20: 표준 모듈 치수 (mm)
-  // - 하부장: W2400 × D650 (싱크대 표준 깊이)
-  // - 상부장: W2400 × D320 (벽장 표준 깊이)
-  // - 키큰장: W600 × D650 (오븐장 표준)
-  // - 냉장고장: W720 × D700 (빌트인 양문형 표준)
+  // W9-20: 표준 모듈 치수 (mm) — 도면 = 평면도 (W × D)
+  // moduleH = 모듈 높이 (3D 정보, 도면 표시 X)
+  // W9-28: EP/몰딩/휠라 추가 + 모듈 H 기본값 (하부 860, 상부 800, 키큰 2300)
   const SECTION_CONFIG = {
-    lower:  { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장' },
-    upper:  { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장' },
-    tall:   { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장' },
-    fridge: { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장' },
+    lower:   { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장',  moduleH: 860  },
+    upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 800  },
+    tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
+    fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 1850 },
+    // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 높이 (860 default)
+    ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 860, adjacent: 'depthAndHeight' },
+    // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
+    molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 860, adjacent: 'heightOnly' },
+    // 휠라 (filler): W=60 · 두께 18T · H=인접 모듈 높이
+    filler:  { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '휠라',   moduleH: 860, adjacent: 'heightOnly' },
   };
+
+  // W9-28: 도면에 가장 최근 추가된 일반 모듈 (lower/upper/tall/fridge) 의 깊이/높이 자동 참조
+  function getAdjacentModuleDims() {
+    const content = getContent();
+    if (!content) return null;
+    const all = Array.from(content.querySelectorAll('g.sect-rect'));
+    // 가장 최근 (마지막) 일반 모듈 찾기 — upper/lower/tall/fridge 만
+    const generalSections = ['lower', 'upper', 'tall', 'fridge'];
+    for (let i = all.length - 1; i >= 0; i--) {
+      const g = all[i];
+      for (const sec of generalSections) {
+        if (g.classList.contains(sec)) {
+          const r = g.querySelector('rect:not(.resize-handle)');
+          if (!r) continue;
+          return {
+            depth: parseFloat(r.getAttribute('height')) || 650,
+            moduleH: parseFloat(g.getAttribute('data-module-h')) || 860,
+          };
+        }
+      }
+    }
+    return null;
+  }
 
   // W9-25: 라벨을 두 줄로 분할 — 이름(큰 글자) / 치수(작은 글자)
   // W9-26: 사각형 내부 상하좌우 여백 추가 — padding ~15%
@@ -503,18 +544,28 @@
     const content = getContent();
     if (!content) return;
     const ns = 'http://www.w3.org/2000/svg';
+    // W9-28: EP/몰딩/휠라 는 인접 모듈 치수 자동 참조
+    let useW = cfg.w, useH = cfg.h, useModuleH = cfg.moduleH;
+    if (cfg.adjacent) {
+      const adj = getAdjacentModuleDims();
+      if (adj) {
+        if (cfg.adjacent === 'depthAndHeight') useW = adj.depth;  // EP: W = 인접 깊이
+        useModuleH = adj.moduleH;                                  // 모두: H = 인접 모듈 높이
+      }
+    }
     // W9-20: 큰 기본 치수 (W2400+) 에 맞춰 placement offset 동적 — 3열, 사각형 폭+100mm 간격
     const baseX = 80, baseY = 80;
-    const offsetX = baseX + (rectIdx % 3) * (cfg.w + 100);
-    const offsetY = baseY + Math.floor(rectIdx / 3) * (cfg.h + 100);
+    const offsetX = baseX + (rectIdx % 3) * (useW + 100);
+    const offsetY = baseY + Math.floor(rectIdx / 3) * (useH + 100);
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('class', 'sect-rect ' + section);
+    g.setAttribute('data-module-h', useModuleH);
     g.style.cursor = 'move';
     const r = document.createElementNS(ns, 'rect');
     r.setAttribute('x', offsetX);
     r.setAttribute('y', offsetY);
-    r.setAttribute('width', cfg.w);
-    r.setAttribute('height', cfg.h);
+    r.setAttribute('width', useW);
+    r.setAttribute('height', useH);
     r.setAttribute('fill', cfg.fill);
     r.setAttribute('stroke', cfg.stroke);
     r.setAttribute('stroke-width', '2');
@@ -530,8 +581,8 @@
     txt.setAttribute('pointer-events', 'none');
     txt.setAttribute('data-name', cfg.label);  // 라벨 이름 (리사이즈 시 재참조)
     // W9-25: 두 줄 라벨 — 이름(큰) + 치수(작은)
-    const dimText = cfg.w + '×' + cfg.h + 'mm';
-    applyLabel(txt, offsetX + cfg.w / 2, offsetY + cfg.h / 2, cfg.w, cfg.h, cfg.label, dimText);
+    const dimText = useW + '×' + useH + 'mm';
+    applyLabel(txt, offsetX + useW / 2, offsetY + useH / 2, useW, useH, cfg.label, dimText);
     g.appendChild(txt);
     // W9-24: 우측 상단 X 삭제 버튼 (group: 원 + X path). 위치/크기는 updateCloseButtons() 가 zoom 보정.
     const close = document.createElementNS(ns, 'g');
