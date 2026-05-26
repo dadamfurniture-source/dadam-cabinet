@@ -469,6 +469,55 @@
     g.appendChild(t);
     // 가장 위에 (사각형들이 그려진 후 person 이 보이게)
     content.appendChild(g);
+    // W9-33: 드래그로 위치 이동 가능
+    attachPersonHandlers(g);
+  }
+
+  // W9-33: 사람 원 드래그 — drag 종료 시 모든 사각형 정면 재정렬
+  function attachPersonHandlers(g) {
+    let dragInfo = null;
+    g.style.cursor = 'grab';
+    g.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      const c = g.querySelector('circle');
+      if (!c) return;
+      dragInfo = {
+        startX: e.clientX, startY: e.clientY,
+        origCx: parseFloat(c.getAttribute('cx')),
+        origCy: parseFloat(c.getAttribute('cy')),
+        moved: false,
+      };
+      g.setPointerCapture(e.pointerId);
+      g.style.cursor = 'grabbing';
+    });
+    g.addEventListener('pointermove', (e) => {
+      if (!dragInfo) return;
+      const z = view.zoom || 1;
+      const dx = (e.clientX - dragInfo.startX) / z;
+      const dy = (e.clientY - dragInfo.startY) / z;
+      if (Math.abs(dx) + Math.abs(dy) > 1) dragInfo.moved = true;
+      const newCx = dragInfo.origCx + dx;
+      const newCy = dragInfo.origCy + dy;
+      const c = g.querySelector('circle');
+      c.setAttribute('cx', newCx);
+      c.setAttribute('cy', newCy);
+      const t = g.querySelector('text');
+      if (t) { t.setAttribute('x', newCx); t.setAttribute('y', newCy); }
+    });
+    const endDrag = () => {
+      if (!dragInfo) return;
+      const moved = dragInfo.moved;
+      dragInfo = null;
+      g.style.cursor = 'grab';
+      // drag 후 위치 바뀌었으면 모든 사각형 자동 재정렬
+      if (moved) {
+        document.querySelectorAll('g.sect-rect').forEach((sg) => alignToPerson(sg));
+        if (typeof updateCloseButtons === 'function') updateCloseButtons();
+        if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+      }
+    };
+    g.addEventListener('pointerup', endDrag);
+    g.addEventListener('pointercancel', endDrag);
   }
 
   function getPersonPos() {
@@ -550,7 +599,7 @@
     let panInfo = null;
     svg.addEventListener('pointerdown', (e) => {
       // g.sect-rect (또는 그 자손) 아래에서 시작한 경우는 pan 안 함
-      if (e.target.closest && e.target.closest('g.sect-rect')) return;
+      if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
       // 미들 버튼 or Space or 그냥 빈 공간
       panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY, pid: e.pointerId };
       svg.setPointerCapture(e.pointerId);
@@ -568,12 +617,12 @@
 
     // 더블 클릭 빈 공간 = Fit All
     svg.addEventListener('dblclick', (e) => {
-      if (e.target.closest && e.target.closest('g.sect-rect')) return;
+      if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
       fitAll();
     });
     // W9-19: 빈 공간 우클릭 메뉴 차단 (사각형은 회전 핸들러로 처리)
     svg.addEventListener('contextmenu', (e) => {
-      if (e.target.closest && e.target.closest('g.sect-rect')) return;
+      if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
       e.preventDefault();
     });
   }
@@ -1062,6 +1111,9 @@
     if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '0'; b.appendChild(badge); }
     badge.textContent = String(+badge.textContent + 1);
   });
+
+  // W9-33: 페이지 로드 시 사람 원 자동 표시 (사각형 없어도 시작 상태에 보이게)
+  ensureCanvasSVG();
 </script>
 </body>
 </html>
