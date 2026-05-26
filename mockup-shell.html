@@ -429,10 +429,78 @@
       const ph = wrap.querySelector('.canvas-placeholder');
       if (ph) ph.style.display = 'none';
       attachPanZoomHandlers(svg, wrap);
+      // W9-32: 사람 원 (500mm) 자동 추가
+      ensurePersonCircle();
       // W9-18: 첫 표시 시 가로 7000mm 가 보일 정도로 줌아웃
       setInitialView();
     }
     return svg;
+  }
+
+  // W9-32: 사람을 나타내는 원 — 500mm 지름, 모든 신규 사각형은 이 원을 향해 정면 정렬
+  const PERSON_DEFAULT = { cx: 2500, cy: 1500, r: 250 }; // r=250 → 500mm 지름
+  function ensurePersonCircle() {
+    const content = getContent();
+    if (!content) return;
+    if (content.querySelector('g.person')) return;
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class', 'person');
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', PERSON_DEFAULT.cx);
+    c.setAttribute('cy', PERSON_DEFAULT.cy);
+    c.setAttribute('r', PERSON_DEFAULT.r);
+    c.setAttribute('fill', '#fff4d1');
+    c.setAttribute('stroke', '#7a6a45');
+    c.setAttribute('stroke-width', 4);
+    c.setAttribute('stroke-dasharray', '14 7');
+    c.setAttribute('opacity', '0.9');
+    g.appendChild(c);
+    const t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', PERSON_DEFAULT.cx);
+    t.setAttribute('y', PERSON_DEFAULT.cy);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('dominant-baseline', 'central');
+    t.setAttribute('fill', '#5a4d2f');
+    t.setAttribute('font-size', 90);
+    t.setAttribute('font-weight', '700');
+    t.setAttribute('pointer-events', 'none');
+    t.textContent = '사람';
+    g.appendChild(t);
+    // 가장 위에 (사각형들이 그려진 후 person 이 보이게)
+    content.appendChild(g);
+  }
+
+  function getPersonPos() {
+    const content = getContent();
+    if (!content) return null;
+    const c = content.querySelector('g.person circle');
+    if (!c) return null;
+    return { cx: parseFloat(c.getAttribute('cx')), cy: parseFloat(c.getAttribute('cy')) };
+  }
+
+  // W9-32: 신규 사각형의 정면(+y 방향, D 의 아래쪽 변)이 person 을 향하도록 90도 단위 회전
+  function alignToPerson(g) {
+    const r = g.querySelector('rect:not(.resize-handle)');
+    if (!r) return;
+    const person = getPersonPos();
+    if (!person) return;
+    const x = parseFloat(r.getAttribute('x'));
+    const y = parseFloat(r.getAttribute('y'));
+    const w = parseFloat(r.getAttribute('width'));
+    const h = parseFloat(r.getAttribute('height'));
+    const cx = x + w / 2, cy = y + h / 2;
+    // angle: 사각형 중심 → person 방향 (deg, 0=+x, 90=+y/아래, 180=-x, 270=+y/위)
+    const angle = Math.atan2(person.cy - cy, person.cx - cx) * 180 / Math.PI;
+    // 사각형 기본 정면 = +y (아래쪽) = angle 90
+    // 회전 0 = 정면 +y, 회전 90 = 정면 +x(우), 회전 180 = 정면 -y(위), 회전 270 = 정면 -x(좌)
+    // 정면이 person 향하려면 회전 = (angle - 90) mod 360
+    let rot = angle - 90;
+    rot = Math.round(rot / 90) * 90;        // 90도 snap
+    rot = ((rot % 360) + 360) % 360;
+    if (rot === 0) return;                  // 회전 불필요
+    rotations.set(g, rot);
+    g.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`);
   }
 
   // W9-18: 기본 view — 가로 7000mm fit (좌우 약간 여백)
@@ -948,6 +1016,9 @@
     rects.sort((a, b) => zOf(a) - zOf(b));
     // 안정성 위해 같은 z 끼리 기존 순서 유지 — sort 는 stable (ES2019+)
     rects.forEach(g => content.appendChild(g));
+    // W9-32: person 은 항상 맨 위 (사각형 위에 보이도록)
+    const person = content.querySelector('g.person');
+    if (person) content.appendChild(person);
   }
 
   // addSectionRect 후 신규 g 에 핸들러 부착 (기존 함수 wrap)
@@ -960,6 +1031,8 @@
     const last = content.lastElementChild;
     if (last && last.tagName.toLowerCase() === 'g' && last.classList.contains('sect-rect')) {
       attachRectHandlers(last);
+      // W9-32: person 을 향해 정면 정렬 (90° 단위 snap)
+      alignToPerson(last);
       selectG(last); // 신규 추가 시 자동 선택
       // W9-19: z-order 재정렬 — 상부장은 항상 위
       reorderRects();
