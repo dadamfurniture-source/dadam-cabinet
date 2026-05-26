@@ -278,13 +278,44 @@
     tall:  { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장' },
   };
 
-  // W9-23: 사각형 크기에 비례한 라벨 font-size — 폭/높이 양쪽 제약
-  function computeFontSize(w, h, text) {
-    const len = Math.max((text || '').length, 6);
-    // 평균 글자폭 ≈ 0.55 × font-size (한글+숫자 혼합 평균)
-    const widthLimit = (w * 0.85) / len / 0.55;
-    const heightLimit = h * 0.42;
-    return Math.max(8, Math.min(widthLimit, heightLimit, 240));
+  // W9-25: 라벨을 두 줄로 분할 — 이름(큰 글자) / 치수(작은 글자)
+  // 두 줄 동시 만족하는 최대 name 폰트 크기 반환
+  function computeNameFontSize(w, h, name, dim) {
+    const nameLen = Math.max(name.length, 1);
+    const dimLen = Math.max(dim.length, 1);
+    const dimRatio = 0.6; // dim 폰트 = name * 0.6
+    const charW = 0.58;   // 평균 글자폭/font-size (한글 ≈ 0.6, 숫자 ≈ 0.55)
+    // 폭 제약: name 한 줄, dim 한 줄 각자 사각형 폭의 88% 차지
+    const nameByW = (w * 0.88) / nameLen / charW;
+    const dimByW  = (w * 0.88) / dimLen / charW / dimRatio;
+    // 높이 제약: 두 줄 + 줄간격 (name + dim*ratio + gap) ≤ h * 0.85
+    // → name * (1 + dimRatio + 0.15) ≤ h * 0.85
+    const byH = (h * 0.85) / (1 + dimRatio + 0.15);
+    return Math.max(10, Math.min(nameByW, dimByW, byH, 360));
+  }
+
+  // 라벨 텍스트 두 tspan 갱신 (신규/리사이즈 공용)
+  function applyLabel(textEl, cx, cy, w, h, name, dim) {
+    const nameSize = computeNameFontSize(w, h, name, dim);
+    const dimSize = nameSize * 0.6;
+    textEl.setAttribute('x', cx);
+    textEl.setAttribute('y', cy);
+    textEl.setAttribute('font-size', nameSize);
+    // 기존 tspan 모두 제거 후 재구성
+    while (textEl.firstChild) textEl.removeChild(textEl.firstChild);
+    const ns = 'http://www.w3.org/2000/svg';
+    const t1 = document.createElementNS(ns, 'tspan');
+    t1.setAttribute('x', cx);
+    t1.setAttribute('dy', -nameSize * 0.30);  // 위쪽 라인
+    t1.textContent = name;
+    textEl.appendChild(t1);
+    const t2 = document.createElementNS(ns, 'tspan');
+    t2.setAttribute('x', cx);
+    t2.setAttribute('dy', nameSize * 1.05);   // 아래쪽 라인 (name 아래로 1.05 line height)
+    t2.setAttribute('font-size', dimSize);
+    t2.setAttribute('opacity', '0.88');
+    t2.textContent = dim;
+    textEl.appendChild(t2);
   }
   let rectIdx = 0;
   // W9-17: pan/zoom view state. content layer 의 transform 으로 적용.
@@ -482,19 +513,15 @@
     r.setAttribute('opacity', '0.85');
     g.appendChild(r);
     const txt = document.createElementNS(ns, 'text');
-    txt.setAttribute('x', offsetX + cfg.w / 2);
-    // W9-23: dominant-baseline 으로 수직 중앙 정렬 (font-size 가 변동되므로 +4 offset 무효)
-    txt.setAttribute('y', offsetY + cfg.h / 2);
     txt.setAttribute('text-anchor', 'middle');
     txt.setAttribute('dominant-baseline', 'central');
     txt.setAttribute('fill', '#fff');
     txt.setAttribute('font-weight', '700');
     txt.setAttribute('pointer-events', 'none');
-    // W9-15: mm 단위 라벨 (W×D)
-    const labelText = cfg.label + ' ' + cfg.w + '×' + cfg.h + 'mm';
-    txt.textContent = labelText;
-    // W9-23: 사각형 비율 기반 동적 font-size
-    txt.setAttribute('font-size', computeFontSize(cfg.w, cfg.h, labelText));
+    txt.setAttribute('data-name', cfg.label);  // 라벨 이름 (리사이즈 시 재참조)
+    // W9-25: 두 줄 라벨 — 이름(큰) + 치수(작은)
+    const dimText = cfg.w + '×' + cfg.h + 'mm';
+    applyLabel(txt, offsetX + cfg.w / 2, offsetY + cfg.h / 2, cfg.w, cfg.h, cfg.label, dimText);
     g.appendChild(txt);
     // W9-24: 우측 상단 X 삭제 버튼 (group: 원 + X path). 위치/크기는 updateCloseButtons() 가 zoom 보정.
     const close = document.createElementNS(ns, 'g');
@@ -589,8 +616,11 @@
       const w = parseFloat(rect.getAttribute('width'));
       const h = parseFloat(rect.getAttribute('height'));
       if (text) {
-        text.setAttribute('x', newX + w / 2);
+        // W9-25: 두 줄 tspan 도 새 cx 로 갱신
+        const cx = newX + w / 2;
+        text.setAttribute('x', cx);
         text.setAttribute('y', newY + h / 2);
+        text.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', cx));
       }
       // 회전 transform 의 pivot 도 갱신
       const cur = rotations.get(g) || 0;
@@ -734,14 +764,10 @@
     const x = parseFloat(r.getAttribute('x'));
     const y = parseFloat(r.getAttribute('y'));
     if (text) {
-      text.setAttribute('x', x + newW / 2);
-      text.setAttribute('y', y + newH / 2);
-      // W9-15: 라벨 W×D mm 갱신
-      const label = (text.textContent || '').split(' ')[0];
-      const newLabelText = label + ' ' + newW + '×' + newH + 'mm';
-      text.textContent = newLabelText;
-      // W9-23: 동적 font-size 재계산
-      text.setAttribute('font-size', computeFontSize(newW, newH, newLabelText));
+      // W9-25: 두 줄 라벨 재구성 (data-name 보존 + 새 W×D 치수)
+      const name = text.getAttribute('data-name') || '';
+      const dimText = newW + '×' + newH + 'mm';
+      applyLabel(text, x + newW / 2, y + newH / 2, newW, newH, name, dimText);
     }
     const cur = rotations.get(selectedG) || 0;
     if (cur) {
