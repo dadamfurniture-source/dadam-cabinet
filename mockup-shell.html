@@ -62,6 +62,11 @@
   /* content layer 내부에서만 작동하도록 isolate (배경 그리드 영향 X) */
   svg.canvas-svg g.content{isolation:isolate}
   .sect-rect rect:not(.resize-handle){mix-blend-mode:multiply}
+  /* W9-24: X 버튼 — blend 영향 안 받게 normal + hover 강조 */
+  .sect-rect g.close-btn{mix-blend-mode:normal}
+  .sect-rect g.close-btn circle{transition:fill .12s ease}
+  .sect-rect g.close-btn:hover circle{fill:#fee}
+  .sect-rect g.close-btn:hover path{stroke:#c0392b}
   /* W9-14: resize handle 제거 — W/D 입력 popup 으로 대체 */
   .sect-rect .resize-handle{display:none !important}
   /* W9-14: W/D 입력 popup — 선택 사각형 위에 floating */
@@ -299,6 +304,27 @@
     const zi = document.getElementById('zoomInd');
     if (zi) zi.textContent = Math.round(view.zoom * 100) + '%';
     if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+    // W9-24: X 버튼 위치/크기 zoom 보정 (화면 22px 일정)
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+  }
+
+  // W9-24: X 버튼 — 사각형 우상단 corner 안쪽, 화면 일정 크기 (22px)
+  function updateCloseButtons() {
+    const z = view.zoom || 1;
+    const targetPx = 22;          // 원 지름 24px 목표 → scale = 22/24
+    const scale = (targetPx / 24) / z;
+    const insetSvg = 14 / z;      // corner 에서 안쪽으로 14 화면 px
+    document.querySelectorAll('g.sect-rect g.close-btn').forEach((cb) => {
+      const g = cb.parentElement;
+      const rect = g.querySelector('rect:not(.resize-handle)');
+      if (!rect) return;
+      const x = parseFloat(rect.getAttribute('x'));
+      const y = parseFloat(rect.getAttribute('y'));
+      const w = parseFloat(rect.getAttribute('width'));
+      const cx = x + w - insetSvg;
+      const cy = y + insetSvg;
+      cb.setAttribute('transform', `translate(${cx} ${cy}) scale(${scale})`);
+    });
   }
 
   function ensureCanvasSVG() {
@@ -470,6 +496,24 @@
     // W9-23: 사각형 비율 기반 동적 font-size
     txt.setAttribute('font-size', computeFontSize(cfg.w, cfg.h, labelText));
     g.appendChild(txt);
+    // W9-24: 우측 상단 X 삭제 버튼 (group: 원 + X path). 위치/크기는 updateCloseButtons() 가 zoom 보정.
+    const close = document.createElementNS(ns, 'g');
+    close.setAttribute('class', 'close-btn');
+    close.style.cursor = 'pointer';
+    const cBg = document.createElementNS(ns, 'circle');
+    cBg.setAttribute('r', '12');
+    cBg.setAttribute('fill', '#fff');
+    cBg.setAttribute('stroke', '#6a4b2a');
+    cBg.setAttribute('stroke-width', '2');
+    close.appendChild(cBg);
+    const cX = document.createElementNS(ns, 'path');
+    cX.setAttribute('d', 'M -5 -5 L 5 5 M -5 5 L 5 -5');
+    cX.setAttribute('stroke', '#6a4b2a');
+    cX.setAttribute('stroke-width', '2.5');
+    cX.setAttribute('stroke-linecap', 'round');
+    cX.setAttribute('fill', 'none');
+    close.appendChild(cX);
+    g.appendChild(close);
     content.appendChild(g);
     rectIdx++;
   }
@@ -502,6 +546,8 @@
     g.addEventListener('pointerdown', (e) => {
       // W9-13: resize handle 클릭 시 드래그 안 함 (handle 자체 이벤트 처리)
       if (e.target.classList && e.target.classList.contains('resize-handle')) return;
+      // W9-24: X 버튼 클릭 시 드래그 안 함
+      if (e.target.closest && e.target.closest('g.close-btn')) return;
       e.stopPropagation();
       selectG(g);
       const rect = g.querySelector('rect:not(.resize-handle)');
@@ -555,16 +601,30 @@
       if (g === selectedG && typeof updateDimPopupPosition === 'function') {
         updateDimPopupPosition();
       }
+      // W9-24: 드래그 중 X 버튼 위치도 갱신
+      if (typeof updateCloseButtons === 'function') updateCloseButtons();
     });
     g.addEventListener('pointerup', () => { dragInfo = null; });
     g.addEventListener('pointercancel', () => { dragInfo = null; });
     // W9-19: 더블클릭 회전 제거, 우클릭(contextmenu) 회전으로 변경
     g.addEventListener('contextmenu', (e) => {
+      // W9-24: X 버튼 우클릭은 회전 안 함 (메뉴만 차단)
+      if (e.target.closest && e.target.closest('g.close-btn')) { e.preventDefault(); return; }
       e.preventDefault();
       e.stopPropagation();
       selectG(g);
       rotateG(g);
     });
+    // W9-24: X 버튼 클릭 → 사각형 삭제
+    const closeBtn = g.querySelector('g.close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (selectedG === g) selectedG = null;
+        g.remove();
+        if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+      });
+    }
   }
 
   // W9-14: 꼭지점 자석 snap — 다른 사각형의 4 꼭지점과 일정 거리 이내 시 정확 일치
@@ -688,6 +748,8 @@
       selectedG.setAttribute('transform', `rotate(${cur} ${x + newW / 2} ${y + newH / 2})`);
     }
     updateDimPopupPosition();
+    // W9-24: 사각형 크기 변경 시 X 위치 갱신
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
   }
   dimW.addEventListener('input', applyDimToSelected);
   dimD.addEventListener('input', applyDimToSelected);
@@ -756,6 +818,8 @@
       selectG(last); // 신규 추가 시 자동 선택
       // W9-19: z-order 재정렬 — 상부장은 항상 위
       reorderRects();
+      // W9-24: 신규 X 버튼 초기 위치 적용
+      if (typeof updateCloseButtons === 'function') updateCloseButtons();
       // 재정렬 후 selectedG 가 바뀌지 않았는지 확인 (DOM 재배치 — 참조는 유지)
       // W9-17: 화면 밖이면 fitAll — 큰 사각형(4200mm 등) 자동으로 보이게
       const r = last.querySelector('rect:not(.resize-handle)');
