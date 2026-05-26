@@ -865,8 +865,13 @@
     if (section === 'ep') {
       newW = baseH;  // EP: W = 인접 모듈 깊이 (사용자 요청)
       newH = 18;     // 두께 18T
-    } else if (section === 'molding' || section === 'filler') {
-      newW = 60;     // 몰딩/휠라: W=60mm
+    } else if (section === 'molding') {
+      // W9-31: 몰딩의 W면(60mm) 이 사각형 깊이면과 맞닿도록 세로 배치
+      // 도면 가로 = 두께 18T, 도면 세로 = W 60mm
+      newW = 18;
+      newH = 60;
+    } else if (section === 'filler') {
+      newW = 60;     // 휠라: W=60mm
       newH = 18;     // 두께 18T
     } else {
       return;
