@@ -279,19 +279,19 @@
   };
 
   // W9-25: 라벨을 두 줄로 분할 — 이름(큰 글자) / 치수(작은 글자)
-  // 두 줄 동시 만족하는 최대 name 폰트 크기 반환
+  // W9-26: 사각형 내부 상하좌우 여백 추가 — padding ~15%
   function computeNameFontSize(w, h, name, dim) {
     const nameLen = Math.max(name.length, 1);
     const dimLen = Math.max(dim.length, 1);
     const dimRatio = 0.6; // dim 폰트 = name * 0.6
-    const charW = 0.58;   // 평균 글자폭/font-size (한글 ≈ 0.6, 숫자 ≈ 0.55)
-    // 폭 제약: name 한 줄, dim 한 줄 각자 사각형 폭의 88% 차지
-    const nameByW = (w * 0.88) / nameLen / charW;
-    const dimByW  = (w * 0.88) / dimLen / charW / dimRatio;
-    // 높이 제약: 두 줄 + 줄간격 (name + dim*ratio + gap) ≤ h * 0.85
-    // → name * (1 + dimRatio + 0.15) ≤ h * 0.85
-    const byH = (h * 0.85) / (1 + dimRatio + 0.15);
-    return Math.max(10, Math.min(nameByW, dimByW, byH, 360));
+    const charW = 0.58;
+    // 폭 제약: 좌우 합 35% 여백 → 라벨이 사각형 폭의 65% 만 차지
+    const nameByW = (w * 0.65) / nameLen / charW;
+    const dimByW  = (w * 0.65) / dimLen / charW / dimRatio;
+    // 높이 제약: 상하 합 40% 여백 → 두 줄 라벨이 사각형 높이의 60% 만 차지
+    const byH = (h * 0.60) / (1 + dimRatio + 0.15);
+    // max 캡 180 (전체적으로 너무 크지 않게)
+    return Math.max(10, Math.min(nameByW, dimByW, byH, 180));
   }
 
   // 라벨 텍스트 두 tspan 갱신 (신규/리사이즈 공용)
