@@ -78,10 +78,12 @@
   #dimPopup input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
   #dimPopup .u{color:#a89c84;font-size:10px}
   /* W9-29: 부재 추가 버튼 (EP/몰딩/휠라) */
-  #dimPopup .attach-row{display:flex;gap:3px;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
-  #dimPopup .attach-row button{flex:1;padding:3px 4px;border:1px solid #b8956c;background:#f4efe7;color:#5a4d2f;border-radius:3px;font-size:10px;cursor:pointer;font-weight:600;transition:background .12s ease}
-  #dimPopup .attach-row button:hover{background:#ede4d0}
-  #dimPopup .attach-row button:active{background:#d9c89c}
+  /* W9-30: 좌/우 양방향 — 부재명 + ◀ ▶ 3-col grid */
+  #dimPopup .attach-grid{display:grid;grid-template-columns:auto 22px 22px;gap:3px 4px;align-items:center;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
+  #dimPopup .attach-grid .attach-label{color:#5a4d2f;font-weight:700;font-size:10px;padding-right:2px}
+  #dimPopup .attach-grid button{padding:2px 0;border:1px solid #b8956c;background:#f4efe7;color:#5a4d2f;border-radius:3px;font-size:11px;cursor:pointer;font-weight:600;transition:background .12s ease;line-height:1}
+  #dimPopup .attach-grid button:hover{background:#ede4d0}
+  #dimPopup .attach-grid button:active{background:#d9c89c}
   /* W9-14: 자석 snap 시각 표시 (드래그 중) */
   .magnet-hint{stroke:#e74c3c;stroke-width:2;stroke-dasharray:4 3;fill:none;pointer-events:none;opacity:.8}
 
@@ -189,10 +191,16 @@
           <label><span class="k">W</span><input id="dimW" type="number" step="1" min="1"><span class="u">mm</span></label>
           <label><span class="k">D</span><input id="dimD" type="number" step="1" min="1"><span class="u">mm</span></label>
         </div>
-        <div class="attach-row">
-          <button type="button" data-attach="ep" title="EP 측판 추가 (우측 인접 · W=인접 D · 18T)">+EP</button>
-          <button type="button" data-attach="molding" title="몰딩 추가 (위쪽 인접 · 60×18)">+몰딩</button>
-          <button type="button" data-attach="filler" title="휠라 추가 (우측 인접 · 60×18)">+휠라</button>
+        <div class="attach-grid">
+          <span class="attach-label">EP</span>
+          <button type="button" data-attach="ep" data-side="left"  title="선택 사각형 좌측에 EP 측판 추가 (W=인접 D · 18T)">◀</button>
+          <button type="button" data-attach="ep" data-side="right" title="선택 사각형 우측에 EP 측판 추가 (W=인접 D · 18T)">▶</button>
+          <span class="attach-label">몰딩</span>
+          <button type="button" data-attach="molding" data-side="left"  title="선택 사각형 좌측에 몰딩 추가 (60×18)">◀</button>
+          <button type="button" data-attach="molding" data-side="right" title="선택 사각형 우측에 몰딩 추가 (60×18)">▶</button>
+          <span class="attach-label">휠라</span>
+          <button type="button" data-attach="filler" data-side="left"  title="선택 사각형 좌측에 휠라 추가 (60×18)">◀</button>
+          <button type="button" data-attach="filler" data-side="right" title="선택 사각형 우측에 휠라 추가 (60×18)">▶</button>
         </div>
       </div>
       <div class="canvas-placeholder">
@@ -842,7 +850,8 @@
   dimD.addEventListener('input', applyDimToSelected);
 
   // W9-29: 부재 추가 (EP/몰딩/휠라) — 선택 사각형에 인접 배치
-  function attachToSelected(section) {
+  // W9-30: side 'left' | 'right' 으로 좌/우 양방향 지원
+  function attachToSelected(section, side) {
     if (!selectedG) return;
     const r = selectedG.querySelector('rect:not(.resize-handle)');
     if (!r) return;
@@ -852,33 +861,35 @@
     const baseH = parseFloat(r.getAttribute('height'));
     const baseModH = parseFloat(selectedG.getAttribute('data-module-h')) || 860;
     const override = { moduleH: baseModH };
+    let newW, newH;
     if (section === 'ep') {
-      override.w = baseH;        // EP: W = 인접 모듈 깊이 (사용자 요청)
-      override.h = 18;           // 두께 18T
-      override.x = baseX + baseW; // 우측 인접
-      override.y = baseY;
-    } else if (section === 'molding') {
-      override.w = 60;           // 몰딩: W=60mm (사용자 요청)
-      override.h = 18;           // 두께 18T
-      override.x = baseX;
-      override.y = baseY - 18;   // 위쪽 인접
-    } else if (section === 'filler') {
-      override.w = 60;           // 휠라: W=60mm (사용자 요청)
-      override.h = 18;           // 두께 18T
-      override.x = baseX + baseW; // 우측 인접
-      override.y = baseY;
+      newW = baseH;  // EP: W = 인접 모듈 깊이 (사용자 요청)
+      newH = 18;     // 두께 18T
+    } else if (section === 'molding' || section === 'filler') {
+      newW = 60;     // 몰딩/휠라: W=60mm
+      newH = 18;     // 두께 18T
     } else {
       return;
     }
+    override.w = newW;
+    override.h = newH;
+    // W9-30: side 에 따라 좌/우 배치 (선택 사각형의 같은 y 시작)
+    if (side === 'left') {
+      override.x = baseX - newW;    // 좌측: 선택 사각형의 좌측 변에 우측 변이 붙음
+    } else {
+      override.x = baseX + baseW;   // 우측: 선택 사각형의 우측 변에 좌측 변이 붙음
+    }
+    override.y = baseY;
     addSectionRect(section, override);
   }
 
   // 버튼 click → attach (사각형 선택 유지)
-  dimPopup.querySelectorAll('.attach-row button[data-attach]').forEach((btn) => {
+  dimPopup.querySelectorAll('.attach-grid button[data-attach]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const sec = btn.getAttribute('data-attach');
-      attachToSelected(sec);
+      const side = btn.getAttribute('data-side') || 'right';
+      attachToSelected(sec, side);
     });
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   });
