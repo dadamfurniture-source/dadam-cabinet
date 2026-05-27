@@ -104,11 +104,13 @@
   #dimPopup .k{color:#7a7062;font-weight:600}
   #dimPopup input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
   #dimPopup .u{color:#a89c84;font-size:10px}
-  /* W9-46: 트리밍 버튼 */
-  #dimPopup .trim-row{display:flex;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
-  #dimPopup .trim-row button{flex:1;padding:5px 8px;border:1px solid #c87f24;background:#fef3d6;color:#7a4810;border-radius:4px;font-size:11px;cursor:pointer;font-weight:700;transition:background .12s ease}
-  #dimPopup .trim-row button:hover{background:#fbe5b3}
-  #dimPopup .trim-row button:disabled{opacity:0.4;cursor:not-allowed}
+  /* W9-47: 트리밍 모드 — 좌측 toolbar 버튼 + 기준 사각형 강조 */
+  .tool-btn#trimToolBtn.active{background:#c87f24;color:#fff;border-color:#7a4810}
+  .canvas-wrap.trim-mode{cursor:crosshair}
+  .canvas-wrap.trim-mode .sect-rect{cursor:crosshair}
+  .sect-rect.trim-ref rect:not(.resize-handle){stroke:#c87f24 !important;stroke-width:6 !important;stroke-dasharray:14 6}
+  /* trim 안내 토스트 */
+  .trim-toast{position:absolute;top:48px;left:50%;transform:translateX(-50%);background:rgba(122,72,16,0.92);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;z-index:100;pointer-events:none}
   /* W9-29: 부재 추가 버튼 (EP/몰딩/휠라) */
   /* W9-30/W9-38: 좌/우 양방향 — 색상으로 명확 구분 */
   #dimPopup .attach-grid{display:grid;grid-template-columns:auto 36px 36px;gap:3px 4px;align-items:center;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
@@ -191,6 +193,9 @@
       <button class="tool-btn rect-btn" title="냉장고 (W720×D700 · 도면 배치)" data-section="refrigerator">🧊</button>
       <button class="tool-btn rect-btn" title="식기세척기 (W600×D600 · 도면 배치)" data-section="dishwasher">🍽️</button>
       <div class="tool-sep"></div>
+      <!-- W9-47: 트리밍 모드 — 기준 사각형 클릭 → 잘릴 사각형 클릭 -->
+      <button class="tool-btn" id="trimToolBtn" title="트리밍 모드 (T) — ① 기준 사각형 클릭 → ② 잘릴 사각형 클릭">✂</button>
+      <div class="tool-sep"></div>
       <!-- W9-10: 하부장/상부장/키큰장 — 직사각형 비율 SVG + 클릭 시 도면에 색상별 배치 -->
       <button class="tool-btn rect-btn" title="하부장 추가 (도면에 배치)" data-section="lower">
         <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">
@@ -229,9 +234,6 @@
         <div class="dim-row">
           <label><span class="k">W</span><input id="dimW" type="number" step="1" min="1"><span class="u">mm</span></label>
           <label><span class="k">D</span><input id="dimD" type="number" step="1" min="1"><span class="u">mm</span></label>
-        </div>
-        <div class="trim-row">
-          <button type="button" id="trimBtn" title="다른 사각형과 겹치는 부분을 자동으로 잘라냄 (단축키 T)">✂ 겹침 트리밍</button>
         </div>
         <div class="attach-grid">
           <span class="attach-label">EP</span>
@@ -850,6 +852,12 @@
       if (e.target.closest && e.target.closest('g.close-btn')) return;
       // W9-36: 자식 부재 위에서 클릭 시 — 부재 자체 핸들러로 처리
       if (e.target.closest && e.target.closest('g.finishing') && e.target.closest('g.finishing') !== g) return;
+      // W9-47: 트리밍 모드 — 일반 select/drag 대신 trim 흐름
+      if (trimMode) {
+        e.stopPropagation();
+        handleTrimClick(g);
+        return;
+      }
       e.stopPropagation();
       selectG(g);
       const rect = g.querySelector(':scope > rect:not(.resize-handle)');
@@ -1169,96 +1177,123 @@
   dimW.addEventListener('input', applyDimToSelected);
   dimD.addEventListener('input', applyDimToSelected);
 
-  // W9-46: 트리밍 — 선택 사각형과 가장 큰 overlap 사각형 비교, 작은 overlap 축 방향으로 자기 자신 잘라냄
-  function trimSelectedRect() {
-    if (!selectedG) return;
-    const r = selectedG.querySelector(':scope > rect:not(.resize-handle)');
-    if (!r) return;
-    const ax = parseFloat(r.getAttribute('x'));
-    const ay = parseFloat(r.getAttribute('y'));
-    const aw = parseFloat(r.getAttribute('width'));
-    const ah = parseFloat(r.getAttribute('height'));
-    const content = getContent();
-    if (!content) return;
-    const others = content.querySelectorAll(':scope > g.sect-rect');
-    // 가장 큰 overlap 면적 sect-rect 찾기
-    let best = null; // { dx, dy, area, op } op: rect attribute update fn
-    others.forEach((other) => {
-      if (other === selectedG) return;
-      const or = other.querySelector(':scope > rect:not(.resize-handle)');
-      if (!or) return;
-      const bx = parseFloat(or.getAttribute('x'));
-      const by = parseFloat(or.getAttribute('y'));
-      const bw = parseFloat(or.getAttribute('width'));
-      const bh = parseFloat(or.getAttribute('height'));
-      const overlapX = Math.max(0, Math.min(ax + aw, bx + bw) - Math.max(ax, bx));
-      const overlapY = Math.max(0, Math.min(ay + ah, by + bh) - Math.max(ay, by));
-      if (overlapX <= 0 || overlapY <= 0) return;
-      const area = overlapX * overlapY;
-      if (best && area <= best.area) return;
-      // overlapX vs overlapY 더 작은 축 방향으로 trim (자연스러운 절단면)
-      let op;
-      if (overlapX < overlapY) {
-        // X 방향 trim — 사각형 폭(W) 줄임
-        if (ax < bx) {
-          // A 좌측에 위치 → A 의 우측을 B 좌측 변까지 줄임
-          const newW = bx - ax;
-          if (newW >= 1) op = () => { r.setAttribute('width', newW); };
-        } else {
-          // A 우측에 위치 → A 의 좌측을 B 우측 변까지 옮김
-          const newX = bx + bw;
-          const newW = ax + aw - newX;
-          if (newW >= 1) op = () => {
-            r.setAttribute('x', newX);
-            r.setAttribute('width', newW);
-          };
-        }
-      } else {
-        // Y 방향 trim — 사각형 깊이(D) 줄임
-        if (ay < by) {
-          const newH = by - ay;
-          if (newH >= 1) op = () => { r.setAttribute('height', newH); };
-        } else {
-          const newY = by + bh;
-          const newH = ay + ah - newY;
-          if (newH >= 1) op = () => {
-            r.setAttribute('y', newY);
-            r.setAttribute('height', newH);
-          };
-        }
-      }
-      if (op) best = { area, op };
-    });
-    if (!best) {
-      // 안 겹침
-      return;
+  // W9-47: 트리밍 모드 — 좌측 buttn 토글, 1번째 사각형 = 기준, 2번째 = 잘림
+  let trimMode = false;
+  let trimRefG = null;
+  let trimToastEl = null;
+
+  function showTrimToast(text) {
+    if (trimToastEl) trimToastEl.remove();
+    const wrap = document.querySelector('.canvas-wrap');
+    if (!wrap) return;
+    trimToastEl = document.createElement('div');
+    trimToastEl.className = 'trim-toast';
+    trimToastEl.textContent = text;
+    wrap.appendChild(trimToastEl);
+  }
+  function hideTrimToast() {
+    if (trimToastEl) { trimToastEl.remove(); trimToastEl = null; }
+  }
+
+  function setTrimMode(on) {
+    trimMode = on;
+    const btn = document.getElementById('trimToolBtn');
+    const wrap = document.querySelector('.canvas-wrap');
+    if (btn) btn.classList.toggle('active', on);
+    if (wrap) wrap.classList.toggle('trim-mode', on);
+    if (!on) {
+      if (trimRefG) trimRefG.classList.remove('trim-ref');
+      trimRefG = null;
+      hideTrimToast();
+    } else {
+      trimRefG = null;
+      showTrimToast('✂ 트리밍 모드 — ① 기준이 될 사각형을 클릭하세요');
     }
-    best.op();
-    // 라벨/위치/X 버튼/dimPopup 갱신
-    const nr = selectedG.querySelector(':scope > rect:not(.resize-handle)');
+  }
+
+  // 트리밍: 기준 사각형 ref 의 영역을 target 에서 제거 (target W 또는 D 줄임)
+  function trimAgainst(refG, targetG) {
+    const ref = refG.querySelector(':scope > rect:not(.resize-handle)');
+    const tgt = targetG.querySelector(':scope > rect:not(.resize-handle)');
+    if (!ref || !tgt) return false;
+    const ax = parseFloat(tgt.getAttribute('x'));
+    const ay = parseFloat(tgt.getAttribute('y'));
+    const aw = parseFloat(tgt.getAttribute('width'));
+    const ah = parseFloat(tgt.getAttribute('height'));
+    const bx = parseFloat(ref.getAttribute('x'));
+    const by = parseFloat(ref.getAttribute('y'));
+    const bw = parseFloat(ref.getAttribute('width'));
+    const bh = parseFloat(ref.getAttribute('height'));
+    const overlapX = Math.max(0, Math.min(ax + aw, bx + bw) - Math.max(ax, bx));
+    const overlapY = Math.max(0, Math.min(ay + ah, by + bh) - Math.max(ay, by));
+    if (overlapX <= 0 || overlapY <= 0) {
+      showTrimToast('⚠ 두 사각형이 겹치지 않음 — 모드 해제');
+      setTimeout(() => { if (!trimMode) hideTrimToast(); }, 1500);
+      return false;
+    }
+    let op;
+    if (overlapX < overlapY) {
+      if (ax < bx) {
+        const newW = bx - ax;
+        if (newW >= 1) op = () => tgt.setAttribute('width', newW);
+      } else {
+        const newX = bx + bw;
+        const newW = ax + aw - newX;
+        if (newW >= 1) op = () => { tgt.setAttribute('x', newX); tgt.setAttribute('width', newW); };
+      }
+    } else {
+      if (ay < by) {
+        const newH = by - ay;
+        if (newH >= 1) op = () => tgt.setAttribute('height', newH);
+      } else {
+        const newY = by + bh;
+        const newH = ay + ah - newY;
+        if (newH >= 1) op = () => { tgt.setAttribute('y', newY); tgt.setAttribute('height', newH); };
+      }
+    }
+    if (!op) return false;
+    op();
+    // 라벨 / 회전 pivot / X 버튼 갱신
+    const nr = targetG.querySelector(':scope > rect:not(.resize-handle)');
     const nx = parseFloat(nr.getAttribute('x'));
     const ny = parseFloat(nr.getAttribute('y'));
     const nw = parseFloat(nr.getAttribute('width'));
     const nh = parseFloat(nr.getAttribute('height'));
-    const text = selectedG.querySelector(':scope > text');
+    const text = targetG.querySelector(':scope > text');
     if (text) {
       const name = text.getAttribute('data-name') || '';
       const dimText = nw + '×' + nh + 'mm';
       applyLabel(text, nx + nw / 2, ny + nh / 2, nw, nh, name, dimText);
     }
-    // 회전 transform pivot 갱신
-    const cur = rotations.get(selectedG) || 0;
+    const cur = rotations.get(targetG) || 0;
     if (cur) {
-      selectedG.setAttribute('transform', `rotate(${cur} ${nx + nw / 2} ${ny + nh / 2})`);
+      targetG.setAttribute('transform', `rotate(${cur} ${nx + nw / 2} ${ny + nh / 2})`);
     }
     if (typeof updateCloseButtons === 'function') updateCloseButtons();
-    if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+    if (selectedG === targetG && typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+    return true;
   }
 
-  const trimBtn = document.getElementById('trimBtn');
-  if (trimBtn) {
-    trimBtn.addEventListener('click', (e) => { e.stopPropagation(); trimSelectedRect(); });
-    trimBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  // 트리밍 모드에서 사각형 클릭 — 첫 번째 = 기준, 두 번째 = 잘림
+  function handleTrimClick(g) {
+    if (!trimRefG) {
+      trimRefG = g;
+      g.classList.add('trim-ref');
+      showTrimToast('✂ 기준 설정 완료 — ② 잘릴 사각형을 클릭하세요');
+      return;
+    }
+    if (g === trimRefG) return;  // 같은 거 다시 클릭 — 무시
+    const ok = trimAgainst(trimRefG, g);
+    if (ok) {
+      showTrimToast('✂ 트리밍 완료');
+      setTimeout(hideTrimToast, 1200);
+    }
+    setTrimMode(false);  // 작업 후 모드 자동 종료
+  }
+
+  const trimToolBtn = document.getElementById('trimToolBtn');
+  if (trimToolBtn) {
+    trimToolBtn.addEventListener('click', () => setTrimMode(!trimMode));
   }
 
   // W9-29: 부재 추가 (EP/몰딩/휠라) — 선택 사각형에 인접 배치
@@ -1365,10 +1400,10 @@
       selectedG = null;
       pushUndo({ type: 'remove', g, parent, nextSibling });
     }
-    // W9-46: T = 트리밍 (선택 사각형의 겹친 부분 자동 잘라냄)
-    if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && selectedG) {
+    // W9-47: T = 트리밍 모드 토글
+    if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      trimSelectedRect();
+      setTrimMode(!trimMode);
     }
     // W9-39: Ctrl+Z / Ctrl+Y (또는 Ctrl+Shift+Z) — undo / redo
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
@@ -1379,7 +1414,11 @@
       e.preventDefault();
       redo();
     }
-    if (e.key === 'Escape') selectG(null);
+    if (e.key === 'Escape') {
+      // W9-47: 트리밍 모드 중이면 모드 해제, 아니면 deselect
+      if (trimMode) { setTrimMode(false); return; }
+      selectG(null);
+    }
     if (e.key === 'f' || e.key === 'F') { e.preventDefault(); fitAll(); }
     if (e.key === '0') { e.preventDefault(); resetView(); }
     if (e.key === '+' || e.key === '=') {
