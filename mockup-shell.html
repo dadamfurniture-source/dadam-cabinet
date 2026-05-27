@@ -531,9 +531,10 @@
     return { cx: parseFloat(c.getAttribute('cx')), cy: parseFloat(c.getAttribute('cy')) };
   }
 
-  // W9-32: 신규 사각형의 정면(+y 방향, D 의 아래쪽 변)이 person 을 향하도록 90도 단위 회전
+  // W9-36: 정면 = W 변 (위/아래) 중 사람과 가까운 변. 깊이면(좌/우 D 변) 은 정면 아님.
+  // 4 회전 (0/90/180/270) 후 정면 변 중심이 사람과 가장 가까운 회전 선택.
   function alignToPerson(g) {
-    const r = g.querySelector('rect:not(.resize-handle)');
+    const r = g.querySelector(':scope > rect:not(.resize-handle)');
     if (!r) return;
     const person = getPersonPos();
     if (!person) return;
@@ -542,17 +543,26 @@
     const w = parseFloat(r.getAttribute('width'));
     const h = parseFloat(r.getAttribute('height'));
     const cx = x + w / 2, cy = y + h / 2;
-    // angle: 사각형 중심 → person 방향 (deg, 0=+x, 90=+y/아래, 180=-x, 270=+y/위)
-    const angle = Math.atan2(person.cy - cy, person.cx - cx) * 180 / Math.PI;
-    // 사각형 기본 정면 = +y (아래쪽) = angle 90
-    // 회전 0 = 정면 +y, 회전 90 = 정면 +x(우), 회전 180 = 정면 -y(위), 회전 270 = 정면 -x(좌)
-    // 정면이 person 향하려면 회전 = (angle - 90) mod 360
-    let rot = angle - 90;
-    rot = Math.round(rot / 90) * 90;        // 90도 snap
-    rot = ((rot % 360) + 360) % 360;
-    if (rot === 0) return;                  // 회전 불필요
-    rotations.set(g, rot);
-    g.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`);
+    // 회전 0 기준 정면 변 중심 = (cx, cy + h/2)  (아래쪽 W 변)
+    // 회전 r 후 정면 변 위치:
+    //   dx0 = 0, dy0 = h/2
+    //   dxr = -dy0 * sin(r), dyr = dy0 * cos(r)
+    let bestRot = 0, bestDist = Infinity;
+    for (const rot of [0, 90, 180, 270]) {
+      const cos = (rot === 0) ? 1 : (rot === 90) ? 0 : (rot === 180) ? -1 : 0;
+      const sin = (rot === 0) ? 0 : (rot === 90) ? 1 : (rot === 180) ? 0 : -1;
+      const fx = cx + (-(h / 2)) * sin;
+      const fy = cy + (h / 2) * cos;
+      const dist = Math.hypot(person.cx - fx, person.cy - fy);
+      if (dist < bestDist) { bestDist = dist; bestRot = rot; }
+    }
+    if (bestRot === 0) {
+      rotations.set(g, 0);
+      g.setAttribute('transform', '');
+      return;
+    }
+    rotations.set(g, bestRot);
+    g.setAttribute('transform', `rotate(${bestRot} ${cx} ${cy})`);
   }
 
   // W9-18: 기본 view — 가로 7000mm fit (좌우 약간 여백)
@@ -730,13 +740,14 @@
     cX.setAttribute('fill', 'none');
     close.appendChild(cX);
     g.appendChild(close);
-    content.appendChild(g);
-    rectIdx++;
-    // W9-35: forceRotation — 사각형 중심 기준 회전 (auto finishings 용)
-    if (override.forceRotation !== undefined && override.rotCenter) {
-      rotations.set(g, override.forceRotation);
-      g.setAttribute('transform', `rotate(${override.forceRotation} ${override.rotCenter.cx} ${override.rotCenter.cy})`);
+    // W9-36: parentG override 있으면 부모 사각형 g 의 자식으로 (그룹화)
+    if (override.parentG) {
+      g.classList.add('finishing');
+      override.parentG.appendChild(g);
+    } else {
+      content.appendChild(g);
     }
+    rectIdx++;
   }
 
   // W9-11: 사각형 인터랙션 — 선택 / 드래그 / 더블클릭 회전 / Delete 삭제 / Esc 해제
@@ -759,7 +770,9 @@
     const cur = rotations.get(g) || 0;
     const next = (cur + 90) % 360;
     rotations.set(g, next);
-    const rect = g.querySelector('rect');
+    // W9-36: 자식 부재 rect 가 아닌 모듈 자체 rect 만
+    const rect = g.querySelector(':scope > rect:not(.resize-handle)');
+    if (!rect) return;
     const cx = parseFloat(rect.getAttribute('x')) + parseFloat(rect.getAttribute('width')) / 2;
     const cy = parseFloat(rect.getAttribute('y')) + parseFloat(rect.getAttribute('height')) / 2;
     g.setAttribute('transform', next === 0 ? '' : `rotate(${next} ${cx} ${cy})`);
@@ -772,13 +785,25 @@
       if (e.target.classList && e.target.classList.contains('resize-handle')) return;
       // W9-24: X 버튼 클릭 시 드래그 안 함
       if (e.target.closest && e.target.closest('g.close-btn')) return;
+      // W9-36: 자식 부재 위에서 클릭 시 — 부재 자체 핸들러로 처리
+      if (e.target.closest && e.target.closest('g.finishing') && e.target.closest('g.finishing') !== g) return;
       e.stopPropagation();
       selectG(g);
-      const rect = g.querySelector('rect:not(.resize-handle)');
+      const rect = g.querySelector(':scope > rect:not(.resize-handle)');
+      // W9-36: 자식 부재들 원본 위치 저장 (drag 시 같이 이동)
+      const finishings = Array.from(g.querySelectorAll(':scope > g.finishing')).map((fg) => {
+        const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+        return {
+          g: fg,
+          origX: parseFloat(fr.getAttribute('x')),
+          origY: parseFloat(fr.getAttribute('y')),
+        };
+      });
       dragInfo = {
         startX: e.clientX, startY: e.clientY,
         origX: parseFloat(rect.getAttribute('x')),
         origY: parseFloat(rect.getAttribute('y')),
+        finishings,
       };
       g.setPointerCapture(e.pointerId);
     });
@@ -788,8 +813,8 @@
       const z = view.zoom || 1;
       const dx = (e.clientX - dragInfo.startX) / z;
       const dy = (e.clientY - dragInfo.startY) / z;
-      const rect = g.querySelector('rect:not(.resize-handle)');
-      const text = g.querySelector('text');
+      const rect = g.querySelector(':scope > rect:not(.resize-handle)');
+      const text = g.querySelector(':scope > text');
       // W9-12: 격자 snap 50mm. Shift 누른 채 드래그 시 자유.
       // W9-21: 자석을 grid 보다 먼저 시도 — raw 위치에서 검색 (grid 격자에 갇혀 자석 못 닿는 문제 해결)
       const GRID = 50;
@@ -823,6 +848,27 @@
       const cur = rotations.get(g) || 0;
       if (cur) {
         g.setAttribute('transform', `rotate(${cur} ${newX + w / 2} ${newY + h / 2})`);
+      }
+      // W9-36: 자식 부재들도 같은 delta 만큼 이동
+      const deltaX = newX - dragInfo.origX;
+      const deltaY = newY - dragInfo.origY;
+      if (dragInfo.finishings) {
+        dragInfo.finishings.forEach((fi) => {
+          const fr = fi.g.querySelector(':scope > rect:not(.resize-handle)');
+          if (!fr) return;
+          const fnewX = fi.origX + deltaX;
+          const fnewY = fi.origY + deltaY;
+          fr.setAttribute('x', fnewX);
+          fr.setAttribute('y', fnewY);
+          const ft = fi.g.querySelector(':scope > text');
+          const fw = parseFloat(fr.getAttribute('width'));
+          const fh = parseFloat(fr.getAttribute('height'));
+          if (ft) {
+            ft.setAttribute('x', fnewX + fw / 2);
+            ft.setAttribute('y', fnewY + fh / 2);
+            ft.querySelectorAll('tspan').forEach((ts) => ts.setAttribute('x', fnewX + fw / 2));
+          }
+        });
       }
       // W9-14: 드래그 중 dimPopup 위치 따라가기
       if (g === selectedG && typeof updateDimPopupPosition === 'function') {
@@ -901,9 +947,12 @@
     const z = view.zoom || 1;
     const thresholdMm = MAGNET_THRESHOLD_PX / z;
     let bestDx = 0, bestDy = 0, bestDist = thresholdMm + 1;
-    document.querySelectorAll('.sect-rect').forEach((other) => {
+    // W9-36: 자석은 모듈끼리만 (finishing 부재 제외 — 부재는 부모 따라가는 종속물)
+    const content = getContent();
+    const others = content ? content.querySelectorAll(':scope > g.sect-rect') : [];
+    others.forEach((other) => {
       if (other === currentG) return;
-      const or = other.querySelector('rect:not(.resize-handle)');
+      const or = other.querySelector(':scope > rect:not(.resize-handle)');
       if (!or) return;
       const otherCorners = getRectCorners(or, other);
       myCorners.forEach((mc) => {
@@ -1056,38 +1105,37 @@
 
   // W9-29: 부재 추가 (EP/몰딩/휠라) — 선택 사각형에 인접 배치
   // W9-30: side 'left' | 'right' 으로 좌/우 양방향 지원
+  // W9-36: 부재가 사각형 g 의 자식 → 그룹화 (사각형 이동/회전 시 부재도 따라감)
   function attachToSelected(section, side) {
     if (!selectedG) return;
-    const r = selectedG.querySelector('rect:not(.resize-handle)');
+    const r = selectedG.querySelector(':scope > rect:not(.resize-handle)');
     if (!r) return;
     const baseX = parseFloat(r.getAttribute('x'));
     const baseY = parseFloat(r.getAttribute('y'));
     const baseW = parseFloat(r.getAttribute('width'));
     const baseH = parseFloat(r.getAttribute('height'));
     const baseModH = parseFloat(selectedG.getAttribute('data-module-h')) || 860;
-    const override = { moduleH: baseModH };
+    const override = { moduleH: baseModH, parentG: selectedG };
     let newW, newH;
     if (section === 'ep') {
-      newW = baseH;  // EP: W = 인접 모듈 깊이 (사용자 요청)
-      newH = 18;     // 두께 18T
+      newW = baseH;
+      newH = 18;
     } else if (section === 'molding') {
-      // W9-31: 몰딩의 W면(60mm) 이 사각형 깊이면과 맞닿도록 세로 배치
-      // 도면 가로 = 두께 18T, 도면 세로 = W 60mm
       newW = 18;
       newH = 60;
     } else if (section === 'filler') {
-      newW = 60;     // 휠라: W=60mm
-      newH = 18;     // 두께 18T
+      newW = 60;
+      newH = 18;
     } else {
       return;
     }
     override.w = newW;
     override.h = newH;
-    // W9-30: side 에 따라 좌/우 배치 (선택 사각형의 같은 y 시작)
+    // 회전 0 기준 좌/우 위치 (사각형의 g transform 이 자동으로 회전 적용 → 부재가 회전된 사각형 옆에 정확히 위치)
     if (side === 'left') {
-      override.x = baseX - newW;    // 좌측: 선택 사각형의 좌측 변에 우측 변이 붙음
+      override.x = baseX - newW;
     } else {
-      override.x = baseX + baseW;   // 우측: 선택 사각형의 우측 변에 좌측 변이 붙음
+      override.x = baseX + baseW;
     }
     override.y = baseY;
     addSectionRect(section, override);
@@ -1148,12 +1196,11 @@
   function reorderRects() {
     const content = getContent();
     if (!content) return;
-    const rects = Array.from(content.querySelectorAll('g.sect-rect'));
+    // W9-36: content 의 직접 자식만 (모듈 자체) — 자식 부재(g.finishing) 는 제외
+    const rects = Array.from(content.querySelectorAll(':scope > g.sect-rect'));
     const zOf = (g) => g.classList.contains('upper') ? 1 : 0;
     rects.sort((a, b) => zOf(a) - zOf(b));
-    // 안정성 위해 같은 z 끼리 기존 순서 유지 — sort 는 stable (ES2019+)
     rects.forEach(g => content.appendChild(g));
-    // W9-32: person 은 항상 맨 위 (사각형 위에 보이도록)
     const person = content.querySelector('g.person');
     if (person) content.appendChild(person);
   }
@@ -1202,12 +1249,13 @@
     const content = getContent();
     if (!content) return;
     // 신규 g 는 가장 마지막 자식 (방금 append 됨)
-    const last = content.lastElementChild;
+    // W9-36: parentG 있으면 부모 사각형의 마지막 자식, 아니면 content 의 마지막 자식
+    const last = (override && override.parentG) ? override.parentG.lastElementChild : content.lastElementChild;
     if (last && last.tagName.toLowerCase() === 'g' && last.classList.contains('sect-rect')) {
       attachRectHandlers(last);
-      // W9-35: forceRotation 있으면 alignToPerson 건너뜀 (auto finishings 부재)
-      if (!override || override.forceRotation === undefined) {
-        // W9-32: person 을 향해 정면 정렬 (90° 단위 snap)
+      // W9-36: finishing 부재는 alignToPerson 건너뜀 (부모 transform 이 회전 적용)
+      const isFinishing = last.classList.contains('finishing');
+      if (!isFinishing) {
         alignToPerson(last);
       }
       selectG(last); // 신규 추가 시 자동 선택
@@ -1226,17 +1274,7 @@
           fitAll();
         }
       }
-      // W9-35: 일반 모듈 (lower/upper/tall/fridge) 추가 시 정면 양 꼭지점에 EP/몰딩/휠라 자동 배치
-      // forceRotation override 없는 일반 추가 (부재 자동 호출 제외)
-      const isGeneralModule = ['lower', 'upper', 'tall', 'fridge'].includes(section);
-      const isUserAdd = !override || override.forceRotation === undefined;
-      if (isGeneralModule && isUserAdd) {
-        autoAttachFinishings(last);
-        // 마감재 추가 후 원래 모듈 다시 선택 (selectG 가 마지막 부재로 갈 수 있음)
-        selectG(last);
-        reorderRects();
-        if (typeof updateCloseButtons === 'function') updateCloseButtons();
-      }
+      // W9-36: 자동 마감재 배치 제거 — dimPopup ◀▶ 클릭 시만 attachToSelected 호출
     }
   };
 
