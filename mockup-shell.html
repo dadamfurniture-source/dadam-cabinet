@@ -17,6 +17,11 @@
   /* ── App shell ─────────────────────────────────────── */
   .shell{display:flex;flex-direction:column;height:100vh;width:100vw}
 
+  /* W9-39: Undo/Redo TopBar 버튼 */
+  .undo-toggle{display:flex;gap:3px}
+  .undo-toggle button{width:28px;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:15px;line-height:1;color:#5a4d2f;transition:background .12s ease}
+  .undo-toggle button:hover:not(:disabled){background:#f4efe7}
+  .undo-toggle button:disabled{opacity:0.35;cursor:not-allowed}
   /* ── TopBar (h:40) ─────────────────────────────────── */
   .topbar{height:40px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 12px;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow-sm)}
   .step-pill{display:flex;align-items:center;gap:0;padding:3px 6px;background:var(--bg);border:1px solid var(--line);border-radius:999px;font-size:11px;font-weight:600}
@@ -138,6 +143,11 @@
       <label><span class="k">D</span><input type="number" value="650" step="50"><span class="u">mm</span></label>
     </div>
     <div class="spacer"></div>
+    <!-- W9-39: Undo / Redo -->
+    <div class="undo-toggle">
+      <button id="undoBtn" type="button" title="되돌리기 (Ctrl+Z)" disabled>↶</button>
+      <button id="redoBtn" type="button" title="다시 실행 (Ctrl+Shift+Z / Ctrl+Y)" disabled>↷</button>
+    </div>
     <div class="view-toggle">
       <button>📐 도면</button><button class="active">🧊 3D</button>
     </div>
@@ -891,13 +901,16 @@
       selectG(g);
       rotateG(g);
     });
-    // W9-24: X 버튼 클릭 → 사각형 삭제
-    const closeBtn = g.querySelector('g.close-btn');
+    // W9-24: X 버튼 클릭 → 사각형 삭제 (W9-39: undo 기록)
+    const closeBtn = g.querySelector(':scope > g.close-btn');
     if (closeBtn) {
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const parent = g.parentElement;
+        const nextSibling = g.nextSibling;
         if (selectedG === g) selectedG = null;
         g.remove();
+        pushUndo({ type: 'remove', g, parent, nextSibling });
         if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
       });
     }
@@ -1203,8 +1216,21 @@
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedG) {
       e.preventDefault();
-      selectedG.remove();
+      const g = selectedG;
+      const parent = g.parentElement;
+      const nextSibling = g.nextSibling;
+      g.remove();
       selectedG = null;
+      pushUndo({ type: 'remove', g, parent, nextSibling });
+    }
+    // W9-39: Ctrl+Z / Ctrl+Y (또는 Ctrl+Shift+Z) — undo / redo
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      undo();
+    }
+    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && (e.key === 'z' || e.key === 'Z')) || e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      redo();
     }
     if (e.key === 'Escape') selectG(null);
     if (e.key === 'f' || e.key === 'F') { e.preventDefault(); fitAll(); }
@@ -1231,6 +1257,65 @@
 
   // W9-19: 상부장은 항상 하부장/키큰장 위에 — z-order 재정렬
   // SVG DOM 순서 = z-order (뒤일수록 위). lower/tall = 바닥, upper = 그 위.
+  // W9-39: undo/redo — 엔티티 생성/삭제 history
+  const undoStack = [];
+  const redoStack = [];
+  const UNDO_MAX = 200;
+  function pushUndo(action) {
+    undoStack.push(action);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    redoStack.length = 0;  // 새 액션 발생 시 redo 비움
+    updateUndoUI();
+  }
+  function undo() {
+    const action = undoStack.pop();
+    if (!action) return;
+    if (action.type === 'add') {
+      // 추가 되돌리기 = 제거
+      const parent = action.g.parentElement;
+      action.nextSibling = action.g.nextSibling;
+      action.parent = parent;
+      if (parent) parent.removeChild(action.g);
+      if (selectedG === action.g) selectG(null);
+    } else if (action.type === 'remove') {
+      // 제거 되돌리기 = 복원
+      if (action.nextSibling) action.parent.insertBefore(action.g, action.nextSibling);
+      else action.parent.appendChild(action.g);
+    }
+    redoStack.push(action);
+    reorderRects();
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+    updateUndoUI();
+  }
+  function redo() {
+    const action = redoStack.pop();
+    if (!action) return;
+    if (action.type === 'add') {
+      // 다시 추가
+      if (action.nextSibling) action.parent.insertBefore(action.g, action.nextSibling);
+      else action.parent.appendChild(action.g);
+    } else if (action.type === 'remove') {
+      // 다시 제거
+      const parent = action.g.parentElement;
+      action.nextSibling = action.g.nextSibling;
+      action.parent = parent;
+      if (parent) parent.removeChild(action.g);
+      if (selectedG === action.g) selectG(null);
+    }
+    undoStack.push(action);
+    reorderRects();
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+    updateUndoUI();
+  }
+  function updateUndoUI() {
+    const ub = document.getElementById('undoBtn');
+    const rb = document.getElementById('redoBtn');
+    if (ub) ub.disabled = undoStack.length === 0;
+    if (rb) rb.disabled = redoStack.length === 0;
+  }
+
   function reorderRects() {
     const content = getContent();
     if (!content) return;
@@ -1297,6 +1382,8 @@
         alignToPerson(last);
         selectG(last); // 일반 모듈만 자동 선택 (W9-38: 부재는 모듈 select 유지)
       }
+      // W9-39: 추가 액션 push (모듈/부재 모두)
+      pushUndo({ type: 'add', g: last });
       // W9-19: z-order 재정렬 — 상부장은 항상 위
       reorderRects();
       // W9-24: 신규 X 버튼 초기 위치 적용
@@ -1329,6 +1416,12 @@
 
   // W9-33: 페이지 로드 시 사람 원 자동 표시 (사각형 없어도 시작 상태에 보이게)
   ensureCanvasSVG();
+
+  // W9-39: TopBar Undo/Redo 버튼 이벤트
+  const undoBtnEl = document.getElementById('undoBtn');
+  const redoBtnEl = document.getElementById('redoBtn');
+  if (undoBtnEl) undoBtnEl.addEventListener('click', () => undo());
+  if (redoBtnEl) redoBtnEl.addEventListener('click', () => redo());
 </script>
 </body>
 </html>
