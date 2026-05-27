@@ -102,9 +102,10 @@
   .sel-dim-row input{width:64px;padding:3px 5px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
   .sel-dim-row .u{color:#a89c84;font-size:10px}
   .sel-section-title{font-size:10px;color:#7a7062;font-weight:600;margin:6px 0 4px;border-top:1px dashed #e0d6c0;padding-top:6px}
-  /* attach-grid: 우측 패널 안에서 사용 */
-  .attach-grid{display:grid;grid-template-columns:auto 1fr 1fr;gap:3px 4px;align-items:center}
+  /* attach-grid: 우측 패널 안에서 사용 — 4 column (label / 좌버튼 / 우버튼 / 사이즈) */
+  .attach-grid{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:3px 4px;align-items:center}
   .attach-grid .attach-label{color:#5a4d2f;font-weight:700;font-size:10px}
+  .attach-grid .attach-size{color:#7a7062;font-size:9px;font-family:monospace;text-align:right;padding-left:4px;white-space:nowrap}
   .attach-grid button{padding:4px 0;border:1px solid;border-radius:3px;font-size:10px;cursor:pointer;font-weight:700;transition:background .12s ease;line-height:1}
   .attach-grid button[data-side="left"]{background:#e3f0fa;border-color:#3a78b8;color:#1c4d80}
   .attach-grid button[data-side="left"]:hover{background:#cfe2f4}
@@ -271,12 +272,15 @@
                 <span class="attach-label">EP</span>
                 <button type="button" data-attach="ep" data-side="left"  title="모듈 좌측 EP">◀ 좌</button>
                 <button type="button" data-attach="ep" data-side="right" title="모듈 우측 EP">우 ▶</button>
+                <span class="attach-size">18×D</span>
                 <span class="attach-label">몰딩</span>
                 <button type="button" data-attach="molding" data-side="left"  title="모듈 좌측 몰딩">◀ 좌</button>
                 <button type="button" data-attach="molding" data-side="right" title="모듈 우측 몰딩">우 ▶</button>
+                <span class="attach-size">60×18</span>
                 <span class="attach-label">휠라</span>
                 <button type="button" data-attach="filler" data-side="left"  title="모듈 좌측 휠라">◀ 좌</button>
                 <button type="button" data-attach="filler" data-side="right" title="모듈 우측 휠라">우 ▶</button>
+                <span class="attach-size">60×18</span>
               </div>
             </div>
           </div>
@@ -1030,12 +1034,14 @@
           finishings: fins,
         };
       });
+      // W9-55: dragInfo 의 origX/origY 는 listener 부착된 g (사용자가 클릭한 사각형) 기준
+      // (이전: targets[0] 사용 → 다중 drag 시 g != targets[0] 이면 잘못된 위치로 점프)
+      const myTarget = targets.find(t => t.g === g) || targets[0];
       dragInfo = {
         startX: e.clientX, startY: e.clientY,
-        // 단일 drag 호환: 기존 origX/origY/finishings 는 첫 번째 target (= g)
-        origX: targets[0].origX,
-        origY: targets[0].origY,
-        finishings: targets[0].finishings,
+        origX: myTarget.origX,
+        origY: myTarget.origY,
+        finishings: myTarget.finishings,
         targets,
         multi: inMulti,
       };
@@ -1130,10 +1136,11 @@
           }
         });
       }
-      // W9-54: 다중 drag — 첫 번째(g) 외 나머지 target 도 같은 delta 적용
+      // W9-54: 다중 drag — g 외 나머지 target 도 같은 delta 적용
+      // W9-55: g === t.g 체크 (idx 가 아닌 실제 reference 비교)
       if (dragInfo.multi && dragInfo.targets) {
-        dragInfo.targets.forEach((t, idx) => {
-          if (idx === 0) return;  // 첫 번째 = g (이미 처리됨)
+        dragInfo.targets.forEach((t) => {
+          if (t.g === g) return;  // listener 부착된 g 는 위에서 이미 처리됨
           const tr = t.g.querySelector(':scope > rect:not(.resize-handle)');
           if (!tr) return;
           const tnewX = t.origX + deltaX;
