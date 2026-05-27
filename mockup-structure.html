@@ -187,6 +187,11 @@
       <span class="panel-header-title">구조 편집</span>
       <button title="패널 접기" onclick="document.getElementById('rightPanel').classList.toggle('collapsed')">»</button>
     </div>
+    <!-- W9-72: 세트 자동계산 버튼 (세트 모드에서만 표시) -->
+    <div id="autoCalcBar" style="display:none;padding:8px 10px;background:#fffaf2;border-bottom:1px solid var(--brand-mid)">
+      <button id="autoCalcBtn" style="width:100%;padding:8px;border:1px solid var(--brand-deep);background:var(--brand-deep);color:#fff;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">⚡ 세트 일괄 자동계산</button>
+      <div style="font-size:9px;color:var(--text-faint);margin-top:4px;line-height:1.4">분배기/후드 위치 고려 · 다담 표준 (목표 도어 450mm) · 매립형 손잡이</div>
+    </div>
     <div class="sections">
       <!-- 분할 -->
       <div class="section">
@@ -1127,6 +1132,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     document.querySelectorAll('.ml-mode-toggle button').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    // W9-72: 세트 모드에서만 자동계산 버튼 표시
+    const autoCalcBar = document.getElementById('autoCalcBar');
+    if (autoCalcBar) autoCalcBar.style.display = (mode === 'set') ? 'block' : 'none';
     renderModuleList();
     if (mode === 'single') {
       if (modules.length && !modules.find(x => x.id === activeId)) setActiveModule(modules[0].id);
@@ -1369,6 +1377,135 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // view mode toggle button click
   document.querySelectorAll('.ml-mode-toggle button').forEach(b => {
     b.onclick = () => setViewMode(b.dataset.mode);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // W9-72: 자동계산 (다담 표준 규칙 — 세트 일괄)
+  // ─────────────────────────────────────────────────────────────
+  // 도어 개수 (다담 표준: 목표 450mm, 범위 350-600)
+  function calcDoorCount(W) {
+    if (W <= 600)  return 1;
+    if (W <= 1000) return 2;
+    if (W <= 1400) return 3;
+    if (W <= 1800) return 4;
+    if (W <= 2200) return 5;
+    return Math.max(1, Math.round(W / 450));
+  }
+  // 도어 열림 방향 — 양문 패턴 (인접 도어 반대)
+  function calcDoorDirections(n) {
+    if (n === 1) return ['left'];
+    if (n === 2) return ['left', 'right'];
+    const dirs = [];
+    for (let i = 0; i < n; i++) dirs.push(i % 2 === 0 ? 'left' : 'right');
+    return dirs;
+  }
+  // 선반 (등간격 — 하부 1, 상부 2, 키큰 3)
+  function calcDefaultShelves(section, H) {
+    let count;
+    if (section === 'lower') count = 1;
+    else if (section === 'upper') count = 2;
+    else if (section === 'tall' || section === 'fridge') count = 3;
+    else count = 0;
+    if (count === 0) return [];
+    const step = H / (count + 1);
+    const arr = [];
+    for (let i = 1; i <= count; i++) arr.push(Math.round(step * i));
+    return arr;
+  }
+  // 영역 [x0,x1] 이 ranges 중 어느 것과 25%+ 겹치면 true
+  function overlapsAny(x0, x1, ranges) {
+    return ranges.some(r => {
+      const ov = Math.max(0, Math.min(x1, r.x1) - Math.max(x0, r.x0));
+      return ov > (x1 - x0) * 0.25;
+    });
+  }
+  // 세트의 가전 X 범위 수집
+  function collectXRanges(set, section) {
+    return set.modules.filter(m => m.section === section).map(m => ({ x0: m.x, x1: m.x + m.W }));
+  }
+
+  // 단일 모듈 자동계산 — 가전 위치 (sink/hood/dishwasher) 고려
+  function autoCalcModule(m, s, applianceRanges) {
+    const W = m.W, H = m.H;
+    const moduleX0 = m.x;
+    // 1. 도어 개수
+    s.verticalCount = calcDoorCount(W);
+    // 2. 소구조
+    if (m.section === 'lower') {
+      s.horizontalLayout = 'doorTopDrawerBottom';
+      s.drawerHeight = 200;
+      s.bottomType = 'drawer';
+      s.bottomDirection = 'left';
+    } else {
+      s.horizontalLayout = 'doorOnly';
+    }
+    // 3. 영역 타입 — 가전 X 범위 겹치면 'open'
+    const colW = W / s.verticalCount;
+    const dirsBase = calcDoorDirections(s.verticalCount);
+    s.areaTypes = [];
+    s.areaDirections = [];
+    for (let i = 0; i < s.verticalCount; i++) {
+      const areaX0 = moduleX0 + colW * i;
+      const areaX1 = moduleX0 + colW * (i + 1);
+      let type = 'door';
+      if (m.section === 'upper' && applianceRanges) {
+        if (overlapsAny(areaX0, areaX1, applianceRanges.hood)) type = 'open';
+      }
+      if (m.section === 'lower' && applianceRanges) {
+        if (overlapsAny(areaX0, areaX1, applianceRanges.sink)) type = 'open';
+        if (overlapsAny(areaX0, areaX1, applianceRanges.dishwasher)) type = 'open';
+      }
+      s.areaTypes.push(type);
+      s.areaDirections.push(type === 'door' ? dirsBase[i] : 'left');
+    }
+    // 4. 선반
+    s.shelves = calcDefaultShelves(m.section, H);
+    // 5. 손잡이 (다담 매립형)
+    s.handleType = 'channel';
+    s.handlePosition = (m.section === 'upper') ? 'bottom'
+                     : (m.section === 'lower') ? 'top'
+                     : 'middle';
+  }
+
+  // 세트 일괄 자동계산
+  function autoCalcForSet(set) {
+    if (!set || !set.modules.length) return 0;
+    const applianceRanges = {
+      sink:       collectXRanges(set, 'sink'),
+      hood:       collectXRanges(set, 'hood'),
+      dishwasher: collectXRanges(set, 'dishwasher'),
+    };
+    let count = 0;
+    set.modules.forEach((m) => {
+      // 가전 자체는 skip (사용자 설정 유지)
+      if (['sink', 'hood', 'dishwasher'].includes(m.section)) return;
+      const s = getStructure(m.id);
+      autoCalcModule(m, s, applianceRanges);
+      count++;
+    });
+    return count;
+  }
+
+  // [⚡ 자동계산] 버튼 핸들러
+  const autoCalcBtnEl = document.getElementById('autoCalcBtn');
+  if (autoCalcBtnEl) autoCalcBtnEl.addEventListener('click', () => {
+    if (viewMode !== 'set' || !activeSetId) {
+      alert('세트 보기 모드에서 세트 선택 후 사용 가능합니다.');
+      return;
+    }
+    const sets = buildSets();
+    const set = sets.find(x => x.id === activeSetId);
+    if (!set) return;
+    const generalCount = set.modules.filter(m => !['sink','hood','dishwasher'].includes(m.section)).length;
+    if (!generalCount) {
+      alert('자동계산할 일반 모듈 없음 (가전은 자동계산 skip).');
+      return;
+    }
+    if (!confirm(`${set.label} 의 일반 모듈 ${generalCount}개를 자동 계산합니다.\n\n· 도어 개수 (W 기준 450mm)\n· 하부장 = 도어+서랍 / 그 외 = 도어만\n· 선반 등간격\n· 손잡이 매립형 (위치 section 별)\n· 분배기/후드 X 범위는 'open'\n\n기존 설정 덮어쓰기.`)) return;
+    const n = autoCalcForSet(set);
+    renderRightPanel();
+    renderSet3D(set);
+    showToast(`⚡ ${set.label} 자동계산 완료 (${n}개 모듈)`);
   });
 
   // ─────────────────────────────────────────────────────────────
