@@ -951,6 +951,14 @@
       content.appendChild(g);
     }
     rectIdx++;
+    // W9-71: forceRotation 처리 복원 — restoreLayout 의 회전 적용
+    // (W9-36 에서 누락됐던 W9-35 의 forceRotation 로직 재추가)
+    if (override.forceRotation !== undefined && override.rotCenter) {
+      rotations.set(g, override.forceRotation);
+      if (override.forceRotation) {
+        g.setAttribute('transform', `rotate(${override.forceRotation} ${override.rotCenter.cx} ${override.rotCenter.cy})`);
+      }
+    }
   }
 
   // W9-11: 사각형 인터랙션 — 선택 / 드래그 / 더블클릭 회전 / Delete 삭제 / Esc 해제
