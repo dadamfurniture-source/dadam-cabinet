@@ -94,16 +94,27 @@
   /* W9-14: resize handle 제거 — W/D 입력 popup 으로 대체 */
   .sect-rect .resize-handle{display:none !important}
   /* W9-14: W/D 입력 popup — 선택 사각형 위에 floating */
-  #dimPopup{position:absolute;display:none;background:#fff;border:1px solid #b8956c;border-radius:6px;padding:5px 8px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:60;font-size:11px;color:#3d342a;min-width:180px;cursor:grab;user-select:none}
-  #dimPopup:active{cursor:grabbing}
-  #dimPopup input,#dimPopup button,#dimPopup label{cursor:auto}
-  #dimPopup button{cursor:pointer}
-  #dimPopup .dim-row{display:flex;gap:4px;margin-bottom:4px}
-  #dimPopup label{display:inline-flex;align-items:center;gap:3px;margin-right:6px}
-  #dimPopup label:last-child{margin-right:0}
-  #dimPopup .k{color:#7a7062;font-weight:600}
-  #dimPopup input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
-  #dimPopup .u{color:#a89c84;font-size:10px}
+  /* W9-53: dimPopup 제거 → 우측 패널 "선택 사각형 설정" 섹션 */
+  .sel-empty{padding:14px 4px;color:#a89c84;font-size:11px;text-align:center;line-height:1.5}
+  .sel-dim-row{display:flex;gap:6px;margin:6px 0 8px;align-items:center}
+  .sel-dim-row label{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#3d342a;margin:0}
+  .sel-dim-row .k{color:#7a7062;font-weight:600}
+  .sel-dim-row input{width:64px;padding:3px 5px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
+  .sel-dim-row .u{color:#a89c84;font-size:10px}
+  .sel-section-title{font-size:10px;color:#7a7062;font-weight:600;margin:6px 0 4px;border-top:1px dashed #e0d6c0;padding-top:6px}
+  /* attach-grid: 우측 패널 안에서 사용 */
+  .attach-grid{display:grid;grid-template-columns:auto 1fr 1fr;gap:3px 4px;align-items:center}
+  .attach-grid .attach-label{color:#5a4d2f;font-weight:700;font-size:10px}
+  .attach-grid button{padding:4px 0;border:1px solid;border-radius:3px;font-size:10px;cursor:pointer;font-weight:700;transition:background .12s ease;line-height:1}
+  .attach-grid button[data-side="left"]{background:#e3f0fa;border-color:#3a78b8;color:#1c4d80}
+  .attach-grid button[data-side="left"]:hover{background:#cfe2f4}
+  .attach-grid button[data-side="right"]{background:#fbecd6;border-color:#c87f24;color:#7a4810}
+  .attach-grid button[data-side="right"]:hover{background:#f5dab1}
+  /* rubber-band 선택 사각형 */
+  #rubberRect.crossing{fill:rgba(220,80,80,0.12);stroke:#c0392b;stroke-width:1.5;stroke-dasharray:8 4}
+  #rubberRect.window{fill:rgba(80,140,220,0.12);stroke:#1976d2;stroke-width:1.5}
+  /* 다중 선택 사각형 */
+  .sect-rect.multi-selected rect:not(.resize-handle){stroke:#1976d2 !important;stroke-width:5 !important}
   /* W9-47/W9-52: 트리밍 모드 — toggle 버튼 (ON/OFF) */
   .tool-btn#trimToolBtn{position:relative}
   /* ON/OFF 인디케이터 점 (우상단) */
@@ -115,16 +126,7 @@
   .sect-rect.trim-ref rect:not(.resize-handle){stroke:#c87f24 !important;stroke-width:6 !important;stroke-dasharray:14 6}
   /* trim 안내 토스트 */
   .trim-toast{position:absolute;top:48px;left:50%;transform:translateX(-50%);background:rgba(122,72,16,0.92);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;z-index:100;pointer-events:none}
-  /* W9-29: 부재 추가 버튼 (EP/몰딩/휠라) */
-  /* W9-30/W9-38: 좌/우 양방향 — 색상으로 명확 구분 */
-  #dimPopup .attach-grid{display:grid;grid-template-columns:auto 36px 36px;gap:3px 4px;align-items:center;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
-  #dimPopup .attach-grid .attach-label{color:#5a4d2f;font-weight:700;font-size:10px;padding-right:2px}
-  #dimPopup .attach-grid button{padding:3px 0;border:1px solid;border-radius:3px;font-size:10px;cursor:pointer;font-weight:700;transition:background .12s ease;line-height:1}
-  /* W9-38: 좌측 = 파랑 톤, 우측 = 주황 톤 (즉시 구분 가능) */
-  #dimPopup .attach-grid button[data-side="left"]{background:#e3f0fa;border-color:#3a78b8;color:#1c4d80}
-  #dimPopup .attach-grid button[data-side="left"]:hover{background:#cfe2f4}
-  #dimPopup .attach-grid button[data-side="right"]{background:#fbecd6;border-color:#c87f24;color:#7a4810}
-  #dimPopup .attach-grid button[data-side="right"]:hover{background:#f5dab1}
+  /* W9-53: dimPopup 의 attach-grid 스타일은 selPanelBody 안 .attach-grid 로 통합됨 */
   /* W9-14: 자석 snap 시각 표시 (드래그 중) */
   .magnet-hint{stroke:#e74c3c;stroke-width:2;stroke-dasharray:4 3;fill:none;pointer-events:none;opacity:.8}
 
@@ -233,24 +235,9 @@
 
     <!-- Canvas placeholder -->
     <div class="canvas-wrap">
-      <!-- W9-14: 선택 사각형 W/D 입력 popup + W9-29: 부재 추가 버튼 -->
-      <div id="dimPopup">
-        <div class="dim-row">
-          <label><span class="k">W</span><input id="dimW" type="number" step="1" min="1"><span class="u">mm</span></label>
-          <label><span class="k">D</span><input id="dimD" type="number" step="1" min="1"><span class="u">mm</span></label>
-        </div>
-        <div class="attach-grid">
-          <span class="attach-label">EP</span>
-          <button type="button" data-attach="ep" data-side="left"  title="모듈 좌측에 EP 측판 추가 (이미 좌측 부재가 있으면 그 옆에 chain)">◀ 좌</button>
-          <button type="button" data-attach="ep" data-side="right" title="모듈 우측에 EP 측판 추가 (이미 우측 부재가 있으면 그 옆에 chain)">우 ▶</button>
-          <span class="attach-label">몰딩</span>
-          <button type="button" data-attach="molding" data-side="left"  title="모듈 좌측에 몰딩 추가 (60×18, 부재 chain)">◀ 좌</button>
-          <button type="button" data-attach="molding" data-side="right" title="모듈 우측에 몰딩 추가 (60×18, 부재 chain)">우 ▶</button>
-          <span class="attach-label">휠라</span>
-          <button type="button" data-attach="filler" data-side="left"  title="모듈 좌측에 휠라 추가 (60×18, 부재 chain)">◀ 좌</button>
-          <button type="button" data-attach="filler" data-side="right" title="모듈 우측에 휠라 추가 (60×18, 부재 chain)">우 ▶</button>
-        </div>
-      </div>
+      <!-- W9-53: dimPopup 제거 — 우측 패널 '선택 사각형 설정' 섹션으로 이동 -->
+      <!-- W9-53: rubber-band 선택 영역 SVG (드래그 중 임시 표시) -->
+      <svg id="rubberBand" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;z-index:50"><rect id="rubberRect" fill="none"/></svg>
       <div class="canvas-placeholder">
         <div class="big">🧊</div>
         <div>메인 캔버스 (3D View / 도면)</div>
@@ -268,12 +255,31 @@
 
       <div class="section">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 가구 정보
+          <span class="chev">▼</span> 선택 사각형 설정
         </div>
         <div class="section-body">
-          <div class="row"><label>선택</label><span>하부장 #3</span></div>
-          <div class="row"><label>W × H × D</label><span>800 × 870 × 650</span></div>
-          <div class="row"><label>카테고리</label><span>싱크대</span></div>
+          <div id="selPanelEmpty" class="sel-empty">사각형을 선택하세요<br><span style="font-size:10px;color:#a89c84">Shift+클릭 = 다중 선택 · 빈공간 우→좌 드래그 = 닿음 선택 · 좌→우 = 완전 포함</span></div>
+          <div id="selPanelBody" style="display:none">
+            <div class="row"><label>선택</label><span id="selCount">—</span></div>
+            <div class="sel-dim-row">
+              <label><span class="k">W</span><input id="dimW" type="number" step="1" min="1"><span class="u">mm</span></label>
+              <label><span class="k">D</span><input id="dimD" type="number" step="1" min="1"><span class="u">mm</span></label>
+            </div>
+            <div class="sel-attach-section">
+              <div class="sel-section-title">마감재 추가</div>
+              <div class="attach-grid">
+                <span class="attach-label">EP</span>
+                <button type="button" data-attach="ep" data-side="left"  title="모듈 좌측 EP">◀ 좌</button>
+                <button type="button" data-attach="ep" data-side="right" title="모듈 우측 EP">우 ▶</button>
+                <span class="attach-label">몰딩</span>
+                <button type="button" data-attach="molding" data-side="left"  title="모듈 좌측 몰딩">◀ 좌</button>
+                <button type="button" data-attach="molding" data-side="right" title="모듈 우측 몰딩">우 ▶</button>
+                <span class="attach-label">휠라</span>
+                <button type="button" data-attach="filler" data-side="left"  title="모듈 좌측 휠라">◀ 좌</button>
+                <button type="button" data-attach="filler" data-side="right" title="모듈 우측 휠라">우 ▶</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -677,25 +683,103 @@
       applyView();
     }, { passive: false });
 
-    // 빈 공간 (content layer 가 아닌 곳) pointerdown → pan
+    // W9-53: 빈 공간 pointerdown — 좌클릭=rubber-band 선택, 중간/우클릭 or Space=pan
     let panInfo = null;
+    let rbInfo = null;
     svg.addEventListener('pointerdown', (e) => {
-      // g.sect-rect (또는 그 자손) 아래에서 시작한 경우는 pan 안 함
       if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
-      // 미들 버튼 or Space or 그냥 빈 공간
-      panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY, pid: e.pointerId };
-      svg.setPointerCapture(e.pointerId);
-      svg.style.cursor = 'grabbing';
+      if (trimMode) return;  // trim 모드 중엔 빈 공간 동작 X
+      const isPanTrigger = e.button === 1 || e.button === 2 || e.altKey || e.ctrlKey || e.metaKey;
+      if (isPanTrigger) {
+        panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY };
+        svg.setPointerCapture(e.pointerId);
+        svg.style.cursor = 'grabbing';
+      } else {
+        // rubber-band 선택 시작 (좌클릭 only)
+        const wrap = document.querySelector('.canvas-wrap');
+        const wrapRect = wrap.getBoundingClientRect();
+        const sx = e.clientX - wrapRect.left;
+        const sy = e.clientY - wrapRect.top;
+        rbInfo = { sx, sy, additive: e.shiftKey };
+        svg.setPointerCapture(e.pointerId);
+      }
     });
     svg.addEventListener('pointermove', (e) => {
-      if (!panInfo) return;
-      view.panX = panInfo.ox + (e.clientX - panInfo.sx);
-      view.panY = panInfo.oy + (e.clientY - panInfo.sy);
-      applyView();
+      if (panInfo) {
+        view.panX = panInfo.ox + (e.clientX - panInfo.sx);
+        view.panY = panInfo.oy + (e.clientY - panInfo.sy);
+        applyView();
+        return;
+      }
+      if (rbInfo) {
+        const wrap = document.querySelector('.canvas-wrap');
+        const wrapRect = wrap.getBoundingClientRect();
+        const cx = e.clientX - wrapRect.left;
+        const cy = e.clientY - wrapRect.top;
+        const x0 = Math.min(rbInfo.sx, cx);
+        const y0 = Math.min(rbInfo.sy, cy);
+        const w  = Math.abs(cx - rbInfo.sx);
+        const h  = Math.abs(cy - rbInfo.sy);
+        const rb = document.getElementById('rubberBand');
+        const rr = document.getElementById('rubberRect');
+        if (rb && rr) {
+          rb.style.display = 'block';
+          // 우→좌 (cx < sx) = crossing, 좌→우 = window
+          rr.setAttribute('class', (cx < rbInfo.sx) ? 'crossing' : 'window');
+          rr.setAttribute('x', x0); rr.setAttribute('y', y0);
+          rr.setAttribute('width', w); rr.setAttribute('height', h);
+        }
+        rbInfo.lastX = cx; rbInfo.lastY = cy;
+        rbInfo.boxScreen = { x0, y0, x1: x0 + w, y1: y0 + h };
+        rbInfo.dir = (cx < rbInfo.sx) ? 'crossing' : 'window';
+      }
     });
     const endPan = () => { panInfo = null; svg.style.cursor = ''; };
-    svg.addEventListener('pointerup', endPan);
-    svg.addEventListener('pointercancel', endPan);
+    svg.addEventListener('pointerup', (e) => {
+      if (panInfo) { panInfo = null; svg.style.cursor = ''; return; }
+      if (rbInfo) {
+        const rb = document.getElementById('rubberBand');
+        if (rb) rb.style.display = 'none';
+        // 사용자가 단순 클릭 (이동 없음) — deselect
+        if (!rbInfo.boxScreen) {
+          if (!rbInfo.additive) clearSelection();
+          updateSelectionPanel();
+          rbInfo = null;
+          return;
+        }
+        // 스크린 BBox → SVG world 좌표 변환
+        const { x0, y0, x1, y1 } = rbInfo.boxScreen;
+        const wx0 = (x0 - view.panX) / view.zoom;
+        const wy0 = (y0 - view.panY) / view.zoom;
+        const wx1 = (x1 - view.panX) / view.zoom;
+        const wy1 = (y1 - view.panY) / view.zoom;
+        const sel = { minX: wx0, minY: wy0, maxX: wx1, maxY: wy1 };
+        const content = getContent();
+        if (!rbInfo.additive) clearSelection();
+        if (content) {
+          content.querySelectorAll(':scope > g.sect-rect').forEach((g) => {
+            const bb = getVisualBBox(g);
+            if (!bb) return;
+            let hit;
+            if (rbInfo.dir === 'crossing') {
+              // 닿기만 해도 선택
+              hit = !(bb.maxX < sel.minX || bb.minX > sel.maxX || bb.maxY < sel.minY || bb.minY > sel.maxY);
+            } else {
+              // window: 완전 포함
+              hit = bb.minX >= sel.minX && bb.maxX <= sel.maxX && bb.minY >= sel.minY && bb.maxY <= sel.maxY;
+            }
+            if (hit) selectG(g, true);  // additive — 누적
+          });
+        }
+        rbInfo = null;
+      }
+    });
+    svg.addEventListener('pointercancel', () => {
+      panInfo = null; svg.style.cursor = '';
+      rbInfo = null;
+      const rb = document.getElementById('rubberBand');
+      if (rb) rb.style.display = 'none';
+    });
 
     // 더블 클릭 빈 공간 = Fit All
     svg.addEventListener('dblclick', (e) => {
@@ -823,15 +907,65 @@
   let selectedG = null;
   const rotations = new WeakMap();
 
-  function selectG(g) {
-    if (selectedG && selectedG !== g) selectedG.classList.remove('selected');
-    const prevSelected = selectedG;
-    selectedG = g;
-    if (g) g.classList.add('selected');
-    // W9-34: 다른 사각형 선택 시 popup 자동 위치 복원
-    if (g !== prevSelected) popupUserMoved = false;
-    // W9-14: dimPopup 위치/값 갱신
-    if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+  // W9-53: 다중 선택 — selectedSet (모든 선택) + selectedG (마지막/주 선택)
+  const selectedSet = new Set();
+
+  function clearSelection() {
+    selectedSet.forEach(g => { g.classList.remove('selected'); g.classList.remove('multi-selected'); });
+    selectedSet.clear();
+    selectedG = null;
+  }
+
+  function selectG(g, additive) {
+    if (!additive) {
+      // 단일 선택: 모두 해제 후 새로 선택
+      selectedSet.forEach(sg => { sg.classList.remove('selected'); sg.classList.remove('multi-selected'); });
+      selectedSet.clear();
+    }
+    if (g) {
+      if (additive && selectedSet.has(g)) {
+        // 토글: 이미 선택돼있으면 해제
+        selectedSet.delete(g);
+        g.classList.remove('selected');
+        g.classList.remove('multi-selected');
+      } else {
+        selectedSet.add(g);
+        g.classList.add('selected');
+      }
+    }
+    // selectedG = 마지막 선택 (또는 null)
+    selectedG = selectedSet.size ? Array.from(selectedSet).pop() : null;
+    // 다중 선택 시각 표시
+    if (selectedSet.size > 1) {
+      selectedSet.forEach(sg => sg.classList.add('multi-selected'));
+    }
+    updateSelectionPanel();
+  }
+
+  // W9-53: 우측 패널 '선택 사각형 설정' 섹션 갱신 (dimPopup 대체)
+  function updateSelectionPanel() {
+    const empty = document.getElementById('selPanelEmpty');
+    const body  = document.getElementById('selPanelBody');
+    const cnt   = document.getElementById('selCount');
+    if (!selectedG) {
+      if (empty) empty.style.display = 'block';
+      if (body)  body.style.display  = 'none';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    if (body)  body.style.display  = 'block';
+    const r = selectedG.querySelector(':scope > rect:not(.resize-handle)');
+    if (!r) return;
+    const w = parseFloat(r.getAttribute('width'));
+    const h = parseFloat(r.getAttribute('height'));
+    const name = (selectedG.querySelector(':scope > text')?.getAttribute('data-name')) || '?';
+    if (cnt) {
+      cnt.textContent = selectedSet.size > 1
+        ? `${selectedSet.size}개 선택 (마지막: ${name})`
+        : name;
+    }
+    if (dimW) dimW.value = w;
+    if (dimD) dimD.value = h;
   }
 
   function rotateG(g) {
@@ -863,7 +997,12 @@
         return;
       }
       e.stopPropagation();
-      selectG(g);
+      // W9-53: Shift+클릭 = 다중 선택 (토글), drag 시작 안 함
+      if (e.shiftKey) {
+        selectG(g, true);
+        return;
+      }
+      selectG(g, false);
       const rect = g.querySelector(':scope > rect:not(.resize-handle)');
       // W9-36: 자식 부재들 원본 위치 저장 (drag 시 같이 이동)
       const finishings = Array.from(g.querySelectorAll(':scope > g.finishing')).map((fg) => {
@@ -1073,107 +1212,14 @@
     return bestDist <= thresholdMm ? { x: newX + bestDx, y: newY + bestDy } : null;
   }
 
-  // W9-14: dimPopup — 선택 사각형 W/D 입력 popup
-  const dimPopup = document.getElementById('dimPopup');
+  // W9-53: dimPopup 제거 → 우측 패널의 W/D input 만 참조
   const dimW = document.getElementById('dimW');
   const dimD = document.getElementById('dimD');
 
-  // W9-34: popup 사용자 드래그 상태 + 사각형 기준 offset
-  let popupUserMoved = false;
-  let popupOffsetFromRect = { dx: 0, dy: 0 };
-
+  // W9-53: dimPopup 제거 → 우측 패널로 이동. updateDimPopupPosition 은 alias
   function updateDimPopupPosition() {
-    if (!selectedG) { dimPopup.style.display = 'none'; return; }
-    const r = selectedG.querySelector('rect:not(.resize-handle)');
-    if (!r) return;
-    const x = parseFloat(r.getAttribute('x'));
-    const y = parseFloat(r.getAttribute('y'));
-    const w = parseFloat(r.getAttribute('width'));
-    const h = parseFloat(r.getAttribute('height'));
-    const z = view.zoom || 1;
-    const rectLeft   = x * z + view.panX;
-    const rectTop    = y * z + view.panY;
-    const rectRight  = (x + w) * z + view.panX;
-    const rectBottom = (y + h) * z + view.panY;
-    dimW.value = w;
-    dimD.value = h;
-    dimPopup.style.display = 'block';
-
-    let left, top;
-    if (popupUserMoved) {
-      // 사용자 이동 — 사각형 좌상단 기준 offset 유지
-      left = rectLeft + popupOffsetFromRect.dx;
-      top  = rectTop  + popupOffsetFromRect.dy;
-    } else {
-      // W9-34: 사각형 우측 옆 (8 화면 px 여백) 으로 자동 배치 → 사각형과 안 겹침
-      const wrap = document.querySelector('.canvas-wrap');
-      const cw = wrap ? wrap.clientWidth : 1200;
-      const ch = wrap ? wrap.clientHeight : 700;
-      const popupW = dimPopup.offsetWidth || 200;
-      const popupH = dimPopup.offsetHeight || 80;
-      const margin = 8;
-
-      // 1차: 우측
-      left = rectRight + margin;
-      top  = rectTop;
-      // 우측 화면 밖이면 좌측
-      if (left + popupW > cw - 4) {
-        left = rectLeft - popupW - margin;
-      }
-      // 좌측도 화면 밖이면 위쪽
-      if (left < 4) {
-        left = Math.max(4, Math.min(cw - popupW - 4, (rectLeft + rectRight - popupW) / 2));
-        top  = rectTop - popupH - margin;
-      }
-      // 위쪽도 잘리면 아래로
-      if (top < 4) {
-        top = rectBottom + margin;
-      }
-      // 아래쪽 잘림 방지
-      if (top + popupH > ch - 4) top = Math.max(4, ch - popupH - 4);
-    }
-    dimPopup.style.left = left + 'px';
-    dimPopup.style.top  = top + 'px';
+    updateSelectionPanel();
   }
-
-  // W9-34: dimPopup 자체 드래그 — input/button/label 외 영역에서 시작
-  let popupDragInfo = null;
-  dimPopup.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('input, button, label')) return;
-    e.stopPropagation();
-    popupDragInfo = {
-      startX: e.clientX,
-      startY: e.clientY,
-      origLeft: parseFloat(dimPopup.style.left) || 0,
-      origTop:  parseFloat(dimPopup.style.top)  || 0,
-    };
-    dimPopup.setPointerCapture(e.pointerId);
-    dimPopup.style.cursor = 'grabbing';
-  });
-  dimPopup.addEventListener('pointermove', (e) => {
-    if (!popupDragInfo) return;
-    const newLeft = popupDragInfo.origLeft + (e.clientX - popupDragInfo.startX);
-    const newTop  = popupDragInfo.origTop  + (e.clientY - popupDragInfo.startY);
-    dimPopup.style.left = newLeft + 'px';
-    dimPopup.style.top  = newTop  + 'px';
-    popupUserMoved = true;
-    if (selectedG) {
-      const r = selectedG.querySelector('rect:not(.resize-handle)');
-      if (r) {
-        const x = parseFloat(r.getAttribute('x'));
-        const y = parseFloat(r.getAttribute('y'));
-        const z = view.zoom || 1;
-        popupOffsetFromRect.dx = newLeft - (x * z + view.panX);
-        popupOffsetFromRect.dy = newTop  - (y * z + view.panY);
-      }
-    }
-  });
-  const endPopupDrag = () => {
-    popupDragInfo = null;
-    dimPopup.style.cursor = 'grab';
-  };
-  dimPopup.addEventListener('pointerup', endPopupDrag);
-  dimPopup.addEventListener('pointercancel', endPopupDrag);
 
   function applyDimToSelected() {
     if (!selectedG) return;
@@ -1471,7 +1517,7 @@
   }
 
   // 버튼 click → attach (사각형 선택 유지)
-  dimPopup.querySelectorAll('.attach-grid button[data-attach]').forEach((btn) => {
+  document.querySelectorAll('#selPanelBody .attach-grid button[data-attach]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const sec = btn.getAttribute('data-attach');
@@ -1481,13 +1527,7 @@
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   });
 
-  // 외부 클릭 → deselect (W9-17: pan 드래그 후가 아닌 단순 클릭일 때만)
-  document.querySelector('.canvas-wrap').addEventListener('click', (e) => {
-    if (e.target.tagName === 'svg' || e.target.classList.contains('canvas-wrap') ||
-        e.target.classList.contains('canvas-placeholder') || e.target.classList.contains('big')) {
-      selectG(null);
-    }
-  });
+  // W9-53: deselect 는 rubber-band 의 svg pointerup 에서 처리 (단순 클릭 시 boxScreen 없음 → clearSelection)
 
   // 키보드 — Delete/Backspace 삭제, Esc deselect, W9-17: F = fit all, 0 = reset, +/- = zoom
   document.addEventListener('keydown', (e) => {
