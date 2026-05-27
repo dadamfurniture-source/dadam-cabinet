@@ -43,6 +43,14 @@
   .module-list.collapsed .ml-body,.module-list.collapsed .ml-header-title{display:none}
   .ml-header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--bg)}
   .ml-header-title{font-size:11px;color:var(--text);font-weight:600}
+  /* W9-65: view mode toggle */
+  .ml-mode-toggle{display:flex;gap:2px;padding:4px 6px;border-bottom:1px solid var(--line);background:var(--bg)}
+  .ml-mode-toggle button{flex:1;padding:4px 0;border:1px solid var(--line);background:#fff;color:var(--text-dim);font-size:10px;font-weight:600;cursor:pointer;border-radius:3px}
+  .ml-mode-toggle button.active{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
+  .set-item{padding:8px 8px;margin:3px 4px;border:1px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;font-size:11px}
+  .set-item:hover{background:var(--bg)}
+  .set-item.active{background:var(--brand-soft);border-color:var(--brand-deep);font-weight:600}
+  .set-item .set-meta{font-size:9px;color:var(--text-faint);margin-top:2px}
   .ml-body{flex:1;overflow-y:auto;padding:6px 4px}
   .module-item{display:flex;align-items:center;gap:6px;padding:8px 8px;border-radius:5px;cursor:pointer;font-size:11px;color:var(--text);transition:background .12s ease;border-left:3px solid transparent}
   .module-item:hover{background:var(--bg)}
@@ -144,6 +152,12 @@
       <span class="ml-header-title">배치된 모듈</span>
       <button style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px"
               onclick="document.getElementById('moduleList').classList.toggle('collapsed')">«</button>
+    </div>
+    <!-- W9-65: view mode toggle — 개별 / 세트 / 전체 -->
+    <div class="ml-mode-toggle">
+      <button class="active" data-mode="single" title="개별 모듈 1개씩 보기">개별</button>
+      <button data-mode="set" title="ㄱ자/ㄷ자 세트 (정면 묶음)">세트</button>
+      <button data-mode="all" title="전체 모듈 한 번에">전체</button>
     </div>
     <div class="ml-body" id="mlBody">
       <div class="empty-msg">로딩 중...</div>
@@ -315,17 +329,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
               W: m.w,
               H: m.moduleH,
               D: m.h,
+              // W9-65: 전체/세트 보기 위한 배치 좌표 + 회전
+              x: m.x || 0,
+              y: m.y || 0,
+              rotation: m.rotation || 0,
             }));
           return;
         }
       }
     } catch (e) { console.warn('layout load 실패', e); }
-    // sample
+    // sample — ㄱ자 구조 (3개 회전 0 + 1개 회전 90)
     modules = [
-      { id: 'lower-0', section: 'lower', W: 2400, H: 860,  D: 650 },
-      { id: 'upper-0', section: 'upper', W: 2400, H: 800,  D: 320 },
-      { id: 'tall-0',  section: 'tall',  W: 600,  H: 2300, D: 650 },
-      { id: 'fridge-0', section: 'fridge', W: 720, H: 1850, D: 700 },
+      { id: 'lower-0', section: 'lower', W: 2400, H: 860,  D: 650, x: 0,    y: 0,    rotation: 0  },
+      { id: 'upper-0', section: 'upper', W: 2400, H: 800,  D: 320, x: 0,    y: 1000, rotation: 0  },
+      { id: 'tall-0',  section: 'tall',  W: 600,  H: 2300, D: 650, x: 2500, y: 0,    rotation: 0  },
+      { id: 'fridge-0', section: 'fridge', W: 720, H: 1850, D: 700, x: 3200, y: 0,    rotation: 90 },
     ];
   }
 
@@ -986,71 +1004,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     fitCameraToModule(W, H, D);
   }
 
-  // 도어/서랍/오픈 패널 추가 (열림 방향 + 손잡이 포함)
+  // W9-65: 도어 표현 제거 — 모든 영역을 단순 panel 로 (회전/손잡이 X)
+  // 영역 type 으로 색상/모양 구분
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s) {
+    const T = 18;
     if (type === 'open') {
-      // 오픈 — 빈 frame 표시 (얇은 outline 박스)
+      // 오픈 — 빈 frame 표시 (얇은 outline)
       const frame = makeBox(w, h, 2, cfg.stroke, { transparent: true, opacity: 0.25, wireframe: true });
       frame.position.set(cx, cy, frontZ);
       parent.add(frame);
       return;
     }
-
-    const T = 18;
-    const isDoor = type === 'door';
-    const panelMat = makeBox(w, h, T, cfg.fill);
-
-    if (isDoor) {
-      // 도어 — 좌/우 변을 pivot 으로 회전
-      const pivot = new THREE.Group();
-      const hingeX = direction === 'left' ? cx - w/2 : cx + w/2;
-      pivot.position.set(hingeX, cy, frontZ);
-      // door mesh 의 local position — pivot 기준 안쪽
-      panelMat.position.x = direction === 'left' ? w/2 : -w/2;
-      panelMat.position.z = 0;
-      pivot.add(panelMat);
-      // 살짝 열린 회전 (20도)
-      const openAngle = (Math.PI / 180) * 20;
-      pivot.rotation.y = direction === 'left' ? openAngle : -openAngle;
-      parent.add(pivot);
-      // 손잡이
-      addHandle(panelMat, w, h, s);
-    } else {
-      // 서랍 — 단순 panel (회전 없음)
-      panelMat.position.set(cx, cy, frontZ);
-      parent.add(panelMat);
-      // 서랍은 손잡이 보통 가운데
-      const hs = Object.assign({}, s, { handlePosition: 'middle' });
-      addHandle(panelMat, w, h, hs);
-    }
-  }
-
-  // 손잡이 (사용자 요구 ④)
-  function addHandle(doorMesh, doorW, doorH, s) {
-    const type = s.handleType || 'channel';
-    const pos  = s.handlePosition || 'top';
-    if (type === 'push') return;  // push — 표현 X
-
-    const T = 18;
-    // 위치 (도어 local 좌표계)
-    let yLocal;
-    if (pos === 'top') yLocal = doorH/2 - 80;
-    else if (pos === 'bottom') yLocal = -doorH/2 + 80;
-    else yLocal = 0;
-    const zFront = T/2 + 0.5;  // 도어 앞면 약간 밖
-
-    if (type === 'channel') {
-      // 찬넬 (매립형) — 도어 면 안쪽 가로 홈 (얇고 진한 박스)
-      const handle = makeBox(doorW * 0.7, 8, 3, '#3d342a', { metalness: 0.5, roughness: 0.4 });
-      handle.position.set(0, yLocal, zFront);
-      doorMesh.add(handle);
-    } else if (type === 'c-channel') {
-      // C 찬넬 — 작은 cylinder (또는 길쭉한 box) 부착
-      const geo = new THREE.BoxGeometry(doorW * 0.5, 16, 12);
-      const mat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.7, roughness: 0.3 });
-      const handle = new THREE.Mesh(geo, mat);
-      handle.position.set(0, yLocal, zFront + 6);
-      doorMesh.add(handle);
+    // door / drawer — 단순 panel, 색상으로만 구분
+    const color = type === 'drawer' ? darken3(cfg.fill, 0.15) : cfg.fill;
+    const panel = makeBox(w, h, T, color);
+    panel.position.set(cx, cy, frontZ);
+    parent.add(panel);
+    // 서랍은 가로 분할선 (위/아래 손잡이 자리 표시 대신 단순 라인)
+    if (type === 'drawer') {
+      const line = makeBox(w * 0.85, 2, 1, '#3d342a', { metalness: 0.3, roughness: 0.6 });
+      line.position.set(cx, cy, frontZ + T/2 + 0.5);
+      parent.add(line);
     }
   }
 
@@ -1089,10 +1063,209 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   document.getElementById('view3dBtn').onclick = () => setView('3d');
   document.getElementById('view2dBtn').onclick = () => setView('2d');
 
-  // renderFrontView / renderRightPanel 호출 시 3D 도 같이 갱신
+  // ─────────────────────────────────────────────────────────────
+  // W9-65: View mode (개별/세트/전체) + 세트 자동 그룹화
+  // ─────────────────────────────────────────────────────────────
+  let viewMode = 'single';   // 'single' | 'set' | 'all'
+  let activeSetId = null;
+
+  // rotation 별 그룹화 — 같은 회전 = 같은 정면 세트 (ㄱ자/ㄷ자 자동 감지)
+  function buildSets() {
+    const byRot = new Map();
+    modules.forEach((m) => {
+      const rot = ((m.rotation || 0) % 360 + 360) % 360;
+      if (!byRot.has(rot)) byRot.set(rot, []);
+      byRot.get(rot).push(m);
+    });
+    // 각 회전 그룹을 한 세트로
+    const arr = [];
+    let idx = 0;
+    byRot.forEach((mods, rot) => {
+      arr.push({
+        id: 'set-' + idx,
+        rotation: rot,
+        modules: mods,
+        label: `세트 #${idx+1} (회전 ${rot}°)`,
+      });
+      idx++;
+    });
+    return arr;
+  }
+
+  function setViewMode(mode) {
+    viewMode = mode;
+    document.querySelectorAll('.ml-mode-toggle button').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    renderModuleList();
+    if (mode === 'single') {
+      if (modules.length && !modules.find(x => x.id === activeId)) setActiveModule(modules[0].id);
+      else if (activeId) setActiveModule(activeId);
+    } else if (mode === 'set') {
+      const sets = buildSets();
+      if (sets.length) setActiveSet(sets[0].id);
+    } else if (mode === 'all') {
+      activeId = null; activeSetId = null;
+      document.getElementById('curModuleName').textContent = `전체 모듈 (${modules.length}개)`;
+      document.getElementById('canvasEmpty').style.display = modules.length ? 'none' : 'flex';
+      renderAll3D();
+    }
+  }
+
+  function setActiveSet(setId) {
+    activeSetId = setId;
+    const sets = buildSets();
+    const set = sets.find(s => s.id === setId);
+    if (!set) return;
+    document.getElementById('curModuleName').textContent = set.label + ` (${set.modules.length}개)`;
+    document.getElementById('canvasEmpty').style.display = 'none';
+    renderSet3D(set);
+    // 좌측 active 표시
+    renderModuleList();
+  }
+
+  // module list 렌더 — viewMode 별
+  const _renderModuleList = renderModuleList;
+  renderModuleList = function() {
+    const body = document.getElementById('mlBody');
+    if (!modules.length) {
+      body.innerHTML = '<div class="empty-msg">배치된 모듈 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
+      return;
+    }
+    if (viewMode === 'set') {
+      const sets = buildSets();
+      body.innerHTML = sets.map(s => {
+        const labels = s.modules.map(m => SECTION_CONFIG[m.section].label).join(' / ');
+        return `<div class="set-item ${s.id === activeSetId ? 'active' : ''}" data-set-id="${s.id}">
+          <strong>${s.label}</strong>
+          <div class="set-meta">${s.modules.length}개 모듈 · ${labels}</div>
+        </div>`;
+      }).join('');
+      body.querySelectorAll('.set-item').forEach(el => {
+        el.onclick = () => setActiveSet(el.dataset.setId);
+      });
+    } else if (viewMode === 'all') {
+      body.innerHTML = `<div class="empty-msg" style="padding:20px 8px">전체 모듈 (${modules.length}개)<br><span style="font-size:10px">배치 그대로 3D 표시</span></div>`;
+    } else {
+      // single — 기존 동작
+      _renderModuleList();
+    }
+  };
+
+  // 전체 모듈 3D 렌더 — 배치 좌표 그대로
+  function renderAll3D() {
+    if (!three) return;
+    const modG = three.moduleGroup;
+    while (modG.children.length) {
+      const ch = modG.children[0]; modG.remove(ch);
+      if (ch.geometry) ch.geometry.dispose();
+      if (ch.material && ch.material.dispose) ch.material.dispose();
+    }
+    if (!modules.length) return;
+    // 평면도 좌표 중심 계산 (모든 모듈의 중심점)
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    modules.forEach(m => {
+      minX = Math.min(minX, m.x); minY = Math.min(minY, m.y);
+      maxX = Math.max(maxX, m.x + m.W); maxY = Math.max(maxY, m.y + m.D);
+    });
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    modules.forEach(m => {
+      const s = getStructure(m.id);
+      const moduleMesh = createModuleMesh(m, s);
+      // 평면도 → 3D: x = m.x + m.W/2 - cx, z = m.y + m.D/2 - cy, y = 0 (바닥)
+      moduleMesh.position.set(m.x + m.W/2 - cx, 0, m.y + m.D/2 - cy);
+      // 평면도 rotation → 3D Y 축 회전
+      moduleMesh.rotation.y = -(m.rotation || 0) * Math.PI / 180;
+      modG.add(moduleMesh);
+    });
+    fitCameraToBounds(Math.max(maxX - minX, maxY - minY));
+  }
+
+  // 세트 3D 렌더 — 같은 회전 모듈들 정렬해서 한 정면으로
+  function renderSet3D(set) {
+    if (!three) return;
+    const modG = three.moduleGroup;
+    while (modG.children.length) {
+      const ch = modG.children[0]; modG.remove(ch);
+      if (ch.geometry) ch.geometry.dispose();
+      if (ch.material && ch.material.dispose) ch.material.dispose();
+    }
+    // 회전 0 정면 기준 — X 좌표 (또는 회전된 좌표) 순서로 정렬
+    const sortKey = (m) => {
+      const rot = set.rotation;
+      if (rot === 0 || rot === 180) return m.x;
+      return m.y;  // 90/270 일 때는 Y 좌표가 가로 순서
+    };
+    const sorted = [...set.modules].sort((a, b) => sortKey(a) - sortKey(b));
+    let curX = 0;
+    let maxH = 0, totalW = 0;
+    sorted.forEach(m => {
+      const s = getStructure(m.id);
+      const moduleMesh = createModuleMesh(m, s);
+      moduleMesh.position.set(curX + m.W/2, 0, 0);
+      modG.add(moduleMesh);
+      curX += m.W + 5;
+      maxH = Math.max(maxH, m.H);
+      totalW = curX;
+    });
+    // 세트 중심으로 카메라 fit
+    fitCameraToBounds(Math.max(totalW, maxH));
+    three.controls.target.set(totalW/2 - sorted[sorted.length-1]?.W/2 || 0, maxH/2, 0);
+    three.controls.update();
+  }
+
+  function fitCameraToBounds(size) {
+    if (!three) return;
+    const dist = size * 1.4;
+    three.camera.position.set(dist * 0.7, dist * 0.5, dist);
+    three.camera.updateProjectionMatrix();
+  }
+
+  // 단일 모듈 mesh 생성 (외곽 + 분할 + 선반) — renderModule3D 의 logic 재사용
+  function createModuleMesh(m, s) {
+    const g = new THREE.Group();
+    const cfg = SECTION_CONFIG[m.section];
+    if (!cfg) return g;
+    const W = m.W, H = m.H, D = m.D, T = 18;
+    const carcassColor = darken3(cfg.fill, 0.05);
+    // 모듈은 (0,0,0) 중심 (X=-W/2~W/2, Y=0~H, Z=-D/2~D/2)
+    const back   = makeBox(W, H, T, carcassColor); back.position.set(0, H/2, -D/2 + T/2);  g.add(back);
+    const leftP  = makeBox(T, H, D, carcassColor); leftP.position.set(-W/2 + T/2, H/2, 0); g.add(leftP);
+    const rightP = makeBox(T, H, D, carcassColor); rightP.position.set(W/2 - T/2, H/2, 0); g.add(rightP);
+    const bottom = makeBox(W - 2*T, T, D - T, carcassColor); bottom.position.set(0, T/2, T/2); g.add(bottom);
+    const topP   = makeBox(W - 2*T, T, D - T, carcassColor); topP.position.set(0, H - T/2, T/2); g.add(topP);
+    // 선반
+    if (Array.isArray(s.shelves)) {
+      s.shelves.forEach(sh => {
+        if (sh <= T || sh >= H - T) return;
+        const shM = makeBox(W - 2*T - 4, T, D - T - 4, '#d4c5a0', { roughness: 0.8 });
+        shM.position.set(0, sh, T/2);
+        g.add(shM);
+      });
+    }
+    // 앞면 분할 (도어 표현 제거 — 단순 panel)
+    const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
+    const topH = H - drawerH;
+    const vCount = Math.max(1, s.verticalCount || 1);
+    const colW = W / vCount;
+    for (let i = 0; i < vCount; i++) {
+      const type = (s.areaTypes && s.areaTypes[i]) || 'door';
+      const xCenter = -W/2 + colW * (i + 0.5);
+      const yCenter = drawerH + topH/2;
+      addFrontPanel(g, xCenter, yCenter, colW - 4, topH - 4, D/2, type, null, cfg, s);
+    }
+    if (drawerH > 0) {
+      addFrontPanel(g, 0, drawerH/2, W - 4, drawerH - 4, D/2,
+                    s.bottomType || 'drawer', null, cfg, s);
+    }
+    return g;
+  }
+
+  // renderFrontView / renderRightPanel 호출 시 3D 도 같이 갱신 (single mode 만)
   const _origSetActive = setActiveModule;
   setActiveModule = function(id) {
     _origSetActive(id);
+    if (viewMode !== 'single') return;
     const m = modules.find(x => x.id === id);
     const s = m ? getStructure(id) : null;
     if (m && s) renderModule3D(m, s);
@@ -1100,12 +1273,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const _origRenderFront = renderFrontView;
   renderFrontView = function() {
     _origRenderFront();
-    if (!activeId) return;
-    const m = modules.find(x => x.id === activeId);
-    if (!m) return;
-    const s = getStructure(activeId);
-    renderModule3D(m, s);
+    if (viewMode === 'single') {
+      if (!activeId) return;
+      const m = modules.find(x => x.id === activeId);
+      if (!m) return;
+      const s = getStructure(activeId);
+      renderModule3D(m, s);
+    } else if (viewMode === 'set' && activeSetId) {
+      const sets = buildSets();
+      const set = sets.find(x => x.id === activeSetId);
+      if (set) renderSet3D(set);
+    } else if (viewMode === 'all') {
+      renderAll3D();
+    }
   };
+
+  // view mode toggle button click
+  document.querySelectorAll('.ml-mode-toggle button').forEach(b => {
+    b.onclick = () => setViewMode(b.dataset.mode);
+  });
 
   // ─────────────────────────────────────────────────────────────
   // Init
