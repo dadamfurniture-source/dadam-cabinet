@@ -732,6 +732,11 @@
     g.appendChild(close);
     content.appendChild(g);
     rectIdx++;
+    // W9-35: forceRotation — 사각형 중심 기준 회전 (auto finishings 용)
+    if (override.forceRotation !== undefined && override.rotCenter) {
+      rotations.set(g, override.forceRotation);
+      g.setAttribute('transform', `rotate(${override.forceRotation} ${override.rotCenter.cx} ${override.rotCenter.cy})`);
+    }
   }
 
   // W9-11: 사각형 인터랙션 — 선택 / 드래그 / 더블클릭 회전 / Delete 삭제 / Esc 해제
@@ -1153,6 +1158,43 @@
     if (person) content.appendChild(person);
   }
 
+  // W9-35: 일반 모듈 추가 시 자동으로 정면 양 꼭지점에 EP/몰딩/휠라 배치
+  // 사각형의 정면 (회전 0 기준 +y 변) 의 좌/우 꼭지점에 3종 부재 stack
+  function autoAttachFinishings(g) {
+    const r = g.querySelector('rect:not(.resize-handle)');
+    if (!r) return;
+    const x = parseFloat(r.getAttribute('x'));
+    const y = parseFloat(r.getAttribute('y'));
+    const w = parseFloat(r.getAttribute('width'));
+    const h = parseFloat(r.getAttribute('height'));
+    const rot = rotations.get(g) || 0;
+    const cx = x + w / 2, cy = y + h / 2;
+    const moduleH = parseFloat(g.getAttribute('data-module-h')) || 860;
+    const rotCenter = { cx, cy };
+    // 회전 0 기준 부재 위치 (사각형 좌/우 옆에 stack):
+    //  EP    좌:  W=h(인접 D), H=18,  x=x-h,    y=y
+    //  EP    우:  동, x=x+w
+    //  몰딩  좌:  W=18, H=60,  x=x-18,  y=y     (W면이 깊이면과 평행)
+    //  몰딩  우:  동, x=x+w
+    //  휠라  좌:  W=60, H=18,  x=x-60,  y=y
+    //  휠라  우:  동, x=x+w
+    const items = [
+      { sec: 'ep',      fw: h,  fh: 18, fx: x - h,  fy: y },
+      { sec: 'ep',      fw: h,  fh: 18, fx: x + w,  fy: y },
+      { sec: 'molding', fw: 18, fh: 60, fx: x - 18, fy: y },
+      { sec: 'molding', fw: 18, fh: 60, fx: x + w,  fy: y },
+      { sec: 'filler',  fw: 60, fh: 18, fx: x - 60, fy: y },
+      { sec: 'filler',  fw: 60, fh: 18, fx: x + w,  fy: y },
+    ];
+    items.forEach(({ sec, fw, fh, fx, fy }) => {
+      addSectionRect(sec, {
+        w: fw, h: fh, x: fx, y: fy, moduleH,
+        forceRotation: rot,   // 사각형과 같은 회전 적용
+        rotCenter,
+      });
+    });
+  }
+
   // addSectionRect 후 신규 g 에 핸들러 부착 (기존 함수 wrap)
   const _addOriginal = addSectionRect;
   addSectionRect = function(section, override) {
@@ -1163,8 +1205,11 @@
     const last = content.lastElementChild;
     if (last && last.tagName.toLowerCase() === 'g' && last.classList.contains('sect-rect')) {
       attachRectHandlers(last);
-      // W9-32: person 을 향해 정면 정렬 (90° 단위 snap)
-      alignToPerson(last);
+      // W9-35: forceRotation 있으면 alignToPerson 건너뜀 (auto finishings 부재)
+      if (!override || override.forceRotation === undefined) {
+        // W9-32: person 을 향해 정면 정렬 (90° 단위 snap)
+        alignToPerson(last);
+      }
       selectG(last); // 신규 추가 시 자동 선택
       // W9-19: z-order 재정렬 — 상부장은 항상 위
       reorderRects();
@@ -1180,6 +1225,17 @@
         if (w * view.zoom > wrap.clientWidth * 0.8 || h * view.zoom > wrap.clientHeight * 0.8) {
           fitAll();
         }
+      }
+      // W9-35: 일반 모듈 (lower/upper/tall/fridge) 추가 시 정면 양 꼭지점에 EP/몰딩/휠라 자동 배치
+      // forceRotation override 없는 일반 추가 (부재 자동 호출 제외)
+      const isGeneralModule = ['lower', 'upper', 'tall', 'fridge'].includes(section);
+      const isUserAdd = !override || override.forceRotation === undefined;
+      if (isGeneralModule && isUserAdd) {
+        autoAttachFinishings(last);
+        // 마감재 추가 후 원래 모듈 다시 선택 (selectG 가 마지막 부재로 갈 수 있음)
+        selectG(last);
+        reorderRects();
+        if (typeof updateCloseButtons === 'function') updateCloseButtons();
       }
     }
   };
