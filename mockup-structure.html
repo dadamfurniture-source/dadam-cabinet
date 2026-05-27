@@ -854,14 +854,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   let three = null;  // { renderer, scene, camera, controls, moduleGroup }
   let currentView = '3d';  // '3d' | '2d'
 
-  // W9-67: 원점/천정 정보 — mockup-shell.html 의 'dadam_origin_v1' 에서 로드
+  // W9-67/W9-68: 원점/천정 정보 — mockup-shell.html 의 'dadam_origin_v1' 에서 로드
   let ceilingHeight = 2300;
+  let originPos2D = { x: 0, y: 0 };  // 평면도 SVG 좌표
   (function loadOrigin() {
     try {
       const raw = localStorage.getItem('dadam_origin_v1');
       if (raw) {
         const o = JSON.parse(raw);
         if (typeof o.ceiling === 'number') ceilingHeight = o.ceiling;
+        if (typeof o.x === 'number' && typeof o.y === 'number') {
+          originPos2D = { x: o.x, y: o.y };
+        }
       }
     } catch (e) {}
   })();
@@ -1187,25 +1191,47 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (ch.material && ch.material.dispose) ch.material.dispose();
     }
     if (!modules.length) return;
-    // 평면도 좌표 중심 계산 (모든 모듈의 중심점)
+    // W9-68: 원점 (originPos2D) 을 3D (0,0,0) 기준점으로 사용
+    // 평면도 → 3D: x = m.x + m.W/2 - origin.x, z = m.y + m.D/2 - origin.y
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     modules.forEach(m => {
       minX = Math.min(minX, m.x); minY = Math.min(minY, m.y);
       maxX = Math.max(maxX, m.x + m.W); maxY = Math.max(maxY, m.y + m.D);
     });
-    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const ox = originPos2D.x, oy = originPos2D.y;
     modules.forEach(m => {
       const s = getStructure(m.id);
       const moduleMesh = createModuleMesh(m, s);
-      // 평면도 → 3D: x = m.x + m.W/2 - cx, z = m.y + m.D/2 - cy, y = 0 (바닥)
+      // 원점 기준 좌표 — 평면도 (m.x, m.y) - (origin.x, origin.y)
       // W9-67: createModuleMesh 의 baseY 보존 (Y 직접 변경 X)
-      moduleMesh.position.x = m.x + m.W/2 - cx;
-      moduleMesh.position.z = m.y + m.D/2 - cy;
-      // 평면도 rotation → 3D Y 축 회전
+      moduleMesh.position.x = m.x + m.W/2 - ox;
+      moduleMesh.position.z = m.y + m.D/2 - oy;
       moduleMesh.rotation.y = -(m.rotation || 0) * Math.PI / 180;
       modG.add(moduleMesh);
     });
-    fitCameraToBounds(Math.max(maxX - minX, maxY - minY));
+    // 원점 표시 (3D 의 0,0,0)
+    addOriginMarker3D(modG);
+    // 카메라 fit — 원점부터 모듈 전체까지 보이게
+    const extentX = Math.max(Math.abs(minX - ox), Math.abs(maxX - ox));
+    const extentZ = Math.max(Math.abs(minY - oy), Math.abs(maxY - oy));
+    fitCameraToBounds(Math.max(extentX, extentZ, ceilingHeight) * 2);
+    three.controls.target.set(0, ceilingHeight/2, 0);
+    three.controls.update();
+  }
+
+  // 3D 원점 마커 (작은 cross at 0,0,0)
+  function addOriginMarker3D(parent) {
+    const ns = 'three';
+    const mat = new THREE.LineBasicMaterial({ color: 0x1976d2 });
+    const sz = 200;
+    const points = [
+      new THREE.Vector3(-sz, 0, 0), new THREE.Vector3(sz, 0, 0),
+      new THREE.Vector3(0, 0, -sz), new THREE.Vector3(0, 0, sz),
+      new THREE.Vector3(0, 0, 0),   new THREE.Vector3(0, sz*0.5, 0),
+    ];
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const lines = new THREE.LineSegments(geo, mat);
+    parent.add(lines);
   }
 
   // 세트 3D 렌더 — 같은 회전 모듈들 정렬해서 한 정면으로
