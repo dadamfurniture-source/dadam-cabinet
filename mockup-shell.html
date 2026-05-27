@@ -1802,10 +1802,15 @@
     if (last && last.tagName.toLowerCase() === 'g' && last.classList.contains('sect-rect')) {
       attachRectHandlers(last);
       // W9-36: finishing 부재는 alignToPerson 건너뜀 (부모 transform 이 회전 적용)
+      // W9-60: forceRotation override 있으면 alignToPerson 건너뜀 (복원 시 저장된 회전 유지)
       const isFinishing = last.classList.contains('finishing');
       if (!isFinishing) {
-        alignToPerson(last);
-        selectG(last); // 일반 모듈만 자동 선택 (W9-38: 부재는 모듈 select 유지)
+        if (!override || override.forceRotation === undefined) {
+          alignToPerson(last);
+        }
+        if (!override || !override.suppressSelect) {
+          selectG(last); // 일반 모듈만 자동 선택 (W9-38: 부재는 모듈 select 유지)
+        }
       }
       // W9-39: 추가 액션 push (모듈/부재 모두)
       pushUndo({ type: 'add', g: last });
@@ -2035,13 +2040,84 @@
     if (!raw) { showFlash('⚠ 저장된 배치 없음'); return; }
     try {
       const layout = JSON.parse(raw);
-      // TODO: 향후 — 기존 사각형 모두 삭제 후 layout.modules 로 복원
+      restoreLayout(layout);
       const ts = new Date(layout.savedAt).toLocaleString('ko-KR');
-      showFlash(`📂 발견 (모듈 ${layout.modules.length}개, 저장 ${ts}) — 복원 미구현`, 'rgba(13,71,161,0.92)');
+      showFlash(`📂 복원 완료 (모듈 ${layout.modules.length}개 · ${ts})`, 'rgba(13,71,161,0.92)');
     } catch (e) {
-      showFlash('⚠ 불러오기 실패');
+      showFlash('⚠ 불러오기 실패: ' + e.message);
     }
   };
+
+  // W9-60: 배치 복원 — JSON layout 을 받아 모든 모듈 + 부재 재생성
+  function restoreLayout(layout) {
+    if (!layout || !Array.isArray(layout.modules)) return;
+    ensureCanvasSVG();
+    const content = getContent();
+    if (!content) return;
+    // 기존 sect-rect 모두 제거 (person 은 유지)
+    Array.from(content.querySelectorAll(':scope > g.sect-rect')).forEach(g => g.remove());
+    selectedSet.clear();
+    selectedG = null;
+    // person 위치 복원
+    if (layout.person) {
+      const personG = content.querySelector('g.person');
+      if (personG) {
+        const c = personG.querySelector('circle');
+        const t = personG.querySelector('text');
+        if (c) { c.setAttribute('cx', layout.person.cx); c.setAttribute('cy', layout.person.cy); }
+        if (t) { t.setAttribute('x',  layout.person.cx); t.setAttribute('y',  layout.person.cy); }
+      }
+    }
+    // 각 모듈 복원
+    layout.modules.forEach((m) => {
+      if (!SECTION_CONFIG[m.section]) return;
+      const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
+      addSectionRect(m.section, {
+        w: m.w, h: m.h, x: m.x, y: m.y,
+        moduleH: m.moduleH,
+        forceRotation: m.rotation || 0,
+        rotCenter: { cx, cy },
+        suppressSelect: true,  // 복원 중 selectG 호출 안 함
+      });
+      // 방금 추가된 모듈 = content 의 마지막 sect-rect (person 앞)
+      const allRects = content.querySelectorAll(':scope > g.sect-rect');
+      const lastModule = allRects[allRects.length - 1];
+      // 자식 부재 복원
+      if (lastModule && Array.isArray(m.finishings)) {
+        m.finishings.forEach((f) => {
+          if (!SECTION_CONFIG[f.section]) return;
+          addSectionRect(f.section, {
+            w: f.w, h: f.h, x: f.x, y: f.y,
+            moduleH: f.moduleH,
+            parentG: lastModule,
+            suppressSelect: true,
+          });
+        });
+      }
+    });
+    // person z 최상위 유지
+    reorderRects();
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    fitAll();
+    // undo 스택 비움 (복원은 history 시작점)
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateUndoUI();
+  }
+
+  // W9-60: 페이지 로드 시 자동 복원 — localStorage 에 layout 있으면
+  (function autoRestore() {
+    try {
+      const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (!raw) return;
+      const layout = JSON.parse(raw);
+      if (layout && Array.isArray(layout.modules) && layout.modules.length) {
+        restoreLayout(layout);
+        const ts = layout.savedAt ? new Date(layout.savedAt).toLocaleString('ko-KR') : '';
+        showFlash(`📂 자동 복원 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
+      }
+    } catch (e) { console.warn('autoRestore 실패', e); }
+  })();
 
   document.getElementById('nextStepBtn').onclick = () => {
     // W9-59: 자동 저장 후 mockup-structure.html (Step 2) 페이지로 이동
