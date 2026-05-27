@@ -104,8 +104,12 @@
   #dimPopup .k{color:#7a7062;font-weight:600}
   #dimPopup input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
   #dimPopup .u{color:#a89c84;font-size:10px}
-  /* W9-47: 트리밍 모드 — 좌측 toolbar 버튼 + 기준 사각형 강조 */
+  /* W9-47/W9-52: 트리밍 모드 — toggle 버튼 (ON/OFF) */
+  .tool-btn#trimToolBtn{position:relative}
+  /* ON/OFF 인디케이터 점 (우상단) */
+  .tool-btn#trimToolBtn::after{content:'';position:absolute;top:3px;right:3px;width:6px;height:6px;background:#cdcdcd;border-radius:50%;border:1px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.15)}
   .tool-btn#trimToolBtn.active{background:#c87f24;color:#fff;border-color:#7a4810}
+  .tool-btn#trimToolBtn.active::after{background:#22c55e;box-shadow:0 0 0 1px #fff,0 0 5px rgba(34,197,94,0.7)}
   .canvas-wrap.trim-mode{cursor:crosshair}
   .canvas-wrap.trim-mode .sect-rect{cursor:crosshair}
   .sect-rect.trim-ref rect:not(.resize-handle){stroke:#c87f24 !important;stroke-width:6 !important;stroke-dasharray:14 6}
@@ -1221,19 +1225,25 @@
     if (trimToastEl) { trimToastEl.remove(); trimToastEl = null; }
   }
 
-  function setTrimMode(on) {
+  function setTrimMode(on, keepToast) {
     trimMode = on;
     const btn = document.getElementById('trimToolBtn');
     const wrap = document.querySelector('.canvas-wrap');
-    if (btn) btn.classList.toggle('active', on);
+    if (btn) {
+      btn.classList.toggle('active', on);
+      // W9-52: title 도 상태에 따라 변경 (toggle 안내)
+      btn.title = on
+        ? '트리밍 ON — ① 기준 사각형 클릭 → ② 잘릴 사각형 클릭 (ESC: 끄기)'
+        : '트리밍 OFF — 클릭으로 켜기 (T 키)';
+    }
     if (wrap) wrap.classList.toggle('trim-mode', on);
     if (!on) {
       if (trimRefG) trimRefG.classList.remove('trim-ref');
       trimRefG = null;
-      hideTrimToast();
+      if (!keepToast) hideTrimToast();
     } else {
       trimRefG = null;
-      showTrimToast('✂ 트리밍 모드 — ① 기준이 될 사각형을 클릭하세요');
+      showTrimToast('✂ 트리밍 ON — ① 기준이 될 사각형을 클릭하세요');
     }
   }
 
@@ -1368,9 +1378,9 @@
     if (g === trimRefG) return;
     const ok = trimAgainst(trimRefG, g);
     if (ok) {
-      showTrimToast('✂ 트리밍 완료');
-      setTimeout(hideTrimToast, 1200);
-      setTrimMode(false);  // 성공 시만 모드 종료
+      setTrimMode(false, true);  // 모드 끄되 토스트 유지
+      showTrimToast('✂ 트리밍 완료 — OFF');
+      setTimeout(hideTrimToast, 1500);
     } else {
       // 안 겹침 — 모드 유지, ref 만 reset
       trimRefG.classList.remove('trim-ref');
@@ -1787,21 +1797,28 @@
     closeModelModal();
   });
 
-  document.querySelectorAll('.tool-btn').forEach(b => b.onclick = () => {
-    // W9-10: rect-btn (하부장/상부장/키큰장) 은 도면에 직사각형 추가
-    if (b.classList.contains('rect-btn')) {
-      // W9-42: 냉장고는 모델 선택 모달
-      if (b.dataset.section === 'refrigerator') {
-        openModelModal();
+  document.querySelectorAll('.tool-btn').forEach(b => {
+    // W9-52: 트리밍 버튼은 별도 핸들러 (toggle) — badge 카운터 X
+    if (b.id === 'trimToolBtn') return;
+    b.onclick = () => {
+      // W9-10: rect-btn (하부장/상부장/키큰장) 은 도면에 직사각형 추가
+      if (b.classList.contains('rect-btn')) {
+        // W9-42: 냉장고는 모델 선택 모달
+        if (b.dataset.section === 'refrigerator') {
+          openModelModal();
+          return;
+        }
+        addSectionRect(b.dataset.section);
         return;
       }
-      addSectionRect(b.dataset.section);
-      return;
-    }
-    let badge = b.querySelector('.badge');
-    if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '0'; b.appendChild(badge); }
-    badge.textContent = String(+badge.textContent + 1);
+      let badge = b.querySelector('.badge');
+      if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '0'; b.appendChild(badge); }
+      badge.textContent = String(+badge.textContent + 1);
+    };
   });
+  // W9-52: 트리밍 버튼에 이전에 추가된 badge 제거 (서비스 만남 전 클릭으로 생긴 잔재)
+  const trimBadgeOld = document.querySelector('#trimToolBtn .badge');
+  if (trimBadgeOld) trimBadgeOld.remove();
 
   // W9-33: 페이지 로드 시 사람 원 자동 표시 (사각형 없어도 시작 상태에 보이게)
   ensureCanvasSVG();
