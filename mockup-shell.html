@@ -1002,22 +1002,42 @@
         selectG(g, true);
         return;
       }
-      selectG(g, false);
-      const rect = g.querySelector(':scope > rect:not(.resize-handle)');
-      // W9-36: 자식 부재들 원본 위치 저장 (drag 시 같이 이동)
-      const finishings = Array.from(g.querySelectorAll(':scope > g.finishing')).map((fg) => {
-        const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+      // W9-54: 다중 선택된 사각형 중 하나 클릭 시 다중 drag, 아니면 단일 선택 + drag
+      const isFinishing = g.classList.contains('finishing');
+      const inMulti = selectedSet.has(g) && selectedSet.size > 1 && !isFinishing;
+      if (!inMulti) {
+        selectG(g, false);
+      }
+      // drag 대상: 다중이면 selectedSet 모두 (단 부재는 자체만), 아니면 g 만
+      const dragTargets = inMulti
+        ? Array.from(selectedSet).filter(sg => !sg.classList.contains('finishing'))
+        : [g];
+      // 각 대상의 원본 (x, y) + 자식 부재 원본 위치
+      const targets = dragTargets.map((tg) => {
+        const tr = tg.querySelector(':scope > rect:not(.resize-handle)');
+        const fins = Array.from(tg.querySelectorAll(':scope > g.finishing')).map((fg) => {
+          const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+          return {
+            g: fg,
+            origX: parseFloat(fr.getAttribute('x')),
+            origY: parseFloat(fr.getAttribute('y')),
+          };
+        });
         return {
-          g: fg,
-          origX: parseFloat(fr.getAttribute('x')),
-          origY: parseFloat(fr.getAttribute('y')),
+          g: tg,
+          origX: parseFloat(tr.getAttribute('x')),
+          origY: parseFloat(tr.getAttribute('y')),
+          finishings: fins,
         };
       });
       dragInfo = {
         startX: e.clientX, startY: e.clientY,
-        origX: parseFloat(rect.getAttribute('x')),
-        origY: parseFloat(rect.getAttribute('y')),
-        finishings,
+        // 단일 drag 호환: 기존 origX/origY/finishings 는 첫 번째 target (= g)
+        origX: targets[0].origX,
+        origY: targets[0].origY,
+        finishings: targets[0].finishings,
+        targets,
+        multi: inMulti,
       };
       g.setPointerCapture(e.pointerId);
     });
@@ -1061,8 +1081,8 @@
       const rawX = dragInfo.origX + dx;
       const rawY = dragInfo.origY + dy;
       let newX, newY;
-      if (e.shiftKey || isFinishing) {
-        // Shift 또는 부재: 자유 이동 (1mm 정밀)
+      if (e.shiftKey || isFinishing || dragInfo.multi) {
+        // Shift / 부재 / 다중 drag: 자유 이동 (1mm 정밀)
         newX = rawX; newY = rawY;
       } else {
         const mag = findMagnetSnap(g, rawX, rawY);
@@ -1108,6 +1128,47 @@
             ft.setAttribute('y', fnewY + fh / 2);
             ft.querySelectorAll('tspan').forEach((ts) => ts.setAttribute('x', fnewX + fw / 2));
           }
+        });
+      }
+      // W9-54: 다중 drag — 첫 번째(g) 외 나머지 target 도 같은 delta 적용
+      if (dragInfo.multi && dragInfo.targets) {
+        dragInfo.targets.forEach((t, idx) => {
+          if (idx === 0) return;  // 첫 번째 = g (이미 처리됨)
+          const tr = t.g.querySelector(':scope > rect:not(.resize-handle)');
+          if (!tr) return;
+          const tnewX = t.origX + deltaX;
+          const tnewY = t.origY + deltaY;
+          tr.setAttribute('x', tnewX);
+          tr.setAttribute('y', tnewY);
+          const tw = parseFloat(tr.getAttribute('width'));
+          const th = parseFloat(tr.getAttribute('height'));
+          const tt = t.g.querySelector(':scope > text');
+          if (tt) {
+            const tcx = tnewX + tw / 2;
+            tt.setAttribute('x', tcx);
+            tt.setAttribute('y', tnewY + th / 2);
+            tt.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', tcx));
+          }
+          // 회전 transform pivot 갱신
+          const trot = rotations.get(t.g) || 0;
+          if (trot) t.g.setAttribute('transform', `rotate(${trot} ${tnewX + tw / 2} ${tnewY + th / 2})`);
+          // 자식 부재도 같이
+          t.finishings.forEach(fi => {
+            const fr = fi.g.querySelector(':scope > rect:not(.resize-handle)');
+            if (!fr) return;
+            const fnX = fi.origX + deltaX;
+            const fnY = fi.origY + deltaY;
+            fr.setAttribute('x', fnX);
+            fr.setAttribute('y', fnY);
+            const ft = fi.g.querySelector(':scope > text');
+            const fw = parseFloat(fr.getAttribute('width'));
+            const fh = parseFloat(fr.getAttribute('height'));
+            if (ft) {
+              ft.setAttribute('x', fnX + fw / 2);
+              ft.setAttribute('y', fnY + fh / 2);
+              ft.querySelectorAll('tspan').forEach(ts => ts.setAttribute('x', fnX + fw / 2));
+            }
+          });
         });
       }
       // W9-14: 드래그 중 dimPopup 위치 따라가기
