@@ -1812,21 +1812,26 @@
           selectG(last); // 일반 모듈만 자동 선택 (W9-38: 부재는 모듈 select 유지)
         }
       }
-      // W9-39: 추가 액션 push (모듈/부재 모두)
-      pushUndo({ type: 'add', g: last });
-      // W9-19: z-order 재정렬 — 상부장은 항상 위
-      reorderRects();
-      // W9-24: 신규 X 버튼 초기 위치 적용
-      if (typeof updateCloseButtons === 'function') updateCloseButtons();
+      // W9-39: 추가 액션 push — 단, 복원 중에는 skip (W9-61)
+      if (!restoreInProgress) {
+        pushUndo({ type: 'add', g: last });
+      }
+      // W9-19/61: 복원 중에는 매 모듈마다 reorder/closeButtons/fitAll skip (마지막에 한 번)
+      if (!restoreInProgress) {
+        reorderRects();
+        if (typeof updateCloseButtons === 'function') updateCloseButtons();
+      }
       // 재정렬 후 selectedG 가 바뀌지 않았는지 확인 (DOM 재배치 — 참조는 유지)
-      // W9-17: 화면 밖이면 fitAll — 큰 사각형(4200mm 등) 자동으로 보이게
-      const r = last.querySelector('rect:not(.resize-handle)');
-      const wrap = document.querySelector('.canvas-wrap');
-      if (r && wrap) {
-        const w = parseFloat(r.getAttribute('width'));
-        const h = parseFloat(r.getAttribute('height'));
-        if (w * view.zoom > wrap.clientWidth * 0.8 || h * view.zoom > wrap.clientHeight * 0.8) {
-          fitAll();
+      // W9-17: 화면 밖이면 fitAll — 큰 사각형(4200mm 등) 자동으로 보이게 (복원 중엔 skip)
+      if (!restoreInProgress) {
+        const r = last.querySelector('rect:not(.resize-handle)');
+        const wrap = document.querySelector('.canvas-wrap');
+        if (r && wrap) {
+          const w = parseFloat(r.getAttribute('width'));
+          const h = parseFloat(r.getAttribute('height'));
+          if (w * view.zoom > wrap.clientWidth * 0.8 || h * view.zoom > wrap.clientHeight * 0.8) {
+            fitAll();
+          }
         }
       }
       // W9-36: 자동 마감재 배치 제거 — dimPopup ◀▶ 클릭 시만 attachToSelected 호출
@@ -2048,54 +2053,60 @@
     }
   };
 
-  // W9-60: 배치 복원 — JSON layout 을 받아 모든 모듈 + 부재 재생성
+  // W9-60/61: 배치 복원 — JSON layout 을 받아 모든 모듈 + 부재 재생성
+  let restoreInProgress = false;
   function restoreLayout(layout) {
     if (!layout || !Array.isArray(layout.modules)) return;
-    ensureCanvasSVG();
-    const content = getContent();
-    if (!content) return;
-    // 기존 sect-rect 모두 제거 (person 은 유지)
-    Array.from(content.querySelectorAll(':scope > g.sect-rect')).forEach(g => g.remove());
-    selectedSet.clear();
-    selectedG = null;
-    // person 위치 복원
-    if (layout.person) {
-      const personG = content.querySelector('g.person');
-      if (personG) {
-        const c = personG.querySelector('circle');
-        const t = personG.querySelector('text');
-        if (c) { c.setAttribute('cx', layout.person.cx); c.setAttribute('cy', layout.person.cy); }
-        if (t) { t.setAttribute('x',  layout.person.cx); t.setAttribute('y',  layout.person.cy); }
+    restoreInProgress = true;
+    try {
+      ensureCanvasSVG();
+      const content = getContent();
+      if (!content) return;
+      // 기존 sect-rect 모두 제거 (person 은 유지)
+      Array.from(content.querySelectorAll(':scope > g.sect-rect')).forEach(g => g.remove());
+      selectedSet.clear();
+      selectedG = null;
+      // person 위치 복원
+      if (layout.person) {
+        const personG = content.querySelector('g.person');
+        if (personG) {
+          const c = personG.querySelector('circle');
+          const t = personG.querySelector('text');
+          if (c) { c.setAttribute('cx', layout.person.cx); c.setAttribute('cy', layout.person.cy); }
+          if (t) { t.setAttribute('x',  layout.person.cx); t.setAttribute('y',  layout.person.cy); }
+        }
       }
-    }
-    // 각 모듈 복원
-    layout.modules.forEach((m) => {
-      if (!SECTION_CONFIG[m.section]) return;
-      const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
-      addSectionRect(m.section, {
-        w: m.w, h: m.h, x: m.x, y: m.y,
-        moduleH: m.moduleH,
-        forceRotation: m.rotation || 0,
-        rotCenter: { cx, cy },
-        suppressSelect: true,  // 복원 중 selectG 호출 안 함
-      });
-      // 방금 추가된 모듈 = content 의 마지막 sect-rect (person 앞)
-      const allRects = content.querySelectorAll(':scope > g.sect-rect');
-      const lastModule = allRects[allRects.length - 1];
-      // 자식 부재 복원
-      if (lastModule && Array.isArray(m.finishings)) {
-        m.finishings.forEach((f) => {
-          if (!SECTION_CONFIG[f.section]) return;
-          addSectionRect(f.section, {
-            w: f.w, h: f.h, x: f.x, y: f.y,
-            moduleH: f.moduleH,
-            parentG: lastModule,
-            suppressSelect: true,
-          });
+      // 각 모듈 복원
+      layout.modules.forEach((m) => {
+        if (!SECTION_CONFIG[m.section]) return;
+        const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
+        addSectionRect(m.section, {
+          w: m.w, h: m.h, x: m.x, y: m.y,
+          moduleH: m.moduleH,
+          forceRotation: m.rotation || 0,
+          rotCenter: { cx, cy },
+          suppressSelect: true,
         });
-      }
-    });
-    // person z 최상위 유지
+        // 방금 추가된 모듈 = content 의 마지막 sect-rect (person 앞)
+        const allRects = content.querySelectorAll(':scope > g.sect-rect');
+        const lastModule = allRects[allRects.length - 1];
+        // 자식 부재 복원 — 부모 g 의 자식으로 (회전 자동 따라감)
+        if (lastModule && Array.isArray(m.finishings)) {
+          m.finishings.forEach((f) => {
+            if (!SECTION_CONFIG[f.section]) return;
+            addSectionRect(f.section, {
+              w: f.w, h: f.h, x: f.x, y: f.y,
+              moduleH: f.moduleH,
+              parentG: lastModule,
+              suppressSelect: true,
+            });
+          });
+        }
+      });
+    } finally {
+      restoreInProgress = false;
+    }
+    // 모든 모듈 추가 후 한 번에 정리 (W9-61)
     reorderRects();
     if (typeof updateCloseButtons === 'function') updateCloseButtons();
     fitAll();
