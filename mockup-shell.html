@@ -2148,16 +2148,20 @@
     updateUndoUI();
   }
 
-  // W9-60: 페이지 로드 시 자동 복원 — localStorage 에 layout 있으면
+  // W9-63: 자동 복원 — sessionStorage 'fromStructure' 토큰 있을 때만 (1회용)
+  // → 구조→배치 왕복 시만 자동 복원. 새로고침/첫 진입은 빈 상태.
+  // → 사용자가 명시적으로 복원하려면 [📂 배치 불러오기] 버튼.
   (function autoRestore() {
     try {
+      const fromStructure = sessionStorage.getItem('fromStructure');
+      if (!fromStructure) return;        // 토큰 없음 → 자동 복원 X
+      sessionStorage.removeItem('fromStructure');  // 1회용
       const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
       if (!raw) return;
       const layout = JSON.parse(raw);
       if (layout && Array.isArray(layout.modules) && layout.modules.length) {
         restoreLayout(layout);
-        const ts = layout.savedAt ? new Date(layout.savedAt).toLocaleString('ko-KR') : '';
-        showFlash(`📂 자동 복원 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
+        showFlash(`📂 구조 → 배치 복원 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
       }
     } catch (e) { console.warn('autoRestore 실패', e); }
   })();
