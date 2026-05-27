@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>다담AI — Step 2 구조 (mockup)</title>
+<style>
+  :root{
+    --brand-deep:#6a4b2a;
+    --brand-mid:#b8956c;
+    --brand-soft:#f3ead9;
+    --bg:#fbfaf6;
+    --bg-canvas:#f4efe7;
+    --line:#e5e0d4;
+    --text:#3d342a;
+    --text-dim:#7a7062;
+    --text-faint:#a89c84;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+  /* ── TopBar h:40 ─────────────────────────────────── */
+  .topbar{height:40px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 12px;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow-sm)}
+  .step-pill{display:flex;align-items:center;gap:0;padding:3px 6px;background:var(--bg);border:1px solid var(--line);border-radius:999px;font-size:11px;font-weight:600}
+  .step-pill button{border:none;background:transparent;padding:3px 10px;border-radius:999px;cursor:pointer;color:var(--text-dim);font-size:11px;font-weight:600;display:flex;gap:4px;align-items:center}
+  .step-pill button.active{background:var(--brand-deep);color:#fff;box-shadow:0 2px 5px rgba(106,75,42,.25)}
+  .step-pill .sep{width:14px;height:2px;background:var(--line);display:inline-block}
+  .topbar .spacer{flex:1}
+  .module-name{font-size:12px;color:var(--text);font-weight:600;background:var(--brand-soft);padding:4px 10px;border-radius:5px;border:1px solid var(--brand-mid)}
+  .panel-toggle{display:flex;gap:3px}
+  .panel-toggle button{width:28px;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text)}
+  .panel-toggle button.on{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
+
+  /* ── Mid (3-column) ─────────────────────────────── */
+  .mid{flex:1;display:flex;min-height:0;overflow:hidden}
+  .module-list{width:220px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;transition:width .18s ease}
+  .module-list.collapsed{width:32px}
+  .module-list.collapsed .ml-body,.module-list.collapsed .ml-header-title{display:none}
+  .ml-header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--bg)}
+  .ml-header-title{font-size:11px;color:var(--text);font-weight:600}
+  .ml-body{flex:1;overflow-y:auto;padding:6px 4px}
+  .module-item{display:flex;align-items:center;gap:6px;padding:8px 8px;border-radius:5px;cursor:pointer;font-size:11px;color:var(--text);transition:background .12s ease;border-left:3px solid transparent}
+  .module-item:hover{background:var(--bg)}
+  .module-item.active{background:var(--brand-soft);border-left-color:var(--brand-deep);font-weight:600}
+  .module-item .mi-mark{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid var(--text-dim)}
+  .module-item.active .mi-mark{background:var(--brand-deep);border-color:var(--brand-deep)}
+  .module-item .mi-text{flex:1;line-height:1.3}
+  .module-item .mi-dim{display:block;font-size:9px;color:var(--text-faint);margin-top:1px;font-family:monospace}
+
+  /* ── Canvas (정면도) ────────────────────────────── */
+  .canvas-wrap{flex:1;min-width:0;position:relative;background:var(--bg-canvas);overflow:hidden;background-image:linear-gradient(rgba(184,149,108,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(184,149,108,.08) 1px,transparent 1px);background-size:50px 50px}
+  .canvas-svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none}
+  .canvas-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:13px;text-align:center;line-height:1.6}
+  /* 정면도 영역 */
+  .area-rect{cursor:pointer;transition:opacity .12s ease}
+  .area-rect:hover{opacity:0.85}
+  .area-label{font-family:-apple-system,'Segoe UI',sans-serif;font-weight:700;fill:#fff;pointer-events:none}
+  .area-label-small{font-size:10px;fill:#fff;opacity:0.85;pointer-events:none}
+  .module-dim-label{fill:var(--text-dim);font-size:11px;font-weight:600;font-family:monospace;pointer-events:none}
+  .shelf-line{stroke:#5a4d2f;stroke-width:2;stroke-dasharray:10 4;opacity:0.6}
+  .open-direction{fill:#fff;font-size:14px;pointer-events:none;font-weight:700}
+  /* 줌 안내 */
+  .canvas-help{position:absolute;bottom:8px;left:8px;color:var(--text-faint);font-size:10px;padding:4px 8px;background:rgba(255,255,255,0.75);border-radius:4px;border:1px solid var(--line)}
+
+  /* ── 우측 패널 ────────────────────────────── */
+  .right-panel{width:300px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;transition:width .18s ease}
+  .right-panel.collapsed{width:32px}
+  .right-panel.collapsed .section,.right-panel.collapsed .panel-header-title{display:none}
+  .panel-header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--bg);font-size:11px;color:var(--text);font-weight:600}
+  .panel-header button{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px}
+  .sections{overflow-y:auto;flex:1}
+  .section{border-bottom:1px solid var(--line)}
+  .section-header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;cursor:pointer;user-select:none;font-size:12px;font-weight:600;color:var(--text)}
+  .section-header:hover{background:var(--bg)}
+  .section-header .chev{font-size:10px;color:var(--text-faint);transition:transform .15s ease}
+  .section.collapsed .chev{transform:rotate(-90deg)}
+  .section.collapsed .section-body{display:none}
+  .section-body{padding:8px 10px 12px;background:#fff;font-size:11px;color:var(--text)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:5px 0}
+  .row label{color:var(--text-dim);font-size:11px}
+  .row input[type="number"],.row select{padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11px;background:#fff;color:var(--text);font-family:inherit}
+  .row input[type="number"]{width:72px;text-align:right;font-family:monospace}
+  .row select{font-family:inherit}
+  .area-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:5px;align-items:center;padding:4px 0;border-bottom:1px dashed var(--line)}
+  .area-row:last-child{border-bottom:none}
+  .area-row .a-lab{font-size:10px;color:var(--text);font-weight:600;font-family:monospace}
+  .area-row select{padding:2px 4px;font-size:10px;border:1px solid var(--line);border-radius:3px;background:#fff}
+  .shelf-row{display:flex;align-items:center;gap:4px;margin:4px 0}
+  .shelf-row input{flex:1;padding:3px 6px;border:1px solid var(--line);border-radius:3px;font-size:11px;text-align:right;font-family:monospace}
+  .shelf-row button.del{padding:3px 6px;border:1px solid #c0392b;background:#fef0ed;color:#c0392b;border-radius:3px;font-size:10px;cursor:pointer;font-weight:600}
+  .shelf-row button.del:hover{background:#fde0d8}
+  .add-btn{display:block;width:100%;padding:5px;margin-top:6px;border:1px dashed var(--brand-mid);background:transparent;color:var(--brand-deep);border-radius:4px;font-size:11px;font-weight:600;cursor:pointer}
+  .add-btn:hover{background:var(--brand-soft)}
+  .empty-msg{padding:20px 8px;color:var(--text-faint);font-size:11px;text-align:center;line-height:1.5}
+
+  /* ── BottomBar h:32 ──────────────────────────── */
+  .bottombar{height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#fff;border-top:1px solid var(--line);box-shadow:0 -1px 4px rgba(0,0,0,.04);font-size:11px;color:var(--text-dim)}
+  .bottombar .actions{display:flex;gap:6px}
+  .bottombar button{border:1px solid var(--line);background:var(--bg);color:var(--text);padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer}
+  .bottombar button:hover{background:var(--brand-soft)}
+  .bottombar button.primary{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
+  .bottombar button.primary:hover{background:#553b22}
+  .bottombar button.next{background:#1976d2;color:#fff;border-color:#0d47a1}
+  .bottombar button.next:hover{background:#0d47a1}
+
+  /* 토스트 */
+  .toast{position:absolute;top:48px;left:50%;transform:translateX(-50%);background:rgba(122,72,16,0.92);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;z-index:100;pointer-events:none;animation:fadeIn .2s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-4px)}to{opacity:1;transform:translateX(-50%)}}
+</style>
+</head>
+<body>
+
+<!-- TopBar -->
+<div class="topbar">
+  <div class="step-pill">
+    <button onclick="location.href='mockup-shell'">📐 1.배치</button><span class="sep"></span>
+    <button class="active">📦 2.구조</button><span class="sep"></span>
+    <button>🎨 3.디테일</button>
+  </div>
+  <div class="module-name" id="curModuleName">모듈을 선택하세요</div>
+  <div class="spacer"></div>
+  <div class="panel-toggle">
+    <button id="btnLeft" class="on" title="좌측 패널 (L)">⬛</button>
+    <button id="btnRight" class="on" title="우측 패널 (R)">▦</button>
+  </div>
+</div>
+
+<!-- Middle -->
+<div class="mid">
+
+  <!-- 좌측 모듈 리스트 -->
+  <div class="module-list" id="moduleList">
+    <div class="ml-header">
+      <span class="ml-header-title">배치된 모듈</span>
+      <button style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px"
+              onclick="document.getElementById('moduleList').classList.toggle('collapsed')">«</button>
+    </div>
+    <div class="ml-body" id="mlBody">
+      <div class="empty-msg">로딩 중...</div>
+    </div>
+  </div>
+
+  <!-- 캔버스: 정면도 -->
+  <div class="canvas-wrap" id="canvasWrap">
+    <svg class="canvas-svg" id="frontSvg">
+      <g class="content" id="contentG"></g>
+    </svg>
+    <div class="canvas-empty" id="canvasEmpty">
+      좌측에서 모듈을 선택하세요<br>
+      <span style="font-size:11px;color:var(--text-faint);margin-top:6px;display:inline-block">
+        휠 = 줌 · 빈공간 드래그 = 팬 · F = Fit · 0 = Reset
+      </span>
+    </div>
+    <div class="canvas-help">단축키: 휠=줌 · 드래그=팬 · F=Fit · 0=Reset · L/R=패널</div>
+  </div>
+
+  <!-- 우측 편집 패널 -->
+  <div class="right-panel" id="rightPanel">
+    <div class="panel-header">
+      <span class="panel-header-title">구조 편집</span>
+      <button title="패널 접기" onclick="document.getElementById('rightPanel').classList.toggle('collapsed')">»</button>
+    </div>
+    <div class="sections">
+      <!-- 분할 -->
+      <div class="section">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 분할
+        </div>
+        <div class="section-body" id="splitBody">
+          <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
+      <!-- 영역 타입 -->
+      <div class="section">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 영역 타입 + 도어 열림
+        </div>
+        <div class="section-body" id="areasBody">
+          <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
+      <!-- 선반 -->
+      <div class="section">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 선반 (내부 mm)
+        </div>
+        <div class="section-body" id="shelvesBody">
+          <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
+      <!-- 손잡이 -->
+      <div class="section collapsed">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 손잡이
+        </div>
+        <div class="section-body" id="handleBody">
+          <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BottomBar -->
+<div class="bottombar">
+  <div class="actions">
+    <button id="reloadBtn" title="배치 단계 데이터 다시 로드">📥 배치 로드</button>
+    <button class="primary" id="saveBtn" title="구조 저장">💾 구조 저장</button>
+    <button class="next" id="nextBtn" title="디테일 단계로">디테일 단계 →</button>
+  </div>
+  <div>ⓘ 줌 <span id="zoomInd">100%</span> · 휠=줌 · 빈공간 드래그=팬 · F=Fit · 0=Reset</div>
+</div>
+
+<script>
+  // ─────────────────────────────────────────────────────────────
+  // SECTION_CONFIG — mockup-shell.html 과 동일
+  // ─────────────────────────────────────────────────────────────
+  const SECTION_CONFIG = {
+    lower:        { fill: '#b8956c', stroke: '#6a4b2a', label: '하부장' },
+    upper:        { fill: '#7c9c8f', stroke: '#3d5750', label: '상부장' },
+    tall:         { fill: '#9c6e7c', stroke: '#5c3848', label: '키큰장' },
+    fridge:       { fill: '#a0a8b0', stroke: '#4a525a', label: '냉장고장' },
+    sink:         { fill: '#b0b8c0', stroke: '#5a626a', label: '분배기' },
+    hood:         { fill: '#6a727a', stroke: '#2a3238', label: '후드' },
+    refrigerator: { fill: '#c8ced4', stroke: '#5a626a', label: '냉장고' },
+    dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', label: '식기세척기' },
+  };
+  // 영역 type 별 색상 보정
+  function colorForArea(sectionFill, type) {
+    if (type === 'door')   return sectionFill;
+    if (type === 'drawer') return darken(sectionFill, 0.15);
+    if (type === 'open')   return '#fffaf2';
+    return sectionFill;
+  }
+  function darken(hex, factor) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    const f = 1 - factor;
+    return '#' + [r*f,g*f,b*f].map(v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 데이터 모델
+  // ─────────────────────────────────────────────────────────────
+  const LAYOUT_KEY    = 'dadam_layout_v1';
+  const STRUCTURE_KEY = 'dadam_structure_v1';
+
+  /** @type {Array<{id, section, W, H, D}>} */
+  let modules = [];
+  /** @type {Record<string, {verticalCount, horizontalSplits, areaTypes, shelves, handleType, handlePosition}>} */
+  let structures = {};
+  let activeId = null;
+
+  // 모듈 ID 생성
+  function moduleIdFor(section, idx) { return `${section}-${idx}`; }
+
+  // 기본 구조 (모듈 첫 진입 시)
+  function defaultStructure() {
+    return {
+      verticalCount: 1,        // 좌우 분할 N
+      horizontalLayout: 'doorOnly',  // 'doorOnly' | 'doorTopDrawerBottom'
+      drawerHeight: 200,       // 하부 서랍 H (mm)
+      areaTypes: ['door'],     // 길이 = verticalCount (상부 영역)
+      areaDirections: ['left'],  // 도어 열림 방향 (길이 = verticalCount)
+      bottomType: 'drawer',    // doorTopDrawerBottom 시 하부 type
+      bottomDirection: 'left', // 하부 도어일 때 방향
+      shelves: [],             // 바닥부터 mm
+      handleType: 'channel',
+      handlePosition: 'top',
+    };
+  }
+
+  // 모듈 로드 — localStorage 또는 sample
+  function loadModules() {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (raw) {
+        const layout = JSON.parse(raw);
+        if (layout.modules && layout.modules.length) {
+          modules = layout.modules
+            .filter(m => SECTION_CONFIG[m.section] && m.section !== 'ep' && m.section !== 'molding' && m.section !== 'filler')
+            .map((m, i) => ({
+              id: moduleIdFor(m.section, i),
+              section: m.section,
+              W: m.w,
+              H: m.moduleH,
+              D: m.h,
+            }));
+          return;
+        }
+      }
+    } catch (e) { console.warn('layout load 실패', e); }
+    // sample
+    modules = [
+      { id: 'lower-0', section: 'lower', W: 2400, H: 860,  D: 650 },
+      { id: 'upper-0', section: 'upper', W: 2400, H: 800,  D: 320 },
+      { id: 'tall-0',  section: 'tall',  W: 600,  H: 2300, D: 650 },
+      { id: 'fridge-0', section: 'fridge', W: 720, H: 1850, D: 700 },
+    ];
+  }
+
+  function loadStructures() {
+    try {
+      const raw = localStorage.getItem(STRUCTURE_KEY);
+      structures = raw ? JSON.parse(raw) : {};
+    } catch (e) { structures = {}; }
+  }
+  function saveStructures() {
+    localStorage.setItem(STRUCTURE_KEY, JSON.stringify(structures));
+  }
+  function getStructure(id) {
+    if (!structures[id]) structures[id] = defaultStructure();
+    return structures[id];
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 좌측 모듈 리스트 렌더
+  // ─────────────────────────────────────────────────────────────
+  function renderModuleList() {
+    const body = document.getElementById('mlBody');
+    if (!modules.length) {
+      body.innerHTML = '<div class="empty-msg">배치된 모듈 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
+      return;
+    }
+    body.innerHTML = modules.map(m => `
+      <div class="module-item ${m.id === activeId ? 'active' : ''}" data-id="${m.id}">
+        <span class="mi-mark"></span>
+        <div class="mi-text">
+          ${SECTION_CONFIG[m.section].label} ${m.id.split('-')[1] ? `#${parseInt(m.id.split('-')[1])+1}` : ''}
+          <span class="mi-dim">W${m.W} × H${m.H} × D${m.D}</span>
+        </div>
+      </div>
+    `).join('');
+    body.querySelectorAll('.module-item').forEach(el => {
+      el.onclick = () => setActiveModule(el.dataset.id);
+    });
+  }
+
+  function setActiveModule(id) {
+    activeId = id;
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    document.getElementById('curModuleName').textContent = (() => {
+      const m = modules.find(x => x.id === id);
+      if (!m) return '모듈을 선택하세요';
+      const cfg = SECTION_CONFIG[m.section];
+      const idx = parseInt(id.split('-')[1] || 0) + 1;
+      return `${cfg.label} #${idx}`;
+    })();
+    document.getElementById('canvasEmpty').style.display = id ? 'none' : 'flex';
+    fitToActiveModule();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 중앙 정면도 (SVG)
+  // ─────────────────────────────────────────────────────────────
+  const view = { panX: 0, panY: 0, zoom: 1 };
+  function applyView() {
+    const content = document.getElementById('contentG');
+    content.setAttribute('transform', `translate(${view.panX} ${view.panY}) scale(${view.zoom})`);
+    const wrap = document.getElementById('canvasWrap');
+    const sz = (50 * view.zoom).toFixed(2) + 'px';
+    wrap.style.backgroundSize = sz + ' ' + sz;
+    wrap.style.backgroundPosition = view.panX + 'px ' + view.panY + 'px';
+    document.getElementById('zoomInd').textContent = Math.round(view.zoom * 100) + '%';
+  }
+
+  function fitToActiveModule() {
+    const m = modules.find(x => x.id === activeId);
+    const wrap = document.getElementById('canvasWrap');
+    if (!m || !wrap) return;
+    const cw = wrap.clientWidth, ch = wrap.clientHeight;
+    const pad = 80;
+    const targetW = m.W, targetH = m.H;
+    const zx = (cw - pad*2) / targetW;
+    const zy = (ch - pad*2) / targetH;
+    view.zoom = Math.max(0.05, Math.min(zx, zy, 4));
+    view.panX = (cw - targetW * view.zoom) / 2;
+    view.panY = (ch - targetH * view.zoom) / 2;
+    applyView();
+  }
+
+  function renderFrontView() {
+    const content = document.getElementById('contentG');
+    content.innerHTML = '';
+    if (!activeId) return;
+    const m = modules.find(x => x.id === activeId);
+    if (!m) return;
+    const s = getStructure(activeId);
+    const cfg = SECTION_CONFIG[m.section];
+    const ns = 'http://www.w3.org/2000/svg';
+
+    // 모듈 외곽 (참고용, 영역들이 채움)
+    const outline = document.createElementNS(ns, 'rect');
+    outline.setAttribute('x', 0);
+    outline.setAttribute('y', 0);
+    outline.setAttribute('width', m.W);
+    outline.setAttribute('height', m.H);
+    outline.setAttribute('fill', 'none');
+    outline.setAttribute('stroke', cfg.stroke);
+    outline.setAttribute('stroke-width', 4);
+    content.appendChild(outline);
+
+    // 상하 분할
+    const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? s.drawerHeight : 0;
+    const topH = m.H - drawerH;
+    const topY = 0;
+    const drawerY = topH;
+
+    // 상부 영역 (좌우 N 분할)
+    const colW = m.W / s.verticalCount;
+    for (let i = 0; i < s.verticalCount; i++) {
+      const type = s.areaTypes[i] || 'door';
+      const dir = s.areaDirections[i] || 'left';
+      const x = i * colW;
+      const fill = colorForArea(cfg.fill, type);
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('class', 'area-rect');
+      r.setAttribute('x', x);
+      r.setAttribute('y', topY);
+      r.setAttribute('width', colW);
+      r.setAttribute('height', topH);
+      r.setAttribute('fill', fill);
+      r.setAttribute('stroke', cfg.stroke);
+      r.setAttribute('stroke-width', 2);
+      if (type === 'open') r.setAttribute('stroke-dasharray', '8 4');
+      content.appendChild(r);
+
+      // 라벨
+      const labFont = Math.min(colW * 0.18, topH * 0.18, 80);
+      const lab = document.createElementNS(ns, 'text');
+      lab.setAttribute('class', 'area-label');
+      lab.setAttribute('x', x + colW/2);
+      lab.setAttribute('y', topY + topH/2);
+      lab.setAttribute('text-anchor', 'middle');
+      lab.setAttribute('dominant-baseline', 'central');
+      lab.setAttribute('font-size', labFont);
+      const typeLabel = { door:'도어', drawer:'서랍', open:'오픈' }[type];
+      lab.textContent = typeLabel;
+      if (type === 'open') lab.setAttribute('fill', cfg.stroke);
+      content.appendChild(lab);
+
+      // 도어 열림 방향 화살표
+      if (type === 'door') {
+        const arrow = document.createElementNS(ns, 'text');
+        arrow.setAttribute('class', 'open-direction');
+        arrow.setAttribute('font-size', Math.min(colW * 0.15, 60));
+        arrow.setAttribute('text-anchor', 'middle');
+        arrow.setAttribute('dominant-baseline', 'central');
+        if (dir === 'left') {
+          arrow.setAttribute('x', x + colW * 0.15);
+          arrow.setAttribute('y', topY + topH * 0.12);
+          arrow.textContent = '◀';
+        } else {
+          arrow.setAttribute('x', x + colW * 0.85);
+          arrow.setAttribute('y', topY + topH * 0.12);
+          arrow.textContent = '▶';
+        }
+        content.appendChild(arrow);
+      }
+    }
+
+    // 하부 (도어+서랍 모드일 때만)
+    if (s.horizontalLayout === 'doorTopDrawerBottom' && drawerH > 0) {
+      const fill = colorForArea(cfg.fill, s.bottomType);
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('class', 'area-rect');
+      r.setAttribute('x', 0);
+      r.setAttribute('y', drawerY);
+      r.setAttribute('width', m.W);
+      r.setAttribute('height', drawerH);
+      r.setAttribute('fill', fill);
+      r.setAttribute('stroke', cfg.stroke);
+      r.setAttribute('stroke-width', 2);
+      if (s.bottomType === 'open') r.setAttribute('stroke-dasharray', '8 4');
+      content.appendChild(r);
+
+      const labFont = Math.min(m.W * 0.06, drawerH * 0.4, 70);
+      const lab = document.createElementNS(ns, 'text');
+      lab.setAttribute('class', 'area-label');
+      lab.setAttribute('x', m.W/2);
+      lab.setAttribute('y', drawerY + drawerH/2);
+      lab.setAttribute('text-anchor', 'middle');
+      lab.setAttribute('dominant-baseline', 'central');
+      lab.setAttribute('font-size', labFont);
+      const btmLab = { door:'도어', drawer:'서랍', open:'오픈' }[s.bottomType];
+      lab.textContent = `${btmLab} H=${drawerH}`;
+      if (s.bottomType === 'open') lab.setAttribute('fill', cfg.stroke);
+      content.appendChild(lab);
+
+      if (s.bottomType === 'door') {
+        const arrow = document.createElementNS(ns, 'text');
+        arrow.setAttribute('class', 'open-direction');
+        arrow.setAttribute('font-size', Math.min(m.W * 0.04, 50));
+        arrow.setAttribute('text-anchor', 'middle');
+        arrow.setAttribute('dominant-baseline', 'central');
+        if (s.bottomDirection === 'left') {
+          arrow.setAttribute('x', m.W * 0.06);
+          arrow.setAttribute('y', drawerY + drawerH * 0.5);
+          arrow.textContent = '◀';
+        } else {
+          arrow.setAttribute('x', m.W * 0.94);
+          arrow.setAttribute('y', drawerY + drawerH * 0.5);
+          arrow.textContent = '▶';
+        }
+        content.appendChild(arrow);
+      }
+    }
+
+    // 선반 (위→아래 좌표계에서 바닥부터 mm = m.H 에서 아래로)
+    // 정면도 좌표는 위에서 아래로 — 선반 위치 y = m.H - shelf_mm
+    s.shelves.forEach(sh => {
+      if (sh < 0 || sh > m.H) return;
+      const y = m.H - sh;
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('class', 'shelf-line');
+      line.setAttribute('x1', 8);
+      line.setAttribute('y1', y);
+      line.setAttribute('x2', m.W - 8);
+      line.setAttribute('y2', y);
+      content.appendChild(line);
+      const lab = document.createElementNS(ns, 'text');
+      lab.setAttribute('x', m.W - 12);
+      lab.setAttribute('y', y - 6);
+      lab.setAttribute('text-anchor', 'end');
+      lab.setAttribute('font-size', Math.min(m.W * 0.02, 24));
+      lab.setAttribute('fill', '#5a4d2f');
+      lab.setAttribute('font-family', 'monospace');
+      lab.textContent = `선반 H=${sh}mm`;
+      content.appendChild(lab);
+    });
+
+    // 외곽 치수 라벨 (W / H)
+    const dimFont = Math.min(m.W, m.H) * 0.04;
+    const dimW = document.createElementNS(ns, 'text');
+    dimW.setAttribute('class', 'module-dim-label');
+    dimW.setAttribute('x', m.W/2);
+    dimW.setAttribute('y', m.H + dimFont*1.5);
+    dimW.setAttribute('text-anchor', 'middle');
+    dimW.setAttribute('font-size', dimFont);
+    dimW.textContent = `W ${m.W}mm`;
+    content.appendChild(dimW);
+    const dimH = document.createElementNS(ns, 'text');
+    dimH.setAttribute('class', 'module-dim-label');
+    dimH.setAttribute('x', -dimFont*0.8);
+    dimH.setAttribute('y', m.H/2);
+    dimH.setAttribute('text-anchor', 'end');
+    dimH.setAttribute('dominant-baseline', 'central');
+    dimH.setAttribute('font-size', dimFont);
+    dimH.textContent = `H ${m.H}mm`;
+    content.appendChild(dimH);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 우측 패널 — 4 섹션 동적 렌더
+  // ─────────────────────────────────────────────────────────────
+  function renderRightPanel() {
+    const m = modules.find(x => x.id === activeId);
+    if (!m) {
+      ['splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
+        document.getElementById(id).innerHTML = '<div class="empty-msg">모듈 선택</div>';
+      });
+      return;
+    }
+    const s = getStructure(activeId);
+
+    // 분할
+    document.getElementById('splitBody').innerHTML = `
+      <div class="row">
+        <label>좌우 분할</label>
+        <input type="number" min="1" max="6" step="1" id="inpVCount" value="${s.verticalCount}">
+      </div>
+      <div class="row">
+        <label>상하 구성</label>
+        <select id="selHLayout">
+          <option value="doorOnly" ${s.horizontalLayout==='doorOnly'?'selected':''}>도어/서랍만</option>
+          <option value="doorTopDrawerBottom" ${s.horizontalLayout==='doorTopDrawerBottom'?'selected':''}>상부 분할 + 하부 영역</option>
+        </select>
+      </div>
+      ${s.horizontalLayout === 'doorTopDrawerBottom' ? `
+        <div class="row">
+          <label>하부 H (mm)</label>
+          <input type="number" min="50" max="${m.H-50}" step="10" id="inpDrawerH" value="${s.drawerHeight}">
+        </div>
+      ` : ''}
+    `;
+    document.getElementById('inpVCount').oninput = (e) => {
+      const v = Math.max(1, Math.min(6, parseInt(e.target.value)||1));
+      s.verticalCount = v;
+      while (s.areaTypes.length < v) { s.areaTypes.push('door'); s.areaDirections.push('left'); }
+      s.areaTypes.length = v;
+      s.areaDirections.length = v;
+      renderFrontView(); renderRightPanel();
+    };
+    document.getElementById('selHLayout').onchange = (e) => {
+      s.horizontalLayout = e.target.value;
+      renderFrontView(); renderRightPanel();
+    };
+    const inpDr = document.getElementById('inpDrawerH');
+    if (inpDr) inpDr.oninput = (e) => {
+      const v = parseInt(e.target.value) || 200;
+      s.drawerHeight = Math.max(50, Math.min(m.H-50, v));
+      renderFrontView();
+    };
+
+    // 영역 타입
+    let areaHTML = '';
+    for (let i = 0; i < s.verticalCount; i++) {
+      const t = s.areaTypes[i] || 'door';
+      const d = s.areaDirections[i] || 'left';
+      areaHTML += `
+        <div class="area-row" data-idx="${i}">
+          <span class="a-lab">#${i+1}</span>
+          <select class="a-type">
+            <option value="door"   ${t==='door'?'selected':''}>도어</option>
+            <option value="drawer" ${t==='drawer'?'selected':''}>서랍</option>
+            <option value="open"   ${t==='open'?'selected':''}>오픈</option>
+          </select>
+          ${t==='door' ? `
+          <select class="a-dir">
+            <option value="left"  ${d==='left'?'selected':''}>좌 ◀</option>
+            <option value="right" ${d==='right'?'selected':''}>우 ▶</option>
+          </select>` : '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'}
+        </div>
+      `;
+    }
+    if (s.horizontalLayout === 'doorTopDrawerBottom') {
+      areaHTML += `
+        <div style="margin-top:8px;padding-top:6px;border-top:2px solid var(--brand-mid);font-size:10px;color:var(--text-dim);font-weight:600">하부 영역</div>
+        <div class="area-row">
+          <span class="a-lab">하부</span>
+          <select class="b-type">
+            <option value="door"   ${s.bottomType==='door'?'selected':''}>도어</option>
+            <option value="drawer" ${s.bottomType==='drawer'?'selected':''}>서랍</option>
+            <option value="open"   ${s.bottomType==='open'?'selected':''}>오픈</option>
+          </select>
+          ${s.bottomType==='door' ? `
+          <select class="b-dir">
+            <option value="left"  ${s.bottomDirection==='left'?'selected':''}>좌 ◀</option>
+            <option value="right" ${s.bottomDirection==='right'?'selected':''}>우 ▶</option>
+          </select>` : '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'}
+        </div>
+      `;
+    }
+    document.getElementById('areasBody').innerHTML = areaHTML;
+    document.querySelectorAll('#areasBody .area-row').forEach(row => {
+      const idx = row.dataset.idx;
+      const tSel = row.querySelector('.a-type, .b-type');
+      const dSel = row.querySelector('.a-dir, .b-dir');
+      if (tSel) tSel.onchange = (e) => {
+        if (idx !== undefined) s.areaTypes[+idx] = e.target.value;
+        else s.bottomType = e.target.value;
+        renderFrontView(); renderRightPanel();
+      };
+      if (dSel) dSel.onchange = (e) => {
+        if (idx !== undefined) s.areaDirections[+idx] = e.target.value;
+        else s.bottomDirection = e.target.value;
+        renderFrontView();
+      };
+    });
+
+    // 선반
+    let shelfHTML = '';
+    s.shelves.forEach((sh, i) => {
+      shelfHTML += `
+        <div class="shelf-row">
+          <input type="number" min="0" max="${m.H}" step="10" data-idx="${i}" value="${sh}">
+          <button class="del" data-idx="${i}">×</button>
+        </div>
+      `;
+    });
+    if (!s.shelves.length) shelfHTML = '<div style="color:var(--text-faint);font-size:10px;padding:4px 0">선반 없음</div>';
+    shelfHTML += '<button class="add-btn" id="addShelf">+ 선반 추가</button>';
+    document.getElementById('shelvesBody').innerHTML = shelfHTML;
+    document.querySelectorAll('#shelvesBody input[type="number"]').forEach(inp => {
+      inp.oninput = (e) => {
+        const idx = +e.target.dataset.idx;
+        const v = parseInt(e.target.value);
+        if (isFinite(v)) { s.shelves[idx] = Math.max(0, Math.min(m.H, v)); renderFrontView(); }
+      };
+    });
+    document.querySelectorAll('#shelvesBody button.del').forEach(btn => {
+      btn.onclick = () => {
+        const idx = +btn.dataset.idx;
+        s.shelves.splice(idx, 1);
+        renderFrontView(); renderRightPanel();
+      };
+    });
+    document.getElementById('addShelf').onclick = () => {
+      // 중앙 높이로 추가
+      s.shelves.push(Math.round(m.H / 2));
+      renderFrontView(); renderRightPanel();
+    };
+
+    // 손잡이
+    document.getElementById('handleBody').innerHTML = `
+      <div class="row">
+        <label>타입</label>
+        <select id="selHType">
+          <option value="channel"   ${s.handleType==='channel'?'selected':''}>찬넬 (매립형)</option>
+          <option value="c-channel" ${s.handleType==='c-channel'?'selected':''}>C찬넬</option>
+          <option value="push"      ${s.handleType==='push'?'selected':''}>푸쉬 (Push-to-open)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>위치</label>
+        <select id="selHPos">
+          <option value="top"    ${s.handlePosition==='top'?'selected':''}>상</option>
+          <option value="middle" ${s.handlePosition==='middle'?'selected':''}>중</option>
+          <option value="bottom" ${s.handlePosition==='bottom'?'selected':''}>하</option>
+        </select>
+      </div>
+    `;
+    document.getElementById('selHType').onchange = (e) => { s.handleType = e.target.value; };
+    document.getElementById('selHPos').onchange  = (e) => { s.handlePosition = e.target.value; };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 캔버스 인터랙션 — 휠/팬/단축키
+  // ─────────────────────────────────────────────────────────────
+  function attachCanvasHandlers() {
+    const wrap = document.getElementById('canvasWrap');
+    const svg  = document.getElementById('frontSvg');
+    // 휠 줌
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const r = wrap.getBoundingClientRect();
+      const mx = e.clientX - r.left, my = e.clientY - r.top;
+      const factor = e.deltaY < 0 ? 1.1 : 1/1.1;
+      const newZoom = Math.max(0.05, Math.min(8, view.zoom * factor));
+      const wx = (mx - view.panX) / view.zoom;
+      const wy = (my - view.panY) / view.zoom;
+      view.zoom = newZoom;
+      view.panX = mx - wx * newZoom;
+      view.panY = my - wy * newZoom;
+      applyView();
+    }, { passive: false });
+    // pan
+    let panInfo = null;
+    svg.addEventListener('pointerdown', (e) => {
+      panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY };
+      svg.setPointerCapture(e.pointerId);
+      svg.style.cursor = 'grabbing';
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if (!panInfo) return;
+      view.panX = panInfo.ox + (e.clientX - panInfo.sx);
+      view.panY = panInfo.oy + (e.clientY - panInfo.sy);
+      applyView();
+    });
+    const endPan = () => { panInfo = null; svg.style.cursor = ''; };
+    svg.addEventListener('pointerup', endPan);
+    svg.addEventListener('pointercancel', endPan);
+    // 키보드
+    document.addEventListener('keydown', (e) => {
+      if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); fitToActiveModule(); }
+      if (e.key === '0') { e.preventDefault(); view.zoom = 1; view.panX = 0; view.panY = 0; applyView(); }
+      if (e.key === 'l' || e.key === 'L') { document.getElementById('moduleList').classList.toggle('collapsed'); }
+      if (e.key === 'r' || e.key === 'R') { document.getElementById('rightPanel').classList.toggle('collapsed'); }
+    });
+  }
+
+  // 토스트
+  function showToast(text) {
+    const wrap = document.getElementById('canvasWrap');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = text;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // BottomBar 액션
+  // ─────────────────────────────────────────────────────────────
+  document.getElementById('reloadBtn').onclick = () => {
+    loadModules();
+    renderModuleList();
+    if (modules.length && !modules.find(m => m.id === activeId)) setActiveModule(modules[0].id);
+    showToast(`📥 배치 로드 (모듈 ${modules.length}개)`);
+  };
+  document.getElementById('saveBtn').onclick = () => {
+    saveStructures();
+    showToast(`💾 구조 저장 (모듈 ${Object.keys(structures).length}개)`);
+  };
+  document.getElementById('nextBtn').onclick = () => {
+    saveStructures();
+    alert('디테일 단계는 다음 PR 에서 구현 예정입니다.\n\n계획:\n- 도어 색상 / 마감 (글로스/매트/엠보)\n- 손잡이 실제 모델\n- BOM 자재 미리보기\n- SketchUp 내보내기');
+  };
+
+  // 패널 토글 버튼
+  document.getElementById('btnLeft').onclick = (e) => {
+    document.getElementById('moduleList').classList.toggle('collapsed');
+    e.currentTarget.classList.toggle('on');
+  };
+  document.getElementById('btnRight').onclick = (e) => {
+    document.getElementById('rightPanel').classList.toggle('collapsed');
+    e.currentTarget.classList.toggle('on');
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Init
+  // ─────────────────────────────────────────────────────────────
+  loadModules();
+  loadStructures();
+  renderModuleList();
+  attachCanvasHandlers();
+  if (modules.length) setActiveModule(modules[0].id);
+  applyView();
+</script>
+</body>
+</html>
