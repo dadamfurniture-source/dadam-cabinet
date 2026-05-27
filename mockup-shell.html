@@ -81,12 +81,15 @@
   #dimPopup input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
   #dimPopup .u{color:#a89c84;font-size:10px}
   /* W9-29: 부재 추가 버튼 (EP/몰딩/휠라) */
-  /* W9-30: 좌/우 양방향 — 부재명 + ◀ ▶ 3-col grid */
-  #dimPopup .attach-grid{display:grid;grid-template-columns:auto 22px 22px;gap:3px 4px;align-items:center;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
+  /* W9-30/W9-38: 좌/우 양방향 — 색상으로 명확 구분 */
+  #dimPopup .attach-grid{display:grid;grid-template-columns:auto 36px 36px;gap:3px 4px;align-items:center;border-top:1px dashed #e0d6c0;padding-top:4px;margin-top:2px}
   #dimPopup .attach-grid .attach-label{color:#5a4d2f;font-weight:700;font-size:10px;padding-right:2px}
-  #dimPopup .attach-grid button{padding:2px 0;border:1px solid #b8956c;background:#f4efe7;color:#5a4d2f;border-radius:3px;font-size:11px;cursor:pointer;font-weight:600;transition:background .12s ease;line-height:1}
-  #dimPopup .attach-grid button:hover{background:#ede4d0}
-  #dimPopup .attach-grid button:active{background:#d9c89c}
+  #dimPopup .attach-grid button{padding:3px 0;border:1px solid;border-radius:3px;font-size:10px;cursor:pointer;font-weight:700;transition:background .12s ease;line-height:1}
+  /* W9-38: 좌측 = 파랑 톤, 우측 = 주황 톤 (즉시 구분 가능) */
+  #dimPopup .attach-grid button[data-side="left"]{background:#e3f0fa;border-color:#3a78b8;color:#1c4d80}
+  #dimPopup .attach-grid button[data-side="left"]:hover{background:#cfe2f4}
+  #dimPopup .attach-grid button[data-side="right"]{background:#fbecd6;border-color:#c87f24;color:#7a4810}
+  #dimPopup .attach-grid button[data-side="right"]:hover{background:#f5dab1}
   /* W9-14: 자석 snap 시각 표시 (드래그 중) */
   .magnet-hint{stroke:#e74c3c;stroke-width:2;stroke-dasharray:4 3;fill:none;pointer-events:none;opacity:.8}
 
@@ -196,14 +199,14 @@
         </div>
         <div class="attach-grid">
           <span class="attach-label">EP</span>
-          <button type="button" data-attach="ep" data-side="left"  title="선택 사각형 좌측에 EP 측판 추가 (W=인접 D · 18T)">◀</button>
-          <button type="button" data-attach="ep" data-side="right" title="선택 사각형 우측에 EP 측판 추가 (W=인접 D · 18T)">▶</button>
+          <button type="button" data-attach="ep" data-side="left"  title="모듈 좌측에 EP 측판 추가 (이미 좌측 부재가 있으면 그 옆에 chain)">◀ 좌</button>
+          <button type="button" data-attach="ep" data-side="right" title="모듈 우측에 EP 측판 추가 (이미 우측 부재가 있으면 그 옆에 chain)">우 ▶</button>
           <span class="attach-label">몰딩</span>
-          <button type="button" data-attach="molding" data-side="left"  title="선택 사각형 좌측에 몰딩 추가 (60×18)">◀</button>
-          <button type="button" data-attach="molding" data-side="right" title="선택 사각형 우측에 몰딩 추가 (60×18)">▶</button>
+          <button type="button" data-attach="molding" data-side="left"  title="모듈 좌측에 몰딩 추가 (60×18, 부재 chain)">◀ 좌</button>
+          <button type="button" data-attach="molding" data-side="right" title="모듈 우측에 몰딩 추가 (60×18, 부재 chain)">우 ▶</button>
           <span class="attach-label">휠라</span>
-          <button type="button" data-attach="filler" data-side="left"  title="선택 사각형 좌측에 휠라 추가 (60×18)">◀</button>
-          <button type="button" data-attach="filler" data-side="right" title="선택 사각형 우측에 휠라 추가 (60×18)">▶</button>
+          <button type="button" data-attach="filler" data-side="left"  title="모듈 좌측에 휠라 추가 (60×18, 부재 chain)">◀ 좌</button>
+          <button type="button" data-attach="filler" data-side="right" title="모듈 우측에 휠라 추가 (60×18, 부재 chain)">우 ▶</button>
         </div>
       </div>
       <div class="canvas-placeholder">
@@ -1104,45 +1107,76 @@
   dimD.addEventListener('input', applyDimToSelected);
 
   // W9-29: 부재 추가 (EP/몰딩/휠라) — 선택 사각형에 인접 배치
-  // W9-30: side 'left' | 'right' 으로 좌/우 양방향 지원
-  // W9-36: 부재가 사각형 g 의 자식 → 그룹화 (사각형 이동/회전 시 부재도 따라감)
+  // W9-38: 항상 모듈 사각형 기준 + 이미 있는 부재 끝까지 chain
   function attachToSelected(section, side) {
     if (!selectedG) return;
-    const r = selectedG.querySelector(':scope > rect:not(.resize-handle)');
+    // W9-38: selectedG 가 부재(finishing) 면 부모 모듈 사각형 사용
+    let moduleG = selectedG;
+    if (moduleG.classList && moduleG.classList.contains('finishing')) {
+      const parent = moduleG.parentElement;
+      if (parent && parent.classList && parent.classList.contains('sect-rect')) {
+        moduleG = parent;
+      }
+    }
+    const r = moduleG.querySelector(':scope > rect:not(.resize-handle)');
     if (!r) return;
     const baseX = parseFloat(r.getAttribute('x'));
     const baseY = parseFloat(r.getAttribute('y'));
     const baseW = parseFloat(r.getAttribute('width'));
     const baseH = parseFloat(r.getAttribute('height'));
-    const baseModH = parseFloat(selectedG.getAttribute('data-module-h')) || 860;
-    const override = { moduleH: baseModH, parentG: selectedG };
+    const baseModH = parseFloat(moduleG.getAttribute('data-module-h')) || 860;
+    const override = { moduleH: baseModH, parentG: moduleG };
     let newW, newH;
-    // W9-37: 부재의 정면 변(+y)이 사각형 정면 방향과 일치하도록 모양 결정
-    //   EP: 두께(18T) 면이 정면 → 가로 18T × 세로 인접 D (세로 긴 측판)
-    //   몰딩: 60mm 면이 정면 → 가로 60 × 세로 18T (가로 부재)
-    //   휠라: 60mm 면이 정면 → 가로 60 × 세로 18T (가로 부재)
+    // W9-37: 부재의 정면 변(+y) 이 사각형 정면 방향과 일치
     if (section === 'ep') {
-      newW = 18;       // 도면 가로 = 18T (정면 변)
-      newH = baseH;    // 도면 세로 = 인접 모듈 D
+      newW = 18;
+      newH = baseH;
     } else if (section === 'molding') {
-      newW = 60;       // 도면 가로 = 60mm (정면 변)
-      newH = 18;       // 도면 세로 = 18T
+      newW = 60;
+      newH = 18;
     } else if (section === 'filler') {
-      newW = 60;       // 도면 가로 = 60mm (정면 변)
-      newH = 18;       // 도면 세로 = 18T
+      newW = 60;
+      newH = 18;
     } else {
       return;
     }
     override.w = newW;
     override.h = newH;
-    // 회전 0 기준 좌/우 위치 (사각형의 g transform 이 자동으로 회전 적용 → 부재가 회전된 사각형 옆에 정확히 위치)
+    // W9-38: 기존 좌/우 부재 끝까지 확장 — 새 부재는 끝 옆에
+    const existingFinishings = Array.from(moduleG.querySelectorAll(':scope > g.finishing'));
     if (side === 'left') {
-      override.x = baseX - newW;
+      // 모듈 좌측 변 baseX 보다 작은 x 의 부재들 중 가장 작은 x 찾기
+      let leftEdge = baseX;
+      existingFinishings.forEach((fg) => {
+        const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+        if (!fr) return;
+        const fx = parseFloat(fr.getAttribute('x'));
+        const fw = parseFloat(fr.getAttribute('width'));
+        // 좌측 부재 판정: 부재 우측 변 ≤ 모듈 좌측 변 (오차 0.5 허용)
+        if (fx + fw <= baseX + 0.5 && fx < leftEdge) {
+          leftEdge = fx;
+        }
+      });
+      override.x = leftEdge - newW;
     } else {
-      override.x = baseX + baseW;
+      // 모듈 우측 변 (baseX + baseW) 보다 큰 x 의 부재들 중 가장 우측 끝
+      let rightEdge = baseX + baseW;
+      existingFinishings.forEach((fg) => {
+        const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+        if (!fr) return;
+        const fx = parseFloat(fr.getAttribute('x'));
+        const fw = parseFloat(fr.getAttribute('width'));
+        // 우측 부재 판정: 부재 좌측 변 ≥ 모듈 우측 변 (오차 0.5)
+        if (fx >= baseX + baseW - 0.5 && fx + fw > rightEdge) {
+          rightEdge = fx + fw;
+        }
+      });
+      override.x = rightEdge;
     }
     override.y = baseY;
     addSectionRect(section, override);
+    // W9-38: 부재 추가 후에도 모듈 select 유지 (다음 ◀▶ 클릭이 또 모듈 기준)
+    selectG(moduleG);
   }
 
   // 버튼 click → attach (사각형 선택 유지)
@@ -1261,8 +1295,8 @@
       const isFinishing = last.classList.contains('finishing');
       if (!isFinishing) {
         alignToPerson(last);
+        selectG(last); // 일반 모듈만 자동 선택 (W9-38: 부재는 모듈 select 유지)
       }
-      selectG(last); // 신규 추가 시 자동 선택
       // W9-19: z-order 재정렬 — 상부장은 항상 위
       reorderRects();
       // W9-24: 신규 X 버튼 초기 위치 적용
