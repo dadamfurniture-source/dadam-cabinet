@@ -102,15 +102,18 @@
   .sel-dim-row input{width:64px;padding:3px 5px;border:1px solid #d9d2bf;border-radius:3px;font-size:11px;text-align:right}
   .sel-dim-row .u{color:#a89c84;font-size:10px}
   .sel-section-title{font-size:10px;color:#7a7062;font-weight:600;margin:6px 0 4px;border-top:1px dashed #e0d6c0;padding-top:6px}
-  /* attach-grid: 우측 패널 안에서 사용 — 4 column (label / 좌버튼 / 우버튼 / 사이즈) */
-  .attach-grid{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:3px 4px;align-items:center}
-  .attach-grid .attach-label{color:#5a4d2f;font-weight:700;font-size:10px}
-  .attach-grid .attach-size{color:#7a7062;font-size:9px;font-family:monospace;text-align:right;padding-left:4px;white-space:nowrap}
-  .attach-grid button{padding:4px 0;border:1px solid;border-radius:3px;font-size:10px;cursor:pointer;font-weight:700;transition:background .12s ease;line-height:1}
-  .attach-grid button[data-side="left"]{background:#e3f0fa;border-color:#3a78b8;color:#1c4d80}
-  .attach-grid button[data-side="left"]:hover{background:#cfe2f4}
-  .attach-grid button[data-side="right"]{background:#fbecd6;border-color:#c87f24;color:#7a4810}
-  .attach-grid button[data-side="right"]:hover{background:#f5dab1}
+  /* W9-56: attach-list — 부재 별 flex row (W/D input + 좌/우 버튼) */
+  .attach-list{display:flex;flex-direction:column;gap:4px}
+  .attach-row{display:flex;align-items:center;gap:3px}
+  .attach-row .attach-label{color:#5a4d2f;font-weight:700;font-size:10px;width:30px;flex-shrink:0}
+  .attach-row .attach-w,.attach-row .attach-d{width:48px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:3px;font-size:10px;text-align:right;font-family:monospace}
+  .attach-row .attach-w:focus,.attach-row .attach-d:focus{outline:none;border-color:#b8956c}
+  .attach-row .attach-x{color:#a89c84;font-size:10px}
+  .attach-row button{padding:3px 5px;border:1px solid;border-radius:3px;font-size:11px;cursor:pointer;font-weight:700;transition:background .12s ease;line-height:1;min-width:24px}
+  .attach-row button[data-side="left"]{background:#e3f0fa;border-color:#3a78b8;color:#1c4d80}
+  .attach-row button[data-side="left"]:hover{background:#cfe2f4}
+  .attach-row button[data-side="right"]{background:#fbecd6;border-color:#c87f24;color:#7a4810}
+  .attach-row button[data-side="right"]:hover{background:#f5dab1}
   /* rubber-band 선택 사각형 */
   #rubberRect.crossing{fill:rgba(220,80,80,0.12);stroke:#c0392b;stroke-width:1.5;stroke-dasharray:8 4}
   #rubberRect.window{fill:rgba(80,140,220,0.12);stroke:#1976d2;stroke-width:1.5}
@@ -268,19 +271,31 @@
             </div>
             <div class="sel-attach-section">
               <div class="sel-section-title">마감재 추가</div>
-              <div class="attach-grid">
-                <span class="attach-label">EP</span>
-                <button type="button" data-attach="ep" data-side="left"  title="모듈 좌측 EP">◀ 좌</button>
-                <button type="button" data-attach="ep" data-side="right" title="모듈 우측 EP">우 ▶</button>
-                <span class="attach-size">18×D</span>
-                <span class="attach-label">몰딩</span>
-                <button type="button" data-attach="molding" data-side="left"  title="모듈 좌측 몰딩">◀ 좌</button>
-                <button type="button" data-attach="molding" data-side="right" title="모듈 우측 몰딩">우 ▶</button>
-                <span class="attach-size">60×18</span>
-                <span class="attach-label">휠라</span>
-                <button type="button" data-attach="filler" data-side="left"  title="모듈 좌측 휠라">◀ 좌</button>
-                <button type="button" data-attach="filler" data-side="right" title="모듈 우측 휠라">우 ▶</button>
-                <span class="attach-size">60×18</span>
+              <div class="attach-list">
+                <div class="attach-row" data-section="ep">
+                  <span class="attach-label">EP</span>
+                  <input class="attach-w" type="number" min="1" step="1" value="18" title="W (도면 가로 mm)">
+                  <span class="attach-x">×</span>
+                  <input class="attach-d" type="number" min="1" step="1" value="650" title="D (도면 깊이 mm) — 기본: 선택 모듈 D">
+                  <button type="button" data-attach="ep" data-side="left"  title="좌측 EP">◀</button>
+                  <button type="button" data-attach="ep" data-side="right" title="우측 EP">▶</button>
+                </div>
+                <div class="attach-row" data-section="molding">
+                  <span class="attach-label">몰딩</span>
+                  <input class="attach-w" type="number" min="1" step="1" value="60">
+                  <span class="attach-x">×</span>
+                  <input class="attach-d" type="number" min="1" step="1" value="18">
+                  <button type="button" data-attach="molding" data-side="left"  title="좌측 몰딩">◀</button>
+                  <button type="button" data-attach="molding" data-side="right" title="우측 몰딩">▶</button>
+                </div>
+                <div class="attach-row" data-section="filler">
+                  <span class="attach-label">휠라</span>
+                  <input class="attach-w" type="number" min="1" step="1" value="60">
+                  <span class="attach-x">×</span>
+                  <input class="attach-d" type="number" min="1" step="1" value="18">
+                  <button type="button" data-attach="filler" data-side="left"  title="좌측 휠라">◀</button>
+                  <button type="button" data-attach="filler" data-side="right" title="우측 휠라">▶</button>
+                </div>
               </div>
             </div>
           </div>
@@ -970,6 +985,16 @@
     }
     if (dimW) dimW.value = w;
     if (dimD) dimD.value = h;
+    // W9-56: EP 의 D input 을 선택 모듈 D 로 자동 갱신 (사용자 직접 수정 가능)
+    const epRow = document.querySelector('#selPanelBody .attach-row[data-section="ep"]');
+    if (epRow) {
+      const epD = epRow.querySelector('.attach-d');
+      // 부재가 아닌 일반 모듈일 때만 자동 갱신
+      if (epD && !selectedG.classList.contains('finishing')) {
+        // 사용자가 focus 중이면 덮어쓰지 않음
+        if (document.activeElement !== epD) epD.value = h;
+      }
+    }
   }
 
   function rotateG(g) {
@@ -1531,20 +1556,16 @@
     const baseH = parseFloat(r.getAttribute('height'));
     const baseModH = parseFloat(moduleG.getAttribute('data-module-h')) || 860;
     const override = { moduleH: baseModH, parentG: moduleG };
-    let newW, newH;
-    // W9-37: 부재의 정면 변(+y) 이 사각형 정면 방향과 일치
-    if (section === 'ep') {
-      newW = 18;
-      newH = baseH;
-    } else if (section === 'molding') {
-      newW = 60;
-      newH = 18;
-    } else if (section === 'filler') {
-      newW = 60;
-      newH = 18;
-    } else {
-      return;
-    }
+    // W9-56: input 에서 W/D 사용자 입력값 read (입력 없으면 기본값 fallback)
+    const row = document.querySelector(`#selPanelBody .attach-row[data-section="${section}"]`);
+    const wInp = row ? row.querySelector('.attach-w') : null;
+    const dInp = row ? row.querySelector('.attach-d') : null;
+    const defaultW = section === 'ep' ? 18 : 60;
+    const defaultD = section === 'ep' ? baseH : 18;
+    let newW = wInp ? parseFloat(wInp.value) : defaultW;
+    let newH = dInp ? parseFloat(dInp.value) : defaultD;
+    if (!isFinite(newW) || newW < 1) newW = defaultW;
+    if (!isFinite(newH) || newH < 1) newH = defaultD;
     override.w = newW;
     override.h = newH;
     // W9-38: 기존 좌/우 부재 끝까지 확장 — 새 부재는 끝 옆에
@@ -1585,7 +1606,7 @@
   }
 
   // 버튼 click → attach (사각형 선택 유지)
-  document.querySelectorAll('#selPanelBody .attach-grid button[data-attach]').forEach((btn) => {
+  document.querySelectorAll('#selPanelBody .attach-row button[data-attach]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const sec = btn.getAttribute('data-attach');
