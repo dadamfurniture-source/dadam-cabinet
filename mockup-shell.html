@@ -1117,15 +1117,19 @@
     const baseModH = parseFloat(selectedG.getAttribute('data-module-h')) || 860;
     const override = { moduleH: baseModH, parentG: selectedG };
     let newW, newH;
+    // W9-37: 부재의 정면 변(+y)이 사각형 정면 방향과 일치하도록 모양 결정
+    //   EP: 두께(18T) 면이 정면 → 가로 18T × 세로 인접 D (세로 긴 측판)
+    //   몰딩: 60mm 면이 정면 → 가로 60 × 세로 18T (가로 부재)
+    //   휠라: 60mm 면이 정면 → 가로 60 × 세로 18T (가로 부재)
     if (section === 'ep') {
-      newW = baseH;
-      newH = 18;
+      newW = 18;       // 도면 가로 = 18T (정면 변)
+      newH = baseH;    // 도면 세로 = 인접 모듈 D
     } else if (section === 'molding') {
-      newW = 18;
-      newH = 60;
+      newW = 60;       // 도면 가로 = 60mm (정면 변)
+      newH = 18;       // 도면 세로 = 18T
     } else if (section === 'filler') {
-      newW = 60;
-      newH = 18;
+      newW = 60;       // 도면 가로 = 60mm (정면 변)
+      newH = 18;       // 도면 세로 = 18T
     } else {
       return;
     }
