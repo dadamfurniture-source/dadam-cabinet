@@ -726,7 +726,7 @@
     let panInfo = null;
     let rbInfo = null;
     svg.addEventListener('pointerdown', (e) => {
-      if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
+      if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person') || e.target.closest('g.origin-mark'))) return;
       if (trimMode) return;  // trim 모드 중엔 빈 공간 동작 X
       // W9-66: 원점 모드 → 클릭한 위치를 원점으로 (SVG 좌표 변환)
       if (originMode) {
@@ -1426,7 +1426,8 @@
     const ns = 'http://www.w3.org/2000/svg';
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('class', 'origin-mark');
-    // cross + circle
+    g.style.cursor = 'grab';   // W9-68: 드래그 cursor
+    // cross + circle (interactive hit area 포함)
     const sz = 80;  // mm
     const l1 = document.createElementNS(ns, 'line');
     l1.setAttribute('x1', originPos.x - sz); l1.setAttribute('y1', originPos.y);
@@ -1438,11 +1439,18 @@
     l2.setAttribute('x2', originPos.x); l2.setAttribute('y2', originPos.y + sz);
     l2.setAttribute('stroke', '#1976d2'); l2.setAttribute('stroke-width', 4);
     g.appendChild(l2);
+    // W9-68: drag hit area — 투명 큰 원 (cross 주변)
+    const hit = document.createElementNS(ns, 'circle');
+    hit.setAttribute('cx', originPos.x); hit.setAttribute('cy', originPos.y);
+    hit.setAttribute('r', sz);
+    hit.setAttribute('fill', 'transparent');
+    g.appendChild(hit);
     const c = document.createElementNS(ns, 'circle');
     c.setAttribute('cx', originPos.x); c.setAttribute('cy', originPos.y);
     c.setAttribute('r', 30);
     c.setAttribute('fill', 'none');
     c.setAttribute('stroke', '#1976d2'); c.setAttribute('stroke-width', 3);
+    c.setAttribute('pointer-events', 'none');
     g.appendChild(c);
     const t = document.createElementNS(ns, 'text');
     t.setAttribute('x', originPos.x + 40); t.setAttribute('y', originPos.y - 40);
@@ -1452,8 +1460,57 @@
     t.setAttribute('pointer-events', 'none');
     t.textContent = `0,0 · H${ceilingHeight}`;
     g.appendChild(t);
-    // 최상위 (person 보다 아래)
     content.insertBefore(g, content.firstChild);
+    // W9-68: 드래그 핸들러
+    attachOriginDragHandlers(g);
+  }
+
+  // W9-68: 원점 드래그 — 사람 원 패턴 재사용
+  function attachOriginDragHandlers(g) {
+    let dragInfo = null;
+    g.addEventListener('pointerdown', (e) => {
+      // 트리밍 / 원점 모드 / sect-rect 위 클릭은 다른 곳에서 처리
+      if (trimMode || originMode) return;
+      if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
+      e.stopPropagation();
+      dragInfo = {
+        startX: e.clientX, startY: e.clientY,
+        origCx: originPos.x, origCy: originPos.y,
+        moved: false,
+      };
+      g.setPointerCapture(e.pointerId);
+      g.style.cursor = 'grabbing';
+    });
+    g.addEventListener('pointermove', (e) => {
+      if (!dragInfo) return;
+      const z = view.zoom || 1;
+      const dx = (e.clientX - dragInfo.startX) / z;
+      const dy = (e.clientY - dragInfo.startY) / z;
+      if (Math.abs(dx) + Math.abs(dy) > 1) dragInfo.moved = true;
+      originPos.x = dragInfo.origCx + dx;
+      originPos.y = dragInfo.origCy + dy;
+      // SVG 즉시 갱신 (drawOriginMark 다시 호출하면 무거우니 직접 수정)
+      const cross1 = g.children[0], cross2 = g.children[1], hit = g.children[2], circ = g.children[3], lab = g.children[4];
+      cross1.setAttribute('x1', originPos.x - 80); cross1.setAttribute('x2', originPos.x + 80);
+      cross1.setAttribute('y1', originPos.y);     cross1.setAttribute('y2', originPos.y);
+      cross2.setAttribute('y1', originPos.y - 80); cross2.setAttribute('y2', originPos.y + 80);
+      cross2.setAttribute('x1', originPos.x);      cross2.setAttribute('x2', originPos.x);
+      hit.setAttribute('cx', originPos.x); hit.setAttribute('cy', originPos.y);
+      circ.setAttribute('cx', originPos.x); circ.setAttribute('cy', originPos.y);
+      lab.setAttribute('x', originPos.x + 40); lab.setAttribute('y', originPos.y - 40);
+    });
+    const end = () => {
+      if (!dragInfo) return;
+      const moved = dragInfo.moved;
+      dragInfo = null;
+      g.style.cursor = 'grab';
+      if (moved) {
+        try { localStorage.setItem(ORIGIN_STORAGE_KEY, JSON.stringify({ x: originPos.x, y: originPos.y, ceiling: ceilingHeight })); } catch (e) {}
+        showFlash(`⊕ 원점 이동 (${Math.round(originPos.x)}, ${Math.round(originPos.y)})`, 'rgba(13,71,161,0.92)');
+      }
+    };
+    g.addEventListener('pointerup', end);
+    g.addEventListener('pointercancel', end);
   }
 
   // 페이지 로드 시 저장된 origin 복원
