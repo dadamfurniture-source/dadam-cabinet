@@ -31,7 +31,9 @@
   .model-item{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:8px 10px;border:1px solid #e0d6c0;background:#fff;border-radius:5px;cursor:pointer;transition:background .12s ease}
   .model-item:hover{background:#f4efe7;border-color:#b8956c}
   .model-item .m-name{font-size:12px;font-weight:700;color:#3d342a}
-  .model-item .m-brand{font-size:10px;color:#7a7062;margin-top:1px}
+  .model-item .m-brand{font-size:10px;color:#7a7062;margin-top:1px;display:flex;align-items:center;gap:6px}
+  .m-verified{font-size:9px;padding:1px 6px;border-radius:8px;background:#e3f5e1;color:#2c6a26;font-weight:700}
+  .m-unverified{font-size:9px;padding:1px 6px;border-radius:8px;background:#fef3d6;color:#8a6620;font-weight:700}
   .model-item .m-dim{font-size:11px;color:#5a4d2f;margin-top:3px;font-family:monospace}
   .model-empty{padding:20px;color:#a89c84;font-size:11px;text-align:center}
   /* W9-39: Undo/Redo TopBar 버튼 */
@@ -324,6 +326,10 @@
     </div>
     <div class="modal-body">
       <input id="modelSearch" type="text" placeholder="모델명 또는 브랜드 검색 (예: 비스포크, LG, 양문형)" autocomplete="off">
+      <div style="font-size:10px;color:#7a7062;line-height:1.4">
+        <span style="color:#2c6a26;font-weight:700">✓ 검증</span> = 제조사 공식 사양 페이지 확인 ·
+        <span style="color:#8a6620;font-weight:700">⚠ 표준</span> = 카테고리 일반 치수 추정 (정확한 사양 공식 확인 권장)
+      </div>
       <div id="modelList"></div>
     </div>
   </div>
@@ -1439,20 +1445,19 @@
     }
   };
 
-  // W9-42: 냉장고 모델 데이터 (한국 시장 일반) — W × D × H mm
+  // W9-43: 냉장고 모델 — 제조사 공식 사양 + 표준 치수 (verified 표시)
+  // 깊이는 후면 핸들 포함 (가구 설치 공간 기준)
   const REFRIGERATOR_MODELS = [
-    { brand: '삼성',     name: 'BESPOKE 4도어 RF85B9001AP',  w: 912, d: 744, h: 1853 },
-    { brand: '삼성',     name: 'BESPOKE 키친핏 RF60B91C2AP', w: 600, d: 685, h: 1853 },
-    { brand: '삼성',     name: 'BESPOKE 4도어 RF60B901CP',   w: 912, d: 707, h: 1853 },
-    { brand: '삼성',     name: '양문형 RS84B5081',           w: 908, d: 716, h: 1780 },
-    { brand: 'LG',       name: 'DIOS 오브제 F873SB35E',      w: 913, d: 742, h: 1790 },
-    { brand: 'LG',       name: 'DIOS 양문형 S631S32B',       w: 910, d: 738, h: 1790 },
-    { brand: 'LG',       name: 'DIOS 빌트인 LFH72J1',        w: 680, d: 690, h: 1800 },
-    { brand: 'LG',       name: 'DIOS 4도어 F874SN35E',       w: 913, d: 742, h: 1825 },
-    { brand: '삼성',     name: 'BESPOKE 1도어 빌트인 RR39A', w: 595, d: 670, h: 1853 },
-    { brand: '위니아',   name: '딤채 김치냉장고 EDR48EFEZSS', w: 795, d: 727, h: 1853 },
-    { brand: 'Liebherr', name: 'CNbsd 5223',                  w: 597, d: 675, h: 1850 },
-    { brand: 'Bosch',    name: 'Serie 8 KSF36PI3P',          w: 600, d: 650, h: 1860 },
+    // ✓ 검증됨 (삼성 공식 사양 페이지 확인)
+    { brand: '삼성', name: 'BESPOKE 4도어 905L RM70F90M2 (쇼케이스)',      w: 912, d: 922, h: 1853, verified: true },
+    { brand: '삼성', name: 'BESPOKE 4도어 905L RM70F90R1 (1등급)',           w: 912, d: 922, h: 1830, verified: true },
+    { brand: '삼성', name: 'BESPOKE 4도어 키친핏 Max 633L RM70F64',         w: 912, d: 697, h: 1853, verified: true },
+    { brand: '삼성', name: 'BESPOKE AI 4도어 키친핏 Max 640L RM70F63R2A',   w: 912, d: 697, h: 1853, verified: true },
+    { brand: 'LG',   name: '오브제컬렉션 양문형 870L T875MEE111',           w: 914, d: 918, h: 1787, verified: true },
+    // ⚠ 표준 치수 (제조사 카테고리 일반값 — 정확한 사양은 공식 페이지 확인 필요)
+    { brand: '삼성', name: 'BESPOKE 1도어 키친핏 380L RR39A7695AP',         w: 595, d: 700, h: 1853, verified: false },
+    { brand: '삼성', name: 'BESPOKE 1도어 키친핏 409L RR40C7805AP',         w: 595, d: 700, h: 1853, verified: false },
+    { brand: 'LG',   name: 'DIOS 빌트인 양문형 S715SI24B (홈바)',           w: 910, d: 738, h: 1790, verified: false },
   ];
 
   const modelModal      = document.getElementById('modelModal');
@@ -1473,7 +1478,7 @@
     }
     modelListEl.innerHTML = filtered.map((m, i) => `
       <button class="model-item" type="button" data-idx="${REFRIGERATOR_MODELS.indexOf(m)}">
-        <div class="m-brand">${m.brand}</div>
+        <div class="m-brand">${m.brand} ${m.verified ? '<span class="m-verified" title="제조사 공식 사양">✓ 검증</span>' : '<span class="m-unverified" title="표준 치수 추정 — 공식 사양 확인 권장">⚠ 표준</span>'}</div>
         <div class="m-name">${m.name}</div>
         <div class="m-dim">W ${m.w} × D ${m.d} × H ${m.h} mm</div>
       </button>
