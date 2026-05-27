@@ -175,7 +175,7 @@
   <div class="topbar">
     <div class="step-pill">
       <button class="active">📐 1.배치</button><span class="sep"></span>
-      <button>📦 2.구조</button><span class="sep"></span>
+      <button onclick="document.getElementById('nextStepBtn').click()">📦 2.구조</button><span class="sep"></span>
       <button>🎨 3.디테일</button>
     </div>
     <div class="dim-group">
@@ -2044,21 +2044,18 @@
   };
 
   document.getElementById('nextStepBtn').onclick = () => {
-    // 먼저 자동 저장
+    // W9-59: 자동 저장 후 mockup-structure.html (Step 2) 페이지로 이동
     const layout = serializeLayout();
     if (layout) {
       try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
       showFlash(`✓ 자동 저장 → 구조 단계 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
     }
-    // step-pill 활성 변경
+    // step-pill 활성 변경 (시각 피드백)
     const pillBtns = document.querySelectorAll('.step-pill button');
     pillBtns.forEach(b => b.classList.remove('active'));
     if (pillBtns[1]) pillBtns[1].classList.add('active');
-    // TODO: 구조 단계 화면 — 별도 PR 로 구현
-    // 우선 안내만 표시
-    setTimeout(() => {
-      alert('구조 단계는 다음 PR 에서 구현 예정입니다.\n\n계획:\n- 좌측: 배치된 모듈 리스트\n- 중앙: 선택 모듈의 정면도 (W × H)\n- 우측: 도어/서랍/선반 분할 편집\n  · 좌우 분할 (도어 N개)\n  · 상하 분할 (서랍 + 도어)\n  · 각 영역 타입 (도어/서랍/오픈)\n  · 내부 선반 위치 (mm)\n  · 도어 열림 방향 (좌/우)');
-    }, 800);
+    // 구조 단계 페이지로 이동 (Cloudflare Pages 308 redirect 회피 — 확장자 없이)
+    setTimeout(() => { location.href = 'mockup-structure'; }, 400);
   };
 
   // W9-39: TopBar Undo/Redo 버튼 이벤트
