@@ -1237,47 +1237,78 @@
     }
   }
 
+  // W9-49: 회전 적용한 시각 AABB 계산 (4 corner min/max)
+  function getVisualBBox(g) {
+    const r = g.querySelector(':scope > rect:not(.resize-handle)');
+    if (!r) return null;
+    const x = parseFloat(r.getAttribute('x'));
+    const y = parseFloat(r.getAttribute('y'));
+    const w = parseFloat(r.getAttribute('width'));
+    const h = parseFloat(r.getAttribute('height'));
+    const rot = rotations.get(g) || 0;
+    const corners = getRotatedCorners(x, y, w, h, rot);
+    const xs = corners.map(c => c.x);
+    const ys = corners.map(c => c.y);
+    return {
+      minX: Math.min(...xs), maxX: Math.max(...xs),
+      minY: Math.min(...ys), maxY: Math.max(...ys),
+      x, y, w, h, rot,
+    };
+  }
+
   // 트리밍: 기준 사각형 ref 의 영역을 target 에서 제거 (target W 또는 D 줄임)
   function trimAgainst(refG, targetG) {
-    const ref = refG.querySelector(':scope > rect:not(.resize-handle)');
     const tgt = targetG.querySelector(':scope > rect:not(.resize-handle)');
-    if (!ref || !tgt) return false;
-    const ax = parseFloat(tgt.getAttribute('x'));
-    const ay = parseFloat(tgt.getAttribute('y'));
-    const aw = parseFloat(tgt.getAttribute('width'));
-    const ah = parseFloat(tgt.getAttribute('height'));
-    const bx = parseFloat(ref.getAttribute('x'));
-    const by = parseFloat(ref.getAttribute('y'));
-    const bw = parseFloat(ref.getAttribute('width'));
-    const bh = parseFloat(ref.getAttribute('height'));
-    const overlapX = Math.max(0, Math.min(ax + aw, bx + bw) - Math.max(ax, bx));
-    const overlapY = Math.max(0, Math.min(ay + ah, by + bh) - Math.max(ay, by));
+    if (!tgt) return false;
+    // W9-49: 회전 적용된 시각 BBox 로 overlap 검사
+    const refBB = getVisualBBox(refG);
+    const tgtBB = getVisualBBox(targetG);
+    if (!refBB || !tgtBB) return false;
+    const overlapX = Math.max(0, Math.min(tgtBB.maxX, refBB.maxX) - Math.max(tgtBB.minX, refBB.minX));
+    const overlapY = Math.max(0, Math.min(tgtBB.maxY, refBB.maxY) - Math.max(tgtBB.minY, refBB.minY));
     if (overlapX <= 0 || overlapY <= 0) {
-      showTrimToast('⚠ 두 사각형이 겹치지 않음 — 모드 해제');
-      setTimeout(() => { if (!trimMode) hideTrimToast(); }, 1500);
+      showTrimToast('⚠ 두 사각형이 겹치지 않음');
+      setTimeout(hideTrimToast, 1800);
       return false;
     }
-    let op;
+    // W9-49: 새 시각 BBox 계산 — 작은 축 방향으로 ref 영역 만큼 잘라냄
+    let newMinX = tgtBB.minX, newMaxX = tgtBB.maxX;
+    let newMinY = tgtBB.minY, newMaxY = tgtBB.maxY;
     if (overlapX < overlapY) {
-      if (ax < bx) {
-        const newW = bx - ax;
-        if (newW >= 1) op = () => tgt.setAttribute('width', newW);
-      } else {
-        const newX = bx + bw;
-        const newW = ax + aw - newX;
-        if (newW >= 1) op = () => { tgt.setAttribute('x', newX); tgt.setAttribute('width', newW); };
-      }
+      // X 방향 trim (시각 좌표계)
+      if (tgtBB.minX < refBB.minX) newMaxX = refBB.minX;       // 우측 잘라냄
+      else                          newMinX = refBB.maxX;       // 좌측 잘라냄
     } else {
-      if (ay < by) {
-        const newH = by - ay;
-        if (newH >= 1) op = () => tgt.setAttribute('height', newH);
-      } else {
-        const newY = by + bh;
-        const newH = ay + ah - newY;
-        if (newH >= 1) op = () => { tgt.setAttribute('y', newY); tgt.setAttribute('height', newH); };
-      }
+      if (tgtBB.minY < refBB.minY) newMaxY = refBB.minY;
+      else                          newMinY = refBB.maxY;
     }
-    if (!op) return false;
+    const newVisualW = newMaxX - newMinX;
+    const newVisualH = newMaxY - newMinY;
+    if (newVisualW < 1 || newVisualH < 1) {
+      showTrimToast('⚠ 트림 결과 너무 작음 — 취소');
+      setTimeout(hideTrimToast, 1500);
+      return false;
+    }
+    // target 회전 r → 새 시각 BBox 를 rect attribute (회전 0 좌표) 로 변환
+    const newCx = (newMinX + newMaxX) / 2;
+    const newCy = (newMinY + newMaxY) / 2;
+    let newW, newH;
+    const r = tgtBB.rot;
+    if (r === 90 || r === 270) {
+      // 90/270: 시각 W ↔ 원본 H, 시각 H ↔ 원본 W
+      newW = newVisualH;
+      newH = newVisualW;
+    } else {
+      newW = newVisualW;
+      newH = newVisualH;
+    }
+    const op = () => {
+      tgt.setAttribute('x', newCx - newW / 2);
+      tgt.setAttribute('y', newCy - newH / 2);
+      tgt.setAttribute('width', newW);
+      tgt.setAttribute('height', newH);
+      if (r) targetG.setAttribute('transform', `rotate(${r} ${newCx} ${newCy})`);
+    };
     op();
     // 라벨 / 회전 pivot / X 버튼 갱신
     const nr = targetG.querySelector(':scope > rect:not(.resize-handle)');
@@ -1301,20 +1332,26 @@
   }
 
   // 트리밍 모드에서 사각형 클릭 — 첫 번째 = 기준, 두 번째 = 잘림
+  // W9-49: 부재(finishing) 는 trim 대상 아님 (일반 모듈만)
   function handleTrimClick(g) {
+    if (g.classList.contains('finishing')) {
+      showTrimToast('⚠ 부재 (EP/몰딩/휠라) 는 트리밍 대상 아님 — 일반 모듈만');
+      setTimeout(hideTrimToast, 1500);
+      return;
+    }
     if (!trimRefG) {
       trimRefG = g;
       g.classList.add('trim-ref');
       showTrimToast('✂ 기준 설정 완료 — ② 잘릴 사각형을 클릭하세요');
       return;
     }
-    if (g === trimRefG) return;  // 같은 거 다시 클릭 — 무시
+    if (g === trimRefG) return;
     const ok = trimAgainst(trimRefG, g);
     if (ok) {
       showTrimToast('✂ 트리밍 완료');
       setTimeout(hideTrimToast, 1200);
     }
-    setTrimMode(false);  // 작업 후 모드 자동 종료
+    setTrimMode(false);
   }
 
   const trimToolBtn = document.getElementById('trimToolBtn');
