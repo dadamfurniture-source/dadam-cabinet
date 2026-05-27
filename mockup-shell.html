@@ -17,6 +17,23 @@
   /* ── App shell ─────────────────────────────────────── */
   .shell{display:flex;flex-direction:column;height:100vh;width:100vw}
 
+  /* W9-42: 냉장고 모델 선택 모달 */
+  .modal-overlay{position:fixed;inset:0;background:rgba(40,30,15,0.45);z-index:200;display:none;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal-content{background:#fff;border-radius:10px;width:min(480px,90vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.25);overflow:hidden}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #e0d6c0;background:#f4efe7}
+  .modal-header h3{margin:0;font-size:13px;color:#3d342a}
+  .modal-header button{border:none;background:transparent;font-size:18px;cursor:pointer;color:#7a7062;padding:0 4px}
+  .modal-body{padding:10px 14px;overflow:hidden;display:flex;flex-direction:column;gap:8px;min-height:0}
+  .modal-body input[type="text"]{padding:6px 10px;border:1px solid #d9d2bf;border-radius:4px;font-size:12px;outline:none}
+  .modal-body input[type="text"]:focus{border-color:#b8956c}
+  #modelList{overflow-y:auto;max-height:50vh;display:flex;flex-direction:column;gap:4px;padding-right:2px}
+  .model-item{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:8px 10px;border:1px solid #e0d6c0;background:#fff;border-radius:5px;cursor:pointer;transition:background .12s ease}
+  .model-item:hover{background:#f4efe7;border-color:#b8956c}
+  .model-item .m-name{font-size:12px;font-weight:700;color:#3d342a}
+  .model-item .m-brand{font-size:10px;color:#7a7062;margin-top:1px}
+  .model-item .m-dim{font-size:11px;color:#5a4d2f;margin-top:3px;font-family:monospace}
+  .model-empty{padding:20px;color:#a89c84;font-size:11px;text-align:center}
   /* W9-39: Undo/Redo TopBar 버튼 */
   .undo-toggle{display:flex;gap:3px}
   .undo-toggle button{width:28px;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:15px;line-height:1;color:#5a4d2f;transition:background .12s ease}
@@ -298,6 +315,20 @@
   </div>
 </div>
 
+<!-- W9-42: 냉장고 모델 선택 모달 -->
+<div id="modelModal" class="modal-overlay" aria-hidden="true">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>냉장고 모델 선택</h3>
+      <button id="closeModelModal" type="button" aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body">
+      <input id="modelSearch" type="text" placeholder="모델명 또는 브랜드 검색 (예: 비스포크, LG, 양문형)" autocomplete="off">
+      <div id="modelList"></div>
+    </div>
+  </div>
+</div>
+
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
   const rp = document.getElementById('rightPanel'), btnR = document.getElementById('btnRight');
@@ -318,10 +349,11 @@
     tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
     fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 1850 },
     // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
-    sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 900, h: 600, label: '분배기',     moduleH: 860  },
-    hood:         { fill: '#6a727a', stroke: '#2a3238', w: 900, h: 500, label: '후드',       moduleH: 400  },
+    // W9-42: 분배기/후드/식세기 기본값 조정 + 냉장고는 모달로 모델 선택
+    sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 700, h: 400, label: '분배기',     moduleH: 860  },
+    hood:         { fill: '#6a727a', stroke: '#2a3238', w: 300, h: 300, label: '후드',       moduleH: 400  },
     refrigerator: { fill: '#c8ced4', stroke: '#5a626a', w: 720, h: 700, label: '냉장고',     moduleH: 1850 },
-    dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 600, label: '식기세척기', moduleH: 820  },
+    dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 650, label: '식기세척기', moduleH: 820  },
     // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 높이 (860 default)
     ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 860, adjacent: 'depthAndHeight' },
     // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
@@ -1407,9 +1439,82 @@
     }
   };
 
+  // W9-42: 냉장고 모델 데이터 (한국 시장 일반) — W × D × H mm
+  const REFRIGERATOR_MODELS = [
+    { brand: '삼성',     name: 'BESPOKE 4도어 RF85B9001AP',  w: 912, d: 744, h: 1853 },
+    { brand: '삼성',     name: 'BESPOKE 키친핏 RF60B91C2AP', w: 600, d: 685, h: 1853 },
+    { brand: '삼성',     name: 'BESPOKE 4도어 RF60B901CP',   w: 912, d: 707, h: 1853 },
+    { brand: '삼성',     name: '양문형 RS84B5081',           w: 908, d: 716, h: 1780 },
+    { brand: 'LG',       name: 'DIOS 오브제 F873SB35E',      w: 913, d: 742, h: 1790 },
+    { brand: 'LG',       name: 'DIOS 양문형 S631S32B',       w: 910, d: 738, h: 1790 },
+    { brand: 'LG',       name: 'DIOS 빌트인 LFH72J1',        w: 680, d: 690, h: 1800 },
+    { brand: 'LG',       name: 'DIOS 4도어 F874SN35E',       w: 913, d: 742, h: 1825 },
+    { brand: '삼성',     name: 'BESPOKE 1도어 빌트인 RR39A', w: 595, d: 670, h: 1853 },
+    { brand: '위니아',   name: '딤채 김치냉장고 EDR48EFEZSS', w: 795, d: 727, h: 1853 },
+    { brand: 'Liebherr', name: 'CNbsd 5223',                  w: 597, d: 675, h: 1850 },
+    { brand: 'Bosch',    name: 'Serie 8 KSF36PI3P',          w: 600, d: 650, h: 1860 },
+  ];
+
+  const modelModal      = document.getElementById('modelModal');
+  const modelSearchInp  = document.getElementById('modelSearch');
+  const modelListEl     = document.getElementById('modelList');
+  const closeModelBtn   = document.getElementById('closeModelModal');
+
+  function renderModelList(query) {
+    const q = (query || '').trim().toLowerCase();
+    const filtered = q
+      ? REFRIGERATOR_MODELS.filter(m =>
+          m.name.toLowerCase().includes(q) ||
+          m.brand.toLowerCase().includes(q))
+      : REFRIGERATOR_MODELS;
+    if (!filtered.length) {
+      modelListEl.innerHTML = '<div class="model-empty">검색 결과 없음</div>';
+      return;
+    }
+    modelListEl.innerHTML = filtered.map((m, i) => `
+      <button class="model-item" type="button" data-idx="${REFRIGERATOR_MODELS.indexOf(m)}">
+        <div class="m-brand">${m.brand}</div>
+        <div class="m-name">${m.name}</div>
+        <div class="m-dim">W ${m.w} × D ${m.d} × H ${m.h} mm</div>
+      </button>
+    `).join('');
+  }
+  function openModelModal() {
+    modelModal.classList.add('open');
+    modelSearchInp.value = '';
+    renderModelList('');
+    setTimeout(() => modelSearchInp.focus(), 50);
+  }
+  function closeModelModal() {
+    modelModal.classList.remove('open');
+  }
+  modelSearchInp.addEventListener('input', () => renderModelList(modelSearchInp.value));
+  closeModelBtn.addEventListener('click', closeModelModal);
+  modelModal.addEventListener('click', (e) => {
+    if (e.target === modelModal) closeModelModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modelModal.classList.contains('open')) closeModelModal();
+  });
+  modelListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.model-item');
+    if (!btn) return;
+    const idx = +btn.dataset.idx;
+    const m = REFRIGERATOR_MODELS[idx];
+    if (!m) return;
+    // W, D 는 도면 평면도. H 는 moduleH (3D 정보).
+    addSectionRect('refrigerator', { w: m.w, h: m.d, moduleH: m.h });
+    closeModelModal();
+  });
+
   document.querySelectorAll('.tool-btn').forEach(b => b.onclick = () => {
     // W9-10: rect-btn (하부장/상부장/키큰장) 은 도면에 직사각형 추가
     if (b.classList.contains('rect-btn')) {
+      // W9-42: 냉장고는 모델 선택 모달
+      if (b.dataset.section === 'refrigerator') {
+        openModelModal();
+        return;
+      }
       addSectionRect(b.dataset.section);
       return;
     }
