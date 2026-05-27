@@ -125,6 +125,13 @@
   #rubberRect.window{fill:rgba(80,140,220,0.12);stroke:#1976d2;stroke-width:1.5}
   /* 다중 선택 사각형 (W9-57 더 굵게) */
   .sect-rect.multi-selected rect:not(.resize-handle){stroke:#0d47a1 !important;stroke-width:10 !important;stroke-dasharray:none}
+  /* W9-66: 원점 설정 모드 + 세트 표시 */
+  .tool-btn#originToolBtn{position:relative}
+  .tool-btn#originToolBtn::after{content:'';position:absolute;top:3px;right:3px;width:6px;height:6px;background:#cdcdcd;border-radius:50%;border:1px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.15)}
+  .tool-btn#originToolBtn.active{background:#1976d2;color:#fff;border-color:#0d47a1}
+  .tool-btn#originToolBtn.active::after{background:#22c55e;box-shadow:0 0 0 1px #fff,0 0 5px rgba(34,197,94,0.7)}
+  .canvas-wrap.origin-mode{cursor:crosshair}
+  .sect-rect.in-set rect:not(.resize-handle){stroke-dasharray:none}
   /* W9-47/W9-52: 트리밍 모드 — toggle 버튼 (ON/OFF) */
   .tool-btn#trimToolBtn{position:relative}
   /* ON/OFF 인디케이터 점 (우상단) */
@@ -209,6 +216,9 @@
       <button class="tool-btn rect-btn" title="냉장고 (W720×D700 · 도면 배치)" data-section="refrigerator">🧊</button>
       <button class="tool-btn rect-btn" title="식기세척기 (W600×D600 · 도면 배치)" data-section="dishwasher">🍽️</button>
       <div class="tool-sep"></div>
+      <!-- W9-66: 원점 설정 모드 + 세트 만들기 -->
+      <button class="tool-btn" id="originToolBtn" title="원점 설정 (O) — 도면에서 원점이 될 위치 클릭 (자석 활성화)">⊕</button>
+      <button class="tool-btn" id="makeSetBtn" title="다중 선택된 모듈을 세트로 그룹 (Shift+클릭으로 다중 선택 후)">⛓</button>
       <!-- W9-47: 트리밍 모드 — 기준 사각형 클릭 → 잘릴 사각형 클릭 -->
       <button class="tool-btn" id="trimToolBtn" title="트리밍 모드 (T) — ① 기준 사각형 클릭 → ② 잘릴 사각형 클릭">✂</button>
       <div class="tool-sep"></div>
@@ -402,7 +412,7 @@
     lower:   { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장',  moduleH: 860  },
     upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 800  },
     tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
-    fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 1850 },
+    fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 2300 },
     // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
     // W9-42: 분배기/후드/식세기 기본값 조정 + 냉장고는 모달로 모델 선택
     sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 700, h: 400, label: '분배기',     moduleH: 860  },
@@ -718,6 +728,17 @@
     svg.addEventListener('pointerdown', (e) => {
       if (e.target.closest && (e.target.closest('g.sect-rect') || e.target.closest('g.person'))) return;
       if (trimMode) return;  // trim 모드 중엔 빈 공간 동작 X
+      // W9-66: 원점 모드 → 클릭한 위치를 원점으로 (SVG 좌표 변환)
+      if (originMode) {
+        const wrapRect = wrap.getBoundingClientRect();
+        const sx = e.clientX - wrapRect.left;
+        const sy = e.clientY - wrapRect.top;
+        const wx = (sx - view.panX) / view.zoom;
+        const wy = (sy - view.panY) / view.zoom;
+        setOriginAt(wx, wy);
+        setOriginMode(false);
+        return;
+      }
       const isPanTrigger = e.button === 1 || e.button === 2 || e.altKey || e.ctrlKey || e.metaKey;
       if (isPanTrigger) {
         panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY };
@@ -1293,6 +1314,15 @@
     const z = view.zoom || 1;
     const thresholdMm = MAGNET_THRESHOLD_PX / z;
     let bestDx = 0, bestDy = 0, bestDist = thresholdMm + 1;
+    // W9-66: 원점도 자석 대상
+    if (originPos) {
+      myCorners.forEach((mc) => {
+        const dx = originPos.x - mc.x;
+        const dy = originPos.y - mc.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) { bestDist = dist; bestDx = dx; bestDy = dy; }
+      });
+    }
     // W9-36: 자석은 모듈끼리만 (finishing 부재 제외 — 부재는 부모 따라가는 종속물)
     const content = getContent();
     const others = content ? content.querySelectorAll(':scope > g.sect-rect') : [];
@@ -1355,6 +1385,134 @@
   }
   dimW.addEventListener('input', applyDimToSelected);
   dimD.addEventListener('input', applyDimToSelected);
+
+  // W9-66: 원점 (Origin) 설정 — ceiling 높이 기준점
+  // 원점이 설정되면 ceiling=2300 default + 모듈 꼭지점 자석 대상에 추가
+  const ORIGIN_STORAGE_KEY = 'dadam_origin_v1';
+  let originMode = false;
+  let originPos = null;   // { x, y } SVG 좌표
+  let ceilingHeight = 2300;  // mm, default
+
+  function setOriginMode(on) {
+    originMode = on;
+    const btn = document.getElementById('originToolBtn');
+    const wrap = document.querySelector('.canvas-wrap');
+    if (btn) {
+      btn.classList.toggle('active', on);
+      btn.title = on
+        ? '원점 설정 ON — 도면 클릭으로 원점 위치 지정 (ESC: 끄기)'
+        : '원점 설정 — 클릭으로 켜기 (O 키)';
+    }
+    if (wrap) wrap.classList.toggle('origin-mode', on);
+    if (on) showFlash('⊕ 원점 모드 ON — 도면에서 원점이 될 위치 클릭', 'rgba(13,71,161,0.92)');
+    else hideTrimToast();
+  }
+
+  function setOriginAt(x, y) {
+    originPos = { x, y };
+    drawOriginMark();
+    try {
+      localStorage.setItem(ORIGIN_STORAGE_KEY, JSON.stringify({ x, y, ceiling: ceilingHeight }));
+    } catch (e) {}
+    showFlash(`⊕ 원점 (${Math.round(x)}, ${Math.round(y)}) · 천정 ${ceilingHeight}mm 기본`, 'rgba(13,71,161,0.92)');
+  }
+
+  function drawOriginMark() {
+    const content = getContent();
+    if (!content || !originPos) return;
+    // 기존 origin mark 제거
+    const old = content.querySelector('g.origin-mark');
+    if (old) old.remove();
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class', 'origin-mark');
+    // cross + circle
+    const sz = 80;  // mm
+    const l1 = document.createElementNS(ns, 'line');
+    l1.setAttribute('x1', originPos.x - sz); l1.setAttribute('y1', originPos.y);
+    l1.setAttribute('x2', originPos.x + sz); l1.setAttribute('y2', originPos.y);
+    l1.setAttribute('stroke', '#1976d2'); l1.setAttribute('stroke-width', 4);
+    g.appendChild(l1);
+    const l2 = document.createElementNS(ns, 'line');
+    l2.setAttribute('x1', originPos.x); l2.setAttribute('y1', originPos.y - sz);
+    l2.setAttribute('x2', originPos.x); l2.setAttribute('y2', originPos.y + sz);
+    l2.setAttribute('stroke', '#1976d2'); l2.setAttribute('stroke-width', 4);
+    g.appendChild(l2);
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', originPos.x); c.setAttribute('cy', originPos.y);
+    c.setAttribute('r', 30);
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke', '#1976d2'); c.setAttribute('stroke-width', 3);
+    g.appendChild(c);
+    const t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', originPos.x + 40); t.setAttribute('y', originPos.y - 40);
+    t.setAttribute('fill', '#0d47a1');
+    t.setAttribute('font-size', 50);
+    t.setAttribute('font-weight', '700');
+    t.setAttribute('pointer-events', 'none');
+    t.textContent = `0,0 · H${ceilingHeight}`;
+    g.appendChild(t);
+    // 최상위 (person 보다 아래)
+    content.insertBefore(g, content.firstChild);
+  }
+
+  // 페이지 로드 시 저장된 origin 복원
+  try {
+    const rawO = localStorage.getItem(ORIGIN_STORAGE_KEY);
+    if (rawO) {
+      const o = JSON.parse(rawO);
+      if (o && typeof o.x === 'number') {
+        originPos = { x: o.x, y: o.y };
+        if (typeof o.ceiling === 'number') ceilingHeight = o.ceiling;
+        // SVG 가 아직 없을 수도 — ensureCanvasSVG 호출
+        ensureCanvasSVG();
+        drawOriginMark();
+      }
+    }
+  } catch (e) {}
+
+  const originBtn = document.getElementById('originToolBtn');
+  if (originBtn) originBtn.addEventListener('click', () => setOriginMode(!originMode));
+
+  // W9-66: 세트 만들기 — 다중 선택 모듈에 같은 setId 부여
+  const SET_COLORS = ['#e3f0fa', '#fef3d6', '#e3f5e1', '#fee0e0', '#f0e3fa', '#fef0d6'];
+  let nextSetIdx = 0;
+  function makeSetFromSelected() {
+    const mods = Array.from(selectedSet).filter(g => !g.classList.contains('finishing'));
+    if (mods.length < 2) {
+      showFlash('⚠ 2개 이상 모듈을 Shift+클릭으로 다중 선택 후 [⛓] 클릭');
+      return;
+    }
+    const setId = 'set-' + (++nextSetIdx);
+    const color = SET_COLORS[(nextSetIdx - 1) % SET_COLORS.length];
+    mods.forEach(g => {
+      g.setAttribute('data-set-id', setId);
+      g.classList.add('in-set');
+      // 세트 표시 — outline halo (모듈 rect 위에 추가 outline rect)
+      const existing = g.querySelector(':scope > rect.set-outline');
+      if (existing) existing.remove();
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      if (r) {
+        const ns = 'http://www.w3.org/2000/svg';
+        const outline = document.createElementNS(ns, 'rect');
+        outline.setAttribute('class', 'set-outline');
+        outline.setAttribute('x', parseFloat(r.getAttribute('x')) - 8);
+        outline.setAttribute('y', parseFloat(r.getAttribute('y')) - 8);
+        outline.setAttribute('width', parseFloat(r.getAttribute('width')) + 16);
+        outline.setAttribute('height', parseFloat(r.getAttribute('height')) + 16);
+        outline.setAttribute('fill', 'none');
+        outline.setAttribute('stroke', color);
+        outline.setAttribute('stroke-width', 6);
+        outline.setAttribute('stroke-dasharray', '12 6');
+        outline.setAttribute('opacity', 0.85);
+        outline.setAttribute('pointer-events', 'none');
+        g.insertBefore(outline, g.firstChild);
+      }
+    });
+    showFlash(`⛓ 세트 #${nextSetIdx} 생성 (${mods.length}개 모듈)`, 'rgba(13,71,161,0.92)');
+  }
+  const makeSetBtnEl = document.getElementById('makeSetBtn');
+  if (makeSetBtnEl) makeSetBtnEl.addEventListener('click', makeSetFromSelected);
 
   // W9-47: 트리밍 모드 — 좌측 buttn 토글, 1번째 사각형 = 기준, 2번째 = 잘림
   let trimMode = false;
@@ -1645,6 +1803,11 @@
       e.preventDefault();
       setTrimMode(!trimMode);
     }
+    // W9-66: O = 원점 모드 토글
+    if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      setOriginMode(!originMode);
+    }
     // W9-39: Ctrl+Z / Ctrl+Y (또는 Ctrl+Shift+Z) — undo / redo
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
       e.preventDefault();
@@ -1657,6 +1820,8 @@
     if (e.key === 'Escape') {
       // W9-47: 트리밍 모드 중이면 모드 해제, 아니면 deselect
       if (trimMode) { setTrimMode(false); return; }
+      // W9-66: 원점 모드 중이면 모드 해제
+      if (originMode) { setOriginMode(false); return; }
       selectG(null);
     }
     if (e.key === 'f' || e.key === 'F') { e.preventDefault(); fitAll(); }
