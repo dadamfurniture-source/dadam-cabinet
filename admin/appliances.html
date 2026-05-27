@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>가전 모델 관리 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+      /* Sidebar (admin/index.html 과 동일 패턴) */
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
+      .sidebar-logo span { font-size: .8rem; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all .3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { width: 20px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,.1); color: #aaa; text-decoration: none; border-radius: 5px; font-size: .9rem; }
+
+      /* Main */
+      .main-content { margin-left: 250px; padding: 20px 30px; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+      .header h1 { font-size: 1.6rem; color: #333; }
+
+      /* Tabs */
+      .tabs { display: flex; gap: 6px; background: white; padding: 6px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; width: fit-content; }
+      .tabs button { padding: 8px 16px; border: none; background: transparent; color: #555; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 500; }
+      .tabs button.active { background: #007bff; color: white; }
+      .tabs button:hover:not(.active) { background: #f0f0f0; }
+
+      /* Toolbar */
+      .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+      .toolbar input[type="text"] { flex: 1; max-width: 400px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; }
+      .toolbar input[type="text"]:focus { outline: none; border-color: #007bff; }
+      .toolbar .btn-primary { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
+      .toolbar .btn-primary:hover { background: #0056b3; }
+
+      /* Table */
+      .data-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
+      th { background: #fafafa; color: #555; font-weight: 600; }
+      tr:hover { background: #f8f9fa; }
+      td.right { text-align: right; }
+      td.center { text-align: center; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+      .badge.verified { background: #e3f5e1; color: #2c6a26; }
+      .badge.unverified { background: #fef3d6; color: #8a6620; }
+      .row-actions button { padding: 4px 8px; border: 1px solid #ddd; background: white; color: #555; border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: 4px; }
+      .row-actions button.edit { color: #007bff; border-color: #007bff; }
+      .row-actions button.delete { color: #c62828; border-color: #c62828; }
+      .row-actions button:hover { background: #f0f0f0; }
+      .empty { padding: 40px; text-align: center; color: #888; }
+
+      /* Modal */
+      .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
+      .modal-overlay.open { display: flex; }
+      .modal { background: white; border-radius: 10px; width: min(520px, 90vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+      .modal-header { padding: 14px 18px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+      .modal-header h3 { font-size: 1.05rem; }
+      .modal-header button.close { border: none; background: transparent; font-size: 24px; cursor: pointer; color: #888; }
+      .modal-body { padding: 18px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+      .modal-body .field { display: flex; flex-direction: column; gap: 4px; }
+      .modal-body .field.full { grid-column: 1/-1; }
+      .modal-body label { font-size: 12px; color: #666; font-weight: 500; }
+      .modal-body input, .modal-body select, .modal-body textarea { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; }
+      .modal-body input:focus, .modal-body select:focus, .modal-body textarea:focus { outline: none; border-color: #007bff; }
+      .modal-body textarea { resize: vertical; min-height: 60px; }
+      .modal-footer { padding: 12px 18px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px; }
+      .modal-footer button { padding: 8px 16px; border-radius: 5px; font-size: 13px; cursor: pointer; font-weight: 600; }
+      .modal-footer button.cancel { background: #eee; color: #555; border: 1px solid #ddd; }
+      .modal-footer button.save { background: #007bff; color: white; border: 1px solid #007bff; }
+
+      .access-denied { display: none; text-align: center; padding: 100px 20px; }
+      .access-denied h2 { color: #c62828; margin-bottom: 15px; }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <h1>🛠 다담가구 관리자</h1>
+        <span>Admin Panel</span>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
+        <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
+        <li><a href="gallery.html"><span class="nav-icon">🖼️</span>시공사례 관리</a></li>
+        <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
+        <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
+        <li><a href="appliances.html" class="active"><span class="nav-icon">🧊</span>가전 모델 관리</a></li>
+        <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
+        <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <a href="../index.html">← 메인 사이트로</a>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main-content" id="mainContent">
+      <div class="header">
+        <h1>가전 모델 관리</h1>
+        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink</div>
+      </div>
+
+      <div class="tabs">
+        <button data-cat="refrigerator" class="active">🧊 냉장고</button>
+        <button data-cat="hood">💨 후드</button>
+        <button data-cat="dishwasher">🍽️ 식기세척기</button>
+        <button data-cat="sink">🚰 분배기</button>
+      </div>
+
+      <div class="toolbar">
+        <input id="searchInput" type="text" placeholder="브랜드/모델명/코드 검색..." />
+        <button class="btn-primary" id="addBtn">+ 새 모델</button>
+      </div>
+
+      <div class="data-card">
+        <table>
+          <thead>
+            <tr>
+              <th>브랜드</th>
+              <th>모델명</th>
+              <th>코드</th>
+              <th class="right">W (mm)</th>
+              <th class="right">D (mm)</th>
+              <th class="right">H (mm)</th>
+              <th class="right">용량 (L)</th>
+              <th class="center">검증</th>
+              <th class="right">작업</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="9" class="empty">로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Access denied -->
+    <div class="access-denied" id="accessDenied">
+      <h2>🚫 관리자 권한이 필요합니다</h2>
+      <p>이 페이지는 관리자만 접근 가능합니다.</p>
+      <a href="../index.html">← 메인으로</a>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="modalTitle">새 모델 추가</h3>
+          <button class="close" id="modalClose">×</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="f-id" />
+          <div class="field">
+            <label>카테고리</label>
+            <select id="f-category">
+              <option value="refrigerator">🧊 냉장고</option>
+              <option value="hood">💨 후드</option>
+              <option value="dishwasher">🍽️ 식기세척기</option>
+              <option value="sink">🚰 분배기</option>
+              <option value="oven">🔥 오븐</option>
+              <option value="cooktop">🔥 쿡탑</option>
+              <option value="washing_machine">🧺 세탁기</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>브랜드</label>
+            <input type="text" id="f-brand" placeholder="예: 삼성 / LG" />
+          </div>
+          <div class="field full">
+            <label>모델명</label>
+            <input type="text" id="f-name" placeholder="예: BESPOKE 4도어 905L" />
+          </div>
+          <div class="field full">
+            <label>모델 코드</label>
+            <input type="text" id="f-code" placeholder="예: RM70F90M2" />
+          </div>
+          <div class="field">
+            <label>W (mm)</label>
+            <input type="number" id="f-w" min="1" />
+          </div>
+          <div class="field">
+            <label>D (mm)</label>
+            <input type="number" id="f-d" min="1" />
+          </div>
+          <div class="field">
+            <label>H (mm)</label>
+            <input type="number" id="f-h" min="1" />
+          </div>
+          <div class="field">
+            <label>용량 (L)</label>
+            <input type="number" id="f-cap" min="0" />
+          </div>
+          <div class="field">
+            <label>검증</label>
+            <select id="f-verified">
+              <option value="false">⚠ 표준 추정</option>
+              <option value="true">✓ 검증 (공식)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>출처 URL</label>
+            <input type="text" id="f-source" placeholder="https://..." />
+          </div>
+          <div class="field full">
+            <label>비고</label>
+            <textarea id="f-notes" placeholder="추가 메모"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel" id="modalCancel">취소</button>
+          <button class="save" id="modalSave">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let supabaseClient = null;
+      let currentCategory = 'refrigerator';
+      let currentRows = [];
+
+      // ── 초기화 ─────────────────────────────────────────────
+      async function init() {
+        if (typeof window.supabase === 'undefined' || !window.DADAM_CONFIG?.supabase) {
+          showAccessDenied();
+          return;
+        }
+        const { url, anonKey } = window.DADAM_CONFIG.supabase;
+        supabaseClient = window.supabase.createClient(url, anonKey);
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) { showAccessDenied(); return; }
+        // admin 권한 체크 (admin_roles 테이블)
+        const { data: role } = await supabaseClient
+          .from('admin_roles').select('role')
+          .eq('user_id', user.id).maybeSingle();
+        if (!role || !['admin', 'superadmin'].includes(role.role)) {
+          showAccessDenied();
+          return;
+        }
+        await loadCategory(currentCategory);
+      }
+      function showAccessDenied() {
+        document.getElementById('mainContent').style.display = 'none';
+        document.getElementById('accessDenied').style.display = 'block';
+      }
+
+      // ── 데이터 로드 ─────────────────────────────────────────
+      async function loadCategory(cat) {
+        currentCategory = cat;
+        document.querySelectorAll('.tabs button').forEach(b => {
+          b.classList.toggle('active', b.dataset.cat === cat);
+        });
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">로딩 중...</td></tr>';
+        const { data, error } = await supabaseClient
+          .from('appliance_models').select('*')
+          .eq('category', cat).order('brand').order('model_name');
+        if (error) {
+          tbody.innerHTML = `<tr><td colspan="9" class="empty">에러: ${error.message}</td></tr>`;
+          return;
+        }
+        currentRows = data || [];
+        renderTable(currentRows);
+      }
+      function renderTable(rows) {
+        const q = document.getElementById('searchInput').value.trim().toLowerCase();
+        const filtered = q ? rows.filter(r =>
+          (r.brand || '').toLowerCase().includes(q) ||
+          (r.model_name || '').toLowerCase().includes(q) ||
+          (r.model_code || '').toLowerCase().includes(q)) : rows;
+        const tbody = document.getElementById('tbody');
+        if (!filtered.length) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty">데이터 없음</td></tr>';
+          return;
+        }
+        tbody.innerHTML = filtered.map(r => `
+          <tr>
+            <td>${r.brand}</td>
+            <td>${r.model_name || ''}</td>
+            <td>${r.model_code || ''}</td>
+            <td class="right">${r.width_mm}</td>
+            <td class="right">${r.depth_mm}</td>
+            <td class="right">${r.height_mm}</td>
+            <td class="right">${r.capacity_l ?? ''}</td>
+            <td class="center"><span class="badge ${r.verified ? 'verified' : 'unverified'}">${r.verified ? '✓ 검증' : '⚠ 표준'}</span></td>
+            <td class="right row-actions">
+              <button class="edit"   data-id="${r.id}">수정</button>
+              <button class="delete" data-id="${r.id}">삭제</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      // ── 검색 입력 ──────────────────────────────────────────
+      document.getElementById('searchInput').addEventListener('input', () => renderTable(currentRows));
+
+      // ── 카테고리 탭 ────────────────────────────────────────
+      document.querySelectorAll('.tabs button').forEach(b => {
+        b.onclick = () => loadCategory(b.dataset.cat);
+      });
+
+      // ── Modal 열기/닫기 ────────────────────────────────────
+      const modal = document.getElementById('modal');
+      function openModal(row) {
+        document.getElementById('modalTitle').textContent = row ? '모델 수정' : '새 모델 추가';
+        document.getElementById('f-id').value         = row?.id || '';
+        document.getElementById('f-category').value   = row?.category || currentCategory;
+        document.getElementById('f-brand').value      = row?.brand || '';
+        document.getElementById('f-name').value       = row?.model_name || '';
+        document.getElementById('f-code').value       = row?.model_code || '';
+        document.getElementById('f-w').value          = row?.width_mm || '';
+        document.getElementById('f-d').value          = row?.depth_mm || '';
+        document.getElementById('f-h').value          = row?.height_mm || '';
+        document.getElementById('f-cap').value        = row?.capacity_l ?? '';
+        document.getElementById('f-verified').value   = row?.verified ? 'true' : 'false';
+        document.getElementById('f-source').value     = row?.source_url || '';
+        document.getElementById('f-notes').value      = row?.notes || '';
+        modal.classList.add('open');
+      }
+      function closeModal() { modal.classList.remove('open'); }
+      document.getElementById('addBtn').onclick     = () => openModal(null);
+      document.getElementById('modalClose').onclick = closeModal;
+      document.getElementById('modalCancel').onclick = closeModal;
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+      // ── 저장 ──────────────────────────────────────────────
+      document.getElementById('modalSave').onclick = async () => {
+        const id = document.getElementById('f-id').value;
+        const payload = {
+          category:   document.getElementById('f-category').value,
+          brand:      document.getElementById('f-brand').value.trim(),
+          model_name: document.getElementById('f-name').value.trim(),
+          model_code: document.getElementById('f-code').value.trim() || null,
+          width_mm:   parseInt(document.getElementById('f-w').value, 10),
+          depth_mm:   parseInt(document.getElementById('f-d').value, 10),
+          height_mm:  parseInt(document.getElementById('f-h').value, 10),
+          capacity_l: document.getElementById('f-cap').value ? parseInt(document.getElementById('f-cap').value, 10) : null,
+          verified:   document.getElementById('f-verified').value === 'true',
+          source_url: document.getElementById('f-source').value.trim() || null,
+          notes:      document.getElementById('f-notes').value.trim() || null,
+        };
+        if (!payload.brand || !payload.model_name || !payload.width_mm || !payload.depth_mm || !payload.height_mm) {
+          alert('필수값: 브랜드 / 모델명 / W / D / H');
+          return;
+        }
+        let q;
+        if (id) q = supabaseClient.from('appliance_models').update(payload).eq('id', id);
+        else    q = supabaseClient.from('appliance_models').insert(payload);
+        const { error } = await q;
+        if (error) { alert('저장 실패: ' + error.message); return; }
+        closeModal();
+        await loadCategory(payload.category);
+      };
+
+      // ── 수정/삭제 ─────────────────────────────────────────
+      document.getElementById('tbody').addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const row = currentRows.find(r => r.id === id);
+        if (!row) return;
+        if (btn.classList.contains('edit')) {
+          openModal(row);
+        } else if (btn.classList.contains('delete')) {
+          if (!confirm(`정말로 "${row.brand} ${row.model_name}" 모델을 삭제하시겠습니까?`)) return;
+          const { error } = await supabaseClient.from('appliance_models').delete().eq('id', id);
+          if (error) { alert('삭제 실패: ' + error.message); return; }
+          await loadCategory(currentCategory);
+        }
+      });
+
+      init();
+    </script>
+  </body>
+</html>
