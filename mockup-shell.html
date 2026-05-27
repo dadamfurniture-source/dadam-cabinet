@@ -366,7 +366,7 @@
   <div class="bottombar">
     <div class="actions">
       <button class="primary" id="sketchupExportBtn" title="SketchUp 으로 모듈 전송 (mhyrr 확장 필요)">📤 SketchUp 보내기</button>
-      <button>📥 가져오기</button>
+      <button id="sketchupImportBtn" title="SketchUp 활성 모델에서 가구 가져오기">📥 가져오기</button>
       <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
       <button id="loadLayoutBtn" title="저장된 배치 불러오기">📂 배치 불러오기</button>
       <button id="resetLayoutBtn" style="background:#fef0ed;color:#c0392b;border-color:#c0392b" title="모든 배치 삭제 + 처음부터">🗑 초기화</button>
@@ -2561,6 +2561,128 @@
       showFlash(`✓ SketchUp 전송 완료 (${data.componentCount || parts.length}개 · ${Math.round(data.summary?.durationMs || 0)}ms)`, 'rgba(13,71,161,0.92)');
     } catch (e) {
       console.warn('[sketchup/build] network error', e);
+      showFlash(`⚠ 네트워크 에러: ${e.message}`);
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // W9-74: SketchUp 가져오기 (mcp-server /api/sketchup/import)
+  // ─────────────────────────────────────────────────────────────
+
+  // V2 colorKey + label 휴리스틱 → mockup section
+  function v2PartToSection(part) {
+    // 1) label 한글 매칭
+    const label = (part.label || '').toLowerCase();
+    if (label.includes('하부') || label.includes('lower')) return 'lower';
+    if (label.includes('상부') || label.includes('upper')) return 'upper';
+    if (label.includes('키큰') || label.includes('tall')) return 'tall';
+    if (label.includes('냉장고장') || label.includes('fridge')) return 'fridge';
+    if (label.includes('분배') || label.includes('sink')) return 'sink';
+    if (label.includes('후드') || label.includes('hood')) return 'hood';
+    if (label.includes('냉장고')) return 'refrigerator';
+    if (label.includes('식기') || label.includes('dishwasher')) return 'dishwasher';
+    if (label.includes('ep') || label.includes('측판')) return 'ep';
+    if (label.includes('몰딩') || label.includes('molding')) return 'molding';
+    if (label.includes('휠라') || label.includes('filler')) return 'filler';
+    // 2) moduleType 활용
+    if (part.moduleType === 'lower') return 'lower';
+    if (part.moduleType === 'upper') return 'upper';
+    if (part.moduleType === 'tall')  return 'tall';
+    // 3) Z 좌표 휴리스틱 (천정 매달림 = upper)
+    if (typeof part.z === 'number' && part.z > 1000) return 'upper';
+    return 'lower';  // fallback
+  }
+
+  // V2 parts → mockup 데이터 추가 (배치 도면 갱신)
+  function importV2Parts(parts) {
+    if (!Array.isArray(parts) || !parts.length) return 0;
+    const ceiling = (typeof ceilingHeight === 'number') ? ceilingHeight : 2300;
+    const ox = originPos ? originPos.x : 0;
+    const oy = originPos ? originPos.y : 0;
+    // 기존 sect-rect 모두 제거 (사용자 확인 후)
+    const content = getContent();
+    if (!content) return 0;
+    Array.from(content.querySelectorAll(':scope > g.sect-rect')).forEach(g => g.remove());
+    selectedSet.clear();
+    selectedG = null;
+    restoreInProgress = true;
+    let count = 0;
+    try {
+      parts.forEach((p) => {
+        const section = v2PartToSection(p);
+        if (!SECTION_CONFIG[section]) return;
+        // V2 → mockup 좌표 (역변환)
+        const mx = (p.x || 0) + ox;
+        const my = (p.y || 0) + oy;
+        const mw = p.width  || SECTION_CONFIG[section].w;
+        const mh = p.depth  || SECTION_CONFIG[section].h;
+        const modH = p.height || SECTION_CONFIG[section].moduleH;
+        const rotation = p.rotationZDeg ? -p.rotationZDeg : 0;  // V2 CCW → mockup CW
+        const cx = mx + mw / 2, cy = my + mh / 2;
+        addSectionRect(section, {
+          w: mw, h: mh, x: mx, y: my,
+          moduleH: modH,
+          forceRotation: ((rotation % 360) + 360) % 360,
+          rotCenter: { cx, cy },
+          suppressSelect: true,
+        });
+        count++;
+      });
+    } finally {
+      restoreInProgress = false;
+    }
+    reorderRects();
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    fitAll();
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateUndoUI();
+    return count;
+  }
+
+  // [📥 가져오기] 핸들러
+  document.getElementById('sketchupImportBtn').addEventListener('click', async () => {
+    if (!confirm('SketchUp 활성 모델에서 가구를 가져옵니다.\n\n· 디자이너 PC 의 SketchUp + mhyrr 실행 중\n· dadam.* 마킹된 entity 만 인식\n· 현재 도면의 모든 모듈 삭제 후 복원\n\n계속하시겠습니까?')) return;
+    const token = await getSupabaseToken();
+    if (!token) { showFlash('⚠ 인증 토큰 없음 — 로그인 필요'); return; }
+    const mcpUrl = (window.parent && window.parent.DADAM_CONFIG && window.parent.DADAM_CONFIG.mcpServer)
+      || (window.DADAM_CONFIG && window.DADAM_CONFIG.mcpServer)
+      || 'http://localhost:3200';
+    showFlash('📥 SketchUp 에서 가져오는 중...', 'rgba(13,71,161,0.92)');
+    try {
+      const res = await fetch(`${mcpUrl}/api/sketchup/import`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          includeRaw: true,    // parsed (V2 parts) 도 응답에 포함
+          ping: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 422) {
+          showFlash('⚠ dadam 마킹된 entity 없음 — SketchUp 모델 확인');
+        } else {
+          showFlash(`⚠ 가져오기 실패: ${data.error || data.code || res.status}`);
+        }
+        console.warn('[sketchup/import] error', data);
+        return;
+      }
+      const parsed = data.parsed || [];
+      if (!parsed.length) {
+        showFlash('⚠ 가져올 모듈 없음 (V2 parts 비어있음)');
+        return;
+      }
+      const count = importV2Parts(parsed);
+      showFlash(`✓ SketchUp 에서 ${count}개 모듈 가져옴 (신뢰도 ${Math.round((data.data?.confidence || 1) * 100)}%)`, 'rgba(13,71,161,0.92)');
+      if (data.data?.warnings?.length) {
+        console.warn('[sketchup/import] warnings', data.data.warnings);
+      }
+    } catch (e) {
+      console.warn('[sketchup/import] network error', e);
       showFlash(`⚠ 네트워크 에러: ${e.message}`);
     }
   });
