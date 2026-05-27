@@ -359,6 +359,7 @@
       <button>📥 가져오기</button>
       <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
       <button id="loadLayoutBtn" title="저장된 배치 불러오기">📂 배치 불러오기</button>
+      <button id="resetLayoutBtn" style="background:#fef0ed;color:#c0392b;border-color:#c0392b" title="모든 배치 삭제 + 처음부터">🗑 초기화</button>
       <button id="nextStepBtn" class="primary" style="background:#1976d2;border-color:#0d47a1" title="구조 단계로">구조 단계 →</button>
     </div>
     <div>ⓘ 휠=줌 · 빈공간 드래그=팬 · 우클릭=회전 · F=Fit · 0=Reset · 줌 <span id="zoomInd">100%</span></div>
@@ -2038,6 +2039,37 @@
     } catch (e) {
       showFlash('⚠ 저장 실패: ' + e.message);
     }
+  };
+
+  // W9-62: 초기화 — localStorage 비움 + 모든 모듈 제거 + 사람 default
+  document.getElementById('resetLayoutBtn').onclick = () => {
+    if (!confirm('⚠ 모든 배치를 삭제하고 처음부터 시작합니다.\n\n· 도면의 모든 사각형 제거\n· 저장된 배치 (localStorage) 삭제\n· 사람 원 위치 기본값으로\n· 되돌리기 history 초기화\n\n계속하시겠습니까?')) return;
+    // localStorage 비우기
+    localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    // 모든 모듈/부재 제거
+    const content = getContent();
+    if (content) {
+      Array.from(content.querySelectorAll(':scope > g.sect-rect')).forEach(g => g.remove());
+    }
+    selectedSet.clear();
+    selectedG = null;
+    // 사람 위치 default 복원
+    if (content) {
+      const personC = content.querySelector('g.person circle');
+      const personT = content.querySelector('g.person text');
+      if (personC) { personC.setAttribute('cx', PERSON_DEFAULT.cx); personC.setAttribute('cy', PERSON_DEFAULT.cy); }
+      if (personT) { personT.setAttribute('x',  PERSON_DEFAULT.cx); personT.setAttribute('y',  PERSON_DEFAULT.cy); }
+    }
+    // view 기본 (가로 7000mm fit)
+    setInitialView();
+    // undo 비움
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateUndoUI();
+    // 선택 패널/X 버튼 갱신
+    if (typeof updateSelectionPanel === 'function') updateSelectionPanel();
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    showFlash('🗑 초기화 완료 — 새로 시작하세요', 'rgba(192,57,43,0.92)');
   };
 
   document.getElementById('loadLayoutBtn').onclick = () => {
