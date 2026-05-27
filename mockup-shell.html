@@ -79,8 +79,14 @@
   .canvas-svg{user-select:none}
   .sect-rect rect:not(.resize-handle){transition:stroke-width .15s ease, filter .15s ease}
   .sect-rect:hover rect:not(.resize-handle){stroke-width:3}
-  /* W9-22: filter 제거 — drop-shadow 가 isolate group 생성해서 multiply blend 깨짐 */
-  .sect-rect.selected rect:not(.resize-handle){stroke-width:5 !important;stroke:#2a1f10 !important}
+  /* W9-22 + W9-57: 선택 강조 — 더 확연한 stroke (다중일 땐 .multi-selected 우선) */
+  .sect-rect.selected rect:not(.resize-handle){
+    stroke-width:10 !important;
+    stroke:#1a0f00 !important;
+    stroke-dasharray:none
+  }
+  /* selection animated outline (별도 vector-effect 로 화면 px 일정) */
+  .sect-rect.selected{filter:none}
   .sect-rect{cursor:move}
   /* W9-22: 겹친 부분 자동 식별 — multiply blend (두 색 곱셈으로 어두워짐 = 겹침 시각화) */
   /* content layer 내부에서만 작동하도록 isolate (배경 그리드 영향 X) */
@@ -117,8 +123,8 @@
   /* rubber-band 선택 사각형 */
   #rubberRect.crossing{fill:rgba(220,80,80,0.12);stroke:#c0392b;stroke-width:1.5;stroke-dasharray:8 4}
   #rubberRect.window{fill:rgba(80,140,220,0.12);stroke:#1976d2;stroke-width:1.5}
-  /* 다중 선택 사각형 */
-  .sect-rect.multi-selected rect:not(.resize-handle){stroke:#1976d2 !important;stroke-width:5 !important}
+  /* 다중 선택 사각형 (W9-57 더 굵게) */
+  .sect-rect.multi-selected rect:not(.resize-handle){stroke:#0d47a1 !important;stroke-width:10 !important;stroke-dasharray:none}
   /* W9-47/W9-52: 트리밍 모드 — toggle 버튼 (ON/OFF) */
   .tool-btn#trimToolBtn{position:relative}
   /* ON/OFF 인디케이터 점 (우상단) */
@@ -351,6 +357,9 @@
     <div class="actions">
       <button class="primary">📤 SketchUp 보내기</button>
       <button>📥 가져오기</button>
+      <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
+      <button id="loadLayoutBtn" title="저장된 배치 불러오기">📂 배치 불러오기</button>
+      <button id="nextStepBtn" class="primary" style="background:#1976d2;border-color:#0d47a1" title="구조 단계로">구조 단계 →</button>
     </div>
     <div>ⓘ 휠=줌 · 빈공간 드래그=팬 · 우클릭=회전 · F=Fit · 0=Reset · 줌 <span id="zoomInd">100%</span></div>
   </div>
@@ -1951,6 +1960,106 @@
 
   // W9-33: 페이지 로드 시 사람 원 자동 표시 (사각형 없어도 시작 상태에 보이게)
   ensureCanvasSVG();
+
+  // ─────────────────────────────────────────────────────────────
+  // W9-57: 배치 저장 / 불러오기 / 다음 단계 (구조)
+  // ─────────────────────────────────────────────────────────────
+  const LAYOUT_STORAGE_KEY = 'dadam_layout_v1';
+
+  function serializeLayout() {
+    const content = getContent();
+    if (!content) return null;
+    const modules = [];
+    content.querySelectorAll(':scope > g.sect-rect').forEach((g) => {
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      if (!r) return;
+      const section = Array.from(g.classList).find(c => SECTION_CONFIG[c]) || 'lower';
+      const finishings = [];
+      g.querySelectorAll(':scope > g.finishing').forEach((fg) => {
+        const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+        if (!fr) return;
+        const fsec = Array.from(fg.classList).find(c => SECTION_CONFIG[c]) || 'ep';
+        finishings.push({
+          section: fsec,
+          x: parseFloat(fr.getAttribute('x')),
+          y: parseFloat(fr.getAttribute('y')),
+          w: parseFloat(fr.getAttribute('width')),
+          h: parseFloat(fr.getAttribute('height')),
+          moduleH: parseFloat(fg.getAttribute('data-module-h')) || 860,
+        });
+      });
+      modules.push({
+        section,
+        x: parseFloat(r.getAttribute('x')),
+        y: parseFloat(r.getAttribute('y')),
+        w: parseFloat(r.getAttribute('width')),
+        h: parseFloat(r.getAttribute('height')),
+        moduleH: parseFloat(g.getAttribute('data-module-h')) || 860,
+        rotation: rotations.get(g) || 0,
+        finishings,
+      });
+    });
+    const personPos = getPersonPos();
+    return {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      modules,
+      person: personPos ? { cx: personPos.cx, cy: personPos.cy } : null,
+    };
+  }
+
+  function showFlash(text, color) {
+    const wrap = document.querySelector('.canvas-wrap');
+    if (!wrap) return;
+    const el = document.createElement('div');
+    el.className = 'trim-toast';  // 기존 toast 스타일 재사용
+    if (color) el.style.background = color;
+    el.textContent = text;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
+  }
+
+  document.getElementById('saveLayoutBtn').onclick = () => {
+    const layout = serializeLayout();
+    if (!layout) { showFlash('⚠ 저장할 배치 없음'); return; }
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+      showFlash(`💾 배치 저장 완료 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
+    } catch (e) {
+      showFlash('⚠ 저장 실패: ' + e.message);
+    }
+  };
+
+  document.getElementById('loadLayoutBtn').onclick = () => {
+    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (!raw) { showFlash('⚠ 저장된 배치 없음'); return; }
+    try {
+      const layout = JSON.parse(raw);
+      // TODO: 향후 — 기존 사각형 모두 삭제 후 layout.modules 로 복원
+      const ts = new Date(layout.savedAt).toLocaleString('ko-KR');
+      showFlash(`📂 발견 (모듈 ${layout.modules.length}개, 저장 ${ts}) — 복원 미구현`, 'rgba(13,71,161,0.92)');
+    } catch (e) {
+      showFlash('⚠ 불러오기 실패');
+    }
+  };
+
+  document.getElementById('nextStepBtn').onclick = () => {
+    // 먼저 자동 저장
+    const layout = serializeLayout();
+    if (layout) {
+      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
+      showFlash(`✓ 자동 저장 → 구조 단계 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
+    }
+    // step-pill 활성 변경
+    const pillBtns = document.querySelectorAll('.step-pill button');
+    pillBtns.forEach(b => b.classList.remove('active'));
+    if (pillBtns[1]) pillBtns[1].classList.add('active');
+    // TODO: 구조 단계 화면 — 별도 PR 로 구현
+    // 우선 안내만 표시
+    setTimeout(() => {
+      alert('구조 단계는 다음 PR 에서 구현 예정입니다.\n\n계획:\n- 좌측: 배치된 모듈 리스트\n- 중앙: 선택 모듈의 정면도 (W × H)\n- 우측: 도어/서랍/선반 분할 편집\n  · 좌우 분할 (도어 N개)\n  · 상하 분할 (서랍 + 도어)\n  · 각 영역 타입 (도어/서랍/오픈)\n  · 내부 선반 위치 (mm)\n  · 도어 열림 방향 (좌/우)');
+    }, 800);
+  };
 
   // W9-39: TopBar Undo/Redo 버튼 이벤트
   const undoBtnEl = document.getElementById('undoBtn');
