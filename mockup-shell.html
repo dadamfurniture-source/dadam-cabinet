@@ -1271,16 +1271,35 @@
       setTimeout(hideTrimToast, 1800);
       return false;
     }
-    // W9-49: 새 시각 BBox 계산 — 작은 축 방향으로 ref 영역 만큼 잘라냄
+    // W9-51: target 이 ref 의 어느 변을 가로지르는지 검사 후 축 결정
+    // (기존 overlapX < overlapY 만으로는 동일 축 정렬 시 잘못된 축 선택)
+    const eps = 0.001;
+    const crossesRefMinX = tgtBB.minX < refBB.minX - eps && tgtBB.maxX > refBB.minX + eps;
+    const crossesRefMaxX = tgtBB.minX < refBB.maxX - eps && tgtBB.maxX > refBB.maxX + eps;
+    const crossesRefMinY = tgtBB.minY < refBB.minY - eps && tgtBB.maxY > refBB.minY + eps;
+    const crossesRefMaxY = tgtBB.minY < refBB.maxY - eps && tgtBB.maxY > refBB.maxY + eps;
+    const crossesX = crossesRefMinX || crossesRefMaxX;
+    const crossesY = crossesRefMinY || crossesRefMaxY;
+
+    let trimAxis;
+    if (crossesX && !crossesY)       trimAxis = 'X';
+    else if (!crossesX && crossesY)  trimAxis = 'Y';
+    else if (crossesX && crossesY)   trimAxis = overlapX < overlapY ? 'X' : 'Y';
+    else {
+      // 둘 다 가로지름 X — target 이 ref 안 완전 포함 또는 면 정확 일치
+      showTrimToast('⚠ 사각형이 완전히 포함됨 — trim 불가');
+      setTimeout(hideTrimToast, 1800);
+      return false;
+    }
+
     let newMinX = tgtBB.minX, newMaxX = tgtBB.maxX;
     let newMinY = tgtBB.minY, newMaxY = tgtBB.maxY;
-    if (overlapX < overlapY) {
-      // X 방향 trim (시각 좌표계)
-      if (tgtBB.minX < refBB.minX) newMaxX = refBB.minX;       // 우측 잘라냄
-      else                          newMinX = refBB.maxX;       // 좌측 잘라냄
+    if (trimAxis === 'X') {
+      if (crossesRefMinX) newMaxX = refBB.minX;   // ref 좌측 변 가로지름 → target 우측 잘라냄
+      else                newMinX = refBB.maxX;   // ref 우측 변 가로지름 → target 좌측 잘라냄
     } else {
-      if (tgtBB.minY < refBB.minY) newMaxY = refBB.minY;
-      else                          newMinY = refBB.maxY;
+      if (crossesRefMinY) newMaxY = refBB.minY;
+      else                newMinY = refBB.maxY;
     }
     const newVisualW = newMaxX - newMinX;
     const newVisualH = newMaxY - newMinY;
