@@ -1333,10 +1333,11 @@
 
   // 트리밍 모드에서 사각형 클릭 — 첫 번째 = 기준, 두 번째 = 잘림
   // W9-49: 부재(finishing) 는 trim 대상 아님 (일반 모듈만)
+  // W9-50: 안 겹침 시 모드 유지 + ref reset (사용자가 다시 시도 가능)
   function handleTrimClick(g) {
     if (g.classList.contains('finishing')) {
-      showTrimToast('⚠ 부재 (EP/몰딩/휠라) 는 트리밍 대상 아님 — 일반 모듈만');
-      setTimeout(hideTrimToast, 1500);
+      showTrimToast('⚠ 부재 (EP/몰딩/휠라) 는 트리밍 대상 아님 — 일반 모듈 클릭');
+      setTimeout(hideTrimToast, 1800);
       return;
     }
     if (!trimRefG) {
@@ -1350,8 +1351,16 @@
     if (ok) {
       showTrimToast('✂ 트리밍 완료');
       setTimeout(hideTrimToast, 1200);
+      setTrimMode(false);  // 성공 시만 모드 종료
+    } else {
+      // 안 겹침 — 모드 유지, ref 만 reset
+      trimRefG.classList.remove('trim-ref');
+      trimRefG = null;
+      // trimAgainst 토스트(1.8초) 끝나면 안내 갱신
+      setTimeout(() => {
+        if (trimMode && !trimRefG) showTrimToast('① 다시 기준 사각형을 클릭하세요');
+      }, 2000);
     }
-    setTrimMode(false);
   }
 
   const trimToolBtn = document.getElementById('trimToolBtn');
