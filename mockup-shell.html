@@ -70,7 +70,10 @@
   /* W9-14: resize handle 제거 — W/D 입력 popup 으로 대체 */
   .sect-rect .resize-handle{display:none !important}
   /* W9-14: W/D 입력 popup — 선택 사각형 위에 floating */
-  #dimPopup{position:absolute;display:none;background:#fff;border:1px solid #b8956c;border-radius:6px;padding:5px 8px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:60;font-size:11px;color:#3d342a;min-width:180px}
+  #dimPopup{position:absolute;display:none;background:#fff;border:1px solid #b8956c;border-radius:6px;padding:5px 8px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:60;font-size:11px;color:#3d342a;min-width:180px;cursor:grab;user-select:none}
+  #dimPopup:active{cursor:grabbing}
+  #dimPopup input,#dimPopup button,#dimPopup label{cursor:auto}
+  #dimPopup button{cursor:pointer}
   #dimPopup .dim-row{display:flex;gap:4px;margin-bottom:4px}
   #dimPopup label{display:inline-flex;align-items:center;gap:3px;margin-right:6px}
   #dimPopup label:last-child{margin-right:0}
@@ -737,8 +740,11 @@
 
   function selectG(g) {
     if (selectedG && selectedG !== g) selectedG.classList.remove('selected');
+    const prevSelected = selectedG;
     selectedG = g;
     if (g) g.classList.add('selected');
+    // W9-34: 다른 사각형 선택 시 popup 자동 위치 복원
+    if (g !== prevSelected) popupUserMoved = false;
     // W9-14: dimPopup 위치/값 갱신
     if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
   }
@@ -914,6 +920,10 @@
   const dimW = document.getElementById('dimW');
   const dimD = document.getElementById('dimD');
 
+  // W9-34: popup 사용자 드래그 상태 + 사각형 기준 offset
+  let popupUserMoved = false;
+  let popupOffsetFromRect = { dx: 0, dy: 0 };
+
   function updateDimPopupPosition() {
     if (!selectedG) { dimPopup.style.display = 'none'; return; }
     const r = selectedG.querySelector('rect:not(.resize-handle)');
@@ -921,18 +931,91 @@
     const x = parseFloat(r.getAttribute('x'));
     const y = parseFloat(r.getAttribute('y'));
     const w = parseFloat(r.getAttribute('width'));
-    // W9-17: pan/zoom 적용 위치 — SVG 좌표 → 화면 좌표 (canvas-wrap 기준)
+    const h = parseFloat(r.getAttribute('height'));
     const z = view.zoom || 1;
-    const screenX = (x + w / 2) * z + view.panX;
-    const screenY = y * z + view.panY;
-    const left = screenX - 80;  // 중앙 정렬 (popup 폭 ~160)
-    const top = screenY - 36;
-    dimPopup.style.display = 'block';
-    dimPopup.style.left = left + 'px';
-    dimPopup.style.top = Math.max(4, top) + 'px';
+    const rectLeft   = x * z + view.panX;
+    const rectTop    = y * z + view.panY;
+    const rectRight  = (x + w) * z + view.panX;
+    const rectBottom = (y + h) * z + view.panY;
     dimW.value = w;
-    dimD.value = parseFloat(r.getAttribute('height'));
+    dimD.value = h;
+    dimPopup.style.display = 'block';
+
+    let left, top;
+    if (popupUserMoved) {
+      // 사용자 이동 — 사각형 좌상단 기준 offset 유지
+      left = rectLeft + popupOffsetFromRect.dx;
+      top  = rectTop  + popupOffsetFromRect.dy;
+    } else {
+      // W9-34: 사각형 우측 옆 (8 화면 px 여백) 으로 자동 배치 → 사각형과 안 겹침
+      const wrap = document.querySelector('.canvas-wrap');
+      const cw = wrap ? wrap.clientWidth : 1200;
+      const ch = wrap ? wrap.clientHeight : 700;
+      const popupW = dimPopup.offsetWidth || 200;
+      const popupH = dimPopup.offsetHeight || 80;
+      const margin = 8;
+
+      // 1차: 우측
+      left = rectRight + margin;
+      top  = rectTop;
+      // 우측 화면 밖이면 좌측
+      if (left + popupW > cw - 4) {
+        left = rectLeft - popupW - margin;
+      }
+      // 좌측도 화면 밖이면 위쪽
+      if (left < 4) {
+        left = Math.max(4, Math.min(cw - popupW - 4, (rectLeft + rectRight - popupW) / 2));
+        top  = rectTop - popupH - margin;
+      }
+      // 위쪽도 잘리면 아래로
+      if (top < 4) {
+        top = rectBottom + margin;
+      }
+      // 아래쪽 잘림 방지
+      if (top + popupH > ch - 4) top = Math.max(4, ch - popupH - 4);
+    }
+    dimPopup.style.left = left + 'px';
+    dimPopup.style.top  = top + 'px';
   }
+
+  // W9-34: dimPopup 자체 드래그 — input/button/label 외 영역에서 시작
+  let popupDragInfo = null;
+  dimPopup.addEventListener('pointerdown', (e) => {
+    if (e.target.closest && e.target.closest('input, button, label')) return;
+    e.stopPropagation();
+    popupDragInfo = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: parseFloat(dimPopup.style.left) || 0,
+      origTop:  parseFloat(dimPopup.style.top)  || 0,
+    };
+    dimPopup.setPointerCapture(e.pointerId);
+    dimPopup.style.cursor = 'grabbing';
+  });
+  dimPopup.addEventListener('pointermove', (e) => {
+    if (!popupDragInfo) return;
+    const newLeft = popupDragInfo.origLeft + (e.clientX - popupDragInfo.startX);
+    const newTop  = popupDragInfo.origTop  + (e.clientY - popupDragInfo.startY);
+    dimPopup.style.left = newLeft + 'px';
+    dimPopup.style.top  = newTop  + 'px';
+    popupUserMoved = true;
+    if (selectedG) {
+      const r = selectedG.querySelector('rect:not(.resize-handle)');
+      if (r) {
+        const x = parseFloat(r.getAttribute('x'));
+        const y = parseFloat(r.getAttribute('y'));
+        const z = view.zoom || 1;
+        popupOffsetFromRect.dx = newLeft - (x * z + view.panX);
+        popupOffsetFromRect.dy = newTop  - (y * z + view.panY);
+      }
+    }
+  });
+  const endPopupDrag = () => {
+    popupDragInfo = null;
+    dimPopup.style.cursor = 'grab';
+  };
+  dimPopup.addEventListener('pointerup', endPopupDrag);
+  dimPopup.addEventListener('pointercancel', endPopupDrag);
 
   function applyDimToSelected() {
     if (!selectedG) return;
