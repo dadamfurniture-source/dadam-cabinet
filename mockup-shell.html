@@ -365,7 +365,7 @@
   <!-- ── BottomBar ── -->
   <div class="bottombar">
     <div class="actions">
-      <button class="primary">📤 SketchUp 보내기</button>
+      <button class="primary" id="sketchupExportBtn" title="SketchUp 으로 모듈 전송 (mhyrr 확장 필요)">📤 SketchUp 보내기</button>
       <button>📥 가져오기</button>
       <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
       <button id="loadLayoutBtn" title="저장된 배치 불러오기">📂 배치 불러오기</button>
@@ -2395,6 +2395,175 @@
       }
     } catch (e) { console.warn('autoRestore 실패', e); }
   })();
+
+  // ─────────────────────────────────────────────────────────────
+  // W9-73: SketchUp 내보내기 (mcp-server /api/sketchup/build)
+  // ─────────────────────────────────────────────────────────────
+
+  // mockup section → MaterialTone 휴리스틱
+  function sectionToMaterialTone(section) {
+    if (section === 'upper') return 'oak';
+    if (section === 'lower' || section === 'tall' || section === 'fridge') return 'walnut';
+    return 'graphite';  // sink/hood/dishwasher
+  }
+  // mockup section → ColorKey (V2 colorKey 영역)
+  function sectionToColorKey(section) {
+    if (['lower', 'upper', 'tall', 'fridge'].includes(section)) return 'body';
+    if (['sink', 'hood', 'dishwasher', 'refrigerator'].includes(section)) return 'accent';
+    if (section === 'ep') return 'trim';
+    if (section === 'molding' || section === 'filler') return 'shadow';
+    return 'body';
+  }
+  // section → 3D base Z (천정 매달림 포함)
+  function sectionBaseZ(section, moduleH, ceiling) {
+    if (section === 'upper' || section === 'hood') return ceiling - moduleH;
+    return 0;
+  }
+  // mockup → CabinetPartV2[]
+  function mockupToV2() {
+    const content = getContent();
+    if (!content) return [];
+    const ceiling = (typeof ceilingHeight === 'number') ? ceilingHeight : 2300;
+    const ox = originPos ? originPos.x : 0;
+    const oy = originPos ? originPos.y : 0;
+    const parts = [];
+    let idx = 0;
+    content.querySelectorAll(':scope > g.sect-rect').forEach((g) => {
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      if (!r) return;
+      const section = Array.from(g.classList).find(c => SECTION_CONFIG[c]);
+      if (!section) return;
+      const sx = parseFloat(r.getAttribute('x'));
+      const sy = parseFloat(r.getAttribute('y'));
+      const sw = parseFloat(r.getAttribute('width'));
+      const sh = parseFloat(r.getAttribute('height'));
+      const modH = parseFloat(g.getAttribute('data-module-h')) || 860;
+      const rot = rotations.get(g) || 0;
+      // 평면도 → V2 (Z-up corner). 원점 기준 변환.
+      // V2 좌표: x=가로(sx-ox), y=깊이(sy-oy), z=baseZ
+      const x = sx - ox;
+      const y = sy - oy;
+      const z = sectionBaseZ(section, modH, ceiling);
+      // V2 rotationZDeg: SVG rotate(deg) 는 시계방향 → V2 CCW 이므로 부호 반전
+      const rotZ = -rot;
+      const cfg = SECTION_CONFIG[section];
+      // 자식 부재 (EP/몰딩/휠라) 도 같이
+      // 부재는 부모 transform 의 회전 적용된 위치로 계산해야 — 단순화: 동일 rotation 으로 처리
+      parts.push({
+        id: `mod-${++idx}`,
+        label: `${cfg.label} #${idx}`,
+        x: Math.round(x),
+        y: Math.round(y),
+        z: Math.round(z),
+        width: Math.round(sw),
+        depth: Math.round(sh),
+        height: Math.round(modH),
+        rotationZDeg: rotZ,
+        colorKey: sectionToColorKey(section),
+        moduleType: section === 'lower' ? 'lower' : section === 'upper' ? 'upper' : section === 'tall' ? 'tall' : undefined,
+        essential: ['sink', 'hood', 'dishwasher', 'refrigerator'].includes(section),
+      });
+      // 자식 부재
+      g.querySelectorAll(':scope > g.finishing').forEach((fg) => {
+        const fr = fg.querySelector(':scope > rect:not(.resize-handle)');
+        if (!fr) return;
+        const fsec = Array.from(fg.classList).find(c => SECTION_CONFIG[c]) || 'ep';
+        const fmodH = parseFloat(fg.getAttribute('data-module-h')) || modH;
+        parts.push({
+          id: `fin-${++idx}`,
+          label: `${SECTION_CONFIG[fsec].label}`,
+          x: Math.round(parseFloat(fr.getAttribute('x')) - ox),
+          y: Math.round(parseFloat(fr.getAttribute('y')) - oy),
+          z: 0,
+          width: Math.round(parseFloat(fr.getAttribute('width'))),
+          depth: Math.round(parseFloat(fr.getAttribute('height'))),
+          height: Math.round(fmodH),
+          rotationZDeg: rotZ,
+          colorKey: sectionToColorKey(fsec),
+          parentModuleId: parts[parts.length - 2]?.id,
+        });
+      });
+    });
+    return parts;
+  }
+
+  // Supabase access token 획득
+  async function getSupabaseToken() {
+    const cfg = (window.parent && window.parent.DADAM_CONFIG && window.parent.DADAM_CONFIG.supabase)
+      ? window.parent.DADAM_CONFIG.supabase
+      : (window.DADAM_CONFIG && window.DADAM_CONFIG.supabase);
+    if (!cfg) return null;
+    // 부모 페이지의 supabase-js 클라이언트 사용 시도
+    const sb = (window.parent && window.parent.supabase) || window.supabase;
+    if (sb && typeof sb.createClient === 'function') {
+      try {
+        const client = sb.createClient(cfg.url, cfg.anonKey);
+        const { data } = await client.auth.getSession();
+        if (data?.session?.access_token) return data.session.access_token;
+      } catch (e) {}
+    }
+    // localStorage 직접 읽기 (sb-<projectRef>-auth-token)
+    try {
+      const m = cfg.url.match(/https:\/\/([^.]+)/);
+      const projectRef = m ? m[1] : null;
+      if (!projectRef) return null;
+      const ls = (window.parent && window.parent.localStorage) || localStorage;
+      const raw = ls.getItem(`sb-${projectRef}-auth-token`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed.access_token || (parsed.currentSession && parsed.currentSession.access_token);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // [📤 SketchUp 보내기] 핸들러
+  document.getElementById('sketchupExportBtn').addEventListener('click', async () => {
+    const parts = mockupToV2();
+    if (!parts.length) { showFlash('⚠ 보낼 모듈 없음'); return; }
+    if (!confirm(`SketchUp 으로 모듈 ${parts.length}개를 전송합니다.\n\n조건:\n· 디자이너 PC 에 SketchUp + mhyrr/sketchup-mcp 확장 실행 중\n· dadamfurniture.com 로그인 상태\n· mcp-server (port 3200) 가 동작 중\n\n계속하시겠습니까?`)) return;
+    const token = await getSupabaseToken();
+    if (!token) {
+      showFlash('⚠ 인증 토큰 없음 — 로그인 필요');
+      return;
+    }
+    const mcpUrl = (window.parent && window.parent.DADAM_CONFIG && window.parent.DADAM_CONFIG.mcpServer)
+      || (window.DADAM_CONFIG && window.DADAM_CONFIG.mcpServer)
+      || 'http://localhost:3200';
+    showFlash('📤 SketchUp 전송 중...', 'rgba(13,71,161,0.92)');
+    try {
+      const res = await fetch(`${mcpUrl}/api/sketchup/build`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          schemaVersion: 'v2',
+          parts,
+          category: 'sink',          // 다담 categories 중 대표 — sink 사용 (배치 단계 통합)
+          materialTone: 'oak',       // default
+          clearExisting: true,
+          transactional: true,
+          applyRotation: true,
+          applyMaterial: true,
+          autoZoom: true,
+          applyEntityNames: true,
+          ping: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showFlash(`⚠ 전송 실패: ${data.error || data.message || res.status}`);
+        console.warn('[sketchup/build] error', data);
+        return;
+      }
+      showFlash(`✓ SketchUp 전송 완료 (${data.componentCount || parts.length}개 · ${Math.round(data.summary?.durationMs || 0)}ms)`, 'rgba(13,71,161,0.92)');
+    } catch (e) {
+      console.warn('[sketchup/build] network error', e);
+      showFlash(`⚠ 네트워크 에러: ${e.message}`);
+    }
+  });
 
   document.getElementById('nextStepBtn').onclick = () => {
     // W9-59: 자동 저장 후 mockup-structure.html (Step 2) 페이지로 이동
