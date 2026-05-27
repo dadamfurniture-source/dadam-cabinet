@@ -162,10 +162,10 @@
 
     <!-- Left toolbar -->
     <div class="left-tools" id="leftTools">
-      <button class="tool-btn" title="분배기">🚰<span class="badge">2</span></button>
-      <button class="tool-btn" title="후드">💨</button>
-      <button class="tool-btn" title="냉장고">🧊<span class="badge">1</span></button>
-      <button class="tool-btn" title="식기세척기">🍽️</button>
+      <button class="tool-btn rect-btn" title="분배기 (W900×D600 · 도면 배치)" data-section="sink">🚰</button>
+      <button class="tool-btn rect-btn" title="후드 (W900×D500 · 도면 배치)" data-section="hood">💨</button>
+      <button class="tool-btn rect-btn" title="냉장고 (W720×D700 · 도면 배치)" data-section="refrigerator">🧊</button>
+      <button class="tool-btn rect-btn" title="식기세척기 (W600×D600 · 도면 배치)" data-section="dishwasher">🍽️</button>
       <div class="tool-sep"></div>
       <!-- W9-10: 하부장/상부장/키큰장 — 직사각형 비율 SVG + 클릭 시 도면에 색상별 배치 -->
       <button class="tool-btn rect-btn" title="하부장 추가 (도면에 배치)" data-section="lower">
@@ -317,6 +317,11 @@
     upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 800  },
     tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
     fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 1850 },
+    // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
+    sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 900, h: 600, label: '분배기',     moduleH: 860  },
+    hood:         { fill: '#6a727a', stroke: '#2a3238', w: 900, h: 500, label: '후드',       moduleH: 400  },
+    refrigerator: { fill: '#c8ced4', stroke: '#5a626a', w: 720, h: 700, label: '냉장고',     moduleH: 1850 },
+    dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 600, label: '식기세척기', moduleH: 820  },
     // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 높이 (860 default)
     ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 860, adjacent: 'depthAndHeight' },
     // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
