@@ -28,6 +28,10 @@
   .step-pill .sep{width:14px;height:2px;background:var(--line);display:inline-block}
   .topbar .spacer{flex:1}
   .module-name{font-size:12px;color:var(--text);font-weight:600;background:var(--brand-soft);padding:4px 10px;border-radius:5px;border:1px solid var(--brand-mid)}
+  /* W9-64: View toggle (3D / 2D) */
+  .view-toggle{display:flex;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px}
+  .view-toggle button{padding:3px 10px;border:none;background:transparent;color:var(--text-dim);font-size:11px;font-weight:600;cursor:pointer;border-radius:4px}
+  .view-toggle button.active{background:var(--brand-deep);color:#fff}
   .panel-toggle{display:flex;gap:3px}
   .panel-toggle button{width:28px;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text)}
   .panel-toggle button.on{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
@@ -120,6 +124,11 @@
   </div>
   <div class="module-name" id="curModuleName">모듈을 선택하세요</div>
   <div class="spacer"></div>
+  <!-- W9-64: View toggle (3D / 정면도) -->
+  <div class="view-toggle">
+    <button id="view3dBtn" class="active" data-view="3d" title="3D 뷰">🧊 3D</button>
+    <button id="view2dBtn" data-view="2d" title="정면도 (2D)">📐 정면도</button>
+  </div>
   <div class="panel-toggle">
     <button id="btnLeft" class="on" title="좌측 패널 (L)">⬛</button>
     <button id="btnRight" class="on" title="우측 패널 (R)">▦</button>
@@ -141,9 +150,12 @@
     </div>
   </div>
 
-  <!-- 캔버스: 정면도 -->
+  <!-- 캔버스: 3D + 정면도 toggle -->
   <div class="canvas-wrap" id="canvasWrap">
-    <svg class="canvas-svg" id="frontSvg">
+    <!-- W9-64: 3D canvas (Three.js) -->
+    <canvas id="canvas3d" style="position:absolute;inset:0;width:100%;height:100%;display:block;outline:none"></canvas>
+    <!-- 기존 2D SVG 정면도 -->
+    <svg class="canvas-svg" id="frontSvg" style="display:none">
       <g class="content" id="contentG"></g>
     </svg>
     <div class="canvas-empty" id="canvasEmpty">
@@ -211,6 +223,24 @@
   </div>
   <div>ⓘ 줌 <span id="zoomInd">100%</span> · 휠=줌 · 빈공간 드래그=팬 · F=Fit · 0=Reset</div>
 </div>
+
+<!-- W9-64: Three.js CDN importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+window.THREE = THREE;
+window.OrbitControls = OrbitControls;
+// 3D 초기화는 페이지 로드 후 init3D() 가 호출
+window.dispatchEvent(new CustomEvent('three-ready'));
+</script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -801,13 +831,296 @@
   };
 
   // ─────────────────────────────────────────────────────────────
+  // W9-64: 3D Scene (Three.js) — planner-vite App.tsx 패턴 참고
+  // ─────────────────────────────────────────────────────────────
+  let three = null;  // { renderer, scene, camera, controls, moduleGroup }
+  let currentView = '3d';  // '3d' | '2d'
+
+  function init3D() {
+    if (three || !window.THREE) return;
+    const canvas = document.getElementById('canvas3d');
+    const wrap = document.getElementById('canvasWrap');
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(w, h, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf4efe7);
+
+    const camera = new THREE.PerspectiveCamera(45, w / h, 10, 50000);
+    camera.position.set(2000, 1200, 3000);
+
+    // 조명 (planner-vite App.tsx 패턴)
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const d1 = new THREE.DirectionalLight(0xffffff, 1.8);
+    d1.position.set(5000, 8000, 5000); d1.castShadow = true;
+    d1.shadow.mapSize.set(1024, 1024);
+    scene.add(d1);
+    const d2 = new THREE.DirectionalLight(0xffffff, 0.6);
+    d2.position.set(-3000, 4000, -3000);
+    scene.add(d2);
+
+    // Ground grid + plane
+    const grid = new THREE.GridHelper(6000, 30, 0xb8956c, 0xe5e0d4);
+    grid.position.y = 0;
+    scene.add(grid);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 1.0 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.5;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // OrbitControls
+    const controls = new window.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 600, 0);
+    controls.update();
+
+    const moduleGroup = new THREE.Group();
+    scene.add(moduleGroup);
+
+    three = { renderer, scene, camera, controls, moduleGroup };
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      if (!three) return;
+      const cw = wrap.clientWidth, ch = wrap.clientHeight;
+      three.renderer.setSize(cw, ch, false);
+      three.camera.aspect = cw / ch;
+      three.camera.updateProjectionMatrix();
+    });
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      three.controls.update();
+      three.renderer.render(three.scene, three.camera);
+    }
+    animate();
+  }
+
+  // 헬퍼: BoxGeometry 한 면을 mesh 로
+  function makeBox(w, h, d, color, opts = {}) {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      metalness: opts.metalness ?? 0.05,
+      roughness: opts.roughness ?? 0.65,
+      transparent: !!opts.transparent,
+      opacity:     opts.opacity ?? 1.0,
+      wireframe:   !!opts.wireframe,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  // 모듈 3D 렌더 — 외곽 + 도어/서랍 + 선반 + 손잡이
+  function renderModule3D(m, s) {
+    if (!three) return;
+    // 기존 그룹 비우기
+    while (three.moduleGroup.children.length) {
+      const ch = three.moduleGroup.children[0];
+      three.moduleGroup.remove(ch);
+      if (ch.geometry) ch.geometry.dispose();
+      if (ch.material) ch.material.dispose && ch.material.dispose();
+    }
+    if (!m) return;
+    const cfg = SECTION_CONFIG[m.section];
+    const W = m.W, H = m.H, D = m.D;
+    const T = 18;   // 판 두께
+
+    // 모듈 그룹 (바닥 중앙 origin, 모듈 중심 X=0, Y=H/2, Z=0)
+    const modG = new THREE.Group();
+    modG.position.set(0, 0, 0);
+    three.moduleGroup.add(modG);
+
+    // 외곽 5면 (앞면 X)
+    const carcassColor = darken3(cfg.fill, 0.05);
+    // 뒤판
+    modG.add(positionBox(makeBox(W, H, T, carcassColor), 0, H/2, -D/2 + T/2));
+    // 양 측판
+    modG.add(positionBox(makeBox(T, H, D, carcassColor), -W/2 + T/2, H/2, 0));
+    modG.add(positionBox(makeBox(T, H, D, carcassColor),  W/2 - T/2, H/2, 0));
+    // 바닥
+    modG.add(positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, T/2, T/2));
+    // 천장
+    modG.add(positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, H - T/2, T/2));
+
+    // 내부 선반 (사용자 요구 ③)
+    if (Array.isArray(s.shelves)) {
+      s.shelves.forEach(shMM => {
+        if (shMM <= T || shMM >= H - T) return;
+        const sh = makeBox(W - 2*T - 4, T, D - T - 4, '#d4c5a0', { roughness: 0.8 });
+        sh.position.set(0, shMM, T/2);
+        modG.add(sh);
+      });
+    }
+
+    // 분할 — 도어 위 (drawerH 가 있으면 분할)
+    const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
+    const topH = H - drawerH;
+    const verticalCount = Math.max(1, s.verticalCount || 1);
+    const colW = W / verticalCount;
+
+    for (let i = 0; i < verticalCount; i++) {
+      const type = (s.areaTypes && s.areaTypes[i]) || 'door';
+      const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
+      const xCenter = -W/2 + colW * (i + 0.5);
+      const yCenter = drawerH + topH/2;
+      addFrontPanel(modG, xCenter, yCenter, colW - 4, topH - 4, D/2, type, dir, cfg, s);
+    }
+    // 하부 영역 (도어+서랍 모드)
+    if (drawerH > 0) {
+      addFrontPanel(modG, 0, drawerH/2, W - 4, drawerH - 4, D/2,
+                    s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s);
+    }
+
+    // 카메라 fit
+    fitCameraToModule(W, H, D);
+  }
+
+  // 도어/서랍/오픈 패널 추가 (열림 방향 + 손잡이 포함)
+  function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s) {
+    if (type === 'open') {
+      // 오픈 — 빈 frame 표시 (얇은 outline 박스)
+      const frame = makeBox(w, h, 2, cfg.stroke, { transparent: true, opacity: 0.25, wireframe: true });
+      frame.position.set(cx, cy, frontZ);
+      parent.add(frame);
+      return;
+    }
+
+    const T = 18;
+    const isDoor = type === 'door';
+    const panelMat = makeBox(w, h, T, cfg.fill);
+
+    if (isDoor) {
+      // 도어 — 좌/우 변을 pivot 으로 회전
+      const pivot = new THREE.Group();
+      const hingeX = direction === 'left' ? cx - w/2 : cx + w/2;
+      pivot.position.set(hingeX, cy, frontZ);
+      // door mesh 의 local position — pivot 기준 안쪽
+      panelMat.position.x = direction === 'left' ? w/2 : -w/2;
+      panelMat.position.z = 0;
+      pivot.add(panelMat);
+      // 살짝 열린 회전 (20도)
+      const openAngle = (Math.PI / 180) * 20;
+      pivot.rotation.y = direction === 'left' ? openAngle : -openAngle;
+      parent.add(pivot);
+      // 손잡이
+      addHandle(panelMat, w, h, s);
+    } else {
+      // 서랍 — 단순 panel (회전 없음)
+      panelMat.position.set(cx, cy, frontZ);
+      parent.add(panelMat);
+      // 서랍은 손잡이 보통 가운데
+      const hs = Object.assign({}, s, { handlePosition: 'middle' });
+      addHandle(panelMat, w, h, hs);
+    }
+  }
+
+  // 손잡이 (사용자 요구 ④)
+  function addHandle(doorMesh, doorW, doorH, s) {
+    const type = s.handleType || 'channel';
+    const pos  = s.handlePosition || 'top';
+    if (type === 'push') return;  // push — 표현 X
+
+    const T = 18;
+    // 위치 (도어 local 좌표계)
+    let yLocal;
+    if (pos === 'top') yLocal = doorH/2 - 80;
+    else if (pos === 'bottom') yLocal = -doorH/2 + 80;
+    else yLocal = 0;
+    const zFront = T/2 + 0.5;  // 도어 앞면 약간 밖
+
+    if (type === 'channel') {
+      // 찬넬 (매립형) — 도어 면 안쪽 가로 홈 (얇고 진한 박스)
+      const handle = makeBox(doorW * 0.7, 8, 3, '#3d342a', { metalness: 0.5, roughness: 0.4 });
+      handle.position.set(0, yLocal, zFront);
+      doorMesh.add(handle);
+    } else if (type === 'c-channel') {
+      // C 찬넬 — 작은 cylinder (또는 길쭉한 box) 부착
+      const geo = new THREE.BoxGeometry(doorW * 0.5, 16, 12);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.7, roughness: 0.3 });
+      const handle = new THREE.Mesh(geo, mat);
+      handle.position.set(0, yLocal, zFront + 6);
+      doorMesh.add(handle);
+    }
+  }
+
+  function positionBox(mesh, x, y, z) { mesh.position.set(x, y, z); return mesh; }
+
+  // 카메라 자동 fit
+  function fitCameraToModule(W, H, D) {
+    if (!three) return;
+    const dist = Math.max(W, H, D) * 1.6;
+    three.camera.position.set(dist * 0.7, H * 0.8 + 200, dist);
+    three.controls.target.set(0, H/2, 0);
+    three.controls.update();
+  }
+
+  // 색상 어둡게 헬퍼
+  function darken3(hex, factor) {
+    const c = new THREE.Color(hex);
+    return '#' + c.multiplyScalar(1 - factor).getHexString();
+  }
+
+  // View toggle
+  function setView(mode) {
+    currentView = mode;
+    document.getElementById('canvas3d').style.display = mode === '3d' ? 'block' : 'none';
+    document.getElementById('frontSvg').style.display = mode === '2d' ? 'block' : 'none';
+    document.getElementById('view3dBtn').classList.toggle('active', mode === '3d');
+    document.getElementById('view2dBtn').classList.toggle('active', mode === '2d');
+    if (mode === '3d' && three) {
+      // 사이즈 갱신 (display 변경 후)
+      const wrap = document.getElementById('canvasWrap');
+      three.renderer.setSize(wrap.clientWidth, wrap.clientHeight, false);
+      three.camera.aspect = wrap.clientWidth / wrap.clientHeight;
+      three.camera.updateProjectionMatrix();
+    }
+  }
+  document.getElementById('view3dBtn').onclick = () => setView('3d');
+  document.getElementById('view2dBtn').onclick = () => setView('2d');
+
+  // renderFrontView / renderRightPanel 호출 시 3D 도 같이 갱신
+  const _origSetActive = setActiveModule;
+  setActiveModule = function(id) {
+    _origSetActive(id);
+    const m = modules.find(x => x.id === id);
+    const s = m ? getStructure(id) : null;
+    if (m && s) renderModule3D(m, s);
+  };
+  const _origRenderFront = renderFrontView;
+  renderFrontView = function() {
+    _origRenderFront();
+    if (!activeId) return;
+    const m = modules.find(x => x.id === activeId);
+    if (!m) return;
+    const s = getStructure(activeId);
+    renderModule3D(m, s);
+  };
+
+  // ─────────────────────────────────────────────────────────────
   // Init
   // ─────────────────────────────────────────────────────────────
   loadModules();
   loadStructures();
   renderModuleList();
   attachCanvasHandlers();
-  if (modules.length) setActiveModule(modules[0].id);
+  // Three.js 로드 후 init3D
+  if (window.THREE) init3D();
+  else window.addEventListener('three-ready', init3D);
+  // 초기 모듈 활성화 — Three.js init 다음에
+  setTimeout(() => {
+    if (modules.length) setActiveModule(modules[0].id);
+  }, 100);
   applyView();
 </script>
 </body>
