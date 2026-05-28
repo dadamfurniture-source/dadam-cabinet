@@ -44,6 +44,12 @@ export const cabinetPartSchema = z.object({
   parentModuleId: z.string().optional(),
   doorIndex: z.number().optional(),
   openDirection: z.enum(['left', 'right']).optional(),
+  // W9-81: 부모 transform 상속 (회전된 모듈의 자식 마감재용)
+  parentTransform: z.object({
+    rotationZDeg: z.number(),
+    pivotX: z.number(),
+    pivotY: z.number(),
+  }).optional(),
 });
 
 // V4-4: schemaVersion 은 호환을 위해 옵션. 미지정 또는 'v2' 모두 V2 로 해석.

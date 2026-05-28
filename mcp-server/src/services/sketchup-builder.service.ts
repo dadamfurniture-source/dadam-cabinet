@@ -322,9 +322,27 @@ export function buildPlanFromParts(
   // 모듈 본체 누락 (사용자 가구 10+ 모듈인데 박스 3개만 표시되는 결함).
   const buildParts = parts.filter((p) => !p.wireframe);
 
+  // W9-81: parentTransform 적용 — 회전된 모듈의 자식 마감재 정확 위치
+  //   parentTransform 있는 part 의 corner 를 pivot 기준 회전 적용 후 새 corner.
+  //   회전은 parent + 자체 누적.
+  const normalizedParts = buildParts.map((p) => {
+    if (!p.parentTransform) return p;
+    const pt = p.parentTransform;
+    const rad = (pt.rotationZDeg * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const dx = p.x - pt.pivotX;
+    const dy = p.y - pt.pivotY;
+    return {
+      ...p,
+      x: pt.pivotX + dx * cos - dy * sin,
+      y: pt.pivotY + dx * sin + dy * cos,
+      rotationZDeg: (p.rotationZDeg ?? 0) + pt.rotationZDeg,
+    };
+  });
+
   // 본체 → 도어 순서.
-  const bodyParts = buildParts.filter((p) => !p.isDoor);
-  const doorParts = buildParts.filter((p) => p.isDoor);
+  const bodyParts = normalizedParts.filter((p) => !p.isDoor);
+  const doorParts = normalizedParts.filter((p) => p.isDoor);
 
   for (const part of [...bodyParts, ...doorParts]) {
     // 1) create_component (cube)
