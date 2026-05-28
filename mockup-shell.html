@@ -2400,6 +2400,13 @@
   // W9-73: SketchUp 내보내기 (mcp-server /api/sketchup/build)
   // ─────────────────────────────────────────────────────────────
 
+  // W9-75: mockup section → V2 moduleType enum ('storage'|'sink'|'cook'|'hood'|'drawer')
+  function sectionToModuleType(section) {
+    if (section === 'sink') return 'sink';
+    if (section === 'hood') return 'hood';
+    if (['lower','upper','tall','fridge','refrigerator','dishwasher'].includes(section)) return 'storage';
+    return undefined;  // 부재 (ep/molding/filler) — moduleType X
+  }
   // mockup section → MaterialTone 휴리스틱
   function sectionToMaterialTone(section) {
     if (section === 'upper') return 'oak';
@@ -2460,7 +2467,7 @@
         height: Math.round(modH),
         rotationZDeg: rotZ,
         colorKey: sectionToColorKey(section),
-        moduleType: section === 'lower' ? 'lower' : section === 'upper' ? 'upper' : section === 'tall' ? 'tall' : undefined,
+        moduleType: sectionToModuleType(section),
         essential: ['sink', 'hood', 'dishwasher', 'refrigerator'].includes(section),
       });
       // 자식 부재
