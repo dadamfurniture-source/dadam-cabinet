@@ -945,7 +945,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     three = { renderer, scene, camera, controls, moduleGroup };
 
-    // W9-79: Raycaster + click 핸들러 — entity 클릭 시 우측 패널 갱신
+    // W9-79/80: Raycaster + click 핸들러 — entity 클릭 시 우측 패널 갱신
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     let downXY = null;
@@ -955,7 +955,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const dx = Math.abs(e.clientX - downXY.x);
       const dy = Math.abs(e.clientY - downXY.y);
       downXY = null;
-      // drag 이 아닌 단순 click 만 (이동 < 4px)
       if (dx > 4 || dy > 4) return;
       const rect = canvas.getBoundingClientRect();
       pointer.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
@@ -963,63 +962,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       raycaster.setFromCamera(pointer, camera);
       const hits = raycaster.intersectObjects(moduleGroup.children, true);
       if (!hits.length) return;
-      const target = hits[0].object;
-      handleEntityClick(target);
+      handleEntityClick(hits[0].object);
     });
-  }
-
-  // W9-79: 클릭된 entity → 우측 패널 갱신 + 선택 시각 효과
-  function handleEntityClick(mesh) {
-    if (!mesh) return;
-    // userData 없으면 parent 까지 traverse — module group 발견
-    let cur = mesh, ud = null;
-    while (cur) {
-      if (cur.userData && cur.userData.entityKind) { ud = cur.userData; break; }
-      cur = cur.parent;
-    }
-    if (!ud) return;
-    // mesh 자체의 entityKind 가 있으면 우선 사용 (영역/마감재 등), 없으면 group 의 module
-    const meshUd = mesh.userData || {};
-    if (meshUd.entityKind && meshUd.entityKind !== 'module') ud = meshUd;
-    const moduleId = ud.moduleId;
-    // 모듈 자동 선택 (단일 보기로)
-    if (moduleId && moduleId !== activeId) {
-      // 모드가 single 이면 setActiveModule 호출
-      if (viewMode === 'single') {
-        setActiveModule(moduleId);
-      } else {
-        // set/all 모드에서도 우측 패널만 갱신 — 모듈 정보만
-        const m = modules.find(x => x.id === moduleId);
-        if (m) {
-          activeId = moduleId;
-          document.getElementById('curModuleName').textContent = SECTION_CONFIG[m.section].label + ' #' + ((parseInt(moduleId.split('-')[1] || 0) + 1));
-          renderRightPanel();
-        }
-      }
-    }
-    // 영역별 안내 토스트
-    let msg = '';
-    if (ud.entityKind === 'area') {
-      msg = `🎯 영역 #${(ud.areaIdx >= 0 ? ud.areaIdx + 1 : '하부')} — ${ud.areaType}`;
-    } else if (ud.entityKind === 'finishing') {
-      msg = `🎯 마감재: ${SECTION_CONFIG[ud.finishingSection]?.label || ud.finishingSection}`;
-    } else if (ud.entityKind === 'shelf') {
-      msg = `🎯 선반`;
-    } else if (ud.entityKind === 'carcass') {
-      msg = `🎯 모듈 외곽`;
-    }
-    if (msg) showToast(msg);
-    // 우측 패널의 해당 영역 row highlight
-    if (ud.entityKind === 'area' && ud.areaIdx >= 0) {
-      const row = document.querySelector(`#areasBody .area-row[data-idx="${ud.areaIdx}"]`);
-      if (row) {
-        row.style.background = 'rgba(122,72,16,0.15)';
-        setTimeout(() => { row.style.background = ''; }, 1500);
-        const sel = row.querySelector('.a-type');
-        if (sel) sel.focus();
-      }
-    }
-  }
 
     // Resize handler
     window.addEventListener('resize', () => {
@@ -1037,6 +981,55 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       three.renderer.render(three.scene, three.camera);
     }
     animate();
+  }
+
+  // W9-79/80: 클릭된 entity → 우측 패널 갱신 + 선택 시각 효과 (init3D 밖 글로벌)
+  function handleEntityClick(mesh) {
+    if (!mesh) return;
+    let cur = mesh, ud = null;
+    while (cur) {
+      if (cur.userData && cur.userData.entityKind) { ud = cur.userData; break; }
+      cur = cur.parent;
+    }
+    if (!ud) return;
+    const meshUd = mesh.userData || {};
+    if (meshUd.entityKind && meshUd.entityKind !== 'module') ud = meshUd;
+    const moduleId = ud.moduleId;
+    if (moduleId && moduleId !== activeId) {
+      if (viewMode === 'single') {
+        setActiveModule(moduleId);
+      } else {
+        const m = modules.find(x => x.id === moduleId);
+        if (m) {
+          activeId = moduleId;
+          const nameEl = document.getElementById('curModuleName');
+          if (nameEl) {
+            const idx = parseInt(moduleId.split('-')[1] || 0) + 1;
+            nameEl.textContent = SECTION_CONFIG[m.section].label + ' #' + idx;
+          }
+          renderRightPanel();
+        }
+      }
+    }
+    let msg = '';
+    if (ud.entityKind === 'area') {
+      const aidx = (ud.areaIdx >= 0) ? ('#' + (ud.areaIdx + 1)) : '하부';
+      msg = '🎯 영역 ' + aidx + ' — ' + ud.areaType;
+    } else if (ud.entityKind === 'finishing') {
+      msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
+    } else if (ud.entityKind === 'module') {
+      msg = '🎯 모듈 선택';
+    }
+    if (msg && typeof showToast === 'function') showToast(msg);
+    if (ud.entityKind === 'area' && ud.areaIdx >= 0) {
+      const row = document.querySelector('#areasBody .area-row[data-idx="' + ud.areaIdx + '"]');
+      if (row) {
+        row.style.background = 'rgba(122,72,16,0.15)';
+        setTimeout(() => { row.style.background = ''; }, 1500);
+        const sel = row.querySelector('.a-type');
+        if (sel) sel.focus();
+      }
+    }
   }
 
   // 헬퍼: BoxGeometry 한 면을 mesh 로
