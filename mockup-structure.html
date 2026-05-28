@@ -274,6 +274,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     hood:         { fill: '#6a727a', stroke: '#2a3238', label: '후드' },
     refrigerator: { fill: '#c8ced4', stroke: '#5a626a', label: '냉장고' },
     dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', label: '식기세척기' },
+    // W9-85: 마감재 — finishings forEach 의 SECTION_CONFIG[f.section] 조회 통과용
+    ep:           { fill: '#7a6a45', stroke: '#1a0f00', label: 'EP' },
+    molding:      { fill: '#5a4d2f', stroke: '#1a0f00', label: '몰딩' },
+    filler:       { fill: '#8a7858', stroke: '#1a0f00', label: '휠라' },
   };
   // 영역 type 별 색상 보정
   function colorForArea(sectionFill, type) {
@@ -352,6 +356,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           // 2) W9-84: 사이드바 직접 추가된 standalone 마감재 (top-level modules 의 ep/molding/filler)
           //    → 가장 가까운 모듈의 finishings 에 push (구조 단계에 표시되도록)
           const standalone = layout.modules.filter(m => FINISHING_SECTIONS.includes(m.section));
+          console.log('[STRUCT] loadModules', { totalModules: layout.modules.length, regular: modules.length, standaloneFinishings: standalone.length, sections: layout.modules.map(m => m.section) });
           standalone.forEach((fm) => {
             const fxC = (fm.x || 0) + (fm.w || 0) / 2;
             const fyC = (fm.y || 0) + (fm.h || 0) / 2;
@@ -1185,19 +1190,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
                     s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
     }
 
-    // W9-77: 자식 마감재 (EP/몰딩/휠라) 도 모듈 mesh 안에 추가 (개별 보기)
-    if (Array.isArray(m.finishings)) {
+    // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
+    if (Array.isArray(m.finishings) && m.finishings.length) {
+      console.log('[STRUCT] renderModule3D', m.id, 'finishings:', m.finishings.length);
       m.finishings.forEach((f) => {
-        const fcfg = SECTION_CONFIG[f.section];
-        if (!fcfg) return;
         // 평면도 절대 좌표 → 모듈 mesh 로컬 (X=-W/2~W/2, Z=-D/2~D/2)
-        const fxCenter = f.x + f.W / 2;
-        const fyCenter = f.y + f.D / 2;
+        const fxCenter = (f.x || 0) + (f.W || 0) / 2;
+        const fyCenter = (f.y || 0) + (f.D || 0) / 2;
         const mxCenter = m.x + m.W / 2;
         const myCenter = m.y + m.D / 2;
         const dxRel = fxCenter - mxCenter;
         const dzRel = fyCenter - myCenter;
         const fH = f.H || m.H;
+        if (!f.W || !f.D || !isFinite(fH)) {
+          console.warn('[STRUCT] finishing skip — invalid dims', f);
+          return;
+        }
         // W9-82: 마감재는 진한 우드 톤 (모듈과 명확히 구별)
         const finColor = f.section === 'ep' ? '#7a6a45' :       // EP — 진한 우드
                         f.section === 'molding' ? '#5a4d2f' :   // 몰딩 — 더 진한 갈색
@@ -1538,19 +1546,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       addFrontPanel(g, 0, drawerH/2, W - 4, drawerH - 4, D/2,
                     s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
     }
-    // W9-77/82/83: 자식 마감재 (EP/몰딩/휠라) — 모듈과 명확히 구별되는 진한 우드 톤
-    if (Array.isArray(m.finishings)) {
+    // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
+    if (Array.isArray(m.finishings) && m.finishings.length) {
+      console.log('[STRUCT] createModuleMesh', m.id, 'finishings:', m.finishings.length);
       m.finishings.forEach((f, fIdx) => {
-        const fcfg = SECTION_CONFIG[f.section];
-        if (!fcfg) return;
         // 평면도 절대 좌표 → 모듈 mesh 로컬 (모듈 X/Z 중심=0)
-        const fxCenter = f.x + f.W / 2;
-        const fyCenter = f.y + f.D / 2;
+        const fxCenter = (f.x || 0) + (f.W || 0) / 2;
+        const fyCenter = (f.y || 0) + (f.D || 0) / 2;
         const mxCenter = m.x + m.W / 2;
         const myCenter = m.y + m.D / 2;
         const dxRel = fxCenter - mxCenter;
         const dzRel = fyCenter - myCenter;
         const fH = f.H || m.H;
+        if (!f.W || !f.D || !isFinite(fH)) {
+          console.warn('[STRUCT] finishing skip — invalid dims', f);
+          return;
+        }
         // W9-83: 마감재 색상 — 모듈과 명확 구별 (renderModule3D 와 동일 패턴)
         const finColor = f.section === 'ep' ? '#7a6a45'        // EP 진한 우드
                        : f.section === 'molding' ? '#5a4d2f'   // 몰딩 진갈색
