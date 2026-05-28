@@ -84,6 +84,14 @@ export interface CabinetPartV2 {
   parentModuleId?: string;
   doorIndex?: number;
   openDirection?: 'left' | 'right';
+  // W9-81: 부모 transform 상속 — 자식 마감재가 부모 모듈 회전 따라가도록.
+  //   parentTransform 있으면 builder 가 corner 를 pivot 기준 회전 후 V2 좌표 산출.
+  //   자식의 rotationZDeg 는 parent.rotationZDeg 와 누적 (corner pivot 자체 회전).
+  parentTransform?: {
+    rotationZDeg: number;     // 부모 모듈 회전 (deg)
+    pivotX: number;           // 부모 모듈 중심 X (V2 좌표계)
+    pivotY: number;           // 부모 모듈 중심 Y (V2 좌표계)
+  };
 }
 
 // lib/planner.ts:139-147 에서 미러

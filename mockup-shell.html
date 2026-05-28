@@ -2483,18 +2483,28 @@
         const fsy = parseFloat(fr.getAttribute('y'));
         const fsw = parseFloat(fr.getAttribute('width'));
         const fsh = parseFloat(fr.getAttribute('height'));
+        // 부모 모듈 중심 (V2 좌표) — 자식 회전 pivot
+        const parentPivotX = -((sx + sw / 2) - ox);  // X 거울 적용된 부모 중심
+        const parentPivotY = (sy + sh / 2) - oy;
         parts.push({
           id: `fin-${++idx}`,
           label: `${SECTION_CONFIG[fsec].label}`,
-          x: Math.round(-((fsx + fsw) - ox)),    // W9-78: X 반전 + corner 보정
+          // W9-81: 자식 corner 는 모듈 회전 0 기준 (X 거울 + corner 보정). builder 가 parentTransform 적용.
+          x: Math.round(-((fsx + fsw) - ox)),
           y: Math.round(fsy - oy),
-          z: Math.round(sectionBaseZ(fsec, fmodH, ceiling)),  // W9-78: 천정 매달림 적용
+          z: Math.round(sectionBaseZ(fsec, fmodH, ceiling)),
           width: Math.round(fsw),
           depth: Math.round(fsh),
           height: Math.round(fmodH),
-          rotationZDeg: rotZ,
+          rotationZDeg: 0,  // W9-81: 자체 회전 0, parentTransform 으로만
           colorKey: sectionToColorKey(fsec),
           parentModuleId: parts[parts.length - 2]?.id,
+          // W9-81: 부모 모듈의 회전을 자식이 상속받도록 명시
+          parentTransform: rot ? {
+            rotationZDeg: rotZ,        // 모듈과 동일 회전 (X 거울 적용된 -rot)
+            pivotX: parentPivotX,
+            pivotY: parentPivotY,
+          } : undefined,
         });
       });
     });
