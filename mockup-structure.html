@@ -945,6 +945,82 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     three = { renderer, scene, camera, controls, moduleGroup };
 
+    // W9-79: Raycaster + click 핸들러 — entity 클릭 시 우측 패널 갱신
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let downXY = null;
+    canvas.addEventListener('pointerdown', (e) => { downXY = { x: e.clientX, y: e.clientY }; });
+    canvas.addEventListener('pointerup', (e) => {
+      if (!downXY) return;
+      const dx = Math.abs(e.clientX - downXY.x);
+      const dy = Math.abs(e.clientY - downXY.y);
+      downXY = null;
+      // drag 이 아닌 단순 click 만 (이동 < 4px)
+      if (dx > 4 || dy > 4) return;
+      const rect = canvas.getBoundingClientRect();
+      pointer.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+      pointer.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(moduleGroup.children, true);
+      if (!hits.length) return;
+      const target = hits[0].object;
+      handleEntityClick(target);
+    });
+  }
+
+  // W9-79: 클릭된 entity → 우측 패널 갱신 + 선택 시각 효과
+  function handleEntityClick(mesh) {
+    if (!mesh) return;
+    // userData 없으면 parent 까지 traverse — module group 발견
+    let cur = mesh, ud = null;
+    while (cur) {
+      if (cur.userData && cur.userData.entityKind) { ud = cur.userData; break; }
+      cur = cur.parent;
+    }
+    if (!ud) return;
+    // mesh 자체의 entityKind 가 있으면 우선 사용 (영역/마감재 등), 없으면 group 의 module
+    const meshUd = mesh.userData || {};
+    if (meshUd.entityKind && meshUd.entityKind !== 'module') ud = meshUd;
+    const moduleId = ud.moduleId;
+    // 모듈 자동 선택 (단일 보기로)
+    if (moduleId && moduleId !== activeId) {
+      // 모드가 single 이면 setActiveModule 호출
+      if (viewMode === 'single') {
+        setActiveModule(moduleId);
+      } else {
+        // set/all 모드에서도 우측 패널만 갱신 — 모듈 정보만
+        const m = modules.find(x => x.id === moduleId);
+        if (m) {
+          activeId = moduleId;
+          document.getElementById('curModuleName').textContent = SECTION_CONFIG[m.section].label + ' #' + ((parseInt(moduleId.split('-')[1] || 0) + 1));
+          renderRightPanel();
+        }
+      }
+    }
+    // 영역별 안내 토스트
+    let msg = '';
+    if (ud.entityKind === 'area') {
+      msg = `🎯 영역 #${(ud.areaIdx >= 0 ? ud.areaIdx + 1 : '하부')} — ${ud.areaType}`;
+    } else if (ud.entityKind === 'finishing') {
+      msg = `🎯 마감재: ${SECTION_CONFIG[ud.finishingSection]?.label || ud.finishingSection}`;
+    } else if (ud.entityKind === 'shelf') {
+      msg = `🎯 선반`;
+    } else if (ud.entityKind === 'carcass') {
+      msg = `🎯 모듈 외곽`;
+    }
+    if (msg) showToast(msg);
+    // 우측 패널의 해당 영역 row highlight
+    if (ud.entityKind === 'area' && ud.areaIdx >= 0) {
+      const row = document.querySelector(`#areasBody .area-row[data-idx="${ud.areaIdx}"]`);
+      if (row) {
+        row.style.background = 'rgba(122,72,16,0.15)';
+        setTimeout(() => { row.style.background = ''; }, 1500);
+        const sel = row.querySelector('.a-type');
+        if (sel) sel.focus();
+      }
+    }
+  }
+
     // Resize handler
     window.addEventListener('resize', () => {
       if (!three) return;
@@ -1000,6 +1076,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const baseY = getBaseY(m.section, H);
     const modG = new THREE.Group();
     modG.position.set(0, baseY, 0);  // Y 만큼 위로 들어올림
+    modG.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
     three.moduleGroup.add(modG);
 
     // 외곽 5면 (앞면 X)
@@ -1035,12 +1112,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
       const xCenter = -W/2 + colW * (i + 0.5);
       const yCenter = drawerH + topH/2;
-      addFrontPanel(modG, xCenter, yCenter, colW - 4, topH - 4, D/2, type, dir, cfg, s);
+      addFrontPanel(modG, xCenter, yCenter, colW - 4, topH - 4, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
     }
     // 하부 영역 (도어+서랍 모드)
     if (drawerH > 0) {
       addFrontPanel(modG, 0, drawerH/2, W - 4, drawerH - 4, D/2,
-                    s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s);
+                    s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
     }
 
     // W9-77: 자식 마감재 (EP/몰딩/휠라) 도 모듈 mesh 안에 추가 (개별 보기)
@@ -1058,12 +1135,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const fH = f.H || m.H;
         const fbox = makeBox(f.W, fH, f.D, fcfg.fill, { roughness: 0.7 });
         fbox.position.set(dxRel, fH / 2, dzRel);
+        fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section };
         const edges = new THREE.EdgesGeometry(fbox.geometry);
         const line = new THREE.LineSegments(
           edges,
           new THREE.LineBasicMaterial({ color: fcfg.stroke || 0x000000, transparent: true, opacity: 0.6 })
         );
         line.position.copy(fbox.position);
+        line.userData = { entityKind: 'finishing-edge' };
         modG.add(fbox);
         modG.add(line);
       });
@@ -1075,24 +1154,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   // W9-65: 도어 표현 제거 — 모든 영역을 단순 panel 로 (회전/손잡이 X)
   // 영역 type 으로 색상/모양 구분
-  function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s) {
+  // W9-79: userData 에 클릭 메타데이터 (moduleId, areaIdx, areaType)
+  function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s, meta) {
     const T = 18;
     if (type === 'open') {
-      // 오픈 — 빈 frame 표시 (얇은 outline)
       const frame = makeBox(w, h, 2, cfg.stroke, { transparent: true, opacity: 0.25, wireframe: true });
       frame.position.set(cx, cy, frontZ);
+      frame.userData = Object.assign({}, meta, { entityKind: 'area', areaType: 'open' });
       parent.add(frame);
       return;
     }
-    // door / drawer — 단순 panel, 색상으로만 구분
     const color = type === 'drawer' ? darken3(cfg.fill, 0.15) : cfg.fill;
     const panel = makeBox(w, h, T, color);
     panel.position.set(cx, cy, frontZ);
+    panel.userData = Object.assign({}, meta, { entityKind: 'area', areaType: type });
     parent.add(panel);
-    // 서랍은 가로 분할선 (위/아래 손잡이 자리 표시 대신 단순 라인)
     if (type === 'drawer') {
       const line = makeBox(w * 0.85, 2, 1, '#3d342a', { metalness: 0.3, roughness: 0.6 });
       line.position.set(cx, cy, frontZ + T/2 + 0.5);
+      line.userData = Object.assign({}, meta, { entityKind: 'area-line' });
       parent.add(line);
     }
   }
@@ -1342,6 +1422,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W9-67: 상부장은 천정 매달림 (Y offset = ceiling - H)
   function createModuleMesh(m, s) {
     const g = new THREE.Group();
+    g.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
     const cfg = SECTION_CONFIG[m.section];
     if (!cfg) return g;
     const W = m.W, H = m.H, D = m.D, T = 18;
@@ -1373,11 +1454,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const xCenter = -W/2 + colW * (i + 0.5);
       const yCenter = drawerH + topH/2;
-      addFrontPanel(g, xCenter, yCenter, colW - 4, topH - 4, D/2, type, null, cfg, s);
+      addFrontPanel(g, xCenter, yCenter, colW - 4, topH - 4, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
     }
     if (drawerH > 0) {
       addFrontPanel(g, 0, drawerH/2, W - 4, drawerH - 4, D/2,
-                    s.bottomType || 'drawer', null, cfg, s);
+                    s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
     }
     // W9-77: 자식 마감재 (EP/몰딩/휠라) — 모듈 mesh 의 자식 (부모 회전 자동 따라감)
     if (Array.isArray(m.finishings)) {
