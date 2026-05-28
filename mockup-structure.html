@@ -137,6 +137,10 @@
     <button id="view3dBtn" class="active" data-view="3d" title="3D 뷰">🧊 3D</button>
     <button id="view2dBtn" data-view="2d" title="정면도 (2D)">📐 정면도</button>
   </div>
+  <!-- W9-86: 도어 표시 on/off -->
+  <div class="view-toggle">
+    <button id="doorToggleBtn" class="active" title="도어 표시 on/off">🚪 도어</button>
+  </div>
   <div class="panel-toggle">
     <button id="btnLeft" class="on" title="좌측 패널 (L)">⬛</button>
     <button id="btnRight" class="on" title="우측 패널 (R)">▦</button>
@@ -1233,6 +1237,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W9-65: 도어 표현 제거 — 모든 영역을 단순 panel 로 (회전/손잡이 X)
   // 영역 type 으로 색상/모양 구분
   // W9-79/84: 전면 panel 도 carcass 로 통합 — 도어/서랍/오픈 클릭 → 모듈 전체 선택
+  // W9-86: doorVisible=false 면 도어/서랍 mesh skip (오픈 frame 은 항상 표시)
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s, meta) {
     const T = 18;
     const carcassMeta = { entityKind: 'carcass', moduleId: meta.moduleId, side: 'front', areaType: type };
@@ -1243,6 +1248,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       parent.add(frame);
       return;
     }
+    // W9-86: 도어 끄기 — 도어/서랍 panel 생략 (내부 선반/마감재 보이도록)
+    if (!doorVisible) return;
     const color = type === 'drawer' ? darken3(cfg.fill, 0.15) : cfg.fill;
     const panel = makeBox(w, h, T, color);
     panel.position.set(cx, cy, frontZ);
@@ -1291,6 +1298,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
   document.getElementById('view3dBtn').onclick = () => setView('3d');
   document.getElementById('view2dBtn').onclick = () => setView('2d');
+
+  // W9-86: 도어 표시 on/off 토글
+  let doorVisible = true;
+  function setDoorVisible(visible) {
+    doorVisible = visible;
+    document.getElementById('doorToggleBtn').classList.toggle('active', visible);
+    // 3D 재렌더 (현재 view mode 에 맞게)
+    if (typeof renderFrontView === 'function') renderFrontView();
+  }
+  document.getElementById('doorToggleBtn').onclick = () => setDoorVisible(!doorVisible);
 
   // ─────────────────────────────────────────────────────────────
   // W9-65: View mode (개별/세트/전체) + 세트 자동 그룹화
