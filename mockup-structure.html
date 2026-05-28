@@ -983,9 +983,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     animate();
   }
 
+  // W9-82: 이전 highlight 추적 (해제용)
+  let prevHighlighted = null;
+  let prevEmissive = null;
+
   // W9-79/80: 클릭된 entity → 우측 패널 갱신 + 선택 시각 효과 (init3D 밖 글로벌)
   function handleEntityClick(mesh) {
     if (!mesh) return;
+    // W9-82: 이전 highlight 해제
+    if (prevHighlighted && prevHighlighted.material && prevEmissive !== null) {
+      prevHighlighted.material.emissive && prevHighlighted.material.emissive.setHex(prevEmissive);
+      prevHighlighted = null;
+      prevEmissive = null;
+    }
+    // 새 mesh emissive highlight (material.emissive 가 있을 때만 — Standard 등)
+    if (mesh.material && mesh.material.emissive && mesh.userData && mesh.userData.entityKind && mesh.userData.entityKind !== 'finishing-edge' && mesh.userData.entityKind !== 'area-line') {
+      prevHighlighted = mesh;
+      prevEmissive = mesh.material.emissive.getHex();
+      mesh.material.emissive.setHex(0xffaa00);
+    }
     let cur = mesh, ud = null;
     while (cur) {
       if (cur.userData && cur.userData.entityKind) { ud = cur.userData; break; }
@@ -1084,13 +1100,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 천장
     modG.add(positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, H - T/2, T/2));
 
-    // 내부 선반 (사용자 요구 ③)
+    // 내부 선반 — W9-82: 더 두꺼운 stroke 으로 식별성 강화
     if (Array.isArray(s.shelves)) {
-      s.shelves.forEach(shMM => {
+      s.shelves.forEach((shMM, shIdx) => {
         if (shMM <= T || shMM >= H - T) return;
-        const sh = makeBox(W - 2*T - 4, T, D - T - 4, '#d4c5a0', { roughness: 0.8 });
+        const sh = makeBox(W - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
         sh.position.set(0, shMM, T/2);
+        sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx };
         modG.add(sh);
+        // 두꺼운 outline 으로 강조
+        const edges = new THREE.EdgesGeometry(sh.geometry);
+        const line = new THREE.LineSegments(edges,
+          new THREE.LineBasicMaterial({ color: 0x7a6a45, linewidth: 2 }));
+        line.position.copy(sh.position);
+        modG.add(line);
       });
     }
 
@@ -1126,13 +1149,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const dxRel = fxCenter - mxCenter;
         const dzRel = fyCenter - myCenter;
         const fH = f.H || m.H;
-        const fbox = makeBox(f.W, fH, f.D, fcfg.fill, { roughness: 0.7 });
+        // W9-82: 마감재는 진한 우드 톤 (모듈과 명확히 구별)
+        const finColor = f.section === 'ep' ? '#7a6a45' :       // EP — 진한 우드
+                        f.section === 'molding' ? '#5a4d2f' :   // 몰딩 — 더 진한 갈색
+                        f.section === 'filler' ? '#8a7858' :    // 휠라 — 중간 우드
+                        fcfg.fill;
+        const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
         fbox.position.set(dxRel, fH / 2, dzRel);
         fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section };
         const edges = new THREE.EdgesGeometry(fbox.geometry);
         const line = new THREE.LineSegments(
           edges,
-          new THREE.LineBasicMaterial({ color: fcfg.stroke || 0x000000, transparent: true, opacity: 0.6 })
+          new THREE.LineBasicMaterial({ color: 0x1a0f00, linewidth: 2 })
         );
         line.position.copy(fbox.position);
         line.userData = { entityKind: 'finishing-edge' };
@@ -1429,13 +1457,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const rightP = makeBox(T, H, D, carcassColor); rightP.position.set(W/2 - T/2, H/2, 0); g.add(rightP);
     const bottom = makeBox(W - 2*T, T, D - T, carcassColor); bottom.position.set(0, T/2, T/2); g.add(bottom);
     const topP   = makeBox(W - 2*T, T, D - T, carcassColor); topP.position.set(0, H - T/2, T/2); g.add(topP);
-    // 선반
+    // 선반 — W9-82: 식별성 강화
     if (Array.isArray(s.shelves)) {
-      s.shelves.forEach(sh => {
+      s.shelves.forEach((sh, shIdx) => {
         if (sh <= T || sh >= H - T) return;
-        const shM = makeBox(W - 2*T - 4, T, D - T - 4, '#d4c5a0', { roughness: 0.8 });
+        const shM = makeBox(W - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
         shM.position.set(0, sh, T/2);
+        shM.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx };
         g.add(shM);
+        const edges = new THREE.EdgesGeometry(shM.geometry);
+        const line = new THREE.LineSegments(edges,
+          new THREE.LineBasicMaterial({ color: 0x7a6a45 }));
+        line.position.copy(shM.position);
+        g.add(line);
       });
     }
     // 앞면 분할 (도어 표현 제거 — 단순 panel)
