@@ -326,19 +326,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (raw) {
         const layout = JSON.parse(raw);
         if (layout.modules && layout.modules.length) {
+          const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
+          // 1) 일반 모듈만 추출
           modules = layout.modules
-            .filter(m => SECTION_CONFIG[m.section] && m.section !== 'ep' && m.section !== 'molding' && m.section !== 'filler')
+            .filter(m => SECTION_CONFIG[m.section] && !FINISHING_SECTIONS.includes(m.section))
             .map((m, i) => ({
               id: moduleIdFor(m.section, i),
               section: m.section,
               W: m.w,
               H: m.moduleH,
               D: m.h,
-              // W9-65: 전체/세트 보기 위한 배치 좌표 + 회전
               x: m.x || 0,
               y: m.y || 0,
               rotation: m.rotation || 0,
-              // W9-77: 자식 마감재 (EP/몰딩/휠라) 평행 추출 — 구조 단계 3D 에 표시
+              // W9-77: 자식 마감재 (attachToSelected 로 추가된 것) 평행 추출
               finishings: (m.finishings || []).map(f => ({
                 section: f.section,
                 W: f.w,
@@ -348,6 +349,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
                 y: f.y,
               })),
             }));
+          // 2) W9-84: 사이드바 직접 추가된 standalone 마감재 (top-level modules 의 ep/molding/filler)
+          //    → 가장 가까운 모듈의 finishings 에 push (구조 단계에 표시되도록)
+          const standalone = layout.modules.filter(m => FINISHING_SECTIONS.includes(m.section));
+          standalone.forEach((fm) => {
+            const fxC = (fm.x || 0) + (fm.w || 0) / 2;
+            const fyC = (fm.y || 0) + (fm.h || 0) / 2;
+            let closest = null, closestDist = Infinity;
+            modules.forEach((m) => {
+              const mxC = m.x + m.W / 2;
+              const myC = m.y + m.D / 2;
+              const d = Math.hypot(fxC - mxC, fyC - myC);
+              if (d < closestDist) { closestDist = d; closest = m; }
+            });
+            if (closest) {
+              closest.finishings.push({
+                section: fm.section,
+                W: fm.w,
+                H: fm.moduleH || closest.H,
+                D: fm.h,
+                x: fm.x || 0,
+                y: fm.y || 0,
+              });
+            }
+          });
           return;
         }
       }
@@ -1011,7 +1036,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const meshes = [];
     const prevEms = [];
     modG.traverse((ch) => {
-      if (ch.isMesh && ch.material && ch.material.emissive && ch.userData && (ch.userData.entityKind === 'carcass' || ch.userData.entityKind === 'area' || ch.userData.entityKind === 'finishing')) {
+      if (ch.isMesh && ch.material && ch.material.emissive && ch.userData && ch.userData.entityKind === 'carcass') {
         meshes.push(ch);
         prevEms.push(ch.material.emissive.getHex());
         ch.material.emissive.setHex(0xffaa00);
@@ -1032,8 +1057,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       let modG = mesh.parent;
       while (modG && (!modG.userData || modG.userData.entityKind !== 'module')) modG = modG.parent;
       if (modG) highlightModuleGroup(modG);
-    } else if (mesh.material && mesh.material.emissive && kind && kind !== 'finishing-edge' && kind !== 'area-line') {
-      // 단일 entity (도어/서랍/마감재/선반) → 자기 자신만 emissive
+    } else if (mesh.material && mesh.material.emissive && kind && kind !== 'finishing-edge' && kind !== 'carcass-line') {
+      // 단일 entity (마감재/선반) → 자기 자신만 emissive
       prevHighlighted = mesh;
       prevEmissive = mesh.material.emissive.getHex();
       mesh.material.emissive.setHex(0xffaa00);
@@ -1063,10 +1088,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
     }
     let msg = '';
-    if (ud.entityKind === 'area') {
-      const aidx = (ud.areaIdx >= 0) ? ('#' + (ud.areaIdx + 1)) : '하부';
-      msg = '🎯 영역 ' + aidx + ' — ' + ud.areaType;
-    } else if (ud.entityKind === 'finishing') {
+    if (ud.entityKind === 'finishing') {
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
     } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
       const m2 = modules.find(x => x.id === ud.moduleId);
@@ -1076,15 +1098,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 선반 ' + ((ud.shelfIdx || 0) + 1);
     }
     if (msg && typeof showToast === 'function') showToast(msg);
-    if (ud.entityKind === 'area' && ud.areaIdx >= 0) {
-      const row = document.querySelector('#areasBody .area-row[data-idx="' + ud.areaIdx + '"]');
-      if (row) {
-        row.style.background = 'rgba(122,72,16,0.15)';
-        setTimeout(() => { row.style.background = ''; }, 1500);
-        const sel = row.querySelector('.a-type');
-        if (sel) sel.focus();
-      }
-    }
   }
 
   // 헬퍼: BoxGeometry 한 면을 mesh 로
@@ -1211,25 +1224,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   // W9-65: 도어 표현 제거 — 모든 영역을 단순 panel 로 (회전/손잡이 X)
   // 영역 type 으로 색상/모양 구분
-  // W9-79: userData 에 클릭 메타데이터 (moduleId, areaIdx, areaType)
+  // W9-79/84: 전면 panel 도 carcass 로 통합 — 도어/서랍/오픈 클릭 → 모듈 전체 선택
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s, meta) {
     const T = 18;
+    const carcassMeta = { entityKind: 'carcass', moduleId: meta.moduleId, side: 'front', areaType: type };
     if (type === 'open') {
       const frame = makeBox(w, h, 2, cfg.stroke, { transparent: true, opacity: 0.25, wireframe: true });
       frame.position.set(cx, cy, frontZ);
-      frame.userData = Object.assign({}, meta, { entityKind: 'area', areaType: 'open' });
+      frame.userData = carcassMeta;
       parent.add(frame);
       return;
     }
     const color = type === 'drawer' ? darken3(cfg.fill, 0.15) : cfg.fill;
     const panel = makeBox(w, h, T, color);
     panel.position.set(cx, cy, frontZ);
-    panel.userData = Object.assign({}, meta, { entityKind: 'area', areaType: type });
+    panel.userData = carcassMeta;
     parent.add(panel);
     if (type === 'drawer') {
       const line = makeBox(w * 0.85, 2, 1, '#3d342a', { metalness: 0.3, roughness: 0.6 });
       line.position.set(cx, cy, frontZ + T/2 + 0.5);
-      line.userData = Object.assign({}, meta, { entityKind: 'area-line' });
+      line.userData = { entityKind: 'carcass-line', moduleId: meta.moduleId };
       parent.add(line);
     }
   }
