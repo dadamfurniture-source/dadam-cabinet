@@ -1149,49 +1149,52 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     modG.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
     three.moduleGroup.add(modG);
 
-    // 외곽 5면 (앞면 X) — W9-83: 각 면 userData=carcass 부여 (모듈 단위 선택)
+    // W9-87: cell 단위 분할 — 도어 개수 = 독립 캐비넷 개수
     const carcassColor = darken3(cfg.fill, 0.05);
     const carcassUd = { entityKind: 'carcass', moduleId: m.id };
-    const _back   = positionBox(makeBox(W, H, T, carcassColor), 0, H/2, -D/2 + T/2); _back.userData = Object.assign({ side: 'back' }, carcassUd); modG.add(_back);
-    const _leftP  = positionBox(makeBox(T, H, D, carcassColor), -W/2 + T/2, H/2, 0); _leftP.userData = Object.assign({ side: 'left' }, carcassUd); modG.add(_leftP);
-    const _rightP = positionBox(makeBox(T, H, D, carcassColor),  W/2 - T/2, H/2, 0); _rightP.userData = Object.assign({ side: 'right' }, carcassUd); modG.add(_rightP);
-    const _bottom = positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, T/2, T/2); _bottom.userData = Object.assign({ side: 'bottom' }, carcassUd); modG.add(_bottom);
-    const _topP   = positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, H - T/2, T/2); _topP.userData = Object.assign({ side: 'top' }, carcassUd); modG.add(_topP);
-
-    // 내부 선반 — W9-82: 더 두꺼운 stroke 으로 식별성 강화
-    if (Array.isArray(s.shelves)) {
-      s.shelves.forEach((shMM, shIdx) => {
-        if (shMM <= T || shMM >= H - T) return;
-        const sh = makeBox(W - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
-        sh.position.set(0, shMM, T/2);
-        sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx };
-        modG.add(sh);
-        // 두꺼운 outline 으로 강조
-        const edges = new THREE.EdgesGeometry(sh.geometry);
-        const line = new THREE.LineSegments(edges,
-          new THREE.LineBasicMaterial({ color: 0x7a6a45, linewidth: 2 }));
-        line.position.copy(sh.position);
-        modG.add(line);
-      });
-    }
-
-    // 분할 — 도어 위 (drawerH 가 있으면 분할)
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
     const topH = H - drawerH;
     const verticalCount = Math.max(1, s.verticalCount || 1);
     const colW = W / verticalCount;
-
     for (let i = 0; i < verticalCount; i++) {
+      const cellLeft = -W/2 + colW * i;
+      const cellCx = cellLeft + colW / 2;
+      // cell 뒤판
+      const _b = makeBox(colW, H, T, carcassColor); _b.position.set(cellCx, H/2, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
+      // cell 좌측판 — 모든 cell (인접 cell 사이 분리판)
+      const _l = makeBox(T, H, D, carcassColor); _l.position.set(cellLeft + T/2, H/2, 0); _l.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd); modG.add(_l);
+      // 마지막 cell 만 우측판
+      if (i === verticalCount - 1) {
+        const _r = makeBox(T, H, D, carcassColor); _r.position.set(cellLeft + colW - T/2, H/2, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
+      }
+      // 바닥 + 천장
+      const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
+      const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
+      // cell 안 선반
+      if (Array.isArray(s.shelves)) {
+        s.shelves.forEach((shMM, shIdx) => {
+          if (shMM <= T || shMM >= H - T) return;
+          const sh = makeBox(colW - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
+          sh.position.set(cellCx, shMM, T/2);
+          sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
+          modG.add(sh);
+          const edges = new THREE.EdgesGeometry(sh.geometry);
+          const line = new THREE.LineSegments(edges,
+            new THREE.LineBasicMaterial({ color: 0x7a6a45, linewidth: 2 }));
+          line.position.copy(sh.position);
+          modG.add(line);
+        });
+      }
+      // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
-      const xCenter = -W/2 + colW * (i + 0.5);
       const yCenter = drawerH + topH/2;
-      addFrontPanel(modG, xCenter, yCenter, colW - 4, topH - 4, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
-    }
-    // 하부 영역 (도어+서랍 모드)
-    if (drawerH > 0) {
-      addFrontPanel(modG, 0, drawerH/2, W - 4, drawerH - 4, D/2,
-                    s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
+      addFrontPanel(modG, cellCx, yCenter, colW - 4, topH - 4, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      // cell 서랍
+      if (drawerH > 0) {
+        addFrontPanel(modG, cellCx, drawerH/2, colW - 4, drawerH - 4, D/2,
+                      s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
+      }
     }
 
     // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
@@ -1214,7 +1217,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const finColor = f.section === 'ep' ? '#7a6a45' :       // EP — 진한 우드
                         f.section === 'molding' ? '#5a4d2f' :   // 몰딩 — 더 진한 갈색
                         f.section === 'filler' ? '#8a7858' :    // 휠라 — 중간 우드
-                        fcfg.fill;
+                        '#7a6a45';                              // 기본 폴백
         const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
         fbox.position.set(dxRel, fH / 2, dzRel);
         fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section };
@@ -1526,42 +1529,65 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 모듈 base Y (section 따라)
     const baseY = getBaseY(m.section, H);
     g.position.y = baseY;
-    // W9-83: 외곽판 5면 → 각각 userData=carcass 부여 (클릭 시 모듈 단위 선택)
-    const carcassUd = { entityKind: 'carcass', moduleId: m.id };
-    const back   = makeBox(W, H, T, carcassColor); back.position.set(0, H/2, -D/2 + T/2);  back.userData = Object.assign({ side: 'back' }, carcassUd);  g.add(back);
-    const leftP  = makeBox(T, H, D, carcassColor); leftP.position.set(-W/2 + T/2, H/2, 0); leftP.userData = Object.assign({ side: 'left' }, carcassUd); g.add(leftP);
-    const rightP = makeBox(T, H, D, carcassColor); rightP.position.set(W/2 - T/2, H/2, 0); rightP.userData = Object.assign({ side: 'right' }, carcassUd); g.add(rightP);
-    const bottom = makeBox(W - 2*T, T, D - T, carcassColor); bottom.position.set(0, T/2, T/2); bottom.userData = Object.assign({ side: 'bottom' }, carcassUd); g.add(bottom);
-    const topP   = makeBox(W - 2*T, T, D - T, carcassColor); topP.position.set(0, H - T/2, T/2); topP.userData = Object.assign({ side: 'top' }, carcassUd); g.add(topP);
-    // 선반 — W9-82: 식별성 강화
-    if (Array.isArray(s.shelves)) {
-      s.shelves.forEach((sh, shIdx) => {
-        if (sh <= T || sh >= H - T) return;
-        const shM = makeBox(W - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
-        shM.position.set(0, sh, T/2);
-        shM.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx };
-        g.add(shM);
-        const edges = new THREE.EdgesGeometry(shM.geometry);
-        const line = new THREE.LineSegments(edges,
-          new THREE.LineBasicMaterial({ color: 0x7a6a45 }));
-        line.position.copy(shM.position);
-        g.add(line);
-      });
-    }
-    // 앞면 분할 (도어 표현 제거 — 단순 panel)
+    // W9-87: 도어 개수 = cell 개수 → 각 cell 마다 독립 캐비넷 (몸통 분할)
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
     const topH = H - drawerH;
     const vCount = Math.max(1, s.verticalCount || 1);
     const colW = W / vCount;
+    const carcassUd = { entityKind: 'carcass', moduleId: m.id };
     for (let i = 0; i < vCount; i++) {
+      const cellLeft = -W/2 + colW * i;
+      const cellCx = cellLeft + colW / 2;
+      // cell 뒤판
+      const cBack = makeBox(colW, H, T, carcassColor);
+      cBack.position.set(cellCx, H/2, -D/2 + T/2);
+      cBack.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd);
+      g.add(cBack);
+      // cell 좌측판 — 모든 cell 에 (인접 cell 간 분리판 역할)
+      const cLeftP = makeBox(T, H, D, carcassColor);
+      cLeftP.position.set(cellLeft + T/2, H/2, 0);
+      cLeftP.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd);
+      g.add(cLeftP);
+      // cell 우측판 — 마지막 cell 만 (중간 cell 의 우측 = 다음 cell 의 좌측)
+      if (i === vCount - 1) {
+        const cRightP = makeBox(T, H, D, carcassColor);
+        cRightP.position.set(cellLeft + colW - T/2, H/2, 0);
+        cRightP.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd);
+        g.add(cRightP);
+      }
+      // cell 바닥 + 천장
+      const cBottom = makeBox(colW - 2*T, T, D - T, carcassColor);
+      cBottom.position.set(cellCx, T/2, T/2);
+      cBottom.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd);
+      g.add(cBottom);
+      const cTopP = makeBox(colW - 2*T, T, D - T, carcassColor);
+      cTopP.position.set(cellCx, H - T/2, T/2);
+      cTopP.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd);
+      g.add(cTopP);
+      // cell 안 선반 (모듈 전체 s.shelves 를 각 cell 에 동일 적용)
+      if (Array.isArray(s.shelves)) {
+        s.shelves.forEach((shMM, shIdx) => {
+          if (shMM <= T || shMM >= H - T) return;
+          const sh = makeBox(colW - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
+          sh.position.set(cellCx, shMM, T/2);
+          sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
+          g.add(sh);
+          const edges = new THREE.EdgesGeometry(sh.geometry);
+          const line = new THREE.LineSegments(edges,
+            new THREE.LineBasicMaterial({ color: 0x7a6a45 }));
+          line.position.copy(sh.position);
+          g.add(line);
+        });
+      }
+      // cell 도어 (상부 영역)
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      const xCenter = -W/2 + colW * (i + 0.5);
       const yCenter = drawerH + topH/2;
-      addFrontPanel(g, xCenter, yCenter, colW - 4, topH - 4, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
-    }
-    if (drawerH > 0) {
-      addFrontPanel(g, 0, drawerH/2, W - 4, drawerH - 4, D/2,
-                    s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
+      addFrontPanel(g, cellCx, yCenter, colW - 4, topH - 4, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      // cell 서랍 (하부 영역 — drawerH > 0)
+      if (drawerH > 0) {
+        addFrontPanel(g, cellCx, drawerH/2, colW - 4, drawerH - 4, D/2,
+                      s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
+      }
     }
     // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
     if (Array.isArray(m.finishings) && m.finishings.length) {
@@ -1583,7 +1609,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const finColor = f.section === 'ep' ? '#7a6a45'        // EP 진한 우드
                        : f.section === 'molding' ? '#5a4d2f'   // 몰딩 진갈색
                        : f.section === 'filler' ? '#8a7858'    // 휠라 중간 우드
-                       : fcfg.fill;
+                       : '#7a6a45';                            // 기본 폴백
         const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
         fbox.position.set(dxRel, fH / 2, dzRel);
         fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section, finishingIdx: fIdx };
