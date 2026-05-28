@@ -2447,15 +2447,15 @@
       const sh = parseFloat(r.getAttribute('height'));
       const modH = parseFloat(g.getAttribute('data-module-h')) || 860;
       const rot = rotations.get(g) || 0;
-      // 평면도 → V2 (Z-up corner). 원점 기준 변환.
-      // V2 좌표: x=가로(sx-ox), y=깊이(sy-oy), z=baseZ
-      const x = sx - ox;
+      // W9-78: 평면도 → V2 변환 (Z-up corner)
+      // mockup 평면도와 SketchUp default 시점이 X 거울 → V2.x 부호 반전 + corner 보정
+      //   원래 좌상단 corner (sx, sy) → 거울 후 새 좌하단 corner = -(sx + sw)
+      //   AABB min corner 형식 유지 (rotation 0 기준)
+      const x = -((sx + sw) - ox);     // X 부호 반전 + width 보정
       const y = sy - oy;
       const z = sectionBaseZ(section, modH, ceiling);
-      // W9-76: SVG rotate(deg) 는 SVG 좌표계 (Y 아래로 증가) 에서 시계방향
-      //         = 수학 좌표계 (Y 위로) 에서는 반시계 = SketchUp Z+ CCW 와 동일
-      //         → 부호 그대로 유지 (W9-73 의 -rot 가 좌우 반전 원인)
-      const rotZ = rot;
+      // 회전도 거울 좌표계라 부호 반전 (CCW → CW)
+      const rotZ = -rot;
       const cfg = SECTION_CONFIG[section];
       // 자식 부재 (EP/몰딩/휠라) 도 같이
       // 부재는 부모 transform 의 회전 적용된 위치로 계산해야 — 단순화: 동일 rotation 으로 처리
@@ -2479,14 +2479,18 @@
         if (!fr) return;
         const fsec = Array.from(fg.classList).find(c => SECTION_CONFIG[c]) || 'ep';
         const fmodH = parseFloat(fg.getAttribute('data-module-h')) || modH;
+        const fsx = parseFloat(fr.getAttribute('x'));
+        const fsy = parseFloat(fr.getAttribute('y'));
+        const fsw = parseFloat(fr.getAttribute('width'));
+        const fsh = parseFloat(fr.getAttribute('height'));
         parts.push({
           id: `fin-${++idx}`,
           label: `${SECTION_CONFIG[fsec].label}`,
-          x: Math.round(parseFloat(fr.getAttribute('x')) - ox),
-          y: Math.round(parseFloat(fr.getAttribute('y')) - oy),
-          z: 0,
-          width: Math.round(parseFloat(fr.getAttribute('width'))),
-          depth: Math.round(parseFloat(fr.getAttribute('height'))),
+          x: Math.round(-((fsx + fsw) - ox)),    // W9-78: X 반전 + corner 보정
+          y: Math.round(fsy - oy),
+          z: Math.round(sectionBaseZ(fsec, fmodH, ceiling)),  // W9-78: 천정 매달림 적용
+          width: Math.round(fsw),
+          depth: Math.round(fsh),
           height: Math.round(fmodH),
           rotationZDeg: rotZ,
           colorKey: sectionToColorKey(fsec),
@@ -2621,13 +2625,14 @@
       parts.forEach((p) => {
         const section = v2PartToSection(p);
         if (!SECTION_CONFIG[section]) return;
-        // V2 → mockup 좌표 (역변환)
-        const mx = (p.x || 0) + ox;
-        const my = (p.y || 0) + oy;
+        // W9-78: V2 → mockup 좌표 (X 거울 + corner 역변환)
         const mw = p.width  || SECTION_CONFIG[section].w;
         const mh = p.depth  || SECTION_CONFIG[section].h;
+        // V2.x = -((mockup.sx + sw) - ox) → mockup.sx = -(V2.x) - sw + ox
+        const mx = -(p.x || 0) - mw + ox;
+        const my = (p.y || 0) + oy;
         const modH = p.height || SECTION_CONFIG[section].moduleH;
-        const rotation = p.rotationZDeg || 0;  // W9-76: 부호 그대로 (보내기와 일관)
+        const rotation = -(p.rotationZDeg || 0);  // W9-78: 부호 반전 (보내기와 일관)
         const cx = mx + mw / 2, cy = my + mh / 2;
         addSectionRect(section, {
           w: mw, h: mh, x: mx, y: my,
