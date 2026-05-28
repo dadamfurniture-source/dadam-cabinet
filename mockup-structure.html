@@ -983,21 +983,57 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     animate();
   }
 
-  // W9-82: 이전 highlight 추적 (해제용)
+  // W9-82/83: 이전 highlight 추적 (해제용)
+  //   - prevHighlighted: 단일 mesh emissive (도어/마감재/선반)
+  //   - prevHighlightedGroup: 모듈 단위 — { meshes: [...], prevEmissives: [...] }
   let prevHighlighted = null;
   let prevEmissive = null;
+  let prevHighlightedGroup = null;
+
+  function clearHighlight() {
+    if (prevHighlighted && prevHighlighted.material && prevEmissive !== null) {
+      prevHighlighted.material.emissive && prevHighlighted.material.emissive.setHex(prevEmissive);
+    }
+    prevHighlighted = null;
+    prevEmissive = null;
+    if (prevHighlightedGroup) {
+      prevHighlightedGroup.meshes.forEach((mh, i) => {
+        if (mh.material && mh.material.emissive) {
+          mh.material.emissive.setHex(prevHighlightedGroup.prevEmissives[i]);
+        }
+      });
+      prevHighlightedGroup = null;
+    }
+  }
+
+  function highlightModuleGroup(modG) {
+    // 모듈 그룹 내 모든 carcass mesh 에 emissive (전체가 빛나도록)
+    const meshes = [];
+    const prevEms = [];
+    modG.traverse((ch) => {
+      if (ch.isMesh && ch.material && ch.material.emissive && ch.userData && (ch.userData.entityKind === 'carcass' || ch.userData.entityKind === 'area' || ch.userData.entityKind === 'finishing')) {
+        meshes.push(ch);
+        prevEms.push(ch.material.emissive.getHex());
+        ch.material.emissive.setHex(0xffaa00);
+      }
+    });
+    prevHighlightedGroup = { meshes, prevEmissives: prevEms };
+  }
 
   // W9-79/80: 클릭된 entity → 우측 패널 갱신 + 선택 시각 효과 (init3D 밖 글로벌)
   function handleEntityClick(mesh) {
     if (!mesh) return;
-    // W9-82: 이전 highlight 해제
-    if (prevHighlighted && prevHighlighted.material && prevEmissive !== null) {
-      prevHighlighted.material.emissive && prevHighlighted.material.emissive.setHex(prevEmissive);
-      prevHighlighted = null;
-      prevEmissive = null;
-    }
-    // 새 mesh emissive highlight (material.emissive 가 있을 때만 — Standard 등)
-    if (mesh.material && mesh.material.emissive && mesh.userData && mesh.userData.entityKind && mesh.userData.entityKind !== 'finishing-edge' && mesh.userData.entityKind !== 'area-line') {
+    clearHighlight();
+    // mesh.userData 우선, 없으면 부모 traverse
+    const meshUd = mesh.userData || {};
+    const kind = meshUd.entityKind;
+    // W9-83: carcass 클릭 → 모듈 그룹 전체 highlight
+    if (kind === 'carcass') {
+      let modG = mesh.parent;
+      while (modG && (!modG.userData || modG.userData.entityKind !== 'module')) modG = modG.parent;
+      if (modG) highlightModuleGroup(modG);
+    } else if (mesh.material && mesh.material.emissive && kind && kind !== 'finishing-edge' && kind !== 'area-line') {
+      // 단일 entity (도어/서랍/마감재/선반) → 자기 자신만 emissive
       prevHighlighted = mesh;
       prevEmissive = mesh.material.emissive.getHex();
       mesh.material.emissive.setHex(0xffaa00);
@@ -1008,7 +1044,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       cur = cur.parent;
     }
     if (!ud) return;
-    const meshUd = mesh.userData || {};
     if (meshUd.entityKind && meshUd.entityKind !== 'module') ud = meshUd;
     const moduleId = ud.moduleId;
     if (moduleId && moduleId !== activeId) {
@@ -1033,8 +1068,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 영역 ' + aidx + ' — ' + ud.areaType;
     } else if (ud.entityKind === 'finishing') {
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
-    } else if (ud.entityKind === 'module') {
-      msg = '🎯 모듈 선택';
+    } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
+      const m2 = modules.find(x => x.id === ud.moduleId);
+      const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
+      msg = '🎯 ' + lbl + ' 선택';
+    } else if (ud.entityKind === 'shelf') {
+      msg = '🎯 선반 ' + ((ud.shelfIdx || 0) + 1);
     }
     if (msg && typeof showToast === 'function') showToast(msg);
     if (ud.entityKind === 'area' && ud.areaIdx >= 0) {
@@ -1088,17 +1127,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     modG.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
     three.moduleGroup.add(modG);
 
-    // 외곽 5면 (앞면 X)
+    // 외곽 5면 (앞면 X) — W9-83: 각 면 userData=carcass 부여 (모듈 단위 선택)
     const carcassColor = darken3(cfg.fill, 0.05);
-    // 뒤판
-    modG.add(positionBox(makeBox(W, H, T, carcassColor), 0, H/2, -D/2 + T/2));
-    // 양 측판
-    modG.add(positionBox(makeBox(T, H, D, carcassColor), -W/2 + T/2, H/2, 0));
-    modG.add(positionBox(makeBox(T, H, D, carcassColor),  W/2 - T/2, H/2, 0));
-    // 바닥
-    modG.add(positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, T/2, T/2));
-    // 천장
-    modG.add(positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, H - T/2, T/2));
+    const carcassUd = { entityKind: 'carcass', moduleId: m.id };
+    const _back   = positionBox(makeBox(W, H, T, carcassColor), 0, H/2, -D/2 + T/2); _back.userData = Object.assign({ side: 'back' }, carcassUd); modG.add(_back);
+    const _leftP  = positionBox(makeBox(T, H, D, carcassColor), -W/2 + T/2, H/2, 0); _leftP.userData = Object.assign({ side: 'left' }, carcassUd); modG.add(_leftP);
+    const _rightP = positionBox(makeBox(T, H, D, carcassColor),  W/2 - T/2, H/2, 0); _rightP.userData = Object.assign({ side: 'right' }, carcassUd); modG.add(_rightP);
+    const _bottom = positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, T/2, T/2); _bottom.userData = Object.assign({ side: 'bottom' }, carcassUd); modG.add(_bottom);
+    const _topP   = positionBox(makeBox(W - 2*T, T, D - T, carcassColor), 0, H - T/2, T/2); _topP.userData = Object.assign({ side: 'top' }, carcassUd); modG.add(_topP);
 
     // 내부 선반 — W9-82: 더 두꺼운 stroke 으로 식별성 강화
     if (Array.isArray(s.shelves)) {
@@ -1451,12 +1487,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 모듈 base Y (section 따라)
     const baseY = getBaseY(m.section, H);
     g.position.y = baseY;
-    // 모듈은 (0,0,0) 중심 (X=-W/2~W/2, Y=0~H, Z=-D/2~D/2)
-    const back   = makeBox(W, H, T, carcassColor); back.position.set(0, H/2, -D/2 + T/2);  g.add(back);
-    const leftP  = makeBox(T, H, D, carcassColor); leftP.position.set(-W/2 + T/2, H/2, 0); g.add(leftP);
-    const rightP = makeBox(T, H, D, carcassColor); rightP.position.set(W/2 - T/2, H/2, 0); g.add(rightP);
-    const bottom = makeBox(W - 2*T, T, D - T, carcassColor); bottom.position.set(0, T/2, T/2); g.add(bottom);
-    const topP   = makeBox(W - 2*T, T, D - T, carcassColor); topP.position.set(0, H - T/2, T/2); g.add(topP);
+    // W9-83: 외곽판 5면 → 각각 userData=carcass 부여 (클릭 시 모듈 단위 선택)
+    const carcassUd = { entityKind: 'carcass', moduleId: m.id };
+    const back   = makeBox(W, H, T, carcassColor); back.position.set(0, H/2, -D/2 + T/2);  back.userData = Object.assign({ side: 'back' }, carcassUd);  g.add(back);
+    const leftP  = makeBox(T, H, D, carcassColor); leftP.position.set(-W/2 + T/2, H/2, 0); leftP.userData = Object.assign({ side: 'left' }, carcassUd); g.add(leftP);
+    const rightP = makeBox(T, H, D, carcassColor); rightP.position.set(W/2 - T/2, H/2, 0); rightP.userData = Object.assign({ side: 'right' }, carcassUd); g.add(rightP);
+    const bottom = makeBox(W - 2*T, T, D - T, carcassColor); bottom.position.set(0, T/2, T/2); bottom.userData = Object.assign({ side: 'bottom' }, carcassUd); g.add(bottom);
+    const topP   = makeBox(W - 2*T, T, D - T, carcassColor); topP.position.set(0, H - T/2, T/2); topP.userData = Object.assign({ side: 'top' }, carcassUd); g.add(topP);
     // 선반 — W9-82: 식별성 강화
     if (Array.isArray(s.shelves)) {
       s.shelves.forEach((sh, shIdx) => {
@@ -1487,36 +1524,34 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       addFrontPanel(g, 0, drawerH/2, W - 4, drawerH - 4, D/2,
                     s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom' });
     }
-    // W9-77: 자식 마감재 (EP/몰딩/휠라) — 모듈 mesh 의 자식 (부모 회전 자동 따라감)
+    // W9-77/82/83: 자식 마감재 (EP/몰딩/휠라) — 모듈과 명확히 구별되는 진한 우드 톤
     if (Array.isArray(m.finishings)) {
-      m.finishings.forEach((f) => {
+      m.finishings.forEach((f, fIdx) => {
         const fcfg = SECTION_CONFIG[f.section];
         if (!fcfg) return;
-        // 평면도 절대 좌표 → 모듈 mesh 로컬 좌표계 (모듈 X 중심=0, Z 중심=0)
+        // 평면도 절대 좌표 → 모듈 mesh 로컬 (모듈 X/Z 중심=0)
         const fxCenter = f.x + f.W / 2;
         const fyCenter = f.y + f.D / 2;
         const mxCenter = m.x + m.W / 2;
         const myCenter = m.y + m.D / 2;
         const dxRel = fxCenter - mxCenter;
         const dzRel = fyCenter - myCenter;
-        // 마감재 baseY (부모 모듈 baseY 따라감)
-        const fBaseY = getBaseY(m.section, m.H);
         const fH = f.H || m.H;
-        // 마감재 box — X=f.W, Y=fH, Z=f.D
-        const fbox = makeBox(f.W, fH, f.D, fcfg.fill, { roughness: 0.7 });
-        // 모듈 그룹의 g.position.y 가 fBaseY 이므로 자식은 relative Y=fH/2
-        fbox.position.set(dxRel, fH/2 - fBaseY, dzRel);
-        // 더 단순: 모듈 group 의 baseY 가 외곽판에 적용되었지만 finishing 도 같이
-        // → 모듈 group g.position.y = baseY 이미 (createModuleMesh 위쪽).
-        //   자식 마감재의 local y = fH/2 (모듈 group 안에서 0~H 좌표)
+        // W9-83: 마감재 색상 — 모듈과 명확 구별 (renderModule3D 와 동일 패턴)
+        const finColor = f.section === 'ep' ? '#7a6a45'        // EP 진한 우드
+                       : f.section === 'molding' ? '#5a4d2f'   // 몰딩 진갈색
+                       : f.section === 'filler' ? '#8a7858'    // 휠라 중간 우드
+                       : fcfg.fill;
+        const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
         fbox.position.set(dxRel, fH / 2, dzRel);
-        // outline 좀 더 진하게 (마감재 식별)
+        fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section, finishingIdx: fIdx };
         const edges = new THREE.EdgesGeometry(fbox.geometry);
         const line = new THREE.LineSegments(
           edges,
-          new THREE.LineBasicMaterial({ color: fcfg.stroke || 0x000000, transparent: true, opacity: 0.6 })
+          new THREE.LineBasicMaterial({ color: 0x1a0f00, linewidth: 2 })
         );
         line.position.copy(fbox.position);
+        line.userData = { entityKind: 'finishing-edge' };
         g.add(fbox);
         g.add(line);
       });
