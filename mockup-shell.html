@@ -1024,15 +1024,15 @@
     }
     if (dimW) dimW.value = w;
     if (dimD) dimD.value = h;
-    // W9-56: EP 의 D input 을 선택 모듈 D 로 자동 갱신 (사용자 직접 수정 가능)
-    const epRow = document.querySelector('#selPanelBody .attach-row[data-section="ep"]');
-    if (epRow) {
-      const epD = epRow.querySelector('.attach-d');
-      // 부재가 아닌 일반 모듈일 때만 자동 갱신
-      if (epD && !selectedG.classList.contains('finishing')) {
-        // 사용자가 focus 중이면 덮어쓰지 않음
-        if (document.activeElement !== epD) epD.value = h;
-      }
+    // W9-56/W9-76: 모든 마감재 (EP/몰딩/휠라) 의 D input 을 선택 모듈 D 로 자동 갱신
+    // (마감재가 모듈 깊이면 전체와 맞닿게)
+    if (!selectedG.classList.contains('finishing')) {
+      ['ep','molding','filler'].forEach((sec) => {
+        const row = document.querySelector(`#selPanelBody .attach-row[data-section="${sec}"]`);
+        if (!row) return;
+        const dInp = row.querySelector('.attach-d');
+        if (dInp && document.activeElement !== dInp) dInp.value = h;
+      });
     }
   }
 
@@ -1794,7 +1794,8 @@
     const wInp = row ? row.querySelector('.attach-w') : null;
     const dInp = row ? row.querySelector('.attach-d') : null;
     const defaultW = section === 'ep' ? 18 : 60;
-    const defaultD = section === 'ep' ? baseH : 18;
+    // W9-76: 모든 마감재 default D = 부모 모듈 D (깊이면 전체 맞닿음)
+    const defaultD = baseH;
     let newW = wInp ? parseFloat(wInp.value) : defaultW;
     let newH = dInp ? parseFloat(dInp.value) : defaultD;
     if (!isFinite(newW) || newW < 1) newW = defaultW;
@@ -2451,8 +2452,10 @@
       const x = sx - ox;
       const y = sy - oy;
       const z = sectionBaseZ(section, modH, ceiling);
-      // V2 rotationZDeg: SVG rotate(deg) 는 시계방향 → V2 CCW 이므로 부호 반전
-      const rotZ = -rot;
+      // W9-76: SVG rotate(deg) 는 SVG 좌표계 (Y 아래로 증가) 에서 시계방향
+      //         = 수학 좌표계 (Y 위로) 에서는 반시계 = SketchUp Z+ CCW 와 동일
+      //         → 부호 그대로 유지 (W9-73 의 -rot 가 좌우 반전 원인)
+      const rotZ = rot;
       const cfg = SECTION_CONFIG[section];
       // 자식 부재 (EP/몰딩/휠라) 도 같이
       // 부재는 부모 transform 의 회전 적용된 위치로 계산해야 — 단순화: 동일 rotation 으로 처리
@@ -2624,7 +2627,7 @@
         const mw = p.width  || SECTION_CONFIG[section].w;
         const mh = p.depth  || SECTION_CONFIG[section].h;
         const modH = p.height || SECTION_CONFIG[section].moduleH;
-        const rotation = p.rotationZDeg ? -p.rotationZDeg : 0;  // V2 CCW → mockup CW
+        const rotation = p.rotationZDeg || 0;  // W9-76: 부호 그대로 (보내기와 일관)
         const cx = mx + mw / 2, cy = my + mh / 2;
         addSectionRect(section, {
           w: mw, h: mh, x: mx, y: my,
