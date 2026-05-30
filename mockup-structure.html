@@ -1161,12 +1161,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const cellCx = cellLeft + colW / 2;
       // cell 뒤판
       const _b = makeBox(colW, H, T, carcassColor); _b.position.set(cellCx, H/2, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
-      // cell 좌측판 — 모든 cell (인접 cell 사이 분리판)
+      // W9-88: 각 cell 의 좌+우 측판 모두 생성 (다담 표준)
       const _l = makeBox(T, H, D, carcassColor); _l.position.set(cellLeft + T/2, H/2, 0); _l.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd); modG.add(_l);
-      // 마지막 cell 만 우측판
-      if (i === verticalCount - 1) {
-        const _r = makeBox(T, H, D, carcassColor); _r.position.set(cellLeft + colW - T/2, H/2, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
-      }
+      const _r = makeBox(T, H, D, carcassColor); _r.position.set(cellLeft + colW - T/2, H/2, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
       // 바닥 + 천장
       const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
       const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
@@ -1185,14 +1182,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           modG.add(line);
         });
       }
+      // W9-88: 도어/서랍 폭 = colW - 2T - 4 (측판 영역 안 침범)
+      const innerW = colW - 2*T - 4;
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
       const yCenter = drawerH + topH/2;
-      addFrontPanel(modG, cellCx, yCenter, colW - 4, topH - 4, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      addFrontPanel(modG, cellCx, yCenter, innerW, topH - 4, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
       // cell 서랍
       if (drawerH > 0) {
-        addFrontPanel(modG, cellCx, drawerH/2, colW - 4, drawerH - 4, D/2,
+        addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - 4, D/2,
                       s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
     }
@@ -1543,18 +1542,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       cBack.position.set(cellCx, H/2, -D/2 + T/2);
       cBack.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd);
       g.add(cBack);
-      // cell 좌측판 — 모든 cell 에 (인접 cell 간 분리판 역할)
+      // W9-88: 각 cell 의 좌+우 측판 모두 생성 (다담 표준 — 각 캐비넷 자기 측판)
       const cLeftP = makeBox(T, H, D, carcassColor);
       cLeftP.position.set(cellLeft + T/2, H/2, 0);
       cLeftP.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd);
       g.add(cLeftP);
-      // cell 우측판 — 마지막 cell 만 (중간 cell 의 우측 = 다음 cell 의 좌측)
-      if (i === vCount - 1) {
-        const cRightP = makeBox(T, H, D, carcassColor);
-        cRightP.position.set(cellLeft + colW - T/2, H/2, 0);
-        cRightP.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd);
-        g.add(cRightP);
-      }
+      const cRightP = makeBox(T, H, D, carcassColor);
+      cRightP.position.set(cellLeft + colW - T/2, H/2, 0);
+      cRightP.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd);
+      g.add(cRightP);
       // cell 바닥 + 천장
       const cBottom = makeBox(colW - 2*T, T, D - T, carcassColor);
       cBottom.position.set(cellCx, T/2, T/2);
@@ -1579,13 +1575,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           g.add(line);
         });
       }
+      // W9-88: 도어/서랍 폭 = colW - 2T - 4 (양쪽 측판 + 2mm 갭, 측판 영역 안 침범)
+      const innerW = colW - 2*T - 4;
       // cell 도어 (상부 영역)
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const yCenter = drawerH + topH/2;
-      addFrontPanel(g, cellCx, yCenter, colW - 4, topH - 4, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      addFrontPanel(g, cellCx, yCenter, innerW, topH - 4, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
       // cell 서랍 (하부 영역 — drawerH > 0)
       if (drawerH > 0) {
-        addFrontPanel(g, cellCx, drawerH/2, colW - 4, drawerH - 4, D/2,
+        addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - 4, D/2,
                       s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
     }
