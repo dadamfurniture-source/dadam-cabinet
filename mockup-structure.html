@@ -319,6 +319,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     DOOR_W_TARGET: 450,           // 도어 W 목표
     SINK_BAND_THRESHOLD_UPPER: 700,   // 상부장 W > 700 → 처짐방지목 추가
     SINK_BAND_THRESHOLD_LOWER: 800,   // 하부장 W > 800 → 처짐방지목 추가
+    // W9-95: 가전 X 정밀 분할 + 먹장 자동
+    BLANK_THRESHOLD: 350,         // 세그먼트 W < 350 → 'blank' 자동 (도어 최소와 동일)
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -344,6 +346,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       drawerHeight: 200,       // 하부 서랍 H (mm)
       areaTypes: ['door'],     // 길이 = verticalCount (상부 영역)
       areaDirections: ['left'],  // 도어 열림 방향 (길이 = verticalCount)
+      // W9-95: 영역별 폭 (불균등 분할 — 가전 X 정밀 분할 시 사용)
+      // 빈 배열 또는 길이 ≠ verticalCount 면 균등 분할 (colW = W/N) fallback
+      areaWidths: [],
       bottomType: 'drawer',    // doorTopDrawerBottom 시 하부 type
       bottomDirection: 'left', // 하부 도어일 때 방향
       shelves: [],             // 바닥부터 mm
@@ -737,6 +742,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             <option value="door"   ${t==='door'?'selected':''}>도어</option>
             <option value="drawer" ${t==='drawer'?'selected':''}>서랍</option>
             <option value="open"   ${t==='open'?'selected':''}>오픈</option>
+            <option value="blank"  ${t==='blank'?'selected':''}>먹장</option>
           </select>
           ${t==='door' ? `
           <select class="a-dir">
@@ -755,6 +761,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             <option value="door"   ${s.bottomType==='door'?'selected':''}>도어</option>
             <option value="drawer" ${s.bottomType==='drawer'?'selected':''}>서랍</option>
             <option value="open"   ${s.bottomType==='open'?'selected':''}>오픈</option>
+            <option value="blank"  ${s.bottomType==='blank'?'selected':''}>먹장</option>
           </select>
           ${s.bottomType==='door' ? `
           <select class="b-dir">
@@ -1124,6 +1131,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     let msg = '';
     if (ud.entityKind === 'finishing') {
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
+    } else if (ud.entityKind === 'blank') {
+      msg = '🎯 먹장 (blank panel)';
     } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
       const m2 = modules.find(x => x.id === ud.moduleId);
       const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
@@ -1174,15 +1183,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     modG.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
     three.moduleGroup.add(modG);
 
-    // W9-87: cell 단위 분할 — 도어 개수 = 독립 캐비넷 개수
+    // W9-87/95: cell 단위 분할 — 도어 개수 = 독립 캐비넷 개수 + 불균등 폭 지원
     const carcassColor = darken3(cfg.fill, 0.05);
     const carcassUd = { entityKind: 'carcass', moduleId: m.id };
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
     const topH = H - drawerH;
     const verticalCount = Math.max(1, s.verticalCount || 1);
-    const colW = W / verticalCount;
+    const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === verticalCount)
+      ? s.areaWidths
+      : Array(verticalCount).fill(W / verticalCount);
+    let cellLeftAccum = -W / 2;
     for (let i = 0; i < verticalCount; i++) {
-      const cellLeft = -W/2 + colW * i;
+      const colW = cellWidths[i];
+      const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
       // cell 뒤판
       const _b = makeBox(colW, H, T, carcassColor); _b.position.set(cellCx, H/2, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
@@ -1228,6 +1241,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
+      cellLeftAccum += colW;   // W9-95: 다음 cell 누적
     }
 
     // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
@@ -1272,8 +1286,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   // W9-65: 도어 표현 제거 — 모든 영역을 단순 panel 로 (회전/손잡이 X)
   // 영역 type 으로 색상/모양 구분
-  // W9-79/84: 전면 panel 도 carcass 로 통합 — 도어/서랍/오픈 클릭 → 모듈 전체 선택
-  // W9-86: doorVisible=false 면 도어/서랍 mesh skip (오픈 frame 은 항상 표시)
+  // W9-79/84/95: 전면 panel 통합 — 도어/서랍/오픈/먹장 (blank) → 모듈 선택
+  // W9-86: doorVisible=false 면 도어/서랍/먹장 mesh skip (오픈 frame 은 항상)
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s, meta) {
     const T = 18;
     const carcassMeta = { entityKind: 'carcass', moduleId: meta.moduleId, side: 'front', areaType: type };
@@ -1282,6 +1296,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       frame.position.set(cx, cy, frontZ);
       frame.userData = carcassMeta;
       parent.add(frame);
+      return;
+    }
+    // W9-95: 먹장 (blank panel) — 흐릿한 회색 panel + 강한 outline
+    if (type === 'blank') {
+      if (!doorVisible) return;
+      const blank = makeBox(w, h, T, '#a89c84', { roughness: 0.7, opacity: 0.75, transparent: true });
+      blank.position.set(cx, cy, frontZ);
+      blank.userData = { entityKind: 'blank', moduleId: meta.moduleId, areaIdx: meta.areaIdx };
+      parent.add(blank);
+      const edges = new THREE.EdgesGeometry(blank.geometry);
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x5a4d3a, linewidth: 2 }));
+      line.position.copy(blank.position);
+      line.userData = { entityKind: 'blank-edge' };
+      parent.add(line);
       return;
     }
     // W9-86: 도어 끄기 — 도어/서랍 panel 생략 (내부 선반/마감재 보이도록)
@@ -1562,14 +1590,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 모듈 base Y (section 따라)
     const baseY = getBaseY(m.section, H);
     g.position.y = baseY;
-    // W9-87: 도어 개수 = cell 개수 → 각 cell 마다 독립 캐비넷 (몸통 분할)
+    // W9-87/95: 도어 개수 = cell 개수 → 각 cell 독립 캐비넷
+    //   W9-95: areaWidths 있으면 불균등 cell 폭 (가전 X 정밀 분할)
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
     const topH = H - drawerH;
     const vCount = Math.max(1, s.verticalCount || 1);
-    const colW = W / vCount;
+    const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === vCount)
+      ? s.areaWidths
+      : Array(vCount).fill(W / vCount);
     const carcassUd = { entityKind: 'carcass', moduleId: m.id };
+    let cellLeftAccum = -W / 2;
     for (let i = 0; i < vCount; i++) {
-      const cellLeft = -W/2 + colW * i;
+      const colW = cellWidths[i];
+      const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
       // cell 뒤판
       const cBack = makeBox(colW, H, T, carcassColor);
@@ -1631,6 +1664,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
+      cellLeftAccum += colW;   // W9-95: 다음 cell 의 좌측 누적
     }
     // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
     if (Array.isArray(m.finishings) && m.finishings.length) {
@@ -1752,6 +1786,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function collectXRanges(set, section) {
     return set.modules.filter(m => m.section === section).map(m => ({ x0: m.x, x1: m.x + m.W }));
   }
+  // W9-95: 모듈 X 범위를 가전 분할점으로 세그먼트화
+  //   가전 영역 = kind:'open', 나머지 = kind:'general'
+  function splitModuleByAppliance(m, ranges) {
+    const Mx0 = m.x, Mx1 = m.x + m.W;
+    const appliances = (ranges || [])
+      .map(r => ({ x0: Math.max(Mx0, r.x0), x1: Math.min(Mx1, r.x1) }))
+      .filter(r => r.x1 > r.x0)
+      .sort((a, b) => a.x0 - b.x0);
+    const segs = [];
+    let cursor = Mx0;
+    appliances.forEach(a => {
+      if (a.x0 > cursor) segs.push({ x0: cursor, x1: a.x0, kind: 'general' });
+      segs.push({ x0: a.x0, x1: a.x1, kind: 'open' });
+      cursor = a.x1;
+    });
+    if (cursor < Mx1) segs.push({ x0: cursor, x1: Mx1, kind: 'general' });
+    if (!segs.length) segs.push({ x0: Mx0, x1: Mx1, kind: 'general' });
+    return segs;
+  }
 
   // 단일 모듈 자동계산 — 가전 위치 (sink/hood/dishwasher) 고려
   function autoCalcModule(m, s, applianceRanges) {
@@ -1764,9 +1817,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (m.section === 'upper' && Math.abs(H - MASTER_RULES.SINK_UPPER_H) > 50) {
       console.warn('[STRUCT] ' + m.id + ' H=' + H + ' ≠ 마스터 ' + MASTER_RULES.SINK_UPPER_H + ' (싱크 상부장 표준)');
     }
-    // 1. 도어 개수
-    s.verticalCount = calcDoorCount(W);
-    // 2. 소구조
+    // 1. 소구조
     if (m.section === 'lower') {
       s.horizontalLayout = 'doorTopDrawerBottom';
       s.drawerHeight = 200;
@@ -1775,25 +1826,53 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     } else {
       s.horizontalLayout = 'doorOnly';
     }
-    // 3. 영역 타입 — 가전 X 범위 겹치면 'open'
-    const colW = W / s.verticalCount;
-    const dirsBase = calcDoorDirections(s.verticalCount);
-    s.areaTypes = [];
-    s.areaDirections = [];
-    for (let i = 0; i < s.verticalCount; i++) {
-      const areaX0 = moduleX0 + colW * i;
-      const areaX1 = moduleX0 + colW * (i + 1);
-      let type = 'door';
-      if (m.section === 'upper' && applianceRanges) {
-        if (overlapsAny(areaX0, areaX1, applianceRanges.hood)) type = 'open';
+    // 2. W9-95: 가전 X 정밀 분할 — 일반 부엌 모듈 (lower/upper) 만
+    const isKitchen = m.section === 'lower' || m.section === 'upper';
+    const myRanges = isKitchen && applianceRanges
+      ? [
+          ...((m.section === 'lower') ? (applianceRanges.sink || []) : []),
+          ...((m.section === 'lower') ? (applianceRanges.dishwasher || []) : []),
+          ...((m.section === 'upper') ? (applianceRanges.hood || []) : []),
+        ]
+      : [];
+    const segs = splitModuleByAppliance(m, myRanges);
+    // 3. 세그먼트별 도어/오픈/먹장 결정 — areaTypes / areaDirections / areaWidths
+    const areaTypes = [];
+    const areaDirections = [];
+    const areaWidths = [];
+    segs.forEach(seg => {
+      const segW = seg.x1 - seg.x0;
+      if (seg.kind === 'open') {
+        areaTypes.push('open');
+        areaDirections.push('left');
+        areaWidths.push(segW);
+        return;
       }
-      if (m.section === 'lower' && applianceRanges) {
-        if (overlapsAny(areaX0, areaX1, applianceRanges.sink)) type = 'open';
-        if (overlapsAny(areaX0, areaX1, applianceRanges.dishwasher)) type = 'open';
+      // 일반 세그먼트
+      if (segW < MASTER_RULES.BLANK_THRESHOLD) {
+        areaTypes.push('blank');
+        areaDirections.push('left');
+        areaWidths.push(segW);
+        return;
       }
-      s.areaTypes.push(type);
-      s.areaDirections.push(type === 'door' ? dirsBase[i] : 'left');
-    }
+      let n = calcDoorCount(segW);
+      let colW = segW / n;
+      // 도어 폭 < 최소 면 한 개 줄여서 보정 (선반 빈도 같은 패턴)
+      while (colW < MASTER_RULES.DOOR_W_MIN && n > 1) {
+        n -= 1;
+        colW = segW / n;
+      }
+      const dirs = calcDoorDirections(n);
+      for (let i = 0; i < n; i++) {
+        areaTypes.push('door');
+        areaDirections.push(dirs[i] || 'left');
+        areaWidths.push(colW);
+      }
+    });
+    s.areaTypes = areaTypes;
+    s.areaDirections = areaDirections;
+    s.areaWidths = areaWidths;
+    s.verticalCount = areaTypes.length;
     // 4. 선반
     s.shelves = calcDefaultShelves(m.section, H);
     // 5. 손잡이 (다담 매립형)
