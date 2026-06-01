@@ -321,6 +321,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     SINK_BAND_THRESHOLD_LOWER: 800,   // 하부장 W > 800 → 처짐방지목 추가
     // W9-95: 가전 X 정밀 분할 + 먹장 자동
     BLANK_THRESHOLD: 350,         // 세그먼트 W < 350 → 'blank' 자동 (도어 최소와 동일)
+    // W9-96: distributeModules 잔여 최적화 (calc-utils.ts 포팅)
+    MIN_REMAINDER: 5,             // 최소 잔여 (mm)
+    MAX_REMAINDER: 10,            // 최대 잔여 (gap > 10 면 후보 거부)
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -1739,7 +1742,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // W9-72: 자동계산 (다담 표준 규칙 — 세트 일괄)
   // ─────────────────────────────────────────────────────────────
-  // 도어 개수 (다담 표준: 목표 450mm, 범위 350-600)
+  // 도어 개수 (다담 표준: 목표 450mm, 범위 350-600) — distributeModules 폴백
   function calcDoorCount(W) {
     if (W <= 600)  return 1;
     if (W <= 1000) return 2;
@@ -1747,6 +1750,66 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (W <= 1800) return 4;
     if (W <= 2200) return 5;
     return Math.max(1, Math.round(W / MASTER_RULES.DOOR_W_TARGET));
+  }
+  // W9-96: distributeModules — planner-vite/src/lib/calc-utils.ts 의 TS 알고리즘 vanilla 포팅
+  //   3가지 후보 (10단위 내림 / 짝수 내림 / 균등) 우선순위 정렬 + 잔여 0~10mm 최적화 + 2D 페어링
+  //   반환: { doorWidth, doorCount, modules: [{ w, is2D }], gap }
+  function distributeModules(totalSpace) {
+    if (totalSpace < 100) return { modules: [], doorWidth: 0, doorCount: 0, gap: 0 };
+    const DOOR_TARGET = MASTER_RULES.DOOR_W_TARGET;
+    const DOOR_MAX = MASTER_RULES.DOOR_W_MAX;
+    const DOOR_MIN = MASTER_RULES.DOOR_W_MIN;
+    const MAX_REM = MASTER_RULES.MAX_REMAINDER;
+    const minCount = Math.max(1, Math.ceil(totalSpace / DOOR_MAX));
+    const baseCount = Math.round(totalSpace / DOOR_TARGET);
+    const maxDoorCount = Math.floor(totalSpace / DOOR_MIN);
+    const maxCount = Math.min(maxDoorCount, Math.max(baseCount + 3, minCount + 5));
+    const allResults = [];
+    for (let count = minCount; count <= maxCount; count++) {
+      // 균등 분배 후보
+      const evenWidth = Math.floor(totalSpace / count);
+      const evenGap = totalSpace - evenWidth * count;
+      if (evenWidth >= DOOR_MIN && evenWidth <= DOOR_MAX && evenGap >= 0 && evenGap <= MAX_REM) {
+        allResults.push({ doorCount: count, doorWidth: evenWidth, gap: evenGap, targetDiff: Math.abs(evenWidth - DOOR_TARGET) });
+      }
+      // 10단위 내림 후보
+      const floorWidth = Math.floor(totalSpace / count / 10) * 10;
+      if (floorWidth >= DOOR_MIN && floorWidth <= DOOR_MAX) {
+        const floorGap = totalSpace - floorWidth * count;
+        if (floorGap >= 0 && floorGap <= MAX_REM) {
+          allResults.push({ doorCount: count, doorWidth: floorWidth, gap: floorGap, targetDiff: Math.abs(floorWidth - DOOR_TARGET) });
+        }
+      }
+      // 짝수 내림 후보
+      const evenFloor = Math.floor(totalSpace / count / 2) * 2;
+      if (evenFloor >= DOOR_MIN && evenFloor <= DOOR_MAX && evenFloor !== floorWidth) {
+        const eg = totalSpace - evenFloor * count;
+        if (eg >= 0 && eg <= MAX_REM) {
+          allResults.push({ doorCount: count, doorWidth: evenFloor, gap: eg, targetDiff: Math.abs(evenFloor - DOOR_TARGET) });
+        }
+      }
+    }
+    // 정렬: 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
+    allResults.sort((a, b) => {
+      if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
+      if (a.gap !== b.gap) return a.gap - b.gap;
+      return a.doorCount - b.doorCount;
+    });
+    const best = allResults.length > 0 ? allResults[0] : null;
+    if (!best) {
+      // 후보 없음 → fallback 단순 calcDoorCount
+      const n = calcDoorCount(totalSpace);
+      const w = Math.floor(totalSpace / n);
+      return { modules: Array(n).fill(0).map(() => ({ w, is2D: false })), doorWidth: w, doorCount: n, gap: totalSpace - w * n };
+    }
+    // 2D 페어링: quotient = floor(N/2) 모듈은 폭 w*2, 1D 도어 2개
+    const { doorCount, doorWidth, gap } = best;
+    const quotient = Math.floor(doorCount / 2);
+    const remainder = doorCount % 2;
+    const modules = [];
+    for (let i = 0; i < quotient; i++) modules.push({ w: doorWidth * 2, is2D: true });
+    if (remainder > 0) modules.push({ w: doorWidth, is2D: false });
+    return { modules, doorWidth, doorCount, gap };
   }
   // 도어 열림 방향 — 양문 패턴 (인접 도어 반대)
   function calcDoorDirections(n) {
@@ -1855,19 +1918,39 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         areaWidths.push(segW);
         return;
       }
-      let n = calcDoorCount(segW);
-      let colW = segW / n;
-      // 도어 폭 < 최소 면 한 개 줄여서 보정 (선반 빈도 같은 패턴)
-      while (colW < MASTER_RULES.DOOR_W_MIN && n > 1) {
-        n -= 1;
-        colW = segW / n;
+      // W9-96: distributeModules — calc-utils.ts 포팅 (잔여 0~10mm 최적화 + 2D 페어링)
+      const dist = distributeModules(segW);
+      if (!dist.modules.length) {
+        // 후보 없음 → 통째 먹장 (예방)
+        areaTypes.push('blank');
+        areaDirections.push('left');
+        areaWidths.push(segW);
+        return;
       }
-      const dirs = calcDoorDirections(n);
-      for (let i = 0; i < n; i++) {
+      // 2D 페어링 풀기: { w: 900, is2D: true } → cell 2개 (각 450, dir 좌/우 양문)
+      // 잔여 gap 균등 분배 (마스터: Math.floor(gap/N), common 카테고리)
+      const cells = [];
+      dist.modules.forEach(mod => {
+        if (mod.is2D) {
+          const half = mod.w / 2;
+          cells.push({ w: half, dir: 'left' });   // 좌 도어
+          cells.push({ w: half, dir: 'right' });  // 우 도어 (양문)
+        } else {
+          cells.push({ w: mod.w, dir: 'left' });
+        }
+      });
+      // 잔여 gap 균등 분배 (Math.floor(gap/N) 추가, 끝 cell 에 잉여 mm)
+      const N = cells.length;
+      if (dist.gap > 0 && N > 0) {
+        const per = Math.floor(dist.gap / N);
+        const extra = dist.gap - per * N;
+        cells.forEach((c, i) => { c.w += per + (i === N - 1 ? extra : 0); });
+      }
+      cells.forEach(c => {
         areaTypes.push('door');
-        areaDirections.push(dirs[i] || 'left');
-        areaWidths.push(colW);
-      }
+        areaDirections.push(c.dir);
+        areaWidths.push(c.w);
+      });
     });
     s.areaTypes = areaTypes;
     s.areaDirections = areaDirections;
