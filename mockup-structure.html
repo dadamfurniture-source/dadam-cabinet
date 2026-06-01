@@ -536,26 +536,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     if (!mods.length) return;
     const ox = getFrontViewOriginX();   // W9-105: 사람 원 기준
-    // W9-104: 정면 (rotation 0/180) bbox + 측면 (rotation 90/270) bbox 합산
-    const frontMods = mods.filter(m => !(((m.rotation || 0) % 180)));
-    const sideMods = mods.filter(m => (((m.rotation || 0) % 180)));
+    // W9-106: 모든 모듈을 도어 면 정면 (가로=m.W) — 측면 그룹 분리 제거
     let minX = Infinity, maxX = -Infinity;
-    let frontMaxX = -Infinity;
-    frontMods.forEach(m => {
+    mods.forEach(m => {
       const ox2 = (m.x || 0) - ox;
       minX = Math.min(minX, ox2);
       maxX = Math.max(maxX, ox2 + m.W);
-      frontMaxX = Math.max(frontMaxX, ox2 + m.W);
     });
-    if (sideMods.length) {
-      // 측면 그룹은 정면 그룹 우측 + SIDE_GAP(800) 부터 + 모듈 폭 (m.D) 누적 + 100 갭
-      let sideX = isFinite(frontMaxX) ? frontMaxX + 800 : 0;
-      sideMods.forEach(m => {
-        minX = Math.min(minX, sideX);
-        maxX = Math.max(maxX, sideX + (m.D || 0));
-        sideX += (m.D || 0) + 100;
-      });
-    }
     if (!isFinite(minX) || !isFinite(maxX)) return;
     const targetW = (maxX - minX) + 250;
     const targetH = ceilingHeight + 200;
@@ -590,81 +577,54 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderModuleFront(content, m, s, 0, 0);
   }
 
-  // W9-102/104/105: 세트/전체 정면도 — 회전 0/180 (정면) + 회전 90/270 (측면) 두 그룹
+  // W9-102/104/105/106: 세트/전체 정면도
+  //   W9-106: 모든 모듈을 정면 (도어 면, 가로=m.W) 으로 표시
+  //           회전 모듈은 평면도 X 그대로 + 회전각 라벨
   //   W9-105: X 원점 = 사람 원 위치 (없으면 모듈 원점 fallback)
   function renderFrontSet(content, mods) {
     if (!mods || !mods.length) return;
     const ns = 'http://www.w3.org/2000/svg';
     const ox = getFrontViewOriginX();
-    // 회전 0/180 (정면) vs 90/270 (측면)
-    const frontMods = mods.filter(m => !(((m.rotation || 0) % 180)));
-    const sideMods = mods.filter(m => (((m.rotation || 0) % 180)));
-    // ──────────────────────────────────────────────
-    // 1. 정면 그룹 (회전 0/180)
-    // ──────────────────────────────────────────────
-    let frontMinX = Infinity, frontMaxX = -Infinity;
-    frontMods.forEach(m => {
+    // X 좌표 순서로 정렬 (배치 평면도 X 기준)
+    const sorted = mods.slice().sort((a, b) => (a.x || 0) - (b.x || 0));
+    let allMinX = Infinity, allMaxX = -Infinity;
+    sorted.forEach(m => {
       const s = getStructure(m.id);
       const offsetX = (m.x || 0) - ox;
       const baseY = getBaseY(m.section, m.H);
       const offsetY = ceilingHeight - (baseY + m.H);
+      // W9-106: 모든 모듈 도어 면 정면 표시 (가로=m.W)
       renderModuleFront(content, m, s, offsetX, offsetY);
-      frontMinX = Math.min(frontMinX, offsetX);
-      frontMaxX = Math.max(frontMaxX, offsetX + m.W);
+      allMinX = Math.min(allMinX, offsetX);
+      allMaxX = Math.max(allMaxX, offsetX + m.W);
+      // 회전 모듈은 회전각 배지 (모듈 상단)
+      const rot = ((m.rotation || 0) % 360 + 360) % 360;
+      if (rot !== 0) {
+        const badge = document.createElementNS(ns, 'rect');
+        badge.setAttribute('x', offsetX + m.W - 200);
+        badge.setAttribute('y', offsetY - 60);
+        badge.setAttribute('width', 180);
+        badge.setAttribute('height', 50);
+        badge.setAttribute('fill', '#b8956c');
+        badge.setAttribute('rx', 8);
+        badge.setAttribute('opacity', 0.85);
+        content.appendChild(badge);
+        const lab = document.createElementNS(ns, 'text');
+        lab.setAttribute('x', offsetX + m.W - 110);
+        lab.setAttribute('y', offsetY - 30);
+        lab.setAttribute('text-anchor', 'middle');
+        lab.setAttribute('dominant-baseline', 'central');
+        lab.setAttribute('font-size', 28);
+        lab.setAttribute('font-weight', 'bold');
+        lab.setAttribute('fill', '#fff');
+        lab.textContent = '회전 ' + rot + '°';
+        content.appendChild(lab);
+      }
     });
-    // 정면 그룹 라벨
-    if (frontMods.length) {
-      const lbl = document.createElementNS(ns, 'text');
-      lbl.setAttribute('x', (frontMinX + frontMaxX) / 2);
-      lbl.setAttribute('y', -60);
-      lbl.setAttribute('text-anchor', 'middle');
-      lbl.setAttribute('font-size', 48);
-      lbl.setAttribute('font-weight', 'bold');
-      lbl.setAttribute('fill', '#3d342a');
-      lbl.textContent = '◀ 정면 (회전 0/180) ▶';
-      content.appendChild(lbl);
-    }
     // ──────────────────────────────────────────────
-    // 2. 측면 그룹 (회전 90/270) — 정면 우측에 이격 배치
+    // 천장/바닥 가이드 라인 (전체 X 범위)
     // ──────────────────────────────────────────────
-    const SIDE_GAP = 800;   // 정면-측면 그룹 사이 간격 (mm)
-    let sideStartX = isFinite(frontMaxX) ? frontMaxX + SIDE_GAP : 0;
-    let sideMinX = Infinity, sideMaxX = -Infinity;
-    // 측면 모듈을 X 좌표 순서로 정렬 (배치 평면도 X 기준)
-    const sortedSide = sideMods.slice().sort((a, b) => (a.x || 0) - (b.x || 0));
-    sortedSide.forEach(m => {
-      const s = getStructure(m.id);
-      // 측면 시점: 가로 = m.D (깊이), 세로 = m.H
-      // 단, renderModuleFront 는 m.W 를 가로로 사용 → 임시 m' 객체로 W=D 치환
-      const mSide = Object.assign({}, m, { W: m.D });
-      const baseY = getBaseY(m.section, m.H);
-      const offsetY = ceilingHeight - (baseY + m.H);
-      renderModuleFront(content, mSide, s, sideStartX, offsetY);
-      sideMinX = Math.min(sideMinX, sideStartX);
-      sideMaxX = Math.max(sideMaxX, sideStartX + m.D);
-      sideStartX += m.D + 100;   // 측면 모듈 사이 100mm 갭
-    });
-    // 측면 그룹 라벨
-    if (sideMods.length) {
-      const lbl = document.createElementNS(ns, 'text');
-      lbl.setAttribute('x', (sideMinX + sideMaxX) / 2);
-      lbl.setAttribute('y', -60);
-      lbl.setAttribute('text-anchor', 'middle');
-      lbl.setAttribute('font-size', 48);
-      lbl.setAttribute('font-weight', 'bold');
-      lbl.setAttribute('fill', '#3d342a');
-      lbl.textContent = '◀ 측면 (회전 90/270) ▶';
-      content.appendChild(lbl);
-      // 측면 모듈 별 회전각 라벨 (작게)
-      sortedSide.forEach((m, i) => {
-        // 측면 시점 모듈의 위치 재계산 (위 forEach 와 동일)
-      });
-    }
-    // ──────────────────────────────────────────────
-    // 3. 천장/바닥 가이드 라인 (전체 X 범위)
-    // ──────────────────────────────────────────────
-    const allMinX = Math.min(isFinite(frontMinX) ? frontMinX : 0, isFinite(sideMinX) ? sideMinX : 0);
-    const allMaxX = Math.max(isFinite(frontMaxX) ? frontMaxX : 0, isFinite(sideMaxX) ? sideMaxX : 0);
+    if (!isFinite(allMinX)) { allMinX = 0; allMaxX = 0; }
     const drawGuide = (yMM, label, color) => {
       const ln = document.createElementNS(ns, 'line');
       ln.setAttribute('x1', allMinX - 100); ln.setAttribute('y1', yMM);
@@ -713,17 +673,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       vGuide.setAttribute('stroke-dasharray', '8 4');
       vGuide.setAttribute('opacity', 0.4);
       content.appendChild(vGuide);
-    }
-    // 정면-측면 그룹 구분 vertical 라인
-    if (frontMods.length && sideMods.length) {
-      const sep = document.createElementNS(ns, 'line');
-      const sepX = (frontMaxX + sideMinX) / 2;
-      sep.setAttribute('x1', sepX); sep.setAttribute('y1', -100);
-      sep.setAttribute('x2', sepX); sep.setAttribute('y2', ceilingHeight + 100);
-      sep.setAttribute('stroke', '#a89c84'); sep.setAttribute('stroke-width', 3);
-      sep.setAttribute('stroke-dasharray', '20 12');
-      sep.setAttribute('opacity', 0.5);
-      content.appendChild(sep);
     }
   }
 
