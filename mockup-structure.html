@@ -517,6 +517,42 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     applyView();
   }
 
+  // W9-103: viewMode 별 정면도 자동 fit
+  function fitFrontView() {
+    const wrap = document.getElementById('canvasWrap');
+    if (!wrap) return;
+    const cw = wrap.clientWidth, ch = wrap.clientHeight;
+    const pad = 100;
+    if (viewMode === 'single') {
+      fitToActiveModule();
+      return;
+    }
+    // set / all — 세트/전체 모듈의 X bbox + ceilingHeight 기반
+    let mods = modules;
+    if (viewMode === 'set' && activeSetId) {
+      const sets = buildSets();
+      const set = sets.find(x => x.id === activeSetId);
+      if (set) mods = set.modules;
+    }
+    const visible = mods.filter(m => !(m.rotation % 180));
+    if (!visible.length) return;
+    const ox = originPos2D.x;
+    let minX = Infinity, maxX = -Infinity;
+    visible.forEach(m => {
+      minX = Math.min(minX, (m.x || 0) - ox);
+      maxX = Math.max(maxX, (m.x || 0) - ox + m.W);
+    });
+    const targetW = (maxX - minX) + 250;   // 좌측 가이드 라벨 여유 + 양측 여백
+    const targetH = ceilingHeight + 200;   // 천장/바닥 가이드 라벨 여유
+    const zx = (cw - pad * 2) / targetW;
+    const zy = (ch - pad * 2) / targetH;
+    view.zoom = Math.max(0.02, Math.min(zx, zy, 4));
+    // panX 는 minX 가 좌측 padding 안에 오도록
+    view.panX = (cw - targetW * view.zoom) / 2 - (minX - 150) * view.zoom;
+    view.panY = (ch - targetH * view.zoom) / 2;
+    applyView();
+  }
+
   // W9-102: 정면도 — viewMode 별 분기 (single / set / all). 배치 단계 X 좌표 + baseY 반영
   function renderFrontView() {
     const content = document.getElementById('contentG');
@@ -1561,6 +1597,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       three.renderer.setSize(wrap.clientWidth, wrap.clientHeight, false);
       three.camera.aspect = wrap.clientWidth / wrap.clientHeight;
       three.camera.updateProjectionMatrix();
+    } else if (mode === '2d') {
+      // W9-103: 정면도 진입 시 viewMode 별 자동 fit
+      renderFrontView();
+      fitFrontView();
     }
   }
   document.getElementById('view3dBtn').onclick = () => setView('3d');
@@ -1625,6 +1665,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       document.getElementById('curModuleName').textContent = `전체 모듈 (${modules.length}개)`;
       document.getElementById('canvasEmpty').style.display = modules.length ? 'none' : 'flex';
       renderAll3D();
+      // W9-103: 전체 모드 진입 시 정면도 갱신 + fit
+      renderFrontView();
+      if (currentView === '2d') fitFrontView();
     }
   }
 
@@ -1636,6 +1679,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     document.getElementById('curModuleName').textContent = set.label + ` (${set.modules.length}개)`;
     document.getElementById('canvasEmpty').style.display = 'none';
     renderSet3D(set);
+    // W9-103: 정면도 + 자동 fit (현재 view 가 2D 면)
+    renderFrontView();
+    if (currentView === '2d') fitFrontView();
     // 좌측 active 표시
     renderModuleList();
   }
@@ -1908,7 +1954,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (viewMode !== 'single') return;
     const m = modules.find(x => x.id === id);
     const s = m ? getStructure(id) : null;
-    if (m && s) renderModule3D(m, s);
+    if (m && s) {
+      renderModule3D(m, s);
+      // W9-103: 정면도 모드면 자동 fit
+      if (currentView === '2d') fitFrontView();
+    }
   };
   const _origRenderFront = renderFrontView;
   renderFrontView = function() {
