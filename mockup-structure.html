@@ -310,6 +310,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     SINK_LOWER_D: 600,            // 싱크 하부장 표준 D
     FRIDGE_UPPER_H_MAX: 400,      // 냉장고 상부장 H 최대
     FRIDGE_D: 550,                // 냉장고장 표준 D
+    FRIDGE_NICHE_W: 900,          // W9-99: 표준 니치 폭 (LG/삼성/인피니트)
+    FRIDGE_NICHE_W_TOL: 50,       // W9-99: 니치 허용 오차 ±50mm
     SHELF_SPACE_MIN: 300,         // 선반 분배 공간 최소 (일반)
     SHELF_SPACE_MAX: 450,         // 선반 분배 공간 최대 (일반)
     SHELF_SPACE_MIN_SHOE: 180,    // 선반 분배 공간 최소 (신발장)
@@ -1889,13 +1891,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     } else {
       s.horizontalLayout = 'doorOnly';
     }
-    // 2. W9-95: 가전 X 정밀 분할 — 일반 부엌 모듈 (lower/upper) 만
+    // 2. W9-95/99: 가전 X 정밀 분할 — 일반 부엌 모듈 (lower/upper) 만
+    //   W9-99: 냉장고 (fridge) 는 바닥~천장 전체 차지 → lower+upper 양쪽에 적용
     const isKitchen = m.section === 'lower' || m.section === 'upper';
     const myRanges = isKitchen && applianceRanges
       ? [
           ...((m.section === 'lower') ? (applianceRanges.sink || []) : []),
           ...((m.section === 'lower') ? (applianceRanges.dishwasher || []) : []),
           ...((m.section === 'upper') ? (applianceRanges.hood || []) : []),
+          ...(applianceRanges.fridge || []),     // W9-99: 냉장고 니치 (lower+upper 모두)
         ]
       : [];
     const segs = splitModuleByAppliance(m, myRanges);
@@ -1972,8 +1976,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       sink:       collectXRanges(set, 'sink'),
       hood:       collectXRanges(set, 'hood'),
       dishwasher: collectXRanges(set, 'dishwasher'),
+      fridge:     collectXRanges(set, 'fridge'),   // W9-99: 냉장고 니치 X 범위
     };
-    // W9-90: 마스터 필수장 검증 — 싱크 세트면 개수대/가스대 필수
+    // W9-90: 마스터 필수장 검증
     const hasKitchen = set.modules.some(m => m.section === 'lower' || m.section === 'upper');
     if (hasKitchen) {
       if (applianceRanges.sink.length === 0) {
@@ -1983,10 +1988,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         showToast('⚠ 가스대/후드 모듈 없음 (마스터 표준: 기본 1개 필수)');
       }
     }
+    // W9-99: 냉장고 W 마스터 검증 (900 ± 50)
+    applianceRanges.fridge.forEach(r => {
+      const w = r.x1 - r.x0;
+      if (Math.abs(w - MASTER_RULES.FRIDGE_NICHE_W) > MASTER_RULES.FRIDGE_NICHE_W_TOL) {
+        showToast('⚠ 냉장고 W=' + w + ' ≠ 마스터 니치 ' + MASTER_RULES.FRIDGE_NICHE_W + '±' + MASTER_RULES.FRIDGE_NICHE_W_TOL);
+      }
+    });
     let count = 0;
     set.modules.forEach((m) => {
-      // 가전 자체는 skip (사용자 설정 유지)
-      if (['sink', 'hood', 'dishwasher'].includes(m.section)) return;
+      // 가전 자체는 skip — W9-99: fridge 도 skip 추가
+      if (['sink', 'hood', 'dishwasher', 'fridge'].includes(m.section)) return;
       const s = getStructure(m.id);
       autoCalcModule(m, s, applianceRanges);
       count++;
