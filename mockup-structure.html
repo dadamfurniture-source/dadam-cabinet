@@ -326,7 +326,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     DOOR_GAP: 4,                  // 도어 가로 갭 (장W - 4)
     SINK_UPPER_DOOR_H_PLUS:  20,  // 싱크 상부장 도어 H = 장H + 20
     SINK_LOWER_DOOR_H_MINUS: 30,  // 싱크 하부장 도어 H = 장H - 30 (다리발 위)
-    SINK_LEG: 150,                // 싱크 하부장 다리발 (또는 120)
+    SINK_LEG: 150,                // 싱크 하부장 다리발 H (또는 120)
+    // W9-113: 다리발 mesh 표준 (OBJ undermodule_sink_base.obj 측정)
+    LEG_SIZE: 42,                 // 다리발 가로/세로 단면
+    LEG_INSET: 25,                // 모듈 코너에서 안쪽 offset
     SINK_LOWER_H: 870,            // 싱크 하부장 표준 H (다리발 150 포함)
     SINK_UPPER_H: 720,            // 싱크 상부장 표준 H
     SINK_UPPER_D: 295,            // 싱크 상부장 표준 D
@@ -1602,6 +1605,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 먹장 (blank panel)';
     } else if (ud.entityKind === 'brace') {
       msg = '🎯 처짐방지목 (가운데 분리판)';
+    } else if (ud.entityKind === 'leg') {
+      msg = '🎯 다리발 (H=' + MASTER_RULES.SINK_LEG + 'mm)';
     } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
       const m2 = modules.find(x => x.id === ud.moduleId);
       const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
@@ -1645,6 +1650,34 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     line.userData = { entityKind: 'edge' };
     parent.add(line);
     return line;
+  }
+
+  // W9-113: 다리발 4개 mesh (하부장 모듈만, OBJ 표준 — 42×LEG_H×42, 코너 25mm inset)
+  function addLegs(parent, m, cfg) {
+    if (m.section !== 'lower') return;
+    const LEG_H = MASTER_RULES.SINK_LEG;
+    const LEG_SIZE = MASTER_RULES.LEG_SIZE;
+    const LEG_INSET = MASTER_RULES.LEG_INSET;
+    const W = m.W, D = m.D;
+    const legColor = darken3(cfg.fill, 0.35);   // 카르카스보다 어둡게 (다리발 식별)
+    // 4 코너 (X 양끝 / Z 양끝) — 모듈 외곽에서 안쪽 LEG_INSET mm 떨어진 위치
+    const xLeft  = -W/2 + LEG_INSET + LEG_SIZE/2;
+    const xRight =  W/2 - LEG_INSET - LEG_SIZE/2;
+    const zFront = -D/2 + LEG_INSET + LEG_SIZE/2;
+    const zBack  =  D/2 - LEG_INSET - LEG_SIZE/2;
+    const positions = [
+      [xLeft,  zFront, 'leftFront'],
+      [xLeft,  zBack,  'leftBack'],
+      [xRight, zFront, 'rightFront'],
+      [xRight, zBack,  'rightBack'],
+    ];
+    positions.forEach(([lx, lz, side], i) => {
+      const leg = makeBox(LEG_SIZE, LEG_H, LEG_SIZE, legColor, { roughness: 0.4, metalness: 0.15 });
+      leg.position.set(lx, LEG_H / 2, lz);
+      leg.userData = { entityKind: 'leg', moduleId: m.id, legIdx: i, side: side };
+      parent.add(leg);
+      addEdgeOutline(leg, parent, 0x000000, 0.6);
+    });
   }
 
   // 모듈 3D 렌더 — 외곽 + 도어/서랍 + 선반 + 손잡이
@@ -1727,6 +1760,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       cellLeftAccum += colW;
     }
+    // W9-113: 다리발 4개 (하부장만)
+    addLegs(modG, m, cfg);
 
     // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
     if (Array.isArray(m.finishings) && m.finishings.length) {
@@ -2193,6 +2228,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       cellLeftAccum += colW;
     }
+    // W9-113: 다리발 4개 (하부장만)
+    addLegs(g, m, cfg);
+
     // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
     if (Array.isArray(m.finishings) && m.finishings.length) {
       console.log('[STRUCT] createModuleMesh', m.id, 'finishings:', m.finishings.length);
