@@ -297,6 +297,31 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // ─────────────────────────────────────────────────────────────
+  // W9-90: 마스터 규칙 (Supabase design_rules source=master-onedrive-2026-05 와 동기)
+  // ─────────────────────────────────────────────────────────────
+  const MASTER_RULES = {
+    DOOR_GAP: 4,                  // 도어 가로 갭 (장W - 4)
+    SINK_UPPER_DOOR_H_PLUS:  20,  // 싱크 상부장 도어 H = 장H + 20
+    SINK_LOWER_DOOR_H_MINUS: 30,  // 싱크 하부장 도어 H = 장H - 30 (다리발 위)
+    SINK_LEG: 150,                // 싱크 하부장 다리발 (또는 120)
+    SINK_LOWER_H: 870,            // 싱크 하부장 표준 H (다리발 150 포함)
+    SINK_UPPER_H: 720,            // 싱크 상부장 표준 H
+    SINK_UPPER_D: 295,            // 싱크 상부장 표준 D
+    SINK_LOWER_D: 600,            // 싱크 하부장 표준 D
+    FRIDGE_UPPER_H_MAX: 400,      // 냉장고 상부장 H 최대
+    FRIDGE_D: 550,                // 냉장고장 표준 D
+    SHELF_SPACE_MIN: 300,         // 선반 분배 공간 최소 (일반)
+    SHELF_SPACE_MAX: 450,         // 선반 분배 공간 최대 (일반)
+    SHELF_SPACE_MIN_SHOE: 180,    // 선반 분배 공간 최소 (신발장)
+    SHELF_SPACE_MAX_SHOE: 350,    // 선반 분배 공간 최대 (신발장)
+    DOOR_W_MIN: 350,              // 도어 W 최소
+    DOOR_W_MAX: 600,              // 도어 W 최대
+    DOOR_W_TARGET: 450,           // 도어 W 목표
+    SINK_BAND_THRESHOLD_UPPER: 700,   // 상부장 W > 700 → 처짐방지목 추가
+    SINK_BAND_THRESHOLD_LOWER: 800,   // 하부장 W > 800 → 처짐방지목 추가
+  };
+
+  // ─────────────────────────────────────────────────────────────
   // 데이터 모델
   // ─────────────────────────────────────────────────────────────
   const LAYOUT_KEY    = 'dadam_layout_v1';
@@ -1184,14 +1209,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       // W9-88: 도어/서랍 폭 = colW - 2T - 4 (측판 영역 안 침범)
       const innerW = colW - 2*T - 4;
+      // W9-90: 싱크 도어 H 마스터 보정 (상부장 +20 / 하부장 -30)
+      let topDoorH = topH - MASTER_RULES.DOOR_GAP;
+      let topDoorY = drawerH + topH / 2;
+      if (m.section === 'upper') {
+        topDoorH = topH + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS - MASTER_RULES.DOOR_GAP;
+        topDoorY = drawerH + topH / 2 + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS / 2;
+      } else if (m.section === 'lower') {
+        topDoorH = topH - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS + MASTER_RULES.DOOR_GAP;
+        topDoorY = drawerH + topH / 2 - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS / 2;
+      }
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
-      const yCenter = drawerH + topH/2;
-      addFrontPanel(modG, cellCx, yCenter, innerW, topH - 4, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
       // cell 서랍
       if (drawerH > 0) {
-        addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - 4, D/2,
+        addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
     }
@@ -1577,13 +1611,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       // W9-88: 도어/서랍 폭 = colW - 2T - 4 (양쪽 측판 + 2mm 갭, 측판 영역 안 침범)
       const innerW = colW - 2*T - 4;
+      // W9-90: 싱크 도어 H 마스터 보정 (상부장 +20 / 하부장 -30)
+      let topDoorH = topH - MASTER_RULES.DOOR_GAP;
+      let topDoorY = drawerH + topH / 2;
+      if (m.section === 'upper') {
+        // 싱크 상부장: 도어가 모듈 위로 +20 튀어나옴 (상몰딩 안쪽까지)
+        topDoorH = topH + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS - MASTER_RULES.DOOR_GAP;
+        topDoorY = drawerH + topH / 2 + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS / 2;
+      } else if (m.section === 'lower') {
+        // 싱크 하부장: 도어가 다리발 위까지만 (장H - 30, 갭 -4)
+        topDoorH = topH - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS + MASTER_RULES.DOOR_GAP;
+        topDoorY = drawerH + topH / 2 - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS / 2;
+      }
       // cell 도어 (상부 영역)
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      const yCenter = drawerH + topH/2;
-      addFrontPanel(g, cellCx, yCenter, innerW, topH - 4, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
       // cell 서랍 (하부 영역 — drawerH > 0)
       if (drawerH > 0) {
-        addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - 4, D/2,
+        addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
     }
@@ -1667,7 +1712,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (W <= 1400) return 3;
     if (W <= 1800) return 4;
     if (W <= 2200) return 5;
-    return Math.max(1, Math.round(W / 450));
+    return Math.max(1, Math.round(W / MASTER_RULES.DOOR_W_TARGET));
   }
   // 도어 열림 방향 — 양문 패턴 (인접 도어 반대)
   function calcDoorDirections(n) {
@@ -1677,18 +1722,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     for (let i = 0; i < n; i++) dirs.push(i % 2 === 0 ? 'left' : 'right');
     return dirs;
   }
-  // 선반 (등간격 — 하부 1, 상부 2, 키큰 3)
+  // W9-90: 선반 — 마스터 규칙 (분배공간 300~450, 신발장 180~350) 안 최대 갯수
   function calcDefaultShelves(section, H) {
-    let count;
-    if (section === 'lower') count = 1;
-    else if (section === 'upper') count = 2;
-    else if (section === 'tall' || section === 'fridge') count = 3;
-    else count = 0;
+    const isShoe = section === 'shoe';
+    const MIN = isShoe ? MASTER_RULES.SHELF_SPACE_MIN_SHOE : MASTER_RULES.SHELF_SPACE_MIN;
+    const MAX = isShoe ? MASTER_RULES.SHELF_SPACE_MAX_SHOE : MASTER_RULES.SHELF_SPACE_MAX;
+    // 분배공간 space = H / (count+1). MIN ≤ space ≤ MAX 안 최대 count
+    //   space ≥ MIN → count ≤ H/MIN - 1
+    //   space ≤ MAX → count ≥ H/MAX - 1
+    let count = Math.floor(H / MIN) - 1;       // 최대 가능 count (space ≥ MIN)
+    count = Math.max(0, count);
     if (count === 0) return [];
-    const step = H / (count + 1);
-    const arr = [];
-    for (let i = 1; i <= count; i++) arr.push(Math.round(step * i));
-    return arr;
+    let step = H / (count + 1);
+    if (step > MAX) {                          // 단일 선반도 분배공간 > MAX → count 늘려서 MAX 만족
+      count = Math.ceil(H / MAX) - 1;
+      if (count < 1) return [];
+      step = H / (count + 1);
+    }
+    return Array.from({ length: count }, (_, i) => Math.round(step * (i + 1)));
   }
   // 영역 [x0,x1] 이 ranges 중 어느 것과 25%+ 겹치면 true
   function overlapsAny(x0, x1, ranges) {
@@ -1706,6 +1757,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function autoCalcModule(m, s, applianceRanges) {
     const W = m.W, H = m.H;
     const moduleX0 = m.x;
+    // W9-90: 마스터 H 표준 검증 (경고만, 변경 안 함)
+    if (m.section === 'lower' && Math.abs(H - MASTER_RULES.SINK_LOWER_H) > 50) {
+      console.warn('[STRUCT] ' + m.id + ' H=' + H + ' ≠ 마스터 ' + MASTER_RULES.SINK_LOWER_H + ' (싱크 하부장 표준)');
+    }
+    if (m.section === 'upper' && Math.abs(H - MASTER_RULES.SINK_UPPER_H) > 50) {
+      console.warn('[STRUCT] ' + m.id + ' H=' + H + ' ≠ 마스터 ' + MASTER_RULES.SINK_UPPER_H + ' (싱크 상부장 표준)');
+    }
     // 1. 도어 개수
     s.verticalCount = calcDoorCount(W);
     // 2. 소구조
@@ -1753,6 +1811,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       hood:       collectXRanges(set, 'hood'),
       dishwasher: collectXRanges(set, 'dishwasher'),
     };
+    // W9-90: 마스터 필수장 검증 — 싱크 세트면 개수대/가스대 필수
+    const hasKitchen = set.modules.some(m => m.section === 'lower' || m.section === 'upper');
+    if (hasKitchen) {
+      if (applianceRanges.sink.length === 0) {
+        showToast('⚠ 개수대 모듈 없음 (마스터 표준: 기본 1개 필수)');
+      }
+      if (applianceRanges.hood.length === 0) {
+        showToast('⚠ 가스대/후드 모듈 없음 (마스터 표준: 기본 1개 필수)');
+      }
+    }
     let count = 0;
     set.modules.forEach((m) => {
       // 가전 자체는 skip (사용자 설정 유지)
