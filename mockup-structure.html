@@ -535,7 +535,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (set) mods = set.modules;
     }
     if (!mods.length) return;
-    const ox = originPos2D.x;
+    const ox = getFrontViewOriginX();   // W9-105: 사람 원 기준
     // W9-104: 정면 (rotation 0/180) bbox + 측면 (rotation 90/270) bbox 합산
     const frontMods = mods.filter(m => !(((m.rotation || 0) % 180)));
     const sideMods = mods.filter(m => (((m.rotation || 0) % 180)));
@@ -590,11 +590,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderModuleFront(content, m, s, 0, 0);
   }
 
-  // W9-102/104: 세트/전체 정면도 — 회전 0/180 (정면) + 회전 90/270 (측면) 두 그룹
+  // W9-102/104/105: 세트/전체 정면도 — 회전 0/180 (정면) + 회전 90/270 (측면) 두 그룹
+  //   W9-105: X 원점 = 사람 원 위치 (없으면 모듈 원점 fallback)
   function renderFrontSet(content, mods) {
     if (!mods || !mods.length) return;
     const ns = 'http://www.w3.org/2000/svg';
-    const ox = originPos2D.x;
+    const ox = getFrontViewOriginX();
     // 회전 0/180 (정면) vs 90/270 (측면)
     const frontMods = mods.filter(m => !(((m.rotation || 0) % 180)));
     const sideMods = mods.filter(m => (((m.rotation || 0) % 180)));
@@ -681,6 +682,38 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     };
     drawGuide(0, '천장 H=' + ceilingHeight, '#6a4b2a');
     drawGuide(ceilingHeight, '바닥 0', '#6a4b2a');
+    // W9-105: 사람 위치 마커 — 정면도 X=0 (사람 원의 cx 가 X=0 으로 매핑되므로)
+    if (personPos) {
+      // 사람 마커 — 정면도 바닥 라인 (Y=ceilingHeight) 에 작은 원
+      const personMarker = document.createElementNS(ns, 'circle');
+      personMarker.setAttribute('cx', 0);
+      personMarker.setAttribute('cy', ceilingHeight + 50);
+      personMarker.setAttribute('r', 30);
+      personMarker.setAttribute('fill', '#b8956c');
+      personMarker.setAttribute('stroke', '#3d342a');
+      personMarker.setAttribute('stroke-width', 2);
+      personMarker.setAttribute('opacity', 0.85);
+      content.appendChild(personMarker);
+      // 사람 라벨
+      const personLab = document.createElementNS(ns, 'text');
+      personLab.setAttribute('x', 0);
+      personLab.setAttribute('y', ceilingHeight + 130);
+      personLab.setAttribute('text-anchor', 'middle');
+      personLab.setAttribute('font-size', 36);
+      personLab.setAttribute('fill', '#3d342a');
+      personLab.setAttribute('font-weight', 'bold');
+      personLab.textContent = '🧍 사람 (X=0)';
+      content.appendChild(personLab);
+      // X=0 vertical 가이드 (사람 위치 기준선)
+      const vGuide = document.createElementNS(ns, 'line');
+      vGuide.setAttribute('x1', 0); vGuide.setAttribute('y1', -100);
+      vGuide.setAttribute('x2', 0); vGuide.setAttribute('y2', ceilingHeight + 40);
+      vGuide.setAttribute('stroke', '#b8956c');
+      vGuide.setAttribute('stroke-width', 2);
+      vGuide.setAttribute('stroke-dasharray', '8 4');
+      vGuide.setAttribute('opacity', 0.4);
+      content.appendChild(vGuide);
+    }
     // 정면-측면 그룹 구분 vertical 라인
     if (frontMods.length && sideMods.length) {
       const sep = document.createElementNS(ns, 'line');
@@ -1169,6 +1202,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   document.getElementById('reloadBtn').onclick = () => {
     loadModules();
+    loadPerson();   // W9-105
     renderModuleList();
     if (modules.length && !modules.find(m => m.id === activeId)) setActiveModule(modules[0].id);
     showToast(`📥 배치 로드 (모듈 ${modules.length}개)`);
@@ -1201,6 +1235,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W9-67/W9-68: 원점/천정 정보 — mockup-shell.html 의 'dadam_origin_v1' 에서 로드
   let ceilingHeight = 2300;
   let originPos2D = { x: 0, y: 0 };  // 평면도 SVG 좌표
+  // W9-105: 사람 원 위치 (정면도 X 원점 기준) — layout.person 에서 로드
+  let personPos = null;   // { cx, cy } 또는 null
   (function loadOrigin() {
     try {
       const raw = localStorage.getItem('dadam_origin_v1');
@@ -1213,6 +1249,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
     } catch (e) {}
   })();
+  function loadPerson() {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (raw) {
+        const layout = JSON.parse(raw);
+        if (layout.person && typeof layout.person.cx === 'number') {
+          personPos = { cx: layout.person.cx, cy: layout.person.cy };
+          return;
+        }
+      }
+    } catch (e) {}
+    personPos = null;
+  }
+  // W9-105: 정면도 X 원점 — 사람 원 우선, 없으면 모듈 원점
+  function getFrontViewOriginX() {
+    return (personPos && typeof personPos.cx === 'number') ? personPos.cx : originPos2D.x;
+  }
 
   // section 별 모듈 base Y (바닥 또는 천정 매달림)
   // W9-69: hood 도 천정 매달림 추가
@@ -2341,6 +2394,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   loadModules();
   loadStructures();
+  loadPerson();   // W9-105: 사람 원 위치 (정면도 X 원점)
   renderModuleList();
   attachCanvasHandlers();
   // Three.js 로드 후 init3D
