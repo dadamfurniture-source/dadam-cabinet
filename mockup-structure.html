@@ -517,20 +517,90 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     applyView();
   }
 
+  // W9-102: 정면도 — viewMode 별 분기 (single / set / all). 배치 단계 X 좌표 + baseY 반영
   function renderFrontView() {
     const content = document.getElementById('contentG');
     content.innerHTML = '';
+    if (viewMode === 'set' && activeSetId) {
+      const sets = buildSets();
+      const set = sets.find(x => x.id === activeSetId);
+      if (set) renderFrontSet(content, set.modules);
+      return;
+    }
+    if (viewMode === 'all') {
+      renderFrontSet(content, modules);
+      return;
+    }
+    // single mode (기존)
     if (!activeId) return;
     const m = modules.find(x => x.id === activeId);
     if (!m) return;
     const s = getStructure(activeId);
+    renderModuleFront(content, m, s, 0, 0);
+  }
+
+  // W9-102: 세트/전체 정면도 — 모듈들을 X 좌표 (배치 평면도 기준) + ceiling 매달림 으로 표시
+  function renderFrontSet(content, mods) {
+    if (!mods || !mods.length) return;
+    // 좌표계: SVG (0, 0) = 세트 좌측 끝 천장. ceilingHeight 가 바닥
+    // 회전 모듈은 정면도에 표현 불가 (측면도)이므로 skip + 표시
+    const ox = originPos2D.x;
+    const visible = mods.filter(m => !(m.rotation % 180));   // 회전 0/180 만 정면도 가능
+    if (!visible.length) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const lab = document.createElementNS(ns, 'text');
+      lab.setAttribute('x', 0); lab.setAttribute('y', 0);
+      lab.setAttribute('font-size', 40); lab.setAttribute('fill', 'var(--text-faint)');
+      lab.textContent = '회전 90/270 모듈은 측면도 — 정면도 표현 불가';
+      content.appendChild(lab);
+      return;
+    }
+    visible.forEach(m => {
+      const s = getStructure(m.id);
+      const offsetX = (m.x || 0) - ox;
+      // 정면도 Y: top = ceilingHeight - (baseY + m.H), 모듈 height = m.H
+      //   상부장 (baseY = ceiling - H) → top = 0 (천장)
+      //   하부장 (baseY = 0) → top = ceiling - H
+      const baseY = getBaseY(m.section, m.H);
+      const offsetY = ceilingHeight - (baseY + m.H);
+      renderModuleFront(content, m, s, offsetX, offsetY);
+    });
+    // 바닥/천장 가이드 라인
+    const ns = 'http://www.w3.org/2000/svg';
+    let minX = Infinity, maxX = -Infinity;
+    visible.forEach(m => {
+      const ox2 = (m.x || 0) - ox;
+      minX = Math.min(minX, ox2);
+      maxX = Math.max(maxX, ox2 + m.W);
+    });
+    const drawGuide = (yMM, label, color) => {
+      const ln = document.createElementNS(ns, 'line');
+      ln.setAttribute('x1', minX - 100); ln.setAttribute('y1', yMM);
+      ln.setAttribute('x2', maxX + 100); ln.setAttribute('y2', yMM);
+      ln.setAttribute('stroke', color); ln.setAttribute('stroke-width', 2);
+      ln.setAttribute('stroke-dasharray', '12 6');
+      ln.setAttribute('opacity', 0.5);
+      content.appendChild(ln);
+      const lab = document.createElementNS(ns, 'text');
+      lab.setAttribute('x', minX - 110); lab.setAttribute('y', yMM);
+      lab.setAttribute('text-anchor', 'end'); lab.setAttribute('dominant-baseline', 'central');
+      lab.setAttribute('font-size', 36); lab.setAttribute('fill', color); lab.setAttribute('font-family', 'monospace');
+      lab.textContent = label;
+      content.appendChild(lab);
+    };
+    drawGuide(0, '천장 H=' + ceilingHeight, '#6a4b2a');
+    drawGuide(ceilingHeight, '바닥 0', '#6a4b2a');
+  }
+
+  // W9-102: 단일 모듈 정면도 헬퍼 (offset 받음)
+  function renderModuleFront(content, m, s, offsetX, offsetY) {
     const cfg = SECTION_CONFIG[m.section];
     const ns = 'http://www.w3.org/2000/svg';
 
-    // 모듈 외곽 (참고용, 영역들이 채움)
+    // 모듈 외곽
     const outline = document.createElementNS(ns, 'rect');
-    outline.setAttribute('x', 0);
-    outline.setAttribute('y', 0);
+    outline.setAttribute('x', offsetX);
+    outline.setAttribute('y', offsetY);
     outline.setAttribute('width', m.W);
     outline.setAttribute('height', m.H);
     outline.setAttribute('fill', 'none');
@@ -541,15 +611,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 상하 분할
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? s.drawerHeight : 0;
     const topH = m.H - drawerH;
-    const topY = 0;
-    const drawerY = topH;
+    const topY = offsetY;             // 모듈 위쪽 (천장 매달림이면 ceiling=0)
+    const drawerY = offsetY + topH;   // 하부 서랍 영역 시작
 
-    // 상부 영역 (좌우 N 분할)
-    const colW = m.W / s.verticalCount;
-    for (let i = 0; i < s.verticalCount; i++) {
+    // W9-95: 불균등 cell 폭 (areaWidths) — fallback 균등
+    const vCount = Math.max(1, s.verticalCount || 1);
+    const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === vCount)
+      ? s.areaWidths
+      : Array(vCount).fill(m.W / vCount);
+    let xAcc = offsetX;
+    for (let i = 0; i < vCount; i++) {
+      const colW = cellWidths[i];
       const type = s.areaTypes[i] || 'door';
       const dir = s.areaDirections[i] || 'left';
-      const x = i * colW;
+      const is2D = !!(s.areaIs2D && s.areaIs2D[i]);
+      const x = xAcc;
       const fill = colorForArea(cfg.fill, type);
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
@@ -577,8 +653,42 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (type === 'open') lab.setAttribute('fill', cfg.stroke);
       content.appendChild(lab);
 
-      // 도어 열림 방향 화살표
-      if (type === 'door') {
+      // W9-101: 양문 (is2D) — 가운데 갭 4mm + 처짐방지목 표시
+      if (type === 'door' && is2D) {
+        const GAP = MASTER_RULES.DOOR_GAP;
+        const braceW = MASTER_RULES.BAND_BRACE_W;
+        // 가운데 처짐방지목 외곽 (얇은 회색 stroke)
+        const brace = document.createElementNS(ns, 'rect');
+        brace.setAttribute('x', x + colW/2 - braceW/2);
+        brace.setAttribute('y', topY + 4);
+        brace.setAttribute('width', braceW);
+        brace.setAttribute('height', topH - 8);
+        brace.setAttribute('fill', cfg.stroke);
+        brace.setAttribute('opacity', 0.15);
+        brace.setAttribute('stroke', '#000');
+        brace.setAttribute('stroke-width', 1);
+        content.appendChild(brace);
+        // 가운데 갭 (4mm) — 두꺼운 검은 라인
+        const gap = document.createElementNS(ns, 'line');
+        gap.setAttribute('x1', x + colW/2); gap.setAttribute('y1', topY);
+        gap.setAttribute('x2', x + colW/2); gap.setAttribute('y2', topY + topH);
+        gap.setAttribute('stroke', '#000'); gap.setAttribute('stroke-width', 3);
+        content.appendChild(gap);
+        // 양문 방향 화살표 좌/우 둘 다
+        const arrowFont = Math.min(colW * 0.08, 50);
+        ['left', 'right'].forEach((dr, di) => {
+          const arrow = document.createElementNS(ns, 'text');
+          arrow.setAttribute('class', 'open-direction');
+          arrow.setAttribute('font-size', arrowFont);
+          arrow.setAttribute('text-anchor', 'middle');
+          arrow.setAttribute('dominant-baseline', 'central');
+          arrow.setAttribute('x', x + (dr === 'left' ? colW * 0.1 : colW * 0.9));
+          arrow.setAttribute('y', topY + topH * 0.12);
+          arrow.textContent = dr === 'left' ? '◀' : '▶';
+          content.appendChild(arrow);
+        });
+      } else if (type === 'door') {
+        // 단문 화살표 (기존)
         const arrow = document.createElementNS(ns, 'text');
         arrow.setAttribute('class', 'open-direction');
         arrow.setAttribute('font-size', Math.min(colW * 0.15, 60));
@@ -595,6 +705,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         }
         content.appendChild(arrow);
       }
+      // W9-95: 먹장 (blank) 표시
+      if (type === 'blank') {
+        // 회색 cross-hatch
+        const blankLab = document.createElementNS(ns, 'text');
+        blankLab.setAttribute('x', x + colW/2);
+        blankLab.setAttribute('y', topY + topH/2);
+        blankLab.setAttribute('text-anchor', 'middle');
+        blankLab.setAttribute('dominant-baseline', 'central');
+        blankLab.setAttribute('font-size', Math.min(colW * 0.12, topH * 0.12, 40));
+        blankLab.setAttribute('fill', '#fff');
+        blankLab.textContent = '먹장';
+        content.appendChild(blankLab);
+        // rect 색을 회색으로 override
+        r.setAttribute('fill', '#a89c84');
+        lab.setAttribute('opacity', 0);   // 도어 라벨 숨김
+      }
+      xAcc += colW;   // 다음 cell
     }
 
     // 하부 (도어+서랍 모드일 때만)
@@ -602,7 +729,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const fill = colorForArea(cfg.fill, s.bottomType);
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
-      r.setAttribute('x', 0);
+      r.setAttribute('x', offsetX);
       r.setAttribute('y', drawerY);
       r.setAttribute('width', m.W);
       r.setAttribute('height', drawerH);
@@ -615,7 +742,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const labFont = Math.min(m.W * 0.06, drawerH * 0.4, 70);
       const lab = document.createElementNS(ns, 'text');
       lab.setAttribute('class', 'area-label');
-      lab.setAttribute('x', m.W/2);
+      lab.setAttribute('x', offsetX + m.W/2);
       lab.setAttribute('y', drawerY + drawerH/2);
       lab.setAttribute('text-anchor', 'middle');
       lab.setAttribute('dominant-baseline', 'central');
@@ -632,11 +759,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         arrow.setAttribute('text-anchor', 'middle');
         arrow.setAttribute('dominant-baseline', 'central');
         if (s.bottomDirection === 'left') {
-          arrow.setAttribute('x', m.W * 0.06);
+          arrow.setAttribute('x', offsetX + m.W * 0.06);
           arrow.setAttribute('y', drawerY + drawerH * 0.5);
           arrow.textContent = '◀';
         } else {
-          arrow.setAttribute('x', m.W * 0.94);
+          arrow.setAttribute('x', offsetX + m.W * 0.94);
           arrow.setAttribute('y', drawerY + drawerH * 0.5);
           arrow.textContent = '▶';
         }
@@ -644,43 +771,68 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
     }
 
-    // 선반 (위→아래 좌표계에서 바닥부터 mm = m.H 에서 아래로)
-    // 정면도 좌표는 위에서 아래로 — 선반 위치 y = m.H - shelf_mm
+    // 선반 — 모듈 내부 (offsetY 기준)
+    // 정면도 Y down: 선반 위치 y = offsetY + (m.H - shelf_mm)
     s.shelves.forEach(sh => {
       if (sh < 0 || sh > m.H) return;
-      const y = m.H - sh;
+      const y = offsetY + m.H - sh;
       const line = document.createElementNS(ns, 'line');
       line.setAttribute('class', 'shelf-line');
-      line.setAttribute('x1', 8);
+      line.setAttribute('x1', offsetX + 8);
       line.setAttribute('y1', y);
-      line.setAttribute('x2', m.W - 8);
+      line.setAttribute('x2', offsetX + m.W - 8);
       line.setAttribute('y2', y);
       content.appendChild(line);
       const lab = document.createElementNS(ns, 'text');
-      lab.setAttribute('x', m.W - 12);
+      lab.setAttribute('x', offsetX + m.W - 12);
       lab.setAttribute('y', y - 6);
       lab.setAttribute('text-anchor', 'end');
       lab.setAttribute('font-size', Math.min(m.W * 0.02, 24));
       lab.setAttribute('fill', '#5a4d2f');
       lab.setAttribute('font-family', 'monospace');
-      lab.textContent = `선반 H=${sh}mm`;
+      lab.textContent = `H=${sh}`;
       content.appendChild(lab);
     });
+
+    // W9-102: 마감재 (finishings) 정면도 표시 — 모듈 옆/위 (EP/몰딩/휠라)
+    if (Array.isArray(m.finishings)) {
+      m.finishings.forEach((f) => {
+        if (!f.W || !f.H) return;
+        // 평면도 절대 좌표 → 정면도 (offset 기준 모듈 안 상대 X)
+        const fx = (f.x || 0) - (m.x || 0);   // 모듈 좌측 기준 상대 X
+        const fH = f.H || m.H;
+        const fY = offsetY + m.H - fH;        // 모듈 바닥 기준 H 위쪽
+        const finColor = f.section === 'ep' ? '#7a6a45'
+                       : f.section === 'molding' ? '#5a4d2f'
+                       : f.section === 'filler' ? '#8a7858'
+                       : '#7a6a45';
+        const fr = document.createElementNS(ns, 'rect');
+        fr.setAttribute('x', offsetX + fx);
+        fr.setAttribute('y', fY);
+        fr.setAttribute('width', f.W);
+        fr.setAttribute('height', fH);
+        fr.setAttribute('fill', finColor);
+        fr.setAttribute('stroke', '#000');
+        fr.setAttribute('stroke-width', 2);
+        fr.setAttribute('opacity', 0.9);
+        content.appendChild(fr);
+      });
+    }
 
     // 외곽 치수 라벨 (W / H)
     const dimFont = Math.min(m.W, m.H) * 0.04;
     const dimW = document.createElementNS(ns, 'text');
     dimW.setAttribute('class', 'module-dim-label');
-    dimW.setAttribute('x', m.W/2);
-    dimW.setAttribute('y', m.H + dimFont*1.5);
+    dimW.setAttribute('x', offsetX + m.W/2);
+    dimW.setAttribute('y', offsetY + m.H + dimFont*1.5);
     dimW.setAttribute('text-anchor', 'middle');
     dimW.setAttribute('font-size', dimFont);
     dimW.textContent = `W ${m.W}mm`;
     content.appendChild(dimW);
     const dimH = document.createElementNS(ns, 'text');
     dimH.setAttribute('class', 'module-dim-label');
-    dimH.setAttribute('x', -dimFont*0.8);
-    dimH.setAttribute('y', m.H/2);
+    dimH.setAttribute('x', offsetX - dimFont*0.8);
+    dimH.setAttribute('y', offsetY + m.H/2);
     dimH.setAttribute('text-anchor', 'end');
     dimH.setAttribute('dominant-baseline', 'central');
     dimH.setAttribute('font-size', dimFont);
