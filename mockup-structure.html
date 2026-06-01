@@ -536,12 +536,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     if (!mods.length) return;
     const ox = getFrontViewOriginX();   // W9-105: 사람 원 기준
-    // W9-106: 모든 모듈을 도어 면 정면 (가로=m.W) — 측면 그룹 분리 제거
+    // W9-107: footprint X 폭 (rotation 0/180=W, 90/270=D)
     let minX = Infinity, maxX = -Infinity;
     mods.forEach(m => {
+      const rot = ((m.rotation || 0) % 360 + 360) % 360;
+      const footprintW = (rot === 90 || rot === 270) ? m.D : m.W;
       const ox2 = (m.x || 0) - ox;
       minX = Math.min(minX, ox2);
-      maxX = Math.max(maxX, ox2 + m.W);
+      maxX = Math.max(maxX, ox2 + footprintW);
     });
     if (!isFinite(minX) || !isFinite(maxX)) return;
     const targetW = (maxX - minX) + 250;
@@ -590,18 +592,51 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     let allMinX = Infinity, allMaxX = -Infinity;
     sorted.forEach(m => {
       const s = getStructure(m.id);
-      const offsetX = (m.x || 0) - ox;
       const baseY = getBaseY(m.section, m.H);
       const offsetY = ceilingHeight - (baseY + m.H);
-      // W9-106: 모든 모듈 도어 면 정면 표시 (가로=m.W)
-      renderModuleFront(content, m, s, offsetX, offsetY);
-      allMinX = Math.min(allMinX, offsetX);
-      allMaxX = Math.max(allMaxX, offsetX + m.W);
-      // 회전 모듈은 회전각 배지 (모듈 상단)
       const rot = ((m.rotation || 0) % 360 + 360) % 360;
+      // W9-107: 평면도 차지 X 폭 — rotation 0/180 = m.W, 90/270 = m.D
+      const footprintW = (rot === 90 || rot === 270) ? m.D : m.W;
+      const footprintX = (m.x || 0) - ox;   // 평면도 X 시작 (모듈 좌측 끝)
+      // 도어 면 (m.W) X 정렬 — 회전 방향에 따라 footprint 안에서 위치
+      //   0:   좌측 정렬 (offsetX = footprintX)
+      //   90:  우측 정렬 (offsetX = footprintX + footprintW - m.W) — 사람 우측 향 도어
+      //   180: 좌측 정렬 (offsetX = footprintX) — 좌우 거울 (방향 표시는 별도)
+      //   270: 좌측 정렬 (offsetX = footprintX) — 사람 좌측 향 도어
+      let doorOffsetX = footprintX;
+      if (rot === 90) doorOffsetX = footprintX + footprintW - m.W;
+      // W9-107: 회전 모듈 footprint 외곽 (dashed frame) — 차지 영역 명시
+      if (rot === 90 || rot === 270) {
+        const fp = document.createElementNS(ns, 'rect');
+        fp.setAttribute('x', footprintX);
+        fp.setAttribute('y', offsetY);
+        fp.setAttribute('width', footprintW);
+        fp.setAttribute('height', m.H);
+        fp.setAttribute('fill', 'none');
+        fp.setAttribute('stroke', '#a89c84');
+        fp.setAttribute('stroke-width', 2);
+        fp.setAttribute('stroke-dasharray', '10 6');
+        fp.setAttribute('opacity', 0.5);
+        content.appendChild(fp);
+        // footprint X 폭 라벨 (=m.D)
+        const fpLab = document.createElementNS(ns, 'text');
+        fpLab.setAttribute('x', footprintX + footprintW / 2);
+        fpLab.setAttribute('y', offsetY + m.H + 70);
+        fpLab.setAttribute('text-anchor', 'middle');
+        fpLab.setAttribute('font-size', 24);
+        fpLab.setAttribute('fill', '#a89c84');
+        fpLab.setAttribute('font-family', 'monospace');
+        fpLab.textContent = '평면 차지 D=' + footprintW;
+        content.appendChild(fpLab);
+      }
+      // 모듈 도어 면 정면 표시
+      renderModuleFront(content, m, s, doorOffsetX, offsetY);
+      allMinX = Math.min(allMinX, footprintX);
+      allMaxX = Math.max(allMaxX, footprintX + footprintW);
+      // 회전 모듈 회전각 배지 (도어 면 우측 상단)
       if (rot !== 0) {
         const badge = document.createElementNS(ns, 'rect');
-        badge.setAttribute('x', offsetX + m.W - 200);
+        badge.setAttribute('x', doorOffsetX + m.W - 200);
         badge.setAttribute('y', offsetY - 60);
         badge.setAttribute('width', 180);
         badge.setAttribute('height', 50);
@@ -610,7 +645,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         badge.setAttribute('opacity', 0.85);
         content.appendChild(badge);
         const lab = document.createElementNS(ns, 'text');
-        lab.setAttribute('x', offsetX + m.W - 110);
+        lab.setAttribute('x', doorOffsetX + m.W - 110);
         lab.setAttribute('y', offsetY - 30);
         lab.setAttribute('text-anchor', 'middle');
         lab.setAttribute('dominant-baseline', 'central');
