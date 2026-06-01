@@ -640,7 +640,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!mods.length) return;
     const ox = getFrontViewOriginX();
     const oy = (personPos && typeof personPos.cy === 'number') ? personPos.cy : originPos2D.y;
-    // W9-108: viewRotation 별 footprint X 변환 (renderFrontSet 의 viewX 와 동일 패턴)
+    // W9-111: 세트 모드 = forceForward (모든 모듈 정면 도어, X 평면도 그대로)
+    const forceForward = (viewMode === 'set');
     let minX = Infinity, maxX = -Infinity;
     mods.forEach(m => {
       const rot = ((m.rotation || 0) % 360 + 360) % 360;
@@ -648,7 +649,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const planeD = (rot === 90 || rot === 270) ? m.W : m.D;
       const px = m.x || 0, py = m.y || 0;
       let vx, vw;
-      if (viewRotation === 0)        { vx = px - ox; vw = planeW; }
+      if (forceForward)              { vx = px - ox; vw = m.W; }
+      else if (viewRotation === 0)   { vx = px - ox; vw = planeW; }
       else if (viewRotation === 90)  { vx = py - oy; vw = planeD; }
       else if (viewRotation === 180) { vx = -(px + planeW - ox); vw = planeW; }
       else                            { vx = -(py + planeD - oy); vw = planeD; }
@@ -675,11 +677,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (viewMode === 'set' && activeSetId) {
       const sets = buildSets();
       const set = sets.find(x => x.id === activeSetId);
-      if (set) renderFrontSet(content, set.modules);
+      // W9-111: 세트 모드 — 모든 모듈 강제 정면 도어 면 (회전 무관)
+      if (set) renderFrontSet(content, set.modules, { forceForward: true });
       return;
     }
     if (viewMode === 'all') {
-      renderFrontSet(content, modules);
+      // 전체 모드 — viewRotation 토글 시점 적용 (W9-108)
+      renderFrontSet(content, modules, { forceForward: false });
       return;
     }
     // single mode (기존)
@@ -690,10 +694,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderModuleFront(content, m, s, 0, 0);
   }
 
-  // W9-102/104/105/106/107/108: 세트/전체 정면도
-  //   W9-108: viewRotation (0/90/180/270) — 시점 회전 (정면/우측/뒷면/좌측)
-  //     평면도 좌표 → 정면도 X 변환 + effective rotation = m.rotation - viewRotation
-  function renderFrontSet(content, mods) {
+  // W9-102/104/105/106/107/108/111: 세트/전체 정면도
+  //   W9-108: viewRotation (0/90/180/270) — 시점 회전
+  //   W9-111: forceForward — 세트 모드 시 모든 모듈 강제 정면 도어 (회전 무관)
+  function renderFrontSet(content, mods, opts) {
+    opts = opts || {};
+    const forceForward = !!opts.forceForward;
     if (!mods || !mods.length) return;
     const ns = 'http://www.w3.org/2000/svg';
     const ox = getFrontViewOriginX();
@@ -709,6 +715,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const planeW = (rot === 90 || rot === 270) ? m.D : m.W;
       const planeD = (rot === 90 || rot === 270) ? m.W : m.D;
       const px = m.x || 0, py = m.y || 0;
+      // W9-111: forceForward — 모든 모듈 정면 도어 (회전 무관)
+      //   X 좌표는 평면도 X 그대로 (사람 기준), footprint W = m.W (도어 면)
+      if (forceForward) return { x: px - ox, w: m.W };
       if (viewRotation === 0)   return { x: px - ox, w: planeW };
       if (viewRotation === 90)  return { x: py - oy, w: planeD };
       if (viewRotation === 180) return { x: -(px + planeW - ox), w: planeW };
@@ -728,8 +737,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   90  → 우측면 (D × H, 도어 안 보임)
       //   180 → 뒷면 (W × H, 거울 — 단순화: 도어 안 보임)
       //   270 → 좌측면 (D × H)
-      const effRot = ((rot - viewRotation) % 360 + 360) % 360;
-      const showDoor = (effRot === 0);   // 정면일 때만 도어
+      // W9-111: forceForward 면 effRot 0 강제 (모든 모듈 정면 도어)
+      const effRot = forceForward ? 0 : (((rot - viewRotation) % 360 + 360) % 360);
+      const showDoor = (effRot === 0);
       // 정면도 footprint (시점 회전 적용)
       const vx = viewX(m);
       const footprintW = vx.w;
@@ -1926,9 +1936,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W9-72: 세트 모드에서만 자동계산 버튼 표시
     const autoCalcBar = document.getElementById('autoCalcBar');
     if (autoCalcBar) autoCalcBar.style.display = (mode === 'set') ? 'block' : 'none';
-    // W9-108: 전체/세트 모드에서만 시점 회전 버튼 표시
+    // W9-108/111: 시점 회전 버튼 — 전체 모드에서만 (세트는 forceForward 라 의미 없음)
     const viewRotateBar = document.getElementById('viewRotateBar');
-    if (viewRotateBar) viewRotateBar.style.display = (mode === 'set' || mode === 'all') ? 'flex' : 'none';
+    if (viewRotateBar) viewRotateBar.style.display = (mode === 'all') ? 'flex' : 'none';
     renderModuleList();
     if (mode === 'single') {
       if (modules.length && !modules.find(x => x.id === activeId)) setActiveModule(modules[0].id);
