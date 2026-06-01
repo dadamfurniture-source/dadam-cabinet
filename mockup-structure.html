@@ -67,6 +67,21 @@
   /* 정면도 영역 */
   .area-rect{cursor:pointer;transition:opacity .12s ease}
   .area-rect:hover{opacity:0.85}
+  /* W9-110: viewport sticky ruler bar (HTML, pan/zoom 따라가지 않음) */
+  .ruler-top{position:absolute;top:0;left:30px;right:30px;height:30px;background:#fff;border-bottom:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
+  .ruler-right{position:absolute;top:30px;right:0;bottom:30px;width:30px;background:#fff;border-left:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
+  .ruler-corner{position:absolute;top:0;right:0;width:30px;height:30px;background:#fbfaf6;border-bottom:1px solid var(--line);border-left:1px solid var(--line);z-index:11}
+  .ruler-tick{position:absolute;background:#3d342a;pointer-events:none}
+  .ruler-top .ruler-tick{top:0;width:1px;height:8px}
+  .ruler-top .ruler-tick.major{height:14px;background:#1a1a1a}
+  .ruler-right .ruler-tick{left:0;height:1px;width:8px}
+  .ruler-right .ruler-tick.major{width:14px;background:#1a1a1a}
+  .ruler-label{position:absolute;font-family:monospace;font-size:9px;color:var(--text);pointer-events:none;white-space:nowrap}
+  .ruler-top .ruler-label{top:14px;transform:translateX(-50%)}
+  .ruler-right .ruler-label{left:14px;transform:translateY(-50%) rotate(-90deg);transform-origin:left center}
+  .ruler-cursor{position:absolute;background:#b8956c;z-index:5;pointer-events:none;opacity:0.7}
+  .ruler-top .ruler-cursor{top:0;width:2px;height:30px}
+  .ruler-right .ruler-cursor{left:0;height:2px;width:30px}
   .area-label{font-family:-apple-system,'Segoe UI',sans-serif;font-weight:700;fill:#fff;pointer-events:none}
   .area-label-small{font-size:10px;fill:#fff;opacity:0.85;pointer-events:none}
   .module-dim-label{fill:var(--text-dim);font-size:11px;font-weight:600;font-family:monospace;pointer-events:none}
@@ -180,6 +195,10 @@
     <svg class="canvas-svg" id="frontSvg" style="display:none">
       <g class="content" id="contentG"></g>
     </svg>
+    <!-- W9-110: viewport sticky ruler bars (정면도 모드만 표시) -->
+    <div class="ruler-top" id="rulerTop" style="display:none"></div>
+    <div class="ruler-right" id="rulerRight" style="display:none"></div>
+    <div class="ruler-corner" id="rulerCorner" style="display:none"></div>
     <div class="canvas-empty" id="canvasEmpty">
       좌측에서 모듈을 선택하세요<br>
       <span style="font-size:11px;color:var(--text-faint);margin-top:6px;display:inline-block">
@@ -504,6 +523,86 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     wrap.style.backgroundSize = sz + ' ' + sz;
     wrap.style.backgroundPosition = view.panX + 'px ' + view.panY + 'px';
     document.getElementById('zoomInd').textContent = Math.round(view.zoom * 100) + '%';
+    // W9-110: viewport ruler 갱신
+    updateViewportRulers();
+  }
+
+  // W9-110: viewport ruler — pan/zoom 변경 시 tick + 라벨 재생성
+  //   화면 px = (SVG mm * zoom) + panX
+  //   화면 px → SVG mm = (px - panX) / zoom
+  function updateViewportRulers() {
+    const rulerTop = document.getElementById('rulerTop');
+    const rulerRight = document.getElementById('rulerRight');
+    if (!rulerTop || !rulerRight || rulerTop.style.display === 'none') return;
+    const cw = rulerTop.clientWidth, ch = rulerRight.clientHeight;
+    const z = view.zoom || 1;
+    // tick 간격 — zoom 에 따라 50 / 100 / 500 / 1000 mm
+    let tickMM = 100;
+    const pxPerMM = z;
+    if (pxPerMM < 0.05) tickMM = 1000;
+    else if (pxPerMM < 0.15) tickMM = 500;
+    else if (pxPerMM < 0.4) tickMM = 200;
+    else if (pxPerMM < 1.0) tickMM = 100;
+    else tickMM = 50;
+    // 가로 ruler
+    rulerTop.innerHTML = '';
+    const mmStart = Math.floor((-view.panX) / z / tickMM) * tickMM;
+    const mmEnd = Math.ceil((cw - view.panX) / z / tickMM) * tickMM;
+    for (let mm = mmStart; mm <= mmEnd; mm += tickMM) {
+      const px = mm * z + view.panX;
+      if (px < 0 || px > cw) continue;
+      const tick = document.createElement('div');
+      tick.className = 'ruler-tick' + (mm % (tickMM * 5) === 0 ? ' major' : '');
+      tick.style.left = px + 'px';
+      rulerTop.appendChild(tick);
+      if (mm % (tickMM * 5) === 0) {
+        const lab = document.createElement('div');
+        lab.className = 'ruler-label';
+        lab.style.left = px + 'px';
+        lab.textContent = mm;
+        rulerTop.appendChild(lab);
+      }
+    }
+    // 세로 ruler
+    rulerRight.innerHTML = '';
+    const yStart = Math.floor((-view.panY) / z / tickMM) * tickMM;
+    const yEnd = Math.ceil((ch - view.panY) / z / tickMM) * tickMM;
+    for (let mm = yStart; mm <= yEnd; mm += tickMM) {
+      const py = mm * z + view.panY;
+      if (py < 0 || py > ch) continue;
+      const tick = document.createElement('div');
+      tick.className = 'ruler-tick' + (mm % (tickMM * 5) === 0 ? ' major' : '');
+      tick.style.top = py + 'px';
+      rulerRight.appendChild(tick);
+      if (mm % (tickMM * 5) === 0) {
+        const lab = document.createElement('div');
+        lab.className = 'ruler-label';
+        lab.style.top = py + 'px';
+        lab.textContent = mm;
+        rulerRight.appendChild(lab);
+      }
+    }
+  }
+
+  // W9-110: ruler 클릭 — 클릭 px 의 SVG mm 좌표 toast
+  function attachRulerHandlers() {
+    const rulerTop = document.getElementById('rulerTop');
+    const rulerRight = document.getElementById('rulerRight');
+    if (!rulerTop || !rulerRight) return;
+    rulerTop.onclick = (e) => {
+      const rect = rulerTop.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const mm = Math.round((px - view.panX) / (view.zoom || 1));
+      if (typeof showToast === 'function') showToast('📐 X = ' + mm + ' mm');
+    };
+    rulerRight.onclick = (e) => {
+      const rect = rulerRight.getBoundingClientRect();
+      const py = e.clientY - rect.top;
+      const mm = Math.round((py - view.panY) / (view.zoom || 1));
+      // 정면도 Y 는 위→아래 (천장=0, 바닥=ceilingHeight) → 사람 시점 H 변환
+      const h = ceilingHeight - mm;
+      if (typeof showToast === 'function') showToast('📐 H = ' + h + ' mm (Y=' + mm + ')');
+    };
   }
 
   function fitToActiveModule() {
@@ -557,9 +656,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       maxX = Math.max(maxX, vx + vw);
     });
     if (!isFinite(minX) || !isFinite(maxX)) return;
-    // W9-109: ruler 여유 (상단 200 + 우측 200 + 라벨 영역)
-    const targetW = (maxX - minX) + 500;
-    const targetH = ceilingHeight + 400;
+    // W9-110: SVG ruler 제거 — viewport ruler 가 외부 → SVG 여유 축소
+    const targetW = (maxX - minX) + 300;
+    const targetH = ceilingHeight + 250;
     const zx = (cw - pad * 2) / targetW;
     const zy = (ch - pad * 2) / targetH;
     view.zoom = Math.max(0.02, Math.min(zx, zy, 4));
@@ -635,8 +734,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const vx = viewX(m);
       const footprintW = vx.w;
       const footprintX = vx.x;
-      // 도어 면 W (정면도 시점) — 모듈의 어느 면이 보이는지에 따라
-      const visibleFaceW = (effRot === 90 || effRot === 270) ? m.D : m.W;
+      // (effRot 0 → 도어 W, 90/270 → 측면 D, 180 → 뒷면 W — 분기 안에서 처리)
       const cfg = SECTION_CONFIG[m.section] || { fill: '#999', stroke: '#333', label: m.section };
       // W9-108: effective rotation 별 mesh 표시
       if (showDoor) {
@@ -731,142 +829,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     };
     drawGuide(0, '천장 H=' + ceilingHeight, '#6a4b2a');
     drawGuide(ceilingHeight, '바닥 0', '#6a4b2a');
-    // ──────────────────────────────────────────────
-    // W9-109: 치수 ruler — 상단 (X 축) + 우측 (Y 축) + 각 모듈 면 연장선
-    // ──────────────────────────────────────────────
-    // 1. 각 모듈의 X/Y 끝점 collect
-    const xPoints = new Set();
-    const yPoints = new Set();
-    sorted.forEach(m => {
-      const rot = ((m.rotation || 0) % 360 + 360) % 360;
-      const vx = viewX(m);
-      xPoints.add(Math.round(vx.x));
-      xPoints.add(Math.round(vx.x + vx.w));
-      const baseY = getBaseY(m.section, m.H);
-      const offsetY = ceilingHeight - (baseY + m.H);
-      yPoints.add(Math.round(offsetY));
-      yPoints.add(Math.round(offsetY + m.H));
-    });
-    yPoints.add(0);                 // 천장
-    yPoints.add(ceilingHeight);     // 바닥
-    const xArr = Array.from(xPoints).sort((a, b) => a - b);
-    const yArr = Array.from(yPoints).sort((a, b) => a - b);
-    const RULER_OFFSET = 200;
-    const rulerY = -RULER_OFFSET;                              // 상단 ruler Y 위치
-    const rulerX = isFinite(allMaxX) ? allMaxX + RULER_OFFSET : 0;  // 우측 ruler X 위치
-    const rulerMinX = isFinite(allMinX) ? allMinX - 50 : -50;
-    const rulerMaxX = isFinite(allMaxX) ? allMaxX + 50 : 50;
-    // 2. 상단 X-ruler (가로 막대)
-    const xRulerLine = document.createElementNS(ns, 'line');
-    xRulerLine.setAttribute('x1', rulerMinX); xRulerLine.setAttribute('y1', rulerY);
-    xRulerLine.setAttribute('x2', rulerMaxX); xRulerLine.setAttribute('y2', rulerY);
-    xRulerLine.setAttribute('stroke', '#3d342a'); xRulerLine.setAttribute('stroke-width', 3);
-    content.appendChild(xRulerLine);
-    // X 끝점 별 연장선 + tick + 라벨
-    xArr.forEach((xMM, i) => {
-      // 모듈 → ruler 연장선 (dashed)
-      const ext = document.createElementNS(ns, 'line');
-      ext.setAttribute('x1', xMM); ext.setAttribute('y1', 0);
-      ext.setAttribute('x2', xMM); ext.setAttribute('y2', rulerY);
-      ext.setAttribute('stroke', '#7a6a45'); ext.setAttribute('stroke-width', 1);
-      ext.setAttribute('stroke-dasharray', '4 4');
-      ext.setAttribute('opacity', 0.5);
-      content.appendChild(ext);
-      // tick mark (ruler 위)
-      const tick = document.createElementNS(ns, 'line');
-      tick.setAttribute('x1', xMM); tick.setAttribute('y1', rulerY - 20);
-      tick.setAttribute('x2', xMM); tick.setAttribute('y2', rulerY + 20);
-      tick.setAttribute('stroke', '#3d342a'); tick.setAttribute('stroke-width', 2);
-      content.appendChild(tick);
-      // 라벨 (ruler 위쪽)
-      const lab = document.createElementNS(ns, 'text');
-      lab.setAttribute('x', xMM); lab.setAttribute('y', rulerY - 30);
-      lab.setAttribute('text-anchor', 'middle');
-      lab.setAttribute('font-size', 22);
-      lab.setAttribute('fill', '#3d342a');
-      lab.setAttribute('font-family', 'monospace');
-      lab.textContent = xMM;
-      content.appendChild(lab);
-      // 인접 X 끝점 간격 표시 (ruler 위)
-      if (i > 0) {
-        const prev = xArr[i - 1];
-        const span = xMM - prev;
-        if (span >= 50) {
-          const dimLab = document.createElementNS(ns, 'text');
-          dimLab.setAttribute('x', (prev + xMM) / 2);
-          dimLab.setAttribute('y', rulerY + 50);
-          dimLab.setAttribute('text-anchor', 'middle');
-          dimLab.setAttribute('font-size', 24);
-          dimLab.setAttribute('font-weight', 'bold');
-          dimLab.setAttribute('fill', '#6a4b2a');
-          dimLab.setAttribute('font-family', 'monospace');
-          dimLab.textContent = span;
-          content.appendChild(dimLab);
-          // dimension line + 화살표 (ruler 아래쪽 살짝)
-          const dimLn = document.createElementNS(ns, 'line');
-          dimLn.setAttribute('x1', prev + 8); dimLn.setAttribute('y1', rulerY + 35);
-          dimLn.setAttribute('x2', xMM - 8); dimLn.setAttribute('y2', rulerY + 35);
-          dimLn.setAttribute('stroke', '#6a4b2a'); dimLn.setAttribute('stroke-width', 1.5);
-          content.appendChild(dimLn);
-        }
-      }
-    });
-    // 3. 우측 Y-ruler (세로 막대)
-    const yRulerLine = document.createElementNS(ns, 'line');
-    yRulerLine.setAttribute('x1', rulerX); yRulerLine.setAttribute('y1', -50);
-    yRulerLine.setAttribute('x2', rulerX); yRulerLine.setAttribute('y2', ceilingHeight + 50);
-    yRulerLine.setAttribute('stroke', '#3d342a'); yRulerLine.setAttribute('stroke-width', 3);
-    content.appendChild(yRulerLine);
-    // Y 끝점 별 연장선 + tick + 라벨
-    yArr.forEach((yMM, i) => {
-      // 모듈 → ruler 연장선 (dashed)
-      const ext = document.createElementNS(ns, 'line');
-      ext.setAttribute('x1', allMinX); ext.setAttribute('y1', yMM);
-      ext.setAttribute('x2', rulerX); ext.setAttribute('y2', yMM);
-      ext.setAttribute('stroke', '#7a6a45'); ext.setAttribute('stroke-width', 1);
-      ext.setAttribute('stroke-dasharray', '4 4');
-      ext.setAttribute('opacity', 0.5);
-      content.appendChild(ext);
-      // tick mark
-      const tick = document.createElementNS(ns, 'line');
-      tick.setAttribute('x1', rulerX - 20); tick.setAttribute('y1', yMM);
-      tick.setAttribute('x2', rulerX + 20); tick.setAttribute('y2', yMM);
-      tick.setAttribute('stroke', '#3d342a'); tick.setAttribute('stroke-width', 2);
-      content.appendChild(tick);
-      // 라벨 (ruler 오른쪽) — 천장 기준 H 표시
-      const yLabel = ceilingHeight - yMM;   // 천장=ceiling, 바닥=0 으로 변환 (사람 시점 H)
-      const lab = document.createElementNS(ns, 'text');
-      lab.setAttribute('x', rulerX + 30); lab.setAttribute('y', yMM);
-      lab.setAttribute('text-anchor', 'start'); lab.setAttribute('dominant-baseline', 'central');
-      lab.setAttribute('font-size', 22);
-      lab.setAttribute('fill', '#3d342a');
-      lab.setAttribute('font-family', 'monospace');
-      lab.textContent = 'H=' + yLabel;
-      content.appendChild(lab);
-      // 인접 Y 간격
-      if (i > 0) {
-        const prev = yArr[i - 1];
-        const span = yMM - prev;
-        if (span >= 50) {
-          const dimLab = document.createElementNS(ns, 'text');
-          dimLab.setAttribute('x', rulerX - 50);
-          dimLab.setAttribute('y', (prev + yMM) / 2);
-          dimLab.setAttribute('text-anchor', 'end'); dimLab.setAttribute('dominant-baseline', 'central');
-          dimLab.setAttribute('font-size', 24);
-          dimLab.setAttribute('font-weight', 'bold');
-          dimLab.setAttribute('fill', '#6a4b2a');
-          dimLab.setAttribute('font-family', 'monospace');
-          dimLab.textContent = span;
-          content.appendChild(dimLab);
-          // dimension line (vertical)
-          const dimLn = document.createElementNS(ns, 'line');
-          dimLn.setAttribute('x1', rulerX - 35); dimLn.setAttribute('y1', prev + 8);
-          dimLn.setAttribute('x2', rulerX - 35); dimLn.setAttribute('y2', yMM - 8);
-          dimLn.setAttribute('stroke', '#6a4b2a'); dimLn.setAttribute('stroke-width', 1.5);
-          content.appendChild(dimLn);
-        }
-      }
-    });
+    // W9-110: SVG 안 ruler 제거 — viewport sticky ruler 로 대체
     // W9-105: 사람 위치 마커 — 정면도 X=0 (사람 원의 cx 가 X=0 으로 매핑되므로)
     if (personPos) {
       // 사람 마커 — 정면도 바닥 라인 (Y=ceilingHeight) 에 작은 원
@@ -1895,6 +1858,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderFrontView();
       fitFrontView();
     }
+    // W9-110: viewport ruler — 2D 모드에서만 표시
+    const showRuler = (mode === '2d');
+    document.getElementById('rulerTop').style.display = showRuler ? 'block' : 'none';
+    document.getElementById('rulerRight').style.display = showRuler ? 'block' : 'none';
+    document.getElementById('rulerCorner').style.display = showRuler ? 'block' : 'none';
+    if (showRuler) updateViewportRulers();
   }
   document.getElementById('view3dBtn').onclick = () => setView('3d');
   document.getElementById('view2dBtn').onclick = () => setView('2d');
@@ -2585,6 +2554,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   loadPerson();   // W9-105: 사람 원 위치 (정면도 X 원점)
   renderModuleList();
   attachCanvasHandlers();
+  attachRulerHandlers();   // W9-110: viewport ruler 클릭 핸들러
   // Three.js 로드 후 init3D
   if (window.THREE) init3D();
   else window.addEventListener('three-ready', init3D);
