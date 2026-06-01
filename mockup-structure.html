@@ -907,14 +907,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const type = s.areaTypes[i] || 'door';
       const dir = s.areaDirections[i] || 'left';
       const is2D = !!(s.areaIs2D && s.areaIs2D[i]);
-      const x = xAcc;
+      // W9-112: 도어 외경 정렬 — cell 외측 갭 2mm 씩 빼서 도어 영역만 표시
+      const GAP_HALF = MASTER_RULES.DOOR_GAP / 2;
+      const x = xAcc + GAP_HALF;
+      const doorW = colW - MASTER_RULES.DOOR_GAP;
       const fill = colorForArea(cfg.fill, type);
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
       r.setAttribute('x', x);
-      r.setAttribute('y', topY);
-      r.setAttribute('width', colW);
-      r.setAttribute('height', topH);
+      r.setAttribute('y', topY + GAP_HALF);
+      r.setAttribute('width', doorW);
+      r.setAttribute('height', topH - MASTER_RULES.DOOR_GAP);
       r.setAttribute('fill', fill);
       r.setAttribute('stroke', cfg.stroke);
       r.setAttribute('stroke-width', 2);
@@ -1705,18 +1708,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           addEdgeOutline(sh, modG);
         });
       }
-      // W9-88: 도어/서랍 폭 = colW - 2T - 4 (측판 영역 안 침범)
-      const innerW = colW - 2*T - 4;
-      // W9-90: 싱크 도어 H 마스터 보정 (상부장 +20 / 하부장 -30)
-      let topDoorH = topH - MASTER_RULES.DOOR_GAP;
-      let topDoorY = drawerH + topH / 2;
-      if (m.section === 'upper') {
-        topDoorH = topH + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS - MASTER_RULES.DOOR_GAP;
-        topDoorY = drawerH + topH / 2 + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS / 2;
-      } else if (m.section === 'lower') {
-        topDoorH = topH - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS + MASTER_RULES.DOOR_GAP;
-        topDoorY = drawerH + topH / 2 - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS / 2;
-      }
+      // W9-112: 도어 외경 기준 overlay 정렬 — innerW = colW - 4 (외측 갭 2mm × 2)
+      //   단문: 도어 W = innerW = colW - 4 (예: W600 → 596)
+      //   양문: 도어 W = (innerW - 4) / 2 = (colW - 8) / 2 (예: W1000 → 496)
+      //   addFrontPanel 의 is2D 분기가 자동 계산
+      const innerW = colW - MASTER_RULES.DOOR_GAP;
+      // W9-112: 도어 상단 = 모듈 상단 (W9-90 +20/-30 보정 제거)
+      const topDoorH = topH - MASTER_RULES.DOOR_GAP;
+      const topDoorY = drawerH + topH / 2;
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
@@ -1726,7 +1725,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
-      cellLeftAccum += colW;   // W9-95: 다음 cell 누적
+      cellLeftAccum += colW;
     }
 
     // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
@@ -2178,20 +2177,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           addEdgeOutline(sh, g);
         });
       }
-      // W9-88: 도어/서랍 폭 = colW - 2T - 4 (양쪽 측판 + 2mm 갭, 측판 영역 안 침범)
-      const innerW = colW - 2*T - 4;
-      // W9-90: 싱크 도어 H 마스터 보정 (상부장 +20 / 하부장 -30)
-      let topDoorH = topH - MASTER_RULES.DOOR_GAP;
-      let topDoorY = drawerH + topH / 2;
-      if (m.section === 'upper') {
-        // 싱크 상부장: 도어가 모듈 위로 +20 튀어나옴 (상몰딩 안쪽까지)
-        topDoorH = topH + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS - MASTER_RULES.DOOR_GAP;
-        topDoorY = drawerH + topH / 2 + MASTER_RULES.SINK_UPPER_DOOR_H_PLUS / 2;
-      } else if (m.section === 'lower') {
-        // 싱크 하부장: 도어가 다리발 위까지만 (장H - 30, 갭 -4)
-        topDoorH = topH - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS + MASTER_RULES.DOOR_GAP;
-        topDoorY = drawerH + topH / 2 - MASTER_RULES.SINK_LOWER_DOOR_H_MINUS / 2;
-      }
+      // W9-112: 도어 외경 기준 overlay — innerW = colW - 4 (외측 갭 2mm × 2)
+      //   단문: 도어 W = colW - 4 / 양문: (colW - 8) / 2 (자동, is2D 분기)
+      const innerW = colW - MASTER_RULES.DOOR_GAP;
+      // W9-112: 도어 상단 = 모듈 상단 (W9-90 +20/-30 보정 제거)
+      const topDoorH = topH - MASTER_RULES.DOOR_GAP;
+      const topDoorY = drawerH + topH / 2;
       // cell 도어 (상부 영역)
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
@@ -2200,7 +2191,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
-      cellLeftAccum += colW;   // W9-95: 다음 cell 의 좌측 누적
+      cellLeftAccum += colW;
     }
     // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
     if (Array.isArray(m.finishings) && m.finishings.length) {
