@@ -321,6 +321,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     DOOR_W_TARGET: 450,           // 도어 W 목표
     SINK_BAND_THRESHOLD_UPPER: 700,   // 상부장 W > 700 → 처짐방지목 추가
     SINK_BAND_THRESHOLD_LOWER: 800,   // 하부장 W > 800 → 처짐방지목 추가
+    // W9-101: 처짐방지목 — OBJ 측정 60mm, 마스터 명시 70mm (OBJ 우선)
+    BAND_BRACE_W: 60,             // 처짐방지목 폭 (가운데 분리판)
+    BAND_BRACE_THICK: 15,         // 처짐방지목 두께 (15T PB 동일)
     // W9-95: 가전 X 정밀 분할 + 먹장 자동
     BLANK_THRESHOLD: 350,         // 세그먼트 W < 350 → 'blank' 자동 (도어 최소와 동일)
     // W9-96: distributeModules 잔여 최적화 (calc-utils.ts 포팅)
@@ -354,6 +357,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // W9-95: 영역별 폭 (불균등 분할 — 가전 X 정밀 분할 시 사용)
       // 빈 배열 또는 길이 ≠ verticalCount 면 균등 분할 (colW = W/N) fallback
       areaWidths: [],
+      // W9-101: 영역별 양문 (2D) 여부 — true 면 cell 안에 도어 2장 + 가운데 처짐방지목
+      areaIs2D: [],
       bottomType: 'drawer',    // doorTopDrawerBottom 시 하부 type
       bottomDirection: 'left', // 하부 도어일 때 방향
       shelves: [],             // 바닥부터 mm
@@ -1138,6 +1143,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
     } else if (ud.entityKind === 'blank') {
       msg = '🎯 먹장 (blank panel)';
+    } else if (ud.entityKind === 'brace') {
+      msg = '🎯 처짐방지목 (가운데 분리판)';
     } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
       const m2 = modules.find(x => x.id === ud.moduleId);
       const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
@@ -1259,7 +1266,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
       // cell 서랍
       if (drawerH > 0) {
         addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
@@ -1330,6 +1337,33 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     if (!doorVisible) return;
     const color = type === 'drawer' ? darken3(cfg.fill, 0.15) : cfg.fill;
+    // W9-101: 양문 (2D) — 도어 2장 + 가운데 처짐방지목 + 4mm 갭
+    if (type === 'door' && meta.is2D) {
+      const GAP = MASTER_RULES.DOOR_GAP;          // 가운데 갭 4
+      const halfW = (w - GAP) / 2;                // 도어 1장 폭
+      // 좌 도어
+      const dLeft = makeBox(halfW, h, T, color);
+      dLeft.position.set(cx - GAP / 2 - halfW / 2, cy, overlayZ);
+      dLeft.userData = Object.assign({}, carcassMeta, { side: 'front', doorIdx: 0 });
+      parent.add(dLeft);
+      addEdgeOutline(dLeft, parent, 0x000000, 0.7);
+      // 우 도어
+      const dRight = makeBox(halfW, h, T, color);
+      dRight.position.set(cx + GAP / 2 + halfW / 2, cy, overlayZ);
+      dRight.userData = Object.assign({}, carcassMeta, { side: 'front', doorIdx: 1 });
+      parent.add(dRight);
+      addEdgeOutline(dRight, parent, 0x000000, 0.7);
+      // 가운데 처짐방지목 (cell 안쪽, 모듈 내부) — Z 는 측판과 같은 평면
+      // 마스터: 가로 60 × 세로 (모듈 H - 2T) 안쪽, 두께 15
+      const braceW = MASTER_RULES.BAND_BRACE_W;
+      const braceT = MASTER_RULES.BAND_BRACE_THICK;
+      const brace = makeBox(braceW, h * 0.9, braceT, darken3(cfg.fill, 0.1), { roughness: 0.7 });
+      brace.position.set(cx, cy, frontZ - braceT / 2 - 2);  // 도어 뒤쪽 (모듈 안)
+      brace.userData = { entityKind: 'brace', moduleId: meta.moduleId, areaIdx: meta.areaIdx };
+      parent.add(brace);
+      addEdgeOutline(brace, parent, 0x000000, 0.6);
+      return;
+    }
     const panel = makeBox(w, h, T, color);
     panel.position.set(cx, cy, overlayZ);
     panel.userData = carcassMeta;
@@ -1676,7 +1710,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       // cell 도어 (상부 영역)
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top' });
+      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
       // cell 서랍 (하부 영역 — drawerH > 0)
       if (drawerH > 0) {
         addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
@@ -1913,12 +1947,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const areaTypes = [];
     const areaDirections = [];
     const areaWidths = [];
+    const areaIs2D = [];   // W9-101: 양문 여부
     segs.forEach(seg => {
       const segW = seg.x1 - seg.x0;
       if (seg.kind === 'open') {
         areaTypes.push('open');
         areaDirections.push('left');
         areaWidths.push(segW);
+        areaIs2D.push(false);
         return;
       }
       // 일반 세그먼트
@@ -1926,30 +1962,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         areaTypes.push('blank');
         areaDirections.push('left');
         areaWidths.push(segW);
+        areaIs2D.push(false);
         return;
       }
-      // W9-96: distributeModules — calc-utils.ts 포팅 (잔여 0~10mm 최적화 + 2D 페어링)
+      // W9-96/101: distributeModules — 잔여 0~10mm + 2D 페어링
+      //   W9-101: 양문 모듈은 1 cell 유지 (areaIs2D=true), 가운데 처짐방지목 시각화
       const dist = distributeModules(segW);
       if (!dist.modules.length) {
-        // 후보 없음 → 통째 먹장 (예방)
         areaTypes.push('blank');
         areaDirections.push('left');
         areaWidths.push(segW);
+        areaIs2D.push(false);
         return;
       }
-      // 2D 페어링 풀기: { w: 900, is2D: true } → cell 2개 (각 450, dir 좌/우 양문)
-      // 잔여 gap 균등 분배 (마스터: Math.floor(gap/N), common 카테고리)
-      const cells = [];
-      dist.modules.forEach(mod => {
-        if (mod.is2D) {
-          const half = mod.w / 2;
-          cells.push({ w: half, dir: 'left' });   // 좌 도어
-          cells.push({ w: half, dir: 'right' });  // 우 도어 (양문)
-        } else {
-          cells.push({ w: mod.w, dir: 'left' });
-        }
-      });
-      // 잔여 gap 균등 분배 (Math.floor(gap/N) 추가, 끝 cell 에 잉여 mm)
+      // 양문 (is2D) 1 cell 로 유지 + 단문 1 cell
+      const cells = dist.modules.map(mod => ({
+        w: mod.w,
+        dir: mod.is2D ? 'both' : 'left',
+        is2D: !!mod.is2D,
+      }));
+      // 잔여 gap 균등 분배 (마스터 common: Math.floor(gap/N) + 끝 cell 잉여)
       const N = cells.length;
       if (dist.gap > 0 && N > 0) {
         const per = Math.floor(dist.gap / N);
@@ -1960,11 +1992,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         areaTypes.push('door');
         areaDirections.push(c.dir);
         areaWidths.push(c.w);
+        areaIs2D.push(c.is2D);
       });
     });
     s.areaTypes = areaTypes;
     s.areaDirections = areaDirections;
     s.areaWidths = areaWidths;
+    s.areaIs2D = areaIs2D;   // W9-101
     s.verticalCount = areaTypes.length;
     // 4. 선반
     s.shelves = calcDefaultShelves(m.section, H);
