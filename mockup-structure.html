@@ -1165,6 +1165,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return mesh;
   }
 
+  // W9-100: mesh 외곽에 얇은 검은 테두리 — 각 부재 (측판/천지판/선반/도어/마감재) 구별
+  function addEdgeOutline(mesh, parent, color, opacity) {
+    if (!mesh || !mesh.geometry) return;
+    const edges = new THREE.EdgesGeometry(mesh.geometry);
+    const mat = new THREE.LineBasicMaterial({
+      color: color != null ? color : 0x000000,
+      transparent: true,
+      opacity: opacity != null ? opacity : 0.6,
+      linewidth: 1,
+    });
+    const line = new THREE.LineSegments(edges, mat);
+    line.position.copy(mesh.position);
+    line.rotation.copy(mesh.rotation);
+    line.userData = { entityKind: 'edge' };
+    parent.add(line);
+    return line;
+  }
+
   // 모듈 3D 렌더 — 외곽 + 도어/서랍 + 선반 + 손잡이
   function renderModule3D(m, s) {
     if (!three) return;
@@ -1204,13 +1222,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const cellCx = cellLeft + colW / 2;
       // cell 뒤판
       const _b = makeBox(colW, H, T, carcassColor); _b.position.set(cellCx, H/2, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
+      addEdgeOutline(_b, modG);
       // W9-88: 각 cell 의 좌+우 측판 모두 생성 (다담 표준)
       const _l = makeBox(T, H, D, carcassColor); _l.position.set(cellLeft + T/2, H/2, 0); _l.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd); modG.add(_l);
+      addEdgeOutline(_l, modG);
       const _r = makeBox(T, H, D, carcassColor); _r.position.set(cellLeft + colW - T/2, H/2, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
+      addEdgeOutline(_r, modG);
       // 바닥 + 천장
       const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
+      addEdgeOutline(_bt, modG);
       const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
-      // cell 안 선반
+      addEdgeOutline(_tp, modG);
+      // cell 안 선반 — W9-100: 검은 outline 으로 통일
       if (Array.isArray(s.shelves)) {
         s.shelves.forEach((shMM, shIdx) => {
           if (shMM <= T || shMM >= H - T) return;
@@ -1218,11 +1241,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           sh.position.set(cellCx, shMM, T/2);
           sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
           modG.add(sh);
-          const edges = new THREE.EdgesGeometry(sh.geometry);
-          const line = new THREE.LineSegments(edges,
-            new THREE.LineBasicMaterial({ color: 0x7a6a45, linewidth: 2 }));
-          line.position.copy(sh.position);
-          modG.add(line);
+          addEdgeOutline(sh, modG);
         });
       }
       // W9-88: 도어/서랍 폭 = colW - 2T - 4 (측판 영역 안 침범)
@@ -1273,15 +1292,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
         fbox.position.set(dxRel, fH / 2, dzRel);
         fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section };
-        const edges = new THREE.EdgesGeometry(fbox.geometry);
-        const line = new THREE.LineSegments(
-          edges,
-          new THREE.LineBasicMaterial({ color: 0x1a0f00, linewidth: 2 })
-        );
-        line.position.copy(fbox.position);
-        line.userData = { entityKind: 'finishing-edge' };
         modG.add(fbox);
-        modG.add(line);
+        addEdgeOutline(fbox, modG, 0x000000, 0.7);   // W9-100: 검은 통일
       });
     }
 
@@ -1293,40 +1305,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 영역 type 으로 색상/모양 구분
   // W9-79/84/95: 전면 panel 통합 — 도어/서랍/오픈/먹장 (blank) → 모듈 선택
   // W9-86: doorVisible=false 면 도어/서랍/먹장 mesh skip (오픈 frame 은 항상)
+  // W9-100: 아웃도어 (overlay) — panel 뒷면이 모듈 앞면과 일치, 앞으로 튀어나옴
+  //         panel.z = frontZ + T/2 (frontZ = 모듈 앞면, T/2 = panel 두께 절반)
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s, meta) {
     const T = 18;
+    const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
     const carcassMeta = { entityKind: 'carcass', moduleId: meta.moduleId, side: 'front', areaType: type };
     if (type === 'open') {
+      // open frame 은 모듈 앞면 위 wireframe (그대로 frontZ)
       const frame = makeBox(w, h, 2, cfg.stroke, { transparent: true, opacity: 0.25, wireframe: true });
       frame.position.set(cx, cy, frontZ);
       frame.userData = carcassMeta;
       parent.add(frame);
       return;
     }
-    // W9-95: 먹장 (blank panel) — 흐릿한 회색 panel + 강한 outline
     if (type === 'blank') {
       if (!doorVisible) return;
       const blank = makeBox(w, h, T, '#a89c84', { roughness: 0.7, opacity: 0.75, transparent: true });
-      blank.position.set(cx, cy, frontZ);
+      blank.position.set(cx, cy, overlayZ);
       blank.userData = { entityKind: 'blank', moduleId: meta.moduleId, areaIdx: meta.areaIdx };
       parent.add(blank);
-      const edges = new THREE.EdgesGeometry(blank.geometry);
-      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x5a4d3a, linewidth: 2 }));
-      line.position.copy(blank.position);
-      line.userData = { entityKind: 'blank-edge' };
-      parent.add(line);
+      addEdgeOutline(blank, parent, 0x000000, 0.8);
       return;
     }
-    // W9-86: 도어 끄기 — 도어/서랍 panel 생략 (내부 선반/마감재 보이도록)
     if (!doorVisible) return;
     const color = type === 'drawer' ? darken3(cfg.fill, 0.15) : cfg.fill;
     const panel = makeBox(w, h, T, color);
-    panel.position.set(cx, cy, frontZ);
+    panel.position.set(cx, cy, overlayZ);
     panel.userData = carcassMeta;
     parent.add(panel);
+    addEdgeOutline(panel, parent, 0x000000, 0.7);
     if (type === 'drawer') {
+      // 서랍 분할선 = 도어 앞면 (z = overlayZ + T/2) 살짝 앞
       const line = makeBox(w * 0.85, 2, 1, '#3d342a', { metalness: 0.3, roughness: 0.6 });
-      line.position.set(cx, cy, frontZ + T/2 + 0.5);
+      line.position.set(cx, cy, overlayZ + T / 2 + 0.5);
       line.userData = { entityKind: 'carcass-line', moduleId: meta.moduleId };
       parent.add(line);
     }
@@ -1614,25 +1626,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       cBack.position.set(cellCx, H/2, -D/2 + T/2);
       cBack.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd);
       g.add(cBack);
+      addEdgeOutline(cBack, g);
       // W9-88: 각 cell 의 좌+우 측판 모두 생성 (다담 표준 — 각 캐비넷 자기 측판)
       const cLeftP = makeBox(T, H, D, carcassColor);
       cLeftP.position.set(cellLeft + T/2, H/2, 0);
       cLeftP.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd);
       g.add(cLeftP);
+      addEdgeOutline(cLeftP, g);
       const cRightP = makeBox(T, H, D, carcassColor);
       cRightP.position.set(cellLeft + colW - T/2, H/2, 0);
       cRightP.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd);
       g.add(cRightP);
+      addEdgeOutline(cRightP, g);
       // cell 바닥 + 천장
       const cBottom = makeBox(colW - 2*T, T, D - T, carcassColor);
       cBottom.position.set(cellCx, T/2, T/2);
       cBottom.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd);
       g.add(cBottom);
+      addEdgeOutline(cBottom, g);
       const cTopP = makeBox(colW - 2*T, T, D - T, carcassColor);
       cTopP.position.set(cellCx, H - T/2, T/2);
       cTopP.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd);
       g.add(cTopP);
-      // cell 안 선반 (모듈 전체 s.shelves 를 각 cell 에 동일 적용)
+      addEdgeOutline(cTopP, g);
+      // cell 안 선반 (모듈 전체 s.shelves 를 각 cell 에 동일 적용) — W9-100 검은 outline 통일
       if (Array.isArray(s.shelves)) {
         s.shelves.forEach((shMM, shIdx) => {
           if (shMM <= T || shMM >= H - T) return;
@@ -1640,11 +1657,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           sh.position.set(cellCx, shMM, T/2);
           sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
           g.add(sh);
-          const edges = new THREE.EdgesGeometry(sh.geometry);
-          const line = new THREE.LineSegments(edges,
-            new THREE.LineBasicMaterial({ color: 0x7a6a45 }));
-          line.position.copy(sh.position);
-          g.add(line);
+          addEdgeOutline(sh, g);
         });
       }
       // W9-88: 도어/서랍 폭 = colW - 2T - 4 (양쪽 측판 + 2mm 갭, 측판 영역 안 침범)
@@ -1695,15 +1708,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
         fbox.position.set(dxRel, fH / 2, dzRel);
         fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section, finishingIdx: fIdx };
-        const edges = new THREE.EdgesGeometry(fbox.geometry);
-        const line = new THREE.LineSegments(
-          edges,
-          new THREE.LineBasicMaterial({ color: 0x1a0f00, linewidth: 2 })
-        );
-        line.position.copy(fbox.position);
-        line.userData = { entityKind: 'finishing-edge' };
         g.add(fbox);
-        g.add(line);
+        addEdgeOutline(fbox, g, 0x000000, 0.7);   // W9-100: 검은 outline 통일
       });
     }
     return g;
