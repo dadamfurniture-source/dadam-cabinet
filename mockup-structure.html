@@ -330,6 +330,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W9-113: 다리발 mesh 표준 (OBJ undermodule_sink_base.obj 측정)
     LEG_SIZE: 42,                 // 다리발 가로/세로 단면
     LEG_INSET: 25,                // 모듈 코너에서 안쪽 offset
+    // W9-115: 상몰딩 (crown molding) — 상부장 상단 마감
+    CROWN_MOLDING_SINK: 60,       // 싱크 상부장 상몰딩 H
+    CROWN_MOLDING_FRIDGE: 50,     // 냉장고 상부장 상몰딩
+    CROWN_MOLDING_WARDROBE: 15,   // 붙박이장 상몰딩
     SINK_LOWER_H: 870,            // 싱크 하부장 표준 H (다리발 150 포함)
     SINK_UPPER_H: 720,            // 싱크 상부장 표준 H
     SINK_UPPER_D: 295,            // 싱크 상부장 표준 D
@@ -1607,6 +1611,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 처짐방지목 (가운데 분리판)';
     } else if (ud.entityKind === 'leg') {
       msg = '🎯 다리발 (H=' + MASTER_RULES.SINK_LEG + 'mm)';
+    } else if (ud.entityKind === 'molding') {
+      msg = '🎯 상몰딩 (H=' + getMoldingH(modules.find(x => x.id === ud.moduleId)?.section || 'upper') + 'mm)';
     } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
       const m2 = modules.find(x => x.id === ud.moduleId);
       const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
@@ -1650,6 +1656,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     line.userData = { entityKind: 'edge' };
     parent.add(line);
     return line;
+  }
+
+  // W9-115: 상몰딩 H 반환 (section 별)
+  function getMoldingH(section) {
+    if (section === 'upper') return MASTER_RULES.CROWN_MOLDING_SINK;     // 싱크 상부장 60
+    if (section === 'fridge') return MASTER_RULES.CROWN_MOLDING_FRIDGE;  // 냉장고 50
+    // wardrobe 카테고리는 mockup 에서 다른 section 사용 (추후 확장)
+    return 0;
+  }
+
+  // W9-115: 상몰딩 mesh (상부장 상단 마감) — m.section==='upper' 또는 'fridge'
+  function addCrownMolding(parent, m, cfg) {
+    const moldingH = getMoldingH(m.section);
+    if (moldingH <= 0) return;
+    const W = m.W, D = m.D;
+    const moldColor = darken3(cfg.fill, 0.2);   // 카르카스보다 어둡게 (마감 식별)
+    const mold = makeBox(W, moldingH, D, moldColor, { roughness: 0.5, metalness: 0.1 });
+    mold.position.set(0, m.H - moldingH / 2, 0);
+    mold.userData = { entityKind: 'molding', moduleId: m.id };
+    parent.add(mold);
+    addEdgeOutline(mold, parent, 0x000000, 0.7);
   }
 
   // W9-113: 다리발 4개 mesh (하부장 모듈만, OBJ 표준 — 42×LEG_H×42, 코너 25mm inset)
@@ -1704,12 +1731,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     three.moduleGroup.add(modG);
 
     // W9-87/95: cell 단위 분할 — 도어 개수 = 독립 캐비넷 개수 + 불균등 폭 지원
-    // W9-114: 하부장 카르카스 Y offset = legH (다리발 위부터 본체)
+    // W9-114/115: 하부장 다리발 + 상부장 상몰딩 Y offset
     const carcassColor = darken3(cfg.fill, 0.05);
     const carcassUd = { entityKind: 'carcass', moduleId: m.id };
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
     const legH = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;   // W9-114
-    const carcassH = H - legH;                                          // W9-114: 본체 H
+    const moldingH = getMoldingH(m.section);                            // W9-115
+    const carcassH = H - legH - moldingH;                               // W9-114/115: 본체 H
     const topH = carcassH - drawerH;
     const verticalCount = Math.max(1, s.verticalCount || 1);
     const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === verticalCount)
@@ -1732,7 +1760,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // 바닥 (지판) — 다리발 위 + 천장 — 모듈 상단
       const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, legH + T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
       addEdgeOutline(_bt, modG);
-      const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
+      const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - moldingH - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
       addEdgeOutline(_tp, modG);
       // cell 안 선반 — 본체 기준 sh (legH 더하기)
       if (Array.isArray(s.shelves)) {
@@ -1762,6 +1790,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     // W9-113: 다리발 4개 (하부장만)
     addLegs(modG, m, cfg);
+    // W9-115: 상몰딩 (상부장/냉장고장 상단)
+    addCrownMolding(modG, m, cfg);
 
     // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
     if (Array.isArray(m.finishings) && m.finishings.length) {
@@ -2160,10 +2190,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const baseY = getBaseY(m.section, H);
     g.position.y = baseY;
     // W9-87/95: 도어 개수 = cell 개수 → 각 cell 독립 캐비넷
-    // W9-114: 하부장 카르카스 Y offset (legH 위 본체)
+    // W9-114/115: 하부장 다리발 + 상부장 상몰딩 Y offset
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
     const legH = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;  // W9-114
-    const carcassH = H - legH;                                         // W9-114: 본체 H
+    const moldingH = getMoldingH(m.section);                           // W9-115
+    const carcassH = H - legH - moldingH;                              // W9-114/115: 본체 H
     const topH = carcassH - drawerH;
     const vCount = Math.max(1, s.verticalCount || 1);
     const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === vCount)
@@ -2200,7 +2231,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       g.add(cBottom);
       addEdgeOutline(cBottom, g);
       const cTopP = makeBox(colW - 2*T, T, D - T, carcassColor);
-      cTopP.position.set(cellCx, H - T/2, T/2);
+      cTopP.position.set(cellCx, H - moldingH - T/2, T/2);
       cTopP.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd);
       g.add(cTopP);
       addEdgeOutline(cTopP, g);
@@ -2230,6 +2261,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     // W9-113: 다리발 4개 (하부장만)
     addLegs(g, m, cfg);
+    // W9-115: 상몰딩 (상부장/냉장고장 상단)
+    addCrownMolding(g, m, cfg);
 
     // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
     if (Array.isArray(m.finishings) && m.finishings.length) {
@@ -2517,8 +2550,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     s.areaWidths = areaWidths;
     s.areaIs2D = areaIs2D;   // W9-101
     s.verticalCount = areaTypes.length;
-    // 4. 선반 — W9-114: 하부장은 본체 H (다리발 빼고) 기준
-    const shelfH = (m.section === 'lower') ? (H - MASTER_RULES.SINK_LEG) : H;
+    // 4. 선반 — W9-114/115: 본체 H 기준 (다리발 + 상몰딩 빼고)
+    const legH4Shelf = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;
+    const moldingH4Shelf = getMoldingH(m.section);
+    const shelfH = H - legH4Shelf - moldingH4Shelf;
     s.shelves = calcDefaultShelves(m.section, shelfH);
     // 5. 손잡이 (다담 매립형)
     s.handleType = 'channel';
