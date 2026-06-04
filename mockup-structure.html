@@ -1704,10 +1704,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     three.moduleGroup.add(modG);
 
     // W9-87/95: cell 단위 분할 — 도어 개수 = 독립 캐비넷 개수 + 불균등 폭 지원
+    // W9-114: 하부장 카르카스 Y offset = legH (다리발 위부터 본체)
     const carcassColor = darken3(cfg.fill, 0.05);
     const carcassUd = { entityKind: 'carcass', moduleId: m.id };
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
-    const topH = H - drawerH;
+    const legH = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;   // W9-114
+    const carcassH = H - legH;                                          // W9-114: 본체 H
+    const topH = carcassH - drawerH;
     const verticalCount = Math.max(1, s.verticalCount || 1);
     const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === verticalCount)
       ? s.areaWidths
@@ -1717,45 +1720,42 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const colW = cellWidths[i];
       const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
-      // cell 뒤판
-      const _b = makeBox(colW, H, T, carcassColor); _b.position.set(cellCx, H/2, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
+      const cyMid = legH + carcassH / 2;   // W9-114: 본체 카르카스 Y 중심
+      // cell 뒤판 (본체 H = carcassH)
+      const _b = makeBox(colW, carcassH, T, carcassColor); _b.position.set(cellCx, cyMid, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
       addEdgeOutline(_b, modG);
-      // W9-88: 각 cell 의 좌+우 측판 모두 생성 (다담 표준)
-      const _l = makeBox(T, H, D, carcassColor); _l.position.set(cellLeft + T/2, H/2, 0); _l.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd); modG.add(_l);
+      // W9-88: 각 cell 의 좌+우 측판 (본체 H 만)
+      const _l = makeBox(T, carcassH, D, carcassColor); _l.position.set(cellLeft + T/2, cyMid, 0); _l.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd); modG.add(_l);
       addEdgeOutline(_l, modG);
-      const _r = makeBox(T, H, D, carcassColor); _r.position.set(cellLeft + colW - T/2, H/2, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
+      const _r = makeBox(T, carcassH, D, carcassColor); _r.position.set(cellLeft + colW - T/2, cyMid, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
       addEdgeOutline(_r, modG);
-      // 바닥 + 천장
-      const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
+      // 바닥 (지판) — 다리발 위 + 천장 — 모듈 상단
+      const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, legH + T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
       addEdgeOutline(_bt, modG);
       const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
       addEdgeOutline(_tp, modG);
-      // cell 안 선반 — W9-100: 검은 outline 으로 통일
+      // cell 안 선반 — 본체 기준 sh (legH 더하기)
       if (Array.isArray(s.shelves)) {
         s.shelves.forEach((shMM, shIdx) => {
-          if (shMM <= T || shMM >= H - T) return;
+          if (shMM <= T || shMM >= carcassH - T) return;
           const sh = makeBox(colW - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
-          sh.position.set(cellCx, shMM, T/2);
+          sh.position.set(cellCx, legH + shMM, T/2);
           sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
           modG.add(sh);
           addEdgeOutline(sh, modG);
         });
       }
       // W9-112: 도어 외경 기준 overlay 정렬 — innerW = colW - 4 (외측 갭 2mm × 2)
-      //   단문: 도어 W = innerW = colW - 4 (예: W600 → 596)
-      //   양문: 도어 W = (innerW - 4) / 2 = (colW - 8) / 2 (예: W1000 → 496)
-      //   addFrontPanel 의 is2D 분기가 자동 계산
       const innerW = colW - MASTER_RULES.DOOR_GAP;
-      // W9-112: 도어 상단 = 모듈 상단 (W9-90 +20/-30 보정 제거)
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
-      const topDoorY = drawerH + topH / 2;
+      const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
       addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
-      // cell 서랍
+      // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
-        addFrontPanel(modG, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
+        addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
       cellLeftAccum += colW;
@@ -2160,9 +2160,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const baseY = getBaseY(m.section, H);
     g.position.y = baseY;
     // W9-87/95: 도어 개수 = cell 개수 → 각 cell 독립 캐비넷
-    //   W9-95: areaWidths 있으면 불균등 cell 폭 (가전 X 정밀 분할)
+    // W9-114: 하부장 카르카스 Y offset (legH 위 본체)
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
-    const topH = H - drawerH;
+    const legH = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;  // W9-114
+    const carcassH = H - legH;                                         // W9-114: 본체 H
+    const topH = carcassH - drawerH;
     const vCount = Math.max(1, s.verticalCount || 1);
     const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === vCount)
       ? s.areaWidths
@@ -2173,26 +2175,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const colW = cellWidths[i];
       const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
-      // cell 뒤판
-      const cBack = makeBox(colW, H, T, carcassColor);
-      cBack.position.set(cellCx, H/2, -D/2 + T/2);
+      const cyMid = legH + carcassH / 2;   // W9-114: 본체 카르카스 Y 중심
+      // cell 뒤판 (본체 H)
+      const cBack = makeBox(colW, carcassH, T, carcassColor);
+      cBack.position.set(cellCx, cyMid, -D/2 + T/2);
       cBack.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd);
       g.add(cBack);
       addEdgeOutline(cBack, g);
-      // W9-88: 각 cell 의 좌+우 측판 모두 생성 (다담 표준 — 각 캐비넷 자기 측판)
-      const cLeftP = makeBox(T, H, D, carcassColor);
-      cLeftP.position.set(cellLeft + T/2, H/2, 0);
+      // W9-88: 좌+우 측판 (본체 H)
+      const cLeftP = makeBox(T, carcassH, D, carcassColor);
+      cLeftP.position.set(cellLeft + T/2, cyMid, 0);
       cLeftP.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd);
       g.add(cLeftP);
       addEdgeOutline(cLeftP, g);
-      const cRightP = makeBox(T, H, D, carcassColor);
-      cRightP.position.set(cellLeft + colW - T/2, H/2, 0);
+      const cRightP = makeBox(T, carcassH, D, carcassColor);
+      cRightP.position.set(cellLeft + colW - T/2, cyMid, 0);
       cRightP.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd);
       g.add(cRightP);
       addEdgeOutline(cRightP, g);
-      // cell 바닥 + 천장
+      // 바닥 (지판) — 다리발 위 / 천장 — 모듈 상단
       const cBottom = makeBox(colW - 2*T, T, D - T, carcassColor);
-      cBottom.position.set(cellCx, T/2, T/2);
+      cBottom.position.set(cellCx, legH + T/2, T/2);
       cBottom.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd);
       g.add(cBottom);
       addEdgeOutline(cBottom, g);
@@ -2201,29 +2204,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       cTopP.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd);
       g.add(cTopP);
       addEdgeOutline(cTopP, g);
-      // cell 안 선반 (모듈 전체 s.shelves 를 각 cell 에 동일 적용) — W9-100 검은 outline 통일
+      // cell 안 선반 — 본체 기준 sh (legH 더하기)
       if (Array.isArray(s.shelves)) {
         s.shelves.forEach((shMM, shIdx) => {
-          if (shMM <= T || shMM >= H - T) return;
+          if (shMM <= T || shMM >= carcassH - T) return;
           const sh = makeBox(colW - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
-          sh.position.set(cellCx, shMM, T/2);
+          sh.position.set(cellCx, legH + shMM, T/2);
           sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
           g.add(sh);
           addEdgeOutline(sh, g);
         });
       }
-      // W9-112: 도어 외경 기준 overlay — innerW = colW - 4 (외측 갭 2mm × 2)
-      //   단문: 도어 W = colW - 4 / 양문: (colW - 8) / 2 (자동, is2D 분기)
+      // W9-112: 도어 외경 기준 overlay
       const innerW = colW - MASTER_RULES.DOOR_GAP;
-      // W9-112: 도어 상단 = 모듈 상단 (W9-90 +20/-30 보정 제거)
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
-      const topDoorY = drawerH + topH / 2;
-      // cell 도어 (상부 영역)
+      const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
-      // cell 서랍 (하부 영역 — drawerH > 0)
+      // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
-        addFrontPanel(g, cellCx, drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
+        addFrontPanel(g, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
       cellLeftAccum += colW;
@@ -2517,8 +2517,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     s.areaWidths = areaWidths;
     s.areaIs2D = areaIs2D;   // W9-101
     s.verticalCount = areaTypes.length;
-    // 4. 선반
-    s.shelves = calcDefaultShelves(m.section, H);
+    // 4. 선반 — W9-114: 하부장은 본체 H (다리발 빼고) 기준
+    const shelfH = (m.section === 'lower') ? (H - MASTER_RULES.SINK_LEG) : H;
+    s.shelves = calcDefaultShelves(m.section, shelfH);
     // 5. 손잡이 (다담 매립형)
     s.handleType = 'channel';
     s.handlePosition = (m.section === 'upper') ? 'bottom'
