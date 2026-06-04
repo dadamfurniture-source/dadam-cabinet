@@ -334,6 +334,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     CROWN_MOLDING_SINK: 60,       // 싱크 상부장 상몰딩 H
     CROWN_MOLDING_FRIDGE: 50,     // 냉장고 상부장 상몰딩
     CROWN_MOLDING_WARDROBE: 15,   // 붙박이장 상몰딩
+    // W9-117: 목찬넬 (channel handle) — 마스터 자재추출규칙
+    CHANNEL_FRONT_W: 52,          // 전면 목찬넬 폭 (Y 방향, 도어 면)
+    CHANNEL_BACK_W: 40,           // 지면 목찬넬 폭 (참고, 미사용)
+    CHANNEL_DEPTH: 12,            // 목찬넬 매립 깊이 (도어 안쪽)
     SINK_LOWER_H: 870,            // 싱크 하부장 표준 H (다리발 150 포함)
     SINK_UPPER_H: 720,            // 싱크 상부장 표준 H
     SINK_UPPER_D: 295,            // 싱크 상부장 표준 D
@@ -1613,6 +1617,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 다리발 (H=' + MASTER_RULES.SINK_LEG + 'mm)';
     } else if (ud.entityKind === 'molding') {
       msg = '🎯 상몰딩 (H=' + getMoldingH(modules.find(x => x.id === ud.moduleId)?.section || 'upper') + 'mm)';
+    } else if (ud.entityKind === 'handle') {
+      msg = '🎯 목찬넬 (전면 ' + MASTER_RULES.CHANNEL_FRONT_W + 'mm × ' + ud.position + ')';
     } else if (ud.entityKind === 'module' || ud.entityKind === 'carcass') {
       const m2 = modules.find(x => x.id === ud.moduleId);
       const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
@@ -1677,6 +1683,42 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     mold.userData = { entityKind: 'molding', moduleId: m.id };
     parent.add(mold);
     addEdgeOutline(mold, parent, 0x000000, 0.7);
+  }
+
+  // W9-117: 목찬넬 (channel handle) mesh — 마스터 매립형
+  //   handlePosition: lower → 'top' (도어 상단), upper → 'bottom' (도어 하단), 기타 → 'middle'
+  //   전면 채널: 가로 (모듈 W) × 세로 52mm × 두께 작은 (도어 뒷면 안쪽)
+  function addHandle(parent, m, s, cfg) {
+    if (!s || s.handleType !== 'channel') return;
+    const W = m.W, D = m.D, T = 18;
+    const CW = MASTER_RULES.CHANNEL_FRONT_W;       // 52
+    const CDEPTH = MASTER_RULES.CHANNEL_DEPTH;     // 12
+    // 본체 Y 범위 (다리발 + 상몰딩 빼고)
+    const legH = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;
+    const moldingH = getMoldingH(m.section);
+    const carcassH = m.H - legH - moldingH;
+    const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
+    // 채널 Y 위치 — 도어 영역의 끝
+    const doorBottom = legH + drawerH;   // 도어 영역 하단
+    const doorTop = legH + carcassH;     // 도어 영역 상단 (본체 천장)
+    let chY;
+    if (s.handlePosition === 'top') {
+      chY = doorTop - CW / 2 - MASTER_RULES.DOOR_GAP;       // 도어 상단 안쪽
+    } else if (s.handlePosition === 'bottom') {
+      chY = doorBottom + CW / 2 + MASTER_RULES.DOOR_GAP;    // 도어 하단 안쪽
+    } else {
+      chY = (doorBottom + doorTop) / 2;                     // 가운데
+    }
+    // 채널 mesh — 모듈 W 가로, 52 세로, 12 깊이 (도어 뒤 매립)
+    const channelColor = '#888888';   // 알루미늄 톤
+    const channel = makeBox(W - MASTER_RULES.DOOR_GAP, CW, CDEPTH, channelColor, {
+      roughness: 0.3, metalness: 0.7,
+    });
+    // Z 위치: 도어 안쪽 (모듈 앞면 D/2 - CDEPTH/2)
+    channel.position.set(0, chY, D / 2 - CDEPTH / 2);
+    channel.userData = { entityKind: 'handle', moduleId: m.id, position: s.handlePosition };
+    parent.add(channel);
+    addEdgeOutline(channel, parent, 0x000000, 0.7);
   }
 
   // W9-113: 다리발 4개 mesh (하부장 모듈만, OBJ 표준 — 42×LEG_H×42, 코너 25mm inset)
@@ -1792,6 +1834,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     addLegs(modG, m, cfg);
     // W9-115: 상몰딩 (상부장/냉장고장 상단)
     addCrownMolding(modG, m, cfg);
+    // W9-117: 목찬넬 손잡이 (handleType='channel')
+    addHandle(modG, m, s, cfg);
 
     // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
     if (Array.isArray(m.finishings) && m.finishings.length) {
@@ -2263,6 +2307,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     addLegs(g, m, cfg);
     // W9-115: 상몰딩 (상부장/냉장고장 상단)
     addCrownMolding(g, m, cfg);
+    // W9-117: 목찬넬 손잡이
+    addHandle(g, m, s, cfg);
 
     // W9-77/82/83/85: 자식 마감재 (EP/몰딩/휠라) — 진한 우드 톤 + fcfg 없어도 진행
     if (Array.isArray(m.finishings) && m.finishings.length) {
