@@ -659,12 +659,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const wKey = `${xStart}-${xEnd}-${Math.round(m.W)}`;
       const hKey = `H${Math.round(m.H)}`;
       if (!wGroups.has(wKey)) wGroups.set(wKey, { xStart, xEnd, W: m.W, modules: [], anyFixed: false });
-      if (!hGroups.has(hKey)) hGroups.set(hKey, { H: m.H, modules: [], anyFixed: false });
+      if (!hGroups.has(hKey)) hGroups.set(hKey, { H: m.H, modules: [], positions: [], anyFixed: false });
       const wg = wGroups.get(wKey);
       wg.modules.push(m);
       if (m.isFixed) wg.anyFixed = true;
       const hg = hGroups.get(hKey);
-      hg.modules.push({ m, yTop });
+      hg.modules.push(m);                  // 모듈 직접 (applyDimChange 가 m.H 갱신)
+      hg.positions.push({ yTop, H: m.H }); // 렌더용 위치 정보 별도 저장
       if (m.isFixed) hg.anyFixed = true;
     }
     return { wGroups: [...wGroups.values()], hGroups: [...hGroups.values()] };
@@ -703,12 +704,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       rulerTop.appendChild(btn);
     }
 
-    // 우측 — H 그룹 버튼 (각 모듈 Y 위치마다 표시, 동일 클릭 핸들러)
+    // 우측 — H 그룹 버튼 (positions 에서 yTop 별로 1개씩, 동일 Y 범위 dedupe)
     const rightH = rulerRight.clientHeight;
     for (const g of hGroups) {
-      for (const item of g.modules) {
-        const topPx    = item.yTop * z + view.panY;
-        const heightPx = item.m.H * z;
+      const seenY = new Set();
+      for (const pos of g.positions) {
+        const yKey = `${Math.round(pos.yTop)}-${Math.round(pos.H)}`;
+        if (seenY.has(yKey)) continue;
+        seenY.add(yKey);
+        const topPx    = pos.yTop * z + view.panY;
+        const heightPx = pos.H * z;
         if (topPx + heightPx < 0 || topPx > rightH) continue;
         const btn = document.createElement('div');
         btn.className = 'ruler-btn' + (g.anyFixed ? ' fixed' : '');
