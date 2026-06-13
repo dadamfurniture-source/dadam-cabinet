@@ -79,9 +79,24 @@
   .ruler-label{position:absolute;font-family:monospace;font-size:9px;color:var(--text);pointer-events:none;white-space:nowrap}
   .ruler-top .ruler-label{top:14px;transform:translateX(-50%)}
   .ruler-right .ruler-label{left:14px;transform:translateY(-50%) rotate(-90deg);transform-origin:left center}
-  .ruler-cursor{position:absolute;background:#b8956c;z-index:5;pointer-events:none;opacity:0.7}
+  .ruler-cursor{position:absolute;background:#b8956c;z-index:13;pointer-events:none;opacity:0.7}
   .ruler-top .ruler-cursor{top:0;width:2px;height:30px}
   .ruler-right .ruler-cursor{left:0;height:2px;width:30px}
+  /* W9-118: ruler bar 외경 치수 버튼 (세트 모드 전용) */
+  .ruler-btn{position:absolute;background:rgba(184,149,108,0.18);border:1px solid #b8956c;border-radius:3px;cursor:pointer;font-family:monospace;font-size:10px;color:#3d342a;display:flex;align-items:center;justify-content:center;user-select:none;transition:background .1s ease;z-index:12;box-sizing:border-box}
+  .ruler-top .ruler-btn{top:2px;height:24px;min-width:24px}
+  .ruler-right .ruler-btn{left:2px;width:24px;min-height:24px;writing-mode:vertical-rl;text-orientation:mixed}
+  .ruler-btn:hover{background:rgba(184,149,108,0.42)}
+  .ruler-btn.fixed{background:rgba(63,185,80,0.22);border-color:#3fb950;color:#1a4d24;font-weight:700}
+  .ruler-btn.fixed:hover{background:rgba(63,185,80,0.38)}
+  .ruler-btn-editor{position:absolute;z-index:100;background:#fff;border:1px solid #999;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:12px;display:flex;flex-direction:column;gap:6px;min-width:160px;font-family:-apple-system,'Segoe UI',sans-serif}
+  .ruler-btn-editor label{display:flex;align-items:center;gap:6px;color:#3d342a}
+  .ruler-btn-editor input[type=number]{width:80px;padding:3px 6px;border:1px solid #ccc;border-radius:3px;font-family:monospace;font-size:12px}
+  .ruler-btn-editor .row-actions{display:flex;gap:6px;margin-top:4px}
+  .ruler-btn-editor button.apply{background:#b8956c;color:#fff;border:0;padding:5px 14px;border-radius:4px;cursor:pointer;font-weight:600;flex:1}
+  .ruler-btn-editor button.apply:hover{background:#9d7c54}
+  .ruler-btn-editor button.cancel{background:#eee;border:0;padding:5px 14px;border-radius:4px;cursor:pointer;color:#666;flex:1}
+  .ruler-btn-editor button.cancel:hover{background:#ddd}
   .area-label{font-family:-apple-system,'Segoe UI',sans-serif;font-weight:700;fill:#fff;pointer-events:none}
   .area-label-small{font-size:10px;fill:#fff;opacity:0.85;pointer-events:none}
   .module-dim-label{fill:var(--text-dim);font-size:11px;font-weight:600;font-family:monospace;pointer-events:none}
@@ -593,6 +608,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         rulerRight.appendChild(lab);
       }
     }
+    // W9-118: ruler 버튼 (세트 모드) 재배치
+    if (typeof renderRulerButtons === 'function') renderRulerButtons();
   }
 
   // W9-110: ruler 클릭 — 클릭 px 의 SVG mm 좌표 toast
@@ -601,12 +618,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const rulerRight = document.getElementById('rulerRight');
     if (!rulerTop || !rulerRight) return;
     rulerTop.onclick = (e) => {
+      // W9-118: 버튼 클릭은 무시 (버튼 자체 핸들러에서 처리)
+      if (e.target.classList && e.target.classList.contains('ruler-btn')) return;
       const rect = rulerTop.getBoundingClientRect();
       const px = e.clientX - rect.left;
       const mm = Math.round((px - view.panX) / (view.zoom || 1));
       if (typeof showToast === 'function') showToast('📐 X = ' + mm + ' mm');
     };
     rulerRight.onclick = (e) => {
+      if (e.target.classList && e.target.classList.contains('ruler-btn')) return;
       const rect = rulerRight.getBoundingClientRect();
       const py = e.clientY - rect.top;
       const mm = Math.round((py - view.panY) / (view.zoom || 1));
@@ -614,6 +634,242 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const h = ceilingHeight - mm;
       if (typeof showToast === 'function') showToast('📐 H = ' + h + ' mm (Y=' + mm + ')');
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // W9-118: 정면도 ruler 외경 치수 버튼 (세트 모드 전용)
+  //   - 상단 ruler: 같은 X 범위(start/end) + 동일 W 모듈을 1 버튼으로 병합
+  //   - 우측 ruler: 동일 H 값 모듈을 1 그룹으로 묶고 각 모듈 Y 위치에 버튼 표시
+  //   - 클릭 → 치수 입력 + 고정 체크 → 적용 → 매칭 모듈 일괄 갱신
+  //   - W 변경 시 인접 비고정 모듈이 흡수/제거 (세트 너비 절대 보존)
+  // ─────────────────────────────────────────────────────────────────
+
+  // 세트 내 모듈을 footprint 기준으로 W/H 그룹화
+  function buildRulerGroups(setModules) {
+    const ox = getFrontViewOriginX();
+    const wGroups = new Map();   // key: `${xStart}-${xEnd}-${W}`
+    const hGroups = new Map();   // key: `H${H}`
+    for (const m of setModules) {
+      // 가전(sink/hood/dishwasher/fridge)은 외경 조작 대상 제외
+      if (['sink','hood','dishwasher','fridge'].includes(m.section)) continue;
+      const xStart = Math.round((m.x || 0) - ox);
+      const xEnd   = xStart + Math.round(m.W);
+      const baseY  = getBaseY(m.section, m.H);
+      const yTop   = ceilingHeight - (baseY + m.H);   // 정면도 Y (위→아래)
+      const wKey = `${xStart}-${xEnd}-${Math.round(m.W)}`;
+      const hKey = `H${Math.round(m.H)}`;
+      if (!wGroups.has(wKey)) wGroups.set(wKey, { xStart, xEnd, W: m.W, modules: [], anyFixed: false });
+      if (!hGroups.has(hKey)) hGroups.set(hKey, { H: m.H, modules: [], anyFixed: false });
+      const wg = wGroups.get(wKey);
+      wg.modules.push(m);
+      if (m.isFixed) wg.anyFixed = true;
+      const hg = hGroups.get(hKey);
+      hg.modules.push({ m, yTop });
+      if (m.isFixed) hg.anyFixed = true;
+    }
+    return { wGroups: [...wGroups.values()], hGroups: [...hGroups.values()] };
+  }
+
+  // ruler 버튼 DOM 렌더 (updateViewportRulers 직후 호출)
+  function renderRulerButtons() {
+    const rulerTop = document.getElementById('rulerTop');
+    const rulerRight = document.getElementById('rulerRight');
+    if (!rulerTop || !rulerRight) return;
+    // 기존 버튼 제거 (tick/label 은 보존)
+    rulerTop.querySelectorAll('.ruler-btn').forEach(n => n.remove());
+    rulerRight.querySelectorAll('.ruler-btn').forEach(n => n.remove());
+    // 세트 모드 + 활성 세트 + ruler 표시 중 일 때만
+    if (viewMode !== 'set' || !activeSetId) return;
+    if (rulerTop.style.display === 'none') return;
+    const sets = buildSets();
+    const set = sets.find(x => x.id === activeSetId);
+    if (!set || !set.modules.length) return;
+    const z = view.zoom || 1;
+    const { wGroups, hGroups } = buildRulerGroups(set.modules);
+
+    // 상단 — W 그룹 버튼
+    const topW = rulerTop.clientWidth;
+    for (const g of wGroups) {
+      const leftPx  = g.xStart * z + view.panX;
+      const widthPx = (g.xEnd - g.xStart) * z;
+      if (leftPx + widthPx < 0 || leftPx > topW) continue;
+      const btn = document.createElement('div');
+      btn.className = 'ruler-btn' + (g.anyFixed ? ' fixed' : '');
+      btn.style.left  = leftPx + 'px';
+      btn.style.width = widthPx + 'px';
+      btn.textContent = Math.round(g.W);
+      btn.title = `W=${Math.round(g.W)}mm · ${g.modules.length}개 모듈${g.anyFixed ? ' (고정)' : ''}`;
+      btn.onclick = (e) => { e.stopPropagation(); openDimEditor('W', g, e.currentTarget); };
+      rulerTop.appendChild(btn);
+    }
+
+    // 우측 — H 그룹 버튼 (각 모듈 Y 위치마다 표시, 동일 클릭 핸들러)
+    const rightH = rulerRight.clientHeight;
+    for (const g of hGroups) {
+      for (const item of g.modules) {
+        const topPx    = item.yTop * z + view.panY;
+        const heightPx = item.m.H * z;
+        if (topPx + heightPx < 0 || topPx > rightH) continue;
+        const btn = document.createElement('div');
+        btn.className = 'ruler-btn' + (g.anyFixed ? ' fixed' : '');
+        btn.style.top    = topPx + 'px';
+        btn.style.height = heightPx + 'px';
+        btn.textContent  = Math.round(g.H);
+        btn.title = `H=${Math.round(g.H)}mm · ${g.modules.length}개 모듈${g.anyFixed ? ' (고정)' : ''}`;
+        btn.onclick = (e) => { e.stopPropagation(); openDimEditor('H', g, e.currentTarget); };
+        rulerRight.appendChild(btn);
+      }
+    }
+  }
+
+  // 치수 입력 에디터 popup
+  function openDimEditor(dim, group, anchorEl) {
+    // 기존 에디터 제거
+    document.querySelectorAll('.ruler-btn-editor').forEach(n => n.remove());
+    const cur = dim === 'W' ? group.W : group.H;
+    const editor = document.createElement('div');
+    editor.className = 'ruler-btn-editor';
+    const matchedCount = group.modules.length;
+    editor.innerHTML = `
+      <div style="font-weight:600;color:#3d342a">${dim} 치수 변경 (${matchedCount}개 모듈)</div>
+      <label>${dim} (mm) <input type="number" value="${Math.round(cur)}" min="100" max="6000" step="1" /></label>
+      <label><input type="checkbox" ${group.anyFixed ? 'checked' : ''}/> 모듈 고정 (자동계산 시 보존)</label>
+      <div class="row-actions">
+        <button class="apply">적용</button>
+        <button class="cancel">취소</button>
+      </div>
+    `;
+    document.body.appendChild(editor);
+    // anchor 근처 배치 (viewport 경계 고려)
+    const rect = anchorEl.getBoundingClientRect();
+    const editorRect = editor.getBoundingClientRect();
+    let left = rect.left;
+    let top  = rect.bottom + 4;
+    if (left + editorRect.width > window.innerWidth - 8) left = window.innerWidth - editorRect.width - 8;
+    if (top + editorRect.height > window.innerHeight - 8) top = rect.top - editorRect.height - 4;
+    editor.style.left = Math.max(8, left) + 'px';
+    editor.style.top  = Math.max(8, top)  + 'px';
+    // focus + select
+    const numInput = editor.querySelector('input[type=number]');
+    numInput.focus(); numInput.select();
+    // AbortController — editor 가 닫힐 때 모든 외부 리스너 즉시 제거
+    const ctrl = new AbortController();
+    const closeEditor = () => {
+      ctrl.abort();
+      editor.remove();
+    };
+    // 적용
+    const doApply = () => {
+      const newVal = +numInput.value;
+      const fixed  = editor.querySelector('input[type=checkbox]').checked;
+      if (!isFinite(newVal) || newVal < 100) { showToast('⚠ 치수는 100mm 이상이어야 합니다'); return; }
+      applyDimChange(dim, group, newVal, fixed);
+      closeEditor();
+    };
+    editor.querySelector('.apply').onclick = doApply;
+    editor.querySelector('.cancel').onclick = closeEditor;
+    numInput.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); doApply(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeEditor(); }
+    };
+    // 외부 클릭 시 닫기 — AbortController 로 unmount 시 자동 해제
+    setTimeout(() => {
+      if (ctrl.signal.aborted) return;
+      document.addEventListener('mousedown', (ev) => {
+        if (editor.contains(ev.target) || anchorEl.contains(ev.target)) return;
+        closeEditor();
+      }, { signal: ctrl.signal });
+    }, 0);
+  }
+
+  // 치수 변경 적용 + 인접 흡수/제거
+  function applyDimChange(dim, group, newVal, fixed) {
+    const targets = group.modules.slice();
+    const oldVal = dim === 'W' ? group.W : group.H;
+    const delta  = newVal - oldVal;
+    // 1) 그룹 내 매칭 모듈 일괄 갱신
+    for (const m of targets) {
+      m[dim] = newVal;
+      m.isFixed = fixed;
+    }
+    // 2-W) 너비 변경 — 인접 비고정 모듈 흡수/제거 (세트 너비 보존)
+    //   매칭 그룹의 모듈은 X 범위가 동일하므로 row(section+y) 가 다른 모듈들. 각 row 1회만 처리.
+    if (dim === 'W' && Math.abs(delta) > 0.5) {
+      const affected = new Set();
+      const processedRows = new Set();
+      let gapWarning = false;
+      for (const m of targets) {
+        const result = absorbAdjacentW(m, delta, affected, processedRows);
+        if (result === 'gap') gapWarning = true;
+      }
+      // affected 가 제거된 경우 modules 배열에서 실제 제거
+      for (const id of affected) {
+        const idx = modules.findIndex(x => x.id === id);
+        if (idx >= 0 && modules[idx].W < 100) {
+          modules.splice(idx, 1);
+        }
+      }
+      if (gapWarning && typeof showToast === 'function') {
+        showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
+      }
+    }
+    // 3) 재렌더 + 후속
+    if (typeof renderFrontView === 'function') renderFrontView();
+    if (typeof renderRightPanel === 'function') renderRightPanel();
+    updateViewportRulers();
+    if (typeof showToast === 'function') {
+      showToast(`✓ ${dim}=${Math.round(newVal)}mm 적용 (${targets.length}개 모듈${fixed ? ', 고정' : ''})`);
+    }
+  }
+
+  // 변경된 모듈의 X 우측 인접 모듈을 delta 만큼 흡수/제거 (세트 너비 보존)
+  //   delta > 0 (커짐): 우측 비고정 모듈 W 차감, 0 미만이면 제거하고 잔여 delta 다음 비고정 모듈에 전파
+  //                     (고정 모듈은 skip — 그 너머 비고정으로 jump 시 모듈 겹침 방지 위해 차감만 함)
+  //   delta < 0 (작아짐): 변경 모듈 OLD 우측 끝에 정확히 붙어있는 IMMEDIATE 이웃만 좌측 확장
+  //                     (fixed 사이를 jump 하면 모듈 겹침 → 그 경우 gap 발생, 호출자에게 알림)
+  //   processedRows: 동일 row(section@y) 1회만 처리 (그룹 다중 target 의 row 중복 호출 방지)
+  //   반환: 'ok' | 'gap'
+  function absorbAdjacentW(changed, delta, affected, processedRows) {
+    const rowKey = `${changed.section}@${Math.round(changed.y || 0)}`;
+    if (processedRows.has(rowKey)) return 'ok';
+    processedRows.add(rowKey);
+    const sameRow = modules.filter(m =>
+      m.id !== changed.id &&
+      m.section === changed.section &&
+      Math.abs((m.y || 0) - (changed.y || 0)) < 1
+    ).sort((a, b) => (a.x || 0) - (b.x || 0));
+    const changedRight = (changed.x || 0) + changed.W - delta;   // 변경 전 우측 끝
+    const rightSide = sameRow.filter(m => (m.x || 0) >= changedRight - 0.5);
+    if (delta > 0) {
+      // 확대 — 우측 비고정 모듈이 순차 흡수, 고정은 skip (그 너머 jump 금지)
+      let remaining = delta;
+      let firstNeighborSkipped = false;
+      for (const neighbor of rightSide) {
+        if (remaining <= 0) break;
+        if (neighbor.isFixed) {
+          firstNeighborSkipped = true;
+          continue;
+        }
+        const eat = Math.min(neighbor.W, remaining);
+        neighbor.W -= eat;
+        neighbor.x = (neighbor.x || 0) + eat;
+        remaining -= eat;
+        if (neighbor.W < 100) affected.add(neighbor.id);
+      }
+      // 고정 모듈 너머로 잔여 흡수 못한 경우 gap (changed 가 fixed 안으로 침범하는 모양)
+      // → 실제로는 changed.W 만 갱신되었으므로 X 충돌 없음, 단 fixed 위로 표시될 수 있음
+      return (remaining > 0 || firstNeighborSkipped) ? 'gap' : 'ok';
+    } else {
+      // 축소 — IMMEDIATE 인접 모듈 (정확히 OLD 우측 끝에 붙음) 만 확장
+      const grow = -delta;
+      const immediate = rightSide.find(m => Math.abs((m.x || 0) - changedRight) < 1);
+      if (!immediate || immediate.isFixed) return 'gap';
+      // immediate.x 가 좌측으로 grow 만큼 이동, W 가 grow 만큼 증가
+      // → 좌측 끝이 changed 의 새 우측 끝(changed.x + newW)에 정확히 붙음
+      immediate.x = (immediate.x || 0) - grow;
+      immediate.W += grow;
+      return 'ok';
+    }
   }
 
   function fitToActiveModule() {
@@ -2608,9 +2864,53 @@ window.dispatchEvent(new CustomEvent('three-ready'));
                      : 'middle';
   }
 
+  // W9-118: 비고정 모듈 W 균등 재분배 (자동계산 트리거 시)
+  //   같은 section row 내에서 고정 모듈을 경계로 끊고, 비고정 연속 구간을 균등 폭으로 재배치
+  //   run.length===1 도 처리 (단일 비고정 모듈도 span 갱신 가능 — 사실 단일이면 변동 없음)
+  //   each<100 시 경고 + skip
+  function redistributeNonFixedWidths(set) {
+    let warnTooNarrow = 0;
+    ['lower', 'upper'].forEach(section => {
+      const rowMods = set.modules
+        .filter(m => m.section === section)
+        .sort((a, b) => (a.x || 0) - (b.x || 0));
+      if (rowMods.length === 0) return;
+      let run = [];
+      const finishRun = () => {
+        if (run.length === 0) { return; }
+        // 단일 비고정 모듈: 재분배 의미 없음 — span 변동 없음 (skip silently)
+        if (run.length === 1) { run = []; return; }
+        const first = run[0], last = run[run.length - 1];
+        const x0 = first.x || 0;
+        const x1 = (last.x || 0) + last.W;
+        const span = x1 - x0;
+        const each = Math.floor(span / run.length / 10) * 10;   // 10mm 단위
+        if (each < 100) { warnTooNarrow++; run = []; return; }
+        const remainder = span - each * run.length;
+        let cursor = x0;
+        run.forEach((m, i) => {
+          m.x = cursor;
+          m.W = each + (i === run.length - 1 ? remainder : 0);
+          cursor += m.W;
+        });
+        run = [];
+      };
+      for (const m of rowMods) {
+        if (m.isFixed) finishRun();
+        else run.push(m);
+      }
+      finishRun();
+    });
+    if (warnTooNarrow > 0 && typeof showToast === 'function') {
+      showToast(`⚠ ${warnTooNarrow}개 비고정 구간이 너무 좁아 재분배 skip (각 100mm 미만)`);
+    }
+  }
+
   // 세트 일괄 자동계산
   function autoCalcForSet(set) {
     if (!set || !set.modules.length) return 0;
+    // W9-118: 자동계산 진입 시 비고정 모듈 W 균등 재분배 (고정 모듈 보존)
+    redistributeNonFixedWidths(set);
     const applianceRanges = {
       sink:       collectXRanges(set, 'sink'),
       hood:       collectXRanges(set, 'hood'),
