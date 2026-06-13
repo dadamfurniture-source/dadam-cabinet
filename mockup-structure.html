@@ -79,7 +79,7 @@
   .ruler-label{position:absolute;font-family:monospace;font-size:9px;color:var(--text);pointer-events:none;white-space:nowrap}
   .ruler-top .ruler-label{top:14px;transform:translateX(-50%)}
   .ruler-right .ruler-label{left:14px;transform:translateY(-50%) rotate(-90deg);transform-origin:left center}
-  .ruler-cursor{position:absolute;background:#b8956c;z-index:5;pointer-events:none;opacity:0.7}
+  .ruler-cursor{position:absolute;background:#b8956c;z-index:13;pointer-events:none;opacity:0.7}
   .ruler-top .ruler-cursor{top:0;width:2px;height:30px}
   .ruler-right .ruler-cursor{left:0;height:2px;width:30px}
   /* W9-118: ruler bar 외경 치수 버튼 (세트 모드 전용) */
@@ -752,28 +752,33 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // focus + select
     const numInput = editor.querySelector('input[type=number]');
     numInput.focus(); numInput.select();
+    // AbortController — editor 가 닫힐 때 모든 외부 리스너 즉시 제거
+    const ctrl = new AbortController();
+    const closeEditor = () => {
+      ctrl.abort();
+      editor.remove();
+    };
     // 적용
     const doApply = () => {
       const newVal = +numInput.value;
       const fixed  = editor.querySelector('input[type=checkbox]').checked;
       if (!isFinite(newVal) || newVal < 100) { showToast('⚠ 치수는 100mm 이상이어야 합니다'); return; }
       applyDimChange(dim, group, newVal, fixed);
-      editor.remove();
+      closeEditor();
     };
     editor.querySelector('.apply').onclick = doApply;
-    editor.querySelector('.cancel').onclick = () => editor.remove();
+    editor.querySelector('.cancel').onclick = closeEditor;
     numInput.onkeydown = (e) => {
       if (e.key === 'Enter') { e.preventDefault(); doApply(); }
-      else if (e.key === 'Escape') { e.preventDefault(); editor.remove(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeEditor(); }
     };
-    // 외부 클릭 시 닫기
+    // 외부 클릭 시 닫기 — AbortController 로 unmount 시 자동 해제
     setTimeout(() => {
-      const off = (ev) => {
+      if (ctrl.signal.aborted) return;
+      document.addEventListener('mousedown', (ev) => {
         if (editor.contains(ev.target) || anchorEl.contains(ev.target)) return;
-        editor.remove();
-        document.removeEventListener('mousedown', off);
-      };
-      document.addEventListener('mousedown', off);
+        closeEditor();
+      }, { signal: ctrl.signal });
     }, 0);
   }
 
@@ -788,10 +793,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       m.isFixed = fixed;
     }
     // 2-W) 너비 변경 — 인접 비고정 모듈 흡수/제거 (세트 너비 보존)
+    //   매칭 그룹의 모듈은 X 범위가 동일하므로 row(section+y) 가 다른 모듈들. 각 row 1회만 처리.
     if (dim === 'W' && Math.abs(delta) > 0.5) {
       const affected = new Set();
+      const processedRows = new Set();
+      let gapWarning = false;
       for (const m of targets) {
-        absorbAdjacentW(m, delta, affected);
+        const result = absorbAdjacentW(m, delta, affected, processedRows);
+        if (result === 'gap') gapWarning = true;
       }
       // affected 가 제거된 경우 modules 배열에서 실제 제거
       for (const id of affected) {
@@ -799,6 +808,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         if (idx >= 0 && modules[idx].W < 100) {
           modules.splice(idx, 1);
         }
+      }
+      if (gapWarning && typeof showToast === 'function') {
+        showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
       }
     }
     // 3) 재렌더 + 후속
@@ -811,42 +823,52 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // 변경된 모듈의 X 우측 인접 모듈을 delta 만큼 흡수/제거 (세트 너비 보존)
-  //   delta > 0 (커짐): 우측 모듈 W 차감, 0 미만이면 제거하고 잔여 delta 다음 모듈에 전파
-  //   delta < 0 (작아짐): 우측 모듈 W 증가 (gap 없이 채움)
-  //   고정 모듈은 skip
-  function absorbAdjacentW(changed, delta, affected) {
-    // 같은 row(section + Y 평면 위치) 내 X 우측 인접 모듈 찾기
+  //   delta > 0 (커짐): 우측 비고정 모듈 W 차감, 0 미만이면 제거하고 잔여 delta 다음 비고정 모듈에 전파
+  //                     (고정 모듈은 skip — 그 너머 비고정으로 jump 시 모듈 겹침 방지 위해 차감만 함)
+  //   delta < 0 (작아짐): 변경 모듈 OLD 우측 끝에 정확히 붙어있는 IMMEDIATE 이웃만 좌측 확장
+  //                     (fixed 사이를 jump 하면 모듈 겹침 → 그 경우 gap 발생, 호출자에게 알림)
+  //   processedRows: 동일 row(section@y) 1회만 처리 (그룹 다중 target 의 row 중복 호출 방지)
+  //   반환: 'ok' | 'gap'
+  function absorbAdjacentW(changed, delta, affected, processedRows) {
+    const rowKey = `${changed.section}@${Math.round(changed.y || 0)}`;
+    if (processedRows.has(rowKey)) return 'ok';
+    processedRows.add(rowKey);
     const sameRow = modules.filter(m =>
       m.id !== changed.id &&
       m.section === changed.section &&
       Math.abs((m.y || 0) - (changed.y || 0)) < 1
     ).sort((a, b) => (a.x || 0) - (b.x || 0));
-    // 우측 인접 모듈 (x > changed.x)
-    let remaining = delta;
     const changedRight = (changed.x || 0) + changed.W - delta;   // 변경 전 우측 끝
-    // changed 이후 정렬: x >= changedRight
     const rightSide = sameRow.filter(m => (m.x || 0) >= changedRight - 0.5);
-    for (const neighbor of rightSide) {
-      if (remaining === 0) break;
-      if (neighbor.isFixed) continue;
-      if (remaining > 0) {
-        // changed 가 커짐 → neighbor 작아짐 + x 우측 이동
+    if (delta > 0) {
+      // 확대 — 우측 비고정 모듈이 순차 흡수, 고정은 skip (그 너머 jump 금지)
+      let remaining = delta;
+      let firstNeighborSkipped = false;
+      for (const neighbor of rightSide) {
+        if (remaining <= 0) break;
+        if (neighbor.isFixed) {
+          firstNeighborSkipped = true;
+          continue;
+        }
         const eat = Math.min(neighbor.W, remaining);
         neighbor.W -= eat;
         neighbor.x = (neighbor.x || 0) + eat;
         remaining -= eat;
-        if (neighbor.W < 100) {
-          affected.add(neighbor.id);
-          // 잔여는 다음 neighbor 가 흡수
-        }
-      } else {
-        // changed 가 작아짐 → 첫 인접 neighbor 가 좌측으로 확장
-        const grow = -remaining;
-        neighbor.x = (neighbor.x || 0) - grow;
-        neighbor.W += grow;
-        remaining = 0;
-        break;
+        if (neighbor.W < 100) affected.add(neighbor.id);
       }
+      // 고정 모듈 너머로 잔여 흡수 못한 경우 gap (changed 가 fixed 안으로 침범하는 모양)
+      // → 실제로는 changed.W 만 갱신되었으므로 X 충돌 없음, 단 fixed 위로 표시될 수 있음
+      return (remaining > 0 || firstNeighborSkipped) ? 'gap' : 'ok';
+    } else {
+      // 축소 — IMMEDIATE 인접 모듈 (정확히 OLD 우측 끝에 붙음) 만 확장
+      const grow = -delta;
+      const immediate = rightSide.find(m => Math.abs((m.x || 0) - changedRight) < 1);
+      if (!immediate || immediate.isFixed) return 'gap';
+      // immediate.x 가 좌측으로 grow 만큼 이동, W 가 grow 만큼 증가
+      // → 좌측 끝이 changed 의 새 우측 끝(changed.x + newW)에 정확히 붙음
+      immediate.x = (immediate.x || 0) - grow;
+      immediate.W += grow;
+      return 'ok';
     }
   }
 
@@ -2844,7 +2866,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   // W9-118: 비고정 모듈 W 균등 재분배 (자동계산 트리거 시)
   //   같은 section row 내에서 고정 모듈을 경계로 끊고, 비고정 연속 구간을 균등 폭으로 재배치
+  //   run.length===1 도 처리 (단일 비고정 모듈도 span 갱신 가능 — 사실 단일이면 변동 없음)
+  //   each<100 시 경고 + skip
   function redistributeNonFixedWidths(set) {
+    let warnTooNarrow = 0;
     ['lower', 'upper'].forEach(section => {
       const rowMods = set.modules
         .filter(m => m.section === section)
@@ -2852,13 +2877,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (rowMods.length === 0) return;
       let run = [];
       const finishRun = () => {
-        if (run.length < 2) { run = []; return; }
+        if (run.length === 0) { return; }
+        // 단일 비고정 모듈: 재분배 의미 없음 — span 변동 없음 (skip silently)
+        if (run.length === 1) { run = []; return; }
         const first = run[0], last = run[run.length - 1];
         const x0 = first.x || 0;
         const x1 = (last.x || 0) + last.W;
         const span = x1 - x0;
         const each = Math.floor(span / run.length / 10) * 10;   // 10mm 단위
-        if (each < 100) { run = []; return; }
+        if (each < 100) { warnTooNarrow++; run = []; return; }
         const remainder = span - each * run.length;
         let cursor = x0;
         run.forEach((m, i) => {
@@ -2874,6 +2901,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       finishRun();
     });
+    if (warnTooNarrow > 0 && typeof showToast === 'function') {
+      showToast(`⚠ ${warnTooNarrow}개 비고정 구간이 너무 좁아 재분배 skip (각 100mm 미만)`);
+    }
   }
 
   // 세트 일괄 자동계산
