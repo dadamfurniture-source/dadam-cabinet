@@ -68,9 +68,10 @@
   .area-rect{cursor:pointer;transition:opacity .12s ease}
   .area-rect:hover{opacity:0.85}
   /* W9-110: viewport sticky ruler bar (HTML, pan/zoom 따라가지 않음) */
-  .ruler-top{position:absolute;top:0;left:30px;right:30px;height:30px;background:#fff;border-bottom:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
-  .ruler-right{position:absolute;top:30px;right:0;bottom:30px;width:30px;background:#fff;border-left:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
-  .ruler-corner{position:absolute;top:0;right:0;width:30px;height:30px;background:#fbfaf6;border-bottom:1px solid var(--line);border-left:1px solid var(--line);z-index:11}
+  /* W9-120: 우측 corner 영역 118px 확장 (4 섹션 컬럼 30+22*4) */
+  .ruler-top{position:absolute;top:0;left:30px;right:118px;height:30px;background:#fff;border-bottom:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
+  .ruler-right{position:absolute;top:118px;right:0;bottom:30px;width:30px;background:#fff;border-left:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
+  .ruler-corner{position:absolute;top:0;right:0;width:118px;height:118px;background:#fbfaf6;border-bottom:1px solid var(--line);border-left:1px solid var(--line);z-index:11}
   .ruler-tick{position:absolute;background:#3d342a;pointer-events:none}
   .ruler-top .ruler-tick{top:0;width:1px;height:8px}
   .ruler-top .ruler-tick.major{height:14px;background:#1a1a1a}
@@ -97,6 +98,33 @@
   .ruler-btn-editor button.apply:hover{background:#9d7c54}
   .ruler-btn-editor button.cancel{background:#eee;border:0;padding:5px 14px;border-radius:4px;cursor:pointer;color:#666;flex:1}
   .ruler-btn-editor button.cancel:hover{background:#ddd}
+  /* W9-120: 섹션별 ruler 스트라이프 (상/하/키/붙) */
+  .ruler-section-bar{position:absolute;left:30px;right:114px;height:22px;background:rgba(184,149,108,0.06);border-bottom:1px solid rgba(184,149,108,0.25);z-index:11;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none;overflow:hidden;box-sizing:border-box}
+  .ruler-section-col{position:absolute;top:118px;bottom:30px;width:22px;background:rgba(184,149,108,0.06);border-left:1px solid rgba(184,149,108,0.25);z-index:11;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none;overflow:hidden;box-sizing:border-box}
+  /* 상단 4 스트라이프 — top 30/52/74/96 */
+  #rulerTopUpper{top:30px}
+  #rulerTopLower{top:52px}
+  #rulerTopTall{top:74px}
+  #rulerTopWardrobe{top:96px}
+  /* 우측 4 컬럼 — right 30/52/74/96 (corner 와 충돌 회피) */
+  #rulerRightUpper{right:30px}
+  #rulerRightLower{right:52px}
+  #rulerRightTall{right:74px}
+  #rulerRightWardrobe{right:96px}
+  /* 섹션 태그 (좌측 작은 라벨) */
+  .rsb-tag{position:absolute;left:2px;top:2px;font-size:10px;font-weight:700;color:#6a4b2a;background:rgba(255,255,255,0.7);padding:0 4px;border-radius:2px;z-index:13;pointer-events:none}
+  .ruler-section-col .rsb-tag{top:2px;left:2px;writing-mode:horizontal-tb}
+  /* 끄기 아이콘 (우측 끝) */
+  .rsb-eye{position:absolute;right:2px;top:2px;width:16px;height:16px;border:none;background:rgba(255,255,255,0.7);color:#6a4b2a;border-radius:2px;font-size:10px;cursor:pointer;line-height:16px;padding:0;z-index:13}
+  .rsb-eye:hover{background:#b8956c;color:#fff}
+  /* 다시 켜기 floating panel */
+  .section-restore-panel{position:absolute;bottom:8px;right:8px;background:rgba(255,255,255,0.9);border:1px solid var(--brand-mid);border-radius:4px;padding:4px;display:flex;gap:4px;z-index:20;font-size:11px;font-family:-apple-system,'Segoe UI',sans-serif;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
+  .section-restore-panel button{border:1px solid var(--brand-mid);background:#fff;color:var(--text);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px}
+  .section-restore-panel button:hover{background:var(--brand-deep);color:#fff}
+  /* 섹션 스트라이프 내 버튼 — 기존 ruler-btn 스타일 상속, 높이 조정 */
+  .ruler-section-bar .ruler-btn{top:1px;height:20px;min-width:24px}
+  .ruler-section-col .ruler-btn{left:1px;width:20px;min-height:24px;writing-mode:vertical-rl;text-orientation:mixed}
+  /* ruler-top/right 자체는 corner 영역 확장 (114px → corner) */
   .area-label{font-family:-apple-system,'Segoe UI',sans-serif;font-weight:700;fill:#fff;pointer-events:none}
   .area-label-small{font-size:10px;fill:#fff;opacity:0.85;pointer-events:none}
   .module-dim-label{fill:var(--text-dim);font-size:11px;font-weight:600;font-family:monospace;pointer-events:none}
@@ -214,6 +242,17 @@
     <div class="ruler-top" id="rulerTop" style="display:none"></div>
     <div class="ruler-right" id="rulerRight" style="display:none"></div>
     <div class="ruler-corner" id="rulerCorner" style="display:none"></div>
+    <!-- W9-120: 섹션별 ruler 스트라이프 (상부/하부/키큰/붙박이) — 모듈 자동 감지 + 수동 토글 -->
+    <div class="ruler-section-bar" id="rulerTopUpper"    data-section="upper"    style="display:none"><span class="rsb-tag">상</span><button class="rsb-eye" data-target="upper"    title="끄기">●</button></div>
+    <div class="ruler-section-bar" id="rulerTopLower"    data-section="lower"    style="display:none"><span class="rsb-tag">하</span><button class="rsb-eye" data-target="lower"    title="끄기">●</button></div>
+    <div class="ruler-section-bar" id="rulerTopTall"     data-section="tall"     style="display:none"><span class="rsb-tag">키</span><button class="rsb-eye" data-target="tall"     title="끄기">●</button></div>
+    <div class="ruler-section-bar" id="rulerTopWardrobe" data-section="wardrobe" style="display:none"><span class="rsb-tag">붙</span><button class="rsb-eye" data-target="wardrobe" title="끄기">●</button></div>
+    <div class="ruler-section-col" id="rulerRightUpper"    data-section="upper"    style="display:none"><span class="rsb-tag">상</span></div>
+    <div class="ruler-section-col" id="rulerRightLower"    data-section="lower"    style="display:none"><span class="rsb-tag">하</span></div>
+    <div class="ruler-section-col" id="rulerRightTall"     data-section="tall"     style="display:none"><span class="rsb-tag">키</span></div>
+    <div class="ruler-section-col" id="rulerRightWardrobe" data-section="wardrobe" style="display:none"><span class="rsb-tag">붙</span></div>
+    <!-- 꺼진 섹션 다시 켜기 (헤더 우측에 작은 floating panel) -->
+    <div class="section-restore-panel" id="sectionRestorePanel" style="display:none"></div>
     <div class="canvas-empty" id="canvasEmpty">
       좌측에서 모듈을 선택하세요<br>
       <span style="font-size:11px;color:var(--text-faint);margin-top:6px;display:inline-block">
@@ -311,6 +350,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     lower:        { fill: '#b8956c', stroke: '#6a4b2a', label: '하부장' },
     upper:        { fill: '#7c9c8f', stroke: '#3d5750', label: '상부장' },
     tall:         { fill: '#9c6e7c', stroke: '#5c3848', label: '키큰장' },
+    wardrobe:     { fill: '#8c8a6e', stroke: '#4e4c38', label: '붙박이장' },
     fridge:       { fill: '#a0a8b0', stroke: '#4a525a', label: '냉장고장' },
     sink:         { fill: '#b0b8c0', stroke: '#5a626a', label: '분배기' },
     hood:         { fill: '#6a727a', stroke: '#2a3238', label: '후드' },
@@ -570,10 +610,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     else if (pxPerMM < 0.4) tickMM = 200;
     else if (pxPerMM < 1.0) tickMM = 100;
     else tickMM = 50;
-    // W9-119: ruler-top(left:30), ruler-right(top:30) 의 canvas-wrap offset 보정
-    //   SVG 콘텐츠는 canvas-wrap inset:0 기준이므로 ruler 내 위치는 -30 보정 필요
+    // W9-119/120: ruler-top(left:30), ruler-right(top:118) — 4 섹션 컬럼 reserve 후 변경
     const RULER_TOP_X_OFFSET = 30;
-    const RULER_RIGHT_Y_OFFSET = 30;
+    const RULER_RIGHT_Y_OFFSET = 118;
     // 가로 ruler
     rulerTop.innerHTML = '';
     const mmStart = Math.floor((-view.panX + RULER_TOP_X_OFFSET) / z / tickMM) * tickMM;
@@ -634,8 +673,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (e.target.classList && e.target.classList.contains('ruler-btn')) return;
       const rect = rulerRight.getBoundingClientRect();
       const py = e.clientY - rect.top;
-      // W9-119: ruler-right top:30 offset 보정
-      const mm = Math.round((py + 30 - view.panY) / (view.zoom || 1));
+      // W9-120: ruler-right top:118 offset 보정 (4 섹션 컬럼 reserve)
+      const mm = Math.round((py + 118 - view.panY) / (view.zoom || 1));
       // 정면도 Y 는 위→아래 (천장=0, 바닥=ceilingHeight) → 사람 시점 H 변환
       const h = ceilingHeight - mm;
       if (typeof showToast === 'function') showToast('📐 H = ' + h + ' mm (Y=' + mm + ')');
@@ -697,68 +736,144 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return { wGroups: [...wGroups.values()], hGroups: [...hGroups.values()] };
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // W9-120: 섹션 정의 (상/하/키/붙) + 토글 상태
+  //   - 자동 감지: 활성 세트의 모듈 중 해당 섹션 모듈 1개 이상 있으면 자동 ON
+  //   - 수동 토글: 눈 아이콘 클릭으로 OFF → restore 패널로 다시 ON
+  //   - 섹션 격리: 매칭 키에 section 포함 → 다른 섹션 간 cross-matching 차단
+  // ─────────────────────────────────────────────────────────────────
+  const RULER_SECTIONS = [
+    { id: 'upper',    label: '상부장', match: m => m.section === 'upper' },
+    { id: 'lower',    label: '하부장', match: m => m.section === 'lower' },
+    { id: 'tall',     label: '키큰장', match: m => m.section === 'tall' },
+    { id: 'wardrobe', label: '붙박이장', match: m => m.section === 'wardrobe' },
+  ];
+  const sectionRulerUserOff = new Set();   // 사용자가 명시적 끈 섹션
+
+  // 활성 세트 모듈로부터 섹션 존재 여부 자동 감지
+  function detectSectionPresence(setModules) {
+    const present = {};
+    for (const s of RULER_SECTIONS) {
+      present[s.id] = setModules.some(s.match);
+    }
+    return present;
+  }
+
   // ruler 버튼 DOM 렌더 (updateViewportRulers 직후 호출)
+  //   W9-120: 4 섹션 각각의 ruler-section-bar / ruler-section-col 에 분산 렌더
   function renderRulerButtons() {
     const rulerTop = document.getElementById('rulerTop');
     const rulerRight = document.getElementById('rulerRight');
     if (!rulerTop || !rulerRight) return;
-    // 기존 버튼 제거 (tick/label 은 보존)
+    // 기존 ruler-top/right (ticks 영역) + 4 섹션 버튼 모두 제거
     rulerTop.querySelectorAll('.ruler-btn').forEach(n => n.remove());
     rulerRight.querySelectorAll('.ruler-btn').forEach(n => n.remove());
+    for (const s of RULER_SECTIONS) {
+      const wBar = document.getElementById('rulerTop'   + cap(s.id));
+      const hCol = document.getElementById('rulerRight' + cap(s.id));
+      if (wBar) wBar.querySelectorAll('.ruler-btn').forEach(n => n.remove());
+      if (hCol) hCol.querySelectorAll('.ruler-btn').forEach(n => n.remove());
+    }
     // 세트 모드 + 활성 세트 + ruler 표시 중 일 때만
-    if (viewMode !== 'set' || !activeSetId) return;
-    if (rulerTop.style.display === 'none') return;
+    if (viewMode !== 'set' || !activeSetId) { updateSectionRulerVisibility({}); return; }
+    if (rulerTop.style.display === 'none') { updateSectionRulerVisibility({}); return; }
     const sets = buildSets();
     const set = sets.find(x => x.id === activeSetId);
-    if (!set || !set.modules.length) return;
+    if (!set || !set.modules.length) { updateSectionRulerVisibility({}); return; }
+
+    const present = detectSectionPresence(set.modules);
+    updateSectionRulerVisibility(present);
+
     const z = view.zoom || 1;
-    const { wGroups, hGroups } = buildRulerGroups(set.modules);
-
-    // W9-119: ruler-top 은 canvas-wrap left:30 offset → 버튼 left 에서 30 보정 (SVG 정렬)
+    // W9-119: ruler-top left:30, ruler-right top:118 (W9-120 변경 — 4 컬럼 reserve)
     const RULER_TOP_X_OFFSET = 30;
-    // ruler-right 는 canvas-wrap top:30 offset → 버튼 top 에서 30 보정
-    const RULER_RIGHT_Y_OFFSET = 30;
+    const RULER_RIGHT_Y_OFFSET = 118;
 
-    // 상단 — W 그룹 버튼 (cell entities)
-    const topW = rulerTop.clientWidth;
-    for (const g of wGroups) {
-      const leftPx  = g.xStart * z + view.panX - RULER_TOP_X_OFFSET;
-      const widthPx = (g.xEnd - g.xStart) * z;
-      if (leftPx + widthPx < 0 || leftPx > topW) continue;
-      const btn = document.createElement('div');
-      btn.className = 'ruler-btn' + (g.anyFixed ? ' fixed' : '');
-      btn.style.left  = leftPx + 'px';
-      btn.style.width = widthPx + 'px';
-      btn.textContent = Math.round(g.W);
-      const isCell = g.entities.some(e => e.isCell);
-      const entityType = isCell ? '셀' : '모듈';
-      btn.title = `W=${Math.round(g.W)}mm · ${g.entities.length}개 ${entityType}${g.anyFixed ? ' (고정)' : ''}`;
-      btn.onclick = (e) => { e.stopPropagation(); openDimEditor('W', g, e.currentTarget); };
-      rulerTop.appendChild(btn);
-    }
-
-    // 우측 — H 그룹 버튼 (positions 에서 yTop 별로 1개씩, 동일 Y 범위 dedupe)
-    const rightH = rulerRight.clientHeight;
-    for (const g of hGroups) {
-      const seenY = new Set();
-      for (const pos of g.positions) {
-        const yKey = `${Math.round(pos.yTop)}-${Math.round(pos.H)}`;
-        if (seenY.has(yKey)) continue;
-        seenY.add(yKey);
-        const topPx    = pos.yTop * z + view.panY - RULER_RIGHT_Y_OFFSET;
-        const heightPx = pos.H * z;
-        if (topPx + heightPx < 0 || topPx > rightH) continue;
+    for (const sec of RULER_SECTIONS) {
+      if (!present[sec.id] || sectionRulerUserOff.has(sec.id)) continue;
+      const wBar = document.getElementById('rulerTop'   + cap(sec.id));
+      const hCol = document.getElementById('rulerRight' + cap(sec.id));
+      if (!wBar || !hCol) continue;
+      const sectionMods = set.modules.filter(sec.match);
+      const { wGroups, hGroups } = buildRulerGroups(sectionMods);
+      // W 버튼
+      const topW = wBar.clientWidth;
+      for (const g of wGroups) {
+        const leftPx  = g.xStart * z + view.panX - RULER_TOP_X_OFFSET;
+        const widthPx = (g.xEnd - g.xStart) * z;
+        if (leftPx + widthPx < 0 || leftPx > topW) continue;
         const btn = document.createElement('div');
         btn.className = 'ruler-btn' + (g.anyFixed ? ' fixed' : '');
-        btn.style.top    = topPx + 'px';
-        btn.style.height = heightPx + 'px';
-        btn.textContent  = Math.round(g.H);
-        btn.title = `H=${Math.round(g.H)}mm · ${g.modules.length}개 모듈${g.anyFixed ? ' (고정)' : ''}`;
-        btn.onclick = (e) => { e.stopPropagation(); openDimEditor('H', g, e.currentTarget); };
-        rulerRight.appendChild(btn);
+        btn.style.left  = leftPx + 'px';
+        btn.style.width = widthPx + 'px';
+        btn.textContent = Math.round(g.W);
+        const isCell = g.entities.some(e => e.isCell);
+        const entityType = isCell ? '셀' : '모듈';
+        btn.title = `[${sec.label}] W=${Math.round(g.W)}mm · ${g.entities.length}개 ${entityType}${g.anyFixed ? ' (고정)' : ''}`;
+        btn.onclick = (e) => { e.stopPropagation(); openDimEditor('W', g, e.currentTarget); };
+        wBar.appendChild(btn);
+      }
+      // H 버튼
+      const rightH = hCol.clientHeight;
+      for (const g of hGroups) {
+        const seenY = new Set();
+        for (const pos of g.positions) {
+          const yKey = `${Math.round(pos.yTop)}-${Math.round(pos.H)}`;
+          if (seenY.has(yKey)) continue;
+          seenY.add(yKey);
+          const topPx    = pos.yTop * z + view.panY - RULER_RIGHT_Y_OFFSET;
+          const heightPx = pos.H * z;
+          if (topPx + heightPx < 0 || topPx > rightH) continue;
+          const btn = document.createElement('div');
+          btn.className = 'ruler-btn' + (g.anyFixed ? ' fixed' : '');
+          btn.style.top    = topPx + 'px';
+          btn.style.height = heightPx + 'px';
+          btn.textContent  = Math.round(g.H);
+          btn.title = `[${sec.label}] H=${Math.round(g.H)}mm · ${g.modules.length}개 모듈${g.anyFixed ? ' (고정)' : ''}`;
+          btn.onclick = (e) => { e.stopPropagation(); openDimEditor('H', g, e.currentTarget); };
+          hCol.appendChild(btn);
+        }
       }
     }
   }
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // 섹션 ruler 표시 상태 갱신 (present + userOff 조합)
+  function updateSectionRulerVisibility(present) {
+    const restore = document.getElementById('sectionRestorePanel');
+    if (restore) restore.innerHTML = '';
+    let hasOff = false;
+    for (const s of RULER_SECTIONS) {
+      const wBar = document.getElementById('rulerTop'   + cap(s.id));
+      const hCol = document.getElementById('rulerRight' + cap(s.id));
+      const visible = !!present[s.id] && !sectionRulerUserOff.has(s.id);
+      if (wBar) wBar.style.display = visible ? 'block' : 'none';
+      if (hCol) hCol.style.display = visible ? 'block' : 'none';
+      // 사용자가 꺼둔 + 모듈 존재 → restore 패널에 다시 켜기 버튼
+      if (present[s.id] && sectionRulerUserOff.has(s.id) && restore) {
+        const btn = document.createElement('button');
+        btn.textContent = '+ ' + s.label;
+        btn.onclick = () => { sectionRulerUserOff.delete(s.id); renderRulerButtons(); };
+        restore.appendChild(btn);
+        hasOff = true;
+      }
+    }
+    if (restore) restore.style.display = hasOff ? 'flex' : 'none';
+  }
+
+  // 끄기 아이콘 핸들러 (HTML 의 rsb-eye 버튼)
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t && t.classList && t.classList.contains('rsb-eye')) {
+      e.stopPropagation();
+      const target = t.dataset.target;
+      if (target) {
+        sectionRulerUserOff.add(target);
+        renderRulerButtons();
+      }
+    }
+  });
 
   // 치수 입력 에디터 popup
   function openDimEditor(dim, group, anchorEl) {
@@ -984,7 +1099,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const wrap = document.getElementById('canvasWrap');
     if (!wrap) return;
     const cw = wrap.clientWidth, ch = wrap.clientHeight;
-    const pad = 100;
+    // W9-120: 4 섹션 ruler reserve (top 118, right 118) — content 가 ruler 밑에 가리지 않도록 패딩 확보
+    const padX = 130;       // 좌측 기본 + 우측 ruler 118 + 여유
+    const padTop = 130;     // 상단 ruler 118 + 여유
+    const padBot = 100;
     if (viewMode === 'single') {
       fitToActiveModule();
       return;
@@ -1017,15 +1135,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       maxX = Math.max(maxX, vx + vw);
     });
     if (!isFinite(minX) || !isFinite(maxX)) return;
-    // W9-110: SVG ruler 제거 — viewport ruler 가 외부 → SVG 여유 축소
     const targetW = (maxX - minX) + 300;
     const targetH = ceilingHeight + 250;
-    const zx = (cw - pad * 2) / targetW;
-    const zy = (ch - pad * 2) / targetH;
+    const zx = (cw - padX * 2) / targetW;
+    const zy = (ch - padTop - padBot) / targetH;
     view.zoom = Math.max(0.02, Math.min(zx, zy, 4));
-    // panX 는 minX 가 좌측 padding 안에 오도록
     view.panX = (cw - targetW * view.zoom) / 2 - (minX - 150) * view.zoom;
-    view.panY = (ch - targetH * view.zoom) / 2;
+    view.panY = padTop + (ch - padTop - padBot - targetH * view.zoom) / 2;
     applyView();
   }
 
@@ -2329,6 +2445,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     document.getElementById('rulerTop').style.display = showRuler ? 'block' : 'none';
     document.getElementById('rulerRight').style.display = showRuler ? 'block' : 'none';
     document.getElementById('rulerCorner').style.display = showRuler ? 'block' : 'none';
+    // W9-120: 4 섹션 ruler 도 2D off 시 hidden (실제 표시는 renderRulerButtons 가 자동 감지 결정)
+    if (!showRuler) {
+      ['upper','lower','tall','wardrobe'].forEach(sec => {
+        const wb = document.getElementById('rulerTop' + cap(sec));
+        const hc = document.getElementById('rulerRight' + cap(sec));
+        if (wb) wb.style.display = 'none';
+        if (hc) hc.style.display = 'none';
+      });
+      const rp = document.getElementById('sectionRestorePanel');
+      if (rp) rp.style.display = 'none';
+    }
     if (showRuler) updateViewportRulers();
   }
   document.getElementById('view3dBtn').onclick = () => setView('3d');
