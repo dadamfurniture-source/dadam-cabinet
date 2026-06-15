@@ -570,12 +570,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     else if (pxPerMM < 0.4) tickMM = 200;
     else if (pxPerMM < 1.0) tickMM = 100;
     else tickMM = 50;
+    // W9-119: ruler-top(left:30), ruler-right(top:30) 의 canvas-wrap offset 보정
+    //   SVG 콘텐츠는 canvas-wrap inset:0 기준이므로 ruler 내 위치는 -30 보정 필요
+    const RULER_TOP_X_OFFSET = 30;
+    const RULER_RIGHT_Y_OFFSET = 30;
     // 가로 ruler
     rulerTop.innerHTML = '';
-    const mmStart = Math.floor((-view.panX) / z / tickMM) * tickMM;
-    const mmEnd = Math.ceil((cw - view.panX) / z / tickMM) * tickMM;
+    const mmStart = Math.floor((-view.panX + RULER_TOP_X_OFFSET) / z / tickMM) * tickMM;
+    const mmEnd   = Math.ceil((cw + RULER_TOP_X_OFFSET - view.panX) / z / tickMM) * tickMM;
     for (let mm = mmStart; mm <= mmEnd; mm += tickMM) {
-      const px = mm * z + view.panX;
+      const px = mm * z + view.panX - RULER_TOP_X_OFFSET;
       if (px < 0 || px > cw) continue;
       const tick = document.createElement('div');
       tick.className = 'ruler-tick' + (mm % (tickMM * 5) === 0 ? ' major' : '');
@@ -591,10 +595,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     // 세로 ruler
     rulerRight.innerHTML = '';
-    const yStart = Math.floor((-view.panY) / z / tickMM) * tickMM;
-    const yEnd = Math.ceil((ch - view.panY) / z / tickMM) * tickMM;
+    const yStart = Math.floor((-view.panY + RULER_RIGHT_Y_OFFSET) / z / tickMM) * tickMM;
+    const yEnd   = Math.ceil((ch + RULER_RIGHT_Y_OFFSET - view.panY) / z / tickMM) * tickMM;
     for (let mm = yStart; mm <= yEnd; mm += tickMM) {
-      const py = mm * z + view.panY;
+      const py = mm * z + view.panY - RULER_RIGHT_Y_OFFSET;
       if (py < 0 || py > ch) continue;
       const tick = document.createElement('div');
       tick.className = 'ruler-tick' + (mm % (tickMM * 5) === 0 ? ' major' : '');
@@ -622,14 +626,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (e.target.classList && e.target.classList.contains('ruler-btn')) return;
       const rect = rulerTop.getBoundingClientRect();
       const px = e.clientX - rect.left;
-      const mm = Math.round((px - view.panX) / (view.zoom || 1));
+      // W9-119: ruler-top left:30 offset 보정 — clickPx 는 ruler 내 좌표 + 30 = canvas-wrap 좌표
+      const mm = Math.round((px + 30 - view.panX) / (view.zoom || 1));
       if (typeof showToast === 'function') showToast('📐 X = ' + mm + ' mm');
     };
     rulerRight.onclick = (e) => {
       if (e.target.classList && e.target.classList.contains('ruler-btn')) return;
       const rect = rulerRight.getBoundingClientRect();
       const py = e.clientY - rect.top;
-      const mm = Math.round((py - view.panY) / (view.zoom || 1));
+      // W9-119: ruler-right top:30 offset 보정
+      const mm = Math.round((py + 30 - view.panY) / (view.zoom || 1));
       // 정면도 Y 는 위→아래 (천장=0, 바닥=ceilingHeight) → 사람 시점 H 변환
       const h = ceilingHeight - mm;
       if (typeof showToast === 'function') showToast('📐 H = ' + h + ' mm (Y=' + mm + ')');
@@ -645,6 +651,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────────
 
   // 세트 내 모듈을 footprint 기준으로 W/H 그룹화
+  //   W9-119: 자동계산 cell (s.areaWidths) 을 W entity 로 인식
+  //     - 자동계산 전: cells = [m.W] (모듈 전체 = 1 cell)
+  //     - 자동계산 후: cells = s.areaWidths (예: [600,600,600])
+  //     - 각 cell 을 ruler 의 entity 로 push (모듈 외경이 아닌 cell 단위)
+  //   W entity 매칭: 정확히 같은 X 범위(start/end) + 동일 W 인 cell 들 1 버튼으로 병합
+  //   H 그룹: 모듈 단위 (cells 가 H 공유)
   function buildRulerGroups(setModules) {
     const ox = getFrontViewOriginX();
     const wGroups = new Map();   // key: `${xStart}-${xEnd}-${W}`
@@ -652,20 +664,34 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     for (const m of setModules) {
       // 가전(sink/hood/dishwasher/fridge)은 외경 조작 대상 제외
       if (['sink','hood','dishwasher','fridge'].includes(m.section)) continue;
-      const xStart = Math.round((m.x || 0) - ox);
-      const xEnd   = xStart + Math.round(m.W);
       const baseY  = getBaseY(m.section, m.H);
       const yTop   = ceilingHeight - (baseY + m.H);   // 정면도 Y (위→아래)
-      const wKey = `${xStart}-${xEnd}-${Math.round(m.W)}`;
+      // W9-119: cell entity — 자동계산 결과(s.areaWidths) 가 있으면 cell 단위로 분해
+      const s = (typeof getStructure === 'function') ? getStructure(m.id) : null;
+      const cells = (s && Array.isArray(s.areaWidths) && s.areaWidths.length > 0)
+        ? s.areaWidths
+        : [m.W];   // fallback: 모듈 외경 1 cell
+      const isMultiCell = cells.length > 1;
+      let cellOffset = 0;
+      cells.forEach((cellW, cellIdx) => {
+        const cellXStartMM = (m.x || 0) + cellOffset;
+        const xStart = Math.round(cellXStartMM - ox);
+        const xEnd   = xStart + Math.round(cellW);
+        const wKey = `${xStart}-${xEnd}-${Math.round(cellW)}`;
+        if (!wGroups.has(wKey)) wGroups.set(wKey, {
+          xStart, xEnd, W: cellW, entities: [], anyFixed: false
+        });
+        const wg = wGroups.get(wKey);
+        wg.entities.push({ moduleId: m.id, cellIdx, m, isCell: isMultiCell });
+        if (m.isFixed) wg.anyFixed = true;
+        cellOffset += cellW;
+      });
+      // H 그룹: 모듈 단위 (cells 공유 H)
       const hKey = `H${Math.round(m.H)}`;
-      if (!wGroups.has(wKey)) wGroups.set(wKey, { xStart, xEnd, W: m.W, modules: [], anyFixed: false });
       if (!hGroups.has(hKey)) hGroups.set(hKey, { H: m.H, modules: [], positions: [], anyFixed: false });
-      const wg = wGroups.get(wKey);
-      wg.modules.push(m);
-      if (m.isFixed) wg.anyFixed = true;
       const hg = hGroups.get(hKey);
-      hg.modules.push(m);                  // 모듈 직접 (applyDimChange 가 m.H 갱신)
-      hg.positions.push({ yTop, H: m.H }); // 렌더용 위치 정보 별도 저장
+      hg.modules.push(m);
+      hg.positions.push({ yTop, H: m.H });
       if (m.isFixed) hg.anyFixed = true;
     }
     return { wGroups: [...wGroups.values()], hGroups: [...hGroups.values()] };
@@ -688,10 +714,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const z = view.zoom || 1;
     const { wGroups, hGroups } = buildRulerGroups(set.modules);
 
-    // 상단 — W 그룹 버튼
+    // W9-119: ruler-top 은 canvas-wrap left:30 offset → 버튼 left 에서 30 보정 (SVG 정렬)
+    const RULER_TOP_X_OFFSET = 30;
+    // ruler-right 는 canvas-wrap top:30 offset → 버튼 top 에서 30 보정
+    const RULER_RIGHT_Y_OFFSET = 30;
+
+    // 상단 — W 그룹 버튼 (cell entities)
     const topW = rulerTop.clientWidth;
     for (const g of wGroups) {
-      const leftPx  = g.xStart * z + view.panX;
+      const leftPx  = g.xStart * z + view.panX - RULER_TOP_X_OFFSET;
       const widthPx = (g.xEnd - g.xStart) * z;
       if (leftPx + widthPx < 0 || leftPx > topW) continue;
       const btn = document.createElement('div');
@@ -699,7 +730,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       btn.style.left  = leftPx + 'px';
       btn.style.width = widthPx + 'px';
       btn.textContent = Math.round(g.W);
-      btn.title = `W=${Math.round(g.W)}mm · ${g.modules.length}개 모듈${g.anyFixed ? ' (고정)' : ''}`;
+      const isCell = g.entities.some(e => e.isCell);
+      const entityType = isCell ? '셀' : '모듈';
+      btn.title = `W=${Math.round(g.W)}mm · ${g.entities.length}개 ${entityType}${g.anyFixed ? ' (고정)' : ''}`;
       btn.onclick = (e) => { e.stopPropagation(); openDimEditor('W', g, e.currentTarget); };
       rulerTop.appendChild(btn);
     }
@@ -712,7 +745,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const yKey = `${Math.round(pos.yTop)}-${Math.round(pos.H)}`;
         if (seenY.has(yKey)) continue;
         seenY.add(yKey);
-        const topPx    = pos.yTop * z + view.panY;
+        const topPx    = pos.yTop * z + view.panY - RULER_RIGHT_Y_OFFSET;
         const heightPx = pos.H * z;
         if (topPx + heightPx < 0 || topPx > rightH) continue;
         const btn = document.createElement('div');
@@ -734,9 +767,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const cur = dim === 'W' ? group.W : group.H;
     const editor = document.createElement('div');
     editor.className = 'ruler-btn-editor';
-    const matchedCount = group.modules.length;
+    // W9-119: W 그룹은 entities (cell/module), H 그룹은 modules 사용
+    const matchedCount = dim === 'W' ? group.entities.length : group.modules.length;
+    const entityLabel = (dim === 'W' && group.entities.some(e => e.isCell)) ? '셀' : '모듈';
     editor.innerHTML = `
-      <div style="font-weight:600;color:#3d342a">${dim} 치수 변경 (${matchedCount}개 모듈)</div>
+      <div style="font-weight:600;color:#3d342a">${dim} 치수 변경 (${matchedCount}개 ${entityLabel})</div>
       <label>${dim} (mm) <input type="number" value="${Math.round(cur)}" min="100" max="6000" step="1" /></label>
       <label><input type="checkbox" ${group.anyFixed ? 'checked' : ''}/> 모듈 고정 (자동계산 시 보존)</label>
       <div class="row-actions">
@@ -788,42 +823,94 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // 치수 변경 적용 + 인접 흡수/제거
+  //   W: group.entities (cell 또는 module)
+  //   H: group.modules (모듈 단위)
   function applyDimChange(dim, group, newVal, fixed) {
-    const targets = group.modules.slice();
     const oldVal = dim === 'W' ? group.W : group.H;
     const delta  = newVal - oldVal;
-    // 1) 그룹 내 매칭 모듈 일괄 갱신
-    for (const m of targets) {
-      m[dim] = newVal;
-      m.isFixed = fixed;
-    }
-    // 2-W) 너비 변경 — 인접 비고정 모듈 흡수/제거 (세트 너비 보존)
-    //   매칭 그룹의 모듈은 X 범위가 동일하므로 row(section+y) 가 다른 모듈들. 각 row 1회만 처리.
-    if (dim === 'W' && Math.abs(delta) > 0.5) {
-      const affected = new Set();
-      const processedRows = new Set();
-      let gapWarning = false;
-      for (const m of targets) {
-        const result = absorbAdjacentW(m, delta, affected, processedRows);
-        if (result === 'gap') gapWarning = true;
-      }
-      // affected 가 제거된 경우 modules 배열에서 실제 제거
-      for (const id of affected) {
-        const idx = modules.findIndex(x => x.id === id);
-        if (idx >= 0 && modules[idx].W < 100) {
-          modules.splice(idx, 1);
+    let count = 0;
+    let label = '모듈';
+    if (dim === 'W') {
+      // W9-119: entities 기반 — cell 인지 module 인지 분기
+      const cellEntities   = group.entities.filter(e => e.isCell);
+      const moduleEntities = group.entities.filter(e => !e.isCell);
+      // (A) cell 변경 — 모듈 내부 인접 cell 흡수
+      if (cellEntities.length) {
+        label = '셀';
+        const processedCellKeys = new Set();
+        for (const e of cellEntities) {
+          const key = `${e.moduleId}@${e.cellIdx}`;
+          if (processedCellKeys.has(key)) continue;
+          processedCellKeys.add(key);
+          const s = getStructure(e.moduleId);
+          if (!Array.isArray(s.areaWidths)) continue;
+          s.areaWidths[e.cellIdx] = newVal;
+          absorbAdjacentCell(s, e.cellIdx, delta);
+          if (fixed) e.m.isFixed = true;
+          count++;
         }
       }
-      if (gapWarning && typeof showToast === 'function') {
-        showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
+      // (B) 모듈 W 변경 (기존 동작)
+      if (moduleEntities.length) {
+        for (const e of moduleEntities) { e.m.W = newVal; e.m.isFixed = fixed; }
+        if (Math.abs(delta) > 0.5) {
+          const affected = new Set();
+          const processedRows = new Set();
+          let gapWarning = false;
+          for (const e of moduleEntities) {
+            const result = absorbAdjacentW(e.m, delta, affected, processedRows);
+            if (result === 'gap') gapWarning = true;
+          }
+          for (const id of affected) {
+            const idx = modules.findIndex(x => x.id === id);
+            if (idx >= 0 && modules[idx].W < 100) modules.splice(idx, 1);
+          }
+          if (gapWarning && typeof showToast === 'function') {
+            showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
+          }
+        }
+        count += moduleEntities.length;
       }
+    } else {
+      // H: 모듈 단위
+      for (const m of group.modules) { m.H = newVal; m.isFixed = fixed; }
+      count = group.modules.length;
     }
-    // 3) 재렌더 + 후속
+    // 재렌더
     if (typeof renderFrontView === 'function') renderFrontView();
     if (typeof renderRightPanel === 'function') renderRightPanel();
     updateViewportRulers();
     if (typeof showToast === 'function') {
-      showToast(`✓ ${dim}=${Math.round(newVal)}mm 적용 (${targets.length}개 모듈${fixed ? ', 고정' : ''})`);
+      showToast(`✓ ${dim}=${Math.round(newVal)}mm 적용 (${count}개 ${label}${fixed ? ', 고정' : ''})`);
+    }
+  }
+
+  // W9-119: 모듈 내부 인접 cell 흡수 (모듈 W 보존)
+  //   delta > 0: cellIdx+1 부터 차례로 W 차감, 잔여 전파, cell 폭 100 미만 시 마킹 (제거는 자동계산이 정리)
+  //   delta < 0: cellIdx+1 cell 이 좌측으로 확장 (W 증가) — 모듈 W 절대 보존
+  function absorbAdjacentCell(s, cellIdx, delta) {
+    if (!Array.isArray(s.areaWidths)) return;
+    const N = s.areaWidths.length;
+    if (delta > 0) {
+      let remaining = delta;
+      for (let i = cellIdx + 1; i < N && remaining > 0; i++) {
+        const eat = Math.min(s.areaWidths[i], remaining);
+        s.areaWidths[i] -= eat;
+        remaining -= eat;
+      }
+      // 잔여는 좌측 cell 로 (delta>0 → 앞 cell 이 흡수)
+      for (let i = cellIdx - 1; i >= 0 && remaining > 0; i--) {
+        const eat = Math.min(s.areaWidths[i], remaining);
+        s.areaWidths[i] -= eat;
+        remaining -= eat;
+      }
+    } else {
+      const grow = -delta;
+      if (cellIdx + 1 < N) {
+        s.areaWidths[cellIdx + 1] += grow;
+      } else if (cellIdx - 1 >= 0) {
+        s.areaWidths[cellIdx - 1] += grow;
+      }
     }
   }
 
@@ -2969,6 +3056,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const n = autoCalcForSet(set);
     renderRightPanel();
     renderSet3D(set);
+    // W9-119: 정면도(2D) + ruler 버튼 재렌더 — cell entity 갱신 반영
+    if (typeof renderFrontView === 'function') renderFrontView();
+    if (typeof updateViewportRulers === 'function') updateViewportRulers();
     showToast(`⚡ ${set.label} 자동계산 완료 (${n}개 모듈)`);
   });
 
