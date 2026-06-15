@@ -199,9 +199,11 @@
   <div class="view-toggle">
     <button id="doorToggleBtn" class="active" title="도어 표시 on/off">🚪 도어</button>
   </div>
-  <!-- W9-108: 정면도 시점 회전 (정면/우측/뒷면/좌측) -->
+  <!-- W9-108/121: 정면도 시점 회전 — 좌우 뷰 이동 (정면/우측/뒷면/좌측) -->
   <div class="view-toggle" id="viewRotateBar" style="display:none">
-    <button id="viewRotateBtn" title="시점 회전 (90° 시계방향)">↻ <span id="viewRotateLabel">정면</span></button>
+    <button id="viewRotateLeftBtn" title="좌측으로 시점 이동 (90° 반시계)">◀</button>
+    <span id="viewRotateLabel" style="min-width:42px;text-align:center;font-size:11px;font-weight:600;color:var(--text);padding:3px 4px">정면</span>
+    <button id="viewRotateRightBtn" title="우측으로 시점 이동 (90° 시계)">▶</button>
   </div>
   <div class="panel-toggle">
     <button id="btnLeft" class="on" title="좌측 패널 (L)">⬛</button>
@@ -2471,16 +2473,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
   document.getElementById('doorToggleBtn').onclick = () => setDoorVisible(!doorVisible);
 
-  // W9-108: 정면도 시점 회전 (0/90/180/270 — 정면/우측/뒷면/좌측)
+  // W9-108/121: 정면도 시점 회전 (0/90/180/270 — 정면/우측/뒷면/좌측)
+  //   W9-121: 단일 ↻ 버튼을 ◀ ▶ 좌우 뷰 이동으로 분리
   let viewRotation = 0;
   const VIEW_ROTATION_LABELS = { 0: '정면', 90: '우측', 180: '뒷면', 270: '좌측' };
-  function cycleViewRotation() {
-    viewRotation = (viewRotation + 90) % 360;
-    document.getElementById('viewRotateLabel').textContent = VIEW_ROTATION_LABELS[viewRotation];
+  function rotateView(delta) {
+    viewRotation = ((viewRotation + delta) % 360 + 360) % 360;
+    const lab = document.getElementById('viewRotateLabel');
+    if (lab) lab.textContent = VIEW_ROTATION_LABELS[viewRotation];
     if (typeof renderFrontView === 'function') renderFrontView();
     if (typeof fitFrontView === 'function' && currentView === '2d') fitFrontView();
   }
-  document.getElementById('viewRotateBtn').onclick = cycleViewRotation;
+  const _btnL = document.getElementById('viewRotateLeftBtn');
+  const _btnR = document.getElementById('viewRotateRightBtn');
+  if (_btnL) _btnL.onclick = () => rotateView(-90);   // 좌측 = 반시계
+  if (_btnR) _btnR.onclick = () => rotateView(+90);   // 우측 = 시계
 
   // ─────────────────────────────────────────────────────────────
   // W9-65: View mode (개별/세트/전체) + 세트 자동 그룹화
