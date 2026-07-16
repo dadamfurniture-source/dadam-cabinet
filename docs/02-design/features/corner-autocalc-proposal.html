@@ -1,0 +1,549 @@
+<title>멍장 자동계산 설계안 — corner-autocalc</title>
+<style>
+  :root {
+    --bg: #faf9f7;
+    --surface: #f1efe9;
+    --surface2: #e9e5dc;
+    --ink: #2d2a26;
+    --muted: #6f6a62;
+    --accent: #a8865c;
+    --accent-soft: rgba(184,149,108,.14);
+    --line: #ddd8cf;
+    --ok: #4a7c59;
+    --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a;
+    --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a;
+    --warn-bg: rgba(176,116,47,.13);
+    --code-bg: #29261f;
+    --code-ink: #e7e0d2;
+    --code-accent: #d4b58c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+  }
+  :root[data-theme="light"] {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --accent-soft: rgba(184,149,108,.14); --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --code-bg: #29261f; --code-ink: #e7e0d2; --code-accent: #d4b58c;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px;
+    margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+
+  header.doc { padding: 64px 0 36px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 56px; }
+  h2 { font-size: 22px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no {
+    font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px;
+    color: var(--accent); font-weight: 700;
+  }
+  h2 + p.sub { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+  h3 { font-size: 16.5px; font-weight: 700; margin: 30px 0 10px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 44em; padding-left: 22px; }
+  li { margin: 6px 0; }
+  strong { font-weight: 700; }
+
+  /* 상태 배지 */
+  .badge {
+    display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+    padding: 2px 9px; border-radius: 3px; vertical-align: 2px; white-space: nowrap;
+  }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-size: 13.5px; margin-top: 24px; }
+  .legend span.lbl { color: var(--muted); }
+
+  /* 테이블 */
+  .tbl-wrap { overflow-x: auto; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td code, li code, p code {
+    font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em;
+    background: var(--surface2); padding: 1px 6px; border-radius: 3px;
+  }
+
+  /* 코드 블록 */
+  pre {
+    background: var(--code-bg); color: var(--code-ink);
+    font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; line-height: 1.65;
+    padding: 20px 22px; border-radius: 8px; overflow-x: auto; margin: 18px 0;
+  }
+  pre .c { color: #8d8574; }         /* comment */
+  pre .k { color: var(--code-accent); font-weight: 600; }  /* keyword/field */
+  pre .n { color: #9fc0a8; }         /* number */
+
+  /* 다이어그램 */
+  figure { margin: 22px 0; padding: 26px 20px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  /* 파이프라인 flow */
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 20px 0; }
+  .flow .node {
+    background: var(--surface); border: 1.5px solid var(--ink); border-radius: 6px;
+    padding: 12px 16px; min-width: 128px; flex: 1;
+  }
+  .flow .node b { display: block; font-size: 14px; }
+  .flow .node small { color: var(--muted); font-size: 12px; line-height: 1.5; display: block; margin-top: 3px; }
+  .flow .arr { align-self: center; padding: 0 10px; color: var(--accent); font-size: 20px; font-weight: 700; }
+  .flow .node.hot { border-color: var(--accent); background: var(--accent-soft); }
+
+  /* 수식 카드 */
+  .formula {
+    font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14.5px;
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 14px 18px; margin: 14px 0; border-radius: 0 6px 6px 0;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .formula b { color: var(--accent); font-weight: 700; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--warn); background: var(--warn-bg); padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 20px 0; font-size: 14.5px; max-width: 46em; }
+  .callout.blue { border-left-color: var(--info); background: var(--info-bg); }
+  .callout b:first-child { display: block; margin-bottom: 4px; }
+
+  /* 옵션 카드 */
+  .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 18px 0; }
+  .opt { border: 1px solid var(--line); border-radius: 8px; padding: 18px; background: var(--surface); }
+  .opt.pick { border: 2px solid var(--accent); }
+  .opt h4 { margin: 0 0 4px; font-size: 15px; }
+  .opt .tag { font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .opt p { font-size: 13.5px; color: var(--muted); margin: 8px 0 0; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    section { animation: none; }
+  }
+  @media (max-width: 640px) {
+    h1 { font-size: 26px; }
+    .flow { flex-direction: column; }
+    .flow .arr { transform: rotate(90deg); padding: 4px 0; align-self: flex-start; margin-left: 56px; }
+  }
+</style>
+
+<main>
+<header class="doc">
+  <div class="eyebrow">다담AI · Detail Design · 설계 제안</div>
+  <h1>멍장(코너장) 자동계산 구조 설계안</h1>
+  <p class="lede">ㄱ자 배치에서 멍장과 secondary 라인을 데이터 모델의 1급 시민으로 승격시키고,
+  모든 치수를 <b>하나의 순수 함수</b>에서 파생시키는 설계. 자동계산·3D·BOM이 같은 숫자를 보게 만드는 것이 핵심이다.</p>
+  <div class="meta">
+    <span>Feature <b>corner-autocalc</b></span>
+    <span>작성 <b>2026-07-16</b></span>
+    <span>기준 문서 <b>docs/design-rules/corner.md</b></span>
+    <span>Plan <b>docs/01-plan/features/corner-autocalc.plan.md</b></span>
+  </div>
+  <div class="legend">
+    <span class="lbl">표기:</span>
+    <span><span class="badge ok">확정</span> 사용자가 확정한 규칙</span>
+    <span><span class="badge info">제안</span> 이 문서의 설계 제안</span>
+    <span><span class="badge warn">규칙 필요</span> 제작 규칙 확인 후 확정</span>
+  </div>
+  <div class="callout" style="margin-top:16px">
+    <b>⚠️ 2026-07-17 치수 공식 개정됨</b>
+    이 문서의 §02~§03 멍장 W 공식(primeD+40)과 §06 검산표는 <b>폐기</b>되었다.
+    확정 규칙(멍 = 인접 상판깊이 −10 +몰딩, 도어 균등 분배)은
+    <code>docs/design-rules/corner.md §3</code>과 <code>blind-corner-understanding.html</code> 참조.
+    §01(파생 원칙) · §04(데이터 모델) · §05(라인 단위 분배) · §08(마이그레이션)의 아키텍처는 유효하다.
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">01</span>설계 철학 — 파생(derive), 저장(store)하지 않는다</h2>
+  <p class="sub">현재 구조의 문제는 코드가 아니라 데이터의 소유권에 있다.</p>
+
+  <p>지금 멍장의 치수는 <b>두 곳에서 서로 다른 공식으로</b> 만들어진다.
+  데이터 모델(<code>ui-workspace.js</code>)은 W=secondaryD로 저장하고,
+  3D 미리보기(<code>ui-step1.js</code>)는 W=primeD+40으로 즉석 생성한다.
+  둘은 동기화 코드가 없으므로 필연적으로 어긋난다.</p>
+
+  <p>제 설계의 첫 번째 원칙은 이것입니다: <strong>멍장의 치수는 어디에도 "입력"되지 않는다.
+  벽 스펙(primeD, secondaryD, 높이)이 바뀔 때마다 단 하나의 순수 함수 <code>deriveCorner()</code>가 재계산한다.</strong>
+  <span class="badge info">제안</span></p>
+
+  <div class="flow">
+    <div class="node"><b>specs</b><small>primeW/D · secondaryW/D<br>lowerH · topT · legH</small></div>
+    <div class="arr">→</div>
+    <div class="node hot"><b>deriveCorner()</b><small>순수 함수<br>멍장 치수 + 라인 예산</small></div>
+    <div class="arr">→</div>
+    <div class="node"><b>item.modules</b><small>멍장 + secondary 수납<br>영속화 (SSOT)</small></div>
+    <div class="arr">→</div>
+    <div class="node"><b>소비자 3곳</b><small>calc-engine · 3D payload · extractors(BOM)</small></div>
+  </div>
+
+  <p>이렇게 하면 "W 공식이 어디는 +40이고 어디는 아니고" 류의 버그가 <b>구조적으로 불가능</b>해진다.
+  공식이 틀렸다면 고칠 곳도 한 곳뿐이다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">02</span>기하학 — 코너는 누구의 것인가</h2>
+  <p class="sub">ㄱ자의 모든 치수 규칙은 "코너 사각형을 누가 점유하는가"에서 파생된다.</p>
+
+  <p>두 라인이 만나는 코너에는 <b>primeD × secondaryD 사각형</b>이 생기고, 이 공간에는 캐비닛이 하나만 들어갈 수 있다 — 그것이 멍장이다.
+  멍장을 <b>secondary 라인의 첫 모듈</b>로 정의하면(3D 코드·mcp-server의 blindAnchorIdx 방식과 일치) 치수가 다음처럼 정리된다. <span class="badge info">제안</span></p>
+
+  <figure>
+    <svg viewBox="0 0 660 400" width="660" role="img" aria-label="ㄱ자 평면도: prime 라인, secondary 라인, 멍장 점유 영역">
+      <!-- 벽 -->
+      <line x1="28" y1="28" x2="560" y2="28" stroke="currentColor" stroke-width="5"/>
+      <line x1="28" y1="28" x2="28" y2="330" stroke="currentColor" stroke-width="5"/>
+      <!-- prime run -->
+      <rect x="28" y="28" width="468" height="72" fill="var(--surface2)" stroke="var(--muted)" stroke-width="1"/>
+      <!-- prime 모듈 구분 (코너 이후) -->
+      <line x1="100" y1="28" x2="100" y2="100" stroke="var(--muted)" stroke-width="1"/>
+      <line x1="232" y1="28" x2="232" y2="100" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+      <line x1="364" y1="28" x2="364" y2="100" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="298" y="70" font-size="12" fill="var(--muted)" text-anchor="middle">prime 수납 모듈 (자동 분배 구간)</text>
+      <!-- secondary run -->
+      <rect x="28" y="28" width="72" height="234" fill="var(--surface2)" stroke="var(--muted)" stroke-width="1"/>
+      <line x1="28" y1="184" x2="100" y2="184" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="64" y="228" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90 64 228)">secondary 수납</text>
+      <!-- 멍장: secondaryD × (primeD+40) -->
+      <rect x="28" y="28" width="72" height="77" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+      <line x1="28" y1="28" x2="100" y2="105" stroke="var(--accent)" stroke-width="1" opacity=".5"/>
+      <line x1="100" y1="28" x2="28" y2="105" stroke="var(--accent)" stroke-width="1" opacity=".5"/>
+      <text x="64" y="62" font-size="12" font-weight="700" fill="var(--accent)" text-anchor="middle">멍장</text>
+      <!-- +40 스트립 -->
+      <rect x="28" y="100" width="72" height="5" fill="var(--accent)"/>
+      <text x="112" y="108" font-size="11" class="mono" fill="var(--accent)" font-weight="700">+40 (도어 간섭 여유)</text>
+      <!-- 치수선: prime W -->
+      <line x1="28" y1="14" x2="496" y2="14" stroke="var(--muted)" stroke-width="1"/>
+      <text x="262" y="10" font-size="11" class="mono" fill="var(--muted)" text-anchor="middle">primeW 3600</text>
+      <!-- 치수선: secondary W -->
+      <line x1="14" y1="28" x2="14" y2="262" stroke="var(--muted)" stroke-width="1"/>
+      <text x="10" y="150" font-size="11" class="mono" fill="var(--muted)" text-anchor="middle" transform="rotate(-90 10 150)">secondaryW 1800</text>
+      <!-- 치수: 멍장 W -->
+      <line x1="106" y1="28" x2="106" y2="105" stroke="var(--accent)" stroke-width="1"/>
+      <text x="122" y="66" font-size="11" class="mono" fill="var(--accent)">590 = primeD 550 + 40</text>
+      <!-- 치수: primeD -->
+      <line x1="510" y1="28" x2="510" y2="100" stroke="var(--muted)" stroke-width="1"/>
+      <text x="518" y="68" font-size="11" class="mono" fill="var(--muted)">primeD 550</text>
+      <!-- 치수: secondaryD -->
+      <line x1="28" y1="276" x2="100" y2="276" stroke="var(--muted)" stroke-width="1"/>
+      <text x="64" y="292" font-size="11" class="mono" fill="var(--muted)" text-anchor="middle">secondaryD 550</text>
+      <!-- 예산 표시 -->
+      <line x1="100" y1="118" x2="496" y2="118" stroke="var(--ok)" stroke-width="2"/>
+      <text x="298" y="134" font-size="11" class="mono" fill="var(--ok)" text-anchor="middle">prime 예산 = 3600 − 550 = 3050</text>
+      <line x1="115" y1="105" x2="115" y2="262" stroke="var(--ok)" stroke-width="2"/>
+      <text x="130" y="188" font-size="11" class="mono" fill="var(--ok)">sec 예산 = 1800 − 590 = 1210</text>
+    </svg>
+    <figcaption>평면도(위에서 본 모습). 멍장은 코너 사각형 + 40mm를 점유하는 secondary 라인의 고정 첫 모듈.
+    각 라인의 자동 분배 예산은 코너 점유분을 차감한 값이다. (secondaryStartSide: left 기준)</figcaption>
+  </figure>
+
+  <p>+40mm의 기하학적 의미: secondary 라인의 두 번째 모듈(첫 수납 모듈)의 도어가 열릴 때,
+  prime 라인 캐비닛의 전면(도어면)과 간섭하지 않으려면 멍장이 prime 깊이보다 여유분만큼 더 뻗어야 한다.
+  사용자 확정 공식이 이 여유를 40mm로 정의한다. <span class="badge ok">확정</span></p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">03</span>치수 공식</h2>
+  <p class="sub">deriveCorner()가 계산하는 모든 값. 하드코딩 없이 specs에서만 파생된다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>대상</th><th>속성</th><th>공식</th><th class="num">예시값</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="3"><b>하부 멍장</b></td>
+          <td>W</td><td><code>primeD + 40</code></td><td class="num">590</td><td><span class="badge ok">확정</span></td></tr>
+      <tr><td>D</td><td><code>secondaryD</code> (하부 기본 = primeD)</td><td class="num">550</td><td><span class="badge info">제안</span></td></tr>
+      <tr><td>H</td><td><code>lowerH − topT − legH</code></td><td class="num">730</td><td><span class="badge ok">확정</span> (현행 유지)</td></tr>
+      <tr><td rowspan="3"><b>상부 멍장</b></td>
+          <td>W</td><td><code>upperPrimeD + 40</code></td><td class="num">335</td><td><span class="badge ok">확정</span> (공식 적용)</td></tr>
+      <tr><td>D</td><td><code>upperSecondaryD</code> (기본 295)</td><td class="num">295</td><td><span class="badge info">제안</span></td></tr>
+      <tr><td>H</td><td><code>upperH</code> (상부장 몸통 높이)</td><td class="num">720</td><td><span class="badge info">제안</span></td></tr>
+      <tr><td rowspan="2"><b>라인 예산</b></td>
+          <td>prime</td><td><code>primeW − secondaryD</code></td><td class="num">3050</td><td><span class="badge info">제안</span></td></tr>
+      <tr><td>secondary</td><td><code>secondaryW − (primeD + 40)</code></td><td class="num">1210</td><td><span class="badge info">제안</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="formula">
+    <b>불변식(invariant)</b> — 자동계산 후 항상 성립해야 하는 검증 조건<br>
+    secondaryD + Σ(prime 모듈 W) === primeW<br>
+    blindW&nbsp;&nbsp;&nbsp;&nbsp; + Σ(secondary 모듈 W) === secondaryW
+  </div>
+
+  <p>이 불변식을 <code>calc-engine</code>의 자동계산 마지막 단계에 assert로 심는다.
+  W9-121에서 도입한 "모듈 배치 정확성 검증" 패턴의 코너 버전이다. 검증 실패 시 콘솔 경고 + 보정 재시도.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">04</span>데이터 모델 — 모듈에 <code>line</code> 좌표를 부여</h2>
+  <p class="sub">orientation은 "어떻게 그릴까"(회전)이고, line은 "어느 벽 소속인가"(계산 단위)다. 지금은 orientation 하나가 두 역할을 겸하고 있다.</p>
+
+  <pre><span class="c">// item.modules 안의 멍장 — deriveCorner()가 생성/갱신</span>
+{
+  <span class="k">id</span>: 'corner-blind-lower',       <span class="c">// 고정 id: 재생성 시 중복 방지</span>
+  <span class="k">name</span>: 'LT망장',
+  <span class="k">type</span>: 'storage',
+  <span class="k">pos</span>: 'lower',
+  <span class="k">line</span>: 'secondary',              <span class="c">// ★ 신규: 계산 소속 라인</span>
+  <span class="k">orientation</span>: 'secondary',       <span class="c">// 기존: 3D 회전 표현 (유지)</span>
+  <span class="k">w</span>: <span class="n">590</span>, <span class="k">h</span>: <span class="n">730</span>, <span class="k">d</span>: <span class="n">550</span>,           <span class="c">// deriveCorner() 파생값 — 직접 수정 금지</span>
+  <span class="k">isFixed</span>: <span class="n">true</span>,                  <span class="c">// 분배 대상 제외 (보호는 isFixed가 담당)</span>
+  <span class="k">isDerived</span>: <span class="n">true</span>,                <span class="c">// ★ 신규: specs 변경 시 자동 재계산 표식</span>
+}
+
+<span class="c">// secondary 수납 모듈 — 사용자가 편집 가능, 자동계산이 분배</span>
+{
+  <span class="k">id</span>: <span class="n">1752671623001</span>,
+  <span class="k">name</span>: '2단 서랍장', <span class="k">type</span>: 'storage', <span class="k">pos</span>: 'lower',
+  <span class="k">line</span>: 'secondary', <span class="k">orientation</span>: 'secondary',
+  <span class="k">w</span>: <span class="n">605</span>, <span class="k">h</span>: <span class="n">730</span>, <span class="k">d</span>: <span class="n">550</span>,
+}</pre>
+
+  <ul>
+    <li><b><code>line</code> 필드 추가</b> <span class="badge info">제안</span> — 자동계산이 <code>!m.orientation</code> 같은 부정 필터 대신
+        <code>m.line === 'prime'</code>으로 명시 선택한다. 기존 모듈은 <code>line</code> 부재 시 <code>'prime'</code>으로 간주 → 하위 호환.</li>
+    <li><b><code>isDerived</code> 플래그</b> <span class="badge info">제안</span> — 멍장처럼 공식에서 파생되는 모듈의 표식.
+        specs 변경 이벤트에서 이 플래그가 있는 모듈만 골라 재계산한다. 사용자 임의 치수 수정과의 충돌을 UI에서 차단하는 근거도 된다.</li>
+    <li><b>고정 id</b> — <code>Date.now()+random</code> 대신 <code>corner-blind-lower</code>처럼 결정적 id를 부여해
+        ㄱ자↔ㅡ자 전환 반복 시 멍장이 중복 생성되는 사고를 막는다. <code>calc-engine.js:919</code>의 <code>hasSecondaryLT</code> 가드도 id 기반으로 단순화.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">05</span>자동계산 알고리즘 — 라인은 "작은 ㅡ자"다</h2>
+  <p class="sub">새 분배 알고리즘을 만들지 않는다. 검증된 prime 분배 로직을 라인마다 재사용한다.</p>
+
+  <p>핵심 통찰: <b>secondary 라인은 예산이 1210mm인 작은 ㅡ자 주방일 뿐이다.</b>
+  기존 <code>calc-engine</code>의 분배·갭 흡수·최소폭 규칙이 이미 ㅡ자에서 검증되어 있으므로,
+  그 함수를 라인 단위로 호출하도록 감싸기만 하면 된다. prime 경로 코드는 한 줄도 바뀌지 않는다 — 회귀 위험 최소화의 핵심.</p>
+
+  <pre><span class="k">function</span> runAutoCalcLower(item) {
+  <span class="c">// ① 파생 치수 갱신 — 멍장 W/H/D, 라인 예산</span>
+  <span class="k">const</span> corner = deriveCorner(item.specs);        <span class="c">// { blind, budgets }</span>
+  syncDerivedModules(item, corner);                <span class="c">// isDerived 모듈만 갱신</span>
+
+  <span class="c">// ② 라인 분리 — 명시적 소속 기준</span>
+  <span class="k">const</span> prime = item.modules.filter(m =&gt; m.pos==='lower' &amp;&amp; lineOf(m)==='prime');
+  <span class="k">const</span> sec   = item.modules.filter(m =&gt; m.pos==='lower' &amp;&amp; lineOf(m)==='secondary' &amp;&amp; !m.isFixed);
+
+  <span class="c">// ③ 동일 엔진, 라인별 예산 — 기존 분배 함수 그대로 재사용</span>
+  distributeModules(prime, corner.budgets.prime);   <span class="c">// 기존 로직 무변경</span>
+  distributeModules(sec,   corner.budgets.secondary);
+
+  <span class="c">// ④ 갭 흡수 — 라인 안에서만 (라인 간 이동 금지)</span>
+  absorbGap(prime, corner.budgets.prime);           <span class="c">// 개수대 확장 우선 규칙 유지</span>
+  absorbGap(sec,   corner.budgets.secondary);
+
+  <span class="c">// ⑤ 불변식 검증 + 병합 (배치 순서: 멍장 → sec → prime, startSide 반영)</span>
+  assertLineWidths(item, corner);
+  item.modules = mergeInPlacementOrder(corner.blind, sec, prime, item.specs.startSide);
+}</pre>
+
+  <h3>단계별 근거</h3>
+  <ul>
+    <li><b>① 이 갱신이 맨 앞인 이유</b> — 사용자가 primeD를 550→600으로 바꾸면 멍장 W가 590→640으로 변해야 하고,
+        그 변화가 secondary 예산(−50)에 즉시 반영된 뒤 분배가 돌아야 한다. 순서가 뒤집히면 한 사이클 지연된 값으로 계산된다.</li>
+    <li><b>④ 라인 간 이동 금지</b> — 갭은 발생한 라인 안에서 흡수한다. prime의 부족분을 secondary 모듈을 줄여 메우는 식의
+        교차 보정은 사용자가 예측할 수 없는 결과를 만든다. 라인은 독립된 계산 단위다.</li>
+    <li><b>가전(냉장고 등)이 secondary에 있는 경우</b> — 기존 엔진의 고정폭 처리(isFixed)가 라인 안에서 그대로 동작한다.
+        별도 코드가 필요 없다는 것이 재사용 설계의 이점.</li>
+  </ul>
+
+  <div class="callout blue">
+    <b>ㄷ자(U형) 확장은 공짜로 따라온다</b>
+    이 구조에서 tertiary는 <code>line:'tertiary'</code> + 예산 하나가 추가될 뿐이다.
+    W11에서 ㄷ자를 다룰 때 알고리즘 변경이 아니라 <code>deriveCorner()</code>에 코너 2번째 항목을 추가하는 일이 된다.
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">06</span>실전 검산 — 숫자로 따라가기</h2>
+  <p class="sub">prime 3600×550 / secondary 1800 / 하부 870 (상판 40, 다리 100) / 상부 720×295, startSide: left</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>단계</th><th>계산</th><th class="num">결과 (mm)</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>하부 멍장 W</td><td>550 + 40</td><td class="num"><b>590</b></td></tr>
+      <tr><td>2</td><td>하부 멍장 H</td><td>870 − 40 − 100</td><td class="num"><b>730</b></td></tr>
+      <tr><td>3</td><td>prime 예산</td><td>3600 − 550</td><td class="num"><b>3050</b></td></tr>
+      <tr><td>4</td><td>prime 분배 (개수대 900 + 가스 600 고정)</td><td>3050 − 1500 = 1550 → 수납 2개</td><td class="num"><b>775 × 2</b></td></tr>
+      <tr><td>5</td><td>secondary 예산</td><td>1800 − 590</td><td class="num"><b>1210</b></td></tr>
+      <tr><td>6</td><td>secondary 분배 (목표폭 600)</td><td>round(1210 / 600) = 2개 → 1210 / 2</td><td class="num"><b>605 × 2</b></td></tr>
+      <tr><td>7</td><td>상부 멍장 W</td><td>295 + 40</td><td class="num"><b>335</b></td></tr>
+      <tr><td>8</td><td>상부 secondary 예산</td><td>1800 − 335</td><td class="num"><b>1465</b></td></tr>
+      <tr><td>9</td><td>상부 secondary 분배</td><td>round(1465 / 600) = 2개</td><td class="num"><b>733 + 732</b></td></tr>
+      <tr><td>10</td><td>불변식 검증 (하부)</td><td>550 + 3050 = 3600 ✓ / 590 + 1210 = 1800 ✓</td><td class="num">통과</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>9번 행이 보여주는 디테일: 등분이 나누어떨어지지 않으면 <b>마지막 모듈이 나머지를 흡수</b>한다(733+732).
+  분배 후 합계가 예산과 정확히 일치해야 10번 불변식이 통과한다 — 반올림 오차를 흘려보내지 않는 설계.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">07</span>멍장 내부 구조 — 규칙 확정 대기 <span class="badge warn">규칙 필요</span></h2>
+  <p class="sub">구조(파이프라인)는 지금 만들고, 부재 산식은 규칙이 오면 꽂는다.</p>
+
+  <p>내부 부재 규칙은 제작 현장의 것이라 제가 임의로 정하지 않는다.
+  대신 <b>부재 산출을 전략(strategy)으로 분리</b>해서, 규칙이 확정되는 즉시 교체 가능한 구조를 제안한다:</p>
+
+  <pre><span class="c">// extractors.js — 멍장 부재 전략 분리</span>
+<span class="k">const</span> BLIND_PART_STRATEGY = {
+  <span class="k">standard</span>: extractStandardCarcass,   <span class="c">// A안: 현행 일반 카카스 산식 재사용</span>
+  <span class="k">blindSpecific</span>: extractBlindCarcass, <span class="c">// C안: 규칙 확정 후 구현</span>
+};</pre>
+
+  <div class="opts">
+    <div class="opt pick">
+      <div class="tag">A안 · 1차 배포 기본값</div>
+      <h4>표준 카카스 재사용</h4>
+      <p>측판 2 · 천판/지판 · 뒷판 · 선반 · 도어를 기존 <code>extractSink</code> 산식으로.
+      BOM이 <b>즉시</b> 나온다. 부재 수량은 정확하고, 코너 특화 형상만 미반영.</p>
+    </div>
+    <div class="opt">
+      <div class="tag">B안 · 현행 데이터 유지</div>
+      <h4>서랍 고정 모듈</h4>
+      <p>현재 <code>isDrawer: true</code> 정의 유지. 서랍 레일·서랍장 부재 산식 적용.
+      실제 제작이 서랍형이라면 이쪽이 정답.</p>
+    </div>
+    <div class="opt">
+      <div class="tag">C안 · 규칙 확정 후</div>
+      <h4>블라인드 특화 부재</h4>
+      <p>데드존 격벽, 반폭 도어(W − 데드존), 축소 선반 등 코너 전용 산식.
+      제작 도면을 받아 corner.md에 규칙을 먼저 문서화한다.</p>
+    </div>
+  </div>
+
+  <p><b>진행 방식:</b> A안으로 파이프라인 전체(영속화→자동계산→BOM)를 먼저 관통시켜 배포하고,
+  내부 규칙이 확정되면 전략 함수 하나만 C안으로 교체한다. 규칙 대기가 전체 일정을 막지 않게 하는 구조다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">08</span>BOM 연동과 마이그레이션</h2>
+  <p class="sub">extractors는 이제 "라인을 순회"한다. 그리고 어제 저장한 설계도 열려야 한다.</p>
+
+  <h3>BOM 산출 범위 변화</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>항목</th><th>현재</th><th>설계안 적용 후</th></tr></thead>
+    <tbody>
+      <tr><td>하부 멍장 카카스</td><td>일반 수납장으로 1건</td><td>전략 기반 산출 (A→C 교체 가능)</td></tr>
+      <tr><td>상부 멍장</td><td><b>누락</b> (모듈 자체가 없음)</td><td>W=335 카카스 산출</td></tr>
+      <tr><td>secondary 수납 모듈</td><td><b>누락</b> (3D에만 존재)</td><td>모듈별 부재 전량 산출</td></tr>
+      <tr><td>코너 마감재</td><td>미산출</td><td><code>finishCorner1/2</code> (기본 Filler 60) 포함</td></tr>
+      <tr><td>도어 매수</td><td>prime만</td><td>양 라인 전체 — 발주 수량 정합</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>기존 저장 설계 호환 (FR-07)</h3>
+  <p><code>persistence-init.js</code> 로드 시점에 1회 보정을 실행한다:</p>
+  <ol>
+    <li>layout이 L인데 <code>line:'secondary'</code> 수납 모듈이 0개면 → <code>deriveCorner()</code> + 기본 분배로 <b>생성</b></li>
+    <li>구식 멍장(W=secondaryD로 저장된 것)이 있으면 → <code>isDerived</code> 부여 후 공식값으로 <b>재계산</b></li>
+    <li><code>line</code> 필드가 없는 모듈은 → <code>orientation</code> 값으로 <b>역추론</b> (orientation 없음 = prime)</li>
+  </ol>
+  <p>보정은 멱등(idempotent)하게 — 같은 설계를 두 번 열어도 결과가 같아야 한다. 고정 id(<code>corner-blind-lower</code>)가 이를 보장한다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">09</span>왜 이 설계인가 — 대안과의 비교</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>설계 대안</th><th>장점</th><th>기각 사유</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>현행 유지 + 3D 로직만 BOM에 복제</b></td>
+        <td>변경 범위 최소</td>
+        <td>공식이 3곳으로 늘어난다. 지금의 2곳 불일치가 이미 사고 원인 — 복제는 부채의 이자만 키움</td>
+      </tr>
+      <tr>
+        <td><b>코너를 별도 최상위 엔티티로 분리</b><br>(item.corner = {...})</td>
+        <td>모델이 개념적으로 깔끔</td>
+        <td>extractors·정면도·persistence 등 <code>item.modules</code> 순회 코드 전부가 두 소스를 봐야 함.
+        16,500줄 코드베이스에서 수정 표면적이 과도</td>
+      </tr>
+      <tr>
+        <td><b>선택안: modules 배열 유지 + line/isDerived 필드 + deriveCorner()</b></td>
+        <td>기존 순회 코드 전부 호환 · 공식 단일화 · prime 로직 무변경</td>
+        <td>— (분배 함수의 라인 단위 재사용이 전제조건)</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>검증 계획</h3>
+  <ul>
+    <li><b>단위</b>: <code>deriveCorner()</code> 순수 함수 — 치수 공식·예산·엣지(secondaryW &lt; blindW인 극단 케이스) 테이블 테스트</li>
+    <li><b>불변식</b>: 자동계산 후 라인 합계 assert (§03) — 개발 중에는 throw, 프로덕션에서는 콘솔 경고+보정</li>
+    <li><b>회귀</b>: ㅡ자 설계 자동계산 스냅샷 전/후 diff = 0 (prime 경로 무변경 증명)</li>
+    <li><b>E2E</b>: ㄱ자 설정 → 자동계산 → 정면도(W9 ruler) → BOM 수량이 §06 검산표와 일치</li>
+    <li><b>호환</b>: 기존 저장 ㄱ자 설계 로드 → 보정 → 재저장 → 재로드 멱등성</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">10</span>요약 — 결정이 필요한 것</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>항목</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>멍장 W = 인접 깊이 + 40 · secondary 라인 전체 영속화</td><td><span class="badge ok">확정</span></td></tr>
+      <tr><td>2</td><td><code>line</code>/<code>isDerived</code> 필드, deriveCorner() 단일 공식, 라인 단위 분배 재사용, 라인 예산 공식</td><td><span class="badge info">제안</span> — 이 문서 검토로 확정</td></tr>
+      <tr><td>3</td><td>멍장 내부 부재 규칙 (A안 선배포 / C안 교체 구조)</td><td><span class="badge warn">규칙 필요</span> — 제작 규칙 제공 시 corner.md 반영</td></tr>
+      <tr><td>4</td><td>하부 멍장 D = secondaryD, 상부 멍장 D/H 공식</td><td><span class="badge info">제안</span> — 표 §03 확인 요청</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>2·4번을 승인하면 이 문서를 기반으로 <code>corner-autocalc.design.md</code>(구현 상세)를 확정하고
+  W10-1(secondary 영속화)부터 착수한다.</p>
+</section>
+
+</main>

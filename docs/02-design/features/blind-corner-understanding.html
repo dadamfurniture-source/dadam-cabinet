@@ -1,0 +1,430 @@
+<title>멍장 개념 이해 확인 — 멍(blind)의 정의와 공식</title>
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --accent-soft: rgba(184,149,108,.14); --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+    --code-bg: #29261f; --code-ink: #e7e0d2; --code-accent: #d4b58c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+      --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+  }
+  :root[data-theme="light"] {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --accent-soft: rgba(184,149,108,.14); --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+    --code-bg: #29261f; --code-ink: #e7e0d2; --code-accent: #d4b58c;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  header.doc { padding: 64px 0 36px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; }
+  h1 { font-size: 32px; line-height: 1.32; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 56px; }
+  h2 { font-size: 22px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 700; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+  h3 { font-size: 16.5px; font-weight: 700; margin: 30px 0 10px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 44em; padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 2px; white-space: nowrap; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td code, li code, p code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+
+  pre { background: var(--code-bg); color: var(--code-ink); font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; line-height: 1.65; padding: 20px 22px; border-radius: 8px; overflow-x: auto; margin: 18px 0; }
+  pre .c { color: #8d8574; } pre .k { color: var(--code-accent); font-weight: 600; } pre .n { color: #9fc0a8; }
+
+  figure { margin: 22px 0; padding: 26px 20px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  .formula { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14.5px; background: var(--surface); border-left: 3px solid var(--accent); padding: 14px 18px; margin: 14px 0; border-radius: 0 6px 6px 0; overflow-x: auto; }
+  .formula b { color: var(--accent); font-weight: 700; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+  .compare .col { border: 1px solid var(--line); border-radius: 8px; padding: 18px; background: var(--surface); }
+  .compare .col.wrong { border-left: 4px solid var(--bad); }
+  .compare .col.right { border-left: 4px solid var(--ok); }
+  .compare h4 { margin: 0 0 10px; font-size: 14px; }
+  .compare p, .compare li { font-size: 14px; }
+  @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } h1 { font-size: 25px; } }
+
+  .qa { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0; padding: 16px 20px; background: var(--surface); max-width: 48em; }
+  .qa b.q { display: block; font-size: 15px; margin-bottom: 4px; }
+  .qa p { font-size: 14px; color: var(--muted); margin: 4px 0 0; }
+</style>
+
+<main>
+<header class="doc">
+  <div class="eyebrow">다담AI · corner-autocalc · 이해 확인 문서</div>
+  <h1>멍장 규칙 확정 — "멍"은 인접 라인에 가려지는 구간이다</h1>
+  <p class="lede">2026-07-17 답변으로 6개 질문이 모두 확정되어 <code>docs/design-rules/corner.md</code>에 반영 완료.
+  핵심: 멍장 W는 독립 규격이 아니라 <b>라인 전체 도어 균등 분배의 결과</b>다.</p>
+  <div class="meta">
+    <span>확정 <b>2026-07-17</b></span>
+    <span>기준 예시 <b>secondary 1970 · prime 상판깊이 650</b></span>
+    <span>규칙 반영 <b>corner.md §3 (W10-0 완료)</b></span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">01</span>무엇을 잘못 이해했었나</h2>
+
+  <div class="compare">
+    <div class="col wrong">
+      <h4><span class="badge bad">이전 이해 — 틀림</span></h4>
+      <ul>
+        <li>멍장 W = <b>파생값</b> (primeD + 40 = 590)</li>
+        <li>+40 = 도어 간섭 여유라고 추측</li>
+        <li>멍장 전체가 "코너 점유 박스"이고 도어 구성은 별도 규칙 대기</li>
+      </ul>
+    </div>
+    <div class="col right">
+      <h4><span class="badge ok">정정된 이해</span></h4>
+      <ul>
+        <li>멍장 W = <b>기본 규격 1000~1200</b> (파생값 아님)</li>
+        <li>멍장 <b>내부가 두 구간으로 나뉨</b>: 멍(가려짐) + 도어(열림)</li>
+        <li><b>멍 = prime 라인에 의해 가려지는 부분</b> — 여기가 파생값</li>
+        <li>도어는 가려지지 않은 나머지 폭에 <b>한 짝만</b> 달림</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>즉, 파생 공식이 적용되는 대상이 <b>멍장 전체 폭이 아니라 멍장 안의 "멍" 구간</b>이었습니다.
+  멍장 폭은 규격(1000~1200)에서 출발하고, 멍의 크기가 prime 라인의 깊이에서 계산되며,
+  도어 폭은 그 차이로 결정됩니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">02</span>멍의 공식 — 650 − 10 + 60 = 700</h2>
+  <p class="sub">알려주신 예시를 단계별로 분해한 것입니다.</p>
+
+  <div class="formula">
+    멍 W = prime 상판 깊이 − 10 + 몰딩<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 650 − <b>10</b>(물끊기 여유) + <b>60</b>(몰딩) = <b>700</b><br><br>
+    도어 W = 멍장 W − 멍 W = 1000 − 700 = <b>300</b> (도어 1짝)
+  </div>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>항</th><th class="num">값 (mm)</th><th>제가 이해한 의미</th></tr></thead>
+    <tbody>
+      <tr><td>prime 상판 깊이</td><td class="num">650</td>
+          <td>prime 라인의 상판이 멍장 앞을 가로질러 지나가는 깊이. 가림의 출발점</td></tr>
+      <tr><td>물끊기 여유</td><td class="num">−10</td>
+          <td>상판 끝에서 물이 흘러내릴 때 <b>도어에 떨어지지 않도록</b> 두는 여유.
+          prime 도어면이 상판 끝보다 10 안쪽에 있는 만큼 가림 기준선도 10 당겨짐</td></tr>
+      <tr><td>몰딩</td><td class="num">+60</td>
+          <td>prime 라인과 멍장 도어 사이 코너 접합부를 덮는 몰딩 폭.
+          이 구간도 도어를 열 수 없으므로 멍에 포함.
+          <code>data-constants.js:917</code>의 <code>Molding defaultW 60</code>,
+          <code>finishCorner1Width: 60</code>과 같은 값으로 보임</td></tr>
+      <tr><td><b>멍 합계</b></td><td class="num"><b>700</b></td>
+          <td>멍장 전면 중 도어를 달 수 없는(가려진) 폭</td></tr>
+      <tr><td><b>도어</b></td><td class="num"><b>300</b></td>
+          <td>1000 − 700. 실제로 열리는 유일한 도어 — <b>한 짝</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">03</span>평면으로 본 멍장 — 왜 가려지는가</h2>
+  <p class="sub">멍장은 secondary 벽을 따라 서 있고, prime 라인이 그 앞을 가로질러 지나간다.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 480" width="720" role="img" aria-label="멍장 평면 상세도: prime 라인이 멍장 전면 700mm를 가리는 구조">
+      <!-- 벽 -->
+      <line x1="30" y1="30" x2="700" y2="30" stroke="currentColor" stroke-width="5"/>
+      <line x1="30" y1="30" x2="30" y2="450" stroke="currentColor" stroke-width="5"/>
+
+      <!-- 멍장 카카스 (secondary 벽 소속) -->
+      <rect x="30" y="30" width="200" height="350" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="120" y="205" font-size="14" font-weight="700" fill="var(--accent)" text-anchor="middle">멍장 카카스</text>
+      <text x="120" y="224" font-size="11.5" class="mono" fill="var(--accent)" text-anchor="middle">W 1000 (벽 방향)</text>
+
+      <!-- prime 라인 캐비닛 (멍장 오른쪽에서 시작, 앞을 가로지름) -->
+      <rect x="230" y="30" width="460" height="220" fill="var(--surface2)" stroke="var(--muted)" stroke-width="1.5"/>
+      <text x="460" y="130" font-size="13" fill="var(--muted)" text-anchor="middle">prime 라인 캐비닛</text>
+      <!-- prime 도어면 -->
+      <line x1="230" y1="250" x2="690" y2="250" stroke="var(--ink)" stroke-width="3"/>
+      <text x="475" y="243" font-size="11" fill="var(--muted)" text-anchor="middle">prime 도어면 (650 − 10 = 640)</text>
+      <!-- prime 상판 (도어보다 10 돌출) -->
+      <line x1="230" y1="268" x2="700" y2="268" stroke="var(--info)" stroke-width="2.5" stroke-dasharray="7 4"/>
+      <text x="475" y="286" font-size="11" fill="var(--info)" text-anchor="middle">상판 끝선 (깊이 650) — 물이 이 선에서 떨어짐</text>
+      <!-- 물방울 표시 -->
+      <circle cx="248" cy="278" r="2.5" fill="var(--info)"/>
+      <circle cx="252" cy="290" r="2" fill="var(--info)"/>
+
+      <!-- 멍장 전면선 -->
+      <line x1="230" y1="30" x2="230" y2="380" stroke="var(--accent)" stroke-width="2"/>
+
+      <!-- 멍 구간 (전면 중 가려진 부분): y 30~250 = prime에 막힘 -->
+      <rect x="222" y="30" width="16" height="220" fill="var(--bad-bg)"/>
+      <line x1="222" y1="30" x2="238" y2="250" stroke="var(--bad)" stroke-width="1" opacity=".55"/>
+      <line x1="238" y1="30" x2="222" y2="250" stroke="var(--bad)" stroke-width="1" opacity=".55"/>
+
+      <!-- 몰딩 60 -->
+      <rect x="222" y="250" width="16" height="34" fill="var(--warn)" opacity=".85"/>
+      <text x="248" y="272" font-size="11.5" font-weight="700" fill="var(--warn)">몰딩 60</text>
+
+      <!-- 도어 300 -->
+      <rect x="222" y="284" width="16" height="96" fill="var(--ok)" opacity=".85"/>
+      <text x="248" y="330" font-size="12.5" font-weight="700" fill="var(--ok)">도어 300 (1짝)</text>
+      <!-- 도어 열림 호 -->
+      <path d="M 238 380 A 96 96 0 0 1 334 284" fill="none" stroke="var(--ok)" stroke-width="1.5" stroke-dasharray="5 4"/>
+
+      <!-- 멍 치수선 -->
+      <line x1="205" y1="30" x2="205" y2="284" stroke="var(--bad)" stroke-width="1.5"/>
+      <line x1="199" y1="30" x2="211" y2="30" stroke="var(--bad)" stroke-width="1.5"/>
+      <line x1="199" y1="284" x2="211" y2="284" stroke="var(--bad)" stroke-width="1.5"/>
+      <text x="196" y="165" font-size="12" class="mono" font-weight="700" fill="var(--bad)" text-anchor="middle" transform="rotate(-90 196 165)">멍 700 = 640 + 60</text>
+
+      <!-- 멍장 W 치수선 -->
+      <line x1="52" y1="404" x2="52" y2="30" stroke="var(--muted)" stroke-width="0" />
+      <line x1="14" y1="30" x2="14" y2="380" stroke="var(--muted)" stroke-width="1"/>
+      <text x="10" y="205" font-size="11.5" class="mono" fill="var(--muted)" text-anchor="middle" transform="rotate(-90 10 205)">멍장 W 1000</text>
+
+      <!-- secondary 다음 모듈 -->
+      <rect x="30" y="380" width="200" height="68" fill="var(--surface2)" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="130" y="418" font-size="12" fill="var(--muted)" text-anchor="middle">secondary 다음 모듈…</text>
+    </svg>
+    <figcaption>평면도 (위에서 본 모습 · 멍장이 secondary에 있는 경우의 예 · 치수 비례는 설명 위해 일부 과장).
+    멍장 전면(세로 주황선) 중 위쪽 700은 prime 캐비닛 몸통(640)과 몰딩(60)에 막혀 도어를 달 수 없다 — 이것이 "멍".
+    나머지 구간에만 도어 한 짝이 달려 통로 쪽으로 열린다. 상판(파선)은 도어면보다 10 돌출되어 물끊기 역할.
+    ※ 확정 규칙: 배치는 수직 회전된 어떤 형태든 가능하며, 멍장의 소속 라인(prime/secondary)은 사용자가 결정한다.</figcaption>
+  </figure>
+
+  <p>이 그림이 맞다면, <b>−10의 위치</b>도 이해됩니다: prime 도어면은 상판 끝(650)에서 10 들어간 640에 있고,
+  몰딩은 그 도어면(640)에서 시작해 60을 더해 700에서 끝납니다. 몰딩 끝(700)이 곧 멍장 도어의 시작점이며,
+  상판 끝(650)에서 떨어지는 물은 도어(700부터)가 아니라 몰딩 위(640~700 구간)에 떨어집니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">04</span>정면으로 본 멍장</h2>
+
+  <figure>
+    <svg viewBox="0 0 640 350" width="640" role="img" aria-label="멍장 정면도: 멍 700 막힘 구간과 도어 300">
+      <!-- 상판 -->
+      <rect x="48" y="34" width="424" height="14" fill="var(--surface2)" stroke="var(--muted)" stroke-width="1.5"/>
+      <text x="490" y="45" font-size="11" fill="var(--muted)">상판</text>
+      <!-- 몸통 외곽 -->
+      <rect x="60" y="48" width="400" height="252" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/>
+      <!-- 멍 구간: 0~640 (prime에 가려짐) -->
+      <rect x="60" y="48" width="256" height="252" fill="var(--bad-bg)"/>
+      <line x1="60" y1="48" x2="316" y2="300" stroke="var(--bad)" stroke-width="1" opacity=".4"/>
+      <line x1="316" y1="48" x2="60" y2="300" stroke="var(--bad)" stroke-width="1" opacity=".4"/>
+      <text x="188" y="164" font-size="13" font-weight="700" fill="var(--bad)" text-anchor="middle">prime 캐비닛에 가려짐</text>
+      <text x="188" y="184" font-size="11.5" class="mono" fill="var(--bad)" text-anchor="middle">640 = 650 − 10</text>
+      <!-- 몰딩 구간 -->
+      <rect x="316" y="48" width="24" height="252" fill="var(--warn)" opacity=".7"/>
+      <text x="328" y="180" font-size="11.5" font-weight="700" fill="var(--warn)" text-anchor="middle" transform="rotate(-90 328 180)">몰딩 60</text>
+      <!-- 도어 -->
+      <rect x="344" y="52" width="112" height="244" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+      <line x1="344" y1="66" x2="456" y2="66" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="400" y="170" font-size="13" font-weight="700" fill="var(--accent)" text-anchor="middle">도어 300</text>
+      <text x="400" y="190" font-size="11" fill="var(--accent)" text-anchor="middle">매립형(handleless) 1짝</text>
+      <!-- 다리 -->
+      <rect x="72" y="300" width="14" height="22" fill="var(--muted)"/>
+      <rect x="434" y="300" width="14" height="22" fill="var(--muted)"/>
+      <!-- 치수선: 멍/도어 -->
+      <line x1="60" y1="336" x2="340" y2="336" stroke="var(--bad)" stroke-width="1.5"/>
+      <line x1="60" y1="330" x2="60" y2="342" stroke="var(--bad)" stroke-width="1.5"/>
+      <line x1="340" y1="330" x2="340" y2="342" stroke="var(--bad)" stroke-width="1.5"/>
+      <text x="200" y="332" font-size="12" class="mono" font-weight="700" fill="var(--bad)" text-anchor="middle">멍 700</text>
+      <line x1="340" y1="336" x2="460" y2="336" stroke="var(--ok)" stroke-width="1.5"/>
+      <line x1="460" y1="330" x2="460" y2="342" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="400" y="332" font-size="12" class="mono" font-weight="700" fill="var(--ok)" text-anchor="middle">300</text>
+      <!-- 전체 W -->
+      <line x1="60" y1="20" x2="460" y2="20" stroke="var(--muted)" stroke-width="1"/>
+      <text x="260" y="15" font-size="11.5" class="mono" fill="var(--muted)" text-anchor="middle">멍장 W 1000</text>
+    </svg>
+    <figcaption>정면도 (통로에서 멍장 도어면을 바라본 모습). 왼쪽 640은 prime 캐비닛 몸통 뒤에 숨고,
+    몰딩 60이 접합부를 덮으며, 오른쪽 300에만 도어 한 짝이 달린다. 도어는 프로젝트 규칙대로 매립형(handleless).</figcaption>
+  </figure>
+
+  <p><span class="badge ok">확정</span> 멍 구간 정면은 <b>2.7T MDF</b>로 가리고,
+  내부는 카카스 전체가 <b>하나의 수납 공간(하부장 선반 기본)</b>으로 도어를 통해 접근한다.
+  필요 시 회전 선반 등 하드웨어 장착 가능. (§04 정면도의 좌측 구간 = MDF 가림판, BOM 부재로 산출)</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">05</span>확정 공식 — 도어 균등 분배가 멍장 W를 결정한다 <span class="badge ok">확정</span></h2>
+  <p class="sub">멍장 W는 입력값이 아니다. 라인 원장(ledger)에서 남는 도어 폭이 멍장 도어가 된다.</p>
+
+  <div class="formula">
+    멍 W&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 인접 상판깊이 − 10(물끊기) + 몰딩(60)&nbsp;&nbsp;<span style="opacity:.7">// 하부장. 상부장: 320 + 60 = 380 (물끊기 없음)</span><br>
+    도어 가용폭 = 라인 W − EP(20) − 벽 여유(50) − 멍 W<br>
+    도어 W&nbsp;&nbsp;&nbsp;&nbsp; = 도어 가용폭 ÷ 도어 수 (라인 전체 균등, <b>최소 350</b>)<br>
+    멍장 W&nbsp;&nbsp;&nbsp;&nbsp; = 멍 + 도어
+  </div>
+
+  <h3>확정 예시 — secondary 1970 원장</h3>
+  <figure>
+    <svg viewBox="0 0 700 150" width="700" role="img" aria-label="secondary 1970 라인 원장: EP20, 800장, 멍장 1100, 여유 50">
+      <!-- 전체 바 (1970 → 656px, 스케일 0.333) -->
+      <!-- EP 20 → 7px -->
+      <rect x="22" y="40" width="7" height="52" fill="var(--muted)"/>
+      <text x="25" y="30" font-size="10.5" class="mono" fill="var(--muted)" text-anchor="middle">EP 20</text>
+      <!-- W800장: 도어 400 + 400 → 266px -->
+      <rect x="29" y="40" width="133" height="52" fill="var(--surface2)" stroke="var(--ink)" stroke-width="1.5"/>
+      <rect x="162" y="40" width="133" height="52" fill="var(--surface2)" stroke="var(--ink)" stroke-width="1.5"/>
+      <text x="162" y="70" font-size="12" fill="var(--ink)" text-anchor="middle" font-weight="700">W800장</text>
+      <text x="95" y="86" font-size="10.5" class="mono" fill="var(--muted)" text-anchor="middle">도어 400</text>
+      <text x="228" y="86" font-size="10.5" class="mono" fill="var(--muted)" text-anchor="middle">도어 400</text>
+      <!-- 멍장: 도어 400 + 멍 700 → 133 + 233 -->
+      <rect x="295" y="40" width="133" height="52" fill="var(--ok-bg)" stroke="var(--ok)" stroke-width="2"/>
+      <text x="361" y="66" font-size="11.5" font-weight="700" fill="var(--ok)" text-anchor="middle">도어 400</text>
+      <rect x="428" y="40" width="233" height="52" fill="var(--bad-bg)" stroke="var(--bad)" stroke-width="2"/>
+      <line x1="428" y1="40" x2="661" y2="92" stroke="var(--bad)" stroke-width="1" opacity=".4"/>
+      <line x1="661" y1="40" x2="428" y2="92" stroke="var(--bad)" stroke-width="1" opacity=".4"/>
+      <text x="544" y="66" font-size="11.5" font-weight="700" fill="var(--bad)" text-anchor="middle">멍 700 (2.7T MDF 가림)</text>
+      <!-- 멍장 브래킷 -->
+      <line x1="295" y1="104" x2="661" y2="104" stroke="var(--accent)" stroke-width="2"/>
+      <text x="478" y="122" font-size="12" class="mono" font-weight="700" fill="var(--accent)" text-anchor="middle">멍장 W 1100 = 400 + 700</text>
+      <!-- 여유 50 → 17px -->
+      <rect x="661" y="40" width="17" height="52" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="670" y="30" font-size="10.5" class="mono" fill="var(--muted)" text-anchor="middle">여유 50</text>
+      <!-- 코너 벽 -->
+      <line x1="678" y1="20" x2="678" y2="110" stroke="currentColor" stroke-width="4"/>
+      <text x="686" y="70" font-size="10.5" fill="var(--muted)" transform="rotate(90 686 70)">코너 벽</text>
+      <!-- 전체 치수 -->
+      <line x1="22" y1="14" x2="678" y2="14" stroke="var(--muted)" stroke-width="1"/>
+      <text x="350" y="10" font-size="11" class="mono" fill="var(--muted)" text-anchor="middle">secondary 전체 W 1970</text>
+    </svg>
+    <figcaption>좌측→코너 순서: EP 20 + W800장(도어 400×2) + 멍장(도어 400 + 멍 700) + 여유 50 = 1970.
+    라인의 모든 도어가 400으로 균등하다. 멍장 측판은 코너 벽에서 50 이격.</figcaption>
+  </figure>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>단계</th><th>계산</th><th class="num">결과 (mm)</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>멍 W</td><td>650 − 10 + 60</td><td class="num"><b>700</b></td></tr>
+      <tr><td>2</td><td>도어 가용폭</td><td>1970 − 20(EP) − 50(여유) − 700(멍)</td><td class="num"><b>1200</b></td></tr>
+      <tr><td>3</td><td>도어 수 / 도어 W</td><td>1200 ÷ 3 = 400 (모두 ≥ 350 충족)</td><td class="num"><b>400 × 3</b></td></tr>
+      <tr><td>4</td><td>멍장 W</td><td>700 + 400</td><td class="num"><b>1100</b></td></tr>
+      <tr><td>5</td><td>인접(prime) 시작 offset</td><td>secondaryD 650 − 10 + 60</td><td class="num"><b>700</b></td></tr>
+      <tr><td>6</td><td>prime 분배 예산</td><td>primeW − 700</td><td class="num">primeW − 700</td></tr>
+      <tr><td>7</td><td>검증</td><td>20 + 800 + 1100 + 50 = 1970 ✓</td><td class="num">통과</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>확정 deriveCorner()</h3>
+  <pre><span class="k">function</span> deriveCorner(specs, blindLine <span class="c">/* 'prime'|'secondary' — 사용자 결정 */</span>) {
+  <span class="k">const</span> molding = specs.finishCornerW || <span class="n">60</span>;
+  <span class="k">const</span> adj     = otherLine(blindLine);                    <span class="c">// 인접 라인</span>
+
+  <span class="c">// ① 멍 — 하부: 인접 상판깊이 − 10 + 몰딩 / 상부: 320 + 몰딩 (물끊기 없음)</span>
+  <span class="k">const</span> blindZoneLower = specs[adj].topD - <span class="n">10</span> + molding;   <span class="c">// 650−10+60 = 700</span>
+  <span class="k">const</span> blindZoneUpper = <span class="n">320</span> + molding;                    <span class="c">// = 380 (295+18≈313 → 관례 320)</span>
+
+  <span class="c">// ② 도어 균등 분배 — 라인 원장에서 도어 가용폭 산출</span>
+  <span class="k">const</span> avail  = specs[blindLine].w - EP(<span class="n">20</span>) - WALL_GAP(<span class="n">50</span>) - blindZoneLower;
+  <span class="k">const</span> nDoors = maxDoorsAtLeast(avail, MIN_DOOR_W <span class="c">/* 350 */</span>);
+  <span class="k">const</span> doorW  = avail / nDoors;                           <span class="c">// 1200/3 = 400</span>
+
+  <span class="k">return</span> {
+    blind:   { w: blindZoneLower + doorW, doorW, doorCount: <span class="n">1</span>, blindCover: '2.7T MDF' },
+    budgets: { [adj]: specs[adj].w - (specs[blindLine].topD - <span class="n">10</span> + molding) },  <span class="c">// prime 시작 offset 차감</span>
+  };
+}</pre>
+
+  <p><b>BOM 관점의 결정적 변화</b>: 멍장에서 산출되는 부재는
+  ① 도어 <b>400</b>(카카스 폭 1100이 아님), ② <b>멍 가림판 2.7T MDF (W 700)</b>,
+  ③ 카카스(측판/천판/지판/뒷판) 1100 기준, ④ 선반(기본) — 이 조합이 정확한 발주 수량이다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="no">06</span>확정된 답변 (2026-07-17) — corner.md §3 반영 완료</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>질문</th><th>확정 답변</th></tr></thead>
+    <tbody>
+      <tr><td>Q1</td><td>배치 방향</td>
+          <td>ㄱ자를 수직 회전한 <b>어떤 형태든 가능</b>. 멍장은 prime/secondary <b>어느 라인이든 배치 가능 — 사용자 결정</b></td></tr>
+      <tr><td>Q2</td><td>멍장 W 결정</td>
+          <td>측판이 코너 벽에서 <b>50 이격</b>. 도어 W는 <b>라인 전체 도어 균등 분배</b>로 결정.
+          예: 1970 = EP20 + 800장 + 멍장(도어400+멍700) + 여유50</td></tr>
+      <tr><td>Q3</td><td>도어 최소 폭</td><td><b>350</b></td></tr>
+      <tr><td>Q4</td><td>멍 구간/내부</td>
+          <td>멍 정면은 <b>2.7T MDF</b>로 가림. 내부는 <b>단일 수납공간(하부장 선반 기본)</b>, 하드웨어 장착 가능</td></tr>
+      <tr><td>Q5</td><td>인접 라인 시작</td>
+          <td>코너에서 <b>멍장 라인 상판깊이 − 10 + 몰딩(60)</b> 지점부터 시작 (예: 650 → 700)</td></tr>
+      <tr><td>Q6</td><td>상부장 멍장</td>
+          <td>물끊기 없이 <b>멍 = 모듈(몸통D+도어두께) + 몰딩 = 320 + 60 = 380</b>.
+          실제 295+18=313이나 여유·편의상 320 사용</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>남은 확인 1건 — 도어 수 결정 규칙 <span class="badge warn">해석 확인</span></h3>
+  <div class="qa"><b class="q">도어 수는 "최소 350을 만족하는 최대 도어 수"로 해석했습니다.</b>
+    <p>예시 검산: 가용폭 1200 → 1200÷4 = 300 (350 미달, 불가) → 1200÷3 = <b>400 ✓</b> — 예시와 일치.
+    다만 "가능한 큰 도어 우선"(1200÷2 = 600) 같은 다른 규칙일 수도 있으므로,
+    구현 시 기존 calc-engine 도어 분배 로직과 대조 후 어긋나면 다시 확인드리겠습니다.</p></div>
+
+  <h3>다음 단계</h3>
+  <ol>
+    <li>corner.md §3 규칙 확정 반영 — <b>완료 (W10-0)</b></li>
+    <li>설계 문서(<code>corner-autocalc.design.md</code>) — 확정 공식 기반으로 작성</li>
+    <li>W10-1 구현 착수 — secondary 라인 영속화 + deriveCorner()</li>
+  </ol>
+</section>
+
+</main>
