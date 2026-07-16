@@ -1,0 +1,5 @@
+{
+  "name": "3D Furniture Studio",
+  "description": "A professional 3D furniture design and customization tool using React Three Fiber.",
+  "requestFramePermissions": []
+}

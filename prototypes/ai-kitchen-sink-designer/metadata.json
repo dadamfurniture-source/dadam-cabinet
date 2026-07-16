@@ -1,0 +1,5 @@
+{
+  "name": "AI Kitchen Sink Designer",
+  "description": "Upload your kitchen sink image and generate new designs with AI recommendations.",
+  "requestFramePermissions": []
+}
