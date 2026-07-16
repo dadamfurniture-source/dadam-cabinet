@@ -1156,6 +1156,11 @@
             imageUrl: item.specs?.imageUrl || item.specs?.image || null,
           }));
 
+          // W10-1: 기존 저장 설계 마이그레이션 — ㄱ자/ㄷ자인데 secondary 미영속화면 보정 (멱등)
+          if (typeof migrateCornerModules === 'function') {
+            selectedItems.forEach((it) => migrateCornerModules(it));
+          }
+
           // UI 업데이트
           updateUI();
           updateSaveStatus('saved', '불러옴');

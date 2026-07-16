@@ -32,6 +32,15 @@
       const LT_FIXED_W = 200;
       const COOK_FIXED_W = 600;
 
+      // ★ W10-1: 멍장(코너장) 상수 — docs/design-rules/corner.md §3 (2026-07-17 확정)
+      // corner-engine.js의 Jest fallback 값과 반드시 일치할 것
+      const CORNER_DRIP = 10;            // 물끊기 여유 (§3.3)
+      const CORNER_WALL_GAP = 50;        // 멍장 측판-코너벽 여유 (§3.4)
+      const CORNER_UPPER_MODULE = 320;   // 상부 멍 모듈값: 몸통295+도어18 → 관례 320 (§3.6)
+      const CORNER_BLIND_COVER_T = 2.7;  // 멍 가림판 MDF 두께 (§3.5)
+      const CORNER_EP_W = 20;            // 멍장 라인 EP 폭 (§3.4 예시, FINISH 'EP' defaultW와 동일)
+      // 도어 최소폭은 기존 DOOR_MIN_WIDTH(350) 재사용 (§3.4)
+
       const DEFAULT_SPECS = {
         layoutShape: 'I',
         doorColorUpper: '화이트',

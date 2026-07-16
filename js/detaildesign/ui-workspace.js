@@ -1555,31 +1555,10 @@
         if (shape !== 'I' && !item.specs.lowerSecondaryD) {
           item.specs.lowerSecondaryD = item.defaultD || item.d || '';
         }
-        // ㄱ자: 멍장(blind corner) 자동 삽입 — secondary line 시작 모듈
+        // W10-1: ㄱ자/ㄷ자 — 멍장 + secondary 수납 시드 영속화 (corner-engine.js)
+        // 멍장 치수는 deriveCorner() 단일 파생: 멍 = 인접 상판깊이 −10 +몰딩, 도어 = 라인 균등 분배
         if (shape === 'L' || shape === 'U') {
-          const startSide = item.specs.secondaryStartSide || 'left';
-          const hasBlind = item.modules.some(m => m.name === 'LT망장' && m.pos === 'lower');
-          if (!hasBlind) {
-            const specLowerH = parseFloat(item.specs.lowerH) || 870;
-            const specLegH = parseFloat(item.specs.sinkLegHeight) || 150;
-            const specTopT = parseFloat(item.specs.topThickness) || 12;
-            const blindMod = {
-              id: Date.now() + Math.random(),
-              type: 'storage', name: 'LT망장', pos: 'lower',
-              w: parseFloat(item.specs.lowerSecondaryD) || parseFloat(item.d) || 600,
-              h: specLowerH - specTopT - specLegH,
-              d: parseFloat(item.d) || 550,
-              isDrawer: true, isFixed: true,
-              orientation: 'secondary',
-            };
-            if (startSide === 'left') {
-              item.modules.unshift(blindMod);
-            } else {
-              // 하부장 마지막에 추가
-              const lastLowerIdx = item.modules.reduce((last, m, i) => m.pos === 'lower' ? i : last, -1);
-              item.modules.splice(lastLowerIdx + 1, 0, blindMod);
-            }
-          }
+          seedCornerModules(item);
         }
         if (shape === 'U') {
           if (!item.specs.lowerTertiaryW) item.specs.lowerTertiaryW = item.specs.lowerSecondaryW || '1800';
@@ -1589,6 +1568,7 @@
           if (!item.specs.tertiaryStartFrom) item.specs.tertiaryStartFrom = 'prime';
         }
         if (shape === 'I') {
+          removeCornerModules(item); // W10-1: secondary 라인 모듈 제거
           item.specs.lowerSecondaryW = '';
           item.specs.lowerSecondaryH = '';
           item.specs.lowerSecondaryD = '';
