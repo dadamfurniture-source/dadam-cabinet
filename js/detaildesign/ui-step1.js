@@ -480,20 +480,38 @@
           const uSecW = parseFloat(specs.upperSecondaryW) || secW;
           const uPrimeD = parseFloat(specs.upperPrimeD) || 295;
           const uSecD = parseFloat(specs.upperSecondaryD) || uPrimeD;
-          // ★ 멍판 너비 = upper prime depth + 40mm
-          const uBlindW = uPrimeD + 40;
-          const uBlindMod = {
-            id: 'blind-corner-upper-auto', kind: 'door', width: uBlindW,
-            moduleType: 'blind', doorCount: 1, orientation: 'secondary',
-          };
-          // ★ 실측 기준: uSecW = uBlindW(depth+40) + 나머지 모듈
-          const uAvailableSecW = Math.max(0, uSecW - uBlindW);
-          const uSecModCount = uAvailableSecW > 0 ? Math.max(1, Math.round(uAvailableSecW / 600)) : 0;
-          const uSecModW = uSecModCount > 0 ? Math.round(uAvailableSecW / uSecModCount) : 0;
-          const uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
-            id: `sec-upper-auto-${i}`, kind: 'door', width: uSecModW,
-            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
-          }));
+          // W10-2: 영속화된 상부 secondary 모듈 우선 — 데이터 모델이 SSOT
+          const persistedUpperSec = (itemModules || []).filter(
+            m => m.pos === 'upper' && (m.line === 'secondary' || m.orientation === 'secondary')
+          );
+          let uBlindMod, uSecMods;
+          if (persistedUpperSec.length > 0) {
+            const puBlind = persistedUpperSec.find(m => m.id === 'corner-blind-upper' || m.name === 'LT망장');
+            const puSecs = persistedUpperSec.filter(m => m !== puBlind);
+            uBlindMod = {
+              id: 'blind-corner-upper-auto', kind: 'door',
+              width: parseFloat(puBlind && puBlind.w) || (uPrimeD + 40),
+              moduleType: 'blind', doorCount: 1, orientation: 'secondary',
+            };
+            uSecMods = puSecs.map((m, i) => ({
+              id: `sec-upper-auto-${i}`, kind: 'door', width: parseFloat(m.w) || 600,
+              moduleType: 'storage', doorCount: m.doorCount || 1, orientation: 'secondary',
+            }));
+          } else {
+            // 레거시 fallback: 멍판 너비 = upper prime depth + 40mm
+            const uBlindW = uPrimeD + 40;
+            uBlindMod = {
+              id: 'blind-corner-upper-auto', kind: 'door', width: uBlindW,
+              moduleType: 'blind', doorCount: 1, orientation: 'secondary',
+            };
+            const uAvailableSecW = Math.max(0, uSecW - uBlindW);
+            const uSecModCount = uAvailableSecW > 0 ? Math.max(1, Math.round(uAvailableSecW / 600)) : 0;
+            const uSecModW = uSecModCount > 0 ? Math.round(uAvailableSecW / uSecModCount) : 0;
+            uSecMods = Array.from({ length: uSecModCount }, (_, i) => ({
+              id: `sec-upper-auto-${i}`, kind: 'door', width: uSecModW,
+              moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+            }));
+          }
           if (startSide === 'left') {
             payload.upperModules = [uBlindMod, ...uSecMods, ...payload.upperModules];
           } else {

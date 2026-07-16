@@ -1592,6 +1592,12 @@
             if (!item.specs.upperTertiaryW) item.specs.upperTertiaryW = item.specs.upperSecondaryW || '1800';
             if (!item.specs.upperTertiaryD) item.specs.upperTertiaryD = item.specs.upperSecondaryD || '295';
           }
+          // W10-2: 상부 멍장 영속화 (멍 = 320 + 몰딩 = 380)
+          if (shape === 'L' || shape === 'U') {
+            seedUpperCornerModules(item);
+          } else {
+            removeUpperCornerModules(item);
+          }
         }
         updateUI();
         renderWorkspaceContent(item);
@@ -1614,13 +1620,34 @@
           if (!item.specs.upperTertiaryW) item.specs.upperTertiaryW = item.specs.upperSecondaryW || '1800';
           if (!item.specs.upperTertiaryD) item.specs.upperTertiaryD = item.specs.upperSecondaryD || '295';
         }
+        // W10-2: 상부 멍장 영속화/제거 (corner-engine.js)
+        if (shape === 'L' || shape === 'U') {
+          seedUpperCornerModules(item);
+        }
         if (shape === 'I') {
+          removeUpperCornerModules(item);
           item.specs.upperSecondaryW = '';
           item.specs.upperSecondaryH = '';
           item.specs.upperSecondaryD = '';
         }
         updateUI();
         renderWorkspaceContent(item);
+        if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
+      }
+
+      // ── W10-2: 멍장 위치 (prime/secondary) — prime은 W10-3 라인 분배와 함께 활성화
+      function updateBlindLine(itemUniqueId, value) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item) return;
+        item.specs.blindLine = value;
+        // 재파생: 멍장 치수/시드가 blindLine에 의존
+        const shape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+        if (shape === 'L' || shape === 'U') {
+          seedCornerModules(item);
+          if (item.specs.secondaryUpperEnabled !== false) seedUpperCornerModules(item);
+        }
+        renderWorkspaceContent(item);
+        if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
       }
 
       // ── 통합/분리 모드 전환
@@ -1681,8 +1708,12 @@
 
         const cornerHtml = (() => {
           const ls = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
-          if (ls === 'L') return `<div class="spec-row"><div class="spec-field"><label>코너 마감</label><select onchange="updateSpecNoRender(${uid},'finishCorner1Type',this.value)"><option value="Molding" ${item.specs.finishCorner1Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${uid},'finishCorner1Width',this.value)"></div></div>`;
-          if (ls === 'U') return `<div class="spec-row"><div class="spec-field"><label>코너1</label><select onchange="updateSpecNoRender(${uid},'finishCorner1Type',this.value)"><option value="Molding" ${item.specs.finishCorner1Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${uid},'finishCorner1Width',this.value)"></div></div><div class="spec-row"><div class="spec-field"><label>코너2</label><select onchange="updateSpecNoRender(${uid},'finishCorner2Type',this.value)"><option value="Molding" ${item.specs.finishCorner2Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner2Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이</label><input type="number" value="${item.specs.finishCorner2Width}" onchange="updateSpecValue(${uid},'finishCorner2Width',this.value)"></div></div>`;
+          // W10-2: 멍장 위치 선택 — prime 배치는 라인 분배(W10-3)와 함께 활성화 예정
+          const blindLineHtml = ls === 'L' || ls === 'U'
+            ? `<div class="spec-row"><div class="spec-field"><label>멍장 위치</label><select onchange="updateBlindLine(${uid},this.value)"><option value="secondary" ${(item.specs.blindLine||'secondary')==='secondary'?'selected':''}>차선 (secondary)</option><option value="prime" disabled>주선 (prime) — 준비중</option></select></div></div>`
+            : '';
+          if (ls === 'L') return `${blindLineHtml}<div class="spec-row"><div class="spec-field"><label>코너 마감</label><select onchange="updateSpecNoRender(${uid},'finishCorner1Type',this.value)"><option value="Molding" ${item.specs.finishCorner1Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${uid},'finishCorner1Width',this.value)"></div></div>`;
+          if (ls === 'U') return `${blindLineHtml}<div class="spec-row"><div class="spec-field"><label>코너1</label><select onchange="updateSpecNoRender(${uid},'finishCorner1Type',this.value)"><option value="Molding" ${item.specs.finishCorner1Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner1Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이</label><input type="number" value="${item.specs.finishCorner1Width}" onchange="updateSpecValue(${uid},'finishCorner1Width',this.value)"></div></div><div class="spec-row"><div class="spec-field"><label>코너2</label><select onchange="updateSpecNoRender(${uid},'finishCorner2Type',this.value)"><option value="Molding" ${item.specs.finishCorner2Type==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishCorner2Type==='Filler'?'selected':''}>휠라</option></select></div><div class="spec-field"><label>길이</label><input type="number" value="${item.specs.finishCorner2Width}" onchange="updateSpecValue(${uid},'finishCorner2Width',this.value)"></div></div>`;
           return '';
         })();
 

@@ -6,6 +6,8 @@ const {
   deriveCorner,
   seedCornerModules,
   removeCornerModules,
+  seedUpperCornerModules,
+  removeUpperCornerModules,
   migrateCornerModules,
 } = require('../js/detaildesign/corner-engine.js');
 
@@ -138,6 +140,92 @@ describe('seedCornerModules — 영속화 + 멱등성', () => {
     expect(blinds).toHaveLength(1); // 중복 생성 없음
     expect(blinds[0].id).toBe('corner-blind-lower');
     expect(blinds[0].w).toBe(1100); // 공식값으로 재계산
+  });
+});
+
+describe('W10-2: seedUpperCornerModules — 상부장 멍장', () => {
+  function makeUpperItem(overrides) {
+    return Object.assign({
+      d: 650,
+      modules: [
+        { id: 10, name: '상부수납', type: 'storage', pos: 'upper', w: 900 },
+        { id: 1, name: '개수대', type: 'sink', pos: 'lower', w: 1000 },
+      ],
+      specs: {
+        lowerLayoutShape: 'L',
+        upperLayoutShape: 'L',
+        upperSecondaryW: '1800',
+        upperSecondaryD: '295',
+        upperH: 720,
+        secondaryStartSide: 'left',
+        topSizes: [{ w: '', d: '650' }],
+      },
+    }, overrides || {});
+  }
+
+  test('상부 멍장: 멍 380(320+60) + 도어 450 = 830 (원장 1800)', () => {
+    // 1800 − EP20 − 여유50 − 멍380 = 도어 가용 1350 → 3도어 × 450
+    const item = makeUpperItem();
+    seedUpperCornerModules(item);
+    const blind = item.modules.find((m) => m.id === 'corner-blind-upper');
+    expect(blind).toBeDefined();
+    expect(blind.blindZoneW).toBe(380);
+    expect(blind.doorW).toBe(450);
+    expect(blind.w).toBe(830);
+    expect(blind.pos).toBe('upper');
+    expect(blind.h).toBe(720);
+    expect(blind.d).toBe(295);
+    const seeds = item.modules.filter((m) => String(m.id).startsWith('corner-sec-upper-'));
+    expect(seeds).toHaveLength(2);
+    expect(seeds.every((s) => s.w === 450 && s.pos === 'upper')).toBe(true);
+  });
+
+  test('상부 원장 불변식: EP + 수납도어 + 멍장W + 여유 === 1800', () => {
+    const item = makeUpperItem();
+    const d = seedUpperCornerModules(item);
+    const storageDoors = (d.nDoors - 1) * d.doorW + d.remainder;
+    expect(20 + storageDoors + d.blindW + 50).toBe(1800);
+  });
+
+  test('secondaryUpperEnabled=false면 생성하지 않는다', () => {
+    const item = makeUpperItem();
+    item.specs.secondaryUpperEnabled = false;
+    const result = seedUpperCornerModules(item);
+    expect(result).toBeNull();
+    expect(item.modules.find((m) => m.id === 'corner-blind-upper')).toBeUndefined();
+  });
+
+  test('멱등: 반복 호출에도 모듈 증가 없음', () => {
+    const item = makeUpperItem();
+    seedUpperCornerModules(item);
+    const count = item.modules.length;
+    seedUpperCornerModules(item);
+    expect(item.modules.length).toBe(count);
+  });
+
+  test('removeUpperCornerModules: 상부 secondary만 제거, 하부는 보존', () => {
+    const item = makeUpperItem();
+    seedCornerModules(item);
+    seedUpperCornerModules(item);
+    removeUpperCornerModules(item);
+    expect(item.modules.find((m) => m.id === 'corner-blind-upper')).toBeUndefined();
+    expect(item.modules.find((m) => m.id === 'corner-blind-lower')).toBeDefined();
+  });
+
+  test('마이그레이션: 분리 모드 상부만 L → 상부 멍장만 생성', () => {
+    const item = makeUpperItem({
+      specs: {
+        dimensionMode: 'split',
+        lowerLayoutShape: 'I',
+        upperLayoutShape: 'L',
+        upperSecondaryW: '1800', upperSecondaryD: '295', upperH: 720,
+        secondaryStartSide: 'left',
+        topSizes: [{ w: '', d: '650' }],
+      },
+    });
+    migrateCornerModules(item);
+    expect(item.modules.find((m) => m.id === 'corner-blind-upper')).toBeDefined();
+    expect(item.modules.find((m) => m.id === 'corner-blind-lower')).toBeUndefined();
   });
 });
 
