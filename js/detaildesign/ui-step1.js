@@ -411,7 +411,7 @@
       /**
        * ㄱ자/ㄷ자 secondary 모듈을 payload에 동적 추가 (공통 헬퍼)
        */
-      function _appendSecondaryModules(payload, specs, itemD) {
+      function _appendSecondaryModules(payload, specs, itemD, itemModules) {
         const lShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
         dlog('[CornerDebug] _appendSecondaryModules called', {
           lShape,
@@ -429,20 +429,39 @@
         const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 600;
         const primeD = parseFloat(itemD) || 600;
         const startSide = specs.secondaryStartSide || 'left';
-        // ★ 멍판 너비 = 연결되는 수직 모듈의 상판 깊이 + 40mm
-        const blindW = primeD + 40;
-        const blindMod = {
-          id: 'blind-corner-auto', kind: 'door', width: blindW,
-          moduleType: 'blind', doorCount: 1, orientation: 'secondary',
-        };
-        // ★ 실측 기준: secW = blindW(depth+40) + 나머지 모듈
-        const availableSecW = Math.max(0, secW - blindW);
-        const secModCount = availableSecW > 0 ? Math.max(1, Math.round(availableSecW / 600)) : 0;
-        const secModW = secModCount > 0 ? Math.round(availableSecW / secModCount) : 0;
-        const secMods = Array.from({ length: secModCount }, (_, i) => ({
-          id: `sec-auto-${i}`, kind: 'door', width: secModW,
-          moduleType: 'storage', doorCount: 1, orientation: 'secondary',
-        }));
+        // W10-1: 영속화된 secondary 모듈(item.modules)이 있으면 그것을 payload로 파생 — 데이터 모델이 SSOT
+        // id 체계(blind-corner-auto / sec-auto-*)는 W9 정면도 호환을 위해 유지
+        const persistedSec = (itemModules || []).filter(
+          m => m.pos === 'lower' && (m.line === 'secondary' || m.orientation === 'secondary')
+        );
+        let blindMod, secMods;
+        if (persistedSec.length > 0) {
+          const pBlind = persistedSec.find(m => m.id === 'corner-blind-lower' || m.name === 'LT망장');
+          const pSecs = persistedSec.filter(m => m !== pBlind);
+          blindMod = {
+            id: 'blind-corner-auto', kind: 'door',
+            width: parseFloat(pBlind && pBlind.w) || (primeD + 40),
+            moduleType: 'blind', doorCount: 1, orientation: 'secondary',
+          };
+          secMods = pSecs.map((m, i) => ({
+            id: `sec-auto-${i}`, kind: 'door', width: parseFloat(m.w) || 600,
+            moduleType: 'storage', doorCount: m.doorCount || 1, orientation: 'secondary',
+          }));
+        } else {
+          // 레거시 fallback (영속화 이전 설계): 멍판 너비 = 인접 상판 깊이 + 40mm
+          const blindW = primeD + 40;
+          blindMod = {
+            id: 'blind-corner-auto', kind: 'door', width: blindW,
+            moduleType: 'blind', doorCount: 1, orientation: 'secondary',
+          };
+          const availableSecW = Math.max(0, secW - blindW);
+          const secModCount = availableSecW > 0 ? Math.max(1, Math.round(availableSecW / 600)) : 0;
+          const secModW = secModCount > 0 ? Math.round(availableSecW / secModCount) : 0;
+          secMods = Array.from({ length: secModCount }, (_, i) => ({
+            id: `sec-auto-${i}`, kind: 'door', width: secModW,
+            moduleType: 'storage', doorCount: 1, orientation: 'secondary',
+          }));
+        }
         if (startSide === 'left') {
           payload.lowerModules = [blindMod, ...secMods, ...payload.lowerModules];
         } else {
@@ -646,8 +665,8 @@
           secondaryStartSide: specs.secondaryStartSide || undefined,
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
-        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
-        _appendSecondaryModules(payload, specs, item.d);
+        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 추가 (W10-1: 영속화 모듈 우선)
+        _appendSecondaryModules(payload, specs, item.d, item.modules);
         // W6-7: V2 (3단계 워크플로우) 페이로드 동시 송신 — segments[] + modulesV2[]
         _appendV2Payload(payload);
         iframe.contentWindow.postMessage({ type: 'UPDATE_PLANNER', payload }, '*');
@@ -820,8 +839,8 @@
           secondaryStartSide: specs.secondaryStartSide || undefined,
           tertiaryStartFrom: specs.tertiaryStartFrom || undefined,
         };
-        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 동적 추가
-        _appendSecondaryModules(finishPayload, specs, item.d);
+        // ㄱ자/ㄷ자: secondary 모듈을 lowerModules에 추가 (W10-1: 영속화 모듈 우선)
+        _appendSecondaryModules(finishPayload, specs, item.d, item.modules);
         const existing = container.querySelector('iframe[data-planner]');
         if (existing) {
           const sendUpdate = () => {
