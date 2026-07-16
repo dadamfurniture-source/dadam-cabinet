@@ -326,14 +326,27 @@
         if (!currentUser || !sb) return alert('로그인이 필요합니다.');
         if (String(postId).startsWith('s')) return;
 
-        if (userLikes.has(postId)) {
-          await sb.from('collection_likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
-          userLikes.delete(postId);
-        } else {
-          await sb.from('collection_likes').insert({ user_id: currentUser.id, post_id: postId });
-          userLikes.add(postId);
+        const isLiked = userLikes.has(postId);
+
+        // Optimistic UI update - update local state immediately
+        const post = allPosts.find(p => p.id === postId);
+        if (post) post.like_count = (post.like_count || 0) + (isLiked ? -1 : 1);
+        isLiked ? userLikes.delete(postId) : userLikes.add(postId);
+
+        try {
+          if (isLiked) {
+            await sb.from('collection_likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
+          } else {
+            await sb.from('collection_likes').insert({ user_id: currentUser.id, post_id: postId });
+          }
+        } catch(e) {
+          // Rollback on error
+          if (post) post.like_count = (post.like_count || 0) + (isLiked ? 1 : -1);
+          isLiked ? userLikes.add(postId) : userLikes.delete(postId);
+          alert('오류가 발생했습니다.');
+          return;
         }
-        await loadPosts();
+
         const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
         renderGrid(activeFilter);
       }
@@ -385,7 +398,8 @@
           document.getElementById('uploadTitle').value = '';
           document.getElementById('uploadDesc').value = '';
           await loadPosts();
-          renderGrid();
+          const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
+          renderGrid(activeFilter);
         } catch(e) {
           alert('업로드 실패: ' + e.message);
         } finally {
