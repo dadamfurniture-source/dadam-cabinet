@@ -72,8 +72,8 @@ detail design 페이지의 ㄱ자 배치에서 멍장(코너장)과 secondary �
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | FR-01 | ㄱ자 전환 시 secondary 라인 전체(멍장+수납)가 `item.modules`에 영속화된다 | High | Pending |
-| FR-02 | 멍장 W = 인접 라인 깊이 + 40mm 로 모든 경로에서 일관 계산된다 | High | Pending |
-| FR-03 | 상부장 멍장이 데이터 모델에 생성된다 (W = upperPrimeD + 40) | High | Pending |
+| FR-02 | ~~멍장 W = 인접 라인 깊이 + 40mm~~ → **corner.md §3.3 개정(W10-0, PR #423)으로 대체**: 멍 = 인접 상판깊이 − 물끊기10 + 몰딩, 멍장 W = 멍 + 도어 (design §4.1) | High | Superseded |
+| FR-03 | 상부장 멍장이 데이터 모델에 생성된다 (~~W = upperPrimeD + 40~~ → 개정: 멍 = 320 + 몰딩, corner.md §3.6) | High | Superseded |
 | FR-04 | 자동계산이 secondary 라인 수납 모듈을 분배/갭 흡수한다 (멍장 isFixed 보호) | High | Pending |
 | FR-05 | BOM이 멍장 내부 구조 부재 + secondary 모듈 부재를 산출한다 | High | Pending |
 | FR-06 | 3D 플래너 payload가 데이터 모델에서 파생된다 (이중 생성 제거) | Medium | Pending |
