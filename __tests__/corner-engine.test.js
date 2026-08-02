@@ -9,6 +9,10 @@ const {
   seedUpperCornerModules,
   removeUpperCornerModules,
   migrateCornerModules,
+  distributeBlindLine,
+  assertCornerLedger,
+  recalcBlindLine,
+  cornerAdjOffset,
 } = require('../js/detaildesign/corner-engine.js');
 
 describe('deriveCorner — corner.md §3 확정 예시', () => {
@@ -262,5 +266,166 @@ describe('removeCornerModules / migrateCornerModules', () => {
     const item = { d: 650, modules: [{ id: 1, pos: 'lower', w: 600 }], specs: { lowerLayoutShape: 'I' } };
     migrateCornerModules(item);
     expect(item.modules).toHaveLength(1);
+  });
+});
+
+describe('W10-3: distributeBlindLine — 도어 우선 분배 (§4.2)', () => {
+  // 확정 예시 1970: doorAvail 1200, nDoors 3, doorW 400 → 수납 예산 800
+  const derived1970 = deriveCorner({ lineW: 1970, adjTopD: 650, blindLineTopD: 650 });
+
+  test('수납 2모듈(1도어씩) → 각 400, 예산 800 소진', () => {
+    const mods = [
+      { id: 'a', doorCount: 1, w: 999 },
+      { id: 'b', doorCount: 1, w: 1 },
+    ];
+    const budget = distributeBlindLine(mods, derived1970);
+    expect(budget).toBe(800);
+    expect(mods[0].w).toBe(400);
+    expect(mods[1].w).toBe(400);
+  });
+
+  test('2도어장: W = 도어 수 × doorW = 800', () => {
+    const mods = [{ id: 'a', doorCount: 2, w: 0 }];
+    distributeBlindLine(mods, derived1970);
+    expect(mods[0].w).toBe(800);
+  });
+
+  test('반올림 잔여는 마지막 모듈이 흡수 (몰딩 100 → doorW 386, 잔여 2)', () => {
+    const d = deriveCorner({ lineW: 1970, adjTopD: 650, blindLineTopD: 650, molding: 100 });
+    expect(d.doorW).toBe(386);
+    const mods = [
+      { id: 'a', doorCount: 1, w: 0 },
+      { id: 'b', doorCount: 1, w: 0 },
+    ];
+    const budget = distributeBlindLine(mods, d); // 예산 = 1160 − 386 = 774
+    expect(budget).toBe(774);
+    expect(mods[0].w).toBe(386);
+    expect(mods[1].w).toBe(388); // 386 + 잔여 2
+    expect(mods[0].w + mods[1].w).toBe(budget);
+  });
+
+  test('doorCount 없는 모듈은 1도어로 간주', () => {
+    const mods = [{ id: 'a', w: 0 }, { id: 'b', w: 0 }];
+    distributeBlindLine(mods, derived1970);
+    expect(mods[0].w).toBe(400);
+    expect(mods[1].w).toBe(400);
+  });
+});
+
+describe('W10-3: assertCornerLedger — 원장 불변식 (§4.3)', () => {
+  function makeLedgerItem() {
+    return {
+      modules: [
+        { id: 'corner-blind-lower', pos: 'lower', line: 'secondary', w: 1100 },
+        { id: 's0', pos: 'lower', line: 'secondary', w: 400 },
+        { id: 's1', pos: 'lower', line: 'secondary', w: 400 },
+        { id: 1, pos: 'lower', w: 1000 }, // prime — 원장 무관
+      ],
+      specs: { lowerSecondaryW: '1970' },
+    };
+  }
+
+  test('성립: EP20 + 800 + 1100 + 50 === 1970 → ok', () => {
+    const r = assertCornerLedger(makeLedgerItem(), 'lower');
+    expect(r.ok).toBe(true);
+    expect(r.diff).toBe(0);
+  });
+
+  test('위반: 마지막 수납 모듈 보정 (프로덕션)', () => {
+    const item = makeLedgerItem();
+    item.modules.find((m) => m.id === 's1').w = 370; // 30mm 부족
+    const r = assertCornerLedger(item, 'lower');
+    expect(r.ok).toBe(false);
+    expect(r.diff).toBe(30);
+    expect(r.corrected).toBe(true);
+    expect(item.modules.find((m) => m.id === 's1').w).toBe(400); // 보정 후 원장 성립
+    expect(assertCornerLedger(item, 'lower').ok).toBe(true);
+  });
+
+  test('위반 + strict → throw (개발 모드)', () => {
+    const item = makeLedgerItem();
+    item.modules.find((m) => m.id === 's0').w = 300;
+    expect(() => assertCornerLedger(item, 'lower', { strict: true })).toThrow(/원장 불변식/);
+  });
+
+  test('멍장 없는 item은 통과 (ㅡ자 회귀 없음)', () => {
+    const item = { modules: [{ id: 1, pos: 'lower', w: 600 }], specs: {} };
+    expect(assertCornerLedger(item, 'lower').ok).toBe(true);
+  });
+});
+
+describe('W10-3: recalcBlindLine — 자동계산 라인 재계산', () => {
+  function makeItem() {
+    return {
+      d: 650,
+      modules: [{ id: 1, name: '개수대', type: 'sink', pos: 'lower', w: 1000 }],
+      specs: {
+        lowerLayoutShape: 'L',
+        lowerSecondaryW: '1970',
+        lowerSecondaryD: '650',
+        secondaryStartSide: 'left',
+        lowerH: 870, sinkLegHeight: 150, topThickness: 12,
+        topSizes: [{ w: '', d: '650' }],
+      },
+    };
+  }
+
+  test('하부: 시드 → 분배 → 원장 성립 (strict에서도 통과)', () => {
+    const item = makeItem();
+    const r = recalcBlindLine(item, 'lower', { strict: true });
+    expect(r.ledger.ok).toBe(true);
+    const blind = item.modules.find((m) => m.id === 'corner-blind-lower');
+    const secs = item.modules.filter((m) => String(m.id).startsWith('corner-sec-lower-'));
+    const total = 20 + secs.reduce((s, m) => s + m.w, 0) + blind.w + 50;
+    expect(total).toBe(1970);
+  });
+
+  test('사용자가 수납 폭을 흐트려도 자동계산이 도어 우선으로 재분배', () => {
+    const item = makeItem();
+    recalcBlindLine(item, 'lower');
+    item.modules.find((m) => m.id === 'corner-sec-lower-0').w = 555; // 사용자 수정
+    const r = recalcBlindLine(item, 'lower', { strict: true });
+    expect(r.ledger.ok).toBe(true);
+    expect(item.modules.find((m) => m.id === 'corner-sec-lower-0').w).toBe(400); // 재분배
+  });
+
+  test('상부: secondaryUpperEnabled=false → null (재계산 생략)', () => {
+    const item = makeItem();
+    item.specs.secondaryUpperEnabled = false;
+    expect(recalcBlindLine(item, 'upper')).toBeNull();
+  });
+
+  test('상부: 1800 원장 성립 (멍 380 + 도어 450×3)', () => {
+    const item = makeItem();
+    item.specs.upperLayoutShape = 'L';
+    item.specs.upperSecondaryW = '1800';
+    item.specs.upperSecondaryD = '295';
+    item.specs.upperH = 720;
+    const r = recalcBlindLine(item, 'upper', { strict: true });
+    expect(r.ledger.ok).toBe(true);
+    expect(r.derived.blindZoneW).toBe(380);
+    expect(r.derived.doorW).toBe(450);
+  });
+});
+
+describe('W10-3: cornerAdjOffset — 인접(prime) 라인 예산 offset (§3.7)', () => {
+  const specs = {
+    lowerLayoutShape: 'L',
+    lowerSecondaryW: '1970', lowerSecondaryD: '650',
+    upperSecondaryW: '1800', upperSecondaryD: '295',
+    topSizes: [{ w: '', d: '650' }, { w: '', d: '650' }],
+  };
+
+  test('하부: 650 − 10 + 60 = 700', () => {
+    expect(cornerAdjOffset({ d: 650, modules: [], specs }, 'lower')).toBe(700);
+  });
+
+  test('상부: 320 + 60 = 380 (물끊기 없음)', () => {
+    expect(cornerAdjOffset({ d: 650, modules: [], specs }, 'upper')).toBe(380);
+  });
+
+  test('몰딩 100 → 하부 offset 740 연동', () => {
+    const s = Object.assign({}, specs, { finishCorner1Width: '100' });
+    expect(cornerAdjOffset({ d: 650, modules: [], specs: s }, 'lower')).toBe(740);
   });
 });
