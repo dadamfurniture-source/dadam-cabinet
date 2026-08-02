@@ -1541,6 +1541,7 @@
       function changeLowerLayoutShape(itemUniqueId, shape) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;
+        const prevLowerShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
         item.specs.lowerLayoutShape = shape;
         item.specs.layoutShape = shape; // 레거시 호환
         // 상판 크기 배열 확장
@@ -1558,6 +1559,18 @@
         // W10-1: ㄱ자/ㄷ자 — 멍장 + secondary 수납 시드 영속화 (corner-engine.js)
         // 멍장 치수는 deriveCorner() 단일 파생: 멍 = 인접 상판깊이 −10 +몰딩, 도어 = 라인 균등 분배
         if (shape === 'L' || shape === 'U') {
+          // W10-5(G1): 라인이 멍보다 짧으면 전환 거부 + 최소 라인 W 안내 (design §4.4)
+          const chk = deriveCorner(cornerParamsFromItem(item, 'lower'));
+          if (chk.doorAvail < 0) {
+            const minW = chk.blindZoneW + CORNER_EP_W + CORNER_WALL_GAP;
+            alert('차선(secondary) 라인 W가 멍(' + chk.blindZoneW + 'mm)보다 짧아 전환할 수 없습니다.\n' +
+              '최소 라인 W: ' + minW + 'mm (도어 1개 포함 권장: ' + (minW + DOOR_MIN_WIDTH) + 'mm)');
+            item.specs.lowerLayoutShape = prevLowerShape;
+            item.specs.layoutShape = prevLowerShape;
+            updateUI();
+            renderWorkspaceContent(item);
+            return;
+          }
           seedCornerModules(item);
         }
         if (shape === 'U') {
@@ -1609,6 +1622,7 @@
       function changeUpperLayoutShape(itemUniqueId, shape) {
         const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
         if (!item) return;
+        const prevUpperShape = item.specs.upperLayoutShape || 'I';
         item.specs.upperLayoutShape = shape;
         if (shape !== 'I' && !item.specs.upperSecondaryD) {
           item.specs.upperSecondaryD = '295';
@@ -1622,6 +1636,17 @@
         }
         // W10-2: 상부 멍장 영속화/제거 (corner-engine.js)
         if (shape === 'L' || shape === 'U') {
+          // W10-5(G1): 라인이 멍보다 짧으면 전환 거부 (design §4.4 — 상부 동일 원칙)
+          const chk = deriveCorner(cornerParamsFromItem(item, 'upper'));
+          if (chk.doorAvail < 0) {
+            const minW = chk.blindZoneW + CORNER_EP_W + CORNER_WALL_GAP;
+            alert('상부 차선 라인 W가 멍(' + chk.blindZoneW + 'mm)보다 짧아 전환할 수 없습니다.\n' +
+              '최소 라인 W: ' + minW + 'mm (도어 1개 포함 권장: ' + (minW + DOOR_MIN_WIDTH) + 'mm)');
+            item.specs.upperLayoutShape = prevUpperShape;
+            updateUI();
+            renderWorkspaceContent(item);
+            return;
+          }
           seedUpperCornerModules(item);
         }
         if (shape === 'I') {

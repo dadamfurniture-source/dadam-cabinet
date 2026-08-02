@@ -1,11 +1,11 @@
 {
-  "sessionCount": 11,
+  "sessionCount": 20,
   "lastSession": {
-    "startedAt": "2026-05-24T00:00:00.000Z",
+    "startedAt": "2026-08-02T01:06:46.754Z",
     "platform": "claude",
     "level": "Dynamic"
   },
-  "currentFeature": "detail-design-w6",
-  "phase": "check",
-  "matchRate": 95
+  "currentFeature": "corner-autocalc",
+  "phase": "archived",
+  "matchRate": 92
 }
