@@ -125,6 +125,8 @@
           const defaultLowerD = 550; // 하부장 기본 깊이
           const isWoodChannel = (specs.handle || '').includes('목찬넬');
           const legH = specs.sinkLegHeight || 150;
+          // W10-4: 멍 가림판 두께 — data-constants.js CORNER_BLIND_COVER_T (corner.md §3.5)
+          const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
 
           // ===== 상부장 모듈 =====
           const upperModules = (item.modules || []).filter((m) => m.pos === 'upper' && m.type !== 'hood');
@@ -155,7 +157,13 @@
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, 2, '1면(전)');
             // 도어 (H + overlap)
             const doorCount = mod.doorCount || 1;
-            if (doorCount > 0) {
+            if (String(mod.id) === 'corner-blind-upper') {
+              // W10-4: 상부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
+              const overlap = parseFloat(specs.upperDoorOverlap) || 15;
+              const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
+              this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
+              this.add(materials, modLabel, '멍가림판', 'MDF', coverT, parseFloat(mod.blindZoneW) || 0, H, 1, '-', '멍 가림 MDF (corner.md §3.5)');
+            } else if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, doorCount, '4면', '', mod);
@@ -196,7 +204,12 @@
             }
             // 도어 (H - 30)
             const doorCount = mod.doorCount || 0;
-            if (isDrawer) {
+            if (String(mod.id) === 'corner-blind-lower') {
+              // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
+              const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
+              this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
+              this.add(materials, modLabel, '멍가림판', 'MDF', coverT, parseFloat(mod.blindZoneW) || 0, H, 1, '-', '멍 가림 MDF (corner.md §3.5)');
+            } else if (isDrawer) {
               // ★ 서랍장: 서랍 + 여닫이 도어 + 목찬넬
               const drawerCount = mod.drawerCount || 1;
               const drawerH = 220; // 서랍 1개 높이
@@ -266,6 +279,17 @@
           if (specs.finishRightType !== 'None' && specs.finishRightWidth > 0) {
             const finishName = specs.finishRightType === 'Filler' ? '휠라(우)' : specs.finishRightType === 'EP' ? 'EP(우)' : '몰딩(우)';
             this.add(materials, epLabel, finishName, 'MDF', 18, specs.finishRightWidth, totalH - legH, 1, '4면');
+          }
+
+          // W10-4: 코너 마감 (몰딩/휠라) — ㄱ자/ㄷ자, 기존 finish 체계 (design §6)
+          const layoutShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
+          if (layoutShape !== 'I' && specs.finishCorner1Type !== 'None' && parseFloat(specs.finishCorner1Width) > 0) {
+            const c1Name = specs.finishCorner1Type === 'Filler' ? '휠라(코너1)' : '몰딩(코너1)';
+            this.add(materials, epLabel, c1Name, 'MDF', 18, parseFloat(specs.finishCorner1Width), totalH - legH, 1, '4면');
+          }
+          if (layoutShape === 'U' && specs.finishCorner2Type !== 'None' && parseFloat(specs.finishCorner2Width) > 0) {
+            const c2Name = specs.finishCorner2Type === 'Filler' ? '휠라(코너2)' : '몰딩(코너2)';
+            this.add(materials, epLabel, c2Name, 'MDF', 18, parseFloat(specs.finishCorner2Width), totalH - legH, 1, '4면');
           }
         }
 
@@ -1137,20 +1161,26 @@
       const hardwareExtractor = new HardwareExtractor();
       const drawingVisualizer = new DrawingVisualizer();
 
-      // DadamAgent에 추출 기능 추가
-      window.DadamAgent.extractMaterials = function () {
-        const design = window.DadamAgent.exportDesign();
-        return materialExtractor.extract(design);
-      };
+      // DadamAgent에 추출 기능 추가 (W10-4: Jest/Node 환경 가드 — jsdom은 window만 있고 DadamAgent 없음)
+      if (typeof window !== 'undefined' && window.DadamAgent) {
+        window.DadamAgent.extractMaterials = function () {
+          const design = window.DadamAgent.exportDesign();
+          return materialExtractor.extract(design);
+        };
 
-      window.DadamAgent.extractHardware = function () {
-        const design = window.DadamAgent.exportDesign();
-        return hardwareExtractor.extract(design);
-      };
+        window.DadamAgent.extractHardware = function () {
+          const design = window.DadamAgent.exportDesign();
+          return hardwareExtractor.extract(design);
+        };
 
-      window.DadamAgent.generateDrawings = function (mode = 'material') {
-        const design = window.DadamAgent.exportDesign();
-        const matResult = materialExtractor.extract(design);
-        return drawingVisualizer.generateCuttingLayout(matResult.materials, mode);
-      };
+        window.DadamAgent.generateDrawings = function (mode = 'material') {
+          const design = window.DadamAgent.exportDesign();
+          const matResult = materialExtractor.extract(design);
+          return drawingVisualizer.generateCuttingLayout(matResult.materials, mode);
+        };
+      }
+      // W10-4: Jest 단위 테스트용 CommonJS 이중 노출 (__tests__/extractors-corner.test.js)
+      if (typeof module !== 'undefined' && module.exports) {
+        module.exports = { MaterialExtractor };
+      }
 
