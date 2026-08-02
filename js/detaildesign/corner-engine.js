@@ -195,6 +195,94 @@ function removeCornerModules(item) {
 }
 
 /**
+ * W10-2: 상부장 멍장 + secondary 수납 시드 영속화 (멱등)
+ * 멍 = 320(몸통295+도어18→관례) + 몰딩 = 380, 물끊기 없음 (corner.md §3.6)
+ * 원장 구조(EP20 + 도어들 + 멍장 + 여유50)는 하부와 동일 가정 — §3.4 준용
+ */
+function seedUpperCornerModules(item) {
+  const specs = item.specs || {};
+  if (specs.secondaryUpperEnabled === false) return null;
+  const startSide = specs.secondaryStartSide || 'left';
+  const d = deriveCorner(cornerParamsFromItem(item, 'upper'));
+
+  const bodyH = parseFloat(specs.upperH) || 720;
+  const bodyD = parseFloat(specs.upperSecondaryD) || 295;
+
+  // ① 상부 멍장 — 결정적 id
+  let blind = item.modules.find((m) => m.id === 'corner-blind-upper');
+  const legacyBlind = item.modules.find(
+    (m) => m.name === 'LT망장' && m.pos === 'upper' && m.orientation === 'secondary' && m.id !== 'corner-blind-upper'
+  );
+  if (!blind && legacyBlind) {
+    legacyBlind.id = 'corner-blind-upper';
+    blind = legacyBlind;
+  }
+  if (!blind) {
+    blind = {
+      id: 'corner-blind-upper',
+      type: 'storage', name: 'LT망장', pos: 'upper',
+      isFixed: true,
+      orientation: 'secondary',
+    };
+    const firstUpperIdx = item.modules.findIndex((m) => m.pos === 'upper');
+    if (startSide === 'left') {
+      if (firstUpperIdx === -1) item.modules.push(blind);
+      else item.modules.splice(firstUpperIdx, 0, blind);
+    } else {
+      const lastUpperIdx = item.modules.reduce((last, m, i) => (m.pos === 'upper' ? i : last), -1);
+      if (lastUpperIdx === -1) item.modules.push(blind);
+      else item.modules.splice(lastUpperIdx + 1, 0, blind);
+    }
+  }
+  blind.line = 'secondary';
+  blind.isDerived = true;
+  blind.isFixed = true;
+  blind.isDrawer = false;
+  blind.w = d.blindW;
+  blind.h = bodyH;
+  blind.d = bodyD;
+  blind.blindZoneW = d.blindZoneW;
+  blind.doorW = d.doorW;
+  blind.doorCount = 1;
+
+  // ② 상부 secondary 수납 시드 — 기존 수납이 없을 때만
+  const existingSec = item.modules.filter(
+    (m) => m.pos === 'upper' && (m.line === 'secondary' || m.orientation === 'secondary') && m.id !== 'corner-blind-upper'
+  );
+  if (existingSec.length === 0 && d.nDoors > 1) {
+    const seeds = [];
+    for (let i = 0; i < d.nDoors - 1; i++) {
+      seeds.push({
+        id: 'corner-sec-upper-' + i,
+        type: 'storage', name: '수납장', pos: 'upper',
+        line: 'secondary', orientation: 'secondary',
+        w: d.doorW + (i === d.nDoors - 2 ? d.remainder : 0),
+        h: bodyH, d: bodyD,
+        doorCount: 1,
+      });
+    }
+    const blindIdx = item.modules.indexOf(blind);
+    if (startSide === 'left') {
+      item.modules.splice(blindIdx + 1, 0, ...seeds);
+    } else {
+      item.modules.splice(blindIdx, 0, ...seeds);
+    }
+  }
+
+  if (d.warnings.length && typeof console !== 'undefined') {
+    d.warnings.forEach((w) => console.warn('[corner-engine:upper]', w));
+  }
+  return d;
+}
+
+/** 상부장 ㅡ자(I) 복귀 시 상부 secondary 모듈 제거 */
+function removeUpperCornerModules(item) {
+  item.modules = item.modules.filter(
+    (m) => !(m.pos === 'upper' && (m.line === 'secondary' || m.orientation === 'secondary'))
+  );
+}
+
+/**
  * 저장된 설계 로드 시 마이그레이션 (멱등) — persistence-init.js에서 호출
  * 1. orientation만 있는 모듈 → line 부여
  * 2. L/U인데 secondary 수납 0개 or 구식 멍장 → seedCornerModules로 보정
@@ -204,9 +292,17 @@ function migrateCornerModules(item) {
   item.modules.forEach((m) => {
     if (m.orientation && !m.line) m.line = m.orientation;
   });
-  const shape = (item.specs && (item.specs.lowerLayoutShape || item.specs.layoutShape)) || 'I';
-  if (shape === 'L' || shape === 'U') {
+  const specs = item.specs || {};
+  const lowerShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
+  if (lowerShape === 'L' || lowerShape === 'U') {
     seedCornerModules(item);
+  }
+  // W10-2: 상부장 — 분리 모드는 upperLayoutShape, 통합 모드는 하부 shape 따름
+  const upperShape = specs.dimensionMode === 'split'
+    ? (specs.upperLayoutShape || 'I')
+    : lowerShape;
+  if (upperShape === 'L' || upperShape === 'U') {
+    seedUpperCornerModules(item);
   }
 }
 
@@ -215,9 +311,16 @@ if (typeof window !== 'undefined') {
   window.deriveCorner = deriveCorner;
   window.seedCornerModules = seedCornerModules;
   window.removeCornerModules = removeCornerModules;
+  window.seedUpperCornerModules = seedUpperCornerModules;
+  window.removeUpperCornerModules = removeUpperCornerModules;
   window.migrateCornerModules = migrateCornerModules;
   window.cornerParamsFromItem = cornerParamsFromItem;
 }
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { deriveCorner, cornerParamsFromItem, seedCornerModules, removeCornerModules, migrateCornerModules };
+  module.exports = {
+    deriveCorner, cornerParamsFromItem,
+    seedCornerModules, removeCornerModules,
+    seedUpperCornerModules, removeUpperCornerModules,
+    migrateCornerModules,
+  };
 }
