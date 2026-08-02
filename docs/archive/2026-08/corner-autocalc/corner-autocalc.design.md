@@ -166,7 +166,7 @@ function deriveCorner(specs) {
 | 케이스 | 조건 | 처리 |
 |--------|------|------|
 | 도어 1개도 불가 | doorAvail < 350 | nDoors=1, doorW=doorAvail, `console.warn` + UI 경고 배지 |
-| 라인이 멍보다 짧음 | lineW − EP − 50 < blindZoneW | ㄱ자 전환 거부 + 안내 (최소 라인 W 제시) |
+| 라인이 멍보다 짧음 | lineW − EP − 50 < blindZoneW | ㄱ자 전환 거부 + 안내 (최소 라인 W 제시) — W10-5 구현: ui-workspace changeLower/UpperLayoutShape 가드 |
 | 몰딩 사용자 변경 | finishCorner1Width ≠ 60 | deriveCorner 재실행 — 멍/도어 연동 재계산 |
 | 상부 secondary 없음 | secondaryUpperEnabled=false | upperBlind 생성 생략 |
 
@@ -176,9 +176,9 @@ function deriveCorner(specs) {
 
 | 항목 | 위치 | 내용 |
 |------|------|------|
-| blindLine 선택 | ui-workspace 구조 전환 패널 | "멍장 위치: prime / secondary" 토글 (기본 secondary). 변경 시 deriveCorner 재실행 + 재분배 |
-| 멍장 팔레트 표기 | 모듈 상세 패널 | W 표시를 `1100 (멍 700 + 도어 400)` 분해 표기, 치수 직접 수정 비활성 (isDerived) |
-| 도어 최소폭 경고 | 자동계산 결과 | doorW < 350 근접 시 경고 배지 |
+| blindLine 선택 | ui-workspace 구조 전환 패널 | "멍장 위치: prime / secondary" 토글 (기본 secondary). 변경 시 deriveCorner 재실행 + 재분배. **W10 상태: prime 옵션 disabled(준비중) — 의도된 범위 축소** |
+| 멍장 팔레트 표기 | 모듈 상세 패널 | W 표시를 `1100 (멍 700 + 도어 400)` 분해 표기, 치수 직접 수정 비활성 (isDerived). **W10 후속(미구현, gap G2)** — 파생값은 자동계산 시 항상 재계산되므로 데이터 정합성엔 영향 없음 |
+| 도어 최소폭 경고 | 자동계산 결과 | doorW < 350 근접 시 경고 배지. **W10 후속(미구현, gap G3)** — 현재 console.warn만 |
 | 3D/정면도 | ui-step1 | payload를 item.modules에서 파생. `sec-auto-*` id 체계는 W9 정면도 호환 위해 유지 |
 
 ## 6. BOM 부재 산출 (W10-4 — extractors.js)
@@ -235,3 +235,4 @@ secondary 수납 모듈: 기존 표준 산식으로 전량 산출 (현재 누락
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 0.1 | 2026-07-17 | 확정 규칙(corner.md §3) 기반 초안 | hong + Claude |
+| 0.2 | 2026-08-02 | W10-5 gap 분석 반영: §4.4 전환 거부 구현 표기, §5 G2/G3 후속 표기, §4.1 반환 계약은 구현이 평탄화 구조(`{blindZoneW,doorAvail,nDoors,doorW,remainder,blindW,adjStartOffset,warnings}` + distributeBlindLine/cornerAdjOffset)로 실현 — 코드가 진실 | Claude |

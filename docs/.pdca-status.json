@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-05-16T12:05:35.140Z",
+  "lastUpdated": "2026-08-02T04:46:04.134Z",
   "activeFeatures": [
     "mcp-server",
     "js",
@@ -39,10 +39,23 @@
     "crazy-noether",
     "planner-vite",
     "__tests__",
-    "constants"
+    "constants",
+    "dadam-mark",
+    "e2e"
   ],
-  "primaryFeature": "mcp-server",
+  "primaryFeature": null,
   "archivedFeatures": {
+    "corner-autocalc": {
+      "phase": "archived",
+      "matchRate": 92,
+      "iterationCount": 1,
+      "startedAt": "2026-07-16T13:40:00.000Z",
+      "archivedAt": "2026-08-02T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-08/corner-autocalc/",
+      "prsMerged": 7,
+      "tests": "Jest 48 + E2E 17/17 + 프로덕션 v33.2 검증",
+      "note": "deriveCorner 단일 파생 + 라인 원장 + BOM 오발주 방지. 잔여 Low 백로그는 _INDEX.md 참조"
+    },
     "supabase-api": {
       "phase": "archived",
       "matchRate": 94,
@@ -61,6 +74,36 @@
       "prsMerged": 9,
       "e2e": "11/11 (mhyrr v0.1.0)",
       "note": "강행 보고서 — keystone W4-3 Three.js Z-up 은 어댑터 우회"
+    },
+    "mcp-sketchup-w5": {
+      "phase": "archived",
+      "matchRate": 88,
+      "iterationCount": 0,
+      "startedAt": "2026-05-17T00:00:00.000Z",
+      "archivedAt": "2026-05-17T11:30:00.000Z",
+      "archivedTo": "docs/archive/2026-05/mcp-sketchup-w5/",
+      "prsMerged": 5,
+      "e2e": "24/24 (사용자 실제 payload, mhyrr v0.1.0)",
+      "bounds": "0~2310mm (입력값 정확 일치)",
+      "note": "W4 keystone Z-up 완료 + 3개 운영 결함 일괄 해소 (essential 필터 / pushpull face_normal / zoom)"
+    },
+    "sketchup-import": {
+      "phase": "archived",
+      "matchRate": 95,
+      "iterationCount": 0,
+      "startedAt": "2026-05-23T00:00:00.000Z",
+      "archivedAt": "2026-05-23T14:40:00.000Z",
+      "archivedTo": "docs/archive/2026-05/sketchup-import/",
+      "prsMerged": 10,
+      "phases": "Phase 1 (Si-1~Si-6) + Phase 2 (plugin) + Phase 3a (수동) + Phase 3b (AI)",
+      "e2e": "사용자 SketchUp 실 가구 95% 정확 복원 + Gemini Vision 90% 신뢰 (6.5초/$0.003)",
+      "scenarios": [
+        "자체 export 재import (Phase 1, 99%+)",
+        "다담 plugin Template (Phase 2)",
+        "수동 매핑 UI (Phase 3a, 100% 정확)",
+        "AI 자동 분류 Gemini Vision (Phase 3b, 90%, ~$0.003)"
+      ],
+      "note": "W4/W5 단방향 → 양방향 통합 완성. 4가지 import 시나리오 모두 지원. 디자이너 워크플로우 자유도 크게 향상."
     }
   },
   "features": {
@@ -75,10 +118,10 @@
       },
       "timestamps": {
         "started": "2026-02-01T08:41:51.881Z",
-        "lastUpdated": "2026-05-16T11:45:29.791Z",
+        "lastUpdated": "2026-05-28T11:16:05.188Z",
         "reportedAt": "2026-03-25T00:00:00.000Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\services\\sketchup-mcp-bridge.service.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\types\\planner.types.ts"
     },
     "js": {
       "phase": "do",
@@ -128,9 +171,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-05T20:48:06.360Z",
-        "lastUpdated": "2026-03-19T19:27:09.272Z"
+        "lastUpdated": "2026-05-24T07:33:16.515Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadam-saas\\agents\\tools\\image_tools.py"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\tools\\bom-rules.tool.ts"
     },
     "templates": {
       "phase": "do",
@@ -180,7 +223,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-08T13:51:27.478Z",
-        "lastUpdated": "2026-05-16T11:54:52.274Z"
+        "lastUpdated": "2026-05-23T14:28:41.726Z"
       },
       "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\routes\\sketchup.route.ts"
     },
@@ -193,9 +236,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-14T07:57:15.037Z",
-        "lastUpdated": "2026-05-16T11:57:02.606Z"
+        "lastUpdated": "2026-05-24T04:20:06.201Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\tests\\sketchup.route.test.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\tests\\bom-rules.defaults.test.ts"
     },
     "config": {
       "phase": "do",
@@ -206,9 +249,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-14T08:26:02.134Z",
-        "lastUpdated": "2026-02-14T08:26:37.985Z"
+        "lastUpdated": "2026-05-24T04:19:05.677Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\config\\bom-rules.loader.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\config\\bom-rules.defaults.ts"
     },
     "scripts": {
       "phase": "do",
@@ -427,7 +470,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-11T11:25:17.057Z",
-        "lastUpdated": "2026-05-16T11:55:12.516Z"
+        "lastUpdated": "2026-05-28T11:16:14.430Z"
       },
       "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\schemas\\sketchup.schema.ts"
     },
@@ -453,9 +496,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-21T13:31:37.204Z",
-        "lastUpdated": "2026-04-02T15:46:30.008Z"
+        "lastUpdated": "2026-08-02T04:45:50.099Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\.claude\\worktrees\\crazy-noether\\js\\detaildesign\\ui-step1.js"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\js\\detaildesign\\ui-workspace.js"
     },
     "modest-hellman": {
       "phase": "do",
@@ -531,7 +574,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-30T20:36:24.264Z",
-        "lastUpdated": "2026-05-16T11:32:19.958Z"
+        "lastUpdated": "2026-05-25T06:12:03.851Z"
       },
       "lastFile": "C:\\Users\\hchan\\dadamagent\\planner-vite\\src\\App.tsx"
     },
@@ -544,9 +587,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-04-05T10:46:52.106Z",
-        "lastUpdated": "2026-05-16T11:32:59.549Z"
+        "lastUpdated": "2026-08-02T01:29:01.059Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\planner-vite\\src\\lib\\__tests__\\coords.test.ts"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\__tests__\\extractors-corner.test.js"
     },
     "constants": {
       "phase": "do",
@@ -557,9 +600,35 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-16T11:17:23.191Z",
-        "lastUpdated": "2026-05-16T11:28:38.432Z"
+        "lastUpdated": "2026-05-23T14:27:31.026Z"
       },
       "lastFile": "C:\\Users\\hchan\\dadamagent\\mcp-server\\src\\constants\\sketchup.ts"
+    },
+    "dadam-mark": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-05-23T14:14:54.117Z",
+        "lastUpdated": "2026-05-23T14:14:54.117Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\sketchup-plugins\\dadam-mark\\dadam_mark.rb"
+    },
+    "e2e": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-06-13T07:52:26.944Z",
+        "lastUpdated": "2026-08-02T04:46:04.134Z"
+      },
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\tmp\\e2e\\w10-5-corner-verify.py"
     }
   },
   "pipeline": {
@@ -570,7 +639,7 @@
   "session": {
     "startedAt": "2026-02-01T08:25:55.232Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-05-16T12:05:35.140Z"
+    "lastActivity": "2026-08-02T04:46:04.134Z"
   },
   "history": [
     {
@@ -6690,6 +6759,1650 @@
     {
       "timestamp": "2026-05-16T12:05:35.140Z",
       "feature": "dadamagent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:03:52.198Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:04:15.213Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:04:25.277Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:04:32.914Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:08:56.759Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:09:09.096Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:09:18.273Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:09:30.240Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:10:48.459Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:11:01.122Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:11:08.438Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:11:19.704Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:11:33.589Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:11:44.388Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:12:04.322Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:33:48.834Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T09:42:04.975Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T10:43:20.553Z",
+      "feature": "constants",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T10:46:48.533Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T10:46:55.356Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-17T10:47:02.879Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:15:30.196Z",
+      "feature": "constants",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:15:55.554Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:16:08.363Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:16:23.308Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:16:55.284Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:30:53.175Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:31:57.421Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:32:05.159Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:32:13.205Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:33:24.241Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:41:12.016Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:41:27.239Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:42:21.969Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:42:30.666Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:43:09.366Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:44:37.691Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:52:06.253Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:52:14.592Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:52:48.833Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:54:01.109Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:54:10.004Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:55:04.281Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:59:29.505Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:59:36.104Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T13:59:58.965Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:00:31.554Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:03:57.343Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:04:17.148Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:04:23.554Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:04:39.380Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:05:01.313Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:05:42.443Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:08:59.609Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:09:41.552Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:14:54.117Z",
+      "feature": "dadam-mark",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:15:54.148Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:19:46.370Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:19:54.405Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:20:03.619Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:20:21.453Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:21:09.728Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:21:19.161Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:21:30.844Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:21:49.302Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:22:14.258Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:22:21.939Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:27:31.026Z",
+      "feature": "constants",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:28:13.297Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:28:21.798Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:28:41.726Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:28:50.126Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:29:03.254Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:29:12.404Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:29:34.704Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T14:29:49.646Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:20:12.634Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:20:26.851Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:21:25.356Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:22:15.955Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:22:52.207Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:26:23.695Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:26:32.098Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:27:22.825Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:27:51.417Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:32:42.527Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:33:08.538Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:33:14.866Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:33:44.833Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:34:29.446Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:34:40.830Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:35:06.121Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:35:35.376Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:40:15.000Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:40:39.870Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:40:48.495Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:41:09.064Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:41:59.051Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:45:41.730Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:46:07.299Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:46:14.376Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:46:34.965Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:49:34.061Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:49:43.777Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:49:50.728Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:50:17.717Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:50:34.793Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:50:49.181Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:50:57.915Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:51:07.476Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:51:26.335Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:55:04.312Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:55:23.283Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:55:37.920Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:55:58.847Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:57:06.203Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:57:20.649Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:57:42.838Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T15:58:24.060Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T16:01:41.026Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T16:02:08.958Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-23T16:02:56.483Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T03:59:15.501Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:03:07.199Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:04:04.396Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:05:10.392Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:10:21.346Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:11:53.765Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:12:15.610Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:12:17.957Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:12:19.434Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:12:21.339Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:04.454Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:17.522Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:29.358Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:37.506Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:39.579Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:41.690Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:13:43.371Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:14:10.913Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:19:05.677Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:20:06.201Z",
+      "feature": "tests",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T04:20:57.429Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T07:32:40.686Z",
+      "feature": "tools",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T07:32:55.659Z",
+      "feature": "tools",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T07:33:02.710Z",
+      "feature": "tools",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T07:33:16.515Z",
+      "feature": "tools",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:10:59.137Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:13:20.601Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:13:30.985Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:14:21.150Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:15:18.821Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:16:19.613Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:17:06.658Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:17:40.390Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:18:47.393Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:18:58.839Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:19:24.850Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:21:22.481Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:28:50.130Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:29:15.079Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:29:38.228Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:29:55.903Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:30:13.155Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:45:34.660Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:48:20.581Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:49:40.084Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:49:58.440Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T08:51:24.541Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:10:06.530Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:10:50.378Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:11:05.567Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:11:22.332Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:11:58.529Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:12:14.489Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:12:54.133Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:14:08.038Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:19:20.073Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:19:45.613Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:19:56.224Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:20:05.801Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:20:25.453Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:25:00.998Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:25:47.282Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:40:04.582Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:40:29.457Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:40:45.644Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-24T09:41:03.763Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:43:41.348Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:44:10.522Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:44:57.759Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:50:08.275Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:57:48.226Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:58:14.975Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T05:58:26.657Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T06:01:54.951Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T06:12:03.851Z",
+      "feature": "planner-vite",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T06:21:22.922Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T06:42:46.410Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-25T06:48:23.576Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-28T11:16:05.188Z",
+      "feature": "mcp-server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-28T11:16:14.430Z",
+      "feature": "schemas",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T07:52:26.944Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T07:52:56.254Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T07:53:03.554Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T07:53:12.955Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T07:54:50.439Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:26:54.696Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:29:55.981Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:31:48.315Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:31:59.933Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:53:29.516Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:54:40.230Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:55:03.468Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:55:16.585Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:55:27.428Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:55:46.372Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T08:56:12.102Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T09:09:53.845Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-15T09:10:54.942Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:29:08.363Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:29:31.806Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:29:43.791Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:29:57.458Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:30:12.056Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:30:23.292Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:30:48.436Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:31:11.131Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:31:21.725Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:31:23.797Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:31:39.024Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T15:32:19.163Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:02:06.747Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:02:22.967Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:02:37.455Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:02:44.498Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:03:00.529Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:03:10.547Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:03:15.722Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:03:51.031Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:04:01.129Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:04:03.309Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-16T16:04:25.479Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:17:26.743Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:17:33.597Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:17:48.447Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:17:54.065Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:00.154Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:06.378Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:11.408Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:17.874Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:20.796Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:22.959Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:29.416Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:32.172Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:34.619Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:36.974Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:38.717Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:18:49.372Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:19:19.041Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:28:01.281Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:28:07.224Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:28:10.683Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:28:17.295Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:28:30.301Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:29:01.059Z",
+      "feature": "__tests__",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T01:29:18.717Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:38:04.840Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:45:36.733Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:45:43.372Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:45:45.708Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:45:50.099Z",
+      "feature": "detaildesign",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:45:58.645Z",
+      "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T04:46:04.134Z",
+      "feature": "e2e",
       "phase": "do",
       "action": "updated"
     }
