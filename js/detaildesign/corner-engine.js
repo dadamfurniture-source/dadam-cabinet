@@ -306,6 +306,99 @@ function migrateCornerModules(item) {
   }
 }
 
+// ============================================================
+// W10-3: 멍장 라인 자동계산 — 도어 우선 분배 + 원장 불변식
+// (calc-engine.js runAutoCalcSection에서 호출)
+// ============================================================
+
+/**
+ * 멍장 라인 도어 우선(door-first) 분배 — design §4.2
+ * 각 수납 모듈 W = 도어 수 × doorW. 잔여(반올림/도어 수 차이)는 마지막 모듈이 흡수 (W9 관례).
+ * 분배·갭 흡수는 라인 내부에서만 — 라인 간 이동 금지.
+ *
+ * @param {Array}  mods    멍장 제외 secondary 수납 모듈 (라인 배치 순서)
+ * @param {object} derived deriveCorner() 결과
+ * @returns {number} 수납 예산 (= doorAvail − 멍장 도어)
+ */
+function distributeBlindLine(mods, derived) {
+  const budget = derived.doorAvail - derived.doorW;
+  if (!mods.length) return budget;
+  let assigned = 0;
+  mods.forEach((m) => {
+    const n = parseInt(m.doorCount, 10) || 1;
+    m.w = n * derived.doorW;
+    assigned += m.w;
+  });
+  const last = mods[mods.length - 1];
+  last.w += budget - assigned;
+  if (last.w < _cornerMinDoorW() && typeof console !== 'undefined') {
+    console.warn(
+      '[corner-engine] 마지막 수납 모듈 ' + last.w + 'mm < 최소 도어폭 ' +
+      _cornerMinDoorW() + 'mm — 도어 수/라인 W 확인 필요'
+    );
+  }
+  return budget;
+}
+
+/**
+ * 원장 불변식 검증 — design §4.3
+ * 멍장 라인: EP + Σ(수납 W) + 멍장 W + 벽여유(50) === lineW (±1)
+ * 위반 시: strict(개발/테스트)면 throw, 아니면 경고 + 마지막 수납 모듈 보정.
+ */
+function assertCornerLedger(item, pos, opts) {
+  const strict = !!(opts && opts.strict);
+  const specs = item.specs || {};
+  const isUpper = pos === 'upper';
+  const lineW = parseFloat(isUpper ? specs.upperSecondaryW : specs.lowerSecondaryW) || 0;
+  const blindId = isUpper ? 'corner-blind-upper' : 'corner-blind-lower';
+  const blind = item.modules.find((m) => m.id === blindId);
+  if (!blind || !lineW) return { ok: true, diff: 0 };
+  const mods = item.modules.filter(
+    (m) => m.pos === pos && (m.line === 'secondary' || m.orientation === 'secondary') && m.id !== blindId
+  );
+  const storageW = mods.reduce((s, m) => s + (parseFloat(m.w) || 0), 0);
+  const sum = _cornerEpW() + storageW + (parseFloat(blind.w) || 0) + _cornerWallGap();
+  const diff = lineW - sum;
+  if (Math.abs(diff) <= 1) return { ok: true, diff };
+  const msg =
+    '[corner-engine] 원장 불변식 위반(' + pos + '): EP' + _cornerEpW() + ' + 수납' + storageW +
+    ' + 멍장' + blind.w + ' + 여유' + _cornerWallGap() + ' = ' + sum +
+    ' ≠ 라인 ' + lineW + ' (차이 ' + diff + 'mm)';
+  if (strict) throw new Error(msg);
+  if (typeof console !== 'undefined') console.warn(msg);
+  if (mods.length) {
+    const last = mods[mods.length - 1];
+    last.w = (parseFloat(last.w) || 0) + diff; // 마지막 수납 모듈 보정 (프로덕션)
+    return { ok: false, diff: diff, corrected: true };
+  }
+  return { ok: false, diff: diff, corrected: false };
+}
+
+/**
+ * 자동계산 시 secondary(멍장) 라인 재계산 — 파생 → 도어 우선 분배 → 원장 불변식.
+ * prime 라인과 독립 (라인 = 계산 단위). 상부 secondary 비활성 시 null.
+ */
+function recalcBlindLine(item, pos, opts) {
+  const derived = pos === 'upper' ? seedUpperCornerModules(item) : seedCornerModules(item);
+  if (!derived) return null;
+  const blindId = pos === 'upper' ? 'corner-blind-upper' : 'corner-blind-lower';
+  const mods = item.modules.filter(
+    (m) => m.pos === pos && (m.line === 'secondary' || m.orientation === 'secondary') && m.id !== blindId
+  );
+  distributeBlindLine(mods, derived);
+  const ledger = assertCornerLedger(item, pos, opts);
+  return { derived: derived, ledger: ledger };
+}
+
+/**
+ * 인접(prime) 라인 시작 offset — corner.md §3.7 / design §4.1 budgets[adj]
+ * 하부: 멍장 라인 상판깊이 − 물끊기 + 몰딩 (예: 700) / 상부: 320 + 몰딩 (예: 380)
+ * calc-engine calcEffectiveSpace가 기존 fC1(몰딩만) 차감 대신 사용.
+ */
+function cornerAdjOffset(item, pos) {
+  return deriveCorner(cornerParamsFromItem(item, pos || 'lower')).adjStartOffset;
+}
+
 // ── 노출 ─────────────────────────────────────────────
 if (typeof window !== 'undefined') {
   window.deriveCorner = deriveCorner;
@@ -315,6 +408,10 @@ if (typeof window !== 'undefined') {
   window.removeUpperCornerModules = removeUpperCornerModules;
   window.migrateCornerModules = migrateCornerModules;
   window.cornerParamsFromItem = cornerParamsFromItem;
+  window.distributeBlindLine = distributeBlindLine;
+  window.assertCornerLedger = assertCornerLedger;
+  window.recalcBlindLine = recalcBlindLine;
+  window.cornerAdjOffset = cornerAdjOffset;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -322,5 +419,6 @@ if (typeof module !== 'undefined' && module.exports) {
     seedCornerModules, removeCornerModules,
     seedUpperCornerModules, removeUpperCornerModules,
     migrateCornerModules,
+    distributeBlindLine, assertCornerLedger, recalcBlindLine, cornerAdjOffset,
   };
 }
