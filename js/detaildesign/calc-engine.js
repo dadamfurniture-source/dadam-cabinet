@@ -367,18 +367,34 @@
       }
 
       /**
-       * 유효 공간 계산
+       * W10-3: 모듈 소속 라인 판별 — line 필드가 SSOT, 부재 시 orientation 역추론,
+       * 둘 다 없으면 prime (하위 호환, design §3.2/§7)
        */
-      function calcEffectiveSpace(item) {
+      function moduleLine(m) {
+        return m.line || m.orientation || 'prime';
+      }
+
+      /**
+       * 유효 공간 계산
+       * W10-3: ㄱ자/ㄷ자에서 멍장이 영속화된 경우, 코너1 차감을 몰딩(fC1)이 아닌
+       *        인접 시작 offset(멍장 라인 상판깊이 − 물끊기 + 몰딩, §3.7)으로 교체 — budgets[adj]
+       */
+      function calcEffectiveSpace(item, section) {
         const W = parseFloat(item.w) || 0;
         const fL = item.specs.finishLeftType !== 'None' ? parseFloat(item.specs.finishLeftWidth) || 0 : 0;
         const fR = item.specs.finishRightType !== 'None' ? parseFloat(item.specs.finishRightWidth) || 0 : 0;
-        const fC1 =
-          item.specs.layoutShape !== 'I' && item.specs.finishCorner1Type !== 'None'
+        const shape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
+        let fC1 =
+          shape !== 'I' && item.specs.finishCorner1Type !== 'None'
             ? parseFloat(item.specs.finishCorner1Width) || 0
             : 0;
+        const blindId = section === 'upper' ? 'corner-blind-upper' : 'corner-blind-lower';
+        const hasBlind = Array.isArray(item.modules) && item.modules.some((m) => m.id === blindId);
+        if (shape !== 'I' && hasBlind && typeof cornerAdjOffset === 'function') {
+          fC1 = cornerAdjOffset(item, section === 'upper' ? 'upper' : 'lower');
+        }
         const fC2 =
-          item.specs.layoutShape === 'U' && item.specs.finishCorner2Type !== 'None'
+          shape === 'U' && item.specs.finishCorner2Type !== 'None'
             ? parseFloat(item.specs.finishCorner2Width) || 0
             : 0;
         return W - fL - fR - fC1 - fC2;
@@ -387,7 +403,7 @@
       function getEffectiveSpace(item, section) {
         const manualValue = section === 'upper' ? item.specs.effectiveUpperW : item.specs.effectiveLowerW;
         if (manualValue !== null && manualValue !== '') return parseFloat(manualValue) || 0;
-        return calcEffectiveSpace(item);
+        return calcEffectiveSpace(item, section);
       }
 
       /**
@@ -611,7 +627,7 @@
         if (typeof pushUndo === 'function') pushUndo(item); // ★ Undo
 
         const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
-        const secModsBefore = item.modules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
+        const secModsBefore = item.modules.filter(m => moduleLine(m) !== 'prime');
         dlog(`[AutoCalc] START section=${section}, lShape=${lShape}, secModsBefore=${secModsBefore.length}`, secModsBefore.map(m => `${m.name||m.type}(${m.orientation})`));
 
         // ★ 싱크대: 자동계산 전 필수장 주입
@@ -627,7 +643,15 @@
           runAutoCalcLower(item);
         }
 
-        const secModsAfter = item.modules.filter(m => m.orientation === 'secondary' || m.orientation === 'tertiary');
+        // W10-3: 멍장 라인(secondary) 재계산 — 파생 → 도어 우선 분배 → 원장 불변식 (prime과 독립)
+        const secShape = section === 'upper'
+          ? (item.specs.dimensionMode === 'split' ? (item.specs.upperLayoutShape || 'I') : lShape)
+          : lShape;
+        if ((secShape === 'L' || secShape === 'U') && typeof recalcBlindLine === 'function') {
+          recalcBlindLine(item, section);
+        }
+
+        const secModsAfter = item.modules.filter(m => moduleLine(m) !== 'prime');
         dlog(`[AutoCalc] END section=${section}, secModsAfter=${secModsAfter.length}`, secModsAfter.map(m => `${m.name||m.type}(${m.orientation})`));
         dlog(`[AutoCalc] ALL modules after:`, item.modules.map(m => `${m.name||m.type}(pos=${m.pos},orient=${m.orientation||'primary'})`));
 
@@ -651,8 +675,8 @@
         const startBound = fL;
         const endBound = startBound + effectiveW;
 
-        // ★ Step 1: 하부장 위치 맵 생성 (후드 위치 결정용, secondary/tertiary 제외)
-        const lowerModules = item.modules.filter((m) => m.pos === 'lower' && !m.orientation);
+        // ★ Step 1: 하부장 위치 맵 생성 (후드 위치 결정용, prime 라인만 — W10-3)
+        const lowerModules = item.modules.filter((m) => m.pos === 'lower' && moduleLine(m) === 'prime');
         const lowerPosMap = {};
         let lowerCursor = startBound;
         lowerModules.forEach((m) => {
@@ -722,8 +746,8 @@
           }
         }
 
-        // 기타 고정 모듈 (후드, 기준상부장, secondary/tertiary 제외)
-        const upperModules = item.modules.filter((m) => m.pos === 'upper' && !m.orientation);
+        // 기타 고정 모듈 (후드, 기준상부장 제외, prime 라인만 — W10-3)
+        const upperModules = item.modules.filter((m) => m.pos === 'upper' && moduleLine(m) === 'prime');
         let otherCursor = startBound;
         upperModules.forEach((m) => {
           const mw = parseFloat(m.w) || 0;
@@ -733,8 +757,8 @@
           otherCursor += mw;
         });
 
-        // ★ Step 3: 비고정 모듈 제거 → 고정 모듈 기준으로 재계산 (secondary/tertiary 보존)
-        item.modules = item.modules.filter((m) => m.pos !== 'upper' || m.orientation === 'secondary' || m.orientation === 'tertiary');
+        // ★ Step 3: 비고정 모듈 제거 → 고정 모듈 기준으로 재계산 (prime 외 라인 보존 — W10-3)
+        item.modules = item.modules.filter((m) => m.pos !== 'upper' || moduleLine(m) !== 'prime');
 
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
         fixedOccupied = adjustFixedPositions(fixedOccupied, startBound, endBound);
@@ -841,8 +865,8 @@
         const LT_MAX_W  = 300;
         const SIDE_PANEL = 15;
 
-        // ★ 고정 모듈 수집 (secondary/tertiary 제외 — 다른 방향의 모듈)
-        const currentModules = item.modules.filter(m => m.pos === 'lower' && !m.orientation);
+        // ★ 고정 모듈 수집 (prime 라인만 — 다른 라인 모듈 제외, W10-3)
+        const currentModules = item.modules.filter(m => m.pos === 'lower' && moduleLine(m) === 'prime');
         let fixedOccupied = [];
         let cursor = startBound;
         currentModules.forEach(m => {
@@ -916,8 +940,8 @@
         //  우측기준: 가스대=좌측 → LT는 startBound~가스대 좌측 사이
         //  ㄱ자/ㄷ자: secondary LT망장이 별도 존재하므로 primary LT 생성 건너뜀
         const lShape = item.specs.lowerLayoutShape || item.specs.layoutShape || 'I';
-        // W10-2: pos 스코프 — 상부 멍장(corner-blind-upper)이 하부 prime LT 생성을 억제하지 않도록
-        const hasSecondaryLT = item.modules.some(m => m.name === 'LT망장' && m.orientation === 'secondary' && m.pos === 'lower');
+        // W10-3: 결정적 id 기반 가드 단순화 (design §3.2) — 하부 멍장 존재 시 prime LT 생성 생략
+        const hasSecondaryLT = item.modules.some(m => m.id === 'corner-blind-lower');
         let ltMod = fixedOccupied.find(m => m.name === 'LT망장' || (m.type === 'storage' && m.isDrawer && parseFloat(m.w) <= 250));
         if (!ltMod && sinkMod && !hasSecondaryLT) {
           ltMod = { id: Date.now() + Math.random(), type: 'storage', name: 'LT망장', pos: 'lower', w: LT_DEF_W, d: 550, isDrawer: true, isFixed: true, x: 0, endX: 0 };
@@ -1015,8 +1039,8 @@
         dlog(`[AutoCalc] 하부장: W=${W}, 유효=${effectiveW}, 환풍구=${ventPos}(abs=${ventAbs}), 분배기=${distStart}~${distEnd}(abs=${dStartAbs}~${dEndAbs})`);
         dlog(`[AutoCalc] 배치: ${fixedOccupied.sort((a,b)=>a.x-b.x).map(m => `${m.name||m.type}(${Math.round(m.x)}~${Math.round(m.endX)})`).join(' | ')}`);
 
-        // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 빈 공간 채우기 (secondary/tertiary 보존)
-        item.modules = item.modules.filter(m => m.pos !== 'lower' || m.orientation === 'secondary' || m.orientation === 'tertiary');
+        // ★ 비고정 모듈 제거 → 고정 모듈 기준으로 빈 공간 채우기 (prime 외 라인 보존 — W10-3)
+        item.modules = item.modules.filter(m => m.pos !== 'lower' || moduleLine(m) !== 'prime');
         const fixedTotalW = fixedOccupied.reduce((sum, f) => sum + (parseFloat(f.w) || 0), 0);
 
         let newModules = [];
@@ -1148,8 +1172,8 @@
         const distEnd = parseFloat(item.specs.distributorEnd) || 0;
         const ventPos = parseFloat(item.specs.ventStart) || 0;
 
-        // ── 하부장: 개수대/가스대 위치 기반 재정렬 (secondary/tertiary 제외) ──
-        const lowerMods = item.modules.filter(m => m.pos === 'lower' && !m.orientation);
+        // ── 하부장: 개수대/가스대 위치 기반 재정렬 (prime 라인만 — W10-3) ──
+        const lowerMods = item.modules.filter(m => m.pos === 'lower' && moduleLine(m) === 'prime');
         const sinkMod = lowerMods.find(m => m.type === 'sink');
         const cookMod = lowerMods.find(m => m.type === 'cook');
 
@@ -1182,8 +1206,8 @@
         }
         merged.forEach(m => delete m._tx);
 
-        // ── 상부장: 후드 → 환풍구 위치 (secondary/tertiary 제외) ──
-        const upperMods = item.modules.filter(m => m.pos === 'upper' && !m.orientation);
+        // ── 상부장: 후드 → 환풍구 위치 (prime 라인만 — W10-3) ──
+        const upperMods = item.modules.filter(m => m.pos === 'upper' && moduleLine(m) === 'prime');
         const hoodMod = upperMods.find(m => m.type === 'hood');
         let upperSorted = [...upperMods];
         if (hoodMod && ventPos > 0) {
@@ -1200,7 +1224,7 @@
           upperSorted = without;
         }
 
-        const secondaryMods = item.modules.filter(m => (m.pos === 'lower' || m.pos === 'upper') && m.orientation);
+        const secondaryMods = item.modules.filter(m => (m.pos === 'lower' || m.pos === 'upper') && moduleLine(m) !== 'prime');
         item.modules = item.modules.filter(m => m.pos !== 'lower' && m.pos !== 'upper').concat(merged).concat(upperSorted).concat(secondaryMods);
 
         // ★ 분배기/환풍구 절대좌표를 item.specs에 저장 (3D 뷰에서 표시)
