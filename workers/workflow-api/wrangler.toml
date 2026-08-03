@@ -1,0 +1,33 @@
+name = "dadam-workflow-api"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
+
+[vars]
+# CORS 허용 오리진 (콤마 구분)
+# ⚠️ 목록에 없는 Origin 에는 allow[0] 이 반환되어 브라우저만 차단하고 서버는 200 을 준다.
+#    GitHub Pages 실제 오리진을 반드시 정확히 넣을 것. /health 응답의 echo_origin 으로 진단 가능.
+# (www.dadamfurniture.com 은 DNS 에 없어 제외 — apex 만 사용)
+CORS_ORIGINS = "https://dadamfurniture.com,http://localhost:8000,http://127.0.0.1:8000"
+
+# 고객 공유 링크 조립용 베이스 URL (confirm.html 이 배포된 오리진)
+PUBLIC_BASE_URL = "https://dadamfurniture.com"
+
+# 공유 링크 기본 유효기간 (일)
+SHARE_LINK_TTL_DAYS = "14"
+
+# 견적 기본 등급 (basic|mid|premium)
+DEFAULT_QUOTE_GRADE = "basic"
+
+# 단가 규칙 캐시 TTL (초). rule set 은 불변이라 길게 잡아도 안전하다.
+PRICING_CACHE_TTL_SEC = "300"
+
+# ─────────────────────────────────────────────────────────────
+# 아래 값들은 wrangler secret put 으로 등록 (코드/저장소에 두지 말 것):
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put SUPABASE_ANON_KEY        (사용자 JWT 검증용)
+#   wrangler secret put SLACK_WEBHOOK_URL        (W11-6)
+#   wrangler secret put SHARE_TOKEN_PEPPER       (공유 토큰 해시용)
+#   wrangler secret put IP_HASH_SALT             (접근 로그 IP 해시용)
+# ─────────────────────────────────────────────────────────────
