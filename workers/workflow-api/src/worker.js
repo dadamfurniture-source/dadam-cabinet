@@ -16,11 +16,13 @@
  *   GET  /documents/:documentId/print      — A4 인쇄 HTML (내부용)
  *   POST /documents/:documentId/revoke     — 공유 링크 회수
  *
+ *   POST /designs/:designId/schedules      — 일정 등록 + Slack 알림
+ *   GET  /designs/:designId/schedules      — 일정 목록
+ *   PATCH /schedules/:scheduleId           — 일정 수정
+ *   POST /schedules/batches/:batchId/notify — Slack 재전송 (멱등)
+ *
  *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
- *
- * 이후 PR 에서 추가:
- *   W11-6  일정 + Slack
  *
  * 인증: 내부 API 는 Supabase 사용자 JWT (Authorization: Bearer).
  *       고객 공유 링크는 X-Share-Token 헤더 (W11-4).
@@ -48,6 +50,12 @@ import {
   openSharedDocument,
   recordDecision,
 } from './documents.js';
+import {
+  createSchedules,
+  listSchedules,
+  updateSchedule,
+  resendBatch,
+} from './schedules.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -244,6 +252,35 @@ async function handlePublicDecision(request, env) {
   });
 }
 
+// ===== 일정 + Slack =====
+
+async function handleCreateSchedules(request, env, { params, user, ctx }) {
+  const body = (await readJson(request)) || {};
+  const data = await createSchedules(env, ctx, {
+    designId: params.designId,
+    user,
+    body,
+  });
+  // Slack 전송은 응답 후에 일어난다. 실패해도 일정은 이미 저장돼 있다.
+  return jsonResponse(request, env, { success: true, data }, 201);
+}
+
+async function handleListSchedules(request, env, { params, user }) {
+  const items = await listSchedules(env, { designId: params.designId, user });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+async function handleUpdateSchedule(request, env, { params, user }) {
+  const patch = (await readJson(request)) || {};
+  const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch });
+  return jsonResponse(request, env, { success: true, data: row });
+}
+
+async function handleResendSlack(request, env, { params, user, ctx }) {
+  const data = await resendBatch(env, ctx, { batchId: params.batchId, user });
+  return jsonResponse(request, env, { success: true, data });
+}
+
 // ===== 라우팅 =====
 
 const router = createRouter([
@@ -259,6 +296,11 @@ const router = createRouter([
   { method: 'GET', path: '/documents/:documentId', auth: 'jwt', handler: handleGetDocument },
   { method: 'GET', path: '/documents/:documentId/print', auth: 'jwt', handler: handlePrintDocument },
   { method: 'POST', path: '/documents/:documentId/revoke', auth: 'jwt', handler: handleRevokeDocument },
+
+  { method: 'POST', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleCreateSchedules },
+  { method: 'GET', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleListSchedules },
+  { method: 'PATCH', path: '/schedules/:scheduleId', auth: 'jwt', handler: handleUpdateSchedule },
+  { method: 'POST', path: '/schedules/batches/:batchId/notify', auth: 'jwt', handler: handleResendSlack },
 
   // 공개 — 고객 공유 링크 (JWT 없음, X-Share-Token 으로 인증)
   { method: 'GET', path: '/public/confirm', auth: 'none', handler: handlePublicConfirm },
