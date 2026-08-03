@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-08-02T04:46:04.134Z",
+  "lastUpdated": "2026-08-02T13:31:04.997Z",
   "activeFeatures": [
     "mcp-server",
     "js",
@@ -43,7 +43,7 @@
     "dadam-mark",
     "e2e"
   ],
-  "primaryFeature": null,
+  "primaryFeature": "detaildesign",
   "archivedFeatures": {
     "corner-autocalc": {
       "phase": "archived",
@@ -496,9 +496,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-21T13:31:37.204Z",
-        "lastUpdated": "2026-08-02T04:45:50.099Z"
+        "lastUpdated": "2026-08-02T13:31:04.997Z"
       },
-      "lastFile": "C:\\Users\\hchan\\dadamagent\\js\\detaildesign\\ui-workspace.js"
+      "lastFile": "C:\\Users\\hchan\\dadamagent\\js\\detaildesign\\calc-engine.js"
     },
     "modest-hellman": {
       "phase": "do",
@@ -639,7 +639,7 @@
   "session": {
     "startedAt": "2026-02-01T08:25:55.232Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-08-02T04:46:04.134Z"
+    "lastActivity": "2026-08-02T13:31:04.997Z"
   },
   "history": [
     {
@@ -8403,6 +8403,12 @@
     {
       "timestamp": "2026-08-02T04:46:04.134Z",
       "feature": "e2e",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-08-02T13:31:04.997Z",
+      "feature": "detaildesign",
       "phase": "do",
       "action": "updated"
     }

@@ -93,6 +93,7 @@ docs/
 # ultraplan / local planning artifacts
 .ultraplan/
 .claude/plans/
+.claude/scheduled_tasks.lock
 
 # QA/Debug screenshots
 screenshot/
