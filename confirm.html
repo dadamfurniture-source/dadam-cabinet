@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 고객 금액이 담기는 페이지 — 색인·참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>설계 확인서 · 다담가구</title>
+    <style>
+      :root {
+        --bg: #eef0f3;
+        --panel: #fff;
+        --border: #d6dae0;
+        --text: #1a1d21;
+        --muted: #6b7280;
+        --accent: #147a3d;
+        --danger: #a02020;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          'Pretendard',
+          'Malgun Gothic',
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px 16px 60px;
+      }
+      header.brand {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 18px;
+      }
+      header.brand h1 {
+        font-size: 18px;
+        margin: 0;
+      }
+      header.brand span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 22px;
+        margin-bottom: 16px;
+      }
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      #docFrame {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+        min-height: 60vh;
+        display: none;
+      }
+
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input[type='text'],
+      input[type='tel'],
+      textarea {
+        width: 100%;
+        padding: 11px 12px;
+        font-size: 15px;
+        border: 1px solid #b9bfc7;
+        border-radius: 6px;
+        font-family: inherit;
+      }
+      textarea {
+        min-height: 84px;
+        resize: vertical;
+      }
+
+      .btn {
+        padding: 11px 20px;
+        font-size: 15px;
+        font-weight: 600;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #0f6231;
+      }
+      .btn-outline {
+        background: #fff;
+        color: var(--danger);
+        border: 1px solid var(--danger);
+      }
+      .btn-outline:hover {
+        background: #fff5f5;
+      }
+      .btn-ghost {
+        background: #fff;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .stack > * + * {
+        margin-top: 12px;
+      }
+
+      .alert {
+        padding: 12px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        margin-top: 12px;
+      }
+      .alert-err {
+        background: #fdecec;
+        color: #8a1c1c;
+        border: 1px solid #f2c2c2;
+      }
+      .alert-ok {
+        background: #eaf6ef;
+        color: #106030;
+        border: 1px solid #bfe3cd;
+      }
+
+      .spinner {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="brand">
+        <h1>다담가구</h1>
+        <span>설계 확인서</span>
+      </header>
+
+      <!-- 로딩 -->
+      <div class="card" id="loadingCard">
+        <p class="spinner">확인서를 불러오는 중입니다…</p>
+      </div>
+
+      <!-- 접근 번호 -->
+      <div class="card stack" id="pinCard" hidden>
+        <h2>접근 번호 입력</h2>
+        <p class="muted">담당자에게 안내받으신 번호(연락처 뒤 4자리)를 입력해 주세요.</p>
+        <div>
+          <label for="pinInput">접근 번호</label>
+          <input id="pinInput" type="tel" inputmode="numeric" autocomplete="off" maxlength="12" />
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" id="btnPin" type="button">확인</button>
+        </div>
+        <div id="pinError" class="alert alert-err" hidden></div>
+      </div>
+
+      <!-- 오류 -->
+      <div class="card" id="errorCard" hidden>
+        <h2 id="errorTitle">확인서를 열 수 없습니다</h2>
+        <p class="muted" id="errorMessage"></p>
+      </div>
+
+      <!-- 문서 -->
+      <iframe id="docFrame" title="설계 확인서"></iframe>
+
+      <!-- 승인 -->
+      <div class="card stack" id="decisionCard" hidden>
+        <h2>확인</h2>
+        <p class="muted">
+          내용을 확인하셨으면 성함을 입력하고 <strong>확인합니다</strong>를 눌러 주세요. 수정이 필요하시면
+          <strong>수정 요청</strong>을 눌러 내용을 적어 주세요.
+        </p>
+        <div>
+          <label for="signerName">성함</label>
+          <input id="signerName" type="text" autocomplete="name" maxlength="50" />
+        </div>
+        <div>
+          <label for="decisionMemo">요청 사항 (선택)</label>
+          <textarea id="decisionMemo" maxlength="2000"></textarea>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" id="btnApprove" type="button">확인합니다</button>
+          <button class="btn btn-outline" id="btnReject" type="button">수정 요청</button>
+          <button class="btn btn-ghost" id="btnPrint" type="button">인쇄 / PDF로 저장</button>
+        </div>
+        <div id="decisionError" class="alert alert-err" hidden></div>
+        <div id="decisionOk" class="alert alert-ok" hidden></div>
+      </div>
+
+      <!-- 이미 처리됨 -->
+      <div class="card" id="doneCard" hidden>
+        <h2 id="doneTitle">처리가 완료되었습니다</h2>
+        <p class="muted" id="doneMessage">담당자가 확인 후 연락드리겠습니다.</p>
+        <div class="row" style="margin-top: 12px">
+          <button class="btn btn-ghost" id="btnPrint2" type="button">인쇄 / PDF로 저장</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // 고객 전용 독립 페이지라 js/config.js 를 불러오지 않는다.
+        // 공유 링크는 로그인 없이 열리고, 여기 필요한 값은 공개 Worker URL 하나뿐이다.
+        // (config.js 를 참조하면 detaildesign 의 ?v= 캐시 버전과 엮여 배포가 서로 묶인다.)
+        var API = 'https://dadam-workflow-api.dadamfurniture.workers.dev';
+
+        // 공유 토큰은 URL fragment 로 온다 (#t=...).
+        // 쿼리스트링이면 링크 미리보기 크롤러 로그·Referer·CDN 액세스 로그에
+        // 토큰이 남는다. fragment 는 서버로 전송되지 않는다.
+        function readToken() {
+          var h = String(location.hash || '').replace(/^#/, '');
+          var m = /(?:^|&)t=([^&]+)/.exec(h);
+          return m ? decodeURIComponent(m[1]) : '';
+        }
+
+        var token = readToken();
+        var pin = '';
+
+        var el = function (id) {
+          return document.getElementById(id);
+        };
+        function show(node) {
+          node.hidden = false;
+        }
+        function hide(node) {
+          node.hidden = true;
+        }
+
+        function showError(title, message) {
+          hide(el('loadingCard'));
+          hide(el('pinCard'));
+          el('errorTitle').textContent = title;
+          el('errorMessage').textContent = message;
+          show(el('errorCard'));
+        }
+
+        function renderDoc(html) {
+          var frame = el('docFrame');
+          frame.srcdoc = html;
+          frame.style.display = 'block';
+          frame.addEventListener('load', function () {
+            try {
+              var h = frame.contentDocument.documentElement.scrollHeight;
+              frame.style.height = h + 40 + 'px';
+            } catch (e) {
+              frame.style.height = '120vh';
+            }
+          });
+        }
+
+        function headers(extra) {
+          var h = { 'X-Share-Token': token };
+          if (pin) h['X-Access-Pin'] = pin;
+          if (extra)
+            Object.keys(extra).forEach(function (k) {
+              h[k] = extra[k];
+            });
+          return h;
+        }
+
+        async function load() {
+          if (!API) {
+            showError('설정 오류', '확인서 서버 주소가 설정되지 않았습니다. 담당자에게 문의해 주세요.');
+            return;
+          }
+          if (!token) {
+            showError('링크가 올바르지 않습니다', '문자로 받으신 링크 전체를 그대로 열어 주세요.');
+            return;
+          }
+
+          var res;
+          try {
+            res = await fetch(API + '/public/confirm', { headers: headers() });
+          } catch (e) {
+            showError('연결할 수 없습니다', '잠시 후 다시 시도해 주세요.');
+            return;
+          }
+
+          var body = null;
+          try {
+            body = await res.json();
+          } catch (e) {
+            body = null;
+          }
+
+          if (res.status === 401) {
+            // 접근 번호 필요 또는 불일치
+            hide(el('loadingCard'));
+            show(el('pinCard'));
+            if (pin) {
+              el('pinError').textContent = (body && body.message) || '접근 번호가 일치하지 않습니다.';
+              show(el('pinError'));
+            }
+            return;
+          }
+          if (res.status === 429) {
+            showError('일시적으로 잠겼습니다', (body && body.message) || '30분 후 다시 시도해 주세요.');
+            return;
+          }
+          if (res.status === 410) {
+            showError('만료된 링크입니다', (body && body.message) || '담당자에게 재발급을 요청해 주세요.');
+            return;
+          }
+          if (!res.ok || !body || !body.success) {
+            showError('확인서를 찾을 수 없습니다', (body && body.message) || '링크를 다시 확인해 주세요.');
+            return;
+          }
+
+          hide(el('loadingCard'));
+          hide(el('pinCard'));
+          renderDoc(body.data.html);
+
+          if (body.data.decision) {
+            el('doneTitle').textContent =
+              body.data.decision === 'approved' ? '확인이 완료되었습니다' : '수정 요청이 접수되었습니다';
+            el('doneMessage').textContent = '담당자가 확인 후 연락드리겠습니다.';
+            show(el('doneCard'));
+          } else {
+            show(el('decisionCard'));
+          }
+        }
+
+        async function decide(decision) {
+          var name = el('signerName').value.trim();
+          hide(el('decisionError'));
+          if (!name) {
+            el('decisionError').textContent = '성함을 입력해 주세요.';
+            show(el('decisionError'));
+            return;
+          }
+
+          el('btnApprove').disabled = true;
+          el('btnReject').disabled = true;
+
+          try {
+            var res = await fetch(API + '/public/confirm/decision', {
+              method: 'POST',
+              headers: headers({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({
+                decision: decision,
+                signer_name: name,
+                memo: el('decisionMemo').value,
+              }),
+            });
+            var body = await res.json().catch(function () {
+              return null;
+            });
+
+            if (!res.ok || !body || !body.success) {
+              el('decisionError').textContent = (body && body.message) || '처리하지 못했습니다. 다시 시도해 주세요.';
+              show(el('decisionError'));
+              el('btnApprove').disabled = false;
+              el('btnReject').disabled = false;
+              return;
+            }
+
+            hide(el('decisionCard'));
+            el('doneTitle').textContent =
+              decision === 'approved' ? '확인이 완료되었습니다' : '수정 요청이 접수되었습니다';
+            el('doneMessage').textContent = '담당자가 확인 후 연락드리겠습니다.';
+            show(el('doneCard'));
+          } catch (e) {
+            el('decisionError').textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+            show(el('decisionError'));
+            el('btnApprove').disabled = false;
+            el('btnReject').disabled = false;
+          }
+        }
+
+        function printDoc() {
+          var frame = el('docFrame');
+          if (frame && frame.contentWindow) {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+          }
+        }
+
+        el('btnPin').addEventListener('click', function () {
+          pin = el('pinInput').value.trim();
+          hide(el('pinError'));
+          load();
+        });
+        el('pinInput').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') el('btnPin').click();
+        });
+        el('btnApprove').addEventListener('click', function () {
+          decide('approved');
+        });
+        el('btnReject').addEventListener('click', function () {
+          decide('rejected');
+        });
+        el('btnPrint').addEventListener('click', printDoc);
+        el('btnPrint2').addEventListener('click', printDoc);
+
+        load();
+      })();
+    </script>
+  </body>
+</html>
