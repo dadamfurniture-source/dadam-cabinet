@@ -25,8 +25,17 @@ import {
   selectMany,
 } from './supabase.js';
 import { snapshotHash } from './util/hash.js';
+import { getActivePricebook, getPricebookById } from './pricing.js';
+import { buildQuoteInputs } from './adapters.js';
+import { calculateQuote, VALID_GRADES } from './quote.js';
 
 const MAX_REV_RETRY = 3;
+
+function resolveGrade(env, requested) {
+  if (VALID_GRADES.includes(requested)) return requested;
+  const fallback = env.DEFAULT_QUOTE_GRADE;
+  return VALID_GRADES.includes(fallback) ? fallback : 'basic';
+}
 
 /** 숫자로 해석 가능한 양수인지. 문자열 치수("600")가 흔해서 느슨하게 받는다. */
 function positiveNumber(v) {
@@ -157,6 +166,15 @@ export async function createSnapshot(env, { designId, user, body }) {
   const title =
     (typeof body.title === 'string' && body.title.trim()) || designTitleOf(design);
 
+  // 금액은 클라이언트가 보낸 값을 쓰지 않는다. 서버가 활성 단가로 계산한다.
+  const pricebook = await getActivePricebook(env);
+  const quote = calculateQuote(
+    buildQuoteInputs(designPayload),
+    pricebook,
+    bom,
+    resolveGrade(env, body.grade),
+  );
+
   const row = {
     design_id: designId,
     content_hash: contentHash,
@@ -166,7 +184,8 @@ export async function createSnapshot(env, { designId, user, body }) {
     design_payload: designPayload,
     bom_payload: bom,
     hardware_payload: hardware,
-    quote_payload: null, // W11-3 에서 채운다
+    quote_payload: quote,
+    pricing_rule_set_id: pricebook.ruleSetId,
     item_count: derived.itemCount,
     module_count: derived.moduleCount,
     panel_count: derived.panelCount,
@@ -214,6 +233,37 @@ export async function getSnapshot(env, { snapshotId, user }) {
   if (!snapshot) throw new NotFoundError('스냅샷을 찾을 수 없습니다');
   await assertDesignOwner(env, snapshot.design_id, user.id);
   return snapshot;
+}
+
+/**
+ * 견적 재계산 미리보기 — 저장하지 않는다.
+ * 등급을 바꿔가며 금액을 비교하는 용도.
+ *
+ * 문서 발행 시에는 스냅샷에 핀으로 박힌 rule set 을 그대로 쓰지만,
+ * 미리보기는 현재 활성 세트로 계산한다(단가 변경 반영 확인용).
+ */
+export async function previewQuote(env, { snapshotId, user, grade, useActiveRules = false }) {
+  const snapshot = await getSnapshot(env, { snapshotId, user });
+
+  const pricebook =
+    useActiveRules || !snapshot.pricing_rule_set_id
+      ? await getActivePricebook(env)
+      : await getPricebookById(env, snapshot.pricing_rule_set_id);
+
+  const quote = calculateQuote(
+    buildQuoteInputs(snapshot.design_payload),
+    pricebook,
+    snapshot.bom_payload,
+    resolveGrade(env, grade),
+  );
+
+  return {
+    snapshot_id: snapshot.id,
+    rev: snapshot.rev,
+    quote,
+    stored_pricing_rule_set_id: snapshot.pricing_rule_set_id,
+    used_pricing_rule_set_id: pricebook.ruleSetId,
+  };
 }
 
 /**
