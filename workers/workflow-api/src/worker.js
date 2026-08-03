@@ -8,9 +8,9 @@
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
+ *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
  *
  * 이후 PR 에서 추가:
- *   W11-3  POST /snapshots/:id/quote
  *   W11-4  문서 발행 + 공개 공유 링크 + 인쇄 HTML
  *   W11-6  일정 + Slack
  *
@@ -30,7 +30,7 @@ import {
   DbError,
   verifyJwt,
 } from './supabase.js';
-import { createSnapshot, listSnapshots, getSnapshot } from './snapshots.js';
+import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -110,6 +110,17 @@ async function handleGetSnapshot(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: snapshot });
 }
 
+async function handleQuotePreview(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const data = await previewQuote(env, {
+    snapshotId: params.snapshotId,
+    user,
+    grade: body.grade,
+    useActiveRules: body.use_active_rules === true,
+  });
+  return jsonResponse(request, env, { success: true, data });
+}
+
 // ===== 라우팅 =====
 
 const router = createRouter([
@@ -118,6 +129,7 @@ const router = createRouter([
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
+  { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
 ]);
 
 function errorResponse(request, env, err) {
