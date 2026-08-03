@@ -10,15 +10,23 @@
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
  *
+ *   POST /snapshots/:snapshotId/documents  — 문서 발행 (평문 토큰은 여기서만 반환)
+ *   GET  /designs/:designId/documents      — 목록 (stale 배지 포함)
+ *   GET  /documents/:documentId            — 단건
+ *   GET  /documents/:documentId/print      — A4 인쇄 HTML (내부용)
+ *   POST /documents/:documentId/revoke     — 공유 링크 회수
+ *
+ *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
+ *   POST /public/confirm/decision          — 고객 승인/수정요청
+ *
  * 이후 PR 에서 추가:
- *   W11-4  문서 발행 + 공개 공유 링크 + 인쇄 HTML
  *   W11-6  일정 + Slack
  *
  * 인증: 내부 API 는 Supabase 사용자 JWT (Authorization: Bearer).
  *       고객 공유 링크는 X-Share-Token 헤더 (W11-4).
  */
 
-import { handleOptions, jsonResponse, isAllowedOrigin } from './cors.js';
+import { handleOptions, jsonResponse, htmlResponse, isAllowedOrigin } from './cors.js';
 import { createRouter } from './router.js';
 import {
   AuthError,
@@ -31,6 +39,15 @@ import {
   verifyJwt,
 } from './supabase.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
+import {
+  issueDocument,
+  listDocuments,
+  getDocumentForOwner,
+  revokeDocument,
+  renderDocument,
+  openSharedDocument,
+  recordDecision,
+} from './documents.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -121,6 +138,112 @@ async function handleQuotePreview(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
+// ===== 문서 =====
+
+async function handleIssueDocument(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const result = await issueDocument(env, {
+    user,
+    body: { ...body, snapshot_id: params.snapshotId },
+  });
+
+  return jsonResponse(
+    request,
+    env,
+    {
+      success: true,
+      data: {
+        document_id: result.document.id,
+        doc_no: result.document.doc_no,
+        doc_type: result.document.doc_type,
+        rev: result.document.rev,
+        expires_at: result.document.expires_at,
+        totals: result.document.totals,
+        // ★ 평문 토큰은 이 응답에서만 볼 수 있다. DB 에는 해시만 남는다.
+        share_token: result.share_token,
+        share_url: result.share_url,
+      },
+    },
+    201,
+  );
+}
+
+async function handleListDocuments(request, env, { params, user }) {
+  const items = await listDocuments(env, { designId: params.designId, user });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+async function handleGetDocument(request, env, { params, user }) {
+  const { doc, snapshot } = await getDocumentForOwner(env, {
+    documentId: params.documentId,
+    user,
+  });
+  return jsonResponse(request, env, {
+    success: true,
+    data: { ...doc, snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
+  });
+}
+
+/** 내부용 인쇄 화면. 작업지시서는 여기서 연다. */
+async function handlePrintDocument(request, env, { params, user }) {
+  const { doc, snapshot } = await getDocumentForOwner(env, {
+    documentId: params.documentId,
+    user,
+  });
+  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true }));
+}
+
+async function handleRevokeDocument(request, env, { params, user }) {
+  const doc = await revokeDocument(env, { user, documentId: params.documentId });
+  return jsonResponse(request, env, { success: true, data: { id: doc.id, status: doc.status } });
+}
+
+// ===== 공개(비로그인) — 고객 공유 링크 =====
+
+function shareCredentials(request) {
+  const url = new URL(request.url);
+  return {
+    // 토큰은 헤더로 받는 것이 기본이다. 경로/쿼리에 두면 액세스 로그와
+    // Referer 에 남는다. ?t= 는 브라우저가 직접 여는 인쇄 화면 전용 폴백.
+    token: request.headers.get('X-Share-Token') || url.searchParams.get('t') || '',
+    pin: request.headers.get('X-Access-Pin') || '',
+  };
+}
+
+async function handlePublicConfirm(request, env) {
+  const { token, pin } = shareCredentials(request);
+  const { doc, snapshot } = await openSharedDocument(env, request, { token, pin });
+
+  return jsonResponse(request, env, {
+    success: true,
+    data: {
+      // 문서 본문만. 승인 폼은 confirm.html 이 iframe 바깥에 그린다.
+      html: renderDocument(doc, snapshot, { toolbar: false }),
+      doc_no: doc.doc_no,
+      title: doc.title,
+      decision: doc.decision,
+      expires_at: doc.expires_at,
+    },
+  });
+}
+
+async function handlePublicDecision(request, env) {
+  const { token, pin } = shareCredentials(request);
+  const body = (await readJson(request)) || {};
+  const { doc } = await recordDecision(env, request, {
+    token,
+    pin,
+    decision: body.decision,
+    signerName: body.signer_name,
+    memo: body.memo,
+  });
+
+  return jsonResponse(request, env, {
+    success: true,
+    data: { decision: doc.decision, decided_at: doc.decided_at, signer_name: doc.signer_name },
+  });
+}
+
 // ===== 라우팅 =====
 
 const router = createRouter([
@@ -130,6 +253,16 @@ const router = createRouter([
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
+
+  { method: 'POST', path: '/snapshots/:snapshotId/documents', auth: 'jwt', handler: handleIssueDocument },
+  { method: 'GET', path: '/designs/:designId/documents', auth: 'jwt', handler: handleListDocuments },
+  { method: 'GET', path: '/documents/:documentId', auth: 'jwt', handler: handleGetDocument },
+  { method: 'GET', path: '/documents/:documentId/print', auth: 'jwt', handler: handlePrintDocument },
+  { method: 'POST', path: '/documents/:documentId/revoke', auth: 'jwt', handler: handleRevokeDocument },
+
+  // 공개 — 고객 공유 링크 (JWT 없음, X-Share-Token 으로 인증)
+  { method: 'GET', path: '/public/confirm', auth: 'none', handler: handlePublicConfirm },
+  { method: 'POST', path: '/public/confirm/decision', auth: 'none', handler: handlePublicDecision },
 ]);
 
 function errorResponse(request, env, err) {
