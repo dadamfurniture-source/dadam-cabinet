@@ -962,19 +962,29 @@
         }
 
         // 인증 + 승인 성공 - UI 업데이트
+        // toolbarUser/topToolbar 는 상단 툴바 개편 때 제거된 엘리먼트 — 옵셔널 체이닝 필수.
+        // 여기서 던지면 아래 loadDesign/setupAutoSave/loadChatHistory 가 전부 건너뛰어진다.
         hideAuthOverlay();
-        document.getElementById('toolbarUser').textContent = currentUser.email;
+        const toolbarUserEl = document.getElementById('toolbarUser');
+        if (toolbarUserEl) toolbarUserEl.textContent = currentUser.email;
 
         // 네비게이션 사용자 정보 표시
-        const name = userProfile.name || currentUser.email.split('@')[0];
-        document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
-        document.getElementById('navUserName').textContent = name;
+        const name = userProfile?.name || currentUser.email.split('@')[0];
+        const avatarEl = document.getElementById('navUserAvatar');
+        if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
+        const navNameEl = document.getElementById('navUserName');
+        if (navNameEl) navNameEl.textContent = name;
 
         // URL에서 설계 ID 확인 (수정 모드)
         const urlParams = new URLSearchParams(window.location.search);
         const designId = urlParams.get('id');
         if (designId) {
-          await loadDesign(designId);
+          // 불러오기가 실패해도 자동저장은 반드시 등록되어야 한다 (작업 유실 방지)
+          try {
+            await loadDesign(designId);
+          } catch (e) {
+            console.error('[Auth] loadDesign 실패:', e);
+          }
         }
 
         // 자동 저장 설정 (5분마다)
@@ -1594,6 +1604,7 @@
 
       // 페이지 로드 시 초기화
       document.addEventListener('DOMContentLoaded', () => {
-        initAuth();
+        // catch 없이 호출하면 초기화 실패가 unhandled rejection 으로 조용히 삼켜진다
+        initAuth().catch(e => console.error('[Auth] initAuth 실패:', e));
         setupEventDelegation();
       });
