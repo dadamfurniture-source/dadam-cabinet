@@ -98,7 +98,15 @@
       "Bash(gh run:*)",
       "Bash(curl -sI \"https://dadamfurniture.com/planner/embed/index.html\")",
       "Bash(curl -sL \"https://dadamfurniture.com/planner/embed/\")",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(node -e \"const s=require\\('./docs/.pdca-status.json'\\); const mcp=s.features?.['mcp-server']||s['mcp-server']||null; console.log\\('primaryFeature:', s.primaryFeature\\); console.log\\('mcp-server entry:', JSON.stringify\\(mcp, null, 2\\).slice\\(0,3000\\)\\);\")",
+      "Bash(gh issue *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "dadam"
+  ]
 }
