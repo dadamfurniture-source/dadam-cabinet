@@ -107,11 +107,15 @@ describe('planner "다음" 이 BOM 으로 이어져야 한다', () => {
     expect(structure).not.toMatch(/디테일 단계는 다음 PR/);
   });
 
-  test('부모가 PLANNER_DONE 을 받아 proceedToBOM 을 호출한다', () => {
+  test('부모가 PLANNER_DONE 을 받아 결과 반영 후 proceedToBOM 을 호출한다', () => {
     expect(uiStep1).toMatch(/type === 'PLANNER_DONE'/);
     const idx = uiStep1.indexOf("type === 'PLANNER_DONE'");
-    // 핸들러 안에서 proceedToBOM 을 부르는지 (뒤 300자 내)
-    expect(uiStep1.slice(idx, idx + 300)).toMatch(/proceedToBOM\(\)/);
+    // 핸들러 블록 = 다음 'return;' 까지
+    const block = uiStep1.slice(idx, idx + 800);
+    expect(block).toMatch(/_applyPlannerResult\(/); // 플래너 결과를 modules 로 반영
+    expect(block).toMatch(/proceedToBOM\(\)/); // 그 뒤 BOM 산출
+    // 반영이 실패하면 BOM 으로 넘어가지 않아야 한다
+    expect(block.indexOf('_applyPlannerResult(')).toBeLessThan(block.indexOf('proceedToBOM()'));
   });
 
   test('iframe 이 아닌 단독 접속에서는 안내만 한다 (crash 금지)', () => {
