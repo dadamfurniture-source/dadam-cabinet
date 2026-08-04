@@ -73,6 +73,17 @@ describe('Step 2 툴바 — 화면에서 빠져나갈 수 있어야 한다', () 
     expect(onclicks.some((o) => o.includes('backToStep1'))).toBe(true);
   });
 
+  test('BOM 버튼은 플래너 상태를 먼저 가져오는 쪽을 부른다', () => {
+    // "다음" 을 누르지 않아도 BOM 으로 갈 수 있어야 한다.
+    document.documentElement.innerHTML = html;
+    const toolbar = document.getElementById('step2Toolbar');
+    const bom = [...toolbar.querySelectorAll('[onclick]')].find((b) =>
+      b.getAttribute('onclick').includes('proceedToBOM')
+    );
+    expect(bom.getAttribute('onclick')).toContain('proceedToBOMWithPlanner');
+    expect(uiStep1).toMatch(/async function proceedToBOMWithPlanner\s*\(/);
+  });
+
   test('구 워크스페이스로 되돌아가는 토글은 두지 않는다', () => {
     // W9-2(#308) "기존 layout 완전 숨김", W9-6(#312) "Step 2 mockup HTML 전면 교체",
     // W9-7(#313) "designWorkspace 내부 UI 완전 숨김" 으로 확정된 방향.
@@ -103,7 +114,8 @@ describe('planner 가 없는 카테고리는 네이티브 모드여야 한다', 
 
 describe('planner "다음" 이 BOM 으로 이어져야 한다', () => {
   test('mockup-structure 가 alert 대신 PLANNER_DONE 을 보낸다', () => {
-    expect(structure).toMatch(/postMessage\(\s*\{\s*type:\s*'PLANNER_DONE'/);
+    expect(structure).toMatch(/sendPlannerState\('PLANNER_DONE'\)/);
+    expect(structure).toMatch(/window\.parent\.postMessage\(buildPlannerPayload/);
     expect(structure).not.toMatch(/디테일 단계는 다음 PR/);
   });
 
@@ -119,6 +131,8 @@ describe('planner "다음" 이 BOM 으로 이어져야 한다', () => {
   });
 
   test('iframe 이 아닌 단독 접속에서는 안내만 한다 (crash 금지)', () => {
-    expect(structure).toMatch(/window\.parent && window\.parent !== window/);
+    // sendPlannerState 가 부모 없음을 false 로 돌려주고, 호출부가 alert 로 안내한다
+    expect(structure).toMatch(/!window\.parent \|\| window\.parent === window/);
+    expect(structure).toMatch(/BOM 산출은 상세설계 화면에서 진행합니다/);
   });
 });

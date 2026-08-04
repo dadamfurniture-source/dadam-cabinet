@@ -1842,38 +1842,55 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 이 페이지는 detaildesign.html 의 Step 2 안에서 iframe 으로 도는데,
   // "다음" 이 alert 만 띄우고 끝나 BOM(Step 3) 으로 갈 방법이 없었다.
   // 부모에게 알려 Step 3 로 진행시킨다. 부모가 없으면(단독 접속) 안내만 한다.
+  /**
+   * W11-11/W11-14: 배치+구조를 부모(detaildesign)로 넘겨 BOM 의 입력이 되게 한다.
+   * 이전에는 structures 가 localStorage 에만 남아 BOM 에 전혀 반영되지 않았다.
+   * 가전(sink/hood/dishwasher/...)도 함께 보낸다 — 부모가 X 범위 겹침으로
+   * 개수대/후드장을 판정하는 데 쓴다.
+   */
+  function buildPlannerPayload(type) {
+    return {
+      type: type,
+      source: 'mockup-structure',
+      modules: modules.map((m) => ({
+        id: m.id,
+        section: m.section,
+        W: m.W,
+        H: m.H,
+        D: m.D,
+        x: m.x,
+        y: m.y,
+        rotation: m.rotation,
+      })),
+      structures: structures,
+      // 자동계산을 한 번이라도 돌렸는지 — 부모가 안내에 쓴다
+      hasStructures: Object.keys(structures || {}).length > 0,
+    };
+  }
+
+  function sendPlannerState(type) {
+    if (!window.parent || window.parent === window) return false;
+    try {
+      window.parent.postMessage(buildPlannerPayload(type), '*');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // W11-14: 부모(툴바 "BOM 산출")가 언제든 현재 상태를 요청할 수 있게 한다.
+  // "다음" 을 누르지 않아도 BOM 으로 갈 수 있어야 한다.
+  window.addEventListener('message', (e) => {
+    if (!e.data || e.data.type !== 'REQUEST_PLANNER_STATE') return;
+    saveStructures();
+    sendPlannerState('PLANNER_STATE');
+  });
+
   document.getElementById('nextBtn').onclick = () => {
     saveStructures();
-    const inIframe = window.parent && window.parent !== window;
-    if (inIframe) {
-      try {
-        // W11-11: 배치+구조를 부모(detaildesign)로 넘겨 BOM 의 입력이 되게 한다.
-        // 이전에는 structures 가 localStorage 에만 남아 BOM 에 전혀 반영되지 않았다.
-        // 가전(sink/hood/dishwasher/...)도 함께 보낸다 — 부모가 X 범위 겹침으로
-        // 개수대/후드장을 판정하는 데 쓴다.
-        window.parent.postMessage(
-          {
-            type: 'PLANNER_DONE',
-            source: 'mockup-structure',
-            modules: modules.map((m) => ({
-              id: m.id,
-              section: m.section,
-              W: m.W,
-              H: m.H,
-              D: m.D,
-              x: m.x,
-              y: m.y,
-              rotation: m.rotation,
-            })),
-            structures: structures,
-          },
-          '*'
-        );
-        showToast('구조 저장 · BOM 산출로 이동합니다');
-        return;
-      } catch (e) {
-        /* 아래 폴백으로 */
-      }
+    if (sendPlannerState('PLANNER_DONE')) {
+      showToast('구조 저장 · BOM 산출로 이동합니다');
+      return;
     }
     alert(
       '구조를 저장했습니다.\n\n' +
