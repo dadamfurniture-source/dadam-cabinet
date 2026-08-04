@@ -925,6 +925,57 @@
         return { modules: out, warnings };
       }
 
+      // W11-14: 툴바 "BOM 산출" 이 플래너에 현재 상태를 요청할 때 쓰는 대기 슬롯.
+      let _pendingPlannerRequest = null;
+
+      /** 현재 열려 있는 planner iframe (없으면 null). */
+      function _plannerFrame() {
+        const overlay = document.querySelector('[id^="__planner-overlay-"]');
+        return overlay ? overlay.querySelector('iframe') : null;
+      }
+
+      /**
+       * 플래너에 현재 배치+구조를 요청한다.
+       * 플래너가 없거나 응답하지 않으면 null 로 끝난다 (BOM 은 기존 modules 로 진행).
+       */
+      function _awaitPlannerState(timeoutMs) {
+        const frame = _plannerFrame();
+        if (!frame || !frame.contentWindow) return Promise.resolve(null);
+        return new Promise((resolve) => {
+          let done = false;
+          const finish = (v) => {
+            if (done) return;
+            done = true;
+            _pendingPlannerRequest = null;
+            resolve(v);
+          };
+          _pendingPlannerRequest = finish;
+          try {
+            frame.contentWindow.postMessage({ type: 'REQUEST_PLANNER_STATE' }, '*');
+          } catch (e) {
+            finish(null);
+            return;
+          }
+          setTimeout(() => finish(null), timeoutMs || 1500);
+        });
+      }
+
+      /**
+       * 툴바 "BOM 산출" — 플래너가 열려 있으면 그 상태를 먼저 가져와 반영한 뒤 산출한다.
+       * "다음" 을 누르지 않아도 BOM 으로 갈 수 있어야 하기 때문이다.
+       */
+      async function proceedToBOMWithPlanner() {
+        try {
+          const state = await _awaitPlannerState(1500);
+          if (state) _applyPlannerResult(state);
+        } catch (err) {
+          console.error('[Planner] 결과 반영 실패:', err);
+          alert('플래너 결과를 반영하지 못했습니다.\n\n' + err.message);
+          return;
+        }
+        if (typeof proceedToBOM === 'function') proceedToBOM();
+      }
+
       /** PLANNER_DONE 을 현재 품목에 반영한다. */
       function _applyPlannerResult(payload) {
         const item = _currentStep2Item();
@@ -935,13 +986,22 @@
           const placed = (payload.modules || []).length;
           throw new Error(
             placed === 0
-              ? '플래너에서 배치된 모듈이 없습니다. 배치 단계에서 모듈을 먼저 놓아 주세요.'
-              : `배치된 ${placed}개 중 제작 대상 캐비닛이 없습니다.\n` +
-                `하부장·상부장·키큰장만 자재로 산출됩니다 (가전·마감재 제외).`
+              ? '플래너에 배치된 모듈이 없습니다.\n\n1.배치 화면에서 하부장·상부장을 먼저 놓아 주세요.'
+              : `배치된 ${placed}개 중 제작 대상 캐비닛이 없습니다.\n\n` +
+                `하부장·상부장·키큰장만 자재로 산출됩니다 (분배기·후드·냉장고 등 가전과 마감재는 제외).`
           );
         }
-        if (warnings.length) {
-          console.warn('[Planner→BOM]', warnings.join(' / '));
+
+        // 자동계산을 안 돌리면 사각형이 통짜 1개로 잡혀 BOM 이 실제와 크게 달라진다.
+        // 조용히 넘기지 않고 진행 여부를 묻는다.
+        if (payload.hasStructures === false) {
+          const ok = window.confirm(
+            '자동계산을 실행하지 않았습니다.\n\n' +
+              '구조 화면에서 [⚡ 세트 일괄 자동계산] 을 먼저 돌리면\n' +
+              '도어 개수·서랍·선반이 모듈별로 반영됩니다.\n\n' +
+              '지금 상태로 BOM 을 산출할까요? (배치된 사각형이 통째로 1개 모듈이 됩니다)'
+          );
+          if (!ok) throw new Error('자동계산 후 다시 시도해 주세요.');
         }
 
         const before = (item.modules || []).length;
@@ -949,15 +1009,38 @@
         item.specs = item.specs || {};
         item.specs.autoCalculated = true;
 
-        dlog('[Planner→BOM] 모듈 반영', {
-          item: item.labelName,
-          before,
-          after: modules.length,
-          upper: modules.filter((m) => m.pos === 'upper').length,
-          lower: modules.filter((m) => m.pos === 'lower').length,
-        });
+        const upper = modules.filter((m) => m.pos === 'upper').length;
+        const lower = modules.filter((m) => m.pos === 'lower').length;
+        const doors = modules.reduce((s, m) => s + (m.doorCount || 0), 0);
+
+        dlog('[Planner→BOM] 모듈 반영', { item: item.labelName, before, after: modules.length, upper, lower });
+        if (warnings.length) console.warn('[Planner→BOM] 경고:', warnings.join(' / '));
+
+        // 무엇이 반영됐는지 화면에서 보이게 한다 — 실패/이상을 조용히 넘기지 않기 위해.
+        _showPlannerSummary(
+          `모듈 ${modules.length}개 반영 (상부 ${upper} · 하부 ${lower} · 도어 ${doors}장)`,
+          warnings
+        );
 
         if (typeof updateUI === 'function') updateUI();
+      }
+
+      /** 반영 결과 요약 배너. ai-design-report.js 의 showToast 가 있으면 그것을 쓴다. */
+      function _showPlannerSummary(message, warnings) {
+        const full = warnings && warnings.length ? `${message}\n⚠ ${warnings.join('\n⚠ ')}` : message;
+        if (typeof showToast === 'function') {
+          showToast(full);
+          return;
+        }
+        const el = document.createElement('div');
+        el.setAttribute('role', 'status');
+        el.style.cssText =
+          'position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:200;' +
+          'background:rgba(28,26,24,.94);color:#f5f0eb;padding:12px 18px;border-radius:10px;' +
+          'font-size:13px;line-height:1.6;white-space:pre-line;max-width:80vw;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+        el.textContent = full;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), warnings && warnings.length ? 9000 : 4000);
       }
 
       function _appendV2Payload(payload) {
@@ -1039,17 +1122,26 @@
             incrementCategory(catId);
           }
         }
-        // W11-9/W11-11: planner(mockup-structure) 의 "다음"
-        //  → 배치+구조를 selectedItems.modules 로 반영한 뒤 BOM 산출로 진행.
-        if (e.data.type === 'PLANNER_DONE') {
+        // W11-9/W11-11/W11-14: planner 의 배치+구조를 selectedItems.modules 로 반영.
+        //   PLANNER_DONE  — 플래너 "다음" (반영 후 곧바로 BOM 산출)
+        //   PLANNER_STATE — 툴바 "BOM 산출" 이 요청한 응답 (_awaitPlannerState 가 처리)
+        if (e.data.type === 'PLANNER_DONE' || e.data.type === 'PLANNER_STATE') {
+          const goBom = e.data.type === 'PLANNER_DONE';
+          if (_pendingPlannerRequest) {
+            // 툴바에서 요청한 응답 — 대기 중인 쪽이 이어서 처리한다
+            const resolve = _pendingPlannerRequest;
+            _pendingPlannerRequest = null;
+            resolve(e.data);
+            return;
+          }
           try {
             _applyPlannerResult(e.data);
           } catch (err) {
             console.error('[Planner] 결과 반영 실패:', err);
-            alert('플래너 결과를 반영하지 못했습니다: ' + err.message);
+            alert('플래너 결과를 반영하지 못했습니다.\n\n' + err.message);
             return;
           }
-          if (typeof proceedToBOM === 'function') proceedToBOM();
+          if (goBom && typeof proceedToBOM === 'function') proceedToBOM();
           return;
         }
         if (e.data.type === 'PLANNER_READY') {
