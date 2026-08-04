@@ -1061,8 +1061,15 @@
 
             if (error) throw error;
 
-            // 기존 아이템 삭제 후 재삽입
-            await supabaseClient.from('design_items').delete().eq('design_id', currentDesignId);
+            // 기존 아이템 삭제 후 재삽입.
+            // 트랜잭션이 아니므로 delete 성공 + insert 실패 시 품목이 사라진다.
+            // delete 오류를 삼키면 그 사실조차 모른 채 진행되므로 반드시 확인한다.
+            const { error: delError } = await supabaseClient
+              .from('design_items')
+              .delete()
+              .eq('design_id', currentDesignId);
+
+            if (delError) throw delError;
 
             await saveDesignItems(currentDesignId);
           } else {
@@ -1121,9 +1128,22 @@
           item_order: index,
         }));
 
-        const { error } = await supabaseClient.from('design_items').insert(itemsToInsert);
+        const { data: inserted, error } = await supabaseClient
+          .from('design_items')
+          .insert(itemsToInsert)
+          .select('id');
 
         if (error) throw error;
+
+        // 삽입 건수가 모자라면 조용히 넘기지 않는다.
+        // 여기서 놓치면 design_items 가 비거나 일부만 남은 설계가 만들어지고,
+        // 다음에 열었을 때 원인을 알 수 없는 빈 화면이 된다.
+        if (!inserted || inserted.length !== itemsToInsert.length) {
+          throw new Error(
+            `품목 저장이 불완전합니다 (${inserted ? inserted.length : 0}/${itemsToInsert.length}건). ` +
+              `다시 저장해 주세요.`
+          );
+        }
       }
 
       // 설계 불러오기
@@ -1149,6 +1169,22 @@
             .order('item_order');
 
           if (itemsError) throw itemsError;
+
+          // 저장이 중간에 끊긴 설계 방어.
+          // saveDesign 은 designs 를 먼저 쓰고 design_items 를 delete → insert 하는데
+          // 트랜잭션이 아니라서, insert 가 실패하면 designs.total_items 는 남고
+          // design_items 만 0행이 되는 상태가 만들어진다.
+          // 이때 조용히 빈 설계를 띄우면 사용자는 "다음 단계" 버튼이 왜 비활성인지 알 수 없다.
+          if ((!items || items.length === 0) && (design.total_items || 0) > 0) {
+            updateSaveStatus('error', '불러오기 실패');
+            alert(
+              `이 설계("${design.name}")에는 저장된 품목이 없습니다.\n\n` +
+                `저장 당시 품목 정보가 기록되지 못한 것으로 보입니다 ` +
+                `(기록상 ${design.total_items}개여야 함).\n` +
+                `복구할 데이터가 없으므로 품목을 다시 추가해 주세요.`
+            );
+            return;
+          }
 
           // 데이터 복원
           currentDesignId = designId;
