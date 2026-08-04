@@ -234,21 +234,29 @@
       }
 
       // ============================================================
-      // W11-9: Step 2 화면 모드
+      // W11-9/W11-10: Step 2 화면 모드
       //
-      // step2-fullscreen 은 planner iframe 만 남기고 .design-workspace 의
-      // 모든 자식을 숨긴다(base.css:82). 그런데 BOM 산출 버튼이 그 안의
-      // .ws-header 에 있어서, fullscreen 상태에서는 Step 3 로 갈 수단이 없었다.
-      // 또 붙박이장/냉장고장은 planner overlay 자체를 만들지 않아
-      // (_renderWorkspaceContentImpl 의 early return) 화면이 백지가 됐다.
+      // Step 2 의 정식 UI 는 planner(mockup-shell) iframe 이다.
+      // W9-2(#308) "기존 layout 완전 숨김", W9-6(#312) "Step 2 mockup HTML 전면 교체",
+      // W9-7(#313) "designWorkspace 내부 UI 완전 숨김" 으로 확정된 방향이므로
+      // 구 워크스페이스로 되돌아가는 토글은 두지 않는다.
       //
-      // 그래서 두 모드를 명시적으로 나눈다:
-      //   step2-fullscreen : planner iframe 전체화면 (배치 작업)
-      //   step2-native     : 기존 워크스페이스 (모듈/스펙 편집 — BOM 의 입력)
-      // 어느 쪽이든 body 직속 #step2Toolbar 로 빠져나가거나 BOM 으로 갈 수 있다.
+      // 다만 base.css 의 전체 숨김이 BOM 산출 버튼(.ws-header 안)까지 삼켜
+      // Step 3 로 갈 수단이 사라졌고, 빠져나올 방법도 없었다.
+      // → body 직속 #step2Toolbar 가 그 두 경로를 담당한다.
+      //
+      // step2-native 는 예외 처리용이다. 붙박이장/냉장고장은
+      // _renderWorkspaceContentImpl 이 early return 하여 planner overlay 를
+      // 만들지 않으므로, fullscreen 을 걸면 화면이 백지가 된다.
+      // planner 가 이 두 카테고리를 지원하기 전까지의 임시 조치다.
       // ============================================================
 
-      /** planner iframe 을 쓰지 않는 카테고리 — 네이티브 워크스페이스만 있다. */
+      /**
+       * planner 가 아직 지원하지 않는 카테고리.
+       * _renderWorkspaceContentImpl 이 이 둘을 early return 으로 처리해
+       * planner overlay 를 만들지 않는다. fullscreen 을 걸면 백지가 되므로
+       * 예외적으로 구 워크스페이스를 노출한다.
+       */
       const NATIVE_ONLY_CATEGORIES = ['wardrobe', 'fridge'];
 
       function _isNativeOnly(item) {
@@ -259,8 +267,6 @@
         const body = document.body;
         body.classList.toggle('step2-fullscreen', mode === 'planner');
         body.classList.toggle('step2-native', mode === 'native');
-        const btn = document.getElementById('s2ViewToggle');
-        if (btn) btn.textContent = mode === 'planner' ? '설계 편집' : '3D 배치';
       }
 
       /** 현재 북마크로 선택된 아이템. renderBookmarks 가 currentItemId 를 설정한다(:414, :420). */
@@ -272,7 +278,7 @@
         return selectedItems[0] || null;
       }
 
-      /** 현재 아이템에 맞는 기본 모드를 적용하고 툴바 제목을 갱신한다. */
+      /** 현재 아이템에 맞는 모드를 적용하고 툴바 제목을 갱신한다. */
       function _applyStep2Chrome(item) {
         const target = item || _currentStep2Item();
         const title = document.getElementById('s2Title');
@@ -281,31 +287,8 @@
             ? `${target.labelName || target.name || '설계'} · ${target.w || '?'}×${target.h || '?'}×${target.d || '?'}`
             : '설계';
         }
-        // planner 가 없는 카테고리는 네이티브 모드로만 쓸 수 있다
-        if (_isNativeOnly(target)) {
-          _setStep2Mode('native');
-          return;
-        }
-        // 이미 사용자가 네이티브로 전환해 둔 상태면 유지한다
-        if (document.body.classList.contains('step2-native')) {
-          _setStep2Mode('native');
-          return;
-        }
-        _setStep2Mode('planner');
-      }
-
-      /** 툴바 토글 — 3D 배치 ⟷ 설계 편집. */
-      function toggleStep2View() {
-        const item = _currentStep2Item();
-        if (_isNativeOnly(item)) {
-          alert('이 품목은 3D 배치를 지원하지 않습니다. 설계 편집 화면에서 작업해 주세요.');
-          _setStep2Mode('native');
-          return;
-        }
-        const goNative = document.body.classList.contains('step2-fullscreen');
-        _setStep2Mode(goNative ? 'native' : 'planner');
-        // 모드가 바뀌면 워크스페이스를 다시 그려 overlay 위치를 맞춘다
-        if (typeof renderWorkspaceContent === 'function' && item) renderWorkspaceContent(item);
+        // planner 미지원 카테고리만 예외적으로 구 워크스페이스를 노출한다
+        _setStep2Mode(_isNativeOnly(target) ? 'native' : 'planner');
       }
 
       function goToStep2() {
