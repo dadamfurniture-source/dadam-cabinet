@@ -59,19 +59,26 @@ describe('Step 2 툴바 — 화면에서 빠져나갈 수 있어야 한다', () 
       b.getAttribute('onclick').replace(/\(.*$/, '').trim()
     );
 
-    expect(handlers.length).toBeGreaterThanOrEqual(3);
+    expect(handlers.length).toBeGreaterThanOrEqual(2);
     for (const fn of handlers) {
       expect(uiStep1).toMatch(new RegExp(`function\\s+${fn}\\s*\\(`));
     }
   });
 
-  test('BOM 산출 · 입력 수정 · 화면 전환 버튼이 모두 있다', () => {
+  test('BOM 산출 · 입력 수정 버튼이 있다', () => {
     document.documentElement.innerHTML = html;
     const toolbar = document.getElementById('step2Toolbar');
     const onclicks = [...toolbar.querySelectorAll('[onclick]')].map((b) => b.getAttribute('onclick'));
     expect(onclicks.some((o) => o.includes('proceedToBOM'))).toBe(true);
     expect(onclicks.some((o) => o.includes('backToStep1'))).toBe(true);
-    expect(onclicks.some((o) => o.includes('toggleStep2View'))).toBe(true);
+  });
+
+  test('구 워크스페이스로 되돌아가는 토글은 두지 않는다', () => {
+    // W9-2(#308) "기존 layout 완전 숨김", W9-6(#312) "Step 2 mockup HTML 전면 교체",
+    // W9-7(#313) "designWorkspace 내부 UI 완전 숨김" 으로 확정된 방향.
+    // Step 2 의 정식 UI 는 planner(mockup-shell) iframe 하나뿐이다.
+    expect(html).not.toMatch(/toggleStep2View/);
+    expect(uiStep1).not.toMatch(/function\s+toggleStep2View/);
   });
 });
 
