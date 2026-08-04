@@ -754,6 +754,128 @@
 
       // W6-7: legacy payload → V2 (segments + modulesV2) 합성.
       // App.tsx 의 자동 migrate 와 동일 로직 — 명시적 송신으로 즉시 V2 인식.
+      // ============================================================
+      // W11-11: planner(mockup-shell/structure) 결과 → selectedItems.modules
+      //
+      // 플래너가 BOM 의 정본이다. "다음" 을 누르면 거기서 배치·자동계산한 결과가
+      // 현재 품목의 modules 를 대체하고, 그 상태로 BOM 이 산출된다.
+      // 이전에는 structures 가 localStorage 에만 남아 BOM 에 전혀 반영되지 않았다.
+      //
+      // 매핑은 전부 플래너 데이터에서 도출한다 (임의 규칙 없음):
+      //   doorCount  = Σ areaTypes[i]==='door' ? (areaIs2D[i] ? 2 : 1) : 0
+      //   isDrawer   = horizontalLayout==='doorTopDrawerBottom' && bottomType==='drawer'
+      //   shelfCount = shelves.length
+      //   pos        = section 'upper' → upper, 그 외(lower/tall/wardrobe) → lower
+      //                ('tall' 이 lower 인 것은 _appendV2Payload 의 lowerSection 매핑의 역)
+      //   type       = 분배기(sink) X 범위와 겹치는 하부 → 'sink'(개수대)
+      //                후드(hood) X 범위와 겹치는 상부 → 'hood'(후드장)
+      //                그 외 → 'storage'
+      // ============================================================
+
+      /** 플래너에서 캐비닛으로 취급하는 section. 나머지는 가전/마감재다. */
+      const PLANNER_CABINET_SECTIONS = ['lower', 'upper', 'tall', 'wardrobe'];
+      /** 캐비닛이 아니라 X 범위 판정에만 쓰는 가전 section. */
+      const PLANNER_APPLIANCE_SECTIONS = ['sink', 'hood', 'dishwasher', 'fridge', 'refrigerator'];
+
+      function _xOverlaps(a, b) {
+        const a0 = Number(a.x) || 0;
+        const a1 = a0 + (Number(a.W) || 0);
+        const b0 = Number(b.x) || 0;
+        const b1 = b0 + (Number(b.W) || 0);
+        return a0 < b1 && b0 < a1;
+      }
+
+      /** 구조(structures[id])에서 도어 장수를 센다. 양문(areaIs2D)은 2장. */
+      function _doorCountFromStructure(s) {
+        if (!s) return 1;
+        const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
+        if (types.length === 0) return Math.max(1, Number(s.verticalCount) || 1);
+        let n = 0;
+        types.forEach((t, i) => {
+          if (t !== 'door') return; // open / 먹장 등은 도어 없음
+          n += s.areaIs2D && s.areaIs2D[i] ? 2 : 1;
+        });
+        return n;
+      }
+
+      /** PLANNER_DONE payload → detaildesign 모듈 배열. */
+      function _convertPlannerModules(payload) {
+        const src = Array.isArray(payload.modules) ? payload.modules : [];
+        const structures = payload.structures || {};
+        const appliances = src.filter((m) => PLANNER_APPLIANCE_SECTIONS.includes(m.section));
+        const sinkRanges = appliances.filter((m) => m.section === 'sink');
+        const hoodRanges = appliances.filter((m) => m.section === 'hood');
+
+        const out = [];
+        src.forEach((m) => {
+          if (!PLANNER_CABINET_SECTIONS.includes(m.section)) return;
+
+          const s = structures[m.id] || null;
+          const pos = m.section === 'upper' ? 'upper' : 'lower';
+
+          let type = 'storage';
+          let name = pos === 'upper' ? '상부장' : '하부장';
+          if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(m, r))) {
+            type = 'sink';
+            name = '개수대';
+          } else if (pos === 'upper' && hoodRanges.some((r) => _xOverlaps(m, r))) {
+            type = 'hood';
+            name = '후드장';
+          }
+
+          const isDrawer = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
+
+          out.push({
+            id: `planner-${m.id}`,
+            type,
+            name,
+            pos,
+            w: Number(m.W) || 0,
+            h: Number(m.H) || 0,
+            d: Number(m.D) || 0,
+            doorCount: _doorCountFromStructure(s),
+            is2door: false,
+            isDrawer,
+            // 플래너 자동계산은 하부에 서랍 1단(bottomType='drawer')만 만든다
+            drawerCount: isDrawer ? 1 : 0,
+            shelfCount: s && Array.isArray(s.shelves) ? s.shelves.length : 0,
+            isEL: false,
+            isFixed: false,
+            _x: Number(m.x) || 0,
+          });
+        });
+
+        // 배치 순서(x)대로 정렬 — 정면도/BOM 라벨 순서를 도면과 맞춘다
+        out.sort((a, b) => (a.pos === b.pos ? a._x - b._x : a.pos === 'upper' ? -1 : 1));
+        return out;
+      }
+
+      /** PLANNER_DONE 을 현재 품목에 반영한다. */
+      function _applyPlannerResult(payload) {
+        const item = _currentStep2Item();
+        if (!item) throw new Error('대상 품목을 찾을 수 없습니다.');
+
+        const modules = _convertPlannerModules(payload);
+        if (modules.length === 0) {
+          throw new Error('플래너에서 배치된 캐비닛 모듈이 없습니다. 배치 단계에서 모듈을 먼저 놓아 주세요.');
+        }
+
+        const before = (item.modules || []).length;
+        item.modules = modules;
+        item.specs = item.specs || {};
+        item.specs.autoCalculated = true;
+
+        dlog('[Planner→BOM] 모듈 반영', {
+          item: item.labelName,
+          before,
+          after: modules.length,
+          upper: modules.filter((m) => m.pos === 'upper').length,
+          lower: modules.filter((m) => m.pos === 'lower').length,
+        });
+
+        if (typeof updateUI === 'function') updateUI();
+      }
+
       function _appendV2Payload(payload) {
         const layoutShape = payload.layoutShape || 'I';
         const segments = [
@@ -833,9 +955,16 @@
             incrementCategory(catId);
           }
         }
-        // W11-9: planner(mockup-structure) 의 "다음" → BOM 산출로 진행.
-        // 이전에는 mockup-structure 가 alert 만 띄우고 끝나 Step 3 로 갈 길이 없었다.
+        // W11-9/W11-11: planner(mockup-structure) 의 "다음"
+        //  → 배치+구조를 selectedItems.modules 로 반영한 뒤 BOM 산출로 진행.
         if (e.data.type === 'PLANNER_DONE') {
+          try {
+            _applyPlannerResult(e.data);
+          } catch (err) {
+            console.error('[Planner] 결과 반영 실패:', err);
+            alert('플래너 결과를 반영하지 못했습니다: ' + err.message);
+            return;
+          }
           if (typeof proceedToBOM === 'function') proceedToBOM();
           return;
         }
