@@ -767,9 +767,23 @@
       //   shelfCount = shelves.length
       //   pos        = section 'upper' → upper, 그 외(lower/tall/wardrobe) → lower
       //                ('tall' 이 lower 인 것은 _appendV2Payload 의 lowerSection 매핑의 역)
-      //   type       = 분배기(sink) X 범위와 겹치는 하부 → 'sink'(개수대)
-      //                후드(hood) X 범위와 겹치는 상부 → 'hood'(후드장)
-      //                그 외 → 'storage'
+      //   type       = 항상 'storage' (아래 W11-12 참조)
+      //   name       = 가전과 겹치면 '개수대'/'후드장' — 표시용 라벨일 뿐 BOM 규칙과 무관
+      //
+      // ★ W11-12: type 을 'hood'/'sink' 로 주면 안 된다.
+      //   detaildesign 에서 'hood' 는 가구가 아니라 "후드가 들어갈 빈 영역" 이라
+      //   extractors.js:132 가 상부장 목록에서 아예 걸러낸다
+      //   (`m.pos === 'upper' && m.type !== 'hood'`).
+      //   docs/design-rules/sink.md:37 "hood | 후드 영역 (도어 없음)",
+      //   :27 "상부장: 후드 위치 제외", common.md:149 "선반 2개 (후드 제외)".
+      //   → 후드와 겹친 상부 캐비닛을 'hood' 로 표시하면 몸통(측판/천판/지판/뒷판)까지
+      //     BOM 에서 통째로 사라져 제작 누락이 된다.
+      //
+      //   플래너는 이미 이 문제를 다르게(정확하게) 풀고 있다.
+      //   splitModuleByAppliance 가 가전 X 범위를 kind:'open' 으로 잘라
+      //   areaTypes 에 'open' 을 넣으므로, 그 구간에는 도어가 잡히지 않는다.
+      //   즉 "가전 영역은 도어 없음" 이 이미 areaTypes 로 표현돼 있고,
+      //   캐비닛 몸통은 그대로 제작 대상이다. type 으로 또 표시할 필요가 없다.
       // ============================================================
 
       /** 플래너에서 캐비닛으로 취급하는 section. 나머지는 가전/마감재다. */
@@ -813,13 +827,13 @@
           const s = structures[m.id] || null;
           const pos = m.section === 'upper' ? 'upper' : 'lower';
 
-          let type = 'storage';
+          // type 은 항상 'storage'. 가전 겹침은 라벨(name)로만 남긴다 —
+          // 'hood' 로 주면 extractors.js:132 가 그 캐비닛을 BOM 에서 제외한다.
+          const type = 'storage';
           let name = pos === 'upper' ? '상부장' : '하부장';
           if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(m, r))) {
-            type = 'sink';
             name = '개수대';
           } else if (pos === 'upper' && hoodRanges.some((r) => _xOverlaps(m, r))) {
-            type = 'hood';
             name = '후드장';
           }
 
