@@ -799,20 +799,45 @@
         return a0 < b1 && b0 < a1;
       }
 
-      /** 구조(structures[id])에서 도어 장수를 센다. 양문(areaIs2D)은 2장. */
-      function _doorCountFromStructure(s) {
-        if (!s) return 1;
-        const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
-        if (types.length === 0) return Math.max(1, Number(s.verticalCount) || 1);
-        let n = 0;
-        types.forEach((t, i) => {
-          if (t !== 'door') return; // open / 먹장 등은 도어 없음
-          n += s.areaIs2D && s.areaIs2D[i] ? 2 : 1;
+      /**
+       * 플래너 사각형 하나를 셀(제작 모듈) 목록으로 편다.
+       *
+       * ★ 플래너의 사각형은 도면상의 구획이지 제작 단위가 아니다.
+       *   autoCalcModule 이 distributeModules(segW) 로 셀을 나누고
+       *   areaWidths[i] 에 각 셀의 폭을 넣는다. 그 셀 하나가 제작 모듈 하나다.
+       *   (사각형 1개 = 모듈 1개로 보면 4미터짜리 캐비닛이 만들어져
+       *    원판 1220×2440 으로 제작 자체가 불가능해진다.)
+       *
+       * @returns {Array<{w:number, kind:string, is2D:boolean, x:number}>}
+       */
+      function _cellsOfPlannerModule(m, s) {
+        const W = Number(m.W) || 0;
+        const baseX = Number(m.x) || 0;
+
+        const widths = s && Array.isArray(s.areaWidths) ? s.areaWidths : [];
+        const types = s && Array.isArray(s.areaTypes) ? s.areaTypes : [];
+        const is2Ds = s && Array.isArray(s.areaIs2D) ? s.areaIs2D : [];
+
+        // 자동계산 전이면 areaWidths 가 비어 있다 → 분배 정보가 없다.
+        // 임의로 쪼개지 않고 통짜 1개로 두되, 호출부가 경고할 수 있게 flag 를 남긴다.
+        if (widths.length === 0 || widths.length !== types.length) {
+          return [{ w: W, kind: types[0] || 'door', is2D: !!is2Ds[0], x: baseX, noAutoCalc: true }];
+        }
+
+        const cells = [];
+        let cursor = baseX;
+        widths.forEach((w, i) => {
+          const cw = Number(w) || 0;
+          cells.push({ w: cw, kind: types[i] || 'door', is2D: !!is2Ds[i], x: cursor });
+          cursor += cw;
         });
-        return n;
+        return cells;
       }
 
-      /** PLANNER_DONE payload → detaildesign 모듈 배열. */
+      /**
+       * PLANNER_DONE payload → detaildesign 모듈 배열.
+       * @returns {{modules: Array, warnings: string[]}}
+       */
       function _convertPlannerModules(payload) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
@@ -821,47 +846,83 @@
         const hoodRanges = appliances.filter((m) => m.section === 'hood');
 
         const out = [];
+        const warnings = [];
+        let blankDropped = 0;
+
         src.forEach((m) => {
           if (!PLANNER_CABINET_SECTIONS.includes(m.section)) return;
 
           const s = structures[m.id] || null;
           const pos = m.section === 'upper' ? 'upper' : 'lower';
+          // 플래너 자동계산은 하부 모듈을 doorTopDrawerBottom(하부 서랍 1단)으로 만든다
+          const drawerAtBottom = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
+          const shelfCount = s && Array.isArray(s.shelves) ? s.shelves.length : 0;
 
-          // type 은 항상 'storage'. 가전 겹침은 라벨(name)로만 남긴다 —
-          // 'hood' 로 주면 extractors.js:132 가 그 캐비닛을 BOM 에서 제외한다.
-          const type = 'storage';
-          let name = pos === 'upper' ? '상부장' : '하부장';
-          if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(m, r))) {
-            name = '개수대';
-          } else if (pos === 'upper' && hoodRanges.some((r) => _xOverlaps(m, r))) {
-            name = '후드장';
+          const cells = _cellsOfPlannerModule(m, s);
+          if (cells.length === 1 && cells[0].noAutoCalc) {
+            warnings.push(`${m.id}: 자동계산 전이라 ${cells[0].w}mm 통짜로 잡혔습니다`);
+          } else {
+            // 셀 폭 합이 사각형 폭과 크게 다르면 분배 정보가 낡은 것이다
+            // (배치를 고친 뒤 자동계산을 다시 돌리지 않은 경우).
+            // 그대로 두면 BOM 이 실제보다 좁게/넓게 나온다.
+            const sum = cells.reduce((a, c) => a + (Number(c.w) || 0), 0);
+            const W = Number(m.W) || 0;
+            if (W > 0 && Math.abs(sum - W) > 10) {
+              warnings.push(
+                `${m.id}: 셀 폭 합 ${sum}mm 이 모듈 폭 ${W}mm 과 다릅니다 — 자동계산을 다시 실행하세요`
+              );
+            }
           }
 
-          const isDrawer = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
+          cells.forEach((c, i) => {
+            // blank = 350mm 미만 잔여 조각 (MASTER_RULES.BLANK_THRESHOLD).
+            // 캐비닛으로 제작하지 않고 휠라/마감으로 처리되므로 모듈에서 뺀다.
+            if (c.kind === 'blank' || c.w <= 0) {
+              if (c.kind === 'blank') blankDropped++;
+              return;
+            }
 
-          out.push({
-            id: `planner-${m.id}`,
-            type,
-            name,
-            pos,
-            w: Number(m.W) || 0,
-            h: Number(m.H) || 0,
-            d: Number(m.D) || 0,
-            doorCount: _doorCountFromStructure(s),
-            is2door: false,
-            isDrawer,
-            // 플래너 자동계산은 하부에 서랍 1단(bottomType='drawer')만 만든다
-            drawerCount: isDrawer ? 1 : 0,
-            shelfCount: s && Array.isArray(s.shelves) ? s.shelves.length : 0,
-            isEL: false,
-            isFixed: false,
-            _x: Number(m.x) || 0,
+            const isOpen = c.kind === 'open';
+
+            // type 은 항상 'storage' — 'hood' 로 주면 extractors.js:132 가
+            // 그 캐비닛을 BOM 에서 통째로 제외한다 (W11-12).
+            let name = pos === 'upper' ? '상부장' : '하부장';
+            const cellRect = { x: c.x, W: c.w };
+            if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(cellRect, r))) {
+              name = '개수대';
+            } else if (pos === 'upper' && hoodRanges.some((r) => _xOverlaps(cellRect, r))) {
+              name = '후드장';
+            }
+
+            out.push({
+              id: `planner-${m.id}-${i}`,
+              type: 'storage',
+              name,
+              pos,
+              w: c.w,
+              h: Number(m.H) || 0,
+              d: Number(m.D) || 0,
+              doorCount: isOpen ? 0 : c.is2D ? 2 : 1,
+              is2door: !!c.is2D,
+              // 오픈 구간은 가전 자리라 서랍을 넣지 않는다
+              isDrawer: !isOpen && drawerAtBottom,
+              drawerCount: !isOpen && drawerAtBottom ? 1 : 0,
+              isOpen,
+              shelfCount,
+              isEL: false,
+              isFixed: false,
+              _x: c.x,
+            });
           });
         });
 
+        if (blankDropped > 0) {
+          warnings.push(`350mm 미만 잔여 ${blankDropped}칸은 캐비닛에서 제외했습니다 (휠라/마감 처리)`);
+        }
+
         // 배치 순서(x)대로 정렬 — 정면도/BOM 라벨 순서를 도면과 맞춘다
         out.sort((a, b) => (a.pos === b.pos ? a._x - b._x : a.pos === 'upper' ? -1 : 1));
-        return out;
+        return { modules: out, warnings };
       }
 
       /** PLANNER_DONE 을 현재 품목에 반영한다. */
@@ -869,9 +930,18 @@
         const item = _currentStep2Item();
         if (!item) throw new Error('대상 품목을 찾을 수 없습니다.');
 
-        const modules = _convertPlannerModules(payload);
+        const { modules, warnings } = _convertPlannerModules(payload);
         if (modules.length === 0) {
-          throw new Error('플래너에서 배치된 캐비닛 모듈이 없습니다. 배치 단계에서 모듈을 먼저 놓아 주세요.');
+          const placed = (payload.modules || []).length;
+          throw new Error(
+            placed === 0
+              ? '플래너에서 배치된 모듈이 없습니다. 배치 단계에서 모듈을 먼저 놓아 주세요.'
+              : `배치된 ${placed}개 중 제작 대상 캐비닛이 없습니다.\n` +
+                `하부장·상부장·키큰장만 자재로 산출됩니다 (가전·마감재 제외).`
+          );
+        }
+        if (warnings.length) {
+          console.warn('[Planner→BOM]', warnings.join(' / '));
         }
 
         const before = (item.modules || []).length;
