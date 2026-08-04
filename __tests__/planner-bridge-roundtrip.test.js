@@ -58,7 +58,7 @@ function loadBridge(win, state) {
   // eslint-disable-next-line no-new-func
   const factory = new Function(
     'window', 'selectedItems', 'currentItemId', 'dlog', 'updateUI', 'proceedToBOM',
-    'incrementCategory', 'CATEGORIES', 'alert', 'console',
+    'incrementCategory', 'CATEGORIES', 'alert', 'console', 'showToast', 'document',
     src
   );
   factory(
@@ -71,15 +71,17 @@ function loadBridge(win, state) {
     state.incrementCategory,
     state.CATEGORIES,
     state.alert,
-    state.console
+    state.console,
+    state.showToast,
+    state.document
   );
 }
 
 /** mockup-structure 가 실제로 보내는 payload 필드명을 소스에서 확인한다. */
 function plannerPayloadFields() {
-  const idx = STRUCT.indexOf("type: 'PLANNER_DONE'");
-  const chunk = STRUCT.slice(idx - 200, idx + 700);
-  return chunk;
+  const idx = STRUCT.indexOf('function buildPlannerPayload');
+  if (idx < 0) throw new Error('buildPlannerPayload 를 찾지 못했습니다 — mockup-structure 구조가 바뀌었는지 확인하세요.');
+  return sliceBalanced(STRUCT, idx);
 }
 
 function makeItem() {
@@ -125,12 +127,13 @@ function plannerMessage() {
   };
 }
 
-function setup() {
+function setup(opts = {}) {
   const item = makeItem();
-  const calls = { proceedToBOM: 0, updateUI: 0, alerts: [] };
+  const calls = { proceedToBOM: 0, updateUI: 0, alerts: [], confirms: [] };
   const listeners = [];
   const win = {
     addEventListener: (type, fn) => { if (type === 'message') listeners.push(fn); },
+    confirm: (m) => { calls.confirms.push(m); return opts.confirmResult !== false; },
   };
   loadBridge(win, {
     selectedItems: [item],
@@ -141,7 +144,9 @@ function setup() {
     incrementCategory: () => {},
     CATEGORIES: [{ id: 'sink' }],
     alert: (m) => { calls.alerts.push(m); },
-    console: { error: () => {}, debug: () => {} },
+    console: { error: () => {}, warn: () => {}, debug: () => {} },
+    showToast: () => {},
+    document: { querySelector: () => null, createElement: () => ({ style: {}, setAttribute() {} }) },
   });
   const dispatch = (data) => listeners.forEach((fn) => fn({ data }));
   return { item, calls, dispatch };
@@ -154,6 +159,13 @@ describe('payload 필드명이 송신·수신 양쪽에서 일치한다', () => 
     const chunk = plannerPayloadFields();
     expect(chunk).toMatch(/modules:/);
     expect(chunk).toMatch(/structures:/);
+    expect(chunk).toMatch(/hasStructures:/); // 자동계산 여부 안내용
+  });
+
+  test('툴바 요청(REQUEST_PLANNER_STATE)에 응답하는 리스너가 있다', () => {
+    expect(STRUCT).toMatch(/REQUEST_PLANNER_STATE/);
+    expect(STRUCT).toMatch(/sendPlannerState\('PLANNER_STATE'\)/);
+    expect(STRUCT).toMatch(/sendPlannerState\('PLANNER_DONE'\)/);
   });
 
   test('보내는 모듈 필드가 변환기가 읽는 것과 같다', () => {
@@ -221,6 +233,38 @@ describe('PLANNER_DONE 배선', () => {
     dispatch({ type: 'SOMETHING_ELSE' });
     expect(calls.proceedToBOM).toBe(0);
     expect(item.modules).toHaveLength(1);
+  });
+
+  test('PLANNER_STATE 는 반영만 하고 BOM 으로 넘어가지 않는다', () => {
+    // 툴바 "BOM 산출" 이 요청한 응답 — 대기 중인 쪽이 직접 이어서 처리한다
+    const { item, calls, dispatch } = setup();
+    dispatch({ ...plannerMessage(), type: 'PLANNER_STATE' });
+    expect(item.modules.length).toBeGreaterThan(1); // 반영은 됨
+    expect(calls.proceedToBOM).toBe(0); // 자동 진행은 안 함
+  });
+});
+
+describe('자동계산 없이 진행할 때 안내', () => {
+  test('hasStructures=false 면 확인을 묻고, 거절하면 반영하지 않는다', () => {
+    const { item, calls, dispatch } = setup({ confirmResult: false });
+    dispatch({ ...plannerMessage(), structures: {}, hasStructures: false });
+    expect(calls.confirms).toHaveLength(1);
+    expect(calls.confirms[0]).toMatch(/자동계산/);
+    expect(item.modules).toHaveLength(1); // 원래 모듈 유지
+    expect(calls.proceedToBOM).toBe(0);
+  });
+
+  test('확인하면 통짜로라도 진행한다', () => {
+    const { item, calls, dispatch } = setup({ confirmResult: true });
+    dispatch({ ...plannerMessage(), structures: {}, hasStructures: false });
+    expect(item.modules.length).toBeGreaterThan(0);
+    expect(calls.proceedToBOM).toBe(1);
+  });
+
+  test('자동계산을 돌렸으면 묻지 않는다', () => {
+    const { calls, dispatch } = setup();
+    dispatch(plannerMessage()); // hasStructures 미지정 = 기존 동작
+    expect(calls.confirms).toHaveLength(0);
   });
 });
 
