@@ -156,7 +156,13 @@
             // 선반 2개 (사쿠리 반영 D-34)
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, 2, '1면(전)');
             // 도어 (H + overlap)
-            const doorCount = mod.doorCount || 1;
+            // W11-13: 미지정(undefined)과 0 을 구분한다.
+            //   기존 저장 설계는 doorCount 를 안 넣고 폴백 1 에 의존하므로 그대로 1.
+            //   플래너 변환 모듈은 오픈 구간에 0 을 명시하는데, `|| 1` 이면
+            //   0 이 falsy 라 도어가 1장 생겨 없는 도어가 발주된다.
+            //   (하부장 루프는 이미 `mod.doorCount || 0` 으로 0 을 존중한다)
+            const rawDoorCount = Number(mod.doorCount);
+            const doorCount = Number.isFinite(rawDoorCount) ? rawDoorCount : 1;
             if (String(mod.id) === 'corner-blind-upper') {
               // W10-4: 상부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;

@@ -4,6 +4,9 @@
  * 이 변환이 틀리면 BOM 이 틀리고, 그대로 공장에 발주된다.
  * ui-step1.js 는 전역 스크립트라 import 할 수 없으므로,
  * 순수 함수 블록만 소스에서 잘라내 실제 코드를 그대로 평가한다.
+ *
+ * ★ 가장 중요한 계약: 플래너 사각형 1개 = 제작 모듈 1개가 아니다.
+ *   자동계산이 나눈 셀(areaWidths[i]) 하나가 제작 모듈 하나다.
  */
 
 const fs = require('fs');
@@ -19,44 +22,37 @@ function loadConverter() {
   }
   const block = SRC.slice(start, end);
   // eslint-disable-next-line no-new-func
-  return new Function(`${block}; return { _convertPlannerModules, _doorCountFromStructure, _xOverlaps };`)();
+  return new Function(`${block}; return { _convertPlannerModules, _xOverlaps };`)();
 }
 
-const { _convertPlannerModules, _doorCountFromStructure, _xOverlaps } = loadConverter();
+const raw = loadConverter();
+const _xOverlaps = raw._xOverlaps;
+const convert = (p) => raw._convertPlannerModules(p).modules;
+const convertFull = (p) => raw._convertPlannerModules(p);
 
-/** 하부장 2개 + 상부장 1개 + 분배기 + 후드 */
+/** 자동계산이 끝난 상태의 payload — 하부 4260 을 셀로 나눈 모습. */
 function payload(overrides = {}) {
   return {
     modules: [
-      { id: 'lower-0', section: 'lower', W: 900, H: 870, D: 650, x: 0, y: 0 },
-      { id: 'lower-1', section: 'lower', W: 1200, H: 870, D: 650, x: 900, y: 0 },
-      { id: 'upper-0', section: 'upper', W: 800, H: 720, D: 320, x: 0, y: 1000 },
-      // 가전 — 캐비닛이 아니라 X 범위 판정용
-      { id: 'sink-0', section: 'sink', W: 600, H: 100, D: 500, x: 100, y: 0 },
-      { id: 'hood-0', section: 'hood', W: 600, H: 300, D: 320, x: 100, y: 1000 },
+      { id: 'lower-0', section: 'lower', W: 1800, H: 870, D: 650, x: 0, y: 0 },
+      { id: 'upper-0', section: 'upper', W: 1800, H: 720, D: 320, x: 0, y: 1000 },
+      { id: 'sink-0', section: 'sink', W: 600, H: 100, D: 500, x: 450, y: 0 },
+      { id: 'hood-0', section: 'hood', W: 600, H: 300, D: 320, x: 450, y: 1000 },
     ],
     structures: {
       'lower-0': {
-        verticalCount: 2,
         horizontalLayout: 'doorTopDrawerBottom',
         bottomType: 'drawer',
-        drawerHeight: 200,
-        areaTypes: ['door', 'door'],
-        areaIs2D: [false, false],
+        areaTypes: ['door', 'open', 'door'],
+        areaWidths: [450, 600, 750],
+        areaIs2D: [false, false, true],
         shelves: [400],
       },
-      'lower-1': {
-        verticalCount: 1,
-        horizontalLayout: 'doorOnly',
-        areaTypes: ['door'],
-        areaIs2D: [true], // 양문
-        shelves: [],
-      },
       'upper-0': {
-        verticalCount: 2,
         horizontalLayout: 'doorOnly',
-        areaTypes: ['door', 'open'],
-        areaIs2D: [false, false],
+        areaTypes: ['door', 'open', 'door'],
+        areaWidths: [450, 600, 750],
+        areaIs2D: [false, false, false],
         shelves: [300, 600],
       },
     },
@@ -64,16 +60,83 @@ function payload(overrides = {}) {
   };
 }
 
-const byId = (mods, plannerId) => mods.find((m) => m.id === `planner-${plannerId}`);
+describe('★ 플래너 사각형은 셀 단위로 펼쳐진다', () => {
+  test('사각형 2개가 셀 4개(오픈 2 포함 6개)로 나뉜다', () => {
+    const mods = convert(payload());
+    // lower 3셀 + upper 3셀 = 6
+    expect(mods).toHaveLength(6);
+  });
+
+  test('셀 폭이 areaWidths 를 그대로 따른다', () => {
+    const lower = convert(payload()).filter((m) => m.pos === 'lower');
+    expect(lower.map((m) => m.w)).toEqual([450, 600, 750]);
+  });
+
+  test('사각형 1개를 통짜 모듈 1개로 만들지 않는다', () => {
+    // 4260mm 통짜 캐비닛은 원판 1220×2440 으로 제작 불가
+    const p = payload({
+      modules: [{ id: 'lower-0', section: 'lower', W: 4260, H: 870, D: 650, x: 0, y: 0 }],
+      structures: {
+        'lower-0': {
+          horizontalLayout: 'doorOnly',
+          areaTypes: Array(9).fill('door'),
+          areaWidths: [470, 470, 470, 470, 470, 470, 470, 470, 500],
+          areaIs2D: Array(9).fill(false),
+          shelves: [],
+        },
+      },
+    });
+    const mods = convert(p);
+    expect(mods).toHaveLength(9);
+    expect(mods.every((m) => m.w < 1220)).toBe(true); // 전부 원판 폭 이내
+  });
+
+  test('셀 x 좌표가 누적된다', () => {
+    const lower = convert(payload()).filter((m) => m.pos === 'lower');
+    expect(lower.map((m) => m._x)).toEqual([0, 450, 1050]);
+  });
+});
+
+describe('셀 종류별 처리', () => {
+  test('open 셀은 도어 0장 · 서랍 없음', () => {
+    const open = convert(payload()).find((m) => m.isOpen && m.pos === 'lower');
+    expect(open.doorCount).toBe(0);
+    expect(open.isDrawer).toBe(false);
+    expect(open.w).toBe(600);
+  });
+
+  test('양문(areaIs2D) 셀은 도어 2장', () => {
+    const lower = convert(payload()).filter((m) => m.pos === 'lower');
+    expect(lower[2].doorCount).toBe(2);
+    expect(lower[2].is2door).toBe(true);
+  });
+
+  test('단문 셀은 도어 1장', () => {
+    const lower = convert(payload()).filter((m) => m.pos === 'lower');
+    expect(lower[0].doorCount).toBe(1);
+  });
+
+  test('blank 셀(350mm 미만 잔여)은 캐비닛에서 제외된다', () => {
+    const p = payload({
+      modules: [{ id: 'lower-0', section: 'lower', W: 800, H: 870, D: 650, x: 0, y: 0 }],
+      structures: {
+        'lower-0': { areaTypes: ['door', 'blank'], areaWidths: [600, 200], areaIs2D: [false, false], shelves: [] },
+      },
+    });
+    const r = convertFull(p);
+    expect(r.modules).toHaveLength(1);
+    expect(r.warnings.some((w) => w.includes('350mm'))).toBe(true);
+  });
+});
 
 describe('section → pos 매핑', () => {
   test('upper 는 상부, lower 는 하부', () => {
-    const mods = _convertPlannerModules(payload());
-    expect(byId(mods, 'upper-0').pos).toBe('upper');
-    expect(byId(mods, 'lower-0').pos).toBe('lower');
+    const mods = convert(payload());
+    expect(mods.filter((m) => m.pos === 'upper')).toHaveLength(3);
+    expect(mods.filter((m) => m.pos === 'lower')).toHaveLength(3);
   });
 
-  test('tall / wardrobe 도 하부로 간다 (_appendV2Payload 의 lowerSection 매핑의 역)', () => {
+  test('tall / wardrobe 도 하부로 간다', () => {
     const p = payload({
       modules: [
         { id: 'tall-0', section: 'tall', W: 600, H: 2300, D: 650, x: 0, y: 0 },
@@ -81,170 +144,107 @@ describe('section → pos 매핑', () => {
       ],
       structures: {},
     });
-    const mods = _convertPlannerModules(p);
-    expect(mods).toHaveLength(2);
-    expect(mods.every((m) => m.pos === 'lower')).toBe(true);
+    expect(convert(p).every((m) => m.pos === 'lower')).toBe(true);
   });
 
-  test('가전 section 은 캐비닛 모듈로 변환되지 않는다', () => {
-    const mods = _convertPlannerModules(payload());
-    expect(mods).toHaveLength(3); // lower×2 + upper×1
+  test('가전 section 은 캐비닛으로 변환되지 않는다', () => {
+    const mods = convert(payload());
     expect(mods.some((m) => m.id.includes('sink-0'))).toBe(false);
     expect(mods.some((m) => m.id.includes('hood-0'))).toBe(false);
   });
 });
 
-describe('가전 X 범위 겹침 → 라벨(name) 판정', () => {
-  test('분배기와 겹치는 하부장은 "개수대" 로 라벨링된다', () => {
-    const m = byId(_convertPlannerModules(payload()), 'lower-0'); // x 0~900, 분배기 100~700
-    expect(m.name).toBe('개수대');
+describe('가전 X 범위 겹침 → 라벨(name)', () => {
+  test('분배기와 겹치는 셀만 "개수대" 로 라벨링된다', () => {
+    const lower = convert(payload()).filter((m) => m.pos === 'lower');
+    // 분배기 450~1050 = 두 번째 셀(450~1050)
+    expect(lower[0].name).toBe('하부장');
+    expect(lower[1].name).toBe('개수대');
+    expect(lower[2].name).toBe('하부장');
   });
 
-  test('분배기와 안 겹치는 하부장은 "하부장"', () => {
-    const m = byId(_convertPlannerModules(payload()), 'lower-1'); // x 900~2100 → 안 겹침
-    expect(m.name).toBe('하부장');
-  });
-
-  test('후드와 겹치는 상부장은 "후드장" 으로 라벨링된다', () => {
-    const m = byId(_convertPlannerModules(payload()), 'upper-0'); // x 0~800, 후드 100~700
-    expect(m.name).toBe('후드장');
-  });
-
-  test('후드는 상부에만, 분배기는 하부에만 적용된다', () => {
-    const p = payload();
-    p.modules.push({ id: 'sink-1', section: 'sink', W: 800, H: 100, D: 500, x: 0, y: 1000 });
-    expect(byId(_convertPlannerModules(p), 'upper-0').name).toBe('후드장'); // 개수대 아님
+  test('후드와 겹치는 셀만 "후드장" 으로 라벨링된다', () => {
+    const upper = convert(payload()).filter((m) => m.pos === 'upper');
+    expect(upper[1].name).toBe('후드장');
+    expect(upper[0].name).toBe('상부장');
   });
 
   test('경계가 닿기만 하면 겹침이 아니다', () => {
-    const p = payload({
-      modules: [
-        { id: 'lower-0', section: 'lower', W: 600, H: 870, D: 650, x: 0, y: 0 },
-        { id: 'sink-0', section: 'sink', W: 600, H: 100, D: 500, x: 600, y: 0 },
-      ],
-      structures: {},
-    });
-    expect(_convertPlannerModules(p)[0].name).toBe('하부장');
     expect(_xOverlaps({ x: 0, W: 600 }, { x: 600, W: 600 })).toBe(false);
     expect(_xOverlaps({ x: 0, W: 601 }, { x: 600, W: 600 })).toBe(true);
   });
 });
 
 describe('★ type 은 항상 storage — hood 로 주면 BOM 에서 사라진다', () => {
-  test('후드와 겹쳐도 type 은 hood 가 아니다', () => {
-    // extractors.js:132 는 `m.pos === 'upper' && m.type !== 'hood'` 로 상부장을 거른다.
-    // 'hood' 로 주면 몸통(측판/천판/지판/뒷판)까지 BOM 에서 통째로 빠져 제작 누락이 된다.
-    // docs/design-rules/sink.md:37 "hood | 후드 영역 (도어 없음)" — 가구가 아니라 빈 영역이다.
-    const m = byId(_convertPlannerModules(payload()), 'upper-0');
-    expect(m.name).toBe('후드장');
-    expect(m.type).not.toBe('hood');
-    expect(m.type).toBe('storage');
+  test('후드장 라벨이어도 type 은 storage', () => {
+    // extractors.js:132 는 `m.pos === 'upper' && m.type !== 'hood'` 로 거른다.
+    // docs/design-rules/sink.md:37 "hood | 후드 영역 (도어 없음)" — 가구가 아니다.
+    const hood = convert(payload()).find((m) => m.name === '후드장');
+    expect(hood.type).toBe('storage');
+    expect(hood.type).not.toBe('hood');
   });
 
   test('변환된 모든 모듈의 type 이 storage 다', () => {
-    const mods = _convertPlannerModules(payload());
-    expect(mods.length).toBeGreaterThan(0);
-    expect(mods.every((m) => m.type === 'storage')).toBe(true);
-  });
-
-  test('가전 영역은 type 이 아니라 areaTypes:open 으로 표현된다', () => {
-    // 플래너의 splitModuleByAppliance 가 가전 X 범위를 kind:'open' 으로 잘라
-    // areaTypes 에 'open' 을 넣으므로 그 구간에는 도어가 잡히지 않는다.
-    const p = payload();
-    p.structures['upper-0'] = { areaTypes: ['door', 'open'], areaIs2D: [false, false], shelves: [] };
-    const m = byId(_convertPlannerModules(p), 'upper-0');
-    expect(m.doorCount).toBe(1); // open 구간은 도어 없음
-    expect(m.type).toBe('storage'); // 그래도 캐비닛은 캐비닛
-  });
-});
-
-describe('doorCount — 도어 장수', () => {
-  test('door 2칸 = 2장', () => {
-    expect(byId(_convertPlannerModules(payload()), 'lower-0').doorCount).toBe(2);
-  });
-
-  test('양문(areaIs2D) 1칸 = 2장', () => {
-    expect(byId(_convertPlannerModules(payload()), 'lower-1').doorCount).toBe(2);
-  });
-
-  test('open 영역은 도어를 세지 않는다', () => {
-    // upper-0: ['door','open'] → 1장
-    expect(byId(_convertPlannerModules(payload()), 'upper-0').doorCount).toBe(1);
-  });
-
-  test('areaTypes 가 없으면 verticalCount 로 폴백', () => {
-    expect(_doorCountFromStructure({ verticalCount: 3 })).toBe(3);
-    expect(_doorCountFromStructure({ verticalCount: 3, areaTypes: [] })).toBe(3);
-  });
-
-  test('구조 자체가 없으면 1장', () => {
-    expect(_doorCountFromStructure(null)).toBe(1);
-    const p = payload({ structures: {} });
-    expect(byId(_convertPlannerModules(p), 'lower-0').doorCount).toBe(1);
-  });
-
-  test('전부 open 이면 0장', () => {
-    expect(_doorCountFromStructure({ areaTypes: ['open', 'open'], areaIs2D: [false, false] })).toBe(0);
+    expect(convert(payload()).every((m) => m.type === 'storage')).toBe(true);
   });
 });
 
 describe('서랍 · 선반', () => {
-  test('doorTopDrawerBottom + bottomType=drawer → 서랍장 1단', () => {
-    const m = byId(_convertPlannerModules(payload()), 'lower-0');
-    expect(m.isDrawer).toBe(true);
-    expect(m.drawerCount).toBe(1);
+  test('doorTopDrawerBottom 은 오픈 아닌 셀에만 서랍 1단', () => {
+    const lower = convert(payload()).filter((m) => m.pos === 'lower');
+    expect(lower[0].isDrawer).toBe(true);
+    expect(lower[0].drawerCount).toBe(1);
+    expect(lower[1].isDrawer).toBe(false); // open 셀
   });
 
   test('doorOnly 는 서랍 없음', () => {
-    const m = byId(_convertPlannerModules(payload()), 'lower-1');
-    expect(m.isDrawer).toBe(false);
-    expect(m.drawerCount).toBe(0);
+    const upper = convert(payload()).filter((m) => m.pos === 'upper');
+    expect(upper.every((m) => m.isDrawer === false)).toBe(true);
   });
 
-  test('bottomType 이 door 면 서랍이 아니다', () => {
-    const p = payload();
-    p.structures['lower-0'].bottomType = 'door';
-    expect(byId(_convertPlannerModules(p), 'lower-0').isDrawer).toBe(false);
-  });
-
-  test('shelfCount = shelves.length', () => {
-    const mods = _convertPlannerModules(payload());
-    expect(byId(mods, 'lower-0').shelfCount).toBe(1);
-    expect(byId(mods, 'lower-1').shelfCount).toBe(0);
-    expect(byId(mods, 'upper-0').shelfCount).toBe(2);
+  test('shelfCount 는 사각형의 shelves.length 를 셀들이 공유한다', () => {
+    const mods = convert(payload());
+    expect(mods.filter((m) => m.pos === 'lower').every((m) => m.shelfCount === 1)).toBe(true);
+    expect(mods.filter((m) => m.pos === 'upper').every((m) => m.shelfCount === 2)).toBe(true);
   });
 });
 
-describe('치수와 순서', () => {
-  test('W/H/D 가 그대로 옮겨진다', () => {
-    const m = byId(_convertPlannerModules(payload()), 'lower-1');
-    expect(m.w).toBe(1200);
-    expect(m.h).toBe(870);
-    expect(m.d).toBe(650);
-  });
-
-  test('같은 pos 안에서는 x 순으로 정렬된다', () => {
+describe('경고 — 조용히 틀리지 않게', () => {
+  test('자동계산 전이면 통짜 1개 + 경고', () => {
     const p = payload({
-      modules: [
-        { id: 'lower-1', section: 'lower', W: 600, H: 870, D: 650, x: 2000, y: 0 },
-        { id: 'lower-0', section: 'lower', W: 600, H: 870, D: 650, x: 0, y: 0 },
-      ],
+      modules: [{ id: 'lower-0', section: 'lower', W: 4260, H: 870, D: 650, x: 0, y: 0 }],
       structures: {},
     });
-    const mods = _convertPlannerModules(p);
-    expect(mods.map((m) => m._x)).toEqual([0, 2000]);
+    const r = convertFull(p);
+    expect(r.modules).toHaveLength(1);
+    expect(r.modules[0].w).toBe(4260);
+    expect(r.warnings.some((w) => w.includes('자동계산 전'))).toBe(true);
+  });
+
+  test('셀 폭 합이 모듈 폭과 다르면 경고 (배치 변경 후 재계산 누락)', () => {
+    const p = payload({
+      modules: [{ id: 'lower-0', section: 'lower', W: 2000, H: 870, D: 650, x: 0, y: 0 }],
+      structures: {
+        'lower-0': { areaTypes: ['door', 'door'], areaWidths: [450, 450], areaIs2D: [false, false], shelves: [] },
+      },
+    });
+    const r = convertFull(p);
+    expect(r.warnings.some((w) => w.includes('셀 폭 합'))).toBe(true);
+  });
+
+  test('폭이 맞으면 경고 없음', () => {
+    expect(convertFull(payload()).warnings).toHaveLength(0);
   });
 
   test('빈 payload 는 빈 배열 (crash 금지)', () => {
-    expect(_convertPlannerModules({})).toEqual([]);
-    expect(_convertPlannerModules({ modules: [], structures: {} })).toEqual([]);
+    expect(convert({})).toEqual([]);
+    expect(convert({ modules: [], structures: {} })).toEqual([]);
   });
 });
 
 describe('BOM 이 요구하는 필드가 모두 채워진다', () => {
   test('extractors.js 가 읽는 필드가 빠지지 않는다', () => {
-    const m = byId(_convertPlannerModules(payload()), 'lower-0');
-    // extractors.js 가 실제로 참조하는 모듈 필드
+    const m = convert(payload())[0];
     for (const f of ['pos', 'type', 'name', 'w', 'h', 'd', 'doorCount', 'isDrawer', 'drawerCount']) {
       expect(m[f]).toBeDefined();
     }
