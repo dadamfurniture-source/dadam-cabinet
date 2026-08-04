@@ -105,8 +105,65 @@
         display: block !important;
       }
 
+      /* ─────────────────────────────────────────────────────────────
+         W11-9: Step 2 상시 툴바.
+         step2-fullscreen 은 .design-workspace 의 모든 자식을 숨기는데(:82)
+         거기에 BOM 산출 버튼(.ws-header)까지 포함되어 Step 3 로 갈 방법이
+         사라진다. 또 planner overlay 가 z-index:100 으로 화면을 덮고
+         "입력 수정하기"(#step2-content > div:first-child)도 :76 으로 숨겨져
+         Step 2 에서 빠져나올 수단이 없다.
+         이 툴바는 body 직속이라 위 숨김 규칙에 걸리지 않고,
+         overlay 보다 위(z-index:101)에 떠서 항상 조작 가능하다. */
+      #step2Toolbar { display: none; }
+      body.step2-fullscreen #step2Toolbar,
+      body.step2-native #step2Toolbar {
+        display: flex;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 101;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        background: rgba(28, 26, 24, 0.92);
+        backdrop-filter: blur(6px);
+        color: #f5f0eb;
+        font-size: 13px;
+      }
+      #step2Toolbar .s2-title {
+        font-weight: 600;
+        margin-right: auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #step2Toolbar button {
+        border: 1px solid rgba(245, 240, 235, 0.35);
+        background: transparent;
+        color: #f5f0eb;
+        padding: 6px 13px;
+        border-radius: 7px;
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      #step2Toolbar button:hover { background: rgba(245, 240, 235, 0.14); }
+      #step2Toolbar button.primary {
+        background: #4caf50;
+        border-color: #4caf50;
+        font-weight: 700;
+      }
+      #step2Toolbar button.primary:hover { background: #43a047; }
+
+      /* 툴바 높이만큼 아래로 밀어 overlay 가 툴바를 가리지 않게 */
+      /* 툴바 높이(44px)만큼 overlay 를 내려 툴바가 가려지지 않게 한다 */
+      body.step2-fullscreen [id^="__planner-overlay-"] { top: 44px !important; }
+      /* 네이티브 편집 모드: fullscreen 숨김 규칙을 쓰지 않으므로 툴바 자리만 확보 */
+      body.step2-native .app-container { padding-top: 44px; }
+
       body.step2-fullscreen .app-container {
-        padding: 0;
+        padding: 44px 0 0; /* 상단은 툴바 자리 */
         min-height: 100vh;
         height: 100vh;
       }

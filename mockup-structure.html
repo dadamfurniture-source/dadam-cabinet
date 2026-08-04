@@ -1838,9 +1838,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     saveStructures();
     showToast(`💾 구조 저장 (모듈 ${Object.keys(structures).length}개)`);
   };
+  // W11-9: 여기가 업무 루프의 끊긴 지점이었다.
+  // 이 페이지는 detaildesign.html 의 Step 2 안에서 iframe 으로 도는데,
+  // "다음" 이 alert 만 띄우고 끝나 BOM(Step 3) 으로 갈 방법이 없었다.
+  // 부모에게 알려 Step 3 로 진행시킨다. 부모가 없으면(단독 접속) 안내만 한다.
   document.getElementById('nextBtn').onclick = () => {
     saveStructures();
-    alert('디테일 단계는 다음 PR 에서 구현 예정입니다.\n\n계획:\n- 도어 색상 / 마감 (글로스/매트/엠보)\n- 손잡이 실제 모델\n- BOM 자재 미리보기\n- SketchUp 내보내기');
+    const inIframe = window.parent && window.parent !== window;
+    if (inIframe) {
+      try {
+        window.parent.postMessage({ type: 'PLANNER_DONE', source: 'mockup-structure' }, '*');
+        showToast('구조 저장 · BOM 산출로 이동합니다');
+        return;
+      } catch (e) {
+        /* 아래 폴백으로 */
+      }
+    }
+    alert(
+      '구조를 저장했습니다.\n\n' +
+        'BOM 산출은 상세설계 화면에서 진행합니다.\n' +
+        '이 페이지를 상세설계(Step 2) 안에서 열면 자동으로 넘어갑니다.'
+    );
   };
 
   // 패널 토글 버튼
