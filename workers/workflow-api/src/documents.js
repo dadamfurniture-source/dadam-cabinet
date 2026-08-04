@@ -145,9 +145,8 @@ export async function supersedeDocument(env, { user, documentId, replacementId }
 
   const patch = { superseded_by: replacementId };
   // 승인된 문서는 감사 추적을 위해 상태를 유지하고, 그 외에는 superseded 로 바꾼다.
-  // 어느 쪽이든 공유 토큰은 즉시 무효화한다.
+  // 상태만 바꾼다. share_token_hash 는 그대로 둔다 — 아래 revokeDocument 주석 참조.
   if (doc.status !== 'approved') patch.status = 'superseded';
-  patch.share_token_hash = null;
 
   return updateById(env, 'design_documents', documentId, patch);
 }
@@ -157,10 +156,14 @@ export async function revokeDocument(env, { user, documentId }) {
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
   await assertDesignOwner(env, doc.design_id, user.id);
 
-  return updateById(env, 'design_documents', documentId, {
-    status: 'revoked',
-    share_token_hash: null,
-  });
+  // ★ share_token_hash 를 NULL 로 지우지 않는다.
+  //   지우면 openSharedDocument 의 토큰 조회가 아예 실패해서 404 가 나가고,
+  //   checkAccessible 의 revoked/superseded → 410 분기가 죽은 코드가 된다.
+  //   고객 입장에서 404 는 "링크를 다시 확인하세요"(오타 의심)로 읽히지만,
+  //   실제로는 담당자가 회수한 것이므로 410 "재발급을 요청하세요" 가 맞다.
+  //   접근 차단은 status 검사가 하므로 해시를 남겨도 안전하다
+  //   (해시는 역산 불가하고, 토큰은 32바이트 랜덤이라 재사용 충돌도 없다).
+  return updateById(env, 'design_documents', documentId, { status: 'revoked' });
 }
 
 /**
