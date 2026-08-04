@@ -83,6 +83,15 @@ test('없는 문서는 404', () => {
   assert.equal(checkAccessible(null).status, 404);
 });
 
+test('회수/대체 문서도 토큰 해시를 유지해야 410 분기에 도달한다', () => {
+  // revokeDocument 가 share_token_hash 를 NULL 로 지우면 openSharedDocument 의
+  // 토큰 조회가 실패해 404 가 나가고, 아래 410 분기는 영원히 실행되지 않는다.
+  // 고객에게 "링크를 다시 확인하세요"(오타 의심) 대신 "재발급 요청" 안내가 가야 한다.
+  const revoked = { status: 'revoked', share_token_hash: 'kept-hash', expires_at: null };
+  assert.equal(checkAccessible(revoked).status, 410);
+  assert.equal(checkAccessible(revoked).reason, 'revoked');
+});
+
 // ── PIN ───────────────────────────────────────────────────────────
 
 test('PIN 이 없는 문서는 PIN 을 요구하지 않는다', async () => {
