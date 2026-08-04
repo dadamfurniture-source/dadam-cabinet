@@ -94,33 +94,26 @@ describe('section → pos 매핑', () => {
   });
 });
 
-describe('가전 X 범위 겹침 → type 판정', () => {
-  test('분배기와 겹치는 하부장은 개수대', () => {
-    const mods = _convertPlannerModules(payload());
-    const m = byId(mods, 'lower-0'); // x 0~900, 분배기 100~700 → 겹침
-    expect(m.type).toBe('sink');
+describe('가전 X 범위 겹침 → 라벨(name) 판정', () => {
+  test('분배기와 겹치는 하부장은 "개수대" 로 라벨링된다', () => {
+    const m = byId(_convertPlannerModules(payload()), 'lower-0'); // x 0~900, 분배기 100~700
     expect(m.name).toBe('개수대');
   });
 
-  test('분배기와 안 겹치는 하부장은 수납장', () => {
-    const mods = _convertPlannerModules(payload());
-    const m = byId(mods, 'lower-1'); // x 900~2100, 분배기 100~700 → 안 겹침
-    expect(m.type).toBe('storage');
+  test('분배기와 안 겹치는 하부장은 "하부장"', () => {
+    const m = byId(_convertPlannerModules(payload()), 'lower-1'); // x 900~2100 → 안 겹침
+    expect(m.name).toBe('하부장');
   });
 
-  test('후드와 겹치는 상부장은 후드장', () => {
-    const mods = _convertPlannerModules(payload());
-    const m = byId(mods, 'upper-0'); // x 0~800, 후드 100~700 → 겹침
-    expect(m.type).toBe('hood');
+  test('후드와 겹치는 상부장은 "후드장" 으로 라벨링된다', () => {
+    const m = byId(_convertPlannerModules(payload()), 'upper-0'); // x 0~800, 후드 100~700
     expect(m.name).toBe('후드장');
   });
 
   test('후드는 상부에만, 분배기는 하부에만 적용된다', () => {
-    // 분배기를 상부장 X 범위에 두어도 상부장이 개수대가 되면 안 된다
     const p = payload();
     p.modules.push({ id: 'sink-1', section: 'sink', W: 800, H: 100, D: 500, x: 0, y: 1000 });
-    const mods = _convertPlannerModules(p);
-    expect(byId(mods, 'upper-0').type).toBe('hood'); // sink 아님
+    expect(byId(_convertPlannerModules(p), 'upper-0').name).toBe('후드장'); // 개수대 아님
   });
 
   test('경계가 닿기만 하면 겹침이 아니다', () => {
@@ -131,9 +124,37 @@ describe('가전 X 범위 겹침 → type 판정', () => {
       ],
       structures: {},
     });
-    expect(_convertPlannerModules(p)[0].type).toBe('storage');
+    expect(_convertPlannerModules(p)[0].name).toBe('하부장');
     expect(_xOverlaps({ x: 0, W: 600 }, { x: 600, W: 600 })).toBe(false);
     expect(_xOverlaps({ x: 0, W: 601 }, { x: 600, W: 600 })).toBe(true);
+  });
+});
+
+describe('★ type 은 항상 storage — hood 로 주면 BOM 에서 사라진다', () => {
+  test('후드와 겹쳐도 type 은 hood 가 아니다', () => {
+    // extractors.js:132 는 `m.pos === 'upper' && m.type !== 'hood'` 로 상부장을 거른다.
+    // 'hood' 로 주면 몸통(측판/천판/지판/뒷판)까지 BOM 에서 통째로 빠져 제작 누락이 된다.
+    // docs/design-rules/sink.md:37 "hood | 후드 영역 (도어 없음)" — 가구가 아니라 빈 영역이다.
+    const m = byId(_convertPlannerModules(payload()), 'upper-0');
+    expect(m.name).toBe('후드장');
+    expect(m.type).not.toBe('hood');
+    expect(m.type).toBe('storage');
+  });
+
+  test('변환된 모든 모듈의 type 이 storage 다', () => {
+    const mods = _convertPlannerModules(payload());
+    expect(mods.length).toBeGreaterThan(0);
+    expect(mods.every((m) => m.type === 'storage')).toBe(true);
+  });
+
+  test('가전 영역은 type 이 아니라 areaTypes:open 으로 표현된다', () => {
+    // 플래너의 splitModuleByAppliance 가 가전 X 범위를 kind:'open' 으로 잘라
+    // areaTypes 에 'open' 을 넣으므로 그 구간에는 도어가 잡히지 않는다.
+    const p = payload();
+    p.structures['upper-0'] = { areaTypes: ['door', 'open'], areaIs2D: [false, false], shelves: [] };
+    const m = byId(_convertPlannerModules(p), 'upper-0');
+    expect(m.doorCount).toBe(1); // open 구간은 도어 없음
+    expect(m.type).toBe('storage'); // 그래도 캐비닛은 캐비닛
   });
 });
 
