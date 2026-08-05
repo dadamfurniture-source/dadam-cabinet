@@ -2,24 +2,11 @@
       // UI 관련 함수들
       // ============================================================
 
-      function initCategoryGrid() {
-        const gridEl = document.getElementById('categoryGrid');
-        CATEGORIES.forEach((cat) => {
-          const btn = document.createElement('div');
-          btn.className = 'category-card';
-          btn.id = `btn-${cat.id}`;
-          btn.innerHTML = `
-      <div class="category-name">${cat.name}</div>
-      <div class="card-stepper" onclick="event.stopPropagation()">
-        <button class="stepper-btn" onclick="decrementCategory('${cat.id}')">－</button>
-        <span class="stepper-count" id="count-${cat.id}">0</span>
-        <button class="stepper-btn" onclick="incrementCategory('${cat.id}')">＋</button>
-      </div>
-    `;
-          btn.addEventListener('click', () => incrementCategory(cat.id));
-          gridEl.appendChild(btn);
-        });
-      }
+      // W12-2: initCategoryGrid() 삭제 — 품목 선택 페이지(Step1)가 제거됐다.
+      // 품목 카드 그리드가 하던 일은 플래너 좌측 '품목' 아이콘(mockup-shell.html)이 대신한다.
+      //   클릭   → postMessage ADD_CATEGORY    → incrementCategory
+      //   우클릭 → postMessage REMOVE_CATEGORY → decrementCategory
+      //   배지   → 부모가 보내는 CATEGORY_COUNTS
 
       function incrementCategory(catId) {
         const cat = CATEGORIES.find((c) => c.id === catId);
@@ -109,23 +96,17 @@
         });
       }
 
-      function updateUI() {
-        const container = document.getElementById('dynamicInputList');
-        const detailSection = document.getElementById('detailInputSection');
-
-        detailSection.style.display = selectedItems.length > 0 ? 'block' : 'none';
-
-        CATEGORIES.forEach((cat) => {
-          const count = selectedItems.filter((item) => item.categoryId === cat.id).length;
-          document.getElementById(`count-${cat.id}`).innerText = count;
-          const btn = document.getElementById(`btn-${cat.id}`);
-          btn.classList.toggle('active', count > 0);
-        });
-
-        // W8-6: 카테고리 카운트 변경 시 planner iframe 의 LeftToolbar badge 갱신
-        _broadcastCategoryCounts();
-
-        // labelName 갱신
+      /**
+       * W12-2: 품목 데이터 정규화 — DOM 과 무관한 부분만 모았다.
+       *
+       * Step1(품목 선택 페이지)이 제거되면서 updateUI() 의 DOM 조작부는 거의 사라지지만,
+       * 아래 정규화는 **화면과 무관하게 반드시 돌아야 한다**:
+       *   - labelName  : BOM 자재표(extractors.js:51)와 리포트 제목(ai-design-report.js)의 유일한 출처
+       *   - topSizes   : 문자열 → 객체 마이그레이션 (구 저장 설계 호환)
+       *   - lowerLayoutShape : layoutShape 승계
+       * 플래너 결과 반영(_applyPlannerResult)과 설계 불러오기(loadDesign)도 이 경로를 탄다.
+       */
+      function normalizeItems() {
         const typeCounter = {};
         selectedItems.forEach((item) => {
           typeCounter[item.categoryId] = (typeCounter[item.categoryId] || 0) + 1;
@@ -147,38 +128,33 @@
           }
         });
 
-        // 선택된 품목 요약 표시
-        container.innerHTML = '';
-        const summary = {};
-        selectedItems.forEach((item) => {
-          summary[item.categoryId] = (summary[item.categoryId] || 0) + 1;
-        });
-        if (Object.keys(summary).length > 0) {
-          const summaryEl = document.createElement('div');
-          summaryEl.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
-          Object.entries(summary).forEach(([catId, count]) => {
-            const cat = CATEGORIES.find(c => c.id === catId);
-            if (!cat) return;
-            const tag = document.createElement('span');
-            tag.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#f5f0eb;border:1px solid #e0d6cc;border-radius:8px;font-size:13px;color:#2d2a26;';
-            tag.innerHTML = `<strong>${cat.name}</strong> × ${count}`;
-            summaryEl.appendChild(tag);
-          });
-          container.appendChild(summaryEl);
-        }
-
         // 마이그레이션 처리
         selectedItems.forEach((item) => {
           if (!item.specs.lowerLayoutShape && item.specs.layoutShape) {
             item.specs.lowerLayoutShape = item.specs.layoutShape;
           }
         });
+      }
 
-        document.getElementById('btnNext').disabled = selectedItems.length === 0;
-        document.getElementById('aiGuideText').innerHTML =
-          selectedItems.length > 0
-            ? `총 <strong>${selectedItems.length}개</strong>의 가구 설정 중...`
-            : '가구를 추가하면 입력창이 생성됩니다.';
+      /**
+       * W12-2: 품목 상태가 바뀐 뒤의 갱신 진입점.
+       *
+       * 예전에는 Step1 화면(카드 카운터·요약 태그·다음 버튼)을 그리는 함수였다.
+       * Step1 이 제거되면서 하는 일은 세 가지로 줄었다:
+       *   1) 데이터 정규화 (labelName 등 — BOM 이 여기에 의존한다)
+       *   2) 플래너 품목 아이콘 배지 동기화
+       *   3) 품목이 0개↔1개 이상으로 바뀔 때 플래너 마운트 상태 보정
+       * 호출자가 16곳이라 이름은 그대로 둔다.
+       */
+      function updateUI() {
+        normalizeItems();
+
+        // W8-6: 카테고리 카운트 변경 시 플래너 품목 아이콘 배지 갱신
+        _broadcastCategoryCounts();
+
+        // W12-2: 첫 품목이 생기면 부트스트랩 플래너를 실제 품목 워크스페이스로 넘긴다.
+        //        마지막 품목이 지워지면 다시 부트스트랩으로 돌아간다.
+        if (typeof _syncStep2Mount === 'function') _syncStep2Mount();
       }
 
       function updateItemValue(uniqueId, field, value) {
@@ -199,7 +175,7 @@
             const fR = target.specs.finishRightType !== 'None' ? parseFloat(target.specs.finishRightWidth) || 0 : 0;
             target.specs.wardrobeEffectiveW = W - fL - fR;
           }
-          document.getElementById('btnNext').disabled = !selectedItems.every((item) => item.w && item.h && item.d);
+          // W12-2: #btnNext(Step1 "다음 단계") 는 제거됐다. 치수 유효성은 BOM 산출 시점에 본다.
         }
       }
 
@@ -292,14 +268,19 @@
       }
 
       function goToStep2() {
-        document.getElementById('step1-content').style.display = 'none';
+        // W12-2: Step1(품목 선택 페이지) 은 제거됐다. 남은 참조는 전부 옵셔널.
+        const step1 = document.getElementById('step1-content');
+        if (step1) step1.style.display = 'none';
         document.getElementById('step2-content').style.display = 'block';
-        document.getElementById('step-dot-1').classList.remove('active');
-        document.getElementById('step-dot-2').classList.add('active');
+        document.getElementById('step-dot-1')?.classList.remove('active');
+        document.getElementById('step-dot-2')?.classList.add('active');
         // W9-1: Step 2 진입 시 외곽 (navbar + header + stepper + section-label + bookmark-tabs + 입력 수정하기) 숨김
         // W11-9: 카테고리에 따라 planner/native 모드를 결정한다
         _applyStep2Chrome(_currentStep2Item());
-        renderBookmarks();
+        // W12-2: 품목 0개면 부트스트랩 플래너를 띄워 품목 아이콘을 쓸 수 있게 한다
+        _syncStep2Mount();
+        if (selectedItems.length > 0) renderBookmarks();
+        _renderStep2ItemSelect();
         // W9-1: fullscreen reflow 후 iframe overlay 위치 재계산 (designWorkspace 가 100vh)
         setTimeout(() => {
           document.querySelectorAll('[id^="__planner-overlay-"]').forEach((overlay) => {
@@ -312,22 +293,13 @@
         }, 50);
       }
 
-      function backToStep1() {
-        document.getElementById('step1-content').style.display = 'block';
-        document.getElementById('step2-content').style.display = 'none';
-        document.getElementById('step-dot-1').classList.add('active');
-        document.getElementById('step-dot-2').classList.remove('active');
-        // W9-1: Step 1 복귀 시 외곽 복원
-        document.body.classList.remove('step2-fullscreen');
-        document.body.classList.remove('step2-native');
-        updateUI();
-      }
-
       function goToStep3() {
         document.getElementById('step2-content').style.display = 'none';
         document.getElementById('step3-content').style.display = 'block';
-        document.getElementById('step-dot-2').classList.remove('active');
-        document.getElementById('step-dot-3').classList.add('active');
+        document.getElementById('step-dot-2')?.classList.remove('active');
+        document.getElementById('step-dot-3')?.classList.add('active');
+        // W12-2: BOM 화면에서는 플래너 오버레이가 위를 덮으면 안 된다
+        _removeBootstrapPlanner();
         // W9-1: Step 3 진입 시 fullscreen 해제 (BOM 보고서는 외곽 필요)
         document.body.classList.remove('step2-fullscreen');
         document.body.classList.remove('step2-native');
@@ -1122,6 +1094,15 @@
             incrementCategory(catId);
           }
         }
+        // W12-2: 플래너 품목 아이콘 우클릭 → 마지막 1개 제거.
+        // Step1 카드의 '−' 스테퍼를 대체한다 (잘못 추가한 품목을 지울 유일한 수단).
+        if (e.data.type === 'REMOVE_CATEGORY') {
+          const catId = e.data.categoryId;
+          if (!catId) return;
+          if (typeof decrementCategory === 'function') {
+            decrementCategory(catId);
+          }
+        }
         // W11-9/W11-11/W11-14: planner 의 배치+구조를 selectedItems.modules 로 반영.
         //   PLANNER_DONE  — 플래너 "다음" (반영 후 곧바로 BOM 산출)
         //   PLANNER_STATE — 툴바 "BOM 산출" 이 요청한 응답 (_awaitPlannerState 가 처리)
@@ -1296,6 +1277,106 @@
         overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;border-radius:8px;overflow:hidden;`;
         // iframe 생성
         _loadPlannerEmbed(overlay, item);
+      }
+
+      // ============================================================
+      // W12-2: 품목 0개일 때의 부트스트랩 플래너
+      //
+      // 품목 선택이 플래너 안 아이콘으로 들어가면서 닭-달걀 문제가 생긴다:
+      // 기존 플래너 오버레이는 품목마다(`__planner-overlay-{uniqueId}`) 만들어지므로
+      // 품목이 0개면 플래너가 없고 → 아이콘도 없고 → 품목을 만들 수 없다.
+      // 그래서 품목이 없을 때만 뜨는 오버레이를 하나 둔다.
+      //
+      // 플래너는 URL 파라미터를 읽지 않으므로(mockup-shell.html 에 URLSearchParams 0건)
+      // 품목별 오버레이와 내용이 동일하다 — 파라미터 없이 띄워도 무방하다.
+      // ============================================================
+      const BOOTSTRAP_PLANNER_ID = '__planner-overlay-bootstrap';
+
+      function _ensureBootstrapPlanner() {
+        if (document.getElementById(BOOTSTRAP_PLANNER_ID)) return;
+        const ws = document.getElementById('designWorkspace');
+        if (!ws) return;
+        const overlay = document.createElement('div');
+        overlay.id = BOOTSTRAP_PLANNER_ID;
+        document.body.appendChild(overlay);
+        const rect = ws.getBoundingClientRect();
+        overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;border-radius:8px;overflow:hidden;`;
+        const iframe = document.createElement('iframe');
+        iframe.src = PLANNER_BASE_URL;
+        iframe.dataset.planner = 'true';
+        iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
+        iframe.allow = 'accelerometer; autoplay; fullscreen';
+        overlay.appendChild(iframe);
+      }
+
+      function _removeBootstrapPlanner() {
+        const el = document.getElementById(BOOTSTRAP_PLANNER_ID);
+        if (el) el.remove();
+      }
+
+      /**
+       * 품목 수에 맞춰 Step2 마운트 상태를 맞춘다.
+       * 0개 → 부트스트랩 플래너(아이콘만 쓰는 용도)
+       * 1개 이상 → 부트스트랩 제거 후 현재 품목 워크스페이스
+       */
+      function _syncStep2Mount() {
+        const step2 = document.getElementById('step2-content');
+        if (!step2 || step2.style.display === 'none') return;
+
+        if (selectedItems.length === 0) {
+          _setStep2Mode('planner');
+          _ensureBootstrapPlanner();
+          return;
+        }
+        const hadBootstrap = !!document.getElementById(BOOTSTRAP_PLANNER_ID);
+        _removeBootstrapPlanner();
+        const item = _currentStep2Item();
+        if (!item) return;
+        _applyStep2Chrome(item);
+        _renderStep2ItemSelect();
+        // renderBookmarks() 는 부르지 않는다 — 그 함수는 항상 selectedItems[0] 로
+        // currentItemId 를 되돌려서 품목을 추가할 때마다 선택이 튄다.
+
+        // 워크스페이스를 다시 그리면 플래너 iframe 이 새로 뜰 수 있다.
+        // 품목을 추가할 때마다 리로드되면 작업 중이던 배치가 날아가므로,
+        // 현재 품목의 오버레이가 아직 없을 때(= 부트스트랩에서 막 넘어왔거나
+        // 불러오기 직후)만 렌더한다.
+        const hasOverlay = !!document.getElementById('__planner-overlay-' + item.uniqueId);
+        if ((hadBootstrap || !hasOverlay) && typeof renderWorkspaceContent === 'function') {
+          renderWorkspaceContent(item);
+        }
+      }
+
+      /**
+       * W12-2: 툴바 품목 전환 셀렉트.
+       * 플래너 모드에서는 북마크 탭이 CSS 로 숨겨져 있어(base.css `.bookmark-tabs`)
+       * 품목이 2개 이상일 때 전환 수단이 화면에 없었다. 아이콘으로 품목을 여러 개
+       * 만들 수 있게 된 이상 전환 수단이 반드시 있어야 한다.
+       */
+      function _renderStep2ItemSelect() {
+        const sel = document.getElementById('s2ItemSelect');
+        if (!sel) return;
+        if (selectedItems.length <= 1) {
+          sel.style.display = 'none';
+          sel.innerHTML = '';
+          return;
+        }
+        const cur = _currentStep2Item();
+        sel.style.display = '';
+        sel.innerHTML = selectedItems
+          .map((it) => {
+            const on = cur && String(it.uniqueId) === String(cur.uniqueId) ? ' selected' : '';
+            return `<option value="${it.uniqueId}"${on}>${it.labelName || it.name}</option>`;
+          })
+          .join('');
+      }
+
+      function switchStep2Item(uniqueId) {
+        const item = selectedItems.find((i) => String(i.uniqueId) === String(uniqueId));
+        if (!item) return;
+        currentItemId = item.uniqueId;
+        _applyStep2Chrome(item);
+        if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
       }
 
       // 스크롤/리사이즈 시 오버레이 위치 동기화
