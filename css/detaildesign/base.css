@@ -155,6 +155,17 @@
         font-weight: 700;
       }
       #step2Toolbar button.primary:hover { background: #43a047; }
+      /* W12-2: 품목 전환 셀렉트 — 품목이 2개 이상일 때만 노출된다 */
+      #step2Toolbar select {
+        border: 1px solid rgba(245, 240, 235, 0.35);
+        background: rgba(28, 26, 24, 0.92);
+        color: #f5f0eb;
+        padding: 6px 10px;
+        border-radius: 7px;
+        font-size: 13px;
+        cursor: pointer;
+        max-width: 240px;
+      }
 
       /* 툴바 높이만큼 아래로 밀어 overlay 가 툴바를 가리지 않게 */
       /* 툴바 높이(44px)만큼 overlay 를 내려 툴바가 가려지지 않게 한다 */

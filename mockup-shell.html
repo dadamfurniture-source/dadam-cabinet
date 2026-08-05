@@ -70,6 +70,10 @@
   .tool-btn:hover{background:var(--brand-soft);color:var(--brand-deep);border-color:var(--brand-mid)}
   .tool-btn .badge{position:absolute;top:2px;right:2px;background:var(--brand-deep);color:#fff;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;display:flex;align-items:center;justify-content:center}
   .tool-sep{width:28px;height:1px;background:var(--line);margin:4px 0}
+  /* W12-2: 품목 아이콘 그룹 (Step1 카테고리 페이지 대체) */
+  .tool-group-label{font-size:8px;color:var(--text-dim);letter-spacing:.5px;line-height:1;margin:3px 0 2px;user-select:none}
+  .cat-tools{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .cat-btn.active{background:var(--brand-soft);color:var(--brand-deep);border-color:var(--brand-mid)}
 
   /* ── Main canvas ───────────────────────────────────── */
   .canvas-wrap{flex:1;min-width:0;position:relative;background:var(--bg-canvas);display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:14px;background-image:linear-gradient(rgba(184,149,108,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(184,149,108,.08) 1px,transparent 1px);background-size:50px 50px}
@@ -211,6 +215,12 @@
 
     <!-- Left toolbar -->
     <div class="left-tools" id="leftTools">
+      <!-- W12-2: 품목 선택 — 별도 페이지(Step1) 를 대체한다.
+           클릭=추가, 우클릭=마지막 1개 제거. 배지는 부모의 CATEGORY_COUNTS 로 갱신. -->
+      <div class="tool-group-label" title="추가할 가구 품목">품목</div>
+      <div id="catTools" class="cat-tools"></div>
+      <div class="tool-sep"></div>
+      <div class="tool-group-label" title="도면에 배치할 요소">배치</div>
       <button class="tool-btn rect-btn" title="분배기 (W900×D600 · 도면 배치)" data-section="sink">🚰</button>
       <button class="tool-btn rect-btn" title="후드 (W900×D500 · 도면 배치)" data-section="hood">💨</button>
       <button class="tool-btn rect-btn" title="냉장고 (W720×D700 · 도면 배치)" data-section="refrigerator">🧊</button>
@@ -2732,6 +2742,82 @@
   const redoBtnEl = document.getElementById('redoBtn');
   if (undoBtnEl) undoBtnEl.addEventListener('click', () => undo());
   if (redoBtnEl) redoBtnEl.addEventListener('click', () => redo());
+
+  // ============================================================
+  // W12-2: 품목 선택 툴바 — detaildesign 의 Step1 카테고리 페이지를 대체한다.
+  //
+  // 부모(ui-step1.js) 쪽 배선은 W8-5/W8-6 에서 이미 만들어져 있다:
+  //   ADD_CATEGORY    수신 → incrementCategory
+  //   REMOVE_CATEGORY 수신 → decrementCategory
+  //   PLANNER_READY   수신 → CATEGORY_COUNTS 응답
+  // W9-6 에서 플래너를 이 파일로 교체하며 아이콘 UI 만 빠져 있었다.
+  //
+  // 아이콘은 '배치' 그룹(분배기🚰·후드💨·냉장고🧊·식세기🍽️)과 겹치지 않게 고른다.
+  // 그 둘은 계층이 다르다 — 여기는 '품목', 아래는 품목 안에 놓는 '모듈/가전'.
+  // ============================================================
+  (function initCategoryTools() {
+    const CATS = [
+      { id: 'sink',      name: '싱크대',   icon: '🍳' },
+      { id: 'island',    name: '아일랜드', icon: '🏝' },
+      { id: 'wardrobe',  name: '붙박이장', icon: '👔' },
+      { id: 'fridge',    name: '냉장고장', icon: '❄️' },
+      { id: 'shoerack',  name: '신발장',   icon: '👟' },
+      { id: 'vanity',    name: '화장대',   icon: '💄' },
+      { id: 'storage',   name: '수납장',   icon: '📦' },
+      { id: 'warehouse', name: '창고장',   icon: '🏭' },
+      { id: 'door',      name: '도어교체', icon: '🚪' },
+      { id: 'custom',    name: '비규격장', icon: '✏️' },
+    ];
+
+    const host = document.getElementById('catTools');
+    if (!host) return;
+
+    /** 부모(detaildesign)가 없으면 이 툴바는 의미가 없다 — 단독 열람 시 숨긴다. */
+    const embedded = window.parent && window.parent !== window;
+    if (!embedded) {
+      const label = host.previousElementSibling;
+      if (label && label.classList.contains('tool-group-label')) label.style.display = 'none';
+      host.style.display = 'none';
+      return;
+    }
+
+    function post(type, categoryId) {
+      try { window.parent.postMessage({ type, categoryId }, '*'); } catch (e) {}
+    }
+
+    CATS.forEach((cat) => {
+      const btn = document.createElement('button');
+      btn.className = 'tool-btn cat-btn';
+      btn.id = `catBtn-${cat.id}`;
+      btn.title = `${cat.name} 추가 (우클릭: 마지막 1개 제거)`;
+      btn.innerHTML = `${cat.icon}<span class="badge" id="catBadge-${cat.id}" style="display:none">0</span>`;
+      btn.addEventListener('click', () => post('ADD_CATEGORY', cat.id));
+      btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();          // 브라우저 컨텍스트 메뉴 억제
+        e.stopPropagation();         // 도면 우클릭(회전)까지 번지지 않게
+        post('REMOVE_CATEGORY', cat.id);
+      });
+      host.appendChild(btn);
+    });
+
+    /** 부모가 보내주는 카테고리별 개수로 배지·활성 상태를 갱신 */
+    window.addEventListener('message', (e) => {
+      if (!e.data || e.data.type !== 'CATEGORY_COUNTS' || !e.data.counts) return;
+      CATS.forEach((cat) => {
+        const n = Number(e.data.counts[cat.id]) || 0;
+        const badge = document.getElementById(`catBadge-${cat.id}`);
+        const btn = document.getElementById(`catBtn-${cat.id}`);
+        if (badge) {
+          badge.textContent = n;
+          badge.style.display = n > 0 ? 'flex' : 'none';
+        }
+        if (btn) btn.classList.toggle('active', n > 0);
+      });
+    });
+
+    // 초기 개수 요청 (부모가 CATEGORY_COUNTS 로 응답한다)
+    try { window.parent.postMessage({ type: 'PLANNER_READY' }, '*'); } catch (e) {}
+  })();
 </script>
 </body>
 </html>
