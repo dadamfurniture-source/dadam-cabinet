@@ -59,18 +59,35 @@ describe('Step 2 툴바 — 화면에서 빠져나갈 수 있어야 한다', () 
       b.getAttribute('onclick').replace(/\(.*$/, '').trim()
     );
 
-    expect(handlers.length).toBeGreaterThanOrEqual(2);
+    expect(handlers.length).toBeGreaterThanOrEqual(1);
     for (const fn of handlers) {
       expect(uiStep1).toMatch(new RegExp(`function\\s+${fn}\\s*\\(`));
     }
   });
 
-  test('BOM 산출 · 입력 수정 버튼이 있다', () => {
+  test('BOM 산출 버튼이 있다', () => {
     document.documentElement.innerHTML = html;
     const toolbar = document.getElementById('step2Toolbar');
     const onclicks = [...toolbar.querySelectorAll('[onclick]')].map((b) => b.getAttribute('onclick'));
     expect(onclicks.some((o) => o.includes('proceedToBOM'))).toBe(true);
-    expect(onclicks.some((o) => o.includes('backToStep1'))).toBe(true);
+  });
+
+  test('W12-2: 품목 선택 페이지로 돌아가는 버튼은 없다', () => {
+    // Step1(품목 선택 페이지)이 제거됐으므로 backToStep1 은 갈 곳이 없다.
+    // 품목 추가/제거는 플래너 좌측 '품목' 아이콘이 담당한다.
+    document.documentElement.innerHTML = html;
+    expect(document.getElementById('step1-content')).toBeNull();
+    expect(html).not.toMatch(/backToStep1/);
+  });
+
+  test('W12-2: 품목이 여러 개일 때 전환할 수단이 툴바에 있다', () => {
+    // 플래너 모드에서는 .bookmark-tabs 가 CSS 로 숨겨진다.
+    // 아이콘으로 품목을 여러 개 만들 수 있으므로 전환 수단이 반드시 필요하다.
+    document.documentElement.innerHTML = html;
+    const sel = document.querySelector('#step2Toolbar #s2ItemSelect');
+    expect(sel).not.toBeNull();
+    expect(sel.getAttribute('onchange')).toMatch(/switchStep2Item/);
+    expect(uiStep1).toMatch(/function\s+switchStep2Item\s*\(/);
   });
 
   test('BOM 버튼은 플래너 상태를 먼저 가져오는 쪽을 부른다', () => {
