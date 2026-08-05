@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
-    <link rel="stylesheet" href="css/nav.css?v=34.5" />
-    <link rel="stylesheet" href="css/detaildesign/base.css?v=34.5" />
-    <link rel="stylesheet" href="css/detaildesign/components.css?v=34.5" />
-    <link rel="stylesheet" href="css/detaildesign/chrome.css?v=34.5" />
+    <link rel="stylesheet" href="css/nav.css?v=34.6" />
+    <link rel="stylesheet" href="css/detaildesign/base.css?v=34.6" />
+    <link rel="stylesheet" href="css/detaildesign/components.css?v=34.6" />
+    <link rel="stylesheet" href="css/detaildesign/chrome.css?v=34.6" />
     <script src="js/nav-transitions.js"></script>
     <!-- xlsx는 BOM export 시 ai-design-report.js의 loadXLSX()로 동적 로드 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=34.5"></script>
-    <script src="js/supabase-utils.js?v=34.5"></script>
-    <script src="js/detaildesign-access.js?v=34.5"></script>
-    <script src="js/admin-access.js?v=34.5"></script>
+    <script src="js/config.js?v=34.6"></script>
+    <script src="js/supabase-utils.js?v=34.6"></script>
+    <script src="js/detaildesign-access.js?v=34.6"></script>
+    <script src="js/admin-access.js?v=34.6"></script>
   </head>
   <body class="has-toolbar">
     <!-- Navigation -->
@@ -199,24 +199,15 @@
         <div id="step-dot-2" class="step-dot">2</div>
         <div id="step-dot-3" class="step-dot">3</div>
       </div>
-      <div id="step1-content">
-        <div class="section-label">1. 필요한 가구를 선택하세요 <span class="badge">클릭하여 선택</span></div>
-        <div class="category-grid" id="categoryGrid"></div>
-        <div id="detailInputSection">
-          <div class="ai-guide-box">
-            <span style="font-size: 18px">🤖</span><span id="aiGuideText">가구를 추가하면 입력창이 생성됩니다.</span>
-          </div>
-          <div class="section-label">2. 가구별 상세 치수 및 현장 사진</div>
-          <div id="dynamicInputList"></div>
-          <div style="display: flex; justify-content: flex-end; margin-top: 30px">
-            <button class="btn-next" id="btnNext" disabled onclick="goToStep2()">다음 단계 (설계 시작) →</button>
-          </div>
-        </div>
-      </div>
+      <!--
+        W12-2: 품목 선택 페이지(구 #step1-content) 제거.
+        가구 품목 선택은 플래너 좌측 툴바의 '품목' 아이콘으로 이동했다
+        (mockup-shell.html — 클릭=추가, 우클릭=제거, 배지=개수).
+        진입 시 곧바로 설계(Step2)로 들어간다.
+      -->
       <div id="step2-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px">
           <div class="section-label" style="margin: 0">설계 워크스페이스</div>
-          <button class="btn-back" onclick="backToStep1()">← 입력 수정하기</button>
         </div>
         <div class="bookmark-tabs" id="bookmarkTabs"></div>
         <div class="design-workspace" id="designWorkspace"></div>
@@ -253,31 +244,36 @@
     -->
     <div id="step2Toolbar">
       <span class="s2-title" id="s2Title">설계</span>
-      <button type="button" onclick="backToStep1()">← 입력 수정</button>
+      <!--
+        W12-2: 품목이 2개 이상일 때 전환 수단.
+        플래너 모드에서는 .bookmark-tabs 가 CSS 로 숨겨지므로, 아이콘으로 품목을
+        여러 개 만들 수 있게 된 이상 여기에 전환 수단이 있어야 한다.
+      -->
+      <select id="s2ItemSelect" style="display:none" onchange="switchStep2Item(this.value)"></select>
       <!-- 플래너가 열려 있으면 그 상태를 먼저 가져와 반영한 뒤 산출한다 (W11-14) -->
       <button type="button" class="primary" onclick="proceedToBOMWithPlanner()">📋 BOM 산출 →</button>
     </div>
 
     <!-- JS 모듈 (로딩 순서 중요: data → utils → config → engine → extractors → ui → 나머지) -->
     <!-- 정적 <script>는 동일 origin/동기 로드 시 선언 순서 보장됨 -->
-    <script src="js/detaildesign/data-constants.js?v=34.5"></script>
-    <script src="js/detaildesign/utils.js?v=34.5"></script>
-    <script src="js/detaildesign/config-constants.js?v=34.5"></script>
+    <script src="js/detaildesign/data-constants.js?v=34.6"></script>
+    <script src="js/detaildesign/utils.js?v=34.6"></script>
+    <script src="js/detaildesign/config-constants.js?v=34.6"></script>
     <!-- W10-1: 멍장(코너장) 파생 엔진 — calc-engine/ui 보다 먼저 load -->
-    <script src="js/detaildesign/corner-engine.js?v=34.5"></script>
-    <script src="js/detaildesign/calc-engine.js?v=34.5"></script>
+    <script src="js/detaildesign/corner-engine.js?v=34.6"></script>
+    <script src="js/detaildesign/calc-engine.js?v=34.6"></script>
     <!-- W7-1: BOM 자재 코드 매트릭스 (extractors.js 보다 먼저 load) -->
-    <script src="js/detaildesign/bom-finish-color.js?v=34.5"></script>
-    <script src="js/detaildesign/extractors.js?v=34.5"></script>
-    <script src="js/detaildesign/ui-step1.js?v=34.5"></script>
-    <script src="js/detaildesign/ui-workspace.js?v=34.5"></script>
-    <script src="js/detaildesign/ui-fridge-el.js?v=34.5"></script>
+    <script src="js/detaildesign/bom-finish-color.js?v=34.6"></script>
+    <script src="js/detaildesign/extractors.js?v=34.6"></script>
+    <script src="js/detaildesign/ui-step1.js?v=34.6"></script>
+    <script src="js/detaildesign/ui-workspace.js?v=34.6"></script>
+    <script src="js/detaildesign/ui-fridge-el.js?v=34.6"></script>
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
-    <script src="js/detaildesign/multiagent-client.js?v=34.5"></script>
-    <script src="js/detaildesign/ai-design-report.js?v=34.5"></script>
-    <script src="js/detaildesign/persistence-init.js?v=34.5"></script>
+    <script src="js/detaildesign/multiagent-client.js?v=34.6"></script>
+    <script src="js/detaildesign/ai-design-report.js?v=34.6"></script>
+    <script src="js/detaildesign/persistence-init.js?v=34.6"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
-    <script src="js/detaildesign/workflow-client.js?v=34.5"></script>
+    <script src="js/detaildesign/workflow-client.js?v=34.6"></script>
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 

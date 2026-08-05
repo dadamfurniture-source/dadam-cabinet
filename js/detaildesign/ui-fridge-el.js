@@ -823,11 +823,22 @@
         renderWorkspaceContent(item);
       }
 
-      // 초기화
-      initCategoryGrid();
+      // W12-2: initCategoryGrid() 제거 — 품목 선택 페이지(Step1)가 없어졌다.
+      // 품목 선택은 플래너 좌측 '품목' 아이콘(mockup-shell.html)이 담당하며,
+      // ADD_CATEGORY / REMOVE_CATEGORY 메시지로 incrementCategory/decrementCategory 를 부른다.
+      // (예전에는 이 줄이 #categoryGrid 를 찾지 못하면 TypeError 로 이 파일 전체를 멈추게 했다)
 
-      // W9-3: 페이지 진입 시 default 가구 자동 추가 안 함 (Step 1 가구 카드 그대로 표시)
-      // 사용자가 가구 카드 클릭 → incrementCategory → 자동 goToStep2 (mockup layout 진입)
+      // W12-2: 진입 시 곧바로 설계(Step2)로 들어간다.
+      // 품목이 0개면 goToStep2 → _syncStep2Mount 가 부트스트랩 플래너를 띄우고,
+      // 사용자는 '품목' 아이콘으로 첫 가구를 만든다.
+      // 저장 설계를 ?id= 로 열면 loadDesign 이 나중에 updateUI() 를 부르는데,
+      // 그 안의 _syncStep2Mount 가 부트스트랩을 실제 품목 워크스페이스로 교체한다.
+      // (스크립트 태그가 컨텐츠 뒤에 있어 이 시점에 DOM 은 준비돼 있다)
+      try {
+        if (typeof goToStep2 === 'function') goToStep2();
+      } catch (e) {
+        console.error('[W12-2] 설계 화면 진입 실패:', e);
+      }
 
       // ============================================================
       // EL장 팝업 기능
