@@ -857,13 +857,15 @@
         const specTopT = parseFloat(item.specs.topThickness) || 12;
         const defaultLowerH = specLowerH - specTopT - specLegH;
 
-        // ── 개수대 상수 (W 기준) ──
-        const SINK_MIN_W = 950;
-        const SINK_DEF_W = W <= 2500 ? 950 : 1000;
-        const SINK_MAX  = 1100;
-        const LT_DEF_W  = 200;
+        // ── 개수대 상수 (W 기준) — W12-1: data-constants.js 가 정본 ──
+        const SINK_MIN_W = SINK_DEFAULT_W_SMALL;
+        const SINK_DEF_W = W <= 2500 ? SINK_DEFAULT_W_SMALL : SINK_DEFAULT_W_LARGE;
+        const SINK_MAX  = SINK_MAX_W;
+        const LT_DEF_W  = LT_FIXED_W;
         const LT_MAX_W  = 300;
-        const SIDE_PANEL = 15;
+        // 측판 두께 = 몸통 두께. 설계별 15/18 연동은 배치 계산 결과를 바꾸므로
+        // 값 교정 건으로 분리한다(단일화 단계에서는 기본값 유지).
+        const SIDE_PANEL = BODY_THICKNESS_DEFAULT;
 
         // ★ 고정 모듈 수집 (prime 라인만 — 다른 라인 모듈 제외, W10-3)
         const currentModules = item.modules.filter(m => m.pos === 'lower' && moduleLine(m) === 'prime');

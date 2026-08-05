@@ -21,6 +21,28 @@
       const MIN_REMAINDER = 5; // ★ 최소 잔여 (4→5, ACTIVE_RULES v28)
       const MAX_REMAINDER = 10; // 최대 잔여
 
+      // ============================================================
+      // ★ W12-1: 제조 표준 — 이 파일이 정본(single source of truth)
+      // 같은 값을 다른 파일에서 다시 선언하지 말 것. 여기를 참조한다.
+      // ============================================================
+
+      // 원판 규격 (PB/MDF 공통) — 재단 배치·자재 산출이 모두 이 값을 쓴다
+      const SHEET_W = 1220;
+      const SHEET_H = 2440;
+      const CUT_KERF = 4; // 톱날 두께
+
+      // 몸통(카카스) 두께. 현장 기준 15T 90% / 18T 가끔 → 설계별 선택값이다.
+      // 상수가 아니라 파라미터인 이유: 천판·지판 폭이 W-2T 로 파생되므로
+      // 15T 는 W-30, 18T 는 W-36 이 된다. docs 의 두 공식은 모순이 아니라
+      // 각 두께의 결과를 적어둔 것이다.
+      const BODY_THICKNESS_DEFAULT = 15;
+      const BODY_THICKNESS_OPTIONS = [15, 18];
+
+      // 도어/몰딩/목찬넬 MDF 두께 — 몸통 두께와 무관한 별개 값이다.
+      // BODY_THICKNESS 를 18 로 바꿔도 여기는 따라가지 않는다.
+      const DOOR_MDF_THICKNESS = 18;
+      const BACK_PANEL_THICKNESS = 2.7; // 뒷판 MDF
+
       // ★ 개수대 기본 너비 (실측 기준)
       const SINK_DEFAULT_W_SMALL = 950; // W ≤ 2500mm
       const SINK_DEFAULT_W_LARGE = 1000; // W > 2500mm
@@ -49,6 +71,8 @@
         doorFinishLower: '무광',
         topColor: '스노우',
         topThickness: 12,
+        // W12-1: 몸통 두께 — 15T 기본, 18T 선택 가능 (BODY_THICKNESS_OPTIONS)
+        bodyThickness: 15,
         upperH: 720,
         lowerH: 870,
         moldingH: 60,
