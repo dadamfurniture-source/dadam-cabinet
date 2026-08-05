@@ -1131,6 +1131,13 @@
         // ★ categoryId 사용
         const category = item.categoryId || item.category;
 
+        // W12-1: 몸통 두께는 설계별 선택값(15T/18T)이므로 안내 문구를 실제 산출 결과에서 뽑는다.
+        // 이전에는 "PB 18T 기준" 이 하드코딩돼 있어, 15T 로 산출된 자재표 위에
+        // 18T 라고 표시되고 있었다.
+        const bodyThicknessNote = [...new Set(
+          Object.values(summary).filter((s) => s.material === 'PB').map((s) => s.thickness)
+        )].sort((a, b) => a - b).join('/') || BODY_THICKNESS_DEFAULT;
+
         // 패널 사용량 카드 (CNC 재단 결과 기반)
         let panelCards = '';
         const cncData = window._cncData;
@@ -1154,7 +1161,7 @@
           });
           const colors = { 'PB': ['#667eea', '#764ba2'], 'MDF 18': ['#f57c00', '#e65100'], 'MDF 2.7': ['#43a047', '#2e7d32'] };
           groupMap.forEach((g, matKey) => {
-            const sheetArea = g.panels * 1220 * 2440;
+            const sheetArea = g.panels * SHEET_W * SHEET_H;
             const colorKey = Object.keys(colors).find(k => matKey.startsWith(k)) || 'PB';
             const [c1, c2] = colors[colorKey];
             panelCards += `
@@ -1169,7 +1176,7 @@
           // 폴백: 면적 기반 추정
           Object.values(summary).forEach((s) => {
             const area = (s.totalArea / 1000000).toFixed(2);
-            const efficiency = ((s.totalArea / (s.panelCount * 1220 * 2440)) * 100).toFixed(1);
+            const efficiency = ((s.totalArea / (s.panelCount * SHEET_W * SHEET_H)) * 100).toFixed(1);
             panelCards += `
         <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:15px;border-radius:10px;min-width:150px;">
           <div style="font-size:12px;opacity:0.9;">${s.material} ${s.thickness}T</div>
@@ -1269,9 +1276,9 @@
     <div style="margin-top:20px;background:#fff8e1;padding:15px;border-radius:10px;border:1px solid #ffe082;">
       <h4 style="margin:0 0 10px 0;color:#f57c00;">💡 참고사항</h4>
       <ul style="margin:0;padding-left:20px;font-size:12px;color:#666;">
-        <li>패널 규격: 1220 × 2440 mm (4×8 합판 기준)</li>
-        <li>본체 자재: PB (파티클보드) 18T 기준</li>
-        <li>도어 자재: MDF 18T 기준</li>
+        <li>패널 규격: ${SHEET_W} × ${SHEET_H} mm (4×8 합판 기준)</li>
+        <li>본체 자재: PB (파티클보드) ${bodyThicknessNote}T 기준</li>
+        <li>도어 자재: MDF ${DOOR_MDF_THICKNESS}T 기준</li>
         <li>뒷판 자재: MDF 2.7T 기준 (홈카페/오픈장은 18T)</li>
       </ul>
     </div>
@@ -1383,7 +1390,7 @@
             const hCuts = rounds;
             // 세로재단: 가로(W)방향 절단 → 부품 분리 (부품수 × rounds)
             // 한 스트립에서 동일 부품 몇 개 나오는지 계산
-            const perStrip = Math.floor(1220 / m.w) || 1;
+            const perStrip = Math.floor(SHEET_W / m.w) || 1;
             const vCuts = rounds * Math.min(perStrip, Math.ceil(m.qty / rounds));
             totalHCuts += hCuts;
             totalVCuts += vCuts;
@@ -1407,7 +1414,7 @@
         tableHTML += '</tbody></table>';
 
         // ===== 원판 배치 계획 (겹침 재단 + 나머지 활용) =====
-        const PANEL_W = 1220, PANEL_H = 2440;
+        const PANEL_W = SHEET_W, PANEL_H = SHEET_H;
         let planHTML = '';
         let totalPanels = 0;
         let totalProduced = 0;
@@ -1729,7 +1736,9 @@
   `;
       }
 
-      const CUT_KERF = 4; // 톱날 두께 (mm)
+      // W12-1: CUT_KERF 는 data-constants.js 가 정본이다.
+      // 여기서 다시 const 로 선언하면 두 파일이 같은 전역 렉시컬 스코프를 쓰므로
+      // "Identifier 'CUT_KERF' has already been declared" 로 이 파일 전체가 파싱에 실패한다.
 
       // 재단 배치도 SVG 렌더링
       function renderCuttingPlanSVG(panel, groupName, PW, PH) {
@@ -2888,7 +2897,7 @@
           cnc.sorted.forEach((m, i) => {
             const stack = Math.min(m.qty, 5);
             const rounds = Math.ceil(m.qty / 5);
-            const perStrip = Math.floor(1220 / m.w) || 1;
+            const perStrip = Math.floor(SHEET_W / m.w) || 1;
             const hCuts = rounds;
             const vCuts = rounds * Math.min(perStrip, Math.ceil(m.qty / rounds));
             s1Data.push([

@@ -3,10 +3,24 @@
       // SKILL: material-extractor-v2.md 기반
       // ============================================================
       class MaterialExtractor {
+        // W12-1: 제조 표준은 data-constants.js 가 정본.
+        // Jest/Node 에서는 그 파일이 로드되지 않으므로 같은 값을 폴백으로 둔다
+        // (corner-engine.js 의 CORNER_* 폴백과 동일한 방식).
         constructor(config = {}) {
-          this.PANEL_W = 1220;
-          this.PANEL_H = 2440;
-          this.T = config.thickness || 15; // 몸통 두께 (PB 15T 기본)
+          this.PANEL_W = config.sheetW || (typeof SHEET_W !== 'undefined' ? SHEET_W : 1220);
+          this.PANEL_H = config.sheetH || (typeof SHEET_H !== 'undefined' ? SHEET_H : 2440);
+          this.T = config.thickness
+            || (typeof BODY_THICKNESS_DEFAULT !== 'undefined' ? BODY_THICKNESS_DEFAULT : 15);
+        }
+
+        // ========================================
+        // W12-1: 몸통 두께는 설계별 선택값 (15T 90% / 18T 가끔)
+        // 천판·지판 폭이 W-2T 로 파생되므로 15T→W-30, 18T→W-36 이 된다.
+        // 도어(MDF 18T)는 몸통 두께와 무관하며 여기를 따르지 않는다.
+        // ========================================
+        thicknessFor(specs) {
+          const t = parseFloat((specs || {}).bodyThickness);
+          return Number.isFinite(t) && t > 0 ? t : this.T;
         }
 
         // ========================================
@@ -120,7 +134,7 @@
         // ========================================
         extractSink(item, materials, prefix = '') {
           const specs = item.specs || {};
-          const T = this.T;
+          const T = this.thicknessFor(specs);
           const defaultUpperD = 295; // 상부장 기본 깊이
           const defaultLowerD = 550; // 하부장 기본 깊이
           const isWoodChannel = (specs.handle || '').includes('목찬넬');
@@ -304,7 +318,7 @@
         // ========================================
         extractWardrobe(item, materials, prefix = '') {
           const specs = item.specs || {};
-          const T = this.T;
+          const T = this.thicknessFor(specs);
           const D = parseFloat(item.d) || 600;
           const pedestalH = parseFloat(specs.wardrobePedestal) || 60;
           const moldingH = parseFloat(specs.wardrobeMoldingH) || 15;
@@ -587,7 +601,7 @@
         // ========================================
         extractFridge(item, materials, prefix = '') {
           const specs = item.specs || {};
-          const T = this.T;
+          const T = this.thicknessFor(specs);
           const modules = item.modules || [];
 
           dlog('[Fridge] 모듈:', modules.length);
