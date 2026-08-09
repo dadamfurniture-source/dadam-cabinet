@@ -893,7 +893,11 @@
 
             // type 은 항상 'storage' — 'hood' 로 주면 extractors.js:132 가
             // 그 캐비닛을 BOM 에서 통째로 제외한다 (W11-12).
-            let name = pos === 'upper' ? '상부장' : '하부장';
+            // CD-3: 키큰장은 정체성을 남긴다. pos 는 'lower' 가 맞다
+            // (docs/design-rules/sink.md §3 — 키큰장은 하부 라인에 배치된다).
+            // type 이 'storage' 로 뭉개지면 BOM·정면도에서 일반 하부장과 구분되지 않는다.
+            const isTall = m.section === 'tall';
+            let name = isTall ? '키큰장' : pos === 'upper' ? '상부장' : '하부장';
             const cellRect = { x: c.x, W: c.w };
             if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(cellRect, r))) {
               name = '개수대';
@@ -903,7 +907,9 @@
 
             out.push({
               id: `planner-${m.id}-${i}`,
-              type: 'storage',
+              // 'hood' 로 주면 extractors.js 가 그 캐비닛을 BOM 에서 통째로
+              // 제외한다 (W11-12). 'tall' 은 제외 대상이 아니라 안전하다.
+              type: isTall ? 'tall' : 'storage',
               name,
               pos,
               w: c.w,
@@ -927,6 +933,22 @@
 
         if (blankDropped > 0) {
           warnings.push(`350mm 미만 잔여 ${blankDropped}칸은 캐비닛에서 제외했습니다 (휠라/마감 처리)`);
+        }
+
+        // CD-3: 도면에 마감재를 붙였는데 스펙엔 '없음' 이면 BOM 에 안 잡힌다.
+        // EP·몰딩·휠라 자재는 모듈이 아니라 specs.finishLeft/RightType 에서 나오므로,
+        // 플래너에 그린 것만으로는 발주되지 않는다. 조용히 빠지지 않게 알린다.
+        const plannerFinishings = src.reduce((n, m) => n + ((m.finishings || []).length), 0);
+        if (plannerFinishings > 0) {
+          const sp = specs || {};
+          const noneL = !sp.finishLeftType || sp.finishLeftType === 'None';
+          const noneR = !sp.finishRightType || sp.finishRightType === 'None';
+          if (noneL && noneR) {
+            warnings.push(
+              `도면에 마감재 ${plannerFinishings}개가 있지만 좌·우 마감이 '없음' 으로 설정돼 ` +
+                `자재에 반영되지 않습니다 — 스펙에서 몰딩/휠라/EP 를 지정하세요`
+            );
+          }
         }
 
         // 배치 순서(x)대로 정렬 — 정면도/BOM 라벨 순서를 도면과 맞춘다
@@ -989,6 +1011,23 @@
       function _applyPlannerResult(payload) {
         const item = _currentStep2Item();
         if (!item) throw new Error('대상 품목을 찾을 수 없습니다.');
+
+        // CD-3: 플래너가 표현하지 못하는 카테고리에는 결과를 적용하지 않는다.
+        //
+        // 붙박이장은 moduleType(통장/상하분리) · upperH/lowerH · 상하 선반수를,
+        // 냉장고장은 모듈 type 분기를 각각 요구하는데 플래너는 그 구조를 만들지 않는다
+        // (extractors.js 의 extractWardrobe 는 pos 'wardrobe'/'tall' 만,
+        //  extractFridge 는 mod.type 분기만 본다).
+        // 예전엔 카테고리를 안 보고 item.modules 를 통째로 교체해서,
+        // 붙박이장 품목에 플래너 결과가 들어오면 기존 모듈이 지워지고
+        // BOM 이 **조용히 0건**이 됐다. 덮어쓰기 전에 막는다.
+        if (_isNativeOnly(item)) {
+          throw new Error(
+            `${item.labelName || item.name} 은(는) 플래너로 설계하지 않습니다.\n\n` +
+              '붙박이장·냉장고장은 전용 화면에서 모듈을 구성해 주세요.\n' +
+              '(플래너 결과를 적용하면 기존 모듈이 지워지고 자재가 산출되지 않습니다)'
+          );
+        }
 
         // CD-1: specs 를 넘겨야 전체높이→몸통 변환이 설계별 값(다리발·상판·상몰딩)을 쓴다
         const { modules, warnings } = _convertPlannerModules(payload, item.specs);

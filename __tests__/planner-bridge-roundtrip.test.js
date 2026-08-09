@@ -48,8 +48,13 @@ function loadBridge(win, state) {
   const converterBlock = sliceBetween(UI, 'const PLANNER_CABINET_SECTIONS', 'function _appendV2Payload');
   const listenerIdx = UI.indexOf("window.addEventListener('message', function (e) {");
   const listenerBlock = sliceBalanced(UI, listenerIdx) + ');';
+  // CD-3: _applyPlannerResult 가 붙박이장·냉장고장을 막을 때 쓰는 판정.
+  // 하네스에 없으면 ReferenceError 로 결과 반영이 통째로 실패한다.
+  const nativeOnly =
+    sliceBetween(UI, 'const NATIVE_ONLY_CATEGORIES', 'function _setStep2Mode');
 
   const src = `
+    ${nativeOnly}
     ${currentItemFn}
     ${converterBlock}
     ${listenerBlock}
