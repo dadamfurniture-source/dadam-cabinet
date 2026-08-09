@@ -180,6 +180,7 @@ async function handleIssueDocument(request, env, { params, user }) {
         // 이번 발행으로 대체된 구 리비전 수. 재발행이면 보통 1 이상이고,
         // 그만큼의 옛 공유 링크가 닫혔다는 뜻이다 (화면이 그대로 안내한다).
         superseded_count: result.superseded_count,
+        superseded_closed_count: result.superseded_closed_count,
         // ★ 평문 토큰은 이 응답에서만 볼 수 있다. DB 에는 해시만 남는다.
         share_token: result.share_token,
         share_url: result.share_url,

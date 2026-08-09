@@ -429,10 +429,16 @@
 
     // 재발행이면 옛 공유 링크가 닫힌다. 고객이 예전 링크로 들어오면 열리지 않으므로
     // 새 링크를 다시 보내야 한다는 걸 발행 시점에 알려준다.
-    const supersededNote =
-      data.superseded_count > 0
-        ? ' · 이전 ' + data.superseded_count + '건은 대체되어 옛 링크가 닫혔습니다'
-        : '';
+    // 대체된 문서 전부의 링크가 닫히는 것은 아니다 — 고객이 승인·반려한 문서는
+    // 그 자체가 확인 기록이자 수주의 근거라 열람 가능하게 남는다.
+    // 둘을 뭉뚱그리면 "옛 링크가 닫혔다" 는 잘못된 안내가 된다.
+    let supersededNote = '';
+    if (data.superseded_count > 0) {
+      supersededNote = ' · 이전 ' + data.superseded_count + '건 대체';
+      const closed = data.superseded_closed_count;
+      if (closed > 0) supersededNote += ' (옛 링크 ' + closed + '건 닫힘)';
+      if (closed === 0) supersededNote += ' (고객이 확인한 문서는 열람 가능하게 남습니다)';
+    }
 
     if (data.share_url) {
       // 평문 토큰은 이 응답에서만 볼 수 있다 — 지금 복사하지 않으면 재발행해야 한다
