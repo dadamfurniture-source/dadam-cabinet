@@ -822,21 +822,51 @@
        * specs 는 설계별 값이며, 없으면 표준 기본값으로 떨어진다
        * (Jest 는 이 블록만 잘라 평가하므로 전역 상수를 참조할 수 없다).
        */
-      function _carcassHeight(totalH, section, specs) {
+      function _carcassHeight(totalH, section, specs, parts) {
         const H = Number(totalH) || 0;
         if (H <= 0) return 0;
         const sp = specs || {};
+        // CD-2: 플래너 '높이 구성' 패널에서 모듈마다 지정한 값이 있으면 그게 우선.
+        // 없으면 설계 스펙, 그것도 없으면 표준 기본값 순으로 떨어진다.
+        const p = parts || {};
         const n = (v, d) => {
           const x = parseFloat(v);
           return Number.isFinite(x) && x >= 0 ? x : d;
         };
-        const molding = n(sp.moldingH, 60);
+        const molding = n(p.moldingH, n(sp.moldingH, 60));
         if (section === 'upper') return Math.max(0, H - molding);
         if (section === 'tall' || section === 'wardrobe') {
-          return Math.max(0, H - molding - n(sp.wardrobePedestal, 60));
+          return Math.max(0, H - molding - n(p.pedestalH, n(sp.wardrobePedestal, 60)));
         }
         // lower
-        return Math.max(0, H - n(sp.topThickness, 12) - n(sp.sinkLegHeight, 150));
+        return Math.max(
+          0,
+          H - n(p.topT, n(sp.topThickness, 12)) - n(p.legH, n(sp.sinkLegHeight, 150))
+        );
+      }
+
+      /**
+       * CD-2: 모듈에 실제로 적용된 높이 부위 값.
+       * `_carcassHeight` 와 같은 우선순위(모듈 → 스펙 → 표준)를 쓴다.
+       * 작업지시서·도면이 "이 몸통 높이가 어떻게 나왔는지" 설명할 수 있어야 하고,
+       * CD-6 학습 데이터에도 그대로 쌓인다.
+       */
+      function _heightPartsOf(section, specs, parts) {
+        const sp = specs || {};
+        const p = parts || {};
+        const n = (v, d) => {
+          const x = parseFloat(v);
+          return Number.isFinite(x) && x >= 0 ? x : d;
+        };
+        const molding = n(p.moldingH, n(sp.moldingH, 60));
+        if (section === 'upper') return { moldingH: molding };
+        if (section === 'tall' || section === 'wardrobe') {
+          return { moldingH: molding, pedestalH: n(p.pedestalH, n(sp.wardrobePedestal, 60)) };
+        }
+        return {
+          legH: n(p.legH, n(sp.sinkLegHeight, 150)),
+          topT: n(p.topT, n(sp.topThickness, 12)),
+        };
       }
 
       /**
@@ -863,6 +893,11 @@
           const pos = m.section === 'upper' ? 'upper' : 'lower';
           // 플래너 자동계산은 하부 모듈을 doorTopDrawerBottom(하부 서랍 1단)으로 만든다
           const drawerAtBottom = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
+          // CD-2: 플래너 '분할' 패널에서 지정한 서랍 단수. 미지정이면 1단.
+          const rawDrawerCount = parseInt(s && s.drawerCount, 10);
+          const drawerCount = Number.isFinite(rawDrawerCount) && rawDrawerCount > 0
+            ? Math.min(5, rawDrawerCount)
+            : 1;
           const shelfCount = s && Array.isArray(s.shelves) ? s.shelves.length : 0;
 
           const cells = _cellsOfPlannerModule(m, s);
@@ -914,14 +949,19 @@
               pos,
               w: c.w,
               // CD-1: 플래너 H 는 전체 높이 → 몸통 높이로 변환해서 넘긴다
-              h: _carcassHeight(m.H, m.section, specs),
+              // CD-2: 모듈별 높이 구성(다리발·상판·상몰딩·좌대)이 있으면 그것을 쓴다
+              h: _carcassHeight(m.H, m.section, specs, s),
               totalH: Number(m.H) || 0, // 전체 높이도 보존 — 도면·검증·학습 데이터용
+              // 부위별 값도 함께 넘긴다 — 작업지시서·도면과 CD-6 학습 데이터에 쓴다
+              heightParts: _heightPartsOf(m.section, specs, s),
               d: Number(m.D) || 0,
               doorCount: isOpen ? 0 : c.is2D ? 2 : 1,
               is2door: !!c.is2D,
               // 오픈 구간은 가전 자리라 서랍을 넣지 않는다
               isDrawer: !isOpen && drawerAtBottom,
-              drawerCount: !isOpen && drawerAtBottom ? 1 : 0,
+              // CD-2: 플래너에서 정한 서랍 단수를 그대로 쓴다 (예전엔 항상 1단).
+              // 1단마다 전후판 2·측판 2·밑판 1 이 산출되므로 BOM 수량이 달라진다.
+              drawerCount: !isOpen && drawerAtBottom ? drawerCount : 0,
               isOpen,
               shelfCount,
               isEL: false,
