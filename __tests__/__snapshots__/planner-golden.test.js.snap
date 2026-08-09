@@ -1,0 +1,226 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻게 다루는지 고정해둔다 1`] = `
+"{
+  "hasStructures": false,
+  "modules": [
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1800,
+      "finishings": [],
+      "id": "lower-0",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "lower",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1200,
+      "finishings": [],
+      "id": "lower-1",
+      "isFixed": false,
+      "rotation": 135,
+      "section": "lower",
+      "x": 1800,
+      "y": 300
+    },
+    {
+      "D": 320,
+      "H": 780,
+      "W": 1800,
+      "finishings": [],
+      "id": "upper-2",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "upper",
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "source": "mockup-structure",
+  "structures": {},
+  "type": "PLANNER_STATE"
+}"
+`;
+
+exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
+"{
+  "hasStructures": false,
+  "modules": [
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1800,
+      "finishings": [],
+      "id": "lower-0",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "lower",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "D": 650,
+      "H": 870,
+      "W": 900,
+      "finishings": [],
+      "id": "lower-1",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "lower",
+      "x": 1800,
+      "y": 0
+    },
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1500,
+      "finishings": [],
+      "id": "lower-2",
+      "isFixed": false,
+      "rotation": 90,
+      "section": "lower",
+      "x": 2700,
+      "y": 650
+    },
+    {
+      "D": 320,
+      "H": 780,
+      "W": 1800,
+      "finishings": [],
+      "id": "upper-3",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "upper",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "D": 650,
+      "H": 2300,
+      "W": 600,
+      "finishings": [],
+      "id": "tall-4",
+      "isFixed": false,
+      "rotation": 90,
+      "section": "tall",
+      "x": 2700,
+      "y": 2150
+    },
+    {
+      "D": 400,
+      "H": 500,
+      "W": 700,
+      "finishings": [],
+      "id": "sink-5",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "sink",
+      "x": 600,
+      "y": 0
+    }
+  ],
+  "source": "mockup-structure",
+  "structures": {},
+  "type": "PLANNER_STATE"
+}"
+`;
+
+exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
+"{
+  "hasStructures": false,
+  "modules": [
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1200,
+      "finishings": [],
+      "id": "lower-0",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "lower",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1000,
+      "finishings": [],
+      "id": "lower-1",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "lower",
+      "x": 1200,
+      "y": 0
+    },
+    {
+      "D": 650,
+      "H": 870,
+      "W": 1400,
+      "finishings": [],
+      "id": "lower-2",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "lower",
+      "x": 2200,
+      "y": 0
+    },
+    {
+      "D": 320,
+      "H": 780,
+      "W": 1800,
+      "finishings": [],
+      "id": "upper-3",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "upper",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "D": 320,
+      "H": 780,
+      "W": 1200,
+      "finishings": [],
+      "id": "upper-4",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "upper",
+      "x": 2400,
+      "y": 0
+    },
+    {
+      "D": 400,
+      "H": 500,
+      "W": 700,
+      "finishings": [],
+      "id": "sink-5",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "sink",
+      "x": 1300,
+      "y": 0
+    },
+    {
+      "D": 300,
+      "H": 300,
+      "W": 300,
+      "finishings": [],
+      "id": "hood-6",
+      "isFixed": false,
+      "rotation": 0,
+      "section": "hood",
+      "x": 2600,
+      "y": 0
+    }
+  ],
+  "source": "mockup-structure",
+  "structures": {},
+  "type": "PLANNER_STATE"
+}"
+`;
