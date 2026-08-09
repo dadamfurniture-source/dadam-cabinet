@@ -20,6 +20,17 @@
 - Tailwind 는 `design-system/tailwind.ds.cjs` 로 **preflight 를 끄고** 컴파일한다.
   preflight 를 켜면 dadam-system.css 의 리셋/`body` 기준선과 충돌해 배경·폰트가 뒤집힌다.
 
+## 환경 (Windows)
+
+- **npm 스크립트 안에서 `cd .. && node_modules/.bin/xxx` 를 쓰면 안 된다.** npm 이 cmd.exe 로
+  실행해서 슬래시 경로를 못 찾는다. 대신 실행 파일 이름만 쓰고(`tailwindcss …` — npm 이
+  상위 `node_modules/.bin` 을 PATH 에 넣어 준다) 경로 의존은 설정 파일 쪽에서 절대경로로 푼다
+  (`tailwind.ds.cjs` 가 content 글롭을 저장소 루트 기준 절대경로로 바꾼다).
+  이걸 안 고치면 `resync.mjs` 의 build 스테이지만 exit 1 로 죽는다(직접 실행은 bash 라 통과).
+- **playwright 는 1.62.1 을 쓴다** — 이 머신 캐시에 chromium 1234 가 있고 1.62.1 이 그걸 핀한다
+  (`~/.cache/ms-playwright`). 버전이 어긋나면 `Executable doesn't exist` 로 렌더 체크가 죽는다.
+  새로 받을 필요 없다.
+
 ## CSS 병합 시 반드시 지켜야 하는 것
 
 - **`css/detaildesign/*.css` 는 전역 요소 규칙을 걷어내고 실어야 한다.**
