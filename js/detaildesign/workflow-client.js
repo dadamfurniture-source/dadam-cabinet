@@ -132,7 +132,12 @@
 
     const rows = state.documents
       .map(function (d) {
-        const typeLabel = d.doc_type === 'work_order' ? '작업지시서' : '고객확인서';
+        const typeLabel =
+          d.doc_type === 'work_order'
+            ? '제작 작업지시서'
+            : d.doc_type === 'installation_order'
+              ? '설치 작업지시서'
+              : '고객확인서';
         const staleBadge = d.stale
           ? '<span style="background:#fff3cd;color:#8a6d3b;border:1px solid #f0d68a;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:6px;">설계 변경됨 · 재발행 필요</span>'
           : '';
@@ -169,7 +174,13 @@
           (d.status === 'issued' || d.status === 'viewed'
             ? '<button type="button" data-wf-revoke="' +
               esc(d.id) +
-              '" style="font-size:12px;padding:4px 10px;cursor:pointer;">링크 회수</button>'
+              '" style="font-size:12px;padding:4px 10px;margin-right:4px;cursor:pointer;">링크 회수</button>'
+            : '') +
+          // CD-5: 고객이 승인한 확인서만 수주가 된다. 계약의 근거는 그것 하나뿐이다.
+          (d.doc_type === 'customer_confirmation' && d.decision === 'approved'
+            ? '<button type="button" data-wf-order="' +
+              esc(d.id) +
+              '" style="font-size:12px;padding:4px 10px;cursor:pointer;font-weight:600;">수주 전환</button>'
             : '') +
           '</td>' +
           '</tr>'
@@ -439,6 +450,23 @@
    * CD-4: 현장 정보 저장.
    * 설계에 붙는다 — 스냅샷이 아니다. 주소를 고쳤다고 설계 rev 가 올라가면 안 된다.
    */
+  /**
+   * CD-5: 승인된 확인서 → 수주.
+   * 서버가 멱등하게 처리한다 — 두 번 눌러도 수주가 두 개 생기지 않는다
+   * (orders.document_id UNIQUE 가 DB 레벨 최후 방어선).
+   */
+  async function toOrder(documentId) {
+    const order = await api('/documents/' + encodeURIComponent(documentId) + '/order', {
+      method: 'POST',
+    });
+    setStatus(
+      (order.reused ? '이미 수주로 전환된 확인서입니다: ' : '수주로 전환했습니다: ') + order.order_no
+    );
+    if (window.confirm('수주 ' + order.order_no + '\n\nERP 화면(수주·원가·마진)을 열까요?')) {
+      window.open('erp.html', '_blank', 'noopener');
+    }
+  }
+
   async function saveSite() {
     const id = designId();
     if (!id) throw new Error('설계를 먼저 저장해 주세요.');
@@ -570,6 +598,14 @@
     });
     on('wfSaveSite', saveSite);
     on('wfAddSched', addSchedule);
+
+    root.querySelectorAll('[data-wf-order]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        guard(function () {
+          return toOrder(b.getAttribute('data-wf-order'));
+        });
+      });
+    });
 
     root.querySelectorAll('[data-wf-print]').forEach(function (b) {
       b.addEventListener('click', function () {
