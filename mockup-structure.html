@@ -425,8 +425,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // 데이터 모델
   // ─────────────────────────────────────────────────────────────
-  const LAYOUT_KEY    = 'dadam_layout_v1';
-  const STRUCTURE_KEY = 'dadam_structure_v1';
+  // CD-3: 저장 스코프 — 품목별 분리. mockup-shell.html 과 같은 규칙이며
+  // 배치 단계에서 넘어올 때 쿼리스트링이 함께 전달된다.
+  // 파라미터가 없으면 예전 전역 키를 그대로 쓴다(단독 열람 호환).
+  const PLANNER_SCOPE = (function () {
+    try {
+      const q = new URLSearchParams(location.search);
+      const design = q.get('design') || '';
+      const item = q.get('item') || '';
+      if (!design && !item) return '';
+      return `::${design || 'local'}:${item || '0'}`;
+    } catch (e) {
+      return '';
+    }
+  })();
+  function scopedKey(base) { return base + PLANNER_SCOPE; }
+
+  const LAYOUT_KEY    = scopedKey('dadam_layout_v1');
+  const STRUCTURE_KEY = scopedKey('dadam_structure_v1');
+  const ORIGIN_KEY    = scopedKey('dadam_origin_v1');
 
   /** @type {Array<{id, section, W, H, D}>} */
   let modules = [];
@@ -468,9 +485,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
           // 1) 일반 모듈만 추출
           modules = layout.modules
-            .filter(m => SECTION_CONFIG[m.section] && !FINISHING_SECTIONS.includes(m.section))
-            .map((m, i) => ({
+            // CD-3: 원본 배열에서의 위치를 남겨둔다 — 구조 단계 편집을 되쓸 때
+            // 어느 항목을 갱신할지 알아야 하고, 마감재는 건드리면 안 된다.
+            .map((m, srcIndex) => ({ m, srcIndex }))
+            .filter(({ m }) => SECTION_CONFIG[m.section] && !FINISHING_SECTIONS.includes(m.section))
+            .map(({ m, srcIndex }, i) => ({
               id: moduleIdFor(m.section, i),
+              _srcIndex: srcIndex,
               section: m.section,
               W: m.w,
               H: m.moduleH,
@@ -534,6 +555,58 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
   function saveStructures() {
     localStorage.setItem(STRUCTURE_KEY, JSON.stringify(structures));
+  }
+
+  /**
+   * CD-3: 구조 단계에서 바꾼 모듈 치수를 배치 레이아웃에 되쓴다.
+   *
+   * 예전엔 이 파일의 localStorage 쓰기가 saveStructures() 한 곳뿐이라,
+   * 눈금자로 고친 W/H 와 자동계산이 재배치한 x 가 **메모리에만** 있었다.
+   * 새로고침하거나 "배치 로드"를 누르면 원래 값으로 되돌아갔고,
+   * 특히 H 는 배치 단계에 입력이 없어 되돌아가면 복구할 방법이 없었다.
+   *
+   * 통째로 다시 만들지 않고 원본 항목을 갱신한다 — 마감재(ep/molding/filler)와
+   * person·origin 같은 다른 필드를 건드리지 않기 위해서다.
+   * 구조 단계에서 삭제된 모듈(W<100 으로 splice 된 것)은 여기서도 빠진다.
+   */
+  function saveLayoutFromModules() {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (!raw) return false;
+      const layout = JSON.parse(raw);
+      if (!layout || !Array.isArray(layout.modules)) return false;
+
+      const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
+      const byIdx = new Map();
+      modules.forEach((mod) => {
+        if (Number.isInteger(mod._srcIndex)) byIdx.set(mod._srcIndex, mod);
+      });
+      // 샘플 데이터로 띄운 경우엔 되쓸 원본이 없다
+      if (byIdx.size === 0) return false;
+
+      const next = [];
+      layout.modules.forEach((entry, i) => {
+        const isRegular = SECTION_CONFIG[entry.section] && !FINISHING_SECTIONS.includes(entry.section);
+        if (!isRegular) { next.push(entry); return; }   // 마감재·기타는 원본 보존
+        const mod = byIdx.get(i);
+        if (!mod) return;                                // 구조 단계에서 삭제됨
+        next.push({ ...entry, w: mod.W, moduleH: mod.H, h: mod.D, x: mod.x, y: mod.y });
+      });
+
+      layout.modules = next;
+      layout.savedAt = new Date().toISOString();
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+      return true;
+    } catch (e) {
+      console.warn('[CD-3] 배치 되쓰기 실패:', e);
+      return false;
+    }
+  }
+
+  /** 구조 + 배치를 함께 저장 — 편집 결과가 새로고침을 견디게 한다 */
+  function persistPlannerState() {
+    saveStructures();
+    saveLayoutFromModules();
   }
   function getStructure(id) {
     if (!structures[id]) structures[id] = defaultStructure();
@@ -993,6 +1066,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       for (const m of group.modules) { m.H = newVal; m.isFixed = fixed; }
       count = group.modules.length;
     }
+    // CD-3: 즉시 저장. 예전엔 여기서 바꾼 W/H 가 메모리에만 남아
+    // 새로고침하면 사라졌다 (특히 H 는 배치 단계에 입력이 없어 복구 불가).
+    persistPlannerState();
+
     // 재렌더
     if (typeof renderFrontView === 'function') renderFrontView();
     if (typeof renderRightPanel === 'function') renderRightPanel();
@@ -1835,7 +1912,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     showToast(`📥 배치 로드 (모듈 ${modules.length}개)`);
   };
   document.getElementById('saveBtn').onclick = () => {
-    saveStructures();
+    persistPlannerState();
     showToast(`💾 구조 저장 (모듈 ${Object.keys(structures).length}개)`);
   };
   // W11-9: 여기가 업무 루프의 끊긴 지점이었다.
@@ -1882,12 +1959,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // "다음" 을 누르지 않아도 BOM 으로 갈 수 있어야 한다.
   window.addEventListener('message', (e) => {
     if (!e.data || e.data.type !== 'REQUEST_PLANNER_STATE') return;
-    saveStructures();
+    persistPlannerState();
     sendPlannerState('PLANNER_STATE');
   });
 
   document.getElementById('nextBtn').onclick = () => {
-    saveStructures();
+    persistPlannerState();
     if (sendPlannerState('PLANNER_DONE')) {
       showToast('구조 저장 · BOM 산출로 이동합니다');
       return;
@@ -1922,7 +1999,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   let personPos = null;   // { cx, cy } 또는 null
   (function loadOrigin() {
     try {
-      const raw = localStorage.getItem('dadam_origin_v1');
+      const raw = localStorage.getItem(ORIGIN_KEY);
       if (raw) {
         const o = JSON.parse(raw);
         if (typeof o.ceiling === 'number') ceilingHeight = o.ceiling;
@@ -3224,6 +3301,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       autoCalcModule(m, s, applianceRanges);
       count++;
     });
+    // CD-3: 자동계산은 redistributeNonFixedWidths 로 모듈 W/x 를 재배치한다.
+    // 저장하지 않으면 그 재배치가 새로고침 시 사라진다.
+    persistPlannerState();
     return count;
   }
 
