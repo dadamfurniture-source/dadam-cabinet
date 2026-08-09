@@ -1410,7 +1410,55 @@
 
   // W9-66: 원점 (Origin) 설정 — ceiling 높이 기준점
   // 원점이 설정되면 ceiling=2300 default + 모듈 꼭지점 자석 대상에 추가
-  const ORIGIN_STORAGE_KEY = 'dadam_origin_v1';
+  // ============================================================
+  // CD-3: 저장 스코프 — 품목별로 배치를 분리한다.
+  //
+  // 예전엔 키가 전역 단일('dadam_layout_v1')이라 품목이 2개 이상이면
+  // 서로의 배치를 덮어썼다. 품목 A 에서 그린 배치가 품목 B 에도 보이고,
+  // 각각 BOM 을 산출하면 같은 자재가 두 번 잡혀 **발주량이 2배**가 됐다.
+  //
+  // 부모(detaildesign)가 iframe URL 로 ?design=&item= 을 넘긴다.
+  // 파라미터가 없으면(플래너를 단독으로 열어본 경우) 예전 키를 그대로 써서
+  // 기존에 저장해둔 배치가 사라지지 않게 한다.
+  // ============================================================
+  const PLANNER_SCOPE = (function () {
+    try {
+      const q = new URLSearchParams(location.search);
+      const design = q.get('design') || '';
+      const item = q.get('item') || '';
+      if (!design && !item) return '';
+      return `::${design || 'local'}:${item || '0'}`;
+    } catch (e) {
+      return '';
+    }
+  })();
+
+  /** 스코프가 붙은 저장 키. 스코프가 없으면 예전 키 그대로. */
+  function scopedKey(base) {
+    return base + PLANNER_SCOPE;
+  }
+
+  // 스코프 도입 전에 저장해둔 배치를 **한 번만** 첫 스코프로 옮긴다.
+  // 안 옮기면 기존 사용자에겐 작업하던 배치가 사라진 것처럼 보이고,
+  // 모든 스코프에 복사하면 예전의 중복 산출 문제가 그대로 재현된다.
+  (function migrateLegacyScope() {
+    if (!PLANNER_SCOPE) return;
+    const MARK = 'dadam_scope_migrated_v1';
+    try {
+      if (localStorage.getItem(MARK)) return;
+      let moved = false;
+      ['dadam_layout_v1', 'dadam_origin_v1', 'dadam_structure_v1'].forEach((base) => {
+        const legacy = localStorage.getItem(base);
+        if (legacy && !localStorage.getItem(base + PLANNER_SCOPE)) {
+          localStorage.setItem(base + PLANNER_SCOPE, legacy);
+          moved = true;
+        }
+      });
+      if (moved) localStorage.setItem(MARK, new Date().toISOString());
+    } catch (e) {}
+  })();
+
+  const ORIGIN_STORAGE_KEY = scopedKey('dadam_origin_v1');
   let originMode = false;
   let originPos = null;   // { x, y } SVG 좌표
   let ceilingHeight = 2300;  // mm, default
@@ -2220,7 +2268,7 @@
   // ─────────────────────────────────────────────────────────────
   // W9-57: 배치 저장 / 불러오기 / 다음 단계 (구조)
   // ─────────────────────────────────────────────────────────────
-  const LAYOUT_STORAGE_KEY = 'dadam_layout_v1';
+  const LAYOUT_STORAGE_KEY = scopedKey('dadam_layout_v1');
 
   function serializeLayout() {
     const content = getContent();
@@ -2738,7 +2786,9 @@
     pillBtns.forEach(b => b.classList.remove('active'));
     if (pillBtns[1]) pillBtns[1].classList.add('active');
     // 구조 단계 페이지로 이동 (Cloudflare Pages 308 redirect 회피 — 확장자 없이)
-    setTimeout(() => { location.href = 'mockup-structure'; }, 400);
+    // CD-3: 쿼리스트링을 함께 넘긴다. 안 넘기면 구조 단계가 스코프를 잃고
+    //       전역 키를 읽어 **다른 품목의 배치**를 열게 된다.
+    setTimeout(() => { location.href = 'mockup-structure' + location.search; }, 400);
   };
 
   // W9-39: TopBar Undo/Redo 버튼 이벤트
