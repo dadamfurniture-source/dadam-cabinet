@@ -17,6 +17,7 @@ import {
   selectOne,
   selectMany,
   updateById,
+  updateBy,
 } from './supabase.js';
 import { sha256Hex } from './util/hash.js';
 import { getSnapshot, latestHash } from './snapshots.js';
@@ -138,16 +139,64 @@ export async function issueDocument(env, { user, body }) {
     });
   }
 
-  // 이전 문서 supersede
+  // 같은 종류의 이전 리비전을 자동으로 대체 처리한다.
+  //
+  // 예전엔 클라이언트가 body.supersedes 를 보낼 때만 돌았는데 어떤 화면도 그 필드를
+  // 보내지 않았다. 그래서 확인서를 재발행해도 **구 공유 링크가 계속 살아 있었고**,
+  // 고객이 옛 금액의 확인서를 그대로 열 수 있었다. share.js 의 superseded → 410
+  // 분기도 도달할 수 없는 죽은 코드였다. (루프 실주행에서 잡힘)
+  //
+  // 재발행은 본질적으로 구 리비전을 대체하므로 옵션이 아니라 기본 동작이어야 한다.
+  const supersededCount = await supersedePriorRevisions(env, {
+    designId,
+    docType,
+    newDocId: created.id,
+    newRev: rev,
+  });
+
+  // 다른 종류의 문서를 명시적으로 대체하려는 경우는 그대로 지원한다
   if (body.supersedes) {
     await supersedeDocument(env, { user, documentId: body.supersedes, replacementId: created.id });
   }
 
   return {
     document: finalDoc,
+    superseded_count: supersededCount,
     share_token: plainToken,
     share_url: plainToken ? buildShareUrl(env, plainToken) : null,
   };
+}
+
+/**
+ * 같은 설계·같은 종류의 **이전 리비전**을 전부 대체 처리한다.
+ *
+ * 상태 처리 규칙: 고객이 이미 결정한 문서(승인/수정요청)는 **상태를 보존**하고
+ * `superseded_by` 만 채운다. 그 결정 자체가 감사 기록이라 'superseded' 로 덮으면
+ * "고객이 승인했다"·"고객이 반려했다"는 사실이 사라진다.
+ * 결정이 없는 문서만 status='superseded' 로 바꿔 공유 링크를 410 으로 만든다.
+ */
+export async function supersedePriorRevisions(env, { designId, docType, newDocId, newRev }) {
+  const base = {
+    design_id: `eq.${designId}`,
+    doc_type: `eq.${docType}`,
+    rev: `lt.${newRev}`,
+    superseded_by: 'is.null',
+  };
+
+  const decided = await updateBy(
+    env,
+    'design_documents',
+    { ...base, decision: 'not.is.null' },
+    { superseded_by: newDocId },
+  );
+  const undecided = await updateBy(
+    env,
+    'design_documents',
+    { ...base, decision: 'is.null' },
+    { superseded_by: newDocId, status: 'superseded' },
+  );
+
+  return (Array.isArray(decided) ? decided.length : 0) + (Array.isArray(undecided) ? undecided.length : 0);
 }
 
 /** 구 문서를 대체 처리. 승인 이력은 지우지 않는다. */
@@ -157,9 +206,11 @@ export async function supersedeDocument(env, { user, documentId, replacementId }
   await assertDesignOwner(env, doc.design_id, user.id);
 
   const patch = { superseded_by: replacementId };
-  // 승인된 문서는 감사 추적을 위해 상태를 유지하고, 그 외에는 superseded 로 바꾼다.
+  // 고객이 이미 결정한 문서(승인/수정요청)는 상태를 유지한다.
+  // 예전엔 'approved' 만 봤는데, 그러면 **반려된 문서가 'superseded' 로 덮여**
+  // "고객이 수정을 요청했다"는 기록이 사라진다. 승인만큼이나 중요한 이력이다.
   // 상태만 바꾼다. share_token_hash 는 그대로 둔다 — 아래 revokeDocument 주석 참조.
-  if (doc.status !== 'approved') patch.status = 'superseded';
+  if (!doc.decision) patch.status = 'superseded';
 
   return updateById(env, 'design_documents', documentId, patch);
 }
