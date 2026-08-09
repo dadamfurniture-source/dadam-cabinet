@@ -44,12 +44,15 @@ const SPECS = {
 describe('플래너 기본값과 제조 표준이 어긋나지 않는다', () => {
   // 이 둘이 갈라진 것이 바로 이번 결함의 원인이었다
   // (플래너 860/800 vs 표준 870/780). 다른 문서라 자동으로는 못 맞춘다.
-  const SHELL = fs.readFileSync(path.join(__dirname, '../mockup-shell.html'), 'utf8');
   const CONSTANTS = fs.readFileSync(path.join(__dirname, '../js/detaildesign/data-constants.js'), 'utf8');
+  // P1: 섹션 정본이 mockup-shell.html 인라인에서 js/planner/planner-sections.js 로
+  // 옮겨갔다. HTML 을 정규식으로 긁는 대신 정본 모듈을 그대로 읽는다 —
+  // 값이 옮겨다녀도 검사가 조용히 무력화되지 않는다.
+  const { PLANNER_SECTIONS } = require('../js/planner/planner-sections.js');
 
   function sectionH(section) {
-    const m = SHELL.match(new RegExp(`${section}:\\s*\\{[^}]*moduleH:\\s*(\\d+)`));
-    return m ? Number(m[1]) : null;
+    const cfg = PLANNER_SECTIONS[section];
+    return cfg ? cfg.moduleH : null;
   }
   function constant(name) {
     const m = CONSTANTS.match(new RegExp(`const ${name} = (\\d+)`));
@@ -72,7 +75,9 @@ describe('플래너 기본값과 제조 표준이 어긋나지 않는다', () =>
   });
 
   test('플래너 moduleH 가 전체 높이임을 주석으로 못박는다', () => {
-    expect(SHELL).toMatch(/moduleH = 모듈 \*\*전체 높이\*\*/);
+    // 정본 옆에 있어야 의미가 있다 — 값과 설명이 떨어지면 설명이 먼저 썩는다
+    const SECTIONS = fs.readFileSync(path.join(__dirname, '../js/planner/planner-sections.js'), 'utf8');
+    expect(SECTIONS).toMatch(/moduleH\s+— 모듈 \*\*전체 높이\*\*/);
   });
 });
 

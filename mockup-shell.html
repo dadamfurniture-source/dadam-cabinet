@@ -404,6 +404,13 @@
   </div>
 </div>
 
+<!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
+     클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
+     여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
+<script src="js/planner/planner-scope.js?v=35.3"></script>
+<script src="js/planner/planner-view.js?v=35.3"></script>
+<script src="js/planner/planner-sections.js?v=35.3"></script>
+
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
   const rp = document.getElementById('rightPanel'), btnR = document.getElementById('btnRight');
@@ -415,31 +422,9 @@
     if (e.key === 'r' || e.key === 'R') btnR.click();
   });
   // W9-10: 하부장/상부장/키큰장 — 도면 (canvas-wrap) 에 색상별 직사각형 추가
-  // W9-20: 표준 모듈 치수 (mm) — 도면 = 평면도 (W × D)
-  // moduleH = 모듈 **전체 높이** (다리발/좌대 + 몸통 + 상판/상몰딩). 몸통 높이가 아니다.
-  //   하부장 870 = 다리발 150 + 몸통 708 + 상판 12
-  //   상부장 780 = 몸통 720 + 상몰딩 60
-  // BOM 은 몸통 높이를 쓰므로 브리지(ui-step1.js `_carcassHeight`)가 변환한다.
-  // CD-1: 기존 860/800 은 제조 표준(870/780)과 어긋난 값이었다. 그대로 두면
-  //       플래너를 거치는 것만으로 전 부재의 세로 치수가 틀어진다.
-  const SECTION_CONFIG = {
-    lower:   { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장',  moduleH: 870  },
-    upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 780  },
-    tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
-    fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 2300 },
-    // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
-    // W9-42: 분배기/후드/식세기 기본값 조정 + 냉장고는 모달로 모델 선택
-    sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 700, h: 400, label: '분배기',     moduleH: 500  },
-    hood:         { fill: '#6a727a', stroke: '#2a3238', w: 300, h: 300, label: '후드',       moduleH: 300  },
-    refrigerator: { fill: '#c8ced4', stroke: '#5a626a', w: 720, h: 700, label: '냉장고',     moduleH: 1850 },
-    dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 650, label: '식기세척기', moduleH: 820  },
-    // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 전체높이 (870 default)
-    ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 870, adjacent: 'depthAndHeight' },
-    // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
-    molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 870, adjacent: 'heightOnly' },
-    // 휠라 (filler): W=60 · 두께 18T · H=인접 모듈 높이
-    filler:  { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '휠라',   moduleH: 870, adjacent: 'heightOnly' },
-  };
+  // 섹션 정본(치수·색·moduleH 의미)은 js/planner/planner-sections.js 에 있다.
+  // 배치 단계는 덮어쓸 것이 없어 정본 그대로 쓴다.
+  const SECTION_CONFIG = buildSectionConfig();
 
   // W9-28: 도면에 가장 최근 추가된 일반 모듈 (lower/upper/tall/fridge) 의 깊이/높이 자동 참조
   function getAdjacentModuleDims() {
@@ -504,19 +489,19 @@
     textEl.appendChild(t2);
   }
   let rectIdx = 0;
-  // W9-17: pan/zoom view state. content layer 의 transform 으로 적용.
-  const view = { panX: 0, panY: 0, zoom: 1 };
+  // W9-17: pan/zoom view state → js/planner/planner-view.js (구조 단계와 공유).
+  // applyView 는 페이지마다 DOM 이 달라 여기 남는다. 공통분모(transform·격자)만 정본을 쓴다.
   function applyView() {
     const svg = document.querySelector('.canvas-wrap svg.canvas-svg');
     if (!svg) return;
     const content = svg.querySelector('g.content');
-    if (content) content.setAttribute('transform', `translate(${view.panX} ${view.panY}) scale(${view.zoom})`);
+    if (content) content.setAttribute('transform', viewTransform(view));
     // 배경 grid scale 동기화 (50mm * zoom)
     const wrap = document.querySelector('.canvas-wrap');
     if (wrap) {
-      const sz = (50 * view.zoom).toFixed(2) + 'px';
-      wrap.style.backgroundSize = sz + ' ' + sz;
-      wrap.style.backgroundPosition = view.panX + 'px ' + view.panY + 'px';
+      const bg = gridBackground(view);
+      wrap.style.backgroundSize = bg.size;
+      wrap.style.backgroundPosition = bg.position;
     }
     const zi = document.getElementById('zoomInd');
     if (zi) zi.textContent = Math.round(view.zoom * 100) + '%';
@@ -726,13 +711,8 @@
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      const newZoom = Math.max(0.05, Math.min(8, view.zoom * factor));
-      // 커서 위치 anchor 유지: world = (screen - pan) / zoom; pan' = screen - world * zoom'
-      const wx = (mx - view.panX) / view.zoom;
-      const wy = (my - view.panY) / view.zoom;
-      view.zoom = newZoom;
-      view.panX = mx - wx * newZoom;
-      view.panY = my - wy * newZoom;
+      // 커서 아래 도면 점을 제자리에 고정한 채 확대·축소
+      zoomAtPoint(view, mx, my, view.zoom * factor);
       applyView();
     }, { passive: false });
 
@@ -747,9 +727,8 @@
         const wrapRect = wrap.getBoundingClientRect();
         const sx = e.clientX - wrapRect.left;
         const sy = e.clientY - wrapRect.top;
-        const wx = (sx - view.panX) / view.zoom;
-        const wy = (sy - view.panY) / view.zoom;
-        setOriginAt(wx, wy);
+        const w = toScene(sx, sy, view);
+        setOriginAt(w.x, w.y);
         setOriginMode(false);
         return;
       }
@@ -813,11 +792,9 @@
         }
         // 스크린 BBox → SVG world 좌표 변환
         const { x0, y0, x1, y1 } = rbInfo.boxScreen;
-        const wx0 = (x0 - view.panX) / view.zoom;
-        const wy0 = (y0 - view.panY) / view.zoom;
-        const wx1 = (x1 - view.panX) / view.zoom;
-        const wy1 = (y1 - view.panY) / view.zoom;
-        const sel = { minX: wx0, minY: wy0, maxX: wx1, maxY: wy1 };
+        const w0 = toScene(x0, y0, view);
+        const w1 = toScene(x1, y1, view);
+        const sel = { minX: w0.x, minY: w0.y, maxX: w1.x, maxY: w1.y };
         const content = getContent();
         if (!rbInfo.additive) clearSelection();
         if (content) {
@@ -875,12 +852,7 @@
     });
     const pad = 60;
     const cw = wrap.clientWidth, ch = wrap.clientHeight;
-    const contentW = (maxX - minX) || 1;
-    const contentH = (maxY - minY) || 1;
-    const z = Math.min((cw - pad * 2) / contentW, (ch - pad * 2) / contentH);
-    view.zoom = Math.max(0.05, Math.min(8, z));
-    view.panX = pad - minX * view.zoom + (cw - pad * 2 - contentW * view.zoom) / 2;
-    view.panY = pad - minY * view.zoom + (ch - pad * 2 - contentH * view.zoom) / 2;
+    fitViewTo(view, { minX, minY, width: (maxX - minX) || 1, height: (maxY - minY) || 1 }, cw, ch, pad);
     applyView();
   }
 
@@ -1411,54 +1383,11 @@
   // W9-66: 원점 (Origin) 설정 — ceiling 높이 기준점
   // 원점이 설정되면 ceiling=2300 default + 모듈 꼭지점 자석 대상에 추가
   // ============================================================
-  // CD-3: 저장 스코프 — 품목별로 배치를 분리한다.
-  //
-  // 예전엔 키가 전역 단일('dadam_layout_v1')이라 품목이 2개 이상이면
-  // 서로의 배치를 덮어썼다. 품목 A 에서 그린 배치가 품목 B 에도 보이고,
-  // 각각 BOM 을 산출하면 같은 자재가 두 번 잡혀 **발주량이 2배**가 됐다.
-  //
-  // 부모(detaildesign)가 iframe URL 로 ?design=&item= 을 넘긴다.
-  // 파라미터가 없으면(플래너를 단독으로 열어본 경우) 예전 키를 그대로 써서
-  // 기존에 저장해둔 배치가 사라지지 않게 한다.
+  // CD-3: 저장 스코프(PLANNER_SCOPE · scopedKey · 레거시 이관)는
+  // js/planner/planner-scope.js 로 옮겼다. 구조 단계와 **반드시 같은 키**를 봐야
+  // 배치가 이어지므로 정본이 하나여야 한다. 이유와 배경은 그 파일 주석 참고.
   // ============================================================
-  const PLANNER_SCOPE = (function () {
-    try {
-      const q = new URLSearchParams(location.search);
-      const design = q.get('design') || '';
-      const item = q.get('item') || '';
-      if (!design && !item) return '';
-      return `::${design || 'local'}:${item || '0'}`;
-    } catch (e) {
-      return '';
-    }
-  })();
-
-  /** 스코프가 붙은 저장 키. 스코프가 없으면 예전 키 그대로. */
-  function scopedKey(base) {
-    return base + PLANNER_SCOPE;
-  }
-
-  // 스코프 도입 전에 저장해둔 배치를 **한 번만** 첫 스코프로 옮긴다.
-  // 안 옮기면 기존 사용자에겐 작업하던 배치가 사라진 것처럼 보이고,
-  // 모든 스코프에 복사하면 예전의 중복 산출 문제가 그대로 재현된다.
-  (function migrateLegacyScope() {
-    if (!PLANNER_SCOPE) return;
-    const MARK = 'dadam_scope_migrated_v1';
-    try {
-      if (localStorage.getItem(MARK)) return;
-      let moved = false;
-      ['dadam_layout_v1', 'dadam_origin_v1', 'dadam_structure_v1'].forEach((base) => {
-        const legacy = localStorage.getItem(base);
-        if (legacy && !localStorage.getItem(base + PLANNER_SCOPE)) {
-          localStorage.setItem(base + PLANNER_SCOPE, legacy);
-          moved = true;
-        }
-      });
-      if (moved) localStorage.setItem(MARK, new Date().toISOString());
-    } catch (e) {}
-  })();
-
-  const ORIGIN_STORAGE_KEY = scopedKey('dadam_origin_v1');
+  const ORIGIN_STORAGE_KEY = PLANNER_ORIGIN_KEY;
   let originMode = false;
   let originPos = null;   // { x, y } SVG 좌표
   let ceilingHeight = 2300;  // mm, default
@@ -1958,18 +1887,14 @@
       e.preventDefault();
       const wrap = document.querySelector('.canvas-wrap');
       const cx = wrap.clientWidth / 2, cy = wrap.clientHeight / 2;
-      const wx = (cx - view.panX) / view.zoom, wy = (cy - view.panY) / view.zoom;
-      view.zoom = Math.min(8, view.zoom * 1.2);
-      view.panX = cx - wx * view.zoom; view.panY = cy - wy * view.zoom;
+      zoomAtPoint(view, cx, cy, view.zoom * 1.2);
       applyView();
     }
     if (e.key === '-' || e.key === '_') {
       e.preventDefault();
       const wrap = document.querySelector('.canvas-wrap');
       const cx = wrap.clientWidth / 2, cy = wrap.clientHeight / 2;
-      const wx = (cx - view.panX) / view.zoom, wy = (cy - view.panY) / view.zoom;
-      view.zoom = Math.max(0.05, view.zoom / 1.2);
-      view.panX = cx - wx * view.zoom; view.panY = cy - wy * view.zoom;
+      zoomAtPoint(view, cx, cy, view.zoom / 1.2);
       applyView();
     }
   });

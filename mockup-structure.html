@@ -353,25 +353,21 @@ window.OrbitControls = OrbitControls;
 window.dispatchEvent(new CustomEvent('three-ready'));
 </script>
 
+<!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
+     클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
+     여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
+<script src="js/planner/planner-scope.js?v=35.3"></script>
+<script src="js/planner/planner-view.js?v=35.3"></script>
+<script src="js/planner/planner-sections.js?v=35.3"></script>
+
 <script>
   // ─────────────────────────────────────────────────────────────
-  // SECTION_CONFIG — mockup-shell.html 과 동일
+  // SECTION_CONFIG — 정본은 js/planner/planner-sections.js.
+  // 구조 단계만의 차이 두 가지를 여기서 명시적으로 얹는다:
+  //   · wardrobe — 배치 단계엔 없는 섹션 (아래 2442 주석: "추후 확장")
+  //   · 마감재 3종 — 3D 에서 몸통에 묻히지 않도록 더 어두운 색
   // ─────────────────────────────────────────────────────────────
-  const SECTION_CONFIG = {
-    lower:        { fill: '#b8956c', stroke: '#6a4b2a', label: '하부장' },
-    upper:        { fill: '#7c9c8f', stroke: '#3d5750', label: '상부장' },
-    tall:         { fill: '#9c6e7c', stroke: '#5c3848', label: '키큰장' },
-    wardrobe:     { fill: '#8c8a6e', stroke: '#4e4c38', label: '붙박이장' },
-    fridge:       { fill: '#a0a8b0', stroke: '#4a525a', label: '냉장고장' },
-    sink:         { fill: '#b0b8c0', stroke: '#5a626a', label: '분배기' },
-    hood:         { fill: '#6a727a', stroke: '#2a3238', label: '후드' },
-    refrigerator: { fill: '#c8ced4', stroke: '#5a626a', label: '냉장고' },
-    dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', label: '식기세척기' },
-    // W9-85: 마감재 — finishings forEach 의 SECTION_CONFIG[f.section] 조회 통과용
-    ep:           { fill: '#7a6a45', stroke: '#1a0f00', label: 'EP' },
-    molding:      { fill: '#5a4d2f', stroke: '#1a0f00', label: '몰딩' },
-    filler:       { fill: '#8a7858', stroke: '#1a0f00', label: '휠라' },
-  };
+  const SECTION_CONFIG = buildSectionConfig(STRUCTURE_ONLY_SECTIONS, SECTION_PALETTE_3D);
   // 영역 type 별 색상 보정
   function colorForArea(sectionFill, type) {
     if (type === 'door')   return sectionFill;
@@ -434,25 +430,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // 데이터 모델
   // ─────────────────────────────────────────────────────────────
-  // CD-3: 저장 스코프 — 품목별 분리. mockup-shell.html 과 같은 규칙이며
-  // 배치 단계에서 넘어올 때 쿼리스트링이 함께 전달된다.
-  // 파라미터가 없으면 예전 전역 키를 그대로 쓴다(단독 열람 호환).
-  const PLANNER_SCOPE = (function () {
-    try {
-      const q = new URLSearchParams(location.search);
-      const design = q.get('design') || '';
-      const item = q.get('item') || '';
-      if (!design && !item) return '';
-      return `::${design || 'local'}:${item || '0'}`;
-    } catch (e) {
-      return '';
-    }
-  })();
-  function scopedKey(base) { return base + PLANNER_SCOPE; }
-
-  const LAYOUT_KEY    = scopedKey('dadam_layout_v1');
-  const STRUCTURE_KEY = scopedKey('dadam_structure_v1');
-  const ORIGIN_KEY    = scopedKey('dadam_origin_v1');
+  // CD-3: 저장 스코프(PLANNER_SCOPE · scopedKey)는 js/planner/planner-scope.js 가 정본.
+  // 배치 단계와 **같은 키**를 봐야 넘어온 배치를 읽을 수 있다.
+  const LAYOUT_KEY    = PLANNER_LAYOUT_KEY;
+  const STRUCTURE_KEY = PLANNER_STRUCTURE_KEY;
+  const ORIGIN_KEY    = PLANNER_ORIGIN_KEY;
 
   /** @type {Array<{id, section, W, H, D}>} */
   let modules = [];
@@ -692,14 +674,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // 중앙 정면도 (SVG)
   // ─────────────────────────────────────────────────────────────
-  const view = { panX: 0, panY: 0, zoom: 1 };
+  // view 상태와 좌표변환은 js/planner/planner-view.js 가 정본.
+  // applyView 는 이 페이지의 DOM(#contentG · 뷰포트 눈금자)에 묶여 있어 여기 남는다.
   function applyView() {
     const content = document.getElementById('contentG');
-    content.setAttribute('transform', `translate(${view.panX} ${view.panY}) scale(${view.zoom})`);
+    content.setAttribute('transform', viewTransform(view));
     const wrap = document.getElementById('canvasWrap');
-    const sz = (50 * view.zoom).toFixed(2) + 'px';
-    wrap.style.backgroundSize = sz + ' ' + sz;
-    wrap.style.backgroundPosition = view.panX + 'px ' + view.panY + 'px';
+    const bg = gridBackground(view);
+    wrap.style.backgroundSize = bg.size;
+    wrap.style.backgroundPosition = bg.position;
     document.getElementById('zoomInd').textContent = Math.round(view.zoom * 100) + '%';
     // W9-110: viewport ruler 갱신
     updateViewportRulers();
