@@ -162,6 +162,16 @@ export async function insertOneIgnoreConflict(env, table, row) {
   }
 }
 
+/** CD-5: 필터 조건에 맞는 행 삭제. 필터가 비면 전체 삭제가 되므로 막는다. */
+export async function restDelete(env, table, filter) {
+  const qs = new URLSearchParams(filter).toString();
+  if (!qs) throw new ValidationError('삭제 조건이 비어 있습니다');
+  return restRequest(env, `/${table}?${qs}`, {
+    method: 'DELETE',
+    headers: restHeaders(env),
+  });
+}
+
 /**
  * CD-4: 있으면 갱신, 없으면 삽입 (PostgREST upsert).
  * `onConflict` 는 고유 인덱스가 걸린 컬럼이어야 한다 —
