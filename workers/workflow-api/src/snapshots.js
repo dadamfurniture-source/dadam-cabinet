@@ -109,20 +109,52 @@ export function deriveCounts(design, bom) {
  * 불일치는 extractors.js 의 materials 배열과 calculateSummary 가 어긋났다는 뜻이라
  * 조용히 넘기지 않고 409 로 세운다.
  */
+/**
+ * 자재 목록에서 자재·두께별 면적을 다시 계산한다.
+ * `extractors.js` 의 `calculateSummary()` 와 같은 식이다.
+ */
+export function recomputeAreas(materials) {
+  const out = {};
+  for (const m of Array.isArray(materials) ? materials : []) {
+    const key = `${m.material}_${m.thickness}`;
+    const area = (Number(m.w) || 0) * (Number(m.h) || 0) * (Number(m.qty) || 0);
+    out[key] = (out[key] || 0) + area;
+  }
+  return out;
+}
+
+/**
+ * 클라이언트 summary 가 제 materials 와 맞는지 대조한다.
+ *
+ * ⚠️ panelCount 로 비교하면 안 된다. 단위가 다르다:
+ *   summary.panelCount = ceil(면적 / 원판면적)  → **원판 장수**
+ *   derived.panelCount = Σ qty                  → **부재 개수**
+ * 예전 코드가 이 둘을 비교해서 실제 설계는 **하나도 동결되지 않았다**
+ * (자재 45건짜리 설계에서 장수 8 vs 개수 82 → 409). 루프 1회 실주행에서 잡혔다.
+ * 단위 테스트는 픽스처가 우연히 5=5 로 맞아 통과하고 있었다.
+ *
+ * 그래서 **면적**으로 본다. 면적은 materials 에서 바로 나오고 원판 규격에
+ * 의존하지 않는다 — 서버는 클라이언트가 어떤 원판을 쓰는지 알 수 없다.
+ */
 export function crossCheckSummary(bom, derived) {
   const summary = bom.summary;
   if (!summary || typeof summary !== 'object') return; // summary 가 없으면 대조 생략
 
-  const summaryPanels = Object.values(summary).reduce(
-    (sum, g) => sum + (Number(g && g.panelCount) || 0),
-    0,
-  );
-  if (summaryPanels === 0) return; // 집계가 비어 있으면 대조 의미 없음
+  const recomputed = recomputeAreas(bom.materials);
+  const claimed = Object.values(summary).reduce((s, g) => s + (Number(g && g.totalArea) || 0), 0);
+  const actual = Object.values(recomputed).reduce((s, a) => s + a, 0);
 
-  if (Math.round(summaryPanels) !== derived.panelCount) {
+  // 면적을 안 실어 보내는 클라이언트도 있다 — 그 경우 대조를 생략한다
+  if (claimed === 0) return;
+  if (actual === 0) return;
+
+  // 부동소수 누적 오차만 허용한다 (0.1%)
+  const diff = Math.abs(claimed - actual);
+  if (diff / actual > 0.001) {
     throw new ConflictError('BOM 자재 목록과 요약 집계가 일치하지 않습니다', {
-      summary_panel_count: Math.round(summaryPanels),
-      materials_panel_count: derived.panelCount,
+      summary_total_area: Math.round(claimed),
+      materials_total_area: Math.round(actual),
+      panel_count: derived.panelCount,
       hint: 'extractors.js 의 materials 배열과 calculateSummary() 산출이 어긋났습니다',
     });
   }
