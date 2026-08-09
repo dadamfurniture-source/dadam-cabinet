@@ -276,6 +276,15 @@
       <div style="font-size:9px;color:var(--text-faint);margin-top:4px;line-height:1.4">분배기/후드 위치 고려 · 다담 표준 (목표 도어 450mm) · 매립형 손잡이</div>
     </div>
     <div class="sections">
+      <!-- CD-2: 높이 구성 — 전체높이를 다리발/몸통/상판(또는 상몰딩)으로 나눠 지정 -->
+      <div class="section">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> 높이 구성
+        </div>
+        <div class="section-body" id="heightBody">
+          <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
       <!-- 분할 -->
       <div class="section">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
@@ -1682,15 +1691,124 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // 우측 패널 — 4 섹션 동적 렌더
   // ─────────────────────────────────────────────────────────────
+  /**
+   * CD-2: 모듈 높이 구성 — 전체높이를 부위별로 나눈다.
+   *
+   * 플래너가 다루는 H 는 **전체 높이**이고 BOM 은 몸통 높이를 쓴다.
+   * 그 사이 값(다리발·상판·상몰딩·좌대)을 모듈마다 지정할 수 있게 한다.
+   * 부위 구성은 섹션마다 다르다:
+   *   하부장  다리발 + 몸통 + 상판
+   *   상부장  몸통 + 상몰딩
+   *   키큰장  좌대 + 몸통 + 상몰딩       (docs/design-rules/sink.md §5)
+   *
+   * 값은 structures[id] 에 담는다 — 이미 저장·전송 경로를 타므로
+   * 별도 배선 없이 BOM 까지 간다.
+   */
+  function heightPartsOf(m, s) {
+    const sec = m.section;
+    const num = (v, d) => {
+      const x = parseFloat(v);
+      return Number.isFinite(x) && x >= 0 ? x : d;
+    };
+    if (sec === 'upper') {
+      return [{ key: 'moldingH', label: '상몰딩', value: num(s.moldingH, getMoldingH('upper')) }];
+    }
+    if (sec === 'tall' || sec === 'fridge') {
+      return [
+        { key: 'pedestalH', label: '좌대', value: num(s.pedestalH, 60) },
+        { key: 'moldingH', label: '상몰딩', value: num(s.moldingH, getMoldingH(sec) || MASTER_RULES.CROWN_MOLDING_SINK) },
+      ];
+    }
+    return [
+      { key: 'legH', label: '다리발', value: num(s.legH, MASTER_RULES.SINK_LEG) },
+      { key: 'topT', label: '상판', value: num(s.topT, 12) },
+    ];
+  }
+
+  /** 전체높이에서 부위를 뺀 몸통(카카스) 높이 */
+  function bodyHeightOf(m, s) {
+    const parts = heightPartsOf(m, s);
+    const sum = parts.reduce((a, p) => a + p.value, 0);
+    return Math.max(0, (Number(m.H) || 0) - sum);
+  }
+
+  function renderHeightPanel(m, s) {
+    const host = document.getElementById('heightBody');
+    if (!host) return;
+    const parts = heightPartsOf(m, s);
+    const body = bodyHeightOf(m, s);
+    const rows = parts
+      .map(
+        (p) => `
+      <div class="row">
+        <label>${p.label} (mm)</label>
+        <input type="number" min="0" max="500" step="1" data-hpart="${p.key}" value="${p.value}">
+      </div>`
+      )
+      .join('');
+    host.innerHTML = `
+      ${rows}
+      <div class="row">
+        <label>몸통 (mm)</label>
+        <input type="number" min="50" step="1" id="inpBodyH" value="${body}">
+      </div>
+      <div class="row" style="opacity:.75">
+        <label>전체 높이</label>
+        <span style="font-weight:600">${Math.round(Number(m.H) || 0)} mm</span>
+      </div>
+      <div style="font-size:10px;color:#888;line-height:1.4;margin-top:4px">
+        전체 = ${parts.map((p) => p.label).join(' + ')} + 몸통.<br>
+        BOM 은 <b>몸통</b> 치수로 재단합니다.
+      </div>
+    `;
+
+    // 부위 변경 → 전체높이 유지, 몸통이 흡수한다
+    host.querySelectorAll('input[data-hpart]').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const key = inp.getAttribute('data-hpart');
+        const v = Math.max(0, parseFloat(inp.value) || 0);
+        s[key] = v;
+        if (bodyHeightOf(m, s) < 50) {
+          showToast('⚠ 몸통이 50mm 미만이 됩니다 — 전체 높이를 먼저 키우세요');
+          delete s[key];
+          renderHeightPanel(m, s);
+          return;
+        }
+        persistPlannerState();
+        renderHeightPanel(m, s);
+        if (typeof renderFrontView === 'function') renderFrontView();
+        showToast(`✓ ${key} = ${v}mm`);
+      });
+    });
+
+    // 몸통 변경 → 부위는 그대로, 전체높이가 따라 커진다
+    const bodyInp = document.getElementById('inpBodyH');
+    if (bodyInp) {
+      bodyInp.addEventListener('change', () => {
+        const nextBody = Math.max(50, parseFloat(bodyInp.value) || 0);
+        const sum = heightPartsOf(m, s).reduce((a, p) => a + p.value, 0);
+        m.H = nextBody + sum;
+        m.isFixed = true; // 사용자가 정한 높이는 자동계산이 건드리지 않는다
+        persistPlannerState();
+        renderHeightPanel(m, s);
+        if (typeof renderFrontView === 'function') renderFrontView();
+        if (typeof updateViewportRulers === 'function') updateViewportRulers();
+        showToast(`✓ 몸통 ${nextBody}mm → 전체 ${m.H}mm (고정)`);
+      });
+    }
+  }
+
   function renderRightPanel() {
     const m = modules.find(x => x.id === activeId);
     if (!m) {
-      ['splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
-        document.getElementById(id).innerHTML = '<div class="empty-msg">모듈 선택</div>';
+      ['heightBody','splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<div class="empty-msg">모듈 선택</div>';
       });
       return;
     }
     const s = getStructure(activeId);
+    renderHeightPanel(m, s);
 
     // 분할
     document.getElementById('splitBody').innerHTML = `
@@ -1709,6 +1827,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <div class="row">
           <label>하부 H (mm)</label>
           <input type="number" min="50" max="${m.H-50}" step="10" id="inpDrawerH" value="${s.drawerHeight}">
+        </div>
+        <div class="row">
+          <label>서랍 단수</label>
+          <input type="number" min="1" max="5" step="1" id="inpDrawerCount" value="${Number(s.drawerCount) || 1}">
+        </div>
+        <div style="font-size:10px;color:#888;line-height:1.4">
+          서랍 1단마다 전후판 2장·측판 2장·밑판 1장이 자재로 잡힙니다.
         </div>
       ` : ''}
     `;
@@ -1729,6 +1854,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const v = parseInt(e.target.value) || 200;
       s.drawerHeight = Math.max(50, Math.min(m.H-50, v));
       renderFrontView();
+    };
+
+    // CD-2: 서랍 단수 — 예전엔 지정할 수단이 없어 브리지가 항상 1단으로 넘겼다.
+    // 1단마다 전후판 2·측판 2·밑판 1 이 잡히므로 BOM 수량에 직접 영향을 준다.
+    const inpDrC = document.getElementById('inpDrawerCount');
+    if (inpDrC) inpDrC.onchange = (e) => {
+      const v = Math.max(1, Math.min(5, parseInt(e.target.value) || 1));
+      s.drawerCount = v;
+      e.target.value = v;
+      persistPlannerState();
+      renderFrontView();
+      showToast(`✓ 서랍 ${v}단`);
     };
 
     // 영역 타입
@@ -3301,13 +3438,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
     });
     let count = 0;
+    let preserved = 0;
     set.modules.forEach((m) => {
       // 가전 자체는 skip — W9-99: fridge 도 skip 추가
       if (['sink', 'hood', 'dishwasher', 'fridge'].includes(m.section)) return;
       const s = getStructure(m.id);
+
+      // CD-2: '모듈 고정' 은 "자동계산 시 보존" 이라고 적혀 있는데 지켜지지 않았다.
+      // autoCalcModule 이 areaTypes/areaWidths/areaIs2D/verticalCount 를 무조건
+      // 재생성해서, 셀 폭을 손으로 맞춰둬도 자동계산을 다시 돌리면 사라졌다.
+      // 단, 아직 한 번도 계산된 적 없는(=셀 정보가 없는) 모듈은 비워두면
+      // 브리지가 통짜 1개로 잡으므로 최초 1회는 계산한다.
+      const hasCells = Array.isArray(s.areaWidths) && s.areaWidths.length > 0;
+      if (m.isFixed && hasCells) { preserved++; return; }
+
       autoCalcModule(m, s, applianceRanges);
       count++;
     });
+    if (preserved > 0) {
+      showToast(`🔒 고정 모듈 ${preserved}개는 그대로 뒀습니다`);
+    }
     // CD-3: 자동계산은 redistributeNonFixedWidths 로 모듈 W/x 를 재배치한다.
     // 저장하지 않으면 그 재배치가 새로고침 시 사라진다.
     persistPlannerState();
