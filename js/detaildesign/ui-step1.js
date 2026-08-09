@@ -1282,6 +1282,9 @@
           finishRightW: String(finishPayload.finishRightW),
           // W7-2: V2_MODULES_CHANGE 메시지의 itemId 라우팅용
           itemId: String(item.uniqueId),
+          // CD-3: 플래너 저장 스코프. 이게 없으면 모든 품목이 같은 localStorage 를
+          //       공유해 배치를 서로 덮어쓰고, 자재가 2배로 산출된다.
+          ..._plannerScopeParams(item),
           ...(finishPayload.distributorStart != null ? { distStart: String(finishPayload.distributorStart) } : {}),
           ...(finishPayload.distributorEnd != null ? { distEnd: String(finishPayload.distributorEnd) } : {}),
           ...(finishPayload.ventStart != null ? { ventStart: String(finishPayload.ventStart) } : {}),
@@ -1328,6 +1331,24 @@
       // 플래너는 URL 파라미터를 읽지 않으므로(mockup-shell.html 에 URLSearchParams 0건)
       // 품목별 오버레이와 내용이 동일하다 — 파라미터 없이 띄워도 무방하다.
       // ============================================================
+      /**
+       * CD-3: 플래너 저장 스코프 파라미터.
+       * 플래너는 이걸로 localStorage 키를 나눠 품목별 배치를 격리한다.
+       *
+       * `currentDesignId` 는 나중에 로드되는 persistence-init.js 의 전역이라
+       * 스크립트 평가 시점에 참조하면 TDZ ReferenceError 가 날 수 있다 —
+       * (ui-fridge-el.js 가 최상위에서 goToStep2 를 부른다) 그래서 try 로 감싼다.
+       */
+      function _plannerScopeParams(item) {
+        let design = 'local';
+        try {
+          if (currentDesignId) design = String(currentDesignId);
+        } catch (e) {
+          /* 아직 정의 전 — 저장 전 설계이므로 local 로 둔다 */
+        }
+        return { design, item: item ? String(item.uniqueId) : 'bootstrap' };
+      }
+
       const BOOTSTRAP_PLANNER_ID = '__planner-overlay-bootstrap';
 
       function _ensureBootstrapPlanner() {
@@ -1340,7 +1361,9 @@
         const rect = ws.getBoundingClientRect();
         overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;border-radius:8px;overflow:hidden;`;
         const iframe = document.createElement('iframe');
-        iframe.src = PLANNER_BASE_URL;
+        // CD-3: 부트스트랩도 자기 스코프를 갖는다 — 품목이 생기기 전 그린 배치가
+        // 첫 품목의 배치를 덮어쓰지 않게 한다
+        iframe.src = PLANNER_BASE_URL + '?' + new URLSearchParams(_plannerScopeParams(null)).toString();
         iframe.dataset.planner = 'true';
         iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
         iframe.allow = 'accelerometer; autoplay; fullscreen';
