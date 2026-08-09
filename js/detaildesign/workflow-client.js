@@ -427,20 +427,31 @@
       }
     );
 
+    // 재발행이면 옛 공유 링크가 닫힌다. 고객이 예전 링크로 들어오면 열리지 않으므로
+    // 새 링크를 다시 보내야 한다는 걸 발행 시점에 알려준다.
+    const supersededNote =
+      data.superseded_count > 0
+        ? ' · 이전 ' + data.superseded_count + '건은 대체되어 옛 링크가 닫혔습니다'
+        : '';
+
     if (data.share_url) {
       // 평문 토큰은 이 응답에서만 볼 수 있다 — 지금 복사하지 않으면 재발행해야 한다
       try {
         await navigator.clipboard.writeText(data.share_url);
-        setStatus(data.doc_no + ' 발행 완료 · 공유 링크를 클립보드에 복사했습니다.', 'ok');
+        setStatus(
+          data.doc_no + ' 발행 완료 · 공유 링크를 클립보드에 복사했습니다.' + supersededNote,
+          'ok'
+        );
       } catch (e) {
         window.prompt(
           '아래 공유 링크를 복사해 고객에게 전달하세요 (다시 볼 수 없습니다)',
           data.share_url
         );
-        setStatus(data.doc_no + ' 발행 완료', 'ok');
+        setStatus(data.doc_no + ' 발행 완료' + supersededNote, 'ok');
       }
     } else {
-      setStatus(data.doc_no + ' 발행 완료', 'ok');
+      // 작업지시서 — 공유 링크가 없다
+      setStatus(data.doc_no + ' 발행 완료' + supersededNote, 'ok');
     }
 
     await refresh();

@@ -84,10 +84,60 @@ test('결정이 없는 문서만 superseded 로 바꿔 링크를 닫는다', asy
   });
 });
 
-test('대체한 건수를 돌려준다', async () => {
+test('대체한 건수를 정확히 돌려준다', async () => {
   await withCapturedFetch(async () => {
     const n = await supersedePriorRevisions(ENV, ARGS);
     assert.equal(n, 2, '가짜 응답이 각 1행이므로 합 2');
+  });
+});
+
+test('행을 못 받으면 0 이 아니라 null — 0 은 "대체 없음" 으로 읽힌다', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true, status: 204,               // PostgREST 가 본문을 안 돌려주는 경우
+    headers: { get: () => null },
+    json: async () => null, text: async () => '',
+  });
+  try {
+    const n = await supersedePriorRevisions(ENV, ARGS);
+    assert.equal(n, null, '셀 수 없으면 0 으로 속이면 안 된다 (옛 링크가 살아있다는 오해)');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('갱신된 행 수만큼 정확히 센다', async () => {
+  const original = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = async () => {
+    call += 1;
+    const rows = call === 1 ? [{ id: 'a' }] : [{ id: 'b' }, { id: 'c' }, { id: 'd' }];
+    return {
+      ok: true, status: 200,
+      headers: { get: () => 'application/json' },
+      json: async () => rows, text: async () => JSON.stringify(rows),
+    };
+  };
+  try {
+    assert.equal(await supersedePriorRevisions(ENV, ARGS), 4, '1 + 3');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('representation 을 요청해 행을 받아온다', async () => {
+  await withCapturedFetch(async () => {
+    const original = globalThis.fetch;
+    const seen = [];
+    globalThis.fetch = async (url, init) => {
+      seen.push(init.headers.Prefer || '');
+      return { ok: true, status: 200, headers: { get: () => 'application/json' },
+               json: async () => [], text: async () => '[]' };
+    };
+    try {
+      await supersedePriorRevisions(ENV, ARGS);
+      for (const p of seen) assert.match(p, /return=representation/);
+    } finally { globalThis.fetch = original; }
   });
 });
 
