@@ -1,9 +1,13 @@
 /**
- * W12-2: 플래너 품목 아이콘 계약 테스트.
+ * 플래너 품목 선택 계약 테스트.
  *
- * 품목 선택 페이지(Step1)를 없애고 그 역할을 플래너 좌측 툴바 아이콘으로 옮겼다.
+ * 품목 선택 페이지(Step1)를 없애고 그 역할을 플래너로 옮겼다.
  * 이 배선이 끊기면 **가구를 만들 수단이 아예 사라진다** — 앱이 조용히 못 쓰게 된다.
  * 그래서 양쪽(플래너 송신 / detaildesign 수신)을 모두 고정한다.
+ *
+ * W12-2: 좌측 툴바 아이콘 10개
+ * W12-3: 상단 '기본 정보' 그룹의 드롭다운(#catPicker)
+ *   — 위치가 바뀌어도 **배선과 10종 노출은 그대로**여야 한다는 것이 이 파일의 요지다.
  *
  * mockup-shell.html 은 iframe 안에서 도는 별도 문서라 DOM 없이 실행할 수 없어
  * 소스 텍스트로 검사한다.
@@ -17,12 +21,32 @@ const UI = fs.readFileSync(path.join(ROOT, 'js/detaildesign/ui-step1.js'), 'utf8
 const HTML = fs.readFileSync(path.join(ROOT, 'detaildesign.html'), 'utf8');
 const CONSTANTS = fs.readFileSync(path.join(ROOT, 'js/detaildesign/data-constants.js'), 'utf8');
 
-describe('플래너 — 품목 아이콘 (송신측)', () => {
-  test('품목 툴바 컨테이너가 좌측 툴바 안에 있다', () => {
-    expect(SHELL).toMatch(/id="catTools"/);
+describe('플래너 — 품목 선택 (송신측)', () => {
+  test('품목 드롭다운이 상단 기본 정보 그룹 안에 있다', () => {
+    expect(SHELL).toMatch(/id="catPicker"/);
+    expect(SHELL).toMatch(/id="catPickerBtn"/);
+    expect(SHELL).toMatch(/id="catMenu"/);
+    // 좌측이 아니라 상단(.topbar > .info-group) 이어야 한다
+    expect(SHELL).toMatch(/id="infoGroup"/);
+    expect(SHELL.indexOf('id="infoGroup"')).toBeLessThan(SHELL.indexOf('id="leftTools"'));
+    expect(SHELL.indexOf('id="catPicker"')).toBeGreaterThan(SHELL.indexOf('id="infoGroup"'));
+  });
+
+  test('좌측 툴바에 품목 아이콘이 남아 있지 않다 (W12-3 이동)', () => {
+    // 옮기고 원본을 남기면 같은 기능이 두 군데서 돌아 개수가 어긋난다
+    expect(SHELL).not.toMatch(/id="catTools"/);
+    expect(SHELL).not.toMatch(/class="cat-tools"/);
+    // 좌측 툴바 자체와 '배치' 그룹은 그대로 있어야 한다
     expect(SHELL).toMatch(/id="leftTools"/);
-    // 품목 그룹이 '배치' 그룹보다 먼저 와야 한다 (품목 → 그 안의 모듈 순서)
-    expect(SHELL.indexOf('id="catTools"')).toBeLessThan(SHELL.indexOf('data-section="sink"'));
+    expect(SHELL).toMatch(/data-section="sink"/);
+  });
+
+  test('드롭다운이 접히고 펼쳐진다', () => {
+    expect(SHELL).toMatch(/aria-expanded/);
+    expect(SHELL).toMatch(/function setOpen/);
+    // 바깥 클릭 · Esc 로 닫힌다 — 열어둔 채 캔버스를 가리면 안 된다
+    expect(SHELL).toMatch(/document\.addEventListener\('click'[\s\S]{0,120}setOpen\(false\)/);
+    expect(SHELL).toMatch(/e\.key === 'Escape'[\s\S]{0,80}setOpen\(false\)/);
   });
 
   test('data-constants 의 카테고리 10종을 모두 노출한다', () => {
@@ -33,11 +57,19 @@ describe('플래너 — 품목 아이콘 (송신측)', () => {
     }
   });
 
-  test('클릭은 ADD_CATEGORY, 우클릭은 REMOVE_CATEGORY 를 부모로 보낸다', () => {
+  test('클릭은 ADD_CATEGORY, −버튼·우클릭은 REMOVE_CATEGORY 를 부모로 보낸다', () => {
     expect(SHELL).toMatch(/post\('ADD_CATEGORY', cat\.id\)/);
     expect(SHELL).toMatch(/post\('REMOVE_CATEGORY', cat\.id\)/);
     // 우클릭이 도면 회전(우클릭)으로 번지면 안 된다
     expect(SHELL).toMatch(/contextmenu[\s\S]{0,200}preventDefault\(\)[\s\S]{0,120}stopPropagation\(\)/);
+    // 메뉴에서는 −버튼이 주 수단이다 (우클릭은 예전 습관 보존용)
+    expect(SHELL).toMatch(/cat-menu-del/);
+  });
+
+  test('0개인 품목은 제거 버튼이 비활성이다', () => {
+    // 없는 걸 지우려는 클릭이 부모로 새면 조용히 무시돼 사용자가 혼란스럽다
+    expect(SHELL).toMatch(/del\.disabled = true/);
+    expect(SHELL).toMatch(/del\.disabled = n === 0/);
   });
 
   test('초기 개수를 받기 위해 PLANNER_READY 를 보내고 CATEGORY_COUNTS 를 듣는다', () => {
@@ -48,7 +80,11 @@ describe('플래너 — 품목 아이콘 (송신측)', () => {
   test('품목 아이콘은 배치 그룹 아이콘과 겹치지 않는다', () => {
     // 🚰 분배기 · 💨 후드 · 🧊 냉장고 · 🍽️ 식기세척기 는 '배치' 그룹 것이다.
     // 같은 이모지를 품목에 쓰면 계층이 다른 둘이 같아 보인다.
-    const catBlock = SHELL.slice(SHELL.indexOf('const CATS = ['), SHELL.indexOf('const host = document.getElementById'));
+    const start = SHELL.indexOf('const CATS = [');
+    const end = SHELL.indexOf('];', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const catBlock = SHELL.slice(start, end);
     for (const placed of ['🚰', '💨', '🧊', '🍽️']) {
       expect(catBlock).not.toContain(placed);
     }
