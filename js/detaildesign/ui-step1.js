@@ -870,6 +870,105 @@
       }
 
       /**
+       * CD-6: 자동계산 값 ↔ 사용자 최종값 차이 (학습 신호).
+       *
+       * "자동 모듈 분배 품질" 을 학습하려면 **자동계산이 뭘 냈는지**와
+       * **사용자가 뭘로 바꿨는지**가 둘 다 있어야 한다. 지금까지는 최종값만
+       * 남아서, 자동 분배가 어디서 왜 틀렸는지 알 방법이 없었다.
+       *
+       * 기준선(`_autoCalc`)은 플래너가 자동계산 직후에 심는다.
+       * 기준선이 없으면(자동계산을 안 돌렸으면) null 을 돌려 "모름" 과
+       * "안 고침" 을 구분한다 — 둘을 섞으면 학습이 오염된다.
+       */
+      function _plannerEditDiff(m, s) {
+        const base = s && s._autoCalc;
+        if (!base) return null;
+        const arr = (a) => (Array.isArray(a) ? a : []);
+        const same = (a, b) => JSON.stringify(arr(a)) === JSON.stringify(arr(b));
+        const num = (v, d) => {
+          const x = parseFloat(v);
+          return Number.isFinite(x) ? x : d;
+        };
+
+        const final = {
+          W: num(m.W, 0),
+          H: num(m.H, 0),
+          verticalCount: num(s.verticalCount, 0),
+          areaWidths: arr(s.areaWidths).slice(),
+          areaTypes: arr(s.areaTypes).slice(),
+          areaIs2D: arr(s.areaIs2D).slice(),
+          shelves: arr(s.shelves).slice(),
+          drawerHeight: num(s.drawerHeight, 0),
+          drawerCount: num(s.drawerCount, 1),
+          horizontalLayout: s.horizontalLayout || '',
+          bottomType: s.bottomType || '',
+        };
+
+        const edited = [];
+        if (final.W !== base.W) edited.push('W');
+        if (final.H !== base.H) edited.push('H');
+        if (final.verticalCount !== base.verticalCount) edited.push('verticalCount');
+        if (!same(final.areaWidths, base.areaWidths)) edited.push('areaWidths');
+        if (!same(final.areaTypes, base.areaTypes)) edited.push('areaTypes');
+        if (!same(final.areaIs2D, base.areaIs2D)) edited.push('areaIs2D');
+        if (!same(final.shelves, base.shelves)) edited.push('shelves');
+        if (final.drawerHeight !== base.drawerHeight) edited.push('drawerHeight');
+        if (final.drawerCount !== base.drawerCount) edited.push('drawerCount');
+        if (final.horizontalLayout !== base.horizontalLayout) edited.push('horizontalLayout');
+        if (final.bottomType !== base.bottomType) edited.push('bottomType');
+
+        return { edited, auto: base, final };
+      }
+
+      /**
+       * CD-6: 설계 1건의 플래너 학습 기록.
+       * 설계 스냅샷 payload 에 `_learning` 으로 실려 서버에 그대로 쌓인다.
+       * `_` 로 시작하는 키라 content_hash 에서 제외되므로,
+       * 이 값이 달라져도 같은 설계의 rev 를 늘리지 않는다.
+       */
+      function _buildPlannerLearning(payload) {
+        const src = Array.isArray(payload.modules) ? payload.modules : [];
+        const structures = payload.structures || {};
+        const modules = [];
+        let withBaseline = 0;
+        let editedCount = 0;
+        const editedFields = {};
+
+        src.forEach((m) => {
+          if (!PLANNER_CABINET_SECTIONS.includes(m.section)) return;
+          const s = structures[m.id] || null;
+          const diff = _plannerEditDiff(m, s);
+          if (!diff) {
+            modules.push({ id: m.id, section: m.section, hasBaseline: false });
+            return;
+          }
+          withBaseline++;
+          if (diff.edited.length > 0) {
+            editedCount++;
+            diff.edited.forEach((f) => { editedFields[f] = (editedFields[f] || 0) + 1; });
+          }
+          modules.push({
+            id: m.id,
+            section: m.section,
+            hasBaseline: true,
+            isFixed: !!m.isFixed,
+            edited: diff.edited,
+            auto: diff.auto,
+            final: diff.final,
+          });
+        });
+
+        return {
+          source: 'planner',
+          moduleCount: modules.length,
+          withBaseline,
+          editedCount,
+          editedFields,
+        modules,
+        };
+      }
+
+      /**
        * PLANNER_DONE payload → detaildesign 모듈 배열.
        * @param {object} payload  플래너가 보낸 상태
        * @param {object} [specs]  대상 품목의 specs — 전체높이→몸통 변환에 쓴다
@@ -1097,6 +1196,13 @@
         item.modules = modules;
         item.specs = item.specs || {};
         item.specs.autoCalculated = true;
+
+        // CD-6: 자동계산이 낸 값과 사용자가 고친 값을 함께 남긴다.
+        // 설계 스냅샷 payload 를 타고 서버에 쌓여 "자동 분배 품질" 학습의 재료가 된다.
+        // '_' 로 시작하는 키라 content_hash 에서 제외되어 rev 를 늘리지 않는다.
+        item._learning = Object.assign({}, item._learning, {
+          planner: _buildPlannerLearning(payload),
+        });
 
         const upper = modules.filter((m) => m.pos === 'upper').length;
         const lower = modules.filter((m) => m.pos === 'lower').length;
