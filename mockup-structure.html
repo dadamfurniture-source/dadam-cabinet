@@ -1938,6 +1938,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         x: m.x,
         y: m.y,
         rotation: m.rotation,
+        isFixed: !!m.isFixed,
+        // CD-3: 도면에 붙인 마감재(EP/몰딩/휠라). 예전엔 payload 에서 빠져
+        // 부모가 알 수 없었고, BOM 은 Step2 스펙의 finishLeft/RightType 만 봤다.
+        // 그래서 플래너에서 마감재를 아무리 배치해도 자재에 반영되지 않았다.
+        finishings: (m.finishings || []).map((f) => ({
+          section: f.section, W: f.W, H: f.H, D: f.D, x: f.x, y: f.y,
+        })),
       })),
       structures: structures,
       // 자동계산을 한 번이라도 돌렸는지 — 부모가 안내에 쓴다
