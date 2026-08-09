@@ -38,6 +38,16 @@
       const BODY_THICKNESS_DEFAULT = 15;
       const BODY_THICKNESS_OPTIONS = [15, 18];
 
+      // ── 전체 높이(total height) — 플래너가 다루는 값 ──
+      // 플래너 도면의 사각형 높이는 **전체 높이**다. 몸통(카카스)이 아니다.
+      //   하부장 870 = 다리발 150 + 몸통 708 + 상판 12
+      //   상부장 780 = 몸통 720 + 상몰딩 60
+      //   키큰장     = 전체 - 상몰딩 - 좌대            (docs/design-rules/sink.md §5)
+      // BOM(extractors.js)은 몸통 높이를 쓰므로 브리지에서 반드시 변환해야 한다.
+      // 변환을 빠뜨리면 하부 +162mm, 상부 +60mm 로 전 부재가 크게 재단된다.
+      const TOTAL_H_LOWER = 870;
+      const TOTAL_H_UPPER = 780;
+
       // 도어/몰딩/목찬넬 MDF 두께 — 몸통 두께와 무관한 별개 값이다.
       // BODY_THICKNESS 를 18 로 바꿔도 여기는 따라가지 않는다.
       const DOOR_MDF_THICKNESS = 18;
@@ -73,6 +83,10 @@
         topThickness: 12,
         // W12-1: 몸통 두께 — 15T 기본, 18T 선택 가능 (BODY_THICKNESS_OPTIONS)
         bodyThickness: 15,
+        // CD-1: 플래너가 쓰는 전체 높이 (다리발/좌대 + 몸통 + 상판/상몰딩).
+        // 설계별로 바꿀 수 있다 — 몸통 두께와 같은 방식.
+        lowerTotalH: 870,
+        upperTotalH: 780,
         upperH: 720,
         lowerH: 870,
         moldingH: 60,

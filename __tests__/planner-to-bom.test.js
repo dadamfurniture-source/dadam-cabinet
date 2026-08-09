@@ -35,7 +35,9 @@ function payload(overrides = {}) {
   return {
     modules: [
       { id: 'lower-0', section: 'lower', W: 1800, H: 870, D: 650, x: 0, y: 0 },
-      { id: 'upper-0', section: 'upper', W: 1800, H: 720, D: 320, x: 0, y: 1000 },
+      // H 는 **전체 높이**다 (상부 780 = 몸통 720 + 상몰딩 60).
+      // 예전엔 720(몸통값)이 박혀 있어 전체→몸통 변환 누락이 가려져 있었다.
+      { id: 'upper-0', section: 'upper', W: 1800, H: 780, D: 320, x: 0, y: 1000 },
       { id: 'sink-0', section: 'sink', W: 600, H: 100, D: 500, x: 450, y: 0 },
       { id: 'hood-0', section: 'hood', W: 600, H: 300, D: 320, x: 450, y: 1000 },
     ],

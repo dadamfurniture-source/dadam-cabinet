@@ -807,10 +807,45 @@
       }
 
       /**
+       * CD-1: 플래너 H(전체 높이) → 몸통(카카스) 높이.
+       *
+       * 플래너 도면의 사각형 높이는 다리발·상판·상몰딩을 **포함한** 전체 높이다
+       * (`mockup-structure.html:3138` 이 선반 계산에서 H 에서 다리발·몰딩을 빼는 것이 근거).
+       * 반면 `extractors.js` 는 `mod.h` 를 몸통 높이로 그대로 쓴다.
+       * 이 변환이 없으면 하부장 측판·뒷판·도어가 162mm, 상부장이 60mm 크게 재단된다.
+       *
+       * 규칙 출처
+       *   하부장  몸통 = 전체 - 상판두께 - 다리발      (extractors.js 의 비-플래너 공식과 동일)
+       *   상부장  몸통 = 전체 - 상몰딩                 (ACTIVE_RULES.md:203 과 같은 패턴)
+       *   키큰장  몸통 = 전체 - 상몰딩 - 좌대           (docs/design-rules/sink.md §5)
+       *
+       * specs 는 설계별 값이며, 없으면 표준 기본값으로 떨어진다
+       * (Jest 는 이 블록만 잘라 평가하므로 전역 상수를 참조할 수 없다).
+       */
+      function _carcassHeight(totalH, section, specs) {
+        const H = Number(totalH) || 0;
+        if (H <= 0) return 0;
+        const sp = specs || {};
+        const n = (v, d) => {
+          const x = parseFloat(v);
+          return Number.isFinite(x) && x >= 0 ? x : d;
+        };
+        const molding = n(sp.moldingH, 60);
+        if (section === 'upper') return Math.max(0, H - molding);
+        if (section === 'tall' || section === 'wardrobe') {
+          return Math.max(0, H - molding - n(sp.wardrobePedestal, 60));
+        }
+        // lower
+        return Math.max(0, H - n(sp.topThickness, 12) - n(sp.sinkLegHeight, 150));
+      }
+
+      /**
        * PLANNER_DONE payload → detaildesign 모듈 배열.
+       * @param {object} payload  플래너가 보낸 상태
+       * @param {object} [specs]  대상 품목의 specs — 전체높이→몸통 변환에 쓴다
        * @returns {{modules: Array, warnings: string[]}}
        */
-      function _convertPlannerModules(payload) {
+      function _convertPlannerModules(payload, specs) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
         const appliances = src.filter((m) => PLANNER_APPLIANCE_SECTIONS.includes(m.section));
@@ -872,7 +907,9 @@
               name,
               pos,
               w: c.w,
-              h: Number(m.H) || 0,
+              // CD-1: 플래너 H 는 전체 높이 → 몸통 높이로 변환해서 넘긴다
+              h: _carcassHeight(m.H, m.section, specs),
+              totalH: Number(m.H) || 0, // 전체 높이도 보존 — 도면·검증·학습 데이터용
               d: Number(m.D) || 0,
               doorCount: isOpen ? 0 : c.is2D ? 2 : 1,
               is2door: !!c.is2D,
@@ -953,7 +990,8 @@
         const item = _currentStep2Item();
         if (!item) throw new Error('대상 품목을 찾을 수 없습니다.');
 
-        const { modules, warnings } = _convertPlannerModules(payload);
+        // CD-1: specs 를 넘겨야 전체높이→몸통 변환이 설계별 값(다리발·상판·상몰딩)을 쓴다
+        const { modules, warnings } = _convertPlannerModules(payload, item.specs);
         if (modules.length === 0) {
           const placed = (payload.modules || []).length;
           throw new Error(

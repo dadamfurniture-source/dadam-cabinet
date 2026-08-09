@@ -416,11 +416,15 @@
   });
   // W9-10: 하부장/상부장/키큰장 — 도면 (canvas-wrap) 에 색상별 직사각형 추가
   // W9-20: 표준 모듈 치수 (mm) — 도면 = 평면도 (W × D)
-  // moduleH = 모듈 높이 (3D 정보, 도면 표시 X)
-  // W9-28: EP/몰딩/휠라 추가 + 모듈 H 기본값 (하부 860, 상부 800, 키큰 2300)
+  // moduleH = 모듈 **전체 높이** (다리발/좌대 + 몸통 + 상판/상몰딩). 몸통 높이가 아니다.
+  //   하부장 870 = 다리발 150 + 몸통 708 + 상판 12
+  //   상부장 780 = 몸통 720 + 상몰딩 60
+  // BOM 은 몸통 높이를 쓰므로 브리지(ui-step1.js `_carcassHeight`)가 변환한다.
+  // CD-1: 기존 860/800 은 제조 표준(870/780)과 어긋난 값이었다. 그대로 두면
+  //       플래너를 거치는 것만으로 전 부재의 세로 치수가 틀어진다.
   const SECTION_CONFIG = {
-    lower:   { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장',  moduleH: 860  },
-    upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 800  },
+    lower:   { fill: '#b8956c', stroke: '#6a4b2a', w: 2400, h: 650, label: '하부장',  moduleH: 870  },
+    upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 780  },
     tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
     fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 2300 },
     // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
@@ -429,12 +433,12 @@
     hood:         { fill: '#6a727a', stroke: '#2a3238', w: 300, h: 300, label: '후드',       moduleH: 300  },
     refrigerator: { fill: '#c8ced4', stroke: '#5a626a', w: 720, h: 700, label: '냉장고',     moduleH: 1850 },
     dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 650, label: '식기세척기', moduleH: 820  },
-    // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 높이 (860 default)
-    ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 860, adjacent: 'depthAndHeight' },
+    // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 전체높이 (870 default)
+    ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 870, adjacent: 'depthAndHeight' },
     // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
-    molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 860, adjacent: 'heightOnly' },
+    molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 870, adjacent: 'heightOnly' },
     // 휠라 (filler): W=60 · 두께 18T · H=인접 모듈 높이
-    filler:  { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '휠라',   moduleH: 860, adjacent: 'heightOnly' },
+    filler:  { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '휠라',   moduleH: 870, adjacent: 'heightOnly' },
   };
 
   // W9-28: 도면에 가장 최근 추가된 일반 모듈 (lower/upper/tall/fridge) 의 깊이/높이 자동 참조
