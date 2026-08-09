@@ -33,9 +33,13 @@ import {
 } from './share.js';
 import { renderCustomerConfirmation } from './templates/customer-confirmation.js';
 import { renderWorkOrder } from './templates/work-order.js';
+import { renderInstallationOrder } from './templates/installation-order.js';
+import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
 
-export const DOC_TYPES = ['customer_confirmation', 'work_order'];
-const DOC_TYPE_CODE = { customer_confirmation: 'CC', work_order: 'WO' };
+// CD-4: 설치 작업지시서 추가. 여기만 고치면 안 된다 —
+// DB 의 design_documents_doc_type_check 와 renderDocument 분기(아래)가 함께 맞아야 한다.
+export const DOC_TYPES = ['customer_confirmation', 'work_order', 'installation_order'];
+const DOC_TYPE_CODE = { customer_confirmation: 'CC', work_order: 'WO', installation_order: 'IO' };
 
 function todayCompact() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -81,6 +85,15 @@ export async function issueDocument(env, { user, body }) {
     instructions: typeof body.instructions === 'string' ? body.instructions : '',
     issued_by: user.email || null,
   };
+
+  // CD-4: 설치 작업지시서는 발행 시점의 현장 정보·일정을 **문서 안에 동결**한다.
+  // 주소가 나중에 바뀌어도 이미 나간 지시서의 내용은 그대로여야 한다.
+  // (현장 정보는 설계에 붙어 있고 스냅샷에는 없다 — 주소 수정이 설계 rev 를
+  //  올리면 안 되기 때문이다)
+  if (docType === 'installation_order') {
+    renderPayload.site_info = await getSiteInfo(env, designId);
+    renderPayload.schedules = await listSchedulesForDoc(env, designId);
+  }
 
   const row = {
     design_id: designId,
@@ -221,6 +234,7 @@ export async function getDocumentForOwner(env, { documentId, user }) {
 
 export function renderDocument(doc, snapshot, opts = {}) {
   if (doc.doc_type === 'work_order') return renderWorkOrder(doc, snapshot, opts);
+  if (doc.doc_type === 'installation_order') return renderInstallationOrder(doc, snapshot, opts);
   return renderCustomerConfirmation(doc, snapshot, opts);
 }
 

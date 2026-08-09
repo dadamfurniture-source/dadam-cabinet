@@ -36,6 +36,7 @@
     snapshot: null,
     documents: [],
     schedules: [],
+    site: null,     // CD-4: 현장 정보
     busy: false,
   };
 
@@ -244,6 +245,44 @@
     );
   }
 
+  /**
+   * CD-4: 현장 정보 입력.
+   * 설치 팀이 현장에 들어가려면 주소·층·엘리베이터·반입경로가 필요한데
+   * 지금까지 이걸 담을 자리가 아예 없었다 (일정의 location 자유텍스트 한 칸이 전부).
+   */
+  function siteInfoHtml() {
+    const s = state.site || {};
+    const v = function (k) { return s[k] == null ? '' : esc(s[k]); };
+    const ev = s.has_elevator;
+    const opt = function (val, label) {
+      const sel = (val === '' ? ev == null : String(ev) === val) ? ' selected' : '';
+      return '<option value="' + val + '"' + sel + '>' + label + '</option>';
+    };
+    const row = function (label, id, val, ph) {
+      return '<label style="display:block;font-size:12px;color:#555;">' + label +
+        '<input id="' + id + '" value="' + val + '" placeholder="' + (ph || '') +
+        '" style="width:100%;padding:6px 8px;margin-top:2px;box-sizing:border-box;"></label>';
+    };
+    return '<div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;">' +
+      row('주소', 'wfSiteAddress', v('address'), '시/군/구 도로명') +
+      row('상세 (동·호수)', 'wfSiteAddressDetail', v('address_detail'), '101동 1203호') +
+      row('층', 'wfSiteFloor', v('floor'), '12층 / B1') +
+      '<label style="display:block;font-size:12px;color:#555;">엘리베이터' +
+      '<select id="wfSiteElevator" style="width:100%;padding:6px 8px;margin-top:2px;box-sizing:border-box;">' +
+      opt('', '미확인') + opt('true', '있음') + opt('false', '없음 (사다리차 검토)') +
+      '</select></label>' +
+      row('연락처 이름', 'wfSiteContactName', v('contact_name'), '') +
+      row('연락처 번호', 'wfSiteContactPhone', v('contact_phone'), '') +
+      '</div>' +
+      '<div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+      '<label style="font-size:12px;color:#555;">반입 경로' +
+      '<textarea id="wfSiteAccess" rows="3" placeholder="계단 폭, 진입로 높이, 주차" style="width:100%;padding:6px 8px;margin-top:2px;box-sizing:border-box;">' + v('access_note') + '</textarea></label>' +
+      '<label style="font-size:12px;color:#555;">시공 순서' +
+      '<textarea id="wfSiteOrder" rows="3" placeholder="1. 하부장 → 2. 상판 → 3. 상부장" style="width:100%;padding:6px 8px;margin-top:2px;box-sizing:border-box;">' + v('install_order') + '</textarea></label>' +
+      '</div>' +
+      '<div style="margin-top:6px;"><button type="button" id="wfSaveSite" style="padding:7px 14px;cursor:pointer;">현장 정보 저장</button></div>';
+  }
+
   function render() {
     const root = panel();
     if (!root) return;
@@ -271,7 +310,10 @@
       '>2. 고객확인서 발행</button>' +
       '<button type="button" id="wfIssueWO" style="padding:9px 16px;cursor:pointer;"' +
       (snap ? '' : ' disabled') +
-      '>3. 작업지시서 발행</button>' +
+      '>3. 제작 작업지시서</button>' +
+      '<button type="button" id="wfIssueIO" style="padding:9px 16px;cursor:pointer;"' +
+      (snap ? '' : ' disabled') +
+      '>4. 설치 작업지시서</button>' +
       '</div>' +
       (snap
         ? '<div style="margin-top:10px;font-size:13px;color:#333;">' +
@@ -295,6 +337,8 @@
             : '') +
           '</div>'
         : '') +
+      '<div style="margin-top:16px;font-weight:600;font-size:13px;">현장 정보 <span style="font-weight:400;color:#888;">— 설치 작업지시서에 실립니다</span></div>' +
+      siteInfoHtml() +
       '<div style="margin-top:16px;font-weight:600;font-size:13px;">발행 문서</div>' +
       documentsHtml() +
       '<div style="margin-top:16px;font-weight:600;font-size:13px;">일정</div>' +
@@ -391,6 +435,36 @@
     await refresh();
   }
 
+  /**
+   * CD-4: 현장 정보 저장.
+   * 설계에 붙는다 — 스냅샷이 아니다. 주소를 고쳤다고 설계 rev 가 올라가면 안 된다.
+   */
+  async function saveSite() {
+    const id = designId();
+    if (!id) throw new Error('설계를 먼저 저장해 주세요.');
+    const val = function (elId) {
+      const n = document.getElementById(elId);
+      return n ? n.value : '';
+    };
+    const elev = val('wfSiteElevator');
+    await api('/designs/' + encodeURIComponent(id) + '/site-info', {
+      method: 'PUT',
+      body: {
+        address: val('wfSiteAddress'),
+        address_detail: val('wfSiteAddressDetail'),
+        floor: val('wfSiteFloor'),
+        // '' = 미확인. false(없음) 와 구분해야 사다리차 판단이 된다
+        has_elevator: elev === '' ? null : elev === 'true',
+        contact_name: val('wfSiteContactName'),
+        contact_phone: val('wfSiteContactPhone'),
+        access_note: val('wfSiteAccess'),
+        install_order: val('wfSiteOrder'),
+      },
+    });
+    setStatus('현장 정보를 저장했습니다.');
+    await refresh();
+  }
+
   async function addSchedule() {
     const id = designId();
     if (!id) throw new Error('먼저 설계를 저장해 주세요.');
@@ -452,16 +526,21 @@
       render();
       return;
     }
-    const [docs, scheds] = await Promise.all([
+    const [docs, scheds, site] = await Promise.all([
       api('/designs/' + encodeURIComponent(id) + '/documents').catch(function () {
         return { items: [] };
       }),
       api('/designs/' + encodeURIComponent(id) + '/schedules').catch(function () {
         return { items: [] };
       }),
+      // CD-4: 현장 정보 (없으면 null)
+      api('/designs/' + encodeURIComponent(id) + '/site-info').catch(function () {
+        return null;
+      }),
     ]);
     state.documents = docs.items || [];
     state.schedules = scheds.items || [];
+    state.site = site || null;
     render();
   }
 
@@ -486,6 +565,10 @@
     on('wfIssueWO', function () {
       return issue('work_order');
     });
+    on('wfIssueIO', function () {
+      return issue('installation_order');
+    });
+    on('wfSaveSite', saveSite);
     on('wfAddSched', addSchedule);
 
     root.querySelectorAll('[data-wf-print]').forEach(function (b) {
