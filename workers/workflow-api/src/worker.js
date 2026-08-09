@@ -53,6 +53,14 @@ import {
 } from './documents.js';
 import { getSiteInfo, saveSiteInfo } from './site-info.js';
 import {
+  createOrderFromDocument,
+  listOrders,
+  getOrder,
+  updateOrder,
+  addCost,
+  deleteCost,
+} from './orders.js';
+import {
   createSchedules,
   listSchedules,
   updateSchedule,
@@ -250,6 +258,46 @@ async function handleSaveSiteInfo(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: saved });
 }
 
+async function handleCreateOrder(request, env, { params, user }) {
+  const { order, reused } = await createOrderFromDocument(env, {
+    documentId: params.documentId,
+    user,
+  });
+  return jsonResponse(request, env, { success: true, data: { ...order, reused } }, reused ? 200 : 201);
+}
+
+async function handleListOrders(request, env, { user }) {
+  const url = new URL(request.url);
+  const items = await listOrders(env, { user, designId: url.searchParams.get('design_id') || null });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+async function handleGetOrder(request, env, { params, user }) {
+  const data = await getOrder(env, { orderId: params.orderId, user });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleUpdateOrder(request, env, { params, user }) {
+  const patch = (await readJson(request)) || {};
+  const order = await updateOrder(env, { orderId: params.orderId, user, patch });
+  return jsonResponse(request, env, { success: true, data: order });
+}
+
+async function handleAddCost(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const cost = await addCost(env, { orderId: params.orderId, user, body });
+  return jsonResponse(request, env, { success: true, data: cost }, 201);
+}
+
+async function handleDeleteCost(request, env, { params, user }) {
+  const out = await deleteCost(env, {
+    orderId: params.orderId,
+    costId: params.costId,
+    user,
+  });
+  return jsonResponse(request, env, { success: true, data: out });
+}
+
 async function handlePublicDecision(request, env) {
   const { token, pin } = shareCredentials(request);
   const body = (await readJson(request)) || {};
@@ -322,6 +370,14 @@ const router = createRouter([
   { method: 'GET', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleListSchedules },
   { method: 'PATCH', path: '/schedules/:scheduleId', auth: 'jwt', handler: handleUpdateSchedule },
   { method: 'POST', path: '/schedules/batches/:batchId/notify', auth: 'jwt', handler: handleResendSlack },
+
+  // CD-5: ERP — 수주 · 실적 원가
+  { method: 'POST',   path: '/documents/:documentId/order', auth: 'jwt', handler: handleCreateOrder },
+  { method: 'GET',    path: '/orders',                      auth: 'jwt', handler: handleListOrders },
+  { method: 'GET',    path: '/orders/:orderId',             auth: 'jwt', handler: handleGetOrder },
+  { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
+  { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
+  { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
 
   // 공개 — 고객 공유 링크 (JWT 없음, X-Share-Token 으로 인증)
   { method: 'GET', path: '/public/confirm', auth: 'none', handler: handlePublicConfirm },
