@@ -40,18 +40,42 @@ function makeStorage(seed = {}) {
   };
 }
 
-/** src / type=module 이 아닌 클래식 인라인 스크립트만 뽑는다. */
-function inlineScripts(html) {
+/**
+ * 실행할 클래식 스크립트를 **문서 순서대로** 모은다.
+ *
+ * 외부(`src=`)와 인라인을 함께 다뤄야 한다. P1 에서 공통 코드가
+ * `js/planner/*.js` 로 나갔기 때문에, 외부를 건너뛰면 인라인이
+ * `PLANNER_ORIGIN_KEY is not defined` 로 무너진다 — 브라우저에서는 멀쩡한데
+ * 테스트만 빨개지는 가짜 실패다. jsdom 은 src 를 가져오지 않으므로 우리가 읽어준다.
+ */
+function collectScripts(html) {
   const out = [];
   const re = /<script([^>]*)>([\s\S]*?)<\/script>/g;
   let m;
   while ((m = re.exec(html))) {
     const attrs = m[1] || '';
-    if (/\ssrc\s*=/.test(attrs)) continue;              // 외부 로드 — jsdom 이 못 가져온다
     if (/type\s*=\s*["'](module|importmap)["']/.test(attrs)) continue; // ESM/importmap 은 실행 대상 아님
-    out.push(m[2]);
+    const src = attrs.match(/\ssrc\s*=\s*["']([^"']+)["']/);
+    if (src) {
+      const rel = src[1].split('?')[0].replace(/^\.?\//, ''); // ?v= 캐시버전 제거
+      const abs = path.join(ROOT, rel);
+      if (!fs.existsSync(abs)) {
+        throw new Error(
+          `스크립트를 찾을 수 없습니다: ${src[1]} → ${abs}\n` +
+          'HTML 의 <script src> 경로가 실제 파일과 어긋나면 브라우저에서도 깨집니다.'
+        );
+      }
+      out.push({ name: rel, code: fs.readFileSync(abs, 'utf8') });
+    } else {
+      out.push({ name: 'inline#' + out.length, code: m[2] });
+    }
   }
   return out;
+}
+
+/** 이전 이름 호환 — 인라인 코드 문자열만 준다. */
+function inlineScripts(html) {
+  return collectScripts(html).filter((s) => s.name.startsWith('inline#')).map((s) => s.code);
 }
 
 /**
@@ -128,22 +152,28 @@ function bootPlanner(file, opts = {}) {
 
   const errors = [];
   const exported = {};
-  const scripts = inlineScripts(html);
-  for (const src of scripts) {
+  for (const { name, code } of collectScripts(html)) {
     // 함수 스코프에 갇힌 선언을 밖으로 꺼내는 에필로그.
     // typeof 가드는 중첩 선언이 새어 들어왔을 때의 ReferenceError 를 막는다.
     const epilogue =
       '\n;return {' +
-      topLevelNames(src)
+      topLevelNames(code)
         .map((n) => `${JSON.stringify(n)}:(typeof ${n} !== 'undefined' ? ${n} : undefined)`)
         .join(',') +
       '};';
     try {
-      // 전역을 오염시키지 않고 인자로 그림자를 씌운다
+      // 전역을 오염시키지 않고 인자로 그림자를 씌운다.
+      //
+      // 브라우저에서는 외부 스크립트의 최상위 `const` 가 전역 렉시컬 스코프에 올라가
+      // 뒤따르는 인라인이 그대로 참조한다. 여기서는 스크립트마다 함수 스코프가 생기므로
+      // 그 연결이 끊긴다 — 대신 각 모듈이 `window.X = X` 로 노출하고, jsdom 에서는
+      // window 가 곧 전역이라 다음 스크립트가 맨이름으로 찾아낸다.
+      // (그래서 js/planner/*.js 의 window 노출 블록은 테스트의 생명줄이기도 하다.)
       // eslint-disable-next-line no-new-func
-      const fn = new Function('window', 'document', 'location', 'localStorage', 'sessionStorage', 'self', 'globalThis', src + epilogue);
+      const fn = new Function('window', 'document', 'location', 'localStorage', 'sessionStorage', 'self', 'globalThis', code + epilogue);
       Object.assign(exported, fn(winProxy, doc, location, storage, makeStorage(), winProxy, winProxy) || {});
     } catch (e) {
+      e.message = `[${name}] ${e.message}`;
       errors.push(e);
     }
   }
@@ -183,4 +213,4 @@ function bootPlanner(file, opts = {}) {
   };
 }
 
-module.exports = { bootPlanner, makeStorage, inlineScripts };
+module.exports = { bootPlanner, makeStorage, inlineScripts, collectScripts };
