@@ -196,7 +196,14 @@ export async function supersedePriorRevisions(env, { designId, docType, newDocId
     { superseded_by: newDocId, status: 'superseded' },
   );
 
-  return (Array.isArray(decided) ? decided.length : 0) + (Array.isArray(undecided) ? undecided.length : 0);
+  // PostgREST 가 갱신된 행을 돌려줄 때만 정확히 셀 수 있다
+  // (restHeaders 의 기본 Prefer 가 return=representation 이라 배열이 온다).
+  // 못 세는 상황이면 **0 으로 속이지 않고 null** 을 준다 —
+  // 0 은 "대체된 것이 없다"는 뜻이라 옛 링크가 살아 있다는 오해를 부른다.
+  const a = Array.isArray(decided) ? decided.length : null;
+  const b = Array.isArray(undecided) ? undecided.length : null;
+  if (a === null || b === null) return null;
+  return a + b;
 }
 
 /** 구 문서를 대체 처리. 승인 이력은 지우지 않는다. */
