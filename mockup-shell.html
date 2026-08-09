@@ -47,16 +47,12 @@
   .step-pill button{border:none;background:transparent;padding:3px 10px;border-radius:999px;cursor:pointer;color:var(--text-dim);font-size:11px;font-weight:600;display:flex;gap:4px;align-items:center}
   .step-pill button.active{background:var(--brand-deep);color:#fff;box-shadow:0 2px 5px rgba(106,75,42,.25)}
   .step-pill .sep{width:14px;height:2px;background:var(--line);display:inline-block}
-  .dim-group{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--brand-deep);font-weight:600}
-  .dim-group label{display:flex;align-items:center;gap:3px}
-  .dim-group span.k{color:var(--text-dim)}
-  .dim-group input{width:54px;padding:2px 4px;border:1px solid #d9d2bf;border-radius:4px;font-size:11px;text-align:right}
-  .dim-group span.u{color:var(--text-faint);font-size:10px}
-
-  /* ── 기본 정보 그룹 (품목 + 가구 치수) ─────────────────
+  /* ── 기본 정보 그룹 ────────────────────────────────────
      W12-3: 품목을 좌측 툴바의 아이콘 10개에서 상단 드롭다운으로 옮겼다.
-     세로로 늘어선 아이콘이 좌측 폭을 크게 먹었고, 품목은 "설계의 기본 정보"라
-     치수(W/H/D)와 같은 줄에 있는 편이 맥락에 맞는다. */
+     세로로 늘어선 아이콘이 좌측 폭을 크게 먹었고, 품목은 매 순간 쓰는 도구가
+     아니라 설계의 기본 정보라 접어두는 편이 맞다.
+     W12-4: 여기 있던 가구 W/H/D 입력을 뺐다 — 어디에도 연결되지 않은 채
+     value="4200" 등이 박혀 있어, 실제 품목 치수와 다른 값을 보여주고 있었다. */
   .info-group{display:flex;align-items:center;gap:10px;padding:0 12px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
   .info-group>.info-label{font-size:8px;color:var(--text-dim);letter-spacing:.5px;line-height:1;user-select:none}
   .cat-picker{position:relative}
@@ -214,9 +210,10 @@
       <button>🎨 3.디테일</button>
     </div>
     <!--
-      W12-3: 기본 정보 — 품목 + 가구 치수.
-      품목은 좌측 툴바에 아이콘 10개로 세로 배치돼 있었는데 폭을 너무 먹었다.
-      드롭다운 하나로 접고, 설계의 기본값인 치수와 같은 그룹으로 묶었다.
+      기본 정보 그룹.
+      W12-3: 품목을 좌측 툴바(아이콘 10개, 폭을 너무 먹었다)에서 여기 드롭다운으로.
+      W12-4: 함께 두었던 가구 W/H/D 입력 제거 — 배선이 없는 고정 목업 값이라
+             실제 품목 치수와 어긋난 숫자를 보여주고 있었다.
     -->
     <div class="info-group" id="infoGroup">
       <span class="info-label">기본 정보</span>
@@ -230,12 +227,6 @@
           <span class="cp-caret" aria-hidden="true">▾</span>
         </button>
         <div class="cat-menu" id="catMenu" role="menu" hidden></div>
-      </div>
-      <div class="dim-group">
-        <span>가구</span>
-        <label><span class="k">W</span><input type="number" value="4200" step="50"><span class="u">mm</span></label>
-        <label><span class="k">H</span><input type="number" value="2310" step="50"><span class="u">mm</span></label>
-        <label><span class="k">D</span><input type="number" value="650" step="50"><span class="u">mm</span></label>
       </div>
     </div>
     <div class="spacer"></div>
