@@ -147,7 +147,7 @@ export async function issueDocument(env, { user, body }) {
   // 분기도 도달할 수 없는 죽은 코드였다. (루프 실주행에서 잡힘)
   //
   // 재발행은 본질적으로 구 리비전을 대체하므로 옵션이 아니라 기본 동작이어야 한다.
-  const supersededCount = await supersedePriorRevisions(env, {
+  const superseded = await supersedePriorRevisions(env, {
     designId,
     docType,
     newDocId: created.id,
@@ -161,7 +161,9 @@ export async function issueDocument(env, { user, body }) {
 
   return {
     document: finalDoc,
-    superseded_count: supersededCount,
+    superseded_count: superseded.total,
+    // 그중 공유 링크가 실제로 닫힌 수 (승인·반려된 문서는 열람 가능하게 남는다)
+    superseded_closed_count: superseded.closed,
     share_token: plainToken,
     share_url: plainToken ? buildShareUrl(env, plainToken) : null,
   };
@@ -202,8 +204,14 @@ export async function supersedePriorRevisions(env, { designId, docType, newDocId
   // 0 은 "대체된 것이 없다"는 뜻이라 옛 링크가 살아 있다는 오해를 부른다.
   const a = Array.isArray(decided) ? decided.length : null;
   const b = Array.isArray(undecided) ? undecided.length : null;
-  if (a === null || b === null) return null;
-  return a + b;
+  if (a === null || b === null) return { total: null, closed: null };
+
+  // total  = 대체된 문서 수
+  // closed = 그중 **공유 링크가 실제로 닫힌** 수 (status='superseded' 로 바뀐 것).
+  //   고객이 승인·반려한 문서는 상태를 보존하므로 링크가 계속 열린다 —
+  //   그 문서가 고객이 확인한 원본이고, 수주의 근거이기 때문이다.
+  //   둘을 구분하지 않으면 "옛 링크가 닫혔다" 는 잘못된 안내를 하게 된다.
+  return { total: a + b, closed: b };
 }
 
 /** 구 문서를 대체 처리. 승인 이력은 지우지 않는다. */

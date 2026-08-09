@@ -87,8 +87,27 @@ test('결정이 없는 문서만 superseded 로 바꿔 링크를 닫는다', asy
 test('대체한 건수를 정확히 돌려준다', async () => {
   await withCapturedFetch(async () => {
     const n = await supersedePriorRevisions(ENV, ARGS);
-    assert.equal(n, 2, '가짜 응답이 각 1행이므로 합 2');
+    assert.equal(n.total, 2, '가짜 응답이 각 1행이므로 합 2');
   });
+});
+
+test('링크가 실제로 닫힌 수를 따로 센다', async () => {
+  // 고객이 승인·반려한 문서는 상태를 보존하므로 링크가 계속 열린다.
+  // 둘을 뭉뚱그리면 "옛 링크가 닫혔다" 는 잘못된 안내를 하게 된다.
+  const original = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = async () => {
+    call += 1;
+    // 1번째 = 결정된 문서 2건(링크 유지), 2번째 = 미결정 1건(링크 닫힘)
+    const rows = call === 1 ? [{ id: 'a' }, { id: 'b' }] : [{ id: 'c' }];
+    return { ok: true, status: 200, headers: { get: () => 'application/json' },
+             json: async () => rows, text: async () => JSON.stringify(rows) };
+  };
+  try {
+    const n = await supersedePriorRevisions(ENV, ARGS);
+    assert.equal(n.total, 3, '대체된 문서는 3건');
+    assert.equal(n.closed, 1, '그중 링크가 닫힌 것은 1건뿐');
+  } finally { globalThis.fetch = original; }
 });
 
 test('행을 못 받으면 0 이 아니라 null — 0 은 "대체 없음" 으로 읽힌다', async () => {
@@ -100,7 +119,8 @@ test('행을 못 받으면 0 이 아니라 null — 0 은 "대체 없음" 으로
   });
   try {
     const n = await supersedePriorRevisions(ENV, ARGS);
-    assert.equal(n, null, '셀 수 없으면 0 으로 속이면 안 된다 (옛 링크가 살아있다는 오해)');
+    assert.equal(n.total, null, '셀 수 없으면 0 으로 속이면 안 된다');
+    assert.equal(n.closed, null);
   } finally {
     globalThis.fetch = original;
   }
@@ -119,7 +139,9 @@ test('갱신된 행 수만큼 정확히 센다', async () => {
     };
   };
   try {
-    assert.equal(await supersedePriorRevisions(ENV, ARGS), 4, '1 + 3');
+    const n = await supersedePriorRevisions(ENV, ARGS);
+    assert.equal(n.total, 4, '1 + 3');
+    assert.equal(n.closed, 3, '미결정 3건만 링크가 닫힌다');
   } finally {
     globalThis.fetch = original;
   }
