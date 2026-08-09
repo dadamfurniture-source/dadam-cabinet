@@ -39,6 +39,7 @@ import {
   GoneError,
   DbError,
   verifyJwt,
+  assertDesignOwner,
 } from './supabase.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
 import {
@@ -50,6 +51,7 @@ import {
   openSharedDocument,
   recordDecision,
 } from './documents.js';
+import { getSiteInfo, saveSiteInfo } from './site-info.js';
 import {
   createSchedules,
   listSchedules,
@@ -235,6 +237,19 @@ async function handlePublicConfirm(request, env) {
   });
 }
 
+async function handleGetSiteInfo(request, env, { params, user }) {
+  await assertDesignOwner(env, params.designId, user.id);
+  const site = await getSiteInfo(env, params.designId);
+  return jsonResponse(request, env, { success: true, data: site });
+}
+
+async function handleSaveSiteInfo(request, env, { params, user }) {
+  await assertDesignOwner(env, params.designId, user.id);
+  const body = (await readJson(request)) || {};
+  const saved = await saveSiteInfo(env, params.designId, body);
+  return jsonResponse(request, env, { success: true, data: saved });
+}
+
 async function handlePublicDecision(request, env) {
   const { token, pin } = shareCredentials(request);
   const body = (await readJson(request)) || {};
@@ -298,6 +313,10 @@ const router = createRouter([
   { method: 'GET', path: '/documents/:documentId', auth: 'jwt', handler: handleGetDocument },
   { method: 'GET', path: '/documents/:documentId/print', auth: 'jwt', handler: handlePrintDocument },
   { method: 'POST', path: '/documents/:documentId/revoke', auth: 'jwt', handler: handleRevokeDocument },
+
+  // CD-4: 현장 정보 — 설치 작업지시서의 입력
+  { method: 'GET', path: '/designs/:designId/site-info', auth: 'jwt', handler: handleGetSiteInfo },
+  { method: 'PUT', path: '/designs/:designId/site-info', auth: 'jwt', handler: handleSaveSiteInfo },
 
   { method: 'POST', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleCreateSchedules },
   { method: 'GET', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleListSchedules },

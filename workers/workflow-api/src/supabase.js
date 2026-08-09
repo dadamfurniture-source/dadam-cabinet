@@ -162,6 +162,21 @@ export async function insertOneIgnoreConflict(env, table, row) {
   }
 }
 
+/**
+ * CD-4: 있으면 갱신, 없으면 삽입 (PostgREST upsert).
+ * `onConflict` 는 고유 인덱스가 걸린 컬럼이어야 한다 —
+ * 아니면 PostgREST 가 42P10 으로 거부한다.
+ */
+export async function upsertOne(env, table, row, onConflict) {
+  const qs = onConflict ? `?on_conflict=${encodeURIComponent(onConflict)}` : '';
+  const rows = await restRequest(env, `/${table}${qs}`, {
+    method: 'POST',
+    headers: restHeaders(env, 'resolution=merge-duplicates,return=representation'),
+    body: JSON.stringify(row),
+  });
+  return rows && rows.length ? rows[0] : null;
+}
+
 export async function updateById(env, table, id, patch) {
   const rows = await restRequest(env, `/${table}?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',

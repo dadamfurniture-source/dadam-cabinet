@@ -235,6 +235,25 @@ export async function updateSchedule(env, { scheduleId, user, patch }) {
     if (patch[k] !== undefined) allowed[k] = patch[k] ? String(patch[k]).slice(0, 2000) : null;
   }
 
+  // CD-6: 실제 착수·완료 시각. 예정(scheduled_at)과 다르며 리드타임 학습의 실측값이다.
+  // null 을 명시하면 지운다 — 잘못 누른 완료를 되돌릴 수 있어야 한다.
+  for (const k of ['started_at', 'completed_at']) {
+    if (patch[k] === undefined) continue;
+    if (patch[k] === null || patch[k] === '') {
+      allowed[k] = null;
+      continue;
+    }
+    const when = new Date(patch[k]);
+    if (Number.isNaN(when.getTime())) throw new ValidationError(`${k} 가 올바르지 않습니다`);
+    allowed[k] = when.toISOString();
+  }
+  // DB CHECK 가 잡지만, 400 으로 먼저 돌려주는 편이 낫다
+  const nextStart = allowed.started_at !== undefined ? allowed.started_at : row.started_at;
+  const nextDone = allowed.completed_at !== undefined ? allowed.completed_at : row.completed_at;
+  if (nextStart && nextDone && new Date(nextDone) < new Date(nextStart)) {
+    throw new ValidationError('완료 시각이 착수 시각보다 빠를 수 없습니다');
+  }
+
   if (Object.keys(allowed).length === 0) {
     throw new ValidationError('변경할 필드가 없습니다');
   }
