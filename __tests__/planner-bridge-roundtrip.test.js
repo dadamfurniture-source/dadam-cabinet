@@ -111,7 +111,8 @@ function plannerMessage() {
     modules: [
       { id: 'lower-0', section: 'lower', W: 900, H: 870, D: 650, x: 0, y: 0, rotation: 0 },
       { id: 'lower-1', section: 'lower', W: 1200, H: 870, D: 650, x: 900, y: 0, rotation: 0 },
-      { id: 'upper-0', section: 'upper', W: 800, H: 720, D: 320, x: 0, y: 1000, rotation: 0 },
+      // H 는 전체 높이 (상부 780 = 몸통 720 + 상몰딩 60)
+      { id: 'upper-0', section: 'upper', W: 800, H: 780, D: 320, x: 0, y: 1000, rotation: 0 },
       { id: 'sink-0', section: 'sink', W: 600, H: 100, D: 500, x: 100, y: 0, rotation: 0 },
       { id: 'hood-0', section: 'hood', W: 600, H: 300, D: 320, x: 100, y: 1000, rotation: 0 },
     ],
