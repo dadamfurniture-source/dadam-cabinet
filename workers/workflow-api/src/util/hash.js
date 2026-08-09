@@ -25,6 +25,13 @@
  * _x                 : 렌더링용 계산 오프셋. 영속 의도가 없다.
  * prevUpperModules   : 자동계산 undo 버퍼 (calc-engine.js:639-642). 설계 내용이 아니다.
  * prevLowerModules   : 위와 동일.
+ *
+ * CD-6 학습 데이터 (_learning / _autoCalc)
+ *   자동계산이 낸 값과 사용자 최종값의 차이를 담는다. **설계 내용이 아니라
+ *   거기에 이르는 과정의 메타데이터**다. 최종 설계가 같다면 도달 경로가 달라도
+ *   같은 스냅샷이어야 하므로 해시에서 뺀다.
+ *   빼지 않으면 자동계산을 한 번 더 돌리는 것만으로 rev 가 늘어난다.
+ *   (payload 에는 그대로 저장된다 — 학습 재료는 남고 멱등성만 지킨다)
  */
 const EXCLUDED_KEYS = new Set([
   'exportDate',
@@ -35,6 +42,8 @@ const EXCLUDED_KEYS = new Set([
   '_x',
   'prevUpperModules',
   'prevLowerModules',
+  '_learning',
+  '_autoCalc',
 ]);
 
 /** 부동소수 오차가 해시를 흔들지 않도록 자리수를 고정한다. */

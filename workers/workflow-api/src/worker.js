@@ -244,6 +244,8 @@ async function handlePublicDecision(request, env) {
     decision: body.decision,
     signerName: body.signer_name,
     memo: body.memo,
+    // CD-6: 집계 가능한 수정 요청 사유 (자유 메모와 병행)
+    reasons: body.reasons,
   });
 
   return jsonResponse(request, env, {

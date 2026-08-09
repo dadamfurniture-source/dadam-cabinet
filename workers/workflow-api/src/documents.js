@@ -312,7 +312,33 @@ export async function openSharedDocument(env, request, { token, pin }) {
  * 고객 승인/거절 기록.
  * 승인 시점의 문서가 고객이 본 그 문서인지 content_hash 로 재확인한다.
  */
-export async function recordDecision(env, request, { token, pin, decision, signerName, memo }) {
+/**
+ * CD-6: 수정 요청 사유 코드.
+ *
+ * 자유 텍스트 메모만으로는 "왜 반려됐는지" 를 집계할 수 없어
+ * 승인률 학습의 라벨이 되지 못했다. 코드로 받되 메모는 그대로 병행한다
+ * (코드로 안 잡히는 사유가 반드시 나오므로 메모를 없애면 안 된다).
+ */
+export const DECISION_REASON_CODES = [
+  'dimension',   // 치수
+  'layout',      // 배치·구성
+  'color',       // 색상·마감
+  'price',       // 금액
+  'schedule',    // 일정·납기
+  'other',       // 기타
+];
+
+function normalizeReasons(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  for (const raw of input.slice(0, DECISION_REASON_CODES.length)) {
+    const code = String(raw || '').trim();
+    if (DECISION_REASON_CODES.includes(code)) seen.add(code);
+  }
+  return [...seen];
+}
+
+export async function recordDecision(env, request, { token, pin, decision, signerName, memo, reasons }) {
   if (!['approved', 'rejected'].includes(decision)) {
     throw new ValidationError('decision 은 approved 또는 rejected 여야 합니다');
   }
@@ -339,7 +365,12 @@ export async function recordDecision(env, request, { token, pin, decision, signe
     signer_name: String(signerName).trim().slice(0, 100),
     signer_ip_hash: await hashIp(env, request),
     signer_user_agent: (request.headers.get('User-Agent') || '').slice(0, 500),
-    render_payload: { ...doc.render_payload, decision_memo: String(memo || '').slice(0, 2000) },
+    render_payload: {
+      ...doc.render_payload,
+      decision_memo: String(memo || '').slice(0, 2000),
+      // CD-6: 집계 가능한 사유 코드. 승인에도 붙을 수 있으나 보통 비어 있다.
+      decision_reasons: normalizeReasons(reasons),
+    },
   });
 
   await logAccess(env, doc.id, 'decision', request);

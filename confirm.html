@@ -139,6 +139,25 @@
         flex-wrap: wrap;
         align-items: center;
       }
+
+      /* CD-6: 수정 요청 사유 체크박스 */
+      .reason-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 6px;
+      }
+      .reason-list label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 400;
+        cursor: pointer;
+      }
+      .reason-list input {
+        width: auto;
+        margin: 0;
+      }
       .stack > * + * {
         margin-top: 12px;
       }
@@ -214,6 +233,22 @@
         <div>
           <label for="signerName">성함</label>
           <input id="signerName" type="text" autocomplete="name" maxlength="50" />
+        </div>
+        <!--
+          CD-6: 수정 요청 사유. 자유 텍스트만으로는 집계가 안 돼
+          "어떤 설계가 왜 반려되는가" 를 알 수 없었다.
+          체크는 선택이며, 아래 자유 입력과 함께 보낸다.
+        -->
+        <div id="reasonBlock" hidden>
+          <label>수정이 필요한 부분 (선택, 복수 가능)</label>
+          <div id="reasonList" class="reason-list">
+            <label><input type="checkbox" value="dimension" /> 치수</label>
+            <label><input type="checkbox" value="layout" /> 배치·구성</label>
+            <label><input type="checkbox" value="color" /> 색상·마감</label>
+            <label><input type="checkbox" value="price" /> 금액</label>
+            <label><input type="checkbox" value="schedule" /> 일정·납기</label>
+            <label><input type="checkbox" value="other" /> 기타</label>
+          </div>
         </div>
         <div>
           <label for="decisionMemo">요청 사항 (선택)</label>
@@ -363,6 +398,31 @@
           }
         }
 
+        /** 체크된 수정 사유 코드 */
+        function selectedReasons() {
+          var out = [];
+          var list = el('reasonList');
+          if (!list) return out;
+          var boxes = list.querySelectorAll('input[type="checkbox"]');
+          for (var i = 0; i < boxes.length; i++) {
+            if (boxes[i].checked) out.push(boxes[i].value);
+          }
+          return out;
+        }
+
+        /**
+         * '수정 요청' 을 누르려 할 때만 사유 체크박스를 편다.
+         * 확인만 하려는 고객에게 반려 사유부터 들이밀지 않기 위해서다.
+         */
+        function revealReasons() {
+          var block = el('reasonBlock');
+          if (block && block.hidden) {
+            block.hidden = false;
+            return true; // 이번 클릭은 펼치기만 한다
+          }
+          return false;
+        }
+
         async function decide(decision) {
           var name = el('signerName').value.trim();
           hide(el('decisionError'));
@@ -383,6 +443,8 @@
                 decision: decision,
                 signer_name: name,
                 memo: el('decisionMemo').value,
+                // CD-6: 체크한 사유 코드 (선택). 서버가 알 수 없는 값은 버린다.
+                reasons: selectedReasons(),
               }),
             });
             var body = await res.json().catch(function () {
@@ -430,6 +492,12 @@
           decide('approved');
         });
         el('btnReject').addEventListener('click', function () {
+          // 첫 클릭은 사유 체크박스를 펴기만 한다 — 고르고 나서 다시 누르면 전송된다.
+          // (사유를 안 고르고 그냥 눌러도 그대로 진행된다 — 필수는 아니다)
+          if (revealReasons()) {
+            el('btnReject').textContent = '수정 요청 보내기';
+            return;
+          }
           decide('rejected');
         });
         el('btnPrint').addEventListener('click', printDoc);
