@@ -17,42 +17,51 @@ const SHELL = fs.readFileSync(path.join(ROOT, 'mockup-shell.html'), 'utf8');
 const STRUCT = fs.readFileSync(path.join(ROOT, 'mockup-structure.html'), 'utf8');
 const UI = fs.readFileSync(path.join(ROOT, 'js/detaildesign/ui-step1.js'), 'utf8');
 
-/** 두 플래너 문서에서 스코프 헬퍼만 잘라 실제 코드로 평가한다 */
-function loadScope(src, search) {
-  const start = src.indexOf('const PLANNER_SCOPE = (function ()');
-  const end = src.indexOf('function scopedKey');
-  const tail = src.slice(end, src.indexOf('}', src.indexOf('return base + PLANNER_SCOPE')) + 1);
-  // eslint-disable-next-line no-new-func
-  return new Function('location', `${src.slice(start, end)}\n${tail}\n return { PLANNER_SCOPE, scopedKey };`)({ search });
+// P1: 스코프 정본이 js/planner/planner-scope.js 로 나가면서, 예전처럼 HTML 을
+// 문자열로 잘라 평가하는 방식(loadScope)은 쓸 수 없게 됐다. 잘라내기는 코드가
+// 움직이면 조용히 빈 문자열을 검사하게 되므로, 실제로 페이지를 띄워 확인한다.
+const { bootPlanner } = require('../test-utils/planner-harness');
+
+/** 페이지를 띄워 스코프 헬퍼를 그대로 꺼낸다 */
+function loadScope(file, search, storage) {
+  const p = bootPlanner(file, { search, storage });
+  if (p.errors.length) throw new Error('부팅 실패: ' + p.errors.map((e) => e.message).join(' | '));
+  return {
+    PLANNER_SCOPE: p.g('PLANNER_SCOPE'),
+    scopedKey: p.g('scopedKey'),
+    ORIGIN_KEY: p.g('ORIGIN_KEY') || p.g('ORIGIN_STORAGE_KEY'),
+    storage: p.storage,
+  };
 }
 
 describe('저장 스코프 — 품목별 격리', () => {
   test('품목이 다르면 저장 키가 다르다', () => {
-    const a = loadScope(SHELL, '?design=d1&item=100');
-    const b = loadScope(SHELL, '?design=d1&item=200');
+    const a = loadScope('mockup-shell.html', '?design=d1&item=100');
+    const b = loadScope('mockup-shell.html', '?design=d1&item=200');
     expect(a.scopedKey('dadam_layout_v1')).not.toBe(b.scopedKey('dadam_layout_v1'));
   });
 
   test('설계가 다르면 저장 키가 다르다', () => {
-    const a = loadScope(SHELL, '?design=d1&item=100');
-    const b = loadScope(SHELL, '?design=d2&item=100');
+    const a = loadScope('mockup-shell.html', '?design=d1&item=100');
+    const b = loadScope('mockup-shell.html', '?design=d2&item=100');
     expect(a.scopedKey('dadam_layout_v1')).not.toBe(b.scopedKey('dadam_layout_v1'));
   });
 
   test('같은 품목이면 같은 키 (배치·구조가 이어져야 한다)', () => {
-    const a = loadScope(SHELL, '?design=d1&item=100');
-    const b = loadScope(STRUCT, '?design=d1&item=100');
+    const a = loadScope('mockup-shell.html', '?design=d1&item=100');
+    const b = loadScope('mockup-structure.html', '?design=d1&item=100');
     expect(a.scopedKey('dadam_layout_v1')).toBe(b.scopedKey('dadam_layout_v1'));
   });
 
   test('배치 단계와 구조 단계가 같은 스코프 규칙을 쓴다', () => {
     for (const s of ['?design=d1&item=1', '?item=9', '?design=x', '']) {
-      expect(loadScope(SHELL, s).PLANNER_SCOPE).toBe(loadScope(STRUCT, s).PLANNER_SCOPE);
+      expect(loadScope('mockup-shell.html', s).PLANNER_SCOPE)
+        .toBe(loadScope('mockup-structure.html', s).PLANNER_SCOPE);
     }
   });
 
   test('파라미터가 없으면 예전 전역 키를 그대로 쓴다 (단독 열람 호환)', () => {
-    const s = loadScope(SHELL, '');
+    const s = loadScope('mockup-shell.html', '');
     expect(s.PLANNER_SCOPE).toBe('');
     expect(s.scopedKey('dadam_layout_v1')).toBe('dadam_layout_v1');
   });
@@ -63,15 +72,22 @@ describe('저장 스코프 — 품목별 격리', () => {
   });
 
   test('원점 키도 스코프를 따른다', () => {
-    expect(STRUCT).toMatch(/const ORIGIN_KEY\s*=\s*scopedKey\('dadam_origin_v1'\)/);
+    const s = loadScope('mockup-structure.html', '?design=d1&item=100');
+    expect(s.ORIGIN_KEY).toBe('dadam_origin_v1::d1:100');
     expect(STRUCT).not.toMatch(/getItem\('dadam_origin_v1'\)/);
   });
 
   test('기존 배치를 첫 스코프로 1회만 이관한다', () => {
-    // 모든 스코프에 복사하면 중복 산출 문제가 그대로 재현된다
-    expect(SHELL).toMatch(/dadam_scope_migrated_v1/);
-    const fn = SHELL.slice(SHELL.indexOf('function migrateLegacyScope'), SHELL.indexOf('const ORIGIN_STORAGE_KEY'));
-    expect(fn).toMatch(/if \(localStorage\.getItem\(MARK\)\) return;/);
+    // 모든 스코프에 복사하면 중복 산출 문제(자재 2배)가 그대로 재현된다.
+    const legacy = { dadam_layout_v1: '{"legacy":true}' };
+    const first = loadScope('mockup-shell.html', '?design=d1&item=100', legacy);
+    expect(first.storage.getItem('dadam_layout_v1::d1:100')).toBe('{"legacy":true}');
+    expect(first.storage.getItem('dadam_scope_migrated_v1')).toBeTruthy();
+
+    // 같은 저장소를 이어받은 다른 스코프로 다시 열어도 두 번째 복사는 없어야 한다
+    const carried = first.storage._dump();
+    const second = loadScope('mockup-shell.html', '?design=d1&item=200', carried);
+    expect(second.storage.getItem('dadam_layout_v1::d1:200')).toBeNull();
   });
 });
 
