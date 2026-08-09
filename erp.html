@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 계약금액·원가·마진이 담긴다 — 색인·참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>수주 · 원가 · 마진 · 다담가구</title>
+    <link rel="stylesheet" href="css/nav.css?v=35.3" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/config.js?v=35.3"></script>
+    <style>
+      :root {
+        --bg: #eef0f3;
+        --panel: #fff;
+        --border: #d6dae0;
+        --text: #1a1d21;
+        --muted: #6b7280;
+        --accent: #147a3d;
+        --danger: #a02020;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+        font-size: 14px;
+      }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 76px 16px 60px; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+      th { background: #f6f7f9; font-weight: 600; white-space: nowrap; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .scroll { overflow-x: auto; }
+      button {
+        padding: 7px 13px;
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      input, select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+      .kpi div { background: #f6f7f9; border-radius: 8px; padding: 10px 12px; }
+      .kpi b { display: block; font-size: 18px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+      .neg { color: var(--danger); }
+      .pos { color: var(--accent); }
+      .muted { color: var(--muted); }
+      .alert { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+      .alert-err { background: #fdecec; border: 1px solid #f2c2c2; color: #7a1a1a; }
+      .alert-ok { background: #e8f5ec; border: 1px solid #b7dcc3; color: #14562c; }
+      .status { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>수주 · 원가 · 마진</h1>
+      <div class="sub">
+        고객이 승인한 확인서가 수주가 됩니다. 실제로 나간 원가를 넣으면 견적이 맞았는지 보입니다.
+      </div>
+
+      <div id="alert" class="alert alert-err" hidden></div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <div style="font-weight: 600">수주 목록</div>
+          <button type="button" id="btnReload">새로고침</button>
+        </div>
+        <div class="scroll" style="margin-top: 10px">
+          <table>
+            <thead>
+              <tr>
+                <th>수주번호</th><th>고객</th><th>상태</th>
+                <th class="num">계약금액</th><th class="num">수금</th>
+                <th class="num">원가</th><th class="num">마진</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="orderRows">
+              <tr><td colspan="8" class="muted">불러오는 중…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="detailCard" hidden>
+        <div class="row" style="justify-content: space-between">
+          <div style="font-weight: 600" id="detailTitle">수주 상세</div>
+          <button type="button" id="btnClose">닫기</button>
+        </div>
+
+        <div class="kpi" style="margin-top: 12px">
+          <div>계약금액<b id="kContract">-</b></div>
+          <div>수금<b id="kReceived">-</b></div>
+          <div>미수금<b id="kOutstanding">-</b></div>
+          <div>실적 원가<b id="kCost">-</b></div>
+          <div>마진<b id="kMargin">-</b></div>
+          <div>견적 총액 <span class="muted">(참고)</span><b id="kQuoted">-</b></div>
+        </div>
+
+        <div class="row" style="margin-top: 12px">
+          <label>상태
+            <select id="selStatus"></select>
+          </label>
+          <label>수금액
+            <input id="inpReceived" type="number" min="0" step="1000" style="width: 140px" />
+          </label>
+          <button type="button" id="btnSaveOrder">저장</button>
+        </div>
+
+        <div style="font-weight: 600; margin: 18px 0 8px">실적 원가</div>
+        <div class="row">
+          <select id="selCategory"></select>
+          <input id="inpDesc" placeholder="내용" style="min-width: 180px" />
+          <input id="inpVendor" placeholder="거래처" style="width: 130px" />
+          <input id="inpAmount" type="number" min="0" step="1000" placeholder="금액" style="width: 130px" />
+          <input id="inpDate" type="date" />
+          <button type="button" class="primary" id="btnAddCost">추가</button>
+        </div>
+        <div class="scroll" style="margin-top: 10px">
+          <table>
+            <thead>
+              <tr><th>분류</th><th>내용</th><th>거래처</th><th class="num">금액</th><th>지출일</th><th></th></tr>
+            </thead>
+            <tbody id="costRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        var sb = null;
+        var state = { orders: [], current: null, detail: null };
+
+        var STATUS_LABELS = {
+          confirmed: '수주확정',
+          in_production: '제작중',
+          delivered: '납품완료',
+          completed: '종료',
+          cancelled: '취소',
+        };
+        var COST_LABELS = {
+          material: '자재', hardware: '부자재', labor: '노무',
+          outsourcing: '외주', logistics: '물류', other: '기타',
+        };
+
+        function el(id) { return document.getElementById(id); }
+        function esc(v) {
+          if (v === null || v === undefined) return '';
+          return String(v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+        function krw(n) {
+          if (n === null || n === undefined || n === '') return '-';
+          var v = Number(n);
+          if (!isFinite(v)) return '-';
+          return v.toLocaleString('ko-KR') + '원';
+        }
+        function fail(msg) {
+          var a = el('alert');
+          a.textContent = msg;
+          a.className = 'alert alert-err';
+          a.hidden = false;
+        }
+        function note(msg) {
+          var a = el('alert');
+          a.textContent = msg;
+          a.className = 'alert alert-ok';
+          a.hidden = false;
+        }
+
+        async function token() {
+          if (!sb) {
+            var c = window.DADAM_CONFIG && window.DADAM_CONFIG.supabase;
+            if (!c || !window.supabase) return null;
+            sb = window.supabase.createClient(c.url, c.anonKey);
+          }
+          var res = await sb.auth.getSession();
+          return (res && res.data && res.data.session && res.data.session.access_token) || null;
+        }
+
+        async function api(path, options) {
+          var opts = options || {};
+          var t = await token();
+          if (!t) throw new Error('로그인이 필요합니다.');
+          var headers = { Authorization: 'Bearer ' + t };
+          if (opts.body) headers['Content-Type'] = 'application/json';
+          var res = await fetch(API + path, {
+            method: opts.method || 'GET',
+            headers: headers,
+            body: opts.body ? JSON.stringify(opts.body) : undefined,
+          });
+          var body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) {
+            throw new Error((body && body.message) || '요청 실패 (' + res.status + ')');
+          }
+          return body.data;
+        }
+
+        function renderOrders() {
+          var tb = el('orderRows');
+          if (!state.orders.length) {
+            tb.innerHTML =
+              '<tr><td colspan="8" class="muted">수주가 없습니다. ' +
+              '고객이 확인서를 승인하면 상세설계 화면의 업무 루프에서 수주로 전환할 수 있습니다.</td></tr>';
+            return;
+          }
+          tb.innerHTML = state.orders
+            .map(function (o) {
+              var cost = o._cost_total;
+              var margin = cost === undefined ? null : o.contract_amount - cost;
+              return (
+                '<tr>' +
+                '<td>' + esc(o.order_no) + '</td>' +
+                '<td>' + esc(o.customer_name || '-') + '</td>' +
+                '<td><span class="status">' + esc(STATUS_LABELS[o.status] || o.status) + '</span></td>' +
+                '<td class="num">' + krw(o.contract_amount) + '</td>' +
+                '<td class="num">' + krw(o.received_amount) + '</td>' +
+                '<td class="num">' + (cost === undefined ? '<span class="muted">-</span>' : krw(cost)) + '</td>' +
+                '<td class="num ' + (margin === null ? '' : margin < 0 ? 'neg' : 'pos') + '">' +
+                (margin === null ? '<span class="muted">-</span>' : krw(margin)) + '</td>' +
+                '<td><button type="button" data-open="' + esc(o.id) + '">열기</button></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+          tb.querySelectorAll('[data-open]').forEach(function (b) {
+            b.addEventListener('click', function () { open(b.getAttribute('data-open')); });
+          });
+        }
+
+        function renderDetail() {
+          var d = state.detail;
+          if (!d) { el('detailCard').hidden = true; return; }
+          var m = d.margin;
+          el('detailCard').hidden = false;
+          el('detailTitle').textContent = d.order.order_no + ' · ' + (d.order.customer_name || '고객 미기재');
+
+          el('kContract').textContent = krw(m.contract_amount);
+          el('kReceived').textContent = krw(m.received_amount);
+          el('kOutstanding').textContent = krw(m.outstanding);
+          el('kCost').textContent = krw(m.cost_total);
+          el('kMargin').textContent =
+            krw(m.margin) + (m.margin_rate === null ? '' : ' (' + m.margin_rate + '%)');
+          el('kMargin').className = m.margin < 0 ? 'neg' : 'pos';
+          el('kQuoted').textContent = m.quoted_total === null ? '-' : krw(m.quoted_total);
+
+          el('selStatus').innerHTML = Object.keys(STATUS_LABELS)
+            .map(function (k) {
+              return '<option value="' + k + '"' + (d.order.status === k ? ' selected' : '') + '>' +
+                STATUS_LABELS[k] + '</option>';
+            })
+            .join('');
+          el('inpReceived').value = d.order.received_amount;
+
+          el('selCategory').innerHTML = Object.keys(COST_LABELS)
+            .map(function (k) { return '<option value="' + k + '">' + COST_LABELS[k] + '</option>'; })
+            .join('');
+
+          var tb = el('costRows');
+          if (!d.costs.length) {
+            tb.innerHTML = '<tr><td colspan="6" class="muted">입력된 원가가 없습니다.</td></tr>';
+            return;
+          }
+          tb.innerHTML = d.costs
+            .map(function (c) {
+              return (
+                '<tr>' +
+                '<td>' + esc(COST_LABELS[c.category] || c.category) + '</td>' +
+                '<td>' + esc(c.description || '-') + '</td>' +
+                '<td>' + esc(c.vendor_name || '-') + '</td>' +
+                '<td class="num">' + krw(c.amount) + '</td>' +
+                '<td>' + esc(c.spent_on || '-') + '</td>' +
+                '<td><button type="button" data-del="' + esc(c.id) + '">삭제</button></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+          tb.querySelectorAll('[data-del]').forEach(function (b) {
+            b.addEventListener('click', function () { removeCost(b.getAttribute('data-del')); });
+          });
+        }
+
+        async function load() {
+          try {
+            el('alert').hidden = true;
+            var data = await api('/orders');
+            state.orders = data.items || [];
+            renderOrders();
+          } catch (e) {
+            el('orderRows').innerHTML = '<tr><td colspan="8" class="muted">불러오지 못했습니다.</td></tr>';
+            fail(e.message);
+          }
+        }
+
+        async function open(orderId) {
+          try {
+            el('alert').hidden = true;
+            state.current = orderId;
+            state.detail = await api('/orders/' + encodeURIComponent(orderId));
+            // 목록의 원가 합계도 채워 한눈에 보이게 한다
+            var row = state.orders.find(function (o) { return o.id === orderId; });
+            if (row) { row._cost_total = state.detail.margin.cost_total; renderOrders(); }
+            renderDetail();
+          } catch (e) { fail(e.message); }
+        }
+
+        async function saveOrder() {
+          if (!state.current) return;
+          try {
+            await api('/orders/' + encodeURIComponent(state.current), {
+              method: 'PATCH',
+              body: { status: el('selStatus').value, received_amount: Number(el('inpReceived').value) || 0 },
+            });
+            note('수주 정보를 저장했습니다.');
+            await load();
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        async function addCost() {
+          if (!state.current) return;
+          var amount = Number(el('inpAmount').value);
+          if (!(amount >= 0) || el('inpAmount').value === '') { fail('금액을 입력해 주세요.'); return; }
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/costs', {
+              method: 'POST',
+              body: {
+                category: el('selCategory').value,
+                description: el('inpDesc').value,
+                vendor_name: el('inpVendor').value,
+                amount: amount,
+                spent_on: el('inpDate').value || null,
+              },
+            });
+            el('inpDesc').value = '';
+            el('inpVendor').value = '';
+            el('inpAmount').value = '';
+            note('원가를 추가했습니다.');
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        async function removeCost(costId) {
+          if (!state.current) return;
+          try {
+            await api(
+              '/orders/' + encodeURIComponent(state.current) + '/costs/' + encodeURIComponent(costId),
+              { method: 'DELETE' }
+            );
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        el('btnReload').addEventListener('click', load);
+        el('btnClose').addEventListener('click', function () {
+          state.current = null; state.detail = null; renderDetail();
+        });
+        el('btnSaveOrder').addEventListener('click', saveOrder);
+        el('btnAddCost').addEventListener('click', addCost);
+
+        if (!API) {
+          fail('업무 루프 서버(workflowApi.url)가 설정되지 않았습니다.');
+          el('orderRows').innerHTML = '';
+        } else {
+          load();
+        }
+      })();
+    </script>
+  </body>
+</html>
