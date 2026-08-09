@@ -12,17 +12,30 @@
 const fs = require('fs');
 const path = require('path');
 
-const SRC = fs.readFileSync(
-  path.join(__dirname, '../workers/generate-api/src/prompts/sink-prompt.js'),
-  'utf8'
-);
+// 줄바꿈을 정규화한다. 이 저장소는 Windows 체크아웃이라 파일이 CRLF 인데,
+// 마커에 \n 을 쓰면 indexOf 가 -1 을 반환하고 slice(start, -1) 이
+// **의도한 경계를 무시하고 파일 끝까지** 잘라버린다 (실측 900자 → 3,204자).
+const SRC = fs
+  .readFileSync(path.join(__dirname, '../workers/generate-api/src/prompts/sink-prompt.js'), 'utf8')
+  .replace(/\r\n/g, '\n');
+
+/** 마커를 못 찾으면 조용히 넘어가지 않고 즉시 실패한다 */
+function sliceBetween(startMarker, endMarker) {
+  const s = SRC.indexOf(startMarker);
+  const e = SRC.indexOf(endMarker);
+  if (s < 0) throw new Error('시작 마커를 찾지 못했습니다: ' + startMarker);
+  if (e < 0) throw new Error('끝 마커를 찾지 못했습니다: ' + endMarker);
+  return SRC.slice(s, e);
+}
 
 /** 템플릿 리터럴을 그대로 평가하지 않고, 두 프롬프트 본문만 텍스트로 뽑는다. */
 function promptBodies() {
-  const closed = SRC.slice(SRC.indexOf('[WALL]'), SRC.indexOf('export function buildSinkAltSpec'));
-  const alt = SRC.slice(SRC.indexOf('Recolor this kitchen photo'), SRC.indexOf('return {\n    inputKey'));
+  const closed = sliceBetween('[WALL]', 'export function buildSinkAltSpec');
+  const alt = sliceBetween('Recolor this kitchen photo', 'return {\n    inputKey');
   expect(closed.length).toBeGreaterThan(200);
   expect(alt.length).toBeGreaterThan(200);
+  // 경계가 깨지면 조용히 넓게 잘리므로 상한도 함께 본다
+  expect(alt.length).toBeLessThan(2000);
   return { closed, alt, both: closed + '\n' + alt };
 }
 
