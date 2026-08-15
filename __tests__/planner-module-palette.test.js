@@ -175,6 +175,97 @@ describe('바꾸면 실제로 반영된다', () => {
   });
 });
 
+describe('높이 부위 — 상판·좌대·상몰딩', () => {
+  test('하부장에는 다리발과 상판 칸이 같이 있다', () => {
+    const p = boot();
+    pickLower(p);
+    expect(palette(p).querySelector('.mp-legh')).not.toBeNull();
+    expect(palette(p).querySelector('.mp-topt')).not.toBeNull();
+    expect(palette(p).querySelector('.mp-pedestal')).toBeNull();   // 하부장엔 좌대가 없다
+  });
+
+  test('문서화된 높이 모델과 맞는다 — 하부장 870 = 다리발 150 + 몸통 708 + 상판 12', () => {
+    // data-constants.js 의 전체높이 모델이 정본이다. 렌더러가 이 합과 어긋나면
+    // 3D 몸통이 상판 두께만큼 길어진다 (예전 상태).
+    const p = boot();
+    const { m, s } = pickLower(p);
+    m.H = 870;
+    expect(p.g('legHOf')(m, s)).toBe(150);
+    expect(p.g('topTOf')(m, s)).toBe(12);
+    expect(p.g('bodyHeightOf')(m, s)).toBe(708);
+    expect(p.g('baseOffsetOf')(m, s)).toBe(150);
+  });
+
+  test('상판을 바꾸면 몸통이 그만큼 줄어든다 (배선 확인)', () => {
+    const p = boot();
+    const { m, s } = pickLower(p);
+    m.H = 870;
+    const before = p.g('bodyHeightOf')(m, s);
+    const inp = palette(p).querySelector('.mp-topt');
+    inp.value = '30';
+    inp.onchange();
+    expect(s.topT).toBe(30);
+    expect(p.g('bodyHeightOf')(m, s)).toBe(before - 18);   // 12 → 30
+  });
+
+  test('부위가 몸통을 삼키면 되돌린다', () => {
+    const p = boot();
+    const { m, s } = pickLower(p);
+    const inp = palette(p).querySelector('.mp-topt');
+    inp.value = String(m.H);
+    inp.onchange();
+    expect(s.topT).toBeUndefined();                        // 원래 없던 값이면 지운다
+    expect(p.g('bodyHeightOf')(m, s)).toBeGreaterThanOrEqual(50);
+  });
+
+  test('바닥 offset 은 섹션마다 다른 부위를 본다', () => {
+    const p = boot();
+    const legHOf = p.g('legHOf'), baseOffsetOf = p.g('baseOffsetOf');
+    const lower = { section: 'lower', H: 870 };
+    const upper = { section: 'upper', H: 780 };
+    const fridge = { section: 'fridge', H: 2310 };
+    expect(baseOffsetOf(lower, {})).toBe(legHOf(lower, {}));  // 다리발
+    expect(baseOffsetOf(upper, {})).toBe(0);                  // 매달림 — 없음
+    expect(baseOffsetOf(fridge, {})).toBe(60);                // 좌대
+  });
+
+  test('키큰장·냉장고장 몸통은 좌대와 상몰딩을 모두 뺀다', () => {
+    const p = boot();
+    const bodyHeightOf = p.g('bodyHeightOf');
+    const fridge = { section: 'fridge', H: 2310 };
+    // 예전엔 좌대를 빼먹어 60mm 길었다.
+    expect(bodyHeightOf(fridge, {})).toBe(2310 - 60 - p.g('moldingHOf')(fridge, {}));
+  });
+});
+
+describe('렌더러가 몸통 계산을 직접 하지 않는다 (정적 가드)', () => {
+  // 3D 경로는 three.js 가 필요해 jsdom 에서 돌릴 수 없다. 그래서 "무엇을 그렸나" 대신
+  // "무엇을 근거로 삼았나" 를 소스에서 확인한다.
+  //
+  // 예전엔 세 경로가 carcassH = H - legH - moldingH 로 직접 계산해
+  // 하부장 상판 12mm·키큰장 좌대 60mm 를 빠뜨렸다. heightPartsOf 합이 정본이므로
+  // 몸통은 bodyHeightOf 로만 구해야 한다.
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs
+    .readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  test('carcassH 는 전부 bodyHeightOf 로 구한다', () => {
+    const assigns = src.match(/const carcassH\s*=\s*[^;]+;/g) || [];
+    expect(assigns.length).toBeGreaterThan(0);        // 대상이 사라지면 가드가 무의미해진다
+    const bad = assigns.filter((a) => !a.includes('bodyHeightOf'));
+    expect(bad).toEqual([]);
+  });
+
+  test('몸통 바닥 offset 은 baseOffsetOf 로 구한다', () => {
+    // legHOf 는 다리발 mesh 자체의 높이라 addLegs 에서만 쓰인다.
+    const assigns = src.match(/const legH\s*=\s*[^;]+;/g) || [];
+    const bad = assigns.filter((a) => !a.includes('baseOffsetOf'));
+    expect(bad).toEqual([]);
+  });
+});
+
 describe('양문 cell 은 팔레트에서도 방향을 묻지 않는다', () => {
   test('is2D cell 에는 방향 select 대신 양문 라벨이 뜬다', () => {
     const p = boot();
