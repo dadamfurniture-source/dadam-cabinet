@@ -1,0 +1,25 @@
+{
+  "name": "@dadam/design-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "다담가구 디자인 시스템 — css/dadam-system.css + css/nav.css 의 클래스를 React 컴포넌트로 바인딩",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "../css/dadam-system.css"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "npm run build:tailwind && node scripts/build-css.mjs && tsc -p tsconfig.json",
+    "build:tailwind": "tailwindcss -c tailwind.ds.cjs -i ../app/globals.css -o .css-build/tailwind.css"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}

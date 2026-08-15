@@ -1,0 +1,27 @@
+{
+  "projectId": "c43f82d4-903d-4e9a-8b5f-35f141e1956a",
+  "shape": "package",
+  "pkg": "@dadam/design-system",
+  "globalName": "DadamDS",
+  "entry": "design-system/dist/index.js",
+  "buildCmd": "npm run build --prefix design-system",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": "dist/dadam-ds.css",
+  "docsDir": "docs",
+  "readmeHeader": ".design-sync/conventions.md",
+  "guidelinesGlob": [],
+  "overrides": {
+    "Hamburger": { "cardMode": "single", "primaryStory": "States", "viewport": "420x240" },
+    "MobileMenu": { "cardMode": "single", "primaryStory": "Open", "viewport": "420x560" },
+    "Page": { "cardMode": "single", "primaryStory": "WithNavAndHeader" },
+    "Nav": { "cardMode": "column" },
+    "Stat": { "cardMode": "column" },
+    "AnimateIn": { "cardMode": "column" },
+    "Container": { "cardMode": "column", "viewport": "1500x220" },
+    "Grid": { "cardMode": "column", "viewport": "1240x340" }
+  },
+  "componentSrcMap": {
+    "NavLink": null,
+    "NavUserMenuItem": null
+  }
+}
