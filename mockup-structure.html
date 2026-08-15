@@ -1847,6 +1847,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     for (let i = 0; i < s.verticalCount; i++) {
       const t = s.areaTypes[i] || 'door';
       const d = s.areaDirections[i] || 'left';
+      // 양문(is2D) cell 은 방향 개념이 없다. autoCalcModule 이 dir='both' 를 넣는데
+      // select 에 그 옵션이 없어 "좌 ◀" 가 선택된 것처럼 보였다(값은 'both').
+      // 게다가 여기서 좌/우로 바꿔도 정면도는 is2D 로 먼저 분기해 양문을 그리므로
+      // 아무 효과가 없었다 — 동작하지 않는 컨트롤 대신 상태를 그대로 적는다.
+      const is2DCell = !!(s.areaIs2D && s.areaIs2D[i]);
       areaHTML += `
         <div class="area-row" data-idx="${i}">
           <span class="a-lab">#${i+1}</span>
@@ -1856,11 +1861,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             <option value="open"   ${t==='open'?'selected':''}>오픈</option>
             <option value="blank"  ${t==='blank'?'selected':''}>먹장</option>
           </select>
-          ${t==='door' ? `
+          ${t!=='door'
+            ? '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'
+            : is2DCell
+              ? '<span style="font-size:9px;color:var(--text-dim);text-align:center">양문 ◀▶</span>'
+              : `
           <select class="a-dir">
             <option value="left"  ${d==='left'?'selected':''}>좌 ◀</option>
             <option value="right" ${d==='right'?'selected':''}>우 ▶</option>
-          </select>` : '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'}
+          </select>`}
         </div>
       `;
     }
@@ -2530,12 +2539,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      const dir  = (s.areaDirections && s.areaDirections[i]) || 'left';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, dir, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
-                      s.bottomType || 'drawer', s.bottomDirection || 'left', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
+                      s.bottomType || 'drawer', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
       cellLeftAccum += colW;
     }
@@ -2585,7 +2593,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W9-86: doorVisible=false 면 도어/서랍/먹장 mesh skip (오픈 frame 은 항상)
   // W9-100: 아웃도어 (overlay) — panel 뒷면이 모듈 앞면과 일치, 앞으로 튀어나옴
   //         panel.z = frontZ + T/2 (frontZ = 모듈 앞면, T/2 = panel 두께 절반)
-  function addFrontPanel(parent, cx, cy, w, h, frontZ, type, direction, cfg, s, meta) {
+  // 도어 열림 방향은 받지 않는다. 예전엔 `direction` 파라미터가 있었으나 본문에서
+  // 한 번도 쓰이지 않았고(호출부 하나는 이미 null 을 넘기고 있었다), 3D 뷰는
+  // 열림 방향을 표현하지 않는다. 표현하려면 파라미터를 되살리는 게 아니라
+  // 여닫이 mesh 를 만드는 별도 작업이 필요하다.
+  function addFrontPanel(parent, cx, cy, w, h, frontZ, type, cfg, s, meta) {
     const T = 18;
     const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
     const carcassMeta = { entityKind: 'carcass', moduleId: meta.moduleId, side: 'front', areaType: type };
@@ -3020,11 +3032,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, null, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
+      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(g, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
-                      s.bottomType || 'drawer', null, cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
+                      s.bottomType || 'drawer', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }
       cellLeftAccum += colW;
     }
@@ -3105,21 +3117,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // W9-72: 자동계산 (다담 표준 규칙 — 세트 일괄)
   // ─────────────────────────────────────────────────────────────
-  // 도어 열림 방향 — 양문 패턴 (인접 도어 반대)
-  function calcDoorDirections(n) {
-    if (n === 1) return ['left'];
-    if (n === 2) return ['left', 'right'];
-    const dirs = [];
-    for (let i = 0; i < n; i++) dirs.push(i % 2 === 0 ? 'left' : 'right');
-    return dirs;
-  }
-  // 영역 [x0,x1] 이 ranges 중 어느 것과 25%+ 겹치면 true
-  function overlapsAny(x0, x1, ranges) {
-    return ranges.some(r => {
-      const ov = Math.max(0, Math.min(x1, r.x1) - Math.max(x0, r.x0));
-      return ov > (x1 - x0) * 0.25;
-    });
-  }
+  // 삭제됨 — W9-72 가 만들었으나 후속 단계가 더 정확한 방식으로 대체했다:
+  //   calcDoorDirections(n)  좌/우 교대 방향. W9-96 이 distributeModules 2D 페어링으로
+  //                          대체하며 호출부가 사라졌다 (지금은 dir='both' 로 표현).
+  //   overlapsAny(x0,x1,r)   가전 겹침 25% 근사. W9-95 가 splitModuleByAppliance 의
+  //                          정확한 경계 분할로 대체하며 호출부 3곳이 사라졌다.
+  // 둘 다 저장소 전체에서 호출부 0건인 상태로 남아 있었다.
 
   // W9-118: 비고정 모듈 W 균등 재분배 (자동계산 트리거 시)
   //   같은 section row 내에서 고정 모듈을 경계로 끊고, 비고정 연속 구간을 균등 폭으로 재배치
