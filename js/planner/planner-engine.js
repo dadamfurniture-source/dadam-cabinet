@@ -73,6 +73,18 @@ function getMoldingH(section) {
   return 0;
 }
 
+// 구조가 지정한 높이 부위를 우선하고, 없으면 마스터 상수로 떨어진다.
+//   구조 단계 UI 는 예전부터 s.legH / s.moldingH 를 편집하게 해뒀는데 계산·렌더가
+//   상수를 직접 읽어 그 값이 아무 데도 닿지 않았다. 두 함수가 그 길을 잇는다.
+function effectiveLegH(s) {
+  const v = parseFloat(s && s.legH);
+  return Number.isFinite(v) && v >= 0 ? v : MASTER_RULES.SINK_LEG;
+}
+function effectiveMoldingH(section, s) {
+  const v = parseFloat(s && s.moldingH);
+  return Number.isFinite(v) && v >= 0 ? v : getMoldingH(section);
+}
+
 function calcDoorCount(W) {
   if (W <= 600)  return 1;
   if (W <= 1000) return 2;
@@ -280,8 +292,10 @@ function autoCalcModule(m, s, applianceRanges) {
   s.areaIs2D = areaIs2D;   // W9-101
   s.verticalCount = areaTypes.length;
   // 4. 선반 — W9-114/115: 본체 H 기준 (다리발 + 상몰딩 빼고)
-  const legH4Shelf = (m.section === 'lower') ? MASTER_RULES.SINK_LEG : 0;
-  const moldingH4Shelf = getMoldingH(m.section);
+  //   구조에 legH/moldingH 가 지정돼 있으면 그 값을 쓴다. 지정이 없으면 마스터 상수로
+  //   떨어지므로 기존 계산과 같다 — 골든이 바뀌지 않는 이유다.
+  const legH4Shelf = (m.section === 'lower') ? effectiveLegH(s) : 0;
+  const moldingH4Shelf = effectiveMoldingH(m.section, s);
   const shelfH = H - legH4Shelf - moldingH4Shelf;
   s.shelves = calcDefaultShelves(m.section, shelfH);
   // 5. 손잡이 (다담 매립형)
@@ -298,6 +312,8 @@ function autoCalcModule(m, s, applianceRanges) {
 if (typeof window !== 'undefined') {
   window.MASTER_RULES = MASTER_RULES;
   window.getMoldingH = getMoldingH;
+  window.effectiveLegH = effectiveLegH;
+  window.effectiveMoldingH = effectiveMoldingH;
   window.calcDoorCount = calcDoorCount;
   window.distributeModules = distributeModules;
   window.calcDefaultShelves = calcDefaultShelves;
@@ -308,7 +324,8 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     MASTER_RULES,
-    getMoldingH, calcDoorCount, distributeModules, calcDefaultShelves,
+    getMoldingH, effectiveLegH, effectiveMoldingH,
+    calcDoorCount, distributeModules, calcDefaultShelves,
     collectXRanges, splitModuleByAppliance, autoCalcModule,
   };
 }
