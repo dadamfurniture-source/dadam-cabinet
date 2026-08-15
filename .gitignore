@@ -116,3 +116,31 @@ design-system/dist/
 # design-system 컴포넌트 문서는 위 docs/ 규칙에서 제외 (그룹 분류 + prompt.md 정본)
 !design-system/docs/
 !design-system/docs/**
+
+# PDCA 문서(계획·설계·분석·보고 + 아카이브)는 위 docs/ 규칙에서 제외.
+#   docs/ 를 통째로 무시하면 새 계획 문서를 써도 `git add` 가 조용히 거부되고,
+#   커밋했다고 착각한 채 넘어간다. 실제로 플래너 재작성 계획(P0-P11)이 이렇게
+#   사라졌다 — 머지된 코드가 P4/P5·P7·P9·P11 을 참조하는데 정작 계획서가 없다.
+#
+#   `docs/` 가 디렉터리를 통째로 막으면 git 이 그 안으로 내려가지 않으므로
+#   `!docs/01-plan/` 만으로는 안 된다. 루트 docs 만 앵커(`/`)로 다시 열고
+#   나머지 자식은 도로 닫은 뒤 필요한 것만 예외로 둔다.
+#   앵커가 없으면 mcp-server/docs 까지 같이 열려 내부 문서가 노출된다.
+#
+#   archive/ 도 열어야 한다. PDCA 사이클이 끝나면 문서가 docs/archive/YYYY-MM/ 로
+#   옮겨지는데(.pdca-status.json 의 archivedTo), archive 가 닫혀 있으면
+#   아카이빙하는 순간 문서가 다시 사라져 위 예외가 무의미해진다.
+#
+#   catalog_pages(5.7M PNG)·design-rules·outsource·dev·.pdca-snapshots 는 계속 닫아 둔다.
+!/docs/
+/docs/*
+!/docs/01-plan/
+!/docs/01-plan/**
+!/docs/02-design/
+!/docs/02-design/**
+!/docs/03-analysis/
+!/docs/03-analysis/**
+!/docs/04-report/
+!/docs/04-report/**
+!/docs/archive/
+!/docs/archive/**
