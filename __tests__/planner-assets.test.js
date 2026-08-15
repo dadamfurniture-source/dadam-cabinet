@@ -48,26 +48,40 @@ function inlineBodies(html) {
 // 이유는 test-utils/js-scan.js 주석 참고 (지역변수 z·w·sz 를 전역으로 오인했었다).
 const { topLevelDeclarations: topLevelNames } = require('../test-utils/js-scan');
 
-describe('플래너 공통 모듈이 실려 있다', () => {
-  const EXPECTED = [
-    'js/planner/planner-scope.js',
-    'js/planner/planner-view.js',
-    'js/planner/planner-sections.js',
-  ];
+// 공통 모듈 — 배치·구조 두 단계가 **같은 정본**을 봐야 하는 것들 (P1)
+const SHARED = [
+  'js/planner/planner-scope.js',
+  'js/planner/planner-view.js',
+  'js/planner/planner-sections.js',
+];
 
-  test.each(HTML_FILES)('%s 가 세 모듈을 모두 로드한다', (file) => {
+// 구조 단계 전용 (P2). 배치 단계는 계산 엔진을 쓰지 않는다 — 실측 0건이라
+// 공통으로 싣지 않는다. 이 구분이 없으면 shell 에 안 쓰는 코드가 계속 딸려간다.
+const STRUCTURE_ONLY = ['js/planner/planner-engine.js'];
+
+/** 해당 HTML 이 로드해야 하는 모듈 전체 */
+const modulesFor = (file) =>
+  file === 'mockup-structure.html' ? [...SHARED, ...STRUCTURE_ONLY] : SHARED;
+
+describe('플래너 모듈이 실려 있다', () => {
+  test.each(HTML_FILES)('%s 가 필요한 모듈을 모두 로드한다', (file) => {
     const srcs = scriptSrcs(read(file)).map((s) => s.split('?')[0]);
-    for (const want of EXPECTED) expect(srcs).toContain(want);
+    for (const want of modulesFor(file)) expect(srcs).toContain(want);
   });
 
-  test.each(EXPECTED)('%s 파일이 실제로 존재한다', (rel) => {
+  test('mockup-shell.html 은 구조 전용 모듈을 싣지 않는다', () => {
+    const srcs = scriptSrcs(read('mockup-shell.html')).map((s) => s.split('?')[0]);
+    for (const notWant of STRUCTURE_ONLY) expect(srcs).not.toContain(notWant);
+  });
+
+  test.each([...SHARED, ...STRUCTURE_ONLY])('%s 파일이 실제로 존재한다', (rel) => {
     expect(fs.existsSync(path.join(ROOT, rel))).toBe(true);
   });
 
-  test.each(HTML_FILES)('%s 에서 공통 모듈이 인라인보다 먼저 온다', (file) => {
+  test.each(HTML_FILES)('%s 에서 모듈이 인라인보다 먼저 온다', (file) => {
     const html = read(file);
     const lastExternal = Math.max(
-      ...EXPECTED.map((rel) => html.indexOf(rel))
+      ...modulesFor(file).map((rel) => html.indexOf(rel))
     );
     // 공통 이름을 처음 쓰는 인라인 스크립트의 위치
     const firstInline = html.indexOf('<script>', html.indexOf('js/planner/planner-scope.js'));
@@ -77,17 +91,22 @@ describe('플래너 공통 모듈이 실려 있다', () => {
 });
 
 describe('전역 식별자가 충돌하지 않는다 (흰 화면 방지)', () => {
-  const moduleNames = new Map();
-  for (const rel of ['js/planner/planner-scope.js', 'js/planner/planner-view.js', 'js/planner/planner-sections.js']) {
-    for (const n of topLevelNames(read(rel))) {
-      if (!moduleNames.has(n)) moduleNames.set(n, rel);
+  /** 해당 HTML 에 실제로 실리는 모듈들의 최상위 이름 → 정본 파일 */
+  const namesFor = (file) => {
+    const map = new Map();
+    for (const rel of modulesFor(file)) {
+      for (const n of topLevelNames(read(rel))) {
+        if (!map.has(n)) map.set(n, rel);
+      }
     }
-  }
+    return map;
+  };
 
-  test('공통 모듈끼리 서로 재선언하지 않는다', () => {
+  test('모듈끼리 서로 재선언하지 않는다', () => {
+    // 구조 단계는 공통 3 + 엔진 을 한 전역 스코프에 올린다 — 넷을 같이 본다.
     const seen = new Map();
     const dup = [];
-    for (const rel of ['js/planner/planner-scope.js', 'js/planner/planner-view.js', 'js/planner/planner-sections.js']) {
+    for (const rel of [...SHARED, ...STRUCTURE_ONLY]) {
       for (const n of topLevelNames(read(rel))) {
         if (seen.has(n)) dup.push(`${n}: ${seen.get(n)} ↔ ${rel}`);
         else seen.set(n, rel);
@@ -96,7 +115,8 @@ describe('전역 식별자가 충돌하지 않는다 (흰 화면 방지)', () =>
     expect(dup).toEqual([]);
   });
 
-  test.each(HTML_FILES)('%s 인라인이 공통 모듈의 이름을 재선언하지 않는다', (file) => {
+  test.each(HTML_FILES)('%s 인라인이 모듈의 이름을 재선언하지 않는다', (file) => {
+    const moduleNames = namesFor(file);
     const clashes = [];
     for (const body of inlineBodies(read(file))) {
       for (const n of topLevelNames(body)) {
@@ -147,10 +167,20 @@ describe('캐시 버전이 어긋나지 않는다 (반쪽 배포 방지)', () =>
 describe('원본이 같은 커밋에서 지워졌다 (deprecated 마킹 금지)', () => {
   // 계획 불변식 4. 옮기고 남겨두면 어느 쪽이 정본인지 알 수 없게 된다.
   const MOVED = [
+    // P1
     { name: 'PLANNER_SCOPE 정의', re: /const PLANNER_SCOPE = \(function/ },
     { name: 'scopedKey 정의', re: /function scopedKey\s*\(/ },
     { name: 'view 상태 정의', re: /const view = \{\s*panX/ },
     { name: 'SECTION_CONFIG 리터럴', re: /const SECTION_CONFIG = \{/ },
+    // P2 — 계산 엔진 (js/planner/planner-engine.js 가 정본)
+    { name: 'MASTER_RULES 리터럴', re: /const MASTER_RULES = \{/ },
+    { name: 'getMoldingH 정의', re: /function getMoldingH\s*\(/ },
+    { name: 'calcDoorCount 정의', re: /function calcDoorCount\s*\(/ },
+    { name: 'distributeModules 정의', re: /function distributeModules\s*\(/ },
+    { name: 'calcDefaultShelves 정의', re: /function calcDefaultShelves\s*\(/ },
+    { name: 'collectXRanges 정의', re: /function collectXRanges\s*\(/ },
+    { name: 'splitModuleByAppliance 정의', re: /function splitModuleByAppliance\s*\(/ },
+    { name: 'autoCalcModule 정의', re: /function autoCalcModule\s*\(/ },
   ];
 
   test.each(HTML_FILES)('%s 에 옮겨간 원본이 남아 있지 않다', (file) => {

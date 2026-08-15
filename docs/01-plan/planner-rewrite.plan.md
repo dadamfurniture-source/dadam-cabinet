@@ -105,7 +105,7 @@ PR #465 · 머지 완료.
 좌표변환 신설(`toScene` / `zoomAtPoint` / `fitViewTo` / `clampZoom`)의 목적은 중복 제거가
 아니라 **P4/P5 준비**다 — `js/planner/planner-view.js:10`.
 
-### P2 — 엔진을 `js/planner/` 로 분리 ⬅ **다음 단계** [확인]
+### P2 — 엔진을 `js/planner/` 로 분리 ✅ [확인]
 
 > "엔진을 `js/planner/` 로 분리하는 것이 이 계획의 P1~P2 다."
 > — `__tests__/test-marker-guard.test.js:12`
@@ -117,9 +117,36 @@ P0 의 안전판이 정확히 이 단계를 위해 깔렸다:
 - 마커를 잃은 테스트는 **하네스 기반으로 이관**한다 (마커 되살리기는 임시방편 —
   `test-marker-guard.test.js:20`)
 
-**범위 미상**: 어떤 함수가 "엔진" 에 속하는지 계획에 열거돼 있었는지는 남아 있지 않다.
-착수 시 `buildSets` / `autoCalcForSet` / `buildPlannerPayload` 를 기준으로 실제 의존성을
-대조해 확정할 것.
+**범위 확정 (실측)**: 계획에 열거가 남아 있지 않아, "인자만 보고 답을 내는가"
+(DOM·모듈 전역 상태를 안 건드리는가) 하나를 기준으로 갈랐다.
+
+`js/planner/planner-engine.js` 로 옮긴 것 — `MASTER_RULES` · `getMoldingH` ·
+`calcDoorCount` · `distributeModules` · `calcDefaultShelves` · `collectXRanges` ·
+`splitModuleByAppliance` · `autoCalcModule`.
+
+남긴 것과 이유:
+
+| 대상 | 남긴 이유 |
+|---|---|
+| `autoCalcForSet` | `showToast`·`getStructure`·`snapshotAutoCalc`·`persistPlannerState` 호출 |
+| `redistributeNonFixedWidths` | `showToast` 호출 |
+| `buildSets` | 모듈 전역 `modules` 를 클로저로 읽는다 |
+| `buildPlannerPayload` | 같은 이유 |
+
+이들을 같이 옮기려면 상태를 인자로 받도록 **설계를 바꿔야** 한다. 옮기기와 설계 변경이
+한 diff 에 섞이면 골든이 왜 바뀌었는지 읽을 수 없어 별도 단계로 미뤘다.
+
+⚠ `mockup-shell.html` 에는 싣지 않는다 — 배치 단계는 이 중 아무것도 쓰지 않는다(실측 0건).
+`planner-assets.test.js` 의 `SHARED` / `STRUCTURE_ONLY` 구분이 이걸 강제한다.
+
+⚠ 모듈은 끝에 `window.X = X` 블록이 있어야 한다. 브라우저는 클래식 스크립트의 최상위
+선언을 전역 렉시컬 스코프에 올리지만, 하네스는 스크립트마다 함수 스코프를 만들어 그
+연결이 끊긴다. 이 블록이 빠지면 **브라우저는 멀쩡한데 골든만 ReferenceError 로 죽는다**
+(P2 에서 실제로 겪었다).
+
+**부수 발견 — 죽은 코드 2개**: `calcDoorDirections` 와 `overlapsAny` 는 저장소 전체에서
+호출부가 없다(정의 1회뿐). 엔진의 API 처럼 보이게 하지 않으려고 옮기지 않았고, 조용히
+지우지도 않아 `mockup-structure.html` 에 그대로 있다. 처리는 별도 판단이 필요하다.
 
 ### P3 [미상]
 
