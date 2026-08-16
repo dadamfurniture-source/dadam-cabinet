@@ -58,9 +58,44 @@ const oblique = {
 const FIXTURES = { straight, lShape, oblique };
 
 /** 픽스처를 배치 페이지가 읽는 형태로 — 스코프 키에 맞춰 storage seed 를 만든다 */
-function seedFor(fixture, { design = 'gold', item = '1' } = {}) {
+/**
+ * 배치 픽스처를 구조 단계가 쓰는 모듈 목록으로 바꾼다.
+ *
+ * 예전엔 구조 단계가 배치 사각형을 **자동으로** 모듈로 바꿔 읽었다. 지금은 사각형이
+ * 영역이고 모듈은 사용자가 넣는 것이라 그 자동 변환이 없다. 골든이 검증하려는 것은
+ * 그 변환 경로가 아니라 **"모듈이 있을 때 payload 가 어떻게 생겼는가"** 이므로,
+ * 픽스처와 똑같은 모듈을 구조 단계 저장소에 직접 심어 안전망을 그대로 유지한다.
+ */
+function modulesFromFixture(fixture) {
+  const FINISHING = ['ep', 'molding', 'filler'];
+  const KNOWN = ['lower', 'upper', 'tall', 'fridge', 'sink', 'hood', 'refrigerator', 'dishwasher'];
+  // id 는 `${section}-${index}` 인데 index 는 **섹션별이 아니라 필터된 배열의 전역 순번**이다
+  // (예전 loadModules 가 그렇게 매겼다). 골든 스냅샷이 이 id 를 그대로 담고 있으므로
+  // 규칙을 바꾸면 스냅샷이 흔들린다.
+  return (fixture.modules || [])
+    .filter((m) => KNOWN.includes(m.section) && !FINISHING.includes(m.section))
+    .map((m, i) => {
+      return {
+        id: `${m.section}-${i}`,
+        section: m.section,
+        W: m.w, H: m.moduleH, D: m.h,
+        x: m.x || 0, y: m.y || 0, rotation: m.rotation || 0,
+        finishings: (m.finishings || []).map((f) => ({
+          section: f.section, W: f.w, H: f.moduleH || m.moduleH, D: f.h, x: f.x, y: f.y,
+        })),
+      };
+    });
+}
+
+function seedFor(fixture, { design = 'gold', item = '1', modules = true } = {}) {
   const scope = `::${design}:${item}`;
-  return { [`dadam_layout_v1${scope}`]: JSON.stringify(fixture), _search: `?design=${design}&item=${item}` };
+  const seed = {
+    [`dadam_layout_v1${scope}`]: JSON.stringify(fixture),
+    _search: `?design=${design}&item=${item}`,
+  };
+  // modules:false 로 주면 "배치만 있고 모듈은 아직 없는" 새 설계 상태가 된다.
+  if (modules) seed[`dadam_struct_modules_v1${scope}`] = JSON.stringify(modulesFromFixture(fixture));
+  return seed;
 }
 
 /**
@@ -77,4 +112,4 @@ function canonical(payload) {
   }, 2);
 }
 
-module.exports = { FIXTURES, straight, lShape, oblique, seedFor, canonical };
+module.exports = { FIXTURES, straight, lShape, oblique, seedFor, canonical, modulesFromFixture };
