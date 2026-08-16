@@ -429,11 +429,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=35.8"></script>
-<script src="js/planner/planner-view.js?v=35.8"></script>
-<script src="js/planner/planner-sections.js?v=35.8"></script>
+<script src="js/planner/planner-scope.js?v=35.9"></script>
+<script src="js/planner/planner-view.js?v=35.9"></script>
+<script src="js/planner/planner-sections.js?v=35.9"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=35.8"></script>
+<script src="js/planner/planner-engine.js?v=35.9"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -759,7 +759,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       </div>
     `).join('');
     body.querySelectorAll('.module-item').forEach(el => {
-      el.onclick = () => setActiveModule(el.dataset.id);
+      // 좌측 목록은 "이 모듈만 크게 보기" 로 들어가는 길이다 — 영역 보기에서 빠져나온다.
+      // (정면도에서 모듈을 클릭하면 영역 보기를 유지한 채 팔레트만 뜬다)
+      el.onclick = () => { activeAreaId = null; renderAreaTools(); setActiveModule(el.dataset.id); };
     });
   }
 
@@ -775,8 +777,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const idx = parseInt(id.split('-')[1] || 0) + 1;
       return `${cfg.label} #${idx}`;
     })();
-    document.getElementById('canvasEmpty').style.display = id ? 'none' : 'flex';
-    fitToActiveModule();
+    syncCanvasEmpty();
+    // 영역 보기 중이면 화면을 모듈로 당기지 않는다 — 계획 전체가 보이는 편이 낫다.
+    if (!activeAreaId) fitToActiveModule();
     // 모듈을 고르면 옵션 팔레트를 띄운다. 목록·정면도·3D 어느 경로로 골라도
     // 여기를 지나므로 진입점을 한 곳으로 모을 수 있다.
     renderModulePalette();
@@ -1356,51 +1359,106 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // W9-102: 정면도 — viewMode 별 분기 (single / set / all). 배치 단계 X 좌표 + baseY 반영
+  /**
+   * 영역 하나의 정면도 사각형. **모듈과 똑같은 좌표 규약**을 쓴다.
+   *   X — 사람(원점) 기준, 시점 회전(viewRotation) 적용
+   *   Y — 천장에서 내려온 거리. 상부장·후드는 천장 매달림이라 baseY 가 다르다
+   * 여기서 규약을 새로 만들면 영역과 모듈이 서로 다른 자리에 그려진다
+   * (실제로 그랬다 — 영역을 임의로 좌→우 나열해 ㄱ자 배치가 일렬로 보였다).
+   */
+  function areaFrontRect(a) {
+    const ox = getFrontViewOriginX();
+    const oy = (personPos && typeof personPos.cy === 'number') ? personPos.cy : originPos2D.y;
+    const rot = ((a.rotation || 0) % 360 + 360) % 360;
+    const planeW = (rot === 90 || rot === 270) ? a.D : a.W;
+    const planeD = (rot === 90 || rot === 270) ? a.W : a.D;
+    const px = a.x || 0, py = a.y || 0;
+    let x, w;
+    if (viewRotation === 90)       { x = py - oy;                 w = planeD; }
+    else if (viewRotation === 180) { x = -(px + planeW - ox);     w = planeW; }
+    else if (viewRotation === 270) { x = -(py + planeD - oy);     w = planeD; }
+    else                           { x = px - ox;                 w = planeW; }
+    const baseY = getBaseY(a.section, a.H);
+    return { x, w, y: ceilingHeight - (baseY + a.H), h: a.H };
+  }
+
   /** 영역 사각형 — 배경이자 클릭 대상. 편집 대상이 아니라 점선으로 그린다. */
   function renderAreas(content) {
     const ns = 'http://www.w3.org/2000/svg';
-    let ox = 0;
     areas.forEach((a) => {
       const cfg = SECTION_CONFIG[a.section] || {};
+      const R = areaFrontRect(a);
+      const on = a.id === activeAreaId;
       const g = document.createElementNS(ns, 'g');
       const r = document.createElementNS(ns, 'rect');
-      r.setAttribute('x', ox); r.setAttribute('y', 0);
-      r.setAttribute('width', a.W); r.setAttribute('height', a.H);
-      r.setAttribute('fill', a.id === activeAreaId ? (cfg.fill || '#ccc') : 'none');
-      r.setAttribute('fill-opacity', '0.12');
+      r.setAttribute('x', R.x); r.setAttribute('y', R.y);
+      r.setAttribute('width', R.w); r.setAttribute('height', R.h);
+      r.setAttribute('fill', cfg.fill || '#ccc');
+      r.setAttribute('fill-opacity', on ? '0.18' : '0.06');
       r.setAttribute('stroke', cfg.stroke || '#999');
-      r.setAttribute('stroke-width', a.id === activeAreaId ? 6 : 3);
+      r.setAttribute('stroke-width', on ? 6 : 3);
       r.setAttribute('stroke-dasharray', '18 10');
       r.setAttribute('data-area-id', a.id);
       r.style.cursor = 'pointer';
       r.addEventListener('click', (e) => { e.stopPropagation(); setActiveArea(a.id); });
       g.appendChild(r);
 
+      const used = usedWidthOf(a.id);
       const lab = document.createElementNS(ns, 'text');
-      lab.setAttribute('x', ox + 14); lab.setAttribute('y', 46);
-      lab.setAttribute('font-size', 44);
+      lab.setAttribute('x', R.x + 14);
+      lab.setAttribute('y', R.y + 48);
+      lab.setAttribute('font-size', 40);
       lab.setAttribute('fill', cfg.stroke || '#666');
-      lab.textContent = `${cfg.label || a.section} · ${Math.round(a.W)}×${Math.round(a.H)}`;
+      lab.textContent = `${cfg.label || a.section} ${Math.round(a.W)}×${Math.round(a.H)}`
+        + (used ? `  ·  ${Math.round(used)} 사용` : '  ·  비어 있음');
       lab.style.pointerEvents = 'none';
       g.appendChild(lab);
       content.appendChild(g);
-
-      // 이 영역에 담긴 모듈을 왼쪽부터 이어 그린다
-      let mx = ox;
-      modules.filter((m) => m.areaId === a.id).forEach((m) => {
-        renderModuleFront(content, m, getStructure(m.id), mx, a.H - m.H);
-        mx += m.W;
-      });
-      ox += a.W + 300;
     });
+  }
+
+  /** 영역 보기에서 모듈을 **배치 좌표 그대로** 그린다. 영역과 같은 규약을 쓴다. */
+  function renderModulesInPlace(content) {
+    modules.forEach((m) => {
+      const R = areaFrontRect(m);
+      renderModuleFront(content, m, getStructure(m.id), R.x, R.y);
+    });
+  }
+
+  /** 영역 전체를 화면에 맞춘다 — 모듈이 없을 때의 fit 대상 */
+  function fitToAreas() {
+    const wrap = document.getElementById('canvasWrap');
+    if (!wrap || !areas.length) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    areas.forEach((a) => {
+      const R = areaFrontRect(a);
+      minX = Math.min(minX, R.x); maxX = Math.max(maxX, R.x + R.w);
+      minY = Math.min(minY, R.y); maxY = Math.max(maxY, R.y + R.h);
+    });
+    if (!isFinite(minX)) return;
+    const padX = 130, padTop = 130, padBot = 100;
+    const cw = wrap.clientWidth - padX * 2;
+    const ch = wrap.clientHeight - padTop - padBot;
+    const z = clampZoom(Math.min(cw / Math.max(1, maxX - minX), ch / Math.max(1, maxY - minY)));
+    view.zoom = z;
+    view.panX = padX + (cw - (maxX - minX) * z) / 2 - minX * z;
+    view.panY = padTop + (ch - (maxY - minY) * z) / 2 - minY * z;
+    applyView();
   }
 
   function renderFrontView() {
     const content = document.getElementById('contentG');
     content.innerHTML = '';
-    // 모듈이 하나도 없으면 영역만 보여준다 — 구조 단계의 첫 화면.
-    // 모듈이 생기면 그 영역 안에 이어서 그린다.
-    if (!modules.length || activeAreaId) { renderAreas(content); if (!modules.length) return; }
+    // 보기는 둘이다.
+    //   ① 영역 보기 — 배치 좌표 그대로. 영역과 그 안의 모듈을 계획대로 보여준다.
+    //   ② 모듈 상세 — 모듈 하나를 원점에 확대. fitToActiveModule 이 그 전제를 쓴다.
+    // 둘을 섞으면 좌표계가 어긋난다. 영역을 원점 기준으로 그렸더니 ㄱ자 배치가
+    // 일렬로 보였던 것이 그 예다.
+    if (!modules.length || activeAreaId) {
+      renderAreas(content);
+      renderModulesInPlace(content);
+      return;
+    }
     if (viewMode === 'set' && activeSetId) {
       const sets = buildSets();
       const set = sets.find(x => x.id === activeSetId);
@@ -2271,6 +2329,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     closeModulePalette();
     renderAreaTools();
     renderFrontView();
+    if (id) fitToAreas();
+    syncCanvasEmpty();
+  }
+
+  /** 빈 화면 안내 — 영역조차 없을 때만 띄운다.
+   *  예전엔 "활성 모듈이 없으면" 이었다. 새 방식은 모듈 0개로 시작하므로
+   *  그대로 두면 첫 화면이 안내 문구에 통째로 가려진다. */
+  function syncCanvasEmpty() {
+    const el = document.getElementById('canvasEmpty');
+    if (!el) return;
+    const nothing = !areas.length && !modules.length;
+    el.style.display = nothing ? 'flex' : 'none';
+    if (!nothing && !modules.length) {
+      // 영역은 있는데 모듈이 없는 상태 — 무엇을 해야 하는지 알려 준다
+      el.style.display = 'none';
+    }
   }
 
   function renderAreaTools() {
@@ -3935,9 +4009,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // Three.js 로드 후 init3D
   if (window.THREE) init3D();
   else window.addEventListener('three-ready', init3D);
-  // 초기 모듈 활성화 — Three.js init 다음에
+  // 초기 화면 — Three.js init 다음에.
+  //   모듈이 없으면 **영역 보기**로 시작한다. 예전엔 이 자리에서 모듈이 있을 때만
+  //   setActiveModule 을 불렀고, 그것이 정면도를 그리는 유일한 경로였다.
+  //   그래서 배치만 하고 넘어오면 캔버스가 비어 보였다.
   setTimeout(() => {
-    if (modules.length) setActiveModule(modules[0].id);
+    if (modules.length) {
+      setActiveModule(modules[0].id);
+    } else {
+      renderFrontView();
+      fitToAreas();
+      syncCanvasEmpty();
+    }
   }, 100);
   applyView();
 </script>

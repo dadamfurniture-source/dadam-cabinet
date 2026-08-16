@@ -41,6 +41,90 @@ describe('첫 화면 — 영역만 보인다', () => {
     const rects = p.document.querySelectorAll('#contentG [data-area-id]');
     expect(rects.length).toBe(p.g('areas').length);
   });
+
+  test('빈 화면 안내가 영역을 가리지 않는다', () => {
+    // 예전엔 "활성 모듈이 없으면" 안내를 띄웠다. 새 방식은 모듈 0개로 시작하므로
+    // 그대로 두면 첫 화면이 안내 문구에 통째로 가려진다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    p.g('syncCanvasEmpty')();
+    expect(p.document.getElementById('canvasEmpty').style.display).toBe('none');
+  });
+});
+
+describe('영역이 배치 좌표대로 그려진다', () => {
+  // 처음 구현은 영역을 임의로 좌→우 나열해서(ox += W + 300) ㄱ자 배치가 일렬로
+  // 보였다. 영역은 모듈과 **같은 좌표 규약**을 써야 계획이 그대로 표현된다.
+
+  test('X 는 사람(원점) 기준이다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const rectOf = p.g('areaFrontRect');
+    const ox = p.g('getFrontViewOriginX')();
+    p.g('areas').forEach((a) => {
+      if ((a.rotation || 0) % 360 === 0) expect(rectOf(a).x).toBe((a.x || 0) - ox);
+    });
+  });
+
+  test('상부장은 천장 매달림이라 Y 가 다르다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const rectOf = p.g('areaFrontRect');
+    const lower = p.g('areas').find((a) => a.section === 'lower');
+    const upper = p.g('areas').find((a) => a.section === 'upper');
+    // 천장에서 잰 거리 — 상부장이 위(작은 y), 하부장이 아래
+    expect(rectOf(upper).y).toBeLessThan(rectOf(lower).y);
+  });
+
+  test('ㄱ자 배치에서 회전 90 영역은 깊이가 폭이 된다', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const rectOf = p.g('areaFrontRect');
+    const rot90 = p.g('areas').find((a) => (a.rotation || 0) === 90);
+    expect(rot90).toBeDefined();
+    // 정면에서 보면 회전 90 모듈은 W 가 아니라 D 만큼 폭을 차지한다
+    expect(rectOf(rot90).w).toBe(rot90.D);
+  });
+
+  test('서로 다른 영역이 겹쳐 그려지지 않는다 (하부장끼리)', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const rectOf = p.g('areaFrontRect');
+    const lows = p.g('areas').filter((a) => a.section === 'lower')
+      .map(rectOf).sort((a, b) => a.x - b.x);
+    for (let i = 1; i < lows.length; i++) {
+      expect(lows[i].x).toBeGreaterThanOrEqual(lows[i - 1].x + lows[i - 1].w - 1);
+    }
+  });
+});
+
+describe('영역 보기와 모듈 상세는 다른 화면이다', () => {
+  test('모듈을 추가해도 영역이 계속 보인다', () => {
+    // 예전엔 "모듈이 없을 때만" 영역을 그려서, 하나 넣는 순간 영역이 사라졌다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    p.g('setActiveArea')(area.id);
+    p.g('addModuleToArea')(area.id);
+    p.g('renderFrontView')();
+    expect(p.document.querySelectorAll('#contentG [data-area-id]').length)
+      .toBe(p.g('areas').length);
+  });
+
+  test('영역 보기에서는 모듈이 한 번만 그려진다', () => {
+    // 영역 안에서 한 번, 뒤이어 single 경로에서 또 한 번 그려지던 문제.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    p.g('setActiveArea')(area.id);
+    const m = p.g('addModuleToArea')(area.id);
+    p.g('setActiveModule')(m.id);
+    p.g('renderFrontView')();
+    expect(p.document.querySelectorAll(`#contentG [data-module-id="${m.id}"]`)).toHaveLength(1);
+  });
+
+  test('영역 보기 모듈은 배치 좌표에 놓인다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    p.g('setActiveArea')(area.id);
+    const m = p.g('addModuleToArea')(area.id);
+    p.g('renderFrontView')();
+    const rect = p.document.querySelector(`#contentG [data-module-id="${m.id}"]`);
+    expect(Number(rect.getAttribute('x'))).toBe(p.g('areaFrontRect')(m).x);
+  });
 });
 
 describe('예전 설계는 그대로 열린다', () => {
