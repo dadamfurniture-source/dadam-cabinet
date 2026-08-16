@@ -99,8 +99,10 @@
     font-family:-apple-system,'Segoe UI',sans-serif}
   .area-tools .at-title{font-size:12px;font-weight:700;color:var(--brand-deep)}
   .area-tools .at-room{font-size:11px;color:var(--text-dim);font-family:monospace;margin:2px 0 8px}
+  .area-tools{min-width:214px}
   .area-tools .at-btns{display:flex;gap:6px}
-  .area-tools button{flex:1;border:0;border-radius:4px;padding:6px 8px;cursor:pointer;font-weight:600;font-size:11px}
+  .area-tools button{flex:1;border:0;border-radius:4px;padding:6px 8px;cursor:pointer;font-weight:600;font-size:11px;
+    white-space:nowrap}   /* 좁으면 "＋ 모듈 추 / 가" 로 접혔다 */
   .area-tools .at-add{background:var(--brand-deep);color:#fff}
   .area-tools .at-add:hover{background:#523a20}
   .area-tools .at-del{background:#eee;color:#666}
@@ -429,11 +431,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=35.9"></script>
-<script src="js/planner/planner-view.js?v=35.9"></script>
-<script src="js/planner/planner-sections.js?v=35.9"></script>
+<script src="js/planner/planner-scope.js?v=36.0"></script>
+<script src="js/planner/planner-view.js?v=36.0"></script>
+<script src="js/planner/planner-sections.js?v=36.0"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=35.9"></script>
+<script src="js/planner/planner-engine.js?v=36.0"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -746,7 +748,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function renderModuleList() {
     const body = document.getElementById('mlBody');
     if (!modules.length) {
-      body.innerHTML = '<div class="empty-msg">배치된 모듈 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
+      body.innerHTML = areas.length
+        ? '<div class="empty-msg">아직 모듈이 없습니다<br><span style="font-size:10px">도면의 영역을 클릭해 모듈을 추가하세요</span></div>'
+        : '<div class="empty-msg">배치된 영역 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
       return;
     }
     body.innerHTML = modules.map(m => `
@@ -2331,6 +2335,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderFrontView();
     if (id) fitToAreas();
     syncCanvasEmpty();
+    if (typeof renderAll3D === 'function') { try { renderAll3D(); } catch (_) {} }
+    // 영역을 골랐으면 3D 도 계획 전체가 보이게 뺀다. 모듈이 생기면 renderAll3D 가
+    // 모듈 기준으로 카메라를 당겨, 방금 고른 영역이 화면 밖으로 나가기 때문이다.
+    if (id) { try { fitCameraToAreas(); } catch (_) {} }
   }
 
   /** 빈 화면 안내 — 영역조차 없을 때만 띄운다.
@@ -2368,6 +2376,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderAreaTools();
       if (m) setActiveModule(m.id);
       else renderFrontView();
+      if (typeof renderAll3D === 'function') { try { renderAll3D(); } catch (_) {} }
+      // 방금 넣은 모듈만 크게 보이면 어디에 들어갔는지 알 수 없다 — 영역째 보여준다.
+      try { fitCameraToAreas(); } catch (_) {}
     };
     el.querySelector('.at-del').onclick = () => {
       if (removeActiveModule()) { renderAreaTools(); renderFrontView(); renderRightPanel(); closeModulePalette(); }
@@ -2965,6 +2976,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       three.renderer.render(three.scene, three.camera);
     }
     animate();
+    // three 가 준비된 시점에 한 번 그린다. init3D 는 three-ready 이벤트로 늦게 올 수
+    // 있어서, 초기화 쪽에서 부른 renderAll3D 가 three 없이 빈손으로 돌아갔을 수 있다.
+    try { renderAll3D(); } catch (_) {}
   }
 
   // W9-82/83: 이전 highlight 추적 (해제용)
@@ -3007,6 +3021,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W9-79/80: 클릭된 entity → 우측 패널 갱신 + 선택 시각 효과 (init3D 밖 글로벌)
   function handleEntityClick(mesh) {
     if (!mesh) return;
+    // 영역을 누르면 모듈이 아니라 영역이 선택된다 — 추가/제거 버튼이 뜬다.
+    if (mesh.userData && mesh.userData.entityKind === 'area') {
+      clearHighlight();
+      setActiveArea(mesh.userData.areaId);
+      if (typeof renderAll3D === 'function') { try { renderAll3D(); } catch (_) {} }
+      return;
+    }
     clearHighlight();
     // mesh.userData 우선, 없으면 부모 traverse
     const meshUd = mesh.userData || {};
@@ -3567,7 +3588,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   renderModuleList = function() {
     const body = document.getElementById('mlBody');
     if (!modules.length) {
-      body.innerHTML = '<div class="empty-msg">배치된 모듈 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
+      body.innerHTML = areas.length
+        ? '<div class="empty-msg">아직 모듈이 없습니다<br><span style="font-size:10px">도면의 영역을 클릭해 모듈을 추가하세요</span></div>'
+        : '<div class="empty-msg">배치된 영역 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
       return;
     }
     if (viewMode === 'set') {
@@ -3591,6 +3614,49 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   };
 
   // 전체 모듈 3D 렌더 — 배치 좌표 그대로
+  /** 영역을 3D 에 반투명 상자 + 외곽선으로 깐다. 클릭하면 영역이 선택된다. */
+  function renderAreas3D(parent) {
+    if (!three || !window.THREE || !areas.length) return;
+    const ox = originPos2D.x, oy = originPos2D.y;
+    areas.forEach((a) => {
+      const cfg = SECTION_CONFIG[a.section] || { fill: '#999', stroke: '#333' };
+      const rot = ((a.rotation || 0) % 360 + 360) % 360;
+      // 평면 footprint — 회전 90/270 이면 폭과 깊이가 바뀐다 (정면도와 같은 규약)
+      const fw = (rot === 90 || rot === 270) ? a.D : a.W;
+      const fd = (rot === 90 || rot === 270) ? a.W : a.D;
+      const on = a.id === activeAreaId;
+      const box = makeBox(fw, a.H, fd, cfg.fill, { transparent: true, opacity: on ? 0.22 : 0.09 });
+      box.position.set(
+        (a.x || 0) + fw / 2 - ox,
+        getBaseY(a.section, a.H) + a.H / 2,
+        (a.y || 0) + fd / 2 - oy
+      );
+      box.userData = { entityKind: 'area', areaId: a.id };
+      parent.add(box);
+      addEdgeOutline(box, parent, 0x6a4b2a, on ? 0.9 : 0.45);
+    });
+  }
+
+  /** 영역 전체가 보이도록 카메라를 뺀다 — 모듈이 없을 때의 3D fit */
+  function fitCameraToAreas() {
+    if (!three || !areas.length) return;
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, maxY = 0;
+    areas.forEach((a) => {
+      const rot = ((a.rotation || 0) % 360 + 360) % 360;
+      const fw = (rot === 90 || rot === 270) ? a.D : a.W;
+      const fd = (rot === 90 || rot === 270) ? a.W : a.D;
+      minX = Math.min(minX, a.x || 0); maxX = Math.max(maxX, (a.x || 0) + fw);
+      minZ = Math.min(minZ, a.y || 0); maxZ = Math.max(maxZ, (a.y || 0) + fd);
+      maxY = Math.max(maxY, getBaseY(a.section, a.H) + a.H);
+    });
+    if (!isFinite(minX)) return;
+    fitCameraToBoundsAt(
+      Math.max(maxX - minX, maxZ - minZ, maxY),
+      (minX + maxX) / 2 - originPos2D.x,
+      (minZ + maxZ) / 2 - originPos2D.y
+    );
+  }
+
   function renderAll3D() {
     if (!three) return;
     const modG = three.moduleGroup;
@@ -3599,7 +3665,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (ch.geometry) ch.geometry.dispose();
       if (ch.material && ch.material.dispose) ch.material.dispose();
     }
-    if (!modules.length) return;
+    // 영역을 먼저 깐다. 기본 화면이 3D 라서, 여기 안 그리면 배치만 하고 넘어온
+    // 사용자에게는 빈 바닥만 보인다 (정면도에만 그렸던 것이 그 상태였다).
+    renderAreas3D(modG);
+    if (!modules.length) { fitCameraToAreas(); return; }
     // W9-68: 원점 (originPos2D) 을 3D (0,0,0) 기준점으로 사용
     // 평면도 → 3D: x = m.x + m.W/2 - origin.x, z = m.y + m.D/2 - origin.y
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -4020,6 +4089,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderFrontView();
       fitToAreas();
       syncCanvasEmpty();
+      // 기본 화면이 3D 다. 여기서 안 그리면 배치만 하고 넘어온 사용자에게
+      // 빈 바닥만 보인다 — renderAll3D 는 '전체' 모드에서만 불리고 있었다.
+      if (typeof renderAll3D === 'function') { try { renderAll3D(); } catch (_) {} }
     }
   }, 100);
   applyView();
