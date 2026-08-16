@@ -15,9 +15,14 @@ function boot() {
   return bootPlanner('mockup-structure.html', { search: '?design=t&item=1' });
 }
 
-/** 하부장 모듈 하나를 고른 상태로 만든다 */
-function pickLower(p) {
-  const m = p.g('modules').find((x) => x.section === 'lower') || p.g('modules')[0];
+/** 하부장 모듈 하나를 고른 상태로 만든다.
+ *  구조 단계는 이제 모듈 0개로 시작하므로, 영역에 하나 넣고 고른다. */
+function pickLower(p, section = 'lower') {
+  let m = p.g('modules').find((x) => x.section === section);
+  if (!m) {
+    const area = p.g('areas').find((a) => a.section === section);
+    m = p.g('addModuleToArea')(area.id);
+  }
   p.g('setActiveModule')(m.id);
   return { m, s: p.g('getStructure')(m.id) };
 }
@@ -40,9 +45,11 @@ describe('팔레트가 뜨고 닫힌다', () => {
 
   test('다른 모듈을 고르면 팔레트가 하나만 남는다', () => {
     const p = boot();
-    const mods = p.g('modules');
-    p.g('setActiveModule')(mods[0].id);
-    p.g('setActiveModule')(mods[1].id);
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    const a1 = p.g('addModuleToArea')(area.id);
+    const a2 = p.g('addModuleToArea')(area.id);
+    p.g('setActiveModule')(a1.id);
+    p.g('setActiveModule')(a2.id);
     expect(p.document.querySelectorAll('.mod-palette')).toHaveLength(1);
   });
 });
@@ -105,13 +112,15 @@ describe('바꾸면 실제로 반영된다', () => {
     expect(p.g('legHOf')(m, s)).toBe(120);
   });
 
-  test('다리발이 몸통을 삼키면 거부한다', () => {
+  test('다리발이 몸통을 삼키면 이전 값으로 되돌린다', () => {
     const p = boot();
     const { m, s } = pickLower(p);
+    const before = s.legH;                // 새 모듈은 150 을 명시적으로 갖고 시작한다
     const inp = palette(p).querySelector('.mp-legh');
     inp.value = String(m.H + 100);
     inp.onchange();
-    expect(s.legH).toBeUndefined();       // 저장되지 않는다
+    expect(s.legH).toBe(before);
+    expect(p.g('bodyHeightOf')(m, s)).toBeGreaterThanOrEqual(50);
   });
 
   test('다리발이 선반 계산까지 흘러간다 (배선 확인)', () => {
@@ -187,34 +196,45 @@ describe('높이 부위 — 상판·좌대·상몰딩', () => {
   test('문서화된 높이 모델과 맞는다 — 하부장 870 = 다리발 150 + 몸통 708 + 상판 12', () => {
     // data-constants.js 의 전체높이 모델이 정본이다. 렌더러가 이 합과 어긋나면
     // 3D 몸통이 상판 두께만큼 길어진다 (예전 상태).
+    //
+    // 구조에 값을 지정하지 않은 모듈로 확인한다 — 이때가 마스터 기본값이 적용되는 경우다.
+    // (새로 추가한 모듈은 상판을 옵션으로 두어 topT 0 으로 시작하므로 이 경우가 아니다)
     const p = boot();
-    const { m, s } = pickLower(p);
-    m.H = 870;
-    expect(p.g('legHOf')(m, s)).toBe(150);
-    expect(p.g('topTOf')(m, s)).toBe(12);
-    expect(p.g('bodyHeightOf')(m, s)).toBe(708);
-    expect(p.g('baseOffsetOf')(m, s)).toBe(150);
+    const m = { section: 'lower', H: 870 };
+    expect(p.g('legHOf')(m, {})).toBe(150);
+    expect(p.g('topTOf')(m, {})).toBe(12);
+    expect(p.g('bodyHeightOf')(m, {})).toBe(708);
+    expect(p.g('baseOffsetOf')(m, {})).toBe(150);
   });
 
-  test('상판을 바꾸면 몸통이 그만큼 줄어든다 (배선 확인)', () => {
+  test('새 모듈은 상판이 옵션이라 850 = 다리발 150 + 몸통 700 이 성립한다', () => {
     const p = boot();
     const { m, s } = pickLower(p);
-    m.H = 870;
-    const before = p.g('bodyHeightOf')(m, s);
+    expect([m.W, m.H, m.D]).toEqual([600, 850, 550]);
+    expect(p.g('legHOf')(m, s)).toBe(150);
+    expect(p.g('topTOf')(m, s)).toBe(0);      // 상판은 켜야 생긴다
+    expect(p.g('bodyHeightOf')(m, s)).toBe(700);
+  });
+
+  test('상판을 켜면 몸통이 그만큼 줄어든다 (배선 확인)', () => {
+    const p = boot();
+    const { m, s } = pickLower(p);
+    const before = p.g('bodyHeightOf')(m, s);   // 700
     const inp = palette(p).querySelector('.mp-topt');
     inp.value = '30';
     inp.onchange();
     expect(s.topT).toBe(30);
-    expect(p.g('bodyHeightOf')(m, s)).toBe(before - 18);   // 12 → 30
+    expect(p.g('bodyHeightOf')(m, s)).toBe(before - 30);
   });
 
   test('부위가 몸통을 삼키면 되돌린다', () => {
     const p = boot();
     const { m, s } = pickLower(p);
+    const before = s.topT;                 // 새 모듈은 0 을 명시적으로 갖고 시작한다
     const inp = palette(p).querySelector('.mp-topt');
     inp.value = String(m.H);
     inp.onchange();
-    expect(s.topT).toBeUndefined();                        // 원래 없던 값이면 지운다
+    expect(s.topT).toBe(before);
     expect(p.g('bodyHeightOf')(m, s)).toBeGreaterThanOrEqual(50);
   });
 
