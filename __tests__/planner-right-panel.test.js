@@ -17,7 +17,9 @@ const { bootPlanner } = require('../test-utils/planner-harness');
 /** 활성 모듈 하나를 잡고 그 구조를 주어진 모양으로 맞춘 뒤 우측 패널을 그린다 */
 function renderWith(cells) {
   const p = bootPlanner('mockup-structure.html', { search: '?design=t&item=1' });
-  const m = p.g('modules')[0];
+  // 구조 단계는 모듈 0개로 시작한다 — 영역에 하나 넣고 시작한다.
+  const area = p.g('areas').find((a) => a.section === 'lower') || p.g('areas')[0];
+  const m = p.g('addModuleToArea')(area.id);
   p.g('setActiveModule')(m.id);
   const s = p.g('getStructure')(m.id);
 

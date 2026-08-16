@@ -93,6 +93,19 @@
   .ruler-btn-editor{position:absolute;z-index:100;background:#fff;border:1px solid #999;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:12px;display:flex;flex-direction:column;gap:6px;min-width:160px;font-family:-apple-system,'Segoe UI',sans-serif}
   .ruler-btn-editor label{display:flex;align-items:center;gap:6px;color:#3d342a}
   .ruler-btn-editor input[type=number]{width:80px;padding:3px 6px;border:1px solid #ccc;border-radius:3px;font-family:monospace;font-size:12px}
+  /* 영역 도구 — 영역을 고르면 우측 상단에 뜬다 */
+  .area-tools{position:fixed;top:52px;right:316px;z-index:130;background:#fff;border:1px solid var(--brand-deep);
+    border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 12px;min-width:186px;
+    font-family:-apple-system,'Segoe UI',sans-serif}
+  .area-tools .at-title{font-size:12px;font-weight:700;color:var(--brand-deep)}
+  .area-tools .at-room{font-size:11px;color:var(--text-dim);font-family:monospace;margin:2px 0 8px}
+  .area-tools .at-btns{display:flex;gap:6px}
+  .area-tools button{flex:1;border:0;border-radius:4px;padding:6px 8px;cursor:pointer;font-weight:600;font-size:11px}
+  .area-tools .at-add{background:var(--brand-deep);color:#fff}
+  .area-tools .at-add:hover{background:#523a20}
+  .area-tools .at-del{background:#eee;color:#666}
+  .area-tools .at-del:hover{background:#ddd}
+
   /* 모듈 옵션 팔레트 — 모듈을 고르면 캔버스 위에 뜬다.
      우측 패널을 없애지 않는다. 여기엔 자주 만지는 것만 두고, 상세는 우측이 맡는다. */
   .mod-palette{position:absolute;z-index:120;background:#fff;border:1px solid #b8956c;border-radius:8px;
@@ -101,6 +114,37 @@
   .mod-palette .mp-head{display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--brand-deep);color:#fff;font-weight:700}
   .mod-palette .mp-head .mp-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mod-palette .mp-head button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+  /* 아이콘 격자 — 팔레트는 아이콘만 보여주고 상세는 팝업이 맡는다 */
+  .mod-palette{width:auto}
+  .mod-palette .mp-grid{display:grid;grid-template-columns:repeat(5,58px);gap:1px;background:var(--line);padding:1px}
+  .mod-palette .mp-ic{background:#fff;border:0;cursor:pointer;padding:9px 4px 7px;display:flex;flex-direction:column;
+    align-items:center;gap:4px;color:var(--text-dim);font-family:inherit}
+  .mod-palette .mp-ic:hover{background:var(--brand-soft);color:var(--brand-deep)}
+  .mod-palette .mp-ic:focus-visible{outline:2px solid var(--brand-deep);outline-offset:-2px}
+  .mod-palette .mp-ic svg{width:20px;height:20px}
+  .mod-palette .mp-ic span{font-size:10px;font-weight:600;line-height:1}
+
+  /* 옵션 상세 팝업 */
+  .mp-popup{position:fixed;z-index:140;background:#fff;border:1px solid var(--brand-mid);border-radius:8px;
+    box-shadow:0 6px 24px rgba(0,0,0,.18);width:232px;overflow:hidden;font-size:11px;
+    font-family:-apple-system,'Segoe UI',sans-serif}
+  .mp-popup .mp-head{display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--brand-mid);color:#fff;font-weight:700}
+  .mp-popup .mp-head .mp-title{flex:1}
+  .mp-popup .mp-head button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+  .mp-popup .mp-pbody{max-height:min(56vh,420px);overflow-y:auto;padding:6px 0 9px}
+  .mp-popup .mp-row{display:flex;align-items:center;gap:6px;padding:4px 9px}
+  .mp-popup .mp-row > label{width:56px;flex-shrink:0;color:var(--text-dim);font-weight:600}
+  .mp-popup .mp-row select,.mp-popup .mp-row input[type=number]{flex:1;min-width:0;padding:3px 5px;
+    border:1px solid var(--line);border-radius:4px;font-size:11px;background:#fff;color:var(--text)}
+  .mp-popup .mp-row input[type=number]{font-family:monospace}
+  .mp-popup .mp-note{padding:2px 9px 5px;color:var(--text-faint);font-size:9px;line-height:1.45}
+  .mp-popup .mp-cells{padding:0 9px 4px;display:flex;flex-direction:column;gap:3px}
+  .mp-popup .mp-cell{display:flex;align-items:center;gap:5px}
+  .mp-popup .mp-cell .mp-ci{width:22px;flex-shrink:0;color:var(--text-faint);font-size:9px}
+  .mp-popup .mp-cell select{flex:1;min-width:0;padding:2px 4px;border:1px solid var(--line);border-radius:3px;font-size:10px}
+  .mp-popup .mp-both{flex:1;color:var(--text-dim);font-size:10px;text-align:center}
+  .mp-popup .mp-chk{display:flex;align-items:center;gap:6px;padding:6px 9px;color:var(--text-dim);font-weight:600;cursor:pointer}
+
   .mod-palette .mp-body{max-height:min(64vh,520px);overflow-y:auto;padding:4px 0}
   .mod-palette .mp-row{display:flex;align-items:center;gap:6px;padding:4px 9px}
   .mod-palette .mp-row > label{width:58px;flex-shrink:0;color:var(--text-dim);font-weight:600}
@@ -385,11 +429,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=35.6"></script>
-<script src="js/planner/planner-view.js?v=35.6"></script>
-<script src="js/planner/planner-sections.js?v=35.6"></script>
+<script src="js/planner/planner-scope.js?v=35.8"></script>
+<script src="js/planner/planner-view.js?v=35.8"></script>
+<script src="js/planner/planner-sections.js?v=35.8"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=35.6"></script>
+<script src="js/planner/planner-engine.js?v=35.8"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -429,6 +473,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const ORIGIN_KEY    = PLANNER_ORIGIN_KEY;
 
   /** @type {Array<{id, section, W, H, D}>} */
+  // 배치에서 온 사각형은 **영역(area)** 이다. 모듈을 담는 그릇이지 모듈이 아니다.
+  //   예전엔 사각형 하나가 곧 모듈 하나였다. 그래서 구조 단계는 배치를 열자마자
+  //   모듈이 가득 찬 상태로 시작했고, 모듈을 더하거나 빼는 수단이 없었다.
+  //   이제 영역은 **읽기 전용 배경**이고, 편집 대상은 그 안에 넣은 모듈뿐이다.
+  let areas = [];
+  // 구조 단계가 소유하는 모듈 목록. 배치 JSON 에는 넣지 않는다 —
+  // 그 형식은 브리지 계약(골든 3종)의 입력이라 건드리면 계약이 깨진다.
+  const MODULES_KEY = scopedKey('dadam_struct_modules_v1');
+  let activeAreaId = null;
+
   let modules = [];
   /** @type {Record<string, {verticalCount, horizontalSplits, areaTypes, shelves, handleType, handlePosition}>} */
   let structures = {};
@@ -459,7 +513,69 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // 모듈 로드 — localStorage 또는 sample
+  /** 배치 사각형을 영역으로 읽는다. 마감재는 영역이 아니다. */
+  function loadAreas() {
+    areas = [];
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      const layout = raw ? JSON.parse(raw) : null;
+      if (layout && Array.isArray(layout.modules)) {
+        const FINISHING = ['ep', 'molding', 'filler'];
+        areas = layout.modules
+          .filter((a) => SECTION_CONFIG[a.section] && !FINISHING.includes(a.section))
+          .map((a, i) => ({
+            id: 'area-' + a.section + '-' + i,
+            section: a.section,
+            W: a.w, H: a.moduleH, D: a.h,
+            x: a.x || 0, y: a.y || 0, rotation: a.rotation || 0,
+          }));
+      }
+    } catch (e) { console.warn('[STRUCT] 영역 로드 실패', e); }
+    // 배치가 아직 없으면 예전 sample 과 같은 구성을 영역으로 보여준다.
+    // (예전엔 이 sample 이 곧 모듈이었다 — 이제는 그릇이다)
+    if (!areas.length) {
+      areas = [
+        { id: 'area-lower-0',  section: 'lower',  W: 2400, H: 860,  D: 650, x: 0,    y: 0,    rotation: 0  },
+        { id: 'area-upper-0',  section: 'upper',  W: 2400, H: 800,  D: 320, x: 0,    y: 1000, rotation: 0  },
+        { id: 'area-tall-0',   section: 'tall',   W: 600,  H: 2300, D: 650, x: 2500, y: 0,    rotation: 0  },
+        { id: 'area-fridge-0', section: 'fridge', W: 720,  H: 1850, D: 700, x: 3200, y: 0,    rotation: 90 },
+      ];
+    }
+  }
+
+  /** 구조 단계가 소유한 모듈을 읽는다. 없으면 빈 배열 — 영역만 보이는 첫 화면. */
+  function loadStructModules() {
+    try {
+      const raw = localStorage.getItem(MODULES_KEY);
+      if (raw) { modules = JSON.parse(raw) || []; return true; }
+    } catch (e) { console.warn('[STRUCT] 모듈 로드 실패', e); }
+    return false;
+  }
+  function saveStructModules() {
+    localStorage.setItem(MODULES_KEY, JSON.stringify(modules));
+  }
+
   function loadModules() {
+    loadAreas();
+    // 이미 이 방식으로 저장한 적이 있으면 그것을 쓴다.
+    if (loadStructModules()) return;
+    // 예전 방식으로 만든 설계는 그대로 열어 준다 — 구조를 짜 둔 설계가
+    // 열자마자 빈 화면이 되는 것이 사용자에겐 데이터를 잃은 것과 같다.
+    // 판단 근거는 "구조가 이미 있는가" 다. 구조가 없으면 새 설계로 본다.
+    //
+    // 메모리의 structures 를 보지 않고 저장소를 직접 읽는다 —
+    // 초기화에서 loadModules() 가 loadStructures() 보다 먼저 돌기 때문에
+    // 메모리를 믿으면 항상 "새 설계" 로 판정된다.
+    let legacy = false;
+    try {
+      const rawS = localStorage.getItem(STRUCTURE_KEY);
+      legacy = !!rawS && Object.keys(JSON.parse(rawS) || {}).length > 0;
+    } catch (e) { legacy = false; }
+    if (!legacy) { modules = []; return; }
+    loadModulesLegacy();
+  }
+
+  function loadModulesLegacy() {
     try {
       const raw = localStorage.getItem(LAYOUT_KEY);
       if (raw) {
@@ -1240,9 +1356,51 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // W9-102: 정면도 — viewMode 별 분기 (single / set / all). 배치 단계 X 좌표 + baseY 반영
+  /** 영역 사각형 — 배경이자 클릭 대상. 편집 대상이 아니라 점선으로 그린다. */
+  function renderAreas(content) {
+    const ns = 'http://www.w3.org/2000/svg';
+    let ox = 0;
+    areas.forEach((a) => {
+      const cfg = SECTION_CONFIG[a.section] || {};
+      const g = document.createElementNS(ns, 'g');
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', ox); r.setAttribute('y', 0);
+      r.setAttribute('width', a.W); r.setAttribute('height', a.H);
+      r.setAttribute('fill', a.id === activeAreaId ? (cfg.fill || '#ccc') : 'none');
+      r.setAttribute('fill-opacity', '0.12');
+      r.setAttribute('stroke', cfg.stroke || '#999');
+      r.setAttribute('stroke-width', a.id === activeAreaId ? 6 : 3);
+      r.setAttribute('stroke-dasharray', '18 10');
+      r.setAttribute('data-area-id', a.id);
+      r.style.cursor = 'pointer';
+      r.addEventListener('click', (e) => { e.stopPropagation(); setActiveArea(a.id); });
+      g.appendChild(r);
+
+      const lab = document.createElementNS(ns, 'text');
+      lab.setAttribute('x', ox + 14); lab.setAttribute('y', 46);
+      lab.setAttribute('font-size', 44);
+      lab.setAttribute('fill', cfg.stroke || '#666');
+      lab.textContent = `${cfg.label || a.section} · ${Math.round(a.W)}×${Math.round(a.H)}`;
+      lab.style.pointerEvents = 'none';
+      g.appendChild(lab);
+      content.appendChild(g);
+
+      // 이 영역에 담긴 모듈을 왼쪽부터 이어 그린다
+      let mx = ox;
+      modules.filter((m) => m.areaId === a.id).forEach((m) => {
+        renderModuleFront(content, m, getStructure(m.id), mx, a.H - m.H);
+        mx += m.W;
+      });
+      ox += a.W + 300;
+    });
+  }
+
   function renderFrontView() {
     const content = document.getElementById('contentG');
     content.innerHTML = '';
+    // 모듈이 하나도 없으면 영역만 보여준다 — 구조 단계의 첫 화면.
+    // 모듈이 생기면 그 영역 안에 이어서 그린다.
+    if (!modules.length || activeAreaId) { renderAreas(content); if (!modules.length) return; }
     if (viewMode === 'set' && activeSetId) {
       const sets = buildSets();
       const set = sets.find(x => x.id === activeSetId);
@@ -2036,6 +2194,113 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // ─────────────────────────────────────────────────────────────
+  // 영역 — 배치에서 온 사각형. 모듈을 담는 그릇.
+  // ─────────────────────────────────────────────────────────────
+
+  /** 새 모듈 기본값. 상판은 옵션이라 기본이 없다(topT 0) —
+   *  그래야 H850 = 다리발 150 + 몸통 700 이 그대로 성립한다.
+   *  선반은 지어내지 않고 calcDefaultShelves 가 내는 값을 쓴다(이 크기에선 1개). */
+  const NEW_MODULE = { W: 600, H: 850, D: 550, legH: 150, topT: 0 };
+
+  function areaById(id) { return areas.find((a) => a.id === id); }
+
+  /** 영역 안에서 이미 모듈이 차지한 폭 */
+  function usedWidthOf(areaId) {
+    return modules.filter((m) => m.areaId === areaId).reduce((sum, m) => sum + (m.W || 0), 0);
+  }
+
+  function nextModuleId(section) {
+    let n = 0;
+    while (modules.some((m) => m.id === section + '-' + n)) n++;
+    return section + '-' + n;
+  }
+
+  /** 영역에 기본 모듈 하나를 붙인다. 남는 폭이 모자라면 만들지 않는다. */
+  function addModuleToArea(areaId) {
+    const area = areaById(areaId);
+    if (!area) return null;
+    const used = usedWidthOf(areaId);
+    const room = area.W - used;
+    if (room < NEW_MODULE.W) {
+      // 폭을 임의로 줄이지 않는다 — 지어낸 치수를 남기지 않는다는 기존 원칙.
+      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — ${NEW_MODULE.W}mm 모듈이 들어가지 않습니다`);
+      return null;
+    }
+    const id = nextModuleId(area.section);
+    const m = {
+      id, areaId, section: area.section,
+      W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D,
+      x: (area.x || 0) + used, y: area.y || 0, rotation: area.rotation || 0,
+      finishings: [],
+    };
+    modules.push(m);
+
+    const s = getStructure(id);
+    s.legH = NEW_MODULE.legH;
+    s.topT = NEW_MODULE.topT;
+    s.verticalCount = 1;
+    s.areaTypes = ['door'];
+    s.areaDirections = ['left'];
+    s.areaWidths = [];
+    s.areaIs2D = [];
+    s.horizontalLayout = 'doorOnly';
+    s.handleType = 'channel';
+    s.handlePosition = area.section === 'upper' ? 'bottom' : area.section === 'lower' ? 'top' : 'middle';
+    s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
+
+    saveStructModules();
+    persistPlannerState();
+    return m;
+  }
+
+  function removeActiveModule() {
+    const i = modules.findIndex((m) => m.id === activeId);
+    if (i < 0) { showToast('⚠ 지울 모듈을 먼저 고르세요'); return false; }
+    const gone = modules[i];
+    modules.splice(i, 1);
+    delete structures[gone.id];
+    activeId = modules.length ? modules[0].id : null;
+    saveStructModules();
+    persistPlannerState();
+    return true;
+  }
+
+  /** 영역을 고르면 우측 상단에 모듈 추가·제거 버튼이 뜬다 */
+  function setActiveArea(id) {
+    activeAreaId = id;
+    closeModulePalette();
+    renderAreaTools();
+    renderFrontView();
+  }
+
+  function renderAreaTools() {
+    document.querySelectorAll('.area-tools').forEach((n) => n.remove());
+    const area = areaById(activeAreaId);
+    if (!area) return;
+    const cfg = SECTION_CONFIG[area.section] || {};
+    const used = usedWidthOf(area.id);
+    const el = document.createElement('div');
+    el.className = 'area-tools';
+    el.innerHTML = `
+      <div class="at-title">${cfg.label || area.section} 영역</div>
+      <div class="at-room">${Math.round(used)} / ${Math.round(area.W)} mm 사용</div>
+      <div class="at-btns">
+        <button class="at-add">＋ 모듈 추가</button>
+        <button class="at-del">− 모듈 제거</button>
+      </div>`;
+    document.body.appendChild(el);
+    el.querySelector('.at-add').onclick = () => {
+      const m = addModuleToArea(area.id);
+      renderAreaTools();
+      if (m) setActiveModule(m.id);
+      else renderFrontView();
+    };
+    el.querySelector('.at-del').onclick = () => {
+      if (removeActiveModule()) { renderAreaTools(); renderFrontView(); renderRightPanel(); closeModulePalette(); }
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // 모듈 옵션 팔레트 — 모듈을 고르면 캔버스 위에 뜬다
   //
   // 우측 패널을 대체하지 않는다. 자주 만지는 것만 여기 두고 상세는 우측이 맡는다.
@@ -2072,40 +2337,218 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   function closeModulePalette() {
     document.querySelectorAll('.mod-palette').forEach((n) => n.remove());
+    document.querySelectorAll('.mp-popup').forEach((n) => n.remove());
   }
 
   /** 활성 모듈의 팔레트를 (다시) 그린다. 모듈이 없으면 닫는다. */
+  const _sel = (val, opts) =>
+    opts.map(([v, t]) => `<option value="${v}" ${String(val) === v ? 'selected' : ''}>${t}</option>`).join('');
+
+  /** 셀별 타입·방향 행. 양문은 방향을 묻지 않는다 — 우측 패널과 같은 규칙. */
+  function cellRowsHTML(s) {
+    const vCount = Math.max(1, s.verticalCount || 1);
+    return Array.from({ length: vCount }, (_, i) => {
+      const t = s.areaTypes[i] || 'door';
+      const d = s.areaDirections[i] || 'left';
+      const is2D = !!(s.areaIs2D && s.areaIs2D[i]);
+      const dirCell = t !== 'door'
+        ? '<span class="mp-both">—</span>'
+        : is2D
+          ? '<span class="mp-both">양문 ◀▶</span>'
+          : `<select class="mp-dir" data-i="${i}">${_sel(d, [['left', '좌 ◀'], ['right', '우 ▶']])}</select>`;
+      return `<div class="mp-cell"><span class="mp-ci">#${i + 1}</span>
+        <select class="mp-type" data-i="${i}">${_sel(t, [['door', '도어'], ['drawer', '서랍'], ['open', '오픈'], ['blank', '먹장']])}</select>
+        ${dirCell}</div>`;
+    }).join('');
+  }
+
+  const SVG = (d) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4">${d}</svg>`;
+
+  /**
+   * 팔레트 옵션 정의. 팔레트는 **아이콘만** 보여주고, 아이콘을 누르면 이 정의의
+   * body 가 팝업으로 열린다. 옵션이 11개라 세로로 나열하면 스크롤이 생겼다.
+   *
+   * `when` 이 없으면 항상 보인다. 어떤 높이 부위가 있는지는 heightPartsOf 가 정하므로
+   * 여기서 섹션을 다시 판단하지 않는다 — 판단이 두 군데로 갈라지지 않게.
+   */
+  const MODULE_OPTIONS = [
+    { key: 'size', label: '크기', icon: SVG('<rect x="3" y="4" width="14" height="12"/><path d="M3 18h14M18 4v12" stroke-dasharray="2 2"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>폭 W</label><input type="number" class="mp-dim" data-k="W" min="100" max="6000" step="10" value="${Math.round(m.W)}"></div>
+        <div class="mp-row"><label>높이 H</label><input type="number" class="mp-dim" data-k="H" min="100" max="3000" step="10" value="${Math.round(m.H)}"></div>
+        <div class="mp-row"><label>깊이 D</label><input type="number" class="mp-dim" data-k="D" min="100" max="1200" step="10" value="${Math.round(m.D)}"></div>
+        <div class="mp-note">mm 단위</div>` },
+
+    { key: 'legH', label: '다리발', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'legH'),
+      icon: SVG('<rect x="3" y="3" width="14" height="10"/><path d="M5 13v4M15 13v4"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>높이</label><input type="number" class="mp-legh" min="0" max="500" step="10" value="${legHOf(m, s)}"></div>
+        ${heightNote(m, s)}` },
+
+    { key: 'topT', label: '상판', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'topT'),
+      icon: SVG('<rect x="2" y="4" width="16" height="3"/><rect x="4" y="7" width="12" height="10"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>두께</label><input type="number" class="mp-topt" min="0" max="200" step="1" value="${topTOf(m, s)}"></div>
+        <div class="mp-note">0 이면 상판 없음. 두께를 주면 그만큼 몸통에서 뺀다.</div>
+        ${heightNote(m, s)}` },
+
+    { key: 'pedestalH', label: '좌대', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'pedestalH'),
+      icon: SVG('<rect x="4" y="3" width="12" height="11"/><rect x="2" y="14" width="16" height="3"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>높이</label><input type="number" class="mp-pedestal" min="0" max="300" step="10" value="${pedestalHOf(m, s)}"></div>
+        ${heightNote(m, s)}` },
+
+    { key: 'moldingH', label: '상몰딩', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'moldingH'),
+      icon: SVG('<rect x="2" y="3" width="16" height="3"/><rect x="4" y="6" width="12" height="11"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>높이</label><input type="number" class="mp-molding" min="0" max="300" step="5" value="${moldingHOf(m, s)}"></div>
+        ${heightNote(m, s)}` },
+
+    { key: 'layout', label: '구성', icon: SVG('<rect x="3" y="3" width="14" height="14"/><path d="M3 12h14"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>상하</label>
+          <select class="mp-hlayout">${_sel(s.horizontalLayout || 'doorOnly', [['doorOnly', '도어/서랍만'], ['doorTopDrawerBottom', '상부 + 하부서랍']])}</select>
+        </div>
+        ${s.horizontalLayout === 'doorTopDrawerBottom' ? `
+        <div class="mp-row"><label>서랍 단수</label><input type="number" class="mp-drawerc" min="1" max="5" step="1" value="${Number(s.drawerCount) || 1}"></div>
+        <div class="mp-note">1단마다 전후판 2·측판 2·밑판 1 이 자재로 잡힙니다.</div>` : ''}` },
+
+    { key: 'doors', label: '도어', icon: SVG('<rect x="3" y="3" width="14" height="14"/><path d="M8 3v14M13 3v14"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>갯수</label><input type="number" class="mp-vcount" min="1" max="6" step="1" value="${Math.max(1, s.verticalCount || 1)}"></div>
+        <div class="mp-cells">${cellRowsHTML(s)}</div>
+        <div class="mp-note">칸마다 타입과 열림 방향을 정합니다.</div>` },
+
+    { key: 'shelves', label: '선반', icon: SVG('<rect x="3" y="3" width="14" height="14"/><path d="M3 8h14M3 13h14" stroke-dasharray="3 2"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>갯수</label><input type="number" class="mp-shelfc" min="0" max="12" step="1" value="${(s.shelves || []).length}"></div>
+        <div class="mp-note">몸통 높이에 균등 분배합니다. 개별 위치는 우측 패널에서.</div>` },
+
+    { key: 'handle', label: '손잡이', icon: SVG('<rect x="3" y="3" width="14" height="14"/><rect x="6" y="8" width="8" height="2" fill="currentColor"/>'),
+      body: (m, s) => `
+        <div class="mp-row"><label>타입</label>
+          <select class="mp-htype">${_sel(s.handleType || 'channel', [['channel', '찬넬 (매립형)'], ['c-channel', 'C찬넬'], ['push', '푸쉬']])}</select>
+        </div>
+        <div class="mp-row"><label>위치</label>
+          <select class="mp-hpos">${_sel(s.handlePosition || 'top', [['top', '상'], ['middle', '중'], ['bottom', '하']])}</select>
+        </div>` },
+
+    { key: 'fixed', label: '고정', icon: SVG('<rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/>'),
+      body: (m, s) => `
+        <label class="mp-chk"><input type="checkbox" class="mp-fixed" ${m.isFixed ? 'checked' : ''}> 자동계산 시 이 모듈을 보존</label>` },
+  ];
+
+  /** 전체 = 부위 합 + 몸통. 어긋나면 바로 보이라고 팝업마다 적는다. */
+  function heightNote(m, s) {
+    return `<div class="mp-note">전체 ${Math.round(m.H)} = ${heightPartsOf(m, s).map((p) => p.label + ' ' + p.value).join(' + ')} + 몸통 ${bodyHeightOf(m, s)}</div>`;
+  }
+
+  function optionsFor(m, s) {
+    return MODULE_OPTIONS.filter((o) => !o.when || o.when(m, s));
+  }
+
+  function closeOptionPopup() {
+    document.querySelectorAll('.mp-popup').forEach((n) => n.remove());
+  }
+
+  /** 값 하나 바꿀 때마다 저장한다. CD-3 과 같은 이유 — 저장 안 하면 새로고침에 사라진다. */
+  function paletteCommit(reopenKey) {
+    persistPlannerState();
+    renderFrontView();
+    renderRightPanel();
+    renderModulePalette();
+    if (reopenKey) openOptionPopup(reopenKey);
+    if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D(); } catch (_) {} }
+  }
+
+  /** 팝업 안의 입력을 묶는다. 없는 입력은 건너뛴다 — 옵션마다 일부만 들어 있다. */
+  function bindOptionInputs(host, m, s, key) {
+    const on = (sel2, fn) => { const el2 = host.querySelector(sel2); if (el2) el2.onchange = () => fn(el2); return !!el2; };
+
+    host.querySelectorAll('.mp-dim').forEach((inp) => {
+      inp.onchange = () => {
+        const k = inp.dataset.k;
+        const v = Math.max(100, parseInt(inp.value) || 0);
+        m[k] = v;
+        if (k === 'H') s.shelves = (s.shelves || []).filter((sh) => sh < v);
+        saveLayoutFromModules();
+        paletteCommit(key);
+      };
+    });
+
+    // 높이 부위 4종은 같은 규칙 — 바꿨을 때 몸통이 50mm 미만이면 되돌린다.
+    // (우측 높이 패널이 쓰는 기준과 같다. 두 곳이 다르면 한쪽에서만 통과한다.)
+    [['.mp-legh', 'legH', '다리발'], ['.mp-topt', 'topT', '상판'],
+     ['.mp-pedestal', 'pedestalH', '좌대'], ['.mp-molding', 'moldingH', '상몰딩']]
+      .forEach(([sel2, k, label]) => {
+        on(sel2, (inp) => {
+          const prev = s[k];
+          s[k] = Math.max(0, parseInt(inp.value) || 0);
+          if (bodyHeightOf(m, s) < 50) {
+            if (prev === undefined) delete s[k]; else s[k] = prev;
+            showToast(`⚠ ${label}이 커서 몸통이 50mm 미만이 됩니다`);
+            paletteCommit(key);
+            return;
+          }
+          paletteCommit(key);
+        });
+      });
+
+    on('.mp-hlayout', (el2) => { s.horizontalLayout = el2.value; paletteCommit(key); });
+    on('.mp-drawerc', (el2) => { s.drawerCount = Math.max(1, Math.min(5, parseInt(el2.value) || 1)); paletteCommit(key); });
+    on('.mp-vcount', (el2) => { syncCellArrays(s, Math.max(1, Math.min(6, parseInt(el2.value) || 1))); paletteCommit(key); });
+    on('.mp-shelfc', (el2) => { s.shelves = shelvesForCount(m, s, Math.max(0, Math.min(12, parseInt(el2.value) || 0))); paletteCommit(key); });
+    on('.mp-htype', (el2) => { s.handleType = el2.value; paletteCommit(key); });
+    on('.mp-hpos', (el2) => { s.handlePosition = el2.value; paletteCommit(key); });
+    on('.mp-fixed', (el2) => { m.isFixed = el2.checked; saveLayoutFromModules(); paletteCommit(key); });
+
+    host.querySelectorAll('.mp-type').forEach((sl) => {
+      sl.onchange = () => { s.areaTypes[+sl.dataset.i] = sl.value; paletteCommit(key); };
+    });
+    host.querySelectorAll('.mp-dir').forEach((sl) => {
+      sl.onchange = () => { s.areaDirections[+sl.dataset.i] = sl.value; paletteCommit(key); };
+    });
+  }
+
+  /** 아이콘 하나를 눌렀을 때 뜨는 상세 팝업 */
+  function openOptionPopup(key) {
+    closeOptionPopup();
+    const m = modules.find((x) => x.id === activeId);
+    if (!m) return;
+    const s = getStructure(activeId);
+    const opt = optionsFor(m, s).find((o) => o.key === key);
+    if (!opt) return;
+
+    const pop = document.createElement('div');
+    pop.className = 'mp-popup';
+    pop.dataset.option = key;
+    pop.innerHTML = `
+      <div class="mp-head">
+        <span class="mp-title">${opt.label}</span>
+        <button class="mp-pclose" title="닫기">×</button>
+      </div>
+      <div class="mp-pbody">${opt.body(m, s)}</div>`;
+    document.body.appendChild(pop);
+
+    // 팔레트 오른쪽에 붙인다. 팔레트가 없으면 캔버스 좌상단으로 떨어진다.
+    const pal = document.querySelector('.mod-palette');
+    const r = pal ? pal.getBoundingClientRect() : null;
+    const pw = pop.offsetWidth || 232;
+    const left = r && (r.width || r.height) ? r.right + 10 : 24;
+    const top = r && (r.width || r.height) ? r.top : 80;
+    pop.style.left = Math.max(8, Math.min(left, (window.innerWidth || 1280) - pw - 8)) + 'px';
+    pop.style.top = Math.max(8, top) + 'px';
+
+    pop.querySelector('.mp-pclose').onclick = closeOptionPopup;
+    bindOptionInputs(pop, m, s, key);
+  }
+
   function renderModulePalette() {
     closeModulePalette();
     const m = modules.find((x) => x.id === activeId);
     if (!m) return;
     const s = getStructure(activeId);
     const cfg = SECTION_CONFIG[m.section] || {};
-    const vCount = Math.max(1, s.verticalCount || 1);
-    const hasDrawer = s.horizontalLayout === 'doorTopDrawerBottom';
-    const isLower = m.section === 'lower';
-    // 어떤 높이 부위가 있는지는 heightPartsOf 가 정한다 — 여기서 다시 판단하지 않는다.
-    const partKeys = heightPartsOf(m, s).map((p) => p.key);
-    const isPedestal = partKeys.includes('pedestalH');
-    const hasMolding = partKeys.includes('moldingH');
-
-    const sel = (val, opts) =>
-      opts.map(([v, t]) => `<option value="${v}" ${String(val) === v ? 'selected' : ''}>${t}</option>`).join('');
-
-    const cellRows = Array.from({ length: vCount }, (_, i) => {
-      const t = s.areaTypes[i] || 'door';
-      const d = s.areaDirections[i] || 'left';
-      const is2D = !!(s.areaIs2D && s.areaIs2D[i]);
-      // 양문은 방향 개념이 없다 — 우측 패널과 같은 규칙을 쓴다.
-      const dirCell = t !== 'door'
-        ? '<span class="mp-both">—</span>'
-        : is2D
-          ? '<span class="mp-both">양문 ◀▶</span>'
-          : `<select class="mp-dir" data-i="${i}">${sel(d, [['left', '좌 ◀'], ['right', '우 ▶']])}</select>`;
-      return `<div class="mp-cell"><span class="mp-ci">#${i + 1}</span>
-        <select class="mp-type" data-i="${i}">${sel(t, [['door', '도어'], ['drawer', '서랍'], ['open', '오픈'], ['blank', '먹장']])}</select>
-        ${dirCell}</div>`;
-    }).join('');
 
     const el = document.createElement('div');
     el.className = 'mod-palette';
@@ -2114,57 +2557,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <span class="mp-title">${cfg.label || m.section} · ${m.id}</span>
         <button class="mp-close" title="닫기">×</button>
       </div>
-      <div class="mp-body">
-        <div class="mp-row"><label>크기</label>
-          <input type="number" class="mp-dim" data-k="W" min="100" max="6000" step="10" value="${Math.round(m.W)}" title="폭 W">
-          <input type="number" class="mp-dim" data-k="H" min="100" max="3000" step="10" value="${Math.round(m.H)}" title="높이 H">
-          <input type="number" class="mp-dim" data-k="D" min="100" max="1200" step="10" value="${Math.round(m.D)}" title="깊이 D">
-        </div>
-        <div class="mp-note">W · H · D (mm)</div>
-        ${isLower ? `
-        <div class="mp-row"><label>다리발</label>
-          <input type="number" class="mp-legh" min="0" max="500" step="10" value="${legHOf(m, s)}">
-        </div>
-        <div class="mp-row"><label>상판</label>
-          <input type="number" class="mp-topt" min="0" max="200" step="1" value="${topTOf(m, s)}">
-        </div>` : ''}
-        ${isPedestal ? `
-        <div class="mp-row"><label>좌대</label>
-          <input type="number" class="mp-pedestal" min="0" max="300" step="10" value="${pedestalHOf(m, s)}">
-        </div>` : ''}
-        ${hasMolding ? `
-        <div class="mp-row"><label>상몰딩</label>
-          <input type="number" class="mp-molding" min="0" max="300" step="5" value="${moldingHOf(m, s)}">
-        </div>` : ''}
-        <div class="mp-note">전체 ${Math.round(m.H)} = ${heightPartsOf(m, s).map((p) => p.label + ' ' + p.value).join(' + ')} + 몸통 ${bodyHeightOf(m, s)}</div>
-        <div class="mp-sep"></div>
-        <div class="mp-row"><label>상하 구성</label>
-          <select class="mp-hlayout">${sel(s.horizontalLayout || 'doorOnly', [['doorOnly', '도어/서랍만'], ['doorTopDrawerBottom', '상부 + 하부서랍']])}</select>
-        </div>
-        ${hasDrawer ? `
-        <div class="mp-row"><label>서랍 단수</label>
-          <input type="number" class="mp-drawerc" min="1" max="5" step="1" value="${Number(s.drawerCount) || 1}">
-        </div>
-        <div class="mp-note">1단마다 전후판 2·측판 2·밑판 1 이 자재로 잡힙니다.</div>` : ''}
-        <div class="mp-sep"></div>
-        <div class="mp-row"><label>도어 갯수</label>
-          <input type="number" class="mp-vcount" min="1" max="6" step="1" value="${vCount}">
-        </div>
-        <div class="mp-cells">${cellRows}</div>
-        <div class="mp-sep"></div>
-        <div class="mp-row"><label>선반 갯수</label>
-          <input type="number" class="mp-shelfc" min="0" max="12" step="1" value="${(s.shelves || []).length}">
-        </div>
-        <div class="mp-note">몸통 높이에 균등 분배합니다. 개별 위치는 우측 패널에서.</div>
-        <div class="mp-sep"></div>
-        <div class="mp-row"><label>손잡이</label>
-          <select class="mp-htype">${sel(s.handleType || 'channel', [['channel', '찬넬 (매립형)'], ['c-channel', 'C찬넬'], ['push', '푸쉬']])}</select>
-        </div>
-        <div class="mp-row"><label>위치</label>
-          <select class="mp-hpos">${sel(s.handlePosition || 'top', [['top', '상'], ['middle', '중'], ['bottom', '하']])}</select>
-        </div>
-        <div class="mp-sep"></div>
-        <label class="mp-chk"><input type="checkbox" class="mp-fixed" ${m.isFixed ? 'checked' : ''}> 모듈 고정 (자동계산 보존)</label>
+      <div class="mp-grid">
+        ${optionsFor(m, s).map((o) => `
+          <button class="mp-ic" data-option="${o.key}" title="${o.label}">
+            ${o.icon}<span>${o.label}</span>
+          </button>`).join('')}
       </div>
       <div class="mp-foot">
         <button class="mp-auto">⚡ 이 모듈 계산</button>
@@ -2173,83 +2570,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     document.body.appendChild(el);
     positionPalette(el, m.id);
 
-    // ── 변경 반영 ───────────────────────────────────────────────
-    // 값 하나 바꿀 때마다 저장한다. CD-3 과 같은 이유 — 저장 안 하면 새로고침에 사라진다.
-    const commit = (redrawPalette) => {
-      persistPlannerState();
-      renderFrontView();
-      renderRightPanel();
-      if (redrawPalette) renderModulePalette();
-      if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D(); } catch (_) {} }
-    };
-
-    el.querySelector('.mp-close').onclick = closeModulePalette;
+    el.querySelector('.mp-close').onclick = () => { closeOptionPopup(); closeModulePalette(); };
     el.querySelector('.mp-more').onclick = () => {
       const rp = document.getElementById('rightPanel');
       if (rp) rp.classList.remove('collapsed');
-      closeModulePalette();
+      closeOptionPopup(); closeModulePalette();
     };
     el.querySelector('.mp-auto').onclick = () => {
       const set = buildSets().find((st) => st.modules.some((x) => x.id === m.id));
-      if (set) { autoCalcForSet(set); commit(true); showToast('⚡ 자동계산 적용'); }
+      if (set) { autoCalcForSet(set); paletteCommit(null); showToast('⚡ 자동계산 적용'); }
     };
-
-    el.querySelectorAll('.mp-dim').forEach((inp) => {
-      inp.onchange = () => {
-        const k = inp.dataset.k;
-        const v = Math.max(100, parseInt(inp.value) || 0);
-        m[k] = v;
-        if (k === 'H') s.shelves = (s.shelves || []).filter((sh) => sh < v);
-        saveLayoutFromModules();
-        commit(true);
-      };
+    el.querySelectorAll('.mp-ic').forEach((btn) => {
+      btn.onclick = () => openOptionPopup(btn.dataset.option);
     });
-    // 높이 부위 4종은 같은 규칙으로 다룬다 — 바꿨을 때 몸통이 50mm 미만이면 되돌린다.
-    // (우측 높이 패널이 쓰는 기준과 같다. 두 곳이 다르면 한쪽에서만 통과한다.)
-    [['.mp-legh', 'legH', '다리발'], ['.mp-topt', 'topT', '상판'],
-     ['.mp-pedestal', 'pedestalH', '좌대'], ['.mp-molding', 'moldingH', '상몰딩']]
-      .forEach(([sel2, key, label]) => {
-        const inp = el.querySelector(sel2);
-        if (!inp) return;
-        inp.onchange = () => {
-          const prev = s[key];
-          s[key] = Math.max(0, parseInt(inp.value) || 0);
-          if (bodyHeightOf(m, s) < 50) {
-            if (prev === undefined) delete s[key]; else s[key] = prev;
-            showToast(`⚠ ${label}이 커서 몸통이 50mm 미만이 됩니다`);
-            renderModulePalette();
-            return;
-          }
-          commit(true);
-        };
-      });
-    el.querySelector('.mp-hlayout').onchange = (e) => { s.horizontalLayout = e.target.value; commit(true); };
-    const drawerInp = el.querySelector('.mp-drawerc');
-    if (drawerInp) drawerInp.onchange = () => {
-      s.drawerCount = Math.max(1, Math.min(5, parseInt(drawerInp.value) || 1));
-      commit(true);
-    };
-    el.querySelector('.mp-vcount').onchange = (e) => {
-      syncCellArrays(s, Math.max(1, Math.min(6, parseInt(e.target.value) || 1)));
-      commit(true);
-    };
-    el.querySelectorAll('.mp-type').forEach((sl) => {
-      sl.onchange = () => { s.areaTypes[+sl.dataset.i] = sl.value; commit(true); };
-    });
-    el.querySelectorAll('.mp-dir').forEach((sl) => {
-      sl.onchange = () => { s.areaDirections[+sl.dataset.i] = sl.value; commit(false); };
-    });
-    el.querySelector('.mp-shelfc').onchange = (e) => {
-      s.shelves = shelvesForCount(m, s, Math.max(0, Math.min(12, parseInt(e.target.value) || 0)));
-      commit(false);
-    };
-    el.querySelector('.mp-htype').onchange = (e) => { s.handleType = e.target.value; commit(false); };
-    el.querySelector('.mp-hpos').onchange = (e) => { s.handlePosition = e.target.value; commit(false); };
-    el.querySelector('.mp-fixed').onchange = (e) => {
-      m.isFixed = e.target.checked;
-      saveLayoutFromModules();
-      commit(false);
-    };
   }
 
   /** 정면도의 해당 모듈 옆에 붙인다. 모듈이 안 보이면 캔버스 좌상단으로 떨어진다. */
