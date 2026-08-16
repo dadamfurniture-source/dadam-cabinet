@@ -1,0 +1,300 @@
+<title>배치 사각형 → 모듈 추가 워크플로우 — 이해한 것</title>
+<style>
+  :root{
+    --ground:#fbfaf6; --surface:#ffffff; --surface-2:#f7f3ea;
+    --ink:#3d342a; --dim:#7a7062; --faint:#a89c84; --line:#e5e0d4; --line-hard:#d6cfbe;
+    --deep:#6a4b2a; --mid:#b8956c; --soft:#f3ead9;
+    --ok:#4f7355; --ok-bg:#eef3ee;
+    --warn:#a8762a; --warn-bg:#faf2e2;
+    --stop:#a5452f; --stop-bg:#fbeeea;
+    --mono:ui-monospace,'Cascadia Mono',Consolas,'D2Coding',monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo',-apple-system,'Segoe UI','Malgun Gothic',sans-serif;
+    --serif:'Nanum Myeongjo','Noto Serif KR',Georgia,serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#211b15; --surface:#2a231c; --surface-2:#332b22;
+      --ink:#efe7db; --dim:#b6a894; --faint:#8b7d6b; --line:#3d342a; --line-hard:#4c4133;
+      --deep:#d9b98c; --mid:#c9a87c; --soft:#3a2f24;
+      --ok:#8fbb96; --ok-bg:#26302a;
+      --warn:#e0ac5c; --warn-bg:#332a1c;
+      --stop:#e08e78; --stop-bg:#382520;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#211b15; --surface:#2a231c; --surface-2:#332b22;
+    --ink:#efe7db; --dim:#b6a894; --faint:#8b7d6b; --line:#3d342a; --line-hard:#4c4133;
+    --deep:#d9b98c; --mid:#c9a87c; --soft:#3a2f24;
+    --ok:#8fbb96; --ok-bg:#26302a;
+    --warn:#e0ac5c; --warn-bg:#332a1c;
+    --stop:#e08e78; --stop-bg:#382520;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--sans); font-size:15px; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:56px 24px 96px}
+  .col{max-width:68ch}
+
+  h1{
+    font-family:var(--serif); font-weight:700; font-size:clamp(28px,4.4vw,40px);
+    line-height:1.25; letter-spacing:-.01em; margin:0 0 10px; text-wrap:balance;
+  }
+  h2{
+    font-size:19px; font-weight:700; letter-spacing:-.01em; margin:0 0 14px;
+    display:flex; align-items:baseline; gap:10px;
+  }
+  h2 .n{
+    font-family:var(--mono); font-size:12px; color:var(--mid);
+    font-weight:600; letter-spacing:.06em;
+  }
+  h3{font-size:15px; font-weight:700; margin:26px 0 8px; color:var(--ink)}
+  p{margin:0 0 14px}
+  strong{font-weight:700}
+  code{font-family:var(--mono); font-size:.88em; background:var(--surface-2); padding:1px 5px; border-radius:3px; color:var(--deep)}
+
+  .eyebrow{
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--faint); font-weight:700; margin:0 0 14px;
+  }
+  .lede{font-size:17px; color:var(--dim); margin:0 0 8px; text-wrap:balance}
+  .meta{font-family:var(--mono); font-size:12px; color:var(--faint); margin:22px 0 0}
+
+  section{margin:52px 0 0; padding:30px 0 0; border-top:1px solid var(--line)}
+  section:first-of-type{border-top:0; padding-top:0}
+
+  /* ── 흐름 5단계 ─────────────────────────────── */
+  .flow{list-style:none; margin:0; padding:0; counter-reset:step}
+  .flow li{
+    counter-increment:step; display:grid; grid-template-columns:34px 1fr; gap:14px;
+    padding:16px 0; border-bottom:1px solid var(--line);
+  }
+  .flow li:last-child{border-bottom:0}
+  .flow li::before{
+    content:counter(step); font-family:var(--mono); font-size:13px; font-weight:700;
+    color:var(--surface); background:var(--deep); width:26px; height:26px;
+    display:grid; place-items:center; border-radius:50%; margin-top:2px;
+  }
+  .flow b{display:block; font-size:15px; margin-bottom:3px}
+  .flow span{color:var(--dim); font-size:14px}
+
+  /* ── 표 ─────────────────────────────────────── */
+  .scroll{overflow-x:auto; margin:16px 0 6px}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:460px}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--faint); font-weight:700; border-bottom:1px solid var(--line-hard);
+    white-space:nowrap;
+  }
+  td.num{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+
+  /* ── 판정 칩 ────────────────────────────────── */
+  .chip{
+    display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; padding:2px 8px; border-radius:2px; white-space:nowrap;
+  }
+  .chip.ok{background:var(--ok-bg); color:var(--ok)}
+  .chip.warn{background:var(--warn-bg); color:var(--warn)}
+  .chip.stop{background:var(--stop-bg); color:var(--stop)}
+
+  /* ── 확인 필요 항목 ─────────────────────────── */
+  .q{border-top:1px solid var(--line-hard); padding:20px 0 4px}
+  .q:first-of-type{border-top:0}
+  .q-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap}
+  .q-head b{font-size:15.5px}
+  .q-body{color:var(--dim); font-size:14px}
+  .q-body p{margin:0 0 10px}
+  .evi{
+    font-family:var(--mono); font-size:12px; line-height:1.65;
+    background:var(--surface-2); border:1px solid var(--line);
+    padding:11px 13px; margin:10px 0; overflow-x:auto; color:var(--ink);
+  }
+  .evi .k{color:var(--faint)}
+  .ask{
+    margin:12px 0 0; padding:12px 14px; background:var(--soft);
+    border:1px solid var(--line-hard); color:var(--ink); font-size:14px;
+  }
+  .ask b{display:block; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--deep); margin-bottom:5px}
+
+  /* ── 팔레트 아이콘 ──────────────────────────── */
+  .icons{display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); margin:18px 0}
+  .ic{background:var(--surface); padding:14px 12px; display:flex; gap:10px; align-items:flex-start}
+  .ic svg{flex-shrink:0; margin-top:1px}
+  .ic .t{font-size:13px; font-weight:600; line-height:1.35}
+  .ic .s{font-size:11.5px; color:var(--faint); font-family:var(--mono); display:block; margin-top:2px}
+
+  .files li{margin-bottom:7px}
+  .files code{font-size:12.5px}
+  ul{margin:0 0 14px; padding-left:20px}
+  li{margin-bottom:5px}
+  hr{border:0; border-top:1px solid var(--line); margin:34px 0}
+  .foot{margin-top:56px; padding-top:22px; border-top:1px solid var(--line); color:var(--faint); font-size:13px}
+</style>
+
+<div class="wrap">
+<div class="col">
+
+<p class="eyebrow">이해 확인 · 착수 전</p>
+<h1>배치 사각형 → 모듈을 넣는 방식으로</h1>
+<p class="lede">구조 단계가 “배치에서 온 사각형 = 모듈”을 그리던 것을, “사각형은 영역, 모듈은 그 안에 넣는 것”으로 바꾼다.</p>
+<p class="meta">2026-08-16 · 기준 커밋 6a3df64 · 대상 mockup-shell.html · mockup-structure.html</p>
+
+<section>
+<h2><span class="n">01</span> 무엇이 달라지나</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>항목</th><th>지금</th><th>요청</th></tr></thead>
+  <tbody>
+    <tr><td>배치 사각형</td><td>사각형 하나 = 모듈 하나</td><td>사각형은 <b>영역</b>. 모듈을 담는 그릇</td></tr>
+    <tr><td>구조 단계 첫 화면</td><td>배치의 사각형이 전부 모듈로 실려 있음</td><td><b>사각형만</b> 보임. 모듈 0개</td></tr>
+    <tr><td>모듈 만들기</td><td>배치 단계에서만 가능</td><td>사각형을 클릭 → 우측 상단 <b>추가 / 제거</b></td></tr>
+    <tr><td>모듈 옵션</td><td>라벨 + 입력칸이 세로로 나열</td><td><b>아이콘</b>을 먼저 보여주고, 누르면 팝업</td></tr>
+  </tbody>
+</table>
+</div>
+<p style="font-size:13.5px;color:var(--dim);margin-top:12px">
+지금은 <code>loadModules()</code>가 <code>dadam_layout_v1</code>의 사각형을 그대로 모듈로 바꾼다. 이 연결을 끊고, 사각형은 배경으로만 그리는 것이 이 변경의 핵심이다.
+</p>
+</section>
+
+<section>
+<h2><span class="n">02</span> 흐름</h2>
+<ol class="flow">
+  <li><b>배치 단계에서 사각형을 만든다</b><span>지금과 같다. 바뀌는 것 없음.</span></li>
+  <li><b>구조 단계로 넘어간다</b><span>사각형만 그려진다. 모듈은 하나도 없는 빈 상태로 시작.</span></li>
+  <li><b>사각형을 클릭한다</b><span>화면 우측 상단에 <b>모듈 추가</b> · <b>모듈 제거</b> 버튼이 나타난다.</span></li>
+  <li><b>모듈을 추가한다</b><span>W600 · H850 · D550 · 선반 1개 짜리 모듈이 생긴다.</span></li>
+  <li><b>모듈을 클릭한다</b><span>옵션 팔레트가 아이콘으로 뜬다. 아이콘을 누르면 그 옵션의 팝업이 열린다.</span></li>
+</ol>
+</section>
+
+<section>
+<h2><span class="n">03</span> 새 모듈 기본값</h2>
+<p>요청하신 값을 지금 코드에 그대로 넣으면 어떻게 되는지 실제로 돌려봤다.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>항목</th><th>요청</th><th>현재 코드</th><th>판정</th></tr></thead>
+  <tbody>
+    <tr><td>폭 W</td><td class="num">600</td><td class="num">도어 1장 (350–600 범위 안)</td><td><span class="chip ok">일치</span></td></tr>
+    <tr><td>깊이 D</td><td class="num">550</td><td class="num">하부장 기본 650</td><td><span class="chip warn">확인</span></td></tr>
+    <tr><td>높이 H</td><td class="num">850 = 700 + 150</td><td class="num">하부장 기본 870</td><td><span class="chip stop">충돌</span></td></tr>
+    <tr><td>선반</td><td class="num">1개</td><td class="num">1개 <span style="color:var(--faint)">(바닥 350mm)</span></td><td><span class="chip ok">일치</span></td></tr>
+  </tbody>
+</table>
+</div>
+<p style="font-size:13.5px;color:var(--dim)">
+선반 1개는 새 규칙을 만들 필요가 없다. 지금의 <code>calcDefaultShelves</code>가 이 크기에서 이미 1개를 낸다 — 간격 규칙(300–450mm)을 그대로 따른 결과다.
+</p>
+</section>
+
+<section>
+<h2><span class="n">04</span> 옵션 팔레트 — 아이콘에서 팝업으로</h2>
+<p>지금 팔레트에 있는 항목을 그대로 아이콘화하면 이렇게 된다. 아이콘을 누르면 그 항목만 담은 팝업이 열리고, 팝업 안에서 치수를 입력하거나 선택지를 고른다.</p>
+<div class="icons">
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="4" width="14" height="12"/><path d="M3 18h14M18 4v12" stroke-dasharray="2 2"/></svg><div class="t">크기<span class="s">W · H · D</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="14" height="10"/><path d="M5 13v4M15 13v4"/></svg><div class="t">다리발<span class="s">legH</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="16" height="3"/><rect x="4" y="7" width="12" height="10"/></svg><div class="t">상판<span class="s">topT</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="14" height="14"/><path d="M3 12h14"/></svg><div class="t">상하 구성<span class="s">도어 / 도어+서랍</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="14" height="14"/><path d="M8 3v14M13 3v14"/></svg><div class="t">도어 갯수<span class="s">verticalCount</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="14" height="14"/><path d="M7 10L5 8v4zM13 10l2-2v4z" fill="currentColor" stroke="none"/></svg><div class="t">도어 방향<span class="s">좌 / 우 / 양문</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="14" height="14"/><path d="M3 8h14M3 13h14" stroke-dasharray="3 2"/></svg><div class="t">선반<span class="s">갯수 · 위치</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="4" width="14" height="4"/><rect x="3" y="9" width="14" height="4"/><rect x="3" y="14" width="14" height="3"/></svg><div class="t">서랍 단수<span class="s">drawerCount</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="14" height="14"/><rect x="6" y="8" width="8" height="2" fill="currentColor"/></svg><div class="t">손잡이<span class="s">타입 · 위치</span></div></div>
+  <div class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/></svg><div class="t">모듈 고정<span class="s">자동계산 보존</span></div></div>
+</div>
+<p style="font-size:13.5px;color:var(--dim)">
+좌대·상몰딩 아이콘은 키큰장·냉장고장에만 나타난다. 지금 팔레트가 섹션에 따라 칸을 감추는 것과 같은 규칙이다.
+</p>
+</section>
+
+<section>
+<h2><span class="n">05</span> 착수 전에 정해야 하는 것</h2>
+
+<div class="q">
+  <div class="q-head"><span class="chip stop">충돌</span><b>H850의 700은 무엇인가</b></div>
+  <div class="q-body">
+    <p>말씀하신 <b>850 = 모듈 700 + 다리발 150</b> 에는 상판이 없다. 그런데 코드 안에는 서로 다른 두 모델이 이미 공존하고 있고, 요청값은 그중 <b>엔진 쪽과 정확히 일치</b>한다.</p>
+    <div class="evi">
+<span class="k">높이 패널 · data-constants.js:43</span>
+  850 = 다리발 150 + 몸통 <b>688</b> + 상판 12
+<span class="k">자동계산 엔진 · autoCalcModule</span>
+  선반 계산에 쓰는 몸통 = 850 - 150 - 0 = <b>700</b>   (상판을 빼지 않는다)
+    </div>
+    <p>즉 “모듈 700”은 엔진이 지금 쓰는 값이다. 두 모델의 차이는 딱 상판 12mm.</p>
+    <div class="ask"><b>여쭙습니다</b>
+      ① 700이 <b>몸통만</b>이고 상판은 따로 붙는가 (그러면 전체는 862가 된다)<br>
+      ② 700이 <b>몸통 688 + 상판 12</b>를 합친 값인가 (그러면 850이 맞고 코드 모델과도 맞다)<br>
+      ③ 이 모듈에는 상판이 아예 없는가
+    </div>
+  </div>
+</div>
+
+<div class="q">
+  <div class="q-head"><span class="chip stop">충돌</span><b>기본 높이 850인가 870인가</b></div>
+  <div class="q-body">
+    <p>배치 단계의 하부장 기본 높이는 <code>870</code>이다(<code>PLANNER_SECTIONS.lower.moduleH</code>). 새 모듈을 850으로 만들면 <b>배치 사각형과 그 안의 모듈이 서로 다른 높이</b>가 된다.</p>
+    <div class="ask"><b>여쭙습니다</b> 850으로 통일해서 배치 기본값도 바꾸는지, 아니면 사각형 870 · 모듈 850으로 다르게 두는 것이 의도인지.</div>
+  </div>
+</div>
+
+<div class="q">
+  <div class="q-head"><span class="chip warn">확인</span><b>깊이 550</b></div>
+  <div class="q-body">
+    <p>하부장 배치 기본 깊이는 <code>650</code>, 냉장고장이 <code>550</code>이다. 요청하신 550이 하부장의 새 기준인지, 이번 모듈에만 해당하는지.</p>
+  </div>
+</div>
+
+<div class="q">
+  <div class="q-head"><span class="chip warn">확인</span><b>영역과 모듈의 관계</b></div>
+  <div class="q-body">
+    <p>사각형이 영역이 되면 그 안에서 지켜야 할 규칙이 생긴다.</p>
+    <ul>
+      <li>영역 W2400에 W600 모듈을 넣으면 4개에 딱 맞는다. <b>5개째</b>를 넣으면 넘치게 두는지, 막는지, 폭을 줄이는지.</li>
+      <li>하부장 영역에 <b>상부장 모듈</b>을 넣을 수 있는지.</li>
+      <li>모듈은 왼쪽부터 차곡차곡 붙는지, 아니면 자유롭게 놓는지.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="q">
+  <div class="q-head"><span class="chip warn">확인</span><b>자동계산과 역할이 겹친다</b></div>
+  <div class="q-body">
+    <p>지금 <code>autoCalcForSet</code>은 “큰 모듈 하나를 셀로 쪼개는” 방식이다. 모듈을 직접 추가하게 되면 이 역할과 겹친다.</p>
+    <div class="ask"><b>여쭙습니다</b> 자동계산이 <b>영역을 W600 모듈 여러 개로 채우는</b> 쪽으로 바뀌는 것이 맞는지. 그러면 셀 분할(<code>distributeModules</code>)은 모듈 하나 안의 도어 분할로만 남는다.</div>
+  </div>
+</div>
+
+<div class="q">
+  <div class="q-head"><span class="chip warn">확인</span><b>이미 저장된 설계</b></div>
+  <div class="q-body">
+    <p>구조 단계가 모듈 0개로 시작하면, 지금까지 저장해 둔 설계를 열었을 때도 빈 화면이 된다.</p>
+    <div class="ask"><b>여쭙습니다</b> 기존 설계는 예전처럼 모듈이 실려 보이게 할지, 아니면 새 방식으로 통일할지.</div>
+  </div>
+</div>
+</section>
+
+<section>
+<h2><span class="n">06</span> 손대야 하는 곳</h2>
+<ul class="files">
+  <li><code>mockup-structure.html · loadModules()</code> — 사각형을 모듈로 바꾸는 연결을 끊고, 영역으로만 그린다</li>
+  <li><code>mockup-structure.html · renderFrontView / renderAll3D</code> — 영역 사각형을 배경으로 그리는 경로 신설</li>
+  <li><code>mockup-structure.html · renderModulePalette()</code> — 세로 나열을 아이콘 격자 + 팝업으로 교체</li>
+  <li><code>js/planner/planner-engine.js</code> — 새 모듈의 기본 구조를 만드는 함수 (H850 해석이 정해진 뒤)</li>
+  <li><code>__tests__/planner-module-palette.test.js</code> — 아이콘·팝업 구조에 맞게 갱신</li>
+</ul>
+<p style="font-size:13.5px;color:var(--dim)">
+골든 3종(<code>test-utils/planner-golden.js</code>)은 배치 JSON을 입력으로 삼는다. 배치 형식이 그대로면 골든은 유지되고, 영역 개념이 배치 JSON에 새 필드로 들어가면 골든 갱신이 필요하다.
+</p>
+</section>
+
+<p class="foot">
+이 문서는 <b>제가 이해한 내용</b>이고 아직 코드는 건드리지 않았다. 위 여섯 가지 중 특히 <b>H850의 700</b>이 정해져야 나머지가 따라 정해진다.
+</p>
+
+</div>
+</div>
