@@ -340,6 +340,68 @@ describe('영역에 모듈 넣기', () => {
   });
 });
 
+describe('버튼을 눌러도 플래너가 초기화되지 않는다', () => {
+  // 도어 on/off 를 누르면 3D 에 모듈 하나만 남고 영역이 사라졌다.
+  // renderFrontView 래퍼가 단일 모드에서 renderModule3D(활성 모듈) 를 부르는데,
+  // 영역 보기에서는 그게 나머지를 다 지우는 셈이었다.
+  // 2D 와 3D 가 같은 답(isAreaView)을 쓰게 해서 막는다.
+  function withTwoModules() {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'lower' && a.W >= 1200);
+    p.g('setActiveArea')(area.id);
+    p.g('addModuleToArea')(area.id);
+    p.g('addModuleToArea')(area.id);
+    return p;
+  }
+
+  test('영역 보기 판정을 2D 와 3D 가 함께 쓴다', () => {
+    const p = withTwoModules();
+    expect(p.g('isAreaView')()).toBe(true);       // 영역을 고른 상태
+    p.g('setActiveArea')(null);
+    expect(p.g('isAreaView')()).toBe(false);      // 모듈 상세로 빠진다
+  });
+
+  test('모듈이 없으면 언제나 영역 보기다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    expect(p.g('isAreaView')()).toBe(true);
+  });
+
+  test('도어 토글이 모듈이나 영역을 지우지 않는다', () => {
+    const p = withTwoModules();
+    p.g('renderFrontView')();          // 기준 상태를 먼저 그린다
+    const before = {
+      modules: p.g('modules').length,
+      areas: p.g('areas').length,
+      rects: p.document.querySelectorAll('#contentG [data-module-id]').length,
+    };
+    p.document.getElementById('doorToggleBtn').onclick();
+    p.document.getElementById('doorToggleBtn').onclick();
+    expect(p.g('modules')).toHaveLength(before.modules);
+    expect(p.g('areas')).toHaveLength(before.areas);
+    expect(p.document.querySelectorAll('#contentG [data-module-id]')).toHaveLength(before.rects);
+    expect(p.document.querySelectorAll('#contentG [data-area-id]')).toHaveLength(before.areas);
+  });
+
+  test('renderFrontView 를 여러 번 불러도 상태가 유지된다', () => {
+    // 버튼 대부분이 결국 이걸 부른다 — 여기가 안전하면 나머지도 안전하다.
+    const p = withTwoModules();
+    const n = p.g('modules').length;
+    for (let i = 0; i < 5; i++) p.g('renderFrontView')();
+    expect(p.g('modules')).toHaveLength(n);
+    expect(p.document.querySelectorAll('#contentG [data-module-id]')).toHaveLength(n);
+    expect(p.document.querySelectorAll('#contentG [data-area-id]')).toHaveLength(p.g('areas').length);
+  });
+
+  test('모듈을 고르면 영역 보기에서도 이웃 모듈이 남는다', () => {
+    const p = withTwoModules();
+    const [a, b] = p.g('modules');
+    p.g('setActiveModule')(a.id);
+    expect(p.document.querySelectorAll('#contentG [data-module-id]')).toHaveLength(2);
+    p.g('setActiveModule')(b.id);
+    expect(p.document.querySelectorAll('#contentG [data-module-id]')).toHaveLength(2);
+  });
+});
+
 describe('영역 도구', () => {
   test('영역을 고르면 추가·제거 버튼이 뜬다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
