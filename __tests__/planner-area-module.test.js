@@ -234,12 +234,100 @@ describe('영역에 모듈 넣기', () => {
     expect(b.x - a.x).toBe(600);
   });
 
-  test('영역을 넘치면 만들지 않는다 — 폭을 임의로 줄이지 않는다', () => {
-    const { p, area } = withArea();
-    const fit = Math.floor(area.W / 600);
-    for (let i = 0; i < fit; i++) expect(p.g('addModuleToArea')(area.id)).not.toBeNull();
-    expect(p.g('addModuleToArea')(area.id)).toBeNull();
-    expect(p.g('modules')).toHaveLength(fit);
+  // ── Q4: 남은 폭이 기본 폭보다 좁을 때 ────────────────────────
+  describe('Q4 — 자투리 폭', () => {
+    test('남은 폭이 좁으면 그 폭에 맞춰 넣는다', () => {
+      const { p, area } = withArea();          // 하부장 영역 1200
+      const add = p.g('addModuleToArea');
+      const a = add(area.id);                  // 600
+      const b = add(area.id);                  // 600 → 딱 채움
+      expect([a.W, b.W]).toEqual([600, 600]);
+      expect(a.W + b.W).toBe(area.W);
+    });
+
+    test('600 이 안 들어가면 남은 폭으로 만든다', () => {
+      const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+      // 1000짜리 하부장 영역 — 600 하나 넣으면 400 이 남는다
+      const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === 1000);
+      expect(area).toBeDefined();
+      const add = p.g('addModuleToArea');
+      expect(add(area.id).W).toBe(600);
+      expect(add(area.id).W).toBe(400);        // 자투리를 채운다
+      expect(add(area.id)).toBeNull();         // 더는 자리가 없다
+    });
+
+    test('도어 최소 폭(350)보다 좁으면 만들지 않는다', () => {
+      const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+      const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === 1400);
+      const add = p.g('addModuleToArea');
+      add(area.id); add(area.id);              // 600 + 600 = 1200, 200 남음
+      // 200 < 350 (MASTER_RULES.DOOR_W_MIN) — 도어를 못 넣는 조각은 만들지 않는다
+      expect(add(area.id)).toBeNull();
+      expect(p.g('modules').filter((m) => m.areaId === area.id)).toHaveLength(2);
+    });
+  });
+
+  // ── Q5: 다른 섹션 모듈 ──────────────────────────────────────
+  describe('Q5 — 영역에 넣을 수 있는 섹션', () => {
+    test('바닥 기준 영역에는 바닥 기준 섹션만 고를 수 있다', () => {
+      const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+      const lower = p.g('areas').find((a) => a.section === 'lower');
+      const opts = p.g('sectionsFor')(lower);
+      expect(opts).toContain('lower');
+      expect(opts).toContain('sink');          // 하부장 라인에 개수대가 낀다
+      expect(opts).toContain('dishwasher');
+      expect(opts).not.toContain('upper');     // 천장 매달림은 Y 가 어긋난다
+      expect(opts).not.toContain('hood');
+      expect(opts[0]).toBe('lower');           // 영역 자기 섹션이 기본
+    });
+
+    test('마감재와 붙박이장은 목록에 없다', () => {
+      const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+      const opts = p.g('sectionsFor')(p.g('areas').find((a) => a.section === 'lower'));
+      // 마감재는 모듈이 아니라 부속이다 — loadAreas 가 영역에서 빼는 것과 같은 규칙
+      ['ep', 'molding', 'filler'].forEach((k) => expect(opts).not.toContain(k));
+      // 붙박이장은 배치 폭 정본이 없다 (planner-sections.js, 확장은 P11)
+      expect(opts).not.toContain('wardrobe');
+    });
+
+    test('천장 매달림 영역에는 매달림 섹션만', () => {
+      const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+      const upper = p.g('areas').find((a) => a.section === 'upper');
+      const opts = p.g('sectionsFor')(upper);
+      expect(opts).toContain('upper');
+      expect(opts).toContain('hood');
+      expect(opts).not.toContain('lower');
+    });
+
+    test('하부장 영역에 개수대를 넣을 수 있다', () => {
+      const { p, area } = withArea();
+      const m = p.g('addModuleToArea')(area.id, { section: 'sink' });
+      expect(m).not.toBeNull();
+      expect(m.section).toBe('sink');
+      expect(m.id.startsWith('sink-')).toBe(true);
+    });
+
+    test('무리가 다른 섹션은 거부한다', () => {
+      const { p, area } = withArea();
+      expect(p.g('addModuleToArea')(area.id, { section: 'upper' })).toBeNull();
+      expect(p.g('modules')).toHaveLength(0);
+    });
+
+    test('다른 섹션은 그 섹션의 기본 치수를 쓴다', () => {
+      const { p, area } = withArea();
+      const m = p.g('addModuleToArea')(area.id, { section: 'sink' });
+      const cfg = p.g('SECTION_CONFIG').sink;
+      expect(m.H).toBe(cfg.moduleH);
+      expect(m.D).toBe(cfg.h);
+    });
+
+    test('손잡이·다리발은 모듈의 섹션을 따른다 (영역이 아니라)', () => {
+      const { p, area } = withArea();
+      const m = p.g('addModuleToArea')(area.id, { section: 'sink' });
+      const s = p.g('getStructure')(m.id);
+      expect(s.handlePosition).toBe('middle');   // 하부장이면 'top' 이었을 것
+      expect(s.legH).toBe(0);                    // 다리발은 하부장만
+    });
   });
 
   test('제거하면 모듈과 구조가 같이 사라진다', () => {
