@@ -225,7 +225,8 @@ describe('바꾸면 실제로 반영된다', () => {
   test('도어 갯수를 바꾸면 cell 배열 길이가 함께 맞는다', () => {
     const p = boot();
     const { s } = pickLower(p);
-    setField(p, 'doors', '.mp-vcount', 4);
+    // 숫자 입력 대신 늘리기 버튼 — 1에서 세 번 눌러 4
+    for (let i = 0; i < 3; i++) openOpt(p, 'doors').querySelector('.mp-cnt-inc').onclick();
     expect(s.verticalCount).toBe(4);
     expect(s.areaTypes).toHaveLength(4);
     expect(s.areaDirections).toHaveLength(4);
@@ -342,6 +343,87 @@ describe('렌더러가 몸통 계산을 직접 하지 않는다 (정적 가드)'
   test('몸통 바닥 offset 은 baseOffsetOf 로 구한다', () => {
     const assigns = src.match(/const legH\s*=\s*[^;]+;/g) || [];
     expect(assigns.filter((a) => !a.includes('baseOffsetOf'))).toEqual([]);
+  });
+});
+
+describe('도어 옵션 — 정면 미리보기로 정한다', () => {
+  test('모듈 비율 그대로의 미리보기가 뜬다', () => {
+    const p = boot();
+    const { m } = pickLower(p);
+    const svg = openOpt(p, 'doors').querySelector('.mp-preview svg');
+    expect(svg).not.toBeNull();
+    // viewBox 가 모듈 치수 그대로여야 칸 폭이 실제 비율로 보인다
+    expect(svg.getAttribute('viewBox')).toBe(`0 0 ${m.W} ${m.H}`);
+    expect(openOpt(p, 'doors').querySelector('.mp-dim-note').textContent)
+      .toBe(`W${m.W} × H${m.H}`);
+  });
+
+  test('칸 수만큼 그려지고 폭이 실제 폭을 따른다', () => {
+    const p = boot();
+    const { m, s } = pickLower(p);
+    for (let i = 0; i < 2; i++) openOpt(p, 'doors').querySelector('.mp-cnt-inc').onclick();
+    expect(s.verticalCount).toBe(3);
+
+    const cells = [...openOpt(p, 'doors').querySelectorAll('.dp-cell')];
+    expect(cells).toHaveLength(3);
+    // 균등 분할이면 셀 폭이 모두 같다 (여백 12 를 뺀 값)
+    const w = m.W / 3 - 12;
+    cells.forEach((c) => expect(Number(c.getAttribute('width'))).toBeCloseTo(w, 3));
+  });
+
+  test('칸을 누르면 열림 방향이 바뀐다', () => {
+    const p = boot();
+    const { s } = pickLower(p);
+    expect(s.areaDirections[0]).toBe('left');
+
+    openOpt(p, 'doors').querySelector('.dp-hit[data-i="0"]').onclick();
+    expect(s.areaDirections[0]).toBe('right');
+
+    openOpt(p, 'doors').querySelector('.dp-hit[data-i="0"]').onclick();
+    expect(s.areaDirections[0]).toBe('left');
+  });
+
+  test('화살표가 열리는 쪽에 붙는다', () => {
+    const p = boot();
+    const { m } = pickLower(p);
+    const arrowX = () => Number(openOpt(p, 'doors').querySelector('.dp-arr').getAttribute('x'));
+    const left = arrowX();
+    openOpt(p, 'doors').querySelector('.dp-hit[data-i="0"]').onclick();
+    const right = arrowX();
+    expect(left).toBeLessThan(m.W / 2);      // 좌 열림 → 왼쪽
+    expect(right).toBeGreaterThan(m.W / 2);  // 우 열림 → 오른쪽
+  });
+
+  test('양문 칸은 눌러도 방향이 바뀌지 않는다', () => {
+    // #471 규칙 — 양문은 방향 개념이 없다. hit 대상에서 빼 둔다.
+    const p = boot();
+    const { s } = pickLower(p);
+    s.areaTypes = ['door'];
+    s.areaDirections = ['both'];
+    s.areaIs2D = [true];
+    p.g('renderModulePalette')();
+    const pop = openOpt(p, 'doors');
+    expect(pop.querySelector('.dp-hit')).toBeNull();          // 누를 수 없다
+    expect(pop.querySelector('.dp-arr').textContent).toBe('◀▶');
+  });
+
+  test('도어가 아닌 칸은 화살표도 없고 눌리지도 않는다', () => {
+    const p = boot();
+    const { s } = pickLower(p);
+    s.areaTypes = ['open'];
+    p.g('renderModulePalette')();
+    const pop = openOpt(p, 'doors');
+    expect(pop.querySelector('.dp-hit')).toBeNull();
+    expect(pop.querySelector('.dp-arr')).toBeNull();
+  });
+
+  test('갯수는 1~6 을 벗어나지 않는다', () => {
+    const p = boot();
+    const { s } = pickLower(p);
+    for (let i = 0; i < 9; i++) openOpt(p, 'doors').querySelector('.mp-cnt-inc').onclick();
+    expect(s.verticalCount).toBe(6);
+    for (let i = 0; i < 9; i++) openOpt(p, 'doors').querySelector('.mp-cnt-dec').onclick();
+    expect(s.verticalCount).toBe(1);
   });
 });
 
