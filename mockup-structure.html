@@ -100,6 +100,9 @@
   .area-tools .at-title{font-size:12px;font-weight:700;color:var(--brand-deep)}
   .area-tools .at-room{font-size:11px;color:var(--text-dim);font-family:monospace;margin:2px 0 8px}
   .area-tools{min-width:214px}
+  .area-tools .at-sec{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .area-tools .at-sec label{font-size:11px;color:var(--text-dim);font-weight:600;flex-shrink:0}
+  .area-tools .at-sec select{flex:1;min-width:0;padding:3px 5px;border:1px solid var(--line);border-radius:4px;font-size:11px}
   .area-tools .at-btns{display:flex;gap:6px}
   .area-tools button{flex:1;border:0;border-radius:4px;padding:6px 8px;cursor:pointer;font-weight:600;font-size:11px;
     white-space:nowrap}   /* 좁으면 "＋ 모듈 추 / 가" 로 접혔다 */
@@ -431,11 +434,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=36.2"></script>
-<script src="js/planner/planner-view.js?v=36.2"></script>
-<script src="js/planner/planner-sections.js?v=36.2"></script>
+<script src="js/planner/planner-scope.js?v=36.3"></script>
+<script src="js/planner/planner-view.js?v=36.3"></script>
+<script src="js/planner/planner-sections.js?v=36.3"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=36.2"></script>
+<script src="js/planner/planner-engine.js?v=36.3"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -2312,28 +2315,73 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /** 영역에 기본 모듈 하나를 붙인다. 남는 폭이 모자라면 만들지 않는다. */
-  function addModuleToArea(areaId) {
+  /**
+   * Q5 — 한 영역에 넣을 수 있는 섹션.
+   *
+   * 기준을 새로 만들지 않는다. `getBaseY` 가 이미 두 무리를 가른다:
+   *   바닥 기준   lower · tall · fridge · sink · dishwasher · refrigerator
+   *   천장 매달림 upper · hood
+   * 무리가 다르면 Y 가 어긋나 모듈이 영역 밖에 뜬다. 그래서 같은 무리만 허용한다.
+   * (하부장 라인 가운데 개수대·식기세척기가 끼는 실제 구성이 이걸로 열린다)
+   */
+  function sectionsFor(area) {
+    if (!area) return [];
+    // 마감재는 모듈이 아니라 모듈에 붙는 부속이다 — loadAreas 가 영역에서
+    // 빼는 것과 같은 규칙을 쓴다.
+    const FINISHING = ['ep', 'molding', 'filler'];
+    // 붙박이장은 배치 폭(w) 정본이 아직 없다 (planner-sections.js 주석, 확장은 P11).
+    // 값을 지어내지 않기 위해 목록에서 뺀다.
+    const NOT_PLACEABLE = ['wardrobe'];
+    const hung = getBaseY(area.section, 100) !== 0;
+    return Object.keys(SECTION_CONFIG)
+      .filter((k) => FINISHING.indexOf(k) < 0 && NOT_PLACEABLE.indexOf(k) < 0)
+      .filter((k) => (getBaseY(k, 100) !== 0) === hung)
+      .sort((a, b) => (a === area.section ? -1 : b === area.section ? 1 : 0));
+  }
+
+  /**
+   * Q4 — 남은 폭이 기본 폭보다 좁을 때.
+   *
+   * 무조건 막으면 영역 끝의 자투리를 채울 방법이 없다. 그렇다고 아무 폭이나
+   * 만들면 도어를 못 넣는 조각이 남는다. 경계는 `MASTER_RULES.DOOR_W_MIN`(350) 이다 —
+   * 기존 규칙이 이미 "350 미만 세그먼트는 도어 대신 먹장"(BLANK_THRESHOLD)이라고
+   * 말하고 있으므로, 그보다 좁은 모듈은 만들지 않는다. 지어낸 값이 아니다.
+   */
+  function addModuleToArea(areaId, opts) {
     const area = areaById(areaId);
     if (!area) return null;
-    const used = usedWidthOf(areaId);
-    const room = area.W - used;
-    if (room < NEW_MODULE.W) {
-      // 폭을 임의로 줄이지 않는다 — 지어낸 치수를 남기지 않는다는 기존 원칙.
-      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — ${NEW_MODULE.W}mm 모듈이 들어가지 않습니다`);
+    const section = (opts && opts.section) || area.section;
+    if (sectionsFor(area).indexOf(section) < 0) {
+      showToast(`⚠ ${(SECTION_CONFIG[section] || {}).label || section} 은 이 영역에 넣을 수 없습니다`);
       return null;
     }
-    const id = nextModuleId(area.section);
+    const cfg = SECTION_CONFIG[section] || {};
+    // 하부장은 요청 스펙(600·850·550), 나머지는 그 섹션의 배치 기본값을 쓴다.
+    const base = section === 'lower'
+      ? { W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D }
+      : { W: cfg.w || NEW_MODULE.W, H: cfg.moduleH || NEW_MODULE.H, D: cfg.h || NEW_MODULE.D };
+
+    const used = usedWidthOf(areaId);
+    const room = area.W - used;
+    const MIN_W = MASTER_RULES.DOOR_W_MIN;
+    if (room < MIN_W) {
+      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — 도어 최소 ${MIN_W}mm 보다 좁아 넣을 수 없습니다`);
+      return null;
+    }
+    const W = Math.min(base.W, room);
+    if (W < base.W) showToast(`남은 폭에 맞춰 ${Math.round(W)}mm 로 넣었습니다`);
+
+    const id = nextModuleId(section);
     const m = {
-      id, areaId, section: area.section,
-      W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D,
+      id, areaId, section,
+      W, H: base.H, D: base.D,
       x: (area.x || 0) + used, y: area.y || 0, rotation: area.rotation || 0,
       finishings: [],
     };
     modules.push(m);
 
     const s = getStructure(id);
-    s.legH = NEW_MODULE.legH;
-    s.topT = NEW_MODULE.topT;
+    s.topT = NEW_MODULE.topT;   // 상판은 옵션 — 기본은 없음
     s.verticalCount = 1;
     s.areaTypes = ['door'];
     s.areaDirections = ['left'];
@@ -2341,8 +2389,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     s.areaIs2D = [];
     s.horizontalLayout = 'doorOnly';
     s.handleType = 'channel';
-    s.handlePosition = area.section === 'upper' ? 'bottom' : area.section === 'lower' ? 'top' : 'middle';
-    s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
+    // 손잡이 위치와 선반은 **모듈의 섹션**을 따른다 (영역이 아니라).
+    // autoCalcModule 이 쓰는 규칙과 같다.
+    s.handlePosition = section === 'upper' ? 'bottom' : section === 'lower' ? 'top' : 'middle';
+    s.legH = section === 'lower' ? NEW_MODULE.legH : 0;
+    s.shelves = calcDefaultShelves(section, bodyHeightOf(m, s));
 
     saveStructModules();
     persistPlannerState();
@@ -2397,16 +2448,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const used = usedWidthOf(area.id);
     const el = document.createElement('div');
     el.className = 'area-tools';
+    const room = area.W - used;
+    const opts = sectionsFor(area);
     el.innerHTML = `
       <div class="at-title">${cfg.label || area.section} 영역</div>
-      <div class="at-room">${Math.round(used)} / ${Math.round(area.W)} mm 사용</div>
+      <div class="at-room">${Math.round(used)} / ${Math.round(area.W)} mm 사용 · 남은 ${Math.max(0, Math.round(room))}mm</div>
+      ${opts.length > 1 ? `
+      <div class="at-sec">
+        <label>넣을 것</label>
+        <select class="at-section">
+          ${opts.map((k) => `<option value="${k}">${(SECTION_CONFIG[k] || {}).label || k}</option>`).join('')}
+        </select>
+      </div>` : ''}
       <div class="at-btns">
         <button class="at-add">＋ 모듈 추가</button>
         <button class="at-del">− 모듈 제거</button>
       </div>`;
     document.body.appendChild(el);
     el.querySelector('.at-add').onclick = () => {
-      const m = addModuleToArea(area.id);
+      const secSel = el.querySelector('.at-section');
+      const m = addModuleToArea(area.id, { section: secSel ? secSel.value : area.section });
       renderAreaTools();
       if (m) setActiveModule(m.id);
       else renderFrontView();
