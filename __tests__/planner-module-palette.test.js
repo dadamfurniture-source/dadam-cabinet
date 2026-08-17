@@ -67,6 +67,45 @@ describe('팔레트가 뜨고 닫힌다', () => {
     expect(popup(p)).toBeNull();
   });
 
+  test('닫은 뒤 같은 모듈을 다시 클릭하면 팔레트가 다시 뜬다', () => {
+    // 3D 클릭 경로가 `moduleId !== activeId` 로 통째로 걸러져 있었다.
+    // 모듈을 만들면 곧바로 활성 상태라, 팔레트를 닫고 그 모듈을 눌러도
+    // 다시 열 방법이 없었다 (팔레트를 여는 유일한 길이 그 분기였다).
+    const p = boot();
+    const { m } = pickLower(p);
+    palette(p).querySelector('.mp-close').onclick();
+    expect(palette(p)).toBeNull();
+
+    // 3D 에서 이 모듈의 mesh 를 눌렀을 때와 같은 입력
+    p.g('handleEntityClick')({ userData: { entityKind: 'carcass', moduleId: m.id } });
+    expect(palette(p)).not.toBeNull();
+  });
+
+  test('정면도에서 모듈을 다시 클릭해도 팔레트가 뜬다', () => {
+    const p = boot();
+    const { m } = pickLower(p);
+    palette(p).querySelector('.mp-close').onclick();
+    p.g('setActiveModule')(m.id);
+    expect(palette(p)).not.toBeNull();
+  });
+
+  test('3D 클릭은 영역보다 안에 든 것을 먼저 고른다', () => {
+    // 영역 상자가 모듈을 감싸고 있어 raycast 는 언제나 영역을 먼저 맞힌다.
+    // hits[0] 을 그대로 쓰면 모듈을 눌러도 영역이 선택되고, setActiveArea 가
+    // 팔레트를 닫는다 — 보고된 "팔레트를 다시 못 연다" 의 원인이었다.
+    const p = boot();
+    const pick = p.g('pickEntityHit');
+    const area = { object: { userData: { entityKind: 'area', areaId: 'a1' } } };
+    const carcass = { object: { userData: { entityKind: 'carcass', moduleId: 'lower-0' } } };
+
+    // 영역이 앞에 맞아도 모듈을 고른다
+    expect(pick([area, carcass]).userData.entityKind).toBe('carcass');
+    // 영역만 맞으면 영역을 고른다 (빈 자리 클릭)
+    expect(pick([area]).userData.entityKind).toBe('area');
+    expect(pick([])).toBeNull();
+    expect(pick(null)).toBeNull();
+  });
+
   test('다른 모듈을 고르면 팔레트가 하나만 남는다', () => {
     const p = boot();
     const area = p.g('areas').find((a) => a.section === 'lower');
