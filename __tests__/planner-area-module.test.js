@@ -136,6 +136,62 @@ describe('예전 설계는 그대로 열린다', () => {
     // 열자마자 빈 화면이 되면 사용자에겐 데이터를 잃은 것과 같다.
     expect(p.g('modules').length).toBeGreaterThan(0);
   });
+
+  test('레거시로 읽으면 현재 배치 도장을 찍어 둔다', () => {
+    // 안 찍으면 이 설계는 영원히 레거시로 열려, 배치를 새로 만들어도
+    // 영역 화면을 보지 못한다 (구조가 한 번이라도 있으면 계속 걸린다).
+    const seed = seedFor(FIXTURES.straight, { modules: false });
+    seed['dadam_structure_v1::gold:1'] = JSON.stringify({ 'lower-0': { verticalCount: 2 } });
+    const p = boot(seed);
+    const raw = p.storage.getItem('dadam_struct_modules_v1::gold:1');
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw).layoutSavedAt).toBe(FIXTURES.straight.savedAt);
+  });
+
+  test('부분만 저장된 구조도 흰 화면이 되지 않는다', () => {
+    // areaTypes 하나만 없어도 renderModuleFront 가 터지고 렌더 전체가 멈춘다.
+    const seed = seedFor(FIXTURES.straight, { modules: false });
+    seed['dadam_structure_v1::gold:1'] = JSON.stringify({ 'lower-0': { verticalCount: 2 } });
+    const p = boot(seed);
+    const s = p.g('getStructure')('lower-0');
+    expect(Array.isArray(s.areaTypes)).toBe(true);
+    expect(Array.isArray(s.areaDirections)).toBe(true);
+    expect(s.verticalCount).toBe(2);            // 저장돼 있던 값은 그대로 둔다
+    expect(() => p.g('renderFrontView')()).not.toThrow();
+  });
+});
+
+describe('모듈은 그 배치에 속한다', () => {
+  test('배치를 새로 만들면 영역만 있는 첫 화면으로 연다', () => {
+    // 이게 안 되면 기존 사용자는 새로 배치해도 예전 모듈이 실린 화면을 본다.
+    const seed = seedFor(FIXTURES.straight, { modules: false });
+    seed['dadam_struct_modules_v1::gold:1'] = JSON.stringify({
+      layoutSavedAt: '2020-01-01T00:00:00.000Z',   // 다른 배치의 것
+      modules: [{ id: 'lower-0', section: 'lower', W: 600, H: 850, D: 550, x: 0, y: 0, rotation: 0 }],
+    });
+    const p = boot(seed);
+    expect(p.g('modules')).toHaveLength(0);
+    expect(p.g('areas').length).toBeGreaterThan(0);
+  });
+
+  test('같은 배치를 다시 열면 짜 둔 모듈이 남는다', () => {
+    const seed = seedFor(FIXTURES.straight, { modules: false });
+    seed['dadam_struct_modules_v1::gold:1'] = JSON.stringify({
+      layoutSavedAt: FIXTURES.straight.savedAt,
+      modules: [{ id: 'lower-0', section: 'lower', W: 600, H: 850, D: 550, x: 0, y: 0, rotation: 0 }],
+    });
+    const p = boot(seed);
+    expect(p.g('modules')).toHaveLength(1);
+  });
+
+  test('예전 배열 형식도 읽는다', () => {
+    const seed = seedFor(FIXTURES.straight, { modules: false });
+    seed['dadam_struct_modules_v1::gold:1'] = JSON.stringify(
+      [{ id: 'lower-0', section: 'lower', W: 600, H: 850, D: 550, x: 0, y: 0, rotation: 0 }]
+    );
+    const p = boot(seed);
+    expect(p.g('modules')).toHaveLength(1);
+  });
 });
 
 describe('영역에 모듈 넣기', () => {
