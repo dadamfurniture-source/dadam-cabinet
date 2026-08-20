@@ -439,3 +439,43 @@ describe('브리지 계약', () => {
     expect(payload.modules[0]).toHaveProperty('W');
   });
 });
+
+describe('도어 갯수를 늘려도 수납장은 하나다', () => {
+  // 예전엔 셀마다 뒤판·측판2·지판·천판을 만들어(W9-87 "도어 개수 = 독립 캐비넷 개수")
+  // 도어를 2장으로 늘리면 수납장이 2개로 보였다. 몸통 껍데기는 한 벌이어야 하고,
+  // 셀 경계에는 칸막이 한 장만 선다.
+  //
+  // 3D 는 three.js 가 필요해 jsdom 에서 못 돌린다 → 소스에서 "무엇을 근거로
+  // 만드는가" 를 확인한다 (carcassH 가드와 같은 방식).
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  test('몸통 껍데기는 셀 루프 밖에서 한 번만 만든다', () => {
+    // addCarcassShell 은 정의 1 + 두 3D 경로 호출 2 = 3회 등장
+    expect((src.match(/addCarcassShell\(/g) || [])).toHaveLength(3);
+    expect((src.match(/addCellDividers\(/g) || [])).toHaveLength(3);
+  });
+
+  test('셀 루프 안에서 측판·뒤판을 만들지 않는다', () => {
+    // side: 'left'/'right'/'back'/'bottom'/'top' 을 cellIdx 와 함께 붙이면
+    // 셀마다 몸통을 만들고 있다는 뜻이다.
+    const bad = src.match(/side:\s*'(left|right|back|bottom|top)'\s*,\s*cellIdx/g) || [];
+    expect(bad).toEqual([]);
+  });
+
+  test('칸막이는 안쪽 경계에만 선다', () => {
+    // 마지막 경계는 우측판이 맡는다 — 그 가드가 없으면 우측판과 겹친다.
+    const fn = src.slice(src.indexOf('function addCellDividers'));
+    expect(fn.slice(0, 700)).toMatch(/cellWidths\.length\s*-\s*1/);
+  });
+
+  test('몸통 껍데기가 다섯 면을 모두 만든다', () => {
+    const fn = src.slice(src.indexOf('function addCarcassShell'));
+    const body = fn.slice(0, 1400);
+    ['back', 'left', 'right', 'bottom', 'top'].forEach((side) => {
+      expect(body).toContain(`'${side}'`);
+    });
+  });
+});
