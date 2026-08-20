@@ -479,3 +479,25 @@ describe('도어 갯수를 늘려도 수납장은 하나다', () => {
     });
   });
 });
+
+describe('열 때는 언제나 영역 보기다', () => {
+  // 새로고침했더니 계획(영역)이 사라지고 모듈 하나만 확대돼 있으면
+  // 지금 어디를 보고 있는지 알 수 없다. 상세는 좌측 목록으로 들어간다.
+  test('모듈이 있어도 영역이 그려진다', () => {
+    const seed = seedFor(FIXTURES.straight);          // 모듈이 실린 상태
+    const p = boot(seed);
+    p.g('setActiveArea')(p.g('areas')[0].id);
+    p.g('renderFrontView')();
+    expect(p.g('isAreaView')()).toBe(true);
+    expect(p.document.querySelectorAll('#contentG [data-area-id]').length)
+      .toBe(p.g('areas').length);
+  });
+
+  test('좌측 목록으로 고르면 상세로 빠진다', () => {
+    const p = boot(seedFor(FIXTURES.straight));
+    p.g('setActiveArea')(p.g('areas')[0].id);
+    expect(p.g('isAreaView')()).toBe(true);
+    p.g('setActiveArea')(null);                        // 목록 클릭이 하는 일
+    expect(p.g('isAreaView')()).toBe(false);
+  });
+});
