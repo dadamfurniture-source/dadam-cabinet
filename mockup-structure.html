@@ -450,11 +450,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=36.5"></script>
-<script src="js/planner/planner-view.js?v=36.5"></script>
-<script src="js/planner/planner-sections.js?v=36.5"></script>
+<script src="js/planner/planner-scope.js?v=36.6"></script>
+<script src="js/planner/planner-view.js?v=36.6"></script>
+<script src="js/planner/planner-sections.js?v=36.6"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=36.5"></script>
+<script src="js/planner/planner-engine.js?v=36.6"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -3439,6 +3439,57 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     addEdgeOutline(channel, parent, 0x000000, 0.7);
   }
 
+  /**
+   * 몸통 껍데기 — 측판 2 · 뒤판 · 지판 · 천판. 모듈 하나에 한 벌만 만든다.
+   *
+   * 예전엔 셀마다 이 다섯을 만들었다(W9-87 "도어 개수 = 독립 캐비넷 개수").
+   * 그래서 도어를 2장으로 늘리면 **수납장이 2개**로 보였고, 셀 경계에는
+   * 측판이 두 장 맞붙어 두께도 두 배였다. 도어를 나누는 것과 몸통을 나누는 것은
+   * 다른 일이다 — 여기서는 몸통만 만들고, 도어 분할은 셀이 맡는다.
+   */
+  function addCarcassShell(parent, o) {
+    const cyMid = o.legH + o.carcassH / 2;
+    const put = (mesh, side) => {
+      mesh.userData = Object.assign({ side }, o.ud);
+      parent.add(mesh);
+      addEdgeOutline(mesh, parent);
+    };
+    // 뒤판 — 전폭
+    const back = makeBox(o.W, o.carcassH, o.T, o.color);
+    back.position.set(0, cyMid, -o.D / 2 + o.T / 2);
+    put(back, 'back');
+    // 좌·우 측판 — 모듈 바깥 끝에만
+    const left = makeBox(o.T, o.carcassH, o.D, o.color);
+    left.position.set(-o.W / 2 + o.T / 2, cyMid, 0);
+    put(left, 'left');
+    const right = makeBox(o.T, o.carcassH, o.D, o.color);
+    right.position.set(o.W / 2 - o.T / 2, cyMid, 0);
+    put(right, 'right');
+    // 지판 · 천판 — 측판 사이 전폭
+    const inner = o.W - 2 * o.T;
+    const bottom = makeBox(inner, o.T, o.D - o.T, o.color);
+    bottom.position.set(0, o.legH + o.T / 2, o.T / 2);
+    put(bottom, 'bottom');
+    const top = makeBox(inner, o.T, o.D - o.T, o.color);
+    top.position.set(0, o.H - o.moldingH - o.T / 2, o.T / 2);
+    put(top, 'top');
+  }
+
+  /** 셀 경계마다 칸막이 한 장. 양 끝은 측판이 맡으므로 안쪽 경계만 세운다. */
+  function addCellDividers(parent, o) {
+    const cyMid = o.legH + o.carcassH / 2;
+    let x = -o.W / 2;
+    o.cellWidths.forEach((w, i) => {
+      x += w;
+      if (i >= o.cellWidths.length - 1) return;   // 마지막 경계 = 우측판 자리
+      const div = makeBox(o.T, o.carcassH, o.D, o.color);
+      div.position.set(x, cyMid, 0);
+      div.userData = Object.assign({ side: 'divider', cellIdx: i }, o.ud);
+      parent.add(div);
+      addEdgeOutline(div, parent);
+    });
+  }
+
   // W9-113: 다리발 4개 mesh (하부장 모듈만, OBJ 표준 — 42×LEG_H×42, 코너 25mm inset)
   function addLegs(parent, m, cfg, s) {
     if (m.section !== 'lower') return;
@@ -3503,25 +3554,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === verticalCount)
       ? s.areaWidths
       : Array(verticalCount).fill(W / verticalCount);
+    // 몸통은 하나 — createModuleMesh 와 같은 규칙 (아래 addCarcassShell 주석 참고)
+    addCarcassShell(modG, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd });
+    addCellDividers(modG, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd });
+
     let cellLeftAccum = -W / 2;
     for (let i = 0; i < verticalCount; i++) {
       const colW = cellWidths[i];
       const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
-      const cyMid = legH + carcassH / 2;   // W9-114: 본체 카르카스 Y 중심
-      // cell 뒤판 (본체 H = carcassH)
-      const _b = makeBox(colW, carcassH, T, carcassColor); _b.position.set(cellCx, cyMid, -D/2 + T/2); _b.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd); modG.add(_b);
-      addEdgeOutline(_b, modG);
-      // W9-88: 각 cell 의 좌+우 측판 (본체 H 만)
-      const _l = makeBox(T, carcassH, D, carcassColor); _l.position.set(cellLeft + T/2, cyMid, 0); _l.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd); modG.add(_l);
-      addEdgeOutline(_l, modG);
-      const _r = makeBox(T, carcassH, D, carcassColor); _r.position.set(cellLeft + colW - T/2, cyMid, 0); _r.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd); modG.add(_r);
-      addEdgeOutline(_r, modG);
-      // 바닥 (지판) — 다리발 위 + 천장 — 모듈 상단
-      const _bt = makeBox(colW - 2*T, T, D - T, carcassColor); _bt.position.set(cellCx, legH + T/2, T/2); _bt.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd); modG.add(_bt);
-      addEdgeOutline(_bt, modG);
-      const _tp = makeBox(colW - 2*T, T, D - T, carcassColor); _tp.position.set(cellCx, H - moldingH - T/2, T/2); _tp.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd); modG.add(_tp);
-      addEdgeOutline(_tp, modG);
+      // 지판·천판은 몸통 껍데기(addCarcassShell)가 전폭으로 한 장씩 만든다.
       // cell 안 선반 — 본체 기준 sh (legH 더하기)
       if (Array.isArray(s.shelves)) {
         s.shelves.forEach((shMM, shIdx) => {
@@ -4032,40 +4074,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       ? s.areaWidths
       : Array(vCount).fill(W / vCount);
     const carcassUd = { entityKind: 'carcass', moduleId: m.id };
+    // 몸통은 **하나**다. 도어를 몇 장으로 나누든 측판·뒤판·지판·천판은 모듈 전체를
+    // 감싼다. 예전엔 셀마다 이 다섯을 만들어(W9-87 "도어 개수 = 독립 캐비넷 개수")
+    // 도어를 2장으로 늘리면 수납장이 2개로 보였다. 셀 경계에는 칸막이 한 장만 세운다.
+    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd });
+    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd });
+
     let cellLeftAccum = -W / 2;
     for (let i = 0; i < vCount; i++) {
       const colW = cellWidths[i];
       const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
-      const cyMid = legH + carcassH / 2;   // W9-114: 본체 카르카스 Y 중심
-      // cell 뒤판 (본체 H)
-      const cBack = makeBox(colW, carcassH, T, carcassColor);
-      cBack.position.set(cellCx, cyMid, -D/2 + T/2);
-      cBack.userData = Object.assign({ side: 'back', cellIdx: i }, carcassUd);
-      g.add(cBack);
-      addEdgeOutline(cBack, g);
-      // W9-88: 좌+우 측판 (본체 H)
-      const cLeftP = makeBox(T, carcassH, D, carcassColor);
-      cLeftP.position.set(cellLeft + T/2, cyMid, 0);
-      cLeftP.userData = Object.assign({ side: 'left', cellIdx: i }, carcassUd);
-      g.add(cLeftP);
-      addEdgeOutline(cLeftP, g);
-      const cRightP = makeBox(T, carcassH, D, carcassColor);
-      cRightP.position.set(cellLeft + colW - T/2, cyMid, 0);
-      cRightP.userData = Object.assign({ side: 'right', cellIdx: i }, carcassUd);
-      g.add(cRightP);
-      addEdgeOutline(cRightP, g);
-      // 바닥 (지판) — 다리발 위 / 천장 — 모듈 상단
-      const cBottom = makeBox(colW - 2*T, T, D - T, carcassColor);
-      cBottom.position.set(cellCx, legH + T/2, T/2);
-      cBottom.userData = Object.assign({ side: 'bottom', cellIdx: i }, carcassUd);
-      g.add(cBottom);
-      addEdgeOutline(cBottom, g);
-      const cTopP = makeBox(colW - 2*T, T, D - T, carcassColor);
-      cTopP.position.set(cellCx, H - moldingH - T/2, T/2);
-      cTopP.userData = Object.assign({ side: 'top', cellIdx: i }, carcassUd);
-      g.add(cTopP);
-      addEdgeOutline(cTopP, g);
       // cell 안 선반 — 본체 기준 sh (legH 더하기)
       if (Array.isArray(s.shelves)) {
         s.shelves.forEach((shMM, shIdx) => {
