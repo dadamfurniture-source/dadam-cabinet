@@ -295,8 +295,8 @@ describe('도어 내림 (W12-6)', () => {
     calls.forEach((c) => expect(c).toContain('doorDrop: doorDropOf(m, s)'));
   });
 
-  test('산술 — 도어 세로 = 장H + 20, 밑단이 몸통보다 정확히 20 내려온다', () => {
-    const DROP = 20, G = 4;
+  test('산술 — 도어 세로 = 장H + 15, 밑단이 몸통보다 정확히 15 내려온다', () => {
+    const DROP = 15, G = 4;
     const bodyH = 700, bodyBottom = 1000;            // 몸통: 1000 ~ 1700
     const h0 = bodyH - G, cy0 = bodyBottom + bodyH / 2;   // 갭 뺀 기본 도어
     const top = cy0 + h0 / 2 + G / 2;
@@ -305,5 +305,25 @@ describe('도어 내림 (W12-6)', () => {
     expect(h1).toBe(bodyH + DROP);                   // 도어 세로 = 장H + 20
     expect(cy1 + h1 / 2).toBe(bodyBottom + bodyH);   // 윗변 = 몸통 상단
     expect(bodyBottom - (cy1 - h1 / 2)).toBe(DROP);  // 밑단이 20 내려옴
+  });
+});
+
+describe('푸쉬는 제조에서 고를 수 있다 (W12-7)', () => {
+  // ACTIVE_RULES §15 의 push-to-open 금지는 **AI 이미지 생성 프롬프트 한정**이다.
+  // 두 규칙을 하나로 읽어 플래너 선택지에서 빼면 중간장 기본값이 사라진다.
+  test('팔레트와 우측 패널 둘 다 푸쉬를 내놓는다', () => {
+    expect(SRC).toContain("['push', '푸쉬']");
+    expect(SRC).toContain("['push','푸쉬']");
+  });
+
+  test('중간장 기본이 푸쉬다', () => {
+    const fn = SRC.slice(SRC.indexOf('function defaultHandleType'), SRC.indexOf('function handleTypeOf'));
+    expect(fn).toMatch(/'중간장'[\s\S]{0,40}'push'/);
+  });
+
+  test('금지 규칙이 이미지 생성 한정으로 적혀 있다', () => {
+    const active = read('docs/design-rules/ACTIVE_RULES.md');
+    expect(active).toMatch(/금지 \(AI 이미지 생성 한정\)/);
+    expect(active).toContain('제조(플래너)에서는 푸쉬를');
   });
 });
