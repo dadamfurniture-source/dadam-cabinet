@@ -46,6 +46,10 @@ const MASTER_RULES = {
   FRIDGE_D: 550,                // 냉장고장 표준 D
   FRIDGE_NICHE_W: 900,          // W9-99: 표준 니치 폭 (LG/삼성/인피니트)
   FRIDGE_NICHE_W_TOL: 50,       // W9-99: 니치 허용 오차 ±50mm
+  // 아래 둘은 js/detaildesign/data-constants.js 와 ui-fridge-el.js 가 정본이다.
+  // 플래너에서 그 파일들을 읽지 않아 값을 옮겨 적었다 — 바뀌면 같이 고쳐야 한다.
+  FRIDGE_TOP_GAP: 15,           // 냉장고 상단 간격 (FRIDGE_RULES.TOP_GAP)
+  MIDDLE_BODY_RATIO: 0.55,      // 중간장이 차지하는 몸통 비율 (ui-fridge-el.js: moduleBodyH * 0.55)
   SHELF_SPACE_MIN: 300,         // 선반 분배 공간 최소 (일반)
   SHELF_SPACE_MAX: 450,         // 선반 분배 공간 최대 (일반)
   SHELF_SPACE_MIN_SHOE: 180,    // 선반 분배 공간 최소 (신발장)
