@@ -239,7 +239,15 @@ describe('단별 기본 손잡이 (W12-6)', () => {
     expect(fn).toMatch(/'중간장'[\s\S]{0,40}'push'/);
   });
 
-  test('상부장은 도어 내림 — 섹션과 스택 단 둘 다', () => {
+  test('키큰장 상부장은 푸쉬 — 도어 내림보다 먼저 걸러야 한다', () => {
+    // 순서가 뒤바뀌면 `part === '상부장'` 이 먼저 잡아 door-drop 이 돼 버린다.
+    const tall = fn.indexOf("m.section === 'tall'");
+    const drop = fn.indexOf("'door-drop'");
+    expect(tall).toBeGreaterThan(-1);
+    expect(tall).toBeLessThan(drop);
+  });
+
+  test('싱크 상부장과 냉장고장 상부장은 도어 내림', () => {
     expect(fn).toMatch(/'상부장'/);
     expect(fn).toMatch(/section\s*===\s*'upper'/);
     expect(fn).toContain("'door-drop'");
