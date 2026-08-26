@@ -2083,6 +2083,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return handleTypeOf(m, s) === 'door-drop' ? MASTER_RULES.SINK_UPPER_DOOR_H_PLUS : 0;
   }
 
+  /**
+   * W12-8: 도어 상단을 몸통 상단보다 얼마나 내리는가.
+   *
+   * 목찬넬은 그 틈으로 손을 넣는다 — 없으면 도어가 목찬넬을 덮어 손잡이가 사라진다.
+   * 정본은 `design_rules` 싱크하부장도어H / `sink.md` 하부장 부재표 `(H-30)` 이고
+   * `SINK_LOWER_DOOR_H_MINUS` 로 옮겨져 있었지만 **아무도 쓰지 않아** 플래너는
+   * 도어를 몸통H − 4(갭)로 그렸다. 실측 상단 틈이 2mm 였다.
+   *
+   * 목찬넬일 때만 적용한다. 푸쉬·알루미늄 찬넬 하부장까지 30mm 를 벌리면
+   * 그 손잡이들에는 없는 틈이 생긴다.
+   */
+  function doorTopGapOf(m, s) {
+    return isWoodChannel(m, s) ? MASTER_RULES.SINK_LOWER_DOOR_H_MINUS : 0;
+  }
+
   /** 팔레트에 띄우는 손잡이 설명 — 무엇이 그려지는지 그대로 적는다. */
   function handleNoteFor(m, s) {
     const R = MASTER_RULES;
@@ -4012,7 +4027,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s) });
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) });
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
@@ -4093,6 +4108,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
     // W12-6: 도어 내림 — 도어만 몸통보다 아래로 내려온다. 그 밑단이 손잡이다.
     // 서랍·오픈·먹장은 해당 없다 (도어가 아니다).
+    // W12-8: 목찬넬 도어는 몸통 상단보다 30 내려온다 — 그 틈이 손 넣는 자리다.
+    // 도어 세로 = 장H − 30, 밑단은 다리발 위(몸통 바닥)에 맞춘다.
+    const topGap = (type === 'door' && meta && meta.doorTopGap) ? meta.doorTopGap : 0;
+    if (topGap) {
+      const G = MASTER_RULES.DOOR_GAP;
+      const bodyBottom = cy - h / 2 - G / 2;   // 갭을 되돌린 몸통 바닥
+      const bodyTop = cy + h / 2 + G / 2;      // 몸통 상단
+      const newTop = bodyTop - topGap;
+      if (newTop > bodyBottom) { h = newTop - bodyBottom; cy = (newTop + bodyBottom) / 2; }
+    }
     const drop = (type === 'door' && meta && meta.doorDrop) ? meta.doorDrop : 0;
     if (drop) {
       // 도어 세로 = 장H + drop (design_rules 싱크상부장도어H). 넘어온 h 는 이미
@@ -4576,7 +4601,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s) });
+      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) });
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(g, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
