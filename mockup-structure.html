@@ -460,11 +460,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.4"></script>
-<script src="js/planner/planner-view.js?v=37.4"></script>
-<script src="js/planner/planner-sections.js?v=37.4"></script>
+<script src="js/planner/planner-scope.js?v=37.5"></script>
+<script src="js/planner/planner-view.js?v=37.5"></script>
+<script src="js/planner/planner-sections.js?v=37.5"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=37.4"></script>
+<script src="js/planner/planner-engine.js?v=37.5"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -2335,6 +2335,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ── 마감재 (EP · 몰딩 · 휠라) ─────────────────────────────────
   const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
   function isFinishingSection(k) { return FINISHING_SECTIONS.indexOf(k) >= 0; }
+  // 도구를 다시 그려도 고른 마감재가 유지되도록 기억한다 — 안 하면 추가할 때마다
+  // 기본값으로 되돌아가 같은 것을 두 번 넣기가 번거롭다.
+  let lastFinishing = 'ep';
 
   /**
    * 마감재가 런에서 차지하는 폭.
@@ -2553,7 +2556,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function autoCalcStack(area, stack) {
     for (let i = modules.length - 1; i >= 0; i--) {
       const m = modules[i];
-      if (m.areaId === area.id && !m.isFixed) { delete structures[m.id]; modules.splice(i, 1); }
+      if (m.areaId === area.id && !m.isFixed && !isFinishingSection(m.section)) { delete structures[m.id]; modules.splice(i, 1); }
     }
     let made = 0;
     stack.forEach((part) => {
@@ -2584,7 +2587,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (!stack.length) { showToast('⚠ 높이가 모자라 자동계산할 수 없습니다'); return 0; }
       return autoCalcStack(area, stack);
     }
-    const kept = modules.filter((m) => m.areaId === areaId && m.isFixed);
+    // 마감재는 자동계산이 만들어 내는 것이 아니라 사람이 놓은 것이다.
+    // 고정 모듈과 같이 보존하고, 그 폭을 뺀 나머지만 다시 채운다.
+    const kept = modules.filter((m) => m.areaId === areaId
+      && (m.isFixed || isFinishingSection(m.section)));
     const room = area.W - kept.reduce((sum, m) => sum + (m.W || 0), 0);
     if (room < MASTER_RULES.DOOR_W_MIN) {
       showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — 자동계산할 자리가 없습니다`);
@@ -2607,7 +2613,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 옛 배열을 계속 보게 된다 (테스트 하네스가 그래서 빈 결과를 봤다).
     for (let i = modules.length - 1; i >= 0; i--) {
       const m = modules[i];
-      if (m.areaId === areaId && !m.isFixed) {
+      if (m.areaId === areaId && !m.isFixed && !isFinishingSection(m.section)) {
         delete structures[m.id];
         modules.splice(i, 1);
       }
@@ -2704,7 +2710,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       <button class="at-auto">⚡ 이 영역 자동계산</button>
       <div class="at-sec at-fin">
         <select class="at-fintype">
-          ${FINISHING_SECTIONS.map((k) => `<option value="${k}">${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm</option>`).join('')}
+          ${FINISHING_SECTIONS.map((k) => `<option value="${k}" ${k === lastFinishing ? 'selected' : ''}>${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm</option>`).join('')}
         </select>
         <button class="at-finadd">＋ 마감재</button>
       </div>`}`;
@@ -2714,7 +2720,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     on('.at-finadd', () => {
       const sel = el.querySelector('.at-fintype');
-      const m = addFinishingToArea(area.id, sel ? sel.value : 'ep');
+      if (sel) lastFinishing = sel.value;      // 다시 그려도 고른 것이 남는다
+      const m = addFinishingToArea(area.id, lastFinishing);
       renderAreaTools();
       if (!m) return;
       renderFrontView();
