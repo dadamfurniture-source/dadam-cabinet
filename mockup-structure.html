@@ -2047,6 +2047,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function defaultHandleType(m) {
     const part = m && m.part;
     if (part === '중간장') return 'push';
+    // W12-9: 키큰장 상부장은 푸쉬다. 도어 내림은 싱크 상부장·냉장고장 상부장에만 쓴다.
+    if (part === '상부장' && m.section === 'tall') return 'push';
     if (part === '상부장' || (m && m.section === 'upper')) return 'door-drop';
     return 'wood-channel';
   }
