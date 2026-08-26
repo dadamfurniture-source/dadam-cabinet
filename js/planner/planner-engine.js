@@ -35,9 +35,16 @@ const MASTER_RULES = {
   CROWN_MOLDING_FRIDGE: 50,     // 냉장고 상부장 상몰딩
   CROWN_MOLDING_WARDROBE: 15,   // 붙박이장 상몰딩
   // W9-117: 목찬넬 (channel handle) — 마스터 자재추출규칙
-  CHANNEL_FRONT_W: 52,          // 전면 목찬넬 폭 (Y 방향, 도어 면)
-  CHANNEL_BACK_W: 40,           // 지면 목찬넬 폭 (참고, 미사용)
+  CHANNEL_FRONT_W: 52,          // 전면판 높이 (design_rules 목찬넬전면 52 × effectiveW)
+  CHANNEL_BACK_W: 40,           // 지면판 폭   (design_rules 목찬넬지면 40 × effectiveW)
   CHANNEL_DEPTH: 12,            // 목찬넬 매립 깊이 (도어 안쪽)
+  // W12-5: 하부장 목찬넬 따내기 — 측판·칸막이 상단 전면 모서리를 도려낸다.
+  // 도려낸 자리를 ㄴ자로 채운다: 지면판(40 × 18T)이 바닥에 깔리고 그 위에
+  // 전면판(52 × 18T)이 얹힌다. 18 + 52 = 70 이 따내기 높이와 정확히 맞는다.
+  // 처짐방지목이 목찬넬일 때 70 짧아지는 것(sink.md bandH = H-36-70)과 같은 70이다.
+  CHANNEL_BOARD_T: 18,          // 목찬넬 부재 두께 (18T MDF)
+  CHANNEL_NOTCH_H: 70,          // 따내기 높이 = CHANNEL_BOARD_T + CHANNEL_FRONT_W
+  CHANNEL_NOTCH_D: 40,          // 따내기 깊이 = CHANNEL_BACK_W (지면판 폭)
   SINK_LOWER_H: 870,            // 싱크 하부장 표준 H (다리발 150 포함)
   SINK_UPPER_H: 720,            // 싱크 상부장 표준 H
   SINK_UPPER_D: 295,            // 싱크 상부장 표준 D
