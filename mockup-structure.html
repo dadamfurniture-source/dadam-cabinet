@@ -538,7 +538,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       bottomType: 'drawer',    // doorTopDrawerBottom 시 하부 type
       bottomDirection: 'left', // 하부 도어일 때 방향
       shelves: [],             // 바닥부터 mm
-      handleType: 'channel',
+      handleType: 'auto',      // W12-6: 미지정 — defaultHandleType 이 단별로 정한다
       handlePosition: 'top',
     };
   }
@@ -2038,14 +2038,69 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return Number.isFinite(v) && v >= 0 ? v : MASTER_RULES.SINK_LEG;
   }
   /**
-   * W12-5: 목찬넬 손잡이인가.
-   * 하부장만이다 — 상부장 목찬넬은 도어 H 가 `H+20`(상몰딩 안쪽까지)이라 매립 방식이
-   * 다르고, 그 규칙은 아직 정본에 없다. 정해지면 여기에 section 을 늘린다.
+   * W12-6: 단(段)별 손잡이 기본형.
+   *   하부장 → 목찬넬 (따내기 + ㄴ자 부재)
+   *   중간장 → 푸쉬
+   *   상부장 → 도어 내림 (도어를 몸통보다 아래로 빼서 그 밑단을 잡는다)
+   * 키큰장·냉장고장은 한 영역이 세 단으로 쌓이므로 `m.part` 로 단을 가른다.
+   */
+  function defaultHandleType(m) {
+    const part = m && m.part;
+    if (part === '중간장') return 'push';
+    if (part === '상부장' || (m && m.section === 'upper')) return 'door-drop';
+    return 'wood-channel';
+  }
+
+  /**
+   * 저장된 값에서 실제 손잡이를 정한다.
+   *
+   * `'auto'` 는 아직 안 고른 상태고, `'channel'` 은 **예전 기본값**이다.
+   * 예전엔 모든 모듈이 `'channel'` 로 시작해 알루미늄 막대가 전 섹션에 붙었다 —
+   * 고른 것이 아니라 아무도 안 골라서 남은 값이다. 그래서 둘 다 기본형으로 읽는다.
+   * 알루미늄 찬넬을 **직접 고르면** `'alu-channel'` 로 저장되므로 섞이지 않는다.
+   */
+  function handleTypeOf(m, s) {
+    const v = s && s.handleType;
+    if (!v || v === 'auto' || v === 'channel') return defaultHandleType(m);
+    return v;
+  }
+
+  /**
+   * W12-5: 목찬넬 손잡이인가 — 측판 따내기가 붙는 조건.
+   * 독립 하부장과 스택의 '하부장' 단이 대상이다. 상부장 목찬넬은 도어 H 가
+   * `H+20` 이라 매립 방식이 다르고 그 규칙이 아직 정본에 없다.
    * BOM 쪽(extractors.js)은 `specs.handle.includes('목찬넬')` 로 판별하므로
    * 브릿지가 보내는 문자열도 '목찬넬' 을 담아야 한다.
    */
   function isWoodChannel(m, s) {
-    return !!m && m.section === 'lower' && !!s && s.handleType === 'wood-channel';
+    if (!m) return false;
+    const lower = m.section === 'lower' || m.part === '하부장';
+    return lower && handleTypeOf(m, s) === 'wood-channel';
+  }
+
+  /** 도어 내림 폭 — 도어가 몸통 밑으로 내려오는 길이. 0 이면 내림 아님. */
+  function doorDropOf(m, s) {
+    return handleTypeOf(m, s) === 'door-drop' ? MASTER_RULES.SINK_UPPER_DOOR_H_PLUS : 0;
+  }
+
+  /** 팔레트에 띄우는 손잡이 설명 — 무엇이 그려지는지 그대로 적는다. */
+  function handleNoteFor(m, s) {
+    const R = MASTER_RULES;
+    switch (handleTypeOf(m, s)) {
+      case 'wood-channel':
+        return isWoodChannel(m, s)
+          ? `측판·칸막이 상단 전면을 ${R.CHANNEL_NOTCH_H}×${R.CHANNEL_NOTCH_D} 따내고, `
+            + `지면판 ${R.CHANNEL_BACK_W}×${R.CHANNEL_BOARD_T}T 위에 전면판 ${R.CHANNEL_FRONT_W}×${R.CHANNEL_BOARD_T}T 를 얹습니다.`
+          : '목찬넬 따내기는 하부장에만 그립니다 — 상부장 매립 규칙이 아직 없습니다.';
+      case 'door-drop':
+        return `도어를 몸통보다 ${R.SINK_UPPER_DOOR_H_PLUS}mm 아래로 빼서 그 밑단을 잡습니다.`;
+      case 'push':
+        return '푸쉬 — 손잡이 부재가 없습니다. 도어를 눌러 엽니다.';
+      case 'alu-channel':
+        return `알루미늄 찬넬 ${R.CHANNEL_FRONT_W}×${R.CHANNEL_DEPTH} 를 도어 뒤에 매립합니다.`;
+      default:
+        return 'C찬넬 — 3D 표현이 아직 없습니다.';
+    }
   }
   /** 실효 상몰딩 H */
   function moldingHOf(m, s) {
@@ -2308,15 +2363,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderFrontView(); renderRightPanel();
     };
 
-    // 손잡이
+    // 손잡이 — 저장값이 아니라 해석된 값을 보여준다 (미지정이면 단별 기본형)
+    const hType = handleTypeOf(m, s);
     document.getElementById('handleBody').innerHTML = `
       <div class="row">
         <label>타입</label>
         <select id="selHType">
-          <option value="channel"      ${s.handleType==='channel'?'selected':''}>찬넬 (매립형)</option>
-          <option value="wood-channel" ${s.handleType==='wood-channel'?'selected':''}>목찬넬</option>
-          <option value="c-channel"    ${s.handleType==='c-channel'?'selected':''}>C찬넬</option>
-          <option value="push"         ${s.handleType==='push'?'selected':''}>푸쉬 (Push-to-open)</option>
+          ${[['wood-channel','목찬넬'],['door-drop','도어 내림'],['push','푸쉬'],['alu-channel','알루미늄 찬넬'],['c-channel','C찬넬']]
+              .map(([v, l]) => `<option value="${v}" ${hType===v?'selected':''}>${l}</option>`).join('')}
         </select>
       </div>
       <div class="row">
@@ -2493,7 +2547,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     s.areaWidths = [];
     s.areaIs2D = [];
     s.horizontalLayout = 'doorOnly';
-    s.handleType = 'channel';
+    s.handleType = 'auto';   // W12-6: 단별 기본형은 defaultHandleType 이 정한다
     // 손잡이 위치와 선반은 **모듈의 섹션**을 따른다 (영역이 아니라).
     // autoCalcModule 이 쓰는 규칙과 같다.
     s.handlePosition = section === 'upper' ? 'bottom' : section === 'lower' ? 'top' : 'middle';
@@ -2967,13 +3021,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     { key: 'handle', label: '손잡이', icon: SVG('<rect x="3" y="3" width="14" height="14"/><rect x="6" y="8" width="8" height="2" fill="currentColor"/>'),
       body: (m, s) => `
         <div class="mp-row"><label>타입</label>
-          <select class="mp-htype">${_sel(s.handleType || 'channel', [['channel', '찬넬 (매립형)'], ['wood-channel', '목찬넬'], ['c-channel', 'C찬넬'], ['push', '푸쉬']])}</select>
+          <select class="mp-htype">${_sel(handleTypeOf(m, s), [['wood-channel', '목찬넬'], ['door-drop', '도어 내림'], ['push', '푸쉬'], ['alu-channel', '알루미늄 찬넬'], ['c-channel', 'C찬넬']])}</select>
         </div>
         <div class="mp-row"><label>위치</label>
           <select class="mp-hpos">${_sel(s.handlePosition || 'top', [['top', '상'], ['middle', '중'], ['bottom', '하']])}</select>
         </div>
-        ${isWoodChannel(m, s) ? `<div class="mp-note">측판·칸막이 상단 전면을 ${MASTER_RULES.CHANNEL_NOTCH_H}×${MASTER_RULES.CHANNEL_NOTCH_D} 따내고
-          지면판 ${MASTER_RULES.CHANNEL_BACK_W}×${MASTER_RULES.CHANNEL_BOARD_T}T 위에 전면판 ${MASTER_RULES.CHANNEL_FRONT_W}×${MASTER_RULES.CHANNEL_BOARD_T}T 를 얹습니다.</div>` : ''}` },
+        <div class="mp-note">${handleNoteFor(m, s)}</div>` },
 
     { key: 'fixed', label: '고정', icon: SVG('<rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/>'),
       body: (m, s) => `
@@ -3700,7 +3753,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   //   handlePosition: lower → 'top' (도어 상단), upper → 'bottom' (도어 하단), 기타 → 'middle'
   //   전면 채널: 가로 (모듈 W) × 세로 52mm × 두께 작은 (도어 뒷면 안쪽)
   function addHandle(parent, m, s, cfg) {
-    if (!s || s.handleType !== 'channel') return;
+    // W12-6: 알루미늄 찬넬을 **직접 고른** 모듈에만 붙는다. 예전엔 기본값이
+    // 'channel' 이라 전 섹션에 회색 막대가 붙어 있었다.
+    if (handleTypeOf(m, s) !== 'alu-channel') return;
     const W = m.W, D = m.D, T = 18;
     const CW = MASTER_RULES.CHANNEL_FRONT_W;       // 52
     const CDEPTH = MASTER_RULES.CHANNEL_DEPTH;     // 12
@@ -3957,7 +4012,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s) });
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
@@ -4036,6 +4091,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, cfg, s, meta) {
     const T = 18;
     const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
+    // W12-6: 도어 내림 — 도어만 몸통보다 아래로 내려온다. 그 밑단이 손잡이다.
+    // 서랍·오픈·먹장은 해당 없다 (도어가 아니다).
+    const drop = (type === 'door' && meta && meta.doorDrop) ? meta.doorDrop : 0;
+    if (drop) {
+      // 도어 세로 = 장H + drop (design_rules 싱크상부장도어H). 넘어온 h 는 이미
+      // 갭 4 를 뺀 값이라 그대로 더하면 장H + 16 이 된다 — 갭을 되돌리고 더한다.
+      // 윗변은 몸통 상단에 맞추고 밑단만 drop 만큼 내려온다.
+      const G = MASTER_RULES.DOOR_GAP;
+      const top = cy + h / 2 + G / 2;
+      h = h + G + drop;
+      cy = top - h / 2;
+    }
     const carcassMeta = { entityKind: 'carcass', moduleId: meta.moduleId, side: 'front', areaType: type };
     if (type === 'open') {
       // open frame 은 모듈 앞면 위 wireframe (그대로 frontZ)
@@ -4509,7 +4576,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]) });
+      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s) });
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(g, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
