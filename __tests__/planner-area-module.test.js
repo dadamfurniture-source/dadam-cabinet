@@ -501,3 +501,40 @@ describe('열 때는 언제나 영역 보기다', () => {
     expect(p.g('isAreaView')()).toBe(false);
   });
 });
+
+describe('클릭해도 화면이 초기화되지 않는다', () => {
+  // renderAll3D 는 끝에서 카메라를 다시 맞추고 controls.target 을 리셋한다.
+  // 원래는 '전체' 모드 진입에서만 불렸는데, 영역 보기를 만들며 거의 모든
+  // 상호작용에 물리면서 클릭마다 화면이 초기화됐다.
+  // 화면 맞추기는 "무엇을 보여줄지가 바뀌는 순간" 에만 할 일이다.
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  test('renderAll3D 의 카메라 맞추기는 요청했을 때만 돈다', () => {
+    const fn = src.slice(src.indexOf('function renderAll3D'));
+    const body = fn.slice(0, fn.indexOf('\n  }\n'));
+    expect(body).toMatch(/opts\.fit\s*!==\s*false/);
+  });
+
+  test('상호작용 경로는 fit:false 로 부른다', () => {
+    // 초기 진입(fit:true) 하나만 예외다.
+    const calls = src.match(/renderAll3D\(\{[^}]*\}\)/g) || [];
+    expect(calls.length).toBeGreaterThan(4);
+    expect(calls.filter((c) => c.includes('fit: true'))).toHaveLength(1);
+  });
+
+  test('영역은 다른 영역으로 옮길 때만 다시 맞춘다', () => {
+    const fn = src.slice(src.indexOf('function setActiveArea'));
+    const body = fn.slice(0, 900);
+    expect(body).toMatch(/id\s*!==\s*activeAreaId/);   // 바뀐 경우만
+    expect(body).toMatch(/if \(moved\)/);
+  });
+
+  test('모듈을 추가해도 화면을 다시 맞추지 않는다', () => {
+    // 모듈은 지금 보고 있는 영역 안에 들어가므로 맞출 이유가 없다.
+    const at = src.slice(src.indexOf(".at-add').onclick"));
+    expect(at.slice(0, 600)).not.toMatch(/fitCameraToAreas\(\)/);
+  });
+});
