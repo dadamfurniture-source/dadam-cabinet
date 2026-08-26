@@ -620,3 +620,92 @@ describe('영역 자동계산', () => {
     expect(p.g('autoCalcArea')(area.id)).toBe(0);
   });
 });
+
+describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
+  // 높이 계산은 js/detaildesign/ui-fridge-el.js 가 정본이고 그대로 따른다.
+  //   상부장 = min(FRIDGE_UPPER_H_MAX, 전체 − 냉장고 − 상단간격 − 상몰딩)
+  //   몸통   = 전체 − 상몰딩 − 상부장 − 좌대
+  //   중간장 = floor(몸통 × 0.55)      하부장 = 몸통 − 중간장
+  const engine = require('../js/planner/planner-engine');
+
+  function bootL() { return boot(seedFor(FIXTURES.lShape, { modules: false })); }
+
+  test('키큰장은 하부·중간·상부 셋으로 쌓인다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    expect(area).toBeDefined();
+    const n = p.g('autoCalcArea')(area.id);
+    expect(n).toBe(3);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    expect(made.map((m) => m.part)).toEqual(['하부장', '중간장', '상부장']);
+  });
+
+  test('키큰장 높이 합이 영역 높이와 맞는다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    const probe = { section: 'tall', H: area.H };
+    const molding = p.g('heightPartOf')(probe, {}, 'moldingH');
+    const pedestal = p.g('heightPartOf')(probe, {}, 'pedestalH');
+    const sum = made.reduce((s, m) => s + m.H, 0);
+    expect(sum).toBe(area.H - molding - pedestal);      // 좌대와 상몰딩만 남는다
+    expect(made[2].H).toBe(engine.MASTER_RULES.FRIDGE_UPPER_H_MAX);
+  });
+
+  test('키큰장은 아래에서 위로 빈틈없이 쌓인다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    for (let i = 1; i < made.length; i++) {
+      expect(made[i].baseY).toBe(made[i - 1].baseY + made[i - 1].H);
+    }
+    expect(p.g('baseYOf')(made[0])).toBe(made[0].baseY);   // 섹션 기본을 덮는다
+  });
+
+  test('중간장이 몸통의 55% 다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    const body = made[0].H + made[1].H;
+    expect(made[1].H).toBe(Math.floor(body * engine.MASTER_RULES.MIDDLE_BODY_RATIO));
+  });
+
+  test('냉장고장은 상부장 하나만 만들고 냉장고 자리를 비운다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    // straight 픽스처엔 냉장고장이 없다 — 영역을 하나 만들어 확인한다
+    p.g('areas').push({ id:'area-fridge-x', section:'fridge', W:900, H:2300, D:700, x:0, y:0, rotation:0 });
+    const n = p.g('autoCalcArea')('area-fridge-x');
+    expect(n).toBe(1);
+    const made = p.g('modules').filter((m) => m.areaId === 'area-fridge-x');
+    expect(made[0].part).toBe('상부장');
+
+    const fridgeH = p.g('SECTION_CONFIG').refrigerator.moduleH;
+    // 냉장고 위 + 상단 간격부터 시작한다 — 그 아래는 비워 둔다
+    expect(made[0].baseY).toBe(fridgeH + engine.MASTER_RULES.FRIDGE_TOP_GAP);
+    const molding = p.g('heightPartOf')({ section:'fridge', H:2300 }, {}, 'moldingH');
+    expect(made[0].H).toBe(Math.min(engine.MASTER_RULES.FRIDGE_UPPER_H_MAX,
+                                    2300 - fridgeH - engine.MASTER_RULES.FRIDGE_TOP_GAP - molding));
+  });
+
+  test('상부장이 상몰딩을 침범하지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    p.g('areas').push({ id:'area-fridge-y', section:'fridge', W:900, H:2300, D:700, x:0, y:0, rotation:0 });
+    p.g('autoCalcArea')('area-fridge-y');
+    const m = p.g('modules').find((x) => x.areaId === 'area-fridge-y');
+    const molding = p.g('heightPartOf')({ section:'fridge', H:2300 }, {}, 'moldingH');
+    expect(m.baseY + m.H).toBeLessThanOrEqual(2300 - molding);
+  });
+
+  test('하부장 영역은 여전히 가로로 나눈다', () => {
+    // 스택은 키큰장·냉장고장만이다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === 1200);
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    expect(made.every((m) => m.part === undefined)).toBe(true);
+    expect(made.reduce((s, m) => s + m.W, 0)).toBe(area.W);
+  });
+});
