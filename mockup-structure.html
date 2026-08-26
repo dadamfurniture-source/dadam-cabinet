@@ -2046,10 +2046,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function defaultHandleType(m) {
     const part = m && m.part;
-    if (part === '중간장') return 'push';
-    // W12-9: 키큰장 상부장은 푸쉬다. 도어 내림은 싱크 상부장·냉장고장 상부장에만 쓴다.
-    if (part === '상부장' && m.section === 'tall') return 'push';
-    if (part === '상부장' || (m && m.section === 'upper')) return 'door-drop';
+    // W12-10: 스택(키큰장·냉장고장)의 중간장·상부장은 푸쉬다. 손이 닿는 높이가
+    // 아니라 도어 밑단을 잡는 방식이 안 맞는다. 하부장 단은 아래로 빠져 목찬넬.
+    if (part === '중간장' || part === '상부장') return 'push';
+    // 도어 내림은 **독립 싱크 상부장**에만 쓴다 (도어 = 장H + 15, 아래로 15).
+    if (m && m.section === 'upper') return 'door-drop';
     return 'wood-channel';
   }
 
