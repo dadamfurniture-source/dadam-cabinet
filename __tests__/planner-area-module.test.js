@@ -709,3 +709,32 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     expect(made.reduce((s, m) => s + m.W, 0)).toBe(area.W);
   });
 });
+
+describe('기본 냉장고 높이', () => {
+  const sections = require('../js/planner/planner-sections');
+  const engine = require('../js/planner/planner-engine');
+
+  test('기본 냉장고 모델 높이는 1870 이다', () => {
+    expect(sections.PLANNER_SECTIONS.refrigerator.moduleH).toBe(1870);
+  });
+
+  test('냉장고장 상부장이 그 높이를 기준으로 잡힌다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    p.g('areas').push({ id:'area-fridge-h', section:'fridge', W:900, H:2300, D:700, x:0, y:0, rotation:0 });
+    p.g('autoCalcArea')('area-fridge-h');
+    const m = p.g('modules').find((x) => x.areaId === 'area-fridge-h');
+    const fH = sections.PLANNER_SECTIONS.refrigerator.moduleH;
+    expect(m.baseY).toBe(fH + engine.MASTER_RULES.FRIDGE_TOP_GAP);
+    expect(m.H).toBe(2300 - fH - engine.MASTER_RULES.FRIDGE_TOP_GAP
+                          - engine.MASTER_RULES.CROWN_MOLDING_FRIDGE);   // 365
+  });
+
+  test('샘플 냉장고장 영역은 기본 냉장고가 들어갈 높이다', () => {
+    // 영역이 냉장고보다 낮으면 자동계산이 "높이가 모자라" 로 아무것도 못 만든다.
+    const p = boot();                                   // 배치 없음 → 샘플 영역
+    const area = p.g('areas').find((a) => a.section === 'fridge');
+    expect(area.H).toBeGreaterThan(sections.PLANNER_SECTIONS.refrigerator.moduleH
+      + engine.MASTER_RULES.FRIDGE_TOP_GAP + engine.MASTER_RULES.CROWN_MOLDING_FRIDGE);
+    expect(p.g('autoCalcArea')(area.id)).toBe(1);
+  });
+});
