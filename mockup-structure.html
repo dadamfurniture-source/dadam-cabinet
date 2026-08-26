@@ -453,11 +453,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.2"></script>
-<script src="js/planner/planner-view.js?v=37.2"></script>
-<script src="js/planner/planner-sections.js?v=37.2"></script>
+<script src="js/planner/planner-scope.js?v=37.3"></script>
+<script src="js/planner/planner-view.js?v=37.3"></script>
+<script src="js/planner/planner-sections.js?v=37.3"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=37.2"></script>
+<script src="js/planner/planner-engine.js?v=37.3"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -3819,6 +3819,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 한 번도 쓰이지 않았고(호출부 하나는 이미 null 을 넘기고 있었다), 3D 뷰는
   // 열림 방향을 표현하지 않는다. 표현하려면 파라미터를 되살리는 게 아니라
   // 여닫이 mesh 를 만드는 별도 작업이 필요하다.
+  /**
+   * 도어 사이 갭을 **그림자로 보이게** 하는 뒷면.
+   *
+   * 도어는 몸통과 같은 색이고 갭은 4mm 다. 경계를 나누는 건 WebGL 라인뿐인데
+   * linewidth 는 대부분의 환경에서 1px 로 고정이라, 줌을 줄이면 도어들이
+   * 한 덩어리로 뭉쳐 보였다. 도어 바로 뒤에 어두운 판을 깔면 그 4mm 가
+   * 그림자가 되어 줌과 무관하게 경계가 읽힌다.
+   */
+  function addDoorReveal(parent, cx, cy, w, h, frontZ, cfg, meta) {
+    const G = MASTER_RULES.DOOR_GAP;
+    const back = makeBox(w + G, h + G, 2, darken3(cfg.fill, 0.55));
+    back.position.set(cx, cy, frontZ - 1);
+    back.userData = { entityKind: 'reveal', moduleId: meta && meta.moduleId };
+    parent.add(back);
+  }
+
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, cfg, s, meta) {
     const T = 18;
     const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
@@ -3846,18 +3862,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (type === 'door' && meta.is2D) {
       const GAP = MASTER_RULES.DOOR_GAP;          // 가운데 갭 4
       const halfW = (w - GAP) / 2;                // 도어 1장 폭
+      addDoorReveal(parent, cx, cy, w, h, frontZ, cfg, meta);
       // 좌 도어
       const dLeft = makeBox(halfW, h, T, color);
       dLeft.position.set(cx - GAP / 2 - halfW / 2, cy, overlayZ);
       dLeft.userData = Object.assign({}, carcassMeta, { side: 'front', doorIdx: 0 });
       parent.add(dLeft);
-      addEdgeOutline(dLeft, parent, 0x000000, 0.7);
+      addEdgeOutline(dLeft, parent, 0x000000, 0.9);
       // 우 도어
       const dRight = makeBox(halfW, h, T, color);
       dRight.position.set(cx + GAP / 2 + halfW / 2, cy, overlayZ);
       dRight.userData = Object.assign({}, carcassMeta, { side: 'front', doorIdx: 1 });
       parent.add(dRight);
-      addEdgeOutline(dRight, parent, 0x000000, 0.7);
+      addEdgeOutline(dRight, parent, 0x000000, 0.9);
       // 가운데 처짐방지목 (cell 안쪽, 모듈 내부) — Z 는 측판과 같은 평면
       // 마스터: 가로 60 × 세로 (모듈 H - 2T) 안쪽, 두께 15
       const braceW = MASTER_RULES.BAND_BRACE_W;
@@ -3869,11 +3886,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       addEdgeOutline(brace, parent, 0x000000, 0.6);
       return;
     }
+    addDoorReveal(parent, cx, cy, w, h, frontZ, cfg, meta);
     const panel = makeBox(w, h, T, color);
     panel.position.set(cx, cy, overlayZ);
     panel.userData = carcassMeta;
     parent.add(panel);
-    addEdgeOutline(panel, parent, 0x000000, 0.7);
+    addEdgeOutline(panel, parent, 0x000000, 0.9);
     if (type === 'drawer') {
       // 서랍 분할선 = 도어 앞면 (z = overlayZ + T/2) 살짝 앞
       const line = makeBox(w * 0.85, 2, 1, '#3d342a', { metalness: 0.3, roughness: 0.6 });

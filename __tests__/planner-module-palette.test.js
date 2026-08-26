@@ -443,3 +443,39 @@ describe('양문 cell 은 팔레트에서도 방향을 묻지 않는다', () => 
     expect(cells[1].querySelector('.mp-dir').value).toBe('right');
   });
 });
+
+describe('도어 경계가 보인다 (정적 가드)', () => {
+  // 도어는 몸통과 같은 색이고 갭은 4mm 다. 경계를 나누는 건 WebGL 라인뿐인데
+  // linewidth 는 대부분 1px 로 고정이라 줌을 줄이면 도어들이 뭉쳐 보였다.
+  // 도어 뒤에 어두운 판(reveal)을 깔아 갭이 그림자로 읽히게 한다.
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  test('도어를 그리는 모든 경로가 reveal 을 깐다', () => {
+    // 정의 1 + 양문 1 + 단문·서랍 1 = 3
+    expect((src.match(/addDoorReveal\(/g) || [])).toHaveLength(3);
+  });
+
+  test('reveal 은 갭만큼 더 크고 도어보다 뒤에 있다', () => {
+    const fn = src.slice(src.indexOf('function addDoorReveal'));
+    const body = fn.slice(0, 600);
+    expect(body).toMatch(/w \+ G, h \+ G/);        // 사방으로 갭만큼 넓다
+    expect(body).toMatch(/frontZ - 1/);            // 도어 뒤
+    expect(body).toMatch(/darken3\(cfg\.fill, 0\.5/); // 몸통보다 뚜렷하게 어둡다
+  });
+
+  test('도어 외곽선이 흐리지 않다', () => {
+    // 0.7 이던 것을 0.9 로 올렸다. 낮은 값이 남아 있으면 그 도어만 흐리다.
+    // addFrontPanel 안만 본다 — 상판(addTopPanel)도 변수명이 panel 이라
+    // 파일 전체를 훑으면 도어가 아닌 것까지 걸린다.
+    const fn = src.slice(src.indexOf('function addFrontPanel'));
+    const body = fn.slice(0, fn.indexOf('\n  function '));
+    const doorEdges = body.match(/addEdgeOutline\((?:panel|dLeft|dRight), parent, 0x000000, ([0-9.]+)\)/g) || [];
+    expect(doorEdges.length).toBeGreaterThanOrEqual(3);
+    doorEdges.forEach((e) => {
+      expect(parseFloat(e.match(/([0-9.]+)\)$/)[1])).toBeGreaterThanOrEqual(0.9);
+    });
+  });
+});
