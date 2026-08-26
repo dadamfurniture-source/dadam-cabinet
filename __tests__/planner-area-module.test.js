@@ -915,3 +915,60 @@ describe('마감재 (EP · 몰딩 · 휠라)', () => {
     ['ep', 'molding', 'filler'].forEach((k) => expect(opts).not.toContain(k));
   });
 });
+
+describe('자동계산이 마감재를 지우지 않는다', () => {
+  // 마감재는 자동계산이 만들어 내는 것이 아니라 사람이 놓은 것이다.
+  // 고정 모듈과 같이 보존하고, 그 폭을 뺀 나머지만 다시 채운다.
+  function withArea() {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === 1200);
+    p.g('setActiveArea')(area.id);
+    return { p, area };
+  }
+
+  test('자동계산 뒤에도 마감재가 남는다', () => {
+    const { p, area } = withArea();
+    const fin = p.g('addFinishingToArea')(area.id, 'molding');
+    p.g('autoCalcArea')(area.id);
+    expect(p.g('modules').some((m) => m.id === fin.id)).toBe(true);
+  });
+
+  test('마감재 폭을 뺀 나머지만 채운다', () => {
+    const { p, area } = withArea();
+    const fin = p.g('addFinishingToArea')(area.id, 'molding');
+    p.g('autoCalcArea')(area.id);
+    const rest = p.g('modules')
+      .filter((m) => m.areaId === area.id && m.id !== fin.id)
+      .reduce((s, m) => s + m.W, 0);
+    expect(rest).toBe(area.W - fin.W);
+    expect(p.g('usedWidthOf')(area.id)).toBe(area.W);   // 넘치지도 모자라지도 않는다
+  });
+
+  test('자동계산을 두 번 돌려도 마감재가 늘지 않는다', () => {
+    const { p, area } = withArea();
+    p.g('addFinishingToArea')(area.id, 'ep');
+    p.g('autoCalcArea')(area.id);
+    p.g('autoCalcArea')(area.id);
+    const fins = p.g('modules').filter((m) => m.areaId === area.id && m.section === 'ep');
+    expect(fins).toHaveLength(1);
+  });
+
+  test('자동계산 뒤에도 브리지에 부속으로 실린다', () => {
+    const { p, area } = withArea();
+    p.g('addFinishingToArea')(area.id, 'molding');
+    p.g('autoCalcArea')(area.id);
+    const payload = p.g('buildPlannerPayload')('PLANNER_STATE');
+    expect(payload.modules.some((m) => m.section === 'molding')).toBe(false);
+    expect(payload.modules.flatMap((m) => m.finishings).some((f) => f.section === 'molding')).toBe(true);
+  });
+
+  test('고른 마감재가 다시 그려도 유지된다', () => {
+    const { p, area } = withArea();
+    const tools = () => p.document.querySelector('.area-tools');
+    const sel = tools().querySelector('.at-fintype');
+    sel.value = 'molding';
+    tools().querySelector('.at-finadd').onclick();
+    // 도구가 다시 그려진 뒤에도 몰딩이 골라져 있어야 한다
+    expect(tools().querySelector('.at-fintype').value).toBe('molding');
+  });
+});
