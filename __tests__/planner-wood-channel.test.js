@@ -235,22 +235,25 @@ describe('단별 기본 손잡이 (W12-6)', () => {
     expect(fn.length).toBeGreaterThan(80);
   });
 
-  test('중간장은 푸쉬', () => {
-    expect(fn).toMatch(/'중간장'[\s\S]{0,40}'push'/);
+  test('스택의 중간장·상부장은 푸쉬', () => {
+    // 키큰장·냉장고장 모두 해당한다. 단 이름으로 가르므로 section 을 안 본다.
+    expect(fn).toMatch(/'중간장'[\s\S]{0,40}'상부장'[\s\S]{0,40}'push'/);
   });
 
-  test('키큰장 상부장은 푸쉬 — 도어 내림보다 먼저 걸러야 한다', () => {
-    // 순서가 뒤바뀌면 `part === '상부장'` 이 먼저 잡아 door-drop 이 돼 버린다.
-    const tall = fn.indexOf("m.section === 'tall'");
+  test('푸쉬를 도어 내림보다 먼저 거른다', () => {
+    // 순서가 뒤바뀌면 스택 상부장이 door-drop 으로 잡힌다.
+    const push = fn.indexOf("'push'");
     const drop = fn.indexOf("'door-drop'");
-    expect(tall).toBeGreaterThan(-1);
-    expect(tall).toBeLessThan(drop);
+    expect(push).toBeGreaterThan(-1);
+    expect(push).toBeLessThan(drop);
   });
 
-  test('싱크 상부장과 냉장고장 상부장은 도어 내림', () => {
-    expect(fn).toMatch(/'상부장'/);
+  test('도어 내림은 독립 싱크 상부장에만', () => {
     expect(fn).toMatch(/section\s*===\s*'upper'/);
     expect(fn).toContain("'door-drop'");
+    // 스택 단은 위에서 이미 걸러졌으므로 '상부장' 이 door-drop 줄에 없어야 한다
+    const dropLine = (fn.match(/^.*'door-drop'.*$/m) || [''])[0];
+    expect(dropLine).not.toContain('상부장');
   });
 
   test('그 밖은 목찬넬 — 마지막 return 이 기본형이다', () => {
