@@ -327,3 +327,70 @@ describe('푸쉬는 제조에서 고를 수 있다 (W12-7)', () => {
     expect(active).toContain('제조(플래너)에서는 푸쉬를');
   });
 });
+
+describe('하부장 목찬넬 도어 — 장H − 30 (W12-8)', () => {
+  // 정본 셋이 30 으로 일치하는데 플래너만 갭 4 로 그리고 있었다.
+  // 도어가 목찬넬을 덮어 손 넣을 틈이 2mm 밖에 없었다 (실측).
+  const fn = SRC.slice(SRC.indexOf('function doorTopGapOf'), SRC.indexOf('/** 팔레트에 띄우는 손잡이 설명'));
+
+  test('마커가 살아 있다', () => {
+    expect(SRC.indexOf('function doorTopGapOf')).toBeGreaterThan(-1);
+    expect(fn.length).toBeGreaterThan(80);
+  });
+
+  test('정본 상수를 쓴다 — 숫자를 박지 않는다', () => {
+    expect(fn).toContain('MASTER_RULES.SINK_LOWER_DOOR_H_MINUS');
+    const code = fn.replace(/\/\/[^\r\n]*/g, '');
+    expect(code.match(/\b30\b/g) || []).toEqual([]);
+  });
+
+  test('상수가 정본 셋과 같은 30 이다', () => {
+    const m = ENGINE.match(/SINK_LOWER_DOOR_H_MINUS:\s*(\d+)/);
+    expect(Number(m[1])).toBe(30);
+    expect(read('docs/design-rules/sink.md')).toContain('(H-30)');
+  });
+
+  test('목찬넬일 때만 벌린다', () => {
+    // 푸쉬·알루미늄 하부장까지 30 을 벌리면 없는 틈이 생긴다.
+    expect(fn).toContain('isWoodChannel(m, s)');
+  });
+
+  test('두 렌더 경로 모두 doorTopGap 을 넘긴다', () => {
+    const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
+    expect(calls.length).toBe(2);
+    calls.forEach((c) => expect(c).toContain('doorTopGap: doorTopGapOf(m, s)'));
+  });
+
+  test('밑단은 몸통 바닥(다리발 위)에 맞춘다', () => {
+    const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
+    expect(ap).toMatch(/const bodyBottom = cy - h \/ 2 - G \/ 2;/);
+    expect(ap).toMatch(/const newTop = bodyTop - topGap;/);
+  });
+
+  test('몸통보다 큰 틈은 무시한다 — 도어가 뒤집히면 안 된다', () => {
+    const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
+    expect(ap).toMatch(/if \(newTop > bodyBottom\)/);
+  });
+
+  test('산술 — 도어 세로 = 장H − 30, 상단 틈 30 · 하단 틈 0', () => {
+    const GAP = 4, MINUS = 30;
+    const legH = 150, bodyH = 700;
+    const cy0 = legH + bodyH / 2, h0 = bodyH - GAP;      // 지금까지 그리던 도어
+    const bodyBottom = cy0 - h0 / 2 - GAP / 2;
+    const bodyTop = cy0 + h0 / 2 + GAP / 2;
+    const newTop = bodyTop - MINUS;
+    const h1 = newTop - bodyBottom;
+    const cy1 = (newTop + bodyBottom) / 2;
+    expect(bodyBottom).toBe(legH);
+    expect(bodyTop).toBe(legH + bodyH);
+    expect(h1).toBe(bodyH - MINUS);                       // 장H − 30
+    expect(cy1 - h1 / 2).toBe(legH);                      // 다리발 위
+    expect(bodyTop - (cy1 + h1 / 2)).toBe(MINUS);         // 상단 틈 30
+  });
+
+  test('30 틈이 목찬넬 전면판을 드러낸다', () => {
+    // 전면판은 몸통 상단에서 52 아래까지다. 30 틈이면 위 30 이 보인다.
+    const FACE_H = 52, MINUS = 30;
+    expect(MINUS).toBeLessThan(FACE_H);
+  });
+});
