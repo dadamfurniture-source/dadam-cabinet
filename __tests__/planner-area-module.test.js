@@ -538,3 +538,85 @@ describe('클릭해도 화면이 초기화되지 않는다', () => {
     expect(at.slice(0, 600)).not.toMatch(/fitCameraToAreas\(\)/);
   });
 });
+
+describe('영역 자동계산', () => {
+  // 규칙은 새로 만들지 않는다 — distributeModules 가 이미 도어 폭 350~600,
+  // 목표 450, 잔여 ≤10 을 지키며 양문 페어링까지 한다 (autocalc-rules.md §2).
+  const engine = require('../js/planner/planner-engine');
+
+  function areaOf(p, w) {
+    return p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === w);
+  }
+
+  test('영역 도구에 자동계산 버튼이 있다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    p.g('setActiveArea')(p.g('areas')[0].id);
+    expect(p.document.querySelector('.area-tools .at-auto')).not.toBeNull();
+  });
+
+  test('영역 폭을 자동계산 규칙대로 나눈다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaOf(p, 1200);
+    expect(area).toBeDefined();
+    const n = p.g('autoCalcArea')(area.id);
+
+    const want = engine.distributeModules(area.W);
+    expect(n).toBe(want.modules.length);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    expect(made.map((m) => m.W)).toEqual(want.modules.map((d) => d.w));
+  });
+
+  test('영역을 빈틈없이 채운다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaOf(p, 1200);
+    p.g('autoCalcArea')(area.id);
+    const sum = p.g('modules').filter((m) => m.areaId === area.id)
+      .reduce((s, m) => s + m.W, 0);
+    expect(sum).toBe(area.W);
+  });
+
+  test('양문 모듈은 방향 대신 both 를 갖는다', () => {
+    // #471 규칙 — 양문은 방향 개념이 없다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaOf(p, 1200);
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    const want = engine.distributeModules(area.W);
+    made.forEach((m, i) => {
+      const s = p.g('getStructure')(m.id);
+      expect(s.areaIs2D).toEqual([!!want.modules[i].is2D]);
+      expect(s.areaDirections).toEqual([want.modules[i].is2D ? 'both' : 'left']);
+    });
+  });
+
+  test('고정 모듈은 건드리지 않는다', () => {
+    // autoCalcForSet 이 isFixed 를 보존하는 것과 같은 규칙.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaOf(p, 1400);
+    const keep = p.g('addModuleToArea')(area.id);
+    keep.isFixed = true;
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    expect(made.some((m) => m.id === keep.id)).toBe(true);
+    // 고정 폭을 뺀 나머지만 다시 배치한다
+    const rest = made.filter((m) => m.id !== keep.id).reduce((s, m) => s + m.W, 0);
+    expect(rest).toBe(area.W - keep.W);
+  });
+
+  test('다시 돌려도 모듈이 쌓이지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaOf(p, 1200);
+    const n1 = p.g('autoCalcArea')(area.id);
+    const n2 = p.g('autoCalcArea')(area.id);
+    expect(n2).toBe(n1);
+    expect(p.g('modules').filter((m) => m.areaId === area.id)).toHaveLength(n1);
+  });
+
+  test('자리가 없으면 만들지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaOf(p, 1200);
+    p.g('autoCalcArea')(area.id);
+    p.g('modules').forEach((m) => { if (m.areaId === area.id) m.isFixed = true; });
+    expect(p.g('autoCalcArea')(area.id)).toBe(0);
+  });
+});
