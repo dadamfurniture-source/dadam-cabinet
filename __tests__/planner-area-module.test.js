@@ -534,7 +534,7 @@ describe('클릭해도 화면이 초기화되지 않는다', () => {
 
   test('모듈을 추가해도 화면을 다시 맞추지 않는다', () => {
     // 모듈은 지금 보고 있는 영역 안에 들어가므로 맞출 이유가 없다.
-    const at = src.slice(src.indexOf(".at-add').onclick"));
+    const at = src.slice(src.indexOf("on('.at-add'"));
     expect(at.slice(0, 600)).not.toMatch(/fitCameraToAreas\(\)/);
   });
 });
@@ -810,5 +810,108 @@ describe('스택은 서로 붙어 있다', () => {
     const molding = p.g('heightPartOf')({ section:'fridge', H:2300 }, {}, 'moldingH');
     const top = m.baseY + p.g('baseOffsetOf')(m, s) + p.g('bodyHeightOf')(m, s);
     expect(top).toBe(m.baseY + m.H - molding);
+  });
+});
+
+describe('마감재 (EP · 몰딩 · 휠라)', () => {
+  function withArea(w = 1200) {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === w);
+    p.g('setActiveArea')(area.id);
+    return { p, area };
+  }
+
+  test('배치에 놓은 마감재도 영역으로 보인다', () => {
+    // 예전엔 loadAreas 가 걸러 내서 구조 단계에서 아예 사라졌다 — 클릭도 못 했다.
+    const fixture = JSON.parse(JSON.stringify(FIXTURES.straight));
+    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 18, moduleH: 870, rotation: 0, finishings: [] });
+    const seed = seedFor(fixture, { modules: false });
+    const p = boot(seed);
+    const ep = p.g('areas').find((a) => a.section === 'ep');
+    expect(ep).toBeDefined();
+    expect(ep.isFinishing).toBe(true);
+  });
+
+  test('마감재 영역에는 모듈 버튼이 없다', () => {
+    const fixture = JSON.parse(JSON.stringify(FIXTURES.straight));
+    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 18, moduleH: 870, rotation: 0, finishings: [] });
+    const p = boot(seedFor(fixture, { modules: false }));
+    p.g('setActiveArea')(p.g('areas').find((a) => a.section === 'ep').id);
+    const tools = p.document.querySelector('.area-tools');
+    expect(tools.querySelector('.at-add')).toBeNull();
+    expect(tools.querySelector('.at-auto')).toBeNull();
+    expect(tools.querySelector('.at-note')).not.toBeNull();
+  });
+
+  test('폭은 adjacent 정의를 따른다', () => {
+    // EP 는 depthAndHeight — w 가 깊이라 런에서 차지하는 건 두께 h(18).
+    // 몰딩·휠라는 heightOnly — w(60) 가 곧 폭.
+    const { p } = withArea();
+    expect(p.g('finishingWidthOf')('ep')).toBe(p.g('SECTION_CONFIG').ep.h);
+    expect(p.g('finishingWidthOf')('molding')).toBe(p.g('SECTION_CONFIG').molding.w);
+    expect(p.g('finishingWidthOf')('filler')).toBe(p.g('SECTION_CONFIG').filler.w);
+  });
+
+  test('영역에 마감재를 넣는다', () => {
+    const { p, area } = withArea();
+    const m = p.g('addFinishingToArea')(area.id, 'molding');
+    expect(m).not.toBeNull();
+    expect(m.section).toBe('molding');
+    expect(m.W).toBe(p.g('finishingWidthOf')('molding'));
+    expect(m.H).toBe(area.H);
+    expect(m.areaId).toBe(area.id);
+  });
+
+  test('영역 밖으로 튀어나가지 않는다', () => {
+    const { p, area } = withArea();
+    // 영역을 모듈로 가득 채운다
+    p.g('autoCalcArea')(area.id);
+    const used = p.g('usedWidthOf')(area.id);
+    expect(used).toBe(area.W);
+    // 남은 폭 0 — 마감재가 들어갈 자리가 없다
+    expect(p.g('addFinishingToArea')(area.id, 'molding')).toBeNull();
+    expect(p.g('usedWidthOf')(area.id)).toBe(area.W);   // 넘치지 않았다
+  });
+
+  test('남은 폭보다 두꺼우면 만들지 않는다 — 깎아 넣지도 않는다', () => {
+    const { p, area } = withArea();
+    // 몰딩 60 만 남기고 채운다
+    const room = area.W - 60;
+    p.g('addModuleToArea')(area.id, { W: room, x: area.x });
+    expect(p.g('addFinishingToArea')(area.id, 'molding')).not.toBeNull();   // 딱 맞음
+    expect(p.g('addFinishingToArea')(area.id, 'ep')).toBeNull();            // 더는 없음
+  });
+
+  test('마감재끼리 이어 붙어도 영역을 넘지 않는다', () => {
+    const { p, area } = withArea();
+    let n = 0;
+    while (p.g('addFinishingToArea')(area.id, 'ep')) n++;
+    expect(n).toBeGreaterThan(0);
+    expect(p.g('usedWidthOf')(area.id)).toBeLessThanOrEqual(area.W);
+  });
+
+  test('마감재 영역에는 마감재를 넣을 수 없다', () => {
+    const fixture = JSON.parse(JSON.stringify(FIXTURES.straight));
+    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 18, moduleH: 870, rotation: 0, finishings: [] });
+    const p = boot(seedFor(fixture, { modules: false }));
+    const ep = p.g('areas').find((a) => a.section === 'ep');
+    expect(p.g('addFinishingToArea')(ep.id, 'molding')).toBeNull();
+  });
+
+  test('브리지에는 모듈이 아니라 부속으로 실린다', () => {
+    // 마감재는 모듈이 아니라 모듈에 붙는 것이다 — 계약을 그대로 지킨다.
+    const { p, area } = withArea();
+    const mod = p.g('addModuleToArea')(area.id);
+    p.g('addFinishingToArea')(area.id, 'molding');
+    const payload = p.g('buildPlannerPayload')('PLANNER_STATE');
+    expect(payload.modules.some((m) => m.section === 'molding')).toBe(false);
+    const host = payload.modules.find((m) => m.id === mod.id);
+    expect(host.finishings.some((f) => f.section === 'molding')).toBe(true);
+  });
+
+  test('자동계산 섹션 목록에는 마감재가 없다', () => {
+    const { p, area } = withArea();
+    const opts = p.g('sectionsFor')(area);
+    ['ep', 'molding', 'filler'].forEach((k) => expect(opts).not.toContain(k));
   });
 });
