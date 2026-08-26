@@ -51,17 +51,23 @@ describe('목찬넬 치수 상수 — 정본과 맞는가', () => {
   });
 });
 
-describe('목찬넬 판별 — 하부장 + wood-channel 일 때만', () => {
-  const fn = SRC.slice(SRC.indexOf('function isWoodChannel'), SRC.indexOf('/** 실효 상몰딩 H */'));
+describe('목찬넬 판별 — 하부장 단에서만', () => {
+  const fn = SRC.slice(SRC.indexOf('function isWoodChannel'), SRC.indexOf('function doorDropOf'));
 
   test('마커가 살아 있다', () => {
     expect(SRC.indexOf('function isWoodChannel')).toBeGreaterThan(-1);
     expect(fn.length).toBeGreaterThan(50);
   });
 
-  test('하부장 조건이 붙어 있다', () => {
+  test('독립 하부장과 스택의 하부장 단이 대상이다', () => {
     expect(fn).toMatch(/section\s*===\s*'lower'/);
-    expect(fn).toMatch(/handleType\s*===\s*'wood-channel'/);
+    expect(fn).toMatch(/part\s*===\s*'하부장'/);
+  });
+
+  test('저장값이 아니라 해석된 손잡이를 본다', () => {
+    // s.handleType 을 직접 보면 'auto'·'channel'(예전 기본값)이 목찬넬로 안 읽힌다.
+    expect(fn).toContain('handleTypeOf(m, s)');
+    expect(fn).not.toMatch(/s\.handleType\s*===/);
   });
 });
 
@@ -200,25 +206,104 @@ describe('두 렌더 경로에 모두 배선됐다', () => {
   });
 });
 
-describe('손잡이 선택지', () => {
-  test('팔레트와 우측 패널 둘 다 목찬넬을 내놓는다', () => {
-    expect(SRC).toContain("['wood-channel', '목찬넬']");
-    expect(SRC).toContain('value="wood-channel"');
+describe('손잡이 선택지 (W12-6)', () => {
+  test('다섯 가지를 팔레트와 우측 패널 둘 다 내놓는다', () => {
+    ['wood-channel', 'door-drop', 'push', 'alu-channel', 'c-channel'].forEach((v) => {
+      expect(SRC.split(`'${v}'`).length - 1).toBeGreaterThanOrEqual(2);
+    });
+    expect(SRC).toContain("['alu-channel', '알루미늄 찬넬']");
+    expect(SRC).toContain("'알루미늄 찬넬'");
   });
 
-  test('기존 찬넬(알루미늄 매립)은 그대로 둔다', () => {
-    // handleType==='channel' 은 W9-117 이 만든 12mm 알루미늄 채널이다.
-    // 목찬넬을 새 항목으로 넣었으므로 기존 설계가 바뀌면 안 된다.
+  test('둘 다 저장값이 아니라 해석된 값을 보여준다', () => {
+    expect(SRC).toContain('_sel(handleTypeOf(m, s)');
+    expect(SRC).toContain('const hType = handleTypeOf(m, s)');
+  });
+
+  test('알루미늄 막대는 직접 고를 때만 붙는다', () => {
+    // 예전엔 기본값이 'channel' 이라 전 섹션에 회색 막대가 붙어 있었다.
     const fn = SRC.slice(SRC.indexOf('function addHandle'));
-    expect(fn.slice(0, 300)).toMatch(/handleType\s*!==\s*'channel'/);
+    expect(fn.slice(0, 400)).toMatch(/handleTypeOf\(m, s\)\s*!==\s*'alu-channel'/);
   });
 });
 
-describe('기본값을 바꾸지 않았다', () => {
-  test('새 구조의 손잡이는 여전히 channel', () => {
+describe('단별 기본 손잡이 (W12-6)', () => {
+  const fn = SRC.slice(SRC.indexOf('function defaultHandleType'), SRC.indexOf('function handleTypeOf'));
+
+  test('마커가 살아 있다', () => {
+    expect(SRC.indexOf('function defaultHandleType')).toBeGreaterThan(-1);
+    expect(fn.length).toBeGreaterThan(80);
+  });
+
+  test('중간장은 푸쉬', () => {
+    expect(fn).toMatch(/'중간장'[\s\S]{0,40}'push'/);
+  });
+
+  test('상부장은 도어 내림 — 섹션과 스택 단 둘 다', () => {
+    expect(fn).toMatch(/'상부장'/);
+    expect(fn).toMatch(/section\s*===\s*'upper'/);
+    expect(fn).toContain("'door-drop'");
+  });
+
+  test('그 밖은 목찬넬 — 마지막 return 이 기본형이다', () => {
+    const returns = fn.match(/return '[a-z-]+';/g) || [];
+    expect(returns[returns.length - 1]).toBe("return 'wood-channel';");
+  });
+});
+
+describe('예전 기본값 channel 은 고른 것이 아니다', () => {
+  const fn = SRC.slice(SRC.indexOf('function handleTypeOf'), SRC.indexOf('function isWoodChannel'));
+
+  test("'auto' 와 'channel' 을 모두 기본형으로 읽는다", () => {
+    expect(fn).toMatch(/'auto'/);
+    expect(fn).toMatch(/'channel'/);
+    expect(fn).toContain('defaultHandleType(m)');
+  });
+
+  test('새 구조는 auto 로 시작한다', () => {
     const p = bootPlanner('mockup-structure.html', { search: '?design=wc&item=1', storage: {} });
     expect(p.errors).toEqual([]);
-    expect(SRC).toMatch(/handleType:\s*'channel'/);
-    expect(SRC).not.toMatch(/handleType:\s*'wood-channel'/);
+    expect(SRC).toMatch(/handleType:\s*'auto'/);
+    expect(SRC).not.toMatch(/handleType:\s*'channel'/);
+  });
+});
+
+describe('도어 내림 (W12-6)', () => {
+  const fn = SRC.slice(SRC.indexOf('function doorDropOf'), SRC.indexOf('/** 팔레트에 띄우는 손잡이 설명'));
+
+  test('내림 폭은 상부장 도어 +20 을 쓴다 — 새 숫자를 만들지 않는다', () => {
+    expect(fn).toContain('MASTER_RULES.SINK_UPPER_DOOR_H_PLUS');
+    const code = fn.replace(/\/\/[^\r\n]*/g, '');
+    expect(code.match(/\b20\b/g) || []).toEqual([]);
+  });
+
+  test('도어에만 적용한다 — 서랍·오픈·먹장은 아니다', () => {
+    const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
+    expect(ap).toMatch(/type === 'door' && meta && meta\.doorDrop/);
+  });
+
+  test('갭을 되돌린 뒤 더한다 — 장H + drop 이 되게', () => {
+    const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
+    expect(ap).toMatch(/const top = cy \+ h \/ 2 \+ G \/ 2;/);
+    expect(ap).toMatch(/h = h \+ G \+ drop;/);
+    expect(ap).toMatch(/cy = top - h \/ 2;/);
+  });
+
+  test('두 렌더 경로 모두 doorDrop 을 넘긴다', () => {
+    const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
+    expect(calls.length).toBe(2);
+    calls.forEach((c) => expect(c).toContain('doorDrop: doorDropOf(m, s)'));
+  });
+
+  test('산술 — 도어 세로 = 장H + 20, 밑단이 몸통보다 정확히 20 내려온다', () => {
+    const DROP = 20, G = 4;
+    const bodyH = 700, bodyBottom = 1000;            // 몸통: 1000 ~ 1700
+    const h0 = bodyH - G, cy0 = bodyBottom + bodyH / 2;   // 갭 뺀 기본 도어
+    const top = cy0 + h0 / 2 + G / 2;
+    const h1 = h0 + G + DROP;
+    const cy1 = top - h1 / 2;
+    expect(h1).toBe(bodyH + DROP);                   // 도어 세로 = 장H + 20
+    expect(cy1 + h1 / 2).toBe(bodyBottom + bodyH);   // 윗변 = 몸통 상단
+    expect(bodyBottom - (cy1 - h1 / 2)).toBe(DROP);  // 밑단이 20 내려옴
   });
 });
