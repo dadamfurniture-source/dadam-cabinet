@@ -453,11 +453,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.0"></script>
-<script src="js/planner/planner-view.js?v=37.0"></script>
-<script src="js/planner/planner-sections.js?v=37.0"></script>
+<script src="js/planner/planner-scope.js?v=37.1"></script>
+<script src="js/planner/planner-view.js?v=37.1"></script>
+<script src="js/planner/planner-sections.js?v=37.1"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=37.0"></script>
+<script src="js/planner/planner-engine.js?v=37.1"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -562,7 +562,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         { id: 'area-lower-0',  section: 'lower',  W: 2400, H: 860,  D: 650, x: 0,    y: 0,    rotation: 0  },
         { id: 'area-upper-0',  section: 'upper',  W: 2400, H: 800,  D: 320, x: 0,    y: 1000, rotation: 0  },
         { id: 'area-tall-0',   section: 'tall',   W: 600,  H: 2300, D: 650, x: 2500, y: 0,    rotation: 0  },
-        { id: 'area-fridge-0', section: 'fridge', W: 720,  H: 1850, D: 700, x: 3200, y: 0,    rotation: 90 },
+        { id: 'area-fridge-0', section: 'fridge', W: 720,  H: 2300, D: 700, x: 3200, y: 0,    rotation: 90 },
       ];
     }
   }
