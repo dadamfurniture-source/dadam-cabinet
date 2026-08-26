@@ -144,3 +144,13 @@ design-system/dist/
 !/docs/04-report/**
 !/docs/archive/
 !/docs/archive/**
+
+# 제조 설계 규칙 정본. BOM·플래너가 모두 이 문서를 근거로 삼는다.
+#   기존 .md 는 이미 추적 중이라 무시 규칙의 영향을 받지 않지만, **새 규칙 문서를
+#   추가하면** `git add` 가 조용히 거부된다. 규칙이 저장소 밖에서만 존재하는
+#   상태를 막으려고 미리 열어 둔다 (docs/01-plan 과 같은 이유).
+!/docs/design-rules/
+!/docs/design-rules/*.md
+#   sink-hitl/ 은 사람 교정에서 쌓이는 학습 데이터다 (case-*/pair-* JSON 수백 개).
+#   규칙이 아니라 실행 결과라 계속 늘어난다 — 규칙 문서만 추적한다.
+/docs/design-rules/sink-hitl/

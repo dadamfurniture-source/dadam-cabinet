@@ -24,7 +24,9 @@
 // W9-90: 마스터 규칙 (Supabase design_rules source=master-onedrive-2026-05 와 동기)
 const MASTER_RULES = {
   DOOR_GAP: 4,                  // 도어 가로 갭 (장W - 4)
-  SINK_UPPER_DOOR_H_PLUS:  20,  // 싱크 상부장 도어 H = 장H + 20
+  // W12-7: 상부장 도어는 장H 보다 15 길고, 그 15 가 몸통 **아래로** 내려와
+  // 도어 내림 손잡이가 된다 (design_rules 싱크상부장도어H, 2026-08-27 20→15).
+  SINK_UPPER_DOOR_H_PLUS:  15,  // 싱크 상부장 도어 H = 장H + 15
   SINK_LOWER_DOOR_H_MINUS: 30,  // 싱크 하부장 도어 H = 장H - 30 (다리발 위)
   SINK_LEG: 150,                // 싱크 하부장 다리발 H (또는 120)
   // W9-113: 다리발 mesh 표준 (OBJ undermodule_sink_base.obj 측정)
