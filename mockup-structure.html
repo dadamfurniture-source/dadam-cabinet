@@ -2037,6 +2037,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const v = parseFloat(s && s.legH);
     return Number.isFinite(v) && v >= 0 ? v : MASTER_RULES.SINK_LEG;
   }
+  /**
+   * W12-5: 목찬넬 손잡이인가.
+   * 하부장만이다 — 상부장 목찬넬은 도어 H 가 `H+20`(상몰딩 안쪽까지)이라 매립 방식이
+   * 다르고, 그 규칙은 아직 정본에 없다. 정해지면 여기에 section 을 늘린다.
+   * BOM 쪽(extractors.js)은 `specs.handle.includes('목찬넬')` 로 판별하므로
+   * 브릿지가 보내는 문자열도 '목찬넬' 을 담아야 한다.
+   */
+  function isWoodChannel(m, s) {
+    return !!m && m.section === 'lower' && !!s && s.handleType === 'wood-channel';
+  }
   /** 실효 상몰딩 H */
   function moldingHOf(m, s) {
     const v = parseFloat(s && s.moldingH);
@@ -2303,9 +2313,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       <div class="row">
         <label>타입</label>
         <select id="selHType">
-          <option value="channel"   ${s.handleType==='channel'?'selected':''}>찬넬 (매립형)</option>
-          <option value="c-channel" ${s.handleType==='c-channel'?'selected':''}>C찬넬</option>
-          <option value="push"      ${s.handleType==='push'?'selected':''}>푸쉬 (Push-to-open)</option>
+          <option value="channel"      ${s.handleType==='channel'?'selected':''}>찬넬 (매립형)</option>
+          <option value="wood-channel" ${s.handleType==='wood-channel'?'selected':''}>목찬넬</option>
+          <option value="c-channel"    ${s.handleType==='c-channel'?'selected':''}>C찬넬</option>
+          <option value="push"         ${s.handleType==='push'?'selected':''}>푸쉬 (Push-to-open)</option>
         </select>
       </div>
       <div class="row">
@@ -2329,6 +2340,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *  그래야 H850 = 다리발 150 + 몸통 700 이 그대로 성립한다.
    *  선반은 지어내지 않고 calcDefaultShelves 가 내는 값을 쓴다(이 크기에선 1개). */
   const NEW_MODULE = { W: 600, H: 850, D: 550, legH: 150, topT: 0 };
+
+  // W12-5: 목찬넬 부재 색 — 몸통은 PB, 목찬넬은 18T MDF 로 BOM 상 EP(마감재)다.
+  // 3D 에서 몸통과 구분되도록 마감재와 같은 진한 우드 톤을 쓴다.
+  const CHANNEL_COLOR = '#7a6a45';
 
   function areaById(id) { return areas.find((a) => a.id === id); }
 
@@ -2952,11 +2967,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     { key: 'handle', label: '손잡이', icon: SVG('<rect x="3" y="3" width="14" height="14"/><rect x="6" y="8" width="8" height="2" fill="currentColor"/>'),
       body: (m, s) => `
         <div class="mp-row"><label>타입</label>
-          <select class="mp-htype">${_sel(s.handleType || 'channel', [['channel', '찬넬 (매립형)'], ['c-channel', 'C찬넬'], ['push', '푸쉬']])}</select>
+          <select class="mp-htype">${_sel(s.handleType || 'channel', [['channel', '찬넬 (매립형)'], ['wood-channel', '목찬넬'], ['c-channel', 'C찬넬'], ['push', '푸쉬']])}</select>
         </div>
         <div class="mp-row"><label>위치</label>
           <select class="mp-hpos">${_sel(s.handlePosition || 'top', [['top', '상'], ['middle', '중'], ['bottom', '하']])}</select>
-        </div>` },
+        </div>
+        ${isWoodChannel(m, s) ? `<div class="mp-note">측판·칸막이 상단 전면을 ${MASTER_RULES.CHANNEL_NOTCH_H}×${MASTER_RULES.CHANNEL_NOTCH_D} 따내고
+          지면판 ${MASTER_RULES.CHANNEL_BACK_W}×${MASTER_RULES.CHANNEL_BOARD_T}T 위에 전면판 ${MASTER_RULES.CHANNEL_FRONT_W}×${MASTER_RULES.CHANNEL_BOARD_T}T 를 얹습니다.</div>` : ''}` },
 
     { key: 'fixed', label: '고정', icon: SVG('<rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/>'),
       body: (m, s) => `
@@ -3727,6 +3744,35 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 측판이 두 장 맞붙어 두께도 두 배였다. 도어를 나누는 것과 몸통을 나누는 것은
    * 다른 일이다 — 여기서는 몸통만 만들고, 도어 분할은 셀이 맡는다.
    */
+  /**
+   * W12-5: 상단 전면 모서리를 도려낸 ㄱ자 단면 판재 (목찬넬 따내기).
+   *
+   * BoxGeometry 두 장을 붙이면 맞댄 자리에 없는 이음선이 그려진다. 그래서 단면을
+   * Shape 로 그려 두께만큼 눌러 **한 장**으로 만든다. 단면은 XY 평면(x=깊이,
+   * y=높이)에 그리고 rotateY(-90°) 로 두께 축을 X 로 돌린다 — 이때 깊이가 그대로
+   * +Z(정면)로 간다. rotateY(+90°) 를 쓰면 깊이가 뒤집혀 따낸 자리가 뒤로 간다.
+   */
+  function makeNotchedPanel(T, h, d, notchH, notchD, color) {
+    const shape = new THREE.Shape();
+    const x0 = -d / 2, x1 = d / 2, y0 = -h / 2, y1 = h / 2;
+    const nx = x1 - notchD;      // 따낸 자리의 안쪽(뒤) 경계
+    const ny = y1 - notchH;      // 따낸 자리의 바닥
+    shape.moveTo(x0, y0);
+    shape.lineTo(x1, y0);
+    shape.lineTo(x1, ny);
+    shape.lineTo(nx, ny);
+    shape.lineTo(nx, y1);
+    shape.lineTo(x0, y1);
+    shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false });
+    geo.translate(0, 0, -T / 2);
+    geo.rotateY(-Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color), metalness: 0.05, roughness: 0.65,
+    });
+    return new THREE.Mesh(geo, mat);
+  }
+
   function addCarcassShell(parent, o) {
     const cyMid = o.legH + o.carcassH / 2;
     const put = (mesh, side) => {
@@ -3734,15 +3780,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       parent.add(mesh);
       addEdgeOutline(mesh, parent);
     };
+    // W12-5: 목찬넬이면 측판·칸막이를 통짜 대신 따낸 판으로 만든다.
+    // 지면판이 설치공간 전폭(effectiveW)에 걸쳐 있으므로 칸막이도 같이 따낸다 —
+    // 안 그러면 판이 칸막이를 뚫고 지나가는 그림이 된다.
+    const notch = !!o.woodChannel;
+    const sidePanel = () => (notch
+      ? makeNotchedPanel(o.T, o.carcassH, o.D,
+          MASTER_RULES.CHANNEL_NOTCH_H, MASTER_RULES.CHANNEL_NOTCH_D, o.color)
+      : makeBox(o.T, o.carcassH, o.D, o.color));
     // 뒤판 — 전폭
     const back = makeBox(o.W, o.carcassH, o.T, o.color);
     back.position.set(0, cyMid, -o.D / 2 + o.T / 2);
     put(back, 'back');
     // 좌·우 측판 — 모듈 바깥 끝에만
-    const left = makeBox(o.T, o.carcassH, o.D, o.color);
+    const left = sidePanel();
     left.position.set(-o.W / 2 + o.T / 2, cyMid, 0);
     put(left, 'left');
-    const right = makeBox(o.T, o.carcassH, o.D, o.color);
+    const right = sidePanel();
     right.position.set(o.W / 2 - o.T / 2, cyMid, 0);
     put(right, 'right');
     // 지판 · 천판 — 측판 사이 전폭
@@ -3750,9 +3804,46 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const bottom = makeBox(inner, o.T, o.D - o.T, o.color);
     bottom.position.set(0, o.legH + o.T / 2, o.T / 2);
     put(bottom, 'bottom');
-    const top = makeBox(inner, o.T, o.D - o.T, o.color);
-    top.position.set(0, o.H - o.moldingH - o.T / 2, o.T / 2);
+    // 천판은 목찬넬 자리를 비켜 뒤로 물러난다 — 안 그러면 전면판과 같은 칸을 차지한다.
+    const topD = o.D - o.T - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0);
+    const top = makeBox(inner, o.T, topD, o.color);
+    top.position.set(0, o.H - o.moldingH - o.T / 2,
+      o.T / 2 - (notch ? MASTER_RULES.CHANNEL_NOTCH_D / 2 : 0));
     put(top, 'top');
+    if (notch) addWoodChannel(parent, o);
+  }
+
+  /**
+   * W12-5: 따낸 자리를 채우는 목찬넬 두 장 (ㄴ자 단면).
+   *
+   *   지면판 40 × 18T 가 따낸 바닥에 깔리고, 그 위에 전면판 52 × 18T 가 선다.
+   *   18 + 52 = 70 = 따내기 높이. 전면판은 따낸 자리의 **안쪽**에 서서 앞쪽
+   *   40 − 18 = 22mm 를 손 넣을 자리로 비운다. 앞에 세우면 도어 위 30mm 틈을
+   *   막아 손잡이 구실을 못 한다 (도어 H = 장H − 30, sink.md).
+   *
+   *   두 장 모두 18T MDF 로 BOM 상 EP(마감재)에 속한다 — 몸통(PB)과 색을 달리해
+   *   3D 에서 구분되게 한다.
+   */
+  function addWoodChannel(parent, o) {
+    const T = MASTER_RULES.CHANNEL_BOARD_T;
+    const baseW = MASTER_RULES.CHANNEL_BACK_W;    // 지면판 폭 40
+    const faceH = MASTER_RULES.CHANNEL_FRONT_W;   // 전면판 높이 52
+    const topY = o.legH + o.carcassH;             // 몸통 상단 = 따낸 자리 윗면
+    const frontZ = o.D / 2;
+    const color = CHANNEL_COLOR;
+    const put = (mesh, side) => {
+      mesh.userData = Object.assign({ side }, o.ud);
+      parent.add(mesh);
+      addEdgeOutline(mesh, parent);
+    };
+    // 지면판 — 따낸 바닥에 깔린다 (앞면까지 40)
+    const base = makeBox(o.W, T, baseW, color);
+    base.position.set(0, topY - MASTER_RULES.CHANNEL_NOTCH_H + T / 2, frontZ - baseW / 2);
+    put(base, 'channelBase');
+    // 전면판 — 지면판 위, 따낸 자리 안쪽에 선다
+    const face = makeBox(o.W, faceH, T, color);
+    face.position.set(0, topY - faceH / 2, frontZ - baseW + T / 2);
+    put(face, 'channelFace');
   }
 
   /** 셀 경계마다 칸막이 한 장. 양 끝은 측판이 맡으므로 안쪽 경계만 세운다. */
@@ -3762,7 +3853,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     o.cellWidths.forEach((w, i) => {
       x += w;
       if (i >= o.cellWidths.length - 1) return;   // 마지막 경계 = 우측판 자리
-      const div = makeBox(o.T, o.carcassH, o.D, o.color);
+      // W12-5: 목찬넬 판이 전폭을 지나므로 칸막이도 측판과 같은 자리를 따낸다.
+      const div = o.woodChannel
+        ? makeNotchedPanel(o.T, o.carcassH, o.D,
+            MASTER_RULES.CHANNEL_NOTCH_H, MASTER_RULES.CHANNEL_NOTCH_D, o.color)
+        : makeBox(o.T, o.carcassH, o.D, o.color);
       div.position.set(x, cyMid, 0);
       div.userData = Object.assign({ side: 'divider', cellIdx: i }, o.ud);
       parent.add(div);
@@ -3835,8 +3930,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       ? s.areaWidths
       : Array(verticalCount).fill(W / verticalCount);
     // 몸통은 하나 — createModuleMesh 와 같은 규칙 (아래 addCarcassShell 주석 참고)
-    addCarcassShell(modG, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd });
-    addCellDividers(modG, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd });
+    const woodChannel = isWoodChannel(m, s);   // W12-5
+    addCarcassShell(modG, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel });
+    addCellDividers(modG, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel });
 
     let cellLeftAccum = -W / 2;
     for (let i = 0; i < verticalCount; i++) {
@@ -4388,8 +4484,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 몸통은 **하나**다. 도어를 몇 장으로 나누든 측판·뒤판·지판·천판은 모듈 전체를
     // 감싼다. 예전엔 셀마다 이 다섯을 만들어(W9-87 "도어 개수 = 독립 캐비넷 개수")
     // 도어를 2장으로 늘리면 수납장이 2개로 보였다. 셀 경계에는 칸막이 한 장만 세운다.
-    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd });
-    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd });
+    const woodChannel = isWoodChannel(m, s);   // W12-5
+    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel });
+    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel });
 
     let cellLeftAccum = -W / 2;
     for (let i = 0; i < vCount; i++) {
