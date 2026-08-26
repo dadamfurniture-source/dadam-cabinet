@@ -2481,6 +2481,74 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return modules.filter((m) => m.areaId === areaId).reduce((sum, m) => sum + (m.W || 0), 0);
   }
 
+  // ── 모듈 마감재 (W12-11) ──────────────────────────────────────
+  // 모듈 좌/우에 EP·몰딩·휠라를 붙인다. **영역 폭은 그대로 두고 모듈이 줄어든다** —
+  // 마감재가 차지한 만큼 모듈에서 빼야 영역을 넘지 않는다. 영역 폭을 늘리면
+  // 옆 모듈이 밀려나고, 안 줄이면 마지막 모듈이 영역 밖으로 나간다.
+  const FINISH_SIDES = ['left', 'right'];
+
+  function moduleById(id) { return modules.find((m) => m.id === id) || null; }
+
+  /** 모듈의 한쪽에 붙어 있는 마감재 모듈 (없으면 null) */
+  function moduleFinishOn(hostId, side) {
+    return modules.find((f) => f.isFinishing && f.hostId === hostId && f.hostSide === side) || null;
+  }
+
+  /** 마감재를 떼고 가져갔던 폭을 모듈에 돌려준다. */
+  function removeModuleFinish(hostId, side) {
+    const f = moduleFinishOn(hostId, side);
+    if (!f) return false;
+    const m = moduleById(hostId);
+    if (m) {
+      m.W += f.W;
+      if (side === 'left') m.x -= f.W;   // 왼쪽 마감재 자리를 모듈이 되찾는다
+    }
+    delete structures[f.id];
+    modules.splice(modules.indexOf(f), 1);
+    return true;
+  }
+
+  /**
+   * 모듈 한쪽의 마감재를 정한다. `section` 이 비면 떼기만 한다.
+   * 같은 쪽에 이미 있으면 먼저 떼고(폭 복원) 새로 붙인다 — 안 그러면 뗄 때마다
+   * 폭이 어긋나 모듈이 조금씩 좁아진다.
+   */
+  function setModuleFinish(hostId, side, section) {
+    const m = moduleById(hostId);
+    if (!m || m.isFinishing) return null;
+    if (FINISH_SIDES.indexOf(side) < 0) return null;
+    removeModuleFinish(hostId, side);
+    if (!section || !isFinishingSection(section)) {
+      saveStructModules(); persistPlannerState();
+      return null;
+    }
+    const W = finishingWidthOf(section);
+    const MIN_W = MASTER_RULES.DOOR_W_MIN;
+    if (m.W - W < MIN_W) {
+      showToast(`⚠ 모듈 ${Math.round(m.W)}mm — ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
+      saveStructModules(); persistPlannerState();
+      return null;
+    }
+    const id = nextModuleId(section);
+    // 왼쪽이면 모듈이 오른쪽으로 물러나고 그 자리를, 오른쪽이면 줄어든 끝을 쓴다.
+    const x = side === 'left' ? m.x : m.x + (m.W - W);
+    m.W -= W;
+    if (side === 'left') m.x += W;
+    const f = {
+      id, areaId: m.areaId, section,
+      W, H: m.H, D: m.D,
+      x, y: m.y, rotation: m.rotation || 0,
+      isFinishing: true, finishings: [],
+      hostId: m.id, hostSide: side,
+    };
+    // 모듈 목록에서 host 바로 앞/뒤에 넣어야 좌→우 순서가 화면과 맞는다.
+    const at = modules.indexOf(m);
+    modules.splice(side === 'left' ? at : at + 1, 0, f);
+    saveStructModules();
+    persistPlannerState();
+    return f;
+  }
+
   function nextModuleId(section) {
     let n = 0;
     while (modules.some((m) => m.id === section + '-' + n)) n++;
@@ -2645,6 +2713,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const m = modules[i];
       if (m.areaId === area.id && !m.isFixed && !isFinishingSection(m.section)) { delete structures[m.id]; modules.splice(i, 1); }
     }
+    orphanHostFinishings(area.id);
     let made = 0;
     stack.forEach((part) => {
       const m = addModuleToArea(area.id, { section: area.section, W: area.W, x: area.x || 0 });
@@ -2664,6 +2733,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     saveStructModules();
     persistPlannerState();
     return made;
+  }
+
+  /**
+   * W12-11: 주인이 사라진 모듈 마감재를 **영역 마감재로 승격**한다.
+   * 자동계산은 마감재를 보존하지만 호스트 모듈은 지운다. 연결만 끊어 두면
+   * `moduleFinishOn` 이 못 찾는 유령이 되고, 지우면 사람이 놓은 것을 없애게 된다.
+   */
+  function orphanHostFinishings(areaId) {
+    modules.forEach((f) => {
+      if (!f.isFinishing || f.areaId !== areaId || !f.hostId) return;
+      if (modules.some((m) => m.id === f.hostId)) return;
+      delete f.hostId;
+      delete f.hostSide;
+    });
   }
 
   function autoCalcArea(areaId) {
@@ -2705,6 +2788,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         modules.splice(i, 1);
       }
     }
+    orphanHostFinishings(areaId);
 
     // 고정 모듈 뒤부터 왼쪽→오른쪽으로 채운다
     let x = (area.x || 0) + kept.reduce((sum, m) => sum + (m.W || 0), 0);
@@ -2729,6 +2813,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const gone = modules[i];
     modules.splice(i, 1);
     delete structures[gone.id];
+    // W12-11: 이 모듈에 붙어 있던 좌·우 마감재도 같이 지운다. 남겨 두면 주인이
+    // 없는 부재가 영역에 떠 있고, 폭을 돌려줄 곳도 사라진다.
+    for (let j = modules.length - 1; j >= 0; j--) {
+      if (modules[j].isFinishing && modules[j].hostId === gone.id) {
+        delete structures[modules[j].id];
+        modules.splice(j, 1);
+      }
+    }
     activeId = modules.length ? modules[0].id : null;
     saveStructModules();
     persistPlannerState();
@@ -3046,6 +3138,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>
         <div class="mp-note">${handleNoteFor(m, s)}</div>` },
 
+    // W12-11: 좌·우 마감재. 고르면 그만큼 모듈 폭이 줄고 그 자리에 부재가 선다.
+    { key: 'finish', label: '마감', when: (m) => !m.isFinishing,
+      icon: SVG('<rect x="3" y="4" width="3" height="12" fill="currentColor"/><rect x="8" y="4" width="4" height="12"/><rect x="14" y="4" width="3" height="12" fill="currentColor"/>'),
+      body: (m) => `
+        ${FINISH_SIDES.map((side) => {
+          const cur = moduleFinishOn(m.id, side);
+          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) =>
+            [k, `${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm`]));
+          return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'}</label>
+            <select class="mp-fin" data-side="${side}">${_sel(cur ? cur.section : '', opts)}</select>
+          </div>`;
+        }).join('')}
+        <div class="mp-note">고른 만큼 모듈 폭이 줄어듭니다 — 현재 W${Math.round(m.W)}. 영역 폭은 그대로입니다.</div>` },
+
     { key: 'fixed', label: '고정', icon: SVG('<rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/>'),
       body: (m, s) => `
         <label class="mp-chk"><input type="checkbox" class="mp-fixed" ${m.isFixed ? 'checked' : ''}> 자동계산 시 이 모듈을 보존</label>` },
@@ -3136,6 +3242,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     on('.mp-htype', (el2) => { s.handleType = el2.value; paletteCommit(key); });
     on('.mp-hpos', (el2) => { s.handlePosition = el2.value; paletteCommit(key); });
     on('.mp-fixed', (el2) => { m.isFixed = el2.checked; saveLayoutFromModules(); paletteCommit(key); });
+
+    // W12-11: 좌·우 마감재. setModuleFinish 가 모듈 폭까지 손보므로
+    // 도면(saveLayoutFromModules)도 같이 갱신해야 배치 단계와 어긋나지 않는다.
+    host.querySelectorAll('.mp-fin').forEach((sl) => {
+      sl.onchange = () => {
+        setModuleFinish(m.id, sl.dataset.side, sl.value);
+        saveLayoutFromModules();
+        paletteCommit(key);
+      };
+    });
 
     host.querySelectorAll('.mp-type').forEach((sl) => {
       sl.onchange = () => { s.areaTypes[+sl.dataset.i] = sl.value; paletteCommit(key); };
