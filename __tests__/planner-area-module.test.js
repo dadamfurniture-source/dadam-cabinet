@@ -472,8 +472,12 @@ describe('도어 갯수를 늘려도 수납장은 하나다', () => {
   });
 
   test('몸통 껍데기가 다섯 면을 모두 만든다', () => {
-    const fn = src.slice(src.indexOf('function addCarcassShell'));
-    const body = fn.slice(0, 1400);
+    // 예전엔 앞에서 1400자만 잘라 봤다. W12-5 로 함수가 길어지자 마지막 판재가
+    // 잘려 나가 실패했다 — 길이가 아니라 **다음 함수까지**를 본문으로 삼는다.
+    const from = src.indexOf('function addCarcassShell');
+    expect(from).toBeGreaterThan(-1);
+    const body = src.slice(from, src.indexOf('function addWoodChannel', from));
+    expect(body.length).toBeGreaterThan(200);
     ['back', 'left', 'right', 'bottom', 'top'].forEach((side) => {
       expect(body).toContain(`'${side}'`);
     });
