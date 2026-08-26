@@ -649,8 +649,10 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     const molding = p.g('heightPartOf')(probe, {}, 'moldingH');
     const pedestal = p.g('heightPartOf')(probe, {}, 'pedestalH');
     const sum = made.reduce((s, m) => s + m.H, 0);
-    expect(sum).toBe(area.H - molding - pedestal);      // 좌대와 상몰딩만 남는다
-    expect(made[2].H).toBe(engine.MASTER_RULES.FRIDGE_UPPER_H_MAX);
+    // 좌대는 맨 아래 단이, 상몰딩은 맨 위 단이 품는다 — 그래야 단이 서로 붙는다.
+    expect(sum).toBe(area.H);
+    expect(pedestal).toBeGreaterThan(0);
+    expect(made[2].H).toBe(engine.MASTER_RULES.FRIDGE_UPPER_H_MAX + molding);
   });
 
   test('키큰장은 아래에서 위로 빈틈없이 쌓인다', () => {
@@ -669,7 +671,8 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     const area = p.g('areas').find((a) => a.section === 'tall');
     p.g('autoCalcArea')(area.id);
     const made = p.g('modules').filter((m) => m.areaId === area.id);
-    const body = made[0].H + made[1].H;
+    const pedestal = p.g('heightPartOf')({ section: 'tall', H: area.H }, {}, 'pedestalH');
+    const body = (made[0].H - pedestal) + made[1].H;   // 하부장은 좌대를 품고 있다
     expect(made[1].H).toBe(Math.floor(body * engine.MASTER_RULES.MIDDLE_BODY_RATIO));
   });
 
@@ -686,8 +689,9 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     // 냉장고 위 + 상단 간격부터 시작한다 — 그 아래는 비워 둔다
     expect(made[0].baseY).toBe(fridgeH + engine.MASTER_RULES.FRIDGE_TOP_GAP);
     const molding = p.g('heightPartOf')({ section:'fridge', H:2300 }, {}, 'moldingH');
+    // 상몰딩은 이 단이 품는다 — 그래야 몰딩 mesh 가 그려진다.
     expect(made[0].H).toBe(Math.min(engine.MASTER_RULES.FRIDGE_UPPER_H_MAX,
-                                    2300 - fridgeH - engine.MASTER_RULES.FRIDGE_TOP_GAP - molding));
+      2300 - fridgeH - engine.MASTER_RULES.FRIDGE_TOP_GAP - molding) + molding);
   });
 
   test('상부장이 상몰딩을 침범하지 않는다', () => {
@@ -695,8 +699,11 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     p.g('areas').push({ id:'area-fridge-y', section:'fridge', W:900, H:2300, D:700, x:0, y:0, rotation:0 });
     p.g('autoCalcArea')('area-fridge-y');
     const m = p.g('modules').find((x) => x.areaId === 'area-fridge-y');
+    const st = p.g('getStructure')(m.id);
     const molding = p.g('heightPartOf')({ section:'fridge', H:2300 }, {}, 'moldingH');
-    expect(m.baseY + m.H).toBeLessThanOrEqual(2300 - molding);
+    // 몸통 상단이 상몰딩 아래여야 한다 (m.H 는 몰딩을 품은 값이다)
+    const top = m.baseY + p.g('baseOffsetOf')(m, st) + p.g('bodyHeightOf')(m, st);
+    expect(top).toBeLessThanOrEqual(2300 - molding);
   });
 
   test('하부장 영역은 여전히 가로로 나눈다', () => {
@@ -725,8 +732,8 @@ describe('기본 냉장고 높이', () => {
     const m = p.g('modules').find((x) => x.areaId === 'area-fridge-h');
     const fH = sections.PLANNER_SECTIONS.refrigerator.moduleH;
     expect(m.baseY).toBe(fH + engine.MASTER_RULES.FRIDGE_TOP_GAP);
-    expect(m.H).toBe(2300 - fH - engine.MASTER_RULES.FRIDGE_TOP_GAP
-                          - engine.MASTER_RULES.CROWN_MOLDING_FRIDGE);   // 365
+    // 상부장 365 + 상몰딩 50 — 몰딩은 이 단이 품는다
+    expect(m.H).toBe(2300 - fH - engine.MASTER_RULES.FRIDGE_TOP_GAP);
   });
 
   test('샘플 냉장고장 영역은 기본 냉장고가 들어갈 높이다', () => {
@@ -736,5 +743,72 @@ describe('기본 냉장고 높이', () => {
     expect(area.H).toBeGreaterThan(sections.PLANNER_SECTIONS.refrigerator.moduleH
       + engine.MASTER_RULES.FRIDGE_TOP_GAP + engine.MASTER_RULES.CROWN_MOLDING_FRIDGE);
     expect(p.g('autoCalcArea')(area.id)).toBe(1);
+  });
+});
+
+describe('스택은 서로 붙어 있다', () => {
+  // 좌대·상몰딩은 **장 전체**의 것이다. 단마다 또 빼면 그만큼 빈 틈이 생겨
+  // 단이 서로 떠 보인다 (실제로 120mm 씩 벌어져 있었다).
+  // 맨 아래 단이 좌대를, 맨 위 단이 상몰딩을 짊어진다.
+  function stackOf(p, section) {
+    const area = p.g('areas').find((a) => a.section === section);
+    p.g('autoCalcArea')(area.id);
+    const made = p.g('modules').filter((m) => m.areaId === area.id);
+    return { area, rows: made.map((m) => {
+      const s = p.g('getStructure')(m.id);
+      const base = m.baseY + p.g('baseOffsetOf')(m, s);
+      return { part: m.part, 하단: base, 상단: base + p.g('bodyHeightOf')(m, s) };
+    }) };
+  }
+
+  test('키큰장 세 단이 빈틈없이 맞닿는다', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const { rows } = stackOf(p, 'tall');
+    expect(rows).toHaveLength(3);
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i].하단).toBe(rows[i - 1].상단);   // 틈도 겹침도 없다
+    }
+  });
+
+  test('맨 아래는 좌대 위에서 시작하고 맨 위는 상몰딩 밑에서 끝난다', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const { area, rows } = stackOf(p, 'tall');
+    const probe = { section: 'tall', H: area.H };
+    const pedestal = p.g('heightPartOf')(probe, {}, 'pedestalH');
+    const molding = p.g('heightPartOf')(probe, {}, 'moldingH');
+    expect(rows[0].하단).toBe(pedestal);
+    expect(rows[rows.length - 1].상단).toBe(area.H - molding);
+  });
+
+  test('좌대와 상몰딩은 한 번씩만 잡힌다', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const parts = p.g('modules').filter((m) => m.areaId === area.id)
+      .map((m) => p.g('heightPartsOf')(m, p.g('getStructure')(m.id)));
+    const ped = parts.filter((ps) => ps.find((x) => x.key === 'pedestalH').value > 0);
+    const mol = parts.filter((ps) => ps.find((x) => x.key === 'moldingH').value > 0);
+    expect(ped).toHaveLength(1);
+    expect(mol).toHaveLength(1);
+  });
+
+  test('모듈 높이 합이 영역 높이와 같다', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const sum = p.g('modules').filter((m) => m.areaId === area.id)
+      .reduce((s, m) => s + m.H, 0);
+    expect(sum).toBe(area.H);      // 좌대·상몰딩까지 단이 품는다
+  });
+
+  test('냉장고장 상부장도 상몰딩 밑에서 끝난다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    p.g('areas').push({ id:'area-fridge-g', section:'fridge', W:900, H:2300, D:700, x:0, y:0, rotation:0 });
+    p.g('autoCalcArea')('area-fridge-g');
+    const m = p.g('modules').find((x) => x.areaId === 'area-fridge-g');
+    const s = p.g('getStructure')(m.id);
+    const molding = p.g('heightPartOf')({ section:'fridge', H:2300 }, {}, 'moldingH');
+    const top = m.baseY + p.g('baseOffsetOf')(m, s) + p.g('bodyHeightOf')(m, s);
+    expect(top).toBe(m.baseY + m.H - molding);
   });
 });

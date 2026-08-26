@@ -453,11 +453,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.1"></script>
-<script src="js/planner/planner-view.js?v=37.1"></script>
-<script src="js/planner/planner-sections.js?v=37.1"></script>
+<script src="js/planner/planner-scope.js?v=37.2"></script>
+<script src="js/planner/planner-view.js?v=37.2"></script>
+<script src="js/planner/planner-sections.js?v=37.2"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=37.1"></script>
+<script src="js/planner/planner-engine.js?v=37.2"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -2468,7 +2468,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       ));
       if (upperH <= 0) return [];
       // 냉장고 자리(바닥~fridgeH)와 상단 간격은 비워 둔다.
-      return [{ part: '상부장', H: upperH, baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP }];
+      // 상몰딩은 맨 위 단이 짊어진다 — 그래야 몰딩 mesh 가 그려진다.
+      return [{ part: '상부장', H: upperH + molding, baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
+                pedestalH: 0, moldingH: molding }];
     }
 
     if (area.section === 'tall') {
@@ -2477,10 +2479,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (body <= 0) return [];
       const middleH = Math.floor(body * MASTER_RULES.MIDDLE_BODY_RATIO);
       const lowerH = body - middleH;
+      // 좌대와 상몰딩은 **장 전체**의 것이다. 단마다 또 빼면 단 사이에
+      // 그만큼 빈 틈이 생겨 서로 떠 보인다 (실제로 120mm 씩 벌어져 있었다).
+      // 맨 아래 단이 좌대를, 맨 위 단이 상몰딩을 짊어지고 나머지는 0 이다.
       return [
-        { part: '하부장', H: lowerH,  baseY: pedestal },
-        { part: '중간장', H: middleH, baseY: pedestal + lowerH },
-        { part: '상부장', H: upperH,  baseY: pedestal + lowerH + middleH },
+        { part: '하부장', H: pedestal + lowerH, baseY: 0,
+          pedestalH: pedestal, moldingH: 0 },
+        { part: '중간장', H: middleH,           baseY: pedestal + lowerH,
+          pedestalH: 0, moldingH: 0 },
+        { part: '상부장', H: upperH + molding,  baseY: pedestal + lowerH + middleH,
+          pedestalH: 0, moldingH: molding },
       ];
     }
     return null;   // 가로 분할로 간다
@@ -2501,6 +2509,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       m.part = part.part;
       const s = getStructure(m.id);
       s.legH = 0;                       // 스택 안에서는 다리발이 아니라 좌대가 받친다
+      // 좌대·상몰딩을 단마다 빼지 않게 명시한다. 안 하면 heightPartsOf 의
+      // 기본값(각 60)이 단마다 적용돼 단 사이가 벌어진다.
+      s.pedestalH = part.pedestalH;
+      s.moldingH = part.moldingH;
       s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
       made++;
     });
