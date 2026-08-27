@@ -2501,6 +2501,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   // W12-5: 목찬넬 부재 색 — 몸통은 PB, 목찬넬은 18T MDF 로 BOM 상 EP(마감재)다.
   // 3D 에서 몸통과 구분되도록 마감재와 같은 진한 우드 톤을 쓴다.
+  // W12-25: 몸통 판 두께. data-constants.js 의 BODY_THICKNESS_DEFAULT 가 정본이고
+  //   현장 기준 15T 90% / 18T 가끔이다. 플래너는 그 파일을 읽지 않아 값을 옮겨 적는다
+  //   — 바뀌면 같이 고쳐야 한다. (design_rules '몸통자재' 15/18 도 같은 값)
+  const BODY_T = 15;
+  // 도어·마감재는 18T MDF 로 몸통과 **무관한 별개 값**이다 (data-constants.js 주석).
+  const DOOR_T = 18;
+
   const CHANNEL_COLOR = '#7a6a45';
 
   // W12-17: 도어 뒤 그림자판을 얼마나 어둡게 할지. 도어 사이 4mm 는 화면에서
@@ -2836,6 +2843,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const base = section === 'lower'
       ? { W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D }
       : { W: cfg.w || NEW_MODULE.W, H: cfg.moduleH || NEW_MODULE.H, D: cfg.h || NEW_MODULE.D };
+    // W12-25: 배치 공간 깊이 = **몸통 + 도어**. 몸통을 영역 깊이 그대로 잡으면
+    //   도어가 영역 밖으로 나가거나(W12-24 전) 몸통 속으로 파고든다(W12-24 후).
+    //   도어 두께만큼 얕게 잡아야 둘 다 안 생긴다.
+    const roomD = (area.D || 0) - DOOR_T;
+    if (roomD > 0) base.D = Math.min(base.D, roomD);
 
     const used = usedWidthOf(areaId);
     const room = area.W - used;
@@ -4295,7 +4307,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-6: 알루미늄 찬넬을 **직접 고른** 모듈에만 붙는다. 예전엔 기본값이
     // 'channel' 이라 전 섹션에 회색 막대가 붙어 있었다.
     if (handleTypeOf(m, s) !== 'alu-channel') return;
-    const W = m.W, D = m.D, T = 18;
+    const W = m.W, D = m.D, T = BODY_T;
     const CW = MASTER_RULES.CHANNEL_FRONT_W;       // 52
     const CDEPTH = MASTER_RULES.CHANNEL_DEPTH;     // 12
     // 본체 Y 범위 (다리발 + 상몰딩 빼고)
@@ -4382,8 +4394,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       ? makeNotchedPanel(o.T, o.carcassH, o.D,
           MASTER_RULES.CHANNEL_NOTCH_H, MASTER_RULES.CHANNEL_NOTCH_D, o.color)
       : makeBox(o.T, o.carcassH, o.D, o.color));
-    // 뒤판 — 전폭
-    const back = makeBox(o.W, o.carcassH, o.T, o.color);
+    // W12-25: 뒤판은 **측판 사이**에 들어간다. 전폭으로 두면 측판과 두께만큼
+    //   겹친다 (실측 18×700×18 두 곳). 부재는 서로 겹칠 수 없다.
+    const back = makeBox(o.W - 2 * o.T, o.carcassH, o.T, o.color);
     back.position.set(0, cyMid, -o.D / 2 + o.T / 2);
     put(back, 'back');
     // 좌·우 측판 — 모듈 바깥 끝에만
@@ -4535,7 +4548,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return;
     }
     const W = m.W, H = m.H, D = m.D;
-    const T = 18;   // 판 두께
+    const T = BODY_T;   // 몸통 판 두께 (15T 기본)
 
     // 모듈 그룹 (바닥 중앙 origin)
     // W9-67: 상부장은 천정 매달림 — Y offset = ceiling - H
@@ -4720,7 +4733,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   /**
    * W12-24: 모듈이 속한 **배치 공간의 경계**. 도어가 이걸 넘으면 안 된다.
-   *   frontLimit  — 영역 앞면 (모듈 로컬 z). overlay 도어가 여기서 멈춘다.
+   *   frontLimit  — 영역 앞면 (모듈 로컬 z). 지금은 몸통을 도어 두께만큼 얕게
+   *                 잡아(addModuleToArea) 도어가 알아서 안에 들어오므로 쓰이지 않는다.
+   *                 예전 설계(몸통이 영역만큼 깊은 것)를 열었을 때를 위해 남긴다.
    *   bottomLimit — 영역 바닥 (모듈 로컬 y). 도어 내림이 여기서 멈춘다.
    * 영역을 못 찾으면 아무것도 제한하지 않는다 (예전 그대로 그린다).
    */
@@ -4738,14 +4753,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, cfg, s, meta) {
-    const T = 18;
+    const T = DOOR_T;
     // W12-24: 배치 공간은 **제한 공간**이다. overlay 도어는 몸통 앞면에 붙어
     //   frontZ + T 까지 나가는데, 영역 깊이가 몸통과 같으면 그만큼 밖으로 삐져나온다.
     //   영역 앞면을 넘지 않도록 도어를 안쪽으로 물린다.
-    const frontLimit = meta && Number.isFinite(meta.frontLimit) ? meta.frontLimit : null;
-    const overlayZ = frontLimit != null
-      ? Math.min(frontZ + T / 2, frontLimit - T / 2)
-      : frontZ + T / 2;                        // W9-100: overlay 도어 z 중심
+    //   도어는 몸통 **앞면에 붙어** 밖으로 선다. 몸통 속으로 밀어 넣으면 부재가
+    //   겹친다 — 몸통 깊이를 도어 두께만큼 얕게 잡아(areaLimitsFor) 둘 다 만족시킨다.
+    const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
     // W12-6: 도어 내림 — 도어만 몸통보다 아래로 내려온다. 그 밑단이 손잡이다.
     // 서랍·오픈·먹장은 해당 없다 (도어가 아니다).
     // W12-8: 목찬넬 도어는 몸통 상단보다 30 내려온다 — 그 틈이 손 넣는 자리다.
@@ -5161,7 +5175,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       g.position.y = baseYOf(m);
       return buildFinishingMesh(g, m);
     }
-    const W = m.W, H = m.H, D = m.D, T = 18;
+    const W = m.W, H = m.H, D = m.D, T = BODY_T;
     const carcassColor = darken3(cfg.fill, 0.05);
     // 모듈 base Y (section 따라)
     const baseY = baseYOf(m);
