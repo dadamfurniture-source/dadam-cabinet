@@ -558,14 +558,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         // 마감재(EP·몰딩·휠라)도 영역으로 싣는다. 예전엔 걸러 내서, 배치에서
         // 놓아도 구조 단계에서 아예 보이지 않고 클릭도 되지 않았다.
         // 다만 모듈을 담는 그릇은 아니므로 isFinishing 으로 구분해 둔다.
+        // W12-16: 배치 원본에서 온 자리(_srcIndex)를 들고 있어야 영역 치수를
+        // 고쳤을 때 되쓸 수 있다. id 의 i 는 **거른 뒤** 번호라 원본 index 와 다르다 —
+        // id 규칙을 바꾸면 저장된 activeAreaId·module.areaId 가 끊기므로 그대로 둔다.
         areas = layout.modules
-          .filter((a) => SECTION_CONFIG[a.section])
-          .map((a, i) => ({
+          .map((a, srcIndex) => ({ a, srcIndex }))
+          .filter(({ a }) => SECTION_CONFIG[a.section])
+          .map(({ a, srcIndex }, i) => ({
             id: 'area-' + a.section + '-' + i,
+            _srcIndex: srcIndex,
             section: a.section,
             isFinishing: isFinishingSection(a.section),
             W: a.w, H: a.moduleH, D: a.h,
             x: a.x || 0, y: a.y || 0, rotation: a.rotation || 0,
+            // 영역이 직접 가진 높이 부위 — 없으면 마스터 기본값을 쓴다 (stackForArea)
+            pedestalH: a.pedestalH, moldingH: a.moldingH,
           }));
       }
     } catch (e) { console.warn('[STRUCT] 영역 로드 실패', e); }
@@ -763,6 +770,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return true;
     } catch (e) {
       console.warn('[CD-3] 배치 되쓰기 실패:', e);
+      return false;
+    }
+  }
+
+
+  /**
+   * W12-16: 영역에서 고친 값을 배치 원본(LAYOUT_KEY)에 되쓴다.
+   *
+   * 영역은 배치 단계가 정본이라, 구조 단계에서 치수를 고쳐도 되쓰지 않으면
+   * 새로고침에 사라진다. `_srcIndex` 로 원본 자리를 찾는다 — 영역 id 의 번호는
+   * 거른 뒤 번호라 원본 index 와 다르다.
+   */
+  function saveLayoutFromAreas() {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (!raw) return false;
+      const layout = JSON.parse(raw);
+      if (!layout || !Array.isArray(layout.modules)) return false;
+      let touched = 0;
+      areas.forEach((a) => {
+        if (!Number.isInteger(a._srcIndex)) return;
+        const entry = layout.modules[a._srcIndex];
+        if (!entry) return;
+        entry.w = a.W; entry.moduleH = a.H; entry.h = a.D;
+        if (a.pedestalH == null) delete entry.pedestalH; else entry.pedestalH = a.pedestalH;
+        if (a.moldingH == null) delete entry.moldingH; else entry.moldingH = a.moldingH;
+        touched++;
+      });
+      if (!touched) return false;
+      layout.savedAt = new Date().toISOString();
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+      return true;
+    } catch (e) {
+      console.warn('[W12-16] 영역 되쓰기 실패:', e);
       return false;
     }
   }
@@ -2750,8 +2791,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function stackForArea(area) {
     const probe = { section: area.section, H: area.H };
-    const molding = heightPartOf(probe, {}, 'moldingH');
-    const pedestal = heightPartOf(probe, {}, 'pedestalH');
+    // W12-16: 영역이 직접 정한 좌대·상몰딩이 있으면 그것을 쓴다 (없으면 마스터 기본값).
+    const own = { pedestalH: area.pedestalH, moldingH: area.moldingH };
+    const molding = heightPartOf(probe, own, 'moldingH');
+    const pedestal = heightPartOf(probe, own, 'pedestalH');
 
     if (area.section === 'fridge') {
       const fridgeH = (SECTION_CONFIG.refrigerator || {}).moduleH || 1850;
@@ -2917,6 +2960,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     closeModulePalette();
     renderAreaTools();
     renderModuleList();   // W12-15: 배치 목록의 선택 표시를 따라오게 한다
+    renderAreaPalette();  // W12-16: 영역 옵션 팔레트 (도면 클릭·목록 클릭 동일)
     renderFrontView();
     syncCanvasEmpty();
     if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
@@ -3389,6 +3433,168 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     pop.querySelector('.mp-pclose').onclick = closeOptionPopup;
     bindOptionInputs(pop, m, s, key);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // W12-16: 영역 옵션 팔레트 — 크기 · 좌대 · 상몰딩 · 마감
+  //
+  // 모듈 팔레트와 **같은 껍데기**(.mod-palette / .mp-popup)를 쓴다. 두 팔레트가
+  // 다르게 생기면 같은 자리에서 다른 규칙을 배워야 한다.
+  // 좌대·상몰딩은 그 부위가 있는 섹션에서만 뜬다 (heightPartsOf 와 같은 기준).
+  // ─────────────────────────────────────────────────────────────
+  const AREA_OPTIONS = [
+    { key: 'size', label: '크기', icon: SVG('<rect x="3" y="4" width="14" height="12"/><path d="M3 18h14M18 4v12" stroke-dasharray="2 2"/>'),
+      body: (a) => `
+        <div class="mp-row"><label>폭 W</label><input type="number" class="ap-dim" data-k="W" min="100" max="8000" step="10" value="${Math.round(a.W)}"></div>
+        <div class="mp-row"><label>높이 H</label><input type="number" class="ap-dim" data-k="H" min="100" max="3000" step="10" value="${Math.round(a.H)}"></div>
+        <div class="mp-row"><label>깊이 D</label><input type="number" class="ap-dim" data-k="D" min="100" max="1200" step="10" value="${Math.round(a.D)}"></div>
+        <div class="mp-note">배치 단계의 사각형 치수입니다 — 고치면 배치에도 되쓰입니다.</div>` },
+
+    { key: 'pedestalH', label: '좌대',
+      when: (a) => heightPartsOf({ section: a.section, H: a.H }, {}).some((p) => p.key === 'pedestalH'),
+      icon: SVG('<rect x="3" y="5" width="14" height="8"/><rect x="3" y="14" width="14" height="3" fill="currentColor"/>'),
+      body: (a) => `
+        <div class="mp-row"><label>높이</label><input type="number" class="ap-part" data-k="pedestalH" min="0" max="300" step="5"
+          value="${heightPartOf({ section: a.section, H: a.H }, { pedestalH: a.pedestalH }, 'pedestalH')}"></div>
+        <div class="mp-note">자동계산이 맨 아래 단에 실어 줍니다.</div>` },
+
+    { key: 'moldingH', label: '상몰딩',
+      when: (a) => heightPartsOf({ section: a.section, H: a.H }, {}).some((p) => p.key === 'moldingH'),
+      icon: SVG('<rect x="3" y="3" width="14" height="3" fill="currentColor"/><rect x="3" y="7" width="14" height="10"/>'),
+      body: (a) => `
+        <div class="mp-row"><label>높이</label><input type="number" class="ap-part" data-k="moldingH" min="0" max="300" step="5"
+          value="${heightPartOf({ section: a.section, H: a.H }, { moldingH: a.moldingH }, 'moldingH')}"></div>
+        <div class="mp-note">자동계산이 맨 위 단에 실어 줍니다.</div>` },
+
+    { key: 'finish', label: '마감', when: (a) => !a.isFinishing,
+      icon: SVG('<rect x="3" y="4" width="3" height="12" fill="currentColor"/><rect x="8" y="4" width="4" height="12"/><rect x="14" y="4" width="3" height="12" fill="currentColor"/>'),
+      body: (a) => {
+        const hosts = modules.filter((m) => m.areaId === a.id && !m.isFinishing);
+        const rows = FINISH_SIDES.map((side) => {
+          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) =>
+            [k, `${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm`]));
+          return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'}</label>
+            <select class="ap-fin" data-side="${side}">${_sel('', opts)}</select>
+          </div>`;
+        }).join('');
+        return `${rows}
+        <button class="mp-fin-all ap-fin-go" type="button">이 영역 모듈 ${hosts.length}개에 적용</button>
+        <div class="mp-note">모듈마다 고른 만큼 폭이 줄어듭니다. 영역 폭은 그대로입니다.</div>`;
+      } },
+  ];
+
+  function areaOptionsFor(a) { return AREA_OPTIONS.filter((o) => !o.when || o.when(a)); }
+
+  function areaPaletteCommit(reopenKey) {
+    saveStructModules();
+    persistPlannerState();
+    renderAreaTools();
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    renderAreaPalette();
+    if (reopenKey) openAreaOptionPopup(reopenKey);
+    if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D({ fit: false }); } catch (_) {} }
+  }
+
+  function renderAreaPalette() {
+    closeModulePalette();
+    const a = areaById(activeAreaId);
+    if (!a) return;
+    const cfg = SECTION_CONFIG[a.section] || {};
+    const el = document.createElement('div');
+    el.className = 'mod-palette';
+    el.innerHTML = `
+      <div class="mp-head">
+        <span class="mp-title">${cfg.label || a.section} 영역 · W${Math.round(a.W)}</span>
+        <button class="mp-close" title="닫기">×</button>
+      </div>
+      <div class="mp-grid">
+        ${areaOptionsFor(a).map((o) => `
+          <button class="mp-ic" data-option="${o.key}" title="${o.label}">
+            ${o.icon}<span>${o.label}</span>
+          </button>`).join('')}
+      </div>`;
+    document.body.appendChild(el);
+    positionAreaPalette(el, a.id);
+    el.querySelector('.mp-close').onclick = () => { closeOptionPopup(); closeModulePalette(); };
+    el.querySelectorAll('.mp-ic').forEach((btn) => {
+      btn.onclick = () => openAreaOptionPopup(btn.dataset.option);
+    });
+  }
+
+  /** 도면의 영역 사각형 옆에 붙인다. 없으면 캔버스 좌상단. */
+  function positionAreaPalette(el, areaId) {
+    const wrap = document.getElementById('canvasWrap');
+    const target = document.querySelector(`#contentG [data-area-id="${areaId}"]`);
+    const base = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 };
+    let left = base.left + 16, top = base.top + 16;
+    if (target && target.getBoundingClientRect) {
+      const r = target.getBoundingClientRect();
+      if (r.width || r.height) { left = r.right + 12; top = r.top; }
+    }
+    const pw = el.offsetWidth || 250, ph = el.offsetHeight || 300;
+    el.style.left = Math.max(8, Math.min(left, (window.innerWidth || 1280) - pw - 8)) + 'px';
+    el.style.top = Math.max(8, Math.min(top, (window.innerHeight || 800) - ph - 8)) + 'px';
+  }
+
+  function openAreaOptionPopup(key) {
+    closeOptionPopup();
+    const a = areaById(activeAreaId);
+    if (!a) return;
+    const opt = areaOptionsFor(a).find((o) => o.key === key);
+    if (!opt) return;
+    const pop = document.createElement('div');
+    pop.className = 'mp-popup';
+    pop.dataset.option = key;
+    pop.innerHTML = `
+      <div class="mp-head">
+        <span class="mp-title">${opt.label}</span>
+        <button class="mp-pclose" title="닫기">×</button>
+      </div>
+      <div class="mp-pbody">${opt.body(a)}</div>`;
+    document.body.appendChild(pop);
+    const pal = document.querySelector('.mod-palette');
+    const r = pal ? pal.getBoundingClientRect() : null;
+    const pw = pop.offsetWidth || 232;
+    const left = r && (r.width || r.height) ? r.right + 10 : 24;
+    const top = r && (r.width || r.height) ? r.top : 80;
+    pop.style.left = Math.max(8, Math.min(left, (window.innerWidth || 1280) - pw - 8)) + 'px';
+    pop.style.top = Math.max(8, top) + 'px';
+    pop.querySelector('.mp-pclose').onclick = closeOptionPopup;
+    bindAreaOptionInputs(pop, a, key);
+  }
+
+  function bindAreaOptionInputs(host, a, key) {
+    host.querySelectorAll('.ap-dim').forEach((inp) => {
+      inp.onchange = () => {
+        const k = inp.dataset.k;
+        a[k] = Math.max(100, parseInt(inp.value) || 0);
+        saveLayoutFromAreas();
+        areaPaletteCommit(key);
+      };
+    });
+    host.querySelectorAll('.ap-part').forEach((inp) => {
+      inp.onchange = () => {
+        const v = parseInt(inp.value);
+        a[inp.dataset.k] = Number.isFinite(v) && v >= 0 ? v : undefined;
+        saveLayoutFromAreas();
+        areaPaletteCommit(key);
+      };
+    });
+    const go = host.querySelector('.ap-fin-go');
+    if (go) go.onclick = () => {
+      const bySide = {};
+      host.querySelectorAll('.ap-fin').forEach((sl) => { bySide[sl.dataset.side] = sl.value; });
+      const r = applyFinishToArea(a.id, bySide);
+      saveLayoutFromModules();
+      areaPaletteCommit(key);
+      const parts = [];
+      if (r.applied) parts.push(`${r.applied}곳 적용`);
+      if (r.removed) parts.push(`${r.removed}곳 제거`);
+      if (r.skipped) parts.push(`${r.skipped}곳 건너뜀(폭 부족)`);
+      showToast(parts.length ? `모듈 ${r.hosts}개 — ${parts.join(' · ')}` : `모듈 ${r.hosts}개 — 바뀐 것 없음`);
+    };
   }
 
   function renderModulePalette() {
@@ -4582,7 +4788,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const _renderModuleList = renderModuleList;
   renderModuleList = function() {
     const body = document.getElementById('mlBody');
-    if (!modules.length) {
+    // W12-16: 배치 모드는 **모듈이 없어도** 영역을 보여준다. 예전엔 이 가드가
+    // 먼저 걸려 모듈을 넣기 전에는 영역 목록이 아예 뜨지 않았다.
+    if (!modules.length && viewMode !== 'area') {
       body.innerHTML = areas.length
         ? '<div class="empty-msg">아직 모듈이 없습니다<br><span style="font-size:10px">도면의 영역을 클릭해 모듈을 추가하세요</span></div>'
         : '<div class="empty-msg">배치된 영역 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
