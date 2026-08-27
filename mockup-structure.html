@@ -2508,6 +2508,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 3D 에서 몸통과 구분되도록 마감재와 같은 진한 우드 톤을 쓴다.
   const CHANNEL_COLOR = '#7a6a45';
 
+  // W12-17: 도어 뒤 그림자판을 얼마나 어둡게 할지. 도어 사이 4mm 는 화면에서
+  // 1px 안팎이라 대비가 낮으면 그냥 사라진다.
+  const DOOR_REVEAL_DARKEN = 0.9;
+
   function areaById(id) { return areas.find((a) => a.id === id); }
 
   // ── 마감재 (EP · 몰딩 · 휠라) ─────────────────────────────────
@@ -3971,6 +3975,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     function animate() {
       requestAnimationFrame(animate);
       three.controls.update();
+      keepDoorEdgesVisible();
       three.renderer.render(three.scene, three.camera);
     }
     animate();
@@ -4551,10 +4556,65 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function addDoorReveal(parent, cx, cy, w, h, frontZ, cfg, meta) {
     const G = MASTER_RULES.DOOR_GAP;
-    const back = makeBox(w + G, h + G, 2, darken3(cfg.fill, 0.55));
+    // W12-17: 도어 사이로 보이는 것은 **어두운 안쪽**이다. 예전 0.55 는 도어색과
+    // 대비가 약해(#b8956c → #806749) 줌을 줄이면 경계가 묻혔다. 그림자에 가깝게
+    // 낮춰 1px 만 남아도 선으로 읽히게 한다.
+    const back = makeBox(w + G, h + G, 2, darken3(cfg.fill, DOOR_REVEAL_DARKEN));
     back.position.set(cx, cy, frontZ - 1);
     back.userData = { entityKind: 'reveal', moduleId: meta && meta.moduleId };
     parent.add(back);
+    // W12-17: 도어 앞면에 어두운 **테두리**를 두른다. 4mm 갭은 화면에서 1~2px 라
+    // 줌을 줄이면 사라진다. 테두리 두께를 줌에 맞춰 키워 늘 보이게 한다
+    // (keepDoorEdgesVisible). 도어 면을 덮는 대신 가장자리만 두른다.
+    addDoorEdgeFrame(parent, cx, cy, w, h, frontZ + 19, darken3(cfg.fill, DOOR_REVEAL_DARKEN));
+  }
+
+
+  /**
+   * W12-17: 도어 가장자리 테두리 4줄. `baseW/baseH` 와 방향을 userData 에 남겨
+   * keepDoorEdgesVisible 이 두께만 다시 잡을 수 있게 한다.
+   */
+  function addDoorEdgeFrame(parent, cx, cy, w, h, z, color) {
+    const mk = (axis) => {
+      const bar = makeBox(1, 1, 1, color, { roughness: 0.9 });
+      bar.userData = { entityKind: 'doorEdge', axis, baseW: w, baseH: h, cx, cy, z };
+      parent.add(bar);
+      return bar;
+    };
+    ['left', 'right', 'top', 'bottom'].forEach(mk);
+  }
+
+  /** 화면에서 mm 하나가 몇 px 인지 — 카메라 거리·화각·캔버스 높이로 잰다. */
+  function mmPerPixel() {
+    if (!three || !three.camera || !three.renderer || !three.controls) return 1;
+    const cam = three.camera;
+    const dist = cam.position.distanceTo(three.controls.target) || 1;
+    const h = three.renderer.domElement.clientHeight || 1;
+    const visible = 2 * dist * Math.tan((cam.fov * Math.PI / 180) / 2);
+    return visible / h;
+  }
+
+  /**
+   * 도어 테두리 두께를 화면 기준으로 유지한다.
+   * 실제 갭(4mm)은 멀어지면 1px 미만이 되어 사라진다. 테두리를 **최소 몇 px**
+   * 로 잡아 주면 줌과 무관하게 도어가 낱장으로 읽힌다. 가까이서는 4mm 그대로다.
+   */
+  const DOOR_EDGE_MIN_PX = 1.6;
+  function keepDoorEdgesVisible() {
+    if (!three || !three.moduleGroup) return;
+    const t = Math.max(MASTER_RULES.DOOR_GAP / 2, DOOR_EDGE_MIN_PX * mmPerPixel());
+    three.moduleGroup.traverse((o) => {
+      const ud = o.userData;
+      if (!ud || ud.entityKind !== 'doorEdge') return;
+      const { axis, baseW, baseH, cx, cy, z } = ud;
+      if (axis === 'left' || axis === 'right') {
+        o.scale.set(t, baseH, 1);
+        o.position.set(cx + (axis === 'left' ? -1 : 1) * (baseW / 2 - t / 2), cy, z);
+      } else {
+        o.scale.set(baseW, t, 1);
+        o.position.set(cx, cy + (axis === 'top' ? 1 : -1) * (baseH / 2 - t / 2), z);
+      }
+    });
   }
 
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, cfg, s, meta) {

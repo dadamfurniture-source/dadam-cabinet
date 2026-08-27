@@ -463,7 +463,9 @@ describe('도어 경계가 보인다 (정적 가드)', () => {
     const body = fn.slice(0, 600);
     expect(body).toMatch(/w \+ G, h \+ G/);        // 사방으로 갭만큼 넓다
     expect(body).toMatch(/frontZ - 1/);            // 도어 뒤
-    expect(body).toMatch(/darken3\(cfg\.fill, 0\.5/); // 몸통보다 뚜렷하게 어둡다
+    // W12-17: 0.55 를 직접 박던 것을 DOOR_REVEAL_DARKEN 상수로 옮기고 0.9 로 낮췄다.
+    // 뒷판과 테두리가 같은 값을 써야 한 덩어리로 읽힌다.
+    expect(body).toMatch(/darken3\(cfg\.fill, DOOR_REVEAL_DARKEN\)/);
   });
 
   test('도어 외곽선이 흐리지 않다', () => {
