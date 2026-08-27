@@ -262,3 +262,108 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
     expect(arr).not.toContain("key: 'finish'");
   });
 });
+
+describe('스택 영역(키큰장·냉장고장)의 마감재 (W12-22)', () => {
+  /** 키큰장 영역을 만들고 자동계산으로 3단을 채운다 */
+  function tallStack() {
+    const p = boot({
+      'dadam_layout_v1::ap:1': JSON.stringify({
+        version: 1, savedAt: '2026-08-28T00:00:00.000Z', person: { cx: 900, cy: 1500 },
+        modules: [{ section: 'tall', x: 0, y: 0, w: 900, h: 700, moduleH: 2300, rotation: 0, finishings: [] }],
+      }),
+    });
+    const area = p.g('areas')[0];
+    p.g('autoCalcArea')(area.id);
+    return { p, area };
+  }
+  const parts = (p) => p.g('modules').filter((m) => !m.isFinishing);
+  const fins = (p) => p.g('modules').filter((m) => m.isFinishing);
+
+  test('자동계산이 3단을 같은 자리에 쌓는다', () => {
+    const { p } = tallStack();
+    const ps = parts(p);
+    expect(ps.length).toBe(3);
+    expect(new Set(ps.map((m) => m.x)).size).toBe(1);   // 같은 x
+    expect(new Set(ps.map((m) => m.W)).size).toBe(1);   // 같은 W
+  });
+
+  test('스택 영역으로 판별한다', () => {
+    const { p, area } = tallStack();
+    expect(p.g('isStackedArea')(area)).toBe(true);
+    const lower = p.g('areas').find((a) => a.section === 'lower');
+    if (lower) expect(p.g('isStackedArea')(lower)).toBe(false);
+  });
+
+  test('모든 단이 함께 폭을 내놓는다', () => {
+    // 한 단만 줄이면 나머지가 마감재를 뚫고 나온다 (실제로 그랬다).
+    const { p, area } = tallStack();
+    const W0 = parts(p)[0].W;
+    const f = p.g('setAreaFinish')(area.id, 'left', 'ep');
+    expect(f).not.toBeNull();
+    const w = p.g('finishingWidthOf')('ep');
+    parts(p).forEach((m) => {
+      expect(m.W).toBe(W0 - w);
+      expect(m.x).toBe((area.x || 0) + w);
+    });
+    expect(fins(p)).toHaveLength(1);
+  });
+
+  test('마감재는 영역 전체 높이·깊이로 끝에 선다', () => {
+    const { p, area } = tallStack();
+    const f = p.g('setAreaFinish')(area.id, 'left', 'ep');
+    expect(f.H).toBe(area.H);
+    expect(f.D).toBe(area.D);
+    expect(f.x).toBe(area.x || 0);
+  });
+
+  test('우측이면 줄어든 끝에 선다', () => {
+    const { p, area } = tallStack();
+    const x0 = parts(p)[0].x, W0 = parts(p)[0].W;
+    const f = p.g('setAreaFinish')(area.id, 'right', 'molding');
+    parts(p).forEach((m) => { expect(m.x).toBe(x0); expect(m.W).toBe(W0 - f.W); });
+    expect(f.x + f.W).toBe(x0 + W0);
+  });
+
+  test('떼면 모든 단이 폭을 되찾는다', () => {
+    const { p, area } = tallStack();
+    const x0 = parts(p)[0].x, W0 = parts(p)[0].W;
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    p.g('setAreaFinish')(area.id, 'left', '');
+    parts(p).forEach((m) => { expect(m.W).toBe(W0); expect(m.x).toBe(x0); });
+    expect(fins(p)).toHaveLength(0);
+  });
+
+  test('바꿔 달아도 폭이 새지 않는다', () => {
+    const { p, area } = tallStack();
+    const W0 = parts(p)[0].W;
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    p.g('setAreaFinish')(area.id, 'left', 'molding');
+    const w = p.g('finishingWidthOf')('molding');
+    parts(p).forEach((m) => expect(m.W).toBe(W0 - w));
+    expect(fins(p)).toHaveLength(1);
+  });
+
+  test('마감재를 놓고 자동계산해도 겹치지 않는다', () => {
+    // 자동계산은 마감재를 보존한다. 새 단이 영역 폭 그대로 만들어지면 뚫고 나온다.
+    const { p, area } = tallStack();
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    p.g('setAreaFinish')(area.id, 'right', 'molding');
+    const w = p.g('finishingWidthOf')('ep') + p.g('finishingWidthOf')('molding');
+    p.g('autoCalcArea')(area.id);
+    expect(fins(p)).toHaveLength(2);
+    parts(p).forEach((m) => {
+      expect(m.W).toBe(area.W - w);
+      expect(m.x).toBe((area.x || 0) + p.g('finishingWidthOf')('ep'));
+    });
+  });
+
+  test('단이 도어 최소보다 좁아지면 막는다', () => {
+    const { p, area } = tallStack();
+    const MIN = p.g('MASTER_RULES').DOOR_W_MIN;
+    parts(p).forEach((m) => { m.W = MIN + 10; });
+    const before = parts(p).map((m) => m.W);
+    expect(p.g('setAreaFinish')(area.id, 'left', 'molding')).toBeNull();
+    expect(parts(p).map((m) => m.W)).toEqual(before);
+    expect(fins(p)).toHaveLength(0);
+  });
+});
