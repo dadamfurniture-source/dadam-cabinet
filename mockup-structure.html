@@ -2531,8 +2531,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function finishingWidthOf(section) {
     const cfg = SECTION_CONFIG[section] || {};
-    // 폴백 20 은 EP 기본값(design_rules 'EP기본값' 20mm 고정)이다.
-    return cfg.adjacent === 'depthAndHeight' ? (cfg.h || 20) : (cfg.w || 60);
+    // 폴백 18 은 EP 측판 두께(18T MDF)다 — W12-18 참고.
+    return cfg.adjacent === 'depthAndHeight' ? (cfg.h || 18) : (cfg.w || 60);
   }
 
   /**
@@ -2659,9 +2659,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const x = side === 'left' ? m.x : m.x + (m.W - W);
     m.W -= W;
     if (side === 'left') m.x += W;
+    // W12-18: 마감재는 **배치 공간(영역)** 을 기준으로 선다 — 모듈이 아니다.
+    //   냉장고장 영역 H2300 · D700 이면 EP 는 2300 × 700 × 18T 여야 한다.
+    //   호스트 모듈 치수를 쓰면 스택의 한 단(예: 상부장 400)만큼만 서서 반토막이 난다.
+    const area = areaById(m.areaId);
     const f = {
       id, areaId: m.areaId, section,
-      W, H: m.H, D: m.D,
+      W,
+      H: (area && area.H) || m.H,
+      D: (area && area.D) || m.D,
       x, y: m.y, rotation: m.rotation || 0,
       isFinishing: true, finishings: [],
       hostId: m.id, hostSide: side,
@@ -3454,23 +3460,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <div class="mp-row"><label>깊이 D</label><input type="number" class="ap-dim" data-k="D" min="100" max="1200" step="10" value="${Math.round(a.D)}"></div>
         <div class="mp-note">배치 단계의 사각형 치수입니다 — 고치면 배치에도 되쓰입니다.</div>` },
 
+    // W12-18: 항목 수를 섹션마다 다르게 두지 않는다 — 어떤 영역은 3개, 어떤 영역은
+    // 4개가 떠서 무엇이 빠졌는지 알 수 없었다. 늘 네 개를 내고, 그 섹션의 높이 모델에
+    // 없는 부위는 **입력을 막고 무엇을 쓰는지 적는다**.
     { key: 'pedestalH', label: '좌대',
-      when: (a) => heightPartsOf({ section: a.section, H: a.H }, {}).some((p) => p.key === 'pedestalH'),
       icon: SVG('<rect x="3" y="5" width="14" height="8"/><rect x="3" y="14" width="14" height="3" fill="currentColor"/>'),
-      body: (a) => `
-        <div class="mp-row"><label>높이</label><input type="number" class="ap-part" data-k="pedestalH" min="0" max="300" step="5"
-          value="${heightPartOf({ section: a.section, H: a.H }, { pedestalH: a.pedestalH }, 'pedestalH')}"></div>
-        <div class="mp-note">자동계산이 맨 아래 단에 실어 줍니다.</div>` },
+      body: (a) => areaPartBody(a, 'pedestalH', '자동계산이 맨 아래 단에 실어 줍니다.') },
 
     { key: 'moldingH', label: '상몰딩',
-      when: (a) => heightPartsOf({ section: a.section, H: a.H }, {}).some((p) => p.key === 'moldingH'),
       icon: SVG('<rect x="3" y="3" width="14" height="3" fill="currentColor"/><rect x="3" y="7" width="14" height="10"/>'),
-      body: (a) => `
-        <div class="mp-row"><label>높이</label><input type="number" class="ap-part" data-k="moldingH" min="0" max="300" step="5"
-          value="${heightPartOf({ section: a.section, H: a.H }, { moldingH: a.moldingH }, 'moldingH')}"></div>
-        <div class="mp-note">자동계산이 맨 위 단에 실어 줍니다.</div>` },
+      body: (a) => areaPartBody(a, 'moldingH', '자동계산이 맨 위 단에 실어 줍니다.') },
 
-    { key: 'finish', label: '마감', when: (a) => !a.isFinishing,
+    { key: 'finish', label: '마감',
       icon: SVG('<rect x="3" y="4" width="3" height="12" fill="currentColor"/><rect x="8" y="4" width="4" height="12"/><rect x="14" y="4" width="3" height="12" fill="currentColor"/>'),
       body: (a) => {
         const hosts = modules.filter((m) => m.areaId === a.id && !m.isFinishing);
@@ -3486,6 +3487,29 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <div class="mp-note">모듈마다 고른 만큼 폭이 줄어듭니다. 영역 폭은 그대로입니다.</div>`;
       } },
   ];
+
+  /**
+   * W12-18: 영역 높이 부위(좌대·상몰딩) 팝업 본문.
+   *
+   * 그 섹션의 높이 모델에 없는 부위면 입력을 막고 무엇을 대신 쓰는지 적는다.
+   * 항목을 아예 숨기면 영역마다 팔레트 개수가 달라져 무엇이 빠졌는지 알 수 없다.
+   */
+  function areaPartBody(a, key, note) {
+    const probe = { section: a.section, H: a.H };
+    const parts = heightPartsOf(probe, {});
+    const has = parts.some((p) => p.key === key);
+    if (!has) {
+      const names = parts.map((p) => p.label).join(' · ') || '없음';
+      return `<div class="mp-row"><label>높이</label>
+          <input type="number" class="ap-part" data-k="${key}" value="0" disabled></div>
+        <div class="mp-note">${(SECTION_CONFIG[a.section] || {}).label || a.section} 은 이 부위가 없습니다 —
+          높이 구성은 ${names} 입니다. 모듈 팔레트에서 정합니다.</div>`;
+    }
+    const cur = heightPartOf(probe, { [key]: a[key] }, key);
+    return `<div class="mp-row"><label>높이</label>
+        <input type="number" class="ap-part" data-k="${key}" min="0" max="300" step="5" value="${cur}"></div>
+      <div class="mp-note">${note}</div>`;
+  }
 
   function areaOptionsFor(a) { return AREA_OPTIONS.filter((o) => !o.when || o.when(a)); }
 

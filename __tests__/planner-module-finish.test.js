@@ -138,7 +138,7 @@ describe('모듈이 너무 좁아지면 막는다', () => {
     expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(0);
   });
 
-  test('EP(20mm)는 같은 모듈에 들어간다', () => {
+  test('EP(18T)는 같은 모듈에 들어간다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const areas = p.g('areas');
     const MIN = p.g('MASTER_RULES').DOOR_W_MIN;
@@ -225,27 +225,31 @@ describe('팔레트에 마감 옵션이 있다', () => {
   });
 });
 
-describe('EP 두께는 정본과 같은 20mm (W12-12)', () => {
+describe('EP 두께는 측판 18T (W12-18)', () => {
   const fs = require('fs');
   const path = require('path');
   const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').split('\r\n').join('\n');
 
-  test('planner-sections 의 ep.h 가 20', () => {
+  test('planner-sections 의 ep.h 가 18 (측판 두께)', () => {
     const m = read('js/planner/planner-sections.js').match(/ep:\s*\{[^}]*h:\s*(\d+)/);
-    expect(Number(m[1])).toBe(20);
+    expect(Number(m[1])).toBe(18);
   });
 
-  test('finishingWidthOf 가 20 을 돌려준다', () => {
+  test('finishingWidthOf 가 18 을 돌려준다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    expect(p.g('finishingWidthOf')('ep')).toBe(20);
+    expect(p.g('finishingWidthOf')('ep')).toBe(18);
   });
 
-  test('폴백도 20 이다 — 설정이 비어도 18 로 안 떨어진다', () => {
-    expect(read('mockup-structure.html')).toMatch(/cfg\.h \|\| 20/);
+  test('폴백도 18 이다', () => {
+    expect(read('mockup-structure.html')).toMatch(/cfg\.h \|\| 18/);
   });
 
-  test('door.md FINISH_TYPES 와 같다', () => {
-    expect(read('docs/design-rules/door.md')).toMatch(/\| EP \| EP \| 20mm \|/);
+  test('door.md 의 20mm 는 다른 모델임을 주석이 밝힌다', () => {
+    // 상세설계 FINISH_TYPES 의 '기본 너비 20mm' 는 마감 스트립이고,
+    // 플래너 EP 는 측판 한 장이다. 값이 다른 이유가 소스에 남아야 한다.
+    const sec = read('js/planner/planner-sections.js');
+    expect(sec).toContain('상세설계의 마감 스트립');
+    expect(sec).toContain('측판 한 장');
   });
 
   test('몰딩·휠라는 60 그대로다', () => {
@@ -433,5 +437,50 @@ describe('일괄 적용 버튼 (W12-14)', () => {
     const fn = SRC.slice(SRC.indexOf('function applyFinishToArea'), SRC.indexOf('function isAreaView'));
     expect(fn).toContain('quiet: true');
     expect(fn).not.toContain('showToast');
+  });
+});
+
+describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
+  test('EP 는 영역 H × 영역 D × 18T', () => {
+    // 냉장고장 영역 H2300 · D700 이면 EP 는 2300 × 700 × 18T 여야 한다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    area.H = 2300; area.D = 700;
+    const m = p.g('addModuleToArea')(area.id, { section: area.section, W: 900, x: area.x || 0 });
+    const f = p.g('setModuleFinish')(m.id, 'right', 'ep');
+    expect(f.H).toBe(2300);
+    expect(f.D).toBe(700);
+    expect(f.W).toBe(18);          // 측판 두께
+  });
+
+  test('스택 한 단짜리 모듈에 붙여도 영역 전체 높이로 선다', () => {
+    // 호스트 모듈 치수를 쓰면 상부장 단(400) 만큼만 서서 반토막이 난다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    area.H = 2300; area.D = 700;
+    const m = p.g('addModuleToArea')(area.id, { section: area.section, W: 900, x: area.x || 0 });
+    m.H = 400; m.D = 550;          // 스택의 한 단처럼
+    const f = p.g('setModuleFinish')(m.id, 'left', 'molding');
+    expect(f.H).toBe(2300);
+    expect(f.D).toBe(700);
+    expect(f.H).not.toBe(m.H);
+  });
+
+  test('영역 마감재도 같은 기준이다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    area.H = 2300; area.D = 700;
+    const f = p.g('addFinishingToArea')(area.id, 'ep');
+    expect(f.H).toBe(2300);
+    expect(f.D).toBe(700);
+  });
+
+  test('소스가 영역을 먼저 본다', () => {
+    const fs2 = require('fs');
+    const path2 = require('path');
+    const SRC = fs2.readFileSync(path2.join(__dirname, '..', 'mockup-structure.html'), 'utf8');
+    const fn = SRC.slice(SRC.indexOf('function setModuleFinish'), SRC.indexOf('function autoCalcArea'));
+    expect(fn).toContain('(area && area.H) || m.H');
+    expect(fn).toContain('(area && area.D) || m.D');
   });
 });
