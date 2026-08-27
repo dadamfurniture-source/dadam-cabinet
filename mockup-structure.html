@@ -153,13 +153,6 @@
     border:1px solid var(--line);border-radius:4px;font-size:11px;background:#fff;color:var(--text)}
   .mp-popup .mp-row input[type=number]{font-family:monospace}
   .mp-popup .mp-note{padding:2px 9px 5px;color:var(--text-faint);font-size:9px;line-height:1.45}
-  /* W12-14: 일괄 적용 — 팝업 안에서 유일하게 여러 모듈을 건드리는 버튼이라
-     선택 줄과 구분되게 위에 선을 둔다. */
-  .mp-popup .mp-fin-all{display:block;width:calc(100% - 18px);margin:5px 9px 2px;padding:5px 8px;
-    border:1px solid var(--line);border-top-color:var(--line);border-radius:5px;
-    background:var(--surface-2,#f3f1ec);color:var(--text-dim);font:inherit;font-size:10px;
-    font-weight:700;cursor:pointer}
-  .mp-popup .mp-fin-all:hover{background:var(--accent,#8a6d3b);color:#fff;border-color:transparent}
   .mp-popup .mp-cells{padding:0 9px 4px;display:flex;flex-direction:column;gap:3px}
   .mp-popup .mp-cell{display:flex;align-items:center;gap:5px}
   .mp-popup .mp-cell .mp-ci{width:22px;flex-shrink:0;color:var(--text-faint);font-size:9px}
@@ -2620,32 +2613,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return setModuleFinish(host.id, side, section);
   }
 
-  /**
-   * W12-14: 영역 안 **모든 모듈**에 같은 마감재를 건다.
-   *
-   * 마감재 모듈 자신은 건너뛴다. 폭이 모자라 못 넣은 모듈은 세어서 한 번만 알린다 —
-   * 모듈마다 토스트를 띄우면 화면이 경고로 덮인다.
-   * `section` 이 비면 그 쪽 마감재를 **모두 뗀다**.
-   */
-  function applyFinishToArea(areaId, bySide) {
-    const hosts = modules.filter((m) => m.areaId === areaId && !m.isFinishing);
-    let applied = 0, removed = 0, skipped = 0;
-    hosts.forEach((m) => {
-      FINISH_SIDES.forEach((side) => {
-        if (!(side in bySide)) return;
-        const want = bySide[side];
-        if (!want) {
-          if (removeModuleFinish(m.id, side)) removed++;
-          return;
-        }
-        if (setModuleFinish(m.id, side, want, { quiet: true })) applied++;
-        else skipped++;
-      });
-    });
-    saveStructModules();
-    persistPlannerState();
-    return { hosts: hosts.length, applied, removed, skipped };
-  }
+  // W12-21: applyFinishToArea 를 없앴다. 모듈 팔레트의 일괄 버튼이 유일한
+  //   호출부였고, 마감재는 이제 배치 공간 양 끝에 한 장씩 선다 (setAreaFinish).
 
   /**
    * 지금 **영역 보기**인가.
@@ -2693,8 +2662,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 같은 쪽에 이미 있으면 먼저 떼고(폭 복원) 새로 붙인다 — 안 그러면 뗄 때마다
    * 폭이 어긋나 모듈이 조금씩 좁아진다.
    */
-  function setModuleFinish(hostId, side, section, opts) {
-    const quiet = !!(opts && opts.quiet);   // 일괄 적용은 실패를 모아서 한 번만 알린다
+  function setModuleFinish(hostId, side, section) {
     const m = moduleById(hostId);
     if (!m || m.isFinishing) return null;
     if (FINISH_SIDES.indexOf(side) < 0) return null;
@@ -2706,7 +2674,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const W = finishingWidthOf(section);
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
     if (m.W - W < MIN_W) {
-      if (!quiet) showToast(`⚠ 모듈 ${Math.round(m.W)}mm — ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
+      showToast(`⚠ 모듈 ${Math.round(m.W)}mm — ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
       saveStructModules(); persistPlannerState();
       return null;
     }
@@ -3329,19 +3297,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>
         <div class="mp-note">${handleNoteFor(m, s)}</div>` },
 
-    // W12-11: 좌·우 마감재. 고르면 그만큼 모듈 폭이 줄고 그 자리에 부재가 선다.
-    { key: 'finish', label: '마감', when: (m) => !m.isFinishing,
-      icon: SVG('<rect x="3" y="4" width="3" height="12" fill="currentColor"/><rect x="8" y="4" width="4" height="12"/><rect x="14" y="4" width="3" height="12" fill="currentColor"/>'),
-      body: (m) => `
-        ${FINISH_SIDES.map((side) => {
-          const cur = moduleFinishOn(m.id, side);
-          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) => [k, finishLabel(k)]));
-          return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'}</label>
-            <select class="mp-fin" data-side="${side}">${_sel(cur ? cur.section : '', opts)}</select>
-          </div>`;
-        }).join('')}
-        <button class="mp-fin-all" type="button">이 영역 모든 모듈에 적용</button>
-        <div class="mp-note">고른 만큼 모듈 폭이 줄어듭니다 — 현재 W${Math.round(m.W)}. 영역 폭은 그대로입니다.</div>` },
+    // W12-21: 모듈 팔레트의 마감 옵션을 뺐다. 마감재는 **배치 공간 단위**로
+    // 양 끝에 한 장씩 서는 것이 맞고(W12-20), 모듈마다 붙이면 나란한 모듈 사이에
+    // 두 장이 맞닿는다. 배치 팔레트의 '마감' 이 유일한 입구다.
 
     { key: 'fixed', label: '고정', icon: SVG('<rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/>'),
       body: (m, s) => `
@@ -3434,30 +3392,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     on('.mp-hpos', (el2) => { s.handlePosition = el2.value; paletteCommit(key); });
     on('.mp-fixed', (el2) => { m.isFixed = el2.checked; saveLayoutFromModules(); paletteCommit(key); });
 
-    // W12-11: 좌·우 마감재. setModuleFinish 가 모듈 폭까지 손보므로
-    // 도면(saveLayoutFromModules)도 같이 갱신해야 배치 단계와 어긋나지 않는다.
-    host.querySelectorAll('.mp-fin').forEach((sl) => {
-      sl.onchange = () => {
-        setModuleFinish(m.id, sl.dataset.side, sl.value);
-        saveLayoutFromModules();
-        paletteCommit(key);
-      };
-    });
-
-    // W12-14: 지금 고른 좌·우 조합을 영역 안 모든 모듈에 건다.
-    const all = host.querySelector('.mp-fin-all');
-    if (all) all.onclick = () => {
-      const bySide = {};
-      host.querySelectorAll('.mp-fin').forEach((sl) => { bySide[sl.dataset.side] = sl.value; });
-      const r = applyFinishToArea(m.areaId, bySide);
-      saveLayoutFromModules();
-      paletteCommit(key);
-      const parts = [];
-      if (r.applied) parts.push(`${r.applied}곳 적용`);
-      if (r.removed) parts.push(`${r.removed}곳 제거`);
-      if (r.skipped) parts.push(`${r.skipped}곳 건너뜀(폭 부족)`);
-      showToast(parts.length ? `모듈 ${r.hosts}개 — ${parts.join(' · ')}` : `모듈 ${r.hosts}개 — 바뀐 것 없음`);
-    };
 
     host.querySelectorAll('.mp-type').forEach((sl) => {
       sl.onchange = () => { s.areaTypes[+sl.dataset.i] = sl.value; paletteCommit(key); };
