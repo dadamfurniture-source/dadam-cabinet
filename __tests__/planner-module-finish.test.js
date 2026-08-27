@@ -138,7 +138,7 @@ describe('모듈이 너무 좁아지면 막는다', () => {
     expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(0);
   });
 
-  test('EP(18mm)는 같은 모듈에 들어간다', () => {
+  test('EP(20mm)는 같은 모듈에 들어간다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const areas = p.g('areas');
     const MIN = p.g('MASTER_RULES').DOOR_W_MIN;
@@ -220,5 +220,35 @@ describe('팔레트에 마감 옵션이 있다', () => {
     // 폭이 바뀌므로 saveLayoutFromModules 를 안 부르면 배치 단계와 어긋난다.
     const bind = SRC.slice(SRC.indexOf(".mp-fin"), SRC.indexOf(".mp-fin") + 320);
     expect(bind).toContain('saveLayoutFromModules()');
+  });
+});
+
+describe('EP 두께는 정본과 같은 20mm (W12-12)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').split('\r\n').join('\n');
+
+  test('planner-sections 의 ep.h 가 20', () => {
+    const m = read('js/planner/planner-sections.js').match(/ep:\s*\{[^}]*h:\s*(\d+)/);
+    expect(Number(m[1])).toBe(20);
+  });
+
+  test('finishingWidthOf 가 20 을 돌려준다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    expect(p.g('finishingWidthOf')('ep')).toBe(20);
+  });
+
+  test('폴백도 20 이다 — 설정이 비어도 18 로 안 떨어진다', () => {
+    expect(read('mockup-structure.html')).toMatch(/cfg\.h \|\| 20/);
+  });
+
+  test('door.md FINISH_TYPES 와 같다', () => {
+    expect(read('docs/design-rules/door.md')).toMatch(/\| EP \| EP \| 20mm \|/);
+  });
+
+  test('몰딩·휠라는 60 그대로다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    expect(p.g('finishingWidthOf')('molding')).toBe(60);
+    expect(p.g('finishingWidthOf')('filler')).toBe(60);
   });
 });

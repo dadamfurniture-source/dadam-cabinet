@@ -828,7 +828,7 @@ describe('마감재 (EP · 몰딩 · 휠라)', () => {
   test('배치에 놓은 마감재도 영역으로 보인다', () => {
     // 예전엔 loadAreas 가 걸러 내서 구조 단계에서 아예 사라졌다 — 클릭도 못 했다.
     const fixture = JSON.parse(JSON.stringify(FIXTURES.straight));
-    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 18, moduleH: 870, rotation: 0, finishings: [] });
+    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 20, moduleH: 870, rotation: 0, finishings: [] });
     const seed = seedFor(fixture, { modules: false });
     const p = boot(seed);
     const ep = p.g('areas').find((a) => a.section === 'ep');
@@ -838,7 +838,7 @@ describe('마감재 (EP · 몰딩 · 휠라)', () => {
 
   test('마감재 영역에는 모듈 버튼이 없다', () => {
     const fixture = JSON.parse(JSON.stringify(FIXTURES.straight));
-    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 18, moduleH: 870, rotation: 0, finishings: [] });
+    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 20, moduleH: 870, rotation: 0, finishings: [] });
     const p = boot(seedFor(fixture, { modules: false }));
     p.g('setActiveArea')(p.g('areas').find((a) => a.section === 'ep').id);
     const tools = p.document.querySelector('.area-tools');
@@ -896,7 +896,7 @@ describe('마감재 (EP · 몰딩 · 휠라)', () => {
 
   test('마감재 영역에는 마감재를 넣을 수 없다', () => {
     const fixture = JSON.parse(JSON.stringify(FIXTURES.straight));
-    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 18, moduleH: 870, rotation: 0, finishings: [] });
+    fixture.modules.push({ section: 'ep', x: 3600, y: 0, w: 650, h: 20, moduleH: 870, rotation: 0, finishings: [] });
     const p = boot(seedFor(fixture, { modules: false }));
     const ep = p.g('areas').find((a) => a.section === 'ep');
     expect(p.g('addFinishingToArea')(ep.id, 'molding')).toBeNull();

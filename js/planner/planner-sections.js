@@ -52,7 +52,9 @@ const PLANNER_SECTIONS = {
   refrigerator: { fill: '#c8ced4', stroke: '#5a626a', w: 720, h: 700, label: '냉장고',     moduleH: 1870 },
   dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 650, label: '식기세척기', moduleH: 820  },
   // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 전체높이 (870 default)
-  ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 870, adjacent: 'depthAndHeight' },
+  // W12-12: EP 두께는 20mm 고정. design_rules 'EP기본값' 과 door.md FINISH_TYPES 가
+  // 둘 다 20 인데 코드만 18 이었다. 여기 h 가 마감재 폭의 단일 소스다.
+  ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 20,  label: 'EP',    moduleH: 870, adjacent: 'depthAndHeight' },
   // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
   molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 870, adjacent: 'heightOnly' },
   // 휠라 (filler): W=60 · 두께 18T · H=인접 모듈 높이
