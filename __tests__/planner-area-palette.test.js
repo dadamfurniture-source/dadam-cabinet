@@ -53,20 +53,48 @@ describe('영역을 고르면 팔레트가 뜬다', () => {
 });
 
 describe('항목은 네 가지뿐이다', () => {
-  test('하부장 영역 — 크기·마감 (좌대·상몰딩 없음)', () => {
-    const p = boot(seedFor(FIXTURES.straight));
-    const area = pick(p, 'lower');
-    expect(area).not.toBeNull();
-    const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
-    expect(keys).toEqual(['size', 'finish']);
+  const FOUR = ['size', 'pedestalH', 'moldingH', 'finish'];
+
+  test('어느 영역이든 늘 같은 네 개다 (W12-18)', () => {
+    // 예전엔 섹션마다 2~4개가 떠서 무엇이 빠졌는지 알 수 없었다.
+    const p = boot(seedFor(FIXTURES.lShape));
+    const seen = new Set();
+    p.g('areas').forEach((a) => {
+      p.g('setActiveArea')(a.id);
+      const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
+      expect(keys).toEqual(FOUR);
+      seen.add(a.section);
+    });
+    expect(seen.size).toBeGreaterThan(0);
   });
 
-  test('키큰장 영역 — 크기·좌대·상몰딩·마감 네 개', () => {
+  test('마감재 영역에도 네 개가 뜬다', () => {
+    const p = boot(seedFor(FIXTURES.straight));
+    const fin = p.g('areas').find((a) => a.isFinishing);
+    if (!fin) return;
+    p.g('setActiveArea')(fin.id);
+    const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
+    expect(keys).toEqual(FOUR);
+  });
+
+  test('해당 없는 부위는 입력을 막고 이유를 적는다', () => {
+    const p = boot(seedFor(FIXTURES.straight));
+    pick(p, 'lower');   // 하부장 = 다리발·상판, 좌대 없음
+    p.g('openAreaOptionPopup')('pedestalH');
+    const pop = p.document.querySelector('.mp-popup');
+    expect(pop.querySelector('.ap-part').disabled).toBe(true);
+    expect(pop.textContent).toMatch(/이 부위가 없습니다/);
+    expect(pop.textContent).toMatch(/다리발|상판/);
+  });
+
+  test('해당 되는 부위는 입력이 열려 있다', () => {
     const p = boot(seedFor(FIXTURES.lShape));
     const area = pick(p, 'tall');
-    if (!area) return;   // 픽스처에 키큰장이 없으면 건너뛴다
-    const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
-    expect(keys).toEqual(['size', 'pedestalH', 'moldingH', 'finish']);
+    if (!area) return;
+    p.g('openAreaOptionPopup')('pedestalH');
+    const inp = p.document.querySelector('.mp-popup .ap-part');
+    expect(inp.disabled).toBe(false);
+    expect(Number(inp.value)).toBeGreaterThan(0);
   });
 
   test('모듈 팔레트 항목은 섞이지 않는다', () => {
@@ -164,13 +192,3 @@ describe('마감 — 영역 전체 일괄', () => {
   });
 });
 
-describe('마감재 영역에는 마감 항목이 없다', () => {
-  test('isFinishing 영역은 finish 를 안 낸다', () => {
-    const p = boot(seedFor(FIXTURES.straight));
-    const fin = p.g('areas').find((a) => a.isFinishing);
-    if (!fin) return;
-    p.g('setActiveArea')(fin.id);
-    const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
-    expect(keys).not.toContain('finish');
-  });
-});
