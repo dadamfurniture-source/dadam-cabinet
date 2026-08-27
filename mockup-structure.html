@@ -332,10 +332,12 @@
       <button style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px"
               onclick="document.getElementById('moduleList').classList.toggle('collapsed')">«</button>
     </div>
-    <!-- W9-65: view mode toggle — 개별 / 세트 / 전체 -->
+    <!-- W12-15: 개별 / 배치 / 전체.
+         '세트'(회전각 묶음)를 '배치'(배치 단계의 영역)로 바꿨다. 회전 묶음은
+         화면에 드러나지 않는 개념이라 무엇이 묶였는지 알 수 없었다. -->
     <div class="ml-mode-toggle">
-      <button class="active" data-mode="single" title="개별 모듈 1개씩 보기">개별</button>
-      <button data-mode="set" title="ㄱ자/ㄷ자 세트 (정면 묶음)">세트</button>
+      <button class="active" data-mode="single" title="모듈 하나씩">개별</button>
+      <button data-mode="area" title="배치 단계에서 잡은 영역">배치</button>
       <button data-mode="all" title="전체 모듈 한 번에">전체</button>
     </div>
     <div class="ml-body" id="mlBody">
@@ -380,11 +382,6 @@
     <div class="panel-header">
       <span class="panel-header-title">구조 편집</span>
       <button title="패널 접기" onclick="document.getElementById('rightPanel').classList.toggle('collapsed')">»</button>
-    </div>
-    <!-- W9-72: 세트 자동계산 버튼 (세트 모드에서만 표시) -->
-    <div id="autoCalcBar" style="display:none;padding:8px 10px;background:#fffaf2;border-bottom:1px solid var(--brand-mid)">
-      <button id="autoCalcBtn" style="width:100%;padding:8px;border:1px solid var(--brand-deep);background:var(--brand-deep);color:#fff;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">⚡ 세트 일괄 자동계산</button>
-      <div style="font-size:9px;color:var(--text-faint);margin-top:4px;line-height:1.4">분배기/후드 위치 고려 · 다담 표준 (목표 도어 450mm) · 매립형 손잡이</div>
     </div>
     <div class="sections">
       <!-- CD-2: 높이 구성 — 전체높이를 다리발/몸통/상판(또는 상몰딩)으로 나눠 지정 -->
@@ -836,10 +833,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       </div>
     `).join('');
     body.querySelectorAll('.module-item').forEach(el => {
-      // 좌측 목록은 "이 모듈만 크게 보기" 로 들어가는 길이다 — 영역 보기에서 빠져나온다.
-      // (정면도에서 모듈을 클릭하면 영역 보기를 유지한 채 팔레트만 뜬다)
-      el.onclick = () => { activeAreaId = null; renderAreaTools(); setActiveModule(el.dataset.id); };
+      // W12-15: 목록 클릭 = 도면에서 모듈을 클릭한 것과 **똑같이** 동작한다.
+      //   예전엔 `activeAreaId = null` 로 영역 보기를 벗어나 그 모듈 하나만 크게
+      //   띄웠다. 같은 모듈을 도면에서 누를 때와 결과가 달라 혼란스러웠다 —
+      //   색이 변하고 옵션 팔레트가 뜨는 쪽으로 맞춘다.
+      el.onclick = () => {
+        const m = modules.find((x) => x.id === el.dataset.id);
+        const area = areaOfModule(m);
+        if (area && area.id !== activeAreaId) { activeAreaId = area.id; renderAreaTools(); }
+        setActiveModule(el.dataset.id);
+      };
     });
+  }
+
+  /**
+   * W12-15: 모듈이 속한 영역을 찾는다.
+   *
+   * 예전 방식으로 만든 설계의 모듈에는 `areaId` 가 없다 (loadModulesLegacy 가
+   * 도면에서 바로 만든다). 그래서 id 로 못 찾으면 **자리로** 찾는다 —
+   * 같은 섹션·같은 회전이면서 X 구간이 겹치는 영역이다.
+   */
+  function areaOfModule(m) {
+    if (!m) return null;
+    if (m.areaId) {
+      const byId = areaById(m.areaId);
+      if (byId) return byId;
+    }
+    const mx0 = m.x || 0, mx1 = mx0 + (m.W || 0);
+    const rot = ((m.rotation || 0) % 360 + 360) % 360;
+    return areas.find((a) => {
+      if (a.isFinishing) return false;
+      if (((a.rotation || 0) % 360 + 360) % 360 !== rot) return false;
+      const ax0 = a.x || 0, ax1 = ax0 + (a.W || 0);
+      return mx0 < ax1 && mx1 > ax0;      // X 구간이 겹친다
+    }) || null;
   }
 
   function setActiveModule(id) {
@@ -1060,14 +1087,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (wBar) wBar.querySelectorAll('.ruler-btn').forEach(n => n.remove());
       if (hCol) hCol.querySelectorAll('.ruler-btn').forEach(n => n.remove());
     }
-    // 세트 모드 + 활성 세트 + ruler 표시 중 일 때만
-    if (viewMode !== 'set' || !activeSetId) { updateSectionRulerVisibility({}); return; }
+    // W12-15: 배치 모드 + 활성 영역 + ruler 표시 중 일 때만 (예전엔 세트 모드였다)
+    if (viewMode !== 'area' || !activeAreaId) { updateSectionRulerVisibility({}); return; }
     if (rulerTop.style.display === 'none') { updateSectionRulerVisibility({}); return; }
-    const sets = buildSets();
-    const set = sets.find(x => x.id === activeSetId);
-    if (!set || !set.modules.length) { updateSectionRulerVisibility({}); return; }
+    const areaMods = modules.filter((m) => m.areaId === activeAreaId);
+    if (!areaMods.length) { updateSectionRulerVisibility({}); return; }
 
-    const present = detectSectionPresence(set.modules);
+    const present = detectSectionPresence(areaMods);
     updateSectionRulerVisibility(present);
 
     const z = view.zoom || 1;
@@ -1397,18 +1423,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       fitToActiveModule();
       return;
     }
-    // set / all — 세트/전체 모듈의 X bbox + ceilingHeight 기반
+    // W12-15: 배치 / 전체 — 대상 모듈의 X bbox + ceilingHeight 기반
     let mods = modules;
-    if (viewMode === 'set' && activeSetId) {
-      const sets = buildSets();
-      const set = sets.find(x => x.id === activeSetId);
-      if (set) mods = set.modules;
+    if (viewMode === 'area' && activeAreaId) {
+      const areaMods = modules.filter((m) => m.areaId === activeAreaId);
+      if (areaMods.length) mods = areaMods;
     }
     if (!mods.length) return;
     const ox = getFrontViewOriginX();
     const oy = (personPos && typeof personPos.cy === 'number') ? personPos.cy : originPos2D.y;
-    // W9-111: 세트 모드 = forceForward (모든 모듈 정면 도어, X 평면도 그대로)
-    const forceForward = (viewMode === 'set');
+    // W12-15: 배치 모드 = forceForward (영역 안 모듈을 모두 정면 도어 면으로)
+    const forceForward = (viewMode === 'area');
     let minX = Infinity, maxX = -Infinity;
     mods.forEach(m => {
       const rot = ((m.rotation || 0) % 360 + 360) % 360;
@@ -1536,11 +1561,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderModulesInPlace(content);
       return;
     }
-    if (viewMode === 'set' && activeSetId) {
-      const sets = buildSets();
-      const set = sets.find(x => x.id === activeSetId);
-      // W9-111: 세트 모드 — 모든 모듈 강제 정면 도어 면 (회전 무관)
-      if (set) renderFrontSet(content, set.modules, { forceForward: true });
+    if (viewMode === 'area' && activeAreaId) {
+      // W12-15: 영역 안 모듈을 모두 정면 도어 면으로 (회전 무관).
+      // 위 isAreaView 분기가 대부분 먼저 잡지만, 영역만 고르고 모듈이 없을 때를 위해 남긴다.
+      renderFrontSet(content, modules.filter((m) => m.areaId === activeAreaId), { forceForward: true });
       return;
     }
     if (viewMode === 'all') {
@@ -2892,6 +2916,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     activeAreaId = id;
     closeModulePalette();
     renderAreaTools();
+    renderModuleList();   // W12-15: 배치 목록의 선택 표시를 따라오게 한다
     renderFrontView();
     syncCanvasEmpty();
     if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
@@ -4500,8 +4525,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // W9-65: View mode (개별/세트/전체) + 세트 자동 그룹화
   // ─────────────────────────────────────────────────────────────
-  let viewMode = 'single';   // 'single' | 'set' | 'all'
-  let activeSetId = null;
+  let viewMode = 'single';   // 'single'(모듈) | 'area'(배치 영역) | 'all'(전체)
 
   // rotation 별 그룹화 — 같은 회전 = 같은 정면 세트 (ㄱ자/ㄷ자 자동 감지)
   function buildSets() {
@@ -4531,21 +4555,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     document.querySelectorAll('.ml-mode-toggle button').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
-    // W9-72: 세트 모드에서만 자동계산 버튼 표시
-    const autoCalcBar = document.getElementById('autoCalcBar');
-    if (autoCalcBar) autoCalcBar.style.display = (mode === 'set') ? 'block' : 'none';
-    // W9-108/111: 시점 회전 버튼 — 전체 모드에서만 (세트는 forceForward 라 의미 없음)
+    // W9-108/111: 시점 회전 버튼 — 전체 모드에서만
     const viewRotateBar = document.getElementById('viewRotateBar');
     if (viewRotateBar) viewRotateBar.style.display = (mode === 'all') ? 'flex' : 'none';
     renderModuleList();
     if (mode === 'single') {
       if (modules.length && !modules.find(x => x.id === activeId)) setActiveModule(modules[0].id);
       else if (activeId) setActiveModule(activeId);
-    } else if (mode === 'set') {
-      const sets = buildSets();
-      if (sets.length) setActiveSet(sets[0].id);
+    } else if (mode === 'area') {
+      // 배치 단계에서 잡은 영역을 고른다. 이미 고른 영역이 있으면 그대로 둔다.
+      const keep = areas.find((a) => a.id === activeAreaId);
+      if (keep) setActiveArea(keep.id);
+      else if (areas.length) setActiveArea(areas[0].id);
     } else if (mode === 'all') {
-      activeId = null; activeSetId = null;
+      activeId = null; activeAreaId = null;
       document.getElementById('curModuleName').textContent = `전체 모듈 (${modules.length}개)`;
       document.getElementById('canvasEmpty').style.display = modules.length ? 'none' : 'flex';
       renderAll3D();
@@ -4553,21 +4576,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderFrontView();
       if (currentView === '2d') fitFrontView();
     }
-  }
-
-  function setActiveSet(setId) {
-    activeSetId = setId;
-    const sets = buildSets();
-    const set = sets.find(s => s.id === setId);
-    if (!set) return;
-    document.getElementById('curModuleName').textContent = set.label + ` (${set.modules.length}개)`;
-    document.getElementById('canvasEmpty').style.display = 'none';
-    renderSet3D(set);
-    // W9-103: 정면도 + 자동 fit (현재 view 가 2D 면)
-    renderFrontView();
-    if (currentView === '2d') fitFrontView();
-    // 좌측 active 표시
-    renderModuleList();
   }
 
   // module list 렌더 — viewMode 별
@@ -4580,17 +4588,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         : '<div class="empty-msg">배치된 영역 없음<br><span style="font-size:10px">mockup-shell.html 에서 배치 후 돌아오세요</span></div>';
       return;
     }
-    if (viewMode === 'set') {
-      const sets = buildSets();
-      body.innerHTML = sets.map(s => {
-        const labels = s.modules.map(m => SECTION_CONFIG[m.section].label).join(' / ');
-        return `<div class="set-item ${s.id === activeSetId ? 'active' : ''}" data-set-id="${s.id}">
-          <strong>${s.label}</strong>
-          <div class="set-meta">${s.modules.length}개 모듈 · ${labels}</div>
+    if (viewMode === 'area') {
+      // W12-15: 배치 단계에서 잡은 영역을 그대로 보여준다. 고르면 그 영역이 선택돼
+      // 도면·3D 가 영역 보기로 가고, 영역 도구(모듈 추가·자동계산)가 뜬다.
+      if (!areas.length) {
+        body.innerHTML = '<div class="empty-msg">배치된 영역 없음<br><span style="font-size:10px">배치 단계에서 사각형을 그린 뒤 돌아오세요</span></div>';
+        return;
+      }
+      body.innerHTML = areas.map((a) => {
+        const mods = modules.filter((m) => m.areaId === a.id);
+        const used = mods.reduce((sum, m) => sum + (m.W || 0), 0);
+        const label = (SECTION_CONFIG[a.section] || {}).label || a.section;
+        const kinds = mods.length
+          ? [...new Set(mods.map((m) => (SECTION_CONFIG[m.section] || {}).label || m.section))].join(' / ')
+          : '모듈 없음';
+        return `<div class="set-item ${a.id === activeAreaId ? 'active' : ''}" data-area-pick="${a.id}">
+          <strong>${label} · W${Math.round(a.W)}</strong>
+          <div class="set-meta">모듈 ${mods.length}개 · ${Math.round(used)}/${Math.round(a.W)}mm · ${kinds}</div>
         </div>`;
       }).join('');
-      body.querySelectorAll('.set-item').forEach(el => {
-        el.onclick = () => setActiveSet(el.dataset.setId);
+      body.querySelectorAll('[data-area-pick]').forEach((el) => {
+        el.onclick = () => setActiveArea(el.dataset.areaPick);
       });
     } else if (viewMode === 'all') {
       body.innerHTML = `<div class="empty-msg" style="padding:20px 8px">전체 모듈 (${modules.length}개)<br><span style="font-size:10px">배치 그대로 3D 표시</span></div>`;
@@ -4714,48 +4732,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   // 세트 3D 렌더 — 같은 회전 모듈들을 원점 기준 원래 배치 좌표로 표시
   // W9-69: 인위적 일렬 정렬 (curX) 제거, renderAll3D 와 동일한 원점 기준 좌표
-  function renderSet3D(set) {
-    if (!three) return;
-    const modG = three.moduleGroup;
-    while (modG.children.length) {
-      const ch = modG.children[0]; modG.remove(ch);
-      if (ch.geometry) ch.geometry.dispose();
-      if (ch.material && ch.material.dispose) ch.material.dispose();
-    }
-    if (!set.modules.length) return;
-    const ox = originPos2D.x, oy = originPos2D.y;
-    // 세트의 bbox 계산 (원점 기준)
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    set.modules.forEach(m => {
-      const s = getStructure(m.id);
-      const moduleMesh = createModuleMesh(m, s);
-      // 원점 기준 좌표 (renderAll3D 와 동일)
-      moduleMesh.position.x = m.x + m.W/2 - ox;
-      moduleMesh.position.z = m.y + m.D/2 - oy;
-      moduleMesh.rotation.y = -(m.rotation || 0) * Math.PI / 180;
-      modG.add(moduleMesh);
-      // bbox 업데이트 (원점 기준)
-      minX = Math.min(minX, m.x - ox);
-      maxX = Math.max(maxX, m.x + m.W - ox);
-      minZ = Math.min(minZ, m.y - oy);
-      maxZ = Math.max(maxZ, m.y + m.D - oy);
-    });
-    // 3D 원점 마커
-    addOriginMarker3D(modG);
-    // 카메라 — 세트의 bbox 중심 ceiling/2
-    const cx3 = (minX + maxX) / 2;
-    const cz3 = (minZ + maxZ) / 2;
-    const extentX = maxX - minX;
-    const extentZ = maxZ - minZ;
-    const maxTopY = set.modules.reduce((mx, m) => {
-      const top = (m.section === 'upper' || m.section === 'hood') ? ceilingHeight : m.H;
-      return Math.max(mx, top);
-    }, 0);
-    const size = Math.max(extentX, extentZ, maxTopY);
-    fitCameraToBoundsAt(size, cx3, cz3);
-    three.controls.target.set(cx3, maxTopY/2, cz3);
-    three.controls.update();
-  }
+  // W12-15: renderSet3D 를 없앴다. 세트 모드가 사라져 부르는 곳이 없다 —
+  //   배치 보기는 renderAll3D 가 영역째 그린다.
 
   // W9-69: 카메라 fit + 특정 target 좌표
   function fitCameraToBoundsAt(size, tx, tz) {
@@ -4907,10 +4885,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (!m) return;
       const s = getStructure(activeId);
       renderModule3D(m, s);
-    } else if (viewMode === 'set' && activeSetId) {
-      const sets = buildSets();
-      const set = sets.find(x => x.id === activeSetId);
-      if (set) renderSet3D(set);
+    } else if (viewMode === 'area') {
+      renderAll3D({ fit: false });   // W12-15: 영역 보기는 전부 그린다
     } else if (viewMode === 'all') {
       renderAll3D();
     }
@@ -5032,30 +5008,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return count;
   }
 
-  // [⚡ 자동계산] 버튼 핸들러
-  const autoCalcBtnEl = document.getElementById('autoCalcBtn');
-  if (autoCalcBtnEl) autoCalcBtnEl.addEventListener('click', () => {
-    if (viewMode !== 'set' || !activeSetId) {
-      alert('세트 보기 모드에서 세트 선택 후 사용 가능합니다.');
-      return;
-    }
-    const sets = buildSets();
-    const set = sets.find(x => x.id === activeSetId);
-    if (!set) return;
-    const generalCount = set.modules.filter(m => !['sink','hood','dishwasher'].includes(m.section)).length;
-    if (!generalCount) {
-      alert('자동계산할 일반 모듈 없음 (가전은 자동계산 skip).');
-      return;
-    }
-    if (!confirm(`${set.label} 의 일반 모듈 ${generalCount}개를 자동 계산합니다.\n\n· 도어 개수 (W 기준 450mm)\n· 하부장 = 도어+서랍 / 그 외 = 도어만\n· 선반 등간격\n· 손잡이 매립형 (위치 section 별)\n· 분배기/후드 X 범위는 'open'\n\n기존 설정 덮어쓰기.`)) return;
-    const n = autoCalcForSet(set);
-    renderRightPanel();
-    renderSet3D(set);
-    // W9-119: 정면도(2D) + ruler 버튼 재렌더 — cell entity 갱신 반영
-    if (typeof renderFrontView === 'function') renderFrontView();
-    if (typeof updateViewportRulers === 'function') updateViewportRulers();
-    showToast(`⚡ ${set.label} 자동계산 완료 (${n}개 모듈)`);
-  });
+  // W12-15: 세트 일괄 자동계산 버튼을 없앴다 (세트 모드 폐지).
+  // 자동계산은 영역 도구의 '이 영역 자동계산' 이 맡는다.
+  // autoCalcForSet / buildSets 는 골든 스냅샷이 직접 부르므로 함수는 남긴다.
 
   // ─────────────────────────────────────────────────────────────
   // Init
