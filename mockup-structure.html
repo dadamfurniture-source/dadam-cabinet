@@ -2600,14 +2600,77 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return side === 'left' ? hosts[0] : hosts[hosts.length - 1];
   }
 
+
+  /**
+   * W12-22: 스택 영역(키큰장·냉장고장)인가.
+   * 자동계산이 세로로 쌓는 영역이면 단들이 **같은 x·같은 W** 를 쓴다.
+   */
+  function isStackedArea(area) {
+    return !!area && stackForArea(area) !== null;
+  }
+
+  /** 영역에 붙은 스택 마감재 (모듈이 아니라 영역에 매인다) */
+  function stackFinishOn(areaId, side) {
+    return modules.find((f) => f.isFinishing && f.hostAreaId === areaId && f.hostSide === side) || null;
+  }
+
+  /**
+   * W12-22: 스택 영역의 마감재.
+   *
+   * 스택은 3단이 모두 영역 폭을 그대로 쓴다. 한 단만 줄이면 나머지 단이
+   * 마감재를 뚫고 나온다 — 실제로 하부장만 880 이 되고 중간장·상부장은 900 이었다.
+   * **모든 단이 함께** 폭을 내놓아야 한다.
+   */
+  function setStackAreaFinish(area, side, section) {
+    const parts = () => modules.filter((m) => m.areaId === area.id && !m.isFinishing);
+    // 기존 것을 떼고 모든 단에 폭을 돌려준다
+    const prev = stackFinishOn(area.id, side);
+    if (prev) {
+      parts().forEach((m) => { m.W += prev.W; if (side === 'left') m.x -= prev.W; });
+      delete structures[prev.id];
+      modules.splice(modules.indexOf(prev), 1);
+    }
+    if (!section || !isFinishingSection(section)) {
+      saveStructModules(); persistPlannerState();
+      return null;
+    }
+    const ps = parts();
+    if (!ps.length) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
+    const W = finishingWidthOf(section);
+    const MIN_W = MASTER_RULES.DOOR_W_MIN;
+    const tooNarrow = ps.find((m) => m.W - W < MIN_W);
+    if (tooNarrow) {
+      showToast(`⚠ ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 단 폭이 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
+      return null;
+    }
+    const x = side === 'left' ? ps[0].x : ps[0].x + ps[0].W - W;
+    ps.forEach((m) => { m.W -= W; if (side === 'left') m.x += W; });
+    const f = {
+      id: nextModuleId(section), areaId: area.id, section,
+      W, H: area.H, D: area.D,
+      x, y: area.y || 0, rotation: area.rotation || 0,
+      isFinishing: true, finishings: [],
+      hostAreaId: area.id, hostSide: side,
+    };
+    modules.push(f);
+    saveStructModules();
+    persistPlannerState();
+    return f;
+  }
+
   /** 영역 끝에 지금 붙어 있는 마감재 (없으면 null) */
   function areaFinishOn(areaId, side) {
+    const stack = stackFinishOn(areaId, side);
+    if (stack) return stack;
     const host = areaEdgeHost(areaId, side);
     return host ? moduleFinishOn(host.id, side) : null;
   }
 
   /** 영역 끝 마감재를 정한다. `section` 이 비면 뗀다. */
   function setAreaFinish(areaId, side, section) {
+    const area = areaById(areaId);
+    // W12-22: 스택 영역은 단들이 같은 자리에 쌓여 있어 좌우 끝을 x 로 못 고른다.
+    if (isStackedArea(area)) return setStackAreaFinish(area, side, section);
     const host = areaEdgeHost(areaId, side);
     if (!host) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
     return setModuleFinish(host.id, side, section);
@@ -2871,9 +2934,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (m.areaId === area.id && !m.isFixed && !isFinishingSection(m.section)) { delete structures[m.id]; modules.splice(i, 1); }
     }
     orphanHostFinishings(area.id);
+    // W12-22: 이미 놓인 마감재가 차지한 폭을 빼고 그 옆에서 시작한다.
+    //   빼지 않으면 새 단이 영역 폭 그대로 만들어져 마감재를 뚫고 나온다.
+    const fins = modules.filter((m) => m.areaId === area.id && m.isFinishing);
+    const finW = fins.reduce((sum, f) => sum + (f.W || 0), 0);
+    const leftW = fins.filter((f) => f.hostSide === 'left').reduce((sum, f) => sum + (f.W || 0), 0);
     let made = 0;
     stack.forEach((part) => {
-      const m = addModuleToArea(area.id, { section: area.section, W: area.W, x: area.x || 0 });
+      const m = addModuleToArea(area.id, {
+        section: area.section, W: area.W - finW, x: (area.x || 0) + leftW,
+      });
       if (!m) return;
       m.H = part.H;
       m.baseY = part.baseY;
