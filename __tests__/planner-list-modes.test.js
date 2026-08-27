@@ -93,10 +93,17 @@ describe('배치 모드는 영역을 고른다', () => {
     expect(p.document.querySelector('#mlBody [data-area-pick].active')).not.toBeNull();
   });
 
-  test('영역이 없으면 안내를 띄운다', () => {
+  test('모듈이 없어도 영역 목록이 뜬다', () => {
+    // W12-16: 예전엔 `!modules.length` 가드가 먼저 걸려, 모듈을 넣기 전에는
+    // 배치 탭이 "아직 모듈이 없습니다" 만 띄우고 영역을 안 보여줬다.
+    // (storage 가 비면 loadAreas 가 샘플 영역으로 폴백하므로 영역은 항상 있다.)
     const p = boot({ _search: '?design=none&item=1' });
+    expect(p.g('modules')).toHaveLength(0);
+    expect(p.g('areas').length).toBeGreaterThan(0);
     p.g('setViewMode')('area');
-    expect(p.document.getElementById('mlBody').textContent).toMatch(/배치된 영역 없음|모듈이 없습니다/);
+    const rows = p.document.querySelectorAll('#mlBody [data-area-pick]');
+    expect(rows.length).toBe(p.g('areas').length);
+    expect(p.document.getElementById('mlBody').textContent).toMatch(/모듈 0개/);
   });
 
   test('행에 모듈 수와 사용 폭이 적힌다', () => {
