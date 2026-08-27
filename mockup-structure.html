@@ -1809,10 +1809,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-13: 마감재는 판 한 장이다 — 칸·도어·서랍을 그리지 않는다.
     // 폭이 20~60mm 인데 칸을 나누면 도어가 음수 폭이 된다.
     if (m.isFinishing || isFinishingSection(m.section)) {
+      // W12-19: 잡아 둔 폭이 아니라 부재 폭으로 그린다 (EP 20 잡고 18T 판).
+      const partW = Math.min(m.W, finishingPartWidthOf(m.section));
       const panel = document.createElementNS(ns, 'rect');
-      panel.setAttribute('x', offsetX);
+      panel.setAttribute('x', offsetX + (m.W - partW) / 2);
       panel.setAttribute('y', offsetY);
-      panel.setAttribute('width', m.W);
+      panel.setAttribute('width', partW);
       panel.setAttribute('height', m.H);
       panel.setAttribute('fill', cfg.fill);
       panel.setAttribute('stroke', cfg.stroke);
@@ -2529,10 +2531,35 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *   heightOnly (몰딩·휠라) w 가 곧 폭, h 는 두께
    * 값을 새로 만들지 않고 그 정의를 그대로 읽는다.
    */
+  /**
+   * 마감재가 **잡아 두는 폭** (공간 설계값).
+   * EP 는 부재가 18T 지만 실제 설치 여유를 위해 20 을 잡는다 (spaceW).
+   * 모듈 폭을 줄이거나 영역 잔여를 셀 때는 늘 이 값을 쓴다.
+   */
   function finishingWidthOf(section) {
     const cfg = SECTION_CONFIG[section] || {};
-    // 폴백 18 은 EP 측판 두께(18T MDF)다 — W12-18 참고.
-    return cfg.adjacent === 'depthAndHeight' ? (cfg.h || 18) : (cfg.w || 60);
+    if (cfg.adjacent === 'depthAndHeight') return cfg.spaceW || cfg.h || 20;
+    return cfg.w || 60;
+  }
+
+  /**
+   * 마감재 **부재 자체의 폭** (제작 치수).
+   * EP 는 18T 판 한 장이다 — 잡아 둔 20 안에 서고 2mm 가 설치 여유로 남는다.
+   * 몰딩·휠라는 폭 60 이 부재이자 공간이라 둘이 같다.
+   */
+  function finishingPartWidthOf(section) {
+    const cfg = SECTION_CONFIG[section] || {};
+    if (cfg.adjacent === 'depthAndHeight') return cfg.h || 18;
+    return cfg.w || 60;
+  }
+
+
+  /** 선택지 표기 — 잡는 폭과 부재가 다르면 둘 다 보여 준다 (EP 20mm · 부재 18T). */
+  function finishLabel(k) {
+    const label = (SECTION_CONFIG[k] || {}).label || k;
+    const space = finishingWidthOf(k);
+    const part = finishingPartWidthOf(k);
+    return space === part ? `${label} ${space}mm` : `${label} ${space}mm · 부재 ${part}T`;
   }
 
   /**
@@ -3279,8 +3306,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       body: (m) => `
         ${FINISH_SIDES.map((side) => {
           const cur = moduleFinishOn(m.id, side);
-          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) =>
-            [k, `${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm`]));
+          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) => [k, finishLabel(k)]));
           return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'}</label>
             <select class="mp-fin" data-side="${side}">${_sel(cur ? cur.section : '', opts)}</select>
           </div>`;
@@ -3476,8 +3502,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       body: (a) => {
         const hosts = modules.filter((m) => m.areaId === a.id && !m.isFinishing);
         const rows = FINISH_SIDES.map((side) => {
-          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) =>
-            [k, `${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm`]));
+          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) => [k, finishLabel(k)]));
           return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'}</label>
             <select class="ap-fin" data-side="${side}">${_sel('', opts)}</select>
           </div>`;
@@ -4429,7 +4454,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const cfg = SECTION_CONFIG[m.section] || {};
     // SECTION_CONFIG 는 이미 SECTION_PALETTE_3D 를 덮어쓴 값이다 (buildSectionConfig).
     const color = cfg.fill;
-    const panel = makeBox(m.W, m.H, m.D, color, { roughness: 0.6, metalness: 0.08 });
+    // W12-19: 잡아 둔 폭(m.W)이 아니라 **부재 폭**으로 그린다. EP 는 20 을 잡고
+    // 18T 판이 서므로 2mm 가 설치 여유로 남는다 — 그 여유가 보여야 맞다.
+    const partW = Math.min(m.W, finishingPartWidthOf(m.section));
+    const panel = makeBox(partW, m.H, m.D, color, { roughness: 0.6, metalness: 0.08 });
     panel.position.set(0, m.H / 2, 0);
     panel.userData = { entityKind: 'carcass', moduleId: m.id, side: 'finish', section: m.section };
     parent.add(panel);
