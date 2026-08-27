@@ -51,13 +51,16 @@ const PLANNER_SECTIONS = {
   hood:         { fill: '#6a727a', stroke: '#2a3238', w: 300, h: 300, label: '후드',       moduleH: 300  },
   refrigerator: { fill: '#c8ced4', stroke: '#5a626a', w: 720, h: 700, label: '냉장고',     moduleH: 1870 },
   dishwasher:   { fill: '#9ca4ac', stroke: '#5a626a', w: 600, h: 650, label: '식기세척기', moduleH: 820  },
-  // EP 측판: 두께 18T · W=인접 모듈 깊이 (650 default) · H=인접 모듈 전체높이 (870 default)
+  // EP 측판: W=인접 모듈 깊이 (650 default) · H=인접 모듈 전체높이 (870 default)
   //
-  // W12-18: h 를 20 으로 올렸던 W12-12 를 되돌린다. `design_rules 'EP기본값' 20mm`
-  // 과 `door.md FINISH_TYPES 기본 너비 20mm` 는 **상세설계의 마감 스트립** 치수이고,
-  // 플래너의 EP 는 위 주석대로 **측판 한 장**이다 — 두께는 18T 다.
-  // (같은 표에서 몰딩·휠라의 기본 너비 60 은 여기 w:60 과 맞는다. EP 만 모델이 다르다.)
-  ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  label: 'EP',    moduleH: 870, adjacent: 'depthAndHeight' },
+  // W12-19: **부재와 공간이 다른 값이다.**
+  //   h      = 18  — 실제 부재 두께 (18T MDF). BOM·3D 가 쓴다.
+  //   spaceW = 20  — 공간 설계에서 잡아 두는 폭. 실제 설치 여유 2mm 를 포함한다.
+  //                  `design_rules 'EP기본값' 20mm` 과 `door.md FINISH_TYPES
+  //                  기본 너비 20mm` 가 이 값이다.
+  // 모듈 폭을 줄일 때는 spaceW(20), 판을 그릴 때는 h(18) 를 쓴다.
+  // 몰딩·휠라는 폭 60 이 부재이자 공간이라 둘이 같다.
+  ep:      { fill: '#d4c5a0', stroke: '#7a6a45', w: 650,  h: 18,  spaceW: 20, label: 'EP',    moduleH: 870, adjacent: 'depthAndHeight' },
   // 몰딩: W=60 · 두께 18T · H=인접 모듈 높이
   molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 870, adjacent: 'heightOnly' },
   // 휠라 (filler): W=60 · 두께 18T · H=인접 모듈 높이
