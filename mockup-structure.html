@@ -2575,6 +2575,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       id, areaId, section,
       W, H: area.H, D: area.D,
       x: (area.x || 0) + used, y: area.y || 0, rotation: area.rotation || 0,
+      baseY: finishBaseYFor(area),   // W12-24
       isFinishing: true, finishings: [],
     };
     modules.push(m);
@@ -2600,6 +2601,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return side === 'left' ? hosts[0] : hosts[hosts.length - 1];
   }
 
+
+
+  /**
+   * W12-24: 마감재가 설 바닥 높이. **영역과 같아야 한다.**
+   *
+   * 상부장은 천장 매달림이라 `getBaseY('upper', H) = ceiling - H` 다. 그런데
+   * 마감재의 section 은 'ep'·'molding'·'filler' 라 같은 함수가 바닥(0)을 준다.
+   * 그래서 상부장 영역에 마감재를 붙이면 영역보다 1520mm 아래에 서서
+   * "마감재가 안 생긴다" 로 보였다 — 실제로는 엉뚱한 데 있었다.
+   */
+  function finishBaseYFor(area) {
+    if (!area) return 0;
+    return getBaseY(area.section, area.H);
+  }
 
   /**
    * W12-22: 스택 영역(키큰장·냉장고장)인가.
@@ -2649,6 +2664,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       id: nextModuleId(section), areaId: area.id, section,
       W, H: area.H, D: area.D,
       x, y: area.y || 0, rotation: area.rotation || 0,
+      baseY: finishBaseYFor(area),   // W12-24
       isFinishing: true, finishings: [],
       hostAreaId: area.id, hostSide: side,
     };
@@ -2756,6 +2772,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       H: (area && area.H) || m.H,
       D: (area && area.D) || m.D,
       x, y: m.y, rotation: m.rotation || 0,
+      baseY: finishBaseYFor(area),   // W12-24: 영역과 같은 높이에 선다
       isFinishing: true, finishings: [],
       hostId: m.id, hostSide: side,
     };
@@ -4569,7 +4586,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) });
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) }, areaLimitsFor(m)));
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
@@ -4700,9 +4717,35 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
   }
 
+
+  /**
+   * W12-24: 모듈이 속한 **배치 공간의 경계**. 도어가 이걸 넘으면 안 된다.
+   *   frontLimit  — 영역 앞면 (모듈 로컬 z). overlay 도어가 여기서 멈춘다.
+   *   bottomLimit — 영역 바닥 (모듈 로컬 y). 도어 내림이 여기서 멈춘다.
+   * 영역을 못 찾으면 아무것도 제한하지 않는다 (예전 그대로 그린다).
+   */
+  function areaLimitsFor(m) {
+    const area = areaOfModule(m);
+    if (!area) return {};
+    const rot = ((m.rotation || 0) % 360 + 360) % 360;
+    const areaD = (rot === 90 || rot === 270) ? area.W : area.D;
+    const modD = (rot === 90 || rot === 270) ? m.W : m.D;
+    return {
+      // 모듈 중심 기준이라 모듈 깊이의 절반에서 영역이 얼마나 더 있는지 더한다
+      frontLimit: modD / 2 + Math.max(0, (areaD - modD) / 2),
+      bottomLimit: (getBaseY(area.section, area.H)) - baseYOf(m),
+    };
+  }
+
   function addFrontPanel(parent, cx, cy, w, h, frontZ, type, cfg, s, meta) {
     const T = 18;
-    const overlayZ = frontZ + T / 2;           // W9-100: overlay 도어 z 중심
+    // W12-24: 배치 공간은 **제한 공간**이다. overlay 도어는 몸통 앞면에 붙어
+    //   frontZ + T 까지 나가는데, 영역 깊이가 몸통과 같으면 그만큼 밖으로 삐져나온다.
+    //   영역 앞면을 넘지 않도록 도어를 안쪽으로 물린다.
+    const frontLimit = meta && Number.isFinite(meta.frontLimit) ? meta.frontLimit : null;
+    const overlayZ = frontLimit != null
+      ? Math.min(frontZ + T / 2, frontLimit - T / 2)
+      : frontZ + T / 2;                        // W9-100: overlay 도어 z 중심
     // W12-6: 도어 내림 — 도어만 몸통보다 아래로 내려온다. 그 밑단이 손잡이다.
     // 서랍·오픈·먹장은 해당 없다 (도어가 아니다).
     // W12-8: 목찬넬 도어는 몸통 상단보다 30 내려온다 — 그 틈이 손 넣는 자리다.
@@ -4715,7 +4758,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const newTop = bodyTop - topGap;
       if (newTop > bodyBottom) { h = newTop - bodyBottom; cy = (newTop + bodyBottom) / 2; }
     }
-    const drop = (type === 'door' && meta && meta.doorDrop) ? meta.doorDrop : 0;
+    // W12-24: 도어 내림이 영역 아래를 넘지 않게 자른다.
+    let drop = (type === 'door' && meta && meta.doorDrop) ? meta.doorDrop : 0;
+    if (drop && meta && Number.isFinite(meta.bottomLimit)) {
+      const bodyBottom0 = cy - h / 2 - MASTER_RULES.DOOR_GAP / 2;
+      drop = Math.max(0, Math.min(drop, bodyBottom0 - meta.bottomLimit));
+    }
     if (drop) {
       // 도어 세로 = 장H + drop (design_rules 싱크상부장도어H). 넘어온 h 는 이미
       // 갭 4 를 뺀 값이라 그대로 더하면 장H + 16 이 된다 — 갭을 되돌리고 더한다.
@@ -5158,7 +5206,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, { moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) });
+      addFrontPanel(g, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) }, areaLimitsFor(m)));
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(g, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
