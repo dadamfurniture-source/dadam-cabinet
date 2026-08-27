@@ -73,26 +73,27 @@ describe('도어가 영역 앞면을 넘지 않는다', () => {
     expect(fn).toMatch(/if \(!area\) return \{\};/);
   });
 
-  test('overlayZ 가 frontLimit 에서 멈춘다', () => {
+  test('도어는 몸통 앞면에 붙는다 — 몸통 속으로 밀지 않는다 (W12-25)', () => {
+    // W12-24 는 도어를 안쪽으로 물려 영역을 지켰지만 몸통과 겹쳤다.
+    // 이제 몸통을 도어 두께만큼 얕게 잡아 둘 다 만족시킨다.
     const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
-    expect(ap).toMatch(/Math\.min\(frontZ \+ T \/ 2, frontLimit - T \/ 2\)/);
+    expect(ap).toMatch(/const overlayZ = frontZ \+ T \/ 2;/);
+    expect(ap).not.toContain('frontLimit - T / 2');
   });
 
-  test('산술 — 영역 깊이가 몸통과 같으면 도어가 안쪽으로 물린다', () => {
-    const T = 18, D = 550;
-    const frontZ = D / 2;                 // 275
-    const frontLimit = D / 2;             // 영역 D == 모듈 D
-    const overlayZ = Math.min(frontZ + T / 2, frontLimit - T / 2);
-    expect(overlayZ + T / 2).toBe(frontLimit);   // 도어 앞면 = 영역 앞면
-    expect(overlayZ).toBeLessThan(frontZ + T / 2);
+  test('새 모듈 깊이 = 영역 깊이 − 도어 두께', () => {
+    const add = SRC.slice(SRC.indexOf('function addModuleToArea'), SRC.indexOf('function addModuleToArea') + 1800);
+    expect(add).toMatch(/const roomD = \(area\.D \|\| 0\) - DOOR_T;/);
+    expect(add).toMatch(/base\.D = Math\.min\(base\.D, roomD\)/);
   });
 
-  test('산술 — 영역이 더 깊으면 예전처럼 몸통 앞에 붙는다', () => {
-    const T = 18, modD = 550, areaD = 700;
-    const frontZ = modD / 2;
-    const frontLimit = modD / 2 + (areaD - modD) / 2;
-    const overlayZ = Math.min(frontZ + T / 2, frontLimit - T / 2);
-    expect(overlayZ).toBe(frontZ + T / 2);      // 제한이 안 걸린다
+  test('산술 — 몸통 + 도어가 영역 깊이에 딱 맞는다', () => {
+    const DOOR_T = 18, areaD = 550;
+    const bodyD = Math.min(550, areaD - DOOR_T);   // 532
+    const frontZ = bodyD / 2;
+    const doorFront = frontZ + DOOR_T;             // 도어 앞면
+    expect(bodyD).toBe(532);
+    expect(doorFront - (-bodyD / 2)).toBe(areaD);  // 뒤면~도어앞면 = 영역 깊이
   });
 });
 
@@ -132,5 +133,44 @@ describe('두 렌더 경로 모두 경계를 넘긴다', () => {
     const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
     expect(calls.length).toBe(2);
     calls.forEach((c) => expect(c).toContain('areaLimitsFor(m)'));
+  });
+});
+
+describe('파츠는 서로 겹치지 않는다 (W12-25)', () => {
+  test('몸통 두께는 15T — 정본 BODY_THICKNESS_DEFAULT 와 같다', () => {
+    const dc = fs.readFileSync(path.join(__dirname, '..', 'js/detaildesign/data-constants.js'), 'utf8');
+    const m = dc.match(/BODY_THICKNESS_DEFAULT = (\d+)/);
+    expect(Number(m[1])).toBe(15);
+    expect(SRC).toMatch(/const BODY_T = 15;/);
+  });
+
+  test('도어·마감재는 18T 로 몸통과 별개다', () => {
+    expect(SRC).toMatch(/const DOOR_T = 18;/);
+    const dc = fs.readFileSync(path.join(__dirname, '..', 'js/detaildesign/data-constants.js'), 'utf8');
+    expect(dc).toContain('몸통 두께와 무관한 별개 값');
+  });
+
+  test('T = 18 을 직접 박은 곳이 없다', () => {
+    const code = SRC.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    expect(code).not.toMatch(/\bT = 18\b/);
+  });
+
+  test('뒤판은 측판 사이에 들어간다 — 전폭이면 겹친다', () => {
+    const fn = SRC.slice(SRC.indexOf('function addCarcassShell'), SRC.indexOf('function addWoodChannel'));
+    expect(fn).toMatch(/makeBox\(o\.W - 2 \* o\.T, o\.carcassH, o\.T,/);
+  });
+
+  test('산술 — 뒤판과 측판이 안 겹친다', () => {
+    const W = 600, T = 15;
+    const backHalf = (W - 2 * T) / 2;          // 뒤판 반폭 285
+    const sideInner = W / 2 - T;               // 측판 안쪽면 285
+    expect(backHalf).toBe(sideInner);          // 딱 맞닿는다 (겹침 0)
+  });
+
+  test('산술 — 도어와 몸통이 안 겹친다', () => {
+    const bodyD = 532, DOOR_T = 18;
+    const frontZ = bodyD / 2;                  // 266
+    const doorBack = (frontZ + DOOR_T / 2) - DOOR_T / 2;
+    expect(doorBack).toBe(frontZ);             // 도어 뒷면 = 몸통 앞면, 겹침 0
   });
 });
