@@ -252,3 +252,57 @@ describe('EP 두께는 정본과 같은 20mm (W12-12)', () => {
     expect(p.g('finishingWidthOf')('filler')).toBe(60);
   });
 });
+
+describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  test('buildFinishingMesh 마커가 살아 있다', () => {
+    expect(SRC.indexOf('function buildFinishingMesh')).toBeGreaterThan(-1);
+  });
+
+  test('판 하나만 만든다 — 측판·도어·다리발이 없다', () => {
+    const fn = SRC.slice(SRC.indexOf('function buildFinishingMesh'),
+      SRC.indexOf('function renderModule3D'));
+    expect((fn.match(/makeBox\(/g) || [])).toHaveLength(1);
+    ['addCarcassShell', 'addCellDividers', 'addFrontPanel', 'addLegs', 'addTopPanel']
+      .forEach((f) => expect(fn).not.toContain(f));
+  });
+
+  test('모듈 전체 H·D 를 그대로 쓴다 — 옆 모듈에 맞춰 선다', () => {
+    const fn = SRC.slice(SRC.indexOf('function buildFinishingMesh'),
+      SRC.indexOf('function renderModule3D'));
+    expect(fn).toMatch(/makeBox\(m\.W, m\.H, m\.D,/);
+  });
+
+  test('3D 두 경로 모두 캐비넷 경로를 타기 전에 갈라진다', () => {
+    ['function renderModule3D', 'function createModuleMesh'].forEach((marker) => {
+      const from = SRC.indexOf(marker);
+      expect(from).toBeGreaterThan(-1);
+      const head = SRC.slice(from, from + 1400);
+      const branch = head.indexOf('isFinishingSection(m.section)');
+      const carcass = head.indexOf('addCarcassShell');
+      expect(branch).toBeGreaterThan(-1);
+      if (carcass > -1) expect(branch).toBeLessThan(carcass);
+    });
+  });
+
+  test('2D 정면도도 칸·도어를 그리지 않는다', () => {
+    const from = SRC.indexOf('function renderModuleFront');
+    const head = SRC.slice(from, from + 4000);
+    const branch = head.indexOf('isFinishingSection(m.section)');
+    const split = head.indexOf('horizontalLayout');   // 상하 분할 시작점
+    expect(branch).toBeGreaterThan(-1);
+    expect(split).toBeGreaterThan(-1);
+    expect(branch).toBeLessThan(split);               // 분기가 먼저여야 칸이 안 그려진다
+  });
+
+  test('마감재도 클릭해 고를 수 있다', () => {
+    const from = SRC.indexOf('function renderModuleFront');
+    const head = SRC.slice(from, from + 1200);
+    expect(head).toContain("panel.setAttribute('data-module-id', m.id)");
+    expect(head).toContain('setActiveModule(m.id)');
+  });
+});

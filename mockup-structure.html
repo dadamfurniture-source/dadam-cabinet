@@ -1734,6 +1734,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const cfg = SECTION_CONFIG[m.section];
     const ns = 'http://www.w3.org/2000/svg';
 
+    // W12-13: 마감재는 판 한 장이다 — 칸·도어·서랍을 그리지 않는다.
+    // 폭이 20~60mm 인데 칸을 나누면 도어가 음수 폭이 된다.
+    if (m.isFinishing || isFinishingSection(m.section)) {
+      const panel = document.createElementNS(ns, 'rect');
+      panel.setAttribute('x', offsetX);
+      panel.setAttribute('y', offsetY);
+      panel.setAttribute('width', m.W);
+      panel.setAttribute('height', m.H);
+      panel.setAttribute('fill', cfg.fill);
+      panel.setAttribute('stroke', cfg.stroke);
+      panel.setAttribute('stroke-width', 4);
+      panel.setAttribute('data-module-id', m.id);
+      panel.setAttribute('pointer-events', 'all');
+      panel.style.cursor = 'pointer';
+      panel.addEventListener('click', (e) => { e.stopPropagation(); setActiveModule(m.id); });
+      content.appendChild(panel);
+      return;
+    }
+
     // 모듈 외곽 — 클릭 대상이자 옵션 팔레트의 앵커.
     // 예전엔 정면도에서 모듈을 고를 방법이 없어 좌측 목록이나 3D 를 거쳐야 했다.
     const outline = document.createElementNS(ns, 'rect');
@@ -4084,6 +4103,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // 모듈 3D 렌더 — 외곽 + 도어/서랍 + 선반 + 손잡이
+  /**
+   * W12-13: 마감재(EP·몰딩·휠라)는 **판 한 장**이다.
+   *
+   * 예전엔 마감재도 일반 모듈 경로를 타서 캐비넷으로 그려졌다. 폭이 20~60mm 인데
+   * 측판을 18mm 씩 두 장 세우니 지판·천판 폭이 **음수**가 됐고(EP 에서 -16),
+   * 도어·상판·다리발까지 붙었다. 부재가 아니라 장이 되어 버린 것이다.
+   *
+   * 마감재는 모듈 전체 높이(H)와 깊이(D)를 그대로 쓰는 한 장으로 세운다 —
+   * 옆 모듈에 맞춰 서는 것이 마감재의 뜻이다. 색은 2D 와 같은 것을 쓴다.
+   */
+  function buildFinishingMesh(parent, m) {
+    const cfg = SECTION_CONFIG[m.section] || {};
+    // SECTION_CONFIG 는 이미 SECTION_PALETTE_3D 를 덮어쓴 값이다 (buildSectionConfig).
+    const color = cfg.fill;
+    const panel = makeBox(m.W, m.H, m.D, color, { roughness: 0.6, metalness: 0.08 });
+    panel.position.set(0, m.H / 2, 0);
+    panel.userData = { entityKind: 'carcass', moduleId: m.id, side: 'finish', section: m.section };
+    parent.add(panel);
+    addEdgeOutline(panel, parent, 0x000000, 0.7);
+    return parent;
+  }
+
   function renderModule3D(m, s) {
     if (!three) return;
     // 기존 그룹 비우기
@@ -4095,6 +4136,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     if (!m) return;
     const cfg = SECTION_CONFIG[m.section];
+    // W12-13: 마감재는 판 한 장 — 캐비넷 경로를 타면 안 된다.
+    if (m.isFinishing || isFinishingSection(m.section)) {
+      const fg = new THREE.Group();
+      fg.position.set(0, baseYOf(m), 0);
+      fg.userData = { entityKind: 'module', moduleId: m.id };
+      three.moduleGroup.add(fg);
+      buildFinishingMesh(fg, m);
+      fitCameraToModule(m.W, m.H, m.D, baseYOf(m));
+      return;
+    }
     const W = m.W, H = m.H, D = m.D;
     const T = 18;   // 판 두께
 
@@ -4676,6 +4727,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     g.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
     const cfg = SECTION_CONFIG[m.section];
     if (!cfg) return g;
+    // W12-13: 마감재는 판 한 장 — 캐비넷 경로를 타면 안 된다.
+    if (m.isFinishing || isFinishingSection(m.section)) {
+      g.position.y = baseYOf(m);
+      return buildFinishingMesh(g, m);
+    }
     const W = m.W, H = m.H, D = m.D, T = 18;
     const carcassColor = darken3(cfg.fill, 0.05);
     // 모듈 base Y (section 따라)
