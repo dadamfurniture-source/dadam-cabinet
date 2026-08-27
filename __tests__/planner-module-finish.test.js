@@ -138,7 +138,7 @@ describe('모듈이 너무 좁아지면 막는다', () => {
     expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(0);
   });
 
-  test('EP(18T)는 같은 모듈에 들어간다', () => {
+  test('EP(공간 20mm)는 같은 모듈에 들어간다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const areas = p.g('areas');
     const MIN = p.g('MASTER_RULES').DOOR_W_MIN;
@@ -225,31 +225,56 @@ describe('팔레트에 마감 옵션이 있다', () => {
   });
 });
 
-describe('EP 두께는 측판 18T (W12-18)', () => {
+describe('EP — 부재 18T · 공간 20mm (W12-19)', () => {
   const fs = require('fs');
   const path = require('path');
   const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').split('\r\n').join('\n');
 
-  test('planner-sections 의 ep.h 가 18 (측판 두께)', () => {
-    const m = read('js/planner/planner-sections.js').match(/ep:\s*\{[^}]*h:\s*(\d+)/);
-    expect(Number(m[1])).toBe(18);
+  test('ep.h 는 부재 18T, spaceW 는 공간 20mm', () => {
+    const src = read('js/planner/planner-sections.js');
+    const row = src.match(/ep:\s*\{[^}]*\}/)[0];
+    expect(Number(row.match(/h:\s*(\d+)/)[1])).toBe(18);
+    expect(Number(row.match(/spaceW:\s*(\d+)/)[1])).toBe(20);
   });
 
-  test('finishingWidthOf 가 18 을 돌려준다', () => {
+  test('잡는 폭은 20 — 모듈이 그만큼 준다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    expect(p.g('finishingWidthOf')('ep')).toBe(18);
+    expect(p.g('finishingWidthOf')('ep')).toBe(20);
   });
 
-  test('폴백도 18 이다', () => {
-    expect(read('mockup-structure.html')).toMatch(/cfg\.h \|\| 18/);
+  test('부재 폭은 18 — 판은 그만큼만 선다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    expect(p.g('finishingPartWidthOf')('ep')).toBe(18);
   });
 
-  test('door.md 의 20mm 는 다른 모델임을 주석이 밝힌다', () => {
-    // 상세설계 FINISH_TYPES 의 '기본 너비 20mm' 는 마감 스트립이고,
-    // 플래너 EP 는 측판 한 장이다. 값이 다른 이유가 소스에 남아야 한다.
+  test('여유 2mm 가 남는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    expect(p.g('finishingWidthOf')('ep') - p.g('finishingPartWidthOf')('ep')).toBe(2);
+  });
+
+  test('몰딩·휠라는 둘이 같다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    ['molding', 'filler'].forEach((k) => {
+      expect(p.g('finishingWidthOf')(k)).toBe(60);
+      expect(p.g('finishingPartWidthOf')(k)).toBe(60);
+    });
+  });
+
+  test('3D·정면도는 부재 폭으로 그린다', () => {
+    const src = read('mockup-structure.html');
+    expect((src.match(/finishingPartWidthOf\(m\.section\)/g) || []).length).toBe(2);
+  });
+
+  test('선택지에 둘 다 적힌다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    expect(p.g('finishLabel')('ep')).toBe('EP 20mm · 부재 18T');
+    expect(p.g('finishLabel')('molding')).toBe('몰딩 60mm');
+  });
+
+  test('design_rules·door.md 의 20mm 가 공간값임을 주석이 밝힌다', () => {
     const sec = read('js/planner/planner-sections.js');
-    expect(sec).toContain('상세설계의 마감 스트립');
-    expect(sec).toContain('측판 한 장');
+    expect(sec).toContain('실제 설치 여유');
+    expect(sec).toMatch(/design_rules 'EP기본값' 20mm/);
   });
 
   test('몰딩·휠라는 60 그대로다', () => {
@@ -277,10 +302,13 @@ describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
       .forEach((f) => expect(fn).not.toContain(f));
   });
 
-  test('모듈 전체 H·D 를 그대로 쓴다 — 옆 모듈에 맞춰 선다', () => {
+  test('H·D 는 그대로, 폭만 부재 기준 (W12-19)', () => {
     const fn = SRC.slice(SRC.indexOf('function buildFinishingMesh'),
       SRC.indexOf('function renderModule3D'));
-    expect(fn).toMatch(/makeBox\(m\.W, m\.H, m\.D,/);
+    expect(fn).toMatch(/makeBox\(partW, m\.H, m\.D,/);
+    expect(fn).toContain('finishingPartWidthOf(m.section)');
+    // 잡아 둔 폭보다 넓게 그리면 옆 모듈을 파고든다
+    expect(fn).toContain('Math.min(m.W,');
   });
 
   test('3D 두 경로 모두 캐비넷 경로를 타기 전에 갈라진다', () => {
@@ -450,7 +478,7 @@ describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
     const f = p.g('setModuleFinish')(m.id, 'right', 'ep');
     expect(f.H).toBe(2300);
     expect(f.D).toBe(700);
-    expect(f.W).toBe(18);          // 측판 두께
+    expect(f.W).toBe(20);          // 잡는 폭 (부재 18T + 여유 2)
   });
 
   test('스택 한 단짜리 모듈에 붙여도 영역 전체 높이로 선다', () => {

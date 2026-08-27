@@ -848,10 +848,12 @@ describe('마감재 (EP · 몰딩 · 휠라)', () => {
   });
 
   test('폭은 adjacent 정의를 따른다', () => {
-    // EP 는 depthAndHeight — w 가 깊이라 런에서 차지하는 건 두께 h(18).
-    // 몰딩·휠라는 heightOnly — w(60) 가 곧 폭.
+    // EP 는 depthAndHeight — w 가 깊이라 런에서 차지하는 건 두께 쪽이다.
+    // W12-19: 다만 **잡는 폭은 spaceW(20)** 다 — 부재 18T 에 설치 여유 2mm 를 더한 값.
+    // 몰딩·휠라는 heightOnly — w(60) 가 곧 폭이고 부재와 공간이 같다.
     const { p } = withArea();
-    expect(p.g('finishingWidthOf')('ep')).toBe(p.g('SECTION_CONFIG').ep.h);
+    expect(p.g('finishingWidthOf')('ep')).toBe(p.g('SECTION_CONFIG').ep.spaceW);
+    expect(p.g('finishingPartWidthOf')('ep')).toBe(p.g('SECTION_CONFIG').ep.h);
     expect(p.g('finishingWidthOf')('molding')).toBe(p.g('SECTION_CONFIG').molding.w);
     expect(p.g('finishingWidthOf')('filler')).toBe(p.g('SECTION_CONFIG').filler.w);
   });
