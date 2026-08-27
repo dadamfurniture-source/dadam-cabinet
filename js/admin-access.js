@@ -56,20 +56,27 @@
   async function isAdmin(supabaseClient) {
     if (!supabaseClient) return false;
 
+    // W12-23: **참(true)만 캐시한다.**
+    //   is_admin() 은 auth.uid() 를 보므로 세션이 실리기 전에 부르면 false 가 나온다.
+    //   예전엔 그 false 를 1분간 캐시해, 세션이 준비된 뒤에도 관리자가 계속
+    //   비관리자로 판정됐다 — 상세설계가 승인 화면에 막히던 원인이다.
+    //   거짓은 캐시하지 않고 매번 다시 묻는다 (호출은 페이지당 몇 번뿐이다).
     const cached = readCache();
-    if (cached && typeof cached.isAdmin === 'boolean') {
-      return cached.isAdmin;
-    }
+    if (cached && cached.isAdmin === true) return true;
 
     try {
+      // 세션이 없으면 RPC 는 반드시 false 다. 물어볼 것도 없고, 그 결과를
+      // 남겨서도 안 된다.
+      const { data: { session } = { session: null } } = await supabaseClient.auth.getSession();
+      if (!session) return false;
+
       const { data, error } = await supabaseClient.rpc('is_admin');
       if (error) {
         console.warn('[AdminAccess] is_admin RPC 실패:', error.message);
-        writeCache(false, null);
-        return false;
+        return false;   // 캐시하지 않는다 — 다음 호출에서 다시 묻는다
       }
       const result = Boolean(data);
-      writeCache(result, cached ? cached.role : null);
+      if (result) writeCache(true, cached ? cached.role : null);
       return result;
     } catch (e) {
       console.warn('[AdminAccess] is_admin 예외:', e?.message);
