@@ -59,10 +59,21 @@
       return { approved: false, requestedAt: null };
     }
 
+    // W12-23: 참(승인)만 캐시한다. 조회가 한 번 실패했다고 1분간 미승인으로
+    // 눌러앉으면, 승인된 사용자가 이유 없이 막힌다.
     const cached = readCache(userId);
-    if (cached) {
-      return { approved: !!cached.approved, requestedAt: cached.requestedAt || null };
+    if (cached && cached.approved) {
+      return { approved: true, requestedAt: cached.requestedAt || null };
     }
+
+    // W12-23: **관리자는 언제나 승인으로 본다.** 상세설계뿐 아니라 nav 노출까지
+    // 같은 판정을 쓰므로, 여기서 한 번 통과시키면 모든 서비스 기능이 열린다.
+    try {
+      if (window.AdminAccess && (await window.AdminAccess.isAdmin(supabaseClient))) {
+        writeCache(userId, true, null);
+        return { approved: true, requestedAt: null };
+      }
+    } catch (e) { /* 관리자 판정 실패는 일반 사용자로 흘려보낸다 */ }
 
     try {
       const { data, error } = await supabaseClient
@@ -79,7 +90,7 @@
 
       const approved = Boolean(data && data.detaildesign_approved);
       const requestedAt = (data && data.detaildesign_requested_at) || null;
-      writeCache(userId, approved, requestedAt);
+      if (approved) writeCache(userId, true, requestedAt);   // W12-23: 참만 캐시
       return { approved, requestedAt };
     } catch (e) {
       console.warn('[DetailDesignAccess] profiles 조회 예외:', e.message);
