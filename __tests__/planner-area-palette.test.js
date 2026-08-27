@@ -255,8 +255,10 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
     expect(p.document.querySelector('.mp-popup').textContent).toMatch(/모듈을 먼저 넣으세요/);
   });
 
-  test('모듈 팔레트의 개별·일괄은 그대로다', () => {
-    expect(SRC).toContain('mp-fin-all');
-    expect(SRC).toContain('applyFinishToArea');
+  test('마감 입구는 배치 팔레트 하나다 (W12-21)', () => {
+    // 모듈 팔레트의 마감 옵션·일괄 버튼은 없앴다.
+    expect(SRC).not.toContain('mp-fin-all');
+    const arr = SRC.slice(SRC.indexOf('const MODULE_OPTIONS'), SRC.indexOf('function heightNote'));
+    expect(arr).not.toContain("key: 'finish'");
   });
 });
