@@ -218,8 +218,10 @@ describe('팔레트에 마감 옵션이 있다', () => {
 
   test('도면도 같이 갱신한다', () => {
     // 폭이 바뀌므로 saveLayoutFromModules 를 안 부르면 배치 단계와 어긋난다.
-    const bind = SRC.slice(SRC.indexOf(".mp-fin"), SRC.indexOf(".mp-fin") + 320);
-    expect(bind).toContain('saveLayoutFromModules()');
+    // CSS 에도 `.mp-fin-all` 이 있으므로 JS 바인딩 자리를 정확히 집는다.
+    const at = SRC.indexOf("querySelectorAll('.mp-fin')");
+    expect(at).toBeGreaterThan(-1);
+    expect(SRC.slice(at, at + 320)).toContain('saveLayoutFromModules()');
   });
 });
 
@@ -304,5 +306,132 @@ describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
     const head = SRC.slice(from, from + 1200);
     expect(head).toContain("panel.setAttribute('data-module-id', m.id)");
     expect(head).toContain('setActiveModule(m.id)');
+  });
+});
+
+describe('영역 전체 일괄 적용 (W12-14)', () => {
+  /** 영역에 폭 W 모듈을 n개 넣는다 */
+  function fill(p, n, W) {
+    const area = p.g('areas')[0];
+    const out = [];
+    let x = area.x || 0;
+    for (let i = 0; i < n; i++) {
+      const m = p.g('addModuleToArea')(area.id, { section: 'lower', W, x });
+      out.push(m); x += W;
+    }
+    return { area, mods: out };
+  }
+
+  test('모든 모듈의 좌·우에 한 번에 건다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 3, 600);
+    const W0 = mods.map((m) => m.W);
+    const r = p.g('applyFinishToArea')(area.id, { left: 'ep', right: 'molding' });
+    expect(r.hosts).toBe(3);
+    expect(r.applied).toBe(6);
+    expect(r.skipped).toBe(0);
+    const ep = p.g('finishingWidthOf')('ep');
+    const mo = p.g('finishingWidthOf')('molding');
+    mods.forEach((m, i) => expect(m.W).toBe(W0[i] - ep - mo));
+    expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(6);
+  });
+
+  test('영역 안 총 폭은 그대로다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area } = fill(p, 3, 600);
+    const before = sumW(p, area.id);
+    p.g('applyFinishToArea')(area.id, { left: 'ep', right: 'molding' });
+    expect(sumW(p, area.id)).toBe(before);
+  });
+
+  test('한쪽만 걸 수도 있다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 2, 600);
+    const W0 = mods[0].W;
+    const r = p.g('applyFinishToArea')(area.id, { right: 'filler' });
+    expect(r.applied).toBe(2);
+    expect(mods[0].W).toBe(W0 - p.g('finishingWidthOf')('filler'));
+    expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(2);
+  });
+
+  test("''(없음)이면 그 쪽을 모두 뗀다", () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 3, 600);
+    const W0 = mods.map((m) => m.W);
+    p.g('applyFinishToArea')(area.id, { left: 'ep', right: 'molding' });
+    const r = p.g('applyFinishToArea')(area.id, { left: '', right: '' });
+    expect(r.removed).toBe(6);
+    mods.forEach((m, i) => expect(m.W).toBe(W0[i]));
+    expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(0);
+  });
+
+  test('폭이 모자란 모듈은 건너뛰고 세어 준다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    const MIN = p.g('MASTER_RULES').DOOR_W_MIN;
+    const wide = p.g('addModuleToArea')(area.id, { section: 'lower', W: 600, x: area.x || 0 });
+    const narrow = p.g('addModuleToArea')(area.id, { section: 'lower', W: MIN + 10, x: (area.x || 0) + 600 });
+    const nW = narrow.W;
+    const r = p.g('applyFinishToArea')(area.id, { left: 'molding' });
+    expect(r.hosts).toBe(2);
+    expect(r.applied).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(narrow.W).toBe(nW);              // 좁은 모듈은 그대로
+    expect(wide.W).toBeLessThan(600);
+  });
+
+  test('마감재 모듈 자신에는 걸지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 2, 600);
+    p.g('setModuleFinish')(mods[0].id, 'left', 'ep');
+    const r = p.g('applyFinishToArea')(area.id, { right: 'molding' });
+    expect(r.hosts).toBe(2);                // 마감재는 host 로 안 센다
+    expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(3);
+  });
+
+  test('두 번 걸어도 폭이 새지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 3, 600);
+    p.g('applyFinishToArea')(area.id, { left: 'ep', right: 'molding' });
+    const afterFirst = mods.map((m) => m.W);
+    p.g('applyFinishToArea')(area.id, { left: 'ep', right: 'molding' });
+    mods.forEach((m, i) => expect(m.W).toBe(afterFirst[i]));
+    expect(p.g('modules').filter((x) => x.isFinishing)).toHaveLength(6);
+  });
+
+  test('다른 영역은 건드리지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.lshape, { modules: false }));
+    const areas = p.g('areas');
+    if (areas.length < 2) return;   // ㄱ자 픽스처가 아니면 건너뛴다
+    const a0 = areas[0], a1 = areas[1];
+    p.g('addModuleToArea')(a0.id, { section: a0.section, W: 600, x: a0.x || 0 });
+    const other = p.g('addModuleToArea')(a1.id, { section: a1.section, W: 600, x: a1.x || 0 });
+    const w1 = other.W;
+    p.g('applyFinishToArea')(a0.id, { left: 'ep' });
+    expect(other.W).toBe(w1);
+  });
+});
+
+describe('일괄 적용 버튼 (W12-14)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  test('마감 팝업에 버튼이 있다', () => {
+    const opt = SRC.slice(SRC.indexOf("{ key: 'finish'"), SRC.indexOf("{ key: 'fixed'"));
+    expect(opt).toContain('mp-fin-all');
+  });
+
+  test('두 select 의 현재 값을 모아 넘긴다', () => {
+    const bind = SRC.slice(SRC.indexOf(".mp-fin-all'"), SRC.indexOf(".mp-fin-all'") + 700);
+    expect(bind).toContain("bySide[sl.dataset.side] = sl.value");
+    expect(bind).toContain('applyFinishToArea(m.areaId, bySide)');
+  });
+
+  test('결과를 한 번만 알린다 — 모듈마다 토스트를 띄우지 않는다', () => {
+    const fn = SRC.slice(SRC.indexOf('function applyFinishToArea'), SRC.indexOf('function isAreaView'));
+    expect(fn).toContain('quiet: true');
+    expect(fn).not.toContain('showToast');
   });
 });
