@@ -2436,7 +2436,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function finishingWidthOf(section) {
     const cfg = SECTION_CONFIG[section] || {};
-    return cfg.adjacent === 'depthAndHeight' ? (cfg.h || 18) : (cfg.w || 60);
+    // 폴백 20 은 EP 기본값(design_rules 'EP기본값' 20mm 고정)이다.
+    return cfg.adjacent === 'depthAndHeight' ? (cfg.h || 20) : (cfg.w || 60);
   }
 
   /**
