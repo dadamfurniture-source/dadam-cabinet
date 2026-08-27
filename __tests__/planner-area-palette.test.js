@@ -166,29 +166,97 @@ describe('좌대·상몰딩이 자동계산에 닿는다', () => {
   });
 });
 
-describe('마감 — 영역 전체 일괄', () => {
-  test('팝업이 좌·우 select 와 적용 버튼을 낸다', () => {
+describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
+  /** 영역에 폭 W 모듈 n개 */
+  function fill(p, n, W) {
+    const area = p.g('areas')[0];
+    let x = area.x || 0;
+    const mods = [];
+    for (let i = 0; i < n; i++) { mods.push(p.g('addModuleToArea')(area.id, { section: area.section, W, x })); x += W; }
+    return { area, mods };
+  }
+
+  test('팝업이 좌·우 select 를 낸다 — 일괄 버튼은 없다', () => {
     const p = boot(seedFor(FIXTURES.straight));
     p.g('setActiveArea')(p.g('areas')[0].id);
     p.g('openAreaOptionPopup')('finish');
     const pop = p.document.querySelector('.mp-popup');
-    expect(pop).not.toBeNull();
     expect(pop.querySelectorAll('.ap-fin').length).toBe(2);
-    expect(pop.querySelector('.ap-fin-go')).not.toBeNull();
+    expect(pop.querySelector('.ap-fin-go')).toBeNull();
+    expect(pop.textContent).toMatch(/좌 끝/);
+    expect(pop.textContent).toMatch(/우 끝/);
   });
 
-  test('applyFinishToArea 로 간다 — 모듈 팔레트와 같은 함수', () => {
-    const fn = SRC.slice(SRC.indexOf('function bindAreaOptionInputs'));
-    expect(fn.slice(0, 1400)).toContain('applyFinishToArea(a.id, bySide)');
+  test('모듈이 몇 개든 마감재는 한 장이다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 3, 600);
+    p.g('setAreaFinish')(area.id, 'right', 'molding');
+    expect(p.g('modules').filter((m) => m.isFinishing)).toHaveLength(1);
+    expect(mods[2].W).toBe(600 - p.g('finishingWidthOf')('molding'));
+    expect(mods[0].W).toBe(600);
+    expect(mods[1].W).toBe(600);
   });
 
-  test('버튼에 대상 모듈 수가 적힌다', () => {
-    const p = boot(seedFor(FIXTURES.straight));
+  test('좌·우 각각 한 장 — 양 끝 모듈이 낸다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 3, 600);
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    p.g('setAreaFinish')(area.id, 'right', 'ep');
+    expect(p.g('modules').filter((m) => m.isFinishing)).toHaveLength(2);
+    const w = p.g('finishingWidthOf')('ep');
+    expect(mods[0].W).toBe(600 - w);
+    expect(mods[1].W).toBe(600);
+    expect(mods[2].W).toBe(600 - w);
+  });
+
+  test('영역 안 총 폭은 그대로다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area } = fill(p, 3, 600);
+    const sum = () => p.g('modules').filter((m) => m.areaId === area.id).reduce((t, m) => t + m.W, 0);
+    const before = sum();
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    p.g('setAreaFinish')(area.id, 'right', 'molding');
+    expect(sum()).toBe(before);
+  });
+
+  test('마감재는 영역 바깥 끝에 선다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area } = fill(p, 3, 600);
+    const x0 = area.x || 0;
+    const l = p.g('setAreaFinish')(area.id, 'left', 'ep');
+    const r = p.g('setAreaFinish')(area.id, 'right', 'ep');
+    expect(l.x).toBe(x0);
+    expect(r.x + r.W).toBe(x0 + 1800);
+  });
+
+  test("''(없음)이면 뗀다", () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 2, 600);
+    p.g('setAreaFinish')(area.id, 'right', 'ep');
+    p.g('setAreaFinish')(area.id, 'right', '');
+    expect(p.g('modules').filter((m) => m.isFinishing)).toHaveLength(0);
+    expect(mods[1].W).toBe(600);
+  });
+
+  test('지금 붙어 있는 것을 select 가 보여준다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area } = fill(p, 2, 600);
+    p.g('setAreaFinish')(area.id, 'left', 'filler');
+    expect(p.g('areaFinishOn')(area.id, 'left').section).toBe('filler');
+    expect(p.g('areaFinishOn')(area.id, 'right')).toBeNull();
+  });
+
+  test('모듈이 없으면 안내한다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const area = p.g('areas')[0];
+    expect(p.g('setAreaFinish')(area.id, 'left', 'ep')).toBeNull();
     p.g('setActiveArea')(area.id);
-    p.g('addModuleToArea')(area.id, { section: area.section, W: 600, x: area.x || 0 });
     p.g('openAreaOptionPopup')('finish');
-    expect(p.document.querySelector('.ap-fin-go').textContent).toMatch(/모듈 1개에 적용/);
+    expect(p.document.querySelector('.mp-popup').textContent).toMatch(/모듈을 먼저 넣으세요/);
+  });
+
+  test('모듈 팔레트의 개별·일괄은 그대로다', () => {
+    expect(SRC).toContain('mp-fin-all');
+    expect(SRC).toContain('applyFinishToArea');
   });
 });
-

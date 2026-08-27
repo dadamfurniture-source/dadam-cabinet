@@ -2591,6 +2591,35 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
 
+
+  /**
+   * W12-20: **영역 끝** 마감재. 배치 패널에서 쓴다.
+   *
+   * 모듈마다 붙이는 것이 아니라 배치 공간의 좌·우 끝에 한 장씩만 세운다.
+   * 모듈마다 붙이면 나란한 모듈 사이에 마감재 두 장이 맞닿아 실제 제작과 다르다.
+   * 폭은 그 끝의 **바깥쪽 모듈**이 내놓는다 — 영역 안 총 폭은 그대로다.
+   */
+  function areaEdgeHost(areaId, side) {
+    const hosts = modules
+      .filter((m) => m.areaId === areaId && !m.isFinishing)
+      .sort((a, b) => (a.x || 0) - (b.x || 0));
+    if (!hosts.length) return null;
+    return side === 'left' ? hosts[0] : hosts[hosts.length - 1];
+  }
+
+  /** 영역 끝에 지금 붙어 있는 마감재 (없으면 null) */
+  function areaFinishOn(areaId, side) {
+    const host = areaEdgeHost(areaId, side);
+    return host ? moduleFinishOn(host.id, side) : null;
+  }
+
+  /** 영역 끝 마감재를 정한다. `section` 이 비면 뗀다. */
+  function setAreaFinish(areaId, side, section) {
+    const host = areaEdgeHost(areaId, side);
+    if (!host) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
+    return setModuleFinish(host.id, side, section);
+  }
+
   /**
    * W12-14: 영역 안 **모든 모듈**에 같은 마감재를 건다.
    *
@@ -3502,14 +3531,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       body: (a) => {
         const hosts = modules.filter((m) => m.areaId === a.id && !m.isFinishing);
         const rows = FINISH_SIDES.map((side) => {
+          const cur = areaFinishOn(a.id, side);
           const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) => [k, finishLabel(k)]));
-          return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'}</label>
-            <select class="ap-fin" data-side="${side}">${_sel('', opts)}</select>
+          return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'} 끝</label>
+            <select class="ap-fin" data-side="${side}">${_sel(cur ? cur.section : '', opts)}</select>
           </div>`;
         }).join('');
         return `${rows}
-        <button class="mp-fin-all ap-fin-go" type="button">이 영역 모듈 ${hosts.length}개에 적용</button>
-        <div class="mp-note">모듈마다 고른 만큼 폭이 줄어듭니다. 영역 폭은 그대로입니다.</div>`;
+        <div class="mp-note">${hosts.length
+          ? `배치 공간 양 끝에 한 장씩 섭니다 — 높이 ${Math.round(a.H)} · 깊이 ${Math.round(a.D)}.
+             폭은 끝쪽 모듈이 내놓고 영역 폭은 그대로입니다.`
+          : '모듈을 먼저 넣으세요 — 마감재가 폭을 받아올 모듈이 없습니다.'}</div>`;
       } },
   ];
 
@@ -3635,19 +3667,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         areaPaletteCommit(key);
       };
     });
-    const go = host.querySelector('.ap-fin-go');
-    if (go) go.onclick = () => {
-      const bySide = {};
-      host.querySelectorAll('.ap-fin').forEach((sl) => { bySide[sl.dataset.side] = sl.value; });
-      const r = applyFinishToArea(a.id, bySide);
-      saveLayoutFromModules();
-      areaPaletteCommit(key);
-      const parts = [];
-      if (r.applied) parts.push(`${r.applied}곳 적용`);
-      if (r.removed) parts.push(`${r.removed}곳 제거`);
-      if (r.skipped) parts.push(`${r.skipped}곳 건너뜀(폭 부족)`);
-      showToast(parts.length ? `모듈 ${r.hosts}개 — ${parts.join(' · ')}` : `모듈 ${r.hosts}개 — 바뀐 것 없음`);
-    };
+    // W12-20: 고르는 즉시 영역 끝에 한 장 세운다 (모듈 팔레트와 같은 방식).
+    host.querySelectorAll('.ap-fin').forEach((sl) => {
+      sl.onchange = () => {
+        setAreaFinish(a.id, sl.dataset.side, sl.value);
+        saveLayoutFromModules();
+        areaPaletteCommit(key);
+      };
+    });
   }
 
   function renderModulePalette() {
