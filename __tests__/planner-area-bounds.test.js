@@ -1,0 +1,136 @@
+/**
+ * W12-24: 배치 공간은 **제한 공간**이다 — 모듈·도어·마감재가 밖으로 못 나간다.
+ *
+ * 실측으로 세 가지가 나가 있었다:
+ *   상부장 마감재  Y-1520  — 천장 매달림인데 마감재는 바닥 기준으로 섰다
+ *   도어          Z+18    — overlay 라 몸통 앞면에 붙어 영역 앞으로 나갔다
+ *   상부장 도어    Y-15    — 도어 내림이 영역 아래를 넘었다
+ *
+ * 3D 는 jsdom 에서 못 돌리므로 좌표 규칙과 산술을 검사한다. 실제 바운드는 playwright.
+ */
+const fs = require('fs');
+const path = require('path');
+const { bootPlanner } = require('../test-utils/planner-harness');
+const { FIXTURES, seedFor } = require('../test-utils/planner-golden');
+
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+  .split('\r\n').join('\n');
+
+function boot(seed) {
+  const s = Object.assign({}, seed);
+  const search = s._search || '?design=ab&item=1';
+  delete s._search;
+  const p = bootPlanner('mockup-structure.html', { search, storage: s });
+  if (p.errors.length) throw new Error('부팅 오류: ' + p.errors.map((e) => e.message).join(' | '));
+  return p;
+}
+
+describe('마감재가 영역과 같은 높이에 선다', () => {
+  test('finishBaseYFor 마커가 살아 있다', () => {
+    expect(SRC.indexOf('function finishBaseYFor')).toBeGreaterThan(-1);
+  });
+
+  test('영역 섹션으로 baseY 를 구한다 — 마감재 섹션이 아니라', () => {
+    const fn = SRC.slice(SRC.indexOf('function finishBaseYFor'), SRC.indexOf('function finishBaseYFor') + 300);
+    expect(fn).toContain('getBaseY(area.section, area.H)');
+  });
+
+  test('마감재 세 경로 모두 baseY 를 싣는다', () => {
+    expect((SRC.match(/baseY: finishBaseYFor\(area\)/g) || []).length).toBe(3);
+  });
+
+  test('상부장 영역 마감재의 baseY 가 영역과 같다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'upper');
+    if (!area) return;
+    const f = p.g('addFinishingToArea')(area.id, 'ep');
+    expect(f.baseY).toBe(p.g('getBaseY')(area.section, area.H));
+    expect(p.g('baseYOf')(f)).toBe(p.g('baseYOf')({ section: area.section, H: area.H }));
+  });
+
+  test('하부장은 0 그대로다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    const f = p.g('addFinishingToArea')(area.id, 'ep');
+    expect(f.baseY).toBe(0);
+  });
+});
+
+describe('도어가 영역 앞면을 넘지 않는다', () => {
+  const fn = SRC.slice(SRC.indexOf('function areaLimitsFor'), SRC.indexOf('function addFrontPanel'));
+
+  test('areaLimitsFor 마커가 살아 있다', () => {
+    expect(SRC.indexOf('function areaLimitsFor')).toBeGreaterThan(-1);
+    expect(fn).toContain('frontLimit');
+    expect(fn).toContain('bottomLimit');
+  });
+
+  test('회전이면 영역 폭·깊이를 바꿔 본다', () => {
+    expect(fn).toMatch(/rot === 90 \|\| rot === 270/);
+  });
+
+  test('영역을 못 찾으면 제한하지 않는다', () => {
+    expect(fn).toMatch(/if \(!area\) return \{\};/);
+  });
+
+  test('overlayZ 가 frontLimit 에서 멈춘다', () => {
+    const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
+    expect(ap).toMatch(/Math\.min\(frontZ \+ T \/ 2, frontLimit - T \/ 2\)/);
+  });
+
+  test('산술 — 영역 깊이가 몸통과 같으면 도어가 안쪽으로 물린다', () => {
+    const T = 18, D = 550;
+    const frontZ = D / 2;                 // 275
+    const frontLimit = D / 2;             // 영역 D == 모듈 D
+    const overlayZ = Math.min(frontZ + T / 2, frontLimit - T / 2);
+    expect(overlayZ + T / 2).toBe(frontLimit);   // 도어 앞면 = 영역 앞면
+    expect(overlayZ).toBeLessThan(frontZ + T / 2);
+  });
+
+  test('산술 — 영역이 더 깊으면 예전처럼 몸통 앞에 붙는다', () => {
+    const T = 18, modD = 550, areaD = 700;
+    const frontZ = modD / 2;
+    const frontLimit = modD / 2 + (areaD - modD) / 2;
+    const overlayZ = Math.min(frontZ + T / 2, frontLimit - T / 2);
+    expect(overlayZ).toBe(frontZ + T / 2);      // 제한이 안 걸린다
+  });
+});
+
+describe('도어 내림이 영역 아래를 넘지 않는다', () => {
+  const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
+
+  test('bottomLimit 으로 자른다', () => {
+    expect(ap).toMatch(/Math\.max\(0, Math\.min\(drop, bodyBottom0 - meta\.bottomLimit\)\)/);
+  });
+
+  test('drop 이 let 이다 — 잘라 써야 한다', () => {
+    expect(ap).toMatch(/let drop = /);
+  });
+
+  test('산술 — 영역 바닥에 딱 맞으면 내림이 0 이 된다', () => {
+    const GAP = 4, DROP = 15;
+    const bodyBottom0 = 1520;            // 몸통 바닥
+    const bottomLimit = 1520;            // 영역 바닥도 같은 자리
+    const drop = Math.max(0, Math.min(DROP, bodyBottom0 - bottomLimit));
+    expect(drop).toBe(0);
+  });
+
+  test('산술 — 여유가 있으면 그만큼만 내려온다', () => {
+    const DROP = 15;
+    expect(Math.max(0, Math.min(DROP, 1520 - 1512))).toBe(8);
+    expect(Math.max(0, Math.min(DROP, 1520 - 1500))).toBe(15);
+  });
+
+  test('제한이 없으면 예전 그대로다', () => {
+    // meta.bottomLimit 이 없으면 자르지 않는다
+    expect(ap).toMatch(/Number\.isFinite\(meta\.bottomLimit\)/);
+  });
+});
+
+describe('두 렌더 경로 모두 경계를 넘긴다', () => {
+  test('areaLimitsFor 를 meta 에 실어 보낸다', () => {
+    const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
+    expect(calls.length).toBe(2);
+    calls.forEach((c) => expect(c).toContain('areaLimitsFor(m)'));
+  });
+});
