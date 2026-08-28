@@ -120,8 +120,25 @@ describe('플래너 높이 구성 패널', () => {
   });
 
   test('몸통이 50mm 미만이 되는 입력은 막는다', () => {
-    const fn = STRUCT.slice(STRUCT.indexOf('function renderHeightPanel'), STRUCT.indexOf('function renderRightPanel'));
-    expect(fn).toMatch(/< 50/);
+    // W12-31: 가드는 applyHeightPart 한 곳으로 옮겼다. 예전엔 우측 패널과
+    // 팔레트에 문구까지 다른 두 벌이 있어, 한쪽만 고치면 다른 쪽으로는 통과했다.
+    const fn = STRUCT.slice(STRUCT.indexOf('function applyHeightPart'),
+                            STRUCT.indexOf('function areaPartInfo'));
+    expect(fn).toMatch(/bodyHeightOf\(m, s\) >= 50/);
+    // 되돌릴 때 delete 가 아니라 이전 값을 되놓는다 — 미지정과 0 은 다르다.
+    expect(fn).toMatch(/if \(prev === undefined\) delete s\[key\]; else s\[key\] = prev;/);
+    expect(fn).toContain('showToast');
+  });
+
+  test('우측 패널과 팔레트가 같은 가드를 부른다', () => {
+    const right = STRUCT.slice(STRUCT.indexOf('function renderHeightPanel'),
+                               STRUCT.indexOf('const PANEL_SEC_TITLE'));
+    expect(right).toContain('applyHeightPart(m, s, key, inp.value)');
+    const pal = STRUCT.slice(STRUCT.indexOf('function bindOptionInputs'),
+                             STRUCT.indexOf('function openOptionPopup'));
+    expect(pal).toContain('applyHeightPart(m, s, k, inp.value)');
+    // 예전 두 벌은 남아 있으면 안 된다.
+    expect(pal).not.toMatch(/bodyHeightOf\(m, s\) < 50/);
   });
 
   test('몸통을 직접 정하면 그 모듈을 고정 처리한다', () => {
