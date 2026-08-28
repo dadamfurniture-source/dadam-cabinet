@@ -45,6 +45,10 @@ describe('줌에 따라 두께를 유지한다', () => {
     expect(loop).toContain('keepDoorEdgesVisible()');
   });
 
+  test('최소 굵기가 2.6px 다 — 밝은 도어에서도 묻히지 않게', () => {
+    expect(SRC).toMatch(/const DOOR_EDGE_MIN_PX = 2\.6;/);
+  });
+
   test('실제 갭보다 얇아지지 않는다', () => {
     expect(fn).toMatch(/Math\.max\(MASTER_RULES\.DOOR_GAP \/ 2, DOOR_EDGE_MIN_PX \* mmPerPixel\(\)\)/);
   });
@@ -59,11 +63,11 @@ describe('줌에 따라 두께를 유지한다', () => {
   });
 
   test('산술 — 멀어지면 두꺼워지고 가까우면 갭 그대로다', () => {
-    const GAP = 4, MIN_PX = 1.6;
+    const GAP = 4, MIN_PX = 2.6;   // W12-26: 1.6 → 2.6
     const t = (mmPerPx) => Math.max(GAP / 2, MIN_PX * mmPerPx);
     expect(t(0.5)).toBe(2);        // 가까이 — 갭 절반(2mm) 유지
-    expect(t(4.35)).toBeCloseTo(6.96, 2);   // 멀리 — 약 7mm
-    expect(t(10)).toBe(16);
+    expect(t(4.35)).toBeCloseTo(11.31, 2);  // 멀리 — 약 11mm
+    expect(t(10)).toBe(26);
   });
 });
 
