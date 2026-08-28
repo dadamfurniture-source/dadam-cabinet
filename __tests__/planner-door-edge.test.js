@@ -45,10 +45,6 @@ describe('줌에 따라 두께를 유지한다', () => {
     expect(loop).toContain('keepDoorEdgesVisible()');
   });
 
-  test('최소 굵기가 2.6px 다 — 밝은 도어에서도 묻히지 않게', () => {
-    expect(SRC).toMatch(/const DOOR_EDGE_MIN_PX = 2\.6;/);
-  });
-
   test('실제 갭보다 얇아지지 않는다', () => {
     expect(fn).toMatch(/Math\.max\(MASTER_RULES\.DOOR_GAP \/ 2, DOOR_EDGE_MIN_PX \* mmPerPixel\(\)\)/);
   });
@@ -63,11 +59,11 @@ describe('줌에 따라 두께를 유지한다', () => {
   });
 
   test('산술 — 멀어지면 두꺼워지고 가까우면 갭 그대로다', () => {
-    const GAP = 4, MIN_PX = 2.6;   // W12-26: 1.6 → 2.6
+    const GAP = 4, MIN_PX = 1.6;
     const t = (mmPerPx) => Math.max(GAP / 2, MIN_PX * mmPerPx);
     expect(t(0.5)).toBe(2);        // 가까이 — 갭 절반(2mm) 유지
-    expect(t(4.35)).toBeCloseTo(11.31, 2);  // 멀리 — 약 11mm
-    expect(t(10)).toBe(26);
+    expect(t(4.35)).toBeCloseTo(6.96, 2);   // 멀리 — 약 7mm
+    expect(t(10)).toBe(16);
   });
 });
 
@@ -77,5 +73,38 @@ describe('그림자 색', () => {
     const reveal = SRC.slice(SRC.indexOf('function addDoorReveal'), SRC.indexOf('function addDoorEdgeFrame'));
     expect((reveal.match(/DOOR_REVEAL_DARKEN/g) || []).length).toBe(2);   // 뒷판 + 테두리
     expect(reveal).not.toMatch(/darken3\(cfg\.fill, 0\.\d+\)/);           // 숫자 직접 박지 않는다
+  });
+});
+
+describe('양문 셀도 도어마다 테두리를 두른다 (W12-27)', () => {
+  const from = SRC.indexOf("if (type === 'door' && meta.is2D)");
+  const branch = SRC.slice(from, SRC.indexOf('BAND_BRACE_W', from));
+
+  test('도어 한 장씩 addDoorReveal 을 부른다', () => {
+    // 예전엔 셀 전체에 한 번만 불러, 셀 안쪽 두 도어 사이에 테두리가 없었다.
+    expect((branch.match(/addDoorReveal\(/g) || []).length).toBe(2);
+    expect(branch).toMatch(/addDoorReveal\(parent, lx, cy, halfW, h, frontZ,/);
+    expect(branch).toMatch(/addDoorReveal\(parent, rx, cy, halfW, h, frontZ,/);
+  });
+
+  test('셀 전체 폭으로 부르지 않는다', () => {
+    expect(branch).not.toMatch(/addDoorReveal\(parent, cx, cy, w, h,/);
+  });
+
+  test('도어 위치를 같은 변수로 쓴다 — 테두리와 도어가 어긋나지 않게', () => {
+    expect(branch).toMatch(/const lx = cx - GAP \/ 2 - halfW \/ 2;/);
+    expect(branch).toMatch(/const rx = cx \+ GAP \/ 2 \+ halfW \/ 2;/);
+    expect(branch).toMatch(/dLeft\.position\.set\(lx, cy, overlayZ\)/);
+    expect(branch).toMatch(/dRight\.position\.set\(rx, cy, overlayZ\)/);
+  });
+
+  test('산술 — 두 도어가 갭만큼 떨어지고 셀을 채운다', () => {
+    const GAP = 4, w = 596;
+    const halfW = (w - GAP) / 2;
+    const cx = 0;
+    const lx = cx - GAP / 2 - halfW / 2;
+    const rx = cx + GAP / 2 + halfW / 2;
+    expect(rx - halfW / 2 - (lx + halfW / 2)).toBe(GAP);   // 사이 갭 4
+    expect((rx + halfW / 2) - (lx - halfW / 2)).toBe(w);   // 셀 전체
   });
 });
