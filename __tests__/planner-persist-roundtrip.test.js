@@ -131,3 +131,134 @@ describe('저장 순서 — 도장이 어긋나면 모듈이 전멸한다', () =
     expect(fn.indexOf('saveLayoutFromModules()')).toBeLessThan(fn.indexOf('saveStructModules()'));
   });
 });
+
+describe('우측 패널 조작이 저장된다 (W12-29)', () => {
+  /** 모듈 하나를 고른 상태로 우측 패널을 그린다 */
+  function panel() {
+    const { p, m } = withModule();
+    p.g('setActiveModule')(m.id);
+    p.g('renderRightPanel')();
+    return { p, m, doc: p.document };
+  }
+  const fire = (el, type) => { el.dispatchEvent(new el.ownerDocument.defaultView.Event(type, { bubbles: true })); };
+
+  test('좌우 분할', () => {
+    const { p, m, doc } = panel();
+    const inp = doc.getElementById('inpVCount');
+    inp.value = '3';
+    inp.onchange({ target: inp });
+    expect(reboot(p).g('getStructure')(m.id).verticalCount).toBe(3);
+  });
+
+  test('상하 구성', () => {
+    const { p, m, doc } = panel();
+    const sel = doc.getElementById('selHLayout');
+    sel.value = 'doorTopDrawerBottom';
+    sel.onchange({ target: sel });
+    expect(reboot(p).g('getStructure')(m.id).horizontalLayout).toBe('doorTopDrawerBottom');
+  });
+
+  test('하부 영역 높이', () => {
+    const { p, m, doc } = panel();
+    const sel = doc.getElementById('selHLayout');
+    sel.value = 'doorTopDrawerBottom';
+    sel.onchange({ target: sel });
+    const inp = p.document.getElementById('inpDrawerH');
+    inp.value = '250';
+    inp.onchange({ target: inp });
+    expect(reboot(p).g('getStructure')(m.id).drawerHeight).toBe(250);
+  });
+
+  test('영역 타입', () => {
+    const { p, m, doc } = panel();
+    const sel = doc.querySelector('#areasBody .a-type');
+    sel.value = 'drawer';
+    sel.onchange({ target: sel });
+    expect(reboot(p).g('getStructure')(m.id).areaTypes[0]).toBe('drawer');
+  });
+
+  test('도어 방향', () => {
+    const { p, m, doc } = panel();
+    const sel = doc.querySelector('#areasBody .a-dir');
+    if (!sel) return;                       // 양문이면 select 가 없다
+    sel.value = 'right';
+    sel.onchange({ target: sel });
+    expect(reboot(p).g('getStructure')(m.id).areaDirections[0]).toBe('right');
+  });
+
+  // reboot 은 새 jsdom 을 만든다 — DOM 조작을 끝낸 뒤 한 번만 부른다.
+  test('선반 위치', () => {
+    const { p, m, doc } = panel();
+    const inp = doc.querySelector('#shelvesBody input[type="number"]');
+    inp.value = '420';
+    inp.onchange({ target: inp });
+    expect(reboot(p).g('getStructure')(m.id).shelves[0]).toBe(420);
+  });
+
+  test('선반 추가', () => {
+    const { p, m, doc } = panel();
+    const before = p.g('getStructure')(m.id).shelves.length;
+    doc.getElementById('addShelf').onclick();
+    expect(reboot(p).g('getStructure')(m.id).shelves.length).toBe(before + 1);
+  });
+
+  test('선반 삭제', () => {
+    const { p, m, doc } = panel();
+    const before = p.g('getStructure')(m.id).shelves.length;
+    expect(before).toBeGreaterThan(0);
+    doc.querySelector('#shelvesBody button.del').onclick();
+    expect(reboot(p).g('getStructure')(m.id).shelves.length).toBe(before - 1);
+  });
+
+  test('손잡이 타입·위치 — 3D 형상을 바꾸는 값이다', () => {
+    const { p, m, doc } = panel();
+    const t = doc.getElementById('selHType');
+    t.value = 'alu-channel';
+    t.onchange({ target: t });
+    const pos = p.document.getElementById('selHPos');
+    pos.value = 'middle';
+    pos.onchange({ target: pos });
+    const s2 = reboot(p).g('getStructure')(m.id);
+    expect(s2.handleType).toBe('alu-channel');
+    expect(s2.handlePosition).toBe('middle');
+  });
+
+  test('손잡이를 바꾸면 형상 계산이 바로 따라온다', () => {
+    const { p, m, doc } = panel();
+    const s = p.g('getStructure')(m.id);
+    expect(p.g('doorTopGapOf')(m, s)).toBe(30);   // 하부장 기본 = 목찬넬
+    const t = doc.getElementById('selHType');
+    t.value = 'push';
+    t.onchange({ target: t });
+    expect(p.g('doorTopGapOf')(m, p.g('getStructure')(m.id))).toBe(0);
+  });
+});
+
+describe('타이핑 중 셀 폭이 사라지지 않는다 (W12-29)', () => {
+  test('분할 입력은 onchange 다 — oninput 이면 한 글자마다 비운다', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8');
+    const body = SRC.slice(SRC.indexOf("getElementById('splitBody')"), SRC.indexOf("서랍 단수 — 예전엔"));
+    expect(body).toContain("getElementById('inpVCount').onchange");
+    expect(body).not.toContain("getElementById('inpVCount').oninput");
+    expect(body).not.toContain('inpDr.oninput');
+  });
+
+  test('선반 입력도 onchange 다', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8');
+    const body = SRC.slice(SRC.indexOf("#shelvesBody input[type=\"number\"]"), SRC.indexOf("#shelvesBody button.del"));
+    expect(body).toContain('inp.onchange');
+    expect(body).not.toContain('inp.oninput');
+  });
+
+  test('panelCommit 이 저장·정면도·패널을 한 벌로 묶는다', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8');
+    const fn = SRC.slice(SRC.indexOf('function panelCommit'), SRC.indexOf('function renderHeightPanel'));
+    ['persistPlannerState()', 'renderFrontView()', 'renderRightPanel()'].forEach((k) => expect(fn).toContain(k));
+  });
+});
