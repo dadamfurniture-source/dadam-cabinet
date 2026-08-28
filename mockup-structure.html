@@ -830,9 +830,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /** 구조 + 배치를 함께 저장 — 편집 결과가 새로고침을 견디게 한다 */
+  /**
+   * 지금 상태를 전부 저장한다. 편집 경로는 모두 이 함수 하나만 부르면 된다.
+   *
+   * W12-28: `saveStructModules()` 가 빠져 있었다. `modules` 배열(m.W/H/D/x/isFixed)의
+   *   정본 저장소는 MODULES_KEY 이고 거기 쓰는 함수는 그것 하나뿐이다.
+   *   `saveLayoutFromModules()` 는 `_srcIndex` 가 없으면 곧바로 빠지는데
+   *   `addModuleToArea` 가 만든 모듈에는 그게 없다 — 그래서 영역에 넣은 모듈의
+   *   치수 편집이 **어느 경로로도 새로고침을 못 견뎠다** (실측: 폭 777 → 600).
+   *
+   * 순서가 중요하다. `saveLayoutFromModules()` 가 `layout.savedAt` 을 갱신하고,
+   *   `loadStructModules()` 는 그 값(`currentLayoutStamp`)으로 모듈 소속을 판정한다.
+   *   배치를 되쓴 **뒤에** 모듈을 찍어야 새 도장이 박힌다. 뒤집으면 예전 방식으로
+   *   열린 설계가 편집 한 번 뒤 새로고침에 **모듈 0개**가 된다 (실측으로 그랬다).
+   */
   function persistPlannerState() {
     saveStructures();
     saveLayoutFromModules();
+    saveStructModules();
   }
   function getStructure(id) {
     if (!structures[id]) { structures[id] = defaultStructure(); return structures[id]; }
