@@ -240,23 +240,29 @@ describe('소스 규약', () => {
     expect(SRC).toContain('const PANEL_LAYOUT = {');
   });
 
-  test('치수 규칙이 한 곳이다 — 팔레트도 같은 함수를 부른다', () => {
+  test('치수 규칙이 한 곳이다', () => {
     const from = SRC.indexOf('function applyModuleDim');
     const to = SRC.indexOf('function applyHeightPart');
     expect(from).toBeGreaterThan(-1);
     expect(to).toBeGreaterThan(from);
     expect(SRC.slice(from, to)).toContain("if (k === 'W') { s.areaWidths = []; s.areaIs2D = []; }");
-    const pal = SRC.slice(SRC.indexOf('function bindOptionInputs'), SRC.indexOf('function openOptionPopup'));
-    expect(pal).toContain('applyModuleDim(m, s, inp.dataset.k, inp.value)');
+    // 치수를 직접 만지는 곳은 이 함수 하나뿐이다.
+    expect((SRC.match(/m\[k\] = v;/g) || []).length).toBe(1);
   });
 
-  test('영역 부위 판단이 한 곳이다 — 팔레트 본문도 같은 함수를 읽는다', () => {
-    const body = SRC.slice(SRC.indexOf('function areaPartBody'), SRC.indexOf('function areaOptionsFor'));
-    expect(body).toContain('areaPartInfo(a, key)');
-    expect(body).not.toContain('heightPartsOf(probe, {})');
+  test('영역 부위 판단이 한 곳이다', () => {
+    const from = SRC.indexOf('function areaPartInfo');
+    const to = SRC.indexOf('function panelCommit');
+    expect(to).toBeGreaterThan(from);
+    expect(SRC.slice(from, to)).toContain('heightPartsOf(probe, {})');
+    // 우측 패널은 판단을 다시 하지 않고 그 결과만 읽는다.
+    const ah = SRC.slice(SRC.indexOf('function renderAreaHeightPanel'),
+                         SRC.indexOf('function renderAreaFinishPanel'));
+    expect(ah).toContain('areaPartInfo(a, k)');
+    expect(ah).not.toContain('heightPartsOf');
   });
 
-  test('영역 값 변경은 areaPaletteCommit 과 같은 순서를 쓴다', () => {
+  test('영역 값 변경은 영역이 건드리는 것을 모두 다시 그린다', () => {
     const fn = SRC.slice(SRC.indexOf('function areaPanelCommit'), SRC.indexOf('const DIM_ROWS'));
     ['saveStructModules()', 'persistPlannerState()', 'renderAreaTools()',
      'renderModuleList()', 'renderFrontView()', 'renderRightPanel()'].forEach((call) => {
@@ -297,10 +303,10 @@ describe('영역 크기를 고치면 마감재가 따라온다 (W12-31)', () => 
     expect(fin().W).toBe(w);
   });
 
-  test('팔레트 경로도 같은 함수를 지난다', () => {
-    const pal = SRC.slice(SRC.indexOf('function areaPaletteCommit'), SRC.indexOf('function renderAreaPalette'));
-    expect(pal).toContain('syncFinishingsToAreas()');
+  test('영역 커밋이 반드시 지나는 자리다', () => {
     const pan = SRC.slice(SRC.indexOf('function areaPanelCommit'), SRC.indexOf('const DIM_ROWS'));
     expect(pan).toContain('syncFinishingsToAreas()');
+    // 부르는 곳은 하나 — 영역 값이 바뀌는 유일한 경로다.
+    expect((SRC.match(/syncFinishingsToAreas\(\)/g) || []).length).toBe(2);   // 정의 1 + 호출 1
   });
 });

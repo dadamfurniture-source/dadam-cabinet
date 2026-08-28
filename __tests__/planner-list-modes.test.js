@@ -140,11 +140,18 @@ describe('개별 목록 클릭 = 도면에서 모듈 클릭', () => {
     expect(after.className).toContain('active');
   });
 
-  test('옵션 팔레트가 뜬다', () => {
+  test('우측 패널이 그 모듈로 바뀐다', () => {
+    // W12-32: 예전엔 목록을 누르면 떠 있는 옵션 팔레트가 떴다. 이제 편집 지점은
+    // 우측 패널 하나다 — 목록 클릭도 도면 클릭과 같은 자리를 채운다.
     const p = boot(seedFor(FIXTURES.straight));
     p.g('setViewMode')('single');
     p.document.querySelector('#mlBody .module-item').onclick();
-    expect(p.document.querySelector('.mod-palette')).not.toBeNull();
+    expect(p.document.querySelector('.panel-header-title').textContent).toBe('구조 편집');
+    const shown = [...p.document.querySelectorAll('#rightPanel .section[data-sec]')]
+      .filter((n) => n.style.display !== 'none').map((n) => n.getAttribute('data-sec'));
+    expect(shown).toContain('split');
+    expect(p.document.querySelector('#sizeBody input[data-dim="W"]')).not.toBeNull();
+    expect(p.document.querySelector('.mod-palette')).toBeNull();
   });
 
   test('모듈이 속한 영역으로 옮겨 간다', () => {
