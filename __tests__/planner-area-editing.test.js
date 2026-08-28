@@ -1,8 +1,9 @@
 /**
- * W12-16: 영역 옵션 팔레트 — 크기 · 좌대 · 상몰딩 · 마감.
+ * 영역 편집 — 크기 · 좌대 · 상몰딩 · 마감.
  *
- * 모듈 팔레트와 같은 껍데기를 쓰되 항목이 네 개다. 좌대·상몰딩은 그 부위가
- * 있는 섹션(키큰장·냉장고장·상부장)에서만 뜬다.
+ * W12-16 에는 떠 있는 영역 팔레트였고, W12-32 에서 **우측 패널의 영역 모드**로
+ * 옮겼다. 항목은 그대로 네 가지다 — 어떤 영역이든 개수가 달라지지 않는다(W12-18).
+ * 좌대·상몰딩은 그 부위가 없는 섹션이면 숨기지 않고 막고 이유를 적는다.
  */
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +22,7 @@ function boot(seed) {
   return p;
 }
 
-/** 섹션이 sec 인 영역을 골라 팔레트를 띄운다 */
+/** 섹션이 sec 인 영역을 골라 우측 패널을 영역 모드로 만든다 */
 function pick(p, sec) {
   const area = p.g('areas').find((a) => a.section === sec && !a.isFinishing);
   if (!area) return null;
@@ -29,85 +30,90 @@ function pick(p, sec) {
   return area;
 }
 
-describe('영역을 고르면 팔레트가 뜬다', () => {
+describe('영역을 고르면 우측 패널이 영역 모드가 된다', () => {
   test('도면 클릭·목록 클릭 어느 쪽이든 setActiveArea 를 지난다', () => {
     const fn = SRC.slice(SRC.indexOf('function setActiveArea'), SRC.indexOf('function setActiveArea') + 700);
-    expect(fn).toContain('renderAreaPalette()');
+    expect(fn).toContain('renderRightPanel()');
+    expect(fn).toContain("panelTarget = 'area'");
   });
 
-  test('팔레트가 실제로 생긴다', () => {
+  test('떠 있는 팔레트는 더 이상 없다', () => {
+    const p = boot(seedFor(FIXTURES.straight));
+    p.g('setActiveArea')(p.g('areas')[0].id);
+    expect(p.document.querySelector('.mod-palette')).toBeNull();
+    expect(p.document.querySelector('.mp-popup')).toBeNull();
+  });
+
+  test('헤더가 영역 편집이라고 적는다', () => {
+    const p = boot(seedFor(FIXTURES.straight));
+    p.g('setActiveArea')(p.g('areas')[0].id);
+    expect(p.document.querySelector('.panel-header-title').textContent).toBe('영역 편집');
+  });
+
+  test('영역 폭이 크기 칸에 들어 있다', () => {
     const p = boot(seedFor(FIXTURES.straight));
     const area = p.g('areas')[0];
     p.g('setActiveArea')(area.id);
-    expect(p.document.querySelector('.mod-palette')).not.toBeNull();
-  });
-
-  test('제목에 영역과 폭이 적힌다', () => {
-    const p = boot(seedFor(FIXTURES.straight));
-    const area = p.g('areas')[0];
-    p.g('setActiveArea')(area.id);
-    const title = p.document.querySelector('.mod-palette .mp-title').textContent;
-    expect(title).toContain('영역');
-    expect(title).toContain(`W${Math.round(area.W)}`);
+    expect(+p.document.querySelector('#sizeBody input[data-dim="W"]').value).toBe(Math.round(area.W));
   });
 });
 
-describe('항목은 네 가지뿐이다', () => {
-  const FOUR = ['size', 'pedestalH', 'moldingH', 'finish'];
+describe('항목은 늘 같다 (W12-18)', () => {
+  /** 지금 영역 모드가 내놓는 입력들 */
+  const fields = (p) => ({
+    dims: [...p.document.querySelectorAll('#sizeBody input[data-dim]')].map((n) => n.getAttribute('data-dim')),
+    parts: [...p.document.querySelectorAll('#heightBody input[data-apart]')].map((n) => n.getAttribute('data-apart')),
+    fins: [...p.document.querySelectorAll('#finishBody select[data-fin]')].map((n) => n.getAttribute('data-fin')),
+  });
 
-  test('어느 영역이든 늘 같은 네 개다 (W12-18)', () => {
+  test('어느 영역이든 같은 칸이 뜬다', () => {
     // 예전엔 섹션마다 2~4개가 떠서 무엇이 빠졌는지 알 수 없었다.
     const p = boot(seedFor(FIXTURES.lShape));
     const seen = new Set();
     p.g('areas').forEach((a) => {
       p.g('setActiveArea')(a.id);
-      const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
-      expect(keys).toEqual(FOUR);
+      const f = fields(p);
+      expect(f.dims).toEqual(['W', 'H', 'D']);
+      expect(f.parts).toEqual(['pedestalH', 'moldingH']);
+      expect(f.fins).toEqual(['left', 'right']);
       seen.add(a.section);
     });
     expect(seen.size).toBeGreaterThan(0);
   });
 
-  test('마감재 영역에도 네 개가 뜬다', () => {
+  test('마감재 영역에도 같은 칸이 뜬다', () => {
     const p = boot(seedFor(FIXTURES.straight));
     const fin = p.g('areas').find((a) => a.isFinishing);
     if (!fin) return;
     p.g('setActiveArea')(fin.id);
-    const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
-    expect(keys).toEqual(FOUR);
+    expect(fields(p).parts).toEqual(['pedestalH', 'moldingH']);
   });
 
   test('해당 없는 부위는 입력을 막고 이유를 적는다', () => {
     const p = boot(seedFor(FIXTURES.straight));
     pick(p, 'lower');   // 하부장 = 다리발·상판, 좌대 없음
-    p.g('openAreaOptionPopup')('pedestalH');
-    const pop = p.document.querySelector('.mp-popup');
-    expect(pop.querySelector('.ap-part').disabled).toBe(true);
-    expect(pop.textContent).toMatch(/이 부위가 없습니다/);
-    expect(pop.textContent).toMatch(/다리발|상판/);
+    const inp = p.document.querySelector('#heightBody input[data-apart="pedestalH"]');
+    expect(inp.disabled).toBe(true);
+    const body = p.document.getElementById('heightBody').textContent;
+    expect(body).toMatch(/이 부위가 없습니다/);
+    expect(body).toMatch(/다리발|상판/);
   });
 
   test('해당 되는 부위는 입력이 열려 있다', () => {
     const p = boot(seedFor(FIXTURES.lShape));
     const area = pick(p, 'tall');
     if (!area) return;
-    p.g('openAreaOptionPopup')('pedestalH');
-    const inp = p.document.querySelector('.mp-popup .ap-part');
+    const inp = p.document.querySelector('#heightBody input[data-apart="pedestalH"]');
     expect(inp.disabled).toBe(false);
     expect(Number(inp.value)).toBeGreaterThan(0);
   });
 
-  test('모듈 팔레트 항목은 섞이지 않는다', () => {
+  test('모듈 전용 섹션은 섞이지 않는다', () => {
     const p = boot(seedFor(FIXTURES.straight));
     p.g('setActiveArea')(p.g('areas')[0].id);
-    const keys = [...p.document.querySelectorAll('.mod-palette .mp-ic')].map((b) => b.dataset.option);
-    ['legH', 'doors', 'shelves', 'handle', 'fixed', 'topT'].forEach((k) => expect(keys).not.toContain(k));
-  });
-
-  test('AREA_OPTIONS 는 네 항목만 갖는다', () => {
-    const arr = SRC.slice(SRC.indexOf('const AREA_OPTIONS'), SRC.indexOf('function areaOptionsFor'));
-    const keys = (arr.match(/\{ key: '([a-zA-Z]+)'/g) || []).map((x) => x.split("'")[1]);
-    expect(keys).toEqual(['size', 'pedestalH', 'moldingH', 'finish']);
+    const shown = [...p.document.querySelectorAll('#rightPanel .section[data-sec]')]
+      .filter((n) => n.style.display !== 'none').map((n) => n.getAttribute('data-sec'));
+    ['split', 'areas', 'shelves', 'handle'].forEach((k) => expect(shown).not.toContain(k));
   });
 });
 
@@ -176,15 +182,14 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
     return { area, mods };
   }
 
-  test('팝업이 좌·우 select 를 낸다 — 일괄 버튼은 없다', () => {
+  test('좌·우 select 를 낸다 — 일괄 버튼은 없다', () => {
     const p = boot(seedFor(FIXTURES.straight));
     p.g('setActiveArea')(p.g('areas')[0].id);
-    p.g('openAreaOptionPopup')('finish');
-    const pop = p.document.querySelector('.mp-popup');
-    expect(pop.querySelectorAll('.ap-fin').length).toBe(2);
-    expect(pop.querySelector('.ap-fin-go')).toBeNull();
-    expect(pop.textContent).toMatch(/좌 끝/);
-    expect(pop.textContent).toMatch(/우 끝/);
+    const host = p.document.getElementById('finishBody');
+    expect(host.querySelectorAll('select[data-fin]').length).toBe(2);
+    expect(host.querySelector('button')).toBeNull();
+    expect(host.textContent).toMatch(/좌 끝/);
+    expect(host.textContent).toMatch(/우 끝/);
   });
 
   test('모듈이 몇 개든 마감재는 한 장이다', () => {
@@ -251,15 +256,17 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
     const area = p.g('areas')[0];
     expect(p.g('setAreaFinish')(area.id, 'left', 'ep')).toBeNull();
     p.g('setActiveArea')(area.id);
-    p.g('openAreaOptionPopup')('finish');
-    expect(p.document.querySelector('.mp-popup').textContent).toMatch(/모듈을 먼저 넣으세요/);
+    expect(p.document.getElementById('finishBody').textContent).toMatch(/모듈을 먼저 넣으세요/);
   });
 
-  test('마감 입구는 배치 팔레트 하나다 (W12-21)', () => {
-    // 모듈 팔레트의 마감 옵션·일괄 버튼은 없앴다.
+  test('마감 입구는 영역 하나다 (W12-21)', () => {
+    // 모듈 편집에는 마감이 없다 — 나란한 모듈 사이에 두 장이 맞닿는다.
     expect(SRC).not.toContain('mp-fin-all');
-    const arr = SRC.slice(SRC.indexOf('const MODULE_OPTIONS'), SRC.indexOf('function heightNote'));
-    expect(arr).not.toContain("key: 'finish'");
+    const mod = SRC.slice(SRC.indexOf('function renderSizePanel'), SRC.indexOf('function renderAreaPanel'));
+    expect(mod).not.toContain('Finish');
+    // 반대로 영역 모드에는 있어야 한다.
+    const area = SRC.slice(SRC.indexOf('function renderAreaFinishPanel'), SRC.indexOf('function renderRightPanel'));
+    expect(area).toContain('setAreaFinish(a.id');
   });
 });
 
