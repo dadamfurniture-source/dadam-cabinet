@@ -2248,6 +2248,31 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return Math.max(0, (Number(m.H) || 0) - sum);
   }
 
+
+  /**
+   * W12-29: 우측 패널에서 값 하나를 바꾼 뒤 부르는 커밋.
+   *
+   * `paletteCommit`(팔레트용)과 짝이다. 예전에는 우측 패널의 대부분이
+   * `renderFrontView()` 만 부르고 **저장을 안 했다** — 팔레트가 저장을 대신하고
+   * 있어 드러나지 않았을 뿐, 우측에서 분할·도어·선반·손잡이를 바꾸면
+   * 새로고침에 사라졌다.
+   *
+   * `focusSel` 은 다시 그린 뒤 포커스를 돌려줄 입력이다. 패널을 통째로 다시
+   * 그리므로 안 돌려주면 한 글자 고칠 때마다 포커스가 날아간다.
+   */
+  function panelCommit(focusSel) {
+    persistPlannerState();
+    renderFrontView();
+    renderRightPanel();
+    if (typeof renderAll3D === 'function' && currentView === '3d') {
+      try { renderAll3D({ fit: false }); } catch (_) {}
+    }
+    if (focusSel) {
+      const el = document.querySelector(focusSel);
+      if (el && el.focus) el.focus();
+    }
+  }
+
   function renderHeightPanel(m, s) {
     const host = document.getElementById('heightBody');
     if (!host) return;
@@ -2353,21 +2378,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>
       ` : ''}
     `;
-    document.getElementById('inpVCount').oninput = (e) => {
+    // W12-29: **oninput 이 아니라 onchange** 다. syncCellArrays 는 areaWidths·
+    //   areaIs2D 를 비우는데, oninput 이면 "12" 를 치는 중 "1" 에서 한 번 비운다 —
+    //   자동계산이 잡아 둔 셀 폭이 타이핑만으로 사라졌다.
+    document.getElementById('inpVCount').onchange = (e) => {
       // 팔레트와 같은 동기화를 쓴다 — 예전엔 여기서 areaWidths·areaIs2D 를 놔둬
       // 길이가 어긋난 채 남았다(정면도가 균등분할 fallback 으로 조용히 되돌아간다).
-      syncCellArrays(s, Math.max(1, Math.min(6, parseInt(e.target.value)||1)));
-      renderFrontView(); renderRightPanel(); renderModulePalette();
+      const v = Math.max(1, Math.min(6, parseInt(e.target.value) || 1));
+      e.target.value = v;
+      syncCellArrays(s, v);
+      if (typeof renderModulePalette === 'function') renderModulePalette();
+      panelCommit('#inpVCount');
     };
     document.getElementById('selHLayout').onchange = (e) => {
       s.horizontalLayout = e.target.value;
-      renderFrontView(); renderRightPanel();
+      panelCommit('#selHLayout');
     };
     const inpDr = document.getElementById('inpDrawerH');
-    if (inpDr) inpDr.oninput = (e) => {
+    if (inpDr) inpDr.onchange = (e) => {
       const v = parseInt(e.target.value) || 200;
-      s.drawerHeight = Math.max(50, Math.min(m.H-50, v));
-      renderFrontView();
+      s.drawerHeight = Math.max(50, Math.min(m.H - 50, v));
+      e.target.value = s.drawerHeight;
+      panelCommit('#inpDrawerH');
     };
 
     // CD-2: 서랍 단수 — 예전엔 지정할 수단이 없어 브리지가 항상 1단으로 넘겼다.
@@ -2440,12 +2472,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (tSel) tSel.onchange = (e) => {
         if (idx !== undefined) s.areaTypes[+idx] = e.target.value;
         else s.bottomType = e.target.value;
-        renderFrontView(); renderRightPanel();
+        panelCommit();
       };
       if (dSel) dSel.onchange = (e) => {
         if (idx !== undefined) s.areaDirections[+idx] = e.target.value;
         else s.bottomDirection = e.target.value;
-        renderFrontView();
+        panelCommit();
       };
     });
 
@@ -2462,24 +2494,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!s.shelves.length) shelfHTML = '<div style="color:var(--text-faint);font-size:10px;padding:4px 0">선반 없음</div>';
     shelfHTML += '<button class="add-btn" id="addShelf">+ 선반 추가</button>';
     document.getElementById('shelvesBody').innerHTML = shelfHTML;
+    // W12-29: oninput 이면 한 글자마다 저장·재렌더가 돌아 포커스가 튄다.
     document.querySelectorAll('#shelvesBody input[type="number"]').forEach(inp => {
-      inp.oninput = (e) => {
+      inp.onchange = (e) => {
         const idx = +e.target.dataset.idx;
         const v = parseInt(e.target.value);
-        if (isFinite(v)) { s.shelves[idx] = Math.max(0, Math.min(m.H, v)); renderFrontView(); }
+        if (!isFinite(v)) return;
+        s.shelves[idx] = Math.max(0, Math.min(m.H, v));
+        e.target.value = s.shelves[idx];
+        panelCommit(`#shelvesBody input[data-idx="${idx}"]`);
       };
     });
     document.querySelectorAll('#shelvesBody button.del').forEach(btn => {
       btn.onclick = () => {
         const idx = +btn.dataset.idx;
         s.shelves.splice(idx, 1);
-        renderFrontView(); renderRightPanel();
+        panelCommit();
       };
     });
     document.getElementById('addShelf').onclick = () => {
       // 중앙 높이로 추가
       s.shelves.push(Math.round(m.H / 2));
-      renderFrontView(); renderRightPanel();
+      panelCommit();
     };
 
     // 손잡이 — 저장값이 아니라 해석된 값을 보여준다 (미지정이면 단별 기본형)
@@ -2500,9 +2536,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           <option value="bottom" ${s.handlePosition==='bottom'?'selected':''}>하</option>
         </select>
       </div>
+      <div style="font-size:10px;color:#888;line-height:1.4;padding-top:4px">${handleNoteFor(m, s)}</div>
     `;
-    document.getElementById('selHType').onchange = (e) => { s.handleType = e.target.value; };
-    document.getElementById('selHPos').onchange  = (e) => { s.handlePosition = e.target.value; };
+    // W12-29: 예전엔 대입만 하고 저장·재렌더가 없었다. 손잡이는
+    //   isWoodChannel / doorDropOf / doorTopGapOf 를 통해 **3D·정면도 형상을
+    //   실제로 바꾼다** — 목찬넬이면 측판을 따내고 도어를 30 내리고, 도어 내림이면
+    //   도어를 15 아래로 뺀다. 바꿔도 화면이 그대로고 새로고침하면 사라졌다.
+    document.getElementById('selHType').onchange = (e) => {
+      s.handleType = e.target.value;
+      panelCommit('#selHType');
+    };
+    document.getElementById('selHPos').onchange = (e) => {
+      s.handlePosition = e.target.value;
+      panelCommit('#selHPos');
+    };
   }
 
   // ─────────────────────────────────────────────────────────────
