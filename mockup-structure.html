@@ -1810,6 +1810,38 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // W9-102: 단일 모듈 정면도 헬퍼 (offset 받음)
+
+  /**
+   * W12-30: 정면도의 칸을 **도어 방향 컨트롤**로 만든다.
+   *
+   * 팔레트의 도어 미리보기(`.dp-hit`)가 하던 일을 정면도로 옮긴다. 미리보기는
+   * 정면도와 같은 그림을 두 번 그리던 것이라, 정면도 하나만 남기는 편이 맞다.
+   *
+   * 규칙은 미리보기와 **같다** — 도어이고 양문이 아닐 때만 방향을 뒤집는다.
+   * 양문은 좌우가 이미 정해져 있고(#471), 서랍·오픈·먹장은 여는 방향이 없다.
+   * 그 밖의 클릭은 모듈 선택으로만 쓴다.
+   */
+  function bindFrontCell(rect, m, s, idx, type, is2D) {
+    const canToggle = type === 'door' && !is2D;
+    // `data-module-id` 는 **모듈당 하나**(외곽 rect)라는 규약이 있다 —
+    // positionPalette 와 여러 테스트가 그걸로 모듈을 센다. 칸에는 다른 이름을 쓴다.
+    rect.setAttribute('data-cell-of', m.id);
+    rect.setAttribute('data-cell-idx', String(idx));
+    rect.style.cursor = 'pointer';
+    rect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeId !== m.id) { setActiveModule(m.id); if (!canToggle) return; }
+      if (!canToggle) return;
+      if (idx === 'bottom') {
+        s.bottomDirection = s.bottomDirection === 'left' ? 'right' : 'left';
+      } else {
+        const i = +idx;
+        s.areaDirections[i] = s.areaDirections[i] === 'left' ? 'right' : 'left';
+      }
+      panelCommit();
+    });
+  }
+
   function renderModuleFront(content, m, s, offsetX, offsetY) {
     const cfg = SECTION_CONFIG[m.section];
     const ns = 'http://www.w3.org/2000/svg';
@@ -1843,8 +1875,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     outline.setAttribute('width', m.W);
     outline.setAttribute('height', m.H);
     outline.setAttribute('fill', 'none');
-    outline.setAttribute('stroke', cfg.stroke);
-    outline.setAttribute('stroke-width', 4);
+    // W12-30: 고른 모듈을 도면에서 알아볼 수 있게 한다. 팔레트가 없어지면
+    //   "무엇이 선택됐나"를 알려 주는 것이 이 테두리뿐이다.
+    //   renderAreas 의 `const on = a.id === activeAreaId` 와 같은 방식이다.
+    const on = m.id === activeId;
+    outline.setAttribute('stroke', on ? 'var(--brand-deep, #6a4b2a)' : cfg.stroke);
+    outline.setAttribute('stroke-width', on ? 8 : 4);
     outline.setAttribute('data-module-id', m.id);
     outline.setAttribute('pointer-events', 'all');
     outline.style.cursor = 'pointer';
@@ -1860,11 +1896,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const topY = offsetY;             // 모듈 위쪽 (천장 매달림이면 ceiling=0)
     const drawerY = offsetY + topH;   // 하부 서랍 영역 시작
 
-    // W9-95: 불균등 cell 폭 (areaWidths) — fallback 균등
+    // W9-95: 불균등 cell 폭 (areaWidths) — fallback 균등.
+    // W12-30: 같은 규칙이 여기와 cellWidthsOf 두 곳에 있었다 — 하나로 모은다.
     const vCount = Math.max(1, s.verticalCount || 1);
-    const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === vCount)
-      ? s.areaWidths
-      : Array(vCount).fill(m.W / vCount);
+    const cellWidths = cellWidthsOf(m, s);
     let xAcc = offsetX;
     for (let i = 0; i < vCount; i++) {
       const colW = cellWidths[i];
@@ -1886,6 +1921,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       r.setAttribute('stroke', cfg.stroke);
       r.setAttribute('stroke-width', 2);
       if (type === 'open') r.setAttribute('stroke-dasharray', '8 4');
+      bindFrontCell(r, m, s, i, type, is2D);   // W12-30
       content.appendChild(r);
 
       // 라벨
@@ -1986,6 +2022,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       r.setAttribute('stroke', cfg.stroke);
       r.setAttribute('stroke-width', 2);
       if (s.bottomType === 'open') r.setAttribute('stroke-dasharray', '8 4');
+      bindFrontCell(r, m, s, 'bottom', s.bottomType, false);   // W12-30
       content.appendChild(r);
 
       const labFont = Math.min(m.W * 0.06, drawerH * 0.4, 70);
@@ -3855,16 +3892,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       applyView();
     }, { passive: false });
     // pan
+    //
+    // W12-30: 예전엔 pointerdown 에서 곧바로 setPointerCapture 를 걸었다.
+    //   포인터 캡처는 이후 이벤트를 **전부 SVG 로 돌려보내므로**, 자식(모듈 외곽·칸)의
+    //   click 핸들러가 실제 마우스로는 한 번도 불리지 않았다 — 정면도에서 모듈을
+    //   고르지 못하던 것도 이 때문이다. (dispatchEvent 로는 멀쩡히 동작해서
+    //   테스트로는 안 잡혔다.)
+    //   이제 **실제로 움직인 뒤에만** 팬으로 넘어간다. 그 전까지는 클릭이다.
+    const PAN_SLOP = 4;   // px — 손떨림은 클릭으로 본다
     let panInfo = null;
     svg.addEventListener('pointerdown', (e) => {
-      panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY };
-      svg.setPointerCapture(e.pointerId);
-      svg.style.cursor = 'grabbing';
+      panInfo = { sx: e.clientX, sy: e.clientY, ox: view.panX, oy: view.panY, id: e.pointerId, moved: false };
     });
     svg.addEventListener('pointermove', (e) => {
       if (!panInfo) return;
-      view.panX = panInfo.ox + (e.clientX - panInfo.sx);
-      view.panY = panInfo.oy + (e.clientY - panInfo.sy);
+      const dx = e.clientX - panInfo.sx;
+      const dy = e.clientY - panInfo.sy;
+      if (!panInfo.moved) {
+        if (Math.abs(dx) < PAN_SLOP && Math.abs(dy) < PAN_SLOP) return;
+        panInfo.moved = true;
+        try { svg.setPointerCapture(panInfo.id); } catch (_) {}
+        svg.style.cursor = 'grabbing';
+      }
+      view.panX = panInfo.ox + dx;
+      view.panY = panInfo.oy + dy;
       applyView();
     });
     const endPan = () => { panInfo = null; svg.style.cursor = ''; };
