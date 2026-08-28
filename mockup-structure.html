@@ -4712,9 +4712,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 실제 갭(4mm)은 멀어지면 1px 미만이 되어 사라진다. 테두리를 **최소 몇 px**
    * 로 잡아 주면 줌과 무관하게 도어가 낱장으로 읽힌다. 가까이서는 4mm 그대로다.
    */
-  // W12-26: 1.6 은 줌아웃에서 3~4px 이라 도어 면이 밝을수록 묻혔다. 세로 윤곽이
-  //   또렷하게 읽히도록 올린다. 가까이서는 여전히 갭 절반(2mm)이라 치수는 안 바뀐다.
-  const DOOR_EDGE_MIN_PX = 2.6;
+  const DOOR_EDGE_MIN_PX = 1.6;
   function keepDoorEdgesVisible() {
     if (!three || !three.moduleGroup) return;
     const t = Math.max(MASTER_RULES.DOOR_GAP / 2, DOOR_EDGE_MIN_PX * mmPerPixel());
@@ -4813,16 +4811,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (type === 'door' && meta.is2D) {
       const GAP = MASTER_RULES.DOOR_GAP;          // 가운데 갭 4
       const halfW = (w - GAP) / 2;                // 도어 1장 폭
-      addDoorReveal(parent, cx, cy, w, h, frontZ, cfg, meta);
+      // W12-27: 양문은 **도어 한 장씩** 그림자판과 테두리를 두른다.
+      //   예전엔 셀 전체에 한 번만 둘러, 셀 안쪽 두 도어 사이에는 테두리가
+      //   없었다. 하부장은 자동계산이 양문을 자주 만들어 그 셀의 가운데 선만
+      //   유독 얇아 보였다 — "하부장만 윤곽선이 안 굵어진다" 의 정체다.
+      const lx = cx - GAP / 2 - halfW / 2;
+      const rx = cx + GAP / 2 + halfW / 2;
+      addDoorReveal(parent, lx, cy, halfW, h, frontZ, cfg, meta);
+      addDoorReveal(parent, rx, cy, halfW, h, frontZ, cfg, meta);
       // 좌 도어
       const dLeft = makeBox(halfW, h, T, color);
-      dLeft.position.set(cx - GAP / 2 - halfW / 2, cy, overlayZ);
+      dLeft.position.set(lx, cy, overlayZ);
       dLeft.userData = Object.assign({}, carcassMeta, { side: 'front', doorIdx: 0 });
       parent.add(dLeft);
       addEdgeOutline(dLeft, parent, 0x000000, 0.9);
       // 우 도어
       const dRight = makeBox(halfW, h, T, color);
-      dRight.position.set(cx + GAP / 2 + halfW / 2, cy, overlayZ);
+      dRight.position.set(rx, cy, overlayZ);
       dRight.userData = Object.assign({}, carcassMeta, { side: 'front', doorIdx: 1 });
       parent.add(dRight);
       addEdgeOutline(dRight, parent, 0x000000, 0.9);

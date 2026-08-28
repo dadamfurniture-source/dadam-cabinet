@@ -454,8 +454,10 @@ describe('도어 경계가 보인다 (정적 가드)', () => {
     .split('\r\n').join('\n');
 
   test('도어를 그리는 모든 경로가 reveal 을 깐다', () => {
-    // 정의 1 + 양문 1 + 단문·서랍 1 = 3
-    expect((src.match(/addDoorReveal\(/g) || [])).toHaveLength(3);
+    // W12-27: 양문 셀이 **도어 한 장씩** 부르게 되어 2 → 3 회가 됐다.
+    //   (양문 좌·우 2 + 그 밖의 경로 1)
+    const fn = src.slice(src.indexOf('function addFrontPanel'), src.indexOf('function positionBox'));
+    expect(fn.match(/addDoorReveal\(/g)).toHaveLength(3);
   });
 
   test('reveal 은 갭만큼 더 크고 도어보다 뒤에 있다', () => {
