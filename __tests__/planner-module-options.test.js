@@ -130,15 +130,15 @@ describe('플래너 높이 구성 패널', () => {
     expect(fn).toContain('showToast');
   });
 
-  test('우측 패널과 팔레트가 같은 가드를 부른다', () => {
+  test('가드를 부르는 곳은 높이 패널 하나다', () => {
+    // W12-32: 팔레트를 걷어냈다. 예전엔 팔레트에도 같은 가드가 문구까지 다르게
+    // 한 벌 더 있었다 — 한쪽만 고치면 다른 쪽으로는 통과했다.
     const right = STRUCT.slice(STRUCT.indexOf('function renderHeightPanel'),
                                STRUCT.indexOf('const PANEL_SEC_TITLE'));
     expect(right).toContain('applyHeightPart(m, s, key, inp.value)');
-    const pal = STRUCT.slice(STRUCT.indexOf('function bindOptionInputs'),
-                             STRUCT.indexOf('function openOptionPopup'));
-    expect(pal).toContain('applyHeightPart(m, s, k, inp.value)');
-    // 예전 두 벌은 남아 있으면 안 된다.
-    expect(pal).not.toMatch(/bodyHeightOf\(m, s\) < 50/);
+    expect((STRUCT.match(/applyHeightPart\(/g) || []).length).toBe(2);   // 정의 1 + 호출 1
+    // 손으로 다시 재는 곳이 없어야 한다.
+    expect(STRUCT).not.toMatch(/bodyHeightOf\(m, s\) < 50/);
   });
 
   test('몸통을 직접 정하면 그 모듈을 고정 처리한다', () => {

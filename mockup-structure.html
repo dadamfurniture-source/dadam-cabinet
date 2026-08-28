@@ -121,81 +121,6 @@
     border:0;border-radius:4px;padding:6px 8px;cursor:pointer;font-weight:600;font-size:11px;white-space:nowrap}
   .area-tools .at-auto:hover{background:#9d7c54}
 
-  /* 모듈 옵션 팔레트 — 모듈을 고르면 캔버스 위에 뜬다.
-     우측 패널을 없애지 않는다. 여기엔 자주 만지는 것만 두고, 상세는 우측이 맡는다. */
-  .mod-palette{position:absolute;z-index:120;background:#fff;border:1px solid #b8956c;border-radius:8px;
-    box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:11px;width:250px;overflow:hidden;
-    font-family:-apple-system,'Segoe UI',sans-serif}
-  .mod-palette .mp-head{display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--brand-deep);color:#fff;font-weight:700}
-  .mod-palette .mp-head .mp-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .mod-palette .mp-head button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
-  /* 아이콘 격자 — 팔레트는 아이콘만 보여주고 상세는 팝업이 맡는다 */
-  .mod-palette{width:auto}
-  .mod-palette .mp-grid{display:grid;grid-template-columns:repeat(5,58px);gap:1px;background:var(--line);padding:1px}
-  .mod-palette .mp-ic{background:#fff;border:0;cursor:pointer;padding:9px 4px 7px;display:flex;flex-direction:column;
-    align-items:center;gap:4px;color:var(--text-dim);font-family:inherit}
-  .mod-palette .mp-ic:hover{background:var(--brand-soft);color:var(--brand-deep)}
-  .mod-palette .mp-ic:focus-visible{outline:2px solid var(--brand-deep);outline-offset:-2px}
-  .mod-palette .mp-ic svg{width:20px;height:20px}
-  .mod-palette .mp-ic span{font-size:10px;font-weight:600;line-height:1}
-
-  /* 옵션 상세 팝업 */
-  .mp-popup{position:fixed;z-index:140;background:#fff;border:1px solid var(--brand-mid);border-radius:8px;
-    box-shadow:0 6px 24px rgba(0,0,0,.18);width:232px;overflow:hidden;font-size:11px;
-    font-family:-apple-system,'Segoe UI',sans-serif}
-  .mp-popup .mp-head{display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--brand-mid);color:#fff;font-weight:700}
-  .mp-popup .mp-head .mp-title{flex:1}
-  .mp-popup .mp-head button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
-  .mp-popup .mp-pbody{max-height:min(56vh,420px);overflow-y:auto;padding:6px 0 9px}
-  .mp-popup .mp-row{display:flex;align-items:center;gap:6px;padding:4px 9px}
-  .mp-popup .mp-row > label{width:56px;flex-shrink:0;color:var(--text-dim);font-weight:600}
-  .mp-popup .mp-row select,.mp-popup .mp-row input[type=number]{flex:1;min-width:0;padding:3px 5px;
-    border:1px solid var(--line);border-radius:4px;font-size:11px;background:#fff;color:var(--text)}
-  .mp-popup .mp-row input[type=number]{font-family:monospace}
-  .mp-popup .mp-note{padding:2px 9px 5px;color:var(--text-faint);font-size:9px;line-height:1.45}
-  .mp-popup .mp-cells{padding:0 9px 4px;display:flex;flex-direction:column;gap:3px}
-  .mp-popup .mp-cell{display:flex;align-items:center;gap:5px}
-  .mp-popup .mp-cell .mp-ci{width:22px;flex-shrink:0;color:var(--text-faint);font-size:9px}
-  .mp-popup .mp-cell select{flex:1;min-width:0;padding:2px 4px;border:1px solid var(--line);border-radius:3px;font-size:10px}
-  .mp-popup .mp-both{flex:1;color:var(--text-dim);font-size:10px;text-align:center}
-  .mp-popup .mp-chk{display:flex;align-items:center;gap:6px;padding:6px 9px;color:var(--text-dim);font-weight:600;cursor:pointer}
-
-  /* 도어 옵션 — 모듈 비율 그대로의 정면 미리보기 */
-  .mp-popup.wide{width:300px}
-  .mp-preview{padding:8px 9px 4px}
-  .mp-preview svg{width:100%;max-height:210px;display:block;background:var(--bg);border:1px solid var(--line);border-radius:4px}
-  .mp-preview .dp-cell{transition:opacity .12s ease}
-  .mp-preview .dp-hit{cursor:pointer}
-  .mp-preview .dp-hit:hover{opacity:.72}
-  .mp-preview .dp-arr,.mp-preview .dp-lab{pointer-events:none;font-weight:700}
-  .mp-preview .dp-lab{opacity:.75}
-  .mp-dim-note{text-align:center;font-family:monospace;font-size:10px;color:var(--text-faint);margin-top:4px}
-  .mp-stepper{flex:1;display:flex;align-items:center;gap:8px}
-  .mp-stepper button{width:26px;height:24px;border:1px solid var(--line);background:#fff;border-radius:4px;
-    cursor:pointer;font-size:14px;line-height:1;color:var(--brand-deep);font-weight:700}
-  .mp-stepper button:hover{background:var(--brand-soft)}
-  .mp-stepper .mp-cnt-val{min-width:20px;text-align:center;font-family:monospace;font-size:13px;font-weight:700}
-
-  .mod-palette .mp-body{max-height:min(64vh,520px);overflow-y:auto;padding:4px 0}
-  .mod-palette .mp-row{display:flex;align-items:center;gap:6px;padding:4px 9px}
-  .mod-palette .mp-row > label{width:58px;flex-shrink:0;color:var(--text-dim);font-weight:600}
-  .mod-palette .mp-row select,.mod-palette .mp-row input[type=number]{
-    flex:1;min-width:0;padding:3px 5px;border:1px solid var(--line);border-radius:4px;font-size:11px;background:#fff;color:var(--text)}
-  .mod-palette .mp-row input[type=number]{font-family:monospace}
-  .mod-palette .mp-sep{height:1px;background:var(--line);margin:5px 9px}
-  .mod-palette .mp-note{padding:2px 9px 5px;color:var(--text-faint);font-size:9px;line-height:1.45}
-  .mod-palette .mp-cells{padding:0 9px 4px;display:flex;flex-direction:column;gap:3px}
-  .mod-palette .mp-cell{display:flex;align-items:center;gap:5px}
-  .mod-palette .mp-cell .mp-ci{width:22px;flex-shrink:0;color:var(--text-faint);font-size:9px}
-  .mod-palette .mp-cell select{flex:1;min-width:0;padding:2px 4px;border:1px solid var(--line);border-radius:3px;font-size:10px}
-  .mod-palette .mp-both{flex:1;color:var(--text-dim);font-size:10px;text-align:center}
-  .mod-palette .mp-chk{display:flex;align-items:center;gap:6px;padding:4px 9px;color:var(--text-dim);font-weight:600;cursor:pointer}
-  .mod-palette .mp-foot{display:flex;gap:6px;padding:7px 9px;border-top:1px solid var(--line);background:var(--bg)}
-  .mod-palette .mp-foot button{flex:1;border:0;border-radius:4px;padding:5px 8px;cursor:pointer;font-weight:600;font-size:11px}
-  .mod-palette .mp-foot .mp-auto{background:var(--brand-mid);color:#fff}
-  .mod-palette .mp-foot .mp-auto:hover{background:#9d7c54}
-  .mod-palette .mp-foot .mp-more{background:#eee;color:#666}
-  .mod-palette .mp-foot .mp-more:hover{background:#ddd}
 
   .ruler-btn-editor .row-actions{display:flex;gap:6px;margin-top:4px}
   .ruler-btn-editor button.apply{background:#b8956c;color:#fff;border:0;padding:5px 14px;border-radius:4px;cursor:pointer;font-weight:600;flex:1}
@@ -962,9 +887,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     syncCanvasEmpty();
     // 영역 보기 중이면 화면을 모듈로 당기지 않는다 — 계획 전체가 보이는 편이 낫다.
     if (!activeAreaId) fitToActiveModule();
-    // 모듈을 고르면 옵션 팔레트를 띄운다. 목록·정면도·3D 어느 경로로 골라도
-    // 여기를 지나므로 진입점을 한 곳으로 모을 수 있다.
-    renderModulePalette();
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1843,8 +1765,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   /**
    * W12-30: 정면도의 칸을 **도어 방향 컨트롤**로 만든다.
    *
-   * 팔레트의 도어 미리보기(`.dp-hit`)가 하던 일을 정면도로 옮긴다. 미리보기는
-   * 정면도와 같은 그림을 두 번 그리던 것이라, 정면도 하나만 남기는 편이 맞다.
+   * 예전엔 팔레트 팝업 안의 작은 미리보기가 이 일을 했다. 정면도와 같은 그림을
+   * 두 번 그리던 것이라 정면도 하나만 남겼다 — 지금은 여기가 유일한 경로다.
    *
    * 규칙은 미리보기와 **같다** — 도어이고 양문이 아닐 때만 방향을 뒤집는다.
    * 양문은 좌우가 이미 정해져 있고(#471), 서랍·오픈·먹장은 여는 방향이 없다.
@@ -1853,7 +1775,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function bindFrontCell(rect, m, s, idx, type, is2D) {
     const canToggle = type === 'door' && !is2D;
     // `data-module-id` 는 **모듈당 하나**(외곽 rect)라는 규약이 있다 —
-    // positionPalette 와 여러 테스트가 그걸로 모듈을 센다. 칸에는 다른 이름을 쓴다.
+    // 여러 테스트가 그걸로 모듈을 센다. 칸에는 다른 이름을 쓴다.
     rect.setAttribute('data-cell-of', m.id);
     rect.setAttribute('data-cell-idx', String(idx));
     rect.style.cursor = 'pointer';
@@ -2315,21 +2237,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
 
-  /**
-   * W12-29: 우측 패널에서 값 하나를 바꾼 뒤 부르는 커밋.
-   *
-   * `paletteCommit`(팔레트용)과 짝이다. 예전에는 우측 패널의 대부분이
-   * `renderFrontView()` 만 부르고 **저장을 안 했다** — 팔레트가 저장을 대신하고
-   * 있어 드러나지 않았을 뿐, 우측에서 분할·도어·선반·손잡이를 바꾸면
-   * 새로고침에 사라졌다.
-   *
-   * `focusSel` 은 다시 그린 뒤 포커스를 돌려줄 입력이다. 패널을 통째로 다시
-   * 그리므로 안 돌려주면 한 글자 고칠 때마다 포커스가 날아간다.
-   */
-  // ── 우측 패널·팔레트가 함께 쓰는 규칙 ──────────────────────────
-  // W12-31: 같은 판단이 두 곳에 있으면 한쪽만 고쳐진다. 실제로 그랬다 —
-  // 몸통 50mm 가드가 문구까지 다르게 두 벌이었고, 치수 입력은 팔레트에만 있어
-  // areaWidths 를 비우지 않았다. 규칙을 여기 모으고 양쪽이 부른다.
+  // ── 편집 규칙 ────────────────────────────────────────────────
+  // W12-31: 같은 판단이 두 곳(우측 패널·팔레트)에 있으면 한쪽만 고쳐진다.
+  // 실제로 그랬다 — 몸통 50mm 가드가 문구까지 다르게 두 벌이었고, 치수 입력은
+  // 팔레트에만 있어 areaWidths 를 비우지 않았다. 규칙은 여기 하나씩만 산다.
 
   /**
    * 모듈 치수 한 값을 바꾼다.
@@ -2380,6 +2291,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     };
   }
 
+  /**
+   * W12-29: 우측 패널에서 값 하나를 바꾼 뒤 부르는 커밋.
+   *
+   * 예전에는 우측 패널의 대부분이 `renderFrontView()` 만 부르고 **저장을 안 했다**
+   * — 그때는 떠 있는 팔레트가 저장을 대신하고 있어 드러나지 않았을 뿐,
+   * 우측에서 분할·도어·선반·손잡이를 바꾸면 새로고침에 사라졌다.
+   *
+   * `focusSel` 은 다시 그린 뒤 포커스를 돌려줄 입력이다. 패널을 통째로 다시
+   * 그리므로 안 돌려주면 한 글자 고칠 때마다 포커스가 날아간다.
+   */
   function panelCommit(focusSel) {
     persistPlannerState();
     renderFrontView();
@@ -2511,8 +2432,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return touched;
   }
 
-  /** 영역 값이 바뀌었을 때. areaPaletteCommit 과 같은 순서다 —
-   *  영역은 도구·목록·정면도·3D 를 모두 건드린다. */
+  /** 영역 값이 바뀌었을 때. 영역은 도구·목록·정면도·3D 를 모두 건드리므로
+   *  모듈용 panelCommit 보다 손이 넓다. */
   function areaPanelCommit(focusSel) {
     syncFinishingsToAreas();
     saveStructModules();
@@ -2521,7 +2442,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderModuleList();
     renderFrontView();
     renderRightPanel();
-    if (typeof renderAreaPalette === 'function') renderAreaPalette();
     if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D({ fit: false }); } catch (_) {} }
     if (focusSel) { const el = document.querySelector(focusSel); if (el && el.focus) el.focus(); }
   }
@@ -2549,7 +2469,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       inp.onchange = () => {
         const k = inp.getAttribute('data-dim');
         applyModuleDim(m, s, k, inp.value);
-        if (typeof renderModulePalette === 'function') renderModulePalette();
         panelCommit(`#sizeBody input[data-dim="${k}"]`);
       };
     });
@@ -2557,7 +2476,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (fx) fx.onchange = () => {
       m.isFixed = fx.checked;
       saveLayoutFromModules();
-      if (typeof renderModulePalette === 'function') renderModulePalette();
       panelCommit('#chkFixed');
     };
   }
@@ -2703,7 +2621,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const v = Math.max(1, Math.min(6, parseInt(e.target.value) || 1));
       e.target.value = v;
       syncCellArrays(s, v);
-      if (typeof renderModulePalette === 'function') renderModulePalette();
       panelCommit('#inpVCount');
     };
     document.getElementById('selHLayout').onchange = (e) => {
@@ -2809,6 +2726,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
     if (!s.shelves.length) shelfHTML = '<div style="color:var(--text-faint);font-size:10px;padding:4px 0">선반 없음</div>';
     shelfHTML += '<button class="add-btn" id="addShelf">+ 선반 추가</button>';
+    // W12-32: 팔레트의 '선반 갯수' 가 하던 일. 개수를 입력받는 대신 버튼으로 둔다
+    //   — 개별 위치를 통째로 날리는 동작이라 그렇게 보여야 한다.
+    if (s.shelves.length) {
+      shelfHTML += '<button class="add-btn" id="evenShelf">균등 재배치</button>';
+    }
     document.getElementById('shelvesBody').innerHTML = shelfHTML;
     // W12-29: oninput 이면 한 글자마다 저장·재렌더가 돌아 포커스가 튄다.
     document.querySelectorAll('#shelvesBody input[type="number"]').forEach(inp => {
@@ -2832,6 +2754,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // 중앙 높이로 추가
       s.shelves.push(Math.round(m.H / 2));
       panelCommit();
+    };
+    const even = document.getElementById('evenShelf');
+    if (even) even.onclick = () => {
+      s.shelves = shelvesForCount(m, s, s.shelves.length);
+      panelCommit();
+      showToast(`✓ 선반 ${s.shelves.length}개 균등 배치`);
     };
 
     // 손잡이 — 저장값이 아니라 해석된 값을 보여준다 (미지정이면 단별 기본형)
@@ -3469,12 +3397,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const moved = id && id !== activeAreaId;
     activeAreaId = id;
     panelTarget = 'area';
-    closeModulePalette();
     renderAreaTools();
     renderModuleList();   // W12-15: 배치 목록의 선택 표시를 따라오게 한다
     renderRightPanel();   // W12-31: 우측 패널을 영역 모드로 바꾼다 — 예전엔 우측이
                           //   모듈 전용이라 영역을 골라도 다시 그릴 이유가 없었다.
-    renderAreaPalette();  // W12-16: 영역 옵션 팔레트 (도면 클릭·목록 클릭 동일)
     renderFrontView();
     syncCanvasEmpty();
     if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
@@ -3565,21 +3491,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderFrontView();
       renderModuleList();
       renderRightPanel();
-      closeModulePalette();
       if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
       showToast(`⚡ 자동계산 — 모듈 ${n}개`);
     });
     on('.at-del', () => {
-      if (removeActiveModule()) { renderAreaTools(); renderFrontView(); renderRightPanel(); closeModulePalette(); }
+      if (removeActiveModule()) { renderAreaTools(); renderFrontView(); renderRightPanel(); }
     });
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 모듈 옵션 팔레트 — 모듈을 고르면 캔버스 위에 뜬다
+  // 셀 배열 — 분할 갯수를 바꾸면 파생 배열들도 함께 맞춘다
   //
-  // 우측 패널을 대체하지 않는다. 자주 만지는 것만 여기 두고 상세는 우측이 맡는다.
-  // 두 곳이 같은 구조 객체(s)를 고치므로, 어느 쪽에서 바꿔도 반대쪽이 따라오도록
-  // 변경 후 항상 renderRightPanel() 을 같이 부른다.
+  // W12-32: 예전엔 여기부터 떠 있는 옵션 팔레트가 있었다. 같은 값을 고치는 자리가
+  // 두 곳이 되면서 저장이 한쪽으로만 흘렀고(W12-28~29), 같은 판단이 문구까지 다르게
+  // 두 벌씩 생겼다(W12-31). 편집 지점은 이제 **우측 패널 하나**다.
   // ─────────────────────────────────────────────────────────────
 
   /** verticalCount 를 v 로 맞추면서 cell 배열 4종의 길이를 함께 맞춘다.
@@ -3609,36 +3534,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return Array.from({ length: n }, (_, i) => Math.round(step * (i + 1)));
   }
 
-  function closeModulePalette() {
-    document.querySelectorAll('.mod-palette').forEach((n) => n.remove());
-    document.querySelectorAll('.mp-popup').forEach((n) => n.remove());
-  }
-
-  /** 활성 모듈의 팔레트를 (다시) 그린다. 모듈이 없으면 닫는다. */
-  const _sel = (val, opts) =>
-    opts.map(([v, t]) => `<option value="${v}" ${String(val) === v ? 'selected' : ''}>${t}</option>`).join('');
-
-  /** 셀별 타입·방향 행. 양문은 방향을 묻지 않는다 — 우측 패널과 같은 규칙. */
-  function cellRowsHTML(s) {
-    const vCount = Math.max(1, s.verticalCount || 1);
-    return Array.from({ length: vCount }, (_, i) => {
-      const t = s.areaTypes[i] || 'door';
-      const d = s.areaDirections[i] || 'left';
-      const is2D = !!(s.areaIs2D && s.areaIs2D[i]);
-      const dirCell = t !== 'door'
-        ? '<span class="mp-both">—</span>'
-        : is2D
-          ? '<span class="mp-both">양문 ◀▶</span>'
-          : `<select class="mp-dir" data-i="${i}">${_sel(d, [['left', '좌 ◀'], ['right', '우 ▶']])}</select>`;
-      return `<div class="mp-cell"><span class="mp-ci">#${i + 1}</span>
-        <select class="mp-type" data-i="${i}">${_sel(t, [['door', '도어'], ['drawer', '서랍'], ['open', '오픈'], ['blank', '먹장']])}</select>
-        ${dirCell}</div>`;
-    }).join('');
-  }
-
-  const SVG = (d) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4">${d}</svg>`;
-
-  /** 정면도가 쓰는 것과 같은 규칙으로 셀 폭을 구한다 (자동계산이 낸 폭 우선, 없으면 균등) */
   function cellWidthsOf(m, s) {
     const n = Math.max(1, s.verticalCount || 1);
     return (Array.isArray(s.areaWidths) && s.areaWidths.length === n)
@@ -3653,485 +3548,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 모듈의 실제 W:H 비율과 칸별 폭을 그대로 써서, 보이는 대로 누르면 되게 한다.
    * 칸을 누르면 방향이 바뀐다 — 양문(is2D)은 방향 개념이 없어 잠근다(#471 규칙).
    */
-  function doorPreviewHTML(m, s) {
-    const cfg = SECTION_CONFIG[m.section] || { fill: '#b8956c', stroke: '#6a4b2a' };
-    const widths = cellWidthsOf(m, s);
-    const W = Math.max(1, m.W), H = Math.max(1, m.H);
-    // 다리발이 차지하는 띠. 몸통 offset(baseOffsetOf)이 아니라 **다리발 자체의 높이**다
-    // — addLegs 와 같은 뜻으로 legHOf 를 쓴다.
-    const legZone = legHOf(m, s);
-    const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
-    const topY = 0, topH = Math.max(1, H - drawerH - legZone);
-    let x = 0;
-    const cells = widths.map((w, i) => {
-      const t = s.areaTypes[i] || 'door';
-      const d = s.areaDirections[i] || 'left';
-      const is2D = !!(s.areaIs2D && s.areaIs2D[i]);
-      const cx = x + w / 2;
-      const glyph = t !== 'door' ? '' : is2D ? '◀▶' : d === 'left' ? '◀' : '▶';
-      // 화살표는 열리는 쪽 끝에 붙인다 — 손잡이가 그쪽에 온다는 뜻이 그대로 보인다
-      const gx = is2D || t !== 'door' ? cx : (d === 'left' ? x + w * 0.22 : x + w * 0.78);
-      const fs = Math.min(w * 0.3, topH * 0.24, 150);
-      const rect = `<rect class="dp-cell${t === 'door' && !is2D ? ' dp-hit' : ''}" data-i="${i}"
-          x="${x + 6}" y="${topY + 6}" width="${Math.max(1, w - 12)}" height="${Math.max(1, topH - 12)}"
-          fill="${colorForArea(cfg.fill, t)}" stroke="${cfg.stroke}" stroke-width="6"/>`;
-      const lab = `<text class="dp-lab" x="${cx}" y="${topY + topH - 30}" text-anchor="middle"
-          font-size="${Math.min(w * 0.16, 90)}" fill="#fff">${Math.round(w)}</text>`;
-      const arr = glyph
-        ? `<text class="dp-arr" x="${gx}" y="${topY + topH * 0.42}" text-anchor="middle"
-             dominant-baseline="central" font-size="${fs}" fill="#fff">${glyph}</text>`
-        : '';
-      x += w;
-      return rect + arr + lab;
-    }).join('');
-    const drawer = drawerH > 0
-      ? `<rect x="6" y="${topH + 6}" width="${W - 12}" height="${Math.max(1, drawerH - 12)}"
-           fill="${colorForArea(cfg.fill, s.bottomType || 'drawer')}" stroke="${cfg.stroke}" stroke-width="6"/>`
-      : '';
-    const legs = legZone > 0
-      ? `<rect x="0" y="${H - legZone}" width="${W}" height="${legZone}" fill="none" stroke="${cfg.stroke}"
-           stroke-width="4" stroke-dasharray="24 16"/>`
-      : '';
-    return `<div class="mp-preview">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
-           aria-label="모듈 정면 미리보기">${cells}${drawer}${legs}</svg>
-      <div class="mp-dim-note">W${Math.round(m.W)} × H${Math.round(m.H)}</div>
-    </div>`;
-  }
-
-  /**
-   * 팔레트 옵션 정의. 팔레트는 **아이콘만** 보여주고, 아이콘을 누르면 이 정의의
-   * body 가 팝업으로 열린다. 옵션이 11개라 세로로 나열하면 스크롤이 생겼다.
-   *
-   * `when` 이 없으면 항상 보인다. 어떤 높이 부위가 있는지는 heightPartsOf 가 정하므로
-   * 여기서 섹션을 다시 판단하지 않는다 — 판단이 두 군데로 갈라지지 않게.
-   */
-  const MODULE_OPTIONS = [
-    { key: 'size', label: '크기', icon: SVG('<rect x="3" y="4" width="14" height="12"/><path d="M3 18h14M18 4v12" stroke-dasharray="2 2"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>폭 W</label><input type="number" class="mp-dim" data-k="W" min="100" max="6000" step="10" value="${Math.round(m.W)}"></div>
-        <div class="mp-row"><label>높이 H</label><input type="number" class="mp-dim" data-k="H" min="100" max="3000" step="10" value="${Math.round(m.H)}"></div>
-        <div class="mp-row"><label>깊이 D</label><input type="number" class="mp-dim" data-k="D" min="100" max="1200" step="10" value="${Math.round(m.D)}"></div>
-        <div class="mp-note">mm 단위</div>` },
-
-    { key: 'legH', label: '다리발', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'legH'),
-      icon: SVG('<rect x="3" y="3" width="14" height="10"/><path d="M5 13v4M15 13v4"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>높이</label><input type="number" class="mp-legh" min="0" max="500" step="10" value="${legHOf(m, s)}"></div>
-        ${heightNote(m, s)}` },
-
-    { key: 'topT', label: '상판', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'topT'),
-      icon: SVG('<rect x="2" y="4" width="16" height="3"/><rect x="4" y="7" width="12" height="10"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>두께</label><input type="number" class="mp-topt" min="0" max="200" step="1" value="${topTOf(m, s)}"></div>
-        <div class="mp-note">0 이면 상판 없음. 두께를 주면 그만큼 몸통에서 뺀다.</div>
-        ${heightNote(m, s)}` },
-
-    { key: 'pedestalH', label: '좌대', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'pedestalH'),
-      icon: SVG('<rect x="4" y="3" width="12" height="11"/><rect x="2" y="14" width="16" height="3"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>높이</label><input type="number" class="mp-pedestal" min="0" max="300" step="10" value="${pedestalHOf(m, s)}"></div>
-        ${heightNote(m, s)}` },
-
-    { key: 'moldingH', label: '상몰딩', when: (m, s) => heightPartsOf(m, s).some((p) => p.key === 'moldingH'),
-      icon: SVG('<rect x="2" y="3" width="16" height="3"/><rect x="4" y="6" width="12" height="11"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>높이</label><input type="number" class="mp-molding" min="0" max="300" step="5" value="${moldingHOf(m, s)}"></div>
-        ${heightNote(m, s)}` },
-
-    { key: 'layout', label: '구성', icon: SVG('<rect x="3" y="3" width="14" height="14"/><path d="M3 12h14"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>상하</label>
-          <select class="mp-hlayout">${_sel(s.horizontalLayout || 'doorOnly', [['doorOnly', '도어/서랍만'], ['doorTopDrawerBottom', '상부 + 하부서랍']])}</select>
-        </div>
-        ${s.horizontalLayout === 'doorTopDrawerBottom' ? `
-        <div class="mp-row"><label>서랍 단수</label><input type="number" class="mp-drawerc" min="1" max="5" step="1" value="${Number(s.drawerCount) || 1}"></div>
-        <div class="mp-note">1단마다 전후판 2·측판 2·밑판 1 이 자재로 잡힙니다.</div>` : ''}` },
-
-    { key: 'doors', label: '도어', wide: true,
-      icon: SVG('<rect x="3" y="3" width="14" height="14"/><path d="M8 3v14M13 3v14"/>'),
-      body: (m, s) => `
-        ${doorPreviewHTML(m, s)}
-        <div class="mp-row"><label>갯수</label>
-          <div class="mp-stepper">
-            <button class="mp-cnt-dec" title="줄이기">−</button>
-            <span class="mp-cnt-val">${Math.max(1, s.verticalCount || 1)}</span>
-            <button class="mp-cnt-inc" title="늘리기">＋</button>
-          </div>
-        </div>
-        <div class="mp-note">그림에서 칸을 누르면 열림 방향이 바뀝니다. 양문은 방향이 없습니다.</div>
-        <div class="mp-cells">${cellRowsHTML(s)}</div>` },
-
-    { key: 'shelves', label: '선반', icon: SVG('<rect x="3" y="3" width="14" height="14"/><path d="M3 8h14M3 13h14" stroke-dasharray="3 2"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>갯수</label><input type="number" class="mp-shelfc" min="0" max="12" step="1" value="${(s.shelves || []).length}"></div>
-        <div class="mp-note">몸통 높이에 균등 분배합니다. 개별 위치는 우측 패널에서.</div>` },
-
-    { key: 'handle', label: '손잡이', icon: SVG('<rect x="3" y="3" width="14" height="14"/><rect x="6" y="8" width="8" height="2" fill="currentColor"/>'),
-      body: (m, s) => `
-        <div class="mp-row"><label>타입</label>
-          <select class="mp-htype">${_sel(handleTypeOf(m, s), [['wood-channel', '목찬넬'], ['door-drop', '도어 내림'], ['push', '푸쉬'], ['alu-channel', '알루미늄 찬넬'], ['c-channel', 'C찬넬']])}</select>
-        </div>
-        <div class="mp-row"><label>위치</label>
-          <select class="mp-hpos">${_sel(s.handlePosition || 'top', [['top', '상'], ['middle', '중'], ['bottom', '하']])}</select>
-        </div>
-        <div class="mp-note">${handleNoteFor(m, s)}</div>` },
-
-    // W12-21: 모듈 팔레트의 마감 옵션을 뺐다. 마감재는 **배치 공간 단위**로
-    // 양 끝에 한 장씩 서는 것이 맞고(W12-20), 모듈마다 붙이면 나란한 모듈 사이에
-    // 두 장이 맞닿는다. 배치 팔레트의 '마감' 이 유일한 입구다.
-
-    { key: 'fixed', label: '고정', icon: SVG('<rect x="4" y="9" width="12" height="8"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/>'),
-      body: (m, s) => `
-        <label class="mp-chk"><input type="checkbox" class="mp-fixed" ${m.isFixed ? 'checked' : ''}> 자동계산 시 이 모듈을 보존</label>` },
-  ];
-
-  /** 전체 = 부위 합 + 몸통. 어긋나면 바로 보이라고 팝업마다 적는다. */
-  function heightNote(m, s) {
-    return `<div class="mp-note">전체 ${Math.round(m.H)} = ${heightPartsOf(m, s).map((p) => p.label + ' ' + p.value).join(' + ')} + 몸통 ${bodyHeightOf(m, s)}</div>`;
-  }
-
-  function optionsFor(m, s) {
-    return MODULE_OPTIONS.filter((o) => !o.when || o.when(m, s));
-  }
-
-  function closeOptionPopup() {
-    document.querySelectorAll('.mp-popup').forEach((n) => n.remove());
-  }
-
-  /** 값 하나 바꿀 때마다 저장한다. CD-3 과 같은 이유 — 저장 안 하면 새로고침에 사라진다. */
-  function paletteCommit(reopenKey) {
-    persistPlannerState();
-    renderFrontView();
-    renderRightPanel();
-    renderModulePalette();
-    if (reopenKey) openOptionPopup(reopenKey);
-    if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D({ fit: false }); } catch (_) {} }
-  }
-
-  /** 팝업 안의 입력을 묶는다. 없는 입력은 건너뛴다 — 옵션마다 일부만 들어 있다. */
-  function bindOptionInputs(host, m, s, key) {
-    const on = (sel2, fn) => { const el2 = host.querySelector(sel2); if (el2) el2.onchange = () => fn(el2); return !!el2; };
-
-    host.querySelectorAll('.mp-dim').forEach((inp) => {
-      inp.onchange = () => { applyModuleDim(m, s, inp.dataset.k, inp.value); paletteCommit(key); };
-    });
-
-    // 높이 부위 4종은 같은 규칙 — applyHeightPart 하나가 우측 패널과 같은 판단을 한다.
-    [['.mp-legh', 'legH'], ['.mp-topt', 'topT'],
-     ['.mp-pedestal', 'pedestalH'], ['.mp-molding', 'moldingH']]
-      .forEach(([sel2, k]) => {
-        on(sel2, (inp) => { applyHeightPart(m, s, k, inp.value); paletteCommit(key); });
-      });
-
-    on('.mp-hlayout', (el2) => { s.horizontalLayout = el2.value; paletteCommit(key); });
-    on('.mp-drawerc', (el2) => { s.drawerCount = Math.max(1, Math.min(5, parseInt(el2.value) || 1)); paletteCommit(key); });
-    on('.mp-vcount', (el2) => { syncCellArrays(s, Math.max(1, Math.min(6, parseInt(el2.value) || 1))); paletteCommit(key); });
-
-    // 도어 갯수 — 숫자 입력 대신 늘리기/줄이기
-    const step = (delta) => {
-      const next = Math.max(1, Math.min(6, (s.verticalCount || 1) + delta));
-      if (next === s.verticalCount) return;
-      syncCellArrays(s, next);
-      paletteCommit(key);
-    };
-    const dec = host.querySelector('.mp-cnt-dec');
-    const inc = host.querySelector('.mp-cnt-inc');
-    if (dec) dec.onclick = () => step(-1);
-    if (inc) inc.onclick = () => step(+1);
-
-    // 미리보기에서 칸을 누르면 열림 방향이 바뀐다.
-    // 양문(is2D)과 도어가 아닌 칸은 방향 개념이 없어 hit 대상이 아니다(#471 규칙).
-    host.querySelectorAll('.dp-hit').forEach((cell) => {
-      cell.onclick = () => {
-        const i = +cell.dataset.i;
-        s.areaDirections[i] = (s.areaDirections[i] === 'left') ? 'right' : 'left';
-        paletteCommit(key);
-      };
-    });
-    on('.mp-shelfc', (el2) => { s.shelves = shelvesForCount(m, s, Math.max(0, Math.min(12, parseInt(el2.value) || 0))); paletteCommit(key); });
-    on('.mp-htype', (el2) => { s.handleType = el2.value; paletteCommit(key); });
-    on('.mp-hpos', (el2) => { s.handlePosition = el2.value; paletteCommit(key); });
-    on('.mp-fixed', (el2) => { m.isFixed = el2.checked; saveLayoutFromModules(); paletteCommit(key); });
-
-
-    host.querySelectorAll('.mp-type').forEach((sl) => {
-      sl.onchange = () => { s.areaTypes[+sl.dataset.i] = sl.value; paletteCommit(key); };
-    });
-    host.querySelectorAll('.mp-dir').forEach((sl) => {
-      sl.onchange = () => { s.areaDirections[+sl.dataset.i] = sl.value; paletteCommit(key); };
-    });
-  }
-
-  /** 아이콘 하나를 눌렀을 때 뜨는 상세 팝업 */
-  function openOptionPopup(key) {
-    closeOptionPopup();
-    const m = modules.find((x) => x.id === activeId);
-    if (!m) return;
-    const s = getStructure(activeId);
-    const opt = optionsFor(m, s).find((o) => o.key === key);
-    if (!opt) return;
-
-    const pop = document.createElement('div');
-    pop.className = 'mp-popup' + (opt.wide ? ' wide' : '');
-    pop.dataset.option = key;
-    pop.innerHTML = `
-      <div class="mp-head">
-        <span class="mp-title">${opt.label}</span>
-        <button class="mp-pclose" title="닫기">×</button>
-      </div>
-      <div class="mp-pbody">${opt.body(m, s)}</div>`;
-    document.body.appendChild(pop);
-
-    // 팔레트 오른쪽에 붙인다. 팔레트가 없으면 캔버스 좌상단으로 떨어진다.
-    const pal = document.querySelector('.mod-palette');
-    const r = pal ? pal.getBoundingClientRect() : null;
-    const pw = pop.offsetWidth || 232;
-    const left = r && (r.width || r.height) ? r.right + 10 : 24;
-    const top = r && (r.width || r.height) ? r.top : 80;
-    pop.style.left = Math.max(8, Math.min(left, (window.innerWidth || 1280) - pw - 8)) + 'px';
-    pop.style.top = Math.max(8, top) + 'px';
-
-    pop.querySelector('.mp-pclose').onclick = closeOptionPopup;
-    bindOptionInputs(pop, m, s, key);
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // W12-16: 영역 옵션 팔레트 — 크기 · 좌대 · 상몰딩 · 마감
-  //
-  // 모듈 팔레트와 **같은 껍데기**(.mod-palette / .mp-popup)를 쓴다. 두 팔레트가
-  // 다르게 생기면 같은 자리에서 다른 규칙을 배워야 한다.
-  // 좌대·상몰딩은 그 부위가 있는 섹션에서만 뜬다 (heightPartsOf 와 같은 기준).
-  // ─────────────────────────────────────────────────────────────
-  const AREA_OPTIONS = [
-    { key: 'size', label: '크기', icon: SVG('<rect x="3" y="4" width="14" height="12"/><path d="M3 18h14M18 4v12" stroke-dasharray="2 2"/>'),
-      body: (a) => `
-        <div class="mp-row"><label>폭 W</label><input type="number" class="ap-dim" data-k="W" min="100" max="8000" step="10" value="${Math.round(a.W)}"></div>
-        <div class="mp-row"><label>높이 H</label><input type="number" class="ap-dim" data-k="H" min="100" max="3000" step="10" value="${Math.round(a.H)}"></div>
-        <div class="mp-row"><label>깊이 D</label><input type="number" class="ap-dim" data-k="D" min="100" max="1200" step="10" value="${Math.round(a.D)}"></div>
-        <div class="mp-note">배치 단계의 사각형 치수입니다 — 고치면 배치에도 되쓰입니다.</div>` },
-
-    // W12-18: 항목 수를 섹션마다 다르게 두지 않는다 — 어떤 영역은 3개, 어떤 영역은
-    // 4개가 떠서 무엇이 빠졌는지 알 수 없었다. 늘 네 개를 내고, 그 섹션의 높이 모델에
-    // 없는 부위는 **입력을 막고 무엇을 쓰는지 적는다**.
-    { key: 'pedestalH', label: '좌대',
-      icon: SVG('<rect x="3" y="5" width="14" height="8"/><rect x="3" y="14" width="14" height="3" fill="currentColor"/>'),
-      body: (a) => areaPartBody(a, 'pedestalH', '자동계산이 맨 아래 단에 실어 줍니다.') },
-
-    { key: 'moldingH', label: '상몰딩',
-      icon: SVG('<rect x="3" y="3" width="14" height="3" fill="currentColor"/><rect x="3" y="7" width="14" height="10"/>'),
-      body: (a) => areaPartBody(a, 'moldingH', '자동계산이 맨 위 단에 실어 줍니다.') },
-
-    { key: 'finish', label: '마감',
-      icon: SVG('<rect x="3" y="4" width="3" height="12" fill="currentColor"/><rect x="8" y="4" width="4" height="12"/><rect x="14" y="4" width="3" height="12" fill="currentColor"/>'),
-      body: (a) => {
-        const hosts = modules.filter((m) => m.areaId === a.id && !m.isFinishing);
-        const rows = FINISH_SIDES.map((side) => {
-          const cur = areaFinishOn(a.id, side);
-          const opts = [['', '없음']].concat(FINISHING_SECTIONS.map((k) => [k, finishLabel(k)]));
-          return `<div class="mp-row"><label>${side === 'left' ? '좌' : '우'} 끝</label>
-            <select class="ap-fin" data-side="${side}">${_sel(cur ? cur.section : '', opts)}</select>
-          </div>`;
-        }).join('');
-        return `${rows}
-        <div class="mp-note">${hosts.length
-          ? `배치 공간 양 끝에 한 장씩 섭니다 — 높이 ${Math.round(a.H)} · 깊이 ${Math.round(a.D)}.
-             폭은 끝쪽 모듈이 내놓고 영역 폭은 그대로입니다.`
-          : '모듈을 먼저 넣으세요 — 마감재가 폭을 받아올 모듈이 없습니다.'}</div>`;
-      } },
-  ];
-
-  /**
-   * W12-18: 영역 높이 부위(좌대·상몰딩) 팝업 본문.
-   *
-   * 그 섹션의 높이 모델에 없는 부위면 입력을 막고 무엇을 대신 쓰는지 적는다.
-   * 항목을 아예 숨기면 영역마다 팔레트 개수가 달라져 무엇이 빠졌는지 알 수 없다.
-   */
-  function areaPartBody(a, key, note) {
-    const info = areaPartInfo(a, key);
-    if (!info.has) {
-      return `<div class="mp-row"><label>높이</label>
-          <input type="number" class="ap-part" data-k="${key}" value="0" disabled></div>
-        <div class="mp-note">${info.sectionLabel} 은 이 부위가 없습니다 —
-          높이 구성은 ${info.names} 입니다. 모듈에서 정합니다.</div>`;
-    }
-    return `<div class="mp-row"><label>높이</label>
-        <input type="number" class="ap-part" data-k="${key}" min="0" max="300" step="5" value="${info.value}"></div>
-      <div class="mp-note">${note}</div>`;
-  }
-
-  function areaOptionsFor(a) { return AREA_OPTIONS.filter((o) => !o.when || o.when(a)); }
-
-  function areaPaletteCommit(reopenKey) {
-    syncFinishingsToAreas();
-    saveStructModules();
-    persistPlannerState();
-    renderAreaTools();
-    renderModuleList();
-    renderFrontView();
-    renderRightPanel();
-    renderAreaPalette();
-    if (reopenKey) openAreaOptionPopup(reopenKey);
-    if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D({ fit: false }); } catch (_) {} }
-  }
-
-  function renderAreaPalette() {
-    closeModulePalette();
-    const a = areaById(activeAreaId);
-    if (!a) return;
-    const cfg = SECTION_CONFIG[a.section] || {};
-    const el = document.createElement('div');
-    el.className = 'mod-palette';
-    el.innerHTML = `
-      <div class="mp-head">
-        <span class="mp-title">${cfg.label || a.section} 영역 · W${Math.round(a.W)}</span>
-        <button class="mp-close" title="닫기">×</button>
-      </div>
-      <div class="mp-grid">
-        ${areaOptionsFor(a).map((o) => `
-          <button class="mp-ic" data-option="${o.key}" title="${o.label}">
-            ${o.icon}<span>${o.label}</span>
-          </button>`).join('')}
-      </div>`;
-    document.body.appendChild(el);
-    positionAreaPalette(el, a.id);
-    el.querySelector('.mp-close').onclick = () => { closeOptionPopup(); closeModulePalette(); };
-    el.querySelectorAll('.mp-ic').forEach((btn) => {
-      btn.onclick = () => openAreaOptionPopup(btn.dataset.option);
-    });
-  }
-
-  /** 도면의 영역 사각형 옆에 붙인다. 없으면 캔버스 좌상단. */
-  function positionAreaPalette(el, areaId) {
-    const wrap = document.getElementById('canvasWrap');
-    const target = document.querySelector(`#contentG [data-area-id="${areaId}"]`);
-    const base = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 };
-    let left = base.left + 16, top = base.top + 16;
-    if (target && target.getBoundingClientRect) {
-      const r = target.getBoundingClientRect();
-      if (r.width || r.height) { left = r.right + 12; top = r.top; }
-    }
-    const pw = el.offsetWidth || 250, ph = el.offsetHeight || 300;
-    el.style.left = Math.max(8, Math.min(left, (window.innerWidth || 1280) - pw - 8)) + 'px';
-    el.style.top = Math.max(8, Math.min(top, (window.innerHeight || 800) - ph - 8)) + 'px';
-  }
-
-  function openAreaOptionPopup(key) {
-    closeOptionPopup();
-    const a = areaById(activeAreaId);
-    if (!a) return;
-    const opt = areaOptionsFor(a).find((o) => o.key === key);
-    if (!opt) return;
-    const pop = document.createElement('div');
-    pop.className = 'mp-popup';
-    pop.dataset.option = key;
-    pop.innerHTML = `
-      <div class="mp-head">
-        <span class="mp-title">${opt.label}</span>
-        <button class="mp-pclose" title="닫기">×</button>
-      </div>
-      <div class="mp-pbody">${opt.body(a)}</div>`;
-    document.body.appendChild(pop);
-    const pal = document.querySelector('.mod-palette');
-    const r = pal ? pal.getBoundingClientRect() : null;
-    const pw = pop.offsetWidth || 232;
-    const left = r && (r.width || r.height) ? r.right + 10 : 24;
-    const top = r && (r.width || r.height) ? r.top : 80;
-    pop.style.left = Math.max(8, Math.min(left, (window.innerWidth || 1280) - pw - 8)) + 'px';
-    pop.style.top = Math.max(8, top) + 'px';
-    pop.querySelector('.mp-pclose').onclick = closeOptionPopup;
-    bindAreaOptionInputs(pop, a, key);
-  }
-
-  function bindAreaOptionInputs(host, a, key) {
-    host.querySelectorAll('.ap-dim').forEach((inp) => {
-      inp.onchange = () => {
-        const k = inp.dataset.k;
-        a[k] = Math.max(100, parseInt(inp.value) || 0);
-        saveLayoutFromAreas();
-        areaPaletteCommit(key);
-      };
-    });
-    host.querySelectorAll('.ap-part').forEach((inp) => {
-      inp.onchange = () => {
-        const v = parseInt(inp.value);
-        a[inp.dataset.k] = Number.isFinite(v) && v >= 0 ? v : undefined;
-        saveLayoutFromAreas();
-        areaPaletteCommit(key);
-      };
-    });
-    // W12-20: 고르는 즉시 영역 끝에 한 장 세운다 (모듈 팔레트와 같은 방식).
-    host.querySelectorAll('.ap-fin').forEach((sl) => {
-      sl.onchange = () => {
-        setAreaFinish(a.id, sl.dataset.side, sl.value);
-        saveLayoutFromModules();
-        areaPaletteCommit(key);
-      };
-    });
-  }
-
-  function renderModulePalette() {
-    closeModulePalette();
-    const m = modules.find((x) => x.id === activeId);
-    if (!m) return;
-    const s = getStructure(activeId);
-    const cfg = SECTION_CONFIG[m.section] || {};
-
-    const el = document.createElement('div');
-    el.className = 'mod-palette';
-    el.innerHTML = `
-      <div class="mp-head">
-        <span class="mp-title">${cfg.label || m.section} · ${m.id}</span>
-        <button class="mp-close" title="닫기">×</button>
-      </div>
-      <div class="mp-grid">
-        ${optionsFor(m, s).map((o) => `
-          <button class="mp-ic" data-option="${o.key}" title="${o.label}">
-            ${o.icon}<span>${o.label}</span>
-          </button>`).join('')}
-      </div>
-      <div class="mp-foot">
-        <button class="mp-auto">⚡ 이 모듈 계산</button>
-        <button class="mp-more">상세 ▸</button>
-      </div>`;
-    document.body.appendChild(el);
-    positionPalette(el, m.id);
-
-    el.querySelector('.mp-close').onclick = () => { closeOptionPopup(); closeModulePalette(); };
-    el.querySelector('.mp-more').onclick = () => {
-      const rp = document.getElementById('rightPanel');
-      if (rp) rp.classList.remove('collapsed');
-      closeOptionPopup(); closeModulePalette();
-    };
-    el.querySelector('.mp-auto').onclick = () => {
-      const set = buildSets().find((st) => st.modules.some((x) => x.id === m.id));
-      if (set) { autoCalcForSet(set); paletteCommit(null); showToast('⚡ 자동계산 적용'); }
-    };
-    el.querySelectorAll('.mp-ic').forEach((btn) => {
-      btn.onclick = () => openOptionPopup(btn.dataset.option);
-    });
-  }
-
-  /** 정면도의 해당 모듈 옆에 붙인다. 모듈이 안 보이면 캔버스 좌상단으로 떨어진다. */
-  function positionPalette(el, moduleId) {
-    const wrap = document.getElementById('canvasWrap');
-    const target = document.querySelector(`#frontSvg [data-module-id="${moduleId}"]`);
-    const base = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0 };
-    let left = base.left + 16;
-    let top = base.top + 16;
-    if (target && target.getBoundingClientRect) {
-      const r = target.getBoundingClientRect();
-      if (r.width || r.height) { left = r.right + 12; top = r.top; }
-    }
-    const pw = el.offsetWidth || 250;
-    const ph = el.offsetHeight || 400;
-    // viewport 밖으로 나가지 않게 접는다 (ruler-btn-editor 와 같은 규칙)
-    const maxL = (window.innerWidth || 1280) - pw - 8;
-    const maxT = (window.innerHeight || 800) - ph - 8;
-    el.style.left = Math.max(8, Math.min(left, maxL)) + 'px';
-    el.style.top = Math.max(8, Math.min(top, maxT)) + 'px';
-  }
-
   // ─────────────────────────────────────────────────────────────
   // 캔버스 인터랙션 — 휠/팬/단축키
   // ─────────────────────────────────────────────────────────────
@@ -4555,13 +3971,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!ud) return;
     if (meshUd.entityKind && meshUd.entityKind !== 'module') ud = meshUd;
     const moduleId = ud.moduleId;
-    // 이미 골라져 있는 모듈을 다시 눌렀을 때도 팔레트를 띄운다.
-    //   예전엔 `moduleId !== activeId` 로 통째로 걸러서 아무 일도 안 일어났다.
-    //   모듈을 만들면 곧바로 활성 상태가 되므로, 팔레트를 닫고 그 모듈을 눌러도
-    //   다시 열 방법이 없었다 — 팔레트를 여는 유일한 길이 이 분기였기 때문이다.
-    if (moduleId && moduleId === activeId) {
-      renderModulePalette();
-    } else if (moduleId) {
+    // W12-32: 이미 고른 모듈을 다시 눌러도 할 일이 없다 — 우측 패널이 이미
+    //   그 모듈을 보여주고 있다. 예전엔 여기가 팔레트를 여는 유일한 길이었다.
+    if (moduleId && moduleId !== activeId) {
       if (viewMode === 'single') {
         setActiveModule(moduleId);
       } else {
@@ -4574,8 +3986,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             const idx = parseInt(moduleId.split('-')[1] || 0) + 1;
             nameEl.textContent = SECTION_CONFIG[m.section].label + ' #' + idx;
           }
-          renderRightPanel();
-          renderModulePalette();   // 세트/전체 모드에서도 옵션을 만질 수 있어야 한다
+          renderRightPanel();   // 세트/전체 모드에서도 옵션을 만질 수 있어야 한다
         }
       }
     }
