@@ -4712,7 +4712,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 실제 갭(4mm)은 멀어지면 1px 미만이 되어 사라진다. 테두리를 **최소 몇 px**
    * 로 잡아 주면 줌과 무관하게 도어가 낱장으로 읽힌다. 가까이서는 4mm 그대로다.
    */
-  const DOOR_EDGE_MIN_PX = 1.6;
+  // W12-26: 1.6 은 줌아웃에서 3~4px 이라 도어 면이 밝을수록 묻혔다. 세로 윤곽이
+  //   또렷하게 읽히도록 올린다. 가까이서는 여전히 갭 절반(2mm)이라 치수는 안 바뀐다.
+  const DOOR_EDGE_MIN_PX = 2.6;
   function keepDoorEdgesVisible() {
     if (!three || !three.moduleGroup) return;
     const t = Math.max(MASTER_RULES.DOOR_GAP / 2, DOOR_EDGE_MIN_PX * mmPerPixel());
