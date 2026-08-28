@@ -252,6 +252,8 @@
   .section.collapsed .section-body{display:none}
   .section-body{padding:8px 10px 12px;background:#fff;font-size:11px;color:var(--text)}
   .row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:5px 0}
+  .chk-row{display:flex;align-items:center;gap:6px;margin:8px 0 0;font-size:10px;color:var(--text-dim);cursor:pointer}
+  .chk-row input{margin:0}
   .row label{color:var(--text-dim);font-size:11px}
   .row input[type="number"],.row select{padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11px;background:#fff;color:var(--text);font-family:inherit}
   .row input[type="number"]{width:72px;text-align:right;font-family:monospace}
@@ -377,49 +379,70 @@
       <button title="패널 접기" onclick="document.getElementById('rightPanel').classList.toggle('collapsed')">»</button>
     </div>
     <div class="sections">
-      <!-- CD-2: 높이 구성 — 전체높이를 다리발/몸통/상판(또는 상몰딩)으로 나눠 지정 -->
-      <div class="section">
+      <!-- W12-31: 섹션마다 data-sec 를 준다. 우측 패널이 **모듈 모드 / 영역 모드**
+           두 가지로 쓰이므로, 어떤 섹션을 보일지·제목을 뭐라 할지를 renderRightPanel
+           한 곳에서 정한다. 마크업을 모드마다 따로 두면 둘이 어긋난다. -->
+      <!-- 크기 — 팔레트의 '크기'·'고정' 이 있던 자리 -->
+      <div class="section" data-sec="size">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 높이 구성
+          <span class="chev">▼</span> <span class="sec-title">크기</span>
+        </div>
+        <div class="section-body" id="sizeBody">
+          <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
+      <!-- CD-2: 높이 구성 — 전체높이를 다리발/몸통/상판(또는 상몰딩)으로 나눠 지정 -->
+      <div class="section" data-sec="height">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">높이 구성</span>
         </div>
         <div class="section-body" id="heightBody">
           <div class="empty-msg">모듈 선택</div>
         </div>
       </div>
       <!-- 분할 -->
-      <div class="section">
+      <div class="section" data-sec="split">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 분할
+          <span class="chev">▼</span> <span class="sec-title">분할</span>
         </div>
         <div class="section-body" id="splitBody">
           <div class="empty-msg">모듈 선택</div>
         </div>
       </div>
       <!-- 영역 타입 -->
-      <div class="section">
+      <div class="section" data-sec="areas">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 영역 타입 + 도어 열림
+          <span class="chev">▼</span> <span class="sec-title">영역 타입 + 도어 열림</span>
         </div>
         <div class="section-body" id="areasBody">
           <div class="empty-msg">모듈 선택</div>
         </div>
       </div>
       <!-- 선반 -->
-      <div class="section">
+      <div class="section" data-sec="shelves">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 선반 (내부 mm)
+          <span class="chev">▼</span> <span class="sec-title">선반 (내부 mm)</span>
         </div>
         <div class="section-body" id="shelvesBody">
           <div class="empty-msg">모듈 선택</div>
         </div>
       </div>
       <!-- 손잡이 -->
-      <div class="section collapsed">
+      <div class="section collapsed" data-sec="handle">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 손잡이
+          <span class="chev">▼</span> <span class="sec-title">손잡이</span>
         </div>
         <div class="section-body" id="handleBody">
           <div class="empty-msg">모듈 선택</div>
+        </div>
+      </div>
+      <!-- 마감 — 영역 모드에서만. 마감재는 배치 공간 양 끝에 한 장씩이다 (W12-20) -->
+      <div class="section" data-sec="finish" style="display:none">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">마감</span>
+        </div>
+        <div class="section-body" id="finishBody">
+          <div class="empty-msg">영역 선택</div>
         </div>
       </div>
     </div>
@@ -510,6 +533,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 그 형식은 브리지 계약(골든 3종)의 입력이라 건드리면 계약이 깨진다.
   const MODULES_KEY = scopedKey('dadam_struct_modules_v1');
   let activeAreaId = null;
+  // W12-31: 우측 패널이 **모듈**을 보여줄지 **영역**을 보여줄지.
+  //   activeId·activeAreaId 로는 못 가른다 — 영역을 골라도 activeId 는 그대로 남고,
+  //   모듈을 골라도 activeAreaId 는 안 지운다(둘 다 그래야 하는 이유가 있다).
+  //   패널은 **마지막으로 고른 것**을 보여준다.
+  let panelTarget = 'module';
 
   let modules = [];
   /** @type {Record<string, {verticalCount, horizontalSplits, areaTypes, shelves, handleType, handlePosition}>} */
@@ -920,6 +948,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   function setActiveModule(id) {
     activeId = id;
+    panelTarget = 'module';
     renderModuleList();
     renderFrontView();
     renderRightPanel();
@@ -2297,6 +2326,60 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * `focusSel` 은 다시 그린 뒤 포커스를 돌려줄 입력이다. 패널을 통째로 다시
    * 그리므로 안 돌려주면 한 글자 고칠 때마다 포커스가 날아간다.
    */
+  // ── 우측 패널·팔레트가 함께 쓰는 규칙 ──────────────────────────
+  // W12-31: 같은 판단이 두 곳에 있으면 한쪽만 고쳐진다. 실제로 그랬다 —
+  // 몸통 50mm 가드가 문구까지 다르게 두 벌이었고, 치수 입력은 팔레트에만 있어
+  // areaWidths 를 비우지 않았다. 규칙을 여기 모으고 양쪽이 부른다.
+
+  /**
+   * 모듈 치수 한 값을 바꾼다.
+   *
+   * 폭을 바꾸면 `areaWidths` 를 비운다. 그 배열은 자동계산이 잡아 준 **파생값**이라
+   * 폭이 달라지면 근거가 사라진다 — 안 비우면 낡은 셀 폭이 그대로 남아 정면도가
+   * 모듈 밖으로 삐져나온다 (syncCellArrays 가 갯수를 바꿀 때 하는 것과 같은 이유).
+   */
+  function applyModuleDim(m, s, k, raw) {
+    const v = Math.max(100, parseInt(raw) || 0);
+    m[k] = v;
+    if (k === 'H') s.shelves = (s.shelves || []).filter((sh) => sh < v);
+    if (k === 'W') { s.areaWidths = []; s.areaIs2D = []; }
+    saveLayoutFromModules();
+    return v;
+  }
+
+  /**
+   * 높이 부위 하나를 바꾼다. 몸통이 50mm 미만이 되면 **되돌리고** false 를 낸다.
+   * 되돌릴 때 `delete` 가 아니라 이전 값을 되놓는다 — 미지정과 0 은 다르다.
+   */
+  function applyHeightPart(m, s, key, raw) {
+    const label = (heightPartsOf(m, s).find((p) => p.key === key) || {}).label || key;
+    const prev = s[key];
+    s[key] = Math.max(0, parseFloat(raw) || 0);
+    if (bodyHeightOf(m, s) >= 50) return true;
+    if (prev === undefined) delete s[key]; else s[key] = prev;
+    showToast(`⚠ ${label}이 커서 몸통이 50mm 미만이 됩니다 — 전체 높이를 먼저 키우세요`);
+    return false;
+  }
+
+  /**
+   * 영역의 높이 부위(좌대·상몰딩) 상태.
+   *
+   * 그 섹션의 높이 모델에 그 부위가 없을 수 있다 — 하부장에 좌대가 없듯이.
+   * 그때도 항목을 숨기지 않고 **입력을 막고 무엇을 대신 쓰는지 적는다** (W12-18):
+   * 영역마다 항목 수가 달라지면 무엇이 빠졌는지 알 수 없다.
+   */
+  function areaPartInfo(a, key) {
+    const probe = { section: a.section, H: a.H };
+    const parts = heightPartsOf(probe, {});
+    const has = parts.some((p) => p.key === key);
+    return {
+      has,
+      value: has ? heightPartOf(probe, { [key]: a[key] }, key) : 0,
+      names: parts.map((p) => p.label).join(' · ') || '없음',
+      sectionLabel: (SECTION_CONFIG[a.section] || {}).label || a.section,
+    };
+  }
+
   function panelCommit(focusSel) {
     persistPlannerState();
     renderFrontView();
@@ -2344,18 +2427,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     host.querySelectorAll('input[data-hpart]').forEach((inp) => {
       inp.addEventListener('change', () => {
         const key = inp.getAttribute('data-hpart');
-        const v = Math.max(0, parseFloat(inp.value) || 0);
-        s[key] = v;
-        if (bodyHeightOf(m, s) < 50) {
-          showToast('⚠ 몸통이 50mm 미만이 됩니다 — 전체 높이를 먼저 키우세요');
-          delete s[key];
-          renderHeightPanel(m, s);
-          return;
-        }
+        if (!applyHeightPart(m, s, key, inp.value)) { renderHeightPanel(m, s); return; }
         persistPlannerState();
         renderHeightPanel(m, s);
         if (typeof renderFrontView === 'function') renderFrontView();
-        showToast(`✓ ${key} = ${v}mm`);
+        showToast(`✓ ${key} = ${s[key]}mm`);
       });
     });
 
@@ -2376,16 +2452,219 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
   }
 
+  // ── 우측 패널의 두 모드 ────────────────────────────────────────
+  // 섹션 마크업은 하나뿐이고, 모드가 **무엇을 보일지와 제목**만 정한다.
+  // 모드마다 마크업을 따로 두면 둘이 어긋난다.
+  const PANEL_SEC_TITLE = {
+    size: '크기', height: '높이 구성', split: '분할',
+    areas: '영역 타입 + 도어 열림', shelves: '선반 (내부 mm)', handle: '손잡이', finish: '마감',
+  };
+  const PANEL_LAYOUT = {
+    module: { title: '구조 편집', secs: ['size', 'height', 'split', 'areas', 'shelves', 'handle'],
+              titles: { size: '크기 · 고정' } },
+    // 영역은 배치 공간이다 — 담을 그릇의 치수·높이 부위·양 끝 마감만 정한다.
+    area:   { title: '영역 편집', secs: ['size', 'height', 'finish'],
+              titles: { size: '영역 크기', height: '높이 구성 (좌대 · 상몰딩)' } },
+  };
+
+  function panelModeNow() {
+    const a = areaById(activeAreaId);
+    const m = modules.find((x) => x.id === activeId);
+    if (panelTarget === 'area' && a) return 'area';
+    if (m) return 'module';
+    return a ? 'area' : 'module';
+  }
+
+  function applyPanelLayout(mode) {
+    const spec = PANEL_LAYOUT[mode] || PANEL_LAYOUT.module;
+    const head = document.querySelector('.panel-header-title');
+    if (head) head.textContent = spec.title;
+    document.querySelectorAll('#rightPanel .section[data-sec]').forEach((sec) => {
+      const k = sec.getAttribute('data-sec');
+      const on = spec.secs.indexOf(k) >= 0;
+      sec.style.display = on ? '' : 'none';
+      const t = sec.querySelector('.sec-title');
+      // 제목은 늘 다시 쓴다 — 안 그러면 영역 모드가 바꾼 제목이 모듈 모드에 남는다.
+      if (t) t.textContent = (spec.titles && spec.titles[k]) || PANEL_SEC_TITLE[k] || k;
+    });
+  }
+
+  /**
+   * 마감재 치수를 영역에 다시 맞춘다.
+   *
+   * W12-31: 마감재는 만들 때 영역의 H·D 를 받아 간다 (W12-18 — 냉장고장 영역
+   * H2300·D700 이면 EP 도 2300×700). 그런데 그 뒤 **영역 크기를 고치면
+   * 마감재는 옛 치수로 남았다** — 2300→2100 으로 줄여도 EP 는 2300 인 채였다.
+   * 영역 값이 바뀌는 자리에서 다시 맞춘다. 폭은 마감재 종류가 정하므로 건드리지 않는다.
+   */
+  function syncFinishingsToAreas() {
+    let touched = 0;
+    modules.forEach((f) => {
+      if (!f.isFinishing) return;
+      const area = areaById(f.areaId);
+      if (!area) return;
+      const baseY = finishBaseYFor(area);
+      if (f.H === area.H && f.D === area.D && f.baseY === baseY) return;
+      f.H = area.H; f.D = area.D; f.baseY = baseY;
+      touched++;
+    });
+    return touched;
+  }
+
+  /** 영역 값이 바뀌었을 때. areaPaletteCommit 과 같은 순서다 —
+   *  영역은 도구·목록·정면도·3D 를 모두 건드린다. */
+  function areaPanelCommit(focusSel) {
+    syncFinishingsToAreas();
+    saveStructModules();
+    persistPlannerState();
+    renderAreaTools();
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    if (typeof renderAreaPalette === 'function') renderAreaPalette();
+    if (typeof renderAll3D === 'function' && currentView === '3d') { try { renderAll3D({ fit: false }); } catch (_) {} }
+    if (focusSel) { const el = document.querySelector(focusSel); if (el && el.focus) el.focus(); }
+  }
+
+  const DIM_ROWS = [['W', '폭 W', 6000], ['H', '높이 H', 3000], ['D', '깊이 D', 1200]];
+  const dimRowsHTML = (o, maxW) => DIM_ROWS.map(([k, lab, max]) => `
+      <div class="row">
+        <label>${lab} (mm)</label>
+        <input type="number" min="100" max="${k === 'W' && maxW ? maxW : max}" step="10"
+               data-dim="${k}" value="${Math.round(Number(o[k]) || 0)}">
+      </div>`).join('');
+
+  /** 모듈 크기 + 고정. 팔레트의 '크기'·'고정' 이 있던 자리다. */
+  function renderSizePanel(m, s) {
+    const host = document.getElementById('sizeBody');
+    if (!host) return;
+    host.innerHTML = `
+      ${dimRowsHTML(m)}
+      <label class="chk-row"><input type="checkbox" id="chkFixed" ${m.isFixed ? 'checked' : ''}>
+        자동계산 시 이 모듈을 보존</label>
+      <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
+        폭을 바꾸면 칸 폭 배분은 균등으로 되돌아갑니다.
+      </div>`;
+    host.querySelectorAll('input[data-dim]').forEach((inp) => {
+      inp.onchange = () => {
+        const k = inp.getAttribute('data-dim');
+        applyModuleDim(m, s, k, inp.value);
+        if (typeof renderModulePalette === 'function') renderModulePalette();
+        panelCommit(`#sizeBody input[data-dim="${k}"]`);
+      };
+    });
+    const fx = document.getElementById('chkFixed');
+    if (fx) fx.onchange = () => {
+      m.isFixed = fx.checked;
+      saveLayoutFromModules();
+      if (typeof renderModulePalette === 'function') renderModulePalette();
+      panelCommit('#chkFixed');
+    };
+  }
+
+  // ── 영역 모드 ────────────────────────────────────────────────
+  function renderAreaPanel(a) {
+    if (!a) {
+      ['sizeBody', 'heightBody', 'finishBody'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<div class="empty-msg">영역 선택</div>';
+      });
+      return;
+    }
+    const cfg = SECTION_CONFIG[a.section] || {};
+    const size = document.getElementById('sizeBody');
+    if (size) {
+      size.innerHTML = `
+        ${dimRowsHTML(a, 8000)}
+        <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
+          ${cfg.label || a.section} 배치 공간입니다 — 고치면 배치 단계에도 되쓰입니다.
+        </div>`;
+      size.querySelectorAll('input[data-dim]').forEach((inp) => {
+        inp.onchange = () => {
+          const k = inp.getAttribute('data-dim');
+          a[k] = Math.max(100, parseInt(inp.value) || 0);
+          saveLayoutFromAreas();
+          areaPanelCommit(`#sizeBody input[data-dim="${k}"]`);
+        };
+      });
+    }
+    renderAreaHeightPanel(a);
+    renderAreaFinishPanel(a);
+  }
+
+  function renderAreaHeightPanel(a) {
+    const host = document.getElementById('heightBody');
+    if (!host) return;
+    host.innerHTML = [['pedestalH', '좌대', '자동계산이 맨 아래 단에 실어 줍니다.'],
+                      ['moldingH', '상몰딩', '자동계산이 맨 위 단에 실어 줍니다.']]
+      .map(([k, lab, note]) => {
+        const info = areaPartInfo(a, k);
+        return `
+        <div class="row">
+          <label>${lab} (mm)</label>
+          <input type="number" min="0" max="300" step="5" data-apart="${k}"
+                 value="${info.value}" ${info.has ? '' : 'disabled'}>
+        </div>
+        <div style="font-size:10px;color:#888;line-height:1.4;margin:-2px 0 8px">${info.has
+          ? note
+          : `${info.sectionLabel} 은 이 부위가 없습니다 — 높이 구성은 ${info.names} 입니다.`}</div>`;
+      }).join('');
+    host.querySelectorAll('input[data-apart]').forEach((inp) => {
+      inp.onchange = () => {
+        const k = inp.getAttribute('data-apart');
+        const v = parseInt(inp.value);
+        a[k] = Number.isFinite(v) && v >= 0 ? v : undefined;
+        saveLayoutFromAreas();
+        areaPanelCommit(`#heightBody input[data-apart="${k}"]`);
+      };
+    });
+  }
+
+  function renderAreaFinishPanel(a) {
+    const host = document.getElementById('finishBody');
+    if (!host) return;
+    const hosts = modules.filter((m) => m.areaId === a.id && !m.isFinishing);
+    host.innerHTML = `
+      ${FINISH_SIDES.map((side) => {
+        const cur = areaFinishOn(a.id, side);
+        return `
+        <div class="row">
+          <label>${side === 'left' ? '좌' : '우'} 끝</label>
+          <select data-fin="${side}">
+            <option value="" ${cur ? '' : 'selected'}>없음</option>
+            ${FINISHING_SECTIONS.map((k) => `<option value="${k}"
+              ${cur && cur.section === k ? 'selected' : ''}>${finishLabel(k)}</option>`).join('')}
+          </select>
+        </div>`;
+      }).join('')}
+      <div style="font-size:10px;color:#888;line-height:1.4;padding-top:4px">${hosts.length
+        ? `배치 공간 양 끝에 한 장씩 섭니다 — 높이 ${Math.round(a.H)} · 깊이 ${Math.round(a.D)}.
+           폭은 끝쪽 모듈이 내놓고 영역 폭은 그대로입니다.`
+        : '모듈을 먼저 넣으세요 — 마감재가 폭을 받아올 모듈이 없습니다.'}</div>`;
+    host.querySelectorAll('select[data-fin]').forEach((sl) => {
+      sl.onchange = () => {
+        setAreaFinish(a.id, sl.getAttribute('data-fin'), sl.value);
+        saveLayoutFromModules();
+        areaPanelCommit();
+      };
+    });
+  }
+
   function renderRightPanel() {
+    const mode = panelModeNow();
+    applyPanelLayout(mode);
+    if (mode === 'area') { renderAreaPanel(areaById(activeAreaId)); return; }
+
     const m = modules.find(x => x.id === activeId);
     if (!m) {
-      ['heightBody','splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
+      ['sizeBody','heightBody','splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = '<div class="empty-msg">모듈 선택</div>';
       });
       return;
     }
     const s = getStructure(activeId);
+    renderSizePanel(m, s);
     renderHeightPanel(m, s);
 
     // 분할
@@ -3189,9 +3468,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 사용자가 돌려놓은 줌·팬이 클릭마다 되돌아간다.
     const moved = id && id !== activeAreaId;
     activeAreaId = id;
+    panelTarget = 'area';
     closeModulePalette();
     renderAreaTools();
     renderModuleList();   // W12-15: 배치 목록의 선택 표시를 따라오게 한다
+    renderRightPanel();   // W12-31: 우측 패널을 영역 모드로 바꾼다 — 예전엔 우측이
+                          //   모듈 전용이라 영역을 골라도 다시 그릴 이유가 없었다.
     renderAreaPalette();  // W12-16: 영역 옵션 팔레트 (도면 클릭·목록 클릭 동일)
     renderFrontView();
     syncCanvasEmpty();
@@ -3532,32 +3814,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const on = (sel2, fn) => { const el2 = host.querySelector(sel2); if (el2) el2.onchange = () => fn(el2); return !!el2; };
 
     host.querySelectorAll('.mp-dim').forEach((inp) => {
-      inp.onchange = () => {
-        const k = inp.dataset.k;
-        const v = Math.max(100, parseInt(inp.value) || 0);
-        m[k] = v;
-        if (k === 'H') s.shelves = (s.shelves || []).filter((sh) => sh < v);
-        saveLayoutFromModules();
-        paletteCommit(key);
-      };
+      inp.onchange = () => { applyModuleDim(m, s, inp.dataset.k, inp.value); paletteCommit(key); };
     });
 
-    // 높이 부위 4종은 같은 규칙 — 바꿨을 때 몸통이 50mm 미만이면 되돌린다.
-    // (우측 높이 패널이 쓰는 기준과 같다. 두 곳이 다르면 한쪽에서만 통과한다.)
-    [['.mp-legh', 'legH', '다리발'], ['.mp-topt', 'topT', '상판'],
-     ['.mp-pedestal', 'pedestalH', '좌대'], ['.mp-molding', 'moldingH', '상몰딩']]
-      .forEach(([sel2, k, label]) => {
-        on(sel2, (inp) => {
-          const prev = s[k];
-          s[k] = Math.max(0, parseInt(inp.value) || 0);
-          if (bodyHeightOf(m, s) < 50) {
-            if (prev === undefined) delete s[k]; else s[k] = prev;
-            showToast(`⚠ ${label}이 커서 몸통이 50mm 미만이 됩니다`);
-            paletteCommit(key);
-            return;
-          }
-          paletteCommit(key);
-        });
+    // 높이 부위 4종은 같은 규칙 — applyHeightPart 하나가 우측 패널과 같은 판단을 한다.
+    [['.mp-legh', 'legH'], ['.mp-topt', 'topT'],
+     ['.mp-pedestal', 'pedestalH'], ['.mp-molding', 'moldingH']]
+      .forEach(([sel2, k]) => {
+        on(sel2, (inp) => { applyHeightPart(m, s, k, inp.value); paletteCommit(key); });
       });
 
     on('.mp-hlayout', (el2) => { s.horizontalLayout = el2.value; paletteCommit(key); });
@@ -3684,25 +3948,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 항목을 아예 숨기면 영역마다 팔레트 개수가 달라져 무엇이 빠졌는지 알 수 없다.
    */
   function areaPartBody(a, key, note) {
-    const probe = { section: a.section, H: a.H };
-    const parts = heightPartsOf(probe, {});
-    const has = parts.some((p) => p.key === key);
-    if (!has) {
-      const names = parts.map((p) => p.label).join(' · ') || '없음';
+    const info = areaPartInfo(a, key);
+    if (!info.has) {
       return `<div class="mp-row"><label>높이</label>
           <input type="number" class="ap-part" data-k="${key}" value="0" disabled></div>
-        <div class="mp-note">${(SECTION_CONFIG[a.section] || {}).label || a.section} 은 이 부위가 없습니다 —
-          높이 구성은 ${names} 입니다. 모듈 팔레트에서 정합니다.</div>`;
+        <div class="mp-note">${info.sectionLabel} 은 이 부위가 없습니다 —
+          높이 구성은 ${info.names} 입니다. 모듈에서 정합니다.</div>`;
     }
-    const cur = heightPartOf(probe, { [key]: a[key] }, key);
     return `<div class="mp-row"><label>높이</label>
-        <input type="number" class="ap-part" data-k="${key}" min="0" max="300" step="5" value="${cur}"></div>
+        <input type="number" class="ap-part" data-k="${key}" min="0" max="300" step="5" value="${info.value}"></div>
       <div class="mp-note">${note}</div>`;
   }
 
   function areaOptionsFor(a) { return AREA_OPTIONS.filter((o) => !o.when || o.when(a)); }
 
   function areaPaletteCommit(reopenKey) {
+    syncFinishingsToAreas();
     saveStructModules();
     persistPlannerState();
     renderAreaTools();
@@ -4307,6 +4568,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const m = modules.find(x => x.id === moduleId);
         if (m) {
           activeId = moduleId;
+          panelTarget = 'module';
           const nameEl = document.getElementById('curModuleName');
           if (nameEl) {
             const idx = parseInt(moduleId.split('-')[1] || 0) + 1;
