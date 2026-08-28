@@ -207,17 +207,20 @@ describe('두 렌더 경로에 모두 배선됐다', () => {
 });
 
 describe('손잡이 선택지 (W12-6)', () => {
-  test('다섯 가지를 팔레트와 우측 패널 둘 다 내놓는다', () => {
-    ['wood-channel', 'door-drop', 'push', 'alu-channel', 'c-channel'].forEach((v) => {
-      expect(SRC.split(`'${v}'`).length - 1).toBeGreaterThanOrEqual(2);
+  test('다섯 가지를 우측 패널이 내놓는다', () => {
+    // W12-32: 선택지가 팔레트와 우측 패널에 두 벌 있었다. 이제 한 벌이다.
+    const fn = SRC.slice(SRC.indexOf("document.getElementById('handleBody').innerHTML"),
+                         SRC.indexOf("document.getElementById('selHType')"));
+    [['wood-channel', '목찬넬'], ['door-drop', '도어 내림'], ['push', '푸쉬'],
+     ['alu-channel', '알루미늄 찬넬'], ['c-channel', 'C찬넬']].forEach(([v, label]) => {
+      expect(fn).toContain(`['${v}','${label}']`);
     });
-    expect(SRC).toContain("['alu-channel', '알루미늄 찬넬']");
-    expect(SRC).toContain("'알루미늄 찬넬'");
   });
 
-  test('둘 다 저장값이 아니라 해석된 값을 보여준다', () => {
-    expect(SRC).toContain('_sel(handleTypeOf(m, s)');
+  test('저장값이 아니라 해석된 값을 보여준다', () => {
+    // 미지정이면 단별 기본형을 보여야 한다 — 빈 칸이 아니라.
     expect(SRC).toContain('const hType = handleTypeOf(m, s)');
+    expect((SRC.match(/handleTypeOf\(m, s\)/g) || []).length).toBeGreaterThanOrEqual(1);
   });
 
   test('알루미늄 막대는 직접 고를 때만 붙는다', () => {
@@ -322,8 +325,7 @@ describe('도어 내림 (W12-6)', () => {
 describe('푸쉬는 제조에서 고를 수 있다 (W12-7)', () => {
   // ACTIVE_RULES §15 의 push-to-open 금지는 **AI 이미지 생성 프롬프트 한정**이다.
   // 두 규칙을 하나로 읽어 플래너 선택지에서 빼면 중간장 기본값이 사라진다.
-  test('팔레트와 우측 패널 둘 다 푸쉬를 내놓는다', () => {
-    expect(SRC).toContain("['push', '푸쉬']");
+  test('손잡이 선택지에 푸쉬가 있다', () => {
     expect(SRC).toContain("['push','푸쉬']");
   });
 

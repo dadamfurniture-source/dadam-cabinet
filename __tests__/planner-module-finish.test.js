@@ -357,19 +357,24 @@ describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
   });
 });
 
-describe('모듈 팔레트에서 마감이 사라졌다 (W12-21)', () => {
+describe('마감 입구는 영역 하나다 (W12-21 → W12-32)', () => {
   const fs2 = require('fs');
   const path2 = require('path');
   const SRC = fs2.readFileSync(path2.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
     .split('\r\n').join('\n');
 
-  test('MODULE_OPTIONS 에 finish 가 없다', () => {
-    const arr = SRC.slice(SRC.indexOf('const MODULE_OPTIONS'), SRC.indexOf('function heightNote'));
-    expect(arr).not.toContain("key: 'finish'");
-  });
-
-  test('.mp-fin / .mp-fin-all 이 없다 — 바인딩도 CSS도', () => {
+  test('모듈 편집에는 마감이 없다', () => {
+    // 마감재는 **배치 공간 단위**로 양 끝에 한 장씩이다 (W12-20). 모듈마다 붙이면
+    // 나란한 모듈 사이에 두 장이 맞닿는다.
     expect(SRC).not.toContain('mp-fin');
+    const mod = SRC.slice(SRC.indexOf('function renderSizePanel'), SRC.indexOf('function renderAreaPanel'));
+    expect(mod).not.toContain('setModuleFinish');
+    const secsOf = (mode) => {
+      const i = SRC.indexOf('\n    ' + mode + ':', SRC.indexOf('const PANEL_LAYOUT'));
+      const j = SRC.indexOf('secs: [', i);
+      return SRC.slice(j, SRC.indexOf(']', j));
+    };
+    expect(secsOf('module')).not.toContain("'finish'");
   });
 
   test('applyFinishToArea 를 부르는 곳이 없다', () => {
@@ -377,14 +382,21 @@ describe('모듈 팔레트에서 마감이 사라졌다 (W12-21)', () => {
     expect(code).not.toContain('applyFinishToArea');
   });
 
-  test('엔진은 남아 있다 — 배치 팔레트가 쓴다', () => {
+  test('엔진은 남아 있다 — 우측 패널 영역 모드가 쓴다', () => {
     expect(SRC).toContain('function setModuleFinish(hostId, side, section)');
     expect(SRC).toContain('function setAreaFinish');
     expect(SRC).toContain('function moduleFinishOn');
   });
 
-  test('배치 팔레트에는 마감이 있다', () => {
-    const arr = SRC.slice(SRC.indexOf('const AREA_OPTIONS'), SRC.indexOf('function areaPartBody'));
-    expect(arr).toContain("key: 'finish'");
+  test('영역 모드에 마감 섹션이 있다', () => {
+    const secsOf = (mode) => {
+      const i = SRC.indexOf('\n    ' + mode + ':', SRC.indexOf('const PANEL_LAYOUT'));
+      const j = SRC.indexOf('secs: [', i);
+      return SRC.slice(j, SRC.indexOf(']', j));
+    };
+    expect(secsOf('area')).toContain("'finish'");
+    const fin = SRC.slice(SRC.indexOf('function renderAreaFinishPanel'), SRC.indexOf('function renderRightPanel'));
+    expect(fin).toContain('setAreaFinish(a.id');
+    expect(fin).toContain('FINISH_SIDES');
   });
 });
