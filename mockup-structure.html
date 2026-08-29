@@ -2547,9 +2547,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (!f.isFinishing) return;
       const area = areaById(f.areaId);
       if (!area) return;
-      const baseY = finishBaseYFor(area);
-      if (f.H === area.H && f.D === area.D && f.baseY === baseY) return;
-      f.H = area.H; f.D = area.D; f.baseY = baseY;
+      // W12-42: 높이·바닥은 종류가 정한다 — 만들 때와 같은 함수를 쓴다.
+      const span = finishingSpanOf(area, f.section, moduleById(f.hostId));
+      if (f.H === span.H && f.D === area.D && f.baseY === span.baseY) return;
+      f.H = span.H; f.D = area.D; f.baseY = span.baseY;
       touched++;
     });
     return touched;
@@ -3075,9 +3076,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const id = nextModuleId(section);
     const m = {
       id, areaId, section,
-      W, H: area.H, D: area.D,
+      W, D: area.D,
+      // W12-42: 높이·바닥은 종류가 정한다 (몰딩은 상판 아래, 휠라는 인접 도어).
+      ...finishingSpanOf(area, section, modules.find((x) => x.areaId === areaId && !x.isFinishing)),
       x: (area.x || 0) + used, y: area.y || 0, rotation: area.rotation || 0,
-      baseY: finishBaseYFor(area),   // W12-24
       isFinishing: true, finishings: [],
     };
     modules.push(m);
@@ -3113,6 +3115,42 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 그래서 상부장 영역에 마감재를 붙이면 영역보다 1520mm 아래에 서서
    * "마감재가 안 생긴다" 로 보였다 — 실제로는 엉뚱한 데 있었다.
    */
+  /**
+   * 인접 도어의 세로 범위 (모듈 로컬 y). 휠라가 이걸 그대로 쓴다.
+   * 도어는 몸통 바닥에서 시작해 몸통 상단에서 끝나되,
+   * 목찬넬이면 위로 30 물러나고(doorTopGap) 도어 내림이면 아래로 15 나온다(doorDrop).
+   */
+  function doorSpanOf(m, s) {
+    const legH = baseOffsetOf(m, s);
+    const bottom = Math.max(0, legH - doorDropOf(m, s));
+    const top = legH + bodyHeightOf(m, s) - doorTopGapOf(m, s);
+    return { bottom, H: Math.max(0, top - bottom) };
+  }
+
+  /**
+   * W12-42: 마감재의 세로 범위. **종류마다 기준이 다르다.**
+   *
+   *   EP    배치 공간 전체 높이 (§9.2 — 냉장고장 2300 이면 EP 도 2300)
+   *   몰딩  **상판 아래에서 멈춘다** — 상판 위로 넘어갈 수 없다
+   *   휠라  **인접한 도어와 같다** — 도어 옆에 서는 것이라 그 선을 따라간다
+   *
+   * 스택 영역(키큰장·냉장고장)의 휠라는 단이 셋이라 "인접 도어" 가 하나로
+   * 정해지지 않는다 — 배치 공간 전체를 쓴다.
+   */
+  function finishingSpanOf(area, section, host) {
+    const areaH = (area && Number(area.H)) || (host && Number(host.H)) || 0;
+    const baseY = area ? finishBaseYFor(area) : baseYOf(host);
+    if (section === 'molding' && area) {
+      const topT = heightPartOf({ section: area.section, H: areaH }, { topT: area.topT }, 'topT');
+      return { H: Math.max(0, areaH - topT), baseY };
+    }
+    if (section === 'filler' && host) {
+      const sp = doorSpanOf(host, getStructure(host.id));
+      if (sp.H > 0) return { H: sp.H, baseY: baseYOf(host) + sp.bottom };
+    }
+    return { H: areaH, baseY };
+  }
+
   function finishBaseYFor(area) {
     if (!area) return 0;
     return getBaseY(area.section, area.H);
@@ -3164,9 +3202,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     ps.forEach((m) => { m.W -= W; if (side === 'left') m.x += W; });
     const f = {
       id: nextModuleId(section), areaId: area.id, section,
-      W, H: area.H, D: area.D,
+      W, D: area.D,
+      // W12-42: 스택은 단이 셋이라 "인접 도어" 가 하나로 정해지지 않는다 — 전체 높이.
+      ...finishingSpanOf(area, section, null),
       x, y: area.y || 0, rotation: area.rotation || 0,
-      baseY: finishBaseYFor(area),   // W12-24
       isFinishing: true, finishings: [],
       hostAreaId: area.id, hostSide: side,
     };
@@ -3295,12 +3334,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const f = {
       id, areaId: m.areaId, section,
       W,
-      H: (area && area.H) || m.H,
+      // W12-42: 높이·바닥은 종류가 정한다. host 가 인접 모듈이다.
+      ...finishingSpanOf(area, section, m),
       D: (area && area.D) || m.D,
       // W12-33: 마감재는 배치 공간 깊이 그대로라 **영역 앞뒤에 꽉 찬다**.
       //   host 모듈은 앞선에 맞춰 뒤가 비어 있으므로 m.y 를 따라가면 안 된다.
       x, y: (area && area.y) || m.y, rotation: m.rotation || 0,
-      baseY: finishBaseYFor(area),   // W12-24: 영역과 같은 높이에 선다
       isFinishing: true, finishings: [],
       hostId: m.id, hostSide: side,
     };
