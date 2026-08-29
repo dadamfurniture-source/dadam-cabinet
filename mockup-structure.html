@@ -3130,9 +3130,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   /**
    * W12-42: 마감재의 세로 범위. **종류마다 기준이 다르다.**
    *
-   *   EP    배치 공간 전체 높이 (§9.2 — 냉장고장 2300 이면 EP 도 2300)
-   *   몰딩  **상판 아래에서 멈춘다** — 상판 위로 넘어갈 수 없다
+   *   EP    **상판 아래에서 멈춘다** — 상판이 그 위를 덮고 지나간다
+   *   몰딩  같다
    *   휠라  **인접한 도어와 같다** — 도어 옆에 서는 것이라 그 선을 따라간다
+   *
+   * 상판이 없는 섹션(상부장·키큰장·냉장고장)은 뺄 것이 없어 배치 공간 전체가 된다
+   * — 냉장고장 2300 이면 EP 도 2300 이다 (§9.2).
    *
    * 스택 영역(키큰장·냉장고장)의 휠라는 단이 셋이라 "인접 도어" 가 하나로
    * 정해지지 않는다 — 배치 공간 전체를 쓴다.
@@ -3140,7 +3143,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function finishingSpanOf(area, section, host) {
     const areaH = (area && Number(area.H)) || (host && Number(host.H)) || 0;
     const baseY = area ? finishBaseYFor(area) : baseYOf(host);
-    if (section === 'molding' && area) {
+    if ((section === 'molding' || section === 'ep') && area) {
       const topT = heightPartOf({ section: area.section, H: areaH }, { topT: area.topT }, 'topT');
       return { H: Math.max(0, areaH - topT), baseY };
     }
@@ -3199,7 +3202,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return null;
     }
     const x = side === 'left' ? ps[0].x : ps[0].x + ps[0].W - W;
-    ps.forEach((m) => { m.W -= W; if (side === 'left') m.x += W; });
+    // W12-44: 셀 폭도 같이 줄인다 — 안 줄이면 도어가 옛 폭으로 그려져 넘친다.
+    ps.forEach((m) => { const oldW = m.W; m.W -= W; if (side === 'left') m.x += W;
+      rescaleCellWidths(getStructure(m.id), oldW, m.W); });
     const f = {
       id: nextModuleId(section), areaId: area.id, section,
       W, D: area.D,
@@ -3287,14 +3292,34 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return modules.find((f) => f.isFinishing && f.hostId === hostId && f.hostSide === side) || null;
   }
 
+  /**
+   * 모듈 폭이 바뀌면 저장된 셀 폭도 같은 비율로 줄인다.
+   *
+   * W12-44: 마감재를 붙이면 모듈 폭은 주는데 `areaWidths` 는 그대로 남았다 —
+   * 도어가 옛 폭으로 그려져 옆 모듈·마감재를 파고들었다 (실측 16mm).
+   * 손으로 폭을 고치는 길(applyModuleDim)은 배열을 **비워** 균등분할로 되돌리지만,
+   * 마감재는 갯수·양문 배치를 바꾸는 것이 아니라 폭만 깎는 것이라 **비율로 줄인다**.
+   * 반올림 오차는 마지막 칸이 흡수한다 — 합이 폭과 어긋나면 또 넘친다.
+   */
+  function rescaleCellWidths(s, oldW, newW) {
+    if (!s || !Array.isArray(s.areaWidths) || !s.areaWidths.length) return;
+    if (!(oldW > 0) || !(newW > 0)) { s.areaWidths = []; return; }
+    const k = newW / oldW;
+    const out = s.areaWidths.map((w) => Math.round((Number(w) || 0) * k));
+    out[out.length - 1] += newW - out.reduce((a, b) => a + b, 0);
+    s.areaWidths = out;
+  }
+
   /** 마감재를 떼고 가져갔던 폭을 모듈에 돌려준다. */
   function removeModuleFinish(hostId, side) {
     const f = moduleFinishOn(hostId, side);
     if (!f) return false;
     const m = moduleById(hostId);
     if (m) {
+      const oldW = m.W;
       m.W += f.W;
       if (side === 'left') m.x -= f.W;   // 왼쪽 마감재 자리를 모듈이 되찾는다
+      rescaleCellWidths(getStructure(m.id), oldW, m.W);   // W12-44
     }
     delete structures[f.id];
     modules.splice(modules.indexOf(f), 1);
@@ -3325,8 +3350,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const id = nextModuleId(section);
     // 왼쪽이면 모듈이 오른쪽으로 물러나고 그 자리를, 오른쪽이면 줄어든 끝을 쓴다.
     const x = side === 'left' ? m.x : m.x + (m.W - W);
+    const oldW = m.W;
     m.W -= W;
     if (side === 'left') m.x += W;
+    rescaleCellWidths(getStructure(m.id), oldW, m.W);   // W12-44
     // W12-18: 마감재는 **배치 공간(영역)** 을 기준으로 선다 — 모듈이 아니다.
     //   냉장고장 영역 H2300 · D700 이면 EP 는 2300 × 700 × 18T 여야 한다.
     //   호스트 모듈 치수를 쓰면 스택의 한 단(예: 상부장 400)만큼만 서서 반토막이 난다.

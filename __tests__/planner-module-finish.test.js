@@ -313,10 +313,11 @@ describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
 });
 
 describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
-  test('EP 는 영역 H × 영역 D × 18T', () => {
+  test('EP 는 영역 H × 영역 D × 18T (상판이 없는 섹션)', () => {
     // 냉장고장 영역 H2300 · D700 이면 EP 는 2300 × 700 × 18T 여야 한다.
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const area = p.g('areas')[0];
+    area.section = 'fridge';       // 냉장고장은 상판이 없다 — EP 가 전체 높이
     area.H = 2300; area.D = 700;
     const m = p.g('addModuleToArea')(area.id, { section: area.section, W: 900, x: area.x || 0 });
     const f = p.g('setModuleFinish')(m.id, 'right', 'ep');
@@ -333,10 +334,10 @@ describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
     const m = p.g('addModuleToArea')(area.id, { section: area.section, W: 900, x: area.x || 0 });
     m.H = 400; m.D = 550;          // 스택의 한 단처럼
     const ep = p.g('setModuleFinish')(m.id, 'left', 'ep');
-    expect(ep.H).toBe(2300);       // EP 는 배치 공간 전체
+    // W12-44: EP·몰딩 모두 상판 아래에서 멈춘다 — 하부장 영역이라 상판 12 를 뺀다.
+    expect(ep.H).toBe(2300 - 12);
     expect(ep.D).toBe(700);
-    expect(ep.H).not.toBe(m.H);
-    // W12-42: 몰딩은 상판 아래에서 멈춘다 — 하부장 영역이라 상판 12 를 뺀다.
+    expect(ep.H).not.toBe(m.H);    // 호스트 단(400) 을 따라가지 않는다
     const mo = p.g('setModuleFinish')(m.id, 'right', 'molding');
     expect(mo.H).toBe(2300 - 12);
   });
@@ -344,6 +345,7 @@ describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
   test('영역 마감재도 같은 기준이다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const area = p.g('areas')[0];
+    area.section = 'fridge';
     area.H = 2300; area.D = 700;
     const f = p.g('addFinishingToArea')(area.id, 'ep');
     expect(f.H).toBe(2300);
@@ -421,10 +423,21 @@ describe('마감재 높이는 종류가 정한다 (W12-42)', () => {
   }
   const finOf = (p, sec) => p.g('modules').find((m) => m.isFinishing && m.section === sec);
 
-  test('EP 는 배치 공간 전체 높이다', () => {
+  test('EP 도 상판 아래에서 멈춘다 (W12-44)', () => {
+    // 상판이 EP 위를 덮고 지나간다 — 안 그러면 12mm 겹친다 (실측).
     const { p, area } = lowerRun();
+    const topT = p.g('heightPartOf')({ section: area.section, H: area.H }, {}, 'topT');
     p.g('setAreaFinish')(area.id, 'left', 'ep');
-    expect(finOf(p, 'ep').H).toBe(area.H);
+    expect(finOf(p, 'ep').H).toBe(area.H - topT);
+  });
+
+  test('상판이 없는 섹션이면 EP 가 전체 높이다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    area.section = 'fridge'; area.H = 2300; area.D = 700;
+    p.g('addModuleToArea')(area.id, { section: 'fridge', W: 720, x: area.x || 0 });
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    expect(finOf(p, 'ep').H).toBe(2300);
   });
 
   test('몰딩은 상판 위로 넘어가지 않는다', () => {
@@ -478,7 +491,7 @@ describe('마감재 높이는 종류가 정한다 (W12-42)', () => {
 
   test('규칙이 한 곳이다', () => {
     const fn = SRC2.slice(SRC2.indexOf('function finishingSpanOf'), SRC2.indexOf('function finishBaseYFor'));
-    expect(fn).toContain("if (section === 'molding' && area)");
+    expect(fn).toContain("if ((section === 'molding' || section === 'ep') && area)");
     expect(fn).toContain("if (section === 'filler' && host)");
     expect(fn).toContain('doorSpanOf(host, getStructure(host.id))');
   });
@@ -524,5 +537,58 @@ describe('마감재를 넣으면 모듈이 그만큼 줄어든다 (W12-43)', () 
     expect(x0).toBe(host.x);
     expect(x1).toBe(host.x + host.W);
     expect(x0).toBeGreaterThanOrEqual(fin.x + fin.W);   // 걸레받이 구간이 마감재 밖에서 시작
+  });
+});
+
+describe('마감재가 셀 폭을 데려간다 (W12-44)', () => {
+  // 마감재를 붙이면 모듈 폭은 주는데 areaWidths 는 그대로 남았다 —
+  // 도어가 옛 폭으로 그려져 옆 모듈·마감재를 파고들었다 (실측 16mm).
+  function run(sec) {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    const host = p.g('addModuleToArea')(area.id, { section: 'lower', W: area.W, x: area.x || 0 });
+    const s = p.g('getStructure')(host.id);
+    p.g('syncCellArrays')(s, 2);
+    s.areaWidths = [host.W / 2, host.W / 2];
+    s.areaIs2D = [true, false];
+    const before = host.W;
+    p.g('setAreaFinish')(area.id, 'left', sec);
+    return { p, area, host, s: p.g('getStructure')(host.id), before };
+  }
+
+  test.each([['ep'], ['molding'], ['filler']])('%s — 셀 폭 합이 모듈 폭과 같다', (sec) => {
+    const { host, s } = run(sec);
+    expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(host.W);
+  });
+
+  test('비율로 줄인다 — 갯수와 양문은 그대로', () => {
+    const { s } = run('ep');
+    expect(s.areaWidths).toHaveLength(2);
+    expect(s.areaIs2D).toEqual([true, false]);
+  });
+
+  test('떼면 셀 폭이 돌아온다', () => {
+    const { p, area, host, before } = run('ep');
+    p.g('setAreaFinish')(area.id, 'left', '');
+    const back = p.g('modules').find((m) => m.id === host.id);
+    expect(back.W).toBe(before);
+    expect(p.g('getStructure')(host.id).areaWidths.reduce((a, b) => a + b, 0)).toBe(before);
+  });
+
+  test('셀 폭이 없으면 만들어 내지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    const host = p.g('addModuleToArea')(area.id, { section: 'lower', W: area.W, x: area.x || 0 });
+    p.g('getStructure')(host.id).areaWidths = [];
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    expect(p.g('getStructure')(host.id).areaWidths).toEqual([]);   // 균등분할 fallback 그대로
+  });
+
+  test('세 경로 모두 지난다', () => {
+    const fs3 = require('fs');
+    const path3 = require('path');
+    const SRC3 = fs3.readFileSync(path3.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+      .split('\r\n').join('\n');
+    expect((SRC3.match(/rescaleCellWidths\(/g) || []).length).toBe(4);   // 정의 1 + 호출 3
   });
 });
