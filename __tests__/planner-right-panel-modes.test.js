@@ -279,10 +279,12 @@ describe('영역 크기를 고치면 마감재가 따라온다 (W12-31)', () => 
   }
 
   test('높이를 줄이면 마감재 높이도 준다', () => {
-    const { p, fin } = withFinish();
+    const { p, area, fin } = withFinish();
     expect(fin()).toBeTruthy();
     change(dimInput(p, 'H'), '2100');
-    expect(Math.round(fin().H)).toBe(2100);
+    // W12-44: EP 는 상판 아래에서 멈춘다 — 하부장 영역이라 상판 두께를 뺀다.
+    const topT = p.g('heightPartOf')({ section: area.section, H: 2100 }, {}, 'topT');
+    expect(Math.round(fin().H)).toBe(2100 - topT);
   });
 
   test('깊이를 줄이면 마감재 깊이도 준다', () => {
