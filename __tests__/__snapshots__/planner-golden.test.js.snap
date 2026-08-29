@@ -38,7 +38,7 @@ exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻�
       "rotation": 0,
       "section": "upper",
       "x": 0,
-      "y": 0
+      "y": 312
     }
   ],
   "source": "mockup-structure",
@@ -97,7 +97,7 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "rotation": 0,
       "section": "upper",
       "x": 0,
-      "y": 0
+      "y": 312
     },
     {
       "D": 650,
@@ -121,7 +121,7 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "rotation": 0,
       "section": "sink",
       "x": 600,
-      "y": 0
+      "y": 232
     }
   ],
   "source": "mockup-structure",
@@ -180,7 +180,7 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "rotation": 0,
       "section": "upper",
       "x": 0,
-      "y": 0
+      "y": 312
     },
     {
       "D": 320,
@@ -192,7 +192,7 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "rotation": 0,
       "section": "upper",
       "x": 2400,
-      "y": 0
+      "y": 312
     },
     {
       "D": 400,
@@ -204,7 +204,7 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "rotation": 0,
       "section": "sink",
       "x": 1300,
-      "y": 0
+      "y": 232
     },
     {
       "D": 300,
@@ -216,7 +216,7 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "rotation": 0,
       "section": "hood",
       "x": 2600,
-      "y": 0
+      "y": 332
     }
   ],
   "source": "mockup-structure",
