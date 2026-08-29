@@ -4232,6 +4232,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // 마스터 상수가 아니라 이 모듈의 실효값을 읽는다 — 모듈별로 다를 수 있다.
       const _lm = modules.find(x => x.id === ud.moduleId);
       msg = '🎯 다리발 (H=' + legHOf(_lm, getStructure(ud.moduleId)) + 'mm)';
+    } else if (ud.entityKind === 'toe-kick') {
+      const _km = modules.find((x) => x.id === ud.moduleId);
+      msg = '🎯  걸레받이 (H=' + Math.max(0, legHOf(_km || { section: 'lower' }, getStructure(ud.moduleId)) - KICK_FLOOR_GAP)
+          + 'mm · 18T · 앞선에서 ' + KICK_SETBACK + 'mm 안쪽)';
     } else if (ud.entityKind === 'molding') {
       const _mm = modules.find(x => x.id === ud.moduleId);
       msg = '🎯 상몰딩 (H=' + moldingHOf(_mm || { section: 'upper' }, getStructure(ud.moduleId)) + 'mm)';
@@ -4310,6 +4314,57 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     parent.add(panel);
     addEdgeOutline(panel, parent, 0x000000, 0.7);
   }
+  // W12-41: 걸레받이 — 하부장 다리발 자리를 앞에서 막는 판.
+  //   치수는 BOM(`js/detaildesign/extractors.js`)이 정본이다:
+  //     MDF 18T · 폭 = 런 전폭 · 높이 = 다리발 − 5
+  //   5mm 는 바닥 여유다 — 판은 다리발에 걸려 있고 바닥에 닿지 않는다.
+  //   앞선에서 **40mm 물러선다** (발끝 자리).
+  const KICK_T = 18;
+  const KICK_SETBACK = 40;
+  const KICK_FLOOR_GAP = 5;
+
+  /**
+   * 상판과 같이 **배치 공간 단위** 부재다 — 런 전체를 한 장이 막는다
+   * (BOM 도 폭을 effectiveW 로 잡는다). 영역의 첫 모듈에만 그린다.
+   * 좌대를 고르면 다리발이 없으므로 걸레받이도 없다.
+   */
+  /** 앞선 (모듈 로컬 z) — 배치 공간 앞면, 도어 앞면과 같은 평면 */
+  function frontLineLocal(m) {
+    const area = areaOfModule(m);
+    return area
+      ? ((area.y || 0) + area.D) - ((m.y || 0) + m.D / 2)
+      : m.D / 2 + DOOR_T;
+  }
+
+  /** 걸레받이 뒷면 (모듈 로컬 z). 걸레받이가 없으면 null — 다리발이 그만큼 물러난다. */
+  function toeKickBackZ(m, s) {
+    if (!m || m.section !== 'lower') return null;
+    if (legHOf(m, s) <= KICK_FLOOR_GAP) return null;
+    return frontLineLocal(m) - KICK_SETBACK - KICK_T;
+  }
+
+  function addToeKick(parent, m, cfg, s) {
+    if (m.section !== 'lower') return;
+    // 이름을 legH 로 두지 않는다 — 3D 렌더러에서 `legH` 는 **몸통 바닥 offset**
+    // (다리발 또는 좌대)을 뜻하는 이름이고, 여기 값은 다리발 부재 높이다.
+    const legPartH = legHOf(m, s);
+    if (legPartH <= KICK_FLOOR_GAP) return;
+    const area = areaOfModule(m);
+    let W = m.W, dx = 0;
+    if (area) {
+      const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);
+      if (first && first.id !== m.id) return;   // 런에 한 장
+      W = area.W;
+      dx = ((area.x || 0) + area.W / 2) - ((m.x || 0) + m.W / 2);
+    }
+    const h = legPartH - KICK_FLOOR_GAP;
+    const kick = makeBox(W, h, KICK_T, darken3(cfg.fill, 0.28), { roughness: 0.7, metalness: 0.04 });
+    kick.position.set(dx, KICK_FLOOR_GAP + h / 2, toeKickBackZ(m, s) + KICK_T / 2);
+    kick.userData = { entityKind: 'toe-kick', moduleId: m.id };
+    parent.add(kick);
+    addEdgeOutline(kick, parent, 0x000000, 0.7);
+  }
+
   function addPedestal(parent, m, cfg, s) {
     const h = pedestalHOf(m, s);
     if (h <= 0) return;
@@ -4524,7 +4579,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const xLeft  = -W/2 + LEG_INSET + LEG_SIZE/2;
     const xRight =  W/2 - LEG_INSET - LEG_SIZE/2;
     const zFront = -D/2 + LEG_INSET + LEG_SIZE/2;
-    const zBack  =  D/2 - LEG_INSET - LEG_SIZE/2;
+    // 이름과 달리 zBack 이 **월드 앞쪽**이다 (+Z 가 앞). W12-41: 걸레받이가
+    //   앞선에서 40 물러선 자리에 서므로, 앞줄 다리는 그 뒤로 물러나야 겹치지
+    //   않는다 — 실제로도 걸레받이가 이 다리에 클립으로 걸린다.
+    const kickBack = toeKickBackZ(m, s);
+    let zBack = D/2 - LEG_INSET - LEG_SIZE/2;
+    if (kickBack != null) zBack = Math.min(zBack, kickBack - LEG_SIZE/2);
     const positions = [
       [xLeft,  zFront, 'leftFront'],
       [xLeft,  zBack,  'leftBack'],
@@ -4653,6 +4713,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     addCrownMolding(modG, m, cfg, s);
     addTopPanel(modG, m, cfg, s);
     addPedestal(modG, m, cfg, s);
+    addToeKick(modG, m, cfg, s);   // W12-41
     // W9-117: 목찬넬 손잡이 (handleType='channel')
     addHandle(modG, m, s, cfg);
 
@@ -5290,6 +5351,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     addCrownMolding(g, m, cfg, s);
     addTopPanel(g, m, cfg, s);
     addPedestal(g, m, cfg, s);
+    addToeKick(g, m, cfg, s);   // W12-41
     // W9-117: 목찬넬 손잡이
     addHandle(g, m, s, cfg);
 
