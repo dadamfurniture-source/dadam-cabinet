@@ -325,17 +325,20 @@ describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
     expect(f.W).toBe(20);          // 잡는 폭 (부재 18T + 여유 2)
   });
 
-  test('스택 한 단짜리 모듈에 붙여도 영역 전체 높이로 선다', () => {
+  test('스택 한 단짜리 모듈에 붙여도 호스트 높이를 따라가지 않는다', () => {
     // 호스트 모듈 치수를 쓰면 상부장 단(400) 만큼만 서서 반토막이 난다.
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const area = p.g('areas')[0];
     area.H = 2300; area.D = 700;
     const m = p.g('addModuleToArea')(area.id, { section: area.section, W: 900, x: area.x || 0 });
     m.H = 400; m.D = 550;          // 스택의 한 단처럼
-    const f = p.g('setModuleFinish')(m.id, 'left', 'molding');
-    expect(f.H).toBe(2300);
-    expect(f.D).toBe(700);
-    expect(f.H).not.toBe(m.H);
+    const ep = p.g('setModuleFinish')(m.id, 'left', 'ep');
+    expect(ep.H).toBe(2300);       // EP 는 배치 공간 전체
+    expect(ep.D).toBe(700);
+    expect(ep.H).not.toBe(m.H);
+    // W12-42: 몰딩은 상판 아래에서 멈춘다 — 하부장 영역이라 상판 12 를 뺀다.
+    const mo = p.g('setModuleFinish')(m.id, 'right', 'molding');
+    expect(mo.H).toBe(2300 - 12);
   });
 
   test('영역 마감재도 같은 기준이다', () => {
@@ -347,13 +350,14 @@ describe('마감재는 배치 공간(영역) 치수로 선다 (W12-18)', () => {
     expect(f.D).toBe(700);
   });
 
-  test('소스가 영역을 먼저 본다', () => {
+  test('소스가 영역을 먼저 본다 — 높이는 종류가 정한다', () => {
     const fs2 = require('fs');
     const path2 = require('path');
     const SRC = fs2.readFileSync(path2.join(__dirname, '..', 'mockup-structure.html'), 'utf8');
     const fn = SRC.slice(SRC.indexOf('function setModuleFinish'), SRC.indexOf('function autoCalcArea'));
-    expect(fn).toContain('(area && area.H) || m.H');
+    expect(fn).toContain('finishingSpanOf(area, section, m)');
     expect(fn).toContain('(area && area.D) || m.D');
+    // 높이는 finishingSpanOf 가 정한다 (EP=영역, 몰딩=상판 아래, 휠라=인접 도어).
   });
 });
 
@@ -398,5 +402,84 @@ describe('마감 입구는 영역 하나다 (W12-21 → W12-32)', () => {
     const fin = SRC.slice(SRC.indexOf('function renderAreaFinishPanel'), SRC.indexOf('function renderRightPanel'));
     expect(fin).toContain('setAreaFinish(a.id');
     expect(fin).toContain('FINISH_SIDES');
+  });
+});
+
+describe('마감재 높이는 종류가 정한다 (W12-42)', () => {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const SRC2 = fs2.readFileSync(path2.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
+    .split('\r\n').join('\n');
+
+  function lowerRun() {
+    // 자동계산으로 잘게 쪼개면 끝 모듈이 좁아 휠라(60)가 도어 최소폭에 걸린다.
+    // 여기서 보려는 건 폭 규칙이 아니라 **높이 규칙**이라 한 칸으로 채운다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    const host = p.g('addModuleToArea')(area.id, { section: 'lower', W: area.W, x: area.x || 0 });
+    return { p, area, host, s: p.g('getStructure')(host.id) };
+  }
+  const finOf = (p, sec) => p.g('modules').find((m) => m.isFinishing && m.section === sec);
+
+  test('EP 는 배치 공간 전체 높이다', () => {
+    const { p, area } = lowerRun();
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    expect(finOf(p, 'ep').H).toBe(area.H);
+  });
+
+  test('몰딩은 상판 위로 넘어가지 않는다', () => {
+    const { p, area } = lowerRun();
+    const topT = p.g('heightPartOf')({ section: area.section, H: area.H }, {}, 'topT');
+    expect(topT).toBeGreaterThan(0);           // 하부장은 상판이 있다
+    p.g('setAreaFinish')(area.id, 'left', 'molding');
+    const f = finOf(p, 'molding');
+    expect(f.H).toBe(area.H - topT);
+    expect(f.baseY + f.H).toBe(area.H - topT); // 윗면 = 상판 바닥
+  });
+
+  test('상판이 없는 섹션이면 몰딩이 전체 높이다', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'tall') || p.g('areas')[0];
+    area.section = 'tall';
+    p.g('addModuleToArea')(area.id, { section: 'tall', W: 600, x: area.x || 0 });
+    p.g('setAreaFinish')(area.id, 'left', 'molding');
+    expect(finOf(p, 'molding').H).toBe(area.H);
+  });
+
+  test('휠라는 인접한 도어와 세로 범위가 같다', () => {
+    const { p, area, host, s } = lowerRun();
+    const door = p.g('doorSpanOf')(host, s);
+    p.g('setAreaFinish')(area.id, 'right', 'filler');
+    const f = finOf(p, 'filler');
+    expect(f.H).toBe(door.H);
+    expect(f.baseY).toBe(p.g('baseYOf')(host) + door.bottom);
+  });
+
+  test('목찬넬이면 도어가 30 물러난 만큼 휠라도 물러난다', () => {
+    const { p, area, host, s } = lowerRun();
+    if (!p.g('isWoodChannel')(host, s)) return;
+    p.g('setAreaFinish')(area.id, 'right', 'filler');
+    const f = finOf(p, 'filler');
+    const carcassTop = p.g('baseOffsetOf')(host, s) + p.g('bodyHeightOf')(host, s);
+    expect(f.baseY + f.H).toBe(p.g('baseYOf')(host) + carcassTop - p.g('doorTopGapOf')(host, s));
+  });
+
+  test('영역 높이를 고치면 몰딩만 따라온다 — 휠라는 도어를 본다', () => {
+    const { p, area } = lowerRun();
+    p.g('setAreaFinish')(area.id, 'left', 'molding');
+    p.g('setAreaFinish')(area.id, 'right', 'filler');
+    const fillerBefore = finOf(p, 'filler').H;
+    area.H = area.H + 30;
+    p.g('syncFinishingsToAreas')();
+    const topT = p.g('heightPartOf')({ section: area.section, H: area.H }, {}, 'topT');
+    expect(finOf(p, 'molding').H).toBe(area.H - topT);
+    expect(finOf(p, 'filler').H).toBe(fillerBefore);   // 모듈 도어는 그대로다
+  });
+
+  test('규칙이 한 곳이다', () => {
+    const fn = SRC2.slice(SRC2.indexOf('function finishingSpanOf'), SRC2.indexOf('function finishBaseYFor'));
+    expect(fn).toContain("if (section === 'molding' && area)");
+    expect(fn).toContain("if (section === 'filler' && host)");
+    expect(fn).toContain('doorSpanOf(host, getStructure(host.id))');
   });
 });
