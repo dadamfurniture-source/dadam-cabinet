@@ -156,21 +156,23 @@ describe('영역 크기', () => {
 
 describe('영역 높이 부위 — 좌대 · 상몰딩', () => {
   test('그 섹션에 없는 부위는 막고 무엇을 쓰는지 적는다', () => {
-    // 하부장은 다리발·상판이 높이 모델이고 좌대가 없다 (W12-18 규칙).
+    // 하부장은 다리발·상판이 높이 모델이고 상몰딩이 없다 (W12-18 규칙).
     const { p, area } = withModule();
     p.g('setActiveArea')(area.id);
-    const inp = p.document.querySelector('#heightBody input[data-apart="pedestalH"]');
+    const inp = p.document.querySelector('#heightBody input[data-apart="moldingH"]');
     expect(inp).not.toBeNull();
     expect(inp.disabled).toBe(true);
     expect(p.document.getElementById('heightBody').textContent).toContain('이 부위가 없습니다');
   });
 
-  test('항목은 늘 둘 다 나온다 — 영역마다 개수가 달라지지 않는다', () => {
+  test('항목은 늘 셋이다 — 영역마다 개수가 달라지지 않는다 (W12-38)', () => {
     const { p, area } = withModule();
     p.g('setActiveArea')(area.id);
     const keys = [...p.document.querySelectorAll('#heightBody input[data-apart]')]
       .map((n) => n.getAttribute('data-apart'));
-    expect(keys).toEqual(['pedestalH', 'moldingH']);
+    expect(keys).toHaveLength(3);
+    expect(keys.slice(1)).toEqual(['topT', 'moldingH']);
+    expect(p.document.getElementById('selAreaBaseKind')).not.toBeNull();
   });
 
   test('있는 부위는 값을 고칠 수 있다', () => {

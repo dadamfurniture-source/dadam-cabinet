@@ -526,6 +526,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             x: a.x || 0, y: a.y || 0, rotation: a.rotation || 0,
             // 영역이 직접 가진 높이 부위 — 없으면 마스터 기본값을 쓴다 (stackForArea)
             pedestalH: a.pedestalH, moldingH: a.moldingH,
+            topT: a.topT, baseKind: a.baseKind,   // W12-38
           }));
       }
     } catch (e) { console.warn('[STRUCT] 영역 로드 실패', e); }
@@ -750,6 +751,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         entry.w = a.W; entry.moduleH = a.H; entry.h = a.D;
         if (a.pedestalH == null) delete entry.pedestalH; else entry.pedestalH = a.pedestalH;
         if (a.moldingH == null) delete entry.moldingH; else entry.moldingH = a.moldingH;
+        // W12-38: 상판 두께와 받침 종류도 배치에 되쓴다.
+        if (a.topT == null) delete entry.topT; else entry.topT = a.topT;
+        if (!a.baseKind) delete entry.baseKind; else entry.baseKind = a.baseKind;
         touched++;
       });
       if (!touched) return false;
@@ -2193,25 +2197,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 값은 structures[id] 에 담는다 — 이미 저장·전송 경로를 타므로
    * 별도 배선 없이 BOM 까지 간다.
    */
+  // W12-38: **받침** — 몸통을 바닥에서 받치는 부재. 다리발이거나 좌대이고,
+  //   한 모듈에 **하나만** 선다. 예전엔 섹션이 정해 버려(하부장=다리발,
+  //   키큰장/냉장고장=좌대) 사람이 고를 수 없었다.
+  const BASE_KINDS = [['legH', '다리발'], ['pedestalH', '좌대']];
+  const PEDESTAL_H_DEFAULT = 60;
+
+  /** 그 섹션이 원래 쓰던 받침 — 사람이 안 고르면 이것 (예전 동작 그대로) */
+  function defaultBaseKind(sec) {
+    return (sec === 'tall' || sec === 'fridge') ? 'pedestalH' : 'legH';
+  }
+  function baseKindOf(m, s) {
+    const k = s && s.baseKind;
+    return (k === 'legH' || k === 'pedestalH') ? k : defaultBaseKind(m && m.section);
+  }
+
   function heightPartsOf(m, s) {
     const sec = m.section;
     const num = (v, d) => {
       const x = parseFloat(v);
       return Number.isFinite(x) && x >= 0 ? x : d;
     };
+    // 상부장은 매달리므로 받침이 없다.
     if (sec === 'upper') {
       return [{ key: 'moldingH', label: '상몰딩', value: num(s.moldingH, getMoldingH('upper')) }];
     }
+    const kind = baseKindOf(m, s);
+    const base = kind === 'pedestalH'
+      ? { key: 'pedestalH', label: '좌대', value: num(s.pedestalH, PEDESTAL_H_DEFAULT), isBase: true }
+      : { key: 'legH', label: '다리발', value: num(s.legH, MASTER_RULES.SINK_LEG), isBase: true };
     if (sec === 'tall' || sec === 'fridge') {
-      return [
-        { key: 'pedestalH', label: '좌대', value: num(s.pedestalH, 60) },
-        { key: 'moldingH', label: '상몰딩', value: num(s.moldingH, getMoldingH(sec) || MASTER_RULES.CROWN_MOLDING_SINK) },
-      ];
+      return [base,
+        { key: 'moldingH', label: '상몰딩', value: num(s.moldingH, getMoldingH(sec) || MASTER_RULES.CROWN_MOLDING_SINK) }];
     }
-    return [
-      { key: 'legH', label: '다리발', value: num(s.legH, MASTER_RULES.SINK_LEG) },
-      { key: 'topT', label: '상판', value: num(s.topT, 12) },
-    ];
+    return [base, { key: 'topT', label: '상판', value: num(s.topT, 12) }];
   }
 
   // 실효 높이 부위 — s 에 값이 있으면 그걸, 없으면 마스터 상수를 쓴다.
@@ -2222,7 +2241,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 렌더러가 전부 이 두 함수를 거치게 해서 길을 잇는다.
   /** 실효 다리발 H (하부장만 존재) */
   function legHOf(m, s) {
+    // W12-38: 받침으로 좌대를 고르면 다리발은 서지 않는다. heightPartsOf 가
+    //   그 판단을 갖고 있으므로 여기서 다시 하지 않는다.
     if (!m || m.section !== 'lower') return 0;
+    if (baseKindOf(m, s) !== 'legH') return 0;
     const v = parseFloat(s && s.legH);
     return Number.isFinite(v) && v >= 0 ? v : MASTER_RULES.SINK_LEG;
   }
@@ -2419,14 +2441,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!host) return;
     const parts = heightPartsOf(m, s);
     const body = bodyHeightOf(m, s);
+    // W12-38: 받침(다리발·좌대)은 **한 항목**이다 — 무엇으로 받칠지 고르고
+    //   그 높이를 정한다. 예전엔 섹션이 정해 버려 고를 수 없었다.
     const rows = parts
-      .map(
-        (p) => `
+      .map((p) => p.isBase ? `
+      <div class="row">
+        <label>받침</label>
+        <select id="selBaseKind">
+          ${BASE_KINDS.map(([k, l]) => `<option value="${k}" ${p.key === k ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="row">
+        <label style="padding-left:10px">└ ${p.label} (mm)</label>
+        <input type="number" min="0" max="500" step="1" data-hpart="${p.key}" value="${p.value}">
+      </div>` : `
       <div class="row">
         <label>${p.label} (mm)</label>
         <input type="number" min="0" max="500" step="1" data-hpart="${p.key}" value="${p.value}">
-      </div>`
-      )
+      </div>`)
       .join('');
     host.innerHTML = `
       ${rows}
@@ -2443,6 +2475,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         BOM 은 <b>몸통</b> 치수로 재단합니다.
       </div>
     `;
+
+    // 받침 종류 — 다리발 ↔ 좌대. 높이는 각자의 값을 그대로 들고 있는다.
+    const selBase = document.getElementById('selBaseKind');
+    if (selBase) selBase.onchange = () => {
+      s.baseKind = selBase.value;
+      persistPlannerState();
+      renderRightPanel();
+      if (typeof renderFrontView === 'function') renderFrontView();
+      showToast(`✓ 받침 ${BASE_KINDS.find(([k]) => k === s.baseKind)[1]}`);
+    };
 
     // 부위 변경 → 전체높이 유지, 몸통이 흡수한다
     host.querySelectorAll('input[data-hpart]').forEach((inp) => {
@@ -2610,16 +2652,35 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderAreaFinishPanel(a);
   }
 
+  /**
+   * 영역 높이 부위. W12-38 로 항목이 셋이다 — 받침(다리발·좌대) · 상판 · 상몰딩.
+   * 영역 값은 그 영역의 **모든 모듈에 함께 적용**한다. 영역에만 적어 두면
+   * 값이 소비처(정면도·3D·BOM)에 닿지 않는다 — 이 저장소가 여러 번 밟은 함정이다.
+   */
+  function areaBaseKindOf(a) {
+    const k = a && a.baseKind;
+    return (k === 'legH' || k === 'pedestalH') ? k : defaultBaseKind(a && a.section);
+  }
+
   function renderAreaHeightPanel(a) {
     const host = document.getElementById('heightBody');
     if (!host) return;
-    host.innerHTML = [['pedestalH', '좌대', '자동계산이 맨 아래 단에 실어 줍니다.'],
-                      ['moldingH', '상몰딩', '자동계산이 맨 위 단에 실어 줍니다.']]
-      .map(([k, lab, note]) => {
+    const kind = areaBaseKindOf(a);
+    const baseRow = `
+      <div class="row">
+        <label>받침</label>
+        <select id="selAreaBaseKind">
+          ${BASE_KINDS.map(([k, l]) => `<option value="${k}" ${kind === k ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>`;
+    host.innerHTML = baseRow + [[kind, kind === 'legH' ? '다리발' : '좌대', '자동계산이 맨 아래 단에 실어 줍니다.', true],
+                      ['topT', '상판', '배치 사각형 폭·깊이를 꽉 채웁니다.', false],
+                      ['moldingH', '상몰딩', '자동계산이 맨 위 단에 실어 줍니다.', false]]
+      .map(([k, lab, note, isBase]) => {
         const info = areaPartInfo(a, k);
         return `
         <div class="row">
-          <label>${lab} (mm)</label>
+          <label${isBase ? ' style="padding-left:10px"' : ''}>${isBase ? '└ ' : ''}${lab} (mm)</label>
           <input type="number" min="0" max="300" step="5" data-apart="${k}"
                  value="${info.value}" ${info.has ? '' : 'disabled'}>
         </div>
@@ -2627,15 +2688,37 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           ? note
           : `${info.sectionLabel} 은 이 부위가 없습니다 — 높이 구성은 ${info.names} 입니다.`}</div>`;
       }).join('');
+
+    const sel = document.getElementById('selAreaBaseKind');
+    if (sel) sel.onchange = () => {
+      a.baseKind = sel.value;
+      applyAreaHeightPart(a, 'baseKind', sel.value);
+      saveLayoutFromAreas();
+      areaPanelCommit('#selAreaBaseKind');
+    };
     host.querySelectorAll('input[data-apart]').forEach((inp) => {
       inp.onchange = () => {
         const k = inp.getAttribute('data-apart');
         const v = parseInt(inp.value);
-        a[k] = Number.isFinite(v) && v >= 0 ? v : undefined;
+        const val = Number.isFinite(v) && v >= 0 ? v : undefined;
+        a[k] = val;
+        applyAreaHeightPart(a, k, val);
         saveLayoutFromAreas();
         areaPanelCommit(`#heightBody input[data-apart="${k}"]`);
       };
     });
+  }
+
+  /** 영역 값을 그 영역의 모든 모듈에 함께 적는다 — 값이 소비처에 닿게 한다. */
+  function applyAreaHeightPart(a, key, value) {
+    let n = 0;
+    modules.forEach((m) => {
+      if (m.areaId !== a.id || m.isFinishing) return;
+      const st = getStructure(m.id);
+      if (value === undefined) delete st[key]; else st[key] = value;
+      n++;
+    });
+    return n;
   }
 
   function renderAreaFinishPanel(a) {
@@ -4188,11 +4271,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 상판 (하부장 천장 마감) · 좌대 (키큰장/냉장고장 바닥 받침).
   //   몸통이 heightPartsOf 기준으로 줄어든 만큼 그 자리를 실제로 채운다.
   //   안 그리면 3D 에 설명 없는 빈 틈으로 보인다.
+  /**
+   * 상판은 **배치 공간 단위** 부재다 (W12-38) — 런 전체를 한 장이 덮는다.
+   * 모듈 폭에 맞추면 모듈마다 이음매가 생기고 마감재 자리가 빈다.
+   * 영역의 **첫 모듈에만** 그리고, 폭·깊이·자리는 영역에서 받는다.
+   */
   function addTopPanel(parent, m, cfg, s) {
     const t = topTOf(m, s);
     if (t <= 0) return;
-    const panel = makeBox(m.W, t, m.D, darken3(cfg.fill, 0.12), { roughness: 0.5, metalness: 0.1 });
-    panel.position.set(0, m.H - moldingHOf(m, s) - t / 2, 0);
+    const area = areaOfModule(m);
+    let W = m.W, D = m.D, dx = 0, dz = 0;
+    if (area) {
+      const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);
+      if (first && first.id !== m.id) return;         // 런에 한 장
+      W = area.W; D = area.D;
+      // 모듈 로컬 좌표 — 영역과 모듈이 같은 각으로 도므로 회전 전 차이를 그대로 쓴다.
+      dx = ((area.x || 0) + area.W / 2) - ((m.x || 0) + m.W / 2);
+      dz = ((area.y || 0) + area.D / 2) - ((m.y || 0) + m.D / 2);
+    }
+    const panel = makeBox(W, t, D, darken3(cfg.fill, 0.12), { roughness: 0.5, metalness: 0.1 });
+    panel.position.set(dx, m.H - moldingHOf(m, s) - t / 2, dz);
     panel.userData = { entityKind: 'top-panel', moduleId: m.id };
     parent.add(panel);
     addEdgeOutline(panel, parent, 0x000000, 0.7);
