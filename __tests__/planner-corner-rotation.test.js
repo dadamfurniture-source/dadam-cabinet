@@ -181,3 +181,31 @@ describe('소스 규약', () => {
     expect(fn).toContain('B.cy - oy');
   });
 });
+
+describe('상몰딩은 도어 앞선에 맞는다 (W12-37)', () => {
+  // 몸통 앞면에 맞추면 도어 두께만큼 안쪽으로 들어가 앞선이 계단처럼 꺾인다.
+  // 상몰딩은 그 선을 따라가는 마감이다.
+  const fn = SRC.slice(SRC.indexOf('function addCrownMolding'), SRC.indexOf('function addHandle'));
+
+  test('깊이가 도어 두께만큼 늘어난다', () => {
+    expect(fn).toContain('const W = m.W, D = m.D + DOOR_T;');
+  });
+
+  test('앞으로만 는다 — 뒷면은 몸통 뒷면 그대로', () => {
+    // 중심을 DOOR_T/2 앞으로 옮기면 뒤는 제자리, 앞만 DOOR_T 나간다.
+    expect(fn).toContain('mold.position.set(0, m.H - moldingH / 2, DOOR_T / 2);');
+  });
+
+  test('도어와 세로로 겹치지 않는다', () => {
+    // 도어 높이는 몸통 높이라 상몰딩이 시작하는 지점에서 끝난다.
+    expect(fn).toContain('moldingHOf(m, s)');
+    expect(fn).toMatch(/m\.H - moldingH \/ 2/);
+  });
+
+  test('상판·좌대는 그대로다 — 요청은 상몰딩만이었다', () => {
+    const top = SRC.slice(SRC.indexOf('function addTopPanel'), SRC.indexOf('function addPedestal'));
+    expect(top).toContain('makeBox(m.W, t, m.D');
+    const ped = SRC.slice(SRC.indexOf('function addPedestal'), SRC.indexOf('function addCrownMolding'));
+    expect(ped).toContain('makeBox(m.W, h, m.D');
+  });
+});
