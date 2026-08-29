@@ -818,18 +818,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *
    * 마감재는 배치 공간 깊이 그대로라(W12-18) 앞뒤로 꽉 찬다.
    *
-   * 회전 영역은 건드리지 않는다. rot 90/270 에서 `m.y` 는 깊이 좌표가 아니라
-   * (메시를 중심 기준으로 돌린다) 폭 방향이라, 옮기면 옆으로 미끄러진다.
-   * §10 의 "90° 회전 영역" 미해결 항목과 같은 뿌리다.
+   * **회전 영역은 건드리지 않는다.** 두 규약이 섞여 있다 — addModuleToArea 는
+   * 회전과 무관하게 `m.x` 를 따라 늘어놓는데, 배치 단계에서 온 회전 다리의
+   * 모듈은 `m.y` 를 런 좌표로 쓴다(실측: 영역 y650·D650 인데 모듈 y2150).
+   * 그런 모듈의 `m.y` 를 깊이로 보고 옮기면 벽을 따라 1500mm 미끄러진다.
+   * 회전 영역 자체가 §10 의 미해결 항목이라, 그것을 정하기 전에는 손대지 않는다.
    */
   function seatModuleDepth(m) {
     if (!m) return false;
-    const rot = ((m.rotation || 0) % 360 + 360) % 360;
-    if (rot !== 0) return false;
-    // **어느 배치 공간에 넣었는지 아는 모듈만** 옮긴다. areaOfModule 의 X 겹침
-    // 추정은 쓰지 않는다 — 옛 설계의 상부장이 하부장 영역에 걸쳐 있어, 깊이가
-    // 전혀 다른 공간의 앞선으로 끌려간다.
-    const area = m.areaId ? areaById(m.areaId) : null;
+    if (((m.rotation || 0) % 360 + 360) % 360 !== 0) return false;
+    // areaId 가 있으면 그것을, 없으면 areaOfModule 의 추정을 쓴다 — 옛 설계의
+    // 모듈도 앞선에 와야 한다.
+    const area = areaOfModule(m);
     if (!area) return false;
     const y = m.isFinishing
       ? (area.y || 0)
@@ -3039,6 +3039,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return f;
   }
 
+  // W12-35: 좌우 EP 가 기본인 섹션.
+  //   냉장고장은 냉장고와 벽 사이에 세우는 장이라 **옆면이 늘 드러난다** —
+  //   마감이 없으면 몸통 PB 가 그대로 보인다. 나란한 장에 가려지는 다른 섹션과 다르다.
+  const DEFAULT_EP_SECTIONS = ['fridge'];
+
+  /**
+   * 그 영역의 기본 마감을 세운다. **이미 그 쪽에 마감재가 있으면 두지 않는다** —
+   * 사람이 없앤 것을 되살리지 않는다.
+   *
+   * 모듈이 하나도 없으면 아무것도 안 한다. 마감재는 폭을 내놓을 모듈이 있어야
+   * 설 수 있다 (W12-20). 그래서 **영역을 채운 뒤**에 부른다.
+   */
+  function applyDefaultAreaFinish(areaId) {
+    const area = areaById(areaId);
+    if (!area || DEFAULT_EP_SECTIONS.indexOf(area.section) < 0) return 0;
+    if (!modules.some((m) => m.areaId === areaId && !m.isFinishing)) return 0;
+    let n = 0;
+    FINISH_SIDES.forEach((side) => {
+      if (areaFinishOn(areaId, side)) return;
+      if (setAreaFinish(areaId, side, 'ep')) n++;
+    });
+    return n;
+  }
+
   /** 영역 끝에 지금 붙어 있는 마감재 (없으면 null) */
   function areaFinishOn(areaId, side) {
     const stack = stackFinishOn(areaId, side);
@@ -3347,6 +3371,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
       made++;
     });
+    applyDefaultAreaFinish(area.id);   // W12-35 — 스택은 단들이 함께 폭을 내놓는다
     saveStructModules();
     persistPlannerState();
     return made;
@@ -3419,6 +3444,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.areaWidths = [widths[i]];
       x += widths[i];
     });
+    applyDefaultAreaFinish(areaId);   // W12-35
     saveStructModules();
     persistPlannerState();
     return dist.modules.length;
@@ -3531,7 +3557,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     on('.at-add', () => {
       const secSel = el.querySelector('.at-section');
+      // W12-35: 처음 채우는 순간에만 기본 마감을 세운다. 뒤에 모듈을 더 넣을 때도
+      //   세우면, 사람이 없앤 EP 가 되살아난다.
+      const first = !modules.some((x) => x.areaId === area.id && !x.isFinishing);
       const m = addModuleToArea(area.id, { section: secSel ? secSel.value : area.section });
+      if (m && first) applyDefaultAreaFinish(area.id);
       renderAreaTools();
       if (m) setActiveModule(m.id);
       else renderFrontView();
@@ -4594,7 +4624,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         bottomLimit,
       };
     }
-    // 90/270 은 m.y 가 깊이 좌표가 아니다 (§10 미해결) — 예전 어림값을 그대로 쓴다.
+    // 90/270 은 깊이 좌표가 정해져 있지 않다 (§10 미해결) — 예전 어림값을 그대로 쓴다.
     const areaD = area.W;
     const modD = m.W;
     return {
