@@ -155,23 +155,19 @@ describe('영역 크기', () => {
 });
 
 describe('영역 높이 부위 — 좌대 · 상몰딩', () => {
-  test('그 섹션에 없는 부위는 막고 무엇을 쓰는지 적는다', () => {
-    // 하부장은 다리발·상판이 높이 모델이고 상몰딩이 없다 (W12-18 규칙).
+  test('그 섹션에 없는 부위는 아예 안 뜬다 (W12-39)', () => {
+    // 하부장은 다리발·상판이 높이 모델이고 상몰딩이 없다.
     const { p, area } = withModule();
     p.g('setActiveArea')(area.id);
-    const inp = p.document.querySelector('#heightBody input[data-apart="moldingH"]');
-    expect(inp).not.toBeNull();
-    expect(inp.disabled).toBe(true);
-    expect(p.document.getElementById('heightBody').textContent).toContain('이 부위가 없습니다');
+    expect(p.document.querySelector('#heightBody input[data-apart="moldingH"]')).toBeNull();
   });
 
-  test('항목은 늘 셋이다 — 영역마다 개수가 달라지지 않는다 (W12-38)', () => {
+  test('항목이 그 섹션의 높이 모델과 같다', () => {
     const { p, area } = withModule();
     p.g('setActiveArea')(area.id);
     const keys = [...p.document.querySelectorAll('#heightBody input[data-apart]')]
       .map((n) => n.getAttribute('data-apart'));
-    expect(keys).toHaveLength(3);
-    expect(keys.slice(1)).toEqual(['topT', 'moldingH']);
+    expect(keys).toEqual(p.g('heightPartsOf')({ section: area.section, H: area.H }, {}).map((x) => x.key));
     expect(p.document.getElementById('selAreaBaseKind')).not.toBeNull();
   });
 
@@ -253,15 +249,12 @@ describe('소스 규약', () => {
   });
 
   test('영역 부위 판단이 한 곳이다', () => {
-    const from = SRC.indexOf('function areaPartInfo');
-    const to = SRC.indexOf('function panelCommit');
-    expect(to).toBeGreaterThan(from);
-    expect(SRC.slice(from, to)).toContain('heightPartsOf(probe, {})');
-    // 우측 패널은 판단을 다시 하지 않고 그 결과만 읽는다.
+    // W12-39: 영역 패널도 heightPartsOf 를 **그대로** 읽는다. 예전엔 항목을
+    // 손으로 나열하고 없는 것을 막았다 — 판단이 두 벌이었다.
     const ah = SRC.slice(SRC.indexOf('function renderAreaHeightPanel'),
                          SRC.indexOf('function renderAreaFinishPanel'));
-    expect(ah).toContain('areaPartInfo(a, k)');
-    expect(ah).not.toContain('heightPartsOf');
+    expect(ah).toContain('heightPartsOf(probe, own)');
+    expect(ah).not.toMatch(/\['topT', '상판'/);
   });
 
   test('영역 값 변경은 영역이 건드리는 것을 모두 다시 그린다', () => {

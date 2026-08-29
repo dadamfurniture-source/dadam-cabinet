@@ -123,7 +123,7 @@ describe('플래너 높이 구성 패널', () => {
     // W12-31: 가드는 applyHeightPart 한 곳으로 옮겼다. 예전엔 우측 패널과
     // 팔레트에 문구까지 다른 두 벌이 있어, 한쪽만 고치면 다른 쪽으로는 통과했다.
     const fn = STRUCT.slice(STRUCT.indexOf('function applyHeightPart'),
-                            STRUCT.indexOf('function areaPartInfo'));
+                            STRUCT.indexOf('function panelCommit'));
     expect(fn).toMatch(/bodyHeightOf\(m, s\) >= 50/);
     // 되돌릴 때 delete 가 아니라 이전 값을 되놓는다 — 미지정과 0 은 다르다.
     expect(fn).toMatch(/if \(prev === undefined\) delete s\[key\]; else s\[key\] = prev;/);

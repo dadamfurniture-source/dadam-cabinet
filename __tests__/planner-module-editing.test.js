@@ -234,22 +234,26 @@ describe('높이 부위 — 상판·좌대·상몰딩', () => {
     expect(p.g('baseOffsetOf')(m, {})).toBe(150);
   });
 
-  test('새 모듈은 상판이 옵션이라 850 = 다리발 150 + 몸통 700 이 성립한다', () => {
+  test('새 모듈 높이는 배치 공간에서 받는다 (W12-39)', () => {
+    // 예전엔 섹션 기본값 850 을 써서, 영역이 870 이어도 모듈은 850 이었다.
     const p = boot();
     const { m, s } = pickLower(p);
-    expect([m.W, m.H, m.D]).toEqual([600, 850, 550]);
+    const area = p.g('areaOfModule')(m);
+    expect([m.W, m.D]).toEqual([600, 550]);
+    expect(m.H).toBe(area.H);
     expect(p.g('legHOf')(m, s)).toBe(150);
-    expect(p.g('topTOf')(m, s)).toBe(0);
-    expect(p.g('bodyHeightOf')(m, s)).toBe(700);
+    expect(p.g('topTOf')(m, s)).toBe(12);
+    expect(p.g('bodyHeightOf')(m, s)).toBe(area.H - 150 - 12);
   });
 
   test('상판을 켜면 몸통이 그만큼 줄어든다 (배선 확인)', () => {
     const p = boot();
     const { m, s } = pickLower(p);
     const before = p.g('bodyHeightOf')(m, s);
+    const t0 = p.g('topTOf')(m, s);
     setField(p, '#heightBody input[data-hpart="topT"]', 30);
     expect(s.topT).toBe(30);
-    expect(p.g('bodyHeightOf')(m, s)).toBe(before - 30);
+    expect(p.g('bodyHeightOf')(m, s)).toBe(before - (30 - t0));
   });
 
   test('부위가 몸통을 삼키면 되돌린다', () => {
