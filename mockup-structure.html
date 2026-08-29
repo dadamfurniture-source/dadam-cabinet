@@ -818,15 +818,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *
    * 마감재는 배치 공간 깊이 그대로라(W12-18) 앞뒤로 꽉 찬다.
    *
-   * **회전 영역은 건드리지 않는다.** 두 규약이 섞여 있다 — addModuleToArea 는
-   * 회전과 무관하게 `m.x` 를 따라 늘어놓는데, 배치 단계에서 온 회전 다리의
-   * 모듈은 `m.y` 를 런 좌표로 쓴다(실측: 영역 y650·D650 인데 모듈 y2150).
-   * 그런 모듈의 `m.y` 를 깊이로 보고 옮기면 벽을 따라 1500mm 미끄러진다.
-   * 회전 영역 자체가 §10 의 미해결 항목이라, 그것을 정하기 전에는 손대지 않는다.
+   * **회전과 무관하다.** W12-36 이 좌표 규약을 배치 단계에 맞춘 뒤로,
+   * `m.y`·`m.D` 는 회전 전 좌표라 어느 회전에서나 깊이 축이고 영역의
+   * `a.y`·`a.D` 도 같은 축이다. 모듈은 영역 중심을 축으로 함께 돈다
+   * (`modulePlaneBox`). 그래서 회전 다리의 모듈도 같은 식으로 앉힌다.
    */
   function seatModuleDepth(m) {
     if (!m) return false;
-    if (((m.rotation || 0) % 360 + 360) % 360 !== 0) return false;
     // areaId 가 있으면 그것을, 없으면 areaOfModule 의 추정을 쓴다 — 옛 설계의
     // 모듈도 앞선에 와야 한다.
     const area = areaOfModule(m);
@@ -4212,10 +4210,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function addCrownMolding(parent, m, cfg, s) {
     const moldingH = moldingHOf(m, s);   // 상수가 아니라 이 모듈의 실효값
     if (moldingH <= 0) return;
-    const W = m.W, D = m.D;
+    // W12-37: 상몰딩 앞면은 **도어 앞선**에 맞는다. 몸통 앞면에 맞추면 도어
+    //   두께만큼 안쪽으로 들어가 앞선이 계단처럼 꺾인다 — 상몰딩은 그 선을
+    //   따라가는 마감이다. 뒷면은 몸통 뒷면 그대로라 깊이가 도어 두께만큼 는다.
+    //   도어는 몸통 상단에서 끝나므로(높이 = 몸통) 세로로 겹치지 않는다.
+    const W = m.W, D = m.D + DOOR_T;
     const moldColor = darken3(cfg.fill, 0.2);   // 카르카스보다 어둡게 (마감 식별)
     const mold = makeBox(W, moldingH, D, moldColor, { roughness: 0.5, metalness: 0.1 });
-    mold.position.set(0, m.H - moldingH / 2, 0);
+    mold.position.set(0, m.H - moldingH / 2, DOOR_T / 2);
     mold.userData = { entityKind: 'molding', moduleId: m.id };
     parent.add(mold);
     addEdgeOutline(mold, parent, 0x000000, 0.7);

@@ -118,16 +118,31 @@ describe('마감재는 배치 공간 앞뒤로 꽉 찬다', () => {
 });
 
 describe('건드리지 않는 것', () => {
-  test('회전 영역은 그대로 둔다', () => {
-    // 회전 다리는 규약이 둘 섞여 있다 — addModuleToArea 는 m.x 를 따라 늘어놓는데
-    // 배치 단계에서 온 모듈은 m.y 를 런 좌표로 쓴다(실측: 영역 y650·D650 인데
-    // 모듈 y2150). 깊이로 보고 옮기면 벽을 따라 1500mm 미끄러진다.
+  test('회전 영역도 앞선으로 온다 (W12-37)', () => {
+    // W12-36 이 좌표 규약을 배치 단계에 맞춘 뒤로 m.y 는 어느 회전에서나
+    // 깊이 축이다. 그 전에는 회전 다리 모듈이 m.y 를 런 좌표로 쓰는 것처럼
+    // 보여 1500mm 미끄러졌다 — 규약이 어긋나 있었기 때문이다.
     const p = boot(seedFor(FIXTURES.lShape));
-    const rotated = p.g('modules').filter((m) => ((m.rotation || 0) % 360 + 360) % 360 !== 0);
+    const rotated = p.g('modules').filter((m) => !m.isFinishing
+      && ((m.rotation || 0) % 360 + 360) % 360 !== 0
+      && p.g('areaOfModule')(m));
     if (!rotated.length) return;
-    const before = rotated.map((m) => m.y);
-    p.g('seatAllModuleDepths')();
-    expect(rotated.map((m) => m.y)).toEqual(before);
+    rotated.forEach((m) => {
+      const a = p.g('areaOfModule')(m);
+      expect(m.y).toBe((a.y || 0) + Math.max(0, a.D - DOOR_T - m.D));
+    });
+  });
+
+  test('회전 다리 모듈이 영역 안에 들어온다', () => {
+    const p = boot(seedFor(FIXTURES.lShape));
+    const outside = [];
+    p.g('modules').filter((m) => !m.isFinishing).forEach((m) => {
+      const a = p.g('areaOfModule')(m);
+      if (!a) return;
+      const MB = p.g('modulePlaneBox')(m), AB = p.g('planeBoxOf')(a);
+      if (MB.y < AB.y - 1 || MB.y + MB.d > AB.y + AB.d + 1) outside.push(m.id);
+    });
+    expect(outside).toEqual([]);
   });
 
   test('areaId 가 없어도 앞선으로 온다 (W12-34)', () => {
