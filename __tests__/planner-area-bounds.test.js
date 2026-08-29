@@ -65,8 +65,16 @@ describe('도어가 영역 앞면을 넘지 않는다', () => {
     expect(fn).toContain('bottomLimit');
   });
 
-  test('회전이면 영역 폭·깊이를 바꿔 본다', () => {
-    expect(fn).toMatch(/rot === 90 \|\| rot === 270/);
+  test('회전이 없으면 실제 좌표로 잰다 (W12-33)', () => {
+    // 예전엔 모듈이 영역 **가운데** 있다고 가정해 어림했다. 실제로는 뒤에
+    // 붙어 있었으니 틀린 값이었고, 이제는 앞선에 붙는다(seatModuleDepth).
+    expect(fn).toMatch(/if \(rot === 0\)/);
+    expect(fn).toContain("((area.y || 0) + (area.D || 0)) - ((m.y || 0) + (m.D || 0) / 2)");
+  });
+
+  test('회전 영역은 예전 어림값을 그대로 쓴다', () => {
+    // rot 90/270 은 m.y 가 깊이 좌표가 아니다 — §10 미해결 항목과 같은 뿌리다.
+    expect(fn).toMatch(/modD \/ 2 \+ Math\.max\(0, \(areaD - modD\) \/ 2\)/);
   });
 
   test('영역을 못 찾으면 제한하지 않는다', () => {
