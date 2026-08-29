@@ -483,3 +483,46 @@ describe('마감재 높이는 종류가 정한다 (W12-42)', () => {
     expect(fn).toContain('doorSpanOf(host, getStructure(host.id))');
   });
 });
+
+describe('마감재를 넣으면 모듈이 그만큼 줄어든다 (W12-43)', () => {
+  function run(sec) {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas')[0];
+    const host = p.g('addModuleToArea')(area.id, { section: 'lower', W: area.W, x: area.x || 0 });
+    const before = host.W;
+    const f = p.g('setAreaFinish')(area.id, 'left', sec);
+    return { p, area, host, before, f };
+  }
+
+  test.each([['ep'], ['molding'], ['filler']])('%s — 모듈 폭이 잡은 폭만큼 준다', (sec) => {
+    const { p, host, before, f } = run(sec);
+    expect(f).toBeTruthy();
+    expect(before - host.W).toBe(p.g('finishingWidthOf')(sec));
+  });
+
+  test.each([['ep'], ['molding'], ['filler']])('%s — 모듈과 X 로 안 겹친다', (sec) => {
+    const { host, f } = run(sec);
+    const a = [f.x, f.x + f.W], b = [host.x, host.x + host.W];
+    expect(Math.min(a[1], b[1]) - Math.max(a[0], b[0])).toBeLessThanOrEqual(0);
+  });
+
+  test.each([['ep'], ['molding'], ['filler']])('%s — 영역 총 폭은 그대로다', (sec) => {
+    const { p, area } = run(sec);
+    const total = p.g('modules').filter((m) => m.areaId === area.id)
+      .reduce((sum, m) => sum + m.W, 0);
+    expect(total).toBe(area.W);
+  });
+
+  test('걸레받이가 마감재를 관통하지 않는다', () => {
+    // 걸레받이는 바닥까지 내려오는 몰딩·휠라와 같은 높이대를 지난다.
+    // 영역 전폭으로 잡으면 그 판을 뚫는다 (실측 18mm).
+    const { p, area, host } = run('molding');
+    const fin = p.g('modules').find((m) => m.isFinishing);
+    const hosts = p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing);
+    const x0 = Math.min(...hosts.map((m) => m.x));
+    const x1 = Math.max(...hosts.map((m) => m.x + m.W));
+    expect(x0).toBe(host.x);
+    expect(x1).toBe(host.x + host.W);
+    expect(x0).toBeGreaterThanOrEqual(fin.x + fin.W);   // 걸레받이 구간이 마감재 밖에서 시작
+  });
+});
