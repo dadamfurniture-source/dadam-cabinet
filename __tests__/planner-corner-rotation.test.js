@@ -202,9 +202,8 @@ describe('상몰딩은 도어 앞선에 맞는다 (W12-37)', () => {
     expect(fn).toMatch(/m\.H - moldingH \/ 2/);
   });
 
-  test('상판·좌대는 그대로다 — 요청은 상몰딩만이었다', () => {
-    const top = SRC.slice(SRC.indexOf('function addTopPanel'), SRC.indexOf('function addPedestal'));
-    expect(top).toContain('makeBox(m.W, t, m.D');
+  test('좌대는 모듈 치수 그대로다 — 상몰딩만 앞선으로 냈다', () => {
+    // 상판은 W12-38 에서 배치 공간 치수로 바뀌었다 (planner-base-top.test.js).
     const ped = SRC.slice(SRC.indexOf('function addPedestal'), SRC.indexOf('function addCrownMolding'));
     expect(ped).toContain('makeBox(m.W, h, m.D');
   });
