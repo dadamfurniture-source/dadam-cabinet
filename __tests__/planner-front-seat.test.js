@@ -119,8 +119,9 @@ describe('마감재는 배치 공간 앞뒤로 꽉 찬다', () => {
 
 describe('건드리지 않는 것', () => {
   test('회전 영역은 그대로 둔다', () => {
-    // rot 90/270 에서 m.y 는 깊이 좌표가 아니다 — 메시를 중심 기준으로 돌린다.
-    // 옮기면 옆으로 미끄러진다. §10 의 "90° 회전 영역" 과 같은 뿌리다.
+    // 회전 다리는 규약이 둘 섞여 있다 — addModuleToArea 는 m.x 를 따라 늘어놓는데
+    // 배치 단계에서 온 모듈은 m.y 를 런 좌표로 쓴다(실측: 영역 y650·D650 인데
+    // 모듈 y2150). 깊이로 보고 옮기면 벽을 따라 1500mm 미끄러진다.
     const p = boot(seedFor(FIXTURES.lShape));
     const rotated = p.g('modules').filter((m) => ((m.rotation || 0) % 360 + 360) % 360 !== 0);
     if (!rotated.length) return;
@@ -129,15 +130,27 @@ describe('건드리지 않는 것', () => {
     expect(rotated.map((m) => m.y)).toEqual(before);
   });
 
-  test('어느 공간에 넣었는지 모르는 모듈은 그대로 둔다', () => {
-    // 옛 설계의 상부장은 하부장 영역에 X 로 걸쳐 있을 뿐이다. 깊이가 전혀 다른
-    // 공간의 앞선으로 끌고 가면 안 된다 — areaId 가 있을 때만 옮긴다.
+  test('areaId 가 없어도 앞선으로 온다 (W12-34)', () => {
+    // 옛 설계의 모듈은 areaId 가 없고 areaOfModule 의 X 겹침 추정으로 영역을
+    // 찾는다. 그것도 **모든 모듈**이므로 앞선에 앉는다.
     const p = boot(seedFor(FIXTURES.straight));
-    const orphan = p.g('modules').filter((m) => !m.areaId);
+    const orphan = p.g('modules').filter((m) => !m.areaId
+      && ((m.rotation || 0) % 360 + 360) % 360 === 0
+      && p.g('areaOfModule')(m));
     if (!orphan.length) return;
-    const before = orphan.map((m) => m.y);
-    p.g('seatAllModuleDepths')();
-    expect(orphan.map((m) => m.y)).toEqual(before);
+    orphan.forEach((m) => {
+      const a = p.g('areaOfModule')(m);
+      // 앞으로 갈 수 있는 만큼 간다. 옛 설계에는 몸통이 영역만큼 깊은 것이 있어
+      // (addModuleToArea 의 `영역 D − 도어` 규칙 이전) 더 갈 자리가 없다.
+      expect(m.y).toBe((a.y || 0) + Math.max(0, a.D - DOOR_T - m.D));
+    });
+    // 자리가 있는 모듈은 정확히 앞선에 붙는다.
+    const roomy = orphan.filter((m) => {
+      const a = p.g('areaOfModule')(m);
+      return a.D - DOOR_T - m.D > 0;
+    });
+    expect(roomy.length).toBeGreaterThan(0);
+    roomy.forEach((m) => expect(doorFront(m)).toBe(areaFront(p.g('areaOfModule')(m))));
   });
 
   test('멱등이다 — 두 번 앉혀도 안 움직인다', () => {
