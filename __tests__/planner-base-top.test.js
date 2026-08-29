@@ -219,3 +219,57 @@ describe('천판은 몸통 상단에서 끝난다 (W12-40)', () => {
     expect(cm).toContain('bodyHeightOf(m, s)');
   });
 });
+
+describe('걸레받이 (W12-41)', () => {
+  // 치수는 BOM(extractors.js)이 정본이다 — MDF 18T · 폭 = 런 전폭 · 높이 = 다리발 − 5.
+  // 앞선에서 40mm 물러선다 (발끝 자리).
+  const fn = SRC.slice(SRC.indexOf('function addToeKick'), SRC.indexOf('function addPedestal'));
+
+  test('상수가 BOM 과 같다', () => {
+    expect(SRC).toContain('const KICK_T = 18;');
+    expect(SRC).toContain('const KICK_SETBACK = 40;');
+    expect(SRC).toContain('const KICK_FLOOR_GAP = 5;');
+  });
+
+  test('하부장에만 선다', () => {
+    expect(fn).toContain("if (m.section !== 'lower') return;");
+  });
+
+  test('좌대를 고르면 서지 않는다 — 다리발이 없다', () => {
+    expect(fn).toContain('const legPartH = legHOf(m, s);');
+    expect(fn).toContain('if (legPartH <= KICK_FLOOR_GAP) return;');
+  });
+
+  test('런에 한 장 — 폭은 영역에서 받는다', () => {
+    expect(fn).toContain("const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);");
+    expect(fn).toContain('if (first && first.id !== m.id) return;');
+    expect(fn).toContain('W = area.W;');
+  });
+
+  test('높이는 다리발 − 5 이고 바닥에 안 닿는다', () => {
+    expect(fn).toContain('const h = legPartH - KICK_FLOOR_GAP;');
+    expect(fn).toContain('KICK_FLOOR_GAP + h / 2');
+  });
+
+  test('앞선에서 40 물러선 자리다', () => {
+    const zf = SRC.slice(SRC.indexOf('function toeKickBackZ'), SRC.indexOf('function addToeKick'));
+    expect(zf).toContain('frontLineLocal(m) - KICK_SETBACK - KICK_T;');
+    expect(fn).toContain('toeKickBackZ(m, s) + KICK_T / 2');
+  });
+
+  test('앞선은 배치 공간 앞면이다 — 도어 앞면과 같은 평면', () => {
+    const fl = SRC.slice(SRC.indexOf('function frontLineLocal'), SRC.indexOf('function toeKickBackZ'));
+    expect(fl).toContain("((area.y || 0) + area.D) - ((m.y || 0) + m.D / 2)");
+  });
+
+  test('앞줄 다리발이 걸레받이 뒤로 물러난다', () => {
+    // 안 물리면 15mm 겹친다 (실측). 실제로도 걸레받이가 이 다리에 클립으로 걸린다.
+    const legs = SRC.slice(SRC.indexOf('function addLegs'), SRC.indexOf('function addLegs') + 1600);
+    expect(legs).toContain('const kickBack = toeKickBackZ(m, s);');
+    expect(legs).toContain('if (kickBack != null) zBack = Math.min(zBack, kickBack - LEG_SIZE/2);');
+  });
+
+  test('두 렌더 경로 모두에서 그린다', () => {
+    expect((SRC.match(/addToeKick\(/g) || []).length).toBe(3);   // 정의 1 + 호출 2
+  });
+});
