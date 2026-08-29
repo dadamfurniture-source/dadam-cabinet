@@ -4391,10 +4391,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const area = areaOfModule(m);
     let W = m.W, dx = 0;
     if (area) {
-      const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);
-      if (first && first.id !== m.id) return;   // 런에 한 장
-      W = area.W;
-      dx = ((area.x || 0) + area.W / 2) - ((m.x || 0) + m.W / 2);
+      const hosts = modules.filter((x) => x.areaId === area.id && !x.isFinishing);
+      if (hosts.length && hosts[0].id !== m.id) return;   // 런에 한 장
+      // W12-43: 폭은 **모듈 구간**이다 — 영역 전폭이 아니다. 마감재(몰딩·휠라)는
+      //   바닥까지 내려오므로, 영역 전폭으로 잡으면 걸레받이가 그 판을 관통한다
+      //   (실측 18mm). 상판은 마감재 **위**를 지나가므로 영역 전폭 그대로다.
+      const x0 = Math.min(...hosts.map((x) => x.x || 0));
+      const x1 = Math.max(...hosts.map((x) => (x.x || 0) + (x.W || 0)));
+      W = x1 - x0;
+      dx = (x0 + W / 2) - ((m.x || 0) + m.W / 2);
     }
     const h = legPartH - KICK_FLOOR_GAP;
     const kick = makeBox(W, h, KICK_T, darken3(cfg.fill, 0.28), { roughness: 0.7, metalness: 0.04 });

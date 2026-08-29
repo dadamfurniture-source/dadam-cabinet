@@ -240,10 +240,16 @@ describe('걸레받이 (W12-41)', () => {
     expect(fn).toContain('if (legPartH <= KICK_FLOOR_GAP) return;');
   });
 
-  test('런에 한 장 — 폭은 영역에서 받는다', () => {
-    expect(fn).toContain("const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);");
-    expect(fn).toContain('if (first && first.id !== m.id) return;');
-    expect(fn).toContain('W = area.W;');
+  test('런에 한 장 — 폭은 모듈 구간이다 (W12-43)', () => {
+    // 영역 전폭으로 잡으면 바닥까지 내려오는 몰딩·휠라를 관통한다 (실측 18mm).
+    // 상판은 마감재 **위**를 지나가므로 영역 전폭 그대로다.
+    expect(fn).toContain("const hosts = modules.filter((x) => x.areaId === area.id && !x.isFinishing);");
+    expect(fn).toContain('if (hosts.length && hosts[0].id !== m.id) return;');
+    expect(fn).toContain('W = x1 - x0;');
+    expect(fn).not.toContain('W = area.W;');
+    // 상판은 그대로 영역 전폭
+    const top = SRC.slice(SRC.indexOf('function addTopPanel'), SRC.indexOf('function frontLineLocal'));
+    expect(top).toContain('W = area.W; D = area.D;');
   });
 
   test('높이는 다리발 − 5 이고 바닥에 안 닿는다', () => {
