@@ -389,7 +389,7 @@ describe('마감 입구는 영역 하나다 (W12-21 → W12-32)', () => {
   });
 
   test('엔진은 남아 있다 — 우측 패널 영역 모드가 쓴다', () => {
-    expect(SRC).toContain('function setModuleFinish(hostId, side, section)');
+    expect(SRC).toContain('function setModuleFinish(hostId, side, section, opts)');
     expect(SRC).toContain('function setAreaFinish');
     expect(SRC).toContain('function moduleFinishOn');
   });
@@ -589,6 +589,6 @@ describe('마감재가 셀 폭을 데려간다 (W12-44)', () => {
     const path3 = require('path');
     const SRC3 = fs3.readFileSync(path3.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
       .split('\r\n').join('\n');
-    expect((SRC3.match(/rescaleCellWidths\(/g) || []).length).toBe(4);   // 정의 1 + 호출 3
+    expect((SRC3.match(/rescaleCellWidths\(/g) || []).length).toBe(5);   // 정의 1 + 호출 4 (균등분배 포함)
   });
 });
