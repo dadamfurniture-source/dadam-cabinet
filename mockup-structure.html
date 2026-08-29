@@ -3252,6 +3252,57 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return host ? moduleFinishOn(host.id, side) : null;
   }
 
+  /**
+   * 마감재를 뺀 자리에 모듈을 **균등 분배**한다 (W12-45).
+   *
+   * 마감재를 붙이면 그 폭만큼 자리가 준다. 예전엔 **끝 모듈 하나만** 줄어
+   * (960/960/480 → 940/960/460) 칸이 들쭉날쭉했다. 자리가 바뀌면 남은 공간을
+   * 다시 고르게 나눈다.
+   *
+   * 고정 모듈(`isFixed`)은 폭을 지키고 그 나머지만 나눈다 — 사람이 정한 치수를
+   * 자동 동작이 덮으면 안 된다. 한 칸이라도 도어 최소폭보다 좁아지면 아무것도
+   * 하지 않는다(전부 되돌린다) — 반쯤 좁혀 놓는 것이 더 나쁘다.
+   *
+   * 셀 폭도 같이 데려간다 (§9.15) — 안 그러면 도어가 옛 폭으로 그려져 넘친다.
+   */
+  function redistributeAreaWidths(areaId) {
+    const area = areaById(areaId);
+    if (!area || isStackedArea(area)) return 0;      // 스택은 단이 겹쳐 서므로 나눌 것이 없다
+    const mods = modules
+      .filter((m) => m.areaId === areaId && !m.isFinishing)
+      .sort((a, b) => (a.x || 0) - (b.x || 0));
+    if (!mods.length) return 0;
+
+    const fins = modules.filter((m) => m.areaId === areaId && m.isFinishing);
+    const leftW = fins.filter((f) => f.hostSide === 'left').reduce((sum, f) => sum + (f.W || 0), 0);
+    const rightW = fins.filter((f) => f.hostSide === 'right').reduce((sum, f) => sum + (f.W || 0), 0);
+    const x0 = (area.x || 0) + leftW;
+    const span = (area.W || 0) - leftW - rightW;
+
+    const free = mods.filter((m) => !m.isFixed);
+    if (!free.length) return 0;
+    const fixedW = mods.filter((m) => m.isFixed).reduce((sum, m) => sum + (m.W || 0), 0);
+    const room = span - fixedW;
+    const each = Math.floor(room / free.length);
+    if (each < MASTER_RULES.DOOR_W_MIN) {
+      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — ${free.length}칸으로 나누면 도어 최소 ${MASTER_RULES.DOOR_W_MIN}mm 보다 좁아집니다`);
+      return 0;
+    }
+    // 나머지는 마지막 비고정 칸이 흡수한다 — 합이 자리와 어긋나면 틈이 생긴다.
+    const last = free[free.length - 1];
+    let n = 0, cursor = x0;
+    mods.forEach((m) => {
+      const w = m.isFixed ? m.W : (each + (m === last ? room - each * free.length : 0));
+      if (m.x !== cursor || m.W !== w) n++;
+      const oldW = m.W;
+      m.x = cursor;
+      m.W = w;
+      if (oldW !== w) rescaleCellWidths(getStructure(m.id), oldW, w);
+      cursor += w;
+    });
+    return n;
+  }
+
   /** 영역 끝 마감재를 정한다. `section` 이 비면 뗀다. */
   function setAreaFinish(areaId, side, section) {
     const area = areaById(areaId);
@@ -3259,7 +3310,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (isStackedArea(area)) return setStackAreaFinish(area, side, section);
     const host = areaEdgeHost(areaId, side);
     if (!host) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
-    return setModuleFinish(host.id, side, section);
+    const f = setModuleFinish(host.id, side, section, { evenAfter: true });
+    // W12-45: 자리가 바뀌었으니 남은 공간을 다시 고르게 나눈다.
+    if (redistributeAreaWidths(areaId)) { saveStructModules(); persistPlannerState(); }
+    return f;
   }
 
   // W12-21: applyFinishToArea 를 없앴다. 모듈 팔레트의 일괄 버튼이 유일한
@@ -3331,7 +3385,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 같은 쪽에 이미 있으면 먼저 떼고(폭 복원) 새로 붙인다 — 안 그러면 뗄 때마다
    * 폭이 어긋나 모듈이 조금씩 좁아진다.
    */
-  function setModuleFinish(hostId, side, section) {
+  /**
+   * 마감재 폭 `W` 를 뺀 뒤 균등 분배하면 한 칸이 얼마가 되나 (W12-45).
+   * 폭 판정을 호스트 하나로 하면 세 칸으로 나누면 들어갈 것을 못 붙인다.
+   */
+  function evenWidthAfterFinish(m, W) {
+    const area = areaOfModule(m);
+    if (!area || isStackedArea(area)) return m.W - W;
+    const mods = modules.filter((x) => x.areaId === area.id && !x.isFinishing);
+    const free = mods.filter((x) => !x.isFixed);
+    if (!free.length) return m.W - W;
+    const finW = modules.filter((x) => x.areaId === area.id && x.isFinishing)
+      .reduce((sum, f) => sum + (f.W || 0), 0) + W;
+    const fixedW = mods.filter((x) => x.isFixed).reduce((sum, x) => sum + (x.W || 0), 0);
+    return Math.floor(((area.W || 0) - finW - fixedW) / free.length);
+  }
+
+  function setModuleFinish(hostId, side, section, opts) {
     const m = moduleById(hostId);
     if (!m || m.isFinishing) return null;
     if (FINISH_SIDES.indexOf(side) < 0) return null;
@@ -3342,8 +3412,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     const W = finishingWidthOf(section);
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
-    if (m.W - W < MIN_W) {
-      showToast(`⚠ 모듈 ${Math.round(m.W)}mm — ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
+    // W12-45: 영역 경로는 붙인 뒤 균등 분배가 이어진다 — 판정도 **나눈 뒤 값**으로.
+    const after = (opts && opts.evenAfter) ? evenWidthAfterFinish(m, W) : m.W - W;
+    if (after < MIN_W) {
+      showToast(`⚠ ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 칸이 ${Math.max(0, Math.round(after))}mm — 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
       saveStructModules(); persistPlannerState();
       return null;
     }
