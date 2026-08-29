@@ -191,3 +191,31 @@ describe('소스 규약', () => {
     expect(fn).toContain("if (baseKindOf(m, s) !== 'legH') return 0;");
   });
 });
+
+describe('천판은 몸통 상단에서 끝난다 (W12-40)', () => {
+  // 상판이 그 위에 얹히므로 천판이 더 올라가면 둘이 겹친다.
+  // 실측: 상판 Y[858,870] · 천판 Y[855,870] → 12mm 겹침.
+  const fn = SRC.slice(SRC.indexOf('function addCarcassShell'), SRC.indexOf('function addWoodChannel'));
+
+  test('천판 높이가 몸통 상단이다', () => {
+    expect(fn).toContain('top.position.set(0, o.legH + o.carcassH - o.T / 2,');
+    // 예전 식이 남아 있으면 안 된다 — 상판 두께만큼 떠오른다.
+    expect(fn).not.toContain('o.H - o.moldingH - o.T / 2');
+  });
+
+  test('측판과 같은 상단을 쓴다', () => {
+    // 측판은 cyMid = legH + carcassH/2 로 legH..legH+carcassH 를 채운다.
+    expect(fn).toContain('const cyMid = o.legH + o.carcassH / 2;');
+  });
+
+  test('목찬넬 자리 계산과 같은 기준이다', () => {
+    // addWoodChannel 은 처음부터 legH + carcassH 를 쓰고 있었다.
+    const wc = SRC.slice(SRC.indexOf('function addWoodChannel'), SRC.indexOf('function addWoodChannel') + 900);
+    expect(wc).toContain('const topY = o.legH + o.carcassH;');
+  });
+
+  test('몸통은 heightPartsOf 합을 뺀 값이다', () => {
+    const cm = SRC.slice(SRC.indexOf('const carcassH = bodyHeightOf'), SRC.indexOf('const carcassH = bodyHeightOf') + 120);
+    expect(cm).toContain('bodyHeightOf(m, s)');
+  });
+});
