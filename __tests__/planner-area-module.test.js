@@ -867,7 +867,8 @@ describe('마감재 (EP · 몰딩 · 휠라)', () => {
     expect(m).not.toBeNull();
     expect(m.section).toBe('molding');
     expect(m.W).toBe(p.g('finishingWidthOf')('molding'));
-    expect(m.H).toBe(area.H);
+    // W12-42: 몰딩은 상판 위로 못 넘는다 — 하부장 영역이라 상판 두께를 뺀다.
+    expect(m.H).toBe(area.H - p.g('heightPartOf')({ section: area.section, H: area.H }, {}, 'topT'));
     expect(m.areaId).toBe(area.id);
   });
 

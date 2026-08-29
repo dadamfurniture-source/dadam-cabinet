@@ -35,8 +35,18 @@ describe('마감재가 영역과 같은 높이에 선다', () => {
     expect(fn).toContain('getBaseY(area.section, area.H)');
   });
 
-  test('마감재 세 경로 모두 baseY 를 싣는다', () => {
-    expect((SRC.match(/baseY: finishBaseYFor\(area\)/g) || []).length).toBe(3);
+  test('마감재 세 경로 모두 세로 범위를 싣는다', () => {
+    // W12-42: baseY 는 finishingSpanOf 가 종류별로 낸다 (몰딩·휠라가 다르다).
+    // 정의 1 + 만드는 세 경로 3 + 다시 맞추는 곳 1
+    expect((SRC.match(/finishingSpanOf\(area, /g) || []).length).toBe(5);
+    ['function addFinishingToArea', 'function setStackAreaFinish', 'function setModuleFinish']
+      .forEach((marker) => {
+        const from = SRC.indexOf(marker);
+        expect(from).toBeGreaterThan(-1);
+        expect(SRC.slice(from, from + 1800)).toContain('finishingSpanOf(area,');
+      });
+    const span = SRC.slice(SRC.indexOf('function finishingSpanOf'), SRC.indexOf('function finishBaseYFor'));
+    expect(span).toContain('finishBaseYFor(area)');
   });
 
   test('상부장 영역 마감재의 baseY 가 영역과 같다', () => {
