@@ -199,12 +199,15 @@ describe('좌대·상몰딩이 자동계산에 닿는다', () => {
 
 describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
   /** 영역에 폭 W 모듈 n개 */
+  /** 영역을 n 칸으로 꽉 채운다. 영역보다 넓게 채우면 W12-45 가 다시 나누므로
+   *  — 배치 공간이 제한 기준이다 — 여기서는 영역 폭에 맞춰 넣는다. */
   function fill(p, n, W) {
     const area = p.g('areas')[0];
+    const w = W || Math.floor(area.W / n);
     let x = area.x || 0;
     const mods = [];
-    for (let i = 0; i < n; i++) { mods.push(p.g('addModuleToArea')(area.id, { section: area.section, W, x })); x += W; }
-    return { area, mods };
+    for (let i = 0; i < n; i++) { mods.push(p.g('addModuleToArea')(area.id, { section: area.section, W: w, x })); x += w; }
+    return { area, mods, w };
   }
 
   test('좌·우 select 를 낸다 — 일괄 버튼은 없다', () => {
@@ -219,29 +222,53 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
 
   test('모듈이 몇 개든 마감재는 한 장이다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    const { area, mods } = fill(p, 3, 600);
+    const { area } = fill(p, 3);
     p.g('setAreaFinish')(area.id, 'right', 'molding');
     expect(p.g('modules').filter((m) => m.isFinishing)).toHaveLength(1);
-    expect(mods[2].W).toBe(600 - p.g('finishingWidthOf')('molding'));
-    expect(mods[0].W).toBe(600);
-    expect(mods[1].W).toBe(600);
   });
 
-  test('좌·우 각각 한 장 — 양 끝 모듈이 낸다', () => {
+  test('폭 판정은 나눈 뒤 값으로 한다 (W12-45)', () => {
+    // 호스트 하나만 보고 막으면, 세 칸으로 나누면 들어갈 것을 못 붙인다.
+    // 1200 / 3 = 400 — 몰딩 60 을 호스트에서만 빼면 340 < 350 이라 거절된다.
+    // 나눈 뒤에는 (1200-60)/3 = 380 이라 들어간다.
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    const { area, mods } = fill(p, 3, 600);
+    const { area } = fill(p, 3);
+    expect(Math.floor(area.W / 3) - 60).toBeLessThan(p.g('MASTER_RULES').DOOR_W_MIN);
+    const f = p.g('setAreaFinish')(area.id, 'right', 'molding');
+    expect(f).toBeTruthy();
+    const mods = p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing);
+    mods.forEach((m) => expect(m.W).toBeGreaterThanOrEqual(p.g('MASTER_RULES').DOOR_W_MIN));
+  });
+
+  test('마감재를 붙이면 남은 자리를 균등 분배한다 (W12-45)', () => {
+    // 예전엔 끝 모듈 하나만 줄어 칸이 들쭉날쭉했다.
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area } = fill(p, 3);
     p.g('setAreaFinish')(area.id, 'left', 'ep');
     p.g('setAreaFinish')(area.id, 'right', 'ep');
-    expect(p.g('modules').filter((m) => m.isFinishing)).toHaveLength(2);
     const w = p.g('finishingWidthOf')('ep');
-    expect(mods[0].W).toBe(600 - w);
-    expect(mods[1].W).toBe(600);
-    expect(mods[2].W).toBe(600 - w);
+    const mods = p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing)
+      .sort((a, b) => a.x - b.x);
+    const span = area.W - w * 2;
+    expect(Math.max(...mods.map((m) => m.W)) - Math.min(...mods.map((m) => m.W))).toBeLessThanOrEqual(2);
+    expect(mods.reduce((t, m) => t + m.W, 0)).toBe(span);
+    // 왼쪽 마감재 다음부터 빈틈 없이 이어진다
+    let cursor = (area.x || 0) + w;
+    mods.forEach((m) => { expect(m.x).toBe(cursor); cursor += m.W; });
+  });
+
+  test('고정 모듈은 폭을 지킨다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const { area, mods } = fill(p, 3);
+    mods[1].isFixed = true;
+    const keep = mods[1].W;
+    p.g('setAreaFinish')(area.id, 'left', 'ep');
+    expect(mods[1].W).toBe(keep);
   });
 
   test('영역 안 총 폭은 그대로다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    const { area } = fill(p, 3, 600);
+    const { area } = fill(p, 3);
     const sum = () => p.g('modules').filter((m) => m.areaId === area.id).reduce((t, m) => t + m.W, 0);
     const before = sum();
     p.g('setAreaFinish')(area.id, 'left', 'ep');
@@ -251,21 +278,21 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
 
   test('마감재는 영역 바깥 끝에 선다', () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    const { area } = fill(p, 3, 600);
+    const { area } = fill(p, 3);
     const x0 = area.x || 0;
     const l = p.g('setAreaFinish')(area.id, 'left', 'ep');
     const r = p.g('setAreaFinish')(area.id, 'right', 'ep');
     expect(l.x).toBe(x0);
-    expect(r.x + r.W).toBe(x0 + 1800);
+    expect(r.x + r.W).toBe(x0 + area.W);
   });
 
   test("''(없음)이면 뗀다", () => {
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
-    const { area, mods } = fill(p, 2, 600);
+    const { area, mods, w } = fill(p, 2);
     p.g('setAreaFinish')(area.id, 'right', 'ep');
     p.g('setAreaFinish')(area.id, 'right', '');
     expect(p.g('modules').filter((m) => m.isFinishing)).toHaveLength(0);
-    expect(mods[1].W).toBe(600);
+    expect(mods[1].W).toBe(w);
   });
 
   test('지금 붙어 있는 것을 select 가 보여준다', () => {
