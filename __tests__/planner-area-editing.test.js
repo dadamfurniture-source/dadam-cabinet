@@ -66,41 +66,43 @@ describe('항목은 늘 같다 (W12-18)', () => {
     fins: [...p.document.querySelectorAll('#finishBody select[data-fin]')].map((n) => n.getAttribute('data-fin')),
   });
 
-  test('어느 영역이든 같은 칸이 뜬다', () => {
-    // 예전엔 섹션마다 2~4개가 떠서 무엇이 빠졌는지 알 수 없었다.
-    // W12-38: 받침(선택) · 상판 · 상몰딩 — 늘 셋이다. 첫 칸은 고른 받침을 따른다.
+  test('그 섹션이 가진 부위만 뜬다 (W12-39)', () => {
+    // 하부장 영역에 상몰딩 칸이 뜨면 안 된다 — 그 섹션의 높이 모델에 없다.
+    // 모듈 패널은 처음부터 그랬으므로 두 패널이 이제 같다.
     const p = boot(seedFor(FIXTURES.lShape));
     const seen = new Set();
     p.g('areas').forEach((a) => {
       p.g('setActiveArea')(a.id);
       const f = fields(p);
       expect(f.dims).toEqual(['W', 'H', 'D']);
-      expect(f.parts).toHaveLength(3);
-      expect(['legH', 'pedestalH']).toContain(f.parts[0]);
-      expect(f.parts.slice(1)).toEqual(['topT', 'moldingH']);
-      expect(p.document.getElementById('selAreaBaseKind')).not.toBeNull();
+      const truth = p.g('heightPartsOf')({ section: a.section, H: a.H }, {}).map((x) => x.key);
+      expect(f.parts).toEqual(truth);
       expect(f.fins).toEqual(['left', 'right']);
       seen.add(a.section);
     });
     expect(seen.size).toBeGreaterThan(0);
   });
 
-  test('마감재 영역에도 같은 칸이 뜬다', () => {
+  test('하부장 영역에는 상몰딩이 없다', () => {
     const p = boot(seedFor(FIXTURES.straight));
-    const fin = p.g('areas').find((a) => a.isFinishing);
-    if (!fin) return;
-    p.g('setActiveArea')(fin.id);
-    expect(fields(p).parts).toHaveLength(3);
+    pick(p, 'lower');
+    expect(fields(p).parts).toEqual(['legH', 'topT']);
+    expect(p.document.querySelector('#heightBody input[data-apart="moldingH"]')).toBeNull();
   });
 
-  test('해당 없는 부위는 입력을 막고 이유를 적는다', () => {
+  test('받침이 있는 섹션에만 받침 선택이 뜬다', () => {
     const p = boot(seedFor(FIXTURES.straight));
-    pick(p, 'lower');   // 하부장 = 다리발·상판, 상몰딩 없음
-    const inp = p.document.querySelector('#heightBody input[data-apart="moldingH"]');
-    expect(inp.disabled).toBe(true);
+    pick(p, 'lower');
+    expect(p.document.getElementById('selAreaBaseKind')).not.toBeNull();
+  });
+
+  test('배치 공간 높이와 몸통을 적는다 (W12-39)', () => {
+    const p = boot(seedFor(FIXTURES.straight));
+    const a = pick(p, 'lower');
     const body = p.document.getElementById('heightBody').textContent;
-    expect(body).toMatch(/이 부위가 없습니다/);
-    expect(body).toMatch(/다리발|상판/);
+    expect(body).toContain(`전체 ${Math.round(a.H)}`);
+    expect(body).toMatch(/몸통/);
+    expect(body).toMatch(/제한 기준/);
   });
 
   test('받침을 좌대로 바꾸면 그 칸이 좌대가 된다 (W12-38)', () => {
