@@ -201,10 +201,11 @@ describe('영역에 모듈 넣기', () => {
     return { p, area };
   }
 
-  test('추가한 모듈은 W600 · H850 · D550 이다', () => {
+  test('추가한 모듈은 W600 · H = 배치 공간 높이 · D550 이다', () => {
     const { p, area } = withArea();
     const m = p.g('addModuleToArea')(area.id);
-    expect([m.W, m.H, m.D]).toEqual([600, 850, 550]);
+    expect([m.W, m.D]).toEqual([600, 550]);
+    expect(m.H).toBe(area.H);          // W12-39: 배치 공간이 제한 기준
     expect(m.section).toBe('lower');
     expect(m.areaId).toBe(area.id);
   });
@@ -218,13 +219,15 @@ describe('영역에 모듈 넣기', () => {
     expect(s.shelves[0]).toBeLessThan(p.g('bodyHeightOf')(m, s));
   });
 
-  test('상판은 옵션이라 850 = 다리발 150 + 몸통 700 이 성립한다', () => {
+  test('870 = 다리발 150 + 상판 12 + 몸통 708 (W12-39)', () => {
+    // W12-39: 배치 공간이 제한 기준이다 — 높이 모델이 그 안에서 나뉜다.
     const { p, area } = withArea();
     const m = p.g('addModuleToArea')(area.id);
     const s = p.g('getStructure')(m.id);
+    expect(m.H).toBe(area.H);
     expect(p.g('legHOf')(m, s)).toBe(150);
-    expect(p.g('topTOf')(m, s)).toBe(0);
-    expect(p.g('bodyHeightOf')(m, s)).toBe(700);
+    expect(p.g('topTOf')(m, s)).toBe(12);
+    expect(p.g('bodyHeightOf')(m, s)).toBe(area.H - 150 - 12);
   });
 
   test('모듈은 영역 안에서 왼쪽부터 이어 붙는다', () => {
