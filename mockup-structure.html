@@ -1447,6 +1447,59 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
   }
 
+  // ── 평면 좌표와 회전 ──────────────────────────────────────────
+  //
+  // W12-36: 배치 단계는 사각형을 **자기 중심으로** 돌린다
+  // (mockup-shell.html `getRotatedCorners`: 축이 `x + w/2, y + h/2`).
+  // 그래서 회전 90/270 이면 시각 좌상단이 `(x, y)` 가 아니다.
+  //
+  // 구조 단계는 다섯 곳에서 `(x, y)` 를 그대로 좌상단으로 쓰고 폭·깊이만 맞바꿔
+  // 왔다. 실측 — 배치가 X[875,1525] 에 그린 영역을 구조는 X[0,650] 에 그렸다.
+  // 어긋난 양이 정확히 (W−D)/2 = 875 다. ㄱ자를 겹쳐 트리밍하면 두 다리가
+  // 서로 다른 자리로 흩어지는 것이 이 때문이다.
+  //
+  // **모듈의 회전축은 자기 중심이 아니라 속한 영역의 중심이다.** 영역이 통째로
+  // 도는 것이라, 모듈을 제 중심으로 돌리면 영역 밖으로 흩어진다
+  // (§10 "90° 회전 영역 — 모듈이 영역 밖으로 나간다" 가 이것이다).
+
+  /** 점 (px,py) 를 (cx,cy) 둘레로 rot 도 돌린다. 90 배수는 정확값을 쓴다. */
+  function rotPoint(px, py, cx, cy, rot) {
+    const a = ((rot % 360) + 360) % 360;
+    let cos, sin;
+    if (a === 0) { cos = 1; sin = 0; }
+    else if (a === 90) { cos = 0; sin = 1; }
+    else if (a === 180) { cos = -1; sin = 0; }
+    else if (a === 270) { cos = 0; sin = -1; }
+    else { const r = a * Math.PI / 180; cos = Math.cos(r); sin = Math.sin(r); }
+    return { x: cx + (px - cx) * cos - (py - cy) * sin,
+             y: cy + (px - cx) * sin + (py - cy) * cos };
+  }
+
+  /**
+   * 평면도에서 이 사각형이 실제로 차지하는 자리.
+   * `pivot` 을 주면 그 점을 축으로 돈다 — 안 주면 제 중심으로 돈다(영역).
+   * 폭·깊이 맞바꾸기는 90/270 에서만 한다 (예전 규약 그대로).
+   */
+  function planeBoxOf(o, pivot) {
+    const rot = ((o.rotation || 0) % 360 + 360) % 360;
+    const W = Number(o.W) || 0, D = Number(o.D) || 0;
+    const swap = rot === 90 || rot === 270;
+    let cx = (o.x || 0) + W / 2, cy = (o.y || 0) + D / 2;
+    if (rot && pivot) { const p = rotPoint(cx, cy, pivot.x, pivot.y, rot); cx = p.x; cy = p.y; }
+    const w = swap ? D : W, d = swap ? W : D;
+    return { x: cx - w / 2, y: cy - d / 2, w, d, cx, cy, rot };
+  }
+
+  /** 모듈의 회전축 — 속한 영역의 중심. 영역을 못 찾으면 제 중심으로 돈다. */
+  function areaPivotOf(m) {
+    const a = areaOfModule(m);
+    if (!a) return null;
+    return { x: (a.x || 0) + (a.W || 0) / 2, y: (a.y || 0) + (a.D || 0) / 2 };
+  }
+
+  /** 모듈이 평면도에서 차지하는 자리 (영역 회전 반영) */
+  function modulePlaneBox(m) { return planeBoxOf(m, areaPivotOf(m)); }
+
   function fitToActiveModule() {
     const m = modules.find(x => x.id === activeId);
     const wrap = document.getElementById('canvasWrap');
@@ -1488,10 +1541,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const forceForward = (viewMode === 'area');
     let minX = Infinity, maxX = -Infinity;
     mods.forEach(m => {
-      const rot = ((m.rotation || 0) % 360 + 360) % 360;
-      const planeW = (rot === 90 || rot === 270) ? m.D : m.W;
-      const planeD = (rot === 90 || rot === 270) ? m.W : m.D;
-      const px = m.x || 0, py = m.y || 0;
+      const B = modulePlaneBox(m);                      // W12-36
+      const planeW = B.w, planeD = B.d;
+      const px = B.x, py = B.y;
       let vx, vw;
       if (forceForward)              { vx = px - ox; vw = m.W; }
       else if (viewRotation === 0)   { vx = px - ox; vw = planeW; }
@@ -1523,10 +1575,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function areaFrontRect(a) {
     const ox = getFrontViewOriginX();
     const oy = (personPos && typeof personPos.cy === 'number') ? personPos.cy : originPos2D.y;
-    const rot = ((a.rotation || 0) % 360 + 360) % 360;
-    const planeW = (rot === 90 || rot === 270) ? a.D : a.W;
-    const planeD = (rot === 90 || rot === 270) ? a.W : a.D;
-    const px = a.x || 0, py = a.y || 0;
+    const B = planeBoxOf(a);                            // W12-36
+    const planeW = B.w, planeD = B.d;
+    const px = B.x, py = B.y;
     let x, w;
     if (viewRotation === 90)       { x = py - oy;                 w = planeD; }
     else if (viewRotation === 180) { x = -(px + planeW - ox);     w = planeW; }
@@ -1648,11 +1699,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   viewRotation = 180 (뒷면, Y+ 방향 봄): X = -(m.x + m.W - ox) — 거울
     //   viewRotation = 270 (좌측, X- 방향 봄): X = -(m.y + m.D - oy) — 거울
     function viewX(m) {
-      const rot = ((m.rotation || 0) % 360 + 360) % 360;
-      // 평면도 footprint: 회전 0/180 W방향=m.W, 90/270 W방향=m.D
-      const planeW = (rot === 90 || rot === 270) ? m.D : m.W;
-      const planeD = (rot === 90 || rot === 270) ? m.W : m.D;
-      const px = m.x || 0, py = m.y || 0;
+      // W12-36: 평면도 footprint — 회전축은 **영역 중심**이다 (modulePlaneBox).
+      const B = modulePlaneBox(m);
+      const planeW = B.w, planeD = B.d;
+      const px = B.x, py = B.y;
       // W9-111: forceForward — 모든 모듈 정면 도어 (회전 무관)
       //   X 좌표는 평면도 X 그대로 (사람 기준), footprint W = m.W (도어 면)
       if (forceForward) return { x: px - ox, w: m.W };
@@ -4926,17 +4976,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const ox = originPos2D.x, oy = originPos2D.y;
     areas.forEach((a) => {
       const cfg = SECTION_CONFIG[a.section] || { fill: '#999', stroke: '#333' };
-      const rot = ((a.rotation || 0) % 360 + 360) % 360;
-      // 평면 footprint — 회전 90/270 이면 폭과 깊이가 바뀐다 (정면도와 같은 규약)
-      const fw = (rot === 90 || rot === 270) ? a.D : a.W;
-      const fd = (rot === 90 || rot === 270) ? a.W : a.D;
+      // W12-36: 배치 단계와 같은 방식 — 제자리에서 **자기 중심으로** 돈다.
+      //   예전엔 폭·깊이만 맞바꿔 (x, y) 를 좌상단으로 썼다. 회전 영역이
+      //   (W−D)/2 만큼 어긋난 자리에 그려졌다.
+      const B = planeBoxOf(a);
       const on = a.id === activeAreaId;
-      const box = makeBox(fw, a.H, fd, cfg.fill, { transparent: true, opacity: on ? 0.22 : 0.09 });
-      box.position.set(
-        (a.x || 0) + fw / 2 - ox,
-        getBaseY(a.section, a.H) + a.H / 2,
-        (a.y || 0) + fd / 2 - oy
-      );
+      const box = makeBox(a.W, a.H, a.D, cfg.fill, { transparent: true, opacity: on ? 0.22 : 0.09 });
+      box.position.set(B.cx - ox, getBaseY(a.section, a.H) + a.H / 2, B.cy - oy);
+      box.rotation.y = -(a.rotation || 0) * Math.PI / 180;
       box.userData = { entityKind: 'area', areaId: a.id };
       parent.add(box);
       addEdgeOutline(box, parent, 0x6a4b2a, on ? 0.9 : 0.45);
@@ -4948,11 +4995,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!three || !areas.length) return;
     let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, maxY = 0;
     areas.forEach((a) => {
-      const rot = ((a.rotation || 0) % 360 + 360) % 360;
-      const fw = (rot === 90 || rot === 270) ? a.D : a.W;
-      const fd = (rot === 90 || rot === 270) ? a.W : a.D;
-      minX = Math.min(minX, a.x || 0); maxX = Math.max(maxX, (a.x || 0) + fw);
-      minZ = Math.min(minZ, a.y || 0); maxZ = Math.max(maxZ, (a.y || 0) + fd);
+      const B = planeBoxOf(a);                          // W12-36
+      minX = Math.min(minX, B.x); maxX = Math.max(maxX, B.x + B.w);
+      minZ = Math.min(minZ, B.y); maxZ = Math.max(maxZ, B.y + B.d);
       maxY = Math.max(maxY, getBaseY(a.section, a.H) + a.H);
     });
     if (!isFinite(minX)) return;
@@ -4990,8 +5035,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 평면도 → 3D: x = m.x + m.W/2 - origin.x, z = m.y + m.D/2 - origin.y
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     modules.forEach(m => {
-      minX = Math.min(minX, m.x); minY = Math.min(minY, m.y);
-      maxX = Math.max(maxX, m.x + m.W); maxY = Math.max(maxY, m.y + m.D);
+      const B = modulePlaneBox(m);                      // W12-36
+      minX = Math.min(minX, B.x); minY = Math.min(minY, B.y);
+      maxX = Math.max(maxX, B.x + B.w); maxY = Math.max(maxY, B.y + B.d);
     });
     const ox = originPos2D.x, oy = originPos2D.y;
     modules.forEach(m => {
@@ -4999,8 +5045,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const moduleMesh = createModuleMesh(m, s);
       // 원점 기준 좌표 — 평면도 (m.x, m.y) - (origin.x, origin.y)
       // W9-67: createModuleMesh 의 baseY 보존 (Y 직접 변경 X)
-      moduleMesh.position.x = m.x + m.W/2 - ox;
-      moduleMesh.position.z = m.y + m.D/2 - oy;
+      // W12-36: 회전축은 **영역 중심**이다. 제 중심으로 돌리면 영역 밖으로
+      //   흩어진다 — §10 "90° 회전 영역" 이 그것이다.
+      const B = modulePlaneBox(m);
+      moduleMesh.position.x = B.cx - ox;
+      moduleMesh.position.z = B.cy - oy;
       moduleMesh.rotation.y = -(m.rotation || 0) * Math.PI / 180;
       modG.add(moduleMesh);
     });
