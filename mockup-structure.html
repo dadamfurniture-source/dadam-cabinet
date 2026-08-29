@@ -4448,9 +4448,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     bottom.position.set(0, o.legH + o.T / 2, o.T / 2);
     put(bottom, 'bottom');
     // 천판은 목찬넬 자리를 비켜 뒤로 물러난다 — 안 그러면 전면판과 같은 칸을 차지한다.
+    // W12-40: 높이는 **몸통 상단**(legH + carcassH)이다. 예전엔 `o.H - moldingH`
+    //   로 잡아 상판 두께만큼 위로 떠 있었다 — 측판은 몸통 상단에서 끝나는데
+    //   천판만 12mm 더 올라가 상판과 겹쳤다 (실측 12mm). 목찬넬 자리를 잡는
+    //   addWoodChannel 은 처음부터 legH + carcassH 를 쓰고 있었다.
     const topD = o.D - o.T - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0);
     const top = makeBox(inner, o.T, topD, o.color);
-    top.position.set(0, o.H - o.moldingH - o.T / 2,
+    top.position.set(0, o.legH + o.carcassH - o.T / 2,
       o.T / 2 - (notch ? MASTER_RULES.CHANNEL_NOTCH_D / 2 : 0));
     put(top, 'top');
     if (notch) addWoodChannel(parent, o);
