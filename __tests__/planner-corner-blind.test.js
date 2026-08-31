@@ -439,6 +439,112 @@ describe('불변식이 헛돌지 않는다', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────
+// 5. 상부장 코너 — 물끊기가 없고 멍이 320 + 몰딩이다 (§3.6)
+// ─────────────────────────────────────────────────────────────
+const UPPER_D = 320;
+
+/**
+ * 상부장 ㄱ자. `y` 를 주면 그 자리에 그린다 —
+ * 하부장과 같은 자리에 겹쳐 그리는 것이 실제 주방이다 (상부장은 위에 매달린다).
+ */
+function upperLShapeLayout(y) {
+  const legW = 1800;
+  const y0 = y || 0;
+  return [
+    { section: 'upper', x: 0, y: y0, w: 3000, h: UPPER_D, moduleH: 800, rotation: 0, finishings: [] },
+    { section: 'upper',
+      x: UPPER_D / 2 - legW / 2, y: y0 + legW / 2 - UPPER_D / 2,
+      w: legW, h: UPPER_D, moduleH: 800, rotation: 90, finishings: [] },
+  ];
+}
+
+function layoutOf(modules) {
+  return { version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null, modules };
+}
+
+describe('상부장 ㄱ자 — 멍이 320 + 몰딩이다', () => {
+  test('상부장끼리도 코너를 이룬다', () => {
+    const p = boot(layoutOf(upperLShapeLayout(2000)));
+    const pairs = p.g('cornerPairs')();
+    expect(pairs.length).toBe(1);
+    expect(p.g('areaTier')(pairs[0].owner)).toBe('hung');
+    expect(pairs[0].owner.rotation).toBe(90);
+  });
+
+  test('멍은 380 이다 — 물끊기를 빼지 않는다', () => {
+    const p = boot(layoutOf(upperLShapeLayout(2000)));
+    p.g('autoCalcAllAreas')();
+    const blind = (p.g('modules') || []).find((m) => m.blind);
+    expect(blind).toBeTruthy();
+    // 320(몸통295+도어18→관례) + 몰딩 60. 하부의 −10 이 없다.
+    expect(blind.blind.zoneW).toBe(UPPER_D + 60);
+    expect(blind.W).toBe(blind.blind.zoneW + blind.blind.doorW);
+  });
+
+  test('인접 다리도 380 만큼 밀린다 (깊이가 아니라 관례값을 쓴다)', () => {
+    const p = boot(layoutOf(upperLShapeLayout(2000)));
+    p.g('autoCalcAllAreas')();
+    const pair = p.g('cornerPairs')()[0];
+    // 하부라면 320 − 10 + 60 = 370 이었을 자리다
+    expect(p.g('adjCornerOffsetOf')(pair.adj.id).offset).toBe(380);
+  });
+
+  test('원장이 맞고 빠진 멍장이 없다', () => {
+    const p = boot(layoutOf(upperLShapeLayout(2000)));
+    p.g('autoCalcAllAreas')();
+    const ledgers = (p.g('areas') || []).filter((a) => !a.isFinishing)
+      .map((a) => p.g('cornerLedger')(a.id)).filter(Boolean);
+    expect(ledgers.length).toBe(2);
+    ledgers.forEach((L) => {
+      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.missing).toBe(0);
+    });
+  });
+});
+
+describe('상부장과 하부장은 서로의 코너에 끼어들지 않는다', () => {
+  /** 실제 주방 — 하부 ㄱ자 위에 상부 ㄱ자가 같은 자리로 얹힌다 */
+  function bothTiers() {
+    return layoutOf(lShapeLayout(false).modules.concat(upperLShapeLayout(0)));
+  }
+
+  test('코너가 단마다 하나씩, 둘이다', () => {
+    const pairs = boot(bothTiers()).g('cornerPairs')();
+    expect(pairs.length).toBe(2);
+    const tiers = pairs.map((c) => boot(bothTiers()).g('areaTier')(c.owner));
+    expect(new Set(pairs.map((c) => c.owner.section))).toEqual(new Set(['lower', 'upper']));
+    expect(tiers.length).toBe(2);
+  });
+
+  test('멍이 단마다 다르다 — 하부 700 · 상부 380', () => {
+    const p = boot(bothTiers());
+    p.g('autoCalcAllAreas')();
+    const zones = (p.g('modules') || []).filter((m) => m.blind)
+      .map((m) => m.blind.zoneW).sort((a, b) => a - b);
+    expect(zones).toEqual([UPPER_D + 60, LOWER_D - 10 + 60]);   // [380, 700]
+  });
+
+  test('상부장이 하부장 위에 얹혀도 겹침으로 세지 않는다', () => {
+    // 단을 안 가르면 상·하부가 통째로 겹침이 된다 — 실제로 9건 나왔었다.
+    const p = boot(bothTiers());
+    p.g('autoCalcAllAreas')();
+    expect(p.g('crossAreaOverlaps')()).toEqual([]);
+  });
+
+  test('같은 단끼리는 여전히 잡는다 (단 구분이 검사를 무디게 하지 않았다)', () => {
+    const p = boot(bothTiers());
+    p.g('autoCalcAllAreas')();
+    // 하부 인접 다리를 코너까지 당긴다 — 같은 단이므로 잡혀야 한다
+    const area = p.g('areaById')('area-lower-0');
+    let x = area.x;
+    (p.g('modules') || []).filter((m) => m.areaId === area.id)
+      .forEach((m) => { m.x = x; x += m.W; });
+    const hits = p.g('crossAreaOverlaps')();
+    expect(hits.length).toBeGreaterThan(0);
+  });
+});
+
 describe('코너가 없으면 아무 일도 하지 않는다', () => {
   const straight = {
     version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
