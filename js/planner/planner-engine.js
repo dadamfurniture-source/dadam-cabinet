@@ -76,6 +76,17 @@ const MASTER_RULES = {
   // W9-96: distributeModules 잔여 최적화 (calc-utils.ts 포팅)
   MIN_REMAINDER: 5,             // 최소 잔여 (mm)
   MAX_REMAINDER: 10,            // 최대 잔여 (gap > 10 면 후보 거부)
+  // W12-49: 코너(멍장) — docs/design-rules/corner.md §3.
+  //   정본은 js/detaildesign/data-constants.js 지만 플래너는 그 파일을 로드하지 않는다.
+  //   값이 갈라지면 같은 코너를 화면과 BOM 이 다르게 계산한다 — 바뀌면 같이 고쳐야 한다.
+  CORNER_DRIP: 10,              // 물끊기 여유 (§3.3)
+  CORNER_WALL_GAP: 50,          // 멍장 측판 ↔ 코너 벽 여유 (§3.4)
+  CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3)
+  CORNER_UPPER_MODULE: 320,     // 상부 멍 모듈값 — 몸통295+도어18 → 관례 320 (§3.6)
+  CORNER_EP_W: 20,              // 멍장 라인 반대쪽 끝 EP (§3.4 예시)
+  // 플래너 전용 — 레거시엔 없다. 라인이 선언돼 있지 않아 코너를 좌표로 찾기 때문에,
+  // 사람이 손으로 그린 사각형의 어긋남을 얼마까지 코너로 볼지 정해야 한다.
+  CORNER_TOUCH_TOL: 20,         // 두 배치 공간이 이 안쪽으로 만나면 코너로 본다
 };
 
 // W9-115: 상몰딩 H — 섹션별. 선반 계산(autoCalcModule)과 3D 렌더 양쪽이 쓴다.
@@ -169,6 +180,114 @@ function distributeModules(totalSpace) {
 }
 
 // W9-90: 선반 — 마스터 규칙 (분배공간 300~450, 신발장 180~350) 안 최대 갯수
+// ── 코너 (멍장) ──────────────────────────────────────────────
+//
+// W12-49: 멍장 파생 계산 — docs/design-rules/corner.md §3.3~§3.7.
+//
+// 이 계산의 정본은 `js/detaildesign/corner-engine.js` 의 `deriveCorner` 다.
+// 두 함수는 **같은 입력에 같은 값을 내야 한다** (planner-corner-blind.test.js 가
+// 대조한다). 여기 따로 두는 이유는 하나뿐이다 — 플래너는 detaildesign 의
+// 스크립트를 로드하지 않는다.
+//
+// 다른 점은 입력의 모양이다. 레거시는 `item.specs` 의 **선언된 라인**
+// (layoutShape:'L', secondaryW)을 읽고, 플래너에는 그런 선언이 없다.
+// 사각형만 있다. 그래서 라인 대신 배치 공간의 W·D 를 받는다.
+//
+// @param {object} p
+// @param {number} p.ownerW  멍장이 설 배치 공간의 폭
+// @param {number} p.ownerD  같은 공간의 깊이 — 인접 공간이 밀려날 거리를 정한다
+// @param {number} p.adjD    인접(가로지르는) 배치 공간의 깊이 — 멍의 크기를 정한다
+// @param {boolean} [p.isUpper=false] 상부장이면 물끊기 없이 320 + 몰딩 (§3.6)
+// @param {number} [p.molding]  코너 몰딩 (기본 60)
+// @param {number} [p.epW]      멍장 반대쪽 끝 EP (기본 20)
+// @param {number} [p.minDoorW] 도어 최소폭 (기본 350)
+//
+// ⚠ `ownerD`·`adjD` 는 규칙상 **상판 깊이**다. 플래너의 `area.D` 는 몸통+도어라
+//   상판 돌출을 반영하지 않는다 — 레거시도 사실상 같은 값을 넘기고 있어 우선
+//   그대로 쓴다 (계획서 §13 "상판 깊이" 항목).
+function deriveCornerArea(p) {
+  const R = MASTER_RULES;
+  const molding  = Number.isFinite(p.molding)  ? p.molding  : R.CORNER_MOLDING;
+  const epW      = Number.isFinite(p.epW)      ? p.epW      : R.CORNER_EP_W;
+  const minDoorW = Number.isFinite(p.minDoorW) ? p.minDoorW : R.DOOR_W_MIN;
+  const ownerW = Number(p.ownerW) || 0;
+  const warnings = [];
+
+  // ① 멍 (blind zone) — §3.3 / §3.6
+  const blindZoneW = p.isUpper
+    ? R.CORNER_UPPER_MODULE + molding
+    : (Number(p.adjD) || 0) - R.CORNER_DRIP + molding;
+
+  // ② 도어 균등 분배 — §3.4 라인 원장
+  const doorAvail = ownerW - epW - R.CORNER_WALL_GAP - blindZoneW;
+
+  // 멍장 하나에 최소 도어 한 장까지 들어가는 최소 폭. 거부할 때 이 값을 안내한다.
+  const minOwnerW = epW + R.CORNER_WALL_GAP + blindZoneW + minDoorW;
+
+  // 멍이 라인을 다 먹었다 — 멍장을 세울 자리가 없다.
+  // 반쯤 세우면 도어 없는 장이 서고 원장도 안 맞는다. 아예 만들지 않는다.
+  if (doorAvail <= 0) {
+    return { ok: false, reason: 'no-room', blindZoneW, doorAvail, minOwnerW, warnings };
+  }
+
+  let nDoors, doorW;
+  if (doorAvail < minDoorW) {
+    // 도어 1장도 최소폭 미달 — 경고를 남기고 가용폭 전체를 멍장 도어로 (레거시와 동일)
+    nDoors = 1;
+    doorW = Math.max(0, Math.floor(doorAvail));
+    warnings.push('도어 가용폭 ' + Math.round(doorAvail) + 'mm < 최소 ' + minDoorW + 'mm');
+  } else {
+    // 최소폭을 만족하는 **최대** 도어 수 (1200 / 350 → 3장 → 400)
+    nDoors = Math.floor(doorAvail / minDoorW);
+    doorW = Math.floor(doorAvail / nDoors);
+  }
+  const remainder = Math.max(0, doorAvail - doorW * nDoors);
+
+  // ③ 멍장 W = 멍 + 도어 1장 (§3.4)
+  const blindW = blindZoneW + doorW;
+
+  // ④ 인접 공간이 코너에서 밀려 시작하는 거리 — §3.7
+  const adjStartOffset = p.isUpper
+    ? R.CORNER_UPPER_MODULE + molding
+    : (Number(p.ownerD) || 0) - R.CORNER_DRIP + molding;
+
+  return {
+    ok: true,
+    blindZoneW, doorAvail, nDoors, doorW, remainder, blindW,
+    adjStartOffset, epW, minOwnerW,
+    // 멍장을 뺀 나머지 수납이 나눠 가질 폭
+    restBudget: doorAvail - doorW,
+    warnings,
+  };
+}
+
+/**
+ * W12-49: 멍장이 있는 배치 공간의 수납 분배 — **도어 우선**.
+ *
+ * 일반 `distributeModules` 는 폭을 보고 도어 수를 정한다. 멍장 라인에서는 그럴 수
+ * 없다 — 라인 전체의 도어가 같은 폭이어야 하기 때문이다(§3.4). 그래서 폭이 아니라
+ * **도어 장수**를 나눈다. 모듈 W 는 언제나 `도어 수 × doorW` 다.
+ *
+ * 잔여는 마지막 모듈이 흡수한다 (W9 관례 · `autoCalcArea` 와 같은 처리).
+ */
+function distributeByDoorW(budget, doorW) {
+  const total = Math.max(0, Number(budget) || 0);
+  const w = Number(doorW) || 0;
+  if (w <= 0 || total < w) return { modules: [], gap: total };
+  let left = Math.floor(total / w);
+  const mods = [];
+  while (left > 0) {
+    const take = left >= 2 ? 2 : 1;      // 양문 우선, 홀수면 마지막이 단문
+    mods.push({ doors: take, w: take * w, is2D: take === 2 });
+    left -= take;
+  }
+  const remainder = total - mods.reduce((s, m) => s + m.w, 0);
+  if (remainder > 0) mods[mods.length - 1].w += remainder;
+  // 잔여는 여기서 이미 흡수했다. `gap` 을 0 이 아닌 값으로 돌려주면 호출부가
+  // 한 번 더 나눠 붙여 **두 번 더해진다** (autoCalcArea 의 잔여 분배).
+  return { modules: mods, gap: 0, remainder };
+}
+
 function calcDefaultShelves(section, H) {
   const isShoe = section === 'shoe';
   const MIN = isShoe ? MASTER_RULES.SHELF_SPACE_MIN_SHOE : MASTER_RULES.SHELF_SPACE_MIN;
@@ -333,6 +452,8 @@ if (typeof window !== 'undefined') {
   window.collectXRanges = collectXRanges;
   window.splitModuleByAppliance = splitModuleByAppliance;
   window.autoCalcModule = autoCalcModule;
+  window.deriveCornerArea = deriveCornerArea;
+  window.distributeByDoorW = distributeByDoorW;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -340,5 +461,6 @@ if (typeof module !== 'undefined' && module.exports) {
     getMoldingH, effectiveLegH, effectiveMoldingH,
     calcDoorCount, distributeModules, calcDefaultShelves,
     collectXRanges, splitModuleByAppliance, autoCalcModule,
+    deriveCornerArea, distributeByDoorW,
   };
 }
