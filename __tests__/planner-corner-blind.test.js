@@ -1,0 +1,311 @@
+/**
+ * W12-49: ㄱ자 코너 → 멍장 자동 생성.
+ *
+ * 배치 단계는 라인을 선언하지 않는다. 사각형과 회전만 넘어오므로 코너를
+ * **기하에서** 찾아야 한다. 이 테스트가 지키는 계약:
+ *
+ *   1) 순수 계산이 corner.md §3.4 의 확정 예시 두 개를 재현한다
+ *   2) 레거시 `corner-engine.deriveCorner` 와 같은 값을 낸다 (두 경로가 갈라지면 잡는다)
+ *   3) ㄱ자를 그리면 자동계산이 멍장을 만든다 — 트리밍 유무와 무관하게
+ *   4) 원장이 맞는다 (Σ모듈 + 코너가 먹는 자리 === 배치 공간 폭)
+ *   5) 코너가 없으면 **아무 일도 하지 않는다**
+ */
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const ROOT = path.join(__dirname, '..');
+const engine = require('../js/planner/planner-engine.js');
+const { bootPlanner } = require('../test-utils/planner-harness');
+
+// ─────────────────────────────────────────────────────────────
+// 1. 순수 계산
+// ─────────────────────────────────────────────────────────────
+describe('deriveCornerArea — corner.md §3.4 확정 예시', () => {
+  test('하부 1970 = EP 20 + 800 + 멍장 1100 + 여유 50', () => {
+    const r = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20 });
+    expect(r.ok).toBe(true);
+    expect(r.blindZoneW).toBe(700);      // 650 − 10 + 60
+    expect(r.nDoors).toBe(3);
+    expect(r.doorW).toBe(400);
+    expect(r.blindW).toBe(1100);         // 멍 700 + 도어 400
+    expect(r.restBudget).toBe(800);
+    expect(r.adjStartOffset).toBe(700);
+    expect(20 + r.restBudget + r.blindW + 50).toBe(1970);
+  });
+
+  test('상부 1800 = EP 20 + 900 + 멍장 830 + 여유 50', () => {
+    const r = engine.deriveCornerArea({ ownerW: 1800, ownerD: 320, adjD: 320, epW: 20, isUpper: true });
+    expect(r.blindZoneW).toBe(380);      // 320 + 60, 물끊기 없음
+    expect(r.doorW).toBe(450);
+    expect(r.blindW).toBe(830);
+    expect(20 + r.restBudget + r.blindW + 50).toBe(1800);
+  });
+
+  test('멍이 라인을 다 먹으면 만들지 않는다 (반쯤 세우지 않는다)', () => {
+    const r = engine.deriveCornerArea({ ownerW: 700, ownerD: 650, adjD: 650, epW: 20 });
+    expect(r.ok).toBe(false);
+    // 최소 도어 한 장까지 들어가려면 얼마가 필요한지 말해 준다
+    expect(r.minOwnerW).toBe(20 + 50 + 700 + 350);
+  });
+
+  test('도어 한 장도 최소폭 미달이면 경고를 남기고 진행한다', () => {
+    const r = engine.deriveCornerArea({ ownerW: 1000, ownerD: 650, adjD: 650, epW: 20 });
+    expect(r.ok).toBe(true);
+    expect(r.nDoors).toBe(1);
+    expect(r.doorW).toBe(230);           // 1000 − 20 − 50 − 700
+    expect(r.warnings.length).toBeGreaterThan(0);
+  });
+
+  test('몰딩을 바꾸면 멍과 도어가 함께 움직인다', () => {
+    const a = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20 });
+    const b = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20, molding: 100 });
+    expect(b.blindZoneW).toBe(a.blindZoneW + 40);
+    expect(b.blindW).not.toBe(a.blindW);
+  });
+});
+
+describe('distributeByDoorW — 라인 전체가 같은 도어 폭 (§3.4)', () => {
+  test('800 을 도어 400 으로 나누면 양문 한 짝', () => {
+    const d = engine.distributeByDoorW(800, 400);
+    expect(d.modules).toEqual([{ doors: 2, w: 800, is2D: true }]);
+  });
+
+  test('도어 3장이면 양문 + 단문', () => {
+    const d = engine.distributeByDoorW(1200, 400);
+    expect(d.modules.map((m) => m.doors)).toEqual([2, 1]);
+  });
+
+  test('잔여는 마지막이 흡수하고 gap 을 0 으로 돌려준다 (두 번 더해지지 않게)', () => {
+    const d = engine.distributeByDoorW(830, 400);
+    expect(d.gap).toBe(0);
+    expect(d.remainder).toBe(30);
+    expect(d.modules.reduce((s, m) => s + m.w, 0)).toBe(830);
+  });
+
+  test('도어 한 장도 안 들어가면 빈 결과', () => {
+    expect(engine.distributeByDoorW(300, 400).modules).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 2. 레거시 대조 — 두 엔진이 갈라지면 여기서 잡힌다
+// ─────────────────────────────────────────────────────────────
+describe('레거시 corner-engine 과 같은 값을 낸다', () => {
+  /** corner-engine.js 는 브라우저 클래식 스크립트라 vm 으로 평가한다 */
+  const legacy = (() => {
+    const src = fs.readFileSync(path.join(ROOT, 'js/detaildesign/corner-engine.js'), 'utf8');
+    const ctx = { window: {}, console };
+    vm.createContext(ctx);
+    vm.runInContext(src + '\n;this.deriveCorner = deriveCorner;', ctx);
+    return ctx.deriveCorner;
+  })();
+
+  const CASES = [
+    { name: '하부 1970/650', lineW: 1970, adjTopD: 650, blindLineTopD: 650, isUpper: false },
+    { name: '하부 2400/600', lineW: 2400, adjTopD: 600, blindLineTopD: 600, isUpper: false },
+    { name: '하부 1500/700', lineW: 1500, adjTopD: 700, blindLineTopD: 700, isUpper: false },
+    { name: '상부 1800/320', lineW: 1800, adjTopD: 320, blindLineTopD: 320, isUpper: true },
+  ];
+
+  test.each(CASES)('$name', (c) => {
+    const old = legacy({
+      lineW: c.lineW, adjTopD: c.adjTopD, blindLineTopD: c.blindLineTopD, isUpper: c.isUpper,
+    });
+    const now = engine.deriveCornerArea({
+      ownerW: c.lineW, adjD: c.adjTopD, ownerD: c.blindLineTopD, isUpper: c.isUpper, epW: 20,
+    });
+    expect(now.blindZoneW).toBe(old.blindZoneW);
+    expect(now.doorW).toBe(old.doorW);
+    expect(now.nDoors).toBe(old.nDoors);
+    expect(now.blindW).toBe(old.blindW);
+    expect(now.adjStartOffset).toBe(old.adjStartOffset);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 3. 페이지 전체 — ㄱ자를 실제로 부팅해 자동계산한다
+// ─────────────────────────────────────────────────────────────
+const LOWER_D = 650;
+
+/**
+ * ㄱ자 배치. 가로 다리는 회전 0, 세로 다리는 회전 90 —
+ * 배치 단계가 주벽면을 0 으로 두고 꺾여 나가는 쪽에 회전을 주는 규약 그대로다.
+ *
+ * @param {boolean} trimmed 세로 다리를 가로 다리에 맞춰 잘라 두었는가
+ */
+function lShapeLayout(trimmed) {
+  const modules = [
+    // 가로 다리 — 벽을 따라 X 로 뻗는다
+    { section: 'lower', x: 0, y: 0, w: 3600, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+  ];
+  // 세로 다리 — 회전 90. 저장되는 것은 회전 **전** 좌표다 (W12-36).
+  // 트리밍하면 가로 다리 깊이만큼 짧아지고 그만큼 밀려난다.
+  const legW = trimmed ? 1970 - LOWER_D : 1970;
+  const cy = trimmed ? LOWER_D + legW / 2 : legW / 2;
+  modules.push({
+    section: 'lower',
+    x: LOWER_D / 2 - legW / 2, y: cy - LOWER_D / 2,
+    w: legW, h: LOWER_D, moduleH: 870, rotation: 90, finishings: [],
+  });
+  return { version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null, modules };
+}
+
+function boot(layout) {
+  const key = 'dadam_layout_v1::d1:1';
+  const p = bootPlanner('mockup-structure.html', {
+    search: '?design=d1&item=1',
+    storage: { [key]: JSON.stringify(layout) },
+  });
+  if (p.errors.length) throw new Error('부팅 실패: ' + p.errors.map((e) => e.message).join(' | '));
+  return p;
+}
+
+/** 자동계산 후의 배치 공간별 모듈 목록 */
+function summarize(p) {
+  const areas = p.g('areas') || [];
+  const modules = p.g('modules') || [];
+  return areas.filter((a) => !a.isFinishing).map((a) => ({
+    id: a.id,
+    W: a.W,
+    rotation: a.rotation || 0,
+    mods: modules.filter((m) => m.areaId === a.id)
+      .map((m) => ({ id: m.id, W: m.W, x: m.x, isFixed: !!m.isFixed, blind: m.blind || null })),
+  }));
+}
+
+describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
+  test('코너 쌍을 하나 찾는다', () => {
+    const p = boot(lShapeLayout(false));
+    const pairs = p.g('cornerPairs')();
+    expect(pairs.length).toBe(1);
+    // 꺾여 나간(회전한) 다리가 멍장 주인이다
+    expect(pairs[0].owner.rotation).toBe(90);
+    expect(pairs[0].adj.rotation).toBe(0);
+  });
+
+  test('자동계산이 멍장 하나를 세운다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const blind = (p.g('modules') || []).filter((m) => m.blind);
+    expect(blind.length).toBe(1);
+    expect(blind[0].isFixed).toBe(true);
+    expect(blind[0].W).toBe(blind[0].blind.zoneW + blind[0].blind.doorW);
+  });
+
+  test('멍장 정면은 먹장 + 도어 두 칸이다 (도어 폭이 카카스 폭이 아니다)', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const blind = (p.g('modules') || []).find((m) => m.blind);
+    const s = (p.g('structures') || {})[blind.id];
+    expect(s.verticalCount).toBe(2);
+    expect(s.areaTypes.slice().sort()).toEqual(['blank', 'door']);
+    // 도어 칸은 doorW, 먹장 칸은 멍 — 합이 카카스 폭
+    expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(blind.W);
+    expect(s.areaWidths).toContain(blind.blind.doorW);
+    expect(blind.blind.doorW).toBeLessThan(blind.W);
+  });
+
+  test('원장이 맞는다 — 두 배치 공간 모두 ±1', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const pairs = p.g('cornerPairs')();
+    const ledger = p.g('cornerLedger');
+    [pairs[0].owner.id, pairs[0].adj.id].forEach((id) => {
+      const L = ledger(id);
+      expect(L).not.toBeNull();
+      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+    });
+  });
+
+  test('인접 다리는 코너에서 밀려 시작한다 (§3.7)', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const pairs = p.g('cornerPairs')();
+    const off = p.g('adjCornerOffsetOf')(pairs[0].adj.id);
+    expect(off.offset).toBe(LOWER_D - 10 + 60);   // 700
+    const adjMods = (p.g('modules') || []).filter((m) => m.areaId === pairs[0].adj.id);
+    const first = adjMods.slice().sort((a, b) => a.x - b.x)[0];
+    const adjArea = pairs[0].adj;
+    const startGap = first.x - (adjArea.x || 0);
+    const endGap = ((adjArea.x || 0) + adjArea.W) - (first.x + adjMods.reduce((s, m) => s + m.W, 0));
+    // 어느 쪽 끝이 코너든, 밀려난 거리가 한쪽에 통째로 남아 있어야 한다
+    expect(Math.max(startGap, endGap)).toBeCloseTo(off.offset, 0);
+  });
+
+  test('멍장 라인의 도어 폭이 라인 전체에 하나로 묶인다 (§3.4)', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const pairs = p.g('cornerPairs')();
+    const all = p.g('modules') || [];
+    const blind = all.find((m) => m.blind);
+    const doorW = blind.blind.doorW;
+    const storage = all
+      .filter((m) => m.areaId === pairs[0].owner.id && !m.blind && !m.isFinishing)
+      .sort((a, b) => a.x - b.x);
+
+    expect(storage.length).toBeGreaterThan(0);
+    // 마지막을 뺀 모듈은 도어 폭의 **정확한 배수**다 — 폭이 아니라 도어 장수를 나눴다
+    storage.slice(0, -1).forEach((m) => expect(m.W % doorW).toBe(0));
+    // 잔여는 마지막 하나만 흡수한다 (도어 한 장보다 작다)
+    expect(storage[storage.length - 1].W % doorW).toBeLessThan(doorW);
+    // 합은 언제나 배치 공간 폭 — 멍장 + 수납 + 코너 벽 여유 50
+    const sum = storage.reduce((s, m) => s + m.W, 0) + blind.W + 50;
+    expect(sum).toBe(pairs[0].owner.W);
+  });
+
+  test('트리밍한 ㄱ자와 안 한 ㄱ자가 같은 멍장을 낸다', () => {
+    const a = boot(lShapeLayout(false));
+    a.g('autoCalcAllAreas')();
+    const b = boot(lShapeLayout(true));
+    b.g('autoCalcAllAreas')();
+    const pick = (p) => {
+      const m = (p.g('modules') || []).find((x) => x.blind);
+      return m ? { zoneW: m.blind.zoneW, doorW: m.blind.doorW } : null;
+    };
+    expect(pick(a)).not.toBeNull();
+    expect(pick(b)).not.toBeNull();
+    expect(pick(b).zoneW).toBe(pick(a).zoneW);
+  });
+
+  test('두 번 돌려도 멍장이 하나다 (멱등)', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const first = summarize(p);
+    p.g('autoCalcAllAreas')();
+    expect((p.g('modules') || []).filter((m) => m.blind).length).toBe(1);
+    expect(summarize(p)).toEqual(first);
+  });
+});
+
+describe('코너가 없으면 아무 일도 하지 않는다', () => {
+  const straight = {
+    version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
+    modules: [
+      { section: 'lower', x: 0, y: 0, w: 2400, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+      { section: 'upper', x: 0, y: 1000, w: 2400, h: 320, moduleH: 800, rotation: 0, finishings: [] },
+    ],
+  };
+
+  test('ㅡ자에서는 코너 쌍이 없다', () => {
+    expect(boot(straight).g('cornerPairs')().length).toBe(0);
+  });
+
+  test('멍장이 생기지 않는다', () => {
+    const p = boot(straight);
+    p.g('autoCalcAllAreas')();
+    expect((p.g('modules') || []).filter((m) => m.blind).length).toBe(0);
+  });
+
+  test('하부 다리와 상부 다리는 직각이어도 코너가 아니다', () => {
+    // 단이 다르면 (바닥 ↔ 천장 매달림) 멍 공식이 다르다 — 쌍으로 묶지 않는다
+    const mixed = {
+      version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
+      modules: [
+        { section: 'lower', x: 0, y: 0, w: 2400, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+        { section: 'upper', x: 0, y: 0, w: 1800, h: 320, moduleH: 800, rotation: 90, finishings: [] },
+      ],
+    };
+    expect(boot(mixed).g('cornerPairs')().length).toBe(0);
+  });
+});
