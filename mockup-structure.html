@@ -3796,18 +3796,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       .reduce((sum, m) => sum + (m.W || 0), 0);
   }
 
-  /** 이 배치 공간이 주인인 코너의 파생값 (없으면 null) */
-  function cornerPlanFor(areaId, pairs) {
+  /**
+   * 이 배치 공간이 주인인 코너들의 파생값 (없으면 null).
+   *
+   * ㄷ자 가운데 다리는 **양끝이 모두 코너**다. 그때는 멍이 둘 빠지고 벽 여유도
+   * 둘이며, 도어 폭은 여전히 라인 하나에 하나다 (§3.4).
+   */
+  function cornerPlansFor(areaId, pairs) {
     const area = areaById(areaId);
     if (!area) return null;
-    const pair = (pairs || cornerPairs()).find((c) => c.owner.id === areaId);
-    if (!pair) return null;
+    const owned = (pairs || cornerPairs()).filter((c) => c.owner.id === areaId);
+    if (!owned.length) return null;
     const plan = deriveCornerArea({
-      ownerW: area.W, ownerD: area.D, adjD: pair.adj.D,
+      ownerW: area.W, ownerD: area.D,
+      adjDs: owned.map((c) => c.adj.D),
       isUpper: areaTier(area) === 'hung',
       epW: finishWidthOf(areaId),
     });
-    return { plan, pair, atStart: cornerAtStartOf(area, pair.adj) };
+    const ends = owned.map((c) => cornerAtStartOf(area, c.adj));
+    return { plan, owned, ends };
   }
 
   /**
@@ -3817,15 +3824,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function adjCornerOffsetOf(areaId, pairs) {
     const area = areaById(areaId);
     if (!area) return null;
-    const pair = (pairs || cornerPairs()).find((c) => c.adj.id === areaId);
+    const ps = pairs || cornerPairs();
+    const pair = ps.find((c) => c.adj.id === areaId);
     if (!pair) return null;
-    const plan = deriveCornerArea({
-      ownerW: pair.owner.W, ownerD: pair.owner.D, adjD: area.D,
-      isUpper: areaTier(area) === 'hung',
-      epW: finishWidthOf(pair.owner.id),
-    });
-    if (!plan.ok) return null;
-    return { offset: plan.adjStartOffset, atStart: cornerAtStartOf(area, pair.owner) };
+    const owner = cornerPlansFor(pair.owner.id, ps);
+    if (!owner || !owner.plan.ok) return null;
+    return { offset: owner.plan.adjStartOffset, atStart: cornerAtStartOf(area, pair.owner) };
   }
 
   /** 파생 멍장을 지운다 (코너가 없어졌을 때) */
@@ -3838,79 +3842,132 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
   }
 
+  /** 이 배치 공간에 남아 있는 파생 멍장 중 지금 코너에 없는 것을 치운다 */
+  function dropStaleCornerModules(areaId, keepIds) {
+    modules
+      .filter((m) => m.areaId === areaId && m.isDerived && m.blind && keepIds.indexOf(m.id) < 0)
+      .map((m) => m.id)
+      .forEach(dropCornerModule);
+  }
+
   /**
    * 멍장을 세우거나 치수를 갱신한다. **자동계산보다 먼저** 돈다.
    *
    * `isFixed` 라서 `autoCalcArea` 의 `kept` 에 그대로 걸린다 — 분배 루프는
    * 고칠 필요가 없다. 사람이 폭을 손으로 고치면 `isDerived` 가 풀리고, 그
    * 뒤로는 파생이 그 값을 덮지 않는다.
+   *
+   * 코너가 둘이면 멍장도 둘이다 (ㄷ자 가운데 다리). id 에 상대 공간을 넣어
+   * 코너마다 하나씩 결정적으로 매긴다.
    */
-  function ensureCornerModule(areaId, pairs) {
+  function ensureCornerModules(areaId, pairs) {
     const area = areaById(areaId);
     if (!area) return null;
-    const id = CORNER_ID_PREFIX + areaId;
-    const found = cornerPlanFor(areaId, pairs);
-    const existing = moduleById(id);
+    const found = cornerPlansFor(areaId, pairs);
 
-    if (!found) { if (existing && existing.isDerived) dropCornerModule(id); return null; }
+    if (!found) { dropStaleCornerModules(areaId, []); return null; }
     if (!found.plan.ok) {
-      if (existing && existing.isDerived) dropCornerModule(id);
+      dropStaleCornerModules(areaId, []);
       showToast('⚠ 코너 폭 부족 — 이 배치 공간이 '
         + Math.ceil(found.plan.minOwnerW) + 'mm 이상이어야 멍장이 들어갑니다');
       return null;
     }
-
-    const { plan, atStart } = found;
-    // 사람이 손댄 멍장은 덮지 않는다 — 폭만 그대로 두고 자리 계산에는 참여시킨다
-    if (existing && !existing.isDerived) return { module: existing, plan, atStart };
+    // 두 코너가 같은 끝으로 잡히면 배치가 잘못된 것이다. 겹쳐 세우지 않는다.
+    if (found.ends.length > 1 && found.ends[0] === found.ends[1]) {
+      dropStaleCornerModules(areaId, []);
+      showToast('⚠ 코너 두 곳이 같은 끝에 잡혔습니다 — 배치 단계에서 확인해 주세요');
+      return null;
+    }
 
     const gap = MASTER_RULES.CORNER_WALL_GAP;
-    const x = atStart
-      ? (area.x || 0) + gap
-      : (area.x || 0) + (area.W || 0) - gap - plan.blindW;
+    const items = [];
+    found.owned.forEach((c, i) => {
+      const id = CORNER_ID_PREFIX + areaId + '--' + c.adj.id;
+      const atStart = found.ends[i];
+      const W = found.plan.blindWs[i];
+      const zoneW = found.plan.blindZoneWs[i];
+      const x = atStart
+        ? (area.x || 0) + gap
+        : (area.x || 0) + (area.W || 0) - gap - W;
 
-    let m = existing;
-    if (!m) {
-      m = addModuleToArea(areaId, { id, section: area.section, W: plan.blindW, x });
-      if (!m) return null;
-    } else {
-      m.W = plan.blindW;
-      m.x = x;
-    }
-    m.isFixed = true;      // 자동계산이 지우거나 폭을 뺏지 않는다
-    m.isDerived = true;    // 치수는 파생값 — 사람이 고치면 해제된다
-    m.blind = { zoneW: plan.blindZoneW, doorW: plan.doorW, adjAreaId: found.pair.adj.id };
+      let m = moduleById(id);
+      // 사람이 손댄 멍장은 덮지 않는다 — 폭만 그대로 두고 자리 계산에는 참여시킨다
+      if (m && !m.isDerived) { items.push({ module: m, atStart }); return; }
+      if (!m) {
+        m = addModuleToArea(areaId, { id, section: area.section, W, x });
+        if (!m) return;
+      } else {
+        m.W = W;
+        m.x = x;
+      }
+      m.isFixed = true;      // 자동계산이 지우거나 폭을 뺏지 않는다
+      m.isDerived = true;    // 치수는 파생값 — 사람이 고치면 해제된다
+      m.blind = { zoneW, doorW: found.plan.doorW, adjAreaId: c.adj.id };
 
-    // 정면은 두 칸이다 — 가려진 쪽은 먹장(2.7T MDF), 열리는 쪽만 도어.
-    // 도어 폭을 카카스 폭(1100)으로 기록하면 BOM 이 700mm 큰 도어를 발주한다.
-    const s = getStructure(m.id);
-    s.verticalCount = 2;
-    s.areaTypes      = atStart ? ['blank', 'door'] : ['door', 'blank'];
-    s.areaWidths     = atStart ? [plan.blindZoneW, plan.doorW] : [plan.doorW, plan.blindZoneW];
-    s.areaDirections = ['left', 'left'];
-    s.areaIs2D       = [false, false];
-    return { module: m, plan, atStart };
+      // 정면은 두 칸이다 — 가려진 쪽은 먹장(2.7T MDF), 열리는 쪽만 도어.
+      // 도어 폭을 카카스 폭으로 기록하면 BOM 이 멍만큼 큰 도어를 발주한다.
+      const s = getStructure(m.id);
+      s.verticalCount = 2;
+      s.areaTypes      = atStart ? ['blank', 'door'] : ['door', 'blank'];
+      s.areaWidths     = atStart ? [zoneW, found.plan.doorW] : [found.plan.doorW, zoneW];
+      s.areaDirections = ['left', 'left'];
+      s.areaIs2D       = [false, false];
+      items.push({ module: m, atStart });
+    });
+    dropStaleCornerModules(areaId, items.map((it) => it.module.id));
+    return items.length ? { plan: found.plan, items } : null;
   }
 
   /**
    * 원장 (corner.md §3.4 · 계획 §07).
    *
-   *   멍장 공간   Σ(모듈 W) + 벽 여유 50            === area.W
-   *   인접 공간   Σ(모듈 W) + 밀려난 거리           === area.W
+   *   멍장 공간   Σ(모듈 W) + 벽 여유 50 × 코너 수   === area.W
+   *   인접 공간   Σ(모듈 W) + 밀려난 거리            === area.W
    *
-   * 멍장 계산은 조용히 틀린다 — 화면에는 멀쩡한 장이 서 있고 합만 안 맞는다.
+   * 합만 보면 **모자란다.** 멍장이 하나 빠져도 그 폭을 수납이 가져가 합은
+   * 그대로 맞는다 (ㄷ자에서 실제로 그랬다). 그래서 코너 수와 멍장 수도 센다.
    */
   function cornerLedger(areaId, pairs) {
     const area = areaById(areaId);
     if (!area) return null;
     const ps = pairs || cornerPairs();
-    const isOwner = ps.some((c) => c.owner.id === areaId);
+    const owned = ps.filter((c) => c.owner.id === areaId);
     const adj = adjCornerOffsetOf(areaId, ps);
-    if (!isOwner && !adj) return null;
-    const sum = modules.filter((m) => m.areaId === areaId)
-      .reduce((s, m) => s + (m.W || 0), 0);
-    const reserved = (isOwner ? MASTER_RULES.CORNER_WALL_GAP : 0) + (adj ? adj.offset : 0);
-    return { areaId, areaW: area.W, sum, reserved, diff: (area.W || 0) - reserved - sum };
+    if (!owned.length && !adj) return null;
+    const mine = modules.filter((m) => m.areaId === areaId);
+    const sum = mine.reduce((s, m) => s + (m.W || 0), 0);
+    const blinds = mine.filter((m) => m.blind).length;
+    const reserved = MASTER_RULES.CORNER_WALL_GAP * owned.length + (adj ? adj.offset : 0);
+    return {
+      areaId, areaW: area.W, sum, reserved,
+      diff: (area.W || 0) - reserved - sum,
+      corners: owned.length, blinds, missing: owned.length - blinds,
+    };
+  }
+
+  /**
+   * 서로 다른 배치 공간의 모듈이 평면에서 겹치는가.
+   *
+   * 원장은 한 공간 **안**의 합만 본다. 코너가 제자리를 못 잡아 옆 공간을
+   * 파고드는 것은 합으로는 안 잡힌다 — 그건 평면에서만 보인다.
+   */
+  function crossAreaOverlaps(tol) {
+    const t = Number.isFinite(tol) ? tol : 1;
+    const boxes = modules.filter((m) => !m.isFinishing)
+      .map((m) => ({ m: m, b: modulePlaneBox(m) }));
+    const hits = [];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (boxes[i].m.areaId === boxes[j].m.areaId) continue;
+        const A = boxes[i].b, B = boxes[j].b;
+        const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
+        const oy = Math.min(A.y + A.d, B.y + B.d) - Math.max(A.y, B.y);
+        if (ox > t && oy > t) {
+          hits.push({ a: boxes[i].m.id, b: boxes[j].m.id, ox: Math.round(ox), oy: Math.round(oy) });
+        }
+      }
+    }
+    return hits;
   }
 
   function autoCalcArea(areaId) {
@@ -3923,7 +3980,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     // W12-49: 코너가 있으면 멍장을 **먼저** 세운다. isFixed 라 아래 kept 에 걸린다.
     const pairs = cornerPairs();
-    const corner = ensureCornerModule(areaId, pairs);
+    const corner = ensureCornerModules(areaId, pairs);
     const adjCorner = adjCornerOffsetOf(areaId, pairs);
 
     // 마감재는 자동계산이 만들어 내는 것이 아니라 사람이 놓은 것이다.
@@ -3931,19 +3988,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const kept = modules.filter((m) => m.areaId === areaId
       && (m.isFixed || isFinishingSection(m.section)));
     // 멍장은 자리를 스스로 정한다 (코너 쪽 끝) — 나머지 고정분과 따로 센다.
-    const blind = corner ? corner.module : null;
-    const keptW = kept.reduce((sum, m) => sum + (m.W || 0), 0) - (blind ? (blind.W || 0) : 0);
-    // 코너가 먹는 자리 — 멍장 쪽은 벽 여유 50 + 멍장, 인접 쪽은 밀려나는 거리
-    const reserved = (blind ? MASTER_RULES.CORNER_WALL_GAP + (blind.W || 0) : 0)
+    // ㄷ자 가운데 다리는 양끝이 코너라 멍장이 둘이다.
+    const blinds = corner ? corner.items : [];
+    const blindSum = blinds.reduce((sum, b) => sum + (b.module.W || 0), 0);
+    const keptW = kept.reduce((sum, m) => sum + (m.W || 0), 0) - blindSum;
+    // 코너가 먹는 자리 — 멍장 쪽은 (벽 여유 50 + 멍장) × 코너 수, 인접 쪽은 밀려나는 거리
+    const reserved = MASTER_RULES.CORNER_WALL_GAP * blinds.length + blindSum
       + (adjCorner ? adjCorner.offset : 0);
     const room = area.W - keptW - reserved;
     if (room < MASTER_RULES.DOOR_W_MIN) {
-      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — 자동계산할 자리가 없습니다`);
-      return 0;
+      // 멍장은 이미 섰다 — 수납이 더 안 들어갈 뿐이다. 그 사실만 알린다.
+      showToast(blinds.length
+        ? `멍장 ${blinds.length}개를 세웠습니다 — 남은 폭 ${Math.max(0, Math.round(room))}mm 로 수납은 못 넣습니다`
+        : `⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — 자동계산할 자리가 없습니다`);
+      return blinds.length;
     }
     // 멍장이 있는 공간은 도어 폭이 라인 전체에 묶여 있다 (corner.md §3.4) —
     // 폭을 보고 도어 수를 정하는 일반 분배로는 그 조건을 지킬 수 없다.
-    const dist = blind
+    const dist = blinds.length
       ? distributeByDoorW(room, corner.plan.doorW)
       : distributeModules(room);
     if (!dist.modules.length) { showToast('⚠ 자동계산이 배치를 찾지 못했습니다'); return 0; }
@@ -3972,8 +4034,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 고정 모듈 뒤부터 왼쪽→오른쪽으로 채운다.
     // 코너 쪽 끝은 멍장(또는 인접 공간이 밀려난 거리)이 이미 쓰고 있다 —
     // 그것이 시작 쪽이면 그만큼 건너뛰고, 끝 쪽이면 건너뛸 것이 없다.
+    const headBlind = blinds.find((b) => b.atStart);
     let x = (area.x || 0) + keptW
-      + (blind && corner.atStart ? MASTER_RULES.CORNER_WALL_GAP + (blind.W || 0) : 0)
+      + (headBlind ? MASTER_RULES.CORNER_WALL_GAP + (headBlind.module.W || 0) : 0)
       + (adjCorner && adjCorner.atStart ? adjCorner.offset : 0);
     dist.modules.forEach((d, i) => {
       const m = addModuleToArea(areaId, { section: area.section, W: widths[i], x });
@@ -4006,7 +4069,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-49: 코너를 **먼저** 확정한다. 두 공간의 예산이 여기서 정해지므로,
     // 분배가 먼저 돌면 인접 공간이 코너 자리를 채워 버린다.
     const pairs = cornerPairs();
-    pairs.forEach((c) => ensureCornerModule(c.owner.id, pairs));
+    // 같은 공간이 두 코너의 주인일 수 있다 (ㄷ자) — 공간 단위로 한 번만 부른다.
+    pairs.map((c) => c.owner.id).filter((id, i, a) => a.indexOf(id) === i)
+      .forEach((id) => ensureCornerModules(id, pairs));
     let made = 0, done = 0;
     targets.forEach((a) => {
       const n = autoCalcArea(a.id);
@@ -4019,10 +4084,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
     // 원장이 안 맞으면 **조용히** 틀린 것이다 — 화면에는 멀쩡한 장이 서 있고
     // 합만 어긋난다. 자동계산이 끝난 자리에서 한 번 센다 (계획 §07).
-    cornerPairs().forEach((c) => [c.owner.id, c.adj.id].forEach((id) => {
+    const after = cornerPairs();
+    after.forEach((c) => [c.owner.id, c.adj.id].forEach((id) => {
       const L = cornerLedger(id);
-      if (L && Math.abs(L.diff) > 1) console.warn('[corner] 원장 불일치', L);
+      if (L && (Math.abs(L.diff) > 1 || L.missing !== 0)) console.warn('[corner] 원장 불일치', L);
     }));
+    // 합이 맞아도 옆 공간을 파고들 수 있다 — 그건 평면에서만 보인다.
+    if (after.length) {
+      const hits = crossAreaOverlaps();
+      if (hits.length) console.warn('[corner] 배치 공간끼리 겹침', hits);
+    }
     if (!made) showToast('⚠ 자동계산할 자리가 없습니다');
     else showToast(`⚡ 전체 자동계산 — 배치 ${done}곳 · 모듈 ${made}개`);
     return made;

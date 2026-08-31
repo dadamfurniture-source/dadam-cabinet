@@ -213,29 +213,38 @@ function deriveCornerArea(p) {
   const ownerW = Number(p.ownerW) || 0;
   const warnings = [];
 
+  // 한 배치 공간이 **두 코너의 주인**일 수 있다 (ㄷ자 가운데 다리). 그때는 양끝에서
+  // 각각 멍이 빠지고 벽 여유도 둘이다. 코너가 하나면 배열 길이가 1일 뿐 식은 같다.
+  const adjDs = Array.isArray(p.adjDs) ? p.adjDs : [Number(p.adjD) || 0];
+  const n = Math.max(1, adjDs.length);
+
   // ① 멍 (blind zone) — §3.3 / §3.6
-  const blindZoneW = p.isUpper
+  const blindZoneWs = adjDs.map((d) => p.isUpper
     ? R.CORNER_UPPER_MODULE + molding
-    : (Number(p.adjD) || 0) - R.CORNER_DRIP + molding;
+    : (Number(d) || 0) - R.CORNER_DRIP + molding);
+  const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
-  // ② 도어 균등 분배 — §3.4 라인 원장
-  const doorAvail = ownerW - epW - R.CORNER_WALL_GAP - blindZoneW;
+  // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.
+  const doorAvail = ownerW - epW - R.CORNER_WALL_GAP * n - zoneSum;
 
-  // 멍장 하나에 최소 도어 한 장까지 들어가는 최소 폭. 거부할 때 이 값을 안내한다.
-  const minOwnerW = epW + R.CORNER_WALL_GAP + blindZoneW + minDoorW;
+  // 멍장마다 최소 도어 한 장씩 들어가는 최소 폭. 거부할 때 이 값을 안내한다.
+  const minOwnerW = epW + R.CORNER_WALL_GAP * n + zoneSum + minDoorW * n;
 
   // 멍이 라인을 다 먹었다 — 멍장을 세울 자리가 없다.
   // 반쯤 세우면 도어 없는 장이 서고 원장도 안 맞는다. 아예 만들지 않는다.
   if (doorAvail <= 0) {
-    return { ok: false, reason: 'no-room', blindZoneW, doorAvail, minOwnerW, warnings };
+    return { ok: false, reason: 'no-room', corners: n, blindZoneWs, blindZoneW: blindZoneWs[0],
+             doorAvail, minOwnerW, warnings };
   }
 
   let nDoors, doorW;
-  if (doorAvail < minDoorW) {
-    // 도어 1장도 최소폭 미달 — 경고를 남기고 가용폭 전체를 멍장 도어로 (레거시와 동일)
-    nDoors = 1;
-    doorW = Math.max(0, Math.floor(doorAvail));
-    warnings.push('도어 가용폭 ' + Math.round(doorAvail) + 'mm < 최소 ' + minDoorW + 'mm');
+  if (doorAvail < minDoorW * n) {
+    // 코너마다 도어 한 장씩도 최소폭에 못 미친다 — 경고를 남기고 균등하게 쪼갠다
+    // (레거시는 코너가 하나뿐이라 nDoors=1 이었다. n=1 이면 같은 값이다.)
+    nDoors = n;
+    doorW = Math.max(0, Math.floor(doorAvail / n));
+    warnings.push('도어 가용폭 ' + Math.round(doorAvail) + 'mm < 최소 '
+      + minDoorW + 'mm × 코너 ' + n);
   } else {
     // 최소폭을 만족하는 **최대** 도어 수 (1200 / 350 → 3장 → 400)
     nDoors = Math.floor(doorAvail / minDoorW);
@@ -243,20 +252,25 @@ function deriveCornerArea(p) {
   }
   const remainder = Math.max(0, doorAvail - doorW * nDoors);
 
-  // ③ 멍장 W = 멍 + 도어 1장 (§3.4)
-  const blindW = blindZoneW + doorW;
+  // ③ 멍장 W = 멍 + 도어 1장 (§3.4). 코너마다 도어를 한 장씩 갖는다.
+  const blindWs = blindZoneWs.map((z) => z + doorW);
 
-  // ④ 인접 공간이 코너에서 밀려 시작하는 거리 — §3.7
+  // ④ 인접 공간이 코너에서 밀려 시작하는 거리 — §3.7.
+  //    멍장 라인의 깊이만 보므로 코너가 둘이어도 값은 하나다.
   const adjStartOffset = p.isUpper
     ? R.CORNER_UPPER_MODULE + molding
     : (Number(p.ownerD) || 0) - R.CORNER_DRIP + molding;
 
   return {
     ok: true,
-    blindZoneW, doorAvail, nDoors, doorW, remainder, blindW,
+    corners: n,
+    blindZoneWs, blindWs,
+    // 코너가 하나인 쪽에서 읽기 쉽도록 첫 값을 그대로도 낸다
+    blindZoneW: blindZoneWs[0], blindW: blindWs[0],
+    doorAvail, nDoors, doorW, remainder,
     adjStartOffset, epW, minOwnerW,
-    // 멍장을 뺀 나머지 수납이 나눠 가질 폭
-    restBudget: doorAvail - doorW,
+    // 멍장들을 뺀 나머지 수납이 나눠 가질 폭
+    restBudget: doorAvail - doorW * n,
     warnings,
   };
 }
