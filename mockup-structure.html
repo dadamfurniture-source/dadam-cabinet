@@ -3950,15 +3950,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *
    * 원장은 한 공간 **안**의 합만 본다. 코너가 제자리를 못 잡아 옆 공간을
    * 파고드는 것은 합으로는 안 잡힌다 — 그건 평면에서만 보인다.
+   *
+   * **단이 다르면 세지 않는다.** 상부장은 하부장 **위에** 매달리므로 평면에서
+   * 같은 자리를 쓰는 것이 정상이다. 단을 안 가르면 실제 주방에서 상·하부가
+   * 통째로 겹침으로 신고된다 (하부 ㄱ자 + 상부 ㄱ자에서 9건 나왔다).
    */
   function crossAreaOverlaps(tol) {
     const t = Number.isFinite(tol) ? tol : 1;
     const boxes = modules.filter((m) => !m.isFinishing)
-      .map((m) => ({ m: m, b: modulePlaneBox(m) }));
+      .map((m) => ({ m: m, tier: getBaseY(m.section, 100) !== 0 ? 'hung' : 'floor', b: modulePlaneBox(m) }));
     const hits = [];
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         if (boxes[i].m.areaId === boxes[j].m.areaId) continue;
+        if (boxes[i].tier !== boxes[j].tier) continue;
         const A = boxes[i].b, B = boxes[j].b;
         const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
         const oy = Math.min(A.y + A.d, B.y + B.d) - Math.max(A.y, B.y);
