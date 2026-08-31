@@ -278,6 +278,167 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────
+// 4. ㄷ자 — 코너 둘, 가운데 다리가 양쪽 주인
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * ㄷ자. 가로(위) · 세로(왼쪽) · 가로(아래) — 세로만 회전 90.
+ * 가운데(세로) 다리는 **양끝이 모두 코너**라 멍장을 둘 갖는다.
+ */
+function uShapeLayout(legW) {
+  return {
+    version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
+    modules: [
+      { section: 'lower', x: 0, y: 0, w: 3600, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+      { section: 'lower', x: LOWER_D / 2 - legW / 2, y: legW / 2 - LOWER_D / 2,
+        w: legW, h: LOWER_D, moduleH: 870, rotation: 90, finishings: [] },
+      { section: 'lower', x: 0, y: legW - LOWER_D, w: 3000, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+    ],
+  };
+}
+
+describe('deriveCornerArea — 코너 둘', () => {
+  test('양끝에서 멍과 벽 여유가 각각 빠진다', () => {
+    const r = engine.deriveCornerArea({ ownerW: 2800, ownerD: 650, adjDs: [650, 650], epW: 0 });
+    expect(r.ok).toBe(true);
+    expect(r.corners).toBe(2);
+    expect(r.blindZoneWs).toEqual([700, 700]);
+    // 2800 − 여유 50×2 − 멍 700×2 = 1300 → 3장 → 433
+    expect(r.doorW).toBe(433);
+    expect(r.blindWs).toEqual([1133, 1133]);
+    // 원장: 50 + 멍장 + 수납 + 멍장 + 50
+    expect(50 + r.blindWs[0] + r.restBudget + r.blindWs[1] + 50).toBe(2800);
+  });
+
+  test('멍 둘이 라인을 다 먹으면 만들지 않는다', () => {
+    const r = engine.deriveCornerArea({ ownerW: 1500, ownerD: 650, adjDs: [650, 650], epW: 0 });
+    expect(r.ok).toBe(false);
+    expect(r.minOwnerW).toBe(50 * 2 + 700 * 2 + 350 * 2);   // 2200
+  });
+
+  test('코너가 하나면 예전과 같은 값이다 (회귀)', () => {
+    const one = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20 });
+    const arr = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjDs: [650], epW: 20 });
+    expect(arr.blindWs).toEqual([one.blindW]);
+    expect(arr.doorW).toBe(one.doorW);
+    expect(arr.restBudget).toBe(one.restBudget);
+  });
+});
+
+describe('ㄷ자를 그리면 멍장이 둘 선다', () => {
+  test('코너 쌍이 둘이고, 가운데 다리가 둘 다의 주인이다', () => {
+    const p = boot(uShapeLayout(2800));
+    const pairs = p.g('cornerPairs')();
+    expect(pairs.length).toBe(2);
+    const owners = pairs.map((c) => c.owner.id);
+    expect(new Set(owners).size).toBe(1);              // 주인이 하나로 모인다
+    expect(pairs.every((c) => c.owner.rotation === 90)).toBe(true);
+  });
+
+  test('멍장이 둘이고 양끝에 하나씩 앉는다', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const blinds = (p.g('modules') || []).filter((m) => m.blind);
+    expect(blinds.length).toBe(2);
+    const owner = p.g('cornerPairs')()[0].owner;
+    const xs = blinds.map((m) => m.x).sort((a, b) => a - b);
+    // 하나는 시작에서 벽 여유 50 뒤, 하나는 끝에서 멍장 폭 + 50 앞
+    expect(xs[0]).toBe(owner.x + 50);
+    expect(xs[1] + blinds[1].W).toBe(owner.x + owner.W - 50);
+  });
+
+  test('두 멍장은 상대 공간이 다르고 도어 폭은 하나로 묶인다', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const blinds = (p.g('modules') || []).filter((m) => m.blind);
+    expect(new Set(blinds.map((m) => m.blind.adjAreaId)).size).toBe(2);
+    expect(blinds[0].blind.doorW).toBe(blinds[1].blind.doorW);   // §3.4
+  });
+
+  test('원장이 셋 다 맞고 빠진 멍장이 없다', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const ledgers = (p.g('areas') || []).filter((a) => !a.isFinishing)
+      .map((a) => p.g('cornerLedger')(a.id)).filter(Boolean);
+    expect(ledgers.length).toBe(3);
+    ledgers.forEach((L) => {
+      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.missing).toBe(0);
+    });
+    // 가운데 다리는 코너 둘 · 멍장 둘 · 벽 여유 둘
+    const mid = ledgers.find((L) => L.corners === 2);
+    expect(mid).toBeTruthy();
+    expect(mid.blinds).toBe(2);
+    expect(mid.reserved).toBe(100);
+  });
+
+  test('바깥 두 다리는 각각 코너에서 밀려 시작한다', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const pairs = p.g('cornerPairs')();
+    pairs.forEach((c) => {
+      const off = p.g('adjCornerOffsetOf')(c.adj.id);
+      expect(off.offset).toBe(LOWER_D - 10 + 60);       // 700
+    });
+  });
+
+  test('배치 공간끼리 겹치지 않는다', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    expect(p.g('crossAreaOverlaps')()).toEqual([]);
+  });
+
+  test('두 번 돌려도 멍장이 둘이다 (멱등)', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const first = summarize(p);
+    p.g('autoCalcAllAreas')();
+    expect((p.g('modules') || []).filter((m) => m.blind).length).toBe(2);
+    expect(summarize(p)).toEqual(first);
+  });
+
+  test('가운데 다리가 좁으면 멍장을 세우지 않는다', () => {
+    // 멍 700 이 둘이면 벽 여유까지 2200mm 가 필요하다. 1500 은 도어가 한 장도 안 남는다.
+    const p = boot(uShapeLayout(1500));
+    expect(p.g('cornerPairs')().length).toBe(2);
+    p.g('autoCalcAllAreas')();
+    expect((p.g('modules') || []).filter((m) => m.blind).length).toBe(0);
+  });
+});
+
+describe('불변식이 헛돌지 않는다', () => {
+  test('멍장이 하나 빠지면 원장이 잡는다 — 합만으로는 못 잡는다', () => {
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const mods = p.g('modules');
+    const victim = mods.findIndex((m) => m.blind);
+    const gone = mods[victim];
+    mods.splice(victim, 1);
+    const L = p.g('cornerLedger')(gone.areaId);
+    expect(L.missing).toBe(1);          // ← 이것이 ㄷ자에서 실제로 났던 결함이다
+    expect(L.corners).toBe(2);
+    expect(L.blinds).toBe(1);
+  });
+
+  test('인접 다리를 코너까지 당기면 평면 검사가 겹침을 잡는다', () => {
+    // 코너 규칙이 없던 예전 상태를 손으로 만든다 — 멍장 자리로 파고든다.
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    expect(p.g('crossAreaOverlaps')()).toEqual([]);
+
+    const area = p.g('areaById')('area-lower-0');
+    let x = area.x;
+    (p.g('modules') || []).filter((m) => m.areaId === area.id)
+      .forEach((m) => { m.x = x; x += m.W; });
+
+    const hits = p.g('crossAreaOverlaps')();
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].ox).toBeGreaterThan(1);
+    expect(hits[0].oy).toBeGreaterThan(1);
+  });
+});
+
 describe('코너가 없으면 아무 일도 하지 않는다', () => {
   const straight = {
     version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
