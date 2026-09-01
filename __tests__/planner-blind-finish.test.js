@@ -211,6 +211,89 @@ describe('폭 계산은 하나도 안 바뀐다', () => {
   });
 });
 
+describe('상부장 코너도 같은 규칙이다', () => {
+  const UPPER_D = 320;
+  /** 상부 ㄱ자 — 가로 3600 + 세로 1800, 천장에 매달린다 */
+  function upperL() {
+    const legW = 1800, y0 = 1000;
+    return {
+      version: 1, savedAt: '2026-09-02T00:00:00.000Z', person: null,
+      modules: [
+        { section:'upper', x:0, y:y0, w:3600, h:UPPER_D, moduleH:780, rotation:0, finishings:[] },
+        { section:'upper', x:UPPER_D/2-legW/2, y:y0+legW/2-UPPER_D/2,
+          w:legW, h:UPPER_D, moduleH:780, rotation:90, finishings:[] },
+      ],
+    };
+  }
+  const bootU = () => boot(upperL());
+
+  test('멍은 물끊기 없이 320 + 60 + 15 = 395', () => {
+    const { m } = withBlind(bootU());
+    expect(m.blind.zoneW).toBe(
+      R.CORNER_UPPER_MODULE + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T);
+    expect(m.blind.zoneW).toBe(395);
+  });
+
+  test('마감재 재단은 하부와 같은 100 이다', () => {
+    const { m } = withBlind(bootU());
+    expect(m.blind.finish.partW).toBe(R.CORNER_FINISH_PART_W);
+    expect(m.blind.finish.seatW).toBe(R.CORNER_MOLDING);
+  });
+
+  test('셀도 세 칸이고 멍 안에서 자리를 뗀다', () => {
+    const { m, s } = withBlind(bootU());
+    expect(s.verticalCount).toBe(3);
+    const blind = s.areaWidths[s.areaTypes.indexOf('blind')];
+    const fin = s.areaWidths[s.areaTypes.indexOf('blindfin')];
+    expect(blind + fin).toBe(m.blind.zoneW);
+    expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(m.W);
+  });
+
+  test('라인 마감을 따라간다 — 하부와 같은 판정', () => {
+    const p = bootU();
+    const { areaId } = withBlind(p);
+    p.g('setAreaFinish')(areaId, 'left', 'ep');
+    p.g('setAreaFinish')(areaId, 'right', 'molding');
+    expect((p.g('modules') || []).find((x) => x.blind).blind.finish.section).toBe('molding');
+    p.g('setAreaFinish')(areaId, 'right', 'filler');
+    expect((p.g('modules') || []).find((x) => x.blind).blind.finish.section).toBe('filler');
+  });
+
+  test('원장이 맞고 겹치지 않는다', () => {
+    const p = bootU();
+    const { areaId } = withBlind(p);
+    p.g('setAreaFinish')(areaId, 'left', 'gap', 80);
+    p.g('autoCalcAllAreas')();
+    (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
+      const L = p.g('cornerLedger')(a.id);
+      if (!L) return;
+      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.missing).toBe(0);
+    });
+    expect(p.g('crossAreaOverlaps')()).toEqual([]);
+  });
+});
+
+describe('키큰장은 코너 대상이 아니다', () => {
+  test('스택 영역이라 코너로 잡히지 않는다 — 멍장이 서지 않는다', () => {
+    const legW = 1970, D = 650;
+    const p = boot({
+      version: 1, savedAt: '2026-09-02T00:00:00.000Z', person: null,
+      modules: [
+        { section:'tall', x:0, y:0, w:3600, h:D, moduleH:2300, rotation:0, finishings:[] },
+        { section:'tall', x:D/2-legW/2, y:legW/2-D/2, w:legW, h:D, moduleH:2300, rotation:90, finishings:[] },
+      ],
+    });
+    const areas = p.g('areas').filter((a) => !a.isFinishing);
+    areas.forEach((a) => expect(p.g('isStackedArea')(a)).toBe(true));
+    // corner.md 는 하부(§3.3)·상부(§3.6) 멍장만 정한다. 키큰장 코너 규칙은 없고,
+    // 스택은 단이 세로로 겹쳐 서므로 "라인 하나에 모듈이 나란히" 라는 전제가 깨진다.
+    expect(p.g('cornerPairs')()).toEqual([]);
+    p.g('autoCalcAllAreas')();
+    expect((p.g('modules') || []).filter((m) => m.blind)).toEqual([]);
+  });
+});
+
 describe('정면도에 마감재가 보인다', () => {
   test('멍 옆에 마감재 라벨이 그려진다', () => {
     const p = boot();

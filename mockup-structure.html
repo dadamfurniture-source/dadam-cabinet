@@ -3292,7 +3292,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function finishingSpanOf(area, section, host) {
     const areaH = (area && Number(area.H)) || (host && Number(host.H)) || 0;
     const baseY = area ? finishBaseYFor(area) : baseYOf(host);
-    if ((section === 'molding' || section === 'ep') && area) {
+    // W12-62: 비움도 몰딩과 같은 자리에 선다 — 상판 아래까지다.
+    //   폴백(영역 H)으로 떨어지면 몰딩→비움 으로 바꿀 때 표시 높이가 상판 두께만큼
+    //   튀어 오르고, 비운 자리가 상판을 침범한 것처럼 보인다.
+    if ((section === 'molding' || section === 'ep' || section === 'gap') && area) {
       const topT = heightPartOf({ section: area.section, H: areaH }, { topT: area.topT }, 'topT');
       return { H: Math.max(0, areaH - topT), baseY };
     }
