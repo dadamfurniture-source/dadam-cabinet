@@ -106,6 +106,79 @@ async function handleDelete(request, env) {
   return jsonResponse(request, env, { success: true });
 }
 
+/** 호출자가 관리자인지 확인. is_admin() 은 SECURITY DEFINER 라 사용자 토큰으로 부른다. */
+async function assertAdmin(request, env) {
+  const auth = request.headers.get('Authorization') || '';
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/is_admin`, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_ANON_KEY,
+      Authorization: auth,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+  if (!res.ok) throw new AuthError('권한을 확인할 수 없습니다');
+  const ok = await res.json();
+  if (ok !== true) throw new AuthError('관리자만 사용할 수 있습니다');
+}
+
+/**
+ * 관리자의 강제 탈퇴.
+ *
+ * 본인 탈퇴(handleDelete)와 달리 대상 id 를 받는다 — 그래서 관리자 확인이
+ * 반드시 서버에서 일어나야 한다. 화면에서 버튼을 감추는 것으로는 못 막는다.
+ */
+async function handleAdminDelete(request, env) {
+  await verifyJwt(request, env);
+  await assertAdmin(request, env);
+
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return jsonResponse(request, env, { success: false, error: '서버 설정이 필요합니다.' }, 503);
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const target = body && body.user_id;
+  if (!target || !/^[0-9a-f-]{36}$/i.test(target)) {
+    return jsonResponse(request, env, { success: false, error: '대상이 올바르지 않습니다.' }, 400);
+  }
+
+  const admin = await verifyJwt(request, env);
+  try {
+    await fetch(`${env.SUPABASE_URL}/rest/v1/admin_logs`, {
+      method: 'POST',
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        admin_id: admin.id,
+        action: 'account_delete',
+        target_type: 'user',
+        target_id: target,
+        detail: { by_admin: true },
+      }),
+    });
+  } catch (e) {
+    console.warn('[account] admin_logs:', e.message);
+  }
+
+  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${target}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!res.ok) {
+    console.error('[account] admin delete failed:', res.status, (await res.text()).slice(0, 200));
+    return jsonResponse(request, env, { success: false, error: '삭제에 실패했습니다.' }, 500);
+  }
+  return jsonResponse(request, env, { success: true });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -122,9 +195,14 @@ export default {
       });
     }
 
-    if (url.pathname === '/delete' && request.method === 'POST') {
+    if (
+      (url.pathname === '/delete' || url.pathname === '/admin/delete') &&
+      request.method === 'POST'
+    ) {
       try {
-        return await handleDelete(request, env);
+        return url.pathname === '/admin/delete'
+          ? await handleAdminDelete(request, env)
+          : await handleDelete(request, env);
       } catch (e) {
         if (e instanceof AuthError) {
           return jsonResponse(request, env, { success: false, error: e.message }, 401);
