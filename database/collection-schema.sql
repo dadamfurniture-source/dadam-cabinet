@@ -12,10 +12,16 @@ CREATE TABLE IF NOT EXISTS collection_posts (
   title TEXT DEFAULT '',
   description TEXT DEFAULT '',
   category TEXT DEFAULT 'kitchen' CHECK (category IN ('kitchen','builtin','storage','interior','other')),
+  -- v5 리뉴얼: 타일 캡션 "다담가구 · 시공 지역". 업로더의 거주지(profiles.sido/gugun)가
+  -- 아니라 **시공한 곳**이라 별도 컬럼이 필요하다. 비면 캡션은 "다담가구" 만 낸다.
+  region TEXT DEFAULT '',
   like_count INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- 이미 만들어진 테이블에도 붙는다 (재실행 안전)
+ALTER TABLE collection_posts ADD COLUMN IF NOT EXISTS region TEXT DEFAULT '';
 
 -- 좋아요 (유저당 게시물당 1회)
 CREATE TABLE IF NOT EXISTS collection_likes (
