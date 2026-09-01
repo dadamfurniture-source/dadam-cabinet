@@ -109,8 +109,7 @@
       links +
       '</nav>' +
       '<div class="v5-header-end">' +
-      // 잔여 횟수는 크레딧 API 가 생기기 전까지 감춰 둔다.
-      // 자리만 잡아 두면 0 회인지 미구현인지 알 수 없다.
+      // 잔여 횟수. applyAuth 가 user_credits 를 읽어 채운다.
       '<span class="v5-credit" id="shellCredit" hidden></span>' +
       '<span class="v5-sep" id="shellSep" hidden aria-hidden="true"></span>' +
       (hasI18n()
@@ -250,6 +249,34 @@
       };
     }
     bindAccountMenu();
+
+    // 잔여 생성 횟수. 본인 행만 읽는다(RLS).
+    // 아직 한 번도 안 쓴 사용자는 행이 없다 — 그때는 등급 지급량을 보여준다.
+    try {
+      var credit = await sb.from('user_credits').select('balance').maybeSingle();
+      var left = credit && credit.data ? credit.data.balance : null;
+      if (left === null) {
+        var prof = await sb.from('profiles').select('tier').eq('id', session.user.id).maybeSingle();
+        var tier = prof && prof.data ? prof.data.tier : 'standard';
+        var plan = await sb
+          .from('credit_plans')
+          .select('monthly_credits')
+          .eq('tier', tier)
+          .maybeSingle();
+        left = plan && plan.data ? plan.data.monthly_credits : null;
+      }
+      if (left !== null) {
+        var el = document.getElementById('shellCredit');
+        var sep = document.getElementById('shellSep');
+        if (el) {
+          el.textContent = '잔여 ' + left + '회';
+          el.hidden = false;
+        }
+        if (sep) sep.hidden = false;
+      }
+    } catch (e) {
+      console.warn('[shell] credit:', e.message);
+    }
 
     // 상세설계 탭은 본사 승인 사용자에게만 (기존 정책 그대로)
     try {
