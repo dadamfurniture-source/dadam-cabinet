@@ -44,6 +44,17 @@
     { label: '개인정보처리방침', href: '#' },
   ];
 
+  // 계정 메뉴 — 예전 index/material 내비의 user-dropdown 에 있던 항목들.
+  // 두 페이지가 서로 다른 목록을 갖고 있어서(index: AI설계·구독관리,
+  // material: 내 설계) 합쳐 한 벌로 만든다.
+  // '구독 관리'(/account/billing)는 뺐다 — Next.js 라우트라 정적 배포에 없다.
+  var ACCOUNT_MENU = [
+    { label: '마이페이지', href: 'mypage.html' },
+    { label: '내 설계', href: 'my-designs.html' },
+    { label: '상세 설계', href: 'detaildesign.html', id: 'navDetailDesign', hidden: true },
+    { label: '관리자 페이지', href: 'admin/index.html', id: 'navAdminLink', hidden: true },
+  ];
+
   // 사업자 정보 — index.html 에 있던 값을 그대로 옮겼다.
   // TODO(사업자): 전화·이메일·주소·등록번호가 전부 플레이스홀더다. 실값 확인 필요.
   var BIZ = {
@@ -106,11 +117,43 @@
         ? '<button type="button" id="lang-toggle" aria-label="언어 전환"><span>KO</span></button>'
         : '') +
       '<a href="login.html" id="shellLogin">로그인</a>' +
-      '<button type="button" id="shellLogout" hidden>로그아웃</button>' +
-      '<a href="detaildesign.html" id="navDetailDesign" hidden>DETAIL</a>' +
-      '<a href="admin/index.html" id="navAdminLink" hidden>ADMIN</a>' +
+      accountHTML() +
       '</div>' +
       '</header>'
+    );
+  }
+
+  // 계정 아이콘 + 드롭다운. 로그인 전에는 통째로 감춰 둔다.
+  function accountHTML() {
+    var items = ACCOUNT_MENU.map(function (m) {
+      return (
+        '<a href="' +
+        m.href +
+        '"' +
+        (m.id ? ' id="' + m.id + '"' : '') +
+        (m.hidden ? ' hidden' : '') +
+        '>' +
+        esc(m.label) +
+        '</a>'
+      );
+    }).join('');
+
+    return (
+      '<div class="v5-account" id="shellAccount" hidden>' +
+      '<button type="button" class="v5-account-btn" id="shellAccountBtn" ' +
+      'aria-expanded="false" aria-haspopup="true" aria-label="계정 메뉴">' +
+      '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.2">' +
+      '<circle cx="8" cy="5.4" r="2.9" />' +
+      '<path d="M2.2 14.2c0-2.9 2.6-4.6 5.8-4.6s5.8 1.7 5.8 4.6" />' +
+      '</svg>' +
+      '</button>' +
+      '<div class="v5-account-menu" id="shellAccountMenu" hidden>' +
+      items +
+      '<div class="v5-account-sep" aria-hidden="true"></div>' +
+      '<button type="button" id="shellLogout">로그아웃</button>' +
+      '</div>' +
+      '</div>'
     );
   }
 
@@ -192,12 +235,13 @@
     }
 
     var login = document.getElementById('shellLogin');
+    var account = document.getElementById('shellAccount');
     var logout = document.getElementById('shellLogout');
     if (!session) return;
 
     if (login) login.hidden = true;
+    if (account) account.hidden = false;
     if (logout) {
-      logout.hidden = false;
       logout.onclick = async function () {
         try {
           await sb.auth.signOut();
@@ -205,6 +249,7 @@
         location.reload();
       };
     }
+    bindAccountMenu();
 
     // 상세설계 탭은 본사 승인 사용자에게만 (기존 정책 그대로)
     try {
@@ -227,6 +272,33 @@
     });
 
     window.dispatchEvent(new CustomEvent('shell:auth', { detail: { sb: sb, session: session } }));
+  }
+
+  // 드롭다운 열고 닫기.
+  // 예전 내비는 :hover 로 열었다 — 터치 기기에서는 열리지 않는다. 클릭으로 연다.
+  function bindAccountMenu() {
+    var btn = document.getElementById('shellAccountBtn');
+    var menu = document.getElementById('shellAccountMenu');
+    if (!btn || !menu || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+
+    var setOpen = function (open) {
+      menu.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+    };
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(menu.hidden);
+    });
+    // 바깥을 누르거나 Esc 를 누르면 닫는다. 이게 없으면 한 번 연 메뉴가
+    // 페이지를 옮길 때까지 떠 있는다.
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !menu.contains(e.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setOpen(false);
+    });
   }
 
   // ── 주입 ─────────────────────────────────────────────
