@@ -1141,7 +1141,10 @@
         // CD-3: 도면에 마감재를 붙였는데 스펙엔 '없음' 이면 BOM 에 안 잡힌다.
         // EP·몰딩·휠라 자재는 모듈이 아니라 specs.finishLeft/RightType 에서 나오므로,
         // 플래너에 그린 것만으로는 발주되지 않는다. 조용히 빠지지 않게 알린다.
-        const plannerFinishings = src.reduce((n, m) => n + ((m.finishings || []).length), 0);
+        // W12-62: 비움은 자재가 아니다 — 자리만 비워 둔 것이라 스펙과 무관하다.
+        //   세면 "마감재를 그렸는데 발주가 안 된다" 는 헛경고가 뜬다.
+        const plannerFinishings = src.reduce(
+          (n, m) => n + (m.finishings || []).filter((f) => (f && f.section) !== 'gap').length, 0);
         if (plannerFinishings > 0) {
           const sp = specs || {};
           const noneL = !sp.finishLeftType || sp.finishLeftType === 'None';
