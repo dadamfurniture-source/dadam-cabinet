@@ -136,3 +136,70 @@ describe('W10-4: 코너 마감 (기존 finish 체계, §6)', () => {
     expect(materials.find((m) => m.part === '몰딩(코너2)')).toBeDefined();
   });
 });
+
+/**
+ * W12-53: ㄷ자는 한 단에 멍장이 둘이다.
+ *
+ * 예전엔 id 를 `=== 'corner-blind-lower'` 로 정확히 비교해서, 두 번째 멍장이
+ * 그 가지에 안 걸렸다. 그러면 도어가 **카카스 폭**으로 나가고 멍가림판이 빠진다.
+ * 화면에는 아무 표시도 없고 자재표만 틀리는 종류의 결함이다.
+ *
+ * 플래너(구조 단계)가 ㄷ자에서 실제로 내는 모양을 그대로 쓴다 —
+ * 카카스 1133 = 멍 700 + 도어 433.
+ */
+function makeUItem() {
+  const blind = (id) => ({
+    id, name: 'LT망장', type: 'storage', pos: 'lower',
+    w: 1133, h: 708, d: 650,
+    doorCount: 1, doorW: 433, blindZoneW: 700,
+  });
+  return {
+    categoryId: 'sink',
+    w: 3600, h: 2310, d: 650,
+    modules: [
+      blind('corner-blind-lower'),
+      { id: 'plain', name: '하부장', type: 'storage', pos: 'lower', w: 434, h: 708, d: 650, doorCount: 1 },
+      blind('corner-blind-lower-2'),
+    ],
+    specs: { lowerH: 870, sinkLegHeight: 150, topThickness: 12 },
+  };
+}
+
+describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => {
+  const materials = extractMaterials(makeUItem());
+  const blindParts = materials.filter((m) => /LT망장/.test(m.module));
+  const doors = blindParts.filter((m) => m.part === '도어');
+  const covers = blindParts.filter((m) => m.part === '멍가림판');
+
+  test('도어 둘 다 doorW 기준이다 — 카카스 폭(1129)으로 나가면 오발주', () => {
+    expect(doors.length).toBe(2);
+    doors.forEach((d) => expect(d.w).toBe(433 - 4));
+  });
+
+  test('멍가림판이 둘 다 나온다 — 하나만 나오면 2.7T 한 장이 누락된다', () => {
+    expect(covers.length).toBe(2);
+    covers.forEach((c) => {
+      expect(c.material).toBe('MDF');
+      expect(c.thickness).toBe(2.7);
+      expect(c.w).toBe(700);
+    });
+  });
+
+  test('멍장 아닌 모듈은 그대로다 (접두어 매칭이 번지지 않는다)', () => {
+    const plain = materials.filter((m) => m.module === '하부장-하부장' && m.part === '도어');
+    expect(plain.length).toBe(1);
+    expect(plain[0].w).toBe(434 - 4);        // 카카스 폭 기준 — 일반 모듈은 이게 맞다
+    expect(plain[0].note).toBe('');          // 멍장 주석이 안 붙는다
+  });
+
+  test('이름이 비슷한 id 를 멍장으로 오인하지 않는다', () => {
+    const item = makeUItem();
+    item.modules = [
+      { id: 'corner-blind-upper', name: '상부장', type: 'storage', pos: 'lower', w: 600, h: 708, d: 650, doorCount: 1 },
+    ];
+    // pos 는 lower 인데 id 는 upper 용이다 — 하부 가지가 집어삼키면 안 된다
+    const door = extractMaterials(item).filter((m) => m.part === '도어')[0];
+    expect(door.note).toBe('');
+    expect(door.w).toBe(600 - 4);
+  });
+});

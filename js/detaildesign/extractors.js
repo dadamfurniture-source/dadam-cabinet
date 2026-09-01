@@ -2,6 +2,22 @@
       // 자재 추출 클래스 (Material Extractor) V2.0
       // SKILL: material-extractor-v2.md 기반
       // ============================================================
+      /**
+       * W12-53: 멍장 모듈인가.
+       *
+       * 예전엔 id 를 `=== 'corner-blind-lower'` 로 **정확히** 비교했다. 코너가
+       * 하나뿐인 ㄱ자에서는 맞았지만, ㄷ자는 한 단에 멍장이 둘이라 두 번째가 이
+       * 가지에 안 걸린다. 그러면 도어가 **카카스 폭**으로 나가고(1133 → 1129)
+       * 멍가림판이 통째로 빠진다 — 멍장 하나당 도어 700mm 과잉 + 2.7T 누락이라
+       * 화면에는 아무 표시도 없는 오발주다.
+       *
+       * 접두어로 본다 — `corner-blind-lower`, `corner-blind-lower-2`,
+       * `corner-blind-upper` …
+       */
+      function isBlindModule(mod, pos) {
+        return String((mod && mod.id) || '').indexOf('corner-blind-' + pos) === 0;
+      }
+
       class MaterialExtractor {
         // W12-1: 제조 표준은 data-constants.js 가 정본.
         // Jest/Node 에서는 그 파일이 로드되지 않으므로 같은 값을 폴백으로 둔다
@@ -177,7 +193,7 @@
             //   (하부장 루프는 이미 `mod.doorCount || 0` 으로 0 을 존중한다)
             const rawDoorCount = Number(mod.doorCount);
             const doorCount = Number.isFinite(rawDoorCount) ? rawDoorCount : 1;
-            if (String(mod.id) === 'corner-blind-upper') {
+            if (isBlindModule(mod, 'upper')) {
               // W10-4: 상부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
@@ -224,7 +240,7 @@
             }
             // 도어 (H - 30)
             const doorCount = mod.doorCount || 0;
-            if (String(mod.id) === 'corner-blind-lower') {
+            if (isBlindModule(mod, 'lower')) {
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
