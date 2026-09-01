@@ -1,0 +1,760 @@
+<title>플래너 멍장 자동계산</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --accent-soft: rgba(184,149,108,.14); --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+    --code-bg: #29261f; --code-ink: #e7e0d2; --code-accent: #d4b58c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+      --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header.doc { padding: 60px 0 34px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono', Consolas, monospace; }
+  h1 { font-size: 33px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 24px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 54px; }
+  h2 { font-size: 22px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 20px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16.5px; font-weight: 700; margin: 30px 0 10px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; }
+  li { margin: 7px 0; }
+  strong { font-weight: 700; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 2px; white-space: nowrap; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', Consolas, monospace; }
+  td code, li code, p code, th code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+
+  pre { background: var(--code-bg); color: var(--code-ink); font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; line-height: 1.65; padding: 20px 22px; border-radius: 8px; overflow-x: auto; margin: 18px 0; }
+  pre .c { color: #8d8574; } pre .k { color: var(--code-accent); font-weight: 600; } pre .n { color: #9fc0a8; }
+
+  figure { margin: 24px 0; padding: 24px 20px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figure svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 14px; text-align: center; max-width: 52em; margin-left: auto; margin-right: auto; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  .formula { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14.5px; background: var(--surface); border-left: 3px solid var(--accent); padding: 14px 18px; margin: 16px 0; border-radius: 0 6px 6px 0; overflow-x: auto; }
+  .formula b { color: var(--accent); font-weight: 700; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0; max-width: 48em; }
+  .callout.decide { border-left-color: var(--warn); }
+  .callout.risk { border-left-color: var(--bad); }
+  .callout.keep { border-left-color: var(--ok); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; letter-spacing: .02em; }
+  .callout p { margin: 6px 0 0; font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+  .compare .col { border: 1px solid var(--line); border-radius: 8px; padding: 18px; background: var(--surface); }
+  .compare .col.wrong { border-left: 4px solid var(--bad); }
+  .compare .col.right { border-left: 4px solid var(--ok); }
+  .compare h4 { margin: 0 0 10px; font-size: 14px; }
+  .compare p, .compare li { font-size: 14px; }
+  @media (max-width: 700px) { .compare { grid-template-columns: 1fr; } h1 { font-size: 26px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">설계 계획 · 플래너 W12-48</p>
+  <h1>ㄱ자 코너에 멍장을 세우는 자동계산</h1>
+  <p class="lede">배치 단계에서 그린 ㄱ자가 구조 단계로 넘어오면, 두 다리가 코너에서 같은 자리를
+  주장한다. 멍장은 그 자리를 <b>쓸 수 있는 수납으로 바꾸는 유일한 부재</b>다. 규칙은 이미
+  확정돼 있고 레거시 경로에서 검증까지 끝났다 — 플래너로 옮기면서 새로 정해야 하는 것만 여기 적는다.</p>
+  <div class="meta">
+    <span><b>대상</b> mockup-structure.html · planner-engine.js</span>
+    <span><b>근거 규칙</b> docs/design-rules/corner.md §3~§4</span>
+    <span><b>선행 구현</b> corner-engine.js (W10-1~W10-5, PR #423~428)</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>한 장 요약</h2>
+  <p class="sub">무엇을 고치는가 — 세 문장.</p>
+  <ol>
+    <li><b>지금</b> <code>autoCalcArea</code> 는 배치 공간 하나만 보고 그 폭을 전부 도어로 나눈다.
+    코너라는 개념이 코드에 없다. 그래서 ㄱ자의 두 다리가 코너 사각형을 각자 채워 <b>모듈이 겹친다</b>.</li>
+    <li><b>바꿀 것</b> 자동계산 전에 코너를 <b>기하에서 찾아내고</b>, 멍장을 <code>isFixed</code> 모듈로
+    먼저 심는다. 그 뒤는 기존 분배 로직이 그대로 돈다 — 고정 모듈을 보존하고 나머지만 나누는
+    길이 이미 있다 (§9.16 마감재 균등 분배와 같은 자리).</li>
+    <li><b>안 바꿀 것</b> 멍 공식·도어 균등 분배·원장 불변식은 <code>corner.md §3</code> 그대로다.
+    새 규칙을 만들지 않는다.</li>
+  </ol>
+
+  <div class="callout keep">
+    <h4>이 계획의 핵심 주장</h4>
+    <p>멍장은 코너에 <b>추가로 넣는 장</b>이 아니라, 두 배치 공간이 겹치는 사각형의
+    <b>소유권을 한쪽에 넘기는 규칙</b>이다. 그렇게 보면 "겹침 해소"와 "코너 활용"이 같은 한 번의
+    계산으로 풀린다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>지금 코너에서 벌어지는 일</h2>
+  <p class="sub">배치 단계가 넘겨주는 ㄱ자는 두 가지 상태 중 하나다. 둘 다 멍장을 세울 수 없다.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="트리밍하지 않은 ㄱ자는 코너 사각형이 두 영역에 이중으로 잡히고, 트리밍한 ㄱ자는 코너 사각형 자체가 사라진다">
+      <defs>
+        <pattern id="hatchBad" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#a04338" stroke-width="2.5" opacity="0.55"/>
+        </pattern>
+      </defs>
+
+      <text x="20" y="24" font-size="13" font-weight="700" fill="currentColor">A. 트리밍 안 함 — 코너를 둘이 나눠 갖는다</text>
+      <rect x="20" y="46" width="250" height="52" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="20" y="46" width="52" height="190" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="20" y="46" width="52" height="52" fill="url(#hatchBad)" stroke="#a04338" stroke-width="2"/>
+      <text x="290" y="76" font-size="12" fill="currentColor" text-anchor="start">가로 다리</text>
+      <text x="86" y="230" font-size="12" fill="currentColor" text-anchor="start">세로 다리</text>
+      <line x1="46" y1="72" x2="150" y2="150" stroke="#a04338" stroke-width="1.2"/>
+      <text x="155" y="154" font-size="12" font-weight="700" fill="#a04338">두 영역이 같은 자리를 주장</text>
+      <text x="155" y="172" font-size="11.5" fill="currentColor" opacity="0.75">각자 자기 폭을 전부 채운다 → 모듈 충돌</text>
+
+      <line x1="360" y1="14" x2="360" y2="286" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+
+      <text x="392" y="24" font-size="13" font-weight="700" fill="currentColor">B. 트리밍 함 — 코너가 통째로 없어진다</text>
+      <rect x="392" y="46" width="250" height="52" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="392" y="98" width="52" height="138" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="392" y="46" width="52" height="52" fill="none" stroke="#a04338" stroke-width="2" stroke-dasharray="5 4"/>
+      <line x1="418" y1="72" x2="522" y2="150" stroke="#a04338" stroke-width="1.2"/>
+      <text x="527" y="154" font-size="12" font-weight="700" fill="#a04338">잘려나간 자리</text>
+      <text x="527" y="172" font-size="11.5" fill="currentColor" opacity="0.75">멍이 될 면적을 미리 버렸다</text>
+    </svg>
+    <figcaption>평면도. 겹쳐 그리면 코너 사각형이 이중으로 잡히고(A), <code>trimAgainst</code> 로 잘라내면
+    그 사각형이 사라진다(B). 멍장은 바로 이 사각형을 쓰는 부재이므로, 지금은 어느 쪽에서도 세울 수 없다.</figcaption>
+  </figure>
+
+  <p><code>trimAgainst</code> 는 자른 쪽 사각형이 기준 사각형의 면에 <b>정확히 맞닿게</b> 만든다
+  (<code>mockup-shell.html</code>, 여유 0). 물끊기 10 도 코너 몰딩 60 도 들어갈 틈이 없다.
+  즉 트리밍은 코너를 "정리"하는 것처럼 보이지만, 규칙이 요구하는 <b>50mm 상당의 여유를 함께 지운다</b>.</p>
+
+  <div class="callout risk">
+    <h4>그래서 구조 단계는 배치 좌표를 그대로 믿으면 안 된다</h4>
+    <p>트리밍 여부에 따라 같은 ㄱ자가 다른 답을 내면 안 된다. 구조 단계는 두 영역의
+    <b>벽선(뒤판선)에서 코너 사각형을 다시 세워</b> 계산한다 — A 든 B 든 같은 값이 나온다.
+    배치 좌표는 건드리지 않는다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">03</span>이미 확정된 규칙 — 다시 만들지 않는다</h2>
+  <p class="sub">2026-07-17 확정, 레거시 경로에서 프로덕션 검증까지 끝난 규칙이다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>항목</th><th class="num">값</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>물끊기 <code>CORNER_DRIP</code></td><td class="num">10</td><td>corner.md §3.3 — 상판 물이 도어에 닿지 않는 여유</td></tr>
+      <tr><td>코너 몰딩</td><td class="num">60</td><td>§3.3 — 코너 접합부 마감</td></tr>
+      <tr><td>코너 벽 여유 <code>CORNER_WALL_GAP</code></td><td class="num">50</td><td>§3.4 — 멍장 측판과 코너 벽 사이</td></tr>
+      <tr><td>상부 멍 모듈값 <code>CORNER_UPPER_MODULE</code></td><td class="num">320</td><td>§3.6 — 몸통 295 + 도어 18 → 관례 320</td></tr>
+      <tr><td>도어 최소폭</td><td class="num">350</td><td>§3.4 · <code>MASTER_RULES.DOOR_W_MIN</code></td></tr>
+      <tr><td>멍 가림 부재</td><td class="num">2.7T</td><td>§3.5 — MDF, BOM 부재</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="formula">
+    하부 <b>멍 W</b> = 인접 라인 상판 깊이 − 10 + 몰딩 &nbsp;→&nbsp; 650 − 10 + 60 = <b>700</b><br>
+    상부 <b>멍 W</b> = 320 + 몰딩 &nbsp;→&nbsp; 320 + 60 = <b>380</b> &nbsp;<span style="opacity:.7">(물끊기 없음)</span><br>
+    <b>멍장 W</b> = 멍 + 도어 1장
+  </div>
+
+  <p>레거시 <code>corner-engine.js</code> 의 <code>deriveCorner()</code> 가 이 공식을 순수 함수로
+  구현해 두었다. Jest 48건 + Playwright E2E 17건 + 프로덕션 검증을 통과했고, 확정 예시 두 개를
+  검산한다 <span class="badge ok">검증됨</span></p>
+
+  <pre><span class="c">// corner.md §3.4 확정 예시 — 이 계획도 같은 값을 내야 한다</span>
+하부  1970 = EP 20 + 도어400×2(=800) + 멍장 1100 + 여유 50
+        멍장 1100 = 멍 700 + 도어 400
+상부  1800 = EP 20 + 도어450×2(=900) + 멍장  830 + 여유 50
+        멍장  830 = 멍 380 + 도어 450</pre>
+
+  <div class="callout">
+    <h4>플래너가 이 코드를 그대로 못 쓰는 이유</h4>
+    <p><code>corner-engine.js</code> 도 <code>data-constants.js</code> 도 <code>detaildesign.html</code> 만
+    로드한다. 플래너 두 페이지는 <code>js/planner/*.js</code> 넷만 싣는다. 그리고 입력이 다르다 —
+    레거시는 <code>item.specs</code> 의 <b>선언된 라인</b>(<code>layoutShape:'L'</code>, <code>secondaryW</code>)을
+    읽고, 플래너에는 그런 선언이 없다. <b>사각형만 있다.</b></p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>코너를 기하에서 찾는다</h2>
+  <p class="sub">플래너에는 prime·secondary 라는 선언이 없다. 회전과 좌표만 있다.</p>
+
+  <p>배치 공간은 <code>{ id, section, W, H, D, x, y, rotation }</code> 이 전부다.
+  W12-36 이 <code>planeBoxOf(area)</code> 를 정본으로 만들어 두었으므로, 평면에서 차지하는 자리는
+  회전을 포함해 이미 정확히 구할 수 있다. 코너 판정은 그 위에 얹는다.</p>
+
+  <pre><span class="k">function</span> <span class="n">cornerPairs</span>(areas) {
+  <span class="c">// 실제 배치 공간만 — 마감재 영역·스택 영역은 코너를 만들지 않는다</span>
+  <span class="k">const</span> live = areas.filter(a =&gt; !a.isFinishing &amp;&amp; !isStackedArea(a));
+  <span class="k">const</span> out = [];
+  <span class="k">for</span> (<span class="k">const</span> [a, b] <span class="k">of</span> pairsOf(live)) {
+    <span class="c">// (1) 서로 직각이다 — 회전 차가 90도 (mod 180)</span>
+    <span class="k">if</span> ((rotOf(a) - rotOf(b) + 360) % 180 !== 90) <span class="k">continue</span>;
+    <span class="c">// (2) 같은 단이다 — 하부장 다리와 상부장 다리는 코너를 공유하지 않는다</span>
+    <span class="k">if</span> (tierOf(a) !== tierOf(b)) <span class="k">continue</span>;
+    <span class="c">// (3) 평면에서 만난다 — 겹치거나(트리밍 전) 맞닿아 있다(트리밍 후)</span>
+    <span class="k">const</span> sq = cornerSquare(planeBoxOf(a), planeBoxOf(b));
+    <span class="k">if</span> (!sq || sq.gap &gt; CORNER_TOUCH_TOL) <span class="k">continue</span>;
+    out.push({ a, b, square: sq });
+  }
+  <span class="k">return</span> out;
+}</pre>
+
+  <p><strong>코너 사각형</strong>은 두 다리의 깊이가 만드는 영역이다 —
+  세로 다리의 깊이(X 폭) × 가로 다리의 깊이(Y 폭). 트리밍으로 실제 사각형이 잘려 있어도
+  두 영역의 <strong>벽선</strong>에서 되세우면 같은 값이 나온다. 이것이 §02 에서 말한
+  "배치 좌표를 그대로 믿지 않는다" 의 구현이다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>판정</th><th>기준</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td>직각</td><td>회전 차 90도 (mod 180)</td><td>같은 회전은 한 줄로 이어진 배치다 — 코너가 아니다</td></tr>
+      <tr><td>같은 단</td><td><code>lower</code>↔<code>lower</code>, <code>upper</code>↔<code>upper</code></td><td>하부 코너와 상부 코너는 멍 공식이 다르다 (§3.3 vs §3.6)</td></tr>
+      <tr><td>접촉</td><td>평면 간극 ≤ <code>CORNER_TOUCH_TOL</code></td><td>겹침(트리밍 전)과 맞닿음(트리밍 후)을 한 조건으로 받는다</td></tr>
+      <tr><td>스택 제외</td><td><code>isStackedArea</code></td><td>키큰장·냉장고장은 단이 겹쳐 서므로 도어 균등 분배 대상이 아니다</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout decide">
+    <h4>정해야 할 것 — <code>CORNER_TOUCH_TOL</code> 의 값</h4>
+    <p>사람이 손으로 그린 사각형은 몇 mm 어긋난다. 너무 빡빡하면 코너를 못 찾고, 너무 헐거우면
+    코너가 아닌 것을 코너로 본다. <strong>제안: 20mm</strong> — 배치 단계 스냅 단위보다 크고,
+    가장 얇은 부재(EP 20)보다 크지 않다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">05</span>멍장의 주인 정하기</h2>
+  <p class="sub">코너를 이루는 두 영역 중 어느 쪽이 멍장을 갖는가. 규칙은 "사용자 결정"이라고만 한다.</p>
+
+  <p><code>corner.md §3.2</code> 는 멍장이 prime 이든 secondary 든 갈 수 있다고 하고, 레거시는
+  secondary 하나만 구현했다 (prime 은 준비중으로 남았다). 플래너에는 그 이름이 없으니
+  기하로 대응시켜야 한다.</p>
+
+  <div class="compare">
+    <div class="col right">
+      <h4>제안 — 회전한 다리가 주인</h4>
+      <p><code>rotation !== 0</code> 인 영역이 멍장을 갖는다. 배치 단계에서 주벽면은 회전 0 으로
+      그리고 꺾여 나가는 다리에 회전을 준다 — 레거시의 prime / secondary 와 그대로 대응한다.</p>
+      <p>둘 다 회전이 0 이 아니면 <strong>x + y 가 큰 쪽</strong>(원점에서 먼 쪽)을 주인으로 한다.
+      결정적이고, 재계산해도 흔들리지 않는다.</p>
+    </div>
+    <div class="col wrong">
+      <h4>버린 안 — 짧은 다리가 주인</h4>
+      <p>"짧은 쪽에 멍장" 은 현장 관행처럼 들리지만, 두 다리 길이가 비슷하면 몇 mm 차이로 주인이
+      바뀐다. 배치를 조금만 고쳐도 코너 전체가 재배치된다 — 자동계산이 사람 손을 뒤엎는 가장
+      나쁜 방식이다.</p>
+    </div>
+  </div>
+
+  <p>기본값은 자동으로 정하되 <strong>영역 도구에 토글을 둔다</strong> —
+  <code>[멍장: 이 영역 / 상대 영역]</code>. 사람이 정한 값은 <code>area.blindOwner</code> 로 남고
+  자동 판정보다 우선한다.</p>
+</section>
+
+<section>
+  <h2><span class="no">06</span>계산 — <code>deriveCornerArea()</code></h2>
+  <p class="sub">순수 함수 하나. 상태를 읽지 않고 두 영역과 상수만 받는다.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 440" role="img" aria-label="멍장 평면도: 세로 다리가 코너 사각형을 멍으로 가져가고 가로 다리는 멍장 깊이만큼 밀려 시작한다">
+      <defs>
+        <pattern id="hatchBlind" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="7" stroke="#a8865c" stroke-width="2.4" opacity="0.5"></line>
+        </pattern>
+        <marker id="dimArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+        </marker>
+      </defs>
+
+      <line x1="70" y1="60" x2="168" y2="60" stroke="var(--accent)" stroke-width="1.2" marker-start="url(#dimArrow)" marker-end="url(#dimArrow)"></line>
+      <text x="119" y="50" font-size="11.5" class="mono" fill="var(--accent)" text-anchor="middle">인접 시작 700</text>
+      <line x1="196" y1="56" x2="150" y2="90" stroke="currentColor" stroke-width="1" opacity="0.55" marker-end="url(#dimArrow)"></line>
+      <text x="202" y="56" font-size="11" fill="currentColor" text-anchor="start">코너 벽 여유 50</text>
+
+      <line x1="70" y1="95" x2="640" y2="95" stroke="currentColor" stroke-width="4"></line>
+      <line x1="70" y1="95" x2="70" y2="395" stroke="currentColor" stroke-width="4"></line>
+      <text x="650" y="91" font-size="11.5" fill="currentColor" opacity="0.7">벽</text>
+
+      <rect x="168" y="95" width="380" height="91" fill="currentColor" opacity="0.09" stroke="currentColor" stroke-width="1.5"></rect>
+      <text x="358" y="147" font-size="13" font-weight="700" fill="currentColor" text-anchor="middle">인접 다리 · 분배 예산 = W − 700</text>
+
+      <rect x="70" y="95" width="91" height="7" fill="#a04338" opacity="0.45"></rect>
+      <rect x="70" y="102" width="91" height="98" fill="url(#hatchBlind)" stroke="none"></rect>
+      <rect x="70" y="200" width="91" height="56" fill="currentColor" opacity="0.16" stroke="none"></rect>
+      <rect x="70" y="102" width="91" height="154" fill="none" stroke="var(--accent)" stroke-width="2"></rect>
+      <rect x="70" y="256" width="91" height="112" fill="currentColor" opacity="0.09" stroke="currentColor" stroke-width="1.5"></rect>
+      <rect x="70" y="368" width="91" height="3" fill="var(--accent)"></rect>
+
+      <text x="115" y="156" font-size="12.5" font-weight="700" fill="var(--accent)" text-anchor="middle">멍 700</text>
+      <text x="115" y="234" font-size="12.5" font-weight="700" fill="currentColor" text-anchor="middle">도어 400</text>
+      <text x="115" y="318" font-size="12.5" fill="currentColor" text-anchor="middle">수납 800</text>
+      <text x="170" y="375" font-size="11" fill="var(--accent)" text-anchor="start">EP 20</text>
+
+      <line x1="52" y1="102" x2="52" y2="256" stroke="currentColor" stroke-width="1.2" marker-start="url(#dimArrow)" marker-end="url(#dimArrow)"></line>
+      <text x="40" y="179" font-size="11.5" class="mono" fill="currentColor" text-anchor="middle" transform="rotate(-90 40 179)">멍장 W 1100</text>
+
+      <line x1="205" y1="175" x2="318" y2="272" stroke="currentColor" stroke-width="1" opacity="0.3"></line>
+      <text x="380" y="292" font-size="12.5" font-weight="700" fill="currentColor" text-anchor="middle">인접 다리가 앞을 가로지르는 만큼이 멍이 된다</text>
+      <text x="380" y="318" font-size="11.5" class="mono" fill="currentColor" opacity="0.75" text-anchor="middle">멍 = 인접 상판깊이 650 − 물끊기 10 + 몰딩 60 = 700</text>
+      <text x="380" y="338" font-size="11.5" class="mono" fill="currentColor" opacity="0.75" text-anchor="middle">인접 시작 offset = 멍장쪽 깊이 650 − 10 + 60 = 700</text>
+    </svg>
+    <figcaption>세로 다리가 멍장 주인인 경우. 코너 사각형이 멍장의 <strong>멍</strong>이 되고 인접 다리는
+    그만큼 밀려서 시작한다 — 두 다리가 같은 자리를 주장하지 않는다. 치수 비례는 설명을 위해 단순화했다.</figcaption>
+  </figure>
+
+  <pre><span class="k">function</span> <span class="n">deriveCornerArea</span>({ owner, adj, molding = 60, epW = 20, isUpper = false }) {
+  <span class="c">// (1) 멍 — §3.3 / §3.6</span>
+  <span class="k">const</span> blindZoneW = isUpper
+    ? CORNER_UPPER_MODULE + molding                 <span class="c">// 320 + 60 = 380</span>
+    : topDepthOf(adj) - CORNER_DRIP + molding;      <span class="c">// 650 - 10 + 60 = 700</span>
+
+  <span class="c">// (2) 도어 균등 분배 — 라인 전체가 한 번에 나뉜다 (§3.4)</span>
+  <span class="k">const</span> doorAvail = owner.W - epW - CORNER_WALL_GAP - blindZoneW;   <span class="c">// 1200</span>
+  <span class="k">const</span> nDoors   = Math.max(1, Math.floor(doorAvail / DOOR_W_MIN)); <span class="c">// 3</span>
+  <span class="k">const</span> doorW    = Math.floor(doorAvail / nDoors);                 <span class="c">// 400</span>
+
+  <span class="c">// (3) 멍장 W = 멍 + 도어 1장</span>
+  <span class="k">const</span> blindW = blindZoneW + doorW;                               <span class="c">// 1100</span>
+
+  <span class="c">// (4) 인접 다리는 멍장쪽 깊이만큼 밀려 시작한다 (§3.7)</span>
+  <span class="k">const</span> adjStartOffset = isUpper
+    ? CORNER_UPPER_MODULE + molding
+    : topDepthOf(owner) - CORNER_DRIP + molding;                     <span class="c">// 700</span>
+
+  <span class="k">return</span> { blindZoneW, doorW, nDoors, blindW, adjStartOffset, warnings };
+}</pre>
+
+  <p>남은 도어 예산 <code>doorAvail − doorW = 800</code> 은 <strong>도어 우선</strong>으로 나눈다 —
+  모듈 W 는 항상 <code>도어 수 × doorW</code> 다. 라인 전체의 도어가 같은 폭이어야 한다는 §3.4 를
+  지키려면, 일반 <code>distributeModules</code> 를 그대로 쓸 수 없다. 멍장이 있는 영역만
+  <code>distributeByDoorW(budget, doorW)</code> 로 간다.</p>
+
+  <div class="callout decide">
+    <h4>정해야 할 것 — <code>topDepthOf(area)</code> 가 무엇인가</h4>
+    <p>규칙은 <strong>상판 깊이</strong>를 쓴다. 플래너의 <code>area.D</code> 는 W12-25 이후
+    <strong>몸통 + 도어</strong>다 — 상판은 보통 그보다 앞으로 더 나온다. 둘을 같다고 보면 멍이
+    상판 돌출만큼 짧아진다.</p>
+    <p><strong>제안: 우선 <code>area.D</code> 를 상판 깊이로 본다.</strong> 레거시가
+    <code>primeTopD</code> 에 사실상 같은 값을 넘기고 있고 프로덕션 검증도 그 값으로 통과했다.
+    상판 돌출을 따로 모델링하는 것은 별도 항목으로 남긴다 (§13).</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">07</span>원장 불변식 — 계산이 맞았는지 스스로 검사한다</h2>
+  <p class="sub">멍장 계산은 조용히 틀린다. 화면에는 멀쩡한 장이 서 있고 합만 안 맞는다.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 150" role="img" aria-label="멍장 라인 원장: EP 20 더하기 수납 800 더하기 멍장 1100 더하기 코너 여유 50 은 라인 폭 1970 과 같다">
+      <rect x="50" y="40" width="6" height="44" fill="var(--accent)"></rect>
+      <rect x="56" y="40" width="256" height="44" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1"></rect>
+      <rect x="312" y="40" width="128" height="44" fill="currentColor" opacity="0.18" stroke="var(--accent)" stroke-width="1.5"></rect>
+      <rect x="440" y="40" width="224" height="44" fill="url(#hatchBlind)" stroke="var(--accent)" stroke-width="1.5"></rect>
+      <rect x="664" y="40" width="16" height="44" fill="#a04338" opacity="0.4"></rect>
+
+      <text x="184" y="67" font-size="12.5" fill="currentColor" text-anchor="middle">수납 800</text>
+      <text x="376" y="67" font-size="12.5" font-weight="700" fill="currentColor" text-anchor="middle">도어 400</text>
+      <text x="552" y="67" font-size="12.5" font-weight="700" fill="var(--accent)" text-anchor="middle">멍 700</text>
+
+      <text x="44" y="126" font-size="11" class="mono" fill="currentColor" text-anchor="middle">EP 20</text>
+      <text x="676" y="126" font-size="11" class="mono" fill="currentColor" text-anchor="middle">여유 50</text>
+
+      <line x1="312" y1="28" x2="664" y2="28" stroke="var(--accent)" stroke-width="1.2" marker-start="url(#dimArrow)" marker-end="url(#dimArrow)"></line>
+      <text x="488" y="21" font-size="11.5" class="mono" font-weight="700" fill="var(--accent)" text-anchor="middle">멍장 1100</text>
+
+      <line x1="50" y1="100" x2="680" y2="100" stroke="currentColor" stroke-width="1.2" marker-start="url(#dimArrow)" marker-end="url(#dimArrow)"></line>
+      <text x="365" y="118" font-size="12" class="mono" font-weight="700" fill="currentColor" text-anchor="middle">배치 공간 W 1970</text>
+    </svg>
+    <figcaption>멍장 라인의 원장. 코너 쪽(오른쪽) 끝에 여유 50 이 있고 그 안쪽이 멍이다.
+    이 합이 안 맞으면 어딘가에서 폭을 잃었거나 이중으로 셌다는 뜻이다.</figcaption>
+  </figure>
+
+  <div class="formula">
+    멍장 영역 &nbsp; EP + Σ(모듈 W) + 멍장 W + 50 &nbsp;<b>===</b>&nbsp; area.W &nbsp; (±1)<br>
+    인접 영역 &nbsp; adjStartOffset + Σ(모듈 W) &nbsp;<b>===</b>&nbsp; area.W &nbsp; (±1)<br>
+    평면 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 멍장 박스 ∩ 인접 영역 모듈 박스 &nbsp;<b>===</b>&nbsp; 공집합
+  </div>
+
+  <p>앞의 둘은 레거시 <code>assertCornerLedger</code> 와 같은 식이다. 셋째는 플래너에만 필요하다 —
+  레거시는 라인이 선언돼 있어 겹칠 수가 없지만, 플래너는 좌표로 놓으므로 <strong>실제로 겹쳤는지</strong>를
+  봐야 한다. W12-25 의 파츠 불겹침 검사와 같은 도구를 쓴다.</p>
+
+  <p>위반 시 콘솔 경고 + 마지막 모듈 보정(운영), 테스트에서는 실패시킨다.</p>
+</section>
+
+<section>
+  <h2><span class="no">08</span>자동계산에 끼워 넣는 자리</h2>
+  <p class="sub">기존 코드를 고치는 것이 아니라, 이미 뚫려 있는 길로 들어간다.</p>
+
+  <p><code>autoCalcArea</code> 는 이미 <strong>고정 모듈을 보존하고 나머지만 나눈다</strong>.
+  마감재 균등 분배(§9.16)가 이 길을 냈다. 멍장은 <code>isFixed: true</code> 이므로
+  <strong>그 길에 그대로 얹힌다</strong> — 분배 루프를 고칠 필요가 없다.</p>
+
+  <pre><span class="c">// mockup-structure.html : autoCalcArea 현재 코드</span>
+<span class="k">const</span> kept = modules.filter((m) =&gt; m.areaId === areaId
+  &amp;&amp; (m.isFixed || isFinishingSection(m.section)));   <span class="c">// ← 멍장이 여기 걸린다</span>
+<span class="k">const</span> room = area.W - kept.reduce((s, m) =&gt; s + (m.W || 0), 0);
+
+<span class="c">// 넣을 것 — 딱 두 줄</span>
+ensureCornerModules(areaId);        <span class="c">// 멍장을 isFixed 로 심거나 치수를 갱신</span>
+<span class="k">const</span> offset = cornerStartOffset(areaId);   <span class="c">// 인접 영역이면 시작 자리를 민다</span></pre>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>영역</th><th>지금</th><th>바뀐 뒤</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>멍장 주인</td>
+        <td><code>room = area.W − 고정폭</code></td>
+        <td><code>room = area.W − EP − 50 − 멍장W</code><br>남은 예산을 <code>doorW</code> 배수로 나눈다</td>
+      </tr>
+      <tr>
+        <td>인접</td>
+        <td><code>x</code> 가 <code>area.x</code> 에서 시작</td>
+        <td><code>x</code> 가 <code>area.x + adjStartOffset</code> 에서 시작<br><code>room</code> 도 그만큼 준다</td>
+      </tr>
+      <tr>
+        <td>코너 없음</td>
+        <td>—</td>
+        <td><strong>완전히 동일</strong> — <code>cornerPairs</code> 가 비면 아무것도 안 한다</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout keep">
+    <h4>ㅡ자 회귀가 0 이어야 한다</h4>
+    <p>코너가 없는 배치에서는 <code>ensureCornerModules</code> 가 즉시 반환하고
+    <code>offset</code> 이 0 이다. 골든 스냅샷 3건이 <strong>바이트 단위로 같아야</strong> 이 조건이
+    지켜진 것이다 — W12-36 이 회전 좌표를 고칠 때 쓴 것과 같은 판정이다.</p>
+  </div>
+
+  <h3>멍장 모듈의 모양</h3>
+  <pre>{
+  id: <span class="n">'corner-blind-' + areaId</span>,   <span class="c">// 결정적 id — 재계산해도 같은 모듈</span>
+  areaId, section: <span class="n">'lower'</span>,
+  W: 1100,                       <span class="c">// = 멍 700 + 도어 400 (파생값)</span>
+  H: area.H, D: area.D,
+  isFixed: <span class="k">true</span>,               <span class="c">// 자동계산이 지우거나 폭을 뺏지 않는다</span>
+  isDerived: <span class="k">true</span>,             <span class="c">// 사람이 손대면 해제되고 파생을 멈춘다</span>
+  blind: { zoneW: 700, doorW: 400, ownerOf: <span class="n">'area-lower-1'</span> },
+}</pre>
+  <p>이름은 <code>LT망장</code> 을 유지한다 — BOM 추출기가 그 이름으로 찾는다
+  (<code>corner.md §3.8</code>, 코드 호환용).</p>
+</section>
+
+<section>
+  <h2><span class="no">09</span>실행 순서</h2>
+  <p class="sub">멍장은 두 영역에 동시에 영향을 준다. 순서를 안 정하면 먼저 계산된 쪽이 이긴다.</p>
+
+  <p>지금 <code>autoCalcAllAreas</code> 는 <code>areas</code> 배열 순서대로 각 영역을 독립 계산한다.
+  멍장이 들어오면 그 독립성이 깨진다 — 인접 영역의 예산이 멍장 주인의 깊이에 달려 있다.
+  그래서 <strong>단계를 나눈다</strong>.</p>
+
+  <pre><span class="k">function</span> <span class="n">autoCalcAllAreas</span>() {
+  <span class="c">// 1단계 — 코너를 먼저 확정한다 (모든 영역의 예산이 여기서 정해진다)</span>
+  <span class="k">const</span> corners = cornerPairs(areas);
+  corners.forEach(c =&gt; ensureCornerModules(ownerOf(c).id));
+
+  <span class="c">// 2단계 — 각 영역을 채운다. 멍장은 isFixed 라 그대로 살아남는다</span>
+  targets.forEach(a =&gt; autoCalcArea(a.id));
+
+  <span class="c">// 3단계 — 원장 검사 (§07)</span>
+  corners.forEach(assertCornerLedger);
+
+  <span class="c">// 그리기는 여전히 한 번만 (W12-46)</span>
+}</pre>
+
+  <p>영역 하나만 다시 계산할 때(<code>이 영역 자동계산</code>)도 같다 — 그 영역이 코너에 물려 있으면
+  1단계를 그 코너에 대해서만 먼저 돌린다. <strong>멍장은 항상 분배보다 먼저 선다.</strong></p>
+</section>
+
+<section>
+  <h2><span class="no">10</span>막아야 할 경우들</h2>
+  <p class="sub">멍장은 폭을 크게 먹는다. 들어갈 자리가 없을 때 반쯤 세우는 것이 가장 나쁘다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>상황</th><th>조건</th><th>처리</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>라인이 멍보다 짧다</td>
+        <td><code>W − EP − 50 &lt; 멍</code></td>
+        <td><span class="badge bad">거부</span> 멍장을 세우지 않는다. 필요한 최소 폭을 토스트로 알린다
+        (레거시 G1 과 같은 판단 — 거기서는 ㄱ자 전환 자체를 막았다)</td>
+      </tr>
+      <tr>
+        <td>도어 한 장도 안 남는다</td>
+        <td><code>0 &lt; doorAvail &lt; 350</code></td>
+        <td><span class="badge warn">경고 후 진행</span> <code>nDoors=1</code>, <code>doorW=doorAvail</code>.
+        멍장에 좁은 도어 한 장이 달린다 — 배지로 표시</td>
+      </tr>
+      <tr>
+        <td>사람이 멍장 폭을 고쳤다</td>
+        <td><code>isDerived</code> 해제됨</td>
+        <td>파생을 멈추고 그 폭을 지킨다. 원장이 안 맞으면 경고만 — <strong>사람 손을 덮지 않는다</strong></td>
+      </tr>
+      <tr>
+        <td>코너에 마감재가 붙어 있다</td>
+        <td>EP·몰딩이 코너 쪽 끝</td>
+        <td>코너 쪽 끝은 멍장 자리다. 마감재는 반대쪽 끝으로만 — 붙이려 하면 막고 안내</td>
+      </tr>
+      <tr>
+        <td>한 영역이 두 코너의 주인</td>
+        <td>ㄷ자 가운데 다리</td>
+        <td>양끝에서 각각 멍장을 빼고 남은 폭을 나눈다 (§11)</td>
+      </tr>
+      <tr>
+        <td>세 영역이 한 점에서 만난다</td>
+        <td>비정상 배치</td>
+        <td><span class="badge bad">거부</span> 코너 쌍을 못 정한다. 배치 단계에서 고치도록 안내</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout risk">
+    <h4>거부는 조용하면 안 된다</h4>
+    <p>멍장을 못 세우면 코너는 <strong>지금과 똑같이 겹친 상태로 남는다</strong>. 그냥 넘어가면
+    사용자는 자동계산이 성공한 줄 안다. 거부할 때는 어떤 배치 공간이 몇 mm 모자란지 말해야 한다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">11</span>상부장 · ㄷ자 · 스택</h2>
+
+  <h3>상부장</h3>
+  <p>공식만 다르고 흐름은 같다 — 물끊기가 없고 멍이 <code>320 + 몰딩</code> 이다 (§3.6).
+  하부·상부 코너는 <strong>서로 독립</strong>이다. 상부 다리가 하부 다리와 길이가 달라도 상관없다.</p>
+  <div class="formula">
+    상부 &nbsp; 1800 = EP 20 + 도어 450×2 + 멍장 830 + 여유 50<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 멍장 830 = 멍 <b>380</b> + 도어 450
+  </div>
+  <p><span class="badge info">확인 필요</span> 상부장 배치 공간의 기본 깊이도 320 이다
+  (<code>area-upper-0.D = 320</code>). <code>CORNER_UPPER_MODULE</code> 320 과 값이 같은 것은
+  우연인지 같은 뿌리인지 확인해야 한다 — 우연이라면 깊이를 바꾼 순간 멍이 조용히 틀린다.</p>
+
+  <h3>ㄷ자</h3>
+  <p>코너 2개. <code>cornerPairs</code> 가 쌍을 두 개 돌려주고 각각 독립으로 처리된다.
+  가운데 다리가 <strong>양끝 모두 코너</strong>일 수 있고, 그때 원장이 달라진다 — EP 가 없고
+  코너 여유가 둘이다.</p>
+  <div class="formula">
+    가운데 다리 &nbsp; 50 + 멍장A + Σ(모듈) + 멍장B + 50 &nbsp;<b>===</b>&nbsp; area.W
+  </div>
+  <p>양끝에서 멍장 둘을 빼면 남는 폭이 급격히 준다. §10 의 "라인이 멍보다 짧다" 가 ㄷ자에서
+  훨씬 자주 걸린다 — 거부 안내가 실제로 중요해지는 것은 여기서다.</p>
+
+  <h3>스택 영역 (키큰장 · 냉장고장)</h3>
+  <p>코너 대상이 아니다. 단이 세로로 겹쳐 서므로 도어 균등 분배라는 개념이 없고
+  <code>autoCalcStack</code> 이 따로 돈다. <code>cornerPairs</code> 에서 <strong>제외</strong>한다.</p>
+  <p><span class="badge info">확인 필요</span> 키큰장이 코너에 놓이는 실제 시공이 있는지.
+  있다면 규칙이 없다 — §13 으로 넘긴다.</p>
+</section>
+
+<section>
+  <h2><span class="no">12</span>데이터 모델 · 상수 · BOM</h2>
+
+  <h3>상수는 <code>planner-engine.js</code> 로</h3>
+  <p>코너 상수는 지금 <code>js/detaildesign/data-constants.js</code> 에 있고,
+  <strong>플래너는 그 파일을 로드하지 않는다</strong>. <code>MASTER_RULES</code> 에 추가한다.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>상수</th><th class="num">값</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>CORNER_DRIP</code></td><td class="num">10</td><td>물끊기</td></tr>
+      <tr><td><code>CORNER_WALL_GAP</code></td><td class="num">50</td><td>코너 벽 여유</td></tr>
+      <tr><td><code>CORNER_MOLDING</code></td><td class="num">60</td><td>기본 코너 몰딩 — 사람이 바꾸면 재파생</td></tr>
+      <tr><td><code>CORNER_UPPER_MODULE</code></td><td class="num">320</td><td>상부 멍 모듈값</td></tr>
+      <tr><td><code>CORNER_EP_W</code></td><td class="num">20</td><td>멍장 라인 EP</td></tr>
+      <tr><td><code>CORNER_TOUCH_TOL</code></td><td class="num">20</td><td><strong>신규</strong> — 플래너에만 필요 (§04)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>두 곳에 같은 숫자가 살면 언젠가 갈라진다. 장기적으로는 <code>data-constants.js</code> 가
+  <code>MASTER_RULES</code> 를 읽는 방향이 맞다 — 이 PR 의 범위는 아니다.</p>
+
+  <h3>BOM</h3>
+  <p>레거시 W10-4 가 이미 처리한 것을 그대로 따른다. 새로 만들지 않는다.</p>
+  <ul>
+    <li><strong>도어는 <code>doorW</code> 기준</strong> — 카카스 W(1100)로 발주하면 도어가 700mm 커진다.
+    이 사고가 실제로 있었고, 설계 문서의 경고에서 잡혔다</li>
+    <li><strong>멍 가림판</strong> 2.7T MDF — 멍 구간 정면을 막는다 (<code>멍 W × 몸통 H</code>)</li>
+    <li><strong>코너 몰딩</strong> 60 — 접합부</li>
+  </ul>
+  <p>플래너 → BOM 경로(<code>buildPlannerPayload</code>)가 <code>blind</code> 필드를 실어 보내야
+  추출기가 도어 폭을 알 수 있다.</p>
+</section>
+
+<section>
+  <h2><span class="no">13</span>사람이 정해야 할 것</h2>
+  <p class="sub">규칙이 숨어 있는 것이 아니라 <strong>없는</strong> 항목이다. 구현 전에 답이 필요하다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>항목</th><th>질문</th><th>제안</th></tr></thead>
+    <tbody>
+      <tr><td>상판 깊이</td><td><code>area.D</code>(몸통+도어)를 상판 깊이로 봐도 되는가</td><td>우선 같다고 본다. 다르면 멍이 상판 돌출만큼 짧아진다</td></tr>
+      <tr><td>멍의 기준점</td><td>멍 700 을 <strong>벽</strong>에서 재는가 <strong>멍장 측판</strong>에서 재는가</td><td>도면 확인 필요. 여유 50 과 겹쳐 읽으면 50 이 어긋난다</td></tr>
+      <tr><td>멍장 주인</td><td>회전 다리 기본값이 현장 관행과 맞는가</td><td>토글로 뒤집을 수 있게 두고 기본값은 관찰 후 조정</td></tr>
+      <tr><td>트리밍 관행</td><td>ㄱ자를 그릴 때 트리밍을 <strong>해야</strong> 하는가 말아야 하는가</td><td>구조 단계는 둘 다 같은 답을 내게 만든다. 배치 단계 안내 문구는 별도 결정</td></tr>
+      <tr><td>키큰장 코너</td><td>코너에 키큰장이 서는 시공이 있는가</td><td>없다면 명시적으로 금지하고 안내한다</td></tr>
+      <tr><td>상부 320</td><td><code>area.D</code> 320 과 <code>CORNER_UPPER_MODULE</code> 320 이 같은 뿌리인가</td><td>우연이면 상수를 분리해 표기</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">14</span>테스트 계획</h2>
+  <p class="sub">멍장은 조용히 틀리는 계산이다. 화면 확인으로는 못 잡는다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>층</th><th>무엇을</th><th>어떻게</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>순수 함수</td>
+        <td><code>deriveCornerArea</code> 가 확정 예시 2건을 재현한다</td>
+        <td>하부 1100/700/400, 상부 830/380/450 — <code>corner.md §3.4</code></td>
+      </tr>
+      <tr>
+        <td>레거시 대조</td>
+        <td>같은 입력에 <code>corner-engine.deriveCorner</code> 와 같은 출력</td>
+        <td>두 경로가 갈라지는 순간을 잡는다</td>
+      </tr>
+      <tr>
+        <td>페이지 전체</td>
+        <td>ㄱ자 두 영역을 실제로 부팅 → <code>autoCalcAllAreas</code></td>
+        <td><code>bootPlanner</code> 하네스. 원장 ±1, 평면 충돌 0</td>
+      </tr>
+      <tr>
+        <td>동치성</td>
+        <td>트리밍한 ㄱ자와 안 한 ㄱ자가 <strong>같은 결과</strong></td>
+        <td>§02 의 두 상태를 각각 넣고 모듈 목록 비교</td>
+      </tr>
+      <tr>
+        <td>멱등성</td>
+        <td>자동계산을 두 번 돌려도 같은 결과</td>
+        <td>결정적 id 가 지켜지는지 — 멍장이 매번 새로 생기면 안 된다</td>
+      </tr>
+      <tr>
+        <td>회귀</td>
+        <td>ㅡ자 골든 스냅샷 3건 바이트 동일</td>
+        <td>코너 없는 배치에 영향이 0 이라는 증거</td>
+      </tr>
+      <tr>
+        <td>거부</td>
+        <td>폭이 모자란 코너에서 멍장을 <strong>안</strong> 만든다</td>
+        <td>반쯤 세우고 마는 실패를 막는다</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">15</span>구현 순서</h2>
+  <p class="sub">한 PR 에 하나씩. 앞 단계가 없으면 뒤 단계를 검증할 방법이 없는 순서다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>PR</th><th>내용</th><th>끝났다는 기준</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>W12-48</code></td>
+        <td>상수 이관 + <code>deriveCornerArea</code> 순수 함수 (<code>planner-engine.js</code>)</td>
+        <td>확정 예시 2건 재현 · 레거시 대조 일치. <strong>화면 변화 0</strong></td>
+      </tr>
+      <tr>
+        <td><code>W12-49</code></td>
+        <td>코너 판정 <code>cornerPairs</code> + 코너 사각형 되세우기</td>
+        <td>트리밍 유무와 무관하게 같은 쌍을 찾는다 · ㅡ자에서 빈 배열</td>
+      </tr>
+      <tr>
+        <td><code>W12-50</code></td>
+        <td>멍장 모듈 심기 + <code>autoCalcArea</code> 통합 + 원장 검사</td>
+        <td>ㄱ자 자동계산 후 원장 ±1 · 평면 충돌 0 · 골든 3/3 동일</td>
+      </tr>
+      <tr>
+        <td><code>W12-51</code></td>
+        <td>가드와 안내 (§10) + 멍장 주인 토글 UI</td>
+        <td>폭 부족 코너에서 거부하고 필요한 mm 를 말한다</td>
+      </tr>
+      <tr>
+        <td><code>W12-52</code></td>
+        <td>ㄷ자(코너 2개) + 상부장 코너</td>
+        <td>가운데 다리 원장 성립 · 상부 830 재현</td>
+      </tr>
+      <tr>
+        <td><code>W12-53</code></td>
+        <td>BOM 연동 — <code>blind</code> 필드 전달 + 멍가림판 2.7T</td>
+        <td>도어가 <code>doorW</code> 로 나간다 (카카스 W 아님)</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><code>W12-48</code> 과 <code>W12-49</code> 는 화면을 바꾸지 않는다 — 순수 계산과 판정만 들어간다.
+  실제 동작이 바뀌는 것은 <code>W12-50</code> 부터다. 그 전까지 두 PR 은 언제 머지해도 안전하다.</p>
+
+  <div class="callout">
+    <h4>먼저 답이 필요한 것</h4>
+    <p>§13 의 <strong>멍의 기준점</strong>(벽인가 측판인가)은 <code>W12-48</code> 의 공식을 좌우한다.
+    나머지는 구현하면서 정해도 된다.</p>
+  </div>
+</section>
+
+</main>
