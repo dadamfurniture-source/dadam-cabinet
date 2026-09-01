@@ -56,6 +56,18 @@ ALTER TABLE collection_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE collection_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE collection_inquiries ENABLE ROW LEVEL SECURITY;
 
+-- CREATE POLICY 는 IF NOT EXISTS 를 못 받는다 — 이미 있으면 그냥 에러다.
+-- 위쪽이 '재실행 안전' 을 표방하므로 여기도 DROP 을 먼저 건다.
+DROP POLICY IF EXISTS "collection_posts_select" ON collection_posts;
+DROP POLICY IF EXISTS "collection_posts_insert" ON collection_posts;
+DROP POLICY IF EXISTS "collection_posts_delete" ON collection_posts;
+DROP POLICY IF EXISTS "collection_posts_update" ON collection_posts;
+DROP POLICY IF EXISTS "collection_likes_select" ON collection_likes;
+DROP POLICY IF EXISTS "collection_likes_insert" ON collection_likes;
+DROP POLICY IF EXISTS "collection_likes_delete" ON collection_likes;
+DROP POLICY IF EXISTS "collection_inquiries_select" ON collection_inquiries;
+DROP POLICY IF EXISTS "collection_inquiries_insert" ON collection_inquiries;
+
 -- 게시물: 모두 읽기 가능, 본인만 생성/삭제
 CREATE POLICY "collection_posts_select" ON collection_posts FOR SELECT USING (true);
 CREATE POLICY "collection_posts_insert" ON collection_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
@@ -83,9 +95,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_update_like_count ON collection_likes;
 CREATE TRIGGER trigger_update_like_count
   AFTER INSERT OR DELETE ON collection_likes
   FOR EACH ROW EXECUTE FUNCTION update_like_count();
 
--- 스토리지 버킷 (수동 생성 필요)
--- INSERT INTO storage.buckets (id, name, public) VALUES ('collection', 'collection', true);
+-- ═══════════════════════════════════════════════════════════════
+-- 스토리지 — 가입자가 직접 올린 사진이 들어갈 자리
+-- 경로 규칙: {user_id}/{filename}  (design-images 버킷과 같은 규칙)
+-- 정책 패턴은 database/storage-policies.sql 을 그대로 따른다.
+-- ═══════════════════════════════════════════════════════════════
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('collection', 'collection', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "collection_insert_own" ON storage.objects;
+DROP POLICY IF EXISTS "collection_update_own" ON storage.objects;
+DROP POLICY IF EXISTS "collection_delete_own" ON storage.objects;
+DROP POLICY IF EXISTS "collection_select_public" ON storage.objects;
+
+-- 업로드: 로그인한 사용자가 **자기 폴더에만**.
+-- 이 검사가 없으면 아무나 남의 경로에 덮어쓸 수 있다.
+CREATE POLICY "collection_insert_own" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'collection' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "collection_update_own" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'collection' AND (storage.foldername(name))[1] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'collection' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "collection_delete_own" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'collection' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- 읽기: 공개 버킷이므로 누구나. 컬렉션은 비로그인도 본다.
+CREATE POLICY "collection_select_public" ON storage.objects
+  FOR SELECT TO public
+  USING (bucket_id = 'collection');
