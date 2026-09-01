@@ -18,6 +18,7 @@ function _cornerWallGap() { return typeof CORNER_WALL_GAP    !== 'undefined' ? C
 function _cornerUpperMod(){ return typeof CORNER_UPPER_MODULE!== 'undefined' ? CORNER_UPPER_MODULE : 320; }
 function _cornerEpW()     { return typeof CORNER_EP_W        !== 'undefined' ? CORNER_EP_W        : 20; }
 function _cornerMinDoorW(){ return typeof DOOR_MIN_WIDTH     !== 'undefined' ? DOOR_MIN_WIDTH     : 350; }
+function _cornerBatten()  { return typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15; }
 /* eslint-enable no-undef */
 
 /**
@@ -46,11 +47,15 @@ function deriveCorner(p) {
   const warnings = [];
 
   // ① 멍 (blind zone) — §3.3 / §3.6
-  //    하부: 인접 상판깊이 − 물끊기 + 몰딩 (예: 650−10+60 = 700)
-  //    상부: 320(몸통295+도어18→관례) + 몰딩 (예: 380), 물끊기 없음
+  //    하부: 인접 상판깊이 − 물끊기 + 마감재 + 목대 (예: 650−10+60+15 = 715)
+  //    상부: 320(몸통295+도어18→관례) + 마감재 + 목대 (예: 395), 물끊기 없음
+  //
+  //    W12-54: 목대 15T 는 멍장 도어 경첩을 달 자리다. 멍 폭에 들어가고 BOM
+  //    부재로도 나간다. 마감재 60 은 몰딩 **또는 휠라** — 코너 마감 선택값이다.
+  const batten = _cornerBatten();
   const blindZoneW = p.isUpper
-    ? upperModule + molding
-    : p.adjTopD - drip + molding;
+    ? upperModule + molding + batten
+    : p.adjTopD - drip + molding + batten;
 
   // ② 도어 균등 분배 — §3.4 라인 원장
   //    도어 가용폭 = 라인 W − EP − 벽여유(50) − 멍
@@ -74,8 +79,10 @@ function deriveCorner(p) {
   // ③ 멍장 W = 멍 + 도어 (§3.4)
   const blindW = blindZoneW + doorW;
 
-  // ④ 인접 라인 시작 offset — §3.7: 멍장 라인 상판깊이 − 물끊기 + 몰딩
+  // ④ 인접 라인 시작 offset — §3.7: 멍장 라인 상판깊이 − 물끊기 + 마감재
   //    상부는 물끊기 없음 (§3.6과 동일 원리)
+  //    **목대는 안 붙는다** — 멍장 도어 경첩용이라 인접 라인이 시작하는
+  //    자리와는 무관하다 (W12-54 확정)
   const adjStartOffset = p.isUpper
     ? upperModule + molding
     : (Number.isFinite(p.blindLineTopD) ? p.blindLineTopD : p.adjTopD) - drip + molding;

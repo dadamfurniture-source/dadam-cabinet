@@ -84,6 +84,14 @@ const MASTER_RULES = {
   CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3)
   CORNER_UPPER_MODULE: 320,     // 상부 멍 모듈값 — 몸통295+도어18 → 관례 320 (§3.6)
   CORNER_EP_W: 20,              // 멍장 라인 반대쪽 끝 EP (§3.4 예시)
+  // W12-54: 멍장 도어 경첩을 달 목대. 멍 폭에 들어가고 BOM 부재로도 나간다.
+  //   인접 라인 시작 offset(§3.7)에는 붙지 않는다 — 멍장 도어용이기 때문이다.
+  CORNER_HINGE_BATTEN_T: 15,    // 목대 두께 15T — 멍 폭에 더해진다
+  CORNER_HINGE_BATTEN_W: 70,    // 목대 재단 가로 (세로는 몸통 H)
+  // W12-54: 배치 공간 깊이 분해에서 도어가 차지하는 자리. **자재는 18T 그대로**이고
+  //   (DOOR_T) 여기 20 은 시공 갭을 포함한 자리다 — 발주 치수가 아니다.
+  //   배치 공간 깊이 = 물끊기 + 도어 자리 + 몸통 + 여유(뒤).  700 = 10 + 20 + 550 + 120
+  DOOR_SEAT_D: 20,
   // 플래너 전용 — 레거시엔 없다. 라인이 선언돼 있지 않아 코너를 좌표로 찾기 때문에,
   // 사람이 손으로 그린 사각형의 어긋남을 얼마까지 코너로 볼지 정해야 한다.
   CORNER_TOUCH_TOL: 20,         // 두 배치 공간이 이 안쪽으로 만나면 코너로 본다
@@ -202,9 +210,14 @@ function distributeModules(totalSpace) {
 // @param {number} [p.epW]      멍장 반대쪽 끝 EP (기본 20)
 // @param {number} [p.minDoorW] 도어 최소폭 (기본 350)
 //
-// ⚠ `ownerD`·`adjD` 는 규칙상 **상판 깊이**다. 플래너의 `area.D` 는 몸통+도어라
-//   상판 돌출을 반영하지 않는다 — 레거시도 사실상 같은 값을 넘기고 있어 우선
-//   그대로 쓴다 (계획서 §13 "상판 깊이" 항목).
+// W12-54: `ownerD`·`adjD` 는 **배치 공간 깊이 = 상판 깊이**다. 평면도에서 위에서
+//   내려다보면 상판이 제일 바깥이므로, 배치 단계에서 그리는 사각형이 곧 상판
+//   외곽이다. 그 깊이는 이렇게 나뉜다:
+//
+//     배치 공간 깊이 = 물끊기 + 도어 자리 + 몸통 깊이 + 여유(뒤)
+//              700  =     10 +       20 +      550 +      120
+//
+//   여유공간은 입력이 아니라 **남는 값**이다.
 function deriveCornerArea(p) {
   const R = MASTER_RULES;
   const molding  = Number.isFinite(p.molding)  ? p.molding  : R.CORNER_MOLDING;
@@ -219,9 +232,12 @@ function deriveCornerArea(p) {
   const n = Math.max(1, adjDs.length);
 
   // ① 멍 (blind zone) — §3.3 / §3.6
+  //   목대 15T 는 멍장 도어 경첩을 달 자리다 (W12-54). 마감재 60 은 몰딩 **또는
+  //   휠라** — 코너 마감 선택값이다. 상부는 상판이 없어 물끊기를 빼지 않는다.
+  const batten = R.CORNER_HINGE_BATTEN_T;
   const blindZoneWs = adjDs.map((d) => p.isUpper
-    ? R.CORNER_UPPER_MODULE + molding
-    : (Number(d) || 0) - R.CORNER_DRIP + molding);
+    ? R.CORNER_UPPER_MODULE + molding + batten
+    : (Number(d) || 0) - R.CORNER_DRIP + molding + batten);
   const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
   // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.
@@ -257,6 +273,8 @@ function deriveCornerArea(p) {
 
   // ④ 인접 공간이 코너에서 밀려 시작하는 거리 — §3.7.
   //    멍장 라인의 깊이만 보므로 코너가 둘이어도 값은 하나다.
+  //    **목대는 안 붙는다** — 멍장 도어 경첩용이라 인접 공간이 시작하는 자리와
+  //    무관하다 (W12-54 확정).
   const adjStartOffset = p.isUpper
     ? R.CORNER_UPPER_MODULE + molding
     : (Number(p.ownerD) || 0) - R.CORNER_DRIP + molding;

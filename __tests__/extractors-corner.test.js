@@ -27,7 +27,8 @@ function makeLItem() {
       finishCorner1Type: 'Molding', finishCorner1Width: 60,
     },
   };
-  // W10-1/2 시드 — 하부 멍장 1100(멍700+도어400), 상부 멍장 830(멍380+도어450)
+  // W10-1/2 시드 — 하부 멍장 1110(멍715+도어395), 상부 멍장 840(멍395+도어445)
+  // W12-54: 멍에 경첩 목대 15T 가 들어가면서 값이 각각 10 씩 커졌다.
   seedCornerModules(item);
   seedUpperCornerModules(item);
   return item;
@@ -42,40 +43,40 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
   const blindLowerParts = materials.filter((m) => m.module === '하부장-LT망장');
   const blindUpperParts = materials.filter((m) => m.module === '상부장-LT망장');
 
-  test('하부 멍장 도어 = doorW(400) − 4 = 396 — 카카스 W(1100) 기준이면 오발주', () => {
+  test('하부 멍장 도어 = doorW(395) − 4 = 391 — 카카스 W(1110) 기준이면 오발주', () => {
     const door = blindLowerParts.find((m) => m.part === '도어');
     expect(door).toBeDefined();
-    expect(door.w).toBe(396); // 1100 − 4 = 1096이 나오면 회귀
+    expect(door.w).toBe(391); // 1100 − 4 = 1096이 나오면 회귀
     expect(door.qty).toBe(1);
     expect(door.h).toBe(708 - 30); // 몸통H(870−12−150) − 30
   });
 
-  test('하부 멍 가림판 = 2.7T MDF, blindZoneW(700) × 몸통H (§3.5 신규 부재)', () => {
+  test('하부 멍 가림판 = 2.7T MDF, blindZoneW(715) × 몸통H (§3.5 신규 부재)', () => {
     const cover = blindLowerParts.find((m) => m.part === '멍가림판');
     expect(cover).toBeDefined();
     expect(cover.material).toBe('MDF');
     expect(cover.thickness).toBe(2.7);
-    expect(cover.w).toBe(700);
+    expect(cover.w).toBe(715);
     expect(cover.h).toBe(708);
     expect(cover.qty).toBe(1);
   });
 
-  test('하부 멍장 카카스(측판/지판/뒷판)는 표준 산식 재사용 (W=1100 기준)', () => {
+  test('하부 멍장 카카스(측판/지판/뒷판)는 표준 산식 재사용 (W=1110 기준)', () => {
     const side = blindLowerParts.find((m) => m.part === '측판');
     const bottom = blindLowerParts.find((m) => m.part === '지판');
     expect(side.qty).toBe(2);
-    expect(bottom.w).toBe(1100 - 30); // W − T×2
+    expect(bottom.w).toBe(1110 - 30); // W − T×2
   });
 
-  test('상부 멍장 도어 = doorW(450) − 4 = 446, H = 720 + overlap 15', () => {
+  test('상부 멍장 도어 = doorW(445) − 4 = 441, H = 720 + overlap 15', () => {
     const door = blindUpperParts.find((m) => m.part === '도어');
-    expect(door.w).toBe(446); // 830 − 4 = 826이 나오면 회귀
+    expect(door.w).toBe(441); // 830 − 4 = 826이 나오면 회귀
     expect(door.h).toBe(735);
   });
 
-  test('상부 멍 가림판 = blindZoneW(380) × 720', () => {
+  test('상부 멍 가림판 = blindZoneW(395) × 720', () => {
     const cover = blindUpperParts.find((m) => m.part === '멍가림판');
-    expect(cover.w).toBe(380);
+    expect(cover.w).toBe(395);
     expect(cover.h).toBe(720);
     expect(cover.thickness).toBe(2.7);
   });
@@ -84,17 +85,17 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
 describe('W10-4: secondary 수납 모듈 BOM 누락 해소 (§6)', () => {
   const materials = extractMaterials(makeLItem());
 
-  test('하부 secondary 수납장(400×2)이 표준 산식으로 산출된다', () => {
+  test('하부 secondary 수납장(395×2)이 표준 산식으로 산출된다', () => {
     const secParts = materials.filter((m) => m.module === '하부장-수납장');
     expect(secParts.filter((m) => m.part === '측판').length).toBeGreaterThanOrEqual(2);
     const door = secParts.find((m) => m.part === '도어');
-    expect(door.w).toBe(396); // floor(400/1) − 4 — 멍장 도어와 같은 폭 (라인 균등)
+    expect(door.w).toBe(391); // floor(400/1) − 4 — 멍장 도어와 같은 폭 (라인 균등)
   });
 
-  test('상부 secondary 수납장(450×2)이 산출된다', () => {
+  test('상부 secondary 수납장(445×2)이 산출된다', () => {
     const secParts = materials.filter((m) => m.module === '상부장-수납장');
     const door = secParts.find((m) => m.part === '도어');
-    expect(door.w).toBe(446); // floor(450/1) − 4
+    expect(door.w).toBe(441); // floor(450/1) − 4
   });
 });
 
@@ -148,17 +149,19 @@ describe('W10-4: 코너 마감 (기존 finish 체계, §6)', () => {
  * 카카스 1133 = 멍 700 + 도어 433.
  */
 function makeUItem() {
+  // 플래너가 ㄷ자 2800 에서 실제로 내는 값 (W12-54 공식):
+  //   멍 715 = 650 − 10 + 60 + 15,  도어 423,  카카스 1138
   const blind = (id) => ({
     id, name: 'LT망장', type: 'storage', pos: 'lower',
-    w: 1133, h: 708, d: 650,
-    doorCount: 1, doorW: 433, blindZoneW: 700,
+    w: 1138, h: 708, d: 650,
+    doorCount: 1, doorW: 423, blindZoneW: 715,
   });
   return {
     categoryId: 'sink',
     w: 3600, h: 2310, d: 650,
     modules: [
       blind('corner-blind-lower'),
-      { id: 'plain', name: '하부장', type: 'storage', pos: 'lower', w: 434, h: 708, d: 650, doorCount: 1 },
+      { id: 'plain', name: '하부장', type: 'storage', pos: 'lower', w: 424, h: 708, d: 650, doorCount: 1 },
       blind('corner-blind-lower-2'),
     ],
     specs: { lowerH: 870, sinkLegHeight: 150, topThickness: 12 },
@@ -171,9 +174,9 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
   const doors = blindParts.filter((m) => m.part === '도어');
   const covers = blindParts.filter((m) => m.part === '멍가림판');
 
-  test('도어 둘 다 doorW 기준이다 — 카카스 폭(1129)으로 나가면 오발주', () => {
+  test('도어 둘 다 doorW 기준이다 — 카카스 폭(1134)으로 나가면 오발주', () => {
     expect(doors.length).toBe(2);
-    doors.forEach((d) => expect(d.w).toBe(433 - 4));
+    doors.forEach((d) => expect(d.w).toBe(423 - 4));
   });
 
   test('멍가림판이 둘 다 나온다 — 하나만 나오면 2.7T 한 장이 누락된다', () => {
@@ -181,14 +184,14 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
     covers.forEach((c) => {
       expect(c.material).toBe('MDF');
       expect(c.thickness).toBe(2.7);
-      expect(c.w).toBe(700);
+      expect(c.w).toBe(715);
     });
   });
 
   test('멍장 아닌 모듈은 그대로다 (접두어 매칭이 번지지 않는다)', () => {
     const plain = materials.filter((m) => m.module === '하부장-하부장' && m.part === '도어');
     expect(plain.length).toBe(1);
-    expect(plain[0].w).toBe(434 - 4);        // 카카스 폭 기준 — 일반 모듈은 이게 맞다
+    expect(plain[0].w).toBe(424 - 4);        // 카카스 폭 기준 — 일반 모듈은 이게 맞다
     expect(plain[0].note).toBe('');          // 멍장 주석이 안 붙는다
   });
 
