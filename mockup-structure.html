@@ -844,9 +844,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 모듈도 앞선에 와야 한다.
     const area = areaOfModule(m);
     if (!area) return false;
+    // W12-54: 앞선에서 **물끊기 + 도어 자리**를 비우고 몸통을 앉힌다.
+    //
+    //   배치 공간 깊이(= 상판 깊이) = 물끊기 10 + 도어 자리 20 + 몸통 + 여유(뒤)
+    //   예) 700, 몸통 550 → 뒤 여유 120 · 몸통 [120, 670] · 도어 앞면 688
+    //
+    // 예전엔 도어 앞면을 앞선에 딱 붙였다(W12-33). 그러면 상판 끝과 도어가
+    // 같은 면이 되어 **물끊기가 사라진다** — 상판에서 떨어진 물이 도어를 탄다.
+    // 물끊기 자리는 앞에 있어야 하고, 남는 것은 뒤(배관 자리)로 간다.
+    //
+    // 도어 자재는 18T 라 20 자리 안에서 2mm 가 남는다 — 그만큼 물끊기가
+    // 넉넉해질 뿐(실측 12) 규칙의 최소 10 은 언제나 지켜진다.
+    const frontReserve = MASTER_RULES.CORNER_DRIP + MASTER_RULES.DOOR_SEAT_D;
     const y = m.isFinishing
       ? (area.y || 0)
-      : (area.y || 0) + Math.max(0, (area.D || 0) - DOOR_T - (m.D || 0));
+      : (area.y || 0) + Math.max(0, (area.D || 0) - frontReserve - (m.D || 0));
     if (m.y === y) return false;
     m.y = y;
     return true;
