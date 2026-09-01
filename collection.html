@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -10,7 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
-      rel="stylesheet" />
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="css/dadam-v5.css" />
 
     <script src="js/config.js"></script>
@@ -98,15 +99,19 @@
         // ── 서버에서 한 페이지 ────────────────────────────
         // 키셋 페이지네이션. idx_collection_posts_created (created_at DESC) 를 그대로 탄다.
         // 예전 구현은 매번 전 행을 가져왔다.
+        // region 은 이번에 추가한 컬럼이다(database/collection-schema.sql).
+        // 마이그레이션 전 DB 에 붙으면 select 가 통째로 400/404 로 떨어져
+        // 사례가 하나도 안 나온다 — 실제로 그렇게 죽는 걸 봤다.
+        // 한 번 실패하면 region 없이 다시 물어보고, 그 뒤로는 계속 그 형태로 간다.
+        var hasRegion = true;
+
         async function fetchPage() {
           if (!sb || exhausted) return [];
-          var q = sb
-            .from('collection_posts')
-            .select('id, image_url, region, created_at')
-            .order('created_at', { ascending: false })
-            .limit(PAGE);
-          if (cursor) q = q.lt('created_at', cursor);
-          var res = await q;
+          var res = await queryPage(hasRegion);
+          if (res.error && hasRegion) {
+            hasRegion = false;
+            res = await queryPage(false);
+          }
           if (res.error) {
             console.warn('[collection] fetch:', res.error.message);
             exhausted = true;
@@ -118,6 +123,16 @@
           return rows;
         }
 
+        function queryPage(withRegion) {
+          var q = sb
+            .from('collection_posts')
+            .select(withRegion ? 'id, image_url, region, created_at' : 'id, image_url, created_at')
+            .order('created_at', { ascending: false })
+            .limit(PAGE);
+          if (cursor) q = q.lt('created_at', cursor);
+          return q;
+        }
+
         // ── 그리기 ──────────────────────────────────────
         function tileHTML(p) {
           var region = (p.region || '').trim();
@@ -125,13 +140,17 @@
             '<figure class="v5-tile">' +
             '<div class="v5-tile-img" role="img" aria-label="' +
             esc(region ? '다담가구 시공 사례 · ' + region : '다담가구 시공 사례') +
-            '" style="background-image:url(' + esc(p.image_url) + ')"></div>' +
+            '" style="background-image:url(' +
+            esc(p.image_url) +
+            ')"></div>' +
             '<figcaption class="v5-tile-cap">' +
             '<span class="v5-tile-brand">다담가구</span>' +
             // 지역이 비면 구분선까지 같이 감춘다 — 점만 떠 있으면 고장처럼 보인다
             (region
               ? '<span class="v5-tile-dot" aria-hidden="true"></span>' +
-                '<span class="v5-tile-region">' + esc(region) + '</span>'
+                '<span class="v5-tile-region">' +
+                esc(region) +
+                '</span>'
               : '') +
             '</figcaption>' +
             '</figure>'
@@ -199,10 +218,7 @@
         async function init() {
           try {
             if (window.DADAM_CONFIG && window.supabase) {
-              sb = window.supabase.createClient(
-                window.DADAM_CONFIG.supabase.url,
-                window.DADAM_CONFIG.supabase.anonKey
-              );
+              sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
             }
           } catch (e) {
             console.warn('[collection] supabase init:', e);
