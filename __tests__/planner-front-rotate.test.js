@@ -52,7 +52,7 @@ describe('회전 라인은 정면 시점에서 모로 선다', () => {
     const p = boot();
     const rot90 = areaOf(p, 90);
     expect(rectOf(p, rot90).w).toBe(rot90.D);      // 1970 이 아니라 700
-    expect(p.g('isEdgeOn')(rot90)).toBe(true);
+    expect(p.g('faceAt')(rot90)).toBe(90);         // 옆면
   });
 
   test('그 라인의 모듈도 같은 자리에 선다 — 서로 뒤에 겹친다', () => {
@@ -80,7 +80,7 @@ describe('회전 라인은 정면 시점에서 모로 선다', () => {
     const p = boot();
     const rot0 = areaOf(p, 0);
     expect(rectOf(p, rot0).w).toBe(rot0.W);        // 3600
-    expect(p.g('isEdgeOn')(rot0)).toBe(false);
+    expect(p.g('faceAt')(rot0)).toBe(0);           // 정면 — 도어가 보인다
   });
 });
 
@@ -95,13 +95,25 @@ describe('시점을 돌리면 그 라인이 정면으로 온다', () => {
     return p;
   }
 
-  test('좌측 시점에서 회전 라인이 제 길이로 선다', () => {
+  test('좌측 시점에서 회전 라인이 제 길이를 되찾는다 — 다만 뒷면이다', () => {
     const p = at(boot(), 270);
     const rot90 = areaOf(p, 90);
-    expect(rectOf(p, rot90).w).toBe(rot90.W);      // 1970
-    expect(p.g('isEdgeOn')(rot90)).toBe(false);
-    // 이번엔 가로 라인이 모로 선다
-    expect(p.g('isEdgeOn')(areaOf(p, 0))).toBe(true);
+    expect(rectOf(p, rot90).w).toBe(rot90.W);      // 1970 — 모로 선 700 이 아니다
+    // 폭을 되찾는 시점이 곧 도어가 보이는 시점은 아니다. rot 90 라인은 여기서
+    // **뒷면**(face 180)을 보인다 — 예전 술어(isEdgeOn)가 이걸 "정면" 으로
+    // 뭉개고 있었다 (W12-56 에서 드러나 W12-60 에서 술어를 뺐다).
+    expect(p.g('faceAt')(rot90)).toBe(180);
+    // 이번엔 가로 라인이 모로 선다 — (0 − 270) mod 360 = 90
+    expect(p.g('faceAt')(areaOf(p, 0))).toBe(90);
+  });
+
+  test('도어가 보이는 시점은 그 라인의 회전값과 같다', () => {
+    const p = at(boot(), 90);                      // rot 90 라인의 정면
+    const rot90 = areaOf(p, 90);
+    expect(p.g('faceAt')(rot90)).toBe(0);
+    expect(rectOf(p, rot90).w).toBe(rot90.W);
+    // 가로 라인(rot 0)의 정면은 시점 0 이다
+    expect(p.g('faceAt')(areaOf(p, 0))).toBe(270);
   });
 
   test('멍장이 코너 쪽에 온다 — 거울상이 아니다', () => {
@@ -180,9 +192,8 @@ describe('뒷면과 옆면을 가른다', () => {
     const rot90 = areaOf(p, 90);
     // 시점 270 에서 rot90 라인은 face 180 = 뒷면이다
     for (let i = 0; i < 3; i++) p.g('rotateView')(90);
+    // 180 은 옆면(90·270)도 정면(0)도 아니다 — 예전엔 옆면만 걸러 정면으로 취급했다
     expect(p.g('faceAt')(rot90)).toBe(180);
-    expect(p.g('isEdgeOn')(rot90)).toBe(false);      // 옆면은 아니다
-    expect(p.g('isFrontFacing')(rot90)).toBe(false); // 그렇다고 정면도 아니다
   });
 
   test('뒷면 라벨은 "뒷면" 이라고 적는다', () => {

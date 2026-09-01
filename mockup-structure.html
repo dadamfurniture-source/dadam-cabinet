@@ -1633,9 +1633,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const rot = ((o && o.rotation || 0) % 360 + 360) % 360;
     return ((rot - viewRotation) % 360 + 360) % 360;
   }
-  function isEdgeOn(o) { const f = faceAt(o); return f === 90 || f === 270; }
-  /** 도어가 이쪽을 향하는가 — 정면일 때만 참 */
-  function isFrontFacing(o) { return faceAt(o) === 0; }
+  // W12-60: `isEdgeOn` · `isFrontFacing` 을 뒀다가 뺐다. `faceAt` 하나로 충분한데
+  //   부르는 곳이 없어 테스트만 붙잡고 있었다 — 아무도 안 쓰는 술어를 지키는 셈이었다.
 
   function areaFrontRect(a) {
     const ox = getFrontViewOriginX();
@@ -3841,10 +3840,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *
    * "짧은 다리가 주인" 은 쓰지 않는다 — 두 다리 길이가 비슷하면 몇 mm 차이로
    * 주인이 바뀌어, 배치를 조금 고칠 때마다 코너가 통째로 재배치된다.
+   *
+   * 사람이 뒤집는 길은 **아직 없다.** 예전엔 `area.blindOwner` 를 읽는 가지가
+   * 있었는데 그 값을 쓰는 곳이 어디에도 없었다 — 쓰지도 저장되지도 않는 값을
+   * 읽고 있으니 "뒤집을 수 있다" 는 인상만 주고 실제로는 아무것도 안 했다.
+   * 토글이 필요해지면 UI·저장과 함께 넣는다 (W12-60 에서 제거).
    */
   function orderCorner(a, b) {
-    if (a.blindOwner === 'self' || b.blindOwner === 'other') return { owner: a, adj: b };
-    if (b.blindOwner === 'self' || a.blindOwner === 'other') return { owner: b, adj: a };
     if (rot4(a) !== 0 && rot4(b) === 0) return { owner: a, adj: b };
     if (rot4(b) !== 0 && rot4(a) === 0) return { owner: b, adj: a };
     // 둘 다 돌아 있거나 둘 다 안 돌아 있다 — 원점에서 먼 쪽 (결정적이면 된다)
