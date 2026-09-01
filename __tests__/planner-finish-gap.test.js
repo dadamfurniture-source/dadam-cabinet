@@ -123,6 +123,41 @@ describe('폭 장부', () => {
   });
 });
 
+describe('서는 높이 — 몰딩과 같은 자리다', () => {
+  test('상판 아래까지 선다 — 영역 높이가 아니다', () => {
+    const p = boot();
+    const id = areaId(p);
+    p.g('setAreaFinish')(id, 'left', 'molding');
+    const moldingH = finOn(p, 'left').H;
+    p.g('setAreaFinish')(id, 'left', 'gap');
+    // 같은 자리에 서는 부재이므로 높이가 튀면 안 된다.
+    // 폴백(영역 H)으로 떨어지면 상판 두께만큼 올라와 상판을 침범한 것처럼 보인다.
+    expect(finOn(p, 'left').H).toBe(moldingH);
+    expect(finOn(p, 'left').H).toBeLessThan(p.g('areaById')(id).H);
+  });
+
+  test('키큰장(스택 영역)에도 선다 — 세 단이 함께 폭을 내놓는다', () => {
+    const tall = {
+      version: 1, savedAt: '2026-09-02T00:00:00.000Z', person: null,
+      modules: [{ section:'tall', x:0, y:0, w:3000, h:650, moduleH:2300, rotation:0, finishings:[] }],
+    };
+    const p = bootPlanner('mockup-structure.html', {
+      search: '?design=d1&item=1',
+      storage: { 'dadam_layout_v1::d1:1': JSON.stringify(tall) },
+    });
+    p.g('autoCalcAllAreas')();
+    const a = p.g('areas').filter((x) => !x.isFinishing)[0];
+    expect(p.g('isStackedArea')(a)).toBe(true);
+    const tiers = () => p.g('modules').filter((m) => m.areaId === a.id && !m.isFinishing);
+    const before = tiers().map((m) => m.W);
+    expect(before.length).toBeGreaterThan(1);
+    p.g('setAreaFinish')(a.id, 'left', 'gap', 180);
+    expect(p.g('areaFinishOn')(a.id, 'left').W).toBe(180);
+    // 한 단만 줄면 나머지 단이 마감재를 뚫고 나온다 (W12-22)
+    tiers().forEach((m, i) => expect(m.W).toBe(before[i] - 180));
+  });
+});
+
 describe('그림 — 판이 아니라 빈 자리로 보인다', () => {
   test('정면도에 점선 테두리로, 칠하지 않고 그린다', () => {
     const p = boot();
