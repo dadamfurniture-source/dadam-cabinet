@@ -52,6 +52,12 @@ import {
   buildStorageAltSpec,
   buildStorageQuote,
 } from './prompts/storage-prompt.js';
+import {
+  OFFICE_CATEGORIES,
+  buildOfficeClosedPrompt,
+  buildOfficeAltSpec,
+  buildOfficeQuote,
+} from './prompts/office-prompt.js';
 import { buildRecolorAltSpec, pickFinishes } from './prompts/recolor-prompt.js';
 import { callClaudeVision, extractJson } from './clients/claude.js';
 
@@ -109,6 +115,11 @@ register(FRIDGE_CATEGORIES, buildFridgeClosedPrompt, buildFridgeAltSpec, {
 });
 register(VANITY_CATEGORIES, buildVanityClosedPrompt, buildVanityAltSpec, {
   quoteBuilder: buildVanityQuote,
+});
+// 사무실은 등록하지 않으면 storage 폴백(바닥~천장 수납장)으로 떨어진다.
+// 화면에 '사무실' 을 내놓는 이상 책상 있는 붙박이가 나와야 한다.
+register(OFFICE_CATEGORIES, buildOfficeClosedPrompt, buildOfficeAltSpec, {
+  quoteBuilder: buildOfficeQuote,
 });
 
 function resolveBuilders(category) {
