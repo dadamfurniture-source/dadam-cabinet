@@ -165,6 +165,13 @@
   .canvas-wrap.trim-mode{cursor:crosshair}
   .canvas-wrap.trim-mode .sect-rect{cursor:crosshair}
   .sect-rect.trim-ref rect:not(.resize-handle){stroke:#c87f24 !important;stroke-width:6 !important;stroke-dasharray:14 6}
+  /* W12-55: 겹친 배치 공간 — 트리밍할 곳을 눈으로 찾게 한다.
+     non-scaling-stroke 로 줌과 무관하게 같은 굵기로 보인다. 안 그러면 줌 12%
+     에서 6 user unit 이 0.7px 이 되어 사실상 안 보인다. */
+  .sect-rect.overlap-warn rect:not(.resize-handle){
+    stroke:#c0392b !important;stroke-width:3 !important;stroke-dasharray:8 5;
+    vector-effect:non-scaling-stroke;mix-blend-mode:normal
+  }
   /* trim 안내 토스트 */
   .trim-toast{position:absolute;top:48px;left:50%;transform:translateX(-50%);background:rgba(122,72,16,0.92);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;z-index:100;pointer-events:none}
   /* W9-53: dimPopup 의 attach-grid 스타일은 selPanelBody 안 .attach-grid 로 통합됨 */
@@ -2730,7 +2737,105 @@
     }
   });
 
+  // ─────────────────────────────────────────────────────────────
+  // W12-55: 겹친 배치 공간을 구조 단계로 넘기지 않는다
+  //
+  // 구조 단계는 배치 공간 하나를 라인 하나로 본다. 두 배치 공간이 겹쳐 있으면
+  // 같은 자리를 둘이 주장하는 셈이라, 모듈이 서로를 파고들고 코너 계산도
+  // 어긋난다 (겹친 자리를 누가 갖는지 정할 방법이 없다).
+  //
+  // 고치는 도구는 이미 있다 — 좌측 ✂ 트리밍. 넘어가기 전에 한 번 짚어 준다.
+  // ─────────────────────────────────────────────────────────────
+
+  /** 이 사각형이 앉는 단. 상부장·후드는 천장에 매달리므로 바닥 것과 겹쳐도 정상이다. */
+  function tierOfRect(g) {
+    return (g.classList.contains('upper') || g.classList.contains('hood')) ? 'hung' : 'floor';
+  }
+
+  /** 사각형 라벨 — 경고에 무엇이 겹쳤는지 적는다 */
+  function rectLabel(g) {
+    const sec = Array.from(g.classList).find((c) => SECTION_CONFIG[c]);
+    return (SECTION_CONFIG[sec] && SECTION_CONFIG[sec].label) || sec || '사각형';
+  }
+
+  /**
+   * 겹친 배치 공간 쌍.
+   *
+   * 판정은 `trimAgainst` 와 **같은 상자**(getVisualBBox)를 쓴다 — 고치는 도구가
+   * 트리밍이므로, 트리밍이 겹쳤다고 보는 것만 겹쳤다고 해야 한다.
+   * 맞닿은 것(간극 0)은 겹친 것이 아니다.
+   */
+  function overlappingRectPairs(tol) {
+    const t = Number.isFinite(tol) ? tol : 1;
+    const content = getContent();
+    if (!content) return [];
+    const rects = Array.from(content.querySelectorAll(':scope > g.sect-rect'))
+      .filter((g) => !g.classList.contains('finishing'));
+    const out = [];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        if (tierOfRect(rects[i]) !== tierOfRect(rects[j])) continue;
+        const A = getVisualBBox(rects[i]), B = getVisualBBox(rects[j]);
+        if (!A || !B) continue;
+        const ox = Math.min(A.maxX, B.maxX) - Math.max(A.minX, B.minX);
+        const oy = Math.min(A.maxY, B.maxY) - Math.max(A.minY, B.minY);
+        if (ox > t && oy > t) {
+          out.push({
+            a: rects[i], b: rects[j],
+            label: rectLabel(rects[i]) + ' ↔ ' + rectLabel(rects[j]),
+            ox: Math.round(ox), oy: Math.round(oy),
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  /** 겹친 사각형에 표시를 붙인다 — 어디를 트리밍할지 눈으로 찾을 수 있게 */
+  function markOverlaps(pairs) {
+    const content = getContent();
+    if (content) {
+      content.querySelectorAll('g.sect-rect.overlap-warn')
+        .forEach((g) => g.classList.remove('overlap-warn'));
+    }
+    (pairs || []).forEach((p) => {
+      p.a.classList.add('overlap-warn');
+      p.b.classList.add('overlap-warn');
+    });
+  }
+
   document.getElementById('nextStepBtn').onclick = () => {
+    // W12-55: 겹친 배치 공간이 있으면 먼저 알린다. 막지는 않는다 —
+    // 사람이 일부러 겹쳐 두고 넘어가는 경우까지 잠글 이유는 없다.
+    const overlaps = overlappingRectPairs();
+    if (overlaps.length) {
+      markOverlaps(overlaps);
+      const msg = [
+        '⚠ 배치 공간 ' + overlaps.length + '곳이 겹쳐 있습니다.',
+        '',
+      ].concat(
+        overlaps.slice(0, 5).map((p) => '  · ' + p.label + ' — ' + p.ox + ' × ' + p.oy + 'mm'),
+        overlaps.length > 5 ? ['  … 외 ' + (overlaps.length - 5) + '건'] : [],
+        [
+          '',
+          '구조 단계는 배치 공간 하나를 라인 하나로 봅니다.',
+          '겹친 자리는 두 라인이 같이 주장하게 되어 모듈이 서로를 파고들고,',
+          '코너가 있으면 멍장 치수도 어긋납니다.',
+          '',
+          '좌측 ✂ 트리밍으로 겹침을 없앤 뒤 넘어가시길 권합니다.',
+          '(① 기준 사각형 클릭 → ② 잘릴 사각형 클릭)',
+          '',
+          '그래도 지금 넘어갈까요?',
+        ]
+      ).join('\n');
+      if (!window.confirm(msg)) {
+        showFlash('✂ 겹친 곳 ' + overlaps.length + '군데를 표시했습니다 — 트리밍 후 다시 눌러 주세요',
+          'rgba(122,72,16,0.92)');
+        return;
+      }
+    } else {
+      markOverlaps([]);
+    }
     // W9-59: 자동 저장 후 mockup-structure.html (Step 2) 페이지로 이동
     const layout = serializeLayout();
     if (layout) {
