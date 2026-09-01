@@ -3999,10 +3999,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const sum = mine.reduce((s, m) => s + (m.W || 0), 0);
     const blinds = mine.filter((m) => m.blind).length;
     const reserved = MASTER_RULES.CORNER_WALL_GAP * owned.length + (adj ? adj.offset : 0);
+    const diff = (area.W || 0) - reserved - sum;
+    const ownerPlan = owned.length ? cornerPlansFor(areaId, ps) : null;
+    const fillUnit = (ownerPlan && ownerPlan.plan.ok)
+      ? ownerPlan.plan.doorW
+      : MASTER_RULES.DOOR_W_MIN;
     return {
-      areaId, areaW: area.W, sum, reserved,
-      diff: (area.W || 0) - reserved - sum,
+      areaId, areaW: area.W, sum, reserved, diff,
       corners: owned.length, blinds, missing: owned.length - blinds,
+      // W12-57: 남은 자리가 **거기 들어갈 수 있는 가장 작은 모듈**보다 좁으면
+      //   아무것도 못 넣는다. 사람이 고정 모듈을 키우면 정상적으로 생기는
+      //   상태다 — 위반이 아니다. (원장 자체는 날것으로 남긴다.)
+      //
+      //   최소 단위가 라인마다 다르다. 멍장 라인은 도어 폭이 라인 전체에
+      //   묶여 있어(§3.4) 모듈이 `doorW` 배수로만 들어간다 — 그보다 좁으면
+      //   못 채운다. 일반 라인은 도어 최소폭(350)이 기준이다.
+      unfillable: diff > 0 && diff < fillUnit,
     };
   }
 
@@ -4074,7 +4086,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const dist = blinds.length
       ? distributeByDoorW(room, corner.plan.doorW)
       : distributeModules(room);
-    if (!dist.modules.length) { showToast('⚠ 자동계산이 배치를 찾지 못했습니다'); return 0; }
+    if (!dist.modules.length) {
+      // W12-57: 멍장은 이미 섰다. 남은 자리가 도어 폭보다 좁아 수납이 못 들어갈
+      //   뿐인데 "찾지 못했다" 고 하면 아무것도 안 된 줄 안다.
+      showToast(blinds.length
+        ? `멍장 ${blinds.length}개를 세웠습니다 — 남은 폭 ${Math.round(room)}mm 는 도어 ${corner.plan.doorW}mm 보다 좁습니다`
+        : '⚠ 자동계산이 배치를 찾지 못했습니다');
+      return blinds.length;
+    }
 
     // 잔여는 셀에 고루 나누고 끝이 나머지를 흡수한다 — autoCalcModule 과 같은 방식.
     const widths = dist.modules.map((d) => d.w);
@@ -4153,7 +4172,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const after = cornerPairs();
     after.forEach((c) => [c.owner.id, c.adj.id].forEach((id) => {
       const L = cornerLedger(id);
-      if (L && (Math.abs(L.diff) > 1 || L.missing !== 0)) console.warn('[corner] 원장 불일치', L);
+      // 채울 수 없는 자투리는 넘어간다 — 안 그러면 사람이 고정 모듈을 키울 때마다
+      // 콘솔이 빨개진다. 검사가 시끄러우면 진짜 불일치를 흘려보내게 된다.
+      if (L && !L.unfillable && (Math.abs(L.diff) > 1 || L.missing !== 0)) {
+        console.warn('[corner] 원장 불일치', L);
+      }
     }));
     // 합이 맞아도 옆 공간을 파고들 수 있다 — 그건 평면에서만 보인다.
     if (after.length) {
