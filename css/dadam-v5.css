@@ -263,6 +263,72 @@
   letter-spacing: 0.14em;
 }
 
+/* ── 계정 메뉴 ──
+   로그인하면 '로그아웃' 글자 대신 계정 아이콘이 뜨고, 누르면 예전 내비에
+   있던 하위 항목이 나온다. hover 로 여는 옛 방식은 터치 기기에서 안 열려
+   클릭으로 연다. */
+.v5-account {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.v5-account-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 50%; /* v5 의 유일한 원형 요소 — 계정 아이콘 관례를 따른다 */
+  background: none;
+  color: var(--v5-ink-62);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease;
+}
+.v5-account-btn:hover,
+.v5-account-btn[aria-expanded='true'] {
+  color: var(--v5-ink);
+  border-color: var(--v5-tan);
+}
+.v5-account-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  min-width: 176px;
+  background: var(--v5-paper);
+  border: 1px solid var(--v5-line);
+  padding: 8px 0;
+  display: grid;
+  z-index: 40;
+}
+.v5-account-menu a,
+.v5-account-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 18px;
+  font-weight: 300;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--v5-ink-62);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.v5-account-menu a:hover,
+.v5-account-menu button:hover {
+  color: var(--v5-ink);
+  background: var(--v5-work);
+}
+.v5-account-sep {
+  height: 1px;
+  background: var(--v5-line-12);
+  margin: 8px 0;
+}
+
 /* ============================================================
    마퀴 — 타일 간격은 각 타일의 margin-right 로 준다.
    컨테이너 gap 을 쓰면 -50% 로 돌아올 때 이음새가 어긋난다.
@@ -364,11 +430,21 @@
   display: grid;
   gap: var(--v5-section);
 }
+.v5-lede-eyebrow {
+  font-weight: 300;
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  padding-left: 0.34em; /* 자간이 오른쪽에만 붙어 생기는 쏠림 보정 */
+  color: var(--v5-tan);
+  text-align: center;
+  margin-bottom: 10px;
+}
 .v5-lede {
   font-weight: 300;
   font-size: 13.5px;
   line-height: 2;
   color: var(--v5-ink-60);
+  text-align: center;
 }
 
 .v5-cols {
@@ -567,15 +643,14 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
-.v5-grid-db {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-}
+/* 참고 이미지는 2열. 3열일 때는 타일이 작아 무엇을 고르는지 잘 안 보였다.
+   두 탭을 같은 열 수로 두는 이유: 탭을 옮길 때 타일 크기가 변하면
+   같은 카드 안에서 레이아웃이 튄다. */
+.v5-grid-db,
 .v5-grid-theme {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 .v5-pick {
   border: 0;
@@ -587,13 +662,13 @@
   gap: 6px;
 }
 .v5-pick-img {
-  height: 96px;
+  height: auto;
+  aspect-ratio: 4 / 3;
   background: var(--v5-photo);
   background-size: cover;
   background-position: center;
 }
 .v5-grid-theme .v5-pick-img {
-  height: auto;
   aspect-ratio: 1 / 1;
   background-color: var(--v5-photo-alt);
 }
@@ -643,6 +718,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* 열렸을 때 바로 아래 그리드와 붙지 않게. 붙으면 검색어와 사진이
+     겹쳐 보인다. 닫혀 있을 때는 [hidden] 이라 이 여백도 사라진다. */
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--v5-line-12);
 }
 .v5-search input {
   flex: 1;

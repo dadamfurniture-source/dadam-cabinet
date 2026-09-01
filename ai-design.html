@@ -128,6 +128,7 @@
 
     <main class="v5-main">
       <div class="v5-wrap">
+        <p class="v5-lede-eyebrow">CREATIVE IMAGE</p>
         <p class="v5-lede">공간 사진과 참고 이미지를 넣으면 네 컷이 생성됩니다.</p>
 
         <div class="v5-cols">
@@ -216,7 +217,7 @@
 
             <div class="v5-tabs">
               <button type="button" class="v5-tab" data-tab="upload" aria-selected="false">업로드</button>
-              <button type="button" class="v5-tab" data-tab="db" aria-selected="true">다담 DB</button>
+              <button type="button" class="v5-tab" data-tab="db" aria-selected="true">시공사례</button>
               <button type="button" class="v5-tab" data-tab="theme" aria-selected="false">테마</button>
               <button type="button" class="v5-icon-btn" id="searchBtn" aria-expanded="false" aria-label="검색">
                 <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" stroke-width="1.2">
@@ -250,14 +251,14 @@
                 <input type="file" id="input2" accept="image/jpeg,image/png" multiple hidden />
               </div>
 
-              <!-- 다담 DB -->
+              <!-- 시공사례 -->
               <div id="pane-db">
                 <div class="v5-search" id="searchRow" hidden>
                   <input type="text" id="query" placeholder="키워드로 찾기" aria-label="검색어" />
                   <span style="font-weight: 300; font-size: 11px; color: var(--v5-ink-45)" id="queryCount"></span>
                   <button type="button" class="v5-btn" id="queryReset" style="padding: 8px 14px">초기화</button>
                 </div>
-                <div class="v5-scroll" id="dbScroll" style="max-height: 270px">
+                <div class="v5-scroll" id="dbScroll" style="max-height: 400px">
                   <div class="v5-grid-db" id="dbGrid"></div>
                   <div id="dbSentinel" style="height: 1px"></div>
                 </div>
@@ -266,12 +267,14 @@
 
               <!-- 테마 -->
               <div id="pane-theme" hidden>
-                <div class="v5-scroll" id="themeScroll" style="max-height: 288px">
+                <div class="v5-scroll" id="themeScroll" style="max-height: 400px">
                   <div class="v5-grid-theme" id="themeGrid"></div>
                   <div id="themeSentinel" style="height: 1px"></div>
                 </div>
                 <p class="v5-hint" id="themeHint" style="margin-top: 12px"></p>
-                <p class="v5-note" style="margin-top: 10px">다담 시공 사례에서 스타일별로 모은 이미지입니다.</p>
+                <p class="v5-note" style="margin-top: 10px">
+                  분위기 참고용 이미지입니다. 퍼블릭 도메인 · CC0 만 씁니다.
+                </p>
               </div>
             </div>
 
@@ -330,22 +333,66 @@
         var MAX_EDGE = 1600; // 업로드 전 축소. 원본을 그대로 base64 로 보내면 수 MB 가 된다.
 
         // 화면 라벨 → 생성 API 카테고리. worker 의 *_CATEGORIES 와 같은 키다.
+        // 'storage' 는 worker 에 전용 CATEGORIES 목록이 없다 — 매치되지 않는 키는
+        // buildStorageClosedPrompt 로 떨어지므로(worker.js resolveBuilders) 그게 곧 수납장이다.
+        //
+        // collection: 시공사례 탭을 이 품목으로 걸러낼 때 쓰는 collection_posts.category.
+        // 두 분류 체계의 낱말이 달라(생성은 가구 종류, 컬렉션은 공간 종류) 여기서 이어붙인다.
         var KINDS = [
-          { key: 'sink', label: '싱크대', gallery: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'] },
-          { key: 'island', label: '아일랜드', gallery: ['island_kitchen'] },
-          { key: 'wardrobe', label: '붙박이장', gallery: ['wardrobe'] },
-          { key: 'fridge', label: '냉장고장', gallery: ['fridge_cabinet'] },
-          { key: 'vanity', label: '화장대', gallery: ['vanity'] },
-          { key: 'shoe', label: '신발장', gallery: ['shoe_cabinet'] },
+          {
+            key: 'sink',
+            label: '싱크대',
+            gallery: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'],
+            collection: ['kitchen'],
+          },
+          { key: 'island', label: '아일랜드', gallery: ['island_kitchen'], collection: ['kitchen'] },
+          { key: 'wardrobe', label: '붙박이장', gallery: ['wardrobe'], collection: ['builtin'] },
+          { key: 'storage', label: '수납장', gallery: ['storage_cabinet'], collection: ['storage'] },
+          { key: 'fridge', label: '냉장고장', gallery: ['fridge_cabinet'], collection: ['kitchen'] },
+          { key: 'vanity', label: '화장대', gallery: ['vanity'], collection: ['interior'] },
+          { key: 'shoe', label: '신발장', gallery: ['shoe_cabinet'], collection: ['builtin'] },
         ];
 
-        var STYLE_LABEL = {
-          modern: '모던',
-          luxury: '럭셔리',
-          natural: '내추럴',
-          nordic: '노르딕',
-          classic: '클래식',
-        };
+        // 시공사례 폴백 — collection.html 의 STATIC 과 같은 목록이다.
+        // 컬렉션에 올라온 글이 아직 적을 때 두 화면이 같은 사진을 보여야
+        // "컬렉션에 올라가는 이미지"라는 말이 성립한다.
+        var CASE_STATIC = [
+          { image_url: 'app/portfolio/kitchen-n1-1.jpg', region: '서울 논현', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n1-2.jpg', region: '서울 성수', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n1-3.jpg', region: '서울 성수', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n1-4.jpg', region: '서울 반포', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n3-2.jpg', region: '성남 분당', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n3-3.jpg', region: '인천 송도', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n4-1.jpg', region: '성남 판교', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n6-1.jpg', region: '고양 일산', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n6-2.jpg', region: '용인 수지', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n6-3.jpg', region: '고양 일산', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n7-1.jpg', region: '하남 위례', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n7-2.jpg', region: '수원 광교', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n7-3.jpg', region: '서울 마포', category: 'kitchen' },
+          { image_url: 'app/portfolio/kitchen-n7-4.jpg', region: '수원 광교', category: 'kitchen' },
+          { image_url: 'app/portfolio/funiture-n4-1.jpg', region: '서울 논현', category: 'builtin' },
+        ];
+
+        // 테마 — 분위기 참고용.
+        // 저장소에도 DB 에도 이런 사진이 없어서 위키미디어 공용에서 가져온다.
+        // haslicense:unrestricted 로 검색하고 라이선스를 한 번 더 확인해
+        // **퍼블릭 도메인 · CC0 만** 남긴다(상업적 사용·재배포 가능).
+        // 낱말 검색(예: deer)은 지명·인명에 걸려 엉뚱한 게 나온다 — '동물' 에
+        // 도시 판화가 떴다. 큐레이션된 카테고리를 직접 짚는다.
+        // deepcategory 는 하위 카테고리까지 훑는다(incategory 는 안 훑는다).
+        // 각 질의는 실제로 돌려보고 상위 결과가 주제에 맞는 것만 남겼다.
+        var THEMES = [
+          { key: 'plant', label: '식물', q: 'deepcategory:"Quality images of plants"' },
+          { key: 'animal', label: '동물', q: 'deepcategory:"Quality images of animals"' },
+          { key: 'nature', label: '자연', q: 'incategory:"Quality images of nature"' },
+          // '명품' 은 Quality images 계열에 해당 카테고리가 없다.
+          // Met 소장 주얼리(CC0)로 대신한다.
+          { key: 'luxury', label: '명품', q: 'deepcategory:"Jewellery in the Metropolitan Museum of Art"' },
+          { key: 'art', label: '예술품', q: 'deepcategory:"Quality images of sculptures"' },
+          { key: 'painting', label: '회화', q: 'incategory:"Oil paintings in the Metropolitan Museum of Art"' },
+        ];
+        var THEME_FREE = /^(CC0|Public domain|PDM|No restrictions)/i;
 
         var MARQUEE = [
           'kitchen-n1-1.jpg',
@@ -366,9 +413,10 @@
           kind: 'sink',
           query: '',
           searchOpen: false,
-          dbAll: [], // furniture_images 전체
+          dbAll: [], // 시공사례 (collection_posts + CASE_STATIC)
+          themeAll: [], // 위키미디어에서 받은 테마 이미지
           dbCount: 6,
-          themeCount: 9,
+          themeCount: 6, // 2열이라 6장이면 세 줄
           phase: 'idle', // idle | loading | done
           results: [], // [{src, label}]
           quote: null,
@@ -520,47 +568,134 @@
         }
 
         // ═══════════════════════════════════════════════
-        // 슬롯 ② — 다담 DB / 테마
+        // 슬롯 ② — 시공사례 / 테마
         // ═══════════════════════════════════════════════
-        function galleryLabel(r) {
-          var kind = KINDS.filter(function (k) {
-            return k.gallery.indexOf(r.category) >= 0;
-          })[0];
-          var style = STYLE_LABEL[r.style] || '';
-          return [style, kind ? kind.label : r.category].filter(Boolean).join(' · ');
+        function caseLabel(r) {
+          return r.region ? '다담가구 · ' + r.region : '다담가구';
         }
 
+        // 시공사례 = 컬렉션에 올라가는 그 이미지.
+        // collection.html 과 같은 규칙으로 만든다: DB 글이 앞(최신순), 정적분이 뒤.
         async function loadGallery() {
-          if (!sb) {
-            $('dbHint').textContent = '이미지를 불러오지 못했습니다';
-            return;
+          var rows = [];
+          if (sb) {
+            try {
+              var res = await sb
+                .from('collection_posts')
+                .select('image_url, region, category, created_at')
+                .order('created_at', { ascending: false })
+                .limit(300);
+              if (res.error) throw new Error(res.error.message);
+              rows = res.data || [];
+            } catch (e) {
+              // 테이블이 없거나 막혀도 정적분으로 화면은 채운다.
+              console.warn('[studio] 시공사례:', e.message);
+            }
           }
-          try {
-            var res = await sb
-              .from('furniture_images')
-              .select('category, style, image_url')
-              .eq('is_training', false)
-              .limit(300);
-            if (res.error || !res.data || !res.data.length) throw new Error(res.error ? res.error.message : 'empty');
-            S.dbAll = res.data.map(function (r, i) {
-              return { key: 'db-' + i, src: r.image_url, label: galleryLabel(r), style: r.style, category: r.category };
-            });
-          } catch (e) {
-            console.warn('[studio] gallery:', e.message);
-            $('dbHint').textContent = '이미지를 불러오지 못했습니다';
-            return;
-          }
+          S.dbAll = rows.concat(CASE_STATIC).map(function (r, i) {
+            return {
+              key: 'db-' + i,
+              src: r.image_url,
+              label: caseLabel(r),
+              region: r.region || '',
+              category: r.category || '',
+            };
+          });
           renderDb();
-          renderTheme();
           fillGrids();
+          loadThemes();
+        }
+
+        // 품목을 고르면 그 품목의 사례만 남긴다.
+        // 다만 아직 사례가 없는 품목이 많아, 걸러서 0장이 되면 전체를 보여준다 —
+        // 빈 화면을 내는 것보다 낫고, 왜 그런지는 힌트 줄에 적는다.
+        function caseByKind() {
+          var kind = KINDS.filter(function (k) {
+            return k.key === S.kind;
+          })[0];
+          if (!kind) return { list: S.dbAll, filtered: false };
+          var hit = S.dbAll.filter(function (r) {
+            return kind.collection.indexOf(r.category) >= 0;
+          });
+          return hit.length ? { list: hit, filtered: true } : { list: S.dbAll, filtered: false };
         }
 
         function dbFiltered() {
+          var base = caseByKind().list;
           var q = S.query.trim();
-          if (!q) return S.dbAll;
-          return S.dbAll.filter(function (r) {
+          if (!q) return base;
+          return base.filter(function (r) {
             return r.label.indexOf(q) >= 0;
           });
+        }
+
+        // ── 테마 ──
+        // 위키미디어 공용에서 주제별로 받아 퍼블릭 도메인/CC0 만 남긴다.
+        // 한 번 받으면 sessionStorage 에 넣어 탭을 오갈 때마다 다시 부르지 않는다.
+        async function fetchTheme(t) {
+          var cacheKey = 'v5-theme-' + t.key;
+          try {
+            var hit = sessionStorage.getItem(cacheKey);
+            if (hit) return JSON.parse(hit);
+          } catch (e) {}
+
+          var url =
+            'https://commons.wikimedia.org/w/api.php?origin=*&action=query&format=json' +
+            '&generator=search&gsrnamespace=6&gsrlimit=24&gsrsearch=' +
+            encodeURIComponent('filetype:bitmap haslicense:unrestricted ' + t.q) +
+            '&prop=imageinfo&iiprop=url|extmetadata|mime&iiurlwidth=640';
+
+          var res = await fetch(url);
+          var json = await res.json();
+          var pages = json && json.query && json.query.pages ? Object.keys(json.query.pages) : [];
+          var out = [];
+          pages.forEach(function (k, i) {
+            var info = (json.query.pages[k].imageinfo || [])[0];
+            if (!info || !/^image\/(jpeg|png)$/.test(info.mime || '')) return;
+            var lic =
+              (info.extmetadata && info.extmetadata.LicenseShortName && info.extmetadata.LicenseShortName.value) || '';
+            if (!THEME_FREE.test(lic)) return; // 상업적 사용이 막힌 것은 버린다
+            out.push({
+              key: 'th-' + t.key + '-' + i,
+              src: info.thumburl || info.url,
+              label: t.label,
+            });
+          });
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify(out));
+          } catch (e) {}
+          return out;
+        }
+
+        async function loadThemes() {
+          try {
+            var packs = await Promise.all(
+              THEMES.map(function (t) {
+                return fetchTheme(t).catch(function () {
+                  return [];
+                });
+              })
+            );
+            // 주제별로 뭉치지 않게 번갈아 섞는다 — 한 주제만 스무 장 이어지면
+            // 아래로 내리기 전엔 다른 주제가 있는 줄 모른다.
+            var out = [];
+            for (var i = 0; ; i++) {
+              var any = false;
+              for (var j = 0; j < packs.length; j++) {
+                if (packs[j][i]) {
+                  out.push(packs[j][i]);
+                  any = true;
+                }
+              }
+              if (!any) break;
+            }
+            S.themeAll = out;
+          } catch (e) {
+            console.warn('[studio] 테마:', e.message);
+            S.themeAll = [];
+          }
+          renderTheme();
+          fillGrids();
         }
 
         function pickHTML(r) {
@@ -583,38 +718,34 @@
         }
 
         function renderDb() {
+          var scope = caseByKind();
           var list = dbFiltered();
           var shown = list.slice(0, S.dbCount);
           $('dbGrid').innerHTML = shown.map(pickHTML).join('');
-          $('dbHint').textContent = shown.length >= list.length ? '마지막입니다' : '스크롤하면 더 불러옵니다';
+          var kind = KINDS.filter(function (k) {
+            return k.key === S.kind;
+          })[0];
+          var more = shown.length >= list.length ? '마지막입니다' : '스크롤하면 더 불러옵니다';
+          $('dbHint').textContent = scope.filtered
+            ? (kind ? kind.label : '') + ' 사례 · ' + more
+            : (kind ? kind.label + ' 사례가 아직 없어 전체를 보여줍니다 · ' : '') + more;
           $('queryCount').textContent = shown.length + ' / ' + list.length;
           syncPicked();
         }
 
-        // 테마 = 같은 테이블을 **스타일**로 묶은 것.
-        // 핸드오프의 loremflickr 는 상업적 사용이 불가라 쓰지 않는다.
         function themeList() {
-          var byStyle = {};
-          S.dbAll.forEach(function (r) {
-            if (!r.style) return;
-            (byStyle[r.style] = byStyle[r.style] || []).push(r);
-          });
-          var out = [];
-          Object.keys(byStyle)
-            .sort()
-            .forEach(function (st) {
-              byStyle[st].slice(0, 12).forEach(function (r, i) {
-                out.push({ key: 'th-' + st + '-' + i, src: r.src, label: (STYLE_LABEL[st] || st) + ' ' + (i + 1) });
-              });
-            });
-          return out;
+          return S.themeAll;
         }
 
         function renderTheme() {
           var list = themeList();
           var shown = list.slice(0, S.themeCount);
           $('themeGrid').innerHTML = shown.map(pickHTML).join('');
-          $('themeHint').textContent = shown.length >= list.length ? '마지막입니다' : '스크롤하면 더 불러옵니다';
+          $('themeHint').textContent = !list.length
+            ? '테마 이미지를 불러오지 못했습니다'
+            : shown.length >= list.length
+              ? '마지막입니다'
+              : '스크롤하면 더 불러옵니다';
           syncPicked();
         }
 
@@ -895,6 +1026,11 @@
             if (!b) return;
             S.kind = b.getAttribute('data-kind');
             renderKinds();
+            // 품목이 바뀌면 시공사례도 다시 거른다. 처음부터 다시 세지 않으면
+            // 앞 품목에서 늘려둔 장수가 그대로 남아 목록이 어긋난다.
+            S.dbCount = 6;
+            renderDb();
+            fillGrids();
           };
 
           document.querySelectorAll('.v5-tab[data-tab]').forEach(function (b) {
@@ -945,7 +1081,7 @@
           });
           watchMore($('themeSentinel'), $('themeScroll'), function () {
             if (S.themeCount >= themeList().length) return false;
-            S.themeCount += 9;
+            S.themeCount += 6;
             renderTheme();
             return true;
           });
@@ -977,6 +1113,10 @@
          */
         function fillToOverflow(root, more) {
           if (!root) return;
+          // 숨은 탭은 높이가 0 이라 "안 넘친다" 로 읽힌다. 그대로 두면 화면에
+          // 보이지도 않는 타일을 상한까지 밀어넣는다 (테마 탭이 실제로 그랬다 —
+          // 6장이면 될 자리에 140장을 그렸다). 탭이 열릴 때 setTab 이 다시 부른다.
+          if (!root.clientHeight) return;
           for (var i = 0; i < 8; i++) {
             if (root.scrollHeight > root.clientHeight + 4) return;
             if (more() === false) return;
@@ -1017,7 +1157,7 @@
           });
           fillToOverflow($('themeScroll'), function () {
             if (S.themeCount >= themeList().length) return false;
-            S.themeCount += 9;
+            S.themeCount += 6; // 2열이라 6장이면 세 줄
             renderTheme();
             return true;
           });
