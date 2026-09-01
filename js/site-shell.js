@@ -268,10 +268,25 @@
         left = plan && plan.data ? plan.data.monthly_credits : null;
       }
       if (left !== null) {
+        // 잔액은 크레딧이고 생성 1회는 그보다 크다. 크레딧만 적으면
+        // 몇 번 만들 수 있는지 알 수 없어 환산값을 함께 낸다.
+        var cost = null;
+        try {
+          var cc = await sb
+            .from('credit_costs')
+            .select('credits')
+            .eq('action', 'generate')
+            .maybeSingle();
+          if (cc && cc.data) cost = cc.data.credits;
+        } catch (e) {}
+
         var el = document.getElementById('shellCredit');
         var sep = document.getElementById('shellSep');
         if (el) {
-          el.textContent = '잔여 ' + left + '회';
+          el.textContent =
+            cost > 0
+              ? left.toLocaleString('ko-KR') + ' 크레딧 · ' + Math.floor(left / cost) + '회'
+              : left.toLocaleString('ko-KR') + ' 크레딧';
           el.hidden = false;
         }
         if (sep) sep.hidden = false;
