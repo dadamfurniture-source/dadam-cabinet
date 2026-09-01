@@ -59,6 +59,7 @@ import {
   buildOfficeQuote,
 } from './prompts/office-prompt.js';
 import { verifyJwt, AuthError } from './auth.js';
+import { consumeCredit, refundCredit, InsufficientCredit } from './credits.js';
 import { buildRecolorAltSpec, pickFinishes } from './prompts/recolor-prompt.js';
 import { callClaudeVision, extractJson } from './clients/claude.js';
 
@@ -232,6 +233,8 @@ export default {
 
     if (url.pathname === '/api/generate' && request.method === 'POST') {
       const startTime = Date.now();
+      // try 밖에 둔다 — catch 에서 환불하려면 여기서 보여야 한다
+      let creditRef = null;
 
       try {
         if (!env.GEMINI_API_KEY) {
@@ -260,6 +263,26 @@ export default {
         }
         console.log(`[Generate] user=${user.id}`);
 
+        // 크레딧 1 차감. 잔액 확인과 차감이 한 RPC 안에서 끝난다 —
+        // 나눠 쓰면 동시에 들어온 요청이 같은 잔액을 보고 둘 다 통과한다.
+        try {
+          const c = await consumeCredit(request, env, 'generate');
+          creditRef = c.ref;
+          console.log(`[Generate] credit -1 → ${c.balance}`);
+        } catch (e) {
+          if (e instanceof InsufficientCredit) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: '이번 달 생성 횟수를 모두 사용했습니다.',
+                code: 'insufficient_credit',
+              }),
+              { status: 402, headers: { ...headers, 'Content-Type': 'application/json' } }
+            );
+          }
+          throw e;
+        }
+
         const body = await request.json();
         const {
           room_image,
@@ -282,6 +305,7 @@ export default {
         }
 
         if (!room_image) {
+          await refundCredit(request, env, creditRef);
           return new Response(JSON.stringify({ success: false, error: 'room_image is required' }), {
             status: 400,
             headers: { ...headers, 'Content-Type': 'application/json' },
@@ -505,6 +529,7 @@ export default {
         );
 
         if (!closedResult.image) {
+          await refundCredit(request, env, creditRef);
           return new Response(
             JSON.stringify({ success: false, error: 'Failed to generate closed door image' }),
             {
@@ -675,6 +700,9 @@ export default {
         );
       } catch (error) {
         console.error('[Generate] Error:', error.message);
+        // 사용자가 아무것도 못 받았으면 차감을 되돌린다.
+        // creditRef 는 차감이 실제로 일어난 경우에만 채워져 있다.
+        await refundCredit(request, env, creditRef);
         return new Response(JSON.stringify({ success: false, error: error.message }), {
           status: 500,
           headers: { ...headers, 'Content-Type': 'application/json' },
