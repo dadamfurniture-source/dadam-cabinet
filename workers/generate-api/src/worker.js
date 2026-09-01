@@ -58,6 +58,7 @@ import {
   buildOfficeAltSpec,
   buildOfficeQuote,
 } from './prompts/office-prompt.js';
+import { verifyJwt, AuthError } from './auth.js';
 import { buildRecolorAltSpec, pickFinishes } from './prompts/recolor-prompt.js';
 import { callClaudeVision, extractJson } from './clients/claude.js';
 
@@ -242,6 +243,22 @@ export default {
             }
           );
         }
+
+        // 인증 — 본문을 읽기 전에. 뒤에 두면 인증 없는 요청도
+        // 수 MB base64 를 통째로 파싱하게 된다.
+        let user;
+        try {
+          user = await verifyJwt(request, env);
+        } catch (e) {
+          if (e instanceof AuthError) {
+            return new Response(JSON.stringify({ success: false, error: e.message }), {
+              status: 401,
+              headers: { ...headers, 'Content-Type': 'application/json' },
+            });
+          }
+          throw e;
+        }
+        console.log(`[Generate] user=${user.id}`);
 
         const body = await request.json();
         const {
