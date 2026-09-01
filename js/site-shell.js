@@ -53,7 +53,6 @@
     { label: '마이페이지', href: 'mypage.html' },
     { label: '내 설계', href: 'my-designs.html' },
     { label: '구독 관리', href: 'billing.html' },
-    { label: '상세 설계', href: 'detaildesign.html', id: 'navDetailDesign', hidden: true },
     { label: '관리자 페이지', href: 'admin/index.html', id: 'navAdminLink', hidden: true },
   ];
 
@@ -102,7 +101,7 @@
 
     return (
       '<header class="v5-header">' +
-      '<a class="v5-mark" href="index.html" aria-label="다담가구 홈">' +
+      '<a class="v5-mark" href="ai-design.html" aria-label="다담가구 홈">' +
       '<span class="v5-mark-ko">다담</span>' +
       '<span class="v5-mark-rule" aria-hidden="true"></span>' +
       '<span class="v5-mark-en">FURNITURE</span>' +
@@ -114,6 +113,10 @@
       // 잔여 횟수. applyAuth 가 user_credits 를 읽어 채운다.
       '<span class="v5-credit" id="shellCredit" hidden></span>' +
       '<span class="v5-sep" id="shellSep" hidden aria-hidden="true"></span>' +
+      // DETAIL DESIGN — 로그인하면 헤더 우측에 뜬다.
+      // 드롭다운 안이 아니라 밖에 두는 이유: 설계 도구는 이 사이트에서
+      // 가장 자주 쓰는 진입점이라 한 번에 닿아야 한다.
+      '<a class="v5-detail-link" href="detaildesign.html" id="navDetailDesign" hidden>DETAIL DESIGN</a>' +
       (hasI18n()
         ? '<button type="button" id="lang-toggle" aria-label="언어 전환"><span>KO</span></button>'
         : '') +
@@ -295,12 +298,11 @@
       console.warn('[shell] credit:', e.message);
     }
 
-    // 상세설계 탭은 본사 승인 사용자에게만 (기존 정책 그대로)
-    try {
-      if (window.DetailDesignAccess) {
-        await window.DetailDesignAccess.updateNavVisibility(sb, session.user);
-      }
-    } catch (e) {}
+    // DETAIL DESIGN 은 로그인한 사람 모두에게 보인다.
+    // 전에는 본사 승인자에게만 보였는데, 승인 안 된 사람이 눌러도 갈 곳이
+    // 없다는 뜻이었다. 지금은 플래너 자체가 로그인 기준이라 링크도 같이 연다.
+    var detail = document.getElementById('navDetailDesign');
+    if (detail) detail.hidden = false;
     try {
       if (window.AdminAccess) {
         var isAdmin = await window.AdminAccess.isAdmin(sb);
@@ -310,7 +312,7 @@
 
     // 셸이 만든 링크는 hidden 속성을 쓰므로, display 로 토글하는
     // 기존 헬퍼와 둘 다 통하도록 여기서 한 번 더 맞춘다.
-    ['navDetailDesign', 'navAdminLink'].forEach(function (id) {
+    ['navAdminLink'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el && el.style.display && el.style.display !== 'none') el.hidden = false;
     });
