@@ -208,7 +208,9 @@ describe('차단 게이트 두 곳 모두 관리자를 통과시킨다', () => {
       'collection.html',
       'material.html',
       'my-designs.html',
-      'index.html',
+      // index.html 은 뺐다 — 지금은 AI 스튜디오로 넘기는 리다이렉트 껍데기라
+      // 내비도 메뉴도 없다. "메뉴 노출을 다루는가"를 물을 대상이 아니다.
+      'mypage.html',
       'consultation.html',
     ].forEach((f) => {
       const src = read(f);
@@ -222,7 +224,16 @@ describe('차단 게이트 두 곳 모두 관리자를 통과시킨다', () => {
 
     // 위임했으면 위임받은 쪽이 실제로 그 일을 해야 한다.
     // 셸에서 이 호출이 빠지면 여섯 페이지가 한꺼번에, 조용히 무너진다.
-    expect(read('js/site-shell.js')).toContain('AdminAccess.updateNavLinks');
-    expect(read('js/site-shell.js')).toContain('DetailDesignAccess.updateNavVisibility');
+    const shell = read('js/site-shell.js');
+    expect(shell).toContain('AdminAccess.updateNavLinks');
+
+    // 상세설계는 이제 '본사 승인' 이 아니라 '로그인' 기준이다.
+    // 셸이 그 링크를 만들고 켜는지 확인한다 — 페이지가 다시 끄면
+    // 로그인해도 DETAIL DESIGN 이 안 보이는 회귀가 난다(실제로 겪었다).
+    expect(shell).toContain('id="navDetailDesign"');
+    expect(shell).toContain('detaildesign.html');
+    ['mypage.html', 'my-designs.html'].forEach((f) => {
+      expect(`${f}: ${read(f).includes('updateNavVisibility')}`).toBe(`${f}: false`);
+    });
   });
 });
