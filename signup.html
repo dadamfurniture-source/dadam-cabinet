@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/dadam-system.css">
+    <link rel="stylesheet" href="css/dadam-system.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <style>
@@ -35,7 +35,12 @@
         --business: #059669;
       }
       body {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        font-family:
+          'Pretendard',
+          -apple-system,
+          BlinkMacSystemFont,
+          system-ui,
+          sans-serif;
         background: var(--cream);
         color: var(--charcoal);
         line-height: 1.7;
@@ -403,10 +408,10 @@
       .tier-card.expert.selected {
         background: rgba(99, 102, 241, 0.05);
       }
-      .tier-card.business {
+      .tier-card.agent {
         border-color: var(--business);
       }
-      .tier-card.business.selected {
+      .tier-card.agent.selected {
         background: rgba(5, 150, 105, 0.05);
       }
       .tier-card input {
@@ -440,7 +445,13 @@
         background: var(--expert);
         color: #fff;
       }
-      .tier-card.business .tier-badge {
+      .tier-note {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #8b8680;
+        line-height: 1.6;
+      }
+      .tier-card.agent .tier-badge {
         background: var(--business);
         color: #fff;
       }
@@ -658,7 +669,10 @@
           <!-- Form Header -->
           <div class="form-header">
             <h2 data-i18n="login.signup_btn">회원가입</h2>
-            <p><span data-i18n="login.have_account">이미 계정이 있으신가요?</span> <a href="login.html" data-i18n="login.login_link">로그인</a></p>
+            <p>
+              <span data-i18n="login.have_account">이미 계정이 있으신가요?</span>
+              <a href="login.html" data-i18n="login.login_link">로그인</a>
+            </p>
           </div>
 
           <!-- Messages -->
@@ -705,7 +719,7 @@
           <form class="signup-form" id="signupForm">
             <!-- Membership Tier -->
             <div class="form-group">
-              <label>회원 등급 선택</label>
+              <label>관심 등급</label>
               <div class="tier-selection">
                 <label class="tier-card standard selected" onclick="selectTier(this, 'standard')">
                   <input type="radio" name="tier" value="standard" checked />
@@ -722,14 +736,17 @@
                   <p class="tier-desc">상세 설계 도구 무제한, 자재 자동 산출, 우선 기술 지원</p>
                   <div class="tier-promo">인테리어 전문가, 시공업체 대표님께 추천드립니다!</div>
                 </label>
-                <label class="tier-card business" onclick="selectTier(this, 'business')">
-                  <input type="radio" name="tier" value="business" />
+                <label class="tier-card agent" onclick="selectTier(this, 'agent')">
+                  <input type="radio" name="tier" value="agent" />
                   <div class="tier-header">
-                    <span class="tier-name">Business <span class="tier-badge">기업</span></span>
+                    <span class="tier-name">Agent <span class="tier-badge">대리점</span></span>
                   </div>
                   <p class="tier-desc">팀 협업, API 연동, 맞춤 컨설팅 (별도 문의)</p>
                 </label>
               </div>
+              <p class="tier-note">
+                가입은 Standard 로 시작합니다. Expert · Agent 는 가입 후 구독하거나 본사 승인으로 열립니다.
+              </p>
             </div>
 
             <!-- Name & Phone -->
@@ -1296,7 +1313,10 @@
               data: {
                 name: nameInput.value.trim(),
                 phone: phoneInput.value.trim(),
-                tier: selectedTier,
+                // 등급은 여기서 정해지지 않는다. DB 트리거가 metadata 의 tier 를
+                // 무시하고 항상 standard 로 만든다(database/tier-agent.sql).
+                // 어떤 등급에 관심이 있었는지만 남긴다 — 권한과 무관한 필드다.
+                interest_tier: selectedTier,
                 sido: sidoSelect.value,
                 gugun: gugunSelect.value,
                 referral: referralSelect.value,
