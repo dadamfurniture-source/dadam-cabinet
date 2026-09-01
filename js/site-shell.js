@@ -47,10 +47,12 @@
   // 계정 메뉴 — 예전 index/material 내비의 user-dropdown 에 있던 항목들.
   // 두 페이지가 서로 다른 목록을 갖고 있어서(index: AI설계·구독관리,
   // material: 내 설계) 합쳐 한 벌로 만든다.
-  // '구독 관리'(/account/billing)는 뺐다 — Next.js 라우트라 정적 배포에 없다.
+  // '구독 관리'는 전에 /account/billing(Next.js 라우트)이라 뺐었다.
+  // 지금은 정적 billing.html 이 있어 되돌렸다.
   var ACCOUNT_MENU = [
     { label: '마이페이지', href: 'mypage.html' },
     { label: '내 설계', href: 'my-designs.html' },
+    { label: '구독 관리', href: 'billing.html' },
     { label: '상세 설계', href: 'detaildesign.html', id: 'navDetailDesign', hidden: true },
     { label: '관리자 페이지', href: 'admin/index.html', id: 'navAdminLink', hidden: true },
   ];

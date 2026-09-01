@@ -113,7 +113,13 @@ export default {
     if (request.method === 'OPTIONS') return handleOptions(request, env);
 
     if (url.pathname === '/health' || url.pathname === '/') {
-      return jsonResponse(request, env, { status: 'ok', service: 'dadam-account-api' });
+      // configured 는 service_role 키가 등록됐는지만 알린다(값은 노출하지 않는다).
+      // 이게 없으면 탈퇴가 되는지 배포 후에 확인할 방법이 없다.
+      return jsonResponse(request, env, {
+        status: 'ok',
+        service: 'dadam-account-api',
+        configured: !!env.SUPABASE_SERVICE_ROLE_KEY,
+      });
     }
 
     if (url.pathname === '/delete' && request.method === 'POST') {

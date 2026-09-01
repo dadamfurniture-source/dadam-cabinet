@@ -26,17 +26,20 @@ import {
   updateBy,
 } from './supabase.js';
 
+// 플랜 = 등급이다. profiles.tier 와 같은 낱말을 쓴다 —
+// 어휘가 둘이면 결제한 등급과 표시되는 등급이 어긋난다.
+// standard 는 무료 기본이라 결제 대상이 아니다.
 const PLAN_NAMES = {
-  basic: '다담가구 Basic 플랜 (월간)',
-  pro: '다담가구 Pro 플랜 (월간)',
-  enterprise: '다담가구 Enterprise 플랜 (월간)',
+  expert: '다담가구 Expert 등급 (월간)',
+  agent: '다담가구 Agent 등급 (월간)',
 };
+
+const PAID_PLANS = ['expert', 'agent'];
 
 function priceFor(env, plan) {
   const map = {
-    basic: parseInt(env.TOSS_PRICE_BASIC_KRW || '99000', 10),
-    pro: parseInt(env.TOSS_PRICE_PRO_KRW || '199000', 10),
-    enterprise: parseInt(env.TOSS_PRICE_ENTERPRISE_KRW || '299000', 10),
+    expert: parseInt(env.TOSS_PRICE_EXPERT_KRW || '99000', 10),
+    agent: parseInt(env.TOSS_PRICE_AGENT_KRW || '199000', 10),
   };
   return map[plan];
 }
@@ -75,11 +78,12 @@ async function handlePlans(request, env) {
     success: true,
     data: {
       client_key: env.TOSS_CLIENT_KEY || '',
-      plans: [
-        { id: 'basic', name: 'Basic', price_krw: priceFor(env, 'basic'), order_name: PLAN_NAMES.basic },
-        { id: 'pro', name: 'Pro', price_krw: priceFor(env, 'pro'), order_name: PLAN_NAMES.pro },
-        { id: 'enterprise', name: 'Enterprise', price_krw: priceFor(env, 'enterprise'), order_name: PLAN_NAMES.enterprise },
-      ],
+      plans: PAID_PLANS.map((id) => ({
+        id,
+        name: id === 'expert' ? 'Expert' : 'Agent',
+        price_krw: priceFor(env, id),
+        order_name: PLAN_NAMES[id],
+      })),
     },
   });
 }
@@ -108,7 +112,12 @@ async function handleIssueBillingKey(request, env) {
   }
   const amount = priceFor(env, body.plan);
   if (!amount) {
-    return jsonResponse(request, env, { success: false, message: `유효하지 않은 플랜: ${body.plan}` }, 400);
+    return jsonResponse(
+      request,
+      env,
+      { success: false, message: `유효하지 않은 플랜: ${body.plan}` },
+      400
+    );
   }
   const expectedKey = customerKeyFor(user);
   if (body.customer_key !== expectedKey) {
@@ -166,8 +175,17 @@ async function handleIssueBillingKey(request, env) {
     subId = inserted?.id;
   }
 
-  // 4. profiles.plan 동기화
-  await updateBy(env, 'profiles', { id: `eq.${user.id}` }, { plan: body.plan });
+  // 4. 등급 반영
+  //    profiles 에 plan 컬럼은 없다 — tier 다. 여기가 원래 { plan: ... } 를
+  //    쓰고 있어서 결제해도 등급이 안 올라갔다.
+  //    tier_source='subscription' 을 함께 남긴다. 구독이 끝났을 때
+  //    본사 승인으로 받은 등급까지 내려버리지 않기 위한 표식이다.
+  await updateBy(
+    env,
+    'profiles',
+    { id: `eq.${user.id}` },
+    { tier: body.plan, tier_source: 'subscription' }
+  );
 
   // 5. payment_history 기록
   await insertOne(env, 'payment_history', {
@@ -206,7 +224,12 @@ async function handleManualCharge(request, env) {
     order: 'created_at.desc',
   });
   if (!sub || !sub.billing_key) {
-    return jsonResponse(request, env, { success: false, message: '활성 Toss 구독이 없습니다.' }, 400);
+    return jsonResponse(
+      request,
+      env,
+      { success: false, message: '활성 Toss 구독이 없습니다.' },
+      400
+    );
   }
 
   const orderId = genOrderId(user.id);
@@ -273,13 +296,22 @@ async function handleCancel(request, env) {
     order: 'created_at.desc',
   });
   if (!sub) {
-    return jsonResponse(request, env, { success: false, message: '활성 Toss 구독이 없습니다.' }, 400);
+    return jsonResponse(
+      request,
+      env,
+      { success: false, message: '활성 Toss 구독이 없습니다.' },
+      400
+    );
   }
   await updateById(env, 'subscriptions', sub.id, {
     status: 'cancelled',
     cancel_at: sub.current_period_end,
     next_charge_at: null,
   });
+
+  // 등급은 지금 내리지 않는다 — 이번 기간까지는 이미 낸 값이다.
+  // 기간이 끝날 때 내리는 일은 정기 과금 실패/만료 처리에서 한다.
+  // 다만 결제로 받은 등급인 경우에만 내려야 하므로 표식은 여기서 확인해 둔다.
   console.log(`Toss subscription cancelled: user=${user.id} reason=${body.reason || '-'}`);
   return jsonResponse(request, env, {
     success: true,
@@ -317,7 +349,12 @@ async function handleWebhook(request, env) {
 // ===== 라우터 =====
 
 const ROUTES = [
-  { method: 'GET', path: '/health', handler: (req, env) => jsonResponse(req, env, { status: 'ok', service: 'dadam-payments-api', worker: true }) },
+  {
+    method: 'GET',
+    path: '/health',
+    handler: (req, env) =>
+      jsonResponse(req, env, { status: 'ok', service: 'dadam-payments-api', worker: true }),
+  },
   { method: 'GET', path: '/plans', handler: handlePlans },
   { method: 'GET', path: '/subscription', handler: handleSubscription },
   { method: 'POST', path: '/issue-billing-key', handler: handleIssueBillingKey },
@@ -343,7 +380,12 @@ export default {
         return jsonResponse(request, env, { success: false, message: err.message }, 401);
       }
       if (err instanceof TossError) {
-        return jsonResponse(request, env, { success: false, code: err.code, message: err.message }, err.statusCode);
+        return jsonResponse(
+          request,
+          env,
+          { success: false, code: err.code, message: err.message },
+          err.statusCode
+        );
       }
       if (err instanceof DbError) {
         console.error('DB error:', err.message);

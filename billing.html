@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>구독 관리 — 다담가구</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
+    <script src="js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <style>
+      .bl-main {
+        background: var(--v5-work);
+        padding: 56px var(--v5-px) 96px;
+        min-height: calc(100vh - var(--v5-header) - 60px);
+      }
+      .bl-wrap {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .bl-eyebrow {
+        font-weight: 300;
+        font-size: 11px;
+        letter-spacing: 0.34em;
+        padding-left: 0.34em;
+        color: var(--v5-tan);
+      }
+      .bl-title {
+        font-family: var(--v5-display);
+        font-weight: 300;
+        font-size: 30px;
+        margin: 12px 0 30px;
+      }
+      .bl-card {
+        background: var(--v5-card);
+        border: 1px solid var(--v5-line);
+        padding: 30px 28px;
+        margin-bottom: 18px;
+      }
+      .bl-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--v5-line-12);
+        font-weight: 300;
+        font-size: 13px;
+      }
+      .bl-row:last-child {
+        border-bottom: 0;
+      }
+      .bl-row span:first-child {
+        color: var(--v5-ink-45);
+      }
+      .bl-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 22px;
+      }
+      .bl-btn {
+        flex: 1;
+        min-width: 150px;
+        padding: 13px;
+        border: 1px solid var(--v5-ink);
+        background: var(--v5-ink);
+        color: var(--v5-invert);
+        font-family: inherit;
+        font-weight: 400;
+        font-size: 12.5px;
+        letter-spacing: 0.14em;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .bl-btn--ghost {
+        background: none;
+        color: var(--v5-ink-62);
+        border-color: var(--v5-line-18);
+      }
+      .bl-btn--danger {
+        background: none;
+        color: #a54034;
+        border-color: #d9b0ab;
+      }
+      .bl-btn[disabled] {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .bl-status {
+        padding: 12px 15px;
+        border: 1px solid var(--v5-line-18);
+        background: var(--v5-well);
+        font-weight: 300;
+        font-size: 12.5px;
+        line-height: 1.8;
+        color: var(--v5-ink-62);
+        margin-bottom: 18px;
+      }
+      .bl-status.err {
+        color: #c0392b;
+        border-color: rgba(192, 57, 43, 0.3);
+      }
+      .bl-hist {
+        display: grid;
+        gap: 0;
+      }
+      .bl-empty {
+        font-weight: 300;
+        font-size: 12.5px;
+        color: var(--v5-ink-45);
+        padding: 8px 0;
+      }
+    </style>
+  </head>
+  <body class="v5-page">
+    <div data-site-shell="header" data-nav=""></div>
+
+    <main class="bl-main">
+      <div class="bl-wrap">
+        <p class="bl-eyebrow">SUBSCRIPTION</p>
+        <h1 class="bl-title">구독 관리</h1>
+
+        <div class="bl-status" id="status" hidden></div>
+
+        <div class="bl-card" id="planCard">
+          <div class="bl-hist" id="planRows"></div>
+          <div class="bl-actions" id="actions"></div>
+        </div>
+
+        <div class="bl-card">
+          <div class="bl-row"><span>결제 내역</span><span></span></div>
+          <div class="bl-hist" id="history"><p class="bl-empty">불러오는 중…</p></div>
+        </div>
+      </div>
+    </main>
+
+    <div data-site-shell="footer"></div>
+    <script src="js/site-shell.js" defer></script>
+
+    <script>
+      (function () {
+        'use strict';
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.paymentsApi && window.DADAM_CONFIG.paymentsApi.url) || '';
+
+        var sb = null;
+        try {
+          if (window.DADAM_CONFIG && window.supabase) {
+            sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
+          }
+        } catch (e) {
+          console.warn('[billing] supabase init:', e);
+        }
+
+        var session = null;
+
+        function say(msg, kind) {
+          var el = $('status');
+          el.textContent = msg || '';
+          el.className = 'bl-status' + (kind ? ' ' + kind : '');
+          el.hidden = !msg;
+        }
+
+        function esc(v) {
+          return String(v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+        function won(n) {
+          return Number(n || 0).toLocaleString('ko-KR') + '원';
+        }
+        function day(d) {
+          return d ? new Date(d).toLocaleDateString('ko-KR') : '-';
+        }
+        function row(k, v) {
+          return '<div class="bl-row"><span>' + esc(k) + '</span><span>' + esc(v) + '</span></div>';
+        }
+
+        var STATUS_KO = {
+          active: '이용 중',
+          cancelled: '해지 예약됨',
+          past_due: '결제 실패',
+          expired: '종료됨',
+        };
+
+        function renderPlan(sub, tier, tierSource, credits) {
+          var rows = '';
+          rows += row('현재 등급', (tier || 'standard').toUpperCase());
+          if (credits != null) rows += row('이번 달 남은 생성', credits + '회');
+
+          if (!sub || sub.plan === 'free') {
+            rows += row('구독', '없음');
+            $('planRows').innerHTML = rows;
+            $('actions').innerHTML = '<a class="bl-btn" href="pricing.html">등급 올리기</a>';
+            if (tierSource === 'manual' && tier !== 'standard') {
+              say('현재 등급은 본사 승인으로 부여된 등급입니다. 구독 결제와는 별개로 유지됩니다.');
+            }
+            return;
+          }
+
+          rows += row('구독 상태', STATUS_KO[sub.status] || sub.status);
+          rows += row('월 결제액', won(sub.amount_krw));
+          rows += row('이번 기간', day(sub.current_period_start) + ' ~ ' + day(sub.current_period_end));
+          if (sub.status === 'active') {
+            rows += row('다음 결제일', day(sub.next_charge_at));
+          } else if (sub.cancel_at) {
+            rows += row('이용 종료일', day(sub.cancel_at));
+          }
+          $('planRows').innerHTML = rows;
+
+          if (sub.status === 'active') {
+            $('actions').innerHTML =
+              '<a class="bl-btn bl-btn--ghost" href="pricing.html">등급 변경</a>' +
+              '<button type="button" class="bl-btn bl-btn--danger" id="cancelBtn">구독 해지</button>';
+            $('cancelBtn').onclick = cancel;
+          } else {
+            $('actions').innerHTML = '<a class="bl-btn" href="pricing.html">다시 구독하기</a>';
+          }
+        }
+
+        async function cancel() {
+          if (!confirm('구독을 해지할까요?\n\n이미 결제한 기간까지는 그대로 이용하실 수 있습니다.')) return;
+          var btn = $('cancelBtn');
+          btn.disabled = true;
+          say('해지 처리 중…');
+          try {
+            var res = await fetch(API + '/cancel', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+              body: JSON.stringify({ reason: 'user_request' }),
+            });
+            var body = await res.json();
+            if (!res.ok || !body.success) throw new Error(body.message || '해지에 실패했습니다.');
+            say('해지되었습니다. ' + day(body.data && body.data.cancel_at) + ' 까지 이용하실 수 있습니다.');
+            load();
+          } catch (e) {
+            btn.disabled = false;
+            say(e.message || '해지에 실패했습니다.', 'err');
+          }
+        }
+
+        function renderHistory(rows) {
+          if (!rows || !rows.length) {
+            $('history').innerHTML = '<p class="bl-empty">결제 내역이 없습니다.</p>';
+            return;
+          }
+          $('history').innerHTML = rows
+            .map(function (h) {
+              return row(day(h.created_at) + ' · ' + (h.plan || ''), won(h.amount_krw));
+            })
+            .join('');
+        }
+
+        async function load() {
+          if (!sb || !API) {
+            say('서비스에 연결할 수 없습니다.', 'err');
+            return;
+          }
+          var s = await sb.auth.getSession();
+          session = s.data.session;
+          if (!session) {
+            location.href = 'login.html?redirect=' + encodeURIComponent('billing.html');
+            return;
+          }
+
+          var tier = 'standard';
+          var tierSource = 'manual';
+          var credits = null;
+          try {
+            var prof = await sb.from('profiles').select('tier, tier_source').eq('id', session.user.id).maybeSingle();
+            if (prof.data) {
+              tier = prof.data.tier || 'standard';
+              tierSource = prof.data.tier_source || 'manual';
+            }
+            var c = await sb.from('user_credits').select('balance').maybeSingle();
+            if (c.data) credits = c.data.balance;
+          } catch (e) {
+            console.warn('[billing] profile:', e.message);
+          }
+
+          var sub = null;
+          try {
+            var res = await fetch(API + '/subscription', {
+              headers: { Authorization: 'Bearer ' + session.access_token },
+            });
+            var body = await res.json();
+            sub = body && body.data ? body.data : null;
+          } catch (e) {
+            console.warn('[billing] subscription:', e.message);
+          }
+          renderPlan(sub, tier, tierSource, credits);
+
+          try {
+            var h = await sb
+              .from('payment_history')
+              .select('created_at, plan, amount_krw, status')
+              .order('created_at', { ascending: false })
+              .limit(12);
+            renderHistory(h.data);
+          } catch (e) {
+            $('history').innerHTML = '<p class="bl-empty">결제 내역을 불러오지 못했습니다.</p>';
+          }
+        }
+
+        load();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>결제 확인 — 다담가구</title>
+    <!-- 결제 인증 키가 주소에 담겨 돌아온다. 색인·참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
+    <script src="js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <style>
+      .bs-main {
+        display: grid;
+        place-items: center;
+        padding: 96px var(--v5-px);
+        background: var(--v5-work);
+        min-height: calc(100vh - var(--v5-header) - 60px);
+      }
+      .bs-card {
+        width: 100%;
+        max-width: 460px;
+        background: var(--v5-card);
+        border: 1px solid var(--v5-line);
+        padding: 44px 36px;
+        text-align: center;
+      }
+      .bs-eyebrow {
+        font-weight: 300;
+        font-size: 11px;
+        letter-spacing: 0.34em;
+        padding-left: 0.34em;
+        color: var(--v5-tan);
+      }
+      .bs-title {
+        font-family: var(--v5-display);
+        font-weight: 300;
+        font-size: 27px;
+        margin: 14px 0 12px;
+      }
+      .bs-msg {
+        font-weight: 300;
+        font-size: 13px;
+        line-height: 2;
+        color: var(--v5-ink-60);
+        margin-bottom: 26px;
+      }
+      .bs-msg.err {
+        color: #c0392b;
+      }
+      .bs-detail {
+        border-top: 1px solid var(--v5-line-12);
+        padding-top: 20px;
+        margin-bottom: 26px;
+        display: grid;
+        gap: 9px;
+        text-align: left;
+      }
+      .bs-row {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 300;
+        font-size: 12.5px;
+      }
+      .bs-row span:first-child {
+        color: var(--v5-ink-45);
+      }
+      .bs-btn {
+        display: inline-block;
+        width: 100%;
+        padding: 14px;
+        border: 1px solid var(--v5-ink);
+        background: var(--v5-ink);
+        color: var(--v5-invert);
+        font-weight: 400;
+        font-size: 12.5px;
+        letter-spacing: 0.14em;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .bs-btn--ghost {
+        background: none;
+        color: var(--v5-ink-62);
+        border-color: var(--v5-line-18);
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body class="v5-page">
+    <div data-site-shell="header" data-nav=""></div>
+
+    <main class="bs-main">
+      <div class="bs-card">
+        <p class="bs-eyebrow">SUBSCRIPTION</p>
+        <h1 class="bs-title" id="title">결제 확인 중</h1>
+        <p class="bs-msg" id="msg">잠시만 기다려 주세요…</p>
+        <div class="bs-detail" id="detail" hidden></div>
+        <a class="bs-btn" id="primary" href="ai-design.html" hidden>AI 스튜디오로</a>
+        <a class="bs-btn bs-btn--ghost" id="secondary" href="pricing.html" hidden>요금제로 돌아가기</a>
+      </div>
+    </main>
+
+    <div data-site-shell="footer"></div>
+    <script src="js/site-shell.js" defer></script>
+
+    <script>
+      (function () {
+        'use strict';
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.paymentsApi && window.DADAM_CONFIG.paymentsApi.url) || '';
+
+        var sb = null;
+        try {
+          if (window.DADAM_CONFIG && window.supabase) {
+            sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
+          }
+        } catch (e) {
+          console.warn('[billing] supabase init:', e);
+        }
+
+        function fail(msg) {
+          $('title').textContent = '결제를 마치지 못했습니다';
+          $('msg').textContent = msg;
+          $('msg').className = 'bs-msg err';
+          $('secondary').hidden = false;
+        }
+
+        function won(n) {
+          return Number(n || 0).toLocaleString('ko-KR') + '원';
+        }
+
+        async function run() {
+          var q = new URLSearchParams(location.search);
+          var authKey = q.get('authKey');
+          var customerKey = q.get('customerKey');
+          var plan = q.get('plan');
+
+          if (!authKey || !customerKey || !plan) {
+            fail('결제 정보가 올바르지 않습니다. 요금제 화면에서 다시 시도해 주세요.');
+            return;
+          }
+          if (!sb || !API) {
+            fail('서비스에 연결할 수 없습니다.');
+            return;
+          }
+
+          var s = await sb.auth.getSession();
+          var session = s.data.session;
+          if (!session) {
+            fail('로그인이 만료되었습니다. 다시 로그인한 뒤 시도해 주세요.');
+            return;
+          }
+
+          try {
+            var res = await fetch(API + '/issue-billing-key', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + session.access_token,
+              },
+              body: JSON.stringify({ auth_key: authKey, customer_key: customerKey, plan: plan }),
+            });
+            var body = await res.json();
+            if (!res.ok || !body.success) throw new Error(body.message || '결제 처리에 실패했습니다.');
+
+            var d = body.data || {};
+            $('title').textContent = '구독이 시작되었습니다';
+            $('msg').textContent = '이제 해당 등급의 기능을 바로 쓰실 수 있습니다.';
+            $('detail').innerHTML =
+              '<div class="bs-row"><span>등급</span><span>' +
+              (d.plan || plan) +
+              '</span></div>' +
+              '<div class="bs-row"><span>결제 금액</span><span>' +
+              won(d.amount_krw) +
+              '</span></div>' +
+              '<div class="bs-row"><span>다음 결제일</span><span>' +
+              (d.next_charge_at ? new Date(d.next_charge_at).toLocaleDateString('ko-KR') : '-') +
+              '</span></div>';
+            $('detail').hidden = false;
+            $('primary').hidden = false;
+            if (d.receipt_url) {
+              $('secondary').textContent = '영수증 보기';
+              $('secondary').href = d.receipt_url;
+              $('secondary').hidden = false;
+            }
+          } catch (e) {
+            // 카드는 등록됐는데 서버 처리가 실패했을 수 있다. 그대로 재시도하면
+            // 중복 결제가 될 수 있으므로 고객센터로 안내한다.
+            fail(
+              (e.message || '결제 처리에 실패했습니다.') +
+                ' 결제가 이루어졌는데 이 화면이 보인다면 고객센터로 문의해 주세요.'
+            );
+          }
+        }
+
+        run();
+      })();
+    </script>
+  </body>
+</html>

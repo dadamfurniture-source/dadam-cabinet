@@ -4,12 +4,13 @@ compatibility_date = "2024-09-23"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
 [vars]
-# 플랜별 월 가격 (원, VAT 포함)
-TOSS_PRICE_BASIC_KRW = "99000"
-TOSS_PRICE_PRO_KRW = "199000"
-TOSS_PRICE_ENTERPRISE_KRW = "299000"
+# 등급별 월 가격 (원, VAT 포함). 플랜 id = profiles.tier 값과 같다.
+TOSS_PRICE_EXPERT_KRW = "99000"
+TOSS_PRICE_AGENT_KRW = "199000"
 # CORS 허용 오리진 (콤마 구분)
-CORS_ORIGINS = "https://dadam.kr,https://app.dadam.kr,http://localhost:3000,http://localhost:8000"
+# 프로덕션은 dadamfurniture.com 이다. 전에는 dadam.kr 만 있어서
+# 브라우저가 전부 차단당했다 — 결제가 한 번도 안 쓰인 이유 중 하나.
+CORS_ORIGINS = "https://dadamfurniture.com,https://www.dadamfurniture.com,http://127.0.0.1:8899,http://localhost:8899"
 
 # 아래 값들은 Cloudflare 대시보드 또는 wrangler secret put 으로 등록:
 #   wrangler secret put TOSS_CLIENT_KEY
