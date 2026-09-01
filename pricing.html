@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>요금제 — 다담가구</title>
+    <meta
+      name="description"
+      content="다담가구 AI 스튜디오 등급별 요금제. 생성 횟수와 상세 설계 권한이 등급에 따라 달라집니다."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
+    <script src="js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 토스 결제창 SDK. 빌링키 발급(정기결제 등록)에 쓴다. -->
+    <script src="https://js.tosspayments.com/v1/payment"></script>
+    <style>
+      .pr-hero {
+        text-align: center;
+        padding: 56px var(--v5-px) 40px;
+        background: var(--v5-paper);
+        border-bottom: 1px solid var(--v5-line-12);
+      }
+      .pr-eyebrow {
+        font-weight: 300;
+        font-size: 11px;
+        letter-spacing: 0.34em;
+        padding-left: 0.34em;
+        color: var(--v5-tan);
+      }
+      .pr-title {
+        font-family: var(--v5-display);
+        font-weight: 300;
+        font-size: 34px;
+        margin: 14px 0 12px;
+      }
+      .pr-lede {
+        font-weight: 300;
+        font-size: 13.5px;
+        line-height: 2;
+        color: var(--v5-ink-60);
+      }
+      .pr-main {
+        background: var(--v5-work);
+        padding: 56px var(--v5-px) 96px;
+      }
+      .pr-grid {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--v5-gap);
+        align-items: stretch;
+      }
+      .pr-card {
+        background: var(--v5-card);
+        border: 1px solid var(--v5-line);
+        padding: 34px 28px 28px;
+        display: grid;
+        grid-template-rows: auto auto auto 1fr auto;
+        gap: 0;
+      }
+      .pr-card[data-current='true'] {
+        border-color: var(--v5-tan);
+      }
+      .pr-name {
+        font-weight: 400;
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        color: var(--v5-ink);
+        text-transform: uppercase;
+      }
+      .pr-badge {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 3px 9px;
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        color: var(--v5-tan);
+        border: 1px solid var(--v5-tan);
+      }
+      .pr-price {
+        margin: 18px 0 6px;
+        font-family: var(--v5-display);
+        font-weight: 300;
+        font-size: 30px;
+        color: var(--v5-ink);
+      }
+      .pr-price small {
+        font-family: var(--v5-sans);
+        font-size: 12px;
+        color: var(--v5-ink-45);
+        letter-spacing: 0.04em;
+      }
+      .pr-note {
+        font-weight: 300;
+        font-size: 11.5px;
+        color: var(--v5-ink-45);
+        margin-bottom: 22px;
+      }
+      .pr-feats {
+        list-style: none;
+        margin: 0 0 24px;
+        padding: 0;
+        display: grid;
+        gap: 11px;
+      }
+      .pr-feats li {
+        font-weight: 300;
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: var(--v5-ink-62);
+        padding-left: 16px;
+        position: relative;
+      }
+      .pr-feats li::before {
+        content: '·';
+        position: absolute;
+        left: 4px;
+        color: var(--v5-tan);
+      }
+      .pr-btn {
+        width: 100%;
+        padding: 14px;
+        border: 1px solid var(--v5-ink);
+        background: var(--v5-ink);
+        color: var(--v5-invert);
+        font-weight: 400;
+        font-size: 12.5px;
+        letter-spacing: 0.14em;
+        cursor: pointer;
+      }
+      .pr-btn--ghost {
+        background: none;
+        color: var(--v5-ink-62);
+        border-color: var(--v5-line-18);
+      }
+      .pr-btn[disabled] {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .pr-status {
+        max-width: 1000px;
+        margin: 0 auto 24px;
+        padding: 13px 16px;
+        border: 1px solid var(--v5-line-18);
+        background: var(--v5-well);
+        font-weight: 300;
+        font-size: 12.5px;
+        line-height: 1.8;
+        color: var(--v5-ink-62);
+      }
+      .pr-status.err {
+        color: #c0392b;
+        border-color: rgba(192, 57, 43, 0.3);
+      }
+      .pr-foot {
+        max-width: 1000px;
+        margin: 34px auto 0;
+        font-weight: 300;
+        font-size: 11.5px;
+        line-height: 2;
+        color: var(--v5-ink-45);
+      }
+      @media (max-width: 900px) {
+        .pr-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body class="v5-page">
+    <div data-site-shell="header" data-nav=""></div>
+
+    <section class="pr-hero">
+      <p class="pr-eyebrow">PRICING</p>
+      <h1 class="pr-title">등급</h1>
+      <p class="pr-lede">생성 횟수와 설계 도구 권한이 등급에 따라 달라집니다.</p>
+    </section>
+
+    <main class="pr-main">
+      <div class="pr-status" id="status" hidden></div>
+      <div class="pr-grid" id="grid"></div>
+      <p class="pr-foot">
+        표시 금액은 월 구독료이며 VAT 포함입니다. 카드가 등록되면 매월 자동 결제됩니다.<br />
+        해지는 마이페이지 &rsaquo; 구독 관리에서 언제든 가능하며, 이미 결제한 기간까지는 그대로 이용하실 수 있습니다.
+      </p>
+    </main>
+
+    <div data-site-shell="footer"></div>
+    <script src="js/site-shell.js" defer></script>
+
+    <script>
+      (function () {
+        'use strict';
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.paymentsApi && window.DADAM_CONFIG.paymentsApi.url) || '';
+
+        var sb = null;
+        try {
+          if (window.DADAM_CONFIG && window.supabase) {
+            sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
+          }
+        } catch (e) {
+          console.warn('[pricing] supabase init:', e);
+        }
+
+        function say(msg, kind) {
+          var el = $('status');
+          el.textContent = msg || '';
+          el.className = 'pr-status' + (kind ? ' ' + kind : '');
+          el.hidden = !msg;
+        }
+
+        function esc(v) {
+          return String(v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+
+        function won(n) {
+          return Number(n || 0).toLocaleString('ko-KR') + '원';
+        }
+
+        // 무료 등급은 결제 대상이 아니라 워커의 /plans 에 없다.
+        // 화면에는 있어야 비교가 되므로 여기서 붙인다.
+        var FREE = {
+          id: 'standard',
+          name: 'Standard',
+          price_krw: 0,
+          feats: ['AI 연출컷 생성', '견적 확인', '시공사례 열람'],
+        };
+        var FEATS = {
+          expert: ['Standard 의 모든 기능', '상세 설계 도구', '자재 자동 산출', '우선 기술 지원'],
+          agent: ['Expert 의 모든 기능', '대리점 전용 지원', '팀 협업', '맞춤 컨설팅'],
+        };
+
+        var state = { user: null, tier: 'standard', credits: {}, clientKey: '', plans: [] };
+
+        function cardHTML(p) {
+          var isFree = p.id === 'standard';
+          var current = state.tier === p.id;
+          var credits = state.credits[p.id];
+          var feats = isFree ? FREE.feats : FEATS[p.id] || [];
+
+          var btn;
+          if (current) {
+            btn = '<button type="button" class="pr-btn pr-btn--ghost" disabled>현재 등급</button>';
+          } else if (isFree) {
+            btn = '<button type="button" class="pr-btn pr-btn--ghost" disabled>기본 등급</button>';
+          } else {
+            btn = '<button type="button" class="pr-btn" data-plan="' + esc(p.id) + '">이 등급으로 시작</button>';
+          }
+
+          return (
+            '<div class="pr-card" data-current="' +
+            current +
+            '">' +
+            '<div class="pr-name">' +
+            esc(p.name) +
+            (current ? '<span class="pr-badge">현재</span>' : '') +
+            '</div>' +
+            '<div class="pr-price">' +
+            (isFree ? '무료' : won(p.price_krw)) +
+            (isFree ? '' : ' <small>/ 월</small>') +
+            '</div>' +
+            '<p class="pr-note">' +
+            (credits == null ? '&nbsp;' : '월 ' + credits + '회 생성') +
+            '</p>' +
+            '<ul class="pr-feats">' +
+            feats
+              .map(function (f) {
+                return '<li>' + esc(f) + '</li>';
+              })
+              .join('') +
+            '</ul>' +
+            btn +
+            '</div>'
+          );
+        }
+
+        function render() {
+          var all = [FREE].concat(state.plans);
+          $('grid').innerHTML = all.map(cardHTML).join('');
+        }
+
+        async function load() {
+          if (!API) {
+            say('결제 정보를 불러올 수 없습니다.', 'err');
+            return;
+          }
+          try {
+            var res = await fetch(API + '/plans');
+            var body = await res.json();
+            state.clientKey = body.data.client_key || '';
+            state.plans = body.data.plans || [];
+          } catch (e) {
+            say('요금제를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+            return;
+          }
+
+          if (sb) {
+            try {
+              var s = await sb.auth.getSession();
+              state.user = s.data.session ? s.data.session.user : null;
+              if (state.user) {
+                var prof = await sb.from('profiles').select('tier').eq('id', state.user.id).maybeSingle();
+                if (prof.data) state.tier = prof.data.tier || 'standard';
+              }
+              var plans = await sb.from('credit_plans').select('tier, monthly_credits');
+              (plans.data || []).forEach(function (r) {
+                state.credits[r.tier] = r.monthly_credits;
+              });
+            } catch (e) {
+              console.warn('[pricing] profile:', e.message);
+            }
+          }
+          render();
+
+          if (!state.clientKey) {
+            say('결제 준비 중입니다. 지금은 등급 안내만 보실 수 있습니다.');
+          }
+        }
+
+        // 결제창을 열기 전에 로그인부터 확인한다.
+        // customerKey 가 사용자 id 로 만들어지므로 로그인 없이는 시작할 수 없다.
+        $('grid').addEventListener('click', function (e) {
+          var btn = e.target.closest('[data-plan]');
+          if (!btn) return;
+          var plan = btn.getAttribute('data-plan');
+
+          if (!state.user) {
+            location.href = 'login.html?redirect=' + encodeURIComponent('pricing.html');
+            return;
+          }
+          if (!state.clientKey || !window.TossPayments) {
+            say('결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+            return;
+          }
+
+          var origin = location.origin;
+          try {
+            window
+              .TossPayments(state.clientKey)
+              .requestBillingAuth('CARD', {
+                customerKey: 'dadam-' + state.user.id,
+                successUrl: origin + '/billing-success.html?plan=' + encodeURIComponent(plan),
+                failUrl: origin + '/pricing.html?failed=1',
+              })
+              .catch(function (err) {
+                // 사용자가 창을 닫은 경우도 여기로 온다 — 오류로 소란 떨지 않는다.
+                if (err && err.code === 'USER_CANCEL') return;
+                say('결제창을 열지 못했습니다. ' + (err && err.message ? err.message : ''), 'err');
+              });
+          } catch (err) {
+            say('결제창을 열지 못했습니다.', 'err');
+          }
+        });
+
+        if (/[?&]failed=1/.test(location.search)) {
+          say('결제가 완료되지 않았습니다. 다시 시도해 주세요.', 'err');
+        }
+
+        load();
+      })();
+    </script>
+  </body>
+</html>

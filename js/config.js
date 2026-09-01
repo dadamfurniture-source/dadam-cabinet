@@ -17,6 +17,11 @@ window.DADAM_CONFIG = {
     // 품목별 프롬프트 · Claude Opus pre-analysis 등 최신 생성 로직이 전부 이쪽에 있음.
     url: 'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate',
   },
+  paymentsApi: {
+    // Cloudflare Worker (workers/payments-api/). main 푸시 시 자동 배포.
+    // 토스 빌링키 발급 · 정기결제 · 구독 상태.
+    url: 'https://dadam-payments-api.dadamfurniture.workers.dev',
+  },
   accountApi: {
     // Cloudflare Worker (workers/account-api/). main 푸시 시 자동 배포.
     // 회원탈퇴 — auth.users 삭제는 service_role 이 필요해 브라우저에서 못 한다.
