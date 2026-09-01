@@ -389,6 +389,26 @@ describe('ㄷ자를 그리면 멍장이 둘 선다', () => {
     expect(p.g('crossAreaOverlaps')()).toEqual([]);
   });
 
+  test('멍장 둘을 목록에서 가를 수 있다', () => {
+    // 폭·높이·깊이가 같아 이름이 겹치면 어느 코너를 고쳤는지 알 수 없다.
+    const p = boot(uShapeLayout(2800));
+    p.g('autoCalcAllAreas')();
+    const tag = p.g('moduleTag');
+    const tags = (p.g('modules') || []).filter((m) => m.blind).map(tag);
+    expect(new Set(tags).size).toBe(2);
+    // 화면 순서(왼→오)와 번호가 같아야 한다
+    const sorted = (p.g('modules') || []).filter((m) => m.blind)
+      .sort((a, b) => a.x - b.x).map(tag);
+    expect(sorted).toEqual(['멍장 1', '멍장 2']);
+  });
+
+  test('멍장이 하나면 번호를 붙이지 않는다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const blind = (p.g('modules') || []).find((m) => m.blind);
+    expect(p.g('moduleTag')(blind)).toBe('멍장');
+  });
+
   test('두 번 돌려도 멍장이 둘이다 (멱등)', () => {
     const p = boot(uShapeLayout(2800));
     p.g('autoCalcAllAreas')();

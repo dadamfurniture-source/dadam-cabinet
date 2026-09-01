@@ -919,7 +919,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function moduleTag(m) {
     if (!m) return '';
-    if (m.blind) return '멍장';
+    if (m.blind) {
+      // 코너가 둘이면 멍장도 둘이다 (ㄷ자 가운데 다리). 폭·높이·깊이까지 같아서
+      // 이름만으로는 목록에서 못 가른다 — 화면에 보이는 순서(왼→오)로 번호를 준다.
+      const kin = modules.filter((x) => x.blind && x.areaId === m.areaId)
+        .sort((a, b) => (a.x || 0) - (b.x || 0));
+      return kin.length > 1 ? '멍장 ' + (kin.indexOf(m) + 1) : '멍장';
+    }
     const n = parseInt((m.id || '').split('-')[1], 10);
     return Number.isFinite(n) ? '#' + (n + 1) : '';
   }
