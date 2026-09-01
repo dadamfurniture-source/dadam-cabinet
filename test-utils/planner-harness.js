@@ -108,7 +108,7 @@ function polyfill(win) {
 /**
  * 플래너 페이지를 부팅한다.
  * @param {'mockup-shell.html'|'mockup-structure.html'} file
- * @param {{search?: string, storage?: object, rect?: object}} [opts]
+ * @param {{search?: string, storage?: object, session?: object, rect?: object}} [opts]
  */
 function bootPlanner(file, opts = {}) {
   const search = opts.search || '';
@@ -127,6 +127,10 @@ function bootPlanner(file, opts = {}) {
   doc.querySelectorAll('*').forEach((el) => { el.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }); });
 
   const storage = makeStorage(opts.storage || {});
+  // 스크립트마다 새로 만들면 한 스크립트가 쓴 토큰을 다음 스크립트가 못 본다.
+  // 브라우저의 sessionStorage 는 페이지 하나에 하나뿐이므로 여기서도 하나만 만든다.
+  // (구조→배치 왕복의 'fromStructure' 토큰이 이걸로 건너온다)
+  const session = makeStorage(opts.session || {});
   const messages = [];
   const parentStub = {
     postMessage: (data) => { messages.push(data); },
@@ -171,7 +175,7 @@ function bootPlanner(file, opts = {}) {
       // (그래서 js/planner/*.js 의 window 노출 블록은 테스트의 생명줄이기도 하다.)
       // eslint-disable-next-line no-new-func
       const fn = new Function('window', 'document', 'location', 'localStorage', 'sessionStorage', 'self', 'globalThis', code + epilogue);
-      Object.assign(exported, fn(winProxy, doc, location, storage, makeStorage(), winProxy, winProxy) || {});
+      Object.assign(exported, fn(winProxy, doc, location, storage, session, winProxy, winProxy) || {});
     } catch (e) {
       e.message = `[${name}] ${e.message}`;
       errors.push(e);
@@ -203,7 +207,7 @@ function bootPlanner(file, opts = {}) {
   };
 
   return {
-    window: winProxy, document: doc, storage, messages, errors, location,
+    window: winProxy, document: doc, storage, session, messages, errors, location,
     /** 인라인 스크립트의 최상위 선언. window 전역도 폴백으로 본다. */
     g: (name) => (name in exported ? exported[name] : win[name]),
     exported,

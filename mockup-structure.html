@@ -226,7 +226,10 @@
 <!-- TopBar -->
 <div class="topbar">
   <div class="step-pill">
-    <button onclick="sessionStorage.setItem('fromStructure','1'); location.href='mockup-shell'">📐 1.배치</button><span class="sep"></span>
+    <!-- W12-47: 돌아갈 때도 쿼리스트링을 함께 넘긴다. 안 넘기면 배치 단계가
+         스코프를 잃고 전역 키(dadam_layout_v1)를 읽어 **빈 화면**이 된다 —
+         왔던 길(nextStepBtn)은 이미 location.search 를 넘기고 있었다. -->
+    <button onclick="sessionStorage.setItem('fromStructure','1'); location.href='mockup-shell' + location.search">📐 1.배치</button><span class="sep"></span>
     <button class="active">📦 2.구조</button><span class="sep"></span>
     <button>🎨 3.디테일</button>
   </div>

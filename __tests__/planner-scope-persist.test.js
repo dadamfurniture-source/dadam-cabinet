@@ -20,7 +20,7 @@ const UI = fs.readFileSync(path.join(ROOT, 'js/detaildesign/ui-step1.js'), 'utf8
 // P1: 스코프 정본이 js/planner/planner-scope.js 로 나가면서, 예전처럼 HTML 을
 // 문자열로 잘라 평가하는 방식(loadScope)은 쓸 수 없게 됐다. 잘라내기는 코드가
 // 움직이면 조용히 빈 문자열을 검사하게 되므로, 실제로 페이지를 띄워 확인한다.
-const { bootPlanner } = require('../test-utils/planner-harness');
+const { bootPlanner, makeStorage } = require('../test-utils/planner-harness');
 
 /** 페이지를 띄워 스코프 헬퍼를 그대로 꺼낸다 */
 function loadScope(file, search, storage) {
@@ -71,6 +71,12 @@ describe('저장 스코프 — 품목별 격리', () => {
     expect(SHELL).toMatch(/location\.href = 'mockup-structure' \+ location\.search/);
   });
 
+  test('W12-47: 배치 단계로 되돌아갈 때도 쿼리스트링을 잃지 않는다', () => {
+    // 왕복은 두 방향 다 지켜야 한다. 가는 길만 넘기면 돌아온 배치 단계가
+    // 스코프를 잃고 빈 전역 키를 읽어 **작업이 사라진 것처럼** 보인다.
+    expect(STRUCT).toMatch(/location\.href='mockup-shell' \+ location\.search/);
+  });
+
   test('원점 키도 스코프를 따른다', () => {
     const s = loadScope('mockup-structure.html', '?design=d1&item=100');
     expect(s.ORIGIN_KEY).toBe('dadam_origin_v1::d1:100');
@@ -88,6 +94,67 @@ describe('저장 스코프 — 품목별 격리', () => {
     const carried = first.storage._dump();
     const second = loadScope('mockup-shell.html', '?design=d1&item=200', carried);
     expect(second.storage.getItem('dadam_layout_v1::d1:200')).toBeNull();
+  });
+});
+
+describe('W12-47: 구조 → 배치 왕복에서 배치 작업이 살아남는다', () => {
+  const LAYOUT = JSON.stringify({
+    version: 1,
+    savedAt: '2026-08-30T00:00:00.000Z',
+    person: null,
+    modules: [
+      { section: 'lower', x: 0, y: 0, w: 900, h: 600, moduleH: 860, rotation: 0, finishings: [] },
+      { section: 'lower', x: 900, y: 0, w: 900, h: 600, moduleH: 860, rotation: 0, finishings: [] },
+    ],
+  });
+  const SCOPED = { 'dadam_layout_v1::d1:100': LAYOUT };
+
+  /**
+   * 구조 단계의 '1.배치' 버튼을 실제로 눌러본다.
+   * 링크를 정규식으로만 보면 onclick 이 함수로 빠지는 순간 조용히 통과하므로,
+   * 핸들러를 그대로 실행해 **어디로 가는지**를 본다.
+   */
+  function pressBackButton(search) {
+    const onclick = STRUCT.match(/onclick="([^"]*mockup-shell[^"]*)"/)[1];
+    const location = { search, href: '' };
+    const session = makeStorage();
+    // eslint-disable-next-line no-new-func
+    new Function('sessionStorage', 'location', onclick)(session, location);
+    return { href: location.href, session };
+  }
+
+  /** 그 URL 로 배치 단계를 실제로 띄워 살아난 모듈 수를 센다 */
+  function reopenShell(href, storage) {
+    const i = href.indexOf('?');
+    const p = bootPlanner('mockup-shell.html', {
+      search: i === -1 ? '' : href.slice(i),
+      storage,
+      session: { fromStructure: '1' },
+    });
+    if (p.errors.length) throw new Error('부팅 실패: ' + p.errors.map((e) => e.message).join(' | '));
+    return p.document.querySelectorAll('g.sect-rect').length;
+  }
+
+  test('배치 버튼이 스코프를 그대로 물고 간다', () => {
+    expect(pressBackButton('?design=d1&item=100').href).toBe('mockup-shell?design=d1&item=100');
+  });
+
+  test('배치 버튼이 자동 복원 토큰을 남긴다', () => {
+    expect(pressBackButton('?design=d1&item=100').session.getItem('fromStructure')).toBe('1');
+  });
+
+  test('돌아온 배치 단계가 그리던 모듈을 되살린다', () => {
+    const { href } = pressBackButton('?design=d1&item=100');
+    expect(reopenShell(href, SCOPED)).toBe(2);
+  });
+
+  test('쿼리를 잃으면 빈 화면이 된다 — 이 결함을 막는 테스트다', () => {
+    // 고치기 전의 동작. 스코프를 잃은 배치 단계는 전역 키를 읽어 아무것도 못 찾는다.
+    expect(reopenShell('mockup-shell', SCOPED)).toBe(0);
+  });
+
+  test('단독 열람(스코프 없음)은 예전 전역 키로 그대로 복원된다', () => {
+    expect(reopenShell(pressBackButton('').href, { dadam_layout_v1: LAYOUT })).toBe(2);
   });
 });
 
