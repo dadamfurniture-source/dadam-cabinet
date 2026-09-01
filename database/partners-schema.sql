@@ -69,7 +69,7 @@ CREATE POLICY "Anyone can view active partners" ON partners
 -- 관리자만 파트너 생성/수정/삭제 가능
 CREATE POLICY "Admins can manage partners" ON partners
     FOR ALL USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND tier = 'business')
+        public.is_admin()  -- 전엔 tier='business'. agent 가 유료가 되면서 관리자 전용으로 (tier-agent.sql)
     );
 
 -- 4. updated_at 자동 갱신 트리거

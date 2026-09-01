@@ -317,7 +317,7 @@ CREATE OR REPLACE FUNCTION public.get_dashboard_stats()
 RETURNS TABLE (
     total_users BIGINT,
     expert_users BIGINT,
-    business_users BIGINT,
+    agent_users BIGINT,
     pending_expert_requests BIGINT,
     pending_consultations BIGINT,
     today_signups BIGINT,
@@ -328,7 +328,7 @@ BEGIN
     SELECT
         (SELECT COUNT(*) FROM profiles)::BIGINT as total_users,
         (SELECT COUNT(*) FROM profiles WHERE tier = 'expert')::BIGINT as expert_users,
-        (SELECT COUNT(*) FROM profiles WHERE tier = 'business')::BIGINT as business_users,
+        (SELECT COUNT(*) FROM profiles WHERE tier = 'agent')::BIGINT as agent_users,
         (SELECT COUNT(*) FROM expert_requests WHERE status = 'pending')::BIGINT as pending_expert_requests,
         (SELECT COUNT(*) FROM consultations WHERE status = 'pending')::BIGINT as pending_consultations,
         (SELECT COUNT(*) FROM profiles WHERE created_at >= CURRENT_DATE)::BIGINT as today_signups,

@@ -118,7 +118,7 @@
         background: var(--expert);
         color: #fff;
       }
-      .tier-business {
+      .tier-agent {
         background: var(--business);
         color: #fff;
       }
@@ -1761,21 +1761,21 @@
       function updateTierDisplay(tier) {
         const tierEl = document.getElementById('profileTier');
         tierEl.className = 'profile-tier tier-' + tier;
-        tierEl.textContent = tier === 'expert' ? 'Expert' : tier === 'business' ? 'Business' : 'Standard';
+        tierEl.textContent = tier === 'expert' ? 'Expert' : tier === 'agent' ? 'Agent' : 'Standard';
 
         // 토글 상태 설정
         const toggle = document.getElementById('tierToggle');
-        toggle.checked = tier === 'expert' || tier === 'business';
+        toggle.checked = tier === 'expert' || tier === 'agent';
 
         // 라벨 활성화 표시
         document.getElementById('labelStandard').classList.toggle('active', tier === 'standard');
-        document.getElementById('labelExpert').classList.toggle('active', tier === 'expert' || tier === 'business');
+        document.getElementById('labelExpert').classList.toggle('active', tier === 'expert' || tier === 'agent');
 
-        // Business tier는 토글 비활성화 (변경 불가)
-        if (tier === 'business') {
+        // Agent 등급은 토글 비활성화 (변경 불가)
+        if (tier === 'agent') {
           toggle.disabled = true;
           document.getElementById('tierToggleContainer').style.opacity = '0.6';
-          document.getElementById('tierToggleContainer').title = 'Business 등급은 변경할 수 없습니다';
+          document.getElementById('tierToggleContainer').title = 'Agent 등급은 변경할 수 없습니다';
         }
       }
 
