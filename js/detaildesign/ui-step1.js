@@ -1061,6 +1061,13 @@
               if (c.kind === 'blank') blankDropped++;
               return;
             }
+            // W12-58: 멍 칸이 여기까지 오면 멍장으로 못 알아본 것이다 (위 m.blind
+            //   분기가 잡았어야 한다). 그대로 두면 가려진 구간이 도어 달린 장으로
+            //   발주된다 — 캐비닛으로 만들지 않고 알린다.
+            if (c.kind === 'blind') {
+              warnings.push(`${m.id}: 멍 구간을 멍장으로 인식하지 못했습니다 — 자동계산을 다시 실행하세요`);
+              return;
+            }
 
             const isOpen = c.kind === 'open';
 

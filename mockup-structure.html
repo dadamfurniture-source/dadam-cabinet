@@ -2122,7 +2122,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         content.appendChild(arrow);
       }
       // W9-95: 먹장 (blank) 표시
-      if (type === 'blank') {
+      if (type === 'blind') {
+        // W12-58: 멍 — 옆 라인에 가려 도어를 못 다는 구간. 2.7T MDF 로 가린다.
+        const blindLab = document.createElementNS(ns, 'text');
+        blindLab.setAttribute('x', x + colW / 2);
+        blindLab.setAttribute('y', topY + topH / 2);
+        blindLab.setAttribute('text-anchor', 'middle');
+        blindLab.setAttribute('dominant-baseline', 'central');
+        blindLab.setAttribute('font-size', Math.min(colW * 0.12, topH * 0.12, 40));
+        blindLab.setAttribute('fill', '#fff');
+        blindLab.textContent = '멍';
+        content.appendChild(blindLab);
+        r.setAttribute('fill', '#8a7f6a');   // 먹장(#a89c84)보다 어둡게 — 다른 부재다
+        lab.setAttribute('opacity', 0);
+      } else if (type === 'blank') {
         // 회색 cross-hatch
         const blankLab = document.createElementNS(ns, 'text');
         blankLab.setAttribute('x', x + colW/2);
@@ -2931,6 +2944,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             <option value="drawer" ${t==='drawer'?'selected':''}>서랍</option>
             <option value="open"   ${t==='open'?'selected':''}>오픈</option>
             <option value="blank"  ${t==='blank'?'selected':''}>먹장</option>
+            ${t==='blind' ? '<option value="blind" selected>멍 (파생)</option>' : ''}
           </select>
           ${t!=='door'
             ? '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'
@@ -3079,6 +3093,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const BODY_T = 15;
   // 도어·마감재는 18T MDF 로 몸통과 **무관한 별개 값**이다 (data-constants.js 주석).
   const DOOR_T = 18;
+  // W12-58: 멍가림판 두께 — data-constants.js CORNER_BLIND_COVER_T 와 같은 값이다.
+  //   플래너는 그 파일을 로드하지 않아 옮겨 적는다 (corner.md §3.5).
+  const BLIND_COVER_T = 2.7;
 
   const CHANNEL_COLOR = '#7a6a45';
 
@@ -3969,7 +3986,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // 도어 폭을 카카스 폭으로 기록하면 BOM 이 멍만큼 큰 도어를 발주한다.
       const s = getStructure(m.id);
       s.verticalCount = 2;
-      s.areaTypes      = atStart ? ['blank', 'door'] : ['door', 'blank'];
+      // W12-58: 멍은 **먹장이 아니다.** 먹장(blank)은 폭이 도어 최소보다 좁아
+      //   도어 대신 막는 18T 판이고, 멍(blind)은 옆 라인에 가려 도어를 못 다는
+      //   구간을 2.7T MDF 로 가린 것이다 (corner.md §3.5). 자재도 이유도 다르다.
+      s.areaTypes      = atStart ? ['blind', 'door'] : ['door', 'blind'];
       s.areaWidths     = atStart ? [zoneW, found.plan.doorW] : [found.plan.doorW, zoneW];
       s.areaDirections = ['left', 'left'];
       s.areaIs2D       = [false, false];
@@ -4831,6 +4851,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     let msg = '';
     if (ud.entityKind === 'finishing') {
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
+    } else if (ud.entityKind === 'blind') {
+      msg = '🎯 멍 — 멍가림판 2.7T MDF (corner.md §3.5)';
     } else if (ud.entityKind === 'blank') {
       msg = '🎯 먹장 (blank panel)';
     } else if (ud.entityKind === 'brace') {
@@ -5517,6 +5539,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       frame.position.set(cx, cy, frontZ);
       frame.userData = carcassMeta;
       parent.add(frame);
+      return;
+    }
+    if (type === 'blind') {
+      // W12-58: 멍가림판 — 2.7T MDF (corner.md §3.5). 먹장과 두께도 색도 다르다.
+      if (!doorVisible) return;
+      const cover = makeBox(w, h, BLIND_COVER_T, '#8a7f6a', { roughness: 0.8 });
+      cover.position.set(cx, cy, overlayZ);
+      cover.userData = { entityKind: 'blind', moduleId: meta.moduleId, areaIdx: meta.areaIdx };
+      parent.add(cover);
+      addEdgeOutline(cover, parent, 0x000000, 0.8);
       return;
     }
     if (type === 'blank') {
