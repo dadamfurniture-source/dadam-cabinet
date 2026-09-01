@@ -194,16 +194,17 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
     expect(blind[0].W).toBe(blind[0].blind.zoneW + blind[0].blind.doorW);
   });
 
-  test('멍장 정면은 멍 + 도어 두 칸이다 (도어 폭이 카카스 폭이 아니다)', () => {
+  test('멍장 정면은 멍 + 마감재 + 도어 세 칸이다 (도어 폭이 카카스 폭이 아니다)', () => {
     const p = boot(lShapeLayout(false));
     p.g('autoCalcAllAreas')();
     const blind = (p.g('modules') || []).find((m) => m.blind);
     const s = (p.g('structures') || {})[blind.id];
-    expect(s.verticalCount).toBe(2);
+    // W12-61: 멍판 마감재가 제 칸을 갖는다 — 멍 폭 안에서 떼어 온다
+    expect(s.verticalCount).toBe(3);
     // W12-58: 멍은 먹장(blank)이 아니라 제 타입(blind)을 갖는다 — 자재가 다르다
-    expect(s.areaTypes.slice().sort()).toEqual(['blind', 'door']);
+    expect(s.areaTypes.slice().sort()).toEqual(['blind', 'blindfin', 'door']);
     expect(s.areaTypes).not.toContain('blank');
-    // 도어 칸은 doorW, 멍 칸은 멍 폭 — 합이 카카스 폭
+    // 세 칸 합이 카카스 폭 — 마감재가 폭을 늘리지 않는다
     expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(blind.W);
     expect(s.areaWidths).toContain(blind.blind.doorW);
     expect(blind.blind.doorW).toBeLessThan(blind.W);

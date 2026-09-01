@@ -974,6 +974,18 @@
        * @param {object} [specs]  대상 품목의 specs — 전체높이→몸통 변환에 쓴다
        * @returns {{modules: Array, warnings: string[]}}
        */
+      /**
+       * W12-61: 플래너 마감재 구분 → BOM 자재명 구분.
+       *
+       * 플래너는 소문자 섹션('molding'/'filler')을, 자재 산출은 스펙 표기
+       * ('Molding'/'Filler')를 쓴다. 미지정(옛 저장 설계)이면 휠라로 떨어진다 —
+       * 멍 폭에 마감재 자리 60 은 이미 들어가 있어서, 안 내면 그 자리가
+       * 멍가림판 MDF 로 발주된다 (corner.md §3.3).
+       */
+      function _blindFinishType(finish) {
+        return (finish && finish.section) === 'molding' ? 'Molding' : 'Filler';
+      }
+
       function _convertPlannerModules(payload, specs) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
@@ -1026,7 +1038,11 @@
               doorCount: 1,
               is2door: false,
               doorW: Number(m.blind.doorW) || 0,       // 도어는 이 폭으로 발주된다
-              blindZoneW: Number(m.blind.zoneW) || 0,  // 멍가림판(2.7T) 폭
+              blindZoneW: Number(m.blind.zoneW) || 0,  // 멍 폭 (목대 15 포함 — 재단은 extractors 가 뺀다)
+              // W12-61: 멍판 마감재 — 라인 마감을 따라온 종류와 **재단** 폭.
+              //   재단(100)은 멍 공식의 자리(60)보다 넓다. 멍가림판 위를 덮기 때문이다.
+              blindFinishType: _blindFinishType(m.blind.finish),
+              blindFinishW: Number(m.blind.finish && m.blind.finish.partW) || 0,
               isDrawer: false,
               drawerCount: 0,
               isOpen: false,
@@ -1064,7 +1080,9 @@
             // W12-58: 멍 칸이 여기까지 오면 멍장으로 못 알아본 것이다 (위 m.blind
             //   분기가 잡았어야 한다). 그대로 두면 가려진 구간이 도어 달린 장으로
             //   발주된다 — 캐비닛으로 만들지 않고 알린다.
-            if (c.kind === 'blind') {
+            // W12-61: 멍판 마감재 칸(blindfin)도 같이 막는다 — 멍장 안에서만 뜻이 있는
+            //   파생 칸이라, 여기까지 오면 멍장으로 못 알아본 것이다.
+            if (c.kind === 'blind' || c.kind === 'blindfin') {
               warnings.push(`${m.id}: 멍 구간을 멍장으로 인식하지 못했습니다 — 자동계산을 다시 실행하세요`);
               return;
             }
