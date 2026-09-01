@@ -3539,10 +3539,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (area.H) {
       base.H = section === area.section ? area.H : Math.min(base.H, area.H);
     }
-    // W12-25: 배치 공간 깊이 = **몸통 + 도어**. 몸통을 영역 깊이 그대로 잡으면
-    //   도어가 영역 밖으로 나가거나(W12-24 전) 몸통 속으로 파고든다(W12-24 후).
-    //   도어 두께만큼 얕게 잡아야 둘 다 안 생긴다.
-    const roomD = (area.D || 0) - DOOR_T;
+    // W12-54: 배치 공간 깊이는 곧 **상판 깊이**다 (평면도에서 제일 바깥이 상판).
+    //   그 깊이는 앞선에서부터 이렇게 나뉜다:
+    //
+    //     배치 공간 깊이 = 물끊기 + 도어 자리 + 몸통 깊이 + 여유(뒤)
+    //              700  =     10 +       20 +      550 +      120
+    //
+    //   여유공간은 입력이 아니라 남는 값이다. 몸통은 그 앞의 셋을 뺀 만큼까지만
+    //   깊어질 수 있다. (W12-25 는 물끊기를 안 빼서 상한이 그만큼 헐거웠다.)
+    //   도어 **자재**는 18T 그대로다 — 20 은 시공 갭을 포함한 자리값이지 발주 치수가 아니다.
+    const roomD = (area.D || 0) - MASTER_RULES.CORNER_DRIP - MASTER_RULES.DOOR_SEAT_D;
     if (roomD > 0) base.D = Math.min(base.D, roomD);
 
     const used = usedWidthOf(areaId);

@@ -16,23 +16,24 @@ const {
 } = require('../js/detaildesign/corner-engine.js');
 
 describe('deriveCorner — corner.md §3 확정 예시', () => {
-  // 예시: secondary 1970 = EP20 + 800장(400×2) + 멍장(도어400+멍700) + 여유50
+  // 예시: secondary 1970 = EP20 + 790장(395×2) + 멍장(도어395+멍715) + 여유50
+  // W12-54: 멍에 경첩 목대 15T 가 들어가면서 700 → 715, 멍장 1100 → 1110 이 됐다.
   const base = { lineW: 1970, adjTopD: 650, blindLineTopD: 650 };
 
-  test('멍 = 650 − 10 + 60 = 700', () => {
-    expect(deriveCorner(base).blindZoneW).toBe(700);
+  test('멍 = 650 − 10 + 60 + 15 = 715', () => {
+    expect(deriveCorner(base).blindZoneW).toBe(715);
   });
 
-  test('도어 가용폭 1200 → 도어 3개 × 400 (최소 350 만족 최대 수)', () => {
+  test('도어 가용폭 1185 → 도어 3개 × 395 (최소 350 만족 최대 수)', () => {
     const d = deriveCorner(base);
-    expect(d.doorAvail).toBe(1200);
+    expect(d.doorAvail).toBe(1185);
     expect(d.nDoors).toBe(3);
-    expect(d.doorW).toBe(400);
+    expect(d.doorW).toBe(395);
     expect(d.remainder).toBe(0);
   });
 
-  test('멍장 W = 멍 700 + 도어 400 = 1100', () => {
-    expect(deriveCorner(base).blindW).toBe(1100);
+  test('멍장 W = 멍 715 + 도어 395 = 1110', () => {
+    expect(deriveCorner(base).blindW).toBe(1110);
   });
 
   test('원장 불변식: EP + 수납도어들 + 멍장W + 여유50 === 라인W', () => {
@@ -41,39 +42,41 @@ describe('deriveCorner — corner.md §3 확정 예시', () => {
     expect(20 + storageDoors + d.blindW + 50).toBe(1970);
   });
 
-  test('인접(prime) 시작 offset = 650 − 10 + 60 = 700 (§3.7)', () => {
+  // 목대는 멍장 도어 경첩용이라 인접 라인 시작 자리에는 안 붙는다 (W12-54)
+  test('인접(prime) 시작 offset = 650 − 10 + 60 = 700 — 목대 없음 (§3.7)', () => {
     expect(deriveCorner(base).adjStartOffset).toBe(700);
   });
 });
 
 describe('deriveCorner — 파생 규칙', () => {
-  test('몰딩 변경 시 멍/도어 연동 재계산 (몰딩 100 → 멍 740)', () => {
+  test('마감재 변경 시 멍/도어 연동 재계산 (마감재 100 → 멍 755)', () => {
     const d = deriveCorner({ lineW: 1970, adjTopD: 650, blindLineTopD: 650, molding: 100 });
-    expect(d.blindZoneW).toBe(740); // 650−10+100
-    expect(d.doorAvail).toBe(1160);
+    expect(d.blindZoneW).toBe(755); // 650−10+100+15
+    expect(d.doorAvail).toBe(1145);
     expect(d.nDoors).toBe(3);
-    expect(d.doorW).toBe(386);
-    expect(d.remainder).toBe(2); // 1160 − 386×3, 마지막 수납이 흡수
+    expect(d.doorW).toBe(381);
+    expect(d.remainder).toBe(2); // 1145 − 381×3, 마지막 수납이 흡수
   });
 
-  test('인접 상판이 얕으면 멍이 줄고 도어가 커진다 (550 → 멍 600)', () => {
+  test('인접 상판이 얕으면 멍이 줄고 도어가 커진다 (550 → 멍 615)', () => {
     const d = deriveCorner({ lineW: 1970, adjTopD: 550, blindLineTopD: 550 });
-    expect(d.blindZoneW).toBe(600);
-    expect(d.doorAvail).toBe(1300);
+    expect(d.blindZoneW).toBe(615);
+    expect(d.doorAvail).toBe(1285);
     expect(d.nDoors).toBe(3);
   });
 
-  test('상부장: 멍 = 320 + 몰딩 = 380, 물끊기 없음 (§3.6)', () => {
+  test('상부장: 멍 = 320 + 마감재 60 + 목대 15 = 395, 물끊기 없음 (§3.6)', () => {
     const d = deriveCorner({ lineW: 1800, adjTopD: 295, isUpper: true });
-    expect(d.blindZoneW).toBe(380);
+    expect(d.blindZoneW).toBe(395);
+    // offset 에는 목대가 안 붙는다
     expect(d.adjStartOffset).toBe(380);
   });
 
   test('도어 가용폭 < 350 → 도어 1개 + 경고 (§4.4 엣지)', () => {
-    // lineW 1000: 1000−20−50−700 = 230 < 350
+    // lineW 1000: 1000−20−50−715 = 215 < 350
     const d = deriveCorner({ lineW: 1000, adjTopD: 650, blindLineTopD: 650 });
     expect(d.nDoors).toBe(1);
-    expect(d.doorW).toBe(230);
+    expect(d.doorW).toBe(215);
     expect(d.warnings.length).toBeGreaterThan(0);
   });
 });
@@ -102,15 +105,15 @@ describe('seedCornerModules — 영속화 + 멱등성', () => {
     seedCornerModules(item);
     const blind = item.modules.find((m) => m.id === 'corner-blind-lower');
     expect(blind).toBeDefined();
-    expect(blind.w).toBe(1100);
-    expect(blind.blindZoneW).toBe(700);
-    expect(blind.doorW).toBe(400);
+    expect(blind.w).toBe(1110);
+    expect(blind.blindZoneW).toBe(715);
+    expect(blind.doorW).toBe(395);
     expect(blind.isDerived).toBe(true);
     expect(blind.isFixed).toBe(true);
     expect(blind.isDrawer).toBe(false); // 구규칙 isDrawer 폐기 (§3.5)
     const seeds = item.modules.filter((m) => String(m.id).startsWith('corner-sec-lower-'));
     expect(seeds).toHaveLength(2); // nDoors 3 − 멍장 도어 1
-    expect(seeds.every((s) => s.w === 400)).toBe(true);
+    expect(seeds.every((s) => s.w === 395)).toBe(true);
     expect(seeds.every((s) => s.line === 'secondary')).toBe(true);
   });
 
@@ -129,7 +132,7 @@ describe('seedCornerModules — 영속화 + 멱등성', () => {
     item.specs.topSizes[0].d = '550'; // 인접 상판 550으로 변경
     seedCornerModules(item);
     const blind = item.modules.find((m) => m.id === 'corner-blind-lower');
-    expect(blind.blindZoneW).toBe(600); // 550−10+60
+    expect(blind.blindZoneW).toBe(615); // 550−10+60+15
     expect(item.modules.find((m) => m.id === 'corner-sec-lower-0').w).toBe(500); // 보존
   });
 
@@ -143,7 +146,7 @@ describe('seedCornerModules — 영속화 + 멱등성', () => {
     const blinds = item.modules.filter((m) => m.name === 'LT망장');
     expect(blinds).toHaveLength(1); // 중복 생성 없음
     expect(blinds[0].id).toBe('corner-blind-lower');
-    expect(blinds[0].w).toBe(1100); // 공식값으로 재계산
+    expect(blinds[0].w).toBe(1110); // 공식값으로 재계산
   });
 });
 
@@ -167,21 +170,21 @@ describe('W10-2: seedUpperCornerModules — 상부장 멍장', () => {
     }, overrides || {});
   }
 
-  test('상부 멍장: 멍 380(320+60) + 도어 450 = 830 (원장 1800)', () => {
-    // 1800 − EP20 − 여유50 − 멍380 = 도어 가용 1350 → 3도어 × 450
+  test('상부 멍장: 멍 395(320+60+15) + 도어 445 = 840 (원장 1800)', () => {
+    // 1800 − EP20 − 여유50 − 멍395 = 도어 가용 1335 → 3도어 × 445
     const item = makeUpperItem();
     seedUpperCornerModules(item);
     const blind = item.modules.find((m) => m.id === 'corner-blind-upper');
     expect(blind).toBeDefined();
-    expect(blind.blindZoneW).toBe(380);
-    expect(blind.doorW).toBe(450);
-    expect(blind.w).toBe(830);
+    expect(blind.blindZoneW).toBe(395);
+    expect(blind.doorW).toBe(445);
+    expect(blind.w).toBe(840);
     expect(blind.pos).toBe('upper');
     expect(blind.h).toBe(720);
     expect(blind.d).toBe(295);
     const seeds = item.modules.filter((m) => String(m.id).startsWith('corner-sec-upper-'));
     expect(seeds).toHaveLength(2);
-    expect(seeds.every((s) => s.w === 450 && s.pos === 'upper')).toBe(true);
+    expect(seeds.every((s) => s.w === 445 && s.pos === 'upper')).toBe(true);
   });
 
   test('상부 원장 불변식: EP + 수납도어 + 멍장W + 여유 === 1800', () => {
@@ -270,45 +273,45 @@ describe('removeCornerModules / migrateCornerModules', () => {
 });
 
 describe('W10-3: distributeBlindLine — 도어 우선 분배 (§4.2)', () => {
-  // 확정 예시 1970: doorAvail 1200, nDoors 3, doorW 400 → 수납 예산 800
+  // 확정 예시 1970: doorAvail 1185, nDoors 3, doorW 395 → 수납 예산 790
   const derived1970 = deriveCorner({ lineW: 1970, adjTopD: 650, blindLineTopD: 650 });
 
-  test('수납 2모듈(1도어씩) → 각 400, 예산 800 소진', () => {
+  test('수납 2모듈(1도어씩) → 각 395, 예산 790 소진', () => {
     const mods = [
       { id: 'a', doorCount: 1, w: 999 },
       { id: 'b', doorCount: 1, w: 1 },
     ];
     const budget = distributeBlindLine(mods, derived1970);
-    expect(budget).toBe(800);
-    expect(mods[0].w).toBe(400);
-    expect(mods[1].w).toBe(400);
+    expect(budget).toBe(790);
+    expect(mods[0].w).toBe(395);
+    expect(mods[1].w).toBe(395);
   });
 
-  test('2도어장: W = 도어 수 × doorW = 800', () => {
+  test('2도어장: W = 도어 수 × doorW = 790', () => {
     const mods = [{ id: 'a', doorCount: 2, w: 0 }];
     distributeBlindLine(mods, derived1970);
-    expect(mods[0].w).toBe(800);
+    expect(mods[0].w).toBe(790);
   });
 
-  test('반올림 잔여는 마지막 모듈이 흡수 (몰딩 100 → doorW 386, 잔여 2)', () => {
+  test('반올림 잔여는 마지막 모듈이 흡수 (마감재 100 → doorW 381, 잔여 2)', () => {
     const d = deriveCorner({ lineW: 1970, adjTopD: 650, blindLineTopD: 650, molding: 100 });
-    expect(d.doorW).toBe(386);
+    expect(d.doorW).toBe(381);
     const mods = [
       { id: 'a', doorCount: 1, w: 0 },
       { id: 'b', doorCount: 1, w: 0 },
     ];
-    const budget = distributeBlindLine(mods, d); // 예산 = 1160 − 386 = 774
-    expect(budget).toBe(774);
-    expect(mods[0].w).toBe(386);
-    expect(mods[1].w).toBe(388); // 386 + 잔여 2
+    const budget = distributeBlindLine(mods, d); // 예산 = 1145 − 381 = 764
+    expect(budget).toBe(764);
+    expect(mods[0].w).toBe(381);
+    expect(mods[1].w).toBe(383); // 381 + 잔여 2
     expect(mods[0].w + mods[1].w).toBe(budget);
   });
 
   test('doorCount 없는 모듈은 1도어로 간주', () => {
     const mods = [{ id: 'a', w: 0 }, { id: 'b', w: 0 }];
     distributeBlindLine(mods, derived1970);
-    expect(mods[0].w).toBe(400);
-    expect(mods[1].w).toBe(400);
+    expect(mods[0].w).toBe(395);
+    expect(mods[1].w).toBe(395);
   });
 });
 
@@ -316,16 +319,16 @@ describe('W10-3: assertCornerLedger — 원장 불변식 (§4.3)', () => {
   function makeLedgerItem() {
     return {
       modules: [
-        { id: 'corner-blind-lower', pos: 'lower', line: 'secondary', w: 1100 },
-        { id: 's0', pos: 'lower', line: 'secondary', w: 400 },
-        { id: 's1', pos: 'lower', line: 'secondary', w: 400 },
+        { id: 'corner-blind-lower', pos: 'lower', line: 'secondary', w: 1110 },
+        { id: 's0', pos: 'lower', line: 'secondary', w: 395 },
+        { id: 's1', pos: 'lower', line: 'secondary', w: 395 },
         { id: 1, pos: 'lower', w: 1000 }, // prime — 원장 무관
       ],
       specs: { lowerSecondaryW: '1970' },
     };
   }
 
-  test('성립: EP20 + 800 + 1100 + 50 === 1970 → ok', () => {
+  test('성립: EP20 + 790 + 1110 + 50 === 1970 → ok', () => {
     const r = assertCornerLedger(makeLedgerItem(), 'lower');
     expect(r.ok).toBe(true);
     expect(r.diff).toBe(0);
@@ -333,12 +336,12 @@ describe('W10-3: assertCornerLedger — 원장 불변식 (§4.3)', () => {
 
   test('위반: 마지막 수납 모듈 보정 (프로덕션)', () => {
     const item = makeLedgerItem();
-    item.modules.find((m) => m.id === 's1').w = 370; // 30mm 부족
+    item.modules.find((m) => m.id === 's1').w = 370; // 25mm 부족
     const r = assertCornerLedger(item, 'lower');
     expect(r.ok).toBe(false);
-    expect(r.diff).toBe(30);
+    expect(r.diff).toBe(25);
     expect(r.corrected).toBe(true);
-    expect(item.modules.find((m) => m.id === 's1').w).toBe(400); // 보정 후 원장 성립
+    expect(item.modules.find((m) => m.id === 's1').w).toBe(395); // 보정 후 원장 성립
     expect(assertCornerLedger(item, 'lower').ok).toBe(true);
   });
 
@@ -386,7 +389,7 @@ describe('W10-3: recalcBlindLine — 자동계산 라인 재계산', () => {
     item.modules.find((m) => m.id === 'corner-sec-lower-0').w = 555; // 사용자 수정
     const r = recalcBlindLine(item, 'lower', { strict: true });
     expect(r.ledger.ok).toBe(true);
-    expect(item.modules.find((m) => m.id === 'corner-sec-lower-0').w).toBe(400); // 재분배
+    expect(item.modules.find((m) => m.id === 'corner-sec-lower-0').w).toBe(395); // 재분배
   });
 
   test('상부: secondaryUpperEnabled=false → null (재계산 생략)', () => {
@@ -395,7 +398,7 @@ describe('W10-3: recalcBlindLine — 자동계산 라인 재계산', () => {
     expect(recalcBlindLine(item, 'upper')).toBeNull();
   });
 
-  test('상부: 1800 원장 성립 (멍 380 + 도어 450×3)', () => {
+  test('상부: 1800 원장 성립 (멍 395 + 도어 445×3)', () => {
     const item = makeItem();
     item.specs.upperLayoutShape = 'L';
     item.specs.upperSecondaryW = '1800';
@@ -403,8 +406,8 @@ describe('W10-3: recalcBlindLine — 자동계산 라인 재계산', () => {
     item.specs.upperH = 720;
     const r = recalcBlindLine(item, 'upper', { strict: true });
     expect(r.ledger.ok).toBe(true);
-    expect(r.derived.blindZoneW).toBe(380);
-    expect(r.derived.doorW).toBe(450);
+    expect(r.derived.blindZoneW).toBe(395);
+    expect(r.derived.doorW).toBe(445);
   });
 });
 

@@ -646,12 +646,13 @@ ensureCornerModules(areaId);        <span class="c">// 멍장을 isFixed 로 심
   <table>
     <thead><tr><th>항목</th><th>질문</th><th>제안</th></tr></thead>
     <tbody>
-      <tr><td>상판 깊이</td><td><code>area.D</code>(몸통+도어)를 상판 깊이로 봐도 되는가</td><td>우선 같다고 본다. 다르면 멍이 상판 돌출만큼 짧아진다</td></tr>
-      <tr><td>멍의 기준점</td><td>멍 700 을 <strong>벽</strong>에서 재는가 <strong>멍장 측판</strong>에서 재는가</td><td>도면 확인 필요. 여유 50 과 겹쳐 읽으면 50 이 어긋난다</td></tr>
+      <tr><td><s>상판 깊이</s></td><td><s><code>area.D</code>를 상판 깊이로 봐도 되는가</s></td><td><span class="badge ok">확정 2026-09-01</span> <strong>배치 공간 깊이 = 상판 깊이</strong>다. 그 깊이는 앞선에서부터 물끊기 + 도어 자리 + 몸통 + 여유(뒤)로 나뉜다 (700 = 10 + 20 + 550 + 120)</td></tr>
+      <tr><td><s>멍의 기준점</s></td><td><s>멍을 어디서부터 재는가</s></td><td><span class="badge ok">확정 2026-09-01</span> 멍장을 가리는 <strong>수직 라인의 상판 깊이</strong>가 기준. 여기에 −물끊기 10 + 마감재 60 + <strong>경첩 목대 15</strong>. 목대가 새로 들어와 멍 700 → 715 가 됐다 (W12-54)</td></tr>
       <tr><td>멍장 주인</td><td>회전 다리 기본값이 현장 관행과 맞는가</td><td>토글로 뒤집을 수 있게 두고 기본값은 관찰 후 조정</td></tr>
       <tr><td>트리밍 관행</td><td>ㄱ자를 그릴 때 트리밍을 <strong>해야</strong> 하는가 말아야 하는가</td><td>구조 단계는 둘 다 같은 답을 내게 만든다. 배치 단계 안내 문구는 별도 결정</td></tr>
       <tr><td>키큰장 코너</td><td>코너에 키큰장이 서는 시공이 있는가</td><td>없다면 명시적으로 금지하고 안내한다</td></tr>
       <tr><td>상부 320</td><td><code>area.D</code> 320 과 <code>CORNER_UPPER_MODULE</code> 320 이 같은 뿌리인가</td><td>우연이면 상수를 분리해 표기</td></tr>
+      <tr><td>모듈 착석</td><td>물끊기 10 이 앞선과 도어 사이에 있어야 하는데, 지금 모듈은 앞선에 <strong>딱 붙어</strong> 앉는다 (W12-33)</td><td>깊이 분해대로면 10 뒤로 물러나야 한다. 골든 3종과 W12-33 규칙이 함께 바뀌므로 별도 결정 (W12-54 에서 보류)</td></tr>
     </tbody>
   </table>
   </div>

@@ -99,19 +99,21 @@ describe('도어가 영역 앞면을 넘지 않는다', () => {
     expect(ap).not.toContain('frontLimit - T / 2');
   });
 
-  test('새 모듈 깊이 = 영역 깊이 − 도어 두께', () => {
-    const add = SRC.slice(SRC.indexOf('function addModuleToArea'), SRC.indexOf('function addModuleToArea') + 1800);
-    expect(add).toMatch(/const roomD = \(area\.D \|\| 0\) - DOOR_T;/);
+  test('새 모듈 깊이 = 영역 깊이 − 물끊기 − 도어 자리 (W12-54)', () => {
+    const add = SRC.slice(SRC.indexOf('function addModuleToArea'), SRC.indexOf('function addModuleToArea') + 2400);
+    expect(add).toMatch(/const roomD = \(area\.D \|\| 0\) - MASTER_RULES\.CORNER_DRIP - MASTER_RULES\.DOOR_SEAT_D;/);
     expect(add).toMatch(/base\.D = Math\.min\(base\.D, roomD\)/);
   });
 
-  test('산술 — 몸통 + 도어가 영역 깊이에 딱 맞는다', () => {
-    const DOOR_T = 18, areaD = 550;
-    const bodyD = Math.min(550, areaD - DOOR_T);   // 532
-    const frontZ = bodyD / 2;
-    const doorFront = frontZ + DOOR_T;             // 도어 앞면
-    expect(bodyD).toBe(532);
-    expect(doorFront - (-bodyD / 2)).toBe(areaD);  // 뒤면~도어앞면 = 영역 깊이
+  test('산술 — 배치 공간 깊이 = 물끊기 + 도어 자리 + 몸통 + 여유(뒤) (W12-54)', () => {
+    // 배치 공간 깊이는 곧 상판 깊이다. 앞선에서부터 물끊기·도어 자리를 비우고
+    // 몸통이 들어가며, 남는 것은 뒤쪽 여유다 — 여유는 입력이 아니라 파생값이다.
+    const DRIP = 10, SEAT = 20, areaD = 700;
+    const bodyD = Math.min(550, areaD - DRIP - SEAT);   // 550
+    const rear = areaD - DRIP - SEAT - bodyD;           // 120
+    expect(bodyD).toBe(550);
+    expect(rear).toBe(120);
+    expect(DRIP + SEAT + bodyD + rear).toBe(areaD);
   });
 });
 
