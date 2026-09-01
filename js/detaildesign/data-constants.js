@@ -71,6 +71,9 @@
       const CORNER_UPPER_MODULE = 320;   // 상부 멍 모듈값: 몸통295+도어18 → 관례 320 (§3.6)
       const CORNER_BLIND_COVER_T = 2.7;  // 멍 가림판 MDF 두께 (§3.5)
       const CORNER_EP_W = 20;            // 멍장 라인 EP 폭 (§3.4 예시, FINISH 'EP' defaultW와 동일)
+      // W12-54: 멍장 도어 경첩을 달 목대. 멍 폭에 들어가고 BOM 부재로도 나간다 (§3.3/§3.5)
+      const CORNER_HINGE_BATTEN_T = 15;  // 목대 두께 15T — 멍 폭에 더해진다
+      const CORNER_HINGE_BATTEN_W = 70;  // 목대 재단 가로 (세로는 몸통 H)
       // 도어 최소폭은 기존 DOOR_MIN_WIDTH(350) 재사용 (§3.4)
 
       const DEFAULT_SPECS = {
