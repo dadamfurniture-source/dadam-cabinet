@@ -75,6 +75,8 @@
   /* W9-120: 우측 corner 영역 118px 확장 (4 섹션 컬럼 30+22*4) */
   .ruler-top{position:absolute;top:0;left:30px;right:118px;height:30px;background:#fff;border-bottom:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
   .ruler-right{position:absolute;top:118px;right:0;bottom:30px;width:30px;background:#fff;border-left:1px solid var(--line);z-index:10;cursor:crosshair;overflow:hidden;font-family:monospace;font-size:10px;color:var(--text-dim);user-select:none}
+  /* W12-56: 이 시점에서 모로 보이는 라인 — 모듈이 서로 뒤에 겹쳐 선다 */
+  .area-rect.edge-on, rect.edge-on{opacity:.55}
   .ruler-corner{position:absolute;top:0;right:0;width:118px;height:118px;background:#fbfaf6;border-bottom:1px solid var(--line);border-left:1px solid var(--line);z-index:11}
   .ruler-tick{position:absolute;background:#3d342a;pointer-events:none}
   .ruler-top .ruler-tick{top:0;width:1px;height:8px}
@@ -1604,10 +1606,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 여기서 규약을 새로 만들면 영역과 모듈이 서로 다른 자리에 그려진다
    * (실제로 그랬다 — 영역을 임의로 좌→우 나열해 ㄱ자 배치가 일렬로 보였다).
    */
+  /**
+   * 정면도에서 이 시점에 **모로 보이는가** — 도어 면이 이쪽을 안 향한다.
+   * 회전 라인은 정면 시점에서 옆면만 보이므로 모듈이 서로 뒤에 겹쳐 선다.
+   * 그 라인을 제대로 보려면 시점을 90° 돌려야 한다 (◀ ▶).
+   */
+  function isEdgeOn(o) {
+    const rot = ((o && o.rotation || 0) % 360 + 360) % 360;
+    const face = ((rot - viewRotation) % 360 + 360) % 360;
+    return face === 90 || face === 270;
+  }
+
   function areaFrontRect(a) {
     const ox = getFrontViewOriginX();
     const oy = (personPos && typeof personPos.cy === 'number') ? personPos.cy : originPos2D.y;
-    const B = planeBoxOf(a);                            // W12-36
+    // W12-56: 영역은 제 중심으로, **모듈은 속한 영역 중심으로** 돈다 (W12-36).
+    //   축을 안 주면 제 중심으로 돌아, 회전 라인의 모듈이 제 로컬 x 를 그대로
+    //   화면 X 로 흘린다 — 순서가 거울처럼 뒤집히고 영역 상자 밖으로 나갔다.
+    //   축을 바로잡으면 회전 라인은 이 시점에서 **모로** 서고(모듈이 서로 뒤에
+    //   겹친다), ◀ ▶ 로 시점을 돌리면 그 라인이 정면으로 온다.
+    const B = areas.indexOf(a) >= 0 ? planeBoxOf(a) : modulePlaneBox(a);
     const planeW = B.w, planeD = B.d;
     const px = B.x, py = B.y;
     let x, w;
@@ -1646,8 +1664,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       lab.setAttribute('y', R.y + 48);
       lab.setAttribute('font-size', 40);
       lab.setAttribute('fill', cfg.stroke || '#666');
+      // W12-56: 모로 보이는 라인은 그렇다고 적는다. 안 적으면 모듈이 겹쳐 선 것을
+      //   그리기 오류로 읽는다 — 실제로는 옆에서 본 것이 맞다.
+      const edge = isEdgeOn(a);
       lab.textContent = `${cfg.label || a.section} ${Math.round(a.W)}×${Math.round(a.H)}`
-        + (used ? `  ·  ${Math.round(used)} 사용` : '  ·  비어 있음');
+        + (used ? `  ·  ${Math.round(used)} 사용` : '  ·  비어 있음')
+        + (edge ? '  ·  ▶ 모로 보임 (시점을 돌리세요)' : '');
+      if (edge) r.classList.add('edge-on');
       lab.style.pointerEvents = 'none';
       g.appendChild(lab);
       content.appendChild(g);
@@ -4146,6 +4169,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderRightPanel();   // W12-31: 우측 패널을 영역 모드로 바꾼다 — 예전엔 우측이
                           //   모듈 전용이라 영역을 골라도 다시 그릴 이유가 없었다.
     renderFrontView();
+    syncViewRotateBar();   // W12-56: 영역을 고르면 시점 회전을 쓸 수 있어야 한다
     syncCanvasEmpty();
     if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
     if (moved) {
@@ -5582,6 +5606,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (typeof renderFrontView === 'function') renderFrontView();
     if (typeof fitFrontView === 'function' && currentView === '2d') fitFrontView();
   }
+  /**
+   * W12-56: 시점 회전 버튼을 언제 보여줄지 — 규칙이 한 곳이다.
+   *
+   * 영역 보기에서도 보여준다. ㄱ자는 어느 시점에서든 한쪽 라인이 모로 서므로,
+   * 시점을 돌리는 것이 그 라인을 정면으로 보는 **유일한 방법**이다.
+   * 예전엔 전체 모드에서만 떠서, 영역을 고른 채로는 돌릴 수가 없었다.
+   */
+  function syncViewRotateBar(mode) {
+    const bar = document.getElementById('viewRotateBar');
+    if (!bar) return;
+    const m = mode || viewMode;
+    bar.style.display = (m === 'all' || isAreaView()) ? 'flex' : 'none';
+  }
+
   const _btnL = document.getElementById('viewRotateLeftBtn');
   const _btnR = document.getElementById('viewRotateRightBtn');
   if (_btnL) _btnL.onclick = () => rotateView(-90);   // 좌측 = 반시계
@@ -5622,7 +5660,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
     // W9-108/111: 시점 회전 버튼 — 전체 모드에서만
     const viewRotateBar = document.getElementById('viewRotateBar');
-    if (viewRotateBar) viewRotateBar.style.display = (mode === 'all') ? 'flex' : 'none';
+    syncViewRotateBar(mode);
     renderModuleList();
     if (mode === 'single') {
       if (modules.length && !modules.find(x => x.id === activeId)) setActiveModule(modules[0].id);
