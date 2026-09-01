@@ -193,13 +193,15 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
     expect(blind[0].W).toBe(blind[0].blind.zoneW + blind[0].blind.doorW);
   });
 
-  test('멍장 정면은 먹장 + 도어 두 칸이다 (도어 폭이 카카스 폭이 아니다)', () => {
+  test('멍장 정면은 멍 + 도어 두 칸이다 (도어 폭이 카카스 폭이 아니다)', () => {
     const p = boot(lShapeLayout(false));
     p.g('autoCalcAllAreas')();
     const blind = (p.g('modules') || []).find((m) => m.blind);
     const s = (p.g('structures') || {})[blind.id];
     expect(s.verticalCount).toBe(2);
-    expect(s.areaTypes.slice().sort()).toEqual(['blank', 'door']);
+    // W12-58: 멍은 먹장(blank)이 아니라 제 타입(blind)을 갖는다 — 자재가 다르다
+    expect(s.areaTypes.slice().sort()).toEqual(['blind', 'door']);
+    expect(s.areaTypes).not.toContain('blank');
     // 도어 칸은 doorW, 먹장 칸은 멍 — 합이 카카스 폭
     expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(blind.W);
     expect(s.areaWidths).toContain(blind.blind.doorW);
@@ -653,6 +655,51 @@ describe('멍장 → BOM 변환', () => {
     const out = convert(payloadOf(straight), {}).modules;
     expect(out.filter((m) => m.name === 'LT망장')).toEqual([]);
     expect(out.length).toBeGreaterThan(0);
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────
+// 9. 멍은 먹장이 아니다 (W12-58)
+// ─────────────────────────────────────────────────────────────
+describe('멍과 먹장을 가른다', () => {
+  /**
+   * 먹장(blank)  폭이 도어 최소(350)보다 좁아 도어 대신 막는 판. 코너와 무관하다
+   * 멍  (blind)  옆 라인에 가려 도어를 못 다는 구간. 2.7T MDF 로 가린다 (§3.5)
+   *
+   * 둘을 한 타입으로 두면 화면이 멍을 "먹장" 이라 부르고, 나중에 셀 타입만 보고
+   * 자재를 뽑으면 두께가 틀린다 (18T vs 2.7T).
+   */
+  test('멍장의 가려진 칸은 blind 다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const m = (p.g('modules') || []).find((x) => x.blind);
+    const s = p.g('structures')[m.id];
+    const idx = s.areaTypes.indexOf('blind');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(s.areaWidths[idx]).toBe(m.blind.zoneW);      // 멍 폭과 같다
+  });
+
+  test('정면도가 "멍" 이라고 적는다 — "먹장" 이 아니다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    p.g('setActiveArea')(p.g('cornerPairs')()[0].owner.id);
+    p.g('renderFrontView')();
+    const texts = [...p.document.querySelectorAll('#contentG text')].map((t) => t.textContent);
+    expect(texts).toContain('멍');
+    expect(texts).not.toContain('먹장');
+  });
+
+  test('멍가림판 두께가 2.7T 다', () => {
+    const p = boot(lShapeLayout(false));
+    expect(p.g('BLIND_COVER_T')).toBe(2.7);
+  });
+
+  test('먹장은 그대로 남아 있다 — 좁은 칸에는 여전히 먹장이 붙는다', () => {
+    // 규칙(BLANK_THRESHOLD)은 건드리지 않았다
+    expect(engine.MASTER_RULES.BLANK_THRESHOLD).toBe(350);
+    const src = fs.readFileSync(path.join(ROOT, 'js/planner/planner-engine.js'), 'utf8');
+    expect(src).toContain("areaTypes.push('blank')");
   });
 });
 
