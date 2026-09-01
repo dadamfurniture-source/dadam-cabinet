@@ -656,6 +656,68 @@ describe('멍장 → BOM 변환', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────
+// 8. 채울 수 없는 자투리는 원장 위반이 아니다 (W12-57)
+// ─────────────────────────────────────────────────────────────
+describe('원장은 채울 수 없는 자투리를 위반으로 보지 않는다', () => {
+  /** 수납 하나를 고정하고 폭을 키워 남은 자리를 도어 최소폭 미만으로 만든다 */
+  function squeeze(p, ownerId, W) {
+    const st = (p.g('modules') || []).filter((m) => m.areaId === ownerId && !m.blind && !m.isFinishing)[0];
+    st.isFixed = true;
+    st.W = W;
+    p.g('autoCalcArea')(ownerId);
+    return p.g('cornerLedger')(ownerId);
+  }
+
+  test('자투리가 도어 폭보다 좁으면 unfillable 이다', () => {
+    // 멍장 라인은 모듈이 doorW 배수로만 들어간다 (§3.4) — 기준이 350 이 아니라 doorW 다.
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const owner = p.g('cornerPairs')()[0].owner;
+    const doorW = (p.g('modules') || []).find((m) => m.blind).blind.doorW;
+    const L = squeeze(p, owner.id, 450);
+    expect(L.diff).toBeGreaterThan(0);
+    expect(L.diff).toBeLessThan(doorW);
+    expect(L.diff).toBeGreaterThan(350);   // 350 만 봤다면 못 걸렀을 값이다
+    expect(L.unfillable).toBe(true);
+    expect(L.missing).toBe(0);             // 멍장은 그대로 서 있다
+  });
+
+  test('그 상태로 전체 자동계산을 돌려도 원장 경고가 안 뜬다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const owner = p.g('cornerPairs')()[0].owner;
+    squeeze(p, owner.id, 450);
+    const warns = [];
+    const orig = console.warn;
+    console.warn = (...a) => warns.push(a.map(String).join(' '));
+    try { p.g('autoCalcAllAreas')(); } finally { console.warn = orig; }
+    expect(warns.filter((w) => /원장 불일치/.test(w))).toEqual([]);
+  });
+
+  test('멍장이 빠지면 여전히 잡는다 — 완화가 검사를 죽이지 않았다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    const owner = p.g('cornerPairs')()[0].owner;
+    const mods = p.g('modules');
+    mods.splice(mods.findIndex((m) => m.blind), 1);
+    const L = p.g('cornerLedger')(owner.id);
+    expect(L.missing).toBe(1);
+    expect(L.unfillable).toBe(false);   // 자투리로 눈감아 주지 않는다
+  });
+
+  test('정상 자동계산은 자투리가 없다', () => {
+    const p = boot(lShapeLayout(false));
+    p.g('autoCalcAllAreas')();
+    (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
+      const L = p.g('cornerLedger')(a.id);
+      if (!L) return;
+      expect(L.diff).toBe(0);
+      expect(L.unfillable).toBe(false);
+    });
+  });
+});
+
 describe('코너가 없으면 아무 일도 하지 않는다', () => {
   const straight = {
     version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
