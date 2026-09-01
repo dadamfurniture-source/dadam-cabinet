@@ -545,6 +545,97 @@ describe('상부장과 하부장은 서로의 코너에 끼어들지 않는다',
   });
 });
 
+// ─────────────────────────────────────────────────────────────
+// 6. BOM 으로 나가는 길 — 멍장은 한 모듈이다
+// ─────────────────────────────────────────────────────────────
+describe('멍장 → BOM 변환', () => {
+  /** ui-step1.js 는 전역 스크립트라 import 할 수 없다 — 순수 블록만 잘라 평가한다 */
+  const convert = (() => {
+    const src = fs.readFileSync(path.join(ROOT, 'js/detaildesign/ui-step1.js'), 'utf8');
+    const block = src.slice(
+      src.indexOf('const PLANNER_CABINET_SECTIONS'),
+      src.indexOf('function _applyPlannerResult')
+    );
+    // eslint-disable-next-line no-new-func
+    return new Function(`${block}; return _convertPlannerModules;`)();
+  })();
+
+  /** 실제 플래너를 돌려 나온 payload 를 그대로 쓴다 — 손으로 지어내지 않는다 */
+  function payloadOf(layout) {
+    const p = boot(layout);
+    p.g('autoCalcAllAreas')();
+    return p.g('buildPlannerPayload')('PLANNER_DONE');
+  }
+
+  test('payload 가 멍장의 파생값을 싣는다', () => {
+    const pay = payloadOf(lShapeLayout(false));
+    const blind = pay.modules.filter((m) => m.blind);
+    expect(blind.length).toBe(1);
+    expect(blind[0].blind.zoneW).toBe(700);
+    expect(blind[0].blind.doorW).toBeGreaterThan(0);
+  });
+
+  test('멍장이 셀로 쪼개지지 않고 한 모듈로 나간다', () => {
+    const pay = payloadOf(lShapeLayout(false));
+    const src = pay.modules.find((m) => m.blind);
+    const out = convert(pay, {}).modules;
+    const made = out.filter((m) => m.name === 'LT망장');
+    expect(made.length).toBe(1);
+    // 카카스 폭 그대로 — 도어 폭(406)으로 줄어들면 700mm 를 덜 발주한다
+    expect(made[0].w).toBe(src.W);
+    expect(made[0].doorCount).toBe(1);
+  });
+
+  test('먹장 칸을 잔여로 버리지 않는다', () => {
+    const out = convert(payloadOf(lShapeLayout(false)), {});
+    // 예전엔 멍 700 이 '350mm 미만 잔여' 로 빠지면서 이 경고가 떴다
+    expect(out.warnings.join(' ')).not.toMatch(/잔여/);
+  });
+
+  test('BOM 이 알아보는 id 와 이름으로 나간다 (extractors.js W10-4)', () => {
+    const out = convert(payloadOf(lShapeLayout(false)), {}).modules;
+    const blind = out.find((m) => m.name === 'LT망장');
+    expect(blind.id).toBe('corner-blind-lower');
+    expect(blind.pos).toBe('lower');
+  });
+
+  test('도어 폭과 멍 폭을 따로 싣는다 — 도어를 카카스 폭으로 발주하면 안 된다', () => {
+    const pay = payloadOf(lShapeLayout(false));
+    const src = pay.modules.find((m) => m.blind);
+    const blind = convert(pay, {}).modules.find((m) => m.name === 'LT망장');
+    expect(blind.doorW).toBe(src.blind.doorW);
+    expect(blind.blindZoneW).toBe(700);
+    expect(blind.doorW).toBeLessThan(blind.w);        // 도어 < 카카스
+    expect(blind.doorW + blind.blindZoneW).toBe(blind.w);
+  });
+
+  test('상부장 멍장도 같은 길로 나간다', () => {
+    const out = convert(payloadOf(layoutOf(upperLShapeLayout(2000))), {}).modules;
+    const blind = out.find((m) => m.name === 'LT망장');
+    expect(blind.id).toBe('corner-blind-upper');
+    expect(blind.pos).toBe('upper');
+    expect(blind.blindZoneW).toBe(UPPER_D + 60);      // 380
+  });
+
+  test('ㄷ자는 멍장 둘이 서로 다른 id 로 나간다', () => {
+    const out = convert(payloadOf(uShapeLayout(2800)), {}).modules;
+    const blinds = out.filter((m) => m.name === 'LT망장');
+    expect(blinds.length).toBe(2);
+    expect(new Set(blinds.map((m) => m.id)).size).toBe(2);
+    // 첫째는 extractors.js 가 지금도 알아보는 id 다
+    expect(blinds.map((m) => m.id)).toContain('corner-blind-lower');
+  });
+
+  test('코너가 없으면 LT망장이 나오지 않는다 (회귀)', () => {
+    const straight = layoutOf([
+      { section: 'lower', x: 0, y: 0, w: 2400, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+    ]);
+    const out = convert(payloadOf(straight), {}).modules;
+    expect(out.filter((m) => m.name === 'LT망장')).toEqual([]);
+    expect(out.length).toBeGreaterThan(0);
+  });
+});
+
 describe('코너가 없으면 아무 일도 하지 않는다', () => {
   const straight = {
     version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,

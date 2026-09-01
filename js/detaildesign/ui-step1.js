@@ -984,6 +984,9 @@
         const out = [];
         const warnings = [];
         let blankDropped = 0;
+        // W12-53: 멍장 id 는 extractors.js 가 알아보는 이름이어야 한다.
+        // ㄷ자는 한 단에 둘까지 나오므로 두 번째부터 번호를 붙인다.
+        const blindSeq = { lower: 0, upper: 0 };
 
         src.forEach((m) => {
           if (!PLANNER_CABINET_SECTIONS.includes(m.section)) return;
@@ -998,6 +1001,42 @@
             ? Math.min(5, rawDrawerCount)
             : 1;
           const shelfCount = s && Array.isArray(s.shelves) ? s.shelves.length : 0;
+
+          // W12-53: 멍장은 셀로 쪼개지 않는다.
+          //
+          // 자동계산은 멍장 정면을 [먹장 = 멍][도어] 두 칸으로 적는다. 셀 규칙을
+          // 그대로 태우면 먹장 칸이 '350mm 미만 잔여' 로 버려지고, 카카스가 도어
+          // 폭짜리 장으로 줄어든다 — 1106 짜리 코너장이 406 으로 발주된다.
+          // 멍장은 카카스 하나에 도어 한 장이 달린 **한 모듈**이다.
+          //
+          // id 를 `corner-blind-{pos}` 로 맞추는 이유: extractors.js 가 그 id 로
+          // 멍장을 알아보고 도어를 doorW 기준으로, 멍가림판을 2.7T 로 낸다 (W10-4).
+          if (m.blind) {
+            const seq = blindSeq[pos]++;
+            out.push({
+              id: seq === 0 ? `corner-blind-${pos}` : `corner-blind-${pos}-${seq + 1}`,
+              type: 'storage',
+              name: 'LT망장',                 // corner.md §3.8 — 코드 호환용 명칭
+              pos,
+              w: Number(m.W) || 0,            // 카카스 폭이다. 도어 폭이 아니다
+              h: _carcassHeight(m.H, m.section, specs, s),
+              totalH: Number(m.H) || 0,
+              heightParts: _heightPartsOf(m.section, specs, s),
+              d: Number(m.D) || 0,
+              doorCount: 1,
+              is2door: false,
+              doorW: Number(m.blind.doorW) || 0,       // 도어는 이 폭으로 발주된다
+              blindZoneW: Number(m.blind.zoneW) || 0,  // 멍가림판(2.7T) 폭
+              isDrawer: false,
+              drawerCount: 0,
+              isOpen: false,
+              shelfCount,
+              isEL: false,
+              isFixed: !!m.isFixed,
+              _x: Number(m.x) || 0,
+            });
+            return;
+          }
 
           const cells = _cellsOfPlannerModule(m, s);
           if (cells.length === 1 && cells[0].noAutoCalc) {
