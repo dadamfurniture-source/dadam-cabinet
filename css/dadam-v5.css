@@ -432,7 +432,7 @@
 }
 .v5-lede-eyebrow {
   font-weight: 300;
-  font-size: 16.5px; /* 11px 의 150% */
+  font-size: 22px; /* 11px 의 200% */
   letter-spacing: 0.34em;
   padding-left: 0.34em; /* 자간이 오른쪽에만 붙어 생기는 쏠림 보정 */
   color: var(--v5-tan);
