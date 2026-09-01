@@ -200,7 +200,7 @@
                 <span>FURNITURE · 이 공간에 배치할 가구</span>
                 <span class="v5-foot-state" id="kindState">싱크대</span>
               </div>
-              <div class="v5-foot-row" id="kinds"></div>
+              <div class="v5-foot-row v5-foot-row--chips" id="kinds"></div>
             </div>
           </section>
 
@@ -351,6 +351,7 @@
           { key: 'fridge', label: '냉장고장', gallery: ['fridge_cabinet'], collection: ['kitchen'] },
           { key: 'vanity', label: '화장대', gallery: ['vanity'], collection: ['interior'] },
           { key: 'shoe', label: '신발장', gallery: ['shoe_cabinet'], collection: ['builtin'] },
+          { key: 'office', label: '사무실', gallery: [], collection: ['other'] },
         ];
 
         // 시공사례 폴백 — collection.html 의 STATIC 과 같은 목록이다.
@@ -382,15 +383,22 @@
         // 도시 판화가 떴다. 큐레이션된 카테고리를 직접 짚는다.
         // deepcategory 는 하위 카테고리까지 훑는다(incategory 는 안 훑는다).
         // 각 질의는 실제로 돌려보고 상위 결과가 주제에 맞는 것만 남겼다.
+        // qs 가 배열인 이유: deepcategory 는 OR 로 못 묶는다 (묶으면 0건이 나온다).
+        // 한 테마에 갈래가 둘 이상이면 따로 부르고 합친다.
         var THEMES = [
-          { key: 'plant', label: '식물', q: 'deepcategory:"Quality images of plants"' },
-          { key: 'animal', label: '동물', q: 'deepcategory:"Quality images of animals"' },
-          { key: 'nature', label: '자연', q: 'incategory:"Quality images of nature"' },
-          // '명품' 은 Quality images 계열에 해당 카테고리가 없다.
-          // Met 소장 주얼리(CC0)로 대신한다.
-          { key: 'luxury', label: '명품', q: 'deepcategory:"Jewellery in the Metropolitan Museum of Art"' },
-          { key: 'art', label: '예술품', q: 'deepcategory:"Quality images of sculptures"' },
-          { key: 'painting', label: '회화', q: 'incategory:"Oil paintings in the Metropolitan Museum of Art"' },
+          { key: 'plant', label: '식물', qs: ['deepcategory:"Quality images of plants"'] },
+          { key: 'animal', label: '동물', qs: ['deepcategory:"Quality images of animals"'] },
+          { key: 'nature', label: '자연', qs: ['incategory:"Quality images of nature"'] },
+          {
+            key: 'luxury',
+            label: '명품',
+            // 시계와 가방 제품 사진. 'Wristwatches'·'Handbags' 같은 상위 카테고리는
+            // 하위에 인물 사진이 잔뜩 딸려와 시계 찬 우주인이 나온다.
+            // 제품만 나오는 갈래로 좁혔다.
+            qs: ['deepcategory:"Rolex watches"', 'deepcategory:"Bags in the Metropolitan Museum of Art"'],
+          },
+          { key: 'art', label: '예술품', qs: ['deepcategory:"Quality images of sculptures"'] },
+          { key: 'painting', label: '회화', qs: ['incategory:"Oil paintings in the Metropolitan Museum of Art"'] },
         ];
         var THEME_FREE = /^(CC0|Public domain|PDM|No restrictions)/i;
 
@@ -632,17 +640,11 @@
         // ── 테마 ──
         // 위키미디어 공용에서 주제별로 받아 퍼블릭 도메인/CC0 만 남긴다.
         // 한 번 받으면 sessionStorage 에 넣어 탭을 오갈 때마다 다시 부르지 않는다.
-        async function fetchTheme(t) {
-          var cacheKey = 'v5-theme-' + t.key;
-          try {
-            var hit = sessionStorage.getItem(cacheKey);
-            if (hit) return JSON.parse(hit);
-          } catch (e) {}
-
+        async function fetchThemeQuery(t, q, tag) {
           var url =
             'https://commons.wikimedia.org/w/api.php?origin=*&action=query&format=json' +
             '&generator=search&gsrnamespace=6&gsrlimit=24&gsrsearch=' +
-            encodeURIComponent('filetype:bitmap haslicense:unrestricted ' + t.q) +
+            encodeURIComponent('filetype:bitmap haslicense:unrestricted ' + q) +
             '&prop=imageinfo&iiprop=url|extmetadata|mime&iiurlwidth=640';
 
           var res = await fetch(url);
@@ -656,11 +658,41 @@
               (info.extmetadata && info.extmetadata.LicenseShortName && info.extmetadata.LicenseShortName.value) || '';
             if (!THEME_FREE.test(lic)) return; // 상업적 사용이 막힌 것은 버린다
             out.push({
-              key: 'th-' + t.key + '-' + i,
+              key: 'th-' + t.key + '-' + tag + '-' + i,
               src: info.thumburl || info.url,
               label: t.label,
             });
           });
+          return out;
+        }
+
+        async function fetchTheme(t) {
+          var cacheKey = 'v5-theme-' + t.key;
+          try {
+            var hit = sessionStorage.getItem(cacheKey);
+            if (hit) return JSON.parse(hit);
+          } catch (e) {}
+
+          var packs = await Promise.all(
+            t.qs.map(function (q, i) {
+              return fetchThemeQuery(t, q, i).catch(function () {
+                return [];
+              });
+            })
+          );
+          // 갈래가 여럿이면 번갈아 섞는다 — 시계만 스무 장 이어지면 가방은
+          // 아래로 한참 내려야 나온다.
+          var out = [];
+          for (var i = 0; ; i++) {
+            var any = false;
+            for (var j = 0; j < packs.length; j++) {
+              if (packs[j][i]) {
+                out.push(packs[j][i]);
+                any = true;
+              }
+            }
+            if (!any) break;
+          }
           try {
             sessionStorage.setItem(cacheKey, JSON.stringify(out));
           } catch (e) {}
