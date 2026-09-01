@@ -425,6 +425,7 @@
           themeAll: [], // 위키미디어에서 받은 테마 이미지
           dbCount: 6,
           themeCount: 6, // 2열이라 6장이면 세 줄
+          cost: null, // 생성 1회 단가. credit_costs 에서 읽는다
           phase: 'idle', // idle | loading | done
           results: [], // [{src, label}]
           quote: null,
@@ -866,7 +867,11 @@
           $('runTrack').hidden = true;
           btn.disabled = !ready();
           btn.classList.toggle('v5-btn--solid', ready());
-          $('runState').textContent = ready() ? '1회 차감' : '사진 두 장을 넣어주세요';
+          $('runState').textContent = ready()
+            ? S.cost
+              ? S.cost + ' 크레딧 차감'
+              : '생성 준비 완료'
+            : '사진 두 장을 넣어주세요';
         }
 
         function shotHTML(i) {
@@ -1003,7 +1008,7 @@
             var res = await fetch(API, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) });
             // 402 는 크레딧 소진이다. 서버 메시지를 그대로 쓰면 원인이 안 보인다.
             if (res.status === 402) {
-              throw new Error('이번 달 생성 횟수를 모두 사용했습니다. 구독을 올리면 더 만들 수 있습니다.');
+              throw new Error('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
             }
             var data = await res.json();
             if (!res.ok || !data.success) throw new Error(data && data.error ? data.error : '생성에 실패했습니다');
@@ -1244,6 +1249,20 @@
             } catch (e) {}
           }
           await loadGallery();
+
+          // 생성 1회 단가. 화면에 숫자를 적어두지 않고 표에서 읽는다 —
+          // 적어두면 표를 고쳤을 때 화면이 거짓말을 한다.
+          if (sb) {
+            try {
+              var cc = await sb.from('credit_costs').select('credits').eq('action', 'generate').maybeSingle();
+              if (cc.data) {
+                S.cost = cc.data.credits;
+                renderRun();
+              }
+            } catch (e) {
+              console.warn('[studio] 단가:', e.message);
+            }
+          }
         }
 
         init();
