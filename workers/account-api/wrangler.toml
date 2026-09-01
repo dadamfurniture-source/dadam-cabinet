@@ -1,0 +1,15 @@
+name = "dadam-account-api"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
+
+[vars]
+# 공개값이라 vars 로 둔다 (js/config.js 에 이미 들어 있다)
+SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ"
+
+# CORS 허용 오리진
+CORS_ORIGINS = "https://dadamfurniture.com,https://www.dadamfurniture.com,http://127.0.0.1:8899,http://localhost:8899"
+
+# service_role 키는 여기 두지 않는다. 대시보드나 아래 명령으로 등록:
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
