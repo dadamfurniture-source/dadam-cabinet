@@ -1607,15 +1607,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * (실제로 그랬다 — 영역을 임의로 좌→우 나열해 ㄱ자 배치가 일렬로 보였다).
    */
   /**
-   * 정면도에서 이 시점에 **모로 보이는가** — 도어 면이 이쪽을 안 향한다.
-   * 회전 라인은 정면 시점에서 옆면만 보이므로 모듈이 서로 뒤에 겹쳐 선다.
-   * 그 라인을 제대로 보려면 시점을 90° 돌려야 한다 (◀ ▶).
+   * 이 시점에서 보이는 면. `renderFrontSet` 의 `effRot` 과 같은 식이다.
+   *
+   *   0    정면 — 도어가 보인다
+   *   90·270  옆면 — 모듈이 서로 뒤에 겹쳐 선다
+   *   180  뒷면 — 도어가 반대쪽을 본다
+   *
+   * 셋 다 "시점을 돌려야 제대로 보인다" 는 점은 같지만 **이유가 다르다.**
+   * 예전엔 옆면만 걸러서 뒷면을 정면으로 취급했다 — 네 시점 중 하나에서
+   * 라벨이 거짓말을 했다.
    */
-  function isEdgeOn(o) {
+  function faceAt(o) {
     const rot = ((o && o.rotation || 0) % 360 + 360) % 360;
-    const face = ((rot - viewRotation) % 360 + 360) % 360;
-    return face === 90 || face === 270;
+    return ((rot - viewRotation) % 360 + 360) % 360;
   }
+  function isEdgeOn(o) { const f = faceAt(o); return f === 90 || f === 270; }
+  /** 도어가 이쪽을 향하는가 — 정면일 때만 참 */
+  function isFrontFacing(o) { return faceAt(o) === 0; }
 
   function areaFrontRect(a) {
     const ox = getFrontViewOriginX();
@@ -1664,13 +1672,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       lab.setAttribute('y', R.y + 48);
       lab.setAttribute('font-size', 40);
       lab.setAttribute('fill', cfg.stroke || '#666');
-      // W12-56: 모로 보이는 라인은 그렇다고 적는다. 안 적으면 모듈이 겹쳐 선 것을
-      //   그리기 오류로 읽는다 — 실제로는 옆에서 본 것이 맞다.
-      const edge = isEdgeOn(a);
+      // W12-56: 정면이 아닌 라인은 그렇다고 적는다. 안 적으면 모듈이 겹쳐 선 것을
+      //   그리기 오류로 읽는다 — 실제로는 옆이나 뒤에서 본 것이 맞다.
+      const face = faceAt(a);
+      const note = face === 0 ? ''
+        : face === 180 ? '  ·  ▶ 뒷면 (시점을 돌리세요)'
+        : '  ·  ▶ 모로 보임 (시점을 돌리세요)';
       lab.textContent = `${cfg.label || a.section} ${Math.round(a.W)}×${Math.round(a.H)}`
         + (used ? `  ·  ${Math.round(used)} 사용` : '  ·  비어 있음')
-        + (edge ? '  ·  ▶ 모로 보임 (시점을 돌리세요)' : '');
-      if (edge) r.classList.add('edge-on');
+        + note;
+      if (face !== 0) r.classList.add('edge-on');
       lab.style.pointerEvents = 'none';
       g.appendChild(lab);
       content.appendChild(g);
