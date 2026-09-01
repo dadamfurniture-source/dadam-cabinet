@@ -203,3 +203,37 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
     expect(door.w).toBe(600 - 4);
   });
 });
+
+describe('W12-54: 경첩 목대 — 멍 폭에 든 15T 가 자재표에도 나온다', () => {
+  const materials = extractMaterials(makeLItem());
+  const lower = materials.filter((m) => m.module === '하부장-LT망장');
+  const upper = materials.filter((m) => m.module === '상부장-LT망장');
+
+  test('하부 멍장에 경첩목대가 1개 나온다 — 15T PB · 70 × 몸통H', () => {
+    const b = lower.find((m) => m.part === '경첩목대');
+    expect(b).toBeDefined();
+    expect(b.material).toBe('PB');
+    expect(b.thickness).toBe(15);
+    expect(b.w).toBe(70);
+    expect(b.qty).toBe(1);
+    // 세로는 멍가림판과 같은 몸통 높이다
+    expect(b.h).toBe(lower.find((m) => m.part === '멍가림판').h);
+  });
+
+  test('상부 멍장에도 나온다', () => {
+    const b = upper.find((m) => m.part === '경첩목대');
+    expect(b).toBeDefined();
+    expect(b.thickness).toBe(15);
+    expect(b.w).toBe(70);
+  });
+
+  test('멍장이 아닌 모듈에는 안 나온다', () => {
+    const others = materials.filter((m) => !/LT망장/.test(m.module) && m.part === '경첩목대');
+    expect(others).toEqual([]);
+  });
+
+  test('멍장이 둘이면 목대도 둘이다 (ㄷ자)', () => {
+    const b = extractMaterials(makeUItem()).filter((m) => m.part === '경첩목대');
+    expect(b).toHaveLength(2);
+  });
+});

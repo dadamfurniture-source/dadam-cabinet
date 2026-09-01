@@ -157,6 +157,9 @@
           const legH = specs.sinkLegHeight || 150;
           // W10-4: 멍 가림판 두께 — data-constants.js CORNER_BLIND_COVER_T (corner.md §3.5)
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
+          // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가므로(corner.md §3.3) 자재표에도 나온다
+          const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
+          const battenW = typeof CORNER_HINGE_BATTEN_W !== 'undefined' ? CORNER_HINGE_BATTEN_W : 70;
 
           // ===== 상부장 모듈 =====
           const upperModules = (item.modules || []).filter((m) => m.pos === 'upper' && m.type !== 'hood');
@@ -199,6 +202,9 @@
               const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
               this.add(materials, modLabel, '멍가림판', 'MDF', coverT, parseFloat(mod.blindZoneW) || 0, H, 1, '-', '멍 가림 MDF (corner.md §3.5)');
+              // W12-54: 경첩 목대 — 멍장 도어 경첩을 달 자리. 멍 폭에 이미 15T 가
+              // 들어가 있으므로(corner.md §3.3) 자재표에도 같이 나와야 한다.
+              this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-', '멍장 도어 경첩용 목대 (corner.md §3.3)');
             } else if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
@@ -245,6 +251,9 @@
               const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
               this.add(materials, modLabel, '멍가림판', 'MDF', coverT, parseFloat(mod.blindZoneW) || 0, H, 1, '-', '멍 가림 MDF (corner.md §3.5)');
+              // W12-54: 경첩 목대 — 멍장 도어 경첩을 달 자리. 멍 폭에 이미 15T 가
+              // 들어가 있으므로(corner.md §3.3) 자재표에도 같이 나와야 한다.
+              this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-', '멍장 도어 경첩용 목대 (corner.md §3.3)');
             } else if (isDrawer) {
               // ★ 서랍장: 서랍 + 여닫이 도어 + 목찬넬
               const drawerCount = mod.drawerCount || 1;
