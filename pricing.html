@@ -189,6 +189,7 @@
       <div class="pr-grid" id="grid"></div>
       <p class="pr-foot">
         표시 금액은 월 구독료이며 VAT 포함입니다. 카드가 등록되면 매월 자동 결제됩니다.<br />
+        크레딧은 매월 새로 지급되며 이월되지 않습니다. 생성이 실패하면 차감분은 돌려드립니다.<br />
         해지는 마이페이지 &rsaquo; 구독 관리에서 언제든 가능하며, 이미 결제한 기간까지는 그대로 이용하실 수 있습니다.
       </p>
     </main>
@@ -243,7 +244,15 @@
           agent: ['Expert 의 모든 기능', '대리점 전용 지원', '팀 협업', '맞춤 컨설팅'],
         };
 
-        var state = { user: null, tier: 'standard', credits: {}, clientKey: '', plans: [] };
+        var state = { user: null, tier: 'standard', credits: {}, cost: null, clientKey: '', plans: [] };
+
+        // 크레딧만 적으면 몇 번 만들 수 있는지 모른다. 단가로 환산해 함께 낸다.
+        function creditNote(credits) {
+          if (credits == null) return '&nbsp;';
+          var line = '월 ' + credits.toLocaleString('ko-KR') + ' 크레딧';
+          if (state.cost > 0) line += ' · 생성 ' + Math.floor(credits / state.cost) + '회';
+          return line;
+        }
 
         function cardHTML(p) {
           var isFree = p.id === 'standard';
@@ -273,7 +282,7 @@
             (isFree ? '' : ' <small>/ 월</small>') +
             '</div>' +
             '<p class="pr-note">' +
-            (credits == null ? '&nbsp;' : '월 ' + credits + '회 생성') +
+            creditNote(credits) +
             '</p>' +
             '<ul class="pr-feats">' +
             feats
@@ -319,6 +328,8 @@
               (plans.data || []).forEach(function (r) {
                 state.credits[r.tier] = r.monthly_credits;
               });
+              var cc = await sb.from('credit_costs').select('credits').eq('action', 'generate').maybeSingle();
+              if (cc.data) state.cost = cc.data.credits;
             } catch (e) {
               console.warn('[pricing] profile:', e.message);
             }

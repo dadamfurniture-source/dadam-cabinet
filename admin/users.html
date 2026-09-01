@@ -965,7 +965,7 @@
             const creditCell =
               cr == null
                 ? '<span class="cell-muted">미사용</span>'
-                : `${cr.balance}회<div class="cell-sub">~ ${formatDate(cr.period_end)}</div>`;
+                : `${Number(cr.balance).toLocaleString('ko-KR')}<div class="cell-sub">~ ${formatDate(cr.period_end)}</div>`;
 
             const ddActionBtn = user.detaildesign_approved
               ? `<button class="btn btn-sm btn-danger" onclick="toggleDetailDesignApproval('${user.id}', false)">승인해제</button>`
