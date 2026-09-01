@@ -657,6 +657,93 @@ describe('멍장 → BOM 변환', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────
+// 7. 한 벽면을 배치 공간 여러 개로 쪼갠 경우
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * **배치 공간 = 라인**이다 (2026-09-01 확정). 한 벽면에 배치 공간을 여러 개
+ * 두면 그 벽면에 라인이 여러 개 있는 것이고, 도어 균등 분배(§3.4)는
+ * **배치 공간 단위**로 돈다 — 벽면 단위가 아니다.
+ *
+ * 그래서 같은 벽면이라도 배치 공간이 다르면 도어 폭이 다를 수 있다.
+ * 규칙대로다. 코너는 실제로 맞닿은 배치 공간 하나에만 걸린다.
+ */
+function splitWallLayout() {
+  const legW = 1970;
+  return layoutOf([
+    // 위 벽면 — 배치 공간 둘로 쪼갠다
+    { section: 'lower', x: 0, y: 0, w: 1600, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+    { section: 'lower', x: 1600, y: 0, w: 2000, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
+    // 왼 벽면 — 코너를 이룬다
+    { section: 'lower', x: LOWER_D / 2 - legW / 2, y: legW / 2 - LOWER_D / 2,
+      w: legW, h: LOWER_D, moduleH: 870, rotation: 90, finishings: [] },
+  ]);
+}
+
+describe('한 벽면에 배치 공간이 여러 개여도 된다', () => {
+  test('코너는 실제로 맞닿은 배치 공간 하나에만 걸린다', () => {
+    const p = boot(splitWallLayout());
+    const pairs = p.g('cornerPairs')();
+    expect(pairs.length).toBe(1);
+    expect(pairs[0].owner.rotation).toBe(90);
+    // 같은 벽면의 다른 배치 공간(코너에서 먼 쪽)은 코너가 아니다
+    const far = p.g('areas').find((a) => (a.rotation || 0) === 0 && a.x > 0);
+    expect(far).toBeTruthy();
+    expect(pairs[0].adj.id).not.toBe(far.id);
+  });
+
+  test('같은 벽면이라도 코너에 안 닿은 배치 공간은 밀리지 않는다', () => {
+    const p = boot(splitWallLayout());
+    p.g('autoCalcAllAreas')();
+    const pairs = p.g('cornerPairs')();
+    const far = p.g('areas').find((a) => (a.rotation || 0) === 0 && a.id !== pairs[0].adj.id);
+    expect(p.g('adjCornerOffsetOf')(far.id)).toBeNull();
+    // 첫 모듈이 배치 공간 시작에 그대로 붙는다
+    const first = (p.g('modules') || []).filter((m) => m.areaId === far.id)
+      .sort((a, b) => a.x - b.x)[0];
+    expect(first.x).toBe(far.x);
+  });
+
+  test('코너에 닿은 배치 공간만 밀린다', () => {
+    const p = boot(splitWallLayout());
+    p.g('autoCalcAllAreas')();
+    const pairs = p.g('cornerPairs')();
+    const near = pairs[0].adj;
+    const off = p.g('adjCornerOffsetOf')(near.id);
+    expect(off.offset).toBe(LOWER_D - 10 + 60);
+    const first = (p.g('modules') || []).filter((m) => m.areaId === near.id)
+      .sort((a, b) => a.x - b.x)[0];
+    expect(first.x - near.x).toBe(off.offset);
+  });
+
+  test('배치 공간마다 원장이 따로 선다', () => {
+    const p = boot(splitWallLayout());
+    p.g('autoCalcAllAreas')();
+    const live = (p.g('areas') || []).filter((a) => !a.isFinishing);
+    live.forEach((a) => {
+      const L = p.g('cornerLedger')(a.id);
+      if (!L) return;                       // 코너와 무관한 배치 공간
+      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.missing).toBe(0);
+    });
+    // 셋 중 둘만 코너에 물린다
+    expect(live.filter((a) => p.g('cornerLedger')(a.id)).length).toBe(2);
+  });
+
+  test('배치 공간끼리 겹치지 않는다', () => {
+    const p = boot(splitWallLayout());
+    p.g('autoCalcAllAreas')();
+    expect(p.g('crossAreaOverlaps')()).toEqual([]);
+  });
+
+  test('멍장은 하나뿐이다 — 같은 벽면이 쪼개져도 늘지 않는다', () => {
+    const p = boot(splitWallLayout());
+    p.g('autoCalcAllAreas')();
+    expect((p.g('modules') || []).filter((m) => m.blind).length).toBe(1);
+  });
+});
+
 describe('코너가 없으면 아무 일도 하지 않는다', () => {
   const straight = {
     version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
