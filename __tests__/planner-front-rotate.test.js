@@ -173,3 +173,83 @@ describe('소스 규약', () => {
     expect(fn).toContain('areas.indexOf(a) >= 0 ? planeBoxOf(a)');
   });
 });
+
+describe('뒷면과 옆면을 가른다', () => {
+  test('뒷면은 정면이 아니다 — 예전엔 옆면만 걸러 뒷면을 정면으로 봤다', () => {
+    const p = boot();
+    const rot90 = areaOf(p, 90);
+    // 시점 270 에서 rot90 라인은 face 180 = 뒷면이다
+    for (let i = 0; i < 3; i++) p.g('rotateView')(90);
+    expect(p.g('faceAt')(rot90)).toBe(180);
+    expect(p.g('isEdgeOn')(rot90)).toBe(false);      // 옆면은 아니다
+    expect(p.g('isFrontFacing')(rot90)).toBe(false); // 그렇다고 정면도 아니다
+  });
+
+  test('뒷면 라벨은 "뒷면" 이라고 적는다', () => {
+    const p = boot();
+    const rot90 = areaOf(p, 90);
+    p.g('setActiveArea')(rot90.id);
+    for (let i = 0; i < 3; i++) p.g('rotateView')(90);
+    p.g('renderFrontView')();
+    const labels = [...p.document.querySelectorAll('#contentG text')].map((t) => t.textContent);
+    expect(labels.some((t) => /뒷면/.test(t))).toBe(true);
+    expect(labels.some((t) => /모로 보임/.test(t))).toBe(true);   // 반대편 라인은 옆면
+  });
+
+  test('정면일 때만 아무 표시가 없다', () => {
+    const p = boot();
+    const rot0 = areaOf(p, 0);
+    p.g('setActiveArea')(rot0.id);
+    p.g('renderFrontView')();
+    expect(p.g('faceAt')(rot0)).toBe(0);
+    const labels = [...p.document.querySelectorAll('#contentG text')].map((t) => t.textContent);
+    const own = labels.find((t) => /3600/.test(t));
+    expect(own).toBeDefined();
+    expect(own).not.toMatch(/모로 보임|뒷면/);
+  });
+});
+
+describe('멍은 어느 거울 배치에서도 코너 쪽에 온다', () => {
+  /**
+   * 세로 라인을 왼쪽/오른쪽 끝에 두면 배치 단계가 각각 rot 270 / rot 90 을 고른다
+   * (mockup-shell 의 alignToPerson — 정면 변이 사람과 가까운 회전).
+   * 두 경우 모두 멍(먹장 칸)이 코너 벽 여유 50 과 같은 쪽에 와야 한다.
+   */
+  function lShape(legX, rot) {
+    const cx = legX + D / 2, cy = LEG / 2;
+    return {
+      version: 1, savedAt: '2026-09-01T00:00:00.000Z', person: { cx: 1500, cy: 1500 },
+      modules: [
+        { section: 'lower', x: 0, y: 0, w: 3600, h: D, moduleH: 870, rotation: 0, finishings: [] },
+        { section: 'lower', x: cx - LEG / 2, y: cy - D / 2, w: LEG, h: D, moduleH: 870, rotation: rot, finishings: [] },
+      ],
+    };
+  }
+  function check(legX, rot) {
+    const p = bootPlanner('mockup-structure.html', {
+      search: '?design=d1&item=1',
+      storage: { 'dadam_layout_v1::d1:1': JSON.stringify(lShape(legX, rot)) },
+    });
+    if (p.errors.length) throw new Error(p.errors.map((e) => e.message).join(' | '));
+    p.g('autoCalcAllAreas')();
+    const own = p.g('cornerPairs')()[0].owner;
+    const blind = (p.g('modules') || []).find((m) => m.blind);
+    for (let i = 0; i < ((((own.rotation || 0) % 360) + 360) % 360) / 90; i++) p.g('rotateView')(90);
+    const A = rectOf(p, own), R = rectOf(p, blind);
+    const cornerOnLeft = Math.round(R.x - A.x) === 50;
+    const blindOnLeft = p.g('structures')[blind.id].areaTypes.indexOf('blank') === 0;
+    return { cornerOnLeft, blindOnLeft };
+  }
+
+  test('세로 라인이 왼쪽 (rot 270)', () => {
+    const r = check(0, 270);
+    expect(r.blindOnLeft).toBe(r.cornerOnLeft);
+    expect(r.cornerOnLeft).toBe(false);      // 코너가 오른쪽
+  });
+
+  test('세로 라인이 오른쪽 (rot 90) — 거울', () => {
+    const r = check(3600 - D, 90);
+    expect(r.blindOnLeft).toBe(r.cornerOnLeft);
+    expect(r.cornerOnLeft).toBe(true);       // 코너가 왼쪽
+  });
+});
