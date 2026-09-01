@@ -1,2163 +1,1077 @@
 <!doctype html>
-<!-- v2.1 - n8n removed, Gemini 3.1 Flash Image direct, no tier redirect -->
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#B8956C" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>AI 설계 - 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css">
-    <link rel="stylesheet" href="css/dadam-system.css" />
+    <title>AI 이미지 스튜디오 — 다담가구</title>
+    <meta name="description" content="공간 사진과 참고 이미지를 넣으면 연출컷이 생성됩니다." />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Pretendard:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/ai-design.css" />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
+
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
     <script src="js/admin-access.js"></script>
+
+    <style>
+      /* 이 페이지에만 필요한 것. 공통은 css/dadam-v5.css 가 갖는다. */
+      .studio-adv > summary {
+        list-style: none;
+        cursor: pointer;
+        font-weight: 300;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: var(--v5-ink-45);
+        padding-top: 4px;
+      }
+      .studio-adv > summary::-webkit-details-marker {
+        display: none;
+      }
+      .studio-adv > summary::before {
+        content: '▸ ';
+      }
+      .studio-adv[open] > summary::before {
+        content: '▾ ';
+      }
+      .studio-adv-body {
+        display: grid;
+        gap: 12px;
+        padding-top: 14px;
+      }
+      .studio-field {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 11.5px;
+        font-weight: 300;
+      }
+      .studio-field label {
+        color: var(--v5-ink-55);
+        min-width: 92px;
+      }
+      .studio-field input[type='number'],
+      .studio-field select {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 10px;
+        border: 1px solid var(--v5-line-18);
+        background: var(--v5-card);
+        font: 300 12px/1 var(--v5-sans);
+        color: var(--v5-ink);
+      }
+      .studio-gate {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        background: rgba(255, 255, 255, 0.96);
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 24px;
+      }
+      .studio-quote {
+        display: grid;
+        gap: 8px;
+        font-weight: 300;
+        font-size: 12.5px;
+      }
+      .studio-quote-row {
+        display: flex;
+        gap: 12px;
+        color: var(--v5-ink-62);
+      }
+      .studio-quote-row span:last-child {
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+      }
+      .studio-quote-total {
+        border-top: 1px solid var(--v5-line);
+        padding-top: 10px;
+        font-weight: 400;
+        color: var(--v5-ink);
+      }
+    </style>
   </head>
-  <body>
-    <!-- SVG Symbols -->
-    <svg style="display: none">
-      <symbol id="icon-logo" viewBox="0 0 40 40">
-        <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
-      </symbol>
-      <symbol id="icon-ai" viewBox="0 0 24 24">
-        <path
-          fill="currentColor"
-          d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"
-        />
-      </symbol>
-      <symbol id="icon-user" viewBox="0 0 24 24">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </symbol>
-      <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></symbol>
-      <symbol id="icon-sparkle" viewBox="0 0 24 24">
-        <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" />
-      </symbol>
-      <symbol id="icon-download" viewBox="0 0 24 24">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-      </symbol>
-      <symbol id="icon-share" viewBox="0 0 24 24">
-        <circle cx="18" cy="5" r="3" />
-        <circle cx="6" cy="12" r="3" />
-        <circle cx="18" cy="19" r="3" />
-        <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" />
-      </symbol>
-      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
-        <path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" />
-      </symbol>
-      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
-        <path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" />
-      </symbol>
-    </svg>
 
-    <!-- Navigation -->
-    <nav class="nav nav-solid">
-      <a href="index.html" class="nav-logo">
-        <svg viewBox="0 0 40 40" fill="currentColor">
-          <path d="M20 4L4 12v16l16 8 16-8V12L20 4zm0 4l12 6-12 6-12-6 12-6zm-12 10l12 6 12-6v8l-12 6-12-6v-8z" />
-        </svg>
-        <span>다담</span>
-      </a>
-      <div class="nav-menu">
-        <a href="#" data-i18n="nav.about">About us</a>
-        <a href="collection.html" data-i18n="nav.collection">Collection</a>
-        <a href="ai-design.html" class="active" data-i18n="nav.ai_design">AI Design</a>
-        <a href="detaildesign.html" id="navDetailDesign" style="display:none" data-i18n="nav.detail_design">Detail Design</a>
-        <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
-        <a href="material.html" data-i18n="nav.material">자재</a>
-      </div>
-      <div class="nav-icons">
-        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-        <div class="user-menu" id="userMenu" style="display:none">
-          <button class="user-btn">
-            <div class="user-avatar" id="navUserAvatar">?</div>
-            <span class="user-name" id="navUserName">사용자</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <div class="user-dropdown">
-            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
-            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
-            <a href="admin/index.html" id="navAdminLink" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16.5 13.5 18 21 12 17 6 21 7.5 13.5 2 9 9 9 12 2"/></svg>관리자 페이지</a>
-            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
-          </div>
-        </div>
-        <button class="hamburger" onclick="toggleMobileMenu()">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-      </div>
-    </nav>
+  <body class="v5-page">
+    <div data-site-shell="header" data-nav="ai"></div>
 
-    <!-- Mobile Menu -->
-    <div class="mobile-menu" id="mobileMenu">
-      <a href="index.html" data-i18n="nav.home">홈</a>
-      <a href="collection.html" data-i18n="nav.collection">Collection</a>
-      <a href="ai-design.html" class="active" data-i18n="nav.ai_design">AI Design</a>
-      <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
-      <a href="material.html" data-i18n="nav.material">자재</a>
-      <a href="admin/index.html" id="mobileAdminLink" style="display:none">관리자 페이지</a>
-      <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
-      <a
-        href="#"
-        id="mobileLogoutLink"
-        onclick="
-          logout();
-          return false;
-        "
-        style="
-          display: none;
-          color: var(--gray);
-          margin-top: 16px;
-          border-top: 1px solid var(--warm);
-          padding-top: 24px;
-        "
-        >로그아웃</a
-      >
+    <!-- 로그인 게이트 — 기존 정책 유지 -->
+    <div class="studio-gate" id="authGate" hidden>
+      <div style="display: grid; gap: 18px; justify-items: center">
+        <div class="v5-kicker" style="margin: 0">MEMBERS ONLY</div>
+        <p class="v5-lede" style="margin: 0">로그인하면 연출컷을 생성할 수 있습니다.</p>
+        <a class="v5-btn v5-btn--solid v5-btn--lg" href="login.html">로그인</a>
+      </div>
     </div>
 
-    <!-- Hero -->
-    <section class="hero">
-      <div class="hero-badge">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-          <use href="#icon-sparkle" />
-        </svg>
-        AI-Powered Design
-      </div>
-      <h1>AI <span>설계</span> 시스템</h1>
-      <p>사진 한 장으로 맞춤 가구를 디자인하세요</p>
+    <!-- 사진 마퀴 — 타일 6장을 2회 복제해 12장, -50% 로 순환 -->
+    <section class="v5-marquee" aria-hidden="true">
+      <div class="v5-marquee-track" id="marquee"></div>
     </section>
 
-    <!-- Floating Chat Widget -->
-    <button class="chat-fab" id="chatFab" onclick="toggleChat()" aria-label="AI 설계사 채팅">
-      <span class="fab-open" style="color:#fff;font-weight:700;font-size:16px;letter-spacing:1px">AI</span>
-      <svg class="fab-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      <span class="chat-fab-badge"></span>
-    </button>
+    <!-- 히어로 -->
+    <section class="v5-hero">
+      <span class="v5-lockup">
+        <span class="v5-lockup-en">DADAM</span>
+        <span class="v5-lockup-rule" aria-hidden="true"></span>
+      </span>
+      <div class="v5-kicker">AI IMAGE STUDIO</div>
+      <h1 class="v5-slogan">Curating images,<br /><em>building spaces</em></h1>
+    </section>
 
-    <div class="chat-widget" id="chatWidget">
-      <div class="chat-header">
-        <div class="chat-header-icon">
-          <svg><use href="#icon-ai" /></svg>
-        </div>
-        <div class="chat-header-text">
-          <h3>다담 AI 설계사</h3>
-          <p>맞춤 가구 설계 전문 AI</p>
-        </div>
-        <div class="chat-status">온라인</div>
-      </div>
-      <div class="chat-messages" id="chatMessages">
-        <div class="welcome-msg">
-          <strong>안녕하세요!</strong>
-          카테고리를 선택하고 사진을 업로드해주세요.
-        </div>
-      </div>
-      <div class="chat-input">
-        <input
-          type="text"
-          id="messageInput"
-          placeholder="메시지를 입력하세요..."
-          onkeydown="if (event.key === 'Enter') sendMessage();"
-        />
-        <button onclick="sendMessage()" aria-label="전송">
-          <svg fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send" /></svg>
-        </button>
-      </div>
-    </div>
+    <main class="v5-main">
+      <div class="v5-wrap">
+        <p class="v5-lede">공간 사진과 참고 이미지를 넣으면 네 컷이 생성됩니다.</p>
 
-    <!-- Main Container -->
-    <main class="main-container">
-      <!-- Category Buttons (New Layout) -->
-      <p class="section-title">카테고리 선택</p>
-      <p class="section-subtitle">클릭하여 사진 업로드 (여러 개 선택 가능)</p>
-
-      <div class="category-buttons">
-        <button class="category-btn" data-category="sink" onclick="selectCategory('sink')">
-          <span class="btn-text">싱크대</span>
-          <span class="btn-check">✓</span>
-        </button>
-        <button class="category-btn" data-category="island" onclick="selectCategory('island')">
-          <span class="btn-text">아일랜드</span>
-          <span class="btn-check">✓</span>
-        </button>
-        <button class="category-btn" data-category="wardrobe" onclick="selectCategory('wardrobe')">
-          <span class="btn-text">붙박이장</span>
-          <span class="btn-check">✓</span>
-        </button>
-        <button class="category-btn" data-category="fridge" onclick="selectCategory('fridge')">
-          <span class="btn-text">냉장고장</span>
-          <span class="btn-check">✓</span>
-        </button>
-        <button class="category-btn" data-category="vanity" onclick="selectCategory('vanity')">
-          <span class="btn-text">화장대</span>
-          <span class="btn-check">✓</span>
-        </button>
-        <button class="category-btn" data-category="shoe" onclick="selectCategory('shoe')">
-          <span class="btn-text">신발장</span>
-          <span class="btn-check">✓</span>
-        </button>
-      </div>
-
-      <!-- Image Preview Section (Slider) -->
-      <div class="image-preview-section" id="imagePreviewSection">
-        <div class="preview-header">
-          <span class="preview-title">업로드 이미지</span>
-          <span class="preview-count" id="previewCount">0개</span>
-        </div>
-
-        <div class="preview-slider" id="previewSlider">
-          <button class="slider-arrow left" id="sliderPrev" onclick="slideImage(-1)">◀</button>
-
-          <div class="slider-container">
-            <div class="slider-track" id="sliderTrack">
-              <!-- 슬라이드 아이템들이 동적으로 추가됨 -->
+        <div class="v5-cols">
+          <!-- ───────── 슬롯 ① 내 공간 사진 ───────── -->
+          <section class="v5-slot">
+            <div class="v5-slot-head">
+              <div class="v5-slot-no v5-slot-no--on">①</div>
+              <div style="display: grid; gap: 6px; min-width: 0">
+                <div class="v5-slot-title">내 공간 사진</div>
+                <div class="v5-slot-sub">YOUR SPACE</div>
+              </div>
+              <div class="v5-slot-state" id="state1">대기</div>
             </div>
-          </div>
 
-          <button class="slider-arrow right" id="sliderNext" onclick="slideImage(1)">▶</button>
-        </div>
+            <div class="v5-tabs">
+              <div class="v5-tab" aria-selected="true">업로드</div>
+            </div>
 
-        <div class="slider-indicators" id="sliderIndicators">
-          <!-- 인디케이터 동적 생성 -->
-        </div>
+            <div class="v5-slot-body">
+              <div class="v5-drop" id="drop1">
+                <div class="v5-drop-fill" id="fill1" hidden></div>
+                <div class="v5-drop-empty" id="empty1">
+                  <div class="v5-drop-icon v5-drop-icon--on" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8A7457" stroke-width="1">
+                      <path d="M7 0v14M0 7h14" />
+                    </svg>
+                  </div>
+                  <p class="v5-drop-text">공간 사진을 올려주세요<br />JPG · PNG · 20MB 이하</p>
+                  <button type="button" class="v5-btn v5-btn--tan" id="pick1">사진 선택</button>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <button type="button" class="v5-btn" id="clear1" hidden>다시 선택</button>
+                <div style="flex: 1"></div>
+                <div style="font-weight: 300; font-size: 11px; color: var(--v5-ink-40)" id="file1"></div>
+              </div>
 
-        <div class="current-category" id="currentCategory">
-          카테고리를 선택하고 이미지를 업로드하세요
-        </div>
+              <!-- 새 디자인에 자리가 없는 기존 입력. 지우면 생성 품질이 떨어지므로 접어서 남긴다. -->
+              <details class="studio-adv" id="adv">
+                <summary>고급 설정</summary>
+                <div class="studio-adv-body">
+                  <div class="studio-field">
+                    <label for="wallW">벽 폭 (mm)</label>
+                    <input type="number" id="wallW" min="1000" max="6000" step="50" placeholder="자동 인식" />
+                  </div>
+                  <div id="fridgeAdv" hidden style="display: grid; gap: 12px">
+                    <div class="studio-field">
+                      <label for="fBrand">냉장고 브랜드</label>
+                      <select id="fBrand">
+                        <option value="samsung">삼성</option>
+                        <option value="lg">LG</option>
+                      </select>
+                    </div>
+                    <div class="studio-field">
+                      <label for="fPos">냉장고 위치</label>
+                      <select id="fPos">
+                        <option value="left">좌측</option>
+                        <option value="right">우측</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </details>
+              <input type="file" id="input1" accept="image/jpeg,image/png" hidden />
+            </div>
 
-      </div>
+            <div class="v5-slot-foot">
+              <div class="v5-foot-label">
+                <span>FURNITURE · 이 공간에 배치할 가구</span>
+                <span class="v5-foot-state" id="kindState">싱크대</span>
+              </div>
+              <div class="v5-foot-row" id="kinds"></div>
+            </div>
+          </section>
 
-      <!-- Hidden: Original Category Grid (kept for compatibility with preview elements) -->
-      <div style="display: none;">
-        <img id="preview-sink" src="" alt="" />
-        <img id="preview-island" src="" alt="" />
-        <img id="preview-wardrobe" src="" alt="" />
-        <img id="preview-fridge" src="" alt="" />
-        <img id="preview-vanity" src="" alt="" />
-        <img id="preview-shoe" src="" alt="" />
-      </div>
+          <!-- ───────── 슬롯 ② 참고 이미지 ───────── -->
+          <section class="v5-slot">
+            <div class="v5-slot-head">
+              <div class="v5-slot-no" id="no2">②</div>
+              <div style="display: grid; gap: 6px; min-width: 0">
+                <div class="v5-slot-title">참고 이미지</div>
+                <div class="v5-slot-sub">REFERENCE</div>
+              </div>
+              <div class="v5-slot-state" id="state2">대기</div>
+            </div>
 
-      <!-- Hidden File Inputs -->
-      <input type="file" class="file-input" id="file-sink" accept="image/*" onchange="handleFileUpload('sink', this)" />
-      <input
-        type="file"
-        class="file-input"
-        id="file-island"
-        accept="image/*"
-        onchange="handleFileUpload('island', this)"
-      />
-      <input
-        type="file"
-        class="file-input"
-        id="file-wardrobe"
-        accept="image/*"
-        onchange="handleFileUpload('wardrobe', this)"
-      />
-      <input
-        type="file"
-        class="file-input"
-        id="file-fridge"
-        accept="image/*"
-        onchange="handleFileUpload('fridge', this)"
-      />
-      <input
-        type="file"
-        class="file-input"
-        id="file-vanity"
-        accept="image/*"
-        onchange="handleFileUpload('vanity', this)"
-      />
-      <input type="file" class="file-input" id="file-shoe" accept="image/*" onchange="handleFileUpload('shoe', this)" />
+            <div class="v5-tabs">
+              <button type="button" class="v5-tab" data-tab="upload" aria-selected="false">업로드</button>
+              <button type="button" class="v5-tab" data-tab="db" aria-selected="true">다담 DB</button>
+              <button type="button" class="v5-tab" data-tab="theme" aria-selected="false">테마</button>
+              <button type="button" class="v5-icon-btn" id="searchBtn" aria-expanded="false" aria-label="검색">
+                <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" stroke-width="1.2">
+                  <circle cx="7" cy="7" r="5.6" />
+                  <path d="M11 11l4.5 4.5" />
+                </svg>
+              </button>
+            </div>
 
-      <!-- 실측 벽 길이 입력 (모든 품목 공통) -->
-      <div class="wall-width-section" id="wallWidthSection" style="display: none; margin-bottom: 20px;">
-        <p class="section-title">실측 벽 길이 (선택)</p>
-        <p class="section-subtitle">현장에서 실제 측정한 설치 벽 가로 길이를 입력하면 가구 비율이 정확해집니다. 비워두면 AI가 사진에서 자동 추정합니다.</p>
-        <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-          <input type="number" id="wallWidthInput" min="1000" max="6000" step="50"
-            placeholder="예: 3200"
-            style="flex: 1; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; outline: none; transition: border-color 0.2s;"
-            onfocus="this.style.borderColor='#B8956C'" onblur="this.style.borderColor='#e0e0e0'">
-          <span style="font-size: 14px; color: #888; font-weight: 500;">mm</span>
-        </div>
-      </div>
+            <div class="v5-slot-body">
+              <!-- 업로드 -->
+              <div id="pane-upload" hidden>
+                <div class="v5-drop" id="drop2">
+                  <div class="v5-drop-empty">
+                    <div class="v5-drop-icon" aria-hidden="true">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        stroke="rgba(45,42,38,.5)"
+                        stroke-width="1"
+                      >
+                        <path d="M7 0v14M0 7h14" />
+                      </svg>
+                    </div>
+                    <p class="v5-drop-text">참고할 이미지를 올려주세요<br />최대 5장</p>
+                    <button type="button" class="v5-btn" id="pick2">사진 선택</button>
+                  </div>
+                </div>
+                <input type="file" id="input2" accept="image/jpeg,image/png" multiple hidden />
+              </div>
 
-      <!-- 냉장고장 구성 선택 (냉장고장 전용) -->
-      <div class="fridge-options-section" id="fridgeOptionsSection" style="display: none; margin-bottom: 20px;">
-        <p class="section-title">냉장고장 구성 선택</p>
+              <!-- 다담 DB -->
+              <div id="pane-db">
+                <div class="v5-search" id="searchRow" hidden>
+                  <input type="text" id="query" placeholder="키워드로 찾기" aria-label="검색어" />
+                  <span style="font-weight: 300; font-size: 11px; color: var(--v5-ink-45)" id="queryCount"></span>
+                  <button type="button" class="v5-btn" id="queryReset" style="padding: 8px 14px">초기화</button>
+                </div>
+                <div class="v5-scroll" id="dbScroll" style="max-height: 270px">
+                  <div class="v5-grid-db" id="dbGrid"></div>
+                  <div id="dbSentinel" style="height: 1px"></div>
+                </div>
+                <p class="v5-hint" id="dbHint" style="margin-top: 12px"></p>
+              </div>
 
-        <!-- 1. 브랜드 -->
-        <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">브랜드</label>
-          <div class="fridge-opt-group" id="fridgeBrand">
-            <button class="fridge-opt-btn active" data-value="samsung" onclick="selectFridgeBrand(this)">삼성</button>
-            <button class="fridge-opt-btn" data-value="lg" onclick="selectFridgeBrand(this)">LG</button>
-          </div>
-        </div>
-
-        <!-- 2. 모델라인 (브랜드에 따라 동적 표시) -->
-        <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">모델라인</label>
-          <div class="fridge-opt-group" id="fridgeModelLine">
-            <!-- JS에서 동적 생성 -->
-          </div>
-        </div>
-
-        <!-- 3. 냉장고 조합 (카운팅, 중복선택) -->
-        <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">냉장고 조합 <span style="font-weight:400; color:#999;">(+/- 로 수량 조절)</span></label>
-          <div class="fridge-combo-group" id="fridgeCombo">
-            <div class="fridge-combo-item">
-              <span class="fridge-combo-name">1도어</span>
-              <div class="fridge-combo-stepper">
-                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('1door', -1)">−</button>
-                <span class="fridge-combo-count" id="combo-1door">0</span>
-                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('1door', 1)">+</button>
+              <!-- 테마 -->
+              <div id="pane-theme" hidden>
+                <div class="v5-scroll" id="themeScroll" style="max-height: 288px">
+                  <div class="v5-grid-theme" id="themeGrid"></div>
+                  <div id="themeSentinel" style="height: 1px"></div>
+                </div>
+                <p class="v5-hint" id="themeHint" style="margin-top: 12px"></p>
+                <p class="v5-note" style="margin-top: 10px">다담 시공 사례에서 스타일별로 모은 이미지입니다.</p>
               </div>
             </div>
-            <div class="fridge-combo-item">
-              <span class="fridge-combo-name">3도어</span>
-              <div class="fridge-combo-stepper">
-                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('3door', -1)">−</button>
-                <span class="fridge-combo-count" id="combo-3door">0</span>
-                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('3door', 1)">+</button>
+
+            <div class="v5-slot-foot">
+              <div class="v5-foot-label">
+                <span>SELECTED</span>
+                <span class="v5-foot-state" id="pickCount">0 / 5</span>
               </div>
+              <div class="v5-foot-row" id="picks"></div>
             </div>
-            <div class="fridge-combo-item has-count">
-              <span class="fridge-combo-name">4도어</span>
-              <div class="fridge-combo-stepper">
-                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('4door', -1)">−</button>
-                <span class="fridge-combo-count" id="combo-4door">1</span>
-                <button class="fridge-stepper-btn" onclick="changeFridgeCombo('4door', 1)">+</button>
-              </div>
+          </section>
+        </div>
+
+        <!-- 생성 -->
+        <div class="v5-run">
+          <div class="v5-run-state" id="runState">사진 두 장을 넣어주세요</div>
+          <button type="button" class="v5-btn v5-btn--lg" id="runBtn" disabled>연출컷 생성</button>
+          <div class="v5-track" id="runTrack" hidden><span></span></div>
+        </div>
+
+        <!-- 결과 — 생성 전에는 렌더링하지 않는다 -->
+        <section class="v5-results" id="results" hidden>
+          <div class="v5-results-head">
+            <div class="v5-results-title">Results</div>
+            <div class="v5-results-state" id="resultState"></div>
+            <div class="v5-results-acts">
+              <button type="button" class="v5-link" id="dl">다운로드</button>
+              <button type="button" class="v5-link" id="sh">공유</button>
             </div>
           </div>
-        </div>
-
-        <!-- 4. 냉장고 위치 (왼쪽/오른쪽) -->
-        <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">냉장고 위치</label>
-          <div class="fridge-opt-group" id="fridgePosition">
-            <button class="fridge-opt-btn active" data-value="left" onclick="selectFridgePosition(this)">◀️ 왼쪽</button>
-            <button class="fridge-opt-btn" data-value="right" onclick="selectFridgePosition(this)">오른쪽 ▶️</button>
-          </div>
-        </div>
-
-        <!-- 5. 전자기기 (다중 선택) -->
-        <div style="margin-top: 12px;">
-          <label class="fridge-opt-label">전자기기 <span style="font-weight:400; color:#999;">(선택 시 이미지에 배치)</span></label>
-          <div class="fridge-appliance-group" id="fridgeAppliances">
-            <button class="fridge-appliance-btn" data-value="coffee_maker" onclick="toggleFridgeAppliance(this)">☕ 커피머신</button>
-            <button class="fridge-appliance-btn" data-value="microwave" onclick="toggleFridgeAppliance(this)">📦 전자레인지</button>
-            <button class="fridge-appliance-btn" data-value="oven" onclick="toggleFridgeAppliance(this)">🔥 오븐</button>
-            <button class="fridge-appliance-btn" data-value="air_fryer" onclick="toggleFridgeAppliance(this)">🍟 에어프라이어</button>
-            <button class="fridge-appliance-btn" data-value="toaster" onclick="toggleFridgeAppliance(this)">🍞 토스터</button>
-            <button class="fridge-appliance-btn" data-value="kettle" onclick="toggleFridgeAppliance(this)">🫖 전기포트</button>
-            <button class="fridge-appliance-btn" data-value="rice_cooker" onclick="toggleFridgeAppliance(this)">🍚 밥솥</button>
-            <button class="fridge-appliance-btn" data-value="blender" onclick="toggleFridgeAppliance(this)">🥤 믹서기</button>
-          </div>
-        </div>
+          <div class="v5-shots" id="shots"></div>
+          <p class="v5-note">
+            생성 이미지는 실제 시공 결과와 다를 수 있습니다. 정확한 치수·자재는 상담에서 확정합니다.
+          </p>
+          <div id="quoteBox" hidden></div>
+        </section>
       </div>
-
-      <!-- Product Gallery Section -->
-      <div class="theme-section">
-        <div class="theme-section-header">
-          <span class="theme-section-number">1</span>
-          <span class="theme-section-title">시공 사례</span>
-        </div>
-        <div class="gallery-tabs" id="galleryTabs">
-          <button class="gallery-tab active" data-cat="all" onclick="filterGallery('all')">전체</button>
-        </div>
-        <div class="product-gallery" id="productGallery">
-          <div class="gallery-loading">이미지를 불러오는 중...</div>
-        </div>
-      </div>
-
-      <!-- Single Generate Button -->
-      <div class="generate-section">
-        <button class="generate-btn" id="generateBtn" onclick="startGeneration()" disabled>
-          ✨ AI 디자인 생성하기
-        </button>
-      </div>
-
-      <!-- Progress Steps -->
-      <div class="progress-steps" id="progressSteps">
-        <div class="step-list">
-          <div class="step" id="step1">
-            <div class="step-icon">1</div>
-            <div class="step-label">이미지 분석</div>
-          </div>
-          <div class="step" id="step2">
-            <div class="step-icon">2</div>
-            <div class="step-label">벽 구조 파악</div>
-          </div>
-          <div class="step" id="step3">
-            <div class="step-icon">3</div>
-            <div class="step-label">디자인 생성</div>
-          </div>
-          <div class="step" id="step4">
-            <div class="step-icon">4</div>
-            <div class="step-label">완료</div>
-          </div>
-        </div>
-        <p class="progress-text" id="progressText">준비 중...</p>
-      </div>
-
-      <!-- Result Section -->
-      <section class="result-section">
-        <div class="result-header">
-          <h2>🖼️ 리디자인 결과 <span>AI Generated</span></h2>
-          <div class="result-actions">
-            <button class="result-btn download" id="downloadBtn" onclick="downloadCurrentImage()" disabled>
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                <use href="#icon-download" />
-              </svg>
-              다운로드
-            </button>
-            <button class="result-btn share" id="shareBtn" onclick="shareResult()" disabled>
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                <use href="#icon-share" />
-              </svg>
-              공유
-            </button>
-          </div>
-        </div>
-
-        <!-- Page Navigation -->
-        <div class="page-nav hidden" id="pageNav">
-          <button class="page-arrow" id="prevPage" onclick="changePage(-1)">
-            <svg><use href="#icon-chevron-left" /></svg>
-          </button>
-          <div class="page-indicator" id="pageIndicator"></div>
-          <div class="page-info"><span id="currentPage">1</span> / <span id="totalPages">1</span></div>
-          <button class="page-arrow" id="nextPage" onclick="changePage(1)">
-            <svg><use href="#icon-chevron-right" /></svg>
-          </button>
-        </div>
-
-        <!-- Placeholder -->
-        <div class="result-placeholder" id="resultPlaceholder">
-          <div class="icon">🎨</div>
-          <h3>디자인 결과가 여기에 표시됩니다</h3>
-          <p>카테고리를 선택하고 사진을 업로드한 후 생성 버튼을 눌러주세요</p>
-        </div>
-
-        <!-- Loading -->
-        <div class="result-loading" id="resultLoading">
-          <div class="spinner"></div>
-          <h3 id="loadingTitle">AI가 분석 중...</h3>
-          <p id="loadingText">잠시만 기다려주세요</p>
-        </div>
-
-        <!-- Result Pages Container -->
-        <div class="result-pages" id="resultPages"></div>
-      </section>
     </main>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-content">
-        <a href="index.html" class="footer-brand">
-          <svg fill="currentColor"><use href="#icon-logo" /></svg>
-          <span>다담</span>
-        </a>
-        <div class="footer-links">
-          <a href="index.html">홈</a>
-          <a href="#">제품</a>
-          <a href="#">시공사례</a>
-          <a href="#">쇼룸</a>
-          <a href="#">고객센터</a>
-        </div>
-      </div>
-      <p class="footer-copy">© 2024 다담가구. All rights reserved.</p>
-    </footer>
+    <div data-site-shell="footer"></div>
 
-    <!-- 인증 오버레이 (로그인 안됨) -->
-    <div class="auth-overlay hidden" id="authOverlay">
-      <div class="auth-modal">
-        <h2>로그인 필요</h2>
-        <p>AI 디자인 서비스를 이용하려면 로그인이 필요합니다.</p>
-        <button class="btn-login" onclick="location.href='login.html'">로그인하기</button>
-      </div>
-    </div>
-
-    <!-- Toast -->
-    <div class="toast" id="toast"></div>
-
+    <script src="js/site-shell.js" defer></script>
     <script>
-      // ═══════════════════════════════════════════════════════════════
-      // Supabase 초기화 및 인증 상태 확인 - config.js에서 가져옴
-      // ═══════════════════════════════════════════════════════════════
-      let supabaseClient = null;
-
-      (async function initAuth() {
-        try {
-          if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
-            const { url, anonKey } = window.DADAM_CONFIG.supabase;
-            supabaseClient = window.supabase.createClient(url, anonKey);
-            const {
-              data: { session },
-            } = await supabaseClient.auth.getSession();
-
-            if (session) {
-              const user = session.user;
-              const meta = user.user_metadata || {};
-              const tier = meta.tier || 'standard';
-
-              // 네비게이션 사용자 정보 표시
-              document.getElementById('loginLink').style.display = 'none';
-              document.getElementById('userMenu').style.display = 'block';
-              document.getElementById('mobileLoginLink').style.display = 'none';
-              document.getElementById('mobileLogoutLink').style.display = 'block';
-
-              const name = meta.name || meta.full_name || user.email.split('@')[0];
-              document.getElementById('navUserAvatar').textContent = name.charAt(0).toUpperCase();
-              document.getElementById('navUserName').textContent = name;
-
-              // 상세설계 탭은 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
-              if (window.DetailDesignAccess) {
-                await window.DetailDesignAccess.updateNavVisibility(supabaseClient, user);
-              }
-              // 관리자 페이지 링크는 admin_roles 등록 사용자에게만 노출
-              if (window.AdminAccess) {
-                const isAdmin = await window.AdminAccess.isAdmin(supabaseClient);
-                window.AdminAccess.updateNavLinks(isAdmin);
-              }
-            } else {
-              // 비로그인 사용자 → 오버레이 표시
-              document.getElementById('authOverlay')?.classList.remove('hidden');
-            }
-          }
-          // 품목 이미지 갤러리 로드
-          loadProductGallery();
-        } catch (e) {
-          console.log('Auth check error:', e.message);
-        }
-      })();
-
-      // 로그아웃 함수
-      async function logout() {
-        if (!supabaseClient) return;
-        await supabaseClient.auth.signOut();
-        window.location.href = 'index.html';
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // n8n 제거 — 채팅 기능 비활성화
-      const N8N_CHAT_URL = null;
-
-      // ═══════════════════════════════════════════════════════════════
-      // 플로팅 채팅 토글
-      // ═══════════════════════════════════════════════════════════════
-      function toggleChat() {
-        const widget = document.getElementById('chatWidget');
-        const fab = document.getElementById('chatFab');
-        const isOpen = widget.classList.toggle('open');
-        fab.classList.toggle('active', isOpen);
-        if (isOpen) {
-          const msgs = document.getElementById('chatMessages');
-          msgs.scrollTop = msgs.scrollHeight;
-          document.getElementById('messageInput').focus();
-        }
-      }
-
-      // 채팅 기록 저장/불러오기 (Supabase)
-      // ═══════════════════════════════════════════════════════════════
-
-      // 세션 ID 생성/가져오기 (비로그인 사용자용)
-      function getChatSessionId() {
-        let sessionId = sessionStorage.getItem('chat_session_id');
-        if (!sessionId) {
-          sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-          sessionStorage.setItem('chat_session_id', sessionId);
-        }
-        return sessionId;
-      }
-
-      // 메시지 저장
-      async function saveChatMessage(content, role) {
-        if (!supabaseClient) return;
-
-        try {
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          const userId = session?.user?.id || null;
-          const sessionId = userId ? null : getChatSessionId();
-
-          await supabaseClient.from('chat_messages').insert({
-            user_id: userId,
-            session_id: sessionId,
-            role: role,
-            content: content,
-            page_source: 'ai-design'
-          });
-        } catch (error) {
-          console.log('메시지 저장 실패:', error.message);
-        }
-      }
-
-      // 대화 기록 불러오기
-      async function loadChatHistory() {
-        if (!supabaseClient) return;
-
-        try {
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          const userId = session?.user?.id;
-          const sessionId = getChatSessionId();
-
-          let query = supabaseClient
-            .from('chat_messages')
-            .select('*')
-            .eq('page_source', 'ai-design')
-            .order('created_at', { ascending: true })
-            .limit(50);
-
-          if (userId) {
-            query = query.eq('user_id', userId);
-          } else {
-            query = query.eq('session_id', sessionId);
-          }
-
-          const { data, error } = await query;
-
-          if (error) throw error;
-
-          if (data && data.length > 0) {
-            const chatMessages = document.getElementById('chatMessages');
-            const welcome = chatMessages.querySelector('.welcome-msg');
-            if (welcome) welcome.remove();
-
-            data.forEach(msg => {
-              addChatMessage(msg.content, msg.role === 'user', false);
-            });
-          }
-        } catch (error) {
-          console.log('대화 기록 불러오기 실패:', error.message);
-        }
-      }
-
-      // 페이지 로드 후 대화 기록 불러오기
-      document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
-          if (supabaseClient) {
-            loadChatHistory();
-          }
-        }, 500);
-      });
-      // 이미지 생성 API URL — Cloudflare Worker (workers/generate-api/).
-      // 품목별 독립 프롬프트 + Claude Opus pre-analysis 등 현재 운영 로직은 전부 Worker 측.
-      // Railway mcp-server 는 다른 기능(채팅·설계 저장 등) 전용으로 유지.
-      const API_GENERATE_URL =
-        window.DADAM_CONFIG?.generateApi?.url ||
-        'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate';
-
-      // Supabase 세션 토큰을 포함한 헤더 생성
-      async function getAuthHeaders() {
-        const headers = { 'Content-Type': 'application/json' };
-        if (supabaseClient) {
-          try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session?.access_token) {
-              headers['Authorization'] = `Bearer ${session.access_token}`;
-            }
-          } catch (e) { /* 토큰 없어도 요청은 진행 */ }
-        }
-        return headers;
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 상세 공간 분석 프롬프트 (Claude Vision용)
-      // ═══════════════════════════════════════════════════════════════
-      const DETAILED_ANALYSIS_PROMPT = `당신은 전문 3D 건축 모델러이자 인테리어 측량 전문가입니다. 
-이 공간 이미지를 정밀 분석하여 맞춤 가구 설치를 위한 상세 정보를 추출하세요.
-
-## 분석 지침
-
-### 1. 기준 사물을 통한 치수 추정
-- 표준 문 높이: 2,100mm, 폭: 900mm
-- 표준 창문 높이: 1,200mm
-- 표준 콘센트 높이: 바닥에서 300mm
-- 표준 스위치 높이: 바닥에서 1,200mm
-- 표준 천장 높이: 2,400mm (아파트 기준)
-- 에어컨 실내기 폭: 약 800-1,000mm
-
-### 2. 분석 항목
-- 각 벽면의 예상 가로 길이 (mm 단위)
-- 천장 높이 추정
-- 장애물(문, 창문, 콘센트, 배관, 에어컨 등) 정확한 위치
-- 가구 설치 가능 영역 (시작점~끝점)
-- 벽면 상태 (벽지 상태, 습기, 균열 등)
-- 바닥 재질 및 상태
-
-### 3. JSON 응답 형식
-{
-  "space_analysis": {
-    "layout_type": "일자형/ㄱ자형/ㄷ자형",
-    "estimated_dimensions": {
-      "total_width_mm": 숫자,
-      "ceiling_height_mm": 숫자,
-      "depth_mm": 숫자
-    },
-    "reference_objects": [
-      {"type": "문/창문/콘센트/에어컨", "estimated_size": "폭x높이mm", "position": "좌측/중앙/우측"}
-    ]
-  },
-  "walls": [
-    {
-      "position": "left/front/right",
-      "estimated_width_mm": 숫자,
-      "installable_zone": {
-        "start_mm": 시작위치,
-        "end_mm": 끝위치,
-        "available_width_mm": 설치가능폭,
-        "max_height_mm": 최대높이
-      },
-      "obstacles": [
-        {"type": "문/창문/콘센트/배관", "position_mm": 위치, "size_mm": "폭x높이", "clearance_required_mm": 필요여유공간}
-      ],
-      "condition": {
-        "wall_state": "양호/보수필요/습기손상",
-        "wallpaper": "있음/없음/제거상태",
-        "notes": "상세 메모"
-      }
-    }
-  ],
-  "floor": {
-    "material": "마루/타일/장판",
-    "condition": "양호/보수필요",
-    "color_tone": "밝음/중간/어두움"
-  },
-  "installation_constraints": {
-    "recommended_cabinet_width_mm": 추천폭,
-    "recommended_cabinet_height_mm": 추천높이,
-    "recommended_cabinet_depth_mm": 추천깊이,
-    "side_clearance_mm": 좌우여유,
-    "top_clearance_mm": 상단여유,
-    "avoid_zones": ["피해야할 영역 설명"]
-  },
-  "background_condition": {
-    "wall_needs_refresh": true/false,
-    "floor_needs_refresh": true/false,
-    "suggested_wall_style": "화이트 무광/그레이 톤/우드 패널 등",
-    "suggested_floor_style": "밝은 원목/헤링본/그레이 타일 등"
-  },
-  "analysis_confidence": "high/medium/low",
-  "additional_notes": "추가 관찰 사항"
-}`;
-
-      // ═══════════════════════════════════════════════════════════════
-      // State
-      // ═══════════════════════════════════════════════════════════════
-      const state = {
-        uploadedImages: {},
-        results: [],
-        currentPage: 0,
-        // 냉장고장 옵션 — UI 로 사용자가 조정, generate 요청에 fridge_options 로 동봉
-        fridgeOptions: {
-          brand: 'samsung',
-          modelLine: 'bespoke',
-          combo: { '1door': 0, '3door': 0, '4door': 1 },
-          position: 'left',
-          appliances: [],
-        },
-      };
-
-      // 슬라이더 상태
-      const sliderState = {
-        currentIndex: 0,
-        items: []  // [{category, imageData}]
-      };
-
-      // 색상 카탈로그/RNG/참조이미지 제거됨 — AI가 프롬프트 기반으로 색상 직접 선택
-
-      function buildKitchenLayoutConstraints(layout, wallWidthMm) {
-        const normalizedWallWidth = Math.max(2400, Math.round(wallWidthMm || 3300));
-        const baseWidth = Math.min(3600, Math.max(2400, Math.round((normalizedWallWidth * 0.84) / 50) * 50));
-        const sinkWidth = 900;
-        const cooktopWidth = 600;
-        const hoodWidth = 600;
-        const sinkCenter = layout === 'l_type' ? Math.round(baseWidth * 0.32) : Math.round(baseWidth * 0.3);
-        const cooktopCenter = layout === 'peninsula' ? Math.round(baseWidth * 0.62) : Math.round(baseWidth * 0.7);
-        const sinkX = Math.max(0, sinkCenter - sinkWidth / 2);
-        const cooktopX = Math.max(0, cooktopCenter - cooktopWidth / 2);
-        const hoodX = Math.max(0, cooktopCenter - hoodWidth / 2);
-
-        return {
-          layout_type: layout || 'i_type',
-          total_width_mm: baseWidth,
-          base_depth_mm: 600,
-          upper_depth_mm: 360,
-          fixed_appliances: {
-            sink: { x_mm: sinkX, width_mm: sinkWidth, center_mm: sinkCenter, anchor: 'from_left' },
-            cooktop: { x_mm: cooktopX, width_mm: cooktopWidth, center_mm: cooktopCenter, anchor: 'from_left' },
-            hood: {
-              x_mm: hoodX,
-              width_mm: hoodWidth,
-              center_mm: cooktopCenter,
-              anchor: 'from_left',
-              align_to: 'cooktop_center'
-            }
-          },
-          lower_modules: [
-            { type: 'storage', position_from_left_mm: 0, width_mm: Math.max(400, sinkX), fixed: false },
-            { type: 'sink', position_from_left_mm: sinkX, width_mm: sinkWidth, fixed: true },
-            {
-              type: 'storage',
-              position_from_left_mm: sinkX + sinkWidth,
-              width_mm: Math.max(300, cooktopX - (sinkX + sinkWidth)),
-              fixed: false
-            },
-            { type: 'cooktop', position_from_left_mm: cooktopX, width_mm: cooktopWidth, fixed: true },
-            {
-              type: 'storage',
-              position_from_left_mm: cooktopX + cooktopWidth,
-              width_mm: Math.max(300, baseWidth - (cooktopX + cooktopWidth)),
-              fixed: false
-            }
-          ].filter((module) => module.width_mm > 0),
-          upper_modules: [
-            { type: 'storage', position_from_left_mm: 0, width_mm: hoodX, fixed: false },
-            { type: 'hood', position_from_left_mm: hoodX, width_mm: hoodWidth, fixed: true },
-            {
-              type: 'storage',
-              position_from_left_mm: hoodX + hoodWidth,
-              width_mm: Math.max(300, baseWidth - (hoodX + hoodWidth)),
-              fixed: false
-            }
-          ].filter((module) => module.width_mm > 0)
-        };
-      }
-
-      // SVG→PNG 변환/참조이미지 생성 제거됨 — AI 색상 위임으로 불필요
-
-      async function buildLayoutGuideImages(layoutConstraints, colorScheme) {
-        if (!layoutConstraints?.total_width_mm) {
-          return { layoutImage: null, maskImage: null };
-        }
-
-        const width = 1200;
-        const height = 720;
-        const padding = 80;
-        const totalWidth = layoutConstraints.total_width_mm;
-        const scale = (width - padding * 2) / totalWidth;
-        const lowerY = 420;
-        const lowerH = 170;
-        const upperY = 140;
-        const upperH = 120;
-
-        const moduleToRect = (module, y, h, fill, stroke) => {
-          const x = padding + Math.round((module.position_from_left_mm || 0) * scale);
-          const w = Math.max(8, Math.round((module.width_mm || 0) * scale));
-          return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="3" />`;
-        };
-
-        const labelForModule = (module, y) => {
-          const x = padding + Math.round(((module.position_from_left_mm || 0) + (module.width_mm || 0) / 2) * scale);
-          const text = (module.type || 'module').toUpperCase();
-          return `<text x="${x}" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1f2937">${text}</text>`;
-        };
-
-        const lowerModules = (layoutConstraints.lower_modules || []).map((module) =>
-          moduleToRect(
-            module,
-            lowerY,
-            lowerH,
-            module.type === 'sink' ? '#93c5fd' : module.type === 'cooktop' ? '#fca5a5' : (colorScheme?.lower?.color_hex || '#cbd5e1'),
-            '#334155'
-          )
-        ).join('');
-
-        const upperModules = (layoutConstraints.upper_modules || []).map((module) =>
-          moduleToRect(
-            module,
-            upperY,
-            upperH,
-            module.type === 'hood' ? '#fdba74' : (colorScheme?.upper?.color_hex || '#e2e8f0'),
-            '#334155'
-          )
-        ).join('');
-
-        const labels = []
-          .concat((layoutConstraints.lower_modules || []).map((module) => labelForModule(module, lowerY + lowerH / 2 + 10)))
-          .concat((layoutConstraints.upper_modules || []).map((module) => labelForModule(module, upperY + upperH / 2 + 10)))
-          .join('');
-
-        const guideSvg = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-            <rect width="100%" height="100%" fill="#f8fafc"/>
-            <text x="${padding}" y="56" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">Kitchen layout guide</text>
-            <text x="${padding}" y="94" font-family="Arial, sans-serif" font-size="20" fill="#475569">Keep sink, cooktop, and hood centered at these exact positions.</text>
-            <line x1="${padding}" y1="${lowerY + lowerH + 34}" x2="${width - padding}" y2="${lowerY + lowerH + 34}" stroke="#64748b" stroke-width="4"/>
-            ${upperModules}
-            ${lowerModules}
-            ${labels}
-          </svg>
-        `;
-
-        const maskSvg = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-            <rect width="100%" height="100%" fill="#000000"/>
-            ${upperModules.replace(/fill=\"[^\"]+\"/g, 'fill="#ffffff"').replace(/stroke=\"[^\"]+\"/g, 'stroke="#ffffff"')}
-            ${lowerModules.replace(/fill=\"[^\"]+\"/g, 'fill="#ffffff"').replace(/stroke=\"[^\"]+\"/g, 'stroke="#ffffff"')}
-          </svg>
-        `;
-
-        const guidePngDataUrl = await svgToPngDataUrl(guideSvg, width, height);
-        const maskPngDataUrl = await svgToPngDataUrl(maskSvg, width, height);
-
-        return {
-          layoutImage: dataUrlToInlineImage(guidePngDataUrl),
-          maskImage: dataUrlToInlineImage(maskPngDataUrl)
-        };
-      }
-
-      // buildColorReferenceImage 제거됨
-
-      // Supabase furniture_images에서 품목별 이미지 로드
-      // 품목/구조 기준 그룹핑
-      const galleryGroups = {
-        'l_shaped_sink': 'L자형 싱크대',
-        'peninsula_sink': '반도형 싱크대',
-        'island_kitchen': '아일랜드',
-        'wardrobe': '붙박이장',
-        'fridge_cabinet': '냉장고장',
-        'vanity': '화장대',
-        'shoe_cabinet': '신발장',
-      };
-
-      let galleryAllData = [];
-
-      async function loadProductGallery() {
-        const gallery = document.getElementById('productGallery');
-        const tabs = document.getElementById('galleryTabs');
-        if (!gallery || !supabaseClient) return;
-
-        try {
-          const { data, error } = await supabaseClient
-            .from('furniture_images')
-            .select('category, style, image_url')
-            .eq('is_training', false)
-            .limit(300);
-
-          if (error || !data || data.length === 0) {
-            loadFallbackGallery(gallery);
-            return;
-          }
-
-          galleryAllData = data;
-
-          // 존재하는 카테고리만 탭 생성
-          const cats = [...new Set(data.map(d => d.category))];
-          tabs.innerHTML = '<button class="gallery-tab active" data-cat="all" onclick="filterGallery(\'all\')">전체</button>'
-            + cats.map(c => {
-              const label = galleryGroups[c] || c;
-              return `<button class="gallery-tab" data-cat="${c}" onclick="filterGallery('${c}')">${label}</button>`;
-            }).join('');
-
-          filterGallery('all');
-          console.log('[Gallery] Loaded', data.length, 'images,', cats.length, 'categories');
-        } catch (e) {
-          console.warn('[Gallery] Supabase load failed:', e.message);
-          loadFallbackGallery(gallery);
-        }
-      }
-
-      function filterGallery(cat) {
-        const gallery = document.getElementById('productGallery');
-        // 탭 활성화
-        document.querySelectorAll('.gallery-tab').forEach(t =>
-          t.classList.toggle('active', t.dataset.cat === cat)
-        );
-        // 필터링 + 랜덤 8개
-        const filtered = cat === 'all' ? galleryAllData : galleryAllData.filter(d => d.category === cat);
-        const picked = filtered.sort(() => Math.random() - 0.5).slice(0, 8);
-
-        gallery.innerHTML = picked.map(img => {
-          const label = galleryGroups[img.category] || img.category;
-          return `<div class="gallery-item">
-            <img src="${img.image_url}" alt="${label}" loading="lazy" onerror="this.parentElement.remove()">
-            <span class="gallery-badge">${label}</span>
-          </div>`;
-        }).join('');
-
-        if (picked.length === 0) {
-          gallery.innerHTML = '<div class="gallery-loading">해당 품목 이미지가 없습니다</div>';
-        }
-      }
-
-      function loadFallbackGallery(gallery) {
-        const fallback = [
-          { src: 'app/portfolio/kitchen-n1-3.jpg', label: '싱크대' },
-          { src: 'app/portfolio/kitchen-n1-4.jpg', label: '싱크대' },
-          { src: 'app/portfolio/kitchen-n6-2.jpg', label: '수납장' },
-          { src: 'app/portfolio/kitchen-n6-3.jpg', label: '수납장' },
-          { src: 'app/portfolio/kitchen-n7-3.jpg', label: '붙박이장' },
-          { src: 'app/portfolio/kitchen-n7-4.jpg', label: '붙박이장' },
-          { src: 'app/portfolio/kitchen-n3-3.jpg', label: '싱크대' },
-          { src: 'app/portfolio/kitchen-n4-1.jpg', label: '냉장고장' },
-        ].sort(() => Math.random() - 0.5);
-        gallery.innerHTML = fallback.map(f =>
-          `<div class="gallery-item">
-            <img src="${f.src}" alt="${f.label}" loading="lazy">
-            <span class="gallery-badge">${f.label}</span>
-          </div>`
-        ).join('');
-      }
-
-      const categoryInfo = {
-        sink: { name: '싱크대' },
-        island: { name: '아일랜드' },
-        wardrobe: { name: '붙박이장' },
-        fridge: { name: '냉장고장' },
-        vanity: { name: '화장대' },
-        shoe: { name: '신발장' },
-      };
-
-      // ═══════════════════════════════════════════════════════════════
-      // Image Preview Slider
-      // ═══════════════════════════════════════════════════════════════
-
-      // 프리뷰 섹션 표시
-      function showPreviewSection() {
-        const section = document.getElementById('imagePreviewSection');
-        if (sliderState.items.length > 0) {
-          section.classList.add('active');
-        } else {
-          section.classList.remove('active');
-        }
-      }
-
-      // 슬라이더에 이미지 추가
-      function addToSlider(category, imageData) {
-        // 이미 존재하는 카테고리인지 확인
-        const existingIndex = sliderState.items.findIndex(item => item.category === category);
-
-        if (existingIndex >= 0) {
-          // 기존 이미지 업데이트
-          sliderState.items[existingIndex].imageData = imageData;
-        } else {
-          // 새 이미지 추가
-          sliderState.items.push({
-            category,
-            imageData
-          });
-        }
-
-        renderSlider();
-        showPreviewSection();
-
-        // 새로 추가된/업데이트된 이미지로 이동
-        const targetIndex = existingIndex >= 0 ? existingIndex : sliderState.items.length - 1;
-        goToSlide(targetIndex);
-      }
-
-      // 슬라이더에서 이미지 제거
-      function removeFromSlider(category) {
-        const index = sliderState.items.findIndex(item => item.category === category);
-        if (index >= 0) {
-          sliderState.items.splice(index, 1);
-
-          // 현재 인덱스 조정
-          if (sliderState.currentIndex >= sliderState.items.length) {
-            sliderState.currentIndex = Math.max(0, sliderState.items.length - 1);
-          }
-
-          renderSlider();
-          showPreviewSection();
-        }
-      }
-
-      // 슬라이더 렌더링
-      function renderSlider() {
-        const track = document.getElementById('sliderTrack');
-        const indicators = document.getElementById('sliderIndicators');
-        const countEl = document.getElementById('previewCount');
-        const currentCategoryEl = document.getElementById('currentCategory');
-
-        if (sliderState.items.length === 0) {
-          track.innerHTML = '';
-          indicators.innerHTML = '';
-          countEl.textContent = '0개';
-          currentCategoryEl.textContent = '카테고리를 선택하고 이미지를 업로드하세요';
-          return;
-        }
-
-        // 슬라이드 트랙 렌더링
-        track.innerHTML = sliderState.items.map((item, index) => {
-          const info = categoryInfo[item.category];
-          return `
-            <div class="slide-item" data-index="${index}" data-category="${item.category}">
-              <div class="slide-image-container">
-                <span class="slide-label">${info.name}</span>
-                <button class="slide-remove-btn" onclick="removeImageFromSlider('${item.category}', event)" title="삭제">✕</button>
-                <img class="slide-image" src="${item.imageData.preview}" alt="${info.name}" />
-              </div>
-            </div>
-          `;
-        }).join('');
-
-        // 인디케이터 렌더링
-        indicators.innerHTML = sliderState.items.map((item, index) => {
-          const info = categoryInfo[item.category];
-          return `
-            <button class="indicator-item ${index === sliderState.currentIndex ? 'active' : ''}"
-                    onclick="goToSlide(${index})">
-              ${info.name}
-            </button>
-          `;
-        }).join('');
-
-        // 카운트 업데이트
-        countEl.textContent = `${sliderState.items.length}개`;
-
-        // 현재 카테고리 표시
-        if (sliderState.items.length > 0) {
-          const currentItem = sliderState.items[sliderState.currentIndex];
-          const info = categoryInfo[currentItem.category];
-          currentCategoryEl.textContent = `${info.name} (${sliderState.currentIndex + 1}/${sliderState.items.length})`;
-        }
-
-        updateSliderPosition();
-        updateSliderArrows();
-      }
-
-      // 슬라이드 이동
-      function slideImage(direction) {
-        const newIndex = sliderState.currentIndex + direction;
-        if (newIndex >= 0 && newIndex < sliderState.items.length) {
-          goToSlide(newIndex);
-        }
-      }
-
-      // 특정 슬라이드로 이동
-      function goToSlide(index) {
-        if (index < 0 || index >= sliderState.items.length) return;
-
-        sliderState.currentIndex = index;
-        updateSliderPosition();
-        updateIndicators();
-        updateSliderArrows();
-        updateCurrentCategoryDisplay();
-      }
-
-      // 슬라이더 위치 업데이트
-      function updateSliderPosition() {
-        const track = document.getElementById('sliderTrack');
-        if (track) {
-          track.style.transform = `translateX(-${sliderState.currentIndex * 100}%)`;
-        }
-      }
-
-      // 인디케이터 업데이트
-      function updateIndicators() {
-        const indicators = document.querySelectorAll('.indicator-item');
-        indicators.forEach((indicator, index) => {
-          indicator.classList.toggle('active', index === sliderState.currentIndex);
-        });
-      }
-
-      // 화살표 버튼 상태 업데이트
-      function updateSliderArrows() {
-        const prevBtn = document.getElementById('sliderPrev');
-        const nextBtn = document.getElementById('sliderNext');
-
-        if (prevBtn) {
-          prevBtn.disabled = sliderState.currentIndex <= 0;
-        }
-        if (nextBtn) {
-          nextBtn.disabled = sliderState.currentIndex >= sliderState.items.length - 1;
-        }
-      }
-
-      // 현재 카테고리 표시 업데이트
-      function updateCurrentCategoryDisplay() {
-        const currentCategoryEl = document.getElementById('currentCategory');
-        if (sliderState.items.length > 0 && currentCategoryEl) {
-          const currentItem = sliderState.items[sliderState.currentIndex];
-          const info = categoryInfo[currentItem.category];
-          currentCategoryEl.textContent = `${info.name} (${sliderState.currentIndex + 1}/${sliderState.items.length})`;
-        }
-      }
-
-      // 슬라이더에서 이미지 제거 (버튼 클릭)
-      function removeImageFromSlider(category, event) {
-        event.stopPropagation();
-        removeImage(category, event);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Mobile Menu
-      // ═══════════════════════════════════════════════════════════════
-      function toggleMobileMenu() {
-        const hamburger = document.querySelector('.hamburger');
-        const mobileMenu = document.getElementById('mobileMenu');
-        hamburger.classList.toggle('active');
-        mobileMenu.classList.toggle('active');
-        document.body.style.overflow = mobileMenu.classList.contains('active') ? 'hidden' : '';
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Category & File Upload
-      // ═══════════════════════════════════════════════════════════════
-      // 카테고리 버튼 → 갤러리 카테고리 매핑
-      const catToGallery = {
-        sink: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'],
-        island: ['island_kitchen'],
-        wardrobe: ['wardrobe'],
-        fridge: ['fridge_cabinet'],
-        vanity: ['vanity'],
-        shoe: ['shoe_cabinet'],
-      };
-
-      function selectCategory(category) {
-        // 이미 이미지가 업로드된 품목이면 선택 취소 (이미지 제거)
-        if (state.uploadedImages[category]) {
-          removeImage(category);
-          return;
-        }
-
-        document.getElementById(`file-${category}`).click();
-
-        // 해당 품목 갤러리 필터 연동
-        const mapped = catToGallery[category];
-        if (mapped && galleryAllData.length > 0) {
-          filterGalleryMulti(mapped);
-        }
-      }
-
-      function filterGalleryMulti(cats) {
-        const gallery = document.getElementById('productGallery');
-        // 탭 활성 해제 (직접 품목 선택이므로)
-        document.querySelectorAll('.gallery-tab').forEach(t => t.classList.remove('active'));
-
-        const filtered = galleryAllData.filter(d => cats.includes(d.category));
-        const picked = filtered.sort(() => Math.random() - 0.5).slice(0, 8);
-
-        gallery.innerHTML = picked.map(img => {
-          const label = galleryGroups[img.category] || img.category;
-          return `<div class="gallery-item">
-            <img src="${img.image_url}" alt="${label}" loading="lazy" onerror="this.parentElement.remove()">
-            <span class="gallery-badge">${label}</span>
-          </div>`;
-        }).join('');
-
-        if (picked.length === 0) {
-          gallery.innerHTML = '<div class="gallery-loading">해당 품목 이미지가 없습니다</div>';
-        }
-      }
-
-      function handleFileUpload(category, input) {
-        const file = input.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64Full = e.target.result;
-          const base64Data = base64Full.split(',')[1];
-
-          const imageData = {
-            base64: base64Data,
-            preview: base64Full,
-            type: file.type || 'image/jpeg',
-          };
-
-          state.uploadedImages[category] = imageData;
-
-          // 호환성을 위해 기존 preview 엘리먼트 업데이트
-          const previewEl = document.getElementById(`preview-${category}`);
-          if (previewEl) {
-            previewEl.src = base64Full;
-          }
-
-          // 카테고리 버튼에 has-image 클래스 추가
-          const categoryBtn = document.querySelector(`.category-btn[data-category="${category}"]`);
-          if (categoryBtn) {
-            categoryBtn.classList.add('has-image');
-          }
-
-          // 슬라이더에 이미지 추가
-          addToSlider(category, imageData);
-
-          updateButtons();
-
-          showToast(`${categoryInfo[category].name} 이미지 업로드 완료!`, 'success');
-          addChatMessage(
-            `${categoryInfo[category].name} 이미지가 추가되었습니다.`,
-            false
-          );
-
-          // 싱크대 카테고리이면 레이아웃 선택 UI 표시
-          updateKitchenLayoutVisibility();
-        };
-        reader.readAsDataURL(file);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 실측 벽 길이 입력 섹션 — 어떤 품목이든 이미지 업로드되면 노출
-      // 냉장고장 옵션 섹션 — 냉장고장 업로드 시에만 노출
-      // ═══════════════════════════════════════════════════════════════
-      function updateKitchenLayoutVisibility() {
-        const section = document.getElementById('wallWidthSection');
-        const hasAnyUpload = Object.values(state.uploadedImages || {}).some((v) => v !== undefined);
-        section.style.display = hasAnyUpload ? 'block' : 'none';
-        if (!hasAnyUpload) {
-          const input = document.getElementById('wallWidthInput');
-          if (input) input.value = '';
-        }
-
-        const fridgeSection = document.getElementById('fridgeOptionsSection');
-        if (fridgeSection) {
-          const hasFridge = state.uploadedImages && state.uploadedImages['fridge'] !== undefined;
-          fridgeSection.style.display = hasFridge ? 'block' : 'none';
-          if (hasFridge) initFridgeOptions();
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 냉장고장 옵션 선택
-      // ═══════════════════════════════════════════════════════════════
-      const FRIDGE_MODEL_LINES = {
-        samsung: [
-          { id: 'bespoke', name: '키친핏 (Bespoke)' },
-          { id: 'infinite', name: '인피니트' },
-          { id: 'standing', name: '스탠딩' },
-        ],
-        lg: [
-          { id: 'fitmax', name: 'Fit & Max' },
-          { id: 'standing', name: '스탠딩' },
-        ],
-      };
-
-      function selectFridgeBrand(el) {
-        const group = el.parentElement;
-        group.querySelectorAll('.fridge-opt-btn').forEach((b) => b.classList.remove('active'));
-        el.classList.add('active');
-        state.fridgeOptions.brand = el.dataset.value;
-        renderFridgeModelLines();
-      }
-
-      function renderFridgeModelLines() {
-        const brand = state.fridgeOptions.brand;
-        const lines = FRIDGE_MODEL_LINES[brand] || [];
-        const container = document.getElementById('fridgeModelLine');
-        if (!container) return;
-        container.innerHTML = lines
-          .map(
-            (l, i) =>
-              `<button class="fridge-opt-btn${i === 0 ? ' active' : ''}" data-value="${l.id}" onclick="selectFridgeModelLine(this)">${l.name}</button>`
-          )
-          .join('');
-        state.fridgeOptions.modelLine = lines[0]?.id || '';
-      }
-
-      function selectFridgeModelLine(el) {
-        const group = el.parentElement;
-        group.querySelectorAll('.fridge-opt-btn').forEach((b) => b.classList.remove('active'));
-        el.classList.add('active');
-        state.fridgeOptions.modelLine = el.dataset.value;
-      }
-
-      function changeFridgeCombo(type, delta) {
-        const cur = state.fridgeOptions.combo[type] || 0;
-        const next = Math.max(0, Math.min(4, cur + delta));
-        state.fridgeOptions.combo[type] = next;
-        const countEl = document.getElementById(`combo-${type}`);
-        if (countEl) {
-          countEl.textContent = next;
-          countEl.closest('.fridge-combo-item')?.classList.toggle('has-count', next > 0);
-        }
-      }
-
-      function selectFridgePosition(el) {
-        const group = el.parentElement;
-        group.querySelectorAll('.fridge-opt-btn').forEach((b) => b.classList.remove('active'));
-        el.classList.add('active');
-        state.fridgeOptions.position = el.dataset.value;
-      }
-
-      function toggleFridgeAppliance(el) {
-        const id = el.dataset.value;
-        if (!Array.isArray(state.fridgeOptions.appliances)) state.fridgeOptions.appliances = [];
-        const idx = state.fridgeOptions.appliances.indexOf(id);
-        if (idx === -1) {
-          state.fridgeOptions.appliances.push(id);
-          el.classList.add('active');
-        } else {
-          state.fridgeOptions.appliances.splice(idx, 1);
-          el.classList.remove('active');
-        }
-      }
-
-      function initFridgeOptions() {
-        renderFridgeModelLines();
-        Object.entries(state.fridgeOptions.combo).forEach(([type, count]) => {
-          const countEl = document.getElementById(`combo-${type}`);
-          if (countEl) {
-            countEl.textContent = count;
-            countEl.closest('.fridge-combo-item')?.classList.toggle('has-count', count > 0);
-          }
-        });
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 냉장고장 제품 레퍼런스 이미지 로더
-      // ───────────────────────────────────────────────────────────────
-      // Supabase Storage 의 public bucket `fridge-refs` 에 제품 샷을 업로드해 두면
-      // 사용자가 선택한 (brand, modelLine, combo) 에 맞는 이미지 URL 을 fetch 해서
-      // base64 로 변환 → worker 에 `reference_images` 로 전달.
-      // 이미지가 아직 업로드 안 됐거나 404 면 조용히 빈 배열 반환 (생성은 계속 진행).
-      // ═══════════════════════════════════════════════════════════════
-      const FRIDGE_REF_BUCKET_URL =
-        'https://vvqrvgcgnlfpiqqndsve.supabase.co/storage/v1/object/public/fridge-refs';
-
-      // { [brand]: { [modelLine]: { [unitType]: filename } } }
-      // 키가 없으면 brand/modelLine 의 default 로 fallback, 그것도 없으면 global default.
-      const FRIDGE_REF_MAP = {
-        samsung: {
-          bespoke: {
-            '1door': 'samsung-bespoke-1door.png',
-            '3door': 'samsung-bespoke-3door.png',
-            '4door': 'samsung-bespoke-4door.png',
-          },
-          infinite: {
-            '4door': 'samsung-bespoke-4door.png', // 인피니트 전용 이미지 없을 때 bespoke 재사용
-            '3door': 'samsung-bespoke-3door.png',
-            '1door': 'samsung-bespoke-1door.png',
-          },
-          standing: {
-            '4door': 'samsung-bespoke-4door.png',
-            '3door': 'samsung-bespoke-3door.png',
-            '1door': 'samsung-bespoke-1door.png',
-          },
-        },
-        lg: {
-          fitmax: {
-            '4door': 'samsung-bespoke-4door-drawers.png', // LG Fit&Max 전용 이미지 업로드 전: 4번 이미지 재사용
-            '3door': 'samsung-bespoke-3door.png',
-            '1door': 'samsung-bespoke-1door.png',
-          },
-          standing: {
-            '4door': 'samsung-bespoke-4door-drawers.png',
-            '3door': 'samsung-bespoke-3door.png',
-            '1door': 'samsung-bespoke-1door.png',
-          },
-        },
-      };
-
-      function pickFridgeRefFilename(brand, modelLine, unitType) {
-        return FRIDGE_REF_MAP?.[brand]?.[modelLine]?.[unitType] || null;
-      }
-
-      async function fetchAsBase64Ref(url) {
-        try {
-          const res = await fetch(url, { cache: 'force-cache' });
-          if (!res.ok) {
-            console.warn(`[fridge-refs] ${res.status} fetching ${url}`);
-            return null;
-          }
-          const blob = await res.blob();
-          const mimeType = blob.type || 'image/jpeg';
-          const base64 = await new Promise((resolve) => {
-            const r = new FileReader();
-            r.onloadend = () => resolve(String(r.result).split(',')[1]);
-            r.onerror = () => resolve(null);
-            r.readAsDataURL(blob);
-          });
-          return base64 ? { base64, mimeType } : null;
-        } catch (e) {
-          console.warn(`[fridge-refs] fetch failed for ${url}:`, e);
-          return null;
-        }
-      }
-
-      async function loadFridgeReferenceImages() {
-        const opts = state.fridgeOptions || {};
-        const brand = opts.brand || 'samsung';
-        const modelLine = opts.modelLine || 'bespoke';
-        const combo = opts.combo || {};
-        const selectedTypes = Object.entries(combo)
-          .filter(([, n]) => Number(n) > 0)
-          .map(([t]) => t);
-        if (selectedTypes.length === 0) return [];
-
-        // 같은 파일명이 여러 유닛에 매핑되면 중복 fetch 생략
-        const filenames = [];
-        const seen = new Set();
-        for (const type of selectedTypes) {
-          const fname = pickFridgeRefFilename(brand, modelLine, type);
-          if (fname && !seen.has(fname)) {
-            seen.add(fname);
-            filenames.push(fname);
-          }
-        }
-        if (filenames.length === 0) return [];
-
-        const urls = filenames.map((f) => `${FRIDGE_REF_BUCKET_URL}/${f}`);
-        const refs = await Promise.all(urls.map(fetchAsBase64Ref));
-        return refs.filter((r) => r && r.base64 && r.mimeType);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Remove Uploaded Image
-      // ═══════════════════════════════════════════════════════════════
-      function removeImage(category, event) {
-        if (event) {
-          event.stopPropagation(); // 클릭 이벤트 전파 방지
-        }
-
-        if (!state.uploadedImages[category]) return;
-
-        // state에서 삭제
-        delete state.uploadedImages[category];
-
-        // 카테고리 버튼 UI 업데이트
-        const categoryBtn = document.querySelector(`.category-btn[data-category="${category}"]`);
-        if (categoryBtn) {
-          categoryBtn.classList.remove('has-image');
-        }
-
-        // 호환성을 위해 기존 preview 엘리먼트 업데이트
-        const preview = document.getElementById(`preview-${category}`);
-        if (preview) {
-          preview.src = '';
-        }
-
-        // 파일 input 초기화
-        const fileInput = document.getElementById(`file-${category}`);
-        if (fileInput) {
-          fileInput.value = '';
-        }
-
-        // 슬라이더에서 제거
-        removeFromSlider(category);
-
-        updateButtons();
-
-        showToast(`${categoryInfo[category].name} 이미지가 삭제되었습니다.`, 'info');
-        addChatMessage(`${categoryInfo[category].name} 이미지가 삭제되었습니다.`, false);
-
-        // 싱크대 삭제 시 레이아웃 섹션 숨기기
-        updateKitchenLayoutVisibility();
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Button State
-      // ═══════════════════════════════════════════════════════════════
-      function updateButtons() {
-        const hasImages = Object.keys(state.uploadedImages).length > 0;
-        document.getElementById('generateBtn').disabled = !hasImages;
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Progress Steps
-      // ═══════════════════════════════════════════════════════════════
-      function updateStep(stepNum, status, text) {
-        // status: 'active', 'done', ''
-        for (let i = 1; i <= 4; i++) {
-          const step = document.getElementById(`step${i}`);
-          step.classList.remove('active', 'done');
-          if (i < stepNum) step.classList.add('done');
-          if (i === stepNum) step.classList.add(status);
-        }
-        document.getElementById('progressText').textContent = text;
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // MAIN GENERATION FLOW
-      // 이미지 업로드 → 벽 분석 → DALL-E3 생성 (분석 결과 반영)
-      // ═══════════════════════════════════════════════════════════════
-      async function startGeneration() {
-        // 로그인 체크 (이중 보호)
-        if (supabaseClient) {
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          if (!session) {
-            showToast('로그인 후 이용 가능합니다.', 'error');
-            document.getElementById('authOverlay')?.classList.remove('hidden');
-            return;
-          }
-        }
-
-        const categories = Object.keys(state.uploadedImages);
-        if (categories.length === 0) {
-          showToast('이미지를 먼저 업로드해주세요.', 'error');
-          return;
-        }
-
-        const btn = document.getElementById('generateBtn');
-        const progressSteps = document.getElementById('progressSteps');
-        const placeholder = document.getElementById('resultPlaceholder');
-        const loading = document.getElementById('resultLoading');
-        const pagesContainer = document.getElementById('resultPages');
-
-        btn.disabled = true;
-        btn.innerHTML = '<div class="spinner"></div> 생성 중...';
-        progressSteps.classList.add('active');
-        placeholder.classList.add('hidden');
-        pagesContainer.innerHTML = '';
-        loading.classList.add('active');
-
-        state.results = [];
-        const total = categories.length;
-        const generationNonce = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-
-        for (let i = 0; i < categories.length; i++) {
-          const category = categories[i];
-          const imageData = state.uploadedImages[category];
-          const info = categoryInfo[category];
-
-          let wallAnalysis = null;
-
-          // ═══════════════════════════════════════════════════════════
-          // STEP 1: 이미지 분석 시작
-          // ═══════════════════════════════════════════════════════════
-          updateStep(1, 'active', `${info.name} 이미지 분석 중... (${i + 1}/${total})`);
-          document.getElementById('loadingTitle').textContent = `${info.name} 이미지 분석 중...`;
-          document.getElementById('loadingText').textContent = `${i + 1} / ${total}`;
-          await sleep(500);
-
-          // ═══════════════════════════════════════════════════════════
-          // STEP 2: 디자인 준비 (벽 분석 생략 - AI 기반 생성)
-          // ═══════════════════════════════════════════════════════════
-          updateStep(2, 'active', `${info.name} 디자인 준비 중...`);
-          document.getElementById('loadingTitle').textContent = `🎨 디자인 준비 중...`;
-          await sleep(300);
-
-          // 냉장고장: 선택한 combo 에 해당하는 제품 레퍼런스 이미지를 Supabase 에서 로드
-          // → window.__dadamFridgeRefs 에 세팅하면 아래 fetch() 가 worker 로 전달
-          if (category === 'fridge') {
-            try {
-              window.__dadamFridgeRefs = await loadFridgeReferenceImages();
-              if (window.__dadamFridgeRefs?.length) {
-                console.log(`[fridge-refs] ${window.__dadamFridgeRefs.length} reference image(s) loaded`);
-              }
-            } catch (e) {
-              console.warn('[fridge-refs] load failed, continuing without refs:', e);
-              window.__dadamFridgeRefs = undefined;
-            }
-          }
-
-          // ═══════════════════════════════════════════════════════════
-          // STEP 3: DALL-E3 디자인 생성 (벽 분석 결과 + 배경 보정 반영)
-          // ═══════════════════════════════════════════════════════════
-          updateStep(3, 'active', `${info.name} AI 디자인 생성 중...`);
-          document.getElementById('loadingTitle').textContent = `✨ 디자인 생성 중...`;
-
-          try {
-            const authHeaders = await getAuthHeaders();
-            const response = await fetch(API_GENERATE_URL, {
-              method: 'POST',
-              headers: authHeaders,
-              body: JSON.stringify({
-                room_image: imageData.base64,
-                image_type: imageData.type,
-                category: category,
-                // 카테고리별 옵션 (worker 의 각 prompts/*.js 가 알아서 해석)
-                fridge_options: category === 'fridge' ? state.fridgeOptions : undefined,
-                vanity_options: category === 'vanity' ? state.vanityOptions : undefined,
-                // 실측 벽 길이 — 모든 품목 공통. 비어있으면 undefined 로 전송 → worker 가 AI 벽분석 사용.
-                wall_width_override: document.getElementById('wallWidthInput')?.value || undefined,
-                reference_images: (category === 'fridge' && window.__dadamFridgeRefs) ? window.__dadamFridgeRefs : undefined,
-              }),
-            });
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            let data = await response.json();
-            if (Array.isArray(data)) data = data[0];
-
-            console.log('API Response:', data);
-
-            // 이미지 추출 (MCP 서버 /api/generate 응답 형식)
-            let afterImageUrl = '';
-            let afterImageUrlAlt = '';
-            let altStyleName = '';
-
-            if (data.generated_image) {
-              if (data.generated_image.closed) {
-                afterImageUrl = `data:image/png;base64,${data.generated_image.closed}`;
-              }
-              if (data.generated_image.alt) {
-                afterImageUrlAlt = `data:image/png;base64,${data.generated_image.alt}`;
-              }
-            }
-            if (data.alt_style) {
-              altStyleName = data.alt_style.name || '';
-            }
-
-            let analysisText = data.message || 'AI 디자인 적용';
-            const baseColor = data.metadata?.base_color;
-            const baseCT = data.metadata?.base_countertop;
-            const altColors = data.metadata?.alt_colors;
-            const cabinetLabel = baseColor ? `캐비닛: ${baseColor}` : '';
-            const ctLabel = baseCT ? `상판: ${baseCT}` : '';
-            const baseLabel = [cabinetLabel, ctLabel].filter(Boolean).join(' / ');
-            const altColorLabel = altColors?.upper && altColors?.lower ? `${altColors.upper} + ${altColors.lower}` : '';
-            let suggestionText = altStyleName
-              ? `기본안 — ${baseLabel || info.name} | AI 추천 — ${altColorLabel || altStyleName}`
-              : `${info.name} — ${baseLabel}`;
-
-            state.results.push({
-              category,
-              beforeUrl: imageData.preview,
-              afterUrl: afterImageUrl,
-              afterUrlOpen: afterImageUrlAlt,
-              analysis: analysisText,
-              suggestions: suggestionText,
-              wallAnalysis: data.room_analysis || wallAnalysis,
-              quote: data.quote || null,
-            });
-          } catch (error) {
-            console.error(`Error generating ${category}:`, error);
-            state.results.push({
-              category,
-              beforeUrl: imageData.preview,
-              afterUrl: '',
-              analysis: '생성 실패',
-              suggestions: error.message,
-              wallAnalysis: wallAnalysis,
-            });
-          }
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // STEP 4: 완료
-        // ═══════════════════════════════════════════════════════════
-        updateStep(4, 'done', '✅ 모든 디자인 생성 완료!');
-
-        loading.classList.remove('active');
-        renderResultPages();
-
-        btn.disabled = false;
-        btn.innerHTML = '✨ AI 디자인 생성하기';
-        updateButtons();
-
-        document.getElementById('downloadBtn').disabled = false;
-        document.getElementById('shareBtn').disabled = false;
-
-        showToast(`${state.results.length}개 디자인 생성 완료!`, 'success');
-        addChatMessage(`🎉 ${state.results.length}개의 공간 디자인이 완료되었습니다!`, false);
-
-        setTimeout(() => {
-          progressSteps.classList.remove('active');
-          document.querySelector('.result-section').scrollIntoView({ behavior: 'smooth' });
-        }, 1500);
-      }
-
-      function sleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // RENDER RESULT PAGES (간소화 - 토글 이미지만)
-      // ═══════════════════════════════════════════════════════════════
-      function renderResultPages() {
-        const pagesContainer = document.getElementById('resultPages');
-        const pageNav = document.getElementById('pageNav');
-        const pageIndicator = document.getElementById('pageIndicator');
-
-        pagesContainer.innerHTML = '';
-
-        if (state.results.length === 0) return;
-
-        state.results.forEach((result, index) => {
-          const page = document.createElement('div');
-          page.className = `result-page ${index === 0 ? 'active' : ''}`;
-          page.dataset.index = index;
-
-          const info = categoryInfo[result.category];
-
-          page.innerHTML = `
-          <div class="page-category">
-            ${info.name}
-          </div>
-          
-          <!-- 인스타그램 스타일 이미지 뷰어 -->
-          <div class="render-image-container">
-            <div class="render-header">
-              <span class="render-status" id="status_${index}">📷 원본</span>
-              <span class="render-hint">◀ ▶ 화살표로 이미지 전환</span>
-            </div>
-            <div class="render-image-wrapper">
-              <button class="nav-arrow left" onclick="prevImage(${index})">◀</button>
-              <img class="render-main-image" 
-                   id="renderImg_${index}"
-                   src="${result.beforeUrl}" 
-                   alt="이미지"
-                   data-original="${result.beforeUrl}"
-                   data-closed="${result.afterUrl || ''}"
-                   data-open="${result.afterUrlOpen || ''}"
-                   data-state="original"
-                   data-index="0">
-              <button class="nav-arrow right" onclick="nextImage(${index})">▶</button>
-            </div>
-            <div class="image-indicators">
-              <div class="indicator-dot active" onclick="goToImage(${index}, 0)"></div>
-              <div class="indicator-dot" onclick="goToImage(${index}, 1)"></div>
-              <div class="indicator-dot" onclick="goToImage(${index}, 2)"></div>
-            </div>
-          </div>
-          ${result.quote ? `
-          <div style="margin-top:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:20px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-              <span style="font-size:18px;">💰</span>
-              <span style="font-size:15px;font-weight:600;color:#333;">예상 견적</span>
-              <span style="font-size:11px;color:#999;margin-left:auto;">${result.quote.grade === 'basic' ? '기본' : result.quote.grade === 'mid' ? '중급' : '프리미엄'} 등급</span>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px;">
-              ${result.quote.items.map(item => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;">
-                  <div>
-                    <span style="font-size:13px;color:#333;">${item.name}</span>
-                    <span style="font-size:11px;color:#999;margin-left:6px;">${item.quantity}</span>
-                  </div>
-                  <span style="font-size:13px;font-weight:500;color:#333;">${item.total.toLocaleString()}원</span>
-                </div>
-              `).join('')}
-            </div>
-            <div style="margin-top:12px;padding-top:12px;border-top:2px solid #e5e7eb;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:13px;color:#666;">소계</span>
-                <span style="font-size:13px;color:#333;">${result.quote.subtotal.toLocaleString()}원</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-size:13px;color:#666;">부가세 (10%)</span>
-                <span style="font-size:13px;color:#333;">${result.quote.vat.toLocaleString()}원</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:16px;font-weight:700;color:#b8956c;">예상 견적</span>
-                <span style="font-size:16px;font-weight:700;color:#b8956c;">${result.quote.range ? result.quote.range.min.toLocaleString() : result.quote.total.toLocaleString()}원 ~ ${result.quote.range ? result.quote.range.max.toLocaleString() : result.quote.total.toLocaleString()}원</span>
-              </div>
-              <div style="text-align:right;margin-top:4px;">
-                <span style="font-size:11px;color:#999;">※ 실측 및 옵션에 따라 변동될 수 있습니다</span>
-              </div>
-            </div>
-          </div>
-          <div style="margin-top:16px;text-align:center;">
-            <button onclick="goToPartnerRecommendation()"
-              style="width:100%;padding:14px 24px;background:var(--charcoal);color:#fff;
-                     border:none;border-radius:8px;font-size:14px;font-weight:600;
-                     cursor:pointer;letter-spacing:0.5px;transition:all 0.3s;"
-              onmouseover="this.style.background='#b8956c'"
-              onmouseout="this.style.background='#2d2a26'">
-              🏠 시공 협력업체 추천받기
-            </button>
-            <p style="font-size:11px;color:#999;margin-top:6px;">
-              내 견적에 맞는 인테리어 업체와 제조공장을 추천받으세요
-            </p>
-          </div>
-          ` : ''}
-        `;
-
-          pagesContainer.appendChild(page);
-        });
-
-        // Page navigation
-        if (state.results.length > 1) {
-          pageNav.classList.remove('hidden');
-          pageIndicator.innerHTML = state.results
-            .map((_, i) => `<div class="page-dot ${i === 0 ? 'active' : ''}" onclick="goToPage(${i})"></div>`)
-            .join('');
-          document.getElementById('totalPages').textContent = state.results.length;
-          updatePageNav();
-        } else {
-          pageNav.classList.add('hidden');
-        }
-
-        state.currentPage = 0;
-      }
-
-      function formatDimension(value) {
-        if (!value || value === '-') return '-';
-        if (typeof value === 'number') {
-          return value.toLocaleString();
-        }
-        return value;
-      }
-
-      function getObstacleIcon(type) {
-        const icons = {
-          문: '🚪',
-          창문: '🪟',
-          콘센트: '🔌',
-          배관: '🔧',
-          에어컨: '❄️',
-          스위치: '💡',
-          환기구: '🌀',
-          기둥: '🏛️',
-        };
-        return icons[type] || '⚠️';
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Page Navigation
-      // ═══════════════════════════════════════════════════════════════
-      function changePage(delta) {
-        const newPage = state.currentPage + delta;
-        if (newPage >= 0 && newPage < state.results.length) {
-          goToPage(newPage);
-        }
-      }
-
-      function goToPage(index) {
-        state.currentPage = index;
-        document.querySelectorAll('.result-page').forEach((page, i) => {
-          page.classList.toggle('active', i === index);
-        });
-        document.querySelectorAll('.page-dot').forEach((dot, i) => {
-          dot.classList.toggle('active', i === index);
-        });
-        updatePageNav();
-      }
-
-      function updatePageNav() {
-        document.getElementById('currentPage').textContent = state.currentPage + 1;
-        document.getElementById('prevPage').disabled = state.currentPage === 0;
-        document.getElementById('nextPage').disabled = state.currentPage === state.results.length - 1;
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Partner Recommendation
-      // ═══════════════════════════════════════════════════════════════
-      function goToPartnerRecommendation() {
-        if (!state.results || state.results.length === 0) {
-          alert('디자인 결과가 없습니다. 먼저 이미지를 업로드해주세요.');
-          return;
-        }
-        const context = {
-          categories: Object.keys(state.uploadedImages),
-          quoteTotal: state.results[0]?.quote?.total || 0,
-          quoteGrade: state.results[0]?.quote?.grade || 'mid',
-          designImages: state.results.map(r => ({
-            category: r.category,
-            afterUrl: r.afterUrl
-          }))
-        };
-        sessionStorage.setItem('partnerContext', JSON.stringify(context));
-        window.location.href = 'partner-recommendation.html';
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Download & Share
-      // ═══════════════════════════════════════════════════════════════
-      function downloadCurrentImage() {
-        const result = state.results[state.currentPage];
-        if (!result?.afterUrl) {
-          showToast('다운로드할 이미지가 없습니다.', 'error');
-          return;
-        }
-        const link = document.createElement('a');
-        link.href = result.afterUrl;
-        link.target = '_blank';
-        link.download = `dadam-${result.category}-design.png`;
-        link.click();
-        showToast('이미지 다운로드 시작', 'success');
-      }
-
-      async function shareResult() {
-        const result = state.results[state.currentPage];
-        if (!result?.afterUrl) return;
-        try {
-          if (navigator.share) {
-            await navigator.share({
-              title: `다담가구 AI 리디자인 - ${categoryInfo[result.category].name}`,
-              text: `${categoryInfo[result.category].name}를 AI로 리디자인했어요!`,
-              url: result.afterUrl,
-            });
-          } else {
-            await navigator.clipboard.writeText(result.afterUrl);
-            showToast('URL이 복사되었습니다.', 'success');
-          }
-        } catch (e) {
-          showToast('공유하기 실패', 'error');
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Chat
-      // ═══════════════════════════════════════════════════════════════
-      function addChatMessage(content, isUser = false, shouldSave = true) {
-        const chatMessages = document.getElementById('chatMessages');
-        const welcome = chatMessages.querySelector('.welcome-msg');
-        if (welcome) welcome.remove();
-
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
-        messageDiv.innerHTML = `
-        <div class="message-avatar">
-          <svg fill="${isUser ? 'none' : 'currentColor'}" stroke="${isUser ? 'currentColor' : 'none'}" stroke-width="2">
-            <use href="#icon-${isUser ? 'user' : 'ai'}"/>
-          </svg>
-        </div>
-        <div class="message-content">${content}</div>
-      `;
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-
-        // 최근 20개 메시지만 화면에 유지
-        const messages = chatMessages.querySelectorAll('.message');
-        if (messages.length > 20) messages[0].remove();
-
-        // DB에 저장 (shouldSave가 true일 때만)
-        if (shouldSave) {
-          saveChatMessage(content, isUser ? 'user' : 'assistant');
-        }
-      }
-
-      async function sendMessage() {
-        const input = document.getElementById('messageInput');
-        const message = input.value.trim();
-        if (!message) return;
-
-        addChatMessage(message, true);
-        input.value = '';
-
-        try {
-          addChatMessage('채팅 기능은 현재 준비 중입니다.', false);
-        } catch (error) {
-          addChatMessage('일시적인 오류가 발생했습니다.', false);
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Toast
-      // ═══════════════════════════════════════════════════════════════
-      function showToast(message, type = 'info') {
-        const toast = document.getElementById('toast');
-        toast.textContent = message;
-        toast.className = `toast ${type} show`;
-        setTimeout(() => toast.classList.remove('show'), 3000);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 🖼️ 이미지 화살표 네비게이션 (원본 ↔ 닫힘 ↔ 열림)
-      // ═══════════════════════════════════════════════════════════════
-      function goToImage(pageIndex, imageIndex) {
-        const img = document.getElementById(`renderImg_${pageIndex}`);
-        const status = document.getElementById(`status_${pageIndex}`);
-        if (!img) return;
-
-        const images = [
-          { url: img.dataset.original, state: 'original', label: '📷 원본', color: '#f59e0b' },
-          { url: img.dataset.closed, state: 'closed', label: '🎨 기본안', color: '#3b82f6' },
-          { url: img.dataset.open, state: 'open', label: '✨ AI 추천안', color: '#10b981' },
+      (function () {
+        'use strict';
+
+        // ═══════════════════════════════════════════════
+        // 상수
+        // ═══════════════════════════════════════════════
+        var API =
+          (window.DADAM_CONFIG && window.DADAM_CONFIG.generateApi && window.DADAM_CONFIG.generateApi.url) ||
+          'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate';
+
+        var MAX_PICKS = 5;
+        var MAX_BYTES = 20 * 1024 * 1024;
+        var MAX_EDGE = 1600; // 업로드 전 축소. 원본을 그대로 base64 로 보내면 수 MB 가 된다.
+
+        // 화면 라벨 → 생성 API 카테고리. worker 의 *_CATEGORIES 와 같은 키다.
+        var KINDS = [
+          { key: 'sink', label: '싱크대', gallery: ['l_shaped_sink', 'peninsula_sink', 'island_kitchen'] },
+          { key: 'island', label: '아일랜드', gallery: ['island_kitchen'] },
+          { key: 'wardrobe', label: '붙박이장', gallery: ['wardrobe'] },
+          { key: 'fridge', label: '냉장고장', gallery: ['fridge_cabinet'] },
+          { key: 'vanity', label: '화장대', gallery: ['vanity'] },
+          { key: 'shoe', label: '신발장', gallery: ['shoe_cabinet'] },
         ];
 
-        // 이미지가 없으면 스킵
-        if (!images[imageIndex].url) {
-          showToast('해당 이미지가 없습니다', 'warning');
-          return;
+        var STYLE_LABEL = {
+          modern: '모던',
+          luxury: '럭셔리',
+          natural: '내추럴',
+          nordic: '노르딕',
+          classic: '클래식',
+        };
+
+        var MARQUEE = [
+          'kitchen-n1-1.jpg',
+          'kitchen-n3-2.jpg',
+          'kitchen-n4-1.jpg',
+          'kitchen-n6-2.jpg',
+          'kitchen-n7-1.jpg',
+          'kitchen-n1-4.jpg',
+        ];
+
+        // ═══════════════════════════════════════════════
+        // 상태
+        // ═══════════════════════════════════════════════
+        var S = {
+          tab2: 'db',
+          img1: null, // {base64, mime, preview, name}
+          picks: [], // [{key, src, label, base64?, mime?}]
+          kind: 'sink',
+          query: '',
+          searchOpen: false,
+          dbAll: [], // furniture_images 전체
+          dbCount: 6,
+          themeCount: 9,
+          phase: 'idle', // idle | loading | done
+          results: [], // [{src, label}]
+          quote: null,
+        };
+
+        var sb = null;
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
         }
 
-        // 이미지 변경
-        img.style.opacity = '0.5';
-        setTimeout(() => {
-          img.src = images[imageIndex].url;
-          img.dataset.state = images[imageIndex].state;
-          img.dataset.index = imageIndex;
-          status.textContent = images[imageIndex].label;
-          status.style.color = images[imageIndex].color;
-          img.style.opacity = '1';
-
-          // 인디케이터 업데이트
-          updateIndicators(pageIndex, imageIndex);
-        }, 100);
-      }
-
-      function nextImage(pageIndex) {
-        const img = document.getElementById(`renderImg_${pageIndex}`);
-        if (!img) return;
-        let currentIndex = parseInt(img.dataset.index) || 0;
-        let nextIndex = currentIndex + 1;
-
-        // 다음 유효한 이미지 찾기
-        const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
-        while (nextIndex < 3 && !images[nextIndex]) {
-          nextIndex++;
+        // ═══════════════════════════════════════════════
+        // 이미지 — 축소 후 base64
+        // ═══════════════════════════════════════════════
+        function readImage(file) {
+          return new Promise(function (resolve, reject) {
+            if (!/^image\/(jpeg|png)$/.test(file.type)) return reject(new Error('JPG · PNG 만 올릴 수 있습니다'));
+            if (file.size > MAX_BYTES) return reject(new Error('20MB 이하만 올릴 수 있습니다'));
+            var fr = new FileReader();
+            fr.onerror = function () {
+              reject(new Error('파일을 읽지 못했습니다'));
+            };
+            fr.onload = function () {
+              var img = new Image();
+              img.onerror = function () {
+                reject(new Error('이미지를 열지 못했습니다'));
+              };
+              img.onload = function () {
+                // 긴 변을 MAX_EDGE 로 맞춘다. 예전엔 원본을 그대로 base64 로 보내
+                // 5MB 사진이 ~6.7MB 본문이 됐다.
+                var w = img.naturalWidth,
+                  h = img.naturalHeight;
+                var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+                var cw = Math.round(w * scale),
+                  ch = Math.round(h * scale);
+                var cv = document.createElement('canvas');
+                cv.width = cw;
+                cv.height = ch;
+                cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+                var url = cv.toDataURL('image/jpeg', 0.9);
+                resolve({ base64: url.split(',')[1], mime: 'image/jpeg', preview: url, name: file.name });
+              };
+              img.src = String(fr.result);
+            };
+            fr.readAsDataURL(file);
+          });
         }
-        if (nextIndex >= 3) nextIndex = 0; // 처음으로
 
-        goToImage(pageIndex, nextIndex);
-      }
-
-      function prevImage(pageIndex) {
-        const img = document.getElementById(`renderImg_${pageIndex}`);
-        if (!img) return;
-        let currentIndex = parseInt(img.dataset.index) || 0;
-        let prevIndex = currentIndex - 1;
-
-        // 이전 유효한 이미지 찾기
-        const images = [img.dataset.original, img.dataset.closed, img.dataset.open];
-        while (prevIndex >= 0 && !images[prevIndex]) {
-          prevIndex--;
-        }
-        if (prevIndex < 0) {
-          // 마지막 유효한 이미지로
-          prevIndex = 2;
-          while (prevIndex >= 0 && !images[prevIndex]) {
-            prevIndex--;
+        // 원격 이미지를 base64 로. 참고 이미지를 생성 요청에 동봉할 때 쓴다.
+        async function fetchAsBase64(url) {
+          try {
+            var res = await fetch(url, { cache: 'force-cache' });
+            if (!res.ok) return null;
+            var blob = await res.blob();
+            return await new Promise(function (resolve) {
+              var r = new FileReader();
+              r.onloadend = function () {
+                resolve({ base64: String(r.result).split(',')[1], mime: blob.type || 'image/jpeg' });
+              };
+              r.onerror = function () {
+                resolve(null);
+              };
+              r.readAsDataURL(blob);
+            });
+          } catch (e) {
+            return null;
           }
         }
 
-        goToImage(pageIndex, prevIndex);
-      }
-
-      function updateIndicators(pageIndex, activeIndex) {
-        const container = document.querySelector(`.result-page[data-index="${pageIndex}"] .image-indicators`);
-        if (!container) return;
-        const dots = container.querySelectorAll('.indicator-dot');
-        dots.forEach((dot, i) => {
-          dot.classList.toggle('active', i === activeIndex);
-        });
-      }
-
-      // 이전 toggleImage 함수 유지 (클릭 시에도 동작)
-      function toggleImage(index) {
-        nextImage(index);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Keyboard & Touch
-      // ═══════════════════════════════════════════════════════════════
-      document.addEventListener('keydown', (e) => {
-        if (state.results.length > 1) {
-          if (e.key === 'ArrowLeft') changePage(-1);
-          if (e.key === 'ArrowRight') changePage(1);
+        // ═══════════════════════════════════════════════
+        // 슬롯 ①
+        // ═══════════════════════════════════════════════
+        async function setImage1(file) {
+          try {
+            S.img1 = await readImage(file);
+          } catch (e) {
+            S.img1 = null;
+            $('file1').textContent = e.message;
+            renderRun();
+            return;
+          }
+          $('fill1').style.backgroundImage = 'url(' + S.img1.preview + ')';
+          $('fill1').hidden = false;
+          $('empty1').hidden = true;
+          $('clear1').hidden = false;
+          $('file1').textContent = S.img1.name;
+          $('state1').textContent = '준비됨';
+          $('state1').classList.add('v5-slot-state--on');
+          renderRun();
         }
-      });
 
-      let touchStartX = 0;
-      document.getElementById('resultPages').addEventListener(
-        'touchstart',
-        (e) => {
-          touchStartX = e.changedTouches[0].screenX;
-        },
-        { passive: true }
-      );
+        function clearImage1() {
+          S.img1 = null;
+          $('fill1').hidden = true;
+          $('empty1').hidden = false;
+          $('clear1').hidden = true;
+          $('file1').textContent = '';
+          $('state1').textContent = '대기';
+          $('state1').classList.remove('v5-slot-state--on');
+          $('input1').value = '';
+          renderRun();
+        }
 
-      document.getElementById('resultPages').addEventListener(
-        'touchend',
-        (e) => {
-          const diff = touchStartX - e.changedTouches[0].screenX;
-          if (Math.abs(diff) > 50) changePage(diff > 0 ? 1 : -1);
-        },
-        { passive: true }
-      );
+        function bindDrop(el, onFiles) {
+          ['dragenter', 'dragover'].forEach(function (t) {
+            el.addEventListener(t, function (e) {
+              e.preventDefault();
+              el.classList.add('v5-drop--over');
+            });
+          });
+          ['dragleave', 'drop'].forEach(function (t) {
+            el.addEventListener(t, function (e) {
+              e.preventDefault();
+              el.classList.remove('v5-drop--over');
+            });
+          });
+          el.addEventListener('drop', function (e) {
+            var fs = e.dataTransfer && e.dataTransfer.files;
+            if (fs && fs.length) onFiles(fs);
+          });
+        }
 
-      // ═══════════════════════════════════════════════════════════════
-      // Init
-      // ═══════════════════════════════════════════════════════════════
-      document.addEventListener('DOMContentLoaded', updateButtons);
+        // ═══════════════════════════════════════════════
+        // 가구 종류
+        // ═══════════════════════════════════════════════
+        function renderKinds() {
+          $('kinds').innerHTML = KINDS.map(function (k) {
+            return (
+              '<button type="button" class="v5-chip" data-kind="' +
+              k.key +
+              '" aria-pressed="' +
+              (S.kind === k.key) +
+              '">' +
+              esc(k.label) +
+              '</button>'
+            );
+          }).join('');
+          var cur = KINDS.filter(function (k) {
+            return k.key === S.kind;
+          })[0];
+          $('kindState').textContent = cur ? cur.label : '';
+          // 냉장고 옵션은 냉장고장일 때만 의미가 있다
+          $('fridgeAdv').hidden = S.kind !== 'fridge';
+        }
+
+        // ═══════════════════════════════════════════════
+        // 슬롯 ② — 다담 DB / 테마
+        // ═══════════════════════════════════════════════
+        function galleryLabel(r) {
+          var kind = KINDS.filter(function (k) {
+            return k.gallery.indexOf(r.category) >= 0;
+          })[0];
+          var style = STYLE_LABEL[r.style] || '';
+          return [style, kind ? kind.label : r.category].filter(Boolean).join(' · ');
+        }
+
+        async function loadGallery() {
+          if (!sb) {
+            $('dbHint').textContent = '이미지를 불러오지 못했습니다';
+            return;
+          }
+          try {
+            var res = await sb
+              .from('furniture_images')
+              .select('category, style, image_url')
+              .eq('is_training', false)
+              .limit(300);
+            if (res.error || !res.data || !res.data.length) throw new Error(res.error ? res.error.message : 'empty');
+            S.dbAll = res.data.map(function (r, i) {
+              return { key: 'db-' + i, src: r.image_url, label: galleryLabel(r), style: r.style, category: r.category };
+            });
+          } catch (e) {
+            console.warn('[studio] gallery:', e.message);
+            $('dbHint').textContent = '이미지를 불러오지 못했습니다';
+            return;
+          }
+          renderDb();
+          renderTheme();
+          fillGrids();
+        }
+
+        function dbFiltered() {
+          var q = S.query.trim();
+          if (!q) return S.dbAll;
+          return S.dbAll.filter(function (r) {
+            return r.label.indexOf(q) >= 0;
+          });
+        }
+
+        function pickHTML(r) {
+          var on = S.picks.some(function (p) {
+            return p.key === r.key;
+          });
+          return (
+            '<button type="button" class="v5-pick" data-pick="' +
+            esc(r.key) +
+            '" aria-pressed="' +
+            on +
+            '">' +
+            '<span class="v5-pick-img" style="background-image:url(' +
+            esc(r.src) +
+            ')"></span>' +
+            '<span class="v5-pick-cap">' +
+            esc(r.label) +
+            '</span></button>'
+          );
+        }
+
+        function renderDb() {
+          var list = dbFiltered();
+          var shown = list.slice(0, S.dbCount);
+          $('dbGrid').innerHTML = shown.map(pickHTML).join('');
+          $('dbHint').textContent = shown.length >= list.length ? '마지막입니다' : '스크롤하면 더 불러옵니다';
+          $('queryCount').textContent = shown.length + ' / ' + list.length;
+          syncPicked();
+        }
+
+        // 테마 = 같은 테이블을 **스타일**로 묶은 것.
+        // 핸드오프의 loremflickr 는 상업적 사용이 불가라 쓰지 않는다.
+        function themeList() {
+          var byStyle = {};
+          S.dbAll.forEach(function (r) {
+            if (!r.style) return;
+            (byStyle[r.style] = byStyle[r.style] || []).push(r);
+          });
+          var out = [];
+          Object.keys(byStyle)
+            .sort()
+            .forEach(function (st) {
+              byStyle[st].slice(0, 12).forEach(function (r, i) {
+                out.push({ key: 'th-' + st + '-' + i, src: r.src, label: (STYLE_LABEL[st] || st) + ' ' + (i + 1) });
+              });
+            });
+          return out;
+        }
+
+        function renderTheme() {
+          var list = themeList();
+          var shown = list.slice(0, S.themeCount);
+          $('themeGrid').innerHTML = shown.map(pickHTML).join('');
+          $('themeHint').textContent = shown.length >= list.length ? '마지막입니다' : '스크롤하면 더 불러옵니다';
+          syncPicked();
+        }
+
+        function togglePick(key) {
+          var i = S.picks.findIndex(function (p) {
+            return p.key === key;
+          });
+          if (i >= 0) {
+            S.picks.splice(i, 1);
+          } else {
+            if (S.picks.length >= MAX_PICKS) return;
+            var src = S.dbAll.concat(themeList()).filter(function (r) {
+              return r.key === key;
+            })[0];
+            if (!src) return;
+            S.picks.push({ key: src.key, src: src.src, label: src.label });
+          }
+          // 그리드를 다시 그리지 않는다 — innerHTML 을 갈아끼우면 스크롤이 맨 위로
+          // 튀어서, 아래쪽 사진을 고르는 순간 자리를 잃는다. 눌린 버튼만 바꾼다.
+          syncPicked();
+          renderPicks();
+          renderRun();
+        }
+
+        /** 화면에 있는 선택 버튼들의 aria-pressed 를 상태와 맞춘다 */
+        function syncPicked() {
+          document.querySelectorAll('[data-pick]').forEach(function (b) {
+            var on = S.picks.some(function (p) {
+              return p.key === b.getAttribute('data-pick');
+            });
+            b.setAttribute('aria-pressed', String(on));
+          });
+        }
+
+        function renderPicks() {
+          $('picks').innerHTML =
+            S.picks
+              .map(function (p) {
+                return (
+                  '<button type="button" class="v5-thumb" data-unpick="' +
+                  esc(p.key) +
+                  '" title="' +
+                  esc(p.label) +
+                  '" aria-label="' +
+                  esc(p.label) +
+                  ' 해제"' +
+                  ' style="background-image:url(' +
+                  esc(p.src) +
+                  ')"></button>'
+                );
+              })
+              .join('') ||
+            '<span style="font-weight:300;font-size:11px;color:var(--v5-ink-40)">선택 없음 · 최대 5장</span>';
+          $('pickCount').textContent = S.picks.length + ' / ' + MAX_PICKS;
+          var on = S.picks.length > 0;
+          $('state2').textContent = on ? '준비됨' : '대기';
+          $('state2').classList.toggle('v5-slot-state--on', on);
+          $('no2').classList.toggle('v5-slot-no--on', on);
+        }
+
+        function setTab(t) {
+          S.tab2 = t;
+          ['upload', 'db', 'theme'].forEach(function (k) {
+            $('pane-' + k).hidden = k !== t;
+            var b = document.querySelector('.v5-tab[data-tab="' + k + '"]');
+            if (b) b.setAttribute('aria-selected', String(k === t));
+          });
+          fillGrids();
+        }
+
+        // ═══════════════════════════════════════════════
+        // 생성
+        // ═══════════════════════════════════════════════
+        function ready() {
+          return !!S.img1 && S.picks.length > 0;
+        }
+
+        function renderRun() {
+          var btn = $('runBtn');
+          if (S.phase === 'loading') {
+            btn.disabled = true;
+            $('runState').textContent = '생성 중';
+            $('runTrack').hidden = false;
+            return;
+          }
+          $('runTrack').hidden = true;
+          btn.disabled = !ready();
+          btn.classList.toggle('v5-btn--solid', ready());
+          $('runState').textContent = ready() ? '1회 차감' : '사진 두 장을 넣어주세요';
+        }
+
+        function shotHTML(i) {
+          var r = S.results[i];
+          var kind = KINDS.filter(function (k) {
+            return k.key === S.kind;
+          })[0];
+          var frame = r
+            ? '<div class="v5-shot-frame v5-shot-frame--done" role="img" aria-label="' +
+              esc(r.label) +
+              '" style="background-image:url(' +
+              esc(r.src) +
+              ')"></div>'
+            : S.phase === 'loading'
+              ? '<div class="v5-shot-frame"><span class="v5-track" style="width:70px"><span></span></span></div>'
+              : '<div class="v5-shot-frame"><span class="v5-shot-wait"></span></div>';
+          return (
+            '<figure class="v5-shot">' +
+            frame +
+            '<figcaption class="v5-shot-cap"><span>' +
+            esc(r ? r.label : kind ? kind.label : '') +
+            '</span><span class="v5-shot-no">' +
+            (i + 1) +
+            '</span></figcaption></figure>'
+          );
+        }
+
+        function renderResults() {
+          if (S.phase === 'idle') {
+            $('results').hidden = true;
+            return;
+          }
+          $('results').hidden = false;
+          $('shots').innerHTML = [0, 1, 2, 3].map(shotHTML).join('');
+          $('resultState').textContent = S.phase === 'loading' ? '약 15초' : S.results.length + ' / 4';
+          renderQuote();
+        }
+
+        function renderQuote() {
+          var q = S.quote;
+          var box = $('quoteBox');
+          if (!q || S.phase !== 'done') {
+            box.hidden = true;
+            return;
+          }
+          box.hidden = false;
+          var won = function (n) {
+            return Number(n || 0).toLocaleString() + '원';
+          };
+          var rows = (q.items || [])
+            .map(function (it) {
+              return (
+                '<div class="studio-quote-row"><span>' +
+                esc(it.name || it.label || '') +
+                '</span><span>' +
+                won(it.price || it.amount) +
+                '</span></div>'
+              );
+            })
+            .join('');
+          box.innerHTML =
+            '<div style="border-top:1px solid var(--v5-line);padding-top:26px;margin-top:26px;display:grid;gap:16px">' +
+            '<div class="v5-foot-label"><span>ESTIMATE · 예상 견적</span></div>' +
+            '<div class="studio-quote">' +
+            rows +
+            '<div class="studio-quote-row studio-quote-total"><span>합계 (VAT 포함)</span><span>' +
+            won(q.total) +
+            '</span></div></div>' +
+            '<button type="button" class="v5-btn v5-btn--solid" id="toPartner" style="justify-self:start">파트너 추천 받기</button>' +
+            '<p class="v5-note">실측 후 확정됩니다.</p></div>';
+          $('toPartner').onclick = goPartner;
+        }
+
+        // 견적 → 파트너 추천 핸드오프 (기존 동선 유지)
+        function goPartner() {
+          try {
+            sessionStorage.setItem(
+              'partnerContext',
+              JSON.stringify({
+                category: S.kind,
+                quote: S.quote,
+                image: S.results[0] ? S.results[0].src : null,
+              })
+            );
+          } catch (e) {}
+          location.href = 'partner-recommendation.html';
+        }
+
+        async function authHeaders() {
+          var h = { 'Content-Type': 'application/json' };
+          try {
+            if (sb) {
+              var r = await sb.auth.getSession();
+              var t = r && r.data && r.data.session && r.data.session.access_token;
+              if (t) h.Authorization = 'Bearer ' + t;
+            }
+          } catch (e) {}
+          return h;
+        }
+
+        async function run() {
+          if (S.phase === 'loading' || !ready()) return;
+          S.phase = 'loading';
+          S.results = [];
+          S.quote = null;
+          renderRun();
+          renderResults();
+
+          // 참고 이미지를 base64 로. 실패한 것은 건너뛴다.
+          var refs = (
+            await Promise.all(
+              S.picks.map(function (p) {
+                return fetchAsBase64(p.src);
+              })
+            )
+          )
+            .filter(Boolean)
+            .map(function (r) {
+              return r.base64;
+            });
+
+          var body = {
+            room_image: S.img1.base64,
+            image_type: S.img1.mime,
+            category: S.kind,
+            reference_images: refs.length ? refs : undefined,
+            wall_width_override: $('wallW').value || undefined,
+          };
+          if (S.kind === 'fridge') {
+            body.fridge_options = { brand: $('fBrand').value, position: $('fPos').value };
+          }
+
+          try {
+            var res = await fetch(API, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) });
+            var data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data && data.error ? data.error : '생성에 실패했습니다');
+
+            var g = data.generated_image || {};
+            var kind = KINDS.filter(function (k) {
+              return k.key === S.kind;
+            })[0];
+            var name = kind ? kind.label : '';
+            var out = [];
+            if (g.closed) out.push({ src: 'data:image/png;base64,' + g.closed, label: name + ' · 기본안' });
+            // v5: alts[] 가 추천안 전체다. 예전 단일 alt 만 오는 응답도 받아 준다.
+            var alts = g.alts && g.alts.length ? g.alts : g.alt ? [g.alt] : [];
+            var styles = data.alt_styles || [];
+            alts.forEach(function (a, i) {
+              var st = styles[i] && styles[i].name ? styles[i].name : 'AI 추천 ' + (i + 1);
+              out.push({ src: 'data:image/png;base64,' + a, label: name + ' · ' + st });
+            });
+            S.results = out.slice(0, 4);
+            S.quote = data.quote || null;
+            S.phase = 'done';
+          } catch (e) {
+            console.warn('[studio] generate:', e.message);
+            S.phase = 'done';
+            $('resultState').textContent = '생성에 실패했습니다 — 다시 시도해 주세요';
+          }
+          renderRun();
+          renderResults();
+        }
+
+        // ═══════════════════════════════════════════════
+        // 시작
+        // ═══════════════════════════════════════════════
+        function bind() {
+          $('pick1').onclick = function () {
+            $('input1').click();
+          };
+          $('input1').onchange = function (e) {
+            if (e.target.files[0]) setImage1(e.target.files[0]);
+          };
+          $('clear1').onclick = clearImage1;
+          bindDrop($('drop1'), function (fs) {
+            setImage1(fs[0]);
+          });
+
+          $('pick2').onclick = function () {
+            $('input2').click();
+          };
+          $('input2').onchange = function (e) {
+            addUploads(e.target.files);
+          };
+          bindDrop($('drop2'), addUploads);
+
+          $('kinds').onclick = function (e) {
+            var b = e.target.closest('[data-kind]');
+            if (!b) return;
+            S.kind = b.getAttribute('data-kind');
+            renderKinds();
+          };
+
+          document.querySelectorAll('.v5-tab[data-tab]').forEach(function (b) {
+            b.onclick = function () {
+              setTab(b.getAttribute('data-tab'));
+            };
+          });
+
+          ['dbGrid', 'themeGrid'].forEach(function (id) {
+            $(id).onclick = function (e) {
+              var b = e.target.closest('[data-pick]');
+              if (b) togglePick(b.getAttribute('data-pick'));
+            };
+          });
+          $('picks').onclick = function (e) {
+            var b = e.target.closest('[data-unpick]');
+            if (b) togglePick(b.getAttribute('data-unpick'));
+          };
+
+          $('searchBtn').onclick = function () {
+            S.searchOpen = !S.searchOpen;
+            $('searchBtn').setAttribute('aria-expanded', String(S.searchOpen));
+            $('searchRow').hidden = !S.searchOpen;
+            if (S.searchOpen) $('query').focus();
+          };
+          $('query').oninput = function (e) {
+            S.query = e.target.value;
+            S.dbCount = 6;
+            renderDb();
+            fillGrids();
+          };
+          $('queryReset').onclick = function () {
+            S.query = '';
+            $('query').value = '';
+            S.dbCount = 6;
+            renderDb();
+            fillGrids();
+          };
+
+          // 더 불러오기 — 보유 레코드 수까지만 (순환 금지).
+          // 스크롤 이벤트가 아니라 센티널을 쓴다: 초기 타일이 컨테이너를 넘지 않으면
+          // 스크롤 자체가 안 생겨 영원히 6장에서 멈춘다 (넓은 화면에서 실제로 그랬다).
+          watchMore($('dbSentinel'), $('dbScroll'), function () {
+            if (S.dbCount >= dbFiltered().length) return false;
+            S.dbCount += 6;
+            renderDb();
+            return true;
+          });
+          watchMore($('themeSentinel'), $('themeScroll'), function () {
+            if (S.themeCount >= themeList().length) return false;
+            S.themeCount += 9;
+            renderTheme();
+            return true;
+          });
+
+          $('runBtn').onclick = run;
+          $('dl').onclick = function () {
+            var r = S.results[0];
+            if (!r) return;
+            var a = document.createElement('a');
+            a.href = r.src;
+            a.download = 'dadam-' + S.kind + '.png';
+            a.click();
+          };
+          $('sh').onclick = async function () {
+            try {
+              if (navigator.share) await navigator.share({ title: '다담가구 AI 연출컷', url: location.href });
+              else await navigator.clipboard.writeText(location.href);
+            } catch (e) {}
+          };
+        }
+
+        /**
+         * 컨테이너가 넘칠 때까지 채운다.
+         *
+         * 왜 필요한가: 초기 타일이 컨테이너보다 작으면 **스크롤이 아예 안 생긴다**.
+         * 그러면 스크롤도 센티널도 걸리지 않아 영원히 첫 묶음에서 멈춘다
+         * (넓은 화면의 다담 DB 가 실제로 6장에서 안 늘어났다).
+         * 상한을 두는 이유는 more() 가 계속 true 를 내는 경우의 무한 루프 방지다.
+         */
+        function fillToOverflow(root, more) {
+          if (!root) return;
+          for (var i = 0; i < 8; i++) {
+            if (root.scrollHeight > root.clientHeight + 4) return;
+            if (more() === false) return;
+          }
+        }
+
+        /**
+         * 센티널이 보이면 more() 를 부른다. more() 가 false 면 더 없다는 뜻.
+         * 하단에 머물러 있어도 계속 불러오려면 재등록해야 한다 (컬렉션과 같은 규칙).
+         */
+        function watchMore(sentinel, root, more) {
+          if (!sentinel || !root) return;
+          var io = new IntersectionObserver(
+            function (entries) {
+              if (!entries[0].isIntersecting) return;
+              // 넘치지 않는 동안에는 센티널이 계속 보인다 — 재등록하면 무한 루프가 된다.
+              // 채우는 일은 fillToOverflow 가 맡고, 여기서는 스크롤한 경우만 받는다.
+              if (root.scrollHeight <= root.clientHeight + 4) return;
+              if (more() === false) {
+                io.unobserve(sentinel);
+                return;
+              }
+              io.unobserve(sentinel);
+              io.observe(sentinel);
+            },
+            { root: root, rootMargin: '120px' }
+          );
+          io.observe(sentinel);
+        }
+
+        /** 두 그리드를 화면에 맞게 채운다. 탭을 열 때도 부른다(숨은 동안엔 높이가 0이라 못 잰다). */
+        function fillGrids() {
+          fillToOverflow($('dbScroll'), function () {
+            if (S.dbCount >= dbFiltered().length) return false;
+            S.dbCount += 6;
+            renderDb();
+            return true;
+          });
+          fillToOverflow($('themeScroll'), function () {
+            if (S.themeCount >= themeList().length) return false;
+            S.themeCount += 9;
+            renderTheme();
+            return true;
+          });
+        }
+
+        async function addUploads(files) {
+          var room = MAX_PICKS - S.picks.length;
+          var list = Array.prototype.slice.call(files, 0, room);
+          for (var i = 0; i < list.length; i++) {
+            try {
+              var img = await readImage(list[i]);
+              S.picks.push({ key: 'up-' + Date.now() + '-' + i, src: img.preview, label: img.name });
+            } catch (e) {
+              console.warn('[studio] upload:', e.message);
+            }
+          }
+          renderPicks();
+          renderRun();
+        }
+
+        function marquee() {
+          var one = MARQUEE.map(function (f) {
+            return '<div class="v5-marquee-tile" style="background-image:url(app/portfolio/' + f + ')"></div>';
+          }).join('');
+          $('marquee').innerHTML = one + one; // 2회 복제 → -50% 로 이음새 없이 순환
+        }
+
+        async function init() {
+          marquee();
+          renderKinds();
+          renderPicks();
+          renderRun();
+          setTab('db');
+          bind();
+
+          try {
+            if (window.DADAM_CONFIG && window.supabase) {
+              sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
+            }
+          } catch (e) {
+            console.warn('[studio] supabase init:', e);
+          }
+
+          if (sb) {
+            try {
+              var r = await sb.auth.getSession();
+              if (!(r && r.data && r.data.session)) $('authGate').hidden = false;
+            } catch (e) {}
+          }
+          await loadGallery();
+        }
+
+        init();
+      })();
     </script>
-    <script type="module" src="js/i18n.js"></script>
   </body>
 </html>
