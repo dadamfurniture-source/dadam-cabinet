@@ -14,6 +14,7 @@
 --    아래 CREATE POLICY 로 곧바로 재생성하므로 권한 공백은 단일 트랜잭션 안에서 없음.
 DROP FUNCTION IF EXISTS public.is_admin() CASCADE;
 DROP FUNCTION IF EXISTS public.is_admin(uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.is_super_admin() CASCADE;
 
 -- 1. 단일 is_admin() — 내부에서 auth.uid() 사용, RLS 우회
 CREATE FUNCTION public.is_admin()
@@ -43,13 +44,27 @@ CREATE POLICY "Users can view own role" ON admin_roles
 CREATE POLICY "Admins can view all roles" ON admin_roles
     FOR SELECT USING (public.is_admin());
 
+-- super_admin 판별도 admin_roles 를 읽어야 한다.
+-- 정책 안에서 직접 읽으면 그 읽기가 다시 이 정책을 태워 무한 재귀(42P17)가 된다.
+-- 예전 버전이 바로 이렇게 돼 있어서, 이 파일을 적용해도 재귀가 남아 있었다.
+-- is_admin() 과 같이 SECURITY DEFINER 로 빼서 RLS 를 우회한다.
+CREATE FUNCTION public.is_super_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM admin_roles WHERE user_id = auth.uid() AND role = 'super_admin'
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO anon;
+
 CREATE POLICY "Super admins can manage roles" ON admin_roles
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM admin_roles ar
-            WHERE ar.user_id = auth.uid() AND ar.role = 'super_admin'
-        )
-    );
+    FOR ALL USING (public.is_super_admin());
 
 -- 3. profiles 정책
 DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
