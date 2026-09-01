@@ -480,6 +480,61 @@
       }
 
       /* Modal */
+      /* ── 회원탈퇴 ── */
+      .danger-zone {
+        margin-top: 12px;
+        padding-top: 20px;
+        border-top: 1px solid var(--warm);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .danger-zone p {
+        font-size: 13px;
+        color: var(--gray);
+        line-height: 1.6;
+      }
+      .btn-danger {
+        padding: 10px 18px;
+        border: 1px solid #d9b0ab;
+        background: none;
+        color: #a54034;
+        font-family: inherit;
+        font-size: 13px;
+        border-radius: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn-danger:hover {
+        background: #a54034;
+        border-color: #a54034;
+        color: #fff;
+      }
+      .btn-danger[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .withdraw-list {
+        margin: 0 0 18px;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--charcoal);
+        line-height: 1.9;
+      }
+      .withdraw-confirm {
+        font-size: 13px;
+        color: var(--gray);
+        margin-bottom: 8px;
+      }
+      .withdraw-status {
+        font-size: 13px;
+        color: #a54034;
+        margin-top: 12px;
+        min-height: 18px;
+      }
+
       /* ── 내 시공사례 ──
          컬렉션 타일과 같은 정사각 비율로 보여준다. 여기서 올린 사진이
          그대로 collection.html 에 뜨므로, 올릴 때 보이는 모양과
@@ -1098,6 +1153,10 @@
             <span class="info-value" id="infoJoined">-</span>
           </div>
         </div>
+        <div class="danger-zone">
+          <p>더 이상 이용하지 않으신다면 계정을 삭제할 수 있습니다.</p>
+          <button type="button" class="btn-danger" onclick="openWithdraw()">회원탈퇴</button>
+        </div>
       </section>
 
       <!-- Saved Partners (일반 사용자 전용) -->
@@ -1245,6 +1304,39 @@
         <div class="modal-footer">
           <button type="button" class="btn-edit" onclick="closeEditModal()">취소</button>
           <button type="submit" form="editForm" class="btn-upgrade">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 회원탈퇴 -->
+    <div class="modal" id="withdrawModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>회원탈퇴</h3>
+          <button type="button" class="modal-close" onclick="closeWithdraw()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="withdraw-confirm">탈퇴하면 아래 정보가 <strong>모두 삭제되며 되돌릴 수 없습니다.</strong></p>
+          <ul class="withdraw-list">
+            <li>프로필과 로그인 정보</li>
+            <li>저장한 설계와 도면</li>
+            <li>컬렉션에 올린 시공사례</li>
+            <li>저장한 추천 업체</li>
+          </ul>
+          <p class="withdraw-confirm">
+            계속하시려면 아래에 <strong id="withdrawWord">탈퇴합니다</strong> 를 그대로 입력해 주세요.
+          </p>
+          <div class="form-group">
+            <label for="withdrawInput">확인 문구</label>
+            <input type="text" id="withdrawInput" autocomplete="off" placeholder="탈퇴합니다" />
+          </div>
+          <div class="withdraw-status" id="withdrawStatus"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-edit" onclick="closeWithdraw()">취소</button>
+          <button type="button" class="btn-danger" id="withdrawBtn" onclick="submitWithdraw()" disabled>
+            영구 삭제
+          </button>
         </div>
       </div>
     </div>
@@ -2067,11 +2159,77 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // 회원탈퇴
+      //
+      // auth.users 삭제는 service_role 이 있어야 해서 브라우저에서 못 한다.
+      // workers/account-api 가 본인 토큰을 확인한 뒤 지운다 — 대상 id 를
+      // 보내지 않는 이유다(보내면 남의 계정을 지목할 수 있다).
+      // ═══════════════════════════════════════════════════════════════
+
+      const WITHDRAW_WORD = '탈퇴합니다';
+
+      function openWithdraw() {
+        document.getElementById('withdrawInput').value = '';
+        document.getElementById('withdrawStatus').textContent = '';
+        document.getElementById('withdrawBtn').disabled = true;
+        document.getElementById('withdrawModal').classList.add('active');
+      }
+
+      function closeWithdraw() {
+        document.getElementById('withdrawModal').classList.remove('active');
+      }
+
+      async function submitWithdraw() {
+        const input = document.getElementById('withdrawInput').value.trim();
+        const status = document.getElementById('withdrawStatus');
+        const btn = document.getElementById('withdrawBtn');
+        if (input !== WITHDRAW_WORD) {
+          status.textContent = '확인 문구가 일치하지 않습니다.';
+          return;
+        }
+        btn.disabled = true;
+        status.textContent = '처리 중…';
+
+        try {
+          const {
+            data: { session },
+          } = await supabaseClient.auth.getSession();
+          if (!session) throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+
+          const base = window.DADAM_CONFIG?.accountApi?.url;
+          if (!base) throw new Error('탈퇴 기능을 사용할 수 없습니다.');
+
+          const res = await fetch(base + '/delete', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + session.access_token },
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok || !body.success) throw new Error(body.error || '탈퇴 처리에 실패했습니다.');
+
+          // 계정이 사라졌으므로 남은 세션도 지우고 첫 화면으로.
+          await supabaseClient.auth.signOut().catch(() => {});
+          window.location.href = 'index.html';
+        } catch (e) {
+          btn.disabled = false;
+          status.textContent = e.message || '탈퇴 처리에 실패했습니다.';
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // 내 시공사례 — collection_posts + 'collection' 버킷
       //
       // 여기서 올린 사진은 collection.html 에 **바로 공개**된다
       // (collection_posts_select 정책이 USING (true) 라 비로그인도 본다).
       // ═══════════════════════════════════════════════════════════════
+
+      // 확인 문구가 정확할 때만 삭제 버튼이 열린다
+      document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('withdrawInput');
+        if (!input) return;
+        input.addEventListener('input', function () {
+          document.getElementById('withdrawBtn').disabled = input.value.trim() !== WITHDRAW_WORD;
+        });
+      });
 
       const CASE_BUCKET = 'collection';
       const CASE_MAX_BYTES = 20 * 1024 * 1024;

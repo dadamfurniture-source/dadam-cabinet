@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/dadam-system.css">
+    <link rel="stylesheet" href="css/dadam-system.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <style>
@@ -36,7 +36,12 @@
       }
 
       body {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        font-family:
+          'Pretendard',
+          -apple-system,
+          BlinkMacSystemFont,
+          system-ui,
+          sans-serif;
         background: var(--cream);
         color: var(--charcoal);
         line-height: 1.7;
@@ -344,6 +349,28 @@
         accent-color: var(--gold);
       }
 
+      .resend-link {
+        display: block;
+        width: 100%;
+        margin: -8px 0 16px;
+        padding: 10px;
+        border: 1px solid var(--warm);
+        background: none;
+        font-family: inherit;
+        font-size: 13px;
+        color: var(--gray);
+        cursor: pointer;
+        border-radius: 8px;
+      }
+      .resend-link:hover:not([disabled]) {
+        color: var(--charcoal);
+        border-color: var(--gold);
+      }
+      .resend-link[disabled] {
+        cursor: default;
+        opacity: 0.6;
+      }
+
       .forgot-link {
         font-size: 14px;
         color: var(--gold);
@@ -446,7 +473,6 @@
       .btn-google:hover {
         background: var(--cream);
       }
-
 
       .btn-naver {
         background: #03c75a;
@@ -583,6 +609,9 @@
           <!-- Error/Success Messages -->
           <div class="error-message" id="errorMsg"></div>
           <div class="success-message" id="successMsg"></div>
+          <!-- 이메일 미인증일 때만 뜬다. showError 가 textContent 를 쓰므로
+               메시지 안에 넣지 못하고 옆에 따로 둔다. -->
+          <button type="button" class="resend-link" id="resendBtn" hidden>인증 메일 다시 보내기</button>
 
           <!-- Login Form -->
           <form class="login-form" id="loginForm">
@@ -619,7 +648,7 @@
                 <input type="checkbox" id="remember" />
                 <span>로그인 유지</span>
               </label>
-              <a href="#" class="forgot-link" onclick="alert('비밀번호 찾기 기능은 준비 중입니다.'); return false;">비밀번호 찾기</a>
+              <a href="reset-password.html" class="forgot-link">비밀번호 찾기</a>
             </div>
 
             <button type="submit" class="btn-submit" id="submitBtn">
@@ -708,6 +737,21 @@
       }
 
       // 에러 메시지 표시
+      // 이메일 미인증 재발송 — 실패해도 가입 여부를 흘리지 않게 문구를 고정한다
+      async function resendConfirmation() {
+        const email = document.getElementById('email').value.trim();
+        if (!email || !supabaseClient) return;
+        const btn = document.getElementById('resendBtn');
+        btn.disabled = true;
+        btn.textContent = '보내는 중…';
+        try {
+          await supabaseClient.auth.resend({ type: 'signup', email });
+        } catch (e) {
+          console.warn('[login] resend:', e?.message);
+        }
+        btn.textContent = '인증 메일을 다시 보냈습니다';
+      }
+
       function showError(message) {
         errorMsg.textContent = message;
         errorMsg.classList.add('show');
@@ -716,6 +760,7 @@
 
       // 성공 메시지 표시
       function showSuccess(message) {
+        document.getElementById('resendBtn').hidden = true;
         successMsg.textContent = message;
         successMsg.classList.add('show');
         errorMsg.classList.remove('show');
@@ -769,6 +814,11 @@
               showError('이메일 또는 비밀번호가 올바르지 않습니다.');
             } else if (error.message.includes('Email not confirmed')) {
               showError('이메일 인증이 필요합니다. 메일함을 확인해주세요.');
+              const rb = document.getElementById('resendBtn');
+              rb.hidden = false;
+              rb.disabled = false;
+              rb.textContent = '인증 메일 다시 보내기';
+              rb.onclick = resendConfirmation;
             } else {
               showError(error.message);
             }
@@ -812,7 +862,6 @@
           showError('Google 로그인 중 오류가 발생했습니다.');
         }
       }
-
 
       // 페이지 로드 시 세션 확인
       function getRedirectUrl() {
