@@ -35,10 +35,13 @@
     { label: 'Material', href: 'material.html' },
   ];
 
+  // TODO(콘텐츠): FAQ · terms.html · privacy.html 이 아직 없다.
+  // 기존 index 푸터도 이 셋을 `#` 로 두고 있었다 — 없는 파일을 가리켜
+  // 404 를 만드는 대신, 페이지가 생길 때까지 같은 자리표시자를 유지한다.
   var FOOT_SUPPORT = [
-    { label: '자주 묻는 질문', href: 'consultation.html' },
-    { label: '이용 약관', href: 'terms.html' },
-    { label: '개인정보처리방침', href: 'privacy.html' },
+    { label: '자주 묻는 질문', href: '#' },
+    { label: '이용 약관', href: '#' },
+    { label: '개인정보처리방침', href: '#' },
   ];
 
   // 사업자 정보 — index.html 에 있던 값을 그대로 옮겼다.
@@ -60,59 +63,103 @@
   }
 
   // ── 헤더 ─────────────────────────────────────────────
+
+  // 언어 토글은 js/i18n.js 가 붙은 페이지에서만 뜻이 있다.
+  // 그 파일이 없으면 눌러도 아무 일이 안 일어나는 죽은 버튼이 된다
+  // (ai-design·collection 은 아직 data-i18n 이 없어 i18n.js 를 안 싣는다).
+  // i18n.js 는 DOMContentLoaded 에 초기화되므로 window.i18nInstance 로는
+  // 셸이 그릴 시점에 알 수 없다 — 문서에 태그가 있는지로 판단한다.
+  function hasI18n() {
+    return !!document.querySelector('script[src*="i18n.js"]');
+  }
+
   function headerHTML(current) {
     var links = NAV.map(function (n) {
       var on = n.key === current;
-      return '<a href="' + n.href + '"' + (on ? ' aria-current="page"' : '') + '>' + esc(n.label) + '</a>';
+      return (
+        '<a href="' +
+        n.href +
+        '"' +
+        (on ? ' aria-current="page"' : '') +
+        '>' +
+        esc(n.label) +
+        '</a>'
+      );
     }).join('');
 
     return (
       '<header class="v5-header">' +
-        '<a class="v5-mark" href="index.html" aria-label="다담가구 홈">' +
-          '<span class="v5-mark-ko">다담</span>' +
-          '<span class="v5-mark-rule" aria-hidden="true"></span>' +
-          '<span class="v5-mark-en">FURNITURE</span>' +
-        '</a>' +
-        '<nav class="v5-nav">' + links + '</nav>' +
-        '<div class="v5-header-end">' +
-          // 잔여 횟수는 크레딧 API 가 생기기 전까지 감춰 둔다.
-          // 자리만 잡아 두면 0 회인지 미구현인지 알 수 없다.
-          '<span class="v5-credit" id="shellCredit" hidden></span>' +
-          '<span class="v5-sep" id="shellSep" hidden aria-hidden="true"></span>' +
-          '<a href="login.html" id="shellLogin">로그인</a>' +
-          '<button type="button" id="shellLogout" hidden>로그아웃</button>' +
-          '<a href="detaildesign.html" id="navDetailDesign" hidden>DETAIL</a>' +
-          '<a href="admin/index.html" id="navAdminLink" hidden>ADMIN</a>' +
-        '</div>' +
+      '<a class="v5-mark" href="index.html" aria-label="다담가구 홈">' +
+      '<span class="v5-mark-ko">다담</span>' +
+      '<span class="v5-mark-rule" aria-hidden="true"></span>' +
+      '<span class="v5-mark-en">FURNITURE</span>' +
+      '</a>' +
+      '<nav class="v5-nav">' +
+      links +
+      '</nav>' +
+      '<div class="v5-header-end">' +
+      // 잔여 횟수는 크레딧 API 가 생기기 전까지 감춰 둔다.
+      // 자리만 잡아 두면 0 회인지 미구현인지 알 수 없다.
+      '<span class="v5-credit" id="shellCredit" hidden></span>' +
+      '<span class="v5-sep" id="shellSep" hidden aria-hidden="true"></span>' +
+      (hasI18n()
+        ? '<button type="button" id="lang-toggle" aria-label="언어 전환"><span>KO</span></button>'
+        : '') +
+      '<a href="login.html" id="shellLogin">로그인</a>' +
+      '<button type="button" id="shellLogout" hidden>로그아웃</button>' +
+      '<a href="detaildesign.html" id="navDetailDesign" hidden>DETAIL</a>' +
+      '<a href="admin/index.html" id="navAdminLink" hidden>ADMIN</a>' +
+      '</div>' +
       '</header>'
     );
   }
 
   // ── 푸터 ─────────────────────────────────────────────
   function list(items) {
-    return '<ul>' + items.map(function (i) {
-      return '<li><a href="' + i.href + '">' + esc(i.label) + '</a></li>';
-    }).join('') + '</ul>';
+    return (
+      '<ul>' +
+      items
+        .map(function (i) {
+          return '<li><a href="' + i.href + '">' + esc(i.label) + '</a></li>';
+        })
+        .join('') +
+      '</ul>'
+    );
   }
 
   function footerHTML() {
     return (
       '<footer class="v5-footer">' +
-        '<div class="v5-footer-in">' +
-          '<div>' +
-            '<div class="v5-footer-brand">다담가구</div>' +
-            '<p class="v5-footer-desc">' + esc(BIZ.desc) + '</p>' +
-            '<p class="v5-footer-desc">' +
-              esc(BIZ.tel) + '<br>' + esc(BIZ.email) + '<br>' +
-              esc(BIZ.addr) + '<br>' + esc(BIZ.hours) +
-            '</p>' +
-          '</div>' +
-          '<div><h3>MENU</h3>' + list(FOOT_MENU) + '</div>' +
-          '<div><h3>SUPPORT</h3>' + list(FOOT_SUPPORT) + '</div>' +
-        '</div>' +
-        '<div class="v5-footer-bottom"><div class="v5-footer-bottom-in">' +
-          '<span>' + esc(BIZ.copy) + '</span><span>' + esc(BIZ.biz) + '</span>' +
-        '</div></div>' +
+      '<div class="v5-footer-in">' +
+      '<div>' +
+      '<div class="v5-footer-brand">다담가구</div>' +
+      '<p class="v5-footer-desc">' +
+      esc(BIZ.desc) +
+      '</p>' +
+      '<p class="v5-footer-desc">' +
+      esc(BIZ.tel) +
+      '<br>' +
+      esc(BIZ.email) +
+      '<br>' +
+      esc(BIZ.addr) +
+      '<br>' +
+      esc(BIZ.hours) +
+      '</p>' +
+      '</div>' +
+      '<div><h3>MENU</h3>' +
+      list(FOOT_MENU) +
+      '</div>' +
+      '<div><h3>SUPPORT</h3>' +
+      list(FOOT_SUPPORT) +
+      '</div>' +
+      '</div>' +
+      '<div class="v5-footer-bottom"><div class="v5-footer-bottom-in">' +
+      '<span>' +
+      esc(BIZ.copy) +
+      '</span><span>' +
+      esc(BIZ.biz) +
+      '</span>' +
+      '</div></div>' +
       '</footer>'
     );
   }
@@ -127,7 +174,9 @@
           window.DADAM_CONFIG.supabase.anonKey
         );
       }
-    } catch (e) { console.warn('[shell] supabase init:', e); }
+    } catch (e) {
+      console.warn('[shell] supabase init:', e);
+    }
     return null;
   }
 
@@ -138,7 +187,9 @@
     try {
       var r = await sb.auth.getSession();
       session = r && r.data ? r.data.session : null;
-    } catch (e) { return; }
+    } catch (e) {
+      return;
+    }
 
     var login = document.getElementById('shellLogin');
     var logout = document.getElementById('shellLogout');
@@ -148,7 +199,9 @@
     if (logout) {
       logout.hidden = false;
       logout.onclick = async function () {
-        try { await sb.auth.signOut(); } catch (e) {}
+        try {
+          await sb.auth.signOut();
+        } catch (e) {}
         location.reload();
       };
     }
