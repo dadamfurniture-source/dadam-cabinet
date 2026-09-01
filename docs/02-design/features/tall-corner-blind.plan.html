@@ -119,7 +119,9 @@
   <p class="lede">할 수 있습니다. 멍 공식도 그대로 씁니다 — 키큰장 라인 1970 에
   <b>멍 765 · 도어 385 · 멍장 1150</b> 이 나옵니다. 다만 키큰장은 <b>높이마다 가리는 것이
   다릅니다.</b> 하부는 상판이, 위는 상부장이, 그 사이는 아무것도 안 가립니다.
-  이걸 어떻게 다룰지가 이 계획의 유일한 결정입니다.</p>
+  이걸 어떻게 다룰지가 이 계획의 핵심 결정입니다.
+  <b>멍판 마감재는 단마다가 아니라 장 높이 전체를 한 장</b>으로 냅니다 — 레거시가
+  이미 그렇게 하고 있습니다 (§05).</p>
   <div class="meta">
     <span><b>대상</b> mockup-structure.html (autoCalcStack · cornerPairs)</span>
     <span><b>근거</b> corner.md §3 · W12-22 스택 규칙</span>
@@ -321,12 +323,75 @@
       <text x="20" y="324" class="mono" font-size="11" fill="currentColor" opacity="0.75">원장  50 + 1150 + 385 + 385 = 1970 ✓</text>
     </svg>
     <figcaption>멍장 셋은 <b>같은 x · 같은 W</b> 를 씁니다 — 스택의 기본 규칙(W12-22)과 같습니다.
-    멍판 마감재(100)도 단마다 하나씩, 라인 마감을 따라옵니다.</figcaption>
+    <b>마감재(100)만 셋을 관통하는 한 장</b>입니다 — 그림의 세로 띠가 단 경계를 넘어
+    이어지는 것이 그 뜻입니다 (§05).</figcaption>
   </figure>
 </section>
 
 <section>
-  <h2><span class="no">05</span>구현 단계</h2>
+  <h2><span class="no">05</span>마감재는 단이 아니라 장을 따른다</h2>
+  <p class="sub">멍장은 셋이지만 <b>멍판 마감재는 한 장</b>입니다. 이건 새 판단이 아니라 이미 있는 규칙입니다.</p>
+
+  <h3>선례 — 레거시는 모든 마감재를 한 장으로 낸다</h3>
+  <pre><span class="c">// extractors.js — 좌·우·코너1·코너2 가 전부 같은 모양이다</span>
+this.add(materials, epLabel, <span class="y">'몰딩(코너1)'</span>, 'MDF', 18,
+         finishCorner1Width, <span class="g">totalH − legH</span>, <span class="g">1</span>, '4면');
+                             <span class="c">└ 장 높이 전체        └ qty 1</span></pre>
+  <p>캐비닛마다 쪼개지 않고 <b>장 높이 전체를 한 장</b>으로 냅니다. 코너 접합부의 몰딩·휠라는
+  세로로 이어지는 <b>줄눈 부재</b>라, 나누면 중간에 이음매가 드러납니다.</p>
+
+  <h3>플래너도 이미 그렇게 하고 있다</h3>
+  <p>키큰장 배치 공간에 라인 마감재를 붙이면 <b>마감재 모듈이 하나</b> 생기고, 세 단이
+  <b>함께</b> 폭을 내놓습니다 (W12-22). 실측으로 확인한 값입니다:</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>라인 마감</th><th class="num">마감재 모듈</th><th class="num">높이</th><th>세 단 폭</th></tr></thead>
+    <tbody>
+      <tr><td>몰딩 60</td><td class="num">1개</td><td class="num">2300</td><td><code>2940 / 2940 / 2940</code></td></tr>
+      <tr><td>비움 180</td><td class="num">1개</td><td class="num">2300</td><td><code>2820 / 2820 / 2820</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>멍판 마감재만 셋으로 쪼개면 <b>같은 코너에서 라인 마감은 한 장인데 멍판 마감은 세 장</b>이
+  되어 서로 어긋납니다. 한 장으로 맞추는 것이 맞습니다.</p>
+
+  <h3>그러면 부재는 이렇게 나온다</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>부재</th><th class="num">수량</th><th class="num">치수</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td><b>멍판 마감재</b> (몰딩/휠라 18T)</td><td class="num">1</td>
+          <td class="num">100 × 2300</td><td>줄눈 부재 — 이으면 이음매가 보인다. 라인 마감재와 같은 기준</td></tr>
+      <tr><td>경첩목대 (PB 15T)</td><td class="num">3</td>
+          <td class="num">70 × 801 · 979 · 400</td><td>단마다 도어가 따로 달리니 경첩 자리도 따로다</td></tr>
+      <tr><td>도어 (MDF 18T)</td><td class="num">3</td>
+          <td class="num">381 × 단별</td><td>층으로 나누는 것이 애초에 단을 쪼갠 이유다</td></tr>
+      <tr><td>멍가림판 (MDF 2.7T)</td><td class="num"><span class="badge warn">1 또는 3</span></td>
+          <td class="num">765 × 2180 &nbsp;또는&nbsp; 단별</td><td>§08 Q4 — 판단 필요</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout decide">
+    <h4>높이 기준 — 2300 이냐 2180 이냐</h4>
+    <p>키큰장 단 높이 합은 <b>2300</b>(좌대 60 + 카카스 2180 + 상몰딩 60)입니다.</p>
+    <p>플래너의 <b>라인 마감재는 지금 2300</b> 을 씁니다. 레거시는 <code>totalH − legH</code> 로
+    <b>다리발만</b> 뺍니다 — 키큰장에서 다리발에 해당하는 것이 좌대이므로 그 기준이면 2240 입니다.</p>
+    <p>셋 중 무엇이든 <b>라인 마감재와 같은 값</b>이어야 합니다. 지금 값(2300)을 그대로 쓰는 것이
+    가장 안전하고, 좌대를 빼야 한다면 그건 <b>라인 마감재까지 같이 고치는 별개 사안</b>입니다.</p>
+  </div>
+
+  <div class="callout keep">
+    <h4>모델에 미치는 영향은 작습니다</h4>
+    <p>멍장 셋은 각각 <code>m.blind.finish</code> 를 그대로 갖습니다 — <b>그려질 때는</b> 단마다
+    자기 몫의 띠를 그리므로 화면에서는 이미 한 줄로 이어져 보입니다(§04 그림).
+    바뀌는 곳은 <b>BOM 산출 한 곳</b>뿐입니다: 스택이면 마감재를 단마다 내지 않고
+    <b>한 번만, 합산 높이로</b> 냅니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">06</span>구현 단계</h2>
   <p class="sub">A 안 기준. 새 공식은 없고, 있는 조각을 스택 경로에 이어 붙이는 일입니다.</p>
 
   <ol class="steps">
@@ -347,9 +412,10 @@
       멍장을 만듭니다. 셋 다 같은 <code>W · x · blind</code>, 다른 <code>H · baseY · part</code>.
       id 는 <code>corner-blind-{areaId}--{adjId}#{단}</code>.</li>
 
-    <li><b class="h">멍판 마감재는 그대로 붙는다</b>
-      <code>blindFinishFor</code> 는 영역만 보므로 스택에서도 같이 돕니다.
-      셀도 <code>[멍][마감][도어]</code> 세 칸 그대로입니다. <b>손댈 것이 없습니다.</b></li>
+    <li><b class="h">멍판 마감재는 <u>한 장</u>으로 낸다</b>
+      <code>blindFinishFor</code> 는 영역만 보므로 종류 판정은 스택에서도 그대로 돕니다.
+      셀도 <code>[멍][마감][도어]</code> 세 칸 그대로라 화면은 손댈 것이 없습니다.
+      <b>BOM 만 바꿉니다</b> — 스택이면 단마다 내지 않고 한 번, 합산 높이로 (§05).</li>
 
     <li><b class="h">원장을 스택에도 적용한다</b>
       <code>cornerLedger</code> 의 <code>Σ(모듈 W)</code> 는 단이 셋이면 세 번 더해집니다 —
@@ -370,7 +436,7 @@
 </section>
 
 <section>
-  <h2><span class="no">06</span>미리 짚어 둘 위험</h2>
+  <h2><span class="no">07</span>미리 짚어 둘 위험</h2>
 
   <div class="tbl-wrap">
   <table>
@@ -398,7 +464,7 @@
 </section>
 
 <section>
-  <h2><span class="no">07</span>결정해 주실 것</h2>
+  <h2><span class="no">08</span>결정해 주실 것</h2>
 
   <div class="q">
     <p class="qh"><span class="n">Q1</span>A(하부 기준 단일 멍) 로 갈까요?</p>
@@ -416,7 +482,16 @@
     <p class="rec">제안 — <b>키큰장만</b>. 냉장고장은 계속 제외합니다.</p>
   </div>
   <div class="q">
-    <p class="qh"><span class="n">Q4</span>실제로 키큰장을 코너에 놓으십니까?</p>
+    <p class="qh"><span class="n">Q4</span>멍가림판도 한 장입니까, 단마다 셋입니까?</p>
+    <p>마감재는 한 장이 확실합니다(§05). 멍가림판 2.7T 는 <b>줄눈 부재가 아니라 카카스에
+    붙는 가림판</b>이라 결이 다릅니다 — 단이 세 상자면 셋이 자연스럽고, 조립 뒤 한 장을
+    덮는 것도 가능합니다.</p>
+    <p class="rec">제안 — <b>단마다 셋</b> (765 × 801 · 979 · 400). 카카스마다 따로 만들어
+    붙이는 것이 지금 하부·상부 멍장과 같은 방식입니다. 한 장(765 × 2180)을 원하시면
+    그렇게 냅니다.</p>
+  </div>
+  <div class="q">
+    <p class="qh"><span class="n">Q5</span>실제로 키큰장을 코너에 놓으십니까?</p>
     <p>보통은 코너에 멍장(하부)을 두고 키큰장은 그 옆에 세웁니다. 이 작업의 우선순위를
     가늠하려는 질문입니다 — <b>드물게 쓰신다면</b> 별건(코너 끝 마감재) 을 먼저 고치는 편이
     이득이 클 수 있습니다.</p>
@@ -424,10 +499,11 @@
 </section>
 
 <section>
-  <h2><span class="no">08</span>이 계획이 안 건드리는 것</h2>
+  <h2><span class="no">09</span>이 계획이 안 건드리는 것</h2>
   <ul>
     <li><b>멍 공식</b> — <code>인접 D − 10 + 60 + 15</code> 그대로. 키큰장용 공식을 새로 만들지 않습니다.</li>
-    <li><b>멍판 마감재</b> — 자리 60 · 재단 100 · 라인 연동 규칙 전부 그대로 (W12-61/62).</li>
+    <li><b>멍판 마감재 규칙</b> — 자리 60 · 재단 100 · 라인 연동 전부 그대로 (W12-61/62).
+      바뀌는 것은 <b>스택에서 몇 장을 내느냐</b> 뿐이고, 하부·상부는 원래 한 단이라 영향이 없습니다.</li>
     <li><b>하부장 · 상부장 코너</b> — 스택이 아니므로 경로가 갈립니다. 한 줄도 안 바뀝니다.</li>
     <li><b>냉장고장</b> — 계속 코너 제외.</li>
     <li><b>W12-22 스택 규칙</b> — 단들이 같은 x·W 를 쓰고 함께 폭을 내놓는 것. 그대로 지킵니다.</li>
