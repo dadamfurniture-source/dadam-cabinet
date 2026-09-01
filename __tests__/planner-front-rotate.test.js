@@ -237,7 +237,10 @@ describe('멍은 어느 거울 배치에서도 코너 쪽에 온다', () => {
     for (let i = 0; i < ((((own.rotation || 0) % 360) + 360) % 360) / 90; i++) p.g('rotateView')(90);
     const A = rectOf(p, own), R = rectOf(p, blind);
     const cornerOnLeft = Math.round(R.x - A.x) === 50;
-    const blindOnLeft = p.g('structures')[blind.id].areaTypes.indexOf('blank') === 0;
+    // 셀 이름('blank'/'blind')에 기대지 않는다 — 가려진 칸은 "도어가 아닌 칸" 이다.
+    //   이름은 바뀔 수 있지만(W12-58) 규칙은 그대로다.
+    const types = p.g('structures')[blind.id].areaTypes;
+    const blindOnLeft = types.findIndex((t) => t !== 'door') === 0;
     return { cornerOnLeft, blindOnLeft };
   }
 
