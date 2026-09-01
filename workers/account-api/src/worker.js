@@ -47,6 +47,10 @@ async function verifyJwt(request, env) {
  * (database/account-deletion.sql).
  */
 async function handleDelete(request, env) {
+  // 인증을 먼저 본다. 설정 여부를 인증 앞에 두면 비로그인 요청이 401 대신
+  // 503 을 받아, 로그인하지 않은 사람에게 서버 설정 상태를 알려주게 된다.
+  const user = await verifyJwt(request, env);
+
   // 키가 없으면 조용히 실패하는 대신 분명히 알린다.
   // (wrangler secret put SUPABASE_SERVICE_ROLE_KEY 로 등록)
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -57,8 +61,6 @@ async function handleDelete(request, env) {
       503
     );
   }
-
-  const user = await verifyJwt(request, env);
 
   // 흔적을 먼저 남긴다. 계정을 지운 뒤에는 누가 지웠는지 쓸 수 없다.
   // 실패해도 탈퇴 자체는 막지 않는다 — 로그 때문에 탈퇴가 안 되면 안 된다.
