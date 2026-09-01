@@ -10,11 +10,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Pretendard:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
       rel="stylesheet"
     />
     <link rel="preload" as="image" href="app/portfolio/kitchen-n1-1.jpg" />
-    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
     <script defer src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
@@ -127,7 +128,9 @@
        ═══════════════════════════════════════════════════════════════ */
       .hero {
         position: relative;
-        height: 100vh;
+        /* 셸 헤더는 sticky 라 위쪽을 실제로 차지한다.
+           100vh 로 두면 첫 화면이 헤더 높이만큼 넘친다. */
+        height: calc(100vh - var(--v5-header, 88px));
         min-height: 600px;
         overflow: hidden;
       }
@@ -565,13 +568,21 @@
       }
 
       @keyframes marqueeLeft {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-50%); }
+        0% {
+          transform: translateX(0);
+        }
+        100% {
+          transform: translateX(-50%);
+        }
       }
 
       @keyframes marqueeRight {
-        0% { transform: translateX(-50%); }
-        100% { transform: translateX(0); }
+        0% {
+          transform: translateX(-50%);
+        }
+        100% {
+          transform: translateX(0);
+        }
       }
 
       .marquee-item {
@@ -679,123 +690,6 @@
       /* ═══════════════════════════════════════════════════════════════
        FOOTER
        ═══════════════════════════════════════════════════════════════ */
-      .footer {
-        padding: 80px 48px;
-        background: var(--charcoal);
-        color: #fff;
-      }
-
-      .footer-grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr;
-        gap: 48px;
-        max-width: 1400px;
-        margin: 0 auto;
-      }
-
-      .footer-brand {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 24px;
-      }
-
-      .footer-brand svg {
-        width: 32px;
-        height: 32px;
-      }
-
-      .footer-brand span {
-        font-family: 'Playfair Display', serif;
-        font-size: 24px;
-      }
-
-      .footer-desc {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 14px;
-        line-height: 1.8;
-        max-width: 400px;
-        margin-bottom: 32px;
-      }
-
-      .footer-contact {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-      }
-
-      .footer-contact-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 14px;
-      }
-
-      .footer-contact-item svg {
-        width: 16px;
-        height: 16px;
-        color: var(--gold);
-        flex-shrink: 0;
-      }
-
-      .footer h4 {
-        font-size: 12px;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.4);
-        margin-bottom: 24px;
-        font-family: inherit;
-        font-weight: 400;
-      }
-
-      .footer-links {
-        list-style: none;
-      }
-
-      .footer-links li {
-        margin-bottom: 12px;
-      }
-
-      .footer-links a {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 14px;
-        transition: color 0.3s;
-      }
-
-      .footer-links a:hover {
-        color: #fff;
-      }
-
-      .footer-bottom {
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        margin-top: 48px;
-        padding-top: 24px;
-        display: flex;
-        justify-content: space-between;
-        color: rgba(255, 255, 255, 0.4);
-        font-size: 12px;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      .footer-box {
-        margin-top: 32px;
-        padding: 16px;
-        border: 1px solid rgba(184, 149, 108, 0.3);
-      }
-
-      .footer-box p:first-child {
-        color: var(--gold);
-        font-size: 14px;
-        font-weight: 500;
-      }
-
-      .footer-box p:last-child {
-        color: rgba(255, 255, 255, 0.4);
-        font-size: 12px;
-        margin-top: 4px;
-      }
 
       /* ═══════════════════════════════════════════════════════════════
        RESPONSIVE - TABLET (1024px)
@@ -835,10 +729,6 @@
         .cta h2 {
           font-size: 40px;
         }
-
-        .footer {
-          padding: 64px 32px;
-        }
       }
 
       /* ═══════════════════════════════════════════════════════════════
@@ -848,7 +738,7 @@
         /* nav responsive → css/nav.css */
 
         .hero {
-          min-height: 100vh;
+          min-height: calc(100vh - var(--v5-header, 72px));
         }
 
         .hero-content {
@@ -1042,59 +932,6 @@
           justify-content: center;
           padding: 14px 32px;
         }
-
-        .footer {
-          padding: 48px 16px;
-        }
-
-        .footer-grid {
-          grid-template-columns: 1fr;
-          gap: 40px;
-        }
-
-        .footer-brand svg {
-          width: 28px;
-          height: 28px;
-        }
-
-        .footer-brand span {
-          font-size: 20px;
-        }
-
-        .footer-desc {
-          font-size: 13px;
-          margin-bottom: 24px;
-        }
-
-        .footer-contact {
-          grid-template-columns: 1fr;
-          gap: 12px;
-        }
-
-        .footer-contact-item {
-          font-size: 13px;
-        }
-
-        .footer h4 {
-          margin-bottom: 16px;
-        }
-
-        .footer-links a {
-          font-size: 13px;
-        }
-
-        .footer-bottom {
-          flex-direction: column;
-          text-align: center;
-          gap: 4px;
-          margin-top: 32px;
-          padding-top: 20px;
-        }
-
-        .footer-box {
-          margin-top: 24px;
-          padding: 14px;
-        }
       }
 
       /* ═══════════════════════════════════════════════════════════════
@@ -1209,27 +1046,6 @@
           padding: 12px 24px;
           font-size: 12px;
         }
-
-        .footer {
-          padding: 40px 12px;
-        }
-
-        .footer-desc {
-          font-size: 12px;
-        }
-
-        .footer-contact-item {
-          font-size: 12px;
-          gap: 8px;
-        }
-
-        .footer-links a {
-          font-size: 12px;
-        }
-
-        .footer-bottom {
-          font-size: 10px;
-        }
       }
 
       /* ═══════════════════════════════════════════════════════════════
@@ -1237,7 +1053,7 @@
        ═══════════════════════════════════════════════════════════════ */
       @media (max-height: 500px) and (orientation: landscape) {
         .hero {
-          min-height: 100vh;
+          min-height: calc(100vh - var(--v5-header, 72px));
         }
 
         .hero-content {
@@ -1322,10 +1138,6 @@
           padding-right: max(16px, env(safe-area-inset-right));
         }
 
-        .footer {
-          padding-bottom: max(48px, env(safe-area-inset-bottom));
-        }
-
         .mobile-menu {
           padding-left: max(24px, env(safe-area-inset-left));
           padding-right: max(24px, env(safe-area-inset-right));
@@ -1385,135 +1197,20 @@
       </symbol>
     </svg>
 
-    <!-- Navigation -->
-    <nav class="nav" id="nav">
-      <a href="#" class="nav-logo">
-        <svg fill="currentColor">
-          <use href="#icon-logo" />
-        </svg>
-        <span>다담</span>
-      </a>
-      <div class="nav-menu">
-        <a href="#" data-i18n="nav.about">About us</a>
-        <a href="#" data-i18n="nav.collection">Collection</a>
-        <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
-        <a href="detaildesign.html" id="navDetailDesign" style="display:none" data-i18n="nav.detail_design">Detail Design</a>
-        <!-- AI 상담 (chat.html) 섹션은 MVP 배포에서 숨김 처리 -->
-        <a href="chat.html" data-i18n="nav.ai_chat" style="display:none !important">AI 상담</a>
-        <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
-        <a href="material.html" data-i18n="nav.material">자재</a>
-        <a href="/pricing" data-i18n="nav.pricing">구독 플랜</a>
-      </div>
-      <div class="nav-icons">
-        <!-- 비로그인 상태 -->
-        <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-        <!-- 로그인 상태 -->
-        <div class="user-menu" id="userMenu" style="display: none">
-          <button class="user-btn">
-            <div class="user-avatar" id="userAvatar">?</div>
-            <span class="user-name" id="userName">사용자</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <div class="user-dropdown">
-            <a href="mypage.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" /></svg
-              >마이페이지</a
-            >
-            <a href="ai-design.html" id="aiDesignLink"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" /></svg
-              >AI 설계</a
-            >
-            <a href="detaildesign.html"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" /></svg
-              >상세 설계</a
-            >
-            <a href="/account/billing"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="6" width="20" height="12" rx="2" />
-                <line x1="2" y1="10" x2="22" y2="10" /></svg
-              >구독 관리</a
-            >
-            <a href="admin/index.html" id="navAdminLink" style="display:none"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="12 2 15 9 22 9 16.5 13.5 18 21 12 17 6 21 7.5 13.5 2 9 9 9 12 2" /></svg
-              >관리자 페이지</a
-            >
-            <button onclick="logout()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" /></svg
-              >로그아웃
-            </button>
-          </div>
-        </div>
-        <button
-          id="lang-toggle"
-          style="font-family: inherit; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 4px"
-        >
-          KO
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-            <use href="#icon-chevron-down" />
-          </svg>
-        </button>
-        <button aria-label="검색">
-          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <use href="#icon-search" />
-          </svg>
-        </button>
-        <button class="hamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-      </div>
-    </nav>
-
-    <!-- Mobile Menu -->
-    <div class="mobile-menu" id="mobileMenu">
-      <a href="index.html" class="active" data-i18n="nav.home">홈</a>
-      <a href="collection.html" data-i18n="nav.collection">Collection</a>
-      <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
-      <a href="detaildesign.html" id="mobileDetailDesign" style="display:none">Detail Design</a>
-      <!-- AI 상담 (chat.html) 섹션은 MVP 배포에서 숨김 처리 -->
-      <a href="chat.html" style="display:none !important">AI 상담</a>
-      <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
-      <a href="material.html" data-i18n="nav.material">자재</a>
-      <a href="admin/index.html" id="mobileAdminLink" style="display:none">관리자 페이지</a>
-      <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
-      <a
-        href="mypage.html"
-        id="mobileMypage"
-        style="display: none; background: var(--gold); color: #fff; text-align: center; margin-top: 16px"
-        >마이페이지</a
-      >
-      <a
-        href="#"
-        id="mobileLogout"
-        onclick="
-          logout();
-          return false;
-        "
-        style="display: none; text-align: center; color: var(--gray)"
-        >로그아웃</a
-      >
-    </div>
+    <!-- 헤더 — js/site-shell.js 가 주입한다.
+         내비·푸터 정본은 그 파일 한 곳에만 있다 (예전엔 네 파일에 복제돼 어긋나 있었다). -->
+    <div data-site-shell="header" data-nav=""></div>
 
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-slide active">
-        <img src="app/portfolio/kitchen-n1-1.jpg" alt="다담 프리미엄 주방" fetchpriority="high" width="1220" height="508" />
+        <img
+          src="app/portfolio/kitchen-n1-1.jpg"
+          alt="다담 프리미엄 주방"
+          fetchpriority="high"
+          width="1220"
+          height="508"
+        />
         <div class="hero-overlay"></div>
       </div>
       <div class="hero-slide">
@@ -1568,20 +1265,56 @@
         <span class="marquee-category">인테리어 협력업체</span>
         <div class="marquee-track marquee-left">
           <div class="marquee-content">
-            <div class="marquee-item"><span class="mi-type">아파트 리모델링</span><strong>리빙하우스</strong><span class="mi-dot"></span>수도권 아파트 전문 리모델링</div>
-            <div class="marquee-item"><span class="mi-type">주거 인테리어</span><strong>공간제작소</strong><span class="mi-dot"></span>주거공간 토탈 디자인 시공</div>
-            <div class="marquee-item"><span class="mi-type">올인원 시공</span><strong>집꾸미기 공사</strong><span class="mi-dot"></span>설계 · 시공 · 감리 원스톱</div>
-            <div class="marquee-item"><span class="mi-type">모던 인테리어</span><strong>어반스튜디오</strong><span class="mi-dot"></span>미니멀 모던 주거 전문</div>
-            <div class="marquee-item"><span class="mi-type">빌라 전문</span><strong>홈앤리빙</strong><span class="mi-dot"></span>빌라 · 다세대 맞춤 리모델링</div>
-            <div class="marquee-item"><span class="mi-type">상업 인테리어</span><strong>플레이스웍스</strong><span class="mi-dot"></span>카페 · 사무실 공간 디자인</div>
+            <div class="marquee-item">
+              <span class="mi-type">아파트 리모델링</span><strong>리빙하우스</strong><span class="mi-dot"></span>수도권
+              아파트 전문 리모델링
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">주거 인테리어</span><strong>공간제작소</strong><span class="mi-dot"></span>주거공간
+              토탈 디자인 시공
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">올인원 시공</span><strong>집꾸미기 공사</strong><span class="mi-dot"></span>설계 ·
+              시공 · 감리 원스톱
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">모던 인테리어</span><strong>어반스튜디오</strong><span class="mi-dot"></span>미니멀
+              모던 주거 전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">빌라 전문</span><strong>홈앤리빙</strong><span class="mi-dot"></span>빌라 · 다세대
+              맞춤 리모델링
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">상업 인테리어</span><strong>플레이스웍스</strong><span class="mi-dot"></span>카페 ·
+              사무실 공간 디자인
+            </div>
           </div>
           <div class="marquee-content" aria-hidden="true">
-            <div class="marquee-item"><span class="mi-type">아파트 리모델링</span><strong>리빙하우스</strong><span class="mi-dot"></span>수도권 아파트 전문 리모델링</div>
-            <div class="marquee-item"><span class="mi-type">주거 인테리어</span><strong>공간제작소</strong><span class="mi-dot"></span>주거공간 토탈 디자인 시공</div>
-            <div class="marquee-item"><span class="mi-type">올인원 시공</span><strong>집꾸미기 공사</strong><span class="mi-dot"></span>설계 · 시공 · 감리 원스톱</div>
-            <div class="marquee-item"><span class="mi-type">모던 인테리어</span><strong>어반스튜디오</strong><span class="mi-dot"></span>미니멀 모던 주거 전문</div>
-            <div class="marquee-item"><span class="mi-type">빌라 전문</span><strong>홈앤리빙</strong><span class="mi-dot"></span>빌라 · 다세대 맞춤 리모델링</div>
-            <div class="marquee-item"><span class="mi-type">상업 인테리어</span><strong>플레이스웍스</strong><span class="mi-dot"></span>카페 · 사무실 공간 디자인</div>
+            <div class="marquee-item">
+              <span class="mi-type">아파트 리모델링</span><strong>리빙하우스</strong><span class="mi-dot"></span>수도권
+              아파트 전문 리모델링
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">주거 인테리어</span><strong>공간제작소</strong><span class="mi-dot"></span>주거공간
+              토탈 디자인 시공
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">올인원 시공</span><strong>집꾸미기 공사</strong><span class="mi-dot"></span>설계 ·
+              시공 · 감리 원스톱
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">모던 인테리어</span><strong>어반스튜디오</strong><span class="mi-dot"></span>미니멀
+              모던 주거 전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">빌라 전문</span><strong>홈앤리빙</strong><span class="mi-dot"></span>빌라 · 다세대
+              맞춤 리모델링
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">상업 인테리어</span><strong>플레이스웍스</strong><span class="mi-dot"></span>카페 ·
+              사무실 공간 디자인
+            </div>
           </div>
         </div>
       </div>
@@ -1591,20 +1324,56 @@
         <span class="marquee-category">자재 협력업체</span>
         <div class="marquee-track marquee-right">
           <div class="marquee-content">
-            <div class="marquee-item"><span class="mi-type">표면 마감</span><strong>마감재하우스</strong><span class="mi-dot"></span>하이그로시 · 멜라민 시트지</div>
-            <div class="marquee-item"><span class="mi-type">하드웨어</span><strong>힌지마스터</strong><span class="mi-dot"></span>프리미엄 경첩 · 서랍 레일</div>
-            <div class="marquee-item"><span class="mi-type">조명</span><strong>라이트온</strong><span class="mi-dot"></span>LED 매입등 · 간접 조명</div>
-            <div class="marquee-item"><span class="mi-type">석재</span><strong>스톤베이스</strong><span class="mi-dot"></span>천연석 · 엔지니어드스톤 상판</div>
-            <div class="marquee-item"><span class="mi-type">도어</span><strong>도어앤판넬</strong><span class="mi-dot"></span>도어 · 패널 시스템 전문</div>
-            <div class="marquee-item"><span class="mi-type">엣지</span><strong>엣지텍</strong><span class="mi-dot"></span>PVC · ABS 엣지밴딩 자재</div>
+            <div class="marquee-item">
+              <span class="mi-type">표면 마감</span><strong>마감재하우스</strong><span class="mi-dot"></span>하이그로시
+              · 멜라민 시트지
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">하드웨어</span><strong>힌지마스터</strong><span class="mi-dot"></span>프리미엄 경첩
+              · 서랍 레일
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">조명</span><strong>라이트온</strong><span class="mi-dot"></span>LED 매입등 · 간접
+              조명
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">석재</span><strong>스톤베이스</strong><span class="mi-dot"></span>천연석 ·
+              엔지니어드스톤 상판
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">도어</span><strong>도어앤판넬</strong><span class="mi-dot"></span>도어 · 패널 시스템
+              전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">엣지</span><strong>엣지텍</strong><span class="mi-dot"></span>PVC · ABS 엣지밴딩
+              자재
+            </div>
           </div>
           <div class="marquee-content" aria-hidden="true">
-            <div class="marquee-item"><span class="mi-type">표면 마감</span><strong>마감재하우스</strong><span class="mi-dot"></span>하이그로시 · 멜라민 시트지</div>
-            <div class="marquee-item"><span class="mi-type">하드웨어</span><strong>힌지마스터</strong><span class="mi-dot"></span>프리미엄 경첩 · 서랍 레일</div>
-            <div class="marquee-item"><span class="mi-type">조명</span><strong>라이트온</strong><span class="mi-dot"></span>LED 매입등 · 간접 조명</div>
-            <div class="marquee-item"><span class="mi-type">석재</span><strong>스톤베이스</strong><span class="mi-dot"></span>천연석 · 엔지니어드스톤 상판</div>
-            <div class="marquee-item"><span class="mi-type">도어</span><strong>도어앤판넬</strong><span class="mi-dot"></span>도어 · 패널 시스템 전문</div>
-            <div class="marquee-item"><span class="mi-type">엣지</span><strong>엣지텍</strong><span class="mi-dot"></span>PVC · ABS 엣지밴딩 자재</div>
+            <div class="marquee-item">
+              <span class="mi-type">표면 마감</span><strong>마감재하우스</strong><span class="mi-dot"></span>하이그로시
+              · 멜라민 시트지
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">하드웨어</span><strong>힌지마스터</strong><span class="mi-dot"></span>프리미엄 경첩
+              · 서랍 레일
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">조명</span><strong>라이트온</strong><span class="mi-dot"></span>LED 매입등 · 간접
+              조명
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">석재</span><strong>스톤베이스</strong><span class="mi-dot"></span>천연석 ·
+              엔지니어드스톤 상판
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">도어</span><strong>도어앤판넬</strong><span class="mi-dot"></span>도어 · 패널 시스템
+              전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">엣지</span><strong>엣지텍</strong><span class="mi-dot"></span>PVC · ABS 엣지밴딩
+              자재
+            </div>
           </div>
         </div>
       </div>
@@ -1614,20 +1383,54 @@
         <span class="marquee-category">제조공장</span>
         <div class="marquee-track marquee-left">
           <div class="marquee-content">
-            <div class="marquee-item"><span class="mi-type">보드</span><strong>우드보드</strong><span class="mi-dot"></span>PB · MDF 원자재 생산</div>
-            <div class="marquee-item"><span class="mi-type">CNC 가공</span><strong>정밀재단</strong><span class="mi-dot"></span>CNC 재단 · 엣지밴딩 전문</div>
-            <div class="marquee-item"><span class="mi-type">도장</span><strong>컬러팩토리</strong><span class="mi-dot"></span>UV · 폴리 도장 전문</div>
-            <div class="marquee-item"><span class="mi-type">유리</span><strong>클리어글라스</strong><span class="mi-dot"></span>강화유리 · 패턴유리 가공</div>
-            <div class="marquee-item"><span class="mi-type">금속</span><strong>메탈크래프트</strong><span class="mi-dot"></span>스테인리스 · 철제 프레임</div>
-            <div class="marquee-item"><span class="mi-type">포장</span><strong>안심포장</strong><span class="mi-dot"></span>맞춤 포장 · 물류 배송</div>
+            <div class="marquee-item">
+              <span class="mi-type">보드</span><strong>우드보드</strong><span class="mi-dot"></span>PB · MDF 원자재 생산
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">CNC 가공</span><strong>정밀재단</strong><span class="mi-dot"></span>CNC 재단 ·
+              엣지밴딩 전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">도장</span><strong>컬러팩토리</strong><span class="mi-dot"></span>UV · 폴리 도장
+              전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">유리</span><strong>클리어글라스</strong><span class="mi-dot"></span>강화유리 ·
+              패턴유리 가공
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">금속</span><strong>메탈크래프트</strong><span class="mi-dot"></span>스테인리스 ·
+              철제 프레임
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">포장</span><strong>안심포장</strong><span class="mi-dot"></span>맞춤 포장 · 물류
+              배송
+            </div>
           </div>
           <div class="marquee-content" aria-hidden="true">
-            <div class="marquee-item"><span class="mi-type">보드</span><strong>우드보드</strong><span class="mi-dot"></span>PB · MDF 원자재 생산</div>
-            <div class="marquee-item"><span class="mi-type">CNC 가공</span><strong>정밀재단</strong><span class="mi-dot"></span>CNC 재단 · 엣지밴딩 전문</div>
-            <div class="marquee-item"><span class="mi-type">도장</span><strong>컬러팩토리</strong><span class="mi-dot"></span>UV · 폴리 도장 전문</div>
-            <div class="marquee-item"><span class="mi-type">유리</span><strong>클리어글라스</strong><span class="mi-dot"></span>강화유리 · 패턴유리 가공</div>
-            <div class="marquee-item"><span class="mi-type">금속</span><strong>메탈크래프트</strong><span class="mi-dot"></span>스테인리스 · 철제 프레임</div>
-            <div class="marquee-item"><span class="mi-type">포장</span><strong>안심포장</strong><span class="mi-dot"></span>맞춤 포장 · 물류 배송</div>
+            <div class="marquee-item">
+              <span class="mi-type">보드</span><strong>우드보드</strong><span class="mi-dot"></span>PB · MDF 원자재 생산
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">CNC 가공</span><strong>정밀재단</strong><span class="mi-dot"></span>CNC 재단 ·
+              엣지밴딩 전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">도장</span><strong>컬러팩토리</strong><span class="mi-dot"></span>UV · 폴리 도장
+              전문
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">유리</span><strong>클리어글라스</strong><span class="mi-dot"></span>강화유리 ·
+              패턴유리 가공
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">금속</span><strong>메탈크래프트</strong><span class="mi-dot"></span>스테인리스 ·
+              철제 프레임
+            </div>
+            <div class="marquee-item">
+              <span class="mi-type">포장</span><strong>안심포장</strong><span class="mi-dot"></span>맞춤 포장 · 물류
+              배송
+            </div>
           </div>
         </div>
       </div>
@@ -1688,14 +1491,30 @@
         <a href="#" data-i18n="instagram.follow">팔로우하기 →</a>
       </div>
       <div class="instagram-grid">
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 1"><img src="app/portfolio/kitchen-n1-3.jpg" alt="다담 주방 인테리어" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 2"><img src="app/portfolio/kitchen-n1-4.jpg" alt="다담 주방 인테리어" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 3"><img src="app/portfolio/kitchen-n6-2.jpg" alt="다담 수납장" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 4"><img src="app/portfolio/kitchen-n6-3.jpg" alt="다담 수납장" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 5"><img src="app/portfolio/kitchen-n7-3.jpg" alt="다담 인테리어" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 6"><img src="app/portfolio/kitchen-n7-4.jpg" alt="다담 인테리어" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 7"><img src="app/portfolio/kitchen-n3-3.jpg" alt="다담 붙박이장" loading="lazy" /></a>
-        <a href="#" class="instagram-item" aria-label="인스타그램 사진 8"><img src="app/portfolio/kitchen-n4-1.jpg" alt="다담 프리미엄 가구" loading="lazy" /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 1"
+          ><img src="app/portfolio/kitchen-n1-3.jpg" alt="다담 주방 인테리어" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 2"
+          ><img src="app/portfolio/kitchen-n1-4.jpg" alt="다담 주방 인테리어" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 3"
+          ><img src="app/portfolio/kitchen-n6-2.jpg" alt="다담 수납장" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 4"
+          ><img src="app/portfolio/kitchen-n6-3.jpg" alt="다담 수납장" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 5"
+          ><img src="app/portfolio/kitchen-n7-3.jpg" alt="다담 인테리어" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 6"
+          ><img src="app/portfolio/kitchen-n7-4.jpg" alt="다담 인테리어" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 7"
+          ><img src="app/portfolio/kitchen-n3-3.jpg" alt="다담 붙박이장" loading="lazy"
+        /></a>
+        <a href="#" class="instagram-item" aria-label="인스타그램 사진 8"
+          ><img src="app/portfolio/kitchen-n4-1.jpg" alt="다담 프리미엄 가구" loading="lazy"
+        /></a>
       </div>
     </section>
 
@@ -1710,97 +1529,12 @@
     </section>
 
     <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-grid">
-        <div>
-          <div class="footer-brand">
-            <svg fill="currentColor">
-              <use href="#icon-logo" /></svg
-            ><span>다담</span>
-          </div>
-          <p class="footer-desc">
-            AI 기술과 30년 장인정신이 만나 탄생하는 프리미엄 맞춤 가구. 최고급 자재와 정교한 시공으로 완벽한 공간을
-            만들어 드립니다.
-          </p>
-          <div class="footer-contact">
-            <div class="footer-contact-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2">
-                <use href="#icon-phone" /></svg
-              >02-1234-5678
-            </div>
-            <div class="footer-contact-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2">
-                <use href="#icon-mail" /></svg
-              >info@dadam.com
-            </div>
-            <div class="footer-contact-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2">
-                <use href="#icon-location" /></svg
-              >서울시 강남구 논현동 123-45
-            </div>
-            <div class="footer-contact-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2">
-                <use href="#icon-clock" /></svg
-              >평일 09:00 - 18:00
-            </div>
-          </div>
-        </div>
-        <div>
-          <h4 data-i18n="footer.menu">Menu</h4>
-          <ul class="footer-links">
-            <li><a href="#" data-i18n="nav.about">About us</a></li>
-            <li><a href="#" data-i18n="nav.collection">Collection</a></li>
-            <li><a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a></li>
-            <li><a href="#" data-i18n="nav.stories">Stories</a></li>
-            <li><a href="material.html" data-i18n="nav.material">자재</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 data-i18n="footer.support">Support</h4>
-          <ul class="footer-links">
-            <li><a href="#" data-i18n="footer.faq">자주 묻는 질문</a></li>
-            <li><a href="#" data-i18n="footer.terms">이용 약관</a></li>
-            <li><a href="#" data-i18n="footer.privacy">개인정보처리방침</a></li>
-          </ul>
-          <div class="footer-box">
-            <p data-i18n="footer.as_title">평생 A/S 보장</p>
-            <p data-i18n="footer.as_desc">다담과 함께하는 최상의 사후관리</p>
-          </div>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <p>© 2024 다담가구. All rights reserved.</p>
-        <p>사업자등록번호: 123-45-67890 | 대표: 홍길동</p>
-      </div>
-    </footer>
+    <div data-site-shell="footer"></div>
 
     <script>
       // ═══════════════════════════════════════════════════════════════
-      // 모바일 메뉴
-      // ═══════════════════════════════════════════════════════════════
-      function toggleMobileMenu() {
-        const hamburger = document.querySelector('.hamburger');
-        const mobileMenu = document.getElementById('mobileMenu');
-        const nav = document.getElementById('nav');
-
-        hamburger.classList.toggle('active');
-        mobileMenu.classList.toggle('active');
-
-        if (mobileMenu.classList.contains('active')) {
-          document.body.style.overflow = 'hidden';
-          nav.classList.add('scrolled');
-        } else {
-          document.body.style.overflow = '';
-          if (window.scrollY <= 50) {
-            nav.classList.remove('scrolled');
-          }
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════
       // 히어로 슬라이더
       // ═══════════════════════════════════════════════════════════════
-      const nav = document.getElementById('nav');
       const slides = document.querySelectorAll('.hero-slide');
       const dots = document.querySelectorAll('.hero-dot');
       const counter = document.getElementById('currentSlide');
@@ -1817,20 +1551,6 @@
         clearInterval(interval);
         interval = setInterval(() => go(cur + 1), 6000);
       };
-
-      // 스크롤 이벤트
-      let scrollTicking = false;
-      window.addEventListener('scroll', () => {
-        if (!scrollTicking) {
-          requestAnimationFrame(() => {
-            if (!document.getElementById('mobileMenu').classList.contains('active')) {
-              nav.classList.toggle('scrolled', scrollY > 50);
-            }
-            scrollTicking = false;
-          });
-          scrollTicking = true;
-        }
-      }, { passive: true });
 
       // 슬라이더 버튼
       document.getElementById('nextBtn').addEventListener('click', () => go(cur + 1));
@@ -1875,83 +1595,10 @@
       // 자동 슬라이드 시작
       interval = setInterval(() => go(cur + 1), 6000);
 
-      // 뒤로가기 시 모바일 메뉴 닫기
-      window.addEventListener('popstate', () => {
-        const mobileMenu = document.getElementById('mobileMenu');
-        if (mobileMenu.classList.contains('active')) {
-          toggleMobileMenu();
-        }
-      });
-
-      // ═══════════════════════════════════════════════════════════════
-      // 로그인 상태 체크 및 UI 업데이트
-      // ═══════════════════════════════════════════════════════════════
-      let supabaseClient = null;
-
-      async function checkAuthState() {
-        try {
-          // config.js에서 설정 로드
-          if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
-            const { url, anonKey } = window.DADAM_CONFIG.supabase;
-            supabaseClient = window.supabase.createClient(url, anonKey);
-            const {
-              data: { session },
-            } = await supabaseClient.auth.getSession();
-
-            if (session) {
-              const user = session.user;
-              const meta = user.user_metadata || {};
-              const name = meta.name || meta.full_name || user.email.split('@')[0];
-              const tier = meta.tier || 'standard';
-
-              // 데스크톱 메뉴 업데이트
-              document.getElementById('loginLink').style.display = 'none';
-              document.getElementById('userMenu').style.display = 'block';
-              document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
-              document.getElementById('userName').textContent = name;
-
-              // AI 설계 링크 — 모든 등급 ai-design.html 사용
-              const aiDesignLink = document.getElementById('aiDesignLink');
-              aiDesignLink.href = 'ai-design.html';
-
-              // Detail Design 링크는 '본사 승인' 받은 사용자에게만 노출 (MVP 배포 정책)
-              if (window.DetailDesignAccess) {
-                await window.DetailDesignAccess.updateNavVisibility(supabaseClient, user);
-              }
-              // 관리자 페이지 링크는 admin_roles 등록 사용자에게만 노출
-              if (window.AdminAccess) {
-                const isAdmin = await window.AdminAccess.isAdmin(supabaseClient);
-                window.AdminAccess.updateNavLinks(isAdmin);
-              }
-
-              // 모바일 메뉴 업데이트
-              document.getElementById('mobileLoginLink').style.display = 'none';
-              document.getElementById('mobileMypage').style.display = 'block';
-              document.getElementById('mobileLogout').style.display = 'block';
-
-              // 페이지 내 ai-design 링크를 detaildesign으로 변경하지 않음 (제거)
-              if (false) {
-                document.querySelectorAll('a[href="ai-design.html"]').forEach(link => {
-                  link.href = 'detaildesign.html';
-                });
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Auth check error:', e);
-        }
-      }
-
-      async function logout() {
-        if (supabaseClient) {
-          await supabaseClient.auth.signOut();
-          window.location.reload();
-        }
-      }
-
-      // 페이지 로드 시 실행
-      checkAuthState();
+      // 로그인 상태·로그아웃 처리는 js/site-shell.js 로 옮겼다.
+      // 헤더가 셸에서 만들어지므로, 여기서 또 다루면 두 곳이 어긋난다.
     </script>
+    <script src="js/site-shell.js" defer></script>
     <script type="module" src="js/i18n.js"></script>
   </body>
 </html>
