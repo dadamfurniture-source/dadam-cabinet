@@ -303,9 +303,18 @@
       }
 
       /* 상세설계 승인 상태 뱃지 */
-      .badge.dd-approved { background: #e8f5e9; color: #1b5e20; }
-      .badge.dd-pending  { background: #fff3e0; color: #e65100; }
-      .badge.dd-none     { background: #f5f5f5; color: #757575; }
+      .badge.dd-approved {
+        background: #e8f5e9;
+        color: #1b5e20;
+      }
+      .badge.dd-pending {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .badge.dd-none {
+        background: #f5f5f5;
+        color: #757575;
+      }
 
       .provider-badge {
         display: inline-flex;
@@ -614,7 +623,7 @@
               <option value="">전체</option>
               <option value="standard">Standard</option>
               <option value="expert">Expert</option>
-              <option value="business">Business</option>
+              <option value="agent">Agent</option>
             </select>
           </div>
           <div class="filter-group">
@@ -687,15 +696,18 @@
             <select id="modalTier">
               <option value="standard">Standard</option>
               <option value="expert">Expert</option>
-              <option value="business">Business</option>
+              <option value="agent">Agent</option>
             </select>
           </div>
-          <div class="form-group" style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
-              <input type="checkbox" id="modalDetailDesignApproved" style="width:auto;" />
+          <div
+            class="form-group"
+            style="background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 12px"
+          >
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600">
+              <input type="checkbox" id="modalDetailDesignApproved" style="width: auto" />
               <span>상세설계(CAD/BOM) 사용 승인</span>
             </label>
-            <div id="modalDDStatus" style="font-size:0.8rem;color:#666;margin-top:6px;"></div>
+            <div id="modalDDStatus" style="font-size: 0.8rem; color: #666; margin-top: 6px"></div>
           </div>
           <div class="form-group">
             <label>지역</label>
@@ -1019,10 +1031,7 @@
         }
 
         try {
-          const { error } = await supabaseClient
-            .from('profiles')
-            .update(payload)
-            .eq('id', selectedUserId);
+          const { error } = await supabaseClient.from('profiles').update(payload).eq('id', selectedUserId);
 
           if (error) throw error;
 
@@ -1040,7 +1049,12 @@
       // business 는 건드리지 않음 (별도 정책).
       async function toggleDetailDesignApproval(userId, approve) {
         const action = approve ? '승인' : '승인 해제';
-        if (!confirm(`이 사용자의 상세설계 사용을 ${action}하시겠습니까?\n(${approve ? 'standard → expert 로 자동 승급' : 'expert → standard 로 강등'})`)) return;
+        if (
+          !confirm(
+            `이 사용자의 상세설계 사용을 ${action}하시겠습니까?\n(${approve ? 'standard → expert 로 자동 승급' : 'expert → standard 로 강등'})`
+          )
+        )
+          return;
 
         const user = usersData.find((u) => u.id === userId);
         const currentTier = user?.tier || 'standard';

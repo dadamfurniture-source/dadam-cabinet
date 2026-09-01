@@ -9,7 +9,10 @@ CREATE TABLE IF NOT EXISTS profiles (
     email TEXT UNIQUE,
     name TEXT,
     phone TEXT,
-    tier TEXT DEFAULT 'standard' CHECK (tier IN ('standard', 'expert', 'business')),
+    tier TEXT DEFAULT 'standard' CHECK (tier IN ('standard', 'expert', 'agent')),
+    -- 등급을 어떻게 얻었는지. 'subscription' 만 구독 만료 시 강등한다.
+    -- 자세한 내용과 자가 승급 차단은 database/tier-agent.sql 참고.
+    tier_source TEXT NOT NULL DEFAULT 'manual' CHECK (tier_source IN ('manual', 'subscription')),
     sido TEXT,
     gugun TEXT,
     referral TEXT,
@@ -178,7 +181,7 @@ SELECT
     COUNT(*) as total_users,
     COUNT(*) FILTER (WHERE tier = 'standard') as standard_users,
     COUNT(*) FILTER (WHERE tier = 'expert') as expert_users,
-    COUNT(*) FILTER (WHERE tier = 'business') as business_users,
+    COUNT(*) FILTER (WHERE tier = 'agent') as agent_users,
     COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) as today_signups,
     COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '7 days') as week_signups,
     COUNT(*) FILTER (WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)) as month_signups
