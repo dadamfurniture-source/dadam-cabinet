@@ -193,10 +193,17 @@
           expired: '종료됨',
         };
 
+        var cost = null;
+
         function renderPlan(sub, tier, tierSource, credits) {
           var rows = '';
           rows += row('현재 등급', (tier || 'standard').toUpperCase());
-          if (credits != null) rows += row('이번 달 남은 생성', credits + '회');
+          if (credits != null) {
+            rows += row(
+              '남은 크레딧',
+              credits.toLocaleString('ko-KR') + (cost > 0 ? ' (생성 ' + Math.floor(credits / cost) + '회)' : '')
+            );
+          }
 
           if (!sub || sub.plan === 'free') {
             rows += row('구독', '없음');
@@ -284,6 +291,8 @@
             }
             var c = await sb.from('user_credits').select('balance').maybeSingle();
             if (c.data) credits = c.data.balance;
+            var cc = await sb.from('credit_costs').select('credits').eq('action', 'generate').maybeSingle();
+            if (cc.data) cost = cc.data.credits;
           } catch (e) {
             console.warn('[billing] profile:', e.message);
           }
