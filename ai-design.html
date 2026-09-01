@@ -1001,6 +1001,10 @@
 
           try {
             var res = await fetch(API, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) });
+            // 402 는 크레딧 소진이다. 서버 메시지를 그대로 쓰면 원인이 안 보인다.
+            if (res.status === 402) {
+              throw new Error('이번 달 생성 횟수를 모두 사용했습니다. 구독을 올리면 더 만들 수 있습니다.');
+            }
             var data = await res.json();
             if (!res.ok || !data.success) throw new Error(data && data.error ? data.error : '생성에 실패했습니다');
 
