@@ -11,8 +11,8 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/nav.css">
-    <link rel="stylesheet" href="css/dadam-system.css">
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/dadam-system.css" />
     <script defer src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
@@ -126,8 +126,12 @@
       /* ============================================================
          관리자 이중 뷰 (body.admin-view)
          ============================================================ */
-      body:not(.admin-view) .admin-only { display: none !important; }
-      body.admin-view .user-only { display: none !important; }
+      body:not(.admin-view) .admin-only {
+        display: none !important;
+      }
+      body.admin-view .user-only {
+        display: none !important;
+      }
 
       .tier-admin {
         background: var(--charcoal);
@@ -140,7 +144,9 @@
 
       body.admin-view .stat-card.admin-stat {
         cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
         text-decoration: none;
         color: inherit;
         display: block;
@@ -171,7 +177,10 @@
         color: rgba(255, 255, 255, 0.75);
         line-height: 1.6;
       }
-      .admin-cta-card .cta-body { flex: 1; min-width: 220px; }
+      .admin-cta-card .cta-body {
+        flex: 1;
+        min-width: 220px;
+      }
       .admin-cta-card a.cta-btn {
         padding: 12px 22px;
         background: #b8956c;
@@ -182,7 +191,9 @@
         text-decoration: none;
         white-space: nowrap;
       }
-      .admin-cta-card a.cta-btn:hover { background: #a07a54; }
+      .admin-cta-card a.cta-btn:hover {
+        background: #a07a54;
+      }
 
       .profile-actions {
         display: flex;
@@ -469,6 +480,83 @@
       }
 
       /* Modal */
+      /* ── 내 시공사례 ──
+         컬렉션 타일과 같은 정사각 비율로 보여준다. 여기서 올린 사진이
+         그대로 collection.html 에 뜨므로, 올릴 때 보이는 모양과
+         공개되는 모양이 어긋나지 않게 맞춘다. */
+      .case-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 16px;
+      }
+      .case-item {
+        position: relative;
+      }
+      .case-thumb {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        border-radius: 12px;
+        background: var(--warm);
+      }
+      .case-meta {
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--gray);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .case-del {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 28px;
+        height: 28px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(26, 25, 24, 0.62);
+        color: #fff;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .case-del:hover {
+        background: rgba(26, 25, 24, 0.85);
+      }
+      .case-drop {
+        display: grid;
+        place-items: center;
+        gap: 10px;
+        padding: 28px;
+        border: 1px dashed var(--warm);
+        border-radius: 12px;
+        background: var(--cream);
+        text-align: center;
+        cursor: pointer;
+      }
+      .case-drop img {
+        max-height: 220px;
+        border-radius: 10px;
+      }
+      .case-drop p {
+        font-size: 13px;
+        color: var(--gray);
+      }
+      /* 상태 줄. alert() 를 쓰지 않는다 — 모달 위에 브라우저 대화상자를 띄우면
+         화면이 막히고, 실패 이유도 그 자리에서 안 보인다. */
+      .case-status {
+        font-size: 13px;
+        margin-bottom: 14px;
+      }
+      .case-status.err {
+        color: #c0392b;
+      }
+      .case-status.ok {
+        color: var(--gold);
+      }
+
       .modal {
         display: none;
         position: fixed;
@@ -661,13 +749,15 @@
         <a href="#" data-i18n="nav.about">About us</a>
         <a href="collection.html" data-i18n="nav.collection">Collection</a>
         <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
-        <a href="detaildesign.html" id="navDetailDesign" style="display:none" data-i18n="nav.detail_design">Detail Design</a>
+        <a href="detaildesign.html" id="navDetailDesign" style="display: none" data-i18n="nav.detail_design"
+          >Detail Design</a
+        >
         <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
         <a href="material.html" data-i18n="nav.material">자재</a>
       </div>
       <div class="nav-icons">
         <a href="login.html" id="loginLink" class="login-btn">로그인</a>
-        <div class="user-menu" id="userMenu" style="display:none">
+        <div class="user-menu" id="userMenu" style="display: none">
           <button class="user-btn">
             <div class="user-avatar" id="navUserAvatar">?</div>
             <span class="user-name" id="navUserName">사용자</span>
@@ -676,10 +766,30 @@
             </svg>
           </button>
           <div class="user-dropdown">
-            <a href="mypage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>마이페이지</a>
-            <a href="my-designs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>내 설계</a>
-            <a href="admin/index.html" id="navAdminLink" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" /></svg>관리자 페이지</a>
-            <button onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>로그아웃</button>
+            <a href="mypage.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" /></svg
+              >마이페이지</a
+            >
+            <a href="my-designs.html"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" /></svg
+              >내 설계</a
+            >
+            <a href="admin/index.html" id="navAdminLink" style="display: none"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" /></svg
+              >관리자 페이지</a
+            >
+            <button onclick="logout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" /></svg
+              >로그아웃
+            </button>
           </div>
         </div>
         <button class="hamburger" onclick="toggleMobileMenu()">
@@ -697,7 +807,7 @@
       <a href="ai-design.html" data-i18n="nav.ai_design">AI Design</a>
       <a href="consultation.html" data-i18n="nav.consultation">상담 신청</a>
       <a href="material.html" data-i18n="nav.material">자재</a>
-      <a href="admin/index.html" id="mobileAdminLink" style="display:none">관리자 페이지</a>
+      <a href="admin/index.html" id="mobileAdminLink" style="display: none">관리자 페이지</a>
       <a href="login.html" id="mobileLoginLink">로그인 / 회원가입</a>
       <a
         href="#"
@@ -724,7 +834,7 @@
           <h1 class="profile-name" id="profileName">로딩 중...</h1>
           <p class="profile-email" id="profileEmail">-</p>
           <span class="profile-tier tier-standard user-only" id="profileTier">Standard</span>
-          <span class="profile-tier tier-admin admin-only" id="profileAdminBadge" style="display:none">관리자</span>
+          <span class="profile-tier tier-admin admin-only" id="profileAdminBadge" style="display: none">관리자</span>
         </div>
         <div class="profile-actions">
           <button class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
@@ -743,12 +853,19 @@
       <div
         id="ddApprovalBanner"
         class="user-only"
-        style="display:none;margin:0 0 24px;padding:18px 20px;border-radius:16px;border:1px solid var(--d-border);background:var(--d-surface);"
+        style="
+          display: none;
+          margin: 0 0 24px;
+          padding: 18px 20px;
+          border-radius: 16px;
+          border: 1px solid var(--d-border);
+          background: var(--d-surface);
+        "
       ></div>
 
       <!-- 관리자 대시보드 CTA (관리자 전용) -->
       <div class="admin-cta-card admin-only">
-        <div style="font-size:36px;">👑</div>
+        <div style="font-size: 36px">👑</div>
         <div class="cta-body">
           <h3>관리자 대시보드</h3>
           <p>회원/상담/상세설계 승인 등 모든 관리 기능은 전용 대시보드에서 진행됩니다.</p>
@@ -773,7 +890,9 @@
         <a href="admin/users.html" class="stat-card admin-stat">
           <div class="stat-icon gold">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+              />
             </svg>
           </div>
           <div class="stat-value" id="adminStatExpertUsers">-</div>
@@ -789,7 +908,7 @@
           <div class="stat-label">상담 대기</div>
         </a>
         <a href="admin/users.html" class="stat-card admin-stat">
-          <div class="stat-icon" style="background:rgba(245,124,0,0.12);color:#f57c00;">
+          <div class="stat-icon" style="background: rgba(245, 124, 0, 0.12); color: #f57c00">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
@@ -834,7 +953,7 @@
           <div class="stat-label">완료된 프로젝트</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:rgba(184,149,108,0.1);color:#b8956c;">
+          <div class="stat-icon" style="background: rgba(184, 149, 108, 0.1); color: #b8956c">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
@@ -850,7 +969,9 @@
         <div class="section-header">
           <h2 class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              <path
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+              />
             </svg>
             관리자 메뉴
           </h2>
@@ -873,7 +994,9 @@
           </a>
           <a href="admin/expert-requests.html" class="action-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+              />
             </svg>
             <span>Expert 신청</span>
           </a>
@@ -988,14 +1111,23 @@
             내 추천 업체
           </h2>
         </div>
-        <div id="savedPartnersList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+        <div
+          id="savedPartnersList"
+          style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px"
+        >
           <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              style="width: 48px; height: 48px; margin-bottom: 12px"
+            >
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
             <p>저장된 추천 업체가 없습니다.</p>
-            <button class="btn-primary" onclick="location.href='ai-design.html'">AI 설계 시작하기</button>
+            <button class="btn-primary" onclick="location.href = 'ai-design.html'">AI 설계 시작하기</button>
           </div>
         </div>
       </section>
@@ -1028,6 +1160,37 @@
             <button class="btn-primary" onclick="location.href = 'ai-design.html'">첫 설계 시작하기</button>
           </div>
         </div>
+      </section>
+
+      <!-- 내 시공사례 -->
+      <!-- user-only 를 붙이지 않는다: 관리자 계정도 사례를 올릴 수 있어야 하고,
+           admin/gallery.html 은 furniture_images(AI 학습용)로 들어가는 별개 통로다. -->
+      <section class="section" id="myCasesSection">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
+            내 시공사례
+          </h2>
+          <a
+            href="#"
+            class="btn-link"
+            onclick="
+              openCaseModal();
+              return false;
+            "
+            >사진 올리기
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14" /></svg
+          ></a>
+        </div>
+        <p class="form-hint" style="margin: -8px 0 16px">
+          올린 사진은 <a href="collection.html" style="color: var(--gold)">컬렉션</a>에 바로 공개됩니다.
+        </p>
+        <div class="case-grid" id="caseList"></div>
       </section>
     </main>
 
@@ -1086,6 +1249,70 @@
       </div>
     </div>
 
+    <!-- 시공사례 올리기 -->
+    <div class="modal" id="caseModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>시공사례 올리기</h3>
+          <button type="button" class="modal-close" onclick="closeCaseModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="case-status" id="caseStatus" hidden></div>
+          <form id="caseForm" onsubmit="submitCase(event)">
+            <div class="form-group">
+              <label>사진 *</label>
+              <div class="case-drop" id="caseDrop" onclick="document.getElementById('caseFile').click()">
+                <div id="casePlaceholder">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#8b8680" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                  <p>시공된 공간 사진을 올려주세요<br />JPG · PNG · 20MB 이하</p>
+                </div>
+                <img
+                  id="casePreview"
+                  alt=""
+                  hidden
+                  src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+                />
+              </div>
+              <input type="file" id="caseFile" accept="image/jpeg,image/png" hidden onchange="onCaseFile(event)" />
+            </div>
+            <div class="form-group">
+              <label>시공 지역 (시/도)</label>
+              <select id="caseSido" onchange="updateGugun('caseSido', 'caseGugun')">
+                <option value="">선택하세요</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>시공 지역 (시/군/구)</label>
+              <select id="caseGugun">
+                <option value="">시/도를 먼저 선택하세요</option>
+              </select>
+              <p class="form-hint">
+                컬렉션 캡션에 &ldquo;다담가구 &middot; 시공 지역&rdquo; 으로 붙습니다. 비워도 됩니다.
+              </p>
+            </div>
+            <div class="form-group">
+              <label>구분</label>
+              <select id="caseCategory">
+                <option value="kitchen">주방</option>
+                <option value="builtin">붙박이장</option>
+                <option value="storage">수납장</option>
+                <option value="interior">인테리어</option>
+                <option value="other">기타</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-edit" onclick="closeCaseModal()">취소</button>
+          <button type="submit" form="caseForm" class="btn-upgrade" id="caseSubmit">올리기</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       // Supabase 설정 - config.js에서 가져옴
       let supabaseClient = null;
@@ -1127,20 +1354,24 @@
         if (loginLink) {
           loginLink.textContent = '로그아웃';
           loginLink.setAttribute('href', '#');
-          loginLink.onclick = (e) => { e.preventDefault(); logout(); };
+          loginLink.onclick = (e) => {
+            e.preventDefault();
+            logout();
+          };
         }
         const mobileLoginLink = document.getElementById('mobileLoginLink');
         if (mobileLoginLink) {
           mobileLoginLink.textContent = '로그아웃';
           mobileLoginLink.setAttribute('href', '#');
-          mobileLoginLink.onclick = (e) => { e.preventDefault(); logout(); };
+          mobileLoginLink.onclick = (e) => {
+            e.preventDefault();
+            logout();
+          };
         }
 
         // 관리자 판별 (is_admin() RPC, fail-closed). body.admin-view 토글로 CSS 분기.
         try {
-          const isAdmin = window.AdminAccess
-            ? await window.AdminAccess.isAdmin(supabaseClient)
-            : false;
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(supabaseClient) : false;
           currentUser.__isAdmin = isAdmin;
           document.body.classList.toggle('admin-view', isAdmin);
           if (window.AdminAccess) window.AdminAccess.updateNavLinks(isAdmin);
@@ -1174,7 +1405,9 @@
         if (window.DetailDesignAccess) {
           if (currentUser.__isAdmin) {
             ['#navDetailDesign', '#mobileDetailDesign'].forEach((sel) => {
-              document.querySelectorAll(sel).forEach((el) => { el.style.display = ''; });
+              document.querySelectorAll(sel).forEach((el) => {
+                el.style.display = '';
+              });
             });
           } else {
             window.DetailDesignAccess.updateNavVisibility(supabaseClient, user).then((approved) => {
@@ -1217,6 +1450,9 @@
           await loadUserStats();
           await loadSavedPartners();
         }
+
+        // 시공사례는 관리자·일반 모두 올릴 수 있다
+        await loadMyCases();
       }
 
       // 관리자 역할 배지 ("Super Admin" / "Admin")
@@ -1323,7 +1559,9 @@
             '<div style="flex:1;min-width:220px;">' +
             '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">상세설계 사용 권한이 승인되었습니다.</div>' +
             '<div style="font-size:13px;color:var(--d-text-secondary);line-height:1.6;">' +
-            '등급: <b>' + (tier.charAt(0).toUpperCase() + tier.slice(1)) + '</b> · ' +
+            '등급: <b>' +
+            (tier.charAt(0).toUpperCase() + tier.slice(1)) +
+            '</b> · ' +
             '상단 메뉴의 "Detail Design" 탭에서 CAD/BOM 기능을 사용하실 수 있습니다.' +
             '</div></div>' +
             '<a href="detaildesign.html" style="padding:12px 20px;border-radius:10px;background:var(--d-charcoal);color:#fff;font-size:14px;font-weight:700;">상세설계 열기 →</a>' +
@@ -1338,7 +1576,9 @@
             '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">상세설계 사용 권한 검토 중</div>' +
             '<div style="font-size:13px;color:var(--d-text-secondary);line-height:1.6;">' +
             '본사(홍회장) 승인 후 <b>Expert 등급</b>으로 자동 승급되어 상세설계(CAD/BOM) 탭이 활성화됩니다.<br>' +
-            '신청일: <b>' + new Date(requestedAt).toLocaleDateString('ko-KR') + '</b>' +
+            '신청일: <b>' +
+            new Date(requestedAt).toLocaleDateString('ko-KR') +
+            '</b>' +
             '</div></div></div>';
         } else {
           // 미신청 상태 — 강조 박스 + 큰 버튼으로 승인 요청 유도
@@ -1364,14 +1604,22 @@
       async function requestDetailDesignApproval() {
         if (!window.DetailDesignAccess || !currentUser) return;
         const btn = document.getElementById('ddRequestBtn');
-        if (btn) { btn.disabled = true; btn.textContent = '신청 중...'; }
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = '신청 중...';
+        }
         const result = await window.DetailDesignAccess.requestApproval(supabaseClient, currentUser.id);
         if (result.ok) {
-          alert('승인 요청이 접수되었습니다.\n본사(홍회장) 검토 후 Expert 등급으로 승급되며,\n상세설계(CAD/BOM) 기능이 활성화됩니다.');
+          alert(
+            '승인 요청이 접수되었습니다.\n본사(홍회장) 검토 후 Expert 등급으로 승급되며,\n상세설계(CAD/BOM) 기능이 활성화됩니다.'
+          );
           await renderDetailDesignApprovalBanner(false);
         } else {
           alert('신청 중 오류: ' + (result.error || '알 수 없음'));
-          if (btn) { btn.disabled = false; btn.textContent = '✉️ 승인 요청'; }
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '✉️ 승인 요청';
+          }
         }
       }
 
@@ -1431,7 +1679,9 @@
         try {
           const { data, error } = await supabaseClient
             .from('saved_partners')
-            .select('id, created_at, partners(id, company_name, is_verified, partner_type, sido, gugun, specialty_categories, phone)')
+            .select(
+              'id, created_at, partners(id, company_name, is_verified, partner_type, sido, gugun, specialty_categories, phone)'
+            )
             .eq('user_id', currentUser.id)
             .order('created_at', { ascending: false });
 
@@ -1448,21 +1698,29 @@
           }
 
           const categoryLabels = {
-            sink:'싱크대', wardrobe:'붙박이장', fridge:'냉장고장',
-            vanity:'화장대', shoe:'신발장', storage:'수납장'
+            sink: '싱크대',
+            wardrobe: '붙박이장',
+            fridge: '냉장고장',
+            vanity: '화장대',
+            shoe: '신발장',
+            storage: '수납장',
           };
 
           const container = document.getElementById('savedPartnersList');
-          container.innerHTML = data.map(sp => {
-            const p = sp.partners;
-            if (!p) return '';
-            const cats = (p.specialty_categories || [])
-              .filter(c => categoryLabels[c])
-              .map(c => `<span style="font-size:11px;padding:2px 8px;background:#f8f7f4;border-radius:8px;">${categoryLabels[c]}</span>`)
-              .join(' ');
-            const initial = p.company_name.charAt(0);
-            const typeLabel = p.partner_type === 'interior' ? '인테리어' : '제조공장';
-            return `
+          container.innerHTML = data
+            .map((sp) => {
+              const p = sp.partners;
+              if (!p) return '';
+              const cats = (p.specialty_categories || [])
+                .filter((c) => categoryLabels[c])
+                .map(
+                  (c) =>
+                    `<span style="font-size:11px;padding:2px 8px;background:#f8f7f4;border-radius:8px;">${categoryLabels[c]}</span>`
+                )
+                .join(' ');
+              const initial = p.company_name.charAt(0);
+              const typeLabel = p.partner_type === 'interior' ? '인테리어' : '제조공장';
+              return `
               <div style="background:#fff;border:1px solid #ebe8e2;border-radius:12px;padding:16px;transition:transform 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                   <div style="width:40px;height:40px;border-radius:10px;background:#ebe8e2;display:flex;align-items:center;justify-content:center;font-weight:700;color:#b8956c;">${initial}</div>
@@ -1479,7 +1737,8 @@
                 </div>
               </div>
             `;
-          }).join('');
+            })
+            .join('');
         } catch (e) {
           console.log('저장된 파트너 로드 실패:', e.message);
         }
@@ -1491,7 +1750,7 @@
           await supabaseClient.from('saved_partners').delete().eq('id', savedId);
           loadSavedPartners();
           loadUserStats();
-        } catch(e) {}
+        } catch (e) {}
       }
 
       function scrollToSavedPartners() {
@@ -1532,19 +1791,18 @@
           let alreadyApproved = false;
           try {
             if (window.DetailDesignAccess) {
-              const status = await window.DetailDesignAccess.fetchStatus(
-                supabaseClient,
-                currentUser.id
-              );
+              const status = await window.DetailDesignAccess.fetchStatus(supabaseClient, currentUser.id);
               alreadyApproved = Boolean(status?.approved);
             }
-          } catch (e) { /* fail-closed */ }
+          } catch (e) {
+            /* fail-closed */
+          }
 
           if (!alreadyApproved) {
             alert(
               'Expert 등급은 본사(홍회장) 승인 후 자동으로 활성화됩니다.\n\n' +
-              '아래 "✉️ 승인 요청" 버튼으로 신청하시거나, "상담 신청" 페이지에서\n' +
-              '"상세설계 권한 신청" 에 체크해 주세요.'
+                '아래 "✉️ 승인 요청" 버튼으로 신청하시거나, "상담 신청" 페이지에서\n' +
+                '"상세설계 권한 신청" 에 체크해 주세요.'
             );
             toggle.checked = false; // 원복
             return;
@@ -1558,7 +1816,7 @@
         // Expert → Standard 강등 시도: 사용자 임의 변경 차단 (관리자 전용)
         alert(
           'Expert 등급의 해제는 본사 관리자만 처리할 수 있습니다.\n' +
-          '문의가 필요하시면 "상담 신청" 페이지를 이용해 주세요.'
+            '문의가 필요하시면 "상담 신청" 페이지를 이용해 주세요.'
         );
         toggle.checked = true; // 원복 (Expert 유지)
       }
@@ -1792,9 +2050,10 @@
       };
 
       // 구/군 업데이트
-      function updateGugun() {
-        const sido = document.getElementById('editSido').value;
-        const gugunSelect = document.getElementById('editGugun');
+      // 프로필 수정과 시공사례 두 곳이 쓴다. 인자 없이 부르던 기존 호출은 그대로 돈다.
+      function updateGugun(sidoId = 'editSido', gugunId = 'editGugun') {
+        const sido = document.getElementById(sidoId).value;
+        const gugunSelect = document.getElementById(gugunId);
         gugunSelect.innerHTML = '<option value="">선택하세요</option>';
 
         if (sido && gugunData[sido]) {
@@ -1805,6 +2064,258 @@
             gugunSelect.appendChild(option);
           });
         }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 내 시공사례 — collection_posts + 'collection' 버킷
+      //
+      // 여기서 올린 사진은 collection.html 에 **바로 공개**된다
+      // (collection_posts_select 정책이 USING (true) 라 비로그인도 본다).
+      // ═══════════════════════════════════════════════════════════════
+
+      const CASE_BUCKET = 'collection';
+      const CASE_MAX_BYTES = 20 * 1024 * 1024;
+      const CASE_MAX_EDGE = 1600; // 컬렉션 타일은 정사각 썸네일이라 이 이상은 낭비다
+      let caseFile = null;
+
+      // 캡션이 "다담가구 · 서울 강남구" 처럼 읽히게 시/도를 줄인다.
+      // 접미사를 규칙으로 떼면 '충청북도' → '충청북' 이 되므로 명시적으로 적는다.
+      const SIDO_SHORT = {
+        서울특별시: '서울',
+        부산광역시: '부산',
+        대구광역시: '대구',
+        인천광역시: '인천',
+        광주광역시: '광주',
+        대전광역시: '대전',
+        울산광역시: '울산',
+        세종특별자치시: '세종',
+        경기도: '경기',
+        강원도: '강원',
+        충청북도: '충북',
+        충청남도: '충남',
+        전라북도: '전북',
+        전라남도: '전남',
+        경상북도: '경북',
+        경상남도: '경남',
+        제주특별자치도: '제주',
+      };
+
+      function caseStatus(msg, kind) {
+        const el = document.getElementById('caseStatus');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.className = 'case-status' + (kind ? ' ' + kind : '');
+        el.hidden = !msg;
+      }
+
+      function openCaseModal() {
+        const sido = document.getElementById('caseSido');
+        // 시/도 목록은 gugunData 키에서 만든다 — 프로필 수정 모달처럼 HTML 에
+        // 또 적어두면 둘이 어긋난다.
+        if (sido.options.length <= 1) {
+          Object.keys(gugunData).forEach((k) => {
+            const o = document.createElement('option');
+            o.value = k;
+            o.textContent = k;
+            sido.appendChild(o);
+          });
+        }
+        caseFile = null;
+        document.getElementById('caseForm').reset();
+        document.getElementById('casePreview').hidden = true;
+        document.getElementById('casePlaceholder').hidden = false;
+        updateGugun('caseSido', 'caseGugun');
+        caseStatus('');
+        document.getElementById('caseModal').classList.add('active');
+      }
+
+      function closeCaseModal() {
+        document.getElementById('caseModal').classList.remove('active');
+      }
+
+      function onCaseFile(e) {
+        const f = (e.target.files || [])[0];
+        if (!f) return;
+        if (f.size > CASE_MAX_BYTES) {
+          caseStatus('20MB 이하 사진만 올릴 수 있습니다.', 'err');
+          e.target.value = '';
+          return;
+        }
+        caseFile = f;
+        caseStatus('');
+        const img = document.getElementById('casePreview');
+        img.src = URL.createObjectURL(f);
+        img.hidden = false;
+        document.getElementById('casePlaceholder').hidden = true;
+      }
+
+      // 원본을 그대로 올리면 8MB 짜리가 정사각 썸네일 한 칸에 쓰인다.
+      // 긴 변 기준으로 줄여서 올린다. 줄일 필요가 없으면 원본을 그대로 쓴다.
+      function shrinkImage(file, maxEdge) {
+        return new Promise((resolve) => {
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            const long = Math.max(img.naturalWidth, img.naturalHeight);
+            if (long <= maxEdge) return resolve(file);
+            const r = maxEdge / long;
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.naturalWidth * r);
+            c.height = Math.round(img.naturalHeight * r);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            c.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.86);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(file); // 못 읽으면 원본 그대로 — 여기서 업로드를 막지는 않는다
+          };
+          img.src = url;
+        });
+      }
+
+      async function submitCase(e) {
+        e.preventDefault();
+        if (!caseFile) {
+          caseStatus('사진을 선택해주세요.', 'err');
+          return;
+        }
+        const btn = document.getElementById('caseSubmit');
+        btn.disabled = true;
+        caseStatus('올리는 중…');
+
+        const sido = document.getElementById('caseSido').value;
+        const gugun = document.getElementById('caseGugun').value;
+        const region = [SIDO_SHORT[sido] || sido, gugun].filter(Boolean).join(' ');
+
+        try {
+          const blob = await shrinkImage(caseFile, CASE_MAX_EDGE);
+          const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+          const rand = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).replace(
+            /-/g,
+            ''
+          );
+          // 첫 칸이 반드시 본인 uid 여야 한다 — collection_insert_own 정책이 그걸 본다.
+          const path = currentUser.id + '/' + Date.now() + '-' + rand + '.' + ext;
+
+          const { error: upErr } = await supabaseClient.storage.from(CASE_BUCKET).upload(path, blob, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: blob.type || 'image/jpeg',
+          });
+          if (upErr) throw new Error('사진 업로드 실패: ' + upErr.message);
+
+          const {
+            data: { publicUrl },
+          } = supabaseClient.storage.from(CASE_BUCKET).getPublicUrl(path);
+
+          const { error: dbErr } = await supabaseClient.from('collection_posts').insert({
+            user_id: currentUser.id,
+            image_url: publicUrl,
+            storage_path: path,
+            region,
+            category: document.getElementById('caseCategory').value,
+          });
+          if (dbErr) {
+            // 행이 안 들어가면 올라간 파일은 주인 없는 파일이 된다. 되돌린다.
+            await supabaseClient.storage
+              .from(CASE_BUCKET)
+              .remove([path])
+              .catch(() => {});
+            throw new Error('저장 실패: ' + dbErr.message);
+          }
+
+          closeCaseModal();
+          await loadMyCases();
+        } catch (err) {
+          caseStatus(err.message || '올리지 못했습니다.', 'err');
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      function caseEsc(v) {
+        return String(v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+      }
+
+      function caseCardHTML(r) {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'case-del';
+        del.title = '삭제';
+        del.textContent = '×';
+        // onclick 문자열에 id 를 이어붙이지 않는다 — 값이 따옴표를 물면 그대로 깨진다.
+        del.dataset.id = r.id;
+        del.dataset.path = r.storage_path || '';
+        del.addEventListener('click', () => deleteCase(r.id, r.storage_path || ''));
+
+        const wrap = document.createElement('div');
+        wrap.className = 'case-item';
+        wrap.innerHTML =
+          '<img class="case-thumb" src="' +
+          caseEsc(r.image_url) +
+          '" alt="" loading="lazy" />' +
+          '<div class="case-meta">' +
+          caseEsc(r.region || '지역 미입력') +
+          '</div>';
+        wrap.insertBefore(del, wrap.querySelector('.case-meta'));
+        return wrap;
+      }
+
+      async function loadMyCases() {
+        const list = document.getElementById('caseList');
+        if (!list || !supabaseClient || !currentUser) return;
+        const { data, error } = await supabaseClient
+          .from('collection_posts')
+          .select('id, image_url, storage_path, region, created_at')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn('[mypage] 시공사례 조회:', error.message);
+          return;
+        }
+        const rows = data || [];
+        list.textContent = '';
+        if (!rows.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty-state';
+          empty.style.gridColumn = '1/-1';
+          empty.innerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+            '<rect x="3" y="3" width="18" height="18" rx="2" />' +
+            '<circle cx="8.5" cy="8.5" r="1.5" />' +
+            '<path d="M21 15l-5-5L5 21" /></svg>' +
+            '<p>아직 올린 시공사례가 없습니다.</p>';
+          const b = document.createElement('button');
+          b.className = 'btn-primary';
+          b.textContent = '사진 올리기';
+          b.addEventListener('click', openCaseModal);
+          empty.appendChild(b);
+          list.appendChild(empty);
+          return;
+        }
+        rows.forEach((r) => list.appendChild(caseCardHTML(r)));
+      }
+
+      async function deleteCase(id, storagePath) {
+        if (!confirm('이 시공사례를 컬렉션에서 내릴까요?')) return;
+        const { error } = await supabaseClient.from('collection_posts').delete().eq('id', id);
+        if (error) {
+          console.warn('[mypage] 시공사례 삭제:', error.message);
+          return;
+        }
+        // 행을 먼저 지운다. 순서가 반대면 행은 남고 이미지만 깨진다.
+        if (storagePath) {
+          await supabaseClient.storage
+            .from(CASE_BUCKET)
+            .remove([storagePath])
+            .catch(() => {});
+        }
+        await loadMyCases();
       }
 
       // 프로필 수정 모달 열기
