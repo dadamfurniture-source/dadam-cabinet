@@ -695,9 +695,7 @@
         currentUser = session.user;
 
         // 관리자 권한 확인 (admin_roles 테이블 기반 is_admin() RPC)
-        const isAdmin = window.AdminAccess
-          ? await window.AdminAccess.isAdmin(supabaseClient)
-          : false;
+        const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(supabaseClient) : false;
         if (!isAdmin) {
           showAccessDenied();
           return;
@@ -742,15 +740,14 @@
 
           if (!error && stats) {
             document.getElementById('totalUsers').textContent = stats.total_users || 0;
-            document.getElementById('expertUsers').textContent =
-              (stats.expert_users || 0) + (stats.business_users || 0);
+            document.getElementById('expertUsers').textContent = (stats.expert_users || 0) + (stats.agent_users || 0);
             document.getElementById('newUsersToday').textContent = `오늘 +${stats.today_signups || 0}명`;
           } else {
             // 뷰가 없으면 profiles 테이블에서 직접 조회
             const { data: profiles, count } = await supabaseClient.from('profiles').select('tier', { count: 'exact' });
 
             if (profiles) {
-              const expertCount = profiles.filter((p) => p.tier === 'expert' || p.tier === 'business').length;
+              const expertCount = profiles.filter((p) => p.tier === 'expert' || p.tier === 'agent').length;
               document.getElementById('totalUsers').textContent = count || profiles.length;
               document.getElementById('expertUsers').textContent = expertCount;
             }
