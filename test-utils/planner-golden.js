@@ -67,7 +67,7 @@ const FIXTURES = { straight, lShape, oblique };
  * 픽스처와 똑같은 모듈을 구조 단계 저장소에 직접 심어 안전망을 그대로 유지한다.
  */
 function modulesFromFixture(fixture) {
-  const FINISHING = ['ep', 'molding', 'filler'];
+  const FINISHING = ['ep', 'molding', 'filler', 'gap'];
   const KNOWN = ['lower', 'upper', 'tall', 'fridge', 'sink', 'hood', 'refrigerator', 'dishwasher'];
   // id 는 `${section}-${index}` 인데 index 는 **섹션별이 아니라 필터된 배열의 전역 순번**이다
   // (예전 loadModules 가 그렇게 매겼다). 골든 스냅샷이 이 id 를 그대로 담고 있으므로

@@ -119,35 +119,40 @@ describe('라인 마감재를 따라간다', () => {
     expect((p.g('modules') || []).find((x) => x.blind).blind.finish.section).toBe('molding');
   });
 
-  test('좌·우가 다르면 **멍장이 붙은 쪽**을 따른다', () => {
-    const p = boot();
-    const { m, areaId, s } = withBlind(p);
-    const atStart = s.areaTypes[0] !== 'door';
-    const near = atStart ? 'left' : 'right';
-    const far = atStart ? 'right' : 'left';
-    p.g('setAreaFinish')(areaId, near, 'molding');
-    p.g('setAreaFinish')(areaId, far, 'filler');
-    const after = (p.g('modules') || []).find((x) => x.id === m.id);
-    expect(after.blind.finish.section).toBe('molding');
+  // 2026-09-02 확정 규칙:
+  //   하나라도 휠라 → 휠라  ·  아니고 EP/몰딩 → 몰딩  ·  그 외 → 휠라
+  // 좌우 어느 쪽이 코너에 가까운지는 **보지 않는다.**
+  const matrix = [
+    ['filler',  'filler',  'filler'],
+    ['molding', 'molding', 'molding'],
+    ['filler',  'molding', 'filler'],   // 하나라도 휠라면 휠라
+    ['molding', 'filler',  'filler'],   // 순서를 바꿔도 같다
+    ['ep',      'molding', 'molding'],
+    ['ep',      'ep',      'molding'],  // EP 는 코너에서 몰딩으로 본다
+    ['ep',      'filler',  'filler'],
+    ['',        '',        'filler'],   // 없음 → 기본 휠라
+    ['gap',     'gap',     'filler'],   // 비움도 멍판에는 못 온다
+    ['gap',     'molding', 'molding'],
+  ];
+  matrix.forEach(([L, R, want]) => {
+    test(`좌 ${L || '없음'} · 우 ${R || '없음'} → ${want}`, () => {
+      const p = boot();
+      const { areaId } = withBlind(p);
+      p.g('setAreaFinish')(areaId, 'left', L);
+      p.g('setAreaFinish')(areaId, 'right', R);
+      const m = (p.g('modules') || []).find((x) => x.blind);
+      expect(m.blind.finish.section).toBe(want);
+    });
   });
 
-  test('EP 는 코너 접합면에 안 쓴다 — 반대쪽 마감으로 넘어간다', () => {
-    const p = boot();
-    const { m, areaId, s } = withBlind(p);
-    const atStart = s.areaTypes[0] !== 'door';
-    p.g('setAreaFinish')(areaId, atStart ? 'left' : 'right', 'ep');
-    p.g('setAreaFinish')(areaId, atStart ? 'right' : 'left', 'molding');
-    const after = (p.g('modules') || []).find((x) => x.id === m.id);
-    expect(after.blind.finish.section).toBe('molding');
-  });
-
-  test('라인 마감이 없으면 휠라로 떨어진다 — 안 만들면 그 자리가 MDF 로 발주된다', () => {
+  test('멍판에는 비움이 서지 않는다 — 자리 60 은 반드시 덮인다', () => {
     const p = boot();
     const { areaId } = withBlind(p);
-    p.g('setAreaFinish')(areaId, 'left', '');
-    p.g('setAreaFinish')(areaId, 'right', '');
+    p.g('setAreaFinish')(areaId, 'left', 'gap');
+    p.g('setAreaFinish')(areaId, 'right', 'gap');
     const m = (p.g('modules') || []).find((x) => x.blind);
-    expect(m.blind.finish.section).toBe('filler');
+    expect(m.blind.finish.section).not.toBe('gap');
+    expect(['molding', 'filler']).toContain(m.blind.finish.section);
   });
 });
 
