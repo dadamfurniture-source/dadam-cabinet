@@ -359,7 +359,8 @@
 <section>
   <h2><span class="no">06</span>어느 라인이 멍장을 갖는가 <span class="badge bad">미해결</span></h2>
   <p class="sub">이 계획에서 <b>아직 정하지 않은 유일한 것</b>입니다. 그리고 키큰장끼리에서
-  가장 아프게 드러납니다.</p>
+  가장 아프게 드러납니다. 결론부터 — <b>레거시는 "먼저 있던 라인이 prime" 이었고,
+  플래너는 그걸 회전으로 근사하다 어긋났습니다.</b></p>
 
   <h3>규칙 문서는 이미 답을 정해 놨다</h3>
   <pre><span class="c">docs/design-rules/corner.md §3.2  소속 라인 (<span class="y">사용자 결정</span>)</span>
@@ -370,7 +371,37 @@
   <b>회전으로 근사</b>합니다 — <code>orderCorner</code> 는 "꺾여 나간(회전한) 다리가 주인"
   이고, <b>주벽면을 rot 0 으로 그린다</b>는 관행에 기대고 있습니다.</p>
 
-  <h3>그 근사가 무너지는 자리</h3>
+  <h3>그런데 prime / secondary 자체가 무엇으로 정해지나</h3>
+  <p>레거시를 따라가 보면 기하학적 기준이 <b>아예 없습니다.</b> <b>입력 순서</b>입니다.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th></th><th>prime (주선)</th><th>secondary (차선)</th></tr></thead>
+    <tbody>
+      <tr><td><b>무엇</b></td><td>품목의 <b>자체 W · D</b> — 처음 입력한 값</td>
+          <td>ㄱ자/ㄷ자로 <b>전환할 때 새로 생기는</b> 라인</td></tr>
+      <tr><td><b>기본값</b></td><td>사용자 입력</td>
+          <td>W <code>1800</code> · D 는 <b>prime 것을 상속</b>
+              (<code>lowerSecondaryD = item.d</code>)</td></tr>
+      <tr><td><b>어디서 꺾이나</b></td><td>—</td>
+          <td><code>secondaryStartSide</code> — prime 의 좌 / 우 끝</td></tr>
+      <tr><td><b>멍장</b></td><td>없음 (밀려난다)</td>
+          <td><b>여기 선다</b> — <code>blindLine='secondary'</code> 고정 (W10-1)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>길이도 벽도 사람 방향도 보지 않습니다.</b> prime 이 secondary 보다 짧아도 됩니다.
+  정리하면 레거시의 실질 규칙은 <b>"먼저 있던 라인이 prime, 나중에 붙인 라인이 멍장"</b> 입니다.</p>
+
+  <div class="callout keep">
+    <h4>그래서 ②는 새로 지어내는 규칙이 아닙니다</h4>
+    <p>아래 ② 안의 <b>"먼저 그린 라인이 prime"</b> 은 <b>레거시 모델을 그대로 옮기는 것</b>입니다.
+    플래너에는 prime / secondary 라는 개념이 아예 없고
+    (<code>mockup-structure.html:3846</code> — "prime/secondary 라는 이름 대신 두 배치 공간이
+    직각으로 만나는지를 본다"), <code>orderCorner</code> 가 <b>회전으로 근사</b>하고 있을 뿐입니다.
+    배치 순서를 쓰면 그 근사를 <b>원본 규칙으로 되돌리는</b> 셈입니다.</p>
+  </div>
+
+  <h3>회전 근사가 무너지는 자리</h3>
   <p>배치 단계는 도어가 사람을 향하도록 회전을 <b>자동으로</b> 정합니다(W9-36).
   그래서 같은 ㄱ자라도 <b>방의 어느 코너에 놓이느냐</b>에 따라 회전 조합이 달라집니다.
   네 코너 중 <b>둘은 두 다리가 모두 회전</b>이라 "rot 0 = 주벽면" 전제가 성립하지 않고,
@@ -408,8 +439,9 @@
           <td>회전 기준 유지. 키큰장도 같은 규칙을 탄다</td>
           <td><span class="badge bad">권장 안 함</span> 방 코너에 따라 뒤집히는 것이 그대로 남는다</td></tr>
       <tr><td><b>②</b> 회전과 무관한 기본값</td>
-          <td>예) <b>먼저 그린 라인이 prime</b> — 나중에 그린 쪽이 멍장.
-              배치 순서는 회전·위치와 무관하게 안정적이고, 주벽면을 먼저 그리는 관행과 맞는다</td>
+          <td><b>먼저 그린 라인이 prime</b> — 나중에 그린 쪽이 멍장.
+              <b>레거시가 실제로 쓰던 규칙</b>이다 (위 표). 배치 순서는 회전·위치와
+              무관하게 안정적이다</td>
           <td><span class="badge ok">기본값으로 적합</span> "짧은 다리" 는 쓰지 않는다 —
               길이가 비슷하면 몇 mm 로 뒤집혀 코너가 통째로 재배치된다 (코드 주석의 판단)</td></tr>
       <tr class="hi"><td><b>③</b> ② + 사람이 뒤집기</td>
