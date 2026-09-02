@@ -425,11 +425,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.6"></script>
-<script src="js/planner/planner-view.js?v=37.6"></script>
-<script src="js/planner/planner-sections.js?v=37.6"></script>
+<script src="js/planner/planner-scope.js?v=37.8"></script>
+<script src="js/planner/planner-view.js?v=37.8"></script>
+<script src="js/planner/planner-sections.js?v=37.8"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=37.6"></script>
+<script src="js/planner/planner-engine.js?v=37.8"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -621,7 +621,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (raw) {
         const layout = JSON.parse(raw);
         if (layout.modules && layout.modules.length) {
-          const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
           // 1) 일반 모듈만 추출
           modules = layout.modules
             // CD-3: 원본 배열에서의 위치를 남겨둔다 — 구조 단계 편집을 되쓸 때
@@ -715,7 +714,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const layout = JSON.parse(raw);
       if (!layout || !Array.isArray(layout.modules)) return false;
 
-      const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
       const byIdx = new Map();
       modules.forEach((mod) => {
         if (Number.isInteger(mod._srcIndex)) byIdx.set(mod._srcIndex, mod);
@@ -1979,16 +1977,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-13: 마감재는 판 한 장이다 — 칸·도어·서랍을 그리지 않는다.
     // 폭이 20~60mm 인데 칸을 나누면 도어가 음수 폭이 된다.
     if (m.isFinishing || isFinishingSection(m.section)) {
-      // W12-19: 잡아 둔 폭이 아니라 부재 폭으로 그린다 (EP 20 잡고 18T 판).
+      // W12-19: 잡은 폭이 아니라 부재 폭으로 (EP 20 잡고 18T). W12-62: 비움은 0 이라 점선만.
       const partW = Math.min(m.W, finishingPartWidthOf(m.section));
+      const gap = !partW, drawW = gap ? m.W : partW;
       const panel = document.createElementNS(ns, 'rect');
-      panel.setAttribute('x', offsetX + (m.W - partW) / 2);
+      panel.setAttribute('x', offsetX + (m.W - drawW) / 2);
       panel.setAttribute('y', offsetY);
-      panel.setAttribute('width', partW);
+      panel.setAttribute('width', drawW);
       panel.setAttribute('height', m.H);
-      panel.setAttribute('fill', cfg.fill);
+      panel.setAttribute('fill', gap ? 'none' : cfg.fill);
       panel.setAttribute('stroke', cfg.stroke);
       panel.setAttribute('stroke-width', 4);
+      if (gap) panel.setAttribute('stroke-dasharray', '14 10');
       panel.setAttribute('data-module-id', m.id);
       panel.setAttribute('pointer-events', 'all');
       panel.style.cursor = 'pointer';
@@ -2133,6 +2133,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         blindLab.textContent = '멍';
         content.appendChild(blindLab);
         r.setAttribute('fill', '#8a7f6a');   // 먹장(#a89c84)보다 어둡게 — 다른 부재다
+        lab.setAttribute('opacity', 0);
+      } else if (type === 'blindfin') {
+        // W12-61: 멍판 마감재 — 멍장 도어 바로 옆에서 멍가림판 위를 덮는다 (§3.3).
+        //   종류는 이 라인의 마감재를 따라온다. 폭은 재단값 100 을 그대로 그린다.
+        const fin = (m.blind && m.blind.finish) || null;
+        const fcfg = SECTION_CONFIG[(fin && fin.section) || 'filler'] || {};
+        const finLab = document.createElementNS(ns, 'text');
+        finLab.setAttribute('x', x + colW / 2);
+        finLab.setAttribute('y', topY + topH / 2);
+        finLab.setAttribute('text-anchor', 'middle');
+        finLab.setAttribute('dominant-baseline', 'central');
+        finLab.setAttribute('font-size', Math.min(colW * 0.28, topH * 0.1, 26));
+        // 멍 라벨과 같은 흰색 — 이 페이지의 마감재 색(SECTION_CONFIG)은 3D 팔레트라
+        // 몰딩 #5a4d2f 처럼 어둡다. 어두운 글자를 얹으면 안 읽힌다.
+        finLab.setAttribute('fill', '#fff');
+        finLab.textContent = fcfg.label || '마감';
+        content.appendChild(finLab);
+        r.setAttribute('fill', fcfg.fill || '#c8b896');
+        r.setAttribute('stroke', fcfg.stroke || '#7a6a45');
         lab.setAttribute('opacity', 0);
       } else if (type === 'blank') {
         // 회색 cross-hatch
@@ -2831,7 +2850,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             ${FINISHING_SECTIONS.map((k) => `<option value="${k}"
               ${cur && cur.section === k ? 'selected' : ''}>${finishLabel(k)}</option>`).join('')}
           </select>
-        </div>`;
+        </div>
+        ${cur && (SECTION_CONFIG[cur.section] || {}).editableW ? `
+        <div class="row">
+          <label style="font-size:11px;color:var(--text-dim)">└ 비울 폭</label>
+          <input type="number" min="1" step="1" data-finw="${side}" value="${Math.round(cur.W)}">
+        </div>` : ''}`;
       }).join('')}
       <div style="font-size:10px;color:#888;line-height:1.4;padding-top:4px">${hosts.length
         ? `배치 공간 양 끝에 한 장씩 섭니다 — 높이 ${Math.round(a.H)} · 깊이 ${Math.round(a.D)}.
@@ -2840,6 +2864,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     host.querySelectorAll('select[data-fin]').forEach((sl) => {
       sl.onchange = () => {
         setAreaFinish(a.id, sl.getAttribute('data-fin'), sl.value);
+        saveLayoutFromModules();
+        areaPanelCommit();
+      };
+    });
+    // W12-62: 비움 폭 — 같은 종류를 그 폭으로 다시 세운다. 떼고 붙이는 셈이라
+    //   자리 계산(균등 분배 포함)이 처음 붙일 때와 똑같이 돈다.
+    host.querySelectorAll('input[data-finw]').forEach((inp) => {
+      inp.onchange = () => {
+        const side = inp.getAttribute('data-finw');
+        const now = areaFinishOn(a.id, side);
+        if (!now) return;
+        setAreaFinish(a.id, side, now.section, inp.value);
         saveLayoutFromModules();
         areaPanelCommit();
       };
@@ -2944,6 +2980,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             <option value="open"   ${t==='open'?'selected':''}>오픈</option>
             <option value="blank"  ${t==='blank'?'selected':''}>먹장</option>
             ${t==='blind' ? '<option value="blind" selected>멍 (파생)</option>' : ''}
+            ${t==='blindfin' ? '<option value="blindfin" selected>멍판 마감재 (파생)</option>' : ''}
           </select>
           ${t!=='door'
             ? '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'
@@ -3104,8 +3141,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   function areaById(id) { return areas.find((a) => a.id === id); }
 
-  // ── 마감재 (EP · 몰딩 · 휠라) ─────────────────────────────────
-  const FINISHING_SECTIONS = ['ep', 'molding', 'filler'];
+  // ── 마감재 (EP · 몰딩 · 휠라 · 비움) ─────────────────────────
+  // W12-62: 목록 정본은 planner-sections.js 의 전역 `FINISHING_SECTIONS` 다.
+  //   여기서 다시 `const` 로 선언하면 **클래식 스크립트끼리 전역 렉시컬 스코프를
+  //   공유**하므로 SyntaxError 가 나고 페이지가 통째로 흰 화면이 된다.
+  //   (planner-assets.test.js 가 이걸 지킨다)
   function isFinishingSection(k) { return FINISHING_SECTIONS.indexOf(k) >= 0; }
   // 도구를 다시 그려도 고른 마감재가 유지되도록 기억한다 — 안 하면 추가할 때마다
   // 기본값으로 되돌아가 같은 것을 두 번 넣기가 번거롭다.
@@ -3124,6 +3164,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * EP 는 부재가 18T 지만 실제 설치 여유를 위해 20 을 잡는다 (spaceW).
    * 모듈 폭을 줄이거나 영역 잔여를 셀 때는 늘 이 값을 쓴다.
    */
+  /**
+   * 이번에 세울 마감재의 폭 (W12-62).
+   *
+   * 다른 마감재는 종류가 폭을 정한다 — EP 20, 몰딩·휠라 60. 부재 규격이라
+   * 사람이 고를 값이 아니다. **비움만 다르다**: 비우는 이유(벽 기울기, 의도한 틈)가
+   * 현장마다 달라 폭이 설계값이다. 그래서 비움에만 재정의를 허용한다.
+   */
+  function finishSpaceFor(section, wantW) {
+    const base = finishingWidthOf(section);
+    const cfg = SECTION_CONFIG[section] || {};
+    if (!cfg.editableW) return base;
+    const w = Math.round(Number(wantW));
+    return Number.isFinite(w) && w > 0 ? w : base;
+  }
+
   function finishingWidthOf(section) {
     const cfg = SECTION_CONFIG[section] || {};
     if (cfg.adjacent === 'depthAndHeight') return cfg.spaceW || cfg.h || 20;
@@ -3137,6 +3192,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function finishingPartWidthOf(section) {
     const cfg = SECTION_CONFIG[section] || {};
+    if (cfg.noPart) return 0;                       // W12-62: 비움 — 자리만 잡고 판이 없다
     if (cfg.adjacent === 'depthAndHeight') return cfg.h || 18;
     return cfg.w || 60;
   }
@@ -3147,6 +3203,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const label = (SECTION_CONFIG[k] || {}).label || k;
     const space = finishingWidthOf(k);
     const part = finishingPartWidthOf(k);
+    if (!part) return `${label} ${space}mm · 부재 없음`;   // W12-62
     return space === part ? `${label} ${space}mm` : `${label} ${space}mm · 부재 ${part}T`;
   }
 
@@ -3235,7 +3292,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function finishingSpanOf(area, section, host) {
     const areaH = (area && Number(area.H)) || (host && Number(host.H)) || 0;
     const baseY = area ? finishBaseYFor(area) : baseYOf(host);
-    if ((section === 'molding' || section === 'ep') && area) {
+    // W12-62: 비움도 몰딩과 같은 자리에 선다 — 상판 아래까지다.
+    //   폴백(영역 H)으로 떨어지면 몰딩→비움 으로 바꿀 때 표시 높이가 상판 두께만큼
+    //   튀어 오르고, 비운 자리가 상판을 침범한 것처럼 보인다.
+    if ((section === 'molding' || section === 'ep' || section === 'gap') && area) {
       const topT = heightPartOf({ section: area.section, H: areaH }, { topT: area.topT }, 'topT');
       return { H: Math.max(0, areaH - topT), baseY };
     }
@@ -3271,7 +3331,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 마감재를 뚫고 나온다 — 실제로 하부장만 880 이 되고 중간장·상부장은 900 이었다.
    * **모든 단이 함께** 폭을 내놓아야 한다.
    */
-  function setStackAreaFinish(area, side, section) {
+  function setStackAreaFinish(area, side, section, wantW) {
     const parts = () => modules.filter((m) => m.areaId === area.id && !m.isFinishing);
     // 기존 것을 떼고 모든 단에 폭을 돌려준다
     const prev = stackFinishOn(area.id, side);
@@ -3286,7 +3346,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     const ps = parts();
     if (!ps.length) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
-    const W = finishingWidthOf(section);
+    const W = finishSpaceFor(section, wantW);
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
     const tooNarrow = ps.find((m) => m.W - W < MIN_W);
     if (tooNarrow) {
@@ -3396,13 +3456,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /** 영역 끝 마감재를 정한다. `section` 이 비면 뗀다. */
-  function setAreaFinish(areaId, side, section) {
+  function setAreaFinish(areaId, side, section, wantW) {
     const area = areaById(areaId);
     // W12-22: 스택 영역은 단들이 같은 자리에 쌓여 있어 좌우 끝을 x 로 못 고른다.
-    if (isStackedArea(area)) return setStackAreaFinish(area, side, section);
+    if (isStackedArea(area)) return setStackAreaFinish(area, side, section, wantW);
     const host = areaEdgeHost(areaId, side);
     if (!host) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
-    const f = setModuleFinish(host.id, side, section, { evenAfter: true });
+    const f = setModuleFinish(host.id, side, section, { evenAfter: true, W: wantW });
+    // W12-61: 이 라인 멍장의 멍판 마감재도 같이 간다 (§3.3).
+    //   폭은 안 건드리므로 redistribute 앞뒤 어디서 불러도 결과가 같다.
+    if (syncBlindFinish(areaId)) { saveStructModules(); persistPlannerState(); }
     // W12-45: 자리가 바뀌었으니 남은 공간을 다시 고르게 나눈다.
     if (redistributeAreaWidths(areaId)) { saveStructModules(); persistPlannerState(); }
     return f;
@@ -3502,7 +3565,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       saveStructModules(); persistPlannerState();
       return null;
     }
-    const W = finishingWidthOf(section);
+    const W = finishSpaceFor(section, opts && opts.W);
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
     // W12-45: 영역 경로는 붙인 뒤 균등 분배가 이어진다 — 판정도 **나눈 뒤 값**으로.
     const after = (opts && opts.evenAfter) ? evenWidthAfterFinish(m, W) : m.W - W;
@@ -3562,7 +3625,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!area) return [];
     // 마감재는 모듈이 아니라 모듈에 붙는 부속이다 — loadAreas 가 영역에서
     // 빼는 것과 같은 규칙을 쓴다.
-    const FINISHING = ['ep', 'molding', 'filler'];
+    const FINISHING = FINISHING_SECTIONS;
     // 붙박이장은 배치 폭(w) 정본이 아직 없다 (planner-sections.js 주석, 확장은 P11).
     // 값을 지어내지 않기 위해 목록에서 뺀다.
     const NOT_PLACEABLE = ['wardrobe'];
@@ -3876,6 +3939,64 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       .reduce((sum, m) => sum + (m.W || 0), 0);
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // W12-61: 멍판 마감재
+  //
+  // 멍 폭 안에는 마감재 **자리** 60 이 이미 들어가 있다 (corner.md §3.3).
+  // 그 자리에 설 부재를 라인 마감재에서 유도한다 — 휠라면 휠라, 몰딩이면 몰딩.
+  // ─────────────────────────────────────────────────────────────
+
+  /** 멍판에 설 수 있는 마감. 비움은 없다 — 멍 자리 60 은 반드시 무언가로 덮인다. */
+  const BLIND_FINISH_FALLBACK = 'filler';
+
+  /**
+   * 멍판 마감재 종류 (§3.3) — 2026-09-02 확정.
+   *
+   *   좌·우 중 **하나라도 휠라** 면          → 휠라
+   *   아니고 EP 나 몰딩이 있으면            → 몰딩
+   *   그 외 (없음 · 비움만)                 → 휠라
+   *
+   * 좌우 어느 쪽이 코너에 가까운지는 보지 않는다. 휠라가 우선이고, EP 는
+   * 라인 **측면** 마감이라 코너 접합면에서는 몰딩으로 간주한다.
+   *
+   * 라인이 '없음'/'비움' 이어도 만든다 — 자리 60 은 이미 멍 폭에 들어가 있어서,
+   * 안 만들면 그 자리가 멍가림판 MDF 로 발주된다.
+   */
+  function blindFinishOf(areaId) {
+    const secs = FINISH_SIDES.map((side) => {
+      const f = areaFinishOn(areaId, side);
+      return f ? f.section : '';
+    });
+    if (secs.indexOf('filler') >= 0) return 'filler';
+    if (secs.indexOf('molding') >= 0 || secs.indexOf('ep') >= 0) return 'molding';
+    return BLIND_FINISH_FALLBACK;
+  }
+
+  /** 멍장 하나의 멍판 마감재 파생값. `seatW` 는 공식이 잡은 자리, `partW` 는 재단이다. */
+  function blindFinishFor(areaId) {
+    return {
+      section: blindFinishOf(areaId),
+      seatW: MASTER_RULES.CORNER_MOLDING,        // 멍 공식에 들어간 값 — 바뀌지 않는다
+      partW: MASTER_RULES.CORNER_FINISH_PART_W,  // 멍판 위로 40 을 더 무는 재단 폭
+    };
+  }
+
+  /**
+   * 라인 마감재가 바뀌면 그 라인 멍장의 멍판 마감재도 따라간다 (§3.3).
+   * 폭은 건드리지 않는다 — 자리 60 은 멍 공식이 이미 잡아 두었다.
+   */
+  function syncBlindFinish(areaId) {
+    let n = 0;
+    modules.filter((m) => m.areaId === areaId && m.blind).forEach((m) => {
+      const next = blindFinishFor(areaId);
+      const cur = m.blind.finish;
+      if (cur && cur.section === next.section && cur.partW === next.partW) return;
+      m.blind.finish = next;
+      n++;
+    });
+    return n;
+  }
+
   /**
    * 이 배치 공간이 주인인 코너들의 파생값 (없으면 null).
    *
@@ -3982,19 +4103,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       m.isFixed = true;      // 자동계산이 지우거나 폭을 뺏지 않는다
       m.isDerived = true;    // 치수는 파생값 — 사람이 고치면 해제된다
-      m.blind = { zoneW, doorW: found.plan.doorW, adjAreaId: c.adj.id };
+      const finish = blindFinishFor(areaId);
+      m.blind = { zoneW, doorW: found.plan.doorW, adjAreaId: c.adj.id, finish };
 
-      // 정면은 두 칸이다 — 가려진 쪽은 먹장(2.7T MDF), 열리는 쪽만 도어.
+      // 정면은 세 칸이다 — 가려진 멍, 그 끝을 덮는 마감재, 열리는 도어.
       // 도어 폭을 카카스 폭으로 기록하면 BOM 이 멍만큼 큰 도어를 발주한다.
       const s = getStructure(m.id);
-      s.verticalCount = 2;
       // W12-58: 멍은 **먹장이 아니다.** 먹장(blank)은 폭이 도어 최소보다 좁아
       //   도어 대신 막는 18T 판이고, 멍(blind)은 옆 라인에 가려 도어를 못 다는
       //   구간을 2.7T MDF 로 가린 것이다 (corner.md §3.5). 자재도 이유도 다르다.
-      s.areaTypes      = atStart ? ['blind', 'door'] : ['door', 'blind'];
-      s.areaWidths     = atStart ? [zoneW, found.plan.doorW] : [found.plan.doorW, zoneW];
-      s.areaDirections = ['left', 'left'];
-      s.areaIs2D       = [false, false];
+      // W12-61: 마감재 칸은 멍 폭 **안에서** 떼어 온다 — 자리 60 이 이미 거기
+      //   들어가 있기 때문이다(§3.3). 모듈 폭은 1mm 도 늘지 않으므로 원장이 그대로다.
+      //   경첩 목대 15 는 칸으로 세우지 않고 멍 칸에 남긴다 — 사람이 고를 수 있는
+      //   정면 부재가 아니고, 그 폭은 화면에서 1px 도 되지 않는다.
+      const finW = Math.min(finish.partW, Math.max(0, zoneW - 1));
+      const ts = ['blind', 'blindfin', 'door'];
+      const ws = [zoneW - finW, finW, found.plan.doorW];
+      s.verticalCount  = 3;
+      s.areaTypes      = atStart ? ts : ts.slice().reverse();
+      s.areaWidths     = atStart ? ws : ws.slice().reverse();
+      s.areaDirections = ['left', 'left', 'left'];
+      s.areaIs2D       = [false, false, false];
       items.push({ module: m, atStart });
     });
     dropStaleCornerModules(areaId, items.map((it) => it.module.id));
@@ -4855,6 +4984,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
     } else if (ud.entityKind === 'blind') {
       msg = '🎯 멍 — 멍가림판 2.7T MDF (corner.md §3.5)';
+    } else if (ud.entityKind === 'blindfin') {
+      const fl = (SECTION_CONFIG[ud.finishingSection] || {}).label || ud.finishingSection;
+      msg = '🎯 멍판 마감재 — ' + fl + ' 18T · 재단 '
+          + MASTER_RULES.CORNER_FINISH_PART_W + ' (자리 '
+          + MASTER_RULES.CORNER_MOLDING + ' + 멍판 위 겹침 '
+          + (MASTER_RULES.CORNER_FINISH_PART_W - MASTER_RULES.CORNER_MOLDING) + ')';
     } else if (ud.entityKind === 'blank') {
       msg = '🎯 먹장 (blank panel)';
     } else if (ud.entityKind === 'brace') {
@@ -5254,6 +5389,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-19: 잡아 둔 폭(m.W)이 아니라 **부재 폭**으로 그린다. EP 는 20 을 잡고
     // 18T 판이 서므로 2mm 가 설치 여유로 남는다 — 그 여유가 보여야 맞다.
     const partW = Math.min(m.W, finishingPartWidthOf(m.section));
+    // W12-62: 비움은 판이 없다 — 세울 것이 없으므로 빈 그룹으로 둔다.
+    //   0 폭 상자를 만들면 면이 겹쳐 z-fighting 이 난다.
+    if (!partW) return parent;
     const panel = makeBox(partW, m.H, m.D, color, { roughness: 0.6, metalness: 0.08 });
     panel.position.set(0, m.H / 2, 0);
     panel.userData = { entityKind: 'carcass', moduleId: m.id, side: 'finish', section: m.section };
@@ -5335,7 +5473,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       // cell 도어
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s) }, areaLimitsFor(m)));
+      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s), blindFinish: (m.blind && m.blind.finish && m.blind.finish.section) || null }, areaLimitsFor(m)));
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerH > 0) {
         addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
@@ -5551,6 +5689,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       cover.userData = { entityKind: 'blind', moduleId: meta.moduleId, areaIdx: meta.areaIdx };
       parent.add(cover);
       addEdgeOutline(cover, parent, 0x000000, 0.8);
+      return;
+    }
+    if (type === 'blindfin') {
+      // W12-61: 멍판 마감재 — 멍가림판 위에 붙으므로 **더 앞으로** 나온다 (§3.3).
+      if (!doorVisible) return;
+      const fcfg = SECTION_CONFIG[meta.blindFinish || 'filler'] || {};
+      const fin = makeBox(w, h, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
+      fin.position.set(cx, cy, overlayZ + BLIND_COVER_T);
+      fin.userData = {
+        entityKind: 'blindfin', moduleId: meta.moduleId, areaIdx: meta.areaIdx,
+        finishingSection: meta.blindFinish || 'filler',
+      };
+      parent.add(fin);
+      addEdgeOutline(fin, parent, 0x000000, 0.8);
       return;
     }
     if (type === 'blank') {
