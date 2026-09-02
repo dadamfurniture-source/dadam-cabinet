@@ -111,7 +111,7 @@
   그러면 <b>높이 대역 문제가 사라집니다</b> — 인접 키큰장이 전체 높이를 균일하게 가리기
   때문입니다. 혼합 코너(키큰장 ↔ 하부+상부)도 별도 규칙 없이 풀립니다.
   멍 구간 정면은 <b>멍판 EP 한 장</b>으로 끝납니다 — 2.7T 가림판도, 마감재 100 도
-  들어가지 않습니다.</p>
+  들어가지 않습니다. 남은 미해결은 <b>어느 라인이 멍장을 갖는가</b> 하나입니다 (§06).</p>
   <div class="meta">
     <span><b>대상</b> mockup-structure.html · planner-engine.js</span>
     <span><b>근거</b> corner.md §3.3 · §3.6 · W12-22</span>
@@ -357,7 +357,88 @@
 </section>
 
 <section>
-  <h2><span class="no">06</span>구현 단계</h2>
+  <h2><span class="no">06</span>어느 라인이 멍장을 갖는가 <span class="badge bad">미해결</span></h2>
+  <p class="sub">이 계획에서 <b>아직 정하지 않은 유일한 것</b>입니다. 그리고 키큰장끼리에서
+  가장 아프게 드러납니다.</p>
+
+  <h3>규칙 문서는 이미 답을 정해 놨다</h3>
+  <pre><span class="c">docs/design-rules/corner.md §3.2  소속 라인 (<span class="y">사용자 결정</span>)</span>
+  · 멍장은 <span class="y">prime 또는 secondary 어느 라인에도 배치 가능</span> — 사용자 결정에 따른다
+  · "인접 라인" = 멍장이 속하지 <span class="c">않은</span> 쪽의 교차 라인</pre>
+  <p><b>그런데 어느 구현도 그렇게 하지 않습니다.</b> 레거시는
+  <code>blindLine = 'secondary'</code> 로 고정했고(W10-1), 플래너는
+  <b>회전으로 근사</b>합니다 — <code>orderCorner</code> 는 "꺾여 나간(회전한) 다리가 주인"
+  이고, <b>주벽면을 rot 0 으로 그린다</b>는 관행에 기대고 있습니다.</p>
+
+  <h3>그 근사가 무너지는 자리</h3>
+  <p>배치 단계는 도어가 사람을 향하도록 회전을 <b>자동으로</b> 정합니다(W9-36).
+  그래서 같은 ㄱ자라도 <b>방의 어느 코너에 놓이느냐</b>에 따라 회전 조합이 달라집니다.
+  네 코너 중 <b>둘은 두 다리가 모두 회전</b>이라 "rot 0 = 주벽면" 전제가 성립하지 않고,
+  <code>x + y</code> 타이브레이크로 떨어집니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>ㄱ자가 놓인 방 코너</th><th>가로 다리</th><th>세로 다리</th><th>멍장 주인</th></tr></thead>
+    <tbody>
+      <tr><td>좌상 (위·왼 벽)</td><td><code>rot 0</code></td><td><code>rot 270</code></td><td><b>세로</b></td></tr>
+      <tr><td>우상 (위·오른 벽)</td><td><code>rot 0</code></td><td><code>rot 90</code></td><td><b>세로</b></td></tr>
+      <tr><td>좌하 (아래·왼 벽)</td><td><code>rot 180</code></td><td><code>rot 270</code></td><td><b>가로</b> <span class="badge warn">뒤집힘</span></td></tr>
+      <tr><td>우하 (아래·오른 벽)</td><td><code>rot 180</code></td><td><code>rot 90</code></td><td><b>가로</b> <span class="badge warn">뒤집힘</span></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">실측입니다 — 같은 크기의 ㄱ자를
+  회전 조합만 바꿔 <code>cornerPairs()</code> 를 돌린 결과.</p>
+  </div>
+
+  <div class="callout risk">
+    <h4>키큰장끼리에서 더 나쁜 이유</h4>
+    <p>혼합 코너는 그나마 <b>섹션이라는 신호</b>가 남아 있습니다 — 키큰장과 하부장 중
+    어느 쪽에 멍장을 둘지 사람이 보면 압니다. <b>키큰장끼리는 그 신호마저 없습니다.</b>
+    두 라인이 완전히 같은 종류라 <b>전적으로 회전 규칙에 달립니다.</b></p>
+    <p>그리고 키큰장 멍장은 <b>EP 710 × 2300</b> 짜리 큰 부재를 만듭니다 —
+    잘못된 라인에 서면 되돌리는 비용이 하부장보다 큽니다.</p>
+  </div>
+
+  <h3>세 가지 길</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>안</th><th>내용</th><th>평가</th></tr></thead>
+    <tbody>
+      <tr><td><b>①</b> 지금 그대로</td>
+          <td>회전 기준 유지. 키큰장도 같은 규칙을 탄다</td>
+          <td><span class="badge bad">권장 안 함</span> 방 코너에 따라 뒤집히는 것이 그대로 남는다</td></tr>
+      <tr><td><b>②</b> 회전과 무관한 기본값</td>
+          <td>예) <b>먼저 그린 라인이 prime</b> — 나중에 그린 쪽이 멍장.
+              배치 순서는 회전·위치와 무관하게 안정적이고, 주벽면을 먼저 그리는 관행과 맞는다</td>
+          <td><span class="badge ok">기본값으로 적합</span> "짧은 다리" 는 쓰지 않는다 —
+              길이가 비슷하면 몇 mm 로 뒤집혀 코너가 통째로 재배치된다 (코드 주석의 판단)</td></tr>
+      <tr class="hi"><td><b>③</b> ② + 사람이 뒤집기</td>
+          <td>코너를 눌러 주인을 바꾸는 토글. <code>area.blindOwner</code> 를 <b>UI·저장과 함께</b> 되살린다</td>
+          <td><span class="badge ok">권장</span> §3.2 를 <b>처음으로 실제 구현</b>하는 것이다</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <h4>토글 자리는 비워 둔 상태입니다</h4>
+    <p><code>area.blindOwner</code> 를 읽는 가지가 예전에 있었지만 <b>그 값을 쓰지도
+    저장하지도 않아</b> W12-60 에서 죽은 코드로 제거했습니다. 당시 주석에
+    <b>"토글이 필요해지면 UI·저장과 함께 넣는다"</b> 고 남겨 두었습니다 —
+    지금이 그때입니다.</p>
+  </div>
+
+  <div class="callout decide">
+    <h4>결정 부탁드립니다</h4>
+    <p><b>Q</b> ③(기본값 + 토글) 으로 갈까요? 그러면 키큰장 작업에 <b>토글 UI·저장</b> 이
+    함께 들어갑니다 — 코너 하나를 눌러 <code>◀ 멍장 위치 ▶</code> 로 뒤집는 정도입니다.</p>
+    <p>기본값을 <b>"먼저 그린 라인이 prime"</b> 으로 할지, 아니면 <b>지금 회전 규칙을
+    유지</b>하고 토글만 얹을지도 함께 정해 주시면 좋겠습니다.
+    후자가 변경 폭은 작지만, 방 코너에 따라 초기 주인이 달라지는 것은 그대로 남습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">07</span>구현 단계</h2>
 
   <ol class="steps">
     <li><b class="h">물끊기를 "상판이 있는 라인" 조건으로 바꾼다</b>
@@ -402,7 +483,7 @@
 </section>
 
 <section>
-  <h2><span class="no">07</span>확정된 규칙</h2>
+  <h2><span class="no">08</span>확정된 규칙</h2>
   <p class="sub">이 계획에서 정할 것은 다 정해졌습니다.</p>
 
   <div class="callout keep">
@@ -433,7 +514,7 @@
 </section>
 
 <section>
-  <h2><span class="no">08</span>미리 짚어 둘 위험</h2>
+  <h2><span class="no">09</span>미리 짚어 둘 위험</h2>
   <div class="tbl-wrap">
   <table>
     <thead><tr><th>위험</th><th>왜</th><th>대응</th></tr></thead>
@@ -458,7 +539,7 @@
 </section>
 
 <section>
-  <h2><span class="no">09</span>이 계획이 안 건드리는 것</h2>
+  <h2><span class="no">10</span>이 계획이 안 건드리는 것</h2>
   <ul>
     <li><b>멍 공식의 뼈대</b> — <code>인접 앞선 + 60 + 15</code>. 물끊기 조건만 정확해집니다.</li>
     <li><b>하부장 · 상부장 코너</b> — 765 · 395 그대로. 1단계 테스트로 잠급니다.</li>
