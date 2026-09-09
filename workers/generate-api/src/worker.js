@@ -93,7 +93,12 @@ function normalizeRefs(list) {
       typeof r === 'string'
         ? { base64: r, mimeType: 'image/jpeg' }
         : r && r.base64
-          ? { base64: r.base64, mimeType: r.mimeType || r.mime || 'image/jpeg' }
+          ? {
+              base64: r.base64,
+              mimeType: r.mimeType || r.mime || 'image/jpeg',
+              // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
+              role: r.role === 'theme' ? 'theme' : 'style',
+            }
           : null
     )
     .filter(Boolean)
@@ -278,7 +283,7 @@ async function createGeneration(request, env, headers) {
             r.base64,
             r.mimeType
           );
-          refs.push({ path: up.path, url: up.url, mime: r.mimeType });
+          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style' });
         } catch (e) {
           console.warn('[Generate] ref upload skipped:', e.message);
         }
