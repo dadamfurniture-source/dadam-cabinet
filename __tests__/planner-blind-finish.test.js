@@ -49,10 +49,10 @@ function withBlind(p) {
 }
 
 describe('상수 — 자리와 재단은 다른 값이다', () => {
-  test('자리 60, 재단 100, 차이 40 이 겹침이다', () => {
+  test('자리 60, 재단 150, 차이 90 이 겹침이다 (W12-72)', () => {
     expect(R.CORNER_MOLDING).toBe(60);
-    expect(R.CORNER_FINISH_PART_W).toBe(100);
-    expect(R.CORNER_FINISH_PART_W - R.CORNER_MOLDING).toBe(40);
+    expect(R.CORNER_FINISH_PART_W).toBe(150);
+    expect(R.CORNER_FINISH_PART_W - R.CORNER_MOLDING).toBe(90);
   });
 
   test('멍 공식은 재단(100)이 아니라 자리(60)를 쓴다 — 그리고 벽여유 50 을 뺀다', () => {

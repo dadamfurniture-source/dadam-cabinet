@@ -82,12 +82,12 @@ const MASTER_RULES = {
   CORNER_DRIP: 10,              // 물끊기 여유 (§3.3)
   CORNER_WALL_GAP: 50,          // 멍장 측판 ↔ 코너 벽 여유 (§3.4)
   CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3) — **자리**다
-  // W12-61: 그 마감재의 **재단 폭**. 자리(60)와 다르다.
-  //   마감재는 멍가림판 2.7T MDF 를 **덮고** 붙으므로 접착면 40 을 더 물어야 한다.
-  //     100 = 겹침 40 + 자리 60
-  //   공식(멍 W)에는 여전히 60 만 들어간다 — 100 은 BOM 재단과 화면 표현에만 쓴다.
-  //   여기를 공식에 섞으면 멍장 폭이 40 늘어나 원장이 깨진다.
-  CORNER_FINISH_PART_W: 100,    // 멍판 마감재 재단 폭 (§3.3)
+  // W12-61/72: 그 마감재의 **재단 폭**. 자리(60)와 다르다.
+  //   마감재는 멍가림판 2.7T MDF 를 **덮고** 붙으므로 접착면을 더 물어야 한다.
+  //     150 = 겹침 90 + 자리 60      (W12-72: 100 → 150, 겹침 40 → 90)
+  //   공식(멍 W)에는 여전히 60 만 들어간다 — 150 은 BOM 재단과 화면 표현에만 쓴다.
+  //   여기를 공식에 섞으면 멍장 폭이 늘어나 원장이 깨진다.
+  CORNER_FINISH_PART_W: 150,    // 멍판 마감재 재단 폭 (§3.3)
   // W12-68: 상부 배치 공간의 **기본** 깊이. 멍 폭은 이제 실제 배치 공간 깊이로 재므로
   //   규칙이 아니라 기본값이다 — 플래너 상부 사각형 기본 h 와 같은 320, 그리고 배치
   //   공간 개념이 없는 레거시가 상부에 쓰는 값이다 (§3.6).
@@ -105,6 +105,15 @@ const MASTER_RULES = {
   // 플래너 전용 — 레거시엔 없다. 라인이 선언돼 있지 않아 코너를 좌표로 찾기 때문에,
   // 사람이 손으로 그린 사각형의 어긋남을 얼마까지 코너로 볼지 정해야 한다.
   CORNER_TOUCH_TOL: 20,         // 두 배치 공간이 이 안쪽으로 만나면 코너로 본다
+  // W12-72: 코너에서 **모듈끼리 맞닿게** 하기 위해 배치 공간 밖으로 나갈 수 있는 한계.
+  //   배치 공간은 상판 기준이라 서로 겹치지 않게 그린다. 그런데 몸통은 앞선에서
+  //   물끊기+도어 자리만큼 물러나 앉으므로(seatModuleDepth), 상판끼리 맞닿아도
+  //   **몸통은 그만큼 뜬다**. 코너에서는 그 틈이 그대로 벌어진 자리로 보인다.
+  //   상판은 그대로 두고 몸통만 앞으로 내밀어 붙인다 — 그 한계가 20 이다.
+  CORNER_AREA_OVERRUN: 20,
+  // 도어 자재 두께. 위 DOOR_SEAT_D(20) 는 시공 갭을 포함한 **자리**이고
+  // 이건 실제 판 두께다 — 둘의 차이가 앞선 공기층에 들어간다 (cornerFrontAir).
+  DOOR_T: 18,
 };
 
 // W9-115: 상몰딩 H — 섹션별. 선반 계산(autoCalcModule)과 3D 렌더 양쪽이 쓴다.
@@ -216,6 +225,21 @@ function distributeModules(totalSpace) {
 // @param {object} [o]
 // @param {boolean} [o.ep=false]  키큰장 — 멍판이 EP 18T 이고 마감재는 없다
 // @returns {{cover:[number,number], finish:([number,number]|null), doorFrom:number, coverT:number}}
+/**
+ * 배치 공간 **앞선**에서 **도어 앞면**까지의 거리 (W12-72).
+ *
+ *   배치 공간 깊이 = 물끊기 10 + 도어 자리 20 + 몸통 + 여유(뒤)   (seatModuleDepth)
+ *   도어 자재는 18T 라 20 자리 안에서 2 가 남는다.
+ *   → 앞선과 도어 앞면 사이에 `10 + 20 − 18 = 12` 의 공기층이 있다.
+ *
+ * 코너에서 옆 라인의 끝판이 이 라인의 **도어 면**에 닿으려면 그만큼 더 와야 한다.
+ * 상판(배치 공간)끼리는 이미 맞닿아 있으므로, 그 차이가 곧 벌어져 보이는 틈이다.
+ */
+function cornerFrontAir() {
+  const R = MASTER_RULES;
+  return Math.max(0, R.CORNER_DRIP + R.DOOR_SEAT_D - R.DOOR_T);
+}
+
 function blindFrontLayout(zoneW, o) {
   const R = MASTER_RULES;
   const z = Math.max(0, Number(zoneW) || 0);
@@ -552,11 +576,13 @@ if (typeof window !== 'undefined') {
   window.autoCalcModule = autoCalcModule;
   window.deriveCornerArea = deriveCornerArea;
   window.distributeByDoorW = distributeByDoorW;
-  window.blindFrontLayout = blindFrontLayout;   // W12-66 — 2D·3D 가 같은 좌표를 쓴다
+  window.blindFrontLayout = blindFrontLayout;
+  window.cornerFrontAir = cornerFrontAir;   // W12-66 — 2D·3D 가 같은 좌표를 쓴다
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     blindFrontLayout,
+    cornerFrontAir,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
     calcDoorCount, distributeModules, calcDefaultShelves,
