@@ -37,26 +37,26 @@ const blinds = (p) => (p.g('modules') || []).filter((m) => m.blind);
 const isHoriz = (a) => (((a.rotation || 0) % 180) + 180) % 180 === 0;
 
 describe('엔진 — 물끊기는 상판 있는 라인에만', () => {
-  test('키큰↔키큰: 650 + 60 + 15 = 725 · 인접 밀림 710', () => {
-    const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: TD, adjDs: [TD], ownerHasTop: false, adjHasTops: [false] });
+  test('키큰↔키큰: 650 + 60 + 15 = 725 · 인접 밀림 = 주인 깊이 650', () => {
+    const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: TD, adjDs: [TD], adjHasTops: [false] });
     expect(d.blindZoneW).toBe(725);
-    expect(d.adjStartOffset).toBe(710);
+    expect(d.adjStartOffset).toBe(TD);
     expect(d.blindW).toBe(725 + d.doorW);
   });
-  test('키큰↔하부: 멍은 인접(상판) 기준 765 · 밀림은 주인(키큰) 기준 710', () => {
-    const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: TD, adjDs: [700], ownerHasTop: false, adjHasTops: [true] });
+  test('키큰↔하부: 멍은 인접(상판) 기준 765 · 밀림은 주인(키큰) 깊이 650', () => {
+    const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: TD, adjDs: [700], adjHasTops: [true] });
     expect(d.blindZoneW).toBe(765);
-    expect(d.adjStartOffset).toBe(710);
+    expect(d.adjStartOffset).toBe(TD);
   });
-  test('기본값은 하부장 그대로다 — 765 · 750', () => {
+  test('기본값은 하부장 그대로다 — 765 · 밀림 700', () => {
     const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: 700, adjDs: [700] });
     expect(d.blindZoneW).toBe(765);
-    expect(d.adjStartOffset).toBe(750);
+    expect(d.adjStartOffset).toBe(700);
   });
-  test('상부장은 그대로 395 · 380', () => {
+  test('상부장은 395 · 밀림 320', () => {
     const d = engine.deriveCornerArea({ ownerW: 1800, ownerD: 320, adjDs: [320], isUpper: true });
     expect(d.blindZoneW).toBe(395);
-    expect(d.adjStartOffset).toBe(380);
+    expect(d.adjStartOffset).toBe(320);
   });
 });
 
@@ -124,22 +124,22 @@ describe('키큰장끼리 코너 — 트리밍된 ㄱ자', () => {
     expect(p.g('crossAreaOverlaps')()).toEqual([]);
   });
 
-  test('인접 키큰장은 이미 물러난 만큼 빼고 밀린다 — 요구 710 · 이미 650 → 60', () => {
+  test('트리밍된 인접 키큰장은 더 밀리지 않는다 — 요구 650 · 이미 650 → 0', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const off = p.g('adjCornerOffsetOf')(c.adj.id);
-    expect(off.need).toBe(710);
+    expect(off.need).toBe(TD);
     expect(off.already).toBe(TD);
-    expect(off.offset).toBe(60);
+    expect(off.offset).toBe(0);
   });
 });
 
 describe('키큰장끼리 코너 — 겹친 ㄱ자', () => {
-  test('멍장 셋 · 원장 0 · 겹침 0 · 밀림 710 그대로', () => {
+  test('멍장 셋 · 원장 0 · 겹침 0 · 밀림 650(주인 깊이)', () => {
     const p = boot([tallH(0), tallVOver()]); p.g('autoCalcAllAreas')();
     expect(blinds(p).length).toBe(3);
     const c = p.g('cornerPairs')()[0];
-    expect(p.g('adjCornerOffsetOf')(c.adj.id).offset).toBe(710);
+    expect(p.g('adjCornerOffsetOf')(c.adj.id).offset).toBe(TD);
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const Lg = p.g('cornerLedger')(a.id);
       if (Lg) { expect(Math.abs(Lg.diff)).toBeLessThanOrEqual(1); expect(Lg.missing).toBe(0); }
@@ -149,7 +149,7 @@ describe('키큰장끼리 코너 — 겹친 ㄱ자', () => {
 });
 
 describe('혼합 코너 — 키큰장 ↔ 하부장', () => {
-  test('키큰장이 주인이면 멍 765(하부 기준) · EP 750 · 밀림 710', () => {
+  test('키큰장이 주인이면 멍 765(하부 기준) · EP 750 · 밀림 650', () => {
     // 하부(가로, 잘라냄) + 키큰(세로) — 세로가 코너 사각형을 갖게 배치한다
     const p = boot([
       { section: 'lower', x: 0, y: 0, w: 3600 - TD, h: 700, moduleH: 870, rotation: 180, finishings: [] },
@@ -163,7 +163,7 @@ describe('혼합 코너 — 키큰장 ↔ 하부장', () => {
     const m = blinds(p)[0];
     expect(m.blind.zoneW).toBe(765);
     expect(m.blind.ep.W).toBe(750);
-    expect(p.g('adjCornerOffsetOf')(c.adj.id).need).toBe(710);
+    expect(p.g('adjCornerOffsetOf')(c.adj.id).need).toBe(TD);
   });
 });
 
