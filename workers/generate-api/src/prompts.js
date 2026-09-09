@@ -267,6 +267,41 @@ export function pickFinishes(n, seed) {
   return out;
 }
 
+// ─── 5. 테마 색감 (참고 이미지 중 '테마' 는 색감만 빌린다) ───
+/**
+ * 테마 이미지(식물·명품·회화 등 가구가 아닌 사진)에서 마감 2색을 뽑는다.
+ * 결과는 FINISHES 항목과 같은 모양이라 buildVariantPrompt 에 그대로 들어간다.
+ */
+export function buildThemePalettePrompt() {
+  return `These images are mood references (not furniture). Extract a cabinet colour scheme from them.
+Answer JSON only: {"body":string,"accent":string,"tone":string}
+body = one paint-like finish for door and drawer fronts, in English, e.g. "muted sage green matte", "deep terracotta matte", "warm sand beige matte". Prefer the dominant calm colour; never white or black.
+accent = a second finish for side panels and open shelves that pairs with body, e.g. "natural oak woodgrain", "matte cream".
+tone = the scheme's name in Korean, 2-6 characters, e.g. "세이지 그린", "테라코타".`;
+}
+
+/** @returns {{key:'theme', body:string, accent:string, tone:string}|null} */
+export function parseThemePalette(text) {
+  const m = text && text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]);
+    const clean = (v, max) =>
+      typeof v === 'string' && v.trim()
+        ? v
+            .trim()
+            .replace(/[\r\n"]+/g, ' ')
+            .slice(0, max)
+        : null;
+    const body = clean(j.body, 60);
+    const accent = clean(j.accent, 60) || 'natural oak woodgrain';
+    const tone = clean(j.tone, 12) || '테마 색감';
+    return body ? { key: 'theme', body, accent, tone } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildVariantPrompt(finish) {
   return `Recolour the built-in furniture in this photo to a different finish:
 - Door and drawer fronts: ${finish.body}
