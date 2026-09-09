@@ -213,6 +213,12 @@ function distributeModules(totalSpace) {
 // @param {number} p.ownerD  같은 공간의 깊이 — 인접 공간이 밀려날 거리를 정한다
 // @param {number} p.adjD    인접(가로지르는) 배치 공간의 깊이 — 멍의 크기를 정한다
 // @param {boolean} [p.isUpper=false] 상부장이면 물끊기 없이 320 + 몰딩 (§3.6)
+// @param {boolean} [p.ownerHasTop=true]  주인 라인에 상판이 있는가 — 없으면 인접 밀림에서 물끊기를 빼지 않는다
+// @param {boolean[]} [p.adjHasTops]      인접 라인마다 상판이 있는가 — 없으면 멍에서 물끊기를 빼지 않는다
+//
+// W12-65: 물끊기 10 은 **상판 끝에서 떨어지는 물** 여유다 (§3.3). 상판이 없는 라인엔 없다 —
+//   상부장은 §3.6 이 이미 그렇게 했고, 키큰장(상몰딩만 있음)도 같다. 새 규칙이 아니라
+//   같은 규칙의 정확한 적용이다. 기본값 true 는 하부장 = 예전 동작 그대로다.
 // @param {number} [p.molding]  코너 몰딩 (기본 60)
 // @param {number} [p.epW]      멍장 반대쪽 끝 EP (기본 20)
 // @param {number} [p.minDoorW] 도어 최소폭 (기본 350)
@@ -237,14 +243,17 @@ function deriveCornerArea(p) {
   // 각각 멍이 빠지고 벽 여유도 둘이다. 코너가 하나면 배열 길이가 1일 뿐 식은 같다.
   const adjDs = Array.isArray(p.adjDs) ? p.adjDs : [Number(p.adjD) || 0];
   const n = Math.max(1, adjDs.length);
+  const ownerHasTop = p.ownerHasTop !== false;
+  const adjHasTops = Array.isArray(p.adjHasTops) ? p.adjHasTops : adjDs.map(() => true);
+  const dripOf = (hasTop) => (hasTop === false ? 0 : R.CORNER_DRIP);
 
   // ① 멍 (blind zone) — §3.3 / §3.6
   //   목대 15T 는 멍장 도어 경첩을 달 자리다 (W12-54). 마감재 60 은 몰딩 **또는
   //   휠라** — 코너 마감 선택값이다. 상부는 상판이 없어 물끊기를 빼지 않는다.
   const batten = R.CORNER_HINGE_BATTEN_T;
-  const blindZoneWs = adjDs.map((d) => p.isUpper
+  const blindZoneWs = adjDs.map((d, i) => p.isUpper
     ? R.CORNER_UPPER_MODULE + molding + batten
-    : (Number(d) || 0) - R.CORNER_DRIP + molding + batten);
+    : (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten);
   const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
   // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.
@@ -284,7 +293,7 @@ function deriveCornerArea(p) {
   //    무관하다 (W12-54 확정).
   const adjStartOffset = p.isUpper
     ? R.CORNER_UPPER_MODULE + molding
-    : (Number(p.ownerD) || 0) - R.CORNER_DRIP + molding;
+    : (Number(p.ownerD) || 0) - dripOf(ownerHasTop) + molding;
 
   return {
     ok: true,
