@@ -1,0 +1,586 @@
+<title>키큰장 코너 멍장 계획</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header.doc { padding: 56px 0 30px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono', Consolas, monospace; }
+  h1 { font-size: 32px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 52px; }
+  h2 { font-size: 21px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 18px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; }
+  li { margin: 6px 0; }
+  b, strong { font-weight: 700; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 1px; white-space: nowrap; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', Consolas, monospace; }
+  td code, li code, p code, th code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  tr.hi td { background: var(--ok-bg); }
+
+  pre { background: #29261f; color: #e7e0d2; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12.5px; line-height: 1.7; padding: 16px 18px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+  pre .c { color: #8d8574; } pre .g { color: #9fc0a8; } pre .r { color: #d0928a; } pre .y { color: #d4b58c; }
+
+  figure { margin: 24px 0; padding: 22px 20px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figure svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; max-width: 52em; margin-left: auto; margin-right: auto; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 15px 19px; margin: 18px 0; max-width: 48em; }
+  .callout.risk { border-left-color: var(--bad); }
+  .callout.keep { border-left-color: var(--ok); }
+  .callout.decide { border-left-color: var(--warn); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; }
+  .callout p { margin: 6px 0 0; font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+
+  .steps { counter-reset: s; list-style: none; padding-left: 0; max-width: 47em; }
+  .steps > li { counter-increment: s; position: relative; padding-left: 44px; margin: 20px 0; }
+  .steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .steps > li b.h { display: block; font-size: 15.5px; margin-bottom: 2px; }
+
+  .q { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 18px 20px; margin: 14px 0; max-width: 48em; }
+  .q .qh { font-weight: 700; font-size: 15px; margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
+  .q .qh .n { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--accent); font-size: 13px; }
+  .q p { margin: 6px 0; font-size: 14.5px; }
+  .q .rec { font-size: 14px; color: var(--ok); font-weight: 600; }
+  @media (max-width: 700px) { h1 { font-size: 25px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">설계 계획 · 2차 개정</p>
+  <h1>키큰장 코너 멍장 계획</h1>
+  <p class="lede">본래 의도가 <b>키큰장끼리의 코너</b>였다는 점을 반영해 다시 잡았습니다.
+  그러면 <b>높이 대역 문제가 사라집니다</b> — 인접 키큰장이 전체 높이를 균일하게 가리기
+  때문입니다. 혼합 코너(키큰장 ↔ 하부+상부)도 별도 규칙 없이 풀립니다.
+  멍 구간 정면은 <b>멍판 EP 한 장</b>으로 끝납니다 — 2.7T 가림판도, 마감재 100 도
+  들어가지 않습니다. 남은 미해결은 <b>어느 라인이 멍장을 갖는가</b> 하나입니다 (§06).</p>
+  <div class="meta">
+    <span><b>대상</b> mockup-structure.html · planner-engine.js</span>
+    <span><b>근거</b> corner.md §3.3 · §3.6 · W12-22</span>
+    <span><b>확정</b> 냉장고장 제외 · 실사용 있음</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>한 장 요약</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>코너</th><th>주인 D</th><th>인접 D</th><th class="num">멍</th><th class="num">도어</th><th class="num">멍장</th><th class="num">인접 밀림</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td><b>키큰 ↔ 키큰</b> <span class="badge ok">주 용도</span></td>
+          <td>키큰 650 <span class="badge info">상판 없음</span></td>
+          <td>키큰 650 <span class="badge info">상판 없음</span></td>
+          <td class="num">725</td><td class="num">398 × 3</td><td class="num">1123</td><td class="num">710</td></tr>
+      <tr><td>키큰 ↔ 하부(+상부)</td>
+          <td>키큰 650 <span class="badge info">상판 없음</span></td>
+          <td>하부 700 <span class="badge warn">상판</span></td>
+          <td class="num">765</td><td class="num">385 × 3</td><td class="num">1150</td><td class="num">710</td></tr>
+      <tr><td>(참고) 하부 ↔ 하부</td>
+          <td>하부 700 <span class="badge warn">상판</span></td>
+          <td>하부 700 <span class="badge warn">상판</span></td>
+          <td class="num">765</td><td class="num">385 × 3</td><td class="num">1150</td><td class="num">750</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">라인 폭 1970 기준.
+  <b>멍</b> 은 <u>인접</u> 의 상판 유무로, <b>인접 밀림</b> 은 <u>주인</u> 의 상판 유무로 물끊기가 갈립니다 —
+  그래서 2행은 멍에만 −10 이 들어갑니다. 원장은 세 경우 모두
+  <code>50 + 멍장 + 나머지 = 1970</code> 으로 맞습니다.</p>
+  </div>
+
+  <ol>
+    <li><b>공식은 그대로입니다.</b> <code>인접 앞선 + 마감재 60 + 목대 15</code>.
+      키큰장은 <b>상판이 없어 물끊기 10 을 빼지 않을 뿐</b>입니다 — 상부장에 이미 적용된
+      논리(<code>corner.md §3.6</code>)를 그대로 옮긴 것이고, 새 규칙이 아닙니다.</li>
+    <li><b>멍 구간 정면은 멍판 EP 한 장입니다.</b> 2.7T 가림판이 아니고,
+      그 위에 얹던 <b>마감재 100 도 없습니다</b> — EP 자체가 마감된 판이라 덧댈 것이 없습니다.
+      폭은 <b>멍 − 목대 15</b> (경첩이 목대에 물려야 하므로 목대 앞에서 끝납니다).</li>
+    <li><b>카카스는 단마다 셋, 가리는 면은 하나</b>입니다. 도어·경첩목대만 단별이고
+      멍판 EP 는 <b>한 장, 높이 2300</b>(좌대 포함)입니다.</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="no">02</span>키큰장끼리 — 대역 문제가 없다</h2>
+  <p class="sub">이게 본래 의도한 경우이고, 셋 중 가장 단순합니다.</p>
+
+  <p>인접이 키큰장이면 그 장도 <b>바닥부터 천장까지 같은 깊이</b>로 서 있습니다.
+  그래서 가리는 폭이 높이에 따라 변하지 않습니다 — 하부장·상부장 멍장과 똑같이
+  <b>한 값</b>으로 끝납니다.</p>
+
+  <div class="callout keep">
+    <h4>물끊기를 빼지 않는 이유</h4>
+    <pre style="margin:10px 0 0"><span class="c">corner.md §3.3  물끊기 10 = 상판 끝에서 떨어지는 물이 도어에 닿지 않기 위한 여유</span>
+<span class="c">corner.md §3.6  상부장은 물끊기 없음 (상판이 없다)</span>
+
+키큰장도 <span class="y">상판이 없다</span> — 상몰딩이 얹힐 뿐이다. 따라서 물끊기도 없다.
+
+멍 = 650(인접 키큰장 도어 앞선) + 60 + 15 = <span class="g">725</span></pre>
+    <p>즉 <b>물끊기는 그 라인에 상판이 있을 때만</b> 뺍니다. 하부(있음)·상부(없음) 로
+    이미 갈려 있던 것을 키큰장(없음)까지 넓히는 것뿐입니다.</p>
+  </div>
+
+  <pre><span class="c">키큰장 라인 1970 · D650 · 인접 키큰장 D650  (엔진 실측)</span>
+멍 W        = 650 + 60 + 15        = <span class="g">725</span>
+도어 W      = (1970 − 50 − 725) ÷ 3 = <span class="g">398</span>
+멍장 W      = 725 + 398            = <span class="g">1123</span>
+원장        50 + 1123 + 398 + 399  = <span class="g">1970</span>  <span class="c">✓</span>
+인접 밀림    = 650 + 60            = <span class="g">710</span>  <span class="c">← 주인도 키큰장이라 물끊기 없음</span></pre>
+</section>
+
+<section>
+  <h2><span class="no">03</span>혼합 코너 — 별도 규칙이 필요 없다</h2>
+  <p class="sub">키큰장 ↔ 하부(700) + 상부(320). 1차 계획에서 "세 가지 안" 으로 고민했던 곳인데,
+  따져 보니 <b>고민할 것이 없습니다.</b></p>
+
+  <p>키큰장을 가리는 것이 높이마다 다른 건 맞습니다 — 아래는 하부 라인이, 위는 상부 라인이,
+  가운데는 아무것도 안 가립니다. 그런데 <b>하부 기준이 언제나 가장 큽니다.</b></p>
+
+  <div class="callout keep">
+    <h4>하부 기준이 항상 전체를 덮는다 — 증명</h4>
+    <pre style="margin:10px 0 0">하부 기준 = 인접 D − 10 + 75
+상부 기준 = 320       + 75      <span class="c">(상부는 관례값 320)</span>
+
+차이 = (인접 D − 10) − 320 = <span class="y">인접 D − 330</span>
+
+하부장 상판 깊이는 <span class="y">550 ~ 800</span> 이다 → 차이는 언제나 <span class="g">양수</span>
+→ 하부 기준 하나로 상부 대역까지 <span class="g">전부 덮인다</span></pre>
+    <p>그래서 <code>areaTier</code> 의 "같은 단끼리만 짝" 규칙을 깰 필요가 없습니다.
+    키큰장이 볼 수 있는 인접 라인은 하부뿐인데, <b>그게 곧 정답</b>입니다.</p>
+  </div>
+
+  <p>대가는 <b>위쪽이 더 가려지는 것</b>입니다 — 상부 대역은 395 면 되는데 765 를 씁니다.
+  다만 덜 가리면 도어가 부딪히는 사고가 나고, 더 가리는 것은 사고가 아닙니다.
+  그리고 <b>그 면을 EP 로 마감</b>하므로(§04) 넓은 면이 되레 자연스럽습니다.</p>
+
+  <div class="callout">
+    <h4>1차 계획에서 접은 것</h4>
+    <p>"단마다 다른 멍" (B안) 은 <b>층마다 도어 폭이 달라지는</b> 문제가 있었습니다.
+    위 증명으로 그 선택지 자체가 필요 없어졌습니다 — 한 값으로 전부 덮이니까요.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>멍 구간은 멍판 EP 한 장으로 끝난다</h2>
+  <p class="sub">2.7T 가림판도, 그 위의 마감재 100 도 들어가지 않습니다
+  <span class="badge ok">2026-09-02 확정</span>.</p>
+
+  <p>하부장·상부장 멍장은 멍 구간을 <b>2.7T MDF 가림판</b>으로 덮고, 그 도어 쪽 끝에
+  <b>마감재 100</b> 을 덧댑니다 (W12-61). 가림판이 마감되지 않은 얇은 덮개라
+  이음매를 가릴 줄눈 부재가 따로 필요하기 때문입니다.</p>
+
+  <p>키큰장은 그 자리에 <b>EP 18T</b> 가 섭니다. EP 는 <b>이미 마감된 판</b>이라
+  덧댈 것이 없습니다 — <b>마감재 100 은 빠집니다.</b></p>
+
+  <div class="callout keep">
+    <h4>폭 = 멍 − 목대 15</h4>
+    <pre style="margin:10px 0 0"><span class="c">경첩이 목대에 물려야 한다. EP 가 목대 앞을 덮으면 경첩을 달 자리가 없다.</span>
+멍판 EP = 멍 − 목대 15
+
+키큰 ↔ 키큰   725 − 15 = <span class="g">710</span>
+키큰 ↔ 하부   765 − 15 = <span class="g">750</span></pre>
+    <p>2.7T 가림판과 <b>같은 규칙</b>입니다 — 목대 앞에서 끝납니다.
+    바뀌는 것은 재질·두께·높이뿐입니다.</p>
+  </div>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>단</th><th>멍 구간 정면</th><th class="num">두께</th><th class="num">폭</th><th class="num">높이</th><th>마감재 100</th></tr></thead>
+    <tbody>
+      <tr><td>하부장 멍장</td><td>멍가림판 (MDF)</td><td class="num">2.7</td><td class="num">750</td><td class="num">708</td><td><span class="badge ok">있음</span></td></tr>
+      <tr><td>상부장 멍장</td><td>멍가림판 (MDF)</td><td class="num">2.7</td><td class="num">380</td><td class="num">720</td><td><span class="badge ok">있음</span></td></tr>
+      <tr class="hi"><td><b>키큰장 멍장</b></td><td><b>멍판 EP</b> (MDF)</td><td class="num"><b>18</b></td>
+          <td class="num"><b>710 / 750</b></td><td class="num"><b>2300</b></td><td><span class="badge bad">없음</span></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">혼합 코너의 EP 750 은
+  하부 멍가림판과 <b>폭이 같습니다</b> — 같은 자리를 덮으니 당연합니다. 재질·두께·높이만 다릅니다.</p>
+  </div>
+
+  <div class="callout risk">
+    <h4>이름이 같은 다른 부재 — 헷갈리면 안 된다</h4>
+    <div class="tbl-wrap" style="margin:10px 0 0">
+    <table>
+      <thead><tr><th></th><th>멍판 EP</th><th>라인 마감 EP</th></tr></thead>
+      <tbody>
+        <tr><td><b>무엇</b></td><td>멍 구간을 덮는 <b>파생</b> 부재</td><td>사람이 <b>드롭다운</b>에서 고른 라인 끝 마감</td></tr>
+        <tr><td><b>폭</b></td><td><code>멍 − 목대 15</code> → 710 / 750</td><td><b>기존 규칙 그대로</b> — 배치 공간 기준 (자리 20 · 부재 18T)</td></tr>
+        <tr><td><b>어디</b></td><td>코너 쪽, 멍 구간 앞</td><td>라인의 좌·우 끝</td></tr>
+        <tr><td><b>누가 만드나</b></td><td>자동계산 (멍장과 함께 파생)</td><td>사람</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>둘은 <b>같이 존재할 수 있습니다</b> — 코너 쪽에 멍판 EP 가 서고, 라인 반대쪽 끝에
+    사람이 고른 EP 가 따로 설 수 있습니다. <b>라인 마감 EP 규칙은 한 글자도 안 바꿉니다.</b></p>
+  </div>
+
+  <h3>부재 정리 — 무엇이 하나이고 무엇이 셋인가</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>부재</th><th class="num">수량</th><th class="num">치수</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td><b>멍판 EP</b> (MDF 18T)</td><td class="num">1</td><td class="num">710 × 2300</td>
+          <td>가리는 면은 하나다. 마감된 판이라 덧댈 것이 없다</td></tr>
+      <tr><td>도어 (MDF 18T)</td><td class="num">3</td><td class="num">394 × 단별</td>
+          <td>층으로 나누는 것이 단을 쪼갠 이유다</td></tr>
+      <tr><td>경첩목대 (PB 15T)</td><td class="num">3</td><td class="num">70 × 801 · 979 · 400</td>
+          <td>단마다 도어가 따로 달리니 경첩 자리도 따로다</td></tr>
+      <tr><td colspan="4" style="color:var(--muted)"><s>멍가림판 2.7T</s> · <s>멍판 마감재 100</s>
+          — 키큰장에는 <b>둘 다 없습니다</b></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">키큰↔키큰 기준.
+  혼합 코너면 EP 750 · 도어 381.</p>
+  </div>
+
+  <div class="callout keep">
+    <h4>높이 = 2300, 좌대까지 포함</h4>
+    <p><code>좌대 60 + 카카스 2180 + 상몰딩 60 = <b>2300</b></code> — 장 높이 전체입니다.
+    플래너의 <b>라인 마감재가 이미 2300</b> 을 쓰므로 같은 코너에서 멍판 EP 와 라인 마감의
+    윗선·아랫선이 맞습니다.</p>
+  </div>
+
+  <div class="callout">
+    <h4>덤 — 정면이 두 칸으로 단순해집니다</h4>
+    <p>마감재 칸이 없어지므로 멍장 정면 셀이 <code>[멍][마감][도어]</code> 세 칸에서
+    <code>[멍][도어]</code> <b>두 칸</b>으로 돌아갑니다 (W12-61 이전 모양).
+    멍 칸 폭은 <code>725</code> — EP 710 과 목대 15 를 합친 값입니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">05</span>모델 — 카카스 셋, 가리는 면 하나</h2>
+
+  <figure>
+    <svg viewBox="0 0 720 330" role="img" aria-label="키큰장 라인 1970은 벽 여유 50, 멍장 1123, 수납 둘로 나뉜다. 멍판 EP는 단 경계를 넘어 한 장으로 이어지고 도어만 층으로 나뉜다">
+      <text x="20" y="20" font-size="12.5" font-weight="700" fill="currentColor">정면 — 키큰장 라인 1970 (키큰장끼리 코너)</text>
+
+      <rect x="30" y="34" width="16" height="240" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="38" y="292" class="mono" font-size="10" text-anchor="middle" fill="var(--accent)">50</text>
+
+      <rect x="46" y="34" width="231" height="240" fill="var(--info)" opacity="0.24" stroke="var(--info)" stroke-width="1.6"/>
+      <text x="161" y="146" font-size="12.5" text-anchor="middle" fill="currentColor" font-weight="700">멍판 EP 18T</text>
+      <text x="161" y="167" class="mono" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.8">710 × 2300</text>
+      <text x="161" y="187" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.6">한 장 — 마감재 덧댐 없음</text>
+
+      <rect x="277" y="34" width="5" height="240" fill="currentColor" opacity="0.45"/>
+      <text x="279" y="26" class="mono" font-size="10" text-anchor="middle" fill="currentColor" opacity="0.65">15</text>
+      <text x="279" y="292" font-size="9.5" text-anchor="middle" fill="currentColor" opacity="0.55">목대</text>
+
+      <rect x="282" y="34" width="129" height="88" fill="currentColor" opacity="0.07" stroke="currentColor" stroke-width="1.1"/>
+      <rect x="282" y="122" width="129" height="88" fill="currentColor" opacity="0.07" stroke="currentColor" stroke-width="1.1"/>
+      <rect x="282" y="210" width="129" height="64" fill="currentColor" opacity="0.07" stroke="currentColor" stroke-width="1.1"/>
+      <text x="346" y="82"  font-size="11.5" text-anchor="middle" fill="currentColor">도어 398</text>
+      <text x="346" y="170" font-size="11.5" text-anchor="middle" fill="currentColor">도어 398</text>
+      <text x="346" y="248" font-size="11.5" text-anchor="middle" fill="currentColor">도어 398</text>
+
+      <rect x="411" y="34" width="129" height="240" fill="currentColor" opacity="0.05" stroke="currentColor" stroke-width="1.1" stroke-dasharray="4 3"/>
+      <rect x="540" y="34" width="130" height="240" fill="currentColor" opacity="0.05" stroke="currentColor" stroke-width="1.1" stroke-dasharray="4 3"/>
+      <text x="475" y="148" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.6">수납 398</text>
+      <text x="605" y="148" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.6">수납 399</text>
+      <text x="540" y="168" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.5">(각각 3단 스택)</text>
+
+      <line x1="282" y1="122" x2="670" y2="122" stroke="currentColor" stroke-width="0.8" opacity="0.25" stroke-dasharray="3 4"/>
+      <line x1="282" y1="210" x2="670" y2="210" stroke="currentColor" stroke-width="0.8" opacity="0.25" stroke-dasharray="3 4"/>
+      <text x="676" y="126" font-size="9.5" fill="currentColor" opacity="0.45">단 경계</text>
+
+      <line x1="46" y1="284" x2="411" y2="284" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <text x="228" y="306" class="mono" font-size="11" text-anchor="middle" fill="currentColor">멍장 1123 = 멍 725 (EP 710 + 목대 15) + 도어 398</text>
+      <text x="20" y="324" class="mono" font-size="11" fill="currentColor" opacity="0.75">원장  50 + 1123 + 398 + 399 = 1970 ✓</text>
+    </svg>
+    <figcaption>멍판 EP 가 <b>단 경계(점선)를 그냥 지나갑니다</b> — 그게 "한 장" 의 뜻입니다.
+    도어만 층으로 나뉘고, 경첩은 목대 15 에 물립니다.</figcaption>
+  </figure>
+
+  <p>키큰장의 층은 셀이 아니라 <b>각각 별개의 모듈</b>입니다(<code>autoCalcStack</code> 이 단마다
+  <code>addModuleToArea</code> 를 부릅니다). 멍장을 2300 짜리 모듈 하나로 만들면 도어를 층으로
+  못 나눕니다 — 그래서 <b>카카스는 단마다 하나씩 셋</b>입니다. 셋 다 같은 멍 폭·도어 폭을
+  쓰므로 정면이 가지런합니다.</p>
+</section>
+
+<section>
+  <h2><span class="no">06</span>어느 라인이 멍장을 갖는가 <span class="badge bad">미해결</span></h2>
+  <p class="sub">이 계획에서 <b>아직 정하지 않은 유일한 것</b>입니다. 그리고 키큰장끼리에서
+  가장 아프게 드러납니다. 결론부터 — <b>레거시는 "먼저 있던 라인이 prime" 이었고,
+  플래너는 그걸 회전으로 근사하다 어긋났습니다.</b></p>
+
+  <h3>규칙 문서는 이미 답을 정해 놨다</h3>
+  <pre><span class="c">docs/design-rules/corner.md §3.2  소속 라인 (<span class="y">사용자 결정</span>)</span>
+  · 멍장은 <span class="y">prime 또는 secondary 어느 라인에도 배치 가능</span> — 사용자 결정에 따른다
+  · "인접 라인" = 멍장이 속하지 <span class="c">않은</span> 쪽의 교차 라인</pre>
+  <p><b>그런데 어느 구현도 그렇게 하지 않습니다.</b> 레거시는
+  <code>blindLine = 'secondary'</code> 로 고정했고(W10-1), 플래너는
+  <b>회전으로 근사</b>합니다 — <code>orderCorner</code> 는 "꺾여 나간(회전한) 다리가 주인"
+  이고, <b>주벽면을 rot 0 으로 그린다</b>는 관행에 기대고 있습니다.</p>
+
+  <h3>그런데 prime / secondary 자체가 무엇으로 정해지나</h3>
+  <p>레거시를 따라가 보면 기하학적 기준이 <b>아예 없습니다.</b> <b>입력 순서</b>입니다.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th></th><th>prime (주선)</th><th>secondary (차선)</th></tr></thead>
+    <tbody>
+      <tr><td><b>무엇</b></td><td>품목의 <b>자체 W · D</b> — 처음 입력한 값</td>
+          <td>ㄱ자/ㄷ자로 <b>전환할 때 새로 생기는</b> 라인</td></tr>
+      <tr><td><b>기본값</b></td><td>사용자 입력</td>
+          <td>W <code>1800</code> · D 는 <b>prime 것을 상속</b>
+              (<code>lowerSecondaryD = item.d</code>)</td></tr>
+      <tr><td><b>어디서 꺾이나</b></td><td>—</td>
+          <td><code>secondaryStartSide</code> — prime 의 좌 / 우 끝</td></tr>
+      <tr><td><b>멍장</b></td><td>없음 (밀려난다)</td>
+          <td><b>여기 선다</b> — <code>blindLine='secondary'</code> 고정 (W10-1)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>길이도 벽도 사람 방향도 보지 않습니다.</b> prime 이 secondary 보다 짧아도 됩니다.
+  정리하면 레거시의 실질 규칙은 <b>"먼저 있던 라인이 prime, 나중에 붙인 라인이 멍장"</b> 입니다.</p>
+
+  <div class="callout keep">
+    <h4>그래서 ②는 새로 지어내는 규칙이 아닙니다</h4>
+    <p>아래 ② 안의 <b>"먼저 그린 라인이 prime"</b> 은 <b>레거시 모델을 그대로 옮기는 것</b>입니다.
+    플래너에는 prime / secondary 라는 개념이 아예 없고
+    (<code>mockup-structure.html:3846</code> — "prime/secondary 라는 이름 대신 두 배치 공간이
+    직각으로 만나는지를 본다"), <code>orderCorner</code> 가 <b>회전으로 근사</b>하고 있을 뿐입니다.
+    배치 순서를 쓰면 그 근사를 <b>원본 규칙으로 되돌리는</b> 셈입니다.</p>
+  </div>
+
+  <h3>회전 근사가 무너지는 자리</h3>
+  <p>배치 단계는 도어가 사람을 향하도록 회전을 <b>자동으로</b> 정합니다(W9-36).
+  그래서 같은 ㄱ자라도 <b>방의 어느 코너에 놓이느냐</b>에 따라 회전 조합이 달라집니다.
+  네 코너 중 <b>둘은 두 다리가 모두 회전</b>이라 "rot 0 = 주벽면" 전제가 성립하지 않고,
+  <code>x + y</code> 타이브레이크로 떨어집니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>ㄱ자가 놓인 방 코너</th><th>가로 다리</th><th>세로 다리</th><th>멍장 주인</th></tr></thead>
+    <tbody>
+      <tr><td>좌상 (위·왼 벽)</td><td><code>rot 0</code></td><td><code>rot 270</code></td><td><b>세로</b></td></tr>
+      <tr><td>우상 (위·오른 벽)</td><td><code>rot 0</code></td><td><code>rot 90</code></td><td><b>세로</b></td></tr>
+      <tr><td>좌하 (아래·왼 벽)</td><td><code>rot 180</code></td><td><code>rot 270</code></td><td><b>가로</b> <span class="badge warn">뒤집힘</span></td></tr>
+      <tr><td>우하 (아래·오른 벽)</td><td><code>rot 180</code></td><td><code>rot 90</code></td><td><b>가로</b> <span class="badge warn">뒤집힘</span></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">실측입니다 — 같은 크기의 ㄱ자를
+  회전 조합만 바꿔 <code>cornerPairs()</code> 를 돌린 결과.</p>
+  </div>
+
+  <div class="callout risk">
+    <h4>키큰장끼리에서 더 나쁜 이유</h4>
+    <p>혼합 코너는 그나마 <b>섹션이라는 신호</b>가 남아 있습니다 — 키큰장과 하부장 중
+    어느 쪽에 멍장을 둘지 사람이 보면 압니다. <b>키큰장끼리는 그 신호마저 없습니다.</b>
+    두 라인이 완전히 같은 종류라 <b>전적으로 회전 규칙에 달립니다.</b></p>
+    <p>그리고 키큰장 멍장은 <b>EP 710 × 2300</b> 짜리 큰 부재를 만듭니다 —
+    잘못된 라인에 서면 되돌리는 비용이 하부장보다 큽니다.</p>
+  </div>
+
+  <h3>세 가지 길</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>안</th><th>내용</th><th>평가</th></tr></thead>
+    <tbody>
+      <tr><td><b>①</b> 지금 그대로</td>
+          <td>회전 기준 유지. 키큰장도 같은 규칙을 탄다</td>
+          <td><span class="badge bad">권장 안 함</span> 방 코너에 따라 뒤집히는 것이 그대로 남는다</td></tr>
+      <tr><td><b>②</b> 회전과 무관한 기본값</td>
+          <td><b>먼저 그린 라인이 prime</b> — 나중에 그린 쪽이 멍장.
+              <b>레거시가 실제로 쓰던 규칙</b>이다 (위 표). 배치 순서는 회전·위치와
+              무관하게 안정적이다</td>
+          <td><span class="badge ok">기본값으로 적합</span> "짧은 다리" 는 쓰지 않는다 —
+              길이가 비슷하면 몇 mm 로 뒤집혀 코너가 통째로 재배치된다 (코드 주석의 판단)</td></tr>
+      <tr class="hi"><td><b>③</b> ② + 사람이 뒤집기</td>
+          <td>코너를 눌러 주인을 바꾸는 토글. <code>area.blindOwner</code> 를 <b>UI·저장과 함께</b> 되살린다</td>
+          <td><span class="badge ok">권장</span> §3.2 를 <b>처음으로 실제 구현</b>하는 것이다</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <h4>토글 자리는 비워 둔 상태입니다</h4>
+    <p><code>area.blindOwner</code> 를 읽는 가지가 예전에 있었지만 <b>그 값을 쓰지도
+    저장하지도 않아</b> W12-60 에서 죽은 코드로 제거했습니다. 당시 주석에
+    <b>"토글이 필요해지면 UI·저장과 함께 넣는다"</b> 고 남겨 두었습니다 —
+    지금이 그때입니다.</p>
+  </div>
+
+  <div class="callout decide">
+    <h4>결정 부탁드립니다</h4>
+    <p><b>Q</b> ③(기본값 + 토글) 으로 갈까요? 그러면 키큰장 작업에 <b>토글 UI·저장</b> 이
+    함께 들어갑니다 — 코너 하나를 눌러 <code>◀ 멍장 위치 ▶</code> 로 뒤집는 정도입니다.</p>
+    <p>기본값을 <b>"먼저 그린 라인이 prime"</b> 으로 할지, 아니면 <b>지금 회전 규칙을
+    유지</b>하고 토글만 얹을지도 함께 정해 주시면 좋겠습니다.
+    후자가 변경 폭은 작지만, 방 코너에 따라 초기 주인이 달라지는 것은 그대로 남습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">07</span>구현 단계</h2>
+
+  <ol class="steps">
+    <li><b class="h">물끊기를 "상판이 있는 라인" 조건으로 바꾼다</b>
+      <code>deriveCornerArea</code> 는 지금 <code>isUpper</code> 하나로 갈립니다.
+      키큰장은 상부장도 하부장도 아니므로 조건을 <b>상판 유무</b>로 바꿉니다.
+      <pre style="margin:8px 0 0">멍     = (상부장 인접 ? 320 : 인접D − (인접에 상판 있으면 10)) + 60 + 15
+인접 밀림 = 주인D − (주인에 상판 있으면 10) + 60
+상판 있는 섹션 = lower 뿐 (upper · tall · fridge 는 없음)</pre></li>
+
+    <li><b class="h">스택 제외를 키큰장에 한해 푼다</b>
+      <code>cornerPairs</code> 의 <code>!isStackedArea(a)</code> →
+      <code>!isStackedArea(a) || a.section === 'tall'</code>.
+      <b>냉장고장은 계속 제외</b>합니다 <span class="badge ok">확정</span> — 바닥에 냉장고 자리가
+      비어 있어 코너를 채울 몸이 없습니다.</li>
+
+    <li><b class="h"><code>autoCalcStack</code> 에 코너 예약을 넣는다</b>
+      지금은 단을 <code>W = area.W − finW</code> 로 만듭니다.
+      <code>autoCalcArea</code> 와 같이 <code>ensureCornerModules</code> /
+      <code>adjCornerOffsetOf</code> 를 먼저 부르고 남은 폭에서 단을 만듭니다.</li>
+
+    <li><b class="h">멍장을 단마다 세운다</b>
+      <code>ensureCornerModules</code> 가 스택 영역이면 단 수만큼 멍장을 만듭니다.
+      셋 다 같은 <code>W · x · blind</code>, 다른 <code>H · baseY · part</code>.
+      셀은 마감재 칸이 없으므로 <code>[멍 725][도어 398]</code> <b>두 칸</b>입니다.</li>
+
+    <li><b class="h">원장을 스택에 맞게 센다</b>
+      <code>cornerLedger</code> 의 <code>Σ(모듈 W)</code> 는 단이 셋이면 세 번 더합니다 —
+      스택은 단들이 <b>같은 자리에 겹쳐</b> 서므로 <b>단 하나 몫만</b> 세야 합니다.
+      <span class="badge warn">가장 조심할 곳</span></li>
+
+    <li><b class="h">BOM — 스택이면 부재 구성이 다르다</b>
+      지금 <code>addBlindFrontParts</code> 는 멍장 하나당 네 부재를 다 냅니다. 스택이면:
+      <pre style="margin:8px 0 0">멍가림판 2.7T   →  <span class="y">멍판 EP 18T</span>, 폭 <span class="g">멍 − 목대 15</span>, 높이 <span class="g">2300</span>, 대표 단에서 <span class="g">한 번</span>
+멍판 마감재 100 →  <span class="r">내지 않음</span>  (EP 가 이미 마감된 판이다)
+도어 · 경첩목대  →  <span class="c">단마다 그대로</span></pre></li>
+
+    <li><b class="h">회귀 테스트</b>
+      키큰장끼리 ㄱ자·ㄷ자 · 혼합 코너 · 폭 부족 · 원장 · 겹침 · 마감재 연동 · BOM 끝단.
+      <b>기존 하부·상부 테스트가 하나도 안 깨져야 합니다</b> — 특히 물끊기 조건을 바꾸는
+      1단계에서 하부장 765 · 상부장 395 가 그대로 나오는지 먼저 확인합니다.</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="no">08</span>확정된 규칙</h2>
+  <p class="sub">이 계획에서 정할 것은 다 정해졌습니다.</p>
+
+  <div class="callout keep">
+    <h4>남은 물음이 없습니다 — 세 개 모두 답을 받았습니다</h4>
+    <p><b>Q1 EP 폭에서 목대 15 를 빼는가</b> → <b>뺀다.</b> 경첩이 목대에 물려야 하므로
+    EP 는 목대 앞에서 끝난다. 710 / 750.</p>
+    <p><b>Q2 EP 위에 마감재 100 이 올라가는가</b> → <b>안 올라간다.</b> EP 는 이미 마감된
+    판이라 덧댈 줄눈 부재가 필요 없다.</p>
+    <p><b>Q3 혼합 코너도 EP 인가</b> → <b>그렇다.</b> 키큰장이 주인이면 인접이 무엇이든 EP.</p>
+  </div>
+
+  <h3>이미 확정된 것</h3>
+  <div class="tbl-wrap">
+  <table>
+    <tbody>
+      <tr><td>냉장고장</td><td><b>코너 제외</b> — 바닥에 냉장고 자리라 채울 몸이 없다</td></tr>
+      <tr><td>실사용</td><td><b>있음</b> — 우선순위를 낮출 이유가 없다</td></tr>
+      <tr><td>높이</td><td><b>2300</b> — 좌대까지 포함</td></tr>
+      <tr><td>가리는 면</td><td><b>멍판 EP 한 장</b> — 나누지 않음. 폭은 <code>멍 − 목대 15</code></td></tr>
+      <tr><td>멍판 마감재 100</td><td><b>키큰장에는 없음</b> — EP 가 마감된 판이다</td></tr>
+      <tr><td>혼합 코너</td><td><b>EP</b> — 하부 기준 765 가 전체를 덮는다</td></tr>
+      <tr><td>라인 마감 EP</td><td><b>기존 규칙 그대로</b> — 배치 공간 기준. 멍판 EP 와 다른 부재다</td></tr>
+      <tr><td>카카스</td><td><b>단마다 셋</b> — 도어를 층으로 나누기 위해</td></tr>
+      <tr><td>멍 공식</td><td><b>그대로</b> — 물끊기만 상판 유무로 갈린다</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">09</span>미리 짚어 둘 위험</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>위험</th><th>왜</th><th>대응</th></tr></thead>
+    <tbody>
+      <tr><td><b>하부·상부 회귀</b></td>
+          <td>물끊기 조건을 <code>isUpper</code> 에서 상판 유무로 바꾸면 기존 두 경로가 다 지나간다</td>
+          <td>1단계에서 하부 765 · 상부 395 를 먼저 잠근다 <span class="badge warn">필수</span></td></tr>
+      <tr><td><b>원장 중복 합산</b></td>
+          <td>스택 단 셋이 같은 자리에 겹쳐 서는데 <code>Σ(모듈 W)</code> 는 셋을 다 더한다</td>
+          <td>스택 영역은 단 하나 몫만 센다</td></tr>
+      <tr><td><b>코너 끝 마감재</b></td>
+          <td><code>setModuleFinish</code> 가 <code>isFixed</code> 를 안 봐 멍장 폭을 뺏는다
+              (하부·상부에서 확인된 기존 결함)</td>
+          <td>키큰장에서도 똑같이 난다 — 별건 수정과 함께 가는 편이 낫다</td></tr>
+      <tr><td><b>폭 부족</b></td>
+          <td>키큰장 라인이 <code>50 + 멍 + 도어최소 350</code> 보다 좁으면 멍장이 못 선다
+              (키큰끼리 1125 · 혼합 1165)</td>
+          <td>기존 <code>no-room</code> 경고 경로가 그대로 탄다 — 추가 작업 없음</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">10</span>이 계획이 안 건드리는 것</h2>
+  <ul>
+    <li><b>멍 공식의 뼈대</b> — <code>인접 앞선 + 60 + 15</code>. 물끊기 조건만 정확해집니다.</li>
+    <li><b>하부장 · 상부장 코너</b> — 765 · 395 그대로. 1단계 테스트로 잠급니다.</li>
+    <li><b>하부·상부 멍판 마감재</b> — 자리 60 · 재단 100 · 라인 연동 (W12-61/62) 그대로.
+      키큰장에만 안 들어갑니다.</li>
+    <li><b>라인 마감 EP</b> — 드롭다운에서 고르는 그 EP 입니다. 배치 공간 기준 폭·높이,
+      <b>한 글자도 안 바꿉니다.</b> 멍판 EP 와 이름만 같고 다른 부재입니다.</li>
+    <li><b>냉장고장</b> — 계속 코너 제외.</li>
+    <li><b>W12-22 스택 규칙</b> — 단들이 같은 x·W 를 쓰고 함께 폭을 내놓는 것. 그대로 지킵니다.</li>
+  </ul>
+</section>
+</main>

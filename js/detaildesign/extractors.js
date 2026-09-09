@@ -129,6 +129,49 @@
         }
 
         // ========================================
+        // W12-61: 멍장 정면 부재 (멍가림판 · 경첩목대 · 멍판 마감재)
+        //
+        // 멍 폭(blindZoneW)은 corner.md §3.3 대로 세 조각을 품는다:
+        //
+        //     멍 W = 인접 상판 D − 물끊기 10 + 마감재 자리 60 + 목대 15
+        //     ├─ 멍가림판 2.7T MDF ─────────────┤├목대┤
+        //     ├── 보이는 MDF ──┤├─ 마감재 100 ─┤
+        //
+        // 두 가지를 헷갈리기 쉬워 여기 적어 둔다.
+        //   · **목대 15 는 뺀다.** 멍판은 목대 앞에서 끝난다 — 목대는 도어 경첩이
+        //     물리는 구조재이고 이미 아래에서 따로 발주된다. 안 빼면 15 과다 재단.
+        //   · **마감재 60 은 안 뺀다.** 마감재는 멍판을 대체하지 않고 그 **위에**
+        //     붙는다. 그래서 마감재 재단이 자리(60)보다 넓은 100 이다 —
+        //     접착면 40 을 멍판 위로 문다. 빼면 마감재가 뜬다.
+        //
+        // 마감재 종류는 멍장이 속한 라인 마감을 따라온다 (mod.blindFinishType).
+        // ========================================
+        addBlindFrontParts(materials, modLabel, mod, H) {
+          const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
+          const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
+          const battenW = typeof CORNER_HINGE_BATTEN_W !== 'undefined' ? CORNER_HINGE_BATTEN_W : 70;
+          const finPartW = typeof CORNER_FINISH_PART_W !== 'undefined' ? CORNER_FINISH_PART_W : 100;
+
+          const zoneW = parseFloat(mod.blindZoneW) || 0;
+          const coverW = Math.max(0, zoneW - battenT);
+          this.add(materials, modLabel, '멍가림판', 'MDF', coverT, coverW, H, 1, '-',
+                   '멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)');
+          // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
+          this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-',
+                   '멍장 도어 경첩용 목대 (corner.md §3.3)');
+          // W12-61: 멍판 마감재 — 멍장 도어 바로 옆, 멍가림판 위에 붙는다.
+          //   'None' 을 명시한 경우에만 뺀다. 미지정이면 휠라로 떨어진다(§3.3) —
+          //   자리 60 은 이미 멍 폭에 있어서, 안 내면 그 자리가 MDF 로 발주된다.
+          const finType = mod.blindFinishType || 'Filler';
+          if (finType !== 'None' && coverW > 0) {
+            const finW = parseFloat(mod.blindFinishW) || finPartW;
+            const finName = finType === 'Molding' ? '몰딩(멍판)' : '휠라(멍판)';
+            this.add(materials, modLabel, finName, 'MDF', 18, finW, H, 1, '4면',
+                     '멍판 마감재 — 자리 60 + 멍판 위 겹침 40 (corner.md §3.3)');
+          }
+        }
+
+        // ========================================
         // W7-3: 도어 모듈 → 자재 정보 매핑
         // bom-finish-color.js 가 로드되면 finish/color → 자재 코드, 아니면 default MDF
         // ========================================
@@ -155,11 +198,7 @@
           const defaultLowerD = 550; // 하부장 기본 깊이
           const isWoodChannel = (specs.handle || '').includes('목찬넬');
           const legH = specs.sinkLegHeight || 150;
-          // W10-4: 멍 가림판 두께 — data-constants.js CORNER_BLIND_COVER_T (corner.md §3.5)
-          const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
-          // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가므로(corner.md §3.3) 자재표에도 나온다
-          const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
-          const battenW = typeof CORNER_HINGE_BATTEN_W !== 'undefined' ? CORNER_HINGE_BATTEN_W : 70;
+          // W12-61: 멍장 정면 부재(멍가림판·목대·마감재) 치수는 addBlindFrontParts 로 모았다.
 
           // ===== 상부장 모듈 =====
           const upperModules = (item.modules || []).filter((m) => m.pos === 'upper' && m.type !== 'hood');
@@ -201,10 +240,7 @@
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
-              this.add(materials, modLabel, '멍가림판', 'MDF', coverT, parseFloat(mod.blindZoneW) || 0, H, 1, '-', '멍 가림 MDF (corner.md §3.5)');
-              // W12-54: 경첩 목대 — 멍장 도어 경첩을 달 자리. 멍 폭에 이미 15T 가
-              // 들어가 있으므로(corner.md §3.3) 자재표에도 같이 나와야 한다.
-              this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-', '멍장 도어 경첩용 목대 (corner.md §3.3)');
+              this.addBlindFrontParts(materials, modLabel, mod, H);
             } else if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
@@ -250,10 +286,7 @@
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
-              this.add(materials, modLabel, '멍가림판', 'MDF', coverT, parseFloat(mod.blindZoneW) || 0, H, 1, '-', '멍 가림 MDF (corner.md §3.5)');
-              // W12-54: 경첩 목대 — 멍장 도어 경첩을 달 자리. 멍 폭에 이미 15T 가
-              // 들어가 있으므로(corner.md §3.3) 자재표에도 같이 나와야 한다.
-              this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-', '멍장 도어 경첩용 목대 (corner.md §3.3)');
+              this.addBlindFrontParts(materials, modLabel, mod, H);
             } else if (isDrawer) {
               // ★ 서랍장: 서랍 + 여닫이 도어 + 목찬넬
               const drawerCount = mod.drawerCount || 1;

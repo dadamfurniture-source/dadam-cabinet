@@ -491,7 +491,8 @@ describe('마감재 높이는 종류가 정한다 (W12-42)', () => {
 
   test('규칙이 한 곳이다', () => {
     const fn = SRC2.slice(SRC2.indexOf('function finishingSpanOf'), SRC2.indexOf('function finishBaseYFor'));
-    expect(fn).toContain("if ((section === 'molding' || section === 'ep') && area)");
+    // W12-62: 비움도 같은 가지에 붙는다 — 몰딩과 같은 자리(상판 아래)에 선다.
+    expect(fn).toContain("if ((section === 'molding' || section === 'ep' || section === 'gap') && area)");
     expect(fn).toContain("if (section === 'filler' && host)");
     expect(fn).toContain('doorSpanOf(host, getStructure(host.id))');
   });
