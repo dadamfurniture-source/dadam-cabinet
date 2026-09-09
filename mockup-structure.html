@@ -47,7 +47,8 @@
     padding:8px 9px 4px;font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:.04em}
   .load-menu .lm-stage button{border:1px solid var(--line);background:transparent;color:var(--brand-deep);
     border-radius:4px;font-size:10px;font-weight:600;padding:2px 7px;cursor:pointer}
-  .load-menu .lm-stage button:hover{background:var(--brand-soft)}
+  .load-menu .lm-stage button:hover:not(:disabled){background:var(--brand-soft)}
+  .load-menu .lm-stage button:disabled{opacity:.4;cursor:not-allowed}
   .load-menu .lm-row{display:block;width:100%;text-align:left;border:none;background:transparent;
     padding:7px 9px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text)}
   .load-menu .lm-row:hover{background:var(--brand-soft)}
@@ -4659,11 +4660,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /** 영역을 고르면 우측 상단에 모듈 추가·제거 버튼이 뜬다 */
-  function setActiveArea(id) {
-    // **다른 영역으로 옮길 때만** 화면을 다시 맞춘다.
-    // 같은 영역을 다시 누르거나 옵션을 바꿔 다시 그릴 때까지 맞추면,
-    // 사용자가 돌려놓은 줌·팬이 클릭마다 되돌아간다.
-    const moved = id && id !== activeAreaId;
+  /**
+   * @param {string} id
+   * @param {{fit?:boolean}} [opt] fit:true 일 때만 화면을 맞춘다.
+   *
+   * W12-72: 화면 맞춤이 **기본값이 아니다.** 예전엔 다른 영역으로 옮길 때마다
+   *   2D 줌·팬과 3D 카메라를 다시 맞췄는데, 도면에서 모듈을 하나 누를 때도
+   *   (영역이 같이 바뀌면서) 그 길을 탔다. 보고 있던 거리가 매번 초기화돼
+   *   확대해 놓고 작업을 이어갈 수가 없었다.
+   *
+   *   맞춤은 **사람이 자리를 옮길 때**만이다 — 좌측 '배치' 목록에서 영역을
+   *   고르거나 '배치' 탭에 들어올 때. 도면·3D 클릭은 표시만 바꾼다.
+   *   (F 키가 언제든 화면을 맞춘다.)
+   */
+  function setActiveArea(id, opt) {
+    const moved = !!(opt && opt.fit) && id && id !== activeAreaId;
     activeAreaId = id;
     panelTarget = 'area';
     renderAreaTools();
@@ -4872,6 +4883,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const endPan = () => { panInfo = null; svg.style.cursor = ''; };
     svg.addEventListener('pointerup', endPan);
     svg.addEventListener('pointercancel', endPan);
+    // W12-72: 빈 곳 클릭 → 선택 해제. 모듈 외곽·영역 사각형은 자기 클릭에서
+    //   stopPropagation 하므로 여기까지 올라오지 않는다 (= 정말 빈 곳이다).
+    //   팬으로 넘어간 드래그는 클릭이 아니다.
+    svg.addEventListener('click', (e) => {
+      if (panInfo && panInfo.moved) return;
+      clearActiveModule();
+    });
     // 키보드
     document.addEventListener('keydown', (e) => {
       if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
@@ -4880,6 +4898,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (e.key === 'l' || e.key === 'L') { document.getElementById('moduleList').classList.toggle('collapsed'); }
       if (e.key === 'r' || e.key === 'R') { document.getElementById('rightPanel').classList.toggle('collapsed'); }
     });
+  }
+
+  /**
+   * 아무것도 안 고른 상태로 되돌린다 (W12-72).
+   *
+   * 빈 곳을 눌렀는데 파란 테두리가 남아 있으면, 지금 무엇을 편집 중인지
+   * 알 수 없다. 영역 선택은 건드리지 않는다 — 배치 공간은 배경이고,
+   * 우측 패널이 그 영역 정보를 계속 보여주는 편이 낫다.
+   */
+  function clearActiveModule() {
+    if (!activeId) return false;
+    activeId = null;
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    const nameEl = document.getElementById('curModuleName');
+    if (nameEl) nameEl.textContent = '모듈을 선택하세요';
+    if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
+    return true;
   }
 
   // 토스트
@@ -4980,24 +5017,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     async function renderMenu() {
       menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';
       const ready = await PlannerStore.ready();
-      if (!ready.ok) {
-        menu.innerHTML = `<div class="lm-note">${esc(storeExcuse(ready.reason))}</div>`;
-        return;
-      }
+      // W12-72: 못 쓰는 상태여도 **메뉴 뼈대는 그대로 그린다.**
+      //   예전엔 안내 한 줄만 남겨서, 저장 버튼이 아예 없는 것처럼 보였다.
+      //   버튼은 비활성으로 두고 왜 못 쓰는지를 그 자리에서 알려 준다.
+      const why = ready.ok ? '' : storeExcuse(ready.reason);
       const lists = {};
-      for (const stage of PLANNER_STAGES) lists[stage] = await PlannerStore.list(stage);
+      if (ready.ok) {
+        for (const stage of PLANNER_STAGES) lists[stage] = await PlannerStore.list(stage);
+      }
       const parts = [];
+      if (why) parts.push(`<div class="lm-note">${esc(why)}</div><div class="lm-sep"></div>`);
       PLANNER_STAGES.forEach((stage, i) => {
         const label = PLANNER_STAGE_LABEL[stage];
         const rows = (lists[stage] && lists[stage].rows) || [];
         if (i) parts.push('<div class="lm-sep"></div>');
         // 디테일은 상세설계가 저장할 때 쌓인다 — 여기서 만들 수 있는 것이 아니다.
         parts.push(`<div class="lm-stage"><span>${label}</span>`
-          + (stage === 'detail' ? '' : `<button data-save="${stage}">현재 상태 저장…</button>`)
+          + (stage === 'detail' ? ''
+            : `<button data-save="${stage}"${ready.ok ? '' : ' disabled title="' + esc(why) + '"'}>현재 상태 저장…</button>`)
           + '</div>');
         parts.push(rows.length
           ? rows.map((r) => rowHTML(stage, r)).join('')
-          : `<div class="lm-empty">저장된 ${label} 도면이 없습니다</div>`);
+          : `<div class="lm-empty">${ready.ok ? `저장된 ${label} 도면이 없습니다` : '계정 저장을 쓸 수 없습니다'}</div>`);
       });
       menu.innerHTML = parts.join('');
       menu.querySelectorAll('[data-save]').forEach((el) => {
@@ -5283,7 +5324,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       raycaster.setFromCamera(pointer, camera);
       const hits = raycaster.intersectObjects(moduleGroup.children, true);
       const picked = pickEntityHit(hits);
+      // W12-72: 빈 곳을 누르면 선택을 푼다. 안 풀면 파란 테두리가 남아
+      //   지금 무엇을 편집 중인지 알 수 없다.
       if (picked) handleEntityClick(picked);
+      else { clearHighlight(); clearActiveModule(); }
     });
 
     // Resize handler
@@ -6353,8 +6397,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     } else if (mode === 'area') {
       // 배치 단계에서 잡은 영역을 고른다. 이미 고른 영역이 있으면 그대로 둔다.
       const keep = areas.find((a) => a.id === activeAreaId);
-      if (keep) setActiveArea(keep.id);
-      else if (areas.length) setActiveArea(areas[0].id);
+      // '배치' 탭에 들어오는 건 자리를 옮기는 동작이다 — 여기서는 맞춘다.
+      if (keep) setActiveArea(keep.id, { fit: true });
+      else if (areas.length) setActiveArea(areas[0].id, { fit: true });
     } else if (mode === 'all') {
       // W12-70: 고른 모듈은 **그대로 둔다**. 전체 보기에서도 파란 테두리로
       //   무엇을 고쳤는지 보여야 한다 — 예전엔 여기서 activeId 를 지웠다.
@@ -6403,7 +6448,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>`;
       }).join('');
       body.querySelectorAll('[data-area-pick]').forEach((el) => {
-        el.onclick = () => setActiveArea(el.dataset.areaPick);
+        el.onclick = () => setActiveArea(el.dataset.areaPick, { fit: true });
       });
     } else if (viewMode === 'all') {
       body.innerHTML = `<div class="empty-msg" style="padding:20px 8px">전체 모듈 (${modules.length}개)<br><span style="font-size:10px">배치 그대로 3D 표시</span></div>`;
@@ -6859,7 +6904,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       activeId = first.id;                 // 우측 패널에 내용이 차도록
       renderModuleList();
       renderRightPanel();
-      setActiveArea(first.areaId || (areas[0] && areas[0].id) || null);
+      setActiveArea(first.areaId || (areas[0] && areas[0].id) || null, { fit: true });
     }
     renderFrontView();
     fitToAreas();
