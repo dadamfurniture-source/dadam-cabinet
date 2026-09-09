@@ -23,10 +23,12 @@ import {
   buildAnalysisPrompt,
   buildInstallPrompt,
   buildQcPrompt,
+  buildThemePalettePrompt,
   buildVariantPrompt,
   clampWall,
   parseAnalysis,
   parseQc,
+  parseThemePalette,
   pickFinishes,
   resolveCategory,
 } from './prompts.js';
@@ -38,6 +40,11 @@ const MAX_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 15_000;
 const JOB_TIMEOUT_MS = 10 * 60_000; // 환불 창(30분) 안에 끝나야 한다
 const VARIANT_COUNT = 3;
+const VARIANT_ATTEMPTS = 2; // 실패·빈 응답이면 한 번 더
+const VARIANT_RETRY_MS = 4_000;
+const VARIANT_STAGGER_MS = 1_500;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const STEP = {
   analyzing: { progress: 10, label: '공간을 읽는 중' },
@@ -165,10 +172,15 @@ async function runPipeline(env, job, ck, save) {
 
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
   const room = await fetchObjectBase64(env, inputs.room.path);
-  const refs = [];
+  // 참고 이미지는 역할이 둘이다.
+  //   style (업로드·시공사례) → 설치 단계에 첨부, 마감·분위기 참고
+  //   theme (식물·명품·회화 등)  → 색감만 뽑아 추천안 한 장으로
+  const refs = []; // style
+  const themeRefs = [];
   for (const r of inputs.refs || []) {
     try {
-      refs.push(await fetchObjectBase64(env, r.path));
+      const img = await fetchObjectBase64(env, r.path);
+      (r.role === 'theme' ? themeRefs : refs).push(img);
     } catch (e) {
       console.warn(`[Job ${job.id}] ref skipped: ${e.message}`);
     }
@@ -274,44 +286,84 @@ async function runPipeline(env, job, ck, save) {
 
   // ═══ 4. 변형 3장 병렬 — 끝나는 대로 올리고 행을 갱신한다 ═══
   await setStep(env, job, ck, 'variants');
-  const finishes = pickFinishes(VARIANT_COUNT, wall.wallW + category.length * 7919);
+
+  // 테마 참고가 있으면 첫 추천안은 그 색감이다. 한 번 뽑아 체크포인트에 둔다.
+  if (themeRefs.length && ck.themeFinish === undefined) {
+    ck.themeFinish = null;
+    try {
+      const t = await callGemini(env, {
+        prompt: buildThemePalettePrompt(),
+        images: themeRefs.slice(0, 3),
+        want: 'text',
+      });
+      ck.themeFinish = parseThemePalette(t.text);
+      console.log(`[Job ${job.id}] theme palette:`, JSON.stringify(ck.themeFinish));
+    } catch (e) {
+      console.warn(`[Job ${job.id}] theme palette failed:`, e.message);
+    }
+    await save({ themeFinish: ck.themeFinish });
+  }
+  const seed = wall.wallW + category.length * 7919;
+  const finishes = ck.themeFinish
+    ? [ck.themeFinish, ...pickFinishes(VARIANT_COUNT - 1, seed)]
+    : pickFinishes(VARIANT_COUNT, seed);
+
+  const variantErrors = {};
   await Promise.all(
     finishes.map(async (f, i) => {
       const slot = `v${i + 1}`;
       if (ck.images[slot]) return; // 재실행 시 이미 올라간 슬롯
-      try {
-        const r = await callGemini(env, {
-          prompt: buildVariantPrompt(f),
-          images: [base],
-          imageSize,
-        });
-        if (!r.image) return;
-        const mime = r.imageMime || 'image/jpeg';
-        const up = await uploadObject(env, `${prefix}/${slot}.${extOf(mime)}`, r.image, mime);
-        ck.images[slot] = {
-          label: `AI 추천 · ${f.tone}`,
-          finish_key: f.key,
-          path: up.path,
-          url: up.url,
-        };
-        await save({ images: ck.images });
-        await updateById(env, 'generations', job.id, {
-          images: slotList(ck.images),
-          progress: 70 + 10 * Object.keys(ck.images).filter((k) => k !== 'base').length,
-        });
-      } catch (e) {
-        console.warn(`[Job ${job.id}] variant ${slot} failed:`, e.message);
+      // 세 호출을 한꺼번에 쏘면 분당 한도에 걸릴 수 있어 살짝 어긋나게 보낸다.
+      await sleep(i * VARIANT_STAGGER_MS);
+      let lastErr = null;
+      for (let attempt = 1; attempt <= VARIANT_ATTEMPTS; attempt++) {
+        try {
+          const r = await callGemini(env, {
+            prompt: buildVariantPrompt(f),
+            images: [base],
+            imageSize,
+          });
+          if (!r.image) throw new Error('no image in response');
+          const mime = r.imageMime || 'image/jpeg';
+          const up = await uploadObject(env, `${prefix}/${slot}.${extOf(mime)}`, r.image, mime);
+          ck.images[slot] = {
+            label: f.key === 'theme' ? `AI 추천 · 테마 색감 (${f.tone})` : `AI 추천 · ${f.tone}`,
+            finish_key: f.key,
+            finish: f.key === 'theme' ? { body: f.body, accent: f.accent } : undefined,
+            path: up.path,
+            url: up.url,
+          };
+          await save({ images: ck.images });
+          await updateById(env, 'generations', job.id, {
+            images: slotList(ck.images),
+            progress: 70 + 10 * Object.keys(ck.images).filter((k) => k !== 'base').length,
+          });
+          return;
+        } catch (e) {
+          lastErr = e;
+          console.warn(`[Job ${job.id}] variant ${slot} attempt ${attempt} failed:`, e.message);
+          if (attempt < VARIANT_ATTEMPTS) await sleep(VARIANT_RETRY_MS);
+        }
       }
+      variantErrors[slot] = (lastErr && lastErr.message ? lastErr.message : 'unknown').slice(
+        0,
+        160
+      );
     })
   );
 
   // ═══ 5. 마무리 ═══
   const variantCount = Object.keys(ck.images).length - 1;
+  const failedSlots = Object.keys(variantErrors);
   await updateById(env, 'generations', job.id, {
     status: 'done',
     progress: 100,
     step_label:
       variantCount === VARIANT_COUNT ? '완료' : `완료 (추천안 ${variantCount}/${VARIANT_COUNT})`,
+    // 빠진 추천안의 사유를 남긴다 — 없으면 왜 3/4 인지 알 길이 없다.
+    error: failedSlots.length
+      ? failedSlots.map((s) => `${s}: ${variantErrors[s]}`).join(' | ')
+      : null,
     images: slotList(ck.images),
     quote: buildQuote(category, wall.wallW),
     model: env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',

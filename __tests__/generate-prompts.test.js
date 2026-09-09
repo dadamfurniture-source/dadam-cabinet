@@ -40,6 +40,8 @@ const P = loadEsm('workers/generate-api/src/prompts.js', [
   'parseQc',
   'pickFinishes',
   'buildVariantPrompt',
+  'buildThemePalettePrompt',
+  'parseThemePalette',
 ]);
 const Q = loadEsm('workers/generate-api/src/quote.js', ['buildQuote']);
 const S = loadEsm('workers/generate-api/src/share.js', [
@@ -192,6 +194,36 @@ describe('변형 프롬프트', () => {
     const b = P.pickFinishes(3, 12345).map((f) => f.key);
     expect(new Set(a).size).toBe(3);
     expect(a).toEqual(b);
+  });
+});
+
+describe('테마 색감', () => {
+  test('추출 프롬프트는 JSON 만 요구하고 흰색·검정을 막는다', () => {
+    const p = P.buildThemePalettePrompt();
+    expect(p).toMatch(/Answer JSON only/);
+    expect(p).toMatch(/never white or black/);
+  });
+
+  test('파싱 결과는 FINISHES 항목과 같은 모양이라 변형 프롬프트에 바로 들어간다', () => {
+    const f = P.parseThemePalette(
+      '{"body":"muted sage green matte","accent":"natural oak woodgrain","tone":"세이지 그린"}'
+    );
+    expect(f).toEqual({
+      key: 'theme',
+      body: 'muted sage green matte',
+      accent: 'natural oak woodgrain',
+      tone: '세이지 그린',
+    });
+    expect(P.buildVariantPrompt(f)).toContain('muted sage green matte');
+  });
+
+  test('body 가 없거나 깨진 JSON 은 null — 그러면 기본 팔레트로 간다', () => {
+    expect(P.parseThemePalette('{"accent":"oak"}')).toBeNull();
+    expect(P.parseThemePalette('nope')).toBeNull();
+    expect(P.parseThemePalette(null)).toBeNull();
+    expect(P.parseThemePalette('{"body":"warm sand beige matte"}').accent).toBe(
+      'natural oak woodgrain'
+    );
   });
 });
 
