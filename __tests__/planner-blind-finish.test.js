@@ -55,11 +55,12 @@ describe('상수 — 자리와 재단은 다른 값이다', () => {
     expect(R.CORNER_FINISH_PART_W - R.CORNER_MOLDING).toBe(40);
   });
 
-  test('멍 공식은 재단(100)이 아니라 자리(60)를 쓴다', () => {
+  test('멍 공식은 재단(100)이 아니라 자리(60)를 쓴다 — 그리고 벽여유 50 을 뺀다', () => {
     // 이게 뒤집히면 멍장이 40 넓어지고 원장이 깨진다
     const d = engine.deriveCornerArea({ ownerW: 1970, ownerD: LOWER_D, adjD: 700 });
-    expect(d.blindZoneWs[0]).toBe(700 - R.CORNER_DRIP + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T);
-    expect(d.blindZoneWs[0]).toBe(765);
+    expect(d.blindZoneWs[0]).toBe(
+      700 - R.CORNER_DRIP + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T - R.CORNER_WALL_GAP);
+    expect(d.blindZoneWs[0]).toBe(715);
   });
 });
 
@@ -230,11 +231,11 @@ describe('상부장 코너도 같은 규칙이다', () => {
   }
   const bootU = () => boot(upperL());
 
-  test('멍은 물끊기 없이 320 + 60 + 15 = 395', () => {
+  test('멍은 물끊기 없이 (320 + 60 + 15) − 벽여유 50 = 345', () => {
     const { m } = withBlind(bootU());
     expect(m.blind.zoneW).toBe(
-      R.CORNER_UPPER_MODULE + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T);
-    expect(m.blind.zoneW).toBe(395);
+      UPPER_D + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T - R.CORNER_WALL_GAP);   // W12-68/69
+    expect(m.blind.zoneW).toBe(345);
   });
 
   test('마감재 재단은 하부와 같은 100 이다', () => {

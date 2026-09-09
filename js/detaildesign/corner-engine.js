@@ -16,6 +16,8 @@
 function _cornerDrip()    { return typeof CORNER_DRIP        !== 'undefined' ? CORNER_DRIP        : 10; }
 function _cornerWallGap() { return typeof CORNER_WALL_GAP    !== 'undefined' ? CORNER_WALL_GAP    : 50; }
 function _cornerUpperMod(){ return typeof CORNER_UPPER_MODULE!== 'undefined' ? CORNER_UPPER_MODULE : 320; }
+/** W12-68: 레거시 상부 라인의 "배치 공간 깊이" 대용값 — 배치 공간 개념이 없어 관례 320 을 쓴다 */
+function upperModuleD(){ return _cornerUpperMod(); }
 function _cornerEpW()     { return typeof CORNER_EP_W        !== 'undefined' ? CORNER_EP_W        : 20; }
 function _cornerMinDoorW(){ return typeof DOOR_MIN_WIDTH     !== 'undefined' ? DOOR_MIN_WIDTH     : 350; }
 function _cornerBatten()  { return typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15; }
@@ -47,15 +49,18 @@ function deriveCorner(p) {
   const warnings = [];
 
   // ① 멍 (blind zone) — §3.3 / §3.6
-  //    하부: 인접 상판깊이 − 물끊기 + 마감재 + 목대 (예: 650−10+60+15 = 715)
-  //    상부: 320(몸통295+도어18→관례) + 마감재 + 목대 (예: 395), 물끊기 없음
+  //    인접 라인 깊이 − 물끊기(상판 있을 때) + 마감재 + 목대
+  //      하부 650−10+60+15 = 715 · 상부 320+60+15 = 395 (물끊기 없음)
   //
   //    W12-54: 목대 15T 는 멍장 도어 경첩을 달 자리다. 멍 폭에 들어가고 BOM
   //    부재로도 나간다. 마감재 60 은 몰딩 **또는 휠라** — 코너 마감 선택값이다.
+  //    W12-68: 상·하부 **한 식**이다 — 상부도 넘어온 깊이로 잰다. 레거시엔 배치
+  //    공간 개념이 없어 호출부(cornerParamsFromItem)가 상부에 관례값 320 을 넘긴다.
+  //    W12-69: 멍은 벽 코너에서 재는데 멍장 측판이 벽에서 50 이격하므로(§3.4),
+  //    **카카스 안의 멍**은 그 50 만큼 짧다 — 여유가 멍 안에 포함된다.
   const batten = _cornerBatten();
-  const blindZoneW = p.isUpper
-    ? upperModule + molding + batten
-    : p.adjTopD - drip + molding + batten;
+  const blindZoneW = Math.max(0,
+    p.adjTopD - (p.isUpper ? 0 : drip) + molding + batten - wallGap);
 
   // ② 도어 균등 분배 — §3.4 라인 원장
   //    도어 가용폭 = 라인 W − EP − 벽여유(50) − 멍
@@ -86,9 +91,8 @@ function deriveCorner(p) {
   // W12-67 (§3.7 개정): 인접(prime) 라인은 멍장 라인 **깊이**만큼만 물러난다.
   //   트리밍 기준 라인(멍장 라인)에만 벽 여유 50 이 있고 인접 라인엔 여유가 없다.
   //   마감재 60 은 멍장 정면(멍 폭 안)의 것이라 인접 시작과 무관하고, 물끊기도 없다.
-  const adjStartOffset = p.isUpper
-    ? upperModule
-    : (Number.isFinite(p.blindLineTopD) ? p.blindLineTopD : p.adjTopD);
+  //   W12-68: 상부도 같은 식 — 넘어온 멍장 라인 깊이다.
+  const adjStartOffset = Number.isFinite(p.blindLineTopD) ? p.blindLineTopD : p.adjTopD;
 
   return { blindZoneW, doorAvail, nDoors, doorW, remainder, blindW, adjStartOffset, warnings };
 }
@@ -106,10 +110,14 @@ function cornerParamsFromItem(item, pos) {
   const secTopD =
     parseFloat(specs.topSizes && specs.topSizes[1] && specs.topSizes[1].d) ||
     parseFloat(specs.lowerSecondaryD) || primeTopD;
+  // W12-68: 멍·밀림이 **넘어온 깊이**로 계산되므로 상부에도 깊이를 실어야 한다.
+  //   레거시엔 배치 공간(사람이 그린 사각형)이 없다 — 상부는 관례값 320 을 쓴다.
+  //   (플래너는 실제 배치 공간 깊이를 쓰고, 기본 상부 사각형이 320 이라 값이 같다)
+  const upperAreaD = upperModuleD();
   return {
     lineW: parseFloat(isUpper ? specs.upperSecondaryW : specs.lowerSecondaryW) || 1800,
-    adjTopD: primeTopD,       // 인접 = prime (blindLine=secondary 고정, W10-1)
-    blindLineTopD: secTopD,
+    adjTopD: isUpper ? upperAreaD : primeTopD,       // 인접 = prime (blindLine=secondary 고정, W10-1)
+    blindLineTopD: isUpper ? upperAreaD : secTopD,
     molding: parseFloat(specs.finishCorner1Width) || 60,
     isUpper: isUpper,
   };
