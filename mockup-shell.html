@@ -445,9 +445,9 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.6"></script>
-<script src="js/planner/planner-view.js?v=37.6"></script>
-<script src="js/planner/planner-sections.js?v=37.6"></script>
+<script src="js/planner/planner-scope.js?v=37.8"></script>
+<script src="js/planner/planner-view.js?v=37.8"></script>
+<script src="js/planner/planner-sections.js?v=37.8"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -1051,7 +1051,7 @@
     // W9-56/W9-76: 모든 마감재 (EP/몰딩/휠라) 의 D input 을 선택 모듈 D 로 자동 갱신
     // (마감재가 모듈 깊이면 전체와 맞닿게)
     if (!selectedG.classList.contains('finishing')) {
-      ['ep','molding','filler'].forEach((sec) => {
+      (window.FINISHING_SECTIONS || ['ep','molding','filler','gap']).forEach((sec) => {
         const row = document.querySelector(`#selPanelBody .attach-row[data-section="${sec}"]`);
         if (!row) return;
         const dInp = row.querySelector('.attach-d');
