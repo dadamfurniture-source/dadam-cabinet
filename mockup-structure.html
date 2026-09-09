@@ -3832,21 +3832,53 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /**
-   * 멍장 주인 정하기 — 꺾여 나간(회전한) 다리가 기본이다.
+   * 두 라인이 만드는 **코너 사각형** (W12-63).
    *
-   * 배치 단계에서 주벽면은 회전 0 으로 그리고 갈라져 나가는 다리에 회전을 준다.
-   * 레거시의 prime / secondary 와 그대로 대응한다 (corner.md §3.2 는 "사용자 결정"
-   * 이라 하고, 레거시는 secondary 하나만 구현했다).
+   * 가로 라인은 y 대역을, 세로 라인은 x 대역을 차지한다. 두 대역이 겹치는
+   * 구역이 코너다 — 벽이 어느 쪽인지 몰라도 기하에서 바로 나온다.
+   */
+  function cornerSquareOf(a, b) {
+    const horiz = rot4(a) % 180 === 0 ? a : b;
+    const vert = horiz === a ? b : a;
+    const hb = planeBoxOf(horiz), vb = planeBoxOf(vert);
+    return { x: vb.x, w: vb.w, y: hb.y, d: hb.d };
+  }
+
+  /** 두 평면 상자가 겹치는 넓이. 맞닿기만 하면 0 이다. */
+  function boxOverlapArea(p, q) {
+    const ox = Math.min(p.x + p.w, q.x + q.w) - Math.max(p.x, q.x);
+    const oy = Math.min(p.y + p.d, q.y + q.d) - Math.max(p.y, q.y);
+    return (ox > 1 && oy > 1) ? ox * oy : 0;
+  }
+
+  /**
+   * 멍장 주인 정하기 — **코너 사각형을 실제로 가진 라인**이다 (W12-63).
    *
-   * "짧은 다리가 주인" 은 쓰지 않는다 — 두 다리 길이가 비슷하면 몇 mm 차이로
-   * 주인이 바뀌어, 배치를 조금 고칠 때마다 코너가 통째로 재배치된다.
+   * 예전엔 "회전한 다리가 주인" 이었다. 배치 단계에서 주벽면을 회전 0 으로
+   * 그린다는 관행에 기댄 것인데, 회전은 그 뜻이 아니다 — `alignToPerson` 이
+   * **도어가 사람을 보도록** 회전을 정하므로 회전은 "벽이 어느 쪽인가" 를 뜻한다.
+   * 그래서 같은 ㄱ자라도 방의 어느 코너에 놓이느냐에 따라 주인이 뒤집혔다
+   * (위쪽 벽이면 세로가, 아래쪽 벽이면 가로가 주인).
    *
-   * 사람이 뒤집는 길은 **아직 없다.** 예전엔 `area.blindOwner` 를 읽는 가지가
-   * 있었는데 그 값을 쓰는 곳이 어디에도 없었다 — 쓰지도 저장되지도 않는 값을
-   * 읽고 있으니 "뒤집을 수 있다" 는 인상만 주고 실제로는 아무것도 안 했다.
-   * 토글이 필요해지면 UI·저장과 함께 넣는다 (W12-60 에서 제거).
+   * 트리밍을 하면 코너 사각형은 **한 라인에만** 속한다. 그 라인이 옆 라인 몸통에
+   * 가려지는 쪽이므로 멍장도 거기 서야 한다. 주인을 반대로 고르면 정작 코너를
+   * 가진 라인이 밀려나고, 그 자리를 아무도 채우지 않아 **구멍**이 남는다.
+   *
+   * 두 영역이 아직 겹쳐 있으면(트리밍 전) 양쪽이 코너를 나눠 가지므로 기하로는
+   * 못 정한다 — corner.md §3.2 는 그때를 "사용자 결정" 이라 하는데 토글이 아직
+   * 없다. 예전 회전 규칙을 그대로 두어 **결정적이기만** 하게 한다.
    */
   function orderCorner(a, b) {
+    const sq = cornerSquareOf(a, b);
+    const full = sq.w * sq.d;
+    if (full > 0) {
+      const ca = boxOverlapArea(planeBoxOf(a), sq);
+      const cb = boxOverlapArea(planeBoxOf(b), sq);
+      // 한쪽이 확실히 더 갖고 있으면 그쪽이다. 반씩 나눠 가지면 아래로 떨어진다.
+      if (Math.abs(ca - cb) > full * 0.1) {
+        return ca > cb ? { owner: a, adj: b } : { owner: b, adj: a };
+      }
+    }
     if (rot4(a) !== 0 && rot4(b) === 0) return { owner: a, adj: b };
     if (rot4(b) !== 0 && rot4(a) === 0) return { owner: b, adj: a };
     // 둘 다 돌아 있거나 둘 다 안 돌아 있다 — 원점에서 먼 쪽 (결정적이면 된다)
@@ -3901,6 +3933,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 이 배치 공간이 **인접** 쪽이라 코너에서 밀려나는 거리 (§3.7).
    * 멍장이 못 서면(폭 부족) 밀 이유도 없다 — 지금과 같은 배치로 남는다.
    */
+  /**
+   * 인접 라인이 코너에서 **이미 물러나 있는 거리** (W12-63).
+   *
+   * §3.7 의 밀림은 "벽 코너에서부터" 재는 값이다. 그런데 트리밍을 하면 인접
+   * 영역 자체가 코너 사각형 밖에서 시작한다 — 그만큼은 이미 비켜 준 것이다.
+   * 그걸 안 빼고 또 밀면 아무도 채우지 않는 자리가 생긴다(구멍).
+   *
+   * 주인의 몸통이 인접 영역을 얼마나 파고들었는지로 잰다. 코너에 붙은 쪽 끝을
+   * 따로 알 필요가 없도록 양쪽에서 재고 작은 값을 쓴다 — 겹침은 한쪽 끝에만 있다.
+   */
+  function adjRetreat(owner, adj) {
+    const ob = planeBoxOf(owner), ab = planeBoxOf(adj);
+    const vert = rot4(adj) % 180 !== 0;          // 인접 라인의 길이 축이 Y 인가
+    const aLo = vert ? ab.y : ab.x, aHi = vert ? ab.y + ab.d : ab.x + ab.w;
+    const oLo = vert ? ob.y : ob.x, oHi = vert ? ob.y + ob.d : ob.x + ob.w;
+    const lo = Math.max(aLo, oLo), hi = Math.min(aHi, oHi);
+    const pen = hi > lo ? Math.min(hi - aLo, aHi - lo) : 0;
+    const ownerD = Number(owner.D) || 0;
+    return Math.max(0, ownerD - Math.min(pen, ownerD));
+  }
+
   function adjCornerOffsetOf(areaId, pairs) {
     const area = areaById(areaId);
     if (!area) return null;
@@ -3909,7 +3962,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!pair) return null;
     const owner = cornerPlansFor(pair.owner.id, ps);
     if (!owner || !owner.plan.ok) return null;
-    return { offset: owner.plan.adjStartOffset, atStart: cornerAtStartOf(area, pair.owner) };
+    // W12-63: 규칙이 요구하는 거리에서 **이미 물러난 만큼**을 뺀다.
+    const need = owner.plan.adjStartOffset;
+    const already = adjRetreat(pair.owner, area);
+    return {
+      offset: Math.max(0, need - already),
+      atStart: cornerAtStartOf(area, pair.owner),
+      need, already,
+    };
   }
 
   /** 파생 멍장을 지운다 (코너가 없어졌을 때) */
