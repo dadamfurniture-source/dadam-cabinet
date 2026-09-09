@@ -147,6 +147,34 @@ describe('설치 프롬프트', () => {
     expect(P.buildInstallPrompt(ctx)).not.toContain('ROOM:');
   });
 
+  test('공사 현장이면 SITE 줄, 타일은 밝은 무채색이면 유지·아니면 교체', () => {
+    const site = P.buildInstallPrompt({
+      ...ctx,
+      site: 'construction',
+      siteNotes: 'bare cement, debris',
+    });
+    expect(site).toContain(
+      'SITE: the photo shows an unfinished construction site (bare cement, debris)'
+    );
+    expect(site).toMatch(/remove debris, tools, boxes, dust and protective film/);
+    expect(P.buildInstallPrompt(ctx)).not.toContain('SITE:');
+
+    const keep = P.buildInstallPrompt({
+      ...ctx,
+      tile: { present: true, lightNeutral: true, description: 'white matte' },
+    });
+    expect(keep).toContain('WALL TILE: keep the existing light tiles');
+    const swap = P.buildInstallPrompt({
+      ...ctx,
+      tile: { present: true, lightNeutral: false, description: 'dark brown glossy' },
+    });
+    expect(swap).toContain('(dark brown glossy) are not light neutral');
+    expect(swap).toMatch(/matte off-white or light grey/);
+    expect(
+      P.buildInstallPrompt({ ...ctx, tile: { present: false, lightNeutral: false } })
+    ).not.toContain('WALL TILE');
+  });
+
   test('FIX 재시도 프롬프트도 손잡이 규칙을 지키고 문제별 문장을 붙인다', () => {
     const p = P.buildInstallPrompt(ctx, { fix: ['handles', 'room_changed', 'nope'] });
     for (const rule of HANDLE_RULES) expect(p).toMatch(rule);
@@ -241,6 +269,22 @@ describe('분석 JSON 파싱', () => {
       brief: 'oak floor',
       existing: 'old cabinets',
     });
+  });
+
+  test('현장 상태·벽 타일 필드', () => {
+    const w = P.parseAnalysis(
+      '{"wall_width_mm":3000,"site_condition":"construction","site_notes":"bare cement","wall_tile":{"present":true,"light_neutral":false,"description":"dark brown glossy"}}'
+    );
+    expect(w.site).toBe('construction');
+    expect(w.siteNotes).toBe('bare cement');
+    expect(w.tile).toEqual({
+      present: true,
+      lightNeutral: false,
+      description: 'dark brown glossy',
+    });
+    const f = P.parseAnalysis('{"wall_width_mm":3000,"site_condition":"weird","wall_tile":"no"}');
+    expect(f.site).toBe('finished');
+    expect(f.tile).toBeNull();
   });
 
   test('미터 단위·범위 밖·깨진 JSON 은 보호한다', () => {

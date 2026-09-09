@@ -99,10 +99,12 @@ export function buildAnalysisPrompt() {
   return `Measure and describe this room photo for built-in furniture on the main wall facing the camera.
 Use known Korean apartment sizes for scale: door frame 900 x 2100 mm, outlet plate 70 x 120 mm, ceiling 2300-2400 mm.
 Return JSON only, no prose:
-{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null}
+{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null,"site_condition":"finished"|"construction","site_notes":string|null,"wall_tile":{"present":boolean,"light_neutral":boolean,"description":string|null}}
 water_supply = position of an existing sink or faucet along that wall, exhaust = position of an existing cooker hood; null when there is none.
 room_brief = at most 60 words: floor material and colour, wall finish and colour, where the light comes from, camera height and angle, anything on the side walls that must stay.
-existing_furniture = what is currently on the main wall and must be removed before installing (e.g. "dark glossy kitchen cabinets with stainless hood"), or null if the wall is empty.`;
+existing_furniture = what is currently on the main wall and must be removed before installing (e.g. "dark glossy kitchen cabinets with stainless hood"), or null if the wall is empty.
+site_condition = "construction" when the room is unfinished or mid-renovation: bare cement or plaster, exposed pipes or wiring, debris, tools, boxes, dust, protective film, missing flooring. Otherwise "finished". site_notes = what is unfinished, at most 25 words, or null.
+wall_tile = tiles on the target wall (backsplash or wall cladding). light_neutral is true only for white, ivory, light grey or light beige tiles with low saturation; dark, brown, black, glossy-coloured or patterned tiles are false. description = colour and finish, at most 12 words.`;
 }
 
 /** 분석 JSON → 워커가 쓰는 벽 데이터 + 브리프. 값이 없거나 이상하면 기본값. */
@@ -115,6 +117,9 @@ export function parseAnalysis(text) {
     confidence: null,
     brief: null,
     existing: null,
+    site: 'finished', // 'finished' | 'construction'
+    siteNotes: null,
+    tile: null, // {present, lightNeutral, description} | null
   };
   const m = text && text.match(/\{[\s\S]*\}/);
   if (!m) return out;
@@ -135,6 +140,19 @@ export function parseAnalysis(text) {
     out.brief = j.room_brief.trim().slice(0, 500);
   if (typeof j.existing_furniture === 'string' && j.existing_furniture.trim())
     out.existing = j.existing_furniture.trim().slice(0, 200);
+  if (j.site_condition === 'construction') out.site = 'construction';
+  if (typeof j.site_notes === 'string' && j.site_notes.trim())
+    out.siteNotes = j.site_notes.trim().slice(0, 160);
+  if (j.wall_tile && typeof j.wall_tile === 'object') {
+    out.tile = {
+      present: j.wall_tile.present === true,
+      lightNeutral: j.wall_tile.light_neutral === true,
+      description:
+        typeof j.wall_tile.description === 'string' && j.wall_tile.description.trim()
+          ? j.wall_tile.description.trim().slice(0, 80)
+          : null,
+    };
+  }
   return out;
 }
 
@@ -161,6 +179,10 @@ export const QC_FIXES = {
   wrong_category: 'Render exactly the furniture type described in FURNITURE, nothing else.',
   low_detail:
     'Render at full photographic detail: crisp panel edges, real material grain, accurate reflections and soft contact shadows.',
+  construction_leftover:
+    'Finish the room completely: no debris, tools, boxes, dust, protective film or bare cement anywhere in the frame; hide every exposed pipe, valve and wire behind the furniture or inside the wall.',
+  tile_not_neutral:
+    'Replace every wall tile visible around the furniture with light neutral tiles: matte off-white or light grey, low saturation.',
 };
 
 /**
@@ -188,6 +210,18 @@ export function buildInstallPrompt(c, opts = {}) {
     c.refCount > 0
       ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera.`
       : '';
+  // 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로.
+  const site =
+    c.site === 'construction'
+      ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film; finish bare walls and ceiling smoothly in a light neutral tone; complete the flooring to match what already exists; route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible. Keep the room geometry, window positions and camera unchanged.`
+      : '';
+  // 벽 타일: 밝은 무채색이면 그대로, 아니면 밝은 무채색 타일로 바꾼다.
+  const tile =
+    !c.tile || !c.tile.present
+      ? ''
+      : c.tile.lightNeutral
+        ? `\nWALL TILE: keep the existing light tiles exactly as they are.`
+        : `\nWALL TILE: the existing wall tiles${c.tile.description ? ` (${c.tile.description})` : ''} are not light neutral. Replace them with light neutral tiles — matte off-white or light grey large-format ceramic with subtle grout — only where tiles already are (the wall area between the furniture pieces).`;
   const fixes = (opts.fix || []).map((k) => QC_FIXES[k]).filter(Boolean);
   const fixBlock = fixes.length
     ? `\nFIX (the previous attempt failed these checks):\n- ${fixes.join('\n- ')}`
@@ -197,7 +231,7 @@ Keep the room exactly as photographed: camera angle, walls, ceiling, floor, wind
 WALL: about ${c.wallW} x ${c.wallH} mm.
 FURNITURE: ${cat.spec(c)}
 FINISH: ${c.doorColor} ${c.doorFinish} flat-panel fronts, ${style} style, consistent on every panel.
-HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${refs}${fixBlock}
+HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
 }
 
@@ -218,6 +252,8 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - text: any text, label, logo or watermark
 - wrong_category: the furniture is not a ${CATEGORIES[key].label}
 - low_detail: blurry, smeared or obviously synthetic surfaces
+- construction_leftover: debris, tools, boxes, protective film, exposed pipes or bare unfinished walls still visible
+- tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
 ok is true when issues is empty. note is one short sentence.`;
 }
 
