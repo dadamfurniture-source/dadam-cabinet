@@ -43,8 +43,8 @@ describe('deriveCorner — corner.md §3 확정 예시', () => {
   });
 
   // 목대는 멍장 도어 경첩용이라 인접 라인 시작 자리에는 안 붙는다 (W12-54)
-  test('인접(prime) 시작 offset = 650 − 10 + 60 = 700 — 목대 없음 (§3.7)', () => {
-    expect(deriveCorner(base).adjStartOffset).toBe(700);
+  test('인접(prime) 시작 offset = 멍장 라인 깊이 650 — 여유·물끊기·마감재 없음 (§3.7, W12-67)', () => {
+    expect(deriveCorner(base).adjStartOffset).toBe(650);
   });
 });
 
@@ -68,8 +68,8 @@ describe('deriveCorner — 파생 규칙', () => {
   test('상부장: 멍 = 320 + 마감재 60 + 목대 15 = 395, 물끊기 없음 (§3.6)', () => {
     const d = deriveCorner({ lineW: 1800, adjTopD: 295, isUpper: true });
     expect(d.blindZoneW).toBe(395);
-    // offset 에는 목대가 안 붙는다
-    expect(d.adjStartOffset).toBe(380);
+    // offset 은 관례 깊이 320 그대로 — 마감재·목대가 안 붙는다 (§3.7, W12-67)
+    expect(d.adjStartOffset).toBe(320);
   });
 
   test('도어 가용폭 < 350 → 도어 1개 + 경고 (§4.4 엣지)', () => {
@@ -419,16 +419,16 @@ describe('W10-3: cornerAdjOffset — 인접(prime) 라인 예산 offset (§3.7)'
     topSizes: [{ w: '', d: '650' }, { w: '', d: '650' }],
   };
 
-  test('하부: 650 − 10 + 60 = 700', () => {
-    expect(cornerAdjOffset({ d: 650, modules: [], specs }, 'lower')).toBe(700);
+  test('하부: 멍장 라인 깊이 650 (§3.7, W12-67)', () => {
+    expect(cornerAdjOffset({ d: 650, modules: [], specs }, 'lower')).toBe(650);
   });
 
-  test('상부: 320 + 60 = 380 (물끊기 없음)', () => {
-    expect(cornerAdjOffset({ d: 650, modules: [], specs }, 'upper')).toBe(380);
+  test('상부: 관례 깊이 320', () => {
+    expect(cornerAdjOffset({ d: 650, modules: [], specs }, 'upper')).toBe(320);
   });
 
-  test('몰딩 100 → 하부 offset 740 연동', () => {
+  test('몰딩 폭은 인접 밀림에 영향이 없다 — 마감재는 멍장 정면의 것이다', () => {
     const s = Object.assign({}, specs, { finishCorner1Width: '100' });
-    expect(cornerAdjOffset({ d: 650, modules: [], specs: s }, 'lower')).toBe(740);
+    expect(cornerAdjOffset({ d: 650, modules: [], specs: s }, 'lower')).toBe(650);
   });
 });
