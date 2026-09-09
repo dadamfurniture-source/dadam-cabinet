@@ -83,9 +83,12 @@ function deriveCorner(p) {
   //    상부는 물끊기 없음 (§3.6과 동일 원리)
   //    **목대는 안 붙는다** — 멍장 도어 경첩용이라 인접 라인이 시작하는
   //    자리와는 무관하다 (W12-54 확정)
+  // W12-67 (§3.7 개정): 인접(prime) 라인은 멍장 라인 **깊이**만큼만 물러난다.
+  //   트리밍 기준 라인(멍장 라인)에만 벽 여유 50 이 있고 인접 라인엔 여유가 없다.
+  //   마감재 60 은 멍장 정면(멍 폭 안)의 것이라 인접 시작과 무관하고, 물끊기도 없다.
   const adjStartOffset = p.isUpper
-    ? upperModule + molding
-    : (Number.isFinite(p.blindLineTopD) ? p.blindLineTopD : p.adjTopD) - drip + molding;
+    ? upperModule
+    : (Number.isFinite(p.blindLineTopD) ? p.blindLineTopD : p.adjTopD);
 
   return { blindZoneW, doorAvail, nDoors, doorW, remainder, blindW, adjStartOffset, warnings };
 }

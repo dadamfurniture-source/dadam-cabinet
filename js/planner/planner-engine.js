@@ -197,33 +197,32 @@ function distributeModules(totalSpace) {
 // W9-90: 선반 — 마스터 규칙 (분배공간 300~450, 신발장 180~350) 안 최대 갯수
 // ── 코너 (멍장) 정면 부재 배치 ───────────────────────────────
 //
-// W12-66: 멍 구간 안에서 세 부재가 **겹쳐** 선다 — 칸이 아니다.
+// W12-66/67: 멍 구간의 **정면**에서 보이는 것 — 칸이 아니라 겹침이다.
 //
-//   벽 쪽 0 ─────────────────────────────────────── 도어 쪽 zoneW
-//   [ 멍가림판 2.7T (EP 면 18T)   0 .. zoneW−15 ]
-//                    [ 마감재 18T  zoneW−115 .. zoneW−15 ]   ← 멍판 위에 포개어짐
-//                                          [ 목대 15  zoneW−15 .. zoneW ]
+//   벽 쪽 0 ─────────────────────────────── 도어 쪽 zoneW
+//   [ 멍가림판 2.7T (EP 면 18T)   0 .. zoneW−15 ]         ← 목대 앞에서 끝난다
+//                  [ 마감재 18T   zoneW−115 .. zoneW−15 ]  ← 멍판 위 · 이어서 바로 도어
+//   (목대 15 는 zoneW−15 .. zoneW 에 **모듈 안쪽**에 서는 구조재 — 도어가 그 위를 덮는다)
 //
-// 마감재 재단 100 = 자리 60 + 멍판 위 겹침 40 (§3.3) 이므로 멍판 **위**에 얹혀야
-// 하는데, 예전엔 [멍][마감재][도어] 나란한 칸으로 넣어 멍판이 85 짧고 마감재가
-// 옆에 따로 섰다. 칸은 폭을 나눠 갖는 모델이라 포개기를 표현할 수 없다.
+// 마감재 100 중 벽 쪽 40 은 옆(트리밍된) 라인의 측판 + 도어 뒤에 숨고, 60 만 보인다.
+// 그래서 마감재를 그릴 때 40 을 "멍판 위 겹침" 이라 부르지 않는다 — 가려지는 것이다.
+// 예전엔 [멍][마감재][도어] 나란한 칸으로 넣어 멍판이 85 짧고 마감재가 옆에 따로 섰다.
 // 2D·3D·테스트가 이 함수 하나에서 좌표를 받는다.
 //
 // @param {number} zoneW   멍 폭 (목대 15 포함)
 // @param {object} [o]
 // @param {boolean} [o.ep=false]  키큰장 — 멍판이 EP 18T 이고 마감재는 없다
-// @returns {{cover:[number,number], finish:([number,number]|null), batten:[number,number], coverT:number}}
+// @returns {{cover:[number,number], finish:([number,number]|null), doorFrom:number, coverT:number}}
 function blindFrontLayout(zoneW, o) {
   const R = MASTER_RULES;
   const z = Math.max(0, Number(zoneW) || 0);
-  const batten = R.CORNER_HINGE_BATTEN_T;
-  const coverEnd = Math.max(0, z - batten);
+  const coverEnd = Math.max(0, z - R.CORNER_HINGE_BATTEN_T);
   const ep = !!(o && o.ep);
   const finW = Math.min(R.CORNER_FINISH_PART_W, coverEnd);
   return {
     cover: [0, coverEnd],
     finish: ep || finW <= 0 ? null : [coverEnd - finW, coverEnd],
-    batten: [coverEnd, z],
+    doorFrom: coverEnd,            // 도어는 마감재 바로 다음부터 보인다 — 목대는 그 뒤에 숨는다
     coverT: ep ? 18 : 2.7,
   };
 }
@@ -246,7 +245,6 @@ function blindFrontLayout(zoneW, o) {
 // @param {number} p.ownerD  같은 공간의 깊이 — 인접 공간이 밀려날 거리를 정한다
 // @param {number} p.adjD    인접(가로지르는) 배치 공간의 깊이 — 멍의 크기를 정한다
 // @param {boolean} [p.isUpper=false] 상부장이면 물끊기 없이 320 + 몰딩 (§3.6)
-// @param {boolean} [p.ownerHasTop=true]  주인 라인에 상판이 있는가 — 없으면 인접 밀림에서 물끊기를 빼지 않는다
 // @param {boolean[]} [p.adjHasTops]      인접 라인마다 상판이 있는가 — 없으면 멍에서 물끊기를 빼지 않는다
 //
 // W12-65: 물끊기 10 은 **상판 끝에서 떨어지는 물** 여유다 (§3.3). 상판이 없는 라인엔 없다 —
@@ -276,7 +274,6 @@ function deriveCornerArea(p) {
   // 각각 멍이 빠지고 벽 여유도 둘이다. 코너가 하나면 배열 길이가 1일 뿐 식은 같다.
   const adjDs = Array.isArray(p.adjDs) ? p.adjDs : [Number(p.adjD) || 0];
   const n = Math.max(1, adjDs.length);
-  const ownerHasTop = p.ownerHasTop !== false;
   const adjHasTops = Array.isArray(p.adjHasTops) ? p.adjHasTops : adjDs.map(() => true);
   const dripOf = (hasTop) => (hasTop === false ? 0 : R.CORNER_DRIP);
 
@@ -324,9 +321,14 @@ function deriveCornerArea(p) {
   //    멍장 라인의 깊이만 보므로 코너가 둘이어도 값은 하나다.
   //    **목대는 안 붙는다** — 멍장 도어 경첩용이라 인접 공간이 시작하는 자리와
   //    무관하다 (W12-54 확정).
+  // W12-67 (§3.7 개정): 인접(세컨더리) 라인의 첫 모듈은 벽 코너에서 **주인 라인의
+  //   깊이**만큼만 물러난다 — 트리밍 기준 라인(주인)에만 벽 여유 50 이 있고 트리밍된
+  //   라인엔 여유가 없다. 마감재 자리 60 은 주인 **정면**에 있는 것이라(멍 폭 안) 인접
+  //   라인의 시작과 무관하고, 물끊기도 인접 축 방향엔 나올 자리가 없다.
+  //   예전 `ownerD − 10 + 60` 은 트리밍된 배치에서 세컨더리 라인에 50 빈 띠를 남겼다.
   const adjStartOffset = p.isUpper
-    ? R.CORNER_UPPER_MODULE + molding
-    : (Number(p.ownerD) || 0) - dripOf(ownerHasTop) + molding;
+    ? R.CORNER_UPPER_MODULE
+    : (Number(p.ownerD) || 0);
 
   return {
     ok: true,

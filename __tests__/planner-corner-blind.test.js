@@ -30,8 +30,8 @@ describe('deriveCornerArea — corner.md §3.4 확정 예시', () => {
     expect(r.doorW).toBe(395);
     expect(r.blindW).toBe(1110);         // 멍 715 + 도어 395
     expect(r.restBudget).toBe(790);
-    // offset 에는 목대가 안 붙는다 (W12-54)
-    expect(r.adjStartOffset).toBe(700);
+    // 인접 밀림 = 멍장 라인 깊이 (§3.7, W12-67)
+    expect(r.adjStartOffset).toBe(650);
     expect(20 + r.restBudget + r.blindW + 50).toBe(1970);
   });
 
@@ -206,7 +206,8 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
     expect(s.areaTypes).not.toContain('blank');
     // 두 칸 합이 카카스 폭 — 마감재가 폭을 늘리지 않는다
     expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(blind.W);
-    expect(s.areaWidths).toContain(blind.blind.doorW);
+    // W12-67: 도어 칸은 목대 15 를 안에 품는다 — 정면에서 마감재 다음은 바로 도어다
+    expect(s.areaWidths).toContain(blind.blind.doorW + 15);
     expect(blind.blind.doorW).toBeLessThan(blind.W);
   });
 
@@ -227,7 +228,7 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
     p.g('autoCalcAllAreas')();
     const pairs = p.g('cornerPairs')();
     const off = p.g('adjCornerOffsetOf')(pairs[0].adj.id);
-    expect(off.offset).toBe(LOWER_D - 10 + 60);   // 700
+    expect(off.offset).toBe(LOWER_D);             // 멍장 라인 깊이 (§3.7)
     const adjMods = (p.g('modules') || []).filter((m) => m.areaId === pairs[0].adj.id);
     const first = adjMods.slice().sort((a, b) => a.x - b.x)[0];
     const adjArea = pairs[0].adj;
@@ -383,7 +384,7 @@ describe('ㄷ자를 그리면 멍장이 둘 선다', () => {
     const pairs = p.g('cornerPairs')();
     pairs.forEach((c) => {
       const off = p.g('adjCornerOffsetOf')(c.adj.id);
-      expect(off.offset).toBe(LOWER_D - 10 + 60);       // 700
+      expect(off.offset).toBe(LOWER_D);                 // 멍장 라인 깊이 (§3.7)
     });
   });
 
@@ -506,12 +507,11 @@ describe('상부장 ㄱ자 — 멍이 320 + 몰딩이다', () => {
     expect(blind.W).toBe(blind.blind.zoneW + blind.blind.doorW);
   });
 
-  test('인접 다리는 380 만큼 밀린다 — 목대는 안 붙는다 (W12-54)', () => {
+  test('인접 다리는 관례 깊이 320 만큼 밀린다 — 마감재·목대는 안 붙는다 (§3.7)', () => {
     const p = boot(layoutOf(upperLShapeLayout(2000)));
     p.g('autoCalcAllAreas')();
     const pair = p.g('cornerPairs')()[0];
-    // 하부라면 320 − 10 + 60 = 370 이었을 자리다
-    expect(p.g('adjCornerOffsetOf')(pair.adj.id).offset).toBe(380);
+    expect(p.g('adjCornerOffsetOf')(pair.adj.id).offset).toBe(320);
   });
 
   test('원장이 맞고 빠진 멍장이 없다', () => {
@@ -714,7 +714,7 @@ describe('한 벽면에 배치 공간이 여러 개여도 된다', () => {
     const pairs = p.g('cornerPairs')();
     const near = pairs[0].adj;
     const off = p.g('adjCornerOffsetOf')(near.id);
-    expect(off.offset).toBe(LOWER_D - 10 + 60);
+    expect(off.offset).toBe(LOWER_D);   // 멍장 라인 깊이 (§3.7, W12-67)
     const first = (p.g('modules') || []).filter((m) => m.areaId === near.id)
       .sort((a, b) => a.x - b.x)[0];
     expect(first.x - near.x).toBe(off.offset);
