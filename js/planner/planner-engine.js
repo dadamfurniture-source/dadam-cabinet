@@ -88,7 +88,10 @@ const MASTER_RULES = {
   //   공식(멍 W)에는 여전히 60 만 들어간다 — 100 은 BOM 재단과 화면 표현에만 쓴다.
   //   여기를 공식에 섞으면 멍장 폭이 40 늘어나 원장이 깨진다.
   CORNER_FINISH_PART_W: 100,    // 멍판 마감재 재단 폭 (§3.3)
-  CORNER_UPPER_MODULE: 320,     // 상부 멍 모듈값 — 몸통295+도어18 → 관례 320 (§3.6)
+  // W12-68: 상부 배치 공간의 **기본** 깊이. 멍 폭은 이제 실제 배치 공간 깊이로 재므로
+  //   규칙이 아니라 기본값이다 — 플래너 상부 사각형 기본 h 와 같은 320, 그리고 배치
+  //   공간 개념이 없는 레거시가 상부에 쓰는 값이다 (§3.6).
+  CORNER_UPPER_MODULE: 320,     // 상부 배치 공간 기본 깊이 (몸통295+도어18 → 관례 320)
   CORNER_EP_W: 20,              // 멍장 라인 반대쪽 끝 EP (§3.4 예시)
   // W12-54: 멍장 도어 경첩을 달 목대. 멍 폭에 들어가고 BOM 부재로도 나간다.
   //   인접 라인 시작 offset(§3.7)에는 붙지 않는다 — 멍장 도어용이기 때문이다.
@@ -244,7 +247,8 @@ function blindFrontLayout(zoneW, o) {
 // @param {number} p.ownerW  멍장이 설 배치 공간의 폭
 // @param {number} p.ownerD  같은 공간의 깊이 — 인접 공간이 밀려날 거리를 정한다
 // @param {number} p.adjD    인접(가로지르는) 배치 공간의 깊이 — 멍의 크기를 정한다
-// @param {boolean} [p.isUpper=false] 상부장이면 물끊기 없이 320 + 몰딩 (§3.6)
+// @param {boolean} [p.isUpper=false] 상부장 — `adjHasTops` 를 안 줄 때 "상판 없음" 으로 갈음한다.
+//                                    W12-68 부터 **깊이 기준은 상·하부가 같다** (배치 공간 깊이).
 // @param {boolean[]} [p.adjHasTops]      인접 라인마다 상판이 있는가 — 없으면 멍에서 물끊기를 빼지 않는다
 //
 // W12-65: 물끊기 10 은 **상판 끝에서 떨어지는 물** 여유다 (§3.3). 상판이 없는 라인엔 없다 —
@@ -274,16 +278,20 @@ function deriveCornerArea(p) {
   // 각각 멍이 빠지고 벽 여유도 둘이다. 코너가 하나면 배열 길이가 1일 뿐 식은 같다.
   const adjDs = Array.isArray(p.adjDs) ? p.adjDs : [Number(p.adjD) || 0];
   const n = Math.max(1, adjDs.length);
-  const adjHasTops = Array.isArray(p.adjHasTops) ? p.adjHasTops : adjDs.map(() => true);
+  // 상판 유무를 안 주면 `isUpper` 로 갈음한다 — 상부장엔 상판이 없다 (§3.6).
+  const adjHasTops = Array.isArray(p.adjHasTops) ? p.adjHasTops : adjDs.map(() => !p.isUpper);
   const dripOf = (hasTop) => (hasTop === false ? 0 : R.CORNER_DRIP);
 
   // ① 멍 (blind zone) — §3.3 / §3.6
   //   목대 15T 는 멍장 도어 경첩을 달 자리다 (W12-54). 마감재 60 은 몰딩 **또는
-  //   휠라** — 코너 마감 선택값이다. 상부는 상판이 없어 물끊기를 빼지 않는다.
+  //   휠라** — 코너 마감 선택값이다. 상판 없는 라인은 물끊기를 빼지 않는다.
+  //
+  //   W12-68: 상·하부 **한 식**이다. 예전엔 상부만 관례값 320 을 썼는데, 이제
+  //   상부도 **인접 배치 공간의 실제 깊이**로 잰다 — 사람이 그린 사각형이 기준이다.
+  //   기본 상부 사각형이 320 이라 기본 배치의 값(395)은 그대로다.
   const batten = R.CORNER_HINGE_BATTEN_T;
-  const blindZoneWs = adjDs.map((d, i) => p.isUpper
-    ? R.CORNER_UPPER_MODULE + molding + batten
-    : (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten);
+  const blindZoneWs = adjDs.map((d, i) =>
+    (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten);
   const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
   // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.
@@ -326,9 +334,8 @@ function deriveCornerArea(p) {
   //   라인엔 여유가 없다. 마감재 자리 60 은 주인 **정면**에 있는 것이라(멍 폭 안) 인접
   //   라인의 시작과 무관하고, 물끊기도 인접 축 방향엔 나올 자리가 없다.
   //   예전 `ownerD − 10 + 60` 은 트리밍된 배치에서 세컨더리 라인에 50 빈 띠를 남겼다.
-  const adjStartOffset = p.isUpper
-    ? R.CORNER_UPPER_MODULE
-    : (Number(p.ownerD) || 0);
+  //   W12-68: 상부도 같은 식 — 주인 배치 공간의 실제 깊이다.
+  const adjStartOffset = Number(p.ownerD) || 0;
 
   return {
     ok: true,

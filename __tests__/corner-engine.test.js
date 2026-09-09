@@ -65,8 +65,9 @@ describe('deriveCorner — 파생 규칙', () => {
     expect(d.nDoors).toBe(3);
   });
 
-  test('상부장: 멍 = 320 + 마감재 60 + 목대 15 = 395, 물끊기 없음 (§3.6)', () => {
-    const d = deriveCorner({ lineW: 1800, adjTopD: 295, isUpper: true });
+  // W12-68: 상부도 **넘어온 깊이**로 잰다 — 관례값 320 은 호출부가 넘기는 기본값이다
+  test('상부장: 멍 = 깊이 320 + 마감재 60 + 목대 15 = 395, 물끊기 없음 (§3.6)', () => {
+    const d = deriveCorner({ lineW: 1800, adjTopD: 320, isUpper: true });
     expect(d.blindZoneW).toBe(395);
     // offset 은 관례 깊이 320 그대로 — 마감재·목대가 안 붙는다 (§3.7, W12-67)
     expect(d.adjStartOffset).toBe(320);
