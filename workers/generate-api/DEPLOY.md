@@ -58,3 +58,12 @@ npx wrangler secret put GEMINI_API_KEY
 | 3 변형 | Gemini 이미지 3회 병렬 | 마감만 바꾼 추천안 3장 |
 
 품목별 차이는 `src/prompts.js` 의 `CATEGORIES` 한 문단, 단가는 `src/quote.js` 한 줄이다.
+
+## Gemini 호출 경로 (지역 차단)
+
+Cloudflare 워커는 HKG·KIX 콜로에서 뜨고, 거기서 Google AI Studio 는 게이트웨이·직접 호출을 모두
+`400 User location is not supported` 로 막는다 (2026-09-09 `/diag` 실측). 그래서 `locationHint: 'enam'`
+으로 만든 Durable Object `GeminiProxy` 가 Google 호출을 대신하고, `GEMINI_VIA = "proxy"` 로 그 경로만 쓴다.
+
+- `/diag` — 워커 콜로, 경로별(gateway/direct/proxy) Gemini 텍스트 호출 상태
+- `/health` — 모델·콜로
