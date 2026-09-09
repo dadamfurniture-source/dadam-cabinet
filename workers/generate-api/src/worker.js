@@ -26,6 +26,9 @@ import { buildQuote } from './quote.js';
 import { verifyJwt, AuthError } from './auth.js';
 import { consumeCredit, refundCredit, InsufficientCredit } from './credits.js';
 
+// Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
+export { GeminiProxy } from './proxy.js';
+
 const VARIANT_COUNT = 3;
 
 function corsHeaders(origin) {

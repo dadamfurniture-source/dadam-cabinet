@@ -27,3 +27,13 @@ AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb7
 
 # GEMINI_API_KEY는 Cloudflare 대시보드에서 Secret으로 설정
 # wrangler secret put GEMINI_API_KEY
+
+# Gemini 호출을 미국 콜로에서 내보내는 Durable Object (src/proxy.js).
+# 워커 콜로(HKG·KIX)에서는 Google 이 지역 차단을 걸어 이 경로가 필요하다.
+[[durable_objects.bindings]]
+name = "GEMINI_PROXY"
+class_name = "GeminiProxy"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GeminiProxy"]

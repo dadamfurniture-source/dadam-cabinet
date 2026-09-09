@@ -1,11 +1,36 @@
 /**
  * Gemini 호출 — 모델 하나, 함수 하나.
- * AI_GATEWAY_BASE 가 있으면 Cloudflare AI Gateway 를 거친다 (한국 발신 차단 우회).
+ *
+ * 경로는 셋이고 지역 차단이면 다음으로 넘어간다.
+ *   gateway  Cloudflare AI Gateway (AI_GATEWAY_BASE 가 있을 때)
+ *   direct   Google 원본 엔드포인트
+ *   proxy    미국 콜로에 고정된 Durable Object (proxy.js) — 워커 콜로가 어디든 통한다
+ * 한 번 막힌 경로는 이 isolate 안에서는 다시 시도하지 않는다 (호출마다 3초씩 버리지 않도록).
+ * GEMINI_VIA=proxy 로 두면 처음부터 proxy 만 쓴다.
  */
+
+import { proxyStub } from './proxy.js';
+
+const DIRECT_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export function geminiModel(env) {
   return env.GEMINI_MODEL || 'gemini-3.1-flash-image';
 }
+
+function isGeoBlock(text) {
+  return /location is not supported/i.test(text || '');
+}
+
+function routes(env) {
+  if (env.GEMINI_VIA === 'proxy') return ['proxy'];
+  const list = [];
+  if (env.AI_GATEWAY_BASE) list.push('gateway');
+  list.push('direct');
+  if (env.GEMINI_PROXY) list.push('proxy');
+  return list;
+}
+
+let firstOpenRoute = 0; // isolate 수명 동안 기억한다
 
 /**
  * @param {object} env
@@ -16,51 +41,11 @@ export function geminiModel(env) {
  * @param {number}   [p.temperature]
  * @returns {Promise<{image?:string, text?:string}>}
  */
-const DIRECT_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-
-/**
- * 호출 경로. 게이트웨이가 설정돼 있으면 게이트웨이 → 직접 순으로 시도한다.
- * Google 은 발신 지역에 따라 400 "User location is not supported" 를 내는데,
- * 워커가 어느 콜로에서 뜨느냐에 따라 어느 경로가 막히는지 달라진다.
- * 그래서 한 경로만 믿지 않고 지역 차단이면 다음 경로로 넘어간다.
- */
-function bases(env) {
-  const list = [];
-  if (env.AI_GATEWAY_BASE)
-    list.push(`${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/google-ai-studio/v1beta`);
-  list.push(DIRECT_BASE);
-  return list;
-}
-
-function isGeoBlock(err) {
-  return /location is not supported/i.test(err.message || '');
-}
-
-export async function callGemini(env, params) {
-  const list = bases(env);
-  let lastErr;
-  for (let i = 0; i < list.length; i++) {
-    try {
-      return await callGeminiAt(env, list[i], params);
-    } catch (e) {
-      lastErr = e;
-      if (!isGeoBlock(e) || i === list.length - 1) throw e;
-      console.warn(
-        `[Gemini] geo-blocked via ${i === 0 && env.AI_GATEWAY_BASE ? 'gateway' : 'direct'}, trying next path`
-      );
-    }
-  }
-  throw lastErr;
-}
-
-async function callGeminiAt(env, base, { prompt, images = [], want = 'image', temperature }) {
-  const url = `${base}/models/${geminiModel(env)}:generateContent?key=${env.GEMINI_API_KEY}`;
-
+export async function callGemini(env, { prompt, images = [], want = 'image', temperature }) {
   const parts = images
     .filter((i) => i && i.base64 && i.mimeType)
     .map((i) => ({ inlineData: { mimeType: i.mimeType, data: i.base64 } }));
   parts.push({ text: prompt });
-
   const body = {
     contents: [{ parts }],
     generationConfig: {
@@ -68,21 +53,48 @@ async function callGeminiAt(env, base, { prompt, images = [], want = 'image', te
       temperature: temperature ?? (want === 'text' ? 0.2 : 0.4),
     },
   };
+  const path = `/models/${geminiModel(env)}:generateContent?key=${env.GEMINI_API_KEY}`;
 
-  const res = await fetch(url, {
+  const list = routes(env);
+  for (let i = Math.min(firstOpenRoute, list.length - 1); i < list.length; i++) {
+    const res = await send(env, list[i], path, body);
+    const text = await res.text();
+    if (!res.ok) {
+      if (isGeoBlock(text) && i < list.length - 1) {
+        console.warn(`[Gemini] ${list[i]} geo-blocked, switching to ${list[i + 1]}`);
+        firstOpenRoute = i + 1;
+        continue;
+      }
+      throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const data = JSON.parse(text);
+    const out = {};
+    for (const part of data.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) out.image = part.inlineData.data;
+      if (part.text) out.text = part.text;
+    }
+    return out;
+  }
+  throw new Error('Gemini: no route');
+}
+
+function send(env, route, path, body) {
+  if (route === 'proxy') {
+    const stub = proxyStub(env);
+    if (!stub) throw new Error('GEMINI_PROXY binding missing');
+    return stub.fetch('https://gemini-proxy/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: DIRECT_BASE + path, body }),
+    });
+  }
+  const base =
+    route === 'gateway'
+      ? `${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/google-ai-studio/v1beta`
+      : DIRECT_BASE;
+  return fetch(base + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini ${res.status}: ${err.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  const out = {};
-  for (const part of data.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) out.image = part.inlineData.data;
-    if (part.text) out.text = part.text;
-  }
-  return out;
 }
