@@ -54,7 +54,7 @@ describe('멍과 먹장을 가른다', () => {
     expect(idx).toBeGreaterThanOrEqual(0);
     // W12-66: 멍 칸 = 멍 폭. 마감재는 칸이 아니라 그 위에 포개어진다.
     expect(s.areaTypes).not.toContain('blindfin');
-    expect(s.areaWidths[idx]).toBe(m.blind.zoneW);
+    expect(s.areaWidths[idx]).toBe(m.blind.zoneW - 15);   // W12-67: 멍 칸 = 멍판 폭, 목대 15 는 도어 칸 안쪽
     expect(m.blind.finish.partW).toBe(100);
   });
 

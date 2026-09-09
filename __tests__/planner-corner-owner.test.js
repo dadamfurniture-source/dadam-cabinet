@@ -59,9 +59,9 @@ describe('트리밍된 ㄱ자 — 코너를 가진 라인이 멍장을 갖는다
     p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const off = p.g('adjCornerOffsetOf')(c.adj.id);
-    expect(off.need).toBe(750);        // 규칙이 요구하는 거리 (700 − 10 + 60)
+    expect(off.need).toBe(700);        // 규칙이 요구하는 거리 = 멍장 라인 깊이 (§3.7)
     expect(off.already).toBe(700);     // 트리밍으로 이미 비켜 준 거리
-    expect(off.offset).toBe(50);       // 남은 것만 민다 — 예전엔 750 을 또 밀었다
+    expect(off.offset).toBe(0);        // 트리밍된 라인엔 여유가 없다 — 예전엔 750 을 또 밀었다
   });
 });
 
@@ -72,13 +72,13 @@ describe('겹친 ㄱ자 — 예전 동작 그대로', () => {
     expect(isHoriz(c.owner)).toBe(false);   // 회전한 세로가 주인 (기존 규칙)
   });
 
-  test('인접 밀림은 750 그대로다', () => {
+  test('인접 밀림은 멍장 라인 깊이 700 이다', () => {
     const p = boot([horiz(0), vertOverlap(270)]);
     p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const off = p.g('adjCornerOffsetOf')(c.adj.id);
     expect(off.already).toBe(0);
-    expect(off.offset).toBe(750);
+    expect(off.offset).toBe(700);
   });
 });
 
