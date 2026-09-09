@@ -154,6 +154,28 @@
                 <summary>고급 설정</summary>
                 <div class="studio-adv-body">
                   <div class="studio-field">
+                    <label for="style">디자인 스타일</label>
+                    <select id="style">
+                      <option value="modern-minimal">모던 미니멀</option>
+                      <option value="scandinavian">스칸디나비안</option>
+                      <option value="industrial">인더스트리얼</option>
+                      <option value="classic">클래식</option>
+                      <option value="luxury">럭셔리</option>
+                    </select>
+                  </div>
+                  <div class="studio-field">
+                    <label for="doorColor">도어 색상</label>
+                    <select id="doorColor">
+                      <option value="white">화이트</option>
+                      <option value="cream">크림</option>
+                      <option value="light grey">라이트 그레이</option>
+                      <option value="greige">그레이지</option>
+                      <option value="oak woodgrain">오크</option>
+                      <option value="walnut woodgrain">월넛</option>
+                      <option value="charcoal">차콜</option>
+                    </select>
+                  </div>
+                  <div class="studio-field">
                     <label for="wallW">벽 폭 (mm)</label>
                     <input type="number" id="wallW" min="1000" max="6000" step="50" placeholder="자동 인식" />
                   </div>
@@ -315,9 +337,7 @@
         var MAX_BYTES = 20 * 1024 * 1024;
         var MAX_EDGE = 1600; // 업로드 전 축소. 원본을 그대로 base64 로 보내면 수 MB 가 된다.
 
-        // 화면 라벨 → 생성 API 카테고리. worker 의 *_CATEGORIES 와 같은 키다.
-        // 'storage' 는 worker 에 전용 CATEGORIES 목록이 없다 — 매치되지 않는 키는
-        // buildStorageClosedPrompt 로 떨어지므로(worker.js resolveBuilders) 그게 곧 수납장이다.
+        // 화면 라벨 → 생성 API 카테고리. worker prompts.js 의 CATEGORIES 키와 1:1 이다.
         //
         // collection: 시공사례 탭을 이 품목으로 걸러낼 때 쓰는 collection_posts.category.
         // 두 분류 체계의 낱말이 달라(생성은 가구 종류, 컬렉션은 공간 종류) 여기서 이어붙인다.
@@ -985,13 +1005,15 @@
           )
             .filter(Boolean)
             .map(function (r) {
-              return r.base64;
+              return { base64: r.base64, mimeType: r.mime };
             });
 
           var body = {
             room_image: S.img1.base64,
             image_type: S.img1.mime,
             category: S.kind,
+            design_style: $('style').value,
+            door_color: $('doorColor').value,
             reference_images: refs.length ? refs : undefined,
             wall_width_override: $('wallW').value || undefined,
           };

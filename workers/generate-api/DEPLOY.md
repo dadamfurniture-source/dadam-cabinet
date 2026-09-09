@@ -46,17 +46,15 @@ npx wrangler secret put GEMINI_API_KEY
 # 프롬프트에 키 값 붙여넣기
 ```
 
-### 2. `ANTHROPIC_API_KEY` (냉장고장 pre-analysis 에 사용)
-냉장고장 카테고리만 Claude Opus 4.7 로 사진을 분석해 Gemini 프롬프트에 컨텍스트를 주입합니다. 없어도 파이프라인은 동작 (pre-analysis 만 건너뜀).
+### 2. 모델 변경
+`wrangler.toml` 의 `GEMINI_MODEL` 한 값이 분석·설치·변형 전부에 쓰인다. Claude 는 더 이상 호출하지 않으므로 `ANTHROPIC_API_KEY` 는 필요 없다.
 
-Anthropic 콘솔 → API Keys → Create key → `sk-ant-...` 복사.
-```powershell
-npx wrangler secret put ANTHROPIC_API_KEY
-# 프롬프트에 키 값 붙여넣기
-```
+## 파이프라인 (2026-09 단일화)
 
-#### 모델 · 비용
-- 현재 냉장고장은 `claude-opus-4-7` 사용 (`prompts/fridge-prompt.js:FRIDGE_ANALYSIS_MODEL`)
-- 다른 모델로 바꾸고 싶으면 해당 상수 한 줄만 수정 + 재배포
-- 호출당 비용: 대략 $0.06~0.07 (이미지 1장 + 분석 응답)
-- 다른 카테고리는 Claude 호출 안 함 (0 비용)
+| 단계 | 호출 | 결과 |
+|---|---|---|
+| 1 분석 | Gemini 텍스트 1회 | 벽 폭·높이·급수·후드 위치 JSON (벽 폭 직접 입력 시 생략) |
+| 2 설치 | Gemini 이미지 1회 | 기본안 (문 닫힘) |
+| 3 변형 | Gemini 이미지 3회 병렬 | 마감만 바꾼 추천안 3장 |
+
+품목별 차이는 `src/prompts.js` 의 `CATEGORIES` 한 문단, 단가는 `src/quote.js` 한 줄이다.
