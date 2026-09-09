@@ -65,7 +65,19 @@ const PLANNER_SECTIONS = {
   molding: { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '몰딩',   moduleH: 870, adjacent: 'heightOnly' },
   // 휠라 (filler): W=60 · 두께 18T · H=인접 모듈 높이
   filler:  { fill: '#c8b896', stroke: '#7a6a45', w: 60,   h: 18,  label: '휠라',   moduleH: 870, adjacent: 'heightOnly' },
+  // W12-62: 비움 — **부재 없이 자리만 비워 두는 마감**. 벽 여유처럼 폭은 잡되
+  //   판이 서지 않으므로 BOM 에 자재가 나오지 않는다 (noPart).
+  //   기본 50 이지만 다른 마감재와 달리 **모듈마다 폭을 고칠 수 있다** —
+  //   비우는 이유(벽 기울기·의도한 틈)가 현장마다 다르기 때문이다.
+  gap:     { fill: '#d8d2c4', stroke: '#8a8378', w: 50,   h: 0,   label: '비움',   moduleH: 870, adjacent: 'heightOnly', noPart: true, editableW: true },
 };
+
+/**
+ * 마감재 섹션 목록 — **여기가 정본이다.**
+ * 예전엔 이 배열이 여섯 군데에 손으로 적혀 있어서, 새 마감재를 넣으면 어느 한 곳이
+ * 빠진 채로 굴러갔다 (배치 목록에 마감재가 뜨거나, 저장이 마감재를 모듈로 읽거나).
+ */
+const FINISHING_SECTIONS = ['ep', 'molding', 'filler', 'gap'];
 
 /**
  * 구조 단계(3D·정면도) 마감재 색 덮어쓰기.
@@ -76,6 +88,7 @@ const SECTION_PALETTE_3D = {
   ep:      { fill: '#7a6a45', stroke: '#1a0f00' },
   molding: { fill: '#5a4d2f', stroke: '#1a0f00' },
   filler:  { fill: '#8a7858', stroke: '#1a0f00' },
+  gap:     { fill: '#6e685c', stroke: '#1a0f00' },
 };
 
 /** 구조 단계에만 존재하는 섹션. 위 주석의 wardrobe 설명 참고. */
@@ -101,10 +114,11 @@ if (typeof window !== 'undefined') {
   window.PLANNER_SECTIONS = PLANNER_SECTIONS;
   window.SECTION_PALETTE_3D = SECTION_PALETTE_3D;
   window.STRUCTURE_ONLY_SECTIONS = STRUCTURE_ONLY_SECTIONS;
+  window.FINISHING_SECTIONS = FINISHING_SECTIONS;
   window.buildSectionConfig = buildSectionConfig;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PLANNER_SECTIONS, SECTION_PALETTE_3D, STRUCTURE_ONLY_SECTIONS, buildSectionConfig,
+    PLANNER_SECTIONS, SECTION_PALETTE_3D, STRUCTURE_ONLY_SECTIONS, FINISHING_SECTIONS, buildSectionConfig,
   };
 }
