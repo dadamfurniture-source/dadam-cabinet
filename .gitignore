@@ -154,3 +154,9 @@ design-system/dist/
 #   sink-hitl/ 은 사람 교정에서 쌓이는 학습 데이터다 (case-*/pair-* JSON 수백 개).
 #   규칙이 아니라 실행 결과라 계속 늘어난다 — 규칙 문서만 추적한다.
 /docs/design-rules/sink-hitl/
+
+# Cloudflare 워커 로컬 시크릿
+.dev.vars
+
+# wrangler dev 로컬 상태
+.wrangler/
