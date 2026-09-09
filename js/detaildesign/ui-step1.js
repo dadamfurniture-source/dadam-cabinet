@@ -1024,6 +1024,15 @@
           // id 를 `corner-blind-{pos}` 로 맞추는 이유: extractors.js 가 그 id 로
           // 멍장을 알아보고 도어를 doorW 기준으로, 멍가림판을 2.7T 로 낸다 (W10-4).
           if (m.blind) {
+            // W12-64: 멍장은 셀로 안 쪼개져 아래 "셀 폭 합" 검사를 지나친다. 카카스 폭이
+            //   부품(멍 + 도어)과 어긋나면 상자에 안 들어가는 자재가 나가므로 여기서 잡는다.
+            //   (코너 끝에 마감재를 붙이면 멍장 폭이 60 깎이던 결함이 이 그물을 빠져나갔다)
+            const partsW = (Number(m.blind.zoneW) || 0) + (Number(m.blind.doorW) || 0);
+            if (partsW > 0 && Math.abs((Number(m.W) || 0) - partsW) > 1) {
+              warnings.push(
+                `${m.id}: 멍장 폭 ${Math.round(m.W)}mm 이 멍 ${m.blind.zoneW} + 도어 ${m.blind.doorW} = ${partsW}mm 과 다릅니다 — 자동계산을 다시 실행하세요`
+              );
+            }
             const seq = blindSeq[pos]++;
             out.push({
               id: seq === 0 ? `corner-blind-${pos}` : `corner-blind-${pos}-${seq + 1}`,
