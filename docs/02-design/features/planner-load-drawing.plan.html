@@ -1,0 +1,401 @@
+<title>도면 불러오기 계획</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header.doc { padding: 56px 0 30px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono', Consolas, monospace; }
+  h1 { font-size: 32px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 52px; }
+  h2 { font-size: 21px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 18px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; }
+  li { margin: 6px 0; }
+  b, strong { font-weight: 700; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 1px; white-space: nowrap; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', Consolas, monospace; }
+  td code, li code, p code, th code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  tr.hi td { background: var(--ok-bg); }
+
+  pre { background: #29261f; color: #e7e0d2; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12.5px; line-height: 1.7; padding: 16px 18px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+  pre .c { color: #8d8574; } pre .g { color: #9fc0a8; } pre .r { color: #d0928a; } pre .y { color: #d4b58c; }
+
+  figure { margin: 24px 0; padding: 22px 20px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figure svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; max-width: 52em; margin-left: auto; margin-right: auto; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 15px 19px; margin: 18px 0; max-width: 48em; }
+  .callout.risk { border-left-color: var(--bad); }
+  .callout.keep { border-left-color: var(--ok); }
+  .callout.decide { border-left-color: var(--warn); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; }
+  .callout p { margin: 6px 0 0; font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+
+  .steps { counter-reset: s; list-style: none; padding-left: 0; max-width: 47em; }
+  .steps > li { counter-increment: s; position: relative; padding-left: 44px; margin: 20px 0; }
+  .steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .steps > li b.h { display: block; font-size: 15.5px; margin-bottom: 2px; }
+
+  .q { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 18px 20px; margin: 14px 0; max-width: 48em; }
+  .q .qh { font-weight: 700; font-size: 15px; margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
+  .q .qh .n { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--accent); font-size: 13px; }
+  .q p { margin: 6px 0; font-size: 14.5px; }
+  .q .rec { font-size: 14px; color: var(--ok); font-weight: 600; }
+  @media (max-width: 700px) { h1 { font-size: 25px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">설계 계획 · W12-71 · <span style="color:var(--warn)">결정 대기</span></p>
+  <h1>도면 불러오기</h1>
+  <p class="lede">배치 · 구조 · 디테일 세 단계의 저장 데이터를 <b>계정에 귀속</b>시키고,
+  <code>⚡ 전체 자동계산</code> 왼쪽의 드롭다운에서 단계별로 불러옵니다.
+  지금 이 데이터는 전부 <b>브라우저 localStorage 에만</b> 있습니다 — 캐시를 지우면 사라지고,
+  다른 PC 에서는 아예 보이지 않습니다. 그래서 이 작업은 UI 추가가 아니라
+  <b>저장 위치를 옮기는 일</b>입니다.</p>
+  <div class="meta">
+    <span><b>대상</b> mockup-structure.html · mockup-shell.html · database/</span>
+    <span><b>선행</b> Supabase 마이그레이션 (직접 실행 필요)</span>
+    <span><b>막는 것</b> §06 결정 3건</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>지금 어디에 저장되나</h2>
+  <p class="sub">먼저 사실 확인. 플래너 두 페이지는 Supabase 를 <b>아예 불러오지 않습니다</b>.</p>
+
+  <p><code>mockup-structure.html</code> · <code>mockup-shell.html</code> 이 로드하는 스크립트는
+  Three.js 와 <code>js/planner/*.js</code> 넷뿐입니다. <code>supabase-js</code> 도
+  <code>js/config.js</code> 도 없습니다. 저장은 전부 <code>localStorage</code> 입니다.</p>
+
+  <p>다만 키는 이미 <b>품목 단위로 쪼개져</b> 있습니다 — <code>js/planner/planner-scope.js</code>:</p>
+
+<pre><span class="c">// 부모(detaildesign)가 iframe URL 로 ?design=&item= 을 넘긴다</span>
+PLANNER_SCOPE = `::${design}:${item}`
+
+<span class="c">// js/detaildesign/ui-step1.js · _plannerScopeParams()</span>
+design = currentDesignId   <span class="c">// designs.id (UUID) — 저장 전이면 'local'</span>
+item   = item.uniqueId     <span class="c">// design_items.unique_id (BIGINT)</span></pre>
+
+  <div class="callout keep">
+    <h4>이게 좋은 소식입니다</h4>
+    <p>스코프가 이미 <code>(designs.id, design_items.unique_id)</code> 입니다. DB 로 옮길 때
+    <b>키를 새로 설계할 필요가 없습니다</b> — 지금 쓰는 두 값을 그대로 컬럼으로 세우면 됩니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>세 단계가 각각 무슨 데이터인가</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>단계</th><th>만드는 곳</th><th>저장 키 (localStorage)</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><b>배치</b></td><td><code>mockup-shell.html</code></td>
+          <td><code>dadam_layout_v1</code><br><code>dadam_origin_v1</code></td>
+          <td>배치 공간 사각형 · 회전 · 사람 위치 · 원점/천정</td></tr>
+      <tr><td><b>구조</b></td><td><code>mockup-structure.html</code></td>
+          <td><code>dadam_struct_modules_v1</code><br><code>dadam_structure_v1</code></td>
+          <td>모듈 목록(W·H·D·좌표·마감재·멍장) · 모듈별 구조(칸·도어·서랍·선반)</td></tr>
+      <tr class="hi"><td><b>디테일</b></td><td><code>detaildesign.html</code></td>
+          <td><span class="badge ok">이미 DB</span> <code>design_items</code></td>
+          <td><code>specs</code> JSONB · <code>modules</code> JSONB · 치수 · 고객 요청</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>디테일 단계는 <b>이미 계정에 귀속</b>되어 있습니다. <code>design_items.design_id →
+  designs.id → designs.user_id → auth.users</code> 이고 RLS 도 걸려 있습니다
+  (<code>database/rls-enhanced.sql</code>). 그러니 이번 작업의 실질은 <b>배치와 구조 둘을
+  같은 자리로 끌어오는 것</b>입니다.</p>
+
+  <figure>
+    <svg viewBox="0 0 860 300" role="img" aria-label="배치와 구조는 localStorage 에만 있고 디테일만 DB 에 있다. 계획은 배치와 구조도 planner_snapshots 표로 옮기는 것이다.">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#4a7c59"/>
+        </marker>
+      </defs>
+
+      <text x="20" y="26" font-size="13" font-weight="700" fill="currentColor">지금</text>
+      <text x="20" y="176" font-size="13" font-weight="700" fill="#4a7c59">계획</text>
+
+      <!-- now row -->
+      <rect x="20" y="40" width="150" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="95" y="62" font-size="13" text-anchor="middle" fill="currentColor">배치</text>
+      <text x="95" y="80" font-size="11" text-anchor="middle" fill="currentColor" opacity=".65" class="mono">mockup-shell</text>
+
+      <rect x="200" y="40" width="150" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="275" y="62" font-size="13" text-anchor="middle" fill="currentColor">구조</text>
+      <text x="275" y="80" font-size="11" text-anchor="middle" fill="currentColor" opacity=".65" class="mono">mockup-structure</text>
+
+      <rect x="380" y="40" width="150" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="455" y="62" font-size="13" text-anchor="middle" fill="currentColor">디테일</text>
+      <text x="455" y="80" font-size="11" text-anchor="middle" fill="currentColor" opacity=".65" class="mono">detaildesign</text>
+
+      <path d="M95 92 L95 122" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)" fill="none"/>
+      <path d="M275 92 L275 122" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)" fill="none"/>
+      <path d="M455 92 L620 92 L620 60 L700 60" stroke="#4a7c59" stroke-width="1.5" marker-end="url(#arb)" fill="none"/>
+
+      <rect x="20" y="124" width="330" height="34" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="185" y="146" font-size="12.5" text-anchor="middle" fill="currentColor" class="mono">localStorage · 이 브라우저에만</text>
+
+      <rect x="700" y="40" width="140" height="42" rx="6" fill="none" stroke="#4a7c59" stroke-width="1.5"/>
+      <text x="770" y="66" font-size="12.5" text-anchor="middle" fill="#4a7c59" class="mono">design_items</text>
+
+      <!-- plan row -->
+      <path d="M95 158 L95 216" stroke="#4a7c59" stroke-width="1.5" marker-end="url(#arb)" fill="none"/>
+      <path d="M275 158 L275 216" stroke="#4a7c59" stroke-width="1.5" marker-end="url(#arb)" fill="none"/>
+
+      <rect x="20" y="218" width="330" height="46" rx="6" fill="none" stroke="#4a7c59" stroke-width="2"/>
+      <text x="185" y="240" font-size="13" text-anchor="middle" fill="#4a7c59" class="mono">planner_snapshots</text>
+      <text x="185" y="256" font-size="11" text-anchor="middle" fill="#4a7c59" opacity=".8">design_id · item_unique_id · stage · payload</text>
+
+      <path d="M350 241 L700 241" stroke="#4a7c59" stroke-width="1.5" stroke-dasharray="5 4" fill="none"/>
+      <rect x="700" y="218" width="140" height="46" rx="6" fill="none" stroke="#4a7c59" stroke-width="1.5"/>
+      <text x="770" y="238" font-size="12.5" text-anchor="middle" fill="#4a7c59" class="mono">designs.user_id</text>
+      <text x="770" y="255" font-size="11" text-anchor="middle" fill="#4a7c59" opacity=".8">RLS 가 여기서 걸린다</text>
+    </svg>
+    <figcaption>디테일만 이미 계정에 붙어 있습니다. 배치·구조를 같은 <code>designs</code> 소유권 아래로 옮기면
+    세 단계가 한 곳에서 조회됩니다.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2><span class="no">03</span>저장 위치 — 새 표를 권합니다</h2>
+  <p class="sub">두 가지 길이 있고, 갈림은 "한 품목에 도면을 여러 벌 두는가" 하나입니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>안</th><th>어떻게</th><th>얻는 것</th><th>잃는 것</th></tr></thead>
+    <tbody>
+      <tr><td><b>A</b> <code>design_items</code> 확장</td>
+          <td><code>layout JSONB</code> · <code>structure JSONB</code> 컬럼 추가</td>
+          <td>표가 안 늘고, RLS 그대로</td>
+          <td>품목당 <b>한 벌</b>. 되돌리기·이력 없음</td></tr>
+      <tr class="hi"><td><b>B</b> <code>planner_snapshots</code> 새 표 <span class="badge ok">권장</span></td>
+          <td>(design_id, item_unique_id, stage) 마다 <b>행 여러 개</b></td>
+          <td>이름 붙여 저장 · 목록에서 골라 불러오기 · 되돌리기</td>
+          <td>표 하나 · RLS 정책 하나 추가</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><b>B 를 권하는 이유</b>는 요청이 "저장"이 아니라 <b>"불러오기"</b> 이기 때문입니다.
+  불러올 것이 항상 한 벌이면 드롭다운이 필요 없습니다 — 페이지가 열릴 때 이미 그것을 씁니다.
+  드롭다운이 뜻을 가지려면 <b>고를 것이 여럿</b>이어야 합니다.</p>
+
+<pre><span class="c">-- database/planner-snapshots-schema.sql (초안)</span>
+create table if not exists planner_snapshots (
+  id              uuid primary key default gen_random_uuid(),
+  design_id       uuid references designs(id) on delete cascade,
+  item_unique_id  bigint,                      <span class="c">-- design_items.unique_id</span>
+  stage           text not null check (stage in ('layout','structure','detail')),
+  name            text,                        <span class="c">-- 사람이 붙인 이름</span>
+  payload         jsonb not null default '{}', <span class="c">-- 아래 §04</span>
+  is_autosave     boolean default false,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+
+create index on planner_snapshots (design_id, item_unique_id, stage, created_at desc);
+
+alter table planner_snapshots enable row level security;
+
+<span class="c">-- 소유권은 designs 를 타고 온다 — user_id 를 여기 두지 않는다.
+-- 두면 designs 와 어긋날 수 있고, 어긋나면 남의 도면이 보인다.</span>
+create policy "own snapshots" on planner_snapshots
+  for all
+  using (exists (select 1 from designs d
+                 where d.id = planner_snapshots.design_id
+                   and d.user_id = auth.uid()))
+  with check (exists (select 1 from designs d
+                      where d.id = planner_snapshots.design_id
+                        and d.user_id = auth.uid()));</pre>
+
+  <div class="callout risk">
+    <h4>이 SQL 은 제가 실행할 수 없습니다</h4>
+    <p>Supabase 대시보드의 SQL Editor 에서 직접 돌리셔야 합니다. 파일은 저장소에
+    <code>database/planner-snapshots-schema.sql</code> 로 넣어 두겠습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>payload 는 지금 키를 그대로 담습니다</h2>
+  <p class="sub">변환하지 않습니다. 변환하면 그 변환이 새 버그 표면이 됩니다.</p>
+
+<pre><span class="c">// stage = 'layout'</span>
+{ layout: &lt;dadam_layout_v1 그대로&gt;, origin: &lt;dadam_origin_v1 그대로&gt; }
+
+<span class="c">// stage = 'structure'</span>
+{ modules: &lt;dadam_struct_modules_v1&gt;, structures: &lt;dadam_structure_v1&gt; }
+
+<span class="c">// stage = 'detail' — design_items 가 정본. 스냅샷은 되돌리기용 사본만.</span>
+{ specs: …, modules: … }</pre>
+
+  <p>불러오기는 <b>localStorage 에 써 넣고 페이지의 기존 load 경로를 다시 타는</b> 방식입니다.
+  <code>loadModules()</code> · <code>loadAreas()</code> 가 이미 그 키를 읽고 있으니
+  새 파싱 경로를 만들지 않습니다.</p>
+</section>
+
+<section>
+  <h2><span class="no">05</span>로그인은 어떻게 되는가</h2>
+
+  <p>플래너는 <code>detaildesign.html</code> 안의 <b>iframe</b> 이고 <b>같은 오리진</b>입니다.
+  Supabase 세션은 그 오리진의 localStorage 에 있으므로,
+  플래너 페이지가 <code>supabase-js</code> + <code>js/config.js</code> 를 로드하기만 하면
+  <code>getSession()</code> 이 <b>부모의 로그인을 그대로 봅니다</b>. 별도 로그인 화면이 필요 없습니다.</p>
+
+  <div class="callout">
+    <h4>로그인이 없을 때</h4>
+    <p>플래너를 단독 URL 로 열었거나 로그아웃 상태면 드롭다운은
+    <b>"이 브라우저에 저장된 것"</b> 만 보여주고, 목록 아래에 <code>로그인하면 계정에 저장됩니다</code>
+    를 답니다. 지금 동작이 그대로 남으므로 <b>퇴행이 없습니다</b>.</p>
+  </div>
+
+  <p>플래너에 스크립트 두 줄이 늘어납니다. 클래식 스크립트 전역 충돌
+  (<code>planner-assets.test.js</code> 가 지키는 그 문제) 을 피하려면
+  <code>js/planner/*.js</code> <b>앞</b>에 두고, 이름은 <code>window.supabase</code> ·
+  <code>window.DADAM_CONFIG</code> 로 이미 격리돼 있어 안전합니다.</p>
+</section>
+
+<section>
+  <h2><span class="no">06</span>결정이 필요한 것 <span class="badge warn">막고 있음</span></h2>
+
+  <div class="q">
+    <p class="qh"><span class="n">Q1</span>새 표(B)인가, 컬럼 추가(A)인가?</p>
+    <p>B 면 "이름 붙여 저장 → 목록에서 고르기"가 되고, A 면 품목당 한 벌만 자동 저장됩니다.</p>
+    <p class="rec">권장: B — 드롭다운이 뜻을 가지려면 고를 것이 여럿이어야 합니다.</p>
+  </div>
+
+  <div class="q">
+    <p class="qh"><span class="n">Q2</span>저장 시점은 자동인가, 버튼인가?</p>
+    <p>① <code>💾 구조 저장</code> 을 누를 때만 · ② 바뀔 때마다 자동 + 수동 "이름 붙여 저장" 병행.</p>
+    <p class="rec">권장: ② — 자동은 <code>is_autosave=true</code> 로 한 행만 덮어쓰고,
+    수동 저장은 이름과 함께 행을 쌓습니다. 자동 저장이 이력을 더럽히지 않습니다.</p>
+  </div>
+
+  <div class="q">
+    <p class="qh"><span class="n">Q3</span>다른 품목·다른 설계의 도면도 불러올 수 있어야 하나?</p>
+    <p>지금 스코프는 (설계, 품목) 입니다. 드롭다운이 <b>이 품목</b>만 보여줄지,
+    <b>내 모든 설계</b>를 보여주고 골라 복사해 올지가 갈립니다.</p>
+    <p class="rec">권장: 1단계는 <b>이 품목</b>만. "다른 설계에서 가져오기"는 배치가 다른 벽 치수로
+    들어오면 트리밍·코너가 어긋나므로, 검증을 붙여 별도로 다뤄야 합니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">07</span>작업 순서</h2>
+
+  <ol class="steps">
+    <li><b class="h">스키마 파일 + 직접 실행</b>
+      <code>database/planner-snapshots-schema.sql</code> 을 넣고, Supabase SQL Editor 에서
+      실행하십시오. 이것이 끝나야 나머지가 의미를 갖습니다.</li>
+    <li><b class="h">플래너에 Supabase 접속</b>
+      두 HTML 에 <code>supabase-js</code> · <code>js/config.js</code> · <code>js/supabase-utils.js</code>
+      추가. 세션이 없으면 <code>null</code> 을 돌려주는 <code>js/planner/planner-store.js</code>
+      한 파일에 저장/불러오기를 모읍니다 — 두 페이지가 같은 정본을 쓰게.</li>
+    <li><b class="h">저장 경로 연결</b>
+      배치의 저장과 구조의 <code>💾 구조 저장</code> 이 localStorage 에 쓴 <b>직후</b>
+      같은 값을 스냅샷으로 올립니다. localStorage 쓰기는 <b>그대로 둡니다</b> —
+      네트워크가 죽어도 작업이 멈추면 안 됩니다.</li>
+    <li><b class="h">📥 도면 불러오기 드롭다운</b>
+      <code>⚡ 전체 자동계산</code> 왼쪽. 배치 / 구조 / 디테일 세 묶음, 각 묶음 아래
+      저장 시각과 이름. 고르면 localStorage 에 써 넣고 기존 load 경로를 다시 탑니다.</li>
+    <li><b class="h">되돌릴 수 없는 지점에 확인</b>
+      불러오기는 지금 작업을 <b>덮어씁니다</b>. 확인 대화 한 번 + "현재 상태를
+      자동 저장해 두었습니다" 안내를 붙입니다.</li>
+    <li><b class="h">테스트</b>
+      <code>planner-store</code> 순수 함수(스코프 → 키, payload 조립/해체) 단위 테스트와,
+      세션이 없을 때 localStorage 폴백이 도는지의 하네스 테스트.</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="no">08</span>위험</h2>
+
+  <div class="callout risk">
+    <h4>불러오기는 파괴적입니다</h4>
+    <p>지금 그린 배치를 지웁니다. 확인 없이 실행되면 한 시간 작업이 날아갑니다.
+    §07-5 를 생략하지 마십시오.</p>
+  </div>
+
+  <div class="callout risk">
+    <h4><code>design = 'local'</code> 인 도면은 계정에 붙지 않습니다</h4>
+    <p>설계를 저장하기 전에는 <code>currentDesignId</code> 가 없어 스코프가
+    <code>::local:bootstrap</code> 입니다. <code>design_id</code> 가 null 이면 RLS 를 태울
+    소유자가 없으므로 <b>DB 에 올리지 않고</b> localStorage 에만 둡니다.
+    설계를 저장하는 순간 <code>local → 새 UUID</code> 로 한 번 이관하는 경로가 필요합니다
+    (<code>migrateLegacyScope()</code> 와 같은 방식).</p>
+  </div>
+
+  <div class="callout">
+    <h4>파일 소유권</h4>
+    <p>이 작업은 <code>ui-step1.js</code> 를 건드릴 수 있습니다 (스코프 파라미터 · 설계 저장 시 이관).
+    CLAUDE.md 규칙상 그 파일은 <b>한 세션만</b> 수정합니다 — 다른 세션에서 동시에 작업하지 마십시오.</p>
+  </div>
+</section>
+
+</main>
