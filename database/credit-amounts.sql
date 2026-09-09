@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════
 -- 크레딧 지급량·소모 단위 변경
 --
---   지급량  standard 100 / expert 1000 / agent 5000
+--   지급량  standard 100 / expert 1000 / agent 3000 (agent 는 2026-09-10 에 5000 → 3000, credit-agent-3000.sql)
 --   소모    생성 1회 = 20 크레딧
 --
 -- 왜 소모 단위를 표로 빼는가:
@@ -31,7 +31,7 @@ CREATE POLICY "costs readable" ON credit_costs FOR SELECT USING (true);
 -- 2. 지급량
 UPDATE credit_plans SET monthly_credits = 100, updated_at = now() WHERE tier = 'standard';
 UPDATE credit_plans SET monthly_credits = 1000, updated_at = now() WHERE tier = 'expert';
-UPDATE credit_plans SET monthly_credits = 5000, updated_at = now() WHERE tier = 'agent';
+UPDATE credit_plans SET monthly_credits = 3000, updated_at = now() WHERE tier = 'agent';
 
 -- 3. 차감 — 1 고정에서 동작별 단가로
 --    반환형에 cost 를 더했다. CREATE OR REPLACE 로는 반환형을 못 바꾼다
