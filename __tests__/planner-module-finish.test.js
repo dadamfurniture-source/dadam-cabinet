@@ -310,7 +310,9 @@ describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
 
   test('마감재도 클릭해 고를 수 있다', () => {
     const from = SRC.indexOf('function renderModuleFront');
-    const head = SRC.slice(from, from + 1200);
+    // 창은 **마감재 분기 끝까지** 다. 바이트 수로 자르면 주석 한 줄에 가드가
+    // 깨진다 — 실제로 W12-70 에서 그렇게 깨졌다. 모듈 외곽이 그 다음 줄이다.
+    const head = SRC.slice(from, SRC.indexOf('const outline = document.createElementNS', from));
     expect(head).toContain("panel.setAttribute('data-module-id', m.id)");
     expect(head).toContain('setActiveModule(m.id)');
   });

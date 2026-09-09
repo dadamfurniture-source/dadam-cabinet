@@ -7,6 +7,9 @@
 <style>
   :root{
     --brand-deep:#6a4b2a;
+    /* W12-70: '고른 것' 표시색. 갈색 계열(brand)과 섞이면 무엇이 선택됐는지
+       한눈에 안 보여, 도면 안에서만 쓰는 파랑을 따로 둔다. */
+    --pick:#1d6fe0;
     --brand-mid:#b8956c;
     --brand-soft:#f3ead9;
     --bg:#fbfaf6;
@@ -276,7 +279,7 @@
          '세트'(회전각 묶음)를 '배치'(배치 단계의 영역)로 바꿨다. 회전 묶음은
          화면에 드러나지 않는 개념이라 무엇이 묶였는지 알 수 없었다. -->
     <div class="ml-mode-toggle">
-      <button class="active" data-mode="single" title="모듈 하나씩">개별</button>
+      <button class="active" data-mode="single" title="모듈을 하나씩 목록으로">개별</button>
       <button data-mode="area" title="배치 단계에서 잡은 영역">배치</button>
       <button data-mode="all" title="전체 모듈 한 번에">전체</button>
     </div>
@@ -984,8 +987,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return `${cfg.label} ${moduleTag(m)}`.trim();
     })();
     syncCanvasEmpty();
-    // 영역 보기 중이면 화면을 모듈로 당기지 않는다 — 계획 전체가 보이는 편이 낫다.
-    if (!activeAreaId) fitToActiveModule();
+    // 화면을 모듈로 당기는 건 **'개별' 탭에 들어와 있을 때뿐**이다 (W12-70).
+    // 영역·전체 보기에서는 계획 전체가 보이는 편이 낫고, 선택은 파란 테두리로 안다.
+    if (viewMode === 'single' && !activeAreaId) fitToActiveModule();
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1973,8 +1977,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
   }
 
+  // W12-70: 선택 표시색 — 2D(SVG) 와 3D(Three) 가 같은 파랑을 쓰도록 한 곳에 둔다.
+  const PICK_COLOR_CSS = 'var(--pick, #1d6fe0)';
+  const PICK_COLOR_3D = 0x1d6fe0;
+
   function renderModuleFront(content, m, s, offsetX, offsetY) {
     const cfg = SECTION_CONFIG[m.section];
+    const on = m.id === activeId;   // W12-70: 고른 모듈 — 파란 테두리
     const ns = 'http://www.w3.org/2000/svg';
 
     // W12-13: 마감재는 판 한 장이다 — 칸·도어·서랍을 그리지 않는다.
@@ -1989,8 +1998,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       panel.setAttribute('width', drawW);
       panel.setAttribute('height', m.H);
       panel.setAttribute('fill', gap ? 'none' : cfg.fill);
-      panel.setAttribute('stroke', cfg.stroke);
-      panel.setAttribute('stroke-width', 4);
+      panel.setAttribute('stroke', on ? PICK_COLOR_CSS : cfg.stroke);
+      panel.setAttribute('stroke-width', on ? 8 : 4);
       if (gap) panel.setAttribute('stroke-dasharray', '14 10');
       panel.setAttribute('data-module-id', m.id);
       panel.setAttribute('pointer-events', 'all');
@@ -2011,8 +2020,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-30: 고른 모듈을 도면에서 알아볼 수 있게 한다. 팔레트가 없어지면
     //   "무엇이 선택됐나"를 알려 주는 것이 이 테두리뿐이다.
     //   renderAreas 의 `const on = a.id === activeAreaId` 와 같은 방식이다.
-    const on = m.id === activeId;
-    outline.setAttribute('stroke', on ? 'var(--brand-deep, #6a4b2a)' : cfg.stroke);
+    // W12-70: 선택색은 파랑(--pick) 이다. 갈색 계열은 섹션 색과 섞여 안 보였다.
+    outline.setAttribute('stroke', on ? PICK_COLOR_CSS : cfg.stroke);
     outline.setAttribute('stroke-width', on ? 8 : 4);
     outline.setAttribute('data-module-id', m.id);
     outline.setAttribute('pointer-events', 'all');
@@ -5221,22 +5230,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const moduleId = ud.moduleId;
     // W12-32: 이미 고른 모듈을 다시 눌러도 할 일이 없다 — 우측 패널이 이미
     //   그 모듈을 보여주고 있다. 예전엔 여기가 팔레트를 여는 유일한 길이었다.
-    if (moduleId && moduleId !== activeId) {
-      if (viewMode === 'single') {
-        setActiveModule(moduleId);
-      } else {
-        const m = modules.find(x => x.id === moduleId);
-        if (m) {
-          activeId = moduleId;
-          panelTarget = 'module';
-          const nameEl = document.getElementById('curModuleName');
-          if (nameEl) {
-            nameEl.textContent = (SECTION_CONFIG[m.section].label + ' ' + moduleTag(m)).trim();
-          }
-          renderRightPanel();   // 세트/전체 모드에서도 옵션을 만질 수 있어야 한다
-        }
-      }
-    }
+    // W12-70: 길이 하나다. 예전엔 전체/배치 모드일 때만 activeId 를 직접 넣어
+    //   좌측 목록과 3D 테두리가 갱신되지 않았다. setActiveModule 이 화면을
+    //   모듈로 당기는 건 이제 '개별' 탭뿐이므로 그냥 부르면 된다.
+    if (moduleId && moduleId !== activeId) setActiveModule(moduleId);
     let msg = '';
     if (ud.entityKind === 'finishing') {
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
@@ -6134,6 +6131,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // W9-65: View mode (개별/세트/전체) + 세트 자동 그룹화
   // ─────────────────────────────────────────────────────────────
+  // W12-70: 'single' 은 **좌측 목록을 모듈 단위로 보는 탭**이다. 모듈 하나만
+  //   크게 띄우는 뜻이 아니다 — 고른 모듈은 도면 제자리에서 파란 테두리로
+  //   표시한다 (setViewMode 의 'single' 분기 참고).
   let viewMode = 'single';   // 'single'(모듈) | 'area'(배치 영역) | 'all'(전체)
 
   // rotation 별 그룹화 — 같은 회전 = 같은 정면 세트 (ㄱ자/ㄷ자 자동 감지)
@@ -6171,14 +6171,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (mode === 'single') {
       if (modules.length && !modules.find(x => x.id === activeId)) setActiveModule(modules[0].id);
       else if (activeId) setActiveModule(activeId);
+      // W12-70: 도면은 계획 전체를 유지한다. 예전엔 '전체' 탭이 activeAreaId 를
+      //   지운 뒤 '개별' 로 오면 그 모듈 하나만 원점에 크게 그렸다 — 고른 모듈이
+      //   어느 라인의 어디쯤인지 알 수 없었다. 그 모듈이 속한 영역을 되살린다.
+      //   setActiveArea 를 부르지 않는 건 그것이 우측 패널을 영역으로 돌리기
+      //   때문이다 — 방금 고른 모듈을 계속 편집할 수 있어야 한다.
+      const back = modules.find((x) => x.id === activeId);
+      if (back && !activeAreaId) {
+        activeAreaId = back.areaId || (areas[0] && areas[0].id) || null;
+        renderFrontView();
+        if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
+      }
     } else if (mode === 'area') {
       // 배치 단계에서 잡은 영역을 고른다. 이미 고른 영역이 있으면 그대로 둔다.
       const keep = areas.find((a) => a.id === activeAreaId);
       if (keep) setActiveArea(keep.id);
       else if (areas.length) setActiveArea(areas[0].id);
     } else if (mode === 'all') {
-      activeId = null; activeAreaId = null;
-      document.getElementById('curModuleName').textContent = `전체 모듈 (${modules.length}개)`;
+      // W12-70: 고른 모듈은 **그대로 둔다**. 전체 보기에서도 파란 테두리로
+      //   무엇을 고쳤는지 보여야 한다 — 예전엔 여기서 activeId 를 지웠다.
+      activeAreaId = null;
+      const picked = modules.find((x) => x.id === activeId);
+      document.getElementById('curModuleName').textContent = picked
+        ? `${SECTION_CONFIG[picked.section].label} ${moduleTag(picked)}`.trim()
+        : `전체 모듈 (${modules.length}개)`;
       document.getElementById('canvasEmpty').style.display = modules.length ? 'none' : 'flex';
       renderAll3D();
       // W9-103: 전체 모드 진입 시 정면도 갱신 + fit
@@ -6312,6 +6328,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       moduleMesh.position.z = B.cy - oy;
       moduleMesh.rotation.y = -(m.rotation || 0) * Math.PI / 180;
       modG.add(moduleMesh);
+      // W12-70: 고른 모듈을 3D 에서도 알아볼 수 있게 파란 상자를 씌운다.
+      //   3D 가 기본 화면인데 여기엔 선택 표시가 아예 없어서, 무엇을 고쳤는지
+      //   보려면 모듈 하나만 남기는 '개별' 보기로 갈 수밖에 없었다.
+      if (m.id === activeId) addPickOutline3D(modG, m, moduleMesh);
     });
     // 원점 표시 (3D 의 0,0,0)
     addOriginMarker3D(modG);
@@ -6323,6 +6343,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       three.controls.target.set(0, ceilingHeight/2, 0);
       three.controls.update();
     }
+  }
+
+  /**
+   * 고른 모듈을 감싸는 파란 와이어 상자 (W12-70).
+   * 모듈 mesh 와 **같은 자리·같은 회전**에 놓고, 로컬 y 는 H/2 다
+   * (mesh 는 바닥이 baseY 에 오도록 서 있다 — createModuleMesh 참고).
+   */
+  function addPickOutline3D(parent, m, mesh) {
+    const W = Math.max(1, m.W), H = Math.max(1, m.H), D = Math.max(1, m.D);
+    const geo = new THREE.EdgesGeometry(new THREE.BoxGeometry(W + 6, H + 6, D + 6));
+    // depthTest 를 끈다 — 고른 모듈이 다른 장 뒤에 있어도 테두리는 보여야 한다.
+    const mat = new THREE.LineBasicMaterial({ color: PICK_COLOR_3D, depthTest: false });
+    const box = new THREE.LineSegments(geo, mat);
+    box.renderOrder = 999;
+    box.position.set(mesh.position.x, (mesh.position.y || 0) + H / 2, mesh.position.z);
+    box.rotation.copy(mesh.rotation);
+    // 표시일 뿐이라 클릭 대상이 아니다 — 안 막으면 모듈 대신 이 선이 집힌다.
+    box.raycast = function () {};
+    box.userData = { entityKind: 'pick', moduleId: m.id };
+    parent.add(box);
+    return box;
   }
 
   // 3D 원점 마커 (작은 cross at 0,0,0)
@@ -6473,7 +6514,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     _origSetActive(id);
     // 영역 보기에서는 모듈 하나만 남기면 안 된다 — 영역과 이웃 모듈이 사라진다.
     if (isAreaView()) { renderAll3D({ fit: false }); return; }
-    if (viewMode !== 'single') return;
+    // W12-70: 전체 보기에서도 다시 그려야 파란 선택 테두리가 새 모듈로 옮겨간다.
+    if (viewMode !== 'single') { renderAll3D({ fit: false }); return; }
     const m = modules.find(x => x.id === id);
     const s = m ? getStructure(id) : null;
     if (m && s) {
