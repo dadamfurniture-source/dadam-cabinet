@@ -974,6 +974,18 @@
        * @param {object} [specs]  대상 품목의 specs — 전체높이→몸통 변환에 쓴다
        * @returns {{modules: Array, warnings: string[]}}
        */
+      /**
+       * W12-61: 플래너 마감재 구분 → BOM 자재명 구분.
+       *
+       * 플래너는 소문자 섹션('molding'/'filler')을, 자재 산출은 스펙 표기
+       * ('Molding'/'Filler')를 쓴다. 미지정(옛 저장 설계)이면 휠라로 떨어진다 —
+       * 멍 폭에 마감재 자리 60 은 이미 들어가 있어서, 안 내면 그 자리가
+       * 멍가림판 MDF 로 발주된다 (corner.md §3.3).
+       */
+      function _blindFinishType(finish) {
+        return (finish && finish.section) === 'molding' ? 'Molding' : 'Filler';
+      }
+
       function _convertPlannerModules(payload, specs) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
@@ -1012,6 +1024,15 @@
           // id 를 `corner-blind-{pos}` 로 맞추는 이유: extractors.js 가 그 id 로
           // 멍장을 알아보고 도어를 doorW 기준으로, 멍가림판을 2.7T 로 낸다 (W10-4).
           if (m.blind) {
+            // W12-64: 멍장은 셀로 안 쪼개져 아래 "셀 폭 합" 검사를 지나친다. 카카스 폭이
+            //   부품(멍 + 도어)과 어긋나면 상자에 안 들어가는 자재가 나가므로 여기서 잡는다.
+            //   (코너 끝에 마감재를 붙이면 멍장 폭이 60 깎이던 결함이 이 그물을 빠져나갔다)
+            const partsW = (Number(m.blind.zoneW) || 0) + (Number(m.blind.doorW) || 0);
+            if (partsW > 0 && Math.abs((Number(m.W) || 0) - partsW) > 1) {
+              warnings.push(
+                `${m.id}: 멍장 폭 ${Math.round(m.W)}mm 이 멍 ${m.blind.zoneW} + 도어 ${m.blind.doorW} = ${partsW}mm 과 다릅니다 — 자동계산을 다시 실행하세요`
+              );
+            }
             const seq = blindSeq[pos]++;
             out.push({
               id: seq === 0 ? `corner-blind-${pos}` : `corner-blind-${pos}-${seq + 1}`,
@@ -1026,7 +1047,18 @@
               doorCount: 1,
               is2door: false,
               doorW: Number(m.blind.doorW) || 0,       // 도어는 이 폭으로 발주된다
-              blindZoneW: Number(m.blind.zoneW) || 0,  // 멍가림판(2.7T) 폭
+              blindZoneW: Number(m.blind.zoneW) || 0,  // 멍 폭 (목대 15 포함 — 재단은 extractors 가 뺀다)
+              // W12-61: 멍판 마감재 — 라인 마감을 따라온 종류와 **재단** 폭.
+              //   재단(100)은 멍 공식의 자리(60)보다 넓다. 멍가림판 위를 덮기 때문이다.
+              blindFinishType: m.blind.ep ? 'None' : _blindFinishType(m.blind.finish),
+              blindFinishW: m.blind.ep ? 0 : (Number(m.blind.finish && m.blind.finish.partW) || 0),
+              // W12-65: 키큰장 멍장 — 멍 구간을 2.7T 가림판이 아니라 **멍판 EP 18T 한 장**으로 덮는다.
+              //   가리는 면은 하나라 단(3개) 중 첫 단에서만 내고, 높이는 장 전체(좌대 포함)다.
+              //   마감재 100 은 없다 — EP 가 이미 마감된 판이다. 경첩목대는 단마다 그대로.
+              blindKind: m.blind.ep ? 'tall' : 'std',
+              blindEpOnce: !!(m.blind.ep && (m.blind.tier || 0) === 0),
+              blindEpW: m.blind.ep ? Number(m.blind.ep.W) || 0 : 0,
+              blindEpH: m.blind.ep ? Number(m.blind.ep.H) || 0 : 0,
               isDrawer: false,
               drawerCount: 0,
               isOpen: false,
@@ -1064,7 +1096,9 @@
             // W12-58: 멍 칸이 여기까지 오면 멍장으로 못 알아본 것이다 (위 m.blind
             //   분기가 잡았어야 한다). 그대로 두면 가려진 구간이 도어 달린 장으로
             //   발주된다 — 캐비닛으로 만들지 않고 알린다.
-            if (c.kind === 'blind') {
+            // W12-61: 멍판 마감재 칸(blindfin)도 같이 막는다 — 멍장 안에서만 뜻이 있는
+            //   파생 칸이라, 여기까지 오면 멍장으로 못 알아본 것이다.
+            if (c.kind === 'blind' || c.kind === 'blindfin') {
               warnings.push(`${m.id}: 멍 구간을 멍장으로 인식하지 못했습니다 — 자동계산을 다시 실행하세요`);
               return;
             }
@@ -1123,7 +1157,10 @@
         // CD-3: 도면에 마감재를 붙였는데 스펙엔 '없음' 이면 BOM 에 안 잡힌다.
         // EP·몰딩·휠라 자재는 모듈이 아니라 specs.finishLeft/RightType 에서 나오므로,
         // 플래너에 그린 것만으로는 발주되지 않는다. 조용히 빠지지 않게 알린다.
-        const plannerFinishings = src.reduce((n, m) => n + ((m.finishings || []).length), 0);
+        // W12-62: 비움은 자재가 아니다 — 자리만 비워 둔 것이라 스펙과 무관하다.
+        //   세면 "마감재를 그렸는데 발주가 안 된다" 는 헛경고가 뜬다.
+        const plannerFinishings = src.reduce(
+          (n, m) => n + (m.finishings || []).filter((f) => (f && f.section) !== 'gap').length, 0);
         if (plannerFinishings > 0) {
           const sp = specs || {};
           const noneL = !sp.finishLeftType || sp.finishLeftType === 'None';

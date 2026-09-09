@@ -81,7 +81,13 @@ const MASTER_RULES = {
   //   값이 갈라지면 같은 코너를 화면과 BOM 이 다르게 계산한다 — 바뀌면 같이 고쳐야 한다.
   CORNER_DRIP: 10,              // 물끊기 여유 (§3.3)
   CORNER_WALL_GAP: 50,          // 멍장 측판 ↔ 코너 벽 여유 (§3.4)
-  CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3)
+  CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3) — **자리**다
+  // W12-61: 그 마감재의 **재단 폭**. 자리(60)와 다르다.
+  //   마감재는 멍가림판 2.7T MDF 를 **덮고** 붙으므로 접착면 40 을 더 물어야 한다.
+  //     100 = 겹침 40 + 자리 60
+  //   공식(멍 W)에는 여전히 60 만 들어간다 — 100 은 BOM 재단과 화면 표현에만 쓴다.
+  //   여기를 공식에 섞으면 멍장 폭이 40 늘어나 원장이 깨진다.
+  CORNER_FINISH_PART_W: 100,    // 멍판 마감재 재단 폭 (§3.3)
   CORNER_UPPER_MODULE: 320,     // 상부 멍 모듈값 — 몸통295+도어18 → 관례 320 (§3.6)
   CORNER_EP_W: 20,              // 멍장 라인 반대쪽 끝 EP (§3.4 예시)
   // W12-54: 멍장 도어 경첩을 달 목대. 멍 폭에 들어가고 BOM 부재로도 나간다.
@@ -189,6 +195,39 @@ function distributeModules(totalSpace) {
 }
 
 // W9-90: 선반 — 마스터 규칙 (분배공간 300~450, 신발장 180~350) 안 최대 갯수
+// ── 코너 (멍장) 정면 부재 배치 ───────────────────────────────
+//
+// W12-66: 멍 구간 안에서 세 부재가 **겹쳐** 선다 — 칸이 아니다.
+//
+//   벽 쪽 0 ─────────────────────────────────────── 도어 쪽 zoneW
+//   [ 멍가림판 2.7T (EP 면 18T)   0 .. zoneW−15 ]
+//                    [ 마감재 18T  zoneW−115 .. zoneW−15 ]   ← 멍판 위에 포개어짐
+//                                          [ 목대 15  zoneW−15 .. zoneW ]
+//
+// 마감재 재단 100 = 자리 60 + 멍판 위 겹침 40 (§3.3) 이므로 멍판 **위**에 얹혀야
+// 하는데, 예전엔 [멍][마감재][도어] 나란한 칸으로 넣어 멍판이 85 짧고 마감재가
+// 옆에 따로 섰다. 칸은 폭을 나눠 갖는 모델이라 포개기를 표현할 수 없다.
+// 2D·3D·테스트가 이 함수 하나에서 좌표를 받는다.
+//
+// @param {number} zoneW   멍 폭 (목대 15 포함)
+// @param {object} [o]
+// @param {boolean} [o.ep=false]  키큰장 — 멍판이 EP 18T 이고 마감재는 없다
+// @returns {{cover:[number,number], finish:([number,number]|null), batten:[number,number], coverT:number}}
+function blindFrontLayout(zoneW, o) {
+  const R = MASTER_RULES;
+  const z = Math.max(0, Number(zoneW) || 0);
+  const batten = R.CORNER_HINGE_BATTEN_T;
+  const coverEnd = Math.max(0, z - batten);
+  const ep = !!(o && o.ep);
+  const finW = Math.min(R.CORNER_FINISH_PART_W, coverEnd);
+  return {
+    cover: [0, coverEnd],
+    finish: ep || finW <= 0 ? null : [coverEnd - finW, coverEnd],
+    batten: [coverEnd, z],
+    coverT: ep ? 18 : 2.7,
+  };
+}
+
 // ── 코너 (멍장) ──────────────────────────────────────────────
 //
 // W12-49: 멍장 파생 계산 — docs/design-rules/corner.md §3.3~§3.7.
@@ -207,6 +246,12 @@ function distributeModules(totalSpace) {
 // @param {number} p.ownerD  같은 공간의 깊이 — 인접 공간이 밀려날 거리를 정한다
 // @param {number} p.adjD    인접(가로지르는) 배치 공간의 깊이 — 멍의 크기를 정한다
 // @param {boolean} [p.isUpper=false] 상부장이면 물끊기 없이 320 + 몰딩 (§3.6)
+// @param {boolean} [p.ownerHasTop=true]  주인 라인에 상판이 있는가 — 없으면 인접 밀림에서 물끊기를 빼지 않는다
+// @param {boolean[]} [p.adjHasTops]      인접 라인마다 상판이 있는가 — 없으면 멍에서 물끊기를 빼지 않는다
+//
+// W12-65: 물끊기 10 은 **상판 끝에서 떨어지는 물** 여유다 (§3.3). 상판이 없는 라인엔 없다 —
+//   상부장은 §3.6 이 이미 그렇게 했고, 키큰장(상몰딩만 있음)도 같다. 새 규칙이 아니라
+//   같은 규칙의 정확한 적용이다. 기본값 true 는 하부장 = 예전 동작 그대로다.
 // @param {number} [p.molding]  코너 몰딩 (기본 60)
 // @param {number} [p.epW]      멍장 반대쪽 끝 EP (기본 20)
 // @param {number} [p.minDoorW] 도어 최소폭 (기본 350)
@@ -231,14 +276,17 @@ function deriveCornerArea(p) {
   // 각각 멍이 빠지고 벽 여유도 둘이다. 코너가 하나면 배열 길이가 1일 뿐 식은 같다.
   const adjDs = Array.isArray(p.adjDs) ? p.adjDs : [Number(p.adjD) || 0];
   const n = Math.max(1, adjDs.length);
+  const ownerHasTop = p.ownerHasTop !== false;
+  const adjHasTops = Array.isArray(p.adjHasTops) ? p.adjHasTops : adjDs.map(() => true);
+  const dripOf = (hasTop) => (hasTop === false ? 0 : R.CORNER_DRIP);
 
   // ① 멍 (blind zone) — §3.3 / §3.6
   //   목대 15T 는 멍장 도어 경첩을 달 자리다 (W12-54). 마감재 60 은 몰딩 **또는
   //   휠라** — 코너 마감 선택값이다. 상부는 상판이 없어 물끊기를 빼지 않는다.
   const batten = R.CORNER_HINGE_BATTEN_T;
-  const blindZoneWs = adjDs.map((d) => p.isUpper
+  const blindZoneWs = adjDs.map((d, i) => p.isUpper
     ? R.CORNER_UPPER_MODULE + molding + batten
-    : (Number(d) || 0) - R.CORNER_DRIP + molding + batten);
+    : (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten);
   const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
   // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.
@@ -278,7 +326,7 @@ function deriveCornerArea(p) {
   //    무관하다 (W12-54 확정).
   const adjStartOffset = p.isUpper
     ? R.CORNER_UPPER_MODULE + molding
-    : (Number(p.ownerD) || 0) - R.CORNER_DRIP + molding;
+    : (Number(p.ownerD) || 0) - dripOf(ownerHasTop) + molding;
 
   return {
     ok: true,
@@ -487,9 +535,11 @@ if (typeof window !== 'undefined') {
   window.autoCalcModule = autoCalcModule;
   window.deriveCornerArea = deriveCornerArea;
   window.distributeByDoorW = distributeByDoorW;
+  window.blindFrontLayout = blindFrontLayout;   // W12-66 — 2D·3D 가 같은 좌표를 쓴다
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    blindFrontLayout,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
     calcDoorCount, distributeModules, calcDefaultShelves,
