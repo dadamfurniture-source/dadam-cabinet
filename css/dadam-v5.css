@@ -103,8 +103,14 @@
    브라우저 기본은 `[hidden]{display:none}` 인데, 클래스에 display 를 주는 순간
    그 규칙이 밀린다 — .studio-gate 가 display:grid 라서 hidden 을 걸어도 화면을
    덮고 있었고, 로그인한 사용자도 아무것도 누를 수 없었다. 실제 마우스 클릭으로
-   잡았다. 같은 함정이 결과 섹션·검색줄·고급설정에도 있었다. */
-.v5-page [hidden] {
+   잡았다. 같은 함정이 결과 섹션·검색줄·고급설정에도 있었다.
+   셸(헤더·푸터)은 body 에 .v5-page 가 없는 페이지(material.html)에도 주입되므로
+   .v5-header/.v5-footer 아래에서도 같은 규칙이 걸려야 한다 — 안 그러면 계정 메뉴가
+   .v5-account-menu{display:grid} 때문에 처음부터 펼쳐진 채 보인다 (2026-09-10 실측).
+   (플레이스홀더 [data-site-shell] 은 outerHTML 로 통째로 바뀌어 DOM 에 남지 않는다.) */
+.v5-page [hidden],
+.v5-header [hidden],
+.v5-footer [hidden] {
   display: none !important;
 }
 
