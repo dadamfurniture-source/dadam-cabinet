@@ -25,11 +25,11 @@ describe('deriveCornerArea — corner.md §3.4 확정 예시', () => {
   test('하부 1970 = EP 20 + 790 + 멍장 1110 + 여유 50', () => {
     const r = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20 });
     expect(r.ok).toBe(true);
-    expect(r.blindZoneW).toBe(715);      // 650 − 10 + 60 + 목대 15
+    expect(r.blindZoneW).toBe(665);      // (650 − 10 + 60 + 목대 15) − 벽여유 50 (W12-69)
     expect(r.nDoors).toBe(3);
-    expect(r.doorW).toBe(395);
-    expect(r.blindW).toBe(1110);         // 멍 715 + 도어 395
-    expect(r.restBudget).toBe(790);
+    expect(r.doorW).toBe(411);
+    expect(r.blindW).toBe(1076);         // 멍 665 + 도어 411
+    expect(r.restBudget).toBe(824);
     // 인접 밀림 = 멍장 라인 깊이 (§3.7, W12-67)
     expect(r.adjStartOffset).toBe(650);
     expect(20 + r.restBudget + r.blindW + 50).toBe(1970);
@@ -37,9 +37,9 @@ describe('deriveCornerArea — corner.md §3.4 확정 예시', () => {
 
   test('상부 1800 = EP 20 + 890 + 멍장 840 + 여유 50', () => {
     const r = engine.deriveCornerArea({ ownerW: 1800, ownerD: 320, adjD: 320, epW: 20, isUpper: true });
-    expect(r.blindZoneW).toBe(395);      // 320 + 60 + 목대 15, 물끊기 없음
-    expect(r.doorW).toBe(445);
-    expect(r.blindW).toBe(840);
+    expect(r.blindZoneW).toBe(345);      // (320 + 60 + 목대 15) − 벽여유 50 (W12-69)
+    expect(r.doorW).toBe(461);
+    expect(r.blindW).toBe(806);
     expect(20 + r.restBudget + r.blindW + 50).toBe(1800);
   });
 
@@ -47,14 +47,14 @@ describe('deriveCornerArea — corner.md §3.4 확정 예시', () => {
     const r = engine.deriveCornerArea({ ownerW: 700, ownerD: 650, adjD: 650, epW: 20 });
     expect(r.ok).toBe(false);
     // 최소 도어 한 장까지 들어가려면 얼마가 필요한지 말해 준다
-    expect(r.minOwnerW).toBe(20 + 50 + 715 + 350);
+    expect(r.minOwnerW).toBe(20 + 50 + 665 + 350);
   });
 
   test('도어 한 장도 최소폭 미달이면 경고를 남기고 진행한다', () => {
     const r = engine.deriveCornerArea({ ownerW: 1000, ownerD: 650, adjD: 650, epW: 20 });
     expect(r.ok).toBe(true);
     expect(r.nDoors).toBe(1);
-    expect(r.doorW).toBe(215);           // 1000 − 20 − 50 − 715
+    expect(r.doorW).toBe(265);           // 1000 − 20 − 50 − 715
     expect(r.warnings.length).toBeGreaterThan(0);
   });
 
@@ -308,18 +308,18 @@ describe('deriveCornerArea — 코너 둘', () => {
     const r = engine.deriveCornerArea({ ownerW: 2800, ownerD: 650, adjDs: [650, 650], epW: 0 });
     expect(r.ok).toBe(true);
     expect(r.corners).toBe(2);
-    expect(r.blindZoneWs).toEqual([715, 715]);
-    // 2800 − 여유 50×2 − 멍 715×2 = 1270 → 3장 → 423
-    expect(r.doorW).toBe(423);
-    expect(r.blindWs).toEqual([1138, 1138]);
+    expect(r.blindZoneWs).toEqual([665, 665]);
+    // 2800 − 여유 50×2 − 멍 665×2 = 1370 → 3장 → 456
+    expect(r.doorW).toBe(456);
+    expect(r.blindWs).toEqual([1121, 1121]);
     // 원장: 50 + 멍장 + 수납 + 멍장 + 50
     expect(50 + r.blindWs[0] + r.restBudget + r.blindWs[1] + 50).toBe(2800);
   });
 
   test('멍 둘이 라인을 다 먹으면 만들지 않는다', () => {
-    const r = engine.deriveCornerArea({ ownerW: 1500, ownerD: 650, adjDs: [650, 650], epW: 0 });
+    const r = engine.deriveCornerArea({ ownerW: 1300, ownerD: 650, adjDs: [650, 650], epW: 0 });
     expect(r.ok).toBe(false);
-    expect(r.minOwnerW).toBe(50 * 2 + 715 * 2 + 350 * 2);   // 2230
+    expect(r.minOwnerW).toBe(50 * 2 + 665 * 2 + 350 * 2);   // 2130
   });
 
   test('코너가 하나면 예전과 같은 값이다 (회귀)', () => {
@@ -424,8 +424,8 @@ describe('ㄷ자를 그리면 멍장이 둘 선다', () => {
   });
 
   test('가운데 다리가 좁으면 멍장을 세우지 않는다', () => {
-    // 멍 700 이 둘이면 벽 여유까지 2200mm 가 필요하다. 1500 은 도어가 한 장도 안 남는다.
-    const p = boot(uShapeLayout(1500));
+    // 멍 665 가 둘이면 벽 여유까지 2130mm 가 필요하다. 1300 은 도어가 한 장도 안 남는다.
+    const p = boot(uShapeLayout(1300));
     expect(p.g('cornerPairs')().length).toBe(2);
     p.g('autoCalcAllAreas')();
     expect((p.g('modules') || []).filter((m) => m.blind).length).toBe(0);
@@ -497,13 +497,13 @@ describe('상부장 ㄱ자 — 멍이 320 + 몰딩이다', () => {
     expect(pairs[0].owner.rotation).toBe(90);
   });
 
-  test('멍은 395 이다 — 물끊기를 빼지 않고 목대 15 를 더한다', () => {
+  test('멍은 345 이다 — 물끊기 없이 320+60+15 에서 벽여유 50 을 뺀다', () => {
     const p = boot(layoutOf(upperLShapeLayout(2000)));
     p.g('autoCalcAllAreas')();
     const blind = (p.g('modules') || []).find((m) => m.blind);
     expect(blind).toBeTruthy();
-    // 320(몸통295+도어18→관례) + 마감재 60 + 목대 15. 하부의 −10 이 없다.
-    expect(blind.blind.zoneW).toBe(UPPER_D + 60 + 15);
+    // 320(관례) + 마감재 60 + 목대 15 − 벽여유 50. 하부의 −10 이 없다.
+    expect(blind.blind.zoneW).toBe(UPPER_D + 60 + 15 - 50);
     expect(blind.W).toBe(blind.blind.zoneW + blind.blind.doorW);
   });
 
@@ -541,12 +541,12 @@ describe('상부장과 하부장은 서로의 코너에 끼어들지 않는다',
     expect(tiers.length).toBe(2);
   });
 
-  test('멍이 단마다 다르다 — 하부 715 · 상부 395', () => {
+  test('멍이 단마다 다르다 — 하부 665 · 상부 345', () => {
     const p = boot(bothTiers());
     p.g('autoCalcAllAreas')();
     const zones = (p.g('modules') || []).filter((m) => m.blind)
       .map((m) => m.blind.zoneW).sort((a, b) => a - b);
-    expect(zones).toEqual([UPPER_D + 60 + 15, LOWER_D - 10 + 60 + 15]);   // [395, 715]
+    expect(zones).toEqual([UPPER_D + 60 + 15 - 50, LOWER_D - 10 + 60 + 15 - 50]);   // [345, 665] (W12-69)
   });
 
   test('상부장이 하부장 위에 얹혀도 겹침으로 세지 않는다', () => {
@@ -595,7 +595,7 @@ describe('멍장 → BOM 변환', () => {
     const pay = payloadOf(lShapeLayout(false));
     const blind = pay.modules.filter((m) => m.blind);
     expect(blind.length).toBe(1);
-    expect(blind[0].blind.zoneW).toBe(715);
+    expect(blind[0].blind.zoneW).toBe(665);
     expect(blind[0].blind.doorW).toBeGreaterThan(0);
   });
 
@@ -628,7 +628,7 @@ describe('멍장 → BOM 변환', () => {
     const src = pay.modules.find((m) => m.blind);
     const blind = convert(pay, {}).modules.find((m) => m.name === 'LT망장');
     expect(blind.doorW).toBe(src.blind.doorW);
-    expect(blind.blindZoneW).toBe(715);
+    expect(blind.blindZoneW).toBe(665);
     expect(blind.doorW).toBeLessThan(blind.w);        // 도어 < 카카스
     expect(blind.doorW + blind.blindZoneW).toBe(blind.w);
   });
@@ -638,7 +638,7 @@ describe('멍장 → BOM 변환', () => {
     const blind = out.find((m) => m.name === 'LT망장');
     expect(blind.id).toBe('corner-blind-upper');
     expect(blind.pos).toBe('upper');
-    expect(blind.blindZoneW).toBe(UPPER_D + 60 + 15);      // 395
+    expect(blind.blindZoneW).toBe(UPPER_D + 60 + 15 - 50);      // 345 (W12-69)
   });
 
   test('ㄷ자는 멍장 둘이 서로 다른 id 로 나간다', () => {

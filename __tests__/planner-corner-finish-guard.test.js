@@ -49,9 +49,10 @@ describe.each([
     p.g('setAreaFinish')(own, cornerSide(p, m0), 'molding');
     const m = blind(p);
     expect(Math.round(m.W)).toBe(partsW(m));
-    // 마감재 60 이 도어 몫에서 빠져 멍장은 **정당하게** 조금 좁아진다 — 부품과 함께
-    expect(m.W).toBeLessThan(W0);
-    expect(m.blind.doorW).toBeLessThan(door0);
+    // 마감재 60 은 도어 몫(epW)에서 빠지지만, 그 예산으로 **도어 수를 다시 푼다**.
+    // 4장 358 → 3장 458 처럼 도어·멍장이 되레 넓어질 수 있으므로 방향은 불변식이 아니다.
+    // 지켜야 할 것은 "카카스 = 멍 + 도어" 하나다 (위 줄). 폭이 바뀌긴 했는지만 본다.
+    expect(m.W !== W0 || m.blind.doorW !== door0).toBe(true);
   });
 
   test('양쪽 다 붙여도 같다', () => {

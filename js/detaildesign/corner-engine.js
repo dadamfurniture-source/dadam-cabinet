@@ -56,8 +56,11 @@ function deriveCorner(p) {
   //    부재로도 나간다. 마감재 60 은 몰딩 **또는 휠라** — 코너 마감 선택값이다.
   //    W12-68: 상·하부 **한 식**이다 — 상부도 넘어온 깊이로 잰다. 레거시엔 배치
   //    공간 개념이 없어 호출부(cornerParamsFromItem)가 상부에 관례값 320 을 넘긴다.
+  //    W12-69: 멍은 벽 코너에서 재는데 멍장 측판이 벽에서 50 이격하므로(§3.4),
+  //    **카카스 안의 멍**은 그 50 만큼 짧다 — 여유가 멍 안에 포함된다.
   const batten = _cornerBatten();
-  const blindZoneW = p.adjTopD - (p.isUpper ? 0 : drip) + molding + batten;
+  const blindZoneW = Math.max(0,
+    p.adjTopD - (p.isUpper ? 0 : drip) + molding + batten - wallGap);
 
   // ② 도어 균등 분배 — §3.4 라인 원장
   //    도어 가용폭 = 라인 W − EP − 벽여유(50) − 멍

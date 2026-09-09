@@ -288,10 +288,18 @@ function deriveCornerArea(p) {
   //
   //   W12-68: 상·하부 **한 식**이다. 예전엔 상부만 관례값 320 을 썼는데, 이제
   //   상부도 **인접 배치 공간의 실제 깊이**로 잰다 — 사람이 그린 사각형이 기준이다.
-  //   기본 상부 사각형이 320 이라 기본 배치의 값(395)은 그대로다.
+  //
+  //   W12-69: 멍은 **벽 코너에서** 재는 값인데(인접 라인이 벽에서부터 가린다),
+  //   멍장 측판은 벽에서 50 이격해 선다(§3.4). 그래서 **카카스 안의 멍 구간**은
+  //   그 50 만큼 짧다 — 여유가 멍 안에 포함된다.
+  //
+  //     벽 기준 가려지는 폭 = 인접 깊이 − 물끊기 + 마감재 + 목대   (하부 700 → 765)
+  //     멍 (카카스 안)      = 그 값 − 벽 여유 50                  (→ 715)
+  //
+  //   예전엔 벽 기준 값을 카카스 안에 그대로 써서 50 을 더 가렸다.
   const batten = R.CORNER_HINGE_BATTEN_T;
   const blindZoneWs = adjDs.map((d, i) =>
-    (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten);
+    Math.max(0, (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten - R.CORNER_WALL_GAP));
   const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
   // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.

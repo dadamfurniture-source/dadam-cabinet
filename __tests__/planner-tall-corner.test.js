@@ -37,25 +37,25 @@ const blinds = (p) => (p.g('modules') || []).filter((m) => m.blind);
 const isHoriz = (a) => (((a.rotation || 0) % 180) + 180) % 180 === 0;
 
 describe('엔진 — 물끊기는 상판 있는 라인에만', () => {
-  test('키큰↔키큰: 650 + 60 + 15 = 725 · 인접 밀림 = 주인 깊이 650', () => {
+  test('키큰↔키큰: (650 + 60 + 15) − 벽여유 50 = 675 · 인접 밀림 = 주인 깊이 650', () => {
     const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: TD, adjDs: [TD], adjHasTops: [false] });
-    expect(d.blindZoneW).toBe(725);
+    expect(d.blindZoneW).toBe(675);
     expect(d.adjStartOffset).toBe(TD);
-    expect(d.blindW).toBe(725 + d.doorW);
+    expect(d.blindW).toBe(675 + d.doorW);
   });
-  test('키큰↔하부: 멍은 인접(상판) 기준 765 · 밀림은 주인(키큰) 깊이 650', () => {
+  test('키큰↔하부: 멍은 인접(상판) 기준 715 · 밀림은 주인(키큰) 깊이 650', () => {
     const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: TD, adjDs: [700], adjHasTops: [true] });
-    expect(d.blindZoneW).toBe(765);
+    expect(d.blindZoneW).toBe(715);
     expect(d.adjStartOffset).toBe(TD);
   });
-  test('기본값은 하부장 그대로다 — 765 · 밀림 700', () => {
+  test('하부장 기본 — 멍 715 · 밀림 700', () => {
     const d = engine.deriveCornerArea({ ownerW: LEG, ownerD: 700, adjDs: [700] });
-    expect(d.blindZoneW).toBe(765);
+    expect(d.blindZoneW).toBe(715);
     expect(d.adjStartOffset).toBe(700);
   });
-  test('상부장은 395 · 밀림 320', () => {
+  test('상부장은 345 · 밀림 320', () => {
     const d = engine.deriveCornerArea({ ownerW: 1800, ownerD: 320, adjDs: [320], isUpper: true });
-    expect(d.blindZoneW).toBe(395);
+    expect(d.blindZoneW).toBe(345);
     expect(d.adjStartOffset).toBe(320);
   });
 });
@@ -80,12 +80,12 @@ describe('키큰장끼리 코너 — 트리밍된 ㄱ자', () => {
     expect(bs.map((m) => m.blind.tier).sort()).toEqual([0, 1, 2]);
   });
 
-  test('멍 725 · 카카스 = 멍 + 도어 · 멍판 EP = 멍 − 15, 높이 2300', () => {
+  test('멍 675 · 카카스 = 멍 + 도어 · 멍판 EP = 멍 − 15, 높이 2300', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     const m = blinds(p)[0];
-    expect(m.blind.zoneW).toBe(725);
+    expect(m.blind.zoneW).toBe(675);
     expect(Math.round(m.W)).toBe(m.blind.zoneW + m.blind.doorW);
-    expect(m.blind.ep).toEqual({ W: 725 - R.CORNER_HINGE_BATTEN_T, H: TH });
+    expect(m.blind.ep).toEqual({ W: 675 - R.CORNER_HINGE_BATTEN_T, H: TH });
     expect(m.blind.finish).toBeNull();                      // 마감재 100 없음
   });
 
@@ -149,7 +149,7 @@ describe('키큰장끼리 코너 — 겹친 ㄱ자', () => {
 });
 
 describe('혼합 코너 — 키큰장 ↔ 하부장', () => {
-  test('키큰장이 주인이면 멍 765(하부 기준) · EP 750 · 밀림 650', () => {
+  test('키큰장이 주인이면 멍 715(하부 기준) · EP 700 · 밀림 650', () => {
     // 하부(가로, 잘라냄) + 키큰(세로) — 세로가 코너 사각형을 갖게 배치한다
     const p = boot([
       { section: 'lower', x: 0, y: 0, w: 3600 - TD, h: 700, moduleH: 870, rotation: 180, finishings: [] },
@@ -161,8 +161,8 @@ describe('혼합 코너 — 키큰장 ↔ 하부장', () => {
     const c = p.g('cornerPairs')()[0];
     expect(c.owner.section).toBe('tall');
     const m = blinds(p)[0];
-    expect(m.blind.zoneW).toBe(765);
-    expect(m.blind.ep.W).toBe(750);
+    expect(m.blind.zoneW).toBe(715);
+    expect(m.blind.ep.W).toBe(700);
     expect(p.g('adjCornerOffsetOf')(c.adj.id).need).toBe(TD);
   });
 });
@@ -241,12 +241,12 @@ describe('BOM 끝단 — 키큰장 멍장 부재', () => {
     return { mats, warnings, modules };
   }
 
-  test('멍판 EP 는 한 장 — 710 × 2300 · 18T', () => {
+  test('멍판 EP 는 한 장 — 660 × 2300 · 18T', () => {
     const { mats } = bom();
     const ep = mats.filter((m) => m.part === '멍판 EP');
     expect(ep.length).toBe(1);
     expect(ep[0].thickness).toBe(18);
-    expect(ep[0].w).toBe(725 - 15);
+    expect(ep[0].w).toBe(675 - 15);
     expect(ep[0].h).toBe(TH);
   });
   test('멍가림판 2.7T 와 멍판 마감재 100 은 없다', () => {
