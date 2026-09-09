@@ -195,6 +195,39 @@ function distributeModules(totalSpace) {
 }
 
 // W9-90: 선반 — 마스터 규칙 (분배공간 300~450, 신발장 180~350) 안 최대 갯수
+// ── 코너 (멍장) 정면 부재 배치 ───────────────────────────────
+//
+// W12-66: 멍 구간 안에서 세 부재가 **겹쳐** 선다 — 칸이 아니다.
+//
+//   벽 쪽 0 ─────────────────────────────────────── 도어 쪽 zoneW
+//   [ 멍가림판 2.7T (EP 면 18T)   0 .. zoneW−15 ]
+//                    [ 마감재 18T  zoneW−115 .. zoneW−15 ]   ← 멍판 위에 포개어짐
+//                                          [ 목대 15  zoneW−15 .. zoneW ]
+//
+// 마감재 재단 100 = 자리 60 + 멍판 위 겹침 40 (§3.3) 이므로 멍판 **위**에 얹혀야
+// 하는데, 예전엔 [멍][마감재][도어] 나란한 칸으로 넣어 멍판이 85 짧고 마감재가
+// 옆에 따로 섰다. 칸은 폭을 나눠 갖는 모델이라 포개기를 표현할 수 없다.
+// 2D·3D·테스트가 이 함수 하나에서 좌표를 받는다.
+//
+// @param {number} zoneW   멍 폭 (목대 15 포함)
+// @param {object} [o]
+// @param {boolean} [o.ep=false]  키큰장 — 멍판이 EP 18T 이고 마감재는 없다
+// @returns {{cover:[number,number], finish:([number,number]|null), batten:[number,number], coverT:number}}
+function blindFrontLayout(zoneW, o) {
+  const R = MASTER_RULES;
+  const z = Math.max(0, Number(zoneW) || 0);
+  const batten = R.CORNER_HINGE_BATTEN_T;
+  const coverEnd = Math.max(0, z - batten);
+  const ep = !!(o && o.ep);
+  const finW = Math.min(R.CORNER_FINISH_PART_W, coverEnd);
+  return {
+    cover: [0, coverEnd],
+    finish: ep || finW <= 0 ? null : [coverEnd - finW, coverEnd],
+    batten: [coverEnd, z],
+    coverT: ep ? 18 : 2.7,
+  };
+}
+
 // ── 코너 (멍장) ──────────────────────────────────────────────
 //
 // W12-49: 멍장 파생 계산 — docs/design-rules/corner.md §3.3~§3.7.
@@ -502,9 +535,11 @@ if (typeof window !== 'undefined') {
   window.autoCalcModule = autoCalcModule;
   window.deriveCornerArea = deriveCornerArea;
   window.distributeByDoorW = distributeByDoorW;
+  window.blindFrontLayout = blindFrontLayout;   // W12-66 — 2D·3D 가 같은 좌표를 쓴다
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    blindFrontLayout,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
     calcDoorCount, distributeModules, calcDefaultShelves,

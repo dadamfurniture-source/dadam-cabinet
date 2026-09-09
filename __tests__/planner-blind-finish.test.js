@@ -71,24 +71,27 @@ describe('멍판 마감재가 자동으로 선다', () => {
     expect(m.blind.finish.partW).toBe(R.CORNER_FINISH_PART_W);
   });
 
-  test('마감재 칸이 도어 **바로 옆**에 있다', () => {
-    const { s } = withBlind(boot());
-    const fin = s.areaTypes.indexOf('blindfin');
-    const door = s.areaTypes.indexOf('door');
-    expect(fin).toBeGreaterThanOrEqual(0);
-    expect(Math.abs(fin - door)).toBe(1);      // 사이에 아무 칸도 없다
-  });
-
-  test('마감재는 멍 **안에서** 자리를 받는다 — 멍장이 넓어지지 않는다', () => {
-    const p = boot();
-    const { m, s } = withBlind(p);
-    const blind = s.areaWidths[s.areaTypes.indexOf('blind')];
-    const fin = s.areaWidths[s.areaTypes.indexOf('blindfin')];
-    expect(blind + fin).toBe(m.blind.zoneW);
-    expect(fin).toBe(R.CORNER_FINISH_PART_W);
+  test('마감재는 칸이 아니다 — 정면은 [멍][도어] 두 칸이다 (W12-66)', () => {
+    const { m, s } = withBlind(boot());
+    expect(s.verticalCount).toBe(2);
+    expect(s.areaTypes.slice().sort()).toEqual(['blind', 'door']);
+    expect(s.areaTypes).not.toContain('blindfin');
     // 카카스 폭 = 멍 + 도어. 마감재가 여기 끼어들지 않는다.
     expect(m.W).toBe(m.blind.zoneW + m.blind.doorW);
     expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(m.W);
+  });
+
+  test('마감재는 멍가림판 **위에** 포개어진다 — 멍판 끝 100 을 덮고 목대 15 앞에서 끝난다', () => {
+    const { m } = withBlind(boot());
+    const lay = engine.blindFrontLayout(m.blind.zoneW);
+    const batten = R.CORNER_HINGE_BATTEN_T;
+    expect(lay.cover).toEqual([0, m.blind.zoneW - batten]);            // 멍판은 목대에 딱 붙는다
+    expect(lay.finish).toEqual([m.blind.zoneW - batten - R.CORNER_FINISH_PART_W, m.blind.zoneW - batten]);
+    expect(lay.batten).toEqual([m.blind.zoneW - batten, m.blind.zoneW]);
+    // 마감재는 멍판 범위 **안**에 있다 — 옆이 아니다
+    expect(lay.finish[0]).toBeGreaterThanOrEqual(lay.cover[0]);
+    expect(lay.finish[1]).toBeLessThanOrEqual(lay.cover[1]);
+    expect(lay.coverT).toBe(2.7);
   });
 });
 
@@ -240,13 +243,13 @@ describe('상부장 코너도 같은 규칙이다', () => {
     expect(m.blind.finish.seatW).toBe(R.CORNER_MOLDING);
   });
 
-  test('셀도 세 칸이고 멍 안에서 자리를 뗀다', () => {
+  test('셀은 두 칸이고 마감재는 멍판 위에 포개어진다', () => {
     const { m, s } = withBlind(bootU());
-    expect(s.verticalCount).toBe(3);
-    const blind = s.areaWidths[s.areaTypes.indexOf('blind')];
-    const fin = s.areaWidths[s.areaTypes.indexOf('blindfin')];
-    expect(blind + fin).toBe(m.blind.zoneW);
+    expect(s.verticalCount).toBe(2);
+    expect(s.areaWidths[s.areaTypes.indexOf('blind')]).toBe(m.blind.zoneW);
     expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(m.W);
+    const lay = engine.blindFrontLayout(m.blind.zoneW);
+    expect(lay.finish[1]).toBe(m.blind.zoneW - R.CORNER_HINGE_BATTEN_T);   // 상부도 목대 앞에서 끝난다
   });
 
   test('라인 마감을 따라간다 — 하부와 같은 판정', () => {
@@ -276,7 +279,36 @@ describe('상부장 코너도 같은 규칙이다', () => {
 
 // 키큰장 코너는 W12-65 부터 대상이다 — planner-tall-corner.test.js 가 다룬다.
 
+/** 정면도에서 라벨 텍스트의 x 좌표 */
+function labelX(p, text) {
+  const t = [...p.document.querySelectorAll('#contentG text')].find((e) => e.textContent === text);
+  return t ? parseFloat(t.getAttribute('x')) : null;
+}
+
 describe('정면도에 마감재가 보인다', () => {
+  test('마감재 rect 가 멍 칸 **안**에, 목대 띠 앞에 그려진다', () => {
+    const p = boot();
+    const { m, s, areaId } = withBlind(p);
+    p.g('setActiveArea')(areaId);
+    p.g('renderFrontView')();
+    // 멍 칸 rect(모듈 id 를 가진 셀 rect 는 없으므로) — 마감재 rect 는 마감재 색으로 찾는다
+    const finFill = (p.g('SECTION_CONFIG')[m.blind.finish.section] || {}).fill;
+    const rects = [...p.document.querySelectorAll('#contentG rect')];
+    const finRect = rects.find((r) => r.getAttribute('fill') === finFill);
+    const battenRect = rects.find((r) => r.getAttribute('fill') === '#2a231b');
+    expect(finRect).toBeTruthy();
+    expect(battenRect).toBeTruthy();
+    const fx0 = parseFloat(finRect.getAttribute('x')), fx1 = fx0 + parseFloat(finRect.getAttribute('width'));
+    const bx0 = parseFloat(battenRect.getAttribute('x')), bx1 = bx0 + parseFloat(battenRect.getAttribute('width'));
+    expect(Math.round(fx1 - fx0)).toBe(R.CORNER_FINISH_PART_W);
+    expect(Math.round(bx1 - bx0)).toBe(R.CORNER_HINGE_BATTEN_T);
+    // 마감재와 목대는 맞닿는다 — 어느 쪽이 도어 쪽인지에 따라 순서만 다르다
+    const touching = Math.abs(fx1 - bx0) < 0.5 || Math.abs(bx1 - fx0) < 0.5;
+    expect(touching).toBe(true);
+    // 멍 칸 폭 = zoneW 이고 마감재는 그 안에 있다
+    expect(s.areaWidths[s.areaTypes.indexOf('blind')]).toBe(m.blind.zoneW);
+  });
+
   test('멍 옆에 마감재 라벨이 그려진다', () => {
     const p = boot();
     const { areaId } = withBlind(p);
