@@ -1,0 +1,355 @@
+<title>코너 미결 두 건</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header.doc { padding: 56px 0 30px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono', Consolas, monospace; }
+  h1 { font-size: 32px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 52px; }
+  h2 { font-size: 21px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 18px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; }
+  li { margin: 6px 0; }
+  b, strong { font-weight: 700; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 1px; white-space: nowrap; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', Consolas, monospace; }
+  td code, li code, p code, th code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  tr.hi td { background: var(--ok-bg); }
+
+  pre { background: #29261f; color: #e7e0d2; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12.5px; line-height: 1.7; padding: 16px 18px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+  pre .c { color: #8d8574; } pre .g { color: #9fc0a8; } pre .r { color: #d0928a; } pre .y { color: #d4b58c; }
+
+  figure { margin: 24px 0; padding: 22px 20px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figure svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; max-width: 52em; margin-left: auto; margin-right: auto; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 15px 19px; margin: 18px 0; max-width: 48em; }
+  .callout.risk { border-left-color: var(--bad); }
+  .callout.keep { border-left-color: var(--ok); }
+  .callout.decide { border-left-color: var(--warn); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; }
+  .callout p { margin: 6px 0 0; font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+
+  .steps { counter-reset: s; list-style: none; padding-left: 0; max-width: 47em; }
+  .steps > li { counter-increment: s; position: relative; padding-left: 44px; margin: 18px 0; }
+  .steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 28px; height: 28px; border-radius: 50%; background: var(--bad-bg); color: var(--bad);
+    font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .steps.plan > li::before { background: var(--accent); color: #fff; }
+  .steps > li b.h { display: block; font-size: 15.5px; margin-bottom: 2px; }
+
+  .opt { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 16px 20px; margin: 12px 0; max-width: 48em; border-left: 4px solid var(--line); }
+  .opt.pick { border-left-color: var(--ok); }
+  .opt h4 { margin: 0 0 6px; font-size: 15px; display: flex; gap: 10px; align-items: baseline; }
+  .opt h4 .tag { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px; color: var(--accent); }
+  .opt p { margin: 6px 0; font-size: 14.5px; }
+
+  .q { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 18px 20px; margin: 14px 0; max-width: 48em; }
+  .q .qh { font-weight: 700; font-size: 15px; margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
+  .q .qh .n { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--accent); font-size: 13px; }
+  .q p { margin: 6px 0; font-size: 14.5px; }
+  .q .rec { font-size: 14px; color: var(--ok); font-weight: 600; }
+  @media (max-width: 700px) { h1 { font-size: 25px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">미결 과제 · W12-63 이후</p>
+  <h1>코너 미결 두 건</h1>
+  <p class="lede">코너 구멍(W12-63, PR #561)은 머지됐습니다. 그 작업 범위 밖에 남긴 것이 둘입니다.
+  하나는 <b>규칙 결정</b>이고(사람이 멍장 자리를 고르는 토글), 하나는 <b>기존 결함</b>입니다
+  (코너 끝에 마감재를 붙이면 멍장이 부품보다 작아짐). 둘 다 왜 남았는지, 언제 터지는지,
+  지금 피하는 법과 고치는 법을 적었습니다.</p>
+  <div class="meta">
+    <span><b>선행</b> PR #561 머지 (2026-09-09)</span>
+    <span><b>관련</b> corner.md §3.2 · §3.7 · 「코너 원장 어긋남」</span>
+    <span><b>상태</b> 둘 다 판단 대기</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>한눈에</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th></th><th>A · 겹친 배치의 멍장 자리</th><th>B · 코너 끝 마감재가 멍장 폭을 뺏는다</th></tr></thead>
+    <tbody>
+      <tr><td><b>성격</b></td><td>규칙은 있는데(§3.2 사용자 결정) <b>조작이 없다</b></td><td>코드 <b>결함</b> — main 에 원래 있던 것</td></tr>
+      <tr><td><b>언제 터지나</b></td><td>배치 단계에서 두 배치 공간을 <b>트리밍하지 않고</b> 겹쳐 둔 채 넘어올 때</td><td>코너 배치 공간의 <b>코너 쪽 끝</b>에 몰딩·휠라·EP·비움을 붙일 때</td></tr>
+      <tr><td><b>보이는 증상</b></td><td>멍장이 원치 않는 라인에 선다 (기하로 못 정해 회전 규칙으로 떨어짐)</td><td>멍장 카카스가 60 줄고 부품은 그대로 → <b>BOM 이 상자에 안 들어가는 부품을 낸다</b></td></tr>
+      <tr><td><b>경고</b></td><td>트리밍 가드(W12-55)가 겹침을 알려 준다</td><td><span class="badge bad">없음</span> 원장 0 · 셀합 검사 우회</td></tr>
+      <tr><td><b>지금 피하는 법</b></td><td><b>트리밍을 제대로 한다</b> — 그러면 기하가 정한다</td><td>마감재 붙인 뒤 <b>자동계산을 다시 돌린다</b> — 그러면 복구된다</td></tr>
+      <tr><td><b>고치려면</b></td><td>토글 UI + 저장 + <code>orderCorner</code> 가 읽기</td><td><code>setModuleFinish</code> 가 <code>isFixed</code> 존중 + 변환기 검사 그물 메우기</td></tr>
+      <tr><td><b>급한 정도</b></td><td><span class="badge info">낮음</span> 우회가 자연스럽다</td><td><span class="badge bad">높음</span> 발주 오류 경로다</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>A · 겹친 배치에서는 멍장 자리를 기하로 못 정한다</h2>
+  <p class="sub">W12-63 이 "코너 사각형을 가진 라인이 주인" 으로 바꿨습니다. 그 규칙이 <b>답을 못 내는 경우</b>가 하나 남습니다.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="트리밍한 ㄱ자는 코너 사각형이 한 라인에만 속해 주인이 정해지지만, 겹친 ㄱ자는 두 라인이 모두 코너 사각형을 가져 기하로는 정할 수 없다">
+      <defs>
+        <pattern id="hx2" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="7" stroke="var(--warn)" stroke-width="2.4" opacity="0.55"/>
+        </pattern>
+      </defs>
+
+      <text x="24" y="20" font-size="12.5" font-weight="700" fill="var(--ok)">트리밍 함 — 기하가 정한다</text>
+      <rect x="24" y="34" width="300" height="56" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="24" y="90" width="56" height="120" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="24" y="34" width="56" height="56" fill="var(--ok)" opacity="0.28" stroke="var(--ok)" stroke-width="1.8"/>
+      <text x="52" y="66" font-size="10.5" text-anchor="middle" fill="currentColor" font-weight="700">코너</text>
+      <text x="200" y="66" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.75">가로 라인</text>
+      <text x="52" y="156" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.75" transform="rotate(-90 52 156)">세로</text>
+      <text x="24" y="240" font-size="12" fill="var(--ok)" font-weight="700">코너 사각형은 가로만 갖는다</text>
+      <text x="24" y="258" font-size="12" fill="currentColor" opacity="0.8">→ 가로가 멍장 주인. 세로 몸통이 그 앞을 막으니</text>
+      <text x="24" y="276" font-size="12" fill="currentColor" opacity="0.8">   가려지는 쪽에 멍장이 서는 것이 맞다</text>
+
+      <text x="400" y="20" font-size="12.5" font-weight="700" fill="var(--warn)">겹침 (트리밍 전) — 기하로 못 정한다</text>
+      <rect x="400" y="34" width="300" height="56" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="400" y="34" width="56" height="176" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="400" y="34" width="56" height="56" fill="url(#hx2)" stroke="var(--warn)" stroke-width="1.8"/>
+      <text x="428" y="66" font-size="13" text-anchor="middle" fill="currentColor" font-weight="700">?</text>
+      <text x="576" y="66" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.75">가로 라인</text>
+      <text x="428" y="156" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.75" transform="rotate(-90 428 156)">세로</text>
+      <text x="400" y="240" font-size="12" fill="var(--warn)" font-weight="700">둘 다 코너 사각형을 갖는다</text>
+      <text x="400" y="258" font-size="12" fill="currentColor" opacity="0.8">→ 어느 쪽이 가려지는지 배치만으로는 모른다</text>
+      <text x="400" y="276" font-size="12" fill="currentColor" opacity="0.8">   corner.md §3.2: "사용자 결정"</text>
+    </svg>
+    <figcaption>오른쪽이 남은 경우입니다. 두 배치 공간이 코너를 반씩 나눠 가지면 <code>orderCorner</code> 는
+    예전 회전 규칙으로 떨어집니다 — <b>결정적이긴 하지만 사람 의도와 무관</b>합니다.</figcaption>
+  </figure>
+
+  <h3>지금 코드가 하는 일</h3>
+  <pre><span class="c">// orderCorner (W12-63)</span>
+코너 사각형을 한쪽이 확실히 더 가지면   → <span class="g">그쪽이 주인</span>          <span class="c">트리밍된 배치</span>
+반씩 나눠 가지면                       → <span class="y">회전 규칙으로 폴백</span>    <span class="c">겹친 배치 — 여기가 A</span>
+   회전한 다리가 주인 · 둘 다 회전이면 x+y 큰 쪽</pre>
+  <p>폴백은 <b>"결정적이면 된다"</b> 는 용도입니다. 같은 배치를 다시 열어도 같은 답이 나오게
+  하려는 것이고, <b>맞는 답을 고르려는 것이 아닙니다.</b> 회전은 도어 방향(= 벽이 어느 쪽인가)이라
+  주선·차선과 무관하다는 것을 W12-63 에서 확인했습니다.</p>
+
+  <h3>규칙 문서는 이미 답을 정해 놨다 — 조작이 없다</h3>
+  <pre><span class="c">docs/design-rules/corner.md §3.2  소속 라인 (사용자 결정)</span>
+  · 멍장은 prime 또는 secondary 어느 라인에도 배치 가능 — <span class="y">사용자 결정에 따른다</span></pre>
+  <p>레거시는 <code>blindLine = 'secondary'</code> 로 <b>고정</b>했고(W10-1), 플래너에는 고를 수단이
+  없습니다. 예전에 <code>area.blindOwner</code> 를 읽는 가지가 있었지만 <b>쓰지도 저장하지도 않는
+  값</b>이라 W12-60 에서 죽은 코드로 뺐습니다. 그때 주석에 "토글이 필요해지면 UI·저장과 함께
+  넣는다" 고 남겨 두었습니다.</p>
+
+  <h3>고치려면</h3>
+  <ol class="steps plan">
+    <li><b class="h">저장</b> 배치 공간에 <code>blindOwner</code> 를 둔다 — 그 공간이 이루는 코너에서
+      멍장을 <b>내가</b> 갖는다는 표시. 겹친 배치에서만 뜻이 있다.</li>
+    <li><b class="h">읽기</b> <code>orderCorner</code> 의 폴백 앞에서 본다 — 한쪽에 표시가 있으면
+      그쪽이 주인. 둘 다 있거나 둘 다 없으면 지금 폴백.</li>
+    <li><b class="h">UI</b> 구조 단계 배치 공간 패널에 <code>◀ 멍장 위치 ▶</code> 한 줄.
+      코너를 이루는 공간에서만 보이고, 누르면 두 공간의 표시를 맞바꾸고 자동계산을 다시 돈다.</li>
+    <li><b class="h">배치 단계에도 알린다</b> 트리밍 가드(W12-55) 경고문에 "겹친 채 넘어가면 멍장
+      자리는 구조 단계에서 고르셔야 합니다" 한 줄.</li>
+  </ol>
+
+  <div class="callout keep">
+    <h4>급하지 않은 이유</h4>
+    <p>트리밍을 제대로 하면 <b>기하가 정하고 토글은 필요 없습니다.</b> 그리고 트리밍은 이미 배치
+    단계가 권하는 동선입니다(W12-55). 토글은 "겹친 채 넘어오는 사람" 을 위한 보조 장치입니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">03</span>B · 코너 끝 마감재가 멍장 폭을 뺏는다</h2>
+  <p class="sub">main 에 원래 있던 결함입니다. W12-61 이후 라인 마감재가 멍판 마감을 정하는 조작이 되어
+  <b>마주칠 확률이 올라갔습니다.</b></p>
+
+  <h3>증상 — 트리밍된 ㄱ자에서 실측 (W12-63 이후)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>동작</th><th class="num">멍장 카카스</th><th class="num">멍 + 도어</th><th class="num">차이</th><th>원장</th></tr></thead>
+    <tbody>
+      <tr><td>자동계산 직후</td><td class="num">1162</td><td class="num">1162</td><td class="num">0</td><td><span class="badge ok">0 / 0</span></td></tr>
+      <tr><td>주인 라인 <b>코너 쪽</b> 끝에 몰딩</td><td class="num"><b>1102</b></td><td class="num">1162</td><td class="num"><b>−60</b></td><td><span class="badge warn">−50 / 0</span></td></tr>
+      <tr><td>주인 라인 반대쪽 끝에 몰딩</td><td class="num">1102</td><td class="num">1162</td><td class="num">−60</td><td><span class="badge warn">−50 / 0</span></td></tr>
+      <tr><td>인접 라인에도 몰딩</td><td class="num">1102</td><td class="num">1162</td><td class="num">−60</td><td><span class="badge warn">−50 / −50</span></td></tr>
+      <tr><td><b>자동계산 재실행</b></td><td class="num">1138</td><td class="num">1138</td><td class="num">0</td><td><span class="badge ok">0 / 0</span></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">원장은 주인 / 인접. 재계산 뒤 1138 은
+  <b>맞는 값</b>입니다 — 마감재 60 이 정당하게 도어 몫에서 빠진 결과. 문제는 <b>그 사이의 상태</b>입니다.</p>
+  </div>
+
+  <h3>왜 이런 일이 생기나 — 네 단계</h3>
+  <figure>
+    <svg viewBox="0 0 720 210" role="img" aria-label="마감재 선택이 멍장을 호스트로 고르고, 멍장 폭을 60 뺏고, 부품은 그대로여서 BOM에 60 큰 부품이 나가는 네 단계. 원장과 셀합 검사는 이를 잡지 못한다">
+      <defs>
+        <marker id="fa2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-size="11.5" fill="currentColor">
+        <rect x="16" y="40" width="150" height="64" rx="6" fill="currentColor" opacity="0.07" stroke="currentColor" stroke-width="1.1"/>
+        <text x="91" y="66" text-anchor="middle" font-weight="700">① 코너 쪽 끝에</text>
+        <text x="91" y="84" text-anchor="middle" font-weight="700">마감재를 고른다</text>
+
+        <rect x="196" y="40" width="150" height="64" rx="6" fill="currentColor" opacity="0.07" stroke="currentColor" stroke-width="1.1"/>
+        <text x="271" y="60" text-anchor="middle" font-weight="700">② 호스트 = 멍장</text>
+        <text x="271" y="78" text-anchor="middle" class="mono" font-size="10.5" opacity="0.75">areaEdgeHost</text>
+        <text x="271" y="94" text-anchor="middle" font-size="10.5" opacity="0.75">끝 모듈이 멍장이니까</text>
+
+        <rect x="376" y="40" width="150" height="64" rx="6" fill="var(--bad)" opacity="0.14" stroke="var(--bad)" stroke-width="1.3"/>
+        <text x="451" y="60" text-anchor="middle" font-weight="700">③ 멍장 폭 −60</text>
+        <text x="451" y="78" text-anchor="middle" class="mono" font-size="10.5" opacity="0.8">m.W −= W</text>
+        <text x="451" y="94" text-anchor="middle" font-size="10.5" fill="var(--bad)" font-weight="700">isFixed 를 안 본다</text>
+
+        <rect x="556" y="40" width="150" height="64" rx="6" fill="var(--bad)" opacity="0.14" stroke="var(--bad)" stroke-width="1.3"/>
+        <text x="631" y="60" text-anchor="middle" font-weight="700">④ 부품은 그대로</text>
+        <text x="631" y="78" text-anchor="middle" font-size="10.5" opacity="0.8">멍 715 + 도어 = 1162</text>
+        <text x="631" y="94" text-anchor="middle" font-size="10.5" fill="var(--bad)" font-weight="700">상자 1102 에 안 들어감</text>
+
+        <line x1="166" y1="72" x2="194" y2="72" stroke="currentColor" stroke-width="1.2" marker-end="url(#fa2)"/>
+        <line x1="346" y1="72" x2="374" y2="72" stroke="currentColor" stroke-width="1.2" marker-end="url(#fa2)"/>
+        <line x1="526" y1="72" x2="554" y2="72" stroke="currentColor" stroke-width="1.2" marker-end="url(#fa2)"/>
+      </g>
+
+      <text x="16" y="140" font-size="12" font-weight="700" fill="currentColor">이걸 잡아야 할 그물 둘이 모두 통과시킨다</text>
+      <g font-size="11.5" fill="currentColor">
+        <rect x="16" y="152" width="330" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="5 4" opacity="0.6"/>
+        <text x="30" y="170" font-weight="700">원장 <tspan font-weight="400" opacity="0.8">— 합은 맞는다</tspan></text>
+        <text x="30" y="187" font-size="10.5" opacity="0.75">멍장이 잃은 60 을 옆 마감재 모듈이 가져가서 Σ 는 그대로</text>
+        <rect x="376" y="152" width="330" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="5 4" opacity="0.6"/>
+        <text x="390" y="170" font-weight="700">변환기 셀합 검사 <tspan font-weight="400" opacity="0.8">— 멍장은 건너뛴다</tspan></text>
+        <text x="390" y="187" font-size="10.5" opacity="0.75" class="mono">ui-step1: if (m.blind) … return  이 검사보다 먼저</text>
+      </g>
+    </svg>
+    <figcaption>③이 결함이고 ④가 피해입니다. 원장은 <b>배치 공간 전체 폭</b>만 보고, 변환기 검사는 멍장을
+    <b>셀로 쪼개지 않아</b> 지나칩니다 — 그래서 <b>경고 없이 발주</b>됩니다.</figcaption>
+  </figure>
+
+  <h3>원장 −50 은 별개의 작은 결함</h3>
+  <p>위 표의 <code>−50</code> 은 <code>redistributeAreaWidths</code> 가 코너 예약(벽 여유 50 · 인접 밀림)을
+  모르고 모듈을 <code>area.x + 마감폭</code> 부터 다시 깔기 때문입니다. 트리밍된 배치에서는 50 짜리라
+  눈에 잘 안 띄고, 이것도 재계산으로 복구됩니다. 같은 수정에 얹어 가면 됩니다.</p>
+
+  <h3>왜 위험한가</h3>
+  <p>자가 복구는 <b>사람이 자동계산을 다시 누를 때만</b> 일어납니다. 마감재를 고르고 바로
+  <b>[디테일 단계]</b> 나 <b>BOM 산출</b>로 넘어가는 것이 자연스러운 동선인데, 그 길에는 방어막이 없습니다.
+  깨진 상태로 뽑은 BOM 을 실측한 적이 있습니다 — 카카스 안폭 1026 에 도어 397 + 멍가림판 700 이
+  들어가야 하는 자재표가 <b>경고 없이</b> 나왔습니다.</p>
+
+  <h3>고치는 길 — 넷 중 고르거나 겹친다</h3>
+  <div class="opt pick">
+    <h4><span class="tag">①</span><code>setModuleFinish</code> 가 <code>isFixed</code> 호스트를 거부한다</h4>
+    <p>고정 모듈은 폭을 내놓지 않는다. 대신 그 옆 <b>비고정</b> 모듈이 내놓게 하거나, 없으면 토스트로
+    막는다. 멍장·사람이 고정한 모듈 모두를 지킨다. <b>가장 작고 정확한 수정.</b></p>
+  </div>
+  <div class="opt pick">
+    <h4><span class="tag">②</span>변환기에 멍장 정합성 검사를 넣는다</h4>
+    <p><code>ui-step1</code> 의 <code>if (m.blind)</code> 가지 안에서 <code>m.W === zoneW + doorW</code> 를 확인하고,
+    어긋나면 "자동계산을 다시 실행하세요" 경고를 낸다. ①을 고쳐도 <b>다음 번 비슷한 실수를 잡는 그물</b>이라
+    같이 넣는 것이 맞다.</p>
+  </div>
+  <div class="opt">
+    <h4><span class="tag">③</span><code>redistributeAreaWidths</code> 가 코너 예약을 안다</h4>
+    <p>벽 여유 50 과 인접 밀림을 빼고 깐다. 원장 −50 이 사라진다. ①에 얹어 간다.</p>
+  </div>
+  <div class="opt">
+    <h4><span class="tag">④</span>코너 쪽 끝에는 마감재를 못 붙이게 막는다 <span class="badge warn">규칙 판단</span></h4>
+    <p>그쪽은 벽이고 멍장은 이미 벽에서 50 떨어져 있다. 몰딩·휠라는 라인의 <b>바깥 끝</b>을 마감하는
+    부재다 — 코너 끝에 붙일 이유가 있는지부터 정해야 한다. 막으면 ①의 절반은 자연히 사라지지만,
+    <b>사람이 고를 수 있던 것을 줄이는 결정</b>이라 제가 정할 일이 아니다.</p>
+  </div>
+
+  <div class="callout keep">
+    <h4>제안</h4>
+    <p><b>① + ② + ③</b> 을 한 PR 로. ④는 규칙 판단이니 답을 주시면 따르고, 안 주시면 지금처럼 붙일 수
+    있게 둡니다(①이 지키므로 붙여도 멍장은 안 깨집니다).</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>순서 제안</h2>
+  <ol>
+    <li><b>B 먼저.</b> 유일하게 <b>잘못된 자재가 실제로 발주되는</b> 경로이고, 경고도 없습니다.
+      상부·하부·(앞으로) 키큰장 코너 전부에 걸립니다.</li>
+    <li><b>A 는 키큰장 코너 작업과 함께.</b> 키큰장끼리 코너는 섹션 신호가 없어 토글이 더 필요해지는데,
+      그 작업(계획서 §06)에 얹으면 따로 만들 것이 없습니다. 그때까지는 <b>트리밍</b>이 대신합니다.</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="no">05</span>결정 부탁</h2>
+  <div class="q">
+    <p class="qh"><span class="n">Q1</span>B 를 ① + ② + ③ 으로 지금 고칠까요?</p>
+    <p class="rec">제안 — 예. 작고 명확한 수정이고 발주 오류를 막습니다.</p>
+  </div>
+  <div class="q">
+    <p class="qh"><span class="n">Q2</span>코너 쪽 끝 마감재를 <b>막을까요</b> (④)?</p>
+    <p>막으면 규칙이 단순해지고, 두면 지금처럼 고를 수 있습니다. ①이 들어가면 두어도 멍장은 안전합니다.</p>
+    <p class="rec">제안 — 일단 둔다. 시공에서 코너 끝 마감이 실제로 쓰이는지 알려 주시면 그때 맞춥니다.</p>
+  </div>
+  <div class="q">
+    <p class="qh"><span class="n">Q3</span>A 의 토글은 키큰장 코너 작업에 함께 넣을까요?</p>
+    <p class="rec">제안 — 예. 그 전까지는 트리밍이 답을 대신합니다.</p>
+  </div>
+</section>
+</main>
