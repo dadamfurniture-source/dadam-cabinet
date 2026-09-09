@@ -51,12 +51,13 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
     expect(door.h).toBe(708 - 30); // 몸통H(870−12−150) − 30
   });
 
-  test('하부 멍 가림판 = 2.7T MDF, blindZoneW(715) × 몸통H (§3.5 신규 부재)', () => {
+  test('하부 멍 가림판 = 2.7T MDF, 멍 폭(715) − 목대 15 = 700 (§3.5)', () => {
     const cover = blindLowerParts.find((m) => m.part === '멍가림판');
     expect(cover).toBeDefined();
     expect(cover.material).toBe('MDF');
     expect(cover.thickness).toBe(2.7);
-    expect(cover.w).toBe(715);
+    // W12-61: 멍판은 목대 앞에서 끝난다. 마감재 60 은 안 뺀다 — 그 위를 덮기 때문이다.
+    expect(cover.w).toBe(700);
     expect(cover.h).toBe(708);
     expect(cover.qty).toBe(1);
   });
@@ -74,9 +75,9 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
     expect(door.h).toBe(735);
   });
 
-  test('상부 멍 가림판 = blindZoneW(395) × 720', () => {
+  test('상부 멍 가림판 = 멍 폭(395) − 목대 15 = 380 × 720', () => {
     const cover = blindUpperParts.find((m) => m.part === '멍가림판');
-    expect(cover.w).toBe(395);
+    expect(cover.w).toBe(380);
     expect(cover.h).toBe(720);
     expect(cover.thickness).toBe(2.7);
   });
@@ -184,7 +185,7 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
     covers.forEach((c) => {
       expect(c.material).toBe('MDF');
       expect(c.thickness).toBe(2.7);
-      expect(c.w).toBe(715);
+      expect(c.w).toBe(700);   // W12-61: 멍 715 − 목대 15
     });
   });
 
