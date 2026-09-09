@@ -1050,8 +1050,15 @@
               blindZoneW: Number(m.blind.zoneW) || 0,  // 멍 폭 (목대 15 포함 — 재단은 extractors 가 뺀다)
               // W12-61: 멍판 마감재 — 라인 마감을 따라온 종류와 **재단** 폭.
               //   재단(100)은 멍 공식의 자리(60)보다 넓다. 멍가림판 위를 덮기 때문이다.
-              blindFinishType: _blindFinishType(m.blind.finish),
-              blindFinishW: Number(m.blind.finish && m.blind.finish.partW) || 0,
+              blindFinishType: m.blind.ep ? 'None' : _blindFinishType(m.blind.finish),
+              blindFinishW: m.blind.ep ? 0 : (Number(m.blind.finish && m.blind.finish.partW) || 0),
+              // W12-65: 키큰장 멍장 — 멍 구간을 2.7T 가림판이 아니라 **멍판 EP 18T 한 장**으로 덮는다.
+              //   가리는 면은 하나라 단(3개) 중 첫 단에서만 내고, 높이는 장 전체(좌대 포함)다.
+              //   마감재 100 은 없다 — EP 가 이미 마감된 판이다. 경첩목대는 단마다 그대로.
+              blindKind: m.blind.ep ? 'tall' : 'std',
+              blindEpOnce: !!(m.blind.ep && (m.blind.tier || 0) === 0),
+              blindEpW: m.blind.ep ? Number(m.blind.ep.W) || 0 : 0,
+              blindEpH: m.blind.ep ? Number(m.blind.ep.H) || 0 : 0,
               isDrawer: false,
               drawerCount: 0,
               isOpen: false,

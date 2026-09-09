@@ -274,25 +274,7 @@ describe('상부장 코너도 같은 규칙이다', () => {
   });
 });
 
-describe('키큰장은 코너 대상이 아니다', () => {
-  test('스택 영역이라 코너로 잡히지 않는다 — 멍장이 서지 않는다', () => {
-    const legW = 1970, D = 650;
-    const p = boot({
-      version: 1, savedAt: '2026-09-02T00:00:00.000Z', person: null,
-      modules: [
-        { section:'tall', x:0, y:0, w:3600, h:D, moduleH:2300, rotation:0, finishings:[] },
-        { section:'tall', x:D/2-legW/2, y:legW/2-D/2, w:legW, h:D, moduleH:2300, rotation:90, finishings:[] },
-      ],
-    });
-    const areas = p.g('areas').filter((a) => !a.isFinishing);
-    areas.forEach((a) => expect(p.g('isStackedArea')(a)).toBe(true));
-    // corner.md 는 하부(§3.3)·상부(§3.6) 멍장만 정한다. 키큰장 코너 규칙은 없고,
-    // 스택은 단이 세로로 겹쳐 서므로 "라인 하나에 모듈이 나란히" 라는 전제가 깨진다.
-    expect(p.g('cornerPairs')()).toEqual([]);
-    p.g('autoCalcAllAreas')();
-    expect((p.g('modules') || []).filter((m) => m.blind)).toEqual([]);
-  });
-});
+// 키큰장 코너는 W12-65 부터 대상이다 — planner-tall-corner.test.js 가 다룬다.
 
 describe('정면도에 마감재가 보인다', () => {
   test('멍 옆에 마감재 라벨이 그려진다', () => {

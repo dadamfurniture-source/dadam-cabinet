@@ -154,15 +154,30 @@
 
           const zoneW = parseFloat(mod.blindZoneW) || 0;
           const coverW = Math.max(0, zoneW - battenT);
-          this.add(materials, modLabel, '멍가림판', 'MDF', coverT, coverW, H, 1, '-',
-                   '멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)');
+          // W12-65: 키큰장 멍장 — 멍 구간이 바닥부터 천장까지 통으로 드러나는 큰 면이라
+          //   2.7T 가림판 대신 **멍판 EP 18T** 로 덮는다. 폭은 가림판과 같은 규칙
+          //   (멍 − 목대 15: 경첩이 목대에 물려야 한다), 높이는 장 전체(좌대 포함),
+          //   단이 셋이라도 가리는 면은 하나라 **한 번만** 낸다. EP 는 이미 마감된 판이라
+          //   멍판 마감재 100 도 없다. 경첩목대는 단마다 나온다 (아래 공통).
+          const isTall = mod.blindKind === 'tall';
+          if (isTall) {
+            if (mod.blindEpOnce) {
+              const epW = parseFloat(mod.blindEpW) || coverW;
+              const epH = parseFloat(mod.blindEpH) || H;
+              this.add(materials, modLabel, '멍판 EP', 'MDF', 18, epW, epH, 1, '4면',
+                       '키큰장 멍 구간 EP — 멍 폭 − 목대 15 · 장 높이 전체 (corner.md §3.9)');
+            }
+          } else {
+            this.add(materials, modLabel, '멍가림판', 'MDF', coverT, coverW, H, 1, '-',
+                     '멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)');
+          }
           // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
           this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-',
                    '멍장 도어 경첩용 목대 (corner.md §3.3)');
           // W12-61: 멍판 마감재 — 멍장 도어 바로 옆, 멍가림판 위에 붙는다.
           //   'None' 을 명시한 경우에만 뺀다. 미지정이면 휠라로 떨어진다(§3.3) —
           //   자리 60 은 이미 멍 폭에 있어서, 안 내면 그 자리가 MDF 로 발주된다.
-          const finType = mod.blindFinishType || 'Filler';
+          const finType = isTall ? 'None' : (mod.blindFinishType || 'Filler');
           if (finType !== 'None' && coverW > 0) {
             const finW = parseFloat(mod.blindFinishW) || finPartW;
             const finName = finType === 'Molding' ? '몰딩(멍판)' : '휠라(멍판)';
