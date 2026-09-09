@@ -425,11 +425,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=37.9"></script>
-<script src="js/planner/planner-view.js?v=37.9"></script>
-<script src="js/planner/planner-sections.js?v=37.9"></script>
+<script src="js/planner/planner-scope.js?v=38.0"></script>
+<script src="js/planner/planner-view.js?v=38.0"></script>
+<script src="js/planner/planner-sections.js?v=38.0"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=37.9"></script>
+<script src="js/planner/planner-engine.js?v=38.0"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -2126,37 +2126,51 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // W9-95: 먹장 (blank) 표시
       if (type === 'blind') {
         // W12-58: 멍 — 옆 라인에 가려 도어를 못 다는 구간. 2.7T MDF 로 가린다.
-        const blindLab = document.createElementNS(ns, 'text');
-        blindLab.setAttribute('x', x + colW / 2);
-        blindLab.setAttribute('y', topY + topH / 2);
-        blindLab.setAttribute('text-anchor', 'middle');
-        blindLab.setAttribute('dominant-baseline', 'central');
-        blindLab.setAttribute('font-size', Math.min(colW * 0.12, topH * 0.12, 40));
-        // W12-65: 키큰장 멍장은 멍 구간이 **멍판 EP 18T** 다 — 색과 이름을 EP 로.
+        // W12-66: 멍 칸 안에 세 부재가 **겹쳐** 선다 — 멍가림판(또는 키큰장 EP) 위에
+        //   마감재가 포개어지고, 도어 쪽 끝 15 는 경첩 목대다. 좌표는 blindFrontLayout.
+        //   멍장이 오른쫕 끝(도어가 먼저)이면 벽 쪽이 오른쪽이라 좌우를 뒤집는다.
         const epBlind = !!(m.blind && m.blind.ep);
-        blindLab.setAttribute('fill', epBlind ? '#3a3226' : '#fff');
-        blindLab.textContent = epBlind ? 'EP' : '멍';
-        content.appendChild(blindLab);
-        r.setAttribute('fill', epBlind ? ((SECTION_CONFIG.ep || {}).fill || '#d4c5a0') : '#8a7f6a');   // 먹장(#a89c84)보다 어둡게 — 다른 부재다
-        lab.setAttribute('opacity', 0);
-      } else if (type === 'blindfin') {
-        // W12-61: 멍판 마감재 — 멍장 도어 바로 옆에서 멍가림판 위를 덮는다 (§3.3).
-        //   종류는 이 라인의 마감재를 따라온다. 폭은 재단값 100 을 그대로 그린다.
-        const fin = (m.blind && m.blind.finish) || null;
-        const fcfg = SECTION_CONFIG[(fin && fin.section) || 'filler'] || {};
-        const finLab = document.createElementNS(ns, 'text');
-        finLab.setAttribute('x', x + colW / 2);
-        finLab.setAttribute('y', topY + topH / 2);
-        finLab.setAttribute('text-anchor', 'middle');
-        finLab.setAttribute('dominant-baseline', 'central');
-        finLab.setAttribute('font-size', Math.min(colW * 0.28, topH * 0.1, 26));
-        // 멍 라벨과 같은 흰색 — 이 페이지의 마감재 색(SECTION_CONFIG)은 3D 팔레트라
-        // 몰딩 #5a4d2f 처럼 어둡다. 어두운 글자를 얹으면 안 읽힌다.
-        finLab.setAttribute('fill', '#fff');
-        finLab.textContent = fcfg.label || '마감';
-        content.appendChild(finLab);
-        r.setAttribute('fill', fcfg.fill || '#c8b896');
-        r.setAttribute('stroke', fcfg.stroke || '#7a6a45');
+        const lay = blindFrontLayout(colW, { ep: epBlind });
+        const doorRight = (s.areaTypes[i + 1] || '') === 'door';
+        const X = (u) => doorRight ? x + u : x + colW - u;            // 벽 쪽 0 → 화면 x
+        const span = (seg) => { const a = X(seg[0]), b = X(seg[1]); return [Math.min(a, b), Math.abs(b - a)]; };
+        const box = (seg, fill, stroke) => {
+          const [bx, bw] = span(seg);
+          const q = document.createElementNS(ns, 'rect');
+          q.setAttribute('x', bx); q.setAttribute('y', topY);
+          q.setAttribute('width', bw); q.setAttribute('height', topH);
+          q.setAttribute('fill', fill); q.setAttribute('stroke', stroke); q.setAttribute('stroke-width', 3);
+          q.setAttribute('pointer-events', 'none');
+          content.appendChild(q);
+          return [bx, bw];
+        };
+        const label = (bx, bw, text, fill, size) => {
+          const t = document.createElementNS(ns, 'text');
+          t.setAttribute('x', bx + bw / 2); t.setAttribute('y', topY + topH / 2);
+          t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+          t.setAttribute('font-size', size); t.setAttribute('fill', fill);
+          t.setAttribute('pointer-events', 'none');
+          t.textContent = text;
+          content.appendChild(t);
+        };
+        // 셀 바탕은 몸통색으로 남기고(목대 뒤), 그 위에 멍판 → 마감재 → 목대 순으로 얹는다
+        r.setAttribute('fill', '#3a3226');
+        const coverFill = epBlind ? ((SECTION_CONFIG.ep || {}).fill || '#d4c5a0') : '#8a7f6a';
+        const [cx0, cw0] = box(lay.cover, coverFill, '#1a0f00');
+        let coverVisibleW = cw0, coverVisibleX = cx0;
+        if (lay.finish) {
+          const fin = (m.blind && m.blind.finish) || null;
+          const fcfg = SECTION_CONFIG[(fin && fin.section) || 'filler'] || {};
+          const [fx, fw] = box(lay.finish, fcfg.fill || '#c8b896', fcfg.stroke || '#7a6a45');
+          label(fx, fw, fcfg.label || '마감', '#fff', Math.min(fw * 0.28, topH * 0.1, 26));
+          // 멍 라벨은 마감재에 덮이지 않은 부분 가운데에
+          coverVisibleW = cw0 - fw;
+          coverVisibleX = doorRight ? cx0 : cx0 + fw;
+        }
+        // 경첩 목대 — 짙은 띠. 멍판이 여기 딱 붙는다.
+        box(lay.batten, '#2a231b', '#1a0f00');
+        label(coverVisibleX, coverVisibleW, epBlind ? 'EP' : '멍', epBlind ? '#3a3226' : '#fff',
+              Math.min(coverVisibleW * 0.12, topH * 0.12, 40));
         lab.setAttribute('opacity', 0);
       } else if (type === 'blank') {
         // 회색 cross-hatch
@@ -3021,7 +3035,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             <option value="open"   ${t==='open'?'selected':''}>오픈</option>
             <option value="blank"  ${t==='blank'?'selected':''}>먹장</option>
             ${t==='blind' ? '<option value="blind" selected>멍 (파생)</option>' : ''}
-            ${t==='blindfin' ? '<option value="blindfin" selected>멍판 마감재 (파생)</option>' : ''}
           </select>
           ${t!=='door'
             ? '<span style="font-size:9px;color:var(--text-faint);text-align:center">—</span>'
@@ -4305,23 +4318,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const finish = blindFinishFor(areaId);
         m.blind = { zoneW, doorW: found.plan.doorW, adjAreaId: c.adj.id, finish };
 
-        // 정면은 세 칸이다 — 가려진 멍, 그 끝을 덮는 마감재, 열리는 도어.
+        // 정면은 두 칸이다 — 가려진 멍, 열리는 도어.
         // 도어 폭을 카카스 폭으로 기록하면 BOM 이 멍만큼 큰 도어를 발주한다.
         // W12-58: 멍은 **먹장이 아니다.** 먹장(blank)은 폭이 도어 최소보다 좁아
         //   도어 대신 막는 18T 판이고, 멍(blind)은 옆 라인에 가려 도어를 못 다는
         //   구간을 2.7T MDF 로 가린 것이다 (corner.md §3.5). 자재도 이유도 다르다.
-        // W12-61: 마감재 칸은 멍 폭 **안에서** 떼어 온다 — 자리 60 이 이미 거기
-        //   들어가 있기 때문이다(§3.3). 모듈 폭은 1mm 도 늘지 않으므로 원장이 그대로다.
-        //   경첩 목대 15 는 칸으로 세우지 않고 멍 칸에 남긴다 — 사람이 고를 수 있는
-        //   정면 부재가 아니고, 그 폭은 화면에서 1px 도 되지 않는다.
-        const finW = Math.min(finish.partW, Math.max(0, zoneW - 1));
-        const ts = ['blind', 'blindfin', 'door'];
-        const ws = [zoneW - finW, finW, found.plan.doorW];
-        s.verticalCount  = 3;
+        // W12-66: 멍판 마감재는 **칸이 아니다.** 멍가림판 위에 40 을 물고 포개어지는
+        //   덮개라(§3.3), 나란한 칸으로 넣으면 멍판이 85 짧아지고 마감재가 옆에 따로
+        //   선다. 종류·재단(m.blind.finish)은 그대로 두고 멍 칸 안에서 겹쳐 그린다
+        //   (blindFrontLayout). 목대 15 도 그 안에서 띠로 보인다.
+        const ts = ['blind', 'door'];
+        const ws = [zoneW, found.plan.doorW];
+        s.verticalCount  = 2;
         s.areaTypes      = atStart ? ts : ts.slice().reverse();
         s.areaWidths     = atStart ? ws : ws.slice().reverse();
-        s.areaDirections = ['left', 'left', 'left'];
-        s.areaIs2D       = [false, false, false];
+        s.areaDirections = ['left', 'left'];
+        s.areaIs2D       = [false, false];
         items.push({ module: m, atStart, tier: t });
       });
     });
@@ -5230,6 +5242,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
     } else if (ud.entityKind === 'blind') {
       msg = ud.ep ? '🎯 멍 — 멍판 EP 18T (키큰장 · 장 높이 전체)' : '🎯 멍 — 멍가림판 2.7T MDF (corner.md §3.5)';
+    } else if (ud.entityKind === 'batten') {
+      msg = '🎯 경첩 목대 15T — 멍장 도어 경첩이 물리는 자리 (corner.md §3.3)';
     } else if (ud.entityKind === 'blindfin') {
       const fl = (SECTION_CONFIG[ud.finishingSection] || {}).label || ud.finishingSection;
       msg = '🎯 멍판 마감재 — ' + fl + ' 18T · 재단 '
@@ -5929,29 +5943,45 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     if (type === 'blind') {
       // W12-58: 멍가림판 — 2.7T MDF (corner.md §3.5). 먹장과 두께도 색도 다르다.
+      // W12-66: 멍 칸 안에 세 상자가 **겹쳐** 선다 — 멍가림판(키큰장은 EP 18T) 위에
+      //   마감재 18T 가 포개어지고(z 한 겹 앞), 도어 쪽 끝 15 는 경첩 목대. 좌표는
+      //   blindFrontLayout 이 벽 쪽 0 기준으로 주고, 도어가 오른쪽인지로 x 를 뒤집는다.
       if (!doorVisible) return;
-      // W12-65: 키큰장은 멍판 EP 18T — 두께·색이 다르다.
       const epBlind = !!meta.epBlind;
-      const cover = makeBox(w, h, epBlind ? 18 : BLIND_COVER_T,
+      const lay = blindFrontLayout(w, { ep: epBlind });
+      const doorRight = ((s && s.areaTypes) || [])[(meta.areaIdx || 0) + 1] === 'door';
+      const X = (u) => doorRight ? (cx - w / 2 + u) : (cx + w / 2 - u);
+      const seg = (a) => ({ c: (X(a[0]) + X(a[1])) / 2, w: Math.abs(a[1] - a[0]) });
+      // ① 멍가림판 / EP
+      const cs = seg(lay.cover);
+      const cover = makeBox(cs.w, h, lay.coverT,
         epBlind ? ((SECTION_CONFIG.ep || {}).fill || '#7a6a45') : '#8a7f6a', { roughness: 0.8 });
-      cover.position.set(cx, cy, overlayZ);
+      cover.position.set(cs.c, cy, frontZ + lay.coverT / 2);
       cover.userData = { entityKind: 'blind', ep: epBlind, moduleId: meta.moduleId, areaIdx: meta.areaIdx };
       parent.add(cover);
       addEdgeOutline(cover, parent, 0x000000, 0.8);
-      return;
-    }
-    if (type === 'blindfin') {
-      // W12-61: 멍판 마감재 — 멍가림판 위에 붙으므로 **더 앞으로** 나온다 (§3.3).
-      if (!doorVisible) return;
-      const fcfg = SECTION_CONFIG[meta.blindFinish || 'filler'] || {};
-      const fin = makeBox(w, h, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
-      fin.position.set(cx, cy, overlayZ + BLIND_COVER_T);
-      fin.userData = {
-        entityKind: 'blindfin', moduleId: meta.moduleId, areaIdx: meta.areaIdx,
-        finishingSection: meta.blindFinish || 'filler',
-      };
-      parent.add(fin);
-      addEdgeOutline(fin, parent, 0x000000, 0.8);
+      // ② 멍판 마감재 — 멍판 위에 포개어진다
+      if (lay.finish) {
+        const fs = seg(lay.finish);
+        const fcfg = SECTION_CONFIG[meta.blindFinish || 'filler'] || {};
+        const fin = makeBox(fs.w, h, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
+        fin.position.set(fs.c, cy, frontZ + lay.coverT + T / 2);
+        fin.userData = {
+          entityKind: 'blindfin', moduleId: meta.moduleId, areaIdx: meta.areaIdx,
+          finishingSection: meta.blindFinish || 'filler',
+        };
+        parent.add(fin);
+        addEdgeOutline(fin, parent, 0x000000, 0.8);
+      }
+      // ③ 경첩 목대 15T — 도어 경첩이 물리는 자리. 멍판이 여기 딱 붙는다.
+      const bs = seg(lay.batten);
+      if (bs.w > 0) {
+        const batten = makeBox(bs.w, h, T, '#2a231b', { roughness: 0.9 });
+        batten.position.set(bs.c, cy, overlayZ);
+        batten.userData = { entityKind: 'batten', moduleId: meta.moduleId, areaIdx: meta.areaIdx };
+        parent.add(batten);
+        addEdgeOutline(batten, parent, 0x000000, 0.8);
+      }
       return;
     }
     if (type === 'blank') {
