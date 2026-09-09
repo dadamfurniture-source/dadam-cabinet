@@ -17,6 +17,11 @@ export class GeminiProxy {
   }
 
   async fetch(request) {
+    // 진단: 이 객체가 어느 콜로·국가에서 나가는지 (cdn-cgi/trace 의 colo=, loc=)
+    if (request.method === 'GET') {
+      const t = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then((r) => r.text());
+      return new Response(t, { headers: { 'Content-Type': 'text/plain' } });
+    }
     if (request.method !== 'POST') return new Response('POST only', { status: 405 });
     const { url, body } = await request.json();
     if (!url || !/^https:\/\/generativelanguage\.googleapis\.com\//.test(url)) {
