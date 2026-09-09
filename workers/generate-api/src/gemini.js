@@ -16,10 +16,44 @@ export function geminiModel(env) {
  * @param {number}   [p.temperature]
  * @returns {Promise<{image?:string, text?:string}>}
  */
-export async function callGemini(env, { prompt, images = [], want = 'image', temperature }) {
-  const base = env.AI_GATEWAY_BASE
-    ? `${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/google-ai-studio/v1beta`
-    : 'https://generativelanguage.googleapis.com/v1beta';
+const DIRECT_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+/**
+ * 호출 경로. 게이트웨이가 설정돼 있으면 게이트웨이 → 직접 순으로 시도한다.
+ * Google 은 발신 지역에 따라 400 "User location is not supported" 를 내는데,
+ * 워커가 어느 콜로에서 뜨느냐에 따라 어느 경로가 막히는지 달라진다.
+ * 그래서 한 경로만 믿지 않고 지역 차단이면 다음 경로로 넘어간다.
+ */
+function bases(env) {
+  const list = [];
+  if (env.AI_GATEWAY_BASE)
+    list.push(`${env.AI_GATEWAY_BASE.replace(/\/$/, '')}/google-ai-studio/v1beta`);
+  list.push(DIRECT_BASE);
+  return list;
+}
+
+function isGeoBlock(err) {
+  return /location is not supported/i.test(err.message || '');
+}
+
+export async function callGemini(env, params) {
+  const list = bases(env);
+  let lastErr;
+  for (let i = 0; i < list.length; i++) {
+    try {
+      return await callGeminiAt(env, list[i], params);
+    } catch (e) {
+      lastErr = e;
+      if (!isGeoBlock(e) || i === list.length - 1) throw e;
+      console.warn(
+        `[Gemini] geo-blocked via ${i === 0 && env.AI_GATEWAY_BASE ? 'gateway' : 'direct'}, trying next path`
+      );
+    }
+  }
+  throw lastErr;
+}
+
+async function callGeminiAt(env, base, { prompt, images = [], want = 'image', temperature }) {
   const url = `${base}/models/${geminiModel(env)}:generateContent?key=${env.GEMINI_API_KEY}`;
 
   const parts = images

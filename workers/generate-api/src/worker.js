@@ -67,7 +67,13 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (url.pathname === '/health' || url.pathname === '/') {
       return json(
-        { status: 'ok', service: 'dadam-generate-api', worker: true, model: geminiModel(env) },
+        {
+          status: 'ok',
+          service: 'dadam-generate-api',
+          worker: true,
+          model: geminiModel(env),
+          colo: (request.cf && request.cf.colo) || null, // 지역 차단 진단용
+        },
         200,
         headers
       );
