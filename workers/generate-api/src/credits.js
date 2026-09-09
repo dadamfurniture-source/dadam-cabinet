@@ -47,7 +47,7 @@ export async function consumeCredit(request, env, reason) {
   // RETURNS TABLE 이라 배열로 온다
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row || !row.ref) throw new Error('consume_credit returned nothing');
-  return { ref: row.ref, balance: row.balance };
+  return { ref: row.ref, balance: row.balance, cost: row.cost ?? null };
 }
 
 /**
@@ -62,4 +62,27 @@ export async function refundCredit(request, env, ref) {
   } catch (e) {
     console.error('[Generate] refund failed:', e.message);
   }
+}
+
+/**
+ * 잡 안에서의 환불 — 사용자 토큰이 없다. service_role 로 refund_credit_svc 를 부른다.
+ * (database/generations-schema.sql, EXECUTE 는 service_role 에만.)
+ * 실패해도 던진다 — 호출부(job.js)가 기록하고 넘어간다.
+ */
+export async function refundCreditService(env, ref) {
+  if (!ref) return null;
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured');
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/refund_credit_svc`, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ p_ref: ref }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`refund_credit_svc failed: ${res.status} ${text.slice(0, 200)}`);
+  console.log(`[Generate] credit refunded by service (${ref})`);
+  return text ? JSON.parse(text) : null;
 }

@@ -935,7 +935,7 @@
                 '<div class="studio-quote-row"><span>' +
                 esc(it.name || it.label || '') +
                 '</span><span>' +
-                won(it.price || it.amount) +
+                won(it.total != null ? it.total : it.price || it.amount) +
                 '</span></div>'
               );
             })
