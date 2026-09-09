@@ -1,13 +1,16 @@
 /**
- * 프롬프트 — 전 품목 공용 (2026-09 초기화판)
+ * 프롬프트 — 전 품목 공용 (2026-09 v2)
  *
- * 구조는 셋뿐이다.
- *   1. 분석   buildAnalysisPrompt()            사진 → 벽 치수 JSON (텍스트)
- *   2. 설치   buildInstallPrompt(ctx)          방 사진 → 가구 설치 (이미지, 문 닫힘)
- *   3. 변형   buildVariantPrompt(finish)       설치 결과 → 마감만 바꾼 추천안 (이미지)
+ * 구조는 넷이다.
+ *   1. 분석   buildAnalysisPrompt()            사진 → 벽 치수 + 방 브리프 JSON (텍스트)
+ *   2. 설치   buildInstallPrompt(ctx, {fix})   방 사진 → 가구 설치 (이미지, 문 닫힘)
+ *   3. 검사   buildQcPrompt(ctx) / parseQc     설치 결과가 규칙을 지켰는지 (텍스트 JSON)
+ *   4. 변형   buildVariantPrompt(finish)       설치 결과 → 마감만 바꾼 추천안 (이미지)
  *
  * 품목 차이는 CATEGORIES[key].spec 한 문단이 전부다. 나머지 문장은 모든 품목이 같다.
  * 품목을 추가하려면 CATEGORIES 에 한 항목을 넣는다. 다른 파일은 손대지 않는다.
+ *
+ * 이 파일은 import 가 없어야 한다 — __tests__/generate-prompts.test.js 가 export 만 떼어 평가한다.
  *
  * 손잡이 규칙(CLAUDE.md): 전 품목 매립형(handleless). 하부장 도어는 도어 뒤로 손을
  * 넣어 연다. 크롬 바 손잡이·push-to-open 금지.
@@ -93,16 +96,26 @@ export function resolveCategory(key) {
 
 // ─── 1. 분석 ───
 export function buildAnalysisPrompt() {
-  return `Measure this room photo for built-in furniture on the main wall facing the camera.
+  return `Measure and describe this room photo for built-in furniture on the main wall facing the camera.
 Use known Korean apartment sizes for scale: door frame 900 x 2100 mm, outlet plate 70 x 120 mm, ceiling 2300-2400 mm.
 Return JSON only, no prose:
-{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low"}
-water_supply = position of an existing sink or faucet along that wall, exhaust = position of an existing cooker hood; null when there is none.`;
+{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null}
+water_supply = position of an existing sink or faucet along that wall, exhaust = position of an existing cooker hood; null when there is none.
+room_brief = at most 60 words: floor material and colour, wall finish and colour, where the light comes from, camera height and angle, anything on the side walls that must stay.
+existing_furniture = what is currently on the main wall and must be removed before installing (e.g. "dark glossy kitchen cabinets with stainless hood"), or null if the wall is empty.`;
 }
 
-/** 분석 JSON → 워커가 쓰는 벽 데이터. 값이 없거나 이상하면 기본값. */
+/** 분석 JSON → 워커가 쓰는 벽 데이터 + 브리프. 값이 없거나 이상하면 기본값. */
 export function parseAnalysis(text) {
-  const out = { wallW: 3000, wallH: 2400, waterPct: 30, exhaustPct: 70, confidence: null };
+  const out = {
+    wallW: 3000,
+    wallH: 2400,
+    waterPct: 30,
+    exhaustPct: 70,
+    confidence: null,
+    brief: null,
+    existing: null,
+  };
   const m = text && text.match(/\{[\s\S]*\}/);
   if (!m) return out;
   let j;
@@ -118,6 +131,10 @@ export function parseAnalysis(text) {
     out.waterPct = pct(mm(j.water_supply_from_left_mm), out.wallW);
   if (j.exhaust_from_left_mm > 0) out.exhaustPct = pct(mm(j.exhaust_from_left_mm), out.wallW);
   out.confidence = j.confidence || null;
+  if (typeof j.room_brief === 'string' && j.room_brief.trim())
+    out.brief = j.room_brief.trim().slice(0, 500);
+  if (typeof j.existing_furniture === 'string' && j.existing_furniture.trim())
+    out.existing = j.existing_furniture.trim().slice(0, 200);
   return out;
 }
 
@@ -130,34 +147,97 @@ function pct(x, w) {
 }
 
 // ─── 2. 설치 ───
+/** QC 가 낸 문제 코드 → 재시도 프롬프트에 붙일 FIX 문장. */
+export const QC_FIXES = {
+  handles:
+    'Remove every handle, knob, pull and metal hardware from all fronts; every door and drawer is a flat, uninterrupted panel.',
+  doors_open: 'Close every door and drawer; show no interior.',
+  room_changed:
+    'Restore the original room exactly: same camera angle, walls, ceiling, floor, windows and lighting as the first photo. Only the furniture on the main wall changes.',
+  gap_to_ceiling: 'Upper cabinets and tall units reach the ceiling with no gap.',
+  appliances_visible:
+    'Hide free-standing appliances; only the integrated cooktop, sink and hood may show.',
+  text: 'Remove all text, labels, logos and watermarks.',
+  wrong_category: 'Render exactly the furniture type described in FURNITURE, nothing else.',
+  low_detail:
+    'Render at full photographic detail: crisp panel edges, real material grain, accurate reflections and soft contact shadows.',
+};
+
 /**
  * @param {object} c
  * @param {string} c.category      CATEGORIES 의 key
  * @param {number} c.wallW / c.wallH / c.waterPct / c.exhaustPct
+ * @param {string} [c.brief]       분석 단계의 room_brief
+ * @param {string} [c.existing]    철거할 기존 가구 설명
  * @param {string} c.style         STYLES 의 key
  * @param {string} c.doorColor     예: 'white'
  * @param {string} c.doorFinish    예: 'matte'
  * @param {number} c.refCount      함께 첨부한 참고 이미지 수
  * @param {string} c.fridgeBrand / c.fridgePosition
+ * @param {{fix?: string[]}} [opts]  QC 재시도 시 문제 코드 목록
  */
-export function buildInstallPrompt(c) {
+export function buildInstallPrompt(c, opts = {}) {
   const key = resolveCategory(c.category);
   const cat = CATEGORIES[key];
   const style = STYLES[c.style] || STYLES[DEFAULT_STYLE];
+  const room = c.brief ? `\nROOM: ${c.brief}` : '';
+  const existing = c.existing
+    ? `\nREMOVE FIRST: ${c.existing}. Replace it cleanly with no demolition marks, patched walls or ghost outlines.`
+    : `\nIf furniture already exists on that wall, remove it and replace it cleanly with no demolition marks.`;
   const refs =
     c.refCount > 0
-      ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: borrow finish, colour and mood only, never the layout or the room.`
+      ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera.`
       : '';
+  const fixes = (opts.fix || []).map((k) => QC_FIXES[k]).filter(Boolean);
+  const fixBlock = fixes.length
+    ? `\nFIX (the previous attempt failed these checks):\n- ${fixes.join('\n- ')}`
+    : '';
   return `Edit the first photo: install a built-in ${cat.label} (${key}) on the main wall.
-Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture. If furniture already exists on that wall, remove it and replace it cleanly with no demolition marks.
+Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${existing}${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 FURNITURE: ${cat.spec(c)}
 FINISH: ${c.doorColor} ${c.doorFinish} flat-panel fronts, ${style} style, consistent on every panel.
-HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${refs}
+HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
 }
 
-// ─── 3. 변형 (추천안) ───
+// ─── 3. 검사 ───
+export const QC_ISSUE_CODES = Object.keys(QC_FIXES);
+
+/** 설치 결과 한 장을 보고 규칙 위반을 JSON 으로 판정한다. 관대하게 — 명백할 때만 실패. */
+export function buildQcPrompt(c) {
+  const key = resolveCategory(c.category);
+  return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.
+Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
+Report an issue ONLY when it is clearly visible. Use these codes:
+- handles: any visible handle, knob, pull or metal bar on a door or drawer
+- doors_open: any door or drawer open or interior shown
+- room_changed: the room itself looks re-rendered (different walls, floor, window, ceiling or camera angle)
+- gap_to_ceiling: a clear gap between the top of the tall/upper units and the ceiling
+- appliances_visible: free-standing appliances (microwave, kettle, standalone fridge) on show
+- text: any text, label, logo or watermark
+- wrong_category: the furniture is not a ${CATEGORIES[key].label}
+- low_detail: blurry, smeared or obviously synthetic surfaces
+ok is true when issues is empty. note is one short sentence.`;
+}
+
+/** @returns {{ok:boolean, issues:string[], note:string|null}} */
+export function parseQc(text) {
+  const fallback = { ok: true, issues: [], note: null }; // 검사 실패는 통과로 — 검사 때문에 생성을 막지 않는다
+  const m = text && text.match(/\{[\s\S]*\}/);
+  if (!m) return fallback;
+  try {
+    const j = JSON.parse(m[0]);
+    const issues = Array.isArray(j.issues)
+      ? j.issues.map(String).filter((k) => QC_ISSUE_CODES.includes(k))
+      : [];
+    return { ok: issues.length === 0, issues, note: typeof j.note === 'string' ? j.note : null };
+  } catch {
+    return fallback;
+  }
+}
+
+// ─── 4. 변형 (추천안) ───
 /** 다담이 실제로 쓰는 마감 톤. 한 요청 안에서는 서로 다른 것만 뽑는다. */
 export const FINISHES = [
   { key: 'warm-oak', body: 'warm oak woodgrain', accent: 'matte cream', tone: '웜 오크' },

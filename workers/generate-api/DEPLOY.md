@@ -37,33 +37,53 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 
 ## 환경 변수 (Secret)
 
-Cloudflare 대시보드에서 secret 으로 별도 등록 (wrangler.toml 에 넣지 않음):
+`wrangler secret put` 으로 등록한다 (wrangler.toml 에 넣지 않음).
 
-### 1. `GEMINI_API_KEY` (필수)
-모든 카테고리의 생성에 필요.
+| 이름 | 용도 |
+|---|---|
+| `GEMINI_API_KEY` | 필수 |
+| `SUPABASE_SERVICE_ROLE_KEY` | `generations` 행·버킷 쓰기, 잡 안 환불(`refund_credit_svc`) |
+| `SHARE_TOKEN_PEPPER` | 공유 토큰 해시. 32바이트 이상 랜덤 문자열 |
+
 ```powershell
-npx wrangler secret put GEMINI_API_KEY
-# 프롬프트에 키 값 붙여넣기
+cd workers/generate-api
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put SHARE_TOKEN_PEPPER
 ```
 
-### 2. 모델 변경
-`wrangler.toml` 의 `GEMINI_MODEL` 한 값이 분석·설치·변형 전부에 쓰인다. Claude 는 더 이상 호출하지 않으므로 `ANTHROPIC_API_KEY` 는 필요 없다.
+로컬 `wrangler dev` 는 같은 폴더의 `.dev.vars` (gitignore) 에서 읽는다.
 
-## 파이프라인 (2026-09 단일화)
+## 파이프라인 (2026-09 v2 · 비동기)
 
-| 단계 | 호출 | 결과 |
+`POST /api/generate` 는 202 와 잡 id 만 돌려주고, 생성은 미국 콜로 Durable Object `GenerateJob`(src/job.js) 이
+alarm 으로 실행한다. 진행 상태의 정본은 `generations` 행이고 클라이언트는 `GET /api/generate/:id` 를 3초마다 읽는다.
+
+| 단계 | 모델 | 결과 |
 |---|---|---|
-| 1 분석 | Gemini 텍스트 1회 | 벽 폭·높이·급수·후드 위치 JSON (벽 폭 직접 입력 시 생략) |
-| 2 설치 | Gemini 이미지 1회 | 기본안 (문 닫힘) |
-| 3 변형 | Gemini 이미지 3회 병렬 | 마감만 바꾼 추천안 3장 |
+| 1 분석 | gemini-3.8-flash | 벽 치수 + 방 브리프 + 철거 대상 (벽 폭 직접 입력 시 치수만 덮어씀) |
+| 2 설치 | gemini-3-pro-image 2K | 기본안 (문 닫힘) |
+| 3 검사 | gemini-3.8-flash | 규칙 위반 판정, 실패 시 FIX 붙여 2단계 1회 재시도 |
+| 4 변형 | gemini-3-pro-image 2K ×3 병렬 | 마감만 바꾼 추천안, 끝나는 대로 저장 |
+| 5 마무리 | — | 견적, done |
 
-품목별 차이는 `src/prompts.js` 의 `CATEGORIES` 한 문단, 단가는 `src/quote.js` 한 줄이다.
+- 기본안이 나왔으면 추천안이 모자라도 `done`. 기본안 실패만 환불.
+- 잡 상한 10분(환불 창 30분 안). alarm 재시도 2회.
+- 출력은 버킷 `generations/{uid}/{genId}/base.jpg, v1..3.jpg`, 입력은 `room.jpg, ref-N.jpg`.
+
+## 엔드포인트
+
+| | 인증 | |
+|---|---|---|
+| `POST /api/generate` | JWT | 202 `{id, status, credit:{balance,cost}}`. `parent_id` 면 재생성. 실행 중 잡이 있으면 409 |
+| `GET /api/generate/:id` | JWT | `{generation:{status,progress,step_label,images[],quote,…}}` |
+| `DELETE /api/generate/:id` | JWT | 파일·행 삭제 (실행 중이면 409) |
+| `POST /api/generate/:id/share` | JWT | `{share_url, expires_at}` — 토큰은 1회만, 다시 부르면 회전 |
+| `DELETE /api/generate/:id/share` | JWT | 회수 |
+| `GET /api/share` | `X-Share-Token` | 이미지·견적. 만료·회수 410 |
+| `GET /health`, `GET /diag` | — | 모델·콜로 / 경로별 Gemini 상태 |
 
 ## Gemini 호출 경로 (지역 차단)
 
 Cloudflare 워커는 HKG·KIX 콜로에서 뜨고, 거기서 Google AI Studio 는 게이트웨이·직접 호출을 모두
-`400 User location is not supported` 로 막는다 (2026-09-09 `/diag` 실측). 그래서 `locationHint: 'enam'`
-으로 만든 Durable Object `GeminiProxy` 가 Google 호출을 대신하고, `GEMINI_VIA = "proxy"` 로 그 경로만 쓴다.
-
-- `/diag` — 워커 콜로, 경로별(gateway/direct/proxy) Gemini 텍스트 호출 상태
-- `/health` — 모델·콜로
+`400 User location is not supported` 로 막는다 (2026-09-09 `/diag` 실측). 잡 DO 는 `locationHint: 'enam'` 으로
+미국에서 뜨므로 직접 호출이 통하고, 막히면 `gemini.js` 가 gateway → direct → proxy(`GeminiProxy`) 순으로 넘어간다.

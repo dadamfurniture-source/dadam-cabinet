@@ -5,33 +5,37 @@ account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
 # Smart Placement 을 끈다 — 켜 두면 워커가 HKG 콜로에 놓였고, 홍콩 발신은
 # Google AI Studio 가 게이트웨이·직접 호출 모두 400 "User location is not supported" 로 막는다
-# (2026-09-09 /health colo=HKG 로 실측). 끄면 요청자 근처 콜로(한국 → ICN)에서 뜬다.
+# (2026-09-09 /health colo=HKG 로 실측). 생성 자체는 미국 콜로 Durable Object(job.js) 가 한다.
 
 [vars]
 # 사용자 인증용. 둘 다 공개값이라 secret 이 아니라 vars 로 둔다
-# (js/config.js 에 이미 그대로 들어 있다). service_role 키는 여기 두지 않는다.
+# (js/config.js 에 이미 그대로 들어 있다). service_role 키는 secret 이다.
 SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ"
 
+# Gemini 모델 — 이미지와 텍스트 둘. 바꾸려면 이 값만 고친다.
+# 2026-09-09 API 목록 기준: gemini-3-pro-image (Nano Banana Pro, 2K/4K, 디테일 프롬프트·다중 참고 이미지),
+# gemini-3.1-flash-image (Nano Banana 2, 빠름). 텍스트/QC 는 gemini-3.8-flash.
+GEMINI_IMAGE_MODEL = "gemini-3-pro-image"
+GEMINI_TEXT_MODEL = "gemini-3.8-flash"
+GEMINI_IMAGE_SIZE = "2K"
 
-# Gemini 모델 — 전 품목·전 단계(분석/설치/변형) 하나만 쓴다.
-# 2026-09-09 API 모델 목록 기준 GA 이미지 모델: gemini-3.1-flash-image (기본), gemini-3-pro-image (고품질·고비용).
-# 바꾸려면 이 값 하나만 고친다.
-GEMINI_MODEL = "gemini-3.1-flash-image"
+# 생성 결과 저장·공유
+GENERATIONS_BUCKET = "generations"
+PUBLIC_BASE_URL = "https://dadamfurniture.com"
+SHARE_LINK_TTL_DAYS = "30"
 
-# Gemini 호출 경로. proxy = 미국 콜로 Durable Object(src/proxy.js) 만 쓴다.
-# 2026-09-09 /diag 실측: HKG·KIX 콜로에서 gateway·direct 는 400 지역 차단, proxy 만 200.
-# 비우면 gateway → direct → proxy 순으로 시도한다.
-GEMINI_VIA = "proxy"
+# Gemini 호출 경로(GEMINI_VIA)는 비워 둔다 — 잡 DO(job.js) 가 미국 콜로에서 뜨므로 직접 호출이
+# 통하고, 막히면 gemini.js 가 gateway → direct → proxy 순으로 넘어간다. 진단은 /diag.
 
-# Cloudflare AI Gateway base URL — Google Generative Language API 와 Anthropic API 를
-# 한국 발신에서 차단 (400 "User location is not supported" / 403 "Request not allowed")
-# 하는 문제 우회. Gateway 가 US 엣지에서 provider 로 프록시.
-# 설정되면 워커가 google-ai-studio/... 와 anthropic/v1/messages 를 이 경로 아래로 호출.
+# Cloudflare AI Gateway base URL — Google Generative Language API 를 한국 발신에서 차단
+# (400 "User location is not supported") 하는 문제 우회용 경로 중 하나.
 AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb79edd3284/dadam-ai"
 
-# GEMINI_API_KEY는 Cloudflare 대시보드에서 Secret으로 설정
-# wrangler secret put GEMINI_API_KEY
+# Secret (wrangler secret put):
+#   GEMINI_API_KEY               필수
+#   SUPABASE_SERVICE_ROLE_KEY    generations 행·버킷 쓰기, 잡 안 환불
+#   SHARE_TOKEN_PEPPER           공유 토큰 해시
 
 # Gemini 호출을 미국 콜로에서 내보내는 Durable Object (src/proxy.js).
 # 워커 콜로(HKG·KIX)에서는 Google 이 지역 차단을 걸어 이 경로가 필요하다.
@@ -39,6 +43,15 @@ AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb7
 name = "GEMINI_PROXY"
 class_name = "GeminiProxy"
 
+# 잡 실행기 — 잡당 하나, alarm 구동 (src/job.js). locationHint 'enam'.
+[[durable_objects.bindings]]
+name = "GENERATE_JOB"
+class_name = "GenerateJob"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GeminiProxy"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["GenerateJob"]

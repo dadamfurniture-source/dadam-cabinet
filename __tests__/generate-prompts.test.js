@@ -1,13 +1,17 @@
 /**
- * 생성 워커 프롬프트·견적 계약 테스트 (workers/generate-api/src/prompts.js, quote.js).
+ * @jest-environment node
+ *
+ * 생성 워커 계약 테스트 (workers/generate-api/src/prompts.js, quote.js, share.js).
  *
  * 프롬프트는 문장이라 조용히 되돌아가기 쉽다. 고정하는 것:
- *   1) 손잡이 규칙 — 매립형, 바 손잡이·push-to-open 금지 (CLAUDE.md)
+ *   1) 손잡이 규칙 — 매립형, 바 손잡이·push-to-open 금지 (CLAUDE.md). FIX 재시도 프롬프트도 같다
  *   2) 설치·변형 프롬프트 모두 "문 닫힘"
  *   3) 화면 KINDS 의 8개 키가 전부 워커 CATEGORIES 에 있다 (없으면 수납장으로 조용히 떨어진다)
- *   4) 견적 단가가 이전 카테고리별 함수의 값과 같다
+ *   4) 견적 단가가 이전 카테고리별 함수의 값과 같다, 화면은 unit_price/total 을 읽는다
+ *   5) QC 판정·브리프 파싱이 깨진 입력에 관대하다 (검사 때문에 생성을 막지 않는다)
+ *   6) 공유 토큰은 43자 base64url, 해시는 pepper 에 따라 달라진다
  *
- * ESM 모듈을 jest(CJS) 에서 읽기 위해 export 를 떼고 평가한다. 두 파일은 import 가 없다.
+ * ESM 모듈을 jest(CJS) 에서 읽기 위해 export 를 떼고 평가한다. 세 파일은 import 가 없다.
  */
 
 const fs = require('fs');
@@ -25,15 +29,27 @@ const P = loadEsm('workers/generate-api/src/prompts.js', [
   'STYLES',
   'CATEGORIES',
   'FINISHES',
+  'QC_FIXES',
+  'QC_ISSUE_CODES',
   'wardrobeDoors',
   'resolveCategory',
   'buildAnalysisPrompt',
   'parseAnalysis',
   'buildInstallPrompt',
+  'buildQcPrompt',
+  'parseQc',
   'pickFinishes',
   'buildVariantPrompt',
 ]);
 const Q = loadEsm('workers/generate-api/src/quote.js', ['buildQuote']);
+const S = loadEsm('workers/generate-api/src/share.js', [
+  'pepperedHash',
+  'generateShareToken',
+  'hashShareToken',
+  'buildShareUrl',
+  'shareExpiryIso',
+  'checkShareAccessible',
+]);
 
 const HTML = fs.readFileSync(path.join(__dirname, '../ai-design.html'), 'utf8');
 
@@ -50,6 +66,13 @@ const ctx = {
   fridgeBrand: 'Samsung',
   fridgePosition: 'left',
 };
+
+const HANDLE_RULES = [
+  /HANDLES: none/,
+  /reaching behind the door/,
+  /No bar handles, knobs, chrome hardware or push-to-open/,
+  /All doors and drawers closed/,
+];
 
 describe('화면 품목 ↔ 워커 카테고리', () => {
   const kinds = [...HTML.matchAll(/key: '([a-z]+)',\s*label: '[^']+',\s*gallery/g)].map(
@@ -70,12 +93,9 @@ describe('설치 프롬프트', () => {
   test('모든 품목이 손잡이 규칙과 문 닫힘을 담는다', () => {
     for (const key of Object.keys(P.CATEGORIES)) {
       const p = P.buildInstallPrompt({ ...ctx, category: key });
-      expect(p).toMatch(/HANDLES: none/);
-      expect(p).toMatch(/reaching behind the door/);
-      expect(p).toMatch(/No bar handles, knobs, chrome hardware or push-to-open/);
-      expect(p).toMatch(/All doors and drawers closed/);
+      for (const rule of HANDLE_RULES) expect(p).toMatch(rule);
       expect(p).toContain(`(${key})`);
-      expect(p.length).toBeLessThan(2000);
+      expect(p.length).toBeLessThan(2500);
     }
   });
 
@@ -107,13 +127,55 @@ describe('설치 프롬프트', () => {
     expect(p).toContain('LG french-door refrigerator on the right side');
   });
 
-  test('참고 이미지가 있으면 스타일만 빌리라고 말한다', () => {
+  test('참고 이미지가 있으면 마감만 빌리고 레이아웃은 베끼지 말라고 말한다', () => {
     expect(P.buildInstallPrompt(ctx)).not.toContain('style reference');
-    expect(P.buildInstallPrompt({ ...ctx, refCount: 2 })).toContain('images are style reference');
+    const p = P.buildInstallPrompt({ ...ctx, refCount: 2 });
+    expect(p).toContain('images are style reference');
+    expect(p).toMatch(/Never copy the reference layout/);
+  });
+
+  test('브리프·기존 가구가 있으면 ROOM·REMOVE FIRST 줄이 붙는다', () => {
+    const p = P.buildInstallPrompt({
+      ...ctx,
+      brief: 'oak floor, warm light from the left',
+      existing: 'dark glossy cabinets',
+    });
+    expect(p).toContain('ROOM: oak floor, warm light from the left');
+    expect(p).toContain('REMOVE FIRST: dark glossy cabinets');
+    expect(P.buildInstallPrompt(ctx)).not.toContain('ROOM:');
+  });
+
+  test('FIX 재시도 프롬프트도 손잡이 규칙을 지키고 문제별 문장을 붙인다', () => {
+    const p = P.buildInstallPrompt(ctx, { fix: ['handles', 'room_changed', 'nope'] });
+    for (const rule of HANDLE_RULES) expect(p).toMatch(rule);
+    expect(p).toContain('FIX (the previous attempt failed these checks)');
+    expect(p).toContain(P.QC_FIXES.handles);
+    expect(p).toContain(P.QC_FIXES.room_changed);
+    expect(P.buildInstallPrompt(ctx)).not.toContain('FIX (');
   });
 
   test('모르는 스타일은 기본 스타일로', () => {
     expect(P.buildInstallPrompt({ ...ctx, style: 'nope' })).toContain(P.STYLES['modern-minimal']);
+  });
+});
+
+describe('품질 검사', () => {
+  test('검사 프롬프트는 모든 문제 코드를 설명하고 JSON 만 요구한다', () => {
+    const p = P.buildQcPrompt(ctx);
+    for (const code of P.QC_ISSUE_CODES) expect(p).toContain(`- ${code}:`);
+    expect(p).toMatch(/Answer JSON only/);
+    expect(p).toContain('싱크대');
+  });
+
+  test('판정 파싱 — 알려진 코드만 남기고, 깨진 입력은 통과로', () => {
+    expect(P.parseQc('{"ok":false,"issues":["handles","weird"],"note":"x"}')).toEqual({
+      ok: false,
+      issues: ['handles'],
+      note: 'x',
+    });
+    expect(P.parseQc('{"ok":true,"issues":[]}').ok).toBe(true);
+    expect(P.parseQc('garbage').ok).toBe(true);
+    expect(P.parseQc(null).ok).toBe(true);
   });
 });
 
@@ -134,9 +196,9 @@ describe('변형 프롬프트', () => {
 });
 
 describe('분석 JSON 파싱', () => {
-  test('mm 값과 위치를 퍼센트로', () => {
+  test('mm 값·위치 퍼센트·브리프', () => {
     const w = P.parseAnalysis(
-      'ok {"wall_width_mm":3200,"wall_height_mm":2400,"water_supply_from_left_mm":960,"exhaust_from_left_mm":2240,"confidence":"high"}'
+      'ok {"wall_width_mm":3200,"wall_height_mm":2400,"water_supply_from_left_mm":960,"exhaust_from_left_mm":2240,"confidence":"high","room_brief":" oak floor ","existing_furniture":"old cabinets"}'
     );
     expect(w).toMatchObject({
       wallW: 3200,
@@ -144,6 +206,8 @@ describe('분석 JSON 파싱', () => {
       waterPct: 30,
       exhaustPct: 70,
       confidence: 'high',
+      brief: 'oak floor',
+      existing: 'old cabinets',
     });
   });
 
@@ -151,14 +215,18 @@ describe('분석 JSON 파싱', () => {
     expect(P.parseAnalysis('{"wall_width_mm":3.2,"wall_height_mm":2.4}')).toMatchObject({
       wallW: 3200,
       wallH: 2400,
+      brief: null,
     });
     expect(P.parseAnalysis('{"wall_width_mm":9000}').wallW).toBe(6000);
     expect(P.parseAnalysis('nothing').wallW).toBe(3000);
     expect(P.parseAnalysis(null).wallW).toBe(3000);
   });
 
-  test('분석 프롬프트는 JSON 만 요구한다', () => {
-    expect(P.buildAnalysisPrompt()).toMatch(/Return JSON only/);
+  test('분석 프롬프트는 JSON 만 요구하고 브리프 키를 설명한다', () => {
+    const p = P.buildAnalysisPrompt();
+    expect(p).toMatch(/Return JSON only/);
+    expect(p).toContain('room_brief');
+    expect(p).toContain('existing_furniture');
   });
 });
 
@@ -177,11 +245,64 @@ describe('견적', () => {
     expect(q.items[0].quantity).toBe('3100mm (11자)');
   });
 
-  test('전 품목이 견적을 낸다', () => {
+  test('전 품목이 견적을 내고, 항목은 unit_price/total 을 가진다', () => {
     for (const key of Object.keys(P.CATEGORIES)) {
       const q = Q.buildQuote(key, 2400);
       expect(q.total).toBeGreaterThan(0);
       expect(q.items.some((i) => i.name === '시공비')).toBe(true);
+      for (const it of q.items) {
+        expect(typeof it.unit_price).toBe('number');
+        expect(typeof it.total).toBe('number');
+      }
     }
+  });
+
+  test('화면 견적 표는 total 을 읽는다 (항목이 0원으로 뜨던 버그)', () => {
+    expect(HTML).toMatch(/it\.total/);
+  });
+});
+
+describe('공유 토큰', () => {
+  test('토큰은 43자 base64url', () => {
+    const t = S.generateShareToken();
+    expect(t).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(S.generateShareToken()).not.toBe(t);
+  });
+
+  test('해시는 pepper 와 토큰에 따라 다르고 결정적이다', async () => {
+    const a = await S.hashShareToken({ SHARE_TOKEN_PEPPER: 'p1' }, 'tok');
+    const b = await S.hashShareToken({ SHARE_TOKEN_PEPPER: 'p1' }, 'tok');
+    const c = await S.hashShareToken({ SHARE_TOKEN_PEPPER: 'p2' }, 'tok');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('공유 URL 은 fragment 에 토큰을 싣고, 만료·회수·미완료를 구분한다', () => {
+    expect(S.buildShareUrl({ PUBLIC_BASE_URL: 'https://x.com/' }, 'abc')).toBe(
+      'https://x.com/design-share.html#t=abc'
+    );
+    const future = new Date(Date.now() + 86400000).toISOString();
+    const past = new Date(Date.now() - 86400000).toISOString();
+    expect(S.checkShareAccessible(null).status).toBe(404);
+    expect(S.checkShareAccessible({ status: 'done', share_expires_at: past }).reason).toBe(
+      'share_expired'
+    );
+    expect(
+      S.checkShareAccessible({ status: 'done', share_expires_at: future, share_revoked_at: past })
+        .reason
+    ).toBe('share_revoked');
+    expect(S.checkShareAccessible({ status: 'variants', share_expires_at: future }).status).toBe(
+      409
+    );
+    expect(S.checkShareAccessible({ status: 'done', share_expires_at: future }).ok).toBe(true);
+  });
+
+  test('만료일 기본 30일, 최대 365일', () => {
+    const d = new Date(S.shareExpiryIso({}, null));
+    const days = Math.round((d - Date.now()) / 86400000);
+    expect(days).toBe(30);
+    const d2 = new Date(S.shareExpiryIso({}, 9999));
+    expect(Math.round((d2 - Date.now()) / 86400000)).toBe(365);
   });
 });
