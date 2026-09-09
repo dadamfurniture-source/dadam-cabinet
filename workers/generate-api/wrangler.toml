@@ -3,11 +3,9 @@ main = "src/worker.js"
 compatibility_date = "2024-01-01"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
-# Smart Placement — Worker 실행 위치를 백엔드 (Google Generative Language API, US) 근처로
-# 이동시켜 egress IP 를 미국 데이터센터로 만든다. Google AI Studio API 가 한국 발신을
-# "User location is not supported" 로 차단하던 문제를 우회한다.
-[placement]
-mode = "smart"
+# Smart Placement 을 끈다 — 켜 두면 워커가 HKG 콜로에 놓였고, 홍콩 발신은
+# Google AI Studio 가 게이트웨이·직접 호출 모두 400 "User location is not supported" 로 막는다
+# (2026-09-09 /health colo=HKG 로 실측). 끄면 요청자 근처 콜로(한국 → ICN)에서 뜬다.
 
 [vars]
 # 사용자 인증용. 둘 다 공개값이라 secret 이 아니라 vars 로 둔다
@@ -16,12 +14,15 @@ SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ"
 
 
-# 카테고리별 Gemini 모델 분기
-# - GEMINI_MODEL: 기본값 (붙박이장·냉장고장·파우더룸·신발장·수납장). 3.1 로 도어 카운트 준수·SPEC LOCK 정확도 향상.
-# - GEMINI_MODEL_SINK: 싱크대 전용. 2.5 에서 AI Two-tone 색 배합과 레이아웃이 안정적이라 유지.
-#   3.1 로 올리면 싱크대 회귀 리스크 있음 — 충분히 검증 후에만 통일.
-GEMINI_MODEL = "gemini-3.1-flash-image-preview"
-GEMINI_MODEL_SINK = "gemini-2.5-flash-image"
+# Gemini 모델 — 전 품목·전 단계(분석/설치/변형) 하나만 쓴다.
+# 2026-09-09 API 모델 목록 기준 GA 이미지 모델: gemini-3.1-flash-image (기본), gemini-3-pro-image (고품질·고비용).
+# 바꾸려면 이 값 하나만 고친다.
+GEMINI_MODEL = "gemini-3.1-flash-image"
+
+# Gemini 호출 경로. proxy = 미국 콜로 Durable Object(src/proxy.js) 만 쓴다.
+# 2026-09-09 /diag 실측: HKG·KIX 콜로에서 gateway·direct 는 400 지역 차단, proxy 만 200.
+# 비우면 gateway → direct → proxy 순으로 시도한다.
+GEMINI_VIA = "proxy"
 
 # Cloudflare AI Gateway base URL — Google Generative Language API 와 Anthropic API 를
 # 한국 발신에서 차단 (400 "User location is not supported" / 403 "Request not allowed")
@@ -31,3 +32,13 @@ AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb7
 
 # GEMINI_API_KEY는 Cloudflare 대시보드에서 Secret으로 설정
 # wrangler secret put GEMINI_API_KEY
+
+# Gemini 호출을 미국 콜로에서 내보내는 Durable Object (src/proxy.js).
+# 워커 콜로(HKG·KIX)에서는 Google 이 지역 차단을 걸어 이 경로가 필요하다.
+[[durable_objects.bindings]]
+name = "GEMINI_PROXY"
+class_name = "GeminiProxy"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GeminiProxy"]

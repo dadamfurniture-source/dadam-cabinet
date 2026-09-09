@@ -199,11 +199,12 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
     p.g('autoCalcAllAreas')();
     const blind = (p.g('modules') || []).find((m) => m.blind);
     const s = (p.g('structures') || {})[blind.id];
+    // W12-66: 멍판 마감재는 칸이 아니라 멍가림판 위에 포개어지는 덮개다 — 칸은 둘
     expect(s.verticalCount).toBe(2);
     // W12-58: 멍은 먹장(blank)이 아니라 제 타입(blind)을 갖는다 — 자재가 다르다
     expect(s.areaTypes.slice().sort()).toEqual(['blind', 'door']);
     expect(s.areaTypes).not.toContain('blank');
-    // 도어 칸은 doorW, 멍 칸은 멍 폭 — 합이 카카스 폭
+    // 두 칸 합이 카카스 폭 — 마감재가 폭을 늘리지 않는다
     expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(blind.W);
     expect(s.areaWidths).toContain(blind.blind.doorW);
     expect(blind.blind.doorW).toBeLessThan(blind.W);

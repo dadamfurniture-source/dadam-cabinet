@@ -1,0 +1,462 @@
+<title>멍판 마감재 연동</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --accent-soft: rgba(184,149,108,.14); --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+    --code-bg: #29261f; --code-ink: #e7e0d2; --code-accent: #d4b58c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+      --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --accent-soft: rgba(201,168,126,.16); --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    --code-bg: #191713; --code-ink: #ded7c8; --code-accent: #c9a87e;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header.doc { padding: 60px 0 34px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono', Consolas, monospace; }
+  h1 { font-size: 33px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 24px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 54px; }
+  h2 { font-size: 22px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 20px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16.5px; font-weight: 700; margin: 30px 0 10px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; }
+  li { margin: 7px 0; }
+  strong, b { font-weight: 700; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 2px; white-space: nowrap; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td code, li code, p code, th code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+
+  figure { margin: 24px 0; padding: 24px 20px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figure svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 14px; text-align: center; max-width: 52em; margin-left: auto; margin-right: auto; }
+  svg text { font-family: 'Pretendard', -apple-system, sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0; max-width: 48em; }
+  .callout.decide { border-left-color: var(--warn); }
+  .callout.risk { border-left-color: var(--bad); }
+  .callout.keep { border-left-color: var(--ok); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; letter-spacing: .02em; }
+  .callout p { margin: 6px 0 0; font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+  .compare .col { border: 1px solid var(--line); border-radius: 8px; padding: 18px; background: var(--surface); border-left: 4px solid var(--bad); }
+  .compare h4 { margin: 0 0 10px; font-size: 14px; }
+  .compare p { font-size: 14px; }
+
+  .q { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 18px 20px; margin: 16px 0; max-width: 48em; }
+  .q .qh { font-weight: 700; font-size: 15px; margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
+  .q .qh .n { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--accent); font-size: 13px; }
+  .q p { margin: 6px 0; font-size: 14.5px; }
+  .q .rec { font-size: 14px; color: var(--ok); font-weight: 600; }
+  @media (max-width: 700px) { .compare { grid-template-columns: 1fr; } h1 { font-size: 26px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">이해 확인 · 실행 전 검토</p>
+  <h1>멍판 마감재를 라인 마감재에 물리기</h1>
+  <p class="lede">멍 폭 안에는 이미 <b>마감재 60 이 들어가 있습니다</b> — 규칙에도 있고 코드에도 있습니다.
+  다만 <b>숫자로만</b> 있습니다. 자리는 잡아 놓고 부재를 만들지 않아서, 도면에도 안 보이고 BOM 에는
+  2.7T MDF 로 발주됩니다. 이 작업은 60mm 를 새로 만드는 것이 아니라, <b>이미 비워 둔 60mm 에
+  이름을 붙이는 것</b>입니다.</p>
+  <div class="meta">
+    <span><b>요청</b> 멍판 마감재 자동 생성 + 라인 마감재 연동</span>
+    <span><b>대상</b> mockup-structure.html · planner-engine.js · extractors.js</span>
+    <span><b>근거</b> corner.md §3.3 · §3.5</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>제가 이해한 요청</h2>
+  <p class="sub">세 문장으로 옮기면 이렇습니다.</p>
+  <ol>
+    <li>멍장의 <b>멍판(멍 구간)</b> 에도 마감재가 <b>자동으로</b> 생겨야 한다 — 사람이 따로 붙이는 게 아니다.</li>
+    <li>그 마감재는 멍판의 아무 데나가 아니라 <b>멍장 도어 바로 옆</b>, 즉 멍 구간의 <b>도어 쪽 끝</b>에 붙는다.</li>
+    <li>종류는 <b>멍장이 속한 라인의 마감재 선택을 따라간다</b> — 라인이 휠라면 멍판도 휠라,
+    라인이 몰딩이면 멍판도 몰딩. 라인 선택을 바꾸면 멍판 것도 같이 바뀐다.</li>
+  </ol>
+
+  <div class="callout keep">
+    <h4>가장 중요한 재해석</h4>
+    <p>멍 공식 <code>인접 상판 D − 10 + 60 + 15</code> 의 그 <b>60 이 바로 이 마감재</b>입니다.
+    폭은 이미 확보돼 있습니다. 그래서 이 작업은 <b>멍장이 넓어지는 변경이 아닙니다</b> —
+    멍장 폭 1143 은 그대로고, 그 안에서 60 이 멍가림판에서 마감재로 <b>주인이 바뀌는</b> 변경입니다.</p>
+  </div>
+
+  <div class="callout decide">
+    <h4>60 은 자리, 100 은 부재 <span class="badge warn">2026-09-02 확정</span></h4>
+    <p>마감재는 멍판 <b>2.7T MDF 위에 겹쳐 붙습니다</b>. 겹치는 만큼 재단이 더 나가야 하므로
+    <b>실제 부재는 100</b> 입니다 — <code>겹침 40 + 공식상 자리 60</code>.</p>
+    <p><b>공식은 그대로 60 을 씁니다.</b> 폭 계산(멍 765 · 도어 378 · 원장 1970)은 하나도 바뀌지
+    않습니다. 100 은 <b>BOM 산출과 플래너 표현</b>에만 나타납니다.</p>
+    <p>이것 때문에 <b>멍가림판에서 마감재 60 을 빼지 않습니다</b> — 마감재가 그 위로
+    올라가려면 아래에 깔려 있어야 합니다. 멍판에서 빼는 것은 <b>경첩 목대 15 뿐</b>이라,
+    재단은 <code>멍 W − 15 = 인접 D − 10 + 60</code> 입니다 (§07).</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>그 60 이 서 있는 자리</h2>
+  <p class="sub">인접 라인의 도어 앞선과 멍장 도어 사이를 막는 조각입니다. 그래서 "도어 바로 인접" 입니다.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 330" role="img" aria-label="평면도. 인접 라인이 멍 구간 앞을 가로지르고, 그 앞선에서 마감재 60과 목대 15를 지나면 멍장 도어가 시작된다">
+      <defs>
+        <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+        </marker>
+        <marker id="ahs" viewBox="0 0 8 8" refX="1" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M8,0 L0,4 L8,8 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <text x="20" y="22" font-size="12.5" font-weight="700" fill="currentColor">평면 — 코너를 위에서 본 모습</text>
+
+      <line x1="40" y1="46" x2="690" y2="46" stroke="currentColor" stroke-width="3"/>
+      <line x1="40" y1="46" x2="40" y2="300" stroke="currentColor" stroke-width="3"/>
+      <text x="640" y="40" font-size="11" fill="currentColor" opacity="0.55">벽</text>
+
+      <rect x="40" y="52" width="207" height="176" fill="currentColor" opacity="0.045"/>
+      <rect x="400" y="52" width="240" height="150" fill="currentColor" opacity="0.04" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="520" y="132" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.55">라인의 나머지 수납</text>
+
+      <rect x="40" y="228" width="207" height="82" fill="currentColor" opacity="0.10" stroke="currentColor" stroke-width="1.2"/>
+      <text x="143" y="276" font-size="11.5" text-anchor="middle" fill="currentColor" opacity="0.7">인접 라인</text>
+      <line x1="247" y1="52" x2="247" y2="312" stroke="var(--bad)" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <text x="253" y="306" font-size="10.5" fill="var(--bad)">인접 라인 도어 앞선</text>
+
+      <rect x="55" y="52" width="207" height="150" fill="currentColor" opacity="0.09" stroke="currentColor" stroke-width="1"/>
+      <rect x="262" y="52" width="18" height="150" fill="var(--accent)" stroke="var(--accent)" stroke-width="1"/>
+      <rect x="280" y="52" width="5" height="150" fill="currentColor" opacity="0.45"/>
+      <rect x="285" y="52" width="115" height="150" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1"/>
+
+      <text x="158" y="132" font-size="11.5" text-anchor="middle" fill="currentColor">멍 (가려지는 구간)</text>
+      <text x="342" y="132" font-size="11.5" text-anchor="middle" fill="currentColor">멍장 도어</text>
+
+      <line x1="271" y1="52" x2="271" y2="24" stroke="var(--accent)" stroke-width="1.4"/>
+      <text x="278" y="22" font-size="12" font-weight="700" fill="var(--accent)">마감재 60 ← 이것</text>
+
+      <line x1="55" y1="222" x2="247" y2="222" stroke="currentColor" stroke-width="1" marker-start="url(#ahs)" marker-end="url(#ah)"/>
+      <text x="151" y="217" class="mono" font-size="10.5" text-anchor="middle" fill="currentColor">인접 상판 D − 10</text>
+      <line x1="247" y1="222" x2="280" y2="222" stroke="var(--accent)" stroke-width="1.6"/>
+      <text x="264" y="240" class="mono" font-size="10.5" text-anchor="middle" fill="var(--accent)" font-weight="600">60</text>
+      <text x="292" y="240" class="mono" font-size="10.5" fill="currentColor" opacity="0.6">15 목대</text>
+    </svg>
+    <figcaption>인접 라인의 도어 앞선에서 <b>60mm 를 더 나간 자리</b>가 멍장 도어의 시작점입니다.
+    그 60 을 무엇으로도 채우지 않으면 두 라인의 도어가 맞부딪칩니다 — 그래서 마감재가 서고,
+    그래서 멍 공식 안에 60 이 들어 있습니다. <b>여기 그린 60 은 "자리"</b> 이고,
+    실제 부재는 멍판 위로 40 을 더 물어 <b>100</b> 으로 재단합니다 (§03).</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2><span class="no">03</span>지금 코드는 그 60 을 어떻게 다루고 있나</h2>
+  <p class="sub">세 층에서 각각 확인했습니다. 계산만 하고, 그리지 않고, 잘못 발주합니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>층</th><th>지금 동작</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>계산</b><br><code>planner-engine.js:224</code></td>
+        <td><code>molding = 60</code> 을 <code>blindZoneW</code> 에 더합니다.
+        호출부 <code>cornerPlansFor</code> 는 <code>p.molding</code> 을 넘기지 않으므로
+        <b>언제나 60, 종류와 무관</b>합니다.</td>
+        <td><span class="badge ok">폭 확보됨</span> 자리는 이미 있습니다</td>
+      </tr>
+      <tr>
+        <td><b>그림</b><br><code>mockup-structure.html</code></td>
+        <td>멍 구간 전체(60 포함)를 <b>2.7T 멍가림판 한 장</b>으로 그립니다.
+        정면도·3D 모두 <code>#8a7f6a</code> 단색 "멍".</td>
+        <td><span class="badge warn">안 보임</span> 마감재가 도면에 없습니다</td>
+      </tr>
+      <tr>
+        <td><b>BOM</b><br><code>extractors.js:204</code></td>
+        <td><code>멍가림판 · MDF 2.7T · blindZoneW × H</code> — 목대까지 포함한
+        <b>765 통짜</b>로 나갑니다. 멍판은 목대 앞에서 끝나야 하므로 <b>750</b> 이어야 하고,
+        그 위에 올라갈 <b>휠라/몰딩 100 도 없습니다</b>.</td>
+        <td><span class="badge bad">과대 + 누락</span> 멍판 15 과다, 마감재 부재 없음</td>
+      </tr>
+      <tr>
+        <td><b>BOM (코너 마감)</b><br><code>extractors.js:331</code></td>
+        <td><code>휠라(코너1)</code> / <code>몰딩(코너1)</code> 은
+        <code>specs.layoutShape !== 'I'</code> 일 때만 나옵니다. 그런데 <b>플래너 경로는
+        <code>layoutShape</code> 를 세팅하지 않습니다</b> — 대입은 <code>ui-workspace.js</code>
+        두 곳뿐이고 기본값은 <code>'I'</code> 입니다.</td>
+        <td><span class="badge bad">누락</span> 플래너로 설계하면 코너 마감 자재가 아예 안 나옵니다</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>정면에서 본 지금 / 앞으로</h3>
+  <figure>
+    <svg viewBox="0 0 720 268" role="img" aria-label="멍장 정면 폭 1143. 지금은 멍가림판 765와 도어 378 두 조각이고, 앞으로는 멍가림판 위에 마감재 100이 40만큼 겹쳐 올라가며 총 폭 1143은 그대로다">
+      <defs>
+        <marker id="fa" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto">
+          <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+        </marker>
+        <marker id="fas" viewBox="0 0 8 8" refX="1" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto">
+          <path d="M8,0 L0,4 L8,8 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <text x="20" y="20" font-size="12.5" font-weight="700" fill="currentColor">지금 <tspan font-weight="400" opacity="0.6">— 하부 · 인접 상판 D 700 기준, 멍장 폭 1143</tspan></text>
+      <rect x="20" y="32" width="459" height="54" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="479" y="32" width="227" height="54" fill="currentColor" opacity="0.06" stroke="currentColor" stroke-width="1.2"/>
+      <text x="249" y="55" font-size="12" text-anchor="middle" fill="currentColor">멍가림판 · MDF 2.7T</text>
+      <text x="249" y="74" class="mono" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.7">765</text>
+      <text x="592" y="55" font-size="12" text-anchor="middle" fill="currentColor">도어</text>
+      <text x="592" y="74" class="mono" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.7">378</text>
+
+      <text x="20" y="132" font-size="12.5" font-weight="700" fill="currentColor">앞으로 <tspan font-weight="400" opacity="0.6">— 총 폭 1143 그대로. 마감재만 멍판 위로 올라옵니다</tspan></text>
+
+      <rect x="20" y="146" width="450" height="54" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="410" y="146" width="60" height="54" fill="var(--accent)" stroke="var(--accent)" stroke-width="1.2"/>
+      <rect x="470" y="146" width="9" height="54" fill="currentColor" opacity="0.4" stroke="currentColor" stroke-width="0.8"/>
+      <rect x="479" y="146" width="227" height="54" fill="currentColor" opacity="0.06" stroke="currentColor" stroke-width="1.2"/>
+      <line x1="434" y1="146" x2="434" y2="228" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+
+      <text x="215" y="169" font-size="12" text-anchor="middle" fill="currentColor">멍가림판 · MDF 2.7T</text>
+      <text x="215" y="188" class="mono" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.7">750 <tspan font-size="10.5" opacity="0.75">(= 765 − 목대 15)</tspan></text>
+      <text x="440" y="141" font-size="11.5" text-anchor="middle" fill="var(--accent)" font-weight="700">마감재 100</text>
+      <text x="592" y="169" font-size="12" text-anchor="middle" fill="currentColor">도어</text>
+      <text x="592" y="188" class="mono" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.7">378</text>
+
+      <line x1="410" y1="212" x2="434" y2="212" stroke="currentColor" stroke-width="1" marker-start="url(#fas)" marker-end="url(#fa)" opacity="0.7"/>
+      <line x1="434" y1="212" x2="470" y2="212" stroke="var(--accent)" stroke-width="1.4" marker-start="url(#fas)" marker-end="url(#fa)"/>
+      <text x="422" y="226" class="mono" font-size="10" text-anchor="middle" fill="currentColor" opacity="0.7">40</text>
+      <text x="452" y="226" class="mono" font-size="10.5" text-anchor="middle" fill="var(--accent)" font-weight="600">60</text>
+      <text x="478" y="226" class="mono" font-size="9.5" fill="currentColor" opacity="0.5">15</text>
+
+      <text x="20" y="250" font-size="11.5" fill="currentColor" opacity="0.78">
+        <tspan font-weight="700">40</tspan> 멍판 위 겹침 (접착면) ·
+        <tspan font-weight="700">60</tspan> 공식이 잡아 둔 자리 ·
+        <tspan font-weight="700">15</tspan> 경첩 목대 — 합쳐도 폭은 여전히 <tspan class="mono">765 + 378 = 1143</tspan>
+      </text>
+    </svg>
+    <figcaption>마감재는 멍판을 <b>대체하지 않고 덮습니다</b> — 그래서 멍판에서 마감재 60 을
+    빼지 않습니다. 빼는 것은 <b>목대 15 뿐</b>입니다 (<code>765 → 750</code>). 목대는 이미
+    <code>경첩목대 · PB 15T · 70 × H</code> 로 따로 발주되고 있습니다 (W12-53).
+    보이는 MDF 는 <code>750 − 100 = 650</code> 입니다.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2><span class="no">04</span>"라인의 마감재" 를 무엇으로 읽을 것인가</h2>
+  <p class="sub">여기가 이 작업에서 유일하게 애매한 지점입니다. 라인 마감재는 하나가 아니라 <b>양 끝에 하나씩</b>입니다.</p>
+
+  <p>구조 단계의 배치 공간 패널은 마감재를 이렇게 받습니다 — <b>좌 끝</b>과 <b>우 끝</b>에 각각
+  <code>없음 / EP / 몰딩 / 휠라</code>. 즉 라인 하나에 마감재 종류가 <b>둘</b>일 수 있고,
+  <b>영</b>일 수도 있습니다. "라인의 마감재를 따라간다" 를 코드로 옮기려면 하나로 좁히는 판정이 필요합니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>라인 좌 / 우</th><th>멍판 마감재</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>휠라 / 휠라</td><td><b>휠라</b></td><td>이견 없음</td></tr>
+      <tr><td>몰딩 / 몰딩</td><td><b>몰딩</b></td><td>이견 없음</td></tr>
+      <tr><td>휠라 / 몰딩 <span class="badge warn">결정</span></td><td>제안 — <b>멍장이 붙은 쪽 끝</b>의 것</td><td>코너에 가까운 끝이 같은 시공 면입니다</td></tr>
+      <tr><td>EP / 휠라 <span class="badge warn">결정</span></td><td>제안 — <b>휠라</b></td><td>EP 는 측면 마감이라 코너 접합에 쓰지 않습니다</td></tr>
+      <tr><td>없음 / 없음 <span class="badge warn">결정</span></td><td>제안 — <b>휠라</b> (기본값)</td><td><code>finishCorner1Type: 'Filler'</code> 가 이미 기본값입니다</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout decide">
+    <h4>왜 "없음" 일 때도 만드는가</h4>
+    <p>멍 폭에 60 은 <b>이미 들어가 있습니다</b>. 마감재를 안 만들면 그 60 이 사라지는 게 아니라
+    멍가림판 MDF 로 발주됩니다 — 현장에서는 그 자리에 뭔가를 대야 합니다. 그래서 "안 만든다" 는
+    선택이 실제로는 "MDF 로 만든다" 가 됩니다. 다만 이건 제 판단이니, 라인이 <b>없음</b>이면
+    멍판도 만들지 않는 쪽을 원하시면 그렇게 하겠습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">05</span>구현할 때 밟으면 안 되는 지뢰 둘</h2>
+  <p class="sub">코드를 읽으면서 확인한 것입니다. 미리 알고 들어가야 합니다.</p>
+
+  <div class="compare">
+    <div class="col">
+      <h4>① 폭 이중 차감</h4>
+      <p><code>finishWidthOf(areaId)</code> 는 그 배치 공간의 <b>모든</b> 마감재 폭을 더해
+      <code>deriveCornerArea</code> 의 <code>epW</code> 로 넘기고, <code>epW</code> 는 도어 몫에서 빠집니다.</p>
+      <p>멍판 마감재를 <b>평범한 마감재 모듈로</b> 만들면 60 이 두 번 빠집니다 —
+      <code>blindZoneW</code> 안에서 한 번, <code>epW</code> 로 또 한 번. 도어가 60 좁아지고
+      원장 불변식이 깨집니다.</p>
+    </div>
+    <div class="col">
+      <h4>② 호스트 폭 강탈</h4>
+      <p><code>setModuleFinish</code> 는 <code>m.W -= W</code> 로 <b>호스트 모듈에서 폭을 뺏습니다</b>.
+      멍장에 그대로 쓰면 카카스가 1143 → 1083 으로 줄어듭니다.</p>
+      <p>60 은 이미 카카스 <b>안에</b> 있으므로 뺏으면 안 됩니다. 기존 마감재 경로를
+      그대로 재사용할 수 없다는 뜻입니다.</p>
+    </div>
+  </div>
+
+  <div class="callout keep">
+    <h4>그래서 이렇게 만듭니다</h4>
+    <p>멍판 마감재를 <b>독립 모듈이 아니라 멍장의 속성</b>으로 둡니다 —
+    <code>m.blind.finish = { section, seatW: 60, partW: 100 }</code>. <code>seatW</code> 는 자리(계산용),
+    <code>partW</code> 는 재단(BOM·표현용)입니다. 자동계산이 멍장을 만들 때 같이 파생되고,
+    <code>finishWidthOf</code> 에 잡히지 않으며, 원장 <code>Σ(모듈 W) + reserved === area.W</code> 도
+    그대로 성립합니다. 정면 셀만 <code>[멍][마감][도어]</code> 로 한 칸 늘고, BOM 에서는
+    멍가림판이 <code>zoneW − 15</code> 로 바뀌면서 <code>휠라/몰딩 100 × H</code> 한 줄이 추가됩니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">06</span>실행하면 손대는 곳</h2>
+  <p class="sub">범위를 미리 적어 둡니다 — 승인하시면 이대로 진행합니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>파일</th><th>바꿀 것</th></tr></thead>
+    <tbody>
+      <tr><td><code>mockup-structure.html</code><br>(계산)</td>
+        <td>라인 마감재 → 멍판 마감재 종류를 정하는 <code>blindFinishOf(areaId)</code>;
+        <code>ensureCornerModules</code> 가 <code>m.blind.finish</code> 를 심고 셀을 3칸으로;
+        라인 마감재를 바꾸면 재파생 (<code>setAreaFinish</code> 뒤에 훅)</td></tr>
+      <tr><td><code>mockup-structure.html</code><br>(그리기)</td>
+        <td>정면도·3D 에서 마감재를 <b>100 폭</b>으로, 멍가림판 위에 40 겹쳐 다른 색으로 —
+        지금은 통짜 <code>#8a7f6a</code></td></tr>
+      <tr><td><code>ui-step1.js</code></td>
+        <td>멍장 payload 에 <code>blindFinishType</code> / <code>blindFinishW</code>(=100) 실어 보내기</td></tr>
+      <tr><td><code>extractors.js</code></td>
+        <td>멍가림판 폭을 <code>blindZoneW − CORNER_HINGE_BATTEN_T</code> 로 (마감재 60 은 빼지 않음);
+        <code>휠라(코너1)</code> / <code>몰딩(코너1)</code> 을 <b>100 × H</b> 로 멍장 단위 산출
+        (<code>layoutShape</code> 에 의존하지 않게)</td></tr>
+      <tr><td><code>docs/design-rules/corner.md</code></td>
+        <td>§3.3 의 "마감재 60" 이 <b>자리</b>이고 실제 부재는 <b>100</b>(겹침 40 포함)이라는 것,
+        그리고 라인 마감을 따른다는 것을 명시</td></tr>
+      <tr><td><code>__tests__/</code></td>
+        <td>연동(휠라·몰딩·혼합·없음) · 이중 차감 없음 · 원장 유지 · ㄷ자 둘 · 상부장</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout risk">
+    <h4>부수 효과 하나</h4>
+    <p><code>extractors.js</code> 를 고치면 <b>플래너 경로에 지금 없던 코너 마감 자재가 새로 나옵니다</b>
+    (§03 표의 마지막 줄). 누락을 메우는 것이지만, BOM 골든 스냅샷 중 코너가 있는 것은 값이 바뀝니다 —
+    의도된 변경으로 갱신하겠습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">07</span>확정된 규칙</h2>
+  <p class="sub">네 가지 모두 답이 나왔습니다 <span class="badge ok">2026-09-02</span> — 이대로 구현합니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>물음</th><th>확정</th></tr></thead>
+    <tbody>
+      <tr><td><b>Q1</b> 좌·우 마감재가 다르면 어느 쪽을 따르나</td>
+          <td><b>멍장이 붙은 쪽 끝</b>의 마감재</td></tr>
+      <tr><td><b>Q2</b> 라인 마감이 "없음" 이면</td>
+          <td>그래도 <b>휠라</b> 로 만든다</td></tr>
+      <tr><td><b>Q3</b> 마감재가 멍판을 대체하나</td>
+          <td>아니다 — <b>덮는다</b>. 그래서 재단 <b>100</b> (겹침 40 + 자리 60)</td></tr>
+      <tr><td><b>Q4</b> 멍가림판 재단 폭</td>
+          <td>목대를 <b>뺀 값</b> — <code>멍 W − 15</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>멍가림판 재단은 고정값이 아닙니다</h3>
+  <p>코너마다 다릅니다. <b>인접 라인의 상판 깊이</b>에서 유도되기 때문입니다 —
+  상수로 박으면 안 되고, 지금 코드도 모듈마다 <code>blindZoneW</code> 를 실어 보내는 방식입니다.</p>
+
+  <div class="callout keep">
+    <h4>목대를 빼면 식이 깔끔해집니다</h4>
+    <p><code>멍가림판 = 멍 W − 15 = (인접 D − 10 + 60 + 15) − 15 = <b>인접 D − 10 + 60</b></code></p>
+    <p>즉 멍가림판은 <b>인접 라인 상판이 덮는 구간 + 마감재 자리 60</b> 입니다.
+    그 위에 마감재 100 이 얹히므로, 실제로 보이는 MDF 는 <code>재단 − 100</code> 입니다.</p>
+  </div>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>단</th><th>기준</th><th>멍 W</th><th>멍가림판 재단</th><th>보이는 MDF</th></tr></thead>
+    <tbody>
+      <tr><td>하부</td><td>인접 D 650</td><td><code>715</code></td><td><code>700</code></td><td><code>600</code></td></tr>
+      <tr><td>하부</td><td>인접 D 700</td><td><code>765</code></td><td><code>750</code></td><td><code>650</code></td></tr>
+      <tr><td>하부</td><td>인접 D 750</td><td><code>815</code></td><td><code>800</code></td><td><code>700</code></td></tr>
+      <tr><td>상부</td><td>모듈 320 (물끊기 없음)</td><td><code>395</code></td><td><code>380</code></td><td><code>280</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>ㄷ자에서는 두 멍이 <b>서로 다른 인접 라인</b>을 보므로 재단값도 둘이 다를 수 있습니다.
+  엔진은 이미 <code>adjDs</code> 배열로 코너마다 따로 계산합니다 — 하나로 뭉뚱그리지 않습니다.
+  높이 <code>H</code> 도 설계마다 다르므로, 재단은 <b>가로·세로 모두 파생값</b>입니다.</p>
+
+  <div class="callout">
+    <h4>한 가지 확인</h4>
+    <p>"도어 바로 인접" 을 <b>멍판의 도어 쪽 끝</b>으로 읽었습니다. 다만 그 사이에는
+    경첩 목대 15 가 낍니다 — 순서가 <code>[멍가림판][마감재][목대 15][도어]</code> 입니다.
+    목대가 마감재보다 <b>안쪽</b>(<code>[멍가림판][목대][마감재][도어]</code>)이어야 한다면 알려 주세요.
+    정면 그림과 멍가림판 재단이 달라집니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">08</span>이 작업이 건드리지 않는 것</h2>
+  <ul>
+    <li><b>멍 공식</b> — <code>인접 D − 10 + 60 + 15</code> 그대로입니다. 공식 안의 숫자는
+    <b>하나도</b> 바뀌지 않습니다. 100 은 공식에 들어가지 않습니다.</li>
+    <li><b>멍장 폭 · 도어 폭 · 원장</b> — 1143 · 378 · 1970 그대로입니다.</li>
+    <li><b>멍가림판에서 마감재 60 을 빼는 일</b> — 없습니다. 마감재는 그 위에 덮입니다.
+    빼는 것은 목대 15 뿐이고, 그건 애초에 멍판이 덮을 자리가 아니었습니다.</li>
+    <li><b>상부장 코너</b> — 물끊기가 없어 <code>320 + 60 + 15 = 395</code> 지만 60 의 성격은 같고,
+    마감재 부재도 똑같이 <b>100</b> 입니다.</li>
+    <li><b>ㄷ자</b> — 멍이 둘이므로 마감재도 <b>둘</b>(각 100)이 됩니다. 각각 자기 쪽 끝을 따릅니다.</li>
+    <li><b>레거시 붙박이장 경로</b> — <code>ui-workspace.js</code> 가 <code>layoutShape</code> 를 세팅하는
+    쪽은 이미 <code>휠라(코너1)</code> 이 나오고 있습니다. 그쪽은 손대지 않습니다.</li>
+  </ul>
+</section>
+</main>
