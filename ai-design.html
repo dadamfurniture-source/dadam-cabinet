@@ -65,16 +65,6 @@
         font: 300 12px/1 var(--v5-sans);
         color: var(--v5-ink);
       }
-      .studio-gate {
-        position: fixed;
-        inset: 0;
-        z-index: 60;
-        background: rgba(255, 255, 255, 0.96);
-        display: grid;
-        place-items: center;
-        text-align: center;
-        padding: 24px;
-      }
       .studio-quote {
         display: grid;
         gap: 8px;
@@ -103,13 +93,6 @@
     <div data-site-shell="header" data-nav="ai"></div>
 
     <!-- 로그인 게이트 — 기존 정책 유지 -->
-    <div class="studio-gate" id="authGate" hidden>
-      <div style="display: grid; gap: 18px; justify-items: center">
-        <div class="v5-kicker" style="margin: 0">MEMBERS ONLY</div>
-        <p class="v5-lede" style="margin: 0">로그인하면 연출컷을 생성할 수 있습니다.</p>
-        <a class="v5-btn v5-btn--solid v5-btn--lg" href="login.html">로그인</a>
-      </div>
-    </div>
 
     <!-- 사진 마퀴 — 타일 6장을 2회 복제해 12장, -50% 로 순환 -->
     <section class="v5-marquee" aria-hidden="true">
@@ -425,6 +408,7 @@
           themeAll: [], // 위키미디어에서 받은 테마 이미지
           dbCount: 6,
           themeCount: 6, // 2열이라 6장이면 세 줄
+          signedIn: false, // 생성 버튼을 누를 때만 필요하다
           cost: null, // 생성 1회 단가. credit_costs 에서 읽는다
           phase: 'idle', // idle | loading | done
           results: [], // [{src, label}]
@@ -867,11 +851,15 @@
           $('runTrack').hidden = true;
           btn.disabled = !ready();
           btn.classList.toggle('v5-btn--solid', ready());
-          $('runState').textContent = ready()
-            ? S.cost
-              ? S.cost + ' 크레딧 차감'
-              : '생성 준비 완료'
-            : '사진 두 장을 넣어주세요';
+          if (!ready()) {
+            $('runState').textContent = '사진 두 장을 넣어주세요';
+          } else if (!S.signedIn) {
+            // 준비는 됐는데 로그인이 안 돼 있다. 버튼을 막지 않고,
+            // 눌렀을 때 로그인으로 보낸 뒤 이 화면으로 돌아온다.
+            $('runState').textContent = '로그인하면 생성할 수 있습니다';
+          } else {
+            $('runState').textContent = S.cost ? S.cost + ' 크레딧 차감' : '생성 준비 완료';
+          }
         }
 
         function shotHTML(i) {
@@ -974,6 +962,13 @@
 
         async function run() {
           if (S.phase === 'loading' || !ready()) return;
+
+          // 여기서 처음 로그인이 필요하다. 끝나면 이 화면으로 돌아온다.
+          if (!S.signedIn) {
+            location.href = 'login.html?redirect=' + encodeURIComponent('ai-design.html');
+            return;
+          }
+
           S.phase = 'loading';
           S.results = [];
           S.quote = null;
@@ -1242,12 +1237,16 @@
             console.warn('[studio] supabase init:', e);
           }
 
+          // 화면 전체를 덮던 로그인 게이트는 걷어냈다.
+          // 로그인은 '생성' 을 누르는 순간에만 필요하다 — 그 전까지는
+          // 무엇을 만드는 서비스인지 보고 고를 수 있어야 한다.
           if (sb) {
             try {
               var r = await sb.auth.getSession();
-              if (!(r && r.data && r.data.session)) $('authGate').hidden = false;
+              S.signedIn = !!(r && r.data && r.data.session);
             } catch (e) {}
           }
+          renderRun();
           await loadGallery();
 
           // 생성 1회 단가. 화면에 숫자를 적어두지 않고 표에서 읽는다 —
