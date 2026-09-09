@@ -40,8 +40,9 @@
 - MCP 서버: TypeScript + Express (포트 3200)
 
 ## Gemini 모델
-- 벽분석 + 이미지 생성: `gemini-2.5-flash-image`
-- n8n: 더 이상 사용하지 않음 (MCP 서버 직접 호출)
+- 벽분석 + 이미지 생성 + 추천안: `gemini-3.1-flash-image` 하나 (`workers/generate-api/wrangler.toml` 의 `GEMINI_MODEL`)
+- 프롬프트는 `workers/generate-api/src/prompts.js` 한 파일. 품목 차이는 `CATEGORIES[key].spec` 한 문단뿐
+- n8n·Claude: 이미지 생성 경로에서 더 이상 사용하지 않음
 
 ## 배포 주의사항
 - main 푸시 → GitHub Pages 자동 배포 (1-2분 소요)
