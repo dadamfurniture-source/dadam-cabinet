@@ -39,9 +39,12 @@
 - 배포: GitHub Pages + Cloudflare CDN
 - MCP 서버: TypeScript + Express (포트 3200)
 
-## Gemini 모델
-- 벽분석 + 이미지 생성 + 추천안: `gemini-3.1-flash-image` 하나 (`workers/generate-api/wrangler.toml` 의 `GEMINI_MODEL`)
-- 프롬프트는 `workers/generate-api/src/prompts.js` 한 파일. 품목 차이는 `CATEGORIES[key].spec` 한 문단뿐
+## 이미지 생성 (연출컷 v2, 2026-09-09)
+- 이미지: `gemini-3-pro-image` 2K, 브리프·품질검사: `gemini-3.8-flash` (`workers/generate-api/wrangler.toml` 의 `GEMINI_IMAGE_MODEL`/`GEMINI_TEXT_MODEL`)
+- 비동기: `POST /api/generate` → 202, 잡은 Durable Object `GenerateJob`(미국 콜로, `src/job.js`) 이 실행. 상태 정본은 `generations` 행
+- 프롬프트는 `src/prompts.js` 한 파일. 품목 차이는 `CATEGORIES[key].spec` 한 문단뿐. 견적은 `src/quote.js`
+- 결과는 버킷 `generations`, 이력은 `my-designs.html`(내 연출컷), 공유는 `design-share.html#t=`
+- 워커 시크릿: `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SHARE_TOKEN_PEPPER` (배포 문서 `workers/generate-api/DEPLOY.md`)
 - n8n·Claude: 이미지 생성 경로에서 더 이상 사용하지 않음
 
 ## 배포 주의사항
