@@ -10,7 +10,8 @@
  * 품목별 차이는 prompts.js 의 CATEGORIES 한 문단과 quote.js 의 단가 한 줄이 전부다.
  */
 
-import { callGemini, geminiModel } from './gemini.js';
+import { callGemini, geminiModel, probeRoutes } from './gemini.js';
+import { proxyStub } from './proxy.js';
 import {
   DEFAULT_STYLE,
   STYLES,
@@ -80,6 +81,28 @@ export default {
         200,
         headers
       );
+    }
+    // 진단: 워커 자신과 프록시 DO 의 발신 위치, 그리고 경로별 Gemini 텍스트 호출 결과.
+    if (url.pathname === '/diag') {
+      const pick = (t) => (t.match(/(colo|loc|ip)=[^\n]*/g) || []).join(' ');
+      const out = { worker_colo: (request.cf && request.cf.colo) || null };
+      try {
+        out.worker_egress = pick(
+          await fetch('https://www.cloudflare.com/cdn-cgi/trace').then((r) => r.text())
+        );
+      } catch (e) {
+        out.worker_egress = 'ERR ' + e.message;
+      }
+      try {
+        const stub = proxyStub(env);
+        out.proxy_egress = stub
+          ? pick(await stub.fetch('https://gemini-proxy/').then((r) => r.text()))
+          : 'no binding';
+      } catch (e) {
+        out.proxy_egress = 'ERR ' + e.message;
+      }
+      out.routes = await probeRoutes(env);
+      return json(out, 200, headers);
     }
     if (url.pathname !== '/api/generate' || request.method !== 'POST') {
       return json({ error: 'Not found' }, 404, headers);
