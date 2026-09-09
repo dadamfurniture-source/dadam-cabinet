@@ -19,6 +19,11 @@ SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 # 바꾸려면 이 값 하나만 고친다.
 GEMINI_MODEL = "gemini-3.1-flash-image"
 
+# Gemini 호출 경로. proxy = 미국 콜로 Durable Object(src/proxy.js) 만 쓴다.
+# 2026-09-09 /diag 실측: HKG·KIX 콜로에서 gateway·direct 는 400 지역 차단, proxy 만 200.
+# 비우면 gateway → direct → proxy 순으로 시도한다.
+GEMINI_VIA = "proxy"
+
 # Cloudflare AI Gateway base URL — Google Generative Language API 와 Anthropic API 를
 # 한국 발신에서 차단 (400 "User location is not supported" / 403 "Request not allowed")
 # 하는 문제 우회. Gateway 가 US 엣지에서 provider 로 프록시.
