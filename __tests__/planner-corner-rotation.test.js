@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { bootPlanner } = require('../test-utils/planner-harness');
+const R = require('../js/planner/planner-engine.js').MASTER_RULES;
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
   .split('\r\n').join('\n');
@@ -105,8 +106,11 @@ describe('모듈은 영역과 같은 축으로 돈다', () => {
       const a = areas.find((x) => x.id === m.areaId);
       const MB = p.g('modulePlaneBox')(m);
       const AB = p.g('planeBoxOf')(a);
-      const ok = MB.x >= AB.x - 1 && MB.x + MB.w <= AB.x + AB.w + 1
-              && MB.y >= AB.y - 1 && MB.y + MB.d <= AB.y + AB.d + 1;
+      // W12-72: 코너에서는 몸통끼리 맞닿도록 배치 공간 밖으로 **최대 20** 나간다.
+      //   상판(배치 공간)은 그대로 겹치지 않고, 몸통만 앞선 공기층 12 를 메운다.
+      const T = R.CORNER_AREA_OVERRUN + 1;
+      const ok = MB.x >= AB.x - T && MB.x + MB.w <= AB.x + AB.w + T
+              && MB.y >= AB.y - T && MB.y + MB.d <= AB.y + AB.d + T;
       if (!ok) outside.push({ id: m.id, mod: [MB.x, MB.x + MB.w], area: [AB.x, AB.x + AB.w] });
     });
     expect(outside).toEqual([]);

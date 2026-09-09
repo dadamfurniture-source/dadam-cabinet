@@ -76,7 +76,7 @@
       const CORNER_HINGE_BATTEN_W = 70;  // 목대 재단 가로 (세로는 몸통 H)
       // W12-61: 멍판 마감재(휠라/몰딩) 재단 폭. 멍 공식의 자리 60 과 다른 값이다 —
       //   마감재는 멍가림판 2.7T 를 덮고 붙으므로 접착면 40 을 더 문다 (100 = 40 + 60).
-      const CORNER_FINISH_PART_W = 100;  // 멍판 마감재 재단 폭 (§3.3)
+      const CORNER_FINISH_PART_W = 150;  // 멍판 마감재 재단 폭 (§3.3) — W12-72: 100 → 150
       // 도어 최소폭은 기존 DOOR_MIN_WIDTH(350) 재사용 (§3.4)
 
       const DEFAULT_SPECS = {

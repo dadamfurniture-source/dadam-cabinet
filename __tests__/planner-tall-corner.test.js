@@ -135,11 +135,12 @@ describe('키큰장끼리 코너 — 트리밍된 ㄱ자', () => {
 });
 
 describe('키큰장끼리 코너 — 겹친 ㄱ자', () => {
-  test('멍장 셋 · 원장 0 · 겹침 0 · 밀림 650(주인 깊이)', () => {
+  test('멍장 셋 · 원장 0 · 겹침 0 · 밀림 638(주인 도어 면)', () => {
     const p = boot([tallH(0), tallVOver()]); p.g('autoCalcAllAreas')();
     expect(blinds(p).length).toBe(3);
     const c = p.g('cornerPairs')()[0];
-    expect(p.g('adjCornerOffsetOf')(c.adj.id).offset).toBe(TD);
+    // W12-72: 주인 **도어 면**까지 민다 — 배치 공간 앞선(650)에서 공기층 12 를 뺀 638.
+    expect(p.g('adjCornerOffsetOf')(c.adj.id).offset).toBe(TD - 12);
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const Lg = p.g('cornerLedger')(a.id);
       if (Lg) { expect(Math.abs(Lg.diff)).toBeLessThanOrEqual(1); expect(Lg.missing).toBe(0); }
@@ -149,7 +150,7 @@ describe('키큰장끼리 코너 — 겹친 ㄱ자', () => {
 });
 
 describe('혼합 코너 — 키큰장 ↔ 하부장', () => {
-  test('키큰장이 주인이면 멍 715(하부 기준) · EP 700 · 밀림 650', () => {
+  test('키큰장이 주인이면 멍 715(하부 기준) · EP 700 · 밀림 638', () => {
     // 하부(가로, 잘라냄) + 키큰(세로) — 세로가 코너 사각형을 갖게 배치한다
     const p = boot([
       { section: 'lower', x: 0, y: 0, w: 3600 - TD, h: 700, moduleH: 870, rotation: 180, finishings: [] },
@@ -163,7 +164,7 @@ describe('혼합 코너 — 키큰장 ↔ 하부장', () => {
     const m = blinds(p)[0];
     expect(m.blind.zoneW).toBe(715);
     expect(m.blind.ep.W).toBe(700);
-    expect(p.g('adjCornerOffsetOf')(c.adj.id).need).toBe(TD);
+    expect(p.g('adjCornerOffsetOf')(c.adj.id).need).toBe(TD - 12);   // W12-72
   });
 });
 

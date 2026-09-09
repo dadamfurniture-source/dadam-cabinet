@@ -59,6 +59,10 @@ describe('트리밍된 ㄱ자 — 코너를 가진 라인이 멍장을 갖는다
     p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const off = p.g('adjCornerOffsetOf')(c.adj.id);
+    // W12-72: 앞선 공기층 12 는 주인의 **도어 쪽**에만 있다. 이 픽스처는 가로가
+    //   rot180 이라 도어가 −y 를 보고, 세로 다리는 +y(벽 쪽)에 붙는다 —
+    //   그쪽에는 공기층이 없으므로 요구 거리는 배치 공간 깊이 그대로다.
+    expect(off.air).toBe(0);
     expect(off.need).toBe(700);        // 규칙이 요구하는 거리 = 멍장 라인 깊이 (§3.7)
     expect(off.already).toBe(700);     // 트리밍으로 이미 비켜 준 거리
     expect(off.offset).toBe(0);        // 트리밍된 라인엔 여유가 없다 — 예전엔 750 을 또 밀었다
@@ -72,13 +76,13 @@ describe('겹친 ㄱ자 — 예전 동작 그대로', () => {
     expect(isHoriz(c.owner)).toBe(false);   // 회전한 세로가 주인 (기존 규칙)
   });
 
-  test('인접 밀림은 멍장 라인 깊이 700 이다', () => {
+  test('인접 밀림은 주인 도어 면까지 688 이다 (700 − 공기층 12)', () => {
     const p = boot([horiz(0), vertOverlap(270)]);
     p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const off = p.g('adjCornerOffsetOf')(c.adj.id);
     expect(off.already).toBe(0);
-    expect(off.offset).toBe(700);
+    expect(off.offset).toBe(688);   // W12-72: 700 − 앞선 공기층 12
   });
 });
 
