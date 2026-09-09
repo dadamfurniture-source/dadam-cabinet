@@ -51,7 +51,7 @@
   // 지금은 정적 billing.html 이 있어 되돌렸다.
   var ACCOUNT_MENU = [
     { label: '마이페이지', href: 'mypage.html' },
-    { label: '내 설계', href: 'my-designs.html' },
+    { label: '내 연출컷', href: 'my-designs.html' },
     { label: '구독 관리', href: 'billing.html' },
     { label: '관리자 페이지', href: 'admin/index.html', id: 'navAdminLink', hidden: true },
   ];
