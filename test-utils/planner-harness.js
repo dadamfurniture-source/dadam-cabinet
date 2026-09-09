@@ -57,6 +57,10 @@ function collectScripts(html) {
     if (/type\s*=\s*["'](module|importmap)["']/.test(attrs)) continue; // ESM/importmap 은 실행 대상 아님
     const src = attrs.match(/\ssrc\s*=\s*["']([^"']+)["']/);
     if (src) {
+      // W12-71: 외부 CDN 스크립트(supabase-js)는 파일로 찾을 수 없다.
+      //   jsdom 이 가져오지도 않으므로 **없는 채로** 부팅하는 것이 실제와 가깝다
+      //   — 플래너는 supabase 가 없으면 localStorage 로 물러나야 한다.
+      if (/^(https?:)?\/\//.test(src[1])) continue;
       const rel = src[1].split('?')[0].replace(/^\.?\//, ''); // ?v= 캐시버전 제거
       const abs = path.join(ROOT, rel);
       if (!fs.existsSync(abs)) {

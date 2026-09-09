@@ -1072,6 +1072,7 @@
             if (delError) throw delError;
 
             await saveDesignItems(currentDesignId);
+            await savePlannerDetailSnapshots(currentDesignId);   // W12-71
           } else {
             // 신규 설계 생성
             const { data: newDesign, error } = await supabaseClient
@@ -1091,6 +1092,10 @@
 
             currentDesignId = newDesign.id;
             await saveDesignItems(currentDesignId);
+            // W12-71: local 스코프로 그려 둔 배치·구조를 새 설계 id 로 옮긴다.
+            //   품목 저장 뒤에 해야 design_items 가 이미 있는 상태가 된다.
+            await adoptLocalPlannerScopes(currentDesignId);
+            await savePlannerDetailSnapshots(currentDesignId);
 
             // URL 업데이트
             window.history.replaceState({}, '', `?id=${currentDesignId}`);
@@ -1111,6 +1116,54 @@
       }
 
       // 설계 아이템 저장
+      // ============================================================
+      // W12-71: 도면 스냅샷 — 배치·구조·디테일을 한 소유권 아래로
+      //
+      //   배치·구조는 플래너(iframe)가 계정에 올린다. 디테일은 여기가 올린다 —
+      //   정본은 design_items 이고, 스냅샷은 되돌리기용 사본이다.
+      //   실제 동작은 js/planner/planner-store.js 가 정본이다.
+      // ============================================================
+
+      /** 품목 하나의 디테일 스냅샷을 자동 저장으로 남긴다. */
+      async function savePlannerDetailSnapshots(designId) {
+        if (typeof PlannerStore === 'undefined' || !designId) return;
+        for (const item of selectedItems) {
+          const itemId = Math.floor(item.uniqueId);
+          if (!Number.isFinite(itemId)) continue;
+          // 실패해도 설계 저장은 이미 끝났다 — 여기서 던지면 성공한 저장이
+          // 실패한 것처럼 보인다.
+          await PlannerStore.save('detail', {
+            autosave: true,
+            ids: { designId, itemId },
+            payload: { specs: item.specs || {}, modules: item.modules || [] },
+          });
+        }
+      }
+
+      /**
+       * 설계를 **처음** 저장하면 플래너의 저장 스코프가
+       * `::local:<item>` → `::<designId>:<item>` 으로 바뀐다.
+       * 이관하지 않으면 저장 전에 그린 배치가 사라진 것처럼 보인다.
+       * 옮긴 뒤 계정에도 한 벌 올려, 다른 PC 에서 이어 볼 수 있게 한다.
+       */
+      async function adoptLocalPlannerScopes(designId) {
+        if (typeof migratePlannerLocalScope !== 'function' || !designId) return;
+        for (const item of selectedItems) {
+          const itemId = Math.floor(item.uniqueId);
+          if (!Number.isFinite(itemId)) continue;
+          migratePlannerLocalScope(designId, itemId);
+          for (const stage of ['layout', 'structure']) {
+            const payload = plannerSnapshotPayload(stage, (base) => {
+              try { return localStorage.getItem(`${base}::${designId}:${itemId}`); }
+              catch (e) { return null; }
+            });
+            if (payload) {
+              await PlannerStore.save(stage, { autosave: true, ids: { designId, itemId }, payload });
+            }
+          }
+        }
+      }
+
       async function saveDesignItems(designId) {
         const itemsToInsert = selectedItems.map((item, index) => ({
           design_id: designId,
