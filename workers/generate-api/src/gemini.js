@@ -98,3 +98,26 @@ function send(env, route, path, body) {
     body: JSON.stringify(body),
   });
 }
+
+/** 진단용: 각 경로로 짧은 텍스트 호출을 보내 상태·소요시간을 돌려준다. */
+export async function probeRoutes(env) {
+  const path = `/models/${geminiModel(env)}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const body = {
+    contents: [{ parts: [{ text: 'Reply with OK' }] }],
+    generationConfig: { responseModalities: ['TEXT'] },
+  };
+  const out = {};
+  for (const route of ['gateway', 'direct', 'proxy']) {
+    if (route === 'gateway' && !env.AI_GATEWAY_BASE) continue;
+    if (route === 'proxy' && !env.GEMINI_PROXY) continue;
+    const t0 = Date.now();
+    try {
+      const res = await send(env, route, path, body);
+      const text = await res.text();
+      out[route] = `${res.status} ${Date.now() - t0}ms ${text.replace(/\s+/g, ' ').slice(0, 90)}`;
+    } catch (e) {
+      out[route] = `ERR ${e.message}`;
+    }
+  }
+  return out;
+}
