@@ -16,12 +16,10 @@ SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ"
 
 
-# 카테고리별 Gemini 모델 분기
-# - GEMINI_MODEL: 기본값 (붙박이장·냉장고장·파우더룸·신발장·수납장). 3.1 로 도어 카운트 준수·SPEC LOCK 정확도 향상.
-# - GEMINI_MODEL_SINK: 싱크대 전용. 2.5 에서 AI Two-tone 색 배합과 레이아웃이 안정적이라 유지.
-#   3.1 로 올리면 싱크대 회귀 리스크 있음 — 충분히 검증 후에만 통일.
-GEMINI_MODEL = "gemini-3.1-flash-image-preview"
-GEMINI_MODEL_SINK = "gemini-2.5-flash-image"
+# Gemini 모델 — 전 품목·전 단계(분석/설치/변형) 하나만 쓴다.
+# 2026-09-09 API 모델 목록 기준 GA 이미지 모델: gemini-3.1-flash-image (기본), gemini-3-pro-image (고품질·고비용).
+# 바꾸려면 이 값 하나만 고친다.
+GEMINI_MODEL = "gemini-3.1-flash-image"
 
 # Cloudflare AI Gateway base URL — Google Generative Language API 와 Anthropic API 를
 # 한국 발신에서 차단 (400 "User location is not supported" / 403 "Request not allowed")
