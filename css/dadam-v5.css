@@ -222,6 +222,27 @@
 .v5-nav a[aria-current='page'] {
   color: var(--v5-ink);
 }
+/* 'AI DESIGN' 은 빈칸에서 끊기면 두 줄이 된다. 좁은 화면에서 실제로 그랬다. */
+.v5-nav a {
+  white-space: nowrap;
+}
+
+/* DETAIL DESIGN — 로그인하면 헤더 우측에 뜨는 도구 진입점.
+   내비(AI DESIGN 등)와 구분되게 테두리를 준다.
+   nowrap 이 없으면 좁은 화면에서 'DETAIL' / 'DESIGN' 두 줄로 접힌다. */
+.v5-detail-link {
+  border: 1px solid var(--v5-line-18);
+  padding: 8px 14px;
+  white-space: nowrap;
+  font-size: 11.5px !important;
+  letter-spacing: 0.14em;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease;
+}
+.v5-detail-link:hover {
+  border-color: var(--v5-tan);
+}
 
 .v5-header-end {
   margin-left: auto;
@@ -1094,10 +1115,51 @@
   }
 }
 
+/* 태블릿 세로 — 아직 한 줄에 들어가지만 여유가 없다.
+   자간과 간격만 줄여 접히지 않게 한다. */
+@media (max-width: 900px) {
+  .v5-nav {
+    gap: 24px;
+  }
+  .v5-nav a {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+  .v5-header-end {
+    gap: 12px;
+  }
+  .v5-detail-link {
+    padding: 7px 11px;
+  }
+}
+
 @media (max-width: 700px) {
   :root {
     --v5-px: 20px;
     --v5-header: 72px;
+  }
+
+  /* 헤더를 두 줄로 접는다.
+     한 줄에 밀어넣으면 폭이 512px 이 되어 페이지 전체에 가로 스크롤이
+     생겼다(360px 화면에서 152px 밀림). 항목을 지우는 대신 줄을 나눈다.
+       1줄 — 워드마크 · 도구/계정
+       2줄 — 내비 */
+  .v5-header {
+    height: auto;
+    min-height: var(--v5-header);
+    flex-wrap: wrap;
+    align-content: center;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    gap: 12px 16px;
+  }
+  .v5-nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+  .v5-header-end {
+    gap: 12px;
   }
   .v5-shots {
     grid-template-columns: minmax(0, 1fr);
@@ -1134,5 +1196,23 @@
   .v5-marquee-tile {
     width: 240px;
     height: 160px;
+  }
+
+  /* 4열이면 한 칸이 70px 남짓이라 '냉장고장' 이 안 들어간다.
+     좁은 화면에서는 두 카드가 위아래로 놓이므로 하단 바 높이를 맞출
+     이유도 없다 — 줄 수만큼 자라게 둔다. */
+  .v5-foot-row--chips {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .v5-foot-row {
+    height: auto;
+    min-height: 72px;
+    padding: 4px 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .v5-foot-row--chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
