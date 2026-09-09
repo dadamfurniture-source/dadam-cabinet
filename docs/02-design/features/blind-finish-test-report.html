@@ -1,0 +1,321 @@
+<title>상부장·키큰장 점검 보고서</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header.doc { padding: 56px 0 30px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono', Consolas, monospace; }
+  h1 { font-size: 32px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  .scoreboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 28px 0 0; }
+  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 14px 16px; }
+  .card .n { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 26px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .card .k { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .card.pass .n { color: var(--ok); }
+  .card.warnc .n { color: var(--warn); }
+  .card.badc .n { color: var(--bad); }
+
+  section { margin-top: 50px; }
+  h2 { font-size: 21px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 18px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; }
+  li { margin: 6px 0; }
+  b, strong { font-weight: 700; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 1px; white-space: nowrap; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .badge.bad  { color: var(--bad);  background: var(--bad-bg); }
+  .badge.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', Consolas, monospace; }
+  td code, li code, p code, th code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  tr.sec td { background: var(--surface2); font-weight: 700; font-size: 13px; }
+
+  pre { background: #29261f; color: #e7e0d2; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12.5px; line-height: 1.7; padding: 16px 18px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+  pre .c { color: #8d8574; } pre .g { color: #9fc0a8; } pre .r { color: #d0928a; } pre .y { color: #d4b58c; }
+
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 15px 19px; margin: 18px 0; max-width: 48em; }
+  .callout.risk { border-left-color: var(--bad); }
+  .callout.keep { border-left-color: var(--ok); }
+  .callout.decide { border-left-color: var(--warn); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; }
+  .callout p { margin: 6px 0 0; font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+  @media (max-width: 700px) { h1 { font-size: 25px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">점검 보고 · W12-61 / W12-62</p>
+  <h1>상부장·키큰장 점검 보고서</h1>
+  <p class="lede">멍판 마감재(W12-61)와 마감재 '비움'(W12-62)을 <b>상부장과 키큰장까지</b>
+  확대해 점검했습니다. 상부장은 하부와 같은 규칙으로 전부 돌고, <b>키큰장은 코너 대상이
+  아닙니다</b> — 의도된 제외이며 그 근거를 §03 에 적었습니다. 점검 중 결함 하나를 고쳤고,
+  기존 결함 둘을 확인했습니다.</p>
+  <div class="meta">
+    <span><b>대상</b> PR #550 (커밋 3개)</span>
+    <span><b>방법</b> jest 전체 + 브라우저 실측 + BOM 끝단</span>
+    <span><b>일자</b> 2026-09-02</span>
+  </div>
+
+  <div class="scoreboard">
+    <div class="card pass"><div class="n">989</div><div class="k">통과 / 992</div></div>
+    <div class="card pass"><div class="n">3/3</div><div class="k">골든 스냅샷</div></div>
+    <div class="card pass"><div class="n">+48</div><div class="k">신규 테스트</div></div>
+    <div class="card warnc"><div class="n">3</div><div class="k">실패 (전부 main 기존)</div></div>
+    <div class="card badc"><div class="n">2</div><div class="k">기존 결함 확인 (미수정)</div></div>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>한 장 요약</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>항목</th><th>상부장</th><th>키큰장</th><th>하부장 (대조)</th></tr></thead>
+    <tbody>
+      <tr><td>코너 인식</td><td><span class="badge ok">O</span></td>
+          <td><span class="badge info">해당 없음</span> 스택 영역</td><td><span class="badge ok">O</span></td></tr>
+      <tr><td>멍장 생성</td><td><span class="badge ok">O</span> 멍 395</td>
+          <td><span class="badge info">해당 없음</span></td><td><span class="badge ok">O</span> 멍 715 / 765</td></tr>
+      <tr><td>멍판 마감재 자동 생성</td><td><span class="badge ok">O</span> 재단 100</td>
+          <td><span class="badge info">해당 없음</span></td><td><span class="badge ok">O</span> 재단 100</td></tr>
+      <tr><td>라인 마감 연동</td><td><span class="badge ok">O</span></td>
+          <td><span class="badge info">해당 없음</span></td><td><span class="badge ok">O</span></td></tr>
+      <tr><td>마감재 EP·몰딩·휠라</td><td><span class="badge ok">O</span></td>
+          <td><span class="badge ok">O</span> 스택 경로</td><td><span class="badge ok">O</span></td></tr>
+      <tr><td>마감재 비움 (신규)</td><td><span class="badge ok">O</span></td>
+          <td><span class="badge ok">O</span> 세 단 함께</td><td><span class="badge ok">O</span></td></tr>
+      <tr><td>원장 · 겹침</td><td><span class="badge ok">0 · 0</span></td>
+          <td><span class="badge info">해당 없음</span></td><td><span class="badge ok">0 · 0</span></td></tr>
+      <tr><td>BOM 끝단</td><td><span class="badge ok">O</span> 멍가림판 380</td>
+          <td><span class="badge warn">기존 한계</span> §05</td><td><span class="badge ok">O</span> 멍가림판 700 / 750</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>상부장 — 하부와 같은 규칙으로 전부 돕니다</h2>
+  <p class="sub">물끊기가 없다는 것 하나만 다르고, 나머지는 동일합니다.</p>
+
+  <h3>치수</h3>
+  <pre><span class="c">// 상부는 상판이 없으므로 물끊기 10 을 빼지 않는다 (corner.md §3.6)</span>
+멍 W   = 320(모듈) + 60(마감재 자리) + 15(목대) = <span class="g">395</span>
+멍장 W = 멍 395 + 도어 451                      = <span class="g">846</span>
+셀      [<span class="y">멍 295</span>][<span class="y">마감재 100</span>][<span class="y">도어 451</span>]           = <span class="g">846</span>  <span class="c">← 멍 안에서 자리를 뗀다</span>
+         └─ 295 + 100 = 395 = 멍 W            <span class="c">  모듈 폭은 1mm 도 안 늘었다</span></pre>
+
+  <h3>라인 마감 연동 — 브라우저 실측</h3>
+  <pre>EP + 몰딩 → 멍판 = <span class="g">molding</span>   <span class="c">// EP 는 코너에서 몰딩으로 본다</span>
+EP + 휠라 → 멍판 = <span class="g">filler</span>    <span class="c">// 하나라도 휠라면 휠라</span>
+원장 upper diff = <span class="g">0</span>  ·  겹침 = <span class="g">0</span></pre>
+
+  <h3>BOM 끝단 (페이로드 → 변환 → 자재)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>부재</th><th>재질</th><th class="num">두께</th><th class="num">가로</th><th class="num">세로</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>도어</td><td>MDF</td><td class="num">18</td><td class="num">447</td><td class="num">735</td><td>도어폭 451 − 4</td></tr>
+      <tr><td>멍가림판</td><td>MDF</td><td class="num">2.7</td><td class="num">380</td><td class="num">720</td><td>멍 395 − 목대 15</td></tr>
+      <tr><td>경첩목대</td><td>PB</td><td class="num">15</td><td class="num">70</td><td class="num">720</td><td>§3.3</td></tr>
+      <tr><td><b>몰딩(멍판)</b></td><td>MDF</td><td class="num">18</td><td class="num">100</td><td class="num">720</td><td>자리 60 + 겹침 40</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-top:2px">라인을 휠라로 바꾸면 같은 줄이
+  <code>휠라(멍판)</code> 로 나옵니다. 나머지 세 줄은 동일합니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">03</span>키큰장 — 코너 대상이 아닙니다</h2>
+  <p class="sub">버그가 아니라 <b>의도된 제외</b>입니다. 근거를 셋 대 봅니다.</p>
+
+  <ol>
+    <li><b>코드가 명시적으로 뺍니다.</b> <code>cornerPairs</code> 의 첫 줄이
+      <code>areas.filter(a =&gt; !a.isFinishing &amp;&amp; !isStackedArea(a))</code> 입니다.
+      키큰장은 <code>stackForArea</code> 가 스택을 돌려주므로 후보에서 빠집니다.</li>
+    <li><b>전제가 안 맞습니다.</b> 코너 계산은 "라인 하나에 모듈이 <u>나란히</u> 선다" 를
+      전제로 폭을 나눕니다. 스택은 단이 <u>세로로 겹쳐</u> 서고 세 단이 같은 x·같은 W 를
+      씁니다 (W12-22) — 나눌 가로 자리가 없습니다.</li>
+    <li><b>규칙 문서에 없습니다.</b> <code>corner.md</code> 는 하부(§3.3)와 상부(§3.6) 멍장만
+      정합니다. 키큰장 코너 공식은 정의된 적이 없습니다.</li>
+  </ol>
+
+  <p>실측도 같습니다 — 키큰장으로 ㄱ자를 그려도 <code>cornerPairs()</code> 가 빈 배열이고
+  자동계산 후에도 멍장이 서지 않습니다. 회귀로 잠갔습니다.</p>
+
+  <h3>대신 마감재 경로는 정상입니다</h3>
+  <p>스택 전용 코드(<code>setStackAreaFinish</code>)를 타며, <b>비움도 세 단이 함께 폭을
+  내놓습니다.</b> 한 단만 줄면 나머지 단이 마감재를 뚫고 나오는데(W12-22), 그 규칙이 유지됩니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>동작</th><th class="num">마감재 W</th><th>세 단 폭</th></tr></thead>
+    <tbody>
+      <tr><td>없음</td><td class="num">—</td><td><code>3000 / 3000 / 3000</code></td></tr>
+      <tr><td>EP</td><td class="num">20</td><td><code>2980 / 2980 / 2980</code></td></tr>
+      <tr><td>몰딩 · 휠라</td><td class="num">60</td><td><code>2940 / 2940 / 2940</code></td></tr>
+      <tr><td>비움 (기본)</td><td class="num">50</td><td><code>2950 / 2950 / 2950</code></td></tr>
+      <tr><td><b>비움 180</b></td><td class="num">180</td><td><code>2820 / 2820 / 2820</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout decide">
+    <h4>판단이 필요하면 알려 주세요</h4>
+    <p>"키큰장 ㄱ자에도 멍장이 서야 한다" 면 그건 <b>새 규칙을 만드는 일</b>입니다 —
+    스택의 세 단 중 어느 단이 멍을 갖는지, 도어 균등 분배를 단별로 도는지부터 정해야 합니다.
+    이번 점검 범위 밖이라 손대지 않았습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>점검하다 고친 것</h2>
+  <p class="sub">한 건입니다. 이번 기능이 만든 누락이라 범위 안에서 고쳤습니다.</p>
+
+  <h3>비움이 상판을 침범해 보였다</h3>
+  <p><code>finishingSpanOf</code> 는 마감재가 <b>서는 높이</b>를 정합니다. 몰딩·EP 는
+  <code>영역 H − 상판 두께</code>, 휠라는 <b>도어 높이</b>를 씁니다. 그런데 비움은 어느 가지에도
+  없어 폴백(<code>영역 H</code>)으로 떨어졌습니다.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>종류</th><th class="num">고치기 전</th><th class="num">고친 뒤</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>몰딩</td><td class="num">858</td><td class="num">858</td><td>영역 870 − 상판 12</td></tr>
+      <tr><td>휠라</td><td class="num">678</td><td class="num">678</td><td>도어 높이</td></tr>
+      <tr><td><b>비움</b></td><td class="num"><span class="badge bad">870</span></td>
+          <td class="num"><span class="badge ok">858</span></td><td>몰딩과 같은 자리</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>몰딩을 비움으로 바꾸면 표시 높이가 상판 두께만큼 튀어 올라 <b>비운 자리가 상판을
+  침범한 것처럼</b> 보였습니다. 같은 자리에 서는 부재이므로 같은 가지에 붙였습니다.</p>
+</section>
+
+<section>
+  <h2><span class="no">05</span>확인했으나 고치지 않은 것</h2>
+  <p class="sub">둘 다 <b>main 에도 있는 기존 결함</b>입니다 — stash 대조로 확인했습니다.</p>
+
+  <h3>① 코너에 마감재를 붙이면 멍장이 부품보다 작아진다 <span class="badge bad">상부장에서도 확인</span></h3>
+  <p>1차 보고 때 하부장에서 찾은 결함인데, <b>상부장에서도 똑같이 재현</b>됩니다.</p>
+  <pre>상부 전    카카스 <span class="g">846</span>  멍+도어 846  차이 <span class="g">0</span>   원장 <span class="g">0</span>
+상부 좌몰딩 카카스 <span class="r">786</span>  멍+도어 846  차이 <span class="r">−60</span>  원장 <span class="r">−50</span>
+재계산     카카스 <span class="g">806</span>  멍+도어 806  차이 <span class="g">0</span>   원장 <span class="g">0</span>   <span class="c">← 자동계산이 복구한다</span></pre>
+  <p>원인은 <code>setModuleFinish</code> 가 <code>isFixed</code> 를 보지 않고 호스트(=멍장) 폭을
+  뺏는 것입니다. 자동계산을 다시 돌리면 복구되지만, 그 전에 BOM 을 뽑으면 <b>경고 없이</b>
+  카카스보다 60 큰 부품이 발주됩니다 — 멍장이 셀 폭 합 검사를 건너뛰기 때문입니다.</p>
+
+  <h3>② 키큰장 스택 단은 자동계산 뒤에도 셀 구조가 없다</h3>
+  <p>키큰장으로 BOM 을 뽑으면 단마다 <code>"자동계산 전이라 3600mm 통짜로 잡혔습니다"</code>
+  경고가 뜹니다. 자동계산을 실행했는데도 뜹니다 — 스택 단에 <code>areaWidths</code> 가 안 생기기
+  때문입니다. <b>main 에서 동일하게 재현</b>됩니다.</p>
+
+  <div class="callout risk">
+    <h4>왜 이 PR 에서 안 고쳤나</h4>
+    <p>둘 다 이번 기능(멍판 마감재 · 비움)이 만든 것이 아니고, 고치려면 마감재가 붙는
+    방식 자체를 손봐야 합니다 — 승인 범위 밖이라 판단했습니다. ①은 별도 문서
+    <b>「코너 원장 어긋남」</b> 에 원인 셋과 선택지를 정리해 두었습니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">06</span>테스트 결과</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>스위트</th><th class="num">건수</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr class="sec"><td colspan="3">신규</td></tr>
+      <tr><td><code>planner-blind-finish</code></td><td class="num">31</td>
+          <td>멍판 마감재 파생 · 판정 10종 · 이중 차감 · <b>상부장 코너 5</b> · <b>키큰장 제외 1</b></td></tr>
+      <tr><td><code>planner-finish-gap</code></td><td class="num">15</td>
+          <td>비움 정의 · 폭 편집 · 원장 · 그림 · <b>서는 높이</b> · <b>스택 영역</b></td></tr>
+      <tr><td><code>extractors-blind-finish</code></td><td class="num">9</td>
+          <td>멍가림판 = 멍 − 목대 · 마감재 100 · 종류 연동 · None</td></tr>
+      <tr class="sec"><td colspan="3">갱신</td></tr>
+      <tr><td><code>extractors-corner</code></td><td class="num">3</td><td>멍가림판 715→700, 395→380</td></tr>
+      <tr><td><code>planner-corner-blind</code> · <code>planner-blind-cell</code></td><td class="num">2</td><td>셀 2칸 → 3칸</td></tr>
+      <tr><td><code>planner-module-finish</code></td><td class="num">1</td><td>높이 규칙 가드에 비움 추가</td></tr>
+      <tr class="sec"><td colspan="3">전체</td></tr>
+      <tr><td><b>합계</b></td><td class="num"><b>992</b></td>
+          <td><b>989 통과</b> · 3 실패 (i18n — main 동일) · 골든 3/3</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>브라우저 실측 (localhost:3050, 콘솔 무오류)</h3>
+  <ul>
+    <li>상부 ㄱ자 자동계산 → 멍장 846 · 멍 395 · 셀 <code>[295,100,451]</code> 합 846</li>
+    <li>마감재 옵션 4종 표기 — <code>EP 20mm · 부재 18T | 몰딩 60mm | 휠라 60mm | 비움 50mm · 부재 없음</code></li>
+    <li>키큰장 <code>isStackedArea = true</code> · 코너쌍 미포함 · 비움 180 에 세 단 모두 2820</li>
+    <li>3D — 마감재 메쉬는 몰딩만, <b>비움은 메쉬가 서지 않음</b> (부재 폭 0)</li>
+    <li>멍판 3D — 18T · 폭 96(100−갭4) · z 286.7 = 멍판(2.7T, z 284) + 2.7 <b>정확히 한 겹 앞</b></li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="no">07</span>결론</h2>
+  <div class="callout keep">
+    <h4>상부장 — 이상 없음</h4>
+    <p>코너 인식 · 멍장 생성 · 멍판 마감재 · 라인 연동 · 원장 · 겹침 · BOM 끝단까지
+    하부장과 동일하게 동작합니다. 회귀 테스트로 잠갔습니다.</p>
+  </div>
+  <div class="callout">
+    <h4>키큰장 — 코너 대상 아님 (설계상 제외), 마감재는 이상 없음</h4>
+    <p>스택 영역이라 멍장이 서지 않는 것이 맞습니다. EP·몰딩·휠라·비움 모두 스택 경로로
+    정상 동작하며, 세 단이 함께 폭을 내놓는 규칙이 유지됩니다.</p>
+  </div>
+  <div class="callout risk">
+    <h4>남은 위험 — 코너 끝 마감재</h4>
+    <p>상부·하부 공통으로, 코너 쪽 끝에 마감재를 붙인 뒤 <b>자동계산을 다시 돌리지 않고</b>
+    BOM 을 뽑으면 멍장 카카스가 60 작게 발주됩니다. 별건이며 판단을 기다리고 있습니다.</p>
+  </div>
+</section>
+</main>
