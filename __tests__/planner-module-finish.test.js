@@ -181,8 +181,10 @@ describe('주인이 사라지면 마감재도 정리된다', () => {
   });
 
   test('자동계산은 마감재를 영역 마감재로 승격시킨다', () => {
-    // 마감재는 사람이 놓은 것이라 보존한다. 다만 호스트가 사라지므로
-    // 연결(hostId)을 끊어 유령이 되지 않게 한다.
+    // 마감재는 사람이 놓은 것이라 보존한다. 호스트가 사라지므로 연결(hostId)을
+    // 끊되, W12-64: **어느 끝인지(hostSide)는 남기고 영역에 매단다(hostAreaId)** —
+    // 예전엔 hostSide 까지 지워 areaFinishOn 이 못 찾는 유령이 됐고, 자동계산의
+    // 끝 배치가 좌/우를 몰라 반대편에 세웠다.
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const { area, m } = withModule(p);
     p.g('setModuleFinish')(m.id, 'right', 'molding');
@@ -192,7 +194,9 @@ describe('주인이 사라지면 마감재도 정리된다', () => {
     const after = p.g('modules').find((x) => x.isFinishing);
     expect(after).toBeDefined();
     expect(after.hostId).toBeUndefined();
-    expect(after.hostSide).toBeUndefined();
+    expect(after.hostSide).toBe('right');
+    expect(after.hostAreaId).toBe(area.id);
+    expect(p.g('areaFinishOn')(area.id, 'right')).toBe(after);   // 패널이 다시 찾는다
   });
 });
 
