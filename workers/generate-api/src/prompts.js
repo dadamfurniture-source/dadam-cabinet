@@ -33,8 +33,9 @@ export const CATEGORIES = {
     spec: (c) =>
       `Straight kitchen run along the wall. Upper cabinets flush to the ceiling. ` +
       `Lower cabinets in 600 mm modules under one continuous stone countertop. ` +
-      `Undermount sink about ${c.waterPct}% of the way from the left, flush induction cooktop ` +
-      `about ${c.exhaustPct}% from the left with a slim concealed hood above it. ` +
+      `Undermount sink about ${c.waterPct}% of the way from the left with a single-lever mixer faucet ` +
+      `(matte black or brushed steel) mounted on the countertop behind it — the faucet is mandatory. ` +
+      `Flush induction cooktop about ${c.exhaustPct}% from the left with a slim concealed hood above it. ` +
       `A two-drawer stack under the cooktop, single full-height doors elsewhere. No visible appliances.`,
   },
   island: {
@@ -183,7 +184,12 @@ export const QC_FIXES = {
     'Finish the room completely: no debris, tools, boxes, dust, protective film or bare cement anywhere in the frame; hide every exposed pipe, valve and wire behind the furniture or inside the wall.',
   tile_not_neutral:
     'Replace every wall tile visible around the furniture with light neutral tiles: matte off-white or light grey, low saturation.',
+  faucet_missing:
+    'Add a single-lever mixer faucet (matte black or brushed steel) on the countertop directly behind the sink basin.',
 };
+
+/** 수전 검사가 뜻이 있는 품목 (싱크가 있는 것). */
+export const KITCHEN_CATEGORIES = ['sink', 'island'];
 
 /**
  * @param {object} c
@@ -253,7 +259,11 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - wrong_category: the furniture is not a ${CATEGORIES[key].label}
 - low_detail: blurry, smeared or obviously synthetic surfaces
 - construction_leftover: debris, tools, boxes, protective film, exposed pipes or bare unfinished walls still visible
-- tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
+- tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)${
+    KITCHEN_CATEGORIES.includes(key)
+      ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
+      : ''
+  }
 ok is true when issues is empty. note is one short sentence.`;
 }
 
@@ -336,6 +346,67 @@ export function parseThemePalette(text) {
   } catch {
     return null;
   }
+}
+
+// ─── 6. 투톤 추천안 (싱크가 있는 품목) — 상부장·하부장 색을 다르게 ───
+/** 상·하부 조합. 옛 싱크대 프롬프트의 ALT_TWO_TONES 를 옮겼다. */
+export const TWO_TONES = [
+  {
+    key: 'cream-walnut',
+    upper: 'cream white matte',
+    lower: 'walnut woodgrain',
+    tone: '크림 · 월넛',
+  },
+  { key: 'black-oak', upper: 'matte black', lower: 'natural oak woodgrain', tone: '블랙 · 오크' },
+  {
+    key: 'sage-cream',
+    upper: 'sage green matte',
+    lower: 'cream white matte',
+    tone: '세이지 · 크림',
+  },
+  {
+    key: 'navy-beige',
+    upper: 'navy blue matte',
+    lower: 'warm beige matte',
+    tone: '네이비 · 베이지',
+  },
+  {
+    key: 'white-smoked',
+    upper: 'warm white matte',
+    lower: 'smoked oak woodgrain',
+    tone: '화이트 · 스모크오크',
+  },
+  {
+    key: 'terracotta-cream',
+    upper: 'terracotta matte',
+    lower: 'cream white matte',
+    tone: '테라코타 · 크림',
+  },
+  {
+    key: 'grey-walnut',
+    upper: 'soft grey matte',
+    lower: 'walnut woodgrain',
+    tone: '그레이 · 월넛',
+  },
+  {
+    key: 'white-greige',
+    upper: 'pure white matte',
+    lower: 'greige matte',
+    tone: '화이트 · 그레이지',
+  },
+];
+
+export function pickTwoTone(seed) {
+  const s = ((seed >>> 0 || 1) * 1103515245 + 12345) >>> 0;
+  return TWO_TONES[s % TWO_TONES.length];
+}
+
+export function buildTwoToneVariantPrompt(pair) {
+  return `Recolour the kitchen furniture in this photo to a two-tone scheme:
+- Upper (wall) cabinets: ${pair.upper}
+- Lower (base) cabinets, drawers and any island: ${pair.lower}
+Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, sink, faucet, cooktop, hood, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
+Photorealistic. No text, labels or watermarks.`;
 }
 
 export function buildVariantPrompt(finish) {

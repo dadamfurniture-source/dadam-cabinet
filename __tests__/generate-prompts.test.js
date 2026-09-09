@@ -42,6 +42,10 @@ const P = loadEsm('workers/generate-api/src/prompts.js', [
   'buildVariantPrompt',
   'buildThemePalettePrompt',
   'parseThemePalette',
+  'KITCHEN_CATEGORIES',
+  'TWO_TONES',
+  'pickTwoTone',
+  'buildTwoToneVariantPrompt',
 ]);
 const Q = loadEsm('workers/generate-api/src/quote.js', ['buildQuote']);
 const S = loadEsm('workers/generate-api/src/share.js', [
@@ -105,6 +109,8 @@ describe('설치 프롬프트', () => {
     const sink = P.buildInstallPrompt(ctx);
     expect(sink).toMatch(/sink about 30%/);
     expect(sink).toMatch(/cooktop about 70%/);
+    expect(sink).toMatch(/mixer faucet .* the faucet is mandatory/);
+    expect(P.buildInstallPrompt({ ...ctx, category: 'wardrobe' })).not.toMatch(/faucet/);
     const island = P.buildInstallPrompt({ ...ctx, category: 'island' });
     expect(island).toContain('freestanding island');
     expect(island).toMatch(/sink about 30%/);
@@ -206,6 +212,26 @@ describe('품질 검사', () => {
     expect(P.parseQc('{"ok":true,"issues":[]}').ok).toBe(true);
     expect(P.parseQc('garbage').ok).toBe(true);
     expect(P.parseQc(null).ok).toBe(true);
+  });
+});
+
+describe('투톤 추천안', () => {
+  test('싱크가 있는 품목만 수전 검사를 받는다', () => {
+    expect(P.KITCHEN_CATEGORIES).toEqual(['sink', 'island']);
+    expect(P.buildQcPrompt(ctx)).toContain('- faucet_missing:');
+    expect(P.buildQcPrompt({ ...ctx, category: 'wardrobe' })).not.toContain('faucet_missing');
+  });
+
+  test('투톤은 상·하부를 다르게, 결정적으로 고른다', () => {
+    const a = P.pickTwoTone(3000);
+    expect(a).toBe(P.pickTwoTone(3000));
+    expect(P.TWO_TONES.length).toBe(8);
+    for (const t of P.TWO_TONES) expect(t.upper).not.toBe(t.lower);
+    const p = P.buildTwoToneVariantPrompt(a);
+    expect(p).toContain('Upper (wall) cabinets: ' + a.upper);
+    expect(p).toContain('Lower (base) cabinets, drawers and any island: ' + a.lower);
+    expect(p).toMatch(/faucet/);
+    expect(p).toMatch(/All doors stay closed/);
   });
 });
 
