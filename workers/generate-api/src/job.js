@@ -24,12 +24,15 @@ import {
   buildInstallPrompt,
   buildQcPrompt,
   buildThemePalettePrompt,
+  buildTwoToneVariantPrompt,
   buildVariantPrompt,
+  KITCHEN_CATEGORIES,
   clampWall,
   parseAnalysis,
   parseQc,
   parseThemePalette,
   pickFinishes,
+  pickTwoTone,
   resolveCategory,
 } from './prompts.js';
 import { buildQuote } from './quote.js';
@@ -303,14 +306,35 @@ async function runPipeline(env, job, ck, save) {
     }
     await save({ themeFinish: ck.themeFinish });
   }
+  // 추천안 구성 — 순서대로 슬롯 v1..v3.
+  //   테마 색감 (테마 참고가 있을 때) → 투톤 (싱크가 있는 품목) → 나머지는 팔레트
   const seed = wall.wallW + category.length * 7919;
-  const finishes = ck.themeFinish
-    ? [ck.themeFinish, ...pickFinishes(VARIANT_COUNT - 1, seed)]
-    : pickFinishes(VARIANT_COUNT, seed);
+  const specs = [];
+  if (ck.themeFinish) {
+    const f = ck.themeFinish;
+    specs.push({
+      key: 'theme',
+      label: `AI 추천 · 테마 색감 (${f.tone})`,
+      finish: { body: f.body, accent: f.accent },
+      prompt: buildVariantPrompt(f),
+    });
+  }
+  if (KITCHEN_CATEGORIES.includes(category)) {
+    const pair = pickTwoTone(seed);
+    specs.push({
+      key: `two-tone:${pair.key}`,
+      label: `AI 추천 · 투톤 (${pair.tone})`,
+      finish: { upper: pair.upper, lower: pair.lower },
+      prompt: buildTwoToneVariantPrompt(pair),
+    });
+  }
+  for (const f of pickFinishes(VARIANT_COUNT - specs.length, seed)) {
+    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, prompt: buildVariantPrompt(f) });
+  }
 
   const variantErrors = {};
   await Promise.all(
-    finishes.map(async (f, i) => {
+    specs.map(async (f, i) => {
       const slot = `v${i + 1}`;
       if (ck.images[slot]) return; // 재실행 시 이미 올라간 슬롯
       // 세 호출을 한꺼번에 쏘면 분당 한도에 걸릴 수 있어 살짝 어긋나게 보낸다.
@@ -319,7 +343,7 @@ async function runPipeline(env, job, ck, save) {
       for (let attempt = 1; attempt <= VARIANT_ATTEMPTS; attempt++) {
         try {
           const r = await callGemini(env, {
-            prompt: buildVariantPrompt(f),
+            prompt: f.prompt,
             images: [base],
             imageSize,
           });
@@ -327,9 +351,9 @@ async function runPipeline(env, job, ck, save) {
           const mime = r.imageMime || 'image/jpeg';
           const up = await uploadObject(env, `${prefix}/${slot}.${extOf(mime)}`, r.image, mime);
           ck.images[slot] = {
-            label: f.key === 'theme' ? `AI 추천 · 테마 색감 (${f.tone})` : `AI 추천 · ${f.tone}`,
+            label: f.label,
             finish_key: f.key,
-            finish: f.key === 'theme' ? { body: f.body, accent: f.accent } : undefined,
+            finish: f.finish,
             path: up.path,
             url: up.url,
           };
