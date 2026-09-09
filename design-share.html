@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>공유된 연출컷 - 다담가구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
+    <script src="js/config.js"></script>
+    <style>
+      /* 공유 페이지 — 로그인 없이 연다. 토큰은 #t= (fragment) 로 오고 서버로 전송되지 않는다. */
+      .sh-head {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .sh-title {
+        font-family: 'Cormorant Garamond', serif;
+        font-weight: 300;
+        font-size: 34px;
+        line-height: 1.1;
+        color: var(--v5-ink);
+        margin: 10px 0 8px;
+      }
+      .sh-sub {
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        color: var(--v5-ink-45);
+      }
+      .sh-shots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+      }
+      .sh-shots figure {
+        margin: 0;
+      }
+      .sh-shots img {
+        width: 100%;
+        display: block;
+        background: var(--v5-photo);
+      }
+      .sh-shots figcaption {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11.5px;
+        letter-spacing: 0.06em;
+        color: var(--v5-ink-55);
+        padding: 8px 2px 0;
+      }
+      .sh-quote {
+        max-width: 640px;
+        margin: 36px auto 0;
+        border-top: 1px solid var(--v5-line-12);
+        font-size: 13px;
+      }
+      .sh-quote-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 2px;
+        border-bottom: 1px solid var(--v5-line);
+        color: var(--v5-ink-62);
+      }
+      .sh-quote-row--total {
+        color: var(--v5-ink);
+        font-weight: 500;
+      }
+      .sh-cta {
+        text-align: center;
+        margin-top: 40px;
+      }
+      .sh-msg {
+        text-align: center;
+        padding: 80px 0;
+        color: var(--v5-ink-55);
+        font-weight: 300;
+        line-height: 2;
+      }
+      .sh-msg b {
+        display: block;
+        font-weight: 400;
+        color: var(--v5-ink);
+        font-size: 16px;
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body class="v5-page">
+    <div data-site-shell="header" data-nav=""></div>
+
+    <main class="v5-main">
+      <div class="v5-wrap">
+        <div class="sh-msg" id="loading">불러오는 중</div>
+        <div class="sh-msg" id="error" hidden><b id="errorTitle"></b><span id="errorText"></span></div>
+
+        <section id="doc" hidden>
+          <div class="sh-head">
+            <p class="v5-lede-eyebrow">SHARED CREATIVE IMAGE</p>
+            <h1 class="sh-title" id="title">연출컷</h1>
+            <div class="sh-sub" id="sub"></div>
+          </div>
+          <div class="sh-shots" id="shots"></div>
+          <p class="v5-note">
+            생성 이미지는 실제 시공 결과와 다를 수 있습니다. 정확한 치수·자재는 상담에서 확정합니다.
+          </p>
+          <div class="sh-quote" id="quote"></div>
+          <div class="sh-cta">
+            <a class="v5-btn v5-btn--solid v5-btn--lg" href="ai-design.html">내 공간으로 만들어 보기</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div data-site-shell="footer"></div>
+    <script src="js/site-shell.js" defer></script>
+    <script>
+      (function () {
+        'use strict';
+        var API_BASE = (
+          (window.DADAM_CONFIG && window.DADAM_CONFIG.generateApi && window.DADAM_CONFIG.generateApi.url) ||
+          'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate'
+        ).replace(/\/api\/generate\/?$/, '');
+        var LABELS = {
+          sink: '싱크대',
+          island: '아일랜드',
+          wardrobe: '붙박이장',
+          storage: '수납장',
+          fridge: '냉장고장',
+          vanity: '화장대',
+          shoe: '신발장',
+          office: '사무실',
+        };
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+        function won(n) {
+          return Number(n || 0).toLocaleString() + '원';
+        }
+        function when(iso) {
+          var d = new Date(iso);
+          return (
+            d.getFullYear() +
+            '.' +
+            String(d.getMonth() + 1).padStart(2, '0') +
+            '.' +
+            String(d.getDate()).padStart(2, '0')
+          );
+        }
+        // 토큰은 fragment 에 있다 — 쿼리스트링이면 미리보기 크롤러·Referer·CDN 로그에 남는다.
+        function readToken() {
+          var m = /(?:^|&)t=([^&]+)/.exec(String(location.hash || '').replace(/^#/, ''));
+          return m ? decodeURIComponent(m[1]) : '';
+        }
+        function fail(title, text) {
+          $('loading').hidden = true;
+          $('errorTitle').textContent = title;
+          $('errorText').textContent = text;
+          $('error').hidden = false;
+        }
+
+        async function load() {
+          var token = readToken();
+          if (!token) return fail('링크가 올바르지 않습니다', '공유 링크를 다시 확인해 주세요.');
+          var res, data;
+          try {
+            res = await fetch(API_BASE + '/api/share', { headers: { 'X-Share-Token': token } });
+            data = await res.json();
+          } catch (e) {
+            return fail('불러오지 못했습니다', '잠시 뒤 다시 시도해 주세요.');
+          }
+          if (!res.ok || !data.success) {
+            var titles = {
+              share_expired: '만료된 링크입니다',
+              share_revoked: '공유가 중단된 링크입니다',
+              not_ready: '아직 준비 중입니다',
+            };
+            return fail(titles[data.code] || '링크가 유효하지 않습니다', data.error || '');
+          }
+          var g = data.generation;
+          $('title').textContent = g.title || (LABELS[g.category] || g.category) + ' 연출컷';
+          $('sub').textContent = when(g.created_at) + (g.expires_at ? ' · ' + when(g.expires_at) + ' 까지 열람' : '');
+          $('shots').innerHTML = (g.images || [])
+            .map(function (im, i) {
+              return (
+                '<figure><img src="' +
+                esc(im.url) +
+                '" alt="' +
+                esc(im.label) +
+                '" loading="' +
+                (i ? 'lazy' : 'eager') +
+                '" /><figcaption><span>' +
+                esc(im.label) +
+                '</span><span>' +
+                (i + 1) +
+                '</span></figcaption></figure>'
+              );
+            })
+            .join('');
+          var q = g.quote;
+          $('quote').innerHTML = q
+            ? '<p class="v5-lede-eyebrow" style="margin:0 0 6px">ESTIMATE · 예상 견적</p>' +
+              (q.items || [])
+                .map(function (it) {
+                  return (
+                    '<div class="sh-quote-row"><span>' +
+                    esc(it.name) +
+                    (it.quantity ? ' · ' + esc(it.quantity) : '') +
+                    '</span><span>' +
+                    won(it.total != null ? it.total : it.price) +
+                    '</span></div>'
+                  );
+                })
+                .join('') +
+              '<div class="sh-quote-row sh-quote-row--total"><span>합계 (VAT 포함)</span><span>' +
+              won(q.total) +
+              '</span></div>'
+            : '';
+          $('loading').hidden = true;
+          $('doc').hidden = false;
+        }
+        load();
+      })();
+    </script>
+  </body>
+</html>
