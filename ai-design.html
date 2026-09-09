@@ -1002,17 +1002,15 @@
           renderResults();
 
           // 참고 이미지를 base64 로. 실패한 것은 건너뛴다.
+          // 역할: 테마(th-)는 색감만 빌려 추천안 한 장이 되고, 업로드·시공사례는 설치 참고다.
           var refs = (
             await Promise.all(
-              S.picks.map(function (p) {
-                return fetchAsBase64(p.src);
+              S.picks.map(async function (p) {
+                var r = await fetchAsBase64(p.src);
+                return r && { base64: r.base64, mimeType: r.mime, role: /^th-/.test(p.key) ? 'theme' : 'style' };
               })
             )
-          )
-            .filter(Boolean)
-            .map(function (r) {
-              return { base64: r.base64, mimeType: r.mime };
-            });
+          ).filter(Boolean);
 
           var body = {
             room_image: S.img1.base64,
