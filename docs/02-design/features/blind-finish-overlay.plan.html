@@ -1,0 +1,224 @@
+<title>멍판 마감재 포개기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f1efe9; --surface2: #e9e5dc;
+    --ink: #2d2a26; --muted: #6f6a62; --accent: #a8865c;
+    --line: #ddd8cf;
+    --ok: #4a7c59; --ok-bg: rgba(74,124,89,.12);
+    --info: #4a6b8a; --info-bg: rgba(74,107,138,.11);
+    --warn: #a8702a; --warn-bg: rgba(176,116,47,.13);
+    --bad: #a04338; --bad-bg: rgba(160,67,56,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+      --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+      --line: #3d3931;
+      --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+      --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+      --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+      --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --surface: #2b2825; --surface2: #343029;
+    --ink: #e8e4dc; --muted: #a49d92; --accent: #c9a87e;
+    --line: #3d3931;
+    --ok: #7fb08d; --ok-bg: rgba(127,176,141,.14);
+    --info: #8aa9c4; --info-bg: rgba(138,169,196,.13);
+    --warn: #d0a05e; --warn-bg: rgba(208,160,94,.14);
+    --bad: #c87c72; --bad-bg: rgba(200,124,114,.13);
+  }
+  body { background: var(--bg); color: var(--ink); font-family: 'Pretendard Variable','Pretendard',-apple-system,'Segoe UI','Malgun Gothic',sans-serif; line-height: 1.72; font-size: 16px; margin: 0; padding: 0 20px 96px; }
+  main { max-width: 900px; margin: 0 auto; }
+  header.doc { padding: 56px 0 30px; border-bottom: 2px solid var(--ink); }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 14px; font-family: 'JetBrains Mono',Consolas,monospace; }
+  h1 { font-size: 32px; line-height: 1.3; margin: 0 0 14px; font-weight: 800; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 17px; max-width: 46em; margin: 0; }
+  .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+  section { margin-top: 52px; }
+  h2 { font-size: 21px; font-weight: 800; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-family: 'JetBrains Mono',Consolas,monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+  h2 + p.sub { color: var(--muted); margin: 0 0 18px; font-size: 15px; max-width: 46em; }
+  h3 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 12px 0; max-width: 46em; }
+  ul, ol { max-width: 45em; padding-left: 22px; } li { margin: 6px 0; } b { font-weight: 700; }
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 9px; border-radius: 3px; vertical-align: 1px; white-space: nowrap; font-family: 'JetBrains Mono',Consolas,monospace; }
+  .badge.bad { color: var(--bad); background: var(--bad-bg); } .badge.ok { color: var(--ok); background: var(--ok-bg); } .badge.warn { color: var(--warn); background: var(--warn-bg); } .badge.info { color: var(--info); background: var(--info-bg); }
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono',Consolas,monospace; }
+  td code, li code, p code { font-family: 'JetBrains Mono',Consolas,monospace; font-size: .86em; background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  pre { background: #29261f; color: #e7e0d2; font-family: 'JetBrains Mono',Consolas,monospace; font-size: 12.5px; line-height: 1.7; padding: 16px 18px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+  pre .c { color: #8d8574; } pre .g { color: #9fc0a8; } pre .r { color: #d0928a; } pre .y { color: #d4b58c; }
+  figure { margin: 24px 0; padding: 22px 20px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  figure svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; max-width: 52em; margin-left: auto; margin-right: auto; }
+  svg text { font-family: 'Pretendard',-apple-system,sans-serif; } svg .mono { font-family: 'JetBrains Mono',Consolas,monospace; }
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; padding: 15px 19px; margin: 18px 0; max-width: 48em; }
+  .callout.risk { border-left-color: var(--bad); } .callout.keep { border-left-color: var(--ok); } .callout.decide { border-left-color: var(--warn); }
+  .callout h4 { margin: 0 0 6px; font-size: 14px; } .callout p { margin: 6px 0 0; font-size: 14.5px; } .callout p:first-of-type { margin-top: 0; }
+  .opt { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 16px 20px; margin: 12px 0; max-width: 48em; border-left: 4px solid var(--line); }
+  .opt.pick { border-left-color: var(--ok); } .opt.no { border-left-color: var(--bad); }
+  .opt h4 { margin: 0 0 6px; font-size: 15px; display: flex; gap: 10px; align-items: baseline; } .opt h4 .tag { font-family: 'JetBrains Mono',Consolas,monospace; font-size: 12px; color: var(--accent); }
+  .opt p { margin: 6px 0; font-size: 14.5px; } .opt .verdict { font-size: 14px; font-weight: 600; margin-top: 10px; } .opt.pick .verdict { color: var(--ok); } .opt.no .verdict { color: var(--bad); }
+  .steps { counter-reset: s; list-style: none; padding-left: 0; max-width: 47em; }
+  .steps > li { counter-increment: s; position: relative; padding-left: 44px; margin: 18px 0; }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-family: 'JetBrains Mono',Consolas,monospace; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .steps > li b.h { display: block; font-size: 15.5px; margin-bottom: 2px; }
+  @media (max-width: 700px) { h1 { font-size: 25px; } }
+</style>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">분석 · 해결안 · <span style="color:var(--ok)">A 안 구현됨 (W12-66)</span></p>
+  <h1>멍판 마감재 포개기</h1>
+  <p class="lede">멍판 마감재(100)는 <b>멍가림판 위에 포개어져야</b> 하는데, 지금 정면·3D는
+  마감재를 멍가림판 <b>옆 칸</b>으로 그립니다. 그래서 멍가림판이 목대까지 닿지 않고(85mm 짧음)
+  마감재가 그 옆에 따로 섭니다. <b>BOM 숫자는 맞습니다</b> — 표현 모델이 틀렸습니다.
+  원인은 "포개는 부재"를 "나란한 칸"으로 넣은 것이고, 해결은 마감재를 칸에서 빼 <b>덮개</b>로 그리는 것입니다.</p>
+  <div class="meta">
+    <span><b>대상</b> mockup-structure.html (ensureCornerModules · 2D/3D 렌더)</span>
+    <span><b>근거</b> corner.md §3.3 · §3.5 · 「멍판 마감재 연동」 §03</span>
+    <span><b>영향</b> 그림만 — BOM·원장·멍 공식 불변</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="no">01</span>무엇이 어긋나 있나</h2>
+  <p class="sub">하부 멍장, 멍 765 기준. 규칙(W12-61 확정)과 지금 그림을 나란히 놓습니다.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="규칙은 멍가림판 750 위에 마감재 100이 650에서 750까지 포개어지고 목대 15가 이어지는데, 지금 그림은 멍가림판 665와 마감재 100이 옆으로 나란히 서서 마감재가 목대 자리까지 덮고 멍가림판은 목대에 닿지 않는다">
+      <defs>
+        <pattern id="ov" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="var(--accent)" stroke-width="2.2" opacity="0.8"/>
+        </pattern>
+      </defs>
+      <!-- scale: 765mm -> 459px (0.6 px/mm), x0 = 20 -->
+      <text x="20" y="20" font-size="12.5" font-weight="700" fill="var(--ok)">규칙 — 마감재는 멍가림판 위에 포개어진다</text>
+      <rect x="20" y="32" width="450" height="52" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="410" y="32" width="60" height="52" fill="url(#ov)" stroke="var(--accent)" stroke-width="1.6"/>
+      <rect x="470" y="32" width="9" height="52" fill="currentColor" opacity="0.45"/>
+      <rect x="479" y="32" width="227" height="52" fill="currentColor" opacity="0.06" stroke="currentColor" stroke-width="1.2"/>
+      <text x="215" y="63" font-size="11.5" text-anchor="middle" fill="currentColor">멍가림판 2.7T · <tspan class="mono">750</tspan></text>
+      <text x="440" y="27" font-size="10.5" text-anchor="middle" fill="var(--accent)" font-weight="700">마감재 100 (650..750)</text>
+      <text x="474" y="98" class="mono" font-size="9.5" text-anchor="middle" fill="currentColor" opacity="0.6">목대15</text>
+      <text x="592" y="63" font-size="11.5" text-anchor="middle" fill="currentColor">도어</text>
+      <text x="20" y="112" font-size="11" fill="currentColor" opacity="0.75">보이는 멍판 650 · 마감재가 멍판 끝 100 을 덮음 · 멍판은 목대(750)에 딱 닿음</text>
+
+      <text x="20" y="152" font-size="12.5" font-weight="700" fill="var(--bad)">지금 그림 — 마감재가 옆 칸이다</text>
+      <rect x="20" y="164" width="399" height="52" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="419" y="164" width="60" height="52" fill="var(--accent)" opacity="0.85" stroke="var(--accent)" stroke-width="1.2"/>
+      <rect x="479" y="164" width="227" height="52" fill="currentColor" opacity="0.06" stroke="currentColor" stroke-width="1.2"/>
+      <text x="219" y="195" font-size="11.5" text-anchor="middle" fill="currentColor">멍 칸 · <tspan class="mono">665</tspan></text>
+      <text x="449" y="195" font-size="10.5" text-anchor="middle" fill="#fff" font-weight="700">100</text>
+      <text x="592" y="195" font-size="11.5" text-anchor="middle" fill="currentColor">도어</text>
+      <line x1="419" y1="222" x2="470" y2="222" stroke="var(--bad)" stroke-width="1.6"/>
+      <text x="444" y="238" font-size="10.5" text-anchor="middle" fill="var(--bad)" font-weight="700">멍판이 85 짧다</text>
+      <line x1="470" y1="222" x2="479" y2="222" stroke="var(--bad)" stroke-width="1.6"/>
+      <text x="474" y="252" font-size="9.5" text-anchor="middle" fill="var(--bad)">목대 위를 마감재가 덮음</text>
+      <text x="20" y="278" font-size="11" fill="currentColor" opacity="0.75">셀 <tspan class="mono">[멍 665][마감 100][도어]</tspan> — 칸은 나란히 놓이는 것이라 "포개기" 를 표현할 수 없다</text>
+    </svg>
+    <figcaption>위가 규칙(§3.3·§3.5, W12-61 확정), 아래가 지금 정면·3D 입니다. 3D 는 z 만 한 겹 앞(2.7)이고
+    x 범위는 아래처럼 <b>옆 칸</b>이라 포개어지지 않습니다.</figcaption>
+  </figure>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>부재</th><th class="num">규칙 (BOM 도 이 값)</th><th class="num">지금 그림</th><th>어긋남</th></tr></thead>
+    <tbody>
+      <tr><td>멍가림판 2.7T</td><td class="num">0..750</td><td class="num">0..665</td><td><span class="badge bad">85 짧음</span> 목대에 닿지 않음</td></tr>
+      <tr><td>마감재 100</td><td class="num">650..750 <span class="badge ok">멍판 위</span></td><td class="num">665..765</td><td><span class="badge bad">옆 칸</span> 목대 자리(750..765)까지 덮음</td></tr>
+      <tr><td>경첩 목대 15</td><td class="num">750..765</td><td class="num">(멍 칸 안에 묻힘)</td><td>—</td></tr>
+      <tr><td>도어</td><td class="num">765..</td><td class="num">765..</td><td>맞음</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>왜 이렇게 됐나</h2>
+  <p>W12-61 에서 마감재를 정면 <b>셀</b>로 넣었습니다 — <code>[blind zoneW−100][blindfin 100][door]</code>.
+  셀은 모듈 폭을 <b>빈틈없이 나눠 갖는</b> 모델입니다. 두 칸이 같은 자리를 차지할 수 없습니다.
+  그런데 마감재는 정의상 <b>멍가림판 위에 40 을 물고</b> 올라오는 부재라(재단 100 = 자리 60 + 겹침 40),
+  나란한 칸으로는 애초에 그릴 수 없었습니다.</p>
+  <pre><span class="c">// ensureCornerModules (지금)</span>
+ws = [<span class="r">zoneW − finW</span>, finW, doorW]     <span class="c">// 멍 칸에서 100 을 떼어 옆에 세움 → 멍판이 100 짧아짐(목대 15 만큼은 도로 남음)</span></pre>
+  <p>BOM(<code>extractors.js</code>)은 셀을 보지 않고 <code>blindZoneW − 15</code> 와 <code>partW 100</code> 을
+  따로 내므로 <b>발주는 맞습니다.</b> 틀린 것은 정면도·3D 표현과, 분할 패널에 "멍판 마감재 (파생)" 칸이
+  하나 더 보이는 것입니다.</p>
+</section>
+
+<section>
+  <h2><span class="no">03</span>해결안</h2>
+
+  <div class="opt pick">
+    <h4><span class="tag">A · 권장</span>마감재를 칸에서 빼고 <b>덮개(overlay)</b> 로 그린다</h4>
+    <p>셀은 <code>[멍 zoneW][도어]</code> 두 칸으로 돌아갑니다 — 키큰장 멍장(W12-65)과 같은 모양입니다.
+    멍 칸 안에서 렌더러가 세 부재를 <b>겹쳐</b> 그립니다:</p>
+    <pre><span class="c">// 멍 구간 좌표 (벽 쪽 0 → 도어 쪽 zoneW), 하부·상부 공통</span>
+멍가림판  0 .. zoneW − 15                    <span class="c">2.7T · 맨 뒤</span>
+마감재    zoneW − 15 − 100 .. zoneW − 15       <span class="c">18T · 멍판 위(z +2.7)</span>
+목대      zoneW − 15 .. zoneW                 <span class="c">그리지 않음(지금처럼) 또는 얇은 띠</span>
+<span class="c">// 키큰장: 마감재 없음, 멍가림판 대신 EP 18T 0 .. zoneW − 15</span></pre>
+    <p>좌표 계산은 <code>planner-engine.js</code> 에 순수 함수 <code>blindFrontLayout(zoneW, {ep})</code> 하나로
+    두고 2D·3D·테스트가 같은 값을 씁니다. 멍장이 오른쪽 끝(도어가 먼저)이면 좌우를 뒤집습니다.</p>
+    <p class="verdict">✓ 물리와 같은 모델. 키큰장 EP 폭(zoneW − 15)도 같은 함수로 맞아 들어간다. 분할 패널의 파생 칸도 사라진다.</p>
+  </div>
+
+  <div class="opt no">
+    <h4><span class="tag">B</span>칸을 넷으로 — <code>[멍 650][마감 100][목대 15][도어]</code></h4>
+    <p>마감재를 목대 앞에 정확히 놓을 수는 있지만, 멍가림판은 여전히 650 까지만 그려집니다 —
+    마감재 <b>아래</b>로 뻗는 100 을 칸으로는 표현할 수 없습니다. 목대라는 선택 불가 칸이 패널에 하나 더 생깁니다.</p>
+    <p class="verdict">✗ 증상 절반만 고치고 모델은 더 복잡해진다.</p>
+  </div>
+
+  <div class="callout keep">
+    <h4>바뀌지 않는 것</h4>
+    <p>멍 공식(765) · 멍장 폭 · 도어 폭 · 원장 · BOM 네 부재(도어 · 멍가림판 750 · 경첩목대 · 마감재 100).
+    <b>그림과 셀 수만</b> 바뀝니다. 골든 스냅샷은 코너를 포함하지 않아 그대로입니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>A 안 구현 단계</h2>
+  <ol class="steps">
+    <li><b class="h"><code>planner-engine.js</code> — <code>blindFrontLayout(zoneW, opts)</code></b>
+      벽 쪽 0 기준으로 <code>{ cover:[0, zoneW−15], finish:[zoneW−115, zoneW−15] | null, batten:[zoneW−15, zoneW] }</code>.
+      <code>opts.ep</code> 면 cover 가 EP 이고 finish 는 null. 목대·재단 상수는 MASTER_RULES 에서.</li>
+    <li><b class="h"><code>ensureCornerModules</code> — 셀 2칸</b>
+      하부·상부도 <code>['blind','door'] / [zoneW, doorW]</code>. <code>m.blind.finish</code> 는 그대로 둔다(종류·재단은 BOM 이 쓴다).</li>
+    <li><b class="h">2D <code>renderModuleFront</code> — 멍 칸 안에 세 겹</b>
+      멍 칸 rect(멍판 색) 위에 마감재 rect(마감재 색·라벨)를 <code>blindFrontLayout</code> 좌표로 겹쳐 그린다.
+      도어가 먼저 오는 배치(<code>areaTypes[0]==='door'</code>)면 좌우 반전. 멍판 폭은 zoneW−15 로 목대 자리를 비운다.</li>
+    <li><b class="h">3D <code>addFrontPanel</code> 'blind' — 같은 좌표로 세 상자</b>
+      멍가림판(2.7T, overlayZ) → 마감재(18T, overlayZ+2.7, <b>x 를 멍판 끝에 맞춤</b>). 키큰장은 EP 18T 하나.
+      메타에 <code>doorSide</code> 를 넘겨 반전을 정한다.</li>
+    <li><b class="h">분할 패널 · 변환기</b>
+      <code>'blindfin'</code> 옵션 제거. <code>ui-step1</code> 의 멍장 분기는 셀을 안 보므로 변경 없음.
+      마감재 종류 연동(<code>blindFinishFor</code>)·재계산 훅은 그대로.</li>
+    <li><b class="h">테스트</b>
+      <code>planner-blind-finish.test.js</code> 의 "세 칸 · 마감재 칸이 도어 바로 옆" 을
+      "두 칸 · 마감재 덮개가 멍판 끝 100 을 덮고 목대 15 앞에서 끝난다" 로 바꾼다.
+      <code>planner-blind-cell.test.js</code> · <code>planner-corner-blind.test.js</code> 의 셀 수를 2 로.
+      3D 는 마감재 상자 x 범위가 멍판 상자 안에 있고 z 가 +2.7 임을 잠근다.</li>
+  </ol>
+  <p style="font-size:13.5px;color:var(--muted)">규모: 렌더 두 곳 + 셀 정의 한 곳 + 순수 함수 하나. BOM·규칙 문서는 이미 맞아 손대지 않습니다.
+  캐시 버전은 플래너만 범프(37.9 → 38.0).</p>
+</section>
+
+<section>
+  <h2><span class="no">05</span>확인 하나</h2>
+  <div class="callout decide">
+    <h4>목대 15 를 정면에 표시할까요?</h4>
+    <p>지금은 멍 칸 안에 묻혀 있고 마감재가 그 위를 덮고 있었습니다. A 안에서는 멍판(zoneW−15)과 도어 사이에
+    <b>15mm 빈 띠</b>가 생깁니다 — 실제로 목대가 있는 자리입니다. 얇은 짙은 띠로 그릴지, 비워 둘지 정해 주세요.</p>
+    <p><b>제안</b> — 짙은 띠로 그린다(3D 는 15T 상자). 경첩이 물리는 자리라는 것이 보이고, 멍판이 거기 "딱 붙는" 것이 드러납니다.</p>
+  </div>
+</section>
+</main>

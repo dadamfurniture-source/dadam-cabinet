@@ -51,12 +51,11 @@ describe('멍과 먹장을 가른다', () => {
     const m = (p.g('modules') || []).find((x) => x.blind);
     const s = p.g('structures')[m.id];
     const idx = s.areaTypes.indexOf('blind');
-    const fin = s.areaTypes.indexOf('blindfin');
     expect(idx).toBeGreaterThanOrEqual(0);
-    expect(fin).toBeGreaterThanOrEqual(0);
-    // W12-61: 멍 칸 + 마감재 칸 = 멍 폭. 마감재는 멍 **안에서** 자리를 받는다.
-    expect(s.areaWidths[idx] + s.areaWidths[fin]).toBe(m.blind.zoneW);
-    expect(s.areaWidths[fin]).toBe(m.blind.finish.partW);
+    // W12-66: 멍 칸 = 멍 폭. 마감재는 칸이 아니라 그 위에 포개어진다.
+    expect(s.areaTypes).not.toContain('blindfin');
+    expect(s.areaWidths[idx]).toBe(m.blind.zoneW);
+    expect(m.blind.finish.partW).toBe(100);
   });
 
   test('정면도가 "멍" 이라고 적는다 — "먹장" 이 아니다', () => {
