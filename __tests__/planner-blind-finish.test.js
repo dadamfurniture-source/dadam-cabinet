@@ -233,7 +233,7 @@ describe('상부장 코너도 같은 규칙이다', () => {
   test('멍은 물끊기 없이 320 + 60 + 15 = 395', () => {
     const { m } = withBlind(bootU());
     expect(m.blind.zoneW).toBe(
-      R.CORNER_UPPER_MODULE + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T);
+      UPPER_D + R.CORNER_MOLDING + R.CORNER_HINGE_BATTEN_T);   // W12-68: 배치 공간 깊이 기준
     expect(m.blind.zoneW).toBe(395);
   });
 
