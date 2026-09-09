@@ -1409,6 +1409,29 @@
             decrementCategory(catId);
           }
         }
+        // W12-71: 플래너의 '📥 도면 불러오기 → 디테일' 이 보낸 복원 요청.
+        //   디테일 데이터의 정본은 design_items 이고 플래너는 그것을 쓸 수 없다.
+        //   그래서 플래너는 **요청만** 보내고, 실제 교체는 품목을 소유한 여기서 한다.
+        //
+        //   저장까지 하지는 않는다 — 복원이 마음에 안 들면 저장하지 않고 되돌릴
+        //   길이 있어야 한다. 대신 '수정됨' 으로 표시해 저장이 필요함을 알린다.
+        if (e.data.type === 'DADAM_RESTORE_DETAIL') {
+          if (e.origin !== location.origin) return;   // 같은 오리진 iframe 만
+          const uid = Number(e.data.itemUniqueId);
+          const item = selectedItems.find((it) => Math.floor(it.uniqueId) === uid);
+          if (!item) { alert('복원할 품목을 찾지 못했습니다.'); return; }
+          if (e.data.specs) item.specs = e.data.specs;
+          if (Array.isArray(e.data.modules)) item.modules = e.data.modules;
+          if (typeof updateUI === 'function') updateUI();
+          try {
+            hasUnsavedChanges = true;
+            if (typeof updateSaveStatus === 'function') updateSaveStatus('saving', '복원됨 — 저장 필요');
+          } catch (err) { /* 저장 상태 표시는 없어도 복원 자체는 끝났다 */ }
+          alert(`"${item.name}" 의 디테일을 저장된 도면으로 되돌렸습니다.
+
+확인 후 '저장' 을 눌러 반영하세요.`);
+          return;
+        }
         // W11-9/W11-11/W11-14: planner 의 배치+구조를 selectedItems.modules 로 반영.
         //   PLANNER_DONE  — 플래너 "다음" (반영 후 곧바로 BOM 산출)
         //   PLANNER_STATE — 툴바 "BOM 산출" 이 요청한 응답 (_awaitPlannerState 가 처리)
