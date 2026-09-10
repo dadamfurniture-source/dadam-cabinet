@@ -6864,8 +6864,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (genTok) {
       try { sessionStorage.removeItem(GEN_AUTOCALC_KEY); } catch (e) {}
       if (!modules.length && areas.length) {
+        // 가전(분배기·후드·식세기·냉장고)은 도어로 나눌 것이 없다 — 영역 폭 그대로 모듈 하나를
+        // 고정으로 세운다. 후드(300)는 도어 최소 350 보다 좁아 자동계산이 비워 두기 때문이다.
+        const GEN_APPLIANCES = ['sink', 'hood', 'dishwasher', 'refrigerator'];
+        areas.filter((a) => GEN_APPLIANCES.includes(a.section)).forEach((a) => {
+          const m = addModuleToArea(a.id, { section: a.section, W: a.W, x: a.x });
+          if (m) m.isFixed = true;
+        });
         const made = autoCalcAllAreas();
-        if (made) saveStructModules();
+        if (made || modules.length) saveStructModules();
       }
     }
   }
