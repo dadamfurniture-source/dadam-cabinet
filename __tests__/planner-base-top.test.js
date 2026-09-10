@@ -183,7 +183,8 @@ describe('소스 규약', () => {
 
   test('섹션 기본값은 예전 그대로다 — 안 고르면 안 바뀐다', () => {
     const fn = SRC.slice(SRC.indexOf('function defaultBaseKind'), SRC.indexOf('function baseKindOf'));
-    expect(fn).toContain("(sec === 'tall' || sec === 'fridge') ? 'pedestalH' : 'legH'");
+    // P11: 붙박이장도 좌대 (data-constants.js DEFAULT_SPECS.wardrobePedestal 60)
+    expect(fn).toContain("(sec === 'tall' || sec === 'fridge' || sec === 'wardrobe') ? 'pedestalH' : 'legH'");
   });
 
   test('다리발은 받침 선택을 따른다', () => {

@@ -469,10 +469,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script>
   // ─────────────────────────────────────────────────────────────
   // SECTION_CONFIG — 정본은 js/planner/planner-sections.js.
-  // 구조 단계만의 차이 두 가지를 여기서 명시적으로 얹는다:
-  //   · wardrobe — 배치 단계엔 없는 섹션 (js/planner/planner-engine.js 의
-  //     getMoldingH 주석 참고. 배치 단계 확장은 P11)
+  // 구조 단계만의 차이를 여기서 명시적으로 얹는다:
   //   · 마감재 3종 — 3D 에서 몸통에 묻히지 않도록 더 어두운 색
+  //   · STRUCTURE_ONLY_SECTIONS 는 P11 에서 wardrobe 가 정본으로 올라가 지금은 비어 있다
   // ─────────────────────────────────────────────────────────────
   const SECTION_CONFIG = buildSectionConfig(STRUCTURE_ONLY_SECTIONS, SECTION_PALETTE_3D);
   // 영역 type 별 색상 보정
@@ -2370,7 +2369,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   /** 그 섹션이 원래 쓰던 받침 — 사람이 안 고르면 이것 (예전 동작 그대로) */
   function defaultBaseKind(sec) {
-    return (sec === 'tall' || sec === 'fridge') ? 'pedestalH' : 'legH';
+    // P11: 붙박이장도 좌대 (data-constants.js DEFAULT_SPECS.wardrobePedestal 60)
+    return (sec === 'tall' || sec === 'fridge' || sec === 'wardrobe') ? 'pedestalH' : 'legH';
   }
   function baseKindOf(m, s) {
     const k = s && s.baseKind;
@@ -2391,7 +2391,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const base = kind === 'pedestalH'
       ? { key: 'pedestalH', label: '좌대', value: num(s.pedestalH, PEDESTAL_H_DEFAULT), isBase: true }
       : { key: 'legH', label: '다리발', value: num(s.legH, MASTER_RULES.SINK_LEG), isBase: true };
-    if (sec === 'tall' || sec === 'fridge') {
+    // P11: 붙박이장 = 좌대 + 몸통 + 상몰딩 (docs/design-rules/wardrobe.md §2). 하부장 기본
+    //   가지(다리발 150 + 상판 12)로 떨어지면 몸통이 82 틀어진다.
+    if (sec === 'tall' || sec === 'fridge' || sec === 'wardrobe') {
       return [base,
         { key: 'moldingH', label: '상몰딩', value: num(s.moldingH, getMoldingH(sec) || MASTER_RULES.CROWN_MOLDING_SINK) }];
     }
@@ -3742,9 +3744,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 마감재는 모듈이 아니라 모듈에 붙는 부속이다 — loadAreas 가 영역에서
     // 빼는 것과 같은 규칙을 쓴다.
     const FINISHING = FINISHING_SECTIONS;
-    // 붙박이장은 배치 폭(w) 정본이 아직 없다 (planner-sections.js 주석, 확장은 P11).
-    // 값을 지어내지 않기 위해 목록에서 뺀다.
-    const NOT_PLACEABLE = ['wardrobe'];
+    // P11: 붙박이장이 정본 섹션이 되어 배치 가능 목록에 들어왔다. 배열은 다음 예외를
+    // 위해 남긴다 (비어 있으면 아무것도 빼지 않는다).
+    const NOT_PLACEABLE = [];
     const hung = getBaseY(area.section, 100) !== 0;
     return Object.keys(SECTION_CONFIG)
       .filter((k) => FINISHING.indexOf(k) < 0 && NOT_PLACEABLE.indexOf(k) < 0)
@@ -6840,6 +6842,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   loadModules();
   loadStructures();
   loadPerson();   // W9-105: 사람 원 위치 (정면도 X 원점)
+  // P11 (gen-to-planner): 연출컷에서 가져온 배치는 **1회** 전체 자동계산을 자동으로 돈다.
+  //   부모(detaildesign gen-import)가 스코프별 1회용 토큰을 sessionStorage 에 둔다.
+  //   토큰을 **먼저** 지운다 — 자동계산이 던져도 다음 진입에서 다시 돌지 않게.
+  //   모듈이 이미 있으면(사람이 만들었거나 저장된 배치) 손대지 않는다.
+  {
+    const GEN_AUTOCALC_KEY = scopedKey('dadam_gen_autocalc_v1');
+    let genTok = null;
+    try { genTok = sessionStorage.getItem(GEN_AUTOCALC_KEY); } catch (e) {}
+    if (genTok) {
+      try { sessionStorage.removeItem(GEN_AUTOCALC_KEY); } catch (e) {}
+      if (!modules.length && areas.length) {
+        const made = autoCalcAllAreas();
+        if (made) saveStructModules();
+      }
+    }
+  }
   renderModuleList();
   attachCanvasHandlers();
   attachRulerHandlers();   // W9-110: viewport ruler 클릭 핸들러

@@ -284,13 +284,13 @@ describe('영역에 모듈 넣기', () => {
       expect(opts[0]).toBe('lower');           // 영역 자기 섹션이 기본
     });
 
-    test('마감재와 붙박이장은 목록에 없다', () => {
+    test('마감재는 목록에 없고, 붙박이장은 P11 부터 있다', () => {
       const p = boot(seedFor(FIXTURES.straight, { modules: false }));
       const opts = p.g('sectionsFor')(p.g('areas').find((a) => a.section === 'lower'));
       // 마감재는 모듈이 아니라 부속이다 — loadAreas 가 영역에서 빼는 것과 같은 규칙
       ['ep', 'molding', 'filler'].forEach((k) => expect(opts).not.toContain(k));
-      // 붙박이장은 배치 폭 정본이 없다 (planner-sections.js, 확장은 P11)
-      expect(opts).not.toContain('wardrobe');
+      // P11: 붙박이장 배치 폭 정본이 생겨(planner-sections.js) 바닥 기준 목록에 들어온다
+      expect(opts).toContain('wardrobe');
     });
 
     test('천장 매달림 영역에는 매달림 섹션만', () => {
