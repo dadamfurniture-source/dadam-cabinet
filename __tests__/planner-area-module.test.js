@@ -361,7 +361,8 @@ describe('버튼을 눌러도 플래너가 초기화되지 않는다', () => {
     const p = withTwoModules();
     expect(p.g('isAreaView')()).toBe(true);       // 영역을 고른 상태
     p.g('setActiveArea')(null);
-    expect(p.g('isAreaView')()).toBe(false);      // 모듈 상세로 빠진다
+    // W12-75: 영역을 놓아도 전체를 그린다 — 모듈 하나만 그리는 보기가 없어졌다.
+    expect(p.g('isAreaView')()).toBe(true);
   });
 
   test('모듈이 없으면 언제나 영역 보기다', () => {
@@ -456,9 +457,9 @@ describe('도어 갯수를 늘려도 수납장은 하나다', () => {
     .split('\r\n').join('\n');
 
   test('몸통 껍데기는 셀 루프 밖에서 한 번만 만든다', () => {
-    // addCarcassShell 은 정의 1 + 두 3D 경로 호출 2 = 3회 등장
-    expect((src.match(/addCarcassShell\(/g) || [])).toHaveLength(3);
-    expect((src.match(/addCellDividers\(/g) || [])).toHaveLength(3);
+    // W12-75: 3D 경로가 하나가 됐다 — 정의 1 + 호출 1 = 2회 등장
+    expect((src.match(/addCarcassShell\(/g) || [])).toHaveLength(2);
+    expect((src.match(/addCellDividers\(/g) || [])).toHaveLength(2);
   });
 
   test('셀 루프 안에서 측판·뒤판을 만들지 않는다', () => {
@@ -500,12 +501,17 @@ describe('열 때는 언제나 영역 보기다', () => {
       .toBe(p.g('areas').length);
   });
 
-  test('좌측 목록으로 고르면 상세로 빠진다', () => {
+  test('영역을 놓아도 상세로 빠지지 않는다 (W12-75)', () => {
+    // 예전엔 activeAreaId 가 비면 모듈 하나만 크게 그렸다. 자동계산 직후가
+    // 늘 그 상태라(영역을 고른 적이 없다) 클릭 한 번에 나머지가 다 사라졌다.
     const p = boot(seedFor(FIXTURES.straight));
     p.g('setActiveArea')(p.g('areas')[0].id);
     expect(p.g('isAreaView')()).toBe(true);
-    p.g('setActiveArea')(null);                        // 목록 클릭이 하는 일
-    expect(p.g('isAreaView')()).toBe(false);
+    p.g('setActiveArea')(null);
+    expect(p.g('isAreaView')()).toBe(true);
+    p.g('renderFrontView')();
+    expect(p.document.querySelectorAll('#contentG [data-module-id]').length)
+      .toBe(p.g('modules').length);
   });
 });
 

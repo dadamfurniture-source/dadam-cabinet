@@ -153,6 +153,25 @@ function plannerSnapshotWhen(iso) {
   } catch (e) { return ''; }
 }
 
+/**
+ * 자동 저장 on/off (W12-75).
+ *
+ * 브라우저 하나의 취향이라 스코프를 붙이지 않는다 — 설계·품목이 바뀌어도
+ * "나는 자동 저장을 쓴다/안 쓴다" 는 그대로여야 한다.
+ * 기본은 켜짐. 저장소를 못 읽어도(사생활 모드 등) 켜진 것으로 본다.
+ */
+const PLANNER_AUTOSAVE_KEY = 'dadam_planner_autosave_v1';
+
+function plannerAutosaveEnabled() {
+  try { return localStorage.getItem(PLANNER_AUTOSAVE_KEY) !== 'off'; }
+  catch (e) { return true; }
+}
+
+function setPlannerAutosave(on) {
+  try { localStorage.setItem(PLANNER_AUTOSAVE_KEY, on ? 'on' : 'off'); } catch (e) {}
+  return !!on;
+}
+
 // ────────────────────────────────────────────────────────────
 // Supabase 경로
 // ────────────────────────────────────────────────────────────
@@ -335,11 +354,15 @@ const PlannerStore = {
  */
 const _plannerAutosaveTimers = {};
 function plannerAutosave(stage, delayMs) {
+  // W12-75: 꺼 두면 계정에 올리지 않는다. localStorage 저장은 그대로 돈다 —
+  //   자동 저장 토글은 "계정에 올릴지" 를 정하는 것이지 작업을 잃는 스위치가 아니다.
+  if (!plannerAutosaveEnabled()) return false;
   const wait = delayMs == null ? 1500 : delayMs;
   clearTimeout(_plannerAutosaveTimers[stage]);
   _plannerAutosaveTimers[stage] = setTimeout(() => {
     PlannerStore.save(stage, { autosave: true });
   }, wait);
+  return true;
 }
 
 /**
@@ -383,6 +406,8 @@ if (typeof window !== 'undefined') {
   window.plannerSnapshotWhen = plannerSnapshotWhen;
   window.PlannerStore = PlannerStore;
   window.plannerAutosave = plannerAutosave;
+  window.plannerAutosaveEnabled = plannerAutosaveEnabled;
+  window.setPlannerAutosave = setPlannerAutosave;
   window.migratePlannerLocalScope = migratePlannerLocalScope;
 }
 if (typeof module !== 'undefined' && module.exports) {
@@ -398,6 +423,9 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerSnapshotWhen,
     PlannerStore,
     plannerAutosave,
+    plannerAutosaveEnabled,
+    setPlannerAutosave,
+    PLANNER_AUTOSAVE_KEY,
     migratePlannerLocalScope,
   };
 }

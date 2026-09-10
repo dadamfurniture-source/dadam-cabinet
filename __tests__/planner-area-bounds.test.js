@@ -148,10 +148,11 @@ describe('도어 내림이 영역 아래를 넘지 않는다', () => {
   });
 });
 
-describe('두 렌더 경로 모두 경계를 넘긴다', () => {
+describe('렌더 경로가 경계를 넘긴다', () => {
   test('areaLimitsFor 를 meta 에 실어 보낸다', () => {
+    // W12-75: 3D 경로가 하나가 됐다 (renderModule3D 삭제).
     const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
-    expect(calls.length).toBe(2);
+    expect(calls.length).toBe(1);
     calls.forEach((c) => expect(c).toContain('areaLimitsFor(m)'));
   });
 });

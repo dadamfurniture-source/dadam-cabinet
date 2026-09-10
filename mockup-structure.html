@@ -41,6 +41,9 @@
     background:#fff;color:var(--brand-deep);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
   .load-btn:hover{background:var(--brand-soft)}
   .load-btn .caret{font-size:9px;opacity:.7}
+  /* 자동저장 토글 — 켜짐이 기본이라 켜진 쪽을 강조한다 */
+  #autoSaveToggle.on{background:var(--brand-soft);border-color:var(--brand-deep)}
+  #autoSaveToggle.off{opacity:.55;text-decoration:line-through}
   .load-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:400;width:330px;max-height:60vh;overflow-y:auto;
     background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:6px}
   .load-menu .lm-stage{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
@@ -267,6 +270,11 @@
             title="계정에 저장된 도면을 단계별로 불러옵니다">📥 도면 불러오기 <span class="caret">▾</span></button>
     <div class="load-menu" id="loadDrawingMenu" hidden></div>
   </div>
+  <!-- W12-75: 저장이 드롭다운 안에만 있어 안 보였다. 상단바로 꺼낸다. -->
+  <button class="load-btn" id="saveDrawingBtn"
+          title="지금 구조를 이름 붙여 계정에 저장합니다">💾 도면 저장</button>
+  <button class="load-btn" id="autoSaveToggle"
+          title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   <!-- W12-46: 모든 배치 공간을 한 번에 자동계산. 영역마다 도구를 열어
        '이 영역 자동계산' 을 누르던 것을 한 자리로 모은다. -->
   <button class="auto-all" id="autoCalcAllBtn"
@@ -455,17 +463,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=38.6"></script>
-<script src="js/planner/planner-view.js?v=38.6"></script>
-<script src="js/planner/planner-sections.js?v=38.6"></script>
+<script src="js/planner/planner-scope.js?v=38.7"></script>
+<script src="js/planner/planner-view.js?v=38.7"></script>
+<script src="js/planner/planner-sections.js?v=38.7"></script>
 <!-- W12-71: 도면 스냅샷을 계정에 귀속 저장한다.
      같은 오리진의 iframe 이라 부모(detaildesign)의 로그인 세션을 그대로 본다.
      셋 다 없어도 플래너는 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=38.6"></script>
-<script src="js/planner/planner-store.js?v=38.6"></script>
+<script src="js/config.js?v=38.7"></script>
+<script src="js/planner/planner-store.js?v=38.7"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=38.6"></script>
+<script src="js/planner/planner-engine.js?v=38.7"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -1790,12 +1798,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       renderFrontSet(content, modules, { forceForward: false });
       return;
     }
-    // single mode (기존)
-    if (!activeId) return;
-    const m = modules.find(x => x.id === activeId);
-    if (!m) return;
-    const s = getStructure(activeId);
-    renderModuleFront(content, m, s, 0, 0);
+    // 여기까지 오지 않는다 — 'single' 은 위 isAreaView 가 잡고, 'area'·'all' 은
+    // 각자 분기가 잡는다. 남은 경우(영역도 모듈도 없음)는 빈 화면이 맞다.
   }
 
   // W9-102/104/105/106/107/108/111: 세트/전체 정면도
@@ -1998,7 +2002,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     rect.style.cursor = 'pointer';
     rect.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (activeId !== m.id) { setActiveModule(m.id); if (!canToggle) return; }
+      // W12-75: 다른 모듈의 칸이면 **선택만** 한다. 한 번에 고르고 뒤집기까지
+      //   하면, 보려고 누른 것뿐인데 도어 방향이 바뀐다. 예전엔 이 모듈이 화면에
+      //   아예 안 그려져 있어(모듈 상세 보기) 드러나지 않던 길이다.
+      if (activeId !== m.id) { setActiveModule(m.id); return; }
       if (!canToggle) return;
       if (idx === 'bottom') {
         s.bottomDirection = s.bottomDirection === 'left' ? 'right' : 'left';
@@ -3591,7 +3598,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 2D 와 3D 가 같은 답을 써야 한다. 한쪽만 영역 보기면 다른 쪽이 모듈 하나만
    * 남기고 나머지를 지운다 (도어 on/off 로 플래너가 초기화되던 원인).
    */
-  function isAreaView() { return !modules.length || !!activeAreaId; }
+  /**
+   * 도면을 **계획 전체**로 그릴 것인가.
+   *
+   * W12-75: '개별' 탭은 좌측 목록을 모듈 단위로 보는 탭일 뿐, 도면을 모듈 하나로
+   *   줄이는 탭이 아니다. 예전엔 `activeAreaId` 가 없으면 모듈 하나만 크게 그려
+   *   나머지가 통째로 사라졌다 — 자동계산으로 모듈을 막 만든 직후가 그 상태라
+   *   (영역을 고른 적이 없다) 클릭 한 번에 키큰장·냉장고장이 다 없어졌다.
+   *   3D 도 같은 판정을 쓰므로 mesh 가 10개에서 1개로 줄었다.
+   *
+   *   이제 'single' 은 언제나 전체를 그린다. 선택은 파란 테두리로만 보인다.
+   *   'area'·'all' 탭은 각자의 방식(정면 강제·시점 회전)이 있어 그쪽에 맡긴다.
+   */
+  function isAreaView() {
+    return !modules.length || !!activeAreaId || viewMode === 'single';
+  }
 
   /** 영역 안에서 이미 모듈이 차지한 폭 */
   function usedWidthOf(areaId) {
@@ -5117,6 +5138,34 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       });
     }
 
+    // W12-75: 상단바 💾 도면 저장 — 드롭다운 안에만 있던 저장을 밖으로 꺼낸다.
+    //   누르면 구조 단계를 이름 붙여 계정에 남긴다 (드롭다운의 '현재 상태 저장…' 과 같은 길).
+    const saveBtn = document.getElementById('saveDrawingBtn');
+    if (saveBtn) saveBtn.onclick = () => saveNamed('structure');
+
+    // W12-75: 자동저장 on/off. 꺼도 이 브라우저 저장(localStorage)은 계속된다 —
+    //   계정에 올릴지만 정하는 스위치다. 작업을 잃는 스위치가 아니라는 뜻.
+    const autoBtn = document.getElementById('autoSaveToggle');
+    function paintAutoSave() {
+      if (!autoBtn) return;
+      const on = plannerAutosaveEnabled();
+      autoBtn.classList.toggle('on', on);
+      autoBtn.classList.toggle('off', !on);
+      autoBtn.textContent = on ? '자동저장 켬' : '자동저장 끔';
+      autoBtn.title = on
+        ? '자동 저장 켜짐 — 저장할 때마다 계정에도 올립니다. 누르면 끕니다.'
+        : '자동 저장 꺼짐 — 이 브라우저에만 저장됩니다. 누르면 켭니다.';
+    }
+    if (autoBtn) {
+      paintAutoSave();
+      autoBtn.onclick = () => {
+        const on = setPlannerAutosave(!plannerAutosaveEnabled());
+        paintAutoSave();
+        showToast(on ? '자동저장 켬 — 계정에도 올립니다'
+                     : '자동저장 끔 — 이 브라우저에만 저장합니다');
+      };
+    }
+
     if (btn && menu) {
       btn.onclick = (e) => {
         e.stopPropagation();
@@ -5931,129 +5980,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return parent;
   }
 
-  function renderModule3D(m, s) {
-    if (!three) return;
-    // 기존 그룹 비우기
-    while (three.moduleGroup.children.length) {
-      const ch = three.moduleGroup.children[0];
-      three.moduleGroup.remove(ch);
-      if (ch.geometry) ch.geometry.dispose();
-      if (ch.material) ch.material.dispose && ch.material.dispose();
-    }
-    if (!m) return;
-    const cfg = SECTION_CONFIG[m.section];
-    // W12-13: 마감재는 판 한 장 — 캐비넷 경로를 타면 안 된다.
-    if (m.isFinishing || isFinishingSection(m.section)) {
-      const fg = new THREE.Group();
-      fg.position.set(0, baseYOf(m), 0);
-      fg.userData = { entityKind: 'module', moduleId: m.id };
-      three.moduleGroup.add(fg);
-      buildFinishingMesh(fg, m);
-      fitCameraToModule(m.W, m.H, m.D, baseYOf(m));
-      return;
-    }
-    const W = m.W, H = m.H, D = m.D;
-    const T = BODY_T;   // 몸통 판 두께 (15T 기본)
-
-    // 모듈 그룹 (바닥 중앙 origin)
-    // W9-67: 상부장은 천정 매달림 — Y offset = ceiling - H
-    const baseY = baseYOf(m);
-    const modG = new THREE.Group();
-    modG.position.set(0, baseY, 0);  // Y 만큼 위로 들어올림
-    modG.userData = { entityKind: 'module', moduleId: m.id };  // W9-79
-    three.moduleGroup.add(modG);
-
-    // W9-87/95: cell 단위 분할 — 도어 개수 = 독립 캐비넷 개수 + 불균등 폭 지원
-    // W9-114/115: 하부장 다리발 + 상부장 상몰딩 Y offset
-    const carcassColor = darken3(cfg.fill, 0.05);
-    const carcassUd = { entityKind: 'carcass', moduleId: m.id };
-    const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.drawerHeight || 200) : 0;
-    const legH = baseOffsetOf(m, s);      // 몸통 바닥 offset (다리발 또는 좌대)
-    const moldingH = moldingHOf(m, s);                                  // W9-115
-    const carcassH = bodyHeightOf(m, s);  // 상판·좌대까지 반영된 몸통 H
-    const topH = carcassH - drawerH;
-    const verticalCount = Math.max(1, s.verticalCount || 1);
-    const cellWidths = (Array.isArray(s.areaWidths) && s.areaWidths.length === verticalCount)
-      ? s.areaWidths
-      : Array(verticalCount).fill(W / verticalCount);
-    // 몸통은 하나 — createModuleMesh 와 같은 규칙 (아래 addCarcassShell 주석 참고)
-    const woodChannel = isWoodChannel(m, s);   // W12-5
-    addCarcassShell(modG, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel });
-    addCellDividers(modG, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel });
-
-    let cellLeftAccum = -W / 2;
-    for (let i = 0; i < verticalCount; i++) {
-      const colW = cellWidths[i];
-      const cellLeft = cellLeftAccum;
-      const cellCx = cellLeft + colW / 2;
-      // 지판·천판은 몸통 껍데기(addCarcassShell)가 전폭으로 한 장씩 만든다.
-      // cell 안 선반 — 본체 기준 sh (legH 더하기)
-      if (Array.isArray(s.shelves)) {
-        s.shelves.forEach((shMM, shIdx) => {
-          if (shMM <= T || shMM >= carcassH - T) return;
-          const sh = makeBox(colW - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
-          sh.position.set(cellCx, legH + shMM, T/2);
-          sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
-          modG.add(sh);
-          addEdgeOutline(sh, modG);
-        });
-      }
-      // W9-112: 도어 외경 기준 overlay 정렬 — innerW = colW - 4 (외측 갭 2mm × 2)
-      const innerW = colW - MASTER_RULES.DOOR_GAP;
-      const topDoorH = topH - MASTER_RULES.DOOR_GAP;
-      const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
-      // cell 도어
-      const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      addFrontPanel(modG, cellCx, topDoorY, innerW, topDoorH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s), blindFinish: (m.blind && m.blind.finish && m.blind.finish.section) || null, epBlind: !!(m.blind && m.blind.ep) }, areaLimitsFor(m)));
-      // cell 서랍 — W9-114: 본체 안 (legH 위부터)
-      if (drawerH > 0) {
-        addFrontPanel(modG, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
-                      s.bottomType || 'drawer', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
-      }
-      cellLeftAccum += colW;
-    }
-    // W9-113: 다리발 4개 (하부장만)
-    addLegs(modG, m, cfg, s);
-    // W9-115: 상몰딩 (상부장/냉장고장 상단)
-    addCrownMolding(modG, m, cfg, s);
-    addTopPanel(modG, m, cfg, s);
-    addPedestal(modG, m, cfg, s);
-    addToeKick(modG, m, cfg, s);   // W12-41
-    // W9-117: 목찬넬 손잡이 (handleType='channel')
-    addHandle(modG, m, s, cfg);
-
-    // W9-77/85: 자식 마감재 (EP/몰딩/휠라) — fcfg 없어도 진행 (강제 색상)
-    if (Array.isArray(m.finishings) && m.finishings.length) {
-      console.log('[STRUCT] renderModule3D', m.id, 'finishings:', m.finishings.length);
-      m.finishings.forEach((f) => {
-        // 평면도 절대 좌표 → 모듈 mesh 로컬 (X=-W/2~W/2, Z=-D/2~D/2)
-        const fxCenter = (f.x || 0) + (f.W || 0) / 2;
-        const fyCenter = (f.y || 0) + (f.D || 0) / 2;
-        const mxCenter = m.x + m.W / 2;
-        const myCenter = m.y + m.D / 2;
-        const dxRel = fxCenter - mxCenter;
-        const dzRel = fyCenter - myCenter;
-        const fH = f.H || m.H;
-        if (!f.W || !f.D || !isFinite(fH)) {
-          console.warn('[STRUCT] finishing skip — invalid dims', f);
-          return;
-        }
-        // W9-82: 마감재는 진한 우드 톤 (모듈과 명확히 구별)
-        const finColor = f.section === 'ep' ? '#7a6a45' :       // EP — 진한 우드
-                        f.section === 'molding' ? '#5a4d2f' :   // 몰딩 — 더 진한 갈색
-                        f.section === 'filler' ? '#8a7858' :    // 휠라 — 중간 우드
-                        '#7a6a45';                              // 기본 폴백
-        const fbox = makeBox(f.W, fH, f.D, finColor, { roughness: 0.6, metalness: 0.1 });
-        fbox.position.set(dxRel, fH / 2, dzRel);
-        fbox.userData = { entityKind: 'finishing', moduleId: m.id, finishingSection: f.section };
-        modG.add(fbox);
-        addEdgeOutline(fbox, modG, 0x000000, 0.7);   // W9-100: 검은 통일
-      });
-    }
-
-    // 카메라 fit
-    fitCameraToModule(W, H, D, baseY);
-  }
+  // W12-75: renderModule3D 는 지웠다 — 모듈 하나만 3D 에 남기는 보기가 없어졌다.
+  //   도면·3D 는 언제나 계획 전체를 그리고, 선택은 파란 테두리로만 표시한다
+  //   (renderAll3D · addPickOutline3D). 남겨 두면 다시 그 길로 들어간다.
 
   // W9-65: 도어 표현 제거 — 모든 영역을 단순 panel 로 (회전/손잡이 X)
   // 영역 type 으로 색상/모양 구분
@@ -6309,15 +6238,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   function positionBox(mesh, x, y, z) { mesh.position.set(x, y, z); return mesh; }
 
-  // 카메라 자동 fit — W9-67: baseY 반영 (상부장 등)
-  function fitCameraToModule(W, H, D, baseY) {
-    if (!three) return;
-    const dist = Math.max(W, H, D) * 1.6;
-    const cy = (baseY || 0) + H/2;
-    three.camera.position.set(dist * 0.7, cy + 200, dist);
-    three.controls.target.set(0, cy, 0);
-    three.controls.update();
-  }
 
   // 색상 어둡게 헬퍼
   function darken3(hex, factor) {
@@ -6789,17 +6709,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const _origSetActive = setActiveModule;
   setActiveModule = function(id) {
     _origSetActive(id);
-    // 영역 보기에서는 모듈 하나만 남기면 안 된다 — 영역과 이웃 모듈이 사라진다.
-    if (isAreaView()) { renderAll3D({ fit: false }); return; }
-    // W12-70: 전체 보기에서도 다시 그려야 파란 선택 테두리가 새 모듈로 옮겨간다.
-    if (viewMode !== 'single') { renderAll3D({ fit: false }); return; }
-    const m = modules.find(x => x.id === id);
-    const s = m ? getStructure(id) : null;
-    if (m && s) {
-      renderModule3D(m, s);
-      // W9-103: 정면도 모드면 자동 fit
-      if (currentView === '2d') fitFrontView();
-    }
+    // W12-75: 3D 는 **언제나** 계획 전체다. 선택은 파란 테두리로만 표시한다
+    //   (addPickOutline3D). 예전엔 모듈 하나만 남겨 나머지가 사라졌다.
+    renderAll3D({ fit: false });
   };
   const _origRenderFront = renderFrontView;
   renderFrontView = function() {
@@ -6809,18 +6721,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 이 갈림이 없으면 renderModule3D 가 **활성 모듈 하나만** 3D 에 남기고
     // 영역과 나머지 모듈을 지운다. 도어 on/off 처럼 renderFrontView 를 부르는
     // 버튼이면 무엇이든 플래너가 초기화된 것처럼 보였다.
-    if (isAreaView()) { renderAll3D({ fit: false }); return; }
-    if (viewMode === 'single') {
-      if (!activeId) return;
-      const m = modules.find(x => x.id === activeId);
-      if (!m) return;
-      const s = getStructure(activeId);
-      renderModule3D(m, s);
-    } else if (viewMode === 'area') {
-      renderAll3D({ fit: false });   // W12-15: 영역 보기는 전부 그린다
-    } else if (viewMode === 'all') {
-      renderAll3D();
-    }
+    if (isAreaView() || viewMode === 'area') { renderAll3D({ fit: false }); return; }
+    renderAll3D();   // 'all' — 시점 회전을 반영하며 전체를 다시 맞춘다
   };
 
   // view mode toggle button click

@@ -94,39 +94,48 @@ describe('겹친 배치 공간을 찾아낸다', () => {
   });
 });
 
-describe('구조 단계로 넘어가기 전에 확인한다', () => {
-  function pressNext(p, answer) {
-    const asked = [];
-    p.window.confirm = (msg) => { asked.push(msg); return answer; };
+describe('겹쳐 있으면 구조 단계로 넘어가지 않는다', () => {
+  /**
+   * W12-75: 예전엔 confirm 으로 "그래도 넘어갈까요?" 를 물었다. 확인을 누르면
+   *   그대로 진행됐는데, 확인은 "봤다" 는 뜻이지 "겹쳐도 좋다" 는 뜻이 아니었다.
+   *   이제 alert 로 알리고 **그 자리에 선다.**
+   */
+  function pressNext(p) {
+    const told = [];
+    p.window.alert = (msg) => { told.push(msg); };
+    p.window.confirm = () => { throw new Error('confirm 을 쓰면 안 된다 — 물어보지 않는다'); };
     p.document.getElementById('nextStepBtn').onclick();
-    return asked;
+    return told;
   }
 
-  test('겹쳐 있으면 물어보고, 취소하면 넘어가지 않는다', () => {
+  test('겹쳐 있으면 알리고 넘어가지 않는다', () => {
     const p = boot([rect({ w: 1800 }), rect({ x: 900, w: 1800 })]);
-    const asked = pressNext(p, false);
-    expect(asked.length).toBe(1);
-    expect(asked[0]).toMatch(/겹쳐 있습니다/);
-    expect(asked[0]).toMatch(/트리밍/);      // 고치는 도구를 알려준다
+    const told = pressNext(p);
+    expect(told.length).toBe(1);
+    expect(told[0]).toMatch(/겹쳐 있습니다/);
+    expect(told[0]).toMatch(/트리밍/);          // 고치는 도구를 알려준다
+    expect(told[0]).not.toMatch(/넘어갈까요/);   // 물어보지 않는다
     expect(p.location.href).not.toMatch(/mockup-structure/);
   });
 
-  test('겹쳐 있어도 사람이 그대로 가겠다면 막지 않는다', () => {
+  test('겹친 채로는 다시 저장하지도 않는다 — 그 자리에 선다', () => {
+    // 씨앗 배치는 이미 저장소에 있다. 넘어가기가 다시 쓰지 않았음을 savedAt 으로 본다.
     const p = boot([rect({ w: 1800 }), rect({ x: 900, w: 1800 })]);
-    const asked = pressNext(p, true);
-    expect(asked.length).toBe(1);
-    // 저장은 그대로 된다 (이동은 setTimeout 이라 여기서 확인하지 않는다)
-    expect(p.storage.getItem('dadam_layout_v1::d1:1')).toBeTruthy();
+    const before = JSON.parse(p.storage.getItem('dadam_layout_v1::d1:1')).savedAt;
+    pressNext(p);
+    expect(JSON.parse(p.storage.getItem('dadam_layout_v1::d1:1')).savedAt).toBe(before);
   });
 
-  test('겹치지 않으면 아무것도 묻지 않는다', () => {
+  test('겹치지 않으면 아무것도 알리지 않고 넘어간다', () => {
     const p = boot([rect({ x: 0, w: 1800 }), rect({ x: 1800, w: 1200 })]);
-    expect(pressNext(p, false)).toEqual([]);
+    const before = JSON.parse(p.storage.getItem('dadam_layout_v1::d1:1')).savedAt;
+    expect(pressNext(p)).toEqual([]);
+    expect(JSON.parse(p.storage.getItem('dadam_layout_v1::d1:1')).savedAt).not.toBe(before);
   });
 
-  test('취소하면 겹친 곳에 표시가 남는다', () => {
+  test('겹친 곳에 표시가 남는다 — 어디를 트리밍할지 보이게', () => {
     const p = boot([rect({ w: 1800 }), rect({ x: 900, w: 1800 })]);
-    pressNext(p, false);
+    pressNext(p);
     expect(p.document.querySelectorAll('g.sect-rect.overlap-warn').length).toBe(2);
   });
 });
