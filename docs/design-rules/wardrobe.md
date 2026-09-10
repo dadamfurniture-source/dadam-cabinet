@@ -6,7 +6,7 @@
 
 | 항목 | 기본값 |
 |------|--------|
-| 기본 깊이 | 650mm |
+| 기본 깊이 | 600mm (정본: js/detaildesign/data-constants.js CATEGORIES.wardrobe.defaultD · ACTIVE_RULES.md) |
 | 좌대 높이 | 60mm |
 | 상몰딩 높이 | 20mm |
 | 커튼박스 | W=0, H=0 (비활성) |
@@ -40,7 +40,7 @@
 ```javascript
 {
   w: 900,
-  d: item.d || 650,
+  d: item.d || 600,
   moduleType: 'short',
   isDivided: true,
   drawerCount: 0,
