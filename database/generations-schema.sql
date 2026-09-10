@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.generations (
   wall_analysis JSONB,
   quote JSONB,
   images JSONB NOT NULL DEFAULT '[]'::jsonb,    -- [{slot:'base'|'v1'|'v2'|'v3', label, finish_key, path, url}]
+  layout JSONB,                         -- 연출컷 구성 분석 (gen-to-planner, generations-layout.sql)
   model TEXT,
   elapsed_ms INT,
   credit_ref UUID,
@@ -80,7 +81,7 @@ CREATE POLICY "generations_update_own" ON public.generations
 REVOKE ALL ON public.generations FROM anon, authenticated;
 GRANT SELECT (
   id, user_id, parent_id, status, progress, step_label, error, category, title,
-  options, inputs, wall_analysis, quote, images, model, elapsed_ms, credit_cost,
+  options, inputs, wall_analysis, quote, images, layout, model, elapsed_ms, credit_cost,
   is_favorite, share_expires_at, share_revoked_at, created_at, updated_at, completed_at
 ) ON public.generations TO authenticated;
 GRANT UPDATE (is_favorite, title) ON public.generations TO authenticated;

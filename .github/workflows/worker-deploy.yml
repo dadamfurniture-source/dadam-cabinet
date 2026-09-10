@@ -24,8 +24,12 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install wrangler
-        run: npm install --no-save wrangler@4
+      - name: Install dependencies (wrangler + @anthropic-ai/sdk)
+        run: npm ci
+
+      # 번들 실패(예: SDK 가 Node 전용 API 를 요구)를 배포 전에 잡는다
+      - name: Bundle check (dry run)
+        run: npx wrangler deploy --dry-run --outdir /tmp/dadam-generate-api-dist
 
       - name: Deploy to Cloudflare
         run: npx wrangler deploy
