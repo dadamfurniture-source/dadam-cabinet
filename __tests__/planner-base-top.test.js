@@ -275,7 +275,8 @@ describe('걸레받이 (W12-41)', () => {
     expect(legs).toContain('if (kickBack != null) zBack = Math.min(zBack, kickBack - LEG_SIZE/2);');
   });
 
-  test('두 렌더 경로 모두에서 그린다', () => {
-    expect((SRC.match(/addToeKick\(/g) || []).length).toBe(3);   // 정의 1 + 호출 2
+  test('렌더 경로에서 그린다', () => {
+    // W12-75: 3D 경로가 하나가 됐다 (renderModule3D 삭제) — 정의 1 + 호출 1.
+    expect((SRC.match(/addToeKick\(/g) || []).length).toBe(2);
   });
 });
