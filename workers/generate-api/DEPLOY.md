@@ -44,12 +44,20 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 | `GEMINI_API_KEY` | 필수 |
 | `SUPABASE_SERVICE_ROLE_KEY` | `generations` 행·버킷 쓰기, 잡 안 환불(`refund_credit_svc`) |
 | `SHARE_TOKEN_PEPPER` | 공유 토큰 해시. 32바이트 이상 랜덤 문자열 |
+| `ANTHROPIC_API_KEY` | 연출컷 구성 분석 (`POST /api/generate/:id/layout`, 플래너 가져오기). 없으면 그 라우트만 실패한다 |
 
 ```powershell
 cd workers/generate-api
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npx wrangler secret put SHARE_TOKEN_PEPPER
+npx wrangler secret put ANTHROPIC_API_KEY
 ```
+
+의존성: `@anthropic-ai/sdk` (package.json). 배포 워크플로가 `npm ci` 뒤 `wrangler deploy --dry-run` 으로 번들을
+먼저 확인한다. 로컬도 같다: `npm ci && npm run check`.
+
+DB: `database/generations-layout.sql` 을 한 번 적용해야 `generations.layout` 컬럼이 생긴다
+(`node mcp-server/scripts/exec-sql.mjs database/generations-layout.sql` 또는 Supabase 대시보드).
 
 로컬 `wrangler dev` 는 같은 폴더의 `.dev.vars` (gitignore) 에서 읽는다.
 
@@ -79,6 +87,7 @@ alarm 으로 실행한다. 진행 상태의 정본은 `generations` 행이고 �
 | `DELETE /api/generate/:id` | JWT | 파일·행 삭제 (실행 중이면 409) |
 | `POST /api/generate/:id/share` | JWT | `{share_url, expires_at}` — 토큰은 1회만, 다시 부르면 회전 |
 | `DELETE /api/generate/:id/share` | JWT | 회수 |
+| `POST /api/generate/:id/layout` | JWT | `{layout}` — 기본안을 Claude 비전(ANTHROPIC_MODEL)으로 읽어 구성(세그먼트·가전·도어 수)을 남긴다. 완료된 결과만(409 `not_done`), 지원 품목만(400 `unsupported_category`: sink·island·fridge·storage·wardrobe). 이미 있으면 `cached:true`, `?force=1` 이면 재분석. 5~15초 동기 |
 | `GET /api/share` | `X-Share-Token` | 이미지·견적. 만료·회수 410 |
 | `GET /health`, `GET /diag` | — | 모델·콜로 / 경로별 Gemini 상태 |
 
