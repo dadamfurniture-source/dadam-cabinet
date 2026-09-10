@@ -312,6 +312,8 @@
         };
         var ACTIVE = ['queued', 'analyzing', 'rendering', 'qc', 'variants'];
         var POLL_MS = 5000;
+        // gen-to-planner: 플래너 배치 단계에 섹션이 있는 품목만 상세설계로 보낼 수 있다
+        var PLANNER_KINDS = ['sink', 'island', 'fridge', 'storage', 'wardrobe'];
 
         var sb = null;
         var user = null;
@@ -435,6 +437,9 @@
             '<button type="button" class="v5-link" data-act="share"' +
             (r.status !== 'done' ? ' disabled' : '') +
             '>공유</button>' +
+            '<button type="button" class="v5-link" data-act="planner"' +
+            (r.status !== 'done' || PLANNER_KINDS.indexOf(r.category) < 0 ? ' disabled' : '') +
+            '>상세설계</button>' +
             '<button type="button" class="v5-link" data-act="del"' +
             (active ? ' disabled' : '') +
             '>삭제</button>' +
@@ -594,6 +599,7 @@
             else if (act === 'open') location.href = 'ai-design.html?g=' + encodeURIComponent(r.id);
             else if (act === 'regen') location.href = 'ai-design.html?g=' + encodeURIComponent(r.id) + '&regen=1';
             else if (act === 'share') share(r);
+            else if (act === 'planner') location.href = 'detaildesign.html?gen=' + encodeURIComponent(r.id);
             else if (act === 'del') remove(r);
           });
           $('modalClose').onclick = closeDetail;

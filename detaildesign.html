@@ -16,6 +16,8 @@
     <!-- W12-71: 도면 스냅샷 저장소. 플래너(iframe)와 **같은 정본**을 쓴다 —
          디테일 스냅샷을 여기서 쌓고, 설계를 처음 저장할 때 local 스코프를 이관한다. -->
     <script src="js/planner/planner-store.js?v=38.4"></script>
+    <!-- P11 gen-to-planner: 연출컷 가져오기가 배치 영역의 깊이·높이·가전 폭을 이 정본에서 읽는다 (읽기 전용 상수) -->
+    <script src="js/planner/planner-sections.js?v=38.5"></script>
     <script src="js/detaildesign-access.js?v=36.0"></script>
     <script src="js/admin-access.js?v=36.0"></script>
   </head>
@@ -400,6 +402,8 @@
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
     <script src="js/detaildesign/multiagent-client.js?v=36.0"></script>
     <script src="js/detaildesign/ai-design-report.js?v=36.0"></script>
+    <!-- P11 gen-to-planner: ?gen=<id> — 연출컷 구성을 품목·배치로. persistence-init 이 로그인 뒤 부른다 -->
+    <script src="js/detaildesign/gen-import.js?v=38.5"></script>
     <script src="js/detaildesign/persistence-init.js?v=36.0"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
     <script src="js/detaildesign/workflow-client.js?v=36.0"></script>
