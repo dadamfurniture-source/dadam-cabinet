@@ -117,7 +117,7 @@ describe('키큰장끼리 코너 — 트리밍된 ㄱ자', () => {
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const Lg = p.g('cornerLedger')(a.id);
       if (!Lg) return;
-      expect(Math.abs(Lg.diff)).toBeLessThanOrEqual(1);
+      expect(Lg.withinSlack).toBe(true);   // W12-73
       expect(Lg.missing).toBe(0);
       expect(Lg.blinds).toBeLessThanOrEqual(1);   // 단 셋을 하나로 센다
     });
@@ -143,7 +143,7 @@ describe('키큰장끼리 코너 — 겹친 ㄱ자', () => {
     expect(p.g('adjCornerOffsetOf')(c.adj.id).offset).toBe(TD - 12);
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const Lg = p.g('cornerLedger')(a.id);
-      if (Lg) { expect(Math.abs(Lg.diff)).toBeLessThanOrEqual(1); expect(Lg.missing).toBe(0); }
+      if (Lg) { expect(Lg.withinSlack).toBe(true);   // W12-73 expect(Lg.missing).toBe(0); }
     });
     expect(p.g('crossAreaOverlaps')()).toEqual([]);
   });
@@ -194,7 +194,7 @@ describe('멍장 주인 토글 (corner.md §3.2)', () => {
     expect(p.g('crossAreaOverlaps')()).toEqual([]);
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const Lg = p.g('cornerLedger')(a.id);
-      if (Lg) { expect(Math.abs(Lg.diff)).toBeLessThanOrEqual(1); expect(Lg.missing).toBe(0); }
+      if (Lg) { expect(Lg.withinSlack).toBe(true);   // W12-73 expect(Lg.missing).toBe(0); }
     });
   });
 

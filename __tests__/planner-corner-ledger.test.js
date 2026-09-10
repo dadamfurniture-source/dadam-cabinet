@@ -86,7 +86,10 @@ describe('원장은 채울 수 없는 자투리를 위반으로 보지 않는다
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const L = p.g('cornerLedger')(a.id);
       if (!L) return;
-      expect(L.diff).toBe(0);
+      // W12-73: 딱 0 이 아니라 **조립 여유 안**이면 맞는 것이다.
+      //   모듈을 결합하면 실제 길이가 모듈당 1mm 쯤 늘어나므로 그만큼 짧게 자른다.
+      expect(L.withinSlack).toBe(true);
+      expect(L.diff).toBeLessThanOrEqual(L.slack);
       expect(L.unfillable).toBe(false);
     });
   });

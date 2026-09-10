@@ -76,6 +76,12 @@ const MASTER_RULES = {
   // W9-96: distributeModules 잔여 최적화 (calc-utils.ts 포팅)
   MIN_REMAINDER: 5,             // 최소 잔여 (mm)
   MAX_REMAINDER: 10,            // 최대 잔여 (gap > 10 면 후보 거부)
+  // W12-73: **조립 여유** — 모듈 하나당 1mm.
+  //   모듈을 서로 결합하면 실제 길이가 조금씩 늘어난다. 그래서 모듈 수만큼은
+  //   짧게 잘라도 자리가 채워진다. 이 여유 안이면 잔여를 **나눠 붙이지 않는다** —
+  //   붙이면 도어 하나만 커져 라인의 도어가 어긋난다.
+  //   예) 모듈 4개 → 4mm 까지는 그대로 두고 도어를 전부 같은 폭으로 유지한다.
+  JOINT_SLACK_PER_MODULE: 1,
   // W12-49: 코너(멍장) — docs/design-rules/corner.md §3.
   //   정본은 js/detaildesign/data-constants.js 지만 플래너는 그 파일을 로드하지 않는다.
   //   값이 갈라지면 같은 코너를 화면과 BOM 이 다르게 계산한다 — 바뀌면 같이 고쳐야 한다.
@@ -136,6 +142,44 @@ function effectiveMoldingH(section, s) {
   return Number.isFinite(v) && v >= 0 ? v : getMoldingH(section);
 }
 
+/** 이 라인이 인정받는 조립 여유 (모듈 수 × 1mm) */
+function jointSlack(moduleCount) {
+  return Math.max(0, Number(moduleCount) || 0) * MASTER_RULES.JOINT_SLACK_PER_MODULE;
+}
+
+/**
+ * 잔여를 **도어가 어긋나지 않게** 나눈다 (W12-73).
+ *
+ * 예전엔 `per = floor(gap/모듈수)` 를 모든 모듈에 더하고 나머지를 마지막에 몰았다.
+ * 두 가지가 틀렸다.
+ *   ① 모듈 단위로 더하면 양문 모듈(도어 2장)의 도어가 단문 모듈보다 작아진다.
+ *   ② 나머지를 마지막에 몰면 도어 하나만 커진다.
+ * 도어 단위로 나누고, 남는 것은 **조립 여유**로 그냥 둔다.
+ *
+ * @param {number} gap        채워야 할 잔여
+ * @param {number[]} doorsPer  모듈별 도어 장수 (예: [2,2,1])
+ * @param {number} [extra=0]   이 분배 밖에서 같은 라인에 서는 모듈 수 (멍장·고정 모듈).
+ *                             그것들도 결합면을 가지므로 여유를 함께 낸다.
+ * @returns {{add:number[], slack:number, perDoor:number}}
+ *          add   모듈별로 더할 폭 (도어 폭은 모두 같은 값만큼 커진다)
+ *          slack 남겨 두는 조립 여유
+ */
+function spreadGapEqually(gap, doorsPer, extra) {
+  const doors = (doorsPer || []).map((n) => Math.max(1, Number(n) || 1));
+  const n = doors.length;
+  const add = doors.map(() => 0);
+  const g = Math.max(0, Number(gap) || 0);
+  if (!n || !g) return { add, slack: g, perDoor: 0 };
+  const doorCount = doors.reduce((a, b) => a + b, 0);
+  const perDoor = Math.floor(g / doorCount);          // 모든 도어가 **같이** 커진다
+  let left = g - perDoor * doorCount;                 // 0 ≤ left < doorCount
+  for (let i = 0; i < n; i++) add[i] = perDoor * doors[i];
+  // 조립 여유를 넘는 만큼만 마지막 모듈이 흡수한다. 그 안이면 도어를 건드리지 않는다.
+  const absorb = Math.max(0, left - jointSlack(n + Math.max(0, Number(extra) || 0)));
+  if (absorb > 0) { add[n - 1] += absorb; left -= absorb; }
+  return { add, slack: left, perDoor };
+}
+
 function calcDoorCount(W) {
   if (W <= 600)  return 1;
   if (W <= 1000) return 2;
@@ -148,6 +192,12 @@ function calcDoorCount(W) {
 // W9-96: distributeModules — planner-vite/src/lib/calc-utils.ts 의 TS 알고리즘 vanilla 포팅
 //   3가지 후보 (10단위 내림 / 짝수 내림 / 균등) 우선순위 정렬 + 잔여 0~10mm 최적화 + 2D 페어링
 //   반환: { doorWidth, doorCount, modules: [{ w, is2D }], gap }
+/** 도어 n 장을 양문 우선으로 묶었을 때 모듈 수 */
+function moduleCountOf(doorCount) {
+  const n = Math.max(0, Number(doorCount) || 0);
+  return Math.floor(n / 2) + (n % 2);
+}
+
 function distributeModules(totalSpace) {
   if (totalSpace < 100) return { modules: [], doorWidth: 0, doorCount: 0, gap: 0 };
   const DOOR_TARGET = MASTER_RULES.DOOR_W_TARGET;
@@ -183,8 +233,15 @@ function distributeModules(totalSpace) {
       }
     }
   }
-  // 정렬: 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
+  // W12-73: 조립 여유(모듈 수 × 1mm) 안에 드는 후보를 **먼저** 본다.
+  //   그 안이면 잔여를 나눠 붙이지 않아도 되고, 라인의 도어가 전부 같은 폭으로 남는다.
+  //   여유를 넘으면 결국 어느 도어 하나가 커진다 — 그건 마지막 수단이다.
+  allResults.forEach((r) => {
+    r.withinSlack = r.gap <= jointSlack(moduleCountOf(r.doorCount)) ? 0 : 1;
+  });
+  // 정렬: 조립 여유 안 → 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
   allResults.sort((a, b) => {
+    if (a.withinSlack !== b.withinSlack) return a.withinSlack - b.withinSlack;
     if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
     if (a.gap !== b.gap) return a.gap - b.gap;
     return a.doorCount - b.doorCount;
@@ -194,15 +251,15 @@ function distributeModules(totalSpace) {
     // 후보 없음 → fallback 단순 calcDoorCount
     const n = calcDoorCount(totalSpace);
     const w = Math.floor(totalSpace / n);
-    return { modules: Array(n).fill(0).map(() => ({ w, is2D: false })), doorWidth: w, doorCount: n, gap: totalSpace - w * n };
+    return { modules: Array(n).fill(0).map(() => ({ w, is2D: false, doors: 1 })), doorWidth: w, doorCount: n, gap: totalSpace - w * n };
   }
   // 2D 페어링: quotient = floor(N/2) 모듈은 폭 w*2, 1D 도어 2개
   const { doorCount, doorWidth, gap } = best;
   const quotient = Math.floor(doorCount / 2);
   const remainder = doorCount % 2;
   const modules = [];
-  for (let i = 0; i < quotient; i++) modules.push({ w: doorWidth * 2, is2D: true });
-  if (remainder > 0) modules.push({ w: doorWidth, is2D: false });
+  for (let i = 0; i < quotient; i++) modules.push({ w: doorWidth * 2, is2D: true, doors: 2 });
+  if (remainder > 0) modules.push({ w: doorWidth, is2D: false, doors: 1 });
   return { modules, doorWidth, doorCount, gap };
 }
 
@@ -390,9 +447,11 @@ function deriveCornerArea(p) {
  * 없다 — 라인 전체의 도어가 같은 폭이어야 하기 때문이다(§3.4). 그래서 폭이 아니라
  * **도어 장수**를 나눈다. 모듈 W 는 언제나 `도어 수 × doorW` 다.
  *
- * 잔여는 마지막 모듈이 흡수한다 (W9 관례 · `autoCalcArea` 와 같은 처리).
+ * W12-73: 잔여는 **조립 여유**(모듈 수 × 1mm) 안이면 그대로 둔다. 마지막 모듈에
+ * 몰면 그 모듈의 도어 하나만 커져 §3.4(라인 도어 균등)가 깨진다. 여유를 넘는
+ * 만큼만 마지막이 흡수한다.
  */
-function distributeByDoorW(budget, doorW) {
+function distributeByDoorW(budget, doorW, opt) {
   const total = Math.max(0, Number(budget) || 0);
   const w = Number(doorW) || 0;
   if (w <= 0 || total < w) return { modules: [], gap: total };
@@ -404,10 +463,15 @@ function distributeByDoorW(budget, doorW) {
     left -= take;
   }
   const remainder = total - mods.reduce((s, m) => s + m.w, 0);
-  if (remainder > 0) mods[mods.length - 1].w += remainder;
-  // 잔여는 여기서 이미 흡수했다. `gap` 을 0 이 아닌 값으로 돌려주면 호출부가
+  // 도어 폭은 이미 라인 전체에 묶여 있다(§3.4) — 여기서 도어를 키우면 그 묶음이
+  // 깨진다. 그래서 여유를 넘는 만큼만 마지막 모듈이 먹는다.
+  // 멍장·고정 모듈도 같은 라인에서 결합된다 — 여유를 함께 낸다 (opt.extraModules).
+  const extra = Math.max(0, Number(opt && opt.extraModules) || 0);
+  const absorb = Math.max(0, remainder - jointSlack(mods.length + extra));
+  if (absorb > 0) mods[mods.length - 1].w += absorb;
+  // 잔여는 여기서 이미 처리했다. `gap` 을 0 이 아닌 값으로 돌려주면 호출부가
   // 한 번 더 나눠 붙여 **두 번 더해진다** (autoCalcArea 의 잔여 분배).
-  return { modules: mods, gap: 0, remainder };
+  return { modules: mods, gap: 0, remainder, slack: remainder - absorb };
 }
 
 function calcDefaultShelves(section, H) {
@@ -578,6 +642,8 @@ if (typeof window !== 'undefined') {
   window.distributeByDoorW = distributeByDoorW;
   window.blindFrontLayout = blindFrontLayout;
   window.cornerFrontAir = cornerFrontAir;   // W12-66 — 2D·3D 가 같은 좌표를 쓴다
+  window.jointSlack = jointSlack;           // W12-73
+  window.spreadGapEqually = spreadGapEqually;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -588,5 +654,6 @@ if (typeof module !== 'undefined' && module.exports) {
     calcDoorCount, distributeModules, calcDefaultShelves,
     collectXRanges, splitModuleByAppliance, autoCalcModule,
     deriveCornerArea, distributeByDoorW,
+    jointSlack, spreadGapEqually,
   };
 }
