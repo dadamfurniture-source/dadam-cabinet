@@ -35,7 +35,10 @@ const MASTER_RULES = {
   // W9-115: 상몰딩 (crown molding) — 상부장 상단 마감
   CROWN_MOLDING_SINK: 60,       // 싱크 상부장 상몰딩 H
   CROWN_MOLDING_FRIDGE: 50,     // 냉장고 상부장 상몰딩
-  CROWN_MOLDING_WARDROBE: 15,   // 붙박이장 상몰딩
+  // P11: 붙박이장 상몰딩 — js/detaildesign/data-constants.js DEFAULT_SPECS.wardrobeMoldingH(20).
+  //   예전 15 는 호출처가 없는 죽은 값이었다. 20 이 실제 품목이 갖고 태어나는 값이다.
+  //   (docs/design-rules/wardrobe.md §1 도 20. 60 미만이라 BOM 상몰딩 부재는 안 나온다.)
+  CROWN_MOLDING_WARDROBE: 20,   // 붙박이장 상몰딩
   // W9-117: 목찬넬 (channel handle) — 마스터 자재추출규칙
   CHANNEL_FRONT_W: 52,          // 전면판 높이 (design_rules 목찬넬전면 52 × effectiveW)
   CHANNEL_BACK_W: 40,           // 지면판 폭   (design_rules 목찬넬지면 40 × effectiveW)
@@ -108,10 +111,11 @@ const MASTER_RULES = {
 };
 
 // W9-115: 상몰딩 H — 섹션별. 선반 계산(autoCalcModule)과 3D 렌더 양쪽이 쓴다.
-//   wardrobe 카테고리는 mockup 에서 다른 section 을 쓴다 (확장은 P11).
+//   P11: wardrobe 도 배치 섹션이 됐다 (planner-sections.js 헤더 주석).
 function getMoldingH(section) {
-  if (section === 'upper') return MASTER_RULES.CROWN_MOLDING_SINK;     // 싱크 상부장 60
-  if (section === 'fridge') return MASTER_RULES.CROWN_MOLDING_FRIDGE;  // 냉장고 50
+  if (section === 'upper') return MASTER_RULES.CROWN_MOLDING_SINK;         // 싱크 상부장 60
+  if (section === 'fridge') return MASTER_RULES.CROWN_MOLDING_FRIDGE;      // 냉장고 50
+  if (section === 'wardrobe') return MASTER_RULES.CROWN_MOLDING_WARDROBE;  // 붙박이장 20
   return 0;
 }
 

@@ -9,13 +9,17 @@
 //   · 마감재 3종(ep/molding/filler) — 색이 **다르다**. 구조 단계는 3D 에서
 //     몸통과 구분하려고 더 어둡게 쓴다(ep 는 배치의 stroke 색을 fill 로 씀).
 //     의도된 차이라 지우지 않고 SECTION_PALETTE_3D 로 **드러냈다.**
-//   · wardrobe — 구조 단계에만 있다. 배치 단계는 이 키가 없어서
-//     `if (!SECTION_CONFIG[m.section]) return;` 에 걸려 붙박이장 모듈을 버린다.
-//     지금은 그게 맞다 — mockup-structure.html:2442 가 "wardrobe 카테고리는
-//     mockup 에서 다른 section 사용 (추후 확장)" 이라고 못박고 있어
-//     배치 단계가 wardrobe 사각형을 만드는 경로 자체가 없다.
-//     배치 폭(w) 정본도 없다(data-constants.js 는 깊이 600·높이 2310 만 정의).
-//     **값을 지어내지 않기 위해** 구조 전용으로 남긴다. 확장은 P11 에서.
+//   · wardrobe — P11(2026-09-11, gen-to-planner): 배치 단계 섹션이 됐다.
+//     예전엔 "배치 폭 정본이 없다"며 구조 전용으로 뒀는데, 셋 다 정본이 있었다:
+//       w 3600      = js/detaildesign/ui-step1.js `defaultWByCategory.wardrobe`
+//                     (싱크 3000·냉장고장 1900 과 같은 표 — 품목이 실제로 만들어지는 폭)
+//       h(깊이) 600 = js/detaildesign/data-constants.js CATEGORIES.wardrobe.defaultD
+//                     (docs/design-rules/ACTIVE_RULES.md 카테고리별 기본 깊이, bom-protocol.md)
+//       moduleH 2310 = data-constants.js CATEGORIES.wardrobe.defaultH
+//                     = 좌대 60 (DEFAULT_SPECS.wardrobePedestal) + 몸통 2230 + 상몰딩 20 (wardrobeMoldingH)
+//     구조 단계는 좌대·상몰딩으로 높이를 분해한다 (mockup-structure heightPartsOf).
+//     플래너 도어 분할(distributeModules 350/450/600)은 detaildesign 자체 붙박이장
+//     자동계산(ui-workspace.js 7도어·300~600)과 **다른 규칙**이다 — 여기서 통일하지 않는다.
 //
 // ⚠ SECTION_CONFIG 의 키는 단순한 조회 대상이 아니다. 네 곳에서
 //     Array.from(g.classList).find(c => SECTION_CONFIG[c])
@@ -45,6 +49,9 @@ const PLANNER_SECTIONS = {
   upper:   { fill: '#7c9c8f', stroke: '#3d5750', w: 2400, h: 320, label: '상부장',  moduleH: 780  },
   tall:    { fill: '#9c6e7c', stroke: '#5c3848', w: 600,  h: 650, label: '키큰장',  moduleH: 2300 },
   fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 2300 },
+  // P11: 붙박이장 — 근거는 위 헤더 주석. moduleH 2310 은 품목 기본 높이(defaultH)라
+  //   tall/fridge 의 2300 과 10 다르다. 같은 값으로 맞추지 않는다 — 정본이 다르다.
+  wardrobe: { fill: '#8c8a6e', stroke: '#4e4c38', w: 3600, h: 600, label: '붙박이장', moduleH: 2310 },
   // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
   // W9-42: 분배기/후드/식세기 기본값 조정 + 냉장고는 모달로 모델 선택
   sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 700, h: 400, label: '분배기',     moduleH: 500  },
@@ -91,10 +98,12 @@ const SECTION_PALETTE_3D = {
   gap:     { fill: '#6e685c', stroke: '#1a0f00' },
 };
 
-/** 구조 단계에만 존재하는 섹션. 위 주석의 wardrobe 설명 참고. */
-const STRUCTURE_ONLY_SECTIONS = {
-  wardrobe: { fill: '#8c8a6e', stroke: '#4e4c38', label: '붙박이장' },
-};
+/**
+ * 구조 단계에만 존재하는 섹션. P11 에서 wardrobe 가 정본(PLANNER_SECTIONS)으로 올라가
+ * 지금은 비어 있다. 이름과 export 는 남긴다 — mockup-structure 가
+ * `buildSectionConfig(STRUCTURE_ONLY_SECTIONS, SECTION_PALETTE_3D)` 로 부른다.
+ */
+const STRUCTURE_ONLY_SECTIONS = {};
 
 /**
  * 페이지별 SECTION_CONFIG 를 만든다. 정본 객체를 공유하지 않도록 항상 새 객체를 준다
