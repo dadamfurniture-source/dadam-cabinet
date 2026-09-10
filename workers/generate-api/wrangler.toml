@@ -20,6 +20,9 @@ GEMINI_IMAGE_MODEL = "gemini-3-pro-image"
 GEMINI_TEXT_MODEL = "gemini-3.8-flash"
 GEMINI_IMAGE_SIZE = "2K"
 
+# Claude — 연출컷 구성 분석 (POST /api/generate/:id/layout, src/claude.js). 키는 시크릿 ANTHROPIC_API_KEY.
+ANTHROPIC_MODEL = "claude-opus-5"
+
 # 생성 결과 저장·공유
 GENERATIONS_BUCKET = "generations"
 PUBLIC_BASE_URL = "https://dadamfurniture.com"
@@ -34,6 +37,7 @@ AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb7
 
 # Secret (wrangler secret put):
 #   GEMINI_API_KEY               필수
+#   ANTHROPIC_API_KEY            구성 분석 (플래너 가져오기) — 없으면 그 라우트만 500
 #   SUPABASE_SERVICE_ROLE_KEY    generations 행·버킷 쓰기, 잡 안 환불
 #   SHARE_TOKEN_PEPPER           공유 토큰 해시
 

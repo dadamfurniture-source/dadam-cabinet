@@ -6,6 +6,7 @@
  *   DELETE /api/generate/:id          결과·파일 삭제               (JWT, 본인)
  *   POST   /api/generate/:id/share    공유 링크 발급(회전)         (JWT, 본인)
  *   DELETE /api/generate/:id/share    공유 회수                    (JWT, 본인)
+ *   POST   /api/generate/:id/layout   구성 분석 → 플래너용 layout  (JWT, 본인, 완료된 결과만)
  *   GET    /api/share                 공유 열람                    (X-Share-Token)
  *   GET    /health · /diag            진단
  *
@@ -26,6 +27,7 @@ import {
   deleteById,
   uploadObject,
   removeObjects,
+  fetchObjectBase64,
   extOf,
   NotFoundError,
   ForbiddenError,
@@ -33,6 +35,8 @@ import {
   ValidationError,
 } from './supabase.js';
 import { jobStub } from './job.js';
+import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
+import { callClaudeJson } from './claude.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -50,7 +54,9 @@ const ACTIVE_STATUSES = ['queued', 'analyzing', 'rendering', 'qc', 'variants'];
 const ACTIVE_WINDOW_MS = 12 * 60_000; // 이보다 오래된 '실행 중' 은 죽은 잡으로 본다
 /** 클라이언트에 돌려주는 열. credit_ref·share_token_hash 는 절대 나가지 않는다. */
 const PUBLIC_COLUMNS =
-  'id,parent_id,status,progress,step_label,error,category,title,options,wall_analysis,quote,images,model,elapsed_ms,credit_cost,is_favorite,share_expires_at,share_revoked_at,created_at,completed_at';
+  'id,parent_id,status,progress,step_label,error,category,title,options,wall_analysis,quote,images,layout,model,elapsed_ms,credit_cost,is_favorite,share_expires_at,share_revoked_at,created_at,completed_at';
+/** Anthropic 이미지 한도 5MB — base64 로는 4/3 배. 넘으면 분석하지 않는다. */
+const MAX_IMAGE_B64 = Math.floor((5 * 1024 * 1024 * 4) / 3);
 
 function corsHeaders(origin) {
   return {
@@ -148,19 +154,23 @@ export default {
         return json(await getShared(request, env), 200, headers);
       }
 
-      const m = url.pathname.match(/^\/api\/generate(?:\/([0-9a-f-]{36}))?(\/share)?$/);
+      const m = url.pathname.match(/^\/api\/generate(?:\/([0-9a-f-]{36}))?(\/share|\/layout)?$/);
       if (!m) return json({ success: false, error: 'Not found', code: 'not_found' }, 404, headers);
-      const [, id, isShare] = m;
+      const [, id, sub] = m;
+      const isShare = sub === '/share';
+      const isLayout = sub === '/layout';
 
       if (!id && request.method === 'POST') return await createGeneration(request, env, headers);
-      if (id && !isShare && request.method === 'GET')
+      if (id && !sub && request.method === 'GET')
         return json(await getGeneration(request, env, id), 200, headers);
-      if (id && !isShare && request.method === 'DELETE')
+      if (id && !sub && request.method === 'DELETE')
         return json(await deleteGeneration(request, env, id), 200, headers);
       if (id && isShare && request.method === 'POST')
         return json(await createShare(request, env, id), 200, headers);
       if (id && isShare && request.method === 'DELETE')
         return json(await revokeShare(request, env, id), 200, headers);
+      if (id && isLayout && request.method === 'POST')
+        return json(await createLayout(request, env, id, url), 200, headers);
       return json({ success: false, error: 'Method not allowed', code: 'method' }, 405, headers);
     } catch (e) {
       return errorResponse(e, headers);
@@ -334,6 +344,59 @@ async function createGeneration(request, env, headers) {
     }
     throw e;
   }
+}
+
+/**
+ * 연출컷 → 구성 분석 (gen-to-planner). 기본안 한 장을 Claude 비전에 읽혀 generations.layout 에 남긴다.
+ * 멱등이다 — 이미 있으면 그대로 돌려주고, ?force=1 일 때만 다시 분석한다.
+ * 동기 응답(5~15초). 클라이언트(ai-design.html)는 응답을 받은 뒤 detaildesign.html?gen= 으로 간다.
+ */
+async function createLayout(request, env, id, url) {
+  const { row } = await requireOwner(request, env, id);
+  if (row.status !== 'done') {
+    const e = new ConflictError('완료된 결과만 설계로 가져올 수 있습니다');
+    e.code = 'not_done';
+    throw e;
+  }
+  const category = resolveCategory(row.category);
+  if (!LAYOUT_CATEGORIES.includes(category)) {
+    const e = new ValidationError('이 품목은 아직 플래너로 가져올 수 없습니다');
+    e.code = 'unsupported_category';
+    throw e;
+  }
+  if (row.layout && url.searchParams.get('force') !== '1') {
+    return { success: true, layout: row.layout, cached: true };
+  }
+  const base = (row.images || []).find((im) => im && im.slot === 'base');
+  if (!base || !base.path) {
+    const e = new NotFoundError('기본안 이미지가 없습니다');
+    e.code = 'no_base_image';
+    throw e;
+  }
+  const image = await fetchObjectBase64(env, base.path);
+  if (image.base64.length > MAX_IMAGE_B64) {
+    const e = new Error('이미지가 너무 커서 분석할 수 없습니다');
+    e.statusCode = 413;
+    e.code = 'image_too_large';
+    throw e;
+  }
+  const ctx = { category, wallAnalysis: row.wall_analysis, options: row.options };
+  const t0 = Date.now();
+  const { json: raw, model } = await callClaudeJson(env, {
+    prompt: buildLayoutPrompt(ctx),
+    image,
+    schema: LAYOUT_SCHEMA,
+  });
+  const layout = normalizeLayout(raw, {
+    ...ctx,
+    slot: 'base',
+    model,
+    now: new Date().toISOString(),
+  });
+  layout.elapsed_ms = Date.now() - t0;
+  await updateById(env, 'generations', id, { layout });
+  console.log(`[Layout ${id}] ${category} ${layout.elapsed_ms}ms conf=${layout.confidence.overall}`);
+  return { success: true, layout };
 }
 
 async function getGeneration(request, env, id) {
