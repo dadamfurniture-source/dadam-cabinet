@@ -271,7 +271,7 @@ describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
 
   test('판 하나만 만든다 — 측판·도어·다리발이 없다', () => {
     const fn = SRC.slice(SRC.indexOf('function buildFinishingMesh'),
-      SRC.indexOf('function renderModule3D'));
+      SRC.indexOf('function addDoorReveal'));
     expect((fn.match(/makeBox\(/g) || [])).toHaveLength(1);
     ['addCarcassShell', 'addCellDividers', 'addFrontPanel', 'addLegs', 'addTopPanel']
       .forEach((f) => expect(fn).not.toContain(f));
@@ -279,23 +279,27 @@ describe('마감재는 판 한 장으로 그린다 (W12-13)', () => {
 
   test('H·D 는 그대로, 폭만 부재 기준 (W12-19)', () => {
     const fn = SRC.slice(SRC.indexOf('function buildFinishingMesh'),
-      SRC.indexOf('function renderModule3D'));
+      SRC.indexOf('function addDoorReveal'));
     expect(fn).toMatch(/makeBox\(partW, m\.H, m\.D,/);
     expect(fn).toContain('finishingPartWidthOf(m.section)');
     // 잡아 둔 폭보다 넓게 그리면 옆 모듈을 파고든다
     expect(fn).toContain('Math.min(m.W,');
   });
 
-  test('3D 두 경로 모두 캐비넷 경로를 타기 전에 갈라진다', () => {
-    ['function renderModule3D', 'function createModuleMesh'].forEach((marker) => {
-      const from = SRC.indexOf(marker);
-      expect(from).toBeGreaterThan(-1);
-      const head = SRC.slice(from, from + 1400);
-      const branch = head.indexOf('isFinishingSection(m.section)');
-      const carcass = head.indexOf('addCarcassShell');
-      expect(branch).toBeGreaterThan(-1);
-      if (carcass > -1) expect(branch).toBeLessThan(carcass);
-    });
+  test('3D 는 캐비넷 경로를 타기 전에 갈라진다', () => {
+    // W12-75: 3D 경로가 **하나**다. renderModule3D(모듈 하나만 그리던 길)는 지웠다.
+    const from = SRC.indexOf('function createModuleMesh');
+    expect(from).toBeGreaterThan(-1);
+    // 창은 addCarcassShell 호출까지 — 바이트 수로 자르면 주석 한 줄에 깨진다.
+    const head = SRC.slice(from, SRC.indexOf('addCarcassShell(g,', from));
+    const branch = head.indexOf('isFinishingSection(m.section)');
+    expect(head.length).toBeGreaterThan(0);
+    expect(branch).toBeGreaterThan(-1);   // 캐비넷 껍데기를 세우기 **전에** 갈라진다
+  });
+
+  test('모듈 하나만 그리던 3D 경로는 남아 있지 않다', () => {
+    expect(SRC).not.toContain('function renderModule3D');
+    expect(SRC).not.toContain('function fitCameraToModule');
   });
 
   test('2D 정면도도 칸·도어를 그리지 않는다', () => {

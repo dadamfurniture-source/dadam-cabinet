@@ -149,7 +149,10 @@ describe('3D 도 같은 표시를 쓴다', () => {
     expect(SRC).toContain('if (moduleId && moduleId !== activeId) setActiveModule(moduleId);');
   });
 
-  test('개별이 아닌 모드에서도 3D 를 다시 그린다 — 테두리가 옮겨가야 한다', () => {
-    expect(SRC).toContain("if (viewMode !== 'single') { renderAll3D({ fit: false }); return; }");
+  test('선택하면 3D 를 다시 그린다 — 테두리가 옮겨가야 한다', () => {
+    // W12-75: 모드를 가리지 않는다. 3D 는 언제나 계획 전체를 다시 그린다.
+    const at = SRC.indexOf('setActiveModule = function(id)');
+    expect(at).toBeGreaterThan(-1);
+    expect(SRC.slice(at, at + 500)).toContain('renderAll3D({ fit: false })');
   });
 });

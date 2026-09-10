@@ -189,19 +189,20 @@ describe('칸막이도 같이 따낸다', () => {
   });
 });
 
-describe('두 렌더 경로에 모두 배선됐다', () => {
-  test('renderModule3D · createModuleMesh 둘 다 woodChannel 을 넘긴다', () => {
+describe('렌더 경로에 배선됐다', () => {
+  // W12-75: 3D 경로가 **하나**다 (renderModule3D 삭제) — 갈라질 두 벌이 없어졌다.
+  test('createModuleMesh 가 woodChannel 을 넘긴다', () => {
     const calls = SRC.match(/(?<!function )addCarcassShell\([^)]*\)/g) || [];
-    expect(calls.length).toBe(2);
+    expect(calls.length).toBe(1);
     calls.forEach((c) => expect(c).toContain('woodChannel'));
     const divs = SRC.match(/(?<!function )addCellDividers\([^)]*\)/g) || [];
-    expect(divs.length).toBe(2);
+    expect(divs.length).toBe(1);
     divs.forEach((c) => expect(c).toContain('woodChannel'));
   });
 
   test('woodChannel 은 isWoodChannel 로만 정한다', () => {
     const assigns = SRC.match(/const woodChannel\s*=\s*[^;]+;/g) || [];
-    expect(assigns.length).toBe(2);
+    expect(assigns.length).toBe(1);
     assigns.forEach((a) => expect(a).toContain('isWoodChannel'));
   });
 });
@@ -303,9 +304,9 @@ describe('도어 내림 (W12-6)', () => {
     expect(ap).toMatch(/cy = top - h \/ 2;/);
   });
 
-  test('두 렌더 경로 모두 doorDrop 을 넘긴다', () => {
+  test('렌더 경로가 doorDrop 을 넘긴다', () => {
     const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
-    expect(calls.length).toBe(2);
+    expect(calls.length).toBe(1);   // W12-75: 경로가 하나가 됐다
     calls.forEach((c) => expect(c).toContain('doorDrop: doorDropOf(m, s)'));
   });
 
@@ -368,9 +369,9 @@ describe('하부장 목찬넬 도어 — 장H − 30 (W12-8)', () => {
     expect(fn).toContain('isWoodChannel(m, s)');
   });
 
-  test('두 렌더 경로 모두 doorTopGap 을 넘긴다', () => {
+  test('렌더 경로가 doorTopGap 을 넘긴다', () => {
     const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
-    expect(calls.length).toBe(2);
+    expect(calls.length).toBe(1);   // W12-75
     calls.forEach((c) => expect(c).toContain('doorTopGap: doorTopGapOf(m, s)'));
   });
 
