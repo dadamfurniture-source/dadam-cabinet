@@ -50,8 +50,10 @@ CREATE TABLE IF NOT EXISTS planner_snapshots (
 CREATE INDEX IF NOT EXISTS idx_planner_snapshots_scope
     ON planner_snapshots (design_id, item_unique_id, stage, created_at DESC);
 
--- 자동 저장 행은 스코프당 하나뿐임을 DB 가 보장한다.
--- 클라이언트의 upsert 가 이 제약을 충돌 대상으로 쓴다.
+-- 자동 저장 행은 스코프당 하나뿐임을 DB 가 보장한다 (경쟁 상태 안전망).
+-- 클라이언트는 upsert 를 쓰지 않는다 — PostgREST 의 on_conflict 는 인덱스 술어
+-- (WHERE is_autosave)를 함께 보낼 수 없어 **부분** 유니크 인덱스를 집지 못한다.
+-- 그래서 planner-store.js 가 조회 후 update / insert 를 손으로 나눈다.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_planner_snapshots_autosave
     ON planner_snapshots (design_id, item_unique_id, stage)
     WHERE is_autosave;
