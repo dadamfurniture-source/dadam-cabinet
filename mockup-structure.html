@@ -47,7 +47,8 @@
     padding:8px 9px 4px;font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:.04em}
   .load-menu .lm-stage button{border:1px solid var(--line);background:transparent;color:var(--brand-deep);
     border-radius:4px;font-size:10px;font-weight:600;padding:2px 7px;cursor:pointer}
-  .load-menu .lm-stage button:hover{background:var(--brand-soft)}
+  .load-menu .lm-stage button:hover:not(:disabled){background:var(--brand-soft)}
+  .load-menu .lm-stage button:disabled{opacity:.4;cursor:not-allowed}
   .load-menu .lm-row{display:block;width:100%;text-align:left;border:none;background:transparent;
     padding:7px 9px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text)}
   .load-menu .lm-row:hover{background:var(--brand-soft)}
@@ -454,17 +455,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=38.4"></script>
-<script src="js/planner/planner-view.js?v=38.4"></script>
-<script src="js/planner/planner-sections.js?v=38.4"></script>
+<script src="js/planner/planner-scope.js?v=38.6"></script>
+<script src="js/planner/planner-view.js?v=38.6"></script>
+<script src="js/planner/planner-sections.js?v=38.6"></script>
 <!-- W12-71: 도면 스냅샷을 계정에 귀속 저장한다.
      같은 오리진의 iframe 이라 부모(detaildesign)의 로그인 세션을 그대로 본다.
      셋 다 없어도 플래너는 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=38.4"></script>
-<script src="js/planner/planner-store.js?v=38.4"></script>
+<script src="js/config.js?v=38.6"></script>
+<script src="js/planner/planner-store.js?v=38.6"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=38.4"></script>
+<script src="js/planner/planner-engine.js?v=38.6"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -4179,7 +4180,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return {
       section: blindFinishOf(areaId),
       seatW: MASTER_RULES.CORNER_MOLDING,        // 멍 공식에 들어간 값 — 바뀌지 않는다
-      partW: MASTER_RULES.CORNER_FINISH_PART_W,  // 멍판 위로 40 을 더 무는 재단 폭
+      partW: MASTER_RULES.CORNER_FINISH_PART_W,  // 멍판 위로 90 을 더 무는 재단 폭 (W12-72)
     };
   }
 
@@ -4233,6 +4234,29 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return Math.max(0, ownerD - Math.min(pen, ownerD));
   }
 
+  /**
+   * 주인 라인의 **도어 면**이 인접 라인 쪽을 보고 있는가 (W12-72).
+   *
+   * 앞선 공기층 12(cornerFrontAir)는 **도어 쪽에만** 있다. 배치 공간의 반대편은
+   * 벽이고, 거기서는 몸통이 사각형 끝까지 간다. 방향을 안 보고 12 를 빼면
+   * 벽 쪽으로 붙는 다리를 12 만큼 **파고들게** 만든다 — 키큰장 180° 배치에서
+   * 실제로 그렇게 겹쳤다.
+   *
+   * 도어가 보는 방향은 회전이 정한다 (alignToPerson 이 사람 쪽으로 돌려 둔다):
+   *   0 → +y · 90 → −x · 180 → −y · 270 → +x
+   */
+  function ownerFrontsAdj(owner, adj) {
+    const ob = planeBoxOf(owner), ab = planeBoxOf(adj);
+    const oc = { x: ob.x + ob.w / 2, y: ob.y + ob.d / 2 };
+    const ac = { x: ab.x + ab.w / 2, y: ab.y + ab.d / 2 };
+    const r = rot4(owner);
+    const d = r === 0 ? { x: 0, y: 1 }
+            : r === 90 ? { x: -1, y: 0 }
+            : r === 180 ? { x: 0, y: -1 }
+            : { x: 1, y: 0 };
+    return (ac.x - oc.x) * d.x + (ac.y - oc.y) * d.y > 0;
+  }
+
   function adjCornerOffsetOf(areaId, pairs) {
     const area = areaById(areaId);
     if (!area) return null;
@@ -4242,12 +4266,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const owner = cornerPlansFor(pair.owner.id, ps);
     if (!owner || !owner.plan.ok) return null;
     // W12-63: 규칙이 요구하는 거리에서 **이미 물러난 만큼**을 뺀다.
-    const need = owner.plan.adjStartOffset;
+    //
+    // W12-72: 요구 거리는 주인 라인의 **도어 앞면**까지다 — 배치 공간 앞선이 아니라.
+    //   배치 공간은 상판 기준이라 서로 겹치지 않게 그리는데, 몸통은 앞선에서
+    //   물끊기+도어 자리만큼 물러나 앉는다(seatModuleDepth). 그래서 상판끼리
+    //   맞닿아도 몸통은 그만큼(12) 떠 보였다 — 하부장도 상부장도 같은 이유다.
+    //   그 12 를 빼서, 옆 라인 끝판이 주인 도어 면에 닿게 한다.
+    const air = (typeof cornerFrontAir === 'function' && ownerFrontsAdj(pair.owner, area))
+      ? cornerFrontAir() : 0;
+    const need = owner.plan.adjStartOffset - air;
     const already = adjRetreat(pair.owner, area);
+    // 음수는 **배치 공간 밖으로 나간다**는 뜻이다. 상판은 그대로 두고 몸통만
+    //   앞으로 내미는 것이라 허용하되, CORNER_AREA_OVERRUN(20) 을 넘지 않는다.
+    const raw = need - already;
     return {
-      offset: Math.max(0, need - already),
+      offset: Math.max(-MASTER_RULES.CORNER_AREA_OVERRUN, raw),
       atStart: cornerAtStartOf(area, pair.owner),
-      need, already,
+      need, already, air,
     };
   }
 
@@ -4413,12 +4448,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const blinds = once.filter((m) => m.blind).length;
     const reserved = MASTER_RULES.CORNER_WALL_GAP * owned.length + (adj ? adj.offset : 0);
     const diff = (area.W || 0) - reserved - sum;
+    // W12-73: 모듈 하나당 1mm 는 **조립 여유**다. 결합하면 실제 길이가 그만큼
+    //   늘어나므로 채워진다 — 이 안의 diff 는 어긋남이 아니다.
+    const slack = jointSlack(once.filter((m) => !isFinishingSection(m.section)).length);
     const ownerPlan = owned.length ? cornerPlansFor(areaId, ps) : null;
     const fillUnit = (ownerPlan && ownerPlan.plan.ok)
       ? ownerPlan.plan.doorW
       : MASTER_RULES.DOOR_W_MIN;
     return {
-      areaId, areaW: area.W, sum, reserved, diff,
+      areaId, areaW: area.W, sum, reserved, diff, slack,
+      withinSlack: diff >= 0 && diff <= slack,
       corners: owned.length, blinds, missing: owned.length - blinds,
       // W12-57: 남은 자리가 **거기 들어갈 수 있는 가장 작은 모듈**보다 좁으면
       //   아무것도 못 넣는다. 사람이 고정 모듈을 키우면 정상적으로 생기는
@@ -4427,7 +4466,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   최소 단위가 라인마다 다르다. 멍장 라인은 도어 폭이 라인 전체에
       //   묶여 있어(§3.4) 모듈이 `doorW` 배수로만 들어간다 — 그보다 좁으면
       //   못 채운다. 일반 라인은 도어 최소폭(350)이 기준이다.
-      unfillable: diff > 0 && diff < fillUnit,
+      unfillable: diff > slack && diff < fillUnit,
     };
   }
 
@@ -4486,13 +4525,32 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     leftFins.forEach((f) => { f.x = x; x += f.W || 0; });
     head.forEach((b) => { b.module.x = x; });
     x += headW;
-    return { startX: x, otherFixed, tail, tailW, rightFins };
+    // 오른쪽 끝 기준선 — 왼쪽과 거울이다. 벽 여유 50 과 밀림을 먼저 떼고,
+    // 그 안쪽에 [꼬리 멍장][우 마감재] 를 앉힌다 (placeTail).
+    const rightReserve = (tail.length ? G : 0)
+      + (adjCorner && !adjCorner.atStart ? adjCorner.offset : 0);
+    const rightFinsW = rightFins.reduce((sum, f) => sum + (f.W || 0), 0);
+    const tailAnchor = (area.x || 0) + (area.W || 0) - rightReserve - rightFinsW - tailW;
+    return { startX: x, otherFixed, tail, tailW, rightFins, tailAnchor };
   }
+  /**
+   * 오른쪽 끝 배치. **벽에서 거꾸로** 잰다 (W12-73).
+   *
+   * 예전엔 내용물이 끝난 자리(x)에서 이어 붙였다. 그러면 조립 여유(모듈당 1mm)만큼
+   * 꼬리 전체가 왼쪽으로 밀려, 멍장 측판이 벽에서 50 이 아니라 51·52 가 된다 —
+   * §3.4 는 그 50 을 고정값으로 못박는다. 여유는 **모듈 사이**에 있어야지
+   * 끝 기준선을 움직이면 안 된다.
+   *
+   * 넣을 것이 남은 자리보다 넓으면(고정 모듈을 크게 잡은 경우) 겹치지 않도록
+   * 흐르던 x 를 그대로 쓴다.
+   */
   function placeTail(x, edges) {
-    edges.tail.forEach((b) => { b.module.x = x; });
-    x += edges.tailW;
-    edges.rightFins.forEach((f) => { f.x = x; x += f.W || 0; });
-    return x;
+    const anchor = edges.tailAnchor;
+    let t = Number.isFinite(anchor) ? Math.max(x, anchor) : x;
+    edges.tail.forEach((b) => { b.module.x = t; });
+    t += edges.tailW;
+    edges.rightFins.forEach((f) => { f.x = t; t += f.W || 0; });
+    return t;
   }
 
   function autoCalcArea(areaId) {
@@ -4530,8 +4588,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     // 멍장이 있는 공간은 도어 폭이 라인 전체에 묶여 있다 (corner.md §3.4) —
     // 폭을 보고 도어 수를 정하는 일반 분배로는 그 조건을 지킬 수 없다.
+    // W12-73: 멍장·고정 모듈도 같은 라인에서 결합된다 — 조립 여유를 함께 낸다.
+    const extraModules = blinds.length
+      + kept.filter((m) => !isFinishingSection(m.section) && !m.blind).length;
     const dist = blinds.length
-      ? distributeByDoorW(room, corner.plan.doorW)
+      ? distributeByDoorW(room, corner.plan.doorW, { extraModules })
       : distributeModules(room);
     if (!dist.modules.length) {
       // W12-57: 멍장은 이미 섰다. 남은 자리가 도어 폭보다 좁아 수납이 못 들어갈
@@ -4542,13 +4603,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return blinds.length;
     }
 
-    // 잔여는 셀에 고루 나누고 끝이 나머지를 흡수한다 — autoCalcModule 과 같은 방식.
+    // W12-73: 잔여는 **도어 단위**로 나눈다. 모듈 단위로 나누면 양문 모듈(도어 2장)의
+    //   도어가 단문 모듈보다 작아지고, 나머지를 마지막에 몰면 도어 하나만 커진다.
+    //   모듈 하나당 1mm 는 **조립 여유**로 그냥 둔다 — 결합하면 실제 길이가 그만큼
+    //   늘어나므로 자리는 채워지고, 도어는 라인 전체가 같은 폭으로 남는다.
     const widths = dist.modules.map((d) => d.w);
     const N = widths.length;
     if (dist.gap > 0 && N > 0) {
-      const per = Math.floor(dist.gap / N);
-      const extra = dist.gap - per * N;
-      for (let i = 0; i < N; i++) widths[i] += per + (i === N - 1 ? extra : 0);
+      const spread = spreadGapEqually(dist.gap,
+        dist.modules.map((d) => d.doors || (d.is2D ? 2 : 1)), extraModules);
+      for (let i = 0; i < N; i++) widths[i] += spread.add[i];
     }
 
     // 비고정 모듈만 걷어낸다.
@@ -4624,7 +4688,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const L = cornerLedger(id);
       // 채울 수 없는 자투리는 넘어간다 — 안 그러면 사람이 고정 모듈을 키울 때마다
       // 콘솔이 빨개진다. 검사가 시끄러우면 진짜 불일치를 흘려보내게 된다.
-      if (L && !L.unfillable && (Math.abs(L.diff) > 1 || L.missing !== 0)) {
+      // W12-73: 모듈당 1mm 조립 여유 안의 diff 는 어긋남이 아니다 (withinSlack).
+      if (L && !L.unfillable && (!L.withinSlack || L.missing !== 0)) {
         console.warn('[corner] 원장 불일치', L);
       }
     }));
@@ -4659,11 +4724,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /** 영역을 고르면 우측 상단에 모듈 추가·제거 버튼이 뜬다 */
-  function setActiveArea(id) {
-    // **다른 영역으로 옮길 때만** 화면을 다시 맞춘다.
-    // 같은 영역을 다시 누르거나 옵션을 바꿔 다시 그릴 때까지 맞추면,
-    // 사용자가 돌려놓은 줌·팬이 클릭마다 되돌아간다.
-    const moved = id && id !== activeAreaId;
+  /**
+   * @param {string} id
+   * @param {{fit?:boolean}} [opt] fit:true 일 때만 화면을 맞춘다.
+   *
+   * W12-72: 화면 맞춤이 **기본값이 아니다.** 예전엔 다른 영역으로 옮길 때마다
+   *   2D 줌·팬과 3D 카메라를 다시 맞췄는데, 도면에서 모듈을 하나 누를 때도
+   *   (영역이 같이 바뀌면서) 그 길을 탔다. 보고 있던 거리가 매번 초기화돼
+   *   확대해 놓고 작업을 이어갈 수가 없었다.
+   *
+   *   맞춤은 **사람이 자리를 옮길 때**만이다 — 좌측 '배치' 목록에서 영역을
+   *   고르거나 '배치' 탭에 들어올 때. 도면·3D 클릭은 표시만 바꾼다.
+   *   (F 키가 언제든 화면을 맞춘다.)
+   */
+  function setActiveArea(id, opt) {
+    const moved = !!(opt && opt.fit) && id && id !== activeAreaId;
     activeAreaId = id;
     panelTarget = 'area';
     renderAreaTools();
@@ -4872,6 +4947,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const endPan = () => { panInfo = null; svg.style.cursor = ''; };
     svg.addEventListener('pointerup', endPan);
     svg.addEventListener('pointercancel', endPan);
+    // W12-72: 빈 곳 클릭 → 선택 해제. 모듈 외곽·영역 사각형은 자기 클릭에서
+    //   stopPropagation 하므로 여기까지 올라오지 않는다 (= 정말 빈 곳이다).
+    //   팬으로 넘어간 드래그는 클릭이 아니다.
+    svg.addEventListener('click', (e) => {
+      if (panInfo && panInfo.moved) return;
+      clearActiveModule();
+    });
     // 키보드
     document.addEventListener('keydown', (e) => {
       if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
@@ -4880,6 +4962,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (e.key === 'l' || e.key === 'L') { document.getElementById('moduleList').classList.toggle('collapsed'); }
       if (e.key === 'r' || e.key === 'R') { document.getElementById('rightPanel').classList.toggle('collapsed'); }
     });
+  }
+
+  /**
+   * 아무것도 안 고른 상태로 되돌린다 (W12-72).
+   *
+   * 빈 곳을 눌렀는데 파란 테두리가 남아 있으면, 지금 무엇을 편집 중인지
+   * 알 수 없다. 영역 선택은 건드리지 않는다 — 배치 공간은 배경이고,
+   * 우측 패널이 그 영역 정보를 계속 보여주는 편이 낫다.
+   */
+  function clearActiveModule() {
+    if (!activeId) return false;
+    activeId = null;
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    const nameEl = document.getElementById('curModuleName');
+    if (nameEl) nameEl.textContent = '모듈을 선택하세요';
+    if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
+    return true;
   }
 
   // 토스트
@@ -4980,24 +5081,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     async function renderMenu() {
       menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';
       const ready = await PlannerStore.ready();
-      if (!ready.ok) {
-        menu.innerHTML = `<div class="lm-note">${esc(storeExcuse(ready.reason))}</div>`;
-        return;
-      }
+      // W12-72: 못 쓰는 상태여도 **메뉴 뼈대는 그대로 그린다.**
+      //   예전엔 안내 한 줄만 남겨서, 저장 버튼이 아예 없는 것처럼 보였다.
+      //   버튼은 비활성으로 두고 왜 못 쓰는지를 그 자리에서 알려 준다.
+      const why = ready.ok ? '' : storeExcuse(ready.reason);
       const lists = {};
-      for (const stage of PLANNER_STAGES) lists[stage] = await PlannerStore.list(stage);
+      if (ready.ok) {
+        for (const stage of PLANNER_STAGES) lists[stage] = await PlannerStore.list(stage);
+      }
       const parts = [];
+      if (why) parts.push(`<div class="lm-note">${esc(why)}</div><div class="lm-sep"></div>`);
       PLANNER_STAGES.forEach((stage, i) => {
         const label = PLANNER_STAGE_LABEL[stage];
         const rows = (lists[stage] && lists[stage].rows) || [];
         if (i) parts.push('<div class="lm-sep"></div>');
         // 디테일은 상세설계가 저장할 때 쌓인다 — 여기서 만들 수 있는 것이 아니다.
         parts.push(`<div class="lm-stage"><span>${label}</span>`
-          + (stage === 'detail' ? '' : `<button data-save="${stage}">현재 상태 저장…</button>`)
+          + (stage === 'detail' ? ''
+            : `<button data-save="${stage}"${ready.ok ? '' : ' disabled title="' + esc(why) + '"'}>현재 상태 저장…</button>`)
           + '</div>');
         parts.push(rows.length
           ? rows.map((r) => rowHTML(stage, r)).join('')
-          : `<div class="lm-empty">저장된 ${label} 도면이 없습니다</div>`);
+          : `<div class="lm-empty">${ready.ok ? `저장된 ${label} 도면이 없습니다` : '계정 저장을 쓸 수 없습니다'}</div>`);
       });
       menu.innerHTML = parts.join('');
       menu.querySelectorAll('[data-save]').forEach((el) => {
@@ -5283,7 +5388,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       raycaster.setFromCamera(pointer, camera);
       const hits = raycaster.intersectObjects(moduleGroup.children, true);
       const picked = pickEntityHit(hits);
+      // W12-72: 빈 곳을 누르면 선택을 푼다. 안 풀면 파란 테두리가 남아
+      //   지금 무엇을 편집 중인지 알 수 없다.
       if (picked) handleEntityClick(picked);
+      else { clearHighlight(); clearActiveModule(); }
     });
 
     // Resize handler
@@ -6353,8 +6461,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     } else if (mode === 'area') {
       // 배치 단계에서 잡은 영역을 고른다. 이미 고른 영역이 있으면 그대로 둔다.
       const keep = areas.find((a) => a.id === activeAreaId);
-      if (keep) setActiveArea(keep.id);
-      else if (areas.length) setActiveArea(areas[0].id);
+      // '배치' 탭에 들어오는 건 자리를 옮기는 동작이다 — 여기서는 맞춘다.
+      if (keep) setActiveArea(keep.id, { fit: true });
+      else if (areas.length) setActiveArea(areas[0].id, { fit: true });
     } else if (mode === 'all') {
       // W12-70: 고른 모듈은 **그대로 둔다**. 전체 보기에서도 파란 테두리로
       //   무엇을 고쳤는지 보여야 한다 — 예전엔 여기서 activeId 를 지웠다.
@@ -6403,7 +6512,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>`;
       }).join('');
       body.querySelectorAll('[data-area-pick]').forEach((el) => {
-        el.onclick = () => setActiveArea(el.dataset.areaPick);
+        el.onclick = () => setActiveArea(el.dataset.areaPick, { fit: true });
       });
     } else if (viewMode === 'all') {
       body.innerHTML = `<div class="empty-msg" style="padding:20px 8px">전체 모듈 (${modules.length}개)<br><span style="font-size:10px">배치 그대로 3D 표시</span></div>`;
@@ -6859,7 +6968,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       activeId = first.id;                 // 우측 패널에 내용이 차도록
       renderModuleList();
       renderRightPanel();
-      setActiveArea(first.areaId || (areas[0] && areas[0].id) || null);
+      setActiveArea(first.areaId || (areas[0] && areas[0].id) || null, { fit: true });
     }
     renderFrontView();
     fitToAreas();
