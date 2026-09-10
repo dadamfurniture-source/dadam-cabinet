@@ -79,6 +79,50 @@ describe('하부장 ㄱ자 — 몸통끼리 붙는다', () => {
   });
 });
 
+describe('민 만큼은 도어 분배가 먹는다 — 반대편이 비지 않는다', () => {
+  const mods = () => LSHAPE('lower', 700, 870);
+
+  /** 트리밍 라인의 **코너 반대쪽** 끝과 배치 공간 끝 사이 거리 */
+  function farEndGap(p) {
+    const pair = p.g('cornerPairs')()[0];
+    const area = p.g('areas').find((a) => a.id === pair.adj.id);
+    const AB = p.g('planeBoxOf')(area);
+    const ms = p.g('modules').filter((m) => m.areaId === pair.adj.id && !m.isFinishing);
+    const end = Math.max(...ms.map((m) => { const B = p.g('modulePlaneBox')(m); return B.y + B.d; }));
+    return (AB.y + AB.d) - end;
+  }
+
+  test('반대쪽 끝이 배치 공간 끝에 정확히 닿는다 — 빈 자리 0', () => {
+    const p = boot(mods()); p.g('autoCalcAllAreas')();
+    expect(farEndGap(p)).toBe(0);
+  });
+
+  test('나간 12 가 모듈 폭 합에 들어간다 — 원장이 그것을 말한다', () => {
+    const p = boot(mods()); p.g('autoCalcAllAreas')();
+    const pair = p.g('cornerPairs')()[0];
+    const L = p.g('cornerLedger')(pair.adj.id);
+    expect(L.reserved).toBe(-12);          // 예약이 음수 = 밖으로 나간 만큼
+    expect(L.sum).toBe(L.areaW + 12);      // 모듈 합이 배치 공간보다 12 크다
+    expect(L.diff).toBe(0);
+  });
+
+  test('도어 폭이 그만큼 커진다 — 잔여로 남지 않는다', () => {
+    // 분배는 넓어진 room 을 그대로 받는다. 1500 → [1000, 500], 1512 → [1008, 504].
+    const bare = engine.distributeModules(1500);
+    const wide = engine.distributeModules(1500 + engine.cornerFrontAir());
+    expect(bare.modules.map((m) => m.w)).toEqual([1000, 500]);
+    expect(wide.modules.map((m) => m.w)).toEqual([1008, 504]);
+    expect(bare.gap).toBe(0);
+    expect(wide.gap).toBe(0);
+
+    const p = boot(mods()); p.g('autoCalcAllAreas')();
+    const pair = p.g('cornerPairs')()[0];
+    const ws = p.g('modules').filter((m) => m.areaId === pair.adj.id && !m.isFinishing)
+      .map((m) => Math.round(m.W)).sort((x, y) => y - x);
+    expect(ws).toEqual([1008, 504]);
+  });
+});
+
 describe('상부장도 같은 이유로 떠 있었다 — 같이 붙는다', () => {
   const mods = () => LSHAPE('upper', 320, 780);
 
