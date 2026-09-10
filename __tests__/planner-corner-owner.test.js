@@ -95,7 +95,7 @@ describe('원장과 겹침은 두 배치 모두 성립한다', () => {
         (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
           const L = p.g('cornerLedger')(a.id);
           if (!L) return;
-          expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+          expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
           expect(L.missing).toBe(0);
         });
         expect(p.g('crossAreaOverlaps')()).toEqual([]);

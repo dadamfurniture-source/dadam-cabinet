@@ -203,7 +203,7 @@ describe('폭 계산은 하나도 안 바뀐다', () => {
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const L = p.g('cornerLedger')(a.id);
       if (!L) return;
-      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
       expect(L.missing).toBe(0);
     });
   });
@@ -271,7 +271,7 @@ describe('상부장 코너도 같은 규칙이다', () => {
     (p.g('areas') || []).filter((a) => !a.isFinishing).forEach((a) => {
       const L = p.g('cornerLedger')(a.id);
       if (!L) return;
-      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
       expect(L.missing).toBe(0);
     });
     expect(p.g('crossAreaOverlaps')()).toEqual([]);

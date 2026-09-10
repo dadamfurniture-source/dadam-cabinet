@@ -455,17 +455,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-scope.js?v=38.5"></script>
-<script src="js/planner/planner-view.js?v=38.5"></script>
-<script src="js/planner/planner-sections.js?v=38.5"></script>
+<script src="js/planner/planner-scope.js?v=38.6"></script>
+<script src="js/planner/planner-view.js?v=38.6"></script>
+<script src="js/planner/planner-sections.js?v=38.6"></script>
 <!-- W12-71: 도면 스냅샷을 계정에 귀속 저장한다.
      같은 오리진의 iframe 이라 부모(detaildesign)의 로그인 세션을 그대로 본다.
      셋 다 없어도 플래너는 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=38.5"></script>
-<script src="js/planner/planner-store.js?v=38.5"></script>
+<script src="js/config.js?v=38.6"></script>
+<script src="js/planner/planner-store.js?v=38.6"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=38.5"></script>
+<script src="js/planner/planner-engine.js?v=38.6"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -4448,12 +4448,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const blinds = once.filter((m) => m.blind).length;
     const reserved = MASTER_RULES.CORNER_WALL_GAP * owned.length + (adj ? adj.offset : 0);
     const diff = (area.W || 0) - reserved - sum;
+    // W12-73: 모듈 하나당 1mm 는 **조립 여유**다. 결합하면 실제 길이가 그만큼
+    //   늘어나므로 채워진다 — 이 안의 diff 는 어긋남이 아니다.
+    const slack = jointSlack(once.filter((m) => !isFinishingSection(m.section)).length);
     const ownerPlan = owned.length ? cornerPlansFor(areaId, ps) : null;
     const fillUnit = (ownerPlan && ownerPlan.plan.ok)
       ? ownerPlan.plan.doorW
       : MASTER_RULES.DOOR_W_MIN;
     return {
-      areaId, areaW: area.W, sum, reserved, diff,
+      areaId, areaW: area.W, sum, reserved, diff, slack,
+      withinSlack: diff >= 0 && diff <= slack,
       corners: owned.length, blinds, missing: owned.length - blinds,
       // W12-57: 남은 자리가 **거기 들어갈 수 있는 가장 작은 모듈**보다 좁으면
       //   아무것도 못 넣는다. 사람이 고정 모듈을 키우면 정상적으로 생기는
@@ -4462,7 +4466,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   최소 단위가 라인마다 다르다. 멍장 라인은 도어 폭이 라인 전체에
       //   묶여 있어(§3.4) 모듈이 `doorW` 배수로만 들어간다 — 그보다 좁으면
       //   못 채운다. 일반 라인은 도어 최소폭(350)이 기준이다.
-      unfillable: diff > 0 && diff < fillUnit,
+      unfillable: diff > slack && diff < fillUnit,
     };
   }
 
@@ -4521,13 +4525,32 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     leftFins.forEach((f) => { f.x = x; x += f.W || 0; });
     head.forEach((b) => { b.module.x = x; });
     x += headW;
-    return { startX: x, otherFixed, tail, tailW, rightFins };
+    // 오른쪽 끝 기준선 — 왼쪽과 거울이다. 벽 여유 50 과 밀림을 먼저 떼고,
+    // 그 안쪽에 [꼬리 멍장][우 마감재] 를 앉힌다 (placeTail).
+    const rightReserve = (tail.length ? G : 0)
+      + (adjCorner && !adjCorner.atStart ? adjCorner.offset : 0);
+    const rightFinsW = rightFins.reduce((sum, f) => sum + (f.W || 0), 0);
+    const tailAnchor = (area.x || 0) + (area.W || 0) - rightReserve - rightFinsW - tailW;
+    return { startX: x, otherFixed, tail, tailW, rightFins, tailAnchor };
   }
+  /**
+   * 오른쪽 끝 배치. **벽에서 거꾸로** 잰다 (W12-73).
+   *
+   * 예전엔 내용물이 끝난 자리(x)에서 이어 붙였다. 그러면 조립 여유(모듈당 1mm)만큼
+   * 꼬리 전체가 왼쪽으로 밀려, 멍장 측판이 벽에서 50 이 아니라 51·52 가 된다 —
+   * §3.4 는 그 50 을 고정값으로 못박는다. 여유는 **모듈 사이**에 있어야지
+   * 끝 기준선을 움직이면 안 된다.
+   *
+   * 넣을 것이 남은 자리보다 넓으면(고정 모듈을 크게 잡은 경우) 겹치지 않도록
+   * 흐르던 x 를 그대로 쓴다.
+   */
   function placeTail(x, edges) {
-    edges.tail.forEach((b) => { b.module.x = x; });
-    x += edges.tailW;
-    edges.rightFins.forEach((f) => { f.x = x; x += f.W || 0; });
-    return x;
+    const anchor = edges.tailAnchor;
+    let t = Number.isFinite(anchor) ? Math.max(x, anchor) : x;
+    edges.tail.forEach((b) => { b.module.x = t; });
+    t += edges.tailW;
+    edges.rightFins.forEach((f) => { f.x = t; t += f.W || 0; });
+    return t;
   }
 
   function autoCalcArea(areaId) {
@@ -4565,8 +4588,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     // 멍장이 있는 공간은 도어 폭이 라인 전체에 묶여 있다 (corner.md §3.4) —
     // 폭을 보고 도어 수를 정하는 일반 분배로는 그 조건을 지킬 수 없다.
+    // W12-73: 멍장·고정 모듈도 같은 라인에서 결합된다 — 조립 여유를 함께 낸다.
+    const extraModules = blinds.length
+      + kept.filter((m) => !isFinishingSection(m.section) && !m.blind).length;
     const dist = blinds.length
-      ? distributeByDoorW(room, corner.plan.doorW)
+      ? distributeByDoorW(room, corner.plan.doorW, { extraModules })
       : distributeModules(room);
     if (!dist.modules.length) {
       // W12-57: 멍장은 이미 섰다. 남은 자리가 도어 폭보다 좁아 수납이 못 들어갈
@@ -4577,13 +4603,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return blinds.length;
     }
 
-    // 잔여는 셀에 고루 나누고 끝이 나머지를 흡수한다 — autoCalcModule 과 같은 방식.
+    // W12-73: 잔여는 **도어 단위**로 나눈다. 모듈 단위로 나누면 양문 모듈(도어 2장)의
+    //   도어가 단문 모듈보다 작아지고, 나머지를 마지막에 몰면 도어 하나만 커진다.
+    //   모듈 하나당 1mm 는 **조립 여유**로 그냥 둔다 — 결합하면 실제 길이가 그만큼
+    //   늘어나므로 자리는 채워지고, 도어는 라인 전체가 같은 폭으로 남는다.
     const widths = dist.modules.map((d) => d.w);
     const N = widths.length;
     if (dist.gap > 0 && N > 0) {
-      const per = Math.floor(dist.gap / N);
-      const extra = dist.gap - per * N;
-      for (let i = 0; i < N; i++) widths[i] += per + (i === N - 1 ? extra : 0);
+      const spread = spreadGapEqually(dist.gap,
+        dist.modules.map((d) => d.doors || (d.is2D ? 2 : 1)), extraModules);
+      for (let i = 0; i < N; i++) widths[i] += spread.add[i];
     }
 
     // 비고정 모듈만 걷어낸다.
@@ -4659,7 +4688,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const L = cornerLedger(id);
       // 채울 수 없는 자투리는 넘어간다 — 안 그러면 사람이 고정 모듈을 키울 때마다
       // 콘솔이 빨개진다. 검사가 시끄러우면 진짜 불일치를 흘려보내게 된다.
-      if (L && !L.unfillable && (Math.abs(L.diff) > 1 || L.missing !== 0)) {
+      // W12-73: 모듈당 1mm 조립 여유 안의 diff 는 어긋남이 아니다 (withinSlack).
+      if (L && !L.unfillable && (!L.withinSlack || L.missing !== 0)) {
         console.warn('[corner] 원장 불일치', L);
       }
     }));
