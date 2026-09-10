@@ -1,0 +1,17 @@
+{
+  "name": "dadam-generate-api",
+  "private": true,
+  "type": "module",
+  "description": "다담 연출컷 생성 워커 (Cloudflare Workers). 배포는 .github/workflows/worker-deploy.yml",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run --outdir dist"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.131.0"
+  }
+}
