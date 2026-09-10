@@ -986,6 +986,16 @@
             console.error('[Auth] loadDesign 실패:', e);
           }
         }
+        // P11 gen-to-planner: ?gen=<generationId> — 연출컷 구성을 새 품목 + 플래너 배치로.
+        //   저장된 설계(?id=)와 같이 오면 설계를 우선한다. 실패해도 페이지는 평소처럼 연다.
+        const genId = urlParams.get('gen');
+        if (genId && !designId && typeof genImportRun === 'function') {
+          try {
+            await genImportRun(genId);
+          } catch (e) {
+            console.error('[GenImport] 실패:', e);
+          }
+        }
 
         // 자동 저장 설정 (5분마다)
         setupAutoSave();

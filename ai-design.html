@@ -954,9 +954,46 @@
             '<div class="studio-quote-row studio-quote-total"><span>합계 (VAT 포함)</span><span>' +
             won(q.total) +
             '</span></div></div>' +
-            '<button type="button" class="v5-btn v5-btn--solid" id="toPartner" style="justify-self:start">파트너 추천 받기</button>' +
+            '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+            '<button type="button" class="v5-btn v5-btn--solid" id="toPartner">파트너 추천 받기</button>' +
+            (GEN_TO_PLANNER_KINDS.indexOf(S.kind) >= 0 && S.genId
+              ? '<button type="button" class="v5-btn" id="toPlanner">상세설계로 가져오기' +
+                (S.kind === 'island' ? ' (벽면만)' : '') +
+                '</button>'
+              : '') +
+            '</div>' +
             '<p class="v5-note">실측 후 확정됩니다.</p></div>';
           $('toPartner').onclick = goPartner;
+          if ($('toPlanner')) $('toPlanner').onclick = goPlanner;
+        }
+
+        // gen-to-planner: 플래너 배치 단계에 섹션이 있는 품목만 (화장대·신발장·사무실은 아직)
+        var GEN_TO_PLANNER_KINDS = ['sink', 'island', 'fridge', 'storage', 'wardrobe'];
+
+        /**
+         * 연출컷 → 상세설계. 워커가 기본안을 Claude 비전으로 읽어 구성(layout)을 남기면
+         * detaildesign.html?gen= 이 그것을 품목 + 플래너 배치로 바꾼다.
+         * 분석은 멱등이라 두 번째부터는 바로 넘어간다.
+         */
+        async function goPlanner() {
+          var btn = $('toPlanner');
+          if (!btn || !S.genId || S.phase !== 'done') return;
+          btn.disabled = true;
+          var label = btn.textContent;
+          btn.textContent = '구성 분석 중… (10초 안팎)';
+          try {
+            var res = await fetch(API_BASE + '/api/generate/' + S.genId + '/layout', {
+              method: 'POST',
+              headers: await authHeaders(),
+            });
+            var data = await res.json();
+            if (!res.ok || !data.success) throw new Error((data && data.error) || '구성 분석에 실패했습니다');
+            location.href = 'detaildesign.html?gen=' + encodeURIComponent(S.genId);
+          } catch (e) {
+            $('resultState').textContent = e.message;
+            btn.disabled = false;
+            btn.textContent = label;
+          }
         }
 
         // 견적 → 파트너 추천 핸드오프 (기존 동선 유지)
