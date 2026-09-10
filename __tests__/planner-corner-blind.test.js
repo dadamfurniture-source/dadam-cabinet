@@ -77,11 +77,21 @@ describe('distributeByDoorW — 라인 전체가 같은 도어 폭 (§3.4)', () 
     expect(d.modules.map((m) => m.doors)).toEqual([2, 1]);
   });
 
-  test('잔여는 마지막이 흡수하고 gap 을 0 으로 돌려준다 (두 번 더해지지 않게)', () => {
+  test('여유를 넘는 잔여만 마지막이 흡수한다 · gap 은 0 (두 번 더해지지 않게)', () => {
+    // 830 / 400 → 도어 2장 = 양문 모듈 **하나**. 조립 여유 1mm.
+    // W12-73: 잔여 30 중 29 만 마지막이 먹고 1 은 남긴다.
     const d = engine.distributeByDoorW(830, 400);
     expect(d.gap).toBe(0);
     expect(d.remainder).toBe(30);
-    expect(d.modules.reduce((s, m) => s + m.w, 0)).toBe(830);
+    expect(d.slack).toBe(1);
+    expect(d.modules.reduce((s, m) => s + m.w, 0)).toBe(830 - 1);
+  });
+
+  test('잔여가 조립 여유 안이면 도어를 하나도 건드리지 않는다 (§3.4)', () => {
+    // 1235 = 411 × 3 + 2. 모듈 2개(양문 + 단문) → 여유 2mm ≥ 잔여 2 → 그대로 둔다.
+    const d = engine.distributeByDoorW(1235, 411);
+    expect(d.modules.map((m) => m.w)).toEqual([822, 411]);   // 전부 411 의 배수
+    expect(d.slack).toBe(2);
   });
 
   test('도어 한 장도 안 들어가면 빈 결과', () => {
@@ -219,7 +229,7 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
     [pairs[0].owner.id, pairs[0].adj.id].forEach((id) => {
       const L = ledger(id);
       expect(L).not.toBeNull();
-      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
     });
   });
 
@@ -250,13 +260,14 @@ describe('ㄱ자를 그리면 자동계산이 멍장을 만든다', () => {
       .sort((a, b) => a.x - b.x);
 
     expect(storage.length).toBeGreaterThan(0);
-    // 마지막을 뺀 모듈은 도어 폭의 **정확한 배수**다 — 폭이 아니라 도어 장수를 나눴다
-    storage.slice(0, -1).forEach((m) => expect(m.W % doorW).toBe(0));
-    // 잔여는 마지막 하나만 흡수한다 (도어 한 장보다 작다)
-    expect(storage[storage.length - 1].W % doorW).toBeLessThan(doorW);
-    // 합은 언제나 배치 공간 폭 — 멍장 + 수납 + 코너 벽 여유 50
+    // 모듈은 도어 폭의 **정확한 배수**다 — 폭이 아니라 도어 장수를 나눴다.
+    // W12-73: 조립 여유 안의 잔여는 마지막에도 안 붙는다 — 붙이면 도어가 어긋난다.
+    storage.forEach((m) => expect(m.W % doorW).toBe(0));
+    // 합 = 멍장 + 수납 + 코너 벽 여유 50. W12-73 부터는 조립 여유만큼 짧을 수 있다.
     const sum = storage.reduce((s, m) => s + m.W, 0) + blind.W + 50;
-    expect(sum).toBe(pairs[0].owner.W);
+    const slack = engine.jointSlack(storage.length + 1);   // 수납 + 멍장
+    expect(pairs[0].owner.W - sum).toBeGreaterThanOrEqual(0);
+    expect(pairs[0].owner.W - sum).toBeLessThanOrEqual(slack);
   });
 
   test('트리밍한 ㄱ자와 안 한 ㄱ자가 같은 멍장을 낸다', () => {
@@ -368,7 +379,7 @@ describe('ㄷ자를 그리면 멍장이 둘 선다', () => {
       .map((a) => p.g('cornerLedger')(a.id)).filter(Boolean);
     expect(ledgers.length).toBe(3);
     ledgers.forEach((L) => {
-      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
       expect(L.missing).toBe(0);
     });
     // 가운데 다리는 코너 둘 · 멍장 둘 · 벽 여유 둘
@@ -521,7 +532,7 @@ describe('상부장 ㄱ자 — 멍이 320 + 몰딩이다', () => {
       .map((a) => p.g('cornerLedger')(a.id)).filter(Boolean);
     expect(ledgers.length).toBe(2);
     ledgers.forEach((L) => {
-      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
       expect(L.missing).toBe(0);
     });
   });
@@ -727,7 +738,7 @@ describe('한 벽면에 배치 공간이 여러 개여도 된다', () => {
     live.forEach((a) => {
       const L = p.g('cornerLedger')(a.id);
       if (!L) return;                       // 코너와 무관한 배치 공간
-      expect(Math.abs(L.diff)).toBeLessThanOrEqual(1);
+      expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유
       expect(L.missing).toBe(0);
     });
     // 셋 중 둘만 코너에 물린다

@@ -91,7 +91,7 @@ describe.each([
     p.g('setAreaFinish')(adj, 'left', 'filler');
     [own, adj].forEach((id) => {
       const Lg = p.g('cornerLedger')(id);
-      expect(Math.abs(Lg.diff)).toBeLessThanOrEqual(1);
+      expect(Lg.withinSlack).toBe(true);   // W12-73
       expect(Lg.missing).toBe(0);
     });
     expect(p.g('crossAreaOverlaps')()).toEqual([]);
