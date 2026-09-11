@@ -65,6 +65,54 @@ updates:
       all-minor-patch:
         update-types: ["minor", "patch"]
 
+  - package-ecosystem: npm
+    directory: "/workers/generate-api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "workers"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      all-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/workers/workflow-api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "workers"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      all-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # 현재 peerDependencies(react)만 선언돼 있어 Dependabot이 갱신할 대상이 없다.
+  # (Dependabot은 peerDependencies를 업데이트하지 않음)
+  # 실제 dependencies가 추가되는 시점부터 동작한다.
+  - package-ecosystem: npm
+    directory: "/design-system"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "design-system"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      all-minor-patch:
+        update-types: ["minor", "patch"]
+
   # GitHub Actions 버전 업데이트
   - package-ecosystem: github-actions
     directory: "/"
