@@ -1,0 +1,58 @@
+name: 버그 리포트
+description: 동작하지 않거나 잘못 동작하는 부분을 알려주세요
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 증상
+      description: 무엇이 잘못되었나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      placeholder: |
+        1. ... 페이지 접속
+        2. ... 클릭
+        3. 오류 발생
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 동작
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      options:
+        - 웹사이트 (정적 HTML)
+        - Next.js 앱 (app/)
+        - 관리자 (admin/)
+        - 결제 API (workers/payments-api)
+        - MCP 서버 (mcp-server)
+        - 플래너 (planner-vite)
+        - 기타 / 모름
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: 환경
+      placeholder: "예: Chrome 120 / Windows 11, 또는 Node 20"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 콘솔 로그 · 스크린샷
+      description: 붙여넣기 전에 API 키나 개인정보가 포함되지 않았는지 확인해 주세요
+      render: shell
