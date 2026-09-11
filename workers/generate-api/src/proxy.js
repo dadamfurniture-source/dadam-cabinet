@@ -9,7 +9,15 @@
  *
  * 하는 일은 하나다: 받은 {url, body} 를 그대로 Google 에 POST 하고 응답을 돌려준다.
  * 상태를 저장하지 않는다.
+ *
+ * 2026-09-12: Anthropic 도 같다. HKG 콜로 발신은 api.anthropic.com 이 403 "Request not allowed"
+ * 로 막는다 (연출컷 구성 분석 실측). 그래서 {url, method, headers, bodyText} 도 받아
+ * api.anthropic.com 으로 그대로 넘긴다 — SDK 의 fetch 를 이 객체로 갈아끼운다 (claude.js).
  */
+const ALLOWED = [
+  /^https:\/\/generativelanguage\.googleapis\.com\//,
+  /^https:\/\/api\.anthropic\.com\//,
+];
 export class GeminiProxy {
   constructor(state, env) {
     this.state = state;
@@ -23,20 +31,25 @@ export class GeminiProxy {
       return new Response(t, { headers: { 'Content-Type': 'text/plain' } });
     }
     if (request.method !== 'POST') return new Response('POST only', { status: 405 });
-    const { url, body } = await request.json();
-    if (!url || !/^https:\/\/generativelanguage\.googleapis\.com\//.test(url)) {
+    const { url, body, method, headers, bodyText } = await request.json();
+    if (!url || !ALLOWED.some((re) => re.test(url))) {
       return new Response('bad target', { status: 400 });
     }
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    // Gemini 호출은 {url, body}(객체)만 보낸다. Anthropic 은 SDK 가 만든 헤더·본문 문자열을 그대로 보낸다.
+    const init = {
+      method: method || 'POST',
+      headers:
+        headers && typeof headers === 'object' ? headers : { 'Content-Type': 'application/json' },
+    };
+    if (init.method !== 'GET' && init.method !== 'HEAD') {
+      init.body = typeof bodyText === 'string' ? bodyText : JSON.stringify(body);
+    }
+    const res = await fetch(url, init);
     // 상태 코드와 본문을 그대로 넘긴다. 호출 쪽이 지역 차단 여부를 판단한다.
-    return new Response(res.body, {
-      status: res.status,
-      headers: { 'Content-Type': res.headers.get('Content-Type') || 'application/json' },
-    });
+    const out = { 'Content-Type': res.headers.get('Content-Type') || 'application/json' };
+    const reqId = res.headers.get('request-id');
+    if (reqId) out['request-id'] = reqId;
+    return new Response(res.body, { status: res.status, headers: out });
   }
 }
 
