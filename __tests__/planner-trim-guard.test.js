@@ -75,6 +75,17 @@ describe('겹친 배치 공간을 찾아낸다', () => {
     expect(p.g('overlappingRectPairs')()).toEqual([]);
   });
 
+  test('가전(분배기·후드)이 런 안에 앉은 것은 겹침이 아니다 (P11)', () => {
+    // 연출컷 가져오기와 골든 straight 가 만드는 모양 — 구조 단계가 가전 X 범위로 런을 나눈다
+    const p = boot([
+      rect({ section: 'lower', w: 2500, h: D }),
+      rect({ section: 'upper', w: 2500, h: 320, moduleH: 780 }),
+      rect({ section: 'sink', x: 850, w: 700, h: 400, moduleH: 500 }),
+      rect({ section: 'hood', x: 2050, w: 300, h: 300, moduleH: 300 }),
+    ]);
+    expect(p.g('overlappingRectPairs')()).toEqual([]);
+  });
+
   test('같은 단끼리는 여전히 잡는다 (단 구분이 검사를 무디게 하지 않았다)', () => {
     const p = boot([
       rect({ section: 'upper', w: 1800, h: 320, moduleH: 800 }),
