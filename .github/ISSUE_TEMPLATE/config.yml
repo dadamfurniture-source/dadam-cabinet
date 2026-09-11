@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 기여 · 배포 규칙
+    url: https://github.com/dadamfurniture-source/dadam-cabinet/blob/main/CONTRIBUTING.md
+    about: 브랜치 · PR · 배포 규칙을 먼저 확인해 주세요
+  - name: 보안 취약점 신고
+    url: https://github.com/dadamfurniture-source/dadam-cabinet/security/advisories/new
+    about: 보안 문제는 공개 이슈 대신 비공개로 제보해 주세요

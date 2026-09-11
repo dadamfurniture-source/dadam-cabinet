@@ -1,0 +1,39 @@
+name: 기능 제안
+description: 새로운 기능이나 개선 아이디어를 제안합니다
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 해결하려는 문제
+      description: 지금 무엇이 불편한가요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 제안 내용
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 고려한 대안
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      options:
+        - 웹사이트 (정적 HTML)
+        - Next.js 앱 (app/)
+        - 관리자 (admin/)
+        - 결제 API (workers/payments-api)
+        - MCP 서버 (mcp-server)
+        - 플래너 (planner-vite)
+        - 기타 / 모름
+    validations:
+      required: true

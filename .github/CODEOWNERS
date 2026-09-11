@@ -1,0 +1,17 @@
+# 기본 소유자 — 지정되지 않은 모든 파일
+*                           @dadamfurniture-source
+
+# CI · 배포 · 저장소 설정
+/.github/                   @dadamfurniture-source
+
+# 결제 — 변경 시 반드시 리뷰
+/workers/                   @dadamfurniture-source
+/PAYMENT_SYSTEM_DESIGN.md   @dadamfurniture-source
+
+# 데이터베이스 스키마
+/database/                  @dadamfurniture-source
+
+# 에이전트 · 협업 규칙
+/CLAUDE.md                  @dadamfurniture-source
+/CONTRIBUTING.md            @dadamfurniture-source
+/Rules.txt                  @dadamfurniture-source
