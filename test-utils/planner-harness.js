@@ -16,7 +16,7 @@
  *
  * 주입하는 것 (전역을 건드리지 않고 함수 인자로 그림자를 씌운다):
  *   location      — `?design=&item=` 스코프 키를 테스트가 정한다
- *   localStorage  — jest.setup.js 의 전역 목은 jest.fn() 이라 **저장이 안 된다**. 실제 Map 으로 대체
+ *   localStorage  — boot 마다 격리된 실제 Map 으로 대체해 테스트가 초기값을 정하게 한다
  *   window        — `window.parent === window` 면 플래너가 postMessage 를 거부하므로(sendPlannerState)
  *                   parent 만 스텁으로 바꾼 Proxy 를 넘긴다
  */
@@ -26,7 +26,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
-/** 실제로 값을 보관하는 localStorage. jest.setup.js 의 jest.fn() 목은 저장을 안 한다. */
+/** 실제로 값을 보관하는 localStorage. boot 단위로 격리된다. */
 function makeStorage(seed = {}) {
   const map = new Map(Object.entries(seed));
   return {
