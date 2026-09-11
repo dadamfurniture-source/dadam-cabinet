@@ -2786,8 +2786,13 @@
     const t = Number.isFinite(tol) ? tol : 1;
     const content = getContent();
     if (!content) return [];
+    // P11: 가전(분배기·후드·식세기·냉장고)은 하부장·상부장 런 **안에** 앉는 것이 정상이다 —
+    //   구조 단계가 그 X 범위로 런을 나눈다(autoCalcForSet). 겹침으로 보면 연출컷 가져오기가
+    //   매번 확인창에 막히고, 손으로 그린 분배기도 트리밍하라고 잘못 안내한다.
+    const APPLIANCE_RECTS = ['sink', 'hood', 'dishwasher', 'refrigerator'];
     const rects = Array.from(content.querySelectorAll(':scope > g.sect-rect'))
-      .filter((g) => !g.classList.contains('finishing'));
+      .filter((g) => !g.classList.contains('finishing')
+        && !APPLIANCE_RECTS.some((c) => g.classList.contains(c)));
     const out = [];
     for (let i = 0; i < rects.length; i++) {
       for (let j = i + 1; j < rects.length; j++) {
