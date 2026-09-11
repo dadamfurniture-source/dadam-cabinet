@@ -1,0 +1,76 @@
+version: 2
+updates:
+  # 루트 (Next.js + 정적 사이트)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/mcp-server"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "mcp-server"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      all-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/planner-vite"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "planner"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      all-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/workers/payments-api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "payments"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      all-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions 버전 업데이트
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      timezone: Asia/Seoul
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(ci)"
