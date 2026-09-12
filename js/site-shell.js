@@ -303,6 +303,8 @@
     // 없다는 뜻이었다. 지금은 플래너 자체가 로그인 기준이라 링크도 같이 연다.
     var detail = document.getElementById('navDetailDesign');
     if (detail) detail.hidden = false;
+    // 상세설계 페이지(data-nav="detail")에서는 이 링크가 현재 위치다.
+    if (detail && currentNav === 'detail') detail.setAttribute('aria-current', 'page');
     try {
       if (window.AdminAccess) {
         var isAdmin = await window.AdminAccess.isAdmin(sb);
@@ -348,12 +350,16 @@
   }
 
   // ── 주입 ─────────────────────────────────────────────
+  var currentNav = '';
   function mount() {
     var slots = document.querySelectorAll('[data-site-shell]');
     if (!slots.length) return;
     slots.forEach(function (slot) {
       var kind = slot.getAttribute('data-site-shell');
-      if (kind === 'header') slot.outerHTML = headerHTML(slot.getAttribute('data-nav') || '');
+      if (kind === 'header') {
+        currentNav = slot.getAttribute('data-nav') || '';
+        slot.outerHTML = headerHTML(currentNav);
+      }
       else if (kind === 'footer') slot.outerHTML = footerHTML();
     });
     applyAuth();
