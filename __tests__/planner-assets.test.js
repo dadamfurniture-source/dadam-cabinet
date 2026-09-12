@@ -53,6 +53,7 @@ const SHARED = [
   'js/planner/planner-scope.js',
   'js/planner/planner-view.js',
   'js/planner/planner-sections.js',
+  'js/planner/planner-drawing-menu.js',   // 2026-09-13: 도면 저장/불러오기 공통 메뉴
 ];
 
 // 구조 단계 전용 (P2). 배치 단계는 계산 엔진을 쓰지 않는다 — 실측 0건이라
