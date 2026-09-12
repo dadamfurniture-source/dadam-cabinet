@@ -2434,10 +2434,19 @@
       if (!name) return;
       try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
       const r = await PlannerStore.save('layout', { name });
+      // 2026-09-13: 설계가 아직 저장되지 않았으면 부모에게 설계 저장을 부탁하고, 끝나면 이어서 저장한다.
+      if (!r.ok && r.reason === 'no-scope' && plannerRequestDesignSave({ stage: 'layout', name })) {
+        showFlash('설계가 아직 저장되지 않았습니다 — 먼저 설계를 저장합니다 (이름을 입력하세요)');
+        return;
+      }
       showFlash(r.ok ? `💾 계정에 저장 — ${name}` : `⚠ 저장 실패: ${r.message || excuse(r.reason) || r.reason}`,
         r.ok ? 'rgba(13,71,161,0.92)' : undefined);
       if (r.ok) renderMenu();
     }
+
+    // 2026-09-13: 부모가 설계를 저장하면 스코프를 갈아타고, 미뤄 둔 배치 저장을 이어서 한다.
+    if (typeof plannerListenDesignSaved === 'function') plannerListenDesignSaved((t) => showFlash(t, 'rgba(13,71,161,0.92)'));
+    if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave((t) => showFlash(t, 'rgba(13,71,161,0.92)'));
 
     async function renderMenu() {
       menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';

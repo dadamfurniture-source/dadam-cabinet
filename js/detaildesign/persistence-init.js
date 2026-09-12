@@ -1162,6 +1162,10 @@
         for (const item of selectedItems) {
           const itemId = Math.floor(item.uniqueId);
           if (!Number.isFinite(itemId)) continue;
+          // 2026-09-13: 플래너 iframe 은 String(item.uniqueId)(소수점 포함)를 스코프에 쓴다.
+          //   floor 값과 다르면 그 문자열로도 옮겨야 저장 전에 그린 배치가 사라지지 않는다.
+          const itemStr = String(item.uniqueId);
+          if (itemStr !== String(itemId)) migratePlannerLocalScope(designId, itemStr);
           migratePlannerLocalScope(designId, itemId);
           for (const stage of ['layout', 'structure']) {
             const payload = plannerSnapshotPayload(stage, (base) => {

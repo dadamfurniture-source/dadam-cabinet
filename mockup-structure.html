@@ -5159,10 +5159,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const name = prompt(`${label} 도면 이름:`, `${label} ${new Date().toLocaleString('ko-KR')}`);
       if (!name) return;
       const r = await PlannerStore.save(stage, { name });
+      // 2026-09-13: 설계가 아직 저장되지 않았으면 부모에게 설계 저장을 부탁하고, 끝나면 이어서 저장한다.
+      if (!r.ok && r.reason === 'no-scope' && plannerRequestDesignSave({ stage, name })) {
+        showToast('설계가 아직 저장되지 않았습니다 — 먼저 설계를 저장합니다 (이름을 입력하세요)');
+        return;
+      }
       showToast(r.ok ? `💾 ${label} 저장 완료 — ${name}`
                      : `⚠ 저장 실패: ${r.message || storeExcuse(r.reason) || r.reason}`);
       if (r.ok) renderMenu();
     }
+
+    // 2026-09-13: 부모가 설계를 저장하면 스코프를 갈아타고, 미뤄 둔 도면 저장을 이어서 한다.
+    if (typeof plannerListenDesignSaved === 'function') plannerListenDesignSaved(showToast);
+    if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave(showToast);
 
     async function renderMenu() {
       menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';
