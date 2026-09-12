@@ -227,14 +227,16 @@ describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다
     });
   });
 
-  test('상부 멍장은 모듈 하나에 목대 2개 — 앞·옆다리 수량 2', () => {
+  test('상부 멍장도 한 벌 — 앞·옆다리 수량 1 (2026-09-13 정정: 2개는 선반이었다)', () => {
     const legs = upper.filter(isBatten);
     expect(legs).toHaveLength(2);
     legs.forEach((b) => {
       expect(b.thickness).toBe(15);
       expect(b.w).toBe(60);
-      expect(b.qty).toBe(2);
+      expect(b.qty).toBe(1);
     });
+    // 상부장 선반은 2장
+    expect(upper.find((m) => m.part === '선반').qty).toBe(2);
   });
 
   test('멍장 선반은 기본보다 75 짧다 — 목대 뒤에서 끝난다', () => {

@@ -4942,6 +4942,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (n <= 0) return [];
     const H = Math.max(0, (Number(m.H) || 0) - legHOf(m, s) - moldingHOf(m, s));
     if (H <= 0) return [];
+    // 2026-09-13: 상부장은 내경에서 선반 두께를 뺀 높이를 (n+1) 등분 — 기본 2개(3등분)와 같은 규칙
+    if (m.section === 'upper') return shelvesEvenInner(H, n, BODY_T);
     const step = H / (n + 1);
     return Array.from({ length: n }, (_, i) => Math.round(step * (i + 1)));
   }
@@ -6014,12 +6016,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (i >= o.cellWidths.length - 1) return;   // 마지막 경계 = 우측판 자리
       if (types[i] === 'blind' || types[i + 1] === 'blind') {
         const dir = types[i] === 'blind' ? +1 : -1;   // 도어가 멍의 오른쪽이면 옆다리는 경계 오른쪽
-        addBlindBatten(parent, o, x, dir);
-        // 상부장 멍장은 목대 2개 — 반대쪽 끝(멍 쪽 측판 안쪽)에 하나 더
-        if (o.section === 'upper' && MASTER_RULES.CORNER_HINGE_BATTEN_UPPER_QTY > 1) {
-          const endX = dir > 0 ? -o.W / 2 + o.T : o.W / 2 - o.T;
-          addBlindBatten(parent, o, endX, dir);
-        }
+        addBlindBatten(parent, o, x, dir);   // 멍장 하나에 한 벌 — 상부장도 같다
         return;
       }
       // W12-5: 목찬넬 판이 전폭을 지나므로 칸막이도 측판과 같은 자리를 따낸다.

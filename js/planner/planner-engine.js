@@ -108,10 +108,13 @@ const MASTER_RULES = {
   // 2026-09-13: 목대는 ㄱ자다 (data-constants.js 가 정본, 여기는 3D 표현용 사본 — 바뀌면 같이).
   //   앞다리 60(정면과 나란히, 멍판 뒤) + 옆다리 60(도어 쪽 끝, 깊이 방향), 모두 15T.
   //   앞선에서 15 + 60 = 75 만 들어간다 — 몸통 깊이 전체를 가로지르는 칸막이가 아니다.
-  //   선반은 그만큼 짧다. 상부장 멍장은 목대 2개 (반대쪽 끝에 하나 더).
+  //   선반은 그만큼 짧다. 멍장 하나에 한 벌 — 상부장도 같다.
   CORNER_HINGE_BATTEN_LEG: 60,
   CORNER_HINGE_BATTEN_DEPTH: 75,
-  CORNER_HINGE_BATTEN_UPPER_QTY: 2,
+  // 2026-09-13: 상부장 기본 선반 2개 — 내경(몸통 H − 2T)에서 선반 두께(n·T)를 뺀 높이를 3등분.
+  //   data-constants.js UPPER_SHELF_COUNT · BODY_THICKNESS_DEFAULT 가 정본 (플래너는 그 파일을 안 읽는다).
+  UPPER_SHELF_COUNT: 2,
+  BODY_T: 15,
   // W12-54: 배치 공간 깊이 분해에서 도어가 차지하는 자리. **자재는 18T 그대로**이고
   //   (DOOR_T) 여기 20 은 시공 갭을 포함한 자리다 — 발주 치수가 아니다.
   //   배치 공간 깊이 = 물끊기 + 도어 자리 + 몸통 + 여유(뒤).  700 = 10 + 20 + 550 + 120
@@ -483,7 +486,25 @@ function distributeByDoorW(budget, doorW, opt) {
   return { modules: mods, gap: 0, remainder, slack: remainder - absorb };
 }
 
+/**
+ * 2026-09-13: 내경 균등 분할 — 선반 두께를 뺀 높이를 (n+1) 등분한다. 상부장 기본 규칙.
+ *   내경 = H − 2T (천판·지판 안쪽), 칸 높이 = (내경 − n·T) / (n+1)
+ *   값은 3D·패널이 쓰는 **선반 중심** 높이(몸통 바닥 기준).
+ * @param {number} H  몸통 높이
+ * @param {number} n  선반 수
+ * @param {number} [T] 판 두께 (기본 MASTER_RULES.BODY_T)
+ */
+function shelvesEvenInner(H, n, T) {
+  const t = Number.isFinite(T) ? T : MASTER_RULES.BODY_T;
+  if (!(n > 0) || !(H > 0)) return [];
+  const space = (H - 2 * t - n * t) / (n + 1);
+  if (space <= 0) return [];
+  return Array.from({ length: n }, (_, i) => Math.round(t + (i + 1) * space + i * t + t / 2));
+}
+
 function calcDefaultShelves(section, H) {
+  // 2026-09-13: 상부장은 기본 2개, 내경 3등분 (data-constants UPPER_SHELF_COUNT).
+  if (section === 'upper') return shelvesEvenInner(H, MASTER_RULES.UPPER_SHELF_COUNT);
   const isShoe = section === 'shoe';
   const MIN = isShoe ? MASTER_RULES.SHELF_SPACE_MIN_SHOE : MASTER_RULES.SHELF_SPACE_MIN;
   const MAX = isShoe ? MASTER_RULES.SHELF_SPACE_MAX_SHOE : MASTER_RULES.SHELF_SPACE_MAX;
@@ -644,6 +665,7 @@ if (typeof window !== 'undefined') {
   window.calcDoorCount = calcDoorCount;
   window.distributeModules = distributeModules;
   window.calcDefaultShelves = calcDefaultShelves;
+  window.shelvesEvenInner = shelvesEvenInner;
   window.collectXRanges = collectXRanges;
   window.splitModuleByAppliance = splitModuleByAppliance;
   window.autoCalcModule = autoCalcModule;
@@ -660,7 +682,7 @@ if (typeof module !== 'undefined' && module.exports) {
     cornerFrontAir,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
-    calcDoorCount, distributeModules, calcDefaultShelves,
+    calcDoorCount, distributeModules, calcDefaultShelves, shelvesEvenInner,
     collectXRanges, splitModuleByAppliance, autoCalcModule,
     deriveCornerArea, distributeByDoorW,
     jointSlack, spreadGapEqually,

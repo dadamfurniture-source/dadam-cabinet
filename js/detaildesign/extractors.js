@@ -156,7 +156,6 @@
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
-          const battenUpperQty = typeof CORNER_HINGE_BATTEN_UPPER_QTY !== 'undefined' ? CORNER_HINGE_BATTEN_UPPER_QTY : 2;
           const finPartW = typeof CORNER_FINISH_PART_W !== 'undefined' ? CORNER_FINISH_PART_W : 100;
 
           const zoneW = parseFloat(mod.blindZoneW) || 0;
@@ -181,8 +180,8 @@
           // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
           // 2026-09-13: **ㄱ자** 목대 — 앞다리 60(정면과 나란히, 멍판 뒤) + 옆다리 60(도어 쪽 끝,
           //   깊이 방향) 모두 15T × 몸통 H. 앞선에서 15 + 60 = 75 만 들어간다 (corner.md §3.5).
-          //   상부장 멍장은 모듈 하나에 ㄱ자 목대 2개. 키큰장 단은 단마다 1개.
-          const battenQty = (mod.pos === 'upper' && !isTall) ? battenUpperQty : 1;
+          //   멍장 하나에 한 벌 — 하부·상부·키큰장 단 모두 같다.
+          const battenQty = 1;
           this.add(materials, modLabel, '경첩목대(앞다리)', 'PB', battenT, battenLeg, H, battenQty, '-',
                    'ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤 (corner.md §3.5)');
           this.add(materials, modLabel, '경첩목대(옆다리)', 'PB', battenT, battenLeg, H, battenQty, '-',
