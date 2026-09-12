@@ -69,7 +69,9 @@
       /* W9-1/W9-7: Step 2 진입 시 외곽 + designWorkspace 내부 UI 모두 숨김 */
       /* iframe overlay (mockup-shell.html) 만 100vw × 100vh 표시 */
       body.step2-fullscreen { overflow: hidden; }
-      body.step2-fullscreen nav,
+      /* 2026-09-12: 사이트 셸 헤더(.v5-header)는 숨기지 않는다 — 홈으로 돌아가는 길이다.
+         옛 내비(nav.nav)만 숨긴다 (지금은 없지만 규칙은 남긴다). */
+      body.step2-fullscreen nav.nav,
       body.step2-fullscreen .app-container > div:first-child, /* h1 + 저장 버튼 행 */
       body.step2-fullscreen .subtitle,
       body.step2-fullscreen .stepper-indicator,
@@ -167,9 +169,23 @@
         max-width: 240px;
       }
 
-      /* 툴바 높이만큼 아래로 밀어 overlay 가 툴바를 가리지 않게 */
+      /* 2026-09-12: 사이트 셸 헤더가 맨 위에 남는다 (높이 --v5-header, css/dadam-v5.css).
+         전체화면에서는 헤더를 fixed 로 띄우고, 툴바는 헤더 아래, overlay 는 그 아래에 둔다.
+         네이티브 모드는 헤더가 sticky 로 흐름에 남으므로 툴바 자리(44px)만 더 확보한다. */
+      body.step2-fullscreen .v5-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 102;
+      }
+      body.step2-fullscreen #step2Toolbar,
+      body.step2-native #step2Toolbar { top: var(--v5-header, 88px); }
       /* 툴바 높이(44px)만큼 overlay 를 내려 툴바가 가려지지 않게 한다 */
-      body.step2-fullscreen [id^="__planner-overlay-"] { top: 44px !important; }
+      body.step2-fullscreen [id^="__planner-overlay-"] {
+        top: calc(var(--v5-header, 88px) + 44px) !important;
+        height: calc(100vh - var(--v5-header, 88px) - 44px) !important;
+      }
       /* 네이티브 편집 모드: fullscreen 숨김 규칙을 쓰지 않으므로 툴바 자리만 확보 */
       body.step2-native .app-container { padding-top: 44px; }
 

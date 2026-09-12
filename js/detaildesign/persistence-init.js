@@ -1016,11 +1016,12 @@
       }
 
       // 모바일 메뉴 토글
+      // 2026-09-12: 옛 내비가 사이트 셸 헤더로 바뀌어 햄버거·모바일 메뉴가 없다. 있을 때만 토글.
       function toggleMobileMenu() {
         const hamburger = document.querySelector('.hamburger');
         const mobileMenu = document.getElementById('mobileMenu');
-        hamburger.classList.toggle('active');
-        mobileMenu.classList.toggle('active');
+        if (hamburger) hamburger.classList.toggle('active');
+        if (mobileMenu) mobileMenu.classList.toggle('active');
       }
 
       // 네비게이션 로그아웃
