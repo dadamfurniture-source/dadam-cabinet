@@ -125,6 +125,21 @@ describe('PlannerStore.loadAny — 어느 설계 것이든 지금 스코프로',
 });
 
 describe('출처 표시', () => {
+  test("'이 품목' 목록(list)도 design_id·item_unique_id 를 실어 자기 것에 출처가 붙지 않는다", async () => {
+    // 가짜 클라이언트는 select 열을 기록만 한다 — 요청한 열에 두 값이 있는지 본다
+    const c = fakeClient({ planner_snapshots: [ROWS[0]] });
+    PlannerStore._client = c;
+    const r = await PlannerStore.list('layout', 20, { designId: 'd-1', itemId: 11 });
+    expect(r.ok).toBe(true);
+    const sel = c.calls.find((x) => x.table === 'planner_snapshots').ops.find((o) => o[0] === 'select')[1];
+    expect(sel.split(',').map((x) => x.trim())).toContain('design_id');
+    expect(sel.split(',').map((x) => x.trim())).toContain('item_unique_id');
+    expect(plannerSnapshotOrigin(r.rows[0], { designId: 'd-1', itemId: 11 })).toBe('');
+    const SRC = fs.readFileSync(path.join(ROOT, 'js', 'planner', 'planner-store.js'), 'utf8');
+    const at = SRC.indexOf('async list(stage, limit, ids)');
+    expect(SRC.slice(at, at + 700)).toContain('payload, design_id, item_unique_id');
+  });
+
   test('같은 스코프면 비고, 다르면 설계 · 품목', () => {
     const row = Object.assign({}, ROWS[0], { design_name: '김씨댁', item_name: '싱크대' });
     expect(plannerSnapshotOrigin(row, { designId: 'd-1', itemId: 11 })).toBe('');
