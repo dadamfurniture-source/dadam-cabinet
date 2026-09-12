@@ -1718,7 +1718,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       r.setAttribute('width', R.w); r.setAttribute('height', R.h);
       r.setAttribute('fill', cfg.fill || '#ccc');
       r.setAttribute('fill-opacity', picked ? '0.24' : on ? '0.18' : '0.06');
-      r.setAttribute('stroke', picked ? PICK_COLOR_CSS : (cfg.stroke || '#999'));
+      r.setAttribute('stroke', picked ? AREA_PICK_COLOR_CSS : (cfg.stroke || '#999'));
       r.setAttribute('stroke-width', picked ? 10 : on ? 6 : 3);
       r.setAttribute('stroke-dasharray', picked ? '30 14' : '18 10');
       r.setAttribute('data-area-id', a.id);
@@ -2024,6 +2024,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W12-70: 선택 표시색 — 2D(SVG) 와 3D(Three) 가 같은 파랑을 쓰도록 한 곳에 둔다.
   const PICK_COLOR_CSS = 'var(--pick, #1d6fe0)';
   const PICK_COLOR_3D = 0x1d6fe0;
+  // 2026-09-13: 배치(영역) 선택은 **노란** 윤곽선, 모듈 선택은 파란 윤곽선 — 두 단계가 한눈에 갈린다.
+  const AREA_PICK_COLOR_CSS = 'var(--area-pick, #e0a800)';
+  const AREA_PICK_COLOR_3D = 0xe0a800;
 
   function renderModuleFront(content, m, s, offsetX, offsetY) {
     const cfg = SECTION_CONFIG[m.section];
@@ -4766,9 +4769,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *   고르거나 '배치' 탭에 들어올 때. 도면·3D 클릭은 표시만 바꾼다.
    *   (F 키가 언제든 화면을 맞춘다.)
    */
-  /** 배치가 지금 **선택 대상**인가 — 활성 영역이면서 우측 패널이 영역을 보여줄 때. */
+  /**
+   * 배치 윤곽선(노랑)을 그릴 영역인가 — 활성 배치.
+   * 2026-09-13: 배치를 고른 뒤 그 안의 모듈을 골라도(panelTarget 'module') 배치 윤곽선은 그대로 남는다.
+   *   모듈은 파란 윤곽선이 따로 붙어 "이 배치 안의 이 모듈" 로 읽힌다.
+   */
   function areaIsPicked(a) {
-    return !!a && a.id === activeAreaId && panelTarget === 'area';
+    return !!a && a.id === activeAreaId;
   }
 
   /**
@@ -4794,16 +4801,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return had;
   }
 
+  /** 상단 이름표에 배치가 선택됐음을 알린다 (2026-09-12). */
+  function labelPickedArea(id) {
+    const a = areaById(id);
+    const nameEl = document.getElementById('curModuleName');
+    if (nameEl && a) nameEl.textContent = '배치: ' + ((SECTION_CONFIG[a.section] || {}).label || a.section) + ' 영역 · ' + Math.round(a.W) + 'mm';
+  }
+
   function setActiveArea(id, opt) {
     const moved = !!(opt && opt.fit) && id && id !== activeAreaId;
+    if (activeAreaId && id !== activeAreaId && activeId) activeId = null;   // 다른 배치 → 모듈 선택 해제 (2026-09-13)
     activeAreaId = id;
     panelTarget = 'area';
-    // 2026-09-12: 상단 이름표도 배치가 선택됐음을 알린다
-    {
-      const a = areaById(id);
-      const nameEl = document.getElementById('curModuleName');
-      if (nameEl && a) nameEl.textContent = '배치: ' + ((SECTION_CONFIG[a.section] || {}).label || a.section) + ' 영역 · ' + Math.round(a.W) + 'mm';
-    }
+    labelPickedArea(id);   // 2026-09-12: 상단 이름표 "배치: …"
     renderAreaTools();
     renderModuleList();   // W12-15: 배치 목록의 선택 표시를 따라오게 한다
     renderRightPanel();   // W12-31: 우측 패널을 영역 모드로 바꾼다 — 예전엔 우측이
@@ -5608,18 +5618,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     clearHighlight();
     // mesh.userData 우선, 없으면 부모 traverse
     const meshUd = mesh.userData || {};
-    const kind = meshUd.entityKind;
-    // W9-83: carcass 클릭 → 모듈 그룹 전체 highlight
-    if (kind === 'carcass') {
-      let modG = mesh.parent;
-      while (modG && (!modG.userData || modG.userData.entityKind !== 'module')) modG = modG.parent;
-      if (modG) highlightModuleGroup(modG);
-    } else if (mesh.material && mesh.material.emissive && kind && kind !== 'finishing-edge' && kind !== 'carcass-line') {
-      // 단일 entity (마감재/선반) → 자기 자신만 emissive
-      prevHighlighted = mesh;
-      prevEmissive = mesh.material.emissive.getHex();
-      mesh.material.emissive.setHex(0xffaa00);
-    }
+    // 2026-09-13: 예전의 노란 emissive 강조(W9-83 highlightModuleGroup)는 쓰지 않는다.
+    //   선택 표시는 윤곽선 하나다 — 배치는 노랑(areaIsPicked), 모듈은 파랑(addPickOutline3D).
+    //   두 번 누르면 모듈이 노랗게 물들던 것이 그 잔재였다.
     let cur = mesh, ud = null;
     while (cur) {
       if (cur.userData && cur.userData.entityKind) { ud = cur.userData; break; }
@@ -6576,7 +6577,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       addEdgeOutline(box, parent, 0x6a4b2a, on ? 0.9 : 0.45);
       // 2026-09-12: 배치가 선택 대상이면 파란 테두리 — 다른 장 뒤에 있어도 보이게 depthTest 를 끈다
       if (picked) {
-        const pick = addEdgeOutline(box, parent, PICK_COLOR_3D, 1);
+        const pick = addEdgeOutline(box, parent, AREA_PICK_COLOR_3D, 1);
         if (pick) { pick.material.depthTest = false; pick.renderOrder = 998; }
       }
     });
