@@ -220,18 +220,56 @@ describe('배치 선택 표시와 처음 상태 (2026-09-12)', () => {
     p.g('handleEntityClick')(carcass(m.id));
     const r = pickedRect(p);
     expect(r).not.toBeNull();
-    expect(r.getAttribute('stroke')).toBe('var(--pick, #1d6fe0)');
+    expect(r.getAttribute('stroke')).toBe('var(--area-pick, #e0a800)');   // 배치는 노랑
     expect(p.document.getElementById('curModuleName').textContent).toMatch(/^배치: /);
   });
 
-  test('모듈을 고르면 배치 표시는 배경 강조로 돌아간다', () => {
+  test('모듈을 골라도 배치 윤곽선(노랑)은 남고 모듈은 파랑이다', () => {
     const p = boot(FIXTURES.straight);
     p.g('setViewMode')('all');
     const m = p.g('modules')[1];
     p.g('handleEntityClick')(carcass(m.id));
     p.g('handleEntityClick')(carcass(m.id));
-    expect(pickedRect(p)).toBeNull();
+    const r = pickedRect(p);
+    expect(r).not.toBeNull();
+    expect(r.getAttribute('stroke')).toBe('var(--area-pick, #e0a800)');
+    expect(p.document.querySelector(`#contentG [data-module-id="${m.id}"]`).getAttribute('stroke'))
+      .toBe('var(--pick, #1d6fe0)');
     expect(p.document.getElementById('curModuleName').textContent).not.toMatch(/^배치: /);
+  });
+
+  test('모듈을 고른 채 다른 배치를 고르면 전부 풀리고 그 배치만 남는다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const lower = p.g('modules').find((x) => x.section === 'lower');
+    const upperArea = p.g('areas').find((a) => a.section === 'upper');
+    p.g('handleEntityClick')(carcass(lower.id));
+    p.g('handleEntityClick')(carcass(lower.id));
+    p.g('handleEntityClick')({ userData: { entityKind: 'area', areaId: upperArea.id } });
+    const blue = [...p.document.querySelectorAll('#contentG [data-module-id]')]
+      .filter((r) => r.getAttribute('stroke') === 'var(--pick, #1d6fe0)');
+    expect(blue).toHaveLength(0);
+    expect(pickedRect(p).getAttribute('data-area-id')).toBe(upperArea.id);
+    expect(p.document.querySelector('.panel-header-title').textContent).toBe('영역 편집');
+  });
+
+  test('같은 배치를 다시 골라도 모듈 선택은 남는다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const m = p.g('modules')[1];
+    p.g('handleEntityClick')(carcass(m.id));
+    p.g('handleEntityClick')(carcass(m.id));
+    const area = p.g('areas').find((a) => a.id === pickedRect(p).getAttribute('data-area-id'));
+    p.g('setActiveArea')(area.id);
+    expect(p.document.querySelector(`#contentG [data-module-id="${m.id}"]`).getAttribute('stroke'))
+      .toBe('var(--pick, #1d6fe0)');
+  });
+
+  test('3D 클릭은 노란 emissive 강조를 쓰지 않는다 — 소스 규약', () => {
+    const at = SRC.indexOf('function handleEntityClick');
+    const fn = SRC.slice(at, at + 1600);
+    expect(fn).not.toContain('highlightModuleGroup(modG)');
+    expect(fn).not.toContain('setHex(0xffaa00)');
   });
 
   test('빈 곳을 누르면 모듈·배치가 모두 풀린다', () => {
