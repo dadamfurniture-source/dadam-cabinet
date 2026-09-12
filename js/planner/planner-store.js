@@ -143,6 +143,20 @@ function plannerSnapshotSummary(stage, payload) {
 }
 
 /** 목록의 시각 표기 — 오늘이면 시:분, 아니면 월/일 시:분. */
+/**
+ * 스냅샷의 출처 표시 — 지금 스코프면 빈 문자열, 다른 설계·품목이면 "설계명 · 품목명".
+ * listAll 이 붙인 design_name / item_name 을 쓴다.
+ */
+function plannerSnapshotOrigin(row, ids) {
+  if (!row) return '';
+  const same = ids && ids.designId && row.design_id === ids.designId
+    && Number(row.item_unique_id) === Number(ids.itemId);
+  if (same) return '';
+  const d = row.design_name || '다른 설계';
+  const it = row.item_name || (row.item_unique_id != null ? '품목 ' + row.item_unique_id : '');
+  return it ? `${d} · ${it}` : d;
+}
+
 function plannerSnapshotWhen(iso) {
   try {
     const d = new Date(iso);
@@ -290,8 +304,94 @@ const PlannerStore = {
   },
 
   /**
+   * 로그인만 확인한다 — 스코프(설계 저장 여부)는 보지 않는다.
+   * 계정 전체 목록(listAll)과 되쓰기(loadAny)는 설계를 아직 저장하지 않은 품목에서도 되어야 한다:
+   * "예전에 저장해 둔 배치를 새 설계에 불러오기" 가 그 경우다 (2026-09-13).
+   */
+  async session() {
+    const c = this.client();
+    if (!c) return { ok: false, reason: 'no-sdk' };
+    try {
+      const { data } = await c.auth.getSession();
+      if (!data || !data.session) return { ok: false, reason: 'no-session' };
+      return { ok: true, client: c };
+    } catch (e) {
+      return { ok: false, reason: 'no-session' };
+    }
+  },
+
+  /**
+   * 2026-09-13: 내 계정의 **모든 설계·품목**에서 이 단계의 스냅샷을 모은다 — 파일 불러오기처럼.
+   * 어느 설계·어느 품목 것인지 알 수 있게 designs.name 과 design_items.name 을 붙인다.
+   * 소유권은 RLS(designs.user_id)가 거른다. 다른 벽 치수의 배치를 들여오는 판단은 사람 몫이라
+   * 메뉴가 출처를 보여 주고 확인을 받는다.
+   */
+  async listAll(stage, limit) {
+    const r = await this.session();
+    if (!r.ok) return Object.assign({ rows: [] }, r);
+    try {
+      const { data, error } = await r.client
+        .from('planner_snapshots')
+        .select('id, stage, name, is_autosave, created_at, updated_at, payload, design_id, item_unique_id, designs(name)')
+        .eq('stage', stage)
+        .order('updated_at', { ascending: false })
+        .limit(limit || 50);
+      if (error) throw error;
+      const rows = data || [];
+      const designIds = Array.from(new Set(rows.map((x) => x.design_id).filter(Boolean)));
+      let items = [];
+      if (designIds.length) {
+        const q = await r.client
+          .from('design_items')
+          .select('design_id, unique_id, name, category')
+          .in('design_id', designIds);
+        items = (q && q.data) || [];
+      }
+      const itemName = (row) => {
+        const it = items.find((i) => i.design_id === row.design_id
+          && Number(i.unique_id) === Number(row.item_unique_id));
+        return it ? (it.name || it.category || null) : null;
+      };
+      return {
+        ok: true,
+        rows: rows.map((row) => Object.assign({}, row, {
+          design_name: (row.designs && row.designs.name) || null,
+          item_name: itemName(row),
+        })),
+      };
+    } catch (e) {
+      return { ok: false, reason: 'error', message: e && e.message, rows: [] };
+    }
+  },
+
+  /**
+   * 어느 설계·품목의 스냅샷이든 **지금 스코프**의 localStorage 로 되쓴다 (2026-09-13).
+   * loadInto 와 달리 설계가 저장돼 있지 않아도 된다 — 되쓸 곳은 이 브라우저의 키다.
+   */
+  async loadAny(id) {
+    const r = await this.session();
+    if (!r.ok) return r;
+    try {
+      const { data, error } = await r.client
+        .from('planner_snapshots')
+        .select('id, stage, name, payload, created_at, design_id, item_unique_id')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      const applied = applyPlannerSnapshot(data.stage, data.payload, (base, val) => {
+        const key = (typeof scopedKey === 'function') ? scopedKey(base) : base;
+        localStorage.setItem(key, val);
+      });
+      return { ok: true, row: data, applied };
+    } catch (e) {
+      return { ok: false, reason: 'error', message: e && e.message };
+    }
+  },
+
+  /**
    * 이 품목·이 단계의 스냅샷 목록. 다른 품목·다른 설계는 보여주지 않는다 —
    * 다른 벽 치수의 배치가 들어오면 트리밍·코너가 어긋나기 때문이다(계획 Q3).
+   * 계정 전체는 listAll (사람이 출처를 보고 고른다).
    */
   async list(stage, limit, ids) {
     const r = await this.ready(ids);
@@ -404,6 +504,7 @@ if (typeof window !== 'undefined') {
   window.applyPlannerSnapshot = applyPlannerSnapshot;
   window.plannerSnapshotSummary = plannerSnapshotSummary;
   window.plannerSnapshotWhen = plannerSnapshotWhen;
+  window.plannerSnapshotOrigin = plannerSnapshotOrigin;
   window.PlannerStore = PlannerStore;
   window.plannerAutosave = plannerAutosave;
   window.plannerAutosaveEnabled = plannerAutosaveEnabled;
@@ -420,7 +521,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerSnapshotPayload,
     applyPlannerSnapshot,
     plannerSnapshotSummary,
-    plannerSnapshotWhen,
+    plannerSnapshotWhen, plannerSnapshotOrigin,
     PlannerStore,
     plannerAutosave,
     plannerAutosaveEnabled,

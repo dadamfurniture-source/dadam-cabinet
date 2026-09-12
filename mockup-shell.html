@@ -204,6 +204,25 @@
   .bottombar .actions{display:flex;gap:6px}
   .bottombar button{border:1px solid var(--line);background:var(--bg);color:var(--text);padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer}
   .bottombar button.primary{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
+  /* 2026-09-13: 배치 불러오기 드롭다운 — 구조 단계의 .load-menu 와 같은 모양, 바닥바라 위로 연다 */
+  .load-wrap{position:relative;display:flex;align-items:center}
+  .load-btn .caret{font-size:9px;opacity:.7;margin-left:3px}
+  .load-menu{position:absolute;bottom:calc(100% + 6px);left:0;z-index:400;width:340px;max-height:60vh;overflow-y:auto;
+    background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:6px;font-size:11.5px;text-align:left;color:var(--text)}
+  .load-menu .lm-stage{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:4px 8px 2px;font-weight:700;color:var(--brand-deep)}
+  .load-menu .lm-stage button{border:1px solid var(--line);background:transparent;color:var(--brand-deep);padding:2px 8px;border-radius:4px;font-size:10.5px;cursor:pointer}
+  .load-menu .lm-stage button:hover:not(:disabled){background:var(--brand-soft)}
+  .load-menu .lm-stage button:disabled{opacity:.4;cursor:not-allowed}
+  .load-menu .lm-scope{display:flex;gap:4px;padding:2px 8px 6px}
+  .load-menu .lm-scope button{border:1px solid var(--line);background:transparent;padding:2px 9px;border-radius:999px;font-size:10.5px;cursor:pointer;color:var(--text-dim)}
+  .load-menu .lm-scope button.on{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff}
+  .load-menu .lm-row{display:block;width:100%;text-align:left;border:none;background:transparent;padding:6px 9px;border-radius:4px;cursor:pointer;font-size:11.5px;color:var(--text)}
+  .load-menu .lm-row:hover{background:var(--brand-soft)}
+  .load-menu .lm-row .lm-meta{display:block;font-size:10.5px;color:var(--text-faint);margin-top:1px}
+  .load-menu .lm-row .lm-origin{color:var(--brand-deep)}
+  .load-menu .lm-empty{padding:6px 9px 10px;font-size:11px;color:var(--text-faint)}
+  .load-menu .lm-sep{height:1px;background:var(--line);margin:5px 2px}
+  .load-menu .lm-note{padding:9px;font-size:11px;color:var(--text-dim);line-height:1.55}
 </style>
 </head>
 <body>
@@ -425,7 +444,11 @@
       <button class="primary" id="sketchupExportBtn" title="SketchUp 으로 모듈 전송 (mhyrr 확장 필요)">📤 SketchUp 보내기</button>
       <button id="sketchupImportBtn" title="SketchUp 활성 모델에서 가구 가져오기">📥 가져오기</button>
       <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
-      <button id="loadLayoutBtn" title="저장된 배치 불러오기">📂 배치 불러오기</button>
+      <!-- 2026-09-13: 배치 불러오기 — 이 브라우저의 마지막 저장 + 계정에 저장된 배치 도면(이 품목 / 내 모든 설계) -->
+      <div class="load-wrap">
+        <button id="loadLayoutBtn" class="load-btn" title="이 브라우저의 마지막 저장 · 계정에 저장된 배치 도면">📂 배치 불러오기 <span class="caret">▾</span></button>
+        <div class="load-menu" id="loadLayoutMenu" hidden></div>
+      </div>
       <button id="resetLayoutBtn" style="background:#fef0ed;color:#c0392b;border-color:#c0392b" title="모든 배치 삭제 + 처음부터">🗑 초기화</button>
       <button id="nextStepBtn" class="primary" style="background:#1976d2;border-color:#0d47a1" title="구조 단계로">구조 단계 →</button>
     </div>
@@ -2345,18 +2368,138 @@
     showFlash('🗑 초기화 완료 — 새로 시작하세요', 'rgba(192,57,43,0.92)');
   };
 
-  document.getElementById('loadLayoutBtn').onclick = () => {
+  /** 이 브라우저(localStorage)에 마지막으로 저장한 배치를 되살린다 — 예전 '배치 불러오기' 그대로. */
+  function restoreLastLocalLayout() {
     const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!raw) { showFlash('⚠ 저장된 배치 없음'); return; }
+    if (!raw) { showFlash('⚠ 저장된 배치 없음'); return false; }
     try {
       const layout = JSON.parse(raw);
       restoreLayout(layout);
       const ts = new Date(layout.savedAt).toLocaleString('ko-KR');
       showFlash(`📂 복원 완료 (모듈 ${layout.modules.length}개 · ${ts})`, 'rgba(13,71,161,0.92)');
+      return true;
     } catch (e) {
       showFlash('⚠ 불러오기 실패: ' + e.message);
+      return false;
     }
-  };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2026-09-13: 📂 배치 불러오기 — 드롭다운.
+  //   ① 이 브라우저의 마지막 저장 (예전 동작)
+  //   ② 계정에 저장된 배치 도면 — 이 품목 / 내 모든 설계 (파일 불러오기처럼 출처를 보고 고른다)
+  //   ③ 현재 배치를 이름 붙여 계정에 저장
+  //   저장·목록·되쓰기의 정본은 js/planner/planner-store.js. 되쓴 뒤에는 fromStructure 토큰을
+  //   두고 다시 열어 autoRestore 가 그리게 한다 — 원점(ceiling)처럼 한 번만 도는 로드 경로 때문.
+  // ─────────────────────────────────────────────────────────────
+  {
+    const btn = document.getElementById('loadLayoutBtn');
+    const menu = document.getElementById('loadLayoutMenu');
+    let loadScope = 'item';   // 'item' | 'all'
+
+    const esc = (t) => String(t == null ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const excuse = (reason) => reason === 'no-scope'
+      ? '이 설계는 아직 저장되지 않아 계정에 **저장**할 수는 없습니다. 상세설계에서 설계를 저장하면 쌓이기 시작합니다. 불러오기는 "내 모든 설계" 에서 됩니다.'
+      : reason === 'no-session' ? '로그인하면 계정에 저장한 배치를 불러올 수 있습니다.'
+      : reason === 'no-sdk' ? '이 화면에서는 계정 저장을 쓸 수 없습니다.' : '';
+
+    function rowHTML(r, ids) {
+      const label = r.is_autosave ? '자동 저장' : (r.name || '이름 없음');
+      const when = (typeof plannerSnapshotWhen === 'function') ? plannerSnapshotWhen(r.updated_at || r.created_at) : '';
+      const sum = (typeof plannerSnapshotSummary === 'function') ? plannerSnapshotSummary('layout', r.payload) : '';
+      const origin = (typeof plannerSnapshotOrigin === 'function') ? plannerSnapshotOrigin(r, ids) : '';
+      return `<button class="lm-row" data-snap="${esc(r.id)}">${esc(label)}`
+        + `<span class="lm-meta">${esc(when)}${sum ? ' · ' + esc(sum) : ''}`
+        + (origin ? ` · <span class="lm-origin">${esc(origin)}</span>` : '') + `</span></button>`;
+    }
+
+    async function pickSnapshot(id, origin) {
+      const what = origin ? `다른 설계의 배치(${origin})` : '저장된 배치';
+      if (!confirm(`${what}를 불러옵니다.\n\n지금 화면의 배치는 덮어씁니다.\n(계정에 저장할 수 있는 상태면 현재 배치를 자동 저장으로 한 벌 남깁니다.)\n\n계속하시겠습니까?`)) return;
+      const cur = serializeLayout();
+      if (cur) { try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(cur)); } catch (e) {} }
+      try { await PlannerStore.save('layout', { autosave: true }); } catch (e) {}
+      const r = await PlannerStore.loadAny(id);
+      if (!r.ok) { showFlash('⚠ 불러오기 실패: ' + (r.message || r.reason)); return; }
+      showFlash('📥 배치 불러오기 완료 — 화면을 다시 엽니다', 'rgba(13,71,161,0.92)');
+      try { sessionStorage.setItem('fromStructure', '1'); } catch (e) {}
+      setTimeout(() => location.reload(), 400);
+    }
+
+    async function saveNamed() {
+      const layout = serializeLayout();
+      if (!layout) { showFlash('⚠ 저장할 배치 없음'); return; }
+      const name = prompt('배치 도면 이름:', `배치 ${new Date().toLocaleString('ko-KR')}`);
+      if (!name) return;
+      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
+      const r = await PlannerStore.save('layout', { name });
+      showFlash(r.ok ? `💾 계정에 저장 — ${name}` : `⚠ 저장 실패: ${r.message || excuse(r.reason) || r.reason}`,
+        r.ok ? 'rgba(13,71,161,0.92)' : undefined);
+      if (r.ok) renderMenu();
+    }
+
+    async function renderMenu() {
+      menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';
+      const parts = [];
+      // ① 이 브라우저의 마지막 저장
+      let local = null;
+      try { local = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || 'null'); } catch (e) {}
+      parts.push('<div class="lm-stage"><span>이 브라우저</span></div>');
+      parts.push(local && Array.isArray(local.modules)
+        ? `<button class="lm-row" data-local="1">↩ 마지막 저장<span class="lm-meta">${esc(new Date(local.savedAt).toLocaleString('ko-KR'))} · 모듈 ${local.modules.length}개</span></button>`
+        : '<div class="lm-empty">이 브라우저에 저장된 배치가 없습니다</div>');
+      parts.push('<div class="lm-sep"></div>');
+      // ② 계정
+      const ready = (typeof PlannerStore !== 'undefined') ? await PlannerStore.ready() : { ok: false, reason: 'no-sdk' };
+      const ses = (typeof PlannerStore !== 'undefined' && ready.reason === 'no-scope') ? await PlannerStore.session() : null;
+      const canList = ready.ok || (ses && ses.ok);
+      const ids = ready.ids || (typeof plannerScopeIds === 'function' ? plannerScopeIds() : {});
+      if (!ready.ok && loadScope === 'item') loadScope = ready.reason === 'no-scope' ? 'all' : loadScope;
+      parts.push(`<div class="lm-stage"><span>계정에 저장된 배치</span>`
+        + `<button data-save="1"${ready.ok ? '' : ' disabled title="' + esc(excuse(ready.reason)) + '"'}>현재 배치 저장…</button></div>`);
+      parts.push(`<div class="lm-scope">`
+        + `<button data-scope="item" class="${loadScope === 'item' ? 'on' : ''}"${ready.ok ? '' : ' disabled'}>이 품목</button>`
+        + `<button data-scope="all" class="${loadScope === 'all' ? 'on' : ''}"${canList ? '' : ' disabled'}>내 모든 설계</button></div>`);
+      if (!canList) {
+        parts.push(`<div class="lm-note">${esc(excuse(ready.reason))}</div>`);
+      } else {
+        const list = loadScope === 'all' ? await PlannerStore.listAll('layout') : await PlannerStore.list('layout');
+        const rows = list.rows || [];
+        if (ready.reason === 'no-scope') parts.push(`<div class="lm-note">${esc(excuse('no-scope'))}</div>`);
+        parts.push(rows.length ? rows.map((r) => rowHTML(r, ids)).join('')
+          : `<div class="lm-empty">${loadScope === 'all' ? '계정에 저장된 배치 도면이 없습니다' : '이 품목에 저장된 배치 도면이 없습니다'}</div>`);
+      }
+      menu.innerHTML = parts.join('');
+      const localBtn = menu.querySelector('[data-local]');
+      if (localBtn) localBtn.onclick = (e) => { e.stopPropagation(); menu.hidden = true; restoreLastLocalLayout(); };
+      const saveBtn = menu.querySelector('[data-save]');
+      if (saveBtn) saveBtn.onclick = (e) => { e.stopPropagation(); saveNamed(); };
+      menu.querySelectorAll('[data-scope]').forEach((el) => {
+        el.onclick = (e) => { e.stopPropagation(); loadScope = el.dataset.scope; renderMenu(); };
+      });
+      menu.querySelectorAll('[data-snap]').forEach((el) => {
+        el.onclick = (e) => {
+          e.stopPropagation();
+          menu.hidden = true;
+          const origin = el.querySelector('.lm-origin');
+          pickSnapshot(el.dataset.snap, origin ? origin.textContent : '');
+        };
+      });
+    }
+
+    if (btn && menu) {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden) renderMenu();
+      };
+      document.addEventListener('click', (e) => {
+        if (menu.hidden) return;
+        if (!menu.contains(e.target) && e.target !== btn) menu.hidden = true;
+      });
+    }
+  }
 
   // W9-60/61: 배치 복원 — JSON layout 을 받아 모든 모듈 + 부재 재생성
   let restoreInProgress = false;
