@@ -57,8 +57,8 @@ describe('멍가림판 — 목대는 빼고 마감재는 안 뺀다', () => {
     expect(cover.w).not.toBe(ZONE_W);      // 목대까지 안고 가면 15 과다
   });
 
-  test('경첩목대는 그대로 따로 나온다 — 멍판에서 뺀 자리가 이것이다', () => {
-    const b = parts.find((m) => m.part === '경첩목대');
+  test('경첩목대(ㄱ자 옆다리)는 그대로 따로 나온다 — 멍판에서 뺀 자리가 이것이다', () => {
+    const b = parts.find((m) => m.part === '경첩목대(옆다리)');
     expect(b).toBeDefined();
     expect(b.thickness).toBe(BATTEN_T);
     expect(b.h).toBe(parts.find((m) => m.part === '멍가림판').h);
@@ -107,7 +107,7 @@ describe('멍장이 아니면 아무것도 안 나온다', () => {
     const item = makeItem();
     item.modules = [{ id: 'm1', type: 'storage', name: '하부장', pos: 'lower', w: 600, h: 708, d: 550, doorCount: 1 }];
     const all = new MaterialExtractor().extract({ items: [item] }).materials;
-    ['멍가림판', '경첩목대', '휠라(멍판)', '몰딩(멍판)'].forEach((part) => {
+    ['멍가림판', '경첩목대(앞다리)', '경첩목대(옆다리)', '휠라(멍판)', '몰딩(멍판)'].forEach((part) => {
       expect(all.find((m) => m.part === part)).toBeUndefined();
     });
   });

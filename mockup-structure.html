@@ -5976,13 +5976,52 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     put(face, 'channelFace');
   }
 
-  /** 셀 경계마다 칸막이 한 장. 양 끝은 측판이 맡으므로 안쪽 경계만 세운다. */
+  /**
+   * 2026-09-13: 멍장의 ㄱ자 경첩목대 (corner.md §3.5).
+   *   옆다리 15T × 깊이 60 — 도어 쪽 끝(셀 경계)에서 깊이 방향, 경첩이 물리는 면
+   *   앞다리 15T × 가로 60 — 정면과 나란히, 멍판 바로 뒤, 옆다리에서 멍 쪽으로
+   *   앞선(z = D/2)에서 15 + 60 = 75 만 들어간다. 뒤는 트여 있어 칸이 생기지 않는다.
+   * @param {number} x        셀 경계 x (모듈 로컬)
+   * @param {number} dir      +1 이면 도어가 x 의 오른쪽(옆다리가 x..x+15), −1 이면 왼쪽
+   */
+  function addBlindBatten(parent, o, x, dir) {
+    const T = MASTER_RULES.CORNER_HINGE_BATTEN_T;
+    const L = MASTER_RULES.CORNER_HINGE_BATTEN_LEG;
+    const cyMid = o.legH + o.carcassH / 2;
+    const frontZ = o.D / 2;
+    // 옆다리: x .. x+15 (dir 방향), z = 앞선−15 .. 앞선−75
+    const side = makeBox(T, o.carcassH, L, o.color);
+    side.position.set(x + dir * T / 2, cyMid, frontZ - T - L / 2);
+    side.userData = Object.assign({ side: 'batten', leg: 'side' }, o.ud);
+    parent.add(side);
+    addEdgeOutline(side, parent);
+    // 앞다리: 옆다리 바깥면에서 멍 쪽으로 60, z = 앞선−15 .. 앞선
+    const front = makeBox(L, o.carcassH, T, o.color);
+    front.position.set(x + dir * T - dir * L / 2, cyMid, frontZ - T / 2);
+    front.userData = Object.assign({ side: 'batten', leg: 'front' }, o.ud);
+    parent.add(front);
+    addEdgeOutline(front, parent);
+  }
+
+  /** 셀 경계마다 칸막이 한 장. 양 끝은 측판이 맡으므로 안쪽 경계만 세운다.
+   *  2026-09-13: 멍 칸과 도어 칸 사이는 칸막이가 아니라 ㄱ자 목대다 — 멍장 내부는 단일 수납 공간(§3.5). */
   function addCellDividers(parent, o) {
     const cyMid = o.legH + o.carcassH / 2;
+    const types = Array.isArray(o.types) ? o.types : [];
     let x = -o.W / 2;
     o.cellWidths.forEach((w, i) => {
       x += w;
       if (i >= o.cellWidths.length - 1) return;   // 마지막 경계 = 우측판 자리
+      if (types[i] === 'blind' || types[i + 1] === 'blind') {
+        const dir = types[i] === 'blind' ? +1 : -1;   // 도어가 멍의 오른쪽이면 옆다리는 경계 오른쪽
+        addBlindBatten(parent, o, x, dir);
+        // 상부장 멍장은 목대 2개 — 반대쪽 끝(멍 쪽 측판 안쪽)에 하나 더
+        if (o.section === 'upper' && MASTER_RULES.CORNER_HINGE_BATTEN_UPPER_QTY > 1) {
+          const endX = dir > 0 ? -o.W / 2 + o.T : o.W / 2 - o.T;
+          addBlindBatten(parent, o, endX, dir);
+        }
+        return;
+      }
       // W12-5: 목찬넬 판이 전폭을 지나므로 칸막이도 측판과 같은 자리를 따낸다.
       const div = o.woodChannel
         ? makeNotchedPanel(o.T, o.carcassH, o.D,
@@ -6715,19 +6754,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 도어를 2장으로 늘리면 수납장이 2개로 보였다. 셀 경계에는 칸막이 한 장만 세운다.
     const woodChannel = isWoodChannel(m, s);   // W12-5
     addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel });
-    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel });
+    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel,
+      types: s.areaTypes, section: m.section });
 
+    // 2026-09-13: 멍장 내부는 단일 수납 공간 — 선반은 모듈 전폭 하나, 깊이는 ㄱ자 목대(75) 뒤에서 끝난다.
+    const blindCut = m.blind ? MASTER_RULES.CORNER_HINGE_BATTEN_DEPTH : 0;
     let cellLeftAccum = -W / 2;
     for (let i = 0; i < vCount; i++) {
       const colW = cellWidths[i];
       const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
       // cell 안 선반 — 본체 기준 sh (legH 더하기)
-      if (Array.isArray(s.shelves)) {
+      if (Array.isArray(s.shelves) && (!blindCut || i === 0)) {
+        const shW = blindCut ? W - 2*T - 4 : colW - 2*T - 4;
+        const shCx = blindCut ? 0 : cellCx;
         s.shelves.forEach((shMM, shIdx) => {
           if (shMM <= T || shMM >= carcassH - T) return;
-          const sh = makeBox(colW - 2*T - 4, T, D - T - 4, '#e8d8b8', { roughness: 0.5 });
-          sh.position.set(cellCx, legH + shMM, T/2);
+          const sh = makeBox(shW, T, D - T - 4 - blindCut, '#e8d8b8', { roughness: 0.5 });
+          sh.position.set(shCx, legH + shMM, T/2 - blindCut / 2);
           sh.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: shIdx, cellIdx: i };
           g.add(sh);
           addEdgeOutline(sh, g);

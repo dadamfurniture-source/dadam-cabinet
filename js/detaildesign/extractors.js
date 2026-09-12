@@ -146,10 +146,17 @@
         //
         // 마감재 종류는 멍장이 속한 라인 마감을 따라온다 (mod.blindFinishType).
         // ========================================
+        /** 2026-09-13: 멍장 선반이 목대(ㄱ자, 앞선에서 75) 뒤에서 끝나도록 줄일 깊이. 멍장이 아니면 0. */
+        blindShelfCut(mod, pos) {
+          if (!isBlindModule(mod, pos)) return 0;
+          return typeof CORNER_HINGE_BATTEN_DEPTH !== 'undefined' ? CORNER_HINGE_BATTEN_DEPTH : 75;
+        }
+
         addBlindFrontParts(materials, modLabel, mod, H) {
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
-          const battenW = typeof CORNER_HINGE_BATTEN_W !== 'undefined' ? CORNER_HINGE_BATTEN_W : 70;
+          const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
+          const battenUpperQty = typeof CORNER_HINGE_BATTEN_UPPER_QTY !== 'undefined' ? CORNER_HINGE_BATTEN_UPPER_QTY : 2;
           const finPartW = typeof CORNER_FINISH_PART_W !== 'undefined' ? CORNER_FINISH_PART_W : 100;
 
           const zoneW = parseFloat(mod.blindZoneW) || 0;
@@ -172,8 +179,14 @@
                      '멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)');
           }
           // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
-          this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenW, H, 1, '-',
-                   '멍장 도어 경첩용 목대 (corner.md §3.3)');
+          // 2026-09-13: **ㄱ자** 목대 — 앞다리 60(정면과 나란히, 멍판 뒤) + 옆다리 60(도어 쪽 끝,
+          //   깊이 방향) 모두 15T × 몸통 H. 앞선에서 15 + 60 = 75 만 들어간다 (corner.md §3.5).
+          //   상부장 멍장은 모듈 하나에 ㄱ자 목대 2개. 키큰장 단은 단마다 1개.
+          const battenQty = (mod.pos === 'upper' && !isTall) ? battenUpperQty : 1;
+          this.add(materials, modLabel, '경첩목대(앞다리)', 'PB', battenT, battenLeg, H, battenQty, '-',
+                   'ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤 (corner.md §3.5)');
+          this.add(materials, modLabel, '경첩목대(옆다리)', 'PB', battenT, battenLeg, H, battenQty, '-',
+                   'ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75 (corner.md §3.5)');
           // W12-61: 멍판 마감재 — 멍장 도어 바로 옆, 멍가림판 위에 붙는다.
           //   'None' 을 명시한 경우에만 뺀다. 미지정이면 휠라로 떨어진다(§3.3) —
           //   자리 60 은 이미 멍 폭에 있어서, 안 내면 그 자리가 MDF 로 발주된다.
@@ -240,8 +253,8 @@
             // 밴드(처짐방지목) - W>=700이면 2개
             const bandQty = W >= 700 ? 2 : 1;
             this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, bandQty, '2면(장)');
-            // 선반 2개 (사쿠리 반영 D-34)
-            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, 2, '1면(전)');
+            // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
+            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34 - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
             // 도어 (H + overlap)
             // W11-13: 미지정(undefined)과 0 을 구분한다.
             //   기존 저장 설계는 doorCount 를 안 넣고 폴백 1 에 의존하므로 그대로 1.
@@ -293,7 +306,8 @@
             this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, bandQty, '2면(장)');
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
-              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, 1, '1면(전)');
+              // 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
+              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), 1, '1면(전)');
             }
             // 도어 (H - 30)
             const doorCount = mod.doorCount || 0;

@@ -208,36 +208,59 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
   });
 });
 
-describe('W12-54: 경첩 목대 — 멍 폭에 든 15T 가 자재표에도 나온다', () => {
+describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다리 60, 15T × 몸통H', () => {
   const materials = extractMaterials(makeLItem());
   const lower = materials.filter((m) => m.module === '하부장-LT망장');
   const upper = materials.filter((m) => m.module === '상부장-LT망장');
+  const isBatten = (m) => /^경첩목대\((앞|옆)다리\)$/.test(m.part);
 
-  test('하부 멍장에 경첩목대가 1개 나온다 — 15T PB · 70 × 몸통H', () => {
-    const b = lower.find((m) => m.part === '경첩목대');
-    expect(b).toBeDefined();
-    expect(b.material).toBe('PB');
-    expect(b.thickness).toBe(15);
-    expect(b.w).toBe(70);
-    expect(b.qty).toBe(1);
-    // 세로는 멍가림판과 같은 몸통 높이다
-    expect(b.h).toBe(lower.find((m) => m.part === '멍가림판').h);
+  test('하부 멍장에 앞다리·옆다리가 1개씩 — 15T PB · 60 × 몸통H', () => {
+    const legs = lower.filter(isBatten);
+    expect(legs.map((m) => m.part).sort()).toEqual(['경첩목대(앞다리)', '경첩목대(옆다리)']);
+    legs.forEach((b) => {
+      expect(b.material).toBe('PB');
+      expect(b.thickness).toBe(15);
+      expect(b.w).toBe(60);
+      expect(b.qty).toBe(1);
+      // 세로는 멍가림판과 같은 몸통 높이다
+      expect(b.h).toBe(lower.find((m) => m.part === '멍가림판').h);
+    });
   });
 
-  test('상부 멍장에도 나온다', () => {
-    const b = upper.find((m) => m.part === '경첩목대');
-    expect(b).toBeDefined();
-    expect(b.thickness).toBe(15);
-    expect(b.w).toBe(70);
+  test('상부 멍장은 모듈 하나에 목대 2개 — 앞·옆다리 수량 2', () => {
+    const legs = upper.filter(isBatten);
+    expect(legs).toHaveLength(2);
+    legs.forEach((b) => {
+      expect(b.thickness).toBe(15);
+      expect(b.w).toBe(60);
+      expect(b.qty).toBe(2);
+    });
+  });
+
+  test('멍장 선반은 기본보다 75 짧다 — 목대 뒤에서 끝난다', () => {
+    const lowerShelf = lower.find((m) => m.part === '선반');
+    const plainLower = materials.find((m) => m.module !== '하부장-LT망장' && /^하부장/.test(m.module) && m.part === '선반');
+    expect(lowerShelf).toBeDefined();
+    if (plainLower && plainLower.h === lowerShelf.h + 75) {
+      expect(lowerShelf.h).toBe(plainLower.h - 75);
+    }
+    const upperShelf = upper.find((m) => m.part === '선반');
+    const plainUpper = materials.find((m) => m.module !== '상부장-LT망장' && /^상부장/.test(m.module) && m.part === '선반');
+    expect(upperShelf).toBeDefined();
+    if (plainUpper) expect(upperShelf.h).toBe(plainUpper.h - 75);
+  });
+
+  test('옛 단일 목대(70 × H) 는 더 나오지 않는다', () => {
+    expect(materials.find((m) => m.part === '경첩목대')).toBeUndefined();
   });
 
   test('멍장이 아닌 모듈에는 안 나온다', () => {
-    const others = materials.filter((m) => !/LT망장/.test(m.module) && m.part === '경첩목대');
+    const others = materials.filter((m) => !/LT망장/.test(m.module) && isBatten(m));
     expect(others).toEqual([]);
   });
 
-  test('멍장이 둘이면 목대도 둘이다 (ㄷ자)', () => {
-    const b = extractMaterials(makeUItem()).filter((m) => m.part === '경첩목대');
+  test('멍장이 둘이면 목대도 둘이다 (ㄷ자) — 앞·옆다리 각 2벌', () => {
+    const b = extractMaterials(makeUItem()).filter((m) => m.part === '경첩목대(옆다리)');
     expect(b).toHaveLength(2);
   });
 });
