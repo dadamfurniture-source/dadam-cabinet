@@ -367,8 +367,12 @@ const PlannerStore = {
   /**
    * 어느 설계·품목의 스냅샷이든 **지금 스코프**의 localStorage 로 되쓴다 (2026-09-13).
    * loadInto 와 달리 설계가 저장돼 있지 않아도 된다 — 되쓸 곳은 이 브라우저의 키다.
+   *
+   * @param {string} [stage] 지금 화면의 단계. 넘기면 **그 단계 저장본만** 받는다 —
+   *   배치 저장본은 배치 단계에서만, 구조는 구조에서만, 디테일은 디테일에서만 불러온다.
+   *   목록이 이미 단계로 걸러져 있지만, id 하나로 들어오는 길(수정된 DOM·옛 링크)까지 막는다.
    */
-  async loadAny(id) {
+  async loadAny(id, stage) {
     const r = await this.session();
     if (!r.ok) return r;
     try {
@@ -378,6 +382,11 @@ const PlannerStore = {
         .eq('id', id)
         .single();
       if (error) throw error;
+      if (stage && data.stage !== stage) {
+        const want = PLANNER_STAGE_LABEL[stage] || stage, got = PLANNER_STAGE_LABEL[data.stage] || data.stage;
+        return { ok: false, reason: 'stage-mismatch', row: data,
+          message: `${got} 도면은 ${got} 단계에서만 불러올 수 있습니다 (지금은 ${want} 단계)` };
+      }
       const applied = applyPlannerSnapshot(data.stage, data.payload, (base, val) => {
         const key = (typeof scopedKey === 'function') ? scopedKey(base) : base;
         localStorage.setItem(key, val);

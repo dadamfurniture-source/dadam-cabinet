@@ -102,6 +102,26 @@ describe('PlannerStore.loadAny — 어느 설계 것이든 지금 스코프로',
     expect(JSON.parse(localStorage.getItem('dadam_layout_v1'))).toEqual(ROWS[0].payload.layout);
     expect(JSON.parse(localStorage.getItem('dadam_origin_v1'))).toEqual(ROWS[0].payload.origin);
   });
+
+  test('단계를 넘기면 그 단계 저장본만 받는다 — 배치 저장본을 구조 단계에서 부르면 되쓰지 않는다', async () => {
+    PlannerStore._client = fakeClient({ planner_snapshots: [ROWS[0]] });
+    localStorage.removeItem('dadam_layout_v1');
+    const r = await PlannerStore.loadAny('s1', 'structure');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('stage-mismatch');
+    expect(r.message).toContain('배치 도면은 배치 단계에서만');
+    expect(localStorage.getItem('dadam_layout_v1')).toBeNull();
+    const ok = await PlannerStore.loadAny('s1', 'layout');
+    expect(ok.ok).toBe(true);
+  });
+
+  test('세 단계 모두 지금 단계를 넘겨 부른다 — 소스 규약', () => {
+    expect(SHELL).toContain("PlannerStore.loadAny(id, 'layout')");
+    expect(STRUCT).toContain("PlannerStore.loadAny(id, 'structure')");
+    const dd = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign', 'detail-drawing.js'), 'utf8');
+    expect(dd).toContain("PlannerStore.loadAny(id, 'detail')");
+    expect(SHELL).not.toContain("getElementById('loadLayoutBtn')");   // 옛 인라인 메뉴는 없다
+  });
 });
 
 describe('출처 표시', () => {
@@ -167,8 +187,8 @@ describe('소스 규약', () => {
   test('공통 메뉴에 범위 토글이 있고 listAll 을 쓴다 · 두 단계 모두 loadAny 로 되쓴다', () => {
     expect(MENU).toContain('data-scope="all"');
     expect(MENU).toContain('PlannerStore.listAll(stage)');
-    expect(STRUCT).toContain('PlannerStore.loadAny(id)');
-    expect(SHELL).toContain('PlannerStore.loadAny(id)');
+    expect(STRUCT).toContain("PlannerStore.loadAny(id, 'structure')");
+    expect(SHELL).toContain("PlannerStore.loadAny(id, 'layout')");
     expect(STRUCT).not.toContain('PlannerStore.loadInto(id)');
   });
   test('배치 단계는 되쓴 뒤 fromStructure 토큰을 두고 다시 연다', () => {
