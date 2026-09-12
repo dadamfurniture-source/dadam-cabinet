@@ -47,6 +47,9 @@
       // 변환을 빠뜨리면 하부 +162mm, 상부 +60mm 로 전 부재가 크게 재단된다.
       const TOTAL_H_LOWER = 870;
       const TOTAL_H_UPPER = 780;
+      // 2026-09-13: 상부장 기본 선반 2개. 자리는 **내경(몸통 H − 천판·지판 두께)에서 선반 두께를 뺀 높이를
+      //   3등분**한 곳 — 세 칸이 같은 높이가 된다 (planner-engine calcDefaultShelves / shelvesEvenInner).
+      const UPPER_SHELF_COUNT = 2;
 
       // 도어/몰딩/목찬넬 MDF 두께 — 몸통 두께와 무관한 별개 값이다.
       // BODY_THICKNESS 를 18 로 바꿔도 여기는 따라가지 않는다.
@@ -77,10 +80,10 @@
       //   앞다리: 정면과 나란히, 멍판 바로 뒤, 가로 60 × 15T
       //   옆다리: 도어 쪽 끝에서 깊이 방향으로 60 × 15T (경첩이 물리는 면)
       //   앞선에서 앞다리 두께 15 + 옆다리 60 = 75 만 들어가고 뒤는 트여 있다.
-      //   선반은 그만큼 짧다 (기본 − 75). 상부장 멍장은 목대 2개.
+      //   선반은 그만큼 짧다 (기본 − 75). 멍장 하나에 한 벌 — 상부장도 같다 (2026-09-13 정정:
+      //   "상부장 2개" 는 목대가 아니라 상부장 기본 선반 수였다 → UPPER_SHELF_COUNT).
       const CORNER_HINGE_BATTEN_LEG = 60;        // 앞다리 가로 = 옆다리 깊이 (재단 가로, 세로는 몸통 H)
       const CORNER_HINGE_BATTEN_DEPTH = CORNER_HINGE_BATTEN_T + CORNER_HINGE_BATTEN_LEG;   // 75
-      const CORNER_HINGE_BATTEN_UPPER_QTY = 2;   // 상부장 멍장 모듈 하나당 ㄱ자 목대 수
       // W12-61: 멍판 마감재(휠라/몰딩) 재단 폭. 멍 공식의 자리 60 과 다른 값이다 —
       //   마감재는 멍가림판 2.7T 를 덮고 붙으므로 접착면 40 을 더 문다 (100 = 40 + 60).
       const CORNER_FINISH_PART_W = 150;  // 멍판 마감재 재단 폭 (§3.3) — W12-72: 100 → 150
