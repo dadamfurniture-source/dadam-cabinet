@@ -1408,6 +1408,12 @@
                 reply('DADAM_DESIGN_SAVED', { designId: currentDesignId });
                 return;
               }
+              // 2026-09-13: 품목이 없으면 saveDesign 이 alert("저장할 설계 내용이 없습니다") 로 끝난다 —
+              //   그 alert 대신 사유를 돌려줘 플래너가 "품목을 먼저 추가" 를 말하게 한다.
+              if (typeof selectedItems !== 'undefined' && (!selectedItems || selectedItems.length === 0)) {
+                reply('DADAM_DESIGN_SAVE_CANCELED', { reason: 'no-items' });
+                return;
+              }
               if (typeof saveDesign !== 'function') { reply('DADAM_DESIGN_SAVE_CANCELED'); return; }
               await saveDesign();
               if (typeof currentDesignId !== 'undefined' && currentDesignId) reply('DADAM_DESIGN_SAVED', { designId: currentDesignId });
@@ -1694,6 +1700,33 @@
       }
 
       /**
+       * 2026-09-13: 품목이 없을 때(부트스트랩) 그린 배치를 첫 품목의 스코프로 넘긴다.
+       *   부트스트랩 스코프는 `::local:bootstrap`, 품목 스코프는 `::local:<uniqueId>` 다.
+       *   안 넘기면 품목을 추가하는 순간 그려 둔 배치가 사라진다. 품목 쪽에 이미 값이 있으면 건드리지 않는다.
+       *   옮긴 뒤 fromStructure 토큰을 남겨 새 iframe 이 자동 복원한다 (mockup-shell autoRestore).
+       */
+      function _adoptBootstrapPlannerScope(item) {
+        if (!item || typeof PLANNER_STAGE_KEYS === 'undefined') return [];
+        const moved = [];
+        const bases = [];
+        Object.keys(PLANNER_STAGE_KEYS).forEach((st) => {
+          Object.keys(PLANNER_STAGE_KEYS[st] || {}).forEach((f) => bases.push(PLANNER_STAGE_KEYS[st][f]));
+        });
+        try {
+          bases.forEach((base) => {
+            const from = `${base}::local:bootstrap`;
+            const to = `${base}::local:${String(item.uniqueId)}`;
+            const val = localStorage.getItem(from);
+            if (val == null) return;
+            if (localStorage.getItem(to) == null) { localStorage.setItem(to, val); moved.push(base); }
+            localStorage.removeItem(from);
+          });
+          if (moved.includes('dadam_layout_v1')) sessionStorage.setItem('fromStructure', '1');
+        } catch (e) { /* 저장소가 없으면 넘길 것도 없다 */ }
+        return moved;
+      }
+
+      /**
        * 품목 수에 맞춰 Step2 마운트 상태를 맞춘다.
        * 0개 → 부트스트랩 플래너(아이콘만 쓰는 용도)
        * 1개 이상 → 부트스트랩 제거 후 현재 품목 워크스페이스
@@ -1721,6 +1754,7 @@
         // 현재 품목의 오버레이가 아직 없을 때(= 부트스트랩에서 막 넘어왔거나
         // 불러오기 직후)만 렌더한다.
         const hasOverlay = !!document.getElementById('__planner-overlay-' + item.uniqueId);
+        if (hadBootstrap) _adoptBootstrapPlannerScope(item);   // 부트스트랩에서 그린 배치를 잃지 않는다
         if ((hadBootstrap || !hasOverlay) && typeof renderWorkspaceContent === 'function') {
           renderWorkspaceContent(item);
         }
