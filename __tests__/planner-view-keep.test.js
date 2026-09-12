@@ -134,17 +134,18 @@ describe('빈 공간을 누르면 선택이 풀린다', () => {
 });
 
 describe('도면 불러오기 메뉴는 저장 버튼을 감추지 않는다', () => {
+  // 2026-09-13: 메뉴는 js/planner/planner-drawing-menu.js 로 옮겨 세 단계가 같이 쓴다.
+  const MENU = fs.readFileSync(path.join(__dirname, '..', 'js/planner/planner-drawing-menu.js'), 'utf8');
   test('쓸 수 없는 상태여도 단계·저장 버튼을 그린다', () => {
-    const at = SRC.indexOf('async function renderMenu');
-    const fn = SRC.slice(at, at + 1800);
-    // 예전엔 여기서 안내 한 줄만 남기고 return 했다 — 저장 버튼이 사라졌다.
-    expect(fn).not.toMatch(/menu\.innerHTML = `<div class="lm-note">\$\{esc\(storeExcuse/);
+    const at = MENU.indexOf('async function render()');
+    const fn = MENU.slice(at, at + 2600);
     expect(fn).toContain('data-save=');
     expect(fn).toContain('disabled title=');
+    expect(fn).toContain('data-scope="all"');
   });
 
   test('비활성 버튼 스타일이 있다', () => {
-    expect(SRC).toContain('.load-menu .lm-stage button:disabled{opacity:.4;cursor:not-allowed}');
+    expect(MENU).toContain('.pdm-menu .pdm-stage button:disabled{opacity:.4;cursor:not-allowed}');
   });
 });
 

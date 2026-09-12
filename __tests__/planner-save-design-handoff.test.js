@@ -65,8 +65,11 @@ describe('소스 규약', () => {
   test('두 단계의 이름 저장이 no-scope 면 plannerRequestDesignSave 로 넘긴다', () => {
     const shell = read('mockup-shell.html');
     const struct = read('mockup-structure.html');
-    expect(shell).toContain("r.reason === 'no-scope' && plannerRequestDesignSave({ stage: 'layout', name })");
-    expect(struct).toContain("r.reason === 'no-scope' && plannerRequestDesignSave({ stage, name })");
+    // 2026-09-13: 공통 메뉴(onNoScope)로 넘긴다
+    expect(shell).toContain("onNoScope: (name) => plannerRequestDesignSave({ stage: 'layout', name })");
+    expect(struct).toContain("onNoScope: (name) => plannerRequestDesignSave({ stage: 'structure', name })");
+    const menu = read('js/planner/planner-drawing-menu.js');
+    expect(menu).toContain("r.reason === 'no-scope' && typeof o.onNoScope === 'function' && o.onNoScope(name)");
     expect(shell).toContain('plannerRunPendingSave(');
     expect(struct).toContain('plannerRunPendingSave(');
   });

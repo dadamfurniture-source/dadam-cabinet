@@ -204,25 +204,6 @@
   .bottombar .actions{display:flex;gap:6px}
   .bottombar button{border:1px solid var(--line);background:var(--bg);color:var(--text);padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer}
   .bottombar button.primary{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
-  /* 2026-09-13: 배치 불러오기 드롭다운 — 구조 단계의 .load-menu 와 같은 모양, 바닥바라 위로 연다 */
-  .load-wrap{position:relative;display:flex;align-items:center}
-  .load-btn .caret{font-size:9px;opacity:.7;margin-left:3px}
-  .load-menu{position:absolute;bottom:calc(100% + 6px);left:0;z-index:400;width:340px;max-height:60vh;overflow-y:auto;
-    background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:6px;font-size:11.5px;text-align:left;color:var(--text)}
-  .load-menu .lm-stage{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:4px 8px 2px;font-weight:700;color:var(--brand-deep)}
-  .load-menu .lm-stage button{border:1px solid var(--line);background:transparent;color:var(--brand-deep);padding:2px 8px;border-radius:4px;font-size:10.5px;cursor:pointer}
-  .load-menu .lm-stage button:hover:not(:disabled){background:var(--brand-soft)}
-  .load-menu .lm-stage button:disabled{opacity:.4;cursor:not-allowed}
-  .load-menu .lm-scope{display:flex;gap:4px;padding:2px 8px 6px}
-  .load-menu .lm-scope button{border:1px solid var(--line);background:transparent;padding:2px 9px;border-radius:999px;font-size:10.5px;cursor:pointer;color:var(--text-dim)}
-  .load-menu .lm-scope button.on{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff}
-  .load-menu .lm-row{display:block;width:100%;text-align:left;border:none;background:transparent;padding:6px 9px;border-radius:4px;cursor:pointer;font-size:11.5px;color:var(--text)}
-  .load-menu .lm-row:hover{background:var(--brand-soft)}
-  .load-menu .lm-row .lm-meta{display:block;font-size:10.5px;color:var(--text-faint);margin-top:1px}
-  .load-menu .lm-row .lm-origin{color:var(--brand-deep)}
-  .load-menu .lm-empty{padding:6px 9px 10px;font-size:11px;color:var(--text-faint)}
-  .load-menu .lm-sep{height:1px;background:var(--line);margin:5px 2px}
-  .load-menu .lm-note{padding:9px;font-size:11px;color:var(--text-dim);line-height:1.55}
 </style>
 </head>
 <body>
@@ -263,6 +244,13 @@
     </div>
     <div class="view-toggle">
       <button>📐 도면</button><button class="active">🧊 3D</button>
+    </div>
+    <!-- 2026-09-13: 도면 저장 / 불러오기 — 배치·구조·디테일 공통, 우측 상단 (js/planner/planner-drawing-menu.js).
+         이 단계(배치)만 저장하고, 불러오기도 배치 저장본만 보여 준다. -->
+    <div class="pdm-wrap" id="drawingMenuWrap">
+      <button type="button" class="pdm-btn" id="loadDrawingBtn" title="이 브라우저의 마지막 저장 · 계정에 저장된 배치 도면 (이 품목 / 내 모든 설계)">📥 도면 불러오기 <span class="pdm-caret">▾</span></button>
+      <div class="pdm-menu" id="loadDrawingMenu" hidden></div>
+      <button type="button" class="pdm-btn" id="saveDrawingBtn" title="지금 배치를 이름 붙여 계정에 저장합니다">💾 도면 저장</button>
     </div>
     <div class="panel-toggle">
       <button id="btnLeft" class="on" title="좌측 도구 (L)">⬛</button>
@@ -444,11 +432,6 @@
       <button class="primary" id="sketchupExportBtn" title="SketchUp 으로 모듈 전송 (mhyrr 확장 필요)">📤 SketchUp 보내기</button>
       <button id="sketchupImportBtn" title="SketchUp 활성 모델에서 가구 가져오기">📥 가져오기</button>
       <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
-      <!-- 2026-09-13: 배치 불러오기 — 이 브라우저의 마지막 저장 + 계정에 저장된 배치 도면(이 품목 / 내 모든 설계) -->
-      <div class="load-wrap">
-        <button id="loadLayoutBtn" class="load-btn" title="이 브라우저의 마지막 저장 · 계정에 저장된 배치 도면">📂 배치 불러오기 <span class="caret">▾</span></button>
-        <div class="load-menu" id="loadLayoutMenu" hidden></div>
-      </div>
       <button id="resetLayoutBtn" style="background:#fef0ed;color:#c0392b;border-color:#c0392b" title="모든 배치 삭제 + 처음부터">🗑 초기화</button>
       <button id="nextStepBtn" class="primary" style="background:#1976d2;border-color:#0d47a1" title="구조 단계로">구조 단계 →</button>
     </div>
@@ -485,6 +468,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
 <script src="js/config.js?v=38.7"></script>
 <script src="js/planner/planner-store.js?v=38.7"></script>
+<script src="js/planner/planner-drawing-menu.js?v=38.7"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -2385,12 +2369,53 @@
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2026-09-13: 📂 배치 불러오기 — 드롭다운.
-  //   ① 이 브라우저의 마지막 저장 (예전 동작)
-  //   ② 계정에 저장된 배치 도면 — 이 품목 / 내 모든 설계 (파일 불러오기처럼 출처를 보고 고른다)
-  //   ③ 현재 배치를 이름 붙여 계정에 저장
-  //   저장·목록·되쓰기의 정본은 js/planner/planner-store.js. 되쓴 뒤에는 fromStructure 토큰을
-  //   두고 다시 열어 autoRestore 가 그리게 한다 — 원점(ceiling)처럼 한 번만 도는 로드 경로 때문.
+  // 2026-09-13: 📥 도면 불러오기 / 💾 도면 저장 — 공통 메뉴 (js/planner/planner-drawing-menu.js).
+  //   이 단계(배치)만 저장·불러온다. 첫 줄은 이 브라우저의 마지막 저장(예전 '배치 불러오기').
+  //   되쓴 뒤에는 fromStructure 토큰을 두고 다시 열어 autoRestore 가 그리게 한다 —
+  //   원점(ceiling)처럼 한 번만 도는 로드 경로 때문.
+  // ─────────────────────────────────────────────────────────────
+  {
+    const flash = (t) => showFlash(t, 'rgba(13,71,161,0.92)');
+    mountPlannerDrawingMenu({
+      stage: 'layout',
+      btn: document.getElementById('loadDrawingBtn'),
+      menu: document.getElementById('loadDrawingMenu'),
+      saveBtn: document.getElementById('saveDrawingBtn'),
+      toast: flash,
+      localRow: () => {
+        let local = null;
+        try { local = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || 'null'); } catch (e) {}
+        if (!local || !Array.isArray(local.modules)) return null;
+        return {
+          label: '↩ 마지막 저장',
+          meta: `${new Date(local.savedAt).toLocaleString('ko-KR')} · 모듈 ${local.modules.length}개`,
+          apply: restoreLastLocalLayout,
+        };
+      },
+      pick: async (id) => {
+        const cur = serializeLayout();
+        if (cur) { try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(cur)); } catch (e) {} }
+        try { await PlannerStore.save('layout', { autosave: true }); } catch (e) {}
+        const r = await PlannerStore.loadAny(id);
+        if (!r.ok) throw new Error(r.message || r.reason);
+        flash('📥 배치 불러오기 완료 — 화면을 다시 엽니다');
+        try { sessionStorage.setItem('fromStructure', '1'); } catch (e) {}
+        setTimeout(() => location.reload(), 400);
+      },
+      save: (name) => {
+        const layout = serializeLayout();
+        if (!layout) return { ok: false, reason: 'empty', message: '저장할 배치가 없습니다' };
+        try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
+        return PlannerStore.save('layout', { name });
+      },
+      onNoScope: (name) => plannerRequestDesignSave({ stage: 'layout', name }),
+    });
+
+    // 부모가 설계를 저장하면 스코프를 갈아타고, 미뤄 둔 배치 저장을 이어서 한다.
+    if (typeof plannerListenDesignSaved === 'function') plannerListenDesignSaved(flash);
+    if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave(flash);
+  }
+
   // ─────────────────────────────────────────────────────────────
   {
     const btn = document.getElementById('loadLayoutBtn');

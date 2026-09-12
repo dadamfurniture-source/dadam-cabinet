@@ -218,19 +218,24 @@ describe('플래너 화면에 붙어 있다', () => {
     expect(storeAt).toBeGreaterThan(scopeAt);
   });
 
-  test('📥 도면 불러오기 버튼이 ⚡ 전체 자동계산 **왼쪽**에 있다', () => {
+  test('📥 도면 불러오기 · 💾 도면 저장 버튼이 상단바 우측 끝(패널 토글 앞)에 있다', () => {
+    // 2026-09-13: 배치·구조·디테일 세 단계가 같은 자리에 같은 두 버튼 — ⚡ 전체 자동계산 오른쪽
     const load = SRC.indexOf('id="loadDrawingBtn"');
+    const save = SRC.indexOf('id="saveDrawingBtn"');
     const auto = SRC.indexOf('id="autoCalcAllBtn"');
-    expect(load).toBeGreaterThan(-1);
-    expect(load).toBeLessThan(auto);
+    const panel = SRC.indexOf('class="panel-toggle"');
+    expect(load).toBeGreaterThan(auto);
+    expect(load).toBeLessThan(save);
+    expect(save).toBeLessThan(panel);
   });
 
   test('불러오기는 확인을 받는다 — 지금 그린 것을 덮어쓰기 때문', () => {
-    const at = SRC.indexOf('async function pickSnapshot');
-    const fn = SRC.slice(at, at + 2200);
-    expect(fn).toContain('confirm(');
-    // 덮어쓰기 전에 현재 상태를 한 벌 남긴다
-    expect(fn).toContain("PlannerStore.save(stage, { autosave: true })");
+    // 2026-09-13: 확인창은 공통 메뉴가, 자동 저장 한 벌은 구조 페이지의 pick 이 남긴다
+    const MENU = fs.readFileSync(path.join(__dirname, '..', 'js', 'planner', 'planner-drawing-menu.js'), 'utf8');
+    const at = MENU.indexOf('async function pickSnapshot');
+    expect(MENU.slice(at, at + 900)).toContain('confirm(');
+    const pick = SRC.indexOf("stage: 'structure',");
+    expect(SRC.slice(pick, pick + 900)).toContain("PlannerStore.save('structure', { autosave: true })");
   });
 
   test('구조 저장이 계정에도 올린다', () => {
@@ -243,10 +248,14 @@ describe('플래너 화면에 붙어 있다', () => {
     expect(shell).toContain('js/planner/planner-store.js');
   });
 
-  test('디테일 복원은 요청만 보낸다 — 정본은 design_items 라 플래너가 쓸 수 없다', () => {
-    expect(SRC).toContain("type: 'DADAM_RESTORE_DETAIL'");
+  test('디테일 복원은 저장하지 않는다 — 정본은 design_items 라 되쓰기만 하고 저장은 사람이 누른다', () => {
+    // 2026-09-13: 디테일 불러오기는 디테일 단계(detaildesign) 우측 상단 메뉴가 맡는다.
+    const dd = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign', 'detail-drawing.js'), 'utf8');
+    expect(dd).toContain("PlannerStore.loadAny(id)");
+    expect(dd).toContain('hasUnsavedChanges = true');
+    expect(dd).not.toContain('saveDesignQuiet(');
     const step1 = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign', 'ui-step1.js'), 'utf8');
-    expect(step1).toContain("e.data.type === 'DADAM_RESTORE_DETAIL'");
-    expect(step1).toContain('e.origin !== location.origin');   // 같은 오리진만
+    expect(step1).toContain("e.data.type === 'DADAM_RESTORE_DETAIL'");   // iframe 경로도 같은 되쓰기를 쓴다
+    expect(step1).toContain('applyDetailSnapshotToItem(item, e.data.specs, e.data.modules)');
   });
 });
