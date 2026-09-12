@@ -416,7 +416,9 @@ const PlannerStore = {
     try {
       const { data, error } = await r.client
         .from('planner_snapshots')
-        .select('id, stage, name, is_autosave, created_at, updated_at, payload')
+        // design_id · item_unique_id 도 함께 — 출처 표시(plannerSnapshotOrigin)가 이 두 값으로
+        // "내 것" 을 가른다. 빠져 있으면 자기 설계 저장본에도 "다른 설계" 가 붙는다 (2026-09-13 E2E 에서 발견).
+        .select('id, stage, name, is_autosave, created_at, updated_at, payload, design_id, item_unique_id')
         .eq('design_id', r.ids.designId)
         .eq('item_unique_id', r.ids.itemId)
         .eq('stage', stage)
