@@ -465,6 +465,92 @@ function plannerAutosave(stage, delayMs) {
   return true;
 }
 
+// ────────────────────────────────────────────────────────────
+// 2026-09-13: 플래너에서 저장을 눌렀는데 설계가 아직 저장되지 않은 경우(no-scope).
+//   예전엔 "상세설계에서 설계를 저장하세요" 로 끝났다. 사용자는 왜 두 번 저장해야 하는지
+//   알 수 없다. 이제 플래너가 부모(detaildesign)에 설계 저장을 부탁하고, 끝나면
+//   이 iframe 의 스코프를 새 설계 id 로 갈아탄 뒤 미뤄 둔 저장을 이어서 한다.
+//
+//   플래너  → 부모   DADAM_REQUEST_SAVE_DESIGN { itemUniqueId, itemParam }
+//   부모    → 플래너 DADAM_DESIGN_SAVED { designId }  /  DADAM_DESIGN_SAVE_CANCELED
+//
+//   스코프 키(LAYOUT_STORAGE_KEY 등)는 페이지가 뜰 때 한 번 굳으므로 제자리에서 못 바꾼다 —
+//   local 키를 새 스코프로 옮기고 URL 의 design= 만 바꿔 **같은 단계**를 다시 연다.
+// ────────────────────────────────────────────────────────────
+const PLANNER_PENDING_SAVE_KEY = 'dadam_planner_pending_save_v1';
+
+/** 이 iframe 이 URL 에 쓰는 item 문자열 그대로 (float 일 수 있다 — 저장 키가 그 문자열로 돼 있다). */
+function plannerItemParam() {
+  try { return new URLSearchParams(location.search).get('item') || ''; } catch (e) { return ''; }
+}
+
+/**
+ * 부모에게 설계 저장을 부탁한다. 미룬 저장(stage·name)은 sessionStorage 에 남겨
+ * 스코프를 갈아탄 뒤 plannerRunPendingSave 가 이어서 한다.
+ * @returns {boolean} 부탁을 보냈으면 true (부모가 없는 단독 화면이면 false)
+ */
+function plannerRequestDesignSave(pending) {
+  try { if (typeof window === 'undefined' || window.parent === window) return false; } catch (e) { return false; }
+  try { sessionStorage.setItem(PLANNER_PENDING_SAVE_KEY, JSON.stringify(pending || {})); } catch (e) {}
+  try {
+    window.parent.postMessage({
+      type: 'DADAM_REQUEST_SAVE_DESIGN',
+      // plannerScopeIds 는 design=local 이면 itemId 도 null 로 돌려준다 — 여기선 품목 번호가 꼭 필요하다
+      itemUniqueId: Number.isFinite(Number(plannerItemParam())) ? Number(plannerItemParam()) : null,
+      itemParam: plannerItemParam(),
+    }, location.origin);
+    return true;
+  } catch (e) { return false; }
+}
+
+/** 부모가 설계를 저장했다 — local 키를 새 스코프로 옮기고 같은 단계를 새 스코프로 다시 연다. */
+function plannerOnDesignSaved(designId) {
+  if (!designId) return false;
+  const item = plannerItemParam();
+  if (item) migratePlannerLocalScope(designId, item);
+  try { sessionStorage.setItem('fromStructure', '1'); } catch (e) {}   // 배치 단계 autoRestore 용
+  try {
+    const q = new URLSearchParams(location.search);
+    q.set('design', String(designId));
+    location.replace(location.pathname + '?' + q.toString());
+  } catch (e) { return false; }
+  return true;
+}
+
+/** 스코프를 갈아탄 뒤 미뤄 둔 이름 저장을 이어서 한다. 토큰은 1회용. */
+async function plannerRunPendingSave(toast) {
+  let pending = null;
+  try {
+    const raw = sessionStorage.getItem(PLANNER_PENDING_SAVE_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(PLANNER_PENDING_SAVE_KEY);
+    pending = JSON.parse(raw);
+  } catch (e) { return null; }
+  if (!pending || !pending.stage) return null;
+  const ready = await PlannerStore.ready();
+  if (!ready.ok) return { ok: false, reason: ready.reason };
+  const r = await PlannerStore.save(pending.stage, pending.name ? { name: pending.name } : { autosave: true });
+  const label = PLANNER_STAGE_LABEL[pending.stage] || pending.stage;
+  if (typeof toast === 'function') {
+    toast(r.ok ? `💾 설계 저장 후 ${label} 도면을 계정에 저장했습니다${pending.name ? ' — ' + pending.name : ''}`
+               : `⚠ ${label} 도면 저장 실패: ${r.message || r.reason}`);
+  }
+  return r;
+}
+
+/** 부모의 답을 듣는다. 페이지마다 한 번 건다. */
+function plannerListenDesignSaved(toast) {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('message', (e) => {
+    if (!e.data || e.origin !== location.origin) return;
+    if (e.data.type === 'DADAM_DESIGN_SAVED' && e.data.designId) plannerOnDesignSaved(e.data.designId);
+    else if (e.data.type === 'DADAM_DESIGN_SAVE_CANCELED') {
+      try { sessionStorage.removeItem(PLANNER_PENDING_SAVE_KEY); } catch (err) {}
+      if (typeof toast === 'function') toast('설계 저장을 취소해 도면은 이 브라우저에만 남았습니다');
+    }
+  });
+}
+
 /**
  * 설계를 처음 저장하면 스코프가 `::local:<item>` → `::<designId>:<item>` 으로 바뀐다.
  * 그때 이관하지 않으면 저장 전에 그린 배치가 **사라진 것처럼** 보인다.
@@ -505,6 +591,11 @@ if (typeof window !== 'undefined') {
   window.plannerSnapshotSummary = plannerSnapshotSummary;
   window.plannerSnapshotWhen = plannerSnapshotWhen;
   window.plannerSnapshotOrigin = plannerSnapshotOrigin;
+  window.PLANNER_PENDING_SAVE_KEY = PLANNER_PENDING_SAVE_KEY;
+  window.plannerRequestDesignSave = plannerRequestDesignSave;
+  window.plannerOnDesignSaved = plannerOnDesignSaved;
+  window.plannerRunPendingSave = plannerRunPendingSave;
+  window.plannerListenDesignSaved = plannerListenDesignSaved;
   window.PlannerStore = PlannerStore;
   window.plannerAutosave = plannerAutosave;
   window.plannerAutosaveEnabled = plannerAutosaveEnabled;
@@ -522,6 +613,7 @@ if (typeof module !== 'undefined' && module.exports) {
     applyPlannerSnapshot,
     plannerSnapshotSummary,
     plannerSnapshotWhen, plannerSnapshotOrigin,
+    PLANNER_PENDING_SAVE_KEY, plannerRequestDesignSave, plannerOnDesignSaved, plannerRunPendingSave, plannerListenDesignSaved,
     PlannerStore,
     plannerAutosave,
     plannerAutosaveEnabled,
