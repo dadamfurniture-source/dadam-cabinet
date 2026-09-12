@@ -79,6 +79,23 @@ describe('플래너가 부모에게 설계 저장을 부탁한다', () => {
     expect(toasts[0]).toContain('로그인');
   });
 
+  test('품목이 없는 부트스트랩 화면에서는 부모에게 설계 저장을 부탁하지 않는다', () => {
+    const p = bootPlanner('mockup-shell.html', { search: '?design=local&item=bootstrap' });
+    expect(p.g('plannerRequestDesignSave')({ stage: 'layout', name: 'x' })).toBe(false);
+    expect(p.messages.find((m) => m && m.type === 'DADAM_REQUEST_SAVE_DESIGN')).toBeUndefined();
+    expect(p.session.getItem('dadam_planner_pending_save_v1')).toBeNull();
+  });
+
+  test("부모가 '품목 없음' 으로 거절하면 품목을 먼저 추가하라고 말한다", () => {
+    const p = bootLocal('mockup-structure.html');
+    const toasts = [];
+    p.g('plannerListenDesignSaved')((m) => toasts.push(m));
+    p.window.dispatchEvent(new p.window.MessageEvent('message', {
+      data: { type: 'DADAM_DESIGN_SAVE_CANCELED', reason: 'no-items' }, origin: p.location.origin,
+    }));
+    expect(toasts.some((m) => m.includes('품목이 아직 없습니다') && m.includes('품목을 먼저 추가'))).toBe(true);
+  });
+
   test('취소하면 미룬 저장 토큰이 지워진다', () => {
     const p = bootLocal('mockup-structure.html');
     p.g('plannerRequestDesignSave')({ stage: 'structure', name: 'x' });
@@ -111,6 +128,18 @@ describe('소스 규약', () => {
     expect(fn).toContain('await saveDesign()');
     expect(fn).toContain("reply('DADAM_DESIGN_SAVED', { designId: currentDesignId })");
     expect(fn).toContain("reply('DADAM_DESIGN_SAVE_CANCELED')");
+    // 품목이 없으면 saveDesign(alert) 대신 사유를 돌려준다
+    expect(fn.indexOf("reply('DADAM_DESIGN_SAVE_CANCELED', { reason: 'no-items' })")).toBeLessThan(fn.indexOf('await saveDesign()'));
+  });
+
+  test('부트스트랩(품목 0개)에서 그린 배치는 첫 품목의 스코프로 넘어간다', () => {
+    const js = read('js/detaildesign/ui-step1.js');
+    const at = js.indexOf('function _adoptBootstrapPlannerScope');
+    expect(at).toBeGreaterThan(0);
+    const fn = js.slice(at, at + 1400);
+    expect(fn).toContain('::local:bootstrap');
+    expect(fn).toContain("sessionStorage.setItem('fromStructure', '1')");
+    expect(js).toContain('if (hadBootstrap) _adoptBootstrapPlannerScope(item);');
   });
 
   test('설계 첫 저장의 스코프 이관은 iframe 이 쓰는 문자열(String(uniqueId))로도 한다', () => {
