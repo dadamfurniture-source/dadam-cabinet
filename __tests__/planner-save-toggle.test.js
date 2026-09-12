@@ -120,6 +120,7 @@ describe('다른 모듈의 칸은 선택만 한다', () => {
   test('선택과 도어 뒤집기를 한 번에 하지 않는다', () => {
     const at = SRC.indexOf('function bindFrontCell');
     const fn = SRC.slice(at, at + 1200);
-    expect(fn).toContain('if (activeId !== m.id) { setActiveModule(m.id); return; }');
+    // 2026-09-12: 첫 클릭은 배치(pickAreaFirst) — 선택 경로일 뿐 뒤집기는 여전히 안 한다
+    expect(fn).toContain('if (activeId !== m.id) { if (!pickAreaFirst(m.id)) setActiveModule(m.id); return; }');
   });
 });
