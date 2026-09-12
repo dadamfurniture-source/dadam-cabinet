@@ -258,7 +258,10 @@ describe('BOM 끝단 — 키큰장 멍장 부재', () => {
   test('도어와 경첩목대는 단마다 — 셋씩', () => {
     const { mats } = bom();
     expect(mats.filter((m) => m.part === '도어').length).toBe(3);
-    expect(mats.filter((m) => m.part === '경첩목대').length).toBe(3);
+    // 2026-09-13: ㄱ자 — 단마다 앞다리·옆다리 한 벌 (키큰장 단은 상부장이 아니라 1벌)
+    expect(mats.filter((m) => m.part === '경첩목대(옆다리)').length).toBe(3);
+    expect(mats.filter((m) => m.part === '경첩목대(앞다리)').length).toBe(3);
+    mats.filter((m) => /^경첩목대\(/.test(m.part)).forEach((m) => expect(m.qty).toBe(1));
   });
   test('멍장 폭 정합성 경고가 없다', () => {
     const { warnings } = bom();
