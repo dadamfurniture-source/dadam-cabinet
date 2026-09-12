@@ -53,6 +53,15 @@ describe('선택이 뷰 거리를 초기화하지 않는다', () => {
     expect(snapView(p)).toEqual(before);
   });
 
+  test("'전체' 보기에서 모듈을 골라도 3D 카메라를 다시 맞추지 않는다 (2026-09-12)", () => {
+    // renderFrontView 래퍼가 'all' 에서 renderAll3D() 를 fit 기본값으로 불러 카메라가 초기화됐다.
+    // 맞춤 없는 호출(renderAll3D())은 '전체' 탭에 들어올 때(setViewMode) 하나뿐이어야 한다.
+    const bare = (SRC.match(/renderAll3D\(\);/g) || []).length;
+    expect(bare).toBe(1);
+    const at = SRC.indexOf('renderFrontView = function()');
+    expect(SRC.slice(at, at + 900)).not.toMatch(/renderAll3D\(\);/);
+  });
+
   test('3D 도면 클릭은 fit 을 요청하지 않는다', () => {
     const at = SRC.indexOf('function handleEntityClick');
     const fn = SRC.slice(at, at + 700);
@@ -135,5 +144,66 @@ describe('도면 불러오기 메뉴는 저장 버튼을 감추지 않는다', (
 
   test('비활성 버튼 스타일이 있다', () => {
     expect(SRC).toContain('.load-menu .lm-stage button:disabled{opacity:.4;cursor:not-allowed}');
+  });
+});
+
+describe('첫 클릭은 배치, 두 번째 클릭은 모듈 (2026-09-12)', () => {
+  const title = (p) => p.document.querySelector('.panel-header-title').textContent;
+  const carcass = (id) => ({ userData: { entityKind: 'carcass', moduleId: id } });
+
+  test("'전체' 보기에서 모듈을 누르면 그 배치가 먼저 선택된다", () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');           // activeAreaId 가 비워진다
+    const m = p.g('modules')[1];
+    p.g('handleEntityClick')(carcass(m.id));
+    expect(title(p)).toBe('영역 편집');
+    expect(p.document.getElementById('curModuleName').textContent).not.toContain(p.g('moduleTag')(m));
+  });
+
+  test('한 번 더 누르면 모듈이 선택된다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const m = p.g('modules')[1];
+    p.g('handleEntityClick')(carcass(m.id));
+    p.g('handleEntityClick')(carcass(m.id));
+    expect(title(p)).toBe('구조 편집');
+    expect(p.document.querySelector(`#contentG [data-module-id="${m.id}"]`).getAttribute('stroke'))
+      .toBe('var(--pick, #1d6fe0)');
+  });
+
+  test('같은 배치 안의 다른 모듈은 바로 선택된다', () => {
+    // 골든은 사각형 하나가 영역 하나라 같은 영역에 모듈이 둘인 상태를 직접 만든다
+    const p = boot(FIXTURES.straight);
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    const a1 = p.g('addModuleToArea')(area.id, { W: 500, x: area.x });
+    const a2 = p.g('addModuleToArea')(area.id, { W: 500, x: area.x + 500 });
+    p.g('setViewMode')('all');
+    p.g('handleEntityClick')(carcass(a1.id));   // 배치
+    p.g('handleEntityClick')(carcass(a1.id));   // 모듈
+    p.g('handleEntityClick')(carcass(a2.id));   // 같은 배치 → 바로 모듈
+    expect(title(p)).toBe('구조 편집');
+    expect(p.document.querySelector(`#contentG [data-module-id="${a2.id}"]`).getAttribute('stroke'))
+      .toBe('var(--pick, #1d6fe0)');
+  });
+
+  test('다른 배치의 모듈을 누르면 다시 배치부터다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const lower = p.g('modules').find((x) => x.section === 'lower');
+    const upper = p.g('modules').find((x) => x.section === 'upper');
+    p.g('handleEntityClick')(carcass(lower.id));
+    p.g('handleEntityClick')(carcass(lower.id));
+    p.g('handleEntityClick')(carcass(upper.id));
+    expect(title(p)).toBe('영역 편집');
+  });
+
+  test('배치를 골라도 줌·팬은 그대로다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const v = p.g('view');
+    v.zoom = 0.33; v.panX = 51; v.panY = 77;
+    const before = snapView(p);
+    p.g('handleEntityClick')(carcass(p.g('modules')[1].id));
+    expect(snapView(p)).toEqual(before);
   });
 });

@@ -69,6 +69,8 @@ describe('모듈을 고르면 우측 패널이 그 모듈이 된다', () => {
     const a1 = p.g('addModuleToArea')(area.id);
     const a2 = p.g('addModuleToArea')(area.id);
     p.g('setActiveModule')(a1.id);
+    // 2026-09-12: 영역이 아직 선택돼 있지 않으면 첫 클릭은 배치를 고른다 — 한 번 더 누른다.
+    p.g('handleEntityClick')({ userData: { entityKind: 'carcass', moduleId: a2.id } });
     p.g('handleEntityClick')({ userData: { entityKind: 'carcass', moduleId: a2.id } });
     expect(Math.round(+field(p, '#sizeBody input[data-dim="W"]').value)).toBe(Math.round(a2.W));
   });
