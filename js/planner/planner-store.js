@@ -69,6 +69,8 @@ function plannerScopeIds(search) {
     //   설계를 저장한 뒤에도 no-scope 를 돌려줘 도면 저장이 조용히 실패했다.
     //   DB(item_unique_id BIGINT)·design_items.unique_id 와 같은 규칙으로 내림한다.
     if (item && item !== 'bootstrap' && /^\d+(\.\d+)?$/.test(item)) out.itemId = Math.floor(Number(item));
+    // 품목이 하나도 없을 때 뜨는 부트스트랩 플래너 — 설계 저장으로도 풀리지 않는다 (품목이 먼저다)
+    if (item === 'bootstrap') out.bootstrap = true;
   } catch (e) { /* URL 이 없으면 스코프도 없다 */ }
   return out;
 }
@@ -229,7 +231,9 @@ const PlannerStore = {
    */
   async ready(override) {
     const ids = override || plannerScopeIds();
-    if (!plannerScopeIsRemote(ids)) return { ok: false, reason: 'no-scope', ids };
+    // 2026-09-13: 품목이 없으면(bootstrap) 'no-item' — 설계 저장을 부탁해도 "저장할 설계 내용이 없습니다" 로
+    //   막히므로 그 길로 보내지 않고 "품목을 먼저 추가" 를 말해야 한다.
+    if (!plannerScopeIsRemote(ids)) return { ok: false, reason: ids.bootstrap ? 'no-item' : 'no-scope', ids };
     const c = this.client();
     if (!c) return { ok: false, reason: 'no-sdk', ids };
     try {
@@ -504,6 +508,7 @@ function plannerItemParam() {
  */
 function plannerRequestDesignSave(pending) {
   try { if (typeof window === 'undefined' || window.parent === window) return false; } catch (e) { return false; }
+  if (plannerItemParam() === 'bootstrap') return false;   // 품목이 없으면 설계 저장으로 풀리지 않는다
   try { sessionStorage.setItem(PLANNER_PENDING_SAVE_KEY, JSON.stringify(pending || {})); } catch (e) {}
   try {
     window.parent.postMessage({
@@ -565,7 +570,11 @@ function plannerListenDesignSaved(toast) {
     if (e.data.type === 'DADAM_DESIGN_SAVED' && e.data.designId) plannerOnDesignSaved(e.data.designId);
     else if (e.data.type === 'DADAM_DESIGN_SAVE_CANCELED') {
       try { sessionStorage.removeItem(PLANNER_PENDING_SAVE_KEY); } catch (err) {}
-      if (typeof toast === 'function') toast('설계 저장을 취소해 도면은 이 브라우저에만 남았습니다');
+      if (typeof toast === 'function') {
+        toast(e.data.reason === 'no-items'
+          ? "⚠ 품목이 아직 없습니다 — 좌측 '품목' 아이콘으로 품목을 먼저 추가한 뒤 도면 저장을 누르세요"
+          : '설계 저장을 취소해 도면은 이 브라우저에만 남았습니다');
+      }
     }
   });
 }

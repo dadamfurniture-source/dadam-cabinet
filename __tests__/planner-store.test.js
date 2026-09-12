@@ -60,6 +60,15 @@ describe('스코프 — 설계를 저장하기 전에는 DB 를 쓰지 않는다
 
   test("item=bootstrap 도 아니다 — 품목이 아직 없다", () => {
     expect(plannerScopeIsRemote(plannerScopeIds('?design=abc&item=bootstrap'))).toBe(false);
+    expect(plannerScopeIds('?design=abc&item=bootstrap').bootstrap).toBe(true);
+  });
+
+  test("품목이 없으면(bootstrap) ready 는 'no-item' — 설계 저장으로 풀리는 no-scope 와 다르다", async () => {
+    const r = await PlannerStore.ready(plannerScopeIds('?design=local&item=bootstrap'));
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('no-item');
+    const r2 = await PlannerStore.ready(plannerScopeIds('?design=local&item=17'));
+    expect(r2.reason).toBe('no-scope');
   });
 
   test('파라미터가 없으면 스코프도 없다', () => {

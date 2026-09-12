@@ -64,6 +64,10 @@ function plannerDrawingExcuse(reason) {
     return '이 설계는 아직 저장되지 않았습니다. 도면 저장을 누르면 설계를 먼저 저장한 뒤 이어서 저장합니다. '
          + '불러오기는 "내 모든 설계" 에서 됩니다.';
   }
+  if (reason === 'no-item') {
+    return "품목이 아직 없습니다. 좌측 '품목' 아이콘으로 품목을 먼저 추가하면 그 품목의 도면으로 저장됩니다. "
+         + '불러오기는 "내 모든 설계" 에서 됩니다.';
+  }
   if (reason === 'no-session') return '로그인하면 계정에 저장하고 불러올 수 있습니다.';
   if (reason === 'no-sdk') return '이 화면에서는 계정 저장을 쓸 수 없습니다.';
   if (reason === 'stage-mismatch') return '다른 단계의 도면입니다. 배치·구조·디테일 도면은 저장한 단계에서만 불러올 수 있습니다.';
@@ -116,7 +120,8 @@ function mountPlannerDrawingMenu(o) {
     const hasStore = typeof PlannerStore !== 'undefined';
     const ids = idsNow();
     const ready = hasStore ? await PlannerStore.ready(ids.designId !== undefined ? ids : undefined) : { ok: false, reason: 'no-sdk' };
-    const ses = (hasStore && !ready.ok && ready.reason === 'no-scope') ? await PlannerStore.session() : null;
+    const noScope = !ready.ok && (ready.reason === 'no-scope' || ready.reason === 'no-item');
+    const ses = (hasStore && noScope) ? await PlannerStore.session() : null;
     const canList = ready.ok || !!(ses && ses.ok);
     if (!ready.ok && scope === 'item' && canList) scope = 'all';
     parts.push(`<div class="pdm-stage"><span>계정에 저장된 ${esc(label)}</span>`
@@ -129,7 +134,7 @@ function mountPlannerDrawingMenu(o) {
       const why = (ses && !ses.ok) ? ses.reason : ready.reason;
       parts.push(`<div class="pdm-note">${esc(plannerDrawingExcuse(why))}</div>`);
     } else {
-      if (ready.reason === 'no-scope') parts.push(`<div class="pdm-note">${esc(plannerDrawingExcuse('no-scope'))}</div>`);
+      if (noScope) parts.push(`<div class="pdm-note">${esc(plannerDrawingExcuse(ready.reason))}</div>`);
       const list = scope === 'all' ? await PlannerStore.listAll(stage) : await PlannerStore.list(stage, 20, ids);
       const rows = list.rows || [];
       parts.push(rows.length ? rows.map((r) => rowHTML(r, ids)).join('')

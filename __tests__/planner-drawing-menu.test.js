@@ -77,6 +77,22 @@ describe('설계가 저장되지 않았을 때', () => {
     expect(el.menu.textContent).toContain('도면 저장을 누르면 설계를 먼저 저장한 뒤');
   });
 
+  test("품목이 없으면(no-item) '품목을 먼저 추가' 를 말하고 저장은 그 사유로 실패한다", async () => {
+    global.PlannerStore = fakeStore({ ready: { ok: false, reason: 'no-item', ids: { designId: null, itemId: null, bootstrap: true } }, all: [] });
+    const el = dom();
+    const toasts = [];
+    let asked = false;
+    const ctl = mountPlannerDrawingMenu({ stage: 'layout', ...el, toast: (m) => toasts.push(m), pick: async () => {},
+      save: async () => ({ ok: false, reason: 'no-item' }), onNoScope: () => { asked = true; return true; } });
+    await ctl.render();
+    expect(el.menu.textContent).toContain('품목을 먼저 추가');
+    expect(el.menu.querySelector('[data-scope="all"]').classList.contains('on')).toBe(true);
+    global.prompt = () => '이름';
+    await ctl.saveNamed();
+    expect(asked).toBe(false);                       // 설계 저장으로 보내지 않는다
+    expect(toasts[0]).toContain('품목을 먼저 추가');
+  });
+
   test('이름 저장이 no-scope 면 onNoScope 로 넘긴다', async () => {
     global.PlannerStore = fakeStore({ ready: { ok: false, reason: 'no-scope' } });
     const el = dom();
