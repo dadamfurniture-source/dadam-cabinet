@@ -43,6 +43,15 @@ describe('스코프 — 설계를 저장하기 전에는 DB 를 쓰지 않는다
     expect(plannerScopeIsRemote(ids)).toBe(true);
   });
 
+  test('새 품목의 소수 uniqueId(Date.now()+Math.random()) 도 스코프다 — 내림해서 BIGINT 와 맞춘다', () => {
+    // 2026-09-13: 이게 막혀 있어 설계를 저장한 뒤에도 no-scope 로 도면 저장이 조용히 실패했다.
+    const ids = plannerScopeIds('?design=abc-123&item=1757550000000.4567');
+    expect(ids).toEqual({ designId: 'abc-123', itemId: 1757550000000 });
+    expect(plannerScopeIsRemote(ids)).toBe(true);
+    expect(plannerScopeIds('?design=abc&item=12.').itemId).toBeNull();
+    expect(plannerScopeIds('?design=abc&item=abc').itemId).toBeNull();
+  });
+
   test("design=local 은 원격 스코프가 아니다 — designs 행이 없어 RLS 를 태울 수 없다", () => {
     const ids = plannerScopeIds('?design=local&item=17');
     expect(ids.designId).toBeNull();
