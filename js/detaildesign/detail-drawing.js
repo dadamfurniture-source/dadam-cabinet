@@ -65,7 +65,7 @@ async function detailDrawingSave(name) {
 }
 
 async function detailDrawingPick(id) {
-  const r = await PlannerStore.loadAny(id);   // detail 은 되쓸 localStorage 키가 없다 — payload 만 받는다
+  const r = await PlannerStore.loadAny(id, 'detail');   // 디테일 저장본만. detail 은 되쓸 localStorage 키가 없다 — payload 만 받는다
   if (!r.ok) throw new Error(r.message || r.reason);
   const row = r.row || {};
   const sameDesign = typeof currentDesignId !== 'undefined' && currentDesignId && row.design_id === currentDesignId;

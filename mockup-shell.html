@@ -431,7 +431,6 @@
     <div class="actions">
       <button class="primary" id="sketchupExportBtn" title="SketchUp 으로 모듈 전송 (mhyrr 확장 필요)">📤 SketchUp 보내기</button>
       <button id="sketchupImportBtn" title="SketchUp 활성 모델에서 가구 가져오기">📥 가져오기</button>
-      <button id="saveLayoutBtn" title="현재 배치를 localStorage 에 저장">💾 배치 저장</button>
       <button id="resetLayoutBtn" style="background:#fef0ed;color:#c0392b;border-color:#c0392b" title="모든 배치 삭제 + 처음부터">🗑 초기화</button>
       <button id="nextStepBtn" class="primary" style="background:#1976d2;border-color:#0d47a1" title="구조 단계로">구조 단계 →</button>
     </div>
@@ -2307,19 +2306,8 @@
     setTimeout(() => el.remove(), 2000);
   }
 
-  document.getElementById('saveLayoutBtn').onclick = () => {
-    const layout = serializeLayout();
-    if (!layout) { showFlash('⚠ 저장할 배치 없음'); return; }
-    try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-      // W12-71: localStorage 는 그대로 두고 계정에도 한 벌 올린다.
-      //   올리기가 실패해도 저장은 이미 끝났다 — 작업을 막지 않는다.
-      if (typeof plannerAutosave === 'function') plannerAutosave('layout', 0);
-      showFlash(`💾 배치 저장 완료 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
-    } catch (e) {
-      showFlash('⚠ 저장 실패: ' + e.message);
-    }
-  };
+  // 2026-09-13: 바닥바의 '💾 배치 저장' 은 뺐다 — 저장은 상단 우측 '💾 도면 저장'(공통 메뉴) 하나로 간다.
+  //   그 저장도 localStorage 에 먼저 쓰고(saveNamed) 계정에 올리므로 예전 버튼의 일은 그대로 남아 있다.
 
   // W9-62: 초기화 — localStorage 비움 + 모든 모듈 제거 + 사람 default
   document.getElementById('resetLayoutBtn').onclick = () => {
@@ -2396,7 +2384,7 @@
         const cur = serializeLayout();
         if (cur) { try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(cur)); } catch (e) {} }
         try { await PlannerStore.save('layout', { autosave: true }); } catch (e) {}
-        const r = await PlannerStore.loadAny(id);
+        const r = await PlannerStore.loadAny(id, 'layout');   // 배치 저장본만
         if (!r.ok) throw new Error(r.message || r.reason);
         flash('📥 배치 불러오기 완료 — 화면을 다시 엽니다');
         try { sessionStorage.setItem('fromStructure', '1'); } catch (e) {}
@@ -2416,124 +2404,7 @@
     if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave(flash);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  {
-    const btn = document.getElementById('loadLayoutBtn');
-    const menu = document.getElementById('loadLayoutMenu');
-    let loadScope = 'item';   // 'item' | 'all'
-
-    const esc = (t) => String(t == null ? '' : t)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const excuse = (reason) => reason === 'no-scope'
-      ? '이 설계는 아직 저장되지 않아 계정에 **저장**할 수는 없습니다. 상세설계에서 설계를 저장하면 쌓이기 시작합니다. 불러오기는 "내 모든 설계" 에서 됩니다.'
-      : reason === 'no-session' ? '로그인하면 계정에 저장한 배치를 불러올 수 있습니다.'
-      : reason === 'no-sdk' ? '이 화면에서는 계정 저장을 쓸 수 없습니다.' : '';
-
-    function rowHTML(r, ids) {
-      const label = r.is_autosave ? '자동 저장' : (r.name || '이름 없음');
-      const when = (typeof plannerSnapshotWhen === 'function') ? plannerSnapshotWhen(r.updated_at || r.created_at) : '';
-      const sum = (typeof plannerSnapshotSummary === 'function') ? plannerSnapshotSummary('layout', r.payload) : '';
-      const origin = (typeof plannerSnapshotOrigin === 'function') ? plannerSnapshotOrigin(r, ids) : '';
-      return `<button class="lm-row" data-snap="${esc(r.id)}">${esc(label)}`
-        + `<span class="lm-meta">${esc(when)}${sum ? ' · ' + esc(sum) : ''}`
-        + (origin ? ` · <span class="lm-origin">${esc(origin)}</span>` : '') + `</span></button>`;
-    }
-
-    async function pickSnapshot(id, origin) {
-      const what = origin ? `다른 설계의 배치(${origin})` : '저장된 배치';
-      if (!confirm(`${what}를 불러옵니다.\n\n지금 화면의 배치는 덮어씁니다.\n(계정에 저장할 수 있는 상태면 현재 배치를 자동 저장으로 한 벌 남깁니다.)\n\n계속하시겠습니까?`)) return;
-      const cur = serializeLayout();
-      if (cur) { try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(cur)); } catch (e) {} }
-      try { await PlannerStore.save('layout', { autosave: true }); } catch (e) {}
-      const r = await PlannerStore.loadAny(id);
-      if (!r.ok) { showFlash('⚠ 불러오기 실패: ' + (r.message || r.reason)); return; }
-      showFlash('📥 배치 불러오기 완료 — 화면을 다시 엽니다', 'rgba(13,71,161,0.92)');
-      try { sessionStorage.setItem('fromStructure', '1'); } catch (e) {}
-      setTimeout(() => location.reload(), 400);
-    }
-
-    async function saveNamed() {
-      const layout = serializeLayout();
-      if (!layout) { showFlash('⚠ 저장할 배치 없음'); return; }
-      const name = prompt('배치 도면 이름:', `배치 ${new Date().toLocaleString('ko-KR')}`);
-      if (!name) return;
-      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
-      const r = await PlannerStore.save('layout', { name });
-      // 2026-09-13: 설계가 아직 저장되지 않았으면 부모에게 설계 저장을 부탁하고, 끝나면 이어서 저장한다.
-      if (!r.ok && r.reason === 'no-scope' && plannerRequestDesignSave({ stage: 'layout', name })) {
-        showFlash('설계가 아직 저장되지 않았습니다 — 먼저 설계를 저장합니다 (이름을 입력하세요)');
-        return;
-      }
-      showFlash(r.ok ? `💾 계정에 저장 — ${name}` : `⚠ 저장 실패: ${r.message || excuse(r.reason) || r.reason}`,
-        r.ok ? 'rgba(13,71,161,0.92)' : undefined);
-      if (r.ok) renderMenu();
-    }
-
-    // 2026-09-13: 부모가 설계를 저장하면 스코프를 갈아타고, 미뤄 둔 배치 저장을 이어서 한다.
-    if (typeof plannerListenDesignSaved === 'function') plannerListenDesignSaved((t) => showFlash(t, 'rgba(13,71,161,0.92)'));
-    if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave((t) => showFlash(t, 'rgba(13,71,161,0.92)'));
-
-    async function renderMenu() {
-      menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';
-      const parts = [];
-      // ① 이 브라우저의 마지막 저장
-      let local = null;
-      try { local = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || 'null'); } catch (e) {}
-      parts.push('<div class="lm-stage"><span>이 브라우저</span></div>');
-      parts.push(local && Array.isArray(local.modules)
-        ? `<button class="lm-row" data-local="1">↩ 마지막 저장<span class="lm-meta">${esc(new Date(local.savedAt).toLocaleString('ko-KR'))} · 모듈 ${local.modules.length}개</span></button>`
-        : '<div class="lm-empty">이 브라우저에 저장된 배치가 없습니다</div>');
-      parts.push('<div class="lm-sep"></div>');
-      // ② 계정
-      const ready = (typeof PlannerStore !== 'undefined') ? await PlannerStore.ready() : { ok: false, reason: 'no-sdk' };
-      const ses = (typeof PlannerStore !== 'undefined' && ready.reason === 'no-scope') ? await PlannerStore.session() : null;
-      const canList = ready.ok || (ses && ses.ok);
-      const ids = ready.ids || (typeof plannerScopeIds === 'function' ? plannerScopeIds() : {});
-      if (!ready.ok && loadScope === 'item') loadScope = ready.reason === 'no-scope' ? 'all' : loadScope;
-      parts.push(`<div class="lm-stage"><span>계정에 저장된 배치</span>`
-        + `<button data-save="1"${ready.ok ? '' : ' disabled title="' + esc(excuse(ready.reason)) + '"'}>현재 배치 저장…</button></div>`);
-      parts.push(`<div class="lm-scope">`
-        + `<button data-scope="item" class="${loadScope === 'item' ? 'on' : ''}"${ready.ok ? '' : ' disabled'}>이 품목</button>`
-        + `<button data-scope="all" class="${loadScope === 'all' ? 'on' : ''}"${canList ? '' : ' disabled'}>내 모든 설계</button></div>`);
-      if (!canList) {
-        parts.push(`<div class="lm-note">${esc(excuse(ready.reason))}</div>`);
-      } else {
-        const list = loadScope === 'all' ? await PlannerStore.listAll('layout') : await PlannerStore.list('layout');
-        const rows = list.rows || [];
-        if (ready.reason === 'no-scope') parts.push(`<div class="lm-note">${esc(excuse('no-scope'))}</div>`);
-        parts.push(rows.length ? rows.map((r) => rowHTML(r, ids)).join('')
-          : `<div class="lm-empty">${loadScope === 'all' ? '계정에 저장된 배치 도면이 없습니다' : '이 품목에 저장된 배치 도면이 없습니다'}</div>`);
-      }
-      menu.innerHTML = parts.join('');
-      const localBtn = menu.querySelector('[data-local]');
-      if (localBtn) localBtn.onclick = (e) => { e.stopPropagation(); menu.hidden = true; restoreLastLocalLayout(); };
-      const saveBtn = menu.querySelector('[data-save]');
-      if (saveBtn) saveBtn.onclick = (e) => { e.stopPropagation(); saveNamed(); };
-      menu.querySelectorAll('[data-scope]').forEach((el) => {
-        el.onclick = (e) => { e.stopPropagation(); loadScope = el.dataset.scope; renderMenu(); };
-      });
-      menu.querySelectorAll('[data-snap]').forEach((el) => {
-        el.onclick = (e) => {
-          e.stopPropagation();
-          menu.hidden = true;
-          const origin = el.querySelector('.lm-origin');
-          pickSnapshot(el.dataset.snap, origin ? origin.textContent : '');
-        };
-      });
-    }
-
-    if (btn && menu) {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        menu.hidden = !menu.hidden;
-        if (!menu.hidden) renderMenu();
-      };
-      document.addEventListener('click', (e) => {
-        if (menu.hidden) return;
-        if (!menu.contains(e.target) && e.target !== btn) menu.hidden = true;
-      });
-    }
-  }
+  // 2026-09-13: 예전 바닥바 배치 불러오기 드롭다운(loadLayoutBtn) 코드는 지웠다 — 상단 공통 메뉴가 대신한다.
 
   // W9-60/61: 배치 복원 — JSON layout 을 받아 모든 모듈 + 부재 재생성
   let restoreInProgress = false;
