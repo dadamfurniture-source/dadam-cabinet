@@ -73,7 +73,14 @@
       const CORNER_EP_W = 20;            // 멍장 라인 EP 폭 (§3.4 예시, FINISH 'EP' defaultW와 동일)
       // W12-54: 멍장 도어 경첩을 달 목대. 멍 폭에 들어가고 BOM 부재로도 나간다 (§3.3/§3.5)
       const CORNER_HINGE_BATTEN_T = 15;  // 목대 두께 15T — 멍 폭에 더해진다
-      const CORNER_HINGE_BATTEN_W = 70;  // 목대 재단 가로 (세로는 몸통 H)
+      // 2026-09-13: 목대는 **ㄱ자**다 — 몸통 깊이 전체를 가로지르는 칸막이가 아니다 (§3.5).
+      //   앞다리: 정면과 나란히, 멍판 바로 뒤, 가로 60 × 15T
+      //   옆다리: 도어 쪽 끝에서 깊이 방향으로 60 × 15T (경첩이 물리는 면)
+      //   앞선에서 앞다리 두께 15 + 옆다리 60 = 75 만 들어가고 뒤는 트여 있다.
+      //   선반은 그만큼 짧다 (기본 − 75). 상부장 멍장은 목대 2개.
+      const CORNER_HINGE_BATTEN_LEG = 60;        // 앞다리 가로 = 옆다리 깊이 (재단 가로, 세로는 몸통 H)
+      const CORNER_HINGE_BATTEN_DEPTH = CORNER_HINGE_BATTEN_T + CORNER_HINGE_BATTEN_LEG;   // 75
+      const CORNER_HINGE_BATTEN_UPPER_QTY = 2;   // 상부장 멍장 모듈 하나당 ㄱ자 목대 수
       // W12-61: 멍판 마감재(휠라/몰딩) 재단 폭. 멍 공식의 자리 60 과 다른 값이다 —
       //   마감재는 멍가림판 2.7T 를 덮고 붙으므로 접착면 40 을 더 문다 (100 = 40 + 60).
       const CORNER_FINISH_PART_W = 150;  // 멍판 마감재 재단 폭 (§3.3) — W12-72: 100 → 150
