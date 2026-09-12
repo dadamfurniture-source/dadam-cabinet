@@ -64,7 +64,11 @@ function plannerScopeIds(search) {
     const item = q.get('item') || '';
     // 'local' · 'bootstrap' 은 "아직 저장 안 된 설계" 의 표식이다 (ui-step1.js).
     if (design && design !== 'local') out.designId = design;
-    if (item && item !== 'bootstrap' && /^\d+$/.test(item)) out.itemId = Number(item);
+    // 2026-09-13: 새 품목의 uniqueId 는 Date.now()+Math.random() 이라 **소수**로 온다
+    //   (ui-step1.js incrementCategory → iframe 의 item=1789….5123). 정수만 받던 예전 판정은
+    //   설계를 저장한 뒤에도 no-scope 를 돌려줘 도면 저장이 조용히 실패했다.
+    //   DB(item_unique_id BIGINT)·design_items.unique_id 와 같은 규칙으로 내림한다.
+    if (item && item !== 'bootstrap' && /^\d+(\.\d+)?$/.test(item)) out.itemId = Math.floor(Number(item));
   } catch (e) { /* URL 이 없으면 스코프도 없다 */ }
   return out;
 }
@@ -536,10 +540,16 @@ async function plannerRunPendingSave(toast) {
     pending = JSON.parse(raw);
   } catch (e) { return null; }
   if (!pending || !pending.stage) return null;
-  const ready = await PlannerStore.ready();
-  if (!ready.ok) return { ok: false, reason: ready.reason };
-  const r = await PlannerStore.save(pending.stage, pending.name ? { name: pending.name } : { autosave: true });
   const label = PLANNER_STAGE_LABEL[pending.stage] || pending.stage;
+  const ready = await PlannerStore.ready();
+  if (!ready.ok) {
+    // 조용히 삼키면 "저장이 왜 안 되지" 가 된다 — 이유를 말한다.
+    if (typeof toast === 'function') {
+      toast(`⚠ ${label} 도면 저장 실패: ` + (typeof plannerDrawingExcuse === 'function' ? plannerDrawingExcuse(ready.reason) : ready.reason));
+    }
+    return { ok: false, reason: ready.reason };
+  }
+  const r = await PlannerStore.save(pending.stage, pending.name ? { name: pending.name } : { autosave: true });
   if (typeof toast === 'function') {
     toast(r.ok ? `💾 설계 저장 후 ${label} 도면을 계정에 저장했습니다${pending.name ? ' — ' + pending.name : ''}`
                : `⚠ ${label} 도면 저장 실패: ${r.message || r.reason}`);
