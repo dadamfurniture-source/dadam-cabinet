@@ -310,13 +310,14 @@
       <button style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px"
               onclick="document.getElementById('moduleList').classList.toggle('collapsed')">«</button>
     </div>
-    <!-- W12-15: 개별 / 배치 / 전체.
+    <!-- W12-15: 전체 / 배치 / 개별.
          '세트'(회전각 묶음)를 '배치'(배치 단계의 영역)로 바꿨다. 회전 묶음은
-         화면에 드러나지 않는 개념이라 무엇이 묶였는지 알 수 없었다. -->
+         화면에 드러나지 않는 개념이라 무엇이 묶였는지 알 수 없었다.
+         2026-09-12: 순서를 넓은 것부터 — 전체 → 배치 → 개별. 기본 선택은 그대로 '개별'. -->
     <div class="ml-mode-toggle">
-      <button class="active" data-mode="single" title="모듈을 하나씩 목록으로">개별</button>
-      <button data-mode="area" title="배치 단계에서 잡은 영역">배치</button>
       <button data-mode="all" title="전체 모듈 한 번에">전체</button>
+      <button data-mode="area" title="배치 단계에서 잡은 영역">배치</button>
+      <button class="active" data-mode="single" title="모듈을 하나씩 목록으로">개별</button>
     </div>
     <div class="ml-body" id="mlBody">
       <div class="empty-msg">로딩 중...</div>
