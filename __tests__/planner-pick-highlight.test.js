@@ -146,7 +146,9 @@ describe('3D 도 같은 표시를 쓴다', () => {
   });
 
   test('3D 클릭도 setActiveModule 한 길을 쓴다', () => {
-    expect(SRC).toContain('if (moduleId && moduleId !== activeId) setActiveModule(moduleId);');
+    // 2026-09-12: 첫 클릭은 배치(pickAreaFirst), 영역이 이미 활성이면 setActiveModule
+    expect(SRC).toContain('if (pickAreaFirst(moduleId)) { clearHighlight(); return; }');
+    expect(SRC).toContain('setActiveModule(moduleId);');
   });
 
   test('선택하면 3D 를 다시 그린다 — 테두리가 옮겨가야 한다', () => {
