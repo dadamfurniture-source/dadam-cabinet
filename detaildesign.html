@@ -16,7 +16,9 @@
     <script src="js/site-shell.js?v=38.6" defer></script>
     <!-- W12-71: 도면 스냅샷 저장소. 플래너(iframe)와 **같은 정본**을 쓴다 —
          디테일 스냅샷을 여기서 쌓고, 설계를 처음 저장할 때 local 스코프를 이관한다. -->
-    <script src="js/planner/planner-store.js?v=38.4"></script>
+    <script src="js/planner/planner-store.js?v=38.8"></script>
+    <!-- 2026-09-13: 도면 저장 / 불러오기 공통 메뉴 — 디테일 단계 우측 상단 -->
+    <script src="js/planner/planner-drawing-menu.js?v=38.8"></script>
     <!-- P11 gen-to-planner: 연출컷 가져오기가 배치 영역의 깊이·높이·가전 폭을 이 정본에서 읽는다 (읽기 전용 상수) -->
     <script src="js/planner/planner-sections.js?v=38.5"></script>
     <script src="js/detaildesign-access.js?v=36.0"></script>
@@ -204,7 +206,15 @@
       <div id="step3-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px">
           <div class="section-label" style="margin: 0">BOM 산출 결과</div>
-          <button class="btn-back" onclick="backToStep2()">← 설계 수정하기</button>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <!-- 2026-09-13: 도면 저장 / 불러오기 — 배치·구조와 같은 자리(우측 상단). 이 단계(디테일)만 저장·불러온다 -->
+            <div class="pdm-wrap" id="detailDrawingWrap">
+              <button type="button" class="pdm-btn" id="detailLoadBtn" title="계정에 저장된 디테일 도면 불러오기 (이 품목 / 내 모든 설계)">📥 도면 불러오기 <span class="pdm-caret">▾</span></button>
+              <div class="pdm-menu" id="detailLoadMenu" hidden></div>
+              <button type="button" class="pdm-btn" id="detailSaveBtn" title="지금 품목들의 디테일(사양·모듈)을 이름 붙여 계정에 저장합니다">💾 도면 저장</button>
+            </div>
+            <button class="btn-back" onclick="backToStep2()">← 설계 수정하기</button>
+          </div>
         </div>
         <div id="step3-report-area">
           <!-- BOM 보고서가 여기에 렌더링됨 -->
@@ -329,6 +339,8 @@
     <script src="js/detaildesign/ai-design-report.js?v=36.0"></script>
     <!-- P11 gen-to-planner: ?gen=<id> — 연출컷 구성을 품목·배치로. persistence-init 이 로그인 뒤 부른다 -->
     <script src="js/detaildesign/gen-import.js?v=38.5"></script>
+    <!-- 2026-09-13: 디테일 단계 도면 저장/불러오기 (공통 메뉴에 디테일 저장·되쓰기를 꽂는다) -->
+    <script src="js/detaildesign/detail-drawing.js?v=38.8"></script>
     <script src="js/detaildesign/persistence-init.js?v=36.0"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
     <script src="js/detaildesign/workflow-client.js?v=36.0"></script>

@@ -80,12 +80,15 @@ describe('상단바에 저장 버튼과 토글이 있다', () => {
     expect(t.classList.contains('off')).toBe(on);
   });
 
-  test('저장 버튼은 📥 도면 불러오기 오른쪽 · ⚡ 전체 자동계산 왼쪽', () => {
+  test('저장 버튼은 📥 도면 불러오기 오른쪽 — 둘 다 상단바 우측 끝(패널 토글 바로 앞)', () => {
+    // 2026-09-13: 배치·구조·디테일 세 단계가 같은 자리(우측 상단)에 같은 두 버튼을 갖는다.
     const load = SRC.indexOf('id="loadDrawingBtn"');
     const save = SRC.indexOf('id="saveDrawingBtn"');
     const auto = SRC.indexOf('id="autoCalcAllBtn"');
+    const panel = SRC.indexOf('class="panel-toggle"');
     expect(load).toBeLessThan(save);
-    expect(save).toBeLessThan(auto);
+    expect(auto).toBeLessThan(load);
+    expect(save).toBeLessThan(panel);
   });
 });
 
