@@ -269,17 +269,6 @@
   </div>
   <div class="module-name" id="curModuleName">모듈을 선택하세요</div>
   <div class="spacer"></div>
-  <!-- W12-71: 저장된 도면 불러오기 — 배치 / 구조 / 디테일 세 단계. -->
-  <div class="load-wrap">
-    <button class="load-btn" id="loadDrawingBtn"
-            title="계정에 저장된 도면을 단계별로 불러옵니다">📥 도면 불러오기 <span class="caret">▾</span></button>
-    <div class="load-menu" id="loadDrawingMenu" hidden></div>
-  </div>
-  <!-- W12-75: 저장이 드롭다운 안에만 있어 안 보였다. 상단바로 꺼낸다. -->
-  <button class="load-btn" id="saveDrawingBtn"
-          title="지금 구조를 이름 붙여 계정에 저장합니다">💾 도면 저장</button>
-  <button class="load-btn" id="autoSaveToggle"
-          title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   <!-- W12-46: 모든 배치 공간을 한 번에 자동계산. 영역마다 도구를 열어
        '이 영역 자동계산' 을 누르던 것을 한 자리로 모은다. -->
   <button class="auto-all" id="autoCalcAllBtn"
@@ -298,6 +287,14 @@
     <button id="viewRotateLeftBtn" title="좌측으로 시점 이동 (90° 반시계)">◀</button>
     <span id="viewRotateLabel" style="min-width:42px;text-align:center;font-size:11px;font-weight:600;color:var(--text);padding:3px 4px">정면</span>
     <button id="viewRotateRightBtn" title="우측으로 시점 이동 (90° 시계)">▶</button>
+  </div>
+  <!-- 2026-09-13: 도면 저장 / 불러오기 — 배치·구조·디테일 공통, 우측 상단 (js/planner/planner-drawing-menu.js).
+       이 단계(구조)만 저장하고, 불러오기도 구조 저장본만 보여 준다. -->
+  <div class="pdm-wrap" id="drawingMenuWrap">
+    <button type="button" class="pdm-btn" id="loadDrawingBtn" title="계정에 저장된 구조 도면 불러오기 (이 품목 / 내 모든 설계)">📥 도면 불러오기 <span class="pdm-caret">▾</span></button>
+    <div class="pdm-menu" id="loadDrawingMenu" hidden></div>
+    <button type="button" class="pdm-btn" id="saveDrawingBtn" title="지금 구조를 이름 붙여 계정에 저장합니다">💾 도면 저장</button>
+    <button type="button" class="load-btn" id="autoSaveToggle" title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   </div>
   <div class="panel-toggle">
     <button id="btnLeft" class="on" title="좌측 패널 (L)">⬛</button>
@@ -478,6 +475,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
 <script src="js/config.js?v=38.7"></script>
 <script src="js/planner/planner-store.js?v=38.7"></script>
+<script src="js/planner/planner-drawing-menu.js?v=38.7"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
 <script src="js/planner/planner-engine.js?v=38.7"></script>
 
@@ -5074,161 +5072,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   // ─────────────────────────────────────────────────────────────
-  // W12-71: 📥 도면 불러오기 — 배치 / 구조 / 디테일
-  //
-  //   여태 이 셋은 브라우저 localStorage 에만 있었다. 캐시를 지우면 사라지고
-  //   다른 PC 에서는 보이지 않았다. 이제 planner_snapshots 에 계정으로 쌓인다.
-  //   저장·불러오기의 실제 동작은 js/planner/planner-store.js 가 정본이다.
+  // 2026-09-13: 📥 도면 불러오기 / 💾 도면 저장 — 공통 메뉴 (js/planner/planner-drawing-menu.js).
+  //   이 단계(구조)만 저장·불러온다. 저장·목록·되쓰기의 정본은 js/planner/planner-store.js.
+  //   설계가 아직 저장되지 않았으면 부모에 설계 저장을 부탁하고(plannerRequestDesignSave),
+  //   끝나면 같은 단계를 새 스코프로 다시 열어 미룬 저장을 이어서 한다.
   // ─────────────────────────────────────────────────────────────
   {
-    const btn = document.getElementById('loadDrawingBtn');
-    const menu = document.getElementById('loadDrawingMenu');
-
-    /** 저장소를 못 쓰는 이유를 사람 말로. 이유마다 할 일이 다르다. */
-    function storeExcuse(reason) {
-      if (reason === 'no-scope') {
-        return '이 설계는 아직 저장되지 않았습니다. 상세설계에서 설계를 저장하면 '
-             + '도면이 계정에 쌓이기 시작합니다. 그전까지는 이 브라우저에만 남습니다. '
-             + '(불러오기는 "내 모든 설계" 에서 됩니다.)';
-      }
-      if (reason === 'no-session') return '로그인하면 계정에 저장됩니다.';
-      if (reason === 'no-sdk') return '이 화면에서는 계정 저장을 쓸 수 없습니다.';
-      return '';
-    }
-
-    function esc(t) {
-      return String(t == null ? '' : t)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    // 2026-09-13: '이 품목' / '내 모든 설계' — 파일 불러오기처럼 계정 전체에서 고른다.
-    let loadScope = 'item';
-
-    function rowHTML(stage, r, ids) {
-      const label = r.is_autosave ? '자동 저장' : (r.name || '이름 없음');
-      const when = plannerSnapshotWhen(r.updated_at || r.created_at);
-      const sum = plannerSnapshotSummary(stage, r.payload);
-      const origin = (typeof plannerSnapshotOrigin === 'function') ? plannerSnapshotOrigin(r, ids) : '';
-      return `<button class="lm-row" data-snap="${esc(r.id)}" data-stage="${esc(stage)}">`
-           + `${esc(label)}<span class="lm-meta">${esc(when)}${sum ? ' · ' + esc(sum) : ''}`
-           + (origin ? ` · <span class="lm-origin">${esc(origin)}</span>` : '') + `</span></button>`;
-    }
-
-    /**
-     * 불러오기는 **파괴적**이다 — 지금 그린 것을 덮어쓴다.
-     * 그래서 확인을 받고, 확인 직전에 현재 상태를 자동 저장으로 한 벌 남긴다.
-     * 되쓴 뒤에는 페이지를 다시 연다 — 원점(loadOrigin)처럼 한 번만 도는 로드
-     * 경로가 있어, 부분 갱신으로는 화면과 저장값이 어긋난다.
-     */
-    async function pickSnapshot(stage, id) {
-      const label = PLANNER_STAGE_LABEL[stage] || stage;
-      if (stage === 'detail') {
-        if (!confirm(`디테일 데이터를 이 스냅샷으로 되돌립니다.
-
-상세설계 화면의 품목 내용이 바뀝니다.
-계속하시겠습니까?`)) return;
-        const r = await PlannerStore.loadAny(id);   // payload 만 읽는다 (detail 은 되쓸 키가 없다)
-        if (!r.ok) { showToast('⚠ 불러오기 실패: ' + (r.message || r.reason)); return; }
-        const ids = plannerScopeIds();
-        try {
-          window.parent.postMessage({
-            type: 'DADAM_RESTORE_DETAIL',
-            itemUniqueId: ids.itemId,
-            specs: r.row.payload && r.row.payload.specs,
-            modules: r.row.payload && r.row.payload.modules,
-          }, location.origin);
-          showToast('🎨 디테일 복원 요청을 보냈습니다 — 상세설계 화면을 확인하세요');
-        } catch (e) { showToast('⚠ 복원 요청 실패: ' + e.message); }
-        return;
-      }
-      if (!confirm(`저장된 ${label} 도면을 불러옵니다.
-
-지금 화면의 ${label} 내용은 덮어씁니다.
-(현재 상태는 자동 저장으로 한 벌 남깁니다.)
-
-계속하시겠습니까?`)) return;
-      await PlannerStore.save(stage, { autosave: true });   // 되돌아올 자리를 만든다 (설계 미저장이면 조용히 건너뛴다)
-      const r = await PlannerStore.loadAny(id);   // 어느 설계·품목 것이든 지금 스코프로 되쓴다
-      if (!r.ok) { showToast('⚠ 불러오기 실패: ' + (r.message || r.reason)); return; }
-      showToast(`📥 ${label} 불러오기 완료 — 화면을 다시 엽니다`);
-      setTimeout(() => location.reload(), 400);
-    }
-
-    async function saveNamed(stage) {
-      const label = PLANNER_STAGE_LABEL[stage] || stage;
-      const name = prompt(`${label} 도면 이름:`, `${label} ${new Date().toLocaleString('ko-KR')}`);
-      if (!name) return;
-      const r = await PlannerStore.save(stage, { name });
-      // 2026-09-13: 설계가 아직 저장되지 않았으면 부모에게 설계 저장을 부탁하고, 끝나면 이어서 저장한다.
-      if (!r.ok && r.reason === 'no-scope' && plannerRequestDesignSave({ stage, name })) {
-        showToast('설계가 아직 저장되지 않았습니다 — 먼저 설계를 저장합니다 (이름을 입력하세요)');
-        return;
-      }
-      showToast(r.ok ? `💾 ${label} 저장 완료 — ${name}`
-                     : `⚠ 저장 실패: ${r.message || storeExcuse(r.reason) || r.reason}`);
-      if (r.ok) renderMenu();
-    }
-
-    // 2026-09-13: 부모가 설계를 저장하면 스코프를 갈아타고, 미뤄 둔 도면 저장을 이어서 한다.
-    if (typeof plannerListenDesignSaved === 'function') plannerListenDesignSaved(showToast);
-    if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave(showToast);
-
-    async function renderMenu() {
-      menu.innerHTML = '<div class="lm-note">불러오는 중…</div>';
-      const ready = await PlannerStore.ready();
-      // W12-72: 못 쓰는 상태여도 **메뉴 뼈대는 그대로 그린다.**
-      //   예전엔 안내 한 줄만 남겨서, 저장 버튼이 아예 없는 것처럼 보였다.
-      //   버튼은 비활성으로 두고 왜 못 쓰는지를 그 자리에서 알려 준다.
-      const why = ready.ok ? '' : storeExcuse(ready.reason);
-      // 설계를 아직 저장하지 않았어도 로그인만 돼 있으면 '내 모든 설계' 는 볼 수 있다
-      const ses = (!ready.ok && ready.reason === 'no-scope') ? await PlannerStore.session() : null;
-      const canList = ready.ok || !!(ses && ses.ok);
-      if (!ready.ok && loadScope === 'item' && canList) loadScope = 'all';
-      const ids = ready.ids || plannerScopeIds();
-      const lists = {};
-      if (canList) {
-        for (const stage of PLANNER_STAGES) {
-          lists[stage] = loadScope === 'all' ? await PlannerStore.listAll(stage) : await PlannerStore.list(stage);
-        }
-      }
-      const parts = [];
-      if (why) parts.push(`<div class="lm-note">${esc(why)}</div><div class="lm-sep"></div>`);
-      parts.push(`<div class="lm-scope">`
-        + `<button data-scope="item" class="${loadScope === 'item' ? 'on' : ''}"${ready.ok ? '' : ' disabled'}>이 품목</button>`
-        + `<button data-scope="all" class="${loadScope === 'all' ? 'on' : ''}"${canList ? '' : ' disabled'}>내 모든 설계</button></div>`);
-      PLANNER_STAGES.forEach((stage, i) => {
-        const label = PLANNER_STAGE_LABEL[stage];
-        const rows = (lists[stage] && lists[stage].rows) || [];
-        if (i) parts.push('<div class="lm-sep"></div>');
-        // 디테일은 상세설계가 저장할 때 쌓인다 — 여기서 만들 수 있는 것이 아니다.
-        parts.push(`<div class="lm-stage"><span>${label}</span>`
-          + (stage === 'detail' ? ''
-            : `<button data-save="${stage}"${ready.ok ? '' : ' disabled title="' + esc(why) + '"'}>현재 상태 저장…</button>`)
-          + '</div>');
-        parts.push(rows.length
-          ? rows.map((r) => rowHTML(stage, r, ids)).join('')
-          : `<div class="lm-empty">${canList ? `저장된 ${label} 도면이 없습니다` : '계정 저장을 쓸 수 없습니다'}</div>`);
-      });
-      menu.innerHTML = parts.join('');
-      menu.querySelectorAll('[data-scope]').forEach((el) => {
-        el.onclick = (e) => { e.stopPropagation(); loadScope = el.dataset.scope; renderMenu(); };
-      });
-      menu.querySelectorAll('[data-save]').forEach((el) => {
-        el.onclick = (e) => { e.stopPropagation(); saveNamed(el.dataset.save); };
-      });
-      menu.querySelectorAll('[data-snap]').forEach((el) => {
-        el.onclick = (e) => {
-          e.stopPropagation();
-          menu.hidden = true;
-          pickSnapshot(el.dataset.stage, el.dataset.snap);
-        };
-      });
-    }
-
-    // W12-75: 상단바 💾 도면 저장 — 드롭다운 안에만 있던 저장을 밖으로 꺼낸다.
-    //   누르면 구조 단계를 이름 붙여 계정에 남긴다 (드롭다운의 '현재 상태 저장…' 과 같은 길).
-    const saveBtn = document.getElementById('saveDrawingBtn');
-    if (saveBtn) saveBtn.onclick = () => saveNamed('structure');
+    mountPlannerDrawingMenu({
+      stage: 'structure',
+      btn: document.getElementById('loadDrawingBtn'),
+      menu: document.getElementById('loadDrawingMenu'),
+      saveBtn: document.getElementById('saveDrawingBtn'),
+      toast: showToast,
+      // 불러오기는 파괴적이다 — 현재 상태를 자동 저장으로 한 벌 남기고 되쓴 뒤 다시 연다.
+      //   원점(loadOrigin)처럼 한 번만 도는 로드 경로가 있어 부분 갱신으로는 화면과 저장값이 어긋난다.
+      pick: async (id) => {
+        try { await PlannerStore.save('structure', { autosave: true }); } catch (e) {}
+        const r = await PlannerStore.loadAny(id);
+        if (!r.ok) throw new Error(r.message || r.reason);
+        showToast('📥 구조 불러오기 완료 — 화면을 다시 엽니다');
+        setTimeout(() => location.reload(), 400);
+      },
+      save: (name) => PlannerStore.save('structure', { name }),
+      onNoScope: (name) => plannerRequestDesignSave({ stage: 'structure', name }),
+    });
 
     // W12-75: 자동저장 on/off. 꺼도 이 브라우저 저장(localStorage)은 계속된다 —
     //   계정에 올릴지만 정하는 스위치다. 작업을 잃는 스위치가 아니라는 뜻.
@@ -5253,17 +5120,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       };
     }
 
-    if (btn && menu) {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        menu.hidden = !menu.hidden;
-        if (!menu.hidden) renderMenu();
-      };
-      document.addEventListener('click', (e) => {
-        if (menu.hidden) return;
-        if (!menu.contains(e.target) && e.target !== btn) menu.hidden = true;
-      });
-    }
+    // 부모가 설계를 저장하면 스코프를 갈아타고, 미뤄 둔 도면 저장을 이어서 한다.
+    if (typeof plannerListenDesignSaved === 'function') plannerListenDesignSaved(showToast);
+    if (typeof plannerRunPendingSave === 'function') plannerRunPendingSave(showToast);
   }
 
   // ─────────────────────────────────────────────────────────────

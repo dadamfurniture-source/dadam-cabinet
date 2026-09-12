@@ -128,9 +128,9 @@ describe('배치 단계 — 📂 배치 불러오기 드롭다운', () => {
 
   test('버튼이 메뉴를 열고, 이 브라우저의 마지막 저장이 첫 줄이다', async () => {
     const p = boot(true);
-    const menu = p.document.getElementById('loadLayoutMenu');
+    const menu = p.document.getElementById('loadDrawingMenu');
     expect(menu.hidden).toBe(true);
-    p.document.getElementById('loadLayoutBtn').onclick({ stopPropagation() {} });
+    p.document.getElementById('loadDrawingBtn').onclick({ stopPropagation() {} });
     await flush();
     expect(menu.hidden).toBe(false);
     const local = menu.querySelector('[data-local]');
@@ -141,18 +141,18 @@ describe('배치 단계 — 📂 배치 불러오기 드롭다운', () => {
 
   test('마지막 저장 줄을 누르면 예전처럼 localStorage 배치를 되살린다', async () => {
     const p = boot(true);
-    p.document.getElementById('loadLayoutBtn').onclick({ stopPropagation() {} });
+    p.document.getElementById('loadDrawingBtn').onclick({ stopPropagation() {} });
     await flush();
     expect(p.document.querySelectorAll('g.sect-rect').length).toBe(0);
-    p.document.querySelector('#loadLayoutMenu [data-local]').onclick({ stopPropagation() {} });
+    p.document.querySelector('#loadDrawingMenu [data-local]').onclick({ stopPropagation() {} });
     expect(p.document.querySelectorAll('g.sect-rect').length).toBe(1);
   });
 
   test('계정 구역에는 범위 토글(이 품목 / 내 모든 설계)과 저장 버튼이 있다', async () => {
     const p = boot(false);
-    p.document.getElementById('loadLayoutBtn').onclick({ stopPropagation() {} });
+    p.document.getElementById('loadDrawingBtn').onclick({ stopPropagation() {} });
     await flush();
-    const menu = p.document.getElementById('loadLayoutMenu');
+    const menu = p.document.getElementById('loadDrawingMenu');
     expect(menu.querySelector('[data-scope="item"]')).not.toBeNull();
     expect(menu.querySelector('[data-scope="all"]')).not.toBeNull();
     expect(menu.querySelector('[data-save]')).not.toBeNull();
@@ -163,18 +163,17 @@ describe('배치 단계 — 📂 배치 불러오기 드롭다운', () => {
 });
 
 describe('소스 규약', () => {
-  test('구조 단계 도면 불러오기에 범위 토글이 있고 listAll·loadAny 를 쓴다', () => {
-    const at = STRUCT.indexOf('async function renderMenu');
-    const fn = STRUCT.slice(at, at + 2500);
-    expect(fn).toContain('data-scope="all"');
-    expect(fn).toContain('PlannerStore.listAll(stage)');
+  const MENU = fs.readFileSync(path.join(ROOT, 'js/planner/planner-drawing-menu.js'), 'utf8');
+  test('공통 메뉴에 범위 토글이 있고 listAll 을 쓴다 · 두 단계 모두 loadAny 로 되쓴다', () => {
+    expect(MENU).toContain('data-scope="all"');
+    expect(MENU).toContain('PlannerStore.listAll(stage)');
     expect(STRUCT).toContain('PlannerStore.loadAny(id)');
+    expect(SHELL).toContain('PlannerStore.loadAny(id)');
     expect(STRUCT).not.toContain('PlannerStore.loadInto(id)');
   });
   test('배치 단계는 되쓴 뒤 fromStructure 토큰을 두고 다시 연다', () => {
-    const at = SHELL.indexOf('async function pickSnapshot');
-    const fn = SHELL.slice(at, at + 1200);
-    expect(fn).toContain('PlannerStore.loadAny(id)');
+    const at = SHELL.indexOf("stage: 'layout',");
+    const fn = SHELL.slice(at, at + 1800);
     expect(fn).toContain("sessionStorage.setItem('fromStructure', '1')");
     expect(fn).toContain('location.reload()');
   });

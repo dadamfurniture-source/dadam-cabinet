@@ -1446,13 +1446,14 @@
           const uid = Number(e.data.itemUniqueId);
           const item = selectedItems.find((it) => Math.floor(it.uniqueId) === uid);
           if (!item) { alert('복원할 품목을 찾지 못했습니다.'); return; }
-          if (e.data.specs) item.specs = e.data.specs;
-          if (Array.isArray(e.data.modules)) item.modules = e.data.modules;
-          if (typeof updateUI === 'function') updateUI();
-          try {
-            hasUnsavedChanges = true;
-            if (typeof updateSaveStatus === 'function') updateSaveStatus('saving', '복원됨 — 저장 필요');
-          } catch (err) { /* 저장 상태 표시는 없어도 복원 자체는 끝났다 */ }
+          // 2026-09-13: 디테일 단계 도면 불러오기와 같은 되쓰기 (detail-drawing.js)
+          if (typeof applyDetailSnapshotToItem === 'function') {
+            applyDetailSnapshotToItem(item, e.data.specs, e.data.modules);
+          } else {
+            if (e.data.specs) item.specs = e.data.specs;
+            if (Array.isArray(e.data.modules)) item.modules = e.data.modules;
+            if (typeof updateUI === 'function') updateUI();
+          }
           alert(`"${item.name}" 의 디테일을 저장된 도면으로 되돌렸습니다.
 
 확인 후 '저장' 을 눌러 반영하세요.`);
