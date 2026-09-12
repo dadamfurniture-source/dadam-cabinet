@@ -1393,6 +1393,32 @@
       // W8-6: PLANNER_READY 수신 → 해당 iframe 에 CATEGORY_COUNTS 즉시 응답
       window.addEventListener('message', function (e) {
         if (!e.data) return;
+        // 2026-09-13: 플래너가 도면을 계정에 저장하려는데 설계가 아직 저장되지 않았다.
+        //   여기서 설계를 저장하고(이름은 saveDesign 이 묻는다) 새 id 를 그 iframe 에 돌려준다.
+        //   iframe 은 local 키를 새 스코프로 옮기고 같은 단계를 다시 연 뒤 미룬 저장을 이어서 한다.
+        if (e.data.type === 'DADAM_REQUEST_SAVE_DESIGN') {
+          if (e.origin !== location.origin) return;
+          const src = e.source;
+          const reply = (type, extra) => {
+            try { src.postMessage(Object.assign({ type }, extra || {}), location.origin); } catch (err) {}
+          };
+          (async () => {
+            try {
+              if (typeof currentDesignId !== 'undefined' && currentDesignId) {
+                reply('DADAM_DESIGN_SAVED', { designId: currentDesignId });
+                return;
+              }
+              if (typeof saveDesign !== 'function') { reply('DADAM_DESIGN_SAVE_CANCELED'); return; }
+              await saveDesign();
+              if (typeof currentDesignId !== 'undefined' && currentDesignId) reply('DADAM_DESIGN_SAVED', { designId: currentDesignId });
+              else reply('DADAM_DESIGN_SAVE_CANCELED');
+            } catch (err) {
+              console.error('[Planner] 설계 저장 요청 실패:', err);
+              reply('DADAM_DESIGN_SAVE_CANCELED');
+            }
+          })();
+          return;
+        }
         if (e.data.type === 'ADD_CATEGORY') {
           const catId = e.data.categoryId;
           if (!catId) return;
