@@ -51,6 +51,34 @@ describe('플래너가 부모에게 설계 저장을 부탁한다', () => {
     expect(p.session.getItem('fromStructure')).toBe('1');
   });
 
+  test('설계 저장 뒤 다시 연 화면(소수 item)에서 미룬 저장이 실제로 계정에 간다', async () => {
+    // 부모가 준 새 design 으로 다시 열린 상태: design=d-new&item=1757550000000.123
+    const p = bootPlanner('mockup-structure.html', { search: '?design=d-new&item=1757550000000.123',
+      storage: { 'dadam_structure_v1::d-new:1757550000000.123': '{}' } });
+    p.session.setItem('dadam_planner_pending_save_v1', JSON.stringify({ stage: 'structure', name: '미룬 것' }));
+    const saved = [];
+    p.window.PlannerStore.ready = async () => ({ ok: true, ids: { designId: 'd-new', itemId: 1757550000000 } });
+    p.window.PlannerStore.save = async (stage, opt) => { saved.push([stage, opt]); return { ok: true, id: 'x' }; };
+    const toasts = [];
+    const r = await p.g('plannerRunPendingSave')((m) => toasts.push(m));
+    expect(r.ok).toBe(true);
+    expect(saved).toEqual([['structure', { name: '미룬 것' }]]);
+    expect(toasts[0]).toContain('구조 도면을 계정에 저장했습니다');
+    expect(p.session.getItem('dadam_planner_pending_save_v1')).toBeNull();
+  });
+
+  test('미룬 저장이 스코프 때문에 못 가면 조용히 삼키지 않고 이유를 띄운다', async () => {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=d-new&item=1757550000000.123',
+      storage: { 'dadam_structure_v1::d-new:1757550000000.123': '{}' } });
+    p.session.setItem('dadam_planner_pending_save_v1', JSON.stringify({ stage: 'structure', name: 'x' }));
+    p.window.PlannerStore.ready = async () => ({ ok: false, reason: 'no-session' });
+    const toasts = [];
+    const r = await p.g('plannerRunPendingSave')((m) => toasts.push(m));
+    expect(r.ok).toBe(false);
+    expect(toasts[0]).toContain('구조 도면 저장 실패');
+    expect(toasts[0]).toContain('로그인');
+  });
+
   test('취소하면 미룬 저장 토큰이 지워진다', () => {
     const p = bootLocal('mockup-structure.html');
     p.g('plannerRequestDesignSave')({ stage: 'structure', name: 'x' });
