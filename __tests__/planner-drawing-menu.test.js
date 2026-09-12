@@ -167,6 +167,16 @@ describe('세 단계가 같은 자리에 같은 두 버튼을 갖는다', () => 
     expect(html).toContain('js/detaildesign/detail-drawing.js');
     expect(html.indexOf('js/planner/planner-drawing-menu.js')).toBeLessThan(html.indexOf('js/detaildesign/detail-drawing.js'));
   });
+  test('바닥바의 옛 저장 버튼(배치 저장·구조 저장)은 없다 — 저장은 상단 도면 저장 하나', () => {
+    const shell = read('mockup-shell.html');
+    const struct = read('mockup-structure.html');
+    expect(shell).not.toContain('id="saveLayoutBtn"');
+    expect(shell).not.toContain("getElementById('saveLayoutBtn')");
+    expect(struct).not.toContain('id="saveBtn"');
+    expect(struct).not.toContain("getElementById('saveBtn')");
+    expect(shell).toContain('id="saveDrawingBtn"');
+    expect(struct).toContain('id="saveDrawingBtn"');
+  });
   test('디테일 저장은 품목마다 stage detail 로, 설계 미저장이면 saveDesign 부터', () => {
     const js = read('js/detaildesign/detail-drawing.js');
     expect(js).toContain("PlannerStore.save('detail', {");

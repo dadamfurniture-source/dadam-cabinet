@@ -439,7 +439,6 @@
 <div class="bottombar">
   <div class="actions">
     <button id="reloadBtn" title="배치 단계 데이터 다시 로드">📥 배치 로드</button>
-    <button class="primary" id="saveBtn" title="구조 저장">💾 구조 저장</button>
     <button class="next" id="nextBtn" title="디테일 단계로">디테일 단계 →</button>
   </div>
   <div>ⓘ 줌 <span id="zoomInd">100%</span> · 휠=줌 · 빈공간 드래그=팬 · F=Fit · 0=Reset</div>
@@ -5088,7 +5087,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   원점(loadOrigin)처럼 한 번만 도는 로드 경로가 있어 부분 갱신으로는 화면과 저장값이 어긋난다.
       pick: async (id) => {
         try { await PlannerStore.save('structure', { autosave: true }); } catch (e) {}
-        const r = await PlannerStore.loadAny(id);
+        const r = await PlannerStore.loadAny(id, 'structure');   // 구조 저장본만
         if (!r.ok) throw new Error(r.message || r.reason);
         showToast('📥 구조 불러오기 완료 — 화면을 다시 엽니다');
         setTimeout(() => location.reload(), 400);
@@ -5141,13 +5140,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (modules.length && !modules.find(m => m.id === activeId)) setActiveModule(modules[0].id);
     showToast(`📥 배치 로드 (모듈 ${modules.length}개)`);
   };
-  document.getElementById('saveBtn').onclick = () => {
-    persistPlannerState();
-    // W12-71: localStorage 는 그대로 쓰고, 계정에도 한 벌 올린다.
-    //   올리기가 실패해도 저장은 이미 끝났다 — 작업을 막지 않는다.
-    if (typeof plannerAutosave === 'function') plannerAutosave('structure', 0);
-    showToast(`💾 구조 저장 (모듈 ${Object.keys(structures).length}개)`);
-  };
+  // 2026-09-13: 바닥바의 '💾 구조 저장' 은 뺐다 — 저장은 상단 우측 '💾 도면 저장'(공통 메뉴) 하나로 간다.
+  //   '디테일 단계 →' 는 여전히 persistPlannerState() 를 거쳐 넘어가므로 저장 없이 넘어가는 일은 없다.
   // W11-9: 여기가 업무 루프의 끊긴 지점이었다.
   // 이 페이지는 detaildesign.html 의 Step 2 안에서 iframe 으로 도는데,
   // "다음" 이 alert 만 띄우고 끝나 BOM(Step 3) 으로 갈 방법이 없었다.

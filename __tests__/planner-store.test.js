@@ -238,20 +238,23 @@ describe('플래너 화면에 붙어 있다', () => {
     expect(SRC.slice(pick, pick + 900)).toContain("PlannerStore.save('structure', { autosave: true })");
   });
 
-  test('구조 저장이 계정에도 올린다', () => {
-    expect(SRC).toContain("plannerAutosave('structure', 0)");
+  test('구조 저장이 계정에도 올린다 — 상단 도면 저장 하나로 (바닥바 구조 저장은 없다)', () => {
+    // 2026-09-13: 바닥바 '💾 구조 저장'(saveBtn) 제거. 저장은 공통 메뉴의 save 가 계정에 올린다.
+    expect(SRC).toContain("PlannerStore.save('structure', { name })");
+    expect(SRC).not.toContain('id="saveBtn"');
   });
 
-  test('배치 단계도 올린다', () => {
+  test('배치 단계도 올린다 — 상단 도면 저장 하나로 (바닥바 배치 저장은 없다)', () => {
     const shell = fs.readFileSync(path.join(__dirname, '..', 'mockup-shell.html'), 'utf8');
-    expect(shell).toContain("plannerAutosave('layout', 0)");
+    expect(shell).toContain("PlannerStore.save('layout', { name })");
+    expect(shell).not.toContain('id="saveLayoutBtn"');
     expect(shell).toContain('js/planner/planner-store.js');
   });
 
   test('디테일 복원은 저장하지 않는다 — 정본은 design_items 라 되쓰기만 하고 저장은 사람이 누른다', () => {
     // 2026-09-13: 디테일 불러오기는 디테일 단계(detaildesign) 우측 상단 메뉴가 맡는다.
     const dd = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign', 'detail-drawing.js'), 'utf8');
-    expect(dd).toContain("PlannerStore.loadAny(id)");
+    expect(dd).toContain("PlannerStore.loadAny(id, 'detail')");
     expect(dd).toContain('hasUnsavedChanges = true');
     expect(dd).not.toContain('saveDesignQuiet(');
     const step1 = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign', 'ui-step1.js'), 'utf8');

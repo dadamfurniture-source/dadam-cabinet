@@ -66,6 +66,7 @@ function plannerDrawingExcuse(reason) {
   }
   if (reason === 'no-session') return '로그인하면 계정에 저장하고 불러올 수 있습니다.';
   if (reason === 'no-sdk') return '이 화면에서는 계정 저장을 쓸 수 없습니다.';
+  if (reason === 'stage-mismatch') return '다른 단계의 도면입니다. 배치·구조·디테일 도면은 저장한 단계에서만 불러올 수 있습니다.';
   return '';
 }
 
