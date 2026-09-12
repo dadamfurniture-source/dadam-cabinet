@@ -120,7 +120,8 @@ describe('빈 공간을 누르면 선택이 풀린다', () => {
 
   test('3D 는 아무것도 안 맞았을 때 푼다', () => {
     const at = SRC.indexOf('const picked = pickEntityHit(hits);');
-    expect(SRC.slice(at, at + 400)).toContain('else { clearHighlight(); clearActiveModule(); }');
+    // 2026-09-12: 모듈만이 아니라 배치까지 — 처음 상태로
+    expect(SRC.slice(at, at + 400)).toContain('else { clearHighlight(); clearSelection(); }');
   });
 
   test('2D 는 배경 클릭에서 푼다 — 팬으로 넘어간 드래그는 클릭이 아니다', () => {
@@ -128,7 +129,7 @@ describe('빈 공간을 누르면 선택이 풀린다', () => {
     expect(at).toBeGreaterThan(-1);
     const fn = SRC.slice(at, at + 220);
     expect(fn).toContain('panInfo.moved');
-    expect(fn).toContain('clearActiveModule()');
+    expect(fn).toContain('clearSelection()');
   });
 });
 
@@ -204,6 +205,60 @@ describe('첫 클릭은 배치, 두 번째 클릭은 모듈 (2026-09-12)', () =>
     v.zoom = 0.33; v.panX = 51; v.panY = 77;
     const before = snapView(p);
     p.g('handleEntityClick')(carcass(p.g('modules')[1].id));
+    expect(snapView(p)).toEqual(before);
+  });
+});
+
+describe('배치 선택 표시와 처음 상태 (2026-09-12)', () => {
+  const carcass = (id) => ({ userData: { entityKind: 'carcass', moduleId: id } });
+  const pickedRect = (p) => p.document.querySelector('#contentG rect[data-area-id][data-picked="1"]');
+
+  test('첫 클릭으로 배치가 선택되면 파란 테두리와 이름표가 뜬다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const m = p.g('modules')[1];
+    p.g('handleEntityClick')(carcass(m.id));
+    const r = pickedRect(p);
+    expect(r).not.toBeNull();
+    expect(r.getAttribute('stroke')).toBe('var(--pick, #1d6fe0)');
+    expect(p.document.getElementById('curModuleName').textContent).toMatch(/^배치: /);
+  });
+
+  test('모듈을 고르면 배치 표시는 배경 강조로 돌아간다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const m = p.g('modules')[1];
+    p.g('handleEntityClick')(carcass(m.id));
+    p.g('handleEntityClick')(carcass(m.id));
+    expect(pickedRect(p)).toBeNull();
+    expect(p.document.getElementById('curModuleName').textContent).not.toMatch(/^배치: /);
+  });
+
+  test('빈 곳을 누르면 모듈·배치가 모두 풀린다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    const m = p.g('modules')[1];
+    p.g('handleEntityClick')(carcass(m.id));
+    p.g('handleEntityClick')(carcass(m.id));
+    expect(p.g('clearSelection')()).toBe(true);
+    expect(pickedRect(p)).toBeNull();
+    expect(p.document.querySelector('.area-tools')).toBeNull();
+    expect(p.document.getElementById('curModuleName').textContent).toBe('모듈을 선택하세요');
+    expect(p.document.querySelector('.empty-msg')).not.toBeNull();
+    const blue = [...p.document.querySelectorAll('#contentG [data-module-id]')]
+      .filter((r) => r.getAttribute('stroke') === 'var(--pick, #1d6fe0)');
+    expect(blue).toHaveLength(0);
+    expect(p.g('clearSelection')()).toBe(false);   // 이미 처음 상태
+  });
+
+  test('풀어도 줌·팬은 그대로다', () => {
+    const p = boot(FIXTURES.straight);
+    p.g('setViewMode')('all');
+    p.g('handleEntityClick')(carcass(p.g('modules')[1].id));
+    const v = p.g('view');
+    v.zoom = 0.31; v.panX = 12; v.panY = 34;
+    const before = snapView(p);
+    p.g('clearSelection')();
     expect(snapView(p)).toEqual(before);
   });
 });

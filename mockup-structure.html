@@ -1709,16 +1709,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const cfg = SECTION_CONFIG[a.section] || {};
       const R = areaFrontRect(a);
       const on = a.id === activeAreaId;
+      // 2026-09-12: 배치가 **선택 대상**일 때(첫 클릭)는 모듈과 같은 파란 테두리로 알린다.
+      //   활성이지만 모듈을 편집 중(panelTarget 'module')이면 배경 강조만 남긴다.
+      const picked = areaIsPicked(a);
       const g = document.createElementNS(ns, 'g');
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('x', R.x); r.setAttribute('y', R.y);
       r.setAttribute('width', R.w); r.setAttribute('height', R.h);
       r.setAttribute('fill', cfg.fill || '#ccc');
-      r.setAttribute('fill-opacity', on ? '0.18' : '0.06');
-      r.setAttribute('stroke', cfg.stroke || '#999');
-      r.setAttribute('stroke-width', on ? 6 : 3);
-      r.setAttribute('stroke-dasharray', '18 10');
+      r.setAttribute('fill-opacity', picked ? '0.24' : on ? '0.18' : '0.06');
+      r.setAttribute('stroke', picked ? PICK_COLOR_CSS : (cfg.stroke || '#999'));
+      r.setAttribute('stroke-width', picked ? 10 : on ? 6 : 3);
+      r.setAttribute('stroke-dasharray', picked ? '30 14' : '18 10');
       r.setAttribute('data-area-id', a.id);
+      if (picked) r.setAttribute('data-picked', '1');
       r.style.cursor = 'pointer';
       r.addEventListener('click', (e) => { e.stopPropagation(); setActiveArea(a.id); });
       g.appendChild(r);
@@ -4762,10 +4766,44 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    *   고르거나 '배치' 탭에 들어올 때. 도면·3D 클릭은 표시만 바꾼다.
    *   (F 키가 언제든 화면을 맞춘다.)
    */
+  /** 배치가 지금 **선택 대상**인가 — 활성 영역이면서 우측 패널이 영역을 보여줄 때. */
+  function areaIsPicked(a) {
+    return !!a && a.id === activeAreaId && panelTarget === 'area';
+  }
+
+  /**
+   * 2026-09-12: 아무것도 선택되지 않은 상태로 되돌린다 — 모듈·배치 둘 다.
+   * 모듈 밖(빈 바닥·배경)을 누를 때 쓴다. clearActiveModule 은 배치를 남기지만
+   * 이건 남기지 않는다: 사람이 "처음으로" 돌아가고 싶어 누른 것이다.
+   * @returns {boolean} 무엇이든 풀렸으면 true
+   */
+  function clearSelection() {
+    const had = !!activeId || !!activeAreaId;
+    activeId = null;
+    activeAreaId = null;
+    panelTarget = 'module';
+    renderAreaTools();
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    syncViewRotateBar();
+    syncCanvasEmpty();
+    const nameEl = document.getElementById('curModuleName');
+    if (nameEl) nameEl.textContent = '모듈을 선택하세요';
+    if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
+    return had;
+  }
+
   function setActiveArea(id, opt) {
     const moved = !!(opt && opt.fit) && id && id !== activeAreaId;
     activeAreaId = id;
     panelTarget = 'area';
+    // 2026-09-12: 상단 이름표도 배치가 선택됐음을 알린다
+    {
+      const a = areaById(id);
+      const nameEl = document.getElementById('curModuleName');
+      if (nameEl && a) nameEl.textContent = '배치: ' + ((SECTION_CONFIG[a.section] || {}).label || a.section) + ' 영역 · ' + Math.round(a.W) + 'mm';
+    }
     renderAreaTools();
     renderModuleList();   // W12-15: 배치 목록의 선택 표시를 따라오게 한다
     renderRightPanel();   // W12-31: 우측 패널을 영역 모드로 바꾼다 — 예전엔 우측이
@@ -4977,7 +5015,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   팬으로 넘어간 드래그는 클릭이 아니다.
     svg.addEventListener('click', (e) => {
       if (panInfo && panInfo.moved) return;
-      clearActiveModule();
+      clearSelection();   // 2026-09-12: 배경 클릭은 처음 상태(아무것도 선택 안 됨)로
     });
     // 키보드
     document.addEventListener('keydown', (e) => {
@@ -5444,7 +5482,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // W12-72: 빈 곳을 누르면 선택을 푼다. 안 풀면 파란 테두리가 남아
       //   지금 무엇을 편집 중인지 알 수 없다.
       if (picked) handleEntityClick(picked);
-      else { clearHighlight(); clearActiveModule(); }
+      else { clearHighlight(); clearSelection(); }   // 2026-09-12: 모듈·배치 다 푼다
     });
 
     // Resize handler
@@ -6493,12 +6531,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   (W−D)/2 만큼 어긋난 자리에 그려졌다.
       const B = planeBoxOf(a);
       const on = a.id === activeAreaId;
-      const box = makeBox(a.W, a.H, a.D, cfg.fill, { transparent: true, opacity: on ? 0.22 : 0.09 });
+      const picked = areaIsPicked(a);
+      const box = makeBox(a.W, a.H, a.D, cfg.fill, { transparent: true, opacity: picked ? 0.3 : on ? 0.22 : 0.09 });
       box.position.set(B.cx - ox, getBaseY(a.section, a.H) + a.H / 2, B.cy - oy);
       box.rotation.y = -(a.rotation || 0) * Math.PI / 180;
       box.userData = { entityKind: 'area', areaId: a.id };
       parent.add(box);
       addEdgeOutline(box, parent, 0x6a4b2a, on ? 0.9 : 0.45);
+      // 2026-09-12: 배치가 선택 대상이면 파란 테두리 — 다른 장 뒤에 있어도 보이게 depthTest 를 끈다
+      if (picked) {
+        const pick = addEdgeOutline(box, parent, PICK_COLOR_3D, 1);
+        if (pick) { pick.material.depthTest = false; pick.renderOrder = 998; }
+      }
     });
   }
 
