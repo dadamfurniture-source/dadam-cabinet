@@ -5,9 +5,11 @@
  * 지금까지 그 자리에 설 부재가 없어, 60 이 멍가림판 MDF 로 발주되고 있었다.
  *
  *   멍가림판   멍 폭 − 목대 15        ← 마감재 60 은 **안 뺀다** (위를 덮으므로)
- *   마감재     재단 100 = 자리 60 + 겹침 40
+ *   마감재     재단 150 = 자리 60 + 겹침 90   (W12-72: 100 → 150, data-constants.js:89 가 정본)
  *
  * 종류는 멍장이 속한 라인 마감을 따라온다 (mod.blindFinishType).
+ * 재단 폭은 플래너가 주는 blindFinishW 가 우선이고, 없으면(옛 저장 설계·Node) 추출기 폴백이다.
+ * 폴백은 정본과 같은 150 이어야 한다 — 100 에 남아 있어 브라우저와 시험이 갈렸던 것을 B0 에서 맞췄다.
  */
 global.dlog = () => {};
 
@@ -16,6 +18,8 @@ const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
 const BATTEN_T = 15;
 const ZONE_W = 765;              // 인접 상판 700 → 700 − 10 + 60 + 15
 const COVER_W = ZONE_W - BATTEN_T;
+const FIN_SEAT_W = 60;           // 마감재 자리 (멍 공식의 60)
+const FIN_PART_W = 150;          // 멍판 마감재 재단 폭 — data-constants.js:89 CORNER_FINISH_PART_W (W12-72)
 
 /** 플래너가 넘겨주는 모양 그대로의 멍장 하나짜리 설계 */
 function makeItem(over) {
@@ -23,7 +27,7 @@ function makeItem(over) {
     id: 'corner-blind-lower', type: 'storage', name: 'LT망장', pos: 'lower',
     w: 1143, h: 708, d: 550,
     doorCount: 1, doorW: 378, blindZoneW: ZONE_W,
-    blindFinishType: 'Filler', blindFinishW: 100,
+    blindFinishType: 'Filler', blindFinishW: FIN_PART_W,
   }, over || {});
   return {
     categoryId: 'sink', w: 1970, h: 2310, d: 700,
@@ -66,11 +70,11 @@ describe('멍가림판 — 목대는 빼고 마감재는 안 뺀다', () => {
 });
 
 describe('멍판 마감재가 라인 마감을 따라 나온다', () => {
-  test('휠라면 휠라(멍판) 100 × 몸통H', () => {
+  test('휠라면 휠라(멍판) 150 × 몸통H', () => {
     const fin = partsOf(makeItem()).find((m) => m.part === '휠라(멍판)');
     expect(fin).toBeDefined();
     expect(fin.thickness).toBe(18);
-    expect(fin.w).toBe(100);
+    expect(fin.w).toBe(FIN_PART_W);
     expect(fin.h).toBe(708);
     expect(fin.qty).toBe(1);
   });
@@ -81,17 +85,26 @@ describe('멍판 마감재가 라인 마감을 따라 나온다', () => {
     expect(parts.find((m) => m.part === '휠라(멍판)')).toBeUndefined();
   });
 
-  test('재단은 자리(60)가 아니라 100 이다 — 60 이면 마감재가 안 붙는다', () => {
+  test('재단은 자리(60)가 아니라 150 이다 — 60 이면 마감재가 안 붙는다', () => {
     const fin = partsOf(makeItem()).find((m) => m.part === '휠라(멍판)');
-    expect(fin.w).toBe(60 + 40);
-    expect(fin.w).not.toBe(60);
+    expect(fin.w).toBe(FIN_SEAT_W + 90);
+    expect(fin.w).not.toBe(FIN_SEAT_W);
+    // 비고의 겹침도 실제 재단 폭에서 나온다 — 폭 150 옆에 "겹침 40" 이 적히면 공장이 헷갈린다
+    expect(fin.note).toContain(`자리 ${FIN_SEAT_W} + 멍판 위 겹침 ${FIN_PART_W - FIN_SEAT_W}`);
   });
 
   test('종류 미지정(옛 저장 설계)이면 휠라로 떨어진다', () => {
     const parts = partsOf(makeItem({ blindFinishType: undefined, blindFinishW: undefined }));
     const fin = parts.find((m) => m.part === '휠라(멍판)');
     expect(fin).toBeDefined();
-    expect(fin.w).toBe(100);        // 폭도 상수로 떨어진다
+    // 폭도 폴백 상수로 떨어진다 — 정본 150 (W12-72, data-constants.js:89). 예전엔 폴백이 100 이었다.
+    expect(fin.w).toBe(FIN_PART_W);
+  });
+
+  test('옛 저장 설계가 blindFinishW 100 을 들고 있으면 그대로 100 으로 낸다 (명시값 우선)', () => {
+    const fin = partsOf(makeItem({ blindFinishW: 100 })).find((m) => m.part === '휠라(멍판)');
+    expect(fin.w).toBe(100);
+    expect(fin.note).toContain('겹침 40');
   });
 
   test("'None' 을 명시하면 안 나온다", () => {

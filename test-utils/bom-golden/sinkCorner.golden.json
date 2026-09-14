@@ -148,11 +148,11 @@
       "part": "몰딩(멍판)",
       "material": "MDF",
       "thickness": 18,
-      "w": 100,
+      "w": 150,
       "h": 720,
       "qty": 1,
       "edge": "4면",
-      "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 40 (corner.md §3.3)",
+      "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 90 (corner.md §3.3)",
       "finishCode": "",
       "itemLabel": "싱크대"
     },
@@ -395,11 +395,11 @@
       "part": "휠라(멍판)",
       "material": "MDF",
       "thickness": 18,
-      "w": 100,
+      "w": 150,
       "h": 708,
       "qty": 1,
       "edge": "4면",
-      "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 40 (corner.md §3.3)",
+      "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 90 (corner.md §3.3)",
       "finishCode": "",
       "itemLabel": "싱크대"
     },
@@ -628,7 +628,7 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 2703078,
+      "totalArea": 2774478,
       "panelCount": 1
     }
   },
