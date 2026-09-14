@@ -84,12 +84,17 @@ describe('모드 진입·이탈', () => {
     expect(p.document.querySelector('.ml-header-title').textContent).toBe('배치된 모듈');
   });
 
-  test('팔레트는 카탈로그 7×7 스와치와 슬롯 7개, 우측에는 선택 부재 카드 자리가 있다', () => {
+  test('팔레트는 카탈로그 마감×색 스와치 전부와 슬롯 7개, 우측에는 선택 부재 카드 자리가 있다', () => {
     const p = boot({ detail: true });
     const pal = p.document.getElementById('detailPalette');
-    expect(pal.querySelectorAll('.pd-swatch')).toHaveLength(49);
+    // 크기는 정본(bom-finish-color.js)이 정한다 — 숫자를 박지 않는다 (C0 가 색을 더하면 따라 바뀐다).
+    const api = p.window.DadamBomFinishColor;
+    const nF = api.DOOR_FINISH_CATALOG.length, nC = api.DOOR_COLOR_CATALOG.length;
+    expect(nF).toBe(7);
+    expect(nC).toBeGreaterThanOrEqual(7);
+    expect(pal.querySelectorAll('.pd-swatch')).toHaveLength(Object.keys(api.buildFullMatrix()).length);
     expect(pal.querySelectorAll('[data-slot]')).toHaveLength(7);
-    expect(pal.querySelector('.pd-src').textContent).toBe('카탈로그 7×7');   // 정본을 script 로 실었다
+    expect(pal.querySelector('.pd-src').textContent).toBe(`카탈로그 ${nF}×${nC}`);   // 정본을 script 로 실었다
     expect(p.document.querySelector('#rightPanel .section[data-sec="detail"] #detailBody')).not.toBeNull();
     // 스와치를 누르면 고른 마감이 된다
     pal.querySelector('[data-code="PET-OAK-M"]').onclick();

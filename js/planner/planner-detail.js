@@ -464,7 +464,10 @@ const PlannerDetail = {
     const esc = plannerDetailEsc;
     const sel = plannerFinishLookup(this.catalog, this.selectedCode);
     const parts = [];
-    parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${this.catalog.fallback ? '폴백 목록' : '카탈로그 7×7'}</span></div>`);
+    // 카탈로그 크기는 정본이 정한다 (C0 가 색을 더하면 7×10 처럼 따라 바뀐다 — 숫자를 박지 않는다).
+    const nF = this.catalog.finishes.length;
+    const nC = nF ? Math.round(this.catalog.entries.length / nF) : 0;
+    parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${this.catalog.fallback ? '폴백 목록' : `카탈로그 ${nF}×${nC}`}</span></div>`);
     parts.push('<div class="pd-sel">' + (sel
       ? `<span class="pd-chip" style="background:${esc(sel.hex)}"></span><b>${esc(sel.label)}</b><code>${esc(sel.code)}</code>`
       : '<span class="pd-hint">아래에서 마감을 고르세요 — 고르지 않고 부재를 누르면 지정된 마감을 보여 줍니다</span>') + '</div>');
