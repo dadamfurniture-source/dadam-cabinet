@@ -234,7 +234,7 @@ describe('소스 규약', () => {
 
   test('섹션 마크업은 한 벌이다', () => {
     const keys = (SRC.match(/class="section[^"]*" data-sec="(\w+)"/g) || []).length;
-    expect(keys).toBe(7);
+    expect(keys).toBe(8);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
     expect(SRC).toContain('const PANEL_LAYOUT = {');
   });
 
