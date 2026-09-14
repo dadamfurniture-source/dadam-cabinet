@@ -5121,6 +5121,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       onNoScope: (name) => plannerRequestDesignSave({ stage: 'structure', name }),
     });
 
+    // D0: 디테일 모드의 마감 저장본 (stage=detail, 키 dadam_detail_v1). 버튼은 body.detail-mode 에서만 보인다.
+    //   되쓰기는 페이지를 다시 열지 않는다 — 마감은 한 키뿐이라 PlannerDetail.reload 로 제자리 갱신이 된다.
+    //   옛 형식({specs, modules}) 저장본은 PlannerDetail.applySnapshotResult 가 부모(상세설계)로 넘긴다.
+    mountPlannerDrawingMenu({
+      stage: 'detail',
+      btn: document.getElementById('loadDetailBtn'),
+      menu: document.getElementById('loadDetailMenu'),
+      saveBtn: document.getElementById('saveDetailBtn'),
+      toast: showToast,
+      pick: async (id) => {
+        try { await PlannerStore.save('detail', { autosave: true }); } catch (e) {}
+        const r = await PlannerStore.loadAny(id, 'detail');   // 디테일 저장본만
+        if (!r.ok) throw new Error(r.message || r.reason);
+        PlannerDetail.applySnapshotResult(r);
+      },
+      save: (name) => PlannerStore.save('detail', { name }),
+      onNoScope: (name) => plannerRequestDesignSave({ stage: 'detail', name }),
+    });
+
     // W12-75: 자동저장 on/off. 꺼도 이 브라우저 저장(localStorage)은 계속된다 —
     //   계정에 올릴지만 정하는 스위치다. 작업을 잃는 스위치가 아니라는 뜻.
     const autoBtn = document.getElementById('autoSaveToggle');
