@@ -108,9 +108,26 @@ describe('payload 는 저장 키 값 그대로다', () => {
     expect(plannerSnapshotPayload('layout', s.read)).toEqual({ origin: { x: 1 } });
   });
 
-  test('디테일은 localStorage 키가 없다 — 정본이 design_items 이기 때문', () => {
-    expect(PLANNER_STAGE_KEYS.detail).toEqual({});
-    expect(plannerSnapshotPayload('detail', memStore().read)).toBeNull();
+  test('D0: 디테일은 dadam_detail_v1 한 키다 — 디테일 모드가 쓰는 마감 모델', () => {
+    // 예전엔 비어 있었다(정본이 design_items). 디테일 모드(planner-detail.js)가 생기며
+    // 플래너 쪽 저장본이 생겼다 — 키 이름은 planner-detail.js 의 PLANNER_DETAIL_KEY_BASE 와 같아야 한다.
+    expect(PLANNER_STAGE_KEYS.detail).toEqual({ detail: 'dadam_detail_v1' });
+    expect(plannerSnapshotPayload('detail', memStore().read)).toBeNull();   // 값이 없으면 여전히 빈손
+    const detail = { version: 1, item: { door: { code: 'PET-OAK-M' } }, sections: { upper: {}, lower: {} }, modules: {}, parts: {} };
+    const s = memStore({ dadam_detail_v1: JSON.stringify(detail) });
+    expect(plannerSnapshotPayload('detail', s.read)).toEqual({ detail });
+  });
+
+  test('D0: 디테일 요약 — 새 형식은 지정 건수, 옛 형식은 모듈 수', () => {
+    const detail = {
+      version: 1,
+      item: { door: { code: 'PET-OAK-M' }, body: { code: 'MFB-WHT' } },
+      sections: { upper: { door: { code: 'PNT-WHT-M' } }, lower: {} },
+      modules: { 'lower-0': { door: { code: 'VNR-WNT' } } },
+      parts: { 'lower-0': { 'door#1': { code: 'PET-BLK-G' } } },
+    };
+    expect(plannerSnapshotSummary('detail', { detail })).toBe('마감 지정 5건');
+    expect(plannerSnapshotSummary('detail', { specs: {}, modules: [{}, {}, {}] })).toBe('모듈 3개');
   });
 });
 

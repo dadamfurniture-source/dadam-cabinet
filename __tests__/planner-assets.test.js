@@ -58,7 +58,16 @@ const SHARED = [
 
 // 구조 단계 전용 (P2). 배치 단계는 계산 엔진을 쓰지 않는다 — 실측 0건이라
 // 공통으로 싣지 않는다. 이 구분이 없으면 shell 에 안 쓰는 코드가 계속 딸려간다.
-const STRUCTURE_ONLY = ['js/planner/planner-engine.js'];
+// D0: 디테일 모드도 구조 페이지 안의 모드라 구조 전용이다 (planner-finish 는 BOM 이 쓰게 되면 공통으로 올린다).
+const STRUCTURE_ONLY = [
+  'js/planner/planner-engine.js',
+  'js/planner/planner-finish.js',
+  'js/planner/planner-detail.js',
+];
+
+// D0: 마감 카탈로그 정본. IIFE 라 최상위 이름이 없고 window.DadamBomFinishColor 만 남긴다 —
+//   그래서 식별자 충돌 가드의 대상이 아니지만, planner-finish.js 보다 **먼저** 실려야 한다.
+const DETAIL_CATALOG = 'js/detaildesign/bom-finish-color.js';
 
 /** 해당 HTML 이 로드해야 하는 모듈 전체 */
 const modulesFor = (file) =>
@@ -77,6 +86,15 @@ describe('플래너 모듈이 실려 있다', () => {
 
   test.each([...SHARED, ...STRUCTURE_ONLY])('%s 파일이 실제로 존재한다', (rel) => {
     expect(fs.existsSync(path.join(ROOT, rel))).toBe(true);
+  });
+
+  test('D0: 구조 페이지는 마감 카탈로그 정본을 planner-finish.js 보다 먼저 싣고, 배치 페이지는 싣지 않는다', () => {
+    const struct = scriptSrcs(read('mockup-structure.html')).map((s) => s.split('?')[0]);
+    expect(struct).toContain(DETAIL_CATALOG);
+    expect(struct.indexOf(DETAIL_CATALOG)).toBeLessThan(struct.indexOf('js/planner/planner-finish.js'));
+    expect(struct.indexOf('js/planner/planner-finish.js')).toBeLessThan(struct.indexOf('js/planner/planner-detail.js'));
+    expect(fs.existsSync(path.join(ROOT, DETAIL_CATALOG))).toBe(true);
+    expect(scriptSrcs(read('mockup-shell.html')).map((s) => s.split('?')[0])).not.toContain(DETAIL_CATALOG);
   });
 
   test.each(HTML_FILES)('%s 에서 모듈이 인라인보다 먼저 온다', (file) => {
