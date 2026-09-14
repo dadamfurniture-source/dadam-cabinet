@@ -26,6 +26,26 @@
 | 인조대리석 자재 상판(countertop) | 12mm, 50mm |
 | 원판 소요 추정 | `(총면적 × 1.15) / (1220 × 2440)` — 15% 로스율 |
 
+### 2-1. 마감 코드 정본 = `materials.code` (`database/materials-catalog-v2.sql`)
+
+도어 마감·색의 자재 코드는 Supabase `materials` 표의 `code` 컬럼이 정본이다 (C0, 계획서 §4.3).
+`js/detaildesign/bom-finish-color.js` 는 그 위의 얇은 해석기 + 오프라인 폴백이고,
+`FurnitureOptionCatalog`(config-constants.js) 가 표를 한 번 읽어 `byCode()` / `forSlot()` / `codeFor()` 로 내준다.
+
+| 종류 | 형식 | 예 |
+|------|------|-----|
+| 도어 마감 × 색 | `{FINISH}-{COLOR}[-{M\|G}]` | `PET-OAK-M`, `MFB-WHT`, `PNT-BLK-G` |
+| 상판 | `TOP-{XXX}` | `TOP-SNW` 스노우, `TOP-MWH` 마블화이트, `TOP-GMB` 그레이마블, `TOP-CHC` 차콜 |
+| 색만 (기존 `door` 행) | `{COLOR}` | `WHT`, `GRY`, `OAK` |
+| 톤만 (기존 `door_finish` 행) | `TONE-{M\|G\|E}` | `TONE-M` 무광, `TONE-G` 유광, `TONE-E` 엠보 |
+
+- `FINISH`: `PET`(PET 필름) `MFB`(멜라민) `LPM` `PNT`(도장) `VNR`(무늬목)
+- `COLOR`: `CRM OAK WNT GRP WHT BLK SAG` (bom-finish-color 원래 7색) + `GRY BGE NVY` (상세설계 폴백 3색)
+- 접미사: `tone=matte → -M`, `gloss → -G`, `single`(단톤 자재 MFB/LPM/VNR) → 없음
+- `price_key`(`PET-M`, `MFB` …) 로만 단가표(`FINISH_BASE_PRICE` / `pricing_rules`)에 연결. 가격은 카탈로그에 두지 않는다.
+- **불변조건 I6**: 코드는 더하기만. 이름 변경·삭제 금지 — 과거 작업지시서·단가에 박혀 있다.
+- 기존 한글 사양값(`specs.doorColorUpper='화이트'`, `doorFinishUpper='무광'`)은 계속 읽힌다. 단 `'무광'` 은 기판(PET/도장…)을 모르므로 코드를 짐작하지 않고 `MDF-DEFAULT` 로 두며 톤·색 코드만 채운다 — 판매 라인이 정해지면 `LEGACY_FINISH_MAP` 한 줄로 기본 기판을 지정한다 [확인 필요].
+
 ## 3. 카테고리별 BOM 산출 공식
 
 > **`T` = 본체 두께** (기본 15, 설계에서 18 선택 가능 — `specs.bodyThickness`).
