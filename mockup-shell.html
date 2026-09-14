@@ -214,7 +214,8 @@
     <div class="step-pill">
       <button class="active">📐 1.배치</button><span class="sep"></span>
       <button onclick="document.getElementById('nextStepBtn').click()">📦 2.구조</button><span class="sep"></span>
-      <button>🎨 3.디테일</button>
+      <!-- D0: 디테일은 구조 페이지 안의 모드다 (?stage=detail). 핸들러는 nextStepBtn 옆에. -->
+      <button id="detailStageBtn" title="디테일 모드 — 구조 페이지에서 부재별 마감 지정">🎨 3.디테일</button>
     </div>
     <!--
       기본 정보 그룹.
@@ -2921,7 +2922,27 @@
     // 구조 단계 페이지로 이동 (Cloudflare Pages 308 redirect 회피 — 확장자 없이)
     // CD-3: 쿼리스트링을 함께 넘긴다. 안 넘기면 구조 단계가 스코프를 잃고
     //       전역 키를 읽어 **다른 품목의 배치**를 열게 된다.
-    setTimeout(() => { location.href = 'mockup-structure' + location.search; }, 400);
+    // D0: stage=detail 은 뗀다 — 디테일에서 배치로 돌아왔다가 구조를 누르면 구조여야 한다.
+    setTimeout(() => { location.href = 'mockup-structure' + searchWithStage(false); }, 400);
+  };
+
+  /** D0: 쿼리스트링에 stage=detail 을 붙이거나 뗀 것. design·item 스코프는 그대로다. */
+  function searchWithStage(on) {
+    const q = new URLSearchParams(location.search);
+    if (on) q.set('stage', 'detail'); else q.delete('stage');
+    const s = q.toString();
+    return s ? '?' + s : '';
+  }
+
+  // D0: 🎨 3.디테일 — 구조 페이지의 디테일 모드로 간다. 구조 버튼처럼 배치를 먼저 저장한다
+  //   (겹침 검사는 구조 단계 진입 조건이라 여기서는 하지 않는다 — 디테일은 구조 위에 색을 얹을 뿐이다).
+  document.getElementById('detailStageBtn').onclick = () => {
+    const layout = serializeLayout();
+    if (layout) {
+      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
+      if (typeof plannerAutosave === 'function') plannerAutosave('layout', 0);
+    }
+    location.href = 'mockup-structure' + searchWithStage(true);
   };
 
   // W9-39: TopBar Undo/Redo 버튼 이벤트

@@ -67,14 +67,17 @@ describe('저장 스코프 — 품목별 격리', () => {
   });
 
   test('구조 단계로 넘어갈 때 쿼리스트링을 잃지 않는다', () => {
-    // 잃으면 구조 단계가 전역 키를 읽어 다른 품목의 배치를 연다
-    expect(SHELL).toMatch(/location\.href = 'mockup-structure' \+ location\.search/);
+    // 잃으면 구조 단계가 전역 키를 읽어 다른 품목의 배치를 연다.
+    // D0: stage=detail 만 떼고 design·item 은 그대로 넘긴다 (searchWithStage — URLSearchParams 기반).
+    expect(SHELL).toMatch(/location\.href = 'mockup-structure' \+ searchWithStage\(false\)/);
+    expect(SHELL).toMatch(/function searchWithStage\(on\) \{\s*const q = new URLSearchParams\(location\.search\);/);
   });
 
   test('W12-47: 배치 단계로 되돌아갈 때도 쿼리스트링을 잃지 않는다', () => {
     // 왕복은 두 방향 다 지켜야 한다. 가는 길만 넘기면 돌아온 배치 단계가
     // 스코프를 잃고 빈 전역 키를 읽어 **작업이 사라진 것처럼** 보인다.
-    expect(STRUCT).toMatch(/location\.href='mockup-shell' \+ location\.search/);
+    // D0: plannerDetailSearchWith(search, false) 는 stage 만 떼고 나머지 파라미터를 지킨다 (planner-finish.test.js).
+    expect(STRUCT).toMatch(/location\.href='mockup-shell' \+ plannerDetailSearchWith\(location\.search, false\)/);
   });
 
   test('원점 키도 스코프를 따른다', () => {
