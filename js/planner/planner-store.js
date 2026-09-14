@@ -35,13 +35,16 @@ const PLANNER_STAGE_LABEL = { layout: '배치', structure: '구조', detail: '�
 /**
  * 단계 → payload 필드 이름 → 저장 키 base.
  *
- * detail 은 비어 있다. 디테일 데이터의 정본은 design_items 이고 localStorage 에
- * 대응하는 키가 없다 — 스냅샷은 되돌리기용 사본으로만 쌓인다.
+ * D0 (2026-09-15): detail 이 채워졌다. 디테일 모드(js/planner/planner-detail.js)가
+ * 부재별 마감을 dadam_detail_v1 에 쓰므로 planner_snapshots(stage='detail') 이
+ * 진짜 저장본이 된다 — payload 는 `{ detail: {version, item, sections, modules, parts} }`.
+ * 그 전에 쌓인 `{specs, modules}` 사본(상세설계가 올린 것)은 plannerSnapshotSummary 가
+ * 계속 읽고, 되쓰기는 이 표에 없는 필드라 건드리지 않는다 (applyPlannerSnapshot).
  */
 const PLANNER_STAGE_KEYS = {
   layout: { layout: 'dadam_layout_v1', origin: 'dadam_origin_v1' },
   structure: { modules: 'dadam_struct_modules_v1', structures: 'dadam_structure_v1' },
-  detail: {},
+  detail: { detail: 'dadam_detail_v1' },
 };
 
 /**
@@ -141,6 +144,17 @@ function plannerSnapshotSummary(stage, payload) {
       return `모듈 ${n}개 · 구조 ${s}건`;
     }
     if (stage === 'detail') {
+      // D0: 새 형식 {detail} — 지정 건수를 센다 (planner-finish.js 의 count 와 같은 셈).
+      //   planner-finish.js 는 배치 페이지에 실리지 않으므로 여기서 직접 센다.
+      const d = payload.detail;
+      if (d && typeof d === 'object') {
+        let n = Object.keys(d.item || {}).length;
+        Object.keys(d.sections || {}).forEach((g) => { n += Object.keys(d.sections[g] || {}).length; });
+        Object.keys(d.modules || {}).forEach((id) => { n += Object.keys(d.modules[id] || {}).length; });
+        Object.keys(d.parts || {}).forEach((id) => { n += Object.keys(d.parts[id] || {}).length; });
+        return `마감 지정 ${n}건`;
+      }
+      // 옛 형식 {specs, modules} — 상세설계가 올리던 사본
       const n = (payload.modules || []).length;
       return `모듈 ${n}개`;
     }
@@ -266,7 +280,8 @@ const PlannerStore = {
           const key = (typeof scopedKey === 'function') ? scopedKey(base) : base;
           try { return localStorage.getItem(key); } catch (e) { return null; }
         });
-    // detail 은 대응하는 localStorage 키가 없다 — 부르는 쪽이 payload 를 넘긴다.
+    // 키에 값이 하나도 없으면(예: 디테일 모드에 들어가기 전) 올릴 것이 없다.
+    //   detaildesign 처럼 키를 갖지 않은 쪽은 opt.payload 를 직접 넘긴다.
     if (!payload) return { ok: false, reason: 'empty' };
 
     const row = {
