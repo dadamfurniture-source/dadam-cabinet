@@ -192,9 +192,11 @@ describe('setFinish / clearFinish', () => {
 });
 
 describe('카탈로그', () => {
-  test('정본(bom-finish-color.js)에서 7×7 = 49 항목, 코드·hex·라벨이 붙는다', () => {
+  test('정본(bom-finish-color.js)의 마감×색 전부에 코드·hex·라벨이 붙는다', () => {
     expect(CAT.fallback).toBe(false);
-    expect(CAT.entries).toHaveLength(49);
+    // 크기는 정본이 정한다 — C0(agent/catalog-unify) 가 색을 더하면 49 → 70 처럼 따라 바뀐다.
+    expect(CAT.entries).toHaveLength(Object.keys(BOM.buildFullMatrix()).length);
+    expect(CAT.entries.length).toBeGreaterThanOrEqual(49);
     const oak = F.plannerFinishLookup(CAT, 'PET-OAK-M');
     expect(oak).toMatchObject({ code: 'PET-OAK-M', hex: '#d1b089', label: 'PET 매트 · 오크', finish: 'pet-matte', color: 'oak', tone: 'matte' });
     expect(F.plannerFinishHex(CAT, 'MFB-WHT')).toBe('#ffffff');
@@ -202,11 +204,14 @@ describe('카탈로그', () => {
     expect(F.plannerFinishHex(null, 'PET-OAK-M')).toBeNull();
   });
 
-  test('폴백의 코드는 정본 buildFullMatrix 와 정확히 같다 (I6: 코드 이름 불변)', () => {
+  test('폴백의 코드는 전부 정본 buildFullMatrix 에 있고(I6: 코드 이름 불변), 정본 전체는 CAT 와 같다', () => {
     const fb = F.plannerFinishCatalog(null);
     expect(fb.fallback).toBe(true);
     const real = Object.values(BOM.buildFullMatrix()).map((x) => x.code).sort();
-    expect(fb.entries.map((e) => e.code).sort()).toEqual(real);
+    // 폴백은 최초 7×7 만 품는다. 정본이 색을 더해도(C0) 폴백 코드가 정본 밖으로 나가면 안 된다.
+    const fbCodes = fb.entries.map((e) => e.code).sort();
+    expect(fbCodes).toHaveLength(49);
+    fbCodes.forEach((c) => expect(real).toContain(c));
     expect(CAT.entries.map((e) => e.code).sort()).toEqual(real);
     // hex·라벨도 같다
     fb.entries.forEach((e) => {
