@@ -1,0 +1,432 @@
+{
+  "materials": [
+    {
+      "module": "키큰장",
+      "part": "측판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 700,
+      "h": 2290,
+      "qty": 2,
+      "edge": "3면",
+      "note": "sakuri(15→3mm)",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "키큰장",
+      "part": "천판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 570,
+      "h": 682,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "키큰장",
+      "part": "지판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 570,
+      "h": 682,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "키큰장",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 2.7,
+      "w": 580,
+      "h": 2289,
+      "qty": 1,
+      "edge": "-",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "키큰장",
+      "part": "선반",
+      "material": "PB",
+      "thickness": 15,
+      "w": 570,
+      "h": 666,
+      "qty": 3,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "키큰장",
+      "part": "도어",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 596,
+      "h": 2310,
+      "qty": 1,
+      "edge": "4면",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "홈카페장",
+      "part": "측판",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 720,
+      "h": 2290,
+      "qty": 2,
+      "edge": "3면",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "홈카페장",
+      "part": "천판",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 864,
+      "h": 700,
+      "qty": 1,
+      "edge": "2면(가로)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "홈카페장",
+      "part": "지판",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 864,
+      "h": 700,
+      "qty": 1,
+      "edge": "2면(가로)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "홈카페장",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 864,
+      "h": 2290,
+      "qty": 1,
+      "edge": "2면(가로)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "홈카페장",
+      "part": "선반",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 864,
+      "h": 685,
+      "qty": 2,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "홈카페장",
+      "part": "도어",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 446,
+      "h": 2310,
+      "qty": 2,
+      "edge": "4면",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고상부장",
+      "part": "측판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 700,
+      "h": 400,
+      "qty": 2,
+      "edge": "3면",
+      "note": "sakuri(15→3mm)",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고상부장",
+      "part": "천판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 670,
+      "h": 682,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고상부장",
+      "part": "지판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 670,
+      "h": 682,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고상부장",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 2.7,
+      "w": 680,
+      "h": 399,
+      "qty": 1,
+      "edge": "-",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고상부장",
+      "part": "도어",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 696,
+      "h": 420,
+      "qty": 1,
+      "edge": "4면",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고하부장",
+      "part": "측판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 700,
+      "h": 797,
+      "qty": 2,
+      "edge": "3면",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고하부장",
+      "part": "천판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 470,
+      "h": 700,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고하부장",
+      "part": "지판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 470,
+      "h": 700,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고하부장",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 2.7,
+      "w": 470,
+      "h": 782,
+      "qty": 1,
+      "edge": "-",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고하부장",
+      "part": "도어",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 496,
+      "h": 767,
+      "qty": 1,
+      "edge": "4면",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "EL장",
+      "part": "측판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 700,
+      "h": 973,
+      "qty": 2,
+      "edge": "3면",
+      "note": "sakuri(15→3mm)",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "EL장",
+      "part": "천판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 570,
+      "h": 682,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "EL장",
+      "part": "지판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 570,
+      "h": 682,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "EL장",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 2.7,
+      "w": 580,
+      "h": 972,
+      "qty": 1,
+      "edge": "-",
+      "note": "",
+      "finishCode": "",
+      "itemLabel": "냉장고장"
+    }
+  ],
+  "summary": {
+    "PB_15": {
+      "material": "PB",
+      "thickness": 15,
+      "totalArea": 10509700,
+      "panelCount": 4
+    },
+    "MDF_2.7": {
+      "material": "MDF",
+      "thickness": 2.7,
+      "totalArea": 2530240,
+      "panelCount": 1
+    },
+    "MDF_18": {
+      "material": "MDF",
+      "thickness": 18,
+      "totalArea": 11779472,
+      "panelCount": 4
+    }
+  },
+  "hardware": [
+    {
+      "category": "경첩",
+      "item": "문주 110도 약압 경첩",
+      "manufacturer": "문주",
+      "spec": "4구",
+      "qty": 4,
+      "unit": "EA",
+      "note": "키큰장 (보링: 110, 763, 1527, 2180)",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "category": "경첩",
+      "item": "문주 110도 약압 경첩",
+      "manufacturer": "문주",
+      "spec": "4구",
+      "qty": 8,
+      "unit": "EA",
+      "note": "홈카페장 (보링: 110, 763, 1527, 2180)",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "category": "경첩",
+      "item": "문주 110도 약압 경첩",
+      "manufacturer": "문주",
+      "spec": "2구",
+      "qty": 2,
+      "unit": "EA",
+      "note": "냉장고상부장 (보링: 110, 290)",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "category": "경첩",
+      "item": "문주 110도 약압 경첩",
+      "manufacturer": "문주",
+      "spec": "2구",
+      "qty": 2,
+      "unit": "EA",
+      "note": "냉장고하부장 (보링: 110, 687)",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "category": "손잡이",
+      "item": "찬넬",
+      "manufacturer": "-",
+      "spec": "-",
+      "qty": 5,
+      "unit": "EA",
+      "itemLabel": "냉장고장"
+    }
+  ],
+  "hardwareSummary": {
+    "경첩": 16,
+    "손잡이": 5
+  },
+  "csvHead": [
+    "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
+    "키큰장,측판,PB,15,700,2290,2,3면,sakuri(15→3mm)",
+    "키큰장,천판,PB,15,570,682,1,1면(전),"
+  ],
+  "cncHead": [
+    "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
+    "측판,PB,15,700,2290,2,0,0,0,0",
+    "천판,PB,15,570,682,1,1,0,0,0"
+  ],
+  "hardwareCsvHead": [
+    "분류,품목,제조사,스펙,수량,단위,비고",
+    "경첩,문주 110도 약압 경첩,문주,4구,4,EA,키큰장 (보링: 110, 763, 1527, 2180)",
+    "경첩,문주 110도 약압 경첩,문주,4구,8,EA,홈카페장 (보링: 110, 763, 1527, 2180)"
+  ]
+}
