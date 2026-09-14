@@ -63,12 +63,14 @@
 
 | 도메인 | Engineer 소유 파일 | 브랜치 prefix |
 |--------|-------------------|--------------|
-| 3D Planner | `lib/planner.ts`, `components/planner/*` | `agent/planner-*` |
+| 3D Planner (레거시, 정지) | `lib/planner.ts`, `components/planner/*`, `planner-vite/**` | 수정 금지 (참고용) |
 | Image Gen | `ai-design.html`, `js/detaildesign/ai-design-report.js` | `agent/imggen-*` |
 | BOM/Materials | `calc-engine.js`, `extractors.js`, `bom.service.ts`, `bom.tool.ts`, `bom-rules.*` | `agent/bom-*` |
 | Design UI | `ui-step1.js`, `ui-workspace.js`, `ui-fridge-el.js` | `agent/designui-*` |
 | Collection | `collection.html`, `database/collection-schema.sql` | `agent/collection-*` |
 | MCP Server | `mcp-server/src/**` (BOM 파일 제외) | `agent/mcp-*` |
+| Planner (활성) | `mockup-shell.html`, `mockup-structure.html`, `js/planner/*` | `agent/planner-*` |
+| Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적) | `agent/workflow-*` |
 
 ### 역할별 실행 순서
 1. **Engineer** → 코드 수정 + PR 생성
