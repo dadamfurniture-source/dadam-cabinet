@@ -135,14 +135,14 @@
         //
         //     멍 W = 인접 상판 D − 물끊기 10 + 마감재 자리 60 + 목대 15
         //     ├─ 멍가림판 2.7T MDF ─────────────┤├목대┤
-        //     ├── 보이는 MDF ──┤├─ 마감재 100 ─┤
+        //     ├── 보이는 MDF ──┤├─ 마감재 150 ─┤
         //
         // 두 가지를 헷갈리기 쉬워 여기 적어 둔다.
         //   · **목대 15 는 뺀다.** 멍판은 목대 앞에서 끝난다 — 목대는 도어 경첩이
         //     물리는 구조재이고 이미 아래에서 따로 발주된다. 안 빼면 15 과다 재단.
         //   · **마감재 60 은 안 뺀다.** 마감재는 멍판을 대체하지 않고 그 **위에**
-        //     붙는다. 그래서 마감재 재단이 자리(60)보다 넓은 100 이다 —
-        //     접착면 40 을 멍판 위로 문다. 빼면 마감재가 뜬다.
+        //     붙는다. 그래서 마감재 재단이 자리(60)보다 넓은 150 이다 —
+        //     접착면 90 을 멍판 위로 문다 (W12-72: 100 → 150). 빼면 마감재가 뜬다.
         //
         // 마감재 종류는 멍장이 속한 라인 마감을 따라온다 (mod.blindFinishType).
         // ========================================
@@ -156,7 +156,10 @@
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
-          const finPartW = typeof CORNER_FINISH_PART_W !== 'undefined' ? CORNER_FINISH_PART_W : 100;
+          // W12-72: 정본 data-constants.js CORNER_FINISH_PART_W = 150. 폴백이 100 에 남아 있어
+          //   브라우저(150)와 Node 시험·옛 저장 설계(100)가 갈렸다 — 같은 값으로 맞춘다 (계획 B0).
+          const finPartW = typeof CORNER_FINISH_PART_W !== 'undefined' ? CORNER_FINISH_PART_W : 150;
+          const finSeatW = 60; // 마감재 자리 — 멍 공식의 60 (corner.md §3.3). 재단 폭에서 이걸 뺀 만큼이 멍판 위 겹침이다.
 
           const zoneW = parseFloat(mod.blindZoneW) || 0;
           const coverW = Math.max(0, zoneW - battenT);
@@ -164,7 +167,7 @@
           //   2.7T 가림판 대신 **멍판 EP 18T** 로 덮는다. 폭은 가림판과 같은 규칙
           //   (멍 − 목대 15: 경첩이 목대에 물려야 한다), 높이는 장 전체(좌대 포함),
           //   단이 셋이라도 가리는 면은 하나라 **한 번만** 낸다. EP 는 이미 마감된 판이라
-          //   멍판 마감재 100 도 없다. 경첩목대는 단마다 나온다 (아래 공통).
+          //   멍판 마감재 150 도 없다. 경첩목대는 단마다 나온다 (아래 공통).
           const isTall = mod.blindKind === 'tall';
           if (isTall) {
             if (mod.blindEpOnce) {
@@ -194,7 +197,7 @@
             const finW = parseFloat(mod.blindFinishW) || finPartW;
             const finName = finType === 'Molding' ? '몰딩(멍판)' : '휠라(멍판)';
             this.add(materials, modLabel, finName, 'MDF', 18, finW, H, 1, '4면',
-                     '멍판 마감재 — 자리 60 + 멍판 위 겹침 40 (corner.md §3.3)');
+                     `멍판 마감재 — 자리 ${finSeatW} + 멍판 위 겹침 ${finW - finSeatW} (corner.md §3.3)`);
           }
         }
 
@@ -1087,9 +1090,10 @@
       // 도면 시각화 클래스 (Drawing Visualizer) v1.0
       // ============================================================
       class DrawingVisualizer {
+        // 원판 규격은 data-constants.js SHEET_W/H 가 정본 — MaterialExtractor 와 같은 폴백 방식 (계획 B0)
         constructor() {
-          this.PANEL_W = 1220;
-          this.PANEL_H = 2440;
+          this.PANEL_W = typeof SHEET_W !== 'undefined' ? SHEET_W : 1220;
+          this.PANEL_H = typeof SHEET_H !== 'undefined' ? SHEET_H : 2440;
           this.KERF = 4;
         }
 
