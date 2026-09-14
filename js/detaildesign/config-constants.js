@@ -127,6 +127,21 @@
         // materials 테이블 카테고리 → 기존 카테고리 매핑
         _categoryMap: { 'door': 'door_color', 'door_finish': 'door_finish' },
 
+        // C0: 한글 사양값 → materials.code 폴백 표 (DB 행에 code 가 없을 때만 사용).
+        // 정본은 database/materials-catalog-v2.sql 의 code 컬럼. 여기 값은 그 시드와 같아야 한다.
+        //   door_color  : 색 코드만 (마감 기판 미정 — 계획서 §9-3 [확인 필요])
+        //   door_finish : 톤 코드만 (TONE-M/G/E)
+        //   countertop  : TOP-{XXX}
+        _LEGACY_CODE_MAP: {
+          door_color: { '화이트': 'WHT', '그레이': 'GRY', '베이지': 'BGE', '월넛': 'WNT', '오크': 'OAK', '네이비': 'NVY', '블랙': 'BLK',
+                        '크림': 'CRM', '그라파이트': 'GRP', '세이지': 'SAG' },
+          door_finish: { '무광': 'TONE-M', '유광': 'TONE-G', '엠보': 'TONE-E' },
+          countertop:  { '스노우': 'TOP-SNW', '마블화이트': 'TOP-MWH', '그레이마블': 'TOP-GMB', '차콜': 'TOP-CHC' },
+        },
+
+        // C0: slot 컬럼이 없는 옛 행(v2 SQL 적용 전)을 위한 슬롯 → 카테고리 폴백
+        _SLOT_FALLBACK_CATEGORY: { door: ['door_material', 'door_color'], drawer_front: ['door_material', 'door_color'], top: ['countertop'], handle: ['handle'] },
+
         async load() {
           try {
             const client = typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client;
@@ -160,9 +175,22 @@
                 prompt_description: m.texture_prompt,
                 texture_prompt: m.texture_prompt,
                 applicable_to: m.applicable_to || [],
-                texture_url: m.thumbnail_url || null,
+                texture_url: m.texture_url || m.thumbnail_url || null,
                 image_public_url: m.thumbnail_url || null,
                 finish: m.finish || null,
+                // C0: materials-catalog-v2.sql 컬럼 — 있을 때만 싣는다 (v2 적용 전 DB 는 undefined → null)
+                code: m.code || null,
+                finish_code: m.finish_code || null,
+                color_code: m.color_code || null,
+                slot: Array.isArray(m.slot) ? m.slot : null,
+                tone: m.tone || null,
+                roughness: m.roughness != null ? Number(m.roughness) : null,
+                metalness: m.metalness != null ? Number(m.metalness) : null,
+                clearcoat: m.clearcoat != null ? Number(m.clearcoat) : null,
+                tile_mm: m.tile_mm != null ? Number(m.tile_mm) : null,
+                grain: m.grain || null,
+                normal_url: m.normal_url || null,
+                price_key: m.price_key || null,
               });
             }
             this.loaded = true;
@@ -186,18 +214,18 @@
         _loadFallback() {
           this.options = {
             door_color: [
-              { name_ko: '화이트', name_en: 'white', color_hex: '#f5f5f5', prompt_description: 'pure white, smooth flat surface with zero wood grain, dead matte finish with no reflection, uniform solid color', texture_prompt: 'pure white, smooth flat surface with zero wood grain, dead matte finish with no reflection, uniform solid color', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
-              { name_ko: '그레이', name_en: 'gray', color_hex: '#9e9e9e', prompt_description: 'neutral medium gray, smooth flat surface with zero wood grain, matte finish, uniform solid color', texture_prompt: 'neutral medium gray, smooth flat surface with zero wood grain, matte finish, uniform solid color without warm or cool cast', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
-              { name_ko: '베이지', name_en: 'beige', color_hex: '#d4c4b0', prompt_description: 'warm beige with subtle sand undertone, smooth flat surface, soft matte finish', texture_prompt: 'warm beige with subtle sand undertone, smooth flat surface with zero wood grain, soft matte finish, uniform solid color', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
-              { name_ko: '월넛', name_en: 'walnut', color_hex: '#5d4037', prompt_description: 'dark walnut wood grain laminate, realistic horizontal wood grain pattern, rich brown tones', texture_prompt: 'dark walnut wood grain laminate, realistic horizontal wood grain pattern, rich brown tones, matte natural wood finish', applicable_to: ['sink','wardrobe'], texture_url: null },
-              { name_ko: '오크', name_en: 'oak', color_hex: '#c4a35a', prompt_description: 'natural light oak wood grain laminate, visible straight grain pattern, warm honey tones', texture_prompt: 'natural light oak wood grain laminate, visible straight grain pattern, warm honey tones, matte oiled wood finish', applicable_to: ['sink','wardrobe'], texture_url: null },
-              { name_ko: '네이비', name_en: 'navy', color_hex: '#1a237e', prompt_description: 'deep navy blue, smooth flat surface with zero wood grain, dead matte finish', texture_prompt: 'deep navy blue, smooth flat surface with zero wood grain, dead matte finish with no reflection, rich saturated color', applicable_to: ['sink'], texture_url: null },
-              { name_ko: '블랙', name_en: 'black', color_hex: '#2c2c2c', prompt_description: 'matte black, smooth flat surface with zero wood grain, dead matte finish', texture_prompt: 'matte black, smooth flat surface with zero wood grain, dead matte finish absorbing light, deep solid black', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '화이트', name_en: 'white', code: 'WHT', color_hex: '#f5f5f5', prompt_description: 'pure white, smooth flat surface with zero wood grain, dead matte finish with no reflection, uniform solid color', texture_prompt: 'pure white, smooth flat surface with zero wood grain, dead matte finish with no reflection, uniform solid color', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '그레이', name_en: 'gray', code: 'GRY', color_hex: '#9e9e9e', prompt_description: 'neutral medium gray, smooth flat surface with zero wood grain, matte finish, uniform solid color', texture_prompt: 'neutral medium gray, smooth flat surface with zero wood grain, matte finish, uniform solid color without warm or cool cast', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '베이지', name_en: 'beige', code: 'BGE', color_hex: '#d4c4b0', prompt_description: 'warm beige with subtle sand undertone, smooth flat surface, soft matte finish', texture_prompt: 'warm beige with subtle sand undertone, smooth flat surface with zero wood grain, soft matte finish, uniform solid color', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
+              { name_ko: '월넛', name_en: 'walnut', code: 'WNT', color_hex: '#5d4037', prompt_description: 'dark walnut wood grain laminate, realistic horizontal wood grain pattern, rich brown tones', texture_prompt: 'dark walnut wood grain laminate, realistic horizontal wood grain pattern, rich brown tones, matte natural wood finish', applicable_to: ['sink','wardrobe'], texture_url: null },
+              { name_ko: '오크', name_en: 'oak', code: 'OAK', color_hex: '#c4a35a', prompt_description: 'natural light oak wood grain laminate, visible straight grain pattern, warm honey tones', texture_prompt: 'natural light oak wood grain laminate, visible straight grain pattern, warm honey tones, matte oiled wood finish', applicable_to: ['sink','wardrobe'], texture_url: null },
+              { name_ko: '네이비', name_en: 'navy', code: 'NVY', color_hex: '#1a237e', prompt_description: 'deep navy blue, smooth flat surface with zero wood grain, dead matte finish', texture_prompt: 'deep navy blue, smooth flat surface with zero wood grain, dead matte finish with no reflection, rich saturated color', applicable_to: ['sink'], texture_url: null },
+              { name_ko: '블랙', name_en: 'black', code: 'BLK', color_hex: '#2c2c2c', prompt_description: 'matte black, smooth flat surface with zero wood grain, dead matte finish', texture_prompt: 'matte black, smooth flat surface with zero wood grain, dead matte finish absorbing light, deep solid black', applicable_to: ['sink','wardrobe','fridge'], texture_url: null },
             ],
             door_finish: [
-              { name_ko: '무광', name_en: 'matte', prompt_description: 'dead matte finish with zero reflection, smooth flat surface', texture_prompt: 'dead matte finish with zero reflection, smooth flat surface, no sheen under any lighting angle', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '유광', name_en: 'glossy', prompt_description: 'high-gloss mirror-like finish with sharp reflections', texture_prompt: 'high-gloss mirror-like finish with sharp reflections, smooth polished surface, visible light bounce', applicable_to: ['sink','wardrobe','fridge'] },
-              { name_ko: '엠보', name_en: 'embossed', prompt_description: 'textured embossed surface with subtle tactile pattern', texture_prompt: 'textured embossed surface with subtle tactile pattern, low sheen satin finish, visible micro-texture under raking light', applicable_to: ['sink','wardrobe'] },
+              { name_ko: '무광', name_en: 'matte', code: 'TONE-M', prompt_description: 'dead matte finish with zero reflection, smooth flat surface', texture_prompt: 'dead matte finish with zero reflection, smooth flat surface, no sheen under any lighting angle', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '유광', name_en: 'glossy', code: 'TONE-G', prompt_description: 'high-gloss mirror-like finish with sharp reflections', texture_prompt: 'high-gloss mirror-like finish with sharp reflections, smooth polished surface, visible light bounce', applicable_to: ['sink','wardrobe','fridge'] },
+              { name_ko: '엠보', name_en: 'embossed', code: 'TONE-E', prompt_description: 'textured embossed surface with subtle tactile pattern', texture_prompt: 'textured embossed surface with subtle tactile pattern, low sheen satin finish, visible micro-texture under raking light', applicable_to: ['sink','wardrobe'] },
             ],
             handle: [
               { name_ko: '찬넬 (목찬넬)', name_en: 'channel', prompt_description: 'routed wooden channel handle at door top edge, 52mm front depth x 40mm underside grip, shadow gap underneath', texture_prompt: 'routed wooden channel handle at door top edge, 52mm front depth x 40mm underside grip, shadow gap underneath, same finish as door face', applicable_to: ['sink'] },
@@ -226,10 +254,10 @@
               { name_ko: '하이라이트', name_en: 'highlight', prompt_description: 'electric radiant highlight cooktop with smooth black ceramic glass surface', texture_prompt: 'electric radiant highlight cooktop with smooth black ceramic glass surface, glowing red heating zones, touch controls' },
             ],
             countertop: [
-              { name_ko: '스노우', name_en: 'snow white', color_hex: '#FAFAFA', prompt_description: 'pure white engineered quartz countertop with subtle micro-flecks, polished surface', texture_prompt: 'pure white engineered quartz countertop with subtle micro-flecks, polished surface, clean bullnose edge profile, 20mm overhang', texture_url: null },
-              { name_ko: '마블화이트', name_en: 'marble white', color_hex: '#F0F0F0', prompt_description: 'white marble-look engineered stone countertop with delicate grey veining', texture_prompt: 'white marble-look engineered stone countertop with delicate grey veining, polished surface, natural stone appearance, bullnose edge', texture_url: null },
-              { name_ko: '그레이마블', name_en: 'gray marble', color_hex: '#B0B0B0', prompt_description: 'gray marble-look engineered stone countertop with dramatic veining', texture_prompt: 'gray marble-look engineered stone countertop with dramatic white and charcoal veining, polished surface, bullnose edge', texture_url: null },
-              { name_ko: '차콜', name_en: 'charcoal', color_hex: '#404040', prompt_description: 'dark charcoal engineered stone countertop, matte honed finish', texture_prompt: 'dark charcoal engineered stone countertop, near-black with subtle aggregate texture, matte honed finish, bullnose edge', texture_url: null },
+              { name_ko: '스노우', name_en: 'snow white', code: 'TOP-SNW', color_hex: '#FAFAFA', prompt_description: 'pure white engineered quartz countertop with subtle micro-flecks, polished surface', texture_prompt: 'pure white engineered quartz countertop with subtle micro-flecks, polished surface, clean bullnose edge profile, 20mm overhang', texture_url: null },
+              { name_ko: '마블화이트', name_en: 'marble white', code: 'TOP-MWH', color_hex: '#F0F0F0', prompt_description: 'white marble-look engineered stone countertop with delicate grey veining', texture_prompt: 'white marble-look engineered stone countertop with delicate grey veining, polished surface, natural stone appearance, bullnose edge', texture_url: null },
+              { name_ko: '그레이마블', name_en: 'gray marble', code: 'TOP-GMB', color_hex: '#B0B0B0', prompt_description: 'gray marble-look engineered stone countertop with dramatic veining', texture_prompt: 'gray marble-look engineered stone countertop with dramatic white and charcoal veining, polished surface, bullnose edge', texture_url: null },
+              { name_ko: '차콜', name_en: 'charcoal', code: 'TOP-CHC', color_hex: '#404040', prompt_description: 'dark charcoal engineered stone countertop, matte honed finish', texture_prompt: 'dark charcoal engineered stone countertop, near-black with subtle aggregate texture, matte honed finish, bullnose edge', texture_url: null },
             ],
           };
           this.loaded = true;
@@ -266,11 +294,89 @@
 
         getTextureUrl(category, nameKo) {
           return (this.options[category] || []).find(o => o.name_ko === nameKo)?.texture_url || null;
-        }
+        },
+
+        // ── C0: 마감 코드 정본(materials.code) 기반 조회 ──────────────
+
+        // 모든 카테고리에서 code 로 한 행. 대소문자 무시. 없으면 null
+        byCode(code) {
+          if (!code) return null;
+          const key = String(code).trim().toUpperCase();
+          for (const cat of Object.keys(this.options)) {
+            const hit = (this.options[cat] || []).find(o => o.code && String(o.code).toUpperCase() === key);
+            if (hit) return hit;
+          }
+          return null;
+        },
+
+        // 슬롯(door/drawer_front/body/top/handle/finishing/kick)에 쓸 수 있는 행.
+        // category 를 주면 그 카테고리 안에서만. slot 컬럼이 없는 옛 데이터는 카테고리 폴백으로 대신한다.
+        forSlot(slot, category) {
+          if (!slot) return [];
+          const cats = category ? [category] : Object.keys(this.options);
+          const hits = [];
+          for (const cat of cats) {
+            for (const o of (this.options[cat] || [])) {
+              if (Array.isArray(o.slot) && o.slot.includes(slot)) hits.push(o);
+            }
+          }
+          if (hits.length) return hits;
+          const fallbackCats = (this._SLOT_FALLBACK_CATEGORY[slot] || []).filter(c => !category || c === category);
+          for (const cat of fallbackCats) {
+            for (const o of (this.options[cat] || [])) {
+              if (!Array.isArray(o.slot)) hits.push(o);
+            }
+          }
+          return hits;
+        },
+
+        // 기존 한글 사양값('화이트', '무광', '스노우') → materials.code.
+        // 1) 로드된 행의 code  2) 이미 코드면 그대로  3) 내장 폴백 표. 모르면 null (짐작하지 않는다)
+        codeFor(category, nameKo) {
+          if (!nameKo) return null;
+          const name = String(nameKo).trim();
+          const row = (this.options[category] || []).find(o => o.name_ko === name);
+          if (row && row.code) return row.code;
+          if (this.byCode(name)) return name.toUpperCase();
+          const legacy = this._LEGACY_CODE_MAP[category];
+          return (legacy && legacy[name]) || null;
+        },
+
+        // ── C0: 자식 iframe(플래너)에 카탈로그 전달 ──────────────────
+        // 플래너가 Supabase 를 직접 읽지 않도록, 요청 {type:'DADAM_CATALOG_REQUEST'} 에
+        // {type:'DADAM_CATALOG', options, loaded} 로 답한다. ui-step1.js 에 의존하지 않는다.
+        _catalogMessage() {
+          return { type: 'DADAM_CATALOG', options: this.options, loaded: !!this.loaded };
+        },
+
+        _onMessage(event) {
+          try {
+            const data = event && event.data;
+            if (!data || data.type !== 'DADAM_CATALOG_REQUEST') return;
+            const src = event.source;
+            if (!src || typeof src.postMessage !== 'function') return;
+            const origin = event.origin && event.origin !== 'null' ? event.origin : '*';
+            src.postMessage(this._catalogMessage(), origin);
+          } catch (e) {
+            dwarn('[Catalog] iframe 응답 실패:', e && e.message);
+          }
+        },
+
+        _installBridge(win) {
+          const w = win || (typeof window !== 'undefined' ? window : null);
+          if (!w || typeof w.addEventListener !== 'function' || this._bridgeInstalled) return;
+          w.addEventListener('message', (e) => this._onMessage(e));
+          this._bridgeInstalled = true;
+        },
       };
 
       // 초기 폴백 로드 (Supabase 연결 전에도 렌더링 가능하도록)
       FurnitureOptionCatalog._loadFallback();
+      // C0: bom-finish-color.js 등 다른 스크립트·iframe 이 읽을 수 있게 전역 노출 + 메시지 브리지
+      if (typeof window !== 'undefined') {
+        window.FurnitureOptionCatalog = FurnitureOptionCatalog;
+        FurnitureOptionCatalog._installBridge(window);
+      }
 
       // ============================================================
       // LayoutRenderer - 수치 기반 Canvas 레이아웃 렌더러 (v2: 텍스처 + 마스크)
