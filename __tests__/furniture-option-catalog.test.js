@@ -14,7 +14,6 @@ const SRC = fs.readFileSync(path.join(ROOT, 'js/detaildesign/config-constants.js
 
 function loadCatalog({ supabaseUtils } = {}) {
   const win = window; // jsdom
-  // eslint-disable-next-line no-new-func
   const factory = new Function(
     'window', 'document', 'selectedItems', 'SupabaseUtils', 'CATEGORIES', 'DEFAULT_SPECS',
     SRC + '\nreturn { FurnitureOptionCatalog };'
