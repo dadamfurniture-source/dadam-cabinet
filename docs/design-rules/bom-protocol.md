@@ -4,19 +4,25 @@
 
 ## 1. 지원 카테고리 & 처리 계층
 
-| 계층 | 위치 | 지원 카테고리 |
-|------|------|-------------|
-| **프론트엔드** | `detaildesign.html` MaterialExtractor | sink, wardrobe, fridge |
-| **MCP 서버** | `bom.service.ts` | sink, wardrobe, fridge, vanity, shoe, storage |
-| **설계 규칙** | `docs/design-rules/` | 6개 문서 (common, sink, wardrobe, fridge, etc.) |
+| 계층 | 위치 | 지원 카테고리 | 지위 |
+|------|------|-------------|------|
+| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, wardrobe, fridge | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
+| **MCP 서버** | `mcp-server/src/services/bom.service.ts` | sink, wardrobe, fridge, vanity, shoe, storage | **프로토타입**. MCP 도구(`generate_bom`·도면 렌더)만 호출하고, 상세설계·워커·문서 어느 생산 경로도 호출하지 않는다. 값이 정본과 다르다(18T·밴드 60·경첩 2) |
+| **설계 규칙** | `docs/design-rules/` | 6개 문서 (common, sink, wardrobe, fridge, etc.) | 규칙 원본 |
 
 > 신발장/화장대/수납장/창고장은 프론트엔드 BOM 미지원 (MCP 서버만 가능)
+>
+> **정본 선언 (2026-09, 계획 B0)** — 이 문서의 부재표·철물 규칙과 어긋나는 코드가 있으면
+> `extractors.js` 가 기준이고, 문서를 코드에 맞춘다. 표준 3종 출력은 `test-utils/bom-golden/*.golden.json`
+> 에 동결돼 있다 (`__tests__/bom-golden-*.test.js`, 갱신은 `UPDATE_GOLDEN=1`). `bom.service.ts` 는
+> 래퍼화 또는 값 동기가 끝날 때까지 프로토타입이며, AI 답변에 그 값이 섞이면 안 된다.
 
 ## 2. 공통 자재 기준
 
 | 항목 | 값 |
 |------|-----|
-| 원판 규격 | 1220 × 2440mm |
+| 원판 규격 | 1220 × 2440mm (`data-constants.js` `SHEET_W`/`SHEET_H` 가 정본, 추출기·재단 도면은 같은 값으로 폴백) |
+| 멍판 마감재 재단 폭 | **150mm** = 자리 60 + 멍판 위 겹침 90 (`CORNER_FINISH_PART_W`, W12-72: 100 → 150. `corner.md` §3.3) |
 | 본체 자재 | **PB `T`** — 설계별 선택값. 기본 15T, 18T 선택 가능 |
 | 도어 자재 | **MDF 18T** (본체 두께와 무관한 별개 값) |
 | 뒷판 자재 | **MDF 2.7T** |
