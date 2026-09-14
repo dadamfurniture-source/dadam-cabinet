@@ -6569,6 +6569,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
     // 원점 표시 (3D 의 0,0,0)
     addOriginMarker3D(modG);
+    // D0: 디테일 모드에서만 부재 색을 카탈로그 hex 로 덮는다 — mesh 를 만든 뒤의 후처리라
+    //   위의 빌더는 그대로다. 모드 밖에서는 paintScene 이 0 을 돌려주고 손대지 않는다 (I2).
+    if (typeof PlannerDetail !== 'undefined' && PlannerDetail.isActive()) PlannerDetail.paintScene(modG);
     // 카메라 fit — 원점부터 모듈 전체까지 보이게. 요청했을 때만 한다.
     if (!opts || opts.fit !== false) {
       const extentX = Math.max(Math.abs(minX - ox), Math.abs(maxX - ox));
