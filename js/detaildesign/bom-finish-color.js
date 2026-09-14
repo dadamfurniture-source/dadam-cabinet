@@ -139,7 +139,7 @@
       const cat = typeof window !== 'undefined' ? window.FurnitureOptionCatalog : null;
       if (!cat || !cat.loaded || typeof cat.byCode !== 'function') return null;
       return cat.byCode(code) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
