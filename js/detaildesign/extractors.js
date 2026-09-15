@@ -18,6 +18,90 @@
         return String((mod && mod.id) || '').indexOf('corner-blind-' + pos) === 0;
       }
 
+      // ============================================================
+      // B1: 부재 식별자 (partId) · 슬롯 — 계획 §5 B1, bom-protocol.md §7-1
+      //
+      //   partId = `${itemIdx}-${moduleId}-${partKey}-${n}`
+      //     itemIdx   design.items 의 순번 (BOM 이 안 나오는 품목도 센다 — 문서·플래너와 같은 번호)
+      //     moduleId  플래너/상세설계 모듈 id (mod.id). 없으면 `${pos|type}-${idx}`.
+      //               품목 단위 마감재(EP) 행은 'ep'. id 에 '-' 가 들어갈 수 있어 partId 를 쪼개 읽지 않는다.
+      //     partKey   부재 종류의 안정된 키 (아래 표). 같은 종류가 한 모듈에 여럿이면 `#k` (0부터).
+      //     n         같은 (품목, 모듈, partKey) 가 되풀이될 때의 순번 — 보통 0.
+      //
+      //   partKey 는 플래너 디테일 모델(js/planner/planner-finish.js plannerFinishPartKeyOf)의 키와
+      //   **같은 이름**을 쓴다 — `door#1`, `drawer#0`, `body:left`, `shelf#…`, `kick`, `pedestal`, `molding`,
+      //   `blind#0`, `blindfin#0`, `channel:…`. 다만 BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이
+      //   플래너 부재 여러 개를 대표한다. 그래서 행 키는 `body:side` 처럼 묶음 이름이고, 부재 단위 지정은
+      //   BOM_PART_KEY_ALIASES 로 그 행에 닿는다 (resolveFinish 참고).
+      //
+      //   slot 은 planner-finish.js 의 7 슬롯 + `back`(뒷판·서랍밑판 2.7T — 칠하지 않는다). slot 이 null 인
+      //   행은 없다 — 표에 없는 부재 이름은 `part:<이름>` 키 + slot null 로 떨어지지만 시험이 그걸 막는다.
+      // ============================================================
+      const BOM_PART_DEFS = {
+        // 몸통 (PB T) — 측판은 좌·우 한 행
+        '측판':            { key: 'body:side',        slot: 'body' },
+        '천판':            { key: 'body:top',         slot: 'body' },
+        '지판':            { key: 'body:bottom',      slot: 'body' },
+        '뒷판':            { key: 'back',             slot: 'back' },
+        '선반':            { key: 'shelf',            slot: 'body', indexed: true },
+        '밴드':            { key: 'body:band',        slot: 'body', indexed: true },
+        '밴드(보강목)':    { key: 'body:band',        slot: 'body', indexed: true },
+        '밴드(처짐방지)':  { key: 'body:brace',       slot: 'body', indexed: true },
+        '경첩목대(앞다리)': { key: 'body:batten-front', slot: 'body' },
+        '경첩목대(옆다리)': { key: 'body:batten-side',  slot: 'body' },
+        // 전면 (MDF 18T)
+        '도어':            { key: 'door',             slot: 'door', indexed: true },
+        '서랍도어':        { key: 'drawer',           slot: 'drawerFront', indexed: true },
+        // 서랍 상자 (PB T / 밑판 2.7T)
+        '서랍전후판':      { key: 'drawerbox:fb',     slot: 'body' },
+        '서랍측판':        { key: 'drawerbox:side',   slot: 'body' },
+        '서랍밑판':        { key: 'drawerbox:bottom', slot: 'back' },
+        '서랍 하단보강':   { key: 'drawerbox:brace',  slot: 'body' },
+        '내부서랍 상판':   { key: 'innerdrawer:top',    slot: 'body' },
+        '내부서랍 측판':   { key: 'innerdrawer:side',   slot: 'body' },
+        '내부서랍 지판':   { key: 'innerdrawer:bottom', slot: 'body' },
+        '내부서랍 밴드':   { key: 'innerdrawer:band',   slot: 'body' },
+        '내부서랍 좌우몰딩': { key: 'innerdrawer:molding', slot: 'body' },
+        '내부서랍 전면판': { key: 'innerdrawer:front',  slot: 'body' },
+        // 손잡이 자리 (목찬넬)
+        '목찬넬':          { key: 'channel:front',    slot: 'handle' },
+        '목찬넬(전면)':    { key: 'channel:front',    slot: 'handle' },
+        '목찬넬(지면)':    { key: 'channel:back',     slot: 'handle' },
+        // 마감재 — EP·몰딩·휠라·멍판
+        '상몰딩':          { key: 'molding',          slot: 'finishing' },
+        '좌측몰딩':        { key: 'molding:left',     slot: 'finishing' },
+        '우측몰딩':        { key: 'molding:right',    slot: 'finishing' },
+        '좌측몰딩 덧대':   { key: 'molding:left-pad', slot: 'finishing' },
+        '우측몰딩 덧대':   { key: 'molding:right-pad', slot: 'finishing' },
+        '몰딩(좌)':        { key: 'molding:left',     slot: 'finishing' },
+        '몰딩(우)':        { key: 'molding:right',    slot: 'finishing' },
+        '몰딩(코너1)':     { key: 'molding:corner1',  slot: 'finishing' },
+        '몰딩(코너2)':     { key: 'molding:corner2',  slot: 'finishing' },
+        '휠라(좌)':        { key: 'filler:left',      slot: 'finishing' },
+        '휠라(우)':        { key: 'filler:right',     slot: 'finishing' },
+        '휠라(코너1)':     { key: 'filler:corner1',   slot: 'finishing' },
+        '휠라(코너2)':     { key: 'filler:corner2',   slot: 'finishing' },
+        'EP(좌)':          { key: 'ep:left',          slot: 'finishing' },
+        'EP(우)':          { key: 'ep:right',         slot: 'finishing' },
+        '멍가림판':        { key: 'blind',            slot: 'finishing', indexed: true },
+        '멍판 EP':         { key: 'blind',            slot: 'finishing', indexed: true },
+        '휠라(멍판)':      { key: 'blindfin',         slot: 'finishing', indexed: true },
+        '몰딩(멍판)':      { key: 'blindfin',         slot: 'finishing', indexed: true },
+        // 바닥 마감 — 걸레받이·좌대
+        '걸레받이':        { key: 'kick',             slot: 'kick' },
+        '좌대 걸레받이':   { key: 'kick',             slot: 'kick' },
+        '좌대 전후':       { key: 'pedestal:fb',      slot: 'kick' },
+        '좌대 측':         { key: 'pedestal:side',    slot: 'kick' },
+        '좌대 중간보강':   { key: 'pedestal:brace',   slot: 'kick' },
+      };
+
+      /** 부재 이름 → {key, slot, indexed}. 표에 없으면 `part:<이름>` + slot null (시험이 잡는다). */
+      function bomPartDefOf(part) {
+        const def = BOM_PART_DEFS[part];
+        if (def) return def;
+        return { key: 'part:' + String(part || '').trim().replace(/\s+/g, '_'), slot: null, fallback: true };
+      }
+
       class MaterialExtractor {
         // W12-1: 제조 표준은 data-constants.js 가 정본.
         // Jest/Node 에서는 그 파일이 로드되지 않으므로 같은 값을 폴백으로 둔다
@@ -56,10 +140,12 @@
 
           dlog('[MaterialExtractor] 추출 시작, 아이템 수:', items.length, 'categoryTotals:', JSON.stringify(categoryTotals));
 
-          items.forEach((item) => {
+          items.forEach((item, itemIdx) => {
             // ★ categoryId 사용 (category가 아님!)
             const category = item.categoryId || item.category;
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+            // B1: 이 품목의 부재 식별 문맥 — add() 가 partId·slot 을 붙일 때 읽는다.
+            this.beginItem(item, itemIdx);
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
             // ★ 품목 라벨 (아이템 구분용)
@@ -87,6 +173,7 @@
             for (let i = beforeLen; i < materials.length; i++) {
               materials[i].itemLabel = itemLabel;
             }
+            this._ctx = null;
             dlog(`[BOM-TRACE]   → 추출된 자재: ${materials.length - beforeLen}개 (누적 ${materials.length}개)`);
           });
 
@@ -100,9 +187,66 @@
         }
 
         // ========================================
+        // B1: 부재 식별 문맥 — extract() 가 품목마다, 각 추출기가 모듈 루프마다 세운다.
+        //   add() 는 이 문맥으로 partId·slot 을 만든다. 문맥 없이 add() 를 부르면(외부 직접 호출)
+        //   품목 0 · 모듈 'none' 으로 떨어져 행은 나오되 식별자만 밋밋하다.
+        // ========================================
+        beginItem(item, itemIdx) {
+          this._ctx = {
+            itemIdx: itemIdx | 0,
+            item: item || {},
+            specs: (item && item.specs) || {},
+            mod: null,
+            moduleId: 'none',
+            section: null,
+            seq: {},   // `${itemIdx}|${moduleId}|${kind}` → 다음 k, `…|${partKey}` → 다음 n
+          };
+          return this._ctx;
+        }
+
+        /** 모듈 루프 진입. section 은 'upper'|'lower'|'hood'|'wardrobe'|'tall'… (planner-finish 가 상/하 묶음으로 접는다). */
+        beginModule(mod, idx, section) {
+          const ctx = this._ctx || this.beginItem(null, 0);
+          const m = mod || {};
+          const sec = section || m.pos || m.type || null;
+          ctx.mod = m;
+          ctx.moduleId = (m.id !== undefined && m.id !== null && String(m.id) !== '')
+            ? String(m.id)
+            : `${sec || 'mod'}-${idx | 0}`;
+          ctx.section = sec;
+          return ctx;
+        }
+
+        /** 품목 단위 행(EP·마감재) — 모듈이 없다. moduleId 'ep'. */
+        beginItemLevel(section) {
+          const ctx = this._ctx || this.beginItem(null, 0);
+          ctx.mod = null;
+          ctx.moduleId = 'ep';
+          ctx.section = section || null;
+          return ctx;
+        }
+
+        /** 문맥 카운터 — 같은 키가 몇 번째인지. */
+        _nextSeq(key) {
+          const ctx = this._ctx;
+          const n = ctx.seq[key] || 0;
+          ctx.seq[key] = n + 1;
+          return n;
+        }
+
+        // ========================================
         // 자재 추가 헬퍼 (W7-3: mod 옵셔널 — 도어/서랍도어 자동 자재 코드 매핑)
+        // B1: 모든 행에 partId·slot 을 더한다 (기존 필드는 그대로 — I4).
         // ========================================
         add(arr, module, part, material, thickness, w, h, qty, edge, note = '', mod = null) {
+          const ctx = this._ctx || this.beginItem(null, 0);
+          const def = bomPartDefOf(part);
+          const kindKey = `${ctx.itemIdx}|${ctx.moduleId}|${def.key}`;
+          const partKey = def.indexed ? `${def.key}#${this._nextSeq(kindKey)}` : def.key;
+          const n = this._nextSeq(`${kindKey}|${partKey}|n`);
+          const partId = `${ctx.itemIdx}-${ctx.moduleId}-${partKey}-${n}`;
+          const slot = def.slot;
+
           let finishCode = '';
           // 도어/서랍도어 면 mod 의 doorFinish/doorColor 로 자재 코드 자동 적용
           if ((part === '도어' || part === '서랍도어') && mod) {
@@ -125,6 +269,9 @@
             note,
             // W7-3: 도어 자재 코드 (예: 'PET-OAK-M'). 비 도어 또는 finish/color 없으면 빈 문자열.
             finishCode,
+            // B1: 부재 식별자 + 슬롯 (bom-protocol.md §7-1)
+            partId,
+            slot,
           });
         }
 
@@ -235,6 +382,7 @@
           dlog('[Sink] 상부장 모듈:', upperModules.length);
 
           upperModules.forEach((mod, idx) => {
+            this.beginModule(mod, idx, 'upper');
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 600;
             const H = parseFloat(mod.h) || specs.upperH || 720;
@@ -283,6 +431,7 @@
           dlog('[Sink] 하부장 모듈:', lowerModules.length);
 
           lowerModules.forEach((mod, idx) => {
+            this.beginModule(mod, idx, 'lower');
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 600;
             const topT = parseFloat(specs.topThickness) || 12;
@@ -363,14 +512,16 @@
           const lowerH = (specs.lowerH || 870) - legH;
           const totalH = parseFloat(item.h) || 2310;
 
-          // 상몰딩 (moldingH >= 20이면 산출)
+          // 상몰딩 (moldingH >= 20이면 산출) — 상부 라인 위에 얹히므로 섹션 'upper'
+          this.beginItemLevel('upper');
           if (moldingH >= 20 && (totalUpperW || effectiveW) > 0) {
             const moldingW = totalUpperW || effectiveW;
             const moldingEdge = moldingW > 2000 ? '2면(장)' : '4면';
             this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, moldingEdge);
           }
 
-          // 걸레받이
+          // 걸레받이 — 여기부터 하부 라인 마감
+          this.beginItemLevel('lower');
           this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
 
           // 목찬넬
@@ -430,6 +581,7 @@
           let totalW = 0;
 
           modules.forEach((mod, idx) => {
+            this.beginModule(mod, idx, mod.pos || 'wardrobe');
             const modType = mod.moduleType || 'long';
             const isDivided = modType === 'short' || modType === 'shelf';
             const rawName = mod.name || `${idx + 1}번`;
@@ -617,6 +769,7 @@
           dlog('[Wardrobe] 모듈 합계 너비:', totalW);
 
           // ===== EP (마감재) =====
+          this.beginItemLevel('wardrobe');
           const finishLeftType = specs.finishLeftType || 'Molding';
           const finishLeftW = parseFloat(specs.finishLeftWidth) || 60;
           const finishRightType = specs.finishRightType || 'Molding';
@@ -652,11 +805,12 @@
             this.add(materials, 'EP', '좌대 걸레받이', 'MDF', 18, pedestalH, EP_H, epQty(totalW), '2면(장)');
           }
 
-          // 외부 서랍 목찬넬 EP
+          // 외부 서랍 목찬넬 EP — 모듈에 딸린 손잡이 자리라 모듈 문맥으로 센다
           modules.forEach((mod, idx) => {
             const drawerCount = mod.drawerCount || 0;
             const isExternalDrawer = mod.isExternalDrawer || false;
             if (!isExternalDrawer || drawerCount <= 0) return;
+            this.beginModule(mod, idx, mod.pos || 'wardrobe');
             const modW = parseFloat(mod.w) || 900;
             if (drawerCount === 1) {
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
@@ -671,6 +825,7 @@
           // 좌대 (모듈별 본체)
           if (pedestalH > 0) {
             modules.forEach((mod, idx) => {
+              this.beginModule(mod, idx, mod.pos || 'wardrobe');
               const modW = parseFloat(mod.w) || 900;
               const modD = parseFloat(mod.d) || D;
               const pName = `${prefix}${mod.name || `${idx + 1}번`}`;
@@ -700,6 +855,7 @@
           modules.forEach((mod, idx) => {
             const modType = mod.type || '';
             if (modType === 'fridge') return; // 냉장고 자체는 제외
+            this.beginModule(mod, idx, modType || null);
 
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 600;
@@ -1297,6 +1453,10 @@
       // B1: HardwareExtractor·DrawingVisualizer 도 내보낸다 — 골든 도우미(test-utils/bom-golden/golden.js)가
       //     이 둘을 얻으려고 소스를 Function 으로 평가하던 우회를 없앨 수 있다.
       if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { MaterialExtractor, HardwareExtractor, DrawingVisualizer };
+        module.exports = {
+          MaterialExtractor, HardwareExtractor, DrawingVisualizer,
+          // B1 도우미 — 시험이 표·해석기를 직접 본다
+          BOM_PART_DEFS, bomPartDefOf,
+        };
       }
 
