@@ -300,6 +300,11 @@
     <button type="button" class="pdm-btn pd-only" id="loadDetailBtn" title="계정에 저장된 마감(디테일) 불러오기 (이 품목 / 내 모든 설계)">📥 마감 불러오기 <span class="pdm-caret">▾</span></button>
     <div class="pdm-menu" id="loadDetailMenu" hidden></div>
     <button type="button" class="pdm-btn pd-only" id="saveDetailBtn" title="지금 마감 지정을 이름 붙여 계정에 저장합니다">💾 마감 저장</button>
+    <!-- D3: 렌더 저장 — 정면·3/4·평면을 오프스크린으로 찍어 계정(Storage renders + design_renders)에 올린다 (js/planner/planner-capture.js).
+         설계 저장 전·로그인 전이면 이 브라우저에 내려받는다. 디테일 모드에서만 보인다. -->
+    <button type="button" class="pdm-btn pd-only" id="renderSaveBtn" title="정면·3/4·평면 렌더(2048px)를 찍어 계정에 저장합니다. 설계 저장 전이면 이 브라우저에 내려받습니다">📷 렌더 저장</button>
+    <button type="button" class="pdm-btn pd-only" id="renderMenuBtn" title="렌더 옵션 — 4096px · 이 모듈만">📷 <span class="pdm-caret">▾</span></button>
+    <div class="pdm-menu" id="renderMenu" hidden></div>
     <button type="button" class="load-btn" id="autoSaveToggle" title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   </div>
   <div class="panel-toggle">
@@ -7191,6 +7196,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     toast: showToast,
     activeModuleId: () => activeId,
     moduleLabel: (id) => { const m = modules.find((x) => x.id === id); return m ? ((SECTION_CONFIG[m.section] && SECTION_CONFIG[m.section].label) || m.section) + ' ' + (m.W || '') : String(id); },
+  });
+  PlannerCapture.mountMenu({
+    btn: document.getElementById('renderSaveBtn'),
+    menuBtn: document.getElementById('renderMenuBtn'),
+    menu: document.getElementById('renderMenu'),
   });
   // Three.js 로드 후 init3D
   if (window.THREE) init3D();

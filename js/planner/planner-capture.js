@@ -550,6 +550,171 @@ const PlannerCapture = {
     }
     return { shots, failed };
   },
+
+  // ── 저장 흐름 (📷 렌더 저장) ────────────────────────────
+
+  /** <a download> — 앱 페이지라 된다 (아티팩트 샌드박스가 아니다). 시험은 이 메서드를 스파이한다. */
+  download(blob, name) {
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name || 'render.png';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* 무해 */ } }, 10000);
+      return true;
+    } catch (e) { return false; }
+  },
+
+  /** 계정에 못 올리는 이유를 사람 말로. 이유마다 할 일이 다르다. */
+  excuse(reason) {
+    if (reason === 'no-scope') return '설계를 아직 저장하지 않아 이 브라우저에 내려받았습니다 — 설계를 저장한 뒤 다시 누르면 계정에 올라갑니다';
+    if (reason === 'no-item') return "품목이 아직 없어 이 브라우저에 내려받았습니다 — 좌측 '품목' 아이콘으로 품목을 먼저 추가하세요";
+    if (reason === 'no-session') return '로그인하지 않아 이 브라우저에 내려받았습니다 — 로그인하면 계정에 저장됩니다';
+    if (reason === 'no-sdk') return '이 화면에서는 계정 저장을 쓸 수 없어 이 브라우저에 내려받았습니다';
+    if (reason === 'no-bucket') return 'Storage 버킷 renders 가 없습니다 — Supabase 에서 비공개 버킷 renders 를 만들고 database/design-renders.sql 을 실행하세요';
+    if (reason === 'empty') return '3D 에 찍을 모듈이 없습니다';
+    if (reason === 'no-three') return '3D 가 아직 준비되지 않았습니다';
+    if (reason === 'busy') return '렌더가 진행 중입니다';
+    return '';
+  },
+
+  /**
+   * 찍고 올린다. 스코프가 없으면(설계 미저장·로그인 전) 내려받는다.
+   * @param {{longEdge?:number, modules?:string[], kinds?:string[]}} [opt]
+   * @returns {Promise<{ok:boolean, mode:'upload'|'download'|null, saved:number, total:number, failed:object[], reason?:string}>}
+   */
+  async saveAll(opt) {
+    opt = opt || {};
+    if (this.busy) return { ok: false, reason: 'busy', mode: null, saved: 0, total: 0, failed: [] };
+    this.busy = true;
+    const date = new Date();
+    const longEdge = Number(opt.longEdge) || PLANNER_CAPTURE_LONG_EDGE;
+    this._setBusy(true, '📷 렌더 중…');
+    try {
+      const ready = (typeof PlannerStore !== 'undefined' && PlannerStore)
+        ? await PlannerStore.ready(this.ids())
+        : { ok: false, reason: 'no-sdk' };
+      const res = await this.captureAll({
+        longEdge, date, kinds: opt.kinds, modules: opt.modules,
+        onProgress: (i, n, kind) => this._setBusy(true, `📷 ${PLANNER_CAPTURE_KIND_LABEL[plannerCaptureParseKind(kind).kind] || kind} ${i + 1}/${n}`),
+      });
+      const total = res.shots.length + res.failed.length;
+      if (!res.shots.length) {
+        const why = res.failed[0] || {};
+        this.toast('⚠ 렌더 실패: ' + (why.message || this.excuse(why.reason) || why.reason || '알 수 없음'));
+        return { ok: false, reason: why.reason || 'error', mode: null, saved: 0, total, failed: res.failed };
+      }
+      if (!ready.ok) {
+        // 올릴 곳이 없다 — 이 브라우저에 내려받는다
+        let n = 0;
+        res.shots.forEach((s) => { if (this.download(s.blob, s.fileName)) n++; });
+        this.toast(`📷 렌더 ${n}장 — ${this.excuse(ready.reason) || ready.reason}`);
+        return { ok: n > 0, reason: ready.reason, mode: 'download', saved: n, total, failed: res.failed };
+      }
+      const detailHash = plannerCaptureDetailHash(this.detailModel());
+      let saved = 0;
+      const failed = res.failed.slice();
+      for (let i = 0; i < res.shots.length; i++) {
+        const s = res.shots[i];
+        this._setBusy(true, `☁ 올리는 중 ${i + 1}/${res.shots.length}`);
+        const path = plannerCapturePath(ready.ids, s.kind, s.moduleId, date);
+        const r = await PlannerStore.saveRender({
+          ids: ready.ids, blob: s.blob, path, kind: s.kind, moduleId: s.moduleId,
+          width: s.width, height: s.height, camera: s.camera, detailHash,
+        });
+        if (r.ok) { saved++; continue; }
+        failed.push(Object.assign({ kind: s.kind, moduleId: s.moduleId }, r));
+        if (r.reason === 'no-bucket') break;   // 나머지도 같은 이유로 실패한다
+      }
+      const bucketMissing = failed.some((f) => f.reason === 'no-bucket');
+      if (bucketMissing) {
+        // 계정에 못 올렸으니 최소한 내려받게 한다
+        res.shots.forEach((s) => this.download(s.blob, s.fileName));
+        this.toast('⚠ ' + this.excuse('no-bucket') + ' (렌더는 이 브라우저에 내려받았습니다)');
+      } else if (failed.length) {
+        this.toast(`📷 렌더 ${saved}/${total}장 저장 — 실패: ${failed.map((f) => f.message || f.reason).join(', ')}`);
+      } else {
+        this.toast(`📷 렌더 ${saved}장을 계정에 저장했습니다 (${longEdge}px${res.shots.some((s) => !s.toneMapped) ? ' · 톤매핑 없음' : ''})`);
+      }
+      if (saved && typeof this.refreshStrip === 'function') { try { this.refreshStrip(); } catch (e) { /* 무해 */ } }
+      if (saved && this._o && typeof this._o.onSaved === 'function') { try { this._o.onSaved(saved); } catch (e) { /* 무해 */ } }
+      return { ok: saved > 0, reason: bucketMissing ? 'no-bucket' : undefined, mode: 'upload', saved, total, failed };
+    } finally {
+      this.busy = false;
+      this._setBusy(false);
+    }
+  },
+
+  _menu: null,
+
+  /** 버튼 잠금·진행 표시. mountMenu 전이면 아무것도 안 한다. */
+  _setBusy(on, text) {
+    const m = this._menu;
+    if (!m) return;
+    if (m.btn) {
+      if (on && m._label == null) m._label = m.btn.textContent;
+      m.btn.disabled = !!on;
+      m.btn.textContent = on ? (text || '📷 렌더 중…') : (m._label != null ? m._label : m.btn.textContent);
+      if (!on) m._label = null;
+    }
+    if (m.menuBtn) m.menuBtn.disabled = !!on;
+  },
+
+  /**
+   * 📷 렌더 저장 버튼 + 📷▾ 옵션 메뉴. CSS 는 planner-drawing-menu.js 의 .pdm-* 를 그대로 쓴다.
+   * @param {{btn:Element, menuBtn?:Element, menu?:Element}} o
+   */
+  mountMenu(o) {
+    o = o || {};
+    this._menu = { btn: o.btn || null, menuBtn: o.menuBtn || null, menu: o.menu || null, _label: null };
+    const m = this._menu;
+    if (m.btn) m.btn.onclick = () => { this.saveAll({ longEdge: PLANNER_CAPTURE_LONG_EDGE }); };
+    if (m.menuBtn && m.menu) {
+      const close = () => { m.menu.hidden = true; };
+      const render = () => {
+        const activeId = (this._o && typeof this._o.activeModuleId === 'function') ? this._o.activeModuleId() : null;
+        const label = (id) => (this._o && typeof this._o.moduleLabel === 'function') ? this._o.moduleLabel(id) : String(id);
+        const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        m.menu.innerHTML = [
+          '<div class="pdm-stage"><span>렌더 저장</span></div>',
+          `<button type="button" class="pdm-row" data-render="std">정면 · 3/4 · 평면 — ${PLANNER_CAPTURE_LONG_EDGE}px<span class="pdm-meta">기본. 버튼과 같다</span></button>`,
+          `<button type="button" class="pdm-row" data-render="hi">정면 · 3/4 · 평면 — ${PLANNER_CAPTURE_LONG_EDGE_HI}px<span class="pdm-meta">인쇄용. 시간이 더 걸린다</span></button>`,
+          `<button type="button" class="pdm-row" data-render="module"${activeId == null ? ' disabled' : ''}>이 모듈 — ${PLANNER_CAPTURE_LONG_EDGE}px<span class="pdm-meta">${activeId == null ? '좌측 목록에서 모듈을 고르세요' : esc(label(activeId))}</span></button>`,
+          '<div class="pdm-sep"></div>',
+          '<div class="pdm-note">디테일 룩(마감·광택·환경광)으로 찍습니다. 설계를 저장했고 로그인했으면 계정(Storage renders)에, 아니면 이 브라우저에 내려받습니다.</div>',
+        ].join('');
+        m.menu.querySelectorAll('[data-render]').forEach((el) => {
+          el.onclick = (e) => {
+            e.stopPropagation();
+            close();
+            const what = el.dataset.render;
+            if (what === 'hi') this.saveAll({ longEdge: PLANNER_CAPTURE_LONG_EDGE_HI });
+            else if (what === 'module') { if (activeId != null) this.saveAll({ longEdge: PLANNER_CAPTURE_LONG_EDGE, kinds: [], modules: [activeId] }); }
+            else this.saveAll({ longEdge: PLANNER_CAPTURE_LONG_EDGE });
+          };
+        });
+      };
+      m.menuBtn.onclick = (e) => {
+        e.stopPropagation();
+        m.menu.hidden = !m.menu.hidden;
+        if (!m.menu.hidden) render();
+      };
+      try {
+        document.addEventListener('click', (e) => {
+          if (m.menu.hidden) return;
+          if (m.menu.contains(e.target) || m.menuBtn.contains(e.target)) return;
+          close();
+        });
+      } catch (e) { /* DOM 없음 */ }
+      m.render = render;
+      m.close = close;
+    }
+    return m;
+  },
 };
 
 if (typeof window !== 'undefined') {
