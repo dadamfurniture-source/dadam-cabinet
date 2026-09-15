@@ -1650,8 +1650,9 @@
       // ============================================================
       // C2: 도어 마감 셀렉트 (카탈로그 코드 하나) ↔ 플래너 디테일 양방향
       //
-      //   셀렉트(ui-step1 싱크 팝업 · ui-workspace 싱크/붙박이장)는 FurnitureOptionCatalog.buildDoorMaterialFieldHtml 이
+      //   셀렉트(ui-step1 싱크 팝업 · ui-workspace 싱크/붙박이장 · ui-fridge-el 냉장고장)는 FurnitureOptionCatalog.buildDoorMaterialFieldHtml 이
       //   그리고, 바꾸면 updateDoorMaterial(uniqueId, 'upper'|'lower'|'item', code) 이 온다.
+      //   붙박이장·냉장고장은 도어 묶음이 하나라 'item' 으로 상·하를 같이 적는다 (BOM 의 legacyDoorEntryFor 가 섹션별 키를 읽으므로 둘 다 채워야 한다).
       //     specs.doorMaterialUpper/Lower = code (새 정본)
       //     specs.doorColorUpper/Lower · doorFinishUpper/Lower = 코드에서 파생 (연출컷·견적·옛 경로가 읽는다)
       //     item.detail.sections[group].door = {code} ('item' 은 item.door) → DADAM_DETAIL_SET 으로 플래너에
