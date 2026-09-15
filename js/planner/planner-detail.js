@@ -66,13 +66,24 @@ body.detail-mode #loadDrawingBtn,body.detail-mode #saveDrawingBtn{display:none}
 .pd-bulk button:disabled,.pd-tools button:disabled,.pd-card-actions button:disabled{opacity:.4;cursor:not-allowed}
 .pd-hint{font-size:10px;color:var(--text-faint,#a89c84);line-height:1.5}
 .pd-tools{display:flex;align-items:center;justify-content:space-between;gap:6px}
-.pd-group-title{font-size:10.5px;font-weight:600;color:var(--text-dim,#7a7062);margin:4px 0 3px}
-.pd-swatches{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.pd-swatch{position:relative;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.2);cursor:pointer;padding:0;font-family:inherit}
+.pd-search{width:100%;box-sizing:border-box;border:1px solid var(--line,#e5e0d4);border-radius:6px;padding:4px 8px;font-size:11px;font-family:inherit;color:var(--text,#2b2620);background:#fff}
+.pd-groups{display:flex;flex-direction:column;gap:4px}
+.pd-group{border:1px solid var(--line,#e5e0d4);border-radius:6px;background:#fff;padding:0 6px 6px}
+.pd-group[open]{padding-bottom:6px}
+.pd-group:not([open]){padding-bottom:0}
+.pd-group summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 0;font-size:10.5px;font-weight:600;color:var(--text-dim,#7a7062)}
+.pd-group summary::-webkit-details-marker{display:none}
+.pd-group summary::before{content:'▸';font-size:9px;margin-right:4px;color:var(--text-faint,#a89c84)}
+.pd-group[open] summary::before{content:'▾'}
+.pd-group summary .pd-count{font-weight:500;color:var(--text-faint,#a89c84)}
+.pd-group.compat summary{color:var(--text-faint,#a89c84)}
+.pd-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.pd-swatch{position:relative;display:flex;flex-direction:column;gap:2px;border-radius:5px;border:1px solid rgba(0,0,0,.12);cursor:pointer;padding:2px;font-family:inherit;background:#fff;text-align:center;min-width:0}
 .pd-swatch:hover{transform:translateY(-1px)}
 .pd-swatch.on{outline:2px solid var(--pick,#1d6fe0);outline-offset:1px}
-.pd-swatch .pd-code{position:absolute;left:0;right:0;bottom:1px;font-size:7.5px;text-align:center;color:rgba(0,0,0,.55);mix-blend-mode:multiply;pointer-events:none}
-.pd-swatch.dark .pd-code{color:rgba(255,255,255,.75);mix-blend-mode:normal}
+.pd-swatch .pd-chipbox{height:22px;border-radius:4px;border:1px solid rgba(0,0,0,.18)}
+.pd-swatch .pd-name{font-size:8.5px;line-height:1.15;color:var(--text,#2b2620);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd-swatch .pd-code{font-size:7.5px;color:var(--text-faint,#a89c84);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pd-card{display:flex;flex-direction:column;gap:6px;font-size:11px}
 .pd-card-title{font-weight:700;color:var(--brand-deep,#6a4b2a)}
 .pd-card-row{display:flex;align-items:center;gap:6px}
@@ -639,16 +650,32 @@ const PlannerDetail = {
     this.rerender3D();
   },
 
+  /**
+   * 팔레트 머리의 출처 표시.
+   *   db      → "예림 LUX 144"       (materials 표를 읽었다)
+   *   local   → "카탈로그 7×10"      (DB 없음 — bom-finish-color.js 의 구 표만)
+   *   builtin → "폴백 목록"          (그것도 없음 — planner-finish.js 의 내장 표)
+   * 크기는 정본이 정한다 — 숫자를 박지 않는다.
+   */
+  catalogSourceLabel() {
+    const c = this.catalog;
+    if (!c) return '';
+    if (c.source === 'db') return `예림 LUX ${c.yerim}`;
+    if (c.source === 'builtin' || (c.source == null && c.fallback)) return '폴백 목록';
+    const finishes = Array.isArray(c.finishes) ? c.finishes : [];
+    const nF = finishes.length;
+    const local = Array.isArray(c.groups) ? (c.groups.find((g) => g.compat) || { count: c.entries.length }).count : c.entries.length;
+    const nC = nF ? Math.round(local / nF) : 0;
+    return `카탈로그 ${nF}×${nC}`;
+  },
+
   renderPalette() {
     const host = (typeof document !== 'undefined') ? document.getElementById('detailPalette') : null;
     if (!host || !this.catalog) return;
     const esc = plannerDetailEsc;
-    const sel = plannerFinishLookup(this.catalog, this.selectedCode);
+    const sel = this.entryOf(this.selectedCode);
     const parts = [];
-    // 카탈로그 크기는 정본이 정한다 (C0 가 색을 더하면 7×10 처럼 따라 바뀐다 — 숫자를 박지 않는다).
-    const nF = this.catalog.finishes.length;
-    const nC = nF ? Math.round(this.catalog.entries.length / nF) : 0;
-    parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${this.catalog.fallback ? '폴백 목록' : `카탈로그 ${nF}×${nC}`}</span></div>`);
+    parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${esc(this.catalogSourceLabel())}</span></div>`);
     parts.push('<div class="pd-sel">' + (sel
       ? `<span class="pd-chip" style="background:${esc(sel.hex)}"></span><b>${esc(sel.label)}</b><code>${esc(sel.code)}</code>`
       : '<span class="pd-hint">아래에서 마감을 고르세요 — 고르지 않고 부재를 누르면 지정된 마감을 보여 줍니다</span>') + '</div>');
@@ -667,20 +694,75 @@ const PlannerDetail = {
     parts.push('<div class="pd-tools">'
       + `<button type="button" data-undo="1"${this.undoStack.length ? '' : ' disabled'}>↶ 되돌리기 (${this.undoStack.length})</button>`
       + `<span class="pd-hint">지정 ${plannerFinishCount(this.detail)}건</span></div>`);
-    this.catalog.finishes.forEach((f) => {
-      const rows = this.catalog.entries.filter((e) => e.finish === f.value);
-      if (!rows.length) return;
-      parts.push(`<div class="pd-group"><div class="pd-group-title">${esc(f.label)}</div><div class="pd-swatches">`
-        + rows.map((e) => `<button type="button" class="pd-swatch${e.code === this.selectedCode ? ' on' : ''}${plannerDetailIsDark(e.hex) ? ' dark' : ''}" `
-          + `data-code="${esc(e.code)}" title="${esc(e.label)} · ${esc(e.code)}" style="background:${esc(e.hex)}"><span class="pd-code">${esc(e.colorLabel)}</span></button>`).join('')
-        + '</div></div>');
-    });
+    parts.push(`<input type="search" class="pd-search" data-search="1" placeholder="이름·코드 검색" value="${esc(this.query)}" autocomplete="off">`);
+    parts.push('<div class="pd-groups" data-groups="1"></div>');
     host.innerHTML = parts.join('');
-    host.querySelectorAll('[data-code]').forEach((el) => { el.onclick = () => this.selectCode(el.dataset.code); });
     host.querySelectorAll('[data-slot]').forEach((el) => { el.onclick = () => this.selectSlot(el.dataset.slot); });
     host.querySelectorAll('[data-bulk]').forEach((el) => { el.onclick = () => this.applyBulk(el.dataset.bulk); });
     const u = host.querySelector('[data-undo]');
     if (u) u.onclick = () => this.undo();
+    const q = host.querySelector('[data-search]');
+    if (q) q.oninput = () => this.setQuery(q.value);
+    this.renderGroups();
+  },
+
+  /** 검색어를 바꾸고 그룹만 다시 그린다 — 입력칸을 다시 만들면 포커스가 날아간다. */
+  setQuery(q) {
+    this.query = String(q == null ? '' : q);
+    this.renderGroups();
+    return this.query;
+  },
+
+  /**
+   * 지금 슬롯·검색어에 맞는 그룹 목록. [{group, entries}] — entries 가 빈 그룹은 뺀다.
+   * 슬롯 필터: 그룹의 slots 에 지금 슬롯이 없으면 숨긴다 (몸통 → body_material, 상판 → countertop,
+   * 도어·서랍 앞판 → door_material). 호환 그룹은 슬롯 전부를 가져 언제나 남는다.
+   */
+  visibleGroups() {
+    const c = this.catalog;
+    if (!c || !Array.isArray(c.entries)) return [];
+    const byCode = c.byCode || {};
+    const lookup = (code) => byCode[code] || plannerFinishLookup(c, code);
+    const q = String(this.query || '').trim().toLowerCase();
+    const match = (e) => !q || [e.code, e.colorLabel, e.label, e.vendorCode].some((s) => String(s || '').toLowerCase().indexOf(q) >= 0);
+    // planner-catalog.js 가 없을 때(D0 모양의 카탈로그) — finishes 를 그룹으로 본다
+    const groups = Array.isArray(c.groups) ? c.groups
+      : (c.finishes || []).map((f) => ({ key: f.value, label: f.label, codes: c.entries.filter((e) => e.finish === f.value).map((e) => e.code), slots: PLANNER_FINISH_SLOTS.slice(), compat: false, collapsed: false }));
+    const out = [];
+    groups.forEach((g) => {
+      if (this.slot && Array.isArray(g.slots) && g.slots.indexOf(this.slot) < 0) return;
+      const entries = g.codes.map(lookup).filter((e) => e && match(e));
+      if (!entries.length) return;
+      out.push({ group: g, entries });
+    });
+    return out;
+  },
+
+  renderGroups() {
+    const host = (typeof document !== 'undefined') ? document.querySelector('#detailPalette [data-groups]') : null;
+    if (!host) return;
+    const esc = plannerDetailEsc;
+    const vis = this.visibleGroups();
+    if (!vis.length) {
+      host.innerHTML = `<div class="pd-hint">${this.query ? '검색 결과가 없습니다' : `${esc(PLANNER_FINISH_SLOT_LABEL[this.slot] || this.slot)} 슬롯에 맞는 자재가 없습니다`} — 슬롯·검색어를 바꿔 보세요</div>`;
+      return;
+    }
+    host.innerHTML = vis.map(({ group: g, entries }) => {
+      const open = (g.key in this.groupOpen) ? this.groupOpen[g.key] : (!!this.query || !g.collapsed);
+      return `<details class="pd-group${g.compat ? ' compat' : ''}" data-group="${esc(g.key)}"${open ? ' open' : ''}>`
+        + `<summary><span>${esc(g.label)}</span><span class="pd-count">${entries.length}</span></summary>`
+        + '<div class="pd-swatches">'
+        + entries.map((e) => `<button type="button" class="pd-swatch${e.code === this.selectedCode ? ' on' : ''}${plannerDetailIsDark(e.hex) ? ' dark' : ''}" `
+          + `data-code="${esc(e.code)}" title="${esc(e.label)} · ${esc(e.code)}">`
+          + `<span class="pd-chipbox" style="background:${esc(e.hex)}"></span>`
+          + `<span class="pd-name">${esc(e.colorLabel || e.label)}</span>`
+          + `<span class="pd-code">${esc(e.vendorCode || e.code)}</span></button>`).join('')
+        + '</div></details>';
+    }).join('');
+    host.querySelectorAll('[data-code]').forEach((el) => { el.onclick = () => this.selectCode(el.dataset.code); });
+    host.querySelectorAll('details[data-group]').forEach((el) => {
+      el.ontoggle = () => { this.groupOpen[el.dataset.group] = !!el.open; };
+    });
   },
 
   renderCard() {
