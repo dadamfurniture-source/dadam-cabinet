@@ -1072,7 +1072,13 @@
 
           const cells = _cellsOfPlannerModule(m, s);
           if (cells.length === 1 && cells[0].noAutoCalc) {
-            warnings.push(`${m.id}: 자동계산 전이라 ${cells[0].w}mm 통짜로 잡혔습니다`);
+            // 키큰장은 세로 스택(단)이라 자동계산이 셀(areaWidths)을 나누지 않는다 —
+            // 단 하나가 모듈 폭 그대로 한 장(통짜)인 것이 **정상**이다. 여기서 경고하면
+            // 자동계산을 돌려도 사라지지 않는 헛경고가 된다 (사용자 결정 2026-09-15).
+            // 표시 section(sink·hood)은 PLANNER_CABINET_SECTIONS 에 없어 여기까지 오지 않는다.
+            if (m.section !== 'tall') {
+              warnings.push(`${m.id}: 자동계산 전이라 ${cells[0].w}mm 통짜로 잡혔습니다`);
+            }
           } else {
             // 셀 폭 합이 사각형 폭과 크게 다르면 분배 정보가 낡은 것이다
             // (배치를 고친 뒤 자동계산을 다시 돌리지 않은 경우).
