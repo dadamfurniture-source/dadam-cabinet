@@ -79,8 +79,8 @@ describe('drawerLayoutFor — 목찬넬 하부장의 도어 + 하부 서랍만',
   });
 
   test('레일 종류가 박스 크기를 바꾼다 (언더 +40 / 볼 +20)', () => {
-    const under = fn(m, Object.assign(base(), { drawerRail: 'under' }));
-    const ball = fn(m, Object.assign(base(), { drawerRail: 'ball' }));
+    const under = fn(m, Object.assign(base(), { drawer: { rail: 'under' } }));
+    const ball = fn(m, Object.assign(base(), { drawer: { rail: 'ball' } }));
     expect(under.rail).toBe('under');
     expect(ball.rail).toBe('ball');
     // 마지막 서랍 존 = 중간 따내기 바닥 ~ 지판 윗면 = (200 − 20 − 90) + ... → 규칙 파일과 같은 답
@@ -229,10 +229,22 @@ describe('렌더 경로 — 전면 배치를 레이아웃이 정한다', () => {
 });
 
 describe('우측 패널 — 서랍 레일 선택, 최대 4단', () => {
-  test('레일 select 가 있고 저장·재렌더로 이어진다', () => {
+  test('레일·서랍 자재·사쿠리 입력이 s.drawer 한 블록으로 저장·재렌더된다', () => {
     expect(SRC).toContain('id="selDrawerRail"');
-    expect(SRC).toMatch(/s\.drawerRail = e\.target\.value === 'ball' \? 'ball' : 'under';/);
-    expect(SRC).toContain("panelCommit('#selDrawerRail')");
+    expect(SRC).toContain('id="selDrawerBoxT"');
+    expect(SRC).toContain('id="chkDrawerSakuri"');
+    expect(SRC).toContain('s.drawer = Object.assign(drawerRulesOf(s), patch);');
+    expect(SRC).toContain("'#selDrawerRail'");
+    expect(SRC).toContain("'#chkDrawerSakuri'");
+  });
+
+  test('drawerRulesOf — 블록 정규화, 옛 drawerRail 폴백, boxT 는 15/18 만', () => {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=mn4&item=1', storage: {} });
+    const f = p.g('drawerRulesOf');
+    expect(f({})).toEqual({ rail: 'under', sakuri: false, boxT: 0 });
+    expect(f({ drawerRail: 'ball' })).toEqual({ rail: 'ball', sakuri: false, boxT: 0 });   // 옛 평면 필드
+    expect(f({ drawer: { rail: 'ball', sakuri: true, boxT: 18 } })).toEqual({ rail: 'ball', sakuri: true, boxT: 18 });
+    expect(f({ drawer: { rail: 'x', boxT: 20 } })).toEqual({ rail: 'under', sakuri: false, boxT: 0 });
   });
 
   test('서랍 단수 입력이 4 까지다', () => {
@@ -241,7 +253,7 @@ describe('우측 패널 — 서랍 레일 선택, 최대 4단', () => {
     expect(SRC).toMatch(/Math\.min\(4, parseInt\(e\.target\.value\) \|\| 1\)/);
   });
 
-  test('새 구조는 언더레일로 시작한다', () => {
-    expect(SRC).toMatch(/drawerRail:\s*'under'/);
+  test('새 구조는 서랍 규칙 블록 {언더레일, 사쿠리 없음, 몸통 두께} 로 시작한다', () => {
+    expect(SRC).toMatch(/drawer: \{ rail: 'under', sakuri: false, boxT: 0 \}/);
   });
 });

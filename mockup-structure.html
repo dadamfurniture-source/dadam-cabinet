@@ -571,7 +571,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       verticalCount: 1,        // 좌우 분할 N
       horizontalLayout: 'doorOnly',  // 'doorOnly' | 'doorTopDrawerBottom'
       drawerHeight: 200,       // 하부 서랍 H (mm)
-      drawerRail: 'under',     // 2026-09-15: 서랍 레일 — 'under' 댐핑 언더레일(+40) | 'ball' 댐핑 볼레일(+20). 박스 크기를 정한다
+      // 2026-09-15: 서랍 규칙 — 레일·사쿠리·서랍 자재 두께를 한 블록으로 따로 저장한다.
+      //   브리지가 이 블록을 BOM 모듈 `drawer` 로 그대로 넘긴다 (extractors drawerRulesOf). boxT 0 = 몸통 두께를 따른다.
+      drawer: { rail: 'under', sakuri: false, boxT: 0 },
       areaTypes: ['door'],     // 길이 = verticalCount (상부 영역)
       areaDirections: ['left'],  // 도어 열림 방향 (길이 = verticalCount)
       // W9-95: 영역별 폭 (불균등 분할 — 가전 X 정밀 분할 시 사용)
@@ -2583,7 +2585,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const n = Math.max(1, Math.min(rules.DRAWER_RULES.MAX_COUNT, parseInt(s.drawerCount, 10) || 1));
     const fronts = [{ kind: 'door' }];
     for (let i = 0; i < n; i++) fronts.push({ kind: 'drawer', h: drawerH });
-    return rules.layoutDrawerModule({ H: bodyHeightOf(m, s), T: BODY_T, fronts, rail: s.drawerRail });
+    return rules.layoutDrawerModule({ H: bodyHeightOf(m, s), T: BODY_T, fronts, rail: drawerRulesOf(s).rail });
+  }
+
+  /**
+   * 2026-09-15: 서랍 규칙 블록 정규화 — s.drawer {rail, sakuri, boxT}. 옛 s.drawerRail 도 읽는다.
+   *   rail 'under'|'ball' · sakuri 측판 사쿠리 · boxT 서랍 자재 두께 (0 = 몸통 두께)
+   */
+  function drawerRulesOf(s) {
+    const d = (s && s.drawer) || {};
+    const railRaw = d.rail || (s && s.drawerRail);
+    return {
+      rail: railRaw === 'ball' ? 'ball' : 'under',
+      sakuri: !!d.sakuri,
+      boxT: [15, 18].includes(Number(d.boxT)) ? Number(d.boxT) : 0,
+    };
   }
 
   /** 레이아웃의 전면 하나를 모듈 로컬 세로 범위로 — y 는 몸통 상단에서 아래로 잰 값이라 뒤집는다. */
@@ -3104,9 +3120,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <div class="row">
           <label>서랍 레일</label>
           <select id="selDrawerRail">
-            <option value="under" ${(s.drawerRail || 'under')==='under'?'selected':''}>댐핑 언더레일 (박스 +40)</option>
-            <option value="ball" ${s.drawerRail==='ball'?'selected':''}>댐핑 볼레일 (박스 +20)</option>
+            <option value="under" ${drawerRulesOf(s).rail==='under'?'selected':''}>댐핑 언더레일 (박스 +40)</option>
+            <option value="ball" ${drawerRulesOf(s).rail==='ball'?'selected':''}>댐핑 볼레일 (박스 +20)</option>
           </select>
+        </div>
+        <div class="row">
+          <label>서랍 자재</label>
+          <select id="selDrawerBoxT">
+            <option value="0" ${drawerRulesOf(s).boxT===0?'selected':''}>몸통 두께 따름</option>
+            <option value="15" ${drawerRulesOf(s).boxT===15?'selected':''}>15T</option>
+            <option value="18" ${drawerRulesOf(s).boxT===18?'selected':''}>18T</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>측판 사쿠리</label>
+          <input type="checkbox" id="chkDrawerSakuri" ${drawerRulesOf(s).sakuri?'checked':''}>
+          <span style="font-size:10px;color:#888">앞뒷판 −18 · 우라 앞뒷판+20</span>
         </div>
         <div style="font-size:10px;color:#888;line-height:1.4">
           서랍 1단마다 전후판 2장·측판 2장·밑판 1장이 자재로 잡힙니다. 최대 4단.
@@ -3140,11 +3169,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // CD-2: 서랍 단수 — 예전엔 지정할 수단이 없어 브리지가 항상 1단으로 넘겼다.
     // 1단마다 전후판 2·측판 2·밑판 1 이 잡히므로 BOM 수량에 직접 영향을 준다.
     // 2026-09-15: 최대 4단 (bom-drawer-rules.js MAX_COUNT) — 5 는 규칙 밖이라 BOM 이 4 로 잘랐다.
-    const selRail = document.getElementById('selDrawerRail');
-    if (selRail) selRail.onchange = (e) => {
-      s.drawerRail = e.target.value === 'ball' ? 'ball' : 'under';
-      panelCommit('#selDrawerRail');
+    //   서랍 규칙은 s.drawer 한 블록에 모아 저장한다 — 브리지가 그대로 BOM 으로 넘긴다.
+    const setDrawerRule = (patch, focus) => {
+      s.drawer = Object.assign(drawerRulesOf(s), patch);
+      panelCommit(focus);
     };
+    const selRail = document.getElementById('selDrawerRail');
+    if (selRail) selRail.onchange = (e) => setDrawerRule({ rail: e.target.value === 'ball' ? 'ball' : 'under' }, '#selDrawerRail');
+    const selBoxT = document.getElementById('selDrawerBoxT');
+    if (selBoxT) selBoxT.onchange = (e) => setDrawerRule({ boxT: Number(e.target.value) || 0 }, '#selDrawerBoxT');
+    const chkSakuri = document.getElementById('chkDrawerSakuri');
+    if (chkSakuri) chkSakuri.onchange = (e) => setDrawerRule({ sakuri: !!e.target.checked }, '#chkDrawerSakuri');
     const inpDrC = document.getElementById('inpDrawerCount');
     if (inpDrC) inpDrC.onchange = (e) => {
       const v = Math.max(1, Math.min(4, parseInt(e.target.value) || 1));
@@ -6833,8 +6868,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const woodChannel = isWoodChannel(m, s);   // W12-5
     // 2026-09-15: 목찬넬 하부장의 "도어 + 하부 서랍" 은 규칙 파일이 전면·중간 따내기·박스를 정한다 (null 이면 예전 그대로)
     const drawerLayout = drawerLayoutFor(m, s);
+    const drawerRules = drawerRulesOf(s);   // 2026-09-15: 레일·사쿠리·서랍 자재 두께
     addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
-      drawerT: Number(s.drawerBoxT) || T, drawerSakuri: !!s.drawerSakuri });
+      drawerT: drawerRules.boxT || T, drawerSakuri: drawerRules.sakuri });
     addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
       types: s.areaTypes, section: m.section });
 
