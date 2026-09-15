@@ -11,6 +11,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1310,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -24,6 +35,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 760,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -37,6 +59,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 760,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -50,6 +83,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -63,6 +107,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1520,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -76,6 +131,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:brace#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1380,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -89,6 +155,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 760,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -102,6 +179,17 @@
       "edge": "4면",
       "note": "멍장 도어(도어폭 기준)",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2352,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -115,6 +203,17 @@
       "edge": "-",
       "note": "멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-blind#0-0",
+      "slot": "finishing",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -128,6 +227,17 @@
       "edge": "-",
       "note": "ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤 (corner.md §3.5)",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:batten-front-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -141,6 +251,17 @@
       "edge": "-",
       "note": "ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75 (corner.md §3.5)",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-body:batten-side-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -154,6 +275,17 @@
       "edge": "4면",
       "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 90 (corner.md §3.3)",
       "finishCode": "",
+      "partId": "0-corner-blind-upper-blindfin#0-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1740,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -167,6 +299,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-uc1-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1310,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -180,6 +323,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 570,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -193,6 +347,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 570,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -206,6 +371,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -219,6 +395,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1140,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -232,6 +419,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-body:brace#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1380,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -245,6 +443,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 570,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -258,6 +467,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-uc1-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2662,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -271,6 +491,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2008,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -284,6 +515,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 1046,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -297,6 +539,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 2092,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -310,6 +563,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -323,6 +587,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-body:brace#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1356,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -336,6 +611,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 1046,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -349,6 +635,17 @@
       "edge": "4면",
       "note": "멍장 도어(도어폭 기준)",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2170,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -362,6 +659,17 @@
       "edge": "-",
       "note": "멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-blind#0-0",
+      "slot": "finishing",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -375,6 +683,17 @@
       "edge": "-",
       "note": "ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤 (corner.md §3.5)",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-body:batten-front-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -388,6 +707,17 @@
       "edge": "-",
       "note": "ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75 (corner.md §3.5)",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-body:batten-side-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -401,6 +731,17 @@
       "edge": "4면",
       "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 90 (corner.md §3.3)",
       "finishCode": "",
+      "partId": "0-corner-blind-lower-blindfin#0-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1716,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -414,6 +755,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2008,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -427,6 +779,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 650,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -440,6 +803,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 762,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -453,6 +827,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -466,6 +851,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-body:brace#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1356,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -479,6 +875,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 635,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -492,6 +899,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc1-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2170,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -505,6 +923,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc2-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2008,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -518,6 +947,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc2-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 970,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -531,6 +971,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc2-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1940,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -544,6 +995,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc2-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -557,6 +1019,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc2-body:brace#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1356,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -570,6 +1043,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-lc2-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2348,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -583,6 +1067,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-molding-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2900,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -596,6 +1091,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-kick-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 4974,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     },
     {
@@ -609,6 +1115,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-molding:corner1-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 4440,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "싱크대"
     }
   ],
@@ -631,6 +1148,10 @@
       "totalArea": 2774478,
       "panelCount": 1
     }
+  },
+  "edgeBanding": {
+    "1": 14050,
+    "0.6": 68553
   },
   "hardware": [
     {
@@ -726,7 +1247,7 @@
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,295,720,2,0,0,0,0",
+    "측판,PB,15,295,720,2,1,0,1,1",
     "천판,PB,15,760,277,1,1,0,0,0"
   ],
   "hardwareCsvHead": [

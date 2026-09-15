@@ -11,6 +11,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-w1-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2340,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -24,6 +35,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -37,6 +59,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -50,6 +83,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -63,6 +107,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-body:side-1",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2340,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -76,6 +131,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-body:top-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -89,6 +155,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-body:bottom-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -102,6 +179,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-back-1",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -115,6 +203,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -128,6 +227,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 5532,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -141,6 +251,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-w2-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2780,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -154,6 +275,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -167,6 +299,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -180,6 +323,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -193,6 +347,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -206,6 +371,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-w2-body:side-1",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1900,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -219,6 +395,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-body:top-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -232,6 +419,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-body:bottom-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -245,6 +443,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-back-1",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -258,6 +467,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1740,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -271,6 +491,17 @@
       "edge": "1면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-drawerbox:fb-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 828,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -284,6 +515,17 @@
       "edge": "1면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-drawerbox:side-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 440,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -297,6 +539,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-drawerbox:bottom-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -310,6 +563,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-drawerbox:brace-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 880,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -323,6 +587,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 4132,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -336,6 +611,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-drawer#0-0",
+      "slot": "drawerFront",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2502,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -349,6 +635,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-w3-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2340,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -362,6 +659,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -375,6 +683,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -388,6 +707,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -401,6 +731,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -414,6 +755,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-body:side-1",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2340,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -427,6 +779,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-body:top-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -440,6 +803,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-body:bottom-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -453,6 +827,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-back-1",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -466,6 +851,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-shelf#1-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -479,6 +875,17 @@
       "edge": "1면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-drawerbox:fb-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 708,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -492,6 +899,17 @@
       "edge": "1면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-drawerbox:side-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 440,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -505,6 +923,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-drawerbox:bottom-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -518,6 +947,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-innerdrawer:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -531,6 +971,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-innerdrawer:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1200,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -544,6 +995,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-innerdrawer:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 750,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -557,6 +1019,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-innerdrawer:band-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1500,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -570,6 +1043,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-innerdrawer:molding-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 700,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -583,6 +1067,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-innerdrawer:front-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2084,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -596,6 +1091,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-drawerbox:brace-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 880,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -609,6 +1115,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 5532,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -622,6 +1139,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-molding-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 4880,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -635,6 +1163,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-molding:left-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 4880,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -648,6 +1187,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-molding:left-pad-0",
+      "slot": "finishing",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 4880,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -661,6 +1211,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-ep-kick-0",
+      "slot": "kick",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 4880,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -674,6 +1235,17 @@
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-channel:front-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1800,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -687,6 +1259,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-pedestal:fb-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -700,6 +1283,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-pedestal:side-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 565,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -713,6 +1307,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w1-pedestal:brace-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 535,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -726,6 +1331,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-pedestal:fb-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -739,6 +1355,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-pedestal:side-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 565,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -752,6 +1379,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w2-pedestal:brace-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 535,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -765,6 +1403,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-pedestal:fb-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 870,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -778,6 +1427,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-pedestal:side-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 565,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     },
     {
@@ -791,6 +1451,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-w3-pedestal:brace-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 535,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "붙박이장"
     }
   ],
@@ -813,6 +1484,10 @@
       "totalArea": 7133280,
       "panelCount": 3
     }
+  },
+  "edgeBanding": {
+    "1": 35396,
+    "0.6": 109027
   },
   "hardware": [
     {
@@ -877,7 +1552,7 @@
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,600,1140,2,0,0,0,0",
+    "측판,PB,15,600,1140,2,1,0,1,1",
     "천판,PB,15,870,582,1,1,0,0,0"
   ],
   "hardwareCsvHead": [
