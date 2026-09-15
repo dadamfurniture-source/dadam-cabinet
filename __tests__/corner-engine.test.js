@@ -4,6 +4,7 @@
  */
 const {
   deriveCorner,
+  blindDoorPartW,
   seedCornerModules,
   removeCornerModules,
   seedUpperCornerModules,
@@ -35,6 +36,16 @@ describe('deriveCorner — corner.md §3 확정 예시', () => {
 
   test('멍장 W = 멍 665 + 도어 411 = 1076', () => {
     expect(deriveCorner(base).blindW).toBe(1076);
+  });
+
+  // 2026-09-15 결정 (corner.md §3.5.1 "마감재 다음 바로 도어"): 멍장 도어는 목대를 덮는다.
+  //   정면 셀 [멍가림판 = 멍 − 15][도어 자리 = doorW + 15], 도어 재단 = 자리 − 갭 4 = doorW + 11.
+  test('정면 부재: 멍가림판 650(665−15) · 도어 재단 422(411+15−4) · 합 = 카카스 1076', () => {
+    const d = deriveCorner(base);
+    expect(d.blindCoverW).toBe(650);
+    expect(d.doorPartW).toBe(422);
+    expect(d.doorPartW).toBe(d.doorW + 11);
+    expect(d.blindCoverW + d.doorPartW + 4).toBe(d.blindW);
   });
 
   test('원장 불변식: EP + 수납도어들 + 멍장W + 여유50 === 라인W', () => {
@@ -357,6 +368,88 @@ describe('W10-3: assertCornerLedger — 원장 불변식 (§4.3)', () => {
   test('멍장 없는 item은 통과 (ㅡ자 회귀 없음)', () => {
     const item = { modules: [{ id: 1, pos: 'lower', w: 600 }], specs: {} };
     expect(assertCornerLedger(item, 'lower').ok).toBe(true);
+  });
+
+  // 2026-09-15 결정 (corner.md §3.5.2): 도어가 목대를 덮어도 카카스 W 는 멍 + doorW 그대로다.
+  //   정면 원장 = 멍가림판(멍 − 15) + 도어 자리(doorW + 15) = 멍장 W — 목대 15 가 칸을 옮길 뿐이다.
+  test('정면 원장: 멍 665 + 도어 411 = 멍장 W 1076 → ok (라인 원장도 그대로)', () => {
+    const item = makeLedgerItem();
+    const blind = item.modules.find((m) => m.id === 'corner-blind-lower');
+    blind.blindZoneW = 665;
+    blind.doorW = 411;
+    const r = assertCornerLedger(item, 'lower', { strict: true });
+    expect(r.ok).toBe(true);
+    // 정면 두 칸의 합 = 카카스: (665 − 15) + (411 + 15) = 1076, 도어 재단은 자리 − 4
+    expect((665 - 15) + (blindDoorPartW(411) + 4)).toBe(blind.w);
+  });
+
+  test('정면 원장 위반: 멍 + doorW ≠ 멍장 W → strict throw, 아니면 보정 없이 경고', () => {
+    const item = makeLedgerItem();
+    const blind = item.modules.find((m) => m.id === 'corner-blind-lower');
+    blind.blindZoneW = 715;   // 옛 값(여유 50 이 멍 밖에 있던 시절) 이 남은 저장 설계
+    blind.doorW = 411;
+    expect(() => assertCornerLedger(item, 'lower', { strict: true })).toThrow(/정면 원장/);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = assertCornerLedger(item, 'lower');
+    warn.mockRestore();
+    expect(r.ok).toBe(false);
+    expect(r.front).toBe(true);
+    expect(r.corrected).toBe(false);
+    expect(item.modules.find((m) => m.id === 's1').w).toBe(413); // 수납 모듈은 건드리지 않는다
+  });
+});
+
+describe('2026-09-15 결정: 멍장 도어는 목대를 덮는다 — 도어 재단 = doorW + 11 (corner.md §3.5.1 · §3.5.2)', () => {
+  test('blindDoorPartW: 자리(doorW + 목대 15) − 갭 4', () => {
+    expect(blindDoorPartW(411)).toBe(422);
+    expect(blindDoorPartW(445)).toBe(456);
+    expect(blindDoorPartW('423')).toBe(434);
+    expect(blindDoorPartW(0)).toBe(11);
+    expect(blindDoorPartW(undefined)).toBe(11);
+  });
+
+  test('ㄱ자 하부 1970/650: doorW 411 → 도어 재단 422, 카카스는 그대로 1076', () => {
+    const d = deriveCorner({ lineW: 1970, adjTopD: 650, blindLineTopD: 650 });
+    expect(d.doorW).toBe(411);
+    expect(d.doorPartW).toBe(d.doorW + 11);
+    expect(d.blindW).toBe(1076);
+    expect(d.blindCoverW + d.doorPartW + 4).toBe(d.blindW);
+  });
+
+  test('ㄱ자 상부 1800/320: doorW 461 → 도어 재단 472', () => {
+    const d = deriveCorner({ lineW: 1800, adjTopD: 320, isUpper: true });
+    expect(d.doorW).toBe(461);
+    expect(d.doorPartW).toBe(472);
+    expect(d.blindCoverW).toBe(345 - 15);
+  });
+
+  test('ㄷ자: 두 코너가 서로 다른 라인을 보아도(650 / 700) 각 도어 재단은 제 doorW + 11', () => {
+    // 코너1: 인접 650 → 멍 665,  코너2: 인접 700 → 멍 715. 같은 라인 W 라도 doorW 가 다르다.
+    const c1 = deriveCorner({ lineW: 2800, adjTopD: 650, blindLineTopD: 650 });
+    const c2 = deriveCorner({ lineW: 2800, adjTopD: 700, blindLineTopD: 650 });
+    expect(c1.blindZoneW).toBe(665);
+    expect(c2.blindZoneW).toBe(715);
+    expect(c1.doorPartW).toBe(c1.doorW + 11);
+    expect(c2.doorPartW).toBe(c2.doorW + 11);
+    expect(c1.doorPartW).not.toBe(c2.doorPartW);
+    [c1, c2].forEach((d) => expect(d.blindCoverW + d.doorPartW + 4).toBe(d.blindW));
+  });
+
+  test('시드된 멍장은 doorW·blindZoneW 를 기록하고 도어 재단은 그 doorW 로 유도된다 (저장값 아님)', () => {
+    const item = {
+      d: 650,
+      modules: [{ id: 1, name: '개수대', type: 'sink', pos: 'lower', w: 1000 }],
+      specs: {
+        lowerLayoutShape: 'L', lowerSecondaryW: '1970', lowerSecondaryD: '650',
+        secondaryStartSide: 'left', lowerH: 870, sinkLegHeight: 150, topThickness: 12,
+        topSizes: [{ w: '', d: '650' }],
+      },
+    };
+    seedCornerModules(item);
+    const blind = item.modules.find((m) => m.id === 'corner-blind-lower');
+    expect(blind.doorW).toBe(411);
+    expect(blind.doorPartW).toBeUndefined();        // 파생값은 저장하지 않는다 — 옛 값이 남지 않게
+    expect(blindDoorPartW(blind.doorW)).toBe(422);
   });
 });
 
