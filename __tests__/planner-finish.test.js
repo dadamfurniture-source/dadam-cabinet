@@ -104,6 +104,7 @@ describe('부재 키 — 다시 그려도 같은 부재는 같은 키', () => {
     [{ entityKind: 'blindfin', areaIdx: 0 }, 'blindfin#0'],
     [{ entityKind: 'blank', areaIdx: 2 }, 'blank#2'],
     [{ entityKind: 'brace', areaIdx: 1 }, 'brace#1'],
+    [{ entityKind: 'brace', braceIdx: 1 }, 'brace#1'],   // P2-6: 모듈 단위 처짐방지목 순번
     [{ entityKind: 'finishing', finishingIdx: 0 }, 'finishing#0'],
     [{ entityKind: 'doorEdge', axis: 'left' }, null],
     [{ entityKind: 'area', areaId: 'a1' }, null],

@@ -91,10 +91,10 @@ describe('build — 그룹', () => {
       'countertop', 'compat',
     ]);
     expect(cat.groups.map((g) => g.label)).toEqual([
-      'Prestige · Acryl', 'Supreme · PET Matt', 'Supreme · PET Glossy', 'Prime · MFB', 'Body · PVC', 'Body · MFC', '상판', '구 7×7 (호환)',
+      'Prestige · Acryl', 'Supreme · PET Matt', 'Supreme · PET Glossy', 'Prime · MFB', 'Body · PVC', 'Body · MFC', '상판', '기타(호환)',
     ]);
-    // 항목 수 = 예림 7 + 상판 1 + 로컬 정본 전부 (DB 의 PET-OAK-M 은 중복이라 안 더한다)
-    expect(cat.entries).toHaveLength(7 + 1 + local.entries.length);
+    // 항목 수 = 예림 7 + 상판 1 + 로컬 정본 전부 + C2b 호환 코드(색 × 무광·유광) (DB 의 PET-OAK-M 은 중복이라 안 더한다)
+    expect(cat.entries).toHaveLength(7 + 1 + local.entries.length + local.colors.length * 2);
     expect(cat.entries.filter((e) => e.code === 'PET-OAK-M')).toHaveLength(1);
     expect(cat.byCode['YR-SM-02'].grain).toBe('v');
     expect(cat.byCode['PET-OAK-M'].group).toBe('compat');
@@ -110,7 +110,7 @@ describe('build — 그룹', () => {
     expect(compat.compat).toBe(true);
     expect(compat.collapsed).toBe(true);
     expect(compat.slots).toEqual(PLANNER_FINISH_SLOTS);
-    expect(compat.count).toBe(local.entries.length);
+    expect(compat.count).toBe(local.entries.length + local.colors.length * 2);
   });
   test('호환 항목은 D0 필드(code·label·hex·finish·finishLabel·tone·color·colorLabel)를 그대로 갖는다', () => {
     const d0 = local.entries.find((e) => e.code === 'PET-OAK-M');
@@ -128,7 +128,62 @@ describe('build — 그룹', () => {
     const none = C.plannerCatalogBuild([], null);
     expect(none.source).toBe('builtin');
     expect(none.groups.map((g) => g.key)).toEqual(['compat']);
-    expect(none.entries).toHaveLength(PLANNER_FINISH_FALLBACK.finishes.length * PLANNER_FINISH_FALLBACK.colors.length);
+    // 폴백 7 마감 × 7 색 + 호환 코드 7 색 × 무광·유광 (폴백엔 GRY BGE NVY 가 없다 — 정본과 같아야 하므로 더하지 않는다)
+    expect(none.entries).toHaveLength(PLANNER_FINISH_FALLBACK.finishes.length * PLANNER_FINISH_FALLBACK.colors.length
+      + PLANNER_FINISH_FALLBACK.colors.length * 2);
+    expect(plannerFinishHex(none, 'WHT-G')).toBe('#ffffff');
+    expect(plannerFinishLookup(none, 'GRY-M')).toBeNull();
+  });
+});
+
+describe('C2b 호환 코드 {COLOR}-M / {COLOR}-G (designui-catalog-select.md 기타(호환) 그룹)', () => {
+  const api = require('../js/detaildesign/bom-finish-color.js');
+  const cat = C.plannerCatalogBuild(ROWS, window.DadamBomFinishColor);
+  const colors = window.DadamBomFinishColor.DOOR_COLOR_CATALOG;
+
+  test('색 목록(옛 7색 + GRY BGE NVY) × 무광·유광 = 20 코드가 호환 그룹에, 구 7×7 뒤에 선다', () => {
+    expect(api).toBeDefined();
+    expect(colors.map((c) => c.code)).toEqual(['CRM', 'OAK', 'WNT', 'GRP', 'WHT', 'BLK', 'SAG', 'GRY', 'BGE', 'NVY']);
+    const tones = cat.entries.filter((e) => e.compatTone);
+    expect(tones).toHaveLength(20);
+    expect(tones.map((e) => e.code)).toEqual(colors.flatMap((c) => [c.code + '-M', c.code + '-G']));
+    tones.forEach((e) => { expect(e.group).toBe('compat'); expect(e.slots).toEqual(PLANNER_FINISH_SLOTS); });
+    const compat = cat.groups.find((g) => g.key === 'compat');
+    const first = compat.codes.indexOf('WHT-M');
+    expect(first).toBeGreaterThan(compat.codes.indexOf('PET-OAK-M'));   // 구 7×7 뒤
+    expect(compat.codes.indexOf('WHT-G')).toBe(first + 1);              // 색 안에서 무광 → 유광
+  });
+
+  test('WHT-G: 색은 화이트 hex, 톤 gloss, 라벨 "화이트 · 유광" — plannerFinishLookup/Hex 가 그대로 푼다', () => {
+    const e = plannerFinishLookup(cat, 'WHT-G');
+    expect(e).toMatchObject({ code: 'WHT-G', hex: '#ffffff', tone: 'gloss', label: '화이트 · 유광', colorLabel: '화이트', color: 'white', finishLabel: '유광' });
+    expect(plannerFinishHex(cat, 'WHT-G')).toBe('#ffffff');
+    expect(plannerFinishLookup(cat, 'GRY-M')).toMatchObject({ hex: '#9e9e9e', tone: 'matte', label: '그레이 · 무광' });
+    expect(plannerFinishLookup(cat, 'NVY-G')).toMatchObject({ hex: '#1a237e', tone: 'gloss', label: '네이비 · 유광' });
+    expect(cat.byCode['WHT-G']).toBe(e);
+  });
+
+  test('부모의 합성 코드 규칙과 같다 — 다른 접미사·기판 코드·예림 코드는 만들지 않는다', () => {
+    expect(plannerFinishLookup(cat, 'WHT-E')).toBeNull();
+    expect(plannerFinishLookup(cat, 'WHT')).toBeNull();
+    expect(plannerFinishLookup(cat, 'OAK-X')).toBeNull();
+    expect(plannerFinishLookup(cat, 'YR-SM-01-G')).toBeNull();
+    // 구 7×7 의 PET-OAK-G 는 정본 코드라 그대로 있다 — 합성 코드가 아니다
+    expect(plannerFinishLookup(cat, 'PET-OAK-G').compatTone).toBeUndefined();
+  });
+
+  test('슬롯 필터·검색에 걸린다 — 도어 슬롯의 호환 그룹, 이름 검색', () => {
+    expect(C.plannerCatalogGroupsForSlot(cat, 'door').map((g) => g.key)).toContain('compat');
+    // '유광' 은 구 7×7 의 '도장 유광 · …' 도 맞는다 — 합성 코드만 고르면 색 순서대로 -G 열 개
+    expect(C.plannerCatalogSearch(cat, '유광').filter((e) => e.compatTone).map((e) => e.code)).toEqual(colors.map((c) => c.code + '-G'));
+    // 'wht-' 는 PET-WHT-M 같은 구 코드도 맞는다 — 라벨 '화이트 · ' 로 합성 코드만
+    expect(C.plannerCatalogSearch(cat, '화이트 · ').map((e) => e.code)).toEqual(['WHT-M', 'WHT-G']);
+  });
+
+  test('plannerCatalogCompatToneEntries — 깨진 색(코드·hex 없음)은 건너뛴다', () => {
+    const out = C.plannerCatalogCompatToneEntries([{ code: 'WHT', label: '화이트', hex: '#FFFFFF', value: 'white' }, { code: '', hex: '#000000' }, { code: 'X', hex: 'oops' }], 3);
+    expect(out.map((e) => [e.code, e.hex, e.sort])).toEqual([['WHT-M', '#ffffff', 3], ['WHT-G', '#ffffff', 4]]);
+    expect(C.plannerCatalogCompatToneEntries(null, 0)).toEqual([]);
   });
 });
 

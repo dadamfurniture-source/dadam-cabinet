@@ -362,7 +362,8 @@ function plannerFinishPartKeyOf(ud) {
     case 'blind': return 'blind#' + idx(ud.areaIdx);
     case 'blindfin': return 'blindfin#' + idx(ud.areaIdx);
     case 'blank': return 'blank#' + idx(ud.areaIdx);
-    case 'brace': return 'brace#' + idx(ud.areaIdx);
+    // P2-6: 처짐방지목은 모듈 단위 부재라 braceIdx(0·1)로 센다. areaIdx 는 예전(양문 칸마다 한 장) userData 호환.
+    case 'brace': return 'brace#' + idx(ud.braceIdx != null ? ud.braceIdx : ud.areaIdx);
     case 'finishing': return 'finishing#' + idx(ud.finishingIdx);
     default: return null;
   }
@@ -433,6 +434,8 @@ function plannerFinishCatalog(api) {
   return {
     entries,
     finishes: finishes.map((f) => ({ value: f.value, label: f.label, code: f.code, tone: f.tone })),
+    // 색 목록도 실어 보낸다 — planner-catalog.js 가 호환 코드 {COLOR}-M/G 를 만드는 데 쓴다 (더하기만).
+    colors: colors.map((c) => ({ value: c.value, code: c.code, label: c.label, hex: c.hex })),
     fallback: !ok,
   };
 }
