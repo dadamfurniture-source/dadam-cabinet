@@ -105,6 +105,18 @@
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
     },
     {
+      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|door|dims",
+      "kind": "dims",
+      "fixture": "cornerL",
+      "moduleId": "corner-blind-area-lower-1--area-lower-0",
+      "family": "door",
+      "scene": "678×414×18 ×1",
+      "bom": "678×429×18 ×1",
+      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
+      "cause": "멍장 정면 치수",
+      "reason": "결정(2026-09-15): 도어가 목대를 덮는다(doorW+11). 3D 는 아직 doorW−4 — 플래너 후속 PR 에서 맞춘다"
+    },
+    {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|kick|only3d",
       "kind": "only3d",
       "fixture": "cornerL",

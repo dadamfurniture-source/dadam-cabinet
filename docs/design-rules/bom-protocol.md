@@ -23,6 +23,7 @@
 |------|-----|
 | 원판 규격 | 1220 × 2440mm (`data-constants.js` `SHEET_W`/`SHEET_H` 가 정본, 추출기·재단 도면은 같은 값으로 폴백) |
 | 멍판 마감재 재단 폭 | **150mm** = 자리 60 + 멍판 위 겹침 90 (`CORNER_FINISH_PART_W`, W12-72: 100 → 150. `corner.md` §3.3) |
+| 멍장 도어 재단 폭 | **doorW + 11** = 도어 자리(doorW + 목대 15) − 갭 4. 도어가 경첩목대를 **덮는다** (2026-09-15 결정, `corner.md` §3.5.1). doorW 는 라인 균등 분배 폭(§3.4), 카카스 W 가 아니다. `corner-engine.js blindDoorPartW` · `extractors.js blindDoorPartW` |
 | 본체 자재 | **PB `T`** — 설계별 선택값. 기본 15T, 18T 선택 가능 |
 | 도어 자재 | **MDF 18T** (본체 두께와 무관한 별개 값) |
 | 뒷판 자재 | **MDF 2.7T** |
