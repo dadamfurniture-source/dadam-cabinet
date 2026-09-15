@@ -100,7 +100,9 @@ describe('slot — planner-finish 7 슬롯 + back', () => {
     expect(slotOf('#1 하부장-서랍장', '측판')).toBe('body');
     expect(slotOf('#1 하부장-서랍장', '뒷판')).toBe('back');
     expect(slotOf('#1 하부장-서랍장', '서랍밑판')).toBe('back');
-    expect(slotOf('#1 하부장-서랍장', '목찬넬')).toBe('handle');
+    // 2026-09-15: 서랍장 모듈 목찬넬은 중간 목찬넬(전면·지면) 두 부재 — 둘 다 손잡이 슬롯
+    expect(slotOf('#1 하부장-서랍장', '목찬넬(중간 전면)')).toBe('handle');
+    expect(slotOf('#1 하부장-서랍장', '목찬넬(중간 지면)')).toBe('handle');
     expect(slotOf('#1 EP', '상몰딩')).toBe('finishing');
     expect(slotOf('#1 EP', '휠라(좌)')).toBe('finishing');
     expect(slotOf('#1 EP', '걸레받이')).toBe('kick');
@@ -393,7 +395,7 @@ describe('엣지밴딩 — edges/edgeLen/edgeT/edgeCode + 요약 edgeBanding', (
     expect(oneRow(rows, '하부장-서랍장', '측판').finishCode).toBe('MFB-WHT');
     expect(oneRow(rows, '하부장-서랍장', '측판').edgeCode).toBeNull();
     expect(oneRow(rows, 'EP', '걸레받이').edgeCode).toBeNull();
-    expect(oneRow(rows, '하부장-서랍장', '목찬넬').edgeCode).toBeNull();
+    expect(oneRow(rows, '하부장-서랍장', '목찬넬(중간 전면)').edgeCode).toBeNull();
   });
 
   test('요약 edgeBanding = 두께별 Σ edgeLen × qty, summary 옆(형제 키)에 둔다', () => {
