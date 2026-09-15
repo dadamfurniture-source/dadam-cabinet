@@ -223,6 +223,28 @@ describe('경고 — 조용히 틀리지 않게', () => {
     expect(r.warnings.some((w) => w.includes('자동계산 전'))).toBe(true);
   });
 
+  test('키큰장은 자동계산 전이어도 경고하지 않는다 — 세로 스택은 셀을 나누지 않는다', () => {
+    // 키큰장 단(tier)은 areaWidths 를 갖지 않는다. 폭 그대로 한 장이 정상이라
+    // '자동계산 전' 경고는 헛경고다 (사용자 결정 2026-09-15). 하부장은 여전히 경고한다.
+    const p = payload({
+      modules: [
+        { id: 'tall-0', section: 'tall', W: 600, H: 2300, D: 650, x: 0, y: 0 },
+        { id: 'tall-1', section: 'tall', W: 600, H: 2300, D: 650, x: 0, y: 0 },
+        { id: 'lower-0', section: 'lower', W: 1800, H: 870, D: 650, x: 700, y: 0 },
+      ],
+      structures: {},
+    });
+    const r = convertFull(p);
+    // 키큰장 둘 다 폭 그대로 한 모듈 — 경고 없이 그대로 간다
+    const talls = r.modules.filter((m) => m.type === 'tall');
+    expect(talls).toHaveLength(2);
+    expect(talls.every((m) => m.w === 600)).toBe(true);
+    const preCalc = r.warnings.filter((w) => w.includes('자동계산 전'));
+    expect(preCalc).toHaveLength(1);
+    expect(preCalc[0]).toContain('lower-0');
+    expect(preCalc.some((w) => w.includes('tall-'))).toBe(false);
+  });
+
   test('셀 폭 합이 모듈 폭과 다르면 경고 (배치 변경 후 재계산 누락)', () => {
     const p = payload({
       modules: [{ id: 'lower-0', section: 'lower', W: 2000, H: 870, D: 650, x: 0, y: 0 }],
