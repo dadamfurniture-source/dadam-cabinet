@@ -1669,6 +1669,10 @@
 
       /** 플래너에 마지막으로 넘겨 준(또는 받은) 모델의 키 정렬 JSON — 같은 모델을 다시 보내 되돌리기 이력을 더럽히지 않기 위해 */
       const _plannerDetailSynced = new WeakMap();
+      /** 이번 문서(load 이후)에서 플래너가 detail 을 한 번이라도 보내 왔는가 — 재전송 여부 판단 */
+      const _plannerDetailAcked = new WeakSet();
+      /** 보낸 뒤 메아리(PLANNER_DETAIL_CHANGE)가 안 오면 한 번 더 보내기까지의 간격 */
+      const PLANNER_DETAIL_RESEND_MS = 400;
 
       window.addEventListener('message', function (e) {
         if (!e.data || e.data.type !== 'PLANNER_DETAIL_CHANGE') return;
@@ -1677,9 +1681,49 @@
         const frame = _plannerFrameOfSource(e.source);
         const item = _plannerItemOfFrame(frame);
         if (!item) return;
+        _plannerDetailAcked.add(frame);
         _plannerDetailSynced.set(frame, _plannerDetailStable(e.data.detail));
         _applyPlannerDetailChange(item, e.data.detail);
       });
+
+      /**
+       * 품목의 detail 을 플래너에 되돌려 준다 (DADAM_DETAIL_SET, 같은 오리진).
+       * detail 이 없는 품목은 보내지 않는다 — 플래너는 자기 localStorage 로 시작한다.
+       * force 가 아니면 이미 맞춰 둔 모델은 다시 보내지 않는다 (플래너 replace 는 되돌리기 한 장을 쓴다).
+       */
+      function _sendPlannerDetail(iframe, item, force) {
+        if (!iframe || !iframe.contentWindow || !item || !_isPlannerDetail(item.detail)) return false;
+        const stable = _plannerDetailStable(item.detail);
+        if (!force && _plannerDetailSynced.get(iframe) === stable) return false;
+        try {
+          iframe.contentWindow.postMessage({ type: 'DADAM_DETAIL_SET', detail: item.detail }, location.origin);
+        } catch (err) {
+          return false;
+        }
+        _plannerDetailSynced.set(iframe, stable);
+        return true;
+      }
+
+      /**
+       * 플래너 iframe 이 문서를 열 때마다 detail 을 보낸다.
+       * 플래너는 iframe 안에서 배치(mockup-shell) → 구조(mockup-structure) 로 스스로 이동하고,
+       * 수신부(PlannerDetail.mount)는 구조 페이지에만 있으며 따로 "준비됨" 신호를 보내지 않는다.
+       * 그래서 이동할 때마다 다시 뜨는 load 이벤트에 건다 — 배치 페이지는 이 메시지를 무시하고,
+       * 구조 페이지는 인라인에서 동기로 mount 하므로 load 시점엔 이미 듣고 있다.
+       * 메아리가 안 오면 한 번 더 보낸다 (스크립트가 늦게 붙는 경우 대비).
+       * 품목 객체는 보낼 때 찾는다 — 불러오기가 selectedItems 를 통째로 바꿔도 새 객체를 본다.
+       */
+      function _attachPlannerDetailSender(iframe, uniqueId) {
+        const itemOf = () => (window.selectedItems || selectedItems).find((it) => String(it.uniqueId) === String(uniqueId)) || null;
+        iframe.addEventListener('load', () => {
+          _plannerDetailSynced.delete(iframe);   // 새 문서 — 이전에 맞춰 둔 것은 잊는다
+          _plannerDetailAcked.delete(iframe);
+          if (!_sendPlannerDetail(iframe, itemOf(), true)) return;
+          setTimeout(() => {
+            if (!_plannerDetailAcked.has(iframe)) _sendPlannerDetail(iframe, itemOf(), true);
+          }, PLANNER_DETAIL_RESEND_MS);
+        });
+      }
 
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
@@ -1738,6 +1782,7 @@
                 type: 'UPDATE_PLANNER',
                 payload: finishPayload,
               }, '*');
+              _sendPlannerDetail(existing, item);   // D1: 품목 쪽 detail 이 바뀌었으면 같이 맞춘다
             } else {
               console.warn('[Planner] contentWindow null — 100ms 후 재시도');
               setTimeout(sendUpdate, 100);
@@ -1774,6 +1819,7 @@
         iframe.dataset.planner = 'true';
         iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
         iframe.allow = 'accelerometer; autoplay; fullscreen';
+        _attachPlannerDetailSender(iframe, item.uniqueId);   // D1: 문서를 열 때마다 detail 을 되돌려 준다
         container.appendChild(iframe);
       }
 
@@ -2663,6 +2709,7 @@
               if (savedIframe) {
                 _positionPlannerOverlay(plannerOverlayId, container);
                 _syncPlannerState(item);
+                _sendPlannerDetail(savedIframe, item);   // D1: 품목 전환·되쓰기 뒤 detail 이 달라졌으면 맞춘다
               } else {
                 _createPlannerOverlay(plannerOverlayId, container, item);
               }
