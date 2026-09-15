@@ -575,6 +575,25 @@
           return typeof CORNER_HINGE_BATTEN_DEPTH !== 'undefined' ? CORNER_HINGE_BATTEN_DEPTH : 75;
         }
 
+        /**
+         * 멍장 도어 재단 폭 — corner.md §3.5.1 · 2026-09-15 결정 "멍장 도어는 목대를 덮는다".
+         *
+         *   도어 자리 = doorW + 목대 15   (정면 셀 `[멍 = 멍W−15][도어 = 도어W+15]`)
+         *   도어 재단 = 도어 자리 − 갭 4 = **doorW + 11**
+         *
+         * 경첩목대는 모듈 안쪽의 구조재라 정면에 드러나지 않는다 — 마감재 다음은 바로 도어다.
+         * 예전(P2 #652 까지)엔 도어가 목대 **옆**에 앉는다고 보고 doorW − 4 로 냈다 (411 → 407).
+         * 이제 411 → 422. corner-engine.js `blindDoorPartW` 와 같은 식이다 (브라우저 전역이 없을 때를
+         * 위해 여기서도 계산한다). doorW 가 없는 옛 저장 설계는 카카스 W − 4 그대로다 — 목대를 더하면
+         * 카카스보다 넓은 도어가 나간다.
+         */
+        blindDoorPartW(mod, W) {
+          const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
+          const doorW = parseFloat(mod.doorW);
+          if (!Number.isFinite(doorW) || doorW <= 0) return W - 4;
+          return doorW + battenT - 4;
+        }
+
         addBlindFrontParts(materials, modLabel, mod, H) {
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
@@ -686,8 +705,8 @@
           // 도어 — 목찬넬 단만 H−30, 나머지는 푸쉬 H−4 (bomTallTierDoorH — 경첩 수도 같은 높이를 본다)
           const doorH = bomTallTierDoorH(mod, tier, specs);
           if (isBlindModule(mod, 'lower')) {
-            const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
-            this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, doorH, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
+            const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
+            this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, doorH, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
             this.addBlindFrontParts(materials, modLabel, mod, H);
           } else {
             const doorCount = mod.doorCount || 0;
@@ -775,8 +794,8 @@
             if (isBlindModule(mod, 'upper')) {
               // W10-4: 상부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
-              const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
-              this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
+              const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
+              this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
               this.addBlindFrontParts(materials, modLabel, mod, H);
             } else if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
@@ -830,8 +849,8 @@
             const doorCount = mod.doorCount || 0;
             if (isBlindModule(mod, 'lower')) {
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
-              const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
-              this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
+              const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
+              this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
               this.addBlindFrontParts(materials, modLabel, mod, H);
             } else if (isDrawer) {
               // ★ 서랍장: 서랍 + 여닫이 도어 + 목찬넬

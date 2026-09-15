@@ -2,6 +2,10 @@
  * W10-4: extractors.js 멍장(코너장) BOM 산출 테스트
  * 설계 문서: docs/02-design/features/corner-autocalc.design.md §6
  * 규칙 원본: docs/design-rules/corner.md §3
+ *
+ * 2026-09-15 결정 (corner.md §3.5.1 "마감재 다음 바로 도어"): **멍장 도어는 목대를 덮는다.**
+ *   도어 재단 = doorW + 목대 15 − 갭 4 = doorW + 11.  예전 doorW − 4 는 도어가 목대 옆에 앉는 그림이었다.
+ *   멍가림판(멍 − 15)·마감재 150·경첩목대·카카스 W 는 그대로다.
  */
 global.dlog = () => {};
 
@@ -43,12 +47,20 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
   const blindLowerParts = materials.filter((m) => m.module === '하부장-LT망장');
   const blindUpperParts = materials.filter((m) => m.module === '상부장-LT망장');
 
-  test('하부 멍장 도어 = doorW(411) − 4 = 407 — 카카스 W(1076) 기준이면 오발주', () => {
+  // 2026-09-15 결정 (corner.md §3.5.1): 도어는 목대를 덮는다 → doorW + 15 − 4 = doorW + 11.
+  //   예전 407(doorW − 4)은 도어가 목대 옆에 앉아 정면에 목대 15 가 드러나는 그림이었다.
+  test('하부 멍장 도어 = doorW(411) + 목대 15 − 4 = 422 — 카카스 W(1076) 기준이면 오발주', () => {
     const door = blindLowerParts.find((m) => m.part === '도어');
     expect(door).toBeDefined();
-    expect(door.w).toBe(407); // 1100 − 4 = 1096이 나오면 회귀
+    expect(door.w).toBe(422); // 1076 − 4 = 1072 가 나오면 카카스 회귀, 407 이면 옛 doorW−4 회귀
     expect(door.qty).toBe(1);
     expect(door.h).toBe(708 - 30); // 몸통H(870−12−150) − 30
+  });
+
+  test('정면 원장: 멍가림판(650) + 도어 자리(422 + 4) = 카카스 W 1076 — 목대가 정면 칸을 차지하지 않는다', () => {
+    const door = blindLowerParts.find((m) => m.part === '도어');
+    const cover = blindLowerParts.find((m) => m.part === '멍가림판');
+    expect(cover.w + door.w + 4).toBe(1076);
   });
 
   test('하부 멍 가림판 = 2.7T MDF, 멍 폭(665) − 목대 15 = 650 (§3.5)', () => {
@@ -69,9 +81,9 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
     expect(bottom.w).toBe(1076 - 30); // W − T×2
   });
 
-  test('상부 멍장 도어 = doorW(461) − 4 = 457, H = 720 + overlap 15', () => {
+  test('상부 멍장 도어 = doorW(461) + 목대 15 − 4 = 472, H = 720 + overlap 15', () => {
     const door = blindUpperParts.find((m) => m.part === '도어');
-    expect(door.w).toBe(457); // 830 − 4 = 826이 나오면 회귀
+    expect(door.w).toBe(472); // 806 − 4 = 802 면 카카스 회귀, 457 이면 옛 doorW−4 회귀
     expect(door.h).toBe(735);
   });
 
@@ -175,9 +187,9 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
   const doors = blindParts.filter((m) => m.part === '도어');
   const covers = blindParts.filter((m) => m.part === '멍가림판');
 
-  test('도어 둘 다 doorW 기준이다 — 카카스 폭(1134)으로 나가면 오발주', () => {
+  test('도어 둘 다 doorW + 11 이다 (2026-09-15: 목대를 덮는다) — 카카스 폭(1134)으로 나가면 오발주', () => {
     expect(doors.length).toBe(2);
-    doors.forEach((d) => expect(d.w).toBe(423 - 4));
+    doors.forEach((d) => expect(d.w).toBe(423 + 11));   // 옛 doorW − 4 = 419 가 나오면 회귀
   });
 
   test('멍가림판이 둘 다 나온다 — 하나만 나오면 2.7T 한 장이 누락된다', () => {
