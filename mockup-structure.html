@@ -456,6 +456,16 @@
           <div class="empty-msg">3D 에서 부재를 누르세요</div>
         </div>
       </div>
+      <!-- D3: 최근 렌더 — 이 품목의 design_renders 썸네일(서명 URL). 디테일 모드에서만 보인다 (planner-detail.js CSS).
+           내용은 PlannerCapture.refreshStrip 이 채운다 (모드 진입·렌더 저장 뒤). -->
+      <div class="section" data-sec="detail-renders" style="display:none">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">최근 렌더</span>
+        </div>
+        <div class="section-body" id="detailRendersBody">
+          <div class="empty-msg">📷 렌더 저장을 누르면 여기 보입니다</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

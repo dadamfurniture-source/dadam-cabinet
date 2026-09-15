@@ -49,8 +49,8 @@ const PLANNER_DETAIL_CSS = `
 #detailPalette{display:none;flex:1;min-height:0;overflow-y:auto;flex-direction:column;gap:8px;padding:8px 8px 12px;font-size:11px;color:var(--text,#2b2620)}
 body.detail-mode #detailPalette{display:flex}
 body.detail-mode #mlBody,body.detail-mode .ml-mode-toggle{display:none}
-body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail"]){display:none!important}
-body.detail-mode #rightPanel .section[data-sec="detail"]{display:block!important}
+body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail"]):not([data-sec="detail-renders"]){display:none!important}
+body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"]{display:block!important}
 .pd-only{display:none}
 body.detail-mode .pd-only{display:inline-flex}
 body.detail-mode #loadDrawingBtn,body.detail-mode #saveDrawingBtn{display:none}
@@ -308,6 +308,10 @@ const PlannerDetail = {
     this._syncUrl(true);
     this.applyScene(true);   // three 가 아직 없으면 paintScene 이 처음 불릴 때 켠다
     this.refresh();
+    // D3: 우측 "최근 렌더" 띠 — planner-capture.js 가 있을 때만 (없어도 모드는 돈다)
+    if (typeof PlannerCapture !== 'undefined' && PlannerCapture && typeof PlannerCapture.onDetailEnter === 'function') {
+      try { PlannerCapture.onDetailEnter(); } catch (e) { /* 무해 */ }
+    }
     if (!o.quiet) this.toast('🎨 디테일 모드 — 팔레트에서 마감을 고르고 3D 부재를 누르세요 (Shift+클릭 = 모듈 전체)');
     return true;
   },
