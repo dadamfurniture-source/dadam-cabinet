@@ -78,7 +78,8 @@ describe('그림자 색', () => {
 
 describe('양문 셀도 도어마다 테두리를 두른다 (W12-27)', () => {
   const from = SRC.indexOf("if (type === 'door' && meta.is2D)");
-  const branch = SRC.slice(from, SRC.indexOf('BAND_BRACE_W', from));
+  // P2-6: 처짐방지목이 도어 칸 밖(addBraces)으로 나가 BAND_BRACE_W 가 이 가지 안에 없다 — 우 도어 테두리까지가 가지다.
+  const branch = SRC.slice(from, SRC.indexOf('addEdgeOutline(dRight, parent', from));
 
   test('도어 한 장씩 addDoorReveal 을 부른다', () => {
     // 예전엔 셀 전체에 한 번만 불러, 셀 안쪽 두 도어 사이에 테두리가 없었다.
