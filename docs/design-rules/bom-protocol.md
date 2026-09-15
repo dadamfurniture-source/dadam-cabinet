@@ -100,11 +100,16 @@
 
 | 부품 | 자재 | 두께 | 크기 |
 |------|------|------|------|
+| 상몰딩 | MDF | 18T | moldingH × 상부장 폭 합 — **상부장이 있을 때만** (P1-2; 예전엔 `totalUpperW \|\| effectiveW` 로 하부 폭에 떨어졌다) |
 | 걸레받이 | MDF | 18T | effectiveW × (legH-5) |
 | 목찬넬(전면) | MDF | 18T | 52 × effectiveW |
 | 목찬넬(지면) | MDF | 18T | 40 × effectiveW |
 | 휠라(좌) | MDF | 18T | finishLeftWidth × lowerH |
 | 휠라(우) | MDF | 18T | finishRightWidth × lowerH |
+| 상판 | 18 → MDF(도어자재) / 12·50 → 인조대리석 | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D · 1장 · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판 |
+
+> `effectiveW` = 하부장 모듈 폭 합. **키큰장 단(`type:'tall'`)과 쿡탑장은 뺀다** (P1-1). 키큰장은 하부장 규칙이 아니라
+> `sink.md` §5.1 단별 부재표(단별 도어 H · shelfCount · 좌대 상자 · 상몰딩 · 목찬넬)를 탄다 — `extractors.js addTallTierParts`.
 
 ---
 
@@ -394,6 +399,7 @@ partId = `${itemIdx}-${moduleId}-${partKey}-${n}`     예: 0-l2-drawer#0-0, 1-w1
 | `handle` | `channel:front` `channel:back` | 목찬넬(전면·지면) |
 | `finishing` | `molding` `molding:left/right[-pad]` `molding:corner1/2` `filler:left/right/corner1/2` `ep:left/right` `blind#k` `blindfin#k` | 상몰딩 · 좌우 몰딩·덧대 · 휠라 · EP · 멍가림판/멍판 EP · 멍판 마감재 |
 | `kick` | `kick` `pedestal:fb/side/brace` | 걸레받이 · 좌대 |
+| `top` | `top` | 상판 (P1-3 — 품목 단위 `ep` 한 장. 마감 코드는 디테일 `top` 슬롯 > `specs.topColor` 의 `TOP-*`; `edgeCode` 는 없다) |
 
 BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래너 부재 여럿을 대표한다. 디테일 모델의 부재 단위 지정이 행에 닿도록
 `extractors.js` `bomFinishCandidates` 가 후보를 늘어놓는다: `body:side ← body:left/right`, `door#k ← door#k-0/1`(양문),
