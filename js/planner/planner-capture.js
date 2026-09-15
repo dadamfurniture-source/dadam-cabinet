@@ -58,6 +58,27 @@ const PLANNER_CAPTURE_BOUNDS_SKIP = { area: true, pick: true };
 const PLANNER_CAPTURE_ASPECT_MIN = 0.5;
 const PLANNER_CAPTURE_ASPECT_MAX = 3;
 
+/** 우측 "최근 렌더" 띠의 CSS. 메뉴는 planner-drawing-menu.js 의 .pdm-* 를 그대로 쓴다. */
+const PLANNER_CAPTURE_CSS = `
+.pc-head{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10.5px;font-weight:600;color:var(--text-dim,#7a7062);margin-bottom:6px}
+.pc-head .pc-refresh{border:1px solid var(--line,#e5e0d4);background:#fff;color:var(--text-dim,#7a7062);border-radius:999px;padding:1px 7px;font-size:11px;cursor:pointer;font-family:inherit}
+.pc-hint{font-size:10px;color:var(--text-faint,#a89c84);line-height:1.5}
+.pc-thumbs{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.pc-thumb{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line,#e5e0d4);border-radius:6px;background:#fff;padding:3px;text-decoration:none;color:var(--text,#2b2620);min-width:0}
+.pc-thumb img{display:block;width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:4px;background:#f4efe7}
+.pc-thumb .pc-cap{font-size:9.5px;color:var(--text-dim,#7a7062);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-thumb .pc-nourl{display:block;aspect-ratio:3/2;font-size:10px;color:var(--text-faint,#a89c84);text-align:center;line-height:60px}
+a.pc-thumb:hover{border-color:var(--brand-mid,#b8956c)}
+`;
+
+function plannerCaptureInjectCss() {
+  if (typeof document === 'undefined' || document.getElementById('planner-capture-css')) return;
+  const st = document.createElement('style');
+  st.id = 'planner-capture-css';
+  st.textContent = PLANNER_CAPTURE_CSS;
+  document.head.appendChild(st);
+}
+
 // ── 순수 함수 ────────────────────────────────────────────
 
 /** 'module:lower-0' → {kind:'module', moduleId:'lower-0'}. 나머지는 그대로. */
@@ -647,6 +668,69 @@ const PlannerCapture = {
       this.busy = false;
       this._setBusy(false);
     }
+  },
+
+  // ── 최근 렌더 띠 (우측 패널 #detailRendersBody) ────────────
+
+  /** 디테일 모드에 들어올 때 PlannerDetail.enter 가 부른다. */
+  onDetailEnter() {
+    plannerCaptureInjectCss();
+    return this.refreshStrip();
+  },
+
+  /**
+   * 이 품목의 최근 렌더를 서명 URL 썸네일로. 스코프가 없으면 그 이유를 한 줄로.
+   * @returns {Promise<{ok:boolean, rows:object[]}>}
+   */
+  async refreshStrip() {
+    const host = (typeof document !== 'undefined') ? document.getElementById('detailRendersBody') : null;
+    if (!host) return { ok: false, rows: [] };
+    plannerCaptureInjectCss();
+    if (typeof PlannerStore === 'undefined' || !PlannerStore) {
+      host.innerHTML = '<div class="empty-msg">이 화면에서는 계정 렌더를 볼 수 없습니다</div>';
+      return { ok: false, rows: [] };
+    }
+    const seq = (this._stripSeq = (this._stripSeq || 0) + 1);
+    const r = await PlannerStore.listRenders(this.ids(), { limit: 12 });
+    if (seq !== this._stripSeq) return r;   // 나중에 시작한 갱신이 이긴다
+    this.renderStrip(host, r);
+    return r;
+  },
+
+  renderStrip(host, r) {
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    if (!r || !r.ok) {
+      const why = r && r.reason;
+      const text = why === 'no-scope' ? '설계를 저장하면 계정의 렌더가 여기 보입니다'
+        : why === 'no-session' ? '로그인하면 계정의 렌더가 여기 보입니다'
+        : why === 'no-item' ? '품목을 먼저 추가하세요'
+        : why === 'no-sdk' ? '이 화면에서는 계정 렌더를 볼 수 없습니다'
+        : '렌더 목록을 읽지 못했습니다' + (r && r.message ? ' — ' + r.message : '');
+      host.innerHTML = `<div class="empty-msg">${esc(text)}</div>`;
+      return;
+    }
+    const rows = r.rows || [];
+    const parts = [`<div class="pc-head"><span>${rows.length ? `최근 ${rows.length}장` : '아직 없음'}</span><button type="button" class="pc-refresh" title="다시 읽기">↻</button></div>`];
+    if (!rows.length) {
+      parts.push('<div class="pc-hint">📷 렌더 저장을 누르면 정면·3/4·평면이 계정에 저장됩니다</div>');
+    } else {
+      parts.push('<div class="pc-thumbs">');
+      rows.forEach((row) => {
+        const when = (typeof plannerSnapshotWhen === 'function') ? plannerSnapshotWhen(row.created_at) : '';
+        const label = (PLANNER_CAPTURE_KIND_LABEL[row.kind] || row.kind) + (row.kind === 'module' && row.module_id ? ' ' + row.module_id : '');
+        const size = (row.width && row.height) ? `${row.width}×${row.height}` : '';
+        const inner = row.url
+          ? `<img src="${esc(row.url)}" alt="${esc(label)}" loading="lazy">`
+          : '<span class="pc-nourl">URL 없음</span>';
+        parts.push(row.url
+          ? `<a class="pc-thumb" href="${esc(row.url)}" target="_blank" rel="noopener" title="${esc(label)} · ${esc(when)} · ${esc(size)}">${inner}<span class="pc-cap">${esc(label)} · ${esc(when)}</span></a>`
+          : `<div class="pc-thumb" title="${esc(label)}">${inner}<span class="pc-cap">${esc(label)} · ${esc(when)}</span></div>`);
+      });
+      parts.push('</div>');
+    }
+    host.innerHTML = parts.join('');
+    const btn = host.querySelector('.pc-refresh');
+    if (btn) btn.onclick = () => this.refreshStrip();
   },
 
   _menu: null,
