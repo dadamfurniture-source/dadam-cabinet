@@ -2239,10 +2239,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     content.appendChild(outline);
 
     // 상하 분할
+    // 2026-09-15: 목찬넬 하부장의 "도어 + 하부 서랍" 은 규칙 파일이 전면을 정한다 (drawerLayoutFor).
+    //   예전엔 3D 만 그 배치를 쓰고 정면도는 하부를 **한 칸**으로 그려, 개별 모듈 패널의 미리보기가
+    //   3D 와 다른 그림을 보여줬다 (서랍 3단인데 미리보기는 한 칸). 같은 배치를 쓴다.
+    //   레이아웃 y 는 **몸통 상단에서 아래로** 잰 값이라 모듈 상단 기준으로 옮긴다.
+    const frontL = drawerLayoutFor(m, s);
+    const MIN_FRONT = frontL ? DadamDrawerRules.DRAWER_RULES.MIN_FRONT_H : 0;
+    const bodyTopOff = frontL ? Math.max(0, m.H - baseOffsetOf(m, s) - bodyHeightOf(m, s)) : 0;
+    const frontY = (f) => offsetY + bodyTopOff + f.y0;
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? s.drawerHeight : 0;
-    const topH = m.H - drawerH;
-    const topY = offsetY;             // 모듈 위쪽 (천장 매달림이면 ceiling=0)
-    const drawerY = offsetY + topH;   // 하부 서랍 영역 시작
+    const topH = frontL ? frontL.fronts[0].h : m.H - drawerH;
+    const topY = frontL ? frontY(frontL.fronts[0]) : offsetY;   // 모듈 위쪽 (천장 매달림이면 ceiling=0)
+    const drawerY = offsetY + (m.H - drawerH);   // 하부 서랍 영역 시작 (레이아웃이 없을 때)
 
     // W9-95: 불균등 cell 폭 (areaWidths) — fallback 균등.
     // W12-30: 같은 규칙이 여기와 cellWidthsOf 두 곳에 있었다 — 하나로 모은다.
@@ -2259,6 +2267,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const x = xAcc + GAP_HALF;
       const doorW = colW - MASTER_RULES.DOOR_GAP;
       const fill = colorForArea(cfg.fill, type);
+      if (topH < MIN_FRONT) { xAcc += colW; continue; }   // 2026-09-15: 최소 전면 미만 — 부재가 없으므로 그리지도 않는다
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
       r.setAttribute('x', x);
@@ -2403,8 +2412,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       xAcc += colW;   // 다음 cell
     }
 
-    // 하부 (도어+서랍 모드일 때만)
-    if (s.horizontalLayout === 'doorTopDrawerBottom' && drawerH > 0) {
+    // 2026-09-15: 서랍 전면 — 규칙이 정한 단마다 한 칸 (3D·BOM 과 같은 배치)
+    if (frontL) {
+      let dIdx = 0;
+      frontL.fronts.forEach((f) => {
+        if (f.kind !== 'drawer') return;
+        dIdx += 1;
+        if (f.h < MIN_FRONT) return;
+        const GAP_HALF = MASTER_RULES.DOOR_GAP / 2;
+        const y = frontY(f);
+        const r = document.createElementNS(ns, 'rect');
+        r.setAttribute('class', 'area-rect');
+        r.setAttribute('x', offsetX + GAP_HALF);
+        r.setAttribute('y', y);
+        r.setAttribute('width', m.W - MASTER_RULES.DOOR_GAP);
+        r.setAttribute('height', f.h);
+        r.setAttribute('fill', colorForArea(cfg.fill, 'drawer'));
+        r.setAttribute('stroke', cfg.stroke);
+        r.setAttribute('stroke-width', 2);
+        bindFrontCell(r, m, s, 'bottom', 'drawer', false);
+        content.appendChild(r);
+        const lab = document.createElementNS(ns, 'text');
+        lab.setAttribute('class', 'area-label');
+        lab.setAttribute('x', offsetX + m.W / 2);
+        lab.setAttribute('y', y + f.h / 2);
+        lab.setAttribute('text-anchor', 'middle');
+        lab.setAttribute('dominant-baseline', 'central');
+        lab.setAttribute('font-size', Math.min(m.W * 0.06, f.h * 0.4, 70));
+        lab.textContent = `서랍${dIdx} H=${f.h}`;
+        content.appendChild(lab);
+      });
+    }
+
+    // 하부 (도어+서랍 모드일 때만 · 레이아웃이 없을 때)
+    if (!frontL && s.horizontalLayout === 'doorTopDrawerBottom' && drawerH > 0) {
       const fill = colorForArea(cfg.fill, s.bottomType);
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
@@ -3274,8 +3315,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderModulePanelSections(m, s);
     syncModulePanelSections(s);
     renderModulePreview(m, s);
+    // 2026-09-15: 규칙이 내는 경고(최소 전면 미만·최대 단수 초과)를 그대로 보여준다 — 안 보이면 BOM 에서만 드러난다.
+    const warnL = drawerLayoutFor(m, s);
+    const warns = (warnL && warnL.warnings) || [];
     const dirtyEl = document.getElementById('mpDirty');
-    if (dirtyEl) dirtyEl.textContent = d.dirty ? '초안이 바뀌었습니다 — 적용을 누르면 플래너에 반영됩니다' : '플래너와 같습니다';
+    if (dirtyEl) {
+      dirtyEl.textContent = warns.length
+        ? '⚠ ' + warns[0]
+        : (d.dirty ? '초안이 바뀌었습니다 — 적용을 누르면 플래너에 반영됩니다' : '플래너와 같습니다');
+      dirtyEl.style.color = warns.length ? '#b4452e' : '';
+    }
     const apply = document.getElementById('btnApplyModule');
     const revert = document.getElementById('btnRevertModule');
     if (apply) { apply.disabled = !d.dirty; apply.onclick = () => applyModuleDraft(); }
@@ -3375,8 +3424,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       </div>
       ${s.horizontalLayout === 'doorTopDrawerBottom' ? `
         <div class="row">
-          <label>하부 H (mm)</label>
+          <label>서랍 전면 H (mm)</label>
           <input type="number" min="50" max="${m.H-50}" step="10" id="inpDrawerH" value="${s.drawerHeight}">
+        </div>
+        <div style="font-size:10px;color:#888;line-height:1.4">
+          서랍 <b>한 장</b>의 전면 높이입니다. 단수를 곱한 만큼 아래를 차지하고, 남는 높이가 위 도어가 됩니다.
         </div>
       ` : ''}
     `;
@@ -7322,6 +7374,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         ? Object.assign(frontSpanOf(drawerLayout, 0, legH, carcassH), { topGap: 0 })
         : { cy: topDoorY, h: frontH, topGap: doorTopGapOf(m, s) };
       // W12-61/65: 영역 보기도 멍판 마감재 종류와 멍판 EP 여부를 넘긴다 — 모듈 상세 보기(위)와 같은 메타.
+      // 2026-09-15: 최소 전면 미만은 부재로 내지 않으므로 3D 에서도 그리지 않는다.
+      if (!drawerLayout || doorSpan.h >= DadamDrawerRules.DRAWER_RULES.MIN_FRONT_H)
       addFrontPanel(g, frontCx, doorSpan.cy, frontW, doorSpan.h, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorSpan.topGap, blindFinish: (m.blind && m.blind.finish && m.blind.finish.section) || null, epBlind: !!(m.blind && m.blind.ep) }, areaLimitsFor(m)));
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
       if (drawerLayout) {
