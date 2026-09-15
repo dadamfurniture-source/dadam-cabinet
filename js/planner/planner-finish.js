@@ -434,6 +434,8 @@ function plannerFinishCatalog(api) {
   return {
     entries,
     finishes: finishes.map((f) => ({ value: f.value, label: f.label, code: f.code, tone: f.tone })),
+    // 색 목록도 실어 보낸다 — planner-catalog.js 가 호환 코드 {COLOR}-M/G 를 만드는 데 쓴다 (더하기만).
+    colors: colors.map((c) => ({ value: c.value, code: c.code, label: c.label, hex: c.hex })),
     fallback: !ok,
   };
 }
