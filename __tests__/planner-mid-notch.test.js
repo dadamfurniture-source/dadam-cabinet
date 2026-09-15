@@ -187,6 +187,15 @@ describe('서랍 박스 — 존에 레일 여유를 빼고', () => {
     expect(fn).toContain('f.box.h');
     expect(fn).toContain("entityKind: 'drawerBox'");
   });
+
+  test('박스 외경·길이는 규칙 파일 drawerBoxDims (레일 종류·깊이·자재 두께·사쿠리)', () => {
+    expect(fn).toContain('DadamDrawerRules.drawerBoxDims({ W: o.W, D: o.D, bodyT: o.T, drawerT: o.drawerT, rail: L.rail, boxH: f.box.h, sakuri: o.drawerSakuri })');
+    expect(fn).toContain('const boxW = dims.outerW;');
+    expect(fn).toContain('const boxD = dims.sideL;');
+    // 언더레일 W600·D550·15T: 외경 = (600 − 30 − 30 − 12) + 30 = 558, 측판 = 500 − 10 = 490
+    const d = RULES.drawerBoxDims({ W: 600, D: 550, bodyT: 15, rail: 'under', boxH: 120 });
+    expect([d.outerW, d.sideL]).toEqual([558, 490]);
+  });
 });
 
 describe('렌더 경로 — 전면 배치를 레이아웃이 정한다', () => {

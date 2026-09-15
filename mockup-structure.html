@@ -6090,14 +6090,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const rail = R.RAIL_CLEARANCE[L.rail] || R.RAIL_CLEARANCE[R.RAIL_DEFAULT];
     const topY = o.legH + o.carcassH;
     const frontZ = o.D / 2;
-    const boxW = o.W - R.BOX_FB_W_MINUS;
-    const boxD = R.BOX_LEN;
     L.fronts.forEach((f, i) => {
       if (f.kind !== 'drawer' || !f.box || !f.zone) return;
+      // 2026-09-15: 박스 외경은 레일 종류·모듈 깊이·자재 두께로 (drawerBoxDims) — 앞뒷판 + 2×서랍T, 측판 길이 = 레일 규격(−10 언더)
+      const dims = DadamDrawerRules.drawerBoxDims({ W: o.W, D: o.D, bodyT: o.T, drawerT: o.drawerT, rail: L.rail, boxH: f.box.h, sakuri: o.drawerSakuri });
+      const boxW = dims.outerW;
+      const boxD = dims.sideL;
       const bottomY = topY - f.zone.bottom + rail.below;
       const box = makeBox(boxW, f.box.h, boxD, DRAWER_BOX_COLOR, { roughness: 0.6, transparent: true, opacity: 0.55 });
       box.position.set(0, bottomY + f.box.h / 2, frontZ - boxD / 2);
-      box.userData = { entityKind: 'drawerBox', moduleId: o.ud && o.ud.moduleId, drawerIdx: i, size: f.box.size, fits: f.box.fits };
+      box.userData = { entityKind: 'drawerBox', moduleId: o.ud && o.ud.moduleId, drawerIdx: i, size: f.box.size, fits: f.box.fits,
+                       railLength: dims.railLength, outerW: dims.outerW, sideL: dims.sideL };
       parent.add(box);
       addEdgeOutline(box, parent, 0x000000, 0.6);
     });
@@ -6830,7 +6833,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const woodChannel = isWoodChannel(m, s);   // W12-5
     // 2026-09-15: 목찬넬 하부장의 "도어 + 하부 서랍" 은 규칙 파일이 전면·중간 따내기·박스를 정한다 (null 이면 예전 그대로)
     const drawerLayout = drawerLayoutFor(m, s);
-    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout });
+    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
+      drawerT: Number(s.drawerBoxT) || T, drawerSakuri: !!s.drawerSakuri });
     addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
       types: s.areaTypes, section: m.section });
 
