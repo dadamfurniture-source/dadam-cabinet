@@ -269,8 +269,10 @@ function plannerFinishClear(detail, level, slot, ctx) {
  *                                      : EP·몰딩·휠라·멍판·멍판 마감재 — 모두 "장 바깥을 마감하는 판".
  *                                        상몰딩(molding)도 마감재다.
  *   toe-kick · pedestal → kick         : 바닥 마감. 걸레받이(하부장)와 좌대(키큰·냉장고장)는 같은 자리.
- *   leg · area · module · pick · edge · reveal · carcass-line → null
+ *   leg · area · module · pick · edge · reveal · carcass-line · marker → null
  *                                      : 다리발은 플라스틱 부속이고, 나머지는 표시용 선·그림자·상자다.
+ *                                        marker 는 가전 자리 표시(분배기·후드 — PLANNER_MARKER_SECTIONS)의
+ *                                        반투명 상자다. 장이 아니므로 부재도 아니다 (2026-09-15 결정).
  */
 const PLANNER_FINISH_KIND_SLOT = {
   door: 'door', doorEdge: 'door', blank: 'door',
@@ -282,7 +284,7 @@ const PLANNER_FINISH_KIND_SLOT = {
 };
 
 /** 슬롯은 있지만 색을 **칠하지 않는** 종류 — 갭·그림자·테두리·선택 상자. 칠하면 그 표시가 사라진다. */
-const PLANNER_FINISH_PAINT_SKIP = ['edge', 'reveal', 'doorEdge', 'carcass-line', 'pick', 'area', 'module', 'leg'];
+const PLANNER_FINISH_PAINT_SKIP = ['edge', 'reveal', 'doorEdge', 'carcass-line', 'pick', 'area', 'module', 'leg', 'marker'];
 
 /** entityKind 문자열만으로 슬롯을 정한다. 모르는 종류는 null. */
 function plannerFinishSlotOfKind(kind) {
