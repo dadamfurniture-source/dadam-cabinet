@@ -1,12 +1,12 @@
 -- =============================================
--- 학습 데이터셋 — dataset_samples · dataset_reviews  (라벨 체계 v1)
+-- 학습 데이터셋 — dataset_samples · dataset_reviews  (라벨 체계 v1.1)
 --
 -- 메인 페이지의 네 가지 행동(시공사례 업로드 · 연출컷 생성 · 플래너 저장 ·
 -- 상세설계 저장)이 쓰는 표를 Worker(workers/dataset-api, 예정)가 10분마다
 -- 읽어 **한 모양의 레코드**로 옮겨 담는 곳이다. 클라이언트는 이 표에 직접
 -- 쓰지 않는다 — 정규화는 Worker 만 한다. 라벨 체계가 바뀌면 고칠 곳이 하나다.
 --
--- 라벨 축 다섯(media · phase · space · furniture · layout_shape)은 taxonomy v1 과
+-- 라벨 축 다섯(media · phase · space · furniture · layout_shape)은 taxonomy v1.1 과
 -- 같은 값이다. 값 목록을 CHECK 로 박아 DB 가 축 밖의 값을 막는다.
 -- 체계를 바꿀 때는 값을 **더하기만** 하고(이름을 바꾸지 않는다) taxonomy_version 을 올린다.
 --
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS dataset_samples (
     phase           TEXT NOT NULL DEFAULT 'after'
                       CHECK (phase IN ('before', 'after', 'in_progress', 'unknown')),
     space           TEXT NOT NULL DEFAULT 'unknown'
-                      CHECK (space IN ('kitchen', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony',
+                      CHECK (space IN ('kitchen', 'dining', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony',
                                        'dressing', 'utility', 'corridor', 'study', 'unknown')),
     furniture       TEXT NOT NULL DEFAULT 'unknown'
                       CHECK (furniture IN ('sink', 'builtin', 'fridge', 'storage', 'none', 'unknown')),
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS dataset_samples (
     src_id          UUID,
     src_updated_at  TIMESTAMPTZ,
 
-    taxonomy_version TEXT NOT NULL DEFAULT '1.0',
+    taxonomy_version TEXT NOT NULL DEFAULT '1.1',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS dataset_reviews (
     -- correct 일 때 바꾸는 값만 NOT NULL. 축 값 제약은 dataset_samples 와 같다.
     media           TEXT CHECK (media IS NULL OR media IN ('photo', 'render3d', 'floorplan', 'generated')),
     phase           TEXT CHECK (phase IS NULL OR phase IN ('before', 'after', 'in_progress', 'unknown')),
-    space           TEXT CHECK (space IS NULL OR space IN ('kitchen', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony',
+    space           TEXT CHECK (space IS NULL OR space IN ('kitchen', 'dining', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony',
                                                           'dressing', 'utility', 'corridor', 'study', 'unknown')),
     furniture       TEXT CHECK (furniture IS NULL OR furniture IN ('sink', 'builtin', 'fridge', 'storage', 'none', 'unknown')),
     layout_shape    TEXT CHECK (layout_shape IS NULL OR layout_shape IN ('I', 'L', 'U', 'island', 'unknown')),
@@ -125,6 +125,23 @@ CREATE TABLE IF NOT EXISTS dataset_reviews (
 );
 
 CREATE INDEX IF NOT EXISTS idx_dataset_reviews_sample ON dataset_reviews (sample_id, created_at DESC);
+
+
+-- ---------------------------------------------
+-- 축 값을 더한 뒤 **이미 만들어진 표**에도 반영한다.
+-- CREATE TABLE IF NOT EXISTS 는 있는 표의 CHECK 를 고치지 않는다 — 위 정의만 바꾸면
+-- 먼저 실행해 둔 DB 는 옛 제약을 그대로 들고 있다가 새 값에서 터진다.
+-- 값을 더할 때마다 여기도 같이 고친다 (이름 변경·삭제는 금지 — 더하기만).
+-- ---------------------------------------------
+ALTER TABLE dataset_samples DROP CONSTRAINT IF EXISTS dataset_samples_space_check;
+ALTER TABLE dataset_samples ADD  CONSTRAINT dataset_samples_space_check
+    CHECK (space IN ('kitchen', 'dining', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony',
+                     'dressing', 'utility', 'corridor', 'study', 'unknown'));
+
+ALTER TABLE dataset_reviews DROP CONSTRAINT IF EXISTS dataset_reviews_space_check;
+ALTER TABLE dataset_reviews ADD  CONSTRAINT dataset_reviews_space_check
+    CHECK (space IS NULL OR space IN ('kitchen', 'dining', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony',
+                                      'dressing', 'utility', 'corridor', 'study', 'unknown'));
 
 
 -- =============================================
