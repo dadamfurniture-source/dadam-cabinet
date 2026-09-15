@@ -16,6 +16,12 @@
  *   · 레일 여유: 댐핑 볼레일 = 박스 + 20 (아래 10 · 위 10), 댐핑 언더레일 = 박스 + 40 (아래 30 · 위 10).
  *   · 존(박스 자리): 위 따내기 바닥(또는 전면 경계) ~ 아래 따내기 윗선(또는 전면 경계, 마지막은 지판 윗면).
  *     존 안에 박스 + 여유가 들어가는 가장 큰 박스를 고른다.
+ *   · 박스 치수 (2026-09-15 철물 규격, drawerBoxDims):
+ *       레일 길이 = 250·300·350·400·450·500 중 모듈 깊이 − 50 이하의 최대.
+ *       댐핑 볼레일  앞뒷판 가로 = W − 2×몸통T − 2×레일 두께 14 − 2×서랍T, 측판 길이 = 레일 길이
+ *       댐핑 언더레일 앞뒷판 가로 = W − 2×몸통T − 2×서랍T − 12,          측판 길이 = 레일 길이 − 10
+ *       측판 사쿠리면 앞뒷판 높이 = 측판 높이 − 18
+ *       우라(밑판) = 서랍 외경 (가로 − 1) × (세로 − 1); 사쿠리면 가로 = 앞뒷판 + 20, 세로 = 측판 − 1
  */
 (function (root, factory) {
   const api = factory();
@@ -28,14 +34,18 @@
     MAX_COUNT: 4,
     BOX_H: Object.freeze({ small: 60, medium: 120, large: 180 }),
     BOX_LABEL: Object.freeze({ small: '소', medium: '중', large: '대' }),
-    BOX_LEN: 440,                 // 서랍측판 길이 (D550 기준, 현행)
-    BOX_BOTTOM_D: 449,            // 서랍밑판 깊이 (현행)
-    BOX_FB_W_MINUS: 72,           // 서랍전후판 가로 = W − 30 − 42 (현행)
-    BOX_BOTTOM_W_MINUS: 43,       // 서랍밑판 가로 = W − 30 − 13 (현행)
-    BOX_BRACE_OVER_W: 600,        // 전후판 가로가 이보다 크면 하단보강 440×60
+    BOX_BRACE_OVER_W: 600,        // 전후판 가로가 이보다 크면 하단보강 (측판 길이 × 60)
+    BOX_BRACE_H: 60,
+    BOX_T_DEFAULT: 15,            // 서랍 자재 두께 (15 or 18) — 모듈이 정하지 않으면 몸통 두께를 따른다
+    BOX_SAKURI_FB_MINUS: 18,      // 측판 사쿠리면 앞뒷판 높이 = 측판 높이 − 18
+    BOTTOM_TRIM: 1,               // 우라 = (가로 − 1) × (세로 − 1)
+    BOTTOM_SAKURI_PLUS_W: 20,     // 사쿠리면 우라 가로 = 앞뒷판 + 20 (양쪽 홈 10)
+    RAIL_LENGTHS: Object.freeze([250, 300, 350, 400, 450, 500]),
+    RAIL_DEPTH_MARGIN: 50,        // 레일 길이 ≤ 모듈 깊이 − 50
     RAIL_CLEARANCE: Object.freeze({
-      under: Object.freeze({ below: 30, above: 10, name: '댐핑 언더레일' }),
-      ball:  Object.freeze({ below: 10, above: 10, name: '댐핑 볼레일' }),
+      //   below/above 박스 상하 여유 · thickness 레일 한쪽 두께(가로에서 뺀다) · fbMinus 앞뒷판 가로 추가 감산 · sideMinus 측판 길이 = 레일 − sideMinus
+      under: Object.freeze({ below: 30, above: 10, name: '댐핑 언더레일', thickness: 0,  fbMinus: 12, sideMinus: 10 }),
+      ball:  Object.freeze({ below: 10, above: 10, name: '댐핑 볼레일',   thickness: 14, fbMinus: 0,  sideMinus: 0 }),
     }),
     RAIL_DEFAULT: 'under',
     FRONT_DEFAULT_H: 200,         // 도어 + 하부 서랍 하부장의 서랍 전면 (플래너 drawerHeight 기본값과 같다)
@@ -177,6 +187,49 @@
     return { fronts, channels, midCount, boxes, warnings, rail };
   }
 
+  /** 레일 길이 — 규격 중 모듈 깊이 − 50 이하의 최대. 가장 짧은 규격도 안 들어가면 null. */
+  function railLengthFor(D) {
+    const R = DRAWER_RULES;
+    const max = (Number(D) || 0) - R.RAIL_DEPTH_MARGIN;
+    let best = null;
+    R.RAIL_LENGTHS.forEach((L) => { if (L <= max) best = L; });
+    return best;
+  }
+
+  /**
+   * 서랍 박스 치수 — 레일 종류·모듈 폭/깊이·자재 두께·사쿠리로 정한다.
+   * @param {object} o  W 모듈 외경 · D 모듈 깊이 · bodyT 몸통 두께 · drawerT 서랍 자재 두께(없으면 bodyT) ·
+   *                    rail 'under'|'ball' · boxH 박스(측판) 높이 · sakuri 측판 사쿠리 여부
+   * @returns {{railLength, fbW, fbH, sideL, sideH, outerW, bottomW, bottomD, brace, warnings}}
+   */
+  function drawerBoxDims(o) {
+    const R = DRAWER_RULES;
+    const rail = railOf(o.rail);
+    const W = Number(o.W) || 0;
+    const D = Number(o.D) || 0;
+    const bodyT = Number(o.bodyT) || R.BOX_T_DEFAULT;
+    const drawerT = Number(o.drawerT) || bodyT;
+    const boxH = Number(o.boxH) || 0;
+    const sakuri = !!o.sakuri;
+    const warnings = [];
+    let railLength = railLengthFor(D);
+    if (railLength === null) {
+      railLength = R.RAIL_LENGTHS[0];
+      warnings.push(`모듈 깊이 ${D} 에는 가장 짧은 레일 ${railLength} 도 안 들어간다 (깊이 − ${R.RAIL_DEPTH_MARGIN} 기준)`);
+    }
+    const fbW = W - 2 * bodyT - 2 * rail.thickness - 2 * drawerT - rail.fbMinus;
+    const sideL = railLength - rail.sideMinus;
+    const sideH = boxH;
+    const fbH = sakuri ? boxH - R.BOX_SAKURI_FB_MINUS : boxH;
+    const outerW = fbW + 2 * drawerT;
+    const bottomW = sakuri ? fbW + R.BOTTOM_SAKURI_PLUS_W : outerW - R.BOTTOM_TRIM;
+    const bottomD = sideL - R.BOTTOM_TRIM;
+    return {
+      railLength, fbW, fbH, sideL, sideH, outerW, bottomW, bottomD,
+      brace: fbW > R.BOX_BRACE_OVER_W, drawerT, bodyT, sakuri, rail: railKeyOf(o.rail), warnings,
+    };
+  }
+
   /** 측판 따내기 설명 — BOM 비고용. */
   function notchNote(layout) {
     const R = DRAWER_RULES;
@@ -186,5 +239,5 @@
     return s;
   }
 
-  return { DRAWER_RULES, layoutDrawerModule, assignChannels, pickBox, railOf, railKeyOf, notchNote };
+  return { DRAWER_RULES, layoutDrawerModule, assignChannels, pickBox, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
 });
