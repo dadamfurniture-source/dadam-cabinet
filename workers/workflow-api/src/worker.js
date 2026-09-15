@@ -121,6 +121,8 @@ async function handleCreateSnapshot(request, env, { params, user }) {
         item_count: snapshot.item_count,
         module_count: snapshot.module_count,
         panel_count: snapshot.panel_count,
+        // B4: 재단 배치 원판 장수. 배치를 안 보냈거나 DB 컬럼이 없으면 null
+        sheet_count: snapshot.sheet_count === undefined ? null : snapshot.sheet_count,
         quote: snapshot.quote_payload, // W11-3 이후 채워짐
         reused,
         created_at: snapshot.created_at,
