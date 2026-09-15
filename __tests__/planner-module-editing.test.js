@@ -32,7 +32,9 @@ function pickLower(p, section = 'lower') {
 }
 
 const panel = (p) => p.document.getElementById('rightPanel');
-const field = (p, selector) => panel(p).querySelector(selector);
+// 2026-09-15: 분할·칸·선반·손잡이는 개별 모듈 패널(#modulePanel)로 갔다 — 문서 전체에서 찾는다.
+const field = (p, selector) => p.document.querySelector(selector);
+const apply = (p) => p.g('applyModuleDraft')();
 
 /** 값을 넣고 change 를 흘린다 */
 function setField(p, selector, value) {
@@ -59,8 +61,11 @@ describe('모듈을 고르면 우측 패널이 그 모듈이 된다', () => {
   test('모듈 모드의 섹션이 뜬다', () => {
     const p = boot();
     pickLower(p);
-    expect(shownSecs(p)).toEqual(['size', 'height', 'split', 'areas', 'shelves', 'handle']);
+    // 2026-09-15: 우측은 크기·높이 구성만. 분할·칸·선반·손잡이는 개별 모듈 패널이 초안으로 편집한다.
+    expect(shownSecs(p)).toEqual(['size', 'height']);
     expect(p.document.querySelector('.panel-header-title').textContent).toBe('구조 편집');
+    expect(p.document.getElementById('modulePanel').style.display).not.toBe('none');
+    ['splitBody', 'areasBody', 'shelvesBody', 'handleBody'].forEach((id) => expect(p.document.getElementById(id)).not.toBeNull());
   });
 
   test('3D 에서 눌러도 같은 자리가 채워진다', () => {
@@ -165,6 +170,8 @@ describe('바꾸면 실제로 반영된다', () => {
     const p = boot();
     const { s } = pickLower(p);
     setField(p, '#inpVCount', 4);
+    expect(s.verticalCount).not.toBe(4);   // 초안만 바뀌었다 — 적용 전엔 실제가 그대로다
+    apply(p);
     expect(s.verticalCount).toBe(4);
     expect(s.areaTypes).toHaveLength(4);
     expect(s.areaDirections).toHaveLength(4);
@@ -178,8 +185,10 @@ describe('바꾸면 실제로 반영된다', () => {
     const p = boot();
     const { s } = pickLower(p);
     setField(p, '#inpVCount', 99);
+    apply(p);
     expect(s.verticalCount).toBe(6);
     setField(p, '#inpVCount', 0);
+    apply(p);
     expect(s.verticalCount).toBe(1);
   });
 
@@ -191,8 +200,10 @@ describe('바꾸면 실제로 반영된다', () => {
     const before = s.shelves.length;      // 새 모듈은 calcDefaultShelves 가 이미 채웠다
     field(p, '#addShelf').onclick();
     field(p, '#addShelf').onclick();
+    apply(p);
     expect(s.shelves).toHaveLength(before + 2);
     field(p, '#evenShelf').onclick();
+    apply(p);
     const after = p.g('getStructure')(m.id).shelves;
     expect(after).toHaveLength(before + 2);
     const gaps = after.map((v, i, a) => (i ? v - a[i - 1] : v));
@@ -213,6 +224,7 @@ describe('바꾸면 실제로 반영된다', () => {
     const { m, s } = pickLower(p);
     setField(p, '#selHType', 'c-channel');
     setField(p, '#selHPos', 'middle');
+    apply(p);
     expect(s.handleType).toBe('c-channel');
     expect(s.handlePosition).toBe('middle');
 
@@ -220,7 +232,52 @@ describe('바꾸면 실제로 반영된다', () => {
     expect(m.isFixed).toBe(true);
 
     setField(p, '#selHLayout', 'doorTopDrawerBottom');
+    apply(p);
     expect(s.horizontalLayout).toBe('doorTopDrawerBottom');
+  });
+
+  test('되돌리기는 초안을 버린다 — 실제는 그대로', () => {
+    const p = boot();
+    const { s } = pickLower(p);
+    const before = s.verticalCount;
+    setField(p, '#inpVCount', 3);
+    p.g('revertModuleDraft')();
+    expect(s.verticalCount).toBe(before);
+    expect(field(p, '#inpVCount').value).toBe(String(before));
+  });
+
+  test('칸 타입이 섹션을 정한다 — 도어면 선반, 서랍이면 서랍 단수', () => {
+    const p = boot();
+    const { s } = pickLower(p);
+    const off = (k) => p.document.querySelector('#modulePanel .section[data-mp="' + k + '"]').classList.contains('off');
+    // 도어만: 선반 O, 서랍 X
+    s.horizontalLayout = 'doorOnly'; s.areaTypes = ['door']; s.verticalCount = 1;
+    p.g('renderRightPanel')();
+    expect(off('shelves')).toBe(false);
+    expect(off('drawer')).toBe(true);
+    expect(field(p, '#inpDrawerCount')).toBeNull();
+    // 서랍 칸만: 서랍 O, 선반 X
+    s.areaTypes = ['drawer'];
+    p.g('renderRightPanel')();
+    expect(off('drawer')).toBe(false);
+    expect(off('shelves')).toBe(true);
+    expect(field(p, '#inpDrawerCount')).not.toBeNull();
+    // 오픈만: 손잡이 X
+    s.areaTypes = ['open'];
+    p.g('renderRightPanel')();
+    expect(off('handle')).toBe(true);
+  });
+
+  test('같은 모듈을 다시 고르면 해제된다 (목록·3D)', () => {
+    const p = boot();
+    const { m } = pickLower(p);
+    expect(p.document.querySelectorAll('#mlBody .module-item.active')).toHaveLength(1);
+    p.document.querySelector('#mlBody .module-item[data-id="' + m.id + '"]').onclick();
+    expect(p.document.querySelectorAll('#mlBody .module-item.active')).toHaveLength(0);
+    expect(p.document.getElementById('modulePanel').style.display).toBe('none');
+    p.g('setActiveModule')(m.id);
+    p.g('handleEntityClick')({ userData: { entityKind: 'carcass', moduleId: m.id } });
+    expect(p.document.querySelectorAll('#mlBody .module-item.active')).toHaveLength(0);
   });
 });
 
@@ -298,7 +355,7 @@ describe('양문 cell 은 방향을 묻지 않는다', () => {
     s.areaIs2D = [true, false];
     p.g('renderRightPanel')();
 
-    const rows = [...panel(p).querySelectorAll('#areasBody .area-row')];
+    const rows = [...p.document.querySelectorAll('#areasBody .area-row')];
     expect(rows[0].querySelector('.a-dir')).toBeNull();
     expect(rows[0].textContent).toContain('양문');
     expect(rows[1].querySelector('.a-dir').value).toBe('right');

@@ -95,6 +95,22 @@
   .module-item.active .mi-mark{background:var(--brand-deep);border-color:var(--brand-deep)}
   .module-item .mi-text{flex:1;line-height:1.3}
   .module-item .mi-dim{display:block;font-size:9px;color:var(--text-faint);margin-top:1px;font-family:monospace}
+  /* 2026-09-15: 개별 모듈 패널 — 고른 모듈 하나를 초안으로 편집하고 '적용' 으로 플래너에 옮긴다.
+     우측 패널(크기·높이 구성)과 겹치지 않는다: 분할·칸·서랍·선반·손잡이가 여기로 왔다. */
+  .module-panel{width:340px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow:hidden;transition:width .18s ease}
+  .module-panel.collapsed{width:32px}
+  .module-panel.collapsed .mp-body,.module-panel.collapsed .mp-footer,.module-panel.collapsed .ml-header-title{display:none}
+  .module-panel .mp-body{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable;padding-bottom:12px}
+  .module-panel .mp-preview{padding:8px 10px;border-bottom:1px solid var(--line);background:var(--bg-canvas)}
+  .module-panel .mp-preview svg{width:100%;height:190px;display:block}
+  .module-panel .mp-preview .mp-hint{font-size:9.5px;color:var(--text-faint);margin-top:4px;text-align:center}
+  .module-panel .mp-footer{display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--line);background:var(--bg)}
+  .module-panel .mp-footer .mp-dirty{flex:1;font-size:10px;color:var(--text-dim);line-height:1.3}
+  .module-panel .mp-footer button{padding:5px 12px;border:1px solid var(--line);background:#fff;border-radius:4px;font-size:11px;cursor:pointer;color:var(--text)}
+  .module-panel .mp-footer button.primary{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff;font-weight:600}
+  .module-panel .mp-footer button:disabled{opacity:.45;cursor:default}
+  .module-panel .section[data-mp].off{display:none}
+  .module-panel .mp-why{font-size:9.5px;color:var(--text-faint);padding:2px 10px 6px}
 
   /* ── Canvas (정면도) ────────────────────────────── */
   .canvas-wrap{flex:1;min-width:0;position:relative;background:var(--bg-canvas);overflow:hidden;background-image:linear-gradient(rgba(184,149,108,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(184,149,108,.08) 1px,transparent 1px);background-size:50px 50px}
@@ -335,6 +351,59 @@
     <div id="detailPalette"></div>
   </div>
 
+  <!-- 2026-09-15: 개별 모듈 패널 — 고른 모듈 하나. 초안(draft)을 편집하고 미리보기로 보다가 '적용' 을 눌러야
+       플래너(structures)에 들어간다. 우측 패널의 분할·영역 타입·선반·손잡이·서랍 규칙이 여기로 옮겨 왔고,
+       칸 타입에 따라 필요한 것만 보인다 (도어·오픈 → 선반, 서랍 → 서랍 단수·규칙). -->
+  <div class="module-panel" id="modulePanel" style="display:none">
+    <div class="ml-header">
+      <span class="ml-header-title" id="mpTitle">개별 모듈</span>
+      <button style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px"
+              title="개별 모듈 패널 접기"
+              onclick="document.getElementById('modulePanel').classList.toggle('collapsed')">«</button>
+    </div>
+    <div class="mp-body">
+      <div class="mp-preview">
+        <svg id="mpPreviewSvg" viewBox="0 0 600 870"><g id="mpPreviewG"></g></svg>
+        <div class="mp-hint">초안 미리보기 — 도어 칸을 누르면 열림 방향이 바뀝니다</div>
+      </div>
+      <div class="section" data-mp="split">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">구성 · 분할</span>
+        </div>
+        <div class="section-body" id="splitBody"></div>
+      </div>
+      <div class="section" data-mp="areas">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">칸 타입 + 도어 열림</span>
+        </div>
+        <div class="section-body" id="areasBody"></div>
+      </div>
+      <div class="section" data-mp="drawer">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">서랍</span>
+        </div>
+        <div class="section-body" id="drawerBody"></div>
+      </div>
+      <div class="section" data-mp="shelves">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">선반 (내부 mm)</span>
+        </div>
+        <div class="section-body" id="shelvesBody"></div>
+      </div>
+      <div class="section collapsed" data-mp="handle">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">손잡이</span>
+        </div>
+        <div class="section-body" id="handleBody"></div>
+      </div>
+    </div>
+    <div class="mp-footer">
+      <span class="mp-dirty" id="mpDirty"></span>
+      <button id="btnRevertModule" title="초안을 버리고 플래너 값으로 되돌린다">되돌리기</button>
+      <button id="btnApplyModule" class="primary" title="초안을 플래너에 반영하고 저장한다">적용</button>
+    </div>
+  </div>
+
   <!-- 캔버스: 3D + 정면도 toggle -->
   <div class="canvas-wrap" id="canvasWrap">
     <!-- W9-64: 3D canvas (Three.js) -->
@@ -395,42 +464,7 @@
           <div class="empty-msg">모듈 선택</div>
         </div>
       </div>
-      <!-- 분할 -->
-      <div class="section" data-sec="split">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">분할</span>
-        </div>
-        <div class="section-body" id="splitBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
-      <!-- 영역 타입 -->
-      <div class="section" data-sec="areas">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">영역 타입 + 도어 열림</span>
-        </div>
-        <div class="section-body" id="areasBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
-      <!-- 선반 -->
-      <div class="section" data-sec="shelves">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">선반 (내부 mm)</span>
-        </div>
-        <div class="section-body" id="shelvesBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
-      <!-- 손잡이 -->
-      <div class="section collapsed" data-sec="handle">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">손잡이</span>
-        </div>
-        <div class="section-body" id="handleBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
+      <!-- 2026-09-15: 분할·영역 타입·선반·손잡이 섹션은 개별 모듈 패널(#modulePanel)로 옮겼다 — 여기와 겹치지 않는다. -->
       <!-- 마감 — 영역 모드에서만. 마감재는 배치 공간 양 끝에 한 장씩이다 (W12-20) -->
       <div class="section" data-sec="finish" style="display:none">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
@@ -996,6 +1030,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   띄웠다. 같은 모듈을 도면에서 누를 때와 결과가 달라 혼란스러웠다 —
       //   색이 변하고 옵션 팔레트가 뜨는 쪽으로 맞춘다.
       el.onclick = () => {
+        // 2026-09-15: 이미 고른 모듈을 다시 누르면 선택 해제 (배치 선택은 남는다)
+        if (el.dataset.id === activeId) { clearActiveModule(); return; }
         const m = modules.find((x) => x.id === el.dataset.id);
         const area = areaOfModule(m);
         if (area && area.id !== activeAreaId) { activeAreaId = area.id; renderAreaTools(); }
@@ -1756,7 +1792,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       r.setAttribute('data-area-id', a.id);
       if (picked) r.setAttribute('data-picked', '1');
       r.style.cursor = 'pointer';
-      r.addEventListener('click', (e) => { e.stopPropagation(); setActiveArea(a.id); });
+      r.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 2026-09-15: 이미 고른 배치를 다시 누르면 해제 (모듈이 골라져 있던 배치는 먼저 배치 선택으로)
+        if (a.id === activeAreaId && panelTarget === 'area') { clearSelection(); return; }
+        setActiveArea(a.id);
+      });
       g.appendChild(r);
 
       const used = usedWidthOf(a.id);
@@ -2038,6 +2079,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     rect.style.cursor = 'pointer';
     rect.addEventListener('click', (e) => {
       e.stopPropagation();
+      // 2026-09-15: 개별 모듈 패널의 미리보기 칸 — 실제가 아니라 **초안**의 방향을 뒤집고 저장하지 않는다.
+      if (isModuleDraft(s)) {
+        if (!canToggle) return;
+        if (idx === 'bottom') s.bottomDirection = s.bottomDirection === 'left' ? 'right' : 'left';
+        else s.areaDirections[+idx] = s.areaDirections[+idx] === 'left' ? 'right' : 'left';
+        draftChanged();
+        return;
+      }
       // W12-75: 다른 모듈의 칸이면 **선택만** 한다. 한 번에 고르고 뒤집기까지
       //   하면, 보려고 누른 것뿐인데 도어 방향이 바뀐다. 예전엔 이 모듈이 화면에
       //   아예 안 그려져 있어(모듈 상세 보기) 드러나지 않던 길이다.
@@ -2083,7 +2132,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       panel.setAttribute('data-module-id', m.id);
       panel.setAttribute('pointer-events', 'all');
       panel.style.cursor = 'pointer';
-      panel.addEventListener('click', (e) => { e.stopPropagation(); setActiveModule(m.id); });
+      panel.addEventListener('click', (e) => { e.stopPropagation(); if (activeId === m.id) clearActiveModule(); else setActiveModule(m.id); });
       content.appendChild(panel);
       return;
     }
@@ -2107,7 +2156,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     outline.style.cursor = 'pointer';
     outline.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (activeId !== m.id && pickAreaFirst(m.id)) return;   // 첫 클릭은 배치
+      if (activeId === m.id) { clearActiveModule(); return; }   // 2026-09-15: 다시 누르면 해제
+      if (pickAreaFirst(m.id)) return;   // 첫 클릭은 배치
       setActiveModule(m.id);
     });
     content.appendChild(outline);
@@ -2771,7 +2821,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     areas: '영역 타입 + 도어 열림', shelves: '선반 (내부 mm)', handle: '손잡이', finish: '마감',
   };
   const PANEL_LAYOUT = {
-    module: { title: '구조 편집', secs: ['size', 'height', 'split', 'areas', 'shelves', 'handle'],
+    // 2026-09-15: 분할·영역·선반·손잡이는 개별 모듈 패널로 갔다 — 우측은 크기·높이 구성만.
+    module: { title: '구조 편집', secs: ['size', 'height'],
               titles: { size: '크기 · 고정' } },
     // 영역은 배치 공간이다 — 담을 그릇의 치수·높이 부위·양 끝 마감만 정한다.
     area:   { title: '영역 편집', secs: ['size', 'height', 'finish'],
@@ -3081,20 +3132,148 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function renderRightPanel() {
     const mode = panelModeNow();
     applyPanelLayout(mode);
-    if (mode === 'area') { renderAreaPanel(areaById(activeAreaId)); return; }
+    if (mode === 'area') { renderAreaPanel(areaById(activeAreaId)); renderModulePanel(); return; }   // 2026-09-15: 영역 모드면 개별 모듈 패널을 닫는다
 
     const m = modules.find(x => x.id === activeId);
     if (!m) {
-      ['sizeBody','heightBody','splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
+      ['sizeBody','heightBody'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = '<div class="empty-msg">모듈 선택</div>';
       });
+      renderModulePanel();
       return;
     }
     const s = getStructure(activeId);
     renderSizePanel(m, s);
     renderHeightPanel(m, s);
+    // 2026-09-15: 분할·칸·서랍·선반·손잡이는 개별 모듈 패널이 **초안**으로 편집한다 (renderModulePanel).
+    renderModulePanel();
+  }
 
+  // ─────────────────────────────────────────────────────────────
+  // 2026-09-15: 개별 모듈 패널 — 초안(draft) → 미리보기 → 적용
+  //
+  //   우측 패널은 값을 바꾸는 즉시 저장한다(panelCommit). 이 패널은 다르다: 고른 모듈의 구조를
+  //   깊은 복사한 **초안**을 편집하고, 미리보기는 실제 모듈 치수(m) 위에 초안(s)을 그린다.
+  //   '적용' 을 눌러야 structures 에 들어가고 저장·정면도·3D 가 따라간다. '되돌리기' 는 초안을 버린다.
+  //   칸 타입에 따라 필요한 섹션만 보인다 — 서랍이 있으면 서랍, 도어·오픈이 있으면 선반, 전면이 있으면 손잡이.
+  // ─────────────────────────────────────────────────────────────
+  const deepClone = (o) => JSON.parse(JSON.stringify(o));
+  let modulePanelDraft = null;   // { id, s, dirty }
+
+  /** 고른 모듈의 초안. 모듈이 바뀌면 새로 뜨고, 더럽혀지지 않았으면 실제 구조를 따라간다. */
+  function moduleDraftFor(m) {
+    if (!modulePanelDraft || modulePanelDraft.id !== m.id) {
+      modulePanelDraft = { id: m.id, s: deepClone(getStructure(m.id)), dirty: false };
+    } else if (!modulePanelDraft.dirty) {
+      modulePanelDraft.s = deepClone(getStructure(m.id));
+    }
+    return modulePanelDraft;
+  }
+
+  /** 초안이 이 구조 객체인가 — 미리보기 칸 클릭·정면도 바인딩이 실제/초안을 가르는 데 쓴다. */
+  function isModuleDraft(s) { return !!(modulePanelDraft && s === modulePanelDraft.s); }
+
+  function renderModulePanel() {
+    const host = document.getElementById('modulePanel');
+    if (!host) return;
+    const m = modules.find((x) => x.id === activeId);
+    const show = !!m && !m.isFinishing && !isFinishingSection(m.section) && panelModeNow() === 'module';
+    host.style.display = show ? '' : 'none';
+    if (!show) { if (!m) modulePanelDraft = null; return; }
+    const d = moduleDraftFor(m);
+    const s = d.s;
+    const cfg = SECTION_CONFIG[m.section] || {};
+    document.getElementById('mpTitle').textContent = `${cfg.label || m.section} ${moduleTag(m)} · W${m.W}×H${m.H}×D${m.D}`.trim();
+    renderModulePanelSections(m, s);
+    syncModulePanelSections(s);
+    renderModulePreview(m, s);
+    const dirtyEl = document.getElementById('mpDirty');
+    if (dirtyEl) dirtyEl.textContent = d.dirty ? '초안이 바뀌었습니다 — 적용을 누르면 플래너에 반영됩니다' : '플래너와 같습니다';
+    const apply = document.getElementById('btnApplyModule');
+    const revert = document.getElementById('btnRevertModule');
+    if (apply) { apply.disabled = !d.dirty; apply.onclick = () => applyModuleDraft(); }
+    if (revert) { revert.disabled = !d.dirty; revert.onclick = () => revertModuleDraft(); }
+  }
+
+  /** 구성에 서랍이 있는가 — 하부 서랍 또는 서랍 칸. 서랍 섹션(단수·규칙)은 이때만 그린다. */
+  function moduleHasDrawer(s) {
+    const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
+    if (types.some((t) => t === 'drawer')) return true;
+    return s.horizontalLayout === 'doorTopDrawerBottom' && (s.bottomType || 'drawer') === 'drawer';
+  }
+
+  /** 칸 타입이 정하는 섹션 표시 — 서랍이 있으면 서랍, 도어·오픈이 있으면 선반, 전면이 있으면 손잡이. */
+  function syncModulePanelSections(s) {
+    const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
+    const bottom = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.bottomType || 'drawer') : null;
+    const has = (pred) => types.some(pred) || (bottom !== null && pred(bottom));
+    const on = {
+      split: true,
+      areas: true,
+      drawer: has((t) => t === 'drawer'),
+      shelves: has((t) => t === 'door' || t === 'open' || t === 'blind'),
+      handle: has((t) => t === 'door' || t === 'drawer'),
+    };
+    document.querySelectorAll('#modulePanel .section[data-mp]').forEach((sec) => {
+      const k = sec.getAttribute('data-mp');
+      sec.classList.toggle('off', !on[k]);
+    });
+  }
+
+  /** 미리보기 — 그 모듈 하나를 실제 치수(m) + 초안(s)으로 그린다. 정면도와 같은 함수라 같은 그림이다. */
+  function renderModulePreview(m, s) {
+    const g = document.getElementById('mpPreviewG');
+    const svg = document.getElementById('mpPreviewSvg');
+    if (!g || !svg) return;
+    g.innerHTML = '';
+    renderModuleFront(g, m, s, 0, 0);
+    // 외곽(모듈 선택)은 미리보기에서 눌러도 아무것도 하지 않는다 — 칸 클릭(방향 뒤집기)만 초안에 닿는다.
+    g.querySelectorAll('[data-module-id]').forEach((el) => { el.style.pointerEvents = 'none'; });
+    const pad = Math.max(24, Math.round(Math.max(m.W, m.H) * 0.05));
+    svg.setAttribute('viewBox', `${-pad} ${-pad} ${m.W + pad * 2} ${m.H + pad * 2}`);
+  }
+
+  /** 초안이 바뀌었다 — 저장하지 않고 패널·미리보기만 다시 그린다. */
+  function draftChanged(focusSel) {
+    if (modulePanelDraft) modulePanelDraft.dirty = true;
+    renderModulePanel();
+    if (focusSel) {
+      const el = document.querySelector(focusSel);
+      if (el && el.focus) el.focus();
+    }
+  }
+
+  /** 초안을 플래너에 옮긴다 — 그때서야 저장·정면도·3D 가 바뀐다. */
+  function applyModuleDraft() {
+    const d = modulePanelDraft;
+    if (!d) return false;
+    const m = modules.find((x) => x.id === d.id);
+    if (!m) return false;
+    // 제자리 갱신 — structures[id] 객체를 바꾸지 않는다. 시험·3D 메타·다른 참조가 그 객체를 쥐고 있다.
+    const target = getStructure(d.id);
+    Object.keys(target).forEach((k) => { delete target[k]; });
+    Object.assign(target, deepClone(d.s));
+    d.dirty = false;
+    panelCommit();
+    showToast('✓ 개별 모듈 적용');
+    return true;
+  }
+
+  /** 초안을 버리고 플래너 값으로 되돌린다. */
+  function revertModuleDraft() {
+    if (!modulePanelDraft) return false;
+    modulePanelDraft = null;
+    renderModulePanel();
+    showToast('초안을 되돌렸습니다');
+    return true;
+  }
+
+  /**
+   * 분할·칸·서랍·선반·손잡이 입력 — 예전 우측 패널 코드 그대로, 다만 값은 **초안 s** 를 바꾸고
+   * panelCommit 대신 draftChanged 를 부른다. 입력 id 는 예전과 같다 (시험·문서가 그 이름을 쓴다).
+   */
+  function renderModulePanelSections(m, s) {
     // 분할
     document.getElementById('splitBody').innerHTML = `
       <div class="row">
@@ -3113,6 +3292,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           <label>하부 H (mm)</label>
           <input type="number" min="50" max="${m.H-50}" step="10" id="inpDrawerH" value="${s.drawerHeight}">
         </div>
+      ` : ''}
+    `;
+    // 2026-09-15: 서랍 — 서랍이 있는 구성에서만 보인다 (syncModulePanelSections). 단수 + 서랍 규칙(레일·자재·사쿠리).
+    document.getElementById('drawerBody').innerHTML = !moduleHasDrawer(s) ? '' : `
         <div class="row">
           <label>서랍 단수</label>
           <input type="number" min="1" max="4" step="1" id="inpDrawerCount" value="${Number(s.drawerCount) || 1}">
@@ -3141,7 +3324,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           서랍 1단마다 전후판 2장·측판 2장·밑판 1장이 자재로 잡힙니다. 최대 4단.
           목찬넬이면 서랍 사이에 중간 목찬넬(90×40 따내기)이 최소 수로 들어가고, 박스는 그 사이 존에 레일 여유를 빼고 들어가는 소·중·대가 됩니다.
         </div>
-      ` : ''}
     `;
     // W12-29: **oninput 이 아니라 onchange** 다. syncCellArrays 는 areaWidths·
     //   areaIs2D 를 비우는데, oninput 이면 "12" 를 치는 중 "1" 에서 한 번 비운다 —
@@ -3152,18 +3334,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const v = Math.max(1, Math.min(6, parseInt(e.target.value) || 1));
       e.target.value = v;
       syncCellArrays(s, v);
-      panelCommit('#inpVCount');
+      draftChanged('#inpVCount');
     };
     document.getElementById('selHLayout').onchange = (e) => {
       s.horizontalLayout = e.target.value;
-      panelCommit('#selHLayout');
+      draftChanged('#selHLayout');
     };
     const inpDr = document.getElementById('inpDrawerH');
     if (inpDr) inpDr.onchange = (e) => {
       const v = parseInt(e.target.value) || 200;
       s.drawerHeight = Math.max(50, Math.min(m.H - 50, v));
       e.target.value = s.drawerHeight;
-      panelCommit('#inpDrawerH');
+      draftChanged('#inpDrawerH');
     };
 
     // CD-2: 서랍 단수 — 예전엔 지정할 수단이 없어 브리지가 항상 1단으로 넘겼다.
@@ -3172,7 +3354,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   서랍 규칙은 s.drawer 한 블록에 모아 저장한다 — 브리지가 그대로 BOM 으로 넘긴다.
     const setDrawerRule = (patch, focus) => {
       s.drawer = Object.assign(drawerRulesOf(s), patch);
-      panelCommit(focus);
+      draftChanged(focus);
     };
     const selRail = document.getElementById('selDrawerRail');
     if (selRail) selRail.onchange = (e) => setDrawerRule({ rail: e.target.value === 'ball' ? 'ball' : 'under' }, '#selDrawerRail');
@@ -3185,9 +3367,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const v = Math.max(1, Math.min(4, parseInt(e.target.value) || 1));
       s.drawerCount = v;
       e.target.value = v;
-      persistPlannerState();
-      renderFrontView();
-      showToast(`✓ 서랍 ${v}단`);
+      draftChanged('#inpDrawerCount');
     };
 
     // 영역 타입
@@ -3249,12 +3429,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (tSel) tSel.onchange = (e) => {
         if (idx !== undefined) s.areaTypes[+idx] = e.target.value;
         else s.bottomType = e.target.value;
-        panelCommit();
+        draftChanged();
       };
       if (dSel) dSel.onchange = (e) => {
         if (idx !== undefined) s.areaDirections[+idx] = e.target.value;
         else s.bottomDirection = e.target.value;
-        panelCommit();
+        draftChanged();
       };
     });
 
@@ -3284,25 +3464,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         if (!isFinite(v)) return;
         s.shelves[idx] = Math.max(0, Math.min(m.H, v));
         e.target.value = s.shelves[idx];
-        panelCommit(`#shelvesBody input[data-idx="${idx}"]`);
+        draftChanged(`#shelvesBody input[data-idx="${idx}"]`);
       };
     });
     document.querySelectorAll('#shelvesBody button.del').forEach(btn => {
       btn.onclick = () => {
         const idx = +btn.dataset.idx;
         s.shelves.splice(idx, 1);
-        panelCommit();
+        draftChanged();
       };
     });
     document.getElementById('addShelf').onclick = () => {
       // 중앙 높이로 추가
       s.shelves.push(Math.round(m.H / 2));
-      panelCommit();
+      draftChanged();
     };
     const even = document.getElementById('evenShelf');
     if (even) even.onclick = () => {
       s.shelves = shelvesForCount(m, s, s.shelves.length);
-      panelCommit();
+      draftChanged();
       showToast(`✓ 선반 ${s.shelves.length}개 균등 배치`);
     };
 
@@ -3332,11 +3512,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   도어를 15 아래로 뺀다. 바꿔도 화면이 그대로고 새로고침하면 사라졌다.
     document.getElementById('selHType').onchange = (e) => {
       s.handleType = e.target.value;
-      panelCommit('#selHType');
+      draftChanged('#selHType');
     };
     document.getElementById('selHPos').onchange = (e) => {
       s.handlePosition = e.target.value;
-      panelCommit('#selHPos');
+      draftChanged('#selHPos');
     };
   }
 
@@ -5634,6 +5814,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 영역을 누르면 모듈이 아니라 영역이 선택된다 — 추가/제거 버튼이 뜬다.
     if (mesh.userData && mesh.userData.entityKind === 'area') {
       clearHighlight();
+      // 2026-09-15: 이미 고른 배치를 3D 에서 다시 누르면 해제
+      if (mesh.userData.areaId === activeAreaId && panelTarget === 'area') { clearSelection(); return; }
       setActiveArea(mesh.userData.areaId);
       if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
       return;
@@ -5657,6 +5839,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-70: 길이 하나다. 예전엔 전체/배치 모드일 때만 activeId 를 직접 넣어
     //   좌측 목록과 3D 테두리가 갱신되지 않았다. setActiveModule 이 화면을
     //   모듈로 당기는 건 이제 '개별' 탭뿐이므로 그냥 부르면 된다.
+    if (moduleId && moduleId === activeId) {
+      // 2026-09-15: 이미 고른 모듈을 3D 에서 다시 누르면 선택 해제
+      clearActiveModule();
+      return;
+    }
     if (moduleId && moduleId !== activeId) {
       // 2026-09-12: 첫 클릭은 배치(영역), 한 번 더 누르면 모듈.
       if (pickAreaFirst(moduleId)) { clearHighlight(); return; }
@@ -6658,7 +6845,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>`;
       }).join('');
       body.querySelectorAll('[data-area-pick]').forEach((el) => {
-        el.onclick = () => setActiveArea(el.dataset.areaPick, { fit: true });
+        el.onclick = () => {
+          // 2026-09-15: 이미 고른 배치를 다시 누르면 해제
+          if (el.dataset.areaPick === activeAreaId && panelTarget === 'area') { clearSelection(); return; }
+          setActiveArea(el.dataset.areaPick, { fit: true });
+        };
       });
     } else if (viewMode === 'all') {
       body.innerHTML = `<div class="empty-msg" style="padding:20px 8px">전체 모듈 (${modules.length}개)<br><span style="font-size:10px">배치 그대로 3D 표시</span></div>`;
