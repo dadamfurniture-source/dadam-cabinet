@@ -1599,6 +1599,7 @@
         const cat = window.FurnitureOptionCatalog;
         if (!parsed) {
           // C2: PET-OAK-M 꼴이 아닌 코드(예림 YR-SM-01, 옛 WHT) 는 카탈로그 행에서 파생 — color_name · 톤(gloss→유광, 그 밖→무광)
+          // C2b: 기타(호환) 합성 코드 WHT-M / WHT-G 도 여기 — parseFinishColorCode 는 'WHT' 를 기판 코드로 모르므로 null 이 된다
           const spec = cat && typeof cat.doorSpecForCode === 'function' ? cat.doorSpecForCode(code) : null;
           if (spec) { out.color = spec.color; out.finish = spec.finish; }
           return out;
@@ -1651,11 +1652,11 @@
       //   반대 방향(PLANNER_DETAIL_CHANGE)은 위 _mirrorPlannerDetailToSpecs 가 doorMaterial* 까지 채운다.
       // ============================================================
 
-      /** 카탈로그가 아는 코드면 그 행의 code(정규화), 모르면 null */
+      /** 카탈로그가 아는 코드면 그 행의 code(정규화), 기타(호환) 합성 코드(C2b, WHT-G)면 그 코드(정규화), 모르면 null */
       function _plannerDetailMaterialOf(code) {
         const cat = window.FurnitureOptionCatalog;
-        const row = cat && typeof cat.byCode === 'function' ? cat.byCode(code) : null;
-        return row && row.code ? String(row.code) : null;
+        const spec = cat && typeof cat.doorSpecForCode === 'function' ? cat.doorSpecForCode(code) : null;
+        return spec && spec.code ? String(spec.code) : null;
       }
 
       /** 품목의 플래너 iframe (`__planner-overlay-{uniqueId}` 안). 없으면 null */
@@ -1697,7 +1698,7 @@
        * 도어 마감 셀렉트 onchange. 모르는 코드는 아무것도 바꾸지 않는다.
        * @param {number} itemUniqueId
        * @param {'upper'|'lower'|'item'} group
-       * @param {string} code  materials.code (YR-SM-01 · WHT · PET-OAK-M)
+       * @param {string} code  materials.code (YR-SM-01 · PET-OAK-M) 또는 기타(호환) 합성 코드 (C2b, WHT-M · WHT-G)
        */
       function updateDoorMaterial(itemUniqueId, group, code) {
         const items = window.selectedItems || selectedItems;
