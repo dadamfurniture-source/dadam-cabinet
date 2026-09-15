@@ -3,11 +3,13 @@
 > 앞선 작업: C0 카탈로그 정본(#634) · D1 디테일 왕복(#637) · B1 부재 식별자(#638) · 예림 LUX 시드(#636).
 > 브랜치 `agent/designui-catalog-select`(C2, #642) → `agent/designui-compat-tones`(C2b). Design UI 도메인.
 > C2b (2026-09-15): 기타(호환) 그룹이 옛 7색 × 무광·유광 = 14 옵션이 됐다 — 과거 `화이트 · 유광` 설계가 유광을 잃지 않도록. 아래 [기타(호환) 그룹](#기타호환-그룹-c2b) 참고.
+> C2c (2026-09-15, `agent/designui-followups`): 냉장고장(`ui-fridge-el.js`)도 같은 한 칸을 쓴다. 아래 [냉장고장](#냉장고장-c2c) 참고.
 
 ## 무엇이 바뀌었나
 
 싱크대(팝업 `ui-step1.js`, 워크스페이스 `ui-workspace.js`)와 붙박이장(`ui-workspace.js`)의 도어 색 입력이
 **마감 셀렉트 + 색 셀렉트 두 개**에서 **카탈로그 코드 하나를 고르는 셀렉트 한 개**로 바뀌었다.
+냉장고장(`ui-fridge-el.js`)은 도어 마감 입력이 아예 없었는데(사양 기본값 `화이트 · 무광` 만 BOM 으로 갔다) C2c 에서 같은 한 칸이 생겼다.
 
 - 마크업은 `FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uniqueId, group, specs, furnitureType, selectStyle)` 한 곳에서 그린다
   — 색 견본(`door-swatch`, 고른 행의 `color_hex`) + `<select>`.
@@ -98,6 +100,19 @@ row = byCode(code)              // 카탈로그 행 (YR-SM-01 · PET-OAK-M · WH
 | `bom-finish-color.js` | 손대지 않았다. `LEGACY_FINISH_MAP` 이 파생된 `'유광'` 을 톤 `gloss` 로 읽는다 |
 | 플래너 팔레트 (`js/planner/planner-finish.js` `plannerFinishLookup`, PR #645 기준) | `e.code === code` 정확 일치라 `WHT-G` 를 **못 찾는다** → `plannerFinishHex` null → 그 부재는 구조 단계 색 그대로(무채색). 허용 범위 — 플래너 도메인 TODO |
 
+## 냉장고장 (C2c)
+
+`renderFridgeWorkspace`(`ui-fridge-el.js`) 스펙 패널의 「설정」과 「마감 설정」 사이에 **「도어 마감」** 그룹이 생겼다.
+
+- 마크업: `FurnitureOptionCatalog.buildDoorMaterialFieldHtml(item.uniqueId, 'item', item.specs, 'fridge', 'font-size:12px;')` —
+  붙박이장처럼 도어 묶음이 하나라 `'item'` 이다. `furnitureType 'fridge'` 라 `applicable_to` 에 `fridge` 가 없는 행(옛 `OAK` 등)은 안 나온다.
+- 변경은 그대로 전역 `updateDoorMaterial(uid, 'item', code)` 로 간다 — 냉장고장 쪽에 새 함수는 없다.
+  `specs.doorMaterialUpper/Lower` 둘 다 코드, `doorColor*/doorFinish*` 둘 다 파생, `item.detail.item.door = {code}`.
+  **상·하 키를 둘 다 채워야 하는 이유**: BOM 의 `legacyDoorEntryFor(section)`(`extractors.js`) 은 섹션 그룹으로 `Upper`/`Lower` 키를 고르는데
+  냉장고장 추출은 섹션이 `null`(→ Lower)이고 상부장 부재는 Upper 로 갈 수 있다. 한쪽만 적으면 절반이 기본값 `화이트 · 무광` 으로 발주된다.
+- 냉장고장은 플래너로 설계하지 않으므로(`NATIVE_ONLY_CATEGORIES`) `__planner-overlay-{uid}` 가 없다 → `DADAM_DETAIL_SET` 은 안 나가고 `renderWorkspaceContent(item)` 만 돈다.
+- 미리 고르기·견본·되돌리기·수정됨 표시는 싱크/붙박이장과 같다 (`doorSelectCode(specs, 'upper')`).
+
 ## 카탈로그 API (`config-constants.js`)
 
 | 함수 | 설명 |
@@ -119,11 +134,14 @@ row = byCode(code)              // 카탈로그 행 (YR-SM-01 · PET-OAK-M · WH
   `PLANNER_DETAIL_CHANGE` 의 `YR-SM-01` 미러, 메아리, 소스 규약.
   C2b: `WHT-G` 고르면 `doorColorUpper='화이트'` · `doorFinishUpper='유광'` · detail `{code:'WHT-G'}`, 과거 `화이트·유광` 품목이 `WHT-G` 미리 골라지고 다시 골라도 유광 유지,
   플래너가 `WHT-G`/`OAK-M` 을 보내면 `doorMaterial*` 에 그대로 + 파생, 플래너가 `WHT` 를 보내면 셀렉트는 `WHT-M`
+- `__tests__/designui-fridge-door-select.test.js` (C2c) — `renderFridgeWorkspace` 를 실제로 평가해 `.door-material-select[data-group=item]` 한 칸과
+  `onchange="updateDoorMaterial(42, 'item', this.value)"`, `fridge` 필터(`OAK` 제외), 옛 품목 `WHT-M` 미리 고르기, `doorMaterialUpper` 우선;
+  `updateDoorMaterial(uid,'item',…)` 이 상·하 키 6개 + `detail.item.door` 를 적고 플래너 없이 재렌더만 하는 것, 같은 코드·모르는 코드는 무시; 소스 규약
 - `__tests__/designui-detail-sync.test.js` (D1) 는 그대로 통과한다
 
 ## 미룬 것 (TODO)
 
-- **냉장고장 셀렉트** (`ui-fridge-el.js`) — 이번에 손대지 않았다. 같은 `buildDoorMaterialFieldHtml(uid, 'item', specs, 'fridge')` 를 쓰면 된다.
+- ~~냉장고장 셀렉트~~ — C2c 에서 끝났다 (위 [냉장고장](#냉장고장-c2c)).
 - **BOM 옛 경로가 `doorMaterial*` 코드를 직접 읽기** — 지금은 `extractors.js` 가 `item.detail`(있으면) 또는 파생된 한글 `doorColor*/doorFinish*` 를 읽는다.
   `doorMaterial*` 을 직접 읽으면 한글 이름 왕복 없이 코드로 바로 자재를 뽑을 수 있다 (BOM 도메인).
 - **플래너 팔레트가 합성 코드 `WHT-G` 를 모른다** (플래너 도메인, `js/planner/**` 는 이 PR 에서 손대지 않았다) — `plannerFinishLookup` 이 `code` 정확 일치라
