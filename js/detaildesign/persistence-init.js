@@ -1193,6 +1193,10 @@
             imageUrl: (item.imageUrl || item.image) !== 'loading' ? item.imageUrl || item.image || null : null,
           },
           modules: item.modules || [],
+          // D1: 디테일 마감 모델 (design_items.detail JSONB, database/design-items-detail.sql).
+          //   있는 품목에만 컬럼을 보낸다 — 컬럼이 아직 없는 DB 에서도 마감을 칠하지 않은 설계는 그대로 저장된다.
+          //   delete → insert 라 키를 빼면 NULL 이다.
+          ...(item.detail && typeof item.detail === 'object' ? { detail: item.detail } : {}),
           item_order: index,
         }));
 
@@ -1266,6 +1270,8 @@
             d: item.depth,
             specs: item.specs || { ...DEFAULT_SPECS },
             modules: item.modules || [],
+            // D1: 디테일 마감 모델. NULL(옛 설계)이면 키를 두지 않는다 — "없음" 은 부재로 표현한다.
+            ...(item.detail && typeof item.detail === 'object' ? { detail: item.detail } : {}),
             image: item.specs?.imageUrl || item.specs?.image || null,
             imageUrl: item.specs?.imageUrl || item.specs?.image || null,
           }));
