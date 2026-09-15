@@ -432,6 +432,49 @@ BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래�
 
 `1면(전)` 을 "긴 변 하나" 로 보는 것은 근사다 — 좌대 측처럼 짧은 변이 앞인 부재는 길이가 조금 과하다 [확인 필요].
 
+### 7-3. 재단 배치 `cutPlan` (B4, `design_snapshots.cut_plan_payload`)
+
+`js/detaildesign/nesting-engine.js` `NestingEngine.plan(materials, opts)` 의 출력이다. CNC 탭(`ai-design-report.js`)이 그리는 것과
+스냅샷 동결 시 `workflow-client.js` 가 POST 본문 `cutPlan` 으로 싣는 것이 **같은 함수·같은 입력**이라 같은 값이다.
+같은 `materials` 면 입력 순서와 무관하게 같은 JSON 이 나온다(결정적). 알고리즘·옵션은 `docs/02-design/features/nesting-engine.md`.
+
+```
+cutPlan = {
+  version: 1,
+  sheetSize: {w, h},          // 기본 원판 (data-constants SHEET_W/H = 1220×2440)
+  kerf: 4, trim: 10,          // 톱날 · 네 변 가장자리 트림(mm)
+  sheets: [ {                 // 낱장 — 겹침 재단(stack)도 한 장씩 늘어놓는다
+    no,                       // 1부터, 전체 고유
+    material, thickness, partClass,   // partClass ∈ 본체 | 도어 | 뒷판 (원판을 섞지 않는 그룹)
+    size: {w, h}, trim,
+    layout: { no, stack, index, dir, rotated },   // 같은 그룹에서 같은 layout.no = 같은 배치를 stack 장 겹침. dir ∈ H(가로→세로) | V
+    strips: [ { no, offset, size, used, remain } ],  // 1차 재단 스트립 (H: offset=y·size=높이, V: offset=x·size=너비)
+    parts: [ { partId, part, w, h, x, y, rot, grain, strip, edge?, itemLabel?, fromRemainder? } ],
+    usedArea, yield           // Σ w×h / (size.w×size.h)
+  } ],
+  offcuts: [ { sheetNo, kind, x, y, w, h, free } ],  // kind ∈ strip | sheet. free = 잘려 남은 쪽 치수. 60mm 이상만
+  groups:  [ { key, material, thickness, partClass, sheetSize, sheetCount, firstSheetNo, needed, placed } ],
+  smallParts:  [ { partId, part, material, thickness, partClass, w, h, qty, itemLabel } ],  // 한 변 ≤ 70 — 원판에 놓지 않는다
+  unallocated: [ { material, thickness, partClass, w, h, qty, parts, partIds } ],           // 원판보다 큰 부재 등
+  summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount }
+}
+```
+
+| 필드 | 뜻 |
+|------|-----|
+| `parts[].partId` | `${자재 행 partId}#${k}`, k = 0..qty-1 — 수량을 낱개로 전개한 식별자. 행 partId 자체에 `#`(`door#0`) 이 있으므로 **마지막 `#숫자`** 만 뗀다 (`NestingEngine.basePartId`). partId 가 없는 옛 행은 `row-<index>` |
+| `parts[].w, h` | 부재 자체 치수 — BOM 행 그대로 |
+| `parts[].rot` | true 면 눕혀 놓았다: 원판 위 발자국은 `h × w`. 결 부재(`grain !== 'none'`)와 회전 금지 자재(무늬목·우드·결 PET)는 항상 false |
+| `parts[].x, y` | 원판 좌상단 기준 절대 mm — 트림만큼 밀려 시작한다 (기본 10) |
+| `parts[].strip` | 속한 1차 재단 스트립 번호 (1부터) |
+| `parts[].fromRemainder` | 스트립 1차 배치가 끝난 뒤 남는 자리에 넣은 더 작은 부재 |
+| `offcuts[].free` | 스트립 잔여는 스트립 방향(H 면 w), 원판 잔여는 스트립을 쌓는 방향(H 면 h). 60~70 = 자투리(밴드), 70 초과 = 잔재(소부품 추출·재활용) |
+
+워커(`workers/workflow-api/src/snapshots.js` `validateCutPlan`)는 배치를 **다시 계산하지 않고** 검증만 한다: `version === 1`, 시트 `no` 고유·`size` 양수·`material` 비지 않음,
+모든 `partId` 의 기본 partId 가 `bom.materials` 에 있고 행별 배치 개수 ≤ `qty`, `rot` 을 반영한 발자국이 원판 안, 같은 시트에서 겹침 없음.
+통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
+`content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
+
 ---
 
 ## 8. 핵심 공식 요약
