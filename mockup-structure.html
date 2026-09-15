@@ -300,6 +300,11 @@
     <button type="button" class="pdm-btn pd-only" id="loadDetailBtn" title="계정에 저장된 마감(디테일) 불러오기 (이 품목 / 내 모든 설계)">📥 마감 불러오기 <span class="pdm-caret">▾</span></button>
     <div class="pdm-menu" id="loadDetailMenu" hidden></div>
     <button type="button" class="pdm-btn pd-only" id="saveDetailBtn" title="지금 마감 지정을 이름 붙여 계정에 저장합니다">💾 마감 저장</button>
+    <!-- D3: 렌더 저장 — 정면·3/4·평면을 오프스크린으로 찍어 계정(Storage renders + design_renders)에 올린다 (js/planner/planner-capture.js).
+         설계 저장 전·로그인 전이면 이 브라우저에 내려받는다. 디테일 모드에서만 보인다. -->
+    <button type="button" class="pdm-btn pd-only" id="renderSaveBtn" title="정면·3/4·평면 렌더(2048px)를 찍어 계정에 저장합니다. 설계 저장 전이면 이 브라우저에 내려받습니다">📷 렌더 저장</button>
+    <button type="button" class="pdm-btn pd-only" id="renderMenuBtn" title="렌더 옵션 — 4096px · 이 모듈만">📷 <span class="pdm-caret">▾</span></button>
+    <div class="pdm-menu" id="renderMenu" hidden></div>
     <button type="button" class="load-btn" id="autoSaveToggle" title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   </div>
   <div class="panel-toggle">
@@ -451,6 +456,16 @@
           <div class="empty-msg">3D 에서 부재를 누르세요</div>
         </div>
       </div>
+      <!-- D3: 최근 렌더 — 이 품목의 design_renders 썸네일(서명 URL). 디테일 모드에서만 보인다 (planner-detail.js CSS).
+           내용은 PlannerCapture.refreshStrip 이 채운다 (모드 진입·렌더 저장 뒤). -->
+      <div class="section" data-sec="detail-renders" style="display:none">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">최근 렌더</span>
+        </div>
+        <div class="section-body" id="detailRendersBody">
+          <div class="empty-msg">📷 렌더 저장을 누르면 여기 보입니다</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -478,9 +493,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // D2: 디테일 모드의 환경광 (PMREM). 구조 모드는 쓰지 않는다 — planner-detail.js 의 applyScene 이 켜고 끈다.
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+// D3: 렌더 캡처의 출력 패스 (톤매핑·sRGB 를 렌더타깃에 입힌다). planner-capture.js 가 window.OutputPass 로 쓴다.
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 window.THREE = THREE;
 window.OrbitControls = OrbitControls;
 window.RoomEnvironment = RoomEnvironment;
+window.OutputPass = OutputPass;
 // 3D 초기화는 페이지 로드 후 init3D() 가 호출
 window.dispatchEvent(new CustomEvent('three-ready'));
 </script>
@@ -509,6 +527,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/planner/planner-catalog.js?v=38.8"></script>
 <script src="js/planner/planner-materials.js?v=38.8"></script>
 <script src="js/planner/planner-detail.js?v=38.8"></script>
+<!-- D3: 렌더 스냅샷 캡처·저장 (오프스크린 렌더타깃 → PNG → Storage renders + design_renders). PlannerDetail 뒤. -->
+<script src="js/planner/planner-capture.js?v=38.8"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -7178,6 +7198,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     sectionLabel: (s) => (SECTION_CONFIG[s] && SECTION_CONFIG[s].label) || s,
     // D2: 모드에 들어갈 때만 renderer 색공간·톤매핑·환경광을 바꾸고 나갈 때 되돌린다 (applyScene). init3D 전이면 null.
     three: () => three,
+  });
+  // D3: 📷 렌더 저장 (js/planner/planner-capture.js) — 오프스크린 렌더타깃에 정면·3/4·평면을 찍어 계정에 올린다.
+  //   구조 모드에서 눌러도 디테일 룩으로 찍고 되돌린다 (PlannerDetail.pushLook/popLook). 버튼은 디테일 모드에서만 보인다.
+  PlannerCapture.mount({
+    three: () => three,
+    toast: showToast,
+    activeModuleId: () => activeId,
+    moduleLabel: (id) => { const m = modules.find((x) => x.id === id); return m ? ((SECTION_CONFIG[m.section] && SECTION_CONFIG[m.section].label) || m.section) + ' ' + (m.W || '') : String(id); },
+  });
+  PlannerCapture.mountMenu({
+    btn: document.getElementById('renderSaveBtn'),
+    menuBtn: document.getElementById('renderMenuBtn'),
+    menu: document.getElementById('renderMenu'),
   });
   // Three.js 로드 후 init3D
   if (window.THREE) init3D();
