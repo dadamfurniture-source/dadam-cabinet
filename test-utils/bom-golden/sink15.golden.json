@@ -917,11 +917,11 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
-      "w": 440,
+      "w": 490,
       "h": 120,
       "qty": 2,
       "edge": "1면(장)",
-      "note": "중 박스",
+      "note": "중 박스 · 댐핑 언더레일 500",
       "finishCode": "",
       "partId": "0-l2-drawerbox:side-0",
       "slot": "body",
@@ -931,7 +931,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 440,
+      "edgeLen": 490,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "싱크대"
@@ -965,11 +965,11 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
-      "w": 440,
+      "w": 490,
       "h": 60,
       "qty": 2,
       "edge": "1면(장)",
-      "note": "소 박스",
+      "note": "소 박스 · 댐핑 언더레일 500",
       "finishCode": "",
       "partId": "0-l2-drawerbox:side-1",
       "slot": "body",
@@ -979,7 +979,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 440,
+      "edgeLen": 490,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "싱크대"
@@ -990,10 +990,10 @@
       "material": "MDF",
       "thickness": 2.7,
       "w": 757,
-      "h": 449,
+      "h": 489,
       "qty": 2,
       "edge": "-",
-      "note": "",
+      "note": "우라",
       "finishCode": "",
       "partId": "0-l2-drawerbox:bottom-0",
       "slot": "back",
@@ -1013,7 +1013,7 @@
       "part": "서랍 하단보강",
       "material": "PB",
       "thickness": 15,
-      "w": 440,
+      "w": 490,
       "h": 60,
       "qty": 2,
       "edge": "2면(장)",
@@ -1027,7 +1027,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 880,
+      "edgeLen": 980,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "싱크대"
@@ -1637,13 +1637,13 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 12174370,
+      "totalArea": 12198370,
       "panelCount": 5
     },
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 4899496,
+      "totalArea": 4960056,
       "panelCount": 2
     },
     "MDF_18": {
@@ -1655,7 +1655,7 @@
   },
   "edgeBanding": {
     "1": 30114,
-    "0.6": 121840
+    "0.6": 122240
   },
   "hardware": [
     {

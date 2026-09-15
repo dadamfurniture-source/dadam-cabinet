@@ -10,7 +10,7 @@
  */
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
-const { DRAWER_RULES, layoutDrawerModule, assignChannels, pickBox } = require(path.join(ROOT, 'js/detaildesign/bom-drawer-rules.js'));
+const { DRAWER_RULES, layoutDrawerModule, assignChannels, pickBox, railLengthFor, drawerBoxDims } = require(path.join(ROOT, 'js/detaildesign/bom-drawer-rules.js'));
 
 const drawers = (n) => Array.from({ length: n }, () => ({ kind: 'drawer' }));
 const lay = (n, rail = 'under', H = 758) => layoutDrawerModule({ H, T: 15, fronts: drawers(n), rail });
@@ -115,6 +115,49 @@ describe('도어 + 하부 서랍 (플래너 doorTopDrawerBottom 기본형)', () 
   });
 });
 
+describe('서랍 박스 치수 — 레일 종류·깊이·자재 두께·사쿠리 (2026-09-15 철물 규격)', () => {
+  test('레일 길이 = 규격 중 깊이 − 50 이하의 최대', () => {
+    expect(railLengthFor(550)).toBe(500);
+    expect(railLengthFor(549)).toBe(450);
+    expect(railLengthFor(500)).toBe(450);
+    expect(railLengthFor(450)).toBe(400);
+    expect(railLengthFor(350)).toBe(300);
+    expect(railLengthFor(300)).toBe(250);
+    expect(railLengthFor(299)).toBeNull();
+  });
+
+  test('언더레일 W800·D550·15T: 앞뒷판 728, 측판 490, 우라 757×489', () => {
+    const d = drawerBoxDims({ W: 800, D: 550, bodyT: 15, rail: 'under', boxH: 120 });
+    expect(d).toMatchObject({ railLength: 500, fbW: 800 - 30 - 30 - 12, fbH: 120, sideL: 490, sideH: 120, outerW: 758, bottomW: 757, bottomD: 489, brace: true });
+  });
+
+  test('볼레일 W800·D550·15T: 앞뒷판 712 (레일 두께 14×2), 측판 500, 우라 741×499', () => {
+    const d = drawerBoxDims({ W: 800, D: 550, bodyT: 15, rail: 'ball', boxH: 120 });
+    expect(d).toMatchObject({ railLength: 500, fbW: 800 - 30 - 28 - 30, sideL: 500, outerW: 742, bottomW: 741, bottomD: 499, brace: true });
+  });
+
+  test('서랍 자재 18T 는 앞뒷판에서 36 을 뺀다 (몸통 15T 그대로)', () => {
+    const d = drawerBoxDims({ W: 600, D: 550, bodyT: 15, drawerT: 18, rail: 'under', boxH: 60 });
+    expect(d.fbW).toBe(600 - 30 - 36 - 12);
+    expect(d.outerW).toBe(d.fbW + 36);
+    expect(d.brace).toBe(false);
+  });
+
+  test('사쿠리: 앞뒷판 높이 −18, 우라 가로 = 앞뒷판 + 20, 세로 = 측판 − 1', () => {
+    const d = drawerBoxDims({ W: 600, D: 550, bodyT: 15, rail: 'under', boxH: 120, sakuri: true });
+    expect(d.fbH).toBe(102);
+    expect(d.sideH).toBe(120);
+    expect(d.bottomW).toBe(d.fbW + 20);
+    expect(d.bottomD).toBe(d.sideL - 1);
+  });
+
+  test('깊이가 너무 얕으면 가장 짧은 레일에 경고', () => {
+    const d = drawerBoxDims({ W: 600, D: 280, bodyT: 15, rail: 'ball', boxH: 60 });
+    expect(d.railLength).toBe(250);
+    expect(d.warnings.length).toBe(1);
+  });
+});
+
 describe('BOM 적용 (extractors.js)', () => {
   global.dlog = () => {};
   const { MaterialExtractor, HardwareExtractor, BOM_PART_DEFS } = require(path.join(ROOT, 'js/detaildesign/extractors.js'));
@@ -133,10 +176,12 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(pick('서랍도어')).toEqual([[796, 200, 2]]); // 같은 높이는 한 행
     expect(30 + 244 + 4 + 200 + 30 + 200).toBe(708);
     // 박스: 서랍 1 은 존 (경계~중간 따내기 윗선) 중 120, 서랍 2 는 존 (따내기 바닥~지판) 소 60
+    // 언더레일 D550: 레일 500 → 측판 490, 앞뒷판 W − 30 − 30 − 12 = 728, 우라 757 × 489, 하단보강 (728 > 600)
     expect(pick('서랍전후판')).toEqual([[728, 120, 2], [728, 60, 2]]);
-    expect(pick('서랍측판')).toEqual([[440, 120, 2], [440, 60, 2]]);
-    expect(pick('서랍밑판')).toEqual([[757, 449, 2]]);
-    expect(pick('서랍 하단보강')).toEqual([[440, 60, 2]]);
+    expect(pick('서랍측판')).toEqual([[490, 120, 2], [490, 60, 2]]);
+    expect(pick('서랍밑판')).toEqual([[757, 489, 2]]);
+    expect(pick('서랍 하단보강')).toEqual([[490, 60, 2]]);
+    expect(rows.find((r) => r.part === '서랍측판').note).toMatch(/댐핑 언더레일 500/);
     // 중간 목찬넬 (서랍 1–2 사이) — 전면판 72 · 지면판 40, 모듈 폭
     expect(pick('목찬넬(중간 전면)')).toEqual([[72, 800, 1]]);
     expect(pick('목찬넬(중간 지면)')).toEqual([[40, 800, 1]]);
@@ -152,6 +197,16 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(rows.find((r) => r.part === '목찬넬(중간 전면)').qty).toBe(2);
     expect(rows.find((r) => r.part === '서랍전후판')).toMatchObject({ h: 60, qty: 8 });
     expect(rows.find((r) => r.part === '측판').note).toMatch(/중간 90×40 ×2/);
+  });
+
+  test('볼레일 + 사쿠리 + 서랍 18T: 앞뒷판 가로·높이, 측판 500, 우라가 규격대로', () => {
+    const rows = rowsOf([{ id: 'l5', type: 'storage', name: '서랍장B', pos: 'lower', w: 600, h: 758, d: 550, doorCount: 0, isDrawer: true, drawerCount: 2,
+      drawerRail: 'ball', drawerBoxT: 18, drawerSakuri: true, drawerFronts: [241, 483] }], '하부장-서랍장B');
+    const pick = (part) => rows.filter((r) => r.part === part).map((r) => [r.w, r.h, r.qty, r.thickness]);
+    // 윗칸 존 = 상단 따내기 바닥 70 ~ 중간 따내기 윗선 251 = 181 → 볼레일 +20: 중 120 ; 아랫칸 존 294 → 대 180
+    expect(pick('서랍측판')).toEqual([[500, 120, 2, 18], [500, 180, 2, 18]]);
+    expect(pick('서랍전후판')).toEqual([[600 - 30 - 28 - 36, 102, 2, 18], [600 - 30 - 28 - 36, 162, 2, 18]]);
+    expect(pick('서랍밑판')).toEqual([[600 - 30 - 28 - 36 + 20, 499, 2, 2.7]]);
   });
 
   test('drawerFronts 로 전면 높이를 지정하면 그대로 쓴다', () => {
@@ -170,9 +225,10 @@ describe('BOM 적용 (extractors.js)', () => {
       { id: 'b', type: 'storage', name: 'B', pos: 'lower', w: 600, h: 708, d: 450, doorCount: 0, isDrawer: true, drawerCount: 2, drawerRail: 'ball' },
       { id: 'c', type: 'storage', name: 'C', pos: 'lower', w: 600, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 7 },
     ])] }).hardware.filter((h) => h.category === '레일');
+    // 길이 = 규격 중 깊이 − 50 이하 최대: D550 → 500, D450 → 400
     expect(hw.map((h) => [h.item, h.spec, h.qty, h.note])).toEqual([
       ['댐핑 언더레일', '500mm', 3, 'A'],
-      ['댐핑 볼레일', '450mm', 2, 'B'],
+      ['댐핑 볼레일', '400mm', 2, 'B · 두께 14'],
       ['댐핑 언더레일', '500mm', 4, 'C'],
     ]);
   });
