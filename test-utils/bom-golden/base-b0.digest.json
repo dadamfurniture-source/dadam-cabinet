@@ -1,5 +1,5 @@
 {
-  "note": "P1(#646 예정) 기준: B0 골든(#633) + P1-3 상판 행(sink15·sink18·sinkCorner 각 1행, summary 인조대리석_12) 에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. wardrobe·fridge 는 B0 그대로. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
+  "note": "P1(#649) 기준: B0 골든(#633) + P1-3 상판 행(sink15·sink18·sinkCorner 각 1행, summary 인조대리석_12) 에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. wardrobe·fridge 는 B0 그대로. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
   "baseRowKeys": [
     "module",
     "part",
