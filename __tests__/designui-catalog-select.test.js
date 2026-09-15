@@ -119,23 +119,33 @@ describe('셀렉트 마크업 — 예림 그룹 먼저, 기타(호환) 마지막
     const labels = [...html.matchAll(/<optgroup label="([^"]+)">/g)].map((m) => m[1]);
     expect(labels).toEqual(['예림 Supreme · PET Matt', '예림 Supreme · PET Glossy', '예림 Prime · MFB', '기타(호환)']);
     expect(html).toContain('<option value="YR-U1802" selected data-hex="#5b5758" data-tone="gloss">글로시 다크그레이 (U1802)</option>');
-    expect(html).toContain('<option value="WHT" data-hex="#f5f5f5">화이트</option>');
+    // C2b: 옛 색 행은 무광·유광 두 합성 옵션 — 옛 코드 WHT 자체는 옵션이 아니다
+    expect(html).toContain('<option value="WHT-M" data-hex="#f5f5f5" data-tone="matte">화이트 · 무광</option><option value="WHT-G" data-hex="#f5f5f5" data-tone="gloss">화이트 · 유광</option>');
+    expect(html).not.toContain('<option value="WHT"');
     expect(html).toContain(`onchange="updateDoorMaterial(42, 'upper', this.value)"`);
     expect(html).toContain('background:#5b5758');           // 견본은 고른 색
   });
 
-  test('doorMaterial* 이 없는 옛 품목은 doorColor* 로 기타(호환) 옵션을 고른다', async () => {
+  test('doorMaterial* 이 없는 옛 품목은 doorColor* + doorFinish* 로 기타(호환) 합성 옵션을 고른다 (유광 보존)', async () => {
     const C = await loadConfig([], YERIM_ROWS);
     const item = makeItem({ specs: { doorColorUpper: '오크', doorFinishUpper: '유광', doorColorLower: '화이트', doorFinishLower: '무광' } });
-    expect(C.buildDoorMaterialFieldHtml(42, 'upper', item.specs, 'sink')).toContain('<option value="OAK" selected');
-    expect(C.buildDoorMaterialFieldHtml(42, 'lower', item.specs, 'sink')).toContain('<option value="WHT" selected');
+    expect(C.buildDoorMaterialFieldHtml(42, 'upper', item.specs, 'sink')).toContain('<option value="OAK-G" selected');
+    expect(C.buildDoorMaterialFieldHtml(42, 'lower', item.specs, 'sink')).toContain('<option value="WHT-M" selected');
     // 새 키가 있으면 그것이 우선
     item.specs.doorMaterialUpper = 'YR-SM-01';
     const html = C.buildDoorMaterialFieldHtml(42, 'upper', item.specs, 'sink');
     expect(html).toContain('<option value="YR-SM-01" selected');
-    expect(html).not.toContain('<option value="OAK" selected');
+    expect(html).not.toContain('<option value="OAK-G" selected');
     // 아는 색이 없으면 안내 option
     expect(C.buildDoorMaterialFieldHtml(42, 'upper', { doorColorUpper: '핑크' }, 'sink')).toContain('— 선택 —');
+  });
+
+  test('과거 화이트 · 유광 설계 — 셀렉트가 WHT-G 를 미리 고르고, 견본은 화이트', async () => {
+    const C = await loadConfig([], YERIM_ROWS);
+    const html = C.buildDoorMaterialFieldHtml(42, 'upper', { doorColorUpper: '화이트', doorFinishUpper: '유광' }, 'sink');
+    expect(html).toContain('<option value="WHT-G" selected data-hex="#f5f5f5" data-tone="gloss">화이트 · 유광</option>');
+    expect(html).not.toContain('— 선택 —');
+    expect(html).toContain('background:#f5f5f5');
   });
 });
 
@@ -180,6 +190,37 @@ describe('셀렉트 변경 — updateDoorMaterial: 코드 + 파생 옛 키 + ite
     S.updateDoorMaterial(42, 'upper', 'WHT');
     expect(item.specs).toMatchObject({ doorMaterialUpper: 'WHT', doorColorUpper: '화이트', doorFinishUpper: '무광' });
     expect(item.detail.sections.upper.door).toEqual({ code: 'WHT' });
+  });
+
+  test('C2b 기타(호환) 합성 코드 — WHT-G → 화이트 · 유광, WHT-M → 화이트 · 무광, detail 에 합성 코드 그대로', async () => {
+    const { S, item, sent, undo } = await armed({ item: { specs: { doorColorUpper: '오크', doorFinishUpper: '무광', doorColorLower: '화이트', doorFinishLower: '유광' } } });
+    expect(S.updateDoorMaterial(42, 'upper', 'WHT-G')).toBe(true);
+    expect(item.specs).toMatchObject({ doorMaterialUpper: 'WHT-G', doorColorUpper: '화이트', doorFinishUpper: '유광' });
+    expect(item.specs).toMatchObject({ doorColorLower: '화이트', doorFinishLower: '유광' });   // 하부는 그대로
+    expect(item.detail.sections.upper.door).toEqual({ code: 'WHT-G' });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].msg.detail.sections.upper.door).toEqual({ code: 'WHT-G' });
+    // 소문자도 정규화, 같은 값 다시 고르면 아무것도 안 한다
+    expect(S.updateDoorMaterial(42, 'upper', 'wht-g')).toBe(false);
+    expect(undo).toHaveLength(1);
+    // 무광으로 바꾸면 마감만 바뀐다
+    S.updateDoorMaterial(42, 'upper', 'WHT-M');
+    expect(item.specs).toMatchObject({ doorMaterialUpper: 'WHT-M', doorColorUpper: '화이트', doorFinishUpper: '무광' });
+    expect(item.detail.sections.upper.door).toEqual({ code: 'WHT-M' });
+    // 옛 색 행이 아닌 접두사는 모르는 코드
+    expect(S.updateDoorMaterial(42, 'upper', 'NOPE-G')).toBe(false);
+  });
+
+  test('과거 화이트 · 유광 설계에서 셀렉트를 다시 골라도 유광이 남는다 (미리 골라진 WHT-G 를 그대로 고른 경우)', async () => {
+    const { S, item, sent } = await armed({ item: { specs: { doorColorUpper: '화이트', doorFinishUpper: '유광', doorColorLower: '화이트', doorFinishLower: '유광' } } });
+    const C = window.FurnitureOptionCatalog;
+    const pre = C.doorSelectCode(item.specs, 'upper');
+    expect(pre).toBe('WHT-G');
+    S.updateDoorMaterial(42, 'upper', pre);
+    expect(item.specs).toMatchObject({ doorMaterialUpper: 'WHT-G', doorColorUpper: '화이트', doorFinishUpper: '유광' });
+    expect(sent).toHaveLength(1);
+    // 다시 그리면 같은 옵션이 골라져 있다
+    expect(C.buildDoorMaterialFieldHtml(42, 'upper', item.specs, 'sink')).toContain('<option value="WHT-G" selected');
   });
 
   test("'item' (붙박이장): 상·하 키를 같이 채우고 item.door 에 적으며 섹션 door 재정의는 지운다", async () => {
@@ -275,9 +316,50 @@ describe('플래너 → 부모 — PLANNER_DETAIL_CHANGE 에 YR 코드가 오면
     expect(S._plannerDetailCodeToSpec('PET-OAK-M')).toEqual({ color: '오크', finish: '무광' });
     expect(S._plannerDetailCodeToSpec('WHT')).toEqual({ color: '화이트', finish: '무광' });
     expect(S._plannerDetailCodeToSpec('XXX-YYY-M')).toEqual({ color: null, finish: null });
+    // C2b: 기타(호환) 합성 코드 — parseFinishColorCode 는 'WHT' 를 기판으로 모르므로 카탈로그 파생으로 간다
+    expect(S._plannerDetailCodeToSpec('WHT-G')).toEqual({ color: '화이트', finish: '유광' });
+    expect(S._plannerDetailCodeToSpec('oak-m')).toEqual({ color: '오크', finish: '무광' });
+    expect(S._plannerDetailCodeToSpec('NOPE-G')).toEqual({ color: null, finish: null });
     expect(S._plannerDetailMaterialOf('yr-sm-01')).toBe('YR-SM-01');
+    expect(S._plannerDetailMaterialOf('wht-g')).toBe('WHT-G');
+    expect(S._plannerDetailMaterialOf('WHT')).toBe('WHT');
+    expect(S._plannerDetailMaterialOf('NOPE-G')).toBeNull();
     expect(S._plannerDetailMaterialOf('PET-OAK-M')).toBeNull();     // 이 카탈로그엔 없다
     expect(S._plannerDetailMaterialOf('')).toBeNull();
+  });
+
+  test('플래너가 WHT-G(합성 코드)를 보내면 doorMaterial* 에 그대로, 화이트 · 유광으로 파생, 셀렉트는 WHT-G 를 고른다', async () => {
+    const item = makeItem();
+    const C = await loadConfig([item], YERIM_ROWS);
+    window.plannerFinishResolve = PF.plannerFinishResolve;
+    const S = loadSync({ selectedItems: [item] });
+    const { iframe } = mountFrame('42');
+    const detail = PF.plannerFinishEmpty();
+    PF.plannerFinishSet(detail, 'section', 'door', 'WHT-G', { section: 'upper' });
+    PF.plannerFinishSet(detail, 'section', 'door', 'OAK-M', { section: 'lower' });
+
+    post(iframe, { type: 'PLANNER_DETAIL_CHANGE', detail });
+
+    expect(item.detail).toEqual(detail);
+    expect(item.specs).toMatchObject({
+      doorMaterialUpper: 'WHT-G', doorColorUpper: '화이트', doorFinishUpper: '유광',
+      doorMaterialLower: 'OAK-M', doorColorLower: '오크', doorFinishLower: '무광',
+    });
+    expect(S.dirty()).toBe(true);
+    expect(C.buildDoorMaterialFieldHtml(42, 'upper', item.specs, 'sink')).toContain('<option value="WHT-G" selected');
+    expect(C.buildDoorMaterialFieldHtml(42, 'lower', item.specs, 'sink')).toContain('<option value="OAK-M" selected');
+  });
+
+  test('플래너가 옛 색 코드 WHT 그대로를 보내면 doorMaterial* 은 WHT, 셀렉트는 마감을 붙여 WHT-M 을 고른다', async () => {
+    const item = makeItem({ specs: { doorColorUpper: '오크', doorFinishUpper: '유광' } });
+    const C = await loadConfig([item], YERIM_ROWS);
+    window.plannerFinishResolve = PF.plannerFinishResolve;
+    const S = loadSync({ selectedItems: [item] });
+    const d = PF.plannerFinishEmpty();
+    PF.plannerFinishSet(d, 'section', 'door', 'WHT', { section: 'upper' });
+    expect(S._mirrorPlannerDetailToSpecs(item, d)).toEqual(['doorMaterialUpper', 'doorColorUpper', 'doorFinishUpper']);
+    expect(item.specs).toMatchObject({ doorMaterialUpper: 'WHT', doorColorUpper: '화이트', doorFinishUpper: '무광' });   // WHT 행은 톤이 없다 → 무광
+    expect(C.doorSelectCode(item.specs, 'upper')).toBe('WHT-M');
   });
 
   test('카탈로그가 모르는 코드(PET-OAK-M, v2 행 없음)는 doorMaterial* 을 null 로 — 옛 방식으로 돌아간다', async () => {
