@@ -108,6 +108,7 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(one(rows, 'planner-tall-2-0', '상몰딩')).toMatchObject({ material: 'MDF', thickness: 18, w: 60, h: 600, qty: 1, slot: 'finishing' });
     expect(rowsOf(rows, 'planner-tall-0-0', '상몰딩')).toHaveLength(0);
     expect(rowsOf(rows, 'planner-tall-1-0', '상몰딩')).toHaveLength(0);
+    expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);   // 상부장이 없다
   });
 
   test('몸통은 하부장과 같다 — 측판·지판·밴드·뒷판 (단별 H)', () => {
@@ -141,5 +142,24 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(one(r, 'planner-tall-0-0', '도어').h).toBe(797);
     expect(rowsOf(r, 'planner-tall-0-0').filter((x) => /목찬넬/.test(x.part))).toHaveLength(0);
     expect(one(r, 'planner-tall-0-0', '밴드(처짐방지)').h).toBe(801 - 30);
+  });
+});
+
+describe('P1-2 상부장 없는 배치에는 상몰딩을 내지 않는다', () => {
+  test('상부 모듈 0 → ep 상몰딩 없음 (예전엔 하부 폭 4866 짜리 상몰딩이 나갔다)', () => {
+    const rows = extract(sinkItem([...LOWERS]));
+    expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);
+    expect(rows.filter((r) => r.part === '상몰딩')).toHaveLength(0);
+  });
+
+  test('상부 모듈이 있으면 상몰딩 폭 = 상부 폭 합 (하부 폭이 아니다)', () => {
+    const rows = extract(sinkItem([...LOWERS, UPPER]));
+    expect(one(rows, 'ep', '상몰딩')).toMatchObject({ w: 60, h: 900, qty: 1, edge: '4면' });
+  });
+
+  test('하부 모듈이 하나도 없는 옛 저장 설계 — 상몰딩은 여전히 없고 걸레받이만 품목 폭 − 120 으로 떨어진다', () => {
+    const rows = extract(sinkItem([]));
+    expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);
+    expect(one(rows, 'ep', '걸레받이').w).toBe(4200 - 120);
   });
 });
