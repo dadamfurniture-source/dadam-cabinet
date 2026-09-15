@@ -280,9 +280,11 @@ EP 20 + W824장(도어 411×2) + 멍장(도어 411 + 멍 665) + 여유공간 50 
 - 경첩 수·보링은 도어 **높이**로만 정하므로(bom-protocol.md §4-1) 폭 변경에 영향이 없다.
 - 구현: `corner-engine.js blindDoorPartW / deriveCorner().doorPartW`, `extractors.js blindDoorPartW`
   (하부·상부·키큰장 단 멍장 도어 행). 골든 `sinkCorner` 도어 행 407 → 422, 441 → 456.
-- **3D 는 아직 옛 그림이다** — `mockup-structure.html createModuleMesh` 가 도어 칸을 `doorW − 4` 로 그린다
-  (P2-5). 플래너 후속 PR 에서 §3.5.1 대로 `칸 폭 − 4 = doorW + 11` 로 맞춘다. 그때까지 도면↔BOM 원장의
-  "멍장 정면 치수" 항목은 이 결정을 이유로 허용 목록에 남는다 (`scene-bom-ledger.md` §3 #13).
+- **3D·정면도도 같은 값이다** (플래너 후속, `agent/planner-blind-door-width`) — `mockup-structure.html
+  createModuleMesh` 도어 칸은 표준 도어와 같은 `칸 폭 − 4 = doorW + 11`(갭 좌우 2), `renderFrontView` 도어 rect 도
+  같다. 도면↔BOM 원장의 "멍장 정면 치수" 항목은 0 이다 (`scene-bom-ledger.md` §3 #13 · §4 P2-5).
+  `planner-blind-door-width.test.js` 가 2D·3D 를 잠근다. P2(#652) 에서 잠시 도어를 `doorW − 4` 로 목대 옆에
+  앉혀 목대 15 가 정면에 보였던 그림은 이 결정으로 폐기됐다.
 
 ### 3.9 키큰장 코너 — 2026-09-09 신설 (W12-65)
 
