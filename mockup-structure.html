@@ -591,6 +591,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     };
   }
 
+  /**
+   * 가전 자리 표시 모듈(분배기·후드 — PLANNER_MARKER_SECTIONS)의 구조. **저장하지 않는다.**
+   *
+   * 2026-09-15 결정: 분배기는 씽크볼이 앉는 자리 표시일 뿐 장이 아니다 — 칸·도어·선반·다리발이
+   * 없다. getStructure 가 부를 때마다 새로 만들어 주므로 여기에 무엇을 적어도 structures[id] 에
+   * 남지 않고, payload 의 structures 에도 실리지 않는다. 손잡이 위치 'middle'·다리발 0 은
+   * addModuleToArea 가 sink 모듈에 주던 값 그대로다 (planner-area-module Q5 가 본다).
+   */
+  function markerStructure() {
+    const s = defaultStructure();
+    s.areaTypes = ['open'];      // 도어가 없다 — 무엇이 읽어도 장으로 보지 않게
+    s.areaWidths = [];
+    s.areaIs2D = [];
+    s.shelves = [];
+    s.legH = 0;
+    s.handlePosition = 'middle';
+    return s;
+  }
+
   // 모듈 로드 — localStorage 또는 sample
   /** 배치 사각형을 영역으로 읽는다. 마감재는 영역이 아니다. */
   function loadAreas() {
@@ -769,6 +788,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const raw = localStorage.getItem(STRUCTURE_KEY);
       structures = raw ? JSON.parse(raw) : {};
     } catch (e) { structures = {}; }
+    // 2026-09-15: 이 결정 전에 저장된 분배기·후드 구조는 버린다 (getStructure 와 같은 규칙).
+    //   loadModules 가 먼저 돌아 modules 가 차 있으므로 id 로 섹션을 알 수 있다.
+    Object.keys(structures).forEach((id) => { if (isMarkerModuleId(id)) delete structures[id]; });
   }
   function saveStructures() {
     localStorage.setItem(STRUCTURE_KEY, JSON.stringify(structures));
@@ -961,6 +983,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     saveStructModules();
   }
   function getStructure(id) {
+    // 2026-09-15: 가전 자리 표시(분배기·후드)는 장이 아니다 — 구조를 만들지도 저장하지도 않는다.
+    //   이 결정 전에 저장된 것이 있으면 지운다. 그래야 payload 와 저장소에서도 사라진다.
+    if (isMarkerModuleId(id)) { delete structures[id]; return markerStructure(); }
     if (!structures[id]) { structures[id] = defaultStructure(); return structures[id]; }
     // 저장된 구조에 빠진 항목을 채운다.
     //   areaTypes 하나만 없어도 renderModuleFront 가 s.areaTypes[i] 에서 터지고,
@@ -2019,6 +2044,47 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
   }
 
+  /**
+   * 가전 자리 표시(분배기·후드 — PLANNER_MARKER_SECTIONS)의 정면도 — **칸·도어를 그리지 않는다.**
+   * 2026-09-15 결정: 분배기는 씽크볼 자리일 뿐 장이 아니다. 배치 단계와 같은 표현으로
+   * 섹션 색 반투명 사각형 + 점선 윤곽 + 이름만 그린다. 3D 의 buildMarkerMesh 와 짝이다.
+   * 클릭은 다른 모듈과 같다 — 첫 클릭은 배치, 한 번 더 누르면 모듈 (pickAreaFirst).
+   */
+  function renderMarkerFront(content, m, cfg, offsetX, offsetY, on) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const box = document.createElementNS(ns, 'rect');
+    box.setAttribute('class', 'marker-rect');
+    box.setAttribute('x', offsetX);
+    box.setAttribute('y', offsetY);
+    box.setAttribute('width', m.W);
+    box.setAttribute('height', m.H);
+    box.setAttribute('fill', cfg.fill);
+    box.setAttribute('fill-opacity', 0.35);
+    box.setAttribute('stroke', on ? PICK_COLOR_CSS : cfg.stroke);
+    box.setAttribute('stroke-width', on ? 8 : 4);
+    box.setAttribute('stroke-dasharray', '14 10');
+    box.setAttribute('data-module-id', m.id);
+    box.setAttribute('data-marker', m.section);
+    box.setAttribute('pointer-events', 'all');
+    box.style.cursor = 'pointer';
+    box.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeId !== m.id && pickAreaFirst(m.id)) return;   // 첫 클릭은 배치
+      setActiveModule(m.id);
+    });
+    content.appendChild(box);
+    const lab = document.createElementNS(ns, 'text');
+    lab.setAttribute('class', 'area-label');
+    lab.setAttribute('x', offsetX + m.W / 2);
+    lab.setAttribute('y', offsetY + m.H / 2);
+    lab.setAttribute('text-anchor', 'middle');
+    lab.setAttribute('dominant-baseline', 'central');
+    lab.setAttribute('font-size', Math.min(m.W * 0.18, m.H * 0.18, 80));
+    lab.setAttribute('fill', cfg.stroke);
+    lab.textContent = cfg.label;
+    content.appendChild(lab);
+  }
+
   // W9-102: 단일 모듈 정면도 헬퍼 (offset 받음)
 
   /**
@@ -2089,6 +2155,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       content.appendChild(panel);
       return;
     }
+
+    // 2026-09-15: 가전 자리 표시(분배기·후드)는 장이 아니다 — 칸·도어·서랍을 그리지 않는다 (renderMarkerFront).
+    if (isMarkerSection(m.section)) { renderMarkerFront(content, m, cfg, offsetX, offsetY, on); return; }
 
     // 모듈 외곽 — 클릭 대상이자 옵션 팔레트의 앵커.
     // 예전엔 정면도에서 모듈을 고를 방법이 없어 좌측 목록이나 3D 를 거쳐야 했다.
@@ -3044,6 +3113,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
     const s = getStructure(activeId);
     renderSizePanel(m, s);
+    // 2026-09-15: 가전 자리 표시(분배기·후드)는 장이 아니다 — 자리(치수)만 고친다.
+    //   칸·높이 부위·선반·손잡이가 없고, 구조가 저장되지 않으므로 여기서 받아도 사라진다.
+    if (isMarkerSection(m.section)) {
+      const note = `<div class="empty-msg">${cfgLabelOf(m.section)}는 자리 표시입니다<br><span style="font-size:10px">장이 아니라 칸·선반·손잡이가 없습니다 — 개수대·후드장은 라인 안의 셀</span></div>`;
+      ['heightBody', 'splitBody', 'areasBody', 'shelvesBody', 'handleBody'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = note;
+      });
+      return;
+    }
     renderHeightPanel(m, s);
 
     // 분할
@@ -3293,6 +3372,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   //   공유**하므로 SyntaxError 가 나고 페이지가 통째로 흰 화면이 된다.
   //   (planner-assets.test.js 가 이걸 지킨다)
   function isFinishingSection(k) { return FINISHING_SECTIONS.indexOf(k) >= 0; }
+  // 2026-09-15: 가전 자리 표시(분배기·후드) — 정본은 planner-sections.js 의 전역 `PLANNER_MARKER_SECTIONS`.
+  //   장이 아니라 구조·몸통·도어가 없다. 결정 근거는 그 상수의 주석.
+  function isMarkerSection(k) { return PLANNER_MARKER_SECTIONS.indexOf(k) >= 0; }
+  /** 모듈 id 로 판별 — getStructure 는 id 만 받는다. 모듈 목록에 없는 id 는 표시가 아니다. */
+  function isMarkerModuleId(id) {
+    const m = modules.find((x) => x.id === id);
+    return !!m && isMarkerSection(m.section);
+  }
+  function cfgLabelOf(section) { return (SECTION_CONFIG[section] || {}).label || section; }
   // 도구를 다시 그려도 고른 마감재가 유지되도록 기억한다 — 안 하면 추가할 때마다
   // 기본값으로 되돌아가 같은 것을 두 번 넣기가 번거롭다.
   let lastFinishing = 'ep';
@@ -3885,22 +3973,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     modules.push(m);
     seatModuleDepth(m);   // W12-33: 배치 공간 앞선에 붙인다
 
-    const s = getStructure(id);
-    // W12-39: 상판은 높이 모델의 한 부위다 — heightPartsOf 의 기본값(12)을 쓴다.
-    //   예전엔 0 으로 눌러 놔서 870 영역에 넣어도 상판이 없었다.
-    delete s.topT;
-    s.verticalCount = 1;
-    s.areaTypes = ['door'];
-    s.areaDirections = ['left'];
-    s.areaWidths = [];
-    s.areaIs2D = [];
-    s.horizontalLayout = 'doorOnly';
-    s.handleType = 'auto';   // W12-6: 단별 기본형은 defaultHandleType 이 정한다
-    // 손잡이 위치와 선반은 **모듈의 섹션**을 따른다 (영역이 아니라).
-    // autoCalcModule 이 쓰는 규칙과 같다.
-    s.handlePosition = section === 'upper' ? 'bottom' : section === 'lower' ? 'top' : 'middle';
-    s.legH = section === 'lower' ? NEW_MODULE.legH : 0;
-    s.shelves = calcDefaultShelves(section, bodyHeightOf(m, s));
+    // 2026-09-15: 가전 자리 표시(분배기·후드)는 장이 아니다 — 구조를 만들지 않는다 (getStructure 참고).
+    if (!isMarkerSection(section)) {
+      const s = getStructure(id);
+      // W12-39: 상판은 높이 모델의 한 부위다 — heightPartsOf 의 기본값(12)을 쓴다.
+      //   예전엔 0 으로 눌러 놔서 870 영역에 넣어도 상판이 없었다.
+      delete s.topT;
+      s.verticalCount = 1;
+      s.areaTypes = ['door'];
+      s.areaDirections = ['left'];
+      s.areaWidths = [];
+      s.areaIs2D = [];
+      s.horizontalLayout = 'doorOnly';
+      s.handleType = 'auto';   // W12-6: 단별 기본형은 defaultHandleType 이 정한다
+      // 손잡이 위치와 선반은 **모듈의 섹션**을 따른다 (영역이 아니라).
+      // autoCalcModule 이 쓰는 규칙과 같다.
+      s.handlePosition = section === 'upper' ? 'bottom' : section === 'lower' ? 'top' : 'middle';
+      s.legH = section === 'lower' ? NEW_MODULE.legH : 0;
+      s.shelves = calcDefaultShelves(section, bodyHeightOf(m, s));
+    }
 
     saveStructModules();
     persistPlannerState();
@@ -4619,6 +4710,43 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return t;
   }
 
+  /**
+   * 가전 자리 표시 공간(분배기·후드)의 자동계산 — **장을 세우지 않는다.**
+   *
+   * 2026-09-15 결정: 분배기는 씽크볼이 앉는 자리 표시일 뿐이다. 개수대 하부장은 하부 라인 안의
+   * 셀(브리지가 '개수대' 로 라벨)이므로, 여기에 장을 세우면 그 셀과 겹치는 가짜 장이 되고 원장에는
+   * BOM 에 없는 부재 14 건만 남았다 (scene-bom-ledger.md #8 · P4-11). 후드도 같다 — 후드장은
+   * 상부 라인 안의 셀이다.
+   *
+   * 남는 것은 **공간 폭 그대로의 표시 모듈 하나**다. 모듈은 있어야 한다 — 브리지가 그 X 범위로
+   * 라인의 셀을 개수대·후드장으로 판정한다. 구조(칸·도어·선반)는 만들지 않는다 (getStructure).
+   * 고정 모듈·마감재는 일반 공간과 같이 보존하고, 도어 최소폭(350) 문턱도 그대로 둔다 —
+   * 규칙을 새로 만들지 않는다 (후드 300 은 예전처럼 비워 둔다; planner-autocalc-all 이 본다).
+   */
+  function autoCalcMarkerArea(area) {
+    const kept = modules.filter((m) => m.areaId === area.id
+      && (m.isFixed || isFinishingSection(m.section)));
+    const keptW = kept.reduce((sum, m) => sum + (m.W || 0), 0);
+    const room = area.W - keptW;
+    if (room < MASTER_RULES.DOOR_W_MIN) {
+      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — 자동계산할 자리가 없습니다`);
+      return 0;
+    }
+    // 비고정 표시 모듈만 걷어낸다 — 배열은 제자리에서 (autoCalcArea 와 같은 이유).
+    for (let i = modules.length - 1; i >= 0; i--) {
+      const m = modules[i];
+      if (m.areaId === area.id && !m.isFixed && !isFinishingSection(m.section)) {
+        delete structures[m.id];
+        modules.splice(i, 1);
+      }
+    }
+    orphanHostFinishings(area.id);
+    const m = addModuleToArea(area.id, { section: area.section, W: room });
+    saveStructModules();
+    persistPlannerState();
+    return m ? 1 : 0;
+  }
+
   function autoCalcArea(areaId) {
     const area = areaById(areaId);
     if (!area) return 0;
@@ -4627,6 +4755,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (!stack.length) { showToast('⚠ 높이가 모자라 자동계산할 수 없습니다'); return 0; }
       return autoCalcStack(area, stack);
     }
+    // 2026-09-15: 분배기·후드 공간에는 장을 세우지 않는다 — 자리 표시 모듈 하나뿐.
+    if (isMarkerSection(area.section)) return autoCalcMarkerArea(area);
     // W12-49: 코너가 있으면 멍장을 **먼저** 세운다. isFixed 라 아래 kept 에 걸린다.
     const pairs = cornerPairs();
     const corner = ensureCornerModules(areaId, pairs);
@@ -5611,6 +5741,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const m2 = modules.find(x => x.id === ud.moduleId);
       const lbl = m2 ? SECTION_CONFIG[m2.section].label : '모듈';
       msg = '🎯 ' + lbl + ' 선택';
+    } else if (ud.entityKind === 'marker') {
+      // 2026-09-15: 가전 자리 표시 — 장이 아니다
+      const lbl = (SECTION_CONFIG[ud.section] || {}).label || '가전';
+      msg = '🎯 ' + lbl + ' 자리 (장이 아닙니다 — 개수대·후드장은 라인 안의 셀)';
     } else if (ud.entityKind === 'shelf') {
       msg = '🎯 선반 ' + ((ud.shelfIdx || 0) + 1);
     }
@@ -6664,6 +6798,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     three.camera.updateProjectionMatrix();
   }
 
+  /**
+   * 가전 자리 표시(분배기·후드 — PLANNER_MARKER_SECTIONS)의 3D — **장을 그리지 않는다.**
+   *
+   * 2026-09-15 결정: 분배기는 씽크볼이 앉는 자리다. 몸통·도어·상판을 그리면 하부 라인의 개수대
+   * 셀과 겹치는 가짜 장이 서고, 원장에는 BOM 에 없는 부재만 남는다. 배치 단계의 표현(섹션 색
+   * 사각형 + 이름)을 그대로 세운다 — 섹션 색의 반투명 상자 + 윤곽선. 배치 공간 상자(renderAreas3D,
+   * 0.09)보다 진해 "여기가 씽크볼 자리" 로 읽히고, 클릭하면 모듈이 골라진다 (handleEntityClick).
+   * 부재가 아니므로 entityKind 'marker' — PLANNER_FINISH_PAINT_SKIP 이 원장·디테일 칠하기에서 뺀다.
+   */
+  function buildMarkerMesh(g, m, cfg) {
+    const W = Math.max(1, m.W), H = Math.max(1, m.H), D = Math.max(1, m.D);
+    const box = makeBox(W, H, D, cfg.fill, { transparent: true, opacity: 0.35, roughness: 0.9 });
+    box.castShadow = false;
+    box.receiveShadow = false;
+    box.position.set(0, H / 2, 0);
+    box.userData = { entityKind: 'marker', moduleId: m.id, section: m.section };
+    g.add(box);
+    addEdgeOutline(box, g, cfg.stroke, 0.85);
+    return g;
+  }
+
   // 단일 모듈 mesh 생성 (외곽 + 분할 + 선반) — renderModule3D 의 logic 재사용
   // W9-67: 상부장은 천정 매달림 (Y offset = ceiling - H)
   function createModuleMesh(m, s) {
@@ -6675,6 +6830,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (m.isFinishing || isFinishingSection(m.section)) {
       g.position.y = baseYOf(m);
       return buildFinishingMesh(g, m);
+    }
+    // 2026-09-15: 가전 자리 표시(분배기·후드)는 장이 아니다 — 몸통·도어·상판을 그리지 않는다.
+    if (isMarkerSection(m.section)) {
+      g.position.y = baseYOf(m);
+      return buildMarkerMesh(g, m, cfg);
     }
     const W = m.W, H = m.H, D = m.D, T = BODY_T;
     const carcassColor = darken3(cfg.fill, 0.05);
