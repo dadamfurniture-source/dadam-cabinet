@@ -173,11 +173,11 @@
       "part": "도어",
       "material": "MDF",
       "thickness": 18,
-      "w": 441,
+      "w": 456,
       "h": 735,
       "qty": 1,
       "edge": "4면",
-      "note": "멍장 도어(도어폭 기준)",
+      "note": "멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)",
       "finishCode": "",
       "partId": "0-corner-blind-upper-door#0-0",
       "slot": "door",
@@ -187,7 +187,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 2352,
+      "edgeLen": 2382,
       "edgeT": 1,
       "edgeCode": null,
       "itemLabel": "싱크대"
@@ -629,11 +629,11 @@
       "part": "도어",
       "material": "MDF",
       "thickness": 18,
-      "w": 407,
+      "w": 422,
       "h": 678,
       "qty": 1,
       "edge": "4면",
-      "note": "멍장 도어(도어폭 기준)",
+      "note": "멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)",
       "finishCode": "",
       "partId": "0-corner-blind-lower-door#0-0",
       "slot": "door",
@@ -643,7 +643,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 2170,
+      "edgeLen": 2200,
       "edgeT": 1,
       "edgeCode": null,
       "itemLabel": "싱크대"
@@ -1169,7 +1169,7 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 2774478,
+      "totalArea": 2795673,
       "panelCount": 1
     },
     "인조대리석_12": {
@@ -1180,7 +1180,7 @@
     }
   },
   "edgeBanding": {
-    "1": 14050,
+    "1": 14110,
     "0.6": 68553
   },
   "hardware": [
