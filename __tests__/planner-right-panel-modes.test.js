@@ -58,8 +58,10 @@ const dimInput = (p, k) => p.document.querySelector(`#sizeBody input[data-dim="$
 describe('모드에 따라 섹션이 바뀐다', () => {
   test('모듈을 고르면 모듈 모드', () => {
     const { p } = withModule();
-    expect(shownSecs(p)).toEqual(['size', 'height', 'split', 'areas', 'shelves', 'handle']);
+    // 2026-09-15: 분할·칸·선반·손잡이는 개별 모듈 패널(#modulePanel)이 초안으로 편집한다 — 우측은 크기·높이만.
+    expect(shownSecs(p)).toEqual(['size', 'height']);
     expect(p.document.querySelector('.panel-header-title').textContent).toBe('구조 편집');
+    expect(p.document.getElementById('modulePanel').style.display).not.toBe('none');
   });
 
   test('영역을 고르면 영역 모드 — 크기·높이·마감만', () => {
@@ -72,9 +74,11 @@ describe('모드에 따라 섹션이 바뀐다', () => {
   test('영역을 고른 뒤 모듈을 고르면 되돌아온다', () => {
     const { p, m, area } = withModule();
     p.g('setActiveArea')(area.id);
+    expect(p.document.getElementById('modulePanel').style.display).toBe('none');   // 영역 모드에선 개별 모듈 패널이 닫힌다
     p.g('setActiveModule')(m.id);
-    expect(shownSecs(p)).toContain('split');
+    expect(shownSecs(p)).toEqual(['size', 'height']);
     expect(shownSecs(p)).not.toContain('finish');
+    expect(p.document.getElementById('modulePanel').style.display).not.toBe('none');
   });
 
   test('제목이 모드마다 다시 쓰인다 — 앞 모드의 제목이 남지 않는다', () => {
@@ -234,7 +238,9 @@ describe('소스 규약', () => {
 
   test('섹션 마크업은 한 벌이다', () => {
     const keys = (SRC.match(/class="section[^"]*" data-sec="(\w+)"/g) || []).length;
-    expect(keys).toBe(8);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
+    // 2026-09-15: 우측은 size·height·finish·detail 네 벌. 분할·칸·선반·손잡이는 개별 모듈 패널(data-mp 다섯 벌)로 갔다.
+    expect(keys).toBe(4);
+    expect((SRC.match(/class="section[^"]*" data-mp="(\w+)"/g) || []).length).toBe(5);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
     expect(SRC).toContain('const PANEL_LAYOUT = {');
   });
 

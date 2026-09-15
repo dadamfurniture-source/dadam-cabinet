@@ -145,11 +145,15 @@ describe('개별 목록 클릭 = 도면에서 모듈 클릭', () => {
     // 우측 패널 하나다 — 목록 클릭도 도면 클릭과 같은 자리를 채운다.
     const p = boot(seedFor(FIXTURES.straight));
     p.g('setViewMode')('single');
+    // 2026-09-15: '개별' 탭은 첫 모듈을 이미 고른다 — 같은 항목을 다시 누르면 해제되므로 먼저 비운다.
+    p.g('clearActiveModule')();
     p.document.querySelector('#mlBody .module-item').onclick();
     expect(p.document.querySelector('.panel-header-title').textContent).toBe('구조 편집');
     const shown = [...p.document.querySelectorAll('#rightPanel .section[data-sec]')]
       .filter((n) => n.style.display !== 'none').map((n) => n.getAttribute('data-sec'));
-    expect(shown).toContain('split');
+    expect(shown).toEqual(['size', 'height']);   // 분할·칸·선반·손잡이는 개별 모듈 패널로 갔다
+    expect(p.document.getElementById('modulePanel').style.display).not.toBe('none');
+    expect(p.document.querySelector('#splitBody #inpVCount')).not.toBeNull();
     expect(p.document.querySelector('#sizeBody input[data-dim="W"]')).not.toBeNull();
     expect(p.document.querySelector('.mod-palette')).toBeNull();
   });

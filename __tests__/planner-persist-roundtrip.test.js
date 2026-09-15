@@ -132,7 +132,7 @@ describe('저장 순서 — 도장이 어긋나면 모듈이 전멸한다', () =
   });
 });
 
-describe('우측 패널 조작이 저장된다 (W12-29)', () => {
+describe('개별 모듈 패널 조작은 적용해야 저장된다 (W12-29 → 2026-09-15 초안·적용)', () => {
   /** 모듈 하나를 고른 상태로 우측 패널을 그린다 */
   function panel() {
     const { p, m } = withModule();
@@ -147,6 +147,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const inp = doc.getElementById('inpVCount');
     inp.value = '3';
     inp.onchange({ target: inp });
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).verticalCount).toBe(3);
   });
 
@@ -155,6 +156,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const sel = doc.getElementById('selHLayout');
     sel.value = 'doorTopDrawerBottom';
     sel.onchange({ target: sel });
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).horizontalLayout).toBe('doorTopDrawerBottom');
   });
 
@@ -166,6 +168,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const inp = p.document.getElementById('inpDrawerH');
     inp.value = '250';
     inp.onchange({ target: inp });
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).drawerHeight).toBe(250);
   });
 
@@ -174,6 +177,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const sel = doc.querySelector('#areasBody .a-type');
     sel.value = 'drawer';
     sel.onchange({ target: sel });
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).areaTypes[0]).toBe('drawer');
   });
 
@@ -183,6 +187,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     if (!sel) return;                       // 양문이면 select 가 없다
     sel.value = 'right';
     sel.onchange({ target: sel });
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).areaDirections[0]).toBe('right');
   });
 
@@ -192,6 +197,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const inp = doc.querySelector('#shelvesBody input[type="number"]');
     inp.value = '420';
     inp.onchange({ target: inp });
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).shelves[0]).toBe(420);
   });
 
@@ -199,6 +205,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const { p, m, doc } = panel();
     const before = p.g('getStructure')(m.id).shelves.length;
     doc.getElementById('addShelf').onclick();
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).shelves.length).toBe(before + 1);
   });
 
@@ -207,6 +214,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const before = p.g('getStructure')(m.id).shelves.length;
     expect(before).toBeGreaterThan(0);
     doc.querySelector('#shelvesBody button.del').onclick();
+    p.g('applyModuleDraft')();
     expect(reboot(p).g('getStructure')(m.id).shelves.length).toBe(before - 1);
   });
 
@@ -218,6 +226,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const pos = p.document.getElementById('selHPos');
     pos.value = 'middle';
     pos.onchange({ target: pos });
+    p.g('applyModuleDraft')();
     const s2 = reboot(p).g('getStructure')(m.id);
     expect(s2.handleType).toBe('alu-channel');
     expect(s2.handlePosition).toBe('middle');
@@ -230,6 +239,7 @@ describe('우측 패널 조작이 저장된다 (W12-29)', () => {
     const t = doc.getElementById('selHType');
     t.value = 'push';
     t.onchange({ target: t });
+    p.g('applyModuleDraft')();
     expect(p.g('doorTopGapOf')(m, p.g('getStructure')(m.id))).toBe(0);
   });
 });
