@@ -664,7 +664,12 @@ const PlannerDetail = {
     if (c.source === 'builtin' || (c.source == null && c.fallback)) return '폴백 목록';
     const finishes = Array.isArray(c.finishes) ? c.finishes : [];
     const nF = finishes.length;
-    const local = Array.isArray(c.groups) ? (c.groups.find((g) => g.compat) || { count: c.entries.length }).count : c.entries.length;
+    // 마감×색 표의 크기다 — C2b 호환 코드({COLOR}-M/G, compatTone)는 같은 호환 그룹에 있지만 표의 칸이 아니라 뺀다.
+    const entries = Array.isArray(c.entries) ? c.entries : [];
+    const compatGroup = Array.isArray(c.groups) ? c.groups.find((g) => g.compat) : null;
+    const local = compatGroup
+      ? entries.filter((e) => e.group === compatGroup.key && !e.compatTone).length
+      : entries.filter((e) => !e.compatTone).length;
     const nC = nF ? Math.round(local / nF) : 0;
     return `카탈로그 ${nF}×${nC}`;
   },

@@ -92,7 +92,8 @@ describe('모드 진입·이탈', () => {
     const nF = api.DOOR_FINISH_CATALOG.length, nC = api.DOOR_COLOR_CATALOG.length;
     expect(nF).toBe(7);
     expect(nC).toBeGreaterThanOrEqual(7);
-    expect(pal.querySelectorAll('.pd-swatch')).toHaveLength(Object.keys(api.buildFullMatrix()).length);
+    // 마감×색 전부 + C2b 호환 코드 {COLOR}-M/G (색 × 2, planner-catalog.js plannerCatalogCompatToneEntries)
+    expect(pal.querySelectorAll('.pd-swatch')).toHaveLength(Object.keys(api.buildFullMatrix()).length + api.DOOR_COLOR_CATALOG.length * 2);
     expect(pal.querySelectorAll('[data-slot]')).toHaveLength(7);
     expect(pal.querySelector('.pd-src').textContent).toBe(`카탈로그 ${nF}×${nC}`);   // 정본을 script 로 실었다
     expect(p.document.querySelector('#rightPanel .section[data-sec="detail"] #detailBody')).not.toBeNull();
@@ -358,7 +359,7 @@ describe('D2: 팔레트 그룹 (예림 LUX 카탈로그)', () => {
   test('부팅 직후(DB 없음)는 호환 그룹 하나가 펼쳐져 있고 출처는 D0 그대로 "카탈로그 7×10"', () => {
     const p = boot({ detail: true });
     expect(p.PD.catalog.source).toBe('local');
-    expect(labelsOf(p)).toEqual(['구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['기타(호환)']);
     expect(groupsOf(p)[0].open).toBe(true);
     expect(p.document.querySelector('#detailPalette .pd-search')).not.toBeNull();
   });
@@ -367,7 +368,7 @@ describe('D2: 팔레트 그룹 (예림 LUX 카탈로그)', () => {
     const p = bootDb();
     expect(p.document.querySelector('#detailPalette .pd-src').textContent).toBe('예림 LUX 4');
     // 기본 슬롯 door → 도어재 그룹 + 호환 (바디·상판은 숨는다)
-    expect(labelsOf(p)).toEqual(['Supreme · PET Matt', 'Supreme · PET Glossy', '구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['Supreme · PET Matt', 'Supreme · PET Glossy', '기타(호환)']);
     const gs = groupsOf(p);
     expect(gs.map((d) => d.open)).toEqual([true, true, false]);
     expect(gs[0].querySelector('.pd-count').textContent).toBe('2');
@@ -375,8 +376,9 @@ describe('D2: 팔레트 그룹 (예림 LUX 카탈로그)', () => {
     expect(sw.querySelector('.pd-chipbox').getAttribute('style')).toContain('#d1b089');
     expect(sw.querySelector('.pd-name').textContent).toBe('매트 오크');
     expect(sw.querySelector('.pd-code').textContent).toBe('SM-02');
-    // 호환 그룹의 스와치도 DOM 에는 있다 (접혀 있을 뿐)
-    expect(gs[2].querySelectorAll('.pd-swatch').length).toBe(Object.keys(p.window.DadamBomFinishColor.buildFullMatrix()).length);
+    // 호환 그룹의 스와치도 DOM 에는 있다 (접혀 있을 뿐) — 구 7×7 + C2b 호환 코드 {COLOR}-M/G (색 × 2)
+    expect(gs[2].querySelectorAll('.pd-swatch').length).toBe(Object.keys(p.window.DadamBomFinishColor.buildFullMatrix()).length
+      + p.window.DadamBomFinishColor.DOOR_COLOR_CATALOG.length * 2);
     // 고르면 선택 카드에 라벨·코드
     sw.onclick();
     expect(p.PD.selectedCode).toBe('YR-SM-02');
@@ -387,14 +389,14 @@ describe('D2: 팔레트 그룹 (예림 LUX 카탈로그)', () => {
   test('슬롯 필터 — 몸통은 body_material, 상판은 countertop, 손잡이는 호환뿐', () => {
     const p = bootDb();
     p.PD.selectSlot('body');
-    expect(labelsOf(p)).toEqual(['Body · PVC', '구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['Body · PVC', '기타(호환)']);
     p.PD.selectSlot('top');
-    expect(labelsOf(p)).toEqual(['상판', '구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['상판', '기타(호환)']);
     expect(p.document.querySelector('#detailPalette [data-code="TOP-SNW"]')).not.toBeNull();
     p.PD.selectSlot('handle');
-    expect(labelsOf(p)).toEqual(['구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['기타(호환)']);
     p.PD.selectSlot('drawerFront');
-    expect(labelsOf(p)).toEqual(['Supreme · PET Matt', 'Supreme · PET Glossy', '구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['Supreme · PET Matt', 'Supreme · PET Glossy', '기타(호환)']);
   });
 
   test('검색 — 입력칸을 다시 만들지 않고 그룹만 다시 그린다, 빈 그룹은 빠지고 맞는 그룹은 펼친다', () => {
@@ -404,9 +406,10 @@ describe('D2: 팔레트 그룹 (예림 LUX 카탈로그)', () => {
     input.oninput();
     expect(p.PD.query).toBe('오크');
     expect(p.document.querySelector('#detailPalette [data-search]')).toBe(input);   // 같은 노드 — 포커스가 남는다
-    expect(labelsOf(p)).toEqual(['Supreme · PET Matt', '구 7×7 (호환)']);
+    expect(labelsOf(p)).toEqual(['Supreme · PET Matt', '기타(호환)']);
     expect(groupsOf(p).map((d) => d.open)).toEqual([true, true]);
-    expect([...p.document.querySelectorAll('#detailPalette .pd-swatch')].map((b) => b.dataset.code)).toEqual(['YR-SM-02', ...oakCodes(p)]);
+    // C2b 호환 코드 OAK-M/OAK-G 도 '오크' 라벨이라 걸린다 — 구 7×7 뒤에
+    expect([...p.document.querySelectorAll('#detailPalette .pd-swatch')].map((b) => b.dataset.code)).toEqual(['YR-SM-02', ...oakCodes(p), 'OAK-M', 'OAK-G']);
     p.PD.setQuery('없는것');
     expect(groupsOf(p)).toHaveLength(0);
     expect(p.document.querySelector('#detailPalette [data-groups]').textContent).toContain('검색 결과가 없습니다');
