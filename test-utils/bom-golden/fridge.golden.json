@@ -11,6 +11,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-r2-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 3690,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -24,6 +35,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r2-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 682,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -37,6 +59,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r2-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 682,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -50,6 +83,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-r2-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -63,6 +107,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r2-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 666,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -76,6 +131,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-r2-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 5812,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -89,6 +155,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-r3-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 3730,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -102,6 +179,17 @@
       "edge": "2면(가로)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r3-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1728,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -115,6 +203,17 @@
       "edge": "2면(가로)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r3-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1728,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -128,6 +227,17 @@
       "edge": "2면(가로)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r3-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1728,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -141,6 +251,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r3-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 864,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -154,6 +275,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-r3-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 5512,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -167,6 +299,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-r4-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": false
+      },
+      "edgeLen": 1500,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -180,6 +323,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r4-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 682,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -193,6 +347,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r4-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 682,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -206,6 +371,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-r4-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -219,6 +395,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-r4-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2232,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -232,6 +419,17 @@
       "edge": "3면",
       "note": "",
       "finishCode": "",
+      "partId": "0-r5-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2197,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -245,6 +443,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r5-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 700,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -258,6 +467,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r5-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 700,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -271,6 +491,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-r5-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -284,6 +515,17 @@
       "edge": "4면",
       "note": "",
       "finishCode": "",
+      "partId": "0-r5-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2526,
+      "edgeT": 1,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -297,6 +539,17 @@
       "edge": "3면",
       "note": "sakuri(15→3mm)",
       "finishCode": "",
+      "partId": "0-r6-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2373,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -310,6 +563,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r6-body:top-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 682,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -323,6 +587,17 @@
       "edge": "1면(전)",
       "note": "",
       "finishCode": "",
+      "partId": "0-r6-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 682,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     },
     {
@@ -336,6 +611,17 @@
       "edge": "-",
       "note": "",
       "finishCode": "",
+      "partId": "0-r6-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
       "itemLabel": "냉장고장"
     }
   ],
@@ -358,6 +644,10 @@
       "totalArea": 11779472,
       "panelCount": 4
     }
+  },
+  "edgeBanding": {
+    "1": 21594,
+    "0.6": 41382
   },
   "hardware": [
     {
@@ -421,7 +711,7 @@
   ],
   "cncHead": [
     "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
-    "측판,PB,15,700,2290,2,0,0,0,0",
+    "측판,PB,15,700,2290,2,1,0,1,1",
     "천판,PB,15,570,682,1,1,0,0,0"
   ],
   "hardwareCsvHead": [

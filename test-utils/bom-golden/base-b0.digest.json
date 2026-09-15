@@ -1,0 +1,31 @@
+{
+  "note": "B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
+  "baseRowKeys": [
+    "module",
+    "part",
+    "material",
+    "thickness",
+    "w",
+    "h",
+    "qty",
+    "edge",
+    "note",
+    "finishCode",
+    "itemLabel"
+  ],
+  "strippedKeys": [
+    "partId",
+    "slot",
+    "edges",
+    "edgeLen",
+    "edgeT",
+    "edgeCode"
+  ],
+  "digests": {
+    "sink15": "1c88d5e05272bd99af7c0c72275f5d1d303cd9174cb99eae50e1158a977f8fbe",
+    "sink18": "a64f789d2d83916d443dc61fd333c11707f6a78f083869d021a9569f174ac395",
+    "sinkCorner": "9e41e205ecf255ab6f5a9436115e54400815e6a5128a64a20ec10fb50cc4d6cf",
+    "wardrobe": "13626498924f99e0b113b68ad625221a23c5bd4c1c1b128a76ef3909a1c67d08",
+    "fridge": "28eba9e95cd63cbcbf56632401357ba8a9841337f9bbc87578ca5b01832f1b6b"
+  }
+}
