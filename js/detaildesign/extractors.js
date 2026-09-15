@@ -518,6 +518,18 @@
          *   전면 높이  mod.drawerFronts[i] > (도어형이면) mod.drawerHeight > 규칙 기본 200 > 균등
          *   레일       mod.drawerRail 'under'(기본) | 'ball'
          */
+        /**
+         * 2026-09-15: 서랍 규칙 블록 — 플래너 구조의 `drawer` {rail, sakuri, boxT} 가 브리지를 타고 mod.drawer 로 온다.
+         *   옛 평면 필드(drawerRail·drawerSakuri·drawerBoxT)도 읽는다. boxT 0 이면 몸통 두께.
+         */
+        drawerRulesOf(mod, T) {
+          const d = (mod && mod.drawer) || {};
+          const railRaw = d.rail || mod.drawerRail;
+          const sakuri = d.sakuri != null ? !!d.sakuri : !!mod.drawerSakuri;
+          const boxT = Number(d.boxT) || Number(mod.drawerBoxT) || T;
+          return { rail: DrawerRules ? DrawerRules.railKeyOf(railRaw) : 'under', sakuri, boxT };
+        }
+
         drawerLayoutOf(mod, H, T) {
           if (!DrawerRules) throw new Error('bom-drawer-rules.js 가 실리지 않았다 — extractors.js 앞에 넣는다');
           const R = DrawerRules.DRAWER_RULES;
@@ -533,7 +545,7 @@
             else if (layoutKind === 'doorTop') h = Number(mod.drawerHeight) > 0 ? Number(mod.drawerHeight) : R.FRONT_DEFAULT_H;
             fronts.push({ kind: 'drawer', h });
           }
-          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: mod.drawerRail });
+          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: this.drawerRulesOf(mod, T).rail });
         }
 
         /**
@@ -560,8 +572,9 @@
             this.add(materials, modLabel, '서랍도어', 'MDF', 18, W - 4, r.h, r.qty, '4면', '', mod);
           });
           // 박스 — 같은 크기끼리 묶는다 (앞뒷판·측판은 서랍당 2장). 치수는 레일 종류·깊이·자재 두께로.
-          const drawerT = Number(mod.drawerBoxT) || T;
-          const sakuri = !!mod.drawerSakuri;
+          const rules = this.drawerRulesOf(mod, T);
+          const drawerT = rules.boxT;
+          const sakuri = rules.sakuri;
           const dimsOf = (boxH) => DrawerRules.drawerBoxDims({ W, D: modD, bodyT: T, drawerT, rail: L.rail, boxH, sakuri });
           const groups = [];
           L.boxes.forEach((b) => {
@@ -1413,7 +1426,7 @@
             const depth = mod.d || 550;
             // 2026-09-15: 레일 길이 = 규격(250~500) 중 깊이 − 50 이하의 최대 (bom-drawer-rules.js railLengthFor)
             const R = DrawerRules ? DrawerRules.DRAWER_RULES : null;
-            const railKey = DrawerRules ? DrawerRules.railKeyOf(mod.drawerRail) : 'under';
+            const railKey = DrawerRules ? DrawerRules.railKeyOf((mod.drawer && mod.drawer.rail) || mod.drawerRail) : 'under';
             const railName = R ? R.RAIL_CLEARANCE[railKey].name : '소프트클로즈 서랍레일';
             let railLength = DrawerRules ? DrawerRules.railLengthFor(depth) : null;
             if (railLength === null) railLength = R ? R.RAIL_LENGTHS[0] : 250;

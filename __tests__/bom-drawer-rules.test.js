@@ -209,6 +209,17 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(pick('서랍밑판')).toEqual([[600 - 30 - 28 - 36 + 20, 499, 2, 2.7]]);
   });
 
+  test('mod.drawer 블록(레일·사쿠리·boxT)이 평면 필드보다 먼저다 — 브리지가 넘기는 모양', () => {
+    const rows = rowsOf([{ id: 'l6', type: 'storage', name: '서랍장D', pos: 'lower', w: 600, h: 758, d: 550, doorCount: 0, isDrawer: true, drawerCount: 2,
+      drawer: { rail: 'ball', sakuri: true, boxT: 18 }, drawerRail: 'under', drawerFronts: [241, 483] }], '하부장-서랍장D');
+    const side = rows.filter((r) => r.part === '서랍측판');
+    expect(side.map((r) => [r.w, r.thickness])).toEqual([[500, 18], [500, 18]]);   // 볼레일 500, 서랍 18T
+    expect(rows.find((r) => r.part === '서랍전후판').h).toBe(120 - 18);               // 사쿠리 −18
+    const hw = new HardwareExtractor().extract({ items: [itemOf([{ id: 'l6', type: 'storage', name: 'D', pos: 'lower', w: 600, h: 758, d: 550, isDrawer: true, drawerCount: 2, drawer: { rail: 'ball' } }])] })
+      .hardware.filter((h) => h.category === '레일');
+    expect(hw[0].item).toBe('댐핑 볼레일');
+  });
+
   test('drawerFronts 로 전면 높이를 지정하면 그대로 쓴다', () => {
     const rows = rowsOf([{ id: 'l4', type: 'storage', name: '서랍장F', pos: 'lower', w: 600, h: 758, d: 550, doorCount: 0, isDrawer: true, drawerCount: 2, drawerFronts: [241, 483] }], '하부장-서랍장F');
     expect(rows.filter((r) => r.part === '서랍도어').map((r) => r.h)).toEqual([241, 483]);
