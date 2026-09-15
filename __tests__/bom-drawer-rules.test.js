@@ -115,6 +115,22 @@ describe('도어 + 하부 서랍 (플래너 doorTopDrawerBottom 기본형)', () 
   });
 });
 
+describe('최소 전면 높이 50 — 만들 수 없는 전면은 내지 않는다', () => {
+  test('서랍 전면을 크게 주면 남는 도어가 쪼그라든다 — 경고한다', () => {
+    // 몸통 708 에 서랍 200 × 3: 708 − 상단 30 − 중간 30×2 − 갭 4 − 600 = 도어 14
+    const L = layoutDrawerModule({ H: 708, T: 15, fronts: [{ kind: 'door' }, ...Array.from({ length: 3 }, () => ({ kind: 'drawer', h: 200 }))] });
+    expect(L.fronts[0].h).toBe(14);
+    expect(L.warnings.some((w) => /최소 50 미만/.test(w))).toBe(true);
+    expect(DRAWER_RULES.MIN_FRONT_H).toBe(50);
+  });
+
+  test('50 이상이면 최소 전면 경고가 없다 (박스 여유 경고는 별개다)', () => {
+    const L = layoutDrawerModule({ H: 708, T: 15, fronts: [{ kind: 'door' }, ...Array.from({ length: 3 }, () => ({ kind: 'drawer', h: 150 }))] });
+    expect(L.fronts[0].h).toBe(164);
+    expect(L.warnings.some((w) => /최소 50 미만/.test(w))).toBe(false);
+  });
+});
+
 describe('서랍 박스 치수 — 레일 종류·깊이·자재 두께·사쿠리 (2026-09-15 철물 규격)', () => {
   test('레일 길이 = 규격 중 깊이 − 50 이하의 최대', () => {
     expect(railLengthFor(550)).toBe(500);
@@ -207,6 +223,15 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(pick('서랍측판')).toEqual([[500, 120, 2, 18], [500, 180, 2, 18]]);
     expect(pick('서랍전후판')).toEqual([[600 - 30 - 28 - 36, 102, 2, 18], [600 - 30 - 28 - 36, 162, 2, 18]]);
     expect(pick('서랍밑판')).toEqual([[600 - 30 - 28 - 36 + 20, 499, 2, 2.7]]);
+  });
+
+  test('50 미만 도어는 부재로 내지 않는다 (옛 규칙 hingeDoorH > 50)', () => {
+    const rows = rowsOf([{ id: 'l7', type: 'storage', name: '서랍장T', pos: 'lower', w: 1200, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 3, drawerHeight: 200 }], '하부장-서랍장T');
+    expect(rows.filter((r) => r.part === '도어')).toEqual([]);            // 도어 14 는 나가지 않는다
+    expect(rows.filter((r) => r.part === '서랍도어')[0]).toMatchObject({ h: 200, qty: 3 });
+    // 서랍 전면을 줄이면 도어가 살아난다
+    const ok = rowsOf([{ id: 'l8', type: 'storage', name: '서랍장U', pos: 'lower', w: 1200, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 2, drawerHeight: 200 }], '하부장-서랍장U');
+    expect(ok.find((r) => r.part === '도어')).toMatchObject({ h: 244, qty: 1 });
   });
 
   test('mod.drawer 블록(레일·사쿠리·boxT)이 평면 필드보다 먼저다 — 브리지가 넘기는 모양', () => {
