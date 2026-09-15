@@ -814,6 +814,10 @@
               eb = 0;
             if (m.edge === '4면') {
               el = er = et = eb = 1;
+            } else if (m.edge === '3면') {
+              // B1: 측판 3면 — 이 가지가 없어서 측판이 CNC 에 엣지 0,0,0,0 으로 나갔다 (골든 cncHead 2행).
+              //   앞(L) + 위(T) + 아래(B). 뒤(R)는 벽·뒷판 쪽이라 안 붙인다. 1면(전)=L 인 이 표의 관례를 따른다.
+              el = et = eb = 1;
             } else if (m.edge.includes('2면')) {
               if (m.w > m.h) {
                 el = er = 1;
@@ -1290,7 +1294,9 @@
         };
       }
       // W10-4: Jest 단위 테스트용 CommonJS 이중 노출 (__tests__/extractors-corner.test.js)
+      // B1: HardwareExtractor·DrawingVisualizer 도 내보낸다 — 골든 도우미(test-utils/bom-golden/golden.js)가
+      //     이 둘을 얻으려고 소스를 Function 으로 평가하던 우회를 없앨 수 있다.
       if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { MaterialExtractor };
+        module.exports = { MaterialExtractor, HardwareExtractor, DrawingVisualizer };
       }
 
