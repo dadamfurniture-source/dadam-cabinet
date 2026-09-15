@@ -59,9 +59,12 @@ const SHARED = [
 // 구조 단계 전용 (P2). 배치 단계는 계산 엔진을 쓰지 않는다 — 실측 0건이라
 // 공통으로 싣지 않는다. 이 구분이 없으면 shell 에 안 쓰는 코드가 계속 딸려간다.
 // D0: 디테일 모드도 구조 페이지 안의 모드라 구조 전용이다 (planner-finish 는 BOM 이 쓰게 되면 공통으로 올린다).
+// D2: 카탈로그(DB)·PBR 재질도 디테일 모드 것이라 구조 전용. planner-detail.js 보다 먼저 실린다.
 const STRUCTURE_ONLY = [
   'js/planner/planner-engine.js',
   'js/planner/planner-finish.js',
+  'js/planner/planner-catalog.js',
+  'js/planner/planner-materials.js',
   'js/planner/planner-detail.js',
 ];
 
@@ -95,6 +98,19 @@ describe('플래너 모듈이 실려 있다', () => {
     expect(struct.indexOf('js/planner/planner-finish.js')).toBeLessThan(struct.indexOf('js/planner/planner-detail.js'));
     expect(fs.existsSync(path.join(ROOT, DETAIL_CATALOG))).toBe(true);
     expect(scriptSrcs(read('mockup-shell.html')).map((s) => s.split('?')[0])).not.toContain(DETAIL_CATALOG);
+  });
+
+  test('D2: 카탈로그·재질 모듈은 planner-finish.js 뒤, planner-detail.js 앞 — planner-store.js(클라이언트) 뒤이기도 하다', () => {
+    const struct = scriptSrcs(read('mockup-structure.html')).map((s) => s.split('?')[0]);
+    const at = (rel) => struct.indexOf(rel);
+    expect(at('js/planner/planner-finish.js')).toBeLessThan(at('js/planner/planner-catalog.js'));
+    expect(at('js/planner/planner-store.js')).toBeLessThan(at('js/planner/planner-catalog.js'));
+    expect(at('js/planner/planner-catalog.js')).toBeLessThan(at('js/planner/planner-detail.js'));
+    expect(at('js/planner/planner-materials.js')).toBeLessThan(at('js/planner/planner-detail.js'));
+    // 환경광 모듈은 importmap 모듈 스크립트가 window 에 올린다 — CDN 경로는 OrbitControls 와 같은 패턴
+    const html = read('mockup-structure.html');
+    expect(html).toContain("from 'three/addons/environments/RoomEnvironment.js'");
+    expect(html).toContain('window.RoomEnvironment = RoomEnvironment;');
   });
 
   test.each(HTML_FILES)('%s 에서 모듈이 인라인보다 먼저 온다', (file) => {

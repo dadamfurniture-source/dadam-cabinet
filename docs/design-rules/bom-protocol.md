@@ -100,11 +100,16 @@
 
 | 부품 | 자재 | 두께 | 크기 |
 |------|------|------|------|
+| 상몰딩 | MDF | 18T | moldingH × 상부장 폭 합 — **상부장이 있을 때만** (P1-2; 예전엔 `totalUpperW \|\| effectiveW` 로 하부 폭에 떨어졌다) |
 | 걸레받이 | MDF | 18T | effectiveW × (legH-5) |
 | 목찬넬(전면) | MDF | 18T | 52 × effectiveW |
 | 목찬넬(지면) | MDF | 18T | 40 × effectiveW |
 | 휠라(좌) | MDF | 18T | finishLeftWidth × lowerH |
 | 휠라(우) | MDF | 18T | finishRightWidth × lowerH |
+| 상판 | 18 → MDF(도어자재) / 12·50 → 인조대리석 | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D · **품목당 1장** · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판. 품목당 한 장은 사용자 결정(2026-09-15)이다 — ㄱ·ㄷ자도 폭 합 한 장, 런(배치 공간)마다 나누지 않는다. 3D 가 런마다 한 장 그리는 것은 표시용 단순화 |
+
+> `effectiveW` = 하부장 모듈 폭 합. **키큰장 단(`type:'tall'`)과 쿡탑장은 뺀다** (P1-1). 키큰장은 하부장 규칙이 아니라
+> `sink.md` §5.1 단별 부재표(단별 도어 H · shelfCount · 좌대 상자 · 상몰딩 · 목찬넬)를 탄다 — `extractors.js addTallTierParts`.
 
 ---
 
@@ -298,6 +303,19 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | ≤1600mm | 3구 | [110, H/2, H-110] |
 | >1600mm | 4구 | [110, H/3, H×2/3, H-110] |
 
+여기서 H 는 **재단 도어 높이** — 자재 행(`MaterialExtractor`)이 낸 도어 h 와 같아야 한다. 몸통 H 가 아니다.
+`HardwareExtractor.extractHinges` 가 모듈 종류별로 같은 식을 쓴다 (`agent/bom-followups`, 시험 `__tests__/bom-followups.test.js`):
+
+| 모듈 | 도어 높이 H | 근거 |
+|------|------|------|
+| 상부장 (`pos:'upper'`) | 몸통 H + 내림(`upperDoorOverlap`, 기본 15) | §3-1 상부장 |
+| 하부장 (`pos:'lower'`) | 몸통 H − 30 (목찬넬 틈) | §3-1 하부장 |
+| 키큰장 단 (싱크 하부 라인 `type:'tall'`, `sink.md` §5.1) | 목찬넬 단(하부단·통짜 + 목찬넬 손잡이) H − 30 / 푸쉬 단(중간·상부단, 또는 푸쉬 손잡이) H − 4 — `extractors.js bomTallTierDoorH`, 자재 행과 같은 함수 | `sink.md` §5.1 |
+| 붙박이·냉장고장 (`pos` 없음) | 몸통 H 그대로 (예전과 같다) | §3-2 · §3-3 |
+
+> 예전엔 키큰장 단도 `pos:'lower'` 라 H−30 으로 셈해, 푸쉬 단(H−4)에서 몸통 H 905~930 · 1605~1630 구간의 경첩이 도어마다 하나 빠지고
+> 보링 위치가 26mm 어긋났다. 문턱이 그대로라도 **도어 높이의 출처**가 자재 행과 같아야 한다.
+
 ### 4-2. 서랍레일
 
 | 규칙 | 값 |
@@ -399,6 +417,7 @@ partId = `${itemIdx}-${moduleId}-${partKey}-${n}`     예: 0-l2-drawer#0-0, 1-w1
 | `handle` | `channel:front` `channel:back` | 목찬넬(전면·지면) |
 | `finishing` | `molding` `molding:left/right[-pad]` `molding:corner1/2` `filler:left/right/corner1/2` `ep:left/right` `blind#k` `blindfin#k` | 상몰딩 · 좌우 몰딩·덧대 · 휠라 · EP · 멍가림판/멍판 EP · 멍판 마감재 |
 | `kick` | `kick` `pedestal:fb/side/brace` | 걸레받이 · 좌대 |
+| `top` | `top` | 상판 (P1-3 — 품목 단위 `ep` 한 장, `partId 0-ep-top-0`. 품목당 한 장은 결정 사항(2026-09-15)이라 런 번호가 붙지 않는다. 마감 코드는 디테일 `top` 슬롯 > `specs.topColor` 의 `TOP-*`; `edgeCode` 는 없다) |
 
 BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래너 부재 여럿을 대표한다. 디테일 모델의 부재 단위 지정이 행에 닿도록
 `extractors.js` `bomFinishCandidates` 가 후보를 늘어놓는다: `body:side ← body:left/right`, `door#k ← door#k-0/1`(양문),
@@ -417,6 +436,49 @@ BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래�
 | `extract().edgeBanding` | `{ '1': mm, '0.6': mm }` = 두께별 Σ `edgeLen × qty`. `summary` 안이 아니라 형제 키다 — `ai-design-report.js`·워커가 `summary` 값을 전부 자재 그룹으로 순회하기 때문 |
 
 `1면(전)` 을 "긴 변 하나" 로 보는 것은 근사다 — 좌대 측처럼 짧은 변이 앞인 부재는 길이가 조금 과하다 [확인 필요].
+
+### 7-3. 재단 배치 `cutPlan` (B4, `design_snapshots.cut_plan_payload`)
+
+`js/detaildesign/nesting-engine.js` `NestingEngine.plan(materials, opts)` 의 출력이다. CNC 탭(`ai-design-report.js`)이 그리는 것과
+스냅샷 동결 시 `workflow-client.js` 가 POST 본문 `cutPlan` 으로 싣는 것이 **같은 함수·같은 입력**이라 같은 값이다.
+같은 `materials` 면 입력 순서와 무관하게 같은 JSON 이 나온다(결정적). 알고리즘·옵션은 `docs/02-design/features/nesting-engine.md`.
+
+```
+cutPlan = {
+  version: 1,
+  sheetSize: {w, h},          // 기본 원판 (data-constants SHEET_W/H = 1220×2440)
+  kerf: 4, trim: 10,          // 톱날 · 네 변 가장자리 트림(mm)
+  sheets: [ {                 // 낱장 — 겹침 재단(stack)도 한 장씩 늘어놓는다
+    no,                       // 1부터, 전체 고유
+    material, thickness, partClass,   // partClass ∈ 본체 | 도어 | 뒷판 (원판을 섞지 않는 그룹)
+    size: {w, h}, trim,
+    layout: { no, stack, index, dir, rotated },   // 같은 그룹에서 같은 layout.no = 같은 배치를 stack 장 겹침. dir ∈ H(가로→세로) | V
+    strips: [ { no, offset, size, used, remain } ],  // 1차 재단 스트립 (H: offset=y·size=높이, V: offset=x·size=너비)
+    parts: [ { partId, part, w, h, x, y, rot, grain, strip, edge?, itemLabel?, fromRemainder? } ],
+    usedArea, yield           // Σ w×h / (size.w×size.h)
+  } ],
+  offcuts: [ { sheetNo, kind, x, y, w, h, free } ],  // kind ∈ strip | sheet. free = 잘려 남은 쪽 치수. 60mm 이상만
+  groups:  [ { key, material, thickness, partClass, sheetSize, sheetCount, firstSheetNo, needed, placed } ],
+  smallParts:  [ { partId, part, material, thickness, partClass, w, h, qty, itemLabel } ],  // 한 변 ≤ 70 — 원판에 놓지 않는다
+  unallocated: [ { material, thickness, partClass, w, h, qty, parts, partIds } ],           // 원판보다 큰 부재 등
+  summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount }
+}
+```
+
+| 필드 | 뜻 |
+|------|-----|
+| `parts[].partId` | `${자재 행 partId}#${k}`, k = 0..qty-1 — 수량을 낱개로 전개한 식별자. 행 partId 자체에 `#`(`door#0`) 이 있으므로 **마지막 `#숫자`** 만 뗀다 (`NestingEngine.basePartId`). partId 가 없는 옛 행은 `row-<index>` |
+| `parts[].w, h` | 부재 자체 치수 — BOM 행 그대로 |
+| `parts[].rot` | true 면 눕혀 놓았다: 원판 위 발자국은 `h × w`. 결 부재(`grain !== 'none'`)와 회전 금지 자재(무늬목·우드·결 PET)는 항상 false |
+| `parts[].x, y` | 원판 좌상단 기준 절대 mm — 트림만큼 밀려 시작한다 (기본 10) |
+| `parts[].strip` | 속한 1차 재단 스트립 번호 (1부터) |
+| `parts[].fromRemainder` | 스트립 1차 배치가 끝난 뒤 남는 자리에 넣은 더 작은 부재 |
+| `offcuts[].free` | 스트립 잔여는 스트립 방향(H 면 w), 원판 잔여는 스트립을 쌓는 방향(H 면 h). 60~70 = 자투리(밴드), 70 초과 = 잔재(소부품 추출·재활용) |
+
+워커(`workers/workflow-api/src/snapshots.js` `validateCutPlan`)는 배치를 **다시 계산하지 않고** 검증만 한다: `version === 1`, 시트 `no` 고유·`size` 양수·`material` 비지 않음,
+모든 `partId` 의 기본 partId 가 `bom.materials` 에 있고 행별 배치 개수 ≤ `qty`, `rot` 을 반영한 발자국이 원판 안, 같은 시트에서 겹침 없음.
+통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
+`content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
 
 ---
 
