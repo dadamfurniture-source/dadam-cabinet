@@ -1,7 +1,7 @@
 /**
- * 학습 데이터셋 스키마 — database/dataset-schema.sql 이 라벨 체계 v1 과 어긋나지 않게.
+ * 학습 데이터셋 스키마 — database/dataset-schema.sql 이 라벨 체계 v1.1 과 어긋나지 않게.
  *
- * 축 값은 taxonomy v1 (ohouse-crawl/taxonomy.json, 리포 밖) 과 같아야 한다.
+ * 축 값은 taxonomy v1.1 (ohouse-crawl/taxonomy.json, 리포 밖) 과 같아야 한다.
  * 리포가 PUBLIC 이라 taxonomy 파일을 여기 두지 않으므로, 값 목록을 여기 한 번 더 적어
  * SQL 이 그것과 같은지 본다. 값을 **더할** 때는 두 곳을 같이 고친다 — 이름을 바꾸지는 않는다.
  */
@@ -13,7 +13,7 @@ const SQL = fs.readFileSync(path.join(__dirname, '..', 'database', 'dataset-sche
 const AXES = {
   media: ['photo', 'render3d', 'floorplan', 'generated'],
   phase: ['before', 'after', 'in_progress', 'unknown'],
-  space: ['kitchen', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony', 'dressing', 'utility', 'corridor', 'study', 'unknown'],
+  space: ['kitchen', 'dining', 'living', 'bedroom', 'bathroom', 'entrance', 'balcony', 'dressing', 'utility', 'corridor', 'study', 'unknown'],
   furniture: ['sink', 'builtin', 'fridge', 'storage', 'none', 'unknown'],
   layout_shape: ['I', 'L', 'U', 'island', 'unknown'],
 };
@@ -26,7 +26,7 @@ function checkValues(col) {
   return m[1].split(',').map((s) => s.trim().replace(/^'|'$/g, ''));
 }
 
-describe('라벨 축 다섯이 taxonomy v1 과 같다', () => {
+describe('라벨 축 다섯이 taxonomy v1.1 과 같다', () => {
   Object.entries(AXES).forEach(([col, values]) => {
     test(`${col} — ${values.length}개 값`, () => {
       expect(checkValues(col)).toEqual(values);
@@ -124,5 +124,16 @@ describe('두 번 돌려도 안전하다', () => {
   });
   test('파괴적 문장이 없다', () => {
     expect(SQL).not.toMatch(/DROP TABLE|TRUNCATE|DELETE FROM/);
+  });
+});
+
+describe('축 값을 더하면 이미 만들어진 표도 고쳐진다', () => {
+  // CREATE TABLE IF NOT EXISTS 는 있는 표의 CHECK 를 손대지 않는다. 먼저 실행해 둔 DB 가
+  // 옛 제약을 들고 있으면 새 값(dining)이 들어갈 때 터진다 — 재적용 블록이 있어야 한다.
+  test.each(['dataset_samples', 'dataset_reviews'])('%s 의 space 제약을 다시 건다', (table) => {
+    expect(SQL).toMatch(new RegExp(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${table}_space_check`));
+    const add = SQL.match(new RegExp(`ALTER TABLE ${table} ADD\\s+CONSTRAINT ${table}_space_check[\\s\\S]*?;`));
+    expect(add).not.toBeNull();
+    AXES.space.forEach((v) => expect(add[0]).toContain(`'${v}'`));
   });
 });
