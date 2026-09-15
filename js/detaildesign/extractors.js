@@ -87,6 +87,8 @@
         '멍판 EP':         { key: 'blind',            slot: 'finishing', indexed: true },
         '휠라(멍판)':      { key: 'blindfin',         slot: 'finishing', indexed: true },
         '몰딩(멍판)':      { key: 'blindfin',         slot: 'finishing', indexed: true },
+        // 상판 — 하부 라인 한 장 (P1-3, bom-protocol.md §2 두께 · §3-1 상판)
+        '상판':            { key: 'top',              slot: 'top' },
         // 바닥 마감 — 걸레받이·좌대
         '걸레받이':        { key: 'kick',             slot: 'kick' },
         '좌대 걸레받이':   { key: 'kick',             slot: 'kick' },
@@ -100,6 +102,55 @@
         const def = BOM_PART_DEFS[part];
         if (def) return def;
         return { key: 'part:' + String(part || '').trim().replace(/\s+/g, '_'), slot: null, fallback: true };
+      }
+
+      // ============================================================
+      // P1-1: 키큰장 단 판별 — 싱크대 하부 라인의 `type:'tall'` 모듈은 하부장이 아니다 (sink.md §5).
+      //
+      // 플래너 브리지(ui-step1.js _convertPlannerModules)는 키큰장 스택의 단(하부장·중간장·상부장)을
+      // 각각 `pos:'lower', type:'tall'` 로 보내고, 단이 짊어진 부위를 `heightParts` 에 남긴다
+      // (mockup-structure.html stackForArea: 맨 아래 단만 pedestalH, 맨 위 단만 moldingH, 중간은 둘 다 0).
+      // 상세설계 화면의 키큰장(ui-workspace.js addTallModule)은 단이 없는 **한 장** — heightParts 가 없다.
+      //
+      //   'bottom'  좌대를 짊어진 단 — 목찬넬·좌대가 여기
+      //   'middle'  좌대도 상몰딩도 없는 단 — 푸쉬 도어
+      //   'top'     상몰딩을 짊어진 단 — 푸쉬 도어·상몰딩
+      //   'single'  단 정보가 없는 통짜 키큰장 — 좌대·상몰딩 모두 (상세설계 화면 · 옛 저장 설계)
+      //   null      키큰장이 아니다
+      // 멍장 키큰장(corner-blind, blindKind 'tall')도 단이다 — 폭이 걸레받이에 세 번 더해지는 같은 결함이 있었다.
+      // ============================================================
+      function bomTallTierOf(mod) {
+        if (!mod) return null;
+        if (mod.type !== 'tall' && mod.blindKind !== 'tall') return null;
+        const hp = mod.heightParts;
+        if (!hp || typeof hp !== 'object') return 'single';
+        const ped = parseFloat(hp.pedestalH);
+        const mold = parseFloat(hp.moldingH);
+        const hasPed = Number.isFinite(ped) && ped > 0;
+        const hasMold = Number.isFinite(mold) && mold > 0;
+        if (hasPed && hasMold) return 'single';
+        if (hasPed) return 'bottom';
+        if (hasMold) return 'top';
+        return 'middle';
+      }
+
+      const BOM_TALL_TIER_LABEL = { bottom: '하부단', middle: '중간단', top: '상부단', single: '' };
+
+      // ============================================================
+      // P1-3: 상판 마감 코드 — 품목 사양 `specs.topColor`(한글) → materials.code `TOP-*`.
+      // 정본은 config-constants.js FurnitureOptionCatalog._LEGACY_CODE_MAP.countertop (database/materials-catalog-v2.sql
+      // 시드와 같다). 그 파일이 없는 환경(Node 시험)용으로 같은 값을 폴백으로 둔다. 이미 코드면 그대로.
+      // ============================================================
+      const BOM_TOP_CODE_FALLBACK = { '스노우': 'TOP-SNW', '마블화이트': 'TOP-MWH', '그레이마블': 'TOP-GMB', '차콜': 'TOP-CHC' };
+
+      function bomTopCodeOf(topColor) {
+        const s = String(topColor || '').trim();
+        if (!s) return '';
+        if (/^TOP-/i.test(s)) return s.toUpperCase();
+        const cat = (typeof window !== 'undefined' && window.FurnitureOptionCatalog
+          && window.FurnitureOptionCatalog._LEGACY_CODE_MAP) || null;
+        const map = (cat && cat.countertop) || BOM_TOP_CODE_FALLBACK;
+        return map[s] || BOM_TOP_CODE_FALLBACK[s] || '';
       }
 
       // ============================================================
@@ -456,6 +507,9 @@
           } else if (resolved) {
             // 몸통·상판·손잡이·마감재·걸레받이: 디테일 모델이 정한 때만 코드. 자재·비고는 그대로.
             finishCode = resolved.code;
+          } else if (slot === 'top') {
+            // P1-3: 상판은 디테일 모델이 없으면 품목 사양 topColor 의 카탈로그 코드(TOP-*)로 떨어진다.
+            finishCode = bomTopCodeOf(ctx.specs.topColor);
           }
           const W = Math.round(w);
           const H = Math.round(h);
@@ -574,6 +628,90 @@
         }
 
         // ========================================
+        // P1-1: 키큰장 단 부재표 (sink.md §5) — 싱크대 하부 라인의 `type:'tall'` 모듈.
+        //
+        // 하부장 루프가 단을 하부장으로 재단하던 결함: 중간장·상부장 도어가 H−30(목찬넬 틈)으로 나가고, 선반 0 인
+        // 단에 선반 1 이 강제되고, 걸레받이·목찬넬 폭에 세 단의 폭이 다 더해졌다(600×3 → 라인보다 1200 김).
+        // 단별 규칙은 3D(mockup-structure.html defaultHandleType · stackForArea)와 같다:
+        //   몸통     하부장과 같다 — 측판 3면 D×H · 지판 (W−2T)×D · 밴드 70×(W−2T) 2 · 뒷판 2.7T (W−2T)×(H−T) · 처짐방지 70
+        //   선반     shelfCount 그대로 (0 이면 없음). 단 정보가 없는 통짜 키큰장은 1 [확인 필요]
+        //   도어     하부단·통짜 + 목찬넬 손잡이 → H−30 (목찬넬 틈, 하부장과 같다) / 그 밖(푸쉬) → H−4 (도어 간격 4)
+        //   목찬넬   하부단·통짜 + 목찬넬 손잡이 → 전면 52×W · 지면 40×W 를 그 단에 (라인 걸레받이·목찬넬 폭에서는 뺀다)
+        //   좌대     하부단·통짜 — wardrobe.md 좌대 상자(전후 2 · 측 2 · W≥700 중간보강 1) + 좌대 걸레받이 MDF 18T
+        //            [확인 필요] sink.md §5 는 높이 60 만 정한다. 상자 구성은 붙박이장 규칙을 빌렸다
+        //   상몰딩   상부단·통짜 — MDF 18T · moldingH × W 를 그 단에 (상부 라인 상몰딩과 별개 — 높이가 다르다)
+        // 걸레받이는 없다 — 다리발이 아니라 좌대가 받친다.
+        // ========================================
+        addTallTierParts(materials, prefix, mod, tier, specs) {
+          const T = this.thicknessFor(specs);
+          const isWoodChannel = (specs.handle || '').includes('목찬넬');
+          const hp = (mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
+          const n = (v, d) => { const x = parseFloat(v); return Number.isFinite(x) && x >= 0 ? x : d; };
+          const W = parseFloat(mod.w) || 600;
+          // 몸통 높이 — 브리지가 좌대·상몰딩을 이미 뺀 값 (ui-step1.js _carcassHeight), 상세설계 화면도 같다 (addTallModule)
+          const H = parseFloat(mod.h) || 0;
+          const modD = parseFloat(mod.d) || 550;
+          const tierLabel = BOM_TALL_TIER_LABEL[tier] || '';
+          const modLabel = `${prefix}${mod.name || '키큰장'}${tierLabel ? `(${tierLabel})` : ''}`;
+          const grounded = tier === 'bottom' || tier === 'single';   // 바닥에 닿는 단 — 좌대·목찬넬
+          const crowned = tier === 'top' || tier === 'single';       // 천장에 닿는 단 — 상몰딩
+          const channelHere = grounded && isWoodChannel;
+
+          // 몸통 — 하부장과 같다 (사쿠리 없음)
+          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
+          this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+          this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
+          this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
+          const bandH = channelHere ? H - T * 2 - 70 : H - T * 2;
+          this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, W >= 800 ? 2 : 1, '2면(장)');
+          // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다)
+          const rawShelf = Number(mod.shelfCount);
+          const shelfQty = Number.isFinite(rawShelf) ? Math.max(0, Math.round(rawShelf)) : 1;
+          if (shelfQty > 0) {
+            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), shelfQty, '1면(전)');
+          }
+          // 도어 — 목찬넬 단만 H−30, 나머지는 푸쉬 H−4
+          const doorH = channelHere ? H - 30 : H - 4;
+          if (isBlindModule(mod, 'lower')) {
+            const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
+            this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, doorH, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
+            this.addBlindFrontParts(materials, modLabel, mod, H);
+          } else {
+            const doorCount = mod.doorCount || 0;
+            if (doorCount > 0) {
+              const doorW = Math.floor(W / doorCount) - 4;
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, doorH, doorCount, '4면', '', mod);
+            }
+          }
+          // 목찬넬 — 하부단 폭으로 그 단에 (3D 도 모듈마다 모듈 폭으로 그린다)
+          if (channelHere) {
+            this.add(materials, modLabel, '목찬넬(전면)', 'MDF', 18, 52, W, 1, '2면(장)');
+            this.add(materials, modLabel, '목찬넬(지면)', 'MDF', 18, 40, W, 1, '2면(장)');
+          }
+          // 좌대 — 스택에 한 벌, 바닥 단에 (sink.md §5 좌대 60 · 상자 구성은 wardrobe.md)
+          if (grounded) {
+            const pedestalH = n(hp.pedestalH, n(specs.wardrobePedestal, 60));
+            if (pedestalH > 0) {
+              const pedNote = '[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)';
+              const pedLabel = `${modLabel}-좌대`;
+              this.add(materials, pedLabel, '좌대 전후', 'PB', T, W - T * 2, pedestalH, 2, '1면(전)', pedNote);
+              this.add(materials, pedLabel, '좌대 측', 'PB', T, modD - T * 2 - 5, pedestalH, 2, '1면(전)', pedNote);
+              if (W >= 700) {
+                this.add(materials, pedLabel, '좌대 중간보강', 'PB', T, modD - T * 2 - 5 - 30, pedestalH, 1, '1면(전)', pedNote);
+              }
+              this.add(materials, pedLabel, '좌대 걸레받이', 'MDF', 18, pedestalH, W, 1, '2면(장)', pedNote);
+            }
+          }
+          // 상몰딩 — 스택 맨 위 단에 한 장 (sink.md §5 상몰딩 60)
+          if (crowned) {
+            const moldingH = n(hp.moldingH, n(specs.moldingH, 60));
+            if (moldingH >= 20) {
+              this.add(materials, modLabel, '상몰딩', 'MDF', 18, moldingH, W, 1, W > 2000 ? '2면(장)' : '4면');
+            }
+          }
+        }
+
+        // ========================================
         // 싱크대 자재 추출
         // ========================================
         extractSink(item, materials, prefix = '') {
@@ -639,6 +777,13 @@
           dlog('[Sink] 하부장 모듈:', lowerModules.length);
 
           lowerModules.forEach((mod, idx) => {
+            // P1-1: 키큰장 단은 하부장 규칙을 타지 않는다 — 단별 부재표로 따로 낸다 (sink.md §5).
+            const tallTier = bomTallTierOf(mod);
+            if (tallTier) {
+              this.beginModule(mod, idx, 'tall');
+              this.addTallTierParts(materials, prefix, mod, tallTier, specs);
+              return;
+            }
             this.beginModule(mod, idx, 'lower');
             // ★ 모듈 치수가 BOM의 근거
             const W = parseFloat(mod.w) || 600;
@@ -713,29 +858,59 @@
 
           // ===== EP (마감재) =====
           const epLabel = `${prefix}EP`;
-          const totalLowerW = lowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+          // P1-1: 키큰장 단은 라인 폭에 넣지 않는다 — 스택 세 단의 폭이 다 더해져 걸레받이·목찬넬이 1200 길었다.
+          //   키큰장은 좌대가 받치므로 걸레받이 구간이 아니고, 목찬넬은 하부단이 제 폭으로 따로 낸다 (addTallTierParts).
+          const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
+          const totalLowerW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
-          const effectiveW = totalLowerW || item.w - 120;
+          // 하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 좌우 마감 120 으로 떨어진다. 키큰장만 있는 라인은 0 — 걸레받이가 없다.
+          const effectiveW = lowerModules.length ? totalLowerW : item.w - 120;
           const moldingH = parseFloat(specs.moldingH) || 60;
           const lowerH = (specs.lowerH || 870) - legH;
           const totalH = parseFloat(item.h) || 2310;
 
           // 상몰딩 (moldingH >= 20이면 산출) — 상부 라인 위에 얹히므로 섹션 'upper'
+          // P1-2: 상부장이 없으면 없다. 예전엔 `totalUpperW || effectiveW` 로 하부 폭에 떨어져 없는 상몰딩이 나갔다.
+          //   키큰장 상부단의 상몰딩은 그 단이 따로 낸다 (addTallTierParts).
           this.beginItemLevel('upper');
-          if (moldingH >= 20 && (totalUpperW || effectiveW) > 0) {
-            const moldingW = totalUpperW || effectiveW;
+          if (moldingH >= 20 && totalUpperW > 0) {
+            const moldingW = totalUpperW;
             const moldingEdge = moldingW > 2000 ? '2면(장)' : '4면';
             this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, moldingEdge);
           }
 
           // 걸레받이 — 여기부터 하부 라인 마감
           this.beginItemLevel('lower');
-          this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
+          if (effectiveW > 0) {
+            this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
+          }
 
           // 목찬넬
-          if (isWoodChannel) {
+          if (isWoodChannel && effectiveW > 0) {
             this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
             this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
+          }
+
+          // P1-3: 상판 — 하부 라인에 한 장 (3D addTopPanel 도 배치 공간 단위 한 장이다 · W12-38).
+          //   두께 = specs.topThickness (bom-protocol.md §2: 인조대리석 12/50 · 도어자재 18). 자재는 두께로 가른다 —
+          //   18 이면 도어자재(MDF), 아니면 인조대리석. 마감 코드는 디테일 모델 top 슬롯 > specs.topColor 의 TOP-* (add()).
+          //   폭 = 하부 라인 폭 + 좌·우 마감 폭 (상판은 마감재 위를 지나간다 — 3D 는 영역 전폭 그대로). 깊이 = 품목 깊이(배치 깊이).
+          //   [확인 필요] 오버행·물끊기·개수대/쿡탑 타공은 규칙이 없다 (계획 B2). ㄱ·ㄷ자는 라인마다 나눠야 하지만 브리지가
+          //   배치 공간을 넘기지 않아 한 장(폭 합)으로 낸다 — scene-bom-ledger.md §4 P3-10 (부재 모델이 런을 알면 나눈다).
+          //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
+          const topLineW = (item.modules || [])
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
+            .reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0)
+            || (lowerModules.length ? 0 : effectiveW);
+          if (topLineW > 0) {
+            const topT = parseFloat(specs.topThickness) || 12;
+            const topD = parseFloat(item.d) || 650;
+            const finW = (type, w) => (type && type !== 'None' ? (parseFloat(w) || 0) : 0);
+            const topW = topLineW + finW(specs.finishLeftType, specs.finishLeftWidth) + finW(specs.finishRightType, specs.finishRightWidth);
+            const topMaterial = topT === 18 ? 'MDF' : '인조대리석';
+            this.add(materials, `${prefix}상판`, '상판', topMaterial, topT, topW, topD, 1,
+                     topMaterial === 'MDF' ? '1면(전)' : '-',
+                     '[확인 필요] 오버행·타공 규칙 없음 — 하부 라인 한 장(좌·우 마감 폭 포함)');
           }
 
           // 좌측 마감 (몰딩/휠라/EP)

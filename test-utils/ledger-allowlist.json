@@ -185,8 +185,8 @@
       "scene": "1970×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "cornerL|ep|channel:back|onlyBom",
@@ -198,7 +198,7 @@
       "bom": "4866×40×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "cornerL|ep|channel:front|onlyBom",
@@ -210,7 +210,7 @@
       "bom": "4866×52×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "cornerL|ep|filler:left|onlyBom",
@@ -249,16 +249,16 @@
       "reason": "BOM 걸레받이는 품목 단위 ep 한 장(하부 모듈 폭 합). 3D 는 런마다 한 장"
     },
     {
-      "id": "cornerL|ep|molding|onlyBom",
+      "id": "cornerL|ep|top|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
       "moduleId": "ep",
-      "family": "molding",
+      "family": "top",
       "scene": "",
-      "bom": "4866×60×18 ×1",
+      "bom": "4986×650×12 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "상부장이 없는데 BOM 상몰딩이 난다 — moldingW = totalUpperW || effectiveW 가 하부 폭으로 떨어진다 (버그)"
+      "reason": "BOM 상판은 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3). 3D 는 배치 공간마다 한 장"
     },
     {
       "id": "cornerL|lower-0|back|dims",
@@ -377,8 +377,8 @@
       "scene": "3600×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "cornerL|lower-1|back|dims",
@@ -771,10 +771,10 @@
       "moduleId": "ep",
       "family": "channel:back",
       "scene": "",
-      "bom": "6000×40×18 ×1",
+      "bom": "4200×40×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합 — P1-1 부터 키큰장 단은 빼고 하부단이 제 폭으로 따로 낸다). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "lShape|ep|channel:front|onlyBom",
@@ -783,10 +783,10 @@
       "moduleId": "ep",
       "family": "channel:front",
       "scene": "",
-      "bom": "6000×52×18 ×1",
+      "bom": "4200×52×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합 — P1-1 부터 키큰장 단은 빼고 하부단이 제 폭으로 따로 낸다). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "lShape|ep|filler:left|onlyBom",
@@ -819,10 +819,10 @@
       "moduleId": "ep",
       "family": "kick",
       "scene": "",
-      "bom": "6000×145×18 ×1",
+      "bom": "4200×145×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 걸레받이 폭 = pos lower 모듈 폭 합. 키큰장 3단(600×3)이 셋 다 더해져 6000 — 실제 라인은 4200+600 (버그)"
+      "reason": "BOM 걸레받이는 품목 단위 ep 한 장(하부 라인 폭 합 4200 — P1-1 부터 키큰장 단은 뺀다). 3D 는 런마다 한 장"
     },
     {
       "id": "lShape|ep|molding|onlyBom",
@@ -835,6 +835,18 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "BOM 상몰딩은 품목 단위 ep 한 장(상부 폭 합). 3D 는 상부 모듈마다 한 장"
+    },
+    {
+      "id": "lShape|ep|top|onlyBom",
+      "kind": "onlyBom",
+      "fixture": "lShape",
+      "moduleId": "ep",
+      "family": "top",
+      "scene": "",
+      "bom": "4320×650×12 ×1",
+      "note": "",
+      "cause": "라인 단위 부재",
+      "reason": "BOM 상판은 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3). 3D 는 배치 공간마다 한 장"
     },
     {
       "id": "lShape|lower-0|back|dims",
@@ -953,8 +965,8 @@
       "scene": "1800×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "lShape|lower-1|back|dims",
@@ -1169,8 +1181,8 @@
       "scene": "900×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "lShape|lower-3|back|dims",
@@ -1289,8 +1301,8 @@
       "scene": "1500×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "lShape|lower-4|back|dims",
@@ -1449,28 +1461,16 @@
       "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
-      "id": "lShape|tall-0|channel:back|only3d",
-      "kind": "only3d",
+      "id": "lShape|tall-0|kick|onlyBom",
+      "kind": "onlyBom",
       "fixture": "lShape",
       "moduleId": "tall-0",
-      "family": "channel:back",
-      "scene": "600×40×18 ×1",
-      "bom": "",
+      "family": "kick",
+      "scene": "",
+      "bom": "600×60×18 ×1",
       "note": "",
-      "cause": "라인 단위 부재",
-      "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "lShape|tall-0|channel:front|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "channel:front",
-      "scene": "600×52×18 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "라인 단위 부재",
-      "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
+      "cause": "좌대 블록 모델",
+      "reason": "키큰장 좌대 상자 — BOM 은 wardrobe.md 규칙(전후 W−2T · 측 D−2T−5 · 좌대 걸레받이 MDF 18T)으로 낸다 (P1-3, [확인 필요] sink.md §5 는 높이 60 만). 3D 는 통짜 블록 하나라 상자 부재가 없다"
     },
     {
       "id": "lShape|tall-0|pedestal|only3d",
@@ -1481,8 +1481,32 @@
       "scene": "620×600×60 ×1",
       "bom": "",
       "note": "",
-      "cause": "좌대 미산출",
-      "reason": "키큰장 좌대(W × 60 × D)를 3D 는 그리지만 싱크대 BOM 경로에는 좌대 부재가 없다 (B2)"
+      "cause": "좌대 블록 모델",
+      "reason": "3D 키큰장 좌대는 W×60×D 통짜 블록 하나(단순화). BOM 은 P1-3 부터 wardrobe.md 좌대 상자(전후·측·걸레받이)로 내므로 블록 부재는 없다"
+    },
+    {
+      "id": "lShape|tall-0|pedestal:fb|onlyBom",
+      "kind": "onlyBom",
+      "fixture": "lShape",
+      "moduleId": "tall-0",
+      "family": "pedestal:fb",
+      "scene": "",
+      "bom": "570×60×15 ×2",
+      "note": "",
+      "cause": "좌대 블록 모델",
+      "reason": "키큰장 좌대 상자 — BOM 은 wardrobe.md 규칙(전후 W−2T · 측 D−2T−5 · 좌대 걸레받이 MDF 18T)으로 낸다 (P1-3, [확인 필요] sink.md §5 는 높이 60 만). 3D 는 통짜 블록 하나라 상자 부재가 없다"
+    },
+    {
+      "id": "lShape|tall-0|pedestal:side|onlyBom",
+      "kind": "onlyBom",
+      "fixture": "lShape",
+      "moduleId": "tall-0",
+      "family": "pedestal:side",
+      "scene": "",
+      "bom": "585×60×15 ×2",
+      "note": "",
+      "cause": "좌대 블록 모델",
+      "reason": "키큰장 좌대 상자 — BOM 은 wardrobe.md 규칙(전후 W−2T · 측 D−2T−5 · 좌대 걸레받이 MDF 18T)으로 낸다 (P1-3, [확인 필요] sink.md §5 는 높이 60 만). 3D 는 통짜 블록 하나라 상자 부재가 없다"
     },
     {
       "id": "lShape|tall-0|shelf|dims",
@@ -1539,10 +1563,10 @@
       "moduleId": "tall-1",
       "family": "body:brace",
       "scene": "",
-      "bom": "879×70×15 ×1",
+      "bom": "949×70×15 ×1",
       "note": "",
       "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
+      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다. 푸쉬 단이라 목찬넬 −70 은 없다 (P1-1)"
     },
     {
       "id": "lShape|tall-1|body:top|only3d",
@@ -1557,26 +1581,14 @@
       "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
-      "id": "lShape|tall-1|door|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "door",
-      "scene": "975×596×18 ×1",
-      "bom": "949×596×18 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "키큰장 단 규칙",
-      "reason": "브리지가 키큰장 단(중간장·상부장)을 pos lower 로 보내 BOM 이 하부장 목찬넬 도어(H−30)를 낸다. 3D 는 그 단을 푸쉬로 그려 H−4"
-    },
-    {
       "id": "lShape|tall-1|shelf|dims",
       "kind": "dims",
       "fixture": "lShape",
       "moduleId": "tall-1",
       "family": "shelf",
       "scene": "601×566×15 ×2",
-      "bom": "605×570×15 ×1",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 1장",
+      "bom": "605×570×15 ×2",
+      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
       "cause": "선반 치수",
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
@@ -1623,10 +1635,10 @@
       "moduleId": "tall-2",
       "family": "body:brace",
       "scene": "",
-      "bom": "300×70×15 ×1",
+      "bom": "370×70×15 ×1",
       "note": "",
       "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
+      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다. 푸쉬 단이라 목찬넬 −70 은 없다 (P1-1)"
     },
     {
       "id": "lShape|tall-2|body:top|only3d",
@@ -1641,40 +1653,16 @@
       "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
-      "id": "lShape|tall-2|door|dims",
+      "id": "lShape|tall-2|molding|dims",
       "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "door",
-      "scene": "596×396×18 ×1",
-      "bom": "596×370×18 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "키큰장 단 규칙",
-      "reason": "브리지가 키큰장 단(중간장·상부장)을 pos lower 로 보내 BOM 이 하부장 목찬넬 도어(H−30)를 낸다. 3D 는 그 단을 푸쉬로 그려 H−4"
-    },
-    {
-      "id": "lShape|tall-2|molding|only3d",
-      "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "tall-2",
       "family": "molding",
       "scene": "638×600×60 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "라인 단위 부재",
-      "reason": "키큰장 상부 단의 상몰딩을 3D 는 그리지만 BOM 상몰딩 폭은 pos upper 합만 세어 키큰장 몫이 빠진다"
-    },
-    {
-      "id": "lShape|tall-2|shelf|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "shelf",
-      "scene": "",
-      "bom": "605×570×15 ×1",
-      "note": "",
-      "cause": "키큰장 단 규칙",
-      "reason": "키큰장 상부장 단(선반 0)에 BOM 하부장 규칙(서랍·EL·오픈 아니면 선반 1)이 걸려 선반이 난다 — shelfCount 를 안 본다"
+      "bom": "600×60×18 ×1",
+      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
+      "cause": "몰딩 블록 모델",
+      "reason": "키큰장 상부단 상몰딩 — BOM 은 P1-1 부터 MDF 18T 면판 60×W 를 그 단에 낸다. 3D 는 W×60×(D+18) 통짜 블록(단순화)이라 치수가 안 맞는다"
     },
     {
       "id": "lShape|upper-0|back|dims",
@@ -1878,7 +1866,7 @@
       "bom": "3000×40×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "oblique|ep|channel:front|onlyBom",
@@ -1890,7 +1878,7 @@
       "bom": "3000×52×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "oblique|ep|filler:left|onlyBom",
@@ -1939,6 +1927,18 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "BOM 상몰딩은 품목 단위 ep 한 장(상부 폭 합). 3D 는 상부 모듈마다 한 장"
+    },
+    {
+      "id": "oblique|ep|top|onlyBom",
+      "kind": "onlyBom",
+      "fixture": "oblique",
+      "moduleId": "ep",
+      "family": "top",
+      "scene": "",
+      "bom": "3120×650×12 ×1",
+      "note": "",
+      "cause": "라인 단위 부재",
+      "reason": "BOM 상판은 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3). 3D 는 배치 공간마다 한 장"
     },
     {
       "id": "oblique|lower-0|back|dims",
@@ -2057,8 +2057,8 @@
       "scene": "1800×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "oblique|lower-1|back|dims",
@@ -2273,8 +2273,8 @@
       "scene": "1200×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "oblique|lower-3|back|dims",
@@ -2574,7 +2574,7 @@
       "bom": "3598×40×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "straight|ep|channel:front|onlyBom",
@@ -2586,7 +2586,7 @@
       "bom": "3598×52×18 ×1",
       "note": "",
       "cause": "라인 단위 부재",
-      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 폭 합 = 키큰장 단 포함). 3D 는 목찬넬 모듈마다"
+      "reason": "BOM 목찬넬은 품목 단위 ep 한 장(하부 라인 폭 합). 3D 는 목찬넬 모듈마다"
     },
     {
       "id": "straight|ep|filler:left|onlyBom",
@@ -2635,6 +2635,18 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "BOM 상몰딩은 품목 단위 ep 한 장(상부 폭 합). 3D 는 상부 모듈마다 한 장"
+    },
+    {
+      "id": "straight|ep|top|onlyBom",
+      "kind": "onlyBom",
+      "fixture": "straight",
+      "moduleId": "ep",
+      "family": "top",
+      "scene": "",
+      "bom": "3718×650×12 ×1",
+      "note": "",
+      "cause": "라인 단위 부재",
+      "reason": "BOM 상판은 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3). 3D 는 배치 공간마다 한 장"
     },
     {
       "id": "straight|lower-0|back|dims",
@@ -2753,8 +2765,8 @@
       "scene": "1200×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "straight|lower-1|back|dims",
@@ -2969,8 +2981,8 @@
       "scene": "1000×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "straight|lower-3|back|dims",
@@ -3089,8 +3101,8 @@
       "scene": "1400×650×12 ×1",
       "bom": "",
       "note": "",
-      "cause": "상판 미산출",
-      "reason": "상판(런 전체 한 장, 12T)을 3D 는 그리지만 BOM 은 아직 내지 않는다 (B2 상판·타공)"
+      "cause": "라인 단위 부재",
+      "reason": "3D 상판은 배치 공간(런)의 첫 모듈에 그 런 폭(영역 전폭)으로 한 장. BOM 은 P1-3 부터 품목 단위 ep 한 장(하부 라인 폭 합 + 좌·우 마감 폭, specs.topThickness) — 브리지가 배치 공간을 넘기지 않아 런마다 못 나눈다 (P3-10)"
     },
     {
       "id": "straight|lower-4|back|dims",
