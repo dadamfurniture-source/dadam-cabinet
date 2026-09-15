@@ -553,6 +553,7 @@
         unallocated.push({
           material: grp.material, thickness: grp.thickness, partClass: grp.partClass,
           w: n.w, h: n.h, qty: n.remain,
+          parts: n.queue.map((q) => q.part).filter((v, i, a) => a.indexOf(v) === i),
           partIds: n.queue.map((q) => q.partId),
         });
       });

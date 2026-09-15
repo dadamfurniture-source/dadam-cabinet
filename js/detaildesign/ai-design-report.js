@@ -1287,11 +1287,9 @@
 
       // CNC 재단 목록 탭
       // 부품명 → 원판 유형 분류 (본체/도어/뒷판)
+      // B4: 원판을 가르는 부재 구분(본체/도어/뒷판)은 nesting-engine.js 가 정본이다 — 규격 목록과 배치가 같은 그룹을 본다.
       function getPartType(partName) {
-        if (/도어/.test(partName)) return '도어';
-        if (/뒷판|서랍밑판/.test(partName)) return '뒷판';
-        if (/몰딩|걸레받이|목찬넬|마감/.test(partName)) return '도어';
-        return '본체';
+        return NestingEngine.partClassOf(partName);
       }
 
       function generateCNCTab(materials) {
@@ -1413,8 +1411,11 @@
 
         tableHTML += '</tbody></table>';
 
-        // ===== 원판 배치 계획 (겹침 재단 + 나머지 활용) =====
-        const PANEL_W = SHEET_W, PANEL_H = SHEET_H;
+        // ===== 원판 배치 계획 — NestingEngine.plan (B4) =====
+        // 배치 계산은 nesting-engine.js 가 정본이다. 여기서는 그 cutPlan 을 그리고 집계만 한다.
+        // 같은 materials 로 workflow-client.js 가 같은 plan 을 만들어 스냅샷(cut_plan_payload)에 싣는다.
+        const cutPlan = NestingEngine.plan(materials);
+        const PANEL_W = cutPlan.sheetSize.w, PANEL_H = cutPlan.sheetSize.h;
         let planHTML = '';
         let totalPanels = 0;
         let totalProduced = 0;
@@ -1423,99 +1424,89 @@
         let totalThinLen = 0;
         const allRemnants = [];   // 전체 잔재 수집
         const allThinStrips = []; // 전체 자투리(60~70mm) 수집
-        const panelDetails = [];  // 엑셀 다운로드용 패널 상세
+        const panelDetails = [];  // 엑셀·요약 탭용 배치 상세 (배치 1종 = 겹침 시트 묶음)
         let cncAllocResults = []; // 엑셀용 소부품 추출 결과
         let cncStillNeeded = [];  // 엑셀용 미충족 목록
 
+        const sheetsByGroupKey = new Map();
+        cutPlan.sheets.forEach(sh => {
+          const k = `${sh.material}|${sh.thickness}|${sh.partClass}`;
+          if (!sheetsByGroupKey.has(k)) sheetsByGroupKey.set(k, []);
+          sheetsByGroupKey.get(k).push(sh);
+        });
+        const offcutsBySheet = new Map();
+        cutPlan.offcuts.forEach(o => {
+          if (!offcutsBySheet.has(o.sheetNo)) offcutsBySheet.set(o.sheetNo, []);
+          offcutsBySheet.get(o.sheetNo).push(o);
+        });
+
         groups.forEach((items, groupName) => {
+          const gKey = `${items[0].material}|${items[0].thickness}|${items[0].partType}`;
           const groupNeeded = items.reduce((s, m) => s + m.qty, 0);
           totalNeeded += groupNeeded;
-          const groupSmalls = smallByGroup.get(groupName) || [];
-          const { panels, unallocated } = calcCuttingPlan(items, PANEL_W, PANEL_H, groupSmalls);
-          const groupPanelCount = panels.reduce((s, p) => s + p.stack, 0);
-          totalPanels += groupPanelCount;
+          const groupSheets = sheetsByGroupKey.get(gKey) || [];
 
-          // 그룹별 생산 수량 집계
-          let groupProduced = 0;
-          panels.forEach(panel => {
-            panel.strips.forEach(strip => {
-              strip.pieces.forEach(p => { groupProduced += p.count * panel.stack; });
-            });
+          // 같은 배치(layout.no)로 겹쳐 재단하는 시트를 그림 한 장으로 — 첫 시트가 대표
+          const layouts = [];
+          groupSheets.forEach(sh => {
+            let L = layouts.find(l => l.no === sh.layout.no);
+            if (!L) { L = { no: sh.layout.no, sheet: sh, stack: 0, sheetNos: [] }; layouts.push(L); }
+            L.stack += 1;
+            L.sheetNos.push(sh.no);
           });
+
+          const groupPanelCount = groupSheets.length;
+          totalPanels += groupPanelCount;
+          const groupProduced = groupSheets.reduce((s, sh) => s + sh.parts.length, 0);
           totalProduced += groupProduced;
+          const groupTotalCuts = layouts.reduce((s, L) => s + sheetCutCount(L.sheet), 0);
 
           planHTML += `<div style="margin-bottom:20px;">`;
-          // 그룹 전체 절단 횟수 합산
-          let groupTotalCuts = 0;
-          panels.forEach(p => {
-            const sc = p.strips.length;
-            let pc = 0;
-            p.strips.forEach(st => { const tp = st.pieces.reduce((s, pp) => s + pp.count, 0); pc += Math.max(0, tp - 1); });
-            groupTotalCuts += sc + pc;
-          });
-          planHTML += `<div style="font-weight:bold;color:#c2185b;font-size:13px;margin-bottom:8px;">📦 ${groupName} — 원판 ${groupPanelCount}장 (${panels.length}종 배치, ${groupProduced}/${groupNeeded}개 생산, ✂ ${groupTotalCuts}회 절단)</div>`;
+          planHTML += `<div style="font-weight:bold;color:#c2185b;font-size:13px;margin-bottom:8px;">📦 ${groupName} — 원판 ${groupPanelCount}장 (${layouts.length}종 배치, ${groupProduced}/${groupNeeded}개 생산, ✂ ${groupTotalCuts}회 절단)</div>`;
 
-          panels.forEach(panel => {
-            const usedPct = ((panel.usedArea / (PANEL_W * PANEL_H)) * 100).toFixed(1);
-            const stackLabel = panel.stack > 1 ? `${panel.stack}장 겹침` : '1장';
-            const dirLabel = panel.dir === 'H' ? '가로→세로' : '세로→가로';
-            const rotLabel = panel.rotated ? ' 회전' : '';
-            const dirColor = panel.dir === 'H' ? '#1976d2' : '#7b1fa2';
-            if (panel.dir === 'H') totalHPanels += panel.stack; else totalVPanels += panel.stack;
-            const totalCuts = panel.strips.length + panel.strips.reduce((s, st) => s + st.pieces.reduce((ss, p) => ss + p.count, 0), 0);
+          layouts.forEach(L => {
+            const sheet = L.sheet;
+            const stack = L.stack;
+            const dirColor = sheet.layout.dir === 'H' ? '#1976d2' : '#7b1fa2';
+            if (sheet.layout.dir === 'H') totalHPanels += stack; else totalVPanels += stack;
 
             planHTML += `<div style="margin:8px 0;padding:10px;background:#f5f5f5;border-radius:8px;border-left:4px solid ${dirColor};">`;
-            // 잔재/자투리 데이터 수집 (텍스트 출력 없이)
+
+            // 잔재/자투리 — cutPlan.offcuts 에서. free 는 잘려 남은 쪽 치수(스트립 잔여는 스트립 방향, 원판 잔여는 스트립 쌓는 방향)
             const remnants = [];
             const thinList = [];
-
-            if (panel.dir === 'H') {
-              let trackH = PANEL_H;
-              panel.strips.forEach(strip => {
-                trackH -= strip.height;
-                if (strip.remainW >= 60 && strip.remainW <= 70) thinList.push({ w: strip.remainW, h: strip.height, type: '세로자투리' });
-                else if (strip.remainW > 70) remnants.push({ w: strip.remainW, h: strip.height });
-                if (trackH >= 60 && trackH <= 70) thinList.push({ w: PANEL_W, h: trackH, type: '가로자투리' });
-              });
-              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) thinList.push({ w: PANEL_W, h: panel.panelRemain, type: '가로자투리' });
-              else if (panel.panelRemain > 70) remnants.push({ w: PANEL_W, h: panel.panelRemain });
-            } else {
-              let trackW = PANEL_W;
-              panel.strips.forEach(strip => {
-                trackW -= strip.width;
-                if (strip.remainH >= 60 && strip.remainH <= 70) thinList.push({ w: strip.width, h: strip.remainH, type: '가로자투리' });
-                else if (strip.remainH > 70) remnants.push({ w: strip.width, h: strip.remainH });
-                if (trackW >= 60 && trackW <= 70) thinList.push({ w: trackW, h: PANEL_H, type: '세로자투리' });
-              });
-              if (panel.panelRemain >= 60 && panel.panelRemain <= 70) thinList.push({ w: panel.panelRemain, h: PANEL_H, type: '세로자투리' });
-              else if (panel.panelRemain > 70) remnants.push({ w: panel.panelRemain, h: PANEL_H });
-            }
-
-            if (remnants.length > 0) remnants.forEach(r => allRemnants.push({ w: r.w, h: r.h, qty: panel.stack, group: groupName, panelId: panel.id }));
+            (offcutsBySheet.get(sheet.no) || []).forEach(o => {
+              const type = o.free === o.w ? '세로자투리' : '가로자투리';
+              if (o.free >= 60 && o.free <= 70) thinList.push({ w: o.w, h: o.h, type });
+              else if (o.free > 70) remnants.push({ w: o.w, h: o.h });
+            });
+            remnants.forEach(r => allRemnants.push({ w: r.w, h: r.h, qty: stack, group: groupName, panelId: sheet.layout.no }));
             if (thinList.length > 0) {
               const thinTotalLen = thinList.reduce((s, t) => s + Math.max(t.w, t.h), 0);
-              totalThinLen += thinTotalLen * panel.stack;
-              thinList.forEach(t => allThinStrips.push({ w: t.w, h: t.h, qty: panel.stack, group: groupName, panelId: panel.id, type: t.type }));
+              totalThinLen += thinTotalLen * stack;
+              thinList.forEach(t => allThinStrips.push({ w: t.w, h: t.h, qty: stack, group: groupName, panelId: sheet.layout.no, type: t.type }));
             }
 
             // SVG 재단 배치도만 표시
-            planHTML += `<div style="text-align:center;">${renderCuttingPlanSVG(panel, groupName, PANEL_W, PANEL_H)}</div>`;
+            planHTML += `<div style="text-align:center;">${renderCuttingPlanSVG(sheet, groupName, stack, L.sheetNos, cutPlan.kerf)}</div>`;
 
             planHTML += `</div>`;
 
-            // 엑셀용 패널 상세 수집
+            // 엑셀·요약 탭용 배치 상세 (옛 panelDetails 모양 유지)
             panelDetails.push({
-              group: groupName, id: panel.id, stack: panel.stack,
-              dir: panel.dir === 'H' ? '가로→세로' : '세로→가로',
-              rotated: panel.rotated ? 'Y' : 'N',
-              strips: panel.strips, remnants, thinList
+              group: groupName, id: sheet.layout.no, stack,
+              dir: sheet.layout.dir === 'H' ? '가로→세로' : '세로→가로',
+              rotated: sheet.layout.rotated ? 'Y' : 'N',
+              sheetNos: L.sheetNos,
+              strips: compatStripsOf(sheet), remnants, thinList
             });
           });
 
-          // 미배치 부품 경고
+          // 미배치 부품 경고 (원판보다 큰 부재 등)
+          const unallocated = cutPlan.unallocated.filter(u => `${u.material}|${u.thickness}|${u.partClass}` === gKey);
           if (unallocated.length > 0) {
             planHTML += `<div style="padding:8px;background:#ffebee;border-radius:6px;font-size:12px;color:#c62828;">`;
-            planHTML += `⚠️ 미배치: ` + unallocated.map(u => `${u.parts.join(',')} ${u.w}×${u.h} ×${u.remain}`).join(', ');
+            planHTML += `⚠️ 미배치: ` + unallocated.map(u => `${u.parts.join(',')} ${u.w}×${u.h} ×${u.qty}`).join(', ');
             planHTML += `</div>`;
           }
 
@@ -1708,6 +1699,7 @@
 
         // 엑셀 다운로드용 데이터 저장
         window._cncData = {
+          cutPlan,   // B4: nesting-engine 산출 원본 (스냅샷 cut_plan_payload 와 같은 모양)
           sorted,
           panelDetails,
           allRemnants,
@@ -1729,7 +1721,7 @@
       </div>
     </div>
     <div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffe082;font-size:12px;color:#e65100;">
-      💡 방향 자동최적화: H/V × 정방향/회전 4가지 중 최적 선택 | 잔재→보강목/덧대 추출 반영 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm
+      💡 방향 자동최적화: H/V × 정방향/회전 4가지 중 최적 선택 | 결 부재 회전 금지 | 잔재→보강목/덧대 추출 반영 | 60~70mm 자투리 최대화 | 최대 5장 겹침 | 원판: ${PANEL_W}×${PANEL_H}mm · 트림 ${cutPlan.trim}mm · 커프 ${cutPlan.kerf}mm | 시트 ${cutPlan.summary.sheetCount}장 · 수율 ${(cutPlan.summary.totalYield * 100).toFixed(1)}%
     </div>
     <div id="cnc-module-view" style="max-height:500px;overflow-y:auto;">${tableHTML}</div>
     <div id="cnc-spec-view" style="display:none;max-height:500px;overflow-y:auto;">${planHTML}</div>
@@ -1740,8 +1732,50 @@
       // 여기서 다시 const 로 선언하면 두 파일이 같은 전역 렉시컬 스코프를 쓰므로
       // "Identifier 'CUT_KERF' has already been declared" 로 이 파일 전체가 파싱에 실패한다.
 
-      // 재단 배치도 SVG 렌더링
-      function renderCuttingPlanSVG(panel, groupName, PW, PH) {
+      // B4: cutPlan 시트 하나로 배치·잔재 집계 도우미 —————————————————————————
+
+      // 시트의 절단 횟수: 스트립 분리 + 스트립 안 조각 분리
+      function sheetCutCount(sheet) {
+        const perStrip = new Map();
+        sheet.parts.forEach(p => perStrip.set(p.strip, (perStrip.get(p.strip) || 0) + 1));
+        let pieceCuts = 0;
+        perStrip.forEach(n => { pieceCuts += Math.max(0, n - 1); });
+        return sheet.strips.length + pieceCuts;
+      }
+
+      // 조각이 원판 위에서 차지하는 발자국 (rot 이면 h×w)
+      function footprintOf(p) {
+        return p.rot ? { w: p.h, h: p.w } : { w: p.w, h: p.h };
+      }
+
+      // 옛 panelDetails.strips 모양 — 엑셀 '원판 배치' 시트와 요약 탭이 이 모양을 읽는다.
+      // 같은 스트립에서 이름·발자국·잔여활용이 같은 연속 조각을 count 로 묶는다 (x 순서 유지).
+      function compatStripsOf(sheet) {
+        const isH = sheet.layout.dir === 'H';
+        return sheet.strips.map(st => {
+          const pieces = [];
+          sheet.parts.filter(p => p.strip === st.no).forEach(p => {
+            const f = footprintOf(p);
+            const last = pieces[pieces.length - 1];
+            if (last && last.part === p.part && last.w === f.w && last.h === f.h && !!last.fromRemainder === !!p.fromRemainder) {
+              last.count += 1;
+              if (p.itemLabel && !last.itemLabels.includes(p.itemLabel)) last.itemLabels.push(p.itemLabel);
+              return;
+            }
+            pieces.push({ part: p.part, w: f.w, h: f.h, count: 1, fromRemainder: !!p.fromRemainder, edges: p.edge ? [p.edge] : [], itemLabels: p.itemLabel ? [p.itemLabel] : [] });
+          });
+          return isH
+            ? { height: st.size, usedW: st.used, remainW: st.remain, pieces }
+            : { width: st.size, usedH: st.used, remainH: st.remain, pieces };
+        });
+      }
+
+      // 재단 배치도 SVG 렌더링 — cutPlan 시트(절대 좌표, 트림 포함) 한 장. stack 은 같은 배치로 겹치는 장수.
+      function renderCuttingPlanSVG(sheet, groupName, stack, sheetNos, kerf) {
+        const PW = sheet.size.w, PH = sheet.size.h;
+        const trim = sheet.trim || 0;
+        const lay = sheet.layout;
+        const isH = lay.dir === 'H';
         const scale = 0.25;
         const margin = { top: 50, left: 30, right: 30, bottom: 20 };
         const panelW = Math.round(PW * scale);
@@ -1848,10 +1882,14 @@
           return s;
         }
 
-        const stackLabel = panel.stack > 1 ? ` x${panel.stack}장 겹침` : '';
-        const dirLabel = panel.dir === 'H' ? '가로→세로' : '세로→가로';
-        const rotLabel = panel.rotated ? ' (회전)' : '';
-        const eff = ((panel.usedArea / (PW * PH)) * 100).toFixed(1);
+
+        const stackLabel = stack > 1 ? ` x${stack}장 겹침` : '';
+        const dirLabel = isH ? '가로→세로' : '세로→가로';
+        const rotLabel = lay.rotated ? ' (회전)' : '';
+        const eff = ((sheet.usedArea / (PW * PH)) * 100).toFixed(1);
+        const sheetLabel = sheetNos && sheetNos.length
+          ? (sheetNos.length > 1 ? ` · 시트 ${sheetNos[0]}~${sheetNos[sheetNos.length - 1]}` : ` · 시트 ${sheetNos[0]}`)
+          : '';
 
         let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:8px auto;">
       <style>
@@ -1863,111 +1901,73 @@
         .cp-cut { stroke: #e53935; stroke-width: 1; stroke-dasharray: 4 2; }
         .cp-stack { font-family: Arial, sans-serif; font-size: 9px; fill: #fff; font-weight: bold; }
       </style>
-      <text x="${svgW / 2}" y="14" class="cp-title" text-anchor="middle">#${panel.id} ${groupName} | ${dirLabel}${rotLabel} | ${eff}%${stackLabel}</text>
-      <text x="${svgW / 2}" y="28" class="cp-dim" text-anchor="middle">${PW} x ${PH} mm</text>`;
+      <text x="${svgW / 2}" y="14" class="cp-title" text-anchor="middle">#${lay.no} ${groupName} | ${dirLabel}${rotLabel} | ${eff}%${stackLabel}${sheetLabel}</text>
+      <text x="${svgW / 2}" y="28" class="cp-dim" text-anchor="middle">${PW} x ${PH} mm${trim > 0 ? ` · 트림 ${trim}` : ''}</text>`;
 
         // 원판 배경 + clipPath로 넘침 방지
         svg += `<defs>`;
-        svg += `<clipPath id="clip-${panel.id}"><rect x="${ox}" y="${oy}" width="${panelW}" height="${panelH}"/></clipPath>`;
-        svg += `<pattern id="hatch-${panel.id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#ddd" stroke-width="1"/></pattern>`;
+        const cid = sheet.no;
+        svg += `<clipPath id="clip-${cid}"><rect x="${ox}" y="${oy}" width="${panelW}" height="${panelH}"/></clipPath>`;
+        svg += `<pattern id="hatch-${cid}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#ddd" stroke-width="1"/></pattern>`;
         svg += `</defs>`;
         svg += `<rect x="${ox}" y="${oy}" width="${panelW}" height="${panelH}" fill="${colors.panel}" stroke="#333" stroke-width="2"/>`;
+        // 트림 안쪽(실제 배치 영역)
+        if (trim > 0) {
+          svg += `<rect x="${ox + Math.round(trim * scale)}" y="${oy + Math.round(trim * scale)}" width="${Math.round((PW - trim * 2) * scale)}" height="${Math.round((PH - trim * 2) * scale)}" fill="none" stroke="#bbb" stroke-width="0.5" stroke-dasharray="2 2"/>`;
+        }
 
         // 부품을 clipPath 안에서 렌더링
-        svg += `<g clip-path="url(#clip-${panel.id})">`;
+        svg += `<g clip-path="url(#clip-${cid})">`;
 
-        if (panel.dir === 'H') {
-          // 가로→세로: y축으로 strip, x축으로 piece
-          let curY = 0;
-          panel.strips.forEach((strip, si) => {
-            let curX = 0;
-            if (si > 0) {
-              const lineY = oy + Math.round(curY * scale);
-              svg += `<line x1="${ox}" y1="${lineY}" x2="${ox + panelW}" y2="${lineY}" class="cp-cut"/>`;
-            }
+        const sx = v => ox + Math.round(v * scale);
+        const sy = v => oy + Math.round(v * scale);
+        const usableEndX = PW - trim, usableEndY = PH - trim;
 
-            strip.pieces.forEach(p => {
-              for (let c = 0; c < p.count; c++) {
-                const rx = ox + Math.round(curX * scale);
-                const ry = oy + Math.round(curY * scale);
-                const rw = Math.round(p.w * scale);
-                const rh = Math.round(strip.height * scale);
-                svg += renderPiece(rx, ry, rw, rh, p.w, strip.height, p.part, (p.itemLabels || []).join('/'), p.edges);
-                curX += p.w + CUT_KERF;
-              }
-            });
+        // 조각 — 절대 좌표 (트림 포함)
+        sheet.parts.forEach(p => {
+          const f = footprintOf(p);
+          svg += renderPiece(sx(p.x), sy(p.y), Math.round(f.w * scale), Math.round(f.h * scale), f.w, f.h, p.part, p.itemLabel || '', p.edge ? [p.edge] : []);
+        });
 
-            // strip 내 잔여 영역 — 원판 경계까지만
-            const usedX = curX - CUT_KERF; // 마지막 KERF 제거
-            if (PW - usedX > 10) {
-              const rx = ox + Math.round(usedX * scale);
-              const rw = panelW - Math.round(usedX * scale);
-              const rh = Math.round(strip.height * scale);
-              svg += `<rect x="${rx}" y="${oy + Math.round(curY * scale)}" width="${rw}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
-              if (rw > 20 && rh > 12) {
-                svg += `<text x="${rx + rw / 2}" y="${oy + Math.round(curY * scale) + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PW - usedX}</text>`;
-              }
-            }
-
-            curY += strip.height + CUT_KERF;
-          });
-
-          // 하단 잔여 영역 — 원판 하단까지
-          const usedY = curY - CUT_KERF;
-          const remainH = PH - usedY;
-          if (remainH > 10) {
-            const ry = oy + Math.round(usedY * scale);
-            const rh = panelH - Math.round(usedY * scale);
-            svg += `<rect x="${ox}" y="${ry}" width="${panelW}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
-            if (rh > 12) {
-              svg += `<text x="${ox + panelW / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PW}x${remainH}</text>`;
+        // 스트립 분리선 + 스트립 안 잔여 (빗금)
+        sheet.strips.forEach((st, si) => {
+          if (si > 0) {
+            svg += isH
+              ? `<line x1="${ox}" y1="${sy(st.offset)}" x2="${ox + panelW}" y2="${sy(st.offset)}" class="cp-cut"/>`
+              : `<line x1="${sx(st.offset)}" y1="${oy}" x2="${sx(st.offset)}" y2="${oy + panelH}" class="cp-cut"/>`;
+          }
+          if (st.remain > 10) {
+            if (isH) {
+              const rx = sx(trim + st.used), ry = sy(st.offset);
+              const rw = sx(usableEndX) - rx, rh = Math.round(st.size * scale);
+              svg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="url(#hatch-${cid})" stroke="#ccc" stroke-width="0.5"/>`;
+              if (rw > 20 && rh > 12) svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${st.remain}</text>`;
+            } else {
+              const rx = sx(st.offset), ry = sy(trim + st.used);
+              const rw = Math.round(st.size * scale), rh = sy(usableEndY) - ry;
+              svg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="url(#hatch-${cid})" stroke="#ccc" stroke-width="0.5"/>`;
+              if (rw > 20 && rh > 12) svg += `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${st.remain}</text>`;
             }
           }
-        } else {
-          // 세로→가로: x축으로 strip, y축으로 piece
-          let curX = 0;
-          panel.strips.forEach((strip, si) => {
-            let curY = 0;
-            if (si > 0) {
-              const lineX = ox + Math.round(curX * scale);
-              svg += `<line x1="${lineX}" y1="${oy}" x2="${lineX}" y2="${oy + panelH}" class="cp-cut"/>`;
+        });
+
+        // 마지막 스트립 뒤 원판 잔여 (빗금)
+        if (sheet.strips.length > 0) {
+          const last = sheet.strips[sheet.strips.length - 1];
+          const usedEnd = last.offset + last.size; // 커프 전
+          if (isH) {
+            const remainH = usableEndY - usedEnd;
+            if (remainH > 10) {
+              const ry = sy(usedEnd), rh = sy(usableEndY) - ry;
+              svg += `<rect x="${sx(trim)}" y="${ry}" width="${Math.round((PW - trim * 2) * scale)}" height="${rh}" fill="url(#hatch-${cid})" stroke="#ccc" stroke-width="0.5"/>`;
+              if (rh > 12) svg += `<text x="${ox + panelW / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PW - trim * 2}x${remainH}</text>`;
             }
-
-            strip.pieces.forEach(p => {
-              for (let c = 0; c < p.count; c++) {
-                const rx = ox + Math.round(curX * scale);
-                const ry = oy + Math.round(curY * scale);
-                const rw = Math.round(strip.width * scale);
-                const rh = Math.round(p.h * scale);
-                svg += renderPiece(rx, ry, rw, rh, strip.width, p.h, p.part, (p.itemLabels || []).join('/'), p.edges);
-                curY += p.h + CUT_KERF;
-              }
-            });
-
-            // strip 내 잔여 영역 — 원판 하단까지
-            const usedY = curY - CUT_KERF;
-            if (PH - usedY > 10) {
-              const ry = oy + Math.round(usedY * scale);
-              const rw = Math.round(strip.width * scale);
-              const rh = panelH - Math.round(usedY * scale);
-              svg += `<rect x="${ox + Math.round(curX * scale)}" y="${ry}" width="${rw}" height="${rh}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
-              if (rw > 20 && rh > 12) {
-                svg += `<text x="${ox + Math.round(curX * scale) + rw / 2}" y="${ry + rh / 2 + 3}" class="cp-dim" text-anchor="middle" fill="#999">${PH - usedY}</text>`;
-              }
-            }
-
-            curX += strip.width + CUT_KERF;
-          });
-
-          // 우측 잔여 영역 — 원판 우측까지
-          const usedX = curX - CUT_KERF;
-          const remainW = PW - usedX;
-          if (remainW > 10) {
-            const rx = ox + Math.round(usedX * scale);
-            const rw = panelW - Math.round(usedX * scale);
-            svg += `<rect x="${rx}" y="${oy}" width="${rw}" height="${panelH}" fill="url(#hatch-${panel.id})" stroke="#ccc" stroke-width="0.5"/>`;
-            if (rw > 12) {
-              svg += `<text x="${rx + rw / 2}" y="${oy + panelH / 2}" class="cp-dim" text-anchor="middle" fill="#999">${remainW}x${PH}</text>`;
+          } else {
+            const remainW = usableEndX - usedEnd;
+            if (remainW > 10) {
+              const rx = sx(usedEnd), rw = sx(usableEndX) - rx;
+              svg += `<rect x="${rx}" y="${sy(trim)}" width="${rw}" height="${Math.round((PH - trim * 2) * scale)}" fill="url(#hatch-${cid})" stroke="#ccc" stroke-width="0.5"/>`;
+              if (rw > 12) svg += `<text x="${rx + rw / 2}" y="${oy + panelH / 2}" class="cp-dim" text-anchor="middle" fill="#999">${remainW}x${PH - trim * 2}</text>`;
             }
           }
         }
@@ -1975,26 +1975,20 @@
         svg += `</g>`; // clip group 닫기
 
         // 겹침 배지
-        if (panel.stack > 1) {
+        if (stack > 1) {
           const bx = ox + panelW - 30;
           svg += `<rect x="${bx}" y="${oy + 4}" width="26" height="16" rx="3" fill="#e53935"/>`;
-          svg += `<text x="${bx + 13}" y="${oy + 15}" class="cp-stack" text-anchor="middle">x${panel.stack}</text>`;
+          svg += `<text x="${bx + 13}" y="${oy + 15}" class="cp-stack" text-anchor="middle">x${stack}</text>`;
         }
 
         // 재단 횟수 배지
-        const stripCuts = panel.strips.length;
-        let pieceCuts = 0;
-        panel.strips.forEach(st => {
-          const totalInStrip = st.pieces.reduce((s, p) => s + p.count, 0);
-          pieceCuts += Math.max(0, totalInStrip - 1);
-        });
-        const totalCuts = stripCuts + pieceCuts;
-        const cutBadgeX = ox + panelW - (panel.stack > 1 ? 68 : 38);
+        const totalCuts = sheetCutCount(sheet);
+        const cutBadgeX = ox + panelW - (stack > 1 ? 68 : 38);
         svg += `<rect x="${cutBadgeX}" y="${oy + 4}" width="34" height="16" rx="3" fill="#1565c0"/>`;
         svg += `<text x="${cutBadgeX + 17}" y="${oy + 15}" class="cp-stack" text-anchor="middle">✂${totalCuts}</text>`;
 
         // 회전 표시
-        if (panel.rotated) {
+        if (lay.rotated) {
           svg += `<text x="${ox + 6}" y="${oy + 14}" class="cp-dim" fill="#e65100">↻</text>`;
         }
 
@@ -2002,295 +1996,8 @@
         return svg;
       }
 
-      // 원판 배치 계산 (방향 자동최적화 + 겹침 재단 + 나머지 활용)
-      function calcCuttingPlan(items, PW, PH, groupSmalls) {
-        const needs = items.map((item, i) => ({
-          idx: i, w: item.w, h: item.h,
-          parts: item.parts, edges: item.edges,
-          itemLabels: item.itemLabels || [],
-          remain: item.qty
-        }));
-
-        // Step 1: 수량 많은 순 → 면적 큰 순 정렬 (스택 극대화)
-        needs.sort((a, b) => b.remain - a.remain || (b.w * b.h) - (a.w * a.h));
-        needs.forEach((n, i) => { n.idx = i; }); // 정렬 후 idx 재할당
-
-        const panels = [];
-
-        // Step 2: 동일 치수 부품 단독 패널 우선 배치 (Homogeneous Panel)
-        // 같은 부품만으로 원판을 채워 스택을 최대화
-        needs.forEach(n => {
-          if (n.remain < 2) return;
-          const soloLayout = chooseCutDirection([n], PW, PH, groupSmalls);
-          if (soloLayout.totalPieces === 0) return;
-          const fullStacks = Math.floor(n.remain / soloLayout.totalPieces);
-          if (fullStacks < 2) return; // 2장 미만이면 혼합 패널로 처리
-          const useStacks = Math.min(fullStacks, 5);
-          n.remain -= soloLayout.totalPieces * useStacks;
-          panels.push({
-            id: panels.length + 1,
-            stack: useStacks,
-            dir: soloLayout.dir,
-            rotated: soloLayout.rotated || false,
-            strips: soloLayout.strips,
-            usedArea: soloLayout.usedArea,
-            panelRemain: soloLayout.dir === 'H' ? soloLayout.remainH : soloLayout.remainW,
-            smallYield: soloLayout.smallYield || 0
-          });
-        });
-
-        // Step 3: 나머지 부품 혼합 배치 (기존 로직)
-        let safety = 0;
-        while (needs.some(n => n.remain > 0) && safety++ < 30) {
-          const layout = chooseCutDirection(needs, PW, PH, groupSmalls);
-          if (layout.totalPieces === 0) break;
-
-          let stack = 5;
-          layout.pieceCounts.forEach((count, idx) => {
-            stack = Math.min(stack, Math.floor(needs[idx].remain / count));
-          });
-          stack = Math.max(1, stack);
-
-          layout.pieceCounts.forEach((count, idx) => {
-            needs[idx].remain -= count * stack;
-          });
-
-          panels.push({
-            id: panels.length + 1,
-            stack,
-            dir: layout.dir,
-            rotated: layout.rotated || false,
-            strips: layout.strips,
-            usedArea: layout.usedArea,
-            panelRemain: layout.dir === 'H' ? layout.remainH : layout.remainW,
-            smallYield: layout.smallYield || 0
-          });
-        }
-
-        return { panels, unallocated: needs.filter(n => n.remain > 0) };
-      }
-
-      // 방향 자동선택: H/V × 정방향/회전 = 4가지 중 최적 선택
-      function chooseCutDirection(needs, PW, PH, groupSmalls) {
-        // 정방향 (w×h 그대로)
-        const h = designLayoutH(needs, PW, PH);
-        const v = designLayoutV(needs, PW, PH);
-        h.rotated = false; v.rotated = false;
-
-        // 회전 배치 (w↔h 교환: 더 넓은 면을 strip 방향으로 활용)
-        const rotNeeds = needs.map(n => ({ ...n, w: n.h, h: n.w }));
-        const hr = designLayoutH(rotNeeds, PW, PH);
-        const vr = designLayoutV(rotNeeds, PW, PH);
-        hr.rotated = true; vr.rotated = true;
-
-        // 각 방향별 잔재에서 소부품 추출 가능 수량 산출 + 예상 스택 계산
-        const candidates = [h, v, hr, vr];
-        candidates.forEach(c => {
-          c.smallYield = calcSmallYield(c, PW, PH, groupSmalls);
-          // 예상 스택: 이 레이아웃을 몇 장 겹칠 수 있는지
-          let estStack = 5;
-          const srcNeeds = c.rotated ? rotNeeds : needs;
-          const needsById = new Map(srcNeeds.map(n => [n.idx, n]));
-          c.pieceCounts.forEach((count, idx) => {
-            const n = needsById.get(idx);
-            if (n) estStack = Math.min(estStack, Math.floor(n.remain / count));
-          });
-          c.estStack = Math.max(1, estStack);
-          c.effectivePieces = c.totalPieces * c.estStack; // 실제 생산량
-        });
-
-        // 우선순위: 실제생산량(배치×스택) → 소부품추출수 → 자투리길이 → 활용면적 → strip수(↓)
-        candidates.sort((a, b) => {
-          if (b.effectivePieces !== a.effectivePieces) return b.effectivePieces - a.effectivePieces;
-          if (b.totalPieces !== a.totalPieces) return b.totalPieces - a.totalPieces;
-          if (b.smallYield !== a.smallYield) return b.smallYield - a.smallYield;
-          if (b.thinLen !== a.thinLen) return b.thinLen - a.thinLen;
-          if (b.usedArea !== a.usedArea) return b.usedArea - a.usedArea;
-          return a.strips.length - b.strips.length;
-        });
-        return candidates[0];
-      }
-
-      // 잔재에서 소부품(보강목/덧대/좌대) 추출 가능 수량 시뮬레이션
-      function calcSmallYield(layout, PW, PH, smalls) {
-        if (!smalls || smalls.length === 0) return 0;
-
-        // 이 레이아웃의 잔재 조각 수집
-        const rems = [];
-        if (layout.dir === 'H') {
-          layout.strips.forEach(s => {
-            if (s.remainW > 70) rems.push({ w: s.remainW, h: s.height });
-          });
-          if (layout.remainH > 70) rems.push({ w: PW, h: layout.remainH });
-        } else {
-          layout.strips.forEach(s => {
-            if (s.remainH > 70) rems.push({ w: s.width, h: s.remainH });
-          });
-          if (layout.remainW > 70) rems.push({ w: layout.remainW, h: PH });
-        }
-
-        if (rems.length === 0) return 0;
-
-        // 탐욕법: 필요 수량 한도 내에서 추출 시뮬레이션
-        const needs = smalls.map(s => ({ w: s.w, h: s.h, tmpRemain: s.qty }));
-        let total = 0;
-
-        for (const rem of rems) {
-          for (const sp of needs) {
-            if (sp.tmpRemain <= 0) continue;
-            const cntA = Math.floor(rem.w / sp.w) * Math.floor(rem.h / sp.h);
-            const cntB = Math.floor(rem.w / sp.h) * Math.floor(rem.h / sp.w);
-            const can = Math.max(cntA, cntB);
-            const use = Math.min(can, sp.tmpRemain);
-            if (use > 0) {
-              total += use;
-              sp.tmpRemain -= use;
-            }
-          }
-        }
-
-        return total;
-      }
-
-      // 가로→세로 레이아웃 (가로재단으로 strip 분리 → 세로재단으로 부품 분리)
-      function designLayoutH(needs, PW, PH) {
-        const pieceCounts = new Map();
-        let usedArea = 0;
-        const strips = [];
-        let availH = PH;
-
-        // Step 4: 높이 → 너비 내림차순 정렬 (같은 치수 부품 클러스터링)
-        const sorted = [...needs].sort((a, b) => b.h - a.h || b.w - a.w);
-
-        while (availH > 70) {
-          let stripH = 0;
-          for (const n of sorted) {
-            const avail = n.remain - (pieceCounts.get(n.idx) || 0);
-            if (avail > 0 && n.h <= availH) { stripH = n.h; break; }
-          }
-          if (stripH === 0) break;
-
-          const strip = { height: stripH, pieces: [], usedW: 0 };
-
-          // Pass 1: 정확히 같은 높이 부품만 배치 (재단 횟수 최소화)
-          for (const n of sorted) {
-            const placed = pieceCounts.get(n.idx) || 0;
-            const avail = n.remain - placed;
-            if (avail <= 0 || n.h !== stripH || n.w > PW - strip.usedW) continue;
-            const fitCount = Math.min(avail, Math.floor((PW - strip.usedW + CUT_KERF) / (n.w + CUT_KERF)));
-            if (fitCount <= 0) continue;
-            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount });
-            strip.usedW += (n.w + CUT_KERF) * fitCount - CUT_KERF;
-            pieceCounts.set(n.idx, placed + fitCount);
-            usedArea += n.w * n.h * fitCount;
-          }
-
-          // Pass 2: 잔여 공간에 더 짧은 부품 배치 (공간 활용)
-          if (PW - strip.usedW > 70) {
-            for (const n of sorted) {
-              const placed = pieceCounts.get(n.idx) || 0;
-              const avail = n.remain - placed;
-              const spaceLeft = PW - strip.usedW - CUT_KERF;
-              if (avail <= 0 || n.h > stripH || n.h === stripH || n.w > spaceLeft) continue;
-              const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.w + CUT_KERF)));
-              if (fitCount <= 0) continue;
-              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount, fromRemainder: true });
-              strip.usedW += CUT_KERF + (n.w + CUT_KERF) * fitCount - CUT_KERF;
-              pieceCounts.set(n.idx, placed + fitCount);
-              usedArea += n.w * n.h * fitCount;
-            }
-          }
-
-          if (strip.pieces.length === 0) break;
-
-          // Step 2: 스트립 내 너비 순 정렬 (같은 너비 연속 → 톱날 설정 최소화)
-          strip.pieces.sort((a, b) => b.w - a.w || b.count - a.count);
-
-          strip.remainW = PW - strip.usedW;
-          strips.push(strip);
-          availH -= stripH + CUT_KERF;
-        }
-
-        let totalPieces = 0;
-        pieceCounts.forEach(c => totalPieces += c);
-        let thinLen = 0;
-        for (const s of strips) {
-          if (s.remainW >= 60 && s.remainW <= 70) thinLen += s.height;
-        }
-        if (availH >= 60 && availH <= 70) thinLen += PW;
-
-        return { dir: 'H', strips, pieceCounts, usedArea, remainH: availH, totalPieces, thinLen };
-      }
-
-      // 세로→가로 레이아웃 (세로재단으로 strip 분리 → 가로재단으로 부품 분리)
-      function designLayoutV(needs, PW, PH) {
-        const pieceCounts = new Map();
-        let usedArea = 0;
-        const strips = [];
-        let availW = PW;
-
-        // Step 4: 너비 → 높이 내림차순 정렬 (같은 치수 부품 클러스터링)
-        const sorted = [...needs].sort((a, b) => b.w - a.w || b.h - a.h);
-
-        while (availW > 70) {
-          let stripW = 0;
-          for (const n of sorted) {
-            const avail = n.remain - (pieceCounts.get(n.idx) || 0);
-            if (avail > 0 && n.w <= availW) { stripW = n.w; break; }
-          }
-          if (stripW === 0) break;
-
-          const strip = { width: stripW, pieces: [], usedH: 0 };
-
-          // Pass 1: 정확히 같은 너비 부품만 배치 (재단 횟수 최소화)
-          for (const n of sorted) {
-            const placed = pieceCounts.get(n.idx) || 0;
-            const avail = n.remain - placed;
-            if (avail <= 0 || n.w !== stripW || n.h > PH - strip.usedH) continue;
-            const fitCount = Math.min(avail, Math.floor((PH - strip.usedH + CUT_KERF) / (n.h + CUT_KERF)));
-            if (fitCount <= 0) continue;
-            strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount });
-            strip.usedH += (n.h + CUT_KERF) * fitCount - CUT_KERF;
-            pieceCounts.set(n.idx, placed + fitCount);
-            usedArea += n.w * n.h * fitCount;
-          }
-
-          // Pass 2: 잔여 공간에 더 좁은 부품 배치 (공간 활용)
-          if (PH - strip.usedH > 70) {
-            for (const n of sorted) {
-              const placed = pieceCounts.get(n.idx) || 0;
-              const avail = n.remain - placed;
-              const spaceLeft = PH - strip.usedH - CUT_KERF;
-              if (avail <= 0 || n.w > stripW || n.w === stripW || n.h > spaceLeft) continue;
-              const fitCount = Math.min(avail, Math.floor((spaceLeft + CUT_KERF) / (n.h + CUT_KERF)));
-              if (fitCount <= 0) continue;
-              strip.pieces.push({ idx: n.idx, w: n.w, h: n.h, part: n.parts.join(', '), itemLabels: n.itemLabels || [], edges: n.edges || [], count: fitCount, fromRemainder: true });
-              strip.usedH += CUT_KERF + (n.h + CUT_KERF) * fitCount - CUT_KERF;
-              pieceCounts.set(n.idx, placed + fitCount);
-              usedArea += n.w * n.h * fitCount;
-            }
-          }
-
-          if (strip.pieces.length === 0) break;
-
-          // Step 2: 스트립 내 높이 순 정렬 (같은 높이 연속 → 톱날 설정 최소화)
-          strip.pieces.sort((a, b) => b.h - a.h || b.count - a.count);
-
-          strip.remainH = PH - strip.usedH;
-          strips.push(strip);
-          availW -= stripW + CUT_KERF;
-        }
-
-        let totalPieces = 0;
-        pieceCounts.forEach(c => totalPieces += c);
-        let thinLen = 0;
-        for (const s of strips) {
-          if (s.remainH >= 60 && s.remainH <= 70) thinLen += s.width;
-        }
-        if (availW >= 60 && availW <= 70) thinLen += PH;
-
-        return { dir: 'V', strips, pieceCounts, usedArea, remainW: availW, totalPieces, thinLen };
-      }
+      // B4: calcCuttingPlan · chooseCutDirection · calcSmallYield · designLayoutH/V 는
+      //     js/detaildesign/nesting-engine.js (NestingEngine.plan) 로 옮겼다. 여기엔 남기지 않는다.
 
       // 규격별 집계 함수 (자재+두께+가로+세로+엣지 기준으로 합산)
       function aggregateMaterials(materials) {
