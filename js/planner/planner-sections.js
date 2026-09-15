@@ -87,6 +87,26 @@ const PLANNER_SECTIONS = {
 const FINISHING_SECTIONS = ['ep', 'molding', 'filler', 'gap'];
 
 /**
+ * 가전 **자리 표시** 섹션 — 장이 아니다.
+ *
+ * 2026-09-15 사용자 결정: "'분배기'는 씽크볼이 앉는 자리를 표시할 뿐이다. 따로 장이 있는 것이
+ * 아니다. 개수대 하부장은 하부 라인 안의 셀이다(브리지가 '개수대' 로 라벨한다)." 후드도 같다 —
+ * 후드장은 상부 라인 안의 셀이고, 후드 자체는 자리다.
+ *
+ * 그래서 구조 단계의 전체 자동계산은 이 섹션의 배치 공간에 장(측판·지판·뒷판·도어·처짐방지목·
+ * 상판)을 세우지 않고, 3D·정면도는 반투명 상자와 윤곽선만 그린다 (mockup-structure
+ * autoCalcMarkerArea · buildMarkerMesh). 구조(structures[id])도 만들지 않는다 (getStructure).
+ * **모듈 자체는 남는다** — 브리지가 그 X 범위로 하부·상부 라인의 셀을 '개수대'·'후드장' 으로
+ * 판정하기 때문이다 (ui-step1.js PLANNER_APPLIANCE_SECTIONS · _convertPlannerModules).
+ * 이 결정 전에는 자동계산이 분배기 자리에 700×500×370 장을 세워 원장에 BOM 에 없는 부재
+ * 14 건이 남았다 (docs/02-design/features/scene-bom-ledger.md #8 · P4-11).
+ *
+ * 식기세척기·냉장고는 여기 넣지 않는다 — 가전을 감싸는 장(식세기 전면판·냉장고장)이 실제로
+ * 있는지 아직 정하지 않았다. 정해지면 여기에 더한다.
+ */
+const PLANNER_MARKER_SECTIONS = ['sink', 'hood'];
+
+/**
  * 구조 단계(3D·정면도) 마감재 색 덮어쓰기.
  * 평면 배치에서는 마감재를 옅게 칠해 몸통 위에 겹쳐 보이게 하지만,
  * 3D 에서는 같은 색이면 몸통에 묻혀버려 더 어둡게 쓴다. 의도된 차이다.
@@ -124,10 +144,12 @@ if (typeof window !== 'undefined') {
   window.SECTION_PALETTE_3D = SECTION_PALETTE_3D;
   window.STRUCTURE_ONLY_SECTIONS = STRUCTURE_ONLY_SECTIONS;
   window.FINISHING_SECTIONS = FINISHING_SECTIONS;
+  window.PLANNER_MARKER_SECTIONS = PLANNER_MARKER_SECTIONS;
   window.buildSectionConfig = buildSectionConfig;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PLANNER_SECTIONS, SECTION_PALETTE_3D, STRUCTURE_ONLY_SECTIONS, FINISHING_SECTIONS, buildSectionConfig,
+    PLANNER_SECTIONS, SECTION_PALETTE_3D, STRUCTURE_ONLY_SECTIONS, FINISHING_SECTIONS, PLANNER_MARKER_SECTIONS,
+    buildSectionConfig,
   };
 }

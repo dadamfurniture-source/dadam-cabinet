@@ -461,6 +461,12 @@
           <div class="spec-field"><label>하부 다리</label><select onchange="updateFridgeLegType(${item.uniqueId}, this.value)">${FRIDGE_LEG_TYPES.map((t) => `<option value="${t.id}" ${(item.specs.fridgeLegType || 'pedestal') === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}</select></div>
           <div class="spec-field"><label>높이</label><input type="number" value="${PEDESTAL_H}" onchange="updateFridgeSpecWithRecalc(${item.uniqueId}, 'fridgePedestal', this.value)"></div>
         </div>
+        <div class="spec-group-title">도어 마감</div>
+        <div class="spec-row">
+          <div class="spec-field"><label>도어 마감</label>
+            ${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(item.uniqueId, 'item', item.specs, 'fridge', 'font-size:12px;')}
+          </div>
+        </div>
         <div class="spec-group-title">마감 설정</div>
         <div class="spec-row">
           <div class="spec-field"><label>좌측</label><select onchange="updateFridgeFinish(${item.uniqueId}, 'Left', this.value)">${FINISH_TYPES.map((t) => `<option value="${t.id}" ${item.specs.finishLeftType === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}</select></div>
