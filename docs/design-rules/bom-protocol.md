@@ -51,6 +51,7 @@
 - `price_key`(`PET-M`, `MFB` …) 로만 단가표(`FINISH_BASE_PRICE` / `pricing_rules`)에 연결. 가격은 카탈로그에 두지 않는다.
 - **불변조건 I6**: 코드는 더하기만. 이름 변경·삭제 금지 — 과거 작업지시서·단가에 박혀 있다.
 - 기존 한글 사양값(`specs.doorColorUpper='화이트'`, `doorFinishUpper='무광'`)은 계속 읽힌다. 단 `'무광'` 은 기판(PET/도장…)을 모르므로 코드를 짐작하지 않고 `MDF-DEFAULT` 로 두며 톤·색 코드만 채운다 — 판매 라인이 정해지면 `LEGACY_FINISH_MAP` 한 줄로 기본 기판을 지정한다 [확인 필요].
+- **행의 `finishCode` 우선순위 (B1, `extractors.js add()`)**: ① 디테일 마감 모델 `item.detail` (부재 > 모듈 > 섹션 > 품목 — `planner-finish.js plannerFinishResolve` 와 같은 해석, §7-1 의 partKey 로 부재를 가리킨다) → ② 모듈 `mod.doorFinish/doorColor/doorMaterialCode` → ③ 품목 사양 `specs.doorFinishUpper/Lower + doorColorUpper/Lower` (상/하 묶음은 `upper·hood → Upper`, 나머지 `Lower`). ②③ 은 도어·서랍도어에만 적용되고 `resolveDoorMaterial` 을 거치므로 한글 값은 코드가 비어 있다. 몸통·상판·손잡이·마감재·걸레받이는 ① 이 정한 때만 코드가 있고, 뒷판·서랍밑판(`slot: back`)은 언제나 빈 값이다.
 
 ## 3. 카테고리별 BOM 산출 공식
 
@@ -355,12 +356,62 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 도어,MDF,18,296,740,2,1,1,1,1
 ```
 
-엣지 매핑:
+엣지 매핑 (`toCNC()` 실제 출력 — 2026-09 코드 대조로 정정):
 - `4면` → L=1, R=1, T=1, B=1
-- `1면(전)` → L=0, R=0, T=0, B=1 (전면만)
-- `2면(장)` → L=1, R=1, T=0, B=0 (좌우 장변만)
-- `2면(가로)` → L=0, R=0, T=1, B=1 (상하 가로변만)
-- `-` → L=0, R=0, T=0, B=0 (없음)
+- `3면` → L=1, R=0, T=1, B=1 (측판: 앞 + 위·아래, 뒤 없음. B1 에서 가지가 추가됐다 — 그 전엔 0,0,0,0 으로 나갔다)
+- `1면(전)`·`1면(장)` → L=1 (코드는 전면을 L 로 본다. 이전 판 문서의 "B=1" 은 오기)
+- `2면(장)`·`2면(가로)` → `w > h` 면 L=1, R=1 / 아니면 T=1, B=1
+- `-` → 없음
+
+> 위 1면·2면 열은 옛 관례를 그대로 둔 것이다. 기하로 보면 `w > h` 인 판의 긴 변은 T/B 인데 코드는 L/R 을 찍고,
+> `2면(가로)` 도 `2면(장)` 과 같이 처리된다. CNC 기종·파일 관례를 확인하기 전엔 바꾸지 않는다 [확인 필요].
+> 길이·요약은 아래 §7-2 의 `edges` 를 쓴다 — 그쪽은 기하 정의다.
+
+### 7-1. 부재 식별자 `partId` · `slot` (B1, `bom_payload.materials[]` 행에 추가)
+
+`MaterialExtractor.add()` 가 내는 **모든** 자재 행에 붙는다. 기존 필드는 그대로다 (불변조건 I4).
+
+```
+partId = `${itemIdx}-${moduleId}-${partKey}-${n}`     예: 0-l2-drawer#0-0, 1-w1-body:side-1, 3-corner-blind-lower-blindfin#0-0
+```
+
+| 조각 | 뜻 |
+|------|-----|
+| `itemIdx` | `design.items` 의 순번 (BOM 이 없는 품목도 센다 — 문서·플래너와 같은 번호) |
+| `moduleId` | `mod.id` (플래너/상세설계 모듈 id). 없으면 `${pos\|type}-${idx}`. 품목 단위 마감재(EP) 행은 `ep`. id 에 `-` 가 들어갈 수 있으므로 partId 를 쪼개 읽지 않는다 |
+| `partKey` | 부재 종류의 안정된 키. 같은 종류가 한 모듈에 여럿이면 `#k` (0부터) |
+| `n` | 같은 (품목, 모듈, partKey) 되풀이 순번 — 보통 0. 붙박이 short/shelf 의 상·하부장 측판이 여기서 갈린다 |
+
+`partKey` 는 플래너 디테일 모델(`js/planner/planner-finish.js` `plannerFinishPartKeyOf`)과 **같은 이름**을 쓴다.
+부재 이름 → 키·슬롯 표는 `extractors.js` `BOM_PART_DEFS` 가 정본이다 (표에 없는 이름은 `part:<이름>` 폴백으로 떨어지며 시험이 막는다).
+
+| 슬롯 | partKey | 부재 |
+|------|---------|------|
+| `door` | `door#k` | 도어 |
+| `drawerFront` | `drawer#k` | 서랍도어 |
+| `body` | `body:side` `body:top` `body:bottom` `shelf#k` `body:band#k` `body:brace#k` `body:batten-front/side` `drawerbox:fb/side/brace` `innerdrawer:*` | 측판(좌·우 한 행) · 천판 · 지판 · 선반 · 밴드 · 처짐방지 · 경첩목대 · 서랍 상자 · 내부서랍 |
+| `back` | `back` `drawerbox:bottom` | 뒷판 · 서랍밑판 (2.7T — 칠하지 않는다) |
+| `handle` | `channel:front` `channel:back` | 목찬넬(전면·지면) |
+| `finishing` | `molding` `molding:left/right[-pad]` `molding:corner1/2` `filler:left/right/corner1/2` `ep:left/right` `blind#k` `blindfin#k` | 상몰딩 · 좌우 몰딩·덧대 · 휠라 · EP · 멍가림판/멍판 EP · 멍판 마감재 |
+| `kick` | `kick` `pedestal:fb/side/brace` | 걸레받이 · 좌대 |
+
+BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래너 부재 여럿을 대표한다. 디테일 모델의 부재 단위 지정이 행에 닿도록
+`extractors.js` `bomFinishCandidates` 가 후보를 늘어놓는다: `body:side ← body:left/right`, `door#k ← door#k-0/1`(양문),
+플래너 셀 모듈 `planner-X-i ← X 의 door#i · drawer#i · drawer#bi · X 의 모듈 지정`. 같은 단계면 앞선 후보가 이긴다.
+
+### 7-2. 엣지밴딩 길이 (B1)
+
+문자열 `edge` 는 그대로 두고 아래를 더한다. 변은 **기하**로 정한다 — `L/R` 은 세로(`h`) 변, `T/B` 는 가로(`w`) 변.
+
+| 필드 | 값 |
+|------|-----|
+| `edges` | `{L,R,T,B}` 불리언. `4면` 전부 · `3면` 긴 변 하나 + 짧은 변 둘(측판 앞·위·아래) · `2면(장)` 긴 변 둘 · `2면(가로)` T·B · `1면(전)`/`1면(장)` 긴 변 하나(전면) · `-` 없음. 세로가 길면(`h > w`) 긴 변은 L/R, 아니면 T/B |
+| `edgeLen` | 장당 mm = Σ 붙이는 변의 치수 (`L/R → h`, `T/B → w`) |
+| `edgeT` | 밴드 두께: 도어·서랍도어(`door`/`drawerFront`) **1.0**, 나머지 **0.6** (§2) |
+| `edgeCode` | 밴드 마감: `door`/`drawerFront`/`finishing` 은 그 행의 `finishCode` (비면 `null`), 몸통·바닥·손잡이는 `null` |
+| `extract().edgeBanding` | `{ '1': mm, '0.6': mm }` = 두께별 Σ `edgeLen × qty`. `summary` 안이 아니라 형제 키다 — `ai-design-report.js`·워커가 `summary` 값을 전부 자재 그룹으로 순회하기 때문 |
+
+`1면(전)` 을 "긴 변 하나" 로 보는 것은 근사다 — 좌대 측처럼 짧은 변이 앞인 부재는 길이가 조금 과하다 [확인 필요].
 
 ---
 

@@ -12,24 +12,28 @@
  *         (PowerShell: $env:UPDATE_GOLDEN=1; npx jest __tests__/bom-golden-*.test.js)
  * 골든이 없으면 위 명령을 안내하는 오류로 실패한다 — 조용히 통과하지 않는다.
  *
- * 추출기 로드: extractors.js 의 CommonJS 이중 노출은 `MaterialExtractor` 만 내보내서
- * `HardwareExtractor`·`DrawingVisualizer` 를 얻을 수 없다. 그래서 planner-to-bom.test.js 가
- * ui-step1.js 에 쓰는 방식 그대로 — 소스를 읽어 Function 으로 평가해 세 클래스를 꺼낸다.
- * 파일 끝의 `window.DadamAgent` / `module.exports` 분기는 둘 다 가드가 있어 그냥 지나간다.
+ * 추출기 로드: B1 부터 extractors.js 의 CommonJS 이중 노출이 세 클래스를 다 내보낸다 — require 로 받는다.
+ * (B0 땐 `MaterialExtractor` 만 나와 소스를 Function 으로 평가하는 우회를 썼다.)
+ *
+ * B1 add-only 증명 (`__tests__/bom-golden-addonly.test.js`): B0 골든에서 새 키를 뺀 모양의 다이제스트를
+ * `base-b0.digest.json` 에 굳혀 두었다. 현재 골든에서 B1 이 더한 키(NEW_ROW_KEYS_B1)·edgeBanding·cncHead 를
+ * 떼어 낸 다이제스트가 그것과 같으면 옛 키·값이 하나도 안 바뀐 것이다. 값이 **의도적으로** 바뀌는 단계(B2…)는
+ * 그 PR 에서 `UPDATE_BASE_DIGEST=1` 로 기준을 다시 굳히고 커밋 메시지에 이유를 적는다.
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-const EXTRACTORS_PATH = path.join(__dirname, '../../js/detaildesign/extractors.js');
 const GOLDEN_DIR = __dirname;
+const BASE_DIGEST_PATH = path.join(GOLDEN_DIR, 'base-b0.digest.json');
 
 let cached = null;
-/** extractors.js 를 한 번만 평가해 세 클래스를 돌려준다. `dlog` 는 파일이 전역으로 기대한다. */
+/** extractors.js 를 한 번만 읽어 세 클래스를 돌려준다. `dlog` 는 파일이 전역으로 기대한다. */
 function loadExtractors() {
   if (cached) return cached;
   if (typeof global.dlog !== 'function') global.dlog = () => {};
-  const src = fs.readFileSync(EXTRACTORS_PATH, 'utf8');
-  cached = new Function(`${src}\n; return { MaterialExtractor, HardwareExtractor, DrawingVisualizer };`)();
+  const { MaterialExtractor, HardwareExtractor, DrawingVisualizer } = require('../../js/detaildesign/extractors.js');
+  cached = { MaterialExtractor, HardwareExtractor, DrawingVisualizer };
   return cached;
 }
 
@@ -41,6 +45,7 @@ function headLines(s, n = 3) {
 /**
  * 한 픽스처의 동결 대상 전부.
  *   materials / summary        MaterialExtractor.extract() (extractDate 는 뺀다 — 비결정)
+ *   edgeBanding                B1: 두께별 엣지밴딩 총길이 (summary 의 형제 키)
  *   hardware / hardwareSummary HardwareExtractor.extract()
  *   csvHead / cncHead / hardwareCsvHead  내보내기 첫 3줄
  */
@@ -54,6 +59,7 @@ function snapshotOf(design) {
   return JSON.parse(JSON.stringify({
     materials: mat.materials,
     summary: mat.summary,
+    edgeBanding: mat.edgeBanding,
     hardware: hw.hardware,
     hardwareSummary: hw.summary,
     csvHead: headLines(me.toCSV(mat.materials)),
@@ -93,8 +99,67 @@ function expectGolden(name, actual) {
 }
 
 /** 자재 행의 필드 집합 — I4 "필드 추가만" 을 지키는지 보는 기준 (계획 §3). */
-const MATERIAL_ROW_KEYS = ['module', 'part', 'material', 'thickness', 'w', 'h', 'qty', 'edge', 'note', 'finishCode', 'itemLabel'];
+const MATERIAL_ROW_KEYS_B0 = ['module', 'part', 'material', 'thickness', 'w', 'h', 'qty', 'edge', 'note', 'finishCode', 'itemLabel'];
+/** B1 이 더한 키 (bom-protocol.md §7-1·§7-2). 새 단계가 키를 더하면 여기에 잇는다. */
+const NEW_ROW_KEYS_B1 = ['partId', 'slot', 'edges', 'edgeLen', 'edgeT', 'edgeCode'];
+const MATERIAL_ROW_KEYS = [
+  'module', 'part', 'material', 'thickness', 'w', 'h', 'qty', 'edge', 'note', 'finishCode',
+  ...NEW_ROW_KEYS_B1,
+  'itemLabel',
+];
 const HARDWARE_ROW_KEYS = ['category', 'item', 'manufacturer', 'spec', 'qty', 'unit', 'note', 'itemLabel'];
+
+/** 키를 정렬한 결정적 JSON — 다이제스트용. 키 순서가 달라도 같은 값이면 같은 다이제스트다. */
+function canonical(v) {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/**
+ * 스냅샷을 B0 모양으로 깎는다: 자재 행에서 B1 키를 빼고, edgeBanding 과 cncHead 를 뗀다.
+ * cncHead 는 toCNC 의 '3면' 가지 수정(B1 첫 커밋)으로 2행이 바뀌므로 기준 비교에서 뺀다 —
+ * 그 변화는 bom-part-id.test.js 가 따로 잠근다.
+ */
+function stripToBase(snapshot) {
+  const out = JSON.parse(JSON.stringify(snapshot));
+  out.materials = (out.materials || []).map((row) => {
+    const r = {};
+    Object.keys(row).forEach((k) => { if (NEW_ROW_KEYS_B1.indexOf(k) < 0) r[k] = row[k]; });
+    return r;
+  });
+  delete out.edgeBanding;
+  delete out.cncHead;
+  return out;
+}
+
+function digestOf(obj) {
+  return crypto.createHash('sha256').update(canonical(obj), 'utf8').digest('hex');
+}
+
+function readBaseDigest() {
+  if (!fs.existsSync(BASE_DIGEST_PATH)) return null;
+  return JSON.parse(fs.readFileSync(BASE_DIGEST_PATH, 'utf8'));
+}
+
+/** UPDATE_BASE_DIGEST=1 — 현재 골든 파일들에서 기준 다이제스트를 다시 굳힌다. */
+function writeBaseDigest(names, note) {
+  const digests = {};
+  names.forEach((name) => {
+    const golden = JSON.parse(fs.readFileSync(goldenPath(name), 'utf8'));
+    digests[name] = digestOf(stripToBase(golden));
+  });
+  const doc = {
+    note: note || 'B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js',
+    baseRowKeys: MATERIAL_ROW_KEYS_B0,
+    strippedKeys: NEW_ROW_KEYS_B1,
+    digests,
+  };
+  fs.writeFileSync(BASE_DIGEST_PATH, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+  return doc;
+}
 
 module.exports = {
   loadExtractors,
@@ -103,5 +168,13 @@ module.exports = {
   goldenPath,
   shouldUpdate,
   MATERIAL_ROW_KEYS,
+  MATERIAL_ROW_KEYS_B0,
+  NEW_ROW_KEYS_B1,
   HARDWARE_ROW_KEYS,
+  BASE_DIGEST_PATH,
+  canonical,
+  stripToBase,
+  digestOf,
+  readBaseDigest,
+  writeBaseDigest,
 };
