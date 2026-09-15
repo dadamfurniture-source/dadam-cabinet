@@ -196,6 +196,13 @@ function plannerSnapshotWhen(iso) {
  */
 const PLANNER_AUTOSAVE_KEY = 'dadam_planner_autosave_v1';
 
+/**
+ * D3: 렌더 스냅샷 버킷 (database/design-renders.sql). 비공개 — 읽기는 서명 URL.
+ * planner-capture.js 의 PLANNER_CAPTURE_BUCKET 과 같은 값이어야 한다 (planner-capture.test.js 가 본다).
+ */
+const PLANNER_RENDERS_BUCKET = 'renders';
+const PLANNER_RENDERS_SIGNED_TTL = 3600;
+
 function plannerAutosaveEnabled() {
   try { return localStorage.getItem(PLANNER_AUTOSAVE_KEY) !== 'off'; }
   catch (e) { return true; }
@@ -478,6 +485,86 @@ const PlannerStore = {
       return { ok: false, reason: 'error', message: e && e.message };
     }
   },
+
+  // ── D3: 렌더 스냅샷 (버킷 renders + design_renders) ─────────────────
+  /**
+   * 렌더 한 장을 올린다 — Storage 업로드(upsert:false) 뒤 design_renders 행. 행 삽입이 거절되면 올린 파일을 지운다
+   * (파일만 남으면 목록에 안 보이는 고아가 된다).
+   *
+   * @param {{blob:Blob, path:string, kind:string, moduleId?:string|null, width?:number, height?:number,
+   *          camera?:object|null, detailHash?:string|null, ids?:object}} o
+   *   path 는 버킷 안의 키 — planner-capture.js 의 plannerCapturePath 가 만든다 ({design}/{item}/{kind}-{stamp}.png).
+   * @returns {{ok:true, id, path, row} | {ok:false, reason, message?}}
+   *   reason 'no-bucket' — 버킷 renders 가 없다 (database/design-renders.sql 미적용). 메뉴가 사람 말로 바꾼다.
+   */
+  async saveRender(o) {
+    o = o || {};
+    const r = await this.ready(o.ids);
+    if (!r.ok) return r;
+    if (!o.blob || !o.path) return { ok: false, reason: 'empty' };
+    const bucket = PLANNER_RENDERS_BUCKET;
+    let uploaded = false;
+    try {
+      const up = await r.client.storage.from(bucket)
+        .upload(o.path, o.blob, { contentType: 'image/png', upsert: false, cacheControl: '3600' });
+      if (up.error) throw up.error;
+      uploaded = true;
+      const row = {
+        design_id: r.ids.designId,
+        item_unique_id: r.ids.itemId,
+        kind: o.kind,
+        module_id: o.moduleId == null ? null : String(o.moduleId),
+        path: o.path,
+        width: o.width == null ? null : o.width,
+        height: o.height == null ? null : o.height,
+        camera: o.camera || null,
+        detail_hash: o.detailHash || null,
+      };
+      const ins = await r.client.from('design_renders').insert(row).select('id, created_at').single();
+      if (ins.error) throw ins.error;
+      return { ok: true, id: ins.data && ins.data.id, created_at: ins.data && ins.data.created_at, path: o.path, row };
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (uploaded) { try { await r.client.storage.from(bucket).remove([o.path]); } catch (e2) { /* 고아는 남지만 진행 */ } }
+      if (/bucket not found/i.test(msg)) return { ok: false, reason: 'no-bucket', message: msg };
+      return { ok: false, reason: 'error', message: msg };
+    }
+  },
+
+  /**
+   * 이 품목의 렌더 목록 — 최근 순, 서명 URL(1시간)을 붙여서. 작업지시서(B5)는 kind:'front', limit:1 로 최신 정면을 찾는다.
+   * @param {object} [ids] 스코프 (기본 URL)
+   * @param {{kind?:string, limit?:number, signed?:boolean, ttl?:number}} [opt]
+   * @returns {{ok:boolean, rows:object[], reason?:string, message?:string}} rows[i].url 은 서명 URL (없으면 null)
+   */
+  async listRenders(ids, opt) {
+    opt = opt || {};
+    const r = await this.ready(ids);
+    if (!r.ok) return Object.assign({ rows: [] }, r);
+    try {
+      let q = r.client
+        .from('design_renders')
+        .select('id, kind, module_id, path, width, height, camera, detail_hash, created_at')
+        .eq('design_id', r.ids.designId)
+        .eq('item_unique_id', r.ids.itemId);
+      if (opt.kind) q = q.eq('kind', opt.kind);
+      const { data, error } = await q.order('created_at', { ascending: false }).limit(opt.limit || 12);
+      if (error) throw error;
+      const rows = (data || []).map((row) => Object.assign({}, row, { url: null }));
+      if (rows.length && opt.signed !== false) {
+        const s = await r.client.storage.from(PLANNER_RENDERS_BUCKET)
+          .createSignedUrls(rows.map((x) => x.path), opt.ttl || PLANNER_RENDERS_SIGNED_TTL);
+        const signed = (s && s.data) || [];
+        rows.forEach((row) => {
+          const hit = signed.find((x) => x && x.path === row.path && x.signedUrl);
+          row.url = hit ? hit.signedUrl : null;
+        });
+      }
+      return { ok: true, rows };
+    } catch (e) {
+      return { ok: false, reason: 'error', message: e && e.message, rows: [] };
+    }
+  },
 };
 
 /**
@@ -646,6 +733,7 @@ if (typeof window !== 'undefined') {
   window.plannerAutosaveEnabled = plannerAutosaveEnabled;
   window.setPlannerAutosave = setPlannerAutosave;
   window.migratePlannerLocalScope = migratePlannerLocalScope;
+  window.PLANNER_RENDERS_BUCKET = PLANNER_RENDERS_BUCKET;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -665,5 +753,7 @@ if (typeof module !== 'undefined' && module.exports) {
     setPlannerAutosave,
     PLANNER_AUTOSAVE_KEY,
     migratePlannerLocalScope,
+    PLANNER_RENDERS_BUCKET,
+    PLANNER_RENDERS_SIGNED_TTL,
   };
 }
