@@ -1546,7 +1546,10 @@
       //   셀렉트는 다음에 그려질 때 item.specs 를 읽는다.
       // ============================================================
 
-      /** 섹션 묶음 → 미러할 specs 키 (planner-finish.js 의 upper|lower 와 같은 구분) */
+      /**
+       * 섹션 묶음 → 미러할 specs 키 (planner-finish.js 의 upper|lower 와 같은 구분).
+       * C2: material = 카탈로그 코드 그대로 (specs.doorMaterialUpper/Lower). 카탈로그가 모르는 코드면 null(=옛 방식).
+       */
       const PLANNER_DETAIL_MIRROR_KEYS = [
         { group: 'upper', material: 'doorMaterialUpper', color: 'doorColorUpper', finish: 'doorFinishUpper' },
         { group: 'lower', material: 'doorMaterialLower', color: 'doorColorLower', finish: 'doorFinishLower' },
@@ -1593,8 +1596,13 @@
         const out = { color: null, finish: null };
         const fc = window.DadamBomFinishColor;
         const parsed = fc && typeof fc.parseFinishColorCode === 'function' ? fc.parseFinishColorCode(code) : null;
-        if (!parsed) return out;
         const cat = window.FurnitureOptionCatalog;
+        if (!parsed) {
+          // C2: PET-OAK-M 꼴이 아닌 코드(예림 YR-SM-01, 옛 WHT) 는 카탈로그 행에서 파생 — color_name · 톤(gloss→유광, 그 밖→무광)
+          const spec = cat && typeof cat.doorSpecForCode === 'function' ? cat.doorSpecForCode(code) : null;
+          if (spec) { out.color = spec.color; out.finish = spec.finish; }
+          return out;
+        }
         const byCode = cat && typeof cat.byCode === 'function' ? (c) => cat.byCode(c) : () => null;
         const colorCode = String(code).trim().toUpperCase().split('-')[1];
         const colorRow = byCode(colorCode);
@@ -1623,6 +1631,9 @@
           const r = _plannerDetailDoorOf(detail, m.group);
           if (!r || !r.code) return;
           const names = _plannerDetailCodeToSpec(r.code);
+          // C2: 카탈로그가 아는 코드면 새 키에 그대로, 모르면 null(옛 방식 — 한글 이름으로 기타(호환)을 고른다)
+          const material = _plannerDetailMaterialOf(r.code);
+          if ((item.specs[m.material] || null) !== material) { item.specs[m.material] = material; changed.push(m.material); }
           if (names.color && item.specs[m.color] !== names.color) { item.specs[m.color] = names.color; changed.push(m.color); }
           if (names.finish && item.specs[m.finish] !== names.finish) { item.specs[m.finish] = names.finish; changed.push(m.finish); }
         });
