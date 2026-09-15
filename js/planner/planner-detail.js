@@ -17,14 +17,22 @@
 //   (부모(detaildesign)가 아직 안 받아도 무해하다 — 받는 쪽은 D1, Design UI 도메인)
 //   되돌리기: JSON 사본 10장 (undoStack)
 //
-// 카탈로그: window.DadamBomFinishColor (js/detaildesign/bom-finish-color.js 를 script 로 싣는다).
-//   없으면 planner-finish.js 의 폴백(같은 코드)으로 간다 — 팔레트 머리에 "폴백" 을 표시한다.
+// 카탈로그 (D2): planner-catalog.js 가 materials 표(예림 LUX 144 + 상판)를 읽어 그룹으로 준다.
+//   DB 를 못 읽으면 bom-finish-color.js 의 구 7×7 만 남는다 (fallback:true, 머리에 표시).
+//   mount 는 동기로 캐시/로컬 정본을 먼저 그리고, PlannerCatalog.load() 가 끝나면 갈아 끼운다.
+//
+// 3D (D2, R1 실시간): 모드에 들어갈 때만 renderer 를 sRGB·ACES·환경광(RoomEnvironment PMREM)으로
+//   바꾸고 직사광을 낮춘다(applyScene). paintScene 은 부재 mesh 의 재질을 코드별 PBR
+//   (planner-materials.js, 색+광택)로 **바꿔 끼운다** — 원래 재질은 userData._origMaterial 에 둔다.
+//   나갈 때 renderer·scene·조명 값을 **저장해 둔 값 그대로** 되돌린다 (I2: 구조 모드는 바이트 동일).
+//   three 가 없으면(jsdom) D0 처럼 material.color 만 덮는다.
 //
 // 페이지가 넘기는 것 (PlannerDetail.mount(o)):
 //   modules()        지금 모듈 목록 (섹션을 알기 위해)
 //   renderAll3D(opt) 3D 다시 그리기 — 모드 진입·이탈·칠하기 뒤에 부른다
 //   toast(text)      알림
 //   sectionLabel(s)  섹션 → 사람이 읽는 이름 (없으면 섹션 키 그대로)
+//   three()          { renderer, scene, camera, controls, moduleGroup } — init3D 전이면 null
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_DETAIL_ / plannerDetail / PlannerDetail 접두.
 //   HTML 인라인은 mount 와 두 훅(handleEntityClick → pickMesh, renderAll3D → paintScene)만 건다.
@@ -126,8 +134,15 @@ const PlannerDetail = {
   slot: 'door',
   picked: null,
   undoStack: [],
+  /** 팔레트 검색어 · 그룹 접힘 상태 (키 → open). 다시 그려도 남는다. */
+  query: '',
+  groupOpen: {},
   _o: null,
   _prevTitle: null,
+  /** applyScene(true) 가 바꾸기 전 값. null 이면 씬을 건드리지 않은 상태다. */
+  _sceneSaved: null,
+  /** 환경맵을 만드는 함수 — 시험이 갈아 끼운다. 기본은 RoomEnvironment PMREM. */
+  _makeEnv: null,
 
   key() {
     return (typeof scopedKey === 'function') ? scopedKey(PLANNER_DETAIL_KEY_BASE) : PLANNER_DETAIL_KEY_BASE;
@@ -280,6 +295,7 @@ const PlannerDetail = {
     const head = document.querySelector('.ml-header-title');
     if (head) { this._prevTitle = head.textContent; head.textContent = '마감 팔레트'; }
     this._syncUrl(true);
+    this.applyScene(true);   // three 가 아직 없으면 paintScene 이 처음 불릴 때 켠다
     this.refresh();
     if (!o.quiet) this.toast('🎨 디테일 모드 — 팔레트에서 마감을 고르고 3D 부재를 누르세요 (Shift+클릭 = 모듈 전체)');
     return true;
@@ -294,8 +310,95 @@ const PlannerDetail = {
     if (head && this._prevTitle != null) head.textContent = this._prevTitle;
     this._syncUrl(false);
     this.picked = null;
+    // 재질 → 원래 것, renderer·조명 → 저장해 둔 값. 그 다음 renderAll3D 가 처음부터 다시 만든다.
+    const t = this.three();
+    if (t && t.moduleGroup) this.unpaintScene(t.moduleGroup);
+    this.applyScene(false);
     this.rerender3D();   // 구조 색으로 되돌린다 — renderAll3D 가 처음부터 다시 만든다
     return true;
+  },
+
+  /** 페이지의 three 묶음. init3D 전이거나 넘기지 않았으면 null. */
+  three() {
+    if (!this._o || typeof this._o.three !== 'function') return null;
+    try { return this._o.three() || null; } catch (e) { return null; }
+  },
+
+  // ── 3D 씬 (색공간·톤매핑·환경광·조명) ────────────────────
+  /**
+   * 모드 진입: renderer 를 sRGB 출력·ACES 톤매핑으로, scene.environment 를 RoomEnvironment PMREM 으로,
+   * 직사광·주변광은 절반으로 (환경광이 채운다). 바꾸기 전 값을 전부 _sceneSaved 에 둔다.
+   * 모드 이탈(on=false): 그 값들을 **그대로** 되돌리고 환경맵을 놓는다.
+   * three 가 없으면 아무것도 하지 않고 false. 두 번 켜거나 두 번 꺼도 무해하다.
+   */
+  applyScene(on) {
+    const t = this.three();
+    const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : null;
+    if (on) {
+      if (this._sceneSaved || !t || !t.renderer || !t.scene || !T) return false;
+      const r = t.renderer, s = t.scene;
+      const saved = {
+        outputColorSpace: r.outputColorSpace,
+        toneMapping: r.toneMapping,
+        toneMappingExposure: r.toneMappingExposure,
+        environment: s.environment,
+        lights: [],
+        envTarget: null,
+      };
+      try {
+        (s.children || []).forEach((ch) => {
+          if (ch && (ch.isDirectionalLight || ch.isAmbientLight || ch.isHemisphereLight)) {
+            saved.lights.push({ light: ch, intensity: ch.intensity });
+          }
+        });
+      } catch (e) { /* children 이 없으면 조명도 없다 */ }
+      this._sceneSaved = saved;
+      try {
+        if (T.SRGBColorSpace !== undefined) r.outputColorSpace = T.SRGBColorSpace;
+        if (T.ACESFilmicToneMapping !== undefined) r.toneMapping = T.ACESFilmicToneMapping;
+        r.toneMappingExposure = 1.0;
+      } catch (e) { /* renderer 가 값을 거부해도 나머지는 간다 */ }
+      const env = this.makeEnvironment(T, r);
+      if (env) { saved.envTarget = env.target || null; s.environment = env.texture; }
+      // 환경광이 들어오니 직사광·주변광은 절반 — 그대로 두면 하얗게 날아간다.
+      saved.lights.forEach((L) => { try { L.light.intensity = L.intensity * 0.5; } catch (e) { /* 무해 */ } });
+      return true;
+    }
+    const saved = this._sceneSaved;
+    if (!saved) return false;
+    this._sceneSaved = null;
+    if (t && t.renderer) {
+      try {
+        t.renderer.outputColorSpace = saved.outputColorSpace;
+        t.renderer.toneMapping = saved.toneMapping;
+        t.renderer.toneMappingExposure = saved.toneMappingExposure;
+      } catch (e) { /* 무해 */ }
+    }
+    if (t && t.scene) { try { t.scene.environment = saved.environment; } catch (e) { /* 무해 */ } }
+    saved.lights.forEach((L) => { try { L.light.intensity = L.intensity; } catch (e) { /* 무해 */ } });
+    if (saved.envTarget && typeof saved.envTarget.dispose === 'function') { try { saved.envTarget.dispose(); } catch (e) { /* 무해 */ } }
+    return true;
+  },
+
+  /**
+   * RoomEnvironment → PMREM. { texture, target } 또는 null (RoomEnvironment 가 안 실렸거나 WebGL 이 없을 때).
+   * 시험은 _makeEnv 로 갈아 끼운다.
+   */
+  makeEnvironment(T, renderer) {
+    if (typeof this._makeEnv === 'function') { try { return this._makeEnv(T, renderer) || null; } catch (e) { return null; } }
+    const RoomEnv = (typeof window !== 'undefined') ? window.RoomEnvironment : null;
+    if (!T || !renderer || !RoomEnv || !T.PMREMGenerator) return null;
+    let pmrem = null;
+    try {
+      pmrem = new T.PMREMGenerator(renderer);
+      const room = new RoomEnv();
+      const target = pmrem.fromScene(room, 0.04);
+      pmrem.dispose();
+      return { texture: target.texture, target };
+    } catch (e) {
+      try { if (pmrem) pmrem.dispose(); } catch (e2) { /* 무해 */ }
+      return null;
+    }
   },
 
   toggle() { return this.active ? this.exit() : this.enter(); },
@@ -453,38 +556,77 @@ const PlannerDetail = {
     return false;
   },
 
-  // ── 3D 색 ───────────────────────────────────────────────
-  /** 이 mesh 가 받을 hex. 지정이 없거나 칠하지 않는 종류면 null (구조 색 그대로). */
-  colorFor(ud) {
+  // ── 3D 색·재질 ──────────────────────────────────────────
+  /** 이 mesh 가 받을 카탈로그 항목. 지정이 없거나 칠하지 않는 종류·모르는 코드면 null (구조 색 그대로). */
+  entryFor(ud) {
     const slot = plannerFinishPaintSlotOf(ud);
     if (!slot || !ud.moduleId) return null;
     const m = this.moduleOf(ud.moduleId);
     const r = plannerFinishResolve(this.detail, slot, ud.moduleId, m ? m.section : null, plannerFinishPartKeyOf(ud));
-    return r ? plannerFinishHex(this.catalog, r.code) : null;
+    return r ? this.entryOf(r.code) : null;
+  },
+
+  /** 이 mesh 가 받을 hex. 지정이 없거나 칠하지 않는 종류면 null (구조 색 그대로). */
+  colorFor(ud) {
+    const e = this.entryFor(ud);
+    return e ? e.hex : null;
+  },
+
+  /** mesh 자신에 moduleId 가 없으면 부모 그룹에서 보충한 userData. 못 찾으면 null. */
+  _udWithModule(obj) {
+    const ud = obj.userData || {};
+    if (ud.moduleId) return ud;
+    let cur = obj.parent, mid = null;
+    while (cur && !mid) { if (cur.userData && cur.userData.moduleId) mid = cur.userData.moduleId; cur = cur.parent; }
+    return mid ? Object.assign({}, ud, { moduleId: mid }) : null;
   },
 
   /**
-   * renderAll3D 가 다 그린 뒤 부르는 후처리. mesh 를 만들지도 지우지도 않고 material.color 만 바꾼다
-   * (makeBox 가 mesh 마다 재질을 새로 만들므로 공유 재질을 더럽힐 걱정이 없다).
-   * 모드가 아니면 0 을 돌려주고 손대지 않는다.
+   * renderAll3D 가 다 그린 뒤 부르는 후처리. mesh 를 만들지도 지우지도 않는다.
+   *   three 가 있으면: 재질을 코드별 PBR(PlannerMaterials)로 **바꿔 끼운다**. 원래 재질은
+   *                    userData._origMaterial 에 남겨 unpaintScene 이 되돌린다. 테두리(LineSegments)는 mesh 가 아니라 그대로.
+   *   three 가 없으면: D0 처럼 material.color 만 덮는다 (makeBox 가 mesh 마다 재질을 새로 만드니 공유 재질을 더럽히지 않는다).
+   * 모드가 아니면 0 을 돌려주고 손대지 않는다. 씬 설정(applyScene)이 아직이면 여기서 켠다 —
+   * init3D 가 모드 진입보다 늦게 올 수 있어서다.
    * @returns {number} 칠한 mesh 수
    */
   paintScene(group) {
     if (!this.active || !group || typeof group.traverse !== 'function') return 0;
+    if (!this._sceneSaved) this.applyScene(true);
+    const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : null;
+    const PM = (T && typeof PlannerMaterials !== 'undefined') ? PlannerMaterials : null;
     let n = 0;
     group.traverse((obj) => {
-      if (!obj || !obj.isMesh || !obj.material || !obj.material.color || typeof obj.material.color.set !== 'function') return;
-      const ud = obj.userData || {};
-      let hex = null;
-      if (ud.moduleId) hex = this.colorFor(ud);
-      else {
-        // moduleId 없는 mesh 는 부모 그룹에서 찾는다 (없으면 칠하지 않는다)
-        let cur = obj.parent, mid = null;
-        while (cur && !mid) { if (cur.userData && cur.userData.moduleId) mid = cur.userData.moduleId; cur = cur.parent; }
-        if (mid) hex = this.colorFor(Object.assign({}, ud, { moduleId: mid }));
+      if (!obj || !obj.isMesh || !obj.material) return;
+      const ud = this._udWithModule(obj);
+      if (!ud) return;
+      const entry = this.entryFor(ud);
+      if (!entry) return;
+      if (PM) {
+        const mat = PM.forMesh(entry, obj, T);
+        if (!mat) return;
+        if (obj.material !== mat) {
+          if (!obj.userData._origMaterial) obj.userData._origMaterial = obj.material;
+          obj.material = mat;
+        }
+        n++;
+        return;
       }
-      if (!hex) return;
-      obj.material.color.set(hex);
+      if (!obj.material.color || typeof obj.material.color.set !== 'function') return;
+      obj.material.color.set(entry.hex);
+      n++;
+    });
+    return n;
+  },
+
+  /** paintScene 이 바꿔 끼운 재질을 원래 것으로 되돌린다. 모드와 무관하게 동작한다 (이탈 경로). */
+  unpaintScene(group) {
+    if (!group || typeof group.traverse !== 'function') return 0;
+    let n = 0;
+    group.traverse((obj) => {
+      if (!obj || !obj.isMesh || !obj.userData || !obj.userData._origMaterial) return;
+      obj.material = obj.userData._origMaterial;
+      delete obj.userData._origMaterial;
       n++;
     });
     return n;
