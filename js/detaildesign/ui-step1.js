@@ -986,6 +986,21 @@
         return (finish && finish.section) === 'molding' ? 'Molding' : 'Filler';
       }
 
+      /**
+       * 2026-09-15: 서랍 규칙 블록 — 플래너 구조 `s.drawer` {rail, sakuri, boxT} 를 정규화해 BOM 모듈 `drawer` 로 넘긴다.
+       *   rail 'under'(댐핑 언더레일) | 'ball'(댐핑 볼레일) · sakuri 측판 사쿠리 · boxT 서랍 자재 두께 15/18 (0 = 몸통 두께).
+       *   옛 평면 필드 s.drawerRail 도 읽는다. extractors.js drawerRulesOf 가 같은 모양을 받는다.
+       */
+      function _drawerRulesOf(s) {
+        const d = (s && s.drawer) || {};
+        const railRaw = d.rail || (s && s.drawerRail);
+        return {
+          rail: railRaw === 'ball' ? 'ball' : 'under',
+          sakuri: !!d.sakuri,
+          boxT: [15, 18].includes(Number(d.boxT)) ? Number(d.boxT) : 0,
+        };
+      }
+
       function _convertPlannerModules(payload, specs) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
@@ -1009,8 +1024,9 @@
           const drawerAtBottom = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
           // CD-2: 플래너 '분할' 패널에서 지정한 서랍 단수. 미지정이면 1단.
           const rawDrawerCount = parseInt(s && s.drawerCount, 10);
+          // 2026-09-15: 최대 4단 (bom-drawer-rules.js MAX_COUNT) — 5 는 규칙 밖.
           const drawerCount = Number.isFinite(rawDrawerCount) && rawDrawerCount > 0
-            ? Math.min(5, rawDrawerCount)
+            ? Math.min(4, rawDrawerCount)
             : 1;
           const shelfCount = s && Array.isArray(s.shelves) ? s.shelves.length : 0;
 
@@ -1147,6 +1163,8 @@
               isFixed: false,
               _x: c.x,
             });
+            // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
+            if (!isOpen && drawerAtBottom) out[out.length - 1].drawer = _drawerRulesOf(s);
           });
         });
 
