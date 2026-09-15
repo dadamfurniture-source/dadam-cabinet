@@ -1546,10 +1546,13 @@
       //   셀렉트는 다음에 그려질 때 item.specs 를 읽는다.
       // ============================================================
 
-      /** 섹션 묶음 → 미러할 specs 키 (planner-finish.js 의 upper|lower 와 같은 구분) */
+      /**
+       * 섹션 묶음 → 미러할 specs 키 (planner-finish.js 의 upper|lower 와 같은 구분).
+       * C2: material = 카탈로그 코드 그대로 (specs.doorMaterialUpper/Lower). 카탈로그가 모르는 코드면 null(=옛 방식).
+       */
       const PLANNER_DETAIL_MIRROR_KEYS = [
-        { group: 'upper', color: 'doorColorUpper', finish: 'doorFinishUpper' },
-        { group: 'lower', color: 'doorColorLower', finish: 'doorFinishLower' },
+        { group: 'upper', material: 'doorMaterialUpper', color: 'doorColorUpper', finish: 'doorFinishUpper' },
+        { group: 'lower', material: 'doorMaterialLower', color: 'doorColorLower', finish: 'doorFinishLower' },
       ];
 
       /** 톤 → 기존 door_finish 셀렉트 값. 카탈로그 행(TONE-M/G)이 있으면 그 name_ko 를 우선한다. */
@@ -1593,8 +1596,13 @@
         const out = { color: null, finish: null };
         const fc = window.DadamBomFinishColor;
         const parsed = fc && typeof fc.parseFinishColorCode === 'function' ? fc.parseFinishColorCode(code) : null;
-        if (!parsed) return out;
         const cat = window.FurnitureOptionCatalog;
+        if (!parsed) {
+          // C2: PET-OAK-M 꼴이 아닌 코드(예림 YR-SM-01, 옛 WHT) 는 카탈로그 행에서 파생 — color_name · 톤(gloss→유광, 그 밖→무광)
+          const spec = cat && typeof cat.doorSpecForCode === 'function' ? cat.doorSpecForCode(code) : null;
+          if (spec) { out.color = spec.color; out.finish = spec.finish; }
+          return out;
+        }
         const byCode = cat && typeof cat.byCode === 'function' ? (c) => cat.byCode(c) : () => null;
         const colorCode = String(code).trim().toUpperCase().split('-')[1];
         const colorRow = byCode(colorCode);
@@ -1623,11 +1631,98 @@
           const r = _plannerDetailDoorOf(detail, m.group);
           if (!r || !r.code) return;
           const names = _plannerDetailCodeToSpec(r.code);
+          // C2: 카탈로그가 아는 코드면 새 키에 그대로, 모르면 null(옛 방식 — 한글 이름으로 기타(호환)을 고른다)
+          const material = _plannerDetailMaterialOf(r.code);
+          if ((item.specs[m.material] || null) !== material) { item.specs[m.material] = material; changed.push(m.material); }
           if (names.color && item.specs[m.color] !== names.color) { item.specs[m.color] = names.color; changed.push(m.color); }
           if (names.finish && item.specs[m.finish] !== names.finish) { item.specs[m.finish] = names.finish; changed.push(m.finish); }
         });
         return changed;
       }
+
+      // ============================================================
+      // C2: 도어 마감 셀렉트 (카탈로그 코드 하나) ↔ 플래너 디테일 양방향
+      //
+      //   셀렉트(ui-step1 싱크 팝업 · ui-workspace 싱크/붙박이장)는 FurnitureOptionCatalog.buildDoorMaterialFieldHtml 이
+      //   그리고, 바꾸면 updateDoorMaterial(uniqueId, 'upper'|'lower'|'item', code) 이 온다.
+      //     specs.doorMaterialUpper/Lower = code (새 정본)
+      //     specs.doorColorUpper/Lower · doorFinishUpper/Lower = 코드에서 파생 (연출컷·견적·옛 경로가 읽는다)
+      //     item.detail.sections[group].door = {code} ('item' 은 item.door) → DADAM_DETAIL_SET 으로 플래너에
+      //   반대 방향(PLANNER_DETAIL_CHANGE)은 위 _mirrorPlannerDetailToSpecs 가 doorMaterial* 까지 채운다.
+      // ============================================================
+
+      /** 카탈로그가 아는 코드면 그 행의 code(정규화), 모르면 null */
+      function _plannerDetailMaterialOf(code) {
+        const cat = window.FurnitureOptionCatalog;
+        const row = cat && typeof cat.byCode === 'function' ? cat.byCode(code) : null;
+        return row && row.code ? String(row.code) : null;
+      }
+
+      /** 품목의 플래너 iframe (`__planner-overlay-{uniqueId}` 안). 없으면 null */
+      function _plannerFrameOfItem(uniqueId) {
+        const overlay = document.getElementById('__planner-overlay-' + uniqueId);
+        return overlay ? overlay.querySelector('iframe[data-planner]') : null;
+      }
+
+      /** 빈 디테일 모델 — planner-finish.js 가 실려 있으면 그것, 아니면 같은 모양의 리터럴 */
+      function _plannerDetailEmpty() {
+        if (typeof window.plannerFinishEmpty === 'function') return window.plannerFinishEmpty();
+        return { version: 1, item: {}, sections: { upper: {}, lower: {} }, modules: {}, parts: {} };
+      }
+
+      /**
+       * item.detail 의 도어 마감을 적는다. group 'upper'|'lower' 는 섹션 재정의, 'item' 은 품목 기본값
+       * (이때 섹션의 door 재정의는 지운다 — 셀렉트 하나가 상·하를 같이 뜻하므로).
+       * @returns {boolean} 실제로 바뀌었는가
+       */
+      function _setPlannerDetailDoor(item, group, code) {
+        const c = String(code || '').trim();
+        if (!item || !c) return false;
+        const before = _isPlannerDetail(item.detail) ? _plannerDetailStable(item.detail) : null;
+        const detail = _isPlannerDetail(item.detail) ? item.detail : _plannerDetailEmpty();
+        if (group === 'item') {
+          if (typeof window.plannerFinishSet === 'function') window.plannerFinishSet(detail, 'item', 'door', c);
+          else { detail.item = detail.item || {}; detail.item.door = { code: c }; }
+          ['upper', 'lower'].forEach((g) => { if (detail.sections && detail.sections[g]) delete detail.sections[g].door; });
+        } else {
+          const g = group === 'upper' ? 'upper' : 'lower';
+          if (typeof window.plannerFinishSet === 'function') window.plannerFinishSet(detail, 'section', 'door', c, { section: g });
+          else { detail.sections = detail.sections || {}; detail.sections[g] = detail.sections[g] || {}; detail.sections[g].door = { code: c }; }
+        }
+        item.detail = detail;
+        return before !== _plannerDetailStable(detail);
+      }
+
+      /**
+       * 도어 마감 셀렉트 onchange. 모르는 코드는 아무것도 바꾸지 않는다.
+       * @param {number} itemUniqueId
+       * @param {'upper'|'lower'|'item'} group
+       * @param {string} code  materials.code (YR-SM-01 · WHT · PET-OAK-M)
+       */
+      function updateDoorMaterial(itemUniqueId, group, code) {
+        const items = window.selectedItems || selectedItems;
+        const item = items.find((i) => String(i.uniqueId) === String(itemUniqueId));
+        const cat = window.FurnitureOptionCatalog;
+        const spec = item && cat && typeof cat.doorSpecForCode === 'function' ? cat.doorSpecForCode(code) : null;
+        if (!spec) return false;
+        const groups = group === 'item' ? ['upper', 'lower'] : [group === 'upper' ? 'upper' : 'lower'];
+        item.specs = item.specs || {};
+        const keys = groups.map((g) => PLANNER_DETAIL_MIRROR_KEYS.find((m) => m.group === g));
+        const specChanged = keys.some((k) => item.specs[k.material] !== spec.code || item.specs[k.color] !== spec.color || item.specs[k.finish] !== spec.finish);
+        const doorNow = _isPlannerDetail(item.detail) ? groups.map((g) => _plannerDetailDoorOf(item.detail, g)) : [];
+        const detailSame = doorNow.length === groups.length && doorNow.every((r) => r && r.code === spec.code);
+        if (!specChanged && detailSame) return false;
+
+        if (typeof pushUndo === 'function') pushUndo(item);
+        keys.forEach((k) => { item.specs[k.material] = spec.code; item.specs[k.color] = spec.color; item.specs[k.finish] = spec.finish; });
+        _setPlannerDetailDoor(item, group, spec.code);
+        _markDesignDirty();
+        const frame = _plannerFrameOfItem(item.uniqueId);
+        if (frame) _sendPlannerDetail(frame, item);
+        if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+        return true;
+      }
+      if (typeof window !== 'undefined') window.updateDoorMaterial = updateDoorMaterial;
 
       /** 다른 편집과 같은 '수정됨' 표시 (persistence-init.js 의 hasUnsavedChanges / updateSaveStatus) */
       function _markDesignDirty() {
@@ -2585,7 +2680,7 @@
             <div><label style="font-size:9px;color:#666;">높이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.upperH}" onchange="updateSpecValue(${item.uniqueId}, 'upperH', this.value)"></div>
             <div><label style="font-size:9px;color:#666;">깊이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.upperPrimeD || 295}" onchange="updateSpec(${item.uniqueId}, 'upperPrimeD', this.value)"></div>
             <div><label style="font-size:9px;color:#666;">오버랩</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.upperDoorOverlap}" onchange="updateSpecValue(${item.uniqueId}, 'upperDoorOverlap', this.value)"></div>
-            <div><label style="font-size:9px;color:#666;">도어색상</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'sink')}</select><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'sink')}</select></div></div>
+            <div><label style="font-size:9px;color:#666;">도어 마감</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(item.uniqueId, 'upper', item.specs, 'sink', 'font-size:10px;padding:1px;')}</div>
           </div>
         </div>
         <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px;">
@@ -2594,7 +2689,7 @@
             <div><label style="font-size:9px;color:#666;">높이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.lowerH}" onchange="updateSpecValue(${item.uniqueId}, 'lowerH', this.value)"></div>
             <div><label style="font-size:9px;color:#666;">깊이</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.d || item.defaultD || ''}" onchange="updateItemValue(${item.uniqueId}, 'd', this.value)"></div>
             <div><label style="font-size:9px;color:#666;">다리발</label><select style="width:100%;font-size:11px;padding:2px 4px;" onchange="updateSpec(${item.uniqueId}, 'sinkLegHeight', this.value)"><option value="120" ${item.specs.sinkLegHeight == 120 ? 'selected' : ''}>120</option><option value="150" ${item.specs.sinkLegHeight == 150 ? 'selected' : ''}>150</option></select></div>
-            <div><label style="font-size:9px;color:#666;">도어색상</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorFinishLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishLower, 'sink')}</select><select style="flex:1;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'doorColorLower', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorLower, 'sink')}</select></div></div>
+            <div><label style="font-size:9px;color:#666;">도어 마감</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(item.uniqueId, 'lower', item.specs, 'sink', 'font-size:10px;padding:1px;')}</div>
           </div>
         </div>
         <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:6px;">

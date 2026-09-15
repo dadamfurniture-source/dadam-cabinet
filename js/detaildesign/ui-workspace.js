@@ -503,11 +503,8 @@
 
         <div class="spec-group-title">3. Colors (도어)</div>
         <div class="spec-row">
-          <div class="spec-field"><label>도어 색상</label>
-            <div class="color-select-row">
-              <select onchange="updateWardrobeSpec(${item.uniqueId}, 'doorFinishUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish', item.specs.doorFinishUpper, 'wardrobe')}</select>
-              <select onchange="updateWardrobeSpec(${item.uniqueId}, 'doorColorUpper', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color', item.specs.doorColorUpper, 'wardrobe')}</select>
-            </div>
+          <div class="spec-field"><label>도어 마감</label>
+            ${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(item.uniqueId, 'item', item.specs, 'wardrobe', 'font-size:12px;')}
           </div>
         </div>
 
@@ -1753,8 +1750,8 @@
             <div class="spec-row"><div class="spec-field"><label>쿡탑</label><select onchange="updateSpec(${uid},'cooktop',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('cooktop',item.specs.cooktop)}</select></div><div class="spec-field"><label>식기세척기</label><select onchange="onDishwasherChange(${uid},this.value)"><option value="None" ${item.specs.dishwasher==='None'?'selected':''}>없음</option><option value="BuiltIn" ${item.specs.dishwasher==='BuiltIn'?'selected':''}>빌트인</option><option value="FreeStanding" ${item.specs.dishwasher==='FreeStanding'?'selected':''}>프리스탠딩</option></select></div></div>
             <div class="spec-row"><div class="spec-field"><label>액세서리</label><div class="acc-list">${accHtml}</div><button class="btn-add-acc" onclick="addAccessory(${uid})">+ 액세서리 추가</button></div></div>`,
           colors: `
-            <div class="spec-row"><div class="spec-field"><label>상부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${uid},'doorFinishUpper',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish',item.specs.doorFinishUpper,'sink')}</select><select onchange="updateSpec(${uid},'doorColorUpper',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color',item.specs.doorColorUpper,'sink')}</select></div></div></div>
-            <div class="spec-row"><div class="spec-field"><label>하부장 도어</label><div class="color-select-row"><select onchange="updateSpec(${uid},'doorFinishLower',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_finish',item.specs.doorFinishLower,'sink')}</select><select onchange="updateSpec(${uid},'doorColorLower',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('door_color',item.specs.doorColorLower,'sink')}</select></div></div></div>`,
+            <div class="spec-row"><div class="spec-field"><label>상부장 도어</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uid, 'upper', item.specs, 'sink', 'font-size:12px;')}</div></div>
+            <div class="spec-row"><div class="spec-field"><label>하부장 도어</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uid, 'lower', item.specs, 'sink', 'font-size:12px;')}</div></div>`,
           countertop: `
             <div class="spec-row"><div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${uid},'topColor',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop',item.specs.topColor)}</select></div><div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}" onchange="updateSpecValue(${uid},'topThickness',this.value)"></div></div>
             <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape || item.specs.lowerLayoutShape || 'I']})</label>${topSizeInputs}</div></div>`,
