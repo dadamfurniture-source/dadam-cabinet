@@ -1105,6 +1105,30 @@
       "itemLabel": "싱크대"
     },
     {
+      "module": "상판",
+      "part": "상판",
+      "material": "인조대리석",
+      "thickness": 12,
+      "w": 2487,
+      "h": 650,
+      "qty": 1,
+      "edge": "-",
+      "note": "[확인 필요] 오버행·타공 규칙 없음 — 하부 라인 한 장(좌·우 마감 폭 포함)",
+      "finishCode": "",
+      "partId": "0-ep-top-0",
+      "slot": "top",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "itemLabel": "싱크대"
+    },
+    {
       "module": "EP",
       "part": "몰딩(코너1)",
       "material": "MDF",
@@ -1146,6 +1170,12 @@
       "material": "MDF",
       "thickness": 18,
       "totalArea": 2774478,
+      "panelCount": 1
+    },
+    "인조대리석_12": {
+      "material": "인조대리석",
+      "thickness": 12,
+      "totalArea": 1616550,
       "panelCount": 1
     }
   },
