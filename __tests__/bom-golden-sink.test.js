@@ -110,8 +110,10 @@ describe('BOM 골든 — ㄱ자 멍장 (sinkCorner)', () => {
     ]));
     expect(parts('상부장-LT망장')).toEqual(expect.arrayContaining(['도어', '멍가림판', '몰딩(멍판)']));
     expect(parts('EP')).toContain('몰딩(코너1)');
-    // 멍장 도어는 doorW 기준(카카스 W 면 오발주), 선반은 ㄱ자 목대 75 만큼 짧다
-    expect(snap.materials.find((m) => m.module === '하부장-LT망장' && m.part === '도어').w).toBe(411 - 4);
+    // 멍장 도어는 doorW 기준(카카스 W 면 오발주) — 2026-09-15 결정: 목대를 덮으므로 doorW + 15 − 4 = doorW + 11
+    // (corner.md §3.5.1). 선반은 ㄱ자 목대 75 만큼 짧다
+    expect(snap.materials.find((m) => m.module === '하부장-LT망장' && m.part === '도어').w).toBe(411 + 11);
+    expect(snap.materials.find((m) => m.module === '상부장-LT망장' && m.part === '도어').w).toBe(445 + 11);
     expect(snap.materials.find((m) => m.module === '하부장-LT망장' && m.part === '선반').h).toBe(650 - 15 - 75);
     // 마감재 재단 폭은 blindFinishW 가 없으니 폴백 상수다 — 값 자체는 골든이 잠그고,
     // 정본(data-constants.js:89 = 150)과의 동기는 extractors-blind-finish.test.js 가 본다.
