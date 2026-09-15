@@ -6306,10 +6306,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (newTop > bodyBottom) { h = newTop - bodyBottom; cy = (newTop + bodyBottom) / 2; }
     }
     // W12-24: 도어 내림이 영역 아래를 넘지 않게 자른다.
+    // P2-4 (scene-bom-ledger.md §4): 내림 15 는 규칙이 정한 값이다 — 도어 H = 장H + 15 이고 그 15 가 몸통
+    //   **아래로** 나온다 (design_rules 싱크상부장도어H). 상부 배치 공간 H 는 몸통 H 와 같으므로
+    //   bottomLimit 이 몸통 바닥과 같고, 예전엔 내림이 0 으로 잘려 3D 도어가 BOM(장H+15)보다 19 짧았다.
+    //   배치 공간 바닥 아래로 규칙의 내림만큼은 나갈 수 있다 — 제한은 그 너머만 자른다.
     let drop = (type === 'door' && meta && meta.doorDrop) ? meta.doorDrop : 0;
     if (drop && meta && Number.isFinite(meta.bottomLimit)) {
       const bodyBottom0 = cy - h / 2 - MASTER_RULES.DOOR_GAP / 2;
-      drop = Math.max(0, Math.min(drop, bodyBottom0 - meta.bottomLimit));
+      const dropLimit = meta.bottomLimit - MASTER_RULES.SINK_UPPER_DOOR_H_PLUS;
+      drop = Math.max(0, Math.min(drop, bodyBottom0 - dropLimit));
     }
     if (drop) {
       // 도어 세로 = 장H + drop (design_rules 싱크상부장도어H). 넘어온 h 는 이미
