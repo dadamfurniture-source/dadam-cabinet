@@ -1072,7 +1072,13 @@
 
           const cells = _cellsOfPlannerModule(m, s);
           if (cells.length === 1 && cells[0].noAutoCalc) {
-            warnings.push(`${m.id}: 자동계산 전이라 ${cells[0].w}mm 통짜로 잡혔습니다`);
+            // 키큰장은 세로 스택(단)이라 자동계산이 셀(areaWidths)을 나누지 않는다 —
+            // 단 하나가 모듈 폭 그대로 한 장(통짜)인 것이 **정상**이다. 여기서 경고하면
+            // 자동계산을 돌려도 사라지지 않는 헛경고가 된다 (사용자 결정 2026-09-15).
+            // 표시 section(sink·hood)은 PLANNER_CABINET_SECTIONS 에 없어 여기까지 오지 않는다.
+            if (m.section !== 'tall') {
+              warnings.push(`${m.id}: 자동계산 전이라 ${cells[0].w}mm 통짜로 잡혔습니다`);
+            }
           } else {
             // 셀 폭 합이 사각형 폭과 크게 다르면 분배 정보가 낡은 것이다
             // (배치를 고친 뒤 자동계산을 다시 돌리지 않은 경우).
@@ -1644,8 +1650,9 @@
       // ============================================================
       // C2: 도어 마감 셀렉트 (카탈로그 코드 하나) ↔ 플래너 디테일 양방향
       //
-      //   셀렉트(ui-step1 싱크 팝업 · ui-workspace 싱크/붙박이장)는 FurnitureOptionCatalog.buildDoorMaterialFieldHtml 이
+      //   셀렉트(ui-step1 싱크 팝업 · ui-workspace 싱크/붙박이장 · ui-fridge-el 냉장고장)는 FurnitureOptionCatalog.buildDoorMaterialFieldHtml 이
       //   그리고, 바꾸면 updateDoorMaterial(uniqueId, 'upper'|'lower'|'item', code) 이 온다.
+      //   붙박이장·냉장고장은 도어 묶음이 하나라 'item' 으로 상·하를 같이 적는다 (BOM 의 legacyDoorEntryFor 가 섹션별 키를 읽으므로 둘 다 채워야 한다).
       //     specs.doorMaterialUpper/Lower = code (새 정본)
       //     specs.doorColorUpper/Lower · doorFinishUpper/Lower = 코드에서 파생 (연출컷·견적·옛 경로가 읽는다)
       //     item.detail.sections[group].door = {code} ('item' 은 item.door) → DADAM_DETAIL_SET 으로 플래너에
