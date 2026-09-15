@@ -372,7 +372,9 @@ describe('하부장 목찬넬 도어 — 장H − 30 (W12-8)', () => {
   test('렌더 경로가 doorTopGap 을 넘긴다', () => {
     const calls = SRC.match(/addFrontPanel\([^;]*areaPos: 'top'[^;]*\)/g) || [];
     expect(calls.length).toBe(1);   // W12-75
-    calls.forEach((c) => expect(c).toContain('doorTopGap: doorTopGapOf(m, s)'));
+    // 2026-09-15: 서랍장 레이아웃이 있으면 0, 아니면 doorTopGapOf — doorSpan 이 둘을 고른다
+    calls.forEach((c) => expect(c).toContain('doorTopGap: doorSpan.topGap'));
+    expect(SRC).toMatch(/topGap: doorTopGapOf\(m, s\)/);
   });
 
   test('밑단은 몸통 바닥(다리발 위)에 맞춘다', () => {
