@@ -106,7 +106,7 @@
 | 목찬넬(지면) | MDF | 18T | 40 × effectiveW |
 | 휠라(좌) | MDF | 18T | finishLeftWidth × lowerH |
 | 휠라(우) | MDF | 18T | finishRightWidth × lowerH |
-| 상판 | 18 → MDF(도어자재) / 12·50 → 인조대리석 | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D · 1장 · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판 |
+| 상판 | 18 → MDF(도어자재) / 12·50 → 인조대리석 | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D · **품목당 1장** · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판. 품목당 한 장은 사용자 결정(2026-09-15)이다 — ㄱ·ㄷ자도 폭 합 한 장, 런(배치 공간)마다 나누지 않는다. 3D 가 런마다 한 장 그리는 것은 표시용 단순화 |
 
 > `effectiveW` = 하부장 모듈 폭 합. **키큰장 단(`type:'tall'`)과 쿡탑장은 뺀다** (P1-1). 키큰장은 하부장 규칙이 아니라
 > `sink.md` §5.1 단별 부재표(단별 도어 H · shelfCount · 좌대 상자 · 상몰딩 · 목찬넬)를 탄다 — `extractors.js addTallTierParts`.
@@ -303,6 +303,19 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | ≤1600mm | 3구 | [110, H/2, H-110] |
 | >1600mm | 4구 | [110, H/3, H×2/3, H-110] |
 
+여기서 H 는 **재단 도어 높이** — 자재 행(`MaterialExtractor`)이 낸 도어 h 와 같아야 한다. 몸통 H 가 아니다.
+`HardwareExtractor.extractHinges` 가 모듈 종류별로 같은 식을 쓴다 (`agent/bom-followups`, 시험 `__tests__/bom-followups.test.js`):
+
+| 모듈 | 도어 높이 H | 근거 |
+|------|------|------|
+| 상부장 (`pos:'upper'`) | 몸통 H + 내림(`upperDoorOverlap`, 기본 15) | §3-1 상부장 |
+| 하부장 (`pos:'lower'`) | 몸통 H − 30 (목찬넬 틈) | §3-1 하부장 |
+| 키큰장 단 (싱크 하부 라인 `type:'tall'`, `sink.md` §5.1) | 목찬넬 단(하부단·통짜 + 목찬넬 손잡이) H − 30 / 푸쉬 단(중간·상부단, 또는 푸쉬 손잡이) H − 4 — `extractors.js bomTallTierDoorH`, 자재 행과 같은 함수 | `sink.md` §5.1 |
+| 붙박이·냉장고장 (`pos` 없음) | 몸통 H 그대로 (예전과 같다) | §3-2 · §3-3 |
+
+> 예전엔 키큰장 단도 `pos:'lower'` 라 H−30 으로 셈해, 푸쉬 단(H−4)에서 몸통 H 905~930 · 1605~1630 구간의 경첩이 도어마다 하나 빠지고
+> 보링 위치가 26mm 어긋났다. 문턱이 그대로라도 **도어 높이의 출처**가 자재 행과 같아야 한다.
+
 ### 4-2. 서랍레일
 
 | 캐비닛 깊이 | 레일 길이 | 타입 |
@@ -399,7 +412,7 @@ partId = `${itemIdx}-${moduleId}-${partKey}-${n}`     예: 0-l2-drawer#0-0, 1-w1
 | `handle` | `channel:front` `channel:back` | 목찬넬(전면·지면) |
 | `finishing` | `molding` `molding:left/right[-pad]` `molding:corner1/2` `filler:left/right/corner1/2` `ep:left/right` `blind#k` `blindfin#k` | 상몰딩 · 좌우 몰딩·덧대 · 휠라 · EP · 멍가림판/멍판 EP · 멍판 마감재 |
 | `kick` | `kick` `pedestal:fb/side/brace` | 걸레받이 · 좌대 |
-| `top` | `top` | 상판 (P1-3 — 품목 단위 `ep` 한 장. 마감 코드는 디테일 `top` 슬롯 > `specs.topColor` 의 `TOP-*`; `edgeCode` 는 없다) |
+| `top` | `top` | 상판 (P1-3 — 품목 단위 `ep` 한 장, `partId 0-ep-top-0`. 품목당 한 장은 결정 사항(2026-09-15)이라 런 번호가 붙지 않는다. 마감 코드는 디테일 `top` 슬롯 > `specs.topColor` 의 `TOP-*`; `edgeCode` 는 없다) |
 
 BOM 행은 수량으로 묶여 있어(측판 qty 2 = 좌+우) 한 행이 플래너 부재 여럿을 대표한다. 디테일 모델의 부재 단위 지정이 행에 닿도록
 `extractors.js` `bomFinishCandidates` 가 후보를 늘어놓는다: `body:side ← body:left/right`, `door#k ← door#k-0/1`(양문),
