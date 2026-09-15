@@ -848,9 +848,11 @@
           const totalH = parseFloat(item.h) || 2310;
 
           // 상몰딩 (moldingH >= 20이면 산출) — 상부 라인 위에 얹히므로 섹션 'upper'
+          // P1-2: 상부장이 없으면 없다. 예전엔 `totalUpperW || effectiveW` 로 하부 폭에 떨어져 없는 상몰딩이 나갔다.
+          //   키큰장 상부단의 상몰딩은 그 단이 따로 낸다 (addTallTierParts).
           this.beginItemLevel('upper');
-          if (moldingH >= 20 && (totalUpperW || effectiveW) > 0) {
-            const moldingW = totalUpperW || effectiveW;
+          if (moldingH >= 20 && totalUpperW > 0) {
+            const moldingW = totalUpperW;
             const moldingEdge = moldingW > 2000 ? '2면(장)' : '4면';
             this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, moldingEdge);
           }
