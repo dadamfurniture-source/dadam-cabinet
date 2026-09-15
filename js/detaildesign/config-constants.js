@@ -191,6 +191,12 @@
                 grain: m.grain || null,
                 normal_url: m.normal_url || null,
                 price_key: m.price_key || null,
+                // C2: 공급사 카탈로그 컬럼 (materials-yerim-lux-seed.sql) — 셀렉트 optgroup·라벨용. 없으면 null
+                vendor: m.vendor || null,
+                series: m.series || null,
+                vendor_code: m.vendor_code || null,
+                image_url: m.image_url || null,
+                sort: m.sort != null ? Number(m.sort) : (m.sort_order != null ? Number(m.sort_order) : null),
               });
             }
             this.loaded = true;
@@ -340,6 +346,229 @@
           if (this.byCode(name)) return name.toUpperCase();
           const legacy = this._LEGACY_CODE_MAP[category];
           return (legacy && legacy[name]) || null;
+        },
+
+        // ── C2: 셀렉트용 그룹 — 공급사 시리즈·소재별 optgroup + 기타(호환) ──────────
+        //   정본은 예림 LUX 144 (materials.vendor='yerim', database/materials-yerim-lux-seed.sql).
+        //   vendor 가 없는 행(옛 7색 WHT…, PET-OAK-M 계열)은 마지막 '기타(호환)' 한 그룹으로 모은다.
+        //   option.value 는 materials.code — code 가 없는 행은 셀렉트에 낼 수 없어 뺀다.
+        //
+        // C2b: 옛 색 행(WHT…)은 톤이 없어 그대로 고르면 '유광' 을 잃는다. 그래서 기타(호환)에는 색 × 톤(무광·유광)
+        //   두 옵션으로 낸다 — 코드 '{COLOR}-M' / '{COLOR}-G' (WHT-M · WHT-G), 라벨 '화이트 · 무광' / '화이트 · 유광'.
+        //   이 합성 코드는 **클라이언트에서만 만드는 값**이고 materials.code 가 아니다 (DB 에 행이 없다, byCode 로는 못 찾는다).
+        //   specs.doorMaterial* 과 item.detail 에는 그대로 실린다. 사용자 결정 2026-09-15: 과거 '화이트 · 유광' 설계 보존.
+
+        _VENDOR_LABEL: { yerim: '예림' },
+        COMPAT_GROUP_LABEL: '기타(호환)',
+        /** 기타(호환) 합성 코드의 톤 접미사. 순서 = 셀렉트 순서 (무광 먼저) */
+        COMPAT_TONES: [
+          { suffix: 'M', tone: 'matte', finish: '무광' },
+          { suffix: 'G', tone: 'gloss', finish: '유광' },
+        ],
+
+        /** 옛 색 행인가 — 공급사·톤이 없고 코드에 '-' 가 없는 행 (WHT · GRY …). PET-OAK-M · TONE-M · YR-… 은 아니다 */
+        _isLegacyColorRow(row) {
+          return !!(row && row.code && !row.vendor && !row.tone && String(row.code).indexOf('-') < 0);
+        },
+
+        /** 옛 색 코드 + 마감('유광' | 'gloss' | 'G' → -G, 그 밖·없음 → -M) → 합성 코드 WHT-G. 색 코드가 없으면 null */
+        _compatCodeOf(colorCode, finish) {
+          if (!colorCode) return null;
+          const f = String(finish == null ? '' : finish).trim().toUpperCase();
+          const t = (f === '유광' || f === 'GLOSS' || f === 'G') ? this.COMPAT_TONES[1] : this.COMPAT_TONES[0];
+          return `${String(colorCode).trim().toUpperCase()}-${t.suffix}`;
+        },
+
+        /** 합성 코드(WHT-G) → { row: 옛 색 행, tone: COMPAT_TONES 항목 }. 그 꼴이 아니거나 옛 색 행이 없으면 null */
+        _parseCompatCode(code) {
+          const m = /^([A-Z0-9]+)-([MG])$/.exec(String(code == null ? '' : code).trim().toUpperCase());
+          if (!m) return null;
+          const row = this.byCode(m[1]);
+          if (!this._isLegacyColorRow(row)) return null;
+          return { row, tone: this.COMPAT_TONES.find((t) => t.suffix === m[2]) };
+        },
+
+        /** 셀렉트 라벨용 HTML 이스케이프 */
+        _esc(s) {
+          return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        },
+
+        /** 행 → 그룹 라벨. 'Supreme PET Matt' 처럼 finish 가 series 로 시작하면 그 부분은 한 번만 쓴다 → '예림 Supreme · PET Matt' */
+        _groupLabelOf(row) {
+          if (!row || !row.vendor) return this.COMPAT_GROUP_LABEL;
+          const vendor = this._VENDOR_LABEL[String(row.vendor).toLowerCase()] || row.vendor;
+          const series = row.series ? String(row.series).trim() : '';
+          let finish = row.finish ? String(row.finish).trim() : '';
+          if (series && finish.toLowerCase().indexOf(series.toLowerCase() + ' ') === 0) finish = finish.slice(series.length + 1).trim();
+          const parts = [series, finish].filter(Boolean);
+          return parts.length ? `${vendor} ${parts.join(' · ')}` : vendor;
+        },
+
+        /** 행 → 셀렉트 option. 라벨은 'color_name (vendor_code)', 공급사 코드가 없으면 이름만 */
+        _optionOf(row) {
+          const name = row.name_ko || row.code;
+          return {
+            code: row.code,
+            label: row.vendor_code ? `${name} (${row.vendor_code})` : name,
+            name,
+            hex: row.color_hex || null,
+            tone: row.tone || null,
+            vendor: row.vendor || null,
+          };
+        },
+
+        /** C2b: 옛 색 행 → 무광·유광 두 합성 옵션 (WHT → WHT-M '화이트 · 무광', WHT-G '화이트 · 유광'). 견본 색은 같다 */
+        _compatOptionsOf(row) {
+          const name = row.name_ko || row.code;
+          const color = String(row.code).toUpperCase();
+          return this.COMPAT_TONES.map((t) => ({
+            code: `${color}-${t.suffix}`,
+            label: `${name} · ${t.finish}`,
+            name,
+            hex: row.color_hex || null,
+            tone: t.tone,
+            vendor: null,
+          }));
+        },
+
+        /**
+         * 슬롯에 쓸 수 있는 행을 optgroup 으로 묶는다.
+         *   [{ label:'예림 Supreme · PET Matt', options:[{code,label,name,hex,tone}] }, …, { label:'기타(호환)', options:[…] }]
+         * 공급사 그룹은 행 순서(sort_order)대로 먼저, 기타(호환)는 마지막. 빈 그룹은 내지 않는다.
+         * 기타(호환) 안에서 옛 색 행은 무광·유광 두 옵션(WHT-M · WHT-G)으로, 그 밖(PET-OAK-M)은 제 코드 그대로.
+         * 톤만 있는 행(door_finish 버킷 TONE-M/G/E — v2 SQL 이 slot=['door'] 를 준다)은 마감재가 아니므로 내지 않는다.
+         * @param {string} slot           door | drawer_front | body | top …
+         * @param {string} [category]     door_material 등 한 카테고리만
+         * @param {string} [furnitureType] sink | wardrobe | fridge — applicable_to 로 거른다
+         */
+        optgroupsFor(slot, category, furnitureType) {
+          const toneRows = new Set(this.options.door_finish || []);
+          const rows = this.forSlot(slot, category)
+            .filter((o) => o.code && !toneRows.has(o) && (!furnitureType || !o.applicable_to?.length || o.applicable_to.includes(furnitureType)))
+            // 카테고리 버킷 순서가 아니라 DB 의 sort(_order) 순으로. sort 가 없는 행(내장 폴백)은 원래 순서 그대로 뒤에
+            .map((o, i) => ({ o, i, s: o.sort != null && isFinite(o.sort) ? Number(o.sort) : Infinity }))
+            .sort((a, b) => (a.s - b.s) || (a.i - b.i))
+            .map((x) => x.o);
+          const groups = [];
+          const byLabel = {};
+          const compat = { label: this.COMPAT_GROUP_LABEL, options: [] };
+          const seen = new Set();
+          for (const row of rows) {
+            const code = String(row.code).toUpperCase();
+            if (seen.has(code)) continue;
+            seen.add(code);
+            if (!row.vendor) {
+              const opts = this._isLegacyColorRow(row) ? this._compatOptionsOf(row) : [this._optionOf(row)];
+              for (const o of opts) {
+                const c = String(o.code).toUpperCase();
+                if (c !== code && seen.has(c)) continue;   // 합성 코드가 진짜 행과 겹치면 먼저 온 쪽이 이긴다
+                seen.add(c);
+                compat.options.push(o);
+              }
+              continue;
+            }
+            const opt = this._optionOf(row);
+            const label = this._groupLabelOf(row);
+            if (!byLabel[label]) { byLabel[label] = { label, options: [] }; groups.push(byLabel[label]); }
+            byLabel[label].options.push(opt);
+          }
+          if (compat.options.length) groups.push(compat);
+          return groups;
+        },
+
+        /** optgroupsFor 결과 → <optgroup><option value=code data-hex data-tone>…</option></optgroup> HTML. 선택값이 없으면 앞에 빈 안내 option */
+        buildOptgroupsHtml(slot, selectedCode, category, furnitureType) {
+          const sel = selectedCode ? String(selectedCode).toUpperCase() : '';
+          const groups = this.optgroupsFor(slot, category, furnitureType);
+          let hit = false;
+          const html = groups.map((g) => {
+            const opts = g.options.map((o) => {
+              const isSel = sel && String(o.code).toUpperCase() === sel;
+              if (isSel) hit = true;
+              return `<option value="${this._esc(o.code)}"${isSel ? ' selected' : ''}${o.hex ? ` data-hex="${this._esc(o.hex)}"` : ''}${o.tone ? ` data-tone="${this._esc(o.tone)}"` : ''}>${this._esc(o.label)}</option>`;
+            }).join('');
+            return `<optgroup label="${this._esc(g.label)}">${opts}</optgroup>`;
+          }).join('');
+          return (hit ? '' : '<option value="" selected disabled>— 선택 —</option>') + html;
+        },
+
+        // ── C2: 도어 마감 코드 ↔ 옛 사양 키 (specs.doorMaterialUpper/Lower ↔ doorColor*/doorFinish*) ──
+
+        /** 그룹(upper|lower) → specs 키 */
+        DOOR_SPEC_KEYS: {
+          upper: { material: 'doorMaterialUpper', color: 'doorColorUpper', finish: 'doorFinishUpper' },
+          lower: { material: 'doorMaterialLower', color: 'doorColorLower', finish: 'doorFinishLower' },
+        },
+
+        /**
+         * 코드 → 옛 사양값 파생. 모르는 코드는 null (짐작하지 않는다).
+         *   카탈로그 행(YR-SM-01 · WHT · PET-OAK-M):
+         *     color  = 행의 color_name(name_ko)
+         *     finish = tone 이 gloss 면 '유광', 그 밖(matte · single · null)은 '무광'
+         *   기타(호환) 합성 코드(C2b, WHT-M · WHT-G — 행 없음):
+         *     color  = 옛 색 행(WHT)의 color_name, finish = 접미사 M → '무광' / G → '유광'
+         * @returns {{code:string, color:string, finish:string, hex:string|null, tone:string|null}|null}
+         */
+        doorSpecForCode(code) {
+          const row = this.byCode(code);
+          if (row && row.code) {
+            return {
+              code: row.code,
+              color: row.name_ko || row.code,
+              finish: row.tone === 'gloss' ? '유광' : '무광',
+              hex: row.color_hex || null,
+              tone: row.tone || null,
+            };
+          }
+          const c = this._parseCompatCode(code);
+          if (!c) return null;
+          return {
+            code: `${String(c.row.code).toUpperCase()}-${c.tone.suffix}`,
+            color: c.row.name_ko || c.row.code,
+            finish: c.tone.finish,
+            hex: c.row.color_hex || null,
+            tone: c.tone.tone,
+          };
+        },
+
+        /**
+         * 셀렉트에 미리 고를 코드.
+         *   specs.doorMaterial* 이 있으면 그것. 다만 옛 색 코드(WHT — C2 초기 저장·플래너 미러)가 그대로면
+         *   doorFinish* 를 붙여 합성 코드로 (WHT + 유광 → WHT-G) — 셀렉트에는 WHT-M/G 만 있다.
+         *   없으면(옛 설계) 한글 색·마감 이름으로 (codeFor('door_color', '화이트') + '유광' → WHT-G, 무광·없음 → WHT-M).
+         *   색을 모르면 null
+         */
+        doorSelectCode(specs, group) {
+          const k = this.DOOR_SPEC_KEYS[group] || this.DOOR_SPEC_KEYS.lower;
+          const s = specs || {};
+          if (s[k.material]) {
+            const code = String(s[k.material]).trim().toUpperCase();
+            return this._isLegacyColorRow(this.byCode(code)) ? this._compatCodeOf(code, s[k.finish]) : code;
+          }
+          return this._compatCodeOf(this.codeFor('door_color', s[k.color]), s[k.finish]);
+        },
+
+        /** 현재 고른 코드의 색 견본 (없으면 회색 빈 칸). 합성 코드(WHT-G)도 옛 색 행의 hex 로 */
+        doorSwatchHtml(code, extraStyle) {
+          const spec = code ? this.doorSpecForCode(code) : null;
+          const hex = (spec && spec.hex) || '#e5e7eb';
+          return `<span class="door-swatch" title="${this._esc(spec ? spec.color : '')}" style="display:inline-block;width:14px;height:14px;flex:none;border-radius:3px;border:1px solid #d1d5db;background:${this._esc(hex)};${extraStyle || ''}"></span>`;
+        },
+
+        /**
+         * 상/하(또는 품목 전체) 도어 마감 한 칸 — 색 견본 + optgroup 셀렉트. onchange 는 updateDoorMaterial (ui-step1.js).
+         * @param {number|string} uniqueId  품목
+         * @param {'upper'|'lower'|'item'} group  item = 상·하 같이 (붙박이장처럼 도어 묶음이 하나일 때)
+         * @param {object} specs
+         * @param {string} [furnitureType]
+         * @param {string} [selectStyle]  select 인라인 style
+         */
+        buildDoorMaterialFieldHtml(uniqueId, group, specs, furnitureType, selectStyle) {
+          const g = group === 'item' ? 'upper' : group;
+          const code = this.doorSelectCode(specs, g);
+          return `<div class="door-material-field" style="display:flex;align-items:center;gap:4px;min-width:0;">${this.doorSwatchHtml(code)}` +
+            `<select class="door-material-select" data-group="${this._esc(group)}" style="flex:1;min-width:0;${selectStyle || ''}" onchange="updateDoorMaterial(${uniqueId}, '${this._esc(group)}', this.value)">` +
+            `${this.buildOptgroupsHtml('door', code, null, furnitureType)}</select></div>`;
         },
 
         // ── C0: 자식 iframe(플래너)에 카탈로그 전달 ──────────────────
