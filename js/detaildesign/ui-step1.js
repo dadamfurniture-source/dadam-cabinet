@@ -1526,6 +1526,161 @@
         }
       });
 
+      // ============================================================
+      // D1: 플래너 디테일(마감) 모델 왕복 — item.detail (계획서 §4.2 / §5 D1)
+      //
+      //   플래너(mockup-structure.html?stage=detail, js/planner/planner-detail.js)는 칠할 때마다
+      //   부모에 { type:'PLANNER_DETAIL_CHANGE', detail } 을 보낸다. 정본은 여기 품목의
+      //   item.detail 이고 design_items.detail 에 저장된다 (persistence-init.js).
+      //
+      //   detail 형식은 js/planner/planner-finish.js 그대로다:
+      //     { version:1, item:{door:{code}…}, sections:{upper:{door:{code}}, lower:{…}}, modules:{…}, parts:{…} }
+      //
+      //   미러: 상/하 도어 마감은 specs.doorColorUpper/Lower · doorFinishUpper/Lower 로도 계속 채운다 —
+      //   AI 연출컷·견적·기존 셀렉트가 그 키를 읽는다. 품목/섹션 단계만 미러한다. 모듈·부재 재정의는
+      //   "이 도어 하나만 다른 색" 이라 품목 사양 한 값으로 표현할 수 없다 (BOM 은 detail 을 직접 읽는다).
+      //   코드 → 한글 사양값이 없으면(단톤 자재의 마감, 셀렉트에 없는 색) 그 키는 건드리지 않는다.
+      //
+      //   V2_MODULES_CHANGE 처럼 화면을 다시 그리지 않는다 — 플래너 iframe 이 살아 있는 채로
+      //   워크스페이스를 리빌드하면 iframe 이 숨었다 나타나고 UPDATE_PLANNER 가 되돌아간다.
+      //   셀렉트는 다음에 그려질 때 item.specs 를 읽는다.
+      // ============================================================
+
+      /** 섹션 묶음 → 미러할 specs 키 (planner-finish.js 의 upper|lower 와 같은 구분) */
+      const PLANNER_DETAIL_MIRROR_KEYS = [
+        { group: 'upper', color: 'doorColorUpper', finish: 'doorFinishUpper' },
+        { group: 'lower', color: 'doorColorLower', finish: 'doorFinishLower' },
+      ];
+
+      /** 톤 → 기존 door_finish 셀렉트 값. 카탈로그 행(TONE-M/G)이 있으면 그 name_ko 를 우선한다. */
+      const PLANNER_DETAIL_TONE_CODE = { matte: 'TONE-M', gloss: 'TONE-G' };
+      const PLANNER_DETAIL_TONE_NAME = { matte: '무광', gloss: '유광' };
+
+      /** 키 순서에 무관한 JSON — DB(JSONB)를 다녀오면 키 순서가 바뀌므로 같은 모델인지 이걸로 본다 */
+      function _plannerDetailStable(v) {
+        if (v === null || typeof v !== 'object') return JSON.stringify(v);
+        if (Array.isArray(v)) return '[' + v.map(_plannerDetailStable).join(',') + ']';
+        return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + _plannerDetailStable(v[k])).join(',') + '}';
+      }
+
+      /** 플래너가 보낸 detail 이 모델처럼 생겼는가 — 객체이고 version 이 있다 */
+      function _isPlannerDetail(d) {
+        return !!d && typeof d === 'object' && !Array.isArray(d) && d.version != null;
+      }
+
+      /**
+       * 섹션 묶음(upper|lower)의 도어 마감 코드. 품목/섹션 단계만 본다 (모듈·부재는 미러 대상이 아니다).
+       * planner-finish.js 가 실려 있으면 그 해석 함수를 쓰고, 없으면 같은 순서(섹션 > 품목)로 직접 찾는다.
+       */
+      function _plannerDetailDoorOf(detail, group) {
+        if (typeof window.plannerFinishResolve === 'function') {
+          return window.plannerFinishResolve(detail, 'door', null, group);
+        }
+        const sec = detail.sections && detail.sections[group] && detail.sections[group].door;
+        if (sec && typeof sec.code === 'string' && sec.code.trim()) return { code: sec.code.trim(), level: 'section' };
+        const it = detail.item && detail.item.door;
+        if (it && typeof it.code === 'string' && it.code.trim()) return { code: it.code.trim(), level: 'item' };
+        return null;
+      }
+
+      /**
+       * 마감 코드(PET-OAK-M) → 기존 한글 사양값 { color:'오크'|null, finish:'무광'|'유광'|null }.
+       *   색: FurnitureOptionCatalog 행(name_ko, 셀렉트가 쓰는 값) → bom-finish-color 라벨 순.
+       *   마감: 톤(matte/gloss)만 대응한다. single(멜라민·LPM·무늬목)은 '무광/유광' 어느 쪽도 아니므로 null.
+       * 모르는 코드는 둘 다 null — 짐작해서 사양을 바꾸지 않는다.
+       */
+      function _plannerDetailCodeToSpec(code) {
+        const out = { color: null, finish: null };
+        const fc = window.DadamBomFinishColor;
+        const parsed = fc && typeof fc.parseFinishColorCode === 'function' ? fc.parseFinishColorCode(code) : null;
+        if (!parsed) return out;
+        const cat = window.FurnitureOptionCatalog;
+        const byCode = cat && typeof cat.byCode === 'function' ? (c) => cat.byCode(c) : () => null;
+        const colorCode = String(code).trim().toUpperCase().split('-')[1];
+        const colorRow = byCode(colorCode);
+        if (colorRow && colorRow.name_ko) out.color = colorRow.name_ko;
+        else {
+          const c = (fc.DOOR_COLOR_CATALOG || []).find((x) => x.value === parsed.colorValue);
+          if (c && c.label) out.color = c.label;
+        }
+        const toneCode = PLANNER_DETAIL_TONE_CODE[parsed.tone];
+        if (toneCode) {
+          const toneRow = byCode(toneCode);
+          out.finish = (toneRow && toneRow.name_ko) || PLANNER_DETAIL_TONE_NAME[parsed.tone] || null;
+        }
+        return out;
+      }
+
+      /**
+       * detail 의 상/하 도어 마감을 specs 에 미러한다. 지정이 없는 묶음은 건드리지 않는다.
+       * @returns {string[]} 실제로 바뀐 specs 키
+       */
+      function _mirrorPlannerDetailToSpecs(item, detail) {
+        const changed = [];
+        if (!item || !_isPlannerDetail(detail)) return changed;
+        item.specs = item.specs || {};
+        PLANNER_DETAIL_MIRROR_KEYS.forEach((m) => {
+          const r = _plannerDetailDoorOf(detail, m.group);
+          if (!r || !r.code) return;
+          const names = _plannerDetailCodeToSpec(r.code);
+          if (names.color && item.specs[m.color] !== names.color) { item.specs[m.color] = names.color; changed.push(m.color); }
+          if (names.finish && item.specs[m.finish] !== names.finish) { item.specs[m.finish] = names.finish; changed.push(m.finish); }
+        });
+        return changed;
+      }
+
+      /** 다른 편집과 같은 '수정됨' 표시 (persistence-init.js 의 hasUnsavedChanges / updateSaveStatus) */
+      function _markDesignDirty() {
+        try { hasUnsavedChanges = true; } catch (err) { /* persistence-init.js 가 아직 없다 */ }
+        try { if (typeof updateSaveStatus === 'function') updateSaveStatus('saving', '수정됨'); } catch (err) { /* 표시는 선택 */ }
+      }
+
+      /**
+       * 플래너가 보낸 detail 을 품목에 받는다.
+       * 우리가 DADAM_DETAIL_SET 으로 보낸 것의 메아리(같은 모델)면 저장 상태를 건드리지 않는다.
+       * @returns {{changed:boolean, mirrored:string[]}}
+       */
+      function _applyPlannerDetailChange(item, detail) {
+        const same = !!item.detail && _plannerDetailStable(item.detail) === _plannerDetailStable(detail);
+        const mirrored = _mirrorPlannerDetailToSpecs(item, detail);
+        if (same && !mirrored.length) return { changed: false, mirrored };
+        item.detail = detail;
+        _markDesignDirty();
+        return { changed: true, mirrored };
+      }
+
+      /** 메시지를 보낸 플래너 iframe. 없으면 null */
+      function _plannerFrameOfSource(source) {
+        if (!source) return null;
+        const frames = document.querySelectorAll('iframe[data-planner]');
+        for (let i = 0; i < frames.length; i++) if (frames[i].contentWindow === source) return frames[i];
+        return null;
+      }
+
+      /** iframe 의 저장 스코프(?item=<uniqueId>, _plannerScopeParams)로 품목을 고른다. 부트스트랩·모르는 품목은 null */
+      function _plannerItemOfFrame(frame) {
+        if (!frame) return null;
+        let param = null;
+        try { param = new URL(frame.src, location.href).searchParams.get('item'); } catch (err) { param = null; }
+        if (!param || param === 'bootstrap') return null;
+        const items = window.selectedItems || selectedItems;
+        return items.find((it) => String(it.uniqueId) === param) || null;
+      }
+
+      /** 플래너에 마지막으로 넘겨 준(또는 받은) 모델의 키 정렬 JSON — 같은 모델을 다시 보내 되돌리기 이력을 더럽히지 않기 위해 */
+      const _plannerDetailSynced = new WeakMap();
+
+      window.addEventListener('message', function (e) {
+        if (!e.data || e.data.type !== 'PLANNER_DETAIL_CHANGE') return;
+        if (e.origin !== location.origin) return;   // 같은 오리진 iframe 만
+        if (!_isPlannerDetail(e.data.detail)) return;
+        const frame = _plannerFrameOfSource(e.source);
+        const item = _plannerItemOfFrame(frame);
+        if (!item) return;
+        _plannerDetailSynced.set(frame, _plannerDetailStable(e.data.detail));
+        _applyPlannerDetailChange(item, e.data.detail);
+      });
+
       function _loadPlannerEmbed(container, item) {
         // 이미 iframe이 로드되어 있으면 postMessage로 업데이트
         const specs = item.specs || {};
