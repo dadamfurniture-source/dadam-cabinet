@@ -334,6 +334,9 @@
           esc(snap.item_count) +
           ' · 부재 ' +
           esc(snap.panel_count) +
+          (snap.sheet_count !== undefined && snap.sheet_count !== null
+            ? ' · 원판 ' + esc(snap.sheet_count) + '장'
+            : '') +
           (quote ? ' · 견적 ' + krw(quote.total) : '') +
           (quote && quote.skipped && quote.skipped.length
             ? '<div style="color:#8a6d3b;margin-top:4px;">단가 미정 품목: ' +
@@ -384,14 +387,30 @@
       throw new Error('BOM 산출 결과가 없습니다. "재산출" 을 먼저 눌러 주세요.');
     }
 
+    // B4: 재단 배치(cutPlan)도 함께 동결한다. _reportData 는 ui-step1.js 가 만들므로
+    // (소유권 규칙상 손대지 않는다) 같은 materials 로 여기서 다시 계산한다 — 엔진이 결정적이라
+    // CNC 탭(ai-design-report.js)이 그린 배치와 같다. 엔진이 없으면(옛 캐시) 배치 없이 보낸다.
+    let cutPlan = null;
+    const materials = report.materials && report.materials.materials;
+    if (window.NestingEngine && Array.isArray(materials)) {
+      try {
+        cutPlan = window.NestingEngine.plan(materials);
+      } catch (e) {
+        console.warn('[Workflow] cutPlan 계산 실패 — 배치 없이 동결합니다:', e);
+        cutPlan = null;
+      }
+    }
+
     setStatus('설계와 BOM 을 동결하는 중…');
+    const body = {
+      design: report.design,
+      bom: report.materials,
+      hardware: report.hardware || {},
+    };
+    if (cutPlan) body.cutPlan = cutPlan;
     const data = await api('/designs/' + encodeURIComponent(id) + '/snapshots', {
       method: 'POST',
-      body: {
-        design: report.design,
-        bom: report.materials,
-        hardware: report.hardware || {},
-      },
+      body: body,
     });
 
     state.snapshot = data;
