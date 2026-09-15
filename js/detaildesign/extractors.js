@@ -136,6 +136,20 @@
 
       const BOM_TALL_TIER_LABEL = { bottom: '하부단', middle: '중간단', top: '상부단', single: '' };
 
+      /** 키큰장 단이 목찬넬을 짊어지는가 — 바닥 단(하부단·통짜) + 목찬넬 손잡이 스펙. 도어 H·처짐방지·목찬넬 부재가 이걸 본다. */
+      function bomTallTierHasChannel(tier, specs) {
+        const grounded = tier === 'bottom' || tier === 'single';
+        return grounded && String((specs && specs.handle) || '').includes('목찬넬');
+      }
+
+      // 키큰장 단의 도어 높이 (sink.md §5.1) — 목찬넬 단만 H−30 (목찬넬 틈, 하부장과 같다), 나머지(푸쉬)는 H−4 (도어 간격 4).
+      // 자재 행(addTallTierParts)과 경첩 수(HardwareExtractor.extractHinges)가 **같은 함수**를 쓴다 — 경첩이 하부장 가정
+      // (H−30)으로 도어 높이를 따로 셈해 푸쉬 단 경첩 수가 어긋나던 결함(bom-protocol.md §4-1).
+      function bomTallTierDoorH(mod, tier, specs) {
+        const H = parseFloat(mod && mod.h) || 0;
+        return bomTallTierHasChannel(tier, specs) ? H - 30 : H - 4;
+      }
+
       // ============================================================
       // P1-3: 상판 마감 코드 — 품목 사양 `specs.topColor`(한글) → materials.code `TOP-*`.
       // 정본은 config-constants.js FurnitureOptionCatalog._LEGACY_CODE_MAP.countertop (database/materials-catalog-v2.sql
@@ -644,7 +658,6 @@
         // ========================================
         addTallTierParts(materials, prefix, mod, tier, specs) {
           const T = this.thicknessFor(specs);
-          const isWoodChannel = (specs.handle || '').includes('목찬넬');
           const hp = (mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
           const n = (v, d) => { const x = parseFloat(v); return Number.isFinite(x) && x >= 0 ? x : d; };
           const W = parseFloat(mod.w) || 600;
@@ -655,7 +668,7 @@
           const modLabel = `${prefix}${mod.name || '키큰장'}${tierLabel ? `(${tierLabel})` : ''}`;
           const grounded = tier === 'bottom' || tier === 'single';   // 바닥에 닿는 단 — 좌대·목찬넬
           const crowned = tier === 'top' || tier === 'single';       // 천장에 닿는 단 — 상몰딩
-          const channelHere = grounded && isWoodChannel;
+          const channelHere = bomTallTierHasChannel(tier, specs);
 
           // 몸통 — 하부장과 같다 (사쿠리 없음)
           this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
@@ -670,8 +683,8 @@
           if (shelfQty > 0) {
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), shelfQty, '1면(전)');
           }
-          // 도어 — 목찬넬 단만 H−30, 나머지는 푸쉬 H−4
-          const doorH = channelHere ? H - 30 : H - 4;
+          // 도어 — 목찬넬 단만 H−30, 나머지는 푸쉬 H−4 (bomTallTierDoorH — 경첩 수도 같은 높이를 본다)
+          const doorH = bomTallTierDoorH(mod, tier, specs);
           if (isBlindModule(mod, 'lower')) {
             const blindDoorW = (parseFloat(mod.doorW) || W) - 4;
             this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, doorH, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준)', mod);
@@ -895,8 +908,9 @@
           //   두께 = specs.topThickness (bom-protocol.md §2: 인조대리석 12/50 · 도어자재 18). 자재는 두께로 가른다 —
           //   18 이면 도어자재(MDF), 아니면 인조대리석. 마감 코드는 디테일 모델 top 슬롯 > specs.topColor 의 TOP-* (add()).
           //   폭 = 하부 라인 폭 + 좌·우 마감 폭 (상판은 마감재 위를 지나간다 — 3D 는 영역 전폭 그대로). 깊이 = 품목 깊이(배치 깊이).
-          //   [확인 필요] 오버행·물끊기·개수대/쿡탑 타공은 규칙이 없다 (계획 B2). ㄱ·ㄷ자는 라인마다 나눠야 하지만 브리지가
-          //   배치 공간을 넘기지 않아 한 장(폭 합)으로 낸다 — scene-bom-ledger.md §4 P3-10 (부재 모델이 런을 알면 나눈다).
+          //   [확인 필요] 오버행·물끊기·개수대/쿡탑 타공은 규칙이 없다 (계획 B2).
+          //   **품목당 한 장**이다 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화이고,
+          //   ㄱ·ㄷ자도 발주는 폭 합 한 장이다 (scene-bom-ledger.md §4 항목 3 · 허용 목록 `ep|top` 은 의도된 차이로 남는다).
           //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
           const topLineW = (item.modules || [])
             .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
@@ -1436,7 +1450,8 @@
           };
         }
 
-        // 경첩 수 계산
+        // 경첩 수 계산 — bom-protocol.md §4-1 · ACTIVE_RULES.md §9.1: ≤900 → 2구, 901~1600 → 3구, 1601+ → 4구.
+        //   문턱은 **재단 도어 높이**(자재 행의 h) 기준이다 — 몸통 H 가 아니다.
         getHingeCount(doorH) {
           if (doorH <= 900) return 2;
           if (doorH <= 1600) return 3;
@@ -1458,9 +1473,18 @@
             const doorCount = mod.doorCount || 0;
             if (doorCount === 0) return;
 
+            // 도어 높이 = 자재 행이 낸 재단 도어 높이와 같아야 한다 (bom-protocol.md §4-1).
+            //   상부   H + 내림(overlap)
+            //   하부   H − 30 (목찬넬 틈)
+            //   키큰장 단(싱크 하부 라인 `type:'tall'`, sink.md §5.1)  bomTallTierDoorH — 목찬넬 단 H−30 / 푸쉬 단 H−4.
+            //          예전엔 `pos lower → H−30` 으로 떨어져 푸쉬 단(H−4)의 경첩 수·보링이 자재 행과 어긋났다
+            //          (몸통 H 905~930 · 1605~1630 구간에서 도어마다 경첩 한 개가 빠진다).
+            //   그 밖(붙박이·냉장고장 — pos 없음)  H 그대로 (예전과 같다)
             let doorH;
             const upperOverlap = parseFloat(specs.upperDoorOverlap) || 15;
-            if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + upperOverlap;
+            const tallTier = mod.pos === 'lower' ? bomTallTierOf(mod) : null;
+            if (tallTier) doorH = bomTallTierDoorH(mod, tallTier, specs);
+            else if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + upperOverlap;
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
 
