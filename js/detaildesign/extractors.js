@@ -201,6 +201,53 @@
 
       const BOM_FINISH_LEVEL_RANK = { part: 0, module: 1, section: 2, item: 3 };
 
+      // ============================================================
+      // B1: 엣지밴딩을 길이로 — bom-protocol.md §7-2
+      //
+      // 엣지 문자열(`4면`·`3면`·`2면(장)`·`2면(가로)`·`1면(전)`·`1면(장)`·`-`)은 그대로 두고(I4), 붙이는 변을
+      // **기하로** 정한다: L/R 은 세로(h) 변, T/B 는 가로(w) 변. 길이는 그 변의 치수다.
+      //   4면        네 변 전부
+      //   3면        긴 변 하나 + 짧은 변 둘 — 측판이면 앞(L) + 위(T)·아래(B), 뒤는 벽·뒷판 쪽이라 안 붙인다
+      //   2면(장)    긴 변 둘
+      //   2면(가로)  가로 변 둘 (T·B) — 홈카페장 천·지·뒷판
+      //   1면(전)·1면(장)·1면  긴 변 하나(전면)   [확인 필요] 좌대 측처럼 짧은 변이 앞인 부재는 길이가 조금 과하다
+      //   - / 모르는 값  없음
+      // 세로가 길면(h>w) 긴 변은 L/R, 아니면 T/B 다.
+      //
+      // toCNC() 의 1면·2면 열은 옛 관례(1면→L, 2면→w>h ? L,R : T,B) 그대로 둔다 — CNC 기종·파일 관례를 확인하기
+      // 전엔 바꾸지 않는다 (§7 표에 차이를 적어 두었다). 이 함수는 길이·요약용이다.
+      //
+      // edgeT  두께: 도어·서랍전판(MDF 18T 전면) 1.0, 나머지 0.6 (§2 "도어 1mm / 본체 0.6mm").
+      // edgeCode 밴드 색: 전면·마감재는 면과 같은 마감이라 그 행의 finishCode, 몸통·바닥·손잡이는 null.
+      // ============================================================
+      function bomEdgeSidesOf(edge, w, h) {
+        const e = String(edge || '').trim();
+        const tall = h > w;
+        const sides = { L: false, R: false, T: false, B: false };
+        if (e === '4면') {
+          sides.L = sides.R = sides.T = sides.B = true;
+        } else if (e === '3면') {
+          if (tall) { sides.L = sides.T = sides.B = true; } else { sides.T = sides.L = sides.R = true; }
+        } else if (e.indexOf('2면(가로)') === 0) {
+          sides.T = sides.B = true;
+        } else if (e.indexOf('2면') === 0) {
+          if (tall) { sides.L = sides.R = true; } else { sides.T = sides.B = true; }
+        } else if (e.indexOf('1면') === 0) {
+          if (tall) sides.L = true; else sides.B = true;
+        }
+        return sides;
+      }
+
+      function bomEdgeLenOf(sides, w, h) {
+        return Math.round((sides.L ? h : 0) + (sides.R ? h : 0) + (sides.T ? w : 0) + (sides.B ? w : 0));
+      }
+
+      function bomEdgeThicknessOf(slot) {
+        return (slot === 'door' || slot === 'drawerFront') ? 1.0 : 0.6;
+      }
+
+      const BOM_EDGE_CODE_SLOTS = ['door', 'drawerFront', 'finishing'];
+
       class MaterialExtractor {
         // W12-1: 제조 표준은 data-constants.js 가 정본.
         // Jest/Node 에서는 그 파일이 로드되지 않으므로 같은 값을 폴백으로 둔다
@@ -281,6 +328,8 @@
           return {
             materials,
             summary: this.calculateSummary(materials),
+            // B1: 엣지밴딩 총길이 — 두께별 { '1': mm, '0.6': mm }. summary 옆에 두는 이유는 calculateEdgeBanding 주석.
+            edgeBanding: this.calculateEdgeBanding(materials),
             extractDate: new Date().toISOString(),
           };
         }
@@ -408,13 +457,16 @@
             // 몸통·상판·손잡이·마감재·걸레받이: 디테일 모델이 정한 때만 코드. 자재·비고는 그대로.
             finishCode = resolved.code;
           }
+          const W = Math.round(w);
+          const H = Math.round(h);
+          const edges = bomEdgeSidesOf(edge, W, H);
           arr.push({
             module,
             part,
             material,
             thickness,
-            w: Math.round(w),
-            h: Math.round(h),
+            w: W,
+            h: H,
             qty,
             edge,
             note,
@@ -423,6 +475,11 @@
             // B1: 부재 식별자 + 슬롯 (bom-protocol.md §7-1)
             partId,
             slot,
+            // B1: 엣지밴딩 — 변·길이(장당 mm)·두께·밴드 마감 (bom-protocol.md §7-2). 문자열 edge 는 그대로.
+            edges,
+            edgeLen: bomEdgeLenOf(edges, W, H),
+            edgeT: bomEdgeThicknessOf(slot),
+            edgeCode: (BOM_EDGE_CODE_SLOTS.indexOf(slot) >= 0 && finishCode) ? finishCode : null,
           });
         }
 
@@ -1099,6 +1156,22 @@
         }
 
         // ========================================
+        // B1: 엣지밴딩 총길이(mm) — 두께별. { '1': Σ 전면 edgeLen×qty, '0.6': Σ 나머지 }.
+        //   summary 안에 넣지 않는다: ai-design-report.js(:72, :2839)·워커 snapshots.js 가 summary 값을
+        //   전부 `{material, thickness, totalArea, panelCount}` 로 순회해 표를 그리므로 다른 모양의 키가
+        //   들어가면 깨진 행이 생긴다. extract() 결과의 형제 키 `edgeBanding` 으로 둔다 (add-only).
+        // ========================================
+        calculateEdgeBanding(materials) {
+          const out = {};
+          materials.forEach((m) => {
+            const t = String(m.edgeT != null ? m.edgeT : bomEdgeThicknessOf(m.slot));
+            const len = (Number(m.edgeLen) || 0) * (Number(m.qty) || 0);
+            out[t] = (out[t] || 0) + len;
+          });
+          return out;
+        }
+
+        // ========================================
         // CSV 출력
         // ========================================
         toCSV(materials) {
@@ -1609,6 +1682,7 @@
           // B1 도우미 — 시험이 표·해석기를 직접 본다
           BOM_PART_DEFS, bomPartDefOf,
           BOM_PART_KEY_ALIASES, bomFinishResolveEmbedded, bomFinishCandidates, bomDetailOf,
+          bomEdgeSidesOf, bomEdgeLenOf, bomEdgeThicknessOf,
         };
       }
 
