@@ -143,6 +143,192 @@ describe('FurnitureOptionCatalog — v2 SQL 적용 DB 에서 load()', () => {
   });
 });
 
+// C2: 예림 LUX 시드(materials-yerim-lux-seed.sql) 모양의 행 + 옛 7색 + PET 계열
+const YERIM_ROWS = [
+  { category: 'door_material', slot: ['door', 'drawer_front'], applicable_to: ['sink', 'wardrobe', 'fridge'], vendor: 'yerim', series: 'Supreme', finish: 'Supreme PET Matt',
+    code: 'YR-SM-01', vendor_code: 'SM-01', tone: 'matte', color_name: '매트 화이트', color_hex: '#fbfbfb', sort: 1030, sort_order: 1030 },
+  { category: 'door_material', slot: ['door', 'drawer_front'], applicable_to: ['sink', 'wardrobe', 'fridge'], vendor: 'yerim', series: 'Supreme', finish: 'Supreme PET Matt',
+    code: 'YR-SM-02', vendor_code: 'SM-02', tone: 'matte', color_name: '매트 그레이', color_hex: '#a9a9a9', sort: 1031, sort_order: 1031 },
+  { category: 'door_material', slot: ['door', 'drawer_front'], applicable_to: ['sink', 'wardrobe', 'fridge'], vendor: 'yerim', series: 'Supreme', finish: 'Supreme PET Glossy',
+    code: 'YR-U1802', vendor_code: 'U1802', tone: 'gloss', color_name: '글로시 다크그레이', color_hex: '#5b5758', sort: 1060, sort_order: 1060 },
+  { category: 'door_material', slot: ['door', 'drawer_front'], applicable_to: ['sink', 'wardrobe', 'fridge'], vendor: 'yerim', series: 'Prime', finish: 'Prime MFB',
+    code: 'YR-KM-01', vendor_code: 'KM-01', tone: 'single', color_name: '스노우 화이트', color_hex: '#f7f7f7', sort: 1100, sort_order: 1100 },
+  { category: 'body_material', slot: ['body'], applicable_to: ['sink', 'wardrobe', 'fridge'], vendor: 'yerim', series: 'Body', finish: 'Body MFC',
+    code: 'YR-F200', vendor_code: 'F200', tone: 'single', color_name: '소프트 화이트 (방염)', color_hex: '#fdfeff', sort: 2000, sort_order: 2000 },
+  // 옛 7색 중 둘 (vendor 없음) + v2 PET 계열 (vendor 없음, code 있음) + code 없는 옛 행
+  { category: 'door', slot: ['door'], applicable_to: ['sink'], code: 'NVY', color_name: '네이비', color_hex: '#1a237e', sort_order: 6 },
+  { category: 'door', slot: ['door'], applicable_to: ['sink', 'wardrobe', 'fridge'], code: 'WHT', color_name: '화이트', color_hex: '#f5f5f5', sort_order: 1 },
+  { category: 'door_material', slot: ['door', 'drawer_front'], code: 'PET-OAK-M', tone: 'matte', color_name: 'PET 매트 · 오크', color_hex: '#d1b089', sort_order: 9000 },
+  { category: 'door', slot: ['door'], color_name: '코드없음', color_hex: '#000000', sort_order: 9999 },
+  { category: 'countertop', slot: ['top'], code: 'TOP-SNW', tone: 'gloss', color_name: '스노우', color_hex: '#FAFAFA', sort_order: 1 },
+];
+
+describe('FurnitureOptionCatalog — C2 optgroupsFor / 도어 코드 파생', () => {
+  let C;
+  beforeEach(async () => {
+    C = loadCatalog({ supabaseUtils: fakeSupabase(YERIM_ROWS) });
+    await C.load();
+  });
+
+  test('load() 가 vendor · series · vendor_code · sort 를 보존한다', () => {
+    expect(C.byCode('YR-SM-01')).toMatchObject({ vendor: 'yerim', series: 'Supreme', vendor_code: 'SM-01', finish: 'Supreme PET Matt', tone: 'matte', sort: 1030 });
+    expect(C.byCode('WHT')).toMatchObject({ vendor: null, series: null, vendor_code: null, sort: 1 });
+    expect(C.options.body_material.map(o => o.code)).toEqual(['YR-F200']);
+  });
+
+  test('optgroupsFor(door) — 예림 시리즈·소재 그룹이 행 순서대로 먼저, 기타(호환)가 마지막', () => {
+    const groups = C.optgroupsFor('door');
+    expect(groups.map(g => g.label)).toEqual(['예림 Supreme · PET Matt', '예림 Supreme · PET Glossy', '예림 Prime · MFB', '기타(호환)']);
+    expect(groups[0].options).toEqual([
+      { code: 'YR-SM-01', label: '매트 화이트 (SM-01)', name: '매트 화이트', hex: '#fbfbfb', tone: 'matte', vendor: 'yerim' },
+      { code: 'YR-SM-02', label: '매트 그레이 (SM-02)', name: '매트 그레이', hex: '#a9a9a9', tone: 'matte', vendor: 'yerim' },
+    ]);
+    // 기타(호환): 옛 색 행은 무광·유광 두 합성 옵션(C2b, WHT-M · WHT-G), PET-OAK-M 은 제 코드. code 없는 행은 빠진다. 바디재(body 슬롯)는 안 섞인다
+    const compat = groups[groups.length - 1];
+    // 카테고리 버킷 순서가 아니라 sort_order 순 (WHT 1 · NVY 6 · PET-OAK-M 9000), 색 안에서는 무광 → 유광
+    expect(compat.options.map(o => [o.code, o.label])).toEqual([
+      ['WHT-M', '화이트 · 무광'], ['WHT-G', '화이트 · 유광'],
+      ['NVY-M', '네이비 · 무광'], ['NVY-G', '네이비 · 유광'],
+      ['PET-OAK-M', 'PET 매트 · 오크'],
+    ]);
+    expect(compat.options[0]).toEqual({ code: 'WHT-M', label: '화이트 · 무광', name: '화이트', hex: '#f5f5f5', tone: 'matte', vendor: null });
+    expect(compat.options[1]).toEqual({ code: 'WHT-G', label: '화이트 · 유광', name: '화이트', hex: '#f5f5f5', tone: 'gloss', vendor: null });
+    // 합성 코드는 materials.code 가 아니다 — 행 조회로는 못 찾는다
+    expect(C.byCode('WHT-M')).toBeNull();
+    expect(C.byCode('WHT-G')).toBeNull();
+    expect(groups.flatMap(g => g.options).some(o => o.code === 'YR-F200')).toBe(false);
+  });
+
+  test('optgroupsFor — category · furnitureType 으로 거른다, 바디 슬롯은 Body 그룹', () => {
+    expect(C.optgroupsFor('door', 'door_material').map(g => g.label)).toEqual(['예림 Supreme · PET Matt', '예림 Supreme · PET Glossy', '예림 Prime · MFB', '기타(호환)']);
+    expect(C.optgroupsFor('door', 'door_material').at(-1).options.map(o => o.code)).toEqual(['PET-OAK-M']);
+    // 네이비는 sink 전용 → wardrobe 에선 빠진다
+    expect(C.optgroupsFor('door', null, 'wardrobe').at(-1).options.map(o => o.code)).toEqual(['WHT-M', 'WHT-G', 'PET-OAK-M']);
+    expect(C.optgroupsFor('body').map(g => [g.label, g.options.map(o => o.code)])).toEqual([['예림 Body · MFC', ['YR-F200']]]);
+    expect(C.optgroupsFor('kick')).toEqual([]);
+  });
+
+  test('내장 폴백만 있을 때는 기타(호환) 한 그룹 — 7색 × 무광·유광 = 14 옵션 (C2b)', () => {
+    const F = loadCatalog();
+    const groups = F.optgroupsFor('door');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe('기타(호환)');
+    expect(groups[0].options).toHaveLength(14);
+    expect(groups[0].options.map(o => o.code)).toEqual([
+      'WHT-M', 'WHT-G', 'GRY-M', 'GRY-G', 'BGE-M', 'BGE-G', 'WNT-M', 'WNT-G', 'OAK-M', 'OAK-G', 'NVY-M', 'NVY-G', 'BLK-M', 'BLK-G',
+    ]);
+    expect(groups[0].options[0]).toMatchObject({ label: '화이트 · 무광', name: '화이트', hex: '#f5f5f5', tone: 'matte' });
+    expect(groups[0].options[1]).toMatchObject({ label: '화이트 · 유광', name: '화이트', hex: '#f5f5f5', tone: 'gloss' });
+    // 톤만 있는 door_finish 행(TONE-M/G/E)은 도어 셀렉트에 안 나온다
+    expect(groups[0].options.some(o => /^TONE-/.test(o.code))).toBe(false);
+    // 옛 7색 코드 자체(WHT)는 더 이상 옵션이 아니다 — 톤을 잃는 선택을 막는다
+    expect(groups[0].options.some(o => o.code === 'WHT')).toBe(false);
+  });
+
+  test('v2 SQL 이 slot=[door] 를 준 TONE-M/G/E 행은 기타(호환)에 섞이지 않는다', async () => {
+    const T = loadCatalog({ supabaseUtils: fakeSupabase([
+      ...YERIM_ROWS,
+      { category: 'door_finish', slot: ['door'], code: 'TONE-M', tone: 'matte', color_name: '무광', sort_order: 101 },
+      { category: 'door_finish', slot: ['door'], code: 'TONE-G', tone: 'gloss', color_name: '유광', sort_order: 102 },
+      { category: 'door_finish', slot: ['door'], code: 'TONE-E', color_name: '엠보', sort_order: 103 },
+    ]) });
+    await T.load();
+    expect(T.byCode('TONE-G').name_ko).toBe('유광');                       // 행 자체는 실려 있다 (codeFor('door_finish') 용)
+    const codes = T.optgroupsFor('door').flatMap(g => g.options.map(o => o.code));
+    expect(codes.filter(c => /^TONE-/.test(c))).toEqual([]);
+    expect(codes).toEqual(['YR-SM-01', 'YR-SM-02', 'YR-U1802', 'YR-KM-01', 'WHT-M', 'WHT-G', 'NVY-M', 'NVY-G', 'PET-OAK-M']);
+  });
+
+  test('buildOptgroupsHtml — optgroup/option 마크업, 선택값, 없으면 안내 option', () => {
+    const html = C.buildOptgroupsHtml('door', 'yr-sm-02');
+    expect(html).toContain('<optgroup label="예림 Supreme · PET Matt">');
+    expect(html).toContain('<option value="YR-SM-02" selected data-hex="#a9a9a9" data-tone="matte">매트 그레이 (SM-02)</option>');
+    expect(html).toContain('<optgroup label="기타(호환)">'
+      + '<option value="WHT-M" data-hex="#f5f5f5" data-tone="matte">화이트 · 무광</option>'
+      + '<option value="WHT-G" data-hex="#f5f5f5" data-tone="gloss">화이트 · 유광</option>'
+      + '<option value="NVY-M" data-hex="#1a237e" data-tone="matte">네이비 · 무광</option>'
+      + '<option value="NVY-G" data-hex="#1a237e" data-tone="gloss">네이비 · 유광</option>');
+    expect(html).not.toContain('— 선택 —');
+    expect(C.buildOptgroupsHtml('door', 'wht-g')).toContain('<option value="WHT-G" selected data-hex="#f5f5f5" data-tone="gloss">화이트 · 유광</option>');
+    expect(C.buildOptgroupsHtml('door', null)).toMatch(/^<option value="" selected disabled>— 선택 —<\/option><optgroup/);
+    expect(C.buildOptgroupsHtml('door', 'ZZZ')).toContain('— 선택 —');
+    // 옛 색 코드 그대로는 옵션이 없어 안내가 붙는다 — 미리 고르기는 doorSelectCode 가 WHT-M/G 로 바꿔 준다
+    expect(C.buildOptgroupsHtml('door', 'WHT')).toContain('— 선택 —');
+  });
+
+  test('doorSpecForCode — color_name 과 톤(gloss→유광, 그 밖→무광). 모르는 코드는 null', () => {
+    expect(C.doorSpecForCode('YR-SM-01')).toEqual({ code: 'YR-SM-01', color: '매트 화이트', finish: '무광', hex: '#fbfbfb', tone: 'matte' });
+    expect(C.doorSpecForCode('yr-u1802')).toMatchObject({ code: 'YR-U1802', color: '글로시 다크그레이', finish: '유광' });
+    expect(C.doorSpecForCode('YR-KM-01')).toMatchObject({ finish: '무광', tone: 'single' });   // 단톤 → 무광 기본
+    expect(C.doorSpecForCode('WHT')).toMatchObject({ color: '화이트', finish: '무광', tone: null });
+    expect(C.doorSpecForCode('NOPE')).toBeNull();
+    expect(C.doorSpecForCode('')).toBeNull();
+  });
+
+  test('doorSpecForCode — 기타(호환) 합성 코드 WHT-M / WHT-G (C2b): 색은 옛 색 행, 마감은 접미사', () => {
+    expect(C.doorSpecForCode('WHT-G')).toEqual({ code: 'WHT-G', color: '화이트', finish: '유광', hex: '#f5f5f5', tone: 'gloss' });
+    expect(C.doorSpecForCode('wht-m')).toEqual({ code: 'WHT-M', color: '화이트', finish: '무광', hex: '#f5f5f5', tone: 'matte' });
+    expect(C.doorSpecForCode(' nvy-g ')).toMatchObject({ code: 'NVY-G', color: '네이비', finish: '유광' });
+    // 옛 색 행이 아닌 접두사·다른 접미사·PET 3조각 꼴은 합성 코드가 아니다
+    expect(C.doorSpecForCode('NOPE-G')).toBeNull();
+    expect(C.doorSpecForCode('WHT-E')).toBeNull();
+    expect(C.doorSpecForCode('WHT-X')).toBeNull();
+    expect(C.doorSpecForCode('PET-OAK-G')).toBeNull();
+    expect(C.doorSpecForCode('YR-SM-01-G')).toBeNull();
+    expect(C.doorSpecForCode('TOP-SNW-G')).toBeNull();
+    expect(C.doorSpecForCode('YR-G')).toBeNull();
+    // 진짜 행이 있는 코드는 언제나 행이 이긴다 (내장 폴백의 TONE-G 는 door_finish 행 — 'TONE' 은 색 행이 아니므로 합성 파싱도 안 된다)
+    const F = loadCatalog();
+    expect(F.doorSpecForCode('TONE-G')).toMatchObject({ code: 'TONE-G', color: '유광' });
+    expect(F.doorSpecForCode('BLK-G')).toMatchObject({ code: 'BLK-G', color: '블랙', finish: '유광', hex: '#2c2c2c' });
+  });
+
+  test('doorSelectCode — 새 키 우선, 없으면 옛 한글 색·마감을 기타(호환) 합성 코드로 (유광 → -G, 그 밖 → -M)', () => {
+    expect(C.doorSelectCode({ doorMaterialUpper: 'yr-sm-01', doorColorUpper: '화이트', doorFinishUpper: '유광' }, 'upper')).toBe('YR-SM-01');
+    expect(C.doorSelectCode({ doorMaterialUpper: 'WHT-M', doorColorUpper: '화이트', doorFinishUpper: '유광' }, 'upper')).toBe('WHT-M');   // 새 키가 정본
+    expect(C.doorSelectCode({ doorMaterialUpper: null, doorColorUpper: '화이트' }, 'upper')).toBe('WHT-M');
+    expect(C.doorSelectCode({ doorMaterialUpper: null, doorColorUpper: '화이트', doorFinishUpper: '무광' }, 'upper')).toBe('WHT-M');
+    expect(C.doorSelectCode({ doorMaterialUpper: null, doorColorUpper: '화이트', doorFinishUpper: '유광' }, 'upper')).toBe('WHT-G');
+    expect(C.doorSelectCode({ doorColorLower: '네이비', doorFinishLower: '엠보' }, 'lower')).toBe('NVY-M');
+    expect(C.doorSelectCode({ doorColorLower: '네이비', doorFinishLower: '유광' }, 'lower')).toBe('NVY-G');
+    // 옛 색 코드가 doorMaterial* 에 그대로 실려 있으면(플래너가 WHT 를 보낸 경우) 마감을 붙여 준다
+    expect(C.doorSelectCode({ doorMaterialUpper: 'WHT', doorFinishUpper: '유광' }, 'upper')).toBe('WHT-G');
+    expect(C.doorSelectCode({ doorMaterialUpper: 'wht' }, 'upper')).toBe('WHT-M');
+    expect(C.doorSelectCode({ doorColorLower: '핑크' }, 'lower')).toBeNull();
+    expect(C.doorSelectCode({ doorFinishLower: '유광' }, 'lower')).toBeNull();
+    expect(C.doorSelectCode({}, 'upper')).toBeNull();
+  });
+
+  test('doorSwatchHtml — 합성 코드도 옛 색 행의 hex 와 이름으로', () => {
+    expect(C.doorSwatchHtml('WHT-G')).toContain('background:#f5f5f5');
+    expect(C.doorSwatchHtml('WHT-G')).toContain('title="화이트"');
+    expect(C.doorSwatchHtml('YR-SM-02')).toContain('background:#a9a9a9');
+    expect(C.doorSwatchHtml('NOPE-G')).toContain('background:#e5e7eb');
+  });
+
+  test('buildDoorMaterialFieldHtml — 견본 + updateDoorMaterial 셀렉트', () => {
+    const html = C.buildDoorMaterialFieldHtml(42, 'upper', { doorMaterialUpper: 'YR-SM-02' }, 'sink', 'font-size:10px;');
+    expect(html).toContain('background:#a9a9a9');
+    expect(html).toContain(`onchange="updateDoorMaterial(42, 'upper', this.value)"`);
+    expect(html).toContain('data-group="upper"');
+    expect(html).toContain('font-size:10px;');
+    expect(html).toContain('<option value="YR-SM-02" selected');
+    // 옛 설계(코드 없음)는 한글 색·마감으로 기타(호환) 합성 옵션을 미리 고른다 (마감 없음 → 무광)
+    const legacy = C.buildDoorMaterialFieldHtml(7, 'item', { doorColorUpper: '화이트' }, 'wardrobe');
+    expect(legacy).toContain('<option value="WHT-M" selected');
+    expect(legacy).toContain(`updateDoorMaterial(7, 'item', this.value)`);
+    expect(legacy).not.toContain('value="NVY-');    // wardrobe 에는 네이비가 없다
+    // C2b: 과거 '화이트 · 유광' 설계는 유광 옵션이 미리 골라진다 — 셀렉트를 건드려도 유광을 잃지 않는다
+    const gloss = C.buildDoorMaterialFieldHtml(7, 'upper', { doorColorUpper: '화이트', doorFinishUpper: '유광' }, 'sink');
+    expect(gloss).toContain('<option value="WHT-G" selected data-hex="#f5f5f5" data-tone="gloss">화이트 · 유광</option>');
+    expect(gloss).not.toContain('<option value="WHT-M" selected');
+    expect(gloss).toContain('background:#f5f5f5');
+    expect(gloss).not.toContain('— 선택 —');
+    // 아무 것도 모르면 빈 견본 + 안내
+    expect(C.buildDoorMaterialFieldHtml(1, 'lower', {}, 'sink')).toContain('— 선택 —');
+  });
+});
+
 describe('FurnitureOptionCatalog — iframe 카탈로그 브리지', () => {
   test('window message 리스너가 한 번 설치된다', () => {
     const spy = jest.spyOn(window, 'addEventListener');

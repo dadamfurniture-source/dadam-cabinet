@@ -95,6 +95,10 @@
         doorFinishUpper: '무광',
         doorColorLower: '화이트',
         doorFinishLower: '무광',
+        // C2: 도어 마감 카탈로그 코드 (materials.code — YR-SM-01 · WHT …). null = 옛 방식(위 한글 색·톤이 정본).
+        //     셀렉트가 바꾸면 위 doorColor*/doorFinish* 는 코드에서 파생돼 같이 채워진다 (ui-step1.js updateDoorMaterial).
+        doorMaterialUpper: null,
+        doorMaterialLower: null,
         topColor: '스노우',
         topThickness: 12,
         // W12-1: 몸통 두께 — 15T 기본, 18T 선택 가능 (BODY_THICKNESS_OPTIONS)

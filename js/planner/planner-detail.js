@@ -17,14 +17,22 @@
 //   (부모(detaildesign)가 아직 안 받아도 무해하다 — 받는 쪽은 D1, Design UI 도메인)
 //   되돌리기: JSON 사본 10장 (undoStack)
 //
-// 카탈로그: window.DadamBomFinishColor (js/detaildesign/bom-finish-color.js 를 script 로 싣는다).
-//   없으면 planner-finish.js 의 폴백(같은 코드)으로 간다 — 팔레트 머리에 "폴백" 을 표시한다.
+// 카탈로그 (D2): planner-catalog.js 가 materials 표(예림 LUX 144 + 상판)를 읽어 그룹으로 준다.
+//   DB 를 못 읽으면 bom-finish-color.js 의 구 7×7 만 남는다 (fallback:true, 머리에 표시).
+//   mount 는 동기로 캐시/로컬 정본을 먼저 그리고, PlannerCatalog.load() 가 끝나면 갈아 끼운다.
+//
+// 3D (D2, R1 실시간): 모드에 들어갈 때만 renderer 를 sRGB·ACES·환경광(RoomEnvironment PMREM)으로
+//   바꾸고 직사광을 낮춘다(applyScene). paintScene 은 부재 mesh 의 재질을 코드별 PBR
+//   (planner-materials.js, 색+광택)로 **바꿔 끼운다** — 원래 재질은 userData._origMaterial 에 둔다.
+//   나갈 때 renderer·scene·조명 값을 **저장해 둔 값 그대로** 되돌린다 (I2: 구조 모드는 바이트 동일).
+//   three 가 없으면(jsdom) D0 처럼 material.color 만 덮는다.
 //
 // 페이지가 넘기는 것 (PlannerDetail.mount(o)):
 //   modules()        지금 모듈 목록 (섹션을 알기 위해)
 //   renderAll3D(opt) 3D 다시 그리기 — 모드 진입·이탈·칠하기 뒤에 부른다
 //   toast(text)      알림
 //   sectionLabel(s)  섹션 → 사람이 읽는 이름 (없으면 섹션 키 그대로)
+//   three()          { renderer, scene, camera, controls, moduleGroup } — init3D 전이면 null
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_DETAIL_ / plannerDetail / PlannerDetail 접두.
 //   HTML 인라인은 mount 와 두 훅(handleEntityClick → pickMesh, renderAll3D → paintScene)만 건다.
@@ -58,13 +66,24 @@ body.detail-mode #loadDrawingBtn,body.detail-mode #saveDrawingBtn{display:none}
 .pd-bulk button:disabled,.pd-tools button:disabled,.pd-card-actions button:disabled{opacity:.4;cursor:not-allowed}
 .pd-hint{font-size:10px;color:var(--text-faint,#a89c84);line-height:1.5}
 .pd-tools{display:flex;align-items:center;justify-content:space-between;gap:6px}
-.pd-group-title{font-size:10.5px;font-weight:600;color:var(--text-dim,#7a7062);margin:4px 0 3px}
-.pd-swatches{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.pd-swatch{position:relative;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.2);cursor:pointer;padding:0;font-family:inherit}
+.pd-search{width:100%;box-sizing:border-box;border:1px solid var(--line,#e5e0d4);border-radius:6px;padding:4px 8px;font-size:11px;font-family:inherit;color:var(--text,#2b2620);background:#fff}
+.pd-groups{display:flex;flex-direction:column;gap:4px}
+.pd-group{border:1px solid var(--line,#e5e0d4);border-radius:6px;background:#fff;padding:0 6px 6px}
+.pd-group[open]{padding-bottom:6px}
+.pd-group:not([open]){padding-bottom:0}
+.pd-group summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 0;font-size:10.5px;font-weight:600;color:var(--text-dim,#7a7062)}
+.pd-group summary::-webkit-details-marker{display:none}
+.pd-group summary::before{content:'▸';font-size:9px;margin-right:4px;color:var(--text-faint,#a89c84)}
+.pd-group[open] summary::before{content:'▾'}
+.pd-group summary .pd-count{font-weight:500;color:var(--text-faint,#a89c84)}
+.pd-group.compat summary{color:var(--text-faint,#a89c84)}
+.pd-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.pd-swatch{position:relative;display:flex;flex-direction:column;gap:2px;border-radius:5px;border:1px solid rgba(0,0,0,.12);cursor:pointer;padding:2px;font-family:inherit;background:#fff;text-align:center;min-width:0}
 .pd-swatch:hover{transform:translateY(-1px)}
 .pd-swatch.on{outline:2px solid var(--pick,#1d6fe0);outline-offset:1px}
-.pd-swatch .pd-code{position:absolute;left:0;right:0;bottom:1px;font-size:7.5px;text-align:center;color:rgba(0,0,0,.55);mix-blend-mode:multiply;pointer-events:none}
-.pd-swatch.dark .pd-code{color:rgba(255,255,255,.75);mix-blend-mode:normal}
+.pd-swatch .pd-chipbox{height:22px;border-radius:4px;border:1px solid rgba(0,0,0,.18)}
+.pd-swatch .pd-name{font-size:8.5px;line-height:1.15;color:var(--text,#2b2620);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd-swatch .pd-code{font-size:7.5px;color:var(--text-faint,#a89c84);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pd-card{display:flex;flex-direction:column;gap:6px;font-size:11px}
 .pd-card-title{font-weight:700;color:var(--brand-deep,#6a4b2a)}
 .pd-card-row{display:flex;align-items:center;gap:6px}
@@ -126,8 +145,15 @@ const PlannerDetail = {
   slot: 'door',
   picked: null,
   undoStack: [],
+  /** 팔레트 검색어 · 그룹 접힘 상태 (키 → open). 다시 그려도 남는다. */
+  query: '',
+  groupOpen: {},
   _o: null,
   _prevTitle: null,
+  /** applyScene(true) 가 바꾸기 전 값. null 이면 씬을 건드리지 않은 상태다. */
+  _sceneSaved: null,
+  /** 환경맵을 만드는 함수 — 시험이 갈아 끼운다. 기본은 RoomEnvironment PMREM. */
+  _makeEnv: null,
 
   key() {
     return (typeof scopedKey === 'function') ? scopedKey(PLANNER_DETAIL_KEY_BASE) : PLANNER_DETAIL_KEY_BASE;
@@ -137,7 +163,9 @@ const PlannerDetail = {
   mount(o) {
     this._o = o || {};
     plannerDetailInjectCss();
-    this.catalog = plannerFinishCatalog(typeof window !== 'undefined' ? window.DadamBomFinishColor : null);
+    // 카탈로그: 캐시/로컬 정본으로 먼저 그리고, DB 를 읽어 오면 갈아 끼운다 (planner-catalog.js).
+    this.catalog = this.catalogSync();
+    this.loadCatalog();
     this.detail = this.load();
     const pill = document.getElementById('detailStageBtn');
     if (pill) pill.onclick = () => this.toggle();
@@ -153,6 +181,43 @@ const PlannerDetail = {
     try { search = location.search; } catch (e) { search = ''; }
     if (plannerDetailWantsStage(search)) this.enter({ quiet: true });
     return this;
+  },
+
+  // ── 카탈로그 ────────────────────────────────────────────
+  /** 네트워크 없이 지금 쓸 카탈로그. planner-catalog.js 가 없으면 D0 의 로컬 정본. */
+  catalogSync() {
+    if (typeof PlannerCatalog !== 'undefined' && PlannerCatalog && typeof PlannerCatalog.sync === 'function') {
+      try { return PlannerCatalog.sync(); } catch (e) { /* 아래 폴백 */ }
+    }
+    return plannerFinishCatalog(typeof window !== 'undefined' ? window.DadamBomFinishColor : null);
+  },
+
+  /**
+   * DB 에서 카탈로그를 읽어 갈아 끼운다. 언제나 resolve 한다 (실패해도 지금 카탈로그 유지).
+   * 재질 캐시는 코드→재질이라 카탈로그가 바뀌면 비운다.
+   */
+  loadCatalog(opt) {
+    if (typeof PlannerCatalog === 'undefined' || !PlannerCatalog || typeof PlannerCatalog.load !== 'function') {
+      return Promise.resolve(this.catalog);
+    }
+    // 여러 번 부르면 **나중에 시작한 것**이 이긴다 — 먼저 시작한 느린 응답이 새 카탈로그를 덮지 않게.
+    const seq = (this._catalogSeq = (this._catalogSeq || 0) + 1);
+    let p;
+    try { p = PlannerCatalog.load(opt); } catch (e) { return Promise.resolve(this.catalog); }
+    return Promise.resolve(p).then((cat) => {
+      if (!cat || !Array.isArray(cat.entries) || seq !== this._catalogSeq) return this.catalog;
+      this.catalog = cat;
+      if (typeof PlannerMaterials !== 'undefined' && PlannerMaterials) { try { PlannerMaterials.dispose(); } catch (e) { /* 무해 */ } }
+      if (this.active) this.refresh();
+      return cat;
+    }, () => this.catalog);
+  },
+
+  /** 코드 → 카탈로그 항목. byCode 가 있으면 O(1), 없으면 목록 검색. */
+  entryOf(code) {
+    if (!code || !this.catalog) return null;
+    if (this.catalog.byCode) return this.catalog.byCode[code] || null;
+    return plannerFinishLookup(this.catalog, code);
   },
 
   // ── 저장소 ──────────────────────────────────────────────
@@ -241,6 +306,7 @@ const PlannerDetail = {
     const head = document.querySelector('.ml-header-title');
     if (head) { this._prevTitle = head.textContent; head.textContent = '마감 팔레트'; }
     this._syncUrl(true);
+    this.applyScene(true);   // three 가 아직 없으면 paintScene 이 처음 불릴 때 켠다
     this.refresh();
     if (!o.quiet) this.toast('🎨 디테일 모드 — 팔레트에서 마감을 고르고 3D 부재를 누르세요 (Shift+클릭 = 모듈 전체)');
     return true;
@@ -255,8 +321,95 @@ const PlannerDetail = {
     if (head && this._prevTitle != null) head.textContent = this._prevTitle;
     this._syncUrl(false);
     this.picked = null;
+    // 재질 → 원래 것, renderer·조명 → 저장해 둔 값. 그 다음 renderAll3D 가 처음부터 다시 만든다.
+    const t = this.three();
+    if (t && t.moduleGroup) this.unpaintScene(t.moduleGroup);
+    this.applyScene(false);
     this.rerender3D();   // 구조 색으로 되돌린다 — renderAll3D 가 처음부터 다시 만든다
     return true;
+  },
+
+  /** 페이지의 three 묶음. init3D 전이거나 넘기지 않았으면 null. */
+  three() {
+    if (!this._o || typeof this._o.three !== 'function') return null;
+    try { return this._o.three() || null; } catch (e) { return null; }
+  },
+
+  // ── 3D 씬 (색공간·톤매핑·환경광·조명) ────────────────────
+  /**
+   * 모드 진입: renderer 를 sRGB 출력·ACES 톤매핑으로, scene.environment 를 RoomEnvironment PMREM 으로,
+   * 직사광·주변광은 절반으로 (환경광이 채운다). 바꾸기 전 값을 전부 _sceneSaved 에 둔다.
+   * 모드 이탈(on=false): 그 값들을 **그대로** 되돌리고 환경맵을 놓는다.
+   * three 가 없으면 아무것도 하지 않고 false. 두 번 켜거나 두 번 꺼도 무해하다.
+   */
+  applyScene(on) {
+    const t = this.three();
+    const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : null;
+    if (on) {
+      if (this._sceneSaved || !t || !t.renderer || !t.scene || !T) return false;
+      const r = t.renderer, s = t.scene;
+      const saved = {
+        outputColorSpace: r.outputColorSpace,
+        toneMapping: r.toneMapping,
+        toneMappingExposure: r.toneMappingExposure,
+        environment: s.environment,
+        lights: [],
+        envTarget: null,
+      };
+      try {
+        (s.children || []).forEach((ch) => {
+          if (ch && (ch.isDirectionalLight || ch.isAmbientLight || ch.isHemisphereLight)) {
+            saved.lights.push({ light: ch, intensity: ch.intensity });
+          }
+        });
+      } catch (e) { /* children 이 없으면 조명도 없다 */ }
+      this._sceneSaved = saved;
+      try {
+        if (T.SRGBColorSpace !== undefined) r.outputColorSpace = T.SRGBColorSpace;
+        if (T.ACESFilmicToneMapping !== undefined) r.toneMapping = T.ACESFilmicToneMapping;
+        r.toneMappingExposure = 1.0;
+      } catch (e) { /* renderer 가 값을 거부해도 나머지는 간다 */ }
+      const env = this.makeEnvironment(T, r);
+      if (env) { saved.envTarget = env.target || null; s.environment = env.texture; }
+      // 환경광이 들어오니 직사광·주변광은 절반 — 그대로 두면 하얗게 날아간다.
+      saved.lights.forEach((L) => { try { L.light.intensity = L.intensity * 0.5; } catch (e) { /* 무해 */ } });
+      return true;
+    }
+    const saved = this._sceneSaved;
+    if (!saved) return false;
+    this._sceneSaved = null;
+    if (t && t.renderer) {
+      try {
+        t.renderer.outputColorSpace = saved.outputColorSpace;
+        t.renderer.toneMapping = saved.toneMapping;
+        t.renderer.toneMappingExposure = saved.toneMappingExposure;
+      } catch (e) { /* 무해 */ }
+    }
+    if (t && t.scene) { try { t.scene.environment = saved.environment; } catch (e) { /* 무해 */ } }
+    saved.lights.forEach((L) => { try { L.light.intensity = L.intensity; } catch (e) { /* 무해 */ } });
+    if (saved.envTarget && typeof saved.envTarget.dispose === 'function') { try { saved.envTarget.dispose(); } catch (e) { /* 무해 */ } }
+    return true;
+  },
+
+  /**
+   * RoomEnvironment → PMREM. { texture, target } 또는 null (RoomEnvironment 가 안 실렸거나 WebGL 이 없을 때).
+   * 시험은 _makeEnv 로 갈아 끼운다.
+   */
+  makeEnvironment(T, renderer) {
+    if (typeof this._makeEnv === 'function') { try { return this._makeEnv(T, renderer) || null; } catch (e) { return null; } }
+    const RoomEnv = (typeof window !== 'undefined') ? window.RoomEnvironment : null;
+    if (!T || !renderer || !RoomEnv || !T.PMREMGenerator) return null;
+    let pmrem = null;
+    try {
+      pmrem = new T.PMREMGenerator(renderer);
+      const room = new RoomEnv();
+      const target = pmrem.fromScene(room, 0.04);
+      pmrem.dispose();
+      return { texture: target.texture, target };
+    } catch (e) {
+      try { if (pmrem) pmrem.dispose(); } catch (e2) { /* 무해 */ }
+      return null;
+    }
   },
 
   toggle() { return this.active ? this.exit() : this.enter(); },
@@ -414,38 +567,77 @@ const PlannerDetail = {
     return false;
   },
 
-  // ── 3D 색 ───────────────────────────────────────────────
-  /** 이 mesh 가 받을 hex. 지정이 없거나 칠하지 않는 종류면 null (구조 색 그대로). */
-  colorFor(ud) {
+  // ── 3D 색·재질 ──────────────────────────────────────────
+  /** 이 mesh 가 받을 카탈로그 항목. 지정이 없거나 칠하지 않는 종류·모르는 코드면 null (구조 색 그대로). */
+  entryFor(ud) {
     const slot = plannerFinishPaintSlotOf(ud);
     if (!slot || !ud.moduleId) return null;
     const m = this.moduleOf(ud.moduleId);
     const r = plannerFinishResolve(this.detail, slot, ud.moduleId, m ? m.section : null, plannerFinishPartKeyOf(ud));
-    return r ? plannerFinishHex(this.catalog, r.code) : null;
+    return r ? this.entryOf(r.code) : null;
+  },
+
+  /** 이 mesh 가 받을 hex. 지정이 없거나 칠하지 않는 종류면 null (구조 색 그대로). */
+  colorFor(ud) {
+    const e = this.entryFor(ud);
+    return e ? e.hex : null;
+  },
+
+  /** mesh 자신에 moduleId 가 없으면 부모 그룹에서 보충한 userData. 못 찾으면 null. */
+  _udWithModule(obj) {
+    const ud = obj.userData || {};
+    if (ud.moduleId) return ud;
+    let cur = obj.parent, mid = null;
+    while (cur && !mid) { if (cur.userData && cur.userData.moduleId) mid = cur.userData.moduleId; cur = cur.parent; }
+    return mid ? Object.assign({}, ud, { moduleId: mid }) : null;
   },
 
   /**
-   * renderAll3D 가 다 그린 뒤 부르는 후처리. mesh 를 만들지도 지우지도 않고 material.color 만 바꾼다
-   * (makeBox 가 mesh 마다 재질을 새로 만들므로 공유 재질을 더럽힐 걱정이 없다).
-   * 모드가 아니면 0 을 돌려주고 손대지 않는다.
+   * renderAll3D 가 다 그린 뒤 부르는 후처리. mesh 를 만들지도 지우지도 않는다.
+   *   three 가 있으면: 재질을 코드별 PBR(PlannerMaterials)로 **바꿔 끼운다**. 원래 재질은
+   *                    userData._origMaterial 에 남겨 unpaintScene 이 되돌린다. 테두리(LineSegments)는 mesh 가 아니라 그대로.
+   *   three 가 없으면: D0 처럼 material.color 만 덮는다 (makeBox 가 mesh 마다 재질을 새로 만드니 공유 재질을 더럽히지 않는다).
+   * 모드가 아니면 0 을 돌려주고 손대지 않는다. 씬 설정(applyScene)이 아직이면 여기서 켠다 —
+   * init3D 가 모드 진입보다 늦게 올 수 있어서다.
    * @returns {number} 칠한 mesh 수
    */
   paintScene(group) {
     if (!this.active || !group || typeof group.traverse !== 'function') return 0;
+    if (!this._sceneSaved) this.applyScene(true);
+    const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : null;
+    const PM = (T && typeof PlannerMaterials !== 'undefined') ? PlannerMaterials : null;
     let n = 0;
     group.traverse((obj) => {
-      if (!obj || !obj.isMesh || !obj.material || !obj.material.color || typeof obj.material.color.set !== 'function') return;
-      const ud = obj.userData || {};
-      let hex = null;
-      if (ud.moduleId) hex = this.colorFor(ud);
-      else {
-        // moduleId 없는 mesh 는 부모 그룹에서 찾는다 (없으면 칠하지 않는다)
-        let cur = obj.parent, mid = null;
-        while (cur && !mid) { if (cur.userData && cur.userData.moduleId) mid = cur.userData.moduleId; cur = cur.parent; }
-        if (mid) hex = this.colorFor(Object.assign({}, ud, { moduleId: mid }));
+      if (!obj || !obj.isMesh || !obj.material) return;
+      const ud = this._udWithModule(obj);
+      if (!ud) return;
+      const entry = this.entryFor(ud);
+      if (!entry) return;
+      if (PM) {
+        const mat = PM.forMesh(entry, obj, T);
+        if (!mat) return;
+        if (obj.material !== mat) {
+          if (!obj.userData._origMaterial) obj.userData._origMaterial = obj.material;
+          obj.material = mat;
+        }
+        n++;
+        return;
       }
-      if (!hex) return;
-      obj.material.color.set(hex);
+      if (!obj.material.color || typeof obj.material.color.set !== 'function') return;
+      obj.material.color.set(entry.hex);
+      n++;
+    });
+    return n;
+  },
+
+  /** paintScene 이 바꿔 끼운 재질을 원래 것으로 되돌린다. 모드와 무관하게 동작한다 (이탈 경로). */
+  unpaintScene(group) {
+    if (!group || typeof group.traverse !== 'function') return 0;
+    let n = 0;
+    group.traverse((obj) => {
+      if (!obj || !obj.isMesh || !obj.userData || !obj.userData._origMaterial) return;
+      obj.material = obj.userData._origMaterial;
+      delete obj.userData._origMaterial;
       n++;
     });
     return n;
@@ -458,16 +650,37 @@ const PlannerDetail = {
     this.rerender3D();
   },
 
+  /**
+   * 팔레트 머리의 출처 표시.
+   *   db      → "예림 LUX 144"       (materials 표를 읽었다)
+   *   local   → "카탈로그 7×10"      (DB 없음 — bom-finish-color.js 의 구 표만)
+   *   builtin → "폴백 목록"          (그것도 없음 — planner-finish.js 의 내장 표)
+   * 크기는 정본이 정한다 — 숫자를 박지 않는다.
+   */
+  catalogSourceLabel() {
+    const c = this.catalog;
+    if (!c) return '';
+    if (c.source === 'db') return `예림 LUX ${c.yerim}`;
+    if (c.source === 'builtin' || (c.source == null && c.fallback)) return '폴백 목록';
+    const finishes = Array.isArray(c.finishes) ? c.finishes : [];
+    const nF = finishes.length;
+    // 마감×색 표의 크기다 — C2b 호환 코드({COLOR}-M/G, compatTone)는 같은 호환 그룹에 있지만 표의 칸이 아니라 뺀다.
+    const entries = Array.isArray(c.entries) ? c.entries : [];
+    const compatGroup = Array.isArray(c.groups) ? c.groups.find((g) => g.compat) : null;
+    const local = compatGroup
+      ? entries.filter((e) => e.group === compatGroup.key && !e.compatTone).length
+      : entries.filter((e) => !e.compatTone).length;
+    const nC = nF ? Math.round(local / nF) : 0;
+    return `카탈로그 ${nF}×${nC}`;
+  },
+
   renderPalette() {
     const host = (typeof document !== 'undefined') ? document.getElementById('detailPalette') : null;
     if (!host || !this.catalog) return;
     const esc = plannerDetailEsc;
-    const sel = plannerFinishLookup(this.catalog, this.selectedCode);
+    const sel = this.entryOf(this.selectedCode);
     const parts = [];
-    // 카탈로그 크기는 정본이 정한다 (C0 가 색을 더하면 7×10 처럼 따라 바뀐다 — 숫자를 박지 않는다).
-    const nF = this.catalog.finishes.length;
-    const nC = nF ? Math.round(this.catalog.entries.length / nF) : 0;
-    parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${this.catalog.fallback ? '폴백 목록' : `카탈로그 ${nF}×${nC}`}</span></div>`);
+    parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${esc(this.catalogSourceLabel())}</span></div>`);
     parts.push('<div class="pd-sel">' + (sel
       ? `<span class="pd-chip" style="background:${esc(sel.hex)}"></span><b>${esc(sel.label)}</b><code>${esc(sel.code)}</code>`
       : '<span class="pd-hint">아래에서 마감을 고르세요 — 고르지 않고 부재를 누르면 지정된 마감을 보여 줍니다</span>') + '</div>');
@@ -486,20 +699,75 @@ const PlannerDetail = {
     parts.push('<div class="pd-tools">'
       + `<button type="button" data-undo="1"${this.undoStack.length ? '' : ' disabled'}>↶ 되돌리기 (${this.undoStack.length})</button>`
       + `<span class="pd-hint">지정 ${plannerFinishCount(this.detail)}건</span></div>`);
-    this.catalog.finishes.forEach((f) => {
-      const rows = this.catalog.entries.filter((e) => e.finish === f.value);
-      if (!rows.length) return;
-      parts.push(`<div class="pd-group"><div class="pd-group-title">${esc(f.label)}</div><div class="pd-swatches">`
-        + rows.map((e) => `<button type="button" class="pd-swatch${e.code === this.selectedCode ? ' on' : ''}${plannerDetailIsDark(e.hex) ? ' dark' : ''}" `
-          + `data-code="${esc(e.code)}" title="${esc(e.label)} · ${esc(e.code)}" style="background:${esc(e.hex)}"><span class="pd-code">${esc(e.colorLabel)}</span></button>`).join('')
-        + '</div></div>');
-    });
+    parts.push(`<input type="search" class="pd-search" data-search="1" placeholder="이름·코드 검색" value="${esc(this.query)}" autocomplete="off">`);
+    parts.push('<div class="pd-groups" data-groups="1"></div>');
     host.innerHTML = parts.join('');
-    host.querySelectorAll('[data-code]').forEach((el) => { el.onclick = () => this.selectCode(el.dataset.code); });
     host.querySelectorAll('[data-slot]').forEach((el) => { el.onclick = () => this.selectSlot(el.dataset.slot); });
     host.querySelectorAll('[data-bulk]').forEach((el) => { el.onclick = () => this.applyBulk(el.dataset.bulk); });
     const u = host.querySelector('[data-undo]');
     if (u) u.onclick = () => this.undo();
+    const q = host.querySelector('[data-search]');
+    if (q) q.oninput = () => this.setQuery(q.value);
+    this.renderGroups();
+  },
+
+  /** 검색어를 바꾸고 그룹만 다시 그린다 — 입력칸을 다시 만들면 포커스가 날아간다. */
+  setQuery(q) {
+    this.query = String(q == null ? '' : q);
+    this.renderGroups();
+    return this.query;
+  },
+
+  /**
+   * 지금 슬롯·검색어에 맞는 그룹 목록. [{group, entries}] — entries 가 빈 그룹은 뺀다.
+   * 슬롯 필터: 그룹의 slots 에 지금 슬롯이 없으면 숨긴다 (몸통 → body_material, 상판 → countertop,
+   * 도어·서랍 앞판 → door_material). 호환 그룹은 슬롯 전부를 가져 언제나 남는다.
+   */
+  visibleGroups() {
+    const c = this.catalog;
+    if (!c || !Array.isArray(c.entries)) return [];
+    const byCode = c.byCode || {};
+    const lookup = (code) => byCode[code] || plannerFinishLookup(c, code);
+    const q = String(this.query || '').trim().toLowerCase();
+    const match = (e) => !q || [e.code, e.colorLabel, e.label, e.vendorCode].some((s) => String(s || '').toLowerCase().indexOf(q) >= 0);
+    // planner-catalog.js 가 없을 때(D0 모양의 카탈로그) — finishes 를 그룹으로 본다
+    const groups = Array.isArray(c.groups) ? c.groups
+      : (c.finishes || []).map((f) => ({ key: f.value, label: f.label, codes: c.entries.filter((e) => e.finish === f.value).map((e) => e.code), slots: PLANNER_FINISH_SLOTS.slice(), compat: false, collapsed: false }));
+    const out = [];
+    groups.forEach((g) => {
+      if (this.slot && Array.isArray(g.slots) && g.slots.indexOf(this.slot) < 0) return;
+      const entries = g.codes.map(lookup).filter((e) => e && match(e));
+      if (!entries.length) return;
+      out.push({ group: g, entries });
+    });
+    return out;
+  },
+
+  renderGroups() {
+    const host = (typeof document !== 'undefined') ? document.querySelector('#detailPalette [data-groups]') : null;
+    if (!host) return;
+    const esc = plannerDetailEsc;
+    const vis = this.visibleGroups();
+    if (!vis.length) {
+      host.innerHTML = `<div class="pd-hint">${this.query ? '검색 결과가 없습니다' : `${esc(PLANNER_FINISH_SLOT_LABEL[this.slot] || this.slot)} 슬롯에 맞는 자재가 없습니다`} — 슬롯·검색어를 바꿔 보세요</div>`;
+      return;
+    }
+    host.innerHTML = vis.map(({ group: g, entries }) => {
+      const open = (g.key in this.groupOpen) ? this.groupOpen[g.key] : (!!this.query || !g.collapsed);
+      return `<details class="pd-group${g.compat ? ' compat' : ''}" data-group="${esc(g.key)}"${open ? ' open' : ''}>`
+        + `<summary><span>${esc(g.label)}</span><span class="pd-count">${entries.length}</span></summary>`
+        + '<div class="pd-swatches">'
+        + entries.map((e) => `<button type="button" class="pd-swatch${e.code === this.selectedCode ? ' on' : ''}${plannerDetailIsDark(e.hex) ? ' dark' : ''}" `
+          + `data-code="${esc(e.code)}" title="${esc(e.label)} · ${esc(e.code)}">`
+          + `<span class="pd-chipbox" style="background:${esc(e.hex)}"></span>`
+          + `<span class="pd-name">${esc(e.colorLabel || e.label)}</span>`
+          + `<span class="pd-code">${esc(e.vendorCode || e.code)}</span></button>`).join('')
+        + '</div></details>';
+    }).join('');
+    host.querySelectorAll('[data-code]').forEach((el) => { el.onclick = () => this.selectCode(el.dataset.code); });
+    host.querySelectorAll('details[data-group]').forEach((el) => {
+      el.ontoggle = () => { this.groupOpen[el.dataset.group] = !!el.open; };
+    });
   },
 
   renderCard() {

@@ -120,26 +120,33 @@ describe('도어가 영역 앞면을 넘지 않는다', () => {
 describe('도어 내림이 영역 아래를 넘지 않는다', () => {
   const ap = SRC.slice(SRC.indexOf('function addFrontPanel'), SRC.indexOf('function positionBox'));
 
-  test('bottomLimit 으로 자른다', () => {
-    expect(ap).toMatch(/Math\.max\(0, Math\.min\(drop, bodyBottom0 - meta\.bottomLimit\)\)/);
+  // P2-4 (scene-bom-ledger.md §4): 규칙은 상부장 도어 H = 장H + 15 이고 그 15 가 몸통 아래로 나온다
+  //   (design_rules 싱크상부장도어H). 예전 시험은 "영역 바닥에 딱 맞으면 내림 0" 을 박아 두었는데, 상부
+  //   배치 공간 H 가 몸통 H 와 같은 보통의 배치에서 도어가 BOM(장H+15)보다 19 짧아지는 잘못된 기하였다
+  //   (원장 원인 "상부 도어 내림 잘림" 8건). 제한은 규칙의 내림(15)만큼 아래로 옮겨 그 너머만 자른다.
+  test('bottomLimit − 내림(SINK_UPPER_DOOR_H_PLUS) 으로 자른다', () => {
+    expect(ap).toMatch(/const dropLimit = meta\.bottomLimit - MASTER_RULES\.SINK_UPPER_DOOR_H_PLUS;/);
+    expect(ap).toMatch(/Math\.max\(0, Math\.min\(drop, bodyBottom0 - dropLimit\)\)/);
   });
 
   test('drop 이 let 이다 — 잘라 써야 한다', () => {
     expect(ap).toMatch(/let drop = /);
   });
 
-  test('산술 — 영역 바닥에 딱 맞으면 내림이 0 이 된다', () => {
-    const GAP = 4, DROP = 15;
+  test('산술 — 영역 바닥에 딱 맞아도 규칙의 내림 15 는 그대로다', () => {
+    const DROP = 15;
     const bodyBottom0 = 1520;            // 몸통 바닥
-    const bottomLimit = 1520;            // 영역 바닥도 같은 자리
-    const drop = Math.max(0, Math.min(DROP, bodyBottom0 - bottomLimit));
-    expect(drop).toBe(0);
+    const bottomLimit = 1520;            // 영역 바닥도 같은 자리 (상부 배치 공간 H = 몸통 H)
+    const drop = Math.max(0, Math.min(DROP, bodyBottom0 - (bottomLimit - DROP)));
+    expect(drop).toBe(15);               // 도어 H = 장H + 15 (sink.md 상부장 부재표)
   });
 
-  test('산술 — 여유가 있으면 그만큼만 내려온다', () => {
+  test('산술 — 몸통이 영역 바닥보다 아래로 내려가 있으면 그만큼만 자른다', () => {
     const DROP = 15;
-    expect(Math.max(0, Math.min(DROP, 1520 - 1512))).toBe(8);
-    expect(Math.max(0, Math.min(DROP, 1520 - 1500))).toBe(15);
+    // 몸통 바닥 1512 · 영역 바닥 1520: 몸통이 이미 8 아래 → 내림은 7 만 남는다
+    expect(Math.max(0, Math.min(DROP, 1512 - (1520 - DROP)))).toBe(7);
+    // 몸통 바닥이 영역 바닥보다 위면(여유 20) 내림은 규칙값 15 를 넘지 않는다
+    expect(Math.max(0, Math.min(DROP, 1540 - (1520 - DROP)))).toBe(15);
   });
 
   test('제한이 없으면 예전 그대로다', () => {
