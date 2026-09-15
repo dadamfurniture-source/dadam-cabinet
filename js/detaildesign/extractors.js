@@ -102,6 +102,105 @@
         return { key: 'part:' + String(part || '').trim().replace(/\s+/g, '_'), slot: null, fallback: true };
       }
 
+      // ============================================================
+      // B1: 마감 코드 해석 — 디테일 모델(item.detail, 계획 §4.2) 을 읽는다.
+      //
+      // 정본 해석기는 js/planner/planner-finish.js `plannerFinishResolve` (부재 > 모듈 > 섹션 > 품목).
+      // 상세설계 페이지는 그 파일을 extractors.js 앞에 싣는다 (detaildesign.html). 아래 내장판은 그 파일이
+      // 없는 환경(Node 시험·옛 페이지)용이며 **같은 답**을 내야 한다 — bom-part-id.test.js 가 둘을 대조한다.
+      // 여기 로직을 고치려면 planner-finish.js 를 먼저 고치고 옮겨 적는다.
+      // ============================================================
+      function bomFinishSectionGroup(section) {
+        return (section === 'upper' || section === 'hood') ? 'upper' : 'lower';
+      }
+
+      function bomFinishEntry(v) {
+        if (!v) return null;
+        const code = typeof v === 'string' ? v : v.code;
+        if (typeof code !== 'string' || !code.trim()) return null;
+        return { code: code.trim() };
+      }
+
+      function bomFinishResolveEmbedded(detail, slot, moduleId, section, partKey) {
+        if (!detail || !slot) return null;
+        if (moduleId && partKey && detail.parts && detail.parts[moduleId]) {
+          const e = bomFinishEntry(detail.parts[moduleId][partKey]);
+          if (e) return { code: e.code, level: 'part' };
+        }
+        if (moduleId && detail.modules && detail.modules[moduleId]) {
+          const e = bomFinishEntry(detail.modules[moduleId][slot]);
+          if (e) return { code: e.code, level: 'module' };
+        }
+        if (section && detail.sections) {
+          const g = bomFinishSectionGroup(section);
+          const e = bomFinishEntry(detail.sections[g] && detail.sections[g][slot]);
+          if (e) return { code: e.code, level: 'section' };
+        }
+        if (detail.item) {
+          const e = bomFinishEntry(detail.item[slot]);
+          if (e) return { code: e.code, level: 'item' };
+        }
+        return null;
+      }
+
+      /** item.detail 이 문자열(JSON)·객체·없음 어느 것이어도 객체 또는 null. 플래너 normalize 가 있으면 그것으로. */
+      function bomDetailOf(raw) {
+        let d = raw;
+        if (typeof d === 'string') {
+          try { d = JSON.parse(d); } catch (e) { d = null; }
+        }
+        if (!d || typeof d !== 'object') return null;
+        if (typeof window !== 'undefined' && typeof window.plannerFinishNormalize === 'function') {
+          return window.plannerFinishNormalize(d);
+        }
+        return d;
+      }
+
+      /**
+       * BOM 행 하나가 플래너 부재 여럿을 대표하므로, 부재 단위 지정이 행에 닿도록 **후보 (moduleId, partKey)** 를 늘어놓는다.
+       *   · 묶음 행 별칭: 측판(body:side) ← body:left / body:right
+       *   · 양문·칸 접미: door#k ← door#k-0, door#k-1 (plannerFinishPartKeyOf 의 `-doorIdx`), shelf#k ← shelf#k-*
+       *   · 플래너 셀 모듈: 상세설계가 플래너 모듈 X 의 칸 i 를 `planner-X-i` 모듈로 쪼갠다 (ui-step1.js _convertPlannerModules).
+       *     그 행의 door#0 은 플래너에선 X 의 door#i (또는 door#i-*, 하단 서랍줄 drawer#bi) 다. 모듈 단위 지정도 X 에 있다.
+       * 순서는 곧 우선순위다 — 같은 단계(level)면 앞선 후보가 이긴다.
+       */
+      const BOM_PART_KEY_ALIASES = { 'body:side': ['body:left', 'body:right'] };
+
+      function bomFinishCandidates(detail, moduleId, partKey) {
+        const out = [];
+        const seen = {};
+        const push = (mid, key) => {
+          const k = `${mid} ${key}`;
+          if (mid && key && !seen[k]) { seen[k] = 1; out.push({ moduleId: mid, partKey: key }); }
+        };
+        const prefixed = (mid, key) => {
+          const parts = detail && detail.parts && detail.parts[mid];
+          if (!parts) return;
+          Object.keys(parts).forEach((k) => { if (k.indexOf(key + '-') === 0) push(mid, k); });
+        };
+        const expand = (mid, key) => {
+          push(mid, key);
+          (BOM_PART_KEY_ALIASES[key] || []).forEach((a) => push(mid, a));
+          prefixed(mid, key);
+        };
+        expand(moduleId, partKey);
+        const m = /^planner-(.+)-(\d+)$/.exec(String(moduleId || ''));
+        if (m) {
+          const base = m[1];
+          const cell = m[2];
+          const k = /^(door|drawer|shelf)#\d+$/.exec(partKey || '');
+          if (k) {
+            expand(base, `${k[1]}#${cell}`);
+            if (k[1] === 'drawer') push(base, `drawer#b${cell}`);
+          } else {
+            expand(base, partKey);
+          }
+        }
+        return out;
+      }
+
+      const BOM_FINISH_LEVEL_RANK = { part: 0, module: 1, section: 2, item: 3 };
+
       class MaterialExtractor {
         // W12-1: 제조 표준은 data-constants.js 가 정본.
         // Jest/Node 에서는 그 파일이 로드되지 않으므로 같은 값을 폴백으로 둔다
@@ -196,6 +295,8 @@
             itemIdx: itemIdx | 0,
             item: item || {},
             specs: (item && item.specs) || {},
+            // B1: 디테일 마감 모델 — DadamAgent.exportDesign() 이 item.detail 로 넘긴다 (D1). 없으면 null.
+            detail: bomDetailOf(item && item.detail),
             mod: null,
             moduleId: 'none',
             section: null,
@@ -235,6 +336,40 @@
         }
 
         // ========================================
+        // B1: 디테일 모델에서 한 행의 마감 코드를 정한다 — 부재 > 모듈 > 섹션 > 품목 > null.
+        //   planner-finish.js 가 실려 있으면 그 함수(window.plannerFinishResolve), 아니면 내장판.
+        //   행이 대표하는 부재 후보(bomFinishCandidates)를 모두 물어 가장 센 단계를 고른다.
+        // @returns {{code:string, level:string}|null}
+        // ========================================
+        resolveFinish(slot, moduleId, section, partKey) {
+          const detail = this._ctx && this._ctx.detail;
+          if (!detail || !slot) return null;
+          const fn = (typeof window !== 'undefined' && typeof window.plannerFinishResolve === 'function')
+            ? window.plannerFinishResolve
+            : bomFinishResolveEmbedded;
+          let best = null;
+          bomFinishCandidates(detail, moduleId, partKey).forEach((c) => {
+            const r = fn(detail, slot, c.moduleId, section, c.partKey);
+            if (r && (!best || BOM_FINISH_LEVEL_RANK[r.level] < BOM_FINISH_LEVEL_RANK[best.level])) best = r;
+          });
+          return best;
+        }
+
+        /**
+         * B1: 도어 마감의 마지막 폴백 — 품목 사양 specs.doorFinishUpper/Lower + doorColorUpper/Lower.
+         * 상/하 묶음은 planner-finish 와 같은 규칙(upper·hood → Upper, 나머지 → Lower).
+         * 한글 값('무광'·'화이트')은 기판을 몰라 MDF-DEFAULT(코드 없음)로 돌아온다 — bom-finish-color.js 가 정한다.
+         */
+        legacyDoorEntryFor(section) {
+          const specs = (this._ctx && this._ctx.specs) || {};
+          const sfx = bomFinishSectionGroup(section) === 'upper' ? 'Upper' : 'Lower';
+          const finish = specs['doorFinish' + sfx];
+          const color = specs['doorColor' + sfx];
+          if (!finish && !color) return null;
+          return { doorFinish: finish, doorColor: color };
+        }
+
+        // ========================================
         // 자재 추가 헬퍼 (W7-3: mod 옵셔널 — 도어/서랍도어 자동 자재 코드 매핑)
         // B1: 모든 행에 partId·slot 을 더한다 (기존 필드는 그대로 — I4).
         // ========================================
@@ -248,14 +383,30 @@
           const slot = def.slot;
 
           let finishCode = '';
-          // 도어/서랍도어 면 mod 의 doorFinish/doorColor 로 자재 코드 자동 적용
-          if ((part === '도어' || part === '서랍도어') && mod) {
-            const dm = this.doorMatFor(mod);
-            if (dm.code) {
+          // B1: 디테일 모델(item.detail) 이 가장 세다 — 어느 단계(부재/모듈/섹션/품목)든. 뒷판(back)은 칠하지 않는다.
+          const resolved = (slot && slot !== 'back') ? this.resolveFinish(slot, ctx.moduleId, ctx.section, partKey) : null;
+          if (part === '도어' || part === '서랍도어') {
+            // 도어/서랍도어 우선순위: 디테일 모델 > 모듈 doorFinish/doorColor(doorMaterialCode) > 품목 사양 상/하 값
+            // 코드가 정해지면 자재(PET/MFB…)·비고(라벨)도 카탈로그에서 따라온다 (W7-3 방식 그대로).
+            let dm = null;
+            if (resolved) {
+              dm = this.doorMatFor({ doorMaterialCode: resolved.code });
+              finishCode = resolved.code; // 카탈로그가 모르는 코드라도 지정값은 버리지 않는다
+            } else if (mod) {
+              dm = this.doorMatFor(mod);
+            }
+            if (!dm || !dm.code) {
+              const legacy = finishCode ? null : this.legacyDoorEntryFor(ctx.section);
+              if (legacy) dm = this.doorMatFor(legacy);
+            }
+            if (dm && dm.code) {
               material = dm.material;
-              finishCode = dm.code;
+              finishCode = finishCode || dm.code;
               if (!note) note = dm.note;
             }
+          } else if (resolved) {
+            // 몸통·상판·손잡이·마감재·걸레받이: 디테일 모델이 정한 때만 코드. 자재·비고는 그대로.
+            finishCode = resolved.code;
           }
           arr.push({
             module,
@@ -1457,6 +1608,7 @@
           MaterialExtractor, HardwareExtractor, DrawingVisualizer,
           // B1 도우미 — 시험이 표·해석기를 직접 본다
           BOM_PART_DEFS, bomPartDefOf,
+          BOM_PART_KEY_ALIASES, bomFinishResolveEmbedded, bomFinishCandidates, bomDetailOf,
         };
       }
 
