@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, beforeAll, afterAll, window */
+/* global require, describe, test, expect, beforeAll, afterAll, window, global, __dirname */
 /**
  * B1: 부재 식별자 · 마감 코드 · 엣지 길이 (docs/01-plan/detail-bom-deepening.plan.md §5 B1).
  *
