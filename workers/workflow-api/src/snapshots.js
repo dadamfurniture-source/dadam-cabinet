@@ -18,6 +18,7 @@ import {
   ValidationError,
   ConflictError,
   NotFoundError,
+  DbError,
   assertDesignOwner,
   designTitleOf,
   insertOne,
@@ -91,6 +92,121 @@ export function validateSnapshotInput(body) {
   }
 
   return { design, bom, hardware: body.hardware && typeof body.hardware === 'object' ? body.hardware : {} };
+}
+
+/** 0 이상 유한수 (좌표). 문자열도 받는다. */
+function nonNegativeNumber(v) {
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** `partId#k` → 자재 행 partId. 마지막 `#` 뒤가 숫자일 때만 떼어 낸다 (partId 자체에 `door#0` 처럼 `#` 이 있다). */
+export function basePartId(instanceId) {
+  const s = String(instanceId || '');
+  const i = s.lastIndexOf('#');
+  if (i < 0) return s;
+  return /^\d+$/.test(s.slice(i + 1)) ? s.slice(0, i) : s;
+}
+
+/** 조각이 원판 위에서 차지하는 발자국 — rot 이면 h×w. */
+function footprintOf(p) {
+  const w = positiveNumber(p.w);
+  const h = positiveNumber(p.h);
+  if (w === null || h === null) return null;
+  return p.rot ? { w: h, h: w } : { w, h };
+}
+
+/**
+ * B4: 클라이언트가 보낸 재단 배치(cutPlan, nesting-engine.js 산출)를 검증한다.
+ * 없으면 null — 배치는 선택 사항이다 (엔진이 없는 옛 캐시, 배치 대상이 없는 설계).
+ *
+ * 서버는 배치를 다시 계산하지 않는다(원판 규격·결 정보를 모른다). 대신 형태와
+ * BOM 과의 정합만 본다:
+ *   - 모양: version, sheets[], offcuts[] · 시트마다 no(고유)·material·size(양수)·parts[]
+ *   - 조각마다 partId 가 bom.materials 에 있고, 행별 배치 개수 ≤ qty
+ *   - 조각이 원판 안에 있고(rot 반영) 같은 시트의 조각끼리 겹치지 않는다
+ * 통과하면 { cutPlan, sheetCount } 를 돌려준다. sheetCount = sheets.length (겹침 재단도 낱장으로 센다).
+ */
+export function validateCutPlan(cutPlan, bom) {
+  if (cutPlan === undefined || cutPlan === null) return null;
+  if (typeof cutPlan !== 'object' || Array.isArray(cutPlan)) {
+    throw new ValidationError('cutPlan 은 객체여야 합니다');
+  }
+  if (cutPlan.version !== 1) {
+    throw new ValidationError('cutPlan.version 은 1 이어야 합니다', { version: cutPlan.version });
+  }
+  if (!Array.isArray(cutPlan.sheets)) throw new ValidationError('cutPlan.sheets 배열이 필요합니다');
+  if (cutPlan.offcuts !== undefined && !Array.isArray(cutPlan.offcuts)) {
+    throw new ValidationError('cutPlan.offcuts 는 배열이어야 합니다');
+  }
+
+  // 자재 행 partId → qty. partId 가 없는 행은 엔진이 `row-<index>` 로 부른다.
+  const materials = bom && Array.isArray(bom.materials) ? bom.materials : [];
+  const qtyById = new Map();
+  materials.forEach((m, i) => {
+    if (!m || typeof m !== 'object') return;
+    const id = m.partId != null && m.partId !== '' ? String(m.partId) : `row-${i}`;
+    qtyById.set(id, (qtyById.get(id) || 0) + Math.round(positiveNumber(m.qty) || 0));
+  });
+
+  const problems = [];
+  const seenNo = new Set();
+  const placed = new Map();
+
+  cutPlan.sheets.forEach((sheet, si) => {
+    const tag = `sheets[${si}]`;
+    if (!sheet || typeof sheet !== 'object') { problems.push(`${tag}: 객체가 아님`); return; }
+    const no = Number(sheet.no);
+    if (!Number.isInteger(no) || no <= 0) problems.push(`${tag}: no 가 양의 정수가 아님`);
+    else if (seenNo.has(no)) problems.push(`${tag}: no ${no} 가 중복`);
+    seenNo.add(no);
+    if (typeof sheet.material !== 'string' || !sheet.material) problems.push(`${tag}: material 이 비어 있음`);
+    const sw = sheet.size && positiveNumber(sheet.size.w);
+    const sh = sheet.size && positiveNumber(sheet.size.h);
+    if (!sw || !sh) { problems.push(`${tag}: size.w/h 가 양수가 아님`); return; }
+    if (!Array.isArray(sheet.parts)) { problems.push(`${tag}: parts 배열이 없음`); return; }
+
+    const rects = [];
+    sheet.parts.forEach((p, pi) => {
+      const ptag = `${tag}.parts[${pi}]`;
+      if (!p || typeof p !== 'object') { problems.push(`${ptag}: 객체가 아님`); return; }
+      if (typeof p.partId !== 'string' || !p.partId) { problems.push(`${ptag}: partId 가 비어 있음`); return; }
+      const base = basePartId(p.partId);
+      if (!qtyById.has(base)) { problems.push(`${ptag}: partId ${p.partId} 가 bom.materials 에 없음`); return; }
+      placed.set(base, (placed.get(base) || 0) + 1);
+
+      const f = footprintOf(p);
+      const x = nonNegativeNumber(p.x);
+      const y = nonNegativeNumber(p.y);
+      if (!f) { problems.push(`${ptag}: w/h 가 양수가 아님`); return; }
+      if (x === null || y === null) { problems.push(`${ptag}: x/y 가 0 이상이 아님`); return; }
+      if (x + f.w > sw + 1e-6 || y + f.h > sh + 1e-6) {
+        problems.push(`${ptag}: 원판(${sw}×${sh})을 벗어남 (${x}+${f.w}, ${y}+${f.h})`);
+        return;
+      }
+      rects.push({ partId: p.partId, x, y, w: f.w, h: f.h });
+    });
+
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) {
+          problems.push(`${tag}: ${a.partId} 와 ${b.partId} 가 겹침`);
+        }
+      }
+    }
+  });
+
+  placed.forEach((n, id) => {
+    const qty = qtyById.get(id) || 0;
+    if (n > qty) problems.push(`partId ${id}: 배치 ${n}개 > 수량 ${qty}`);
+  });
+
+  if (problems.length) {
+    throw new ValidationError('cutPlan 이 BOM 과 맞지 않습니다', problems.slice(0, 20));
+  }
+
+  return { cutPlan, sheetCount: cutPlan.sheets.length };
 }
 
 /** materials 로부터 파생값을 서버가 다시 계산한다. */
@@ -182,12 +298,40 @@ async function findByHash(env, designId, contentHash) {
  * 스냅샷 생성 (멱등).
  * 같은 내용이면 새 rev 를 만들지 않고 기존 스냅샷을 그대로 돌려준다.
  */
+/**
+ * B4 컬럼(cut_plan_payload · sheet_count)이 아직 없는 DB 인가.
+ * database/workflow-cut-plan.sql 을 적용하기 전에도 스냅샷 생성·목록이 멈추지 않도록
+ * 그 컬럼만 빼고 다시 시도한다. PostgREST 는 스키마 캐시에 없는 컬럼이면 PGRST204,
+ * SELECT 에 없는 컬럼이면 42703 을 낸다.
+ */
+export const CUT_PLAN_COLUMNS = ['cut_plan_payload', 'sheet_count'];
+
+export function isMissingCutPlanColumn(err) {
+  if (!(err instanceof DbError)) return false;
+  const msg = String(err.message || '');
+  if (!/PGRST204|42703/.test(msg)) return false;
+  return CUT_PLAN_COLUMNS.some((c) => msg.includes(c));
+}
+
+function withoutCutPlanColumns(row) {
+  const out = { ...row };
+  CUT_PLAN_COLUMNS.forEach((c) => { delete out[c]; });
+  return out;
+}
+
+const LIST_SELECT_BASE =
+  'id,rev,content_hash,design_title,item_count,module_count,panel_count,app_version,note,created_at';
+const LIST_SELECT = `${LIST_SELECT_BASE},sheet_count`;
+
 export async function createSnapshot(env, { designId, user, body }) {
   const design = await assertDesignOwner(env, designId, user.id);
   const { design: designPayload, bom, hardware } = validateSnapshotInput(body);
 
   const derived = deriveCounts(designPayload, bom);
   crossCheckSummary(bom, derived);
+
+  // B4: 재단 배치 — 선택 사항. 있으면 BOM 과 맞는지 본다 (cutPlan 또는 cut_plan 키).
+  const cut = validateCutPlan(body.cutPlan !== undefined ? body.cutPlan : body.cut_plan, bom);
 
   const contentHash = await snapshotHash(designPayload, bom);
 
@@ -222,16 +366,27 @@ export async function createSnapshot(env, { designId, user, body }) {
     module_count: derived.moduleCount,
     panel_count: derived.panelCount,
     note: typeof body.note === 'string' ? body.note : null,
+    // B4: 배치가 없으면 NULL — "배치 안 함" 과 "0장" 을 구분한다
+    cut_plan_payload: cut ? cut.cutPlan : null,
+    sheet_count: cut ? cut.sheetCount : null,
   };
 
   // rev 는 동시 요청에서 충돌할 수 있다 (design_snapshots_rev_uniq).
   // 해시 충돌이면 다른 요청이 같은 내용을 먼저 넣은 것이므로 그 행을 돌려준다.
+  let insertRow = row;
   for (let attempt = 0; attempt < MAX_REV_RETRY; attempt++) {
-    row.rev = await nextRev(env, designId);
+    insertRow.rev = await nextRev(env, designId);
     try {
-      const created = await insertOne(env, 'design_snapshots', row);
+      const created = await insertOne(env, 'design_snapshots', insertRow);
       return { snapshot: created, reused: false };
     } catch (err) {
+      if (isMissingCutPlanColumn(err) && insertRow === row) {
+        // workflow-cut-plan.sql 미적용 — 배치 없이 저장하고 로그로 알린다. 시도 횟수는 소모하지 않는다.
+        console.warn('[snapshots] design_snapshots 에 cut_plan_payload/sheet_count 컬럼이 없습니다. database/workflow-cut-plan.sql 을 적용하세요. 배치 없이 저장합니다.');
+        insertRow = withoutCutPlanColumns(row);
+        attempt -= 1;
+        continue;
+      }
       if (!(err instanceof ConflictError)) throw err;
       const raced = await findByHash(env, designId, contentHash);
       if (raced) return { snapshot: raced, reused: true };
@@ -246,14 +401,21 @@ export async function createSnapshot(env, { designId, user, body }) {
 export async function listSnapshots(env, { designId, user, limit = 20 }) {
   await assertDesignOwner(env, designId, user.id);
   const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-  const rows = await selectMany(env, 'design_snapshots', {
+  const query = (select) => ({
     design_id: `eq.${designId}`,
-    select:
-      'id,rev,content_hash,design_title,item_count,module_count,panel_count,app_version,note,created_at',
+    select,
     order: 'rev.desc',
     limit: String(n),
   });
-  return rows || [];
+  try {
+    const rows = await selectMany(env, 'design_snapshots', query(LIST_SELECT));
+    return rows || [];
+  } catch (err) {
+    if (!isMissingCutPlanColumn(err)) throw err;
+    // B4 컬럼 미적용 DB — sheet_count 없이 목록을 낸다
+    const rows = await selectMany(env, 'design_snapshots', query(LIST_SELECT_BASE));
+    return rows || [];
+  }
 }
 
 /** 단건 — payload 포함. */
