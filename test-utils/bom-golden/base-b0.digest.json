@@ -1,5 +1,5 @@
 {
-  "note": "P1(#649) 기준: B0 골든(#633) + P1-3 상판 행(sink15·sink18·sinkCorner 각 1행, summary 인조대리석_12) 에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. wardrobe·fridge 는 B0 그대로. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
+  "note": "2026-09-15 멍장 도어 결정 기준: P1(#649) 골든(B0 #633 + P1-3 상판 행) 에서 sinkCorner 멍장 도어 2행이 목대를 덮는 재단(doorW+11 — 하부 407→422, 상부 441→456, note·edgeLen·summary MDF_18 totalArea·edgeBanding 1mm 연동) 으로 바뀐 모양의 sha256 (corner.md §3.5.2). sink15·sink18·wardrobe·fridge 는 P1 그대로. B1 새 키·edgeBanding·cncHead 를 뺀 뒤 잰다. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
   "baseRowKeys": [
     "module",
     "part",
@@ -24,7 +24,7 @@
   "digests": {
     "sink15": "2a880dd3ea6cbd0ec6d1904ed63d924cd41c99c0e6c8a1db78bddf6b65af9721",
     "sink18": "37b6dcbb74d3bf5cc59009c02c28564a898710a852bba1bc5b1424563eb64341",
-    "sinkCorner": "00e843a649871fb41044674fea8a08238217bbb514d95d02080e3ea000accb5d",
+    "sinkCorner": "b26c7ad5516b25e0fcbdbf3a2a6d29d5e45d18440a6f3399beb266fc59782f73",
     "wardrobe": "13626498924f99e0b113b68ad625221a23c5bd4c1c1b128a76ef3909a1c67d08",
     "fridge": "28eba9e95cd63cbcbf56632401357ba8a9841337f9bbc87578ca5b01832f1b6b"
   }
