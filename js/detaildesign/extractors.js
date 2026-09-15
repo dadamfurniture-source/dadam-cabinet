@@ -87,6 +87,8 @@
         '멍판 EP':         { key: 'blind',            slot: 'finishing', indexed: true },
         '휠라(멍판)':      { key: 'blindfin',         slot: 'finishing', indexed: true },
         '몰딩(멍판)':      { key: 'blindfin',         slot: 'finishing', indexed: true },
+        // 상판 — 하부 라인 한 장 (P1-3, bom-protocol.md §2 두께 · §3-1 상판)
+        '상판':            { key: 'top',              slot: 'top' },
         // 바닥 마감 — 걸레받이·좌대
         '걸레받이':        { key: 'kick',             slot: 'kick' },
         '좌대 걸레받이':   { key: 'kick',             slot: 'kick' },
@@ -133,6 +135,23 @@
       }
 
       const BOM_TALL_TIER_LABEL = { bottom: '하부단', middle: '중간단', top: '상부단', single: '' };
+
+      // ============================================================
+      // P1-3: 상판 마감 코드 — 품목 사양 `specs.topColor`(한글) → materials.code `TOP-*`.
+      // 정본은 config-constants.js FurnitureOptionCatalog._LEGACY_CODE_MAP.countertop (database/materials-catalog-v2.sql
+      // 시드와 같다). 그 파일이 없는 환경(Node 시험)용으로 같은 값을 폴백으로 둔다. 이미 코드면 그대로.
+      // ============================================================
+      const BOM_TOP_CODE_FALLBACK = { '스노우': 'TOP-SNW', '마블화이트': 'TOP-MWH', '그레이마블': 'TOP-GMB', '차콜': 'TOP-CHC' };
+
+      function bomTopCodeOf(topColor) {
+        const s = String(topColor || '').trim();
+        if (!s) return '';
+        if (/^TOP-/i.test(s)) return s.toUpperCase();
+        const cat = (typeof window !== 'undefined' && window.FurnitureOptionCatalog
+          && window.FurnitureOptionCatalog._LEGACY_CODE_MAP) || null;
+        const map = (cat && cat.countertop) || BOM_TOP_CODE_FALLBACK;
+        return map[s] || BOM_TOP_CODE_FALLBACK[s] || '';
+      }
 
       // ============================================================
       // B1: 마감 코드 해석 — 디테일 모델(item.detail, 계획 §4.2) 을 읽는다.
@@ -488,6 +507,9 @@
           } else if (resolved) {
             // 몸통·상판·손잡이·마감재·걸레받이: 디테일 모델이 정한 때만 코드. 자재·비고는 그대로.
             finishCode = resolved.code;
+          } else if (slot === 'top') {
+            // P1-3: 상판은 디테일 모델이 없으면 품목 사양 topColor 의 카탈로그 코드(TOP-*)로 떨어진다.
+            finishCode = bomTopCodeOf(ctx.specs.topColor);
           }
           const W = Math.round(w);
           const H = Math.round(h);
@@ -867,6 +889,28 @@
           if (isWoodChannel && effectiveW > 0) {
             this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
             this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
+          }
+
+          // P1-3: 상판 — 하부 라인에 한 장 (3D addTopPanel 도 배치 공간 단위 한 장이다 · W12-38).
+          //   두께 = specs.topThickness (bom-protocol.md §2: 인조대리석 12/50 · 도어자재 18). 자재는 두께로 가른다 —
+          //   18 이면 도어자재(MDF), 아니면 인조대리석. 마감 코드는 디테일 모델 top 슬롯 > specs.topColor 의 TOP-* (add()).
+          //   폭 = 하부 라인 폭 + 좌·우 마감 폭 (상판은 마감재 위를 지나간다 — 3D 는 영역 전폭 그대로). 깊이 = 품목 깊이(배치 깊이).
+          //   [확인 필요] 오버행·물끊기·개수대/쿡탑 타공은 규칙이 없다 (계획 B2). ㄱ·ㄷ자는 라인마다 나눠야 하지만 브리지가
+          //   배치 공간을 넘기지 않아 한 장(폭 합)으로 낸다 — scene-bom-ledger.md §4 P3-10 (부재 모델이 런을 알면 나눈다).
+          //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
+          const topLineW = (item.modules || [])
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
+            .reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0)
+            || (lowerModules.length ? 0 : effectiveW);
+          if (topLineW > 0) {
+            const topT = parseFloat(specs.topThickness) || 12;
+            const topD = parseFloat(item.d) || 650;
+            const finW = (type, w) => (type && type !== 'None' ? (parseFloat(w) || 0) : 0);
+            const topW = topLineW + finW(specs.finishLeftType, specs.finishLeftWidth) + finW(specs.finishRightType, specs.finishRightWidth);
+            const topMaterial = topT === 18 ? 'MDF' : '인조대리석';
+            this.add(materials, `${prefix}상판`, '상판', topMaterial, topT, topW, topD, 1,
+                     topMaterial === 'MDF' ? '1면(전)' : '-',
+                     '[확인 필요] 오버행·타공 규칙 없음 — 하부 라인 한 장(좌·우 마감 폭 포함)');
           }
 
           // 좌측 마감 (몰딩/휠라/EP)

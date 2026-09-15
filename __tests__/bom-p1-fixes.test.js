@@ -163,3 +163,72 @@ describe('P1-2 상부장 없는 배치에는 상몰딩을 내지 않는다', () 
     expect(one(rows, 'ep', '걸레받이').w).toBe(4200 - 120);
   });
 });
+
+describe('P1-3 상판·좌대 산출', () => {
+  test('상판 — 하부 라인 한 장: 두께·자재는 specs, 폭 = 하부 폭 합 + 좌·우 마감, 깊이 = 품목 깊이, 코드 = TOP-*', () => {
+    const rows = extract(sinkItem([...LOWERS, ...TALL_STACK, UPPER]));
+    const top = one(rows, 'ep', '상판');
+    expect(top).toMatchObject({
+      material: '인조대리석', thickness: 12, w: 1900 + 60 + 60, h: 650, qty: 1,
+      slot: 'top', partId: '0-ep-top-0', finishCode: 'TOP-SNW', edgeCode: null,
+    });
+    expect(top.note).toContain('[확인 필요]');
+    expect(top.edgeLen).toBe(0);
+  });
+
+  test('상판 두께 18 → 도어자재(MDF) 상판, 전면 엣지 (bom-protocol.md §2)', () => {
+    const rows = extract(sinkItem([...LOWERS], { specs: Object.assign({}, SPECS, { topThickness: 18 }) }));
+    expect(one(rows, 'ep', '상판')).toMatchObject({ material: 'MDF', thickness: 18, edge: '1면(전)' });
+  });
+
+  test('상판 두께 50 · 마감 없음 → 인조대리석 50, 폭 = 하부 폭 합만', () => {
+    const rows = extract(sinkItem([...LOWERS], {
+      specs: Object.assign({}, SPECS, { topThickness: 50, finishLeftType: 'None', finishRightType: 'None' }),
+    }));
+    expect(one(rows, 'ep', '상판')).toMatchObject({ material: '인조대리석', thickness: 50, w: 1900 });
+  });
+
+  test('쿡탑장 폭은 상판에 들어간다 (몸통은 안 내지만 상판이 그 위를 지나간다) — 걸레받이는 예전대로', () => {
+    const cook = { id: 'cook-1', type: 'cook', name: '가스대', pos: 'lower', w: 600, h: 708, d: 550, isFixed: true };
+    const rows = extract(sinkItem([...LOWERS, cook]));
+    expect(one(rows, 'ep', '상판').w).toBe(1900 + 600 + 120);
+    expect(one(rows, 'ep', '걸레받이').w).toBe(1900);
+  });
+
+  test('디테일 모델 top 슬롯이 있으면 그 코드, 없으면 topColor 폴백, 둘 다 없으면 빈 값', () => {
+    const withDetail = extract(sinkItem([...LOWERS], { detail: { item: { top: 'TOP-CHC' } } }));
+    expect(one(withDetail, 'ep', '상판').finishCode).toBe('TOP-CHC');
+    const noColor = extract(sinkItem([...LOWERS], { specs: Object.assign({}, SPECS, { topColor: '' }) }));
+    expect(one(noColor, 'ep', '상판').finishCode).toBe('');
+    const asCode = extract(sinkItem([...LOWERS], { specs: Object.assign({}, SPECS, { topColor: 'TOP-GMB' }) }));
+    expect(one(asCode, 'ep', '상판').finishCode).toBe('TOP-GMB');
+  });
+
+  test('상판은 품목당 한 행 — 요약에 인조대리석_12 묶음이 생긴다', () => {
+    const { MaterialExtractor } = loadExtractors();
+    const out = new MaterialExtractor().extract({ appVersion: 'p1-test', items: [sinkItem([...LOWERS])] });
+    expect(out.materials.filter((r) => r.part === '상판')).toHaveLength(1);
+    expect(out.summary['인조대리석_12']).toMatchObject({ material: '인조대리석', thickness: 12, panelCount: 1 });
+  });
+
+  test('붙박이장 좌대 — 모듈마다 상자(전후·측·중간보강) + 품목 좌대 걸레받이 (wardrobe.md, 이미 산출 — 여기서 잠근다)', () => {
+    const rows = extract(wardrobe);
+    ['w1', 'w2', 'w3'].forEach((id) => {
+      expect(one(rows, id, '좌대 전후')).toMatchObject({ material: 'PB', w: 870, h: 60, qty: 2, slot: 'kick' });
+      expect(one(rows, id, '좌대 측')).toMatchObject({ w: 565, h: 60, qty: 2 });
+      expect(one(rows, id, '좌대 중간보강')).toMatchObject({ qty: 1 });
+    });
+    expect(one(rows, 'ep', '좌대 걸레받이')).toMatchObject({ material: 'MDF', thickness: 18, w: 60, slot: 'kick' });
+    // 붙박이장에는 상판이 없다 — 천판이 몸통에 있다
+    expect(rows.filter((r) => r.part === '상판')).toHaveLength(0);
+  });
+
+  test('모든 새 행에 partId·slot 이 있다 (B1 규약) — 상판 def 가 표에 있다', () => {
+    const rows = extract(sinkItem([...LOWERS, ...TALL_STACK, UPPER]));
+    rows.forEach((r) => {
+      expect(typeof r.partId).toBe('string');
+      expect(typeof r.slot).toBe('string');
+      expect(r.partId).not.toContain('part:');
+    });
+  });
+});
