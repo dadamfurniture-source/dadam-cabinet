@@ -9,21 +9,23 @@ describe('I18n Module', () => {
       <div data-i18n="nav.about">About us</div>
       <button id="lang-toggle"><span>KO</span></button>
     `;
-    localStorage.getItem.mockReturnValue('ko');
+    localStorage.clear();
+    localStorage.setItem('dadam-lang', 'ko');
   });
 
   afterEach(() => {
+    localStorage.clear();
     jest.clearAllMocks();
   });
 
   test('localStorage에서 언어 설정을 가져온다', () => {
-    localStorage.getItem.mockReturnValue('en');
+    localStorage.setItem('dadam-lang', 'en');
     const lang = localStorage.getItem('dadam-lang') || 'ko';
     expect(lang).toBe('en');
   });
 
   test('기본 언어는 ko이다', () => {
-    localStorage.getItem.mockReturnValue(null);
+    localStorage.removeItem('dadam-lang');
     const lang = localStorage.getItem('dadam-lang') || 'ko';
     expect(lang).toBe('ko');
   });

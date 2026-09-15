@@ -69,7 +69,8 @@ describe('하부장 ㄱ자 — 몸통끼리 붙는다', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     p.g('areas').filter((a) => !a.isFinishing).forEach((a) => {
       const L = p.g('cornerLedger')(a.id);
-      if (L) { expect(L.withinSlack).toBe(true);   // W12-73: 모듈당 1mm 조립 여유 expect(L.missing).toBe(0); }
+      // W12-73: 모듈당 1mm 조립 여유
+      if (L) { expect(L.withinSlack).toBe(true); expect(L.missing).toBe(0); }
     });
   });
 

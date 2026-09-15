@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 # PR 검증용. main 배포는 별도 workflow (pages-build-deployment)가 담당한다.
 #
-# 하드 게이트(실패 시 PR 차단): typecheck, build
-# 리포트 전용(continue-on-error): lint, format:check, test, html-validate,
-#   링크 체크, 시크릿 스캔, lighthouse
+# 하드 게이트(실패 시 PR 차단): typecheck, build, test
+# 리포트 전용(continue-on-error): lint, format:check, html-validate,
+#   링크 체크, 시크릿 스캔, lighthouse, 커버리지 업로드
 #   — 위 항목들은 현재 저장소가 통과하지 못하는 상태라 우선 로그만 남긴다.
 #     수정이 끝나는 대로 continue-on-error를 제거해 게이트로 승격할 것.
 on:
@@ -98,7 +98,6 @@ jobs:
 
       - name: Run tests
         run: npm test
-        continue-on-error: true
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
