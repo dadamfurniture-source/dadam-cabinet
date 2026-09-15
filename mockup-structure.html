@@ -2309,10 +2309,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         // W12-66/67: 멍 칸(= 멍가림판 폭) 위에 마감재가 포개어진다. 좌표는 blindFrontLayout —
         //   칸 폭은 목대를 뺀 값이므로 목대를 되더해 넘긴다. 마감재 다음은 바로 도어 칸.
         //   멍장이 오른쪽 끝(도어가 먼저)이면 벽 쪽이 오른쪽이라 좌우를 뒤집는다.
+        // corner.md §3.5.2 (2026-09-15): 옆 도어 칸(doorW + 목대 15)은 위의 표준 도어 rect 그대로다 —
+        //   폭 = 칸 폭 − 4 = doorW + 11, 갭 좌우 2. 도어가 목대를 덮으므로 목대는 정면에 없다.
+        //   3D(createModuleMesh)·BOM(blindDoorPartW)과 같은 값이다 (planner-blind-door-width.test.js).
         const epBlind = !!(m.blind && m.blind.ep);
         const lay = blindFrontLayout(colW + MASTER_RULES.CORNER_HINGE_BATTEN_T, { ep: epBlind });
         const doorRight = (s.areaTypes[i + 1] || '') === 'door';
-        const X = (u) => doorRight ? x + u : x + colW - u;            // 벽 쪽 0 → 화면 x
+        // 멍판은 칸을 갭 없이 다 덮는다 — 기준은 칸 시작(xAcc)이다. 도어 rect 의 x(칸 시작 + 갭 2)를 쓰면
+        //   멍판이 도어 쪽으로 2 밀려 3D(P2-5: colW 그대로)와 어긋난다.
+        const X = (u) => doorRight ? xAcc + u : xAcc + colW - u;      // 벽 쪽 0 → 화면 x
         const span = (seg) => { const a = X(seg[0]), b = X(seg[1]); return [Math.min(a, b), Math.abs(b - a)]; };
         const box = (seg, fill, stroke) => {
           const [bx, bw] = span(seg);
@@ -6944,25 +6949,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorH = topH - MASTER_RULES.DOOR_GAP;
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
-      // P2-5 (scene-bom-ledger.md §4 · corner.md §3.5): 멍장 정면은 도어 갭 규칙을 그대로 타면 안 된다.
+      // P2-5 (scene-bom-ledger.md §4 · corner.md §3.5): 멍장 정면 — 멍 칸은 도어 갭 규칙을 타지 않는다.
       //   멍 칸  — 멍가림판(2.7T MDF, 키큰장은 EP 18T)은 칸 폭 = 멍 W − 목대 15 를 **그대로**, 높이는 **몸통 H**
       //           로 재단한다. 도어가 아니라 갭 4 가 없다 (BOM 멍가림판 650 × 708, 예전 3D 646 × 704).
-      //   도어 칸 — 칸 폭은 doorW + 목대 15 지만(W12-67, 목대는 정면 부재가 아니다) 도어는 **목대에 물린다**:
-      //           경첩이 목대 옆다리에 달리므로 도어 재단은 doorW − 4 (deriveCorner · BOM 414). 예전엔 칸 폭 − 4
-      //           = doorW + 11 로 15 넓었다. 도어는 목대 너머 doorW 자리에 갭 2씩 두고 앉는다 — 중심을 목대 반만큼
-      //           멍 반대쪽으로 옮긴다. [확인 필요] 목대 15 가 정면에서 보이는 그림이 맞는지 (corner.md §3.5.1 은
-      //           "마감재 다음 바로 도어" 라 하지만 BOM 재단은 doorW−4 다 — 둘 중 하나가 정본이 돼야 한다).
-      let frontW = innerW, frontH = topDoorH, frontCx = cellCx;
+      //   도어 칸 — corner.md §3.5.2 (2026-09-15 결정): **멍장 도어는 목대를 덮는다.** 정면 셀은
+      //           `[멍 = 멍W−15][도어 = doorW+15]` 두 칸이고 목대 15 는 도어 칸 **안쪽**에 서는 구조재라 정면에
+      //           드러나지 않는다. 도어 재단 = 도어 자리 − 갭 4 = doorW + 11 (corner-engine blindDoorPartW · BOM 429).
+      //           곧 표준 도어와 같은 `칸 폭 − 4`, 갭은 좌우 2 씩(_cornerDoorGap) — 특례가 필요 없다. 2D 정면도
+      //           (renderFrontView)도 같은 식이라 도면·3D·BOM 이 한 값이다. P2 에서 잠시 도어를 목대 **옆**에
+      //           `doorW − 4` 로 앉혀 목대 15 가 정면에 보였다 — 그 그림은 §3.5.2 로 폐기됐다.
+      let frontW = innerW, frontH = topDoorH;
+      const frontCx = cellCx;
       if (type === 'blind') {
         frontW = colW; frontH = topH;
-      } else {
-        const types = s.areaTypes || [];
-        const blindSide = (i > 0 && types[i - 1] === 'blind') ? -1 : (types[i + 1] === 'blind') ? +1 : 0;
-        if (blindSide) {
-          const batten = MASTER_RULES.CORNER_HINGE_BATTEN_T;
-          frontW = colW - batten - MASTER_RULES.DOOR_GAP;
-          frontCx = cellCx - blindSide * batten / 2;
-        }
       }
       // W12-61/65: 영역 보기도 멍판 마감재 종류와 멍판 EP 여부를 넘긴다 — 모듈 상세 보기(위)와 같은 메타.
       addFrontPanel(g, frontCx, topDoorY, frontW, frontH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s), blindFinish: (m.blind && m.blind.finish && m.blind.finish.section) || null, epBlind: !!(m.blind && m.blind.ep) }, areaLimitsFor(m)));
