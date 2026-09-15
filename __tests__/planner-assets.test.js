@@ -60,12 +60,14 @@ const SHARED = [
 // 공통으로 싣지 않는다. 이 구분이 없으면 shell 에 안 쓰는 코드가 계속 딸려간다.
 // D0: 디테일 모드도 구조 페이지 안의 모드라 구조 전용이다 (planner-finish 는 BOM 이 쓰게 되면 공통으로 올린다).
 // D2: 카탈로그(DB)·PBR 재질도 디테일 모드 것이라 구조 전용. planner-detail.js 보다 먼저 실린다.
+// D3: 렌더 캡처(planner-capture.js)는 PlannerDetail.pushLook 과 PlannerStore 를 쓰므로 둘 뒤에 실린다.
 const STRUCTURE_ONLY = [
   'js/planner/planner-engine.js',
   'js/planner/planner-finish.js',
   'js/planner/planner-catalog.js',
   'js/planner/planner-materials.js',
   'js/planner/planner-detail.js',
+  'js/planner/planner-capture.js',
 ];
 
 // D0: 마감 카탈로그 정본. IIFE 라 최상위 이름이 없고 window.DadamBomFinishColor 만 남긴다 —
@@ -111,6 +113,18 @@ describe('플래너 모듈이 실려 있다', () => {
     const html = read('mockup-structure.html');
     expect(html).toContain("from 'three/addons/environments/RoomEnvironment.js'");
     expect(html).toContain('window.RoomEnvironment = RoomEnvironment;');
+  });
+
+  test('D3: 렌더 캡처 모듈은 planner-detail.js·planner-store.js 뒤 — 출력 패스(OutputPass)도 importmap 모듈이 올린다', () => {
+    const struct = scriptSrcs(read('mockup-structure.html')).map((s) => s.split('?')[0]);
+    const at = (rel) => struct.indexOf(rel);
+    expect(at('js/planner/planner-detail.js')).toBeLessThan(at('js/planner/planner-capture.js'));
+    expect(at('js/planner/planner-store.js')).toBeLessThan(at('js/planner/planner-capture.js'));
+    const html = read('mockup-structure.html');
+    expect(html).toContain("from 'three/addons/postprocessing/OutputPass.js'");
+    expect(html).toContain('window.OutputPass = OutputPass;');
+    // 배치 페이지에는 싣지 않는다 (STRUCTURE_ONLY 시험이 같이 본다)
+    expect(scriptSrcs(read('mockup-shell.html')).map((s) => s.split('?')[0])).not.toContain('js/planner/planner-capture.js');
   });
 
   test.each(HTML_FILES)('%s 에서 모듈이 인라인보다 먼저 온다', (file) => {
