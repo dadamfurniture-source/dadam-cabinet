@@ -137,7 +137,9 @@ const PlannerDetail = {
   mount(o) {
     this._o = o || {};
     plannerDetailInjectCss();
-    this.catalog = plannerFinishCatalog(typeof window !== 'undefined' ? window.DadamBomFinishColor : null);
+    // 카탈로그: 캐시/로컬 정본으로 먼저 그리고, DB 를 읽어 오면 갈아 끼운다 (planner-catalog.js).
+    this.catalog = this.catalogSync();
+    this.loadCatalog();
     this.detail = this.load();
     const pill = document.getElementById('detailStageBtn');
     if (pill) pill.onclick = () => this.toggle();
@@ -153,6 +155,43 @@ const PlannerDetail = {
     try { search = location.search; } catch (e) { search = ''; }
     if (plannerDetailWantsStage(search)) this.enter({ quiet: true });
     return this;
+  },
+
+  // ── 카탈로그 ────────────────────────────────────────────
+  /** 네트워크 없이 지금 쓸 카탈로그. planner-catalog.js 가 없으면 D0 의 로컬 정본. */
+  catalogSync() {
+    if (typeof PlannerCatalog !== 'undefined' && PlannerCatalog && typeof PlannerCatalog.sync === 'function') {
+      try { return PlannerCatalog.sync(); } catch (e) { /* 아래 폴백 */ }
+    }
+    return plannerFinishCatalog(typeof window !== 'undefined' ? window.DadamBomFinishColor : null);
+  },
+
+  /**
+   * DB 에서 카탈로그를 읽어 갈아 끼운다. 언제나 resolve 한다 (실패해도 지금 카탈로그 유지).
+   * 재질 캐시는 코드→재질이라 카탈로그가 바뀌면 비운다.
+   */
+  loadCatalog(opt) {
+    if (typeof PlannerCatalog === 'undefined' || !PlannerCatalog || typeof PlannerCatalog.load !== 'function') {
+      return Promise.resolve(this.catalog);
+    }
+    // 여러 번 부르면 **나중에 시작한 것**이 이긴다 — 먼저 시작한 느린 응답이 새 카탈로그를 덮지 않게.
+    const seq = (this._catalogSeq = (this._catalogSeq || 0) + 1);
+    let p;
+    try { p = PlannerCatalog.load(opt); } catch (e) { return Promise.resolve(this.catalog); }
+    return Promise.resolve(p).then((cat) => {
+      if (!cat || !Array.isArray(cat.entries) || seq !== this._catalogSeq) return this.catalog;
+      this.catalog = cat;
+      if (typeof PlannerMaterials !== 'undefined' && PlannerMaterials) { try { PlannerMaterials.dispose(); } catch (e) { /* 무해 */ } }
+      if (this.active) this.refresh();
+      return cat;
+    }, () => this.catalog);
+  },
+
+  /** 코드 → 카탈로그 항목. byCode 가 있으면 O(1), 없으면 목록 검색. */
+  entryOf(code) {
+    if (!code || !this.catalog) return null;
+    if (this.catalog.byCode) return this.catalog.byCode[code] || null;
+    return plannerFinishLookup(this.catalog, code);
   },
 
   // ── 저장소 ──────────────────────────────────────────────
