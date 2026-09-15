@@ -22,6 +22,25 @@ function _cornerEpW()     { return typeof CORNER_EP_W        !== 'undefined' ? C
 function _cornerMinDoorW(){ return typeof DOOR_MIN_WIDTH     !== 'undefined' ? DOOR_MIN_WIDTH     : 350; }
 function _cornerBatten()  { return typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15; }
 /* eslint-enable no-undef */
+/** 도어 재단 갭 — 자리 폭에서 좌우 2 씩 뺀다. extractors.js 의 표준 도어 `− 4` 와 같은 값이다. */
+function _cornerDoorGap() { return 4; }
+
+/**
+ * 멍장 도어 **재단 폭** — corner.md §3.5.1 · 2026-09-15 결정 "멍장 도어는 목대를 덮는다".
+ *
+ *   도어 자리 = doorW + 목대 15          (정면 셀 `[멍 = 멍W−15][도어 = 도어W+15]`)
+ *   도어 재단 = 도어 자리 − 갭 4 = doorW + 11
+ *
+ * 경첩목대는 모듈 **안쪽**에 서는 구조재라 정면 부재가 아니다 — 마감재 다음은 바로 도어다.
+ * 예전(P2 #652 까지)엔 도어가 목대 옆에 앉는다고 보고 doorW − 4 로 재단해 정면에 목대 15 가 드러났다.
+ * 균등 분배의 doorW(§3.4)·카카스 W·원장은 그대로다 — 바뀐 것은 이 도어 한 장의 재단 폭뿐이다.
+ *
+ * @param {number} doorW 균등 분배 도어 폭 (deriveCorner().doorW)
+ * @returns {number} 도어 재단 폭 (doorW + 11)
+ */
+function blindDoorPartW(doorW) {
+  return Math.max(0, (parseFloat(doorW) || 0) + _cornerBatten() - _cornerDoorGap());
+}
 
 /**
  * 멍장 파생 계산 (순수 함수) — corner.md §3.3~3.7
@@ -36,8 +55,12 @@ function _cornerBatten()  { return typeof CORNER_HINGE_BATTEN_T !== 'undefined' 
  * @param {number} [p.minDoorW=350]   도어 최소 폭 (DOOR_MIN_WIDTH)
  * @returns {{
  *   blindZoneW:number, doorAvail:number, nDoors:number, doorW:number,
- *   remainder:number, blindW:number, adjStartOffset:number, warnings:string[]
+ *   remainder:number, blindW:number, adjStartOffset:number,
+ *   blindCoverW:number, doorPartW:number, warnings:string[]
  * }}
+ *   blindCoverW  멍가림판 재단 폭 = 멍 − 목대 15 (§3.5)
+ *   doorPartW    멍장 도어 재단 폭 = doorW + 목대 15 − 갭 4 = doorW + 11 (§3.5.1, 2026-09-15 결정)
+ *                정면 원장: blindCoverW + (doorPartW + 4) === blindW
  */
 function deriveCorner(p) {
   const molding = Number.isFinite(p.molding) ? p.molding : 60;
@@ -94,7 +117,18 @@ function deriveCorner(p) {
   //   W12-68: 상부도 같은 식 — 넘어온 멍장 라인 깊이다.
   const adjStartOffset = Number.isFinite(p.blindLineTopD) ? p.blindLineTopD : p.adjTopD;
 
-  return { blindZoneW, doorAvail, nDoors, doorW, remainder, blindW, adjStartOffset, warnings };
+  // ⑤ 정면 부재 재단 폭 — §3.5 / §3.5.1 (2026-09-15 결정: 멍장 도어는 목대를 덮는다)
+  //    정면 셀은 두 칸이다: [멍가림판 = 멍 − 15][도어 자리 = doorW + 15]. 목대 15 는 멍 폭 안에 있지만
+  //    정면 부재가 아니라 도어가 그 위를 덮는다 — 마감재 다음은 바로 도어다.
+  //      멍가림판 = 665 − 15 = 650,  도어 재단 = 411 + 15 − 4 = 422
+  //    두 칸의 합은 카카스 W 그대로다: 650 + (422 + 4) = 1076 = blindW.
+  const blindCoverW = Math.max(0, blindZoneW - batten);
+  const doorPartW = blindDoorPartW(doorW);
+
+  return {
+    blindZoneW, doorAvail, nDoors, doorW, remainder, blindW, adjStartOffset,
+    blindCoverW, doorPartW, warnings,
+  };
 }
 
 /**
@@ -360,8 +394,16 @@ function distributeBlindLine(mods, derived) {
 
 /**
  * 원장 불변식 검증 — design §4.3
- * 멍장 라인: EP + Σ(수납 W) + 멍장 W + 벽여유(50) === lineW (±1)
- * 위반 시: strict(개발/테스트)면 throw, 아니면 경고 + 마지막 수납 모듈 보정.
+ *
+ * ① 라인 원장:  EP + Σ(수납 W) + 멍장 W + 벽여유(50) === lineW (±1)
+ * ② 정면 원장 (2026-09-15 결정 "멍장 도어는 목대를 덮는다", corner.md §3.5.1):
+ *      멍장 W === 멍(blindZoneW) + 도어(doorW)
+ *              === [멍가림판 = 멍 − 목대 15] + [도어 자리 = doorW + 목대 15]
+ *    목대 15 는 멍 폭에서 도어 자리로 **옮겨 갈 뿐** 합은 그대로다 — 도어가 목대 옆에 앉든(옛 doorW−4)
+ *    위를 덮든(doorW+11) 카카스 W 는 안 변한다. 그래서 ① 은 도어 결정과 무관하고, ② 가 멍·도어 두 값이
+ *    카카스와 맞는지를 본다 (멍·도어가 기록된 멍장만 — 플래너 브리지가 같은 검사를 경고로 한다).
+ *
+ * 위반 시: strict(개발/테스트)면 throw, 아니면 경고 + (① 은) 마지막 수납 모듈 보정.
  */
 function assertCornerLedger(item, pos, opts) {
   const strict = !!(opts && opts.strict);
@@ -374,6 +416,21 @@ function assertCornerLedger(item, pos, opts) {
   const mods = item.modules.filter(
     (m) => m.pos === pos && (m.line === 'secondary' || m.orientation === 'secondary') && m.id !== blindId
   );
+  // ② 정면 원장 — 멍·도어가 기록된 멍장만 본다
+  const zoneW = parseFloat(blind.blindZoneW);
+  const doorW = parseFloat(blind.doorW);
+  if (Number.isFinite(zoneW) && Number.isFinite(doorW)) {
+    const frontDiff = (parseFloat(blind.w) || 0) - (zoneW + doorW);
+    if (Math.abs(frontDiff) > 1) {
+      const fmsg =
+        '[corner-engine] 정면 원장 위반(' + pos + '): 멍' + zoneW + ' + 도어' + doorW + ' = ' + (zoneW + doorW) +
+        ' ≠ 멍장 W ' + blind.w + ' (차이 ' + frontDiff + 'mm) — 멍가림판 ' + (zoneW - _cornerBatten()) +
+        ' + 도어 자리 ' + (doorW + _cornerBatten()) + ' 가 카카스와 맞지 않는다';
+      if (strict) throw new Error(fmsg);
+      if (typeof console !== 'undefined') console.warn(fmsg);
+      return { ok: false, diff: frontDiff, corrected: false, front: true };
+    }
+  }
   const storageW = mods.reduce((s, m) => s + (parseFloat(m.w) || 0), 0);
   const sum = _cornerEpW() + storageW + (parseFloat(blind.w) || 0) + _cornerWallGap();
   const diff = lineW - sum;
@@ -420,6 +477,7 @@ function cornerAdjOffset(item, pos) {
 // ── 노출 ─────────────────────────────────────────────
 if (typeof window !== 'undefined') {
   window.deriveCorner = deriveCorner;
+  window.blindDoorPartW = blindDoorPartW;
   window.seedCornerModules = seedCornerModules;
   window.removeCornerModules = removeCornerModules;
   window.seedUpperCornerModules = seedUpperCornerModules;
@@ -433,7 +491,7 @@ if (typeof window !== 'undefined') {
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    deriveCorner, cornerParamsFromItem,
+    deriveCorner, blindDoorPartW, cornerParamsFromItem,
     seedCornerModules, removeCornerModules,
     seedUpperCornerModules, removeUpperCornerModules,
     migrateCornerModules,
