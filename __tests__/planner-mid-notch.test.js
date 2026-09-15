@@ -228,6 +228,45 @@ describe('렌더 경로 — 전면 배치를 레이아웃이 정한다', () => {
   });
 });
 
+describe('정면도·미리보기가 3D·BOM 과 같은 배치를 그린다', () => {
+  function pickLower(p) {
+    const area = p.g('areas').find((a) => a.section === 'lower') || p.g('areas')[0];
+    const m = p.g('addModuleToArea')(area.id);
+    p.g('setActiveModule')(m.id);
+    return { m, s: p.g('getStructure')(m.id) };
+  }
+  const previewLabels = (p) => [...p.document.querySelectorAll('#mpPreviewG text')].map((n) => n.textContent);
+
+  test('서랍 단수만큼 전면 칸을 그린다 — 예전엔 하부가 한 칸이라 3D 와 달랐다', () => {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=mp1&item=1', storage: {} });
+    const { s } = pickLower(p);
+    Object.assign(s, { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 150, drawerCount: 3 });
+    p.g('renderRightPanel')();
+    expect(previewLabels(p).filter((x) => /^서랍\d H=150$/.test(x))).toHaveLength(3);
+    expect(p.errors).toEqual([]);
+  });
+
+  test('50 미만으로 쪼그라든 도어는 그리지 않고 경고를 띄운다', () => {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=mp2&item=1', storage: {} });
+    const { s } = pickLower(p);
+    Object.assign(s, { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 200, drawerCount: 3 });
+    p.g('renderRightPanel')();
+    const labels = previewLabels(p);
+    expect(labels.filter((x) => /^서랍\d H=200$/.test(x))).toHaveLength(3);
+    expect(labels.some((x) => x === '도어')).toBe(false);
+    expect(p.document.getElementById('mpDirty').textContent).toMatch(/최소 50 미만/);
+  });
+
+  test('레이아웃이 없는 구성(도어만)은 예전 경로 그대로', () => {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=mp3&item=1', storage: {} });
+    const { s } = pickLower(p);
+    Object.assign(s, { horizontalLayout: 'doorOnly', areaTypes: ['door'], verticalCount: 1 });
+    p.g('renderRightPanel')();
+    expect(previewLabels(p).some((x) => /^서랍\d/.test(x))).toBe(false);
+    expect(p.document.getElementById('mpDirty').textContent).not.toMatch(/최소/);
+  });
+});
+
 describe('우측 패널 — 서랍 레일 선택, 최대 4단', () => {
   test('레일·서랍 자재·사쿠리 입력이 s.drawer 한 블록으로 저장·재렌더된다', () => {
     expect(SRC).toContain('id="selDrawerRail"');

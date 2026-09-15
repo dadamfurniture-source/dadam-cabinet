@@ -627,7 +627,8 @@
           // 전면 — 위에서 아래로. 도어는 doorCount 장이 가로로 나뉜다. 같은 높이의 서랍도어는 한 행(수량)으로 묶는다.
           const drawerFrontRows = [];
           L.fronts.forEach((f) => {
-            if (f.h <= 0) return;
+            // 2026-09-15: 최소 전면 높이 미만은 부재로 내지 않는다 (옛 규칙 `hingeDoorH > 50`)
+            if (f.h < R.MIN_FRONT_H) return;
             if (f.kind === 'door') {
               const dc = Math.max(1, doorCount || 1);
               this.add(materials, modLabel, '도어', 'MDF', 18, Math.floor(W / dc) - 4, f.h, dc, '4면', '', mod);

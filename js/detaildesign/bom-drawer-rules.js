@@ -53,6 +53,7 @@
     MID_SLOT: 30,                 // 중간 슬롯
     UPPER_DROP: 20,               // 위 전면이 중간 따내기 윗선 아래로 내려오는 길이
     FRONT_GAP: 4,                 // 목찬넬 없는 전면 사이 갭
+    MIN_FRONT_H: 50,              // 이보다 낮은 전면은 부재로 내지 않는다 (옛 규칙 `hingeDoorH > 50` 과 같은 값)
     CHANNEL_T: 18,                // 목찬넬 부재 MDF 두께
     CHANNEL_BASE_W: 40,           // 지면판 폭 = 따내기 깊이
     CHANNEL_TOP_FACE_H: 52,       // 상단 전면판
@@ -146,6 +147,14 @@
     } else if (avail !== 0) {
       warnings.push(`전면 높이 합이 몸통과 ${avail > 0 ? '모자란다' : '넘친다'} (${Math.abs(avail)})`);
     }
+
+    // 2026-09-15: 너무 낮은 전면은 만들 수 없다 — 경고하고, 부재·그림에서 뺀다 (MIN_FRONT_H).
+    //   서랍 전면 높이를 크게 주면 남는 도어가 한 자리 mm 로 쪼그라든다 (708 몸통에 서랍 200×3 → 도어 14).
+    fronts.forEach((f, i) => {
+      if (f.h > 0 && f.h < R.MIN_FRONT_H) {
+        warnings.push(`전면 ${i + 1}(${f.kind === 'door' ? '도어' : '서랍'}) 높이 ${f.h} 가 최소 ${R.MIN_FRONT_H} 미만 — 부재로 내지 않는다`);
+      }
+    });
 
     // 위치
     const channels = [{ kind: 'top', y: 0, notchH: R.CHANNEL_TOP_NOTCH_H, notchD: R.CHANNEL_BASE_W, faceH: R.CHANNEL_TOP_FACE_H, baseW: R.CHANNEL_BASE_W }];
