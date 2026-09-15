@@ -45,30 +45,6 @@
       "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
-      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|blind|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "corner-blind-area-lower-1--area-lower-0",
-      "family": "blind",
-      "scene": "704×646×3 ×1",
-      "bom": "708×650×2.7 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "멍장 정면 치수",
-      "reason": "3D 멍가림판은 도어 갭 4 를 빼고(646 × 704) 두께 3(반올림). BOM 은 멍 폭 − 목대 15 = 650 × 몸통 H, 2.7T"
-    },
-    {
-      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|blindfin|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "corner-blind-area-lower-1--area-lower-0",
-      "family": "blindfin",
-      "scene": "704×150×18 ×1",
-      "bom": "708×150×18 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "멍장 정면 치수",
-      "reason": "3D 멍판 마감재 높이는 도어 갭 4 를 뺀 704, BOM 은 몸통 H 708"
-    },
-    {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -91,18 +67,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "corner-blind-area-lower-1--area-lower-0",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "608×70×15 ×2",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
     },
     {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:top|only3d",
@@ -139,18 +103,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|door|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "corner-blind-area-lower-1--area-lower-0",
-      "family": "door",
-      "scene": "678×429×18 ×1",
-      "bom": "678×414×18 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "멍장 정면 치수",
-      "reason": "3D 도어 칸 폭은 doorW + 목대 15 라 도어가 15 넓다(433−4). BOM 은 doorW−4 (corner.md §3.5 도어는 목대에 물린다)"
     },
     {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|kick|only3d",
@@ -297,18 +249,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "cornerL|lower-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-0",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "cornerL|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -417,18 +357,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "cornerL|lower-1|body:brace|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-1",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "cornerL|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -511,18 +439,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "cornerL|lower-2|body:brace|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-2",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
     },
     {
       "id": "cornerL|lower-2|body:top|only3d",
@@ -609,18 +525,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "cornerL|lower-3|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "lower-3",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "608×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
-    },
-    {
       "id": "cornerL|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -703,18 +607,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "cornerL|lower-4|body:brace|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-4",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
     },
     {
       "id": "cornerL|lower-4|body:top|only3d",
@@ -885,18 +777,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "lShape|lower-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-0",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "lShape|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -1005,18 +885,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "lShape|lower-1|body:brace|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-1",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "lShape|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -1099,18 +967,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "lShape|lower-2|body:brace|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-2",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
     },
     {
       "id": "lShape|lower-2|body:top|only3d",
@@ -1221,18 +1077,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "lShape|lower-3|body:brace|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-3",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "lShape|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -1341,18 +1185,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "lShape|lower-4|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "lower-4",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "608×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
-    },
-    {
       "id": "lShape|lower-4|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -1435,18 +1267,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "lShape|tall-0|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "701×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
     },
     {
       "id": "lShape|tall-0|body:top|only3d",
@@ -1557,18 +1377,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "lShape|tall-1|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "949×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다. 푸쉬 단이라 목찬넬 −70 은 없다 (P1-1)"
-    },
-    {
       "id": "lShape|tall-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -1627,18 +1435,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "lShape|tall-2|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "370×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다. 푸쉬 단이라 목찬넬 −70 은 없다 (P1-1)"
     },
     {
       "id": "lShape|tall-2|body:top|only3d",
@@ -1701,18 +1497,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "lShape|upper-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "lShape|upper-0|body:top|dims",
       "kind": "dims",
       "fixture": "lShape",
@@ -1723,18 +1507,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "lShape|upper-0|door|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "door",
-      "scene": "716×446×18 ×2",
-      "bom": "735×446×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "lShape|upper-0|molding|only3d",
@@ -1797,18 +1569,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "lShape|upper-1|body:brace|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "lShape|upper-1|body:top|dims",
       "kind": "dims",
       "fixture": "lShape",
@@ -1819,18 +1579,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "lShape|upper-1|door|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "door",
-      "scene": "716×446×18 ×2",
-      "bom": "735×446×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "lShape|upper-1|molding|only3d",
@@ -1977,18 +1725,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "oblique|lower-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-0",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "oblique|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -2097,18 +1833,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "oblique|lower-1|body:brace|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-1",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "oblique|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -2191,18 +1915,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "oblique|lower-2|body:brace|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-2",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
     },
     {
       "id": "oblique|lower-2|body:top|only3d",
@@ -2313,18 +2025,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "oblique|lower-3|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "lower-3",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "608×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
-    },
-    {
       "id": "oblique|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -2409,18 +2109,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "oblique|upper-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "oblique|upper-0|body:top|dims",
       "kind": "dims",
       "fixture": "oblique",
@@ -2431,18 +2119,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "oblique|upper-0|door|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "door",
-      "scene": "716×446×18 ×2",
-      "bom": "735×446×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "oblique|upper-0|molding|only3d",
@@ -2505,18 +2181,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "oblique|upper-1|body:brace|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "oblique|upper-1|body:top|dims",
       "kind": "dims",
       "fixture": "oblique",
@@ -2527,18 +2191,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "oblique|upper-1|door|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "door",
-      "scene": "716×446×18 ×2",
-      "bom": "735×446×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "oblique|upper-1|molding|only3d",
@@ -2685,18 +2337,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "straight|lower-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-0",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "straight|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -2805,18 +2445,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "straight|lower-1|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-1",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "608×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
-    },
-    {
       "id": "straight|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -2899,18 +2527,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
-      "id": "straight|lower-2|body:brace|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-2",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
     },
     {
       "id": "straight|lower-2|body:top|only3d",
@@ -3021,18 +2637,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "straight|lower-3|body:brace|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-3",
-      "family": "body:brace",
-      "scene": "610×60×15 ×1",
-      "bom": "608×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "straight|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -3141,18 +2745,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
     },
     {
-      "id": "straight|lower-4|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-4",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "608×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
-    },
-    {
       "id": "straight|lower-4|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -3237,18 +2829,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "straight|upper-0|body:brace|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "straight|upper-0|body:top|dims",
       "kind": "dims",
       "fixture": "straight",
@@ -3259,18 +2839,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-0|door|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "door",
-      "scene": "716×446×18 ×2",
-      "bom": "735×446×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "straight|upper-0|molding|only3d",
@@ -3333,18 +2901,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "straight|upper-1|body:brace|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "straight|upper-1|body:top|dims",
       "kind": "dims",
       "fixture": "straight",
@@ -3355,18 +2911,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-1|door|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "door",
-      "scene": "716×446×18 ×2",
-      "bom": "735×446×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "straight|upper-1|molding|only3d",
@@ -3429,18 +2973,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "straight|upper-2|body:brace|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "body:brace",
-      "scene": "644×60×15 ×1",
-      "bom": "690×70×15 ×2",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 2장",
-      "cause": "처짐방지목",
-      "reason": "3D 는 양문 가운데에 장식용 한 장(60 × 도어H×0.9)만 그린다. BOM 은 70 × (H−2T) 를 W≥800(하부)·W≥700(상부)이면 2장, 목찬넬이면 −70"
-    },
-    {
       "id": "straight|upper-2|body:top|dims",
       "kind": "dims",
       "fixture": "straight",
@@ -3451,18 +2983,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-2|door|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "door",
-      "scene": "716×396×18 ×2",
-      "bom": "735×396×18 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "straight|upper-2|molding|only3d",
@@ -3525,18 +3045,6 @@
       "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
     },
     {
-      "id": "straight|upper-3|body:brace|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "body:brace",
-      "scene": "",
-      "bom": "690×70×15 ×1",
-      "note": "",
-      "cause": "처짐방지목",
-      "reason": "단문 모듈의 처짐방지목(70 × H−2T)은 3D 가 그리지 않는다 — 3D 는 양문(areaIs2D)에만 그린다"
-    },
-    {
       "id": "straight|upper-3|body:top|dims",
       "kind": "dims",
       "fixture": "straight",
@@ -3547,18 +3055,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "사쿠리홈 깊이",
       "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-3|door|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "door",
-      "scene": "716×396×18 ×1",
-      "bom": "735×396×18 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "상부 도어 내림 잘림",
-      "reason": "BOM 상부 도어 H = 몸통 + 오버랩 15. 3D 는 도어 내림 15 가 배치 공간 바닥 제한(areaLimitsFor bottomLimit)에 잘려 몸통 −4 로 그려진다"
     },
     {
       "id": "straight|upper-3|molding|only3d",

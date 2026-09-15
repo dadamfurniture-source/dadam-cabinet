@@ -92,9 +92,13 @@
   예림 행이 0 인 DB 는 캐시하지 않는다(시드가 들어오면 바로 보이게). `PlannerCatalog.sync()` 는 네트워크 없이 캐시/로컬 정본으로
   즉시 만든다 — `PlannerDetail.mount` 가 그걸로 먼저 그리고 `load()` 가 끝나면 갈아 끼운다(나중에 시작한 load 가 이긴다).
 - 그룹(`groups[]`): 예림 행은 `series → finish` (`Supreme · PET Matt`, `Body · PVC` …; `finish` 열의 series 접두를 뗀다), 순서는
-  Prestige → Supreme → Deco → Prime → Body, 안에서는 `sort`. 그 다음 **상판**(`countertop`, `TOP-*`), 맨 뒤 **구 7×7 (호환)** —
-  `plannerFinishCatalog(window.DadamBomFinishColor)` 의 `PET-OAK-M` 코드들. 호환 그룹은 예림이 있을 때만 접혀 있고 슬롯 전부를 가진다
-  (손잡이·마감재·걸레받이 슬롯은 DB 에 category 가 없어 이 그룹뿐이다). 같은 코드가 두 번 오면 앞의 것.
+  Prestige → Supreme → Deco → Prime → Body, 안에서는 `sort`. 그 다음 **상판**(`countertop`, `TOP-*`), 맨 뒤 **기타(호환)** —
+  `plannerFinishCatalog(window.DadamBomFinishColor)` 의 `PET-OAK-M` 코드들 **+ C2b 호환 코드 `{COLOR}-M` / `{COLOR}-G`**
+  (`WHT-G` …, 색 목록 옛 7색 + GRY BGE NVY × 무광·유광 = 20 — `plannerCatalogCompatToneEntries`, P2 #PR). 부모 셀렉트가
+  `specs.doorMaterial*` 에 싣는 합성 코드라 `materials.code` 에는 없다 — 여기 없으면 `plannerFinishLookup` 이 못 찾아 그 부재가
+  색을 잃는다 (designui-catalog-select.md "합성 코드가 다른 경로에 미치는 것"). 라벨은 부모와 같은 '기타(호환)'.
+  호환 그룹은 예림이 있을 때만 접혀 있고 슬롯 전부를 가진다 (손잡이·마감재·걸레받이 슬롯은 DB 에 category 가 없어 이 그룹뿐이다).
+  같은 코드가 두 번 오면 앞의 것.
 - 항목(`entries[]`)은 D0 필드(`code·label·hex·finish·finishLabel·tone·color·colorLabel`)를 그대로 두고 **더하기만** 했다:
   `roughness·metalness·clearcoat·grain·slots[]·group·series·vendor·vendorCode·textureUrl·tileMm·category·sort`. `byCode` 사전도 준다.
   `plannerFinishLookup / plannerFinishHex` 가 그대로 읽는다. DB 의 `drawer_front` 슬롯은 `drawerFront` 로, `slot` 이 비면 category 로

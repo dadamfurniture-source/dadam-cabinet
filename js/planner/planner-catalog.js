@@ -11,6 +11,9 @@
 //   상판(top)   = category='countertop' 행 (TOP-SNW …, C0).
 //   구 7×7      = bom-finish-color.js 의 PET-OAK-M 코드. **호환 그룹**으로만 남긴다 — 맨 뒤,
 //                접힌 채. 코드는 과거 문서·가격에 박혀 있으니 지우지 않는다 (I6).
+//   호환 코드   = C2b(designui-catalog-select.md) 의 `{COLOR}-M` / `{COLOR}-G` (WHT-G …). 부모 셀렉트가 옛 색을
+//                무광·유광으로 고를 때 쓰는 합성 코드 — materials.code 가 아니라 여기서 색 목록으로 만들어
+//                같은 호환 그룹에 넣는다 (plannerCatalogCompatToneEntries). 없으면 그 부재는 색을 못 받는다.
 //
 // 읽는 길: PlannerStore 가 쓰는 것과 같은 Supabase 클라이언트 → sessionStorage 캐시(1시간)
 //   → 둘 다 안 되면 plannerFinishCatalog(window.DadamBomFinishColor) (fallback:true).
@@ -58,9 +61,13 @@ const PLANNER_CATALOG_CATEGORY_SLOTS = {
   countertop: ['top'],
 };
 
-/** 호환(구 7×7) 그룹. 슬롯 필터에 걸리지 않게 슬롯 전부를 갖는다 — 손잡이·마감재·걸레받이는 이 그룹뿐이다. */
+/**
+ * 호환 그룹 — 구 7×7(PET-OAK-M …) + C2b 호환 코드({COLOR}-M/G) + vendor 없는 DB 행.
+ * 슬롯 필터에 걸리지 않게 슬롯 전부를 갖는다 — 손잡이·마감재·걸레받이는 이 그룹뿐이다.
+ * 라벨은 부모 셀렉트(config-constants.js COMPAT_GROUP_LABEL)와 같은 '기타(호환)' — 같은 코드를 같은 이름으로.
+ */
 const PLANNER_CATALOG_COMPAT_KEY = 'compat';
-const PLANNER_CATALOG_COMPAT_LABEL = '구 7×7 (호환)';
+const PLANNER_CATALOG_COMPAT_LABEL = '기타(호환)';
 const PLANNER_CATALOG_TOP_KEY = 'countertop';
 const PLANNER_CATALOG_TOP_LABEL = '상판';
 
@@ -145,6 +152,49 @@ function plannerCatalogEntryOf(row) {
   };
 }
 
+/**
+ * C2b 호환 코드 `{COLOR}-M` / `{COLOR}-G` (designui-catalog-select.md "기타(호환) 그룹").
+ *
+ * 부모(상세설계 도어 셀렉트)는 옛 색 행(WHT …)을 무광·유광 두 옵션으로 내고 `specs.doorMaterial*` 과
+ * `item.detail…door.code` 에 합성 코드(`WHT-G`)를 그대로 싣는다. 이 코드는 `materials.code` 가 아니라
+ * DB 에도 로컬 정본(7 마감 × 색)에도 없다 — plannerFinishLookup 이 정확 일치라 못 찾고, 그 부재는 색을
+ * 잃었다 (구조 단계 색 그대로). 여기서 색 목록(bom-finish-color DOOR_COLOR_CATALOG: 옛 7색 + GRY BGE NVY)
+ * 으로 같은 코드를 만들어 호환 그룹에 넣는다 — 색은 그 색 행의 hex, 톤은 접미사, 라벨 `{색} · 무광/유광`.
+ *
+ * @param {Array<{value,code,label,hex}>} colors  plannerFinishCatalog(api).colors
+ * @param {number} startSort  호환 그룹 안에서 구 7×7 뒤에 서게 하는 정렬 시작값
+ */
+const PLANNER_CATALOG_COMPAT_TONES = [
+  { suffix: 'M', tone: 'matte', label: '무광' },
+  { suffix: 'G', tone: 'gloss', label: '유광' },
+];
+function plannerCatalogCompatToneEntries(colors, startSort) {
+  const out = [];
+  (Array.isArray(colors) ? colors : []).forEach((c) => {
+    const hex = plannerCatalogHex(c && c.hex);
+    const code = c && typeof c.code === 'string' ? c.code.trim() : '';
+    if (!code || !hex) return;
+    PLANNER_CATALOG_COMPAT_TONES.forEach((t) => {
+      out.push({
+        code: code + '-' + t.suffix,
+        label: c.label + ' · ' + t.label,
+        hex,
+        tone: t.tone,
+        roughness: null, metalness: null, clearcoat: null, grain: 'none',
+        slots: PLANNER_FINISH_SLOTS.slice(),
+        group: PLANNER_CATALOG_COMPAT_KEY,
+        series: '', finish: '', finishLabel: t.label,
+        color: c.value || code, colorLabel: c.label,
+        vendor: null, vendorCode: code,
+        textureUrl: null, tileMm: null, category: 'door_material',
+        sort: startSort + out.length,
+        compatTone: true,
+      });
+    });
+  });
+  return out;
+}
+
 /** plannerFinishCatalog 의 항목(구 7×7) → 이 파일의 항목 모양. 슬롯은 전부. */
 function plannerCatalogCompatEntry(e, i) {
   return Object.assign({}, e, {
@@ -189,6 +239,8 @@ function plannerCatalogBuild(rows, api) {
   top.sort(bySort);
   other.sort(bySort);
   const compat = local.entries.map(plannerCatalogCompatEntry);
+  // C2b 호환 코드 {COLOR}-M/G — 구 7×7 뒤에. 부모 셀렉트가 고른 WHT-G 가 여기서 풀려 부재에 색이 든다.
+  const compatTones = plannerCatalogCompatToneEntries(local.colors, compat.length);
 
   const entries = [];
   const byCode = {};
@@ -196,6 +248,7 @@ function plannerCatalogBuild(rows, api) {
   yerim.forEach(push);
   top.forEach(push);
   compat.forEach(push);
+  compatTones.forEach(push);
   // DB 에만 있는 그 밖의 행(vendor 없음·상판 아님)도 호환 그룹 뒤에 붙인다 — 잃지 않는다.
   other.forEach((e) => push(Object.assign(e, { group: PLANNER_CATALOG_COMPAT_KEY, slots: e.slots.length ? e.slots : PLANNER_FINISH_SLOTS.slice() })));
 
@@ -395,6 +448,8 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCatalogSlots,
     plannerCatalogFinishShort,
     plannerCatalogEntryOf,
+    plannerCatalogCompatToneEntries,
+    PLANNER_CATALOG_COMPAT_TONES,
     plannerCatalogBuild,
     plannerCatalogGroupsForSlot,
     plannerCatalogSearch,
