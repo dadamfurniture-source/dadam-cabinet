@@ -69,10 +69,12 @@ const MASTER_RULES = {
   DOOR_W_MIN: 350,              // 도어 W 최소
   DOOR_W_MAX: 600,              // 도어 W 최대
   DOOR_W_TARGET: 450,           // 도어 W 목표
-  SINK_BAND_THRESHOLD_UPPER: 700,   // 상부장 W > 700 → 처짐방지목 추가
-  SINK_BAND_THRESHOLD_LOWER: 800,   // 하부장 W > 800 → 처짐방지목 추가
-  // W9-101: 처짐방지목 — OBJ 측정 60mm, 마스터 명시 70mm (OBJ 우선)
-  BAND_BRACE_W: 60,             // 처짐방지목 폭 (가운데 분리판)
+  // P2-6 (scene-bom-ledger.md §4): 처짐방지목은 BOM 규칙(sink.md 부재표 · extractors.js)과 같은 값을 쓴다.
+  //   70 × (H − 2T) 를 폭 문턱 **이상**이면 2장, 아니면 1장 — 단문도 낸다. 목찬넬이면 따내기 70 만큼 짧다.
+  SINK_BAND_THRESHOLD_UPPER: 700,   // 상부장 W ≥ 700 → 처짐방지목 2장 (extractors.js `W >= 700 ? 2 : 1`)
+  SINK_BAND_THRESHOLD_LOWER: 800,   // 하부장·키큰장 W ≥ 800 → 2장 (`W >= 800 ? 2 : 1`)
+  // W9-101 은 OBJ 측정 60 을 썼는데 마스터·BOM 은 70 이다 — 원장이 두 값을 나란히 놓자 60 이 3D 만의 값이었다.
+  BAND_BRACE_W: 70,             // 처짐방지목 폭 (sink.md '밴드(처짐방지) 70 x bandH')
   BAND_BRACE_THICK: 15,         // 처짐방지목 두께 (15T PB 동일)
   // W9-95: 가전 X 정밀 분할 + 먹장 자동
   BLANK_THRESHOLD: 350,         // 세그먼트 W < 350 → 'blank' 자동 (도어 최소와 동일)

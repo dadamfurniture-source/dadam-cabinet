@@ -362,7 +362,8 @@ function plannerFinishPartKeyOf(ud) {
     case 'blind': return 'blind#' + idx(ud.areaIdx);
     case 'blindfin': return 'blindfin#' + idx(ud.areaIdx);
     case 'blank': return 'blank#' + idx(ud.areaIdx);
-    case 'brace': return 'brace#' + idx(ud.areaIdx);
+    // P2-6: 처짐방지목은 모듈 단위 부재라 braceIdx(0·1)로 센다. areaIdx 는 예전(양문 칸마다 한 장) userData 호환.
+    case 'brace': return 'brace#' + idx(ud.braceIdx != null ? ud.braceIdx : ud.areaIdx);
     case 'finishing': return 'finishing#' + idx(ud.finishingIdx);
     default: return null;
   }
