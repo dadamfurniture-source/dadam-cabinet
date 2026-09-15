@@ -27,6 +27,11 @@ window.DADAM_CONFIG = {
     // 회원탈퇴 — auth.users 삭제는 service_role 이 필요해 브라우저에서 못 한다.
     url: 'https://dadam-account-api.dadamfurniture.workers.dev',
   },
+  datasetApi: {
+    // Cloudflare Worker (workers/dataset-api/). main 푸시 시 자동 배포.
+    // 학습 데이터셋 수집(10분마다) · 내보내기(야간). admin/dataset.html 의 버튼만 부른다.
+    url: 'https://dadam-dataset-api.dadamfurniture.workers.dev',
+  },
   app: {
     name: '다담가구',
     version: '1.0.0',
