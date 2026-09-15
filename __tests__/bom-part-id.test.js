@@ -326,6 +326,97 @@ describe('detaildesign.html — planner-finish.js 를 extractors.js 앞에 싣�
   });
 });
 
+describe('엣지밴딩 — edges/edgeLen/edgeT/edgeCode + 요약 edgeBanding', () => {
+  const { bomEdgeSidesOf, bomEdgeLenOf, bomEdgeThicknessOf } = require('../js/detaildesign/extractors.js');
+  const sides = (L, R, T, B) => ({ L, R, T, B });
+
+  test('엣지 문자열 → 변 (L/R 은 세로 h 변, T/B 는 가로 w 변)', () => {
+    expect(bomEdgeSidesOf('4면', 446, 735)).toEqual(sides(true, true, true, true));
+    expect(bomEdgeSidesOf('3면', 295, 720)).toEqual(sides(true, false, true, true));   // 측판: 앞 + 위·아래
+    expect(bomEdgeSidesOf('3면', 720, 295)).toEqual(sides(true, true, true, false));   // 눕히면 긴 변 T + 짧은 변 L·R
+    expect(bomEdgeSidesOf('2면(장)', 70, 870)).toEqual(sides(true, true, false, false)); // 밴드: 긴 변 둘 = 870×2
+    expect(bomEdgeSidesOf('2면(장)', 870, 70)).toEqual(sides(false, false, true, true));
+    expect(bomEdgeSidesOf('2면(가로)', 864, 700)).toEqual(sides(false, false, true, true));
+    expect(bomEdgeSidesOf('1면(전)', 870, 277)).toEqual(sides(false, false, false, true)); // 천판: 앞 긴 변
+    expect(bomEdgeSidesOf('1면(장)', 440, 180)).toEqual(sides(false, false, false, true));
+    expect(bomEdgeSidesOf('1면(전)', 70, 700)).toEqual(sides(true, false, false, false));
+    expect(bomEdgeSidesOf('-', 880, 719)).toEqual(sides(false, false, false, false));
+    expect(bomEdgeSidesOf(undefined, 1, 1)).toEqual(sides(false, false, false, false));
+  });
+
+  test('길이 = Σ 붙이는 변 치수, 두께 = 전면 1.0 / 나머지 0.6', () => {
+    expect(bomEdgeLenOf(sides(true, false, true, true), 295, 720)).toBe(720 + 295 * 2);
+    expect(bomEdgeLenOf(sides(true, true, false, false), 70, 870)).toBe(1740);
+    expect(bomEdgeThicknessOf('door')).toBe(1.0);
+    expect(bomEdgeThicknessOf('drawerFront')).toBe(1.0);
+    ['body', 'back', 'top', 'handle', 'finishing', 'kick', null].forEach((s) => expect(bomEdgeThicknessOf(s)).toBe(0.6));
+  });
+
+  test('행 필드: 측판·밴드·천판·도어·뒷판', () => {
+    const rows = extractRows({ items: [clone(FIXTURES.sink15)] });
+    const side = oneRow(rows, '상부장-상부장(1D)', '측판');       // 295×720 3면
+    expect(side.edge).toBe('3면');
+    expect(side.edges).toEqual(sides(true, false, true, true));
+    expect(side.edgeLen).toBe(720 + 295 + 295);
+    expect(side.edgeT).toBe(0.6);
+    expect(side.edgeCode).toBeNull();
+    const band = oneRow(rows, '상부장-상부장(1D)', '밴드(보강목)'); // 570×70 2면(장)
+    expect(band.edges).toEqual(sides(false, false, true, true));
+    expect(band.edgeLen).toBe(570 * 2);
+    const top = oneRow(rows, '상부장-상부장(1D)', '천판');        // 570×277 1면(전)
+    expect(top.edges).toEqual(sides(false, false, false, true));
+    expect(top.edgeLen).toBe(570);
+    const door = oneRow(rows, '상부장-상부장(1D)', '도어');       // 596×735 4면
+    expect(door.edges).toEqual(sides(true, true, true, true));
+    expect(door.edgeLen).toBe((596 + 735) * 2);
+    expect(door.edgeT).toBe(1);
+    expect(door.edgeCode).toBeNull();                            // finishCode 가 비면 null
+    const back = oneRow(rows, '상부장-상부장(1D)', '뒷판');
+    expect(back.edges).toEqual(sides(false, false, false, false));
+    expect(back.edgeLen).toBe(0);
+  });
+
+  test('edgeCode — 전면·마감재는 면 마감을 따르고, 몸통·바닥·손잡이는 null', () => {
+    const d = F.plannerFinishEmpty();
+    F.plannerFinishSet(d, 'item', 'door', 'PET-OAK-M');
+    F.plannerFinishSet(d, 'item', 'drawerFront', 'PET-OAK-G');
+    F.plannerFinishSet(d, 'item', 'body', 'MFB-WHT');
+    F.plannerFinishSet(d, 'item', 'finishing', 'PNT-WHT-M');
+    F.plannerFinishSet(d, 'item', 'kick', 'PNT-BLK-M');
+    F.plannerFinishSet(d, 'item', 'handle', 'VNR-WNT');
+    const item = clone(FIXTURES.sink15);
+    item.detail = d;
+    const rows = extractRows({ items: [item] });
+    expect(oneRow(rows, '하부장-서랍장', '도어').edgeCode).toBe('PET-OAK-M');
+    expect(oneRow(rows, '하부장-서랍장', '서랍도어').edgeCode).toBe('PET-OAK-G');
+    expect(oneRow(rows, 'EP', '휠라(좌)').edgeCode).toBe('PNT-WHT-M');
+    expect(oneRow(rows, '하부장-서랍장', '측판').finishCode).toBe('MFB-WHT');
+    expect(oneRow(rows, '하부장-서랍장', '측판').edgeCode).toBeNull();
+    expect(oneRow(rows, 'EP', '걸레받이').edgeCode).toBeNull();
+    expect(oneRow(rows, '하부장-서랍장', '목찬넬').edgeCode).toBeNull();
+  });
+
+  test('요약 edgeBanding = 두께별 Σ edgeLen × qty, summary 옆(형제 키)에 둔다', () => {
+    const me = new MaterialExtractor();
+    const result = me.extract(fullDesign());
+    const expected = {};
+    result.materials.forEach((m) => {
+      const k = String(m.edgeT);
+      expected[k] = (expected[k] || 0) + m.edgeLen * m.qty;
+    });
+    expect(result.edgeBanding).toEqual(expected);
+    expect(Object.keys(result.edgeBanding).sort()).toEqual(['0.6', '1']);
+    expect(result.edgeBanding['1']).toBeGreaterThan(0);
+    expect(result.edgeBanding['0.6']).toBeGreaterThan(result.edgeBanding['1']);
+    // summary 는 자재_두께 그룹만 — ai-design-report.js 가 값을 전부 표로 그린다
+    Object.entries(result.summary).forEach(([key, s]) => {
+      expect(key).toBe(`${s.material}_${s.thickness}`);
+      expect(Object.keys(s).sort()).toEqual(['material', 'panelCount', 'thickness', 'totalArea']);
+    });
+    expect(me.calculateEdgeBanding([])).toEqual({});
+  });
+});
+
 describe('CommonJS 이중 노출 — 세 클래스 모두', () => {
   test('MaterialExtractor 외에 HardwareExtractor·DrawingVisualizer 도 require 로 얻는다', () => {
     expect(typeof MaterialExtractor).toBe('function');
