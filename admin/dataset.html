@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>학습 데이터셋 - 다담가구</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
+      .sidebar-logo span { font-size: 0.8rem; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { width: 20px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem; }
+
+      .main-content { margin-left: 250px; padding: 20px 30px; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #ddd; }
+      .header h2 { font-size: 1.5rem; color: #333; }
+      .access-denied { display: none; text-align: center; padding: 60px 20px; }
+      .access-denied h2 { color: #dc3545; margin-bottom: 10px; }
+
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+      .card { background: white; border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+      .card .label { font-size: 12px; color: #888; }
+      .card .value { font-size: 1.6rem; font-weight: 700; color: #333; font-variant-numeric: tabular-nums; }
+      .card.warn .value { color: #e08a00; }
+      .card.good .value { color: #1a9c53; }
+
+      .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+      .toolbar select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+      .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; }
+      .btn:hover { opacity: 0.85; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .btn-primary { background: #007bff; color: white; }
+      .btn-ghost { background: #e9ecef; color: #333; }
+      .runlog { font-size: 12px; color: #666; margin-left: auto; font-variant-numeric: tabular-nums; }
+      .runlog.err { color: #dc3545; }
+
+      /* 검수 화면 — 사진이 커야 빨리 본다 */
+      .review { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+      .stage { background: #14161a; border-radius: 10px; height: 62vh; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+      .stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      .stage .msg { color: #8b8f99; font-size: 16px; padding: 20px; text-align: center; }
+      .stage .flash { position: absolute; top: 12px; left: 12px; background: #1a9c53; color: white; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.15s; }
+      .stage .flash.on { opacity: 1; }
+      .stage .flash.reject { background: #dc3545; }
+
+      .panel { background: white; border-radius: 10px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+      .panel h3 { font-size: 13px; color: #888; font-weight: 500; margin-bottom: 8px; }
+      .guess { font-size: 1.3rem; font-weight: 700; color: #007bff; margin-bottom: 2px; }
+      .guess small { font-size: 12px; color: #888; font-weight: 400; margin-left: 6px; }
+      .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0; }
+      .keys button { display: flex; align-items: center; gap: 7px; background: #f1f3f5; border: 1px solid #dee2e6; color: #333; border-radius: 6px; padding: 7px 8px; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+      .keys button:hover, .keys button:focus-visible { border-color: #007bff; outline: none; }
+      .keys button.cur { border-color: #007bff; background: #e7f1ff; }
+      .keys kbd { min-width: 20px; text-align: center; background: white; border: 1px solid #ced4da; border-radius: 4px; padding: 0 4px; font: 12px ui-monospace, Consolas, monospace; color: #007bff; }
+      .keys .wide { grid-column: 1 / 3; }
+      .keys .danger { background: #fdecec; border-color: #f3c0c0; }
+      .meta { font-size: 12px; color: #777; line-height: 1.7; word-break: break-all; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+      .meta b { color: #333; }
+      .hint { font-size: 12px; color: #888; margin-top: 10px; line-height: 1.6; }
+      .hint kbd { background: #f1f3f5; border: 1px solid #ced4da; border-radius: 3px; padding: 0 4px; font: 11px ui-monospace, Consolas, monospace; }
+
+      @media (max-width: 900px) {
+        .sidebar { display: none; }
+        .main-content { margin-left: 0; padding: 16px; }
+        .review { grid-template-columns: 1fr; }
+        .stage { height: 46vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo"><h1>다담가구</h1><span>관리자 패널</span></div>
+      <ul class="nav-menu">
+        <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
+        <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
+        <li><a href="gallery.html"><span class="nav-icon">🖼️</span>시공사례 관리</a></li>
+        <li><a href="dataset.html" class="active"><span class="nav-icon">🧠</span>학습 데이터셋</a></li>
+        <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
+        <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
+        <li><a href="appliances.html"><span class="nav-icon">🧊</span>가전 모델 관리</a></li>
+        <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
+        <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
+      </ul>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <p><a href="../index.html">메인 페이지로 돌아가기</a></p>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <div class="header">
+          <h2>학습 데이터셋 검수</h2>
+          <div id="adminInfo" style="font-size: 13px; color: #888"></div>
+        </div>
+
+        <div class="cards">
+          <div class="card"><div class="label">전체 샘플</div><div class="value" id="statTotal">-</div></div>
+          <div class="card warn"><div class="label">검수 대기</div><div class="value" id="statReview">-</div></div>
+          <div class="card good"><div class="label">내보내기 가능</div><div class="value" id="statExport">-</div></div>
+          <div class="card"><div class="label">시공사례</div><div class="value" id="statPost">-</div></div>
+          <div class="card"><div class="label">연출컷</div><div class="value" id="statGen">-</div></div>
+        </div>
+
+        <div class="toolbar">
+          <select id="filterSource">
+            <option value="">전체 출처</option>
+            <option value="dadam_collection">시공사례 (collection_posts)</option>
+            <option value="dadam_generation">연출컷 (generations)</option>
+          </select>
+          <select id="filterLicense">
+            <option value="">전체 라이선스</option>
+            <option value="user-uploaded">고객 업로드 (개인정보 확인 필요)</option>
+            <option value="owned">다담 자체</option>
+          </select>
+          <button class="btn btn-ghost" id="btnReload" type="button">새로고침</button>
+          <button class="btn btn-primary" id="btnIngest" type="button">지금 수집</button>
+          <button class="btn btn-ghost" id="btnExport" type="button">지금 내보내기</button>
+          <span class="runlog" id="runlog"></span>
+        </div>
+
+        <div class="review">
+          <div class="stage">
+            <span class="flash" id="flash">저장</span>
+            <img id="img" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="검수 중인 샘플 이미지" hidden />
+            <div class="msg" id="stageMsg">불러오는 중…</div>
+          </div>
+
+          <div class="panel">
+            <h3>현재 라벨</h3>
+            <div class="guess" id="guess">—</div>
+            <div style="font-size: 12px; color: #888" id="guessSub"></div>
+
+            <h3 style="margin-top: 14px">공간을 고르면 그 값으로 확정</h3>
+            <div class="keys" id="keys"></div>
+
+            <div class="meta" id="meta"></div>
+            <div class="hint">
+              <kbd>Enter</kbd> 현재 라벨 그대로 확인 · <kbd>R</kbd> 제외 · <kbd>P</kbd> 개인정보 있음(제외) ·
+              <kbd>→</kbd> 건너뜀
+              <br />고객 업로드 사진은 얼굴·문패·서류가 보이면 반드시 <kbd>P</kbd>.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const SPACES = [
+        ['1', 'kitchen', '주방'], ['2', 'living', '거실'], ['3', 'bedroom', '침실·방'], ['4', 'bathroom', '욕실'],
+        ['5', 'entrance', '현관'], ['6', 'balcony', '발코니'], ['7', 'dressing', '드레스룸'], ['8', 'utility', '다용도실'],
+        ['9', 'corridor', '복도'], ['0', 'study', '서재'], ['-', 'dining', '다이닝'], ['U', 'unknown', '공간 아님'],
+      ];
+
+      let supabaseClient = null;
+      let me = null;
+      let queue = [];
+      let cursor = 0;
+
+      const $ = (id) => document.getElementById(id);
+      const api = () => (window.DADAM_CONFIG && window.DADAM_CONFIG.datasetApi && window.DADAM_CONFIG.datasetApi.url) || '';
+
+      async function initAdmin() {
+        if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase) return showAccessDenied();
+        const { url, anonKey } = window.DADAM_CONFIG.supabase;
+        supabaseClient = window.supabase.createClient(url, anonKey);
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showAccessDenied();
+        const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(supabaseClient) : false;
+        if (!isAdmin) return showAccessDenied();
+
+        me = session.user;
+        $('adminInfo').textContent = me.email || '';
+        $('pageContent').style.display = 'block';
+
+        renderKeys();
+        $('btnReload').addEventListener('click', refresh);
+        $('btnIngest').addEventListener('click', () => callWorker('/ingest', '수집'));
+        $('btnExport').addEventListener('click', () => callWorker('/export', '내보내기'));
+        $('filterSource').addEventListener('change', refresh);
+        $('filterLicense').addEventListener('change', refresh);
+        await refresh();
+      }
+
+      function showAccessDenied() {
+        $('accessDenied').style.display = 'block';
+        $('pageContent').style.display = 'none';
+      }
+
+      async function countOf(build) {
+        const { count, error } = await build(supabaseClient.from('dataset_samples').select('sample_id', { count: 'exact', head: true }));
+        return error ? '-' : count;
+      }
+
+      async function refresh() {
+        const [total, review, post, gen] = await Promise.all([
+          countOf((q) => q),
+          countOf((q) => q.eq('needs_review', true)),
+          countOf((q) => q.eq('source', 'dadam_collection')),
+          countOf((q) => q.eq('source', 'dadam_generation')),
+        ]);
+        const { count: exportable } = await supabaseClient
+          .from('dataset_exportable').select('sample_id', { count: 'exact', head: true });
+        $('statTotal').textContent = total;
+        $('statReview').textContent = review;
+        $('statExport').textContent = exportable ?? '-';
+        $('statPost').textContent = post;
+        $('statGen').textContent = gen;
+        await loadQueue();
+      }
+
+      async function loadQueue() {
+        let q = supabaseClient.from('dataset_samples').select('*')
+          .eq('needs_review', true)
+          .not('image_url', 'is', null)
+          .order('license', { ascending: true })   // user-uploaded 가 먼저 — 개인정보 확인이 급하다
+          .order('created_at', { ascending: true })
+          .limit(200);
+        const src = $('filterSource').value;
+        const lic = $('filterLicense').value;
+        if (src) q = q.eq('source', src);
+        if (lic) q = q.eq('license', lic);
+
+        const { data, error } = await q;
+        if (error) { $('stageMsg').textContent = '불러오지 못했습니다: ' + error.message; return; }
+        queue = data || [];
+        cursor = 0;
+        show();
+      }
+
+      function renderKeys() {
+        const box = $('keys');
+        box.innerHTML = '';
+        SPACES.forEach(([key, val, label]) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.dataset.val = val;
+          b.innerHTML = '<kbd>' + key + '</kbd><span>' + label + '</span>';
+          b.addEventListener('click', () => judge('correct', { space: val }));
+          box.appendChild(b);
+        });
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.className = 'wide';
+        confirm.innerHTML = '<kbd>Enter</kbd><span>현재 라벨 그대로 확인</span>';
+        confirm.addEventListener('click', () => judge('confirm', {}));
+        box.appendChild(confirm);
+
+        const reject = document.createElement('button');
+        reject.type = 'button';
+        reject.className = 'wide danger';
+        reject.innerHTML = '<kbd>R</kbd><span>학습에서 제외</span>';
+        reject.addEventListener('click', () => judge('reject', {}));
+        box.appendChild(reject);
+
+        const pii = document.createElement('button');
+        pii.type = 'button';
+        pii.className = 'wide danger';
+        pii.innerHTML = '<kbd>P</kbd><span>개인정보 있음 → 제외</span>';
+        pii.addEventListener('click', () => judge('reject', { pii_found: true }));
+        box.appendChild(pii);
+      }
+
+      function cur() { return queue[cursor]; }
+
+      function show() {
+        const it = cur();
+        const img = $('img');
+        if (!it) {
+          img.hidden = true;
+          $('stageMsg').hidden = false;
+          $('stageMsg').textContent = queue.length ? '이 큐는 끝났습니다 🎉' : '검수할 샘플이 없습니다.';
+          $('guess').textContent = '—';
+          $('guessSub').textContent = '';
+          $('meta').innerHTML = '';
+          return;
+        }
+        $('stageMsg').hidden = true;
+        img.hidden = false;
+        img.src = it.image_url;
+        $('guess').innerHTML = it.space + '<small>' + it.label_source + (it.confidence != null ? ' ' + it.confidence : '') + '</small>';
+        $('guessSub').textContent = [it.media, it.phase, it.furniture, it.layout_shape].join(' · ');
+        Array.prototype.forEach.call($('keys').querySelectorAll('button[data-val]'), (b) => {
+          b.classList.toggle('cur', b.dataset.val === it.space);
+        });
+        const a = it.attrs || {};
+        $('meta').innerHTML = [
+          '<b>' + it.sample_id + '</b>',
+          '출처 ' + it.source + ' · 그룹 ' + it.group_key,
+          '라이선스 <b>' + it.license + '</b>' + (it.consent === true ? ' · 동의함' : it.consent === false ? ' · 동의 안 함' : ' · 동의 미확인'),
+          a.title ? '제목 ' + a.title : '',
+          a.raw_label ? '원 라벨 ' + a.raw_label : '',
+          a.region ? '지역 ' + a.region : '',
+          '남은 ' + (queue.length - cursor) + '장',
+        ].filter(Boolean).join('<br>');
+
+        const next = queue[cursor + 1];
+        if (next && next.image_url) { const p = new Image(); p.src = next.image_url; }
+      }
+
+      async function judge(verdict, fields) {
+        const it = cur();
+        if (!it || !me) return;
+        const row = Object.assign({ sample_id: it.sample_id, reviewer: me.id, verdict }, fields);
+        const { error } = await supabaseClient.from('dataset_reviews').insert(row);
+        if (error) { alert('저장 실패: ' + error.message); return; }
+        flash(verdict === 'reject' ? '제외' : fields.space || '확인', verdict === 'reject');
+        cursor++;
+        show();
+        const left = $('statReview');
+        const n = Number(left.textContent);
+        if (!Number.isNaN(n)) left.textContent = n - 1;
+      }
+
+      function flash(text, danger) {
+        const f = $('flash');
+        f.textContent = text;
+        f.classList.toggle('reject', !!danger);
+        f.classList.add('on');
+        setTimeout(() => f.classList.remove('on'), 400);
+      }
+
+      async function callWorker(pathname, label) {
+        const base = api();
+        if (!base) { setRun('워커 주소가 설정되지 않았습니다 (js/config.js)', true); return; }
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        setRun(label + ' 실행 중…', false);
+        $('btnIngest').disabled = $('btnExport').disabled = true;
+        try {
+          const res = await fetch(base + pathname, {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + session.access_token },
+          });
+          const j = await res.json();
+          if (!res.ok) throw new Error(j.error || res.status);
+          setRun(label + ' 완료 · ' + JSON.stringify(j.results || { records: j.records, path: j.path }), false);
+          await refresh();
+        } catch (e) {
+          setRun(label + ' 실패: ' + e.message, true);
+        } finally {
+          $('btnIngest').disabled = $('btnExport').disabled = false;
+        }
+      }
+
+      function setRun(text, isErr) {
+        const el = $('runlog');
+        el.textContent = text;
+        el.classList.toggle('err', !!isErr);
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (!me || e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+        const k = e.key.toLowerCase();
+        if (k === 'enter') { judge('confirm', {}); return; }
+        if (k === 'r') { judge('reject', {}); return; }
+        if (k === 'p') { judge('reject', { pii_found: true }); return; }
+        if (k === 'arrowright') { if (cursor < queue.length) { cursor++; show(); } return; }
+        if (k === 'arrowleft') { if (cursor > 0) { cursor--; show(); } return; }
+        const hit = SPACES.find((s) => s[0].toLowerCase() === k);
+        if (hit) { e.preventDefault(); judge('correct', { space: hit[1] }); }
+      });
+
+      document.addEventListener('DOMContentLoaded', initAdmin);
+    </script>
+  </body>
+</html>

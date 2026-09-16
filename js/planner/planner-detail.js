@@ -49,8 +49,8 @@ const PLANNER_DETAIL_CSS = `
 #detailPalette{display:none;flex:1;min-height:0;overflow-y:auto;flex-direction:column;gap:8px;padding:8px 8px 12px;font-size:11px;color:var(--text,#2b2620)}
 body.detail-mode #detailPalette{display:flex}
 body.detail-mode #mlBody,body.detail-mode .ml-mode-toggle{display:none}
-body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail"]){display:none!important}
-body.detail-mode #rightPanel .section[data-sec="detail"]{display:block!important}
+body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail"]):not([data-sec="detail-renders"]){display:none!important}
+body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"]{display:block!important}
 .pd-only{display:none}
 body.detail-mode .pd-only{display:inline-flex}
 body.detail-mode #loadDrawingBtn,body.detail-mode #saveDrawingBtn{display:none}
@@ -308,6 +308,10 @@ const PlannerDetail = {
     this._syncUrl(true);
     this.applyScene(true);   // three 가 아직 없으면 paintScene 이 처음 불릴 때 켠다
     this.refresh();
+    // D3: 우측 "최근 렌더" 띠 — planner-capture.js 가 있을 때만 (없어도 모드는 돈다)
+    if (typeof PlannerCapture !== 'undefined' && PlannerCapture && typeof PlannerCapture.onDetailEnter === 'function') {
+      try { PlannerCapture.onDetailEnter(); } catch (e) { /* 무해 */ }
+    }
     if (!o.quiet) this.toast('🎨 디테일 모드 — 팔레트에서 마감을 고르고 3D 부재를 누르세요 (Shift+클릭 = 모듈 전체)');
     return true;
   },
@@ -599,10 +603,12 @@ const PlannerDetail = {
    *   three 가 없으면: D0 처럼 material.color 만 덮는다 (makeBox 가 mesh 마다 재질을 새로 만드니 공유 재질을 더럽히지 않는다).
    * 모드가 아니면 0 을 돌려주고 손대지 않는다. 씬 설정(applyScene)이 아직이면 여기서 켠다 —
    * init3D 가 모드 진입보다 늦게 올 수 있어서다.
+   * @param {{force?:boolean}} [opt] force: 모드 밖에서도 칠한다 — pushLook(렌더 캡처, D3)만 쓴다.
    * @returns {number} 칠한 mesh 수
    */
-  paintScene(group) {
-    if (!this.active || !group || typeof group.traverse !== 'function') return 0;
+  paintScene(group, opt) {
+    const force = !!(opt && opt.force);
+    if ((!this.active && !force) || !group || typeof group.traverse !== 'function') return 0;
     if (!this._sceneSaved) this.applyScene(true);
     const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : null;
     const PM = (T && typeof PlannerMaterials !== 'undefined') ? PlannerMaterials : null;
@@ -628,6 +634,40 @@ const PlannerDetail = {
       n++;
     });
     return n;
+  },
+
+  /**
+   * D3: 디테일 룩(색공간·톤매핑·환경광·조명 절반 + PBR 재질)을 **잠깐** 켠다 — 렌더 캡처용.
+   *   디테일 모드면 이미 켜져 있으니 아무것도 하지 않는 토큰을 돌려준다.
+   *   구조 모드면 applyScene(true) + paintScene({force}) 로 켜고, 토큰에 "내가 켰다" 를 적는다.
+   * popLook(token) 이 그 토큰대로만 되돌린다 — 모드에서 켠 것은 건드리지 않는다 (I2: 구조 모드는 캡처 전후 바이트 동일).
+   * enter/exit 와 같은 함수(applyScene · paintScene · unpaintScene)를 타므로 두 벌이 아니다.
+   * @returns {{scene:boolean, paint:boolean, group:object|null}}
+   */
+  pushLook() {
+    const t = this.three();
+    const tok = { scene: false, paint: false, group: (t && t.moduleGroup) || null };
+    if (this.active) {
+      // 모드가 주인이다. three 가 늦게 와서 아직 안 켜졌다면 여기서 켜 주되(paintScene 이 applyScene 을 부른다) 되돌리지 않는다.
+      if (tok.group) this.paintScene(tok.group);
+      return tok;
+    }
+    if (!this._sceneSaved) tok.scene = this.applyScene(true);
+    if (tok.group) {
+      this.paintScene(tok.group, { force: true });
+      tok.paint = true;
+    }
+    return tok;
+  },
+
+  /** pushLook 의 토큰대로 되돌린다. 두 번 불러도 무해. */
+  popLook(tok) {
+    if (!tok) return false;
+    if (tok.paint && tok.group) this.unpaintScene(tok.group);
+    if (tok.scene) this.applyScene(false);
+    tok.paint = false;
+    tok.scene = false;
+    return true;
   },
 
   /** paintScene 이 바꿔 끼운 재질을 원래 것으로 되돌린다. 모드와 무관하게 동작한다 (이탈 경로). */

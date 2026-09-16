@@ -6,11 +6,13 @@
 
 | 계층 | 위치 | 지원 카테고리 | 지위 |
 |------|------|-------------|------|
-| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, wardrobe, fridge | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
+| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, wardrobe, fridge, **shoerack, vanity, storage, warehouse** (B3) | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
 | **MCP 서버** | `mcp-server/src/services/bom.service.ts` | sink, wardrobe, fridge, vanity, shoe, storage | **프로토타입**. MCP 도구(`generate_bom`·도면 렌더)만 호출하고, 상세설계·워커·문서 어느 생산 경로도 호출하지 않는다. 값이 정본과 다르다(18T·밴드 60·경첩 2) |
 | **설계 규칙** | `docs/design-rules/` | 6개 문서 (common, sink, wardrobe, fridge, etc.) | 규칙 원본 |
 
-> 신발장/화장대/수납장/창고장은 프론트엔드 BOM 미지원 (MCP 서버만 가능)
+> 신발장·화장대·수납장·창고장은 B3(계획 §5)부터 프론트엔드가 낸다 — `extractors.js extractSimpleBox`, 부재표는 §3-4 → `simple-categories.md` §6.
+> `categoryId` 는 `data-constants.js CATEGORIES` 그대로(`shoerack`·`vanity`·`storage`·`warehouse`); MCP 의 `shoe` 는 별개 이름이다.
+> 아일랜드(`island`)·도어교체(`door`)·비규격장(`custom`)은 아직 없다.
 >
 > **정본 선언 (2026-09, 계획 B0)** — 이 문서의 부재표·철물 규칙과 어긋나는 코드가 있으면
 > `extractors.js` 가 기준이고, 문서를 코드에 맞춘다. 표준 3종 출력은 `test-utils/bom-golden/*.golden.json`
@@ -292,6 +294,27 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 
 ---
 
+### 3-4. 신발장 · 화장대 · 수납장 · 창고장 (shoerack · vanity · storage · warehouse) — B3
+
+> 코드 위치: `extractors.js` `BOM_SIMPLE_CATEGORY_RULES` + `MaterialExtractor.extractSimpleBox`. 부재표 정본: `simple-categories.md` §6.
+> 골든: `test-utils/bom-golden/{shoerack,vanity,storage,warehouse}.golden.json` (`__tests__/bom-golden-simple.test.js`).
+
+네 카테고리는 싱크대와 같은 범용 워크스페이스(상부 + 하부 + 키큰장)를 쓰므로 **§3-1 상부장·하부장 표와 `sink.md` §5.1 키큰장 단 표를 그대로 탄다.**
+추출기는 하나이고 카테고리 차이는 상수뿐이다:
+
+| categoryId | 하부 깊이 폴백 (`mod.d` → `item.d` → 이 값) | 선반 기본 개수 (`shelfCount` 없을 때) |
+|------------|------|------|
+| shoerack 신발장 | 350 | 플래너 신발장 분배 180~350 (`planner-engine.js calcDefaultShelves`) — 705 → 2, 2190 → 11 |
+| vanity 화장대 | 500 | 싱크 규칙 상부 2 · 하부 1 · 키큰장 1 |
+| storage 수납장 | 400 | 싱크 규칙 |
+| warehouse 창고장 | 450 | 싱크 규칙 |
+
+싱크대와 다른 점 — 깊이 폴백(550 고정이 아니다), `shelfCount`·`doorCount` 를 존중(없으면 폴백 + `[확인 필요]` 비고: 도어 `round(W/450)` 은 붙박이장 준용),
+서랍 상자를 레일 길이로 환산(측판 = 레일 − 60 · 밑판 = 측판 + 9; D550 이면 싱크와 같은 440·449), 상판·코너 마감·개수대·쿡탑·후드 없음.
+철물(경첩·손잡이·브라켓)은 자재 행과 같은 함수(`bomSimpleHingeDoorsOf` · `bomSimpleShelfQtyOf`)로 센다. 빌린 규칙 목록은 `simple-categories.md` §6.5.
+
+---
+
 ## 4. 하드웨어 산출 규칙
 
 > 코드 위치: `detaildesign.html` HardwareExtractor 클래스, `docs/design-rules/common.md`
@@ -330,12 +353,15 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 - 종류: `mod.drawerRail` — `under` **댐핑 언더레일**(기본, 박스 아래 30 · 위 10 여유) / `ball` **댐핑 볼레일**(아래 10 · 위 10).
   여유는 박스 크기 선택에 쓴다 (`sink.md` 하부장 · 서랍장, 정본 `js/detaildesign/bom-drawer-rules.js`).
 
+> 수량: 붙박이장은 모듈 `drawerCount` SET, 단순 카테고리(§3-4)도 서랍장마다 `drawerCount` SET (깊이는 자재 행과 같은 폴백 `bomSimpleDepthOf`).
+> 싱크대는 서랍장 모듈당 1 SET 로 과소다 — 골든에 묶여 있어 그대로 두고 계획 B2 에서 고친다.
+
 ### 4-3. 기타 하드웨어
 
 | 항목 | 규칙 |
 |------|------|
-| 핸들 | 도어 수량 = 핸들 수량 |
-| 다리발 | W≤600→4개, W≤1200→6개, W>1200→8개 |
+| 핸들 | 도어 수량 = 핸들 수량 (단순 카테고리는 자재 도어 행과 같은 함수 `bomSimpleHingeDoorsOf` 로 센다 — doorCount 폴백·서랍장 아래 여닫이 포함) |
+| 다리발 | W≤600→4개, W≤900→6개, W>900→8개 (`extractLegs` 실제 문턱). 싱크대 + 단순 카테고리(§3-4) 의 하부장. 단순 카테고리는 키큰장 단을 뺀다(좌대) — 싱크대는 골든에 묶여 옛 셈(단 포함) 그대로 |
 | 선반 브래킷 | 선반당 4개 (Φ5mm 핀 타입) |
 | 도어 댐퍼 | 도어당 2개 |
 
@@ -480,6 +506,18 @@ cutPlan = {
 모든 `partId` 의 기본 partId 가 `bom.materials` 에 있고 행별 배치 개수 ≤ `qty`, `rot` 을 반영한 발자국이 원판 안, 같은 시트에서 겹침 없음.
 통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
 `content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
+
+### 7-4. 작업지시서 v2 가 읽는 것 (B5, `workers/workflow-api`)
+
+문서는 `docs/02-design/features/work-order-v2.md`. 작업지시서는 위 필드를 이렇게 쓴다 — BOM 쪽에서 이름을 바꾸면 문서가 깨진다.
+
+| 문서 섹션 | 읽는 필드 |
+|---|---|
+| ② 모듈별 키팅 · ⑧ 라벨 | `materials[].partId slot finishCode edges edgeT edge itemLabel module part material thickness w h qty note`. 라벨 id 는 `partId#k` (k = 0..qty−1) — §7-3 의 `parts[].partId` 와 같다. partId 없는 옛 행은 `row-<index>` |
+| ③ 시트별 재단표 | `cutPlan.sheets[].{no material thickness partClass size trim layout parts[].{partId part w h x y rot} yield}` · `offcuts` · `smallParts` · `unallocated` · `summary.sheetsByMaterial totalYield` · `kerf trim` |
+| ⑤ 보링 좌표표 | 경첩 행 `hardware[].note` = `${mod.name} (보링: 110, 358, 606)` (`HardwareExtractor.extractHinges`). 구조화 `boring[]` 필드가 생기면 그것을 우선 읽는다. 도어 행 매칭은 `itemLabel` + `module` 라벨에서 `#n `·`상부장-/하부장-`·`(단)` 을 뗀 이름 = `mod.name` |
+| ⑦ rev 차이 | `partId` 로 맞춰 `w h thickness qty finishCode material` 비교 |
+| ① 스와치 | `finishCode` 고유값 → `materials.code` (`color_name color_hex vendor_code series finish tone`) — §2-1 정본 |
 
 ---
 

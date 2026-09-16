@@ -9,6 +9,9 @@ export interface MaterialSpec {
   label?: string;
 }
 
+/** hardware.md 양식 한 절의 행 값 — 공장이 채우기 전엔 null (숫자·문자열·구간표 객체 허용). */
+export type HardwareFormValues = Record<string, number | string | boolean | null | Record<string, unknown>>;
+
 export interface BomRules {
   materials: {
     sheet_size: { width: number; height: number };
@@ -41,6 +44,19 @@ export interface BomRules {
     hinges_per_door: number;
     hinge_type: string;
     slide_type: string;
+    // B2 철물·체결구 규칙 입력 양식 (docs/design-rules/hardware.md) — 공장 값이 확정될 때까지 null.
+    // 키는 양식의 절·행과 같고 __tests__/bom-rules-hardware-form.test.js 가 동기를 잠근다. 계산에는 아직 안 쓴다.
+    _source?: string;
+    _asOf?: string | null;
+    hinge?: HardwareFormValues;
+    rail?: HardwareFormValues;
+    minifix_dowel?: HardwareFormValues;
+    screw_nail_glue?: HardwareFormValues;
+    shelf_pin?: HardwareFormValues;
+    kick_clip_leg?: HardwareFormValues;
+    handle_channel?: HardwareFormValues;
+    countertop?: HardwareFormValues;
+    pedestal?: HardwareFormValues;
   };
   molding_clearance: {
     width_min: number;
