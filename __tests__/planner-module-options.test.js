@@ -176,16 +176,73 @@ describe('서랍 단수를 사용자가 정한다', () => {
     expect(_convertPlannerModules(p, SPECS).modules[0].drawerCount).toBe(0);
   });
 
-  test('비정상 값은 1단으로 떨어지고 상한은 5단', () => {
+  test('비정상 값은 1단으로 떨어지고 상한은 4단 (2026-09-15 서랍 규칙)', () => {
     for (const bad of [0, -2, 'abc', null]) {
       expect(_convertPlannerModules(drawerPayload(bad), SPECS).modules[0].drawerCount).toBe(1);
     }
-    expect(_convertPlannerModules(drawerPayload(99), SPECS).modules[0].drawerCount).toBe(5);
+    expect(_convertPlannerModules(drawerPayload(99), SPECS).modules[0].drawerCount).toBe(4);
   });
 
   test('플래너에 서랍 단수 입력이 있다', () => {
     expect(STRUCT).toMatch(/id="inpDrawerCount"/);
     expect(STRUCT).toMatch(/s\.drawerCount = v/);
+  });
+});
+
+describe('서랍 규칙 블록 — 레일·사쿠리·서랍 자재 두께가 BOM 모듈 drawer 로 넘어간다 (2026-09-15)', () => {
+  function payloadWith(drawer, extra = {}) {
+    return {
+      modules: [{ id: 'lower-0', section: 'lower', W: 900, H: 870, D: 550, x: 0, y: 0 }],
+      structures: {
+        'lower-0': Object.assign({
+          horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 200, drawerCount: 2,
+          areaTypes: ['door'], areaWidths: [900], areaIs2D: [false], shelves: [],
+        }, drawer === undefined ? {} : { drawer }, extra),
+      },
+    };
+  }
+  const mod = (p) => _convertPlannerModules(p, SPECS).modules[0];
+
+  test('플래너 s.drawer 블록이 정규화되어 그대로 실린다', () => {
+    expect(mod(payloadWith({ rail: 'ball', sakuri: true, boxT: 18 })).drawer).toEqual({ rail: 'ball', sakuri: true, boxT: 18 });
+  });
+
+  test('미지정이면 기본값 {언더레일, 사쿠리 없음, 몸통 두께} — 옛 저장 구조도 BOM 이 같은 모양을 받는다', () => {
+    expect(mod(payloadWith(undefined)).drawer).toEqual({ rail: 'under', sakuri: false, boxT: 0 });
+  });
+
+  test('옛 평면 필드 s.drawerRail 도 읽는다', () => {
+    expect(mod(payloadWith(undefined, { drawerRail: 'ball' })).drawer.rail).toBe('ball');
+  });
+
+  test('모르는 레일·자재 두께는 기본으로', () => {
+    expect(mod(payloadWith({ rail: 'x', boxT: 20 })).drawer).toEqual({ rail: 'under', sakuri: false, boxT: 0 });
+  });
+
+  test('서랍이 없는 모듈(오픈·도어만)에는 drawer 키가 없다 — payload 가 예전과 같다', () => {
+    const open = payloadWith({ rail: 'ball' });
+    open.structures['lower-0'].areaTypes = ['open'];
+    expect('drawer' in mod(open)).toBe(false);
+    const doorOnly = payloadWith({ rail: 'ball' });
+    doorOnly.structures['lower-0'].horizontalLayout = 'doorOnly';
+    expect('drawer' in mod(doorOnly)).toBe(false);
+  });
+
+  test('플래너 → 브리지 → BOM: 볼레일·사쿠리·18T 가 자재표까지 닿는다', () => {
+    global.dlog = () => {};
+    const { MaterialExtractor, HardwareExtractor } = require('../js/detaildesign/extractors.js');
+    const modules = _convertPlannerModules(payloadWith({ rail: 'ball', sakuri: true, boxT: 18 }), SPECS).modules;
+    const item = { uniqueId: 1, categoryId: 'sink', name: '싱크대', w: 900, h: 2310, d: 650, specs: Object.assign({}, SPECS, { handle: '찬넬 (목찬넬)', topSizes: [{ w: '900', d: '650' }] }), modules };
+    const rows = new MaterialExtractor().extract({ items: [item] }).materials;
+    const side = rows.find((r) => r.part === '서랍측판');
+    expect(side.thickness).toBe(18);                 // 서랍 자재 18T
+    expect(side.w).toBe(500);                        // 볼레일 D550 → 레일 500, 측판 = 레일
+    expect(side.note).toMatch(/댐핑 볼레일 500 · 사쿠리/);
+    const fb = rows.find((r) => r.part === '서랍전후판');
+    expect(fb.h).toBe(side.h - 18);                  // 사쿠리 −18
+    const rail = new HardwareExtractor().extract({ items: [item] }).hardware.find((h) => h.category === '레일');
+    expect(rail.item).toBe('댐핑 볼레일');
+    expect(rail.qty).toBe(2);
   });
 });
 
