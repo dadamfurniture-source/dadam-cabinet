@@ -18,6 +18,12 @@
         return String((mod && mod.id) || '').indexOf('corner-blind-' + pos) === 0;
       }
 
+      // 2026-09-15: 서랍장·목찬넬·레일 규칙은 js/detaildesign/bom-drawer-rules.js 한 곳에 있다.
+      //   브라우저(detaildesign.html)는 그 파일을 extractors.js 앞에 실어 전역 DadamDrawerRules 를 주고,
+      //   Node 시험은 require 로 받는다. 규칙 숫자를 여기 다시 적지 않는다.
+      const DrawerRules = (typeof DadamDrawerRules !== 'undefined') ? DadamDrawerRules
+        : (typeof require === 'function' ? require('./bom-drawer-rules.js') : null);
+
       // ============================================================
       // B1: 부재 식별자 (partId) · 슬롯 — 계획 §5 B1, bom-protocol.md §7-1
       //
@@ -67,6 +73,9 @@
         '목찬넬':          { key: 'channel:front',    slot: 'handle' },
         '목찬넬(전면)':    { key: 'channel:front',    slot: 'handle' },
         '목찬넬(지면)':    { key: 'channel:back',     slot: 'handle' },
+        // 2026-09-15: 서랍장 중간 목찬넬 (따내기 90×40 = 전면판 72 + 지면판 18) — 모듈 폭, 모듈 단위 부재
+        '목찬넬(중간 전면)': { key: 'channel:mid-front', slot: 'handle' },
+        '목찬넬(중간 지면)': { key: 'channel:mid-back',  slot: 'handle' },
         // 마감재 — EP·몰딩·휠라·멍판
         '상몰딩':          { key: 'molding',          slot: 'finishing' },
         '좌측몰딩':        { key: 'molding:left',     slot: 'finishing' },
@@ -698,6 +707,106 @@
         // 마감재 종류는 멍장이 속한 라인 마감을 따라온다 (mod.blindFinishType).
         // ========================================
         /** 2026-09-13: 멍장 선반이 목대(ㄱ자, 앞선에서 75) 뒤에서 끝나도록 줄일 깊이. 멍장이 아니면 0. */
+        /**
+         * 2026-09-15: 서랍장 전면 목록 → 레이아웃.
+         *   서랍 단수  mod.drawerCount (1~4, 넘치면 규칙이 자른다)
+         *   도어       mod.doorCount>0 이면 맨 위에 도어 한 칸 (mod.drawerLayout='all' 이면 서랍만)
+         *   전면 높이  mod.drawerFronts[i] > (도어형이면) mod.drawerHeight > 규칙 기본 200 > 균등
+         *   레일       mod.drawerRail 'under'(기본) | 'ball'
+         */
+        /**
+         * 2026-09-15: 서랍 규칙 블록 — 플래너 구조의 `drawer` {rail, sakuri, boxT} 가 브리지를 타고 mod.drawer 로 온다.
+         *   옛 평면 필드(drawerRail·drawerSakuri·drawerBoxT)도 읽는다. boxT 0 이면 몸통 두께.
+         */
+        drawerRulesOf(mod, T) {
+          const d = (mod && mod.drawer) || {};
+          const railRaw = d.rail || mod.drawerRail;
+          const sakuri = d.sakuri != null ? !!d.sakuri : !!mod.drawerSakuri;
+          const boxT = Number(d.boxT) || Number(mod.drawerBoxT) || T;
+          return { rail: DrawerRules ? DrawerRules.railKeyOf(railRaw) : 'under', sakuri, boxT };
+        }
+
+        drawerLayoutOf(mod, H, T) {
+          if (!DrawerRules) throw new Error('bom-drawer-rules.js 가 실리지 않았다 — extractors.js 앞에 넣는다');
+          const R = DrawerRules.DRAWER_RULES;
+          const n = Math.max(1, parseInt(mod.drawerCount, 10) || 1);
+          const doorCount = mod.doorCount || 0;
+          const layoutKind = mod.drawerLayout === 'all' ? 'all' : (mod.drawerLayout === 'doorTop' || doorCount > 0 ? 'doorTop' : 'all');
+          const explicit = Array.isArray(mod.drawerFronts) ? mod.drawerFronts.map(Number) : null;
+          const fronts = [];
+          if (layoutKind === 'doorTop') fronts.push({ kind: 'door' });
+          for (let i = 0; i < n; i++) {
+            let h = null;
+            if (explicit && explicit[i] > 0) h = explicit[i];
+            else if (layoutKind === 'doorTop') h = Number(mod.drawerHeight) > 0 ? Number(mod.drawerHeight) : R.FRONT_DEFAULT_H;
+            fronts.push({ kind: 'drawer', h });
+          }
+          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: this.drawerRulesOf(mod, T).rail });
+        }
+
+        /**
+         * 2026-09-15: 서랍장 부재 — 전면(도어·서랍도어), 박스(크기별 묶음), 우라, 하단보강, 중간 목찬넬.
+         *   박스 치수는 레일 종류가 정한다 (DrawerRules.drawerBoxDims): 앞뒷판 가로 = W − 2몸통T − (볼레일 14×2 | 언더 12) − 2서랍T,
+         *   측판 길이 = 레일 규격(≤ D − 50 최대) (언더는 −10), 사쿠리면 앞뒷판 높이 −18, 우라 = 외경 −1 (사쿠리면 앞뒷판 + 20).
+         *   mod.drawerBoxT 서랍 자재 두께(기본 몸통 T) · mod.drawerSakuri 측판 사쿠리 여부.
+         */
+        addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, L, modD) {
+          const R = DrawerRules.DRAWER_RULES;
+          // 전면 — 위에서 아래로. 도어는 doorCount 장이 가로로 나뉜다. 같은 높이의 서랍도어는 한 행(수량)으로 묶는다.
+          const drawerFrontRows = [];
+          L.fronts.forEach((f) => {
+            // 2026-09-15: 최소 전면 높이 미만은 부재로 내지 않는다 (옛 규칙 `hingeDoorH > 50`)
+            if (f.h < R.MIN_FRONT_H) return;
+            if (f.kind === 'door') {
+              const dc = Math.max(1, doorCount || 1);
+              this.add(materials, modLabel, '도어', 'MDF', 18, Math.floor(W / dc) - 4, f.h, dc, '4면', '', mod);
+            } else {
+              const row = drawerFrontRows.find((r) => r.h === f.h);
+              if (row) row.qty += 1; else drawerFrontRows.push({ h: f.h, qty: 1 });
+            }
+          });
+          drawerFrontRows.forEach((r) => {
+            this.add(materials, modLabel, '서랍도어', 'MDF', 18, W - 4, r.h, r.qty, '4면', '', mod);
+          });
+          // 박스 — 같은 크기끼리 묶는다 (앞뒷판·측판은 서랍당 2장). 치수는 레일 종류·깊이·자재 두께로.
+          const rules = this.drawerRulesOf(mod, T);
+          const drawerT = rules.boxT;
+          const sakuri = rules.sakuri;
+          const dimsOf = (boxH) => DrawerRules.drawerBoxDims({ W, D: modD, bodyT: T, drawerT, rail: L.rail, boxH, sakuri });
+          const groups = [];
+          L.boxes.forEach((b) => {
+            let g = groups.find((x) => x.size === b.size);
+            if (!g) { g = { size: b.size, h: b.h, count: 0, fits: true }; groups.push(g); }
+            g.count += 1;
+            if (!b.fits) g.fits = false;
+          });
+          let bottomW = 0, bottomD = 0, brace = false, sideL = 0;
+          const railName = R.RAIL_CLEARANCE[L.rail].name;
+          groups.forEach((g) => {
+            const d = dimsOf(g.h);
+            if (d.warnings.length) dlog(`[Drawer] ${modLabel}: ${d.warnings.join(' / ')}`);
+            const note = `${R.BOX_LABEL[g.size]} 박스${g.fits ? '' : ' (레일 여유 부족)'}`;
+            this.add(materials, modLabel, '서랍전후판', 'PB', drawerT, d.fbW, d.fbH, g.count * 2, '1면(장)',
+              `${note}${sakuri ? ' · 사쿠리 −' + R.BOX_SAKURI_FB_MINUS : ''}`);
+            this.add(materials, modLabel, '서랍측판', 'PB', drawerT, d.sideL, d.sideH, g.count * 2, '1면(장)',
+              `${note} · ${railName} ${d.railLength}${sakuri ? ' · 사쿠리' : ''}`);
+            bottomW = d.bottomW; bottomD = d.bottomD; brace = d.brace; sideL = d.sideL;
+          });
+          const n = L.boxes.length;
+          if (n > 0) {
+            this.add(materials, modLabel, '서랍밑판', 'MDF', 2.7, bottomW, bottomD, n, '-', sakuri ? '우라 · 사쿠리 홈' : '우라');
+            if (brace) {
+              this.add(materials, modLabel, '서랍 하단보강', 'PB', drawerT, sideL, R.BOX_BRACE_H, n, '2면(장)');
+            }
+          }
+          // 중간 목찬넬 — 따내기 90×40 자리를 채우는 ㄴ자 두 장, 모듈 폭
+          if (L.midCount > 0) {
+            this.add(materials, modLabel, '목찬넬(중간 전면)', 'MDF', R.CHANNEL_T, R.CHANNEL_MID_FACE_H, W, L.midCount, '2면(장)',
+              `중간 따내기 ${R.CHANNEL_MID_NOTCH_H}×${R.CHANNEL_BASE_W}`);
+            this.add(materials, modLabel, '목찬넬(중간 지면)', 'MDF', R.CHANNEL_T, R.CHANNEL_BASE_W, W, L.midCount, '2면(장)');
+          }
+        }
+
         blindShelfCut(mod, pos) {
           if (!isBlindModule(mod, pos)) return 0;
           return typeof CORNER_HINGE_BATTEN_DEPTH !== 'undefined' ? CORNER_HINGE_BATTEN_DEPTH : 75;
@@ -956,8 +1065,15 @@
             const isEL = mod.isEL || false;
             const isOpen = mod.isOpen || false;
 
-            // 측판 2개 (하부장: 사쿠리 없음)
-            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
+            // 2026-09-15: 서랍장은 전면·목찬넬·존·박스를 먼저 푼다 — 측판 비고(따내기)와 아래 부재가 같은 답을 쓴다.
+            const drawerLayout = isDrawer ? this.drawerLayoutOf(mod, H, T) : null;
+            if (drawerLayout && drawerLayout.warnings.length) {
+              dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
+            }
+
+            // 측판 2개 (하부장: 사쿠리 없음). 목찬넬이면 따내기 가공을 비고로 적는다 (치수는 그대로 — 따냄은 가공).
+            const sideNote = (isWoodChannel && DrawerRules) ? DrawerRules.notchNote(drawerLayout) : '';
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', sideNote);
             // 지판 (하부장: 사쿠리 없음, D 그대로)
             this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             // 밴드 2개
@@ -981,35 +1097,14 @@
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
               this.addBlindFrontParts(materials, modLabel, mod, H);
             } else if (isDrawer) {
-              // ★ 서랍장: 서랍 + 여닫이 도어 + 목찬넬
-              const drawerCount = mod.drawerCount || 1;
-              const drawerH = 220; // 서랍 1개 높이
-              const totalDrawerH = drawerH * drawerCount;
-              const hingeDoorH = H - totalDrawerH - 30;
-
-              // 서랍 자재
-              const drawerFBW = W - 30 - 42;
-              this.add(materials, modLabel, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
-              this.add(materials, modLabel, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
-              this.add(materials, modLabel, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
-              if (drawerFBW > 600) {
-                this.add(materials, modLabel, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '2면(장)');
-              }
-
-              // 서랍 도어 (각 서랍 전면) — 1개일 때 250mm 기본
-              const drawerDoorW = W - 4;
-              const drawerDoorH = drawerCount === 1 ? 250 : Math.floor((totalDrawerH - 20) / drawerCount);
-              this.add(materials, modLabel, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerCount, '4면', '', mod);
-
-              // 여닫이 도어 (서랍 아래)
-              if (hingeDoorH > 50) {
-                const hingeDoorCount = Math.max(1, Math.round(W / 450));
-                const hingeDoorW = Math.floor(W / hingeDoorCount) - 4;
-                this.add(materials, modLabel, '도어', 'MDF', 18, hingeDoorW, hingeDoorH, hingeDoorCount, '4면', '', mod);
-              }
-
-              // 목찬넬 (120 × W) — 서랍장 1개당 1개
-              this.add(materials, modLabel, '목찬넬', 'MDF', 18, 120, W, 1, '2면(장)');
+              // ★ 2026-09-15: 서랍장 — 규칙은 bom-drawer-rules.js (도면 "서랍장 목찬넬 구조 도면").
+              //   전면(위→아래): doorCount>0 이면 [도어, 서랍×n] — 플래너 doorTopDrawerBottom 과 같은 그림.
+              //   예전엔 서랍을 위에 220 피치로 쌓고 남는 높이를 여닫이 도어로 냈다 — 2단부터 몸통이 안 맞았다
+              //   (전면 합 H−50, 3단은 68 짜리 도어, 4단은 몸통 초과). 지금은 전면 합 = H 로 닫힌다.
+              //   서랍 박스는 존(위·아래 따내기 사이)에 레일 여유를 빼고 들어가는 가장 큰 크기(대·중·소).
+              //   목찬넬은 전면과 1:1 이 아니라 최소 수 — 중간 목찬넬만 모듈 부재(전면판 72·지면판 40 × W).
+              //   상단 목찬넬은 그대로 EP(effectiveW 연속).
+              this.addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, drawerLayout, modD);
             } else if (doorCount > 0) {
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', '', mod);
@@ -1864,22 +1959,27 @@
             return;
           }
 
-          // 기타 카테고리
+          // 기타 카테고리 — 2026-09-15: 레일은 단수만큼, 종류는 mod.drawer.rail (댐핑 언더레일 기본 · 댐핑 볼레일)
           (item.modules || []).forEach((mod) => {
             if (!mod.isDrawer) return;
             const depth = mod.d || 550;
-            let railLength = 500;
-            if (depth <= 350) railLength = 350;
-            else if (depth <= 450) railLength = 450;
+            // 2026-09-15: 레일 길이 = 규격(250~500) 중 깊이 − 50 이하의 최대 (bom-drawer-rules.js railLengthFor)
+            const R = DrawerRules ? DrawerRules.DRAWER_RULES : null;
+            const railKey = DrawerRules ? DrawerRules.railKeyOf((mod.drawer && mod.drawer.rail) || mod.drawerRail) : 'under';
+            const railName = R ? R.RAIL_CLEARANCE[railKey].name : '소프트클로즈 서랍레일';
+            let railLength = DrawerRules ? DrawerRules.railLengthFor(depth) : null;
+            if (railLength === null) railLength = R ? R.RAIL_LENGTHS[0] : 250;
+            const maxN = R ? R.MAX_COUNT : 4;
+            const qty = Math.min(maxN, Math.max(1, parseInt(mod.drawerCount, 10) || 1));
 
             hardware.push({
               category: '레일',
-              item: '소프트클로즈 서랍레일',
+              item: railName,
               manufacturer: '블룸',
               spec: `${railLength}mm`,
-              qty: 1,
+              qty,
               unit: 'SET',
-              note: mod.name || mod.type,
+              note: `${mod.name || mod.type}${railKey === 'ball' && R ? ` · 두께 ${R.RAIL_CLEARANCE.ball.thickness}` : ''}`,
             });
           });
         }
@@ -1889,7 +1989,6 @@
           const specs = item.specs || {};
           const category = item.categoryId || item.category;
           let totalDoors = 0;
-
           // B3: 단순 카테고리는 자재 도어 행과 같은 수(bomSimpleHingeDoorsOf — 경첩과 같은 함수)로 센다.
           const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category];
           (item.modules || []).forEach((mod) => {
