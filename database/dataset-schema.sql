@@ -31,6 +31,23 @@ CREATE INDEX IF NOT EXISTS idx_collection_posts_design ON collection_posts (desi
 ALTER TABLE collection_posts ADD COLUMN IF NOT EXISTS consent_training BOOLEAN;
 ALTER TABLE generations      ADD COLUMN IF NOT EXISTS consent_training BOOLEAN;
 
+-- ③ collection_posts 에 updated_at 자동 갱신을 붙인다.
+--    지금까지는 INSERT 기본값뿐이라 UPDATE 를 해도 값이 그대로였다. Worker 는
+--    updated_at 워터마크로 증분을 읽으므로, 이게 없으면 **동의를 켠 뒤에도 영영
+--    수집되지 않는다** (동의 철회도 마찬가지). generations 와 같은 방식이다.
+CREATE OR REPLACE FUNCTION public.collection_posts_touch_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_collection_posts_updated_at ON collection_posts;
+CREATE TRIGGER trg_collection_posts_updated_at
+    BEFORE UPDATE ON collection_posts
+    FOR EACH ROW EXECUTE FUNCTION public.collection_posts_touch_updated_at();
+
 
 -- =============================================
 -- 2. dataset_samples — 레코드 한 줄 = 사진(또는 구조 라벨) 하나
