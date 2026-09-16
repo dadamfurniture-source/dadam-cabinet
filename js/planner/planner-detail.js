@@ -7,9 +7,25 @@
 // 별도 페이지를 만들지 않는다 (계획 §4.1). 부재 피킹(raycaster + userData.entityKind)과
 // 3D 씬이 이미 mockup-structure.html 에 있으므로, 그 페이지 안의 **모드**로 시작한다:
 //   · 🎨 버튼 또는 ?stage=detail → enter(). 다시 누르면 exit().
-//   · 모드에서는 (a) 좌측이 마감 팔레트로 바뀌고 (b) 3D 부재를 누르면 고른 마감을 그 부재에
-//     칠하며 (c) renderAll3D 뒤에 부재 색을 카탈로그 hex 로 덮는다 (paintScene).
+//   · 모드에서는 (a) 우측에 마감 팔레트가 서고 (b) 3D 를 누르면 **범위**가 정해지며
+//     (c) renderAll3D 뒤에 부재 색을 카탈로그 hex 로 덮는다 (paintScene).
 //   · 모드 밖에서는 **아무것도 하지 않는다** — 구조 단계 화면·피킹 색은 그대로다 (I2).
+//
+// 선택 범위 (2026-09-16): PlannerDetail.scope = 'part' | 'module' | 'area' | 'item'.
+//   좌측 목록의 전체/배치/개별 과 **같은 것**이다 — 목록에서 고르면 범위가 되고, 범위를 바꾸면
+//   목록이 따라온다 (onListMode ↔ syncListMode). 3D 에서 배치 상자를 누르면 배치 범위,
+//   개별 모드에서 부재를 누르면 부재 범위(Shift 면 모듈).
+//   범위를 고른 뒤 팔레트에서 색을 고르면 **그 범위 전체**가 곧 칠해진다 (applyScope).
+//
+//   ⚠ 마감 모델에는 '배치' 단계가 없다 — 단계는 여전히 부재 > 모듈 > 섹션 > 품목 넷뿐이다
+//   (planner-finish.js PLANNER_FINISH_LEVELS). 배치 범위는 **그 배치 안 모듈마다 모듈 단계로
+//   펼쳐** 적는다. 이유: js/detaildesign/extractors.js(BOM 도메인)가 같은 4단계 우선순위를
+//   자기 쪽에 한 벌 더 갖고 있고 design_items.detail 이 D1 을 왕복한다 — 단계를 하나 더 만들면
+//   BOM 과 도면이 조용히 갈라진다. 모듈 단계로 펼치면 BOM·3D·저장본이 같은 것을 본다.
+//   범위를 칠할 때는 그 안의 **아래 단계 지정을 지운다** (모듈/배치 → 부재, 품목 → 모듈·섹션·부재).
+//   안 지우면 아래 단계가 이겨서 "전체가 칠해졌다" 가 거짓말이 된다. 한 범위 = 되돌리기 한 장.
+//   어느 슬롯이 실제로 있는지는 3D mesh 에서 읽는다 (plannerFinishPaintSlotOf) — 상판이 없는
+//   모듈에 top 지정을 적지 않기 위해서다.
 //
 // 상태의 정본은 planner-finish.js 의 모델 하나(this.detail)다. 이 파일은 그 모델을
 // 저장소(dadam_detail_v1, 스코프 키)와 화면(팔레트·카드·3D) 사이에서 나른다.
@@ -43,14 +59,46 @@ const PLANNER_DETAIL_KEY_BASE = 'dadam_detail_v1';
 const PLANNER_DETAIL_UNDO_MAX = 10;
 const PLANNER_DETAIL_AUTOSAVE_MS = 1500;
 
+/** 칠할 범위. 넓은 것부터 — 좌측 목록의 전체/배치/개별 과 짝이다. */
+const PLANNER_DETAIL_SCOPES = ['item', 'area', 'module', 'part'];
+
+/** 슬롯 필터의 '전체'. PLANNER_FINISH_SLOTS 에는 없는 값이라 따로 둔다. */
+const PLANNER_DETAIL_SLOT_ALL = 'all';
+
+/**
+ * 좌측 목록 모드 ↔ 범위.
+ *   개별(single) 은 모듈·부재 둘 다 담는다 — 목록에서 모듈을 고르면 모듈, 3D 에서 부재를 누르면 부재.
+ *   그래서 목록 → 범위는 모듈로 열고(MODE_SCOPE), 범위 → 목록은 둘 다 single 로 접는다(SCOPE_MODE).
+ */
+const PLANNER_DETAIL_MODE_SCOPE = { all: 'item', area: 'area', single: 'module' };
+const PLANNER_DETAIL_SCOPE_MODE = { item: 'all', area: 'area', module: 'single', part: 'single' };
+
+/** 슬롯 이름 — '전체' 를 앞에 붙인 PLANNER_FINISH_SLOT_LABEL. 클래식 스크립트라 함수로 늦게 읽는다. */
+function plannerDetailSlotLabel(slot) {
+  if (!slot || slot === PLANNER_DETAIL_SLOT_ALL) return '전체';
+  const T = (typeof PLANNER_FINISH_SLOT_LABEL !== 'undefined') ? PLANNER_FINISH_SLOT_LABEL : null;
+  return (T && T[slot]) || slot;
+}
+
 const PLANNER_DETAIL_CSS = `
 /* 모드 스위치 — body.detail-mode 하나로 좌·우 패널과 상단 메뉴가 바뀐다.
-   applyPanelLayout 이 섹션에 인라인 display 를 쓰므로 !important 로 이긴다. */
-#detailPalette{display:none;flex:1;min-height:0;overflow-y:auto;flex-direction:column;gap:8px;padding:8px 8px 12px;font-size:11px;color:var(--text,#2b2620)}
+   applyPanelLayout 이 섹션에 인라인 display 를 쓰므로 !important 로 이긴다.
+
+   2026-09-16: 팔레트가 **우측 패널**로 갔다 (#rightPanel .section[data-sec="detail-palette"]).
+   좌측은 구조 단계와 같은 전체/배치/개별 목록 그대로다 — 목록에서 고른 것이 곧 칠할 범위다.
+   개별 모듈 패널(#modulePanel)만 숨긴다: 그 안의 '적용' 은 구조(분할·칸·선반)를 바꾸는
+   버튼이라 마감을 고르러 온 화면에 있으면 안 된다. */
+#detailPalette{display:none;flex-direction:column;gap:8px;font-size:11px;color:var(--text,#2b2620)}
 body.detail-mode #detailPalette{display:flex}
-body.detail-mode #mlBody,body.detail-mode .ml-mode-toggle{display:none}
-body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail"]):not([data-sec="detail-renders"]){display:none!important}
-body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"]{display:block!important}
+body.detail-mode #modulePanel{display:none!important}
+body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail-palette"]):not([data-sec="detail"]):not([data-sec="detail-renders"]){display:none!important}
+body.detail-mode #rightPanel .section[data-sec="detail-palette"],body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"]{display:block!important}
+/* 스와치 묶음만 따로 구른다 — 머리(범위·슬롯·검색)는 붙어 있어야 지금 무엇을 칠하는지 보인다. */
+#detailPalette .pd-groups{max-height:44vh;overflow-y:auto;padding-right:2px}
+.pd-scope{display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border:1px solid var(--brand-mid,#c8ab86);border-radius:6px;background:var(--brand-soft,#f6efe4)}
+.pd-scope .pd-scope-text{flex:1;line-height:1.45;font-size:10.5px;color:var(--text,#2b2620)}
+.pd-scope .pd-scope-text b{color:var(--brand-deep,#6a4b2a)}
+.pd-scope .pd-scope-sub{display:block;font-size:9.5px;color:var(--text-dim,#7a7062)}
 .pd-only{display:none}
 body.detail-mode .pd-only{display:inline-flex}
 body.detail-mode #loadDrawingBtn,body.detail-mode #saveDrawingBtn{display:none}
@@ -142,8 +190,15 @@ const PlannerDetail = {
   detail: null,
   catalog: null,
   selectedCode: null,
+  /** 슬롯 필터. 'all' 이면 범위 안에 실제로 있는 슬롯 전부다. */
   slot: 'door',
+  /** 칠할 범위 — 'part' | 'module' | 'area' | 'item'. 좌측 목록 모드와 짝이다. */
+  scope: 'part',
+  /** 배치 범위일 때의 영역 id (배치 단계의 areas[].id). */
+  areaId: null,
   picked: null,
+  /** 3D mesh 에서 읽은 모듈별 { slots:{slot:true}, parts:{partKey:slot} }. paintScene 이 갱신한다. */
+  _paintMap: null,
   undoStack: [],
   /** 팔레트 검색어 · 그룹 접힘 상태 (키 → open). 다시 그려도 남는다. */
   query: '',
@@ -304,15 +359,17 @@ const PlannerDetail = {
     try { document.body.classList.add('detail-mode'); } catch (e) { /* DOM 없음 */ }
     this._pills(true);
     const head = document.querySelector('.ml-header-title');
-    if (head) { this._prevTitle = head.textContent; head.textContent = '마감 팔레트'; }
+    if (head) { this._prevTitle = head.textContent; head.textContent = '칠할 범위'; }
     this._syncUrl(true);
     this.applyScene(true);   // three 가 아직 없으면 paintScene 이 처음 불릴 때 켠다
+    // 좌측 목록이 지금 보고 있는 것이 곧 범위다 — 모드를 바꾸지 않고 읽기만 한다.
+    this.setScope(PLANNER_DETAIL_MODE_SCOPE[this.listMode()] || 'module', { fromList: true });
     this.refresh();
     // D3: 우측 "최근 렌더" 띠 — planner-capture.js 가 있을 때만 (없어도 모드는 돈다)
     if (typeof PlannerCapture !== 'undefined' && PlannerCapture && typeof PlannerCapture.onDetailEnter === 'function') {
       try { PlannerCapture.onDetailEnter(); } catch (e) { /* 무해 */ }
     }
-    if (!o.quiet) this.toast('🎨 디테일 모드 — 팔레트에서 마감을 고르고 3D 부재를 누르세요 (Shift+클릭 = 모듈 전체)');
+    if (!o.quiet) this.toast('🎨 디테일 모드 — 좌측에서 전체·배치·개별 로 범위를 고르고 우측 팔레트에서 색을 누르세요');
     return true;
   },
 
@@ -451,6 +508,131 @@ const PlannerDetail = {
 
   moduleOf(id) { return this.modules().find((m) => m && m.id === id) || null; },
 
+  /** 배치 단계의 영역 목록. 페이지가 넘기지 않으면 빈 배열 (배치 범위가 그냥 안 쓰이는 것뿐이다). */
+  areas() {
+    if (!this._o || typeof this._o.areas !== 'function') return [];
+    try { return this._o.areas() || []; } catch (e) { return []; }
+  },
+
+  areaOf(id) { return id ? (this.areas().find((a) => a && a.id === id) || null) : null; },
+
+  /**
+   * 모듈이 속한 영역 id. 페이지가 정본(areaIdOf)을 넘긴다 — 옛 설계의 모듈에는 areaId 가 없어
+   * 섹션·회전·X 겹침으로 찾아야 하고, 그 규칙은 구조 단계(pickAreaFirst)와 **같아야** 한다.
+   */
+  areaIdOf(m) {
+    if (!m) return null;
+    if (this._o && typeof this._o.areaIdOf === 'function') {
+      try { return this._o.areaIdOf(m) || null; } catch (e) { /* 아래 폴백 */ }
+    }
+    return m.areaId || null;
+  },
+
+  modulesInArea(areaId) {
+    if (!areaId) return [];
+    return this.modules().filter((m) => this.areaIdOf(m) === areaId);
+  },
+
+  areaLabel(a) {
+    if (!a) return '배치';
+    const lbl = (this._o && typeof this._o.sectionLabel === 'function') ? this._o.sectionLabel(a.section) : a.section;
+    return (lbl || a.section || '배치') + ' W' + Math.round(a.W || 0);
+  },
+
+  // ── 범위 ────────────────────────────────────────────────
+  /** 좌측 목록이 보고 있는 모드. 페이지가 안 넘기면 '개별' 로 본다. */
+  listMode() {
+    if (!this._o || typeof this._o.listMode !== 'function') return 'single';
+    try { return this._o.listMode() || 'single'; } catch (e) { return 'single'; }
+  },
+
+  /** 범위에 맞게 좌측 목록을 바꾼다. 이미 그 모드면 아무것도 하지 않는다 (되먹임 방지). */
+  syncListMode() {
+    const want = PLANNER_DETAIL_SCOPE_MODE[this.scope];
+    if (!want || this.listMode() === want) return false;
+    if (!this._o || typeof this._o.setListMode !== 'function') return false;
+    this._syncing = true;
+    try { this._o.setListMode(want); } catch (e) { /* 무해 */ }
+    this._syncing = false;
+    return true;
+  },
+
+  /**
+   * 범위를 바꾼다.
+   * @param {string} scope 'part'|'module'|'area'|'item'
+   * @param {{fromList?:boolean}} [opt] fromList:true 면 좌측 목록을 되부르지 않는다
+   */
+  setScope(scope, opt) {
+    const o = opt || {};
+    if (PLANNER_DETAIL_SCOPES.indexOf(scope) < 0) return this.scope;
+    const changed = this.scope !== scope;
+    this.scope = scope;
+    // 슬롯 기본값: 부재는 고른 부재의 슬롯 하나, 나머지는 '전체'("전체가 다 칠해진다").
+    // 범위가 **바뀔 때만** 되돌린다 — 사람이 좁혀 둔 필터를 다시 그린다고 풀면 안 된다.
+    if (changed) {
+      if (scope === 'part') {
+        if (this.slot === PLANNER_DETAIL_SLOT_ALL) this.slot = (this.picked && this.picked.slot) || 'door';
+      } else {
+        this.slot = PLANNER_DETAIL_SLOT_ALL;
+      }
+    }
+    if (!o.fromList) this.syncListMode();
+    this.renderPalette();
+    this.renderCard();
+    return this.scope;
+  },
+
+  /** 페이지의 setViewMode 가 부른다 — 좌측 목록 모드가 바뀌면 범위도 따라온다. */
+  onListMode(mode) {
+    if (!this.active) return false;
+    // 개별(single) 안에서 부재 → 모듈로 되돌리지 않는다: 둘 다 같은 목록 모드다.
+    if (PLANNER_DETAIL_SCOPE_MODE[this.scope] === mode) { this.renderPalette(); return false; }
+    const sc = PLANNER_DETAIL_MODE_SCOPE[mode];
+    if (!sc) return false;
+    this.setScope(sc, { fromList: true });
+    return true;
+  },
+
+  /**
+   * 페이지의 setActiveArea 가 부른다.
+   *
+   * 2026-09-16: **목록이 '배치' 일 때만** 범위를 배치로 옮긴다. 페이지는 불러오는 도중에도
+   * setActiveArea 를 부르는데(마지막으로 보던 배치 복원), 그때 범위까지 배치로 끌고 가면
+   * 좌측은 '개별' 인데 팔레트는 "배치 전체" 라고 적힌 어긋난 화면으로 들어오게 된다.
+   * 배치 id 는 어느 모드에서나 기억해 둔다 — 나중에 '배치' 로 바꾸면 그 배치가 이미 골라져 있다.
+   * 3D 에서 배치 상자를 직접 누른 경우는 pickArea 가 따로 범위를 옮긴다.
+   */
+  onAreaPick(areaId) {
+    if (!this.active) return false;
+    this.areaId = areaId || null;
+    if (this.listMode() !== 'area') { this.refresh(); return true; }
+    this.setScope('area', { fromList: true });
+    return true;
+  },
+
+  /** 페이지의 setActiveModule 이 부른다 — 목록에서 모듈을 고르면 모듈 범위다. */
+  onModulePick(moduleId) {
+    if (!this.active || !moduleId) return false;
+    const m = this.moduleOf(moduleId);
+    const keep = this.picked && this.picked.moduleId === moduleId ? this.picked : null;
+    this.picked = { moduleId, section: m ? m.section : null, slot: (keep && keep.slot) || 'door', partKey: null, kind: 'module', module: m };
+    this.setScope('module', { fromList: true });
+    return true;
+  },
+
+  /** 3D 에서 배치 상자를 눌렀을 때. 페이지가 노란 윤곽선·목록 선택을 맡는다 (setActiveArea). */
+  pickArea(areaId) {
+    if (!areaId) { this.toast('이 배치를 찾지 못했습니다'); return false; }
+    this.areaId = areaId;
+    if (this._o && typeof this._o.selectArea === 'function') {
+      try { this._o.selectArea(areaId); } catch (e) { /* 무해 */ }
+    }
+    this.setScope('area');
+    const a = this.areaOf(areaId);
+    this.toast('🎯 배치 "' + this.areaLabel(a) + '" — 색을 고르면 이 배치 전체가 칠해집니다');
+    return true;
+  },
+
   moduleLabel(m) {
     if (!m) return '모듈';
     const s = m.section || '';
@@ -472,8 +654,18 @@ const PlannerDetail = {
       if (cur.userData && cur.userData.moduleId) ud.moduleId = cur.userData.moduleId;
       cur = cur.parent;
     }
-    if (!ud.entityKind || ud.entityKind === 'area') {
-      this.toast('배치 영역입니다 — 마감은 모듈의 부재(도어·몸통·상판…)를 누르세요');
+    // 배치 상자 — 그 배치가 범위가 된다 (칠하지는 않는다. 색을 고르는 순간 칠해진다).
+    if (ud.entityKind === 'area') return this.pickArea(ud.areaId) || true;
+    if (!ud.entityKind) {
+      this.toast('무엇을 눌렀는지 알 수 없습니다 — 모듈의 부재(도어·몸통·상판…)를 누르세요');
+      return true;
+    }
+    // 좌측 목록이 보고 있는 넓이가 곧 3D 클릭의 넓이다 — 배치 목록에서 도어를 눌러도 배치가 골라진다.
+    const mode = this.listMode();
+    if (mode === 'area') return this.pickArea(this.areaIdOf(this.moduleOf(ud.moduleId))) || true;
+    if (mode === 'all') {
+      this.setScope('item', { fromList: true });
+      this.toast('🎯 품목 전체 — 색을 고르면 모든 모듈이 칠해집니다');
       return true;
     }
     return this.pickPart(ud, { module: !!(ev && ev.shiftKey) });
@@ -482,7 +674,7 @@ const PlannerDetail = {
   /**
    * 부재 하나를 고른다. 팔레트에 고른 마감이 있으면 곧 칠하고, 없으면 카드만 보여 준다(스포이드).
    * @param {object} ud   userData (moduleId 포함)
-   * @param {{module?:boolean}} [opt] module:true 면 그 모듈의 같은 슬롯 전부 (Shift+클릭)
+   * @param {{module?:boolean}} [opt] module:true 면 그 모듈의 **같은 슬롯** 전부 (Shift+클릭)
    */
   pickPart(ud, opt) {
     const o = opt || {};
@@ -495,29 +687,186 @@ const PlannerDetail = {
     }
     const m = this.moduleOf(moduleId);
     this.picked = { moduleId, section: m ? m.section : null, slot, partKey, kind: ud.entityKind, module: m };
+    // setScope 를 타지 않는다: Shift+클릭은 **누른 부재의 슬롯**으로 좁힌 모듈 범위다
+    // (D0 때부터의 지름길 — 모듈 범위의 기본값 '전체' 로 덮으면 그 뜻이 사라진다).
+    this.scope = (o.module || !partKey) ? 'module' : 'part';
     this.slot = slot;
-    if (this.selectedCode) {
-      if (o.module || !partKey) this.apply('module', slot, { moduleId, section: this.picked.section });
-      else this.apply('part', slot, { moduleId, section: this.picked.section, partKey });
-    } else {
-      this.renderCard();
-      this.renderPalette();
-    }
+    if (this.selectedCode) return this.applyScope() || true;
+    this.renderCard();
+    this.renderPalette();
     return true;
   },
 
   // ── 편집 ────────────────────────────────────────────────
+  /**
+   * 팔레트에서 색을 고른다. **고른 범위가 있으면 그 자리에서 칠한다** — 사용자가 말한 흐름이
+   * "배치를 고른 뒤 색을 고르면 그 배치가 칠해진다" 이기 때문이다.
+   * 범위가 비어 있으면(아직 아무것도 안 고름) 예전처럼 고르기만 한다 — 그 뒤 3D 를 누르면 칠해진다.
+   */
   selectCode(code) {
-    this.selectedCode = (code && code !== this.selectedCode) ? code : null;
+    const next = (code && code !== this.selectedCode) ? code : null;
+    this.selectedCode = next;
+    if (next && this.hasScopeTarget()) { this.applyScope(next); return this.selectedCode; }
     this.renderPalette();
     this.renderCard();
     return this.selectedCode;
   },
 
   selectSlot(slot) {
-    if (PLANNER_FINISH_SLOTS.indexOf(slot) >= 0) this.slot = slot;
+    if (slot === PLANNER_DETAIL_SLOT_ALL || PLANNER_FINISH_SLOTS.indexOf(slot) >= 0) this.slot = slot;
     this.renderPalette();
     return this.slot;
+  },
+
+  // ── 범위 칠하기 ─────────────────────────────────────────
+  /** 지금 슬롯 필터. null 이면 '전체'(범위 안에 실제로 있는 슬롯 전부). */
+  slotFilter() {
+    return (this.slot && this.slot !== PLANNER_DETAIL_SLOT_ALL) ? this.slot : null;
+  },
+
+  /** 지금 범위가 가리키는 모듈 id 들. */
+  scopeModuleIds() {
+    if (this.scope === 'item') return this.modules().map((m) => m.id);
+    if (this.scope === 'area') return this.modulesInArea(this.areaId).map((m) => m.id);
+    return this.picked ? [this.picked.moduleId] : [];
+  },
+
+  /** 색을 고르는 순간 칠할 것이 있는가. */
+  hasScopeTarget() {
+    if (this.scope === 'part') return !!this.picked;
+    return this.scopeModuleIds().length > 0;
+  },
+
+  /**
+   * 3D mesh 를 훑어 모듈마다 **실제로 있는 슬롯**과 부재 키→슬롯 표를 만든다.
+   * 상판이 없는 모듈에 top 지정을 적지 않기 위해서다. paintScene 이 그릴 때마다 갱신한다.
+   */
+  scanPaintMap(group) {
+    if (!group || typeof group.traverse !== 'function') return this._paintMap || {};
+    const map = {};
+    group.traverse((obj) => {
+      if (!obj || !obj.isMesh) return;
+      const ud = this._udWithModule(obj);
+      if (!ud || !ud.moduleId) return;
+      const slot = plannerFinishPaintSlotOf(ud);
+      if (!slot) return;
+      const rec = map[ud.moduleId] || (map[ud.moduleId] = { slots: {}, parts: {} });
+      rec.slots[slot] = true;
+      const pk = plannerFinishPartKeyOf(ud);
+      if (pk) rec.parts[pk] = slot;
+    });
+    this._paintMap = map;
+    return map;
+  },
+
+  /** 지금 3D 가 있으면 새로 훑고, 없으면 마지막에 훑은 것을 쓴다. */
+  paintMap() {
+    const t = this.three();
+    const g = t && t.moduleGroup;
+    if (g && typeof g.traverse === 'function') return this.scanPaintMap(g);
+    return this._paintMap || {};
+  },
+
+  /**
+   * 이 모듈들에 적을 슬롯. 3D 에 있는 슬롯만 적되, 사람이 슬롯을 **골라 두었으면** 그 하나다.
+   * 3D 를 아직 못 읽었고(빈 표) 고른 슬롯도 없으면 빈 배열 — 무엇이 있는지 모르는 채로 적지 않는다.
+   */
+  slotsFor(moduleIds) {
+    const filter = this.slotFilter();
+    const map = this.paintMap();
+    const seen = {};
+    (moduleIds || []).forEach((id) => {
+      const rec = map[id];
+      if (rec) Object.keys(rec.slots).forEach((s) => { seen[s] = true; });
+    });
+    const found = PLANNER_FINISH_SLOTS.filter((s) => seen[s]);
+    if (!filter) return found;
+    if (found.length) return found.indexOf(filter) >= 0 ? [filter] : [];
+    return [filter];   // 3D 를 못 읽었어도 사람이 고른 슬롯은 적는다
+  },
+
+  /** 이 모듈들의 부재 지정 중 이 슬롯에 걸리는 것을 지운다 — 안 지우면 아래 단계가 이긴다. */
+  clearPartsIn(moduleIds, slots) {
+    const all = !this.slotFilter();
+    const map = this.paintMap();
+    const want = {};
+    (slots || []).forEach((s) => { want[s] = true; });
+    (moduleIds || []).forEach((id) => {
+      const parts = this.detail.parts && this.detail.parts[id];
+      if (!parts) return;
+      Object.keys(parts).forEach((pk) => {
+        if (!all) {
+          const s = map[id] && map[id].parts[pk];
+          if (!s || !want[s]) return;
+        }
+        plannerFinishClear(this.detail, 'part', null, { moduleId: id, partKey: pk });
+      });
+    });
+  },
+
+  /**
+   * 지금 범위 전체를 한 색으로 칠한다 — **되돌리기 한 장**.
+   *   부재  → part 단계 한 칸 (D0 그대로)
+   *   모듈  → 그 모듈의 module 단계, 있는 슬롯마다
+   *   배치  → 그 배치 안 **모듈마다** module 단계 (모델에 배치 단계를 만들지 않는 이유는 파일 머리에)
+   *   품목  → item 단계 + 섹션·모듈 지정 정리
+   */
+  applyScope(code) {
+    const c = code || this.selectedCode;
+    if (!c) { this.toast('팔레트에서 먼저 마감을 고르세요'); return false; }
+    const sc = this.scope;
+    if (sc === 'part') {
+      const p = this.picked;
+      if (!p) { this.toast('먼저 3D 에서 부재를 하나 누르세요'); return false; }
+      if (!p.partKey) return this.apply('module', p.slot, { moduleId: p.moduleId, section: p.section }, c);
+      return this.apply('part', p.slot, { moduleId: p.moduleId, section: p.section, partKey: p.partKey }, c);
+    }
+    const ids = this.scopeModuleIds();
+    if (!ids.length) { this.toast('칠할 모듈이 없습니다 — 범위를 먼저 고르세요'); return false; }
+    const slots = this.slotsFor(ids);
+    if (!slots.length) {
+      this.toast('3D 를 먼저 그려야 범위 전체를 칠할 수 있습니다 — 슬롯을 하나 골라도 됩니다');
+      return false;
+    }
+    this.pushUndo();
+    let n = 0;
+    if (sc === 'item') {
+      const groups = (typeof PlannerFinish !== 'undefined' && PlannerFinish && PlannerFinish.SECTION_GROUPS) || ['upper', 'lower'];
+      slots.forEach((slot) => {
+        if (!plannerFinishSet(this.detail, 'item', slot, c, {})) return;
+        n++;
+        groups.forEach((g) => plannerFinishClear(this.detail, 'section', slot, { section: g }));
+        ids.forEach((id) => plannerFinishClear(this.detail, 'module', slot, { moduleId: id }));
+      });
+    } else {
+      ids.forEach((id) => {
+        this.slotsFor([id]).forEach((slot) => {
+          if (plannerFinishSet(this.detail, 'module', slot, c, { moduleId: id })) n++;
+        });
+      });
+    }
+    this.clearPartsIn(ids, slots);
+    if (!n) { this.undoStack.pop(); return false; }
+    this.save();
+    this.refresh();
+    const entry = this.entryOf(c);
+    this.toast('🎨 ' + this.scopeLabel() + ' ← ' + (entry ? entry.label : c) + ' (' + n + '건)');
+    return true;
+  },
+
+  /** 팔레트 머리에 적는 한 줄 — 다음 색 클릭이 무엇을 칠하는가. */
+  scopeLabel() {
+    if (this.scope === 'item') return '품목 전체';
+    if (this.scope === 'area') {
+      const a = this.areaOf(this.areaId);
+      if (!a && !this.areaId) return '배치 (고르지 않음)';
+      return '배치 "' + this.areaLabel(a) + '" 전체 (모듈 ' + this.modulesInArea(this.areaId).length + '개)';
+    }
+    if (this.scope === 'module') {
+      return this.picked ? ('모듈 ' + this.picked.moduleId + ' 전체') : '모듈 (고르지 않음)';
+    }
+    const p = this.picked;
+    return p ? ('부재 ' + (p.partKey || plannerDetailSlotLabel(p.slot))) : '부재 (고르지 않음)';
   },
 
   pushUndo() {
@@ -559,16 +908,47 @@ const PlannerDetail = {
     return true;
   },
 
-  /** 팔레트의 일괄 적용 줄. `section:upper` / `section:lower` / `item` / `module`. */
+  /**
+   * 팔레트의 일괄 적용 줄. `section:upper` / `section:lower` (버튼) · `item` / `module` (프로그램용).
+   * 범위 칠하기(applyScope)와 달리 **아래 단계를 지우지 않는다** — 섹션 기본값을 깔아 두는 손놀림이다.
+   */
   applyBulk(target) {
-    if (target === 'item') return this.apply('item', this.slot, {});
-    if (target === 'section:upper') return this.apply('section', this.slot, { section: 'upper' });
-    if (target === 'section:lower') return this.apply('section', this.slot, { section: 'lower' });
+    const c = this.selectedCode;
+    if (!c) { this.toast('팔레트에서 먼저 마감을 고르세요'); return false; }
+    const ids = this.modules().map((m) => m.id);
+    if (target === 'item') return this.applyLevel('item', [{}], ids, c, '품목 전체');
     if (target === 'module') {
       if (!this.picked) { this.toast('먼저 3D 에서 모듈의 부재를 하나 누르세요'); return false; }
-      return this.apply('module', this.slot, { moduleId: this.picked.moduleId, section: this.picked.section });
+      const p = this.picked;
+      return this.applyLevel('module', [{ moduleId: p.moduleId, section: p.section }], [p.moduleId], c, '이 모듈');
+    }
+    if (target === 'section:upper' || target === 'section:lower') {
+      const g = target.split(':')[1];
+      const mine = this.modules().filter((m) => plannerFinishSectionGroup(m.section) === g).map((m) => m.id);
+      return this.applyLevel('section', [{ section: g }], mine.length ? mine : ids, c,
+        g === 'upper' ? '상부 전체' : '하부 전체');
     }
     return false;
+  },
+
+  /** 한 단계에 여러 슬롯을 한꺼번에 적는다 — 되돌리기 한 장. */
+  applyLevel(level, ctxs, scopeIds, code, where) {
+    const slots = this.slotsFor(scopeIds);
+    if (!slots.length) {
+      this.toast('3D 를 먼저 그려야 한꺼번에 칠할 수 있습니다 — 슬롯을 하나 골라도 됩니다');
+      return false;
+    }
+    this.pushUndo();
+    let n = 0;
+    (ctxs || []).forEach((ctx) => slots.forEach((slot) => {
+      if (plannerFinishSet(this.detail, level, slot, code, ctx || {})) n++;
+    }));
+    if (!n) { this.undoStack.pop(); return false; }
+    this.save();
+    this.refresh();
+    const entry = this.entryOf(code);
+    this.toast('🎨 ' + (where || level) + ' ← ' + (entry ? entry.label : code) + ' (' + n + '건)');
+    return true;
   },
 
   // ── 3D 색·재질 ──────────────────────────────────────────
@@ -612,6 +992,8 @@ const PlannerDetail = {
     if (!this._sceneSaved) this.applyScene(true);
     const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : null;
     const PM = (T && typeof PlannerMaterials !== 'undefined') ? PlannerMaterials : null;
+    // 범위 칠하기가 "이 모듈에 상판이 있는가" 를 물을 표. 그리는 김에 같이 모은다.
+    this.scanPaintMap(group);
     let n = 0;
     group.traverse((obj) => {
       if (!obj || !obj.isMesh || !obj.material) return;
@@ -721,24 +1103,28 @@ const PlannerDetail = {
     const sel = this.entryOf(this.selectedCode);
     const parts = [];
     parts.push(`<div class="pd-head"><span>마감 팔레트</span><span class="pd-src">${esc(this.catalogSourceLabel())}</span></div>`);
+    // 범위 한 줄 — 다음 색 클릭이 무엇을 칠하는가. 되돌리기도 여기 붙는다.
+    parts.push('<div class="pd-scope"><span class="pd-scope-text">다음 색 → <b>' + esc(this.scopeLabel()) + '</b>'
+      + `<span class="pd-scope-sub">슬롯 ${esc(plannerDetailSlotLabel(this.slot))} · 좌측 목록의 전체·배치·개별 이 곧 범위입니다</span></span>`
+      + `<button type="button" data-undo="1"${this.undoStack.length ? '' : ' disabled'} title="마지막 칠하기를 되돌립니다">↶ 되돌리기 (${this.undoStack.length})</button></div>`);
     parts.push('<div class="pd-sel">' + (sel
       ? `<span class="pd-chip" style="background:${esc(sel.hex)}"></span><b>${esc(sel.label)}</b><code>${esc(sel.code)}</code>`
       : '<span class="pd-hint">아래에서 마감을 고르세요 — 고르지 않고 부재를 누르면 지정된 마감을 보여 줍니다</span>') + '</div>');
-    parts.push('<div class="pd-label">슬롯 (일괄 적용 대상)</div>');
-    parts.push('<div class="pd-slots">' + PLANNER_FINISH_SLOTS.map((s) =>
-      `<button type="button" data-slot="${s}" class="${s === this.slot ? 'on' : ''}">${esc(PLANNER_FINISH_SLOT_LABEL[s])}</button>`).join('') + '</div>');
+    parts.push('<div class="pd-label">슬롯 (칠할 대상 좁히기)</div>');
+    parts.push('<div class="pd-slots">'
+      + `<button type="button" data-slot="${PLANNER_DETAIL_SLOT_ALL}" class="${this.slot === PLANNER_DETAIL_SLOT_ALL ? 'on' : ''}" title="범위 안에 있는 슬롯 전부">전체</button>`
+      + PLANNER_FINISH_SLOTS.map((s) =>
+        `<button type="button" data-slot="${s}" class="${s === this.slot ? 'on' : ''}">${esc(plannerDetailSlotLabel(s))}</button>`).join('')
+      + '</div>');
     const dis = sel ? '' : ' disabled';
-    parts.push('<div class="pd-label">고른 마감을 한꺼번에</div>');
+    // 섹션(상/하)은 범위가 아니다 — 목록에 없는 묶음이라 버튼으로 남긴다.
+    parts.push('<div class="pd-label">섹션 기본값 한꺼번에</div>');
     parts.push('<div class="pd-bulk">'
-      + `<button type="button" data-bulk="item"${dis}>품목 전체</button>`
       + `<button type="button" data-bulk="section:upper"${dis}>상부 전체</button>`
       + `<button type="button" data-bulk="section:lower"${dis}>하부 전체</button>`
-      + `<button type="button" data-bulk="module"${(sel && this.picked) ? '' : ' disabled'}>이 모듈</button>`
       + '</div>');
-    parts.push('<div class="pd-hint">3D 부재 클릭 = 그 부재만 · Shift+클릭 = 그 모듈의 같은 슬롯 전부</div>');
-    parts.push('<div class="pd-tools">'
-      + `<button type="button" data-undo="1"${this.undoStack.length ? '' : ' disabled'}>↶ 되돌리기 (${this.undoStack.length})</button>`
-      + `<span class="pd-hint">지정 ${plannerFinishCount(this.detail)}건</span></div>`);
+    parts.push('<div class="pd-hint">3D: 배치 상자 = 그 배치 전체 · 부재 = 그 부재 · Shift+부재 = 그 모듈의 같은 슬롯</div>');
+    parts.push(`<div class="pd-tools"><span class="pd-hint">지정 ${plannerFinishCount(this.detail)}건</span></div>`);
     parts.push(`<input type="search" class="pd-search" data-search="1" placeholder="이름·코드 검색" value="${esc(this.query)}" autocomplete="off">`);
     parts.push('<div class="pd-groups" data-groups="1"></div>');
     host.innerHTML = parts.join('');
@@ -774,8 +1160,9 @@ const PlannerDetail = {
     const groups = Array.isArray(c.groups) ? c.groups
       : (c.finishes || []).map((f) => ({ key: f.value, label: f.label, codes: c.entries.filter((e) => e.finish === f.value).map((e) => e.code), slots: PLANNER_FINISH_SLOTS.slice(), compat: false, collapsed: false }));
     const out = [];
+    const filter = this.slotFilter();   // '전체' 면 그룹을 걸러내지 않는다
     groups.forEach((g) => {
-      if (this.slot && Array.isArray(g.slots) && g.slots.indexOf(this.slot) < 0) return;
+      if (filter && Array.isArray(g.slots) && g.slots.indexOf(filter) < 0) return;
       const entries = g.codes.map(lookup).filter((e) => e && match(e));
       if (!entries.length) return;
       out.push({ group: g, entries });
@@ -789,7 +1176,7 @@ const PlannerDetail = {
     const esc = plannerDetailEsc;
     const vis = this.visibleGroups();
     if (!vis.length) {
-      host.innerHTML = `<div class="pd-hint">${this.query ? '검색 결과가 없습니다' : `${esc(PLANNER_FINISH_SLOT_LABEL[this.slot] || this.slot)} 슬롯에 맞는 자재가 없습니다`} — 슬롯·검색어를 바꿔 보세요</div>`;
+      host.innerHTML = `<div class="pd-hint">${this.query ? '검색 결과가 없습니다' : `${esc(plannerDetailSlotLabel(this.slot))} 슬롯에 맞는 자재가 없습니다`} — 슬롯·검색어를 바꿔 보세요</div>`;
       return;
     }
     host.innerHTML = vis.map(({ group: g, entries }) => {
@@ -874,6 +1261,8 @@ const PlannerDetail = {
 if (typeof window !== 'undefined') {
   window.PlannerDetail = PlannerDetail;
   window.PLANNER_DETAIL_KEY_BASE = PLANNER_DETAIL_KEY_BASE;
+  window.PLANNER_DETAIL_SCOPES = PLANNER_DETAIL_SCOPES;
+  window.PLANNER_DETAIL_SLOT_ALL = PLANNER_DETAIL_SLOT_ALL;
   window.plannerDetailWantsStage = plannerDetailWantsStage;
   window.plannerDetailSearchWith = plannerDetailSearchWith;
 }
@@ -883,6 +1272,11 @@ if (typeof module !== 'undefined' && module.exports) {
     PLANNER_DETAIL_UNDO_MAX,
     PLANNER_DETAIL_AUTOSAVE_MS,
     PLANNER_DETAIL_CSS,
+    PLANNER_DETAIL_SCOPES,
+    PLANNER_DETAIL_SLOT_ALL,
+    PLANNER_DETAIL_MODE_SCOPE,
+    PLANNER_DETAIL_SCOPE_MODE,
+    plannerDetailSlotLabel,
     plannerDetailWantsStage,
     plannerDetailSearchWith,
     plannerDetailIsDark,

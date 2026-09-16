@@ -485,6 +485,8 @@ if (typeof window !== 'undefined') {
   window.PLANNER_FINISH_SLOTS = PLANNER_FINISH_SLOTS;
   window.PLANNER_FINISH_SLOT_LABEL = PLANNER_FINISH_SLOT_LABEL;
   window.PLANNER_FINISH_LEVEL_LABEL = PLANNER_FINISH_LEVEL_LABEL;
+  // 범위 칠하기(planner-detail.js)가 섹션 두 묶음을 지울 때 쓴다 — 클래식 스크립트끼리는 window 로만 이어진다.
+  window.PLANNER_FINISH_SECTION_GROUPS = PLANNER_FINISH_SECTION_GROUPS;
   window.plannerFinishSectionGroup = plannerFinishSectionGroup;
   window.plannerFinishEmpty = plannerFinishEmpty;
   window.plannerFinishNormalize = plannerFinishNormalize;
