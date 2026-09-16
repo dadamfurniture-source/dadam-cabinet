@@ -13,7 +13,7 @@
 //     예전엔 "배치 폭 정본이 없다"며 구조 전용으로 뒀는데, 셋 다 정본이 있었다:
 //       w 3600      = js/detaildesign/ui-step1.js `defaultWByCategory.wardrobe`
 //                     (싱크 3000·냉장고장 1900 과 같은 표 — 품목이 실제로 만들어지는 폭)
-//       h(깊이) 600 = js/detaildesign/data-constants.js CATEGORIES.wardrobe.defaultD
+//       h(깊이) 620 = js/detaildesign/data-constants.js CATEGORIES.wardrobe.defaultD (2026-09-16: 600 → 620)
 //                     (docs/design-rules/ACTIVE_RULES.md 카테고리별 기본 깊이, bom-protocol.md)
 //       moduleH 2310 = data-constants.js CATEGORIES.wardrobe.defaultH
 //                     = 좌대 60 (DEFAULT_SPECS.wardrobePedestal) + 몸통 2230 + 상몰딩 20 (wardrobeMoldingH)
@@ -51,7 +51,7 @@ const PLANNER_SECTIONS = {
   fridge:  { fill: '#a0a8b0', stroke: '#4a525a', w: 720,  h: 700, label: '냉장고장', moduleH: 2300 },
   // P11: 붙박이장 — 근거는 위 헤더 주석. moduleH 2310 은 품목 기본 높이(defaultH)라
   //   tall/fridge 의 2300 과 10 다르다. 같은 값으로 맞추지 않는다 — 정본이 다르다.
-  wardrobe: { fill: '#8c8a6e', stroke: '#4e4c38', w: 3600, h: 600, label: '붙박이장', moduleH: 2310 },
+  wardrobe: { fill: '#8c8a6e', stroke: '#4e4c38', w: 3600, h: 620, label: '붙박이장', moduleH: 2310 },
   // W9-41: 가전 4종 (빌트인) — 가구 모듈처럼 도면에 배치
   // W9-42: 분배기/후드/식세기 기본값 조정 + 냉장고는 모달로 모델 선택
   sink:         { fill: '#b0b8c0', stroke: '#5a626a', w: 700, h: 400, label: '분배기',     moduleH: 500  },
