@@ -70,7 +70,12 @@ describe('선택이 뷰 거리를 초기화하지 않는다', () => {
   });
 
   test('2D 영역 사각형 클릭도 마찬가지다', () => {
-    expect(SRC).toContain("setActiveArea(a.id); });");
+    // 2026-09-15: 같은 배치를 다시 누르면 해제(clearSelection) — 그 뒤 setActiveArea 는 fit 없이 부른다.
+    const at = SRC.indexOf("if (a.id === activeAreaId && panelTarget === 'area') { clearSelection(); return; }");
+    expect(at).toBeGreaterThan(-1);
+    const near = SRC.slice(at, at + 160);
+    expect(near).toContain('setActiveArea(a.id);');
+    expect(near).not.toContain('fit: true');
   });
 });
 

@@ -95,6 +95,22 @@
   .module-item.active .mi-mark{background:var(--brand-deep);border-color:var(--brand-deep)}
   .module-item .mi-text{flex:1;line-height:1.3}
   .module-item .mi-dim{display:block;font-size:9px;color:var(--text-faint);margin-top:1px;font-family:monospace}
+  /* 2026-09-15: 개별 모듈 패널 — 고른 모듈 하나를 초안으로 편집하고 '적용' 으로 플래너에 옮긴다.
+     우측 패널(크기·높이 구성)과 겹치지 않는다: 분할·칸·서랍·선반·손잡이가 여기로 왔다. */
+  .module-panel{width:340px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow:hidden;transition:width .18s ease}
+  .module-panel.collapsed{width:32px}
+  .module-panel.collapsed .mp-body,.module-panel.collapsed .mp-footer,.module-panel.collapsed .ml-header-title{display:none}
+  .module-panel .mp-body{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable;padding-bottom:12px}
+  .module-panel .mp-preview{padding:8px 10px;border-bottom:1px solid var(--line);background:var(--bg-canvas)}
+  .module-panel .mp-preview svg{width:100%;height:190px;display:block}
+  .module-panel .mp-preview .mp-hint{font-size:9.5px;color:var(--text-faint);margin-top:4px;text-align:center}
+  .module-panel .mp-footer{display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--line);background:var(--bg)}
+  .module-panel .mp-footer .mp-dirty{flex:1;font-size:10px;color:var(--text-dim);line-height:1.3}
+  .module-panel .mp-footer button{padding:5px 12px;border:1px solid var(--line);background:#fff;border-radius:4px;font-size:11px;cursor:pointer;color:var(--text)}
+  .module-panel .mp-footer button.primary{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff;font-weight:600}
+  .module-panel .mp-footer button:disabled{opacity:.45;cursor:default}
+  .module-panel .section[data-mp].off{display:none}
+  .module-panel .mp-why{font-size:9.5px;color:var(--text-faint);padding:2px 10px 6px}
 
   /* ── Canvas (정면도) ────────────────────────────── */
   .canvas-wrap{flex:1;min-width:0;position:relative;background:var(--bg-canvas);overflow:hidden;background-image:linear-gradient(rgba(184,149,108,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(184,149,108,.08) 1px,transparent 1px);background-size:50px 50px}
@@ -340,6 +356,59 @@
     <div id="detailPalette"></div>
   </div>
 
+  <!-- 2026-09-15: 개별 모듈 패널 — 고른 모듈 하나. 초안(draft)을 편집하고 미리보기로 보다가 '적용' 을 눌러야
+       플래너(structures)에 들어간다. 우측 패널의 분할·영역 타입·선반·손잡이·서랍 규칙이 여기로 옮겨 왔고,
+       칸 타입에 따라 필요한 것만 보인다 (도어·오픈 → 선반, 서랍 → 서랍 단수·규칙). -->
+  <div class="module-panel" id="modulePanel" style="display:none">
+    <div class="ml-header">
+      <span class="ml-header-title" id="mpTitle">개별 모듈</span>
+      <button style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px"
+              title="개별 모듈 패널 접기"
+              onclick="document.getElementById('modulePanel').classList.toggle('collapsed')">«</button>
+    </div>
+    <div class="mp-body">
+      <div class="mp-preview">
+        <svg id="mpPreviewSvg" viewBox="0 0 600 870"><g id="mpPreviewG"></g></svg>
+        <div class="mp-hint">초안 미리보기 — 도어 칸을 누르면 열림 방향이 바뀝니다</div>
+      </div>
+      <div class="section" data-mp="split">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">구성 · 분할</span>
+        </div>
+        <div class="section-body" id="splitBody"></div>
+      </div>
+      <div class="section" data-mp="areas">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">칸 타입 + 도어 열림</span>
+        </div>
+        <div class="section-body" id="areasBody"></div>
+      </div>
+      <div class="section" data-mp="drawer">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">서랍</span>
+        </div>
+        <div class="section-body" id="drawerBody"></div>
+      </div>
+      <div class="section" data-mp="shelves">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">선반 (내부 mm)</span>
+        </div>
+        <div class="section-body" id="shelvesBody"></div>
+      </div>
+      <div class="section collapsed" data-mp="handle">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">손잡이</span>
+        </div>
+        <div class="section-body" id="handleBody"></div>
+      </div>
+    </div>
+    <div class="mp-footer">
+      <span class="mp-dirty" id="mpDirty"></span>
+      <button id="btnRevertModule" title="초안을 버리고 플래너 값으로 되돌린다">되돌리기</button>
+      <button id="btnApplyModule" class="primary" title="초안을 플래너에 반영하고 저장한다">적용</button>
+    </div>
+  </div>
+
   <!-- 캔버스: 3D + 정면도 toggle -->
   <div class="canvas-wrap" id="canvasWrap">
     <!-- W9-64: 3D canvas (Three.js) -->
@@ -400,42 +469,7 @@
           <div class="empty-msg">모듈 선택</div>
         </div>
       </div>
-      <!-- 분할 -->
-      <div class="section" data-sec="split">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">분할</span>
-        </div>
-        <div class="section-body" id="splitBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
-      <!-- 영역 타입 -->
-      <div class="section" data-sec="areas">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">영역 타입 + 도어 열림</span>
-        </div>
-        <div class="section-body" id="areasBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
-      <!-- 선반 -->
-      <div class="section" data-sec="shelves">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">선반 (내부 mm)</span>
-        </div>
-        <div class="section-body" id="shelvesBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
-      <!-- 손잡이 -->
-      <div class="section collapsed" data-sec="handle">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">손잡이</span>
-        </div>
-        <div class="section-body" id="handleBody">
-          <div class="empty-msg">모듈 선택</div>
-        </div>
-      </div>
+      <!-- 2026-09-15: 분할·영역 타입·선반·손잡이 섹션은 개별 모듈 패널(#modulePanel)로 옮겼다 — 여기와 겹치지 않는다. -->
       <!-- 마감 — 영역 모드에서만. 마감재는 배치 공간 양 끝에 한 장씩이다 (W12-20) -->
       <div class="section" data-sec="finish" style="display:none">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
@@ -518,6 +552,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/planner/planner-drawing-menu.js?v=38.8"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
 <script src="js/planner/planner-engine.js?v=38.8"></script>
+<!-- 2026-09-15: 서랍장·목찬넬·레일 규칙 (BOM 과 같은 파일) — 3D 중간 따내기·서랍 박스가 이걸로 계산한다 -->
+<script src="js/detaildesign/bom-drawer-rules.js?v=38.8"></script>
 <!-- D0: 디테일 모드. 카탈로그 정본(bom-finish-color.js, IIFE → window.DadamBomFinishColor)을 먼저 싣고,
      순수 모델(planner-finish.js) → 화면·상태(planner-detail.js) 순. 셋 다 인라인보다 앞.
      D2: 그 사이에 DB 카탈로그(planner-catalog.js — materials 표, PlannerStore 클라이언트 재사용)와
@@ -596,6 +632,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       verticalCount: 1,        // 좌우 분할 N
       horizontalLayout: 'doorOnly',  // 'doorOnly' | 'doorTopDrawerBottom'
       drawerHeight: 200,       // 하부 서랍 H (mm)
+      // 2026-09-15: 서랍 규칙 — 레일·사쿠리·서랍 자재 두께를 한 블록으로 따로 저장한다.
+      //   브리지가 이 블록을 BOM 모듈 `drawer` 로 그대로 넘긴다 (extractors drawerRulesOf). boxT 0 = 몸통 두께를 따른다.
+      drawer: { rail: 'under', sakuri: false, boxT: 0 },
       areaTypes: ['door'],     // 길이 = verticalCount (상부 영역)
       areaDirections: ['left'],  // 도어 열림 방향 (길이 = verticalCount)
       // W9-95: 영역별 폭 (불균등 분할 — 가전 X 정밀 분할 시 사용)
@@ -1043,6 +1082,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       //   띄웠다. 같은 모듈을 도면에서 누를 때와 결과가 달라 혼란스러웠다 —
       //   색이 변하고 옵션 팔레트가 뜨는 쪽으로 맞춘다.
       el.onclick = () => {
+        // 2026-09-15: 이미 고른 모듈을 다시 누르면 선택 해제 (배치 선택은 남는다)
+        if (el.dataset.id === activeId) { clearActiveModule(); return; }
         const m = modules.find((x) => x.id === el.dataset.id);
         const area = areaOfModule(m);
         if (area && area.id !== activeAreaId) { activeAreaId = area.id; renderAreaTools(); }
@@ -1803,7 +1844,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       r.setAttribute('data-area-id', a.id);
       if (picked) r.setAttribute('data-picked', '1');
       r.style.cursor = 'pointer';
-      r.addEventListener('click', (e) => { e.stopPropagation(); setActiveArea(a.id); });
+      r.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 2026-09-15: 이미 고른 배치를 다시 누르면 해제 (모듈이 골라져 있던 배치는 먼저 배치 선택으로)
+        if (a.id === activeAreaId && panelTarget === 'area') { clearSelection(); return; }
+        setActiveArea(a.id);
+      });
       g.appendChild(r);
 
       const used = usedWidthOf(a.id);
@@ -2126,6 +2172,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     rect.style.cursor = 'pointer';
     rect.addEventListener('click', (e) => {
       e.stopPropagation();
+      // 2026-09-15: 개별 모듈 패널의 미리보기 칸 — 실제가 아니라 **초안**의 방향을 뒤집고 저장하지 않는다.
+      if (isModuleDraft(s)) {
+        if (!canToggle) return;
+        if (idx === 'bottom') s.bottomDirection = s.bottomDirection === 'left' ? 'right' : 'left';
+        else s.areaDirections[+idx] = s.areaDirections[+idx] === 'left' ? 'right' : 'left';
+        draftChanged();
+        return;
+      }
       // W12-75: 다른 모듈의 칸이면 **선택만** 한다. 한 번에 고르고 뒤집기까지
       //   하면, 보려고 누른 것뿐인데 도어 방향이 바뀐다. 예전엔 이 모듈이 화면에
       //   아예 안 그려져 있어(모듈 상세 보기) 드러나지 않던 길이다.
@@ -2171,7 +2225,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       panel.setAttribute('data-module-id', m.id);
       panel.setAttribute('pointer-events', 'all');
       panel.style.cursor = 'pointer';
-      panel.addEventListener('click', (e) => { e.stopPropagation(); setActiveModule(m.id); });
+      panel.addEventListener('click', (e) => { e.stopPropagation(); if (activeId === m.id) clearActiveModule(); else setActiveModule(m.id); });
       content.appendChild(panel);
       return;
     }
@@ -2198,16 +2252,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     outline.style.cursor = 'pointer';
     outline.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (activeId !== m.id && pickAreaFirst(m.id)) return;   // 첫 클릭은 배치
+      if (activeId === m.id) { clearActiveModule(); return; }   // 2026-09-15: 다시 누르면 해제
+      if (pickAreaFirst(m.id)) return;   // 첫 클릭은 배치
       setActiveModule(m.id);
     });
     content.appendChild(outline);
 
     // 상하 분할
+    // 2026-09-15: 목찬넬 하부장의 "도어 + 하부 서랍" 은 규칙 파일이 전면을 정한다 (drawerLayoutFor).
+    //   예전엔 3D 만 그 배치를 쓰고 정면도는 하부를 **한 칸**으로 그려, 개별 모듈 패널의 미리보기가
+    //   3D 와 다른 그림을 보여줬다 (서랍 3단인데 미리보기는 한 칸). 같은 배치를 쓴다.
+    //   레이아웃 y 는 **몸통 상단에서 아래로** 잰 값이라 모듈 상단 기준으로 옮긴다.
+    const frontL = drawerLayoutFor(m, s);
+    const MIN_FRONT = frontL ? DadamDrawerRules.DRAWER_RULES.MIN_FRONT_H : 0;
+    const bodyTopOff = frontL ? Math.max(0, m.H - baseOffsetOf(m, s) - bodyHeightOf(m, s)) : 0;
+    const frontY = (f) => offsetY + bodyTopOff + f.y0;
     const drawerH = s.horizontalLayout === 'doorTopDrawerBottom' ? s.drawerHeight : 0;
-    const topH = m.H - drawerH;
-    const topY = offsetY;             // 모듈 위쪽 (천장 매달림이면 ceiling=0)
-    const drawerY = offsetY + topH;   // 하부 서랍 영역 시작
+    const topH = frontL ? frontL.fronts[0].h : m.H - drawerH;
+    const topY = frontL ? frontY(frontL.fronts[0]) : offsetY;   // 모듈 위쪽 (천장 매달림이면 ceiling=0)
+    const drawerY = offsetY + (m.H - drawerH);   // 하부 서랍 영역 시작 (레이아웃이 없을 때)
 
     // W9-95: 불균등 cell 폭 (areaWidths) — fallback 균등.
     // W12-30: 같은 규칙이 여기와 cellWidthsOf 두 곳에 있었다 — 하나로 모은다.
@@ -2224,6 +2287,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const x = xAcc + GAP_HALF;
       const doorW = colW - MASTER_RULES.DOOR_GAP;
       const fill = colorForArea(cfg.fill, type);
+      if (topH < MIN_FRONT) { xAcc += colW; continue; }   // 2026-09-15: 최소 전면 미만 — 부재가 없으므로 그리지도 않는다
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
       r.setAttribute('x', x);
@@ -2373,8 +2437,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       xAcc += colW;   // 다음 cell
     }
 
-    // 하부 (도어+서랍 모드일 때만)
-    if (s.horizontalLayout === 'doorTopDrawerBottom' && drawerH > 0) {
+    // 2026-09-15: 서랍 전면 — 규칙이 정한 단마다 한 칸 (3D·BOM 과 같은 배치)
+    if (frontL) {
+      let dIdx = 0;
+      frontL.fronts.forEach((f) => {
+        if (f.kind !== 'drawer') return;
+        dIdx += 1;
+        if (f.h < MIN_FRONT) return;
+        const GAP_HALF = MASTER_RULES.DOOR_GAP / 2;
+        const y = frontY(f);
+        const r = document.createElementNS(ns, 'rect');
+        r.setAttribute('class', 'area-rect');
+        r.setAttribute('x', offsetX + GAP_HALF);
+        r.setAttribute('y', y);
+        r.setAttribute('width', m.W - MASTER_RULES.DOOR_GAP);
+        r.setAttribute('height', f.h);
+        r.setAttribute('fill', colorForArea(cfg.fill, 'drawer'));
+        r.setAttribute('stroke', cfg.stroke);
+        r.setAttribute('stroke-width', 2);
+        bindFrontCell(r, m, s, 'bottom', 'drawer', false);
+        content.appendChild(r);
+        const lab = document.createElementNS(ns, 'text');
+        lab.setAttribute('class', 'area-label');
+        lab.setAttribute('x', offsetX + m.W / 2);
+        lab.setAttribute('y', y + f.h / 2);
+        lab.setAttribute('text-anchor', 'middle');
+        lab.setAttribute('dominant-baseline', 'central');
+        lab.setAttribute('font-size', Math.min(m.W * 0.06, f.h * 0.4, 70));
+        lab.textContent = `서랍${dIdx} H=${f.h}`;
+        content.appendChild(lab);
+      });
+    }
+
+    // 하부 (도어+서랍 모드일 때만 · 레이아웃이 없을 때)
+    if (!frontL && s.horizontalLayout === 'doorTopDrawerBottom' && drawerH > 0) {
       const fill = colorForArea(cfg.fill, s.bottomType);
       const r = document.createElementNS(ns, 'rect');
       r.setAttribute('class', 'area-rect');
@@ -2628,11 +2724,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function handleNoteFor(m, s) {
     const R = MASTER_RULES;
     switch (handleTypeOf(m, s)) {
-      case 'wood-channel':
-        return isWoodChannel(m, s)
-          ? `측판·칸막이 상단 전면을 ${R.CHANNEL_NOTCH_H}×${R.CHANNEL_NOTCH_D} 따내고, `
-            + `지면판 ${R.CHANNEL_BACK_W}×${R.CHANNEL_BOARD_T}T 위에 전면판 ${R.CHANNEL_FRONT_W}×${R.CHANNEL_BOARD_T}T 를 얹습니다.`
-          : '목찬넬 따내기는 하부장에만 그립니다 — 상부장 매립 규칙이 아직 없습니다.';
+      case 'wood-channel': {
+        if (!isWoodChannel(m, s)) return '목찬넬 따내기는 하부장에만 그립니다 — 상부장 매립 규칙이 아직 없습니다.';
+        let note = `측판·칸막이 상단 전면을 ${R.CHANNEL_NOTCH_H}×${R.CHANNEL_NOTCH_D} 따내고, `
+          + `지면판 ${R.CHANNEL_BACK_W}×${R.CHANNEL_BOARD_T}T 위에 전면판 ${R.CHANNEL_FRONT_W}×${R.CHANNEL_BOARD_T}T 를 얹습니다.`;
+        const L = drawerLayoutFor(m, s);
+        if (L && L.midCount > 0) {
+          const D = DadamDrawerRules.DRAWER_RULES;
+          note += ` 서랍 사이 중간 목찬넬 ${L.midCount}곳은 ${D.CHANNEL_MID_NOTCH_H}×${D.CHANNEL_BASE_W} 따내고 전면판 ${D.CHANNEL_MID_FACE_H} 를 세웁니다`
+            + ` (위 전면 ${D.UPPER_DROP} 내려옴 · 슬롯 ${D.MID_SLOT}). 박스: ${L.boxes.map((b) => D.BOX_LABEL[b.size] + b.h).join('·')}.`;
+        }
+        return note;
+      }
       case 'door-drop':
         return `도어를 몸통보다 ${R.SINK_UPPER_DOOR_H_PLUS}mm 아래로 빼서 그 밑단을 잡습니다.`;
       case 'push':
@@ -2655,6 +2758,50 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
   /** 상판 두께 (하부장) */
   function topTOf(m, s) { return heightPartOf(m, s, 'topT'); }
+  /**
+   * 2026-09-15: 서랍장 레이아웃 — 목찬넬 하부장이 "도어 + 하부 서랍" 이면 규칙 파일
+   * (js/detaildesign/bom-drawer-rules.js, BOM 과 같은 파일)로 전면·중간 따내기·존·박스를 푼다.
+   * 3D 와 자재표가 같은 함수를 쓰므로 같은 숫자다.
+   *   전면(위→아래) = [도어, 서랍 × drawerCount], 서랍 전면 = drawerHeight, 도어가 남는 높이.
+   *   중간 따내기 90×40 = 전면판 72 + 지면판 18 — 위 전면이 20 내려오고 그 아래 30 이 슬롯.
+   *   목찬넬 수는 전면과 1:1 이 아니다 — 상단 1 + 최소 수 (규칙 파일 assignChannels).
+   * 목찬넬이 아니거나 하부 서랍이 없으면 null — 예전 그대로 그린다.
+   */
+  function drawerLayoutFor(m, s) {
+    if (!s || !isWoodChannel(m, s)) return null;
+    if (s.horizontalLayout !== 'doorTopDrawerBottom' || (s.bottomType || 'drawer') !== 'drawer') return null;
+    const drawerH = Number(s.drawerHeight) || 0;
+    if (drawerH <= 0) return null;
+    const rules = (typeof DadamDrawerRules !== 'undefined') ? DadamDrawerRules : (window.DadamDrawerRules || null);
+    if (!rules) return null;
+    const n = Math.max(1, Math.min(rules.DRAWER_RULES.MAX_COUNT, parseInt(s.drawerCount, 10) || 1));
+    const fronts = [{ kind: 'door' }];
+    for (let i = 0; i < n; i++) fronts.push({ kind: 'drawer', h: drawerH });
+    return rules.layoutDrawerModule({ H: bodyHeightOf(m, s), T: BODY_T, fronts, rail: drawerRulesOf(s).rail });
+  }
+
+  /**
+   * 2026-09-15: 서랍 규칙 블록 정규화 — s.drawer {rail, sakuri, boxT}. 옛 s.drawerRail 도 읽는다.
+   *   rail 'under'|'ball' · sakuri 측판 사쿠리 · boxT 서랍 자재 두께 (0 = 몸통 두께)
+   */
+  function drawerRulesOf(s) {
+    const d = (s && s.drawer) || {};
+    const railRaw = d.rail || (s && s.drawerRail);
+    return {
+      rail: railRaw === 'ball' ? 'ball' : 'under',
+      sakuri: !!d.sakuri,
+      boxT: [15, 18].includes(Number(d.boxT)) ? Number(d.boxT) : 0,
+    };
+  }
+
+  /** 레이아웃의 전면 하나를 모듈 로컬 세로 범위로 — y 는 몸통 상단에서 아래로 잰 값이라 뒤집는다. */
+  function frontSpanOf(L, idx, legH, carcassH) {
+    const f = L.fronts[idx];
+    const yTop = legH + carcassH - f.y0;
+    const yBot = legH + carcassH - f.y1;
+    return { cy: (yTop + yBot) / 2, h: yTop - yBot };
+  }
+
   /** 좌대 H (키큰장·냉장고장) */
   function pedestalHOf(m, s) { return heightPartOf(m, s, 'pedestalH'); }
   /** 몸통이 시작하는 바닥 offset — 하부장은 다리발, 키큰장/냉장고장은 좌대, 상부장은 0.
@@ -2816,7 +2963,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     areas: '영역 타입 + 도어 열림', shelves: '선반 (내부 mm)', handle: '손잡이', finish: '마감',
   };
   const PANEL_LAYOUT = {
-    module: { title: '구조 편집', secs: ['size', 'height', 'split', 'areas', 'shelves', 'handle'],
+    // 2026-09-15: 분할·영역·선반·손잡이는 개별 모듈 패널로 갔다 — 우측은 크기·높이 구성만.
+    module: { title: '구조 편집', secs: ['size', 'height'],
               titles: { size: '크기 · 고정' } },
     // 영역은 배치 공간이다 — 담을 그릇의 치수·높이 부위·양 끝 마감만 정한다.
     area:   { title: '영역 편집', secs: ['size', 'height', 'finish'],
@@ -3126,14 +3274,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function renderRightPanel() {
     const mode = panelModeNow();
     applyPanelLayout(mode);
-    if (mode === 'area') { renderAreaPanel(areaById(activeAreaId)); return; }
+    if (mode === 'area') { renderAreaPanel(areaById(activeAreaId)); renderModulePanel(); return; }   // 2026-09-15: 영역 모드면 개별 모듈 패널을 닫는다
 
     const m = modules.find(x => x.id === activeId);
     if (!m) {
-      ['sizeBody','heightBody','splitBody','areasBody','shelvesBody','handleBody'].forEach(id => {
+      ['sizeBody','heightBody'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = '<div class="empty-msg">모듈 선택</div>';
       });
+      renderModulePanel();
       return;
     }
     const s = getStructure(activeId);
@@ -3149,7 +3298,142 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return;
     }
     renderHeightPanel(m, s);
+    // 2026-09-15: 분할·칸·서랍·선반·손잡이는 개별 모듈 패널이 **초안**으로 편집한다 (renderModulePanel).
+    renderModulePanel();
+  }
 
+  // ─────────────────────────────────────────────────────────────
+  // 2026-09-15: 개별 모듈 패널 — 초안(draft) → 미리보기 → 적용
+  //
+  //   우측 패널은 값을 바꾸는 즉시 저장한다(panelCommit). 이 패널은 다르다: 고른 모듈의 구조를
+  //   깊은 복사한 **초안**을 편집하고, 미리보기는 실제 모듈 치수(m) 위에 초안(s)을 그린다.
+  //   '적용' 을 눌러야 structures 에 들어가고 저장·정면도·3D 가 따라간다. '되돌리기' 는 초안을 버린다.
+  //   칸 타입에 따라 필요한 섹션만 보인다 — 서랍이 있으면 서랍, 도어·오픈이 있으면 선반, 전면이 있으면 손잡이.
+  // ─────────────────────────────────────────────────────────────
+  const deepClone = (o) => JSON.parse(JSON.stringify(o));
+  let modulePanelDraft = null;   // { id, s, dirty }
+
+  /** 고른 모듈의 초안. 모듈이 바뀌면 새로 뜨고, 더럽혀지지 않았으면 실제 구조를 따라간다. */
+  function moduleDraftFor(m) {
+    if (!modulePanelDraft || modulePanelDraft.id !== m.id) {
+      modulePanelDraft = { id: m.id, s: deepClone(getStructure(m.id)), dirty: false };
+    } else if (!modulePanelDraft.dirty) {
+      modulePanelDraft.s = deepClone(getStructure(m.id));
+    }
+    return modulePanelDraft;
+  }
+
+  /** 초안이 이 구조 객체인가 — 미리보기 칸 클릭·정면도 바인딩이 실제/초안을 가르는 데 쓴다. */
+  function isModuleDraft(s) { return !!(modulePanelDraft && s === modulePanelDraft.s); }
+
+  function renderModulePanel() {
+    const host = document.getElementById('modulePanel');
+    if (!host) return;
+    const m = modules.find((x) => x.id === activeId);
+    const show = !!m && !m.isFinishing && !isFinishingSection(m.section) && panelModeNow() === 'module';
+    host.style.display = show ? '' : 'none';
+    if (!show) { if (!m) modulePanelDraft = null; return; }
+    const d = moduleDraftFor(m);
+    const s = d.s;
+    const cfg = SECTION_CONFIG[m.section] || {};
+    document.getElementById('mpTitle').textContent = `${cfg.label || m.section} ${moduleTag(m)} · W${m.W}×H${m.H}×D${m.D}`.trim();
+    renderModulePanelSections(m, s);
+    syncModulePanelSections(s);
+    renderModulePreview(m, s);
+    // 2026-09-15: 규칙이 내는 경고(최소 전면 미만·최대 단수 초과)를 그대로 보여준다 — 안 보이면 BOM 에서만 드러난다.
+    const warnL = drawerLayoutFor(m, s);
+    const warns = (warnL && warnL.warnings) || [];
+    const dirtyEl = document.getElementById('mpDirty');
+    if (dirtyEl) {
+      dirtyEl.textContent = warns.length
+        ? '⚠ ' + warns[0]
+        : (d.dirty ? '초안이 바뀌었습니다 — 적용을 누르면 플래너에 반영됩니다' : '플래너와 같습니다');
+      dirtyEl.style.color = warns.length ? '#b4452e' : '';
+    }
+    const apply = document.getElementById('btnApplyModule');
+    const revert = document.getElementById('btnRevertModule');
+    if (apply) { apply.disabled = !d.dirty; apply.onclick = () => applyModuleDraft(); }
+    if (revert) { revert.disabled = !d.dirty; revert.onclick = () => revertModuleDraft(); }
+  }
+
+  /** 구성에 서랍이 있는가 — 하부 서랍 또는 서랍 칸. 서랍 섹션(단수·규칙)은 이때만 그린다. */
+  function moduleHasDrawer(s) {
+    const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
+    if (types.some((t) => t === 'drawer')) return true;
+    return s.horizontalLayout === 'doorTopDrawerBottom' && (s.bottomType || 'drawer') === 'drawer';
+  }
+
+  /** 칸 타입이 정하는 섹션 표시 — 서랍이 있으면 서랍, 도어·오픈이 있으면 선반, 전면이 있으면 손잡이. */
+  function syncModulePanelSections(s) {
+    const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
+    const bottom = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.bottomType || 'drawer') : null;
+    const has = (pred) => types.some(pred) || (bottom !== null && pred(bottom));
+    const on = {
+      split: true,
+      areas: true,
+      drawer: has((t) => t === 'drawer'),
+      shelves: has((t) => t === 'door' || t === 'open' || t === 'blind'),
+      handle: has((t) => t === 'door' || t === 'drawer'),
+    };
+    document.querySelectorAll('#modulePanel .section[data-mp]').forEach((sec) => {
+      const k = sec.getAttribute('data-mp');
+      sec.classList.toggle('off', !on[k]);
+    });
+  }
+
+  /** 미리보기 — 그 모듈 하나를 실제 치수(m) + 초안(s)으로 그린다. 정면도와 같은 함수라 같은 그림이다. */
+  function renderModulePreview(m, s) {
+    const g = document.getElementById('mpPreviewG');
+    const svg = document.getElementById('mpPreviewSvg');
+    if (!g || !svg) return;
+    g.innerHTML = '';
+    renderModuleFront(g, m, s, 0, 0);
+    // 외곽(모듈 선택)은 미리보기에서 눌러도 아무것도 하지 않는다 — 칸 클릭(방향 뒤집기)만 초안에 닿는다.
+    g.querySelectorAll('[data-module-id]').forEach((el) => { el.style.pointerEvents = 'none'; });
+    const pad = Math.max(24, Math.round(Math.max(m.W, m.H) * 0.05));
+    svg.setAttribute('viewBox', `${-pad} ${-pad} ${m.W + pad * 2} ${m.H + pad * 2}`);
+  }
+
+  /** 초안이 바뀌었다 — 저장하지 않고 패널·미리보기만 다시 그린다. */
+  function draftChanged(focusSel) {
+    if (modulePanelDraft) modulePanelDraft.dirty = true;
+    renderModulePanel();
+    if (focusSel) {
+      const el = document.querySelector(focusSel);
+      if (el && el.focus) el.focus();
+    }
+  }
+
+  /** 초안을 플래너에 옮긴다 — 그때서야 저장·정면도·3D 가 바뀐다. */
+  function applyModuleDraft() {
+    const d = modulePanelDraft;
+    if (!d) return false;
+    const m = modules.find((x) => x.id === d.id);
+    if (!m) return false;
+    // 제자리 갱신 — structures[id] 객체를 바꾸지 않는다. 시험·3D 메타·다른 참조가 그 객체를 쥐고 있다.
+    const target = getStructure(d.id);
+    Object.keys(target).forEach((k) => { delete target[k]; });
+    Object.assign(target, deepClone(d.s));
+    d.dirty = false;
+    panelCommit();
+    showToast('✓ 개별 모듈 적용');
+    return true;
+  }
+
+  /** 초안을 버리고 플래너 값으로 되돌린다. */
+  function revertModuleDraft() {
+    if (!modulePanelDraft) return false;
+    modulePanelDraft = null;
+    renderModulePanel();
+    showToast('초안을 되돌렸습니다');
+    return true;
+  }
+
+  /**
+   * 분할·칸·서랍·선반·손잡이 입력 — 예전 우측 패널 코드 그대로, 다만 값은 **초안 s** 를 바꾸고
+   * panelCommit 대신 draftChanged 를 부른다. 입력 id 는 예전과 같다 (시험·문서가 그 이름을 쓴다).
+   */
+  function renderModulePanelSections(m, s) {
     // 분할
     document.getElementById('splitBody').innerHTML = `
       <div class="row">
@@ -3165,17 +3449,44 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       </div>
       ${s.horizontalLayout === 'doorTopDrawerBottom' ? `
         <div class="row">
-          <label>하부 H (mm)</label>
+          <label>서랍 전면 H (mm)</label>
           <input type="number" min="50" max="${m.H-50}" step="10" id="inpDrawerH" value="${s.drawerHeight}">
         </div>
-        <div class="row">
-          <label>서랍 단수</label>
-          <input type="number" min="1" max="5" step="1" id="inpDrawerCount" value="${Number(s.drawerCount) || 1}">
-        </div>
         <div style="font-size:10px;color:#888;line-height:1.4">
-          서랍 1단마다 전후판 2장·측판 2장·밑판 1장이 자재로 잡힙니다.
+          서랍 <b>한 장</b>의 전면 높이입니다. 단수를 곱한 만큼 아래를 차지하고, 남는 높이가 위 도어가 됩니다.
         </div>
       ` : ''}
+    `;
+    // 2026-09-15: 서랍 — 서랍이 있는 구성에서만 보인다 (syncModulePanelSections). 단수 + 서랍 규칙(레일·자재·사쿠리).
+    document.getElementById('drawerBody').innerHTML = !moduleHasDrawer(s) ? '' : `
+        <div class="row">
+          <label>서랍 단수</label>
+          <input type="number" min="1" max="4" step="1" id="inpDrawerCount" value="${Number(s.drawerCount) || 1}">
+        </div>
+        <div class="row">
+          <label>서랍 레일</label>
+          <select id="selDrawerRail">
+            <option value="under" ${drawerRulesOf(s).rail==='under'?'selected':''}>댐핑 언더레일 (박스 +40)</option>
+            <option value="ball" ${drawerRulesOf(s).rail==='ball'?'selected':''}>댐핑 볼레일 (박스 +20)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>서랍 자재</label>
+          <select id="selDrawerBoxT">
+            <option value="0" ${drawerRulesOf(s).boxT===0?'selected':''}>몸통 두께 따름</option>
+            <option value="15" ${drawerRulesOf(s).boxT===15?'selected':''}>15T</option>
+            <option value="18" ${drawerRulesOf(s).boxT===18?'selected':''}>18T</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>측판 사쿠리</label>
+          <input type="checkbox" id="chkDrawerSakuri" ${drawerRulesOf(s).sakuri?'checked':''}>
+          <span style="font-size:10px;color:#888">앞뒷판 −18 · 우라 앞뒷판+20</span>
+        </div>
+        <div style="font-size:10px;color:#888;line-height:1.4">
+          서랍 1단마다 전후판 2장·측판 2장·밑판 1장이 자재로 잡힙니다. 최대 4단.
+          목찬넬이면 서랍 사이에 중간 목찬넬(90×40 따내기)이 최소 수로 들어가고, 박스는 그 사이 존에 레일 여유를 빼고 들어가는 소·중·대가 됩니다.
+        </div>
     `;
     // W12-29: **oninput 이 아니라 onchange** 다. syncCellArrays 는 areaWidths·
     //   areaIs2D 를 비우는데, oninput 이면 "12" 를 치는 중 "1" 에서 한 번 비운다 —
@@ -3186,30 +3497,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const v = Math.max(1, Math.min(6, parseInt(e.target.value) || 1));
       e.target.value = v;
       syncCellArrays(s, v);
-      panelCommit('#inpVCount');
+      draftChanged('#inpVCount');
     };
     document.getElementById('selHLayout').onchange = (e) => {
       s.horizontalLayout = e.target.value;
-      panelCommit('#selHLayout');
+      draftChanged('#selHLayout');
     };
     const inpDr = document.getElementById('inpDrawerH');
     if (inpDr) inpDr.onchange = (e) => {
       const v = parseInt(e.target.value) || 200;
       s.drawerHeight = Math.max(50, Math.min(m.H - 50, v));
       e.target.value = s.drawerHeight;
-      panelCommit('#inpDrawerH');
+      draftChanged('#inpDrawerH');
     };
 
     // CD-2: 서랍 단수 — 예전엔 지정할 수단이 없어 브리지가 항상 1단으로 넘겼다.
     // 1단마다 전후판 2·측판 2·밑판 1 이 잡히므로 BOM 수량에 직접 영향을 준다.
+    // 2026-09-15: 최대 4단 (bom-drawer-rules.js MAX_COUNT) — 5 는 규칙 밖이라 BOM 이 4 로 잘랐다.
+    //   서랍 규칙은 s.drawer 한 블록에 모아 저장한다 — 브리지가 그대로 BOM 으로 넘긴다.
+    const setDrawerRule = (patch, focus) => {
+      s.drawer = Object.assign(drawerRulesOf(s), patch);
+      draftChanged(focus);
+    };
+    const selRail = document.getElementById('selDrawerRail');
+    if (selRail) selRail.onchange = (e) => setDrawerRule({ rail: e.target.value === 'ball' ? 'ball' : 'under' }, '#selDrawerRail');
+    const selBoxT = document.getElementById('selDrawerBoxT');
+    if (selBoxT) selBoxT.onchange = (e) => setDrawerRule({ boxT: Number(e.target.value) || 0 }, '#selDrawerBoxT');
+    const chkSakuri = document.getElementById('chkDrawerSakuri');
+    if (chkSakuri) chkSakuri.onchange = (e) => setDrawerRule({ sakuri: !!e.target.checked }, '#chkDrawerSakuri');
     const inpDrC = document.getElementById('inpDrawerCount');
     if (inpDrC) inpDrC.onchange = (e) => {
-      const v = Math.max(1, Math.min(5, parseInt(e.target.value) || 1));
+      const v = Math.max(1, Math.min(4, parseInt(e.target.value) || 1));
       s.drawerCount = v;
       e.target.value = v;
-      persistPlannerState();
-      renderFrontView();
-      showToast(`✓ 서랍 ${v}단`);
+      draftChanged('#inpDrawerCount');
     };
 
     // 영역 타입
@@ -3271,12 +3592,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (tSel) tSel.onchange = (e) => {
         if (idx !== undefined) s.areaTypes[+idx] = e.target.value;
         else s.bottomType = e.target.value;
-        panelCommit();
+        draftChanged();
       };
       if (dSel) dSel.onchange = (e) => {
         if (idx !== undefined) s.areaDirections[+idx] = e.target.value;
         else s.bottomDirection = e.target.value;
-        panelCommit();
+        draftChanged();
       };
     });
 
@@ -3306,25 +3627,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         if (!isFinite(v)) return;
         s.shelves[idx] = Math.max(0, Math.min(m.H, v));
         e.target.value = s.shelves[idx];
-        panelCommit(`#shelvesBody input[data-idx="${idx}"]`);
+        draftChanged(`#shelvesBody input[data-idx="${idx}"]`);
       };
     });
     document.querySelectorAll('#shelvesBody button.del').forEach(btn => {
       btn.onclick = () => {
         const idx = +btn.dataset.idx;
         s.shelves.splice(idx, 1);
-        panelCommit();
+        draftChanged();
       };
     });
     document.getElementById('addShelf').onclick = () => {
       // 중앙 높이로 추가
       s.shelves.push(Math.round(m.H / 2));
-      panelCommit();
+      draftChanged();
     };
     const even = document.getElementById('evenShelf');
     if (even) even.onclick = () => {
       s.shelves = shelvesForCount(m, s, s.shelves.length);
-      panelCommit();
+      draftChanged();
       showToast(`✓ 선반 ${s.shelves.length}개 균등 배치`);
     };
 
@@ -3354,11 +3675,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   도어를 15 아래로 뺀다. 바꿔도 화면이 그대로고 새로고침하면 사라졌다.
     document.getElementById('selHType').onchange = (e) => {
       s.handleType = e.target.value;
-      panelCommit('#selHType');
+      draftChanged('#selHType');
     };
     document.getElementById('selHPos').onchange = (e) => {
       s.handlePosition = e.target.value;
-      panelCommit('#selHPos');
+      draftChanged('#selHPos');
     };
   }
 
@@ -3384,6 +3705,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const BLIND_COVER_T = 2.7;
 
   const CHANNEL_COLOR = '#7a6a45';
+  const DRAWER_BOX_COLOR = '#d9c9a3';   // 2026-09-15: 서랍 박스 (PB, 반투명)
 
   // W12-17: 도어 뒤 그림자판을 얼마나 어둡게 할지. 도어 사이 4mm 는 화면에서
   // 1px 안팎이라 대비가 낮으면 그냥 사라진다.
@@ -5706,6 +6028,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 영역을 누르면 모듈이 아니라 영역이 선택된다 — 추가/제거 버튼이 뜬다.
     if (mesh.userData && mesh.userData.entityKind === 'area') {
       clearHighlight();
+      // 2026-09-15: 이미 고른 배치를 3D 에서 다시 누르면 해제
+      if (mesh.userData.areaId === activeAreaId && panelTarget === 'area') { clearSelection(); return; }
       setActiveArea(mesh.userData.areaId);
       if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
       return;
@@ -5729,6 +6053,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-70: 길이 하나다. 예전엔 전체/배치 모드일 때만 activeId 를 직접 넣어
     //   좌측 목록과 3D 테두리가 갱신되지 않았다. setActiveModule 이 화면을
     //   모듈로 당기는 건 이제 '개별' 탭뿐이므로 그냥 부르면 된다.
+    if (moduleId && moduleId === activeId) {
+      // 2026-09-15: 이미 고른 모듈을 3D 에서 다시 누르면 선택 해제
+      clearActiveModule();
+      return;
+    }
     if (moduleId && moduleId !== activeId) {
       // 2026-09-12: 첫 클릭은 배치(영역), 한 번 더 누르면 모듈.
       if (pickAreaFirst(moduleId)) { clearHighlight(); return; }
@@ -5979,16 +6308,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * y=높이)에 그리고 rotateY(-90°) 로 두께 축을 X 로 돌린다 — 이때 깊이가 그대로
    * +Z(정면)로 간다. rotateY(+90°) 를 쓰면 깊이가 뒤집혀 따낸 자리가 뒤로 간다.
    */
-  function makeNotchedPanel(T, h, d, notchH, notchD, color) {
+  function makeNotchedPanel(T, h, d, notches, color) {
+    // 2026-09-15: 따내기가 여럿이다 — 상단(목찬넬) + 중간(서랍장, 전면 사이 목찬넬).
+    //   notches = [{top, h, d}] (top 은 판 윗면에서 아래로). 앞선(x1)을 아래에서 위로 올라가며 자리를 판다.
     const shape = new THREE.Shape();
     const x0 = -d / 2, x1 = d / 2, y0 = -h / 2, y1 = h / 2;
-    const nx = x1 - notchD;      // 따낸 자리의 안쪽(뒤) 경계
-    const ny = y1 - notchH;      // 따낸 자리의 바닥
+    const list = (Array.isArray(notches) ? notches : []).slice().sort((a, b) => b.top - a.top);   // 아래쪽부터
     shape.moveTo(x0, y0);
     shape.lineTo(x1, y0);
-    shape.lineTo(x1, ny);
-    shape.lineTo(nx, ny);
-    shape.lineTo(nx, y1);
+    let reachedTop = false;
+    list.forEach((n) => {
+      const nx = x1 - n.d;             // 따낸 자리의 안쪽(뒤) 경계
+      const nb = y1 - n.top - n.h;     // 따낸 자리의 바닥
+      const nt = y1 - n.top;           // 따낸 자리의 윗선
+      shape.lineTo(x1, nb);
+      shape.lineTo(nx, nb);
+      shape.lineTo(nx, nt);
+      if (n.top <= 0) reachedTop = true;   // 상단 따내기 — 윗선이 곧 판 윗면
+      else shape.lineTo(x1, nt);
+    });
+    if (!reachedTop) shape.lineTo(x1, y1);
     shape.lineTo(x0, y1);
     shape.closePath();
     const geo = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false });
@@ -5998,6 +6337,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       color: new THREE.Color(color), metalness: 0.05, roughness: 0.65,
     });
     return new THREE.Mesh(geo, mat);
+  }
+
+  /**
+   * 2026-09-15: 측판·칸막이가 따낼 자리 — 위에서부터 [{top, h, d}].
+   *   상단은 목찬넬(W12-5, MASTER_RULES), 중간은 서랍장 레이아웃의 중간 목찬넬(규칙 파일).
+   */
+  function notchesOf(o) {
+    const out = [];
+    if (o.woodChannel) out.push({ top: 0, h: MASTER_RULES.CHANNEL_NOTCH_H, d: MASTER_RULES.CHANNEL_NOTCH_D });
+    if (o.drawerLayout && Array.isArray(o.drawerLayout.channels)) {
+      o.drawerLayout.channels.forEach((c) => {
+        if (c.kind === 'mid') out.push({ top: c.y, h: c.notchH, d: c.notchD });
+      });
+    }
+    return out;
   }
 
   function addCarcassShell(parent, o) {
@@ -6011,9 +6365,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 지면판이 설치공간 전폭(effectiveW)에 걸쳐 있으므로 칸막이도 같이 따낸다 —
     // 안 그러면 판이 칸막이를 뚫고 지나가는 그림이 된다.
     const notch = !!o.woodChannel;
-    const sidePanel = () => (notch
-      ? makeNotchedPanel(o.T, o.carcassH, o.D,
-          MASTER_RULES.CHANNEL_NOTCH_H, MASTER_RULES.CHANNEL_NOTCH_D, o.color)
+    const notches = notchesOf(o);   // 2026-09-15: 상단 + 서랍장 중간 따내기
+    const sidePanel = () => (notches.length
+      ? makeNotchedPanel(o.T, o.carcassH, o.D, notches, o.color)
       : makeBox(o.T, o.carcassH, o.D, o.color));
     // W12-25: 뒤판은 **측판 사이**에 들어간다. 전폭으로 두면 측판과 두께만큼
     //   겹친다 (실측 18×700×18 두 곳). 부재는 서로 겹칠 수 없다.
@@ -6043,6 +6397,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       o.T / 2 - (notch ? MASTER_RULES.CHANNEL_NOTCH_D / 2 : 0));
     put(top, 'top');
     if (notch) addWoodChannel(parent, o);
+    // 2026-09-15: 서랍장 — 중간 목찬넬(ㄴ자 두 장)과 서랍 박스
+    if (o.drawerLayout) { addMidChannels(parent, o); addDrawerBoxes(parent, o); }
   }
 
   /**
@@ -6158,14 +6514,73 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         return;
       }
       // W12-5: 목찬넬 판이 전폭을 지나므로 칸막이도 측판과 같은 자리를 따낸다.
-      const div = o.woodChannel
-        ? makeNotchedPanel(o.T, o.carcassH, o.D,
-            MASTER_RULES.CHANNEL_NOTCH_H, MASTER_RULES.CHANNEL_NOTCH_D, o.color)
+      // 2026-09-15: 서랍장 중간 목찬넬도 모듈 폭을 지나므로 같은 자리를 더 따낸다 (o.drawerLayout).
+      const div = (o.woodChannel || o.drawerLayout)
+        ? makeNotchedPanel(o.T, o.carcassH, o.D, notchesOf(o), o.color)
         : makeBox(o.T, o.carcassH, o.D, o.color);
       div.position.set(x, cyMid, 0);
       div.userData = Object.assign({ side: 'divider', cellIdx: i }, o.ud);
       parent.add(div);
       addEdgeOutline(div, parent);
+    });
+  }
+
+  /**
+   * 2026-09-15: 서랍장 중간 목찬넬 — 전면 사이 따낸 자리(90×40)를 채우는 ㄴ자 두 장.
+   *   지면판 40×18T 가 따낸 바닥에 깔리고, 그 위에 전면판 72×18T 가 따낸 자리 **안쪽**에 선다 (앞 22 가 손 자리).
+   *   위 전면이 전면판 위 20 을 가리고 그 아래 30 이 슬롯 — 한 슬롯에서 위 전면 밑단·아래 전면 윗단을 잡는다.
+   *   상단 목찬넬(addWoodChannel)과 같은 색·같은 side 로 두어 디테일 모드가 손잡이 슬롯으로 읽는다.
+   *   치수는 규칙 파일(DadamDrawerRules.DRAWER_RULES)에서 온다 — 숫자를 박지 않는다.
+   */
+  function addMidChannels(parent, o) {
+    const L = o.drawerLayout;
+    const R = DadamDrawerRules.DRAWER_RULES;
+    const T = R.CHANNEL_T;
+    const baseW = R.CHANNEL_BASE_W;
+    const faceH = R.CHANNEL_MID_FACE_H;
+    const topY = o.legH + o.carcassH;
+    const frontZ = o.D / 2;
+    const put = (mesh, side, k) => {
+      mesh.userData = Object.assign({ side, mid: k }, o.ud);
+      parent.add(mesh);
+      addEdgeOutline(mesh, parent);
+    };
+    L.channels.forEach((c, k) => {
+      if (c.kind !== 'mid') return;
+      const notchBottom = topY - c.y - c.notchH;   // 따낸 자리의 바닥 (모듈 로컬 y)
+      const base = makeBox(o.W, T, baseW, CHANNEL_COLOR);
+      base.position.set(0, notchBottom + T / 2, frontZ - baseW / 2);
+      put(base, 'channelBase', k);
+      const face = makeBox(o.W, faceH, T, CHANNEL_COLOR);
+      face.position.set(0, notchBottom + T + faceH / 2, frontZ - baseW + T / 2);
+      put(face, 'channelFace', k);
+    });
+  }
+
+  /**
+   * 2026-09-15: 서랍 박스 — 존(위·아래 따내기 사이)에 레일 여유(언더 30/10 · 볼 10/10)를 빼고
+   * 들어가는 가장 큰 크기(소 60 · 중 120 · 대 180). 어느 크기인지는 규칙 파일이 정했다 (f.box).
+   * 앞면은 몸통 앞선에 맞추고(전면은 그 앞에 덧씌워진다) 반투명으로 그려 존이 보이게 한다.
+   */
+  function addDrawerBoxes(parent, o) {
+    const L = o.drawerLayout;
+    const R = DadamDrawerRules.DRAWER_RULES;
+    const rail = R.RAIL_CLEARANCE[L.rail] || R.RAIL_CLEARANCE[R.RAIL_DEFAULT];
+    const topY = o.legH + o.carcassH;
+    const frontZ = o.D / 2;
+    L.fronts.forEach((f, i) => {
+      if (f.kind !== 'drawer' || !f.box || !f.zone) return;
+      // 2026-09-15: 박스 외경은 레일 종류·모듈 깊이·자재 두께로 (drawerBoxDims) — 앞뒷판 + 2×서랍T, 측판 길이 = 레일 규격(−10 언더)
+      const dims = DadamDrawerRules.drawerBoxDims({ W: o.W, D: o.D, bodyT: o.T, drawerT: o.drawerT, rail: L.rail, boxH: f.box.h, sakuri: o.drawerSakuri });
+      const boxW = dims.outerW;
+      const boxD = dims.sideL;
+      const bottomY = topY - f.zone.bottom + rail.below;
+      const box = makeBox(boxW, f.box.h, boxD, DRAWER_BOX_COLOR, { roughness: 0.6, transparent: true, opacity: 0.55 });
+      box.position.set(0, bottomY + f.box.h / 2, frontZ - boxD / 2);
+      box.userData = { entityKind: 'drawerBox', moduleId: o.ud && o.ud.moduleId, drawerIdx: i, size: f.box.size, fits: f.box.fits,
+                       railLength: dims.railLength, outerW: dims.outerW, sideL: dims.sideL };
+      parent.add(box);
+      addEdgeOutline(box, parent, 0x000000, 0.6);
     });
   }
 
@@ -6684,7 +7099,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </div>`;
       }).join('');
       body.querySelectorAll('[data-area-pick]').forEach((el) => {
-        el.onclick = () => setActiveArea(el.dataset.areaPick, { fit: true });
+        el.onclick = () => {
+          // 2026-09-15: 이미 고른 배치를 다시 누르면 해제
+          if (el.dataset.areaPick === activeAreaId && panelTarget === 'area') { clearSelection(); return; }
+          setActiveArea(el.dataset.areaPick, { fit: true });
+        };
       });
     } else if (viewMode === 'all') {
       body.innerHTML = `<div class="empty-msg" style="padding:20px 8px">전체 모듈 (${modules.length}개)<br><span style="font-size:10px">배치 그대로 3D 표시</span></div>`;
@@ -6918,8 +7337,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 감싼다. 예전엔 셀마다 이 다섯을 만들어(W9-87 "도어 개수 = 독립 캐비넷 개수")
     // 도어를 2장으로 늘리면 수납장이 2개로 보였다. 셀 경계에는 칸막이 한 장만 세운다.
     const woodChannel = isWoodChannel(m, s);   // W12-5
-    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel });
-    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel,
+    // 2026-09-15: 목찬넬 하부장의 "도어 + 하부 서랍" 은 규칙 파일이 전면·중간 따내기·박스를 정한다 (null 이면 예전 그대로)
+    const drawerLayout = drawerLayoutFor(m, s);
+    const drawerRules = drawerRulesOf(s);   // 2026-09-15: 레일·사쿠리·서랍 자재 두께
+    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
+      drawerT: drawerRules.boxT || T, drawerSakuri: drawerRules.sakuri });
+    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
       types: s.areaTypes, section: m.section });
     // P2-6: 처짐방지목은 모듈 단위 부재 — 도어 칸 수와 무관하게 폭 문턱으로 장수를 정한다 (addBraces).
     addBraces(g, m, { W, D, T, legH, carcassH, color: carcassColor, woodChannel });
@@ -6963,10 +7386,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (type === 'blind') {
         frontW = colW; frontH = topH;
       }
+      // 2026-09-15: 서랍장 레이아웃이 있으면 도어 **세로**는 규칙이 정한 값이다 — 상단 슬롯 30 과
+      //   중간 따내기(도어 밑단이 20 내려옴)가 이미 들어 있으므로 doorTopGap 을 다시 빼지 않는다.
+      //   가로·중심은 위 멍장 규칙이 정한 frontW·frontCx 를 그대로 쓴다 (멍 칸에는 서랍장 레이아웃이 없다).
+      const doorSpan = drawerLayout
+        ? Object.assign(frontSpanOf(drawerLayout, 0, legH, carcassH), { topGap: 0 })
+        : { cy: topDoorY, h: frontH, topGap: doorTopGapOf(m, s) };
       // W12-61/65: 영역 보기도 멍판 마감재 종류와 멍판 EP 여부를 넘긴다 — 모듈 상세 보기(위)와 같은 메타.
-      addFrontPanel(g, frontCx, topDoorY, frontW, frontH, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorTopGapOf(m, s), blindFinish: (m.blind && m.blind.finish && m.blind.finish.section) || null, epBlind: !!(m.blind && m.blind.ep) }, areaLimitsFor(m)));
+      // 2026-09-15: 최소 전면 미만은 부재로 내지 않으므로 3D 에서도 그리지 않는다.
+      if (!drawerLayout || doorSpan.h >= DadamDrawerRules.DRAWER_RULES.MIN_FRONT_H)
+      addFrontPanel(g, frontCx, doorSpan.cy, frontW, doorSpan.h, D/2, type, cfg, s, Object.assign({ moduleId: m.id, areaIdx: i, areaPos: 'top', is2D: !!(s.areaIs2D && s.areaIs2D[i]), doorDrop: doorDropOf(m, s), doorTopGap: doorSpan.topGap, blindFinish: (m.blind && m.blind.finish && m.blind.finish.section) || null, epBlind: !!(m.blind && m.blind.ep) }, areaLimitsFor(m)));
       // cell 서랍 — W9-114: 본체 안 (legH 위부터)
-      if (drawerH > 0) {
+      if (drawerLayout) {
+        // 2026-09-15: 서랍 전면은 단마다 한 장 — 위치·높이는 레이아웃 (중간 슬롯 30 아래에서 시작)
+        drawerLayout.fronts.forEach((f, k) => {
+          if (f.kind !== 'drawer') return;
+          const sp = frontSpanOf(drawerLayout, k, legH, carcassH);
+          addFrontPanel(g, frontCx, sp.cy, frontW, sp.h, D/2, 'drawer', cfg, s,
+                        { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i, drawerIdx: k - 1 });
+        });
+      } else if (drawerH > 0) {
         addFrontPanel(g, cellCx, legH + drawerH/2, innerW, drawerH - MASTER_RULES.DOOR_GAP, D/2,
                       s.bottomType || 'drawer', cfg, s, { moduleId: m.id, areaIdx: -1, areaPos: 'bottom', cellIdx: i });
       }

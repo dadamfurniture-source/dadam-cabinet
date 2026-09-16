@@ -182,7 +182,8 @@ describe('소스 규약', () => {
   });
 
   test('상·하부 칸 모두 배선됐다', () => {
-    expect((SRC.match(/bindFrontCell\(r, m, s,/g) || []).length).toBe(2);
+    // 2026-09-15: 셋이다 — 상부 칸, 서랍 전면(레이아웃이 단마다 한 칸), 레이아웃 없는 하부 한 칸.
+    expect((SRC.match(/bindFrontCell\(r, m, s,/g) || []).length).toBe(3);
   });
 
   test('셀 폭 규칙이 한 곳이다', () => {
