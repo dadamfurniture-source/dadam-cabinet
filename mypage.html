@@ -623,6 +623,42 @@
       .case-del:hover {
         background: rgba(26, 25, 24, 0.85);
       }
+      /* 학습 동의 — 켜져 있을 때만 눈에 띈다. 기본(미동의)은 조용한 회색. */
+      .case-consent {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        border: 0;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.4;
+        cursor: pointer;
+        background: rgba(26, 25, 24, 0.62);
+        color: #fff;
+      }
+      .case-consent[aria-pressed='true'] {
+        background: var(--accent, #2f6f4f);
+        color: #fff;
+      }
+      .case-consent:hover {
+        filter: brightness(1.12);
+      }
+      .consent-line {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        cursor: pointer;
+        font-weight: 400;
+      }
+      .consent-line input {
+        margin-top: 2px;
+        width: 16px;
+        height: 16px;
+        flex: none;
+        cursor: pointer;
+      }
       .case-drop {
         display: grid;
         place-items: center;
@@ -1359,6 +1395,16 @@
                 <option value="interior">인테리어</option>
                 <option value="other">기타</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label class="consent-line">
+                <input type="checkbox" id="caseConsent" />
+                <span>이 사진을 다담 AI 학습에 사용해도 좋습니다 <b>(선택)</b></span>
+              </label>
+              <p class="form-hint">
+                체크하지 않아도 컬렉션에는 그대로 올라갑니다. 학습에만 쓰이지 않습니다.
+                올린 뒤에도 아래 목록에서 언제든 끄고 켤 수 있습니다.
+              </p>
             </div>
           </form>
         </div>
@@ -2325,6 +2371,9 @@
             storage_path: path,
             region,
             category: document.getElementById('caseCategory').value,
+            // 학습 동의는 **체크했을 때만** true 다. 안 했으면 false 로 남겨 "물어봤고 안 했다" 를 기록한다
+            // (NULL 은 아직 묻지 않은 옛 글이라는 뜻이다).
+            consent_training: document.getElementById('caseConsent').checked,
           });
           if (dbErr) {
             // 행이 안 들어가면 올라간 파일은 주인 없는 파일이 된다. 되돌린다.
@@ -2357,6 +2406,13 @@
         del.className = 'case-del';
         del.title = '삭제';
         del.textContent = '×';
+
+        // 학습 동의 — 올린 뒤에도 마음을 바꿀 수 있어야 한다. 끄면 이미 넘어간 데이터도 지워진다.
+        const consent = document.createElement('button');
+        consent.type = 'button';
+        consent.className = 'case-consent';
+        consent.addEventListener('click', () => toggleCaseConsent(r, consent));
+        paintConsent(consent, r.consent_training === true);
         // onclick 문자열에 id 를 이어붙이지 않는다 — 값이 따옴표를 물면 그대로 깨진다.
         del.dataset.id = r.id;
         del.dataset.path = r.storage_path || '';
@@ -2372,7 +2428,33 @@
           caseEsc(r.region || '지역 미입력') +
           '</div>';
         wrap.insertBefore(del, wrap.querySelector('.case-meta'));
+        wrap.insertBefore(consent, del);
         return wrap;
+      }
+
+      function paintConsent(btn, on) {
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.textContent = on ? 'AI 학습 허용' : 'AI 학습 안 함';
+        btn.title = on
+          ? '이 사진은 다담 AI 학습에 쓰입니다. 누르면 끕니다.'
+          : '이 사진은 학습에 쓰이지 않습니다. 누르면 켭니다.';
+      }
+
+      async function toggleCaseConsent(r, btn) {
+        const next = !(r.consent_training === true);
+        paintConsent(btn, next);   // 먼저 바꿔 보여주고, 실패하면 되돌린다
+        btn.disabled = true;
+        const { error } = await supabaseClient
+          .from('collection_posts')
+          .update({ consent_training: next })
+          .eq('id', r.id);
+        btn.disabled = false;
+        if (error) {
+          console.warn('[mypage] 학습 동의 변경:', error.message);
+          paintConsent(btn, r.consent_training === true);
+          return;
+        }
+        r.consent_training = next;
       }
 
       async function loadMyCases() {
@@ -2380,7 +2462,7 @@
         if (!list || !supabaseClient || !currentUser) return;
         const { data, error } = await supabaseClient
           .from('collection_posts')
-          .select('id, image_url, storage_path, region, created_at')
+          .select('id, image_url, storage_path, region, created_at, consent_training')
           .eq('user_id', currentUser.id)
           .order('created_at', { ascending: false });
 
