@@ -476,6 +476,18 @@ cutPlan = {
 통과하면 `cut_plan_payload` 에 그대로, `sheet_count = sheets.length` 로 저장한다 (`database/workflow-cut-plan.sql`). `cutPlan` 이 없으면 둘 다 NULL.
 `content_hash` 는 design+bom 만으로 계산하므로 배치는 rev 판정에 영향이 없다 — 같은 BOM 이면 같은 배치가 나온다.
 
+### 7-4. 작업지시서 v2 가 읽는 것 (B5, `workers/workflow-api`)
+
+문서는 `docs/02-design/features/work-order-v2.md`. 작업지시서는 위 필드를 이렇게 쓴다 — BOM 쪽에서 이름을 바꾸면 문서가 깨진다.
+
+| 문서 섹션 | 읽는 필드 |
+|---|---|
+| ② 모듈별 키팅 · ⑧ 라벨 | `materials[].partId slot finishCode edges edgeT edge itemLabel module part material thickness w h qty note`. 라벨 id 는 `partId#k` (k = 0..qty−1) — §7-3 의 `parts[].partId` 와 같다. partId 없는 옛 행은 `row-<index>` |
+| ③ 시트별 재단표 | `cutPlan.sheets[].{no material thickness partClass size trim layout parts[].{partId part w h x y rot} yield}` · `offcuts` · `smallParts` · `unallocated` · `summary.sheetsByMaterial totalYield` · `kerf trim` |
+| ⑤ 보링 좌표표 | 경첩 행 `hardware[].note` = `${mod.name} (보링: 110, 358, 606)` (`HardwareExtractor.extractHinges`). 구조화 `boring[]` 필드가 생기면 그것을 우선 읽는다. 도어 행 매칭은 `itemLabel` + `module` 라벨에서 `#n `·`상부장-/하부장-`·`(단)` 을 뗀 이름 = `mod.name` |
+| ⑦ rev 차이 | `partId` 로 맞춰 `w h thickness qty finishCode material` 비교 |
+| ① 스와치 | `finishCode` 고유값 → `materials.code` (`color_name color_hex vendor_code series finish tone`) — §2-1 정본 |
+
 ---
 
 ## 8. 핵심 공식 요약
