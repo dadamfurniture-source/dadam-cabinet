@@ -1,0 +1,23 @@
+name = "dadam-dataset-api"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
+
+# 수집은 10분마다, 내보내기는 KST 03:30 (UTC 18:30).
+# cron 값을 바꾸면 src/worker.js 의 nightly 판정도 같이 고칠 것.
+[triggers]
+crons = ["*/10 * * * *", "30 18 * * *"]
+
+[vars]
+# 공개값이라 vars 로 둔다 (js/config.js 에 이미 들어 있다)
+SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ"
+
+# CORS 허용 오리진 (관리자 페이지에서만 부른다)
+CORS_ORIGINS = "https://dadamfurniture.com,https://www.dadamfurniture.com,http://127.0.0.1:8899,http://localhost:8899"
+
+# 내보내기 대상 버킷 — **비공개**여야 한다 (DEPLOY.md)
+EXPORT_BUCKET = "datasets"
+
+# service_role 키는 여기 두지 않는다:
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
