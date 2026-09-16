@@ -393,3 +393,40 @@ describe('불변조건', () => {
     expect(R(p.PD.detail, 'door', 'lower-0', 'lower', 'door#0')).toEqual({ code: 'LPM-GRP', level: 'item' });
   });
 });
+
+// 2026-09-16: 들어올 때 좌측 목록과 팔레트 범위가 어긋나던 것.
+//   페이지는 불러오는 도중에도 setActiveArea(마지막 배치 복원)를 부른다. 그때 범위까지
+//   배치로 끌려가 좌측은 '개별' 인데 팔레트는 "배치 전체" 라고 적혀 있었다 (브라우저 확인).
+describe('들어올 때 범위는 좌측 목록을 따른다', () => {
+  test('목록이 개별인데 setActiveArea 가 와도 범위는 모듈이다 (배치 id 는 기억한다)', () => {
+    const p = boot({ detail: true });
+    const PD = p.window.PlannerDetail;
+    p.document.querySelector('[data-mode="single"]').click();
+    expect(PD.scope).toBe('module');
+
+    PD.onAreaPick('area-lower-0');
+    expect(PD.scope).toBe('module');      // 범위는 그대로
+    expect(PD.areaId).toBe('area-lower-0'); // 배치는 기억해 둔다
+  });
+
+  test('목록을 배치로 바꾸면 기억해 둔 배치가 그대로 범위가 된다', () => {
+    const p = boot({ detail: true });
+    const PD = p.window.PlannerDetail;
+    p.document.querySelector('[data-mode="single"]').click();
+    PD.onAreaPick('area-lower-0');
+
+    p.document.querySelector('[data-mode="area"]').click();
+    expect(PD.scope).toBe('area');
+    expect(PD.areaId).toBe('area-lower-0');
+  });
+
+  test('목록이 배치면 setActiveArea 가 범위를 따라 옮긴다', () => {
+    const p = boot({ detail: true });
+    const PD = p.window.PlannerDetail;
+    p.document.querySelector('[data-mode="area"]').click();
+
+    PD.onAreaPick('area-lower-2');
+    expect(PD.scope).toBe('area');
+    expect(PD.areaId).toBe('area-lower-2');
+  });
+});

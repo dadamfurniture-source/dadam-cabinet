@@ -593,10 +593,19 @@ const PlannerDetail = {
     return true;
   },
 
-  /** 페이지의 setActiveArea 가 부른다 — 배치를 고르면 배치 범위다. */
+  /**
+   * 페이지의 setActiveArea 가 부른다.
+   *
+   * 2026-09-16: **목록이 '배치' 일 때만** 범위를 배치로 옮긴다. 페이지는 불러오는 도중에도
+   * setActiveArea 를 부르는데(마지막으로 보던 배치 복원), 그때 범위까지 배치로 끌고 가면
+   * 좌측은 '개별' 인데 팔레트는 "배치 전체" 라고 적힌 어긋난 화면으로 들어오게 된다.
+   * 배치 id 는 어느 모드에서나 기억해 둔다 — 나중에 '배치' 로 바꾸면 그 배치가 이미 골라져 있다.
+   * 3D 에서 배치 상자를 직접 누른 경우는 pickArea 가 따로 범위를 옮긴다.
+   */
   onAreaPick(areaId) {
     if (!this.active) return false;
     this.areaId = areaId || null;
+    if (this.listMode() !== 'area') { this.refresh(); return true; }
     this.setScope('area', { fromList: true });
     return true;
   },
