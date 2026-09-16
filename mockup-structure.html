@@ -1148,6 +1148,38 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }) || null;
   }
 
+  /**
+   * 영역에 속한 몸통 모듈들 — 런 단위 부재(상판·걸레받이)가 "런에 한 장" 을
+   * 정할 때 쓴다.
+   *
+   * `areaOfModule` 과 **같은 규칙**으로 모은다. 예전엔 `x.areaId === area.id`
+   * 로 걸렀는데, 정작 영역은 `areaOfModule(m)` 이 **자리로** 찾아 준 것이었다 —
+   * `areaId` 가 없는 옛 설계의 모듈에서는 영역은 찾아지는데 그 영역의 멤버는
+   * **한 명도 없는** 모순이 생긴다. 그 결과:
+   *   · 걸레받이 — `Math.min(...[])` = Infinity, `Math.max(...[])` = -Infinity 라
+   *     폭 -Infinity · 자리 NaN 인 상자가 three.js 로 들어가
+   *     `computeBoundingSphere(): Computed radius is NaN` 이 떴다.
+   *   · 상판 — "런의 첫 모듈" 이 undefined 라 가드가 못 걸리고 **모듈마다**
+   *     영역 전폭짜리 상판을 한 장씩 그려 겹쳤다.
+   *
+   * `modules` 순서를 그대로 지킨다 — 그래야 `hosts[0]` 이 여전히 "런의 첫 모듈"
+   * 이고, 어느 모듈이 런 부재를 그릴지가 예전과 같다.
+   *
+   * 주의: `areaOfModule` 은 **단을 가르지 않는다** (그건 `areaOfModuleBySection`
+   * 의 몫이다). 그래서 옛 설계에서 상부장이 하부 영역과 X 로 겹치면 그 상부장도
+   * 이 영역의 멤버가 되고, 걸레받이 폭이 그만큼 넓어질 수 있다. 그리기 쪽은
+   * 이미 `areaPivotOf`·`modulePlaneBox` 가 같은 규칙을 쓰므로 여기서만 다른
+   * 규칙을 쓰면 또 어긋난다 — 고친다면 `areaOfModule` 쪽을 고쳐야 한다.
+   */
+  function modulesOfArea(area) {
+    if (!area) return [];
+    return modules.filter((x) => {
+      if (x.isFinishing) return false;
+      const a = areaOfModule(x);
+      return !!a && a.id === area.id;
+    });
+  }
+
   function setActiveModule(id) {
     activeId = id;
     panelTarget = 'module';
@@ -6236,8 +6268,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const area = areaOfModule(m);
     let W = m.W, D = m.D, dx = 0, dz = 0;
     if (area) {
-      const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);
-      if (first && first.id !== m.id) return;         // 런에 한 장
+      // 멤버십은 areaOfModule 과 같은 규칙으로 (modulesOfArea) — `x.areaId` 로
+      //   거르면 옛 설계(areaId 없음)에서 런이 **비어** 가드가 못 걸리고
+      //   모듈마다 영역 전폭짜리 상판이 한 장씩 겹쳤다.
+      const hosts = modulesOfArea(area);
+      if (hosts.length && hosts[0].id !== m.id) return;   // 런에 한 장
       W = area.W; D = area.D;
       // 모듈 로컬 좌표 — 영역과 모듈이 같은 각으로 도므로 회전 전 차이를 그대로 쓴다.
       dx = ((area.x || 0) + area.W / 2) - ((m.x || 0) + m.W / 2);
@@ -6287,15 +6322,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const area = areaOfModule(m);
     let W = m.W, dx = 0;
     if (area) {
-      const hosts = modules.filter((x) => x.areaId === area.id && !x.isFinishing);
+      // 멤버십은 areaOfModule 과 같은 규칙으로 (modulesOfArea) — `x.areaId` 로
+      //   거르면 옛 설계(areaId 없음)에서 런이 **비어** min/max 가 ±Infinity 가
+      //   되고 폭·자리가 NaN 인 상자가 three.js 로 들어갔다.
+      const hosts = modulesOfArea(area);
       if (hosts.length && hosts[0].id !== m.id) return;   // 런에 한 장
       // W12-43: 폭은 **모듈 구간**이다 — 영역 전폭이 아니다. 마감재(몰딩·휠라)는
       //   바닥까지 내려오므로, 영역 전폭으로 잡으면 걸레받이가 그 판을 관통한다
       //   (실측 18mm). 상판은 마감재 **위**를 지나가므로 영역 전폭 그대로다.
-      const x0 = Math.min(...hosts.map((x) => x.x || 0));
-      const x1 = Math.max(...hosts.map((x) => (x.x || 0) + (x.W || 0)));
-      W = x1 - x0;
-      dx = (x0 + W / 2) - ((m.x || 0) + m.W / 2);
+      // 런이 비면 제 폭으로 떨어진다 — m 은 언제나 hosts 에 있어야 맞지만,
+      //   유한하지 않은 상자를 다시 three.js 에 넘기지 않는 쪽이 안전하다.
+      if (hosts.length) {
+        const x0 = Math.min(...hosts.map((x) => x.x || 0));
+        const x1 = Math.max(...hosts.map((x) => (x.x || 0) + (x.W || 0)));
+        W = x1 - x0;
+        dx = (x0 + W / 2) - ((m.x || 0) + m.W / 2);
+      }
     }
     const h = legPartH - KICK_FLOOR_GAP;
     const kick = makeBox(W, h, KICK_T, darken3(cfg.fill, 0.28), { roughness: 0.7, metalness: 0.04 });
