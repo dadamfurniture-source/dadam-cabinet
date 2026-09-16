@@ -36,6 +36,8 @@ import { renderCustomerConfirmation } from './templates/customer-confirmation.js
 import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
+import { gatherWorkOrderPayload, workOrderTotals } from './work-order-data.js';
+import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
 
 // CD-4: 설치 작업지시서 추가. 여기만 고치면 안 된다 —
 // DB 의 design_documents_doc_type_check 와 renderDocument 분기(아래)가 함께 맞아야 한다.
@@ -96,6 +98,23 @@ export async function issueDocument(env, { user, body }) {
     renderPayload.schedules = await listSchedulesForDoc(env, designId);
   }
 
+  // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
+  // 렌더를 다시 찍거나 카탈로그가 바뀌어도 이미 나간 지시서는 그대로여야 한다 (work-order-data.js).
+  if (docType === 'work_order') {
+    Object.assign(renderPayload, await gatherWorkOrderPayload(env, { designId, snapshot }));
+  }
+
+  const totals = snapshot.quote_payload
+    ? {
+        subtotal: snapshot.quote_payload.subtotal,
+        vat: snapshot.quote_payload.vat,
+        total: snapshot.quote_payload.total,
+      }
+    : {};
+  if (docType === 'work_order') {
+    Object.assign(totals, workOrderTotals(snapshot, renderPayload.cut_plan));
+  }
+
   const row = {
     design_id: designId,
     snapshot_id: snapshot.id,
@@ -107,13 +126,7 @@ export async function issueDocument(env, { user, body }) {
     customer_name: customerName || null,
     customer_name_masked: customerName ? maskName(customerName) : null,
     render_payload: renderPayload,
-    totals: snapshot.quote_payload
-      ? {
-          subtotal: snapshot.quote_payload.subtotal,
-          vat: snapshot.quote_payload.vat,
-          total: snapshot.quote_payload.total,
-        }
-      : {},
+    totals,
     content_hash: await sha256Hex(`${snapshot.content_hash}|${docType}|${rev}`),
     created_by: user.id,
   };
@@ -296,6 +309,23 @@ export async function getDocumentForOwner(env, { documentId, user }) {
   });
   if (!snapshot) throw new NotFoundError('문서가 참조하는 스냅샷이 없습니다');
   return { doc, snapshot };
+}
+
+/**
+ * B5: 인쇄 시점에만 만드는 자료 — 동결된 렌더 경로의 서명 URL (1시간).
+ * 버킷·표가 없거나 서명이 실패해도 인쇄는 되어야 한다 → 빈 Map (표지에 "정면 렌더 없음").
+ */
+export async function resolvePrintAssets(env, doc) {
+  const rp = doc && doc.render_payload;
+  const renders = doc && doc.doc_type === 'work_order' && rp && Array.isArray(rp.renders) ? rp.renders : [];
+  const paths = renders.map((r) => r && r.path).filter((p) => typeof p === 'string' && p);
+  if (paths.length === 0) return { renderUrls: new Map() };
+  try {
+    return { renderUrls: await createSignedUrls(env, RENDERS_BUCKET, paths, SIGNED_URL_TTL_SEC) };
+  } catch (err) {
+    console.warn('[documents] 렌더 서명 URL 실패 — 렌더 없이 인쇄합니다:', err && err.message);
+    return { renderUrls: new Map() };
+  }
 }
 
 export function renderDocument(doc, snapshot, opts = {}) {

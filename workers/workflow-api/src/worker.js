@@ -48,6 +48,7 @@ import {
   getDocumentForOwner,
   revokeDocument,
   renderDocument,
+  resolvePrintAssets,
   openSharedDocument,
   recordDecision,
 } from './documents.js';
@@ -214,7 +215,9 @@ async function handlePrintDocument(request, env, { params, user }) {
     documentId: params.documentId,
     user,
   });
-  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true }));
+  // B5: 작업지시서 표지의 정면 렌더는 인쇄 시점에 서명 URL(1시간)을 만든다
+  const assets = await resolvePrintAssets(env, doc);
+  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, ...assets }));
 }
 
 async function handleRevokeDocument(request, env, { params, user }) {
