@@ -151,6 +151,124 @@
       }
 
       // ============================================================
+      // B3: 단순 상자 카테고리 — 신발장·화장대·수납장·창고장 (simple-categories.md §6, 계획 §5 B3)
+      //
+      // 네 카테고리는 싱크대와 같은 **범용 워크스페이스**(상부 + 하부 2행 + 키큰장, simple-categories.md §3)를 쓰고
+      // DEFAULT_SPECS(상부 720 · 하부 870 · 상몰딩 60 · 다리발 150 · 좌우 휠라 60, §2)를 그대로 상속한다. 모듈 모양도
+      // 싱크대와 같다 — ui-workspace.js addStorageModule/addModuleAtGap/addTallModule 이 `pos upper|lower · type storage|tall ·
+      // w/h/d · isDrawer/drawerCount · doorCount` 를 만들고, 플래너 브리지(ui-step1.js _convertPlannerModules)는 isOpen ·
+      // shelfCount · heightParts 를 더한다. 그래서 몸통 부재표는 bom-protocol.md §3-1(싱크대 상부장·하부장)과
+      // sink.md §5.1(키큰장 단, addTallTierParts 그대로)을 **준용**하고, 싱크대에만 있는 것(개수대·쿡탑·상판·코너 마감)은
+      // 내지 않는다. 카테고리 차이는 아래 표의 상수뿐이라 추출기는 하나(extractSimpleBox)다.
+      //
+      //   label      품목 라벨 (data-constants.js CATEGORIES 의 name)
+      //   defaultD   하부 모듈 깊이 폴백 — mod.d → item.d → 이 값 (simple-categories.md §1 기본 깊이)
+      //   upperD     상부 모듈 깊이 폴백 (ui-workspace.js addStorageModule 의 295 — 싱크대와 같다)
+      //   shelfSpace 선반 기본 개수 규칙 — 모듈에 shelfCount 가 없을 때. null 이면 싱크 규칙(상부 2 · 하부 1 · 키큰장 1).
+      //              신발장은 플래너 선반 분배 규칙(js/planner/planner-engine.js calcDefaultShelves,
+      //              MASTER_RULES.SHELF_SPACE_MIN/MAX_SHOE = 180~350)으로 몸통 H 에서 센다 — 얕은 칸이 촘촘한 장이라
+      //              싱크 규칙(2/1)이면 칸이 대부분 비어 나간다 (simple-categories.md §5 "오픈선반").
+      //
+      // categoryId 는 data-constants.js CATEGORIES 의 id 그대로다 (`shoerack`·`vanity`·`storage`·`warehouse`).
+      // 플래너 프리셋 이름 `shoe`(ui-step1.js fullHeightPresets · planner-engine.js section) 는 품목 id 가 아니라 여기 없다.
+      // 문서(simple-categories.md)에 없는 값은 싱크·붙박이장 규칙을 빌리고 행 비고에 [확인 필요] 를 남긴다 — 목록은 §6.5.
+      // ============================================================
+      const BOM_SIMPLE_CATEGORY_RULES = {
+        shoerack:  { label: '신발장', defaultD: 350, upperD: 295, shelfSpace: { min: 180, max: 350 } },
+      };
+
+      /** 문서에 없어 붙박이장 규칙을 빌린 행의 비고 — simple-categories.md §6.5 목록과 같은 문구. */
+      const BOM_SIMPLE_NOTE_WARDROBE = '[확인 필요] simple-categories.md 에 없음 — 붙박이장 규칙 준용';
+      /** 문서에 없어 싱크대 규칙을 빌린 행의 비고. */
+      const BOM_SIMPLE_NOTE_SINK = '[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용';
+
+      /** 서랍레일 길이 — 캐비닛 깊이별 (bom-protocol.md §4-2 · HardwareExtractor.extractRails 와 같은 문턱). */
+      function bomSimpleRailLenOf(depth) {
+        const d = parseFloat(depth) || 550;
+        if (d <= 350) return 350;
+        if (d <= 450) return 450;
+        return 500;
+      }
+
+      /** 하부 모듈 깊이 — mod.d → item.d → 카테고리 기본 깊이 (simple-categories.md §1). 상부는 upperD. */
+      function bomSimpleDepthOf(mod, pos, item, rules) {
+        const md = parseFloat(mod && mod.d);
+        if (Number.isFinite(md) && md > 0) return md;
+        if (pos === 'upper') return rules.upperD;
+        const id = parseFloat(item && item.d);
+        return (Number.isFinite(id) && id > 0) ? id : rules.defaultD;
+      }
+
+      /**
+       * 선반 기본 개수 — 모듈 shelfCount 가 없을 때.
+       *   shelfSpace 있음(신발장)  planner-engine.js calcDefaultShelves 와 같은 식: 분배 공간 H/(n+1) 이 min~max 안에 들도록
+       *   없음                    싱크 규칙 — 상부 2 (bom-protocol.md §3-1 상부장), 하부 1 (하부장), 키큰장 통짜 1 (sink.md §5.1)
+       */
+      function bomSimpleDefaultShelfCount(H, pos, rules) {
+        const sp = rules && rules.shelfSpace;
+        if (!sp) return pos === 'upper' ? 2 : 1;
+        const h = parseFloat(H) || 0;
+        let count = Math.max(0, Math.floor(h / sp.min) - 1);
+        if (count === 0) return 0;
+        if (h / (count + 1) > sp.max) count = Math.max(0, Math.ceil(h / sp.max) - 1);
+        return count;
+      }
+
+      /**
+       * 한 모듈이 내는 선반 수 — 자재 행(extractSimpleBox)과 선반 브라켓(HardwareExtractor.extractBrackets)이 **같은 함수**를 쓴다.
+       *   shelfCount 가 숫자면 그대로 (0 이면 없음 — 플래너 브리지가 준다, 오픈 칸이라도 지정값이 있으면 낸다)
+       *   아니면 서랍·EL·오픈(isOpen 또는 doorCount 0) 모듈은 0 (싱크 하부장 규칙), 그 밖은 기본 규칙(bomSimpleDefaultShelfCount)
+       * @returns {{qty:number, defaulted:boolean}} defaulted = 기본 규칙으로 정했다 (행 비고에 [확인 필요] 를 남긴다)
+       */
+      function bomSimpleShelfQtyOf(mod, rules) {
+        const m = mod || {};
+        const raw = Number(m.shelfCount);
+        if (Number.isFinite(raw)) return { qty: Math.max(0, Math.round(raw)), defaulted: false };
+        const tier = bomTallTierOf(m);
+        const pos = tier ? 'tall' : (m.pos === 'upper' ? 'upper' : 'lower');
+        if (!tier) {
+          const rawDoor = Number(m.doorCount);
+          const open = !!m.isOpen || (Number.isFinite(rawDoor) && rawDoor === 0);
+          if (m.isDrawer || m.isEL || open) return { qty: 0, defaulted: false };
+        }
+        return { qty: bomSimpleDefaultShelfCount(m.h, pos, rules), defaulted: true };
+      }
+
+      /** 도어 수 — 모듈 doorCount 가 숫자면 그대로(0 존중), 없으면 오픈은 0, 아니면 round(W/450) (붙박이장 규칙 준용 → 비고). */
+      function bomSimpleDoorCountOf(mod, W) {
+        const raw = Number(mod && mod.doorCount);
+        if (Number.isFinite(raw)) return { count: Math.max(0, Math.round(raw)), defaulted: false };
+        if (mod && mod.isOpen) return { count: 0, defaulted: false };
+        return { count: Math.max(1, Math.round(W / 450)), defaulted: true };
+      }
+
+      /**
+       * 한 모듈의 여닫이 도어 수·재단 높이 — 자재 행(extractSimpleBox)과 철물(HardwareExtractor 경첩·손잡이)이 같은 답을 낸다.
+       *   상부장   bomSimpleDoorCountOf · H + overlap
+       *   하부장   서랍장이면 서랍 아래 여닫이(hingeDoorH > 50 → round(W/450)) · 그 높이, 아니면 bomSimpleDoorCountOf · H − 30
+       *   키큰장 단  doorCount 그대로 · bomTallTierDoorH (addTallTierParts 와 같다)
+       * @returns {{count:number, doorH:number}}
+       */
+      function bomSimpleHingeDoorsOf(mod, specs) {
+        const m = mod || {};
+        const s = specs || {};
+        const W = parseFloat(m.w) || 600;
+        const tier = bomTallTierOf(m);
+        if (tier) return { count: m.doorCount || 0, doorH: bomTallTierDoorH(m, tier, s) };
+        if (m.pos === 'upper') {
+          const overlap = parseFloat(s.upperDoorOverlap) || 15;
+          const H = parseFloat(m.h) || (parseFloat(s.upperH) || 720) - overlap;
+          return { count: bomSimpleDoorCountOf(m, W).count, doorH: H + overlap };
+        }
+        const H = parseFloat(m.h) || (parseFloat(s.lowerH) || 870) - (parseFloat(s.topThickness) || 12) - (parseFloat(s.sinkLegHeight) || 150);
+        if (m.isDrawer) {
+          const hingeDoorH = H - 220 * (m.drawerCount || 1) - 30;
+          return { count: hingeDoorH > 50 ? Math.max(1, Math.round(W / 450)) : 0, doorH: hingeDoorH };
+        }
+        return { count: bomSimpleDoorCountOf(m, W).count, doorH: H - 30 };
+      }
+
+      // ============================================================
       // P1-3: 상판 마감 코드 — 품목 사양 `specs.topColor`(한글) → materials.code `TOP-*`.
       // 정본은 config-constants.js FurnitureOptionCatalog._LEGACY_CODE_MAP.countertop (database/materials-catalog-v2.sql
       // 시드와 같다). 그 파일이 없는 환경(Node 시험)용으로 같은 값을 폴백으로 둔다. 이미 코드면 그대로.
@@ -360,8 +478,11 @@
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
             // ★ 품목 라벨 (아이템 구분용)
+            // B3: 단순 카테고리 라벨은 규칙표(BOM_SIMPLE_CATEGORY_RULES)에서 — 기존 셋은 그대로.
             const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
-            const itemLabel = item.labelName || `${prefix}${catNames[category] || category}`;
+            const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category] || null;
+            const catName = catNames[category] || (simpleRules && simpleRules.label) || category;
+            const itemLabel = item.labelName || `${prefix}${catName}`;
             const mods = item.modules || [];
             dlog(`[BOM-TRACE] === 아이템 처리: ${itemLabel} ===`);
             dlog(`[BOM-TRACE]   모듈 수: ${mods.length}`);
@@ -378,6 +499,10 @@
                 break;
               case 'fridge':
                 this.extractFridge(item, materials, prefix);
+                break;
+              default:
+                // B3: 신발장·화장대·수납장·창고장 — 같은 상자 규칙, 카테고리 상수만 다르다 (BOM_SIMPLE_CATEGORY_RULES)
+                if (simpleRules) this.extractSimpleBox(item, materials, prefix, simpleRules);
                 break;
             }
             // ★ 새로 추가된 자재에 품목 라벨 태깅
@@ -1343,6 +1468,166 @@
         }
 
         // ========================================
+        // B3: 단순 상자 카테고리 자재 추출 — 신발장·화장대·수납장·창고장 (simple-categories.md §6)
+        //
+        // 싱크대 추출기(extractSink)의 상부장·하부장·키큰장 단·EP 뼈대를 그대로 따르되, 싱크대에만 있는 것은 뺀다:
+        //   개수대(type sink)·쿡탑(type cook)·후드(type hood) 가지 — 이 워크스페이스는 만들지 않는다 (타입 선택은 isSink 만)
+        //   상판 — 규칙 없음 [확인 필요] (하부 모듈 h 가 lowerH − topT − legH 라 상판 두께 자리는 비어 있다)
+        //   코너 마감 — simple-categories.md §3 은 I자뿐이다
+        // 다른 점은 카테고리 상수(rules)와 아래 셋뿐이다:
+        //   깊이     mod.d → item.d → rules.defaultD (싱크는 550 고정 폴백)
+        //   선반 수  mod.shelfCount 를 존중, 없으면 기본 규칙(bomSimpleShelfQtyOf — 신발장은 180~350 분배)
+        //   서랍 상자 깊이가 550 이 아니므로 레일 길이(§4-2)로 환산 — 측판 = 레일 − 60, 밑판 = 측판 + 9 (싱크 D550: 440·449)
+        // 부재표는 simple-categories.md §6.1~6.4, 빌린 규칙 목록은 §6.5.
+        // ========================================
+        extractSimpleBox(item, materials, prefix = '', rules) {
+          const specs = item.specs || {};
+          const T = this.thicknessFor(specs);
+          const isWoodChannel = (specs.handle || '').includes('목찬넬');
+          const legH = parseFloat(specs.sinkLegHeight) || 150;
+          const overlap = parseFloat(specs.upperDoorOverlap) || 15;
+          const topT = parseFloat(specs.topThickness) || 12;
+          const doorNote = `${BOM_SIMPLE_NOTE_WARDROBE} (doorCount 미지정 → round(W/450))`;
+          const shelfNote = rules.shelfSpace
+            ? `[확인 필요] shelfCount 미지정 — 신발장 선반 분배 ${rules.shelfSpace.min}~${rules.shelfSpace.max} (planner-engine.js) 준용`
+            : `${BOM_SIMPLE_NOTE_SINK} (shelfCount 미지정 → 상부 2 · 하부 1)`;
+
+          dlog(`[SimpleBox:${rules.label}] 모듈:`, (item.modules || []).length);
+
+          // ===== 상부장 모듈 — bom-protocol.md §3-1 상부장 (사쿠리) =====
+          const upperModules = (item.modules || []).filter((m) => m.pos === 'upper');
+          upperModules.forEach((mod, idx) => {
+            this.beginModule(mod, idx, 'upper');
+            const W = parseFloat(mod.w) || 600;
+            const H = parseFloat(mod.h) || (parseFloat(specs.upperH) || 720) - overlap;
+            const modD = bomSimpleDepthOf(mod, 'upper', item, rules);
+            const door = bomSimpleDoorCountOf(mod, W);
+            const name = mod.name || `${W}/${door.count}도어`;
+            const modLabel = `${prefix}상부장-${name}`;
+
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
+            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
+            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, W >= 700 ? 2 : 1, '2면(장)');
+            const shelf = bomSimpleShelfQtyOf(mod, rules);
+            if (shelf.qty > 0) {
+              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
+            }
+            if (door.count > 0) {
+              const doorW = Math.floor(W / door.count) - 4;
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, door.count, '4면', door.defaulted ? doorNote : '', mod);
+            }
+          });
+
+          // ===== 하부장 모듈 — bom-protocol.md §3-1 하부장 (사쿠리 없음) · 키큰장 단은 sink.md §5.1 =====
+          const lowerModules = (item.modules || []).filter((m) => m.pos === 'lower');
+          lowerModules.forEach((mod, idx) => {
+            const tallTier = bomTallTierOf(mod);
+            if (tallTier) {
+              this.beginModule(mod, idx, 'tall');
+              // 선반 기본값만 카테고리 규칙으로 — addTallTierParts 는 shelfCount 가 없으면 1 (sink.md §5.1 통짜) 로 본다
+              const shelf = bomSimpleShelfQtyOf(mod, rules);
+              const tierMod = shelf.defaulted ? { ...mod, shelfCount: shelf.qty } : mod;
+              this.addTallTierParts(materials, prefix, tierMod, tallTier, specs);
+              return;
+            }
+            this.beginModule(mod, idx, 'lower');
+            const W = parseFloat(mod.w) || 600;
+            const H = parseFloat(mod.h) || (parseFloat(specs.lowerH) || 870) - topT - legH;
+            const modD = bomSimpleDepthOf(mod, 'lower', item, rules);
+            const door = bomSimpleDoorCountOf(mod, W);
+            const name = mod.name || `${W}/${door.count}도어`;
+            const modLabel = `${prefix}하부장-${name}`;
+            const isDrawer = !!mod.isDrawer;
+
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
+            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+            this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
+            this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
+            const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, W >= 800 ? 2 : 1, '2면(장)');
+            const shelf = bomSimpleShelfQtyOf(mod, rules);
+            if (shelf.qty > 0) {
+              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
+            }
+
+            if (isDrawer) {
+              // 서랍장 — 싱크 하부장 서랍 규칙(서랍 220 · 상자 180 · 1개면 전판 250 · 아래 여닫이 도어 · 목찬넬 120)을 깊이만 환산해 준용
+              const drawerCount = mod.drawerCount || 1;
+              const drawerH = 220;
+              const totalDrawerH = drawerH * drawerCount;
+              const hingeDoorH = H - totalDrawerH - 30;
+              const railLen = bomSimpleRailLenOf(modD);
+              const boxD = railLen - 60;       // 싱크 D550 → 레일 500 → 측판 440
+              const bottomD = boxD + 9;        //                       → 밑판 449
+              const boxNote = `${BOM_SIMPLE_NOTE_SINK} (D${modD} → 레일 ${railLen}: 측판 ${boxD} · 밑판 ${bottomD})`;
+              const drawerFBW = W - 30 - 42;
+              this.add(materials, modLabel, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)', boxNote);
+              this.add(materials, modLabel, '서랍측판', 'PB', T, boxD, 180, drawerCount * 2, '1면(장)', boxNote);
+              this.add(materials, modLabel, '서랍밑판', 'MDF', 2.7, W - 30 - 13, bottomD, drawerCount, '-', boxNote);
+              if (drawerFBW > 600) {
+                this.add(materials, modLabel, '서랍 하단보강', 'PB', T, boxD, 60, drawerCount, '2면(장)', boxNote);
+              }
+              const drawerDoorW = W - 4;
+              const drawerDoorH = drawerCount === 1 ? 250 : Math.floor((totalDrawerH - 20) / drawerCount);
+              this.add(materials, modLabel, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerCount, '4면', '', mod);
+              if (hingeDoorH > 50) {
+                const hingeDoorCount = Math.max(1, Math.round(W / 450));
+                const hingeDoorW = Math.floor(W / hingeDoorCount) - 4;
+                this.add(materials, modLabel, '도어', 'MDF', 18, hingeDoorW, hingeDoorH, hingeDoorCount, '4면', '', mod);
+              }
+              this.add(materials, modLabel, '목찬넬', 'MDF', 18, 120, W, 1, '2면(장)');
+            } else if (door.count > 0) {
+              const doorW = Math.floor(W / door.count) - 4;
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, door.count, '4면', door.defaulted ? doorNote : '', mod);
+            }
+          });
+
+          // ===== EP (마감재) — 싱크대 EP 준용 (상판·코너 마감 없음) =====
+          const epLabel = `${prefix}EP`;
+          const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
+          const effectiveW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+          const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+          const moldingH = parseFloat(specs.moldingH) || 60;
+          const totalH = parseFloat(item.h) || 2310;
+
+          // 상몰딩 — 상부장이 있을 때만 (P1-2 와 같다). 키큰장 상부단 상몰딩은 그 단이 낸다.
+          this.beginItemLevel('upper');
+          if (moldingH >= 20 && totalUpperW > 0) {
+            this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, totalUpperW, 1, totalUpperW > 2000 ? '2면(장)' : '4면');
+          }
+
+          // 걸레받이·목찬넬 — 다리발 위 하부 라인 폭 (키큰장 단은 좌대가 받치므로 뺀다). 하부장이 없으면 없다.
+          this.beginItemLevel('lower');
+          if (effectiveW > 0) {
+            this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
+          }
+          if (isWoodChannel && effectiveW > 0) {
+            this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
+            this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
+          }
+
+          // 좌·우 마감 — simple-categories.md §2: 기본 좌/우 모두 Filler 60. 타입·폭이 비어 있으면 그 기본값.
+          const finishOf = (type, width) => {
+            const t = type || 'Filler';
+            const w = parseFloat(width);
+            return { type: t, w: Number.isFinite(w) ? w : 60 };
+          };
+          const left = finishOf(specs.finishLeftType, specs.finishLeftWidth);
+          if (left.type !== 'None' && left.w > 0) {
+            const finishName = left.type === 'Filler' ? '휠라(좌)' : left.type === 'EP' ? 'EP(좌)' : '몰딩(좌)';
+            this.add(materials, epLabel, finishName, 'MDF', 18, left.w, totalH - legH, 1, '4면');
+          }
+          const right = finishOf(specs.finishRightType, specs.finishRightWidth);
+          if (right.type !== 'None' && right.w > 0) {
+            const finishName = right.type === 'Filler' ? '휠라(우)' : right.type === 'EP' ? 'EP(우)' : '몰딩(우)';
+            this.add(materials, epLabel, finishName, 'MDF', 18, right.w, totalH - legH, 1, '4면');
+          }
+        }
+
+        // ========================================
         // 요약 계산
         // ========================================
         calculateSummary(materials) {
@@ -1433,7 +1718,7 @@
           const hardware = [];
           const items = designData.items || [];
 
-          // 품목 라벨 생성 (MaterialExtractor와 동일 로직)
+          // 품목 라벨 생성 (MaterialExtractor와 동일 로직 — B3 단순 카테고리 라벨은 규칙표에서)
           const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
           const categoryTotals = {};
           const categoryCounts = {};
@@ -1446,7 +1731,9 @@
             const category = item.categoryId || item.category;
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
-            const itemLabel = item.labelName || `${prefix}${catNames[category] || category}`;
+            const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category] || null;
+            const catName = catNames[category] || (simpleRules && simpleRules.label) || category;
+            const itemLabel = item.labelName || `${prefix}${catName}`;
             const beforeLen = hardware.length;
 
             this.extractHinges(item, hardware);
@@ -1488,8 +1775,17 @@
         // 경첩 추출
         extractHinges(item, hardware) {
           const specs = item.specs || {};
+          // B3: 단순 카테고리는 도어 수·높이를 자재 행(extractSimpleBox)과 같은 식으로 센다 — doorCount 가 없는 모듈(round(W/450))과
+          //   서랍장 아래 여닫이 도어가 자재 행엔 있는데 경첩엔 없던 어긋남을 막는다. 키큰장 단은 아래 공통 경로(bomTallTierDoorH).
+          const simpleRules = BOM_SIMPLE_CATEGORY_RULES[item.categoryId || item.category];
           (item.modules || []).forEach((mod) => {
-            const doorCount = mod.doorCount || 0;
+            let doorCount = mod.doorCount || 0;
+            let simpleDoorH = null;
+            if (simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) {
+              const d = bomSimpleHingeDoorsOf(mod, specs);
+              doorCount = d.count;
+              simpleDoorH = d.doorH;
+            }
             if (doorCount === 0) return;
 
             // 도어 높이 = 자재 행이 낸 재단 도어 높이와 같아야 한다 (bom-protocol.md §4-1).
@@ -1506,6 +1802,7 @@
             else if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + upperOverlap;
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
+            if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
 
             const hingesPerDoor = this.getHingeCount(doorH);
             const boring = this.getBoringPositions(doorH);
@@ -1544,6 +1841,26 @@
             return;
           }
 
+          // B3: 단순 카테고리 — 자재 행(extractSimpleBox)과 같은 깊이 폴백으로 레일 길이를 정하고, 서랍 **개수**만큼 센다.
+          //   (아래 기타 경로는 모듈당 1 SET 로 과소 — 싱크는 골든에 묶여 있어 그대로 두고(계획 B2), 새 카테고리만 맞춘다)
+          const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category];
+          if (simpleRules) {
+            (item.modules || []).forEach((mod) => {
+              if (!mod.isDrawer || mod.pos !== 'lower' || bomTallTierOf(mod)) return;
+              const depth = bomSimpleDepthOf(mod, 'lower', item, simpleRules);
+              hardware.push({
+                category: '레일',
+                item: '소프트클로즈 서랍레일',
+                manufacturer: '블룸',
+                spec: `${bomSimpleRailLenOf(depth)}mm`,
+                qty: mod.drawerCount || 1,
+                unit: 'SET',
+                note: mod.name || mod.type,
+              });
+            });
+            return;
+          }
+
           // 기타 카테고리
           (item.modules || []).forEach((mod) => {
             if (!mod.isDrawer) return;
@@ -1570,8 +1887,11 @@
           const category = item.categoryId || item.category;
           let totalDoors = 0;
 
+          // B3: 단순 카테고리는 자재 도어 행과 같은 수(bomSimpleHingeDoorsOf — 경첩과 같은 함수)로 센다.
+          const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category];
           (item.modules || []).forEach((mod) => {
-            totalDoors += mod.doorCount || 0;
+            if (simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) totalDoors += bomSimpleHingeDoorsOf(mod, specs).count;
+            else totalDoors += mod.doorCount || 0;
           });
 
           if (totalDoors === 0) return;
@@ -1614,13 +1934,16 @@
         // 다리발 추출
         extractLegs(item, hardware) {
           const category = item.categoryId || item.category;
-          if (category !== 'sink') return;
+          // B3: 단순 카테고리도 다리발 150 위에 선다 (simple-categories.md §2). 키큰장 단은 좌대가 받치므로 뺀다
+          //   (싱크는 골든에 묶여 있어 그대로 — 키큰장 단도 세는 옛 셈이 남아 있다).
+          const simple = !!BOM_SIMPLE_CATEGORY_RULES[category];
+          if (category !== 'sink' && !simple) return;
           const specs = item.specs || {};
           const legH = specs.sinkLegHeight || 150;
           let totalLegs = 0;
 
           (item.modules || [])
-            .filter((m) => m.pos === 'lower')
+            .filter((m) => m.pos === 'lower' && !(simple && bomTallTierOf(m)))
             .forEach((mod) => {
               const w = mod.w || 600;
               if (w <= 600) totalLegs += 4;
@@ -1644,7 +1967,13 @@
         // 선반 브라켓 추출
         extractBrackets(item, hardware) {
           let shelfCount = 0;
+          // B3: 단순 카테고리는 자재 행과 같은 함수(bomSimpleShelfQtyOf)로 센다 — shelfCount 지정·신발장 분배 규칙이 브라켓에도 닿는다.
+          const simpleRules = BOM_SIMPLE_CATEGORY_RULES[item.categoryId || item.category];
           (item.modules || []).forEach((mod) => {
+            if (simpleRules) {
+              if (mod.pos === 'upper' || mod.pos === 'lower') shelfCount += bomSimpleShelfQtyOf(mod, simpleRules).qty;
+              return;
+            }
             if (mod.pos === 'upper' && mod.type !== 'hood') shelfCount += 2;
             else if (mod.pos === 'lower' && !mod.isDrawer && mod.type !== 'sink' && mod.type !== 'cook')
               shelfCount += 1;
@@ -1901,6 +2230,9 @@
           BOM_PART_DEFS, bomPartDefOf,
           BOM_PART_KEY_ALIASES, bomFinishResolveEmbedded, bomFinishCandidates, bomDetailOf,
           bomEdgeSidesOf, bomEdgeLenOf, bomEdgeThicknessOf,
+          // B3 단순 카테고리 — 규칙표·선반/도어/깊이/레일 도우미 (bom-golden-simple.test.js)
+          BOM_SIMPLE_CATEGORY_RULES, bomSimpleShelfQtyOf, bomSimpleDefaultShelfCount, bomSimpleDoorCountOf,
+          bomSimpleHingeDoorsOf, bomSimpleDepthOf, bomSimpleRailLenOf,
         };
       }
 
