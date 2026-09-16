@@ -8,7 +8,7 @@
  * ui-step1.js 는 전역 스크립트라 import 할 수 없으므로 planner-to-bom.test.js 처럼
  * 소스에서 블록을 잘라 new Function 으로 실제 코드를 평가한다.
  *   - 변환기: `const PLANNER_CABINET_SECTIONS` ~ `function _applyPlannerResult`
- *   - 배너:   `const PBW_ID = ` ~ `function _appendV2Payload(payload)` (블록 머리말 주석에도 같은 이름이 있어 코드 줄만 잡는다)
+ *   - 배너:   `const PBW_ID = ` ~ `function _appendV2Payload(payload)`
  */
 
 const fs = require('fs');
@@ -354,6 +354,12 @@ describe('배선 — _applyPlannerResult · 단계 이동 · 품목 전환', () 
     const bannerIdx = apply.indexOf('_showBridgeWarnings(warnings, _plannerScopeParams(item))');
     expect(warnIdx).toBeGreaterThan(-1);
     expect(bannerIdx).toBeGreaterThan(warnIdx);
+    // 배너는 부가 UI — 못 그려도 반영·산출을 막지 않는다 (바깥 try 가 alert 로 바꿔 버리므로 안에서 삼킨다)
+    const tryIdx = apply.lastIndexOf('try {', bannerIdx);
+    const catchIdx = apply.indexOf('catch (e)', bannerIdx);
+    expect(tryIdx).toBeGreaterThan(warnIdx);
+    expect(catchIdx).toBeGreaterThan(bannerIdx);
+    expect(apply.slice(catchIdx, catchIdx + 120)).toContain('경고 배너 표시 실패');
   });
 
   test('goToStep2 · goToStep3 · backToStep2 가 자리를 다시 맞추고 switchStep2Item 이 품목별로 다시 그린다', () => {
