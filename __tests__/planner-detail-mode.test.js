@@ -37,6 +37,12 @@ function mesh(ud, parentUd) {
 const doorUd = (moduleId, areaIdx = 0, extra = {}) =>
   Object.assign({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId, areaIdx, areaPos: 'top' }, extra);
 
+/** 좌측 목록이 지금 보고 있는 모드 — `let viewMode` 는 부팅 시점 사본이라 DOM 에서 읽는다. */
+function listMode(p) {
+  const on = p.document.querySelector('.ml-mode-toggle button.active');
+  return on ? on.dataset.mode : null;
+}
+
 function fakeMesh(ud, color) {
   return { isMesh: true, userData: ud, parent: null, material: { color: { value: color || '#000000', set(v) { this.value = v; } } } };
 }
@@ -67,7 +73,9 @@ describe('모드 진입·이탈', () => {
     expect(p.document.body.classList.contains('detail-mode')).toBe(true);
     expect(p.document.getElementById('detailStageBtn').classList.contains('active')).toBe(true);
     expect(p.document.getElementById('structureStageBtn').classList.contains('active')).toBe(false);
-    expect(p.document.querySelector('.ml-header-title').textContent).toBe('마감 팔레트');
+    // 2026-09-16: 좌측은 팔레트가 아니라 **범위 목록**이다 (팔레트는 우측으로 갔다)
+    expect(p.document.querySelector('.ml-header-title').textContent).toBe('칠할 범위');
+    expect(p.document.getElementById('mlBody')).not.toBeNull();
   });
 
   test('stage 가 없으면 구조 모드 그대로 — 🎨 를 누르면 들어가고 다시 누르면 나온다', () => {
@@ -84,7 +92,7 @@ describe('모드 진입·이탈', () => {
     expect(p.document.querySelector('.ml-header-title').textContent).toBe('배치된 모듈');
   });
 
-  test('팔레트는 카탈로그 마감×색 스와치 전부와 슬롯 7개, 우측에는 선택 부재 카드 자리가 있다', () => {
+  test('팔레트는 카탈로그 마감×색 스와치 전부와 슬롯 전체+7개, 우측에는 선택 부재 카드 자리가 있다', () => {
     const p = boot({ detail: true });
     const pal = p.document.getElementById('detailPalette');
     // 크기는 정본(bom-finish-color.js)이 정한다 — 숫자를 박지 않는다 (C0 가 색을 더하면 따라 바뀐다).
@@ -94,7 +102,9 @@ describe('모드 진입·이탈', () => {
     expect(nC).toBeGreaterThanOrEqual(7);
     // 마감×색 전부 + C2b 호환 코드 {COLOR}-M/G (색 × 2, planner-catalog.js plannerCatalogCompatToneEntries)
     expect(pal.querySelectorAll('.pd-swatch')).toHaveLength(Object.keys(api.buildFullMatrix()).length + api.DOOR_COLOR_CATALOG.length * 2);
-    expect(pal.querySelectorAll('[data-slot]')).toHaveLength(7);
+    // 2026-09-16: 슬롯 7 + '전체'. 모듈·배치·품목 범위의 기본값이 '전체' 다.
+    expect(pal.querySelectorAll('[data-slot]')).toHaveLength(8);
+    expect(pal.querySelector('[data-slot="all"]')).not.toBeNull();
     expect(pal.querySelector('.pd-src').textContent).toBe(`카탈로그 ${nF}×${nC}`);   // 정본을 script 로 실었다
     expect(p.document.querySelector('#rightPanel .section[data-sec="detail"] #detailBody')).not.toBeNull();
     // 스와치를 누르면 고른 마감이 된다
@@ -146,20 +156,27 @@ describe('부재 클릭 → 칠하기', () => {
     expect(p.document.getElementById('detailBody').textContent).toContain('지정 없음');
   });
 
-  test('일괄 적용 — 품목 전체 / 상부 전체 / 하부 전체, 그리고 카드의 해제', () => {
+  // 2026-09-16: '품목 전체'·'이 모듈' 버튼은 **범위**(전체 / 개별)가 대신한다 — 팔레트에는
+  //   섹션 두 줄만 남았다. applyBulk('item'|'module') 은 프로그램용으로 남아 있다.
+  test('범위 = 품목이면 색을 고르는 순간 칠해진다 · 상부 전체 · 카드의 해제', () => {
     const p = boot({ detail: true });
     const lower = p.g('modules').find((x) => x.section === 'lower');
     const upper = p.g('modules').find((x) => x.section === 'upper');
-    p.PD.selectSlot('body');
-    p.PD.selectCode('MFB-WHT');
-    p.document.querySelector('#detailPalette [data-bulk="item"]').onclick();
-    p.PD.selectCode('PNT-WHT-M');
-    p.document.querySelector('#detailPalette [data-bulk="section:upper"]').onclick();
-    expect(p.PD.detail.item.body).toEqual({ code: 'MFB-WHT' });
-    expect(p.PD.detail.sections.upper.body).toEqual({ code: 'PNT-WHT-M' });
     const R = p.window.plannerFinishResolve;
+    p.PD.setScope('item');
+    expect(listMode(p)).toBe('all');                      // 범위를 바꾸면 좌측 목록이 따라온다
+    expect(p.PD.slot).toBe('all');                        // 품목 범위의 기본 슬롯은 '전체'
+    p.PD.selectSlot('body');                              // 슬롯으로 좁힌다
+    p.PD.selectCode('MFB-WHT');
+    expect(p.PD.detail.item.body).toEqual({ code: 'MFB-WHT' });
     expect(R(p.PD.detail, 'body', lower.id, lower.section, 'body:left')).toEqual({ code: 'MFB-WHT', level: 'item' });
+    // 섹션(상/하)은 목록에 없는 묶음이라 버튼으로 남는다 — 품목보다 세다
+    p.PD.selectCode('PNT-WHT-M');                         // 품목 범위라 item.body 도 바뀐다
+    p.document.querySelector('#detailPalette [data-bulk="section:upper"]').onclick();
+    expect(p.PD.detail.sections.upper.body).toEqual({ code: 'PNT-WHT-M' });
     expect(R(p.PD.detail, 'body', upper.id, upper.section, 'body:left')).toEqual({ code: 'PNT-WHT-M', level: 'section' });
+    expect(p.document.querySelector('#detailPalette [data-bulk="item"]')).toBeNull();
+    expect(p.document.querySelector('#detailPalette [data-bulk="module"]')).toBeNull();
     // 품목 기본값 ✕ 로 해제
     p.document.querySelector('#detailBody [data-clear-item="body"]').onclick();
     expect(p.PD.detail.item.body).toBeUndefined();
@@ -349,6 +366,9 @@ describe('D2: 팔레트 그룹 (예림 LUX 카탈로그)', () => {
     const p = boot({ detail: true });
     p.cat = p.window.plannerCatalogBuild(ROWS, p.window.DadamBomFinishColor);
     p.PD.catalog = p.cat;
+    // 2026-09-16: 기본 슬롯이 '전체' 가 됐다 (범위 칠하기). 이 절은 **슬롯 필터**를 보는 곳이라
+    //   D2 때와 같은 출발점(도어)에 맞춰 둔다 — '전체' 의 동작은 범위 시험이 따로 본다.
+    p.PD.selectSlot('door');
     p.PD.renderPalette();
     return p;
   }
