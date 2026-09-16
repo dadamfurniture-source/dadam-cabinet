@@ -93,5 +93,17 @@ export default tseslint.config(
       '@typescript-eslint/no-var-requires': 'off',
     },
   },
+  {
+    // scripts/*.mjs — 저장소 도구(node 에서 손으로 돌린다). 브라우저가 아니라 node 전역을 쓴다.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
   prettier
 );
