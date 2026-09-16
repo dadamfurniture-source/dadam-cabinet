@@ -22,6 +22,12 @@
  *       댐핑 언더레일 앞뒷판 가로 = W − 2×몸통T − 2×서랍T − 12,          측판 길이 = 레일 길이 − 10
  *       측판 사쿠리면 앞뒷판 높이 = 측판 높이 − 18
  *       우라(밑판) = 서랍 외경 (가로 − 1) × (세로 − 1); 사쿠리면 가로 = 앞뒷판 + 20, 세로 = 측판 − 1
+ *   · 전면 배분 (2026-09-16 확정, distributeFronts):
+ *       전면 영역 = (배치 영역 H − 상판 두께) − 받침보정 − 30 × 목찬넬 개수
+ *       각 전면   = 전면 영역 × 버줌 ÷ Σ버줌          버줌: 소 1 · 중 2 · 대 2
+ *       받침보정  = 좌대가 있으면 20 (도어가 다리발·좌대를 40 덮고 바닥에서 20 뜬다), 없으면 다리발 높이
+ *     기준은 **모듈 높이가 아니라 배치(영역) 높이**다 — 한 런의 도어가 모듈 높이와 무관하게 줄을 맞춘다.
+ *     소·중·대는 **전면 등급**이고 박스 60·120·180 과 다른 축이다 (중·대는 전면 높이가 같고 박스만 다르다).
  */
 (function (root, factory) {
   const api = factory();
@@ -52,7 +58,15 @@
     TOP_SLOT: 30,                 // 상단 슬롯 (도어 H−30)
     MID_SLOT: 30,                 // 중간 슬롯
     UPPER_DROP: 20,               // 위 전면이 중간 따내기 윗선 아래로 내려오는 길이
-    FRONT_GAP: 4,                 // 목찬넬 없는 전면 사이 갭
+    FRONT_GAP: 4,                 // 목찬넬 없는 전면 사이 갭 (전면별 높이를 직접 줄 때)
+    // 2026-09-16 전면 배분식 — 소·중·대는 전면 등급이다 (박스 BOX_H 와 다른 축).
+    //   중·대 버줌이 둘 다 2 인 것은 사장님 확인값이다: 전면 높이는 같고 속 박스만 120 · 180 으로 다르다.
+    FRONT_WEIGHT: Object.freeze({ small: 1, medium: 2, large: 2 }),
+    FRONT_GRADE_LABEL: Object.freeze({ small: '소', medium: '중', large: '대' }),
+    FRONT_GRADE_DEFAULT: 'medium',
+    DOOR_GRADE_DEFAULT: 'large',  // 도어도 배분에 끼는 전면이다
+    SLOT: 30,                     // 목찬넬 하나당 30 (TOP_SLOT · MID_SLOT 과 같은 값)
+    SUPPORT_PEDESTAL_GAP: 20,     // 좌대 + 다리발이면 도어가 바닥에서 20 뜬다 (다리발·좌대를 40 덮는다)
     MIN_FRONT_H: 50,              // 이보다 낮은 전면은 부재로 내지 않는다 (옛 규칙 `hingeDoorH > 50` 과 같은 값)
     CHANNEL_T: 18,                // 목찬넬 부재 MDF 두께
     CHANNEL_BASE_W: 40,           // 지면판 폭 = 따내기 깊이
@@ -100,14 +114,89 @@
     return { size: 'small', h: DRAWER_RULES.BOX_H.small, fits: false };
   }
 
+  /** 전면 n 장에 필요한 목찬넬 개수 — 상단 1 + 중간 최소 수. */
+  function channelCountFor(n) {
+    return 1 + assignChannels(Math.max(0, n)).filter(Boolean).length;
+  }
+
+  /** 등급 정규화 — 모르는 값은 기본 등급. 도어는 도어 기본 등급. */
+  function gradeOf(g, kind) {
+    const R = DRAWER_RULES;
+    if (R.FRONT_WEIGHT[g]) return g;
+    return kind === 'door' ? R.DOOR_GRADE_DEFAULT : R.FRONT_GRADE_DEFAULT;
+  }
+
+  /**
+   * 2026-09-16: 전면 영역 — 배분식의 왼쪽.
+   *   (배치 영역 H − 상판) − 받침보정 − 30 × 목찬넬 개수
+   * @param {object} o  areaH 배치 높이 (없으면 totalH) · topT 상판 · legH 다리발 · pedestalH 좌대 · channelCount
+   */
+  function frontAreaOf(o) {
+    const R = DRAWER_RULES;
+    const areaH = Number(o.areaH) > 0 ? Number(o.areaH) : (Number(o.totalH) || 0);
+    const base = areaH - (Number(o.topT) || 0);
+    const pedestalH = Number(o.pedestalH) || 0;
+    // 좌대가 있으면 도어가 다리발·좌대를 덮고 바닥에서 20 뜬다 — 다리발 높이를 빼지 않는다.
+    const support = pedestalH > 0 ? R.SUPPORT_PEDESTAL_GAP : (Number(o.legH) || 0);
+    const channelCount = Number(o.channelCount) > 0 ? Number(o.channelCount) : 1;
+    return { areaH, base, support, channelCount, area: base - support - R.SLOT * channelCount };
+  }
+
+  /**
+   * 2026-09-16: 전면 높이 배분 — 영역을 버줌(소1 중2 대2)으로 나눈다. 나머지는 마지막 전면이 먹는다.
+   * @returns {{area, base, support, areaH, channelCount, fronts:[{kind, grade, weight, h}], warnings}}
+   */
+  function distributeFronts(o) {
+    const R = DRAWER_RULES;
+    const src = (o.fronts || []).map((f) => ({
+      kind: f.kind === 'door' ? 'door' : 'drawer',
+      grade: gradeOf(f.grade, f.kind === 'door' ? 'door' : 'drawer'),
+    }));
+    const n = src.length;
+    const warnings = [];
+    const a = frontAreaOf(Object.assign({}, o, { channelCount: channelCountFor(n) }));
+    if (n === 0) return Object.assign(a, { fronts: [], warnings });
+    if (a.area <= 0) warnings.push(`전면 영역이 ${a.area} 다 — 배치 높이 ${a.areaH} 에 목찬넬 ${a.channelCount} 곳은 들어가지 않는다`);
+    const sum = src.reduce((s, f) => s + R.FRONT_WEIGHT[f.grade], 0) || 1;
+    const area = Math.max(0, a.area);
+    let used = 0;
+    const fronts = src.map((f, i) => {
+      const weight = R.FRONT_WEIGHT[f.grade];
+      let h = Math.floor(area * weight / sum);
+      if (i === n - 1) h = area - used;   // 나머지 mm 는 마지막 전면이 먹는다 (합 = 영역)
+      used += h;
+      return { kind: f.kind, grade: f.grade, weight, h };
+    });
+    return Object.assign(a, { fronts, warnings });
+  }
+
+  /**
+   * 2026-09-16: 등급 배분으로 서랍장 한 모듈을 푼다 — 전면 높이를 식으로 정하고 나머지는 layoutDrawerModule 이 한다.
+   *   목찬넬 없는 경계의 갭은 0 이다: 식이 30 × 목찬넬 개수만 빼므로 갭을 또 빼면 전면 합이 영역을 넘는다.
+   * @param {object} o  areaH · topT · legH · pedestalH · T 몸통두께 · fronts [{kind, grade}] · rail
+   */
+  function layoutByGrades(o) {
+    const d = distributeFronts(o);
+    const L = layoutDrawerModule(Object.assign({}, o, {
+      H: Math.max(0, d.base - d.support),
+      fronts: d.fronts.map((f) => ({ kind: f.kind, h: f.h, grade: f.grade })),
+      frontGap: 0,
+    }));
+    L.front = d;                      // 영역·받침보정·목찬넬 개수를 그대로 남긴다 (도면·검증용)
+    L.warnings = d.warnings.concat(L.warnings);
+    return L;
+  }
+
   /**
    * 서랍장 한 모듈의 전면·목찬넬·존·박스를 계산한다.
    *
    * @param {object} o
    *   H        몸통 높이 (측판 세로)
    *   T        몸통 두께 (지판 두께 — 마지막 존의 바닥)
-   *   fronts   [{kind:'door'|'drawer', h?}] 위→아래. h 없는 전면은 남는 높이를 균등 배분.
+   *   fronts   [{kind:'door'|'drawer', h?, grade?}] 위→아래. h 없는 전면은 남는 높이를 균등 배분.
    *   rail     'under' | 'ball'
+   *   frontGap 목찬넬 없는 경계의 갭 (기본 FRONT_GAP 4). 배분식 경로(layoutByGrades)는 0 —
+   *            식이 30 × 목찬넬 개수만 빼므로 갭을 또 빼면 전면 합이 영역을 넘는다.
    * @returns {{fronts, channels, midCount, boxes, warnings}}
    *   fronts[i]   {kind, h, y0, y1, channelAbove:'top'|'mid'|null, channelBelow:'mid'|null, zone?, box?}
    *   channels    [{kind:'top'|'mid', y, notchH, notchD, faceH, baseW}]
@@ -118,8 +207,13 @@
     const H = Number(o.H) || 0;
     const T = Number(o.T) || 15;
     const rail = railKeyOf(o.rail);
+    const frontGap = Number.isFinite(o.frontGap) ? Number(o.frontGap) : R.FRONT_GAP;
     const warnings = [];
-    let fronts = (o.fronts || []).map((f) => ({ kind: f.kind === 'door' ? 'door' : 'drawer', h: Number(f.h) > 0 ? Number(f.h) : null }));
+    let fronts = (o.fronts || []).map((f) => ({
+      kind: f.kind === 'door' ? 'door' : 'drawer',
+      h: Number(f.h) > 0 ? Number(f.h) : null,
+      grade: R.FRONT_WEIGHT[f.grade] ? f.grade : undefined,
+    }));
 
     // 서랍 최대 4단 — 넘치면 아래쪽부터 자른다
     const drawerIdx = fronts.map((f, i) => (f.kind === 'drawer' ? i : -1)).filter((i) => i >= 0);
@@ -138,7 +232,7 @@
     // 높이 배분
     const fixed = fronts.reduce((s, f) => s + (f.h || 0), 0);
     const flexible = fronts.filter((f) => f.h === null);
-    const avail = H - R.TOP_SLOT - R.MID_SLOT * midCount - R.FRONT_GAP * gapCount - fixed;
+    const avail = H - R.TOP_SLOT - R.MID_SLOT * midCount - frontGap * gapCount - fixed;
     if (flexible.length > 0) {
       if (avail <= 0) warnings.push(`전면 높이가 부족하다 (남는 높이 ${avail})`);
       const each = Math.max(0, Math.floor(avail / flexible.length));
@@ -169,7 +263,7 @@
         channels.push({ kind: 'mid', y: S, notchH: R.CHANNEL_MID_NOTCH_H, notchD: R.CHANNEL_BASE_W, faceH: R.CHANNEL_MID_FACE_H, baseW: R.CHANNEL_BASE_W });
         y = S + R.UPPER_DROP + R.MID_SLOT;
       } else {
-        y = f.y1 + R.FRONT_GAP;
+        y = f.y1 + frontGap;
       }
     });
 
@@ -180,10 +274,10 @@
       let top;
       if (f.channelAbove === 'top') top = R.CHANNEL_TOP_NOTCH_H;
       else if (f.channelAbove === 'mid') top = (f.y0 - R.MID_SLOT - R.UPPER_DROP) + R.CHANNEL_MID_NOTCH_H;
-      else top = f.y0 - R.FRONT_GAP / 2;
+      else top = f.y0 - frontGap / 2;
       let bottom;
       if (f.channelBelow === 'mid') bottom = f.y1 - R.UPPER_DROP;
-      else if (i < n - 1) bottom = f.y1 + R.FRONT_GAP / 2;
+      else if (i < n - 1) bottom = f.y1 + frontGap / 2;
       else bottom = H - T;
       const zoneH = bottom - top;
       const box = pickBox(zoneH, rail);
@@ -248,5 +342,6 @@
     return s;
   }
 
-  return { DRAWER_RULES, layoutDrawerModule, assignChannels, pickBox, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
+  return { DRAWER_RULES, layoutDrawerModule, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
+    assignChannels, pickBox, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
 });

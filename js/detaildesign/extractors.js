@@ -723,7 +723,12 @@
           const railRaw = d.rail || mod.drawerRail;
           const sakuri = d.sakuri != null ? !!d.sakuri : !!mod.drawerSakuri;
           const boxT = Number(d.boxT) || Number(mod.drawerBoxT) || T;
-          return { rail: DrawerRules ? DrawerRules.railKeyOf(railRaw) : 'under', sakuri, boxT };
+          // 2026-09-16: 전면 등급 — 서랍마다 소·중·대. 도어 등급은 따로 (기본 대).
+          const grades = Array.isArray(d.grades) ? d.grades : null;
+          return {
+            rail: DrawerRules ? DrawerRules.railKeyOf(railRaw) : 'under', sakuri, boxT,
+            grades, doorGrade: d.doorGrade || null,
+          };
         }
 
         drawerLayoutOf(mod, H, T) {
@@ -741,7 +746,26 @@
             else if (layoutKind === 'doorTop') h = Number(mod.drawerHeight) > 0 ? Number(mod.drawerHeight) : R.FRONT_DEFAULT_H;
             fronts.push({ kind: 'drawer', h });
           }
-          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: this.drawerRulesOf(mod, T).rail });
+          const rules = this.drawerRulesOf(mod, T);
+          // 2026-09-16: 전면 배분식 — 배치(영역) 높이를 알면 그것으로 전면을 나눈다 (사장님 확정식).
+          //   (배치 H − 상판) − 받침보정 − 30 × 목찬넬 개수 를 버줌(소1 중2 대2)으로 나눈다.
+          //   `areaH` 는 브리지가 넘긴다. 없으면 모듈 전체 높이(totalH) 로 떨어지고, 그것도 없으면
+          //   옛 경로(전면별 고정 높이)를 그대로 쓴다 — 골든 픽스처가 그 경우다.
+          const areaH = Number(mod.areaH) > 0 ? Number(mod.areaH) : (Number(mod.totalH) || 0);
+          if (areaH > 0) {
+            const hp = (mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
+            const graded = fronts.map((fr, i) => ({
+              kind: fr.kind,
+              grade: fr.kind === 'door'
+                ? (rules.doorGrade || undefined)
+                : ((rules.grades && rules.grades[layoutKind === 'doorTop' ? i - 1 : i]) || undefined),
+            }));
+            return DrawerRules.layoutByGrades({
+              areaH, topT: hp.topT, legH: hp.legH, pedestalH: hp.pedestalH,
+              T, fronts: graded, rail: rules.rail,
+            });
+          }
+          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: rules.rail });
         }
 
         /**

@@ -10,7 +10,8 @@
  */
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
-const { DRAWER_RULES, layoutDrawerModule, assignChannels, pickBox, railLengthFor, drawerBoxDims } = require(path.join(ROOT, 'js/detaildesign/bom-drawer-rules.js'));
+const { DRAWER_RULES, layoutDrawerModule, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor,
+  assignChannels, pickBox, railLengthFor, drawerBoxDims } = require(path.join(ROOT, 'js/detaildesign/bom-drawer-rules.js'));
 
 const drawers = (n) => Array.from({ length: n }, () => ({ kind: 'drawer' }));
 const lay = (n, rail = 'under', H = 758) => layoutDrawerModule({ H, T: 15, fronts: drawers(n), rail });
@@ -112,6 +113,85 @@ describe('도어 + 하부 서랍 (플래너 doorTopDrawerBottom 기본형)', () 
   test('고정 전면이 몸통을 넘치면 경고한다', () => {
     const L = layoutDrawerModule({ H: 758, T: 15, fronts: [{ kind: 'door' }, ...Array.from({ length: 4 }, () => ({ kind: 'drawer', h: 200 }))] });
     expect(L.warnings.some((w) => /부족/.test(w))).toBe(true);
+  });
+});
+
+describe('전면 배분식 (2026-09-16 확정) — 배치 높이를 버줌으로 나눈다', () => {
+  // 전면 영역 = (배치 H − 상판) − 받침보정 − 30 × 목찬넬 개수
+  // 각 전면   = 영역 × 버줌 ÷ Σ버줌          버줌 소 1 · 중 2 · 대 2
+  const SINK = { areaH: 870, topT: 12, legH: 150, T: 15, rail: 'under' };
+  const dr = (...g) => g.map((x) => ({ kind: 'drawer', grade: x }));
+
+  test('버줌은 소 1 · 중 2 · 대 2 — 중과 대는 전면 높이가 같다', () => {
+    expect(DRAWER_RULES.FRONT_WEIGHT).toEqual({ small: 1, medium: 2, large: 2 });
+    const L = layoutByGrades(Object.assign({}, SINK, { fronts: dr('medium', 'large') }));
+    const [a, b] = L.fronts.map((f) => f.h);
+    expect(a).toBe(b);
+  });
+
+  test('목찬넬 개수는 전면 수가 정한다 — 상단 1 + 중간 최소 수', () => {
+    expect([1, 2, 3, 4].map(channelCountFor)).toEqual([1, 2, 2, 3]);
+  });
+
+  test('영역 = (배치 870 − 상판 12) − 다리발 150 − 30×목찬넬', () => {
+    expect(frontAreaOf({ areaH: 870, topT: 12, legH: 150, channelCount: 2 })).toMatchObject({ base: 858, support: 150, area: 648 });
+    expect(frontAreaOf({ areaH: 870, topT: 12, legH: 150, channelCount: 3 }).area).toBe(618);
+  });
+
+  test('좌대가 있으면 받침보정 20 — 도어가 다리발·좌대를 40 덮는다', () => {
+    const a = frontAreaOf({ areaH: 2300, topT: 0, legH: 60, pedestalH: 60, channelCount: 2 });
+    expect(a).toMatchObject({ support: 20, base: 2300, area: 2220 });
+  });
+
+  test('사장님 예시 1:1:2 — 소·소·중 은 162 · 162 · 324, 합이 영역과 같다', () => {
+    const L = layoutByGrades(Object.assign({}, SINK, { fronts: dr('small', 'small', 'medium') }));
+    expect(L.front.area).toBe(648);
+    expect(L.fronts.map((f) => f.h)).toEqual([162, 162, 324]);
+    expect(L.fronts.reduce((s, f) => s + f.h, 0)).toBe(648);
+  });
+
+  test('도어도 배분에 끼는 전면이다 — 기본 대(2)', () => {
+    expect(DRAWER_RULES.DOOR_GRADE_DEFAULT).toBe('large');
+    const L = layoutByGrades(Object.assign({}, SINK, { fronts: [{ kind: 'door' }, ...dr('small', 'small')] }));
+    expect(L.fronts.map((f) => [f.kind, f.h])).toEqual([['door', 324], ['drawer', 162], ['drawer', 162]]);
+  });
+
+  test('등급을 안 주면 기본 중 — 모두 같으면 균등 분배', () => {
+    const L = layoutByGrades(Object.assign({}, SINK, { fronts: [{ kind: 'drawer' }, { kind: 'drawer' }, { kind: 'drawer' }] }));
+    expect(L.fronts.map((f) => f.grade)).toEqual(['medium', 'medium', 'medium']);
+    expect(L.fronts.map((f) => f.h)).toEqual([216, 216, 216]);
+  });
+
+  test('distributeFronts 는 배치·상판·받침·버줌만 보고 전면 높이를 낸다 (위치 계산 없이)', () => {
+    const d = distributeFronts(Object.assign({}, SINK, { fronts: dr('small', 'small', 'medium') }));
+    expect(d).toMatchObject({ areaH: 870, base: 858, support: 150, channelCount: 2, area: 648 });
+    expect(d.fronts.map((f) => [f.grade, f.weight, f.h])).toEqual([['small', 1, 162], ['small', 1, 162], ['medium', 2, 324]]);
+  });
+
+  test('나머지 mm 는 마지막 전면이 먹는다 — 합이 영역과 어긋나지 않는다', () => {
+    const L = layoutByGrades(Object.assign({}, SINK, { fronts: dr('small', 'small', 'small') }));
+    expect(L.fronts.reduce((s, f) => s + f.h, 0)).toBe(L.front.area);
+    expect(L.fronts.map((f) => f.h)).toEqual([216, 216, 216]);
+  });
+
+  test('배분식 경로는 목찬넬 없는 경계의 갭을 0 으로 둔다 — 식이 30×목찬넬만 뺀다', () => {
+    const L = layoutByGrades(Object.assign({}, SINK, { fronts: dr('small', 'small', 'medium') }));
+    // 전면 1 아래는 목찬넬이 없다 (assignChannels(3) = [false, true]) — 전면 2 가 바로 붙는다
+    expect(L.fronts[0].channelBelow).toBeNull();
+    expect(L.fronts[1].y0).toBe(L.fronts[0].y1);
+    // 마지막 전면 밑단이 사용 높이(= 영역 + 슬롯)와 맞는다
+    expect(L.fronts[L.fronts.length - 1].y1).toBe(858 - 150);
+  });
+
+  test('배치 높이가 모듈 높이보다 크면 배치 기준이다 — 한 런의 도어가 줄을 맞춘다', () => {
+    const tall = layoutByGrades(Object.assign({}, SINK, { areaH: 900, fronts: dr('small', 'small') }));
+    const low = layoutByGrades(Object.assign({}, SINK, { areaH: 870, fronts: dr('small', 'small') }));
+    expect(tall.front.area - low.front.area).toBe(30);
+  });
+
+  test('배치 높이가 너무 낮으면 경고한다', () => {
+    const L = layoutByGrades({ areaH: 100, topT: 12, legH: 150, T: 15, fronts: dr('small', 'small') });
+    expect(L.warnings.some((w) => /전면 영역이/.test(w))).toBe(true);
   });
 });
 
@@ -232,6 +312,35 @@ describe('BOM 적용 (extractors.js)', () => {
     // 서랍 전면을 줄이면 도어가 살아난다
     const ok = rowsOf([{ id: 'l8', type: 'storage', name: '서랍장U', pos: 'lower', w: 1200, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 2, drawerHeight: 200 }], '하부장-서랍장U');
     expect(ok.find((r) => r.part === '도어')).toMatchObject({ h: 244, qty: 1 });
+  });
+
+  test('배치 높이를 알면 배분식으로 전면을 낸다 (areaH·heightParts·drawer.grades)', () => {
+    const mod = {
+      id: 'lg', type: 'storage', name: '배분', pos: 'lower', w: 1200, h: 708, d: 550,
+      doorCount: 0, isDrawer: true, drawerCount: 3,
+      areaH: 870, totalH: 870, heightParts: { legH: 150, topT: 12 },
+      drawer: { grades: ['small', 'small', 'medium'] },
+    };
+    const rows = rowsOf([mod], '하부장-배분').filter((r) => r.part === '서랍도어');
+    expect(rows.map((r) => [r.h, r.qty])).toEqual([[162, 2], [324, 1]]);
+  });
+
+  test('도어 + 서랍이면 도어도 배분에 낀다 (기본 대)', () => {
+    const mod = {
+      id: 'lh', type: 'storage', name: '배분도어', pos: 'lower', w: 1200, h: 708, d: 550,
+      doorCount: 1, isDrawer: true, drawerCount: 2,
+      areaH: 870, totalH: 870, heightParts: { legH: 150, topT: 12 },
+      drawer: { grades: ['small', 'small'] },
+    };
+    const rows = rowsOf([mod], '하부장-배분도어');
+    expect(rows.find((r) => r.part === '도어')).toMatchObject({ h: 324, qty: 1 });
+    expect(rows.find((r) => r.part === '서랍도어')).toMatchObject({ h: 162, qty: 2 });
+  });
+
+  test('배치·모듈 높이를 모르면 옛 경로 그대로 (골든 픽스처가 이 경우다)', () => {
+    const rows = rowsOf([{ id: 'li', type: 'storage', name: '옛경로', pos: 'lower', w: 800, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 2 }], '하부장-옛경로');
+    expect(rows.find((r) => r.part === '도어')).toMatchObject({ h: 244, qty: 1 });
+    expect(rows.find((r) => r.part === '서랍도어')).toMatchObject({ h: 200, qty: 2 });
   });
 
   test('mod.drawer 블록(레일·사쿠리·boxT)이 평면 필드보다 먼저다 — 브리지가 넘기는 모양', () => {
