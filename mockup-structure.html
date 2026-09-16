@@ -348,12 +348,11 @@
       <button data-mode="area" title="배치 단계에서 잡은 영역">배치</button>
       <button class="active" data-mode="single" title="모듈을 하나씩 목록으로">개별</button>
     </div>
+    <!-- 2026-09-16: 디테일 모드에서도 이 목록이 그대로 산다 — 전체/배치/개별 이 곧 '칠할 범위' 다.
+         마감 팔레트는 우측 패널(data-sec="detail-palette")로 갔다. -->
     <div class="ml-body" id="mlBody">
       <div class="empty-msg">로딩 중...</div>
     </div>
-    <!-- D0: 디테일 모드의 마감 팔레트 — body.detail-mode 에서만 보인다 (mlBody 는 그때 숨는다).
-         내용은 PlannerDetail.renderPalette 가 채운다. -->
-    <div id="detailPalette"></div>
   </div>
 
   <!-- 2026-09-15: 개별 모듈 패널 — 고른 모듈 하나. 초안(draft)을 편집하고 미리보기로 보다가 '적용' 을 눌러야
@@ -477,6 +476,18 @@
         </div>
         <div class="section-body" id="finishBody">
           <div class="empty-msg">영역 선택</div>
+        </div>
+      </div>
+      <!-- 2026-09-16: 마감 팔레트 — 좌측에서 우측으로 옮겼다. 좌측은 구조 단계와 같은
+           전체/배치/개별 목록이어야 하고(그것이 곧 칠할 범위다), 팔레트는 220px 보다 넓은
+           자리가 필요했다. 내용은 PlannerDetail.renderPalette 가 채운다.
+           '선택 부재 마감'(data-sec="detail") **위**에 온다 — 고르는 곳이 먼저다. -->
+      <div class="section" data-sec="detail-palette" style="display:none">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">마감 팔레트</span>
+        </div>
+        <div class="section-body">
+          <div id="detailPalette"></div>
         </div>
       </div>
       <!-- D0: 디테일 모드 — 고른 부재의 마감과 그것이 어느 단계(부재/모듈/섹션/품목)에서
@@ -1138,6 +1149,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function setActiveModule(id) {
     activeId = id;
     panelTarget = 'module';
+    // D4: 디테일 모드면 고른 모듈이 곧 칠할 범위다 (모드 밖에서는 아무것도 하지 않는다 — I2).
+    if (typeof PlannerDetail !== 'undefined' && PlannerDetail.isActive()) PlannerDetail.onModulePick(id);
     renderModuleList();
     renderFrontView();
     renderRightPanel();
@@ -2961,6 +2974,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const PANEL_SEC_TITLE = {
     size: '크기', height: '높이 구성', split: '분할',
     areas: '영역 타입 + 도어 열림', shelves: '선반 (내부 mm)', handle: '손잡이', finish: '마감',
+    // 디테일 모드 전용 섹션. 여기 없으면 applyPanelLayout 이 제목을 data-sec 값("detail")으로 덮어쓴다.
+    'detail-palette': '마감 팔레트', detail: '선택 부재 마감', 'detail-renders': '최근 렌더',
   };
   const PANEL_LAYOUT = {
     // 2026-09-15: 분할·영역·선반·손잡이는 개별 모듈 패널로 갔다 — 우측은 크기·높이 구성만.
@@ -2982,7 +2997,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function applyPanelLayout(mode) {
     const spec = PANEL_LAYOUT[mode] || PANEL_LAYOUT.module;
     const head = document.querySelector('.panel-header-title');
-    if (head) head.textContent = spec.title;
+    // 디테일 모드에서는 우측이 구조 편집이 아니라 마감이다 (섹션 표시는 planner-detail.js CSS 가 한다).
+    const detailOn = !!(document.body && document.body.classList.contains('detail-mode'));
+    if (head) head.textContent = detailOn ? '마감 · 디테일' : spec.title;
     document.querySelectorAll('#rightPanel .section[data-sec]').forEach((sec) => {
       const k = sec.getAttribute('data-sec');
       const on = spec.secs.indexOf(k) >= 0;
@@ -3406,6 +3423,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   /** 초안을 플래너에 옮긴다 — 그때서야 저장·정면도·3D 가 바뀐다. */
   function applyModuleDraft() {
+    // D4: 디테일 모드에서는 구조를 바꾸지 않는다. 패널은 CSS 로 숨겨져 있지만(planner-detail.js)
+    //   초안은 그대로 남아 있으므로, 실제로 쓰는 문 하나를 막는다 — 마감만 고치러 온 화면이다.
+    if (typeof PlannerDetail !== 'undefined' && PlannerDetail.isActive()) {
+      showToast('디테일 모드입니다 — 구조를 고치려면 📦 2.구조 로 돌아가세요');
+      return false;
+    }
     const d = modulePanelDraft;
     if (!d) return false;
     const m = modules.find((x) => x.id === d.id);
@@ -5337,6 +5360,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       fitToAreas();
       try { fitCameraToAreas(); } catch (_) {}
     }
+    // D4: 디테일 모드면 고른 배치가 곧 칠할 범위다 (모드 밖에서는 아무것도 하지 않는다 — I2).
+    if (typeof PlannerDetail !== 'undefined' && PlannerDetail.isActive()) PlannerDetail.onAreaPick(id);
   }
 
   /** 빈 화면 안내 — 영역조차 없을 때만 띄운다.
@@ -6008,12 +6033,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }) || null;
   }
 
+  /**
+   * 모듈이 속한 배치(영역) id — 하나뿐인 정본.
+   * 예전 형식 모듈(레거시 변환·골든)은 areaId 가 없다 — 같은 회전·같은 섹션·X 겹침으로
+   * 영역을 찾고, 없으면 areaOfModule(단 구분 없음)로 떨어진다.
+   * 디테일 모드의 '배치 전체 칠하기' 도 이 규칙으로 모듈을 모은다 (PlannerDetail.mount 의 areaIdOf).
+   */
+  function areaIdOfModule(m) {
+    if (!m) return null;
+    return m.areaId || (areaOfModuleBySection(m) || areaOfModule(m) || {}).id || null;
+  }
+
   function pickAreaFirst(moduleId) {
     const m = modules.find((x) => x.id === moduleId);
     if (!m) return false;
-    // 예전 형식 모듈(레거시 변환·골든)은 areaId 가 없다 — 같은 회전·같은 섹션·X 겹침으로
-    // 영역을 찾고, 없으면 areaOfModule(단 구분 없음)로 떨어진다.
-    const areaId = m.areaId || (areaOfModuleBySection(m) || areaOfModule(m) || {}).id || null;
+    const areaId = areaIdOfModule(m);
     if (!areaId || areaId === activeAreaId) return false;
     setActiveArea(areaId);
     showToast('배치를 골랐습니다 — 한 번 더 누르면 모듈을 고릅니다');
@@ -7027,6 +7061,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     document.querySelectorAll('.ml-mode-toggle button').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    // D4: 디테일 모드에서는 이 목록이 곧 **칠할 범위**다 — 전체→품목 / 배치→배치 / 개별→모듈.
+    //   모드 밖에서는 이 줄이 아무것도 하지 않는다 (I2).
+    if (typeof PlannerDetail !== 'undefined' && PlannerDetail.isActive()) PlannerDetail.onListMode(mode);
     // W9-108/111: 시점 회전 버튼 — 전체 모드에서만
     const viewRotateBar = document.getElementById('viewRotateBar');
     syncViewRotateBar(mode);
@@ -7636,6 +7673,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     sectionLabel: (s) => (SECTION_CONFIG[s] && SECTION_CONFIG[s].label) || s,
     // D2: 모드에 들어갈 때만 renderer 색공간·톤매핑·환경광을 바꾸고 나갈 때 되돌린다 (applyScene). init3D 전이면 null.
     three: () => three,
+    // D4: 칠할 범위 = 좌측 목록이 보고 있는 것. 목록·배치 선택의 정본은 이 페이지에 그대로 두고
+    //   PlannerDetail 은 읽고 부르기만 한다 — 선택 표시(배치 노란 윤곽선·모듈 파란 테두리)가 한 벌로 남는다.
+    listMode: () => viewMode,
+    setListMode: (mode) => setViewMode(mode),
+    areas: () => areas,
+    areaIdOf: (m) => areaIdOfModule(m),
+    selectArea: (id) => setActiveArea(id),
   });
   // D3: 📷 렌더 저장 (js/planner/planner-capture.js) — 오프스크린 렌더타깃에 정면·3/4·평면을 찍어 계정에 올린다.
   //   구조 모드에서 눌러도 디테일 룩으로 찍고 되돌린다 (PlannerDetail.pushLook/popLook). 버튼은 디테일 모드에서만 보인다.
