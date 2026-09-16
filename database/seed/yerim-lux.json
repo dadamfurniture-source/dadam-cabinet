@@ -3,7 +3,7 @@
  "line": "예림보드 럭스(LUX)",
  "source": "https://www.yerim.net/kor/products/kitchen_new.html",
  "crawled_at": "2026-09-15",
- "note": "목록 페이지(products-list.html?depth1=3&depth2=…&depth3=…&page=N)의 카드 alt/이미지와 상세 페이지 제목. hex 는 잘라낸 타일 전체의 선형광 평균색(scripts/fetch-yerim-textures.mjs, 2026-09-16 재계산). tone 은 명시된 것 외 무광 기본(2026-09-15 결정), grain 은 추정 — [확인 필요]",
+ "note": "목록 페이지(products-list.html?depth1=3&depth2=…&depth3=…&page=N)의 카드 alt/이미지와 상세 페이지 제목. hex 는 잘라낸 타일 전체의 선형광 평균색(scripts/fetch-yerim-textures.mjs, 2026-09-16 재계산). texture_url 은 같은 스크립트가 만든 512px 타일(assets/materials/yerim/<code>.jpg), tile_mm 은 type 별 물리 크기. tone 은 명시된 것 외 무광 기본(2026-09-15 결정), grain 은 추정 — [확인 필요]",
  "count": 144,
  "items": [
   {
@@ -31,7 +31,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1703",
    "image_url": "https://www.yerim.net/upload/product/2039376550_1KD3HjSX_20230427100156.jpg",
-   "sort": 1000
+   "sort": 1000,
+   "texture_url": "assets/materials/yerim/YR-YPA-01.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-02",
@@ -58,7 +60,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1702",
    "image_url": "https://www.yerim.net/upload/product/2039376550_DiPofpRQ_20230427111144.jpg",
-   "sort": 1001
+   "sort": 1001,
+   "texture_url": "assets/materials/yerim/YR-YPA-02.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-03",
@@ -85,7 +89,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1701",
    "image_url": "https://www.yerim.net/upload/product/2039376550_P72QYJqt_20230427013731.jpg",
-   "sort": 1002
+   "sort": 1002,
+   "texture_url": "assets/materials/yerim/YR-YPA-03.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-04",
@@ -112,7 +118,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1700",
    "image_url": "https://www.yerim.net/upload/product/2039376550_s4Syqgxz_20230427013926.jpg",
-   "sort": 1003
+   "sort": 1003,
+   "texture_url": "assets/materials/yerim/YR-YPA-04.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-05",
@@ -139,7 +147,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1699",
    "image_url": "https://www.yerim.net/upload/product/2039376550_RLMxNYcV_20230427013955.jpg",
-   "sort": 1004
+   "sort": 1004,
+   "texture_url": "assets/materials/yerim/YR-YPA-05.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-06",
@@ -166,7 +176,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1698",
    "image_url": "https://www.yerim.net/upload/product/2039376550_6G8M2vEW_20230427014025.jpg",
-   "sort": 1005
+   "sort": 1005,
+   "texture_url": "assets/materials/yerim/YR-YPA-06.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-07",
@@ -193,7 +205,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1697",
    "image_url": "https://www.yerim.net/upload/product/2039376550_vcEy6r9x_20230427014050.jpg",
-   "sort": 1006
+   "sort": 1006,
+   "texture_url": "assets/materials/yerim/YR-YPA-07.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-08",
@@ -220,7 +234,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1696",
    "image_url": "https://www.yerim.net/upload/product/2039376550_rNskuvam_20230427014118.jpg",
-   "sort": 1007
+   "sort": 1007,
+   "texture_url": "assets/materials/yerim/YR-YPA-08.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-09",
@@ -247,7 +263,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1695",
    "image_url": "https://www.yerim.net/upload/product/2039376550_P0k6yYfH_20230427014203.jpg",
-   "sort": 1008
+   "sort": 1008,
+   "texture_url": "assets/materials/yerim/YR-YPA-09.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPA-10",
@@ -274,7 +292,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1694",
    "image_url": "https://www.yerim.net/upload/product/2039376550_0o2REUtq_20230427014234.jpg",
-   "sort": 1009
+   "sort": 1009,
+   "texture_url": "assets/materials/yerim/YR-YPA-10.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPG-01",
@@ -301,7 +321,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2181",
    "image_url": "https://www.yerim.net/upload/product/2039376550_fMIvrhLy_20250709023608.jpg",
-   "sort": 1010
+   "sort": 1010,
+   "texture_url": "assets/materials/yerim/YR-YPG-01.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPG-02",
@@ -328,7 +350,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2180",
    "image_url": "https://www.yerim.net/upload/product/2039376550_2wPRNeJv_20250709023510.jpg",
-   "sort": 1011
+   "sort": 1011,
+   "texture_url": "assets/materials/yerim/YR-YPG-02.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-AM-50",
@@ -355,7 +379,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1720",
    "image_url": "https://www.yerim.net/upload/product/2039376550_tWXMFiIT_20250709011956.jpg",
-   "sort": 1012
+   "sort": 1012,
+   "texture_url": "assets/materials/yerim/YR-AM-50.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-401",
@@ -382,7 +408,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1724",
    "image_url": "https://www.yerim.net/upload/product/2039376550_6bIYPcvs_20230828050742.jpg",
-   "sort": 1013
+   "sort": 1013,
+   "texture_url": "assets/materials/yerim/YR-LP-401.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-402",
@@ -409,7 +437,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1723",
    "image_url": "https://www.yerim.net/upload/product/2039376550_fRyBOXxg_20230427023252.jpg",
-   "sort": 1014
+   "sort": 1014,
+   "texture_url": "assets/materials/yerim/YR-LP-402.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-500",
@@ -436,7 +466,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1722",
    "image_url": "https://www.yerim.net/upload/product/2039376550_qnmyMJ3A_20230427023313.jpg",
-   "sort": 1015
+   "sort": 1015,
+   "texture_url": "assets/materials/yerim/YR-LP-500.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-501",
@@ -463,7 +495,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1721",
    "image_url": "https://www.yerim.net/upload/product/2039376550_JdHjcFCz_20250709011941.jpg",
-   "sort": 1016
+   "sort": 1016,
+   "texture_url": "assets/materials/yerim/YR-LP-501.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-PE-01",
@@ -490,7 +524,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2183",
    "image_url": "https://www.yerim.net/upload/product/2039376550_VxdSBD60_20250709024043.jpg",
-   "sort": 1017
+   "sort": 1017,
+   "texture_url": "assets/materials/yerim/YR-PE-01.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-PE-02",
@@ -517,7 +553,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2182",
    "image_url": "https://www.yerim.net/upload/product/2039376550_6UO1Dksn_20250709023842.jpg",
-   "sort": 1018
+   "sort": 1018,
+   "texture_url": "assets/materials/yerim/YR-PE-02.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-PM-60",
@@ -544,7 +582,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1719",
    "image_url": "https://www.yerim.net/upload/product/2039376550_FskE47gL_20230828050902.jpg",
-   "sort": 1019
+   "sort": 1019,
+   "texture_url": "assets/materials/yerim/YR-PM-60.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-PM-61",
@@ -571,7 +611,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1718",
    "image_url": "https://www.yerim.net/upload/product/2039376550_ZABtibEI_20230828050941.jpg",
-   "sort": 1020
+   "sort": 1020,
+   "texture_url": "assets/materials/yerim/YR-PM-61.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-PM-62",
@@ -598,7 +640,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2185",
    "image_url": "https://www.yerim.net/upload/product/2039376550_nmjV9iHF_20250709024246.jpg",
-   "sort": 1021
+   "sort": 1021,
+   "texture_url": "assets/materials/yerim/YR-PM-62.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-PM-63",
@@ -625,7 +669,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2184",
    "image_url": "https://www.yerim.net/upload/product/2039376550_kjR96ftz_20250709024131.jpg",
-   "sort": 1022
+   "sort": 1022,
+   "texture_url": "assets/materials/yerim/YR-PM-63.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-YPW-01",
@@ -652,7 +698,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1706",
    "image_url": "https://www.yerim.net/upload/product/2039376550_MnXgy2Ua_20260304051840.jpg",
-   "sort": 1023
+   "sort": 1023,
+   "texture_url": "assets/materials/yerim/YR-YPW-01.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-YPW-02",
@@ -679,7 +727,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1705",
    "image_url": "https://www.yerim.net/upload/product/2039376550_VpaFsWko_20260304051802.jpg",
-   "sort": 1024
+   "sort": 1024,
+   "texture_url": "assets/materials/yerim/YR-YPW-02.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-YPW-03",
@@ -706,7 +756,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1704",
    "image_url": "https://www.yerim.net/upload/product/2039376550_Reyq5cQ2_20260304051916.jpg",
-   "sort": 1025
+   "sort": 1025,
+   "texture_url": "assets/materials/yerim/YR-YPW-03.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-YPW-04",
@@ -733,7 +785,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2167",
    "image_url": "https://www.yerim.net/upload/product/2039376550_jnBpHClV_20250709102549.jpg",
-   "sort": 1026
+   "sort": 1026,
+   "texture_url": "assets/materials/yerim/YR-YPW-04.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-YPW-05",
@@ -760,7 +814,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2166",
    "image_url": "https://www.yerim.net/upload/product/2039376550_wJN0CcKl_20250709102446.jpg",
-   "sort": 1027
+   "sort": 1027,
+   "texture_url": "assets/materials/yerim/YR-YPW-05.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-U1802",
@@ -787,7 +843,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1802",
    "image_url": "https://www.yerim.net/upload/product/2039376550_xUuQVvbo_20230503032648.jpg",
-   "sort": 1028
+   "sort": 1028,
+   "texture_url": "assets/materials/yerim/YR-U1802.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-01",
@@ -814,7 +872,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1812",
    "image_url": "https://www.yerim.net/upload/product/2039376550_HvjxTGAW_20230427030552.jpg",
-   "sort": 1029
+   "sort": 1029,
+   "texture_url": "assets/materials/yerim/YR-SG-01.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-02",
@@ -841,7 +901,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1811",
    "image_url": "https://www.yerim.net/upload/product/2039376550_4ryln2uR_20230427030625.jpg",
-   "sort": 1030
+   "sort": 1030,
+   "texture_url": "assets/materials/yerim/YR-SG-02.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-03",
@@ -868,7 +930,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1809",
    "image_url": "https://www.yerim.net/upload/product/2039376550_v9LgTOsz_20230427030709.jpg",
-   "sort": 1031
+   "sort": 1031,
+   "texture_url": "assets/materials/yerim/YR-SG-03.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-04",
@@ -895,7 +959,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1807",
    "image_url": "https://www.yerim.net/upload/product/2039376550_r0Jg2c7M_20230427030803.jpg",
-   "sort": 1032
+   "sort": 1032,
+   "texture_url": "assets/materials/yerim/YR-SG-04.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-06",
@@ -922,7 +988,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1803",
    "image_url": "https://www.yerim.net/upload/product/2039376550_IxgLeXFb_20230503032639.jpg",
-   "sort": 1033
+   "sort": 1033,
+   "texture_url": "assets/materials/yerim/YR-SG-06.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-100",
@@ -949,7 +1017,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1785",
    "image_url": "https://www.yerim.net/upload/product/2039376550_0izQmolb_20230503032822.jpg",
-   "sort": 1034
+   "sort": 1034,
+   "texture_url": "assets/materials/yerim/YR-SG-100.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-11",
@@ -976,7 +1046,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1796",
    "image_url": "https://www.yerim.net/upload/product/2039376550_d9CeoZyp_20230503032744.jpg",
-   "sort": 1035
+   "sort": 1035,
+   "texture_url": "assets/materials/yerim/YR-SG-11.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-14",
@@ -1003,7 +1075,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1798",
    "image_url": "https://www.yerim.net/upload/product/2039376550_SeN8EHFG_20230503032734.jpg",
-   "sort": 1036
+   "sort": 1036,
+   "texture_url": "assets/materials/yerim/YR-SG-14.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-16",
@@ -1030,7 +1104,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1810",
    "image_url": "https://www.yerim.net/upload/product/2039376550_EKvJilo3_20260305112351.jpg",
-   "sort": 1037
+   "sort": 1037,
+   "texture_url": "assets/materials/yerim/YR-SG-16.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-20",
@@ -1057,7 +1133,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1804",
    "image_url": "https://www.yerim.net/upload/product/2039376550_Gdk5Omn9_20230427052233.jpg",
-   "sort": 1038
+   "sort": 1038,
+   "texture_url": "assets/materials/yerim/YR-SG-20.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-200",
@@ -1084,7 +1162,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1783",
    "image_url": "https://www.yerim.net/upload/product/2039376550_4r7eWi5D_20230503032842.jpg",
-   "sort": 1039
+   "sort": 1039,
+   "texture_url": "assets/materials/yerim/YR-SG-200.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-21",
@@ -1111,7 +1191,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1808",
    "image_url": "https://www.yerim.net/upload/product/2039376550_uZ6Tpzb4_20230427030735.jpg",
-   "sort": 1040
+   "sort": 1040,
+   "texture_url": "assets/materials/yerim/YR-SG-21.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-22",
@@ -1138,7 +1220,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1788",
    "image_url": "https://www.yerim.net/upload/product/2039376550_O97slv13_20230503032853.jpg",
-   "sort": 1041
+   "sort": 1041,
+   "texture_url": "assets/materials/yerim/YR-SG-22.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SG-300",
@@ -1165,7 +1249,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1779",
    "image_url": "https://www.yerim.net/upload/product/2039376550_vFNrS2Pf_20230503032943.jpg",
-   "sort": 1042
+   "sort": 1042,
+   "texture_url": "assets/materials/yerim/YR-SG-300.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-01",
@@ -1192,7 +1278,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1763",
    "image_url": "https://www.yerim.net/upload/product/2039376550_DcnGPuNY_20230427024703.jpg",
-   "sort": 1043
+   "sort": 1043,
+   "texture_url": "assets/materials/yerim/YR-SM-01.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-02",
@@ -1219,7 +1307,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1762",
    "image_url": "https://www.yerim.net/upload/product/2039376550_WXoYr7Gh_20230427024855.jpg",
-   "sort": 1044
+   "sort": 1044,
+   "texture_url": "assets/materials/yerim/YR-SM-02.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-03",
@@ -1246,7 +1336,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1760",
    "image_url": "https://www.yerim.net/upload/product/2039376550_40ou23Xa_20230427025000.jpg",
-   "sort": 1045
+   "sort": 1045,
+   "texture_url": "assets/materials/yerim/YR-SM-03.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-04",
@@ -1273,7 +1365,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1758",
    "image_url": "https://www.yerim.net/upload/product/2039376550_GpOBuEgW_20260301033522.jpg",
-   "sort": 1046
+   "sort": 1046,
+   "texture_url": "assets/materials/yerim/YR-SM-04.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-05",
@@ -1300,7 +1394,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1755",
    "image_url": "https://www.yerim.net/upload/product/2039376550_uL4aYhnz_20230427025430.jpg",
-   "sort": 1047
+   "sort": 1047,
+   "texture_url": "assets/materials/yerim/YR-SM-05.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-06",
@@ -1327,7 +1423,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1752",
    "image_url": "https://www.yerim.net/upload/product/2039376550_PKBu6xy3_20260301033634.jpg",
-   "sort": 1048
+   "sort": 1048,
+   "texture_url": "assets/materials/yerim/YR-SM-06.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-07",
@@ -1354,7 +1452,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1750",
    "image_url": "https://www.yerim.net/upload/product/2039376550_qAMX4iLe_20260301033715.jpg",
-   "sort": 1049
+   "sort": 1049,
+   "texture_url": "assets/materials/yerim/YR-SM-07.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-08",
@@ -1381,7 +1481,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1749",
    "image_url": "https://www.yerim.net/upload/product/2039376550_D1Pjn2mw_20230427025803.jpg",
-   "sort": 1050
+   "sort": 1050,
+   "texture_url": "assets/materials/yerim/YR-SM-08.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-10",
@@ -1408,7 +1510,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1736",
    "image_url": "https://www.yerim.net/upload/product/2039376550_7Cnp5bhS_20230427030118.jpg",
-   "sort": 1051
+   "sort": 1051,
+   "texture_url": "assets/materials/yerim/YR-SM-10.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-100",
@@ -1435,7 +1539,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1734",
    "image_url": "https://www.yerim.net/upload/product/2039376550_8WE2N7hf_20230427030207.jpg",
-   "sort": 1052
+   "sort": 1052,
+   "texture_url": "assets/materials/yerim/YR-SM-100.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-11",
@@ -1462,7 +1568,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1746",
    "image_url": "https://www.yerim.net/upload/product/2039376550_5NCzfK8X_20230427025911.jpg",
-   "sort": 1053
+   "sort": 1053,
+   "texture_url": "assets/materials/yerim/YR-SM-11.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-12",
@@ -1489,7 +1597,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2199",
    "image_url": "https://www.yerim.net/upload/product/2039376550_fXNeqwiM_20250709033529.jpg",
-   "sort": 1054
+   "sort": 1054,
+   "texture_url": "assets/materials/yerim/YR-SM-12.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-14",
@@ -1516,7 +1626,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1747",
    "image_url": "https://www.yerim.net/upload/product/2039376550_FTdx6CyB_20230427025849.jpg",
-   "sort": 1055
+   "sort": 1055,
+   "texture_url": "assets/materials/yerim/YR-SM-14.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-15",
@@ -1543,7 +1655,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1741",
    "image_url": "https://www.yerim.net/upload/product/2039376550_YSJzhXZm_20230427030027.jpg",
-   "sort": 1056
+   "sort": 1056,
+   "texture_url": "assets/materials/yerim/YR-SM-15.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-16",
@@ -1570,7 +1684,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1761",
    "image_url": "https://www.yerim.net/upload/product/2039376550_HL0VAK3i_20260301033817.jpg",
-   "sort": 1057
+   "sort": 1057,
+   "texture_url": "assets/materials/yerim/YR-SM-16.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-19",
@@ -1597,7 +1713,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1748",
    "image_url": "https://www.yerim.net/upload/product/2039376550_VetlzbT1_20230427025828.jpg",
-   "sort": 1058
+   "sort": 1058,
+   "texture_url": "assets/materials/yerim/YR-SM-19.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-20",
@@ -1624,7 +1742,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1753",
    "image_url": "https://www.yerim.net/upload/product/2039376550_iR8MEVnr_20230427025641.jpg",
-   "sort": 1059
+   "sort": 1059,
+   "texture_url": "assets/materials/yerim/YR-SM-20.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-200",
@@ -1651,7 +1771,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1732",
    "image_url": "https://www.yerim.net/upload/product/2039376550_j5LngEHu_20230427030227.jpg",
-   "sort": 1060
+   "sort": 1060,
+   "texture_url": "assets/materials/yerim/YR-SM-200.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-21",
@@ -1678,7 +1800,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1759",
    "image_url": "https://www.yerim.net/upload/product/2039376550_l5teMjSq_20230427025033.jpg",
-   "sort": 1061
+   "sort": 1061,
+   "texture_url": "assets/materials/yerim/YR-SM-21.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-22",
@@ -1705,7 +1829,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1738",
    "image_url": "https://www.yerim.net/upload/product/2039376550_kG2KoeSj_20230427030051.jpg",
-   "sort": 1062
+   "sort": 1062,
+   "texture_url": "assets/materials/yerim/YR-SM-22.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-28",
@@ -1732,7 +1858,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2195",
    "image_url": "https://www.yerim.net/upload/product/2039376550_KBtRv0CX_20260301033744.jpg",
-   "sort": 1063
+   "sort": 1063,
+   "texture_url": "assets/materials/yerim/YR-SM-28.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-29",
@@ -1759,7 +1887,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2194",
    "image_url": "https://www.yerim.net/upload/product/2039376550_vuXsEmhA_20260301033852.jpg",
-   "sort": 1064
+   "sort": 1064,
+   "texture_url": "assets/materials/yerim/YR-SM-29.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-30",
@@ -1786,7 +1916,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2193",
    "image_url": "https://www.yerim.net/upload/product/2039376550_ynS1Ugum_20260301033920.jpg",
-   "sort": 1065
+   "sort": 1065,
+   "texture_url": "assets/materials/yerim/YR-SM-30.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-300",
@@ -1813,7 +1945,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1729",
    "image_url": "https://www.yerim.net/upload/product/2039376550_ye6CThVB_20230427030336.jpg",
-   "sort": 1066
+   "sort": 1066,
+   "texture_url": "assets/materials/yerim/YR-SM-300.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-31",
@@ -1840,7 +1974,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2192",
    "image_url": "https://www.yerim.net/upload/product/2039376550_mSFA3vyQ_20260301033954.jpg",
-   "sort": 1067
+   "sort": 1067,
+   "texture_url": "assets/materials/yerim/YR-SM-31.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-32",
@@ -1867,7 +2003,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2191",
    "image_url": "https://www.yerim.net/upload/product/2039376550_5nHQqbIA_20250709030336.jpg",
-   "sort": 1068
+   "sort": 1068,
+   "texture_url": "assets/materials/yerim/YR-SM-32.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-33",
@@ -1894,7 +2032,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2190",
    "image_url": "https://www.yerim.net/upload/product/2039376550_sFk0XoJ7_20250709030249.jpg",
-   "sort": 1069
+   "sort": 1069,
+   "texture_url": "assets/materials/yerim/YR-SM-33.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-34",
@@ -1921,7 +2061,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2189",
    "image_url": "https://www.yerim.net/upload/product/2039376550_5msgvxdN_20260301034022.jpg",
-   "sort": 1070
+   "sort": 1070,
+   "texture_url": "assets/materials/yerim/YR-SM-34.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-SM-35",
@@ -1948,7 +2090,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2188",
    "image_url": "https://www.yerim.net/upload/product/2039376550_DfeKRrPa_20250709030054.jpg",
-   "sort": 1071
+   "sort": 1071,
+   "texture_url": "assets/materials/yerim/YR-SM-35.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-CP-01",
@@ -1975,7 +2119,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1717",
    "image_url": "https://www.yerim.net/upload/product/2039376550_6NrO48VX_20230427014626.jpg",
-   "sort": 1072
+   "sort": 1072,
+   "texture_url": "assets/materials/yerim/YR-CP-01.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-CP-02",
@@ -2002,7 +2148,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1716",
    "image_url": "https://www.yerim.net/upload/product/2039376550_2p10RuGc_20230427014655.jpg",
-   "sort": 1073
+   "sort": 1073,
+   "texture_url": "assets/materials/yerim/YR-CP-02.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-CP-03",
@@ -2029,7 +2177,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1715",
    "image_url": "https://www.yerim.net/upload/product/2039376550_ryJzTNY8_20230427014829.jpg",
-   "sort": 1074
+   "sort": 1074,
+   "texture_url": "assets/materials/yerim/YR-CP-03.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-CP-04",
@@ -2056,7 +2206,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2187",
    "image_url": "https://www.yerim.net/upload/product/2039376550_3uex9Eqg_20250709024654.jpg",
-   "sort": 1075
+   "sort": 1075,
+   "texture_url": "assets/materials/yerim/YR-CP-04.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-LC-010",
@@ -2083,7 +2235,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1710",
    "image_url": "https://www.yerim.net/upload/product/2039376550_TYQXhKD2_20230427015029.jpg",
-   "sort": 1076
+   "sort": 1076,
+   "texture_url": "assets/materials/yerim/YR-LC-010.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-LC-011",
@@ -2110,7 +2264,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1709",
    "image_url": "https://www.yerim.net/upload/product/2039376550_sH5aRVi0_20230427015048.jpg",
-   "sort": 1077
+   "sort": 1077,
+   "texture_url": "assets/materials/yerim/YR-LC-011.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PL-10",
@@ -2137,7 +2293,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1708",
    "image_url": "https://www.yerim.net/upload/product/2039376550_sH5aRVi0_20230427015111.jpg",
-   "sort": 1078
+   "sort": 1078,
+   "texture_url": "assets/materials/yerim/YR-PL-10.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PL-11",
@@ -2164,7 +2322,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1707",
    "image_url": "https://www.yerim.net/upload/product/2039376550_FVDZj7ag_20230427015134.jpg",
-   "sort": 1079
+   "sort": 1079,
+   "texture_url": "assets/materials/yerim/YR-PL-11.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PW-20",
@@ -2191,7 +2351,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1714",
    "image_url": "https://www.yerim.net/upload/product/2039376550_Fqga6IkD_20230427014857.jpg",
-   "sort": 1080
+   "sort": 1080,
+   "texture_url": "assets/materials/yerim/YR-PW-20.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PW-21",
@@ -2218,7 +2380,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1713",
    "image_url": "https://www.yerim.net/upload/product/2039376550_kKH1mUqW_20260304051512.jpg",
-   "sort": 1081
+   "sort": 1081,
+   "texture_url": "assets/materials/yerim/YR-PW-21.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PW-22",
@@ -2245,7 +2409,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1712",
    "image_url": "https://www.yerim.net/upload/product/2039376550_ZtwOV7Rm_20260304051556.jpg",
-   "sort": 1082
+   "sort": 1082,
+   "texture_url": "assets/materials/yerim/YR-PW-22.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PW-23",
@@ -2272,7 +2438,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1711",
    "image_url": "https://www.yerim.net/upload/product/2039376550_vEmxRUGg_20260304051629.jpg",
-   "sort": 1083
+   "sort": 1083,
+   "texture_url": "assets/materials/yerim/YR-PW-23.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-PW-24",
@@ -2299,7 +2467,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2186",
    "image_url": "https://www.yerim.net/upload/product/2039376550_W2Syb6UF_20260304051657.jpg",
-   "sort": 1084
+   "sort": 1084,
+   "texture_url": "assets/materials/yerim/YR-PW-24.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HC801",
@@ -2326,7 +2496,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2177",
    "image_url": "https://www.yerim.net/upload/product/2039376550_4IPOqbMB_20260304050643.jpg",
-   "sort": 1085
+   "sort": 1085,
+   "texture_url": "assets/materials/yerim/YR-HC801.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HC802",
@@ -2353,7 +2525,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2176",
    "image_url": "https://www.yerim.net/upload/product/2039376550_9mlKCIUi_20260304050727.jpg",
-   "sort": 1086
+   "sort": 1086,
+   "texture_url": "assets/materials/yerim/YR-HC802.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HP521",
@@ -2380,7 +2554,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2175",
    "image_url": "https://www.yerim.net/upload/product/2039376550_HsY0myPp_20260304050456.jpg",
-   "sort": 1087
+   "sort": 1087,
+   "texture_url": "assets/materials/yerim/YR-HP521.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HP522",
@@ -2407,7 +2583,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2174",
    "image_url": "https://www.yerim.net/upload/product/2039376550_085xlDSe_20260304050554.jpg",
-   "sort": 1088
+   "sort": 1088,
+   "texture_url": "assets/materials/yerim/YR-HP522.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HS004",
@@ -2434,7 +2612,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2179",
    "image_url": "https://www.yerim.net/upload/product/2039376550_6OhPxd7Y_20260304063650.jpg",
-   "sort": 1089
+   "sort": 1089,
+   "texture_url": "assets/materials/yerim/YR-HS004.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HS046",
@@ -2461,7 +2641,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2178",
    "image_url": "https://www.yerim.net/upload/product/2039376550_sAPYiV4y_20250709112503.jpg",
-   "sort": 1090
+   "sort": 1090,
+   "texture_url": "assets/materials/yerim/YR-HS046.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HW1019",
@@ -2488,7 +2670,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2171",
    "image_url": "https://www.yerim.net/upload/product/2039376550_x7NvQgq6_20260304050809.jpg",
-   "sort": 1091
+   "sort": 1091,
+   "texture_url": "assets/materials/yerim/YR-HW1019.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HW1064",
@@ -2515,7 +2699,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2170",
    "image_url": "https://www.yerim.net/upload/product/2039376550_yFnfkulE_20260304050938.jpg",
-   "sort": 1092
+   "sort": 1092,
+   "texture_url": "assets/materials/yerim/YR-HW1064.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HW1065",
@@ -2542,7 +2728,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2168",
    "image_url": "https://www.yerim.net/upload/product/2039376550_IjhARp0Q_20260304051028.jpg",
-   "sort": 1093
+   "sort": 1093,
+   "texture_url": "assets/materials/yerim/YR-HW1065.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HW1069",
@@ -2569,7 +2757,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2173",
    "image_url": "https://www.yerim.net/upload/product/2039376550_gABfHKdO_20260304051131.jpg",
-   "sort": 1094
+   "sort": 1094,
+   "texture_url": "assets/materials/yerim/YR-HW1069.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HW1077",
@@ -2596,7 +2786,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2169",
    "image_url": "https://www.yerim.net/upload/product/2039376550_8pwSj6q2_20260304051219.jpg",
-   "sort": 1095
+   "sort": 1095,
+   "texture_url": "assets/materials/yerim/YR-HW1077.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-HW1081",
@@ -2623,7 +2815,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2172",
    "image_url": "https://www.yerim.net/upload/product/2039376550_yuDeWYth_20260304051304.jpg",
-   "sort": 1096
+   "sort": 1096,
+   "texture_url": "assets/materials/yerim/YR-HW1081.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-100",
@@ -2650,7 +2844,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1832",
    "image_url": "https://www.yerim.net/upload/product/2039376550_MP2XCumg_20230503034755.jpg",
-   "sort": 1097
+   "sort": 1097,
+   "texture_url": "assets/materials/yerim/YR-MFB-100.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-200",
@@ -2677,7 +2873,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1831",
    "image_url": "https://www.yerim.net/upload/product/2039376550_MgsOqKnJ_20230503034805.jpg",
-   "sort": 1098
+   "sort": 1098,
+   "texture_url": "assets/materials/yerim/YR-MFB-200.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-302",
@@ -2704,7 +2902,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1841",
    "image_url": "https://www.yerim.net/upload/product/2039376550_wdOr8ADV_20230503034638.jpg",
-   "sort": 1099
+   "sort": 1099,
+   "texture_url": "assets/materials/yerim/YR-MFB-302.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-303",
@@ -2731,7 +2931,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1840",
    "image_url": "https://www.yerim.net/upload/product/2039376550_vTKpfis1_20230503034652.jpg",
-   "sort": 1100
+   "sort": 1100,
+   "texture_url": "assets/materials/yerim/YR-MFB-303.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-304",
@@ -2758,7 +2960,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1839",
    "image_url": "https://www.yerim.net/upload/product/2039376550_YXCZ9Ayi_20230503034705.jpg",
-   "sort": 1101
+   "sort": 1101,
+   "texture_url": "assets/materials/yerim/YR-MFB-304.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-400",
@@ -2785,7 +2989,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1838",
    "image_url": "https://www.yerim.net/upload/product/2039376550_u7ce9sN5_20230503034717.jpg",
-   "sort": 1102
+   "sort": 1102,
+   "texture_url": "assets/materials/yerim/YR-MFB-400.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-401",
@@ -2812,7 +3018,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1837",
    "image_url": "https://www.yerim.net/upload/product/2039376550_pVmXSDcb_20230503034730.jpg",
-   "sort": 1103
+   "sort": 1103,
+   "texture_url": "assets/materials/yerim/YR-MFB-401.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-402",
@@ -2839,7 +3047,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1836",
    "image_url": "https://www.yerim.net/upload/product/2039376550_dDf5acZz_20230503034742.jpg",
-   "sort": 1104
+   "sort": 1104,
+   "texture_url": "assets/materials/yerim/YR-MFB-402.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-500",
@@ -2866,7 +3076,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1835",
    "image_url": "https://www.yerim.net/upload/product/2039376550_zqYvFIdb_20230503034458.jpg",
-   "sort": 1105
+   "sort": 1105,
+   "texture_url": "assets/materials/yerim/YR-MFB-500.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-501",
@@ -2893,7 +3105,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1834",
    "image_url": "https://www.yerim.net/upload/product/2039376550_WOKCLsdG_20230503034506.jpg",
-   "sort": 1106
+   "sort": 1106,
+   "texture_url": "assets/materials/yerim/YR-MFB-501.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-502",
@@ -2920,7 +3134,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1833",
    "image_url": "https://www.yerim.net/upload/product/2039376550_EfyWJpds_20230503034516.jpg",
-   "sort": 1107
+   "sort": 1107,
+   "texture_url": "assets/materials/yerim/YR-MFB-502.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-503",
@@ -2947,7 +3163,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2197",
    "image_url": "https://www.yerim.net/upload/product/2039376550_oEcTUtjq_20250709031808.jpg",
-   "sort": 1108
+   "sort": 1108,
+   "texture_url": "assets/materials/yerim/YR-MFB-503.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-504",
@@ -2974,7 +3192,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2196",
    "image_url": "https://www.yerim.net/upload/product/2039376550_Hp5Zf8te_20250709031651.jpg",
-   "sort": 1109
+   "sort": 1109,
+   "texture_url": "assets/materials/yerim/YR-MFB-504.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-MFB-505",
@@ -3001,7 +3221,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2198",
    "image_url": "https://www.yerim.net/upload/product/2039376550_CfkTAVE0_20250709031909.jpg",
-   "sort": 1110
+   "sort": 1110,
+   "texture_url": "assets/materials/yerim/YR-MFB-505.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-LP-100",
@@ -3028,7 +3250,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1843",
    "image_url": "https://www.yerim.net/upload/product/2039376550_lT4w3BPc_20230503034615.jpg",
-   "sort": 1111
+   "sort": 1111,
+   "texture_url": "assets/materials/yerim/YR-LP-100.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-101",
@@ -3055,7 +3279,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1845",
    "image_url": "https://www.yerim.net/upload/product/2039376550_dQGVORkv_20230503034556.jpg",
-   "sort": 1112
+   "sort": 1112,
+   "texture_url": "assets/materials/yerim/YR-LP-101.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-200",
@@ -3082,7 +3308,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1847",
    "image_url": "https://www.yerim.net/upload/product/2039376550_86kxSC9X_20230503034537.jpg",
-   "sort": 1113
+   "sort": 1113,
+   "texture_url": "assets/materials/yerim/YR-LP-200.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LP-201",
@@ -3109,7 +3337,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1846",
    "image_url": "https://www.yerim.net/upload/product/2039376550_uKTEG6eN_20230503034546.jpg",
-   "sort": 1114
+   "sort": 1114,
+   "texture_url": "assets/materials/yerim/YR-LP-201.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LS-001",
@@ -3136,7 +3366,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1842",
    "image_url": "https://www.yerim.net/upload/product/2039376550_vDx1CmwN_20230503034624.jpg",
-   "sort": 1115
+   "sort": 1115,
+   "texture_url": "assets/materials/yerim/YR-LS-001.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-LS-002",
@@ -3163,7 +3395,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1844",
    "image_url": "https://www.yerim.net/upload/product/2039376550_wLFCs7fu_20230503034606.jpg",
-   "sort": 1116
+   "sort": 1116,
+   "texture_url": "assets/materials/yerim/YR-LS-002.jpg",
+   "tile_mm": 300
   },
   {
    "code": "YR-F200",
@@ -3189,7 +3423,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2211",
    "image_url": "https://www.yerim.net/upload/product/2039376550_b61l8xZh_20260331110707.jpg",
-   "sort": 1117
+   "sort": 1117,
+   "texture_url": "assets/materials/yerim/YR-F200.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-F303",
@@ -3215,7 +3451,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2210",
    "image_url": "https://www.yerim.net/upload/product/2039376550_m5kgdSYZ_20260331110620.jpg",
-   "sort": 1118
+   "sort": 1118,
+   "texture_url": "assets/materials/yerim/YR-F303.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-P01",
@@ -3241,7 +3479,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1919",
    "image_url": "https://www.yerim.net/upload/product/2039376550_5cwDruEW_20260331111330.jpg",
-   "sort": 1119
+   "sort": 1119,
+   "texture_url": "assets/materials/yerim/YR-P01.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-P02",
@@ -3267,7 +3507,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1918",
    "image_url": "https://www.yerim.net/upload/product/2039376550_Wd520yEQ_20260331111456.jpg",
-   "sort": 1120
+   "sort": 1120,
+   "texture_url": "assets/materials/yerim/YR-P02.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S100",
@@ -3293,7 +3535,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2226",
    "image_url": "https://www.yerim.net/upload/product/2039376550_bvOLGXQ3_20260402061357.jpg",
-   "sort": 1121
+   "sort": 1121,
+   "texture_url": "assets/materials/yerim/YR-S100.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S200",
@@ -3319,7 +3563,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2225",
    "image_url": "https://www.yerim.net/upload/product/2039376550_1LISplTb_20260402061315.jpg",
-   "sort": 1122
+   "sort": 1122,
+   "texture_url": "assets/materials/yerim/YR-S200.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S204",
@@ -3345,7 +3591,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2224",
    "image_url": "https://www.yerim.net/upload/product/2039376550_0s3YDvxQ_20260402061141.jpg",
-   "sort": 1123
+   "sort": 1123,
+   "texture_url": "assets/materials/yerim/YR-S204.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S208",
@@ -3371,7 +3619,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2223",
    "image_url": "https://www.yerim.net/upload/product/2039376550_eIgukx5M_20260402061052.jpg",
-   "sort": 1124
+   "sort": 1124,
+   "texture_url": "assets/materials/yerim/YR-S208.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S213",
@@ -3397,7 +3647,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2222",
    "image_url": "https://www.yerim.net/upload/product/2039376550_BVNxJ9q6_20260402060706.jpg",
-   "sort": 1125
+   "sort": 1125,
+   "texture_url": "assets/materials/yerim/YR-S213.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S250",
@@ -3423,7 +3675,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2213",
    "image_url": "https://www.yerim.net/upload/product/2039376550_hQp7TkYA_20260331110921.jpg",
-   "sort": 1126
+   "sort": 1126,
+   "texture_url": "assets/materials/yerim/YR-S250.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-S815",
@@ -3449,7 +3703,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2212",
    "image_url": "https://www.yerim.net/upload/product/2039376550_yFW7PbtR_20260331110828.jpg",
-   "sort": 1127
+   "sort": 1127,
+   "texture_url": "assets/materials/yerim/YR-S815.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-W01",
@@ -3475,7 +3731,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1925",
    "image_url": "https://www.yerim.net/upload/product/2039376550_1WXbvx5E_20240426033540.jpg",
-   "sort": 1128
+   "sort": 1128,
+   "texture_url": "assets/materials/yerim/YR-W01.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-W02",
@@ -3501,7 +3759,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1924",
    "image_url": "https://www.yerim.net/upload/product/2039376550_q9lH6htP_20240426033446.jpg",
-   "sort": 1129
+   "sort": 1129,
+   "texture_url": "assets/materials/yerim/YR-W02.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-W03",
@@ -3527,7 +3787,9 @@
    "grain": "v",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1923",
    "image_url": "https://www.yerim.net/upload/product/2039376550_Z07CF2QV_20240426033351.jpg",
-   "sort": 1130
+   "sort": 1130,
+   "texture_url": "assets/materials/yerim/YR-W03.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-100",
@@ -3553,7 +3815,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2219",
    "image_url": "https://www.yerim.net/upload/product/2039376550_5SMIilas_20260402125049.jpg",
-   "sort": 1131
+   "sort": 1131,
+   "texture_url": "assets/materials/yerim/YR-BP-100.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-101",
@@ -3579,7 +3843,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2220",
    "image_url": "https://www.yerim.net/upload/product/2039376550_BXUn4NuR_20260402124956.jpg",
-   "sort": 1132
+   "sort": 1132,
+   "texture_url": "assets/materials/yerim/YR-BP-101.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-21",
@@ -3605,7 +3871,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2215",
    "image_url": "https://www.yerim.net/upload/product/2039376550_DU5jbA47_20260331112241.jpg",
-   "sort": 1133
+   "sort": 1133,
+   "texture_url": "assets/materials/yerim/YR-BP-21.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-70",
@@ -3631,7 +3899,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2214",
    "image_url": "https://www.yerim.net/upload/product/2039376550_LaiTIFDh_20260331112130.jpg",
-   "sort": 1134
+   "sort": 1134,
+   "texture_url": "assets/materials/yerim/YR-BP-70.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-91",
@@ -3657,7 +3927,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1851",
    "image_url": "https://www.yerim.net/upload/product/2039376550_TmOErM0v_20230502053506.jpg",
-   "sort": 1135
+   "sort": 1135,
+   "texture_url": "assets/materials/yerim/YR-BP-91.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-92",
@@ -3683,7 +3955,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1850",
    "image_url": "https://www.yerim.net/upload/product/2039376550_REWjncBh_20230502053516.jpg",
-   "sort": 1136
+   "sort": 1136,
+   "texture_url": "assets/materials/yerim/YR-BP-92.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-93",
@@ -3709,7 +3983,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1849",
    "image_url": "https://www.yerim.net/upload/product/2039376550_r7LViIUt_20230502053525.jpg",
-   "sort": 1137
+   "sort": 1137,
+   "texture_url": "assets/materials/yerim/YR-BP-93.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-95",
@@ -3735,7 +4011,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1854",
    "image_url": "https://www.yerim.net/upload/product/2039376550_453TFrN1_20230502053431.jpg",
-   "sort": 1138
+   "sort": 1138,
+   "texture_url": "assets/materials/yerim/YR-BP-95.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BP-96",
@@ -3761,7 +4039,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=1852",
    "image_url": "https://www.yerim.net/upload/product/2039376550_1WnMsli6_20230502053451.jpg",
-   "sort": 1139
+   "sort": 1139,
+   "texture_url": "assets/materials/yerim/YR-BP-96.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BS-01",
@@ -3787,7 +4067,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2218",
    "image_url": "https://www.yerim.net/upload/product/2039376550_5RQdOBkI_20260331112527.jpg",
-   "sort": 1140
+   "sort": 1140,
+   "texture_url": "assets/materials/yerim/YR-BS-01.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BS-100",
@@ -3813,7 +4095,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2216",
    "image_url": "https://www.yerim.net/upload/product/2039376550_MKqld58u_20260331112343.jpg",
-   "sort": 1141
+   "sort": 1141,
+   "texture_url": "assets/materials/yerim/YR-BS-100.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BS-11",
@@ -3839,7 +4123,9 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2217",
    "image_url": "https://www.yerim.net/upload/product/2039376550_7192LQRs_20260331112438.jpg",
-   "sort": 1142
+   "sort": 1142,
+   "texture_url": "assets/materials/yerim/YR-BS-11.jpg",
+   "tile_mm": 600
   },
   {
    "code": "YR-BS-200",
@@ -3865,7 +4151,27 @@
    "grain": "none",
    "source_url": "https://www.yerim.net/kor/products/products-view.html?uid=2221",
    "image_url": "https://www.yerim.net/upload/product/2039376550_WKsdS5Qm_20260331112810.jpg",
-   "sort": 1143
+   "sort": 1143,
+   "texture_url": "assets/materials/yerim/YR-BS-200.jpg",
+   "tile_mm": 600
   }
- ]
+ ],
+ "textures": {
+  "generated_at": "2026-09-16",
+  "script": "scripts/fetch-yerim-textures.mjs",
+  "tile_px": 512,
+  "jpeg_quality": 82,
+  "tile_mm_by_type": {
+   "PP": 600,
+   "PVC": 600,
+   "MFB": 600,
+   "MFC": 600,
+   "Acryl": 300,
+   "Glass": 300,
+   "PET": 300,
+   "PET Matt": 300,
+   "PET Glossy": 300,
+   "UV": 300
+  }
+ }
 }
