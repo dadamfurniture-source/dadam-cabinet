@@ -175,6 +175,9 @@
       // ============================================================
       const BOM_SIMPLE_CATEGORY_RULES = {
         shoerack:  { label: '신발장', defaultD: 350, upperD: 295, shelfSpace: { min: 180, max: 350 } },
+        vanity:    { label: '화장대', defaultD: 500, upperD: 295, shelfSpace: null },
+        storage:   { label: '수납장', defaultD: 400, upperD: 295, shelfSpace: null },
+        warehouse: { label: '창고장', defaultD: 450, upperD: 295, shelfSpace: null },
       };
 
       /** 문서에 없어 붙박이장 규칙을 빌린 행의 비고 — simple-categories.md §6.5 목록과 같은 문구. */
