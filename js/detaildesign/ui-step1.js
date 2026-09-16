@@ -997,11 +997,19 @@
       function _drawerRulesOf(s) {
         const d = (s && s.drawer) || {};
         const railRaw = d.rail || (s && s.drawerRail);
-        return {
+        const GRADES = ['small', 'medium', 'large'];
+        // 2026-09-16: 전면 등급 — 서랍마다 소·중·대, 도어는 따로. 모르는 값은 버리고 규칙 파일 기본값에 맡긴다.
+        const grades = Array.isArray(d.grades)
+          ? d.grades.map((g) => (GRADES.includes(g) ? g : null)).filter((g) => g !== null)
+          : [];
+        const out = {
           rail: railRaw === 'ball' ? 'ball' : 'under',
           sakuri: !!d.sakuri,
           boxT: [15, 18].includes(Number(d.boxT)) ? Number(d.boxT) : 0,
         };
+        if (grades.length) out.grades = grades;
+        if (GRADES.includes(d.doorGrade)) out.doorGrade = d.doorGrade;
+        return out;
       }
 
       function _convertPlannerModules(payload, specs) {
@@ -1172,8 +1180,11 @@
               isFixed: false,
               _x: c.x,
             });
-            // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
+            // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께·전면 등급)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
             if (!isOpen && drawerAtBottom) out[out.length - 1].drawer = _drawerRulesOf(s);
+            // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
+            //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
+            if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
           });
         });
 

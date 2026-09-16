@@ -228,6 +228,33 @@ describe('서랍 규칙 블록 — 레일·사쿠리·서랍 자재 두께가 BO
     expect('drawer' in mod(doorOnly)).toBe(false);
   });
 
+  test('2026-09-16: 배치 높이와 전면 등급이 BOM 까지 닿아 배분식으로 재단된다', () => {
+    global.dlog = () => {};
+    const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+    const pl = payloadWith({ grades: ['small', 'small'] });
+    pl.modules[0].areaH = 870;                       // 플래너가 싣는 배치 높이
+    const modules = _convertPlannerModules(pl, SPECS).modules;
+    expect(modules[0].areaH).toBe(870);
+    expect(modules[0].drawer.grades).toEqual(['small', 'small']);
+    const item = { uniqueId: 1, categoryId: 'sink', name: '싱크대', w: 900, h: 2310, d: 650,
+      specs: Object.assign({}, SPECS, { handle: '찬넬 (목찬넬)', topSizes: [{ w: '900', d: '650' }] }), modules };
+    const rows = new MaterialExtractor().extract({ items: [item] }).materials;
+    // 영역 = (870 − 상판 12) − 다리발 150 − 30×2 = 648. 도어 대(2) + 소(1) + 소(1) = 4 버줌 → 324 · 162 · 162
+    expect(rows.find((r) => r.part === '도어')).toMatchObject({ h: 324 });
+    expect(rows.find((r) => r.part === '서랍도어')).toMatchObject({ h: 162, qty: 2 });
+  });
+
+  test('배치 높이를 안 싣는 옛 설계는 areaH 키가 없다', () => {
+    expect('areaH' in mod(payloadWith(undefined))).toBe(false);
+  });
+
+  test('모르는 등급은 버린다 — 규칙 파일 기본값에 맡긴다', () => {
+    expect(mod(payloadWith({ grades: ['small', 'xxx'] })).drawer.grades).toEqual(['small']);
+    expect('grades' in mod(payloadWith({ grades: [] })).drawer).toBe(false);
+    expect(mod(payloadWith({ doorGrade: 'medium' })).drawer.doorGrade).toBe('medium');
+    expect('doorGrade' in mod(payloadWith({ doorGrade: 'zzz' })).drawer).toBe(false);
+  });
+
   test('플래너 → 브리지 → BOM: 볼레일·사쿠리·18T 가 자재표까지 닿는다', () => {
     global.dlog = () => {};
     const { MaterialExtractor, HardwareExtractor } = require('../js/detaildesign/extractors.js');
