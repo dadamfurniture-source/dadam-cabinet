@@ -38,21 +38,23 @@ const SOURCES = [
   'js/detaildesign/data-constants.js',
   'js/detaildesign/extractors.js',
   'js/detaildesign/corner-engine.js',
-  'database/cd4-install-domain.sql',
-  'database/cd5-erp.sql',
   // W12-23: 접근 게이트 — 관리자 판정과 상세설계 승인 조회가 여기 산다.
   'js/admin-access.js',
   'js/detaildesign-access.js',
+  // 학습 데이터셋: 동의 체크박스와 저장 호출이 여기 산다.
+  'mypage.html',
 ];
 
 /** 여기 아래는 통째로 훑는다 — 파일이 늘어도 가드가 따라간다 */
 const SOURCE_DIRS = [
   'js/planner',            // P1 에서 생김
   'js/detaildesign',
+  'database',              // 스키마 SQL — 표·뷰·함수 이름을 마커로 쓴다
   'workers/workflow-api/src',
   'workers/workflow-api/src/templates',
   'workers/generate-api/src',
   'workers/generate-api/src/prompts',
+  'workers/dataset-api/src',
 ];
 
 /** CRLF 를 정규화한다 — 올바른 테스트도 이렇게 읽어야 마커가 맞는다 */
