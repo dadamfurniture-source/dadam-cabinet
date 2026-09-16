@@ -6,11 +6,13 @@
 
 | 계층 | 위치 | 지원 카테고리 | 지위 |
 |------|------|-------------|------|
-| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, wardrobe, fridge | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
+| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, wardrobe, fridge, **shoerack, vanity, storage, warehouse** (B3) | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
 | **MCP 서버** | `mcp-server/src/services/bom.service.ts` | sink, wardrobe, fridge, vanity, shoe, storage | **프로토타입**. MCP 도구(`generate_bom`·도면 렌더)만 호출하고, 상세설계·워커·문서 어느 생산 경로도 호출하지 않는다. 값이 정본과 다르다(18T·밴드 60·경첩 2) |
 | **설계 규칙** | `docs/design-rules/` | 6개 문서 (common, sink, wardrobe, fridge, etc.) | 규칙 원본 |
 
-> 신발장/화장대/수납장/창고장은 프론트엔드 BOM 미지원 (MCP 서버만 가능)
+> 신발장·화장대·수납장·창고장은 B3(계획 §5)부터 프론트엔드가 낸다 — `extractors.js extractSimpleBox`, 부재표는 §3-4 → `simple-categories.md` §6.
+> `categoryId` 는 `data-constants.js CATEGORIES` 그대로(`shoerack`·`vanity`·`storage`·`warehouse`); MCP 의 `shoe` 는 별개 이름이다.
+> 아일랜드(`island`)·도어교체(`door`)·비규격장(`custom`)은 아직 없다.
 >
 > **정본 선언 (2026-09, 계획 B0)** — 이 문서의 부재표·철물 규칙과 어긋나는 코드가 있으면
 > `extractors.js` 가 기준이고, 문서를 코드에 맞춘다. 표준 3종 출력은 `test-utils/bom-golden/*.golden.json`
@@ -292,6 +294,27 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 
 ---
 
+### 3-4. 신발장 · 화장대 · 수납장 · 창고장 (shoerack · vanity · storage · warehouse) — B3
+
+> 코드 위치: `extractors.js` `BOM_SIMPLE_CATEGORY_RULES` + `MaterialExtractor.extractSimpleBox`. 부재표 정본: `simple-categories.md` §6.
+> 골든: `test-utils/bom-golden/{shoerack,vanity,storage,warehouse}.golden.json` (`__tests__/bom-golden-simple.test.js`).
+
+네 카테고리는 싱크대와 같은 범용 워크스페이스(상부 + 하부 + 키큰장)를 쓰므로 **§3-1 상부장·하부장 표와 `sink.md` §5.1 키큰장 단 표를 그대로 탄다.**
+추출기는 하나이고 카테고리 차이는 상수뿐이다:
+
+| categoryId | 하부 깊이 폴백 (`mod.d` → `item.d` → 이 값) | 선반 기본 개수 (`shelfCount` 없을 때) |
+|------------|------|------|
+| shoerack 신발장 | 350 | 플래너 신발장 분배 180~350 (`planner-engine.js calcDefaultShelves`) — 705 → 2, 2190 → 11 |
+| vanity 화장대 | 500 | 싱크 규칙 상부 2 · 하부 1 · 키큰장 1 |
+| storage 수납장 | 400 | 싱크 규칙 |
+| warehouse 창고장 | 450 | 싱크 규칙 |
+
+싱크대와 다른 점 — 깊이 폴백(550 고정이 아니다), `shelfCount`·`doorCount` 를 존중(없으면 폴백 + `[확인 필요]` 비고: 도어 `round(W/450)` 은 붙박이장 준용),
+서랍 상자를 레일 길이로 환산(측판 = 레일 − 60 · 밑판 = 측판 + 9; D550 이면 싱크와 같은 440·449), 상판·코너 마감·개수대·쿡탑·후드 없음.
+철물(경첩·손잡이·브라켓)은 자재 행과 같은 함수(`bomSimpleHingeDoorsOf` · `bomSimpleShelfQtyOf`)로 센다. 빌린 규칙 목록은 `simple-categories.md` §6.5.
+
+---
+
 ## 4. 하드웨어 산출 규칙
 
 > 코드 위치: `detaildesign.html` HardwareExtractor 클래스, `docs/design-rules/common.md`
@@ -325,12 +348,15 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | ≤450mm | 450mm | 소프트클로징 |
 | >450mm | 500mm | 소프트클로징 |
 
+> 수량: 붙박이장은 모듈 `drawerCount` SET, 단순 카테고리(§3-4)도 서랍장마다 `drawerCount` SET (깊이는 자재 행과 같은 폴백 `bomSimpleDepthOf`).
+> 싱크대는 서랍장 모듈당 1 SET 로 과소다 — 골든에 묶여 있어 그대로 두고 계획 B2 에서 고친다.
+
 ### 4-3. 기타 하드웨어
 
 | 항목 | 규칙 |
 |------|------|
-| 핸들 | 도어 수량 = 핸들 수량 |
-| 다리발 | W≤600→4개, W≤1200→6개, W>1200→8개 |
+| 핸들 | 도어 수량 = 핸들 수량 (단순 카테고리는 자재 도어 행과 같은 함수 `bomSimpleHingeDoorsOf` 로 센다 — doorCount 폴백·서랍장 아래 여닫이 포함) |
+| 다리발 | W≤600→4개, W≤900→6개, W>900→8개 (`extractLegs` 실제 문턱). 싱크대 + 단순 카테고리(§3-4) 의 하부장. 단순 카테고리는 키큰장 단을 뺀다(좌대) — 싱크대는 골든에 묶여 옛 셈(단 포함) 그대로 |
 | 선반 브래킷 | 선반당 4개 (Φ5mm 핀 타입) |
 | 도어 댐퍼 | 도어당 2개 |
 

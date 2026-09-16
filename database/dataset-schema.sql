@@ -31,6 +31,23 @@ CREATE INDEX IF NOT EXISTS idx_collection_posts_design ON collection_posts (desi
 ALTER TABLE collection_posts ADD COLUMN IF NOT EXISTS consent_training BOOLEAN;
 ALTER TABLE generations      ADD COLUMN IF NOT EXISTS consent_training BOOLEAN;
 
+-- ③ collection_posts 에 updated_at 자동 갱신을 붙인다.
+--    지금까지는 INSERT 기본값뿐이라 UPDATE 를 해도 값이 그대로였다. Worker 는
+--    updated_at 워터마크로 증분을 읽으므로, 이게 없으면 **동의를 켠 뒤에도 영영
+--    수집되지 않는다** (동의 철회도 마찬가지). generations 와 같은 방식이다.
+CREATE OR REPLACE FUNCTION public.collection_posts_touch_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_collection_posts_updated_at ON collection_posts;
+CREATE TRIGGER trg_collection_posts_updated_at
+    BEFORE UPDATE ON collection_posts
+    FOR EACH ROW EXECUTE FUNCTION public.collection_posts_touch_updated_at();
+
 
 -- =============================================
 -- 2. dataset_samples — 레코드 한 줄 = 사진(또는 구조 라벨) 하나
@@ -248,3 +265,27 @@ WHERE needs_review = FALSE
   AND (license <> 'user-uploaded' OR (consent = TRUE AND label_source = 'human'));   -- 동의 + 사람 검수
 
 GRANT SELECT ON dataset_exportable TO authenticated;   -- RLS 는 밑의 표가 건다
+
+
+-- =============================================
+-- 7. dataset_ingest_state — Worker 가 "어디까지 읽었나" 를 적어 두는 한 줄
+--    (workers/dataset-api). 증분 수집의 워터마크다.
+--
+--    실패하면 워터마크를 올리지 않는다 — 다음 실행이 같은 구간을 다시 읽는다.
+--    처음부터 다시 읽히려면 watermark 를 '1970-01-01' 로 되돌리면 된다.
+-- =============================================
+CREATE TABLE IF NOT EXISTS dataset_ingest_state (
+    src_table   TEXT PRIMARY KEY,                      -- 'collection_posts' · 'generations'
+    watermark   TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z',   -- 여기까지의 updated_at 은 처리했다
+    last_run    TIMESTAMPTZ,
+    last_count  INT,
+    last_error  TEXT
+);
+
+ALTER TABLE dataset_ingest_state ENABLE ROW LEVEL SECURITY;
+
+-- Worker 는 service_role 이라 RLS 를 지나친다. 관리자는 화면에서 상태만 본다.
+DROP POLICY IF EXISTS "admins read ingest state" ON dataset_ingest_state;
+CREATE POLICY "admins read ingest state" ON dataset_ingest_state
+    FOR SELECT
+    USING (EXISTS (SELECT 1 FROM admin_roles WHERE user_id = auth.uid()));
