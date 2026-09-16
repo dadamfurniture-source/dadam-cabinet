@@ -242,16 +242,62 @@ describe('상판은 런에 한 장이다 — 모듈마다 그리지 않는다 (W
 
 // ── 4. 멤버십이 한 규칙이다 ────────────────────────────────────
 
-describe('modulesOfArea 는 areaOfModule 과 같은 규칙이다', () => {
+// 2026-09-16: 기대값을 areaOfModule 로 잡던 시험이었다. 그 함수는 **단을 가리지 않아**
+//   0~1800 상부장이 0~1200 하부 영역의 멤버가 되는 것을 정답으로 못박고 있었다.
+//   멤버십의 정본은 areaIdOfModule 이다 (areaId → 같은 단 겹침 → areaOfModule).
+describe('modulesOfArea 는 areaIdOfModule 과 같은 규칙이다', () => {
   test.each(FIXTURE_NAMES)('%s — 모든 몸통 모듈은 제 영역의 멤버다', (name) => {
     const p = bootLegacy(FIXTURES[name], 'member-' + name);
     const modulesOfArea = p.g('modulesOfArea');
-    const areaOfModule = p.g('areaOfModule');
+    const areaIdOfModule = p.g('areaIdOfModule');
+    const areas = p.g('areas') || [];
     (p.g('modules') || []).forEach((m) => {
       if (m.isFinishing) return;
-      const a = areaOfModule(m);
-      if (!a) return;                       // 영역 밖 모듈은 런 부재도 제 폭으로 그린다
+      const areaId = areaIdOfModule(m);
+      if (!areaId) return;                  // 영역 밖 모듈은 런 부재도 제 폭으로 그린다
+      const a = areas.find((x) => x.id === areaId);
       expect(modulesOfArea(a).map((x) => x.id)).toContain(m.id);
     });
+  });
+
+  test.each(FIXTURE_NAMES)('%s — 멤버는 영역과 같은 단이다', (name) => {
+    const p = bootLegacy(FIXTURES[name], 'member-sec-' + name);
+    const modulesOfArea = p.g('modulesOfArea');
+    (p.g('areas') || []).forEach((a) => {
+      if (a.isFinishing) return;
+      modulesOfArea(a).forEach((m) => expect(m.section).toBe(a.section));
+    });
+  });
+});
+
+// ── 5. 런 멤버십은 **같은 단(section)** 안에서만 ─────────────────
+//
+// 위 3·4 의 폭 검사는 구현의 modulesOfArea 로 기대값을 만든다 — 규칙이 통째로
+// 틀려도 같이 틀려서 통과한다. 여기서는 픽스처에서 읽은 **정답값**을 박는다.
+//
+// straight 의 하부 영역은 1200 · 1000 · 1400 이다. areaOfModule 은 단을 가리지
+// 않으므로(단 구분은 areaOfModuleBySection 의 몫), 0~1800 을 덮는 상부장이
+// 0~1200 하부 영역의 구성원으로 잡히면 걸레받이가 1800 으로 넓어져 옆 영역을
+// 600 침범한다. 멤버십은 파일의 정본 규칙 areaIdOfModule 을 따라야 한다.
+describe('런 멤버십은 같은 단 안에서만 — 상부장이 하부 걸레받이를 넓히지 않는다', () => {
+  const EXPECT_W = { 'lower-0': 1200, 'lower-1': 1000, 'lower-2': 1400 };
+
+  test('straight — 옛 설계(areaId 없음): 걸레받이 폭이 그 하부 영역 폭 그대로다', () => {
+    const p = bootLegacy(FIXTURES.straight, 'kick-section-straight');
+    assertLegacyShape(p);
+    const kicks = meshesOfKind(p.three, 'toe-kick');
+    expect(kicks.length).toBe(3);
+
+    const got = {};
+    kicks.forEach((k) => { got[k.userData.moduleId] = k.geometry.parameters.width; });
+    expect(got).toEqual(EXPECT_W);
+  });
+
+  test('straight — 상부장은 하부 영역의 구성원이 아니다', () => {
+    const p = bootLegacy(FIXTURES.straight, 'kick-section-members');
+    const areas = p.g('areas') || [];
+    const lower0 = areas.find((a) => a.id === 'area-lower-0');
+    const members = p.g('modulesOfArea')(lower0).map((m) => m.id);
+    expect(members).toEqual(['lower-0']);
   });
 });
