@@ -38,6 +38,12 @@ P2-5 그대로. 2D 정면도(`renderFrontView`)의 도어 rect 는 원래 `칸 �
 갭 없이 덮는다 — 원장이 2D 를 보지 않으므로 `planner-blind-door-width.test.js` 가 2D·3D 를 따로 잠근다. "멍장 정면 치수" 묶음은
 0 이고 새 항목은 없다. `buildPlannerPayload` 골든은 바이트 그대로.
 
+**런 부재 멤버십 (2026-09-16, `agent/planner-run-part-membership`) 뒤**: **254 건 그대로 — 원장은 움직이지 않는다.**
+걸레받이 폭이 NaN 이 되고 상판이 모듈마다 겹치던 버그(§4 아래 "런 부재 멤버십")를 고쳤지만, 이 원장의 픽스처는
+`bootPlanner3D` 가 `modules:false` + 전체 자동계산으로 만든 모듈이라 **전부 `areaId` 를 갖는다**. 버그는 `areaId` 가
+**없는** 옛 설계에서만 나타나므로 원장 픽스처에는 닿지 않는다 (§6 한계 참조). 그 경로는
+`__tests__/planner-run-part-geometry.test.js` 가 따로 잠근다.
+
 ## 1. 방법
 
 ### 1.1 3D 쪽 — `test-utils/scene-parts.js`
@@ -228,6 +234,26 @@ P1·P2 로 지워진 원인은 취소선 없이 "0 (P1)" / "0 (P2)" 로 남겨 �
 12. **마감재의 출처** (#12). 좌·우 휠라는 스펙에서 나온다. 계획 D 축이 "도면에 그린 마감재(finishings)" 를 정본으로 하면
     스펙 값은 폴백으로 내려야 한다.
 
+### 런 부재 멤버십 — **완료** (2026-09-16, `agent/planner-run-part-membership`, 시험 `__tests__/planner-run-part-geometry.test.js`)
+
+원장 건수는 그대로지만(위 §0 참조) 이 문서가 P3-10 "라인 단위 부재" 에서 전제하는 **"런에 한 장"** 이 옛 설계에서
+실제로는 지켜지지 않고 있었다 — 그것을 닫았다.
+
+`addToeKick`·`addTopPanel` 은 영역을 `areaOfModule(m)` 로 찾아 놓고 그 영역의 모듈은 `x.areaId === area.id` 로 다시
+모았다. `areaId` 가 없는 옛 설계에서는 **영역은 찾아지는데 멤버가 0명**이라:
+
+- 걸레받이 — `Math.min(...[])`·`Math.max(...[])` 가 ±Infinity 라 폭 −Infinity · 자리 NaN 인 상자가 three.js 로 들어가
+  페이지를 열 때마다 `computeBoundingSphere(): Computed radius is NaN` 이 떴다 (하부 모듈마다 BoxGeometry 1 + EdgesGeometry 1).
+- 상판 — "런의 첫 모듈" 이 `undefined` 라 가드가 못 걸리고 **모듈마다** 영역 전폭짜리 상판을 그려 겹쳤다.
+  폭이 `area.W` 라 NaN 이 안 돼 콘솔에는 안 보였다.
+
+`modulesOfArea(area)` 하나를 두고 두 빌더가 **파일의 정본 규칙 `areaIdOfModule`**(areaId → 같은 단 겹침 →
+단 구분 없는 `areaOfModule`)로 멤버를 모으게 했다. 처음 고칠 때는 `areaOfModule` 을 바로 썼는데, 그 함수는
+**단을 가르지 않아** 0~1800 상부장이 0~1200 하부 영역의 멤버가 되고 걸레받이가 1800 으로 넓어져 옆 영역을
+600 침범했다 (골든 straight, 2026-09-16 확인). 폭 검사는 구현의 `modulesOfArea` 로 기대값을 만들어 이 증상을
+못 잡았으므로, 픽스처에서 읽은 **정답값(1200 · 1000 · 1400)** 을 박은 시험을 따로 두었다.
+그리기만 바뀌므로 `buildPlannerPayload` 골든은 바이트 그대로다.
+
 ## 5. C1b 로 넘기는 것
 
 - 부재 모델 `part-model.js` 는 modules + structures + detail 에서 **이 문서의 family 이름**으로 부재를 내야 한다
@@ -245,3 +271,7 @@ P1·P2 로 지워진 원인은 취소선 없이 "0 (P1)" / "0 (P2)" 로 남겨 �
 - 도면에 놓은 마감재(EP·몰딩·휠라 모듈)와 두 칸 이상 셀 모듈, 알루미늄 찬넬, 도어 내림이 실제로 그려지는 배치.
 - 철물(다리발·경첩·레일)은 자재 원장 밖이다 (`HardwareExtractor`).
 - `thickness` 종류는 정의돼 있지만 지금은 0 건 — 두께가 다른 판은 치수도 달라 `dims` 로 잡힌다.
+- **옛 설계(`areaId` 없는 모듈)**: `bootPlanner3D` 는 `modules:false` + 전체 자동계산으로 부팅하므로 픽스처의 모듈에는
+  언제나 `areaId` 가 붙는다. `dadam_struct_modules_v1` 에 그대로 실린 옛 모듈(= `modulesFromFixture`, 골든 payload 시험이
+  쓰는 형태)은 이 원장이 보지 않는다 — 런 부재 폭 NaN 버그가 원장에 안 잡혔던 이유다.
+  그 경로는 `__tests__/planner-run-part-geometry.test.js` 가 잠근다.

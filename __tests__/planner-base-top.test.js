@@ -122,8 +122,14 @@ describe('상판은 배치 공간을 꽉 채운다', () => {
 
   test('런에 한 장만 그린다', () => {
     // 모듈마다 그리면 겹쳐 쌓인다.
-    expect(fn).toContain("const first = modules.find((x) => x.areaId === area.id && !x.isFinishing);");
-    expect(fn).toContain('if (first && first.id !== m.id) return;');
+    // 2026-09-16 (agent/planner-run-part-membership): 멤버십을 `x.areaId` 로 거르면
+    //   areaId 가 없는 옛 설계에서 런이 **비어** `first` 가 undefined 가 되고,
+    //   가드가 못 걸려 실제로 모듈마다 겹쳐 쌓였다 — areaOfModule 과 같은 규칙
+    //   (modulesOfArea) 으로 모으고, 빈 런이면 가드를 건너뛴다.
+    //   시험 `__tests__/planner-run-part-geometry.test.js` 가 그 동작을 잠근다.
+    expect(fn).toContain('const hosts = modulesOfArea(area);');
+    expect(fn).toContain('if (hosts.length && hosts[0].id !== m.id) return;');
+    expect(fn).not.toContain('x.areaId === area.id');
   });
 
   test('영역 중심에 놓는다 — 모듈 로컬 차이만큼 옮긴다', () => {
@@ -244,7 +250,13 @@ describe('걸레받이 (W12-41)', () => {
   test('런에 한 장 — 폭은 모듈 구간이다 (W12-43)', () => {
     // 영역 전폭으로 잡으면 바닥까지 내려오는 몰딩·휠라를 관통한다 (실측 18mm).
     // 상판은 마감재 **위**를 지나가므로 영역 전폭 그대로다.
-    expect(fn).toContain("const hosts = modules.filter((x) => x.areaId === area.id && !x.isFinishing);");
+    // 2026-09-16 (agent/planner-run-part-membership): 멤버십을 `x.areaId` 로 거르면
+    //   areaId 가 없는 옛 설계에서 런이 **비어** min/max 가 ±Infinity 가 되고
+    //   폭 −Infinity · 자리 NaN 인 상자가 three.js 로 들어갔다
+    //   (`computeBoundingSphere(): Computed radius is NaN`). areaOfModule 과 같은
+    //   규칙(modulesOfArea)으로 모으고, 빈 런이면 min/max 를 아예 하지 않는다.
+    //   시험 `__tests__/planner-run-part-geometry.test.js` 가 그 동작을 잠근다.
+    expect(fn).toContain('const hosts = modulesOfArea(area);');
     expect(fn).toContain('if (hosts.length && hosts[0].id !== m.id) return;');
     expect(fn).toContain('W = x1 - x0;');
     expect(fn).not.toContain('W = area.W;');
