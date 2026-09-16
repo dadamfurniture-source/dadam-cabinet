@@ -66,6 +66,54 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .warn { border: 1pt solid #a00; color: #a00; padding: 6pt 8pt; margin: 8pt 0; font-size: 9.5pt; }
 
+/* ── 작업지시서 v2 (B5) ─────────────────────────────────────── */
+table.compact th, table.compact td { padding: 2pt 3pt; font-size: 8.5pt; }
+.muted { color: #666; font-size: 9pt; }
+.sub-title { font-size: 10pt; font-weight: 700; margin: 8pt 0 2pt; border-bottom: 0.8pt solid #000; padding-bottom: 1pt; }
+.mono { font-family: 'Consolas', monospace; font-size: 8pt; word-break: break-all; }
+
+/* 표지 — 품목별 정면 렌더 */
+.render-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6pt; margin: 4pt 0 8pt; }
+.render-box { border: 0.4pt solid #000; padding: 4pt; text-align: center; font-size: 8.5pt; break-inside: avoid; }
+.render-box img { display: block; max-width: 100%; max-height: 58mm; object-fit: contain; margin: 0 auto 2pt; }
+.render-box .ph {
+  height: 34mm; display: flex; align-items: center; justify-content: center;
+  color: #666; border: 0.4pt dashed #999; margin-bottom: 2pt;
+}
+
+/* 색 스와치 칩 — 흑백 프린터에서도 코드·이름이 남도록 칩은 보조다 */
+.chip {
+  display: inline-block; width: 11pt; height: 11pt; border: 0.4pt solid #000; vertical-align: middle;
+  margin-right: 3pt; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.chip.none { background: repeating-linear-gradient(45deg, #fff 0 2pt, #bbb 2pt 3pt); }
+
+/* 엣지 면 도식 — 굵은 변이 밴딩 */
+.edge-svg { width: 22pt; height: 14pt; vertical-align: middle; margin-right: 2pt; }
+
+/* 시트별 재단표 — 배치 축소판 + 부재 표 나란히 */
+.cut-sheet { display: flex; gap: 8pt; align-items: flex-start; margin: 4pt 0 10pt; break-inside: avoid; page-break-inside: avoid; }
+.cut-sheet .cut-svg { flex: 0 0 36%; }
+.cut-sheet .cut-svg svg { width: 100%; height: auto; max-height: 150mm; border: 0.4pt solid #000; display: block; }
+.cut-sheet .cut-parts { flex: 1 1 auto; min-width: 0; }
+.cut-head { font-size: 9pt; margin: 6pt 0 2pt; }
+.cut-head b { margin-right: 6pt; }
+
+/* 조립 순서 체크 */
+table.check td.box { text-align: center; font-size: 12pt; width: 8%; }
+table.check td.blank { width: 12%; }
+
+/* 부재 라벨 부록 — A4 3×8 = 24장 (라벨 63×32mm) */
+.label-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 32mm; gap: 1mm; }
+.label {
+  border: 0.4pt dashed #888; padding: 1.5mm; display: flex; gap: 1.5mm; align-items: center;
+  overflow: hidden; break-inside: avoid; page-break-inside: avoid;
+}
+.label svg.qr { width: 24mm; height: 24mm; flex: 0 0 24mm; }
+.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; }
+.label .lt .pid { font-family: 'Consolas', monospace; font-size: 7pt; word-break: break-all; }
+.label .lt .dim { font-size: 10pt; font-weight: 700; }
+
 /* 화면에서는 A4 용지처럼 보이게 */
 @media screen {
   body { background: #525659; padding: 20px 0; }
