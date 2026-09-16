@@ -29,7 +29,90 @@
   "hardware": {
     "hinges_per_door": 2,
     "hinge_type": "soft-close",
-    "slide_type": "soft-close"
+    "slide_type": "soft-close",
+    "_source": "docs/design-rules/hardware.md (B2 철물·체결구 규칙 입력 양식) — 공장 값 미확정, null 은 빈칸",
+    "_asOf": null,
+    "hinge": {
+      "count_by_door_h": null,
+      "width_condition": null,
+      "boring_positions": null,
+      "door_h_basis": null,
+      "default_type": null,
+      "overlay_inset": null,
+      "damper": null,
+      "el_lift_up": null,
+      "sliding_door": null
+    },
+    "rail": {
+      "type": null,
+      "length_by_depth": null,
+      "qty_per_drawer": null,
+      "box_clearance_by_rail": null,
+      "drawer_width_clearance": null,
+      "box_depth": null,
+      "inner_drawer": null
+    },
+    "minifix_dowel": {
+      "side_x_top": null,
+      "side_x_bottom": null,
+      "side_x_shelf_fixed": null,
+      "side_x_divider": null,
+      "band_x_side": null,
+      "back_panel_fix": null,
+      "dowel_spec": null
+    },
+    "screw_nail_glue": {
+      "screw_body": null,
+      "screw_hinge_plate": null,
+      "screw_rail": null,
+      "nail_back_panel": null,
+      "nail_kick_channel": null,
+      "glue_edge": null,
+      "glue_back_panel": null
+    },
+    "shelf_pin": {
+      "pins_per_shelf": null,
+      "pin_spec": null,
+      "shelf_count_basis": null,
+      "wardrobe_fridge_shelves": null
+    },
+    "kick_clip_leg": {
+      "leg_count_by_w": null,
+      "leg_height": null,
+      "leg_scope": null,
+      "adjuster_leg": null,
+      "kick_clip_count": null,
+      "kick_height": null
+    },
+    "handle_channel": {
+      "handle_qty_basis": null,
+      "smartbar_width": null,
+      "channel_ep_size": null,
+      "channel_min_count": null,
+      "mid_notch": null,
+      "top_notch": null,
+      "drawer_front_max": null
+    },
+    "countertop": {
+      "thickness": null,
+      "material_by_thickness": null,
+      "width": null,
+      "depth": null,
+      "overhang": null,
+      "drip_edge": null,
+      "sink_cutout": null,
+      "cooktop_cutout": null,
+      "joint": null,
+      "backsplash": null
+    },
+    "pedestal": {
+      "height": null,
+      "box_parts": null,
+      "kick_board": null,
+      "sink_tall_pedestal": null,
+      "fridge_pedestal": null,
+      "fastening": null
+    }
   },
   "molding_clearance": {
     "width_min": 45,
