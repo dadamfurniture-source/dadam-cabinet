@@ -50,16 +50,32 @@ describe('drawerLayoutFor — 목찬넬 하부장의 도어 + 하부 서랍만',
     expect(p.errors).toEqual([]);
   });
 
-  test('하부장 기본(auto → 목찬넬) + 도어/서랍 → 레이아웃, 도어가 남는 높이', () => {
+  test('2026-09-16 배분식 — 배치 높이에서 상판·받침·목찬넬을 뺀 영역을 버줌으로 나눈다', () => {
     const L = fn(m, base());
     expect(L).not.toBeNull();
-    const bodyH = p.g('bodyHeightOf')(m, base());
+    const area = p.g('areaOfModule')(m);
+    const s0 = base();
+    // 영역 = (배치 H − 상판) − 다리발 − 30 × 목찬넬 개수
+    const expected = area.H - p.g('topTOf')(m, s0) - p.g('legHOf')(m, s0) - 30 * L.front.channelCount;
+    expect(L.front.area).toBe(expected);
     expect(L.fronts.map((f) => f.kind)).toEqual(['door', 'drawer', 'drawer']);
-    expect(L.fronts[1].h).toBe(200);
-    expect(L.fronts[2].h).toBe(200);
-    // 도어 = 몸통 − 상단 슬롯 30 − 갭 4 − 서랍 200 − 중간 슬롯 30 − 서랍 200
-    expect(L.fronts[0].h).toBe(bodyH - 30 - 4 - 200 - 30 - 200);
-    expect(L.fronts[L.fronts.length - 1].y1).toBe(bodyH);
+    // 기본 등급: 도어 대(2) · 서랍 중(2) → 2:2:2 균등
+    expect(L.fronts.map((f) => f.grade)).toEqual(['large', 'medium', 'medium']);
+    expect(L.fronts.reduce((s, f) => s + f.h, 0)).toBe(L.front.area);
+    // 전면 높이는 더 이상 s.drawerHeight 를 보지 않는다
+    const taller = fn(m, Object.assign(base(), { drawerHeight: 400 }));
+    expect(taller.fronts.map((f) => f.h)).toEqual(L.fronts.map((f) => f.h));
+  });
+
+  test('등급을 고르면 전면 높이가 버줌대로 갈린다 (소1 중2 대2)', () => {
+    const s0 = Object.assign(base(), { drawerCount: 3, drawer: { grades: ['small', 'small', 'medium'] } });
+    const L = fn(m, s0);
+    const [door, d1, d2, d3] = L.fronts.map((f) => f.h);
+    // 도어 대(2) + 소(1) + 소(1) + 중(2) = 6 버줌. 나머지 mm 는 마지막 전면이 먹으므로 2mm 오차를 둔다.
+    expect(d1).toBe(d2);
+    expect(door).toBe(d1 * 2);
+    expect(Math.abs(d3 - d1 * 2)).toBeLessThanOrEqual(2);
+    expect(door + d1 + d2 + d3).toBe(L.front.area);
   });
 
   test('중간 목찬넬은 서랍 1–2 사이 하나 (도어–서랍 사이는 갭 4)', () => {
@@ -89,11 +105,12 @@ describe('drawerLayoutFor — 목찬넬 하부장의 도어 + 하부 서랍만',
     expect(under.boxes.every((b) => b.h <= 120)).toBe(true);
   });
 
-  test('푸쉬·도어만·오픈 하부·서랍 0 이면 null — 예전 그대로 그린다', () => {
+  test('푸쉬·도어만·오픈 하부면 null — 예전 그대로 그린다', () => {
     expect(fn(m, Object.assign(base(), { handleType: 'push' }))).toBeNull();
     expect(fn(m, Object.assign(base(), { horizontalLayout: 'doorOnly' }))).toBeNull();
     expect(fn(m, Object.assign(base(), { bottomType: 'open' }))).toBeNull();
-    expect(fn(m, Object.assign(base(), { drawerHeight: 0 }))).toBeNull();
+    // 2026-09-16: drawerHeight 는 배분식에서 쓰지 않으므로 0 이어도 레이아웃이 나온다
+    expect(fn(m, Object.assign(base(), { drawerHeight: 0 }))).not.toBeNull();
     // 상부장은 목찬넬이 아니다 (도어 내림)
     expect(fn({ id: 'upper-0', section: 'upper', W: 600, H: 780, D: 320 }, base())).toBeNull();
   });
@@ -237,24 +254,32 @@ describe('정면도·미리보기가 3D·BOM 과 같은 배치를 그린다', ()
   }
   const previewLabels = (p) => [...p.document.querySelectorAll('#mpPreviewG text')].map((n) => n.textContent);
 
-  test('서랍 단수만큼 전면 칸을 그린다 — 예전엔 하부가 한 칸이라 3D 와 달랐다', () => {
+  test('서랍 단수만큼 전면 칸을 그린다 — 배분식이 낸 높이가 라벨에 붙는다', () => {
     const p = bootPlanner('mockup-structure.html', { search: '?design=mp1&item=1', storage: {} });
-    const { s } = pickLower(p);
-    Object.assign(s, { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 150, drawerCount: 3 });
+    const { m, s } = pickLower(p);
+    Object.assign(s, { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerCount: 3 });
     p.g('renderRightPanel')();
-    expect(previewLabels(p).filter((x) => /^서랍\d H=150$/.test(x))).toHaveLength(3);
+    const L = p.g('drawerLayoutFor')(m, s);
+    const want = L.fronts.filter((f) => f.kind === 'drawer').map((f, i) => `서랍${i + 1} H=${f.h}`);
+    expect(want).toHaveLength(3);
+    want.forEach((w) => expect(previewLabels(p)).toContain(w));
     expect(p.errors).toEqual([]);
   });
 
-  test('50 미만으로 쪼그라든 도어는 그리지 않고 경고를 띄운다', () => {
+  test('전면 등급 select 가 서랍마다·도어에 하나씩 뜬다', () => {
     const p = bootPlanner('mockup-structure.html', { search: '?design=mp2&item=1', storage: {} });
     const { s } = pickLower(p);
-    Object.assign(s, { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 200, drawerCount: 3 });
+    Object.assign(s, { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerCount: 3 });
     p.g('renderRightPanel')();
-    const labels = previewLabels(p);
-    expect(labels.filter((x) => /^서랍\d H=200$/.test(x))).toHaveLength(3);
-    expect(labels.some((x) => x === '도어')).toBe(false);
-    expect(p.document.getElementById('mpDirty').textContent).toMatch(/최소 50 미만/);
+    expect(p.document.getElementById('selDoorGrade')).not.toBeNull();
+    expect([...p.document.querySelectorAll('#drawerBody select[data-grade-idx]')]).toHaveLength(4);
+    // 초안만 바뀐다 — 적용해야 실제 구조에 남는다
+    const sel = p.document.getElementById('selDrawerGrade0');
+    sel.value = 'large';
+    sel.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    expect((p.g('drawerRulesOf')(s).grades || [])[0]).toBeUndefined();
+    p.g('applyModuleDraft')();
+    expect(p.g('drawerRulesOf')(s).grades[0]).toBe('large');
   });
 
   test('레이아웃이 없는 구성(도어만)은 예전 경로 그대로', () => {
@@ -280,10 +305,12 @@ describe('우측 패널 — 서랍 레일 선택, 최대 4단', () => {
   test('drawerRulesOf — 블록 정규화, 옛 drawerRail 폴백, boxT 는 15/18 만', () => {
     const p = bootPlanner('mockup-structure.html', { search: '?design=mn4&item=1', storage: {} });
     const f = p.g('drawerRulesOf');
-    expect(f({})).toEqual({ rail: 'under', sakuri: false, boxT: 0 });
-    expect(f({ drawerRail: 'ball' })).toEqual({ rail: 'ball', sakuri: false, boxT: 0 });   // 옛 평면 필드
-    expect(f({ drawer: { rail: 'ball', sakuri: true, boxT: 18 } })).toEqual({ rail: 'ball', sakuri: true, boxT: 18 });
-    expect(f({ drawer: { rail: 'x', boxT: 20 } })).toEqual({ rail: 'under', sakuri: false, boxT: 0 });
+    expect(f({})).toMatchObject({ rail: 'under', sakuri: false, boxT: 0, grades: null, doorGrade: null });
+    expect(f({ drawerRail: 'ball' })).toMatchObject({ rail: 'ball', sakuri: false, boxT: 0 });   // 옛 평면 필드
+    expect(f({ drawer: { rail: 'ball', sakuri: true, boxT: 18 } })).toMatchObject({ rail: 'ball', sakuri: true, boxT: 18 });
+    expect(f({ drawer: { rail: 'x', boxT: 20 } })).toMatchObject({ rail: 'under', sakuri: false, boxT: 0 });
+    // 2026-09-16: 전면 등급도 같은 블록에 담는다
+    expect(f({ drawer: { grades: ['small', 'large'], doorGrade: 'medium' } })).toMatchObject({ grades: ['small', 'large'], doorGrade: 'medium' });
   });
 
   test('서랍 단수 입력이 4 까지다', () => {
@@ -292,7 +319,12 @@ describe('우측 패널 — 서랍 레일 선택, 최대 4단', () => {
     expect(SRC).toMatch(/Math\.min\(4, parseInt\(e\.target\.value\) \|\| 1\)/);
   });
 
-  test('새 구조는 서랍 규칙 블록 {언더레일, 사쿠리 없음, 몸통 두께} 로 시작한다', () => {
-    expect(SRC).toMatch(/drawer: \{ rail: 'under', sakuri: false, boxT: 0 \}/);
+  test('새 구조는 서랍 규칙 블록 {언더레일, 사쿠리 없음, 몸통 두께, 등급 미지정} 로 시작한다', () => {
+    expect(SRC).toMatch(/drawer: \{ rail: 'under', sakuri: false, boxT: 0, grades: \[\], doorGrade: '' \}/);
+  });
+
+  test('서랍 전면 H 입력은 없어졌다 — 배분식이 정한다', () => {
+    expect(SRC).not.toContain('id="inpDrawerH"');
+    expect(SRC).toContain('전면 높이는 <b>배분식</b>이 정합니다');
   });
 });
