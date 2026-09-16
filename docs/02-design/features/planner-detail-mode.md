@@ -75,7 +75,7 @@
 
 - **D1 상세설계 왕복** (Design UI 도메인): 부모가 `PLANNER_DETAIL_CHANGE` 를 받아 `design_items.detail` 저장 + `specs.doorColorUpper/Lower` 미러,
   다시 열 때 `DADAM_DETAIL_SET` 으로 되돌려 주기. → **#637 에서 됐다.**
-- **D2 R1 실시간 재질**: 텍스처·광택·조명·색공간. → **아래 D2 절.** 텍스처만 남았다.
+- **D2 R1 실시간 재질**: 텍스처·광택·조명·색공간. → **아래 D2 절.** 텍스처도 2026-09-16 에 들어왔다.
 - **좌측 팔레트 · 부재 단위 칠하기**: → **아래 D4 절 (2026-09-16).** 팔레트는 우측으로 가고, 좌측은 칠할 범위가 됐다.
 - 정면도(2D SVG)에는 마감 색을 칠하지 않는다 — 3D 만.
 - BOM 이 `plannerFinishResolve` 를 읽는 것은 B 축. → **#638 (B1) 에서 됐다.**
@@ -84,8 +84,10 @@
 
 # D2 — 실시간 재질 (R1): 카탈로그 팔레트 + PBR(색·광택) + 환경광
 
-> 계획 §4.4 R1 · §5 D2. 사용자 결정(2026-09-15): **팔레트 정본 = 예림 LUX 144**, **색 + 광택만, 텍스처 없음**(훅만 준비),
+> 계획 §4.4 R1 · §5 D2. 사용자 결정(2026-09-15): **팔레트 정본 = 예림 LUX 144**, ~~색 + 광택만, 텍스처 없음~~(훅만 준비),
 > 톤이 없는 행은 **무광**, 상판은 C0 의 `countertop` 행. 구조 모드는 바이트 하나 달라지지 않는다 (I2).
+> 2026-09-16 (사용자 "색상에 무늬는 표현이 안되는 건가?"): **텍스처를 넣었다** — 예림 스와치 144장을 타일로 만들어
+> 저장소에 두고 `texture_url · tile_mm` 을 채웠다. 아래 "PBR 매핑 · 텍스처" 와 `yerim-textures.md`.
 
 ## 카탈로그 소스 (`js/planner/planner-catalog.js`)
 
@@ -130,10 +132,22 @@
 | sheen | 0 |
 | `name` / `userData` | `finish:{code}` / `{code, tone, hex}` |
 
-**텍스처 훅** (`forMesh(entry, mesh)`): `textureUrl` 이 없으면 — 지금은 전부 없다 — 로더를 만들지도 않고 공유 재질을 그대로 돌려준다(no-op).
-있으면 `TextureLoader` 로 한 번 읽어 캐시(`colorSpace = SRGBColorSpace`, `wrapS/T = RepeatWrapping`), mesh 마다 재질 사본에
+**텍스처** (`forMesh(entry, mesh)`, 2026-09-16 부터 실제 타일이 있다 — #PR):
+`textureUrl` 이 있으면 `TextureLoader` 로 한 번 읽어 캐시(`colorSpace = SRGBColorSpace`, `wrapS/T = RepeatWrapping`), mesh 마다 재질 사본에
 `repeat = 면(mm) / tile_mm`, 결이 세로(`grain:'v'`)인 자재를 누운 부재(선반·상판·지판)에 쓰면 90° 돌린다(`plannerMaterialsRepeatFor`).
 면 크기는 `BoxGeometry.parameters` 에서 — 선 부재는 가로×높이, 누운 부재는 가로×깊이(`plannerMaterialsFaceOf`).
+`textureUrl` 이 없는 항목(구 7×7 호환 코드 등)은 로더를 만들지도 않고 공유 재질 그대로다(no-op). 로더가 실패해도 공유 재질로 물러선다.
+mesh 사본(재질 + 그 `map`)은 `_perMesh` 에 쌓여 **`dispose()` 가 같이 놓는다** — 공유 재질만 놓으면 사본이 GPU 에 남는다.
+
+- **타일은 어디 있나**: `assets/materials/yerim/<code>.jpg` (512×512, JPEG q82, 144장 합계 3.6 MB). 저장소 안이라
+  플래너 페이지(GitHub Pages)와 **같은 출처** — CORS 도 Storage 자격증명도 필요 없다. `materials.texture_url` 이 이 상대경로를 담는다.
+- **다시 만들기**: `node scripts/fetch-yerim-textures.mjs --write-seed` → `node scripts/build-yerim-sql.mjs`.
+  파이프라인(내려받기 → 흰 테두리 잘라내기 → 512 타일 → 선형광 평균색)은 `docs/02-design/features/yerim-textures.md` 참조.
+- **`tile_mm`**: 우드 계열(PP·PVC·MFB·MFC) **600mm**, 무지(Acryl·Glass·PET·PET Matt·PET Glossy·UV) **300mm**.
+- **`color_hex` 의 자리**: 이제 **대체색**이다. 텍스처를 못 읽었을 때만 보인다. 값도 2026-09-16 에 잘라낸 타일 전체의
+  **선형광 평균**으로 다시 계산했다(전에는 sRGB 값을 그대로 평균해 어두운 쪽으로 치우쳤다).
+- ⚠ **저작권**: 타일은 예림 제품 사진을 잘라 저장소에 다시 올린 것이다. 공개 운영 전에 예림 동의를 받아야 한다.
+  빼는 것은 폴더를 지우고 `UPDATE materials SET texture_url = NULL WHERE vendor = 'yerim';` 이면 끝이다.
 
 ## 모드 진입·이탈이 바꾸는 것 (`PlannerDetail.applyScene`)
 
@@ -156,14 +170,19 @@
 ## 시험
 
 - `planner-catalog.test.js`: 행 → 항목/그룹, 폴백(local·builtin), 캐시(TTL·force·낡은 캐시·깨진 캐시), 슬롯 필터, 검색, 클라이언트 선택.
-- `planner-materials.test.js`: tone 별 파라미터·행 값 우선, 캐시·dispose, sRGB→linear, 텍스처 no-op / 있을 때 repeat·회전(three.cjs).
+- `planner-materials.test.js`: tone 별 파라미터·행 값 우선, 캐시·dispose, sRGB→linear, 텍스처 no-op / 있을 때 repeat·회전·색공간,
+  로더 실패 시 공유 재질로 물러서기, `dispose` 가 mesh 사본까지 놓기 (three.cjs).
+- `materials-yerim-seed.test.js` · `materials-yerim-textures-sql.test.js`: 시드/갱신 SQL 의 멱등성·무파괴, 144 코드 1:1,
+  `texture_url` 이 가리키는 타일 파일이 실제로 저장소에 있는지.
 - `planner-detail-mode.test.js` D2 절: 그룹 렌더·슬롯 필터·검색·접힘 유지·loadCatalog 갈아 끼우기, enter/exit 의 renderer·scene·조명 복원,
   PBR 스왑과 `_origMaterial` 복원, I2. D0 시험은 손대지 않았다(팔레트 머리 `카탈로그 7×10` 그대로).
 - `planner-assets.test.js`: 새 스크립트 2개의 순서(finish → catalog·materials → detail, store 뒤), 전역 이름 충돌 없음, `?v=38.8` 통일.
 
 ## 미룬 것 (D2 시점)
 
-- **텍스처 시드**: `materials.texture_url · tile_mm` 이 전부 null. 실제 자재 타일(512~1024px, Storage `materials/`) **[확인 필요]** — 훅만 있다.
+- ~~**텍스처 시드**: `materials.texture_url · tile_mm` 이 전부 null~~ → 2026-09-16 에 됐다 (예림 144종, 저장소 안 타일).
+  남은 것: 타일이 **이음매 없는(seamless)** 타일은 아니다 — 스와치 사진을 그대로 잘라 썼으므로 `repeat` 가 2 를 넘는 큰 면에서는
+  이음이 보일 수 있다. 우드 결의 방향(`grain`)도 여전히 이름으로 추정한 값이다 **[확인 필요]**.
 - 정면도(2D SVG)는 여전히 마감 색을 칠하지 않는다.
 - D3 스냅샷 저장(R2), D4 렌더 품질(그림자·벽·바닥).
 - `materials` 표의 anon `select` RLS 가 막혀 있으면 팔레트는 호환 그룹만 보인다(`폴백`) — 배포 후 확인.
