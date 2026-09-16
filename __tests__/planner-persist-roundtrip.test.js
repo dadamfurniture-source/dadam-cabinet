@@ -160,16 +160,18 @@ describe('개별 모듈 패널 조작은 적용해야 저장된다 (W12-29 → 2
     expect(reboot(p).g('getStructure')(m.id).horizontalLayout).toBe('doorTopDrawerBottom');
   });
 
-  test('하부 영역 높이', () => {
+  test('서랍 전면 높이는 입력이 아니라 배분식이 정한다 (2026-09-16)', () => {
     const { p, m, doc } = panel();
     const sel = doc.getElementById('selHLayout');
     sel.value = 'doorTopDrawerBottom';
     sel.onchange({ target: sel });
-    const inp = p.document.getElementById('inpDrawerH');
-    inp.value = '250';
-    inp.onchange({ target: inp });
     p.g('applyModuleDraft')();
-    expect(reboot(p).g('getStructure')(m.id).drawerHeight).toBe(250);
+    // 전면 H 입력은 없어졌다
+    expect(p.document.getElementById('inpDrawerH')).toBeNull();
+    const s = p.g('getStructure')(m.id);
+    const L = p.g('drawerLayoutFor')(m, s);
+    expect(L).not.toBeNull();
+    expect(L.fronts.reduce((x, f) => x + f.h, 0)).toBe(L.front.area);
   });
 
   test('영역 타입', () => {

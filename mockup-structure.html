@@ -645,7 +645,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       drawerHeight: 200,       // 하부 서랍 H (mm)
       // 2026-09-15: 서랍 규칙 — 레일·사쿠리·서랍 자재 두께를 한 블록으로 따로 저장한다.
       //   브리지가 이 블록을 BOM 모듈 `drawer` 로 그대로 넘긴다 (extractors drawerRulesOf). boxT 0 = 몸통 두께를 따른다.
-      drawer: { rail: 'under', sakuri: false, boxT: 0 },
+      //   2026-09-16: grades 는 서랍마다 전면 등급('small'|'medium'|'large'), doorGrade 는 도어 등급.
+      //   비어 있으면 규칙 파일 기본값(서랍 중 · 도어 대)을 쓴다.
+      drawer: { rail: 'under', sakuri: false, boxT: 0, grades: [], doorGrade: '' },
       areaTypes: ['door'],     // 길이 = verticalCount (상부 영역)
       areaDirections: ['left'],  // 도어 열림 방향 (길이 = verticalCount)
       // W9-95: 영역별 폭 (불균등 분할 — 가전 X 정밀 분할 시 사용)
@@ -2783,14 +2785,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function drawerLayoutFor(m, s) {
     if (!s || !isWoodChannel(m, s)) return null;
     if (s.horizontalLayout !== 'doorTopDrawerBottom' || (s.bottomType || 'drawer') !== 'drawer') return null;
-    const drawerH = Number(s.drawerHeight) || 0;
-    if (drawerH <= 0) return null;
     const rules = (typeof DadamDrawerRules !== 'undefined') ? DadamDrawerRules : (window.DadamDrawerRules || null);
     if (!rules) return null;
-    const n = Math.max(1, Math.min(rules.DRAWER_RULES.MAX_COUNT, parseInt(s.drawerCount, 10) || 1));
-    const fronts = [{ kind: 'door' }];
-    for (let i = 0; i < n; i++) fronts.push({ kind: 'drawer', h: drawerH });
-    return rules.layoutDrawerModule({ H: bodyHeightOf(m, s), T: BODY_T, fronts, rail: drawerRulesOf(s).rail });
+    const R = rules.DRAWER_RULES;
+    const n = Math.max(1, Math.min(R.MAX_COUNT, parseInt(s.drawerCount, 10) || 1));
+    const dr = drawerRulesOf(s);
+    // 2026-09-16: 전면 배분식 — 배치(영역) 높이에서 상판·받침·목찬넬(30×개수)을 뺀 영역을
+    //   버줌(소1 중2 대2)으로 나눈다. 기준은 **모듈 높이가 아니라 배치 높이**다 (사장님 확정).
+    //   BOM(extractors drawerLayoutOf)과 같은 함수를 쓰므로 2D·3D·자재표가 같은 숫자를 낸다.
+    const area = areaOfModule(m);
+    const fronts = [{ kind: 'door', grade: dr.doorGrade || undefined }];
+    for (let i = 0; i < n; i++) fronts.push({ kind: 'drawer', grade: (dr.grades && dr.grades[i]) || undefined });
+    return rules.layoutByGrades({
+      areaH: (area && Number(area.H)) || Number(m.H) || 0,
+      topT: topTOf(m, s), legH: legHOf(m, s), pedestalH: pedestalHOf(m, s),
+      T: BODY_T, fronts, rail: dr.rail,
+    });
   }
 
   /**
@@ -2799,11 +2809,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function drawerRulesOf(s) {
     const d = (s && s.drawer) || {};
+    // 2026-09-16: 전면 등급 — 서랍마다 소·중·대, 도어는 따로 (규칙 파일이 기본값을 정한다).
+    const grades = Array.isArray(d.grades) ? d.grades.slice() : null;
     const railRaw = d.rail || (s && s.drawerRail);
     return {
       rail: railRaw === 'ball' ? 'ball' : 'under',
       sakuri: !!d.sakuri,
       boxT: [15, 18].includes(Number(d.boxT)) ? Number(d.boxT) : 0,
+      grades,
+      doorGrade: d.doorGrade || null,
     };
   }
 
@@ -3373,6 +3387,32 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (revert) { revert.disabled = !d.dirty; revert.onclick = () => revertModuleDraft(); }
   }
 
+  /**
+   * 2026-09-16: 전면 등급 행 — 도어와 서랍마다 소·중·대 를 고른다. 오른쪽에 배분식이 낸 mm 를 그대로 보여준다.
+   *   버줌 소1 중2 대2 (규칙 파일). 중과 대는 전면 높이가 같고 속 박스만 다르다.
+   */
+  function drawerGradeRowsHtml(m, s) {
+    const L = drawerLayoutFor(m, s);
+    if (!L) return '';
+    const R = DadamDrawerRules.DRAWER_RULES;
+    const opts = (sel) => ['small', 'medium', 'large']
+      .map((g) => `<option value="${g}" ${sel === g ? 'selected' : ''}>${R.FRONT_GRADE_LABEL[g]} (버줌 ${R.FRONT_WEIGHT[g]})</option>`).join('');
+    let html = `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:10px;color:var(--text-dim);font-weight:600">`
+      + `전면 등급 · 영역 ${L.front.area} = ${L.front.base}(배치 ${L.front.areaH} − 상판) − 받침 ${L.front.support} − ${R.SLOT}×목찬넬 ${L.front.channelCount}</div>`;
+    let di = 0;
+    L.fronts.forEach((f, i) => {
+      const isDoor = f.kind === 'door';
+      const label = isDoor ? '도어' : `서랍${++di}`;
+      const id = isDoor ? 'selDoorGrade' : `selDrawerGrade${di - 1}`;
+      html += `<div class="row">
+          <label>${label}</label>
+          <select id="${id}" data-grade-idx="${isDoor ? -1 : di - 1}">${opts(f.grade)}</select>
+          <span style="font-size:10px;color:#888;font-family:monospace">${f.h}mm</span>
+        </div>`;
+    });
+    return html;
+  }
+
   /** 구성에 서랍이 있는가 — 하부 서랍 또는 서랍 칸. 서랍 섹션(단수·규칙)은 이때만 그린다. */
   function moduleHasDrawer(s) {
     const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
@@ -3471,12 +3511,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </select>
       </div>
       ${s.horizontalLayout === 'doorTopDrawerBottom' ? `
-        <div class="row">
-          <label>서랍 전면 H (mm)</label>
-          <input type="number" min="50" max="${m.H-50}" step="10" id="inpDrawerH" value="${s.drawerHeight}">
-        </div>
         <div style="font-size:10px;color:#888;line-height:1.4">
-          서랍 <b>한 장</b>의 전면 높이입니다. 단수를 곱한 만큼 아래를 차지하고, 남는 높이가 위 도어가 됩니다.
+          2026-09-16: 전면 높이는 <b>배분식</b>이 정합니다 — 배치 높이에서 상판·받침·목찬넬을 뺀 영역을
+          서랍 섹션의 소·중·대 버줌으로 나눕니다. 높이를 직접 넣지 않습니다.
         </div>
       ` : ''}
     `;
@@ -3506,6 +3543,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           <input type="checkbox" id="chkDrawerSakuri" ${drawerRulesOf(s).sakuri?'checked':''}>
           <span style="font-size:10px;color:#888">앞뒷판 −18 · 우라 앞뒷판+20</span>
         </div>
+        ${drawerGradeRowsHtml(m, s)}
         <div style="font-size:10px;color:#888;line-height:1.4">
           서랍 1단마다 전후판 2장·측판 2장·밑판 1장이 자재로 잡힙니다. 최대 4단.
           목찬넬이면 서랍 사이에 중간 목찬넬(90×40 따내기)이 최소 수로 들어가고, 박스는 그 사이 존에 레일 여유를 빼고 들어가는 소·중·대가 됩니다.
@@ -3526,13 +3564,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.horizontalLayout = e.target.value;
       draftChanged('#selHLayout');
     };
-    const inpDr = document.getElementById('inpDrawerH');
-    if (inpDr) inpDr.onchange = (e) => {
-      const v = parseInt(e.target.value) || 200;
-      s.drawerHeight = Math.max(50, Math.min(m.H - 50, v));
-      e.target.value = s.drawerHeight;
-      draftChanged('#inpDrawerH');
-    };
 
     // CD-2: 서랍 단수 — 예전엔 지정할 수단이 없어 브리지가 항상 1단으로 넘겼다.
     // 1단마다 전후판 2·측판 2·밑판 1 이 잡히므로 BOM 수량에 직접 영향을 준다.
@@ -3548,6 +3579,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (selBoxT) selBoxT.onchange = (e) => setDrawerRule({ boxT: Number(e.target.value) || 0 }, '#selDrawerBoxT');
     const chkSakuri = document.getElementById('chkDrawerSakuri');
     if (chkSakuri) chkSakuri.onchange = (e) => setDrawerRule({ sakuri: !!e.target.checked }, '#chkDrawerSakuri');
+    // 2026-09-16: 전면 등급 — 도어는 doorGrade, 서랍은 grades[i]
+    const selDoorG = document.getElementById('selDoorGrade');
+    if (selDoorG) selDoorG.onchange = (e) => setDrawerRule({ doorGrade: e.target.value }, '#selDoorGrade');
+    document.querySelectorAll('#drawerBody select[data-grade-idx]').forEach((el) => {
+      const idx = Number(el.dataset.gradeIdx);
+      if (idx < 0) return;
+      el.onchange = (e) => {
+        const grades = (drawerRulesOf(s).grades || []).slice();
+        grades[idx] = e.target.value;
+        setDrawerRule({ grades }, `#${el.id}`);
+      };
+    });
     const inpDrC = document.getElementById('inpDrawerCount');
     if (inpDrC) inpDrC.onchange = (e) => {
       const v = Math.max(1, Math.min(4, parseInt(e.target.value) || 1));
@@ -5749,6 +5792,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         //
         // **멍장일 때만 싣는다.** 모든 모듈에 null 을 붙이면 코너가 없는 배치의
         // payload 까지 바뀐다 — 코너 없는 배치는 예전과 바이트 동일해야 한다.
+        // 2026-09-16: 서랍 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 모듈 높이가 아니다.
+        //   브리지를 타고 BOM 모듈 `areaH` 로 간다. 영역을 못 찾으면 싣지 않는다 (BOM 이 totalH 로 떨어진다).
+        const ownArea = areaOfModule(m);
+        if (ownArea && Number(ownArea.H) > 0) out.areaH = Number(ownArea.H);
         if (m.blind) out.blind = m.blind;
         return out;
       }),
