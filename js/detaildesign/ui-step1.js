@@ -281,6 +281,7 @@
         _syncStep2Mount();
         if (selectedItems.length > 0) renderBookmarks();
         _renderStep2ItemSelect();
+        _pbwSyncPlacement(); // 브리지 경고 배너 — 툴바 아래로
         // W9-1: fullscreen reflow 후 iframe overlay 위치 재계산 (designWorkspace 가 100vh)
         setTimeout(() => {
           document.querySelectorAll('[id^="__planner-overlay-"]').forEach((overlay) => {
@@ -303,6 +304,7 @@
         // W9-1: Step 3 진입 시 fullscreen 해제 (BOM 보고서는 외곽 필요)
         document.body.classList.remove('step2-fullscreen');
         document.body.classList.remove('step2-native');
+        _pbwSyncPlacement(); // 브리지 경고 배너 — 보고서 위로
       }
 
       function backToStep2() {
@@ -313,6 +315,7 @@
         // W9-1: Step 2 복귀 시 fullscreen 재활성
         // W11-9: 카테고리에 맞는 모드로 복귀 (붙박이장/냉장고장은 네이티브)
         _applyStep2Chrome(_currentStep2Item());
+        _pbwSyncPlacement(); // 브리지 경고 배너 — 툴바 아래로
       }
 
       function proceedToBOM() {
@@ -1317,6 +1320,13 @@
 
         dlog('[Planner→BOM] 모듈 반영', { item: item.labelName, before, after: modules.length, upper, lower });
         if (warnings.length) console.warn('[Planner→BOM] 경고:', warnings.join(' / '));
+        // 2026-09-16: 콘솔·토스트만으로는 못 본다 — 화면에 남는 배너 (+ BOM 버튼·3번 점 배지).
+        // 배너는 부가 UI 다 — 못 그려도 반영·산출을 막지 않는다 (바깥 try 가 alert 로 바꿔 버리므로 여기서 삼킨다).
+        try {
+          _showBridgeWarnings(warnings, _plannerScopeParams(item));
+        } catch (e) {
+          console.error('[Planner→BOM] 경고 배너 표시 실패:', e);
+        }
 
         // 무엇이 반영됐는지 화면에서 보이게 한다 — 실패/이상을 조용히 넘기지 않기 위해.
         _showPlannerSummary(
@@ -1343,6 +1353,236 @@
         el.textContent = full;
         document.body.appendChild(el);
         setTimeout(() => el.remove(), warnings && warnings.length ? 9000 : 4000);
+      }
+
+      // ============================================================
+      // 2026-09-16: 플래너 → 상세설계 브리지 경고 배너 (pbw)
+      //
+      // _convertPlannerModules 가 내는 경고(자동계산 전 통짜 · 멍 구간 미인식 ·
+      // 350mm 미만 잔여 제외 …)는 console.warn 과 몇 초 뒤 사라지는 토스트로만 나가
+      // 사용자가 사실상 못 봤다. BOM 이 실제와 달라지는 원인이므로 화면에 남는
+      // 배너로 보여 준다. console.warn 은 그대로 둔다.
+      //
+      //  - 컨테이너 #plannerBridgeWarnings 는 JS 로 만든다 (detaildesign.html 은 손대지 않는다).
+      //    Step 2(planner/native 모드)에서는 #step2Toolbar 형제로 두고 툴바 바로 아래에
+      //    fixed 로 띄운다 (overlay z-index:100 위). PLANNER_DONE / 툴바 "BOM 산출" 은
+      //    반영 직후 곧바로 Step 3 로 가므로 Step 2 에만 두면 결국 못 본다 —
+      //    Step 3 에서는 #step3-content 의 보고서(#step3-report-area) 위로 옮긴다.
+      //  - 심각도: 자동계산을 다시 돌려야 없어지는 것(자동계산 전 통짜 · 멍 구간 ·
+      //    멍장 폭 / 셀 폭 불일치) = 경고, 그 밖(350mm 미만 제외 · 마감 스펙) = 안내.
+      //  - 닫기(✕)는 설계+품목 단위(_plannerScopeParams) 로 sessionStorage 에 경고 묶음의
+      //    서명을 기억한다. 경고 내용이 바뀌면 서명이 달라져 다시 뜬다.
+      //  - 건수는 툴바 "BOM 산출" 버튼과 스테퍼 3번 점에 배지로 미러한다.
+      //
+      // __tests__/designui-bridge-warnings.test.js 가 아래 PBW_ID 상수부터 _appendV2Payload
+      // 직전까지 잘라 평가한다 — 이 블록은 document / sessionStorage 말고는 바깥 전역을
+      // 직접 참조하지 않는다 (backToStep2 는 typeof 로 확인). 다른 하네스(planner-bridge-roundtrip)
+      // 도 변환기와 함께 이 블록을 잘라 가므로 여기에 그 슬라이스 마커 문자열을 그대로 적지 않는다.
+      // ============================================================
+      const PBW_ID = 'plannerBridgeWarnings';
+      const PBW_STYLE_ID = 'pbw-style';
+      const PBW_STORAGE_PREFIX = 'pbw:dismissed:';
+      /** 자동계산을 다시 돌려야 없어지는 경고 — 그 밖은 안내 */
+      const PBW_WARN_PATTERNS = ['자동계산 전', '멍 구간', '멍장 폭', '셀 폭 합'];
+      const PBW_HINT_WARN = '구조 단계에서 ⚡ 전체 자동계산 후 다시 넘기기 — 🎨 배치를 고쳤다면 구조에서 ⚡ 를 다시 돌려야 셀이 맞습니다';
+      const PBW_HINT_INFO = '안내만 있습니다 — 그대로 산출해도 됩니다. 잔여 구간·마감재는 사양(스펙)에서 확인하세요';
+      /** 품목(scope)별 마지막 경고 묶음 — 품목을 바꾸면 그 품목 것으로 다시 그린다 */
+      const _pbwByScope = {};
+
+      function _pbwScopeKey(scope) {
+        const s = scope || {};
+        return `${s.design || 'local'}:${s.item || 'bootstrap'}`;
+      }
+
+      /** 경고 묶음의 서명 — 순서가 달라도 같은 내용이면 같은 값 */
+      function _pbwSignature(warnings) {
+        return (warnings || []).map(String).slice().sort().join('\n');
+      }
+
+      /** 'warn'(경고) | 'info'(안내) */
+      function _pbwSeverity(text) {
+        const t = String(text || '');
+        if (PBW_WARN_PATTERNS.some((p) => t.includes(p))) return 'warn';
+        return t.includes('자동계산') ? 'warn' : 'info';
+      }
+
+      function _pbwEscape(s) {
+        return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+      }
+
+      function _pbwStorageGet(key) {
+        try { return sessionStorage.getItem(PBW_STORAGE_PREFIX + key); } catch (e) { return null; }
+      }
+      function _pbwStorageSet(key, val) {
+        try { sessionStorage.setItem(PBW_STORAGE_PREFIX + key, val); } catch (e) { /* 저장소 없음 — 이번 화면에서만 닫힌다 */ }
+      }
+
+      /** 배너·배지 스타일 — 한 번만 주입. 전부 .pbw- 접두 */
+      function _pbwEnsureStyle() {
+        if (document.getElementById(PBW_STYLE_ID)) return;
+        const st = document.createElement('style');
+        st.id = PBW_STYLE_ID;
+        st.textContent = `
+          #${PBW_ID} { display: none; box-sizing: border-box; font-size: 13px; line-height: 1.55; color: #3b2f1e;
+            background: #fff7e6; border: 1px solid #f0c36d; }
+          /* Step 2: 툴바(44px) 바로 아래, 플래너 overlay(z-index:100) 위 */
+          body.step2-fullscreen #${PBW_ID}, body.step2-native #${PBW_ID} { display: block; position: fixed;
+            top: calc(var(--v5-header, 88px) + 44px); left: 0; right: 0; z-index: 101;
+            border-width: 0 0 1px; padding: 8px 14px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); max-height: 40vh; overflow: auto; }
+          /* Step 3: 보고서 위, 문서 흐름 안 */
+          #step3-content #${PBW_ID} { display: block; position: static; border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; }
+          .pbw-head { display: flex; align-items: center; gap: 10px; }
+          .pbw-title { font-weight: 700; flex: 1; }
+          .pbw-close { border: 0; background: transparent; color: #8a6d3b; font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+          .pbw-close:hover { background: rgba(0, 0, 0, .06); color: #3b2f1e; }
+          .pbw-list { list-style: none; margin: 6px 0 0; padding: 0; }
+          .pbw-item { display: flex; align-items: flex-start; gap: 6px; padding: 2px 0; }
+          .pbw-icon { flex: none; }
+          .pbw-sev { flex: none; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-top: 2px; }
+          .pbw-warn .pbw-sev { background: #fde3c8; color: #b45309; }
+          .pbw-info .pbw-sev { background: #dbeafe; color: #1d4ed8; }
+          .pbw-warn .pbw-text { color: #7c2d12; }
+          .pbw-hint { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #f0c36d; color: #6b5330; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+          .pbw-hint-label { font-weight: 700; }
+          .pbw-back { display: none; border: 1px solid #b45309; background: #fff; color: #b45309; font-size: 12px; padding: 3px 10px; border-radius: 6px; cursor: pointer; }
+          .pbw-in-step3 .pbw-back { display: inline-block; }
+          .pbw-back:hover { background: #fde3c8; }
+          .pbw-badge { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; padding: 0 5px; margin-left: 6px;
+            border-radius: 9px; background: #f59e0b; color: #1c1a18; font-size: 11px; font-weight: 700; text-align: center; vertical-align: middle; }
+          .pbw-badge-host { position: relative; }
+          .step-dot .pbw-badge { position: absolute; top: -8px; right: -10px; margin: 0; }
+        `;
+        (document.head || document.body).appendChild(st);
+      }
+
+      /**
+       * 배너를 지금 단계에 맞는 자리에 둔다.
+       *   Step 3 표시 중 → #step3-content 안, 보고서(#step3-report-area) 바로 위
+       *   그 밖         → #step2Toolbar 의 형제(툴바 바로 다음) — CSS 가 fixed 로 띄운다
+       */
+      function _pbwPlace(el) {
+        if (!el) return;
+        const step3 = document.getElementById('step3-content');
+        const inStep3 = !!step3 && step3.style.display === 'block';
+        if (inStep3) {
+          const anchor = document.getElementById('step3-report-area');
+          if (anchor && anchor.parentNode === step3) {
+            if (el.nextSibling !== anchor || el.parentNode !== step3) step3.insertBefore(el, anchor);
+          } else if (el.parentNode !== step3) {
+            step3.insertBefore(el, step3.firstChild);
+          }
+          el.classList.add('pbw-in-step3');
+          return;
+        }
+        const toolbar = document.getElementById('step2Toolbar');
+        const host = toolbar && toolbar.parentNode ? toolbar.parentNode : document.body;
+        const wantBefore = toolbar ? toolbar.nextSibling : null;
+        if (el.parentNode !== host || (toolbar && el.previousSibling !== toolbar)) host.insertBefore(el, wantBefore);
+        el.classList.remove('pbw-in-step3');
+      }
+
+      /** 툴바 "BOM 산출" 버튼과 스테퍼 3번 점에 건수 배지 (0 이면 제거) */
+      function _pbwUpdateBadges(count, warnings) {
+        const hosts = [];
+        const toolbar = document.getElementById('step2Toolbar');
+        if (toolbar) {
+          const bomBtn = toolbar.querySelector('button.primary');
+          if (bomBtn) hosts.push(bomBtn);
+        }
+        const dot = document.getElementById('step-dot-3');
+        if (dot) hosts.push(dot);
+        const title = (warnings || []).join('\n');
+        hosts.forEach((host) => {
+          let badge = host.querySelector('.pbw-badge');
+          if (!count) {
+            if (badge) badge.remove();
+            host.classList.remove('pbw-badge-host');
+            return;
+          }
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'pbw-badge';
+            host.appendChild(badge);
+          }
+          badge.textContent = String(count);
+          badge.title = `플래너 → 상세설계 확인 사항 ${count}건\n${title}`;
+          host.classList.add('pbw-badge-host');
+        });
+      }
+
+      /** scope 의 경고 묶음으로 배너를 그린다 (닫힌 묶음·0건이면 배너와 배지를 없앤다) */
+      function _pbwRender(scope) {
+        const key = _pbwScopeKey(scope);
+        const warnings = _pbwByScope[key] || [];
+        const sig = _pbwSignature(warnings);
+        const dismissed = warnings.length > 0 && _pbwStorageGet(key) === sig;
+        const show = warnings.length > 0 && !dismissed;
+        _pbwUpdateBadges(show ? warnings.length : 0, warnings);
+
+        let el = document.getElementById(PBW_ID);
+        if (!show) {
+          if (el) el.remove();
+          return null;
+        }
+        _pbwEnsureStyle();
+        if (!el) {
+          el = document.createElement('div');
+          el.id = PBW_ID;
+          el.className = 'pbw-banner';
+          el.setAttribute('role', 'alert');
+        }
+        el.dataset.scope = key;
+
+        const items = warnings.map((w) => ({ text: String(w), sev: _pbwSeverity(w) }));
+        const warnCount = items.filter((i) => i.sev === 'warn').length;
+        el.innerHTML =
+          `<div class="pbw-head">` +
+            `<span class="pbw-title">플래너 → 상세설계 확인 사항 (${warnings.length})</span>` +
+            `<button type="button" class="pbw-close" aria-label="닫기" title="닫기 — 경고 내용이 바뀌면 다시 표시됩니다">✕</button>` +
+          `</div>` +
+          `<ul class="pbw-list">` +
+            items.map((i) =>
+              `<li class="pbw-item pbw-${i.sev}">` +
+                `<span class="pbw-icon" aria-hidden="true">${i.sev === 'warn' ? '⚠️' : 'ℹ️'}</span>` +
+                `<span class="pbw-sev">${i.sev === 'warn' ? '경고' : '안내'}</span>` +
+                `<span class="pbw-text">${_pbwEscape(i.text)}</span>` +
+              `</li>`).join('') +
+          `</ul>` +
+          `<div class="pbw-hint">` +
+            `<span class="pbw-hint-label">다시 확인:</span>` +
+            `<span class="pbw-hint-text">${warnCount ? PBW_HINT_WARN : PBW_HINT_INFO}</span>` +
+            `<button type="button" class="pbw-back">← 설계(플래너)로 돌아가기</button>` +
+          `</div>`;
+
+        el.querySelector('.pbw-close').addEventListener('click', () => {
+          _pbwStorageSet(key, sig);
+          _pbwRender(scope);
+        });
+        el.querySelector('.pbw-back').addEventListener('click', () => {
+          if (typeof backToStep2 === 'function') backToStep2();
+        });
+        _pbwPlace(el);
+        return el;
+      }
+
+      /**
+       * _applyPlannerResult 가 부른다 — 이 품목(scope)의 경고 묶음을 기억하고 배너를 그린다.
+       * 빈 배열이면 배너·배지를 지운다.
+       */
+      function _showBridgeWarnings(warnings, scope) {
+        _pbwByScope[_pbwScopeKey(scope)] = (warnings || []).map(String);
+        return _pbwRender(scope);
+      }
+
+      /** 품목 전환 뒤 — 그 품목의 묶음으로 다시 그린다 (없으면 배너를 치운다) */
+      function _pbwSync(scope) {
+        return _pbwRender(scope);
+      }
+
+      /** 단계 이동 뒤 배너 자리만 다시 맞춘다 (경고 묶음은 그대로) */
+      function _pbwSyncPlacement() {
+        const el = document.getElementById(PBW_ID);
+        if (el) _pbwPlace(el);
       }
 
       function _appendV2Payload(payload) {
@@ -2112,6 +2352,7 @@
         currentItemId = item.uniqueId;
         _applyStep2Chrome(item);
         if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
+        _pbwSync(_plannerScopeParams(item)); // 브리지 경고 배너 — 이 품목의 것으로
       }
 
       // 스크롤/리사이즈 시 오버레이 위치 동기화

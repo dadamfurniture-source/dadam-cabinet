@@ -152,11 +152,158 @@ const sinkCorner = {
   ],
 };
 
-const FIXTURES = { sink15, sink18, sinkCorner, wardrobe, fridge };
+// ============================================================
+// B3: 단순 상자 카테고리 4종 (simple-categories.md §6) — 싱크대와 같은 범용 워크스페이스라 모듈 모양은
+// ui-workspace.js addStorageModule/addModuleAtGap(pos upper|lower · type storage · w/h/d · isDrawer/drawerCount ·
+// doorCount 는 팝업에서 고른 때만) · addTallModule(type tall, doorCount 1) 을 따랐고, 플래너 브리지가 더하는
+// isOpen · shelfCount · heightParts 도 한 번씩 건다. 부재표 가지는 extractSimpleBox 주석과 같다.
+// ============================================================
+
+/**
+ * 신발장 — 상부 2 + 하부 3(일반·서랍장·오픈선반), 목찬넬, 좌우 휠라 60, 깊이 350.
+ *
+ * 걸리는 가지:
+ *   u1  doorCount 미지정 → round(900/450)=2 [확인 필요], shelfCount 미지정 → 신발장 분배 180~350: 705 → 2 [확인 필요]
+ *   u2  doorCount 1 · shelfCount 3 명시 → 비고 없음
+ *   l1  doorCount 미지정 → 2, 선반 분배 708 → 2, W≥800 → 처짐방지 2 (목찬넬 −70)
+ *   l2  서랍장 500×서랍2, D350 → 레일 350: 측판 290·밑판 299, 전후판 428 ≤ 600 → 하단보강 없음,
+ *       여닫이 도어 708−440−30=238 > 50 → 1장, 목찬넬 120
+ *   l3  오픈(doorCount 0 · isOpen) 인데 shelfCount 3 명시 → 선반 3, 도어 없음
+ *   EP  상몰딩 1500(≤2000 → 4면), 걸레받이 1800×145, 목찬넬 전면·지면, 휠라 좌·우
+ *   철물 다리발 6+4+4, 레일 350 ×2, 브라켓 (2+3+2+0+3)×4, 경첩은 자재 행의 도어 수·높이와 같은 셈
+ */
+const shoerack = {
+  categoryId: 'shoerack',
+  w: 1800, h: 2310, d: 350,
+  specs: {
+    layoutShape: 'I',
+    bodyThickness: 15,
+    lowerH: 870, upperH: 720, sinkLegHeight: 150, topThickness: 12, moldingH: 60,
+    upperDoorOverlap: 15,
+    handle: '찬넬 (목찬넬)',
+    finishLeftType: 'Filler', finishLeftWidth: 60,
+    finishRightType: 'Filler', finishRightWidth: 60,
+    doorColorUpper: '화이트', doorFinishUpper: '무광',
+    doorColorLower: '화이트', doorFinishLower: '무광',
+  },
+  modules: [
+    { id: 'u1', type: 'storage', name: '상부장', pos: 'upper', w: 900, h: 705, d: 295, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'u2', type: 'storage', name: '상부장', pos: 'upper', w: 600, h: 705, d: 295, doorCount: 1, shelfCount: 3, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 900, h: 708, d: 350, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'l2', type: 'storage', name: '서랍장', pos: 'lower', w: 500, h: 708, d: 350, isDrawer: true, drawerCount: 2, isEL: false, isFixed: false },
+    { id: 'l3', type: 'storage', name: '오픈선반', pos: 'lower', w: 400, h: 708, d: 350, doorCount: 0, isOpen: true, shelfCount: 3, isDrawer: false, isEL: false },
+  ],
+};
+
+/**
+ * 화장대 — 몸통 18T, 손잡이 '찬넬'(목찬넬 아님), 우측 마감 None, 깊이 500.
+ *
+ * 걸리는 가지:
+ *   18T  W−2T = W−36, 뒷판 (W−36)×(H−18), 도어는 그대로 18T MDF
+ *   목찬넬 아님 → 처짐방지 −70 없음, EP 목찬넬 없음, 서랍장 목찬넬 120 은 서랍 규칙이라 그대로
+ *   u2  shelfCount 0 명시 → 선반 없음 (기본 2 를 타지 않는다)
+ *   l1  서랍장 800×서랍3, D500 → 레일 500: 측판 440·밑판 449 (싱크와 같다), 전후판 722 > 600 → 하단보강,
+ *       여닫이 도어 708−660−30=18 ≤ 50 → 없음
+ *   l2  doorCount 1, shelfCount 미지정 → 싱크 규칙 하부 1 [확인 필요]
+ *   EP  우측 None → 휠라(우) 없음
+ *   [확인 필요] 거울장·상판은 규칙이 없어 내지 않는다 (simple-categories.md §6.5)
+ */
+const vanity = {
+  categoryId: 'vanity',
+  w: 1400, h: 2310, d: 500,
+  specs: {
+    layoutShape: 'I',
+    bodyThickness: 18,
+    lowerH: 870, upperH: 720, sinkLegHeight: 150, topThickness: 12, moldingH: 60,
+    upperDoorOverlap: 15,
+    handle: '찬넬',
+    finishLeftType: 'Filler', finishLeftWidth: 60,
+    finishRightType: 'None', finishRightWidth: 0,
+    doorColorUpper: '화이트', doorFinishUpper: '무광',
+    doorColorLower: '화이트', doorFinishLower: '무광',
+  },
+  modules: [
+    { id: 'u1', type: 'storage', name: '상부장', pos: 'upper', w: 800, h: 705, d: 295, doorCount: 2, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'u2', type: 'storage', name: '상부장', pos: 'upper', w: 600, h: 705, d: 295, doorCount: 1, shelfCount: 0, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'l1', type: 'storage', name: '서랍장', pos: 'lower', w: 800, h: 708, d: 500, isDrawer: true, drawerCount: 3, isEL: false, isFixed: false },
+    { id: 'l2', type: 'storage', name: '하부장', pos: 'lower', w: 600, h: 708, d: 500, doorCount: 1, isDrawer: false, isEL: false, isFixed: false },
+  ],
+};
+
+/**
+ * 수납장 — 통짜 키큰장 + 하부 2 + 상부 2, 목찬넬, 좌우 휠라, 깊이 400.
+ *
+ * 걸리는 가지:
+ *   t1  통짜 키큰장(heightParts 없음 → 'single'): 좌대 상자 + 상몰딩 + 목찬넬 그 단에, shelfCount 4 명시,
+ *       도어 2 · H−30 (목찬넬 단). 라인 폭(걸레받이·목찬넬)에서 뺀다
+ *   l2  서랍장 900×서랍1, D400 → 레일 450: 측판 390·밑판 399, 전후판 828 > 600 → 하단보강,
+ *       서랍 1개 → 전판 250, 여닫이 도어 708−220−30=458 → 2장
+ *   l1·u1·u2  doorCount 2 명시, shelfCount 미지정 → 싱크 규칙(상부 2·하부 1) [확인 필요]
+ *   EP  상몰딩 1800 ≤ 2000 → 4면, 걸레받이 1800(키큰장 600 제외)
+ *   철물 다리발은 키큰장 단을 뺀다 (좌대), 레일 450 ×1
+ */
+const storage = {
+  categoryId: 'storage',
+  w: 2400, h: 2310, d: 400,
+  specs: {
+    layoutShape: 'I',
+    bodyThickness: 15,
+    lowerH: 870, upperH: 720, sinkLegHeight: 150, topThickness: 12, moldingH: 60,
+    upperDoorOverlap: 15,
+    handle: '찬넬 (목찬넬)',
+    finishLeftType: 'Filler', finishLeftWidth: 60,
+    finishRightType: 'Filler', finishRightWidth: 60,
+    doorColorUpper: '화이트', doorFinishUpper: '무광',
+    doorColorLower: '화이트', doorFinishLower: '무광',
+  },
+  modules: [
+    { id: 't1', type: 'tall', name: '키큰장(TL)', pos: 'lower', w: 600, h: 2190, d: 400, doorCount: 2, shelfCount: 4, elCount: 0, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 900, h: 708, d: 400, doorCount: 2, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'l2', type: 'storage', name: '서랍장', pos: 'lower', w: 900, h: 708, d: 400, isDrawer: true, drawerCount: 1, isEL: false, isFixed: false },
+    { id: 'u1', type: 'storage', name: '상부장', pos: 'upper', w: 900, h: 705, d: 295, doorCount: 2, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'u2', type: 'storage', name: '상부장', pos: 'upper', w: 900, h: 705, d: 295, doorCount: 2, isDrawer: false, isEL: false, isFixed: false },
+  ],
+};
+
+/**
+ * 창고장 — 플래너 브리지 모양의 키큰장 3단 스택 + 하부 1 + 상부 1, 좌측 몰딩·우측 EP 20, 깊이 450.
+ *
+ * 걸리는 가지:
+ *   planner-x-0/1/2  heightParts 로 하부단(좌대·목찬넬·H−30)·중간단(H−4)·상부단(상몰딩·H−4) 이 갈린다 (sink.md §5.1),
+ *                    shelfCount 1/2/0 명시 (0 은 선반 없음)
+ *   l1  1200×2D, D450 그대로(mod.d 없음 → item.d 450), shelfCount 미지정 → 1 [확인 필요]
+ *   u1  1200×2D, shelfCount 1 명시
+ *   EP  몰딩(좌) 60 · EP(우) 20 · 걸레받이 1200(스택 800 제외)
+ *   철물 경첩은 단별 도어 H(bomTallTierDoorH), 다리발은 스택을 뺀 1200 → 8
+ */
+const warehouse = {
+  categoryId: 'warehouse',
+  w: 2000, h: 2310, d: 450,
+  specs: {
+    layoutShape: 'I',
+    bodyThickness: 15,
+    lowerH: 870, upperH: 720, sinkLegHeight: 150, topThickness: 12, moldingH: 60,
+    upperDoorOverlap: 15,
+    handle: '찬넬 (목찬넬)',
+    finishLeftType: 'Molding', finishLeftWidth: 60,
+    finishRightType: 'EP', finishRightWidth: 20,
+    doorColorUpper: '화이트', doorFinishUpper: '무광',
+    doorColorLower: '화이트', doorFinishLower: '무광',
+  },
+  modules: [
+    { id: 'planner-x-0', type: 'tall', name: '키큰장', pos: 'lower', w: 800, h: 750, totalH: 810, heightParts: { pedestalH: 60, moldingH: 0 }, d: 450, doorCount: 2, is2door: true, shelfCount: 1 },
+    { id: 'planner-x-1', type: 'tall', name: '키큰장', pos: 'lower', w: 800, h: 780, totalH: 780, heightParts: { pedestalH: 0, moldingH: 0 }, d: 450, doorCount: 2, is2door: true, shelfCount: 2 },
+    { id: 'planner-x-2', type: 'tall', name: '키큰장', pos: 'lower', w: 800, h: 600, totalH: 660, heightParts: { pedestalH: 0, moldingH: 60 }, d: 450, doorCount: 2, is2door: true, shelfCount: 0 },
+    { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 1200, h: 708, doorCount: 2, isDrawer: false, isEL: false, isFixed: false },
+    { id: 'u1', type: 'storage', name: '상부장', pos: 'upper', w: 1200, h: 705, d: 295, doorCount: 2, shelfCount: 1, isDrawer: false, isEL: false, isFixed: false },
+  ],
+};
+
+const FIXTURES = { sink15, sink18, sinkCorner, wardrobe, fridge, shoerack, vanity, storage, warehouse };
 
 /** 추출기 입력(`exportDesign()` 모양). 픽스처를 깊은 복사해 추출기가 원본을 건드려도 서로 새지 않게 한다. */
 function designOf(fixture) {
   return { appVersion: 'golden', items: [JSON.parse(JSON.stringify(fixture))] };
 }
 
-module.exports = { FIXTURES, sink15, sink18, sinkCorner, wardrobe, fridge, designOf };
+module.exports = { FIXTURES, sink15, sink18, sinkCorner, wardrobe, fridge, shoerack, vanity, storage, warehouse, designOf };
