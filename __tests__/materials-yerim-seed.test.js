@@ -6,6 +6,7 @@
  *   - 파괴 문장 없음 (I6: 카탈로그는 더하기만)
  *   - 시드 JSON(database/seed/yerim-lux.json)과 SQL 의 코드가 1:1 이고, 각 코드는 정확히 한 번
  *   - 코드 접두사 'YR-' 라 기존 PET-OAK-M 체계와 겹치지 않는다
+ *   - (2026-09-16) texture_url·tile_mm 이 144행 모두에 실려 있고, 가리키는 타일 파일이 실제로 있다
  */
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +24,7 @@ const statements = SQL
 describe('materials-yerim-lux-seed.sql — 멱등성 · 안전성', () => {
   test('ALTER TABLE 은 전부 ADD COLUMN IF NOT EXISTS', () => {
     const alters = statements.filter((s) => /^ALTER TABLE/i.test(s));
-    expect(alters).toHaveLength(4);
+    expect(alters).toHaveLength(6);   // vendor·series·source_url·image_url + texture_url·tile_mm
     for (const s of alters) expect(s).toMatch(/ADD COLUMN IF NOT EXISTS/);
   });
 
@@ -68,6 +69,30 @@ describe('시드 데이터', () => {
       else expect(i.slot).toEqual(['door', 'drawer_front']);
       expect(i.source_url).toMatch(/^https:\/\/www\.yerim\.net\//);
     }
+  });
+
+  test('144행 모두 texture_url·tile_mm 이 있고 타일 파일이 실제로 있다', () => {
+    for (const i of SEED.items) {
+      expect(i.texture_url).toBe(`assets/materials/yerim/${i.code}.jpg`);
+      expect([300, 600]).toContain(i.tile_mm);
+      expect(fs.existsSync(path.join(ROOT, i.texture_url))).toBe(true);
+    }
+    // 우드 계열(결이 보이는 시트)은 600mm, 무지 시트는 300mm — type 하나에 값 하나다.
+    const byType = new Map();
+    for (const i of SEED.items) {
+      if (byType.has(i.type)) expect(byType.get(i.type)).toBe(i.tile_mm);
+      else byType.set(i.type, i.tile_mm);
+    }
+    for (const t of ['PP', 'PVC', 'MFB', 'MFC']) expect(byType.get(t)).toBe(600);
+    for (const t of ['Acryl', 'Glass', 'PET', 'PET Matt', 'PET Glossy', 'UV']) expect(byType.get(t)).toBe(300);
+  });
+
+  test('SQL 이 texture_url·tile_mm 열을 INSERT 에 싣는다', () => {
+    expect(SQL).toMatch(/image_url, texture_url, tile_mm, sort, sort_order\)/);
+    expect(SQL).toMatch(/v\.image_url, v\.texture_url, v\.tile_mm, v\.sort, v\.sort/);
+    expect(SQL).toMatch(/image_url, texture_url, tile_mm, sort\)/);   // AS v\(…\) 목록
+    const n = (SQL.match(/'assets\/materials\/yerim\/YR-[^']+\.jpg'/g) || []).length;
+    expect(n).toBe(SEED.items.length);
   });
 
   test('예림 제품코드는 한 건(글로시 다크그레이)만 비어 있고 uid 로 대체된다', () => {

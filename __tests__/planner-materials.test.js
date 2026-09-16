@@ -4,7 +4,8 @@
  *   · tone → roughness/clearcoat (matte 0.75/0 · gloss 0.25/0.6 · single·null → matte), 행 값이 있으면 우선
  *   · 같은 코드는 같은 MeshPhysicalMaterial (캐시), dispose 로 비운다
  *   · 색은 sRGB hex 로 들어가 linear 로 저장된다 (ColorManagement)
- *   · 텍스처 훅: textureUrl 이 없으면 로더를 만들지도 않고 공유 재질 그대로 (no-op) · repeat 계산은 순수
+ *   · 텍스처: textureUrl 이 없으면 로더를 만들지도 않고 공유 재질 그대로 (no-op) · repeat 계산은 순수
+ *   · 텍스처가 있으면 sRGB·RepeatWrapping 으로 한 번 읽고 mesh 마다 사본에 repeat/rotation, dispose 가 사본까지 놓는다
  *
  * three 는 node 빌드(three.cjs)를 그대로 쓴다 — MeshPhysicalMaterial·Color 는 WebGL 없이 만들어진다.
  */
@@ -118,6 +119,60 @@ describe('텍스처 훅', () => {
     expect(m1.userData.perMesh).toBe(true);
     PlannerMaterials.dispose();
     expect(PlannerMaterials._textures).toEqual({});
+    PlannerMaterials._loader = null;
+  });
+  test('씌운 map 은 sRGB·Repeat 를 그대로 물려받는다 (색공간이 틀리면 나무가 바래 보인다)', () => {
+    PlannerMaterials._loader = { load() { return new THREE.Texture(); } };
+    const entry = { code: 'YR-MFB-303', hex: '#a56c43', tone: 'matte', textureUrl: 'assets/materials/yerim/YR-MFB-303.jpg', tileMm: 600, grain: 'v' };
+    const door = new THREE.Mesh(new THREE.BoxGeometry(600, 720, 18));
+    const mat = PlannerMaterials.forMesh(entry, door, THREE);
+    expect(mat.map).not.toBeNull();
+    expect(mat.map.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(mat.map.wrapS).toBe(THREE.RepeatWrapping);
+    expect(mat.map.wrapT).toBe(THREE.RepeatWrapping);
+    expect(mat.map.center.x).toBe(0.5);
+    expect(mat.map.center.y).toBe(0.5);
+    expect(mat.map.version).toBeGreaterThan(0);   // needsUpdate = true 가 올린 판번호
+    // 도어 600×720 / 타일 600mm → 가로 1번, 세로 1.2번
+    expect(mat.map.repeat.x).toBeCloseTo(1);
+    expect(mat.map.repeat.y).toBeCloseTo(1.2);
+    // 사본이어도 색·거칠기는 공유 재질과 같다 (텍스처를 못 읽으면 이 색이 대체색)
+    expect(mat.roughness).toBe(0.75);
+    expect('#' + mat.color.getHexString(THREE.SRGBColorSpace)).toBe('#a56c43');
+    PlannerMaterials.dispose();
+    PlannerMaterials._loader = null;
+  });
+  test('무지 자재(grain none)는 돌리지 않고 tileMm 대로만 깐다', () => {
+    PlannerMaterials._loader = { load() { return new THREE.Texture(); } };
+    const entry = { code: 'YR-SM-01', hex: '#fbfbfb', tone: 'matte', textureUrl: 'assets/materials/yerim/YR-SM-01.jpg', tileMm: 300, grain: 'none' };
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(900, 18, 600));
+    const mat = PlannerMaterials.forMesh(entry, shelf, THREE);
+    expect(mat.map.rotation).toBe(0);
+    expect(mat.map.repeat.x).toBeCloseTo(3);   // 900/300
+    expect(mat.map.repeat.y).toBeCloseTo(2);   // 600/300
+    PlannerMaterials.dispose();
+    PlannerMaterials._loader = null;
+  });
+  test('dispose 는 mesh 사본과 그 map 까지 놓는다 (카탈로그를 다시 읽을 때 GPU 에 남으면 안 된다)', () => {
+    PlannerMaterials._loader = { load() { return new THREE.Texture(); } };
+    const entry = { code: 'YR-TEX2', hex: '#d1b089', tone: 'matte', textureUrl: 'x.jpg', tileMm: 300, grain: 'none' };
+    const a = PlannerMaterials.forMesh(entry, new THREE.Mesh(new THREE.BoxGeometry(600, 900, 18)), THREE);
+    const b = PlannerMaterials.forMesh(entry, new THREE.Mesh(new THREE.BoxGeometry(400, 700, 18)), THREE);
+    expect(PlannerMaterials._perMesh).toHaveLength(2);
+    const spies = [a, b].flatMap((m) => [jest.spyOn(m, 'dispose'), jest.spyOn(m.map, 'dispose')]);
+    PlannerMaterials.dispose();
+    for (const s of spies) expect(s).toHaveBeenCalled();
+    expect(PlannerMaterials._perMesh).toEqual([]);
+    PlannerMaterials._loader = null;
+  });
+  test('로더가 텍스처를 못 만들면 공유 재질로 물러선다 (3D 가 비지 않는다)', () => {
+    PlannerMaterials._loader = { load() { throw new Error('404'); } };
+    const entry = { code: 'YR-BAD', hex: '#112233', tone: 'matte', textureUrl: 'nope.jpg', tileMm: 300, grain: 'none' };
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(600, 900, 18));
+    const mat = PlannerMaterials.forMesh(entry, mesh, THREE);
+    expect(mat).toBe(PlannerMaterials.get(entry, THREE));
+    expect(mat.map).toBeNull();
+    expect(PlannerMaterials._perMesh).toEqual([]);
     PlannerMaterials._loader = null;
   });
   test('repeatFor (순수) — tile 없으면 1, 결 v + 누움이면 축 교환', () => {

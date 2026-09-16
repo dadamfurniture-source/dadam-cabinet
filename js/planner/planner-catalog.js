@@ -34,8 +34,9 @@
 //   entries 의 D0 필드(code·label·hex·finish·finishLabel·tone·color·colorLabel)는 그대로 두고
 //   **더하기만** 했다 — plannerFinishLookup / plannerFinishHex 가 그대로 읽는다.
 //
-// 텍스처: texture_url·tile_mm·grain 을 그대로 실어 나른다. 시드는 아직 없다(전부 null) —
-//   planner-materials.js 의 훅이 null 이면 아무것도 하지 않는다.
+// 텍스처: texture_url·tile_mm·grain 을 그대로 실어 나른다. 2026-09-16 부터 예림 144종에는
+//   저장소 안의 타일(assets/materials/yerim/<code>.jpg)이 들어 있다 — planner-materials.js 가
+//   그 값으로 map 을 건다. 비어 있는 항목(구 7×7 호환 코드 등)은 null 이라 아무것도 하지 않는다.
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_CATALOG_ / plannerCatalog / PlannerCatalog 접두.
 // ============================================================
@@ -44,7 +45,7 @@
 const PLANNER_CATALOG_CACHE_KEY = 'dadam_catalog_v1';
 const PLANNER_CATALOG_TTL_MS = 60 * 60 * 1000;
 
-/** materials 에서 읽는 열. 텍스처 열은 지금 비어 있지만 훅을 위해 같이 읽는다. */
+/** materials 에서 읽는 열. texture_url·tile_mm 은 예림 144종에 채워져 있다 (2026-09-16). */
 const PLANNER_CATALOG_SELECT = 'code, vendor, vendor_code, series, finish, tone, color_name, color_hex, '
   + 'roughness, metalness, clearcoat, grain, texture_url, tile_mm, slot, category, sort';
 

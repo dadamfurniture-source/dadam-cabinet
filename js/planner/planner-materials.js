@@ -14,11 +14,12 @@
 //   행 값    materials.roughness / metalness / clearcoat 가 있으면 tone 기본값보다 우선한다.
 //   sheen 0  (천 재질 아님)
 //
-// 텍스처 훅: texture_url + tile_mm + grain. **시드가 없어 지금은 전부 null** — null 이면
-//   forMesh 가 공유 재질을 그대로 돌려주고 로더를 만지지 않는다. url 이 생기면
-//   TextureLoader 로 한 번 읽어(캐시) sRGB·RepeatWrapping 으로 두고, 부재 크기(mm)/tile_mm 로
+// 텍스처: texture_url + tile_mm + grain. 2026-09-16 부터 예림 144종에 **실제 타일이 있다**
+//   (assets/materials/yerim/<code>.jpg — 플래너 페이지와 같은 출처라 CORS 가 없다).
+//   url 이 있으면 TextureLoader 로 한 번 읽어(캐시) sRGB·RepeatWrapping 으로 두고, 부재 크기(mm)/tile_mm 로
 //   repeat 를 정하며, 결이 세로(grain:'v')인 가로 부재는 90° 돌린다 (plannerMaterialsRepeatFor).
-//   그 경우 재질은 mesh 마다 사본이다(repeat 가 텍스처에 붙으므로).
+//   그 경우 재질은 mesh 마다 사본이다(repeat 가 텍스처에 붙으므로) — 사본도 _perMesh 에 담아
+//   dispose() 가 같이 놓는다. url 이 없는 항목(구 7×7 호환 코드 등)은 공유 재질 그대로, 로더도 안 만든다.
 //
 // 색공간·톤매핑·환경광은 이 파일이 아니라 planner-detail.js 의 모드 진입(applyScene)이 켜고 끈다 —
 //   구조 모드는 바이트 하나 달라지면 안 되기 때문이다 (I2).
@@ -106,6 +107,7 @@ const PlannerMaterials = {
   faceOf: plannerMaterialsFaceOf,
   _cache: {},
   _textures: {},
+  _perMesh: [],
   _loader: null,
   _cmEnabled: false,
 
@@ -148,8 +150,8 @@ const PlannerMaterials = {
   },
 
   /**
-   * 텍스처 훅 — url 이 있을 때만 한 번 읽어 캐시한다. 없으면 null (no-op).
-   * 로더는 처음 필요할 때 만든다 — 시드가 없는 지금은 만들어지지 않는다.
+   * url 하나당 텍스처 하나 — 한 번 읽어 캐시한다. url 이 없으면 null (no-op).
+   * 로더는 처음 필요할 때 만든다 — 텍스처 없는 카탈로그에서는 만들어지지 않는다.
    */
   texture(url, T) {
     const THREE_ = this.three(T);
@@ -171,8 +173,11 @@ const PlannerMaterials = {
   },
 
   /**
-   * mesh 에 씌울 재질. 텍스처가 없는 항목(지금은 전부)은 공유 재질 그대로 —
+   * mesh 에 씌울 재질. 텍스처가 없는 항목은 공유 재질 그대로 —
    * 텍스처가 있으면 사본을 만들어 부재 크기에 맞춘 repeat 를 건다.
+   *
+   * 사본(재질·텍스처)은 캐시가 아니라 _perMesh 에 쌓아 둔다. 카탈로그를 다시 읽어
+   * dispose() 할 때 공유 재질만 놓으면 mesh 마다 만든 사본이 GPU 에 남기 때문이다.
    */
   forMesh(entry, mesh, T) {
     const base = this.get(entry, T);
@@ -184,22 +189,29 @@ const PlannerMaterials = {
     const rep = plannerMaterialsRepeatFor(face, entry.tileMm, entry.grain, face.horizontal);
     const mat = base.clone();
     const map = tex.clone();
+    map.colorSpace = tex.colorSpace;   // clone 이 색공간을 안 옮기는 three 버전 대비
     map.needsUpdate = true;
     map.repeat.set(rep.x, rep.y);
     map.rotation = rep.rotation;
     map.center.set(0.5, 0.5);
     mat.map = map;
     mat.userData = Object.assign({}, base.userData, { perMesh: true });
+    this._perMesh.push(mat);
     return mat;
   },
 
   /** 캐시 크기 — 시험·디버그. */
   size() { return Object.keys(this._cache).length; },
 
-  /** 캐시를 비우고 GPU 자원을 놓는다 — 카탈로그를 다시 읽었을 때. */
+  /** 캐시를 비우고 GPU 자원을 놓는다 — 카탈로그를 다시 읽었을 때. mesh 사본까지 전부. */
   dispose() {
+    this._perMesh.forEach((m) => {
+      try { if (m.map) m.map.dispose(); } catch (e) { /* 무해 */ }
+      try { m.dispose(); } catch (e) { /* 무해 */ }
+    });
     Object.keys(this._cache).forEach((k) => { try { this._cache[k].dispose(); } catch (e) { /* 무해 */ } });
     Object.keys(this._textures).forEach((k) => { try { this._textures[k].dispose(); } catch (e) { /* 무해 */ } });
+    this._perMesh = [];
     this._cache = {};
     this._textures = {};
   },
