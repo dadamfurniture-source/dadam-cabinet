@@ -4,7 +4,7 @@
       const CATEGORIES = [
         { id: 'sink', name: '싱크대', defaultD: 650, defaultH: 2310 },
         { id: 'island', name: '아일랜드', defaultD: 800, defaultH: 2310 },
-        { id: 'wardrobe', name: '붙박이장', defaultD: 600, defaultH: 2310 },
+        { id: 'wardrobe', name: '붙박이장', defaultD: 620, defaultH: 2310 },   // 2026-09-16: 600 → 620 (사장님 지시)
         { id: 'fridge', name: '냉장고장', defaultD: 700, defaultH: 2310 },
         { id: 'shoerack', name: '신발장', defaultD: 350, defaultH: 2310 },
         { id: 'vanity', name: '화장대', defaultD: 500, defaultH: 2310 },
