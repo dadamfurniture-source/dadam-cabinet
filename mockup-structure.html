@@ -1165,19 +1165,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * `modules` 순서를 그대로 지킨다 — 그래야 `hosts[0]` 이 여전히 "런의 첫 모듈"
    * 이고, 어느 모듈이 런 부재를 그릴지가 예전과 같다.
    *
-   * 주의: `areaOfModule` 은 **단을 가르지 않는다** (그건 `areaOfModuleBySection`
-   * 의 몫이다). 그래서 옛 설계에서 상부장이 하부 영역과 X 로 겹치면 그 상부장도
-   * 이 영역의 멤버가 되고, 걸레받이 폭이 그만큼 넓어질 수 있다. 그리기 쪽은
-   * 이미 `areaPivotOf`·`modulePlaneBox` 가 같은 규칙을 쓰므로 여기서만 다른
-   * 규칙을 쓰면 또 어긋난다 — 고친다면 `areaOfModule` 쪽을 고쳐야 한다.
+   */
+  /**
+   * 멤버십은 파일의 정본 규칙 `areaIdOfModule` 을 따른다 — areaId → 같은 단(section)
+   * 겹침 → 마지막에야 단 구분 없는 areaOfModule. 여기서 areaOfModule 을 바로 쓰면
+   * **단을 가리지 않아** 0~1800 상부장이 0~1200 하부 영역의 구성원이 되고,
+   * 걸레받이 폭이 1800 으로 넓어져 옆 영역을 600 침범한다 (2026-09-16 확인).
+   * 런 부재를 그리는 쪽(addTopPanel·addToeKick)도 같은 규칙으로 영역을 찾는다 —
+   * 찾는 규칙과 모으는 규칙이 다르면 "런에 한 장" 판정이 어긋난다.
    */
   function modulesOfArea(area) {
     if (!area) return [];
-    return modules.filter((x) => {
-      if (x.isFinishing) return false;
-      const a = areaOfModule(x);
-      return !!a && a.id === area.id;
-    });
+    return modules.filter((x) => !x.isFinishing && areaIdOfModule(x) === area.id);
   }
 
   function setActiveModule(id) {
@@ -6265,7 +6264,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function addTopPanel(parent, m, cfg, s) {
     const t = topTOf(m, s);
     if (t <= 0) return;
-    const area = areaOfModule(m);
+    const area = areaById(areaIdOfModule(m));
     let W = m.W, D = m.D, dx = 0, dz = 0;
     if (area) {
       // 멤버십은 areaOfModule 과 같은 규칙으로 (modulesOfArea) — `x.areaId` 로
@@ -6319,7 +6318,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // (다리발 또는 좌대)을 뜻하는 이름이고, 여기 값은 다리발 부재 높이다.
     const legPartH = legHOf(m, s);
     if (legPartH <= KICK_FLOOR_GAP) return;
-    const area = areaOfModule(m);
+    const area = areaById(areaIdOfModule(m));
     let W = m.W, dx = 0;
     if (area) {
       // 멤버십은 areaOfModule 과 같은 규칙으로 (modulesOfArea) — `x.areaId` 로
