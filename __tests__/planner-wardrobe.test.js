@@ -67,7 +67,13 @@ describe('배치 단계', () => {
     });
     const out = p.g('serializeLayout')();
     expect(out.modules.length).toBe(1);
-    expect(out.modules[0]).toMatchObject({ section: 'wardrobe', w: 3600, h: 600, moduleH: 2310 });
+    // 치수는 정본(PLANNER_SECTIONS)을 읽는다 — 값을 베끼면 정본을 고칠 때 여기만 빨개진다 (2026-09-16 깊이 620)
+    expect(out.modules[0]).toMatchObject({
+      section: 'wardrobe',
+      w: PLANNER_SECTIONS.wardrobe.w,
+      h: PLANNER_SECTIONS.wardrobe.h,
+      moduleH: PLANNER_SECTIONS.wardrobe.moduleH,
+    });
   });
 
   test('도구막대에 붙박이장 버튼이 있다', () => {
