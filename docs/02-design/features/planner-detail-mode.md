@@ -1,7 +1,7 @@
-# 플래너 디테일 모드 (D0 — 뼈대 · D2 — 실시간 재질)
+# 플래너 디테일 모드 (D0 — 뼈대 · D2 — 실시간 재질 · D3 — 렌더 스냅샷)
 
-> 계획: `docs/01-plan/detail-bom-deepening.plan.md` §4.1 · §4.2 · §5 D0 (PR #632) · §4.4 R1 · §5 D2 (`agent/planner-materials`).
-> 3D Planner 도메인. D2 절은 이 문서 끝에 있다.
+> 계획: `docs/01-plan/detail-bom-deepening.plan.md` §4.1 · §4.2 · §5 D0 (PR #632) · §4.4 R1 · §5 D2 (`agent/planner-materials`)
+> · §4.4 R2 · §5 D3 (`agent/planner-render-capture`). 3D Planner 도메인. D2 · D3 절은 이 문서 끝에 있다.
 
 ## 무엇인가
 
@@ -163,3 +163,93 @@
 - 정면도(2D SVG)는 여전히 마감 색을 칠하지 않는다.
 - D3 스냅샷 저장(R2), D4 렌더 품질(그림자·벽·바닥).
 - `materials` 표의 anon `select` RLS 가 막혀 있으면 팔레트는 호환 그룹만 보인다(`폴백`) — 배포 후 확인.
+
+---
+
+# D3 — 렌더 스냅샷 저장 (R2): 오프스크린 캡처 → Storage `renders` + `design_renders`
+
+> 계획 §4.4 R2 · §5 D3. 디테일 룩(마감·광택·환경광)으로 찍은 PNG 를 계정에 남긴다. 작업지시서 표지(B5)가 정면을 싣는다.
+> 화면은 바이트 하나 달라지지 않는다 — `preserveDrawingBuffer` 를 켜지 않고, 캔버스 크기·pixelRatio·카메라·OrbitControls 를 건드리지 않는다.
+
+## 어디서
+
+- 상단 우측 도면 메뉴 옆 **📷 렌더 저장** (정면·3/4·평면, 긴 변 2048px) 과 **📷▾** (4096px · 이 모듈). 디테일 모드에서만 보인다 (`pd-only`).
+- 우측 패널 **최근 렌더** 섹션(`data-sec="detail-renders"`) — 이 품목의 최근 12장을 서명 URL 썸네일로. 모드에 들어올 때와 저장 뒤에 갱신.
+- 진행 중엔 버튼이 잠기고 `📷 정면 1/3` · `☁ 올리는 중 2/3` 로 바뀐다. 두 번 누르면 `busy`.
+
+## 캡처 (`js/planner/planner-capture.js`)
+
+three 는 **렌더타깃에 그릴 때 톤매핑·sRGB 출력을 하지 않는다** (`WebGLPrograms`: `currentRenderTarget !== null → NoToneMapping · LinearSRGB`).
+그래서 두 패스다.
+
+| 단계 | 무엇 |
+|---|---|
+| 룩 | `PlannerDetail.pushLook()` — 구조 모드면 `applyScene(true)` + `paintScene({force})` 로 디테일 룩을 켜고 토큰에 "내가 켰다" 를 적는다. 디테일 모드면 아무것도 되돌리지 않는 토큰. `enter/exit` 와 같은 함수를 타므로 두 벌이 아니다 |
+| ① | 씬 → `rtA` (`WebGLRenderTarget`, HalfFloat, MSAA 4, depth) — 새 `PerspectiveCamera` (프리셋) |
+| ② | `OutputPass.render(renderer, rtB, rtA)` — `renderer.toneMapping`(ACES) · `outputColorSpace`(sRGB) 를 그대로 입힌다. `rtB` 는 UnsignedByte |
+| ③ | `readRenderTargetPixels(rtB)` → 위아래 뒤집기 · 알파 255 → canvas 2D `putImageData` → `toBlob('image/png')` |
+| 복원 | `finally`: `setRenderTarget(이전 값)` · `rtA/rtB.dispose()` · `PlannerDetail.popLook(token)` |
+
+- `OutputPass` 는 importmap 모듈 스크립트가 `window.OutputPass` 로 올린다 (`RoomEnvironment` 와 같은 패턴). 없으면 ①을 UnsignedByte 로 찍고
+  CPU 에서 sRGB 곡선만 입힌다 (톤매핑 없음 — `toneMapped:false`, 토스트에 `톤매핑 없음`).
+- `capturePixels` 는 **동기**(픽셀 읽기까지)라 `animate` 루프가 사이에 화면을 그릴 수 없다 — 구조 모드에서 눌러도 화면은 한 프레임도 디테일 룩이 되지 않는다.
+  PNG 인코딩(`toBlob`)만 비동기. 여러 장은 한 장씩 차례로 (픽셀 버퍼를 겹쳐 들지 않는다).
+- 크기: 긴 변 2048 기본 / 4096 옵션, `renderer.capabilities.maxTextureSize` 로 자른다. 다른 변은 프리셋 종횡비로.
+
+## 카메라 프리셋 (`plannerCaptureFrame`, 순수)
+
+경계는 `moduleGroup` 의 **mesh 만** 센다 — 배치 공간 상자(`area`)·선택 테두리(`pick`)·원점 마커(선)는 뺀다. 여백 8% (`PLANNER_CAPTURE_MARGIN`).
+
+| kind | 카메라 | fov | 종횡비 |
+|---|---|---|---|
+| `front` | 경계 중심을 −Z 로. 앞면(max.z)에서 H·W 가 다 들어오는 거리 | 12° (직교에 가깝다) | 경계 W/H (0.5~3) |
+| `iso` | `fitCameraToBounds` 와 같은 (0.7, 0.5, 1) × size×1.4 | 45° | 화면 캔버스 (없으면 3:2) |
+| `plan` | 위(+Y)에서 −Y, `up = −Z` (뒷벽이 그림 위쪽) | 12° | 경계 W/D (0.5~3) |
+| `module:<id>` | 그 모듈 그룹(`userData.entityKind='module'`)의 경계로 iso | 45° | 화면 캔버스 |
+
+`design_renders.camera` 에 `{kind, fov, aspect, position, target, up, longEdge, moduleId?}` (정수 mm) 로 남는다 — 같은 각도로 다시 찍을 수 있게.
+
+## 저장 구조
+
+- Storage 버킷 **`renders` (비공개)**. 키 `{design_id}/{item_unique_id}/{kind}-{yyyymmddHHMMss}.png`, 모듈은 `module-{module_id}-{stamp}.png`.
+  `upsert:false` — 파일명에 시각이 있어 덮어쓸 일이 없다. 첫 폴더가 `design_id` 라 Storage 정책이 `designs.user_id` 로 소유자를 판정한다.
+- 표 **`design_renders`** (`database/design-renders.sql`): `id · design_id(→designs, CASCADE) · item_unique_id · kind(front|iso|plan|module) · module_id · path(버킷 안 키) ·
+  width · height · camera JSONB · detail_hash · created_at`. 인덱스 `(design_id, item_unique_id, created_at DESC)`.
+- `detail_hash` = 마감 모델(`dadam_detail_v1`) JSON 을 **키 정렬**해 sha-256 (순수 JS, 동기). 같은 지정이면 같은 값 — 렌더가 어느 마감 상태였는지 맞춰 본다.
+- RLS: `planner_snapshots` 와 같은 방식 — 소유자 `FOR ALL` (USING + WITH CHECK, `designs.user_id`) + 관리자 SELECT. Storage 도 같은 판정
+  (`renders_select_own · renders_insert_own · renders_delete_own · renders_select_admin`). 공개 읽기 없음, UPDATE 정책 없음.
+- 흐름 (`PlannerCapture.saveAll` → `PlannerStore.saveRender`): `ready()` → 캡처 → 업로드 → 행 삽입(`select id`). 행이 거절되면 올린 파일을 지운다.
+  `Bucket not found` 는 `reason:'no-bucket'` → 토스트가 "비공개 버킷 renders 를 만들고 design-renders.sql 을 실행하세요" 로 안내하고 렌더는 내려받게 한다.
+- **스코프가 없으면**(`design=local` · 품목 없음 · 로그인 전 · SDK 없음) `<a download>` 로 이 브라우저에 내려받는다 — 이 페이지는 앱 페이지라 된다.
+  토스트가 이유를 말한다 ("설계를 저장한 뒤 다시 누르면 계정에 올라갑니다").
+- 목록 `PlannerStore.listRenders(ids, {kind, limit, signed, ttl})` — 최근 순 + `createSignedUrls`(1시간) → `rows[i].url`.
+
+## B5 (작업지시서 표지) 가 정면을 찾는 법
+
+`design_renders` 에서 `design_id = :design AND item_unique_id = :item AND kind = 'front' ORDER BY created_at DESC LIMIT 1` — 인덱스가 그 순서다.
+`path` 는 버킷 `renders` 안의 키이므로 워커(service_role, RLS 우회)는 `storage.from('renders').download(path)` 또는 `createSignedUrl(path, ttl)` 로 읽는다.
+`detail_hash` 를 지금 `design_items.detail` 의 해시와 비교하면 "마감을 바꾼 뒤 다시 찍지 않았다" 를 표지에 표시할 수 있다 (프런트와 같은 키 정렬 규칙).
+
+## 적용
+
+1. Supabase → Storage → New bucket → `renders`, **Public 끔**. (SQL 의 `INSERT INTO storage.buckets` 가 같은 일을 하지만 SQL Editor 역할에 storage 쓰기 권한이 없는 프로젝트가 있다.)
+2. SQL Editor 에서 `database/design-renders.sql` 전체 실행 (두 번 실행해도 안전). 선행: `designs-schema.sql`, `admin-schema.sql`.
+3. 확인: `SELECT policyname FROM pg_policies WHERE tablename = 'objects' AND policyname LIKE 'renders_%';` 4행.
+4. 배포 후 디테일 모드에서 📷 렌더 저장 → 우측 "최근 렌더" 에 3장.
+
+## 시험
+
+- `planner-capture.test.js`: 프리셋 프레이밍(경계가 화면에 꽉 차는 거리, 축·up), 경로·파일명·스코프 없음 → null, sha-256 을 node crypto 와 대조·키 순서 무관,
+  파이프라인 호출 순서(rtA → OutputPass → rtB → read → 복원·dispose, 폴백 sRGB), 경계에서 area·pick 제외, 상태 복원(구조 모드: 찍는 순간엔 디테일 룩·끝나면 전부 원래 값·
+  setSize/setPixelRatio 안 부름 / 디테일 모드: 룩 유지·exit 가 되돌림), saveAll(다운로드·업로드 3번·모듈·버킷 없음·busy), 메뉴, `PlannerStore.saveRender/listRenders` 호출 모양, 띠, HTML 배선.
+- `design-renders-sql.test.js`: 컬럼·CHECK·인덱스·RLS·Storage 정책·파괴 문장 없음·안내문.
+- `planner-assets.test.js`: `planner-capture.js` 순서(detail·store 뒤), 배치 페이지에 없음, `OutputPass` 노출, 전역 이름 충돌 없음.
+- 골든 I1 · 화면 I2 (`planner-golden` · `planner-pick-highlight` · `planner-view-keep`) 그대로.
+- **실제 브라우저에서 PNG 가 비어 있지 않은지는 jsdom 으로 볼 수 없다** (WebGL 없음) — 배포 후 한 번 눌러 확인한다. 위 시험은 호출 순서와 상태 복원을 대신 본다.
+
+## 미룬 것 (D3 시점)
+
+- `my-designs.html` 은 연출컷(`generations`) 이력이라 설계 카드가 없다 — 렌더 썸네일은 싣지 않았다. 설계 목록 카드(상세설계 `persistence-init.js`, Design UI 도메인)에
+  최신 정면을 보이려면 `listRenders(ids, {kind:'front', limit:1})` 한 줄이면 된다.
+- 렌더 삭제 UI 없음 (RLS 는 소유자 DELETE 를 허용한다). 오래된 렌더 정리 정책 **[확인 필요]**.
+- D4 렌더 품질(그림자·벽·바닥) · D5 AI 연출(정면 렌더를 입력으로).

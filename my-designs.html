@@ -105,6 +105,25 @@
       .mg-fav[aria-pressed='true'] {
         color: var(--v5-tan);
       }
+      /* 학습 동의 — 켜져 있을 때만 눈에 띈다. 기본(미동의)은 조용한 회색. */
+      .mg-consent {
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        border: 0;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.4;
+        cursor: pointer;
+        background: rgba(252, 250, 247, 0.85);
+        color: var(--v5-ink-45);
+      }
+      .mg-consent[aria-pressed='true'] {
+        background: var(--v5-tan);
+        color: #fff;
+      }
       .mg-cap {
         padding: 12px 14px 4px;
         display: flex;
@@ -362,7 +381,7 @@
           var res = await sb
             .from('generations')
             .select(
-              'id,parent_id,status,progress,step_label,error,category,title,options,quote,images,is_favorite,share_expires_at,share_revoked_at,created_at,completed_at'
+              'id,parent_id,status,progress,step_label,error,category,title,options,quote,images,is_favorite,consent_training,share_expires_at,share_revoked_at,created_at,completed_at'
             )
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
@@ -423,6 +442,16 @@
             '" aria-label="즐겨찾기">' +
             (r.is_favorite ? '★' : '☆') +
             '</button>' +
+            // 학습 동의. 연출컷에는 고객이 올린 현장 사진이 같이 묶여 있어 기본은 꺼짐이다.
+            '<button type="button" class="mg-consent" data-act="consent" aria-pressed="' +
+            (r.consent_training === true ? 'true' : 'false') +
+            '" title="' +
+            (r.consent_training === true
+              ? '이 연출컷과 함께 올린 사진이 다담 AI 학습에 쓰입니다. 누르면 끕니다.'
+              : '학습에 쓰이지 않습니다. 누르면 켭니다.') +
+            '">' +
+            (r.consent_training === true ? 'AI 학습 허용' : 'AI 학습 안 함') +
+            '</button>' +
             '<div class="mg-cap"><b>' +
             esc(label(r)) +
             '</b><span>' +
@@ -474,6 +503,33 @@
           }
           r.is_favorite = next;
           if (filter === 'favorite') render();
+        }
+
+        /**
+         * 학습 동의를 켜고 끈다. 끄면 이미 데이터셋으로 넘어간 샘플도 수집 워커가 지운다
+         * (dataset-api: consent_training 이 true 가 아닌 행은 dataset_samples 에서 제거).
+         */
+        async function toggleConsent(r, btn) {
+          var next = !(r.consent_training === true);
+          paintConsent(btn, next);
+          btn.disabled = true;
+          var res = await sb.from('generations').update({ consent_training: next }).eq('id', r.id);
+          btn.disabled = false;
+          if (res.error) {
+            $('state').textContent = '학습 동의를 바꾸지 못했습니다';
+            paintConsent(btn, r.consent_training === true);
+            return;
+          }
+          r.consent_training = next;
+          $('state').textContent = next ? '학습에 사용하도록 켰습니다' : '학습에서 뺐습니다';
+        }
+
+        function paintConsent(btn, on) {
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+          btn.textContent = on ? 'AI 학습 허용' : 'AI 학습 안 함';
+          btn.title = on
+            ? '이 연출컷과 함께 올린 사진이 다담 AI 학습에 쓰입니다. 누르면 끕니다.'
+            : '학습에 쓰이지 않습니다. 누르면 켭니다.';
         }
 
         async function share(r) {
@@ -596,6 +652,7 @@
             var act = b.getAttribute('data-act');
             if (act === 'detail') openDetail(r);
             else if (act === 'fav') toggleFav(r, b);
+            else if (act === 'consent') toggleConsent(r, b);
             else if (act === 'open') location.href = 'ai-design.html?g=' + encodeURIComponent(r.id);
             else if (act === 'regen') location.href = 'ai-design.html?g=' + encodeURIComponent(r.id) + '&regen=1';
             else if (act === 'share') share(r);

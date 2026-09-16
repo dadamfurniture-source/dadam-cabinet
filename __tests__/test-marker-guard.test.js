@@ -43,6 +43,9 @@ const SOURCES = [
   // W12-23: 접근 게이트 — 관리자 판정과 상세설계 승인 조회가 여기 산다.
   'js/admin-access.js',
   'js/detaildesign-access.js',
+  // 2026-09-16: 학습 데이터셋 — #625 가 시험만 들여오고 이 목록에 소스를 안 넣어 마커가 죽은 것으로 잡혔다.
+  'database/dataset-schema.sql',
+  'mypage.html',
 ];
 
 /** 여기 아래는 통째로 훑는다 — 파일이 늘어도 가드가 따라간다 */
