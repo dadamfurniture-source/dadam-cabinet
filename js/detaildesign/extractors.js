@@ -77,6 +77,10 @@
         '내부서랍 밴드':   { key: 'innerdrawer:band',   slot: 'body' },
         '내부서랍 좌우몰딩': { key: 'innerdrawer:molding', slot: 'body' },
         '내부서랍 전면판': { key: 'innerdrawer:front',  slot: 'body' },
+        // 2026-09-17: 붙박이장 통 내부 칸막이 (bom-wardrobe-rules.js dividersOf)
+        //   중간칸막이 = 수평 판 (문서 §11 행), 세로칸막이 = 세로 판 (반 분할·옆 분할)
+        '중간칸막이':      { key: 'divider:h',        slot: 'body' },
+        '세로칸막이':      { key: 'divider:v',        slot: 'body' },
         // 손잡이 자리 (목찬넬)
         '목찬넬':          { key: 'channel:front',    slot: 'handle' },
         '목찬넬(전면)':    { key: 'channel:front',    slot: 'handle' },
@@ -1256,6 +1260,21 @@
 
           modules.forEach((mod, idx) => {
             this.beginModule(mod, idx, mod.pos || 'wardrobe');
+            // 2026-09-17: 통 구조 블록이 있으면 칸막이·선반을 **칸에서** 낸다 (옛 선반수 필드보다 정확하다).
+            //   블록이 없는 옛 설계는 예전 그대로 shelfCount* 를 쓴다.
+            const wrBlock = (WardrobeRules && mod.wardrobe) ? WardrobeRules.normalizeBlock(mod.wardrobe) : null;
+            const wrLayout = (wrBlock && (wrBlock.preset || wrBlock.cells))
+              ? WardrobeRules.layoutWardrobeModule({
+                W: parseFloat(mod.w) || WR_DEFAULTS.SAMPLE_CELL_W,
+                D: parseFloat(mod.d) || D,
+                T,
+                bodyH,
+                preset: wrBlock.preset,
+                cells: wrBlock.cells,
+                drawers: wrBlock.drawers,
+                externalDrawer: wrBlock.externalDrawer,
+              })
+              : null;
             const modType = mod.moduleType || 'long';
             const isDivided = modType === 'short' || modType === 'shelf';
             const rawName = mod.name || `${idx + 1}번`;
@@ -1285,7 +1304,7 @@
               this.add(materials, `${name}-상부장`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
               this.add(materials, `${name}-상부장`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
               this.add(materials, `${name}-상부장`, '뒷판', 'MDF', 2.7, W - 20, upperH - 1, 1, '-');
-              const shelfUpper = mod.shelfCountUpper || 0;
+              const shelfUpper = wrLayout ? 0 : (mod.shelfCountUpper || 0);
               if (shelfUpper > 0) {
                 this.add(materials, `${name}-상부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfUpper, '1면(전)');
               }
@@ -1295,7 +1314,7 @@
               this.add(materials, `${name}-하부장`, '천판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
               this.add(materials, `${name}-하부장`, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
               this.add(materials, `${name}-하부장`, '뒷판', 'MDF', 2.7, W - T * 2, lowerH - T, 1, '-');
-              const shelfLower = mod.shelfCountLower || 0;
+              const shelfLower = wrLayout ? 0 : (mod.shelfCountLower || 0);
               if (shelfLower > 0) {
                 this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - T, shelfLower, '1면(전)');
               }
@@ -1374,7 +1393,7 @@
               this.add(materials, `${name}`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
               this.add(materials, `${name}`, '뒷판', 'MDF', 2.7, W - 20, modH - 1, 1, '-');
 
-              const shelfCount = mod.shelfCount || 1;
+              const shelfCount = wrLayout ? 0 : (mod.shelfCount || 1);
               if (shelfCount > 0) {
                 this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfCount, '1면(전)');
               }
@@ -1437,6 +1456,22 @@
                   this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH, doorCount, '4면', '', mod);
                 }
               }
+            }
+
+            // 2026-09-17: 통 구조에서 나오는 부재 — 칸막이(세로·수평)와 칸마다의 선반.
+            //   몸통이 둘이면 그 몸통 이름으로 나눠 붙인다 (상부장·하부장 자재와 같은 묶음).
+            if (wrLayout) {
+              const cabs = WardrobeRules.cabinetsOf(wrLayout);
+              cabs.forEach((car, ci) => {
+                const label = cabs.length > 1
+                  ? `${name}-${ci === 0 ? '하부장' : '상부장'}`
+                  : `${name}`;
+                WardrobeRules.partsOf({ dividers: car.dividers, shelves: car.shelves, T })
+                  .forEach((row) => {
+                    this.add(materials, label, row.part, row.material, row.t,
+                      row.w, row.h, row.qty, row.edge, row.note || '');
+                  });
+              });
             }
           });
 

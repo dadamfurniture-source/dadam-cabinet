@@ -26,9 +26,9 @@
 통 나누기는 이미 맞는다. 유효폭 3600 이면 자동계산이 도어 450 × 8 → 2도어 모듈 4개를 내므로
 **900 네 통**이 그대로 나온다 (`planner-engine.js` distributeModules). 달라져야 하는 건 통 **안**이다.
 
-> **2026-09-17.** 3번 통의 중간 칸막이와 4번 통 하부의 옆 분할은 이제 §1.3 의 칸 표현에 담긴다
-> (`js/detaildesign/bom-wardrobe-rules.js`). 화면(플래너 개별 모듈 패널)과 BOM 연결은 다음 단계다.
-> 그때까지 자동계산은 §9 의 4통 배치(짧은옷·짧은옷·긴옷·선반형)를 쓴다.
+> **2026-09-17.** 3번 통의 중간 칸막이와 4번 통 하부의 옆 분할은 §1.3 의 칸 표현에 담긴다
+> (`js/detaildesign/bom-wardrobe-rules.js`). 플래너 구조 단계에서 고르고 **자재표까지 이어진다** (§1.4).
+> 남은 것은 상세설계 2단계 화면을 플래너로 바꾸는 일뿐이다.
 
 ## 1.2 가로 길이 제한 — 붙박이장 전용 값은 없다
 
@@ -124,6 +124,27 @@ BOM·플래너·브리지가 같은 파일을 읽는다 — 서랍 규칙(`bom-d
 
 칸 구조(`mod.wardrobe`)가 없는 옛 설계도 같은 규격으로 낸다 (`extractWardrobeRods`):
 긴옷(`long`)은 옷봉 1개 자동, 나머지는 `rodCountUpper + rodCountLower`, 길이는 `(통 폭 − 2×T) − 5`.
+
+## 1.4 플래너 → 자재표 (2026-09-17)
+
+구조 단계에서 고른 통 구조가 자재표까지 간다. 그때까지는 `ui-step1.js` 가 붙박이장에 플래너 결과
+적용을 **막고 있었다** (CD-3) — 통 구조를 골라도 도면·3D 까지만 갔다.
+
+| 자리 | 하는 일 |
+|------|---------|
+| 브리지 `_convertPlannerModules` | 붙박이장 통을 **`pos: 'wardrobe'`** 로 보낸다. `'lower'` 로 가면 싱크 하부장 규칙으로 산출된다 |
+| 브리지 `_wardrobeFieldsOf` | 규칙 결과(carcasses·cells)를 옛 필드로 옮긴다 — `moduleType`·`isDivided`·`upperH`/`lowerH`·`drawerCount`·`isExternalDrawer`·선반수·옷봉수, 그리고 `wardrobe` 블록 |
+| `extractWardrobe` | `wardrobe` 블록이 있으면 **칸막이·선반을 칸에서** 낸다. 옛 `shelfCount*` 는 그때 쓰지 않는다 (두 벌 방지) |
+
+- **`moduleType` 과 몸통 수는 반드시 맞아야 한다.** `extractWardrobe` 가
+  `isDivided = moduleType === 'short' || 'shelf'` 로 상·하 두 벌을 내기 때문이다.
+- 통 구조를 고르지 않은 통은 **번호로** 기본형 프리셋이 정해진다 (플래너 `wardrobeIndexOf` 와 같은 규칙).
+- 차단(CD-3)은 **"붙박이장 통이 0개면 거부"** 로 바뀌었다. 예전 차단이 막던 사고는
+  "붙박이장 품목의 모듈이 지워지고 자재표가 조용히 0건" 이었다 — 그 사고만 계속 막는다.
+  냉장고장은 `PLANNER_RESULT_BLOCKED` 로 그대로 막혀 있다.
+- **같이 고친 결함.** 브리지가 붙박이장 상몰딩을 일반 기본값 **60** 으로 읽어 몸통이 **40mm 짧아졌다**
+  (스펙 키가 `wardrobeMoldingH` 인데 `moldingH` 를 봤다). 차단 때문에 이 경로가 한 번도 쓰이지 않아
+  드러나지 않던 자리다. 이제 붙박이장은 `wardrobeMoldingH` 기본 20 을 쓴다.
 
 ## 2. 높이 계산
 
