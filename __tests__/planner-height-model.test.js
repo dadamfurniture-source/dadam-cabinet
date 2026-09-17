@@ -92,7 +92,11 @@ describe('전체 높이 → 몸통 높이', () => {
 
   test('키큰장은 상몰딩과 좌대를 뺀다 (sink.md §5)', () => {
     expect(_carcassHeight(2300, 'tall', SPECS)).toBe(2300 - 60 - 60);
-    expect(_carcassHeight(2300, 'wardrobe', SPECS)).toBe(2180);
+    // 2026-09-17: 붙박이장 상몰딩은 **20** 이고 스펙 키도 wardrobeMoldingH 다.
+    //   일반 상몰딩 기본 60 으로 떨어지면 몸통이 40 짧아져 측판·뒷판·도어가 다 틀어진다.
+    expect(_carcassHeight(2300, 'wardrobe', SPECS)).toBe(2300 - 20 - 60);
+    expect(_carcassHeight(2300, 'wardrobe', Object.assign({}, SPECS, { wardrobeMoldingH: 30 })))
+      .toBe(2300 - 30 - 60);
   });
 
   test('설계별 값을 따른다 — 다리발 180 이면 몸통이 30 줄어든다', () => {

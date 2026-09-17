@@ -239,6 +239,19 @@
         return !!item && NATIVE_ONLY_CATEGORIES.includes(item.categoryId);
       }
 
+      /**
+       * 플래너 **결과**를 받지 못하는 카테고리. 화면 선택(_isNativeOnly)과 다른 축이다.
+       *
+       * 2026-09-17: 붙박이장을 풀었다 — 브리지가 통 구조를 pos 'wardrobe' 모듈로 옮기고
+       * extractWardrobe 가 칸막이·선반·옷봉까지 낸다. 냉장고장은 아직 모듈 type 분기를
+       * 플래너가 만들지 못해 그대로 막는다.
+       */
+      const PLANNER_RESULT_BLOCKED = ['fridge'];
+
+      function _plannerResultBlocked(item) {
+        return !!item && PLANNER_RESULT_BLOCKED.includes(item.categoryId);
+      }
+
       function _setStep2Mode(mode) {
         const body = document.body;
         body.classList.toggle('step2-fullscreen', mode === 'planner');
@@ -836,7 +849,12 @@
           const x = parseFloat(v);
           return Number.isFinite(x) && x >= 0 ? x : d;
         };
-        const molding = n(p.moldingH, n(sp.moldingH, 60));
+        // 2026-09-17: 붙박이장 상몰딩은 **20** 이고 스펙 키도 다르다 (wardrobeMoldingH).
+        //   일반 상몰딩 기본 60 으로 떨어지면 몸통이 40mm 짧아져 측판·뒷판·도어가 다 틀어진다.
+        //   붙박이장이 플래너 결과를 못 받던 동안(CD-3) 이 자리가 한 번도 쓰이지 않아 드러나지 않았다.
+        const molding = section === 'wardrobe'
+          ? n(p.moldingH, n(sp.wardrobeMoldingH, 20))
+          : n(p.moldingH, n(sp.moldingH, 60));
         if (section === 'upper') return Math.max(0, H - molding);
         if (section === 'tall' || section === 'wardrobe') {
           return Math.max(0, H - molding - n(p.pedestalH, n(sp.wardrobePedestal, 60)));
@@ -861,7 +879,10 @@
           const x = parseFloat(v);
           return Number.isFinite(x) && x >= 0 ? x : d;
         };
-        const molding = n(p.moldingH, n(sp.moldingH, 60));
+        // 붙박이장 상몰딩은 20 · 스펙 키 wardrobeMoldingH — _carcassHeight 와 같은 규칙을 쓴다.
+        const molding = section === 'wardrobe'
+          ? n(p.moldingH, n(sp.wardrobeMoldingH, 20))
+          : n(p.moldingH, n(sp.moldingH, 60));
         if (section === 'upper') return { moldingH: molding };
         if (section === 'tall' || section === 'wardrobe') {
           return { moldingH: molding, pedestalH: n(p.pedestalH, n(sp.wardrobePedestal, 60)) };
@@ -1012,6 +1033,57 @@
         return out;
       }
 
+      /** 붙박이장 규칙 파일 (detaildesign.html 이 extractors.js 앞에 싣는다). */
+      function _wardrobeRules() {
+        if (typeof DadamWardrobeRules !== 'undefined') return DadamWardrobeRules;
+        return (typeof window !== 'undefined' && window.DadamWardrobeRules) || null;
+      }
+
+      /**
+       * 붙박이장 통 하나를 **옛 모듈 필드**로 옮긴다 — extractWardrobe 가 읽는 이름들.
+       *
+       * 통 구조 정본은 규칙 파일(bom-wardrobe-rules.js)이다. 여기서는 그 결과(carcasses·cells)를
+       * 옛 이름에 맞춰 적을 뿐이다. `moduleType` 과 몸통 수는 반드시 맞아야 한다 —
+       * extractWardrobe 가 `isDivided = moduleType === 'short' || 'shelf'` 로 상·하 두 벌을 낸다.
+       *
+       * 새 부재(칸막이·선반·옷봉)는 `wardrobe` 블록으로 같이 넘긴다.
+       */
+      function _wardrobeFieldsOf(m, s, cellW, bodyH, presetFallback) {
+        const WR = _wardrobeRules();
+        if (!WR) return null;
+        const block = WR.normalizeBlock(s && s.wardrobe);
+        const L = WR.layoutWardrobeModule({
+          W: Number(cellW) || 0,
+          D: Number(m.D) || 0,
+          bodyH: Number(bodyH) || 0,
+          preset: block.preset || presetFallback,
+          cells: block.cells,
+          drawers: block.drawers,
+          externalDrawer: block.externalDrawer,
+        });
+        const cabs = WR.cabinetsOf(L);
+        if (!cabs.length) return null;
+        const divided = cabs.length > 1;
+        const nShelf = (car) => (car.shelves || []).length;
+        const nRod = (car) => (car.rods || []).length;
+        const out = {
+          moduleType: L.moduleType || (divided ? 'short' : 'long'),
+          isDivided: divided,
+          drawerCount: L.drawers,
+          isExternalDrawer: L.external,
+          shelfCount: divided ? 0 : nShelf(cabs[0]),
+          shelfCountUpper: divided ? nShelf(cabs[1]) : 0,
+          shelfCountLower: divided ? nShelf(cabs[0]) : 0,
+          rodCountUpper: divided ? nRod(cabs[1]) : nRod(cabs[0]),
+          rodCountLower: divided ? nRod(cabs[0]) : 0,
+          // 통 구조 — BOM 이 칸막이·선반·옷봉을 이 블록으로 낸다
+          wardrobe: { preset: L.preset, drawers: L.drawers, externalDrawer: L.external },
+        };
+        if (block.cells) out.wardrobe.cells = block.cells;
+        if (divided) { out.lowerH = cabs[0].h; out.upperH = cabs[1].h; }
+        return out;
+      }
+
       function _convertPlannerModules(payload, specs) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
@@ -1022,6 +1094,12 @@
         const out = [];
         const warnings = [];
         let blankDropped = 0;
+        // 2026-09-17: 붙박이장 통 번호 — 구조를 고르지 않은 통은 **번호로** 기본형 프리셋이 정해진다
+        //   (플래너 wardrobeIndexOf 와 같은 규칙: x 순서).
+        const wardrobeOrder = src
+          .filter((x) => x.section === 'wardrobe')
+          .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0))
+          .map((x) => x.id);
         // W12-53: 멍장 id 는 extractors.js 가 알아보는 이름이어야 한다.
         // ㄷ자는 한 단에 둘까지 나오므로 두 번째부터 번호를 붙인다.
         const blindSeq = { lower: 0, upper: 0 };
@@ -1030,7 +1108,9 @@
           if (!PLANNER_CABINET_SECTIONS.includes(m.section)) return;
 
           const s = structures[m.id] || null;
-          const pos = m.section === 'upper' ? 'upper' : 'lower';
+          // 2026-09-17: 붙박이장은 pos 'wardrobe' 다 — extractWardrobe 가 그 pos 만 본다.
+          //   'lower' 로 넘기면 싱크 하부장 규칙으로 산출돼 통째로 어긋난다.
+          const pos = m.section === 'upper' ? 'upper' : m.section === 'wardrobe' ? 'wardrobe' : 'lower';
           // 플래너 자동계산은 하부 모듈을 doorTopDrawerBottom(하부 서랍 1단)으로 만든다
           const drawerAtBottom = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
           // CD-2: 플래너 '분할' 패널에서 지정한 서랍 단수. 미지정이면 1단.
@@ -1144,9 +1224,14 @@
             // (docs/design-rules/sink.md §3 — 키큰장은 하부 라인에 배치된다).
             // type 이 'storage' 로 뭉개지면 BOM·정면도에서 일반 하부장과 구분되지 않는다.
             const isTall = m.section === 'tall';
-            let name = isTall ? '키큰장' : pos === 'upper' ? '상부장' : '하부장';
+            const isWardrobe = m.section === 'wardrobe';
+            // 붙박이장 통 이름은 옛 화면과 같은 "N번" 이다 (extractWardrobe 기본 이름과 같은 모양).
+            let name = isWardrobe ? `${wardrobeOrder.indexOf(m.id) + 1}번`
+              : isTall ? '키큰장' : pos === 'upper' ? '상부장' : '하부장';
             const cellRect = { x: c.x, W: c.w };
-            if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(cellRect, r))) {
+            if (isWardrobe) {
+              // 붙박이장은 싱크 라인이 아니다 — 개수대·후드와 겹칠 일이 없다
+            } else if (pos === 'lower' && sinkRanges.some((r) => _xOverlaps(cellRect, r))) {
               name = '개수대';
             } else if (pos === 'upper' && hoodRanges.some((r) => _xOverlaps(cellRect, r))) {
               name = '후드장';
@@ -1156,7 +1241,7 @@
               id: `planner-${m.id}-${i}`,
               // 'hood' 로 주면 extractors.js 가 그 캐비닛을 BOM 에서 통째로
               // 제외한다 (W11-12). 'tall' 은 제외 대상이 아니라 안전하다.
-              type: isTall ? 'tall' : 'storage',
+              type: isWardrobe ? 'wardrobe' : isTall ? 'tall' : 'storage',
               name,
               pos,
               w: c.w,
@@ -1185,6 +1270,14 @@
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
+            // 2026-09-17: 붙박이장 통 구조 — 몸통 수·선반·옷봉·서랍을 옛 필드로 옮기고 블록도 같이 싣는다.
+            if (isWardrobe) {
+              const WR = _wardrobeRules();
+              const fb = WR ? WR.samplePresetFor(wardrobeOrder.indexOf(m.id), wardrobeOrder.length) : null;
+              const wf = _wardrobeFieldsOf(m, s, c.w, _carcassHeight(m.H, m.section, specs, s), fb);
+              if (wf) Object.assign(out[out.length - 1], wf);
+              else warnings.push(`${m.id}: 붙박이장 통 구조를 읽지 못했습니다 — 구조 단계에서 통 구조를 고르세요`);
+            }
           });
         });
 
@@ -1281,16 +1374,26 @@
         // 예전엔 카테고리를 안 보고 item.modules 를 통째로 교체해서,
         // 붙박이장 품목에 플래너 결과가 들어오면 기존 모듈이 지워지고
         // BOM 이 **조용히 0건**이 됐다. 덮어쓰기 전에 막는다.
-        if (_isNativeOnly(item)) {
+        if (_plannerResultBlocked(item)) {
           throw new Error(
             `${item.labelName || item.name} 은(는) 플래너로 설계하지 않습니다.\n\n` +
-              '붙박이장·냉장고장은 전용 화면에서 모듈을 구성해 주세요.\n' +
+              '냉장고장은 전용 화면에서 모듈을 구성해 주세요.\n' +
               '(플래너 결과를 적용하면 기존 모듈이 지워지고 자재가 산출되지 않습니다)'
           );
         }
 
         // CD-1: specs 를 넘겨야 전체높이→몸통 변환이 설계별 값(다리발·상판·상몰딩)을 쓴다
         const { modules, warnings } = _convertPlannerModules(payload, item.specs);
+        // 2026-09-17: 차단(CD-3)을 풀면서 그 차단이 막던 사고를 여기서 막는다 —
+        //   붙박이장 품목에 붙박이장 통이 하나도 없는 결과가 들어오면 기존 모듈이 지워지고
+        //   extractWardrobe 가 pos 'wardrobe' 를 못 찾아 **자재표가 조용히 0건**이 된다.
+        if (item.categoryId === 'wardrobe' && !modules.some((x) => x.pos === 'wardrobe')) {
+          throw new Error(
+            '플래너 결과에 붙박이장 통이 없습니다.\n\n' +
+              '1.배치 화면에서 붙박이장을 놓고, 2.구조 화면에서 자동계산으로 통을 세워 주세요.\n' +
+              '(그대로 적용하면 기존 모듈이 지워지고 자재가 산출되지 않습니다)'
+          );
+        }
         if (modules.length === 0) {
           const placed = (payload.modules || []).length;
           throw new Error(
