@@ -8124,7 +8124,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   //   PlannerAiPhoto.buildSpec 이 같은 모델에서 따로 만든다 (골든 바이트 불변, 계획 §4.2).
   PlannerAiPhoto.mount({
     modules: () => modules,
-    structureOf: (id) => getStructure(id),
+    // ⚠ getStructure 를 쓰지 않는다 — 그 함수는 없으면 **만들어 저장한다**. 요약을 읽는 것만으로
+    //   structures 가 채워지면 buildPlannerPayload 의 hasStructures 가 뒤집혀 브리지가 달라진다.
+    //   구조가 없는 모듈은 기본형(도어 한 짝)으로 본다 — defaultStructure 와 같은 그림이다.
+    structureOf: (id) => structures[id] || null,
     // 회전·영역 피벗까지 반영한 평면 좌우 범위 — fromLeftMm 의 근거다.
     boxOf: (m) => modulePlaneBox(m),
     // 붙박이장 바깥 서랍 단수(문 앞에 보이는 전면). 통 안 서랍은 문 뒤라 세지 않는다.
