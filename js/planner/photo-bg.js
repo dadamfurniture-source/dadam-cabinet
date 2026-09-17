@@ -77,6 +77,29 @@ const PLANNER_PHOTO_BG_SHALLOW = 0.3;
 /** 귀퉁이 이름표 — photo-solve 의 정본 순서(0 뒤-왼 · 1 뒤-오른 · 2 앞-오른 · 3 앞-왼) 그대로 */
 const PLANNER_PHOTO_BG_CORNER_LABEL = ['뒤-좌', '뒤-우', '앞-우', '앞-좌'];
 
+// ── P2: 빛·톤 값의 범위와 기본값 (계획 §4.4 의 `light` · `grade` 칸 그대로) ─────
+//
+//   **기본값이 "디테일 모드가 남긴 밝기" 인 이유**: 사진 모드는 디테일 모드 **안에서만** 열린다.
+//   그 모드의 `applyScene` 이 환경광을 넣으면서 직사광·주변광을 절반으로 낮춰 둔다
+//   (`planner-detail.js` — init3D 의 1.8·0.6 → 0.9·0.3). 그래서 여기 기본값도 0.9·0.3 이다.
+//   사진 모드에 들어가는 것만으로 밝기가 튀면 "내가 뭘 잘못 눌렀나" 가 된다 — 방향만 바뀌어야 한다.
+const PLANNER_PHOTO_BG_LIGHT_LIMITS = {
+  // 기본 방향은 init3D 의 주광 (5000, 8000, 5000) 과 같은 쪽이다 — 방위 45°(+X·+Z 사이),
+  // 고도 48°(= atan(8000 / √(5000²+5000²))). 들어가자마자 그림자가 홱 도는 일이 없다.
+  azimuthDeg: { min: 0, max: 360, def: 45, wrap: true },
+  elevationDeg: { min: 5, max: 85, def: 48 },
+  intensity: { min: 0, max: 4, def: 0.9 },
+  ambient: { min: 0, max: 2, def: 0.3 },
+  shadowOpacity: { min: 0, max: 0.9, def: 0.35 },
+  shadowSoftness: { min: 0, max: 8, def: 3 },
+};
+/** 톤 — 노출은 `renderer.toneMappingExposure`, 색온도·틴트는 **조명 색**으로 얹는다 (photo-mode.js) */
+const PLANNER_PHOTO_BG_GRADE_LIMITS = {
+  exposure: { min: 0.2, max: 3, def: 1 },
+  temperature: { min: -100, max: 100, def: 0 },
+  tint: { min: -100, max: 100, def: 0 },
+};
+
 /**
  * 처음 까는 사각형 — 사진 아래쪽 한가운데의 사다리꼴.
  * **클릭이 아니라 드래그로 시작하게** 하려는 것이다: 빈 사진에 네 점을 찍으라고 하면 사람은
@@ -517,6 +540,8 @@ function plannerPhotoBgCameraBehind(camera, rect) {
  *   fovDeg   사용자가 고정한 **가로** 화각. null 이면 소실점으로 푼다
  *   nudge    { x, z, rotationDeg } — 가구 미세조정 (사각형에 반대로 얹는다, 머리말 참고)
  *   locked   사각형 편집기를 잠갔는가 (실수로 끌지 않게)
+ *   light    { azimuthDeg, elevationDeg, intensity, ambient, shadowOpacity, shadowSoftness } — P2
+ *   grade    { exposure, temperature, tint } — P2. 렌더를 사진 톤에 맞추는 값
  *
  * 사진 자체는 **저장하지 않는다** — 비공개 버킷 업로드는 P3 다 (계획 §4.5). 새로고침하면
  * 사각형·화각은 남고 사진만 다시 올리면 된다.
@@ -529,7 +554,38 @@ function plannerPhotoBgDefaultState() {
     fovDeg: null,
     nudge: { x: 0, z: 0, rotationDeg: 0 },
     locked: false,
+    light: plannerPhotoBgDefaultsFrom(PLANNER_PHOTO_BG_LIGHT_LIMITS),
+    grade: plannerPhotoBgDefaultsFrom(PLANNER_PHOTO_BG_GRADE_LIMITS),
   };
+}
+
+/** 한계표 → 기본값 묶음. 표가 정본이라 기본값이 두 군데 적히지 않는다. */
+function plannerPhotoBgDefaultsFrom(limits) {
+  const out = {};
+  Object.keys(limits).forEach((k) => { out[k] = limits[k].def; });
+  return out;
+}
+
+/**
+ * 한계표대로 값 하나를 다듬는다. 못 읽는 값은 기본값, 범위 밖은 자른다.
+ * 방위각만 **감아서**(wrap) 360° 를 넘어도 같은 방향이 된다 — 다이얼을 계속 돌릴 수 있게.
+ */
+function plannerPhotoBgClampTo(limit, v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return limit.def;
+  if (limit.wrap) { const span = limit.max - limit.min; return ((n - limit.min) % span + span) % span + limit.min; }
+  return Math.min(limit.max, Math.max(limit.min, n));
+}
+
+/** 저장본의 light·grade 묶음을 한계표에 맞춘다. **없으면 통째로 기본값** — 옛 저장본이 그대로 열린다. */
+function plannerPhotoBgClampBag(limits, raw) {
+  const out = plannerPhotoBgDefaultsFrom(limits);
+  if (!raw || typeof raw !== 'object') return out;
+  Object.keys(limits).forEach((k) => {
+    if (raw[k] == null) return;                       // 옛 저장본에 없는 칸은 기본값 그대로
+    out[k] = plannerPhotoBgClampTo(limits[k], raw[k]);
+  });
+  return out;
 }
 
 /** 바깥에서 온 값(저장본·부모)을 믿지 않고 모양을 맞춘다. 나쁜 값은 기본값으로 떨어진다. */
@@ -570,6 +626,10 @@ function plannerPhotoBgNormalize(raw) {
   }
   if (raw.camera && typeof raw.camera === 'object') out.camera = raw.camera;
   out.locked = !!raw.locked;
+  // P2 — light·grade 는 **없어도 된다**. P1 때 저장된 상태에는 이 두 칸이 아예 없으므로
+  //   빠진 칸은 조용히 기본값으로 채운다 (계획 §4.4 의 컬럼 모양 그대로, P3 이 이대로 행에 넣는다).
+  out.light = plannerPhotoBgClampBag(PLANNER_PHOTO_BG_LIGHT_LIMITS, raw.light);
+  out.grade = plannerPhotoBgClampBag(PLANNER_PHOTO_BG_GRADE_LIMITS, raw.grade);
   return out;
 }
 
@@ -643,6 +703,20 @@ const PlannerPhotoBg = {
     this.save();
     if (typeof this.onChange === 'function') { try { this.onChange(this.state); } catch (e) { /* 무해 */ } }
     return this.state;
+  },
+
+  /** P2: 빛 값 한 칸만 고친다 (`patch` 는 묶음을 통째로 갈아 끼우므로 합쳐서 넘긴다). */
+  patchLight(part) { return this.patch({ light: Object.assign({}, this.state.light, part || {}) }); },
+
+  /** P2: 톤 값 한 칸만 고친다. */
+  patchGrade(part) { return this.patch({ grade: Object.assign({}, this.state.grade, part || {}) }); },
+
+  /** P2: 빛·톤을 기본값으로 (「빛 되돌리기」). */
+  resetLook() {
+    return this.patch({
+      light: plannerPhotoBgDefaultsFrom(PLANNER_PHOTO_BG_LIGHT_LIMITS),
+      grade: plannerPhotoBgDefaultsFrom(PLANNER_PHOTO_BG_GRADE_LIMITS),
+    });
   },
 
   /** 사각형을 처음 자리로 되돌린다 (「사각형 다시 놓기」). */
@@ -786,6 +860,8 @@ if (typeof window !== 'undefined') {
   window.PlannerPhotoBg = PlannerPhotoBg;
   window.PLANNER_PHOTO_BG_FOV_MIN = PLANNER_PHOTO_BG_FOV_MIN;
   window.PLANNER_PHOTO_BG_FOV_MAX = PLANNER_PHOTO_BG_FOV_MAX;
+  window.PLANNER_PHOTO_BG_LIGHT_LIMITS = PLANNER_PHOTO_BG_LIGHT_LIMITS;
+  window.PLANNER_PHOTO_BG_GRADE_LIMITS = PLANNER_PHOTO_BG_GRADE_LIMITS;
   window.plannerPhotoBgRectFromArea = plannerPhotoBgRectFromArea;
   window.plannerPhotoBgQuadDefault = plannerPhotoBgQuadDefault;
   window.plannerPhotoBgQuadHealth = plannerPhotoBgQuadHealth;
@@ -808,6 +884,11 @@ if (typeof module !== 'undefined' && module.exports) {
     PLANNER_PHOTO_BG_SHALLOW,
     PLANNER_PHOTO_BG_CORNER_LABEL,
     PLANNER_PHOTO_BG_QUAD_DEFAULT,
+    PLANNER_PHOTO_BG_LIGHT_LIMITS,
+    PLANNER_PHOTO_BG_GRADE_LIMITS,
+    plannerPhotoBgDefaultsFrom,
+    plannerPhotoBgClampTo,
+    plannerPhotoBgClampBag,
     plannerPhotoBgAccept,
     plannerPhotoBgExifOrientation,
     plannerPhotoBgJpegSize,
