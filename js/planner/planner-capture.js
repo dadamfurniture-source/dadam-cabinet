@@ -52,12 +52,8 @@ const PLANNER_CAPTURE_LONG_EDGE_HI = 4096;
 /** 경계 둘레 여백 (8%) */
 const PLANNER_CAPTURE_MARGIN = 1.08;
 const PLANNER_CAPTURE_FOV = { front: 12, plan: 12, iso: 45, module: 45 };
-/**
- * 경계 계산에서 빼는 entityKind — 부재가 아니다.
- * `shadow-catcher` 는 P2 의 그림자 받개다 (`photo-mode.js`). 가구보다 훨씬 넓은 y=0 평면이라
- * 세면 프레이밍이 통째로 어긋난다 — 계획 §1.4 G5 가 이 이름표를 두라고 정한 이유다.
- */
-const PLANNER_CAPTURE_BOUNDS_SKIP = { area: true, pick: true, 'shadow-catcher': true };
+/** 경계 계산에서 빼는 entityKind — 부재가 아니다 */
+const PLANNER_CAPTURE_BOUNDS_SKIP = { area: true, pick: true };
 /** 종횡비 한계 — 아주 납작하거나 긴 씬도 화면에 들어오게 */
 const PLANNER_CAPTURE_ASPECT_MIN = 0.5;
 const PLANNER_CAPTURE_ASPECT_MAX = 3;

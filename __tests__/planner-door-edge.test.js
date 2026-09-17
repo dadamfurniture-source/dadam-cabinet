@@ -40,12 +40,9 @@ describe('도어 테두리를 두른다', () => {
 describe('줌에 따라 두께를 유지한다', () => {
   const fn = SRC.slice(SRC.indexOf('function keepDoorEdgesVisible'), SRC.indexOf('function addFrontPanel'));
 
-  test('매 프레임 부른다 — 단, 사진 모드에서는 부르지 않는다 (P1)', () => {
-    const loop = SRC.slice(SRC.indexOf('requestAnimationFrame(animate)'), SRC.indexOf('requestAnimationFrame(animate)') + 420);
+  test('매 프레임 부른다', () => {
+    const loop = SRC.slice(SRC.indexOf('requestAnimationFrame(animate)'), SRC.indexOf('requestAnimationFrame(animate)') + 220);
     expect(loop).toContain('keepDoorEdgesVisible()');
-    // 사진 위의 검은 테두리는 만화처럼 읽힌다 (계획 §1.4 G7) — 사진 모드가 그리면 여기까지 오지 않는다.
-    expect(loop).toContain('PlannerPhotoMode.renderFrame(three)');
-    expect(loop.indexOf('PlannerPhotoMode.renderFrame(three)')).toBeLessThan(loop.indexOf('keepDoorEdgesVisible()'));
   });
 
   test('실제 갭보다 얇아지지 않는다', () => {

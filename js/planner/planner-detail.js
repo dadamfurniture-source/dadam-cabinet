@@ -91,8 +91,8 @@ const PLANNER_DETAIL_CSS = `
 #detailPalette{display:none;flex-direction:column;gap:8px;font-size:11px;color:var(--text,#2b2620)}
 body.detail-mode #detailPalette{display:flex}
 body.detail-mode #modulePanel{display:none!important}
-body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail-palette"]):not([data-sec="detail"]):not([data-sec="detail-renders"]):not([data-sec="photo"]){display:none!important}
-body.detail-mode #rightPanel .section[data-sec="detail-palette"],body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"],body.detail-mode #rightPanel .section[data-sec="photo"]{display:block!important}
+body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail-palette"]):not([data-sec="detail"]):not([data-sec="detail-renders"]){display:none!important}
+body.detail-mode #rightPanel .section[data-sec="detail-palette"],body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"]{display:block!important}
 /* 스와치 묶음만 따로 구른다 — 머리(범위·슬롯·검색)는 붙어 있어야 지금 무엇을 칠하는지 보인다. */
 #detailPalette .pd-groups{max-height:44vh;overflow-y:auto;padding-right:2px}
 .pd-scope{display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border:1px solid var(--brand-mid,#c8ab86);border-radius:6px;background:var(--brand-soft,#f6efe4)}
@@ -369,22 +369,12 @@ const PlannerDetail = {
     if (typeof PlannerCapture !== 'undefined' && PlannerCapture && typeof PlannerCapture.onDetailEnter === 'function') {
       try { PlannerCapture.onDetailEnter(); } catch (e) { /* 무해 */ }
     }
-    // P1: 우측 "사진 합성" 섹션 — photo-mode.js 가 있을 때만. 사진 모드 자체는 버튼으로 켠다.
-    if (typeof PlannerPhotoMode !== 'undefined' && PlannerPhotoMode && typeof PlannerPhotoMode.renderPanel === 'function') {
-      try { PlannerPhotoMode.renderPanel(); } catch (e) { /* 무해 */ }
-    }
     if (!o.quiet) this.toast('🎨 디테일 모드 — 좌측에서 전체·배치·개별 로 범위를 고르고 우측 팔레트에서 색을 누르세요');
     return true;
   },
 
   exit() {
     if (!this.active) return false;
-    // P1: 사진 모드는 디테일 모드 **안의** 모드다. 먼저 내보내야 씬(배경·바닥·그리드·도어 테두리·
-    //   컨트롤)이 디테일 룩을 되돌리기 전에 제 값으로 돌아온다 — 안 그러면 구조 모드가 사진 모드의
-    //   씬을 물려받는다 (I2: 구조 모드 화면은 바이트 동일해야 한다).
-    if (typeof PlannerPhotoMode !== 'undefined' && PlannerPhotoMode && PlannerPhotoMode.isActive()) {
-      try { PlannerPhotoMode.exit(); } catch (e) { /* 무해 */ }
-    }
     this.active = false;
     try { document.body.classList.remove('detail-mode'); } catch (e) { /* DOM 없음 */ }
     this._pills(false);
