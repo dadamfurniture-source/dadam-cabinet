@@ -2896,8 +2896,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   /** 이 통이 영역 안에서 몇 번째인가 (0부터) — 기본형 프리셋 배정에 쓴다. */
   function wardrobeIndexOf(m) {
+    // 멤버십은 정본 규칙 areaIdOfModule 로 — `x.areaId` 를 직접 비교하면 그 값이 없는 옛 설계에서
+    //   같은 영역의 통들이 한 묶음으로 모이지 않아 **모든 통이 1번**(기본형 첫 프리셋)이 된다.
+    //   자동계산 걷어내기도 같은 이유로 샜다 (#689).
+    const areaId = areaIdOfModule(m);
     const sibs = modules
-      .filter((x) => x.areaId === m.areaId && x.section === 'wardrobe')
+      .filter((x) => x.section === 'wardrobe' && areaIdOfModule(x) === areaId)
       .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0));
     const i = sibs.findIndex((x) => x.id === m.id);
     return { idx: i < 0 ? 0 : i, count: sibs.length || 1 };

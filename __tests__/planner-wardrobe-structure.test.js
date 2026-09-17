@@ -292,6 +292,35 @@ describe('자동계산이 옛 모듈을 걷어낸다', () => {
     expect(after.reduce((s, m) => s + m.W, 0)).toBe(area.W);
   });
 
+  test('배치가 둘일 때 통 번호는 배치마다 다시 센다 — areaId 가 없어도', () => {
+    // 붙박이장 배치 두 곳(각 1800 → 2통). 옛 설계처럼 areaId 가 없으면 `x.areaId === m.areaId` 는
+    //   여덟 통을 한 묶음으로 모아 번호가 0..7 이 되고, 둘째 배치의 기본형 배정이 무너진다.
+    //   멤버십 정본(areaIdOfModule)은 자리로 찾으므로 배치마다 0..1 이다.
+    const s = PLANNER_SECTIONS.wardrobe;
+    const two = {
+      version: 1, savedAt: SAVED_AT, person: { cx: 1800, cy: 1500 },
+      modules: [
+        { section: 'wardrobe', x: 0, y: 0, w: 1800, h: s.h, moduleH: s.moduleH, rotation: 0, finishings: [] },
+        { section: 'wardrobe', x: 4000, y: 0, w: 1800, h: s.h, moduleH: s.moduleH, rotation: 0, finishings: [] },
+      ],
+    };
+    const p = bootPlanner('mockup-structure.html', {
+      search: '?design=w1&item=3',
+      storage: { ['dadam_layout_v1' + SCOPE]: JSON.stringify(two) },
+      session: { [TOKEN]: '1' },
+    });
+    if (p.errors.length) throw new Error(p.errors.map((e) => e.message).join(' | '));
+    const mods = p.g('modules').filter((m) => m.section === 'wardrobe')
+      .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0));
+    expect(mods).toHaveLength(4);                       // 배치 둘 × 2통
+    mods.forEach((m) => { delete m.areaId; });          // 옛 설계
+    const presets = mods.map((m) => p.g('wardrobeRulesOf')(m, p.g('getStructure')(m.id)).preset);
+    expect(presets).toEqual([
+      WR.SAMPLE_PRESETS[0], WR.SAMPLE_PRESETS[1],       // 첫 배치 1·2번
+      WR.SAMPLE_PRESETS[0], WR.SAMPLE_PRESETS[1],       // 둘째 배치도 다시 1·2번
+    ]);
+  });
+
   test('고정 모듈은 areaId 가 없어도 보존한다', () => {
     const p = boot();
     const area = p.g('areas')[0];
