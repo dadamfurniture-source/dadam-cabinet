@@ -91,8 +91,8 @@ const PLANNER_DETAIL_CSS = `
 #detailPalette{display:none;flex-direction:column;gap:8px;font-size:11px;color:var(--text,#2b2620)}
 body.detail-mode #detailPalette{display:flex}
 body.detail-mode #modulePanel{display:none!important}
-body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail-palette"]):not([data-sec="detail"]):not([data-sec="detail-renders"]){display:none!important}
-body.detail-mode #rightPanel .section[data-sec="detail-palette"],body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"]{display:block!important}
+body.detail-mode #rightPanel .section[data-sec]:not([data-sec="detail-palette"]):not([data-sec="detail"]):not([data-sec="detail-renders"]):not([data-sec="aiphoto"]){display:none!important}
+body.detail-mode #rightPanel .section[data-sec="detail-palette"],body.detail-mode #rightPanel .section[data-sec="detail"],body.detail-mode #rightPanel .section[data-sec="detail-renders"],body.detail-mode #rightPanel .section[data-sec="aiphoto"]{display:block!important}
 /* 스와치 묶음만 따로 구른다 — 머리(범위·슬롯·검색)는 붙어 있어야 지금 무엇을 칠하는지 보인다. */
 #detailPalette .pd-groups{max-height:44vh;overflow-y:auto;padding-right:2px}
 .pd-scope{display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border:1px solid var(--brand-mid,#c8ab86);border-radius:6px;background:var(--brand-soft,#f6efe4)}
@@ -368,6 +368,11 @@ const PlannerDetail = {
     // D3: 우측 "최근 렌더" 띠 — planner-capture.js 가 있을 때만 (없어도 모드는 돈다)
     if (typeof PlannerCapture !== 'undefined' && PlannerCapture && typeof PlannerCapture.onDetailEnter === 'function') {
       try { PlannerCapture.onDetailEnter(); } catch (e) { /* 무해 */ }
+    }
+    // R2: 우측 「사진으로 만들기」 — ai-photo.js 가 있을 때만 (없어도 모드는 돈다).
+    //   돌던 잡이 있으면 여기서 다시 붙는다 (새로고침해도 잃지 않는다).
+    if (typeof PlannerAiPhoto !== 'undefined' && PlannerAiPhoto && typeof PlannerAiPhoto.onDetailEnter === 'function') {
+      try { PlannerAiPhoto.onDetailEnter(); } catch (e) { /* 무해 */ }
     }
     if (!o.quiet) this.toast('🎨 디테일 모드 — 좌측에서 전체·배치·개별 로 범위를 고르고 우측 팔레트에서 색을 누르세요');
     return true;
@@ -1070,6 +1075,12 @@ const PlannerDetail = {
     this.renderPalette();
     this.renderCard();
     this.rerender3D();
+    // 2026-09-17: 「사진으로 만들기」 패널도 같이 다시 그린다. 들어올 때 한 번만 그리면,
+    //   디테일 모드에서 ⚡ 전체 자동계산을 돌리거나 구조를 고치고 돌아왔을 때
+    //   "도면이 비어 있습니다" 가 그대로 남는다 (브라우저 확인).
+    if (typeof PlannerAiPhoto !== 'undefined' && PlannerAiPhoto && typeof PlannerAiPhoto.render === 'function') {
+      try { PlannerAiPhoto.render(); } catch (e) { /* 무해 */ }
+    }
   },
 
   /**
