@@ -1964,15 +1964,46 @@
   const undoStack = [];
   const redoStack = [];
   const UNDO_MAX = 200;
+  /**
+   * 2026-09-17: 배치를 **바로** 저장한다.
+   *
+   * 그때까지 배치는 "구조 단계 →"·"3.디테일"·"도면 저장" 을 누를 때만 localStorage 에 쓰였다.
+   * 사각형을 놓은 뒤 그 사이에 iframe 이 다시 뜨면 배치가 통째로 날아간다 — 상세설계는
+   * 워크스페이스를 다시 그릴 때(품목 추가·전환) 플래너 iframe 을 새로 만든다. ui-step1 도 그
+   * 위험을 주석으로 적어 뒀다("품목을 추가할 때마다 리로드되면 작업 중이던 배치가 날아가므로").
+   * 그러면 구조 단계에 배치가 없고, **자동계산을 눌러도 아무것도 나오지 않는다.**
+   *
+   * pushUndo/undo/redo 가 사각형 추가·삭제의 공통 지점이라 거기에 매단다. 연타를 대비해 묶는다.
+   */
+  let _layoutSaveTimer = null;
+  function scheduleLayoutSave() {
+    if (_layoutSaveTimer) clearTimeout(_layoutSaveTimer);
+    _layoutSaveTimer = setTimeout(() => {
+      _layoutSaveTimer = null;
+      saveLayoutNow();
+    }, 250);
+  }
+  /** 지금 바로 쓴다 (묶지 않는다) — 시험과 단계 이동이 쓴다. */
+  function saveLayoutNow() {
+    try {
+      const layout = serializeLayout();
+      if (layout) localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+    } catch (e) {
+      // 저장 실패는 조용히 둔다 — 다음 변경에서 다시 쓴다 (단계 이동 저장도 그대로 남아 있다)
+    }
+  }
+
   function pushUndo(action) {
     undoStack.push(action);
     if (undoStack.length > UNDO_MAX) undoStack.shift();
     redoStack.length = 0;  // 새 액션 발생 시 redo 비움
     updateUndoUI();
+    scheduleLayoutSave();   // 사각형 추가·삭제를 바로 저장한다
   }
   function undo() {
     const action = undoStack.pop();
     if (!action) return;
+    scheduleLayoutSave();   // 되돌리기도 배치를 바꾼다
     if (action.type === 'add') {
       // 추가 되돌리기 = 제거
       const parent = action.g.parentElement;
@@ -1994,6 +2025,7 @@
   function redo() {
     const action = redoStack.pop();
     if (!action) return;
+    scheduleLayoutSave();   // 다시하기도 배치를 바꾼다
     if (action.type === 'add') {
       // 다시 추가
       if (action.nextSibling) action.parent.insertBefore(action.g, action.nextSibling);
