@@ -10,8 +10,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/generate-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 프롬프트 스냅샷(옛 경로 불변) · design_spec 검증 · /api/generate 경로.
+      # 의존성이 없어 install 없이 node --test 로 바로 돈다 (workflow-api 와 같은 방식).
+      - name: Run tests
+        run: node --test "test/*.test.js"
+
   deploy:
     name: wrangler deploy
+    needs: test
     runs-on: ubuntu-latest
     defaults:
       run:
