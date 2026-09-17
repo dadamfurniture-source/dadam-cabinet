@@ -6,6 +6,10 @@
  * 기존 모듈이 지워지는데, extractWardrobe 는 pos 'wardrobe'/'tall' 만 보므로
  * 플래너가 만든 'lower'/'upper' 는 하나도 안 잡혀 **BOM 이 조용히 0건**이 됐다.
  * 화면엔 아무 오류도 안 뜬다.
+ *
+ * 2026-09-17: 붙박이장 차단을 풀었다 — 브리지가 통을 pos 'wardrobe' 로 보내고 통 구조까지 옮긴다
+ * (planner-to-bom-wardrobe.test.js). 그 사고를 막던 자리는 **"붙박이장 통이 0개면 거부"** 로 바뀌었다.
+ * 냉장고장은 그대로 막혀 있다.
  */
 const fs = require('fs');
 const path = require('path');
@@ -25,19 +29,30 @@ const { _convertPlannerModules } = loadConverter();
 const SPECS = { moldingH: 60, sinkLegHeight: 150, topThickness: 12, wardrobePedestal: 60 };
 
 describe('붙박이장·냉장고장에 플래너 결과를 적용하지 않는다', () => {
-  test('_applyPlannerResult 가 네이티브 전용 카테고리를 막는다', () => {
-    const fn = UI.slice(UI.indexOf('function _applyPlannerResult'), UI.indexOf('function _showPlannerSummary'));
-    expect(fn).toMatch(/_isNativeOnly\(item\)/);
+  const applyFn = () => UI.slice(UI.indexOf('function _applyPlannerResult'), UI.indexOf('function _showPlannerSummary'));
+
+  test('_applyPlannerResult 가 결과를 못 받는 카테고리를 막는다', () => {
+    const fn = applyFn();
+    expect(fn).toMatch(/_plannerResultBlocked\(item\)/);
     // 막기만 하고 넘어가면 안 된다 — 교체 전에 throw 해야 한다
-    expect(fn.indexOf('_isNativeOnly(item)')).toBeLessThan(fn.indexOf('item.modules = modules'));
+    expect(fn.indexOf('_plannerResultBlocked(item)')).toBeLessThan(fn.indexOf('item.modules = modules'));
   });
 
   test('막는 이유를 사용자에게 설명한다', () => {
-    const fn = UI.slice(UI.indexOf('function _applyPlannerResult'), UI.indexOf('function _showPlannerSummary'));
-    expect(fn).toMatch(/붙박이장·냉장고장은 전용 화면/);
+    expect(applyFn()).toMatch(/냉장고장은 전용 화면/);
   });
 
-  test('네이티브 전용 목록에 붙박이장·냉장고장이 있다', () => {
+  test('붙박이장은 통이 0개일 때만 거부한다 — 그 사고를 막던 자리', () => {
+    const fn = applyFn();
+    expect(fn).toMatch(/categoryId === 'wardrobe' && !modules\.some/);
+    expect(fn).toMatch(/붙박이장 통이 없습니다/);
+    // 이 검사도 교체 전에 있어야 한다
+    expect(fn.indexOf('붙박이장 통이 없습니다')).toBeLessThan(fn.indexOf('item.modules = modules'));
+  });
+
+  test('결과를 못 받는 목록에는 냉장고장만 남았다', () => {
+    expect(UI).toMatch(/PLANNER_RESULT_BLOCKED = \['fridge'\]/);
+    // 화면 선택은 아직 그대로 — 붙박이장 전용 화면은 3단계에서 거둔다
     expect(UI).toMatch(/NATIVE_ONLY_CATEGORIES = \['wardrobe', 'fridge'\]/);
   });
 });

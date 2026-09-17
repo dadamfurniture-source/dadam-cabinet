@@ -138,7 +138,9 @@ describe('section → pos 매핑', () => {
     expect(mods.filter((m) => m.pos === 'lower')).toHaveLength(3);
   });
 
-  test('tall / wardrobe 도 하부로 간다', () => {
+  test('키큰장은 하부로, 붙박이장은 pos wardrobe 로 간다', () => {
+    // 2026-09-17: 붙박이장은 extractWardrobe 가 pos 'wardrobe' 만 보므로 'lower' 로 보내면
+    //   싱크 하부장 규칙으로 산출된다. 통 구조는 planner-to-bom-wardrobe.test.js 가 지킨다.
     const p = payload({
       modules: [
         { id: 'tall-0', section: 'tall', W: 600, H: 2300, D: 650, x: 0, y: 0 },
@@ -146,7 +148,9 @@ describe('section → pos 매핑', () => {
       ],
       structures: {},
     });
-    expect(convert(p).every((m) => m.pos === 'lower')).toBe(true);
+    const mods = convert(p);
+    expect(mods.find((m) => m.id.includes('tall-0')).pos).toBe('lower');
+    expect(mods.find((m) => m.id.includes('wardrobe-0')).pos).toBe('wardrobe');
   });
 
   test('가전 section 은 캐비닛으로 변환되지 않는다', () => {
