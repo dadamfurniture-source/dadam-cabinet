@@ -708,6 +708,12 @@ const PlannerPhotoSolve = {
   reproject: plannerPhotoReproject,
   quadSane: plannerPhotoQuadSane,
   rectCorners: plannerPhotoRectCorners,
+  // P1: 사각형 편집기가 **원근 격자**를 그리려면 세계 점 하나를 사진 픽셀로 보낼 수 있어야 한다.
+  //   맨이름(plannerPhotoProjectPoint)은 브라우저에서만 전역이라 시험 환경에서 끊긴다 — 객체에 올려 둔다.
+  basis: plannerPhotoCameraBasis,
+  project: plannerPhotoProjectPoint,
+  rect: plannerPhotoRect,
+  rectModel: plannerPhotoRectModel,
 };
 
 if (typeof window !== 'undefined') {

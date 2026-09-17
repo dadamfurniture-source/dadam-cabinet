@@ -321,6 +321,9 @@
     <button type="button" class="pdm-btn pd-only" id="renderSaveBtn" title="정면·3/4·평면 렌더(2048px)를 찍어 계정에 저장합니다. 설계 저장 전이면 이 브라우저에 내려받습니다">📷 렌더 저장</button>
     <button type="button" class="pdm-btn pd-only" id="renderMenuBtn" title="렌더 옵션 — 4096px · 이 모듈만">📷 <span class="pdm-caret">▾</span></button>
     <div class="pdm-menu" id="renderMenu" hidden></div>
+    <!-- P1: 사진 합성 모드 — 방 사진을 3D 뒤에 깔고, 사진 위 바닥 사각형에서 푼 카메라로 가구를 렌더한다
+         (js/planner/photo-mode.js). 디테일 모드에서만 보인다. -->
+    <button type="button" class="pdm-btn pd-only" id="photoModeBtn" title="방 사진 위에 가구를 합성해 봅니다 — 사진 모드에서는 화면 돌리기·줌이 꺼집니다">🖼 사진 합성</button>
     <button type="button" class="load-btn" id="autoSaveToggle" title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   </div>
   <div class="panel-toggle">
@@ -517,6 +520,16 @@
           <div class="empty-msg">📷 렌더 저장을 누르면 여기 보입니다</div>
         </div>
       </div>
+      <!-- P1: 사진 합성 — 방 사진 올리기 · 배치 공간 고르기 · 화각 · 미세조정 · 상태 한 줄.
+           내용은 PlannerPhotoMode.renderPanel 이 채운다. 디테일 모드에서만 보인다 (planner-detail.js CSS). -->
+      <div class="section" data-sec="photo" style="display:none">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">사진 합성</span>
+        </div>
+        <div class="section-body" id="photoBgBody">
+          <div class="empty-msg">방 사진을 올리면 여기 설정이 보입니다</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -584,6 +597,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/planner/planner-detail.js?v=38.8"></script>
 <!-- D3: 렌더 스냅샷 캡처·저장 (오프스크린 렌더타깃 → PNG → Storage renders + design_renders). PlannerDetail 뒤. -->
 <script src="js/planner/planner-capture.js?v=38.8"></script>
+<!-- P1(사진 합성): 사진 속 사각형 → 카메라 역산(photo-solve, 순수 수학) → 사진 들이기·상태(photo-bg)
+     → 화면·사각형 편집기(photo-mode). 이 순서여야 한다 — 뒤가 앞의 맨이름을 쓴다. 디테일 모드 안의 모드다. -->
+<script src="js/planner/photo-solve.js?v=38.8"></script>
+<script src="js/planner/photo-bg.js?v=38.8"></script>
+<script src="js/planner/photo-mode.js?v=38.8"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -3093,6 +3111,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     areas: '영역 타입 + 도어 열림', shelves: '선반 (내부 mm)', handle: '손잡이', finish: '마감',
     // 디테일 모드 전용 섹션. 여기 없으면 applyPanelLayout 이 제목을 data-sec 값("detail")으로 덮어쓴다.
     'detail-palette': '마감 팔레트', detail: '선택 부재 마감', 'detail-renders': '최근 렌더',
+    photo: '사진 합성',
   };
   const PANEL_LAYOUT = {
     // 2026-09-15: 분할·영역·선반·손잡이는 개별 모듈 패널로 갔다 — 우측은 크기·높이 구성만.
@@ -6150,12 +6169,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // Ground grid + plane
     const grid = new THREE.GridHelper(6000, 30, 0xb8956c, 0xe5e0d4);
     grid.position.y = 0;
+    // P1: 사진 모드가 숨길 수 있게 이름을 붙인다 (씬 자식이라 moduleGroup 순회로는 못 찾는다).
+    //   사진 위에 이 둘이 깔리면 바닥이 두 겹이 된다 (계획 §1.4 G5).
+    grid.userData = { entityKind: 'grid' };
     scene.add(grid);
     const groundMat = new THREE.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 1.0 });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
     ground.receiveShadow = true;
+    ground.userData = { entityKind: 'ground' };
     scene.add(ground);
 
     // OrbitControls
@@ -6203,8 +6226,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
 
     // Animation loop
+    //   P1: 사진 모드일 때는 **별도 카메라**로 레터박스 안에만 그린다 (PlannerPhotoMode.renderFrame).
+    //   화면 카메라·OrbitControls 는 건드리지 않고, 도어 테두리도 키우지 않는다 — 사진 위의 검은 선은
+    //   만화처럼 읽힌다 (계획 §1.4 G3·G7). renderFrame 이 false 를 주면 평소대로 그린다.
     function animate() {
       requestAnimationFrame(animate);
+      const photo = (typeof PlannerPhotoMode !== 'undefined') && PlannerPhotoMode.isActive();
+      if (photo && PlannerPhotoMode.renderFrame(three)) return;
       three.controls.update();
       keepDoorEdgesVisible();
       three.renderer.render(three.scene, three.camera);
@@ -7606,6 +7634,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     ];
     const geo = new THREE.BufferGeometry().setFromPoints(points);
     const lines = new THREE.LineSegments(geo, mat);
+    // P1: 사진 모드가 숨길 수 있게 이름을 붙인다. 부재가 아니라 표시라 원장·BOM 과는 무관하다
+    //   (plannerCaptureBoundsOf·scene-parts 는 mesh 만 센다).
+    lines.userData = { entityKind: 'origin' };
     parent.add(lines);
   }
 
@@ -8013,6 +8044,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     menuBtn: document.getElementById('renderMenuBtn'),
     menu: document.getElementById('renderMenu'),
   });
+  // P1: 사진 합성 모드 (js/planner/photo-mode.js). 사진 위 바닥 사각형 + 배치 공간의 실제 치수로
+  //   카메라를 역산해 **별도 카메라**로 가구를 그린다. 치수는 언제나 배치 공간에서 온다 (2026-09-17 결정).
+  PlannerPhotoMode.mount({
+    three: () => three,
+    toast: showToast,
+    areas: () => areas,
+    activeAreaId: () => activeAreaId,
+    origin: () => originPos2D,
+    sectionLabel: (s) => (SECTION_CONFIG[s] && SECTION_CONFIG[s].label) || s,
+  });
+  {
+    const pb = document.getElementById('photoModeBtn');
+    if (pb) pb.onclick = () => { PlannerPhotoMode.toggle(); PlannerPhotoMode.renderPanel(); };
+  }
   // Three.js 로드 후 init3D
   if (window.THREE) init3D();
   else window.addEventListener('three-ready', init3D);
