@@ -191,13 +191,17 @@ describe('외부 서랍 단수', () => {
     expect(sel(p, '#selWardrobeDrawerMode')).toBeNull();
     const { m } = pick(p, 1);                     // 서랍 2단
     const mode = sel(p, '#selWardrobeDrawerMode');
-    expect(mode.value).toBe('external');
-    mode.value = 'internal';
+    // 2026-09-18: 긴옷 기본은 **내부** 서랍이다
+    expect(mode.value).toBe('internal');
+    const L0 = p.g('wardrobeLayoutFor')(m, p.g('getStructure')(m.id));
+    expect(L0.carcasses.map((c) => c.kind)).toEqual(['cabinet']);   // 몸통을 따로 세우지 않는다
+    expect(L0.carcasses[0].drawerZone.drawers).toBe(2);
+    // 외부로 바꾸면 서랍 몸통이 따로 선다
+    mode.value = 'external';
     mode.dispatchEvent(new p.window.Event('change', { bubbles: true }));
     const L = p.g('wardrobeLayoutFor')(m, draft(p, m));
-    expect(L.external).toBe(false);
-    expect(L.carcasses.map((c) => c.kind)).toEqual(['cabinet']);   // 몸통을 따로 세우지 않는다
-    expect(L.carcasses[0].drawerZone.drawers).toBe(2);
+    expect(L.external).toBe(true);
+    expect(L.carcasses.map((c) => c.kind)).toEqual(['drawer', 'cabinet']);
   });
 
   test('짧은옷 2단에 서랍을 더하면 서랍 몸통이 생긴다', () => {
@@ -212,17 +216,36 @@ describe('외부 서랍 단수', () => {
     expect(L.external).toBe(true);
   });
 
-  test('외부 서랍 단수를 올리면 통 높이가 따라 줄어든다', () => {
+  test('내부 서랍은 단수를 올려도 몸통 높이가 그대로 — 칸에서 자리를 뺀다', () => {
     const p = boot();
-    const { m, s } = pick(p, 1);
+    const { m, s } = pick(p, 1);                  // 긴옷 — 기본 내부 2단
     const L0 = p.g('wardrobeLayoutFor')(m, s);
+    expect(L0.external).toBe(false);
+    const el = sel(p, '#inpWardrobeDrawers');
+    el.value = String(L0.drawers + 1);
+    el.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    const L1 = p.g('wardrobeLayoutFor')(m, draft(p, m));
+    expect(L1.bodyH).toBe(L0.bodyH);                                  // 몸통은 그대로
+    expect(L1.carcasses[0].drawerZone.h)
+      .toBe(L0.carcasses[0].drawerZone.h + WR.WARDROBE_RULES.DRAWER_MOD_H);
+    expect(L1.cells[0].h).toBe(L0.cells[0].h - WR.WARDROBE_RULES.DRAWER_MOD_H);   // 칸이 줄어든다
+    // 패널은 **초안**을 고친다 — 실제 구조는 적용 전까지 그대로다
+    expect(p.g('wardrobeLayoutFor')(m, s).drawers).toBe(L0.drawers);
+  });
+
+  test('외부로 바꾸고 단수를 올리면 통 높이가 따라 줄어든다', () => {
+    const p = boot();
+    const { m } = pick(p, 1);
+    const mode = sel(p, '#selWardrobeDrawerMode');
+    mode.value = 'external';
+    mode.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    const L0 = p.g('wardrobeLayoutFor')(m, draft(p, m));
+    expect(L0.external).toBe(true);
     const el = sel(p, '#inpWardrobeDrawers');
     el.value = String(L0.drawers + 2);
     el.dispatchEvent(new p.window.Event('change', { bubbles: true }));
-    // 패널은 **초안**을 고친다 — 실제 구조는 적용 전까지 그대로다
     const after = p.g('wardrobeLayoutFor')(m, draft(p, m)).bodyH;
     expect(after).toBe(L0.bodyH - 2 * WR.WARDROBE_RULES.DRAWER_MOD_H);
-    expect(p.g('wardrobeLayoutFor')(m, s).bodyH).toBe(L0.bodyH);
   });
 
   test('범위를 벗어난 값은 잘린다', () => {

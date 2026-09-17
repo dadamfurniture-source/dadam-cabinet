@@ -106,13 +106,13 @@ describe('브리지 — 통 구조를 옛 필드로', () => {
     expect(m.shelfCountLower).toBe(0);
   });
 
-  test('긴옷은 moduleType long + 외부 서랍 2단, 상·하 높이 없음', () => {
+  test('긴옷은 moduleType long + **내부** 서랍 2단, 상·하 높이 없음 (2026-09-18)', () => {
     const m = ws()[1];                          // longDrawer
     expect(m.moduleType).toBe('long');
     expect(m.isDivided).toBe(false);
     expect(m.upperH).toBeUndefined();
     expect(m.drawerCount).toBe(2);
-    expect(m.isExternalDrawer).toBe(true);
+    expect(m.isExternalDrawer).toBe(false);     // 긴옷 기본은 내부 서랍
     expect(m.shelfCount).toBe(1);
     expect(m.rodCountUpper).toBe(1);
   });
@@ -214,10 +214,31 @@ describe('자재표 — 칸막이·선반·옷봉이 끝까지 간다', () => {
     expect(socket.qty).toBe(total * WR.WARDROBE_RULES.ROD_SOCKETS_PER_ROD);
   });
 
-  test('외부 서랍이 있는 통은 서랍모듈이 따로 나온다 (§7)', () => {
+  test('긴옷 기본은 내부 서랍 — 서랍모듈 몸통이 아니라 통 안 부재로 나온다 (§7)', () => {
     const s = snap();
-    expect(parts(s, '2번-서랍모듈')).toContain('측판');
-    expect(parts(s, '2번-서랍모듈')).toContain('서랍전후판');
+    // 내부 서랍은 별도 몸통이 없다
+    expect(s.materials.filter((m) => m.module === '2번-서랍모듈')).toHaveLength(0);
+    // 문서 §7 '내부 서랍' 표의 부재가 통 이름으로 나온다
+    const p2 = parts(s, '2번');
+    ['내부서랍 상판', '내부서랍 측판', '내부서랍 지판', '내부서랍 밴드',
+      '내부서랍 좌우몰딩', '내부서랍 전면판', '서랍전후판', '서랍측판', '서랍밑판']
+      .forEach((name) => expect(p2).toContain(name));
+  });
+
+  test('외부로 바꾸면 서랍모듈 몸통이 따로 나온다 (§7)', () => {
+    const mods = wardrobeOf(convert(payload({
+      'wardrobe-1': { wardrobe: { preset: 'longDrawer', drawers: 2, externalDrawer: true } },
+    })));
+    const s = snapshotOf({ appVersion: 'p2x', items: [{
+      categoryId: 'wardrobe', labelName: '붙박이장',
+      w: 3600, h: 2310, d: 620, specs: SPECS, modules: mods,
+    }] });
+    const drawerMod = s.materials.filter((m) => m.module === '2번-서랍모듈').map((m) => m.part);
+    expect(drawerMod).toContain('측판');
+    expect(drawerMod).toContain('천판');
+    expect(drawerMod).toContain('서랍전후판');
+    // 내부 서랍 부재는 그때 나오지 않는다
+    expect(parts(s, '2번')).not.toContain('내부서랍 상판');
   });
 });
 

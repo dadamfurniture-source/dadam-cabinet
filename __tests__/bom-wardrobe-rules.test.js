@@ -8,10 +8,10 @@
  *   2) **통 하나가 몸통 여럿이다** — 2단은 상·하 독립 캐비닛, 외부 서랍은 별도 몸통 (2026-09-17)
  *   3) 칸막이는 **칸 경계에서 도출**되고 **몸통 안에서만** 나온다 — 몸통 사이는 천판·지판이다
  *   4) 4번 통(상단 통째 + 하부 옆 분할)의 세로 칸막이는 **하부 몸통 높이만** 차지한다
- *   5) 긴옷 서랍은 **기본 1단이고 0 도 된다**. 서랍은 외부(몸통 따로)·내부(몸통 안) 두 가지
+ *   5) 긴옷 서랍은 **기본 2단 · 내부**고 0 도 된다. 서랍은 외부(몸통 따로)·내부(몸통 안) 두 가지
  *   6) 옷봉은 **최상단 선반 바로 아래**에 걸린다 — 선반이 없으면 칸 상단에서 75
- *   6) 옷봉이 철물로 나온다 — 예전엔 도면에만 있어 발주에서 빠졌다
- *   7) 상수는 정본과 같다 (깊이 620 · 상몰딩 20 · 좌대 60)
+ *   7) 옷봉이 철물로 나온다 — 예전엔 도면에만 있어 발주에서 빠졌다
+ *   8) 상수는 정본과 같다 (깊이 620 · 상몰딩 20 · 좌대 60)
  */
 const fs = require('fs');
 const path = require('path');
@@ -144,15 +144,23 @@ describe('1번 통 — 짧은옷 2단', () => {
 describe('2번 통 — 긴옷 + 하부 서랍', () => {
   const L = layout({ preset: 'longDrawer' });
 
-  test('서랍 기본 2단, 외부라서 몸통이 맨 아래에 따로 선다 (§7 별도 제작)', () => {
+  test('서랍 기본 2단 · **내부** — 몸통은 하나고 맨 아래 칸에서 자리를 뺀다 (2026-09-18)', () => {
     expect(L.drawers).toBe(2);
-    expect(L.external).toBe(true);
-    expect(L.carcasses.map((c) => c.kind)).toEqual(['drawer', 'cabinet']);
-    expect(L.carcasses[0]).toMatchObject({ key: 'drawer', y0: 0, h: 2 * R.DRAWER_MOD_H, drawers: 2 });
+    expect(L.external).toBe(false);                 // 긴옷 기본은 내부 서랍
+    expect(L.carcasses.map((c) => c.kind)).toEqual(['cabinet']);
     expect(L.drawerModH).toBe(700);
     expect(L.fullBodyH).toBe(2230);
-    expect(L.cabinetH).toBe(2230 - 700);
+    expect(L.cabinetH).toBe(2230);                  // 몸통 높이는 그대로
+    expect(L.carcasses[0].drawerZone).toEqual({ y0: R.PANEL_T, h: 700, drawers: 2 });
     expect(WR.cabinetsOf(L)).toHaveLength(1);
+  });
+
+  test('외부로 바꾸면 몸통을 따로 세운다 (§7 별도 제작)', () => {
+    const e = layout({ preset: 'longDrawer', externalDrawer: true });
+    expect(e.external).toBe(true);
+    expect(e.carcasses.map((c) => c.kind)).toEqual(['drawer', 'cabinet']);
+    expect(e.carcasses[0]).toMatchObject({ key: 'drawer', y0: 0, h: 2 * R.DRAWER_MOD_H, drawers: 2 });
+    expect(e.cabinetH).toBe(2230 - 700);
   });
 
   test('서랍 0 도 된다 — 최소를 걸지 않는다', () => {
@@ -161,6 +169,7 @@ describe('2번 통 — 긴옷 + 하부 서랍', () => {
     expect(zero.warnings).toEqual([]);
     expect(zero.carcasses.map((c) => c.kind)).toEqual(['cabinet']);
     expect(zero.cabinetH).toBe(2230);
+    expect(zero.carcasses[0].drawerZone).toBeUndefined();   // 서랍이 없으면 자리도 안 뺀다
   });
 
   test('미지정은 프리셋 기본값 2단 (기본형 사진 그대로)', () => {
@@ -180,11 +189,11 @@ describe('2번 통 — 긴옷 + 하부 서랍', () => {
   });
 
   test('외부 서랍은 단수만큼 캐비닛을 줄인다', () => {
-    const three = layout({ preset: 'longDrawer', drawers: 3 });
+    const three = layout({ preset: 'longDrawer', drawers: 3, externalDrawer: true });
     expect(three.drawerModH).toBe(1050);
     expect(WR.cabinetsOf(three)[0].h).toBe(2230 - 1050);
     // 통 높이를 다 먹으면 경고하고 칸을 내지 않는다
-    const over = layout({ preset: 'longDrawer', drawers: 5, totalH: 1500 });
+    const over = layout({ preset: 'longDrawer', drawers: 5, totalH: 1500, externalDrawer: true });
     expect(over.cells).toHaveLength(0);
     expect(over.warnings.join()).toMatch(/남지 않는다/);
   });
@@ -214,8 +223,13 @@ describe('서랍 종류 — 외부 · 내부 (§7)', () => {
     expect(int.cells[0].h).toBe(ext.cells[0].h);
   });
 
-  test('미지정이면 외부다 (기본형 사진이 외부 서랍)', () => {
-    expect(layout({ preset: 'longDrawer' }).external).toBe(true);
+  test('미지정이면 프리셋 기본값 — 긴옷은 내부, 나머지는 외부 (2026-09-18)', () => {
+    expect(layout({ preset: 'longDrawer' }).external).toBe(false);
+    expect(WR.presetOf('longDrawer').external).toBe(false);
+    // 프리셋이 정하지 않은 구조는 외부다
+    expect(layout({ preset: 'short2', drawers: 1 }).external).toBe(true);
+    expect(layout({ preset: 'shelf22', drawers: 1 }).external).toBe(true);
+    // 블록은 미지정을 null 로 남긴다 — 규칙이 프리셋 기본값을 고르게
     expect(WR.normalizeBlock({}).externalDrawer).toBeNull();
     expect(WR.normalizeBlock({ externalDrawer: false }).externalDrawer).toBe(false);
   });
