@@ -448,7 +448,8 @@ function plannerAiPhotoFinishOf(code, catalog) {
   const entry = (catalog && catalog.byCode && catalog.byCode[c]) || null;
 
   const material = plannerAiPhotoMaterialEn(entry, c);
-  const color = plannerAiPhotoColorEn(entry, c);
+  // 색을 못 찾아도 색 자리를 비우지 않는다 — 자재만 적힌 문장은 모델에게 아무 색도 주지 않는다.
+  const color = plannerAiPhotoColorEn(entry, c) || 'neutral';
   const tone = plannerAiPhotoTone(entry);
   const toneWord = tone === 'gloss' ? 'high-gloss' : tone === 'matte' ? 'matte' : '';
   const nameEn = plannerAiPhotoCut(
@@ -507,6 +508,7 @@ const PLANNER_AI_PHOTO_CATEGORY_LABEL = {
  * @param {object} [input.detail]      마감 모델 (plannerFinishNormalize 를 거친 것)
  * @param {object} [input.catalog]     PlannerCatalog.current
  * @param {string} [input.category]    강제 지정. 없으면 섹션으로 판정한다
+ * @param {Function} [input.resolve]   마감 해석기. 기본은 전역 plannerFinishResolve (시험 주입용)
  * @returns {{category:string, wallRunMm:number, sections:object, appliances:Array, finishes:object, notes?:string}|null}
  *   보낼 내용이 하나도 없으면 null (계약은 빈 객체를 400 으로 돌려준다)
  */
@@ -570,8 +572,13 @@ function plannerAiPhotoBuildSpec(input) {
       }
       mods = mods.concat(plannerAiPhotoModulesOf(m, s, wardrobeFrontOf(m, s)));
     });
+    // 폭은 **자리(x 범위)와 모듈 폭 합** 중 큰 쪽이다.
+    //   · 보통은 둘이 같다 (모듈이 자리를 채운다).
+    //   · ㄱ자에서 90° 로 꺾인 구간은 x 로 눌리면 깊이만큼(650)으로 보여 실제 1500 런을 잃는다.
+    //     눌러 편 도면이라도 "가구가 이만큼 있다" 는 잃지 않아야 한다.
+    const sumW = mods.reduce((n, m) => n + plannerAiPhotoNum(m.widthMm), 0);
     sections[slot] = {
-      widthMm: plannerAiPhotoMm(x1 - x0),
+      widthMm: plannerAiPhotoMm(Math.max(x1 - x0, sumW)),
       heightMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => plannerAiPhotoNum(x.m.H)))),
       depthMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => plannerAiPhotoNum(x.m.D)))),
       fromLeftMm: plannerAiPhotoMm(x0 - left),
@@ -586,9 +593,9 @@ function plannerAiPhotoBuildSpec(input) {
   // 마감 — 도어·몸통·상판. 모듈마다 해석해(부재>모듈>섹션>품목) 가장 많이 나온 코드를 대표로 삼는다.
   const finishes = {};
   const detail = o.detail || null;
-  const resolve = (typeof plannerFinishResolve === 'function')
-    ? plannerFinishResolve
-    : (typeof window !== 'undefined' && window.plannerFinishResolve) || null;
+  const resolve = (typeof o.resolve === 'function') ? o.resolve
+    : (typeof plannerFinishResolve === 'function') ? plannerFinishResolve
+      : (typeof window !== 'undefined' && window.plannerFinishResolve) || null;
   if (detail && resolve) {
     const real = all.filter((m) => !plannerAiPhotoIsFinishing(m.section) && PLANNER_AI_PHOTO_BUCKET[m.section]);
     ['door', 'body', 'top'].forEach((slot) => {
@@ -620,9 +627,16 @@ function plannerAiPhotoBuildSpec(input) {
   }
   if (rotated) notes.push('ㄱ자 배치라 꺾인 구간을 한 벽으로 폈습니다');
 
+  // 런 폭 — 모든 모듈의 좌우 끝. 구간이 그보다 길어졌으면(위 sumW) 그쪽을 따른다.
+  let runMm = right - left;
+  PLANNER_AI_PHOTO_BUCKETS.forEach((slot) => {
+    const s = sections[slot];
+    if (s) runMm = Math.max(runMm, s.fromLeftMm + s.widthMm);
+  });
+
   const spec = {
     category: o.category || plannerAiPhotoCategoryOf(all),
-    wallRunMm: plannerAiPhotoMm(right - left),
+    wallRunMm: plannerAiPhotoMm(runMm),
     sections,
     appliances: apps,
     finishes,
@@ -876,6 +890,7 @@ const PlannerAiPhoto = {
       },
       boxOf: (this._o && this._o.boxOf) || undefined,
       wardrobeFrontOf: (this._o && this._o.wardrobeFrontOf) || undefined,
+      resolve: (this._o && this._o.resolve) || undefined,
       detail: this.detail(),
       catalog: this.catalog(),
     });
@@ -1127,7 +1142,7 @@ const PlannerAiPhoto = {
   async poll(id) {
     const seq = (this._seq = this._seq + 1);
     for (;;) {
-      await new Promise((r) => setTimeout(r, PLANNER_AI_PHOTO_POLL_MS));
+      await new Promise((r) => setTimeout(r, this.POLL_MS));
       if (seq !== this._seq) return { ok: false, reason: 'superseded' };
       const got = await this._get(id);
       if (seq !== this._seq) return { ok: false, reason: 'superseded' };
