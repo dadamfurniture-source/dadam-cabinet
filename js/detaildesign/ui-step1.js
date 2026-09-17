@@ -1277,6 +1277,8 @@
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
             // 2026-09-17: 붙박이장 통 구조 — 몸통 수·선반·옷봉·서랍을 옛 필드로 옮기고 블록도 같이 싣는다.
             if (isWardrobe) {
+              // 2026-09-17: 거울은 통마다 (옛 화면 hasMirror). 아직 부재로 나오지 않지만 값은 나른다.
+              if (m.hasMirror) out[out.length - 1].hasMirror = true;
               const WR = _wardrobeRules();
               const fb = WR ? WR.samplePresetFor(wardrobeOrder.indexOf(m.id), wardrobeOrder.length) : null;
               const wf = _wardrobeFieldsOf(m, s, c.w, _carcassHeight(m.H, m.section, specs, s), fb);
@@ -1285,6 +1287,15 @@
             }
           });
         });
+
+        // 2026-09-17: 커튼박스는 품목 스펙이다 (배치 공간에서 정하고 플래너가 payload 에 싣는다).
+        //   옛 붙박이장 화면이 하던 자리 — 지금은 자재로 산출되지 않지만 값은 스펙에 남긴다.
+        const curtain = src.find((m) => m.section === 'wardrobe'
+          && (Number(m.curtainBoxW) > 0 || Number(m.curtainBoxH) > 0));
+        if (curtain && specs) {
+          if (Number(curtain.curtainBoxW) > 0) specs.curtainBoxW = Number(curtain.curtainBoxW);
+          if (Number(curtain.curtainBoxH) > 0) specs.curtainBoxH = Number(curtain.curtainBoxH);
+        }
 
         if (blankDropped > 0) {
           warnings.push(`350mm 미만 잔여 ${blankDropped}칸은 캐비닛에서 제외했습니다 (휠라/마감 처리)`);
