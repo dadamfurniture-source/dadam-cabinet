@@ -390,3 +390,21 @@ describe('도면이 바뀌면 패널도 따라 바뀐다', () => {
     }
   });
 });
+
+// 2026-09-17 실서비스 확인 — 버튼이 "없다" 는 신고. 실제로는 있었지만 화면 밖이었다.
+// 마감 팔레트 한 섹션이 우측 패널 높이보다 커서 뒤 섹션을 밀어내고, 팔레트 안에 자체
+// 스크롤이 있어 마우스를 굴려도 패널이 아니라 자재 목록만 넘어갔다 (스크롤 덫).
+// 버튼 하나짜리 기능은 팔레트 **위**에 있어야 한다.
+describe('우측 패널에서 「사진으로 만들기」가 마감 팔레트보다 먼저 온다', () => {
+  test('섹션 순서: aiphoto → detail-palette → detail', () => {
+    const p = boot();
+    const order = [...p.document.querySelectorAll('#rightPanel .section[data-sec]')]
+      .map((s) => s.getAttribute('data-sec'));
+    const ai = order.indexOf('aiphoto');
+    const pal = order.indexOf('detail-palette');
+    const card = order.indexOf('detail');
+    expect(ai).toBeGreaterThanOrEqual(0);
+    expect(pal).toBeGreaterThan(ai);      // 팔레트보다 먼저
+    expect(card).toBeGreaterThan(pal);    // 고르는 곳이 카드보다 먼저 (기존 규칙 유지)
+  });
+});
