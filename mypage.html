@@ -645,6 +645,43 @@
       .case-consent:hover {
         filter: brightness(1.12);
       }
+      /* 시공 완료 목록 */
+      .project-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--line, #eee);
+        flex-wrap: wrap;
+      }
+      .project-row:last-child {
+        border-bottom: 0;
+      }
+      .project-main {
+        flex: 1;
+        min-width: 180px;
+      }
+      .project-main b {
+        font-size: 14px;
+        display: block;
+      }
+      .project-main span {
+        font-size: 12px;
+        color: var(--gray, #8b8680);
+      }
+      .project-done {
+        font-size: 12px;
+        color: var(--gray, #8b8680);
+        white-space: nowrap;
+      }
+      .project-done.rated {
+        color: #2f6f4f;
+        font-weight: 600;
+      }
+      .score-val {
+        color: var(--gold, #b08d57);
+        font-weight: 700;
+      }
       .consent-line {
         display: flex;
         align-items: flex-start;
@@ -1224,6 +1261,21 @@
       <!-- 내 시공사례 -->
       <!-- user-only 를 붙이지 않는다: 관리자 계정도 사례를 올릴 수 있어야 하고,
            admin/gallery.html 은 furniture_images(AI 학습용)로 들어가는 별개 통로다. -->
+      <section class="section" id="myProjectsSection" hidden>
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+            시공 완료
+          </h2>
+        </div>
+        <p class="form-hint" style="margin: -8px 0 16px">
+          시공이 끝난 설계입니다. 평가를 남겨 주시면 다음 설계가 더 정확해집니다.
+        </p>
+        <div id="projectList"></div>
+      </section>
+
       <section class="section" id="myCasesSection">
         <div class="section-header">
           <h2 class="section-title">
@@ -1342,6 +1394,61 @@
     </div>
 
     <!-- 시공사례 올리기 -->
+    <div class="modal" id="feedbackModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="feedbackTitle">시공 평가</h3>
+          <button type="button" class="modal-close" onclick="closeFeedbackModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="feedbackForm" onsubmit="submitFeedback(event)">
+            <div class="form-group">
+              <label>어떤 평가인가요</label>
+              <select id="fbType">
+                <option value="completion">시공 완료 소감</option>
+                <option value="praise">만족한 점</option>
+                <option value="complaint">불만·하자</option>
+                <option value="revision">수정 요청</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>설계대로 나왔나요 <span id="fbAccuracyVal" class="score-val">3</span> / 5</label>
+              <input type="range" id="fbAccuracy" min="1" max="5" step="1" value="3" />
+            </div>
+            <div class="form-group">
+              <label>쓰기 편한가요 <span id="fbUsabilityVal" class="score-val">3</span> / 5</label>
+              <input type="range" id="fbUsability" min="1" max="5" step="1" value="3" />
+            </div>
+            <div class="form-group">
+              <label class="consent-line">
+                <input type="checkbox" id="fbModified" />
+                <span>시공 중에 설계를 고쳐야 했습니다</span>
+              </label>
+            </div>
+            <div class="form-group" id="fbReasonGroup" hidden>
+              <label>무엇을 왜 고쳤나요</label>
+              <textarea id="fbReason" rows="2" placeholder="예: 벽이 기울어 상부장 폭을 20mm 줄임"></textarea>
+            </div>
+            <div class="form-group">
+              <label>남기실 말씀</label>
+              <textarea id="fbText" rows="3" placeholder="좋았던 점, 아쉬운 점 무엇이든"></textarea>
+            </div>
+            <div class="form-group" id="fbPostGroup" hidden>
+              <label>어느 사진에 대한 평가인가요 (선택)</label>
+              <select id="fbPost">
+                <option value="">특정하지 않음</option>
+              </select>
+            </div>
+            <p class="form-hint" id="feedbackStatus"></p>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-edit" onclick="closeFeedbackModal()">취소</button>
+          <button type="submit" form="feedbackForm" class="btn-upgrade" id="fbSubmit">평가 남기기</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="caseModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -1553,6 +1660,7 @@
 
         // 시공사례는 관리자·일반 모두 올릴 수 있다
         await loadMyCases();
+        await loadMyProjects();
       }
 
       // 관리자 역할 배지 ("Super Admin" / "Admin")
@@ -2340,6 +2448,164 @@
           img.src = url;
         });
       }
+
+      // ─── 시공 완료 · 평가 (사슬 ④) ───────────────────────────
+      // design_feedback 표는 처음부터 있었지만 쓰는 화면이 없었다. 여기가 그 입구다.
+      let projectRows = [];
+      let feedbackTarget = null;
+
+      /** 시공이 끝난 설계만 보여준다 — 완료 판정의 정본은 orders.status='completed' 다. */
+      async function loadMyProjects() {
+        const box = document.getElementById('projectList');
+        const section = document.getElementById('myProjectsSection');
+        if (!box || !supabaseClient || !currentUser) return;
+
+        let orders = [];
+        try {
+          const res = await supabaseClient
+            .from('orders')
+            .select('design_id, order_no, completed_at')
+            .eq('status', 'completed')
+            .order('completed_at', { ascending: false })
+            .limit(50);
+          if (res.error) throw res.error;
+          orders = res.data || [];
+        } catch (e) {
+          // 수주를 못 읽는 계정이면 이 구역은 없는 것과 같다 — 조용히 숨긴다
+          section.hidden = true;
+          return;
+        }
+        if (!orders.length) {
+          section.hidden = true;
+          return;
+        }
+
+        const ids = orders.map((o) => o.design_id);
+        const [{ data: designs }, { data: feedback }] = await Promise.all([
+          supabaseClient.from('designs').select('id, name').in('id', ids),
+          supabaseClient.from('design_feedback').select('design_id, created_at').in('design_id', ids),
+        ]);
+        const nameOf = new Map((designs || []).map((d) => [d.id, d.name]));
+        const rated = new Set((feedback || []).map((f) => f.design_id));
+
+        projectRows = orders.map((o) => ({
+          design_id: o.design_id,
+          order_no: o.order_no,
+          completed_at: o.completed_at,
+          name: nameOf.get(o.design_id) || '이름 없는 설계',
+          rated: rated.has(o.design_id),
+        }));
+
+        box.textContent = '';
+        projectRows.forEach((r) => box.appendChild(projectRowEl(r)));
+        section.hidden = false;
+      }
+
+      function projectRowEl(r) {
+        const row = document.createElement('div');
+        row.className = 'project-row';
+
+        const main = document.createElement('div');
+        main.className = 'project-main';
+        const b = document.createElement('b');
+        b.textContent = r.name;
+        const span = document.createElement('span');
+        span.textContent =
+          (r.completed_at ? new Date(r.completed_at).toLocaleDateString('ko-KR') + ' 시공 완료' : '시공 완료') +
+          (r.order_no ? ' · ' + r.order_no : '');
+        main.appendChild(b);
+        main.appendChild(span);
+
+        const state = document.createElement('span');
+        state.className = 'project-done' + (r.rated ? ' rated' : '');
+        state.textContent = r.rated ? '✓ 평가함' : '';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = r.rated ? 'btn-edit' : 'btn-upgrade';
+        btn.textContent = r.rated ? '평가 추가' : '평가하기';
+        btn.addEventListener('click', () => openFeedbackModal(r));
+
+        row.appendChild(main);
+        row.appendChild(state);
+        row.appendChild(btn);
+        return row;
+      }
+
+      async function openFeedbackModal(project) {
+        feedbackTarget = project;
+        document.getElementById('feedbackForm').reset();
+        document.getElementById('fbAccuracyVal').textContent = '3';
+        document.getElementById('fbUsabilityVal').textContent = '3';
+        document.getElementById('fbReasonGroup').hidden = true;
+        document.getElementById('feedbackStatus').textContent = '';
+        document.getElementById('feedbackTitle').textContent = project.name + ' 평가';
+        document.getElementById('feedbackModal').classList.add('active');
+
+        // 이 설계에 붙은 완성 사진이 있으면 고를 수 있게 한다 (선택)
+        const sel = document.getElementById('fbPost');
+        sel.length = 1;
+        const { data: posts } = await supabaseClient
+          .from('collection_posts')
+          .select('id, region, created_at')
+          .eq('design_id', project.design_id)
+          .order('created_at', { ascending: false });
+        (posts || []).forEach((p) => {
+          const o = document.createElement('option');
+          o.value = p.id;
+          o.textContent = (p.region || '지역 미입력') + ' · ' + new Date(p.created_at).toLocaleDateString('ko-KR');
+          sel.appendChild(o);
+        });
+        document.getElementById('fbPostGroup').hidden = sel.length <= 1;
+      }
+
+      function closeFeedbackModal() {
+        document.getElementById('feedbackModal').classList.remove('active');
+        feedbackTarget = null;
+      }
+
+      async function submitFeedback(e) {
+        e.preventDefault();
+        if (!feedbackTarget || !currentUser) return;
+        const btn = document.getElementById('fbSubmit');
+        const status = document.getElementById('feedbackStatus');
+        btn.disabled = true;
+        status.textContent = '보내는 중…';
+
+        const modified = document.getElementById('fbModified').checked;
+        const row = {
+          design_id: feedbackTarget.design_id,
+          user_id: currentUser.id,
+          feedback_type: document.getElementById('fbType').value,
+          accuracy_score: Number(document.getElementById('fbAccuracy').value),
+          usability_score: Number(document.getElementById('fbUsability').value),
+          was_modified: modified,
+          modification_reason: modified ? document.getElementById('fbReason').value.trim() || null : null,
+          feedback_text: document.getElementById('fbText').value.trim() || null,
+          // 사진을 고르면 그 장에 붙는다. 안 고르면 설계 단위 평가다.
+          post_id: document.getElementById('fbPost').value || null,
+        };
+        const { error } = await supabaseClient.from('design_feedback').insert(row);
+        btn.disabled = false;
+        if (error) {
+          status.textContent = '저장하지 못했습니다: ' + error.message;
+          return;
+        }
+        closeFeedbackModal();
+        await loadMyProjects();
+      }
+
+      // 점수 슬라이더 · 수정 사유 토글
+      document.addEventListener('DOMContentLoaded', () => {
+        const bind = (id, out) => {
+          const el = document.getElementById(id);
+          if (el) el.addEventListener('input', () => { document.getElementById(out).textContent = el.value; });
+        };
+        bind('fbAccuracy', 'fbAccuracyVal');
+        bind('fbUsability', 'fbUsabilityVal');
+        const mod = document.getElementById('fbModified');
+        if (mod) mod.addEventListener('change', () => { document.getElementById('fbReasonGroup').hidden = !mod.checked; });
+      });
 
       /**
        * 업로드 모달의 설계 목록. 시공이 끝난 설계(orders.status='completed')를 위로 올리고
