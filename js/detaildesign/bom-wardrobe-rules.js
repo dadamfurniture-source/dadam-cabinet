@@ -12,11 +12,19 @@
  * 그래서 통 내부를 **칸 사각형 목록**으로 잡는다. 칸막이는 저장하지 않고 칸 경계에서 도출한다 —
  * 칸과 칸막이를 따로 저장하면 둘이 어긋난 상태가 저장될 수 있다.
  *
+ * ── 통 하나는 몸통 여럿이다 (2026-09-17 사장님 확정) ────────────
+ * 통(bay) 하나가 캐비닛 하나인 것이 **아니다.** 2단 구조(위·아래 짧은옷)는 상부장·하부장이
+ * **각각 독립 캐비닛**이고 둘을 결합해 세운다 — 사이에 칸막이 한 장이 아니라 하부 천판 + 상부 지판 두 장이다.
+ * 외부 서랍이 들어가면 **서랍 몸통도 따로** 만들어 아래에 붙인다 (§7 "서랍 모듈을 별도 제작").
+ * 기존 BOM(extractWardrobe 의 isDivided 갈래)이 이미 그렇게 내고 있었다 — 규칙을 그쪽에 맞췄다.
+ *
+ *   통 = [서랍 몸통?] + 캐비닛 몸통 1~2   (아래에서 위로, 높이 합 = 몸통높이)
+ *
  * ── 좌표 ─────────────────────────────────────────────────────────
- * 칸은 **내경 좌표**다. x 는 좌측 측판 안쪽 면에서 오른쪽으로, y 는 **지판 윗면에서 위로** (플래너 shelves 와 같은 방향).
+ * 칸은 **내경 좌표**다. x 는 좌측 측판 안쪽 면에서 오른쪽으로, y 는 **위로**.
+ * 칸·칸막이·선반·옷봉의 y 는 통 전체에서 **몸통 바닥(좌대 위)** 기준이고, 몸통마다 그 몸통의 지판 윗면에서 시작한다.
  *   내경 폭   Wi = W − 2×T
- *   내경 높이 Hi = 몸통높이 − 2×T          (몸통높이 = 전체높이 − 좌대 − 상몰딩, wardrobe.md §2)
- * 외부 서랍은 통 **아래에 별도 캐비닛**으로 서므로(§7) 그 높이만큼 몸통이 줄고, 칸은 줄어든 내경 안에 든다.
+ *   몸통 내경 높이 = 그 몸통 높이 − 2×T     (몸통높이 합 = 전체높이 − 좌대 − 상몰딩, wardrobe.md §2)
  *
  * ── 부재 치수 관례 ───────────────────────────────────────────────
  * extractors.add(…, 두께, 가로, 세로, …) 의 가로·세로는 **판을 켜는 방향**이다. 기존 코드를 따른다:
@@ -91,13 +99,14 @@
   // build(o) 는 내경 {Wi, Hi, T, drawers} 를 받아 칸 목록을 낸다. 나눌 자리가 없으면 분할을 접고 경고한다.
 
   /**
-   * 수평 2단 — 아래·위 칸 높이. 분리형 기본값과 같다 (§2 halfH).
-   * 홀수로 안 나뉘면 **위 칸이 나머지를 먹는다.** 높이는 부재 치수를 바꾸지 않으므로(선반·옷봉은 칸 폭으로 켠다)
-   * 1mm 를 남겨 두는 것보다 채우는 편이 낫다.
+   * 몸통 스택 높이 나누기 — 몫(share)대로 나누고 **맨 위가 나머지를 먹는다.**
+   * 높이는 선반·옷봉 치수를 바꾸지 않으므로(그것들은 칸 폭으로 켠다) 1mm 를 남기지 않고 채운다.
    */
-  function halfRows(Hi, T) {
-    const h = Math.floor((Hi - T) / 2);
-    return [{ y0: 0, h }, { y0: h + T, h: Hi - h - T }];
+  function splitStack(total, shares) {
+    const sum = shares.reduce((a, b) => a + b, 0) || 1;
+    const out = shares.map((sh) => Math.floor((total * sh) / sum));
+    out[out.length - 1] += total - out.reduce((a, b) => a + b, 0);
+    return out;
   }
 
   /**
@@ -110,68 +119,82 @@
     return [{ x0: 0, w }, { x0: w + T, w }];
   }
 
+  // 몸통(stack)은 **아래에서 위로** 적는다. cells(ctx) 는 그 몸통의 내경 {Wi, Hi, T} 를 받아
+  // 그 몸통 안의 칸을 낸다 — y 는 그 몸통 지판 윗면에서 위로다.
   const PRESETS = Object.freeze([
     {
       key: 'short2',
       label: '짧은옷 2단',
-      note: '기본형 1번 통 — 상·하 각 옷봉 1',
+      note: '기본형 1번 통 — 상·하 각 옷봉 1. 몸통 2개가 결합된다',
       moduleType: 'short',
-      build: ({ Wi, Hi, T }) => halfRows(Hi, T).map((r, i) => ({
-        x0: 0, w: Wi, y0: r.y0, h: r.h, kind: 'rod', rods: 1, shelves: 0,
-        label: i === 0 ? '하부 옷봉' : '상부 옷봉',
-      })),
+      stack: [
+        { key: 'lower', label: '하부장', share: 1,
+          cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 0, label: '하부 옷봉' }] },
+        { key: 'upper', label: '상부장', share: 1,
+          cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 0, label: '상부 옷봉' }] },
+      ],
     },
     {
       key: 'longDrawer',
       label: '긴옷 + 하부 서랍',
-      note: '기본형 2번 통 — 상단 선반 1 + 옷봉 1, 아래 외부 서랍',
+      note: '기본형 2번 통 — 상단 선반 1 + 옷봉 1. 서랍은 몸통을 따로 만든다',
       moduleType: 'long',
       drawers: 2,
-      build: ({ Wi, Hi }) => [
-        { x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1, label: '긴옷' },
+      minDrawers: 1,          // 긴옷에는 서랍이 최소 1단 들어간다 (2026-09-17 사장님 확정 · §4 long 기본 서랍 1)
+      stack: [
+        { key: 'body', label: '긴옷장', share: 1,
+          cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1, label: '긴옷' }] },
       ],
     },
     {
       key: 'halfSplit',
       label: '반 분할 (중간 칸막이)',
-      note: '기본형 3번 통 — 세로 칸막이로 반, 각 칸 선반 1 + 옷봉 1',
+      note: '기본형 3번 통 — 세로 칸막이로 반, 각 칸 선반 1 + 옷봉 1. 몸통은 하나다',
       moduleType: 'long',
-      build: ({ Wi, Hi, T }) => halfCols(Wi, T).map((c, i) => ({
-        x0: c.x0, w: c.w, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1,
-        label: i === 0 ? '좌' : '우',
-      })),
+      stack: [
+        { key: 'body', label: '통장', share: 1,
+          cells: ({ Wi, Hi, T }) => halfCols(Wi, T).map((c, i) => ({
+            x0: c.x0, w: c.w, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1,
+            label: i === 0 ? '좌' : '우',
+          })) },
+      ],
     },
     {
       key: 'rodTopSplitBottom',
       label: '상단 옷봉 + 하부 옆 분할',
-      note: '기본형 4번 통 — 위는 통째 옷봉, 아래는 선반 3단 | 짧은 옷봉',
+      note: '기본형 4번 통 — 위는 통째 옷봉, 아래는 선반 3단 | 짧은 옷봉. 몸통 2개',
       moduleType: 'short',
-      build: ({ Wi, Hi, T }) => {
-        const [lower, upper] = halfRows(Hi, T);
-        const cols = halfCols(Wi, T);
-        return [
-          { x0: cols[0].x0, w: cols[0].w, y0: lower.y0, h: lower.h, kind: 'shelf', shelves: 3, rods: 0, label: '하부 선반' },
-          { x0: cols[1].x0, w: cols[1].w, y0: lower.y0, h: lower.h, kind: 'rod', shelves: 0, rods: 1, label: '하부 짧은옷' },
-          { x0: 0, w: Wi, y0: upper.y0, h: upper.h, kind: 'rod', shelves: 0, rods: 1, label: '상부 옷봉' },
-        ];
-      },
+      stack: [
+        { key: 'lower', label: '하부장', share: 1,
+          cells: ({ Wi, Hi, T }) => {
+            const cols = halfCols(Wi, T);
+            return [
+              { x0: cols[0].x0, w: cols[0].w, y0: 0, h: Hi, kind: 'shelf', shelves: 3, rods: 0, label: '하부 선반' },
+              { x0: cols[1].x0, w: cols[1].w, y0: 0, h: Hi, kind: 'rod', shelves: 0, rods: 1, label: '하부 짧은옷' },
+            ];
+          } },
+        { key: 'upper', label: '상부장', share: 1,
+          cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 0, label: '상부 옷봉' }] },
+      ],
     },
     {
       key: 'shelf22',
       label: '선반형 (상 2 · 하 2)',
-      note: '기존 선반형 기본값 (§4 shelf)',
+      note: '기존 선반형 기본값 (§4 shelf). 몸통 2개',
       moduleType: 'shelf',
-      build: ({ Wi, Hi, T }) => halfRows(Hi, T).map((r, i) => ({
-        x0: 0, w: Wi, y0: r.y0, h: r.h, kind: 'shelf', shelves: 2, rods: 0,
-        label: i === 0 ? '하부 선반' : '상부 선반',
-      })),
+      stack: [
+        { key: 'lower', label: '하부장', share: 1,
+          cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'shelf', shelves: 2, rods: 0, label: '하부 선반' }] },
+        { key: 'upper', label: '상부장', share: 1,
+          cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'shelf', shelves: 2, rods: 0, label: '상부 선반' }] },
+      ],
     },
     {
       key: 'custom',
       label: '사용자',
       note: '칸을 직접 편집한 상태 — 프리셋이 다시 덮어쓰지 않는다',
       moduleType: null,
-      build: () => [],
+      stack: [{ key: 'body', label: '통장', share: 1, cells: () => [] }],
     },
   ]);
 
@@ -337,67 +360,125 @@
     const opt = o || {};
     const T = thicknessOf(opt);
     const W = num(opt.W, R.SAMPLE_CELL_W);
+    const Wi = W - 2 * T;
     const warnings = [];
     const key = presetKeyOf(opt.preset);
     const preset = presetOf(key);
 
     // 미지정(null·undefined)이면 프리셋 기본값. 0 은 "서랍 없음" 이라는 **지정**이다.
-    const drawers = opt.drawers == null || opt.drawers === ''
+    //   다만 긴옷(minDrawers)은 0 을 받지 않는다 — 서랍이 최소 1단 들어간다.
+    let drawers = opt.drawers == null || opt.drawers === ''
       ? int0(preset.drawers, R.MAX_DRAWER_COUNT)
       : int0(opt.drawers, R.MAX_DRAWER_COUNT);
+    const minDrawers = int0(preset.minDrawers, R.MAX_DRAWER_COUNT);
+    if (drawers < minDrawers) {
+      warnings.push(`${preset.label} 은 서랍이 최소 ${minDrawers}단 들어간다 — ${drawers} 를 ${minDrawers} 로 올렸다`);
+      drawers = minDrawers;
+    }
     const drawerModH = drawers * R.DRAWER_MOD_H;
 
     const fullBodyH = bodyHeightOf(opt);
-    const bodyH = fullBodyH - drawerModH;      // 외부 서랍은 아래에 따로 선다 (§7)
-    const Wi = W - 2 * T;
-    const Hi = bodyH - 2 * T;
-    if (Hi <= 0) {
-      warnings.push(`서랍 ${drawers}단(${drawerModH})을 빼면 몸통 높이가 ${bodyH} 로 남지 않는다`);
-      return { preset: key, cells: [], dividers: [], rods: [], shelves: [], drawerModH, drawers, bodyH, fullBodyH, Wi, Hi, T, warnings };
+    const cabinetH = fullBodyH - drawerModH;     // 서랍 몸통을 뺀 나머지를 캐비닛 몸통들이 나눈다
+
+    const empty = {
+      preset: key, label: preset.label, moduleType: preset.moduleType,
+      carcasses: [], cells: [], dividers: [], shelves: [], rods: [],
+      drawers, drawerModH, cabinetH, bodyH: cabinetH, fullBodyH, Wi, T, W,
+      shelfDepth: shelfDepthOf(opt), innerDepth: innerDepthOf(opt), warnings,
+    };
+    if (cabinetH <= 2 * T) {
+      warnings.push(`서랍 ${drawers}단(${drawerModH})을 빼면 몸통 높이가 ${cabinetH} 로 남지 않는다`);
+      return empty;
     }
 
-    let cells = Array.isArray(opt.cells) ? opt.cells.map(cleanCell).filter(Boolean) : [];
-    if (!cells.length) cells = preset.build({ Wi, Hi, T, drawers }).map(cleanCell).filter(Boolean);
+    // 직접 편집한 칸을 주면 캐비닛 몸통 **하나**로 본다 — 칸 좌표가 어느 몸통 것인지 알 수 없으므로.
+    const given = Array.isArray(opt.cells) ? opt.cells.map(cleanCell).filter(Boolean) : [];
+    const plan = given.length
+      ? [{ key: 'body', label: '통장', share: 1, cells: () => given }]
+      : preset.stack;
 
-    // 너무 좁은 칸이 나오면 분할을 접는다 — 만들 수 없는 판을 BOM 으로 내지 않는다.
-    const narrow = cells.filter((c) => c.w < R.MIN_CELL_W);
-    if (narrow.length) {
-      warnings.push(`칸 폭 ${narrow.map((c) => c.w).join('·')} 가 최소 ${R.MIN_CELL_W} 미만 — 세로 분할을 접는다`);
-      const rows = new Map();
-      cells.forEach((c) => {
-        const k = `${c.y0}:${c.h}`;
-        const cur = rows.get(k);
-        if (!cur || c.x0 < cur.x0) rows.set(k, Object.assign({}, c, { x0: 0, w: Wi }));
-      });
-      cells = [...rows.values()];
+    const carcasses = [];
+    let y = 0;
+    if (drawers > 0) {
+      // §7 외부 서랍 — 통 아래에 **별도 제작** 몸통으로 선다.
+      carcasses.push({ key: 'drawer', label: '서랍모듈', kind: 'drawer', y0: 0, h: drawerModH, drawers,
+        cells: [], dividers: [], shelves: [], rods: [] });
+      y = drawerModH;
     }
-
-    cells.sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0));
-    const dividers = dividersOf(cells, opt);
-
-    const shelves = [];
-    const rods = [];
-    cells.forEach((c, idx) => {
-      shelfPositions(c, opt).forEach((y) => shelves.push({
-        cell: idx, x0: c.x0, y: y + c.y0, w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반',
-      }));
-      rodPositions(c).forEach((y) => rods.push({
-        // clearW = 칸 내경 폭(그림에서 칸이 차지하는 폭), length = 실제 파이프 재단 길이
-        cell: idx, x0: c.x0, y: y + c.y0, clearW: c.w, length: rodLengthFor(c.w),
-        sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉',
-      }));
-      if (c.shelves > 0 && c.rods > 0 && c.h <= R.LONG_FIRST_SHELF) {
-        warnings.push(`칸 ${idx + 1} 높이 ${c.h} 는 긴옷 첫 선반 ${R.LONG_FIRST_SHELF} 보다 낮아 선반이 빠졌다`);
-      }
+    const heights = splitStack(cabinetH, plan.map((st) => Math.max(1, Number(st.share) || 1)));
+    plan.forEach((st, i) => {
+      carcasses.push({ key: st.key, label: st.label, kind: 'cabinet', y0: y, h: heights[i],
+        planIdx: i, cells: [], dividers: [], shelves: [], rods: [] });
+      y += heights[i];
     });
 
-    return {
-      preset: key, label: preset.label, moduleType: preset.moduleType,
-      cells, dividers, shelves, rods,
-      drawers, drawerModH, bodyH, fullBodyH, Wi, Hi, T, W,
-      shelfDepth: shelfDepthOf(opt), innerDepth: innerDepthOf(opt),
-      warnings,
-    };
+    const cells = [];
+    const dividers = [];
+    const shelves = [];
+    const rods = [];
+
+    carcasses.forEach((car, carIdx) => {
+      if (car.kind !== 'cabinet') return;
+      const Hi = car.h - 2 * T;
+      if (Hi <= 0) {
+        warnings.push(`${car.label} 높이 ${car.h} 가 판 두께(${2 * T})보다 작아 칸이 없다`);
+        return;
+      }
+      const st = plan[car.planIdx];
+      let own = (st.cells({ Wi, Hi, T, drawers }) || []).map(cleanCell).filter(Boolean);
+
+      // 너무 좁은 칸이 나오면 세로 분할을 접는다 — 만들 수 없는 판을 BOM 으로 내지 않는다.
+      const narrow = own.filter((c) => c.w < R.MIN_CELL_W);
+      if (narrow.length) {
+        warnings.push(`${car.label} 칸 폭 ${narrow.map((c) => c.w).join('·')} 가 최소 ${R.MIN_CELL_W} 미만 — 세로 분할을 접는다`);
+        const rows = new Map();
+        own.forEach((c) => {
+          const k = `${c.y0}:${c.h}`;
+          const cur = rows.get(k);
+          if (!cur || c.x0 < cur.x0) rows.set(k, Object.assign({}, c, { x0: 0, w: Wi }));
+        });
+        own = [...rows.values()];
+      }
+      own.sort((x, z) => (x.y0 - z.y0) || (x.x0 - z.x0));
+
+      // 몸통 안 좌표 → 통 좌표. 그 몸통 지판 윗면이 y0 + T 다.
+      const base = car.y0 + T;
+      const ownDividers = dividersOf(own, opt).map((d) => Object.assign({}, d, {
+        carcass: carIdx,
+        y0: d.axis === 'v' ? d.y0 + base : d.y0,
+        y: d.axis === 'h' ? d.y + base : d.y,
+      }));
+      car.dividers = ownDividers;
+      dividers.push(...ownDividers);
+
+      own.forEach((c) => {
+        const cell = Object.assign({}, c, { carcass: carIdx, y0: c.y0 + base });
+        const idx = cells.length;
+        cells.push(cell);
+        car.cells.push(cell);
+        shelfPositions(c, opt).forEach((sy) => {
+          const row = { cell: idx, carcass: carIdx, x0: c.x0, y: sy + cell.y0,
+            w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반' };
+          shelves.push(row); car.shelves.push(row);
+        });
+        rodPositions(c).forEach((ry) => {
+          // clearW = 칸 내경 폭(그림에서 칸이 차지하는 폭), length = 실제 파이프 재단 길이
+          const row = { cell: idx, carcass: carIdx, x0: c.x0, y: ry + cell.y0,
+            clearW: c.w, length: rodLengthFor(c.w), sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉' };
+          rods.push(row); car.rods.push(row);
+        });
+        if (c.shelves > 0 && c.rods > 0 && c.h <= R.LONG_FIRST_SHELF) {
+          warnings.push(`${car.label} 칸 높이 ${c.h} 는 긴옷 첫 선반 ${R.LONG_FIRST_SHELF} 보다 낮아 선반이 빠졌다`);
+        }
+      });
+    });
+
+    return Object.assign(empty, { carcasses, cells, dividers, shelves, rods });
+  }
+
+  /** 캐비닛 몸통만 (서랍 몸통 제외) — 옛 upperH·lowerH 로 옮길 때 쓴다. */
+  function cabinetsOf(layout) {
+    return (layout.carcasses || []).filter((c) => c.kind === 'cabinet');
   }
 
   /**
@@ -452,6 +533,7 @@
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
     layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
+    cabinetsOf, splitStack,
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });
