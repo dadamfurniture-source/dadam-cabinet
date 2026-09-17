@@ -6525,6 +6525,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       transparent: !!opts.transparent,
       opacity:     opts.opacity ?? 1.0,
       wireframe:   !!opts.wireframe,
+      // 2026-09-18: 부재 경계선이 **보는 각도에 따라 사라졌다 나타났다** 했다.
+      //   테두리 선(addEdgeOutline)이 면과 **같은 자리**에 있어 깊이값이 거의 같고,
+      //   각도가 바뀌면 부동소수 오차로 면이 선을 이기는 구간이 생긴다 (z-fighting).
+      //   면을 깊이 방향으로 살짝 뒤로 밀면 선이 언제나 이긴다 — 면 자체는 그대로 보인다.
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true;
@@ -6536,12 +6543,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   function addEdgeOutline(mesh, parent, color, opacity) {
     if (!mesh || !mesh.geometry) return;
     const edges = new THREE.EdgesGeometry(mesh.geometry);
+    // 2026-09-18: 선이 흐렸다. 반투명이면 뒤 색과 섞여 각도마다 진하기가 달라진다.
+    //   WebGL 은 linewidth 를 무시하므로 굵기로는 선명하게 만들 수 없다 — **대비**로 만든다.
+    //   0.85 이상은 "진한 선" 이라는 뜻이었으니 불투명으로 그린다 (호출 28곳을 고치지 않아도 된다).
+    //   0.85 미만(상판·좌대의 0.7)은 일부러 옅게 둔 것이라 그대로 섞는다.
+    const op = opacity != null ? opacity : 1;
+    const solid = op >= 0.85;
     const mat = new THREE.LineBasicMaterial({
-      color: color != null ? color : 0x000000,
-      transparent: true,
-      // 2026-09-17: 기본 0.6 → 0.85. 부재끼리 경계가 보여야 한다는 지시. 도어·마감은 이미 0.8~0.9 였다.
-      opacity: opacity != null ? opacity : 0.85,
-      linewidth: 1,
+      color: color != null ? color : 0x1a1a1a,
+      transparent: !solid,
+      opacity: solid ? 1 : op,
     });
     const line = new THREE.LineSegments(edges, mat);
     line.position.copy(mesh.position);

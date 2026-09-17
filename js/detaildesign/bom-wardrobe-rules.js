@@ -142,11 +142,14 @@
     {
       key: 'longDrawer',
       label: '긴옷 + 하부 서랍',
-      note: '기본형 2번 통 — 상단 선반 1 + 옷봉 1. 서랍은 몸통을 따로 만든다',
+      note: '기본형 2번 통 — 상단 선반 1 + 옷봉 1. 서랍은 기본이 내부(몸통 안)다',
       moduleType: 'long',
       // 2026-09-17 사장님 확정: 긴옷 서랍은 **2단이 기본값**(기본형 사진 그대로)이고 0 도 된다.
       //   최소 제한은 걸지 않는다 — 패널에서 0 으로 내릴 수 있다.
       drawers: 2,
+      // 2026-09-18 사장님 확정: 긴옷의 기본 서랍은 **내부 서랍**이다 (몸통 높이를 그대로 두고
+      //   맨 아래 칸 안에 서랍모듈을 넣는다). 패널에서 외부로 바꿀 수 있다.
+      external: false,
       stack: [
         { key: 'body', label: '긴옷장', share: 1,
           cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1, label: '긴옷' }] },
@@ -424,7 +427,11 @@
     // 2026-09-17 사장님 확정: 서랍은 **내부·외부 두 가지**다 (§7).
     //   외부 = 통 아래에 몸통을 따로 세운다 → 캐비닛 높이가 그만큼 준다
     //   내부 = 몸통 높이를 유지하고 **맨 아래 캐비닛 안**에 서랍모듈을 넣는다 → 그 칸이 그만큼 준다
-    const external = opt.externalDrawer == null ? true : !!opt.externalDrawer;
+    // 미지정이면 **프리셋 기본값**, 프리셋도 안 정했으면 외부다.
+    //   2026-09-18: 긴옷(longDrawer)은 내부가 기본이다 (preset.external === false).
+    const external = opt.externalDrawer == null
+      ? (preset.external !== false)
+      : !!opt.externalDrawer;
 
     const fullBodyH = bodyHeightOf(opt);
     const cabinetH = external ? fullBodyH - drawerModH : fullBodyH;

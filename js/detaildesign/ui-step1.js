@@ -1379,17 +1379,26 @@
       /** PLANNER_DONE 을 현재 품목에 반영한다. */
       function _applyPlannerResult(payload) {
         const item = _currentStep2Item();
-        if (!item) throw new Error('대상 품목을 찾을 수 없습니다.');
+        // 2026-09-18: 예전 문구는 "대상 품목을 찾을 수 없습니다." 뿐이었다. 원인은 거의 늘
+        //   **품목이 0개**인 것인데, 그 말로는 무엇을 해야 하는지 알 수 없어 BOM 앞에서 막힌 것처럼 보였다.
+        //   자재표는 품목에 붙는다 — 품목이 없으면 배치·구조를 다 해도 산출할 대상이 없다.
+        if (!item) {
+          throw new Error(
+            '품목이 없습니다 — 자재표는 품목에 붙습니다.\n\n' +
+              '플래너 상단 \'품목\' 드롭다운에서 붙박이장(또는 만들 품목)을 추가한 뒤 다시 눌러 주세요.\n' +
+              '(좌측 아이콘으로 놓는 배치 사각형은 품목이 아닙니다)'
+          );
+        }
 
         // CD-3: 플래너가 표현하지 못하는 카테고리에는 결과를 적용하지 않는다.
         //
-        // 붙박이장은 moduleType(통장/상하분리) · upperH/lowerH · 상하 선반수를,
-        // 냉장고장은 모듈 type 분기를 각각 요구하는데 플래너는 그 구조를 만들지 않는다
-        // (extractors.js 의 extractWardrobe 는 pos 'wardrobe'/'tall' 만,
-        //  extractFridge 는 mod.type 분기만 본다).
-        // 예전엔 카테고리를 안 보고 item.modules 를 통째로 교체해서,
-        // 붙박이장 품목에 플래너 결과가 들어오면 기존 모듈이 지워지고
-        // BOM 이 **조용히 0건**이 됐다. 덮어쓰기 전에 막는다.
+        // 2026-09-17: 붙박이장은 풀렸다 — 브리지가 통 구조를 pos 'wardrobe' 모듈로 옮기고
+        // extractWardrobe 가 칸막이·선반·옷봉까지 낸다 (wardrobe.md §1.4).
+        // 냉장고장만 남았다 — 모듈 type 분기를 플래너가 만들지 못한다 (extractFridge 는 mod.type 만 본다).
+        //
+        // 예전엔 카테고리를 안 보고 item.modules 를 통째로 교체해서, 붙박이장 품목에 플래너
+        // 결과가 들어오면 기존 모듈이 지워지고 BOM 이 **조용히 0건**이 됐다. 그 사고는 아래
+        // 두 가드(통 0개 · 카테고리 어긋남)가 이어서 막는다.
         if (_plannerResultBlocked(item)) {
           throw new Error(
             `${item.labelName || item.name} 은(는) 플래너로 설계하지 않습니다.\n\n` +
@@ -1408,6 +1417,19 @@
             '플래너 결과에 붙박이장 통이 없습니다.\n\n' +
               '1.배치 화면에서 붙박이장을 놓고, 2.구조 화면에서 자동계산으로 통을 세워 주세요.\n' +
               '(그대로 적용하면 기존 모듈이 지워지고 자재가 산출되지 않습니다)'
+          );
+        }
+        // 2026-09-18: 반대 방향도 막는다 — **붙박이장만 그렸는데 대상 품목이 붙박이장이 아닌** 경우.
+        //   `_currentStep2Item()` 은 currentItemId 가 없으면 selectedItems[0] 로 떨어진다. 품목이
+        //   싱크대 + 붙박이장 둘인데 붙박이장이 뒤에 있으면 붙박이장 통이 **싱크대 품목**에 쓰인다.
+        //   extractSink 는 pos 'wardrobe' 를 보지 않으므로 그 품목의 자재표가 조용히 0건이 된다.
+        //   (하부장·상부장은 아일랜드·신발장 등 여러 카테고리가 같이 쓰므로 그쪽은 판정하지 않는다.)
+        if (item.categoryId !== 'wardrobe' && modules.length > 0
+            && modules.every((x) => x.pos === 'wardrobe')) {
+          throw new Error(
+            `플래너에는 붙박이장만 있는데 지금 품목은 ${item.labelName || item.name || '다른 품목'} 입니다.\n\n` +
+              '상단 품목 드롭다운에서 붙박이장 품목을 고른 뒤 다시 눌러 주세요.\n' +
+              '(그대로 적용하면 이 품목의 자재가 산출되지 않습니다)'
           );
         }
         if (modules.length === 0) {
