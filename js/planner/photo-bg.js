@@ -779,12 +779,20 @@ const PlannerPhotoBg = {
 
 // ── 내보내기 ─────────────────────────────────────────────
 
+// 브라우저에서는 최상위 const·function 이 전역 렉시컬 스코프에 올라 photo-mode.js 가 맨이름으로 본다.
+// 시험(jsdom 하네스)은 스크립트마다 함수 스코프를 만들므로 **window 에 올린 것만** 건너간다 —
+// photo-mode.js 가 쓰는 것은 하나도 빠짐없이 여기 있어야 한다 (planner-harness.js 머리말 참고).
 if (typeof window !== 'undefined') {
   window.PlannerPhotoBg = PlannerPhotoBg;
+  window.PLANNER_PHOTO_BG_FOV_MIN = PLANNER_PHOTO_BG_FOV_MIN;
+  window.PLANNER_PHOTO_BG_FOV_MAX = PLANNER_PHOTO_BG_FOV_MAX;
   window.plannerPhotoBgRectFromArea = plannerPhotoBgRectFromArea;
+  window.plannerPhotoBgQuadDefault = plannerPhotoBgQuadDefault;
   window.plannerPhotoBgQuadHealth = plannerPhotoBgQuadHealth;
   window.plannerPhotoBgFitFov = plannerPhotoBgFitFov;
   window.plannerPhotoBgSolveRect = plannerPhotoBgSolveRect;
+  window.plannerPhotoBgPlaneFromRect = plannerPhotoBgPlaneFromRect;
+  window.plannerPhotoBgRectFromPlane = plannerPhotoBgRectFromPlane;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
