@@ -1075,6 +1075,12 @@ const PlannerDetail = {
     this.renderPalette();
     this.renderCard();
     this.rerender3D();
+    // 2026-09-17: 「사진으로 만들기」 패널도 같이 다시 그린다. 들어올 때 한 번만 그리면,
+    //   디테일 모드에서 ⚡ 전체 자동계산을 돌리거나 구조를 고치고 돌아왔을 때
+    //   "도면이 비어 있습니다" 가 그대로 남는다 (브라우저 확인).
+    if (typeof PlannerAiPhoto !== 'undefined' && PlannerAiPhoto && typeof PlannerAiPhoto.render === 'function') {
+      try { PlannerAiPhoto.render(); } catch (e) { /* 무해 */ }
+    }
   },
 
   /**
