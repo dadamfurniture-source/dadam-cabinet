@@ -709,9 +709,10 @@ describe('모듈 규약', () => {
     }
   });
 
-  test('아직 어느 페이지도 싣지 않는다 — P1 에서 붙인다 (계획 §5)', () => {
-    for (const f of ['mockup-structure.html', 'mockup-shell.html']) {
-      expect(fs.readFileSync(path.join(ROOT, f), 'utf8')).not.toContain('photo-solve.js');
-    }
+  test('P1 이 구조 페이지에 붙였다 — 배치 페이지는 여전히 싣지 않는다 (계획 §5)', () => {
+    // P0 때는 "어느 페이지도 싣지 않는다" 였다. P1(agent/photo-background-ui)이 사진 모드를 붙이며
+    // 구조 페이지에만 실었다 — 순서는 planner-assets.test.js 가 따로 지킨다.
+    expect(fs.readFileSync(path.join(ROOT, 'mockup-structure.html'), 'utf8')).toContain('js/planner/photo-solve.js');
+    expect(fs.readFileSync(path.join(ROOT, 'mockup-shell.html'), 'utf8')).not.toContain('photo-solve.js');
   });
 });
