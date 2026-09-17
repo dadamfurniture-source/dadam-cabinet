@@ -61,8 +61,6 @@ const SHARED = [
 // D0: 디테일 모드도 구조 페이지 안의 모드라 구조 전용이다 (planner-finish 는 BOM 이 쓰게 되면 공통으로 올린다).
 // D2: 카탈로그(DB)·PBR 재질도 디테일 모드 것이라 구조 전용. planner-detail.js 보다 먼저 실린다.
 // D3: 렌더 캡처(planner-capture.js)는 PlannerDetail.pushLook 과 PlannerStore 를 쓰므로 둘 뒤에 실린다.
-// P1: 사진 합성(계획 §5 P1)도 구조 페이지의 디테일 모드 안이다. 셋은 순서가 있다 —
-//   photo-solve(순수 수학) → photo-bg(상태·사진) → photo-mode(화면). 뒤가 앞의 맨이름을 쓴다.
 const STRUCTURE_ONLY = [
   'js/planner/planner-engine.js',
   'js/planner/planner-finish.js',
@@ -70,9 +68,6 @@ const STRUCTURE_ONLY = [
   'js/planner/planner-materials.js',
   'js/planner/planner-detail.js',
   'js/planner/planner-capture.js',
-  'js/planner/photo-solve.js',
-  'js/planner/photo-bg.js',
-  'js/planner/photo-mode.js',
 ];
 
 // D0: 마감 카탈로그 정본. IIFE 라 최상위 이름이 없고 window.DadamBomFinishColor 만 남긴다 —
@@ -130,17 +125,6 @@ describe('플래너 모듈이 실려 있다', () => {
     expect(html).toContain('window.OutputPass = OutputPass;');
     // 배치 페이지에는 싣지 않는다 (STRUCTURE_ONLY 시험이 같이 본다)
     expect(scriptSrcs(read('mockup-shell.html')).map((s) => s.split('?')[0])).not.toContain('js/planner/planner-capture.js');
-  });
-
-  test('P1: 사진 합성 세 모듈은 photo-solve → photo-bg → photo-mode 순 — 배치 페이지에는 없다', () => {
-    const struct = scriptSrcs(read('mockup-structure.html')).map((s) => s.split('?')[0]);
-    const at = (rel) => struct.indexOf(rel);
-    expect(at('js/planner/photo-solve.js')).toBeGreaterThan(-1);
-    expect(at('js/planner/photo-solve.js')).toBeLessThan(at('js/planner/photo-bg.js'));
-    expect(at('js/planner/photo-bg.js')).toBeLessThan(at('js/planner/photo-mode.js'));
-    const shell = scriptSrcs(read('mockup-shell.html')).map((s) => s.split('?')[0]);
-    ['js/planner/photo-solve.js', 'js/planner/photo-bg.js', 'js/planner/photo-mode.js']
-      .forEach((rel) => expect(shell).not.toContain(rel));
   });
 
   test.each(HTML_FILES)('%s 에서 모듈이 인라인보다 먼저 온다', (file) => {
