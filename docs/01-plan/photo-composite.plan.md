@@ -286,15 +286,22 @@ P0~P2 는 되돌렸다.
   문장에 나타난다. `prompts.js` 는 import 가 없어야 한다.
 - **계약(필드 이름·형태)을 여기서 확정하고 문서화한다.** R2 는 이 확정본만 본다.
 
-### R2. 플래너 UI — 사진 올리기 + 버튼 + 결과 (M) `agent/planner-photo-generate`
-- 디테일 단계 우측에 섹션 하나 (`data-sec` + `PANEL_SEC_TITLE` + 디테일 모드 CSS 예외 —
+### ~~R2. 플래너 UI — 사진 올리기 + 버튼 + 결과 (M)~~ ✅ 2026-09-17 `agent/planner-ai-photo`
+문서: `docs/02-design/features/planner-ai-photo.md` · 만든 것: `js/planner/ai-photo.js`
+- 디테일 단계 우측에 섹션 하나 (`data-sec="aiphoto"` + `PANEL_SEC_TITLE` + 디테일 모드 CSS 예외 —
   규약은 `planner-detail.js:94-95`).
-- 화면 요소는 셋뿐이다: **사진 올리기 · 만들기 버튼 · 결과 썸네일**.
-- 요약 생성기(§4.2), `POST /api/generate` 호출, 3초 폴링 (`ai-design.html` 의 `submit`/
-  `pollGeneration` 패턴 `:1158-1211`).
-- 사진 축소는 `readImage` (`ai-design.html:480-512`) 와 같은 규칙(긴 변 1600px JPEG).
-- 크레딧 부족 402 · 동시 실행 409 문구는 `ai-design.html:1162-1167` 과 같게.
-- 완료: 붙박이장 도면 하나로 눌렀을 때, 결과 이미지의 **통 수와 서랍 위치가 도면과 같다.**
+- 화면 요소는 셋뿐이다: **사진 올리기 · 만들기 버튼 · 결과 썸네일**. 크레딧 20 은 **누르기 전에** 보인다.
+- 요약 생성기 `plannerAiPhotoBuildSpec`(순수) — 필드 이름은 R1 이 확정한
+  `docs/02-design/features/design-spec-prompt.md` 를 따른다. `buildPlannerPayload` 는 손대지 않았고,
+  요약을 읽는 것만으로 `structures` 가 생기지 않는다(`getStructure` 대신 `structures[id] || null`).
+- `POST /api/generate` 호출, 3초 폴링, 잡의 한국어 `step_label` 을 그대로 표시.
+- 사진 축소는 `readImage` (`ai-design.html:480-512`) 와 같은 규칙(긴 변 1600px JPEG) — 그 페이지에서
+  가져오지 않고 같은 규칙을 다시 적었다(품목이 다른 도메인 파일이다).
+- 오류: 402 · 409 · 400 `bad_design_spec`(크레딧 차감 전) · 401 · `design=local`(설계 먼저 저장).
+- 마지막 잡 id 를 스코프별 `localStorage` 에 남겨 새로고침해도 돌던 잡에 다시 붙는다.
+- 시험: `__tests__/ai-photo.test.js`(계약 문서의 표를 읽어 필드 이름 대조) ·
+  `__tests__/planner-ai-photo-ui.test.js`(`bootPlanner`).
+- 남은 확인: 실제 붙박이장 도면 하나로 눌러 **통 수와 서랍 위치가 도면과 같은지** 눈으로 보는 것 (§7-1).
 
 ### R3. 결과 보관 · 재생성 · 내 연출컷 연결 (S) `agent/planner-photo-history`
 - 결과를 디테일 단계에서 다시 보기, 재생성(`parent_id` 경로 `worker.js:223-228`).

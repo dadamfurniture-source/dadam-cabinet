@@ -240,7 +240,10 @@ describe('소스 규약', () => {
     const keys = (SRC.match(/class="section[^"]*" data-sec="(\w+)"/g) || []).length;
     // 2026-09-15: 우측은 size·height·finish·detail 네 벌. 분할·칸·선반·손잡이는 개별 모듈 패널로 갔다.
     // 2026-09-17: 개별 모듈 패널은 여섯 벌 — 붙박이장 통 구조(data-mp="wardrobe")가 더해졌다.
-    expect(keys).toBe(4);
+    // 2026-09-17(R2): 다섯 벌 — 「사진으로 만들기」(data-sec="aiphoto")가 더해졌다. 디테일 모드에서만
+    //   보이므로 구조 단계의 shownSecs 는 그대로 size·height 다. (하이픈이 든 detail-palette·
+    //   detail-renders 는 이 정규식의 \w+ 에 걸리지 않아 예전부터 세지 않는다.)
+    expect(keys).toBe(5);
     expect((SRC.match(/class="section[^"]*" data-mp="(\w+)"/g) || []).length).toBe(6);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
     expect(SRC).toContain('const PANEL_LAYOUT = {');
   });
