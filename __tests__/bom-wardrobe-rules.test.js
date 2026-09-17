@@ -118,7 +118,11 @@ describe('2번 통 — 긴옷 + 하부 외부 서랍', () => {
     expect(L.rods[0].y).toBe(L.Hi - R.ROD_OFFSET);
   });
 
-  test('서랍 단수를 주면 그 값이 이긴다', () => {
+  test('서랍 단수를 주면 그 값이 이긴다 — 미지정은 프리셋 기본값', () => {
+    // null·undefined 를 0 으로 접으면 프리셋 기본 단수가 조용히 사라진다
+    expect(layout({ preset: 'longDrawer', drawers: null }).drawers).toBe(2);
+    expect(layout({ preset: 'longDrawer', drawers: undefined }).drawers).toBe(2);
+    expect(layout({ preset: 'longDrawer', drawers: 0 }).drawers).toBe(0);   // 0 은 "서랍 없음" 지정
     expect(layout({ preset: 'longDrawer', drawers: 0 }).bodyH).toBe(2230);
     expect(layout({ preset: 'longDrawer', drawers: 3 }).drawerModH).toBe(1050);
     // 통 높이를 다 먹으면 경고하고 칸을 내지 않는다
@@ -267,6 +271,8 @@ describe('브리지가 주고받는 블록', () => {
     expect(WR.normalizeBlock({ preset: 'halfSplit' }).preset).toBe('halfSplit');
     expect(WR.normalizeBlock({ drawers: 99 }).drawers).toBe(R.MAX_DRAWER_COUNT);
     expect(WR.normalizeBlock({ drawers: -3 }).drawers).toBe(0);
+    expect(WR.normalizeBlock({ drawers: null }).drawers).toBeNull();   // 미지정 ≠ 0
+    expect(WR.normalizeBlock({ drawers: 0 }).drawers).toBe(0);
     expect(WR.normalizeBlock({ externalDrawer: 1 }).externalDrawer).toBe(true);
   });
 
