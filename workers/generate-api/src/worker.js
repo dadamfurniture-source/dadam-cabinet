@@ -17,7 +17,7 @@
 
 import { geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
-import { DEFAULT_STYLE, STYLES, resolveCategory } from './prompts.js';
+import { DEFAULT_STYLE, STYLES, normalizeDesignSpec, resolveCategory } from './prompts.js';
 import { verifyJwt, AuthError } from './auth.js';
 import { consumeCredit, refundCredit, InsufficientCredit } from './credits.js';
 import {
@@ -113,6 +113,22 @@ function normalizeRefs(list) {
 
 function isStale(row) {
   return Date.now() - new Date(row.created_at).getTime() > ACTIVE_WINDOW_MS;
+}
+
+/**
+ * 플래너 도면 요약. 요청이 주면 검증해서 쓰고(틀리면 400), 없으면 재생성 원본의 것을 잇는다.
+ * 원본 것을 이을 때는 던지지 않는다 — 품목을 바꿔 다시 그리는 길을 400 으로 막지 않는다.
+ */
+function resolveDesignSpec(raw, parent, category) {
+  if (raw !== undefined && raw !== null) return normalizeDesignSpec(raw, category);
+  const inherited = parent && parent.options && parent.options.design_spec;
+  if (!inherited) return null;
+  try {
+    return normalizeDesignSpec(inherited, category);
+  } catch (e) {
+    console.warn('[Generate] parent design_spec dropped:', e.message);
+    return null;
+  }
 }
 
 function publicView(row) {
@@ -214,6 +230,7 @@ async function createGeneration(request, env, headers) {
     door_finish = 'matte',
     wall_width_override,
     fridge_options = {},
+    design_spec,
     reference_images,
     parent_id,
     title,
@@ -235,6 +252,9 @@ async function createGeneration(request, env, headers) {
     door_finish,
     wall_width_override: Number(wall_width_override) || null,
     fridge_options: category === 'fridge' ? fridge_options : null,
+    // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
+    // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
+    design_spec: resolveDesignSpec(design_spec, parent, category),
   };
 
   // 크레딧 차감 — 사용자 토큰으로, 어떤 업로드보다 먼저. 뒤에서 실패하면 같은 토큰으로 되돌린다.
@@ -320,7 +340,7 @@ async function createGeneration(request, env, headers) {
     if (!started.ok) throw new Error(`job start ${started.status}`);
 
     console.log(
-      `[Generate] queued ${row.id} user=${user.id} category=${category} refs=${(inputs.refs || []).length}`
+      `[Generate] queued ${row.id} user=${user.id} category=${category} refs=${(inputs.refs || []).length} spec=${options.design_spec ? 'yes' : 'no'}`
     );
     return json(
       {
@@ -395,7 +415,9 @@ async function createLayout(request, env, id, url) {
   });
   layout.elapsed_ms = Date.now() - t0;
   await updateById(env, 'generations', id, { layout });
-  console.log(`[Layout ${id}] ${category} ${layout.elapsed_ms}ms conf=${layout.confidence.overall}`);
+  console.log(
+    `[Layout ${id}] ${category} ${layout.elapsed_ms}ms conf=${layout.confidence.overall}`
+  );
   return { success: true, layout };
 }
 

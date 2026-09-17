@@ -10,6 +10,11 @@
  * 품목 차이는 CATEGORIES[key].spec 한 문단이 전부다. 나머지 문장은 모든 품목이 같다.
  * 품목을 추가하려면 CATEGORIES 에 한 항목을 넣는다. 다른 파일은 손대지 않는다.
  *
+ * 예외 하나: 요청이 design_spec(플래너 도면 요약)을 주면 그 한 문단 대신 실제
+ * 모듈·치수·자재로 FURNITURE·FINISH 를 쓴다 (normalizeDesignSpec / buildDesignSpecBlock).
+ * design_spec 이 없으면 프롬프트는 예전과 한 글자도 다르지 않다 — test/install-prompt-snapshot.test.js
+ * 가 옛 출력 전문을 붙들고 있다. 계약: docs/02-design/features/design-spec-prompt.md
+ *
  * 이 파일은 import 가 없어야 한다 — __tests__/generate-prompts.test.js 가 export 만 떼어 평가한다.
  *
  * 손잡이 규칙(CLAUDE.md): 전 품목 매립형(handleless). 하부장 도어는 도어 뒤로 손을
@@ -165,6 +170,326 @@ function pct(x, w) {
   return Math.max(5, Math.min(95, Math.round((x / w) * 100)));
 }
 
+// ─── 1-a. 도면 요약 (design_spec) ───
+/**
+ * 플래너가 그린 설계를 그대로 설치 프롬프트에 싣기 위한 입력.
+ * 계약 문서: docs/02-design/features/design-spec-prompt.md — 필드 이름을 바꾸면 같이 고친다.
+ *
+ * 없으면(null) 지금까지와 똑같이 CATEGORIES[key].spec 한 문단으로 그린다.
+ * 있으면 FURNITURE 블록이 실제 모듈·치수·자재로 바뀐다.
+ *
+ * 검증은 방어적이다: 말이 안 되는 수치는 자르고(clamp), 배열은 길이를 막고,
+ * 유한하지 않은 숫자(NaN·Infinity·문자열)와 품목 불일치만 400 으로 되돌린다.
+ */
+export const DESIGN_SPEC_VERSION = 1;
+
+/** 왼→오 한 줄로 읽는 구간. 순서는 이 배열이 정한다. */
+export const DESIGN_SECTIONS = ['lower', 'upper', 'tall'];
+export const DESIGN_MODULE_KINDS = ['door', 'drawer', 'open', 'appliance'];
+export const DESIGN_APPLIANCE_KINDS = ['sink', 'hood', 'cooktop', 'fridge', 'dishwasher'];
+/** layout.js·플래너가 쓰는 다른 이름을 받아 준다. */
+const DESIGN_APPLIANCE_ALIASES = { refrigerator: 'fridge', range: 'cooktop', hob: 'cooktop' };
+export const DESIGN_FINISH_SLOTS = ['door', 'body', 'top'];
+export const DESIGN_FINISH_TONES = ['matte', 'gloss', 'satin', 'woodgrain', 'texture'];
+
+const DESIGN_MAX_MODULES = 40;
+const DESIGN_MAX_APPLIANCES = 12;
+const DESIGN_MAX_JSON = 20000;
+/** [최소, 최대] mm. 벗어나면 자른다 — 플래너 버그 하나가 프롬프트를 망치지 않게. */
+const DESIGN_RANGE = {
+  wallRunMm: [300, 12000],
+  widthMm: [100, 12000],
+  heightMm: [100, 3600],
+  depthMm: [50, 1200],
+  fromLeftMm: [0, 12000],
+  moduleWidthMm: [50, 4000],
+  applianceWidthMm: [50, 4000],
+  count: [0, 12],
+};
+
+/** design_spec 전용 400. code 를 따로 주어 플래너가 다른 400 과 구분한다. */
+export class DesignSpecError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'DesignSpecError';
+    this.statusCode = 400;
+    this.code = 'bad_design_spec';
+  }
+}
+
+function designNum(v, field) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v !== 'number' && typeof v !== 'string')
+    throw new DesignSpecError(`design_spec.${field} must be a number`);
+  const n = Number(v);
+  if (!Number.isFinite(n))
+    throw new DesignSpecError(`design_spec.${field} must be a finite number`);
+  return n;
+}
+
+function designMm(v, field, range) {
+  const n = designNum(v, field);
+  if (n === null) return null;
+  return Math.round(Math.min(range[1], Math.max(range[0], n)));
+}
+
+function designText(v, max) {
+  if (typeof v !== 'string') return null;
+  const s = v.replace(/[\r\n\t]+/g, ' ').trim();
+  return s ? s.slice(0, max) : null;
+}
+
+function designHex(v) {
+  if (typeof v !== 'string') return null;
+  const m = v.trim().match(/^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/);
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return `#${h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h}`;
+}
+
+function normalizeDesignModule(raw, section) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const where = `sections.${section}.modules[]`;
+  const out = { kind: DESIGN_MODULE_KINDS.includes(raw.kind) ? raw.kind : 'door' };
+  const widthMm = designMm(raw.widthMm, `${where}.widthMm`, DESIGN_RANGE.moduleWidthMm);
+  if (widthMm !== null) out.widthMm = widthMm;
+  const doorCount = designMm(raw.doorCount, `${where}.doorCount`, DESIGN_RANGE.count);
+  if (doorCount !== null) out.doorCount = doorCount;
+  const drawerCount = designMm(raw.drawerCount, `${where}.drawerCount`, DESIGN_RANGE.count);
+  if (drawerCount !== null) out.drawerCount = drawerCount;
+  const label = designText(raw.label, 40);
+  if (label) out.label = label;
+  return out;
+}
+
+function normalizeDesignSection(raw, section) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const where = `sections.${section}`;
+  const out = {};
+  for (const f of ['widthMm', 'heightMm', 'depthMm', 'fromLeftMm']) {
+    const v = designMm(raw[f], `${where}.${f}`, DESIGN_RANGE[f]);
+    if (v !== null) out[f] = v;
+  }
+  const list = Array.isArray(raw.modules) ? raw.modules.slice(0, DESIGN_MAX_MODULES) : [];
+  const modules = list.map((m) => normalizeDesignModule(m, section)).filter(Boolean);
+  if (modules.length) out.modules = modules;
+  return Object.keys(out).length ? out : null;
+}
+
+function normalizeDesignAppliance(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const key = typeof raw.kind === 'string' ? raw.kind.trim().toLowerCase() : '';
+  const kind = DESIGN_APPLIANCE_ALIASES[key] || key;
+  if (!DESIGN_APPLIANCE_KINDS.includes(kind)) return null; // 모르는 가전은 조용히 뺀다
+  const out = { kind };
+  const fromLeftMm = designMm(raw.fromLeftMm, 'appliances[].fromLeftMm', DESIGN_RANGE.fromLeftMm);
+  if (fromLeftMm !== null) out.fromLeftMm = fromLeftMm;
+  const widthMm = designMm(raw.widthMm, 'appliances[].widthMm', DESIGN_RANGE.applianceWidthMm);
+  if (widthMm !== null) out.widthMm = widthMm;
+  return out;
+}
+
+function normalizeDesignFinish(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  const name = designText(raw.name, 60);
+  if (name) out.name = name;
+  const nameEn = designText(raw.nameEn, 60);
+  if (nameEn) out.nameEn = nameEn;
+  const colorHex = designHex(raw.colorHex);
+  if (colorHex) out.colorHex = colorHex;
+  if (typeof raw.tone === 'string' && DESIGN_FINISH_TONES.includes(raw.tone.trim().toLowerCase()))
+    out.tone = raw.tone.trim().toLowerCase();
+  const vendorCode = designText(raw.vendorCode, 24);
+  if (vendorCode) out.vendorCode = vendorCode;
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * 요청 본문의 design_spec → generations.options.design_spec 에 넣을 모양.
+ * @param {*} raw          요청이 준 값 (없으면 null·undefined)
+ * @param {string} category  같은 요청의 품목 (resolveCategory 전·후 아무거나)
+ * @returns {object|null}  없으면 null
+ * @throws {DesignSpecError} 모양이 틀렸거나 품목이 어긋나면
+ */
+export function normalizeDesignSpec(raw, category) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw))
+    throw new DesignSpecError('design_spec must be an object');
+
+  let size;
+  try {
+    size = JSON.stringify(raw).length;
+  } catch {
+    throw new DesignSpecError('design_spec is not serialisable');
+  }
+  if (size > DESIGN_MAX_JSON)
+    throw new DesignSpecError(`design_spec is too large (${size} > ${DESIGN_MAX_JSON} chars)`);
+
+  const want = resolveCategory(category);
+  if (raw.category !== undefined && raw.category !== null && raw.category !== '') {
+    if (typeof raw.category !== 'string' || !CATEGORIES[raw.category] || raw.category !== want) {
+      throw new DesignSpecError(
+        `design_spec.category (${String(raw.category).slice(0, 40)}) does not match category (${want})`
+      );
+    }
+  }
+
+  const out = { version: DESIGN_SPEC_VERSION, category: want };
+  const wallRunMm = designMm(raw.wallRunMm, 'wallRunMm', DESIGN_RANGE.wallRunMm);
+  if (wallRunMm !== null) out.wallRunMm = wallRunMm;
+
+  const rawSections =
+    raw.sections && typeof raw.sections === 'object' && !Array.isArray(raw.sections)
+      ? raw.sections
+      : {};
+  const sections = {};
+  for (const key of DESIGN_SECTIONS) {
+    const sec = normalizeDesignSection(rawSections[key], key);
+    if (sec) sections[key] = sec;
+  }
+  if (Object.keys(sections).length) out.sections = sections;
+
+  const rawAppliances = Array.isArray(raw.appliances)
+    ? raw.appliances.slice(0, DESIGN_MAX_APPLIANCES)
+    : [];
+  const appliances = rawAppliances.map(normalizeDesignAppliance).filter(Boolean);
+  if (appliances.length) out.appliances = appliances;
+
+  const rawFinishes =
+    raw.finishes && typeof raw.finishes === 'object' && !Array.isArray(raw.finishes)
+      ? raw.finishes
+      : {};
+  const finishes = {};
+  for (const slot of DESIGN_FINISH_SLOTS) {
+    const f = normalizeDesignFinish(rawFinishes[slot]);
+    if (f) finishes[slot] = f;
+  }
+  if (Object.keys(finishes).length) out.finishes = finishes;
+
+  const notes = designText(raw.notes, 300);
+  if (notes) out.notes = notes;
+
+  if (!out.sections && !out.appliances && !out.finishes && out.wallRunMm === undefined) {
+    throw new DesignSpecError(
+      'design_spec has nothing usable — need at least one of wallRunMm, sections, appliances, finishes'
+    );
+  }
+  return out;
+}
+
+// ─── 1-b. 도면 요약 → 영어 문장 ───
+
+const DESIGN_SECTION_LABEL = {
+  lower: 'Lower (base) run',
+  upper: 'Upper (wall) run',
+  tall: 'Tall (full-height) run',
+};
+
+const DESIGN_APPLIANCE_PHRASE = {
+  sink: 'an undermount sink with a single-lever mixer faucet (matte black or brushed steel) on the countertop behind it — the faucet is mandatory',
+  cooktop: 'a flush induction cooktop',
+  hood: 'a slim concealed hood',
+  fridge: 'a built-in french-door refrigerator, its front flush with the doors',
+  dishwasher: 'a fully integrated dishwasher behind a matching front',
+};
+
+/** @param {boolean} [withLabel] 플래너의 한국어 라벨을 붙일지 (QC 요약에는 안 붙인다) */
+function designModulePhrase(m, withLabel = true) {
+  const width = m.widthMm ? `${m.widthMm} mm ` : '';
+  let what;
+  if (m.kind === 'drawer') {
+    const n = m.drawerCount || 0;
+    what = n > 1 ? `${n}-drawer stack` : 'single drawer front';
+  } else if (m.kind === 'open') {
+    what = 'open shelving with no door';
+  } else if (m.kind === 'appliance') {
+    what = 'appliance opening';
+  } else {
+    const n = m.doorCount || 1;
+    what = n > 1 ? `${n}-door cabinet` : 'single-door cabinet';
+  }
+  return `${width}${what}${withLabel && m.label ? ` [${m.label}]` : ''}`;
+}
+
+function designSectionLine(key, sec) {
+  const dims = [];
+  if (sec.widthMm) dims.push(`${sec.widthMm} mm wide`);
+  if (sec.heightMm) dims.push(`${sec.heightMm} mm high`);
+  if (sec.depthMm) dims.push(`${sec.depthMm} mm deep`);
+  if (sec.fromLeftMm !== undefined)
+    dims.push(`starting ${sec.fromLeftMm} mm from the left end of the run`);
+  // map 을 그대로 넘기면 두 번째 인자로 index 가 들어가 첫 모듈의 라벨이 사라진다.
+  const mods = (sec.modules || []).map((m) => designModulePhrase(m, true)).join('; ');
+  return (
+    `- ${DESIGN_SECTION_LABEL[key]}${dims.length ? ` — ${dims.join(', ')}` : ''}.` +
+    (mods ? ` Left to right: ${mods}.` : '')
+  );
+}
+
+function designAppliancePhrase(a) {
+  const bits = [];
+  if (a.fromLeftMm !== undefined)
+    bits.push(`left edge ${a.fromLeftMm} mm from the left end of the run`);
+  if (a.widthMm) bits.push(`${a.widthMm} mm wide`);
+  return `${DESIGN_APPLIANCE_PHRASE[a.kind]}${bits.length ? ` (${bits.join(', ')})` : ''}`;
+}
+
+/**
+ * design_spec → FURNITURE 블록 본문. 구간도 가전도 없으면 null (그러면 범용 문단 그대로).
+ * @returns {string|null}
+ */
+export function buildDesignSpecBlock(spec) {
+  if (!spec || typeof spec !== 'object') return null;
+  const sections = spec.sections && typeof spec.sections === 'object' ? spec.sections : {};
+  const lines = DESIGN_SECTIONS.filter((k) => sections[k]).map((k) =>
+    designSectionLine(k, sections[k])
+  );
+  const appliances = (Array.isArray(spec.appliances) ? spec.appliances : []).filter(
+    (a) => a && DESIGN_APPLIANCE_PHRASE[a.kind]
+  );
+  if (!lines.length && !appliances.length) return null;
+
+  const head =
+    `this is the customer's own planner drawing, not a generic layout — build exactly this.` +
+    (spec.wallRunMm ? ` The whole run is ${spec.wallRunMm} mm wide.` : '');
+  const applianceLine = appliances.length
+    ? `\nAPPLIANCES: ${appliances.map(designAppliancePhrase).join('; ')}.`
+    : '';
+  const notes = spec.notes ? `\nPLANNER NOTES: ${spec.notes}` : '';
+  // 사진이 진실이다 — 치수가 어긋나면 벽 분석이 이긴다. 순서와 개수만 지킨다.
+  const authority =
+    `\nThe module order and the door/drawer counts above are binding; the millimetres are guidance. ` +
+    `If they disagree with the wall measured in the photo, the photo wins — scale the run to fit the real wall and keep the order and the counts.`;
+  return `${head}\n${lines.join('\n')}${applianceLine}${authority}${notes}`;
+}
+
+/** QC 프롬프트에 싣는 한 줄 요약. 모델이 눈으로 셀 수 있는 것만 — 구간별 종류·개수·폭. */
+export function designSpecDigest(spec) {
+  if (!spec || typeof spec !== 'object') return null;
+  const sections = spec.sections && typeof spec.sections === 'object' ? spec.sections : {};
+  const parts = [];
+  for (const key of DESIGN_SECTIONS) {
+    const mods = sections[key] && sections[key].modules;
+    if (!mods || !mods.length) continue;
+    parts.push(`${key} = ${mods.map((m) => designModulePhrase(m, false)).join('; ')}`);
+  }
+  return parts.length ? parts.join(' | ') : null;
+}
+
+/** design_spec.finishes 한 칸 → 영어 한 구절. 이름이 없으면 null. */
+function designFinishPhrase(f) {
+  if (!f) return null;
+  const head = f.nameEn || f.name;
+  if (!head) return null;
+  const detail = [];
+  if (f.nameEn && f.name) detail.push(f.name);
+  if (f.vendorCode) detail.push(f.vendorCode);
+  if (f.colorHex) detail.push(`colour ${f.colorHex}`);
+  const tone = f.tone && !head.toLowerCase().includes(f.tone) ? `${f.tone} ` : '';
+  return `${tone}${head}${detail.length ? ` (${detail.join(', ')})` : ''}`;
+}
+
 // ─── 2. 설치 ───
 /** QC 가 낸 문제 코드 → 재시도 프롬프트에 붙일 FIX 문장. */
 export const QC_FIXES = {
@@ -188,6 +513,19 @@ export const QC_FIXES = {
     'Add a single-lever mixer faucet (matte black or brushed steel) on the countertop directly behind the sink basin.',
 };
 
+/**
+ * 도면 요약(design_spec)이 있을 때만 검사하는 코드.
+ * QC_FIXES 에 합치지 않는 이유: 요약이 없으면 검사 프롬프트에 LAYOUT 줄이 없어
+ * 모델이 판정할 근거가 없다. 공통 코드 목록(QC_ISSUE_CODES)은 그대로 둔다.
+ *
+ * 가전 위치(mm)는 넣지 않았다 — 원근이 있는 사진에서 "싱크가 왼쪽에서 1050 mm"
+ * 는 모델이 눈으로 셀 수 없다. 셀 수 있는 것은 전면의 개수와 좌→우 순서뿐이다.
+ */
+export const DESIGN_SPEC_QC_FIXES = {
+  layout_mismatch:
+    'Rebuild the run to match LAYOUT exactly: the same number of modules in the same left-to-right order, each with the same door and drawer counts. Widths may be scaled to the real wall; the order and the counts may not.',
+};
+
 /** 수전 검사가 뜻이 있는 품목 (싱크가 있는 것). */
 export const KITCHEN_CATEGORIES = ['sink', 'island'];
 
@@ -202,6 +540,7 @@ export const KITCHEN_CATEGORIES = ['sink', 'island'];
  * @param {string} c.doorFinish    예: 'matte'
  * @param {number} c.refCount      함께 첨부한 참고 이미지 수
  * @param {string} c.fridgeBrand / c.fridgePosition
+ * @param {object} [c.designSpec]  normalizeDesignSpec() 의 결과. 있으면 FURNITURE·FINISH 가 도면 요약으로 바뀐다
  * @param {{fix?: string[]}} [opts]  QC 재시도 시 문제 코드 목록
  */
 export function buildInstallPrompt(c, opts = {}) {
@@ -228,26 +567,48 @@ export function buildInstallPrompt(c, opts = {}) {
       : c.tile.lightNeutral
         ? `\nWALL TILE: keep the existing light tiles exactly as they are.`
         : `\nWALL TILE: the existing wall tiles${c.tile.description ? ` (${c.tile.description})` : ''} are not light neutral. Replace them with light neutral tiles — matte off-white or light grey large-format ceramic with subtle grout — only where tiles already are (the wall area between the furniture pieces).`;
-  const fixes = (opts.fix || []).map((k) => QC_FIXES[k]).filter(Boolean);
+  const fixes = (opts.fix || []).map((k) => QC_FIXES[k] || DESIGN_SPEC_QC_FIXES[k]).filter(Boolean);
   const fixBlock = fixes.length
     ? `\nFIX (the previous attempt failed these checks):\n- ${fixes.join('\n- ')}`
     : '';
+  // 도면 요약이 있으면 품목 범용 문단 대신 실제 모듈·치수를, 자재는 실제 제품명을 쓴다.
+  // 요약이 없거나 쓸 내용이 없으면 아래 두 줄은 예전과 한 글자도 다르지 않다.
+  const spec = c.designSpec || null;
+  const specBlock = buildDesignSpecBlock(spec);
+  const furniture = `FURNITURE: ${specBlock || cat.spec(c)}`;
+  const fin = (spec && spec.finishes) || null;
+  const doorPhrase = designFinishPhrase(fin && fin.door) || `${c.doorColor} ${c.doorFinish}`;
+  const bodyPhrase = designFinishPhrase(fin && fin.body);
+  const topPhrase = designFinishPhrase(fin && fin.top);
+  const finish =
+    `FINISH: ${doorPhrase} flat-panel fronts, ${style} style, consistent on every panel.` +
+    (bodyPhrase ? ` Carcass and visible side panels: ${bodyPhrase}.` : '') +
+    (topPhrase ? ` Countertop and worktop surfaces: ${topPhrase}.` : '');
   return `Edit the first photo: install a built-in ${cat.label} (${key}) on the main wall.
 Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${existing}${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
-FURNITURE: ${cat.spec(c)}
-FINISH: ${c.doorColor} ${c.doorFinish} flat-panel fronts, ${style} style, consistent on every panel.
+${furniture}
+${finish}
 HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
 }
 
 // ─── 3. 검사 ───
+/** 모든 실행이 받는 공통 코드. */
 export const QC_ISSUE_CODES = Object.keys(QC_FIXES);
+/** parseQc 가 받아 주는 전체 = 공통 + 도면 요약 전용. */
+export const ALL_QC_ISSUE_CODES = [...QC_ISSUE_CODES, ...Object.keys(DESIGN_SPEC_QC_FIXES)];
 
 /** 설치 결과 한 장을 보고 규칙 위반을 JSON 으로 판정한다. 관대하게 — 명백할 때만 실패. */
 export function buildQcPrompt(c) {
   const key = resolveCategory(c.category);
-  return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.
+  // 도면 요약이 있을 때만 LAYOUT 줄과 layout_mismatch 코드를 붙인다 (근거 없는 판정을 막는다).
+  const digest = designSpecDigest(c.designSpec);
+  const layoutBlock = digest ? `\nLAYOUT the render must match, left to right — ${digest}` : '';
+  const layoutCode = digest
+    ? '\n- layout_mismatch: the fronts do not match LAYOUT — a different number of modules, a different left-to-right order, or doors where LAYOUT says a drawer stack (ignore width differences and any module hidden behind an appliance)'
+    : '';
+  return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
 Report an issue ONLY when it is clearly visible. Use these codes:
 - handles: any visible handle, knob, pull or metal bar on a door or drawer
@@ -263,7 +624,7 @@ Report an issue ONLY when it is clearly visible. Use these codes:
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
       : ''
-  }
+  }${layoutCode}
 ok is true when issues is empty. note is one short sentence.`;
 }
 
@@ -275,7 +636,7 @@ export function parseQc(text) {
   try {
     const j = JSON.parse(m[0]);
     const issues = Array.isArray(j.issues)
-      ? j.issues.map(String).filter((k) => QC_ISSUE_CODES.includes(k))
+      ? j.issues.map(String).filter((k) => ALL_QC_ISSUE_CODES.includes(k))
       : [];
     return { ok: issues.length === 0, issues, note: typeof j.note === 'string' ? j.note : null };
   } catch {
