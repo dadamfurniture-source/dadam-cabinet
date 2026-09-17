@@ -728,6 +728,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             isFinishing: isFinishingSection(a.section),
             W: a.w, H: a.moduleH, D: a.h,
             x: a.x || 0, y: a.y || 0, rotation: a.rotation || 0,
+            // 2026-09-17: 커튼박스는 붙박이장 배치 공간의 값이다 (옛 화면의 curtainBoxW/H 자리).
+            curtainBoxW: a.curtainBoxW, curtainBoxH: a.curtainBoxH,
             // 영역이 직접 가진 높이 부위 — 없으면 마스터 기본값을 쓴다 (stackForArea)
             pedestalH: a.pedestalH, moldingH: a.moldingH,
             topT: a.topT, baseKind: a.baseKind,   // W12-38
@@ -962,6 +964,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         if (!a.baseKind) delete entry.baseKind; else entry.baseKind = a.baseKind;
         // W12-65: 코너 주인 선택도 배치에 되쓴다 — 다시 열어도 남아야 한다.
         if (!a.blindOwner) delete entry.blindOwner; else entry.blindOwner = true;
+        // 2026-09-17: 커튼박스도 배치에 되쓴다 — 새로고침에 사라지면 안 된다.
+        if (!(Number(a.curtainBoxW) > 0)) delete entry.curtainBoxW; else entry.curtainBoxW = Number(a.curtainBoxW);
+        if (!(Number(a.curtainBoxH) > 0)) delete entry.curtainBoxH; else entry.curtainBoxH = Number(a.curtainBoxH);
         touched++;
       });
       if (!touched) return false;
@@ -3259,7 +3264,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
           ${cfg.label || a.section} 배치 공간입니다 — 고치면 배치 단계에도 되쓰입니다.
         </div>
+        ${a.section !== 'wardrobe' ? '' : `
+        <div class="row" style="margin-top:8px">
+          <label>커튼박스 가로</label>
+          <input type="number" min="0" step="10" id="inpCurtainW" value="${Number(a.curtainBoxW) || 0}">
+        </div>
+        <div class="row">
+          <label>커튼박스 높이</label>
+          <input type="number" min="0" step="10" id="inpCurtainH" value="${Number(a.curtainBoxH) || 0}">
+        </div>
+        <div style="font-size:10px;color:#888;line-height:1.4">
+          0 이면 커튼박스 없음. 지금은 자재로 산출되지 않습니다 — 값만 상세설계로 넘어갑니다.
+        </div>`}
         ${cornerOwnerRowHTML(a)}`;
+      ['W', 'H'].forEach((k) => {
+        const inp = document.getElementById('inpCurtain' + k);
+        if (!inp) return;
+        inp.onchange = () => {
+          a['curtainBox' + k] = Math.max(0, parseInt(inp.value, 10) || 0);
+          saveLayoutFromAreas();
+          panelCommit('#inpCurtain' + k);
+        };
+      });
       size.querySelectorAll('button[data-flip-owner]').forEach((btn) => {
         btn.onclick = () => {
           const ids = btn.getAttribute('data-flip-owner').split('|');
@@ -3739,6 +3765,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           ? '외부는 통 아래에 <b>몸통을 따로</b> 만들어 붙입니다 — 그만큼 옷장 높이가 줍니다.'
           : '내부는 <b>몸통 높이를 그대로</b> 두고 맨 아래 칸 안에 서랍모듈을 넣습니다.'}
       </div>` : ''}
+      <label class="chk-row" style="margin-top:4px"><input type="checkbox" id="chkWardrobeMirror" ${s.hasMirror ? 'checked' : ''}>
+        이 통에 거울</label>
       ${L && L.carcasses.length ? `
       <div style="font-size:10px;color:#888;line-height:1.5;border-top:1px solid var(--line, #ddd);margin-top:6px;padding-top:6px">
         몸통 ${L.carcasses.length} (${L.carcasses.map((c) => `${c.label} ${c.h}`).join(' · ')})<br>
@@ -3756,6 +3784,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.wardrobe = Object.assign({}, s.wardrobe, { preset: b.preset, drawers: v });
       e.target.value = v;
       draftChanged('#inpWardrobeDrawers');
+    };
+    const mirror = document.getElementById('chkWardrobeMirror');
+    if (mirror) mirror.onchange = (e) => {
+      // 2026-09-17: 거울은 통마다 정한다 (옛 붙박이장 화면의 hasMirror 자리).
+      //   지금은 자재·철물로 나오지 않는다 — 값만 BOM 모듈까지 나른다.
+      s.hasMirror = !!e.target.checked;
+      draftChanged('#chkWardrobeMirror');
     };
     const selMode = document.getElementById('selWardrobeDrawerMode');
     if (selMode) selMode.onchange = (e) => {
@@ -4752,14 +4787,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const pairs = cornerPairs();
     const corner = ensureCornerModules(area.id, pairs);
     const adjCorner = adjCornerOffsetOf(area.id, pairs);
+    // 2026-09-17: 멤버십은 정본 규칙 areaIdOfModule 로 — `m.areaId` 를 직접 보면
+    //   그 값이 없는 옛 모듈이 **걷히지 않고 남아** 새로 선 단과 겹친다 (폭이 두 번 계산된다).
+    //   사용자에겐 "자동계산이 안 된다" 로 보인다 — 눌러도 옛 모듈이 그대로 있으니.
+    //   런 멤버십을 같은 이유로 통일한 것이 #669 다 (modulesOfArea 주석).
     for (let i = modules.length - 1; i >= 0; i--) {
       const m = modules[i];
-      if (m.areaId === area.id && !m.isFixed && !isFinishingSection(m.section)) { delete structures[m.id]; modules.splice(i, 1); }
+      if (areaIdOfModule(m) === area.id && !m.isFixed && !isFinishingSection(m.section)) { delete structures[m.id]; modules.splice(i, 1); }
     }
     orphanHostFinishings(area.id);
     // W12-22: 이미 놓인 마감재가 차지한 폭을 빼고 그 옆에서 시작한다.
     //   빼지 않으면 새 단이 영역 폭 그대로 만들어져 마감재를 뚫고 나온다.
-    const kept = modules.filter((m) => m.areaId === area.id
+    const kept = modules.filter((m) => areaIdOfModule(m) === area.id
       && (m.isFixed || isFinishingSection(m.section)));
     const fins = kept.filter((m) => isFinishingSection(m.section));
     const finW = fins.reduce((sum, f) => sum + (f.W || 0), 0);
@@ -5408,7 +5447,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 규칙을 새로 만들지 않는다 (후드 300 은 예전처럼 비워 둔다; planner-autocalc-all 이 본다).
    */
   function autoCalcMarkerArea(area) {
-    const kept = modules.filter((m) => m.areaId === area.id
+    // 멤버십은 정본 규칙 areaIdOfModule 로 (autoCalcStack 주석 참고).
+    const kept = modules.filter((m) => areaIdOfModule(m) === area.id
       && (m.isFixed || isFinishingSection(m.section)));
     const keptW = kept.reduce((sum, m) => sum + (m.W || 0), 0);
     const room = area.W - keptW;
@@ -5419,7 +5459,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 비고정 표시 모듈만 걷어낸다 — 배열은 제자리에서 (autoCalcArea 와 같은 이유).
     for (let i = modules.length - 1; i >= 0; i--) {
       const m = modules[i];
-      if (m.areaId === area.id && !m.isFixed && !isFinishingSection(m.section)) {
+      if (areaIdOfModule(m) === area.id && !m.isFixed && !isFinishingSection(m.section)) {
         delete structures[m.id];
         modules.splice(i, 1);
       }
@@ -5448,7 +5488,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     // 마감재는 자동계산이 만들어 내는 것이 아니라 사람이 놓은 것이다.
     // 고정 모듈과 같이 보존하고, 그 폭을 뺀 나머지만 다시 채운다.
-    const kept = modules.filter((m) => m.areaId === areaId
+    // 멤버십은 정본 규칙 areaIdOfModule 로 (autoCalcStack 주석 참고).
+    const kept = modules.filter((m) => areaIdOfModule(m) === areaId
       && (m.isFixed || isFinishingSection(m.section)));
     // 멍장은 자리를 스스로 정한다 (코너 쪽 끝) — 나머지 고정분과 따로 센다.
     // ㄷ자 가운데 다리는 양끝이 코너라 멍장이 둘이다.
@@ -5500,7 +5541,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 옛 배열을 계속 보게 된다 (테스트 하네스가 그래서 빈 결과를 봤다).
     for (let i = modules.length - 1; i >= 0; i--) {
       const m = modules[i];
-      if (m.areaId === areaId && !m.isFixed && !isFinishingSection(m.section)) {
+      if (areaIdOfModule(m) === areaId && !m.isFixed && !isFinishingSection(m.section)) {
         delete structures[m.id];
         modules.splice(i, 1);
       }
@@ -6067,6 +6108,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         //   브리지를 타고 BOM 모듈 `areaH` 로 간다. 영역을 못 찾으면 싣지 않는다 (BOM 이 totalH 로 떨어진다).
         const ownArea = areaOfModule(m);
         if (ownArea && Number(ownArea.H) > 0) out.areaH = Number(ownArea.H);
+        // 2026-09-17: 붙박이장 — 통마다의 거울, 배치 공간의 커튼박스. 둘 다 아직 부재로는 안 나오지만
+        //   값이 상세설계(item.specs · 모듈)까지 가야 다음에 부재를 낼 때 쓸 수 있다.
+        if (m.section === 'wardrobe') {
+          const ws = getStructure(m.id);
+          if (ws && ws.hasMirror) out.hasMirror = true;
+          if (ownArea && Number(ownArea.curtainBoxW) > 0) out.curtainBoxW = Number(ownArea.curtainBoxW);
+          if (ownArea && Number(ownArea.curtainBoxH) > 0) out.curtainBoxH = Number(ownArea.curtainBoxH);
+        }
         if (m.blind) out.blind = m.blind;
         return out;
       }),
