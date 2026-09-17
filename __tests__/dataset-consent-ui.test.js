@@ -33,7 +33,8 @@ describe('시공사례 업로드 (mypage.html)', () => {
   });
 
   test('목록에서 동의 상태를 읽고 바꾼다', () => {
-    expect(MYPAGE).toMatch(/\.select\('id, image_url, storage_path, region, created_at, consent_training'\)/);
+    // 컬럼 목록은 늘어난다(design_id 등) — consent_training 이 들어 있는지만 본다
+    expect(MYPAGE).toMatch(/\.select\('id, image_url[^']*consent_training[^']*'\)/);
     expect(MYPAGE).toMatch(/from\('collection_posts'\)\s*\n?\s*\.update\(\{ consent_training: next \}\)/);
     expect(MYPAGE).toMatch(/function toggleCaseConsent/);
   });

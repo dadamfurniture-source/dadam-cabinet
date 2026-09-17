@@ -1067,6 +1067,9 @@
                 total_modules: selectedItems.reduce((sum, item) => sum + (item.modules?.length || 0), 0),
                 app_version: APP_CONFIG.version,
                 updated_at: new Date().toISOString(),
+                // 연출컷에서 온 설계면 그 id 를 남긴다. 한 번 붙은 연결은 지우지 않는다
+                // (나중에 품목을 지워도 "이 설계가 어디서 왔나" 는 사실로 남는다).
+                ...(sourceGenerationId() ? { generation_id: sourceGenerationId() } : {}),
               })
               .eq('id', currentDesignId);
 
@@ -1095,6 +1098,7 @@
                 total_items: selectedItems.length,
                 total_modules: selectedItems.reduce((sum, item) => sum + (item.modules?.length || 0), 0),
                 app_version: APP_CONFIG.version,
+                generation_id: sourceGenerationId(),
               })
               .select()
               .single();
@@ -1216,6 +1220,17 @@
               `다시 저장해 주세요.`
           );
         }
+      }
+
+      /**
+       * 이 설계가 어느 연출컷에서 시작됐나 (gen-import.js 가 item.genId 를 단다).
+       * 지금까지 이 연결은 플래너 배치 JSON 안에만 묻혀 있어 조회가 안 됐다 —
+       * designs.generation_id 로 올려야 "예상 이미지 → 도면 → 완성" 사슬이 이어진다.
+       * 품목이 여러 연출컷에서 왔으면 첫 것을 쓴다 (설계 1건 = 현장 1곳).
+       */
+      function sourceGenerationId() {
+        const withGen = selectedItems.find((it) => it && it.genId);
+        return withGen ? withGen.genId : null;
       }
 
       // 설계 불러오기

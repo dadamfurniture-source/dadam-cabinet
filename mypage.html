@@ -1397,6 +1397,16 @@
               </select>
             </div>
             <div class="form-group">
+              <label>어느 설계의 시공 사진인가요</label>
+              <select id="caseDesign">
+                <option value="">연결 안 함</option>
+              </select>
+              <p class="form-hint">
+                설계를 고르면 도면·견적·시공 결과가 한 건으로 묶입니다.
+                <b>학습 데이터로는 시공이 완료된 설계만 쓰입니다.</b>
+              </p>
+            </div>
+            <div class="form-group">
               <label class="consent-line">
                 <input type="checkbox" id="caseConsent" />
                 <span>이 사진을 다담 AI 학습에 사용해도 좋습니다 <b>(선택)</b></span>
@@ -2282,6 +2292,7 @@
         document.getElementById('casePlaceholder').hidden = false;
         updateGugun('caseSido', 'caseGugun');
         caseStatus('');
+        loadCaseDesigns();
         document.getElementById('caseModal').classList.add('active');
       }
 
@@ -2330,6 +2341,46 @@
         });
       }
 
+      /**
+       * 업로드 모달의 설계 목록. 시공이 끝난 설계(orders.status='completed')를 위로 올리고
+       * 표시를 붙인다 — 학습 데이터가 되는 건 그것뿐이라 고를 때 보여야 한다.
+       * 수주를 못 읽어도(권한·표 없음) 목록 자체는 나온다.
+       */
+      async function loadCaseDesigns() {
+        const sel = document.getElementById('caseDesign');
+        if (!sel || !supabaseClient || !currentUser) return;
+        sel.length = 1;   // '연결 안 함' 만 남긴다
+        const { data: designs, error } = await supabaseClient
+          .from('designs')
+          .select('id, name, updated_at')
+          .eq('user_id', currentUser.id)
+          .order('updated_at', { ascending: false })
+          .limit(50);
+        if (error || !designs || !designs.length) return;
+
+        let done = new Set();
+        try {
+          const { data: orders } = await supabaseClient
+            .from('orders')
+            .select('design_id, status')
+            .in('design_id', designs.map((d) => d.id))
+            .eq('status', 'completed');
+          done = new Set((orders || []).map((o) => o.design_id));
+        } catch (e) {
+          /* 수주를 못 봐도 목록은 낸다 */
+        }
+
+        designs
+          .slice()
+          .sort((a, b) => (done.has(b.id) ? 1 : 0) - (done.has(a.id) ? 1 : 0))
+          .forEach((d) => {
+            const o = document.createElement('option');
+            o.value = d.id;
+            o.textContent = (done.has(d.id) ? '✓ 시공 완료 · ' : '') + (d.name || '이름 없는 설계');
+            sel.appendChild(o);
+          });
+      }
+
       async function submitCase(e) {
         e.preventDefault();
         if (!caseFile) {
@@ -2374,6 +2425,8 @@
             // 학습 동의는 **체크했을 때만** true 다. 안 했으면 false 로 남겨 "물어봤고 안 했다" 를 기록한다
             // (NULL 은 아직 묻지 않은 옛 글이라는 뜻이다).
             consent_training: document.getElementById('caseConsent').checked,
+            // 사슬의 등뼈. 비면 이 사진은 도면·견적과 이어지지 않고 학습에도 안 쓰인다.
+            design_id: document.getElementById('caseDesign').value || null,
           });
           if (dbErr) {
             // 행이 안 들어가면 올라간 파일은 주인 없는 파일이 된다. 되돌린다.
@@ -2426,6 +2479,7 @@
           '" alt="" loading="lazy" />' +
           '<div class="case-meta">' +
           caseEsc(r.region || '지역 미입력') +
+          (r.design_id ? ' · 설계 연결됨' : '') +
           '</div>';
         wrap.insertBefore(del, wrap.querySelector('.case-meta'));
         wrap.insertBefore(consent, del);
@@ -2462,7 +2516,7 @@
         if (!list || !supabaseClient || !currentUser) return;
         const { data, error } = await supabaseClient
           .from('collection_posts')
-          .select('id, image_url, storage_path, region, created_at, consent_training')
+          .select('id, image_url, storage_path, region, created_at, consent_training, design_id')
           .eq('user_id', currentUser.id)
           .order('created_at', { ascending: false });
 

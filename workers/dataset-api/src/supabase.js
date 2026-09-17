@@ -35,6 +35,16 @@ export async function upsert(env, table, rows, onConflict = '') {
   return rows.length;
 }
 
+/** 조건에 맞는 행을 골라 몇 칸만 고친다 (PATCH). */
+export async function patch(env, path, values) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    method: 'PATCH',
+    headers: headers(env, { Prefer: 'return=minimal' }),
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) throw new Error(`patch ${path.split('?')[0]} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+}
+
 export async function remove(env, path) {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
     method: 'DELETE',
