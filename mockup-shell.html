@@ -460,6 +460,7 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
+<script src="js/planner/planner-category-picker.js?v=38.8"></script>
 <script src="js/planner/planner-scope.js?v=38.8"></script>
 <script src="js/planner/planner-view.js?v=38.8"></script>
 <script src="js/planner/planner-sections.js?v=38.8"></script>
@@ -2984,138 +2985,11 @@
   if (redoBtnEl) redoBtnEl.addEventListener('click', () => redo());
 
   // ============================================================
-  // 품목 선택 — detaildesign 의 Step1 카테고리 페이지를 대체한다.
-  //
-  // W12-2: 좌측 툴바에 아이콘 10개를 세로로 놓았다.
-  // W12-3: 상단 '기본 정보' 그룹의 드롭다운으로 옮겼다. 아이콘 10개가 좌측 폭을
-  //        상시 점유했고, 품목은 매번 쓰는 도구가 아니라 설계의 기본 정보라
-  //        치수(W/H/D)와 같은 줄에 접어두는 편이 맞다.
-  //
-  // 부모(ui-step1.js) 쪽 배선은 W8-5/W8-6 에서 이미 만들어져 있고 그대로 쓴다:
-  //   ADD_CATEGORY    수신 → incrementCategory
-  //   REMOVE_CATEGORY 수신 → decrementCategory
-  //   PLANNER_READY   수신 → CATEGORY_COUNTS 응답
-  //
-  // ⚠ 이 배선이 끊기면 가구를 만들 수단이 아예 사라진다.
-  //   __tests__/planner-category-tools.test.js 가 양쪽을 고정한다.
-  //
-  // 아이콘은 '배치' 그룹(분배기🚰·후드💨·냉장고🧊·식세기🍽️)과 겹치지 않게 고른다.
-  // 그 둘은 계층이 다르다 — 여기는 '품목', 아래는 품목 안에 놓는 '모듈/가전'.
+  // 품목 드롭다운 — 2026-09-18 부터 js/planner/planner-category-picker.js 가 정본이다.
+  //   구조·디테일(mockup-structure.html)에서도 같은 드롭다운을 써야 해서 뺐다.
+  //   마크업(#catPicker/#catPickerBtn/#catPickerTotal/#catMenu)과 배선은 그대로다.
   // ============================================================
-  (function initCategoryTools() {
-    const CATS = [
-      { id: 'sink',      name: '싱크대',   icon: '🍳' },
-      { id: 'island',    name: '아일랜드', icon: '🏝' },
-      { id: 'wardrobe',  name: '붙박이장', icon: '👔' },
-      { id: 'fridge',    name: '냉장고장', icon: '❄️' },
-      { id: 'shoerack',  name: '신발장',   icon: '👟' },
-      { id: 'vanity',    name: '화장대',   icon: '💄' },
-      { id: 'storage',   name: '수납장',   icon: '📦' },
-      { id: 'warehouse', name: '창고장',   icon: '🏭' },
-      { id: 'door',      name: '도어교체', icon: '🚪' },
-      { id: 'custom',    name: '비규격장', icon: '✏️' },
-    ];
-
-    const host = document.getElementById('catMenu');
-    const pickBtn = document.getElementById('catPickerBtn');
-    const totalEl = document.getElementById('catPickerTotal');
-    const picker = document.getElementById('catPicker');
-    if (!host || !pickBtn || !picker) return;
-
-    /** 부모(detaildesign)가 없으면 이 UI 는 의미가 없다 — 단독 열람 시 숨긴다. */
-    const embedded = window.parent && window.parent !== window;
-    if (!embedded) {
-      picker.style.display = 'none';
-      return;
-    }
-
-    function post(type, categoryId) {
-      try { window.parent.postMessage({ type, categoryId }, '*'); } catch (e) {}
-    }
-
-    // ── 메뉴 만들기 ──
-    // 행 = [추가 버튼][− 제거 버튼]. 버튼 안에 버튼을 넣을 수 없어 형제로 둔다.
-    CATS.forEach((cat) => {
-      const row = document.createElement('div');
-      row.className = 'cat-menu-row';
-      row.dataset.cat = cat.id;
-
-      const add = document.createElement('button');
-      add.type = 'button';
-      add.className = 'cat-menu-add';
-      add.id = `catBtn-${cat.id}`;
-      add.title = `${cat.name} 추가`;
-      add.innerHTML =
-        `<span class="cm-icon" aria-hidden="true">${cat.icon}</span>` +
-        `<span class="cm-name"></span>` +
-        `<span class="cm-n" id="catBadge-${cat.id}" hidden>0</span>`;
-      add.querySelector('.cm-name').textContent = cat.name;
-      add.addEventListener('click', () => post('ADD_CATEGORY', cat.id));
-      // 좌측 툴바 시절의 우클릭 제거를 그대로 남긴다 (손에 익은 사용자를 위해)
-      add.addEventListener('contextmenu', (e) => {
-        e.preventDefault();          // 브라우저 컨텍스트 메뉴 억제
-        e.stopPropagation();         // 도면 우클릭(회전)까지 번지지 않게
-        post('REMOVE_CATEGORY', cat.id);
-      });
-
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'cat-menu-del';
-      del.id = `catDel-${cat.id}`;
-      del.title = `${cat.name} 1개 제거`;
-      del.textContent = '−';
-      del.disabled = true;           // 0개면 지울 게 없다
-      del.addEventListener('click', (e) => {
-        e.stopPropagation();
-        post('REMOVE_CATEGORY', cat.id);
-      });
-
-      row.appendChild(add);
-      row.appendChild(del);
-      host.appendChild(row);
-    });
-
-    const hint = document.createElement('div');
-    hint.className = 'cat-menu-hint';
-    hint.textContent = '클릭하면 추가 · −로 1개 제거';
-    host.appendChild(hint);
-
-    // ── 열고 닫기 ──
-    function setOpen(open) {
-      host.hidden = !open;
-      pickBtn.setAttribute('aria-expanded', String(open));
-    }
-    const isOpen = () => !host.hidden;
-
-    pickBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setOpen(!isOpen());
-    });
-    // 메뉴 안 클릭이 바깥 클릭으로 새어 닫히지 않게
-    host.addEventListener('click', (e) => e.stopPropagation());
-    document.addEventListener('click', () => { if (isOpen()) setOpen(false); });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && isOpen()) { setOpen(false); pickBtn.focus(); }
-    });
-
-    /** 부모가 보내주는 카테고리별 개수로 배지·제거 버튼 상태를 갱신 */
-    window.addEventListener('message', (e) => {
-      if (!e.data || e.data.type !== 'CATEGORY_COUNTS' || !e.data.counts) return;
-      let total = 0;
-      CATS.forEach((cat) => {
-        const n = Number(e.data.counts[cat.id]) || 0;
-        total += n;
-        const badge = document.getElementById(`catBadge-${cat.id}`);
-        const del = document.getElementById(`catDel-${cat.id}`);
-        if (badge) { badge.textContent = n; badge.hidden = n === 0; }
-        if (del) del.disabled = n === 0;
-      });
-      if (totalEl) { totalEl.textContent = total; totalEl.hidden = total === 0; }
-    });
-
-    // 초기 개수 요청 (부모가 CATEGORY_COUNTS 로 응답한다)
-    try { window.parent.postMessage({ type: 'PLANNER_READY' }, '*'); } catch (e) {}
-  })();
+  plannerCategoryPickerMount();
 </script>
 </body>
 </html>

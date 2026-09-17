@@ -30,7 +30,32 @@
   .step-pill button.active{background:var(--brand-deep);color:#fff;box-shadow:0 2px 5px rgba(106,75,42,.25)}
   .step-pill .sep{width:14px;height:2px;background:var(--line);display:inline-block}
   .topbar .spacer{flex:1}
-  .module-name{font-size:12px;color:var(--text);font-weight:600;background:var(--brand-soft);padding:4px 10px;border-radius:5px;border:1px solid var(--brand-mid)}
+  /* 2026-09-18: 품목 드롭다운 — 배치(mockup-shell.html)와 같은 규칙. 공용 스크립트가
+     같은 마크업을 만드므로 모양도 같아야 한다 (단계를 넘어도 같은 버튼으로 보여야 한다). */
+  .cat-picker{position:relative}
+  .cat-picker-btn{display:flex;align-items:center;gap:5px;height:24px;padding:0 8px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;color:var(--brand-deep)}
+  .cat-picker-btn:hover{background:var(--brand-soft);border-color:var(--brand-mid)}
+  .cat-picker-btn[aria-expanded="true"]{background:var(--brand-soft);border-color:var(--brand-mid)}
+  .cat-picker-btn .cp-total{background:var(--brand-deep);color:#fff;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 4px;display:flex;align-items:center;justify-content:center}
+  .cat-picker-btn .cp-caret{font-size:9px;color:var(--text-dim);margin-left:1px}
+  /* 메뉴 — 3D 캔버스·패널 위로 떠야 한다 */
+  .cat-menu{position:absolute;top:calc(100% + 5px);left:0;z-index:200;min-width:196px;padding:4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(58,42,24,.18)}
+  .cat-menu[hidden]{display:none}
+  .cat-menu-row{display:flex;align-items:center;gap:2px;border-radius:5px}
+  .cat-menu-row:hover{background:var(--brand-soft)}
+  .cat-menu-add{flex:1;display:flex;align-items:center;gap:8px;padding:6px;border:none;background:transparent;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text);text-align:left;font-weight:500}
+  .cat-menu-add .cm-icon{width:18px;text-align:center;font-size:14px}
+  .cat-menu-add .cm-name{flex:1}
+  .cat-menu-add .cm-n{background:var(--brand-deep);color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;padding:0 4px;display:flex;align-items:center;justify-content:center}
+  .cat-menu-del{width:22px;height:22px;margin-right:4px;border:1px solid transparent;background:transparent;border-radius:4px;cursor:pointer;color:var(--text-dim);font-size:14px;line-height:1}
+  .cat-menu-del:hover:not(:disabled){background:#fff;border-color:var(--brand-mid);color:var(--brand-deep)}
+  .cat-menu-del:disabled{opacity:.25;cursor:default}
+  .cat-menu-hint{padding:5px 7px 3px;font-size:10px;color:var(--text-faint);border-top:1px solid var(--line);margin-top:3px}
+  /* 2026-09-18: 이 상단 바는 이미 꽉 차 있다 — 품목 버튼(90px)을 통째로 더하면
+     창이 1266px 보다 좁을 때 우측 끝 '💾 도면 저장' 이 밖으로 밀려 사라진다 (1200px 에서 확인).
+     좁으면 '품목' 글자만 접는다. 아이콘과 개수 배지는 남아 버튼을 계속 찾을 수 있다. */
+  @media (max-width: 1360px){ .cat-picker-btn .cp-label{display:none} }
+  .module-name{font-size:12px;color:var(--text);font-weight:600;background:var(--brand-soft);padding:4px 10px;border-radius:5px;border:1px solid var(--brand-mid);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* W9-64: View toggle (3D / 2D) */
   .view-toggle{display:flex;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px}
   .view-toggle button{padding:3px 10px;border:none;background:transparent;color:var(--text-dim);font-size:11px;font-weight:600;cursor:pointer;border-radius:4px}
@@ -284,6 +309,21 @@
     <button class="active" id="structureStageBtn" onclick="PlannerDetail.exit()">📦 2.구조</button><span class="sep"></span>
     <!-- D0: 디테일 모드 (js/planner/planner-detail.js). 핸들러는 PlannerDetail.mount 가 건다. -->
     <button id="detailStageBtn" title="디테일 모드 — 부재별 마감 지정 (?stage=detail)">🎨 3.디테일</button>
+  </div>
+  <!-- 2026-09-18: 품목 드롭다운. 배치 단계에만 있어서, 구조·디테일에서 품목을 하나 더
+       넣으려면 1.배치로 되돌아가야 했다. 개수 정본은 부모(detaildesign)의 selectedItems 이고
+       여기는 ADD/REMOVE_CATEGORY 를 보내고 CATEGORY_COUNTS 를 받을 뿐이라, 어느 단계에서
+       넣고 빼도 세 단계가 같은 숫자를 본다. 만드는 쪽은 js/planner/planner-category-picker.js. -->
+  <div class="cat-picker" id="catPicker">
+    <button type="button" class="cat-picker-btn" id="catPickerBtn"
+            aria-haspopup="true" aria-expanded="false" aria-controls="catMenu"
+            title="가구 품목 추가·제거">
+      <span aria-hidden="true">🗂</span>
+      <span class="cp-label">품목</span>
+      <span class="cp-total" id="catPickerTotal" hidden>0</span>
+      <span class="cp-caret" aria-hidden="true">▾</span>
+    </button>
+    <div class="cat-menu" id="catMenu" role="menu" hidden></div>
   </div>
   <div class="module-name" id="curModuleName">모듈을 선택하세요</div>
   <div class="spacer"></div>
@@ -574,6 +614,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
+<script src="js/planner/planner-category-picker.js?v=38.8"></script>
 <script src="js/planner/planner-scope.js?v=38.8"></script>
 <script src="js/planner/planner-view.js?v=38.8"></script>
 <script src="js/planner/planner-sections.js?v=38.8"></script>
@@ -5967,6 +6008,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     wrap.appendChild(el);
     setTimeout(() => el.remove(), 2000);
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2026-09-18: 품목 드롭다운 (js/planner/planner-category-picker.js) — 배치와 같은 것.
+  //   부모가 품목이 바뀔 때마다 iframe 전부에 CATEGORY_COUNTS 를 보내므로, 배치에서
+  //   넣은 것도 여기 배지에 그대로 뜬다. 뜰 때 PLANNER_READY 로 현재 개수를 먼저 받는다.
+  //   디테일 모드는 같은 문서의 **모드**라 여기서 한 번 붙이면 3.디테일에서도 그대로 보인다.
+  // ─────────────────────────────────────────────────────────────
+  if (typeof plannerCategoryPickerMount === 'function') plannerCategoryPickerMount();
 
   // ─────────────────────────────────────────────────────────────
   // 2026-09-13: 📥 도면 불러오기 / 💾 도면 저장 — 공통 메뉴 (js/planner/planner-drawing-menu.js).
