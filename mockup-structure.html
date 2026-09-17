@@ -3553,7 +3553,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const T = BODY_T;
     const carcassH = bodyHeightOf(m, s);
     const bodyTopOff = Math.max(0, m.H - baseOffsetOf(m, s) - carcassH);
-    const floorY = offsetY + bodyTopOff + carcassH - (L.drawerModH || 0) - T;   // 내경 y=0
+    const floorY = offsetY + bodyTopOff + carcassH;      // 통 좌표 y=0 (몸통 바닥 = 좌대 위)
     const leftX = offsetX + T;
     const yOf = (iy) => floorY - iy;
     const rect = (x, y, w, h, fill, stroke, dash) => {
@@ -3567,6 +3567,21 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       g.appendChild(r);
       return r;
     };
+    // 몸통 — 제작 단위. 굵은 선으로 두르고 이름을 적는다 (2단이면 두 칸이 보인다)
+    (L.dividers && L.carcasses ? L.carcasses : []).forEach((car) => {
+      const r = rect(offsetX, yOf(car.y0 + car.h), m.W, car.h, 'none', '#3c4a66');
+      r.setAttribute('stroke-width', 5);
+      if (!car.label) return;
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('class', 'area-label');
+      t.setAttribute('x', offsetX + 14);
+      t.setAttribute('y', yOf(car.y0 + car.h) + 40);
+      t.setAttribute('font-size', Math.min(m.W * 0.09, 40));
+      t.setAttribute('fill', '#3c4a66');
+      t.style.pointerEvents = 'none';
+      t.textContent = car.label;
+      g.appendChild(t);
+    });
     // 칸 — 옅게 채우고 점선으로 두른다 (도어 위에 얹히므로 도어 그림을 가리지 않게)
     L.cells.forEach((c) => {
       rect(leftX + c.x0, yOf(c.y0 + c.h), c.w, c.h, 'rgba(255,255,255,0.10)', '#5b6b8c', '8 6');
@@ -3589,8 +3604,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
     // 선반
     (L.shelves || []).forEach((sh) => rect(leftX + sh.x0, yOf(sh.y + T), sh.w, T, '#c9b68e', '#7d6c48'));
-    // 옷봉
-    (L.rods || []).forEach((r) => rect(leftX + r.x0, yOf(r.y) - 8, r.length, 16, '#b9bcc4', '#6f747e'));
+    // 옷봉 — 굵기는 규칙의 25파이
+    const dia = DadamWardrobeRules.WARDROBE_RULES.ROD_DIAMETER;
+    (L.rods || []).forEach((r) => rect(leftX + r.x0, yOf(r.y) - dia / 2, r.length, dia, '#b9bcc4', '#6f747e'));
   }
 
   /** 칸 타입이 정하는 섹션 표시 — 서랍이 있으면 서랍, 도어·오픈이 있으면 선반, 전면이 있으면 손잡이. */
@@ -3689,7 +3705,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       .map((pr) => `<option value="${pr.key}" ${b.preset === pr.key ? 'selected' : ''}>${pr.label}</option>`)
       .join('');
     const cur = rules.presetOf(b.preset) || {};
-    const hasDrawers = !!(L && L.drawers > 0);
+    // 2026-09-17: 서랍은 **어느 구조에서든** 더할 수 있다 (사장님 지시). 긴옷은 최소 1단이라 0 을 넣어도 1 로 올라간다.
+    const minDrawers = Number(cur.minDrawers) || 0;
     host.innerHTML = `
       <div class="row">
         <label>통 구조</label>
@@ -3698,14 +3715,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       <div style="font-size:10px;color:#888;line-height:1.5">
         ${count > 1 ? `${count}통 중 <b>${idx + 1}번</b>. ` : ''}${cur.note || ''}
       </div>
-      ${hasDrawers ? `
       <div class="row">
         <label>외부 서랍 단수</label>
-        <input type="number" min="0" max="${rules.WARDROBE_RULES.MAX_DRAWER_COUNT}" step="1"
-               id="inpWardrobeDrawers" value="${L.drawers}">
-      </div>` : ''}
-      ${L && L.cells.length ? `
+        <input type="number" min="${minDrawers}" max="${rules.WARDROBE_RULES.MAX_DRAWER_COUNT}" step="1"
+               id="inpWardrobeDrawers" value="${L ? L.drawers : minDrawers}">
+      </div>
+      <div style="font-size:10px;color:#888;line-height:1.5">
+        서랍은 <b>몸통을 따로</b> 만들어 아래에 붙입니다 (한 단 ${rules.WARDROBE_RULES.DRAWER_MOD_H}mm).${minDrawers > 0 ? ` 이 구조는 최소 ${minDrawers}단입니다.` : ''}
+      </div>
+      ${L && L.carcasses.length ? `
       <div style="font-size:10px;color:#888;line-height:1.5;border-top:1px solid var(--line, #ddd);margin-top:6px;padding-top:6px">
+        몸통 ${L.carcasses.length} (${L.carcasses.map((c) => `${c.label} ${c.h}`).join(' · ')})<br>
         칸 ${L.cells.length} · 칸막이 ${L.dividers.length} · 선반 ${L.shelves.length} · 옷봉 ${L.rods.length}
       </div>` : ''}
       ${L && L.warnings.length ? `
@@ -3716,7 +3736,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const inp = document.getElementById('inpWardrobeDrawers');
     if (inp) inp.onchange = (e) => {
       const max = rules.WARDROBE_RULES.MAX_DRAWER_COUNT;
-      const v = Math.max(0, Math.min(max, parseInt(e.target.value, 10) || 0));
+      const v = Math.max(minDrawers, Math.min(max, parseInt(e.target.value, 10) || 0));
       s.wardrobe = Object.assign({}, s.wardrobe, { preset: b.preset, drawers: v });
       e.target.value = v;
       draftChanged('#inpWardrobeDrawers');
@@ -6448,7 +6468,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const mat = new THREE.LineBasicMaterial({
       color: color != null ? color : 0x000000,
       transparent: true,
-      opacity: opacity != null ? opacity : 0.6,
+      // 2026-09-17: 기본 0.6 → 0.85. 부재끼리 경계가 보여야 한다는 지시. 도어·마감은 이미 0.8~0.9 였다.
+      opacity: opacity != null ? opacity : 0.85,
       linewidth: 1,
     });
     const line = new THREE.LineSegments(edges, mat);
@@ -6892,31 +6913,71 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 앞면은 몸통 앞선에 맞추고(전면은 그 앞에 덧씌워진다) 반투명으로 그려 존이 보이게 한다.
    */
   /**
+   * 붙박이장 몸통들 — 통 하나가 캐비닛 여럿이다 (규칙 파일 carcasses).
+   *
+   * 2단이면 상·하 각각 측판 2 · 지판 · 천판 · 뒷판을 갖는다. 사이에 칸막이 한 장이 아니라
+   * **하부 천판 + 상부 지판** 두 장이 맞닿는다 — 그게 제작 단위이고 BOM(extractWardrobe 분리형)도 그렇게 낸다.
+   * 외부 서랍은 맨 아래 별도 몸통이고, 안에 서랍 전면을 단수만큼 그린다.
+   */
+  function addWardrobeCarcasses(parent, m, L, o) {
+    const { W, D, T, legH } = o;
+    const color = o.color || '#d8c8a8';
+    const inner = W - 2 * T;
+    const put = (mesh, ud) => { mesh.userData = ud; parent.add(mesh); addEdgeOutline(mesh, parent, 0x000000, 0.9); };
+
+    (L.carcasses || []).forEach((car, ci) => {
+      const ud = () => Object.assign({ carcassIdx: ci, carcassKey: car.key }, o.ud);
+      const cy = legH + car.y0 + car.h / 2;
+      const back = makeBox(inner, car.h, T, color);
+      back.position.set(0, cy, -D / 2 + T / 2);
+      put(back, ud());
+      [-1, 1].forEach((sgn) => {
+        const side = makeBox(T, car.h, D, color);
+        side.position.set(sgn * (W / 2 - T / 2), cy, 0);
+        put(side, ud());
+      });
+      const bottom = makeBox(inner, T, D - T, color);
+      bottom.position.set(0, legH + car.y0 + T / 2, T / 2);
+      put(bottom, ud());
+      const top = makeBox(inner, T, D - T, color);
+      top.position.set(0, legH + car.y0 + car.h - T / 2, T / 2);
+      put(top, ud());
+
+      if (car.kind !== 'drawer' || !(car.drawers > 0)) return;
+      // 서랍 몸통 — 단마다 전면 한 장 (규칙 DRAWER_MOD_H). 통 앞면에 붙인다.
+      const stepH = car.h / car.drawers;
+      for (let i = 0; i < car.drawers; i++) {
+        const face = makeBox(inner - 4, stepH - 4, T, darken3(color, 0.06));
+        face.position.set(0, legH + car.y0 + stepH * i + stepH / 2, D / 2 - T / 2);
+        put(face, { entityKind: 'wardrobeDrawerFront', moduleId: m.id, drawerIdx: i });
+      }
+    });
+  }
+
+  /**
    * 붙박이장 통 내부를 3D 로 — 칸막이·선반·옷봉.
    *
-   * 좌표 옮김: 규칙의 칸 좌표는 **내경 기준**이다 (x 는 좌측 측판 안쪽, y 는 지판 윗면에서 위로).
-   *   3D 는 모듈 중심이 x=0 이고 y 는 모듈 바닥에서 위로 재므로
-   *     x3d = −W/2 + T + x      y3d = legH + 외부서랍높이 + T + y
-   *   외부 서랍은 통 아래에 따로 서므로(wardrobe.md §7) 그 높이만큼 내경이 위로 올라간다.
+   * 좌표 옮김: 규칙의 칸·칸막이·선반·옷봉 y 는 **통 좌표**다 (몸통 바닥 = 좌대 위에서 위로).
+   *   x 는 좌측 측판 안쪽에서 오른쪽. 3D 는 모듈 중심이 x=0 이고 y 는 모듈 바닥에서 위로 재므로
+   *     x3d = −W/2 + T + x      y3d = legH + y
    */
   function addWardrobeInterior(parent, m, L, o) {
     const { W, D, T, legH } = o;
     const x0 = -W / 2 + T;
-    const y0 = legH + (L.drawerModH || 0) + T;
     const panelColor = o.color || '#d8c8a8';
-    const shelfColor = '#e8d8b8';
-    const add = (mesh) => { parent.add(mesh); addEdgeOutline(mesh, parent); };
+    const shelfColor = darken3(panelColor, 0.08);
+    const add = (mesh) => { parent.add(mesh); addEdgeOutline(mesh, parent, 0x000000, 0.9); };
 
     (L.dividers || []).forEach((d, i) => {
       const ud = { entityKind: 'wardrobeDivider', moduleId: m.id, dividerIdx: i, axis: d.axis };
       if (d.axis === 'v') {
         const box = makeBox(T, d.h, D - T, panelColor, { roughness: 0.6 });
-        box.position.set(x0 + d.x + T / 2, y0 + d.y0 + d.h / 2, T / 2);
+        box.position.set(x0 + d.x + T / 2, legH + d.y0 + d.h / 2, T / 2);
         box.userData = ud;
         add(box);
       } else {
         const box = makeBox(d.w, T, D - T, panelColor, { roughness: 0.6 });
-        box.position.set(x0 + d.x0 + d.w / 2, y0 + d.y + T / 2, T / 2);
+        box.position.set(x0 + d.x0 + d.w / 2, legH + d.y + T / 2, T / 2);
         box.userData = ud;
         add(box);
       }
@@ -6924,15 +6985,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     (L.shelves || []).forEach((sh, i) => {
       const box = makeBox(sh.w, T, Math.max(50, L.shelfDepth), shelfColor, { roughness: 0.5 });
-      box.position.set(x0 + sh.x0 + sh.w / 2, y0 + sh.y + T / 2, T / 2);
+      box.position.set(x0 + sh.x0 + sh.w / 2, legH + sh.y + T / 2, T / 2);
       box.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: i, wardrobe: true };
       add(box);
     });
 
-    // 옷봉 — 파이프 한 가닥. 규격이 미확정이라(규칙 파일 ROD_NOTE) 굵기 32 는 **그림용**이고 BOM 은 길이만 쓴다.
+    // 옷봉 — 크롬 25파이 (규칙 ROD_DIAMETER). 길이는 칸 내경 폭 − 5.
+    const dia = DadamWardrobeRules.WARDROBE_RULES.ROD_DIAMETER;
     (L.rods || []).forEach((r, i) => {
-      const box = makeBox(r.length, 32, 32, '#b9bcc4', { roughness: 0.3, metalness: 0.6 });
-      box.position.set(x0 + r.x0 + r.length / 2, y0 + r.y, T / 2);
+      const box = makeBox(r.length, dia, dia, '#b9bcc4', { roughness: 0.25, metalness: 0.7 });
+      box.position.set(x0 + r.x0 + r.length / 2, legH + r.y, T / 2);
       box.userData = { entityKind: 'wardrobeRod', moduleId: m.id, rodIdx: i };
       add(box);
     });
@@ -7722,17 +7784,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 2026-09-15: 목찬넬 하부장의 "도어 + 하부 서랍" 은 규칙 파일이 전면·중간 따내기·박스를 정한다 (null 이면 예전 그대로)
     const drawerLayout = drawerLayoutFor(m, s);
     const drawerRules = drawerRulesOf(s);   // 2026-09-15: 레일·사쿠리·서랍 자재 두께
-    addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
-      drawerT: drawerRules.boxT || T, drawerSakuri: drawerRules.sakuri });
-    addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
-      types: s.areaTypes, section: m.section });
+    // 2026-09-17: 붙박이장 통 하나는 **몸통 여럿**이다 (규칙 파일 carcasses). 2단은 상·하 독립 캐비닛이고
+    //   외부 서랍은 별도 몸통이라, 통짜 껍데기 한 벌로 그리면 실제 제작 단위와 다른 그림이 된다.
+    const wardrobeLayout = wardrobeLayoutFor(m, s);
+    if (wardrobeLayout && wardrobeLayout.carcasses.length) {
+      addWardrobeCarcasses(g, m, wardrobeLayout, { W, D, T, legH, color: carcassColor, ud: carcassUd });
+    } else {
+      addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
+        drawerT: drawerRules.boxT || T, drawerSakuri: drawerRules.sakuri });
+      addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
+        types: s.areaTypes, section: m.section });
+    }
     // P2-6: 처짐방지목은 모듈 단위 부재 — 도어 칸 수와 무관하게 폭 문턱으로 장수를 정한다 (addBraces).
     addBraces(g, m, { W, D, T, legH, carcassH, color: carcassColor, woodChannel });
 
-    // 2026-09-17: 붙박이장 통 내부 — 규칙 파일이 정한 칸·칸막이·선반·옷봉.
+    // 2026-09-17: 붙박이장 통 내부 — 규칙 파일이 정한 칸막이·선반·옷봉.
     //   있으면 아래 일반 선반(s.shelves) 루프를 건너뛴다. 통 내부는 칸이 정본이다.
-    const wardrobeLayout = wardrobeLayoutFor(m, s);
-    if (wardrobeLayout) addWardrobeInterior(g, m, wardrobeLayout, { W, D, T, legH, carcassH, color: carcassColor });
+    if (wardrobeLayout) addWardrobeInterior(g, m, wardrobeLayout, { W, D, T, legH, color: carcassColor });
 
     // 2026-09-13: 멍장 내부는 단일 수납 공간 — 선반은 모듈 전폭 하나, 깊이는 ㄱ자 목대(75) 뒤에서 끝난다.
     const blindCut = m.blind ? MASTER_RULES.CORNER_HINGE_BATTEN_DEPTH : 0;

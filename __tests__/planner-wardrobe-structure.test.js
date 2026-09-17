@@ -73,6 +73,15 @@ describe('통 나누기', () => {
 });
 
 describe('패널 섹션', () => {
+  test('2단 구조는 몸통 둘 — 모듈 두 개가 결합된다', () => {
+    const p = boot();
+    const { m, s } = pick(p, 0);
+    const L = p.g('wardrobeLayoutFor')(m, s);
+    expect(L.carcasses.map((c) => c.key)).toEqual(['lower', 'upper']);
+    expect(L.carcasses.reduce((sum, c) => sum + c.h, 0)).toBe(p.g('bodyHeightOf')(m, s));
+    expect(sel(p, '#wardrobeBody').textContent).toMatch(/몸통 2/);
+  });
+
   test('붙박이장 통은 구조 섹션이 뜨고 선반·서랍 섹션이 꺼진다', () => {
     const p = boot();
     pick(p, 0);
@@ -166,13 +175,26 @@ describe('프리셋 바꾸기', () => {
 });
 
 describe('외부 서랍 단수', () => {
-  test('서랍이 있는 프리셋(2번 통)에만 입력이 뜬다', () => {
+  test('어느 구조에서든 서랍을 더할 수 있다 — 입력이 항상 있다', () => {
     const p = boot();
-    pick(p, 1);                                   // longDrawer
-    expect(sel(p, '#inpWardrobeDrawers')).not.toBeNull();
+    pick(p, 1);                                   // longDrawer — 기본 2단
     expect(sel(p, '#inpWardrobeDrawers').value).toBe('2');
-    pick(p, 0);                                   // short2 — 서랍 없음
-    expect(sel(p, '#inpWardrobeDrawers')).toBeNull();
+    expect(sel(p, '#inpWardrobeDrawers').min).toBe('1');   // 긴옷은 최소 1단
+    pick(p, 0);                                   // short2 — 기본 없음, 그래도 더할 수 있다
+    expect(sel(p, '#inpWardrobeDrawers')).not.toBeNull();
+    expect(sel(p, '#inpWardrobeDrawers').value).toBe('0');
+    expect(sel(p, '#inpWardrobeDrawers').min).toBe('0');
+  });
+
+  test('짧은옷 2단에 서랍을 더하면 서랍 몸통이 생긴다', () => {
+    const p = boot();
+    const { m } = pick(p, 0);
+    const el = sel(p, '#inpWardrobeDrawers');
+    el.value = '2';
+    el.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    const L = p.g('wardrobeLayoutFor')(m, draft(p, m));
+    expect(L.carcasses.map((c) => c.kind)).toEqual(['drawer', 'cabinet', 'cabinet']);
+    expect(L.carcasses[0].h).toBe(2 * WR.WARDROBE_RULES.DRAWER_MOD_H);
   });
 
   test('단수를 바꾸면 통 높이가 따라 줄어든다', () => {
@@ -206,10 +228,13 @@ describe('미리보기', () => {
     const p = boot();
     const { m, s } = pick(p, 2);                  // 반 분할 — 칸막이 1 · 선반 2 · 옷봉 2
     const L = p.g('wardrobeLayoutFor')(m, s);
-    // 옷봉은 16 높이 막대로 그린다 — 그 수가 레이아웃의 옷봉 수와 같다
-    expect(previewRects(p).filter((r) => r.getAttribute('height') === '16')).toHaveLength(L.rods.length);
+    // 옷봉은 규칙의 25파이 굵기로 그린다 — 그 수가 레이아웃의 옷봉 수와 같다
+    const dia = String(WR.WARDROBE_RULES.ROD_DIAMETER);
+    expect(previewRects(p).filter((r) => r.getAttribute('height') === dia)).toHaveLength(L.rods.length);
     // 칸은 점선으로 두른다
     expect(previewRects(p).filter((r) => r.getAttribute('stroke-dasharray'))).toHaveLength(L.cells.length);
+    // 몸통은 굵은 선으로 — 제작 단위가 눈에 보여야 한다
+    expect(previewRects(p).filter((r) => r.getAttribute('stroke-width') === '5')).toHaveLength(L.carcasses.length);
     expect(p.errors).toEqual([]);
   });
 
