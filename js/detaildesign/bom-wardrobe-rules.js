@@ -25,8 +25,8 @@
  *   선반   가로 = 칸 폭,         세로 = D − 18 − 70 (§6 선반 깊이)
  *
  * ── 문서에 없어 규칙을 세운 것 ───────────────────────────────────
- * 옷봉은 지금까지 **도면에만** 있었다 (자재·철물 어디에도 없어 발주에서 빠졌다). 여기서 파이프 + 소켓 2EA 로 낸다.
- * 파이프 길이는 칸 내경 폭 그대로다 — 절단 여유·지름·품명은 확인이 필요하므로 행 비고에 남긴다(ROD_NOTE).
+ * 옷봉은 지금까지 **도면에만** 있었다 (자재·철물 어디에도 없어 발주에서 빠졌다). 여기서 철물로 낸다.
+ * 규격은 2026-09-17 사장님 확정 — **크롬 25파이 파이프 + 원형소켓 2EA**, 길이는 **칸 내경 폭 − 5**.
  * 세로 칸막이도 문서 §11 에 없다 (§11 중간칸막이는 짧은옷의 **수평** 판이다). 측판과 같은 판으로 본다.
  */
 (function (root, factory) {
@@ -50,8 +50,12 @@
     DEFAULT_H: 2310,
     SAMPLE_CELL_W: 900,           // 기본형 통 폭 (§1.1) — 유효폭 3600 이면 자동계산도 이 값이 나온다
     MIN_CELL_W: 200,              // 이보다 좁은 칸은 만들 수 없다 — 경고하고 분할을 접는다
+    // 옷봉 — 2026-09-17 사장님 확정. 파이프는 칸 내경 폭보다 5 짧게 자른다 (양쪽 소켓 자리).
     ROD_SOCKETS_PER_ROD: 2,
-    ROD_NOTE: '[확인 필요] 옷봉 파이프 지름·품명·절단 여유 미확정 — 길이는 칸 내경 폭',
+    ROD_LENGTH_MINUS: 5,
+    ROD_DIAMETER: 25,
+    ROD_SPEC: '크롬 25파이',
+    ROD_SOCKET_NAME: '원형소켓',
   });
 
   const R = WARDROBE_RULES;
@@ -308,6 +312,11 @@
     return y > 0 ? [Math.round(y)] : [];
   }
 
+  /** 옷봉 파이프 길이 — 칸 내경 폭보다 5 짧다 (양쪽 소켓 자리, 2026-09-17 확정). */
+  function rodLengthFor(clearW) {
+    return Math.max(0, Math.round(Number(clearW) || 0) - R.ROD_LENGTH_MINUS);
+  }
+
   // ── 통 하나의 배치 ───────────────────────────────────────────
 
   /**
@@ -373,7 +382,9 @@
         cell: idx, x0: c.x0, y: y + c.y0, w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반',
       }));
       rodPositions(c).forEach((y) => rods.push({
-        cell: idx, x0: c.x0, y: y + c.y0, length: c.w, sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉',
+        // clearW = 칸 내경 폭(그림에서 칸이 차지하는 폭), length = 실제 파이프 재단 길이
+        cell: idx, x0: c.x0, y: y + c.y0, clearW: c.w, length: rodLengthFor(c.w),
+        sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉',
       }));
       if (c.shelves > 0 && c.rods > 0 && c.h <= R.LONG_FIRST_SHELF) {
         warnings.push(`칸 ${idx + 1} 높이 ${c.h} 는 긴옷 첫 선반 ${R.LONG_FIRST_SHELF} 보다 낮아 선반이 빠졌다`);
@@ -411,19 +422,28 @@
     return rows;
   }
 
-  /** 옷봉 철물 — 파이프와 소켓. 규격이 미확정이라 비고에 [확인 필요] 를 붙인다. */
+  /** 옷봉 철물 — 크롬 25파이 파이프와 원형소켓. 길이가 다르면 줄을 나눈다. */
   function rodHardwareOf(layout) {
-    const rods = layout.rods || [];
-    if (!rods.length) return [];
+    return rodHardwareFor((layout.rods || []).map((r) => r.length));
+  }
+
+  /**
+   * 옷봉 길이 목록에서 철물 줄을 만든다. 칸 구조가 없는 옛 설계(rodCountUpper/Lower)도
+   * 길이만 넘기면 같은 줄이 나온다 — 규격을 두 군데 적지 않는다.
+   */
+  function rodHardwareFor(lengths) {
+    const list = (lengths || []).map((v) => Math.round(Number(v) || 0)).filter((v) => v > 0);
+    if (!list.length) return [];
     const byLen = new Map();
-    rods.forEach((r) => byLen.set(r.length, (byLen.get(r.length) || 0) + 1));
+    list.forEach((len) => byLen.set(len, (byLen.get(len) || 0) + 1));
     const out = [];
-    byLen.forEach((qty, length) => {
-      out.push({ name: '옷봉', spec: `${length}mm`, qty, unit: 'EA', note: R.ROD_NOTE });
+    [...byLen.keys()].sort((a, b) => a - b).forEach((length) => {
+      out.push({ name: '옷봉', spec: `${R.ROD_SPEC} ${length}mm`, qty: byLen.get(length), unit: 'EA', note: '' });
     });
     out.push({
-      name: '옷봉 소켓', spec: '-', qty: rods.length * R.ROD_SOCKETS_PER_ROD, unit: 'EA',
-      note: `[확인 필요] 품명 미확정 — 옷봉 1개당 ${R.ROD_SOCKETS_PER_ROD}EA`,
+      name: `옷봉 ${R.ROD_SOCKET_NAME}`, spec: R.ROD_SPEC,
+      qty: list.length * R.ROD_SOCKETS_PER_ROD, unit: 'EA',
+      note: `옷봉 1개당 ${R.ROD_SOCKETS_PER_ROD}EA`,
     });
     return out;
   }
@@ -431,7 +451,7 @@
   return {
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
     layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
-    partsOf, rodHardwareOf, bodyHeightOf, shelfDepthOf, innerDepthOf,
+    partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });
