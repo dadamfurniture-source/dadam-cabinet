@@ -177,8 +177,8 @@ describe('프리셋 바꾸기', () => {
 describe('외부 서랍 단수', () => {
   test('어느 구조에서든 서랍을 더할 수 있고 0 도 된다', () => {
     const p = boot();
-    pick(p, 1);                                   // longDrawer — 기본 1단
-    expect(sel(p, '#inpWardrobeDrawers').value).toBe('1');
+    pick(p, 1);                                   // longDrawer — 기본 2단
+    expect(sel(p, '#inpWardrobeDrawers').value).toBe('2');
     expect(sel(p, '#inpWardrobeDrawers').min).toBe('0');
     pick(p, 0);                                   // short2 — 기본 없음, 그래도 더할 수 있다
     expect(sel(p, '#inpWardrobeDrawers')).not.toBeNull();
@@ -189,7 +189,7 @@ describe('외부 서랍 단수', () => {
     const p = boot();
     pick(p, 0);                                   // 서랍 없음
     expect(sel(p, '#selWardrobeDrawerMode')).toBeNull();
-    const { m } = pick(p, 1);                     // 서랍 1단
+    const { m } = pick(p, 1);                     // 서랍 2단
     const mode = sel(p, '#selWardrobeDrawerMode');
     expect(mode.value).toBe('external');
     mode.value = 'internal';
@@ -197,7 +197,7 @@ describe('외부 서랍 단수', () => {
     const L = p.g('wardrobeLayoutFor')(m, draft(p, m));
     expect(L.external).toBe(false);
     expect(L.carcasses.map((c) => c.kind)).toEqual(['cabinet']);   // 몸통을 따로 세우지 않는다
-    expect(L.carcasses[0].drawerZone.drawers).toBe(1);
+    expect(L.carcasses[0].drawerZone.drawers).toBe(2);
   });
 
   test('짧은옷 2단에 서랍을 더하면 서랍 몸통이 생긴다', () => {

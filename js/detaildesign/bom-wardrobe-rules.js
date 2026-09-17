@@ -54,6 +54,11 @@
     SHELF_D_MINUS: 70,            // 선반은 천저판보다 70 짧다 (§6)
     PEDESTAL_H: 60,               // 좌대 (§1)
     MOLDING_H: 20,                // 상몰딩 (§1 · DEFAULT_SPECS.wardrobeMoldingH)
+    // 상몰딩 부재 — 2026-09-17 사장님 확정: 상몰딩 20 자리는 **60 × 18T MDF 마감재**로 설치할 수 있다.
+    //   그때까지 §11 은 60 미만을 "무몰딩" 으로만 보아 부재가 하나도 나오지 않았다.
+    MOLDING_FINISH_W: 60,
+    MOLDING_FINISH_T: 18,
+    EP_LENGTH: 2440,              // 몰딩 EP 세로 고정 (§11) — 가로가 이보다 길면 2장
     DEFAULT_D: 620,               // 2026-09-16: 600 → 620 (data-constants CATEGORIES.wardrobe.defaultD)
     DEFAULT_H: 2310,
     SAMPLE_CELL_W: 900,           // 기본형 통 폭 (§1.1) — 유효폭 3600 이면 자동계산도 이 값이 나온다
@@ -139,9 +144,9 @@
       label: '긴옷 + 하부 서랍',
       note: '기본형 2번 통 — 상단 선반 1 + 옷봉 1. 서랍은 몸통을 따로 만든다',
       moduleType: 'long',
-      // 2026-09-17 사장님 확정: 긴옷은 서랍 **1단이 기본값**이고 0 도 된다 (최소를 걸지 않는다).
-      //   §4 의 long 기본 서랍 1 과 같은 값이다.
-      drawers: 1,
+      // 2026-09-17 사장님 확정: 긴옷 서랍은 **2단이 기본값**(기본형 사진 그대로)이고 0 도 된다.
+      //   최소 제한은 걸지 않는다 — 패널에서 0 으로 내릴 수 있다.
+      drawers: 2,
       stack: [
         { key: 'body', label: '긴옷장', share: 1,
           cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1, label: '긴옷' }] },
@@ -347,6 +352,39 @@
     return y > 0 ? [Math.round(y)] : [];
   }
 
+  /**
+   * 상몰딩 부재 한 줄. 없으면 null.
+   *
+   *   moldingH >= 60      → 몰딩 폭 그대로 EP (§11 기존 규칙)
+   *   0 < moldingH < 60   → `finish` 가 켜지면 **60 × 18T MDF 마감재**로 낸다 (2026-09-17 확정)
+   *   그 외                → null (무몰딩)
+   *
+   * 붙박이장 기본 상몰딩은 20 이라 여태 아무 부재도 나오지 않았다. 20 자리를 막는 방법이
+   * 60 짜리 마감재이고, **설치는 선택**이라 스위치를 둔다 (specs.wardrobeMoldingFinish).
+   */
+  function moldingPartFor(o) {
+    const opt = o || {};
+    const moldingH = Number(opt.moldingH) || 0;
+    const totalW = Number(opt.totalW) || 0;
+    if (moldingH <= 0 || totalW <= 0) return null;
+    const qty = totalW > R.EP_LENGTH ? 2 : 1;
+    if (moldingH >= R.MOLDING_FINISH_W) {
+      return { part: '상몰딩', material: 'MDF', t: 18, w: moldingH, h: R.EP_LENGTH, qty, edge: '2면(장)', note: '' };
+    }
+    if (!opt.finish) return null;
+    return {
+      part: '상몰딩', material: 'MDF', t: R.MOLDING_FINISH_T, w: R.MOLDING_FINISH_W, h: R.EP_LENGTH, qty,
+      edge: '2면(장)',
+      note: `상몰딩 ${moldingH} — ${R.MOLDING_FINISH_W}×${R.MOLDING_FINISH_T}T MDF 마감재로 설치`,
+    };
+  }
+
+  /** specs.wardrobeMoldingFinish 를 켜짐/꺼짐으로 — '1'·true·'ep60' 은 켜짐, 'none'·0·빈값은 꺼짐. */
+  function moldingFinishOn(v) {
+    if (v == null || v === '' || v === 0 || v === '0' || v === false) return false;
+    return String(v) !== 'none';
+  }
+
   /** 옷봉 파이프 길이 — 칸 내경 폭보다 5 짧다 (양쪽 소켓 자리, 2026-09-17 확정). */
   function rodLengthFor(clearW) {
     return Math.max(0, Math.round(Number(clearW) || 0) - R.ROD_LENGTH_MINUS);
@@ -550,7 +588,7 @@
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
     layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
-    cabinetsOf, splitStack,
+    cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });

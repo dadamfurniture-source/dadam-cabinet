@@ -77,6 +77,10 @@
         '내부서랍 밴드':   { key: 'innerdrawer:band',   slot: 'body' },
         '내부서랍 좌우몰딩': { key: 'innerdrawer:molding', slot: 'body' },
         '내부서랍 전면판': { key: 'innerdrawer:front',  slot: 'body' },
+        // 2026-09-17: 붙박이장 통 내부 칸막이 (bom-wardrobe-rules.js dividersOf)
+        //   중간칸막이 = 수평 판 (문서 §11 행), 세로칸막이 = 세로 판 (반 분할·옆 분할)
+        '중간칸막이':      { key: 'divider:h',        slot: 'body' },
+        '세로칸막이':      { key: 'divider:v',        slot: 'body' },
         // 손잡이 자리 (목찬넬)
         '목찬넬':          { key: 'channel:front',    slot: 'handle' },
         '목찬넬(전면)':    { key: 'channel:front',    slot: 'handle' },
@@ -1256,6 +1260,21 @@
 
           modules.forEach((mod, idx) => {
             this.beginModule(mod, idx, mod.pos || 'wardrobe');
+            // 2026-09-17: 통 구조 블록이 있으면 칸막이·선반을 **칸에서** 낸다 (옛 선반수 필드보다 정확하다).
+            //   블록이 없는 옛 설계는 예전 그대로 shelfCount* 를 쓴다.
+            const wrBlock = (WardrobeRules && mod.wardrobe) ? WardrobeRules.normalizeBlock(mod.wardrobe) : null;
+            const wrLayout = (wrBlock && (wrBlock.preset || wrBlock.cells))
+              ? WardrobeRules.layoutWardrobeModule({
+                W: parseFloat(mod.w) || WR_DEFAULTS.SAMPLE_CELL_W,
+                D: parseFloat(mod.d) || D,
+                T,
+                bodyH,
+                preset: wrBlock.preset,
+                cells: wrBlock.cells,
+                drawers: wrBlock.drawers,
+                externalDrawer: wrBlock.externalDrawer,
+              })
+              : null;
             const modType = mod.moduleType || 'long';
             const isDivided = modType === 'short' || modType === 'shelf';
             const rawName = mod.name || `${idx + 1}번`;
@@ -1285,7 +1304,7 @@
               this.add(materials, `${name}-상부장`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
               this.add(materials, `${name}-상부장`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
               this.add(materials, `${name}-상부장`, '뒷판', 'MDF', 2.7, W - 20, upperH - 1, 1, '-');
-              const shelfUpper = mod.shelfCountUpper || 0;
+              const shelfUpper = wrLayout ? 0 : (mod.shelfCountUpper || 0);
               if (shelfUpper > 0) {
                 this.add(materials, `${name}-상부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfUpper, '1면(전)');
               }
@@ -1295,7 +1314,7 @@
               this.add(materials, `${name}-하부장`, '천판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
               this.add(materials, `${name}-하부장`, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
               this.add(materials, `${name}-하부장`, '뒷판', 'MDF', 2.7, W - T * 2, lowerH - T, 1, '-');
-              const shelfLower = mod.shelfCountLower || 0;
+              const shelfLower = wrLayout ? 0 : (mod.shelfCountLower || 0);
               if (shelfLower > 0) {
                 this.add(materials, `${name}-하부장`, '선반', 'PB', T, W - T * 2, modD - T, shelfLower, '1면(전)');
               }
@@ -1374,7 +1393,7 @@
               this.add(materials, `${name}`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
               this.add(materials, `${name}`, '뒷판', 'MDF', 2.7, W - 20, modH - 1, 1, '-');
 
-              const shelfCount = mod.shelfCount || 1;
+              const shelfCount = wrLayout ? 0 : (mod.shelfCount || 1);
               if (shelfCount > 0) {
                 this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfCount, '1면(전)');
               }
@@ -1438,6 +1457,22 @@
                 }
               }
             }
+
+            // 2026-09-17: 통 구조에서 나오는 부재 — 칸막이(세로·수평)와 칸마다의 선반.
+            //   몸통이 둘이면 그 몸통 이름으로 나눠 붙인다 (상부장·하부장 자재와 같은 묶음).
+            if (wrLayout) {
+              const cabs = WardrobeRules.cabinetsOf(wrLayout);
+              cabs.forEach((car, ci) => {
+                const label = cabs.length > 1
+                  ? `${name}-${ci === 0 ? '하부장' : '상부장'}`
+                  : `${name}`;
+                WardrobeRules.partsOf({ dividers: car.dividers, shelves: car.shelves, T })
+                  .forEach((row) => {
+                    this.add(materials, label, row.part, row.material, row.t,
+                      row.w, row.h, row.qty, row.edge, row.note || '');
+                  });
+              });
+            }
           });
 
           dlog('[Wardrobe] 모듈 합계 너비:', totalW);
@@ -1453,9 +1488,20 @@
           const EP_H = 2440;
           const epQty = (len) => len > EP_H ? 2 : 1;
 
-          // 상몰딩 (60 이상만 산출, 미만은 무몰딩)
-          if (moldingH >= 60 && totalW > 0) {
-            this.add(materials, 'EP', '상몰딩', 'MDF', 18, moldingH, EP_H, epQty(totalW), '2면(장)');
+          // 상몰딩 — 규칙 파일이 정한다 (moldingPartFor).
+          //   60 이상은 몰딩 폭 그대로, 60 미만은 마감재 스위치를 켤 때 60×18T MDF 로 낸다.
+          //   2026-09-17: 붙박이장 기본 상몰딩 20 은 여태 아무 부재도 안 나왔다 — 그 자리를 막는 방법이다.
+          const moldingRow = WardrobeRules && WardrobeRules.moldingPartFor
+            ? WardrobeRules.moldingPartFor({
+              moldingH, totalW,
+              finish: WardrobeRules.moldingFinishOn(specs.wardrobeMoldingFinish),
+            })
+            : (moldingH >= 60 && totalW > 0
+              ? { part: '상몰딩', material: 'MDF', t: 18, w: moldingH, h: EP_H, qty: epQty(totalW), edge: '2면(장)', note: '' }
+              : null);
+          if (moldingRow) {
+            this.add(materials, 'EP', moldingRow.part, moldingRow.material, moldingRow.t,
+              moldingRow.w, moldingRow.h, moldingRow.qty, moldingRow.edge, moldingRow.note || '');
           }
 
           // 좌측 몰딩
