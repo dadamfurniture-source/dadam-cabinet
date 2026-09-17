@@ -165,6 +165,214 @@ function pct(x, w) {
   return Math.max(5, Math.min(95, Math.round((x / w) * 100)));
 }
 
+// ─── 1-a. 도면 요약 (design_spec) ───
+/**
+ * 플래너가 그린 설계를 그대로 설치 프롬프트에 싣기 위한 입력.
+ * 계약 문서: docs/02-design/features/design-spec-prompt.md — 필드 이름을 바꾸면 같이 고친다.
+ *
+ * 없으면(null) 지금까지와 똑같이 CATEGORIES[key].spec 한 문단으로 그린다.
+ * 있으면 FURNITURE 블록이 실제 모듈·치수·자재로 바뀐다.
+ *
+ * 검증은 방어적이다: 말이 안 되는 수치는 자르고(clamp), 배열은 길이를 막고,
+ * 유한하지 않은 숫자(NaN·Infinity·문자열)와 품목 불일치만 400 으로 되돌린다.
+ */
+export const DESIGN_SPEC_VERSION = 1;
+
+/** 왼→오 한 줄로 읽는 구간. 순서는 이 배열이 정한다. */
+export const DESIGN_SECTIONS = ['lower', 'upper', 'tall'];
+export const DESIGN_MODULE_KINDS = ['door', 'drawer', 'open', 'appliance'];
+export const DESIGN_APPLIANCE_KINDS = ['sink', 'hood', 'cooktop', 'fridge', 'dishwasher'];
+/** layout.js·플래너가 쓰는 다른 이름을 받아 준다. */
+const DESIGN_APPLIANCE_ALIASES = { refrigerator: 'fridge', range: 'cooktop', hob: 'cooktop' };
+export const DESIGN_FINISH_SLOTS = ['door', 'body', 'top'];
+export const DESIGN_FINISH_TONES = ['matte', 'gloss', 'satin', 'woodgrain', 'texture'];
+
+const DESIGN_MAX_MODULES = 40;
+const DESIGN_MAX_APPLIANCES = 12;
+const DESIGN_MAX_JSON = 20000;
+/** [최소, 최대] mm. 벗어나면 자른다 — 플래너 버그 하나가 프롬프트를 망치지 않게. */
+const DESIGN_RANGE = {
+  wallRunMm: [300, 12000],
+  widthMm: [100, 12000],
+  heightMm: [100, 3600],
+  depthMm: [50, 1200],
+  fromLeftMm: [0, 12000],
+  moduleWidthMm: [50, 4000],
+  applianceWidthMm: [50, 4000],
+  count: [0, 12],
+};
+
+/** design_spec 전용 400. code 를 따로 주어 플래너가 다른 400 과 구분한다. */
+export class DesignSpecError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'DesignSpecError';
+    this.statusCode = 400;
+    this.code = 'bad_design_spec';
+  }
+}
+
+function designNum(v, field) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v !== 'number' && typeof v !== 'string')
+    throw new DesignSpecError(`design_spec.${field} must be a number`);
+  const n = Number(v);
+  if (!Number.isFinite(n))
+    throw new DesignSpecError(`design_spec.${field} must be a finite number`);
+  return n;
+}
+
+function designMm(v, field, range) {
+  const n = designNum(v, field);
+  if (n === null) return null;
+  return Math.round(Math.min(range[1], Math.max(range[0], n)));
+}
+
+function designText(v, max) {
+  if (typeof v !== 'string') return null;
+  const s = v.replace(/[\r\n\t]+/g, ' ').trim();
+  return s ? s.slice(0, max) : null;
+}
+
+function designHex(v) {
+  if (typeof v !== 'string') return null;
+  const m = v.trim().match(/^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/);
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return `#${h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h}`;
+}
+
+function normalizeDesignModule(raw, section) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const where = `sections.${section}.modules[]`;
+  const out = { kind: DESIGN_MODULE_KINDS.includes(raw.kind) ? raw.kind : 'door' };
+  const widthMm = designMm(raw.widthMm, `${where}.widthMm`, DESIGN_RANGE.moduleWidthMm);
+  if (widthMm !== null) out.widthMm = widthMm;
+  const doorCount = designMm(raw.doorCount, `${where}.doorCount`, DESIGN_RANGE.count);
+  if (doorCount !== null) out.doorCount = doorCount;
+  const drawerCount = designMm(raw.drawerCount, `${where}.drawerCount`, DESIGN_RANGE.count);
+  if (drawerCount !== null) out.drawerCount = drawerCount;
+  const label = designText(raw.label, 40);
+  if (label) out.label = label;
+  return out;
+}
+
+function normalizeDesignSection(raw, section) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const where = `sections.${section}`;
+  const out = {};
+  for (const f of ['widthMm', 'heightMm', 'depthMm', 'fromLeftMm']) {
+    const v = designMm(raw[f], `${where}.${f}`, DESIGN_RANGE[f]);
+    if (v !== null) out[f] = v;
+  }
+  const list = Array.isArray(raw.modules) ? raw.modules.slice(0, DESIGN_MAX_MODULES) : [];
+  const modules = list.map((m) => normalizeDesignModule(m, section)).filter(Boolean);
+  if (modules.length) out.modules = modules;
+  return Object.keys(out).length ? out : null;
+}
+
+function normalizeDesignAppliance(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const key = typeof raw.kind === 'string' ? raw.kind.trim().toLowerCase() : '';
+  const kind = DESIGN_APPLIANCE_ALIASES[key] || key;
+  if (!DESIGN_APPLIANCE_KINDS.includes(kind)) return null; // 모르는 가전은 조용히 뺀다
+  const out = { kind };
+  const fromLeftMm = designMm(raw.fromLeftMm, 'appliances[].fromLeftMm', DESIGN_RANGE.fromLeftMm);
+  if (fromLeftMm !== null) out.fromLeftMm = fromLeftMm;
+  const widthMm = designMm(raw.widthMm, 'appliances[].widthMm', DESIGN_RANGE.applianceWidthMm);
+  if (widthMm !== null) out.widthMm = widthMm;
+  return out;
+}
+
+function normalizeDesignFinish(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  const name = designText(raw.name, 60);
+  if (name) out.name = name;
+  const nameEn = designText(raw.nameEn, 60);
+  if (nameEn) out.nameEn = nameEn;
+  const colorHex = designHex(raw.colorHex);
+  if (colorHex) out.colorHex = colorHex;
+  if (typeof raw.tone === 'string' && DESIGN_FINISH_TONES.includes(raw.tone.trim().toLowerCase()))
+    out.tone = raw.tone.trim().toLowerCase();
+  const vendorCode = designText(raw.vendorCode, 24);
+  if (vendorCode) out.vendorCode = vendorCode;
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * 요청 본문의 design_spec → generations.options.design_spec 에 넣을 모양.
+ * @param {*} raw          요청이 준 값 (없으면 null·undefined)
+ * @param {string} category  같은 요청의 품목 (resolveCategory 전·후 아무거나)
+ * @returns {object|null}  없으면 null
+ * @throws {DesignSpecError} 모양이 틀렸거나 품목이 어긋나면
+ */
+export function normalizeDesignSpec(raw, category) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw))
+    throw new DesignSpecError('design_spec must be an object');
+
+  let size;
+  try {
+    size = JSON.stringify(raw).length;
+  } catch {
+    throw new DesignSpecError('design_spec is not serialisable');
+  }
+  if (size > DESIGN_MAX_JSON)
+    throw new DesignSpecError(`design_spec is too large (${size} > ${DESIGN_MAX_JSON} chars)`);
+
+  const want = resolveCategory(category);
+  if (raw.category !== undefined && raw.category !== null && raw.category !== '') {
+    if (typeof raw.category !== 'string' || !CATEGORIES[raw.category] || raw.category !== want) {
+      throw new DesignSpecError(
+        `design_spec.category (${String(raw.category).slice(0, 40)}) does not match category (${want})`
+      );
+    }
+  }
+
+  const out = { version: DESIGN_SPEC_VERSION, category: want };
+  const wallRunMm = designMm(raw.wallRunMm, 'wallRunMm', DESIGN_RANGE.wallRunMm);
+  if (wallRunMm !== null) out.wallRunMm = wallRunMm;
+
+  const rawSections =
+    raw.sections && typeof raw.sections === 'object' && !Array.isArray(raw.sections)
+      ? raw.sections
+      : {};
+  const sections = {};
+  for (const key of DESIGN_SECTIONS) {
+    const sec = normalizeDesignSection(rawSections[key], key);
+    if (sec) sections[key] = sec;
+  }
+  if (Object.keys(sections).length) out.sections = sections;
+
+  const rawAppliances = Array.isArray(raw.appliances)
+    ? raw.appliances.slice(0, DESIGN_MAX_APPLIANCES)
+    : [];
+  const appliances = rawAppliances.map(normalizeDesignAppliance).filter(Boolean);
+  if (appliances.length) out.appliances = appliances;
+
+  const rawFinishes =
+    raw.finishes && typeof raw.finishes === 'object' && !Array.isArray(raw.finishes)
+      ? raw.finishes
+      : {};
+  const finishes = {};
+  for (const slot of DESIGN_FINISH_SLOTS) {
+    const f = normalizeDesignFinish(rawFinishes[slot]);
+    if (f) finishes[slot] = f;
+  }
+  if (Object.keys(finishes).length) out.finishes = finishes;
+
+  const notes = designText(raw.notes, 300);
+  if (notes) out.notes = notes;
+
+  if (!out.sections && !out.appliances && !out.finishes && out.wallRunMm === undefined) {
+    throw new DesignSpecError(
+      'design_spec has nothing usable — need at least one of wallRunMm, sections, appliances, finishes'
+    );
+  }
+  return out;
+}
+
 // ─── 2. 설치 ───
 /** QC 가 낸 문제 코드 → 재시도 프롬프트에 붙일 FIX 문장. */
 export const QC_FIXES = {
