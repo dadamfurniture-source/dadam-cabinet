@@ -24,6 +24,14 @@
       const DrawerRules = (typeof DadamDrawerRules !== 'undefined') ? DadamDrawerRules
         : (typeof require === 'function' ? require('./bom-drawer-rules.js') : null);
 
+      // 2026-09-16: 붙박이장 통 내부 구조(칸·칸막이·선반·옷봉) 규칙도 같은 방식으로 한 곳에 있다.
+      //   js/detaildesign/bom-wardrobe-rules.js — 플래너도 같은 파일을 읽는다.
+      const WardrobeRules = (typeof DadamWardrobeRules !== 'undefined') ? DadamWardrobeRules
+        : (typeof require === 'function' ? require('./bom-wardrobe-rules.js') : null);
+      /** 붙박이장 기본값 — 규칙 파일이 정본. 없으면(구형 로드) 문서값으로 버틴다. */
+      const WR_DEFAULTS = (WardrobeRules && WardrobeRules.WARDROBE_RULES)
+        || { DEFAULT_D: 620, DEFAULT_H: 2310, PEDESTAL_H: 60, MOLDING_H: 20 };
+
       // ============================================================
       // B1: 부재 식별자 (partId) · 슬롯 — 계획 §5 B1, bom-protocol.md §7-1
       //
@@ -1222,10 +1230,13 @@
         extractWardrobe(item, materials, prefix = '') {
           const specs = item.specs || {};
           const T = this.thicknessFor(specs);
-          const D = parseFloat(item.d) || 600;
-          const pedestalH = parseFloat(specs.wardrobePedestal) || 60;
-          const moldingH = parseFloat(specs.wardrobeMoldingH) || 15;
-          const totalH = parseFloat(item.h) || 2310;
+          // 2026-09-16: 기본값을 여기 베껴 두지 않는다 — 깊이는 620 으로 바뀌었고(#670),
+          //   상몰딩 기본은 문서·DEFAULT_SPECS 가 20 인데 여기만 15 라 specs 가 빈 품목에서
+          //   몸통이 5mm 높게 잡혔다. 둘 다 규칙 파일(bom-wardrobe-rules.js)을 읽는다.
+          const D = parseFloat(item.d) || WR_DEFAULTS.DEFAULT_D;
+          const pedestalH = parseFloat(specs.wardrobePedestal) || WR_DEFAULTS.PEDESTAL_H;
+          const moldingH = parseFloat(specs.wardrobeMoldingH) || WR_DEFAULTS.MOLDING_H;
+          const totalH = parseFloat(item.h) || WR_DEFAULTS.DEFAULT_H;
           const bodyH = totalH - pedestalH - moldingH;
 
           dlog('[Wardrobe] ===== 붙박이장 자재 추출 시작 =====');
