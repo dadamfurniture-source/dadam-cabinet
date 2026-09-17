@@ -225,8 +225,8 @@ describe('차단(CD-3) — 풀었지만 사고는 막는다', () => {
   test('결과를 못 받는 카테고리는 냉장고장만 남았다', () => {
     expect(SRC).toContain("const PLANNER_RESULT_BLOCKED = ['fridge'];");
     expect(SRC).toContain('function _plannerResultBlocked(item)');
-    // 화면 선택(_isNativeOnly)은 그대로 — 붙박이장 전용 화면은 3단계에서 거둔다
-    expect(SRC).toContain("const NATIVE_ONLY_CATEGORIES = ['wardrobe', 'fridge'];");
+    // 2026-09-17: 화면도 플래너로 옮겼다 — 예외 목록에 냉장고장만 남았다
+    expect(SRC).toContain("const NATIVE_ONLY_CATEGORIES = ['fridge'];");
   });
 
   test('붙박이장 통이 없는 결과는 거부한다 — 옛 사고(자재표 0건)를 막는 새 안전장치', () => {
