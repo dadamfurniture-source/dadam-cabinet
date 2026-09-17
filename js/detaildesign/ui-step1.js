@@ -221,19 +221,24 @@
       // Step 3 로 갈 수단이 사라졌고, 빠져나올 방법도 없었다.
       // → body 직속 #step2Toolbar 가 그 두 경로를 담당한다.
       //
-      // step2-native 는 예외 처리용이다. 붙박이장/냉장고장은
+      // step2-native 는 예외 처리용이다. 냉장고장은
       // _renderWorkspaceContentImpl 이 early return 하여 planner overlay 를
       // 만들지 않으므로, fullscreen 을 걸면 화면이 백지가 된다.
-      // planner 가 이 두 카테고리를 지원하기 전까지의 임시 조치다.
+      // planner 가 그 카테고리를 지원하기 전까지의 임시 조치다.
+      // (붙박이장은 2026-09-17 에 플래너로 옮겼다 — wardrobe.md §1.4)
       // ============================================================
 
       /**
        * planner 가 아직 지원하지 않는 카테고리.
-       * _renderWorkspaceContentImpl 이 이 둘을 early return 으로 처리해
+       * _renderWorkspaceContentImpl 이 이것을 early return 으로 처리해
        * planner overlay 를 만들지 않는다. fullscreen 을 걸면 백지가 되므로
        * 예외적으로 구 워크스페이스를 노출한다.
+       *
+       * 2026-09-17: **붙박이장을 뺐다.** 플래너가 통 구조(프리셋·칸·칸막이·옷봉·서랍)를 담고
+       * 자재표까지 이어진다 (wardrobe.md §1.3·§1.4). 이제 붙박이장도 싱크대와 같은 화면이다.
+       * 냉장고장은 모듈 type 분기를 플래너가 만들지 못해 그대로 남는다.
        */
-      const NATIVE_ONLY_CATEGORIES = ['wardrobe', 'fridge'];
+      const NATIVE_ONLY_CATEGORIES = ['fridge'];
 
       function _isNativeOnly(item) {
         return !!item && NATIVE_ONLY_CATEGORIES.includes(item.categoryId);
@@ -2526,19 +2531,15 @@
         _pendingScroll.delete(item.uniqueId);
 
         // W11-9: 이 아이템에 맞는 Step2 모드/제목을 적용한다.
-        // 북마크 전환으로 붙박이장↔싱크대를 오갈 때 모드가 따라와야 한다
-        // (붙박이장/냉장고장은 planner overlay 를 만들지 않으므로 fullscreen 이면 백지가 된다).
+        // 북마크 전환으로 냉장고장↔싱크대를 오갈 때 모드가 따라와야 한다
+        // (냉장고장은 planner overlay 를 만들지 않으므로 fullscreen 이면 백지가 된다).
         if (document.body.classList.contains('step2-fullscreen') || document.body.classList.contains('step2-native')) {
           _applyStep2Chrome(item);
         }
 
-        // ★ 붙박이장인 경우 별도 렌더링
-        if (item.categoryId === 'wardrobe') {
-          renderWardrobeWorkspace(item);
-          _restoreScroll(ws, scrollInfo);
-          _restoreFocus(ws, focusInfo);
-          return;
-        }
+        // 2026-09-17: 붙박이장 분기를 걷었다 — 아래 일반 경로(플래너 오버레이)를 탄다.
+        //   옛 전용 화면(renderWardrobeWorkspace)은 함수로 남아 있지만 더 이상 불리지 않는다.
+        //   통 구조·선반·옷봉·서랍은 플래너 구조 단계가 정본이다 (wardrobe.md §1.3).
 
         // ★ 냉장고장인 경우 별도 렌더링
         if (item.categoryId === 'fridge') {

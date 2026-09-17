@@ -111,21 +111,26 @@ describe('Step 2 툴바 — 화면에서 빠져나갈 수 있어야 한다', () 
 });
 
 describe('planner 가 없는 카테고리는 네이티브 모드여야 한다', () => {
-  test('붙박이장·냉장고장이 NATIVE_ONLY_CATEGORIES 에 있다', () => {
-    // 이 둘은 _renderWorkspaceContentImpl 에서 early return 하여
-    // planner overlay 를 만들지 않는다 → fullscreen 이면 백지가 된다
+  test('냉장고장만 NATIVE_ONLY_CATEGORIES 에 남았다', () => {
+    // 2026-09-17: 붙박이장을 뺐다 — 플래너가 통 구조를 담고 자재표까지 이어진다
+    //   (wardrobe.md §1.4). 냉장고장은 모듈 type 분기를 플래너가 못 만들어 남는다.
     const m = uiStep1.match(/NATIVE_ONLY_CATEGORIES\s*=\s*\[([^\]]*)\]/);
     expect(m).not.toBeNull();
-    expect(m[1]).toMatch(/wardrobe/);
     expect(m[1]).toMatch(/fridge/);
+    expect(m[1]).not.toMatch(/wardrobe/);
   });
 
   test('early return 하는 카테고리와 목록이 일치한다', () => {
-    // renderWardrobeWorkspace / renderFridgeWorkspace 직후 return 하는 분기
+    // renderFridgeWorkspace 직후 return 하는 분기 — 목록과 한 벌이어야 한다.
+    //   어긋나면 fullscreen 인데 오버레이가 없어 화면이 백지가 된다.
     const earlyReturns = [...uiStep1.matchAll(/item\.categoryId === '(\w+)'\)\s*\{\s*render\w+Workspace\(item\)/g)].map(
       (x) => x[1]
     );
-    expect(earlyReturns.sort()).toEqual(['fridge', 'wardrobe']);
+    expect(earlyReturns.sort()).toEqual(['fridge']);
+  });
+
+  test('붙박이장은 플래너 화면을 탄다 — 전용 화면으로 빠지지 않는다', () => {
+    expect(uiStep1).not.toMatch(/item\.categoryId === 'wardrobe'\)\s*\{\s*renderWardrobeWorkspace/);
   });
 });
 
