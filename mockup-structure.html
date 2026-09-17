@@ -484,6 +484,23 @@
           <div class="empty-msg">영역 선택</div>
         </div>
       </div>
+      <!-- R2: 사진으로 만들기 — 방 사진 한 장 + 버튼 하나로 이 도면을 그 방에 설치한 사진을 만든다
+           (js/planner/ai-photo.js · docs/02-design/features/planner-ai-photo.md).
+           디테일 모드에서만 보인다 (planner-detail.js CSS). 사람이 맞추는 단계는 없다 —
+           사각형·화각·그림자·빛·톤은 #682 에서 일부러 지웠고 다시 만들지 않는다.
+
+           2026-09-17: **마감 팔레트 위**에 둔다. 아래에 두었더니 화면에서 사라졌다 —
+           팔레트 한 섹션이 우측 패널 높이(813px)보다 큰 832px 을 차지해 이 섹션이 밖으로
+           밀려나고, 팔레트 안에 자체 스크롤(4238px)이 있어 마우스를 굴리면 패널이 아니라
+           자재 목록만 넘어갔다. 버튼 하나짜리 기능은 먼저 보여야 한다. -->
+      <div class="section" data-sec="aiphoto" style="display:none">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">사진으로 만들기</span>
+        </div>
+        <div class="section-body" id="aiPhotoBody">
+          <div class="empty-msg">📷 방 사진을 올리면 이 도면으로 만들어 드립니다</div>
+        </div>
+      </div>
       <!-- 2026-09-16: 마감 팔레트 — 좌측에서 우측으로 옮겼다. 좌측은 구조 단계와 같은
            전체/배치/개별 목록이어야 하고(그것이 곧 칠할 범위다), 팔레트는 220px 보다 넓은
            자리가 필요했다. 내용은 PlannerDetail.renderPalette 가 채운다.
@@ -515,18 +532,6 @@
         </div>
         <div class="section-body" id="detailRendersBody">
           <div class="empty-msg">📷 렌더 저장을 누르면 여기 보입니다</div>
-        </div>
-      </div>
-      <!-- R2: 사진으로 만들기 — 방 사진 한 장 + 버튼 하나로 이 도면을 그 방에 설치한 사진을 만든다
-           (js/planner/ai-photo.js · docs/02-design/features/planner-ai-photo.md).
-           디테일 모드에서만 보인다 (planner-detail.js CSS). 사람이 맞추는 단계는 없다 —
-           사각형·화각·그림자·빛·톤은 #682 에서 일부러 지웠고 다시 만들지 않는다. -->
-      <div class="section" data-sec="aiphoto" style="display:none">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> <span class="sec-title">사진으로 만들기</span>
-        </div>
-        <div class="section-body" id="aiPhotoBody">
-          <div class="empty-msg">📷 방 사진을 올리면 이 도면으로 만들어 드립니다</div>
         </div>
       </div>
     </div>
