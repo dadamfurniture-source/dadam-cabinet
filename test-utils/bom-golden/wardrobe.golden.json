@@ -1531,6 +1531,26 @@
       "itemLabel": "붙박이장"
     },
     {
+      "category": "옷봉",
+      "item": "옷봉",
+      "manufacturer": "",
+      "spec": "크롬 25파이 865mm",
+      "qty": 3,
+      "unit": "EA",
+      "note": "",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "category": "옷봉",
+      "item": "옷봉 원형소켓",
+      "manufacturer": "",
+      "spec": "크롬 25파이",
+      "qty": 6,
+      "unit": "EA",
+      "note": "옷봉 1개당 2EA",
+      "itemLabel": "붙박이장"
+    },
+    {
       "category": "손잡이",
       "item": "푸쉬",
       "manufacturer": "-",
@@ -1543,6 +1563,7 @@
   "hardwareSummary": {
     "경첩": 16,
     "레일": 3,
+    "옷봉": 9,
     "손잡이": 4
   },
   "csvHead": [
