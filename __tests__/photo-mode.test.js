@@ -591,3 +591,36 @@ describe('모듈 규약', () => {
     });
   });
 });
+
+// 2026-09-17 브라우저 확인에서 나온 것 — 사진 모드에서 나와도 사각형 손잡이와
+// 노란 선이 화면에 그대로 남았다. `el.hidden = true` 로는 둘 다 안 숨는다:
+//   · #photoBgLayer 는 이 파일 CSS 가 display:block 을 박아 [hidden] 을 이긴다
+//   · #photoQuadEditor 는 SVGElement 라 hidden 프로퍼티가 내용 속성으로 반영된다는
+//     보장이 없다 — 속성이 안 붙으면 [hidden] 규칙 자체가 안 걸린다
+// jsdom 은 UA 스타일시트를 그대로 흉내 내지 않으므로 **인라인 display** 를 본다.
+describe('사진 모드에서 나오면 겹친 레이어가 실제로 사라진다', () => {
+  // 한 번만 부팅한다 — 이 파일에서 한 시험이 두 번 부팅하면 jsdom 이 WebGL 컨텍스트를
+  // 못 만들어 터진다(하네스의 기존 제약). 나가기와 다시 들어가기를 이어서 본다.
+  test('나가면 style.display:none, 다시 들어가면 CSS 값으로 돌아온다', () => {
+    const p = boot();
+    fakeThree(p);
+    withPhoto(p);
+    p.PM.enter();
+    const img = p.document.getElementById('photoBgLayer');
+    const svg = p.document.getElementById('photoQuadEditor');
+    expect(img).not.toBeNull();
+    expect(svg).not.toBeNull();
+    expect(img.style.display).not.toBe('none');
+    expect(svg.style.display).not.toBe('none');
+
+    p.PM.exit();
+    // 화면에서 사라져야 한다 — hidden 속성만으로는 부족하다 (2026-09-17 브라우저 확인)
+    expect(img.style.display).toBe('none');
+    expect(svg.style.display).toBe('none');
+
+    p.PM.enter();
+    // 인라인 display 를 남기지 않는다 — CSS 가 정한 값을 그대로 쓴다
+    expect(img.style.display).toBe('');
+    expect(svg.style.display).toBe('');
+  });
+});
