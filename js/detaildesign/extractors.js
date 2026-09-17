@@ -1871,6 +1871,7 @@
 
             this.extractHinges(item, hardware);
             this.extractRails(item, hardware);
+            this.extractWardrobeRods(item, hardware);
             this.extractHandles(item, hardware);
             this.extractLegs(item, hardware);
             this.extractBrackets(item, hardware);
@@ -1950,6 +1951,57 @@
               note: `${mod.name || mod.type} (보링: ${boring.join(', ')})`,
             });
           });
+        }
+
+        /**
+         * 옷봉 — 2026-09-17 새로 낸다.
+         *
+         * 그때까지 옷봉은 **도면에만** 있었다. 자재·철물 어디에도 없어 발주 목록에서 통째로 빠졌고,
+         * 붙박이장에서 그건 빠뜨리면 안 되는 물건이다. 규격은 사장님 확정 — 크롬 25파이 + 원형소켓 2EA,
+         * 길이는 칸 내경 폭 − 5 (양쪽 소켓 자리).
+         *
+         * 칸 구조(mod.wardrobe)가 있으면 규칙 파일이 칸마다 낸다 — 반 분할 통은 봉이 둘, 길이도 반이다.
+         * 없는 옛 설계는 통 하나를 한 칸으로 보고 옛 필드로 개수만 센다:
+         *   긴옷(long)은 옷봉 1개 자동(ui-workspace 의 "옷봉 1개 자동 설치"), 나머지는 상·하 옷봉 수의 합.
+         */
+        extractWardrobeRods(item, hardware) {
+          const category = item.categoryId || item.category;
+          if (category !== 'wardrobe' || !WardrobeRules) return;
+          const R = WardrobeRules.WARDROBE_RULES;
+          const specs = item.specs || {};
+          const bodyT = parseFloat(specs.bodyThickness);
+          const T = Number.isFinite(bodyT) && bodyT > 0 ? bodyT : R.PANEL_T;
+          const lengths = [];
+          (item.modules || []).forEach((mod) => {
+            if (mod.pos !== 'wardrobe' && mod.pos !== 'tall') return;
+            const W = parseFloat(mod.w) || R.SAMPLE_CELL_W;
+            const block = WardrobeRules.normalizeBlock(mod.wardrobe || null);
+            if (block.preset || block.cells) {
+              const L = WardrobeRules.layoutWardrobeModule({
+                W, T, D: parseFloat(mod.d) || parseFloat(item.d) || R.DEFAULT_D,
+                totalH: parseFloat(item.h) || R.DEFAULT_H,
+                pedestalH: parseFloat(specs.wardrobePedestal),
+                moldingH: parseFloat(specs.wardrobeMoldingH),
+                preset: block.preset, cells: block.cells, drawers: block.drawers,
+              });
+              (L.rods || []).forEach((r) => lengths.push(r.length));
+              return;
+            }
+            const modType = mod.moduleType || 'long';
+            const n = modType === 'long'
+              ? 1
+              : (parseInt(mod.rodCountUpper, 10) || 0) + (parseInt(mod.rodCountLower, 10) || 0);
+            for (let i = 0; i < n; i++) lengths.push(WardrobeRules.rodLengthFor(W - 2 * T));
+          });
+          WardrobeRules.rodHardwareFor(lengths).forEach((row) => hardware.push({
+            category: '옷봉',
+            item: row.name,
+            manufacturer: '',
+            spec: row.spec,
+            qty: row.qty,
+            unit: row.unit,
+            note: row.note,
+          }));
         }
 
         // 레일 추출
