@@ -86,6 +86,23 @@ const PLANNER_PHOTO_MODE_CSS = `
 .pb-meta{font-size:9.5px;color:var(--text-faint,#a89c84)}
 `;
 
+/**
+ * 겹쳐 놓은 레이어를 보이고 숨긴다.
+ *
+ * `el.hidden = true` 로는 둘 다 안 숨는다 (2026-09-17 브라우저 확인):
+ *   · `#photoBgLayer` 는 이 파일 CSS 가 `display:block` 을 직접 박아 둬서
+ *     `[hidden]` 의 UA 기본값(`display:none`)을 이긴다.
+ *   · `#photoQuadEditor` 는 SVGElement 라 `hidden` 프로퍼티가 내용 속성으로
+ *     반영된다는 보장이 없다 — 속성이 안 붙으면 `[hidden]` 규칙 자체가 안 걸린다.
+ * 그래서 인라인 `style.display` 로 못박는다. 켤 때는 빈 문자열로 되돌려
+ * CSS 가 정한 값(이미지는 block, SVG 는 기본)을 그대로 쓰게 둔다.
+ */
+function plannerPhotoModeShow(el, on) {
+  if (!el || !el.style) return;
+  el.style.display = on ? '' : 'none';
+  try { el.hidden = !on; } catch (e) { /* SVG 에서 막히면 style 만으로 충분하다 */ }
+}
+
 function plannerPhotoModeInjectCss() {
   if (typeof document === 'undefined' || document.getElementById('planner-photo-mode-css')) return;
   const st = document.createElement('style');
@@ -324,9 +341,9 @@ const PlannerPhotoMode = {
     this._box = null;
     this._drag = null;
     const img = document.getElementById(PLANNER_PHOTO_MODE_IMG_ID);
-    if (img) img.hidden = true;
+    plannerPhotoModeShow(img, false);
     const svg = document.getElementById(PLANNER_PHOTO_MODE_SVG_ID);
-    if (svg) svg.hidden = true;
+    plannerPhotoModeShow(svg, false);
     this.renderPanel();
     return true;
   },
@@ -496,7 +513,7 @@ const PlannerPhotoMode = {
       img = document.createElement('img');
       img.id = PLANNER_PHOTO_MODE_IMG_ID;
       img.alt = '방 사진';
-      img.hidden = true;
+      plannerPhotoModeShow(img, false);
       // 캔버스보다 **먼저** 와야 뒤에 깔린다 (둘 다 position:absolute · z-index auto)
       wrap.insertBefore(img, wrap.firstChild);
     }
@@ -505,7 +522,7 @@ const PlannerPhotoMode = {
       svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.id = PLANNER_PHOTO_MODE_SVG_ID;
       svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svg.hidden = true;
+      plannerPhotoModeShow(svg, false);
       wrap.appendChild(svg);
     }
     return { wrap, img, svg };
@@ -518,8 +535,8 @@ const PlannerPhotoMode = {
     const BG = this.bg();
     const image = BG && BG.image;
     if (!this.active || !image) {
-      els.img.hidden = true;
-      els.svg.hidden = true;
+      plannerPhotoModeShow(els.img, false);
+      plannerPhotoModeShow(els.svg, false);
       return null;
     }
     let b = box;
@@ -531,8 +548,8 @@ const PlannerPhotoMode = {
     const same = this._box && this._box.x === b.x && this._box.y === b.y && this._box.width === b.width && this._box.height === b.height;
     this._box = b;
     if (els.img.getAttribute('src') !== image.url && image.url) els.img.setAttribute('src', image.url);
-    els.img.hidden = false;
-    els.svg.hidden = false;
+    plannerPhotoModeShow(els.img, true);
+    plannerPhotoModeShow(els.svg, true);
     if (!same) {
       const px = (v) => Math.round(v * 100) / 100 + 'px';
       els.img.style.left = px(b.x); els.img.style.top = px(b.y);
@@ -559,7 +576,7 @@ const PlannerPhotoMode = {
     const els = this._els();
     const BG = this.bg();
     if (!els || !BG) return null;
-    if (!this.active || !BG.image) { els.svg.hidden = true; return null; }
+    if (!this.active || !BG.image) { plannerPhotoModeShow(els.svg, false); return null; }
     const b = this._box || this.layout();
     if (!b) return null;
     const q = BG.state.quad;
@@ -579,7 +596,7 @@ const PlannerPhotoMode = {
     });
     els.svg.innerHTML = parts.join('');
     els.svg.classList.toggle('pq-locked', !!BG.state.locked);
-    els.svg.hidden = false;
+    plannerPhotoModeShow(els.svg, true);
     this._bindHandles(els.svg, b);
     return els.svg;
   },
