@@ -221,6 +221,32 @@ describe('자재표 — 칸막이·선반·옷봉이 끝까지 간다', () => {
   });
 });
 
+describe('거울 · 커튼박스 — 값이 상세설계까지', () => {
+  test('거울은 통 모듈에 남는다', () => {
+    const p = payload();
+    p.modules[0].hasMirror = true;
+    const ws = wardrobeOf(convert(p));
+    expect(ws[0].hasMirror).toBe(true);
+    expect(ws[1].hasMirror).toBeUndefined();
+  });
+
+  test('커튼박스는 품목 스펙으로 간다 — 배치 공간 값이라 통마다가 아니다', () => {
+    const p = payload();
+    p.modules.forEach((m) => { m.curtainBoxW = 3600; m.curtainBoxH = 250; });
+    const specs = Object.assign({}, SPECS);
+    convert(p, specs);
+    expect(specs.curtainBoxW).toBe(3600);
+    expect(specs.curtainBoxH).toBe(250);
+  });
+
+  test('커튼박스가 없으면 스펙을 건드리지 않는다', () => {
+    const specs = Object.assign({}, SPECS);
+    convert(payload(), specs);
+    expect(specs.curtainBoxW).toBeUndefined();
+    expect(specs.curtainBoxH).toBeUndefined();
+  });
+});
+
 describe('차단(CD-3) — 풀었지만 사고는 막는다', () => {
   test('결과를 못 받는 카테고리는 냉장고장만 남았다', () => {
     expect(SRC).toContain("const PLANNER_RESULT_BLOCKED = ['fridge'];");

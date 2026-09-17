@@ -273,6 +273,92 @@ describe('미리보기', () => {
   });
 });
 
+describe('자동계산이 옛 모듈을 걷어낸다', () => {
+  // 2026-09-17 결함: 걷어내는 조건이 `m.areaId === areaId` 라, areaId 가 **없는** 옛 모듈은
+  //   지워지지 않고 남아 새로 선 통과 겹쳤다 (폭이 두 번 계산된다). 사용자에겐 "자동계산이
+  //   안 된다" 로 보인다 — 눌러도 옛 모듈이 그대로 있으니. 멤버십은 areaIdOfModule 이 정본이다.
+  test('areaId 가 없는 모듈도 자동계산이 걷어낸다', () => {
+    const p = boot();
+    const area = p.g('areas')[0];
+    const mods = p.g('modules');
+    // 옛 설계처럼 areaId 없이 영역 전폭을 차지하는 모듈을 하나 끼워 넣는다
+    mods.push({ id: 'legacy-0', section: 'wardrobe', W: area.W, H: area.H, D: area.D,
+      x: area.x, y: area.y, rotation: 0, finishings: [] });
+    expect(p.g('areaIdOfModule')(mods[mods.length - 1])).toBe(area.id);   // 자리로는 이 영역 것이다
+    p.g('autoCalcArea')(area.id);
+    const after = p.g('modules').filter((m) => m.section === 'wardrobe');
+    expect(after.some((m) => m.id === 'legacy-0')).toBe(false);
+    // 폭 합이 영역 폭과 같다 — 겹치는 모듈이 없다
+    expect(after.reduce((s, m) => s + m.W, 0)).toBe(area.W);
+  });
+
+  test('고정 모듈은 areaId 가 없어도 보존한다', () => {
+    const p = boot();
+    const area = p.g('areas')[0];
+    p.g('modules').push({ id: 'fixed-0', section: 'wardrobe', W: 600, H: area.H, D: area.D,
+      x: area.x, y: area.y, rotation: 0, isFixed: true, finishings: [] });
+    p.g('autoCalcArea')(area.id);
+    const after = p.g('modules').filter((m) => m.section === 'wardrobe');
+    expect(after.some((m) => m.id === 'fixed-0')).toBe(true);
+    expect(after.reduce((s, m) => s + m.W, 0)).toBeLessThanOrEqual(area.W);
+  });
+});
+
+describe('거울 · 커튼박스', () => {
+  test('거울은 통마다 — 개별 모듈 패널에서 고르고 초안에 담긴다', () => {
+    const p = boot();
+    const { m } = pick(p, 0);
+    const chk = sel(p, '#chkWardrobeMirror');
+    expect(chk).not.toBeNull();
+    expect(chk.checked).toBe(false);
+    chk.checked = true;
+    chk.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    expect(draft(p, m).hasMirror).toBe(true);
+    p.g('applyModuleDraft')();
+    expect(p.g('getStructure')(m.id).hasMirror).toBe(true);
+  });
+
+  test('거울을 켠 통만 payload 에 실린다', () => {
+    const p = boot();
+    const { m } = pick(p, 0);
+    p.g('getStructure')(m.id).hasMirror = true;
+    const mods = p.g('buildPlannerPayload')('PLANNER_STATE').modules;
+    expect(mods.filter((x) => x.hasMirror)).toHaveLength(1);
+    expect(mods.find((x) => x.hasMirror).id).toBe(m.id);
+  });
+
+  test('커튼박스는 배치 공간 값 — 영역 편집에서 고치고 배치에 되쓰인다', () => {
+    const p = boot();
+    const area = p.g('areas')[0];
+    p.g('setActiveArea')(area.id);
+    p.g('renderRightPanel')();
+    const w = sel(p, '#inpCurtainW');
+    const h = sel(p, '#inpCurtainH');
+    expect(w).not.toBeNull();
+    w.value = '3600';
+    w.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    h.value = '250';
+    h.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    expect(area.curtainBoxW).toBe(3600);
+    expect(area.curtainBoxH).toBe(250);
+    // 배치 원본에 되쓰였다 — 새로고침을 견딘다
+    const saved = JSON.parse(p.storage.getItem('dadam_layout_v1' + SCOPE));
+    expect(saved.modules[0]).toMatchObject({ curtainBoxW: 3600, curtainBoxH: 250 });
+    // payload 에도 실린다
+    const mods = p.g('buildPlannerPayload')('PLANNER_STATE').modules;
+    mods.forEach((x) => expect(x.curtainBoxW).toBe(3600));
+  });
+
+  test('0 이면 싣지 않는다 — 커튼박스 없는 배치의 payload 는 예전과 같다', () => {
+    const p = boot();
+    const mods = p.g('buildPlannerPayload')('PLANNER_STATE').modules;
+    mods.forEach((x) => {
+      expect(x.curtainBoxW).toBeUndefined();
+      expect(x.hasMirror).toBeUndefined();
+    });
+  });
+});
+
 describe('정본을 베끼지 않는다', () => {
   test('플래너는 규칙 파일을 읽는다 — 프리셋·상수를 페이지에 적지 않는다', () => {
     const src = fs.readFileSync(path.join(ROOT, 'mockup-structure.html'), 'utf8');
