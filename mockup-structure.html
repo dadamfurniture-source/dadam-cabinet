@@ -2932,6 +2932,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       preset: b.preset,
       cells: b.cells,
       drawers: b.drawers,
+      externalDrawer: b.externalDrawer,
     });
   }
 
@@ -3582,6 +3583,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       t.textContent = car.label;
       g.appendChild(t);
     });
+    // 서랍 — 외부는 몸통 하나, 내부는 캐비닛 안 구역. 단마다 한 칸씩 그린다.
+    (L.carcasses || []).forEach((car) => {
+      const zone = car.kind === 'drawer' ? { y0: car.y0, h: car.h, drawers: car.drawers } : car.drawerZone;
+      if (!zone || !(zone.drawers > 0)) return;
+      const stepH = zone.h / zone.drawers;
+      for (let i = 0; i < zone.drawers; i++) {
+        rect(leftX, yOf(zone.y0 + stepH * (i + 1)) + 2, m.W - 2 * T, stepH - 4, '#cbbfa6', '#7d6c48');
+      }
+    });
     // 칸 — 옅게 채우고 점선으로 두른다 (도어 위에 얹히므로 도어 그림을 가리지 않게)
     L.cells.forEach((c) => {
       rect(leftX + c.x0, yOf(c.y0 + c.h), c.w, c.h, 'rgba(255,255,255,0.10)', '#5b6b8c', '8 6');
@@ -3705,8 +3715,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       .map((pr) => `<option value="${pr.key}" ${b.preset === pr.key ? 'selected' : ''}>${pr.label}</option>`)
       .join('');
     const cur = rules.presetOf(b.preset) || {};
-    // 2026-09-17: 서랍은 **어느 구조에서든** 더할 수 있다 (사장님 지시). 긴옷은 최소 1단이라 0 을 넣어도 1 로 올라간다.
-    const minDrawers = Number(cur.minDrawers) || 0;
+    // 2026-09-17: 서랍은 **어느 구조에서든** 더할 수 있고 0 도 된다. 종류는 외부(몸통 따로)·내부(몸통 안) 둘.
     host.innerHTML = `
       <div class="row">
         <label>통 구조</label>
@@ -3716,13 +3725,24 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         ${count > 1 ? `${count}통 중 <b>${idx + 1}번</b>. ` : ''}${cur.note || ''}
       </div>
       <div class="row">
-        <label>외부 서랍 단수</label>
-        <input type="number" min="${minDrawers}" max="${rules.WARDROBE_RULES.MAX_DRAWER_COUNT}" step="1"
-               id="inpWardrobeDrawers" value="${L ? L.drawers : minDrawers}">
+        <label>서랍 단수</label>
+        <input type="number" min="0" max="${rules.WARDROBE_RULES.MAX_DRAWER_COUNT}" step="1"
+               id="inpWardrobeDrawers" value="${L ? L.drawers : 0}">
+      </div>
+      ${L && L.drawers > 0 ? `
+      <div class="row">
+        <label>서랍 종류</label>
+        <select id="selWardrobeDrawerMode">
+          <option value="external" ${L.external ? 'selected' : ''}>외부 (몸통 따로)</option>
+          <option value="internal" ${L.external ? '' : 'selected'}>내부 (몸통 안)</option>
+        </select>
       </div>
       <div style="font-size:10px;color:#888;line-height:1.5">
-        서랍은 <b>몸통을 따로</b> 만들어 아래에 붙입니다 (한 단 ${rules.WARDROBE_RULES.DRAWER_MOD_H}mm).${minDrawers > 0 ? ` 이 구조는 최소 ${minDrawers}단입니다.` : ''}
-      </div>
+        한 단 ${rules.WARDROBE_RULES.DRAWER_MOD_H}mm.
+        ${L.external
+          ? '외부는 통 아래에 <b>몸통을 따로</b> 만들어 붙입니다 — 그만큼 옷장 높이가 줍니다.'
+          : '내부는 <b>몸통 높이를 그대로</b> 두고 맨 아래 칸 안에 서랍모듈을 넣습니다.'}
+      </div>` : ''}
       ${L && L.carcasses.length ? `
       <div style="font-size:10px;color:#888;line-height:1.5;border-top:1px solid var(--line, #ddd);margin-top:6px;padding-top:6px">
         몸통 ${L.carcasses.length} (${L.carcasses.map((c) => `${c.label} ${c.h}`).join(' · ')})<br>
@@ -3736,10 +3756,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const inp = document.getElementById('inpWardrobeDrawers');
     if (inp) inp.onchange = (e) => {
       const max = rules.WARDROBE_RULES.MAX_DRAWER_COUNT;
-      const v = Math.max(minDrawers, Math.min(max, parseInt(e.target.value, 10) || 0));
+      const v = Math.max(0, Math.min(max, parseInt(e.target.value, 10) || 0));
       s.wardrobe = Object.assign({}, s.wardrobe, { preset: b.preset, drawers: v });
       e.target.value = v;
       draftChanged('#inpWardrobeDrawers');
+    };
+    const selMode = document.getElementById('selWardrobeDrawerMode');
+    if (selMode) selMode.onchange = (e) => {
+      s.wardrobe = Object.assign({}, s.wardrobe,
+        { preset: b.preset, externalDrawer: e.target.value === 'external' });
+      draftChanged('#selWardrobeDrawerMode');
     };
   }
 
@@ -6943,13 +6969,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       top.position.set(0, legH + car.y0 + car.h - T / 2, T / 2);
       put(top, ud());
 
-      if (car.kind !== 'drawer' || !(car.drawers > 0)) return;
-      // 서랍 몸통 — 단마다 전면 한 장 (규칙 DRAWER_MOD_H). 통 앞면에 붙인다.
-      const stepH = car.h / car.drawers;
-      for (let i = 0; i < car.drawers; i++) {
+      // 서랍 전면 — 단마다 한 장 (규칙 DRAWER_MOD_H). 통 앞면에 붙인다.
+      //   외부 서랍은 **몸통 전체**가 서랍모듈이고, 내부 서랍은 맨 아래 캐비닛 **안**의 구역(drawerZone)이다.
+      const zone = car.kind === 'drawer' ? { y0: car.y0, h: car.h, drawers: car.drawers } : car.drawerZone;
+      if (!zone || !(zone.drawers > 0)) return;
+      const stepH = zone.h / zone.drawers;
+      for (let i = 0; i < zone.drawers; i++) {
         const face = makeBox(inner - 4, stepH - 4, T, darken3(color, 0.06));
-        face.position.set(0, legH + car.y0 + stepH * i + stepH / 2, D / 2 - T / 2);
-        put(face, { entityKind: 'wardrobeDrawerFront', moduleId: m.id, drawerIdx: i });
+        face.position.set(0, legH + zone.y0 + stepH * i + stepH / 2, D / 2 - T / 2);
+        put(face, { entityKind: 'wardrobeDrawerFront', moduleId: m.id, drawerIdx: i,
+          external: car.kind === 'drawer' });
       }
     });
   }
