@@ -50,10 +50,10 @@ describe('붙박이장·냉장고장에 플래너 결과를 적용하지 않는�
     expect(fn.indexOf('붙박이장 통이 없습니다')).toBeLessThan(fn.indexOf('item.modules = modules'));
   });
 
-  test('결과를 못 받는 목록에는 냉장고장만 남았다', () => {
+  test('결과를 못 받는 목록·화면 예외 목록 모두 냉장고장만 남았다', () => {
     expect(UI).toMatch(/PLANNER_RESULT_BLOCKED = \['fridge'\]/);
-    // 화면 선택은 아직 그대로 — 붙박이장 전용 화면은 3단계에서 거둔다
-    expect(UI).toMatch(/NATIVE_ONLY_CATEGORIES = \['wardrobe', 'fridge'\]/);
+    // 2026-09-17: 화면도 옮겼다 — 붙박이장은 싱크대와 같은 플래너 화면이다
+    expect(UI).toMatch(/NATIVE_ONLY_CATEGORIES = \['fridge'\]/);
   });
 });
 
