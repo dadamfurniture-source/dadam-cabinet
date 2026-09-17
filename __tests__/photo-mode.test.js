@@ -8,6 +8,8 @@
  *   · 들어가면 — scene.background 가 null, 바닥판·그리드·원점 마커·도어 테두리가 숨고, 궤도가 꺼지고,
  *     **화면 카메라가 아닌 별도 카메라**로 레터박스 안에만 그린다
  *   · 나오면 — 위의 **전부**가 들어가기 전 값으로 (스냅샷 대조. 이것이 I2 의 알맹이다)
+ *     P2 부터는 조명(위치·타깃·색·세기·그림자 설정)·노출·그림자 지도 종류·받개까지 그 스냅샷에 든다.
+ *     그림자·빛·톤 자체의 시험은 `photo-light.test.js` 가 맡는다.
  *   · 사각형 편집기 — 이름표 붙은 네 귀퉁이, 끌면 즉시 다시 풀리고 상태 한 줄이 바뀐다
  *   · 골든 페이로드(buildPlannerPayload)는 사진 모드를 거쳐도 바이트 동일 (I1)
  *   · 레터박스 셈 (순수)
@@ -97,6 +99,8 @@ function fakeRenderer() {
     },
     getScissorTest() { return this._scTest; },
     setScissorTest(on) { this._scTest = !!on; calls.push(['scissorTest', !!on]); },
+    // P2: 페이지의 init3D 와 같은 값으로 시작한다 — 사진 모드가 이것도 되돌려야 한다
+    shadowMap: { enabled: true, type: THREE.PCFSoftShadowMap },
     render(scene, cam) { calls.push(['render', cam, cam.fov, cam.aspect]); },
     setSize: jest.fn(),
     setPixelRatio: jest.fn(),
@@ -127,7 +131,17 @@ function boot(opt = {}) {
 function fakeThree(p) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf4efe7);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  // 조명도 init3D 와 같은 모양으로 — P2 가 위치·색·그림자까지 바꾸므로 시험에도 있어야 한다
+  const amb = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(amb);
+  const d1 = new THREE.DirectionalLight(0xffffff, 1.8);
+  d1.position.set(5000, 8000, 5000);
+  d1.castShadow = true;
+  d1.shadow.mapSize.set(1024, 1024);
+  scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.6);
+  d2.position.set(-3000, 4000, -3000);
+  scene.add(d2);
   const grid = new THREE.GridHelper(6000, 30);
   grid.userData = { entityKind: 'grid' };
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshStandardMaterial());
@@ -151,7 +165,7 @@ function fakeThree(p) {
   const t = { renderer, scene, camera, controls, moduleGroup };
   p.window.THREE = THREE;
   p.PM._o.three = () => t;
-  return { t, renderer, scene, moduleGroup, grid, ground, door, edge, origin, camera, controls };
+  return { t, renderer, scene, moduleGroup, grid, ground, door, edge, origin, camera, controls, amb, d1, d2 };
 }
 
 /** 사진을 올린 것처럼 — 실제 디코딩·캔버스 없이 크기만 준다 */
@@ -175,6 +189,28 @@ function snapshot(f) {
     cameraFov: f.camera.fov,
     cameraPos: f.camera.position.toArray(),
     cameraAspect: f.camera.aspect,
+    // ── P2 (G6): 조명·그림자·톤. `planner-detail.js` 는 **세기만** 적으므로 사진 모드가
+    //    직접 적고 되돌린다. 하나라도 빠지면 구조 모드가 사진 모드의 빛을 물려받는다.
+    exposure: f.renderer.toneMappingExposure,
+    shadowEnabled: f.renderer.shadowMap.enabled,
+    shadowType: f.renderer.shadowMap.type,
+    lights: [f.d1, f.d2, f.amb].map((L) => ({
+      intensity: L.intensity,
+      color: L.color.getHex(),
+      position: L.position.toArray(),
+      castShadow: L.castShadow,
+      targetPos: L.target ? L.target.position.toArray() : null,
+      targetParent: L.target ? (L.target.parent ? L.target.parent.uuid : null) : null,
+      mapSize: L.shadow ? [L.shadow.mapSize.x, L.shadow.mapSize.y] : null,
+      radius: L.shadow ? L.shadow.radius : null,
+      bias: L.shadow ? L.shadow.bias : null,
+      cam: L.shadow && L.shadow.camera
+        ? [L.shadow.camera.left, L.shadow.camera.right, L.shadow.camera.top,
+          L.shadow.camera.bottom, L.shadow.camera.near, L.shadow.camera.far]
+        : null,
+    })),
+    // 받개는 사진 모드에 있는 동안만 씬에 있다
+    catchers: f.scene.children.filter((c) => c.userData && c.userData.entityKind === 'shadow-catcher').length,
   };
 }
 
@@ -477,6 +513,9 @@ describe('우측 패널', () => {
     expect(host.textContent).toContain('뒤-좌 → 뒤-우 → 앞-우 → 앞-좌');
     // 궤도가 꺼진다는 것을 말해 준다
     expect(host.textContent).toContain('줌이 꺼집니다');
+    // P2 가 「그림자·빛」 묶음을 더해도 P1 의 묶음은 그대로다
+    expect(host.querySelector('.pb-group .pb-title').textContent).toContain('그림자');
+    expect(host.querySelectorAll('[data-look]').length).toBe(9);
   });
 
   test('배치 공간을 바꾸면 그 공간의 **실제 치수**로 다시 푼다', () => {
