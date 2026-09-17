@@ -24,8 +24,13 @@ jobs:
         with:
           node-version: '24'
 
+      # 2026-09-17: install 이 있어야 한다. src/worker.js -> src/claude.js -> @anthropic-ai/sdk 이므로
+      #   worker.js 를 부르는 시험(generate-design-spec-route)이 ERR_MODULE_NOT_FOUND 로 죽는다.
+      #   이 한 줄이 없어서 #683(도면 요약 프롬프트)이 시험 단계에서 막혀 배포되지 않았다.
+      - name: Install dependencies
+        run: npm ci
+
       # 프롬프트 스냅샷(옛 경로 불변) · design_spec 검증 · /api/generate 경로.
-      # 의존성이 없어 install 없이 node --test 로 바로 돈다 (workflow-api 와 같은 방식).
       - name: Run tests
         run: node --test "test/*.test.js"
 
