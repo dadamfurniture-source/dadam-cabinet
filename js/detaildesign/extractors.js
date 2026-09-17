@@ -1453,9 +1453,20 @@
           const EP_H = 2440;
           const epQty = (len) => len > EP_H ? 2 : 1;
 
-          // 상몰딩 (60 이상만 산출, 미만은 무몰딩)
-          if (moldingH >= 60 && totalW > 0) {
-            this.add(materials, 'EP', '상몰딩', 'MDF', 18, moldingH, EP_H, epQty(totalW), '2면(장)');
+          // 상몰딩 — 규칙 파일이 정한다 (moldingPartFor).
+          //   60 이상은 몰딩 폭 그대로, 60 미만은 마감재 스위치를 켤 때 60×18T MDF 로 낸다.
+          //   2026-09-17: 붙박이장 기본 상몰딩 20 은 여태 아무 부재도 안 나왔다 — 그 자리를 막는 방법이다.
+          const moldingRow = WardrobeRules && WardrobeRules.moldingPartFor
+            ? WardrobeRules.moldingPartFor({
+              moldingH, totalW,
+              finish: WardrobeRules.moldingFinishOn(specs.wardrobeMoldingFinish),
+            })
+            : (moldingH >= 60 && totalW > 0
+              ? { part: '상몰딩', material: 'MDF', t: 18, w: moldingH, h: EP_H, qty: epQty(totalW), edge: '2면(장)', note: '' }
+              : null);
+          if (moldingRow) {
+            this.add(materials, 'EP', moldingRow.part, moldingRow.material, moldingRow.t,
+              moldingRow.w, moldingRow.h, moldingRow.qty, moldingRow.edge, moldingRow.note || '');
           }
 
           // 좌측 몰딩

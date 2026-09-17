@@ -511,6 +511,14 @@
         <div class="spec-group-title">4. Finish Settings (마감)</div>
         <div class="spec-row">
           <div class="spec-field"><label>상몰딩 높이(mm)</label><input type="number" value="${item.specs.wardrobeMoldingH || 20}" onblur="updateWardrobeSpec(${item.uniqueId}, 'wardrobeMoldingH', this.value)"></div>
+          ${(parseFloat(item.specs.wardrobeMoldingH) || 20) >= 60 ? '' : `
+          <!-- 2026-09-17: 상몰딩이 60 미만이면 부재가 나오지 않았다. 그 자리를 60×18T MDF 마감재로 막을 수 있다. -->
+          <div class="spec-field"><label>상몰딩 마감재</label>
+            <select onchange="updateWardrobeSpec(${item.uniqueId}, 'wardrobeMoldingFinish', this.value)">
+              <option value="none" ${item.specs.wardrobeMoldingFinish && item.specs.wardrobeMoldingFinish !== 'none' ? '' : 'selected'}>없음 (무몰딩)</option>
+              <option value="ep60" ${item.specs.wardrobeMoldingFinish && item.specs.wardrobeMoldingFinish !== 'none' ? 'selected' : ''}>60×18T MDF</option>
+            </select>
+          </div>`}
         </div>
         <div class="spec-row">
           <div class="spec-field"><label>좌측 마감</label><select onchange="updateWardrobeFinishType(${item.uniqueId}, 'Left', this.value)"><option value="Molding" ${item.specs.finishLeftType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishLeftType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishLeftType === 'None' ? 'selected' : ''}>없음</option></select></div>

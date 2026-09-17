@@ -144,14 +144,14 @@ describe('1번 통 — 짧은옷 2단', () => {
 describe('2번 통 — 긴옷 + 하부 서랍', () => {
   const L = layout({ preset: 'longDrawer' });
 
-  test('서랍 기본 1단, 외부라서 몸통이 맨 아래에 따로 선다 (§7 별도 제작)', () => {
-    expect(L.drawers).toBe(1);
+  test('서랍 기본 2단, 외부라서 몸통이 맨 아래에 따로 선다 (§7 별도 제작)', () => {
+    expect(L.drawers).toBe(2);
     expect(L.external).toBe(true);
     expect(L.carcasses.map((c) => c.kind)).toEqual(['drawer', 'cabinet']);
-    expect(L.carcasses[0]).toMatchObject({ key: 'drawer', y0: 0, h: R.DRAWER_MOD_H, drawers: 1 });
-    expect(L.drawerModH).toBe(350);
+    expect(L.carcasses[0]).toMatchObject({ key: 'drawer', y0: 0, h: 2 * R.DRAWER_MOD_H, drawers: 2 });
+    expect(L.drawerModH).toBe(700);
     expect(L.fullBodyH).toBe(2230);
-    expect(L.cabinetH).toBe(2230 - 350);
+    expect(L.cabinetH).toBe(2230 - 700);
     expect(WR.cabinetsOf(L)).toHaveLength(1);
   });
 
@@ -163,9 +163,9 @@ describe('2번 통 — 긴옷 + 하부 서랍', () => {
     expect(zero.cabinetH).toBe(2230);
   });
 
-  test('미지정은 프리셋 기본값 1단', () => {
-    expect(layout({ preset: 'longDrawer', drawers: null }).drawers).toBe(1);
-    expect(layout({ preset: 'longDrawer', drawers: undefined }).drawers).toBe(1);
+  test('미지정은 프리셋 기본값 2단 (기본형 사진 그대로)', () => {
+    expect(layout({ preset: 'longDrawer', drawers: null }).drawers).toBe(2);
+    expect(layout({ preset: 'longDrawer', drawers: undefined }).drawers).toBe(2);
   });
 
   test('긴옷 칸 하나 — 선반은 칸 상단에서 315, 옷봉은 그 선반 아래 75', () => {
@@ -225,6 +225,43 @@ describe('서랍 종류 — 외부 · 내부 (§7)', () => {
     expect(L.carcasses.map((c) => c.kind)).toEqual(['cabinet', 'cabinet']);
     expect(L.carcasses[0].drawerZone).toMatchObject({ drawers: 1, h: R.DRAWER_MOD_H });
     expect(L.carcasses[1].drawerZone).toBeUndefined();
+  });
+});
+
+describe('상몰딩 부재 (§11 · 2026-09-17)', () => {
+  const part = (o) => WR.moldingPartFor(o);
+
+  test('60 이상은 몰딩 폭 그대로 EP 한 장 (기존 규칙)', () => {
+    expect(part({ moldingH: 60, totalW: 2000 }))
+      .toMatchObject({ part: '상몰딩', material: 'MDF', t: 18, w: 60, h: R.EP_LENGTH, qty: 1 });
+    expect(part({ moldingH: 100, totalW: 2000 }).w).toBe(100);
+  });
+
+  test('60 미만은 스위치를 켤 때만 60×18T MDF 마감재로 나온다', () => {
+    // 붙박이장 기본 상몰딩 20 — 여태 아무 부재도 안 나왔다
+    expect(part({ moldingH: R.MOLDING_H, totalW: 3600 })).toBeNull();
+    const row = part({ moldingH: R.MOLDING_H, totalW: 3600, finish: true });
+    expect(row).toMatchObject({
+      part: '상몰딩', material: 'MDF', t: R.MOLDING_FINISH_T, w: R.MOLDING_FINISH_W, h: R.EP_LENGTH,
+    });
+    expect(row.note).toMatch(/60×18T MDF 마감재/);
+  });
+
+  test('런이 2440 보다 길면 2장', () => {
+    expect(part({ moldingH: 20, totalW: 2440, finish: true }).qty).toBe(1);
+    expect(part({ moldingH: 20, totalW: 2441, finish: true }).qty).toBe(2);
+  });
+
+  test('상몰딩이 없거나 런 폭이 0 이면 부재도 없다', () => {
+    expect(part({ moldingH: 0, totalW: 3600, finish: true })).toBeNull();
+    expect(part({ moldingH: 20, totalW: 0, finish: true })).toBeNull();
+    expect(part()).toBeNull();
+  });
+
+  test('스위치 값 — none·0·빈값은 꺼짐, 나머지는 켜짐', () => {
+    expect(['ep60', '1', true, 1].map(WR.moldingFinishOn)).toEqual([true, true, true, true]);
+    expect(['none', '0', 0, '', false, null, undefined].map(WR.moldingFinishOn))
+      .toEqual([false, false, false, false, false, false, false]);
   });
 });
 
