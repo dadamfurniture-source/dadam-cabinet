@@ -238,9 +238,10 @@ describe('소스 규약', () => {
 
   test('섹션 마크업은 한 벌이다', () => {
     const keys = (SRC.match(/class="section[^"]*" data-sec="(\w+)"/g) || []).length;
-    // 2026-09-15: 우측은 size·height·finish·detail 네 벌. 분할·칸·선반·손잡이는 개별 모듈 패널(data-mp 다섯 벌)로 갔다.
+    // 2026-09-15: 우측은 size·height·finish·detail 네 벌. 분할·칸·선반·손잡이는 개별 모듈 패널로 갔다.
+    // 2026-09-17: 개별 모듈 패널은 여섯 벌 — 붙박이장 통 구조(data-mp="wardrobe")가 더해졌다.
     expect(keys).toBe(4);
-    expect((SRC.match(/class="section[^"]*" data-mp="(\w+)"/g) || []).length).toBe(5);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
+    expect((SRC.match(/class="section[^"]*" data-mp="(\w+)"/g) || []).length).toBe(6);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
     expect(SRC).toContain('const PANEL_LAYOUT = {');
   });
 

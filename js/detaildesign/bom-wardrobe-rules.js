@@ -199,7 +199,9 @@
     return {
       preset,
       cells: cells.length ? cells : null,
-      drawers: Number.isFinite(Number(b.drawers)) ? drawers : null,
+      // null·undefined 는 **미지정**이다 — 0 으로 접으면 프리셋 기본 서랍 단수를 덮어쓴다
+      // (Number(null) 이 0 이고 Number.isFinite(0) 이 true 라 그렇게 새던 자리다).
+      drawers: b.drawers == null || b.drawers === '' ? null : drawers,
       externalDrawer: b.externalDrawer == null ? null : !!b.externalDrawer,
     };
   }
@@ -330,9 +332,10 @@
     const key = presetKeyOf(opt.preset);
     const preset = presetOf(key);
 
-    const drawers = Number.isFinite(Number(opt.drawers))
-      ? int0(opt.drawers, R.MAX_DRAWER_COUNT)
-      : int0(preset.drawers, R.MAX_DRAWER_COUNT);
+    // 미지정(null·undefined)이면 프리셋 기본값. 0 은 "서랍 없음" 이라는 **지정**이다.
+    const drawers = opt.drawers == null || opt.drawers === ''
+      ? int0(preset.drawers, R.MAX_DRAWER_COUNT)
+      : int0(opt.drawers, R.MAX_DRAWER_COUNT);
     const drawerModH = drawers * R.DRAWER_MOD_H;
 
     const fullBodyH = bodyHeightOf(opt);

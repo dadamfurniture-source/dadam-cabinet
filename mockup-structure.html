@@ -370,6 +370,12 @@
         <svg id="mpPreviewSvg" viewBox="0 0 600 870"><g id="mpPreviewG"></g></svg>
         <div class="mp-hint">초안 미리보기 — 도어 칸을 누르면 열림 방향이 바뀝니다</div>
       </div>
+      <div class="section" data-mp="wardrobe">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">붙박이장 구조</span>
+        </div>
+        <div class="section-body" id="wardrobeBody"></div>
+      </div>
       <div class="section" data-mp="split">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
           <span class="chev">▼</span> <span class="sec-title">구성 · 분할</span>
@@ -565,6 +571,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/planner/planner-engine.js?v=38.8"></script>
 <!-- 2026-09-15: 서랍장·목찬넬·레일 규칙 (BOM 과 같은 파일) — 3D 중간 따내기·서랍 박스가 이걸로 계산한다 -->
 <script src="js/detaildesign/bom-drawer-rules.js?v=38.8"></script>
+<!-- 2026-09-17: 붙박이장 통 내부 구조 규칙 — BOM(extractors.js)과 같은 파일. 전역 DadamWardrobeRules -->
+<script src="js/detaildesign/bom-wardrobe-rules.js?v=38.8"></script>
 <!-- D0: 디테일 모드. 카탈로그 정본(bom-finish-color.js, IIFE → window.DadamBomFinishColor)을 먼저 싣고,
      순수 모델(planner-finish.js) → 화면·상태(planner-detail.js) 순. 셋 다 인라인보다 앞.
      D2: 그 사이에 DB 카탈로그(planner-catalog.js — materials 표, PlannerStore 클라이언트 재사용)와
@@ -2852,6 +2860,70 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     };
   }
 
+  // ── 붙박이장 통 내부 구조 (2026-09-17) ─────────────────────────
+  //
+  //   정본은 js/detaildesign/bom-wardrobe-rules.js — BOM 도 같은 파일을 읽는다 (규칙을 두 군데 적지 않는다).
+  //   통 안을 **칸 사각형 목록**으로 잡고 칸막이는 칸 경계에서 도출한다. 사장님 기본 구조 샘플
+  //   (wardrobe.md §1.1)의 3번 통 중간 칸막이 반 분할과 4번 통 하부 옆 분할이 이 표현에 담긴다.
+  //   도어(좌우 분할·양문)는 예전 그대로다 — 칸은 통 **안**이고 도어는 통 **앞**이라 서로 다른 축이다.
+
+  /** 붙박이장 규칙 파일. 로드가 안 됐으면 null — 그 경우 통 내부를 그리지 않고 예전 그림을 낸다. */
+  function wardrobeRules() {
+    if (typeof DadamWardrobeRules !== 'undefined') return DadamWardrobeRules;
+    return (typeof window !== 'undefined' && window.DadamWardrobeRules) || null;
+  }
+
+  function isWardrobeModule(m) { return !!m && m.section === 'wardrobe'; }
+
+  /** 이 통이 영역 안에서 몇 번째인가 (0부터) — 기본형 프리셋 배정에 쓴다. */
+  function wardrobeIndexOf(m) {
+    const sibs = modules
+      .filter((x) => x.areaId === m.areaId && x.section === 'wardrobe')
+      .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0));
+    const i = sibs.findIndex((x) => x.id === m.id);
+    return { idx: i < 0 ? 0 : i, count: sibs.length || 1 };
+  }
+
+  /**
+   * 통 구조 블록 — s.wardrobe {preset, cells, drawers}. 고르지 않았으면 **기본형**이 기본값이다
+   * (사장님 지시: 사진을 기본형으로 둔다). 통 번호가 프리셋을 정한다 — 1번 짧은옷, 2번 긴옷+서랍, …
+   */
+  function wardrobeRulesOf(m, s) {
+    const rules = wardrobeRules();
+    if (!rules) return null;
+    const b = rules.normalizeBlock((s && s.wardrobe) || null);
+    if (!b.preset) {
+      const { idx, count } = wardrobeIndexOf(m);
+      b.preset = rules.samplePresetFor(idx, count);
+    }
+    return b;
+  }
+
+  /** 붙박이장 통이 아니면 null — 예전 그대로 그린다. */
+  function wardrobeLayoutFor(m, s) {
+    if (!isWardrobeModule(m) || !s) return null;
+    const rules = wardrobeRules();
+    const b = wardrobeRulesOf(m, s);
+    if (!rules || !b) return null;
+    return rules.layoutWardrobeModule({
+      W: Number(m.W) || 0,
+      // 몸통 높이는 플래너 높이 모델이 정본이다 (좌대 60 + 상몰딩 20 — planner-wardrobe 계약 3).
+      bodyH: bodyHeightOf(m, s),
+      D: Number(m.D) || 0,
+      T: BODY_T,
+      preset: b.preset,
+      cells: b.cells,
+      drawers: b.drawers,
+    });
+  }
+
+  /** 초안에 프리셋을 쓴다. 프리셋을 바꾸면 직접 편집한 칸은 버린다 — 둘이 섞이면 어느 쪽이 정본인지 알 수 없다. */
+  function setWardrobePreset(s, key) {
+    const rules = wardrobeRules();
+    if (!rules) return;
+    s.wardrobe = Object.assign({}, s.wardrobe, { preset: rules.presetKeyOf(key), cells: null });
+  }
+
   /** 레이아웃의 전면 하나를 모듈 로컬 세로 범위로 — y 는 몸통 상단에서 아래로 잰 값이라 뒤집는다. */
   function frontSpanOf(L, idx, legH, carcassH) {
     const f = L.fronts[idx];
@@ -3400,7 +3472,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const cfg = SECTION_CONFIG[m.section] || {};
     document.getElementById('mpTitle').textContent = `${cfg.label || m.section} ${moduleTag(m)} · W${m.W}×H${m.H}×D${m.D}`.trim();
     renderModulePanelSections(m, s);
-    syncModulePanelSections(s);
+    syncModulePanelSections(s, m);
     renderModulePreview(m, s);
     // 2026-09-15: 규칙이 내는 경고(최소 전면 미만·최대 단수 초과)를 그대로 보여준다 — 안 보이면 BOM 에서만 드러난다.
     const warnL = drawerLayoutFor(m, s);
@@ -3451,16 +3523,71 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return s.horizontalLayout === 'doorTopDrawerBottom' && (s.bottomType || 'drawer') === 'drawer';
   }
 
+  /**
+   * 붙박이장 통 내부를 미리보기에 덧그린다 (SVG). 3D 와 같은 레이아웃을 쓰므로 같은 그림이다.
+   *   SVG 는 y 가 아래로 커지고 규칙의 y 는 위로 커진다 — 지판 윗면을 0 으로 잡고 뒤집는다.
+   */
+  function drawWardrobeInterior2D(g, m, s, offsetX, offsetY) {
+    const L = wardrobeLayoutFor(m, s);
+    if (!L || !L.cells.length) return;
+    const ns = 'http://www.w3.org/2000/svg';
+    const T = BODY_T;
+    const carcassH = bodyHeightOf(m, s);
+    const bodyTopOff = Math.max(0, m.H - baseOffsetOf(m, s) - carcassH);
+    const floorY = offsetY + bodyTopOff + carcassH - (L.drawerModH || 0) - T;   // 내경 y=0
+    const leftX = offsetX + T;
+    const yOf = (iy) => floorY - iy;
+    const rect = (x, y, w, h, fill, stroke, dash) => {
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', y);
+      r.setAttribute('width', Math.max(0, w)); r.setAttribute('height', Math.max(0, h));
+      r.setAttribute('fill', fill); r.setAttribute('stroke', stroke);
+      r.setAttribute('stroke-width', 2);
+      if (dash) r.setAttribute('stroke-dasharray', dash);
+      r.style.pointerEvents = 'none';
+      g.appendChild(r);
+      return r;
+    };
+    // 칸 — 옅게 채우고 점선으로 두른다 (도어 위에 얹히므로 도어 그림을 가리지 않게)
+    L.cells.forEach((c) => {
+      rect(leftX + c.x0, yOf(c.y0 + c.h), c.w, c.h, 'rgba(255,255,255,0.10)', '#5b6b8c', '8 6');
+      if (!c.label) return;
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('class', 'area-label');
+      t.setAttribute('x', leftX + c.x0 + c.w / 2);
+      t.setAttribute('y', yOf(c.y0 + c.h) + 28);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', Math.min(c.w * 0.14, 46));
+      t.setAttribute('fill', '#3c4a66');
+      t.style.pointerEvents = 'none';
+      t.textContent = c.label;
+      g.appendChild(t);
+    });
+    // 칸막이 — 꽉 찬 판
+    (L.dividers || []).forEach((d) => {
+      if (d.axis === 'v') rect(leftX + d.x, yOf(d.y0 + d.h), T, d.h, '#8d7f63', '#5a5040');
+      else rect(leftX + d.x0, yOf(d.y + T), d.w, T, '#8d7f63', '#5a5040');
+    });
+    // 선반
+    (L.shelves || []).forEach((sh) => rect(leftX + sh.x0, yOf(sh.y + T), sh.w, T, '#c9b68e', '#7d6c48'));
+    // 옷봉
+    (L.rods || []).forEach((r) => rect(leftX + r.x0, yOf(r.y) - 8, r.length, 16, '#b9bcc4', '#6f747e'));
+  }
+
   /** 칸 타입이 정하는 섹션 표시 — 서랍이 있으면 서랍, 도어·오픈이 있으면 선반, 전면이 있으면 손잡이. */
-  function syncModulePanelSections(s) {
+  function syncModulePanelSections(s, m) {
     const types = Array.isArray(s.areaTypes) ? s.areaTypes : [];
     const bottom = s.horizontalLayout === 'doorTopDrawerBottom' ? (s.bottomType || 'drawer') : null;
     const has = (pred) => types.some(pred) || (bottom !== null && pred(bottom));
+    // 2026-09-17: 붙박이장은 통 내부를 **구조 프리셋**이 정한다 — 선반 mm 목록·서랍 단수를 따로 만지면
+    //   두 규칙이 같은 칸을 놓고 다투게 된다. 그 둘을 감추고 붙박이장 구조 섹션을 대신 보인다.
+    const wardrobe = isWardrobeModule(m) && !!wardrobeRules();
     const on = {
+      wardrobe,
       split: true,
       areas: true,
-      drawer: has((t) => t === 'drawer'),
-      shelves: has((t) => t === 'door' || t === 'open' || t === 'blind'),
+      drawer: !wardrobe && has((t) => t === 'drawer'),
+      shelves: !wardrobe && has((t) => t === 'door' || t === 'open' || t === 'blind'),
       handle: has((t) => t === 'door' || t === 'drawer'),
     };
     document.querySelectorAll('#modulePanel .section[data-mp]').forEach((sec) => {
@@ -3476,6 +3603,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!g || !svg) return;
     g.innerHTML = '';
     renderModuleFront(g, m, s, 0, 0);
+    // 2026-09-17: 붙박이장은 통 **안**이 요점이라 도어 위에 칸·칸막이·선반·옷봉을 덧그린다.
+    //   정면도(renderFrontView)는 손대지 않는다 — 거기선 도어가 보이는 것이 맞다.
+    drawWardrobeInterior2D(g, m, s, 0, 0);
     // 외곽(모듈 선택)은 미리보기에서 눌러도 아무것도 하지 않는다 — 칸 클릭(방향 뒤집기)만 초안에 닿는다.
     g.querySelectorAll('[data-module-id]').forEach((el) => { el.style.pointerEvents = 'none'; });
     const pad = Math.max(24, Math.round(Math.max(m.W, m.H) * 0.05));
@@ -3527,7 +3657,56 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 분할·칸·서랍·선반·손잡이 입력 — 예전 우측 패널 코드 그대로, 다만 값은 **초안 s** 를 바꾸고
    * panelCommit 대신 draftChanged 를 부른다. 입력 id 는 예전과 같다 (시험·문서가 그 이름을 쓴다).
    */
+  /** 붙박이장 구조 섹션 — 프리셋 고르기 + (외부 서랍이 있는 프리셋이면) 단수. */
+  function renderWardrobeSection(m, s) {
+    const host = document.getElementById('wardrobeBody');
+    if (!host) return;
+    const rules = wardrobeRules();
+    if (!isWardrobeModule(m) || !rules) { host.innerHTML = ''; return; }
+    const b = wardrobeRulesOf(m, s);
+    const L = wardrobeLayoutFor(m, s);
+    const { idx, count } = wardrobeIndexOf(m);
+    const opts = rules.PRESETS
+      .map((pr) => `<option value="${pr.key}" ${b.preset === pr.key ? 'selected' : ''}>${pr.label}</option>`)
+      .join('');
+    const cur = rules.presetOf(b.preset) || {};
+    const hasDrawers = !!(L && L.drawers > 0);
+    host.innerHTML = `
+      <div class="row">
+        <label>통 구조</label>
+        <select id="selWardrobePreset">${opts}</select>
+      </div>
+      <div style="font-size:10px;color:#888;line-height:1.5">
+        ${count > 1 ? `${count}통 중 <b>${idx + 1}번</b>. ` : ''}${cur.note || ''}
+      </div>
+      ${hasDrawers ? `
+      <div class="row">
+        <label>외부 서랍 단수</label>
+        <input type="number" min="0" max="${rules.WARDROBE_RULES.MAX_DRAWER_COUNT}" step="1"
+               id="inpWardrobeDrawers" value="${L.drawers}">
+      </div>` : ''}
+      ${L && L.cells.length ? `
+      <div style="font-size:10px;color:#888;line-height:1.5;border-top:1px solid var(--line, #ddd);margin-top:6px;padding-top:6px">
+        칸 ${L.cells.length} · 칸막이 ${L.dividers.length} · 선반 ${L.shelves.length} · 옷봉 ${L.rods.length}
+      </div>` : ''}
+      ${L && L.warnings.length ? `
+      <div style="font-size:10px;color:#b4452e;line-height:1.5">⚠ ${L.warnings[0]}</div>` : ''}
+    `;
+    const sel = document.getElementById('selWardrobePreset');
+    if (sel) sel.onchange = (e) => { setWardrobePreset(s, e.target.value); draftChanged('#selWardrobePreset'); };
+    const inp = document.getElementById('inpWardrobeDrawers');
+    if (inp) inp.onchange = (e) => {
+      const max = rules.WARDROBE_RULES.MAX_DRAWER_COUNT;
+      const v = Math.max(0, Math.min(max, parseInt(e.target.value, 10) || 0));
+      s.wardrobe = Object.assign({}, s.wardrobe, { preset: b.preset, drawers: v });
+      e.target.value = v;
+      draftChanged('#inpWardrobeDrawers');
+    };
+  }
+
   function renderModulePanelSections(m, s) {
+    // 2026-09-17: 붙박이장 통 구조 — 프리셋 하나로 통 안이 바뀐다 (미리보기가 바로 따라간다).
+    renderWardrobeSection(m, s);
     // 분할
     document.getElementById('splitBody').innerHTML = `
       <div class="row">
@@ -6684,6 +6863,53 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 들어가는 가장 큰 크기(소 60 · 중 120 · 대 180). 어느 크기인지는 규칙 파일이 정했다 (f.box).
    * 앞면은 몸통 앞선에 맞추고(전면은 그 앞에 덧씌워진다) 반투명으로 그려 존이 보이게 한다.
    */
+  /**
+   * 붙박이장 통 내부를 3D 로 — 칸막이·선반·옷봉.
+   *
+   * 좌표 옮김: 규칙의 칸 좌표는 **내경 기준**이다 (x 는 좌측 측판 안쪽, y 는 지판 윗면에서 위로).
+   *   3D 는 모듈 중심이 x=0 이고 y 는 모듈 바닥에서 위로 재므로
+   *     x3d = −W/2 + T + x      y3d = legH + 외부서랍높이 + T + y
+   *   외부 서랍은 통 아래에 따로 서므로(wardrobe.md §7) 그 높이만큼 내경이 위로 올라간다.
+   */
+  function addWardrobeInterior(parent, m, L, o) {
+    const { W, D, T, legH } = o;
+    const x0 = -W / 2 + T;
+    const y0 = legH + (L.drawerModH || 0) + T;
+    const panelColor = o.color || '#d8c8a8';
+    const shelfColor = '#e8d8b8';
+    const add = (mesh) => { parent.add(mesh); addEdgeOutline(mesh, parent); };
+
+    (L.dividers || []).forEach((d, i) => {
+      const ud = { entityKind: 'wardrobeDivider', moduleId: m.id, dividerIdx: i, axis: d.axis };
+      if (d.axis === 'v') {
+        const box = makeBox(T, d.h, D - T, panelColor, { roughness: 0.6 });
+        box.position.set(x0 + d.x + T / 2, y0 + d.y0 + d.h / 2, T / 2);
+        box.userData = ud;
+        add(box);
+      } else {
+        const box = makeBox(d.w, T, D - T, panelColor, { roughness: 0.6 });
+        box.position.set(x0 + d.x0 + d.w / 2, y0 + d.y + T / 2, T / 2);
+        box.userData = ud;
+        add(box);
+      }
+    });
+
+    (L.shelves || []).forEach((sh, i) => {
+      const box = makeBox(sh.w, T, Math.max(50, L.shelfDepth), shelfColor, { roughness: 0.5 });
+      box.position.set(x0 + sh.x0 + sh.w / 2, y0 + sh.y + T / 2, T / 2);
+      box.userData = { entityKind: 'shelf', moduleId: m.id, shelfIdx: i, wardrobe: true };
+      add(box);
+    });
+
+    // 옷봉 — 파이프 한 가닥. 규격이 미확정이라(규칙 파일 ROD_NOTE) 굵기 32 는 **그림용**이고 BOM 은 길이만 쓴다.
+    (L.rods || []).forEach((r, i) => {
+      const box = makeBox(r.length, 32, 32, '#b9bcc4', { roughness: 0.3, metalness: 0.6 });
+      box.position.set(x0 + r.x0 + r.length / 2, y0 + r.y, T / 2);
+      box.userData = { entityKind: 'wardrobeRod', moduleId: m.id, rodIdx: i };
+      add(box);
+    });
+  }
+
   function addDrawerBoxes(parent, o) {
     const L = o.drawerLayout;
     const R = DadamDrawerRules.DRAWER_RULES;
@@ -7472,6 +7698,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // P2-6: 처짐방지목은 모듈 단위 부재 — 도어 칸 수와 무관하게 폭 문턱으로 장수를 정한다 (addBraces).
     addBraces(g, m, { W, D, T, legH, carcassH, color: carcassColor, woodChannel });
 
+    // 2026-09-17: 붙박이장 통 내부 — 규칙 파일이 정한 칸·칸막이·선반·옷봉.
+    //   있으면 아래 일반 선반(s.shelves) 루프를 건너뛴다. 통 내부는 칸이 정본이다.
+    const wardrobeLayout = wardrobeLayoutFor(m, s);
+    if (wardrobeLayout) addWardrobeInterior(g, m, wardrobeLayout, { W, D, T, legH, carcassH, color: carcassColor });
+
     // 2026-09-13: 멍장 내부는 단일 수납 공간 — 선반은 모듈 전폭 하나, 깊이는 ㄱ자 목대(75) 뒤에서 끝난다.
     const blindCut = m.blind ? MASTER_RULES.CORNER_HINGE_BATTEN_DEPTH : 0;
     let cellLeftAccum = -W / 2;
@@ -7480,7 +7711,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const cellLeft = cellLeftAccum;
       const cellCx = cellLeft + colW / 2;
       // cell 안 선반 — 본체 기준 sh (legH 더하기)
-      if (Array.isArray(s.shelves) && (!blindCut || i === 0)) {
+      if (Array.isArray(s.shelves) && !wardrobeLayout && (!blindCut || i === 0)) {
         const shW = blindCut ? W - 2*T - 4 : colW - 2*T - 4;
         const shCx = blindCut ? 0 : cellCx;
         s.shelves.forEach((shMM, shIdx) => {
