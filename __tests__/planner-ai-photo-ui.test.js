@@ -372,3 +372,21 @@ describe('구조 단계는 그대로다 (I2)', () => {
     expect(JSON.stringify(p.g('buildPlannerPayload')('sink'))).toBe(before);
   });
 });
+
+// 2026-09-17 브라우저 확인 — 들어올 때 한 번만 그려서, 디테일 모드 안에서 도면이 바뀌면
+// "도면이 비어 있습니다" 가 그대로 남았다. PlannerDetail.refresh 가 같이 다시 그려야 한다.
+describe('도면이 바뀌면 패널도 따라 바뀐다', () => {
+  test('PlannerDetail.refresh 가 「사진으로 만들기」 패널을 다시 그린다', () => {
+    const p = boot();
+    let drawn = 0;
+    const AP = p.window.PlannerAiPhoto;
+    const orig = AP.render;
+    AP.render = function () { drawn += 1; return orig.apply(this, arguments); };
+    try {
+      p.window.PlannerDetail.refresh();
+      expect(drawn).toBeGreaterThan(0);
+    } finally {
+      AP.render = orig;
+    }
+  });
+});
