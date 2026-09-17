@@ -134,3 +134,35 @@ describe('구조 단계', () => {
     expect(p.g('sectionsFor')(area)).toContain('wardrobe');
   });
 });
+
+describe('배치는 바로 저장된다 (2026-09-17)', () => {
+  // 그때까지 배치는 "구조 단계 →"·"3.디테일"·"도면 저장" 을 누를 때만 localStorage 에 쓰였다.
+  //   사각형을 놓은 뒤 iframe 이 다시 뜨면(상세설계가 품목을 추가·전환할 때 새로 만든다) 배치가
+  //   통째로 날아가고, 구조 단계에 배치가 없어 **자동계산을 눌러도 아무것도 나오지 않는다.**
+  const KEY = 'dadam_layout_v1' + SCOPE;
+
+  test('사각형을 놓으면 단계를 옮기지 않아도 저장된다', () => {
+    const p = boot('mockup-shell.html', { storage: {} });
+    expect(p.storage.getItem(KEY)).toBeNull();
+    p.g('addSectionRect')('wardrobe');
+    p.g('saveLayoutNow')();                       // 묶음(250ms)을 기다리지 않고 바로
+    const saved = JSON.parse(p.storage.getItem(KEY));
+    expect(saved.modules).toHaveLength(1);
+    expect(saved.modules[0]).toMatchObject({
+      section: 'wardrobe',
+      w: PLANNER_SECTIONS.wardrobe.w,
+      moduleH: PLANNER_SECTIONS.wardrobe.moduleH,
+    });
+  });
+
+  test('추가·삭제가 지나는 자리(pushUndo)에 저장이 매달려 있다', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'mockup-shell.html'), 'utf8');
+    const fn = src.slice(src.indexOf('function pushUndo'), src.indexOf('function undo()'));
+    expect(fn).toMatch(/scheduleLayoutSave\(\)/);
+    // 되돌리기·다시하기도 배치를 바꾼다
+    expect(src.slice(src.indexOf('function undo()'), src.indexOf('function redo()')))
+      .toMatch(/scheduleLayoutSave\(\)/);
+    expect(src.slice(src.indexOf('function redo()'), src.indexOf('function redo()') + 400))
+      .toMatch(/scheduleLayoutSave\(\)/);
+  });
+});
