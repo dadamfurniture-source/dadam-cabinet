@@ -8,7 +8,7 @@
  *   3) **동의가 없으면 데이터셋에 넣지 않는다.** 동의를 내렸다면 이미 넣은 것도 지운다.
  *   4) 실패해도 워터마크를 올리지 않는다 — 다음 실행이 같은 구간을 다시 읽는다.
  */
-import { select, upsert, remove } from './supabase.js';
+import { select, upsert, remove, patch } from './supabase.js';
 import { fromCollectionPost, fromGeneration, rootOf } from './adapters.js';
 
 const EPOCH = '1970-01-01T00:00:00Z';
@@ -34,6 +34,20 @@ async function humanLocked(env, table) {
 }
 
 const esc = (s) => encodeURIComponent(s);
+
+/** 연출컷 → 그것에서 시작된 설계 (designs.generation_id). 사슬의 등뻐를 잊는 조회다. */
+async function designsByGeneration(env, ids) {
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 50) {   // URL 이 길어지지 않게 나눠 묻는다
+    const rows = await select(
+      env,
+      `designs?generation_id=in.(${ids.slice(i, i + 50).join(',')})&select=id,generation_id&order=created_at.asc`
+    );
+    // 한 연출컷으로 설계를 여러 번 만들 수 있다 — 먼저 만든 것을 본다
+    for (const r of rows) if (!out.has(r.generation_id)) out.set(r.generation_id, r.id);
+  }
+  return out;
+}
 
 /** 연출컷 재생성 계보의 뿌리 — 배치 밖의 부모는 필요한 것만 더 읽는다 */
 async function resolveRoots(env, rows) {
@@ -99,6 +113,47 @@ async function ingestTable(env, table, columns, toSamples) {
   return out;
 }
 
+
+/**
+ * 뒤늦게 생긴 연결을 메운다.
+ *
+ * 연출컷을 먼저 수집한 뒤에 사용자가 그걸로 설계를 만들면, generations 행은 그대로라
+ * 워터마크가 다시 읽지 않는다 — 샘플은 영영 design_id 없이 남는다. 그래서 designs 를
+ * 따로 보고, 새로 붙은 generation_id 를 그 연출컷의 샘플에 내려 준다.
+ * (group_key 도 설계 기준으로 바꾼다 — 같은 현장이 한 묶음이어야 사슬 학습이 된다.)
+ */
+async function backfillDesignLinks(env) {
+  const table = 'designs';
+  const st = await stateOf(env, table);
+  let watermark = st.watermark || EPOCH;
+  const out = { table, read: 0, linked: 0, watermark };
+  try {
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const rows = await select(
+        env,
+        `designs?select=id,generation_id,updated_at&generation_id=not.is.null&updated_at=gt.${esc(watermark)}&order=updated_at.asc&limit=${PAGE}`
+      );
+      if (!rows.length) break;
+      out.read += rows.length;
+      for (const d of rows) {
+        await patch(env, `dataset_samples?src_table=eq.generations&src_id=eq.${d.generation_id}`, {
+          design_id: d.id,
+          group_key: `dadam:design:${d.id}`,
+        });
+        out.linked++;
+      }
+      watermark = rows[rows.length - 1].updated_at;
+      out.watermark = watermark;
+      if (rows.length < PAGE) break;
+    }
+    await saveState(env, table, { watermark, last_run: new Date().toISOString(), last_count: out.linked, last_error: null });
+  } catch (e) {
+    await saveState(env, table, { last_run: new Date().toISOString(), last_error: String(e.message || e).slice(0, 500) });
+    return { table, error: String(e.message || e).slice(0, 300) };
+  }
+  return out;
+}
+
 export async function ingestAll(env) {
   const results = [];
   const jobs = [
@@ -113,7 +168,8 @@ export async function ingestAll(env) {
       async (e, rows) => {
         if (!rows.length) return [];
         const roots = await resolveRoots(e, rows);
-        return rows.flatMap((r) => fromGeneration(r, roots.get(r.id)));
+        const designs = await designsByGeneration(e, rows.map((r) => r.id));
+        return rows.flatMap((r) => fromGeneration(r, roots.get(r.id), designs.get(r.id)));
       },
     ],
   ];
@@ -127,5 +183,7 @@ export async function ingestAll(env) {
       results.push({ table, error: String(e.message || e).slice(0, 300) });
     }
   }
+  // 원본을 다 읽은 뒤에 연결을 메운다 — 방금 들어온 샘플에도 곧바로 붙는다
+  results.push(await backfillDesignLinks(env));
   return results;
 }

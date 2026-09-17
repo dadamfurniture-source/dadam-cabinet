@@ -78,6 +78,7 @@ export function fromCollectionPost(row) {
     confidence: 0.9,
     // 공간을 모르면 검수 대상이다. category 만으로는 "주방" 말고는 공간이 안 나온다.
     needs_review: m.space === 'unknown',
+    design_id: row.design_id || null,   // 완료 판정(orders)과 조인하는 축
     license: 'owned',
     consent: row.consent_training ?? null,
     src_table: 'collection_posts',
@@ -93,16 +94,21 @@ export function fromCollectionPost(row) {
  * @param {{id,parent_id,user_id,category,options,inputs,images,layout,quote,
  *          consent_training,created_at,updated_at}} row
  * @param {string} rootId 재생성 계보의 뿌리 id — 같은 방에서 나온 변형은 한 그룹이다
+ * @param {string} [designId] 이 연출컷에서 시작된 설계 (designs.generation_id). 있으면 **설계가 그룹**이다 —
+ *                            같은 현장의 연출컷·도면·완성 사진이 한 묶음이어야 사슬 학습이 된다
  */
-export function fromGeneration(row, rootId) {
+export function fromGeneration(row, rootId, designId) {
   const cat = GENERATION_CATEGORY[str(row.category)] || { space: 'unknown', furniture: 'unknown' };
   const shape = shapeOf(
     (row.layout && row.layout.lowerLayoutShape) || (row.options && row.options.layoutShape) || cat.layout_shape
   );
-  const group_key = `dadam:gen:${rootId || row.parent_id || row.id}`;
+  const group_key = designId
+    ? `dadam:design:${designId}`
+    : `dadam:gen:${rootId || row.parent_id || row.id}`;
   const common = {
     source: 'dadam_generation',
     group_key,
+    design_id: designId || null,
     image_sha256: null,
     width: null,
     height: null,
