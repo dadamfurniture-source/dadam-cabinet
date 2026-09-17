@@ -136,7 +136,11 @@ async function backfillDesignLinks(env) {
       if (!rows.length) break;
       out.read += rows.length;
       for (const d of rows) {
-        await patch(env, `dataset_samples?src_table=eq.generations&src_id=eq.${d.generation_id}`, {
+        // design_id 가 **비어 있을 때만** 채운다. 한 연출컷으로 설계를 두 번 만들면
+        // 여기서는 나중 설계가, 수집 경로(designsByGeneration)에서는 먼저 만든 설계가
+        // 이겨 group_key 가 실행마다 뒤집힌다 — 그러면 train/test 분할이 흔들린다.
+        // 먼저 붙은 것을 그대로 둔다.
+        await patch(env, `dataset_samples?src_table=eq.generations&src_id=eq.${d.generation_id}&design_id=is.null`, {
           design_id: d.id,
           group_key: `dadam:design:${d.id}`,
         });

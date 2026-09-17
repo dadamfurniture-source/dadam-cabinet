@@ -137,10 +137,17 @@ describe('연결을 만드는 화면·코드', () => {
     expect(MYPAGE).toMatch(/시공 완료/);
   });
 
+  test('먼저 붙은 설계를 그대로 둔다 — group_key 가 실행마다 뒤집히면 분할이 흔들린다', () => {
+    // 한 연출컷으로 설계를 두 번 만들 수 있다. 수집 경로는 먼저 만든 설계를 쓰므로
+    // backfill 도 빈 칸만 채워야 둘이 어긋나지 않는다.
+    expect(INGEST).toMatch(/&design_id=is\.null/);
+  });
+
   test('뒤늦게 붙은 연결도 기존 샘플에 내려간다', () => {
     // 연출컷을 먼저 수집한 뒤 설계를 만들면 generations.updated_at 은 그대로다
     expect(INGEST).toMatch(/function backfillDesignLinks/);
     expect(INGEST).toMatch(/dataset_samples\?src_table=eq\.generations&src_id=eq\.\$\{d\.generation_id\}/);
+    expect(INGEST).toMatch(/order=created_at\.asc/);   // 수집 경로도 먼저 만든 설계를 고른다
     expect(INGEST).toMatch(/group_key: `dadam:design:\$\{d\.id\}`/);
   });
 });
