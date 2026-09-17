@@ -232,6 +232,8 @@ async function runPipeline(env, job, ck, save) {
     fridgeBrand: opts.fridge_options && opts.fridge_options.brand === 'lg' ? 'LG' : 'Samsung',
     fridgePosition:
       opts.fridge_options && opts.fridge_options.position === 'right' ? 'right' : 'left',
+    // 플래너 도면 요약 (worker.js 가 이미 검증해 options 에 넣었다). null 이면 범용 문단.
+    designSpec: opts.design_spec || null,
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   const prefix = `${job.userId}/${job.id}`;
