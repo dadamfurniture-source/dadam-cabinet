@@ -95,7 +95,8 @@ describe('1번 통 — 짧은옷 2단', () => {
     expect(L.rods).toHaveLength(2);
     expect(L.shelves).toHaveLength(0);
     L.cells.forEach((c, i) => expect(L.rods[i].y).toBe(c.y0 + c.h - R.ROD_OFFSET));
-    L.rods.forEach((r) => expect(r.length).toBe(L.Wi));
+    // clearW = 칸 내경 폭, length = 파이프 재단 길이 (−5, 양쪽 소켓 자리)
+    L.rods.forEach((r) => { expect(r.clearW).toBe(L.Wi); expect(r.length).toBe(L.Wi - R.ROD_LENGTH_MINUS); });
   });
 });
 
@@ -157,7 +158,7 @@ describe('3번 통 — 중간 칸막이 반 분할', () => {
     expect(L.shelves).toHaveLength(2);
     expect(L.rods).toHaveLength(2);
     expect(L.shelves.map((s) => s.cutW)).toEqual(L.cells.map((c) => c.w));
-    expect(L.rods.map((r) => r.length)).toEqual(L.cells.map((c) => c.w));
+    expect(L.rods.map((r) => r.clearW)).toEqual(L.cells.map((c) => c.w));
   });
 });
 
@@ -185,7 +186,7 @@ describe('4번 통 — 상단 옷봉 + 하부 옆 분할', () => {
   });
 
   test('옷봉 둘 — 하부 짧은옷은 그 칸 폭, 상부는 통 내경 폭', () => {
-    expect(L.rods.map((r) => r.length).sort((x, y) => x - y))
+    expect(L.rods.map((r) => r.clearW).sort((x, y) => x - y))
       .toEqual([L.cells[1].w, L.Wi].sort((x, y) => x - y));
   });
 });
@@ -243,14 +244,30 @@ describe('BOM 으로 넘기는 것', () => {
     expect(rows.find((r) => r.part === '선반').qty).toBe(2);   // 같은 치수는 한 줄로 묶는다
   });
 
-  test('옷봉이 철물로 나온다 — 파이프와 소켓 2EA, 규격 미확정은 비고에', () => {
-    const hw = WR.rodHardwareOf(layout({ preset: 'short2' }));
+  test('옷봉이 철물로 나온다 — 크롬 25파이 파이프 + 원형소켓 2EA (2026-09-17 확정)', () => {
+    const L = layout({ preset: 'short2' });
+    const hw = WR.rodHardwareOf(L);
     const pipe = hw.find((h) => h.name === '옷봉');
-    const socket = hw.find((h) => h.name === '옷봉 소켓');
+    const socket = hw.find((h) => h.name === '옷봉 원형소켓');
     expect(pipe).toMatchObject({ qty: 2, unit: 'EA' });
-    expect(pipe.spec).toBe('870mm');
-    expect(pipe.note).toMatch(/\[확인 필요\]/);
+    // 길이 = 칸 내경 폭 − 5
+    expect(pipe.spec).toBe(`${R.ROD_SPEC} ${L.Wi - R.ROD_LENGTH_MINUS}mm`);
+    expect(pipe.note).not.toMatch(/\[확인 필요\]/);   // 규격을 받았다
     expect(socket.qty).toBe(2 * R.ROD_SOCKETS_PER_ROD);
+    expect(socket.spec).toBe(R.ROD_SPEC);
+  });
+
+  test('길이만 넘겨도 같은 줄이 나온다 — 칸 구조가 없는 옛 설계용', () => {
+    expect(WR.rodLengthFor(870)).toBe(865);
+    expect(WR.rodLengthFor(0)).toBe(0);
+    const hw = WR.rodHardwareFor([865, 865, 422]);
+    expect(hw.map((h) => [h.name, h.spec, h.qty])).toEqual([
+      ['옷봉', `${R.ROD_SPEC} 422mm`, 1],
+      ['옷봉', `${R.ROD_SPEC} 865mm`, 2],
+      ['옷봉 원형소켓', R.ROD_SPEC, 6],
+    ]);
+    expect(WR.rodHardwareFor([])).toEqual([]);
+    expect(WR.rodHardwareFor([0, -3])).toEqual([]);
   });
 
   test('옷봉 없는 구성은 철물도 없다', () => {
@@ -260,7 +277,7 @@ describe('BOM 으로 넘기는 것', () => {
   test('길이가 다른 옷봉은 줄을 나눈다 (4번 통)', () => {
     const hw = WR.rodHardwareOf(layout({ preset: 'rodTopSplitBottom' }));
     expect(hw.filter((h) => h.name === '옷봉')).toHaveLength(2);
-    expect(hw.find((h) => h.name === '옷봉 소켓').qty).toBe(4);
+    expect(hw.find((h) => h.name === '옷봉 원형소켓').qty).toBe(4);
   });
 });
 
